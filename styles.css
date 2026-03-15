@@ -64,10 +64,12 @@ main {
   grid-template-columns: minmax(680px, 1fr) 370px;
   gap: 1rem;
   padding: 1rem;
+  align-items: start;
 }
 
 .board-panel {
   position: relative;
+  align-self: start;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
