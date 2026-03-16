@@ -407,6 +407,14 @@ class ColonistFullGame {
     const rect = container.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
     if (window.innerWidth <= 1080) {
+      const w = Math.round(rect.width);
+      const h = Math.round(rect.height);
+      if (w !== this.boardWidth || h !== this.boardHeight) {
+        this.boardWidth = w;
+        this.boardHeight = h;
+        this.configureCanvasResolution();
+        this.rebuildGeometry();
+      }
       this.canvas.style.width = "100%";
       this.canvas.style.height = "100%";
       this.canvas.style.margin = "0";
@@ -425,8 +433,37 @@ class ColonistFullGame {
     }
   }
 
+  rebuildGeometry() {
+    if (!this.geometry) return;
+    const oldHexes = this.geometry.hexes.map(h => ({ resource: h.resource, number: h.number }));
+    const oldNodes = this.geometry.nodes.map(n => ({ owner: n.owner, structure: n.structure }));
+    const oldEdges = this.geometry.edges.map(e => ({ owner: e.owner }));
+    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight);
+    this.geometry.hexes.forEach((hex, i) => {
+      hex.resource = oldHexes[i].resource;
+      hex.number = oldHexes[i].number;
+    });
+    this.geometry.nodes.forEach((node, i) => {
+      node.owner = oldNodes[i].owner;
+      node.structure = oldNodes[i].structure;
+    });
+    this.geometry.edges.forEach((edge, i) => {
+      edge.owner = oldEdges[i].owner;
+    });
+    // Restore port data on nodes
+    this.geometry.nodes.forEach(n => { n.ports = []; });
+    this.ports.forEach(p => {
+      p.nodes.forEach(nodeId => {
+        if (!this.geometry.nodes[nodeId].ports.includes(p.type)) {
+          this.geometry.nodes[nodeId].ports.push(p.type);
+        }
+      });
+    });
+  }
+
   handleResize() {
     this.fitCanvasToContainer();
+    this.render();
   }
 
   startAnimationLoop() {
@@ -1201,7 +1238,8 @@ class ColonistFullGame {
 
   findNodeAt(x, y) {
     let bestId = null;
-    let bestDist = 16;
+    const hitRadius = Math.max(16, this.geometry.hexSize * 0.28);
+    let bestDist = hitRadius;
     this.geometry.nodes.forEach((node) => {
       const dist = Math.hypot(x - node.x, y - node.y);
       if (dist < bestDist) {
@@ -1214,7 +1252,8 @@ class ColonistFullGame {
 
   findEdgeAt(x, y) {
     let bestId = null;
-    let bestDist = 10;
+    const hitRadius = Math.max(10, this.geometry.hexSize * 0.18);
+    let bestDist = hitRadius;
     this.geometry.edges.forEach((edge) => {
       const [a, b] = edge.nodes;
       const p1 = this.geometry.nodes[a];
