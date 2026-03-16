@@ -82,10 +82,11 @@ body {
 /* ── Main Layout ── */
 main.table-layout {
   display: grid;
-  grid-template-columns: 1fr 280px;
-  gap: 0.4rem;
+  grid-template-columns: 1fr;
+  gap: 0;
   min-height: 0;
   overflow: hidden;
+  position: relative;
 }
 
 /* ── Board Area ── */
@@ -136,13 +137,19 @@ main.table-layout {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Right Rail ── */
+/* ── Right Rail (floating overlay) ── */
 .right-rail {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  min-height: 0;
-  overflow: hidden;
+  pointer-events: none;
+  z-index: 10;
+  padding: 0.4rem;
+  width: 260px;
 }
 
 .rail-card {
@@ -151,6 +158,7 @@ main.table-layout {
   border-radius: 10px;
   padding: 0.5rem;
   box-shadow: 0 3px 8px rgba(8, 35, 55, 0.2);
+  pointer-events: auto;
 }
 
 .rail-card h2 {
@@ -161,11 +169,20 @@ main.table-layout {
   color: #3a526d;
 }
 
+/* ── Log drawer ── */
 .rail-log {
   flex: 1 1 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  transform: translateX(calc(100% + 0.4rem));
+  opacity: 0;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+}
+
+.rail-log.open {
+  transform: translateX(0);
+  opacity: 1;
 }
 
 .rail-log .log {
@@ -173,7 +190,46 @@ main.table-layout {
   min-height: 60px;
 }
 
-.rail-players { flex-shrink: 0; }
+/* ── Log toggle button ── */
+.log-toggle {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  z-index: 11;
+  pointer-events: auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(240, 237, 229, 0.92), rgba(231, 224, 210, 0.92));
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 3px 10px rgba(8, 35, 55, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1rem;
+  color: #3a526d;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  padding: 0;
+}
+
+.log-toggle:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 14px rgba(8, 35, 55, 0.35);
+}
+
+.log-toggle.active {
+  background: linear-gradient(180deg, #19a0b8, #157f91);
+  color: #fff;
+  border-color: rgba(25, 160, 184, 0.6);
+}
+
+.rail-players {
+  flex-shrink: 0;
+  background: linear-gradient(180deg, rgba(240, 237, 229, 0.88), rgba(231, 224, 210, 0.88));
+  backdrop-filter: blur(6px);
+}
 
 .log {
   border: 1px solid rgba(129, 151, 176, 0.5);
@@ -587,22 +643,33 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
     gap: 0.35rem;
     overflow: auto;
   }
-  main.table-layout { display: contents; }
+  main.table-layout {
+    display: contents;
+  }
   .table-header { order: 0; }
-  .board-area { order: 1; min-height: 300px; }
+  .board-area { order: 1; min-height: 350px; position: relative; }
   .bottom-bar { order: 2; }
   .right-rail {
     order: 3;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.35rem;
-    overflow: visible;
+    position: relative;
+    width: 100%;
+    flex-direction: row;
+    padding: 0;
+    pointer-events: auto;
   }
-  .rail-log .log { max-height: 150px; }
+  .rail-players { flex: 1; }
+  .rail-log {
+    flex: 1;
+    transform: none;
+    opacity: 1;
+    max-height: 180px;
+  }
+  .rail-log.open { transform: none; }
+  .log-toggle { display: none; }
 }
 
 @media (max-width: 600px) {
-  .right-rail { grid-template-columns: 1fr; }
+  .right-rail { flex-direction: column; }
   .table-header {
     grid-template-columns: 1fr;
     text-align: center;

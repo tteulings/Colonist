@@ -147,7 +147,7 @@ function createAxialHexes(radius) {
 }
 
 function createBoardGeometry(canvasWidth, canvasHeight) {
-  const hexSize = 74;
+  const hexSize = Math.min(canvasWidth / 13, canvasHeight / 7.6);
   const centerX = canvasWidth * 0.47;
   const centerY = canvasHeight * 0.5;
 
@@ -332,6 +332,8 @@ class ColonistFullGame {
     this.canvas = document.querySelector("#board");
     this.ctx = this.canvas.getContext("2d");
     this.logContainer = document.querySelector("#log");
+    this.railLog = document.querySelector("#railLog");
+    this.logToggle = document.querySelector("#logToggle");
     this.scoreboard = document.querySelector("#scoreboard");
     this.toastStack = document.querySelector("#toastStack");
     this.leftPlayerPanel = document.querySelector("#leftPlayerPanel");
@@ -525,11 +527,18 @@ class ColonistFullGame {
       }
     });
     window.addEventListener("keydown", (event) => this.handleKeyboardShortcut(event));
+    this.logToggle.addEventListener("click", () => this.toggleLog());
     let resizeTimer;
     window.addEventListener("resize", () => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => this.handleResize(), 200);
     });
+  }
+
+  toggleLog() {
+    const isOpen = this.railLog.classList.toggle("open");
+    this.logToggle.classList.toggle("active", isOpen);
+    this.logToggle.innerHTML = isOpen ? "&#10005;" : "&#9776;";
   }
 
   get currentPlayer() {
@@ -2033,11 +2042,12 @@ class ColonistFullGame {
   drawTokenPips(hex) {
     if (hex.number == null) return;
     const ctx = this.ctx;
+    const s = this.geometry.hexSize / 74;
     const pips = DICE_WEIGHT[hex.number];
-    const radius = 2.1;
-    const spacing = 5;
+    const radius = 2.1 * s;
+    const spacing = 5 * s;
     const startX = hex.center.x - ((pips - 1) * spacing) / 2;
-    const y = hex.center.y + 10;
+    const y = hex.center.y + 10 * s;
     ctx.fillStyle = hex.number === 6 || hex.number === 8 ? "#af1b1b" : "#38485f";
     for (let i = 0; i < pips; i += 1) {
       ctx.beginPath();
@@ -2077,8 +2087,10 @@ class ColonistFullGame {
     ctx.fill();
     ctx.restore();
 
+    const hxs = this.geometry.hexSize;
+    const sc = hxs / 74;
     this.drawHexPath(hex.corners);
-    const surface = ctx.createLinearGradient(hex.center.x - 38, hex.center.y - 38, hex.center.x + 38, hex.center.y + 38);
+    const surface = ctx.createLinearGradient(hex.center.x - 38 * sc, hex.center.y - 38 * sc, hex.center.x + 38 * sc, hex.center.y + 38 * sc);
     surface.addColorStop(0, "rgba(255,255,255,0.27)");
     surface.addColorStop(0.45, "rgba(255,255,255,0)");
     surface.addColorStop(1, "rgba(0,0,0,0.14)");
@@ -2089,9 +2101,9 @@ class ColonistFullGame {
     this.drawHexPath(hex.corners);
     ctx.clip();
     for (let i = 0; i < 6; i += 1) {
-      const sx = hex.center.x + Math.sin(hex.id * 7.3 + i * 1.9) * 30;
-      const sy = hex.center.y + Math.cos(hex.id * 5.2 + i * 2.2) * 28;
-      const radius = 8 + ((hex.id + i) % 5);
+      const sx = hex.center.x + Math.sin(hex.id * 7.3 + i * 1.9) * 30 * sc;
+      const sy = hex.center.y + Math.cos(hex.id * 5.2 + i * 2.2) * 28 * sc;
+      const radius = (8 + ((hex.id + i) % 5)) * sc;
       ctx.beginPath();
       ctx.arc(sx, sy, radius, 0, Math.PI * 2);
       ctx.fillStyle = i % 2 ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.07)";
@@ -2101,34 +2113,37 @@ class ColonistFullGame {
 
     this.drawHexPath(hex.corners);
     ctx.strokeStyle = "rgba(195, 165, 100, 0.75)";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 * sc;
     ctx.stroke();
 
     // Tile artwork layer: show clear resource iconography on the board itself.
     this.drawTileArtwork(hex);
 
     if (hex.number != null) {
+      const tokenR = hxs * 0.27;
       ctx.save();
       ctx.shadowColor = "rgba(58, 78, 101, 0.35)";
-      ctx.shadowBlur = 6;
-      ctx.shadowOffsetY = 2;
+      ctx.shadowBlur = 6 * sc;
+      ctx.shadowOffsetY = 2 * sc;
       ctx.beginPath();
-      ctx.arc(hex.center.x, hex.center.y, 20, 0, Math.PI * 2);
-      const token = ctx.createRadialGradient(hex.center.x - 6, hex.center.y - 7, 2, hex.center.x, hex.center.y, 22);
+      ctx.arc(hex.center.x, hex.center.y, tokenR, 0, Math.PI * 2);
+      const token = ctx.createRadialGradient(hex.center.x - 6 * sc, hex.center.y - 7 * sc, 2 * sc, hex.center.x, hex.center.y, tokenR + 2 * sc);
       token.addColorStop(0, "rgba(255,252,245,0.98)");
       token.addColorStop(1, "rgba(214,210,199,0.95)");
       ctx.fillStyle = token;
       ctx.fill();
       ctx.restore();
 
+      const hs = this.geometry.hexSize;
+      const tokenRadius = hs * 0.27;
       ctx.beginPath();
-      ctx.arc(hex.center.x, hex.center.y, 20, 0, Math.PI * 2);
+      ctx.arc(hex.center.x, hex.center.y, tokenRadius, 0, Math.PI * 2);
       ctx.strokeStyle = "rgba(27, 35, 48, 0.36)";
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
       ctx.fillStyle = hex.number === 6 || hex.number === 8 ? "#be1a1a" : "#18212c";
-      ctx.font = "bold 17px Inter, sans-serif";
+      ctx.font = `bold ${Math.round(hs * 0.23)}px Inter, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(String(hex.number), hex.center.x, hex.center.y - 2);
@@ -2136,37 +2151,38 @@ class ColonistFullGame {
     }
 
     ctx.fillStyle = "rgba(239, 248, 255, 0.72)";
-    ctx.font = "700 10px Inter, sans-serif";
+    ctx.font = `700 ${Math.round(hs * 0.135)}px Inter, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
     ctx.fillStyle = "rgba(20, 52, 86, 0.65)";
-    ctx.font = `600 ${Math.round(this.geometry.hexSize * 0.12)}px Inter, system-ui, sans-serif`;
-    ctx.fillText(label, hex.center.x, hex.center.y + 32);
+    ctx.font = `600 ${Math.round(hs * 0.12)}px Inter, system-ui, sans-serif`;
+    ctx.fillText(label, hex.center.x, hex.center.y + hs * 0.43);
 
     if (hex.id === this.robberHexId) {
+      const s = (hs / 74) * 0.75;
       ctx.save();
       ctx.translate(hex.center.x, hex.center.y);
       ctx.shadowColor = "rgba(0,0,0,0.5)";
-      ctx.shadowBlur = 8;
-      ctx.shadowOffsetY = 2;
+      ctx.shadowBlur = 8 * s;
+      ctx.shadowOffsetY = 2 * s;
       ctx.fillStyle = "#1a2030";
       ctx.beginPath();
-      ctx.arc(0, -17, 9, 0, Math.PI * 2);
+      ctx.arc(0, -17 * s, 9 * s, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.moveTo(-14, 14);
-      ctx.lineTo(-8, -3);
-      ctx.lineTo(0, -10);
-      ctx.lineTo(8, -3);
-      ctx.lineTo(14, 14);
+      ctx.moveTo(-14 * s, 14 * s);
+      ctx.lineTo(-8 * s, -3 * s);
+      ctx.lineTo(0, -10 * s);
+      ctx.lineTo(8 * s, -3 * s);
+      ctx.lineTo(14 * s, 14 * s);
       ctx.closePath();
       ctx.fill();
       ctx.strokeStyle = "#8a95a5";
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.5 * s;
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(0, -17, 9, 0, Math.PI * 2);
+      ctx.arc(0, -17 * s, 9 * s, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -2176,9 +2192,13 @@ class ColonistFullGame {
     const ctx = this.ctx;
     const t = this.animTime || 0;
     const pulse = 0.5 + Math.sin(t * 1.2 + hex.id * 0.7) * 0.5;
+    const artScale = this.geometry.hexSize / 74;
     ctx.save();
     this.drawHexPath(hex.corners);
     ctx.clip();
+    ctx.translate(hex.center.x, hex.center.y);
+    ctx.scale(artScale, artScale);
+    ctx.translate(-hex.center.x, -hex.center.y);
 
     const cx = hex.center.x;
     const cy = hex.center.y;
@@ -2354,6 +2374,7 @@ class ColonistFullGame {
 
   drawPorts() {
     const ctx = this.ctx;
+    const s = this.geometry.hexSize / 74;
     const portColor = {
       wood: "#3d9e50", brick: "#c66536", sheep: "#6db84e",
       wheat: "#d4a825", ore: "#7a8da9", any: "#4a7eb5",
@@ -2370,15 +2391,15 @@ class ColonistFullGame {
       const nx = dx / len;
       const ny = dy / len;
 
-      const dockDist = 30;
+      const dockDist = 30 * s;
       const dockX = mx + nx * dockDist;
       const dockY = my + ny * dockDist;
       const color = portColor[port.type] || portColor.any;
 
       ctx.save();
       ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
-      ctx.setLineDash([4, 3]);
+      ctx.lineWidth = 3 * s;
+      ctx.setLineDash([4 * s, 3 * s]);
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(dockX, dockY);
@@ -2390,35 +2411,36 @@ class ColonistFullGame {
 
       ctx.save();
       ctx.shadowColor = "rgba(0,0,0,0.3)";
-      ctx.shadowBlur = 5;
-      ctx.shadowOffsetY = 2;
+      ctx.shadowBlur = 5 * s;
+      ctx.shadowOffsetY = 2 * s;
       const label = port.type === "any" ? "3:1" : `2:1 ${RESOURCE_LABEL[port.type]}`;
-      ctx.font = "700 10px Inter, system-ui, sans-serif";
+      const portFontSize = Math.round(10 * s);
+      ctx.font = `700 ${portFontSize}px Inter, system-ui, sans-serif`;
       const tw = ctx.measureText(label).width;
-      const boxW = Math.max(38, tw + 14);
-      const boxH = 22;
+      const boxW = Math.max(38 * s, tw + 14 * s);
+      const boxH = 22 * s;
       const bx = dockX - boxW / 2;
       const by = dockY - boxH / 2;
 
-      this.drawRoundedRect(bx, by, boxW, boxH, 6);
+      this.drawRoundedRect(bx, by, boxW, boxH, 6 * s);
       ctx.fillStyle = color;
       ctx.fill();
       ctx.strokeStyle = "rgba(255,255,255,0.5)";
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.5 * s;
       ctx.stroke();
       ctx.restore();
 
       ctx.save();
       ctx.fillStyle = "#fff";
-      ctx.font = "700 10px Inter, system-ui, sans-serif";
+      ctx.font = `700 ${portFontSize}px Inter, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(label, dockX, dockY + 0.5);
       ctx.restore();
 
       ctx.save();
-      const shipY = dockY - boxH / 2 - 8;
-      ctx.font = "12px serif";
+      const shipY = dockY - boxH / 2 - 8 * s;
+      ctx.font = `${Math.round(12 * s)}px serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("⚓", dockX, shipY);
@@ -2428,20 +2450,22 @@ class ColonistFullGame {
 
   drawNodeDots() {
     const ctx = this.ctx;
+    const s = this.geometry.hexSize / 74;
     this.geometry.nodes.forEach((node) => {
       if (node.owner != null) return;
       ctx.beginPath();
-      ctx.arc(node.x, node.y, 4.5, 0, Math.PI * 2);
+      ctx.arc(node.x, node.y, 4.5 * s, 0, Math.PI * 2);
       ctx.fillStyle = "rgba(205, 175, 110, 0.6)";
       ctx.fill();
       ctx.strokeStyle = "rgba(160, 120, 50, 0.4)";
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1 * s;
       ctx.stroke();
     });
   }
 
   drawRoads() {
     const ctx = this.ctx;
+    const s = this.geometry.hexSize / 74;
     ctx.lineCap = "round";
     this.geometry.edges.forEach((edge) => {
       const [a, b] = edge.nodes;
@@ -2453,8 +2477,8 @@ class ColonistFullGame {
         ctx.moveTo(p1.x, p1.y);
         ctx.lineTo(p2.x, p2.y);
         ctx.strokeStyle = "rgba(228, 240, 255, 0.16)";
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 4]);
+        ctx.lineWidth = 2 * s;
+        ctx.setLineDash([5 * s, 4 * s]);
         ctx.stroke();
         ctx.setLineDash([]);
         return;
@@ -2464,14 +2488,14 @@ class ColonistFullGame {
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
       ctx.strokeStyle = "rgba(13, 17, 25, 0.62)";
-      ctx.lineWidth = 9.3;
+      ctx.lineWidth = 9.3 * s;
       ctx.stroke();
 
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
       ctx.strokeStyle = this.players[edge.owner].color;
-      ctx.lineWidth = 6.6;
+      ctx.lineWidth = 6.6 * s;
       ctx.stroke();
 
       const highlight = ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
@@ -2481,33 +2505,21 @@ class ColonistFullGame {
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
       ctx.strokeStyle = highlight;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 * s;
       ctx.stroke();
     });
 
-    if (this.pendingAction === "road" && this.currentPlayer.isHuman && this.phase === "main") {
-      ctx.strokeStyle = "rgba(112, 214, 255, 0.9)";
-      ctx.lineWidth = 4;
-      this.geometry.edges.forEach((edge) => {
-        if (!this.canBuildRoad(this.currentPlayer, edge.id, { free: false })) return;
-        const [a, b] = edge.nodes;
-        const p1 = this.geometry.nodes[a];
-        const p2 = this.geometry.nodes[b];
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.stroke();
-      });
-    }
   }
 
   drawStructures() {
     const ctx = this.ctx;
+    const s = this.geometry.hexSize / 74;
     this.geometry.nodes.forEach((node) => {
       if (node.owner == null || node.structure == null) return;
       const player = this.players[node.owner];
       ctx.save();
       ctx.translate(node.x, node.y);
+      ctx.scale(s, s);
       ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
       ctx.shadowBlur = 8;
       ctx.shadowOffsetY = 3;
@@ -2555,13 +2567,13 @@ class ColonistFullGame {
         this.geometry.nodes.forEach((node) => {
           if (!this.canBuildSettlement(this.players[this.setupQueue[this.setupStep]], node.id, true)) return;
           ctx.beginPath();
-          ctx.arc(node.x, node.y, 7, 0, Math.PI * 2);
+          ctx.arc(node.x, node.y, 7 * s, 0, Math.PI * 2);
           ctx.fill();
         });
       } else if (this.setupAction === "road" && this.lastSetupNodeId != null) {
         ctx.strokeStyle = `rgba(112, 214, 255, ${pulse})`;
-        ctx.lineWidth = 4;
-        ctx.setLineDash([6, 4]);
+        ctx.lineWidth = 4 * s;
+        ctx.setLineDash([6 * s, 4 * s]);
         this.geometry.edges.forEach((edge) => {
           if (edge.owner != null || !edge.nodes.includes(this.lastSetupNodeId)) return;
           const [a, b] = edge.nodes;
@@ -2581,9 +2593,9 @@ class ColonistFullGame {
     const player = this.currentPlayer;
     const pulse = 0.28 + (Math.sin(Date.now() / 240) + 1) * 0.15;
 
-    const showSettlements = this.pendingAction === "settlement" || (!this.pendingAction && hasResources(player.resources, COSTS.settlement));
-    const showCities = this.pendingAction === "city" || (!this.pendingAction && hasResources(player.resources, COSTS.city));
-    const showRoads = this.pendingAction === "road" || (!this.pendingAction && hasResources(player.resources, COSTS.road));
+    const showSettlements = this.pendingAction === "settlement";
+    const showCities = this.pendingAction === "city";
+    const showRoads = this.pendingAction === "road";
 
     if (showSettlements || showCities) {
       this.geometry.nodes.forEach((node) => {
@@ -2597,18 +2609,18 @@ class ColonistFullGame {
         }
         if (!buildable) return;
         ctx.beginPath();
-        ctx.arc(node.x, node.y, 7, 0, Math.PI * 2);
+        ctx.arc(node.x, node.y, 7 * s, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1 * s;
         ctx.stroke();
       });
     }
 
     if (showRoads) {
       ctx.strokeStyle = `rgba(112, 214, 255, ${pulse})`;
-      ctx.lineWidth = 4;
-      ctx.setLineDash([6, 4]);
+      ctx.lineWidth = 4 * s;
+      ctx.setLineDash([6 * s, 4 * s]);
       this.geometry.edges.forEach((edge) => {
         if (!this.canBuildRoad(player, edge.id, { free: false })) return;
         const [a, b] = edge.nodes;
@@ -2625,11 +2637,12 @@ class ColonistFullGame {
 
   drawHoverEffects() {
     const ctx = this.ctx;
+    const s = this.geometry.hexSize / 74;
     if (this.hoverHexId != null) {
       const hex = this.geometry.hexes[this.hoverHexId];
       this.drawHexPath(hex.corners);
       ctx.strokeStyle = "rgba(35, 132, 204, 0.75)";
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 3 * s;
       ctx.stroke();
       this.drawHexPath(hex.corners);
       ctx.fillStyle = "rgba(76, 175, 255, 0.08)";
@@ -2644,19 +2657,19 @@ class ColonistFullGame {
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
       ctx.strokeStyle = "rgba(39, 201, 255, 0.95)";
-      ctx.lineWidth = 6;
+      ctx.lineWidth = 6 * s;
       ctx.stroke();
     }
     if (this.hoverNodeId != null) {
       const node = this.geometry.nodes[this.hoverNodeId];
       ctx.beginPath();
-      ctx.arc(node.x, node.y, 8, 0, Math.PI * 2);
+      ctx.arc(node.x, node.y, 8 * s, 0, Math.PI * 2);
       ctx.fillStyle = "rgba(39, 201, 255, 0.65)";
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(node.x, node.y, 8, 0, Math.PI * 2);
+      ctx.arc(node.x, node.y, 8 * s, 0, Math.PI * 2);
       ctx.strokeStyle = "rgba(10, 45, 77, 0.8)";
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 * s;
       ctx.stroke();
     }
   }
@@ -2664,12 +2677,14 @@ class ColonistFullGame {
   drawHoverTooltip() {
     if (!this.hoverTooltip) return;
     const ctx = this.ctx;
-    const x = this.hoverPointer.x + 14;
-    const y = this.hoverPointer.y - 28;
+    const s = this.geometry.hexSize / 74;
+    const x = this.hoverPointer.x + 14 * s;
+    const y = this.hoverPointer.y - 28 * s;
     ctx.save();
-    ctx.font = "700 12px Inter, sans-serif";
-    const width = Math.max(90, ctx.measureText(this.hoverTooltip).width + 16);
-    this.drawRoundedRect(x, y, width, 24, 7);
+    ctx.font = `700 ${Math.round(12 * s)}px Inter, sans-serif`;
+    const width = Math.max(90 * s, ctx.measureText(this.hoverTooltip).width + 16 * s);
+    const height = 24 * s;
+    this.drawRoundedRect(x, y, width, height, 7 * s);
     ctx.fillStyle = "rgba(15, 42, 69, 0.9)";
     ctx.fill();
     ctx.strokeStyle = "rgba(166, 218, 255, 0.7)";
@@ -2678,7 +2693,7 @@ class ColonistFullGame {
     ctx.fillStyle = "#e8f6ff";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText(this.hoverTooltip, x + 8, y + 12.3);
+    ctx.fillText(this.hoverTooltip, x + 8 * s, y + height / 2);
     ctx.restore();
   }
 

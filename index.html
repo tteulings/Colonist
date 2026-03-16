@@ -20,13 +20,13 @@
       <main class="table-layout">
         <section class="board-area">
           <section class="board-panel">
-            <canvas id="board" width="980" height="560" aria-label="Game board"></canvas>
+            <canvas id="board" width="1200" height="700" aria-label="Game board"></canvas>
             <div id="toastStack" class="toast-stack" aria-live="polite"></div>
           </section>
         </section>
 
         <aside class="right-rail">
-          <section class="rail-card rail-log">
+          <section class="rail-card rail-log" id="railLog">
             <h2>Event Log</h2>
             <div id="log" class="log"></div>
           </section>
@@ -35,6 +35,8 @@
             <div id="scoreboard"></div>
           </section>
         </aside>
+
+        <button class="log-toggle" id="logToggle" title="Toggle event log">&#9776;</button>
       </main>
 
       <section class="bottom-bar">
