@@ -767,8 +767,8 @@ main.table-layout {
 }
 
 .board-panel {
-  height: 100%;
-  min-height: 560px;
+  height: auto;
+  min-height: 360px;
   border-radius: 12px;
   border: 1px solid rgba(133, 173, 202, 0.45);
   box-shadow: 0 7px 16px rgba(6, 35, 59, 0.32);
@@ -776,9 +776,11 @@ main.table-layout {
 }
 
 #board {
-  height: 100%;
-  min-height: 560px;
+  width: 100%;
+  height: auto;
+  min-height: 360px;
   background: linear-gradient(180deg, #1b79b8 0%, #196fa9 100%);
+  display: block;
 }
 
 .right-rail {
@@ -1238,6 +1240,89 @@ main.table-layout {
   }
 }
 
+/* ── Dice roll animation ── */
+.dice-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  z-index: 30;
+  background: rgba(10, 30, 50, 0.45);
+  backdrop-filter: blur(2px);
+  border-radius: inherit;
+  animation: diceOverlayIn 0.15s ease-out;
+}
+
+.dice-overlay.fade-out {
+  animation: diceOverlayOut 0.3s ease-in forwards;
+}
+
+@keyframes diceOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes diceOverlayOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.die {
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(145deg, #fefefe, #e8e2d8);
+  border: 2px solid rgba(120, 90, 50, 0.4);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  color: #1a1a2e;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  user-select: none;
+}
+
+.die.rolling {
+  animation: diceShake 0.08s ease-in-out infinite alternate;
+}
+
+.die.landed {
+  animation: diceBounce 0.25s ease-out;
+}
+
+@keyframes diceShake {
+  from { transform: rotate(-8deg) scale(0.95); }
+  to { transform: rotate(8deg) scale(1.05); }
+}
+
+@keyframes diceBounce {
+  0% { transform: scale(1.2); }
+  50% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+/* ── Resource gain floater ── */
+.resource-floater {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--res-color, #2f8f3b);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  animation: floatUp 0.85s ease-out forwards;
+  z-index: 20;
+}
+
+@keyframes floatUp {
+  0% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-32px); }
+}
+
 @media (max-width: 1380px) {
   main.table-layout {
     grid-template-columns: 1fr 260px;
@@ -1257,6 +1342,6 @@ main.table-layout {
   }
   .board-panel,
   #board {
-    min-height: 480px;
+    min-height: 320px;
   }
 }
