@@ -76,14 +76,24 @@ async function main() {
   try {
     const { chromium } = require("playwright");
     const browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-    await page.goto(URL, { waitUntil: "networkidle" });
-    await page.waitForSelector("[data-game-ready]", { timeout: 10000 });
-    await new Promise((r) => setTimeout(r, 500));
     fs.mkdirSync(path.dirname(SCREENSHOT_PATH), { recursive: true });
-    await page.screenshot({ path: SCREENSHOT_PATH, fullPage: true });
+
+    const desktopPage = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await desktopPage.goto(URL, { waitUntil: "networkidle" });
+    await desktopPage.waitForSelector("[data-game-ready]", { timeout: 10000 });
+    await new Promise((r) => setTimeout(r, 500));
+    await desktopPage.screenshot({ path: SCREENSHOT_PATH, fullPage: true });
+    console.log("Desktop screenshot saved to", SCREENSHOT_PATH);
+
+    const mobilePath = SCREENSHOT_PATH.replace(".png", "-mobile.png");
+    const mobilePage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await mobilePage.goto(URL, { waitUntil: "networkidle" });
+    await mobilePage.waitForSelector("[data-game-ready]", { timeout: 10000 });
+    await new Promise((r) => setTimeout(r, 500));
+    await mobilePage.screenshot({ path: mobilePath, fullPage: true });
+    console.log("Mobile screenshot saved to", mobilePath);
+
     await browser.close();
-    console.log("Screenshot saved to", SCREENSHOT_PATH);
   } finally {
     if (server && server.close) server.close();
   }

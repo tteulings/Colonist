@@ -827,21 +827,13 @@ main.table-layout {
 }
 
 .board-panel {
-  height: auto;
-  min-height: 360px;
   border-radius: 12px;
   border: 1px solid rgba(133, 173, 202, 0.45);
   box-shadow: 0 7px 16px rgba(6, 35, 59, 0.32);
   position: relative;
+  overflow: hidden;
 }
 
-#board {
-  width: 100%;
-  height: auto;
-  min-height: 360px;
-  background: linear-gradient(180deg, #1b79b8 0%, #196fa9 100%);
-  display: block;
-}
 
 .right-rail {
   display: grid;
@@ -1391,17 +1383,23 @@ main.table-layout {
 
 @media (max-width: 1080px) {
   .app-shell {
-    grid-template-rows: auto auto auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
   }
   main.table-layout {
-    grid-template-columns: 1fr;
+    display: contents;
   }
+  .table-header { order: 0; }
+  .board-area { order: 1; }
+  .bottom-bar { order: 2; }
   .right-rail {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto;
+    order: 3;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
   }
-  .board-panel,
-  #board {
-    min-height: 320px;
+  .rail-log .log {
+    max-height: 160px;
   }
 }

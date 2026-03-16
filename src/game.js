@@ -381,6 +381,7 @@ class ColonistFullGame {
     this.hoverTooltip = "";
 
     this.configureCanvasResolution();
+    this.fitCanvasToContainer();
     this.populateResourceSelects();
     this.bindControls();
     this.resetGame();
@@ -389,56 +390,25 @@ class ColonistFullGame {
 
   configureCanvasResolution() {
     this.pixelRatio = clamp(window.devicePixelRatio || 1, 1, 2);
-    const container = this.canvas.parentElement;
-    if (container) {
-      const rect = container.getBoundingClientRect();
-      if (rect.width > 0) {
-        const aspect = this.boardHeight / this.boardWidth;
-        const w = Math.round(rect.width);
-        const h = Math.max(Math.round(w * aspect), 360);
-        this.canvas.style.width = w + "px";
-        this.canvas.style.height = h + "px";
-        this.canvas.width = Math.round(w * this.pixelRatio);
-        this.canvas.height = Math.round(h * this.pixelRatio);
-        this.boardWidth = w;
-        this.boardHeight = h;
-      } else {
-        this.canvas.width = Math.round(this.boardWidth * this.pixelRatio);
-        this.canvas.height = Math.round(this.boardHeight * this.pixelRatio);
-      }
-    } else {
-      this.canvas.width = Math.round(this.boardWidth * this.pixelRatio);
-      this.canvas.height = Math.round(this.boardHeight * this.pixelRatio);
-    }
+    this.canvas.width = Math.round(this.boardWidth * this.pixelRatio);
+    this.canvas.height = Math.round(this.boardHeight * this.pixelRatio);
+    this.canvas.style.width = this.boardWidth + "px";
+    this.canvas.style.height = this.boardHeight + "px";
     this.ctx.imageSmoothingEnabled = true;
   }
 
+  fitCanvasToContainer() {
+    const container = this.canvas.parentElement;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const scale = rect.width / this.boardWidth;
+    this.canvas.style.width = "100%";
+    this.canvas.style.height = Math.round(this.boardHeight * scale) + "px";
+  }
+
   handleResize() {
-    const oldNodes = this.geometry.nodes.map(n => ({ owner: n.owner, structure: n.structure, ports: [...n.ports] }));
-    const oldEdges = this.geometry.edges.map(e => ({ owner: e.owner }));
-    const oldHexes = this.geometry.hexes.map(h => ({ resource: h.resource, number: h.number }));
-
-    this.configureCanvasResolution();
-    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight);
-
-    this.geometry.hexes.forEach((hex, i) => {
-      if (oldHexes[i]) {
-        hex.resource = oldHexes[i].resource;
-        hex.number = oldHexes[i].number;
-      }
-    });
-    this.geometry.nodes.forEach((node, i) => {
-      if (oldNodes[i]) {
-        node.owner = oldNodes[i].owner;
-        node.structure = oldNodes[i].structure;
-        node.ports = oldNodes[i].ports;
-      }
-    });
-    this.geometry.edges.forEach((edge, i) => {
-      if (oldEdges[i]) edge.owner = oldEdges[i].owner;
-    });
-
-    this.render();
+    this.fitCanvasToContainer();
   }
 
   startAnimationLoop() {
@@ -2153,7 +2123,7 @@ class ColonistFullGame {
     ctx.textBaseline = "middle";
     const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
     ctx.fillStyle = "rgba(20, 52, 86, 0.65)";
-    ctx.font = `600 ${Math.round(hexSize * 0.12)}px Inter, system-ui, sans-serif`;
+    ctx.font = `600 ${Math.round(this.geometry.hexSize * 0.12)}px Inter, system-ui, sans-serif`;
     ctx.fillText(label, hex.center.x, hex.center.y + 32);
 
     if (hex.id === this.robberHexId) {
@@ -2401,7 +2371,7 @@ class ColonistFullGame {
       ctx.font = "700 10px Inter, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(label, boxX + 20, boxY + 8.5);
+      ctx.fillText(label, boxX + labelWidth / 2, boxY + 8.5);
     });
   }
 
