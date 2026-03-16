@@ -79,6 +79,15 @@ h2 {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   box-shadow: 0 5px 11px rgba(19, 64, 108, 0.22);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.table-logo img {
+  width: 32px;
+  height: 16px;
+  border-radius: 6px;
 }
 
 .mini-player {
@@ -318,6 +327,17 @@ button {
   font-weight: 650;
   cursor: pointer;
   transition: transform 130ms ease, box-shadow 150ms ease, border-color 150ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.btn-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.55);
 }
 
 button:hover {

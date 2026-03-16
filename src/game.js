@@ -1,5 +1,6 @@
 const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore: "Or" };
+const RESOURCE_LABEL = { wood: "Wood", brick: "Brick", sheep: "Sheep", wheat: "Wheat", ore: "Ore" };
 const RESOURCE_ICON_PATH = {
   wood: "./assets/icons/resource-wood.svg",
   brick: "./assets/icons/resource-brick.svg",
@@ -297,6 +298,23 @@ function distancePointToSegment(px, py, x1, y1, x2, y2) {
   return Math.hypot(px - x, py - y);
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function pointInPolygon(x, y, polygon) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const xi = polygon[i].x;
+    const yi = polygon[i].y;
+    const xj = polygon[j].x;
+    const yj = polygon[j].y;
+    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + Number.EPSILON) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
 class ColonistFullGame {
   constructor() {
     this.canvas = document.querySelector("#board");
@@ -315,6 +333,7 @@ class ColonistFullGame {
     this.nextTurnBtn = document.querySelector("#nextTurnBtn");
     this.autoplayBtn = document.querySelector("#autoplayBtn");
     this.resetBtn = document.querySelector("#resetBtn");
+    this.resetViewBtn = document.querySelector("#resetViewBtn");
     this.rollDiceBtn = document.querySelector("#rollDiceBtn");
     this.endTurnBtn = document.querySelector("#endTurnBtn");
     this.buildRoadBtn = document.querySelector("#buildRoadBtn");
@@ -336,6 +355,13 @@ class ColonistFullGame {
     this.aiTurnTimeout = null;
     this.animTime = 0;
     this.animationFrame = null;
+    this.view = { offsetX: 0, offsetY: 0, scale: 1 };
+    this.dragState = { active: false, startX: 0, startY: 0, baseOffsetX: 0, baseOffsetY: 0 };
+    this.hoverHexId = null;
+    this.hoverNodeId = null;
+    this.hoverEdgeId = null;
+    this.hoverPointer = { x: 0, y: 0 };
+    this.hoverTooltip = "";
 
     this.populateResourceSelects();
     this.bindControls();
@@ -378,6 +404,7 @@ class ColonistFullGame {
       this.stopAutoplay();
       this.resetGame();
     });
+    this.resetViewBtn.addEventListener("click", () => this.resetViewTransform());
     this.rollDiceBtn.addEventListener("click", () => {
       this.handleHumanRoll();
     });
@@ -404,10 +431,40 @@ class ColonistFullGame {
       }
     });
     this.canvas.addEventListener("click", (event) => this.handleBoardClick(event));
+    this.canvas.addEventListener("mousemove", (event) => this.handleCanvasMouseMove(event));
+    this.canvas.addEventListener("mouseleave", () => this.handleCanvasMouseLeave());
+    this.canvas.addEventListener("mousedown", (event) => this.handleCanvasMouseDown(event));
+    window.addEventListener("mouseup", () => this.handleCanvasMouseUp());
+    this.canvas.addEventListener(
+      "wheel",
+      (event) => this.handleCanvasWheel(event),
+      { passive: false },
+    );
   }
 
   get currentPlayer() {
     return this.players[this.currentPlayerIndex];
+  }
+
+  screenToWorld(x, y) {
+    return {
+      x: (x - this.view.offsetX) / this.view.scale,
+      y: (y - this.view.offsetY) / this.view.scale,
+    };
+  }
+
+  worldToScreen(x, y) {
+    return {
+      x: x * this.view.scale + this.view.offsetX,
+      y: y * this.view.scale + this.view.offsetY,
+    };
+  }
+
+  resetViewTransform() {
+    this.view.offsetX = 0;
+    this.view.offsetY = 0;
+    this.view.scale = 1;
+    this.render();
   }
 
   resetGame() {
@@ -445,6 +502,14 @@ class ColonistFullGame {
     this.currentTurnPlayedDevCard = false;
     this.longestRoadHolder = null;
     this.largestArmyHolder = null;
+    this.view.offsetX = 0;
+    this.view.offsetY = 0;
+    this.view.scale = 1;
+    this.hoverHexId = null;
+    this.hoverNodeId = null;
+    this.hoverEdgeId = null;
+    this.hoverTooltip = "";
+    this.canvas.style.cursor = "grab";
 
     this.initialPlacement();
     this.recomputeScores();
@@ -526,6 +591,7 @@ class ColonistFullGame {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner || this.phase !== "main") return;
     this.pendingAction = this.pendingAction === action ? null : action;
+    this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
     this.render();
   }
 
@@ -566,14 +632,29 @@ class ColonistFullGame {
 
   handleBoardClick(event) {
     const player = this.currentPlayer;
-    if (!player || !player.isHuman || this.phase !== "main" || this.winner || !this.pendingAction) return;
+    if (!player || !player.isHuman || this.phase !== "main" || this.winner) return;
 
     const rect = this.canvas.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) * this.canvas.width) / rect.width;
-    const y = ((event.clientY - rect.top) * this.canvas.height) / rect.height;
+    const sx = ((event.clientX - rect.left) * this.canvas.width) / rect.width;
+    const sy = ((event.clientY - rect.top) * this.canvas.height) / rect.height;
+    const world = this.screenToWorld(sx, sy);
+    const x = world.x;
+    const y = world.y;
+
+    if (!this.pendingAction) {
+      const hexId = this.findHexAt(x, y);
+      if (hexId != null) {
+        const hex = this.geometry.hexes[hexId];
+        const tileName = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
+        const number = hex.number == null ? "—" : String(hex.number);
+        this.addLog(`Tile: ${tileName} · Number ${number}.`);
+        this.render();
+      }
+      return;
+    }
 
     if (this.pendingAction === "road") {
-      const edgeId = this.findEdgeAt(x, y);
+      const edgeId = this.hoverEdgeId ?? this.findEdgeAt(x, y);
       if (edgeId == null) return;
       if (this.placeRoad(player, edgeId, { free: false })) {
         payCost(player.resources, COSTS.road);
@@ -583,7 +664,7 @@ class ColonistFullGame {
         this.addLog("Cannot build road at this edge.");
       }
     } else {
-      const nodeId = this.findNodeAt(x, y);
+      const nodeId = this.hoverNodeId ?? this.findNodeAt(x, y);
       if (nodeId == null) return;
       if (this.pendingAction === "settlement") {
         if (this.placeSettlement(player, nodeId, false)) {
@@ -607,6 +688,120 @@ class ColonistFullGame {
     this.recomputeScores();
     this.checkForWinner(player);
     this.render();
+  }
+
+  handleCanvasMouseMove(event) {
+    const rect = this.canvas.getBoundingClientRect();
+    const sx = ((event.clientX - rect.left) * this.canvas.width) / rect.width;
+    const sy = ((event.clientY - rect.top) * this.canvas.height) / rect.height;
+    this.hoverPointer.x = sx;
+    this.hoverPointer.y = sy;
+
+    if (this.dragState.active) {
+      this.view.offsetX = this.dragState.baseOffsetX + (sx - this.dragState.startX);
+      this.view.offsetY = this.dragState.baseOffsetY + (sy - this.dragState.startY);
+      this.canvas.style.cursor = "grabbing";
+      this.render();
+      return;
+    }
+
+    const world = this.screenToWorld(sx, sy);
+    this.updateHoverTargets(world.x, world.y);
+    this.render();
+  }
+
+  handleCanvasMouseLeave() {
+    this.dragState.active = false;
+    this.hoverHexId = null;
+    this.hoverNodeId = null;
+    this.hoverEdgeId = null;
+    this.hoverTooltip = "";
+    this.canvas.style.cursor = "default";
+    this.render();
+  }
+
+  handleCanvasMouseDown(event) {
+    if (event.button !== 0) return;
+    if (this.pendingAction) return;
+    this.dragState.active = true;
+    const rect = this.canvas.getBoundingClientRect();
+    this.dragState.startX = ((event.clientX - rect.left) * this.canvas.width) / rect.width;
+    this.dragState.startY = ((event.clientY - rect.top) * this.canvas.height) / rect.height;
+    this.dragState.baseOffsetX = this.view.offsetX;
+    this.dragState.baseOffsetY = this.view.offsetY;
+    this.canvas.style.cursor = "grabbing";
+  }
+
+  handleCanvasMouseUp() {
+    if (!this.dragState.active) return;
+    this.dragState.active = false;
+    this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
+  }
+
+  handleCanvasWheel(event) {
+    event.preventDefault();
+    const rect = this.canvas.getBoundingClientRect();
+    const sx = ((event.clientX - rect.left) * this.canvas.width) / rect.width;
+    const sy = ((event.clientY - rect.top) * this.canvas.height) / rect.height;
+    const before = this.screenToWorld(sx, sy);
+    const factor = event.deltaY < 0 ? 1.08 : 0.92;
+    this.view.scale = clamp(this.view.scale * factor, 0.75, 1.65);
+    this.view.offsetX = sx - before.x * this.view.scale;
+    this.view.offsetY = sy - before.y * this.view.scale;
+    this.render();
+  }
+
+  updateHoverTargets(worldX, worldY) {
+    this.hoverHexId = null;
+    this.hoverNodeId = null;
+    this.hoverEdgeId = null;
+    this.hoverTooltip = "";
+
+    const player = this.currentPlayer;
+    if (player?.isHuman && this.phase === "main" && this.pendingAction === "road") {
+      const edgeId = this.findEdgeAt(worldX, worldY);
+      if (edgeId != null && this.canBuildRoad(player, edgeId, { free: false })) {
+        this.hoverEdgeId = edgeId;
+        this.canvas.style.cursor = "pointer";
+      } else {
+        this.canvas.style.cursor = "crosshair";
+      }
+      return;
+    }
+    if (player?.isHuman && this.phase === "main" && (this.pendingAction === "settlement" || this.pendingAction === "city")) {
+      const nodeId = this.findNodeAt(worldX, worldY);
+      const buildable =
+        nodeId != null &&
+        (this.pendingAction === "settlement"
+          ? this.canBuildSettlement(player, nodeId, false)
+          : this.canBuildCity(player, nodeId, false));
+      if (buildable) {
+        this.hoverNodeId = nodeId;
+        this.canvas.style.cursor = "pointer";
+      } else {
+        this.canvas.style.cursor = "crosshair";
+      }
+      return;
+    }
+
+    const hexId = this.findHexAt(worldX, worldY);
+    if (hexId != null) {
+      this.hoverHexId = hexId;
+      const hex = this.geometry.hexes[hexId];
+      const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
+      const number = hex.number == null ? "—" : String(hex.number);
+      this.hoverTooltip = `${label} · ${number}`;
+      this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
+    } else {
+      this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
+    }
+  }
+
+  findHexAt(x, y) {
+    for (const hex of this.geometry.hexes) {
+      if (pointInPolygon(x, y, hex.corners)) return hex.id;
+    }
+    return null;
   }
 
   findNodeAt(x, y) {
@@ -1950,6 +2145,65 @@ class ColonistFullGame {
     });
   }
 
+  drawHoverEffects() {
+    const ctx = this.ctx;
+    if (this.hoverHexId != null) {
+      const hex = this.geometry.hexes[this.hoverHexId];
+      this.drawHexPath(hex.corners);
+      ctx.strokeStyle = "rgba(35, 132, 204, 0.75)";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      this.drawHexPath(hex.corners);
+      ctx.fillStyle = "rgba(76, 175, 255, 0.08)";
+      ctx.fill();
+    }
+    if (this.hoverEdgeId != null) {
+      const edge = this.geometry.edges[this.hoverEdgeId];
+      const [a, b] = edge.nodes;
+      const p1 = this.geometry.nodes[a];
+      const p2 = this.geometry.nodes[b];
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.strokeStyle = "rgba(39, 201, 255, 0.95)";
+      ctx.lineWidth = 6;
+      ctx.stroke();
+    }
+    if (this.hoverNodeId != null) {
+      const node = this.geometry.nodes[this.hoverNodeId];
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, 8, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(39, 201, 255, 0.65)";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, 8, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(10, 45, 77, 0.8)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  }
+
+  drawHoverTooltip() {
+    if (!this.hoverTooltip) return;
+    const ctx = this.ctx;
+    const x = this.hoverPointer.x + 14;
+    const y = this.hoverPointer.y - 28;
+    ctx.save();
+    ctx.font = "700 12px Inter, sans-serif";
+    const width = Math.max(90, ctx.measureText(this.hoverTooltip).width + 16);
+    this.drawRoundedRect(x, y, width, 24, 7);
+    ctx.fillStyle = "rgba(15, 42, 69, 0.9)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(166, 218, 255, 0.7)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = "#e8f6ff";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(this.hoverTooltip, x + 8, y + 12.3);
+    ctx.restore();
+  }
+
   drawTurnHud() {
     const ctx = this.ctx;
     const active = this.currentPlayer;
@@ -2137,10 +2391,16 @@ class ColonistFullGame {
     if (!this.geometry) return;
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.drawBoardBackdrop();
+    this.ctx.save();
+    this.ctx.translate(this.view.offsetX, this.view.offsetY);
+    this.ctx.scale(this.view.scale, this.view.scale);
     this.geometry.hexes.forEach((hex) => this.drawHex(hex));
     this.drawPorts();
     this.drawRoads();
     this.drawStructures();
+    this.drawHoverEffects();
+    this.ctx.restore();
+    this.drawHoverTooltip();
     this.drawTurnHud();
   }
 
