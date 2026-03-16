@@ -551,25 +551,97 @@ class ColonistFullGame {
       (event) => this.handleCanvasWheel(event),
       { passive: false },
     );
+    // ── Touch state ──
+    this.touchState = {
+      startTouches: null,
+      lastTouches: null,
+      isPinching: false,
+      isDragging: false,
+      startTime: 0,
+      startX: 0,
+      startY: 0,
+      totalMoved: 0,
+    };
+
     this.canvas.addEventListener("touchstart", (event) => {
-      if (event.touches.length === 1) {
+      event.preventDefault();
+      const ts = this.touchState;
+      ts.startTime = Date.now();
+
+      if (event.touches.length === 2) {
+        // Start pinch zoom
+        ts.isPinching = true;
+        ts.isDragging = false;
+        ts.startTouches = this.getTouchPair(event.touches);
+        ts.lastTouches = ts.startTouches;
+        this.dragState.active = false;
+      } else if (event.touches.length === 1) {
         const touch = event.touches[0];
-        this.handleCanvasMouseDown({ clientX: touch.clientX, clientY: touch.clientY, button: 0 });
+        ts.startX = touch.clientX;
+        ts.startY = touch.clientY;
+        ts.totalMoved = 0;
+        ts.isPinching = false;
+        ts.isDragging = false;
+        // Start drag if not in placement mode
+        if (!this.pendingAction && !this.setupPhase) {
+          this.handleCanvasMouseDown({ clientX: touch.clientX, clientY: touch.clientY, button: 0 });
+        }
       }
-    }, { passive: true });
+    }, { passive: false });
+
     this.canvas.addEventListener("touchmove", (event) => {
-      if (event.touches.length === 1) {
+      event.preventDefault();
+      const ts = this.touchState;
+
+      if (event.touches.length === 2 && ts.isPinching) {
+        const pair = this.getTouchPair(event.touches);
+        this.handlePinchMove(ts.lastTouches, pair);
+        ts.lastTouches = pair;
+      } else if (event.touches.length === 1 && !ts.isPinching) {
         const touch = event.touches[0];
+        const dx = touch.clientX - ts.startX;
+        const dy = touch.clientY - ts.startY;
+        ts.totalMoved += Math.abs(dx - (ts.lastDx || 0)) + Math.abs(dy - (ts.lastDy || 0));
+        ts.lastDx = dx;
+        ts.lastDy = dy;
+        ts.isDragging = true;
         this.handleCanvasMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
       }
-    }, { passive: true });
+    }, { passive: false });
+
     this.canvas.addEventListener("touchend", (event) => {
-      this.handleCanvasMouseUp();
-      if (event.changedTouches.length === 1) {
-        const touch = event.changedTouches[0];
-        const fakeClick = { clientX: touch.clientX, clientY: touch.clientY };
-        this.handleBoardClick(fakeClick);
+      event.preventDefault();
+      const ts = this.touchState;
+
+      if (ts.isPinching) {
+        // End pinch — if still one finger left, ignore until all up
+        if (event.touches.length === 0) {
+          ts.isPinching = false;
+        }
+        this.dragState.active = false;
+        return;
       }
+
+      this.handleCanvasMouseUp();
+
+      // Only fire click if it was a quick tap without much movement
+      const elapsed = Date.now() - ts.startTime;
+      const wasTap = elapsed < 300 && ts.totalMoved < 20;
+      if (wasTap && event.changedTouches.length === 1) {
+        const touch = event.changedTouches[0];
+        this.handleBoardClick({ clientX: touch.clientX, clientY: touch.clientY });
+      }
+
+      ts.isDragging = false;
+      ts.totalMoved = 0;
+      ts.lastDx = 0;
+      ts.lastDy = 0;
+    }, { passive: false });
+
+    this.canvas.addEventListener("touchcancel", () => {
+      this.touchState.isPinching = false;
+      this.touchState.isDragging = false;
+      this.dragState.active = false;
     });
     window.addEventListener("keydown", (event) => this.handleKeyboardShortcut(event));
     this.logToggle.addEventListener("click", () => this.toggleLog());
@@ -683,20 +755,33 @@ class ColonistFullGame {
   }
 
   processSetupQueue() {
-    while (this.setupStep < this.setupQueue.length) {
-      const playerId = this.setupQueue[this.setupStep];
-      const player = this.players[playerId];
+    if (this.setupStep >= this.setupQueue.length) {
+      this.setupPhase = false;
+      this.setupAction = null;
+      this.addLog("Initial placement complete.");
+      this.render();
+      return;
+    }
 
-      if (player.isHuman) {
-        this.setupAction = "settlement";
-        this.addLog("Place your settlement on the board.");
-        this.render();
-        return;
-      }
+    const playerId = this.setupQueue[this.setupStep];
+    const player = this.players[playerId];
 
-      const nodeId = this.getBestInitialSettlementNode(player);
-      if (nodeId == null) { this.setupStep++; continue; }
-      this.placeSettlement(player, nodeId, true);
+    if (player.isHuman) {
+      this.setupAction = "settlement";
+      this.addLog("Place your settlement on the board.");
+      this.render();
+      return;
+    }
+
+    // AI placement with delay
+    const nodeId = this.getBestInitialSettlementNode(player);
+    if (nodeId == null) { this.setupStep++; this.processSetupQueue(); return; }
+    this.placeSettlement(player, nodeId, true);
+    this.addLog(`${player.name} placed a settlement.`);
+    this.recomputeScores();
+    this.render();
+
+    setTimeout(() => {
       const roadId = this.getBestRoadFromNode(player, nodeId);
       if (roadId != null) this.placeRoad(player, roadId, { free: true, setupNode: nodeId });
       if (this.setupStep >= this.players.length) {
@@ -705,12 +790,12 @@ class ColonistFullGame {
           if (hex.resource !== "desert") player.resources[hex.resource] += 1;
         });
       }
+      this.addLog(`${player.name} placed a road.`);
+      this.recomputeScores();
+      this.render();
       this.setupStep++;
-    }
-    this.setupPhase = false;
-    this.setupAction = null;
-    this.addLog("Initial placement complete.");
-    this.render();
+      setTimeout(() => this.processSetupQueue(), 350);
+    }, 400);
   }
 
   handleSetupClick(x, y) {
@@ -1062,6 +1147,33 @@ class ColonistFullGame {
     this.view.scale = clamp(this.view.scale * factor, 0.45, 1.95);
     this.view.offsetX = sx - before.x * this.view.scale;
     this.view.offsetY = sy - before.y * this.view.scale;
+    this.drawCanvasScene();
+  }
+
+  getTouchPair(touches) {
+    return {
+      x1: touches[0].clientX, y1: touches[0].clientY,
+      x2: touches[1].clientX, y2: touches[1].clientY,
+      dist: Math.hypot(touches[1].clientX - touches[0].clientX, touches[1].clientY - touches[0].clientY),
+      midX: (touches[0].clientX + touches[1].clientX) / 2,
+      midY: (touches[0].clientY + touches[1].clientY) / 2,
+    };
+  }
+
+  handlePinchMove(prev, curr) {
+    if (prev.dist === 0) return;
+    const factor = curr.dist / prev.dist;
+    const mid = this.getCanvasPoint({ clientX: curr.midX, clientY: curr.midY });
+    const before = this.screenToWorld(mid.x, mid.y);
+    this.view.scale = clamp(this.view.scale * factor, 0.35, 2.5);
+    this.view.offsetX = mid.x - before.x * this.view.scale;
+    this.view.offsetY = mid.y - before.y * this.view.scale;
+
+    // Also pan with the midpoint movement
+    const prevMid = this.getCanvasPoint({ clientX: prev.midX, clientY: prev.midY });
+    this.view.offsetX += (mid.x - prevMid.x);
+    this.view.offsetY += (mid.y - prevMid.y);
+
     this.drawCanvasScene();
   }
 
@@ -1770,9 +1882,11 @@ class ColonistFullGame {
     const node = this.geometry.nodes[nodeId];
     let bestEdge = null;
     let bestScore = Number.NEGATIVE_INFINITY;
+    let fallbackEdge = null;
     node.edgeIds.forEach((edgeId) => {
       const edge = this.geometry.edges[edgeId];
       if (edge.owner != null) return;
+      if (fallbackEdge == null) fallbackEdge = edgeId;
       const other = edge.nodes[0] === nodeId ? edge.nodes[1] : edge.nodes[0];
       if (this.geometry.nodes[other].structure != null) return;
       const score = this.getNodeProductionScore(other, player);
@@ -1781,7 +1895,7 @@ class ColonistFullGame {
         bestEdge = edgeId;
       }
     });
-    return bestEdge;
+    return bestEdge ?? fallbackEdge;
   }
 
   getBuildableSettlementNodes(player) {
@@ -2049,7 +2163,7 @@ class ColonistFullGame {
     if (this.currentPlayer.isHuman) return;
     if (this.aiTurnTimeout) return;
 
-    const cadence = Math.max(180, Math.min(1200, Math.round(Number(this.speedRange.value) * 0.55)));
+    const cadence = Math.max(400, Math.min(1200, Math.round(Number(this.speedRange.value) * 0.6)));
     const step = () => {
       this.aiTurnTimeout = null;
       if (this.winner || this.autoplayInterval || this.currentPlayer.isHuman) {
@@ -2057,11 +2171,12 @@ class ColonistFullGame {
         return;
       }
       this.autoPlayCurrentTurn();
+      this.render();
       if (!this.winner && !this.autoplayInterval && !this.currentPlayer.isHuman) {
         this.aiTurnTimeout = window.setTimeout(step, cadence);
       }
     };
-    this.aiTurnTimeout = window.setTimeout(step, 220);
+    this.aiTurnTimeout = window.setTimeout(step, 500);
   }
 
   // ── Game-over overlay & restart ──────────────────────────────────────
@@ -2769,13 +2884,9 @@ class ColonistFullGame {
       ctx.shadowBlur = 8;
       ctx.shadowOffsetY = 3;
 
-      const fill = ctx.createLinearGradient(-12, -12, 12, 12);
-      fill.addColorStop(0, "rgba(255,255,255,0.26)");
-      fill.addColorStop(0.25, player.color);
-      fill.addColorStop(1, "rgba(16,16,20,0.45)");
-      ctx.fillStyle = fill;
+      ctx.fillStyle = player.color;
       ctx.strokeStyle = "#0f1722";
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 2;
 
       if (node.structure === "settlement") {
         ctx.beginPath();
@@ -2963,15 +3074,18 @@ class ColonistFullGame {
       if (idx === this.currentPlayerIndex && !this.winner) card.classList.add("active");
 
       const totalCards = sumResources(player.resources);
+      const totalDev = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + player.devVictoryPoints;
       card.innerHTML = `
         <img class="player-avatar" src="${player.avatar}" alt="${player.name} avatar" />
         <span class="player-name" style="color:${player.color}">${player.name}</span>
         <span class="player-vp" title="Victory points">${player.victoryPoints} VP</span>
         <div class="player-stats">
-          <span class="stat-item" title="${totalCards} cards in hand"><span class="stat-icon">🃏</span>${totalCards}</span>
+          <span class="stat-item" title="${totalCards} resource cards"><span class="stat-icon card-icon"></span>${totalCards}</span>
+          <span class="stat-item" title="${totalDev} dev cards"><span class="stat-icon dev-icon"></span>${totalDev}</span>
           <span class="stat-item" title="${player.roads.size} roads"><span class="stat-icon road-icon"></span>${player.roads.size}</span>
           <span class="stat-item" title="${player.settlements.size} settlements"><span class="stat-icon settle-icon"></span>${player.settlements.size}</span>
           <span class="stat-item" title="${player.cities.size} cities"><span class="stat-icon city-icon"></span>${player.cities.size}</span>
+          <span class="stat-item" title="${player.knightsPlayed} knights played"><span class="stat-icon knight-icon"></span>${player.knightsPlayed}</span>
         </div>
       `;
       this.scoreboard.appendChild(card);
