@@ -2147,26 +2147,26 @@ class ColonistFullGame {
     if (hex.id === this.robberHexId) {
       ctx.save();
       ctx.translate(hex.center.x, hex.center.y);
-      ctx.shadowColor = "rgba(0,0,0,0.5)";
-      ctx.shadowBlur = 8;
-      ctx.shadowOffsetY = 2;
-      ctx.fillStyle = "#1e2530";
+      ctx.shadowColor = "rgba(0,0,0,0.55)";
+      ctx.shadowBlur = 12;
+      ctx.shadowOffsetY = 3;
+      ctx.fillStyle = "#1a2030";
       ctx.beginPath();
-      ctx.arc(0, -14, 7.5, 0, Math.PI * 2);
+      ctx.arc(0, -26, 13, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.moveTo(-12, 12);
-      ctx.lineTo(-7, -4);
-      ctx.lineTo(0, -9);
-      ctx.lineTo(7, -4);
-      ctx.lineTo(12, 12);
+      ctx.moveTo(-20, 20);
+      ctx.lineTo(-12, -6);
+      ctx.lineTo(0, -16);
+      ctx.lineTo(12, -6);
+      ctx.lineTo(20, 20);
       ctx.closePath();
       ctx.fill();
       ctx.strokeStyle = "#8a95a5";
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 2;
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(0, -14, 7.5, 0, Math.PI * 2);
+      ctx.arc(0, -26, 13, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -2512,38 +2512,38 @@ class ColonistFullGame {
       ctx.shadowBlur = 8;
       ctx.shadowOffsetY = 3;
 
-      const fill = ctx.createLinearGradient(-14, -14, 14, 14);
+      const fill = ctx.createLinearGradient(-20, -20, 20, 20);
       fill.addColorStop(0, "rgba(255,255,255,0.26)");
       fill.addColorStop(0.25, player.color);
       fill.addColorStop(1, "rgba(16,16,20,0.45)");
       ctx.fillStyle = fill;
       ctx.strokeStyle = "#0f1722";
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 2;
 
       if (node.structure === "settlement") {
         ctx.beginPath();
-        ctx.moveTo(-12, 10);
-        ctx.lineTo(-12, -3);
-        ctx.lineTo(0, -14);
-        ctx.lineTo(12, -3);
-        ctx.lineTo(12, 10);
+        ctx.moveTo(-16, 14);
+        ctx.lineTo(-16, -4);
+        ctx.lineTo(0, -20);
+        ctx.lineTo(16, -4);
+        ctx.lineTo(16, 14);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
         ctx.fillStyle = "rgba(255,255,255,0.3)";
-        ctx.fillRect(-4, -1, 3.5, 3.5);
+        ctx.fillRect(-6, -2, 5, 5);
       } else {
         ctx.beginPath();
-        ctx.rect(-14, -8, 28, 18);
-        ctx.moveTo(-15, -8);
-        ctx.lineTo(0, -20);
-        ctx.lineTo(15, -8);
+        ctx.rect(-20, -12, 40, 26);
+        ctx.moveTo(-21, -12);
+        ctx.lineTo(0, -28);
+        ctx.lineTo(21, -12);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
         ctx.fillStyle = "rgba(255,255,255,0.3)";
-        ctx.fillRect(-8, -2, 4.5, 4.5);
-        ctx.fillRect(3, -2, 4.5, 4.5);
+        ctx.fillRect(-12, -4, 6, 6);
+        ctx.fillRect(5, -4, 6, 6);
       }
       ctx.restore();
     });
