@@ -968,7 +968,7 @@ class ColonistFullGame {
 
   handleCanvasMouseDown(event) {
     if (event.button !== 0) return;
-    if (this.pendingAction) return;
+    if (this.pendingAction || this.setupPhase) return;
     this.dragState.active = true;
     const { x: sx, y: sy } = this.getCanvasPoint(event);
     this.dragState.startX = sx;
@@ -1072,6 +1072,28 @@ class ColonistFullGame {
 
     const player = this.currentPlayer;
     const humanMain = player?.isHuman && this.phase === "main";
+
+    if (this.setupPhase && player?.isHuman) {
+      if (this.setupAction === "settlement") {
+        const nodeId = this.findNodeAt(worldX, worldY);
+        if (nodeId != null && this.canBuildSettlement(player, nodeId, true)) {
+          this.hoverNodeId = nodeId;
+          this.hoverTooltip = "Place settlement";
+          this.canvas.style.cursor = "pointer";
+          return;
+        }
+      } else if (this.setupAction === "road") {
+        const edgeId = this.findEdgeAt(worldX, worldY);
+        if (edgeId != null) {
+          this.hoverEdgeId = edgeId;
+          this.hoverTooltip = "Place road";
+          this.canvas.style.cursor = "pointer";
+          return;
+        }
+      }
+      this.canvas.style.cursor = "crosshair";
+      return;
+    }
 
     if (humanMain && this.pendingAction === "road") {
       const edgeId = this.findEdgeAt(worldX, worldY);
@@ -2332,6 +2354,10 @@ class ColonistFullGame {
 
   drawPorts() {
     const ctx = this.ctx;
+    const portColor = {
+      wood: "#3d9e50", brick: "#c66536", sheep: "#6db84e",
+      wheat: "#d4a825", ore: "#7a8da9", any: "#4a7eb5",
+    };
     this.ports.forEach((port) => {
       const edge = this.geometry.edges[port.edgeId];
       const p1 = this.geometry.nodes[edge.nodes[0]];
@@ -2340,38 +2366,63 @@ class ColonistFullGame {
       const my = (p1.y + p2.y) / 2;
       const dx = mx - this.geometry.centerX;
       const dy = my - this.geometry.centerY;
-      const length = Math.hypot(dx, dy) || 1;
-      const ox = (dx / length) * 17;
-      const oy = (dy / length) * 17;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = dx / len;
+      const ny = dy / len;
 
-      ctx.strokeStyle = "rgba(197, 231, 255, 0.72)";
-      ctx.lineWidth = 2;
+      const dockDist = 30;
+      const dockX = mx + nx * dockDist;
+      const dockY = my + ny * dockDist;
+      const color = portColor[port.type] || portColor.any;
+
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([4, 3]);
       ctx.beginPath();
-      ctx.moveTo(mx, my);
-      ctx.lineTo(mx + ox, my + oy);
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(dockX, dockY);
+      ctx.moveTo(p2.x, p2.y);
+      ctx.lineTo(dockX, dockY);
       ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
 
-      ctx.beginPath();
-      ctx.arc(mx + ox, my + oy, 2.8, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(233, 244, 255, 0.9)";
-      ctx.fill();
-
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.3)";
+      ctx.shadowBlur = 5;
+      ctx.shadowOffsetY = 2;
       const label = port.type === "any" ? "3:1" : `2:1 ${RESOURCE_LABEL[port.type]}`;
-      const labelWidth = Math.max(40, ctx.measureText(label).width + 10);
-      const boxX = mx + ox * 1.35 - labelWidth / 2;
-      const boxY = my + oy * 1.35 - 8;
-      this.drawRoundedRect(boxX, boxY, labelWidth, 16, 7);
-      ctx.fillStyle = "rgba(16, 26, 40, 0.88)";
-      ctx.fill();
-      ctx.strokeStyle = "rgba(173, 225, 255, 0.58)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      ctx.font = "700 10px Inter, system-ui, sans-serif";
+      const tw = ctx.measureText(label).width;
+      const boxW = Math.max(38, tw + 14);
+      const boxH = 22;
+      const bx = dockX - boxW / 2;
+      const by = dockY - boxH / 2;
 
-      ctx.fillStyle = "#ddf1ff";
-      ctx.font = "700 10px Inter, sans-serif";
+      this.drawRoundedRect(bx, by, boxW, boxH, 6);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.fillStyle = "#fff";
+      ctx.font = "700 10px Inter, system-ui, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(label, boxX + labelWidth / 2, boxY + 8.5);
+      ctx.fillText(label, dockX, dockY + 0.5);
+      ctx.restore();
+
+      ctx.save();
+      const shipY = dockY - boxH / 2 - 8;
+      ctx.font = "12px serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("⚓", dockX, shipY);
+      ctx.restore();
     });
   }
 
