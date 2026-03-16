@@ -88,6 +88,17 @@ function hasResources(resources, cost) {
   return Object.entries(cost).every(([type, amount]) => resources[type] >= amount);
 }
 
+function missingCostString(resources, cost) {
+  const missing = Object.entries(cost)
+    .map(([type, amount]) => {
+      const deficit = Math.max(0, amount - resources[type]);
+      if (deficit <= 0) return null;
+      return `${deficit}${RESOURCE_SHORT[type]}`;
+    })
+    .filter(Boolean);
+  return missing.length ? missing.join(" ") : "";
+}
+
 function payCost(resources, cost) {
   Object.entries(cost).forEach(([type, amount]) => {
     resources[type] -= amount;
@@ -323,6 +334,7 @@ class ColonistFullGame {
     this.scoreboard = document.querySelector("#scoreboard");
     this.statusText = document.querySelector("#statusText");
     this.hintText = document.querySelector("#hintText");
+    this.currentActionText = document.querySelector("#currentActionText");
     this.toastStack = document.querySelector("#toastStack");
     this.phaseRollTag = document.querySelector("#phaseRollTag");
     this.phaseBuildTag = document.querySelector("#phaseBuildTag");
@@ -339,6 +351,9 @@ class ColonistFullGame {
     this.buildRoadBtn = document.querySelector("#buildRoadBtn");
     this.buildSettlementBtn = document.querySelector("#buildSettlementBtn");
     this.buildCityBtn = document.querySelector("#buildCityBtn");
+    this.quickBuildRoadBtn = document.querySelector("#quickBuildRoadBtn");
+    this.quickBuildSettlementBtn = document.querySelector("#quickBuildSettlementBtn");
+    this.quickBuildCityBtn = document.querySelector("#quickBuildCityBtn");
     this.buyDevBtn = document.querySelector("#buyDevBtn");
     this.playKnightBtn = document.querySelector("#playKnightBtn");
     this.playRoadBuildingBtn = document.querySelector("#playRoadBuildingBtn");
@@ -439,6 +454,9 @@ class ColonistFullGame {
     this.buildRoadBtn.addEventListener("click", () => this.setPendingAction("road"));
     this.buildSettlementBtn.addEventListener("click", () => this.setPendingAction("settlement"));
     this.buildCityBtn.addEventListener("click", () => this.setPendingAction("city"));
+    this.quickBuildRoadBtn?.addEventListener("click", () => this.setPendingAction("road"));
+    this.quickBuildSettlementBtn?.addEventListener("click", () => this.setPendingAction("settlement"));
+    this.quickBuildCityBtn?.addEventListener("click", () => this.setPendingAction("city"));
     this.buyDevBtn.addEventListener("click", () => this.handleHumanBuyDevCard());
     this.playKnightBtn.addEventListener("click", () => this.handleHumanPlayDevCard("knight"));
     this.playRoadBuildingBtn.addEventListener("click", () =>
@@ -624,6 +642,9 @@ class ColonistFullGame {
   setPendingAction(action) {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner || this.phase !== "main") return;
+    if (action === "road" && !hasResources(player.resources, COSTS.road)) return;
+    if (action === "settlement" && !hasResources(player.resources, COSTS.settlement)) return;
+    if (action === "city" && !hasResources(player.resources, COSTS.city)) return;
     this.pendingAction = this.pendingAction === action ? null : action;
     this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
     this.render();
@@ -2345,13 +2366,16 @@ class ColonistFullGame {
       if (this.largestArmyHolder === idx) badges.push("Largest Army");
       if (player.isHuman) badges.push("Human");
       const vpPercent = Math.min(100, Math.round((player.victoryPoints / WINNING_POINTS) * 100));
-      const resourceChips = RESOURCES.map(
+      const nonZeroResources = RESOURCES.filter((resource) => player.resources[resource] > 0);
+      const shownResources = (nonZeroResources.length ? nonZeroResources : RESOURCES).slice(0, 3);
+      const resourceChips = shownResources.map(
         (resource) =>
           `<span class="resource-chip ${resource}">
             <img class="chip-icon" src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
             ${player.resources[resource]}
           </span>`,
       ).join("");
+      const totalCards = sumResources(player.resources);
 
       card.innerHTML = `
         <div class="player-row">
@@ -2362,9 +2386,13 @@ class ColonistFullGame {
           <span class="vp-badge">${player.victoryPoints} VP</span>
         </div>
         <div class="vp-track"><div class="vp-fill" style="width:${vpPercent}%"></div></div>
-        <div class="resource-line">Road ${player.roads.size} · Settle ${player.settlements.size} · City ${player.cities.size}</div>
         <div class="resource-chips">${resourceChips}</div>
-        <div class="resource-line">Dev VP ${player.devVictoryPoints} · Knights ${player.knightsPlayed} · LR ${player.longestRoadLength}</div>
+        <div class="player-stats-grid">
+          <span class="stat-pill"><span class="stat-dot"></span>Cards ${totalCards}</span>
+          <span class="stat-pill"><span class="stat-dot"></span>Road ${player.roads.size}</span>
+          <span class="stat-pill"><span class="stat-dot"></span>Settle ${player.settlements.size}</span>
+          <span class="stat-pill"><span class="stat-dot"></span>City ${player.cities.size}</span>
+        </div>
         <div class="badge-row">${badges.map((b) => `<span class="badge">${b}</span>`).join("")}</div>
       `;
       this.scoreboard.appendChild(card);
@@ -2406,7 +2434,7 @@ class ColonistFullGame {
 
   renderLog() {
     this.logContainer.innerHTML = "";
-    this.logEntries.slice(-80).forEach((entry) => {
+    this.logEntries.slice(-20).forEach((entry) => {
       const line = document.createElement("div");
       line.className = "log-entry";
       if (entry.includes("wins")) line.classList.add("winner");
@@ -2427,13 +2455,24 @@ class ColonistFullGame {
       this.statusText.textContent = `Turn ${this.turn} · Active: ${active.name} · ${phaseText}${rollText}`;
       const flowHint =
         this.pendingAction != null
-          ? `Selected action: ${this.pendingAction}. Valid targets glow on board; click to place.`
+          ? `Selected: ${this.pendingAction}. Click a glowing target.`
           : active.isHuman
             ? this.phase === "pre_roll"
-              ? "Press R to roll, then build/trade/play cards."
-              : "Use 1/2/3 for build modes, click target, then press E to end turn."
+              ? "Roll dice to start your turn."
+              : "Build or trade, then end your turn."
             : "AI players are resolving turns until your next turn.";
-      this.hintText.textContent = `${flowHint} (Esc cancels selected build mode)`;
+      this.hintText.textContent = `${flowHint} (Esc cancels)`;
+      if (this.currentActionText) {
+        if (this.phase === "pre_roll") {
+          this.currentActionText.textContent = "Next: Roll dice.";
+        } else if (this.pendingAction) {
+          this.currentActionText.textContent = `Next: Place ${this.pendingAction} on the map.`;
+        } else if (active.isHuman) {
+          this.currentActionText.textContent = "Next: Choose build/trade/card action, then End Turn.";
+        } else {
+          this.currentActionText.textContent = "AI is resolving actions.";
+        }
+      }
     }
 
     const humanTurn = this.currentPlayer.isHuman && !this.winner;
@@ -2441,15 +2480,73 @@ class ColonistFullGame {
     const preRoll = this.phase === "pre_roll";
     const noDevPlayed = !this.currentTurnPlayedDevCard;
     const human = this.currentPlayer;
+    const hasRoadCost = hasResources(human.resources, COSTS.road);
+    const hasSettlementCost = hasResources(human.resources, COSTS.settlement);
+    const hasCityCost = hasResources(human.resources, COSTS.city);
+    const hasDevCost = hasResources(human.resources, COSTS.development);
+    const canTradeBank = RESOURCES.some((resource) => human.resources[resource] >= this.getPlayerTradeRate(human, resource));
+    const roadMissing = missingCostString(human.resources, COSTS.road);
+    const settlementMissing = missingCostString(human.resources, COSTS.settlement);
+    const cityMissing = missingCostString(human.resources, COSTS.city);
+    const devMissing = missingCostString(human.resources, COSTS.development);
+
+    const setButtonState = (button, enabled, disabledHint, enabledHint = "") => {
+      if (!button) return;
+      button.disabled = !enabled;
+      button.title = enabled ? enabledHint : disabledHint;
+    };
 
     this.nextTurnBtn.disabled = !!this.winner || humanTurn || this.autoplayInterval != null;
     this.rollDiceBtn.disabled = !(humanTurn && preRoll);
     this.endTurnBtn.disabled = !(humanTurn && mainPhase);
-    this.buildRoadBtn.disabled = !(humanTurn && mainPhase);
-    this.buildSettlementBtn.disabled = !(humanTurn && mainPhase);
-    this.buildCityBtn.disabled = !(humanTurn && mainPhase);
-    this.buyDevBtn.disabled = !(humanTurn && mainPhase);
-    this.tradeBankBtn.disabled = !(humanTurn && mainPhase);
+    setButtonState(
+      this.buildRoadBtn,
+      humanTurn && mainPhase && hasRoadCost,
+      roadMissing ? `Need ${roadMissing}` : "Not available this phase",
+      "Build road (then click map edge)",
+    );
+    setButtonState(
+      this.buildSettlementBtn,
+      humanTurn && mainPhase && hasSettlementCost,
+      settlementMissing ? `Need ${settlementMissing}` : "Not available this phase",
+      "Build settlement (then click map node)",
+    );
+    setButtonState(
+      this.buildCityBtn,
+      humanTurn && mainPhase && hasCityCost,
+      cityMissing ? `Need ${cityMissing}` : "Not available this phase",
+      "Build city (then click your settlement)",
+    );
+    setButtonState(
+      this.quickBuildRoadBtn,
+      humanTurn && mainPhase && hasRoadCost,
+      roadMissing ? `Need ${roadMissing}` : "Not available this phase",
+      "Build road (map mode)",
+    );
+    setButtonState(
+      this.quickBuildSettlementBtn,
+      humanTurn && mainPhase && hasSettlementCost,
+      settlementMissing ? `Need ${settlementMissing}` : "Not available this phase",
+      "Build settlement (map mode)",
+    );
+    setButtonState(
+      this.quickBuildCityBtn,
+      humanTurn && mainPhase && hasCityCost,
+      cityMissing ? `Need ${cityMissing}` : "Not available this phase",
+      "Build city (map mode)",
+    );
+    setButtonState(
+      this.buyDevBtn,
+      humanTurn && mainPhase && hasDevCost && this.devDeck.length > 0,
+      this.devDeck.length <= 0 ? "Development deck is empty" : devMissing ? `Need ${devMissing}` : "Not available this phase",
+      "Buy development card",
+    );
+    setButtonState(
+      this.tradeBankBtn,
+      humanTurn && mainPhase && canTradeBank,
+      "Need enough resources for current port/bank rates",
+      "Trade with bank",
+    );
 
     this.playKnightBtn.disabled = !(humanTurn && mainPhase && noDevPlayed && human.devCards.knight > 0);
     this.playRoadBuildingBtn.disabled = !(
@@ -2476,9 +2573,30 @@ class ColonistFullGame {
     [this.buildRoadBtn, this.buildSettlementBtn, this.buildCityBtn].forEach((btn) =>
       btn.classList.remove("selected-action"),
     );
+    [this.quickBuildRoadBtn, this.quickBuildSettlementBtn, this.quickBuildCityBtn].forEach((btn) =>
+      btn?.classList.remove("selected-action"),
+    );
     if (this.pendingAction === "road") this.buildRoadBtn.classList.add("selected-action");
     if (this.pendingAction === "settlement") this.buildSettlementBtn.classList.add("selected-action");
     if (this.pendingAction === "city") this.buildCityBtn.classList.add("selected-action");
+    if (this.pendingAction === "road") this.quickBuildRoadBtn?.classList.add("selected-action");
+    if (this.pendingAction === "settlement") this.quickBuildSettlementBtn?.classList.add("selected-action");
+    if (this.pendingAction === "city") this.quickBuildCityBtn?.classList.add("selected-action");
+
+    [this.rollDiceBtn, this.endTurnBtn, this.buildRoadBtn, this.buildSettlementBtn, this.buildCityBtn].forEach(
+      (btn) => btn.classList.remove("attention"),
+    );
+    if (humanTurn && preRoll) {
+      this.rollDiceBtn.classList.add("attention");
+    } else if (humanTurn && mainPhase) {
+      if (this.pendingAction) {
+        if (this.pendingAction === "road") this.buildRoadBtn.classList.add("attention");
+        if (this.pendingAction === "settlement") this.buildSettlementBtn.classList.add("attention");
+        if (this.pendingAction === "city") this.buildCityBtn.classList.add("attention");
+      } else {
+        this.endTurnBtn.classList.add("attention");
+      }
+    }
   }
 
   drawCanvasScene() {

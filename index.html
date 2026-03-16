@@ -21,6 +21,20 @@
         <section class="board-area">
           <section class="board-panel">
             <canvas id="board" width="980" height="560" aria-label="Game board"></canvas>
+            <div class="map-build-hud" aria-label="Build from map">
+              <button id="quickBuildRoadBtn" class="hud-build-btn" title="Build Road (1)">
+                <span class="build-glyph road"></span>
+                Road
+              </button>
+              <button id="quickBuildSettlementBtn" class="hud-build-btn" title="Build Settlement (2)">
+                <span class="build-glyph settlement"></span>
+                Settlement
+              </button>
+              <button id="quickBuildCityBtn" class="hud-build-btn" title="Build City (3)">
+                <span class="build-glyph city"></span>
+                City
+              </button>
+            </div>
             <div id="toastStack" class="toast-stack" aria-live="polite"></div>
           </section>
         </section>
@@ -31,7 +45,7 @@
             <div id="statusText" class="status"></div>
             <div id="hintText" class="hint"></div>
             <div class="hotkeys" aria-label="Keyboard shortcuts">
-              R roll · E end · 1/2/3 build · B buy dev · A autoplay · Esc cancel
+              Shortcuts: R · E · 1/2/3 · B · A · Esc
             </div>
           </section>
 
@@ -48,18 +62,45 @@
       </main>
 
       <section class="bottom-bar">
-        <section class="action-strip">
-          <h2>Turn Controls</h2>
-          <div class="button-row">
-            <button id="rollDiceBtn" class="btn-roll"><img class="btn-icon" src="./assets/icons/ui-dice.svg" alt="" />Roll Dice</button>
-            <button id="endTurnBtn" class="btn-neutral"><img class="btn-icon" src="./assets/icons/ui-end-turn.svg" alt="" />End Turn</button>
-            <button id="nextTurnBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Play AI Turns</button>
-            <button id="autoplayBtn" class="btn-neutral">Start Autoplay</button>
-            <button id="resetBtn" class="btn-neutral"><img class="btn-icon" src="./assets/icons/ui-reset.svg" alt="" />Reset Game</button>
-            <button id="resetViewBtn" class="btn-neutral">Reset View</button>
+        <section class="action-strip compact-main-strip">
+          <h2>Action Strip</h2>
+          <div class="tile-row">
+            <button id="rollDiceBtn" class="action-tile btn-roll" title="R">
+              <img class="btn-icon" src="./assets/icons/ui-dice.svg" alt="" />
+              <span class="tile-label">Roll</span>
+              <span class="tile-shortcut">R</span>
+            </button>
+            <button id="endTurnBtn" class="action-tile btn-neutral" title="E">
+              <img class="btn-icon" src="./assets/icons/ui-end-turn.svg" alt="" />
+              <span class="tile-label">End</span>
+              <span class="tile-shortcut">E</span>
+            </button>
+            <button id="buildRoadBtn" class="action-tile btn-build" title="1">
+              <span class="build-glyph road"></span>
+              <span class="tile-label">Road</span>
+              <span class="tile-shortcut">1</span>
+            </button>
+            <button id="buildSettlementBtn" class="action-tile btn-build" title="2">
+              <span class="build-glyph settlement"></span>
+              <span class="tile-label">Settle</span>
+              <span class="tile-shortcut">2</span>
+            </button>
+            <button id="buildCityBtn" class="action-tile btn-build" title="3">
+              <span class="build-glyph city"></span>
+              <span class="tile-label">City</span>
+              <span class="tile-shortcut">3</span>
+            </button>
+            <button id="buyDevBtn" class="action-tile btn-dev" title="B">
+              <img class="btn-icon" src="./assets/icons/dev-knight.svg" alt="" />
+              <span class="tile-label">Dev</span>
+              <span class="tile-shortcut">B</span>
+            </button>
+            <button id="tradeBankBtn" class="action-tile btn-trade" title="Trade with bank">
+              <img class="btn-icon" src="./assets/icons/ui-trade.svg" alt="" />
+              <span class="tile-label">Trade</span>
+            </button>
           </div>
-          <label for="speedRange">Autoplay Speed</label>
-          <input id="speedRange" type="range" min="150" max="2000" step="50" value="700" />
+          <div id="currentActionText" class="current-action-copy"></div>
           <div class="phase-track" aria-label="Turn flow">
             <span id="phaseRollTag" class="phase-tag">1 Roll</span>
             <span id="phaseBuildTag" class="phase-tag">2 Build / Trade</span>
@@ -67,29 +108,33 @@
           </div>
         </section>
 
-        <section class="action-strip">
-          <h2>Build</h2>
-          <div class="button-row">
-            <button id="buildRoadBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-build.svg" alt="" />Road (1Wd 1Br)</button>
-            <button id="buildSettlementBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-build.svg" alt="" />Settlement (1 of Wd/Br/Sh/Wh)</button>
-            <button id="buildCityBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-build.svg" alt="" />City (2Wh 3Or)</button>
+        <details class="action-strip compact-drawer">
+          <summary>Automation / Reset</summary>
+          <div class="collapsible-body">
+            <div class="button-row">
+              <button id="nextTurnBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Play AI Turns</button>
+              <button id="autoplayBtn" class="btn-neutral">Start Autoplay</button>
+              <button id="resetBtn" class="btn-neutral"><img class="btn-icon" src="./assets/icons/ui-reset.svg" alt="" />Reset Game</button>
+              <button id="resetViewBtn" class="btn-neutral">Reset View</button>
+            </div>
+            <label for="speedRange">Autoplay Speed</label>
+            <input id="speedRange" type="range" min="150" max="2000" step="50" value="700" />
           </div>
-        </section>
+        </details>
 
-        <details class="action-strip ux-collapsible" open>
+        <details class="action-strip compact-drawer">
           <summary>Development Cards</summary>
           <div class="collapsible-body">
             <div class="button-row">
-              <button id="buyDevBtn" class="btn-dev">Buy Dev Card</button>
-              <button id="playKnightBtn" class="btn-dev">Knight</button>
-              <button id="playRoadBuildingBtn" class="btn-dev">Road Building</button>
-              <button id="playYearOfPlentyBtn" class="btn-dev">Year of Plenty</button>
-              <button id="playMonopolyBtn" class="btn-dev">Monopoly</button>
+              <button id="playKnightBtn" class="btn-dev"><img class="btn-icon" src="./assets/icons/dev-knight.svg" alt="" />Knight</button>
+              <button id="playRoadBuildingBtn" class="btn-dev"><img class="btn-icon" src="./assets/icons/dev-road-building.svg" alt="" />Road Building</button>
+              <button id="playYearOfPlentyBtn" class="btn-dev"><img class="btn-icon" src="./assets/icons/dev-year-of-plenty.svg" alt="" />Year of Plenty</button>
+              <button id="playMonopolyBtn" class="btn-dev"><img class="btn-icon" src="./assets/icons/dev-monopoly.svg" alt="" />Monopoly</button>
             </div>
           </div>
         </details>
 
-        <details class="action-strip ux-collapsible">
+        <details class="action-strip compact-drawer">
           <summary>Bank Trade</summary>
           <div class="collapsible-body">
             <div class="trade-row">
@@ -99,9 +144,6 @@
             <div class="trade-row">
               <label for="getResourceSelect">Get</label>
               <select id="getResourceSelect"></select>
-            </div>
-            <div class="button-row">
-              <button id="tradeBankBtn" class="btn-trade"><img class="btn-icon" src="./assets/icons/ui-trade.svg" alt="" />Trade with Bank</button>
             </div>
           </div>
         </details>
