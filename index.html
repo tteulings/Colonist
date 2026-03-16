@@ -7,44 +7,59 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <header>
-      <h1>Colonist-Style Full Game</h1>
-      <p class="subtitle">
-        Catan-inspired browser game with human controls, strategic AI, dev cards, ports, and awards.
-      </p>
-    </header>
-    <section class="table-header">
-      <div id="leftPlayerPanel" class="mini-player"></div>
-      <div class="table-logo">
-        <img src="./assets/icons/ui-logo.svg" alt="" />
-        <span>Colonist Table</span>
-      </div>
-      <div id="rightPlayerPanel" class="mini-player"></div>
-    </section>
-
-    <main>
-      <section class="board-panel">
-        <canvas id="board" width="980" height="560" aria-label="Game board"></canvas>
-        <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+    <div class="app-shell">
+      <section class="table-header">
+        <div id="leftPlayerPanel" class="mini-player"></div>
+        <div class="table-logo">
+          <img src="./assets/icons/ui-logo.svg" alt="" />
+          <span>Colonist Table</span>
+        </div>
+        <div id="rightPlayerPanel" class="mini-player"></div>
       </section>
 
-      <aside class="sidebar">
-        <section class="controls">
+      <main class="table-layout">
+        <section class="board-area">
+          <section class="board-panel">
+            <canvas id="board" width="980" height="560" aria-label="Game board"></canvas>
+            <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+          </section>
+        </section>
+
+        <aside class="right-rail">
+          <section class="rail-card">
+            <h2>Turn Status</h2>
+            <div id="statusText" class="status"></div>
+            <div id="hintText" class="hint"></div>
+            <div class="hotkeys" aria-label="Keyboard shortcuts">
+              R roll · E end · 1/2/3 build · B buy dev · A autoplay · Esc cancel
+            </div>
+          </section>
+
+          <section class="rail-card">
+            <h2>Players</h2>
+            <div id="scoreboard"></div>
+          </section>
+
+          <section class="rail-card">
+            <h2>Event Log</h2>
+            <div id="log" class="log"></div>
+          </section>
+        </aside>
+      </main>
+
+      <section class="bottom-bar">
+        <section class="action-strip">
           <h2>Turn Controls</h2>
           <div class="button-row">
             <button id="rollDiceBtn" class="btn-roll"><img class="btn-icon" src="./assets/icons/ui-dice.svg" alt="" />Roll Dice</button>
             <button id="endTurnBtn" class="btn-neutral"><img class="btn-icon" src="./assets/icons/ui-end-turn.svg" alt="" />End Turn</button>
             <button id="nextTurnBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Play AI Turns</button>
-          </div>
-          <div class="button-row">
             <button id="autoplayBtn" class="btn-neutral">Start Autoplay</button>
             <button id="resetBtn" class="btn-neutral"><img class="btn-icon" src="./assets/icons/ui-reset.svg" alt="" />Reset Game</button>
             <button id="resetViewBtn" class="btn-neutral">Reset View</button>
           </div>
           <label for="speedRange">Autoplay Speed</label>
           <input id="speedRange" type="range" min="150" max="2000" step="50" value="700" />
-          <div id="statusText" class="status"></div>
-          <div id="hintText" class="hint"></div>
           <div class="phase-track" aria-label="Turn flow">
             <span id="phaseRollTag" class="phase-tag">1 Roll</span>
             <span id="phaseBuildTag" class="phase-tag">2 Build / Trade</span>
@@ -52,98 +67,46 @@
           </div>
         </section>
 
-        <section>
+        <section class="action-strip">
           <h2>Build</h2>
           <div class="button-row">
             <button id="buildRoadBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-build.svg" alt="" />Road (1Wd 1Br)</button>
             <button id="buildSettlementBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-build.svg" alt="" />Settlement (1 of Wd/Br/Sh/Wh)</button>
             <button id="buildCityBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-build.svg" alt="" />City (2Wh 3Or)</button>
           </div>
-          <small class="muted">
-            Select a build action, then click the board target (edge for roads, node for settlements/cities).
-          </small>
         </section>
 
-        <section>
-          <h2>Development Cards</h2>
-          <div class="button-row">
-            <button id="buyDevBtn" class="btn-dev">Buy Dev Card</button>
+        <details class="action-strip ux-collapsible" open>
+          <summary>Development Cards</summary>
+          <div class="collapsible-body">
+            <div class="button-row">
+              <button id="buyDevBtn" class="btn-dev">Buy Dev Card</button>
+              <button id="playKnightBtn" class="btn-dev">Knight</button>
+              <button id="playRoadBuildingBtn" class="btn-dev">Road Building</button>
+              <button id="playYearOfPlentyBtn" class="btn-dev">Year of Plenty</button>
+              <button id="playMonopolyBtn" class="btn-dev">Monopoly</button>
+            </div>
           </div>
-          <div class="button-row">
-            <button id="playKnightBtn" class="btn-dev dev-card-btn">
-              <img class="dev-icon-img" src="./assets/icons/dev-knight.svg" alt="Knight card icon" />
-              <span class="dev-copy">
-                <span class="dev-title">Knight</span>
-                <span class="dev-sub">Move robber</span>
-              </span>
-            </button>
-            <button id="playRoadBuildingBtn" class="btn-dev dev-card-btn">
-              <img
-                class="dev-icon-img"
-                src="./assets/icons/dev-road-building.svg"
-                alt="Road Building card icon"
-              />
-              <span class="dev-copy">
-                <span class="dev-title">Road Building</span>
-                <span class="dev-sub">Build 2 roads</span>
-              </span>
-            </button>
-          </div>
-          <div class="button-row">
-            <button id="playYearOfPlentyBtn" class="btn-dev dev-card-btn">
-              <img
-                class="dev-icon-img"
-                src="./assets/icons/dev-year-of-plenty.svg"
-                alt="Year of Plenty card icon"
-              />
-              <span class="dev-copy">
-                <span class="dev-title">Year of Plenty</span>
-                <span class="dev-sub">Gain 2 cards</span>
-              </span>
-            </button>
-            <button id="playMonopolyBtn" class="btn-dev dev-card-btn">
-              <img class="dev-icon-img" src="./assets/icons/dev-monopoly.svg" alt="Monopoly card icon" />
-              <span class="dev-copy">
-                <span class="dev-title">Monopoly</span>
-                <span class="dev-sub">Take one type</span>
-              </span>
-            </button>
-          </div>
-        </section>
+        </details>
 
-        <section>
-          <h2>Bank Trade</h2>
-          <div class="trade-row">
-            <label for="giveResourceSelect">Give</label>
-            <select id="giveResourceSelect"></select>
+        <details class="action-strip ux-collapsible">
+          <summary>Bank Trade</summary>
+          <div class="collapsible-body">
+            <div class="trade-row">
+              <label for="giveResourceSelect">Give</label>
+              <select id="giveResourceSelect"></select>
+            </div>
+            <div class="trade-row">
+              <label for="getResourceSelect">Get</label>
+              <select id="getResourceSelect"></select>
+            </div>
+            <div class="button-row">
+              <button id="tradeBankBtn" class="btn-trade"><img class="btn-icon" src="./assets/icons/ui-trade.svg" alt="" />Trade with Bank</button>
+            </div>
           </div>
-          <div class="trade-row">
-            <label for="getResourceSelect">Get</label>
-            <select id="getResourceSelect"></select>
-          </div>
-          <div class="button-row">
-            <button id="tradeBankBtn" class="btn-trade"><img class="btn-icon" src="./assets/icons/ui-trade.svg" alt="" />Trade with Bank</button>
-          </div>
-        </section>
-
-        <section>
-          <h2>Scoreboard</h2>
-          <div id="scoreboard"></div>
-        </section>
-
-        <section>
-          <h2>Event Log</h2>
-          <div id="log" class="log"></div>
-        </section>
-      </aside>
-    </main>
-
-    <footer>
-      <small>
-        First player is human by default. AI uses probability-weighted planning and tactical robber,
-        road, trade, and dev-card decisions.
-      </small>
-    </footer>
+        </details>
+      </section>
+    </div>
 
     <script type="module" src="./src/game.js"></script>
   </body>

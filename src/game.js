@@ -465,6 +465,7 @@ class ColonistFullGame {
       (event) => this.handleCanvasWheel(event),
       { passive: false },
     );
+    window.addEventListener("keydown", (event) => this.handleKeyboardShortcut(event));
   }
 
   get currentPlayer() {
@@ -777,6 +778,74 @@ class ColonistFullGame {
     this.view.offsetX = sx - before.x * this.view.scale;
     this.view.offsetY = sy - before.y * this.view.scale;
     this.drawCanvasScene();
+  }
+
+  handleKeyboardShortcut(event) {
+    const target = event.target;
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "SELECT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    const key = event.key.toLowerCase();
+
+    if (key === "escape") {
+      if (this.pendingAction) {
+        this.pendingAction = null;
+        this.canvas.style.cursor = "grab";
+        this.render();
+      }
+      return;
+    }
+
+    if (this.winner) return;
+
+    if (key === "r") {
+      this.handleHumanRoll();
+      event.preventDefault();
+      return;
+    }
+    if (key === "e") {
+      this.handleHumanEndTurn();
+      event.preventDefault();
+      return;
+    }
+    if (key === "1") {
+      this.setPendingAction("road");
+      event.preventDefault();
+      return;
+    }
+    if (key === "2") {
+      this.setPendingAction("settlement");
+      event.preventDefault();
+      return;
+    }
+    if (key === "3") {
+      this.setPendingAction("city");
+      event.preventDefault();
+      return;
+    }
+    if (key === "b") {
+      this.handleHumanBuyDevCard();
+      event.preventDefault();
+      return;
+    }
+    if (key === "a") {
+      if (this.autoplayInterval) this.stopAutoplay();
+      else this.startAutoplay();
+      this.render();
+      event.preventDefault();
+      return;
+    }
+    if (key === "v") {
+      this.resetViewTransform();
+      event.preventDefault();
+    }
   }
 
   updateHoverTargets(worldX, worldY) {
@@ -2271,9 +2340,6 @@ class ColonistFullGame {
       card.className = "player-card";
       if (idx === this.currentPlayerIndex && !this.winner) card.classList.add("active");
 
-      const tradeRates = RESOURCES.map((resource) => `${RESOURCE_SHORT[resource]}:${this.getPlayerTradeRate(player, resource)}`).join(" ");
-      const actionCards = DEV_CARD_TYPES.map((type) => `${type}:${player.devCards[type]}`).join(" ");
-
       const badges = [];
       if (this.longestRoadHolder === idx) badges.push("Longest Road");
       if (this.largestArmyHolder === idx) badges.push("Largest Army");
@@ -2299,8 +2365,6 @@ class ColonistFullGame {
         <div class="resource-line">Road ${player.roads.size} · Settle ${player.settlements.size} · City ${player.cities.size}</div>
         <div class="resource-chips">${resourceChips}</div>
         <div class="resource-line">Dev VP ${player.devVictoryPoints} · Knights ${player.knightsPlayed} · LR ${player.longestRoadLength}</div>
-        <div class="resource-line">Dev Cards: ${actionCards}</div>
-        <div class="resource-line">Trade rates: ${tradeRates}</div>
         <div class="badge-row">${badges.map((b) => `<span class="badge">${b}</span>`).join("")}</div>
       `;
       this.scoreboard.appendChild(card);
@@ -2361,14 +2425,15 @@ class ColonistFullGame {
       const phaseText = this.phase === "pre_roll" ? "Roll phase" : "Main phase";
       const rollText = this.lastRoll != null ? ` · Roll ${this.lastRoll}` : "";
       this.statusText.textContent = `Turn ${this.turn} · Active: ${active.name} · ${phaseText}${rollText}`;
-      this.hintText.textContent =
+      const flowHint =
         this.pendingAction != null
           ? `Selected action: ${this.pendingAction}. Valid targets glow on board; click to place.`
           : active.isHuman
             ? this.phase === "pre_roll"
-              ? "Flow: Roll Dice -> Build / Trade / Play Card -> End Turn."
-              : "Build, trade, and play dev cards, then end your turn."
+              ? "Press R to roll, then build/trade/play cards."
+              : "Use 1/2/3 for build modes, click target, then press E to end turn."
             : "AI players are resolving turns until your next turn.";
+      this.hintText.textContent = `${flowHint} (Esc cancels selected build mode)`;
     }
 
     const humanTurn = this.currentPlayer.isHuman && !this.winner;

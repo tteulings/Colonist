@@ -198,6 +198,55 @@ main {
     inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
+.controls {
+  position: sticky;
+  top: 0.45rem;
+  z-index: 3;
+}
+
+.hotkeys {
+  margin-top: 0.55rem;
+  border: 1px dashed rgba(96, 145, 198, 0.55);
+  border-radius: 8px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.76rem;
+  color: #315882;
+  background: rgba(238, 247, 255, 0.86);
+}
+
+.ux-collapsible {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow:
+    0 4px 10px rgba(61, 110, 167, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.ux-collapsible summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1a4a82;
+  padding: 0.85rem;
+}
+
+.ux-collapsible summary::-webkit-details-marker {
+  display: none;
+}
+
+.ux-collapsible .collapsible-body {
+  padding: 0 0.85rem 0.85rem;
+}
+
+.ux-collapsible[open] summary {
+  padding-bottom: 0.45rem;
+}
+
 .toast-stack {
   position: absolute;
   right: 12px;
@@ -640,5 +689,221 @@ select {
 
   .sidebar {
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+}
+
+/* --- UX-focused layout pass: board + right rail + bottom action bar --- */
+body {
+  background: linear-gradient(180deg, #1b6ba3 0%, #14649c 60%, #105788 100%);
+  color: #133150;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 0.45rem;
+  padding: 0.45rem;
+}
+
+.table-header {
+  padding: 0.35rem 0.5rem;
+  background: rgba(11, 52, 85, 0.24);
+  border: 1px solid rgba(165, 211, 243, 0.22);
+  border-radius: 12px;
+}
+
+.table-logo {
+  background: linear-gradient(180deg, #14426f, #0c3155);
+}
+
+.mini-player {
+  background: linear-gradient(180deg, #f8f6ef, #eee8da);
+  border: 1px solid rgba(132, 157, 185, 0.58);
+}
+
+main.table-layout {
+  display: grid;
+  grid-template-columns: minmax(740px, 1fr) 320px;
+  gap: 0.5rem;
+  padding: 0;
+  align-items: stretch;
+}
+
+.board-area {
+  background: rgba(13, 62, 97, 0.25);
+  border-radius: 14px;
+  border: 1px solid rgba(162, 211, 245, 0.26);
+  padding: 0.35rem;
+}
+
+.board-panel {
+  height: 100%;
+  min-height: 560px;
+  border-radius: 12px;
+  border: 1px solid rgba(133, 173, 202, 0.45);
+  box-shadow: 0 7px 16px rgba(6, 35, 59, 0.32);
+}
+
+#board {
+  height: 100%;
+  min-height: 560px;
+  background: linear-gradient(180deg, #1b79b8 0%, #196fa9 100%);
+}
+
+.right-rail {
+  display: grid;
+  grid-template-rows: auto minmax(180px, 1fr) minmax(220px, 1fr);
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.rail-card {
+  background: linear-gradient(180deg, #f0ede5, #e7e0d2);
+  border: 1px solid rgba(130, 145, 165, 0.52);
+  border-radius: 10px;
+  padding: 0.6rem;
+  box-shadow: 0 4px 10px rgba(8, 35, 55, 0.24);
+  min-height: 0;
+}
+
+.rail-card h2 {
+  margin-bottom: 0.45rem;
+  font-size: 0.78rem;
+  color: #3a526d;
+}
+
+.hotkeys {
+  margin-top: 0.45rem;
+  background: rgba(241, 248, 255, 0.75);
+  border-style: solid;
+  font-size: 0.72rem;
+}
+
+#scoreboard {
+  max-height: 290px;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.player-card {
+  background: linear-gradient(180deg, #fff, #f2eee5);
+  border-color: rgba(117, 146, 174, 0.56);
+  padding: 0.4rem 0.48rem;
+}
+
+.player-name {
+  font-size: 0.88rem;
+}
+
+.resource-line {
+  font-size: 0.72rem;
+}
+
+.resource-chip {
+  font-size: 0.66rem;
+  padding: 0.07rem 0.3rem;
+}
+
+.chip-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.log {
+  height: 100%;
+  min-height: 180px;
+  max-height: 100%;
+  background: linear-gradient(180deg, #faf9f5, #f0eadf);
+  border-color: rgba(129, 151, 176, 0.58);
+  font-size: 0.75rem;
+}
+
+.status,
+.hint {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(130, 154, 184, 0.56);
+}
+
+.bottom-bar {
+  background: linear-gradient(180deg, #e6ddce, #ddd2c1);
+  border: 1px solid rgba(120, 138, 162, 0.6);
+  border-radius: 12px;
+  padding: 0.5rem;
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 1.2fr 1fr;
+  gap: 0.45rem;
+  align-items: start;
+}
+
+.action-strip {
+  background: linear-gradient(180deg, #f5f0e5, #ece4d7);
+  border: 1px solid rgba(131, 148, 170, 0.52);
+  border-radius: 9px;
+  padding: 0.45rem;
+  min-height: 110px;
+}
+
+.action-strip h2,
+.ux-collapsible summary {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: #435d79;
+  padding: 0;
+}
+
+.action-strip .button-row {
+  margin-bottom: 0.3rem;
+}
+
+.action-strip button {
+  padding: 0.34rem 0.52rem;
+  font-size: 0.78rem;
+}
+
+.action-strip .btn-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.action-strip .trade-row {
+  margin-bottom: 0.25rem;
+}
+
+.action-strip .collapsible-body {
+  padding: 0;
+}
+
+.phase-track {
+  margin-top: 0.3rem;
+}
+
+@media (max-width: 1380px) {
+  main.table-layout {
+    grid-template-columns: 1fr 300px;
+  }
+  .bottom-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 1080px) {
+  .app-shell {
+    grid-template-rows: auto auto auto;
+  }
+  main.table-layout {
+    grid-template-columns: 1fr;
+  }
+  .right-rail {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+  }
+  .board-panel,
+  #board {
+    min-height: 480px;
+  }
+  .bottom-bar {
+    grid-template-columns: 1fr;
   }
 }
