@@ -386,7 +386,9 @@ class ColonistFullGame {
     this.fitCanvasToContainer();
     this.populateResourceSelects();
     this.bindControls();
-    this.resetGame();
+    if (!this.loadFromStorage()) {
+      this.resetGame();
+    }
     this.startAnimationLoop();
   }
 
@@ -582,6 +584,8 @@ class ColonistFullGame {
 
   resetGame() {
     this.stopAiTurnLoop();
+    this.removeGameOverOverlay();
+    this.clearStorage();
     this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight);
     this.robberHexId = assignTiles(this.geometry);
     this.ports = assignPorts(this.geometry);
@@ -632,7 +636,9 @@ class ColonistFullGame {
 
   initialPlacement() {
     this.setupPhase = true;
-    this.setupQueue = [0, 1, 2, 3, 3, 2, 1, 0];
+    const order = shuffle([0, 1, 2, 3]);
+    this.setupQueue = [...order, ...order.slice().reverse()];
+    this.currentPlayerIndex = order[0];
     this.setupStep = 0;
     this.setupAction = null;
     this.lastSetupNodeId = null;
@@ -708,6 +714,7 @@ class ColonistFullGame {
       this.setupStep++;
       this.setupAction = null;
       this.lastSetupNodeId = null;
+      this.saveToStorage();
       this.processSetupQueue();
     }
   }
@@ -754,6 +761,7 @@ class ColonistFullGame {
     if (this.rollDiceBtn) this.rollDiceBtn.disabled = true;
     this.animateDiceRoll(() => {
       this.executeRollPhase(player);
+      this.saveToStorage();
       this.render();
     });
   }
@@ -814,6 +822,7 @@ class ColonistFullGame {
     if (!player || !player.isHuman || this.winner) return;
     if (this.phase !== "main") return;
     this.endTurn();
+    this.saveToStorage();
     this.scheduleAiTurnsUntilHuman();
   }
 
@@ -1083,6 +1092,11 @@ class ColonistFullGame {
     }
     if (key === "v") {
       this.resetViewTransform();
+      event.preventDefault();
+    }
+    if (key === "n" && this.winner) {
+      this.stopAutoplay();
+      this.resetGame();
       event.preventDefault();
     }
   }
@@ -1930,6 +1944,8 @@ class ColonistFullGame {
       this.phase = "game_over";
       this.addLog(`${player.name} wins with ${player.victoryPoints} VP!`);
       this.stopAutoplay();
+      this.saveToStorage();
+      this.showGameOverOverlay();
       return true;
     }
     return false;
@@ -1959,7 +1975,9 @@ class ColonistFullGame {
       this.phase = "game_over";
       this.addLog(`Turn limit reached. ${leader.name} wins by points.`);
       this.stopAutoplay();
+      this.showGameOverOverlay();
     }
+    this.saveToStorage();
     this.render();
   }
 
@@ -2005,6 +2023,190 @@ class ColonistFullGame {
       }
     };
     this.aiTurnTimeout = window.setTimeout(step, 220);
+  }
+
+  // ── Game-over overlay & restart ──────────────────────────────────────
+  showGameOverOverlay() {
+    if (document.querySelector(".game-over-overlay")) return;
+    const overlay = document.createElement("div");
+    overlay.className = "game-over-overlay";
+    const winner = this.winner;
+    overlay.innerHTML = `
+      <div class="game-over-card">
+        <img class="game-over-avatar" src="${winner.avatar}" alt="${winner.name}" />
+        <h2 style="color:${winner.color}">${winner.name} wins!</h2>
+        <p>${winner.victoryPoints} Victory Points &middot; Turn ${this.turn}</p>
+        <div class="game-over-stats">
+          ${this.players.map(p => `<span style="color:${p.color}">${p.name}: ${p.victoryPoints} VP</span>`).join("")}
+        </div>
+        <button class="game-over-btn" id="newGameBtn">New Game</button>
+      </div>
+    `;
+    document.querySelector(".board-panel").appendChild(overlay);
+    overlay.querySelector("#newGameBtn").addEventListener("click", () => {
+      overlay.remove();
+      this.stopAutoplay();
+      this.resetGame();
+    });
+  }
+
+  removeGameOverOverlay() {
+    const overlay = document.querySelector(".game-over-overlay");
+    if (overlay) overlay.remove();
+  }
+
+  // ── Session persistence ──────────────────────────────────────────────
+  static STORAGE_KEY = "colonist_save";
+
+  serializeState() {
+    return {
+      hexes: this.geometry.hexes.map(h => ({ resource: h.resource, number: h.number })),
+      ports: this.ports.map(p => ({ edgeId: p.edgeId, type: p.type, nodes: p.nodes })),
+      robberHexId: this.robberHexId,
+      nodes: this.geometry.nodes
+        .filter(n => n.owner != null)
+        .map(n => ({ id: n.id, owner: n.owner, structure: n.structure })),
+      edges: this.geometry.edges
+        .filter(e => e.owner != null)
+        .map(e => ({ id: e.id, owner: e.owner })),
+      players: this.players.map(p => ({
+        resources: { ...p.resources },
+        roads: [...p.roads],
+        settlements: [...p.settlements],
+        cities: [...p.cities],
+        devCards: { ...p.devCards },
+        newDevCards: { ...p.newDevCards },
+        devVictoryPoints: p.devVictoryPoints,
+        knightsPlayed: p.knightsPlayed,
+        longestRoadLength: p.longestRoadLength,
+        victoryPoints: p.victoryPoints,
+      })),
+      devDeck: [...this.devDeck],
+      turn: this.turn,
+      currentPlayerIndex: this.currentPlayerIndex,
+      phase: this.phase,
+      lastRoll: this.lastRoll,
+      winnerId: this.winner ? this.winner.id : null,
+      pendingAction: this.pendingAction,
+      currentTurnPlayedDevCard: this.currentTurnPlayedDevCard,
+      longestRoadHolder: this.longestRoadHolder,
+      largestArmyHolder: this.largestArmyHolder,
+      logEntries: this.logEntries.slice(-60),
+      setupPhase: this.setupPhase,
+      setupQueue: this.setupQueue,
+      setupStep: this.setupStep,
+      setupAction: this.setupAction,
+      lastSetupNodeId: this.lastSetupNodeId,
+    };
+  }
+
+  saveToStorage() {
+    try {
+      const data = this.serializeState();
+      localStorage.setItem(ColonistFullGame.STORAGE_KEY, JSON.stringify(data));
+    } catch (_) { /* quota exceeded or private mode — ignore */ }
+  }
+
+  clearStorage() {
+    try { localStorage.removeItem(ColonistFullGame.STORAGE_KEY); } catch (_) {}
+  }
+
+  loadFromStorage() {
+    let raw;
+    try { raw = localStorage.getItem(ColonistFullGame.STORAGE_KEY); } catch (_) { return false; }
+    if (!raw) return false;
+    let data;
+    try { data = JSON.parse(raw); } catch (_) { this.clearStorage(); return false; }
+
+    // Rebuild geometry (deterministic layout)
+    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight);
+
+    // Restore hex tiles
+    if (!data.hexes || data.hexes.length !== this.geometry.hexes.length) { this.clearStorage(); return false; }
+    data.hexes.forEach((saved, i) => {
+      this.geometry.hexes[i].resource = saved.resource;
+      this.geometry.hexes[i].number = saved.number;
+    });
+    this.robberHexId = data.robberHexId;
+
+    // Restore ports
+    this.ports = [];
+    if (data.ports) {
+      data.ports.forEach(p => {
+        this.ports.push({ edgeId: p.edgeId, type: p.type, nodes: p.nodes });
+        p.nodes.forEach(nodeId => {
+          if (!this.geometry.nodes[nodeId].ports.includes(p.type)) {
+            this.geometry.nodes[nodeId].ports.push(p.type);
+          }
+        });
+      });
+    }
+
+    // Restore node ownership
+    if (data.nodes) {
+      data.nodes.forEach(n => {
+        this.geometry.nodes[n.id].owner = n.owner;
+        this.geometry.nodes[n.id].structure = n.structure;
+      });
+    }
+
+    // Restore edge ownership
+    if (data.edges) {
+      data.edges.forEach(e => {
+        this.geometry.edges[e.id].owner = e.owner;
+      });
+    }
+
+    // Restore players
+    this.players = PLAYER_CONFIG.map((config, id) => {
+      const saved = data.players[id];
+      return {
+        id,
+        name: config.name,
+        color: config.color,
+        isHuman: config.isHuman,
+        avatar: config.avatar,
+        resources: { ...saved.resources },
+        roads: new Set(saved.roads),
+        settlements: new Set(saved.settlements),
+        cities: new Set(saved.cities),
+        devCards: { ...saved.devCards },
+        newDevCards: { ...saved.newDevCards },
+        devVictoryPoints: saved.devVictoryPoints,
+        knightsPlayed: saved.knightsPlayed,
+        longestRoadLength: saved.longestRoadLength,
+        victoryPoints: saved.victoryPoints,
+      };
+    });
+
+    this.devDeck = data.devDeck || [];
+    this.turn = data.turn;
+    this.currentPlayerIndex = data.currentPlayerIndex;
+    this.phase = data.phase;
+    this.lastRoll = data.lastRoll;
+    this.winner = data.winnerId != null ? this.players[data.winnerId] : null;
+    this.pendingAction = data.pendingAction;
+    this.currentTurnPlayedDevCard = data.currentTurnPlayedDevCard;
+    this.longestRoadHolder = data.longestRoadHolder;
+    this.largestArmyHolder = data.largestArmyHolder;
+    this.logEntries = data.logEntries || [];
+    this.setupPhase = data.setupPhase || false;
+    this.setupQueue = data.setupQueue || [0, 1, 2, 3, 3, 2, 1, 0];
+    this.setupStep = data.setupStep || 0;
+    this.setupAction = data.setupAction || null;
+    this.lastSetupNodeId = data.lastSetupNodeId ?? null;
+
+    this.view = { offsetX: 0, offsetY: 0, scale: 1 };
+    this.hoverHexId = null;
+    this.hoverNodeId = null;
+    this.hoverEdgeId = null;
+    this.hoverTooltip = "";
+    this.canvas.style.cursor = "grab";
+
+    this.addLog("Session restored.");
+    this.render();
+    if (this.winner) this.showGameOverOverlay();
+    return true;
   }
 
   drawBoardBackdrop() {
