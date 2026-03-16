@@ -2140,33 +2140,31 @@ class ColonistFullGame {
       ctx.fill();
       ctx.restore();
 
-      const hs = this.geometry.hexSize;
-      const tokenRadius = hs * 0.27;
       ctx.beginPath();
-      ctx.arc(hex.center.x, hex.center.y, tokenRadius, 0, Math.PI * 2);
+      ctx.arc(hex.center.x, hex.center.y, tokenR, 0, Math.PI * 2);
       ctx.strokeStyle = "rgba(27, 35, 48, 0.36)";
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.5 * sc;
       ctx.stroke();
 
       ctx.fillStyle = hex.number === 6 || hex.number === 8 ? "#be1a1a" : "#18212c";
-      ctx.font = `bold ${Math.round(hs * 0.23)}px Inter, sans-serif`;
+      ctx.font = `bold ${Math.round(hxs * 0.23)}px Inter, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(hex.number), hex.center.x, hex.center.y - 2);
+      ctx.fillText(String(hex.number), hex.center.x, hex.center.y - 2 * sc);
       this.drawTokenPips(hex);
     }
 
     ctx.fillStyle = "rgba(239, 248, 255, 0.72)";
-    ctx.font = `700 ${Math.round(hs * 0.135)}px Inter, sans-serif`;
+    ctx.font = `700 ${Math.round(hxs * 0.135)}px Inter, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
     ctx.fillStyle = "rgba(20, 52, 86, 0.65)";
-    ctx.font = `600 ${Math.round(hs * 0.12)}px Inter, system-ui, sans-serif`;
-    ctx.fillText(label, hex.center.x, hex.center.y + hs * 0.43);
+    ctx.font = `600 ${Math.round(hxs * 0.12)}px Inter, system-ui, sans-serif`;
+    ctx.fillText(label, hex.center.x, hex.center.y + hxs * 0.43);
 
     if (hex.id === this.robberHexId) {
-      const s = (hs / 74) * 0.75;
+      const s = (hxs / 74) * 0.75;
       ctx.save();
       ctx.translate(hex.center.x, hex.center.y);
       ctx.shadowColor = "rgba(0,0,0,0.5)";
