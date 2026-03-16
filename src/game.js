@@ -340,6 +340,7 @@ class ColonistFullGame {
     this.rightPlayerPanel = document.querySelector("#rightPlayerPanel");
     this.resourceCardStrip = document.querySelector("#resourceCardStrip");
     this.handStrip = document.querySelector("#handStrip");
+    this.bankStrip = document.querySelector("#bankStrip");
     this.actionPrompt = document.querySelector("#actionPrompt");
     this.actionPromptAvatar = document.querySelector("#actionPromptAvatar");
     this.actionPromptText = document.querySelector("#actionPromptText");
@@ -3059,7 +3060,7 @@ class ColonistFullGame {
       ).join("");
     }
 
-    // Hand strip — individual overlapping cards (top of screen on mobile)
+    // Hand strip — individual overlapping cards (bottom, above action bar on mobile)
     if (this.handStrip) {
       const cards = [];
       RESOURCES.forEach((resource) => {
@@ -3071,11 +3072,27 @@ class ColonistFullGame {
         this.handStrip.innerHTML = '<span class="hand-empty">No cards</span>';
       } else {
         this.handStrip.innerHTML = cards.map((resource, i) =>
-          `<div class="hand-card ${resource}" style="--i:${i};--n:${cards.length}">
+          `<div class="hand-card ${resource}">
             <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
           </div>`
         ).join("");
       }
+    }
+
+    // Bank strip — stock counts at top of screen on mobile
+    if (this.bankStrip) {
+      const totalInPlay = {};
+      RESOURCES.forEach(r => {
+        totalInPlay[r] = this.players.reduce((sum, p) => sum + p.resources[r], 0);
+      });
+      // Standard Catan: 19 of each resource in the bank
+      this.bankStrip.innerHTML = RESOURCES.map(resource => {
+        const bankCount = 19 - totalInPlay[resource];
+        return `<div class="bank-item">
+          <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
+          <span>${bankCount}</span>
+        </div>`;
+      }).join("");
     }
   }
 
