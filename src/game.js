@@ -561,6 +561,9 @@ class ColonistFullGame {
       startX: 0,
       startY: 0,
       totalMoved: 0,
+      lastTapTime: 0,
+      lastTapX: 0,
+      lastTapY: 0,
     };
 
     this.canvas.addEventListener("touchstart", (event) => {
@@ -625,11 +628,24 @@ class ColonistFullGame {
       this.handleCanvasMouseUp();
 
       // Only fire click if it was a quick tap without much movement
-      const elapsed = Date.now() - ts.startTime;
+      const now = Date.now();
+      const elapsed = now - ts.startTime;
       const wasTap = elapsed < 300 && ts.totalMoved < 20;
       if (wasTap && event.changedTouches.length === 1) {
         const touch = event.changedTouches[0];
-        this.handleBoardClick({ clientX: touch.clientX, clientY: touch.clientY });
+        // Double-tap detection
+        const dtSince = now - ts.lastTapTime;
+        const dtDist = Math.hypot(touch.clientX - ts.lastTapX, touch.clientY - ts.lastTapY);
+        if (dtSince < 350 && dtDist < 40) {
+          // Double tap — zoom in/out
+          this.handleDoubleTapZoom(touch.clientX, touch.clientY);
+          ts.lastTapTime = 0;
+        } else {
+          this.handleBoardClick({ clientX: touch.clientX, clientY: touch.clientY });
+          ts.lastTapTime = now;
+          ts.lastTapX = touch.clientX;
+          ts.lastTapY = touch.clientY;
+        }
       }
 
       ts.isDragging = false;
@@ -758,8 +774,14 @@ class ColonistFullGame {
     if (this.setupStep >= this.setupQueue.length) {
       this.setupPhase = false;
       this.setupAction = null;
+      this.currentPlayerIndex = 0;
+      this.phase = "pre_roll";
       this.addLog("Initial placement complete.");
+      this.saveToStorage();
       this.render();
+      if (!this.currentPlayer.isHuman) {
+        this.scheduleAiTurnsUntilHuman();
+      }
       return;
     }
 
@@ -1010,40 +1032,7 @@ class ColonistFullGame {
     const y = world.y;
 
     if (!this.pendingAction) {
-      const nodeId = this.findNodeAt(x, y);
-      if (nodeId != null) {
-        if (hasResources(player.resources, COSTS.city) && this.canBuildCity(player, nodeId, false)) {
-          if (this.placeCity(player, nodeId, false)) {
-            payCost(player.resources, COSTS.city);
-            this.addLog(`${player.name} upgraded to a city.`);
-            this.recomputeScores();
-            this.checkForWinner(player);
-            this.render();
-            return;
-          }
-        }
-        if (hasResources(player.resources, COSTS.settlement) && this.canBuildSettlement(player, nodeId, false)) {
-          if (this.placeSettlement(player, nodeId, false)) {
-            payCost(player.resources, COSTS.settlement);
-            this.addLog(`${player.name} built a settlement.`);
-            this.recomputeScores();
-            this.checkForWinner(player);
-            this.render();
-            return;
-          }
-        }
-      }
-      const edgeId = this.findEdgeAt(x, y);
-      if (edgeId != null && hasResources(player.resources, COSTS.road) && this.canBuildRoad(player, edgeId, { free: false })) {
-        if (this.placeRoad(player, edgeId, { free: false })) {
-          payCost(player.resources, COSTS.road);
-          this.addLog(`${player.name} built a road.`);
-          this.recomputeScores();
-          this.checkForWinner(player);
-          this.render();
-          return;
-        }
-      }
+      // No build mode selected — just show tile info on tap
       const hexId = this.findHexAt(x, y);
       if (hexId != null) {
         const hex = this.geometry.hexes[hexId];
@@ -1177,6 +1166,22 @@ class ColonistFullGame {
     this.drawCanvasScene();
   }
 
+  handleDoubleTapZoom(clientX, clientY) {
+    const pt = this.getCanvasPoint({ clientX, clientY });
+    const before = this.screenToWorld(pt.x, pt.y);
+    // Toggle between zoomed-in and default
+    const targetScale = this.view.scale < 1.4 ? 1.8 : 1.0;
+    this.view.scale = targetScale;
+    if (targetScale === 1.0) {
+      this.view.offsetX = 0;
+      this.view.offsetY = 0;
+    } else {
+      this.view.offsetX = pt.x - before.x * this.view.scale;
+      this.view.offsetY = pt.y - before.y * this.view.scale;
+    }
+    this.drawCanvasScene();
+  }
+
   handleKeyboardShortcut(event) {
     const target = event.target;
     if (
@@ -1305,27 +1310,6 @@ class ColonistFullGame {
         this.canvas.style.cursor = "crosshair";
       }
       return;
-    }
-
-    if (humanMain && !this.pendingAction) {
-      const nodeId = this.findNodeAt(worldX, worldY);
-      if (nodeId != null) {
-        const canCity = hasResources(player.resources, COSTS.city) && this.canBuildCity(player, nodeId, false);
-        const canSettle = hasResources(player.resources, COSTS.settlement) && this.canBuildSettlement(player, nodeId, false);
-        if (canCity || canSettle) {
-          this.hoverNodeId = nodeId;
-          this.hoverTooltip = canCity ? "Upgrade to city" : "Build settlement";
-          this.canvas.style.cursor = "pointer";
-          return;
-        }
-      }
-      const edgeId = this.findEdgeAt(worldX, worldY);
-      if (edgeId != null && hasResources(player.resources, COSTS.road) && this.canBuildRoad(player, edgeId, { free: false })) {
-        this.hoverEdgeId = edgeId;
-        this.hoverTooltip = "Build road";
-        this.canvas.style.cursor = "pointer";
-        return;
-      }
     }
 
     const hexId = this.findHexAt(worldX, worldY);
@@ -2210,7 +2194,7 @@ class ColonistFullGame {
   }
 
   // ── Session persistence ──────────────────────────────────────────────
-  static STORAGE_KEY = "colonist_save";
+  static STORAGE_KEY = "colonist_save_v2";
 
   serializeState() {
     return {
@@ -2359,7 +2343,13 @@ class ColonistFullGame {
 
     this.addLog("Session restored.");
     this.render();
-    if (this.winner) this.showGameOverOverlay();
+    if (this.winner) {
+      this.showGameOverOverlay();
+    } else if (this.setupPhase) {
+      this.processSetupQueue();
+    } else if (!this.currentPlayer.isHuman) {
+      this.scheduleAiTurnsUntilHuman();
+    }
     return true;
   }
 

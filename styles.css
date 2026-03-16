@@ -688,7 +688,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
     flex-direction: column;
     gap: 0;
     padding: 0;
-    overflow: hidden;
+    overflow: visible;
     position: relative;
   }
   main.table-layout {
@@ -758,7 +758,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .player-card-mini .player-avatar { width: 16px; height: 16px; }
   .player-card-mini .player-name { font-size: 0.6rem; }
   .player-vp { font-size: 0.6rem; }
-  .player-stats { display: none; }
+  .player-stats { display: flex; flex-wrap: wrap; }
   #scoreboard { gap: 0.15rem; }
   .action-prompt { padding: 0.2rem 0.4rem; }
   .action-prompt-text { font-size: 0.75rem; }
