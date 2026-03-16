@@ -401,10 +401,18 @@ class ColonistFullGame {
     const container = this.canvas.parentElement;
     if (!container) return;
     const rect = container.getBoundingClientRect();
-    if (rect.width <= 0) return;
-    const scale = rect.width / this.boardWidth;
-    this.canvas.style.width = "100%";
-    this.canvas.style.height = Math.round(this.boardHeight * scale) + "px";
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const aspect = this.boardWidth / this.boardHeight;
+    const containerAspect = rect.width / rect.height;
+    if (containerAspect > aspect) {
+      this.canvas.style.height = "100%";
+      this.canvas.style.width = Math.round(rect.height * aspect) + "px";
+      this.canvas.style.margin = "0 auto";
+    } else {
+      this.canvas.style.width = "100%";
+      this.canvas.style.height = Math.round(rect.width / aspect) + "px";
+      this.canvas.style.margin = "auto 0";
+    }
   }
 
   handleResize() {
@@ -1986,39 +1994,27 @@ class ColonistFullGame {
 
   drawBoardBackdrop() {
     const ctx = this.ctx;
-    const width = this.boardWidth;
-    const height = this.boardHeight;
+    const w = this.boardWidth;
+    const h = this.boardHeight;
     const t = this.animTime || 0;
 
-    const sky = ctx.createLinearGradient(0, 0, 0, height);
-    sky.addColorStop(0, "#e0f3ff");
-    sky.addColorStop(0.55, "#c8e6ff");
-    sky.addColorStop(1, "#d7ecff");
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, width, height);
+    const ocean = ctx.createRadialGradient(w * 0.47, h * 0.48, 50, w * 0.47, h * 0.48, w * 0.62);
+    ocean.addColorStop(0, "#4db8e8");
+    ocean.addColorStop(0.5, "#2d95c9");
+    ocean.addColorStop(1, "#1a6fa0");
+    ctx.fillStyle = ocean;
+    ctx.fillRect(0, 0, w, h);
 
-    const shimmer = ctx.createRadialGradient(
-      width * 0.34 + Math.sin(t * 0.4) * 30,
-      height * 0.22,
-      10,
-      width * 0.34,
-      height * 0.42,
-      330,
-    );
-    shimmer.addColorStop(0, "rgba(255,255,255,0.34)");
-    shimmer.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = shimmer;
-    ctx.fillRect(0, 0, width, height);
-
-    ctx.strokeStyle = "rgba(94, 151, 206, 0.16)";
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 12; i += 1) {
-      const y = height * 0.1 + i * 54 + ((this.turn + i) % 3) * 2 + Math.sin(t * 0.6 + i) * 1.4;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 18; i++) {
+      const yBase = h * 0.05 + i * (h / 16);
+      const phase = t * 0.5 + i * 0.7;
       ctx.beginPath();
-      ctx.moveTo(0, y);
-      for (let x = 0; x <= width; x += 34) {
-        const wave = Math.sin((x + i * 20) / 70 + t * 0.8) * 4;
-        ctx.lineTo(x, y + wave);
+      for (let x = 0; x <= w; x += 8) {
+        const y = yBase + Math.sin(x / 80 + phase) * 3 + Math.sin(x / 40 + phase * 1.3) * 1.5;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
       }
       ctx.stroke();
     }
@@ -2104,7 +2100,7 @@ class ColonistFullGame {
     ctx.restore();
 
     this.drawHexPath(hex.corners);
-    ctx.strokeStyle = "rgba(219, 239, 255, 0.95)";
+    ctx.strokeStyle = "rgba(195, 165, 100, 0.75)";
     ctx.lineWidth = 3;
     ctx.stroke();
 
@@ -2423,6 +2419,20 @@ class ColonistFullGame {
       ctx.textBaseline = "middle";
       ctx.fillText("⚓", dockX, shipY);
       ctx.restore();
+    });
+  }
+
+  drawNodeDots() {
+    const ctx = this.ctx;
+    this.geometry.nodes.forEach((node) => {
+      if (node.owner != null) return;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(205, 175, 110, 0.6)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(160, 120, 50, 0.4)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
     });
   }
 
@@ -2860,6 +2870,7 @@ class ColonistFullGame {
     this.ctx.translate(this.view.offsetX, this.view.offsetY);
     this.ctx.scale(this.view.scale, this.view.scale);
     this.geometry.hexes.forEach((hex) => this.drawHex(hex));
+    this.drawNodeDots();
     this.drawPorts();
     this.drawRoads();
     this.drawStructures();
