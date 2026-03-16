@@ -535,6 +535,66 @@ select {
   color: #3a526d;
 }
 
+.player-stats {
+  display: flex;
+  gap: 0.3rem;
+  margin-left: auto;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  font-size: 0.68rem;
+  color: #4a6280;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 0.1rem 0.28rem;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-icon {
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.road-icon::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  background: #5a7a9a;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.settle-icon::before {
+  content: "";
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 7px solid #5a7a9a;
+  vertical-align: middle;
+}
+
+.city-icon::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 8px;
+  background: #5a7a9a;
+  border-radius: 1px 1px 0 0;
+  vertical-align: middle;
+}
+
+.player-vp {
+  font-weight: 700;
+  font-size: 0.74rem;
+  color: #1a3a5c;
+}
+
 .player-card.active {
   border-color: #2d9cd5;
   box-shadow:

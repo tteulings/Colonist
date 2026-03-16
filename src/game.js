@@ -73,7 +73,8 @@ function sumResources(resources) {
 }
 
 function resourceString(resources) {
-  return RESOURCES.map((r) => `${RESOURCE_SHORT[r]}:${resources[r]}`).join(" ");
+  const parts = RESOURCES.filter(r => resources[r] > 0).map(r => `${resources[r]} ${RESOURCE_LABEL[r]}`);
+  return parts.length ? parts.join(", ") : "nothing";
 }
 
 function copyResources(resources) {
@@ -93,10 +94,10 @@ function missingCostString(resources, cost) {
     .map(([type, amount]) => {
       const deficit = Math.max(0, amount - resources[type]);
       if (deficit <= 0) return null;
-      return `${deficit}${RESOURCE_SHORT[type]}`;
+      return `${deficit} ${RESOURCE_LABEL[type]}`;
     })
     .filter(Boolean);
-  return missing.length ? missing.join(" ") : "";
+  return missing.length ? missing.join(", ") : "";
 }
 
 function payCost(resources, cost) {
@@ -807,7 +808,7 @@ class ColonistFullGame {
       for (let i = 0; i < amount; i++) {
         const floater = document.createElement("div");
         floater.className = "resource-floater";
-        floater.textContent = `+${RESOURCE_SHORT[resource]}`;
+        floater.textContent = `+${RESOURCE_LABEL[resource]}`;
         floater.style.setProperty("--res-color", RESOURCE_COLORS[resource]);
         strip.appendChild(floater);
         setTimeout(() => floater.remove(), 900);
@@ -2150,8 +2151,9 @@ class ColonistFullGame {
     ctx.font = "700 10px Inter, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    const label = hex.resource === "desert" ? "DES" : RESOURCE_SHORT[hex.resource];
-    ctx.fillStyle = "rgba(20, 52, 86, 0.75)";
+    const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
+    ctx.fillStyle = "rgba(20, 52, 86, 0.65)";
+    ctx.font = `600 ${Math.round(hexSize * 0.12)}px Inter, system-ui, sans-serif`;
     ctx.fillText(label, hex.center.x, hex.center.y + 32);
 
     if (hex.id === this.robberHexId) {
@@ -2384,10 +2386,11 @@ class ColonistFullGame {
       ctx.fillStyle = "rgba(233, 244, 255, 0.9)";
       ctx.fill();
 
-      const label = port.type === "any" ? "3:1" : `2:1 ${RESOURCE_SHORT[port.type]}`;
-      const boxX = mx + ox * 1.35 - 20;
+      const label = port.type === "any" ? "3:1" : `2:1 ${RESOURCE_LABEL[port.type]}`;
+      const labelWidth = Math.max(40, ctx.measureText(label).width + 10);
+      const boxX = mx + ox * 1.35 - labelWidth / 2;
       const boxY = my + oy * 1.35 - 8;
-      this.drawRoundedRect(boxX, boxY, 40, 16, 7);
+      this.drawRoundedRect(boxX, boxY, labelWidth, 16, 7);
       ctx.fillStyle = "rgba(16, 26, 40, 0.88)";
       ctx.fill();
       ctx.strokeStyle = "rgba(173, 225, 255, 0.58)";
@@ -2668,9 +2671,13 @@ class ColonistFullGame {
       card.innerHTML = `
         <img class="player-avatar" src="${player.avatar}" alt="${player.name} avatar" />
         <span class="player-name" style="color:${player.color}">${player.name}</span>
-        <span title="Victory points">${player.victoryPoints} VP</span>
-        <span class="piece-counts" title="Cards">?${totalCards}</span>
-        <span class="piece-counts">R${player.roads.size} S${player.settlements.size} C${player.cities.size}</span>
+        <span class="player-vp" title="Victory points">${player.victoryPoints} VP</span>
+        <div class="player-stats">
+          <span class="stat-item" title="${totalCards} cards in hand"><span class="stat-icon">🃏</span>${totalCards}</span>
+          <span class="stat-item" title="${player.roads.size} roads"><span class="stat-icon road-icon"></span>${player.roads.size}</span>
+          <span class="stat-item" title="${player.settlements.size} settlements"><span class="stat-icon settle-icon"></span>${player.settlements.size}</span>
+          <span class="stat-item" title="${player.cities.size} cities"><span class="stat-icon city-icon"></span>${player.cities.size}</span>
+        </div>
       `;
       this.scoreboard.appendChild(card);
     });
