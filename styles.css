@@ -506,6 +506,35 @@ select {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
+.player-card-mini {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.4rem;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #fff, #f2eee5);
+  border: 1px solid rgba(117, 146, 174, 0.45);
+  font-size: 0.72rem;
+}
+
+.player-card-mini .player-avatar {
+  width: 24px;
+  height: 24px;
+}
+
+.player-card-mini .player-name {
+  font-size: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.player-card-mini .piece-counts {
+  display: flex;
+  gap: 0.2rem;
+  font-size: 0.64rem;
+  color: #3a526d;
+}
+
 .player-card.active {
   border-color: #2d9cd5;
   box-shadow:
@@ -724,7 +753,7 @@ body {
 
 main.table-layout {
   display: grid;
-  grid-template-columns: minmax(740px, 1fr) 320px;
+  grid-template-columns: minmax(740px, 1fr) 280px;
   gap: 0.5rem;
   padding: 0;
   align-items: stretch;
@@ -754,9 +783,17 @@ main.table-layout {
 
 .right-rail {
   display: grid;
-  grid-template-rows: auto minmax(180px, 1fr) minmax(220px, 1fr);
+  grid-template-rows: 1fr minmax(0, auto);
   gap: 0.5rem;
   min-height: 0;
+}
+
+.rail-log {
+  min-height: 180px;
+}
+
+.rail-players {
+  flex-shrink: 0;
 }
 
 .rail-card {
@@ -833,11 +870,184 @@ main.table-layout {
   background: linear-gradient(180deg, #e6ddce, #ddd2c1);
   border: 1px solid rgba(120, 138, 162, 0.6);
   border-radius: 12px;
-  padding: 0.5rem;
-  display: grid;
-  grid-template-columns: 2fr 1.3fr 1fr 1fr;
-  gap: 0.45rem;
-  align-items: start;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.resource-card-strip {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  min-height: 52px;
+}
+
+.resource-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 72px;
+  border-radius: 8px;
+  border: 1px solid rgba(100, 120, 140, 0.5);
+  background: linear-gradient(180deg, #fff, #f0ebe0);
+  box-shadow: 0 2px 6px rgba(8, 30, 50, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.resource-card img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  opacity: 0.9;
+}
+
+.resource-card .resource-count {
+  position: absolute;
+  bottom: 4px;
+  right: 6px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #1a3a5c;
+  text-shadow: 0 0 2px rgba(255,255,255,0.9);
+}
+
+.resource-card.wood { border-color: rgba(59, 157, 88, 0.6); background: linear-gradient(180deg, #e8f5e9, #c8e6c9); }
+.resource-card.brick { border-color: rgba(198, 102, 60, 0.6); background: linear-gradient(180deg, #ffebee, #ffcdd2); }
+.resource-card.sheep { border-color: rgba(119, 185, 92, 0.6); background: linear-gradient(180deg, #e8f5e9, #a5d6a7); }
+.resource-card.wheat { border-color: rgba(208, 171, 68, 0.6); background: linear-gradient(180deg, #fffde7, #fff9c4); }
+.resource-card.ore { border-color: rgba(122, 141, 169, 0.6); background: linear-gradient(180deg, #eceff1, #cfd8dc); }
+
+.action-prompt-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.action-prompt {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  background: linear-gradient(180deg, #fff, #f5f0e5);
+  border: 1px solid rgba(120, 138, 162, 0.55);
+  border-radius: 999px;
+  box-shadow: 0 3px 10px rgba(8, 35, 55, 0.22);
+  max-width: 520px;
+}
+
+.action-prompt-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.8);
+  object-fit: cover;
+}
+
+.action-prompt-text {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #2a4c70;
+  min-width: 6ch;
+}
+
+.action-prompt-btn {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 750;
+  border-radius: 8px;
+}
+
+.action-prompt-build {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.prompt-build-btn {
+  padding: 0.28rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.24rem;
+}
+
+.prompt-build-btn .build-glyph {
+  width: 10px;
+  height: 10px;
+}
+
+.prompt-build-btn .btn-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.settings-drawer {
+  position: relative;
+}
+
+.settings-trigger {
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.6);
+  border: 1px solid rgba(120, 138, 162, 0.4);
+  list-style: none;
+  user-select: none;
+}
+
+.settings-trigger::-webkit-details-marker { display: none; }
+
+.settings-body {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 0.35rem;
+  padding: 0.6rem;
+  background: linear-gradient(180deg, #f5f0e5, #ece4d7);
+  border: 1px solid rgba(131, 148, 170, 0.52);
+  border-radius: 10px;
+  box-shadow: 0 6px 16px rgba(8, 35, 55, 0.3);
+  min-width: 220px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.settings-body .button-row {
+  margin-bottom: 0.4rem;
+}
+
+.mini-player-simple {
+  min-height: 36px;
+  padding: 0.25rem 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #2a4c70;
+  background: linear-gradient(180deg, #f8f6ef, #eee8da);
+  border: 1px solid rgba(132, 157, 185, 0.45);
+  border-radius: 8px;
+}
+
+.mini-player-simple .mini-player-avatar {
+  width: 22px;
+  height: 22px;
+}
+
+.mini-player-simple .mini-player-name {
+  font-size: 0.78rem;
 }
 
 .action-strip {
@@ -960,45 +1170,6 @@ main.table-layout {
   clip-path: polygon(0% 100%, 0% 48%, 22% 48%, 22% 30%, 42% 30%, 42% 48%, 58% 48%, 58% 20%, 78% 20%, 78% 48%, 100% 48%, 100% 100%);
 }
 
-.map-build-hud {
-  position: absolute;
-  left: 14px;
-  bottom: 14px;
-  display: flex;
-  gap: 0.34rem;
-  z-index: 7;
-  background: rgba(13, 57, 93, 0.62);
-  border: 1px solid rgba(168, 214, 245, 0.45);
-  border-radius: 9px;
-  padding: 0.24rem;
-  backdrop-filter: blur(2px);
-}
-
-.hud-build-btn {
-  border: 1px solid rgba(172, 215, 246, 0.4);
-  background: linear-gradient(180deg, rgba(228, 246, 255, 0.94), rgba(192, 224, 244, 0.94));
-  color: #11385f;
-  border-radius: 7px;
-  padding: 0.24rem 0.42rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.26rem;
-}
-
-.hud-build-btn:disabled {
-  opacity: 0.5;
-}
-
-.optional-build-controls {
-  opacity: 0.82;
-}
-
-.optional-build-controls summary {
-  font-size: 0.69rem;
-}
-
 .player-stats-grid {
   margin-top: 0.3rem;
   display: grid;
@@ -1025,72 +1196,6 @@ main.table-layout {
   height: 6px;
   border-radius: 999px;
   background: #5f88b4;
-}
-
-.compact-main-strip h2 {
-  margin-bottom: 0.28rem;
-}
-
-.tile-row {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.34rem;
-}
-
-.action-tile {
-  min-height: 56px;
-  border-radius: 10px;
-  display: grid;
-  grid-template-rows: 18px 1fr 14px;
-  justify-items: center;
-  align-items: center;
-  padding: 0.22rem 0.24rem 0.2rem;
-  font-size: 0.7rem;
-  font-weight: 800;
-  gap: 0.1rem;
-}
-
-.action-tile .btn-icon,
-.action-tile .build-glyph {
-  width: 16px;
-  height: 16px;
-}
-
-.tile-label {
-  line-height: 1;
-  font-size: 0.7rem;
-  letter-spacing: 0.01em;
-}
-
-.tile-shortcut {
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  background: rgba(0, 0, 0, 0.15);
-  color: rgba(255, 255, 255, 0.92);
-  padding: 0.02rem 0.34rem;
-  font-size: 0.58rem;
-  font-weight: 750;
-}
-
-.action-tile:disabled .tile-shortcut {
-  opacity: 0.5;
-}
-
-.compact-drawer {
-  min-height: 80px;
-}
-
-.compact-drawer summary {
-  font-size: 0.68rem;
-  margin-bottom: 0.22rem;
-}
-
-.compact-drawer .collapsible-body {
-  padding-top: 0.08rem;
-}
-
-.bottom-bar {
-  grid-template-columns: 2.4fr 1fr 1fr 0.9fr;
 }
 
 .hint {
@@ -1135,10 +1240,7 @@ main.table-layout {
 
 @media (max-width: 1380px) {
   main.table-layout {
-    grid-template-columns: 1fr 300px;
-  }
-  .bottom-bar {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 260px;
   }
 }
 
@@ -1151,13 +1253,10 @@ main.table-layout {
   }
   .right-rail {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto auto;
   }
   .board-panel,
   #board {
     min-height: 480px;
-  }
-  .bottom-bar {
-    grid-template-columns: 1fr;
   }
 }

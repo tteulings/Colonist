@@ -1,0 +1,13 @@
+{
+  "name": "colonist",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "serve": "npx serve . -p 8765",
+    "screenshot": "node scripts/screenshot.js",
+    "screenshot:full": "node scripts/screenshot.js --serve"
+  },
+  "devDependencies": {
+    "playwright": "^1.40.0"
+  }
+}
