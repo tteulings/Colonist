@@ -305,6 +305,7 @@ class ColonistFullGame {
     this.scoreboard = document.querySelector("#scoreboard");
     this.statusText = document.querySelector("#statusText");
     this.hintText = document.querySelector("#hintText");
+    this.toastStack = document.querySelector("#toastStack");
     this.phaseRollTag = document.querySelector("#phaseRollTag");
     this.phaseBuildTag = document.querySelector("#phaseBuildTag");
     this.phaseEndTag = document.querySelector("#phaseEndTag");
@@ -330,23 +331,13 @@ class ColonistFullGame {
     this.speedRange = document.querySelector("#speedRange");
 
     this.maxLogEntries = 260;
+    this.maxToasts = 4;
     this.autoplayInterval = null;
     this.aiTurnTimeout = null;
-    this.resourceArtImages = {};
 
     this.populateResourceSelects();
-    this.preloadBoardArt();
     this.bindControls();
     this.resetGame();
-  }
-
-  preloadBoardArt() {
-    RESOURCES.forEach((resource) => {
-      const img = new Image();
-      img.src = RESOURCE_ICON_PATH[resource];
-      img.onload = () => this.render();
-      this.resourceArtImages[resource] = img;
-    });
   }
 
   populateResourceSelects() {
@@ -475,6 +466,28 @@ class ColonistFullGame {
     if (this.logEntries.length > this.maxLogEntries) {
       this.logEntries = this.logEntries.slice(-this.maxLogEntries);
     }
+    if (this.shouldToast(text)) this.pushToast(text);
+  }
+
+  shouldToast(text) {
+    return /(rolled|built|upgraded|traded|played|stole|wins|moved robber|gains)/i.test(text);
+  }
+
+  pushToast(text) {
+    if (!this.toastStack) return;
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.textContent = text;
+    this.toastStack.appendChild(toast);
+    while (this.toastStack.children.length > this.maxToasts) {
+      this.toastStack.removeChild(this.toastStack.firstChild);
+    }
+    window.setTimeout(() => {
+      if (!toast.parentElement) return;
+      toast.style.opacity = "0";
+      toast.style.transform = "translateY(-4px)";
+      window.setTimeout(() => toast.remove(), 180);
+    }, 2600);
   }
 
   rollDice() {
@@ -1569,43 +1582,152 @@ class ColonistFullGame {
     this.drawHexPath(hex.corners);
     ctx.clip();
 
-    if (hex.resource === "desert") {
-      const dune = ctx.createLinearGradient(hex.center.x - 36, hex.center.y + 16, hex.center.x + 36, hex.center.y + 38);
-      dune.addColorStop(0, "rgba(188, 147, 70, 0.45)");
-      dune.addColorStop(1, "rgba(154, 118, 48, 0.28)");
-      ctx.fillStyle = dune;
+    const cx = hex.center.x;
+    const cy = hex.center.y;
+
+    if (hex.resource === "wood") {
+      ctx.fillStyle = "rgba(41, 112, 54, 0.26)";
+      ctx.fillRect(cx - 40, cy - 5, 80, 34);
+      const drawTree = (x, y, s) => {
+        ctx.fillStyle = "rgba(35, 108, 49, 0.68)";
+        ctx.beginPath();
+        ctx.moveTo(x, y - 14 * s);
+        ctx.lineTo(x - 11 * s, y + 4 * s);
+        ctx.lineTo(x + 11 * s, y + 4 * s);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "rgba(74, 149, 78, 0.72)";
+        ctx.beginPath();
+        ctx.moveTo(x, y - 8 * s);
+        ctx.lineTo(x - 9 * s, y + 8 * s);
+        ctx.lineTo(x + 9 * s, y + 8 * s);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(85, 58, 28, 0.62)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y + 8 * s);
+        ctx.lineTo(x, y + 15 * s);
+        ctx.stroke();
+      };
+      drawTree(cx - 18, cy + 13, 0.9);
+      drawTree(cx, cy + 6, 1.05);
+      drawTree(cx + 18, cy + 12, 0.88);
+    } else if (hex.resource === "brick") {
+      ctx.fillStyle = "rgba(166, 83, 51, 0.34)";
+      ctx.fillRect(cx - 34, cy + 5, 68, 26);
+      ctx.fillStyle = "rgba(194, 102, 65, 0.72)";
+      ctx.fillRect(cx - 27, cy + 2, 54, 8);
+      ctx.fillRect(cx - 31, cy + 10, 24, 8);
+      ctx.fillRect(cx - 3, cy + 10, 24, 8);
+      ctx.fillRect(cx - 23, cy + 18, 24, 8);
+      ctx.fillRect(cx + 5, cy + 18, 24, 8);
+      ctx.strokeStyle = "rgba(136, 63, 37, 0.62)";
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(cx - 27, cy + 2, 54, 8);
+      ctx.strokeRect(cx - 31, cy + 10, 24, 8);
+      ctx.strokeRect(cx - 3, cy + 10, 24, 8);
+      ctx.strokeRect(cx - 23, cy + 18, 24, 8);
+      ctx.strokeRect(cx + 5, cy + 18, 24, 8);
+    } else if (hex.resource === "sheep") {
+      ctx.fillStyle = "rgba(125, 175, 86, 0.28)";
       ctx.beginPath();
-      ctx.moveTo(hex.center.x - 42, hex.center.y + 26);
-      ctx.bezierCurveTo(
-        hex.center.x - 20,
-        hex.center.y + 8,
-        hex.center.x + 3,
-        hex.center.y + 42,
-        hex.center.x + 44,
-        hex.center.y + 19,
-      );
-      ctx.lineTo(hex.center.x + 44, hex.center.y + 42);
-      ctx.lineTo(hex.center.x - 42, hex.center.y + 42);
+      ctx.ellipse(cx, cy + 20, 40, 16, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(246, 252, 244, 0.95)";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + 12, 14, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(cx - 11, cy + 10, 6, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(cx + 11, cy + 10, 6, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(58, 71, 88, 0.72)";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + 14, 5.5, 4.1, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(58, 71, 88, 0.7)";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(cx - 4, cy + 18);
+      ctx.lineTo(cx - 4, cy + 24);
+      ctx.moveTo(cx + 4, cy + 18);
+      ctx.lineTo(cx + 4, cy + 24);
+      ctx.stroke();
+    } else if (hex.resource === "wheat") {
+      ctx.fillStyle = "rgba(170, 132, 44, 0.24)";
+      ctx.fillRect(cx - 42, cy + 3, 84, 32);
+      ctx.strokeStyle = "rgba(183, 145, 45, 0.55)";
+      ctx.lineWidth = 1;
+      for (let i = -35; i <= 35; i += 9) {
+        ctx.beginPath();
+        ctx.moveTo(cx + i, cy + 4);
+        ctx.lineTo(cx + i + 10, cy + 33);
+        ctx.stroke();
+      }
+      const stalk = (x, y) => {
+        ctx.strokeStyle = "rgba(129, 95, 25, 0.78)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + 16);
+        ctx.stroke();
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y + 4);
+        ctx.lineTo(x - 4, y + 7);
+        ctx.moveTo(x, y + 8);
+        ctx.lineTo(x + 4, y + 11);
+        ctx.stroke();
+      };
+      stalk(cx - 10, cy + 6);
+      stalk(cx, cy + 4);
+      stalk(cx + 10, cy + 6);
+    } else if (hex.resource === "ore") {
+      ctx.fillStyle = "rgba(108, 122, 145, 0.35)";
+      ctx.beginPath();
+      ctx.moveTo(cx - 34, cy + 28);
+      ctx.lineTo(cx - 16, cy + 8);
+      ctx.lineTo(cx - 3, cy + 20);
+      ctx.lineTo(cx + 12, cy + 2);
+      ctx.lineTo(cx + 34, cy + 28);
       ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = "rgba(130, 94, 36, 0.35)";
+      ctx.fillStyle = "rgba(125, 141, 165, 0.62)";
       ctx.beginPath();
-      ctx.arc(hex.center.x + 18, hex.center.y - 12, 6, 0, Math.PI * 2);
+      ctx.moveTo(cx - 28, cy + 28);
+      ctx.lineTo(cx - 12, cy + 10);
+      ctx.lineTo(cx - 2, cy + 21);
+      ctx.lineTo(cx + 10, cy + 8);
+      ctx.lineTo(cx + 27, cy + 28);
+      ctx.closePath();
       ctx.fill();
-      ctx.restore();
-      return;
-    }
-
-    const icon = this.resourceArtImages[hex.resource];
-    if (icon && icon.complete && icon.naturalWidth > 0) {
-      const size = 26;
-      const y = hex.center.y - 26;
-      ctx.globalAlpha = 0.82;
-      ctx.drawImage(icon, hex.center.x - size / 2, y - size / 2, size, size);
-      // Soft watermark effect for richer, less flat tiles.
-      ctx.globalAlpha = 0.16;
-      ctx.drawImage(icon, hex.center.x - 31, hex.center.y + 5, 22, 22);
-      ctx.drawImage(icon, hex.center.x + 10, hex.center.y + 2, 18, 18);
+      ctx.fillStyle = "rgba(220, 229, 240, 0.72)";
+      ctx.beginPath();
+      ctx.moveTo(cx + 5, cy + 10);
+      ctx.lineTo(cx + 10, cy + 8);
+      ctx.lineTo(cx + 14, cy + 13);
+      ctx.closePath();
+      ctx.fill();
+    } else if (hex.resource === "desert") {
+      const dune = ctx.createLinearGradient(cx - 36, cy + 16, cx + 36, cy + 38);
+      dune.addColorStop(0, "rgba(188, 147, 70, 0.58)");
+      dune.addColorStop(1, "rgba(154, 118, 48, 0.34)");
+      ctx.fillStyle = dune;
+      ctx.beginPath();
+      ctx.moveTo(cx - 42, cy + 26);
+      ctx.bezierCurveTo(cx - 20, cy + 8, cx + 3, cy + 42, cx + 44, cy + 19);
+      ctx.lineTo(cx + 44, cy + 42);
+      ctx.lineTo(cx - 42, cy + 42);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(129, 96, 36, 0.55)";
+      ctx.fillRect(cx + 14, cy - 7, 4, 14);
+      ctx.fillRect(cx + 10, cy - 1, 12, 4);
+      ctx.fillRect(cx + 16, cy - 12, 2, 5);
+      ctx.fillRect(cx + 13, cy - 9, 8, 2);
     }
     ctx.restore();
   }
