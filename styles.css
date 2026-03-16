@@ -628,6 +628,16 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   100% { opacity: 0; transform: translateX(-50%) translateY(-28px); }
 }
 
+/* ── Version label ── */
+.version-label {
+  display: block;
+  text-align: right;
+  font-size: 0.6rem;
+  color: var(--muted);
+  opacity: 0.5;
+  margin-top: 0.25rem;
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: rgba(179, 210, 241, 0.4); }
@@ -675,7 +685,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 
 @media (max-width: 600px) {
   .table-header { display: none; }
-  .right-rail { flex-direction: column; }
+  .right-rail { flex-direction: column; flex-shrink: 0; }
   .bottom-bar {
     flex-direction: column;
     align-items: stretch;
