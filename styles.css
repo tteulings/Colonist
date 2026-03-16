@@ -706,11 +706,9 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .bottom-bar { order: 2; flex-shrink: 0; }
   .right-rail {
     position: absolute;
-    top: 0.35rem;
-    right: 0.35rem;
+    top: 0.3rem;
+    right: 0.3rem;
     width: auto;
-    min-width: 120px;
-    max-width: 155px;
     flex-direction: column;
     padding: 0;
     pointer-events: auto;
@@ -718,11 +716,11 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
     gap: 0;
   }
   .rail-players {
-    background: rgba(20, 40, 60, 0.7);
-    backdrop-filter: blur(8px);
-    border-radius: 8px;
-    padding: 0.3rem;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(20, 40, 60, 0.65);
+    backdrop-filter: blur(6px);
+    border-radius: 6px;
+    padding: 0.2rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
   .rail-players h2 { display: none; }
   .player-card-mini {
@@ -752,14 +750,14 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .resource-card { width: 42px; height: 52px; }
   .resource-card img { width: 22px; height: 22px; }
   .resource-card .resource-count { font-size: 0.75rem; }
-  .right-rail { min-width: 100px; max-width: 130px; }
-  .rail-card { padding: 0.25rem; }
-  .player-card-mini { padding: 0.15rem 0.25rem; font-size: 0.6rem; }
-  .player-card-mini .player-avatar { width: 16px; height: 16px; }
-  .player-card-mini .player-name { font-size: 0.6rem; }
+  .right-rail { min-width: auto; max-width: none; width: auto; }
+  .rail-card { padding: 0.2rem; }
+  .player-card-mini { padding: 0.12rem 0.3rem; font-size: 0.6rem; }
+  .player-card-mini .player-avatar { width: 14px; height: 14px; }
+  .player-card-mini .player-name { font-size: 0.6rem; max-width: 50px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .player-vp { font-size: 0.6rem; }
-  .player-stats { display: flex; flex-wrap: wrap; }
-  #scoreboard { gap: 0.15rem; }
+  .player-stats { display: none; }
+  #scoreboard { gap: 0.12rem; }
   .action-prompt { padding: 0.2rem 0.4rem; }
   .action-prompt-text { font-size: 0.75rem; }
   .action-prompt-avatar { width: 24px; height: 24px; }
