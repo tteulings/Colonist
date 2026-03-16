@@ -339,6 +339,7 @@ class ColonistFullGame {
     this.leftPlayerPanel = document.querySelector("#leftPlayerPanel");
     this.rightPlayerPanel = document.querySelector("#rightPlayerPanel");
     this.resourceCardStrip = document.querySelector("#resourceCardStrip");
+    this.handStrip = document.querySelector("#handStrip");
     this.actionPrompt = document.querySelector("#actionPrompt");
     this.actionPromptAvatar = document.querySelector("#actionPromptAvatar");
     this.actionPromptText = document.querySelector("#actionPromptText");
@@ -3044,16 +3045,38 @@ class ColonistFullGame {
   }
 
   renderResourceCards() {
-    if (!this.resourceCardStrip) return;
     const human = this.players.find((p) => p.isHuman);
     if (!human) return;
-    this.resourceCardStrip.innerHTML = RESOURCES.map(
-      (resource) =>
-        `<div class="resource-card ${resource}" aria-label="${resource} ${human.resources[resource]}">
-          <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
-          <span class="resource-count">${human.resources[resource]}</span>
-        </div>`,
-    ).join("");
+
+    // Bottom bar summary cards (desktop)
+    if (this.resourceCardStrip) {
+      this.resourceCardStrip.innerHTML = RESOURCES.map(
+        (resource) =>
+          `<div class="resource-card ${resource}" aria-label="${resource} ${human.resources[resource]}">
+            <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
+            <span class="resource-count">${human.resources[resource]}</span>
+          </div>`,
+      ).join("");
+    }
+
+    // Hand strip — individual overlapping cards (top of screen on mobile)
+    if (this.handStrip) {
+      const cards = [];
+      RESOURCES.forEach((resource) => {
+        for (let i = 0; i < human.resources[resource]; i++) {
+          cards.push(resource);
+        }
+      });
+      if (cards.length === 0) {
+        this.handStrip.innerHTML = '<span class="hand-empty">No cards</span>';
+      } else {
+        this.handStrip.innerHTML = cards.map((resource, i) =>
+          `<div class="hand-card ${resource}" style="--i:${i};--n:${cards.length}">
+            <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
+          </div>`
+        ).join("");
+      }
+    }
   }
 
   renderScoreboard() {
