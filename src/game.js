@@ -404,6 +404,12 @@ class ColonistFullGame {
     if (!container) return;
     const rect = container.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
+    if (window.innerWidth <= 1080) {
+      this.canvas.style.width = "100%";
+      this.canvas.style.height = "auto";
+      this.canvas.style.margin = "0";
+      return;
+    }
     const aspect = this.boardWidth / this.boardHeight;
     const containerAspect = rect.width / rect.height;
     if (containerAspect > aspect) {

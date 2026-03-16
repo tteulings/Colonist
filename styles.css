@@ -647,7 +647,15 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
     display: contents;
   }
   .table-header { order: 0; }
-  .board-area { order: 1; min-height: 350px; position: relative; }
+  .board-area {
+    order: 1;
+    position: relative;
+    min-height: 0;
+    width: 100%;
+    aspect-ratio: 12 / 7;
+  }
+  .board-panel { height: auto; }
+  #board { height: auto; aspect-ratio: 12 / 7; }
   .bottom-bar { order: 2; }
   .right-rail {
     order: 3;
@@ -658,13 +666,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
     pointer-events: auto;
   }
   .rail-players { flex: 1; }
-  .rail-log {
-    flex: 1;
-    transform: none;
-    opacity: 1;
-    max-height: 180px;
-  }
-  .rail-log.open { transform: none; }
+  .rail-log { display: none; }
   .log-toggle { display: none; }
 }
 
