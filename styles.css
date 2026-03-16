@@ -635,14 +635,15 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 
 /* ── Responsive ── */
 @media (max-width: 1080px) {
+  body { overflow: hidden; }
   .app-shell {
-    height: auto;
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
     padding: 0.25rem;
-    overflow: auto;
+    overflow: hidden;
   }
   main.table-layout {
     display: contents;
@@ -652,12 +653,12 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
     order: 1;
     position: relative;
     min-height: 0;
+    flex: 1 1 0;
     width: 100%;
-    aspect-ratio: 12 / 7;
   }
-  .board-panel { height: auto; }
-  #board { height: auto; aspect-ratio: 12 / 7; }
-  .bottom-bar { order: 2; }
+  .board-panel { height: 100%; }
+  #board { width: 100%; height: 100%; }
+  .bottom-bar { order: 2; flex-shrink: 0; }
   .right-rail {
     order: 3;
     position: relative;
@@ -665,6 +666,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
     flex-direction: row;
     padding: 0;
     pointer-events: auto;
+    flex-shrink: 0;
   }
   .rail-players { flex: 1; }
   .rail-log { display: none; }
