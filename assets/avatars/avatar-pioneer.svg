@@ -1,9 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" fill="none">
-  <circle cx="48" cy="48" r="44" fill="#8EB4DB"/>
-  <circle cx="48" cy="35" r="15" fill="#F9D4BD"/>
-  <path d="M20 80C24 64 35 57 48 57C61 57 72 64 76 80" fill="#3D6D95"/>
-  <path d="M33 30C34 23 40 19 48 19C56 19 62 24 63 31L58 30C57 26 54 24 48 24C42 24 39 26 38 30H33Z" fill="#3E4E63"/>
-  <circle cx="43" cy="35" r="1.8" fill="#59443F"/>
-  <circle cx="53" cy="35" r="1.8" fill="#59443F"/>
-  <path d="M44 42C46 43.5 50 43.5 52 42" stroke="#A46D60" stroke-width="2" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="18" y1="16" x2="102" y2="104" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C7DCF4"/>
+      <stop offset="1" stop-color="#8FB4DD"/>
+    </linearGradient>
+    <linearGradient id="coat" x1="60" y1="66" x2="60" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4F789E"/>
+      <stop offset="1" stop-color="#315877"/>
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="60" r="54" fill="url(#bg)"/>
+  <circle cx="60" cy="60" r="54" stroke="#ECF5FF" stroke-width="4"/>
+  <path d="M21 104C27 83 42 72 60 72C78 72 93 83 99 104" fill="url(#coat)"/>
+  <path d="M47 72L60 88L73 72" fill="#E8F3FD" fill-opacity="0.86"/>
+  <ellipse cx="60" cy="48" rx="17" ry="18.5" fill="#FBD9C3"/>
+  <path d="M41 49C43 30 50 23 60 23C70 23 77 30 79 49L72 48C71 38 66 34 60 34C54 34 49 38 48 48L41 49Z" fill="#536983"/>
+  <path d="M42 52H78C76 42 70 36 60 36C50 36 44 42 42 52Z" fill="#41586F"/>
+  <path d="M50 45C52 43.5 55 43.5 57 44.6" stroke="#5E4A43" stroke-width="2.1" stroke-linecap="round"/>
+  <path d="M63 44.6C65 43.5 68 43.5 70 45" stroke="#5E4A43" stroke-width="2.1" stroke-linecap="round"/>
+  <circle cx="54" cy="51.5" r="2.1" fill="#44332F"/>
+  <circle cx="66" cy="51.5" r="2.1" fill="#44332F"/>
+  <path d="M58.3 58.5C59.3 59.2 60.7 59.2 61.7 58.5" stroke="#C48C79" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M54.5 63.5C57 66 63 66 65.5 63.5" stroke="#AB7566" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M42 46L36 43L40 35L47 39" fill="#6A7F96"/>
 </svg>

@@ -109,11 +109,13 @@ h2 {
 }
 
 .mini-player-avatar {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.8);
   background: rgba(255, 255, 255, 0.6);
+  object-fit: cover;
+  box-shadow: 0 2px 5px rgba(25, 63, 98, 0.25);
 }
 
 .mini-player-name {
@@ -482,12 +484,12 @@ select {
 }
 
 .player-avatar {
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
   object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  box-shadow: 0 2px 4px rgba(24, 57, 88, 0.25);
+  border: 1.5px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 3px 6px rgba(24, 57, 88, 0.28);
   background: rgba(255, 255, 255, 0.6);
 }
 
