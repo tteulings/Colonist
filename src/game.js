@@ -416,7 +416,9 @@ class ColonistFullGame {
     this.incomingTradeGet = document.querySelector("#incomingTradeGet");
     this.acceptTradeBtn = document.querySelector("#acceptTradeBtn");
     this.rejectTradeBtn = document.querySelector("#rejectTradeBtn");
-    this.pendingIncomingTrade = null; // { fromPlayer, give, want, resolve }
+    this.pendingIncomingTrade = null;
+    this.tradeOffer = makeEmptyResources();
+    this.tradeRequest = makeEmptyResources();
 
     this.maxLogEntries = 260;
     this.maxToasts = 4;
@@ -587,7 +589,10 @@ class ColonistFullGame {
       this.handleHumanPlayDevCard("yearOfPlenty"),
     );
     this.playMonopolyBtn.addEventListener("click", () => this.handleHumanPlayDevCard("monopoly"));
-    this.tradeBankBtn.addEventListener("click", () => this.openTradeModal());
+    this.tradeBankBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.openTradeModal();
+    });
     this.tradeModalClose?.addEventListener("click", () => this.closeTradeModal());
     this.tradeModal?.addEventListener("click", (e) => { if (e.target === this.tradeModal) this.closeTradeModal(); });
     this.tradeExecuteBtn?.addEventListener("click", () => {
@@ -3883,12 +3888,11 @@ class ColonistFullGame {
       this.devDeck.length <= 0 ? "Deck empty" : devMissing ? `Need ${devMissing}` : "Not available",
       "Buy dev card (B)",
     );
-    setButtonState(
-      this.tradeBankBtn,
-      humanTurn && mainPhase,
-      "Not your turn",
-      "Trade (T)",
-    );
+    // Trade button: never disabled, always opens modal
+    if (this.tradeBankBtn) {
+      this.tradeBankBtn.disabled = false;
+      this.tradeBankBtn.title = "Trade (T)";
+    }
 
     this.playKnightBtn.disabled = !(humanTurn && mainPhase && noDevPlayed && human.devCards.knight > 0);
     this.playRoadBuildingBtn.disabled = !(humanTurn && mainPhase && noDevPlayed && human.devCards.roadBuilding > 0);
