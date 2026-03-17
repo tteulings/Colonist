@@ -908,6 +908,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
     min-height: 0;
     flex: 1 1 0;
     width: 100%;
+    position: relative;
   }
   .board-panel { width: 100%; height: 100%; }
   #board { width: 100%; height: 100%; }
@@ -934,7 +935,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .bottom-bar { order: 3; flex-shrink: 0; }
   .right-rail {
     position: absolute;
-    top: 0.3rem;
+    top: 0;
     right: 0.3rem;
     width: auto;
     flex-direction: column;
@@ -978,14 +979,16 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .resource-card { width: 42px; height: 52px; }
   .resource-card img { width: 22px; height: 22px; }
   .resource-card .resource-count { font-size: 0.75rem; }
-  .right-rail { min-width: auto; max-width: none; width: auto; }
-  .rail-card { padding: 0.2rem; }
-  .player-card-mini { padding: 0.12rem 0.3rem; font-size: 0.6rem; }
-  .player-card-mini .player-avatar { width: 14px; height: 14px; }
-  .player-card-mini .player-name { font-size: 0.6rem; max-width: 50px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .player-vp { font-size: 0.6rem; }
+  .right-rail { min-width: auto; max-width: 140px; width: auto; }
+  .rail-card { padding: 0.15rem; }
+  .rail-players { padding: 0.15rem !important; }
+  .player-card-mini { padding: 0.1rem 0.2rem; font-size: 0.55rem; gap: 0.15rem; }
+  .player-card-mini .player-avatar { width: 12px; height: 12px; }
+  .player-card-mini .player-name { font-size: 0.55rem; max-width: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .player-vp { font-size: 0.55rem; }
+  .player-hand-counts { font-size: 0.5rem; }
   .player-stats { display: none; }
-  #scoreboard { gap: 0.12rem; }
+  #scoreboard { gap: 0.1rem; }
   .action-prompt { padding: 0.2rem 0.4rem; }
   .action-prompt-text { font-size: 0.75rem; }
   .action-prompt-avatar { width: 24px; height: 24px; }
