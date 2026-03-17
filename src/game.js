@@ -428,6 +428,8 @@ class ColonistFullGame {
     this.animTime = 0;
     this.lastAnimationTs = 0;
     this.animationFrame = null;
+    this.highlightRoll = null; // { number, startTime } — highlights hexes with rolled number
+    this.placementAnims = []; // [{ x, y, type, startTime }] — build placement pop animations
     this.boardWidth = Number(this.canvas.getAttribute("width")) || 1100;
     this.boardHeight = Number(this.canvas.getAttribute("height")) || 560;
     this.pixelRatio = 1;
@@ -1214,6 +1216,9 @@ class ColonistFullGame {
         }
       }
       if (built) {
+        // Trigger placement animation
+        const animPos = this.getBuildPosition(cb);
+        if (animPos) this.placementAnims.push({ ...animPos, type: cb.type, startTime: Date.now() });
         this.pendingAction = null;
         this.confirmBuild = null;
         this.recomputeScores();
@@ -1575,6 +1580,10 @@ class ColonistFullGame {
     }
     this.phase = "main";
     this.addLog(`Turn ${this.turn}: ${player.name} rolled ${this.lastRoll}.`);
+    // Highlight matching hex tokens
+    if (this.lastRoll !== 7) {
+      this.highlightRoll = { number: this.lastRoll, startTime: Date.now() };
+    }
     if (this.lastRoll === 7) this.resolveRobber(player, "rolled a 7");
     else {
       const gains = this.distributeResources(this.lastRoll);
@@ -3595,6 +3604,18 @@ class ColonistFullGame {
     ctx.restore();
   }
 
+  getBuildPosition(cb) {
+    if (cb.type === "road") {
+      const edge = this.geometry.edges[cb.id];
+      const [a, b] = edge.nodes;
+      const p1 = this.geometry.nodes[a];
+      const p2 = this.geometry.nodes[b];
+      return { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+    }
+    const node = this.geometry.nodes[cb.id];
+    return { x: node.x, y: node.y };
+  }
+
   getConfirmIconCenter() {
     if (!this.confirmBuild) return null;
     const s = this.geometry.hexSize / 74;
@@ -3623,6 +3644,97 @@ class ColonistFullGame {
     const dx = worldX - icon.x;
     const dy = worldY - icon.y;
     return dx * dx + dy * dy <= hitR * hitR;
+  }
+
+  drawRobberModeOverlay() {
+    if (this.pendingAction !== "robber") return;
+    const ctx = this.ctx;
+    const s = this.geometry.hexSize / 74;
+    const pulse = 0.3 + Math.sin(Date.now() / 300) * 0.15;
+
+    // Dim all hexes slightly, highlight valid targets
+    this.geometry.hexes.forEach((hex) => {
+      if (hex.id === this.robberHexId) {
+        // Current robber location — blocked
+        this.drawHexPath(hex.corners);
+        ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+        ctx.fill();
+      } else {
+        // Valid target — subtle red pulse border
+        this.drawHexPath(hex.corners);
+        ctx.strokeStyle = `rgba(220, 60, 60, ${pulse})`;
+        ctx.lineWidth = 2.5 * s;
+        ctx.stroke();
+      }
+    });
+  }
+
+  drawRollHighlight() {
+    if (!this.highlightRoll) return;
+    const elapsed = Date.now() - this.highlightRoll.startTime;
+    if (elapsed > 2000) { this.highlightRoll = null; return; }
+    const ctx = this.ctx;
+    const s = this.geometry.hexSize / 74;
+    const alpha = Math.max(0, 1 - elapsed / 2000);
+    const pulse = 0.5 + Math.sin(elapsed / 150) * 0.5;
+    const num = this.highlightRoll.number;
+
+    this.geometry.hexes.forEach((hex) => {
+      if (hex.number !== num || hex.id === this.robberHexId) return;
+      // Glowing border around matching hexes
+      this.drawHexPath(hex.corners);
+      ctx.strokeStyle = `rgba(255, 220, 40, ${alpha * (0.6 + pulse * 0.4)})`;
+      ctx.lineWidth = 4 * s;
+      ctx.stroke();
+      // Bright fill
+      this.drawHexPath(hex.corners);
+      ctx.fillStyle = `rgba(255, 240, 100, ${alpha * 0.12})`;
+      ctx.fill();
+      // Glow on the number token
+      ctx.beginPath();
+      ctx.arc(hex.center.x, hex.center.y, this.geometry.hexSize * 0.32, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255, 200, 0, ${alpha * (0.5 + pulse * 0.5)})`;
+      ctx.lineWidth = 3 * s;
+      ctx.stroke();
+    });
+  }
+
+  drawPlacementAnims() {
+    const ctx = this.ctx;
+    const s = this.geometry.hexSize / 74;
+    const now = Date.now();
+    this.placementAnims = this.placementAnims.filter((anim) => {
+      const elapsed = now - anim.startTime;
+      if (elapsed > 600) return false;
+
+      const t = elapsed / 600; // 0..1
+      // Bounce ease: overshoot then settle
+      const scale = t < 0.4 ? (t / 0.4) * 1.4 : 1.4 - (t - 0.4) / 0.6 * 0.4;
+      const alpha = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
+
+      ctx.save();
+      ctx.translate(anim.x, anim.y);
+      ctx.globalAlpha = alpha * 0.7;
+
+      // Expanding ring
+      const ringR = 15 * s * scale;
+      ctx.beginPath();
+      ctx.arc(0, 0, ringR, 0, Math.PI * 2);
+      ctx.strokeStyle = anim.type === "road" ? "rgba(39, 201, 255, 0.8)" : "rgba(255, 220, 40, 0.8)";
+      ctx.lineWidth = 3 * s;
+      ctx.stroke();
+
+      // Inner flash
+      if (t < 0.3) {
+        ctx.beginPath();
+        ctx.arc(0, 0, ringR * 0.6, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+        ctx.fill();
+      }
+
+      ctx.restore();
+      return true;
+    });
   }
 
   drawHoverEffects() {
@@ -3938,10 +4050,13 @@ class ColonistFullGame {
     this.ctx.translate(this.view.offsetX, this.view.offsetY);
     this.ctx.scale(this.view.scale, this.view.scale);
     this.geometry.hexes.forEach((hex) => this.drawHex(hex));
+    this.drawRobberModeOverlay();
+    this.drawRollHighlight();
     this.drawNodeDots();
     this.drawPorts();
     this.drawRoads();
     this.drawStructures();
+    this.drawPlacementAnims();
     this.drawHoverEffects();
     this.ctx.restore();
     this.drawHoverTooltip();
