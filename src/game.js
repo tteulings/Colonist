@@ -147,7 +147,10 @@ function createAxialHexes(radius) {
 }
 
 function createBoardGeometry(canvasWidth, canvasHeight) {
-  const hexSize = Math.min(canvasWidth / 13, canvasHeight / 7.6);
+  const aspect = canvasWidth / canvasHeight;
+  // On tall screens (mobile portrait), allow larger hexes by loosening the width constraint
+  const wDiv = aspect < 1 ? 11 : 13;
+  const hexSize = Math.min(canvasWidth / wDiv, canvasHeight / 7.6);
   const centerX = canvasWidth * 0.47;
   const centerY = canvasHeight * 0.5;
 
@@ -1812,28 +1815,29 @@ class ColonistFullGame {
         return;
       }
     }
-    // Propose to each AI
-    let accepted = false;
+    // Propose to all AI — collect responses, first accept wins
+    const responses = [];
+    let acceptor = null;
     for (const other of this.players) {
       if (other.id === player.id || other.isHuman) continue;
-      if (this.aiEvaluateTrade(other, request, offer)) {
-        // AI accepts: they give us 'request', we give them 'offer'
-        RESOURCES.forEach((r) => {
-          player.resources[r] -= offer[r];
-          player.resources[r] += request[r];
-          other.resources[r] -= request[r];
-          other.resources[r] += offer[r];
-        });
-        this.addLog(`${other.name} accepted trade with ${player.name}: gave ${resourceString(request)} for ${resourceString(offer)}.`);
-        if (this.tradeProposalResult) this.tradeProposalResult.textContent = `${other.name} accepted!`;
-        accepted = true;
-        this.render();
-        break;
-      }
+      const accepts = this.aiEvaluateTrade(other, request, offer);
+      responses.push({ name: other.name, accepts });
+      if (accepts && !acceptor) acceptor = other;
     }
-    if (!accepted) {
-      this.addLog("All AI players rejected your trade offer.");
-      if (this.tradeProposalResult) this.tradeProposalResult.textContent = "All players rejected.";
+    const summary = responses.map(r => `${r.name}: ${r.accepts ? "✓" : "✗"}`).join("  ");
+    if (acceptor) {
+      RESOURCES.forEach((r) => {
+        player.resources[r] -= offer[r];
+        player.resources[r] += request[r];
+        acceptor.resources[r] -= request[r];
+        acceptor.resources[r] += offer[r];
+      });
+      this.addLog(`${acceptor.name} accepted trade: gave ${resourceString(request)} for ${resourceString(offer)}.`);
+      if (this.tradeProposalResult) this.tradeProposalResult.textContent = `${acceptor.name} accepted!  ${summary}`;
+      this.render();
+    } else {
+      this.addLog("All players rejected your trade offer.");
+      if (this.tradeProposalResult) this.tradeProposalResult.textContent = `No takers.  ${summary}`;
     }
   }
 
