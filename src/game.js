@@ -1489,7 +1489,7 @@ class ColonistFullGame {
         this.hoverHexId = hexId;
         const hex = this.geometry.hexes[hexId];
         const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
-        this.hoverTooltip = `Move robber to ${label}`;
+        // No tooltip — hex highlight is enough
         this.canvas.style.cursor = "pointer";
       } else {
         this.canvas.style.cursor = "crosshair";
@@ -2702,7 +2702,7 @@ class ColonistFullGame {
   }
 
   // ── Session persistence ──────────────────────────────────────────────
-  static STORAGE_KEY = "colonist_save_v2";
+  static STORAGE_KEY = "colonist_save_v3";
 
   serializeState() {
     return {
