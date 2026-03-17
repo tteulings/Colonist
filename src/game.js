@@ -389,16 +389,31 @@ class ColonistFullGame {
     this.playYearOfPlentyBtn = document.querySelector("#playYearOfPlentyBtn");
     this.playMonopolyBtn = document.querySelector("#playMonopolyBtn");
     this.tradeBankBtn = document.querySelector("#tradeBankBtn");
-    this.tradeBankExecuteBtn = document.querySelector("#tradeBankExecuteBtn");
     this.giveResourceSelect = document.querySelector("#giveResourceSelect");
     this.getResourceSelect = document.querySelector("#getResourceSelect");
     this.speedRange = document.querySelector("#speedRange");
     this.victimPanel = document.querySelector("#victimPanel");
     this.victimOptionsEl = document.querySelector("#victimOptions");
-    this.tradePanel = document.querySelector("#tradePanel");
-    this.tradePanelClose = document.querySelector("#tradePanelClose");
+    // Trade modal elements
+    this.tradeModal = document.querySelector("#tradeModal");
+    this.tradeModalClose = document.querySelector("#tradeModalClose");
     this.tradeExecuteBtn = document.querySelector("#tradeExecuteBtn");
     this.tradeGiveRate = document.querySelector("#tradeGiveRate");
+    this.tradeTabs = document.querySelectorAll(".trade-tab");
+    this.tradeBankTab = document.querySelector("#tradeBankTab");
+    this.tradePlayerTab = document.querySelector("#tradePlayerTab");
+    this.tradeOfferGrid = document.querySelector("#tradeOfferGrid");
+    this.tradeRequestGrid = document.querySelector("#tradeRequestGrid");
+    this.tradeProposalBtn = document.querySelector("#tradeProposalBtn");
+    this.tradeProposalResult = document.querySelector("#tradeProposalResult");
+    // Incoming trade elements
+    this.incomingTradePanel = document.querySelector("#incomingTradePanel");
+    this.incomingTraderName = document.querySelector("#incomingTraderName");
+    this.incomingTradeGive = document.querySelector("#incomingTradeGive");
+    this.incomingTradeGet = document.querySelector("#incomingTradeGet");
+    this.acceptTradeBtn = document.querySelector("#acceptTradeBtn");
+    this.rejectTradeBtn = document.querySelector("#rejectTradeBtn");
+    this.pendingIncomingTrade = null; // { fromPlayer, give, want, resolve }
 
     this.maxLogEntries = 260;
     this.maxToasts = 4;
@@ -569,15 +584,28 @@ class ColonistFullGame {
       this.handleHumanPlayDevCard("yearOfPlenty"),
     );
     this.playMonopolyBtn.addEventListener("click", () => this.handleHumanPlayDevCard("monopoly"));
-    this.tradeBankBtn.addEventListener("click", () => this.toggleTradePanel());
-    this.tradeBankExecuteBtn?.addEventListener("click", () => this.handleHumanBankTrade());
+    this.tradeBankBtn.addEventListener("click", () => this.openTradeModal());
+    this.tradeModalClose?.addEventListener("click", () => this.closeTradeModal());
+    this.tradeModal?.addEventListener("click", (e) => { if (e.target === this.tradeModal) this.closeTradeModal(); });
     this.tradeExecuteBtn?.addEventListener("click", () => {
       this.handleHumanBankTrade();
-      this.updateTradePanel();
+      this.updateBankTradeTab();
     });
-    this.tradePanelClose?.addEventListener("click", () => this.hideTradePanel());
-    this.giveResourceSelect?.addEventListener("change", () => this.updateTradePanel());
-    this.getResourceSelect?.addEventListener("change", () => this.updateTradePanel());
+    this.giveResourceSelect?.addEventListener("change", () => this.updateBankTradeTab());
+    this.getResourceSelect?.addEventListener("change", () => this.updateBankTradeTab());
+    this.tradeTabs?.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        this.tradeTabs.forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        const which = tab.dataset.tab;
+        if (this.tradeBankTab) this.tradeBankTab.style.display = which === "bank" ? "" : "none";
+        if (this.tradePlayerTab) this.tradePlayerTab.style.display = which === "player" ? "" : "none";
+        if (which === "player") this.buildPlayerTradeGrid();
+      });
+    });
+    this.tradeProposalBtn?.addEventListener("click", () => this.handleHumanPlayerTrade());
+    this.acceptTradeBtn?.addEventListener("click", () => this.resolveIncomingTrade(true));
+    this.rejectTradeBtn?.addEventListener("click", () => this.resolveIncomingTrade(false));
     this.speedRange.addEventListener("input", () => {
       if (this.autoplayInterval) {
         this.stopAutoplay();
@@ -788,6 +816,10 @@ class ColonistFullGame {
     this.robberVictimOptions = [];
     this.confirmBuild = null; // { type: "road"|"settlement"|"city", id: edgeId|nodeId }
     if (this.victimPanel) this.victimPanel.style.display = "none";
+    if (this.incomingTradePanel) this.incomingTradePanel.style.display = "none";
+    this.pendingIncomingTrade = null;
+    this.tradeOffer = makeEmptyResources();
+    this.tradeRequest = makeEmptyResources();
     this.hideTradePanel();
     this.currentTurnPlayedDevCard = false;
     this.longestRoadHolder = null;
@@ -1389,7 +1421,7 @@ class ColonistFullGame {
       return;
     }
     if (key === "t") {
-      this.toggleTradePanel();
+      this.openTradeModal();
       event.preventDefault();
       return;
     }
@@ -1692,23 +1724,31 @@ class ColonistFullGame {
     this.victimPanel.style.display = "";
   }
 
-  toggleTradePanel() {
-    if (!this.tradePanel) return;
-    const visible = this.tradePanel.style.display !== "none";
-    if (visible) {
-      this.hideTradePanel();
-    } else {
-      this.tradePanel.style.display = "";
-      this.updateTradePanel();
-    }
+  // ── Trade Modal ──────────────────────────────────────────────────────
+
+  openTradeModal() {
+    if (!this.tradeModal) return;
+    this.tradeModal.style.display = "";
+    this.tradeOffer = makeEmptyResources();
+    this.tradeRequest = makeEmptyResources();
+    this.updateBankTradeTab();
+    if (this.tradeProposalResult) this.tradeProposalResult.textContent = "";
+    // Reset to bank tab
+    this.tradeTabs?.forEach(t => t.classList.remove("active"));
+    this.tradeTabs?.[0]?.classList.add("active");
+    if (this.tradeBankTab) this.tradeBankTab.style.display = "";
+    if (this.tradePlayerTab) this.tradePlayerTab.style.display = "none";
+  }
+
+  closeTradeModal() {
+    if (this.tradeModal) this.tradeModal.style.display = "none";
   }
 
   hideTradePanel() {
-    if (this.tradePanel) this.tradePanel.style.display = "none";
+    this.closeTradeModal();
   }
 
-  updateTradePanel() {
-    if (!this.tradePanel || this.tradePanel.style.display === "none") return;
+  updateBankTradeTab() {
     const player = this.currentPlayer;
     if (!player || !player.isHuman) return;
     const give = this.giveResourceSelect.value;
@@ -1717,6 +1757,200 @@ class ColonistFullGame {
     const get = this.getResourceSelect.value;
     const canTrade = give !== get && player.resources[give] >= rate;
     if (this.tradeExecuteBtn) this.tradeExecuteBtn.disabled = !canTrade;
+  }
+
+  buildPlayerTradeGrid() {
+    const player = this.currentPlayer;
+    if (!player || !player.isHuman) return;
+    this.tradeOffer = this.tradeOffer || makeEmptyResources();
+    this.tradeRequest = this.tradeRequest || makeEmptyResources();
+    this._renderResourceGrid(this.tradeOfferGrid, this.tradeOffer, player.resources, "offer");
+    this._renderResourceGrid(this.tradeRequestGrid, this.tradeRequest, null, "request");
+  }
+
+  _renderResourceGrid(container, counts, maxCounts, prefix) {
+    if (!container) return;
+    container.innerHTML = "";
+    RESOURCES.forEach((resource) => {
+      const item = document.createElement("div");
+      item.className = "trade-res-item";
+      const max = maxCounts ? maxCounts[resource] : 19;
+      item.innerHTML = `
+        <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
+        <div class="trade-res-btns">
+          <button class="trade-res-btn" data-dir="-1">−</button>
+          <span class="trade-res-count">${counts[resource]}</span>
+          <button class="trade-res-btn" data-dir="1">+</button>
+        </div>
+      `;
+      item.querySelectorAll(".trade-res-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const dir = Number(btn.dataset.dir);
+          const newVal = counts[resource] + dir;
+          if (newVal < 0 || newVal > max) return;
+          counts[resource] = newVal;
+          item.querySelector(".trade-res-count").textContent = newVal;
+        });
+      });
+      container.appendChild(item);
+    });
+  }
+
+  handleHumanPlayerTrade() {
+    const player = this.currentPlayer;
+    if (!player || !player.isHuman || this.phase !== "main") return;
+    const offer = this.tradeOffer;
+    const request = this.tradeRequest;
+    if (sumResources(offer) === 0 || sumResources(request) === 0) {
+      if (this.tradeProposalResult) this.tradeProposalResult.textContent = "Select resources to give and get.";
+      return;
+    }
+    // Check player can afford offer
+    for (const r of RESOURCES) {
+      if (player.resources[r] < offer[r]) {
+        if (this.tradeProposalResult) this.tradeProposalResult.textContent = `Not enough ${r}.`;
+        return;
+      }
+    }
+    // Propose to each AI
+    let accepted = false;
+    for (const other of this.players) {
+      if (other.id === player.id || other.isHuman) continue;
+      if (this.aiEvaluateTrade(other, request, offer)) {
+        // AI accepts: they give us 'request', we give them 'offer'
+        RESOURCES.forEach((r) => {
+          player.resources[r] -= offer[r];
+          player.resources[r] += request[r];
+          other.resources[r] -= request[r];
+          other.resources[r] += offer[r];
+        });
+        this.addLog(`${other.name} accepted trade with ${player.name}: gave ${resourceString(request)} for ${resourceString(offer)}.`);
+        if (this.tradeProposalResult) this.tradeProposalResult.textContent = `${other.name} accepted!`;
+        accepted = true;
+        this.render();
+        break;
+      }
+    }
+    if (!accepted) {
+      this.addLog("All AI players rejected your trade offer.");
+      if (this.tradeProposalResult) this.tradeProposalResult.textContent = "All players rejected.";
+    }
+  }
+
+  // ── AI Trade Evaluation ─────────────────────────────────────────────
+
+  aiEvaluateTrade(aiPlayer, theyGive, theyWant) {
+    // theyGive = what the AI receives, theyWant = what the AI gives away
+    // Check AI can afford what's being asked
+    for (const r of RESOURCES) {
+      if (aiPlayer.resources[r] < theyWant[r]) return false;
+    }
+
+    // Don't help the VP leader if they're close to winning
+    const proposerVP = this.players.find(p => p.id !== aiPlayer.id);
+    const maxVP = Math.max(...this.players.filter(p => p.id !== aiPlayer.id).map(p => p.victoryPoints));
+    if (maxVP >= 8) return false; // Don't trade when someone is close to winning
+
+    // Score: does the trade help AI reach a goal?
+    const goals = [COSTS.city, COSTS.settlement, COSTS.development, COSTS.road];
+    const resBefore = { ...aiPlayer.resources };
+    const resAfter = {};
+    RESOURCES.forEach((r) => {
+      resAfter[r] = resBefore[r] - theyWant[r] + theyGive[r];
+    });
+
+    let scoreBefore = 0;
+    let scoreAfter = 0;
+    for (const goal of goals) {
+      const defBefore = RESOURCES.reduce((sum, r) => sum + Math.max(0, (goal[r] || 0) - resBefore[r]), 0);
+      const defAfter = RESOURCES.reduce((sum, r) => sum + Math.max(0, (goal[r] || 0) - resAfter[r]), 0);
+      scoreBefore += defBefore === 0 ? 10 : (1 / (1 + defBefore));
+      scoreAfter += defAfter === 0 ? 10 : (1 / (1 + defAfter));
+    }
+
+    return scoreAfter > scoreBefore + 0.1; // Must be a clear improvement
+  }
+
+  // AI proposes trades during its turn
+  aiTryPlayerTrade(aiPlayer) {
+    const goals = [COSTS.city, COSTS.settlement, COSTS.development, COSTS.road];
+    for (const goal of goals) {
+      if (hasResources(aiPlayer.resources, goal)) continue;
+      // Find what we need
+      const needs = RESOURCES.filter(r => (goal[r] || 0) > aiPlayer.resources[r]);
+      // Find what we have surplus of
+      const surpluses = RESOURCES.filter(r => {
+        const needed = goals.reduce((max, g) => Math.max(max, g[r] || 0), 0);
+        return aiPlayer.resources[r] > needed;
+      });
+      if (!needs.length || !surpluses.length) continue;
+
+      const wanted = needs[0];
+      const giving = surpluses[0];
+      if (wanted === giving) continue;
+
+      const offer = makeEmptyResources();
+      const request = makeEmptyResources();
+      offer[giving] = 1;
+      request[wanted] = 1;
+
+      // Try trading with each other player
+      for (const other of this.players) {
+        if (other.id === aiPlayer.id) continue;
+        if (other.resources[wanted] <= 0) continue;
+
+        if (other.isHuman) {
+          // Show incoming trade popup to human — handled async
+          return { type: "human", fromPlayer: aiPlayer, give: offer, want: request };
+        }
+
+        // AI-to-AI: check if other AI accepts
+        if (this.aiEvaluateTrade(other, offer, request)) {
+          RESOURCES.forEach((r) => {
+            aiPlayer.resources[r] -= offer[r];
+            aiPlayer.resources[r] += request[r];
+            other.resources[r] -= request[r];
+            other.resources[r] += offer[r];
+          });
+          this.addLog(`${aiPlayer.name} traded ${resourceString(offer)} with ${other.name} for ${resourceString(request)}.`);
+          return { type: "done" };
+        }
+      }
+    }
+    return null;
+  }
+
+  showIncomingTrade(fromPlayer, give, want) {
+    return new Promise((resolve) => {
+      if (!this.incomingTradePanel) { resolve(false); return; }
+      this.incomingTraderName.textContent = fromPlayer.name;
+      this.incomingTradeGive.textContent = resourceString(give);
+      this.incomingTradeGet.textContent = resourceString(want);
+      this.pendingIncomingTrade = { fromPlayer, give, want, resolve };
+      this.incomingTradePanel.style.display = "";
+    });
+  }
+
+  resolveIncomingTrade(accepted) {
+    if (!this.pendingIncomingTrade) return;
+    const { fromPlayer, give, want, resolve } = this.pendingIncomingTrade;
+    const human = this.players.find(p => p.isHuman);
+    if (accepted && human) {
+      // AI gives 'give' to human, human gives 'want' to AI
+      RESOURCES.forEach((r) => {
+        human.resources[r] -= want[r];
+        human.resources[r] += give[r];
+        fromPlayer.resources[r] -= give[r];
+        fromPlayer.resources[r] += want[r];
+      });
+      this.addLog(`You accepted ${fromPlayer.name}'s trade: got ${resourceString(give)} for ${resourceString(want)}.`);
+    } else {
+      this.addLog(`You rejected ${fromPlayer.name}'s trade offer.`);
+    }
+    this.pendingIncomingTrade = null;
+    if (this.incomingTradePanel) this.incomingTradePanel.style.display = "none";
+    this.render();
+    resolve(accepted);
   }
 
   canBuildRoad(player, edgeId, options = {}) {
@@ -1904,15 +2138,36 @@ class ColonistFullGame {
     const player = this.currentPlayer;
     if (this.phase === "pre_roll") this.executeRollPhase(player);
     if (this.phase === "main") {
-      this.executeAiMainPhase(player);
+      const result = this.executeAiMainPhase(player);
+      if (result === "async") return; // Will resume after human responds to trade
       this.endTurn();
     }
   }
 
-  executeAiMainPhase(player) {
+  executeAiMainPhase(player, skipPlayerTrade = false) {
     if (!this.winner) {
       this.maybePlayBestDevCard(player);
     }
+
+    // Try player-to-player trade once per turn
+    if (!skipPlayerTrade) {
+      const tradeResult = this.aiTryPlayerTrade(player);
+      if (tradeResult && tradeResult.type === "human") {
+        // Need async human response — pause AI turn, show popup
+        this._pendingAiTradePlayer = player;
+        this.showIncomingTrade(tradeResult.fromPlayer, tradeResult.give, tradeResult.want).then(() => {
+          // Resume AI turn after human responds
+          this.executeAiMainPhase(player, true);
+          this.endTurn();
+          this.render();
+          if (!this.winner && !this.currentPlayer.isHuman) {
+            this.scheduleAiTurnsUntilHuman();
+          }
+        });
+        return "async";
+      }
+    }
+
     let actions = 0;
     while (actions < 10) {
       if (this.winner) break;
@@ -1940,6 +2195,7 @@ class ColonistFullGame {
     }
     this.recomputeScores();
     this.checkForWinner(player);
+    return "done";
   }
 
   maybePlayBestDevCard(player) {
