@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Colonist-Style Full Game</title>
-    <link rel="stylesheet" href="./styles.css?v=16" />
+    <link rel="stylesheet" href="./styles.css?v=17" />
   </head>
   <body>
     <div class="app-shell">
@@ -21,7 +21,7 @@
 
       <!-- Settings gear — top-left floating -->
       <details class="settings-drawer-float" id="settingsDrawer">
-        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.16</span></summary>
+        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.17</span></summary>
         <div class="settings-float-body">
           <div class="button-row">
             <button id="nextTurnBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Play AI Turns</button>
@@ -77,34 +77,24 @@
             <span>Trade</span>
             <button id="tradeModalClose" class="trade-modal-close">&times;</button>
           </div>
-          <div class="trade-modal-tabs">
-            <button class="trade-tab active" data-tab="bank">Bank</button>
-            <button class="trade-tab" data-tab="player">Players</button>
+
+          <!-- Resource selector rows — shared for bank & player -->
+          <div class="trade-section-label">You give:</div>
+          <div id="tradeOfferGrid" class="trade-resource-grid"></div>
+          <div class="trade-arrow">&#8595;</div>
+          <div class="trade-section-label">You get:</div>
+          <div id="tradeRequestGrid" class="trade-resource-grid"></div>
+
+          <div id="tradeProposalResult" class="trade-proposal-result"></div>
+
+          <div class="trade-modal-actions">
+            <button id="tradeExecuteBtn" class="btn-trade trade-action-btn">Bank Trade</button>
+            <button id="tradeProposalBtn" class="btn-build trade-action-btn">Propose to Players</button>
           </div>
-          <div class="trade-modal-body">
-            <!-- Bank trade tab -->
-            <div id="tradeBankTab" class="trade-tab-content">
-              <div class="trade-bank-row">
-                <label>Give</label>
-                <select id="giveResourceSelect"></select>
-                <span id="tradeGiveRate" class="trade-rate"></span>
-              </div>
-              <div class="trade-bank-row">
-                <label>Get</label>
-                <select id="getResourceSelect"></select>
-              </div>
-              <button id="tradeExecuteBtn" class="btn-trade" style="width:100%;margin-top:0.3rem">Trade with Bank</button>
-            </div>
-            <!-- Player trade tab -->
-            <div id="tradePlayerTab" class="trade-tab-content" style="display:none">
-              <div class="trade-section-label">You give:</div>
-              <div id="tradeOfferGrid" class="trade-resource-grid"></div>
-              <div class="trade-section-label" style="margin-top:0.4rem">You get:</div>
-              <div id="tradeRequestGrid" class="trade-resource-grid"></div>
-              <button id="tradeProposalBtn" class="btn-trade" style="width:100%;margin-top:0.5rem">Propose to All</button>
-              <div id="tradeProposalResult" class="trade-proposal-result"></div>
-            </div>
-          </div>
+
+          <!-- Hidden selects for bank trade (used by JS) -->
+          <select id="giveResourceSelect" style="display:none"></select>
+          <select id="getResourceSelect" style="display:none"></select>
         </div>
       </div>
 
@@ -143,6 +133,6 @@
       </section>
     </div>
 
-    <script type="module" src="./src/game.js?v=16"></script>
+    <script type="module" src="./src/game.js?v=17"></script>
   </body>
 </html>

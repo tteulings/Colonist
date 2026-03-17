@@ -401,10 +401,6 @@ class ColonistFullGame {
     this.tradeModal = document.querySelector("#tradeModal");
     this.tradeModalClose = document.querySelector("#tradeModalClose");
     this.tradeExecuteBtn = document.querySelector("#tradeExecuteBtn");
-    this.tradeGiveRate = document.querySelector("#tradeGiveRate");
-    this.tradeTabs = document.querySelectorAll(".trade-tab");
-    this.tradeBankTab = document.querySelector("#tradeBankTab");
-    this.tradePlayerTab = document.querySelector("#tradePlayerTab");
     this.tradeOfferGrid = document.querySelector("#tradeOfferGrid");
     this.tradeRequestGrid = document.querySelector("#tradeRequestGrid");
     this.tradeProposalBtn = document.querySelector("#tradeProposalBtn");
@@ -597,22 +593,7 @@ class ColonistFullGame {
     });
     this.tradeModalClose?.addEventListener("click", () => this.closeTradeModal());
     this.tradeModal?.addEventListener("click", (e) => { if (e.target === this.tradeModal) this.closeTradeModal(); });
-    this.tradeExecuteBtn?.addEventListener("click", () => {
-      this.handleHumanBankTrade();
-      this.updateBankTradeTab();
-    });
-    this.giveResourceSelect?.addEventListener("change", () => this.updateBankTradeTab());
-    this.getResourceSelect?.addEventListener("change", () => this.updateBankTradeTab());
-    this.tradeTabs?.forEach((tab) => {
-      tab.addEventListener("click", () => {
-        this.tradeTabs.forEach(t => t.classList.remove("active"));
-        tab.classList.add("active");
-        const which = tab.dataset.tab;
-        if (this.tradeBankTab) this.tradeBankTab.style.display = which === "bank" ? "" : "none";
-        if (this.tradePlayerTab) this.tradePlayerTab.style.display = which === "player" ? "" : "none";
-        if (which === "player") this.buildPlayerTradeGrid();
-      });
-    });
+    this.tradeExecuteBtn?.addEventListener("click", () => this.handleHumanBankTrade());
     this.tradeProposalBtn?.addEventListener("click", () => this.handleHumanPlayerTrade());
     this.acceptTradeBtn?.addEventListener("click", () => this.resolveIncomingTrade(true));
     this.rejectTradeBtn?.addEventListener("click", () => this.resolveIncomingTrade(false));
@@ -1120,15 +1101,22 @@ class ColonistFullGame {
   handleHumanBankTrade() {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner || this.phase !== "main") return;
-    const give = this.giveResourceSelect.value;
-    const get = this.getResourceSelect.value;
-    if (give === get) {
-      this.addLog("Choose two different resources for bank trade.");
-      this.render();
-      return;
-    }
+    const offeredTypes = RESOURCES.filter(r => this.tradeOffer[r] > 0);
+    const requestedTypes = RESOURCES.filter(r => this.tradeRequest[r] > 0);
+    if (offeredTypes.length !== 1 || requestedTypes.length !== 1) return;
+    const give = offeredTypes[0];
+    const get = requestedTypes[0];
+    if (give === get) return;
     const ok = this.performBankTrade(player, give, get);
-    if (!ok) this.addLog("Bank trade failed (insufficient cards for current rate).");
+    if (ok) {
+      this.tradeOffer = makeEmptyResources();
+      this.tradeRequest = makeEmptyResources();
+      this.buildTradeGrids();
+      this.updateTradeButtons();
+      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = '<span style="color:#22a854">Bank trade complete!</span>';
+    } else {
+      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = '<span style="color:#c44">Bank trade failed.</span>';
+    }
     this.render();
   }
 
@@ -1729,13 +1717,9 @@ class ColonistFullGame {
     this.tradeModal.style.display = "";
     this.tradeOffer = makeEmptyResources();
     this.tradeRequest = makeEmptyResources();
-    this.updateBankTradeTab();
-    if (this.tradeProposalResult) this.tradeProposalResult.textContent = "";
-    // Reset to bank tab
-    this.tradeTabs?.forEach(t => t.classList.remove("active"));
-    this.tradeTabs?.[0]?.classList.add("active");
-    if (this.tradeBankTab) this.tradeBankTab.style.display = "";
-    if (this.tradePlayerTab) this.tradePlayerTab.style.display = "none";
+    if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
+    this.buildTradeGrids();
+    this.updateTradeButtons();
   }
 
   closeTradeModal() {
@@ -1746,27 +1730,14 @@ class ColonistFullGame {
     this.closeTradeModal();
   }
 
-  updateBankTradeTab() {
+  buildTradeGrids() {
     const player = this.currentPlayer;
-    if (!player || !player.isHuman) return;
-    const give = this.giveResourceSelect.value;
-    const rate = this.getPlayerTradeRate(player, give);
-    if (this.tradeGiveRate) this.tradeGiveRate.textContent = `×${rate}`;
-    const get = this.getResourceSelect.value;
-    const canTrade = give !== get && player.resources[give] >= rate;
-    if (this.tradeExecuteBtn) this.tradeExecuteBtn.disabled = !canTrade;
+    const maxOffer = player?.isHuman ? player.resources : null;
+    this._renderResourceGrid(this.tradeOfferGrid, this.tradeOffer, maxOffer);
+    this._renderResourceGrid(this.tradeRequestGrid, this.tradeRequest, null);
   }
 
-  buildPlayerTradeGrid() {
-    const player = this.currentPlayer;
-    if (!player || !player.isHuman) return;
-    this.tradeOffer = this.tradeOffer || makeEmptyResources();
-    this.tradeRequest = this.tradeRequest || makeEmptyResources();
-    this._renderResourceGrid(this.tradeOfferGrid, this.tradeOffer, player.resources, "offer");
-    this._renderResourceGrid(this.tradeRequestGrid, this.tradeRequest, null, "request");
-  }
-
-  _renderResourceGrid(container, counts, maxCounts, prefix) {
+  _renderResourceGrid(container, counts, maxCounts) {
     if (!container) return;
     container.innerHTML = "";
     RESOURCES.forEach((resource) => {
@@ -1788,10 +1759,37 @@ class ColonistFullGame {
           if (newVal < 0 || newVal > max) return;
           counts[resource] = newVal;
           item.querySelector(".trade-res-count").textContent = newVal;
+          this.updateTradeButtons();
         });
       });
       container.appendChild(item);
     });
+  }
+
+  updateTradeButtons() {
+    const player = this.currentPlayer;
+    if (!player || !player.isHuman) return;
+    const offerTotal = sumResources(this.tradeOffer);
+    const requestTotal = sumResources(this.tradeRequest);
+
+    // Bank trade: exactly 1 resource type offered, exactly 1 requested, at correct rate
+    const offeredTypes = RESOURCES.filter(r => this.tradeOffer[r] > 0);
+    const requestedTypes = RESOURCES.filter(r => this.tradeRequest[r] > 0);
+    let canBank = false;
+    if (offeredTypes.length === 1 && requestedTypes.length === 1 && offeredTypes[0] !== requestedTypes[0]) {
+      const giveRes = offeredTypes[0];
+      const rate = this.getPlayerTradeRate(player, giveRes);
+      canBank = this.tradeOffer[giveRes] === rate && this.tradeRequest[requestedTypes[0]] === 1;
+    }
+    if (this.tradeExecuteBtn) {
+      this.tradeExecuteBtn.disabled = !canBank;
+      const rateText = offeredTypes.length === 1 ? `(${this.getPlayerTradeRate(player, offeredTypes[0])}:1)` : "";
+      this.tradeExecuteBtn.textContent = `Bank ${rateText}`;
+    }
+    // Player trade: any non-zero offer and request
+    if (this.tradeProposalBtn) {
+      this.tradeProposalBtn.disabled = !(offerTotal > 0 && requestTotal > 0);
+    }
   }
 
   handleHumanPlayerTrade() {
@@ -1839,6 +1837,10 @@ class ColonistFullGame {
       if (this.tradeProposalResult) {
         this.tradeProposalResult.innerHTML += `<br><strong style="color:#22a854">Traded with ${acceptor.name}!</strong>`;
       }
+      this.tradeOffer = makeEmptyResources();
+      this.tradeRequest = makeEmptyResources();
+      this.buildTradeGrids();
+      this.updateTradeButtons();
       this.render();
     } else {
       this.addLog("All players rejected your trade offer.");
