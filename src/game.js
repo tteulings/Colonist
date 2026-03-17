@@ -3094,14 +3094,17 @@ class ColonistFullGame {
 
     // Draw blue blinking build spots FIRST (behind structures)
     if (this.setupPhase && this.setupAction) {
-      const pulse = 0.28 + (Math.sin(Date.now() / 240) + 1) * 0.15;
+      const pulse = 0.4 + (Math.sin(Date.now() / 240) + 1) * 0.2;
       if (this.setupAction === "settlement") {
-        ctx.fillStyle = `rgba(112, 214, 255, ${pulse})`;
         this.geometry.nodes.forEach((node) => {
           if (!this.canBuildSettlement(this.players[this.setupQueue[this.setupStep]], node.id, true)) return;
           ctx.beginPath();
-          ctx.arc(node.x, node.y, 9 * s, 0, Math.PI * 2);
+          ctx.arc(node.x, node.y, 12 * s, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(112, 214, 255, ${pulse})`;
           ctx.fill();
+          ctx.strokeStyle = `rgba(255, 255, 255, ${pulse + 0.15})`;
+          ctx.lineWidth = 2 * s;
+          ctx.stroke();
         });
       } else if (this.setupAction === "road" && this.lastSetupNodeId != null) {
         ctx.strokeStyle = `rgba(112, 214, 255, ${pulse})`;
@@ -3121,7 +3124,7 @@ class ColonistFullGame {
       }
     } else if (this.currentPlayer?.isHuman && this.phase === "main") {
       const player = this.currentPlayer;
-      const pulse = 0.28 + (Math.sin(Date.now() / 240) + 1) * 0.15;
+      const pulse = 0.4 + (Math.sin(Date.now() / 240) + 1) * 0.2;
       const showSettlements = this.pendingAction === "settlement";
       const showCities = this.pendingAction === "city";
       const showRoads = this.pendingAction === "road";
@@ -3138,10 +3141,10 @@ class ColonistFullGame {
           }
           if (!buildable) return;
           ctx.beginPath();
-          ctx.arc(node.x, node.y, 9 * s, 0, Math.PI * 2);
+          ctx.arc(node.x, node.y, 12 * s, 0, Math.PI * 2);
           ctx.fill();
-          ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
-          ctx.lineWidth = 1.2 * s;
+          ctx.strokeStyle = `rgba(255, 255, 255, ${pulse + 0.15})`;
+          ctx.lineWidth = 2 * s;
           ctx.stroke();
         });
       }
