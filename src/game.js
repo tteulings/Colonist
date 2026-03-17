@@ -3109,9 +3109,11 @@ class ColonistFullGame {
         <img class="player-avatar" src="${player.avatar}" alt="${player.name} avatar" />
         <span class="player-name" style="color:${player.color}">${player.name}</span>
         <span class="player-vp" title="Victory points">${player.victoryPoints} VP</span>
+        <span class="player-hand-counts" title="${totalCards} cards, ${totalDev} dev">
+          <span class="hand-count"><span class="stat-icon card-icon"></span>${totalCards}</span>
+          <span class="hand-count"><span class="stat-icon dev-icon"></span>${totalDev}</span>
+        </span>
         <div class="player-stats">
-          <span class="stat-item" title="${totalCards} resource cards"><span class="stat-icon card-icon"></span>${totalCards}</span>
-          <span class="stat-item" title="${totalDev} dev cards"><span class="stat-icon dev-icon"></span>${totalDev}</span>
           <span class="stat-item" title="${player.roads.size} roads"><span class="stat-icon road-icon"></span>${player.roads.size}</span>
           <span class="stat-item" title="${player.settlements.size} settlements"><span class="stat-icon settle-icon"></span>${player.settlements.size}</span>
           <span class="stat-item" title="${player.cities.size} cities"><span class="stat-icon city-icon"></span>${player.cities.size}</span>

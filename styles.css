@@ -304,6 +304,20 @@ main.table-layout {
   font-variant-numeric: tabular-nums;
 }
 
+.player-hand-counts {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin-left: auto;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.hand-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
 .stat-icon { font-size: 0.65rem; line-height: 1; }
 
 .road-icon::before {
