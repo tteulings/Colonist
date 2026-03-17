@@ -500,22 +500,17 @@ main.table-layout {
 .action-prompt-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.3rem;
   flex: 1;
   min-width: 0;
 }
 
-.action-prompt {
+.action-prompt-status {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.6rem;
-  background: linear-gradient(180deg, #fff, #f5f0e5);
-  border: 1px solid rgba(120, 138, 162, 0.55);
-  border-radius: 12px;
-  box-shadow: 0 3px 8px rgba(8, 35, 55, 0.2);
-  flex: 1;
-  max-width: 700px;
+  gap: 0.3rem;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .action-prompt-avatar {
@@ -524,39 +519,36 @@ main.table-layout {
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.8);
   object-fit: cover;
+  flex-shrink: 0;
 }
 
 .action-prompt-text {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: #2a4c70;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.action-prompt-btn {
-  padding: 0.3rem 0.6rem;
-  font-size: 0.78rem;
-  font-weight: 750;
+.action-btn {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 700;
   border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .action-prompt-build {
   display: flex;
-  gap: 0.25rem;
-  flex-wrap: nowrap;
-}
-
-.prompt-build-btn {
-  padding: 0.24rem 0.45rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  border-radius: 5px;
-  display: inline-flex;
-  align-items: center;
   gap: 0.2rem;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
 }
-
-.prompt-build-btn .build-glyph { width: 10px; height: 10px; }
-.prompt-build-btn .btn-icon { width: 12px; height: 12px; }
 
 .build-glyph {
   display: inline-block;
@@ -1148,16 +1140,13 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .player-hand-counts { font-size: 0.5rem; }
   .player-stats { display: none; }
   #scoreboard { gap: 0.1rem; }
-  .bottom-bar { padding: 0.3rem 0.35rem; gap: 0.25rem; border-radius: 0; min-height: 52px; }
-  .action-prompt-row { gap: 0.2rem; flex-wrap: nowrap; }
-  .action-prompt { padding: 0.25rem 0.35rem; flex: 1 1 0; min-width: 0; border-radius: 10px; }
-  .action-prompt-text { font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .action-prompt-avatar { width: 24px; height: 24px; flex-shrink: 0; }
-  .action-prompt-btn { padding: 0.3rem 0.5rem; font-size: 0.72rem; border-radius: 7px; flex-shrink: 0; }
-  .action-prompt-build { flex-wrap: nowrap; gap: 0.15rem; flex-shrink: 0; }
-  .prompt-build-btn { padding: 0.28rem 0.35rem; font-size: 0.68rem; flex-shrink: 0; border-radius: 6px; min-height: 34px; }
-  .prompt-build-btn .build-glyph { width: 11px; height: 11px; }
-  .prompt-build-btn .btn-icon { width: 13px; height: 13px; }
+  .bottom-bar { padding: 0.25rem 0.3rem; gap: 0.2rem; border-radius: 0; min-height: 46px; }
+  .action-prompt-row { gap: 0.15rem; }
+  .action-prompt-status { gap: 0.2rem; }
+  .action-prompt-text { font-size: 0.65rem; max-width: 70px; }
+  .action-prompt-avatar { width: 22px; height: 22px; }
+  .action-btn { padding: 0.22rem 0.35rem; font-size: 0.65rem; min-height: 32px; }
+  .action-prompt-build { gap: 0.1rem; }
   .settings-drawer-float { top: auto; bottom: auto; left: 0.3rem; top: 0.3rem; }
   .settings-float-trigger { font-size: 0.9rem; padding: 0.2rem 0.35rem; }
   .trade-panel { bottom: 120px; min-width: 190px; }

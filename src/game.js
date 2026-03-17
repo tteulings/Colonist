@@ -1801,16 +1801,24 @@ class ColonistFullGame {
         return;
       }
     }
-    // Propose to all AI — collect responses, first accept wins
+    // Propose to all players — collect responses, show each one
     const responses = [];
     let acceptor = null;
     for (const other of this.players) {
-      if (other.id === player.id || other.isHuman) continue;
+      if (other.id === player.id) continue;
+      if (other.isHuman) continue; // TODO: multi-human support
       const accepts = this.aiEvaluateTrade(other, request, offer);
-      responses.push({ name: other.name, accepts });
+      responses.push({ player: other, accepts });
       if (accepts && !acceptor) acceptor = other;
     }
-    const summary = responses.map(r => `${r.name}: ${r.accepts ? "✓" : "✗"}`).join("  ");
+
+    // Show visual response for each player
+    if (this.tradeProposalResult) {
+      this.tradeProposalResult.innerHTML = responses.map(r =>
+        `<span style="color:${r.player.color};font-weight:800">${r.player.name}</span> ${r.accepts ? '<span style="color:#22a854">✓ Accept</span>' : '<span style="color:#c44">✗ Reject</span>'}`
+      ).join("&nbsp;&nbsp;");
+    }
+
     if (acceptor) {
       RESOURCES.forEach((r) => {
         player.resources[r] -= offer[r];
@@ -1819,11 +1827,12 @@ class ColonistFullGame {
         acceptor.resources[r] += offer[r];
       });
       this.addLog(`${acceptor.name} accepted trade: gave ${resourceString(request)} for ${resourceString(offer)}.`);
-      if (this.tradeProposalResult) this.tradeProposalResult.textContent = `${acceptor.name} accepted!  ${summary}`;
+      if (this.tradeProposalResult) {
+        this.tradeProposalResult.innerHTML += `<br><strong style="color:#22a854">Traded with ${acceptor.name}!</strong>`;
+      }
       this.render();
     } else {
       this.addLog("All players rejected your trade offer.");
-      if (this.tradeProposalResult) this.tradeProposalResult.textContent = `No takers.  ${summary}`;
     }
   }
 

@@ -21,7 +21,7 @@
 
       <!-- Settings gear — top-left floating -->
       <details class="settings-drawer-float" id="settingsDrawer">
-        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.12</span></summary>
+        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.13</span></summary>
         <div class="settings-float-body">
           <div class="button-row">
             <button id="nextTurnBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Play AI Turns</button>
@@ -126,19 +126,19 @@
           <!-- Populated by game.js -->
         </div>
         <div class="action-prompt-row">
-          <div class="action-prompt" id="actionPrompt">
+          <div class="action-prompt-status">
             <img class="action-prompt-avatar" id="actionPromptAvatar" src="./assets/avatars/avatar-human.svg" alt="" />
             <span class="action-prompt-text" id="actionPromptText">Roll dice</span>
-            <button id="rollDiceBtn" class="action-prompt-btn btn-roll" title="R">Roll Dice</button>
-            <button id="endTurnBtn" class="action-prompt-btn btn-neutral" title="E" style="display:none">End Turn</button>
-            <div class="action-prompt-build" id="actionPromptBuild" style="display:none">
-              <button id="buildRoadBtn" class="prompt-build-btn btn-build" title="1"><span class="build-glyph road"></span> Road</button>
-              <button id="buildSettlementBtn" class="prompt-build-btn btn-build" title="2"><span class="build-glyph settlement"></span> Settle</button>
-              <button id="buildCityBtn" class="prompt-build-btn btn-build" title="3"><span class="build-glyph city"></span> City</button>
-              <button id="buyDevBtn" class="prompt-build-btn btn-dev" title="B"><img class="btn-icon" src="./assets/icons/dev-knight.svg" alt="" /> Dev</button>
-              <button id="tradeBankBtn" class="prompt-build-btn btn-trade" title="T"><img class="btn-icon" src="./assets/icons/ui-trade.svg" alt="" /> Trade</button>
-            </div>
           </div>
+          <button id="rollDiceBtn" class="action-btn btn-roll" title="R">Roll</button>
+          <button id="endTurnBtn" class="action-btn btn-neutral" title="E" style="display:none">End Turn</button>
+          <div class="action-prompt-build" id="actionPromptBuild" style="display:none">
+            <button id="buildRoadBtn" class="action-btn btn-build" title="1"><span class="build-glyph road"></span> Road</button>
+            <button id="buildSettlementBtn" class="action-btn btn-build" title="2"><span class="build-glyph settlement"></span> Settle</button>
+            <button id="buildCityBtn" class="action-btn btn-build" title="3"><span class="build-glyph city"></span> City</button>
+            <button id="buyDevBtn" class="action-btn btn-dev" title="B">Dev</button>
+          </div>
+          <button id="tradeBankBtn" class="action-btn btn-trade" title="T">Trade</button>
         </div>
       </section>
     </div>
