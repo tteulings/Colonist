@@ -392,7 +392,6 @@ class ColonistFullGame {
     this.playYearOfPlentyBtn = document.querySelector("#playYearOfPlentyBtn");
     this.playMonopolyBtn = document.querySelector("#playMonopolyBtn");
     this.tradeBankBtn = document.querySelector("#tradeBankBtn");
-    this.tradeFloatBtn = document.querySelector("#tradeFloatBtn");
     this.giveResourceSelect = document.querySelector("#giveResourceSelect");
     this.getResourceSelect = document.querySelector("#getResourceSelect");
     this.speedRange = document.querySelector("#speedRange");
@@ -596,7 +595,6 @@ class ColonistFullGame {
       e.stopPropagation();
       this.openTradeModal();
     });
-    this.tradeFloatBtn?.addEventListener("click", () => this.openTradeModal());
     this.tradeModalClose?.addEventListener("click", () => this.closeTradeModal());
     this.tradeModal?.addEventListener("click", (e) => { if (e.target === this.tradeModal) this.closeTradeModal(); });
     this.tradeExecuteBtn?.addEventListener("click", () => {
