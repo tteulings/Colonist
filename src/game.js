@@ -1180,15 +1180,6 @@ class ColonistFullGame {
     }
 
     if (!this.pendingAction) {
-      // No build mode selected — just show tile info on tap
-      const hexId = this.findHexAt(x, y);
-      if (hexId != null) {
-        const hex = this.geometry.hexes[hexId];
-        const tileName = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
-        const number = hex.number == null ? "—" : String(hex.number);
-        this.addLog(`Tile: ${tileName} · Number ${number}.`);
-        this.render();
-      }
       return;
     }
 
@@ -1525,17 +1516,7 @@ class ColonistFullGame {
       return;
     }
 
-    const hexId = this.findHexAt(worldX, worldY);
-    if (hexId != null) {
-      this.hoverHexId = hexId;
-      const hex = this.geometry.hexes[hexId];
-      const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
-      const number = hex.number == null ? "—" : String(hex.number);
-      this.hoverTooltip = `${label} · ${number}`;
-      this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
-    } else {
-      this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
-    }
+    this.canvas.style.cursor = "grab";
   }
 
   findHexAt(x, y) {
