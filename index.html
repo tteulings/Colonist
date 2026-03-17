@@ -43,6 +43,32 @@
 
       <div class="hand-strip" id="handStrip" aria-label="Your cards"></div>
 
+      <!-- Robber victim selection overlay -->
+      <div id="victimPanel" class="victim-panel" style="display:none">
+        <div class="victim-panel-header">Steal from:</div>
+        <div id="victimOptions" class="victim-options"></div>
+      </div>
+
+      <!-- Trade panel overlay -->
+      <div id="tradePanel" class="trade-panel" style="display:none">
+        <div class="trade-panel-header">
+          <span>Bank Trade</span>
+          <button id="tradePanelClose" class="trade-panel-close">&times;</button>
+        </div>
+        <div class="trade-panel-body">
+          <div class="trade-panel-row">
+            <label>Give</label>
+            <select id="giveResourceSelect"></select>
+            <span id="tradeGiveRate" class="trade-rate"></span>
+          </div>
+          <div class="trade-panel-row">
+            <label>Get</label>
+            <select id="getResourceSelect"></select>
+          </div>
+          <button id="tradeExecuteBtn" class="btn-trade">Trade</button>
+        </div>
+      </div>
+
       <section class="bottom-bar">
         <div class="resource-card-strip" id="resourceCardStrip" aria-label="Your resources">
           <!-- Populated by game.js -->
@@ -58,11 +84,11 @@
               <button id="buildSettlementBtn" class="prompt-build-btn btn-build" title="2"><span class="build-glyph settlement"></span> Settle</button>
               <button id="buildCityBtn" class="prompt-build-btn btn-build" title="3"><span class="build-glyph city"></span> City</button>
               <button id="buyDevBtn" class="prompt-build-btn btn-dev" title="B"><img class="btn-icon" src="./assets/icons/dev-knight.svg" alt="" /> Dev</button>
-              <button id="tradeBankBtn" class="prompt-build-btn btn-trade" title="A"><img class="btn-icon" src="./assets/icons/ui-trade.svg" alt="" /> Trade</button>
+              <button id="tradeBankBtn" class="prompt-build-btn btn-trade" title="T"><img class="btn-icon" src="./assets/icons/ui-trade.svg" alt="" /> Trade</button>
             </div>
           </div>
           <details class="settings-drawer">
-            <summary class="settings-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.4</span></summary>
+            <summary class="settings-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.5</span></summary>
             <div class="settings-body">
               <div class="button-row">
                 <button id="nextTurnBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Play AI Turns</button>
@@ -78,15 +104,7 @@
                 <button id="playYearOfPlentyBtn" class="btn-dev"><img class="btn-icon" src="./assets/icons/dev-year-of-plenty.svg" alt="" />Year of Plenty</button>
                 <button id="playMonopolyBtn" class="btn-dev"><img class="btn-icon" src="./assets/icons/dev-monopoly.svg" alt="" />Monopoly</button>
               </div>
-              <div class="trade-row">
-                <label for="giveResourceSelect">Give</label>
-                <select id="giveResourceSelect"></select>
-              </div>
-              <div class="trade-row">
-                <label for="getResourceSelect">Get</label>
-                <select id="getResourceSelect"></select>
-              </div>
-              <button id="tradeBankExecuteBtn" class="btn-trade" style="margin-top:0.3rem">Execute Trade</button>
+              <button id="tradeBankExecuteBtn" class="btn-trade" style="display:none">Legacy</button>
             </div>
           </details>
         </div>

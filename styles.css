@@ -665,6 +665,133 @@ select {
 input[type="range"] { width: 100%; accent-color: #0f7cc5; }
 label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 
+/* ── Robber Victim Panel ── */
+.victim-panel {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 50;
+  background: linear-gradient(180deg, #f5f0e5, #ece4d7);
+  border: 2px solid rgba(131, 148, 170, 0.6);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(8, 35, 55, 0.45);
+  padding: 0.8rem 1rem;
+  min-width: 180px;
+  text-align: center;
+}
+
+.victim-panel-header {
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: #1a3a5c;
+  margin-bottom: 0.5rem;
+}
+
+.victim-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.victim-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.78rem;
+  cursor: pointer;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  background: linear-gradient(180deg, #edf5ff, #d7e8fa);
+  transition: transform 100ms ease, box-shadow 100ms ease;
+}
+
+.victim-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+
+.victim-btn .victim-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+.victim-btn .victim-cards {
+  margin-left: auto;
+  font-size: 0.65rem;
+  opacity: 0.7;
+}
+
+/* ── Trade Panel ── */
+.trade-panel {
+  position: fixed;
+  left: 50%;
+  bottom: 140px;
+  transform: translateX(-50%);
+  z-index: 40;
+  background: linear-gradient(180deg, #f5f0e5, #ece4d7);
+  border: 2px solid rgba(131, 148, 170, 0.6);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(8, 35, 55, 0.45);
+  padding: 0.6rem 0.8rem;
+  min-width: 220px;
+}
+
+.trade-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.trade-panel-header span {
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: #1a3a5c;
+}
+
+.trade-panel-close {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  color: #666;
+  cursor: pointer;
+  padding: 0 0.2rem;
+  line-height: 1;
+}
+
+.trade-panel-close:hover { color: #c00; }
+
+.trade-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.trade-panel-row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.trade-panel-row label {
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: #1f4d80;
+}
+
+.trade-rate {
+  font-weight: 800;
+  font-size: 0.72rem;
+  color: #5c55b9;
+  white-space: nowrap;
+}
+
 /* ── Dice Animation ── */
 .dice-overlay {
   position: absolute;
@@ -862,6 +989,8 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .action-prompt { padding: 0.2rem 0.4rem; }
   .action-prompt-text { font-size: 0.75rem; }
   .action-prompt-avatar { width: 24px; height: 24px; }
+  .trade-panel { bottom: 120px; min-width: 190px; }
+  .victim-panel { min-width: 160px; padding: 0.6rem 0.7rem; }
 }
 
 /* ── Game-over overlay ── */

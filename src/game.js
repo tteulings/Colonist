@@ -365,6 +365,12 @@ class ColonistFullGame {
     this.giveResourceSelect = document.querySelector("#giveResourceSelect");
     this.getResourceSelect = document.querySelector("#getResourceSelect");
     this.speedRange = document.querySelector("#speedRange");
+    this.victimPanel = document.querySelector("#victimPanel");
+    this.victimOptionsEl = document.querySelector("#victimOptions");
+    this.tradePanel = document.querySelector("#tradePanel");
+    this.tradePanelClose = document.querySelector("#tradePanelClose");
+    this.tradeExecuteBtn = document.querySelector("#tradeExecuteBtn");
+    this.tradeGiveRate = document.querySelector("#tradeGiveRate");
 
     this.maxLogEntries = 260;
     this.maxToasts = 4;
@@ -535,8 +541,15 @@ class ColonistFullGame {
       this.handleHumanPlayDevCard("yearOfPlenty"),
     );
     this.playMonopolyBtn.addEventListener("click", () => this.handleHumanPlayDevCard("monopoly"));
-    this.tradeBankBtn.addEventListener("click", () => this.handleHumanBankTrade());
+    this.tradeBankBtn.addEventListener("click", () => this.toggleTradePanel());
     this.tradeBankExecuteBtn?.addEventListener("click", () => this.handleHumanBankTrade());
+    this.tradeExecuteBtn?.addEventListener("click", () => {
+      this.handleHumanBankTrade();
+      this.updateTradePanel();
+    });
+    this.tradePanelClose?.addEventListener("click", () => this.hideTradePanel());
+    this.giveResourceSelect?.addEventListener("change", () => this.updateTradePanel());
+    this.getResourceSelect?.addEventListener("change", () => this.updateTradePanel());
     this.speedRange.addEventListener("input", () => {
       if (this.autoplayInterval) {
         this.stopAutoplay();
@@ -743,6 +756,10 @@ class ColonistFullGame {
     this.lastRoll = null;
     this.winner = null;
     this.pendingAction = null;
+    this.robberContext = null;
+    this.robberVictimOptions = [];
+    if (this.victimPanel) this.victimPanel.style.display = "none";
+    this.hideTradePanel();
     this.currentTurnPlayedDevCard = false;
     this.longestRoadHolder = null;
     this.largestArmyHolder = null;
@@ -966,7 +983,8 @@ class ColonistFullGame {
   handleHumanEndTurn() {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
-    if (this.phase !== "main") return;
+    if (this.phase !== "main" || this.pendingAction === "robber") return;
+    this.hideTradePanel();
     this.endTurn();
     this.saveToStorage();
     this.scheduleAiTurnsUntilHuman();
@@ -975,11 +993,13 @@ class ColonistFullGame {
   setPendingAction(action) {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner || this.phase !== "main") return;
+    if (this.pendingAction === "robber") return; // Cannot override robber placement
     if (action === "road" && !hasResources(player.resources, COSTS.road)) return;
     if (action === "settlement" && !hasResources(player.resources, COSTS.settlement)) return;
     if (action === "city" && !hasResources(player.resources, COSTS.city)) return;
     this.pendingAction = this.pendingAction === action ? null : action;
     this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
+    this.hideTradePanel();
     this.render();
   }
 
@@ -1032,6 +1052,45 @@ class ColonistFullGame {
     const world = this.screenToWorld(sx, sy);
     const x = world.x;
     const y = world.y;
+
+    // Robber placement mode
+    if (this.pendingAction === "robber") {
+      const hexId = this.findHexAt(x, y);
+      if (hexId == null) return;
+      if (hexId === this.robberHexId) {
+        this.addLog("Cannot place robber on the same hex.");
+        this.render();
+        return;
+      }
+      this.robberHexId = hexId;
+      const hex = this.geometry.hexes[hexId];
+      const tileName = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
+      this.addLog(`${player.name} moved robber to ${tileName}.`);
+      this.pendingAction = null;
+
+      // Check for steal victims
+      const victimSet = new Set();
+      hex.nodes.forEach((nodeId) => {
+        const owner = this.geometry.nodes[nodeId].owner;
+        if (owner != null && owner !== player.id && sumResources(this.players[owner].resources) > 0) {
+          victimSet.add(owner);
+        }
+      });
+      const victims = [...victimSet];
+      if (victims.length === 0) {
+        this.addLog("No one to steal from.");
+        this.robberContext = null;
+      } else if (victims.length === 1) {
+        this.stealFromVictim(player, victims[0]);
+        this.robberContext = null;
+      } else {
+        // Multiple victims — show selection panel
+        this.robberVictimOptions = victims;
+        this.showVictimPanel(player, victims);
+      }
+      this.render();
+      return;
+    }
 
     if (!this.pendingAction) {
       // No build mode selected — just show tile info on tap
@@ -1199,11 +1258,13 @@ class ColonistFullGame {
     const key = event.key.toLowerCase();
 
     if (key === "escape") {
-      if (this.pendingAction) {
+      if (this.pendingAction && this.pendingAction !== "robber") {
         this.pendingAction = null;
         this.canvas.style.cursor = "grab";
         this.render();
       }
+      // Close trade panel on Escape
+      this.hideTradePanel();
       return;
     }
 
@@ -1236,6 +1297,11 @@ class ColonistFullGame {
     }
     if (key === "b") {
       this.handleHumanBuyDevCard();
+      event.preventDefault();
+      return;
+    }
+    if (key === "t") {
+      this.toggleTradePanel();
       event.preventDefault();
       return;
     }
@@ -1285,6 +1351,21 @@ class ColonistFullGame {
         }
       }
       this.canvas.style.cursor = "crosshair";
+      return;
+    }
+
+    // Robber placement: highlight hovered hex
+    if (humanMain && this.pendingAction === "robber") {
+      const hexId = this.findHexAt(worldX, worldY);
+      if (hexId != null && hexId !== this.robberHexId) {
+        this.hoverHexId = hexId;
+        const hex = this.geometry.hexes[hexId];
+        const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
+        this.hoverTooltip = `Move robber to ${label}`;
+        this.canvas.style.cursor = "pointer";
+      } else {
+        this.canvas.style.cursor = "crosshair";
+      }
       return;
     }
 
@@ -1425,6 +1506,17 @@ class ColonistFullGame {
       }
       this.addLog(`${player.name} discards ${discardCount} cards after ${reason}.`);
     });
+
+    // Human player: enter interactive robber placement mode
+    if (currentPlayer.isHuman) {
+      this.robberContext = { playerId: currentPlayer.id };
+      this.pendingAction = "robber";
+      this.addLog("Move the robber — tap a hex.");
+      this.render();
+      return;
+    }
+
+    // AI: auto-pick
     const targetHexId = this.chooseRobberHex(currentPlayer);
     this.moveRobberAndSteal(currentPlayer, targetHexId);
   }
@@ -1468,6 +1560,68 @@ class ColonistFullGame {
     victim.resources[stolen] -= 1;
     currentPlayer.resources[stolen] += 1;
     this.addLog(`${currentPlayer.name} stole 1 ${stolen} from ${victim.name}.`);
+  }
+
+  stealFromVictim(currentPlayer, victimId) {
+    const victim = this.players[victimId];
+    const available = RESOURCES.filter((r) => victim.resources[r] > 0);
+    if (!available.length) return;
+    const stolen = available[Math.floor(Math.random() * available.length)];
+    victim.resources[stolen] -= 1;
+    currentPlayer.resources[stolen] += 1;
+    this.addLog(`${currentPlayer.name} stole 1 ${stolen} from ${victim.name}.`);
+  }
+
+  showVictimPanel(currentPlayer, victimIds) {
+    if (!this.victimPanel || !this.victimOptionsEl) return;
+    this.victimOptionsEl.innerHTML = "";
+    victimIds.forEach((vid) => {
+      const v = this.players[vid];
+      const totalCards = sumResources(v.resources);
+      const btn = document.createElement("button");
+      btn.className = "victim-btn";
+      btn.innerHTML = `
+        <img class="victim-avatar" src="${v.avatar}" alt="${v.name}" />
+        <span style="color:${v.color}">${v.name}</span>
+        <span class="victim-cards">${totalCards} cards</span>
+      `;
+      btn.addEventListener("click", () => {
+        this.stealFromVictim(currentPlayer, vid);
+        this.robberContext = null;
+        this.robberVictimOptions = [];
+        this.victimPanel.style.display = "none";
+        this.render();
+      });
+      this.victimOptionsEl.appendChild(btn);
+    });
+    this.victimPanel.style.display = "";
+  }
+
+  toggleTradePanel() {
+    if (!this.tradePanel) return;
+    const visible = this.tradePanel.style.display !== "none";
+    if (visible) {
+      this.hideTradePanel();
+    } else {
+      this.tradePanel.style.display = "";
+      this.updateTradePanel();
+    }
+  }
+
+  hideTradePanel() {
+    if (this.tradePanel) this.tradePanel.style.display = "none";
+  }
+
+  updateTradePanel() {
+    if (!this.tradePanel || this.tradePanel.style.display === "none") return;
+    const player = this.currentPlayer;
+    if (!player || !player.isHuman) return;
+    const give = this.giveResourceSelect.value;
+    const rate = this.getPlayerTradeRate(player, give);
+    if (this.tradeGiveRate) this.tradeGiveRate.textContent = `×${rate}`;
+    const get = this.getResourceSelect.value;
+    const canTrade = give !== get && player.resources[give] >= rate;
+    if (this.tradeExecuteBtn) this.tradeExecuteBtn.disabled = !canTrade;
   }
 
   canBuildRoad(player, edgeId, options = {}) {
@@ -2228,6 +2382,7 @@ class ColonistFullGame {
       lastRoll: this.lastRoll,
       winnerId: this.winner ? this.winner.id : null,
       pendingAction: this.pendingAction,
+      robberContext: this.robberContext,
       currentTurnPlayedDevCard: this.currentTurnPlayedDevCard,
       longestRoadHolder: this.longestRoadHolder,
       largestArmyHolder: this.largestArmyHolder,
@@ -2326,6 +2481,8 @@ class ColonistFullGame {
     this.lastRoll = data.lastRoll;
     this.winner = data.winnerId != null ? this.players[data.winnerId] : null;
     this.pendingAction = data.pendingAction;
+    this.robberContext = data.robberContext || null;
+    this.robberVictimOptions = [];
     this.currentTurnPlayedDevCard = data.currentTurnPlayedDevCard;
     this.longestRoadHolder = data.longestRoadHolder;
     this.largestArmyHolder = data.largestArmyHolder;
@@ -2988,12 +3145,13 @@ class ColonistFullGame {
     const s = this.geometry.hexSize / 74;
     if (this.hoverHexId != null) {
       const hex = this.geometry.hexes[this.hoverHexId];
+      const isRobberMode = this.pendingAction === "robber";
       this.drawHexPath(hex.corners);
-      ctx.strokeStyle = "rgba(35, 132, 204, 0.75)";
+      ctx.strokeStyle = isRobberMode ? "rgba(220, 50, 50, 0.85)" : "rgba(35, 132, 204, 0.75)";
       ctx.lineWidth = 3 * s;
       ctx.stroke();
       this.drawHexPath(hex.corners);
-      ctx.fillStyle = "rgba(76, 175, 255, 0.08)";
+      ctx.fillStyle = isRobberMode ? "rgba(220, 50, 50, 0.15)" : "rgba(76, 175, 255, 0.08)";
       ctx.fill();
     }
     if (this.hoverEdgeId != null) {
@@ -3189,7 +3347,9 @@ class ColonistFullGame {
       } else if (humanTurn && preRoll) {
         this.actionPromptText.textContent = "Roll dice";
       } else if (humanTurn && mainPhase) {
-        if (this.pendingAction) {
+        if (this.pendingAction === "robber") {
+          this.actionPromptText.textContent = "Move the robber — tap a hex";
+        } else if (this.pendingAction) {
           this.actionPromptText.textContent = `Place ${this.pendingAction}`;
         } else {
           this.actionPromptText.textContent = `Turn ${this.turn} · ${active.name}`;
@@ -3207,12 +3367,18 @@ class ColonistFullGame {
       rollBtn.style.display = !inSetup && humanTurn && preRoll ? "inline-flex" : "none";
       rollBtn.disabled = inSetup || !(humanTurn && preRoll);
     }
+    const inRobberMode = this.pendingAction === "robber";
     if (endBtn) {
       endBtn.style.display = !inSetup && humanTurn && mainPhase && !this.pendingAction ? "inline-flex" : "none";
       endBtn.disabled = inSetup || !(humanTurn && mainPhase);
     }
     if (buildPanel) {
-      buildPanel.style.display = !inSetup && humanTurn && mainPhase ? "flex" : "none";
+      buildPanel.style.display = !inSetup && humanTurn && mainPhase && !inRobberMode ? "flex" : "none";
+    }
+
+    // Hide trade panel when not in main phase or during robber
+    if (inRobberMode || !humanTurn || !mainPhase) {
+      this.hideTradePanel();
     }
 
     this.nextTurnBtn.disabled = !!this.winner || humanTurn || this.autoplayInterval != null;
