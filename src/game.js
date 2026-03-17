@@ -3090,12 +3090,87 @@ class ColonistFullGame {
   drawStructures() {
     const ctx = this.ctx;
     const s = this.geometry.hexSize / 74;
+    const structScale = 1.2; // 20% bigger structures
+
+    // Draw blue blinking build spots FIRST (behind structures)
+    if (this.setupPhase && this.setupAction) {
+      const pulse = 0.28 + (Math.sin(Date.now() / 240) + 1) * 0.15;
+      if (this.setupAction === "settlement") {
+        ctx.fillStyle = `rgba(112, 214, 255, ${pulse})`;
+        this.geometry.nodes.forEach((node) => {
+          if (!this.canBuildSettlement(this.players[this.setupQueue[this.setupStep]], node.id, true)) return;
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, 9 * s, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      } else if (this.setupAction === "road" && this.lastSetupNodeId != null) {
+        ctx.strokeStyle = `rgba(112, 214, 255, ${pulse})`;
+        ctx.lineWidth = 5 * s;
+        ctx.setLineDash([6 * s, 4 * s]);
+        this.geometry.edges.forEach((edge) => {
+          if (edge.owner != null || !edge.nodes.includes(this.lastSetupNodeId)) return;
+          const [a, b] = edge.nodes;
+          const p1 = this.geometry.nodes[a];
+          const p2 = this.geometry.nodes[b];
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.stroke();
+        });
+        ctx.setLineDash([]);
+      }
+    } else if (this.currentPlayer?.isHuman && this.phase === "main") {
+      const player = this.currentPlayer;
+      const pulse = 0.28 + (Math.sin(Date.now() / 240) + 1) * 0.15;
+      const showSettlements = this.pendingAction === "settlement";
+      const showCities = this.pendingAction === "city";
+      const showRoads = this.pendingAction === "road";
+
+      if (showSettlements || showCities) {
+        this.geometry.nodes.forEach((node) => {
+          let buildable = false;
+          if (showCities && this.canBuildCity(player, node.id, false)) {
+            ctx.fillStyle = `rgba(255, 200, 60, ${pulse + 0.1})`;
+            buildable = true;
+          } else if (showSettlements && this.canBuildSettlement(player, node.id, false)) {
+            ctx.fillStyle = `rgba(112, 214, 255, ${pulse})`;
+            buildable = true;
+          }
+          if (!buildable) return;
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, 9 * s, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+          ctx.lineWidth = 1.2 * s;
+          ctx.stroke();
+        });
+      }
+
+      if (showRoads) {
+        ctx.strokeStyle = `rgba(112, 214, 255, ${pulse})`;
+        ctx.lineWidth = 5 * s;
+        ctx.setLineDash([6 * s, 4 * s]);
+        this.geometry.edges.forEach((edge) => {
+          if (!this.canBuildRoad(player, edge.id, { free: false })) return;
+          const [a, b] = edge.nodes;
+          const p1 = this.geometry.nodes[a];
+          const p2 = this.geometry.nodes[b];
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.stroke();
+        });
+        ctx.setLineDash([]);
+      }
+    }
+
+    // Draw structures ON TOP of blue blinking spots
     this.geometry.nodes.forEach((node) => {
       if (node.owner == null || node.structure == null) return;
       const player = this.players[node.owner];
       ctx.save();
       ctx.translate(node.x, node.y);
-      ctx.scale(s, s);
+      ctx.scale(s * structScale, s * structScale);
       ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
       ctx.shadowBlur = 8;
       ctx.shadowOffsetY = 3;
@@ -3132,81 +3207,6 @@ class ColonistFullGame {
       ctx.restore();
     });
 
-    if (this.setupPhase && this.setupAction) {
-      const pulse = 0.28 + (Math.sin(Date.now() / 240) + 1) * 0.15;
-      if (this.setupAction === "settlement") {
-        ctx.fillStyle = `rgba(112, 214, 255, ${pulse})`;
-        this.geometry.nodes.forEach((node) => {
-          if (!this.canBuildSettlement(this.players[this.setupQueue[this.setupStep]], node.id, true)) return;
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, 7 * s, 0, Math.PI * 2);
-          ctx.fill();
-        });
-      } else if (this.setupAction === "road" && this.lastSetupNodeId != null) {
-        ctx.strokeStyle = `rgba(112, 214, 255, ${pulse})`;
-        ctx.lineWidth = 4 * s;
-        ctx.setLineDash([6 * s, 4 * s]);
-        this.geometry.edges.forEach((edge) => {
-          if (edge.owner != null || !edge.nodes.includes(this.lastSetupNodeId)) return;
-          const [a, b] = edge.nodes;
-          const p1 = this.geometry.nodes[a];
-          const p2 = this.geometry.nodes[b];
-          ctx.beginPath();
-          ctx.moveTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
-          ctx.stroke();
-        });
-        ctx.setLineDash([]);
-      }
-      this.drawBuildConfirmIcon();
-      return;
-    }
-
-    if (!this.currentPlayer?.isHuman || this.phase !== "main") return;
-    const player = this.currentPlayer;
-    const pulse = 0.28 + (Math.sin(Date.now() / 240) + 1) * 0.15;
-
-    const showSettlements = this.pendingAction === "settlement";
-    const showCities = this.pendingAction === "city";
-    const showRoads = this.pendingAction === "road";
-
-    if (showSettlements || showCities) {
-      this.geometry.nodes.forEach((node) => {
-        let buildable = false;
-        if (showCities && this.canBuildCity(player, node.id, false)) {
-          ctx.fillStyle = `rgba(255, 200, 60, ${pulse + 0.1})`;
-          buildable = true;
-        } else if (showSettlements && this.canBuildSettlement(player, node.id, false)) {
-          ctx.fillStyle = `rgba(112, 214, 255, ${pulse})`;
-          buildable = true;
-        }
-        if (!buildable) return;
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, 7 * s, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
-        ctx.lineWidth = 1 * s;
-        ctx.stroke();
-      });
-    }
-
-    if (showRoads) {
-      ctx.strokeStyle = `rgba(112, 214, 255, ${pulse})`;
-      ctx.lineWidth = 4 * s;
-      ctx.setLineDash([6 * s, 4 * s]);
-      this.geometry.edges.forEach((edge) => {
-        if (!this.canBuildRoad(player, edge.id, { free: false })) return;
-        const [a, b] = edge.nodes;
-        const p1 = this.geometry.nodes[a];
-        const p2 = this.geometry.nodes[b];
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.stroke();
-      });
-      ctx.setLineDash([]);
-    }
-
     // Draw confirm-build icon above selected spot
     this.drawBuildConfirmIcon();
   }
@@ -3232,9 +3232,10 @@ class ColonistFullGame {
     }
 
     // Position icon above the spot
-    const iconY = cy - 28 * s;
-    const iconR = 14 * s;
+    const iconY = cy - 30 * s;
+    const iconR = 16 * s;
     const bounce = Math.sin(Date.now() / 200) * 2 * s;
+    const iy = iconY + bounce;
 
     ctx.save();
 
@@ -3245,31 +3246,60 @@ class ColonistFullGame {
 
     // Circle background
     ctx.beginPath();
-    ctx.arc(cx, iconY + bounce, iconR, 0, Math.PI * 2);
+    ctx.arc(cx, iy, iconR, 0, Math.PI * 2);
     ctx.fillStyle = "#22a854";
     ctx.fill();
     ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 2 * s;
+    ctx.lineWidth = 2.5 * s;
     ctx.stroke();
 
     ctx.shadowColor = "transparent";
 
-    // Checkmark
-    ctx.beginPath();
-    ctx.moveTo(cx - 6 * s, iconY + bounce);
-    ctx.lineTo(cx - 2 * s, iconY + bounce + 5 * s);
-    ctx.lineTo(cx + 7 * s, iconY + bounce - 5 * s);
+    // Draw building type icon inside the circle
+    ctx.save();
+    ctx.translate(cx, iy);
+    const iconScale = s * 0.75;
+    ctx.scale(iconScale, iconScale);
+    ctx.fillStyle = "#fff";
     ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 2.5 * s;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.stroke();
+    ctx.lineWidth = 1.5;
+
+    if (cb.type === "settlement") {
+      // Small house shape
+      ctx.beginPath();
+      ctx.moveTo(-8, 7);
+      ctx.lineTo(-8, -1);
+      ctx.lineTo(0, -9);
+      ctx.lineTo(8, -1);
+      ctx.lineTo(8, 7);
+      ctx.closePath();
+      ctx.fill();
+    } else if (cb.type === "city") {
+      // City shape
+      ctx.beginPath();
+      ctx.rect(-10, -4, 20, 12);
+      ctx.moveTo(-10, -4);
+      ctx.lineTo(0, -13);
+      ctx.lineTo(10, -4);
+      ctx.closePath();
+      ctx.fill();
+    } else if (cb.type === "road") {
+      // Road: thick diagonal line
+      ctx.beginPath();
+      ctx.moveTo(-8, 4);
+      ctx.lineTo(8, -4);
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 4;
+      ctx.lineCap = "round";
+      ctx.stroke();
+    }
+    ctx.restore();
 
     // Small downward pointer triangle
     ctx.beginPath();
-    ctx.moveTo(cx - 5 * s, iconY + bounce + iconR - 1 * s);
-    ctx.lineTo(cx + 5 * s, iconY + bounce + iconR - 1 * s);
-    ctx.lineTo(cx, iconY + bounce + iconR + 6 * s);
+    ctx.moveTo(cx - 6 * s, iy + iconR - 1 * s);
+    ctx.lineTo(cx + 6 * s, iy + iconR - 1 * s);
+    ctx.lineTo(cx, iy + iconR + 7 * s);
     ctx.closePath();
     ctx.fillStyle = "#22a854";
     ctx.fill();
@@ -3294,7 +3324,7 @@ class ColonistFullGame {
       cx = node.x;
       cy = node.y;
     }
-    return { x: cx, y: cy - 28 * s, r: 14 * s };
+    return { x: cx, y: cy - 30 * s, r: 16 * s };
   }
 
   hitTestConfirmIcon(worldX, worldY) {
