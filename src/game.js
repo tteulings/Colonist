@@ -3900,9 +3900,9 @@ class ColonistFullGame {
     );
     setButtonState(
       this.tradeBankBtn,
-      humanTurn && mainPhase && canTradeBank,
-      "Need resources for trade rate",
-      "Trade (A)",
+      humanTurn && mainPhase,
+      "Not your turn",
+      "Trade (T)",
     );
 
     this.playKnightBtn.disabled = !(humanTurn && mainPhase && noDevPlayed && human.devCards.knight > 0);

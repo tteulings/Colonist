@@ -1136,7 +1136,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   #scoreboard { gap: 0.1rem; }
   .action-prompt-row { gap: 0.3rem; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .action-prompt { padding: 0.2rem 0.35rem; min-width: 0; flex-shrink: 1; }
-  .action-prompt-text { font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55px; }
+  .action-prompt-text { font-size: 0.7rem; white-space: nowrap; }
   .action-prompt-avatar { width: 22px; height: 22px; }
   .action-prompt-build { flex-wrap: nowrap; gap: 0.15rem; }
   .prompt-build-btn { padding: 0.18rem 0.25rem; font-size: 0.6rem; flex-shrink: 0; }
