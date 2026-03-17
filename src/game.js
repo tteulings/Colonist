@@ -245,20 +245,48 @@ function assignTiles(geometry) {
     "ore",
     "desert",
   ]);
-  const numbers = shuffle([2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12]);
-  let numberIndex = 0;
   let robberHexId = 0;
-
   geometry.hexes.forEach((hex, idx) => {
     hex.resource = resources[idx];
     if (hex.resource === "desert") {
       hex.number = null;
       robberHexId = idx;
-    } else {
-      hex.number = numbers[numberIndex];
-      numberIndex += 1;
     }
   });
+
+  // Build hex adjacency map via shared edges
+  const hexNeighbors = geometry.hexes.map(() => new Set());
+  geometry.edges.forEach((edge) => {
+    if (edge.hexIds.length === 2) {
+      hexNeighbors[edge.hexIds[0]].add(edge.hexIds[1]);
+      hexNeighbors[edge.hexIds[1]].add(edge.hexIds[0]);
+    }
+  });
+
+  // Assign numbers ensuring 6 and 8 are never adjacent
+  const numbers = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
+  const nonDesertHexIds = geometry.hexes.filter(h => h.resource !== "desert").map(h => h.id);
+
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const shuffled = shuffle([...numbers]);
+    let valid = true;
+    // Temporarily assign
+    nonDesertHexIds.forEach((hexId, i) => {
+      geometry.hexes[hexId].number = shuffled[i];
+    });
+    // Check no adjacent 6/8
+    for (const hexId of nonDesertHexIds) {
+      const num = geometry.hexes[hexId].number;
+      if (num !== 6 && num !== 8) continue;
+      for (const neighborId of hexNeighbors[hexId]) {
+        const nNum = geometry.hexes[neighborId].number;
+        if (nNum === 6 || nNum === 8) { valid = false; break; }
+      }
+      if (!valid) break;
+    }
+    if (valid) break;
+  }
+
   return robberHexId;
 }
 
