@@ -989,9 +989,13 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .player-hand-counts { font-size: 0.5rem; }
   .player-stats { display: none; }
   #scoreboard { gap: 0.1rem; }
-  .action-prompt { padding: 0.2rem 0.4rem; }
-  .action-prompt-text { font-size: 0.75rem; }
-  .action-prompt-avatar { width: 24px; height: 24px; }
+  .action-prompt { padding: 0.2rem 0.35rem; min-width: 0; overflow: hidden; }
+  .action-prompt-text { font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px; }
+  .action-prompt-avatar { width: 22px; height: 22px; }
+  .action-prompt-build { flex-wrap: wrap; gap: 0.15rem; }
+  .prompt-build-btn { padding: 0.2rem 0.3rem; font-size: 0.62rem; }
+  .settings-drawer { flex-shrink: 0; }
+  .settings-trigger { font-size: 1rem; padding: 0.25rem 0.4rem; min-width: 36px; min-height: 36px; display: flex; align-items: center; justify-content: center; }
   .trade-panel { bottom: 120px; min-width: 190px; }
   .victim-panel { min-width: 160px; padding: 0.6rem 0.7rem; }
 }
