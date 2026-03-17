@@ -758,6 +758,7 @@ class ColonistFullGame {
     this.pendingAction = null;
     this.robberContext = null;
     this.robberVictimOptions = [];
+    this.confirmBuild = null; // { type: "road"|"settlement"|"city", id: edgeId|nodeId }
     if (this.victimPanel) this.victimPanel.style.display = "none";
     this.hideTradePanel();
     this.currentTurnPlayedDevCard = false;
@@ -843,42 +844,64 @@ class ColonistFullGame {
     const player = this.players[this.setupQueue[this.setupStep]];
     if (!player.isHuman) return;
 
-    if (this.setupAction === "settlement") {
-      const nodeId = this.findNodeAt(x, y);
-      if (nodeId == null) return;
-      if (!this.canBuildSettlement(player, nodeId, true)) {
-        this.addLog("Can't place there. Pick an empty intersection.");
+    // Check confirm icon tap first
+    if (this.confirmBuild && this.hitTestConfirmIcon(x, y)) {
+      const cb = this.confirmBuild;
+      if (cb.type === "settlement" && this.setupAction === "settlement") {
+        this.placeSettlement(player, cb.id, true);
+        this.lastSetupNodeId = cb.id;
+        this.setupAction = "road";
+        this.confirmBuild = null;
+        this.addLog("Now place a road from your settlement.");
+        this.render();
         return;
       }
-      this.placeSettlement(player, nodeId, true);
-      this.lastSetupNodeId = nodeId;
-      this.setupAction = "road";
-      this.addLog("Now place a road from your settlement.");
-      this.render();
+      if (cb.type === "road" && this.setupAction === "road") {
+        this.placeRoad(player, cb.id, { free: true, setupNode: this.lastSetupNodeId });
+        if (this.setupStep >= this.players.length) {
+          this.geometry.nodes[this.lastSetupNodeId].adjacentHexes.forEach((hexId) => {
+            const hex = this.geometry.hexes[hexId];
+            if (hex.resource !== "desert") player.resources[hex.resource] += 1;
+          });
+        }
+        this.setupStep++;
+        this.setupAction = null;
+        this.lastSetupNodeId = null;
+        this.confirmBuild = null;
+        this.saveToStorage();
+        this.processSetupQueue();
+        return;
+      }
+    }
+
+    if (this.setupAction === "settlement") {
+      const nodeId = this.findNodeAt(x, y);
+      if (nodeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
+      if (!this.canBuildSettlement(player, nodeId, true)) {
+        this.confirmBuild = null;
+        this.addLog("Can't place there. Pick an empty intersection.");
+        this.drawCanvasScene();
+        return;
+      }
+      this.confirmBuild = { type: "settlement", id: nodeId };
+      this.drawCanvasScene();
       return;
     }
 
     if (this.setupAction === "road") {
       const edgeId = this.findEdgeAt(x, y);
-      if (edgeId == null) return;
+      if (edgeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
       const edge = this.geometry.edges[edgeId];
       const adjacent = edge.nodes.includes(this.lastSetupNodeId);
       if (!adjacent || edge.owner != null) {
+        this.confirmBuild = null;
         this.addLog("Place a road adjacent to your settlement.");
+        this.drawCanvasScene();
         return;
       }
-      this.placeRoad(player, edgeId, { free: true, setupNode: this.lastSetupNodeId });
-      if (this.setupStep >= this.players.length) {
-        this.geometry.nodes[this.lastSetupNodeId].adjacentHexes.forEach((hexId) => {
-          const hex = this.geometry.hexes[hexId];
-          if (hex.resource !== "desert") player.resources[hex.resource] += 1;
-        });
-      }
-      this.setupStep++;
-      this.setupAction = null;
-      this.lastSetupNodeId = null;
-      this.saveToStorage();
-      this.processSetupQueue();
+      this.confirmBuild = { type: "road", id: edgeId };
+      this.drawCanvasScene();
+      return;
     }
   }
 
@@ -998,6 +1021,7 @@ class ColonistFullGame {
     if (action === "settlement" && !hasResources(player.resources, COSTS.settlement)) return;
     if (action === "city" && !hasResources(player.resources, COSTS.city)) return;
     this.pendingAction = this.pendingAction === action ? null : action;
+    this.confirmBuild = null;
     this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
     this.hideTradePanel();
     this.render();
@@ -1105,36 +1129,68 @@ class ColonistFullGame {
       return;
     }
 
-    if (this.pendingAction === "road") {
-      const edgeId = this.hoverEdgeId ?? this.findEdgeAt(x, y);
-      if (edgeId == null) return;
-      if (this.placeRoad(player, edgeId, { free: false })) {
-        payCost(player.resources, COSTS.road);
-        this.addLog(`${player.name} built a road.`);
-        this.pendingAction = null;
-      } else {
-        this.addLog("Cannot build road at this edge.");
-      }
-    } else {
-      const nodeId = this.hoverNodeId ?? this.findNodeAt(x, y);
-      if (nodeId == null) return;
-      if (this.pendingAction === "settlement") {
-        if (this.placeSettlement(player, nodeId, false)) {
+    // Check if tapping the confirm icon (green checkmark above selected spot)
+    if (this.confirmBuild && this.hitTestConfirmIcon(x, y)) {
+      const cb = this.confirmBuild;
+      let built = false;
+      if (cb.type === "road") {
+        if (this.placeRoad(player, cb.id, { free: false })) {
+          payCost(player.resources, COSTS.road);
+          this.addLog(`${player.name} built a road.`);
+          built = true;
+        }
+      } else if (cb.type === "settlement") {
+        if (this.placeSettlement(player, cb.id, false)) {
           payCost(player.resources, COSTS.settlement);
           this.addLog(`${player.name} built a settlement.`);
-          this.pendingAction = null;
-        } else {
-          this.addLog("Cannot build settlement at this node.");
+          built = true;
         }
-      } else if (this.pendingAction === "city") {
-        if (this.placeCity(player, nodeId, false)) {
+      } else if (cb.type === "city") {
+        if (this.placeCity(player, cb.id, false)) {
           payCost(player.resources, COSTS.city);
           this.addLog(`${player.name} upgraded to a city.`);
-          this.pendingAction = null;
-        } else {
-          this.addLog("Cannot build city at this node.");
+          built = true;
         }
       }
+      if (built) {
+        this.pendingAction = null;
+        this.confirmBuild = null;
+        this.recomputeScores();
+        this.checkForWinner(player);
+        this.render();
+        return;
+      }
+    }
+
+    // First tap: select a build spot (show confirm icon)
+    if (this.pendingAction === "road") {
+      const edgeId = this.hoverEdgeId ?? this.findEdgeAt(x, y);
+      if (edgeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
+      if (this.canBuildRoad(player, edgeId, { free: false })) {
+        this.confirmBuild = { type: "road", id: edgeId };
+      } else {
+        this.confirmBuild = null;
+      }
+      this.drawCanvasScene();
+      return;
+    } else {
+      const nodeId = this.hoverNodeId ?? this.findNodeAt(x, y);
+      if (nodeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
+      if (this.pendingAction === "settlement") {
+        if (this.canBuildSettlement(player, nodeId, false)) {
+          this.confirmBuild = { type: "settlement", id: nodeId };
+        } else {
+          this.confirmBuild = null;
+        }
+      } else if (this.pendingAction === "city") {
+        if (this.canBuildCity(player, nodeId, false)) {
+          this.confirmBuild = { type: "city", id: nodeId };
+        } else {
+          this.confirmBuild = null;
+        }
+      }
+      this.drawCanvasScene();
+      return;
     }
 
     this.recomputeScores();
@@ -1258,8 +1314,12 @@ class ColonistFullGame {
     const key = event.key.toLowerCase();
 
     if (key === "escape") {
-      if (this.pendingAction && this.pendingAction !== "robber") {
+      if (this.confirmBuild) {
+        this.confirmBuild = null;
+        this.drawCanvasScene();
+      } else if (this.pendingAction && this.pendingAction !== "robber") {
         this.pendingAction = null;
+        this.confirmBuild = null;
         this.canvas.style.cursor = "grab";
         this.render();
       }
@@ -1328,6 +1388,13 @@ class ColonistFullGame {
     this.hoverNodeId = null;
     this.hoverEdgeId = null;
     this.hoverTooltip = "";
+
+    // Confirm icon hover detection
+    if (this.confirmBuild && this.hitTestConfirmIcon(worldX, worldY)) {
+      this.hoverTooltip = "Confirm";
+      this.canvas.style.cursor = "pointer";
+      return;
+    }
 
     const player = this.currentPlayer;
     const humanMain = player?.isHuman && this.phase === "main";
@@ -3091,6 +3158,7 @@ class ColonistFullGame {
         });
         ctx.setLineDash([]);
       }
+      this.drawBuildConfirmIcon();
       return;
     }
 
@@ -3138,6 +3206,105 @@ class ColonistFullGame {
       });
       ctx.setLineDash([]);
     }
+
+    // Draw confirm-build icon above selected spot
+    this.drawBuildConfirmIcon();
+  }
+
+  drawBuildConfirmIcon() {
+    if (!this.confirmBuild) return;
+    const ctx = this.ctx;
+    const s = this.geometry.hexSize / 74;
+    const cb = this.confirmBuild;
+    let cx, cy;
+
+    if (cb.type === "road") {
+      const edge = this.geometry.edges[cb.id];
+      const [a, b] = edge.nodes;
+      const p1 = this.geometry.nodes[a];
+      const p2 = this.geometry.nodes[b];
+      cx = (p1.x + p2.x) / 2;
+      cy = (p1.y + p2.y) / 2;
+    } else {
+      const node = this.geometry.nodes[cb.id];
+      cx = node.x;
+      cy = node.y;
+    }
+
+    // Position icon above the spot
+    const iconY = cy - 28 * s;
+    const iconR = 14 * s;
+    const bounce = Math.sin(Date.now() / 200) * 2 * s;
+
+    ctx.save();
+
+    // Shadow
+    ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+    ctx.shadowBlur = 8 * s;
+    ctx.shadowOffsetY = 2 * s;
+
+    // Circle background
+    ctx.beginPath();
+    ctx.arc(cx, iconY + bounce, iconR, 0, Math.PI * 2);
+    ctx.fillStyle = "#22a854";
+    ctx.fill();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2 * s;
+    ctx.stroke();
+
+    ctx.shadowColor = "transparent";
+
+    // Checkmark
+    ctx.beginPath();
+    ctx.moveTo(cx - 6 * s, iconY + bounce);
+    ctx.lineTo(cx - 2 * s, iconY + bounce + 5 * s);
+    ctx.lineTo(cx + 7 * s, iconY + bounce - 5 * s);
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2.5 * s;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+
+    // Small downward pointer triangle
+    ctx.beginPath();
+    ctx.moveTo(cx - 5 * s, iconY + bounce + iconR - 1 * s);
+    ctx.lineTo(cx + 5 * s, iconY + bounce + iconR - 1 * s);
+    ctx.lineTo(cx, iconY + bounce + iconR + 6 * s);
+    ctx.closePath();
+    ctx.fillStyle = "#22a854";
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  getConfirmIconCenter() {
+    if (!this.confirmBuild) return null;
+    const s = this.geometry.hexSize / 74;
+    const cb = this.confirmBuild;
+    let cx, cy;
+    if (cb.type === "road") {
+      const edge = this.geometry.edges[cb.id];
+      const [a, b] = edge.nodes;
+      const p1 = this.geometry.nodes[a];
+      const p2 = this.geometry.nodes[b];
+      cx = (p1.x + p2.x) / 2;
+      cy = (p1.y + p2.y) / 2;
+    } else {
+      const node = this.geometry.nodes[cb.id];
+      cx = node.x;
+      cy = node.y;
+    }
+    return { x: cx, y: cy - 28 * s, r: 14 * s };
+  }
+
+  hitTestConfirmIcon(worldX, worldY) {
+    const icon = this.getConfirmIconCenter();
+    if (!icon) return false;
+    // Use a generous hit radius for touch
+    const hitR = icon.r * 1.8;
+    const dx = worldX - icon.x;
+    const dy = worldY - icon.y;
+    return dx * dx + dy * dy <= hitR * hitR;
   }
 
   drawHoverEffects() {
@@ -3340,8 +3507,12 @@ class ColonistFullGame {
     if (this.actionPromptAvatar) this.actionPromptAvatar.src = active.avatar;
     if (this.actionPromptText) {
       if (this.setupPhase && this.setupAction) {
-        const action = this.setupAction === "settlement" ? "Place settlement" : "Place road";
-        this.actionPromptText.textContent = `Setup · ${action}`;
+        if (this.confirmBuild) {
+          this.actionPromptText.textContent = `Setup · Tap ✓ to confirm`;
+        } else {
+          const action = this.setupAction === "settlement" ? "Place settlement" : "Place road";
+          this.actionPromptText.textContent = `Setup · ${action}`;
+        }
       } else if (this.winner) {
         this.actionPromptText.textContent = `${this.winner.name} wins!`;
       } else if (humanTurn && preRoll) {
@@ -3350,7 +3521,11 @@ class ColonistFullGame {
         if (this.pendingAction === "robber") {
           this.actionPromptText.textContent = "Move the robber — tap a hex";
         } else if (this.pendingAction) {
-          this.actionPromptText.textContent = `Place ${this.pendingAction}`;
+          if (this.confirmBuild) {
+            this.actionPromptText.textContent = `Tap ✓ to confirm ${this.pendingAction}`;
+          } else {
+            this.actionPromptText.textContent = `Place ${this.pendingAction}`;
+          }
         } else {
           this.actionPromptText.textContent = `Turn ${this.turn} · ${active.name}`;
         }
