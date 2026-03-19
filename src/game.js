@@ -39,10 +39,10 @@ const COSTS = {
 };
 
 const PLAYER_CONFIG = [
-  { name: "You", color: "#f94144", isHuman: true, avatar: "./assets/avatars/avatar-human.svg" },
-  { name: "Pioneer AI", color: "#577590", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg" },
-  { name: "Sage AI", color: "#f9c74f", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg" },
-  { name: "Vector AI", color: "#43aa8b", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg" },
+  { name: "You", color: "#e63946", isHuman: true, avatar: "./assets/avatars/avatar-human.svg" },
+  { name: "Pioneer AI", color: "#2a6fdb", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg" },
+  { name: "Sage AI", color: "#e8a317", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg" },
+  { name: "Vector AI", color: "#2db87e", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg" },
 ];
 
 const DEV_CARD_TYPES = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
@@ -2584,6 +2584,14 @@ class ColonistFullGame {
     const dev = () => s.devCards !== "none" && this.buyDevelopmentCard(player);
     const trade = () => this.tryTradeForGoal(player);
 
+    // Robber on own hex: prioritize dev cards to get a knight
+    const robberOnSelf = this.geometry.hexes[this.robberHexId].nodes.some(nid =>
+      this.geometry.nodes[nid].owner === player.id
+    );
+    if (robberOnSelf && player.devCards.knight === 0 && s.devCards !== "none") {
+      return [dev, settlement, city, trade, road];
+    }
+
     // Advanced awareness at 8+ VP: prioritize points
     if (s.awareness === "advanced" && player.victoryPoints >= 8) {
       return [city, dev, settlement, trade, road];
@@ -4065,29 +4073,61 @@ class ColonistFullGame {
       ctx.lineWidth = 2;
 
       if (node.structure === "settlement") {
+        // House shape: peaked roof + rectangular body
         ctx.beginPath();
-        ctx.moveTo(-10, 9);
-        ctx.lineTo(-10, -2);
-        ctx.lineTo(0, -12);
-        ctx.lineTo(10, -2);
-        ctx.lineTo(10, 9);
+        ctx.moveTo(-9, 8);
+        ctx.lineTo(-9, -1);
+        ctx.lineTo(0, -10);
+        ctx.lineTo(9, -1);
+        ctx.lineTo(9, 8);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = "rgba(255,255,255,0.3)";
-        ctx.fillRect(-4, -1, 3.5, 3.5);
+        // Door
+        ctx.fillStyle = "rgba(0,0,0,0.2)";
+        ctx.fillRect(-2, 2, 4, 6);
+        // Window
+        ctx.fillStyle = "rgba(255,255,255,0.4)";
+        ctx.fillRect(-7, -0, 3.5, 3.5);
+        ctx.fillRect(3.5, -0, 3.5, 3.5);
       } else {
+        // Church/cathedral: tall tower with cross + lower building
         ctx.beginPath();
-        ctx.rect(-13, -8, 26, 16);
-        ctx.moveTo(-14, -8);
-        ctx.lineTo(0, -18);
-        ctx.lineTo(14, -8);
+        // Main building
+        ctx.rect(-12, -4, 24, 12);
+        // Roof
+        ctx.moveTo(-13, -4);
+        ctx.lineTo(0, -12);
+        ctx.lineTo(13, -4);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = "rgba(255,255,255,0.3)";
-        ctx.fillRect(-8, -2, 4, 4);
-        ctx.fillRect(3, -2, 4, 4);
+        // Tower
+        ctx.fillStyle = player.color;
+        ctx.beginPath();
+        ctx.rect(-3, -18, 6, 14);
+        ctx.fill();
+        ctx.stroke();
+        // Tower roof
+        ctx.beginPath();
+        ctx.moveTo(-4, -18);
+        ctx.lineTo(0, -23);
+        ctx.lineTo(4, -18);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // Cross on top
+        ctx.strokeStyle = "rgba(255,255,255,0.8)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0, -27); ctx.lineTo(0, -23);
+        ctx.moveTo(-2, -25.5); ctx.lineTo(2, -25.5);
+        ctx.stroke();
+        // Windows
+        ctx.fillStyle = "rgba(255,255,255,0.35)";
+        ctx.fillRect(-9, 0, 3.5, 3.5);
+        ctx.fillRect(5.5, 0, 3.5, 3.5);
+        ctx.fillRect(-1.5, -15, 3, 4);
       }
       ctx.restore();
     });
@@ -4394,13 +4434,14 @@ class ColonistFullGame {
 
     // Bottom bar summary cards (desktop)
     if (this.resourceCardStrip) {
+      const total = sumResources(human.resources);
       this.resourceCardStrip.innerHTML = RESOURCES.map(
         (resource) =>
           `<div class="resource-card ${resource}" aria-label="${resource} ${human.resources[resource]}">
             <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
             <span class="resource-count">${human.resources[resource]}</span>
           </div>`,
-      ).join("");
+      ).join("") + `<div class="resource-total" title="Total cards">${total}</div>`;
     }
 
     // Hand strip — individual overlapping cards (bottom, above action bar on mobile)
@@ -5059,28 +5100,24 @@ class ColonistFullGame {
       targetY = 30 + player.id * 40;
     }
 
-    // Find hexes that produced resources for this player
-    const producingHexes = [];
-    this.geometry.hexes.forEach(hex => {
-      if (hex.id === this.robberHexId || hex.number !== this.lastRoll) return;
-      hex.nodes.forEach(nodeId => {
-        const node = this.geometry.nodes[nodeId];
-        if (node.owner === player.id && node.structure) {
-          producingHexes.push(hex);
-        }
-      });
-    });
+    // Cards originate from the supply/bank area (bottom-right of board)
+    const supplyEl = document.getElementById("supplyOverview");
+    let bankX, bankY;
+    if (supplyEl) {
+      const sr = supplyEl.getBoundingClientRect();
+      bankX = sr.left + sr.width / 2 - boardRect.left;
+      bankY = sr.top + sr.height / 2 - boardRect.top;
+    } else {
+      bankX = boardRect.width - 60;
+      bankY = boardRect.height - 20;
+    }
 
     let cardIndex = 0;
     RESOURCES.forEach(r => {
       if (gain[r] <= 0) return;
       for (let i = 0; i < gain[r]; i++) {
-        const hex = producingHexes.find(h => h.resource === r) || producingHexes[0];
-        if (!hex) continue;
-
-        // Convert hex center from world to screen coords
-        const screenX = (hex.center.x * this.view.scale + this.view.offsetX);
-        const screenY = (hex.center.y * this.view.scale + this.view.offsetY);
+        const screenX = bankX;
+        const screenY = bankY;
 
         const flyDelay = startDelay + cardIndex * 80;
         cardIndex++;

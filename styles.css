@@ -501,6 +501,20 @@ main.table-layout {
   text-shadow: 0 0 2px rgba(255, 255, 255, 0.9);
 }
 
+.resource-total {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 66px;
+  font-size: 1rem;
+  font-weight: 900;
+  color: #1a3a5c;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+
 .resource-card.wood { border-color: rgba(61, 138, 61, 0.6); background: linear-gradient(180deg, #dcedc8, #b5cc8e); }
 .resource-card.brick { border-color: rgba(198, 102, 60, 0.6); background: linear-gradient(180deg, #ffebee, #ffcdd2); }
 .resource-card.sheep { border-color: rgba(122, 201, 64, 0.6); background: linear-gradient(180deg, #f1f8e9, #c5e1a5); }
@@ -1101,21 +1115,17 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 /* ── Incoming Trade Popup ── */
 .incoming-trade-panel {
   position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  left: 10px;
+  bottom: 60px;
   z-index: 55;
   background: linear-gradient(180deg, #fff, #f0ede5);
   border: 2px solid #7870d8;
-  border-radius: 14px;
-  box-shadow: 0 12px 36px rgba(8, 35, 55, 0.5);
-  padding: 1rem 1.2rem;
-  min-width: 280px;
-  max-width: 380px;
-  animation: popIn 0.2s ease;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(8, 35, 55, 0.35);
+  padding: 0.7rem 0.8rem;
+  width: 280px;
+  animation: slideInLeft 0.2s ease-out;
 }
-
-@keyframes popIn { from { transform: translate(-50%, -50%) scale(0.85); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
 
 .incoming-trade-header {
   font-weight: 800;
