@@ -149,7 +149,7 @@ main.table-layout {
   pointer-events: none;
   z-index: 10;
   padding: 0.4rem;
-  width: 220px;
+  width: 195px;
 }
 
 .rail-card {
@@ -249,17 +249,14 @@ main.table-layout {
 #scoreboard { display: grid; gap: 0.35rem; }
 
 .player-card-mini {
-  display: grid;
-  grid-template-columns: 22px 1fr auto;
-  grid-template-rows: auto auto;
-  column-gap: 0.25rem;
-  row-gap: 0.1rem;
+  display: flex;
   align-items: center;
-  padding: 0.25rem 0.35rem;
+  gap: 0.25rem;
+  padding: 0.2rem 0.3rem;
   border-radius: 6px;
   background: linear-gradient(180deg, #fff, #f2eee5);
   border: 1px solid rgba(117, 146, 174, 0.45);
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   overflow: hidden;
 }
 
@@ -269,19 +266,19 @@ main.table-layout {
 }
 
 .player-card-mini .player-avatar {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 999px;
   object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.7);
   box-shadow: 0 1px 3px rgba(24, 57, 88, 0.2);
-  grid-row: 1 / 3;
+  flex-shrink: 0;
 }
 
 .player-card-mini .player-name {
   font-weight: 800;
-  font-size: 0.72rem;
-  flex-shrink: 1;
+  font-size: 0.65rem;
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -291,22 +288,19 @@ main.table-layout {
 .player-header-right {
   display: flex;
   align-items: center;
-  gap: 0.2rem;
-  justify-content: flex-end;
+  gap: 0.15rem;
+  flex-shrink: 0;
 }
 
 .player-vp {
   font-weight: 700;
-  font-size: 0.7rem;
+  font-size: 0.62rem;
   color: #1a3a5c;
   white-space: nowrap;
 }
 
 .player-stats {
-  display: flex;
-  gap: 0.15rem;
-  grid-column: 2 / 4;
-  grid-row: 2;
+  display: none;
 }
 
 .stat-item {
@@ -323,8 +317,8 @@ main.table-layout {
 
 .player-hand-counts {
   display: inline-flex;
-  gap: 0.25rem;
-  font-size: 0.65rem;
+  gap: 0.15rem;
+  font-size: 0.58rem;
   font-weight: 700;
 }
 
@@ -899,17 +893,28 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   position: absolute;
   top: -1px;
   right: -1px;
-  min-width: 18px;
-  height: 18px;
+  min-width: 20px;
+  height: 20px;
   background: #5c55b9;
   color: #fff;
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   font-weight: 800;
   border-radius: 0 4px 0 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 3px;
+  padding: 0 4px;
+}
+
+.trade-res-card .trade-card-rate {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.5rem;
+  font-weight: 700;
+  color: #5c55b9;
+  opacity: 0.7;
 }
 
 .trade-res-card.wood { background: linear-gradient(160deg, #e8f5e9, #c8e6c9); }
@@ -918,41 +923,12 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 .trade-res-card.wheat { background: linear-gradient(160deg, #fffde7, #fff9c4); }
 .trade-res-card.ore { background: linear-gradient(160deg, #eceff1, #cfd8dc); }
 
-.trade-res-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.1rem;
-}
-
-.trade-res-count {
-  font-weight: 800;
-  font-size: 0.82rem;
-  color: #1a3a5c;
-  min-width: 18px;
+.trade-res-item-hint {
+  font-size: 0.5rem;
+  color: #8a9ab5;
   text-align: center;
+  margin-top: 0.05rem;
 }
-
-.trade-res-btn {
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: linear-gradient(180deg, #edf5ff, #d7e8fa);
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  line-height: 1;
-}
-
-.trade-res-btn:hover:not(:disabled) {
-  background: linear-gradient(180deg, #d7e8fa, #c0d8f0);
-}
-
-.trade-res-btn:disabled { opacity: 0.25; cursor: default; }
 
 .trade-proposal-result {
   font-size: 0.75rem;
@@ -1211,19 +1187,20 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 /* ── Persistent Last Dice Display ── */
 .last-dice-display {
   position: absolute;
-  bottom: 34px;
+  bottom: 6px;
   left: 10px;
   z-index: 15;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(120, 138, 162, 0.4);
-  border-radius: 10px;
-  padding: 0.3rem 0.5rem;
-  box-shadow: 0 2px 8px rgba(8, 35, 55, 0.2);
+  gap: 0.3rem;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(3px);
+  border: 1px solid rgba(120, 138, 162, 0.3);
+  border-radius: 7px;
+  padding: 0.2rem 0.4rem;
+  box-shadow: 0 1px 4px rgba(8, 35, 55, 0.12);
   pointer-events: none;
+  opacity: 0.85;
 }
 
 .last-dice-mini {
@@ -1358,17 +1335,17 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 /* ── Build Cost Reference ── */
 .cost-reference {
   position: absolute;
-  bottom: 6px;
+  bottom: 38px;
   left: 10px;
   z-index: 14;
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(3px);
-  border: 1px solid rgba(120, 138, 162, 0.3);
-  border-radius: 6px;
-  padding: 0.2rem 0.4rem;
-  box-shadow: 0 1px 4px rgba(8, 35, 55, 0.12);
-  font-size: 0.6rem;
-  opacity: 0.85;
+  border: 1px solid rgba(120, 138, 162, 0.25);
+  border-radius: 5px;
+  padding: 0.15rem 0.35rem;
+  box-shadow: 0 1px 3px rgba(8, 35, 55, 0.1);
+  font-size: 0.55rem;
+  opacity: 0.7;
   transition: opacity 0.15s;
 }
 
@@ -1510,17 +1487,17 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   bottom: 6px;
   right: 10px;
   z-index: 14;
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(3px);
   border: 1px solid rgba(120, 138, 162, 0.3);
   border-radius: 6px;
-  padding: 0.2rem 0.4rem;
+  padding: 0.15rem 0.35rem;
   box-shadow: 0 1px 4px rgba(8, 35, 55, 0.12);
-  font-size: 0.58rem;
-  opacity: 0.85;
+  font-size: 0.55rem;
+  opacity: 0.8;
   transition: opacity 0.15s;
   display: flex;
-  gap: 0.4rem;
+  gap: 0.3rem;
   align-items: center;
 }
 
@@ -1550,15 +1527,15 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 }
 
 .supply-item img {
-  width: 13px; height: 13px;
+  width: 12px; height: 12px;
   object-fit: contain;
 }
 
 .supply-item span {
   font-weight: 800;
-  font-size: 0.58rem;
+  font-size: 0.55rem;
   color: #1a3a5c;
-  min-width: 10px;
+  min-width: 9px;
   text-align: center;
 }
 
@@ -1658,16 +1635,11 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   }
   .rail-players h2 { display: none; }
   .player-card-mini {
-    display: flex;
-    flex-wrap: wrap;
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.15);
   }
-  .player-card-mini .player-avatar { grid-row: auto; }
   .player-card-mini .player-name,
-  .player-vp,
-  .stat-item { color: rgba(255, 255, 255, 0.9); }
-  .player-stats { display: none; }
+  .player-vp { color: rgba(255, 255, 255, 0.9); }
   .player-card-mini.active {
     background: rgba(255, 255, 255, 0.18);
     border-color: rgba(74, 172, 233, 0.6);
@@ -1727,13 +1699,12 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .right-rail { min-width: auto; max-width: 140px; width: auto; }
   .rail-card { padding: 0.15rem; }
   .rail-players { padding: 0.15rem !important; }
-  .player-card-mini { display: flex; flex-wrap: wrap; padding: 0.1rem 0.2rem; font-size: 0.55rem; gap: 0.1rem; }
-  .player-card-mini .player-avatar { width: 14px; height: 14px; grid-row: auto; }
-  .player-card-mini .player-name { font-size: 0.55rem; }
-  .player-header-right { gap: 0.1rem; }
-  .player-vp { font-size: 0.55rem; }
-  .player-hand-counts { font-size: 0.5rem; }
-  .player-stats { display: none; }
+  .player-card-mini { padding: 0.1rem 0.2rem; font-size: 0.5rem; gap: 0.1rem; }
+  .player-card-mini .player-avatar { width: 14px; height: 14px; }
+  .player-card-mini .player-name { font-size: 0.5rem; }
+  .player-header-right { gap: 0.08rem; }
+  .player-vp { font-size: 0.5rem; }
+  .player-hand-counts { font-size: 0.45rem; }
   #scoreboard { gap: 0.1rem; }
   .bottom-bar { padding: 0.25rem 0.3rem; gap: 0.2rem; border-radius: 0; min-height: 46px; }
   .action-prompt-row { gap: 0.15rem; }

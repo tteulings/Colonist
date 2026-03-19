@@ -1825,77 +1825,50 @@ class ColonistFullGame {
   buildTradeGrids() {
     const player = this.currentPlayer;
     const maxOffer = player?.isHuman ? player.resources : null;
-    this._renderResourceGrid(this.tradeOfferGrid, this.tradeOffer, maxOffer);
-    this._renderResourceGrid(this.tradeRequestGrid, this.tradeRequest, null);
+    this._renderResourceGrid(this.tradeOfferGrid, this.tradeOffer, maxOffer, true);
+    this._renderResourceGrid(this.tradeRequestGrid, this.tradeRequest, null, false);
   }
 
-  _renderResourceGrid(container, counts, maxCounts) {
+  _renderResourceGrid(container, counts, maxCounts, isOffer) {
     if (!container) return;
     container.innerHTML = "";
+    const player = this.currentPlayer;
     RESOURCES.forEach((resource) => {
       const item = document.createElement("div");
       item.className = "trade-res-item";
       const max = maxCounts ? maxCounts[resource] : 19;
       const count = counts[resource];
+      const rate = isOffer && player ? this.getPlayerTradeRate(player, resource) : null;
 
       const card = document.createElement("div");
       card.className = `trade-res-card ${resource}${count > 0 ? " has-count" : ""}`;
       card.innerHTML = `
         <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
         ${count > 0 ? `<span class="trade-card-badge">${count}</span>` : ""}
+        ${isOffer && rate ? `<span class="trade-card-rate">${rate}:1</span>` : ""}
       `;
-      // Click card to increment
+      // Left click = increment
       card.addEventListener("click", () => {
         const newVal = counts[resource] + 1;
         if (newVal > max) return;
         counts[resource] = newVal;
-        this._updateResItem(item, resource, counts, max);
-        this.updateTradeButtons();
+        this._refreshTradeGrids();
+      });
+      // Right click = decrement
+      card.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        if (counts[resource] <= 0) return;
+        counts[resource] -= 1;
+        this._refreshTradeGrids();
       });
       item.appendChild(card);
-
-      const controls = document.createElement("div");
-      controls.className = "trade-res-controls";
-      controls.innerHTML = `
-        <button class="trade-res-btn" data-dir="-1">−</button>
-        <span class="trade-res-count">${count}</span>
-        <button class="trade-res-btn" data-dir="1">+</button>
-      `;
-      controls.querySelectorAll(".trade-res-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const dir = Number(btn.dataset.dir);
-          const newVal = counts[resource] + dir;
-          if (newVal < 0 || newVal > max) return;
-          counts[resource] = newVal;
-          this._updateResItem(item, resource, counts, max);
-          this.updateTradeButtons();
-        });
-      });
-      item.appendChild(controls);
       container.appendChild(item);
     });
   }
 
-  _updateResItem(item, resource, counts, max) {
-    const count = counts[resource];
-    const card = item.querySelector(".trade-res-card");
-    const badge = card.querySelector(".trade-card-badge");
-    const countEl = item.querySelector(".trade-res-count");
-    if (count > 0) {
-      card.classList.add("has-count");
-      if (badge) {
-        badge.textContent = count;
-      } else {
-        const b = document.createElement("span");
-        b.className = "trade-card-badge";
-        b.textContent = count;
-        card.appendChild(b);
-      }
-    } else {
-      card.classList.remove("has-count");
-      if (badge) badge.remove();
-    }
-    countEl.textContent = count;
+  _refreshTradeGrids() {
+    this.buildTradeGrids();
+    this.updateTradeButtons();
   }
 
   updateTradeButtons() {
@@ -4090,19 +4063,12 @@ class ColonistFullGame {
         <img class="player-avatar" src="${player.avatar}" alt="${player.name} avatar" />
         <span class="player-name" style="color:${player.color}">${player.name}</span>
         <span class="player-header-right">
-          <span class="player-vp" title="Victory points">${player.victoryPoints} VP</span>
+          <span class="player-vp" title="Click for VP breakdown">${player.victoryPoints} VP</span>
           ${awards}
-          <span class="player-hand-counts" title="${totalCards} cards, ${totalDev} dev">
+          <span class="player-hand-counts" title="${totalCards} resource cards, ${totalDev} dev cards">
             <span class="hand-count"><span class="stat-icon card-icon"></span>${totalCards}</span>
-            <span class="hand-count"><span class="stat-icon dev-icon"></span>${totalDev}</span>
           </span>
         </span>
-        <div class="player-stats">
-          <span class="stat-item" title="${player.roads.size} roads"><span class="stat-icon road-icon"></span>${player.roads.size}</span>
-          <span class="stat-item" title="${player.settlements.size} settlements"><span class="stat-icon settle-icon"></span>${player.settlements.size}</span>
-          <span class="stat-item" title="${player.cities.size} cities"><span class="stat-icon city-icon"></span>${player.cities.size}</span>
-          <span class="stat-item" title="${player.knightsPlayed} knights played"><span class="stat-icon knight-icon"></span>${player.knightsPlayed}</span>
-        </div>
       `;
       // VP tooltip on hover
       const vpEl = card.querySelector(".player-vp");
