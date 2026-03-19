@@ -689,7 +689,7 @@ class ColonistFullGame {
     });
     this.resetBtn.addEventListener("click", () => {
       this.stopAutoplay();
-      this.resetGame();
+      this._showDifficultyModal();
     });
     this.resetViewBtn.addEventListener("click", () => this.resetViewTransform());
     this.rollDiceBtn.addEventListener("click", () => {
@@ -3465,7 +3465,7 @@ class ColonistFullGame {
     overlay.querySelector("#newGameBtn").addEventListener("click", () => {
       overlay.remove();
       this.stopAutoplay();
-      this.resetGame();
+      this._showDifficultyModal();
     });
   }
 
@@ -5114,6 +5114,102 @@ class ColonistFullGame {
       setTimeout(() => this._playTone(1100, 0.08, "sine", 0.05), 50);
     },
   };
+
+  // ── Difficulty Modal ──────────────────────────────────────────────────
+  _showDifficultyModal() {
+    // Remove existing
+    document.querySelector(".difficulty-modal")?.remove();
+
+    const presetDescriptions = {
+      beginner: "AI makes simple decisions. No trading, no dev cards, random robber. Great for learning.",
+      intermediate: "Balanced AI. Trades with bank and players, plays dev cards when useful, targets opponents with robber.",
+      expert: "Aggressive AI. Trades hard, chases Longest Road and Largest Army, targets the VP leader.",
+    };
+
+    const overlay = document.createElement("div");
+    overlay.className = "difficulty-modal";
+
+    let selectedPreset = "intermediate";
+    let customStrategy = { ...AI_PRESETS.intermediate };
+
+    const renderModal = () => {
+      overlay.innerHTML = `
+        <div class="difficulty-modal-card">
+          <h2>New Game</h2>
+          <p class="difficulty-subtitle">Choose AI difficulty</p>
+          <div class="difficulty-presets">
+            ${Object.entries(AI_PRESETS).map(([name, preset]) => `
+              <button class="difficulty-preset-btn ${name === selectedPreset ? "selected" : ""}" data-preset="${name}">
+                <span class="difficulty-preset-name">${name.charAt(0).toUpperCase() + name.slice(1)}</span>
+                <span class="difficulty-preset-desc">${presetDescriptions[name]}</span>
+              </button>
+            `).join("")}
+          </div>
+          <details class="difficulty-advanced">
+            <summary>Advanced settings</summary>
+            <div class="difficulty-advanced-grid">
+              ${Object.entries(AI_STRATEGY_CATEGORIES).map(([key, cat]) => `
+                <div class="difficulty-adv-row">
+                  <label>${cat.label}</label>
+                  <select data-key="${key}">
+                    ${cat.levels.map(level => `
+                      <option value="${level}" ${customStrategy[key] === level ? "selected" : ""}>${level.charAt(0).toUpperCase() + level.slice(1)}</option>
+                    `).join("")}
+                  </select>
+                  <span class="difficulty-adv-desc">${cat.descriptions[customStrategy[key]]}</span>
+                </div>
+              `).join("")}
+            </div>
+          </details>
+          <div class="difficulty-actions">
+            <button class="difficulty-start-btn">Start Game</button>
+            <button class="difficulty-cancel-btn">Cancel</button>
+          </div>
+        </div>
+      `;
+
+      // Wire preset buttons
+      overlay.querySelectorAll(".difficulty-preset-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          selectedPreset = btn.dataset.preset;
+          customStrategy = { ...AI_PRESETS[selectedPreset] };
+          renderModal();
+        });
+      });
+
+      // Wire advanced selects
+      overlay.querySelectorAll(".difficulty-advanced select").forEach(sel => {
+        sel.addEventListener("change", () => {
+          customStrategy[sel.dataset.key] = sel.value;
+          selectedPreset = null; // Custom config
+          // Update description
+          const row = sel.closest(".difficulty-adv-row");
+          const cat = AI_STRATEGY_CATEGORIES[sel.dataset.key];
+          row.querySelector(".difficulty-adv-desc").textContent = cat.descriptions[sel.value];
+          overlay.querySelectorAll(".difficulty-preset-btn").forEach(b => b.classList.remove("selected"));
+        });
+      });
+
+      // Wire start/cancel
+      overlay.querySelector(".difficulty-start-btn").addEventListener("click", () => {
+        // Apply strategy to all AI players
+        const strat = { ...customStrategy };
+        localStorage.setItem(ColonistFullGame.STRATEGY_KEY, JSON.stringify({
+          1: strat, 2: strat, 3: strat,
+        }));
+        overlay.remove();
+        this.resetGame();
+        this._buildStrategyUI();
+      });
+
+      overlay.querySelector(".difficulty-cancel-btn").addEventListener("click", () => {
+        overlay.remove();
+      });
+    };
+
+    renderModal();
+    document.querySelector(".board-panel").appendChild(overlay);
+  }
 
   // ── AI Strategy Config UI ─────────────────────────────────────────────
   _buildStrategyUI() {
