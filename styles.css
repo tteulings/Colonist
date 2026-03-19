@@ -149,7 +149,7 @@ main.table-layout {
   pointer-events: none;
   z-index: 10;
   padding: 0.4rem;
-  width: 260px;
+  width: 220px;
 }
 
 .rail-card {
@@ -249,9 +249,12 @@ main.table-layout {
 #scoreboard { display: grid; gap: 0.35rem; }
 
 .player-card-mini {
-  display: flex;
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: 0.25rem;
+  row-gap: 0.1rem;
   align-items: center;
-  gap: 0.3rem;
   padding: 0.25rem 0.35rem;
   border-radius: 6px;
   background: linear-gradient(180deg, #fff, #f2eee5);
@@ -272,6 +275,7 @@ main.table-layout {
   object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.7);
   box-shadow: 0 1px 3px rgba(24, 57, 88, 0.2);
+  grid-row: 1 / 3;
 }
 
 .player-card-mini .player-name {
@@ -282,7 +286,13 @@ main.table-layout {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 65px;
+}
+
+.player-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  justify-content: flex-end;
 }
 
 .player-vp {
@@ -294,8 +304,9 @@ main.table-layout {
 
 .player-stats {
   display: flex;
-  gap: 0.2rem;
-  margin-left: auto;
+  gap: 0.15rem;
+  grid-column: 2 / 4;
+  grid-row: 2;
 }
 
 .stat-item {
@@ -313,7 +324,6 @@ main.table-layout {
 .player-hand-counts {
   display: inline-flex;
   gap: 0.25rem;
-  margin-left: auto;
   font-size: 0.65rem;
   font-weight: 700;
 }
@@ -1201,7 +1211,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 /* ── Persistent Last Dice Display ── */
 .last-dice-display {
   position: absolute;
-  bottom: 10px;
+  bottom: 34px;
   left: 10px;
   z-index: 15;
   display: flex;
@@ -1348,17 +1358,23 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 /* ── Build Cost Reference ── */
 .cost-reference {
   position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 15;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(120, 138, 162, 0.4);
-  border-radius: 8px;
-  padding: 0.25rem 0.5rem;
-  box-shadow: 0 2px 8px rgba(8, 35, 55, 0.2);
+  bottom: 6px;
+  left: 10px;
+  z-index: 14;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(3px);
+  border: 1px solid rgba(120, 138, 162, 0.3);
+  border-radius: 6px;
+  padding: 0.2rem 0.4rem;
+  box-shadow: 0 1px 4px rgba(8, 35, 55, 0.12);
   font-size: 0.6rem;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+
+.cost-reference:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .cost-ref-header {
@@ -1578,12 +1594,16 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   }
   .rail-players h2 { display: none; }
   .player-card-mini {
+    display: flex;
+    flex-wrap: wrap;
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.15);
   }
+  .player-card-mini .player-avatar { grid-row: auto; }
   .player-card-mini .player-name,
   .player-vp,
   .stat-item { color: rgba(255, 255, 255, 0.9); }
+  .player-stats { display: none; }
   .player-card-mini.active {
     background: rgba(255, 255, 255, 0.18);
     border-color: rgba(74, 172, 233, 0.6);
@@ -1643,9 +1663,10 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .right-rail { min-width: auto; max-width: 140px; width: auto; }
   .rail-card { padding: 0.15rem; }
   .rail-players { padding: 0.15rem !important; }
-  .player-card-mini { padding: 0.1rem 0.2rem; font-size: 0.55rem; gap: 0.15rem; }
-  .player-card-mini .player-avatar { width: 12px; height: 12px; }
-  .player-card-mini .player-name { font-size: 0.55rem; max-width: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .player-card-mini { display: flex; flex-wrap: wrap; padding: 0.1rem 0.2rem; font-size: 0.55rem; gap: 0.1rem; }
+  .player-card-mini .player-avatar { width: 14px; height: 14px; grid-row: auto; }
+  .player-card-mini .player-name { font-size: 0.55rem; }
+  .player-header-right { gap: 0.1rem; }
   .player-vp { font-size: 0.55rem; }
   .player-hand-counts { font-size: 0.5rem; }
   .player-stats { display: none; }

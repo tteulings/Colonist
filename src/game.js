@@ -4087,11 +4087,13 @@ class ColonistFullGame {
       card.innerHTML = `
         <img class="player-avatar" src="${player.avatar}" alt="${player.name} avatar" />
         <span class="player-name" style="color:${player.color}">${player.name}</span>
-        <span class="player-vp" title="Victory points">${player.victoryPoints} VP</span>
-        ${awards}
-        <span class="player-hand-counts" title="${totalCards} cards, ${totalDev} dev">
-          <span class="hand-count"><span class="stat-icon card-icon"></span>${totalCards}</span>
-          <span class="hand-count"><span class="stat-icon dev-icon"></span>${totalDev}</span>
+        <span class="player-header-right">
+          <span class="player-vp" title="Victory points">${player.victoryPoints} VP</span>
+          ${awards}
+          <span class="player-hand-counts" title="${totalCards} cards, ${totalDev} dev">
+            <span class="hand-count"><span class="stat-icon card-icon"></span>${totalCards}</span>
+            <span class="hand-count"><span class="stat-icon dev-icon"></span>${totalDev}</span>
+          </span>
         </span>
         <div class="player-stats">
           <span class="stat-item" title="${player.roads.size} roads"><span class="stat-icon road-icon"></span>${player.roads.size}</span>
@@ -4102,9 +4104,11 @@ class ColonistFullGame {
       `;
       // VP tooltip on hover
       const vpEl = card.querySelector(".player-vp");
-      vpEl.style.cursor = "help";
-      vpEl.addEventListener("mouseenter", () => this._showVPTooltip(player, vpEl));
-      vpEl.addEventListener("mouseleave", () => this._hideVPTooltip());
+      if (vpEl) {
+        vpEl.style.cursor = "help";
+        vpEl.addEventListener("mouseenter", () => this._showVPTooltip(player, vpEl));
+        vpEl.addEventListener("mouseleave", () => this._hideVPTooltip());
+      }
       this.scoreboard.appendChild(card);
     });
   }
