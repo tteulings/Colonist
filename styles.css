@@ -194,7 +194,7 @@ main.table-layout {
 .log-toggle {
   position: absolute;
   right: 0.4rem;
-  bottom: 0.4rem;
+  bottom: 42px;
   z-index: 11;
   pointer-events: auto;
   width: 36px;
@@ -634,6 +634,19 @@ main.table-layout {
 
 .settings-float-body .button-row { margin-bottom: 0.35rem; }
 
+.ai-reasoning-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  margin-top: 0.2rem;
+  margin-bottom: 0.1rem;
+}
+
+.ai-reasoning-toggle input {
+  accent-color: #19a0b8;
+}
+
 /* ── AI Strategy Config Panel ── */
 .ai-strategy-section {
   margin-top: 0.3rem;
@@ -1029,6 +1042,27 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 .trade-res-card.wheat { background: linear-gradient(160deg, #fffde7, #fff9c4); }
 .trade-res-card.ore { background: linear-gradient(160deg, #eceff1, #cfd8dc); }
 
+.trade-res-minus {
+  width: 100%;
+  height: 16px;
+  border: none;
+  border-radius: 0 0 4px 4px;
+  background: rgba(92, 85, 185, 0.12);
+  color: #5c55b9;
+  font-size: 0.65rem;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.trade-res-minus:hover {
+  background: rgba(92, 85, 185, 0.25);
+}
+
 .trade-res-item-hint {
   font-size: 0.5rem;
   color: #8a9ab5;
@@ -1293,7 +1327,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 /* ── Persistent Last Dice Display ── */
 .last-dice-display {
   position: absolute;
-  bottom: 8px;
+  bottom: 6px;
   left: 10px;
   z-index: 15;
   display: flex;
@@ -1440,7 +1474,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 /* ── Build Cost Reference ── */
 .cost-reference {
   position: absolute;
-  bottom: 46px;
+  bottom: 44px;
   left: 10px;
   z-index: 14;
   background: linear-gradient(180deg, rgba(240, 237, 229, 0.92), rgba(231, 224, 210, 0.92));

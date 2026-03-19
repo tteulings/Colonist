@@ -492,6 +492,12 @@ class ColonistFullGame {
     // AI strategy panel
     this.aiStrategyPanel = document.querySelector("#aiStrategyPanel");
     this._applyAllStrategies = true;
+    // AI reasoning toggle
+    this.aiReasoningToggle = document.querySelector("#aiReasoningToggle");
+    this.showAiReasoning = false;
+    this.aiReasoningToggle?.addEventListener("change", () => {
+      this.showAiReasoning = this.aiReasoningToggle.checked;
+    });
 
     this.maxLogEntries = 260;
     this.maxToasts = 4;
@@ -1963,6 +1969,18 @@ class ColonistFullGame {
         this._refreshTradeGrids();
       });
       item.appendChild(card);
+      // Small minus button when count > 0
+      if (count > 0) {
+        const minus = document.createElement("button");
+        minus.className = "trade-res-minus";
+        minus.textContent = "−";
+        minus.addEventListener("click", (e) => {
+          e.stopPropagation();
+          counts[resource] = Math.max(0, counts[resource] - 1);
+          this._refreshTradeGrids();
+        });
+        item.appendChild(minus);
+      }
       container.appendChild(item);
     });
   }
@@ -2495,6 +2513,10 @@ class ColonistFullGame {
     return "done";
   }
 
+  _aiLog(player, msg) {
+    if (this.showAiReasoning) this.addLog(`[${player.name}] ${msg}`);
+  }
+
   _getActionPriority(player) {
     const s = player.strategy || {};
     const settlement = () => this.tryBuildSettlement(player);
@@ -2595,9 +2617,11 @@ class ColonistFullGame {
     const candidates = this.getBuildableSettlementNodes(player);
     if (!candidates.length) return false;
     candidates.sort((a, b) => b.score - a.score);
-    if (!this.placeSettlement(player, candidates[0].nodeId, false)) return false;
+    const best = candidates[0];
+    if (!this.placeSettlement(player, best.nodeId, false)) return false;
     payCost(player.resources, COSTS.settlement);
     this.addLog(`${player.name} built a settlement.`);
+    this._aiLog(player, `Chose settlement at node ${best.nodeId} (score ${best.score.toFixed(2)}, ${candidates.length} options)`);
     this.recomputeScores();
     this.checkForWinner(player);
     return true;
@@ -2610,6 +2634,7 @@ class ColonistFullGame {
     if (!this.placeCity(player, nodeId, false)) return false;
     payCost(player.resources, COSTS.city);
     this.addLog(`${player.name} upgraded to a city.`);
+    this._aiLog(player, `Upgraded node ${nodeId} — highest dice probability settlement`);
     this.recomputeScores();
     this.checkForWinner(player);
     return true;
@@ -2622,6 +2647,7 @@ class ColonistFullGame {
     if (!this.placeRoad(player, edgeId, { free: false })) return false;
     payCost(player.resources, COSTS.road);
     this.addLog(`${player.name} built a road.`);
+    this._aiLog(player, `Expansion strategy: ${player.strategy?.expansion || "medium"}`);
     this.recomputeScores();
     this.checkForWinner(player);
     return true;
@@ -3789,15 +3815,45 @@ class ColonistFullGame {
   drawNodeDots() {
     const ctx = this.ctx;
     const s = this.geometry.hexSize / 74;
+    const human = this.players.find(p => p.isHuman);
+    const showBuildable = human && this.phase === "main" && this.currentPlayer.isHuman && !this.pendingAction;
+    const canSettlement = showBuildable && hasResources(human.resources, COSTS.settlement);
+    const canCity = showBuildable && hasResources(human.resources, COSTS.city);
+
     this.geometry.nodes.forEach((node) => {
-      if (node.owner != null) return;
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, 4.5 * s, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(205, 175, 110, 0.6)";
-      ctx.fill();
-      ctx.strokeStyle = "rgba(160, 120, 50, 0.4)";
-      ctx.lineWidth = 1 * s;
-      ctx.stroke();
+      if (node.owner != null) {
+        // Highlight cities you can upgrade
+        if (canCity && node.owner === human.id && node.structure === "settlement") {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, 10 * s, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(25, 160, 184, 0.15)";
+          ctx.fill();
+          ctx.strokeStyle = "rgba(25, 160, 184, 0.5)";
+          ctx.lineWidth = 1.5 * s;
+          ctx.setLineDash([3 * s, 2 * s]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        return;
+      }
+      // Highlight buildable settlement spots
+      if (canSettlement && this.canBuildSettlement(human, node.id, false)) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, 7 * s, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(25, 160, 184, 0.2)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(25, 160, 184, 0.6)";
+        ctx.lineWidth = 1.5 * s;
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, 4.5 * s, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(205, 175, 110, 0.6)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(160, 120, 50, 0.4)";
+        ctx.lineWidth = 1 * s;
+        ctx.stroke();
+      }
     });
   }
 
