@@ -4071,20 +4071,22 @@ class ColonistFullGame {
     const ctx = this.ctx;
     const s = this.geometry.hexSize / 74;
     const human = this.players.find(p => p.isHuman);
-    const showBuildable = human && this.phase === "main" && this.currentPlayer.isHuman && !this.pendingAction;
-    const canSettlement = showBuildable && hasResources(human.resources, COSTS.settlement);
-    const canCity = showBuildable && hasResources(human.resources, COSTS.city);
+    const isHumanMain = human && this.phase === "main" && this.currentPlayer.isHuman;
+    const canSettlement = isHumanMain && hasResources(human.resources, COSTS.settlement);
+    const canCity = isHumanMain && hasResources(human.resources, COSTS.city);
+    const canRoad = isHumanMain && hasResources(human.resources, COSTS.road);
+    const pulse = 0.5 + Math.sin(Date.now() / 400) * 0.3;
 
     this.geometry.nodes.forEach((node) => {
       if (node.owner != null) {
-        // Highlight cities you can upgrade
+        // Highlight settlements upgradeable to cities
         if (canCity && node.owner === human.id && node.structure === "settlement") {
           ctx.beginPath();
-          ctx.arc(node.x, node.y, 10 * s, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(25, 160, 184, 0.15)";
+          ctx.arc(node.x, node.y, 12 * s, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 200, 60, ${0.1 + pulse * 0.1})`;
           ctx.fill();
-          ctx.strokeStyle = "rgba(25, 160, 184, 0.5)";
-          ctx.lineWidth = 1.5 * s;
+          ctx.strokeStyle = `rgba(255, 200, 60, ${0.4 + pulse * 0.2})`;
+          ctx.lineWidth = 2 * s;
           ctx.setLineDash([3 * s, 2 * s]);
           ctx.stroke();
           ctx.setLineDash([]);
@@ -4094,11 +4096,11 @@ class ColonistFullGame {
       // Highlight buildable settlement spots
       if (canSettlement && this.canBuildSettlement(human, node.id, false)) {
         ctx.beginPath();
-        ctx.arc(node.x, node.y, 7 * s, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(25, 160, 184, 0.2)";
+        ctx.arc(node.x, node.y, 8 * s, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(25, 160, 184, ${0.15 + pulse * 0.1})`;
         ctx.fill();
-        ctx.strokeStyle = "rgba(25, 160, 184, 0.6)";
-        ctx.lineWidth = 1.5 * s;
+        ctx.strokeStyle = `rgba(25, 160, 184, ${0.4 + pulse * 0.2})`;
+        ctx.lineWidth = 2 * s;
         ctx.stroke();
       } else {
         ctx.beginPath();
@@ -4110,6 +4112,25 @@ class ColonistFullGame {
         ctx.stroke();
       }
     });
+
+    // Highlight buildable road edges
+    if (canRoad) {
+      ctx.lineCap = "round";
+      this.geometry.edges.forEach((edge) => {
+        if (!this.canBuildRoad(human, edge.id, { free: false })) return;
+        const [a, b] = edge.nodes;
+        const p1 = this.geometry.nodes[a];
+        const p2 = this.geometry.nodes[b];
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.strokeStyle = `rgba(25, 160, 184, ${0.2 + pulse * 0.15})`;
+        ctx.lineWidth = 4 * s;
+        ctx.setLineDash([4 * s, 3 * s]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+    }
   }
 
   drawRoads() {
