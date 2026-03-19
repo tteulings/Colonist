@@ -31,13 +31,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.6rem;
-  padding: 0.25rem 0.6rem;
+  gap: 1rem;
+  padding: 0.4rem 0.8rem;
   background: rgba(11, 52, 85, 0.35);
   border: none;
   border-bottom: 1px solid rgba(165, 211, 243, 0.15);
   border-radius: 0;
-  min-height: 32px;
+  min-height: 48px;
   flex-wrap: wrap;
 }
 
@@ -45,19 +45,19 @@ body {
   background: linear-gradient(180deg, #14426f, #0c3155);
   color: #fff;
   border-radius: 999px;
-  padding: 0.2rem 0.65rem;
+  padding: 0.3rem 0.8rem;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   box-shadow: 0 2px 6px rgba(19, 64, 108, 0.25);
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  font-size: 0.7rem;
+  gap: 0.35rem;
+  font-size: 0.8rem;
   flex-shrink: 0;
 }
 
-.table-logo img { width: 20px; height: 10px; border-radius: 3px; }
+.table-logo img { width: 24px; height: 12px; border-radius: 4px; }
 
 /* Header-integrated cost reference */
 .cost-reference-header {
@@ -68,51 +68,50 @@ body {
 
 .cost-reference-header .cost-ref-items {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.6rem;
   align-items: center;
 }
 
 .cost-reference-header .cost-ref-row {
   display: flex;
   align-items: center;
-  gap: 0.15rem;
+  gap: 0.2rem;
 }
 
 .cost-reference-header .cost-ref-label {
   font-weight: 700;
-  font-size: 0.6rem;
-  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .cost-reference-header .cost-ref-res {
   display: flex;
-  gap: 1px;
+  gap: 2px;
 }
 
 .cost-reference-header .cost-ref-res img {
-  width: 13px; height: 13px;
+  width: 18px; height: 18px;
   object-fit: contain;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 /* Header-integrated supply overview */
 .supply-overview-header {
   display: flex;
-  gap: 0.3rem;
+  gap: 0.5rem;
   align-items: center;
-  font-size: 0.62rem;
 }
 
 .supply-overview-header .supply-section {
   display: flex;
-  gap: 0.2rem;
+  gap: 0.3rem;
   align-items: center;
 }
 
 .supply-overview-header .supply-section-label {
   font-weight: 800;
-  font-size: 0.52rem;
-  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.7);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -120,25 +119,25 @@ body {
 .supply-overview-header .supply-item {
   display: flex;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
 }
 
 .supply-overview-header .supply-item img {
-  width: 13px; height: 13px;
+  width: 18px; height: 18px;
   object-fit: contain;
-  opacity: 0.8;
+  opacity: 0.9;
 }
 
 .supply-overview-header .supply-item span {
   font-weight: 800;
-  font-size: 0.6rem;
-  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .supply-overview-header .supply-divider {
   width: 1px;
-  height: 14px;
-  background: rgba(255, 255, 255, 0.2);
+  height: 20px;
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* ── Main Layout ── */
