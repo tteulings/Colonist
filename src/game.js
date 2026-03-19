@@ -9,9 +9,9 @@ const RESOURCE_ICON_PATH = {
   ore: "./assets/icons/resource-ore.svg",
 };
 const RESOURCE_COLORS = {
-  wood: "#2f8f3b",
+  wood: "#4a7c3f",
   brick: "#c66536",
-  sheep: "#8ed26b",
+  sheep: "#7ec850",
   wheat: "#d9bc52",
   ore: "#8b96a8",
   desert: "#d6c28e",
@@ -285,35 +285,14 @@ function createBoardGeometry(canvasWidth, canvasHeight) {
 }
 
 function assignTiles(geometry) {
-  const resources = shuffle([
-    "wood",
-    "wood",
-    "wood",
-    "wood",
-    "brick",
-    "brick",
-    "brick",
-    "sheep",
-    "sheep",
-    "sheep",
-    "sheep",
-    "wheat",
-    "wheat",
-    "wheat",
-    "wheat",
-    "ore",
-    "ore",
-    "ore",
+  const resourcePool = [
+    "wood", "wood", "wood", "wood",
+    "brick", "brick", "brick",
+    "sheep", "sheep", "sheep", "sheep",
+    "wheat", "wheat", "wheat", "wheat",
+    "ore", "ore", "ore",
     "desert",
-  ]);
-  let robberHexId = 0;
-  geometry.hexes.forEach((hex, idx) => {
-    hex.resource = resources[idx];
-    if (hex.resource === "desert") {
-      hex.number = null;
-      robberHexId = idx;
-    }
-  });
+  ];
 
   // Build hex adjacency map via shared edges
   const hexNeighbors = geometry.hexes.map(() => new Set());
@@ -324,6 +303,36 @@ function assignTiles(geometry) {
     }
   });
 
+  // Shuffle resources with constraint: no 3+ adjacent tiles of same resource
+  let robberHexId = 0;
+  for (let attempt = 0; attempt < 300; attempt++) {
+    const resources = shuffle([...resourcePool]);
+    let valid = true;
+    // Assign temporarily
+    geometry.hexes.forEach((hex, idx) => {
+      hex.resource = resources[idx];
+    });
+    // Check: for each hex, count how many neighbors share the same resource
+    for (let i = 0; i < geometry.hexes.length; i++) {
+      const res = geometry.hexes[i].resource;
+      if (res === "desert") continue;
+      let sameCount = 0;
+      for (const nid of hexNeighbors[i]) {
+        if (geometry.hexes[nid].resource === res) sameCount++;
+      }
+      // If a hex has 2+ neighbors of the same type, it forms a cluster of 3
+      if (sameCount >= 2) { valid = false; break; }
+    }
+    if (valid) break;
+  }
+
+  geometry.hexes.forEach((hex, idx) => {
+    if (hex.resource === "desert") {
+      hex.number = null;
+      robberHexId = idx;
+    }
+  });
+
   // Assign numbers ensuring 6 and 8 are never adjacent
   const numbers = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
   const nonDesertHexIds = geometry.hexes.filter(h => h.resource !== "desert").map(h => h.id);
@@ -331,11 +340,9 @@ function assignTiles(geometry) {
   for (let attempt = 0; attempt < 200; attempt++) {
     const shuffled = shuffle([...numbers]);
     let valid = true;
-    // Temporarily assign
     nonDesertHexIds.forEach((hexId, i) => {
       geometry.hexes[hexId].number = shuffled[i];
     });
-    // Check no adjacent 6/8
     for (const hexId of nonDesertHexIds) {
       const num = geometry.hexes[hexId].number;
       if (num !== 6 && num !== 8) continue;
@@ -353,9 +360,28 @@ function assignTiles(geometry) {
 
 function assignPorts(geometry) {
   const coastalEdges = geometry.edges.filter((edge) => edge.hexIds.length === 1);
-  const chosen = shuffle(coastalEdges).slice(0, 9);
-  const portTypes = shuffle(["any", "any", "any", "any", "wood", "brick", "sheep", "wheat", "ore"]);
 
+  // Sort coastal edges by angle from center for even spacing
+  const cx = geometry.centerX;
+  const cy = geometry.centerY;
+  coastalEdges.forEach(edge => {
+    const p1 = geometry.nodes[edge.nodes[0]];
+    const p2 = geometry.nodes[edge.nodes[1]];
+    edge._angle = Math.atan2((p1.y + p2.y) / 2 - cy, (p1.x + p2.x) / 2 - cx);
+  });
+  coastalEdges.sort((a, b) => a._angle - b._angle);
+
+  // Pick 9 evenly spaced edges around the coast
+  const totalCoastal = coastalEdges.length;
+  const step = totalCoastal / 9;
+  const offset = Math.floor(Math.random() * Math.floor(step));
+  const chosen = [];
+  for (let i = 0; i < 9; i++) {
+    const idx = Math.floor(offset + i * step) % totalCoastal;
+    chosen.push(coastalEdges[idx]);
+  }
+
+  const portTypes = shuffle(["any", "any", "any", "any", "wood", "brick", "sheep", "wheat", "ore"]);
   const ports = [];
   chosen.forEach((edge, idx) => {
     const type = portTypes[idx];
@@ -3470,9 +3496,9 @@ class ColonistFullGame {
   drawHex(hex) {
     const ctx = this.ctx;
     const tileStyle = {
-      wood: "#5aad54",
+      wood: "#3d8a3d",
       brick: "#cf7448",
-      sheep: "#95d66f",
+      sheep: "#8dd44a",
       wheat: "#e8c457",
       ore: "#9ea9b8",
       desert: "#e2cb8d",

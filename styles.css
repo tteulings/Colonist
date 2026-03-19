@@ -443,9 +443,9 @@ main.table-layout {
   object-fit: contain;
 }
 
-.hand-card.wood { background: linear-gradient(160deg, #5cb85c, #3d8b3d); border-color: #2d6b2d; }
+.hand-card.wood { background: linear-gradient(160deg, #4a8a3d, #2d6b2d); border-color: #1e5520; }
 .hand-card.brick { background: linear-gradient(160deg, #d9734c, #c05a33); border-color: #9a4428; }
-.hand-card.sheep { background: linear-gradient(160deg, #8fc969, #6db84a); border-color: #4d9030; }
+.hand-card.sheep { background: linear-gradient(160deg, #a8e063, #7cc940); border-color: #5aaa28; }
 .hand-card.wheat { background: linear-gradient(160deg, #e8c84a, #d4b032); border-color: #b8952a; }
 .hand-card.ore { background: linear-gradient(160deg, #9aa8b8, #7a8a9c); border-color: #5a6a7c; }
 
@@ -501,9 +501,9 @@ main.table-layout {
   text-shadow: 0 0 2px rgba(255, 255, 255, 0.9);
 }
 
-.resource-card.wood { border-color: rgba(59, 157, 88, 0.6); background: linear-gradient(180deg, #e8f5e9, #c8e6c9); }
+.resource-card.wood { border-color: rgba(61, 138, 61, 0.6); background: linear-gradient(180deg, #dcedc8, #b5cc8e); }
 .resource-card.brick { border-color: rgba(198, 102, 60, 0.6); background: linear-gradient(180deg, #ffebee, #ffcdd2); }
-.resource-card.sheep { border-color: rgba(119, 185, 92, 0.6); background: linear-gradient(180deg, #e8f5e9, #a5d6a7); }
+.resource-card.sheep { border-color: rgba(122, 201, 64, 0.6); background: linear-gradient(180deg, #f1f8e9, #c5e1a5); }
 .resource-card.wheat { border-color: rgba(208, 171, 68, 0.6); background: linear-gradient(180deg, #fffde7, #fff9c4); }
 .resource-card.ore { border-color: rgba(122, 141, 169, 0.6); background: linear-gradient(180deg, #eceff1, #cfd8dc); }
 
@@ -1048,9 +1048,9 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   pointer-events: none;
 }
 
-.trade-res-card.wood { background: linear-gradient(160deg, #e8f5e9, #c8e6c9); }
+.trade-res-card.wood { background: linear-gradient(160deg, #dcedc8, #b5cc8e); }
 .trade-res-card.brick { background: linear-gradient(160deg, #ffebee, #ffcdd2); }
-.trade-res-card.sheep { background: linear-gradient(160deg, #e8f5e9, #a5d6a7); }
+.trade-res-card.sheep { background: linear-gradient(160deg, #f1f8e9, #c5e1a5); }
 .trade-res-card.wheat { background: linear-gradient(160deg, #fffde7, #fff9c4); }
 .trade-res-card.ore { background: linear-gradient(160deg, #eceff1, #cfd8dc); }
 
@@ -1183,9 +1183,9 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   color: #1a3a5c;
 }
 
-.incoming-trade-card.wood { background: linear-gradient(160deg, #e8f5e9, #c8e6c9); }
+.incoming-trade-card.wood { background: linear-gradient(160deg, #dcedc8, #b5cc8e); }
 .incoming-trade-card.brick { background: linear-gradient(160deg, #ffebee, #ffcdd2); }
-.incoming-trade-card.sheep { background: linear-gradient(160deg, #e8f5e9, #a5d6a7); }
+.incoming-trade-card.sheep { background: linear-gradient(160deg, #f1f8e9, #c5e1a5); }
 .incoming-trade-card.wheat { background: linear-gradient(160deg, #fffde7, #fff9c4); }
 .incoming-trade-card.ore { background: linear-gradient(160deg, #eceff1, #cfd8dc); }
 
@@ -1471,9 +1471,9 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   object-fit: contain;
 }
 
-.discard-card.wood { background: linear-gradient(160deg, #e8f5e9, #c8e6c9); }
+.discard-card.wood { background: linear-gradient(160deg, #dcedc8, #b5cc8e); }
 .discard-card.brick { background: linear-gradient(160deg, #ffebee, #ffcdd2); }
-.discard-card.sheep { background: linear-gradient(160deg, #e8f5e9, #a5d6a7); }
+.discard-card.sheep { background: linear-gradient(160deg, #f1f8e9, #c5e1a5); }
 .discard-card.wheat { background: linear-gradient(160deg, #fffde7, #fff9c4); }
 .discard-card.ore { background: linear-gradient(160deg, #eceff1, #cfd8dc); }
 
