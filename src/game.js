@@ -971,6 +971,7 @@ class ColonistFullGame {
     if (nodeId == null) { this.setupStep++; this.processSetupQueue(); return; }
     this.placeSettlement(player, nodeId, true);
     this.addLog(`${player.name} placed a settlement.`);
+    this.sfx.buildSettlement();
     this.recomputeScores();
     this.render();
 
@@ -984,6 +985,7 @@ class ColonistFullGame {
         });
       }
       this.addLog(`${player.name} placed a road.`);
+      this.sfx.buildRoad();
       this.recomputeScores();
       this.render();
       this.setupStep++;
@@ -1000,6 +1002,7 @@ class ColonistFullGame {
       const cb = this.confirmBuild;
       if (cb.type === "settlement" && this.setupAction === "settlement") {
         this.placeSettlement(player, cb.id, true);
+        this.sfx.buildSettlement();
         this.lastSetupNodeId = cb.id;
         this.setupAction = "road";
         this.confirmBuild = null;
@@ -1009,6 +1012,7 @@ class ColonistFullGame {
       }
       if (cb.type === "road" && this.setupAction === "road") {
         this.placeRoad(player, cb.id, { free: true, setupNode: this.lastSetupNodeId });
+        this.sfx.buildRoad();
         if (this.setupStep >= this.players.length) {
           this.geometry.nodes[this.lastSetupNodeId].adjacentHexes.forEach((hexId) => {
             const hex = this.geometry.hexes[hexId];
@@ -1150,12 +1154,15 @@ class ColonistFullGame {
     overlay.appendChild(totalEl);
 
     document.querySelector(".board-panel").appendChild(overlay);
+    this.sfx.diceRoll();
 
     let ticks = 0;
     const maxTicks = 12;
     const tickInterval = setInterval(() => {
       this._renderDieFace(die1, 1 + Math.floor(Math.random() * 6));
       this._renderDieFace(die2, 1 + Math.floor(Math.random() * 6));
+      // Tick sounds during roll
+      if (ticks % 3 === 0) this._playNoise(0.02, 0.04);
       ticks++;
       if (ticks >= maxTicks) {
         clearInterval(tickInterval);
@@ -1325,18 +1332,21 @@ class ColonistFullGame {
         if (this.placeRoad(player, cb.id, { free: false })) {
           payCost(player.resources, COSTS.road);
           this.addLog(`${player.name} built a road.`);
+          this.sfx.buildRoad();
           built = true;
         }
       } else if (cb.type === "settlement") {
         if (this.placeSettlement(player, cb.id, false)) {
           payCost(player.resources, COSTS.settlement);
           this.addLog(`${player.name} built a settlement.`);
+          this.sfx.buildSettlement();
           built = true;
         }
       } else if (cb.type === "city") {
         if (this.placeCity(player, cb.id, false)) {
           payCost(player.resources, COSTS.city);
           this.addLog(`${player.name} upgraded to a city.`);
+          this.sfx.buildCity();
           built = true;
         }
       }
