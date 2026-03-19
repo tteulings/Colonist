@@ -2104,22 +2104,42 @@ class ColonistFullGame {
     }
 
     if (acceptor) {
-      RESOURCES.forEach((r) => {
-        player.resources[r] -= offer[r];
-        player.resources[r] += request[r];
-        acceptor.resources[r] -= request[r];
-        acceptor.resources[r] += offer[r];
-      });
-      this.addLog(`${acceptor.name} accepted trade: gave ${resourceString(request)} for ${resourceString(offer)}.`);
+      // Show confirmation step — don't execute immediately
       if (this.tradeProposalResult) {
-        this.tradeProposalResult.innerHTML += `<br><strong style="color:#22a854">Traded with ${acceptor.name}!</strong>`;
-        this.sfx.trade();
+        this.tradeProposalResult.innerHTML += `<br><strong style="color:#22a854">${acceptor.name} accepts!</strong>`;
+        const btnRow = document.createElement("div");
+        btnRow.style.cssText = "display:flex;gap:0.3rem;margin-top:0.3rem;justify-content:center";
+        const confirmBtn = document.createElement("button");
+        confirmBtn.className = "btn-build";
+        confirmBtn.style.cssText = "font-size:0.68rem;padding:0.25rem 0.7rem";
+        confirmBtn.textContent = "Confirm Trade";
+        const cancelBtn = document.createElement("button");
+        cancelBtn.className = "btn-neutral";
+        cancelBtn.style.cssText = "font-size:0.68rem;padding:0.25rem 0.7rem";
+        cancelBtn.textContent = "Cancel";
+        confirmBtn.addEventListener("click", () => {
+          RESOURCES.forEach((r) => {
+            player.resources[r] -= offer[r];
+            player.resources[r] += request[r];
+            acceptor.resources[r] -= request[r];
+            acceptor.resources[r] += offer[r];
+          });
+          this.addLog(`Traded with ${acceptor.name}: gave ${resourceString(offer)} for ${resourceString(request)}.`);
+          this.sfx.trade();
+          this.tradeOffer = makeEmptyResources();
+          this.tradeRequest = makeEmptyResources();
+          this.buildTradeGrids();
+          this.updateTradeButtons();
+          this.tradeProposalResult.innerHTML = `<strong style="color:#22a854">Trade complete!</strong>`;
+          this.render();
+        });
+        cancelBtn.addEventListener("click", () => {
+          this.tradeProposalResult.innerHTML = '<span style="color:#888">Trade cancelled.</span>';
+        });
+        btnRow.appendChild(confirmBtn);
+        btnRow.appendChild(cancelBtn);
+        this.tradeProposalResult.appendChild(btnRow);
       }
-      this.tradeOffer = makeEmptyResources();
-      this.tradeRequest = makeEmptyResources();
-      this.buildTradeGrids();
-      this.updateTradeButtons();
-      this.render();
     } else {
       this.addLog("All players rejected your trade offer.");
       // Try to generate a counter-offer from AI
