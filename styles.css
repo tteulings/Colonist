@@ -28,57 +28,118 @@ body {
 
 /* ── Header ── */
 .table-header {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 0.9rem;
+  display: flex;
   align-items: center;
-  padding: 0.3rem 0.7rem;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.25rem 0.6rem;
   background: rgba(11, 52, 85, 0.35);
   border: none;
   border-bottom: 1px solid rgba(165, 211, 243, 0.15);
   border-radius: 0;
+  min-height: 32px;
+  flex-wrap: wrap;
 }
 
 .table-logo {
   background: linear-gradient(180deg, #14426f, #0c3155);
   color: #fff;
   border-radius: 999px;
-  padding: 0.32rem 0.9rem;
+  padding: 0.2rem 0.65rem;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  box-shadow: 0 4px 10px rgba(19, 64, 108, 0.25);
+  box-shadow: 0 2px 6px rgba(19, 64, 108, 0.25);
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.85rem;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  flex-shrink: 0;
 }
 
-.table-logo img { width: 28px; height: 14px; border-radius: 5px; }
+.table-logo img { width: 20px; height: 10px; border-radius: 3px; }
 
-.mini-player-simple {
-  min-height: 32px;
-  padding: 0.2rem 0.5rem;
+/* Header-integrated cost reference */
+.cost-reference-header {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.76rem;
+  gap: 0.4rem;
+}
+
+.cost-reference-header .cost-ref-items {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.cost-reference-header .cost-ref-row {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.cost-reference-header .cost-ref-label {
   font-weight: 700;
-  color: #f0f6ff;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.75);
 }
 
-.mini-player-simple .mini-player-avatar {
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  object-fit: cover;
+.cost-reference-header .cost-ref-res {
+  display: flex;
+  gap: 1px;
 }
 
-.mini-player-simple .mini-player-name { font-size: 0.76rem; }
+.cost-reference-header .cost-ref-res img {
+  width: 13px; height: 13px;
+  object-fit: contain;
+  opacity: 0.85;
+}
+
+/* Header-integrated supply overview */
+.supply-overview-header {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  font-size: 0.62rem;
+}
+
+.supply-overview-header .supply-section {
+  display: flex;
+  gap: 0.2rem;
+  align-items: center;
+}
+
+.supply-overview-header .supply-section-label {
+  font-weight: 800;
+  font-size: 0.52rem;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.supply-overview-header .supply-item {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.supply-overview-header .supply-item img {
+  width: 13px; height: 13px;
+  object-fit: contain;
+  opacity: 0.8;
+}
+
+.supply-overview-header .supply-item span {
+  font-weight: 800;
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.supply-overview-header .supply-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.2);
+}
 
 /* ── Main Layout ── */
 main.table-layout {
@@ -1535,59 +1596,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   padding: 0.45rem 1rem;
 }
 
-/* ── Build Cost Reference ── */
-.cost-reference {
-  position: absolute;
-  bottom: 44px;
-  left: 10px;
-  z-index: 14;
-  background: linear-gradient(180deg, rgba(240, 237, 229, 0.92), rgba(231, 224, 210, 0.92));
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(120, 138, 162, 0.35);
-  border-radius: 8px;
-  padding: 0.35rem 0.5rem;
-  box-shadow: 0 2px 8px rgba(8, 35, 55, 0.18);
-  transition: opacity 0.15s, transform 0.15s;
-}
-
-.cost-reference:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 3px 10px rgba(8, 35, 55, 0.22);
-}
-
-.cost-ref-header {
-  display: none;
-}
-
-.cost-ref-items {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.2rem 0.6rem;
-}
-
-.cost-ref-row {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.cost-ref-label {
-  font-weight: 700;
-  font-size: 0.62rem;
-  color: #2a4c70;
-  min-width: 30px;
-}
-
-.cost-ref-res {
-  display: flex;
-  gap: 2px;
-}
-
-.cost-ref-res img {
-  width: 14px; height: 14px;
-  object-fit: contain;
-  border-radius: 2px;
-}
+/* ── Build Cost Reference (old overlay - removed, now in header) ── */
 
 /* ── Award Badges (Longest Road / Largest Army) ── */
 .award-badge {
@@ -1693,68 +1702,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   font-size: 0.62rem;
 }
 
-/* ── Supply Overview (card counts) ── */
-.supply-overview {
-  position: absolute;
-  bottom: 8px;
-  right: 10px;
-  z-index: 14;
-  background: linear-gradient(180deg, rgba(240, 237, 229, 0.92), rgba(231, 224, 210, 0.92));
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(120, 138, 162, 0.35);
-  border-radius: 8px;
-  padding: 0.3rem 0.5rem;
-  box-shadow: 0 2px 8px rgba(8, 35, 55, 0.18);
-  font-size: 0.65rem;
-  display: flex;
-  gap: 0.4rem;
-  align-items: center;
-  transition: transform 0.15s;
-}
-
-.supply-overview:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 3px 10px rgba(8, 35, 55, 0.22);
-}
-
-.supply-section {
-  display: flex;
-  gap: 0.25rem;
-  align-items: center;
-}
-
-.supply-section-label {
-  font-weight: 800;
-  font-size: 0.55rem;
-  color: #3a526d;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.supply-item {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-}
-
-.supply-item img {
-  width: 15px; height: 15px;
-  object-fit: contain;
-}
-
-.supply-item span {
-  font-weight: 800;
-  font-size: 0.65rem;
-  color: #1a3a5c;
-  min-width: 11px;
-  text-align: center;
-}
-
-.supply-divider {
-  width: 1px;
-  height: 16px;
-  background: rgba(120, 138, 162, 0.4);
-}
+/* ── Supply Overview (old overlay - removed, now in header) ── */
 
 .dev-card-toast {
   padding: 0.5rem 0.7rem;
@@ -1836,7 +1784,8 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   main.table-layout {
     display: contents;
   }
-  .table-header { display: none; }
+  .table-header { font-size: 0.55rem; padding: 0.15rem 0.3rem; gap: 0.3rem; }
+  .table-logo { font-size: 0.55rem; padding: 0.15rem 0.4rem; }
   .bank-strip {
     order: 0;
     display: flex;
@@ -1945,7 +1894,8 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 }
 
 @media (max-width: 600px) {
-  .table-header { display: none; }
+  .table-header { font-size: 0.55rem; padding: 0.15rem 0.3rem; gap: 0.3rem; }
+  .table-logo { font-size: 0.55rem; padding: 0.15rem 0.4rem; }
   .bottom-bar {
     flex-direction: column;
     align-items: stretch;
@@ -1977,8 +1927,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .settings-float-trigger { font-size: 0.9rem; padding: 0.2rem 0.35rem; }
   .trade-panel { bottom: 120px; min-width: 190px; }
   .victim-panel { min-width: 160px; padding: 0.6rem 0.7rem; }
-  .cost-reference { display: none; }
-  .supply-overview { display: none; }
+  .cost-reference-header { display: none; }
   .last-dice-display { bottom: 6px; left: 6px; padding: 0.2rem 0.35rem; }
   .last-dice-mini { width: 22px; height: 22px; padding: 2px; }
   .last-dice-mini .pip { width: 4px; height: 4px; }

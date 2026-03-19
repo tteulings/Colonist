@@ -4645,23 +4645,7 @@ class ColonistFullGame {
   }
 
   renderTopPanels() {
-    const left = this.players[0];
-    let right = this.currentPlayer;
-    if (right.id === left.id) {
-      right = this.players.find((player) => player.id !== left.id) || right;
-    }
-
-    const renderMini = (player, container) => {
-      if (!container || !player) return;
-      container.innerHTML = `
-        <img class="mini-player-avatar" src="${player.avatar}" alt="${player.name} avatar" />
-        <span class="mini-player-name" style="color:${player.color}">${player.name}</span>
-        <span>${player.victoryPoints} VP</span>
-      `;
-    };
-
-    renderMini(left, this.leftPlayerPanel);
-    renderMini(right, this.rightPlayerPanel);
+    // Header now shows cost reference + bank supply — no player panels needed
   }
 
   _enrichLogText(text) {
