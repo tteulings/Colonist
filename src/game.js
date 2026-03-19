@@ -407,14 +407,28 @@ class ColonistFullGame {
     this.tradeProposalResult = document.querySelector("#tradeProposalResult");
     // Incoming trade elements
     this.incomingTradePanel = document.querySelector("#incomingTradePanel");
-    this.incomingTraderName = document.querySelector("#incomingTraderName");
-    this.incomingTradeGive = document.querySelector("#incomingTradeGive");
-    this.incomingTradeGet = document.querySelector("#incomingTradeGet");
+    this.incomingTradeHeader = document.querySelector("#incomingTradeHeader");
+    this.incomingTradeBody = document.querySelector("#incomingTradeBody");
     this.acceptTradeBtn = document.querySelector("#acceptTradeBtn");
     this.rejectTradeBtn = document.querySelector("#rejectTradeBtn");
     this.pendingIncomingTrade = null;
     this.tradeOffer = makeEmptyResources();
     this.tradeRequest = makeEmptyResources();
+    // Persistent dice display
+    this.lastDiceDisplay = document.querySelector("#lastDiceDisplay");
+    this.lastDice = null; // { d1, d2 }
+    this.lastRollPlayer = null;
+    // Discard panel
+    this.discardPanel = document.querySelector("#discardPanel");
+    this.discardInfo = document.querySelector("#discardInfo");
+    this.discardCards = document.querySelector("#discardCards");
+    this.discardSelected = document.querySelector("#discardSelected");
+    this.discardConfirmBtn = document.querySelector("#discardConfirmBtn");
+    this.pendingDiscard = null; // { player, count, selected: {} }
+    // Build cost reference
+    this.costReference = document.querySelector("#costReference");
+    this.costRefItems = document.querySelector("#costRefItems");
+    this._initCostReference();
 
     this.maxLogEntries = 260;
     this.maxToasts = 4;
@@ -597,6 +611,7 @@ class ColonistFullGame {
     this.tradeProposalBtn?.addEventListener("click", () => this.handleHumanPlayerTrade());
     this.acceptTradeBtn?.addEventListener("click", () => this.resolveIncomingTrade(true));
     this.rejectTradeBtn?.addEventListener("click", () => this.resolveIncomingTrade(false));
+    this.discardConfirmBtn?.addEventListener("click", () => this._confirmDiscard());
     this.speedRange.addEventListener("input", () => {
       if (this.autoplayInterval) {
         this.stopAutoplay();
@@ -1003,34 +1018,71 @@ class ColonistFullGame {
     });
   }
 
-  animateDiceRoll(callback) {
+  _renderDieFace(dieEl, value) {
+    // Render dot-face dice using a 3x3 grid of pips
+    // Layout: positions are [TL, TM, TR, ML, MM, MR, BL, BM, BR]
+    const layouts = {
+      1: [0,0,0, 0,1,0, 0,0,0],
+      2: [0,0,1, 0,0,0, 1,0,0],
+      3: [0,0,1, 0,1,0, 1,0,0],
+      4: [1,0,1, 0,0,0, 1,0,1],
+      5: [1,0,1, 0,1,0, 1,0,1],
+      6: [1,0,1, 1,0,1, 1,0,1],
+    };
+    const layout = layouts[value] || layouts[1];
+    dieEl.innerHTML = "";
+    for (let i = 0; i < 9; i++) {
+      const pip = document.createElement("div");
+      pip.className = layout[i] ? "pip" : "pip hidden";
+      dieEl.appendChild(pip);
+    }
+  }
+
+  animateDiceRoll(callback, rollerPlayer = null) {
+    const player = rollerPlayer || this.currentPlayer;
     const overlay = document.createElement("div");
     overlay.className = "dice-overlay";
+
+    // Show who is rolling
+    const label = document.createElement("div");
+    label.className = "dice-roller-label";
+    label.innerHTML = `<img src="${player.avatar}" alt="" /><span style="color:${player.color}">${player.name}</span>`;
+    overlay.appendChild(label);
+
+    const row = document.createElement("div");
+    row.className = "dice-row";
     const die1 = document.createElement("div");
     die1.className = "die rolling";
     const die2 = document.createElement("div");
     die2.className = "die rolling";
-    overlay.appendChild(die1);
-    overlay.appendChild(die2);
+    row.appendChild(die1);
+    row.appendChild(die2);
+    overlay.appendChild(row);
+
+    const totalEl = document.createElement("div");
+    totalEl.className = "dice-total";
+    totalEl.textContent = "";
+    overlay.appendChild(totalEl);
+
     document.querySelector(".board-panel").appendChild(overlay);
 
-    const faces = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
     let ticks = 0;
     const maxTicks = 12;
     const tickInterval = setInterval(() => {
-      die1.textContent = faces[Math.floor(Math.random() * 6)];
-      die2.textContent = faces[Math.floor(Math.random() * 6)];
+      this._renderDieFace(die1, 1 + Math.floor(Math.random() * 6));
+      this._renderDieFace(die2, 1 + Math.floor(Math.random() * 6));
       ticks++;
       if (ticks >= maxTicks) {
         clearInterval(tickInterval);
         const result = this.rollDice();
         this.diceResult = result;
-        die1.textContent = faces[result.d1 - 1];
-        die2.textContent = faces[result.d2 - 1];
+        this._renderDieFace(die1, result.d1);
+        this._renderDieFace(die2, result.d2);
         die1.classList.remove("rolling");
         die2.classList.remove("rolling");
         die1.classList.add("landed");
         die2.classList.add("landed");
+        totalEl.textContent = result.total;
         setTimeout(() => {
           overlay.classList.add("fade-out");
           setTimeout(() => { overlay.remove(); callback(); }, 300);
@@ -1559,10 +1611,14 @@ class ColonistFullGame {
     if (this.phase !== "pre_roll") return;
     if (this.diceResult) {
       this.lastRoll = this.diceResult.total;
+      this.lastDice = { d1: this.diceResult.d1, d2: this.diceResult.d2 };
+      this.lastRollPlayer = player;
       this.diceResult = null;
     } else {
       const r = this.rollDice();
       this.lastRoll = r.total;
+      this.lastDice = { d1: r.d1, d2: r.d2 };
+      this.lastRollPlayer = player;
     }
     this.phase = "main";
     this.addLog(`Turn ${this.turn}: ${player.name} rolled ${this.lastRoll}.`);
@@ -1573,12 +1629,8 @@ class ColonistFullGame {
     if (this.lastRoll === 7) this.resolveRobber(player, "rolled a 7");
     else {
       const gains = this.distributeResources(this.lastRoll);
-      const humanPlayer = this.players.find(p => p.isHuman);
-      if (humanPlayer && gains && gains[humanPlayer.id]) {
-        const humanGains = gains[humanPlayer.id];
-        const entries = RESOURCES.filter(r => humanGains[r] > 0).map(r => ({ resource: r, amount: humanGains[r] }));
-        if (entries.length) this.animateResourceGain(entries);
-      }
+      // Show resource gain toasts for ALL players
+      if (gains) this.showResourceGainToasts(gains);
     }
   }
 
@@ -1604,34 +1656,50 @@ class ColonistFullGame {
   }
 
   resolveRobber(currentPlayer, reason) {
+    // Collect players that need to discard
+    const discardQueue = [];
     this.players.forEach((player) => {
       const total = sumResources(player.resources);
       if (total <= 7) return;
       const discardCount = Math.floor(total / 2);
-      for (let i = 0; i < discardCount; i += 1) {
-        const candidates = RESOURCES.filter((r) => player.resources[r] > 0).map((r) => ({
-          resource: r,
-          weight: player.resources[r],
-        }));
-        if (!candidates.length) break;
-        const chosen = chooseRandomWeighted(candidates).resource;
-        player.resources[chosen] -= 1;
+      if (player.isHuman) {
+        discardQueue.push({ player, count: discardCount });
+      } else {
+        // AI auto-discards
+        for (let i = 0; i < discardCount; i += 1) {
+          const candidates = RESOURCES.filter((r) => player.resources[r] > 0).map((r) => ({
+            resource: r,
+            weight: player.resources[r],
+          }));
+          if (!candidates.length) break;
+          const chosen = chooseRandomWeighted(candidates).resource;
+          player.resources[chosen] -= 1;
+        }
+        this.addLog(`${player.name} discards ${discardCount} cards after ${reason}.`);
       }
-      this.addLog(`${player.name} discards ${discardCount} cards after ${reason}.`);
     });
 
-    // Human player: enter interactive robber placement mode
-    if (currentPlayer.isHuman) {
-      this.robberContext = { playerId: currentPlayer.id };
-      this.pendingAction = "robber";
-      this.addLog("Move the robber — tap a hex.");
-      this.render();
-      return;
-    }
+    // If human needs to discard, show UI and wait
+    const continueAfterDiscard = () => {
+      if (currentPlayer.isHuman) {
+        this.robberContext = { playerId: currentPlayer.id };
+        this.pendingAction = "robber";
+        this.addLog("Move the robber — tap a hex.");
+        this.render();
+        return;
+      }
+      const targetHexId = this.chooseRobberHex(currentPlayer);
+      this.moveRobberAndSteal(currentPlayer, targetHexId);
+    };
 
-    // AI: auto-pick
-    const targetHexId = this.chooseRobberHex(currentPlayer);
-    this.moveRobberAndSteal(currentPlayer, targetHexId);
+    if (discardQueue.length > 0) {
+      const { player, count } = discardQueue[0];
+      this._showDiscardUI(player, count).then(() => {
+        continueAfterDiscard();
+      });
+    } else {
+      continueAfterDiscard();
+    }
   }
 
   chooseRobberHex(currentPlayer) {
@@ -1744,26 +1812,66 @@ class ColonistFullGame {
       const item = document.createElement("div");
       item.className = "trade-res-item";
       const max = maxCounts ? maxCounts[resource] : 19;
-      item.innerHTML = `
+      const count = counts[resource];
+
+      const card = document.createElement("div");
+      card.className = `trade-res-card ${resource}${count > 0 ? " has-count" : ""}`;
+      card.innerHTML = `
         <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
-        <div class="trade-res-btns">
-          <button class="trade-res-btn" data-dir="-1">−</button>
-          <span class="trade-res-count">${counts[resource]}</span>
-          <button class="trade-res-btn" data-dir="1">+</button>
-        </div>
+        ${count > 0 ? `<span class="trade-card-badge">${count}</span>` : ""}
       `;
-      item.querySelectorAll(".trade-res-btn").forEach((btn) => {
+      // Click card to increment
+      card.addEventListener("click", () => {
+        const newVal = counts[resource] + 1;
+        if (newVal > max) return;
+        counts[resource] = newVal;
+        this._updateResItem(item, resource, counts, max);
+        this.updateTradeButtons();
+      });
+      item.appendChild(card);
+
+      const controls = document.createElement("div");
+      controls.className = "trade-res-controls";
+      controls.innerHTML = `
+        <button class="trade-res-btn" data-dir="-1">−</button>
+        <span class="trade-res-count">${count}</span>
+        <button class="trade-res-btn" data-dir="1">+</button>
+      `;
+      controls.querySelectorAll(".trade-res-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
           const dir = Number(btn.dataset.dir);
           const newVal = counts[resource] + dir;
           if (newVal < 0 || newVal > max) return;
           counts[resource] = newVal;
-          item.querySelector(".trade-res-count").textContent = newVal;
+          this._updateResItem(item, resource, counts, max);
           this.updateTradeButtons();
         });
       });
+      item.appendChild(controls);
       container.appendChild(item);
     });
+  }
+
+  _updateResItem(item, resource, counts, max) {
+    const count = counts[resource];
+    const card = item.querySelector(".trade-res-card");
+    const badge = card.querySelector(".trade-card-badge");
+    const countEl = item.querySelector(".trade-res-count");
+    if (count > 0) {
+      card.classList.add("has-count");
+      if (badge) {
+        badge.textContent = count;
+      } else {
+        const b = document.createElement("span");
+        b.className = "trade-card-badge";
+        b.textContent = count;
+        card.appendChild(b);
+      }
+    } else {
+      card.classList.remove("has-count");
+      if (badge) badge.remove();
+    }
+    countEl.textContent = count;
   }
 
   updateTradeButtons() {
@@ -1930,12 +2038,36 @@ class ColonistFullGame {
     return null;
   }
 
+  _renderTradeCards(resources) {
+    let html = '<div class="incoming-trade-cards">';
+    RESOURCES.forEach(r => {
+      if (resources[r] > 0) {
+        for (let i = 0; i < resources[r]; i++) {
+          html += `<div class="incoming-trade-card ${r}"><img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" /></div>`;
+        }
+      }
+    });
+    html += '</div>';
+    return html;
+  }
+
   showIncomingTrade(fromPlayer, give, want) {
     return new Promise((resolve) => {
       if (!this.incomingTradePanel) { resolve(false); return; }
-      this.incomingTraderName.textContent = fromPlayer.name;
-      this.incomingTradeGive.textContent = resourceString(give);
-      this.incomingTradeGet.textContent = resourceString(want);
+      // Render header with avatar
+      this.incomingTradeHeader.innerHTML = `<img src="${fromPlayer.avatar}" alt="" /><span style="color:${fromPlayer.color}">${fromPlayer.name}</span> wants to trade`;
+      // Render body with visual cards
+      this.incomingTradeBody.innerHTML = `
+        <div class="incoming-trade-row">
+          <span class="incoming-trade-row-label">You get:</span>
+          ${this._renderTradeCards(give)}
+        </div>
+        <div class="incoming-trade-arrow"><div class="incoming-trade-arrow-icon">&#8645;</div></div>
+        <div class="incoming-trade-row">
+          <span class="incoming-trade-row-label">You give:</span>
+          ${this._renderTradeCards(want)}
+        </div>
+      `;
       this.pendingIncomingTrade = { fromPlayer, give, want, resolve };
       this.incomingTradePanel.style.display = "";
     });
@@ -2146,7 +2278,28 @@ class ColonistFullGame {
   autoPlayCurrentTurn() {
     if (this.winner) return;
     const player = this.currentPlayer;
-    if (this.phase === "pre_roll") this.executeRollPhase(player);
+    if (this.phase === "pre_roll") {
+      // Show dice animation for AI players too
+      if (!player.isHuman && !this._aiDiceAnimating) {
+        this._aiDiceAnimating = true;
+        this.animateDiceRoll(() => {
+          this._aiDiceAnimating = false;
+          this.executeRollPhase(player);
+          if (this.phase === "main") {
+            const result = this.executeAiMainPhase(player);
+            if (result === "async") return;
+            this.endTurn();
+          }
+          this.saveToStorage();
+          this.render();
+          if (!this.winner && !this.autoplayInterval && !this.currentPlayer.isHuman) {
+            this.scheduleAiTurnsUntilHuman();
+          }
+        }, player);
+        return; // Wait for animation
+      }
+      this.executeRollPhase(player);
+    }
     if (this.phase === "main") {
       const result = this.executeAiMainPhase(player);
       if (result === "async") return; // Will resume after human responds to trade
@@ -2667,11 +2820,13 @@ class ColonistFullGame {
     const cadence = Math.max(400, Math.min(1200, Math.round(Number(this.speedRange.value) * 0.6)));
     const step = () => {
       this.aiTurnTimeout = null;
-      if (this.winner || this.autoplayInterval || this.currentPlayer.isHuman) {
+      if (this.winner || this.autoplayInterval || this.currentPlayer.isHuman || this._aiDiceAnimating) {
         this.render();
         return;
       }
       this.autoPlayCurrentTurn();
+      // If dice is animating, don't schedule next step — the animation callback handles it
+      if (this._aiDiceAnimating) return;
       this.render();
       if (!this.winner && !this.autoplayInterval && !this.currentPlayer.isHuman) {
         this.aiTurnTimeout = window.setTimeout(step, cadence);
@@ -3860,10 +4015,15 @@ class ColonistFullGame {
 
       const totalCards = sumResources(player.resources);
       const totalDev = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + player.devVictoryPoints;
+      const hasLR = this.longestRoadHolder === player.id;
+      const hasLA = this.largestArmyHolder === player.id;
+      const awards = (hasLR ? '<span class="award-badge longest-road" title="Longest Road (+2 VP)">LR</span>' : '')
+        + (hasLA ? '<span class="award-badge largest-army" title="Largest Army (+2 VP)">LA</span>' : '');
       card.innerHTML = `
         <img class="player-avatar" src="${player.avatar}" alt="${player.name} avatar" />
         <span class="player-name" style="color:${player.color}">${player.name}</span>
         <span class="player-vp" title="Victory points">${player.victoryPoints} VP</span>
+        ${awards}
         <span class="player-hand-counts" title="${totalCards} cards, ${totalDev} dev">
           <span class="hand-count"><span class="stat-icon card-icon"></span>${totalCards}</span>
           <span class="hand-count"><span class="stat-icon dev-icon"></span>${totalDev}</span>
@@ -3875,6 +4035,11 @@ class ColonistFullGame {
           <span class="stat-item" title="${player.knightsPlayed} knights played"><span class="stat-icon knight-icon"></span>${player.knightsPlayed}</span>
         </div>
       `;
+      // VP tooltip on hover
+      const vpEl = card.querySelector(".player-vp");
+      vpEl.style.cursor = "help";
+      vpEl.addEventListener("mouseenter", () => this._showVPTooltip(player, vpEl));
+      vpEl.addEventListener("mouseleave", () => this._hideVPTooltip());
       this.scoreboard.appendChild(card);
     });
   }
@@ -4041,6 +4206,181 @@ class ColonistFullGame {
     }
   }
 
+  // ── Persistent Dice Display ──────────────────────────────────────────
+  renderLastDice() {
+    const el = this.lastDiceDisplay;
+    if (!el) return;
+    if (!this.lastDice || !this.lastRoll) {
+      el.style.display = "none";
+      return;
+    }
+    el.style.display = "flex";
+    const pipHTML = (value) => {
+      const layouts = {
+        1: [0,0,0, 0,1,0, 0,0,0],
+        2: [0,0,1, 0,0,0, 1,0,0],
+        3: [0,0,1, 0,1,0, 1,0,0],
+        4: [1,0,1, 0,0,0, 1,0,1],
+        5: [1,0,1, 0,1,0, 1,0,1],
+        6: [1,0,1, 1,0,1, 1,0,1],
+      };
+      const l = layouts[value] || layouts[1];
+      return l.map(v => `<div class="pip${v ? "" : " hidden"}"></div>`).join("");
+    };
+    const playerHTML = this.lastRollPlayer
+      ? `<div class="last-dice-player"><img src="${this.lastRollPlayer.avatar}" alt="" /><span style="color:${this.lastRollPlayer.color}">${this.lastRollPlayer.name}</span></div>`
+      : "";
+    el.innerHTML = `
+      ${playerHTML}
+      <div class="last-dice-mini">${pipHTML(this.lastDice.d1)}</div>
+      <div class="last-dice-mini">${pipHTML(this.lastDice.d2)}</div>
+      <span class="last-dice-total">${this.lastRoll}</span>
+    `;
+  }
+
+  // ── Build Cost Reference ──────────────────────────────────────────────
+  _initCostReference() {
+    if (!this.costRefItems) return;
+    const items = [
+      { label: "Road", cost: COSTS.road },
+      { label: "Settle", cost: COSTS.settlement },
+      { label: "City", cost: COSTS.city },
+      { label: "Dev", cost: COSTS.development },
+    ];
+    this.costRefItems.innerHTML = items.map(item => {
+      const resHTML = RESOURCES.filter(r => (item.cost[r] || 0) > 0)
+        .flatMap(r => Array((item.cost[r] || 0)).fill(`<img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />`))
+        .join("");
+      return `<div class="cost-ref-row"><span class="cost-ref-label">${item.label}</span><div class="cost-ref-res">${resHTML}</div></div>`;
+    }).join("");
+  }
+
+  // ── Discard UI ──────────────────────────────────────────────────────
+  _showDiscardUI(player, discardCount) {
+    return new Promise((resolve) => {
+      if (!this.discardPanel) { resolve(); return; }
+      this.pendingDiscard = { player, count: discardCount, selected: makeEmptyResources(), resolve };
+      this.discardInfo.textContent = `You have ${sumResources(player.resources)} cards. Discard ${discardCount}.`;
+      this._renderDiscardCards();
+      this.discardPanel.style.display = "";
+    });
+  }
+
+  _renderDiscardCards() {
+    if (!this.pendingDiscard) return;
+    const { player, count, selected } = this.pendingDiscard;
+    const totalSelected = sumResources(selected);
+
+    // Render each card
+    const cards = [];
+    RESOURCES.forEach(r => {
+      for (let i = 0; i < player.resources[r]; i++) {
+        const isSelected = i < selected[r];
+        cards.push({ resource: r, index: i, selected: isSelected });
+      }
+    });
+
+    this.discardCards.innerHTML = cards.map((c, idx) =>
+      `<div class="discard-card ${c.resource}${c.selected ? " selected" : ""}" data-res="${c.resource}" data-idx="${idx}">
+        <img src="${RESOURCE_ICON_PATH[c.resource]}" alt="${c.resource}" />
+      </div>`
+    ).join("");
+
+    this.discardCards.querySelectorAll(".discard-card").forEach(el => {
+      el.addEventListener("click", () => {
+        const res = el.dataset.res;
+        if (el.classList.contains("selected")) {
+          this.pendingDiscard.selected[res] = Math.max(0, this.pendingDiscard.selected[res] - 1);
+        } else {
+          const curTotal = sumResources(this.pendingDiscard.selected);
+          if (curTotal >= count) return;
+          this.pendingDiscard.selected[res] = Math.min(player.resources[res], this.pendingDiscard.selected[res] + 1);
+        }
+        this._renderDiscardCards();
+      });
+    });
+
+    this.discardSelected.textContent = `Selected: ${totalSelected} / ${count}`;
+    this.discardConfirmBtn.disabled = totalSelected !== count;
+  }
+
+  _confirmDiscard() {
+    if (!this.pendingDiscard) return;
+    const { player, selected, resolve } = this.pendingDiscard;
+    RESOURCES.forEach(r => {
+      player.resources[r] -= selected[r];
+    });
+    const total = sumResources(selected);
+    this.addLog(`${player.name} discards ${total} cards.`);
+    this.pendingDiscard = null;
+    this.discardPanel.style.display = "none";
+    this.render();
+    resolve();
+  }
+
+  // ── Resource Gain Toasts for all players ─────────────────────────────
+  showResourceGainToasts(gainByPlayer) {
+    const stack = document.getElementById("toastStack");
+    if (!stack) return;
+    gainByPlayer.forEach((gain, playerId) => {
+      if (sumResources(gain) === 0) return;
+      const player = this.players[playerId];
+      const toast = document.createElement("div");
+      toast.className = "toast resource-gain-toast";
+      const resHTML = RESOURCES.filter(r => gain[r] > 0)
+        .map(r => `<span class="rgt-res"><span>+${gain[r]}</span><img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" /></span>`)
+        .join("");
+      toast.innerHTML = `
+        <img class="rgt-avatar" src="${player.avatar}" alt="" />
+        <span style="color:${player.color};font-weight:700;font-size:0.65rem">${player.name}</span>
+        <span class="rgt-resources">${resHTML}</span>
+      `;
+      stack.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = "0";
+        toast.style.transform = "translateY(-4px)";
+        setTimeout(() => toast.remove(), 180);
+      }, 2800);
+    });
+  }
+
+  // ── VP Breakdown Tooltip ────────────────────────────────────────────
+  _showVPTooltip(player, anchorEl) {
+    this._hideVPTooltip();
+    const settlements = player.settlements.size;
+    const cities = player.cities.size;
+    const devVP = player.devVictoryPoints;
+    const longestRoad = this.longestRoadHolder === player.id ? 2 : 0;
+    const largestArmy = this.largestArmyHolder === player.id ? 2 : 0;
+    const total = settlements + cities * 2 + devVP + longestRoad + largestArmy;
+
+    const tip = document.createElement("div");
+    tip.className = "vp-tooltip";
+    tip.id = "vpTooltip";
+    const rows = [
+      { label: "Settlements", value: settlements },
+      { label: "Cities", value: `${cities} x 2 = ${cities * 2}` },
+    ];
+    if (devVP > 0) rows.push({ label: "Dev Cards", value: devVP });
+    if (longestRoad) rows.push({ label: "Longest Road", value: 2 });
+    if (largestArmy) rows.push({ label: "Largest Army", value: 2 });
+    rows.push({ label: "Total", value: total, total: true });
+
+    tip.innerHTML = rows.map(r =>
+      `<div class="vp-tooltip-row${r.total ? " vp-tooltip-total" : ""}"><span class="vp-tooltip-label">${r.label}</span><span class="vp-tooltip-value">${r.value}</span></div>`
+    ).join("");
+
+    const rect = anchorEl.getBoundingClientRect();
+    tip.style.left = `${rect.left}px`;
+    tip.style.top = `${rect.bottom + 4}px`;
+    document.body.appendChild(tip);
+  }
+
+  _hideVPTooltip() {
+    const tip = document.getElementById("vpTooltip");
+    if (tip) tip.remove();
+  }
+
   drawCanvasScene() {
     if (!this.geometry) return;
     this.ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
@@ -4069,6 +4409,7 @@ class ColonistFullGame {
     this.renderScoreboard();
     this.renderLog();
     this.renderStatusAndControls();
+    this.renderLastDice();
     if (!document.body.dataset.gameReady) {
       document.body.dataset.gameReady = "true";
     }

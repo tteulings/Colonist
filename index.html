@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Colonist-Style Full Game</title>
-    <link rel="stylesheet" href="./styles.css?v=17" />
+    <link rel="stylesheet" href="./styles.css?v=19" />
   </head>
   <body>
     <div class="app-shell">
@@ -21,7 +21,7 @@
 
       <!-- Settings gear — top-left floating -->
       <details class="settings-drawer-float" id="settingsDrawer">
-        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.17</span></summary>
+        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.19</span></summary>
         <div class="settings-float-body">
           <div class="button-row">
             <button id="nextTurnBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Play AI Turns</button>
@@ -45,6 +45,7 @@
           <section class="board-panel">
             <canvas id="board" width="1200" height="700" aria-label="Game board"></canvas>
             <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+            <div id="lastDiceDisplay" class="last-dice-display" style="display:none"></div>
           </section>
         </section>
 
@@ -64,6 +65,21 @@
 
       <div class="hand-strip" id="handStrip" aria-label="Your cards"></div>
 
+      <!-- Discard selection overlay (when 7 is rolled) -->
+      <div id="discardPanel" class="discard-panel" style="display:none">
+        <div class="discard-panel-header">Discard cards</div>
+        <div class="discard-panel-info" id="discardInfo"></div>
+        <div class="discard-panel-cards" id="discardCards"></div>
+        <div class="discard-panel-selected" id="discardSelected"></div>
+        <button id="discardConfirmBtn" class="btn-roll discard-confirm-btn" disabled>Confirm</button>
+      </div>
+
+      <!-- Build cost reference card -->
+      <div id="costReference" class="cost-reference">
+        <div class="cost-ref-header">Build Costs</div>
+        <div class="cost-ref-items" id="costRefItems"></div>
+      </div>
+
       <!-- Robber victim selection overlay -->
       <div id="victimPanel" class="victim-panel" style="display:none">
         <div class="victim-panel-header">Steal from:</div>
@@ -79,10 +95,10 @@
           </div>
 
           <!-- Resource selector rows — shared for bank & player -->
-          <div class="trade-section-label">You give:</div>
+          <div class="trade-section-label"><span class="trade-label-icon">&#x1F4E4;</span> You give:</div>
           <div id="tradeOfferGrid" class="trade-resource-grid"></div>
-          <div class="trade-arrow">&#8595;</div>
-          <div class="trade-section-label">You get:</div>
+          <div class="trade-arrow"><div class="trade-arrow-icon">&#8645;</div></div>
+          <div class="trade-section-label"><span class="trade-label-icon">&#x1F4E5;</span> You get:</div>
           <div id="tradeRequestGrid" class="trade-resource-grid"></div>
 
           <div id="tradeProposalResult" class="trade-proposal-result"></div>
@@ -100,11 +116,8 @@
 
       <!-- Incoming trade offer popup -->
       <div id="incomingTradePanel" class="incoming-trade-panel" style="display:none">
-        <div class="incoming-trade-header">Trade offer from <strong id="incomingTraderName"></strong></div>
-        <div class="incoming-trade-body">
-          <div class="incoming-trade-line">They give you: <strong id="incomingTradeGive"></strong></div>
-          <div class="incoming-trade-line">They want: <strong id="incomingTradeGet"></strong></div>
-        </div>
+        <div class="incoming-trade-header" id="incomingTradeHeader">Trade offer</div>
+        <div class="incoming-trade-body" id="incomingTradeBody"></div>
         <div class="incoming-trade-actions">
           <button id="acceptTradeBtn" class="btn-build">Accept</button>
           <button id="rejectTradeBtn" class="btn-neutral">Reject</button>
@@ -133,6 +146,6 @@
       </section>
     </div>
 
-    <script type="module" src="./src/game.js?v=17"></script>
+    <script type="module" src="./src/game.js?v=19"></script>
   </body>
 </html>

@@ -745,10 +745,10 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   border-radius: 14px;
   box-shadow: 0 8px 28px rgba(8, 35, 55, 0.45);
   padding: 0.7rem 0.9rem;
-  min-width: 260px;
-  max-width: 340px;
-  width: 90vw;
-  max-height: 80vh;
+  min-width: 300px;
+  max-width: 420px;
+  width: 92vw;
+  max-height: 85vh;
   overflow-y: auto;
 }
 
@@ -756,12 +756,12 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.5rem;
 }
 
 .trade-modal-header span {
   font-weight: 800;
-  font-size: 0.95rem;
+  font-size: 1rem;
   color: #1a3a5c;
 }
 
@@ -778,23 +778,37 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 .trade-modal-close:hover { color: #c00; }
 
 .trade-arrow {
-  text-align: center;
-  font-size: 1.2rem;
-  color: #5c55b9;
-  margin: 0.2rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 0.35rem 0;
+}
+
+.trade-arrow-icon {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(180deg, #7870d8, #5c55b9);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 1rem;
   font-weight: 800;
+  box-shadow: 0 2px 6px rgba(92, 85, 185, 0.4);
 }
 
 .trade-modal-actions {
   display: flex;
   gap: 0.4rem;
-  margin-top: 0.5rem;
+  margin-top: 0.6rem;
 }
 
 .trade-action-btn {
   flex: 1;
-  padding: 0.4rem 0.5rem;
-  font-size: 0.78rem;
+  padding: 0.5rem 0.5rem;
+  font-size: 0.82rem;
   border-radius: 8px;
 }
 
@@ -807,56 +821,108 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 
 .trade-section-label {
   font-weight: 700;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: #1f4d80;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.3rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.trade-section-label .trade-label-icon {
+  font-size: 0.85rem;
 }
 
 .trade-resource-grid {
   display: flex;
-  gap: 0.25rem;
-  flex-wrap: wrap;
+  gap: 0.3rem;
+  flex-wrap: nowrap;
 }
 
 .trade-res-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.1rem;
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid rgba(120, 138, 162, 0.3);
-  border-radius: 6px;
-  padding: 0.2rem 0.15rem;
-  min-width: 48px;
+  gap: 0.15rem;
   flex: 1;
+  min-width: 0;
 }
 
-.trade-res-item img {
-  width: 20px;
-  height: 20px;
+.trade-res-card {
+  width: 100%;
+  aspect-ratio: 3/4;
+  border-radius: 6px;
+  border: 2px solid rgba(100, 120, 140, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+  overflow: hidden;
+}
+
+.trade-res-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+}
+
+.trade-res-card.has-count {
+  border-color: #5c55b9;
+  box-shadow: 0 0 0 1px rgba(120, 112, 216, 0.4), 0 3px 8px rgba(92, 85, 185, 0.25);
+}
+
+.trade-res-card img {
+  width: 28px;
+  height: 28px;
   object-fit: contain;
+  opacity: 0.85;
 }
 
-.trade-res-item .trade-res-count {
+.trade-res-card .trade-card-badge {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  min-width: 18px;
+  height: 18px;
+  background: #5c55b9;
+  color: #fff;
+  font-size: 0.65rem;
   font-weight: 800;
-  font-size: 0.8rem;
+  border-radius: 0 4px 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+}
+
+.trade-res-card.wood { background: linear-gradient(160deg, #e8f5e9, #c8e6c9); }
+.trade-res-card.brick { background: linear-gradient(160deg, #ffebee, #ffcdd2); }
+.trade-res-card.sheep { background: linear-gradient(160deg, #e8f5e9, #a5d6a7); }
+.trade-res-card.wheat { background: linear-gradient(160deg, #fffde7, #fff9c4); }
+.trade-res-card.ore { background: linear-gradient(160deg, #eceff1, #cfd8dc); }
+
+.trade-res-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.trade-res-count {
+  font-weight: 800;
+  font-size: 0.82rem;
   color: #1a3a5c;
-  min-width: 16px;
+  min-width: 18px;
   text-align: center;
 }
 
-.trade-res-item .trade-res-btns {
-  display: flex;
-  gap: 0.1rem;
-}
-
 .trade-res-btn {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   border-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(0, 0, 0, 0.12);
   background: linear-gradient(180deg, #edf5ff, #d7e8fa);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
   display: flex;
@@ -866,14 +932,19 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   line-height: 1;
 }
 
-.trade-res-btn:disabled { opacity: 0.3; }
+.trade-res-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #d7e8fa, #c0d8f0);
+}
+
+.trade-res-btn:disabled { opacity: 0.25; cursor: default; }
 
 .trade-proposal-result {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #2a4c70;
-  margin-top: 0.3rem;
-  min-height: 1.2em;
+  margin-top: 0.4rem;
+  min-height: 1.4em;
+  text-align: center;
 }
 
 /* ── Incoming Trade Popup ── */
@@ -888,9 +959,8 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   border-radius: 14px;
   box-shadow: 0 12px 36px rgba(8, 35, 55, 0.5);
   padding: 1rem 1.2rem;
-  min-width: 240px;
-  max-width: 320px;
-  text-align: center;
+  min-width: 280px;
+  max-width: 380px;
   animation: popIn 0.2s ease;
 }
 
@@ -900,29 +970,104 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   font-weight: 800;
   font-size: 0.9rem;
   color: #1a3a5c;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.incoming-trade-header img {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 2px solid rgba(0,0,0,0.15);
 }
 
 .incoming-trade-body {
-  font-size: 0.8rem;
-  color: #2a4c70;
   margin-bottom: 0.6rem;
-  line-height: 1.5;
 }
 
-.incoming-trade-line { margin-bottom: 0.25rem; }
-.incoming-trade-line strong { color: #1a3a5c; }
+.incoming-trade-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0;
+}
+
+.incoming-trade-row-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #45658f;
+  min-width: 55px;
+  flex-shrink: 0;
+}
+
+.incoming-trade-cards {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.incoming-trade-card {
+  width: 36px;
+  height: 48px;
+  border-radius: 5px;
+  border: 1.5px solid rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.incoming-trade-card img {
+  width: 18px; height: 18px;
+  object-fit: contain;
+}
+
+.incoming-trade-card .itc-count {
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: #1a3a5c;
+}
+
+.incoming-trade-card.wood { background: linear-gradient(160deg, #e8f5e9, #c8e6c9); }
+.incoming-trade-card.brick { background: linear-gradient(160deg, #ffebee, #ffcdd2); }
+.incoming-trade-card.sheep { background: linear-gradient(160deg, #e8f5e9, #a5d6a7); }
+.incoming-trade-card.wheat { background: linear-gradient(160deg, #fffde7, #fff9c4); }
+.incoming-trade-card.ore { background: linear-gradient(160deg, #eceff1, #cfd8dc); }
+
+.incoming-trade-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem 0;
+}
+
+.incoming-trade-arrow-icon {
+  width: 22px; height: 22px;
+  background: linear-gradient(180deg, #7870d8, #5c55b9);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
 
 .incoming-trade-actions {
   display: flex;
-  gap: 0.6rem;
+  gap: 0.5rem;
   justify-content: center;
+  margin-top: 0.4rem;
 }
 
 .incoming-trade-actions button {
-  min-width: 80px;
-  padding: 0.4rem 0.8rem;
-  font-size: 0.8rem;
+  min-width: 90px;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.82rem;
   border-radius: 8px;
 }
 
@@ -931,9 +1076,10 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
+  gap: 0.5rem;
   z-index: 30;
   background: rgba(10, 30, 50, 0.45);
   backdrop-filter: blur(2px);
@@ -945,22 +1091,63 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
 
+.dice-roller-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  margin-bottom: 0.15rem;
+}
+
+.dice-roller-label img {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,0.6);
+}
+
+.dice-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
 .die {
-  width: 56px; height: 56px;
+  width: 60px; height: 60px;
   background: linear-gradient(145deg, #fefefe, #e8e2d8);
   border: 2px solid rgba(120, 90, 50, 0.4);
   border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
-  color: #1a1a2e;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  padding: 8px;
   box-shadow: 0 5px 16px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.8);
   user-select: none;
 }
 
+.die .pip {
+  width: 10px; height: 10px;
+  background: #1a1a2e;
+  border-radius: 50%;
+  align-self: center;
+  justify-self: center;
+}
+
+.die .pip.hidden { visibility: hidden; }
+
 .die.rolling { animation: diceShake 0.08s ease-in-out infinite alternate; }
 .die.landed { animation: diceBounce 0.25s ease-out; }
+
+.dice-total {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  margin-top: 0.15rem;
+}
 
 @keyframes diceShake {
   from { transform: rotate(-8deg) scale(0.95); }
@@ -1003,6 +1190,303 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   right: 1px;
   line-height: 1;
   pointer-events: none;
+}
+
+/* ── Persistent Last Dice Display ── */
+.last-dice-display {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(120, 138, 162, 0.4);
+  border-radius: 10px;
+  padding: 0.3rem 0.5rem;
+  box-shadow: 0 2px 8px rgba(8, 35, 55, 0.2);
+  pointer-events: none;
+}
+
+.last-dice-mini {
+  width: 28px; height: 28px;
+  background: linear-gradient(145deg, #fefefe, #e8e2d8);
+  border: 1.5px solid rgba(120, 90, 50, 0.35);
+  border-radius: 5px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  padding: 3px;
+}
+
+.last-dice-mini .pip {
+  width: 5px; height: 5px;
+  background: #1a1a2e;
+  border-radius: 50%;
+  align-self: center;
+  justify-self: center;
+}
+
+.last-dice-mini .pip.hidden { visibility: hidden; }
+
+.last-dice-total {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #1a3a5c;
+}
+
+.last-dice-player {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.last-dice-player img {
+  width: 18px; height: 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.15);
+}
+
+.last-dice-player span {
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+/* ── Discard Panel ── */
+.discard-panel {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 55;
+  background: linear-gradient(180deg, #fff, #f0ede5);
+  border: 2px solid #e95b54;
+  border-radius: 14px;
+  box-shadow: 0 12px 36px rgba(8, 35, 55, 0.5);
+  padding: 1rem 1.2rem;
+  min-width: 280px;
+  max-width: 400px;
+  text-align: center;
+  animation: popIn 0.2s ease;
+}
+
+.discard-panel-header {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #c9433e;
+  margin-bottom: 0.3rem;
+}
+
+.discard-panel-info {
+  font-size: 0.75rem;
+  color: #45658f;
+  margin-bottom: 0.5rem;
+}
+
+.discard-panel-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.discard-card {
+  width: 40px;
+  height: 54px;
+  border-radius: 5px;
+  border: 2px solid rgba(100, 120, 140, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.1s, border-color 0.1s, box-shadow 0.1s;
+}
+
+.discard-card:hover {
+  transform: translateY(-2px);
+}
+
+.discard-card.selected {
+  border-color: #e95b54;
+  box-shadow: 0 0 0 2px rgba(233, 91, 84, 0.4);
+  transform: translateY(-4px);
+}
+
+.discard-card img {
+  width: 22px; height: 22px;
+  object-fit: contain;
+}
+
+.discard-card.wood { background: linear-gradient(160deg, #e8f5e9, #c8e6c9); }
+.discard-card.brick { background: linear-gradient(160deg, #ffebee, #ffcdd2); }
+.discard-card.sheep { background: linear-gradient(160deg, #e8f5e9, #a5d6a7); }
+.discard-card.wheat { background: linear-gradient(160deg, #fffde7, #fff9c4); }
+.discard-card.ore { background: linear-gradient(160deg, #eceff1, #cfd8dc); }
+
+.discard-panel-selected {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #c9433e;
+  margin-bottom: 0.4rem;
+  min-height: 1.2em;
+}
+
+.discard-confirm-btn {
+  min-width: 120px;
+  padding: 0.45rem 1rem;
+}
+
+/* ── Build Cost Reference ── */
+.cost-reference {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 15;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(120, 138, 162, 0.4);
+  border-radius: 8px;
+  padding: 0.3rem 0.4rem;
+  box-shadow: 0 2px 8px rgba(8, 35, 55, 0.2);
+  font-size: 0.6rem;
+  min-width: 110px;
+}
+
+.cost-ref-header {
+  font-weight: 800;
+  font-size: 0.62rem;
+  color: #1a3a5c;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.2rem;
+  text-align: center;
+}
+
+.cost-ref-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.cost-ref-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.cost-ref-label {
+  font-weight: 700;
+  font-size: 0.58rem;
+  color: #2a4c70;
+  min-width: 32px;
+}
+
+.cost-ref-res {
+  display: flex;
+  gap: 0.1rem;
+}
+
+.cost-ref-res img {
+  width: 12px; height: 12px;
+  object-fit: contain;
+}
+
+/* ── Award Badges (Longest Road / Largest Army) ── */
+.award-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 0.55rem;
+  font-weight: 800;
+  padding: 0.05rem 0.2rem;
+  border-radius: 3px;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.award-badge.longest-road {
+  background: linear-gradient(180deg, #19a0b8, #157f91);
+}
+
+.award-badge.largest-army {
+  background: linear-gradient(180deg, #d4793a, #b8622a);
+}
+
+/* ── VP Breakdown Tooltip ── */
+.vp-tooltip {
+  position: absolute;
+  z-index: 60;
+  background: linear-gradient(180deg, #fff, #f0ede5);
+  border: 1px solid rgba(120, 138, 162, 0.5);
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+  box-shadow: 0 4px 14px rgba(8, 35, 55, 0.3);
+  font-size: 0.68rem;
+  color: #1a3a5c;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: fadeIn 0.1s ease;
+}
+
+.vp-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.05rem 0;
+}
+
+.vp-tooltip-label { color: #45658f; }
+.vp-tooltip-value { font-weight: 800; }
+.vp-tooltip-total {
+  border-top: 1px solid rgba(120, 138, 162, 0.3);
+  margin-top: 0.15rem;
+  padding-top: 0.15rem;
+  font-weight: 800;
+}
+
+/* ── Resource Gain Toasts (all players) ── */
+.resource-gain-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(82, 136, 193, 0.3);
+  box-shadow: 0 2px 6px rgba(39, 83, 127, 0.15);
+  font-size: 0.68rem;
+  font-weight: 600;
+  animation: toastIn 200ms ease;
+}
+
+.resource-gain-toast .rgt-avatar {
+  width: 16px; height: 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.15);
+}
+
+.resource-gain-toast .rgt-resources {
+  display: flex;
+  gap: 0.15rem;
+  align-items: center;
+}
+
+.resource-gain-toast .rgt-res {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.resource-gain-toast .rgt-res img {
+  width: 14px; height: 14px;
+}
+
+.resource-gain-toast .rgt-res span {
+  font-weight: 800;
+  font-size: 0.62rem;
 }
 
 /* ── Scrollbar ── */
@@ -1134,6 +1618,13 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .settings-float-trigger { font-size: 0.9rem; padding: 0.2rem 0.35rem; }
   .trade-panel { bottom: 120px; min-width: 190px; }
   .victim-panel { min-width: 160px; padding: 0.6rem 0.7rem; }
+  .cost-reference { display: none; }
+  .last-dice-display { bottom: 6px; left: 6px; padding: 0.2rem 0.35rem; }
+  .last-dice-mini { width: 22px; height: 22px; padding: 2px; }
+  .last-dice-mini .pip { width: 4px; height: 4px; }
+  .last-dice-total { font-size: 0.72rem; }
+  .last-dice-player { display: none; }
+  .award-badge { font-size: 0.45rem; padding: 0.02rem 0.12rem; }
 }
 
 /* ── Game-over overlay ── */
