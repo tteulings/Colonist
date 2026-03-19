@@ -499,6 +499,18 @@ class ColonistFullGame {
       this.showAiReasoning = this.aiReasoningToggle.checked;
     });
 
+    // Sound engine
+    this.soundToggle = document.querySelector("#soundToggle");
+    this.soundEnabled = localStorage.getItem("colonist_sound") !== "off";
+    if (this.soundToggle) {
+      this.soundToggle.checked = this.soundEnabled;
+      this.soundToggle.addEventListener("change", () => {
+        this.soundEnabled = this.soundToggle.checked;
+        localStorage.setItem("colonist_sound", this.soundEnabled ? "on" : "off");
+      });
+    }
+    this._audioCtx = null;
+
     this.maxLogEntries = 260;
     this.maxToasts = 4;
     this.autoplayInterval = null;
@@ -1239,8 +1251,10 @@ class ColonistFullGame {
       this.buildTradeGrids();
       this.updateTradeButtons();
       if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = '<span style="color:#22a854">Bank trade complete!</span>';
+      this.sfx.trade();
     } else {
       if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = '<span style="color:#c44">Bank trade failed.</span>';
+      this.sfx.error();
     }
     this.render();
   }
@@ -1695,6 +1709,7 @@ class ColonistFullGame {
     }
     this.phase = "main";
     this.addLog(`Turn ${this.turn}: ${player.name} rolled ${this.lastRoll}.`);
+    this.sfx.diceResult();
     // Highlight matching hex tokens
     if (this.lastRoll !== 7) {
       this.highlightRoll = { number: this.lastRoll, startTime: Date.now() };
@@ -1822,6 +1837,7 @@ class ColonistFullGame {
   moveRobberAndSteal(currentPlayer, targetHexId) {
     this.robberHexId = targetHexId;
     this.addLog(`${currentPlayer.name} moved robber to hex #${targetHexId}.`);
+    this.sfx.robber();
     const victimOptions = new Set();
     this.geometry.hexes[targetHexId].nodes.forEach((nodeId) => {
       const owner = this.geometry.nodes[nodeId].owner;
@@ -1850,6 +1866,7 @@ class ColonistFullGame {
     victim.resources[stolen] -= 1;
     currentPlayer.resources[stolen] += 1;
     this.addLog(`${currentPlayer.name} stole 1 ${stolen} from ${victim.name}.`);
+    this.sfx.steal();
     this._showStealAnimation(currentPlayer, victim, stolen);
   }
 
@@ -2060,6 +2077,7 @@ class ColonistFullGame {
       this.addLog(`${acceptor.name} accepted trade: gave ${resourceString(request)} for ${resourceString(offer)}.`);
       if (this.tradeProposalResult) {
         this.tradeProposalResult.innerHTML += `<br><strong style="color:#22a854">Traded with ${acceptor.name}!</strong>`;
+        this.sfx.trade();
       }
       this.tradeOffer = makeEmptyResources();
       this.tradeRequest = makeEmptyResources();
@@ -2621,6 +2639,7 @@ class ColonistFullGame {
     if (!this.placeSettlement(player, best.nodeId, false)) return false;
     payCost(player.resources, COSTS.settlement);
     this.addLog(`${player.name} built a settlement.`);
+    this.sfx.buildSettlement();
     this._aiLog(player, `Chose settlement at node ${best.nodeId} (score ${best.score.toFixed(2)}, ${candidates.length} options)`);
     this.recomputeScores();
     this.checkForWinner(player);
@@ -2634,6 +2653,7 @@ class ColonistFullGame {
     if (!this.placeCity(player, nodeId, false)) return false;
     payCost(player.resources, COSTS.city);
     this.addLog(`${player.name} upgraded to a city.`);
+    this.sfx.buildCity();
     this._aiLog(player, `Upgraded node ${nodeId} — highest dice probability settlement`);
     this.recomputeScores();
     this.checkForWinner(player);
@@ -2647,6 +2667,7 @@ class ColonistFullGame {
     if (!this.placeRoad(player, edgeId, { free: false })) return false;
     payCost(player.resources, COSTS.road);
     this.addLog(`${player.name} built a road.`);
+    this.sfx.buildRoad();
     this._aiLog(player, `Expansion strategy: ${player.strategy?.expansion || "medium"}`);
     this.recomputeScores();
     this.checkForWinner(player);
@@ -3140,6 +3161,7 @@ class ColonistFullGame {
     const step = () => {
       this.aiTurnTimeout = null;
       if (this.winner || this.autoplayInterval || this.currentPlayer.isHuman || this._aiDiceAnimating) {
+        if (this.currentPlayer.isHuman && !this.winner) this.sfx.yourTurn();
         this.render();
         return;
       }
@@ -3157,6 +3179,7 @@ class ColonistFullGame {
   // ── Game-over overlay & restart ──────────────────────────────────────
   showGameOverOverlay() {
     if (document.querySelector(".game-over-overlay")) return;
+    this.sfx.victory();
     const overlay = document.createElement("div");
     overlay.className = "game-over-overlay";
     const winner = this.winner;
@@ -4622,6 +4645,124 @@ class ColonistFullGame {
       <span class="last-dice-total">${this.lastRoll}</span>
     `;
   }
+
+  // ── Sound Engine (Web Audio API synthesis) ────────────────────────────
+  _getAudioCtx() {
+    if (!this._audioCtx) {
+      this._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (this._audioCtx.state === "suspended") this._audioCtx.resume();
+    return this._audioCtx;
+  }
+
+  _playTone(freq, duration = 0.12, type = "sine", vol = 0.15) {
+    if (!this.soundEnabled) return;
+    try {
+      const ctx = this._getAudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(vol, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
+    } catch (_) {}
+  }
+
+  _playChord(freqs, duration = 0.2, type = "sine", vol = 0.08) {
+    freqs.forEach(f => this._playTone(f, duration, type, vol));
+  }
+
+  _playNoise(duration = 0.08, vol = 0.1) {
+    if (!this.soundEnabled) return;
+    try {
+      const ctx = this._getAudioCtx();
+      const bufferSize = ctx.sampleRate * duration;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * vol;
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(vol, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      source.start();
+    } catch (_) {}
+  }
+
+  // Named sound effects
+  sfx = {
+    diceRoll: () => {
+      // Rattle-like: quick noise bursts
+      for (let i = 0; i < 3; i++) {
+        setTimeout(() => this._playNoise(0.04, 0.06), i * 50);
+      }
+    },
+    diceResult: () => {
+      this._playTone(440, 0.1, "triangle", 0.12);
+      setTimeout(() => this._playTone(554, 0.15, "triangle", 0.1), 80);
+    },
+    buildSettlement: () => {
+      this._playTone(523, 0.1, "square", 0.08);
+      setTimeout(() => this._playTone(659, 0.12, "square", 0.08), 80);
+      setTimeout(() => this._playTone(784, 0.18, "square", 0.06), 160);
+    },
+    buildCity: () => {
+      this._playChord([523, 659, 784], 0.25, "triangle", 0.07);
+      setTimeout(() => this._playChord([587, 740, 880], 0.3, "triangle", 0.06), 150);
+    },
+    buildRoad: () => {
+      this._playTone(330, 0.08, "square", 0.07);
+      setTimeout(() => this._playTone(392, 0.1, "square", 0.06), 60);
+    },
+    trade: () => {
+      this._playTone(440, 0.08, "sine", 0.1);
+      setTimeout(() => this._playTone(554, 0.08, "sine", 0.1), 70);
+      setTimeout(() => this._playTone(659, 0.12, "sine", 0.08), 140);
+    },
+    tradeReject: () => {
+      this._playTone(330, 0.12, "sawtooth", 0.06);
+      setTimeout(() => this._playTone(277, 0.18, "sawtooth", 0.05), 100);
+    },
+    robber: () => {
+      this._playTone(220, 0.2, "sawtooth", 0.08);
+      setTimeout(() => this._playTone(185, 0.25, "sawtooth", 0.06), 150);
+    },
+    steal: () => {
+      this._playTone(600, 0.06, "sine", 0.08);
+      setTimeout(() => this._playTone(400, 0.1, "sine", 0.06), 50);
+    },
+    devCard: () => {
+      this._playTone(392, 0.1, "triangle", 0.1);
+      setTimeout(() => this._playTone(494, 0.12, "triangle", 0.08), 80);
+    },
+    yourTurn: () => {
+      this._playTone(523, 0.08, "sine", 0.12);
+      setTimeout(() => this._playTone(659, 0.08, "sine", 0.1), 100);
+      setTimeout(() => this._playTone(784, 0.15, "sine", 0.08), 200);
+    },
+    victory: () => {
+      const notes = [523, 659, 784, 1047];
+      notes.forEach((f, i) => {
+        setTimeout(() => this._playTone(f, 0.25, "triangle", 0.1), i * 150);
+      });
+    },
+    click: () => {
+      this._playTone(800, 0.04, "sine", 0.06);
+    },
+    error: () => {
+      this._playTone(200, 0.15, "square", 0.08);
+    },
+    resourceGain: () => {
+      this._playTone(880, 0.06, "sine", 0.06);
+      setTimeout(() => this._playTone(1100, 0.08, "sine", 0.05), 50);
+    },
+  };
 
   // ── AI Strategy Config UI ─────────────────────────────────────────────
   _buildStrategyUI() {
