@@ -1906,7 +1906,46 @@ class ColonistFullGame {
     this._showStealAnimation(currentPlayer, victim, stolen);
   }
 
+  _animateStealCard(thief, victim, resource) {
+    const boardPanel = document.querySelector(".board-panel");
+    if (!boardPanel || !this.scoreboard) return;
+    const boardRect = boardPanel.getBoundingClientRect();
+
+    // Find victim avatar position (source)
+    const victimEl = this.scoreboard.querySelector(`.player-card-mini:nth-child(${victim.id + 1}) .player-avatar`);
+    const thiefEl = this.scoreboard.querySelector(`.player-card-mini:nth-child(${thief.id + 1}) .player-avatar`);
+    let srcX, srcY, dstX, dstY;
+    if (victimEl) {
+      const r = victimEl.getBoundingClientRect();
+      srcX = r.left + r.width / 2 - boardRect.left;
+      srcY = r.top + r.height / 2 - boardRect.top;
+    } else {
+      srcX = boardRect.width - 30;
+      srcY = 30 + victim.id * 40;
+    }
+    if (thiefEl) {
+      const r = thiefEl.getBoundingClientRect();
+      dstX = r.left + r.width / 2 - boardRect.left;
+      dstY = r.top + r.height / 2 - boardRect.top;
+    } else {
+      dstX = boardRect.width - 30;
+      dstY = 30 + thief.id * 40;
+    }
+
+    const card = document.createElement("div");
+    card.className = `flying-card ${resource}`;
+    card.innerHTML = `<img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />`;
+    card.style.left = `${srcX}px`;
+    card.style.top = `${srcY}px`;
+    card.style.setProperty("--fly-x", `${dstX - srcX}px`);
+    card.style.setProperty("--fly-y", `${dstY - srcY}px`);
+    card.style.borderColor = "rgba(200, 50, 50, 0.5)";
+    boardPanel.appendChild(card);
+    setTimeout(() => card.remove(), 600);
+  }
+
   _showStealAnimation(thief, victim, resource) {
+    this._animateStealCard(thief, victim, resource);
     const stack = document.getElementById("toastStack");
     if (!stack) return;
     const toast = document.createElement("div");
@@ -2085,60 +2124,87 @@ class ColonistFullGame {
         return;
       }
     }
-    // Propose to all players — collect responses, show each one
+    // Propose to all players — collect responses
     const responses = [];
-    let acceptor = null;
+    const acceptors = [];
     for (const other of this.players) {
       if (other.id === player.id) continue;
-      if (other.isHuman) continue; // TODO: multi-human support
+      if (other.isHuman) continue;
       const accepts = this.aiEvaluateTrade(other, request, offer);
       responses.push({ player: other, accepts });
-      if (accepts && !acceptor) acceptor = other;
+      if (accepts) acceptors.push(other);
     }
 
     // Show visual response for each player
     if (this.tradeProposalResult) {
       this.tradeProposalResult.innerHTML = responses.map(r =>
-        `<span style="color:${r.player.color};font-weight:800">${r.player.name}</span> ${r.accepts ? '<span style="color:#22a854">✓ Accept</span>' : '<span style="color:#c44">✗ Reject</span>'}`
+        `<span style="color:${r.player.color};font-weight:800">${r.player.name}</span> ${r.accepts ? '<span style="color:#22a854">✓</span>' : '<span style="color:#c44">✗</span>'}`
       ).join("&nbsp;&nbsp;");
     }
 
-    if (acceptor) {
-      // Show confirmation step — don't execute immediately
+    if (acceptors.length > 0) {
       if (this.tradeProposalResult) {
-        this.tradeProposalResult.innerHTML += `<br><strong style="color:#22a854">${acceptor.name} accepts!</strong>`;
-        const btnRow = document.createElement("div");
-        btnRow.style.cssText = "display:flex;gap:0.3rem;margin-top:0.3rem;justify-content:center";
-        const confirmBtn = document.createElement("button");
-        confirmBtn.className = "btn-build";
-        confirmBtn.style.cssText = "font-size:0.68rem;padding:0.25rem 0.7rem";
-        confirmBtn.textContent = "Confirm Trade";
-        const cancelBtn = document.createElement("button");
-        cancelBtn.className = "btn-neutral";
-        cancelBtn.style.cssText = "font-size:0.68rem;padding:0.25rem 0.7rem";
-        cancelBtn.textContent = "Cancel";
-        confirmBtn.addEventListener("click", () => {
+        // Helper to execute trade with a chosen partner
+        const executeTrade = (partner) => {
           RESOURCES.forEach((r) => {
             player.resources[r] -= offer[r];
             player.resources[r] += request[r];
-            acceptor.resources[r] -= request[r];
-            acceptor.resources[r] += offer[r];
+            partner.resources[r] -= request[r];
+            partner.resources[r] += offer[r];
           });
-          this.addLog(`Traded with ${acceptor.name}: gave ${resourceString(offer)} for ${resourceString(request)}.`);
+          this.addLog(`Traded with ${partner.name}: gave ${resourceString(offer)} for ${resourceString(request)}.`);
           this.sfx.trade();
           this.tradeOffer = makeEmptyResources();
           this.tradeRequest = makeEmptyResources();
           this.buildTradeGrids();
           this.updateTradeButtons();
-          this.tradeProposalResult.innerHTML = `<strong style="color:#22a854">Trade complete!</strong>`;
+          this.tradeProposalResult.innerHTML = `<strong style="color:#22a854">Traded with ${partner.name}!</strong>`;
           this.render();
-        });
-        cancelBtn.addEventListener("click", () => {
-          this.tradeProposalResult.innerHTML = '<span style="color:#888">Trade cancelled.</span>';
-        });
-        btnRow.appendChild(confirmBtn);
-        btnRow.appendChild(cancelBtn);
-        this.tradeProposalResult.appendChild(btnRow);
+        };
+
+        if (acceptors.length === 1) {
+          // Single acceptor: confirm/cancel
+          this.tradeProposalResult.innerHTML += `<br><strong style="color:#22a854">${acceptors[0].name} accepts!</strong>`;
+          const btnRow = document.createElement("div");
+          btnRow.style.cssText = "display:flex;gap:0.3rem;margin-top:0.3rem;justify-content:center";
+          const confirmBtn = document.createElement("button");
+          confirmBtn.className = "btn-build";
+          confirmBtn.style.cssText = "font-size:0.68rem;padding:0.25rem 0.7rem";
+          confirmBtn.textContent = "Confirm";
+          const cancelBtn = document.createElement("button");
+          cancelBtn.className = "btn-neutral";
+          cancelBtn.style.cssText = "font-size:0.68rem;padding:0.25rem 0.7rem";
+          cancelBtn.textContent = "Cancel";
+          confirmBtn.addEventListener("click", () => executeTrade(acceptors[0]));
+          cancelBtn.addEventListener("click", () => {
+            this.tradeProposalResult.innerHTML = '<span style="color:#888">Trade cancelled.</span>';
+          });
+          btnRow.appendChild(confirmBtn);
+          btnRow.appendChild(cancelBtn);
+          this.tradeProposalResult.appendChild(btnRow);
+        } else {
+          // Multiple acceptors: let player choose
+          this.tradeProposalResult.innerHTML += `<br><span style="font-size:0.65rem">Choose trading partner:</span>`;
+          const btnRow = document.createElement("div");
+          btnRow.style.cssText = "display:flex;gap:0.25rem;margin-top:0.25rem;justify-content:center;flex-wrap:wrap";
+          acceptors.forEach(acc => {
+            const btn = document.createElement("button");
+            btn.className = "btn-build";
+            btn.style.cssText = `font-size:0.65rem;padding:0.2rem 0.5rem;color:#fff`;
+            btn.innerHTML = `<img src="${acc.avatar}" style="width:14px;height:14px;border-radius:99px;vertical-align:middle;margin-right:3px" />${acc.name}`;
+            btn.addEventListener("click", () => executeTrade(acc));
+            btnRow.appendChild(btn);
+          });
+          const cancelBtn = document.createElement("button");
+          cancelBtn.className = "btn-neutral";
+          cancelBtn.style.cssText = "font-size:0.65rem;padding:0.2rem 0.5rem";
+          cancelBtn.textContent = "Cancel";
+          cancelBtn.addEventListener("click", () => {
+            this.tradeProposalResult.innerHTML = '<span style="color:#888">Trade cancelled.</span>';
+          });
+          btnRow.appendChild(cancelBtn);
+          this.tradeProposalResult.appendChild(btnRow);
+        }
       }
     } else {
       this.addLog("All players rejected your trade offer.");
@@ -4549,16 +4615,35 @@ class ColonistFullGame {
     const human = this.players.find((p) => p.isHuman);
     if (!human) return;
 
-    // Bottom bar summary cards (desktop)
+    // Bottom bar summary cards (desktop) — clickable to open trade
     if (this.resourceCardStrip) {
       const total = sumResources(human.resources);
       this.resourceCardStrip.innerHTML = RESOURCES.map(
         (resource) =>
-          `<div class="resource-card ${resource}" aria-label="${resource} ${human.resources[resource]}">
+          `<div class="resource-card ${resource}" data-resource="${resource}" aria-label="${resource} ${human.resources[resource]}" style="cursor:pointer" title="Click to trade ${resource}">
             <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
             <span class="resource-count">${human.resources[resource]}</span>
           </div>`,
       ).join("") + `<div class="resource-total" title="Total cards">${total}</div>`;
+      // Click resource card to open trade with that resource pre-selected as "give"
+      this.resourceCardStrip.querySelectorAll(".resource-card[data-resource]").forEach(el => {
+        el.addEventListener("click", () => {
+          if (!this.currentPlayer?.isHuman || this.phase !== "main") return;
+          const res = el.dataset.resource;
+          if (human.resources[res] <= 0) return;
+          // Open trade panel and pre-select this resource
+          if (this.tradeModal?.style.display === "none" || !this.tradeModal?.style.display) {
+            this.tradeOffer = makeEmptyResources();
+            this.tradeRequest = makeEmptyResources();
+          }
+          this.tradeOffer[res] = Math.min(human.resources[res], (this.tradeOffer[res] || 0) + 1);
+          this.tradeModal.style.display = "";
+          if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
+          this.buildTradeGrids();
+          this.updateTradeButtons();
+          this.sfx.click();
+        });
+      });
     }
 
     // Hand strip — individual overlapping cards (bottom, above action bar on mobile)
