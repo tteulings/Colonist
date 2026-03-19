@@ -22,8 +22,8 @@ body {
   height: 100vh;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  gap: 0.35rem;
-  padding: 0.35rem;
+  gap: 0;
+  padding: 0;
 }
 
 /* ── Header ── */
@@ -32,10 +32,11 @@ body {
   grid-template-columns: 1fr auto 1fr;
   gap: 0.9rem;
   align-items: center;
-  padding: 0.3rem 0.5rem;
-  background: rgba(11, 52, 85, 0.24);
-  border: 1px solid rgba(165, 211, 243, 0.22);
-  border-radius: 10px;
+  padding: 0.3rem 0.7rem;
+  background: rgba(11, 52, 85, 0.35);
+  border: none;
+  border-bottom: 1px solid rgba(165, 211, 243, 0.15);
+  border-radius: 0;
 }
 
 .table-logo {
@@ -93,13 +94,13 @@ main.table-layout {
 .board-area {
   min-height: 0;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 0;
 }
 
 .board-panel {
   position: relative;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 0;
   height: 100%;
 }
 
@@ -142,14 +143,14 @@ main.table-layout {
   position: absolute;
   top: 0;
   right: 0;
-  bottom: 0;
+  bottom: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.3rem;
   pointer-events: none;
   z-index: 10;
   padding: 0.4rem;
-  width: 195px;
+  width: 210px;
 }
 
 .rail-card {
@@ -162,12 +163,14 @@ main.table-layout {
 }
 
 .rail-card h2 {
-  margin: 0 0 0.35rem;
-  font-size: 0.72rem;
+  margin: 0 0 0.25rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: #3a526d;
 }
+
+.rail-players h2 { display: none; }
 
 /* ── Log drawer ── */
 .rail-log {
@@ -251,12 +254,12 @@ main.table-layout {
 .player-card-mini {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.2rem 0.3rem;
+  gap: 0.3rem;
+  padding: 0.3rem 0.4rem;
   border-radius: 6px;
   background: linear-gradient(180deg, #fff, #f2eee5);
   border: 1px solid rgba(117, 146, 174, 0.45);
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   overflow: hidden;
 }
 
@@ -266,8 +269,8 @@ main.table-layout {
 }
 
 .player-card-mini .player-avatar {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 999px;
   object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.7);
@@ -277,7 +280,7 @@ main.table-layout {
 
 .player-card-mini .player-name {
   font-weight: 800;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -294,7 +297,7 @@ main.table-layout {
 
 .player-vp {
   font-weight: 700;
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   color: #1a3a5c;
   white-space: nowrap;
 }
@@ -317,8 +320,8 @@ main.table-layout {
 
 .player-hand-counts {
   display: inline-flex;
-  gap: 0.15rem;
-  font-size: 0.58rem;
+  gap: 0.2rem;
+  font-size: 0.65rem;
   font-weight: 700;
 }
 
@@ -452,8 +455,9 @@ main.table-layout {
 /* ── Bottom Bar ── */
 .bottom-bar {
   background: linear-gradient(180deg, #e6ddce, #ddd2c1);
-  border: 1px solid rgba(120, 138, 162, 0.6);
-  border-radius: 10px;
+  border: none;
+  border-top: 1px solid rgba(120, 138, 162, 0.4);
+  border-radius: 0;
   padding: 0.4rem 0.6rem;
   display: flex;
   flex-direction: row;
@@ -1204,7 +1208,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 }
 
 .last-dice-mini {
-  width: 28px; height: 28px;
+  width: 32px; height: 32px;
   background: linear-gradient(145deg, #fefefe, #e8e2d8);
   border: 1.5px solid rgba(120, 90, 50, 0.35);
   border-radius: 5px;
@@ -1215,7 +1219,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 }
 
 .last-dice-mini .pip {
-  width: 5px; height: 5px;
+  width: 6px; height: 6px;
   background: #1a1a2e;
   border-radius: 50%;
   align-self: center;
@@ -1225,7 +1229,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 .last-dice-mini .pip.hidden { visibility: hidden; }
 
 .last-dice-total {
-  font-size: 0.85rem;
+  font-size: 1rem;
   font-weight: 800;
   color: #1a3a5c;
 }
@@ -1335,23 +1339,23 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 /* ── Build Cost Reference ── */
 .cost-reference {
   position: absolute;
-  bottom: 38px;
+  bottom: 42px;
   left: 10px;
   z-index: 14;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(3px);
-  border: 1px solid rgba(120, 138, 162, 0.25);
-  border-radius: 5px;
-  padding: 0.15rem 0.35rem;
-  box-shadow: 0 1px 3px rgba(8, 35, 55, 0.1);
-  font-size: 0.55rem;
-  opacity: 0.7;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(120, 138, 162, 0.3);
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  box-shadow: 0 2px 6px rgba(8, 35, 55, 0.15);
+  font-size: 0.65rem;
+  opacity: 0.85;
   transition: opacity 0.15s;
 }
 
 .cost-reference:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.96);
 }
 
 .cost-ref-header {
@@ -1372,17 +1376,17 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 
 .cost-ref-label {
   font-weight: 700;
-  font-size: 0.58rem;
+  font-size: 0.65rem;
   color: #2a4c70;
 }
 
 .cost-ref-res {
   display: flex;
-  gap: 1px;
+  gap: 2px;
 }
 
 .cost-ref-res img {
-  width: 13px; height: 13px;
+  width: 15px; height: 15px;
   object-fit: contain;
 }
 
@@ -1487,23 +1491,23 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   bottom: 6px;
   right: 10px;
   z-index: 14;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(3px);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(4px);
   border: 1px solid rgba(120, 138, 162, 0.3);
   border-radius: 6px;
-  padding: 0.15rem 0.35rem;
-  box-shadow: 0 1px 4px rgba(8, 35, 55, 0.12);
-  font-size: 0.55rem;
-  opacity: 0.8;
+  padding: 0.25rem 0.5rem;
+  box-shadow: 0 2px 6px rgba(8, 35, 55, 0.15);
+  font-size: 0.65rem;
+  opacity: 0.85;
   transition: opacity 0.15s;
   display: flex;
-  gap: 0.3rem;
+  gap: 0.4rem;
   align-items: center;
 }
 
 .supply-overview:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.96);
 }
 
 .supply-section {
@@ -1527,15 +1531,15 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 }
 
 .supply-item img {
-  width: 12px; height: 12px;
+  width: 15px; height: 15px;
   object-fit: contain;
 }
 
 .supply-item span {
   font-weight: 800;
-  font-size: 0.55rem;
+  font-size: 0.65rem;
   color: #1a3a5c;
-  min-width: 9px;
+  min-width: 11px;
   text-align: center;
 }
 

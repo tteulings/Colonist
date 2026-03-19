@@ -4063,10 +4063,11 @@ class ColonistFullGame {
         <img class="player-avatar" src="${player.avatar}" alt="${player.name} avatar" />
         <span class="player-name" style="color:${player.color}">${player.name}</span>
         <span class="player-header-right">
-          <span class="player-vp" title="Click for VP breakdown">${player.victoryPoints} VP</span>
+          <span class="player-vp" title="Hover for VP breakdown">${player.victoryPoints} VP</span>
           ${awards}
-          <span class="player-hand-counts" title="${totalCards} resource cards, ${totalDev} dev cards">
-            <span class="hand-count"><span class="stat-icon card-icon"></span>${totalCards}</span>
+          <span class="player-hand-counts">
+            <span class="hand-count" title="${totalCards} resource cards"><span class="stat-icon card-icon"></span>${totalCards}</span>
+            <span class="hand-count" title="${totalDev} dev cards"><span class="stat-icon dev-icon"></span>${totalDev}</span>
           </span>
         </span>
       `;
