@@ -1348,6 +1348,40 @@ class ColonistFullGame {
     }
 
     if (!this.pendingAction) {
+      // Auto-detect: click a buildable spot to start building
+      const nodeId = this.findNodeAt(x, y);
+      if (nodeId != null) {
+        const node = this.geometry.nodes[nodeId];
+        // City upgrade
+        if (node.owner === player.id && node.structure === "settlement" && hasResources(player.resources, COSTS.city)) {
+          this.pendingAction = "city";
+          this.confirmBuild = { type: "city", id: nodeId };
+          this.canvas.style.cursor = "crosshair";
+          this.sfx.click();
+          this.render();
+          return;
+        }
+        // Settlement
+        if (this.canBuildSettlement(player, nodeId, false) && hasResources(player.resources, COSTS.settlement)) {
+          this.pendingAction = "settlement";
+          this.confirmBuild = { type: "settlement", id: nodeId };
+          this.canvas.style.cursor = "crosshair";
+          this.sfx.click();
+          this.render();
+          return;
+        }
+      }
+      const edgeId = this.findEdgeAt(x, y);
+      if (edgeId != null && hasResources(player.resources, COSTS.road)) {
+        if (this.canBuildRoad(player, edgeId, { free: false })) {
+          this.pendingAction = "road";
+          this.confirmBuild = { type: "road", id: edgeId };
+          this.canvas.style.cursor = "crosshair";
+          this.sfx.click();
+          this.render();
+          return;
+        }
+      }
       return;
     }
 
