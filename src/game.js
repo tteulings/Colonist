@@ -2061,6 +2061,26 @@ class ColonistFullGame {
     const maxOffer = player?.isHuman ? player.resources : null;
     this._renderResourceGrid(this.tradeOfferGrid, this.tradeOffer, maxOffer, true);
     this._renderResourceGrid(this.tradeRequestGrid, this.tradeRequest, null, false);
+    this._renderTradeHand(player);
+  }
+
+  _renderTradeHand(player) {
+    let strip = this.tradeModal?.querySelector(".trade-hand-strip");
+    if (!strip) {
+      strip = document.createElement("div");
+      strip.className = "trade-hand-strip";
+      // Insert after the header
+      const header = this.tradeModal.querySelector(".trade-panel-header");
+      header.insertAdjacentElement("afterend", strip);
+    }
+    if (!player) { strip.innerHTML = ""; return; }
+    const total = sumResources(player.resources);
+    strip.innerHTML = RESOURCES.map(r =>
+      `<div class="trade-hand-card ${r}${player.resources[r] === 0 ? " empty" : ""}">
+        <img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />
+        <span class="trade-hand-count">${player.resources[r]}</span>
+      </div>`
+    ).join("") + `<span class="trade-hand-total">${total}</span>`;
   }
 
   _renderResourceGrid(container, counts, maxCounts, isOffer) {
