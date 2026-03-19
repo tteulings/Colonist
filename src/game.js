@@ -4261,9 +4261,11 @@ class ColonistFullGame {
       this.devDeck.length <= 0 ? "Deck empty" : devMissing ? `Need ${devMissing}` : "Not available",
       "Buy dev card (B)",
     );
-    // Trade button: never disabled, always opens modal
+    // Trade button: only visible during human main phase, not during setup
     if (this.tradeBankBtn) {
-      this.tradeBankBtn.disabled = false;
+      const showTrade = !inSetup && humanTurn && mainPhase && !inRobberMode;
+      this.tradeBankBtn.style.display = showTrade ? "inline-flex" : "none";
+      this.tradeBankBtn.disabled = !showTrade;
       this.tradeBankBtn.title = "Trade (T)";
     }
 
