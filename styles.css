@@ -1827,12 +1827,12 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .bottom-bar { order: 3; flex-shrink: 0; }
   .right-rail {
     position: absolute;
-    top: 0;
+    top: 32px;
     right: 0;
     bottom: auto;
-    width: 155px;
+    width: 145px;
     flex-direction: column;
-    padding: 0.2rem;
+    padding: 0;
     pointer-events: auto;
     z-index: 20;
     gap: 0;
