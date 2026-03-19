@@ -1504,6 +1504,70 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   font-size: 0.62rem;
 }
 
+/* ── Supply Overview (card counts) ── */
+.supply-overview {
+  position: absolute;
+  bottom: 6px;
+  right: 10px;
+  z-index: 14;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(3px);
+  border: 1px solid rgba(120, 138, 162, 0.3);
+  border-radius: 6px;
+  padding: 0.2rem 0.4rem;
+  box-shadow: 0 1px 4px rgba(8, 35, 55, 0.12);
+  font-size: 0.58rem;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.supply-overview:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.supply-section {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.supply-section-label {
+  font-weight: 700;
+  font-size: 0.52rem;
+  color: #45658f;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.supply-item {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.supply-item img {
+  width: 13px; height: 13px;
+  object-fit: contain;
+}
+
+.supply-item span {
+  font-weight: 800;
+  font-size: 0.58rem;
+  color: #1a3a5c;
+  min-width: 10px;
+  text-align: center;
+}
+
+.supply-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(120, 138, 162, 0.3);
+}
+
 .steal-toast {
   display: flex;
   align-items: center;
@@ -1683,6 +1747,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .trade-panel { bottom: 120px; min-width: 190px; }
   .victim-panel { min-width: 160px; padding: 0.6rem 0.7rem; }
   .cost-reference { display: none; }
+  .supply-overview { display: none; }
   .last-dice-display { bottom: 6px; left: 6px; padding: 0.2rem 0.35rem; }
   .last-dice-mini { width: 22px; height: 22px; padding: 2px; }
   .last-dice-mini .pip { width: 4px; height: 4px; }

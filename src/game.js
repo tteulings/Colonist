@@ -414,6 +414,8 @@ class ColonistFullGame {
     this.pendingIncomingTrade = null;
     this.tradeOffer = makeEmptyResources();
     this.tradeRequest = makeEmptyResources();
+    // Supply overview
+    this.supplyOverview = document.querySelector("#supplyOverview");
     // Persistent dice display
     this.lastDiceDisplay = document.querySelector("#lastDiceDisplay");
     this.lastDice = null; // { d1, d2 }
@@ -4325,6 +4327,32 @@ class ColonistFullGame {
     `;
   }
 
+  // ── Supply Overview ─────────────────────────────────────────────────
+  renderSupplyOverview() {
+    const el = this.supplyOverview;
+    if (!el) return;
+    // Resource bank: 19 of each minus what players hold
+    const totalInPlay = {};
+    RESOURCES.forEach(r => {
+      totalInPlay[r] = this.players.reduce((sum, p) => sum + p.resources[r], 0);
+    });
+    const resHTML = RESOURCES.map(r => {
+      const bankCount = 19 - totalInPlay[r];
+      return `<span class="supply-item"><img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" /><span>${bankCount}</span></span>`;
+    }).join("");
+
+    // Dev cards remaining
+    const devRemaining = this.devDeck ? this.devDeck.length : 0;
+
+    el.innerHTML = `
+      <span class="supply-section-label">Bank</span>
+      <span class="supply-section">${resHTML}</span>
+      <span class="supply-divider"></span>
+      <span class="supply-section-label">Dev</span>
+      <span class="supply-item"><span>${devRemaining}</span></span>
+    `;
+  }
+
   // ── Build Cost Reference ──────────────────────────────────────────────
   _initCostReference() {
     if (!this.costRefItems) return;
@@ -4497,6 +4525,7 @@ class ColonistFullGame {
     this.renderLog();
     this.renderStatusAndControls();
     this.renderLastDice();
+    this.renderSupplyOverview();
     if (!document.body.dataset.gameReady) {
       document.body.dataset.gameReady = "true";
     }
