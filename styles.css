@@ -1604,6 +1604,15 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   padding: 0.05rem 0;
 }
 
+.vp-tooltip-section {
+  font-size: 0.55rem;
+  font-weight: 800;
+  color: #3a526d;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.1rem;
+}
+
 .vp-tooltip-label { color: #45658f; }
 .vp-tooltip-value { font-weight: 800; }
 .vp-tooltip-total {

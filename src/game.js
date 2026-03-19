@@ -2127,7 +2127,38 @@ class ColonistFullGame {
       if (counter && this.tradeProposalResult) {
         const cGive = resourceString(counter.give);
         const cWant = resourceString(counter.want);
-        this.tradeProposalResult.innerHTML += `<br><span style="color:${counter.player.color};font-weight:700">${counter.player.name}</span> <span style="color:#5c55b9">counter-offers: wants ${cGive}, gives ${cWant}</span>`;
+        this.tradeProposalResult.innerHTML += `<br><span style="color:${counter.player.color};font-weight:700">${counter.player.name}</span>: I'll give ${cGive} for ${cWant}`;
+        // Add accept button for counter-offer
+        const acceptBtn = document.createElement("button");
+        acceptBtn.className = "btn-build";
+        acceptBtn.style.cssText = "font-size:0.65rem;padding:0.2rem 0.5rem;margin-left:0.3rem";
+        acceptBtn.textContent = "Accept";
+        acceptBtn.addEventListener("click", () => {
+          // Execute the counter-offer trade
+          const human = this.players.find(p => p.isHuman);
+          // Check human can afford
+          for (const r of RESOURCES) {
+            if (human.resources[r] < counter.want[r]) {
+              this.tradeProposalResult.innerHTML = '<span style="color:#c44">Not enough resources!</span>';
+              return;
+            }
+          }
+          RESOURCES.forEach(r => {
+            human.resources[r] -= counter.want[r];
+            human.resources[r] += counter.give[r];
+            counter.player.resources[r] -= counter.give[r];
+            counter.player.resources[r] += counter.want[r];
+          });
+          this.addLog(`You traded with ${counter.player.name}: gave ${cWant} for ${cGive}.`);
+          this.sfx.trade();
+          this.tradeOffer = makeEmptyResources();
+          this.tradeRequest = makeEmptyResources();
+          this.buildTradeGrids();
+          this.updateTradeButtons();
+          this.tradeProposalResult.innerHTML = `<strong style="color:#22a854">Traded with ${counter.player.name}!</strong>`;
+          this.render();
+        });
+        this.tradeProposalResult.appendChild(acceptBtn);
       }
     }
   }
@@ -2148,7 +2179,19 @@ class ColonistFullGame {
     const maxVP = Math.max(...this.players.filter(p => p.id !== aiPlayer.id).map(p => p.victoryPoints));
     if (awareness === "basic" && maxVP >= 8) return false;
     if (awareness === "advanced" && maxVP >= 7) return false;
-    // "none" awareness: no VP check at all
+
+    // Quick accept: 1:1 trade where AI has surplus and needs what's offered
+    const giveTotal = sumResources(theyWant);
+    const getTotal = sumResources(theyGive);
+    if (giveTotal === 1 && getTotal === 1) {
+      const giveRes = RESOURCES.find(r => theyWant[r] > 0);
+      const getRes = RESOURCES.find(r => theyGive[r] > 0);
+      // Accept if AI has 2+ of what's asked and needs what's offered for any goal
+      const goals = [COSTS.city, COSTS.settlement, COSTS.development, COSTS.road];
+      const needsGet = goals.some(g => (g[getRes] || 0) > aiPlayer.resources[getRes]);
+      const hasSurplus = aiPlayer.resources[giveRes] >= 2;
+      if (needsGet && hasSurplus) return true;
+    }
 
     // Score: does the trade help AI reach a goal?
     const goals = [COSTS.city, COSTS.settlement, COSTS.development, COSTS.road];
@@ -2168,42 +2211,43 @@ class ColonistFullGame {
     }
 
     // Aggressive: accept marginal trades; Balanced: need clear improvement
-    const threshold = strat === "aggressive" ? 0.02 : 0.1;
+    const threshold = strat === "aggressive" ? 0.0 : 0.05;
     return scoreAfter > scoreBefore + threshold;
   }
 
-  // Generate a counter-offer from the AI that rejected
+  // Generate a counter-offer: "I'll give you what you want, but I need X from you instead"
   _generateCounterOffer(humanPlayer, humanOffer, humanRequest) {
-    const goals = [COSTS.city, COSTS.settlement, COSTS.development, COSTS.road];
+    const requestedRes = RESOURCES.filter(r => humanRequest[r] > 0);
+    if (!requestedRes.length) return null;
+
     for (const ai of this.players) {
       if (ai.isHuman || ai.id === humanPlayer.id) continue;
-      const maxVP = Math.max(...this.players.filter(p => p.id !== ai.id).map(p => p.victoryPoints));
-      if (maxVP >= 8) continue;
+      const strat = ai.strategy?.trading || "balanced";
+      if (strat === "none" || strat === "conservative") continue;
 
-      // What does the AI need?
-      for (const goal of goals) {
-        const needs = RESOURCES.filter(r => (goal[r] || 0) > ai.resources[r]);
-        const surpluses = RESOURCES.filter(r => {
-          const needed = goals.reduce((max, g) => Math.max(max, g[r] || 0), 0);
-          return ai.resources[r] > needed;
-        });
-        if (!needs.length || !surpluses.length) continue;
-
-        // Does the human have what the AI needs?
-        const humanHas = needs.filter(r => humanPlayer.resources[r] > 0);
-        if (!humanHas.length) continue;
-
-        const wanted = humanHas[0];
-        const giving = surpluses[0];
-        if (wanted === giving) continue;
-        if (humanPlayer.resources[wanted] <= 0) continue;
-
-        const give = makeEmptyResources();
-        const want = makeEmptyResources();
-        give[giving] = 1;
-        want[wanted] = 1;
-        return { player: ai, give, want };
+      // Can this AI give what the human wants?
+      let canGive = true;
+      for (const r of requestedRes) {
+        if (ai.resources[r] < humanRequest[r]) { canGive = false; break; }
       }
+      if (!canGive) continue;
+
+      // What does the AI actually need? (different from what human offered)
+      const goals = [COSTS.city, COSTS.settlement, COSTS.development, COSTS.road];
+      const aiNeeds = RESOURCES.filter(r => {
+        return goals.some(g => (g[r] || 0) > ai.resources[r]) && humanPlayer.resources[r] > 0;
+      });
+      // Filter out resources the human already offered (that's the original offer)
+      const offeredRes = RESOURCES.filter(r => humanOffer[r] > 0);
+      const newNeeds = aiNeeds.filter(r => !offeredRes.includes(r));
+      if (!newNeeds.length) continue;
+
+      // Counter: AI gives what human wants, but wants a different resource
+      const want = makeEmptyResources();
+      want[newNeeds[0]] = 1;
+      const give = makeEmptyResources();
+      give[requestedRes[0]] = 1;
+      return { player: ai, give, want };
     }
     return null;
   }
@@ -2711,6 +2755,16 @@ class ColonistFullGame {
 
   tryBuildRoad(player) {
     if (!hasResources(player.resources, COSTS.road)) return false;
+    // Don't build roads if we should save resources for a settlement
+    const canAffordSettlement = hasResources(player.resources, COSTS.settlement);
+    const hasBuildableSpot = this.getBuildableSettlementNodes(player).length > 0;
+    if (canAffordSettlement && hasBuildableSpot) return false; // Build settlement instead
+    // Don't build more than 2 roads ahead without a settlement target
+    const strat = player.strategy?.expansion || "medium";
+    if (strat !== "complex") {
+      const target = this.selectRoadExpansionTarget(player, strat);
+      if (target == null && player.roads.size >= player.settlements.size * 3) return false;
+    }
     const edgeId = this.chooseStrategicRoadEdge(player, false);
     if (edgeId == null) return false;
     if (!this.placeRoad(player, edgeId, { free: false })) return false;
@@ -5142,26 +5196,43 @@ class ColonistFullGame {
     this._hideVPTooltip();
     const settlements = player.settlements.size;
     const cities = player.cities.size;
+    const roads = player.roads.size;
     const devVP = player.devVictoryPoints;
     const longestRoad = this.longestRoadHolder === player.id ? 2 : 0;
     const largestArmy = this.largestArmyHolder === player.id ? 2 : 0;
     const total = settlements + cities * 2 + devVP + longestRoad + largestArmy;
+    const totalDevCards = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0);
 
     const tip = document.createElement("div");
     tip.className = "vp-tooltip";
     tip.id = "vpTooltip";
-    const rows = [
-      { label: "Settlements", value: settlements },
-      { label: "Cities", value: `${cities} x 2 = ${cities * 2}` },
-    ];
-    if (devVP > 0) rows.push({ label: "Dev Cards", value: devVP });
-    if (longestRoad) rows.push({ label: "Longest Road", value: 2 });
-    if (largestArmy) rows.push({ label: "Largest Army", value: 2 });
-    rows.push({ label: "Total", value: total, total: true });
 
-    tip.innerHTML = rows.map(r =>
+    let html = '<div class="vp-tooltip-section">VP Breakdown</div>';
+    const vpRows = [
+      { label: `Settlements (${settlements}/5)`, value: settlements },
+      { label: `Cities (${cities}/4)`, value: `${cities} x 2 = ${cities * 2}` },
+    ];
+    if (devVP > 0) vpRows.push({ label: "Dev VP", value: devVP });
+    if (longestRoad) vpRows.push({ label: "Longest Road", value: 2 });
+    if (largestArmy) vpRows.push({ label: "Largest Army", value: 2 });
+    vpRows.push({ label: "Total", value: total, total: true });
+    html += vpRows.map(r =>
       `<div class="vp-tooltip-row${r.total ? " vp-tooltip-total" : ""}"><span class="vp-tooltip-label">${r.label}</span><span class="vp-tooltip-value">${r.value}</span></div>`
     ).join("");
+
+    // Building pieces remaining
+    html += '<div class="vp-tooltip-section" style="margin-top:0.3rem">Pieces</div>';
+    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Roads</span><span class="vp-tooltip-value">${roads}/15</span></div>`;
+    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Settlements</span><span class="vp-tooltip-value">${settlements}/5</span></div>`;
+    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Cities</span><span class="vp-tooltip-value">${cities}/4</span></div>`;
+
+    // Dev card info
+    html += '<div class="vp-tooltip-section" style="margin-top:0.3rem">Dev Cards</div>';
+    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">In hand</span><span class="vp-tooltip-value">${totalDevCards}</span></div>`;
+    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Knights played</span><span class="vp-tooltip-value">${player.knightsPlayed}</span></div>`;
+    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Road length</span><span class="vp-tooltip-value">${player.longestRoadLength}</span></div>`;
+
+    tip.innerHTML = html;
 
     const rect = anchorEl.getBoundingClientRect();
     tip.style.left = `${rect.left}px`;
