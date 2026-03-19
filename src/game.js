@@ -2506,16 +2506,21 @@ class ColonistFullGame {
         this.animateDiceRoll(() => {
           this._aiDiceAnimating = false;
           this.executeRollPhase(player);
-          if (this.phase === "main") {
-            const result = this.executeAiMainPhase(player);
-            if (result === "async") return;
-            this.endTurn();
-          }
-          this.saveToStorage();
           this.render();
-          if (!this.winner && !this.autoplayInterval && !this.currentPlayer.isHuman) {
-            this.scheduleAiTurnsUntilHuman();
-          }
+          // Delay before AI actions so card-deal animation plays out
+          const actionDelay = this.lastRoll !== 7 ? 800 : 200;
+          setTimeout(() => {
+            if (this.phase === "main") {
+              const result = this.executeAiMainPhase(player);
+              if (result === "async") return;
+              this.endTurn();
+            }
+            this.saveToStorage();
+            this.render();
+            if (!this.winner && !this.autoplayInterval && !this.currentPlayer.isHuman) {
+              this.scheduleAiTurnsUntilHuman();
+            }
+          }, actionDelay);
         }, player);
         return; // Wait for animation
       }
