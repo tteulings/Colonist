@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
     <title>Colonist</title>
-    <link rel="stylesheet" href="./styles.css?v=24" />
+    <link rel="stylesheet" href="./styles.css?v=25" />
   </head>
   <body>
     <div class="app-shell">
@@ -22,7 +22,7 @@
 
       <!-- Settings gear — top-left floating -->
       <details class="settings-drawer-float" id="settingsDrawer">
-        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.24</span></summary>
+        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.25</span></summary>
         <div class="settings-float-body">
           <div class="button-row">
             <button id="nextTurnBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Play AI Turns</button>
@@ -38,6 +38,10 @@
             <button id="playYearOfPlentyBtn" class="btn-dev"><img class="btn-icon" src="./assets/icons/dev-year-of-plenty.svg" alt="" />Year of Plenty</button>
             <button id="playMonopolyBtn" class="btn-dev"><img class="btn-icon" src="./assets/icons/dev-monopoly.svg" alt="" />Monopoly</button>
           </div>
+          <details class="ai-strategy-section">
+            <summary>AI Strategy Config</summary>
+            <div id="aiStrategyPanel" class="ai-strategy-panel"></div>
+          </details>
         </div>
       </details>
 
@@ -146,6 +150,6 @@
       </section>
     </div>
 
-    <script type="module" src="./src/game.js?v=24"></script>
+    <script type="module" src="./src/game.js?v=25"></script>
   </body>
 </html>

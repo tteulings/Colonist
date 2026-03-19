@@ -51,6 +51,23 @@ const BOARD_RADIUS = 2;
 const WINNING_POINTS = 10;
 const TURN_LIMIT = 500;
 
+// ── AI Strategy Configuration ──────────────────────────────────────────
+const AI_STRATEGY_CATEGORIES = {
+  placement:  { label: "Placement",  levels: ["simple", "medium", "complex"] },
+  expansion:  { label: "Expansion",  levels: ["simple", "medium", "complex"] },
+  trading:    { label: "Trading",    levels: ["none", "conservative", "balanced", "aggressive"] },
+  devCards:   { label: "Dev Cards",  levels: ["none", "reactive", "strategic"] },
+  awareness:  { label: "Awareness",  levels: ["none", "basic", "advanced"] },
+};
+
+const AI_PRESETS = {
+  beginner:     { placement: "simple",  expansion: "simple",  trading: "none",         devCards: "none",     awareness: "none" },
+  intermediate: { placement: "medium",  expansion: "medium",  trading: "balanced",     devCards: "reactive", awareness: "basic" },
+  expert:       { placement: "complex", expansion: "complex", trading: "aggressive",   devCards: "strategic", awareness: "advanced" },
+};
+
+const DEFAULT_AI_STRATEGY = { ...AI_PRESETS.intermediate };
+
 function shuffle(list) {
   const arr = [...list];
   for (let i = arr.length - 1; i > 0; i -= 1) {
@@ -431,6 +448,9 @@ class ColonistFullGame {
     this.costReference = document.querySelector("#costReference");
     this.costRefItems = document.querySelector("#costRefItems");
     this._initCostReference();
+    // AI strategy panel
+    this.aiStrategyPanel = document.querySelector("#aiStrategyPanel");
+    this._applyAllStrategies = true;
 
     this.maxLogEntries = 260;
     this.maxToasts = 4;
@@ -459,6 +479,7 @@ class ColonistFullGame {
     if (!this.loadFromStorage()) {
       this.resetGame();
     }
+    this._buildStrategyUI();
     this.startAnimationLoop();
   }
 
@@ -795,6 +816,8 @@ class ColonistFullGame {
     this.ports = assignPorts(this.geometry);
     this.devDeck = createDevelopmentDeck();
 
+    // Load persisted strategies or use defaults
+    const savedStrategies = this._loadStrategies();
     this.players = PLAYER_CONFIG.map((config, id) => ({
       id,
       name: config.name,
@@ -811,6 +834,7 @@ class ColonistFullGame {
       knightsPlayed: 0,
       longestRoadLength: 0,
       victoryPoints: 0,
+      strategy: config.isHuman ? null : { ...(savedStrategies[id] || DEFAULT_AI_STRATEGY) },
     }));
 
     this.logEntries = [];
@@ -1705,6 +1729,22 @@ class ColonistFullGame {
   }
 
   chooseRobberHex(currentPlayer) {
+    const awareness = currentPlayer.strategy?.awareness || "basic";
+
+    // None: random non-desert hex
+    if (awareness === "none") {
+      const candidates = this.geometry.hexes.filter(h =>
+        h.id !== this.robberHexId && h.resource !== "desert" && h.number
+      );
+      if (candidates.length) return candidates[Math.floor(Math.random() * candidates.length)].id;
+      return this.robberHexId;
+    }
+
+    // Advanced: identify VP leader and target them specifically
+    const vpLeader = awareness === "advanced"
+      ? this.players.filter(p => p.id !== currentPlayer.id).sort((a, b) => b.victoryPoints - a.victoryPoints)[0]
+      : null;
+
     let bestHex = this.robberHexId;
     let bestScore = Number.NEGATIVE_INFINITY;
     this.geometry.hexes.forEach((hex) => {
@@ -1714,7 +1754,15 @@ class ColonistFullGame {
         const node = this.geometry.nodes[nodeId];
         if (node.owner == null || node.structure == null || !hex.number) return;
         const base = (node.structure === "city" ? 2 : 1) * (DICE_WEIGHT[hex.number] / 6);
-        score += node.owner === currentPlayer.id ? -base : base;
+        if (node.owner === currentPlayer.id) {
+          score -= base;
+        } else {
+          score += base;
+          // Advanced: heavily weight hexes that hurt the VP leader
+          if (awareness === "advanced" && vpLeader && node.owner === vpLeader.id) {
+            score += base * (vpLeader.victoryPoints >= 7 ? 2.0 : 0.8);
+          }
+        }
       });
       if (score > bestScore) {
         bestScore = score;
@@ -1736,7 +1784,14 @@ class ColonistFullGame {
     });
     const victims = [...victimOptions];
     if (!victims.length) return;
-    const victimId = victims[Math.floor(Math.random() * victims.length)];
+    // Advanced awareness: steal from VP leader
+    let victimId;
+    const awareness = currentPlayer.strategy?.awareness || "basic";
+    if (awareness === "advanced" && victims.length > 1) {
+      victimId = victims.sort((a, b) => this.players[b].victoryPoints - this.players[a].victoryPoints)[0];
+    } else {
+      victimId = victims[Math.floor(Math.random() * victims.length)];
+    }
     this._doSteal(currentPlayer, victimId);
   }
 
@@ -1962,16 +2017,20 @@ class ColonistFullGame {
   // ── AI Trade Evaluation ─────────────────────────────────────────────
 
   aiEvaluateTrade(aiPlayer, theyGive, theyWant) {
-    // theyGive = what the AI receives, theyWant = what the AI gives away
+    const strat = aiPlayer.strategy?.trading || "balanced";
+    if (strat === "none" || strat === "conservative") return false;
+
     // Check AI can afford what's being asked
     for (const r of RESOURCES) {
       if (aiPlayer.resources[r] < theyWant[r]) return false;
     }
 
-    // Don't help the VP leader if they're close to winning
-    const proposerVP = this.players.find(p => p.id !== aiPlayer.id);
+    // Opponent awareness affects trade willingness
+    const awareness = aiPlayer.strategy?.awareness || "basic";
     const maxVP = Math.max(...this.players.filter(p => p.id !== aiPlayer.id).map(p => p.victoryPoints));
-    if (maxVP >= 8) return false; // Don't trade when someone is close to winning
+    if (awareness === "basic" && maxVP >= 8) return false;
+    if (awareness === "advanced" && maxVP >= 7) return false;
+    // "none" awareness: no VP check at all
 
     // Score: does the trade help AI reach a goal?
     const goals = [COSTS.city, COSTS.settlement, COSTS.development, COSTS.road];
@@ -1990,7 +2049,9 @@ class ColonistFullGame {
       scoreAfter += defAfter === 0 ? 10 : (1 / (1 + defAfter));
     }
 
-    return scoreAfter > scoreBefore + 0.1; // Must be a clear improvement
+    // Aggressive: accept marginal trades; Balanced: need clear improvement
+    const threshold = strat === "aggressive" ? 0.02 : 0.1;
+    return scoreAfter > scoreBefore + threshold;
   }
 
   // Generate a counter-offer from the AI that rejected
@@ -2031,6 +2092,8 @@ class ColonistFullGame {
 
   // AI proposes trades during its turn
   aiTryPlayerTrade(aiPlayer) {
+    const strat = aiPlayer.strategy?.trading || "balanced";
+    if (strat === "none" || strat === "conservative") return null;
     const goals = [COSTS.city, COSTS.settlement, COSTS.development, COSTS.road];
     for (const goal of goals) {
       if (hasResources(aiPlayer.resources, goal)) continue;
@@ -2371,38 +2434,50 @@ class ColonistFullGame {
       }
     }
 
+    const actionFns = this._getActionPriority(player);
     let actions = 0;
     while (actions < 10) {
       if (this.winner) break;
-      if (this.tryBuildSettlement(player)) {
-        actions += 1;
-        continue;
+      let acted = false;
+      for (const fn of actionFns) {
+        if (fn()) { acted = true; actions++; break; }
       }
-      if (this.tryBuildCity(player)) {
-        actions += 1;
-        continue;
-      }
-      if (this.tryBuildRoad(player)) {
-        actions += 1;
-        continue;
-      }
-      if (this.buyDevelopmentCard(player)) {
-        actions += 1;
-        continue;
-      }
-      if (this.tryTradeForGoal(player)) {
-        actions += 1;
-        continue;
-      }
-      break;
+      if (!acted) break;
     }
     this.recomputeScores();
     this.checkForWinner(player);
     return "done";
   }
 
+  _getActionPriority(player) {
+    const s = player.strategy || {};
+    const settlement = () => this.tryBuildSettlement(player);
+    const city = () => this.tryBuildCity(player);
+    const road = () => this.tryBuildRoad(player);
+    const dev = () => s.devCards !== "none" && this.buyDevelopmentCard(player);
+    const trade = () => this.tryTradeForGoal(player);
+
+    // Advanced awareness at 8+ VP: prioritize points
+    if (s.awareness === "advanced" && player.victoryPoints >= 8) {
+      return [city, dev, settlement, trade, road];
+    }
+    // Strategic dev cards: buy dev cards earlier when chasing army
+    if (s.devCards === "strategic") {
+      const armyHolder = this.largestArmyHolder;
+      const holderKnights = armyHolder != null ? this.players[armyHolder].knightsPlayed : 2;
+      if (player.knightsPlayed >= holderKnights - 2 && armyHolder !== player.id) {
+        return [settlement, city, dev, road, trade];
+      }
+    }
+    // Default priority
+    return [settlement, city, road, dev, trade];
+  }
+
   maybePlayBestDevCard(player) {
+    const strat = player.strategy?.devCards || "reactive";
+    if (strat === "none") return false;
     if (this.currentTurnPlayedDevCard || this.phase !== "main") return false;
+
     if (player.devCards.knight > 0 && this.shouldPlayKnight(player)) {
       return this.playDevelopmentCard(player, "knight");
     }
@@ -2419,21 +2494,44 @@ class ColonistFullGame {
   }
 
   shouldPlayKnight(player) {
+    const strat = player.strategy?.devCards || "reactive";
     const badRobber = this.geometry.hexes[this.robberHexId].nodes.some((nodeId) => {
       const node = this.geometry.nodes[nodeId];
       return node.owner === player.id;
     });
     if (badRobber) return true;
+
+    // Strategic: chase largest army proactively
+    if (strat === "strategic") {
+      const armyHolder = this.largestArmyHolder;
+      const holderKnights = armyHolder != null ? this.players[armyHolder].knightsPlayed : 2;
+      // If we're within 1 knight of claiming/keeping army, play it
+      if (player.knightsPlayed >= holderKnights - 1 && armyHolder !== player.id) return true;
+      // Already hold army and robber isn't hurting us — save the knight
+      if (armyHolder === player.id && !badRobber) return false;
+    }
+
     const target = this.chooseRobberHex(player);
     return target !== this.robberHexId;
   }
 
   shouldPlayMonopoly(player) {
+    const strat = player.strategy?.devCards || "reactive";
     const target = this.chooseBestMonopolyResource(player);
     const total = this.players.reduce((acc, other) => {
       if (other.id === player.id) return acc;
       return acc + other.resources[target];
     }, 0);
+
+    if (strat === "strategic") {
+      // Strategic: play even at 2 if we urgently need that resource for a build
+      const goals = [COSTS.city, COSTS.settlement];
+      for (const goal of goals) {
+        if ((goal[target] || 0) > player.resources[target] && total >= 2) return true;
+      }
+      // Otherwise wait for higher threshold
+      return total >= 4;
+    }
     return total >= 3;
   }
 
@@ -2484,7 +2582,11 @@ class ColonistFullGame {
   }
 
   tryTradeForGoal(player) {
+    const strat = player.strategy?.trading || "balanced";
+    if (strat === "none") return false;
+
     const goals = [COSTS.settlement, COSTS.city, COSTS.development, COSTS.road];
+    let traded = false;
     for (const goal of goals) {
       if (hasResources(player.resources, goal)) continue;
       const deficits = RESOURCES.map((resource) => ({
@@ -2503,13 +2605,22 @@ class ColonistFullGame {
         surplus: player.resources[resource] - (goal[resource] || 0),
         income: incomes[resource],
       }))
-        .filter((entry) => entry.surplus >= entry.rate)
+        .filter((entry) => {
+          // Conservative: need extra buffer beyond rate
+          if (strat === "conservative") return entry.surplus >= entry.rate + 1;
+          // Aggressive: trade even at exactly the rate
+          if (strat === "aggressive") return player.resources[entry.resource] >= entry.rate;
+          // Balanced (default): surplus must cover rate
+          return entry.surplus >= entry.rate;
+        })
         .sort((a, b) => b.surplus - a.surplus || b.income - a.income);
       if (!donors.length) continue;
       this.performBankTrade(player, donors[0].resource, wanted);
+      // Aggressive: try multiple trades per goal
+      if (strat === "aggressive") { traded = true; continue; }
       return true;
     }
-    return false;
+    return traded;
   }
 
   getResourceIncomeProfile(player) {
@@ -2533,6 +2644,20 @@ class ColonistFullGame {
       return Number.NEGATIVE_INFINITY;
     }
 
+    const strat = player.strategy?.placement || "medium";
+
+    // ── Simple: pure dice probability ──
+    if (strat === "simple") {
+      let score = 0;
+      node.adjacentHexes.forEach((hexId) => {
+        const hex = this.geometry.hexes[hexId];
+        if (hex.resource === "desert" || !hex.number) return;
+        score += DICE_WEIGHT[hex.number] / 6;
+      });
+      return score;
+    }
+
+    // ── Medium (default): scarcity + diversity + ports + blocking ──
     const income = this.getResourceIncomeProfile(player);
     const resourceSeen = new Set();
     let score = 0;
@@ -2555,6 +2680,31 @@ class ColonistFullGame {
       if (owner != null && owner !== player.id) blockValue += 0.45;
     });
     score += blockValue;
+
+    // ── Complex: add goal-completion bonus, port targeting, robber avoidance ──
+    if (strat === "complex") {
+      // Bonus for completing resource sets needed for buildings
+      const needed = {};
+      [COSTS.settlement, COSTS.city].forEach(cost => {
+        RESOURCES.forEach(r => { needed[r] = Math.max(needed[r] || 0, cost[r] || 0); });
+      });
+      const missingTypes = RESOURCES.filter(r => income[r] < 0.2 && (needed[r] || 0) > 0);
+      node.adjacentHexes.forEach((hexId) => {
+        const hex = this.geometry.hexes[hexId];
+        if (hex.resource === "desert" || !hex.number) return;
+        if (missingTypes.includes(hex.resource)) score += 0.5;
+      });
+      // Port targeting: 2:1 port for a resource we produce a lot of
+      ports.forEach(type => {
+        if (type !== "any" && income[type] > 0.8) score += 0.6;
+      });
+      // Slight penalty for 6/8 hexes (robber targets)
+      node.adjacentHexes.forEach((hexId) => {
+        const hex = this.geometry.hexes[hexId];
+        if (hex.number === 6 || hex.number === 8) score -= 0.15;
+      });
+    }
+
     return score;
   }
 
@@ -2620,7 +2770,21 @@ class ColonistFullGame {
   }
 
   chooseStrategicRoadEdge(player, freeBuild) {
-    const targetNode = this.selectRoadExpansionTarget(player);
+    const strat = player.strategy?.expansion || "medium";
+
+    // Simple: just pick best adjacent edge
+    if (strat === "simple") {
+      return this.getFallbackRoad(player, freeBuild);
+    }
+
+    // Complex: check if we should chase longest road
+    if (strat === "complex") {
+      const lrEdge = this._longestRoadChaseEdge(player, freeBuild);
+      if (lrEdge != null) return lrEdge;
+    }
+
+    // Medium + Complex: pathfind to best expansion target
+    const targetNode = this.selectRoadExpansionTarget(player, strat);
     if (targetNode != null) {
       const path = this.pathToNode(player, targetNode);
       if (path && path.length) {
@@ -2631,7 +2795,41 @@ class ColonistFullGame {
     return this.getFallbackRoad(player, freeBuild);
   }
 
-  selectRoadExpansionTarget(player) {
+  _longestRoadChaseEdge(player, freeBuild) {
+    // If we're within 2 of longest road holder, or no holder yet, try to extend
+    const holderLen = this.longestRoadHolder != null ? this.players[this.longestRoadHolder].longestRoadLength : 4;
+    if (player.longestRoadLength >= holderLen - 2 || this.longestRoadHolder === player.id) {
+      // Find edge that extends our longest road
+      let bestEdge = null;
+      let bestLen = player.longestRoadLength;
+      this.geometry.edges.forEach((edge) => {
+        if (!this.canBuildRoad(player, edge.id, { free: freeBuild })) return;
+        // Simulate: would this road increase our longest road?
+        const connected = edge.nodes.some(nid =>
+          this.geometry.nodes[nid].edgeIds.some(eid => this.geometry.edges[eid].owner === player.id)
+        );
+        if (connected) {
+          // Heuristic: edges extending from endpoints of current network are better
+          const endpoints = edge.nodes.filter(nid => {
+            const n = this.geometry.nodes[nid];
+            return n.owner == null || n.owner === player.id;
+          });
+          if (endpoints.length > 0) {
+            const extScore = bestLen + 1;
+            if (extScore > bestLen) {
+              bestLen = extScore;
+              bestEdge = edge.id;
+            }
+          }
+        }
+      });
+      if (bestEdge != null && player.longestRoadLength >= holderLen - 1) return bestEdge;
+    }
+    return null;
+  }
+
+  selectRoadExpansionTarget(player, strat) {
+    const pathPenalty = strat === "complex" ? 0.3 : 0.45;
     let bestNode = null;
     let bestScore = Number.NEGATIVE_INFINITY;
     this.geometry.nodes.forEach((node) => {
@@ -2639,7 +2837,16 @@ class ColonistFullGame {
       if (node.neighbors.some((neighborId) => this.geometry.nodes[neighborId].structure != null)) return;
       const path = this.pathToNode(player, node.id);
       if (!path || !path.length) return;
-      const score = this.getNodeProductionScore(node.id, player) - path.length * 0.45;
+      // Complex: also consider ports we don't have
+      let portBonus = 0;
+      if (strat === "complex" && node.ports.length > 0) {
+        const income = this.getResourceIncomeProfile(player);
+        node.ports.forEach(type => {
+          if (type !== "any" && income[type] > 0.6) portBonus += 0.8;
+          else if (type === "any") portBonus += 0.3;
+        });
+      }
+      const score = this.getNodeProductionScore(node.id, player) + portBonus - path.length * pathPenalty;
       if (score > bestScore) {
         bestScore = score;
         bestNode = node.id;
@@ -2930,6 +3137,7 @@ class ColonistFullGame {
         knightsPlayed: p.knightsPlayed,
         longestRoadLength: p.longestRoadLength,
         victoryPoints: p.victoryPoints,
+        strategy: p.strategy ? { ...p.strategy } : null,
       })),
       devDeck: [...this.devDeck],
       turn: this.turn,
@@ -2956,6 +3164,24 @@ class ColonistFullGame {
       const data = this.serializeState();
       localStorage.setItem(ColonistFullGame.STORAGE_KEY, JSON.stringify(data));
     } catch (_) { /* quota exceeded or private mode — ignore */ }
+  }
+
+  // Strategy persistence — survives game resets
+  static STRATEGY_KEY = "colonist_ai_strategies";
+
+  _saveStrategies() {
+    try {
+      const data = {};
+      this.players.forEach(p => { if (p.strategy) data[p.id] = { ...p.strategy }; });
+      localStorage.setItem(ColonistFullGame.STRATEGY_KEY, JSON.stringify(data));
+    } catch (_) {}
+  }
+
+  _loadStrategies() {
+    try {
+      const raw = localStorage.getItem(ColonistFullGame.STRATEGY_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (_) { return {}; }
   }
 
   clearStorage() {
@@ -3027,6 +3253,7 @@ class ColonistFullGame {
         knightsPlayed: saved.knightsPlayed,
         longestRoadLength: saved.longestRoadLength,
         victoryPoints: saved.victoryPoints,
+        strategy: config.isHuman ? null : (saved.strategy ? { ...saved.strategy } : { ...DEFAULT_AI_STRATEGY }),
       };
     });
 
@@ -4292,6 +4519,91 @@ class ColonistFullGame {
       <div class="last-dice-mini">${pipHTML(this.lastDice.d2)}</div>
       <span class="last-dice-total">${this.lastRoll}</span>
     `;
+  }
+
+  // ── AI Strategy Config UI ─────────────────────────────────────────────
+  _buildStrategyUI() {
+    const panel = this.aiStrategyPanel;
+    if (!panel) return;
+
+    panel.innerHTML = "";
+
+    // Presets row
+    const presetRow = document.createElement("div");
+    presetRow.className = "ai-strat-presets";
+    Object.entries(AI_PRESETS).forEach(([name, preset]) => {
+      const btn = document.createElement("button");
+      btn.className = "ai-strat-preset-btn btn-neutral";
+      btn.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+      btn.addEventListener("click", () => {
+        this.players.forEach(p => {
+          if (p.strategy) Object.assign(p.strategy, preset);
+        });
+        this._saveStrategies();
+        this._buildStrategyUI();
+      });
+      presetRow.appendChild(btn);
+    });
+    panel.appendChild(presetRow);
+
+    // Apply-all toggle
+    const applyRow = document.createElement("label");
+    applyRow.className = "ai-strat-apply-all";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = this._applyAllStrategies;
+    cb.addEventListener("change", () => {
+      this._applyAllStrategies = cb.checked;
+      this._buildStrategyUI();
+    });
+    applyRow.appendChild(cb);
+    applyRow.appendChild(document.createTextNode("Apply to all bots"));
+    panel.appendChild(applyRow);
+
+    // Per-bot config
+    const aiPlayers = this.players.filter(p => p.strategy);
+    const botsToShow = this._applyAllStrategies ? [aiPlayers[0]] : aiPlayers;
+
+    botsToShow.forEach(bot => {
+      const section = document.createElement("div");
+      section.className = "ai-strat-player";
+
+      if (!this._applyAllStrategies) {
+        const header = document.createElement("div");
+        header.className = "ai-strat-player-header";
+        header.innerHTML = `<img src="${bot.avatar}" alt="" /><span style="color:${bot.color}">${bot.name}</span>`;
+        section.appendChild(header);
+      }
+
+      Object.entries(AI_STRATEGY_CATEGORIES).forEach(([key, cat]) => {
+        const row = document.createElement("div");
+        row.className = "ai-strat-row";
+        const label = document.createElement("label");
+        label.textContent = cat.label;
+        const sel = document.createElement("select");
+        sel.className = "ai-strat-row-select";
+        cat.levels.forEach(level => {
+          const opt = document.createElement("option");
+          opt.value = level;
+          opt.textContent = level.charAt(0).toUpperCase() + level.slice(1);
+          if (bot.strategy[key] === level) opt.selected = true;
+          sel.appendChild(opt);
+        });
+        sel.addEventListener("change", () => {
+          if (this._applyAllStrategies) {
+            aiPlayers.forEach(p => { p.strategy[key] = sel.value; });
+          } else {
+            bot.strategy[key] = sel.value;
+          }
+          this._saveStrategies();
+        });
+        row.appendChild(label);
+        row.appendChild(sel);
+        section.appendChild(row);
+      });
+
+      panel.appendChild(section);
+    });
   }
 
   // ── Supply Overview ─────────────────────────────────────────────────

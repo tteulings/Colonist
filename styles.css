@@ -636,6 +636,120 @@ main.table-layout {
 
 .settings-float-body .button-row { margin-bottom: 0.35rem; }
 
+/* ── AI Strategy Config Panel ── */
+.ai-strategy-section {
+  margin-top: 0.3rem;
+  border-top: 1px solid rgba(120, 138, 162, 0.3);
+  padding-top: 0.3rem;
+}
+
+.ai-strategy-section summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: #1a3a5c;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.ai-strategy-section summary::before {
+  content: "▸";
+  font-size: 0.7rem;
+  transition: transform 0.15s;
+}
+
+.ai-strategy-section[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.ai-strategy-panel {
+  margin-top: 0.3rem;
+}
+
+.ai-strat-presets {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.4rem;
+}
+
+.ai-strat-preset-btn {
+  flex: 1;
+  padding: 0.25rem 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 5px;
+  text-align: center;
+}
+
+.ai-strat-preset-btn.active {
+  box-shadow: 0 0 0 2px rgba(25, 160, 184, 0.5) inset;
+}
+
+.ai-strat-apply-all {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #2a4c70;
+  margin-bottom: 0.4rem;
+}
+
+.ai-strat-apply-all input {
+  accent-color: #19a0b8;
+}
+
+.ai-strat-player {
+  margin-bottom: 0.35rem;
+  padding: 0.3rem;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(120, 138, 162, 0.25);
+  border-radius: 6px;
+}
+
+.ai-strat-player-header {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.25rem;
+}
+
+.ai-strat-player-header img {
+  width: 18px; height: 18px;
+  border-radius: 999px;
+}
+
+.ai-strat-player-header span {
+  font-weight: 700;
+  font-size: 0.7rem;
+}
+
+.ai-strat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.3rem;
+  margin-bottom: 0.15rem;
+}
+
+.ai-strat-row label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #2a4c70;
+  min-width: 55px;
+}
+
+.ai-strat-row select {
+  flex: 1;
+  font-size: 0.62rem;
+  padding: 0.15rem 0.25rem;
+  border-radius: 4px;
+  max-width: 110px;
+}
+
 /* ── Buttons ── */
 button {
   border: 1px solid rgba(0, 0, 0, 0.18);
