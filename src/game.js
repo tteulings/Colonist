@@ -971,8 +971,8 @@ class ColonistFullGame {
     }
   }
 
-  addLog(text) {
-    this.logEntries.push(text);
+  addLog(text, meta = null) {
+    this.logEntries.push({ text, meta, time: Date.now() });
     if (this.logEntries.length > this.maxLogEntries) {
       this.logEntries = this.logEntries.slice(-this.maxLogEntries);
     }
@@ -1735,15 +1735,10 @@ class ColonistFullGame {
     const victims = [...victimOptions];
     if (!victims.length) return;
     const victimId = victims[Math.floor(Math.random() * victims.length)];
-    const victim = this.players[victimId];
-    const available = RESOURCES.filter((r) => victim.resources[r] > 0);
-    const stolen = available[Math.floor(Math.random() * available.length)];
-    victim.resources[stolen] -= 1;
-    currentPlayer.resources[stolen] += 1;
-    this.addLog(`${currentPlayer.name} stole 1 ${stolen} from ${victim.name}.`);
+    this._doSteal(currentPlayer, victimId);
   }
 
-  stealFromVictim(currentPlayer, victimId) {
+  _doSteal(currentPlayer, victimId) {
     const victim = this.players[victimId];
     const available = RESOURCES.filter((r) => victim.resources[r] > 0);
     if (!available.length) return;
@@ -1751,6 +1746,33 @@ class ColonistFullGame {
     victim.resources[stolen] -= 1;
     currentPlayer.resources[stolen] += 1;
     this.addLog(`${currentPlayer.name} stole 1 ${stolen} from ${victim.name}.`);
+    this._showStealAnimation(currentPlayer, victim, stolen);
+  }
+
+  _showStealAnimation(thief, victim, resource) {
+    const stack = document.getElementById("toastStack");
+    if (!stack) return;
+    const toast = document.createElement("div");
+    toast.className = "toast steal-toast";
+    toast.innerHTML = `
+      <img class="rgt-avatar" src="${thief.avatar}" alt="" />
+      <span style="color:${thief.color};font-weight:700;font-size:0.68rem">${thief.name}</span>
+      <span style="font-size:0.65rem;color:#c44">stole</span>
+      <img style="width:16px;height:16px" src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
+      <span style="font-size:0.65rem">from</span>
+      <img class="rgt-avatar" src="${victim.avatar}" alt="" />
+      <span style="color:${victim.color};font-weight:700;font-size:0.68rem">${victim.name}</span>
+    `;
+    stack.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateY(-4px)";
+      setTimeout(() => toast.remove(), 180);
+    }, 3000);
+  }
+
+  stealFromVictim(currentPlayer, victimId) {
+    this._doSteal(currentPlayer, victimId);
   }
 
   showVictimPanel(currentPlayer, victimIds) {
@@ -1952,6 +1974,13 @@ class ColonistFullGame {
       this.render();
     } else {
       this.addLog("All players rejected your trade offer.");
+      // Try to generate a counter-offer from AI
+      const counter = this._generateCounterOffer(player, offer, request);
+      if (counter && this.tradeProposalResult) {
+        const cGive = resourceString(counter.give);
+        const cWant = resourceString(counter.want);
+        this.tradeProposalResult.innerHTML += `<br><span style="color:${counter.player.color};font-weight:700">${counter.player.name}</span> <span style="color:#5c55b9">counter-offers: wants ${cGive}, gives ${cWant}</span>`;
+      }
     }
   }
 
@@ -1987,6 +2016,42 @@ class ColonistFullGame {
     }
 
     return scoreAfter > scoreBefore + 0.1; // Must be a clear improvement
+  }
+
+  // Generate a counter-offer from the AI that rejected
+  _generateCounterOffer(humanPlayer, humanOffer, humanRequest) {
+    const goals = [COSTS.city, COSTS.settlement, COSTS.development, COSTS.road];
+    for (const ai of this.players) {
+      if (ai.isHuman || ai.id === humanPlayer.id) continue;
+      const maxVP = Math.max(...this.players.filter(p => p.id !== ai.id).map(p => p.victoryPoints));
+      if (maxVP >= 8) continue;
+
+      // What does the AI need?
+      for (const goal of goals) {
+        const needs = RESOURCES.filter(r => (goal[r] || 0) > ai.resources[r]);
+        const surpluses = RESOURCES.filter(r => {
+          const needed = goals.reduce((max, g) => Math.max(max, g[r] || 0), 0);
+          return ai.resources[r] > needed;
+        });
+        if (!needs.length || !surpluses.length) continue;
+
+        // Does the human have what the AI needs?
+        const humanHas = needs.filter(r => humanPlayer.resources[r] > 0);
+        if (!humanHas.length) continue;
+
+        const wanted = humanHas[0];
+        const giving = surpluses[0];
+        if (wanted === giving) continue;
+        if (humanPlayer.resources[wanted] <= 0) continue;
+
+        const give = makeEmptyResources();
+        const want = makeEmptyResources();
+        give[giving] = 1;
+        want[wanted] = 1;
+        return { player: ai, give, want };
+      }
+    }
+    return null;
   }
 
   // AI proposes trades during its turn
@@ -4064,13 +4129,29 @@ class ColonistFullGame {
     renderMini(right, this.rightPlayerPanel);
   }
 
+  _enrichLogText(text) {
+    // Replace resource names with inline icons
+    let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    RESOURCES.forEach(r => {
+      const regex = new RegExp(`\\b(\\d+)\\s+${RESOURCE_LABEL[r]}\\b`, "gi");
+      html = html.replace(regex, `$1 <img class="log-res-icon" src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />`);
+    });
+    // Color player names
+    this.players.forEach(p => {
+      html = html.replace(new RegExp(`\\b${p.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, "g"),
+        `<span style="color:${p.color};font-weight:700">${p.name}</span>`);
+    });
+    return html;
+  }
+
   renderLog() {
     this.logContainer.innerHTML = "";
     this.logEntries.slice(-20).forEach((entry) => {
+      const text = typeof entry === "string" ? entry : entry.text;
       const line = document.createElement("div");
       line.className = "log-entry";
-      if (entry.includes("wins")) line.classList.add("winner");
-      line.textContent = entry;
+      if (text.includes("wins")) line.classList.add("winner");
+      line.innerHTML = this._enrichLogText(text);
       this.logContainer.appendChild(line);
     });
     this.logContainer.scrollTop = this.logContainer.scrollHeight;

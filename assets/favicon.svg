@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="hex" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#43aa8b"/>
+      <stop offset="100%" stop-color="#2d8a6e"/>
+    </linearGradient>
+    <linearGradient id="ocean" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3a9fd4"/>
+      <stop offset="100%" stop-color="#1b6ba3"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="12" fill="url(#ocean)"/>
+  <polygon points="32,8 52,20 52,44 32,56 12,44 12,20" fill="url(#hex)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="32" cy="32" r="10" fill="#fff" opacity="0.95"/>
+  <text x="32" y="37" text-anchor="middle" font-family="Arial,sans-serif" font-weight="800" font-size="16" fill="#1a3a5c">C</text>
+</svg>
