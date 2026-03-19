@@ -2052,7 +2052,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .bottom-bar { order: 3; flex-shrink: 0; }
   .right-rail {
     position: absolute;
-    top: 68px;
+    top: 86px;
     right: 0;
     bottom: auto;
     width: 145px;
@@ -2065,49 +2065,51 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   }
   .rail-players {
     position: fixed;
-    top: 30px;
+    top: 34px;
     left: 0;
     right: 0;
     width: 100%;
     z-index: 25;
-    background: rgba(15, 35, 55, 0.88);
-    backdrop-filter: blur(6px);
+    background: rgba(10, 28, 48, 0.92);
+    backdrop-filter: blur(8px);
     border-radius: 0;
-    padding: 0.2rem 0.3rem;
+    padding: 0.3rem 0.4rem;
     border: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   }
   .rail-players h2 { display: none; }
   #scoreboard {
     display: flex !important;
     flex-direction: row;
-    gap: 0.3rem;
+    gap: 0.35rem;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
   .player-card-mini {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.15);
-    padding: 0.2rem 0.35rem;
-    font-size: 0.65rem;
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
+    padding: 0.3rem 0.4rem;
+    font-size: 0.75rem;
     flex-shrink: 0;
     min-width: 0;
     flex: 1;
   }
-  .player-card-mini .player-avatar { width: 20px; height: 20px; }
-  .player-card-mini .player-name { font-size: 0.62rem; }
-  .player-card-mini .player-name,
-  .player-vp { color: rgba(255, 255, 255, 0.9); }
-  .player-vp { font-size: 0.6rem; }
-  .player-info-row2 { font-size: 0.52rem; gap: 0.25rem; }
-  .player-hand-counts { font-size: 0.55rem; }
-  .player-header-right { gap: 0.1rem; }
+  .player-card-mini .player-avatar { width: 26px; height: 26px; }
+  .player-card-mini .player-name { font-size: 0.78rem; color: #fff !important; }
+  .player-vp { color: #fff !important; font-size: 0.75rem; font-weight: 800; }
+  .player-info-row2 { font-size: 0.62rem; gap: 0.3rem; color: rgba(255, 255, 255, 0.8); }
+  .player-info-row2 span { color: rgba(255, 255, 255, 0.8); }
+  .player-hand-counts { font-size: 0.65rem; }
+  .hand-count { color: rgba(255, 255, 255, 0.85) !important; }
+  .stat-icon { opacity: 0.9; }
+  .player-header-right { gap: 0.12rem; }
   .player-card-mini.active {
-    background: rgba(255, 255, 255, 0.18);
-    border-color: rgba(74, 172, 233, 0.6);
+    background: rgba(255, 255, 255, 0.22);
+    border-color: rgba(74, 172, 233, 0.7);
+    box-shadow: 0 0 0 1px rgba(74, 172, 233, 0.3) inset;
   }
-  .award-badge { font-size: 0.5rem; padding: 0.05rem 0.15rem; }
-  .board-area { margin-top: 38px; }
+  .award-badge { font-size: 0.55rem; padding: 0.06rem 0.18rem; font-weight: 800; }
+  .board-area { margin-top: 50px; }
   .rail-log { display: none; }
   .log-toggle { display: none; }
   /* Trade panel on mobile */
@@ -2161,16 +2163,16 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .resource-card .resource-count { font-size: 0.75rem; }
   .right-rail { min-width: auto; max-width: 140px; width: auto; }
   .rail-card { padding: 0.15rem; }
-  .rail-players { padding: 0.15rem 0.25rem !important; }
-  .player-card-mini { padding: 0.15rem 0.25rem; font-size: 0.58rem; gap: 0.1rem; }
-  .player-card-mini .player-avatar { width: 18px; height: 18px; }
-  .player-card-mini .player-name { font-size: 0.55rem; }
-  .player-header-right { gap: 0.08rem; }
-  .player-vp { font-size: 0.55rem; }
-  .player-hand-counts { font-size: 0.5rem; }
-  .player-info-row2 { font-size: 0.5rem; }
-  #scoreboard { gap: 0.2rem; }
-  .award-badge { font-size: 0.45rem; padding: 0.02rem 0.12rem; }
+  .rail-players { padding: 0.25rem 0.3rem !important; }
+  .player-card-mini { padding: 0.25rem 0.3rem; font-size: 0.68rem; gap: 0.15rem; }
+  .player-card-mini .player-avatar { width: 22px; height: 22px; }
+  .player-card-mini .player-name { font-size: 0.7rem; }
+  .player-header-right { gap: 0.1rem; }
+  .player-vp { font-size: 0.68rem; }
+  .player-hand-counts { font-size: 0.58rem; }
+  .player-info-row2 { font-size: 0.56rem; }
+  #scoreboard { gap: 0.25rem; }
+  .award-badge { font-size: 0.5rem; padding: 0.04rem 0.14rem; }
   .bottom-bar { padding: 0.25rem 0.3rem; gap: 0.2rem; border-radius: 0; min-height: 46px; }
   .action-prompt-row { gap: 0.15rem; }
   .action-prompt-status { gap: 0.2rem; }
