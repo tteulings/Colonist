@@ -5005,25 +5005,93 @@ class ColonistFullGame {
   showResourceGainToasts(gainByPlayer) {
     const stack = document.getElementById("toastStack");
     if (!stack) return;
+    let delay = 0;
     gainByPlayer.forEach((gain, playerId) => {
       if (sumResources(gain) === 0) return;
       const player = this.players[playerId];
-      const toast = document.createElement("div");
-      toast.className = "toast resource-gain-toast";
-      const resHTML = RESOURCES.filter(r => gain[r] > 0)
-        .map(r => `<span class="rgt-res"><span>+${gain[r]}</span><img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" /></span>`)
-        .join("");
-      toast.innerHTML = `
-        <img class="rgt-avatar" src="${player.avatar}" alt="" />
-        <span style="color:${player.color};font-weight:700;font-size:0.65rem">${player.name}</span>
-        <span class="rgt-resources">${resHTML}</span>
-      `;
-      stack.appendChild(toast);
+
+      // Animate flying cards from board to player
+      this._animateCardDeal(player, gain, delay);
+
+      // Show toast with a stagger
       setTimeout(() => {
-        toast.style.opacity = "0";
-        toast.style.transform = "translateY(-4px)";
-        setTimeout(() => toast.remove(), 180);
-      }, 2800);
+        const toast = document.createElement("div");
+        toast.className = "toast resource-gain-toast";
+        const resHTML = RESOURCES.filter(r => gain[r] > 0)
+          .map(r => `<span class="rgt-res"><span>+${gain[r]}</span><img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" /></span>`)
+          .join("");
+        toast.innerHTML = `
+          <img class="rgt-avatar" src="${player.avatar}" alt="" />
+          <span style="color:${player.color};font-weight:700;font-size:0.65rem">${player.name}</span>
+          <span class="rgt-resources">${resHTML}</span>
+        `;
+        stack.appendChild(toast);
+        this.sfx.resourceGain();
+        setTimeout(() => {
+          toast.style.opacity = "0";
+          toast.style.transform = "translateY(-4px)";
+          setTimeout(() => toast.remove(), 180);
+        }, 2800);
+      }, delay);
+      delay += 300;
+    });
+  }
+
+  _animateCardDeal(player, gain, startDelay = 0) {
+    const boardPanel = document.querySelector(".board-panel");
+    if (!boardPanel) return;
+    const boardRect = boardPanel.getBoundingClientRect();
+
+    // Find player's avatar position in scoreboard as the target
+    const avatarEl = this.scoreboard?.querySelector(`.player-card-mini:nth-child(${player.id + 1}) .player-avatar`);
+    let targetX, targetY;
+    if (avatarEl) {
+      const avatarRect = avatarEl.getBoundingClientRect();
+      targetX = avatarRect.left + avatarRect.width / 2 - boardRect.left;
+      targetY = avatarRect.top + avatarRect.height / 2 - boardRect.top;
+    } else {
+      targetX = boardRect.width - 30;
+      targetY = 30 + player.id * 40;
+    }
+
+    // Find hexes that produced resources for this player
+    const producingHexes = [];
+    this.geometry.hexes.forEach(hex => {
+      if (hex.id === this.robberHexId || hex.number !== this.lastRoll) return;
+      hex.nodes.forEach(nodeId => {
+        const node = this.geometry.nodes[nodeId];
+        if (node.owner === player.id && node.structure) {
+          producingHexes.push(hex);
+        }
+      });
+    });
+
+    let cardIndex = 0;
+    RESOURCES.forEach(r => {
+      if (gain[r] <= 0) return;
+      for (let i = 0; i < gain[r]; i++) {
+        const hex = producingHexes.find(h => h.resource === r) || producingHexes[0];
+        if (!hex) continue;
+
+        // Convert hex center from world to screen coords
+        const screenX = (hex.center.x * this.view.scale + this.view.offsetX);
+        const screenY = (hex.center.y * this.view.scale + this.view.offsetY);
+
+        const flyDelay = startDelay + cardIndex * 80;
+        cardIndex++;
+
+        setTimeout(() => {
+          const card = document.createElement("div");
+          card.className = `flying-card ${r}`;
+          card.innerHTML = `<img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />`;
+          card.style.left = `${screenX}px`;
+          card.style.top = `${screenY}px`;
+          card.style.setProperty("--fly-x", `${targetX - screenX}px`);
+          card.style.setProperty("--fly-y", `${targetY - screenY}px`);
+          boardPanel.appendChild(card);
+          setTimeout(() => card.remove(), 600);
+        }, flyDelay);
+      }
     });
   }
 
