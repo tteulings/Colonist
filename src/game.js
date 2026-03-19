@@ -53,11 +53,52 @@ const TURN_LIMIT = 500;
 
 // ── AI Strategy Configuration ──────────────────────────────────────────
 const AI_STRATEGY_CATEGORIES = {
-  placement:  { label: "Placement",  levels: ["simple", "medium", "complex"] },
-  expansion:  { label: "Expansion",  levels: ["simple", "medium", "complex"] },
-  trading:    { label: "Trading",    levels: ["none", "conservative", "balanced", "aggressive"] },
-  devCards:   { label: "Dev Cards",  levels: ["none", "reactive", "strategic"] },
-  awareness:  { label: "Awareness",  levels: ["none", "basic", "advanced"] },
+  placement: {
+    label: "Placement",
+    levels: ["simple", "medium", "complex"],
+    descriptions: {
+      simple:  "Picks spots with highest dice probability only",
+      medium:  "Weighs scarcity, diversity, ports, and blocking",
+      complex: "Also targets missing resources, specific ports, avoids robber magnets",
+    },
+  },
+  expansion: {
+    label: "Expansion",
+    levels: ["simple", "medium", "complex"],
+    descriptions: {
+      simple:  "Builds roads to nearest good spot",
+      medium:  "Pathfinds to best reachable settlement location",
+      complex: "Also hunts Longest Road and targets valuable ports",
+    },
+  },
+  trading: {
+    label: "Trading",
+    levels: ["none", "conservative", "balanced", "aggressive"],
+    descriptions: {
+      none:         "Never trades",
+      conservative: "Bank trades only, keeps a resource buffer",
+      balanced:     "Bank + player trades when clearly beneficial",
+      aggressive:   "Trades often, accepts marginal deals, offers 2-for-1",
+    },
+  },
+  devCards: {
+    label: "Dev Cards",
+    levels: ["none", "reactive", "strategic"],
+    descriptions: {
+      none:      "Never buys or plays dev cards",
+      reactive:  "Buys when affordable, plays when obviously useful",
+      strategic: "Chases Largest Army, times Monopoly for max steal, saves cards",
+    },
+  },
+  awareness: {
+    label: "Awareness",
+    levels: ["none", "basic", "advanced"],
+    descriptions: {
+      none:     "Ignores other players entirely, random robber placement",
+      basic:    "Targets opponents with robber, won't help near-winners",
+      advanced: "Targets VP leader, steals from leader, shifts priorities near endgame",
+    },
+  },
 };
 
 const AI_PRESETS = {
@@ -4576,6 +4617,8 @@ class ColonistFullGame {
       }
 
       Object.entries(AI_STRATEGY_CATEGORIES).forEach(([key, cat]) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "ai-strat-row-wrapper";
         const row = document.createElement("div");
         row.className = "ai-strat-row";
         const label = document.createElement("label");
@@ -4586,20 +4629,28 @@ class ColonistFullGame {
           const opt = document.createElement("option");
           opt.value = level;
           opt.textContent = level.charAt(0).toUpperCase() + level.slice(1);
+          opt.title = cat.descriptions?.[level] || "";
           if (bot.strategy[key] === level) opt.selected = true;
           sel.appendChild(opt);
         });
+        // Description hint
+        const hint = document.createElement("div");
+        hint.className = "ai-strat-hint";
+        hint.textContent = cat.descriptions?.[bot.strategy[key]] || "";
         sel.addEventListener("change", () => {
           if (this._applyAllStrategies) {
             aiPlayers.forEach(p => { p.strategy[key] = sel.value; });
           } else {
             bot.strategy[key] = sel.value;
           }
+          hint.textContent = cat.descriptions?.[sel.value] || "";
           this._saveStrategies();
         });
         row.appendChild(label);
         row.appendChild(sel);
-        section.appendChild(row);
+        wrapper.appendChild(row);
+        wrapper.appendChild(hint);
+        section.appendChild(wrapper);
       });
 
       panel.appendChild(section);
