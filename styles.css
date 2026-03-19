@@ -1727,6 +1727,13 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   background: rgba(120, 138, 162, 0.4);
 }
 
+.dev-card-toast {
+  padding: 0.5rem 0.7rem;
+  border-color: rgba(68, 150, 95, 0.4);
+  background: rgba(245, 255, 248, 0.97);
+  text-align: center;
+}
+
 .steal-toast {
   display: flex;
   align-items: center;

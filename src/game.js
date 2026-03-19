@@ -2452,12 +2452,52 @@ class ColonistFullGame {
     const card = this.devDeck.pop();
     if (card === "victoryPoint") {
       player.devVictoryPoints += 1;
-      this.addLog(`${player.name} bought a hidden Victory Point.`);
+      if (player.isHuman) {
+        this.addLog(`You drew a Victory Point! (kept secret)`);
+        this._showDevCardPopup("Victory Point", "Counts as 1 VP at game end");
+      } else {
+        this.addLog(`${player.name} bought a development card.`);
+      }
     } else {
       player.newDevCards[card] += 1;
-      this.addLog(`${player.name} bought a ${card} card.`);
+      const cardLabels = { knight: "Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly" };
+      if (player.isHuman) {
+        this.addLog(`You drew: ${cardLabels[card]}!`);
+        this._showDevCardPopup(cardLabels[card], this._getDevCardDescription(card));
+      } else {
+        this.addLog(`${player.name} bought a development card.`);
+      }
     }
+    this.sfx.devCard();
     return true;
+  }
+
+  _getDevCardDescription(card) {
+    const descriptions = {
+      knight: "Move the robber and steal a resource",
+      roadBuilding: "Build 2 roads for free",
+      yearOfPlenty: "Take any 2 resources from the bank",
+      monopoly: "Take all of 1 resource type from all players",
+    };
+    return descriptions[card] || "";
+  }
+
+  _showDevCardPopup(title, description) {
+    const stack = document.getElementById("toastStack");
+    if (!stack) return;
+    const toast = document.createElement("div");
+    toast.className = "toast dev-card-toast";
+    toast.innerHTML = `
+      <div style="font-weight:800;font-size:0.78rem;color:#1a3a5c">You drew:</div>
+      <div style="font-weight:800;font-size:0.9rem;color:#44965f">${title}</div>
+      <div style="font-size:0.65rem;color:#45658f;margin-top:0.1rem">${description}</div>
+    `;
+    stack.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateY(-4px)";
+      setTimeout(() => toast.remove(), 180);
+    }, 4000);
   }
 
   canPlayDevelopmentCard(player, type) {
