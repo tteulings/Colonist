@@ -143,6 +143,7 @@ main.table-layout {
   position: absolute;
   top: 0;
   right: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
@@ -150,7 +151,7 @@ main.table-layout {
   z-index: 10;
   padding: 0.4rem;
   width: 210px;
-  max-height: 100%;
+  overflow: hidden;
 }
 
 .rail-card {
@@ -285,11 +286,39 @@ main.table-layout {
   white-space: nowrap;
 }
 
+.player-info-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.player-info-row1 {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.player-info-row2 {
+  display: flex;
+  gap: 0.35rem;
+  font-size: 0.55rem;
+  color: #5a7a9a;
+}
+
+.player-info-row2 span {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
 .player-header-right {
   display: flex;
   align-items: center;
   gap: 0.15rem;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .player-vp {

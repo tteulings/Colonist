@@ -4607,17 +4607,31 @@ class ColonistFullGame {
       const hasLA = this.largestArmyHolder === player.id;
       const awards = (hasLR ? '<span class="award-badge longest-road" title="Longest Road (+2 VP)">LR</span>' : '')
         + (hasLA ? '<span class="award-badge largest-army" title="Largest Army (+2 VP)">LA</span>' : '');
+      const settlements = player.settlements.size;
+      const cities = player.cities.size;
+      const knights = player.knightsPlayed;
+      const roadLen = player.longestRoadLength;
       card.innerHTML = `
         <img class="player-avatar" src="${player.avatar}" alt="${player.name} avatar" />
-        <span class="player-name" style="color:${player.color}">${player.name}</span>
-        <span class="player-header-right">
-          <span class="player-vp" title="Hover for VP breakdown">${player.victoryPoints} VP</span>
-          ${awards}
-          <span class="player-hand-counts">
-            <span class="hand-count" title="${totalCards} resource cards"><span class="stat-icon card-icon"></span>${totalCards}</span>
-            <span class="hand-count" title="${totalDev} dev cards"><span class="stat-icon dev-icon"></span>${totalDev}</span>
-          </span>
-        </span>
+        <div class="player-info-col">
+          <div class="player-info-row1">
+            <span class="player-name" style="color:${player.color}">${player.name}</span>
+            <span class="player-header-right">
+              <span class="player-vp" title="Hover for details">${player.victoryPoints} VP</span>
+              ${awards}
+              <span class="player-hand-counts">
+                <span class="hand-count" title="${totalCards} resource cards"><span class="stat-icon card-icon"></span>${totalCards}</span>
+                <span class="hand-count" title="${totalDev} dev cards"><span class="stat-icon dev-icon"></span>${totalDev}</span>
+              </span>
+            </span>
+          </div>
+          <div class="player-info-row2">
+            <span title="Settlements built">&#127968;${settlements}</span>
+            <span title="Cities built">&#9962;${cities}</span>
+            <span title="Knights played">&#9876;${knights}</span>
+            <span title="Longest road segment">&#128739;${roadLen}</span>
+          </div>
+        </div>
       `;
       // VP tooltip on hover
       const vpEl = card.querySelector(".player-vp");
