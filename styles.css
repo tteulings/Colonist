@@ -996,12 +996,12 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   left: 10px;
   bottom: 60px;
   z-index: 45;
-  background: linear-gradient(180deg, #f5f0e5, #ece4d7);
-  border: 1px solid rgba(131, 148, 170, 0.5);
+  background: #f8f5ef;
+  border: 1px solid rgba(131, 148, 170, 0.4);
   border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(8, 35, 55, 0.3);
-  padding: 0.5rem 0.6rem;
-  width: 280px;
+  box-shadow: 0 4px 16px rgba(8, 35, 55, 0.25);
+  padding: 0.5rem;
+  width: 270px;
   max-height: calc(100vh - 120px);
   overflow-y: auto;
   animation: slideInLeft 0.2s ease-out;
@@ -1039,15 +1039,16 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 
 .trade-panel-actions {
   display: flex;
-  gap: 0.3rem;
-  margin-top: 0.4rem;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
 }
 
 .trade-action-btn {
   flex: 1;
-  padding: 0.35rem 0.4rem;
-  font-size: 0.72rem;
-  border-radius: 7px;
+  padding: 0.4rem 0.4rem;
+  font-size: 0.75rem;
+  border-radius: 8px;
+  font-weight: 700;
 }
 
 .trade-rate {
@@ -1058,17 +1059,22 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 }
 
 .trade-section-label {
-  font-weight: 700;
-  font-size: 0.68rem;
-  color: #1f4d80;
-  margin-bottom: 0.15rem;
+  font-weight: 800;
+  font-size: 0.62rem;
+  color: #45658f;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.1rem;
 }
 
 .trade-resource-grid {
   display: flex;
-  gap: 0.2rem;
+  gap: 0.25rem;
   flex-wrap: nowrap;
-  margin-bottom: 0.3rem;
+  margin-bottom: 0.15rem;
+  padding: 0.25rem;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
 }
 
 .trade-res-item {
@@ -1082,9 +1088,9 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 
 .trade-res-card {
   width: 100%;
-  min-height: 44px;
-  border-radius: 5px;
-  border: 2px solid rgba(100, 120, 140, 0.3);
+  min-height: 48px;
+  border-radius: 6px;
+  border: 2px solid rgba(100, 120, 140, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1100,24 +1106,25 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 }
 
 .trade-res-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  transform: translateY(-2px);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+  border-color: rgba(100, 120, 140, 0.5);
 }
 
 .trade-res-card:active {
-  transform: scale(0.96);
+  transform: scale(0.95);
 }
 
 .trade-res-card.has-count {
   border-color: #5c55b9;
-  box-shadow: 0 0 0 1px rgba(120, 112, 216, 0.4), 0 2px 6px rgba(92, 85, 185, 0.2);
+  box-shadow: 0 0 0 2px rgba(120, 112, 216, 0.3), 0 2px 8px rgba(92, 85, 185, 0.2);
 }
 
 .trade-res-card img {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   object-fit: contain;
-  opacity: 0.85;
+  opacity: 0.9;
   pointer-events: none;
 }
 
@@ -1125,13 +1132,13 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   position: absolute;
   top: -1px;
   right: -1px;
-  min-width: 16px;
-  height: 16px;
+  min-width: 18px;
+  height: 18px;
   background: #5c55b9;
   color: #fff;
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   font-weight: 800;
-  border-radius: 0 3px 0 5px;
+  border-radius: 0 4px 0 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1141,13 +1148,12 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 
 .trade-res-card .trade-card-rate {
   position: absolute;
-  bottom: 1px;
+  bottom: 2px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 0.45rem;
-  font-weight: 700;
-  color: #5c55b9;
-  opacity: 0.65;
+  font-size: 0.5rem;
+  font-weight: 800;
+  color: rgba(80, 70, 160, 0.5);
   pointer-events: none;
 }
 
@@ -1159,12 +1165,12 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 
 .trade-res-minus {
   width: 100%;
-  height: 16px;
+  height: 14px;
   border: none;
-  border-radius: 0 0 4px 4px;
-  background: rgba(92, 85, 185, 0.12);
-  color: #5c55b9;
-  font-size: 0.65rem;
+  border-radius: 0 0 5px 5px;
+  background: rgba(200, 60, 60, 0.15);
+  color: #c44;
+  font-size: 0.6rem;
   font-weight: 800;
   cursor: pointer;
   padding: 0;
@@ -1172,10 +1178,11 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   align-items: center;
   justify-content: center;
   line-height: 1;
+  margin-top: -1px;
 }
 
 .trade-res-minus:hover {
-  background: rgba(92, 85, 185, 0.25);
+  background: rgba(200, 60, 60, 0.3);
 }
 
 .trade-res-item-hint {
@@ -1189,12 +1196,13 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   font-size: 0.62rem;
   font-weight: 600;
   color: #2a4c70;
-  margin-top: 0.3rem;
+  margin-top: 0.25rem;
   min-height: 0;
-  line-height: 1.4;
-  background: rgba(0, 0, 0, 0.03);
-  border-radius: 4px;
-  padding: 0.2rem 0.3rem;
+  line-height: 1.5;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+  text-align: center;
 }
 
 .trade-proposal-result:empty {
