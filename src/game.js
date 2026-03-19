@@ -1902,6 +1902,11 @@ class ColonistFullGame {
 
   openTradeModal() {
     if (!this.tradeModal) return;
+    // Toggle: if already open, close it
+    if (this.tradeModal.style.display !== "none") {
+      this.closeTradeModal();
+      return;
+    }
     this.tradeModal.style.display = "";
     this.tradeOffer = makeEmptyResources();
     this.tradeRequest = makeEmptyResources();
