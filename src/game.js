@@ -520,7 +520,7 @@ class ColonistFullGame {
     this._applyAllStrategies = true;
     // AI reasoning toggle
     this.aiReasoningToggle = document.querySelector("#aiReasoningToggle");
-    this.showAiReasoning = false;
+    this.showAiReasoning = this.aiReasoningToggle?.checked || false;
     this.aiReasoningToggle?.addEventListener("change", () => {
       this.showAiReasoning = this.aiReasoningToggle.checked;
     });
@@ -2638,6 +2638,9 @@ class ColonistFullGame {
   }
 
   executeAiMainPhase(player, skipPlayerTrade = false) {
+    const s = player.strategy || {};
+    this._aiLog(player, `Main phase — strategy: placement=${s.placement}, expansion=${s.expansion}, trading=${s.trading}, devCards=${s.devCards}, awareness=${s.awareness}`);
+    this._aiLog(player, `Resources: ${resourceString(player.resources)} (${sumResources(player.resources)} total)`);
     if (!this.winner) {
       this.maybePlayBestDevCard(player);
     }
@@ -2871,8 +2874,8 @@ class ColonistFullGame {
         })
         .sort((a, b) => b.surplus - a.surplus || b.income - a.income);
       if (!donors.length) continue;
+      this._aiLog(player, `Bank trade: ${donors[0].resource} → ${wanted} (rate ${donors[0].rate}:1, surplus ${donors[0].surplus})`);
       this.performBankTrade(player, donors[0].resource, wanted);
-      // Aggressive: try multiple trades per goal
       if (strat === "aggressive") { traded = true; continue; }
       return true;
     }
