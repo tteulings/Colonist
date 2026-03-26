@@ -472,6 +472,9 @@ class ColonistFullGame {
     this.buildSettlementBtn = document.querySelector("#buildSettlementBtn");
     this.buildCityBtn = document.querySelector("#buildCityBtn");
     this.buyDevBtn = document.querySelector("#buyDevBtn");
+    this.playDevBtn = document.querySelector("#playDevBtn");
+    this.devCardPicker = document.querySelector("#devCardPicker");
+    this.devPickerCards = document.querySelector("#devPickerCards");
     this.playKnightBtn = document.querySelector("#playKnightBtn");
     this.playRoadBuildingBtn = document.querySelector("#playRoadBuildingBtn");
     this.playYearOfPlentyBtn = document.querySelector("#playYearOfPlentyBtn");
@@ -702,6 +705,10 @@ class ColonistFullGame {
     this.buildSettlementBtn.addEventListener("click", () => this.setPendingAction("settlement"));
     this.buildCityBtn.addEventListener("click", () => this.setPendingAction("city"));
     this.buyDevBtn.addEventListener("click", () => this.handleHumanBuyDevCard());
+    this.playDevBtn?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.toggleDevCardPicker();
+    });
     this.playKnightBtn.addEventListener("click", () => this.handleHumanPlayDevCard("knight"));
     this.playRoadBuildingBtn.addEventListener("click", () =>
       this.handleHumanPlayDevCard("roadBuilding"),
@@ -721,6 +728,12 @@ class ColonistFullGame {
     this.acceptTradeBtn?.addEventListener("click", () => this.resolveIncomingTrade(true));
     this.rejectTradeBtn?.addEventListener("click", () => this.resolveIncomingTrade(false));
     this.discardConfirmBtn?.addEventListener("click", () => this._confirmDiscard());
+    document.addEventListener("click", (e) => {
+      if (this.devCardPicker && this.devCardPicker.style.display !== "none" &&
+          !this.devCardPicker.contains(e.target) && e.target !== this.playDevBtn) {
+        this.hideDevCardPicker();
+      }
+    });
     this.speedRange.addEventListener("input", () => {
       if (this.autoplayInterval) {
         this.stopAutoplay();
@@ -1261,12 +1274,53 @@ class ColonistFullGame {
   handleHumanPlayDevCard(type) {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner || this.phase !== "main") return;
+    this.hideDevCardPicker();
     const played = this.playDevelopmentCard(player, type);
     if (played) {
       this.recomputeScores();
       this.checkForWinner(player);
       this.render();
     }
+  }
+
+  toggleDevCardPicker() {
+    if (!this.devCardPicker) return;
+    if (this.devCardPicker.style.display === "none") {
+      this.renderDevCardPicker();
+      this.devCardPicker.style.display = "";
+    } else {
+      this.hideDevCardPicker();
+    }
+  }
+
+  hideDevCardPicker() {
+    if (this.devCardPicker) this.devCardPicker.style.display = "none";
+  }
+
+  renderDevCardPicker() {
+    if (!this.devPickerCards) return;
+    const human = this.players.find(p => p.isHuman);
+    if (!human) return;
+    const canPlay = this.phase === "main" && !this.currentTurnPlayedDevCard && !this.winner && this.currentPlayer.isHuman;
+    const DEV_TYPES = [
+      { type: "knight", label: "Knight", icon: "./assets/icons/dev-knight.svg" },
+      { type: "roadBuilding", label: "Roads", icon: "./assets/icons/dev-road-building.svg" },
+      { type: "yearOfPlenty", label: "Plenty", icon: "./assets/icons/dev-year-of-plenty.svg" },
+      { type: "monopoly", label: "Monopoly", icon: "./assets/icons/dev-monopoly.svg" },
+    ];
+    this.devPickerCards.innerHTML = DEV_TYPES.map(d => {
+      const count = human.devCards[d.type] || 0;
+      const enabled = canPlay && count > 0;
+      return `<button class="dev-picker-btn ${enabled ? "" : "disabled"}" data-dev-type="${d.type}" ${enabled ? "" : "disabled"}>
+        <img src="${d.icon}" alt="" /><span>${d.label}</span><span class="dev-picker-count">${count}</span>
+      </button>`;
+    }).join("");
+    // Add click handlers
+    this.devPickerCards.querySelectorAll(".dev-picker-btn:not(.disabled)").forEach(btn => {
+      btn.addEventListener("click", () => {
+        this.handleHumanPlayDevCard(btn.dataset.devType);
+      });
+    });
   }
 
   handleHumanBankTrade() {
@@ -2463,7 +2517,15 @@ class ColonistFullGame {
       // Render header with avatar
       this.incomingTradeHeader.innerHTML = `<img src="${fromPlayer.avatar}" alt="" /><span style="color:${fromPlayer.color}">${fromPlayer.name}</span> wants to trade`;
       // Render body with visual cards
+      const human = this.players.find(p => p.isHuman);
+      const handHtml = human ? `<div class="incoming-trade-hand">
+        <span class="incoming-trade-hand-label">Your hand:</span>
+        <div class="incoming-trade-hand-items">${RESOURCES.map(r =>
+          human.resources[r] > 0 ? `<span class="incoming-trade-hand-item ${r}"><img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />${human.resources[r]}</span>` : ""
+        ).join("")}</div>
+      </div>` : "";
       this.incomingTradeBody.innerHTML = `
+        ${handHtml}
         <div class="incoming-trade-row">
           <span class="incoming-trade-row-label">You get:</span>
           ${this._renderTradeCards(give)}
@@ -3796,7 +3858,7 @@ class ColonistFullGame {
     this.drawTileArtwork(hex);
 
     if (hex.number != null) {
-      const tokenR = hxs * 0.27;
+      const tokenR = hxs * 0.30;
       ctx.save();
       ctx.shadowColor = "rgba(58, 78, 101, 0.35)";
       ctx.shadowBlur = 6 * sc;
@@ -3817,7 +3879,7 @@ class ColonistFullGame {
       ctx.stroke();
 
       ctx.fillStyle = hex.number === 6 || hex.number === 8 ? "#be1a1a" : "#18212c";
-      ctx.font = `bold ${Math.round(hxs * 0.23)}px Inter, sans-serif`;
+      ctx.font = `bold ${Math.round(hxs * 0.30)}px Inter, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(String(hex.number), hex.center.x, hex.center.y - 2 * sc);
@@ -4965,6 +5027,14 @@ class ColonistFullGame {
     this.playRoadBuildingBtn.disabled = !(humanTurn && mainPhase && noDevPlayed && human.devCards.roadBuilding > 0);
     this.playYearOfPlentyBtn.disabled = !(humanTurn && mainPhase && noDevPlayed && human.devCards.yearOfPlenty > 0);
     this.playMonopolyBtn.disabled = !(humanTurn && mainPhase && noDevPlayed && human.devCards.monopoly > 0);
+
+    // Play dev card button: show when human has any playable dev cards
+    if (this.playDevBtn) {
+      const hasAnyDev = human.devCards.knight > 0 || human.devCards.roadBuilding > 0 || human.devCards.yearOfPlenty > 0 || human.devCards.monopoly > 0;
+      const showPlayDev = !inSetup && humanTurn && mainPhase && noDevPlayed && hasAnyDev && !inRobberMode;
+      this.playDevBtn.style.display = showPlayDev ? "inline-flex" : "none";
+      if (!showPlayDev) this.hideDevCardPicker();
+    }
 
     [this.buildRoadBtn, this.buildSettlementBtn, this.buildCityBtn].forEach((btn) =>
       btn?.classList.remove("selected-action"),
