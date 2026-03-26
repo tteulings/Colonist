@@ -2601,6 +2601,12 @@ class ColonistFullGame {
     if (!this.canBuildRoad(player, edgeId, options)) return false;
     this.geometry.edges[edgeId].owner = player.id;
     player.roads.add(edgeId);
+    // Placement animation
+    const edge = this.geometry.edges[edgeId];
+    const [a, b] = edge.nodes;
+    const p1 = this.geometry.nodes[a];
+    const p2 = this.geometry.nodes[b];
+    this.placementAnims.push({ x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2, type: "road", startTime: Date.now(), color: player.color });
     return true;
   }
 
@@ -2610,6 +2616,7 @@ class ColonistFullGame {
     node.owner = player.id;
     node.structure = "settlement";
     player.settlements.add(nodeId);
+    this.placementAnims.push({ x: node.x, y: node.y, type: "settlement", startTime: Date.now(), color: player.color });
     return true;
   }
 
@@ -2619,6 +2626,7 @@ class ColonistFullGame {
     node.structure = "city";
     player.settlements.delete(nodeId);
     player.cities.add(nodeId);
+    this.placementAnims.push({ x: node.x, y: node.y, type: "city", startTime: Date.now(), color: player.color });
     return true;
   }
 
@@ -3748,13 +3756,13 @@ class ColonistFullGame {
     const t = this.animTime || 0;
 
     const ocean = ctx.createRadialGradient(w * 0.47, h * 0.48, 50, w * 0.47, h * 0.48, w * 0.62);
-    ocean.addColorStop(0, "#4db8e8");
-    ocean.addColorStop(0.5, "#2d95c9");
-    ocean.addColorStop(1, "#1a6fa0");
+    ocean.addColorStop(0, "#5ab8d8");
+    ocean.addColorStop(0.4, "#3a98b8");
+    ocean.addColorStop(1, "#1e6080");
     ctx.fillStyle = ocean;
     ctx.fillRect(0, 0, w, h);
 
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+    ctx.strokeStyle = "rgba(255, 245, 220, 0.06)";
     ctx.lineWidth = 1.5;
     for (let i = 0; i < 18; i++) {
       const yBase = h * 0.05 + i * (h / 16);
@@ -3769,13 +3777,34 @@ class ColonistFullGame {
     }
   }
 
-  drawHexPath(corners) {
+  drawHexPath(corners, wobbly = false) {
     const ctx = this.ctx;
     ctx.beginPath();
-    corners.forEach((corner, idx) => {
-      if (idx === 0) ctx.moveTo(corner.x, corner.y);
-      else ctx.lineTo(corner.x, corner.y);
-    });
+    if (!wobbly) {
+      corners.forEach((corner, idx) => {
+        if (idx === 0) ctx.moveTo(corner.x, corner.y);
+        else ctx.lineTo(corner.x, corner.y);
+      });
+    } else {
+      // Hand-drawn: slightly wobbly Bezier curves between corners
+      const n = corners.length;
+      corners.forEach((corner, idx) => {
+        const next = corners[(idx + 1) % n];
+        if (idx === 0) ctx.moveTo(corner.x, corner.y);
+        const mx = (corner.x + next.x) / 2;
+        const my = (corner.y + next.y) / 2;
+        // Perpendicular offset for wobble, seeded by corner index
+        const dx = next.x - corner.x;
+        const dy = next.y - corner.y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        const wobble = 1.8;
+        const seed = idx * 17.3 + (corner.x * 0.1);
+        const offset = Math.sin(seed) * wobble;
+        const cpx = mx + (-dy / len) * offset;
+        const cpy = my + (dx / len) * offset;
+        ctx.quadraticCurveTo(cpx, cpy, next.x, next.y);
+      });
+    }
     ctx.closePath();
   }
 
@@ -3811,12 +3840,12 @@ class ColonistFullGame {
   drawHex(hex) {
     const ctx = this.ctx;
     const tileStyle = {
-      wood: "#3d8a3d",
-      brick: "#cf7448",
-      sheep: "#8dd44a",
-      wheat: "#e8c457",
-      ore: "#9ea9b8",
-      desert: "#e2cb8d",
+      wood: "#3a7d3a",
+      brick: "#c86a42",
+      sheep: "#7cc844",
+      wheat: "#dab84e",
+      ore: "#8a96a8",
+      desert: "#dcc58a",
     };
     this.drawHexPath(hex.corners);
     ctx.save();
@@ -3851,9 +3880,9 @@ class ColonistFullGame {
     }
     ctx.restore();
 
-    this.drawHexPath(hex.corners);
-    ctx.strokeStyle = "rgba(195, 165, 100, 0.75)";
-    ctx.lineWidth = 3 * sc;
+    this.drawHexPath(hex.corners, true);
+    ctx.strokeStyle = "rgba(160, 130, 70, 0.6)";
+    ctx.lineWidth = 2.5 * sc;
     ctx.stroke();
 
     // Tile artwork layer: show clear resource iconography on the board itself.
@@ -3862,21 +3891,21 @@ class ColonistFullGame {
     if (hex.number != null) {
       const tokenR = hxs * 0.30;
       ctx.save();
-      ctx.shadowColor = "rgba(58, 78, 101, 0.35)";
-      ctx.shadowBlur = 6 * sc;
-      ctx.shadowOffsetY = 2 * sc;
+      ctx.shadowColor = "rgba(44, 24, 16, 0.3)";
+      ctx.shadowBlur = 8 * sc;
+      ctx.shadowOffsetY = 3 * sc;
       ctx.beginPath();
       ctx.arc(hex.center.x, hex.center.y, tokenR, 0, Math.PI * 2);
       const token = ctx.createRadialGradient(hex.center.x - 6 * sc, hex.center.y - 7 * sc, 2 * sc, hex.center.x, hex.center.y, tokenR + 2 * sc);
-      token.addColorStop(0, "rgba(255,252,245,0.98)");
-      token.addColorStop(1, "rgba(214,210,199,0.95)");
+      token.addColorStop(0, "rgba(255,250,238,0.98)");
+      token.addColorStop(1, "rgba(232,220,200,0.95)");
       ctx.fillStyle = token;
       ctx.fill();
       ctx.restore();
 
       ctx.beginPath();
       ctx.arc(hex.center.x, hex.center.y, tokenR, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(27, 35, 48, 0.36)";
+      ctx.strokeStyle = "rgba(160, 130, 70, 0.4)";
       ctx.lineWidth = 1.5 * sc;
       ctx.stroke();
 
@@ -4669,31 +4698,57 @@ class ColonistFullGame {
     const now = Date.now();
     this.placementAnims = this.placementAnims.filter((anim) => {
       const elapsed = now - anim.startTime;
-      if (elapsed > 600) return false;
+      if (elapsed > 800) return false;
 
-      const t = elapsed / 600; // 0..1
+      const t = elapsed / 800; // 0..1
       // Bounce ease: overshoot then settle
-      const scale = t < 0.4 ? (t / 0.4) * 1.4 : 1.4 - (t - 0.4) / 0.6 * 0.4;
-      const alpha = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
+      const scale = t < 0.3 ? (t / 0.3) * 1.5 : 1.5 - (t - 0.3) / 0.7 * 0.5;
+      const alpha = t < 0.2 ? 1 : 1 - (t - 0.2) / 0.8;
+      const color = anim.color || (anim.type === "road" ? "#5ab8d8" : "#dab84e");
 
       ctx.save();
       ctx.translate(anim.x, anim.y);
-      ctx.globalAlpha = alpha * 0.7;
+      ctx.globalAlpha = alpha * 0.8;
 
-      // Expanding ring
-      const ringR = 15 * s * scale;
+      // Outer expanding ring
+      const ringR = 18 * s * scale;
       ctx.beginPath();
       ctx.arc(0, 0, ringR, 0, Math.PI * 2);
-      ctx.strokeStyle = anim.type === "road" ? "rgba(39, 201, 255, 0.8)" : "rgba(255, 220, 40, 0.8)";
+      ctx.strokeStyle = color;
       ctx.lineWidth = 3 * s;
       ctx.stroke();
 
+      // Second softer ring
+      ctx.beginPath();
+      ctx.arc(0, 0, ringR * 1.3, 0, Math.PI * 2);
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = alpha * 0.3;
+      ctx.lineWidth = 1.5 * s;
+      ctx.stroke();
+
       // Inner flash
-      if (t < 0.3) {
+      if (t < 0.25) {
+        ctx.globalAlpha = (1 - t / 0.25) * 0.6;
         ctx.beginPath();
-        ctx.arc(0, 0, ringR * 0.6, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+        ctx.arc(0, 0, ringR * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255, 250, 238, 0.8)";
         ctx.fill();
+      }
+
+      // Sparkle particles
+      if (t < 0.6) {
+        const particleAlpha = (1 - t / 0.6) * 0.7;
+        for (let i = 0; i < 6; i++) {
+          const angle = (i / 6) * Math.PI * 2 + t * 2;
+          const dist = ringR * (0.8 + t * 0.5);
+          const px = Math.cos(angle) * dist;
+          const py = Math.sin(angle) * dist;
+          ctx.globalAlpha = particleAlpha;
+          ctx.beginPath();
+          ctx.arc(px, py, 2 * s, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+        }
       }
 
       ctx.restore();
@@ -4811,7 +4866,7 @@ class ColonistFullGame {
         this.handStrip.innerHTML = '<span class="hand-empty">No cards</span>';
       } else {
         this.handStrip.innerHTML = cards.map((resource, i) =>
-          `<div class="hand-card ${resource}">
+          `<div class="hand-card ${resource}" style="--card-index:${i}">
             <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
           </div>`
         ).join("");
