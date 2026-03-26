@@ -3786,23 +3786,25 @@ class ColonistFullGame {
         else ctx.lineTo(corner.x, corner.y);
       });
     } else {
-      // Hand-drawn: slightly wobbly Bezier curves between corners
+      // Hand-drawn: wobbly Bezier curves between corners with double-curve for organic feel
       const n = corners.length;
       corners.forEach((corner, idx) => {
         const next = corners[(idx + 1) % n];
         if (idx === 0) ctx.moveTo(corner.x, corner.y);
-        const mx = (corner.x + next.x) / 2;
-        const my = (corner.y + next.y) / 2;
-        // Perpendicular offset for wobble, seeded by corner index
         const dx = next.x - corner.x;
         const dy = next.y - corner.y;
         const len = Math.sqrt(dx * dx + dy * dy) || 1;
-        const wobble = 1.8;
-        const seed = idx * 17.3 + (corner.x * 0.1);
-        const offset = Math.sin(seed) * wobble;
-        const cpx = mx + (-dy / len) * offset;
-        const cpy = my + (dx / len) * offset;
-        ctx.quadraticCurveTo(cpx, cpy, next.x, next.y);
+        const nx = -dy / len;
+        const ny = dx / len;
+        // Two control points for S-curve wobble
+        const wobble = 3.5;
+        const seed1 = idx * 17.3 + (corner.x * 0.13);
+        const seed2 = idx * 11.7 + (corner.y * 0.17);
+        const cp1x = corner.x + dx * 0.33 + nx * Math.sin(seed1) * wobble;
+        const cp1y = corner.y + dy * 0.33 + ny * Math.sin(seed1) * wobble;
+        const cp2x = corner.x + dx * 0.66 + nx * Math.sin(seed2) * -wobble;
+        const cp2y = corner.y + dy * 0.66 + ny * Math.sin(seed2) * -wobble;
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, next.x, next.y);
       });
     }
     ctx.closePath();
@@ -3860,22 +3862,23 @@ class ColonistFullGame {
     const sc = hxs / 74;
     this.drawHexPath(hex.corners);
     const surface = ctx.createLinearGradient(hex.center.x - 38 * sc, hex.center.y - 38 * sc, hex.center.x + 38 * sc, hex.center.y + 38 * sc);
-    surface.addColorStop(0, "rgba(255,255,255,0.27)");
-    surface.addColorStop(0.45, "rgba(255,255,255,0)");
-    surface.addColorStop(1, "rgba(0,0,0,0.14)");
+    surface.addColorStop(0, "rgba(255,250,230,0.22)");
+    surface.addColorStop(0.5, "rgba(255,255,255,0)");
+    surface.addColorStop(1, "rgba(44,24,16,0.12)");
     ctx.fillStyle = surface;
     ctx.fill();
 
+    // Organic texture: soft splotches for watercolor/parchment feel
     ctx.save();
     this.drawHexPath(hex.corners);
     ctx.clip();
-    for (let i = 0; i < 6; i += 1) {
-      const sx = hex.center.x + Math.sin(hex.id * 7.3 + i * 1.9) * 30 * sc;
-      const sy = hex.center.y + Math.cos(hex.id * 5.2 + i * 2.2) * 28 * sc;
-      const radius = (8 + ((hex.id + i) % 5)) * sc;
+    for (let i = 0; i < 8; i += 1) {
+      const sx = hex.center.x + Math.sin(hex.id * 7.3 + i * 1.9) * 28 * sc;
+      const sy = hex.center.y + Math.cos(hex.id * 5.2 + i * 2.2) * 26 * sc;
+      const radius = (6 + ((hex.id + i) % 5)) * sc;
       ctx.beginPath();
       ctx.arc(sx, sy, radius, 0, Math.PI * 2);
-      ctx.fillStyle = i % 2 ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.07)";
+      ctx.fillStyle = i % 3 === 0 ? "rgba(255,250,230,0.08)" : i % 3 === 1 ? "rgba(44,24,16,0.05)" : "rgba(255,255,255,0.04)";
       ctx.fill();
     }
     ctx.restore();
@@ -3917,13 +3920,11 @@ class ColonistFullGame {
       this.drawTokenPips(hex);
     }
 
-    ctx.fillStyle = "rgba(239, 248, 255, 0.72)";
-    ctx.font = `700 ${Math.round(hxs * 0.135)}px Inter, sans-serif`;
+    const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
+    ctx.fillStyle = "rgba(44, 24, 16, 0.5)";
+    ctx.font = `600 ${Math.round(hxs * 0.12)}px Inter, system-ui, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
-    ctx.fillStyle = "rgba(20, 52, 86, 0.65)";
-    ctx.font = `600 ${Math.round(hxs * 0.12)}px Inter, system-ui, sans-serif`;
     ctx.fillText(label, hex.center.x, hex.center.y + hxs * 0.43);
 
     if (hex.id === this.robberHexId) {
@@ -4143,8 +4144,8 @@ class ColonistFullGame {
     const ctx = this.ctx;
     const s = this.geometry.hexSize / 74;
     const portColor = {
-      wood: "#3d9e50", brick: "#c66536", sheep: "#6db84e",
-      wheat: "#d4a825", ore: "#7a8da9", any: "#4a7eb5",
+      wood: "#6b5030", brick: "#a85538", sheep: "#5a7a40",
+      wheat: "#a08530", ore: "#6a7588", any: "#5a7080",
     };
     this.ports.forEach((port) => {
       const edge = this.geometry.edges[port.edgeId];
@@ -4163,10 +4164,11 @@ class ColonistFullGame {
       const dockY = my + ny * dockDist;
       const color = portColor[port.type] || portColor.any;
 
+      // Rope lines to port
       ctx.save();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3 * s;
-      ctx.setLineDash([4 * s, 3 * s]);
+      ctx.strokeStyle = "rgba(160, 130, 70, 0.4)";
+      ctx.lineWidth = 2 * s;
+      ctx.setLineDash([3 * s, 3 * s]);
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(dockX, dockY);
@@ -4176,41 +4178,34 @@ class ColonistFullGame {
       ctx.setLineDash([]);
       ctx.restore();
 
+      // Parchment-style label
       ctx.save();
-      ctx.shadowColor = "rgba(0,0,0,0.3)";
-      ctx.shadowBlur = 5 * s;
+      ctx.shadowColor = "rgba(44, 24, 16, 0.25)";
+      ctx.shadowBlur = 4 * s;
       ctx.shadowOffsetY = 2 * s;
       const label = port.type === "any" ? "3:1" : `2:1 ${RESOURCE_LABEL[port.type]}`;
-      const portFontSize = Math.round(10 * s);
+      const portFontSize = Math.round(9.5 * s);
       ctx.font = `700 ${portFontSize}px Inter, system-ui, sans-serif`;
       const tw = ctx.measureText(label).width;
-      const boxW = Math.max(38 * s, tw + 14 * s);
-      const boxH = 22 * s;
+      const boxW = Math.max(36 * s, tw + 12 * s);
+      const boxH = 20 * s;
       const bx = dockX - boxW / 2;
       const by = dockY - boxH / 2;
 
-      this.drawRoundedRect(bx, by, boxW, boxH, 6 * s);
-      ctx.fillStyle = color;
+      this.drawRoundedRect(bx, by, boxW, boxH, 5 * s);
+      ctx.fillStyle = "rgba(245, 239, 228, 0.92)";
       ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.strokeStyle = color;
       ctx.lineWidth = 1.5 * s;
       ctx.stroke();
       ctx.restore();
 
       ctx.save();
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = color;
       ctx.font = `700 ${portFontSize}px Inter, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(label, dockX, dockY + 0.5);
-      ctx.restore();
-
-      ctx.save();
-      const shipY = dockY - boxH / 2 - 8 * s;
-      ctx.font = `${Math.round(12 * s)}px serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("⚓", dockX, shipY);
       ctx.restore();
     });
   }
@@ -4221,11 +4216,11 @@ class ColonistFullGame {
     this.geometry.nodes.forEach((node) => {
       if (node.owner != null) return;
       ctx.beginPath();
-      ctx.arc(node.x, node.y, 4.5 * s, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(205, 175, 110, 0.6)";
+      ctx.arc(node.x, node.y, 3.5 * s, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(245, 239, 228, 0.5)";
       ctx.fill();
-      ctx.strokeStyle = "rgba(160, 120, 50, 0.4)";
-      ctx.lineWidth = 1 * s;
+      ctx.strokeStyle = "rgba(160, 130, 70, 0.3)";
+      ctx.lineWidth = 0.8 * s;
       ctx.stroke();
     });
   }

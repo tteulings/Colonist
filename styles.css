@@ -567,11 +567,11 @@ main.table-layout {
   transform: scale(1.15);
 }
 
-.hand-card.wood { background: linear-gradient(145deg, #4a8a3d, #2d6b2d); border-color: #1e5520; }
-.hand-card.brick { background: linear-gradient(145deg, #d9734c, #c05a33); border-color: #9a4428; }
-.hand-card.sheep { background: linear-gradient(145deg, #a8e063, #7cc940); border-color: #5aaa28; }
-.hand-card.wheat { background: linear-gradient(145deg, #e8c84a, #d4b032); border-color: #b8952a; }
-.hand-card.ore { background: linear-gradient(145deg, #9aa8b8, #7a8a9c); border-color: #5a6a7c; }
+.hand-card.wood { background: linear-gradient(145deg, #a08060, #8b6c4a); border-color: #6b5030; }
+.hand-card.brick { background: linear-gradient(145deg, #d47a58, #c4623e); border-color: #a85538; }
+.hand-card.sheep { background: linear-gradient(145deg, #8fc070, #7ba668); border-color: #5a7a40; }
+.hand-card.wheat { background: linear-gradient(145deg, #dbb860, #c9a84c); border-color: #a08530; }
+.hand-card.ore { background: linear-gradient(145deg, #95a0b2, #7d8a9e); border-color: #606e82; }
 
 /* ── Bottom Bar ── */
 .bottom-bar {
@@ -647,11 +647,11 @@ main.table-layout {
   flex-shrink: 0;
 }
 
-.resource-card.wood { border-color: rgba(61, 138, 61, 0.6); background: linear-gradient(180deg, #dcedc8, #b5cc8e); }
-.resource-card.brick { border-color: rgba(198, 102, 60, 0.6); background: linear-gradient(180deg, #ffebee, #ffcdd2); }
-.resource-card.sheep { border-color: rgba(122, 201, 64, 0.6); background: linear-gradient(180deg, #f1f8e9, #c5e1a5); }
-.resource-card.wheat { border-color: rgba(208, 171, 68, 0.6); background: linear-gradient(180deg, #fffde7, #fff9c4); }
-.resource-card.ore { border-color: rgba(122, 141, 169, 0.6); background: linear-gradient(180deg, #eceff1, #cfd8dc); }
+.resource-card.wood { border-color: rgba(139, 108, 74, 0.5); background: linear-gradient(180deg, #f0e6d6, #ddd0b8); }
+.resource-card.brick { border-color: rgba(196, 98, 62, 0.5); background: linear-gradient(180deg, #f8e4d8, #f0cdb8); }
+.resource-card.sheep { border-color: rgba(123, 166, 104, 0.5); background: linear-gradient(180deg, #eaf4e0, #d5e8c4); }
+.resource-card.wheat { border-color: rgba(201, 168, 76, 0.5); background: linear-gradient(180deg, #faf0d4, #f0e0b0); }
+.resource-card.ore { border-color: rgba(125, 138, 158, 0.5); background: linear-gradient(180deg, #e8ecf2, #d5dce6); }
 
 /* ── Action Prompt ── */
 .action-prompt-row {
@@ -1390,11 +1390,11 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   color: #1a3a5c;
 }
 
-.incoming-trade-card.wood { background: linear-gradient(160deg, #dcedc8, #b5cc8e); }
-.incoming-trade-card.brick { background: linear-gradient(160deg, #ffebee, #ffcdd2); }
-.incoming-trade-card.sheep { background: linear-gradient(160deg, #f1f8e9, #c5e1a5); }
-.incoming-trade-card.wheat { background: linear-gradient(160deg, #fffde7, #fff9c4); }
-.incoming-trade-card.ore { background: linear-gradient(160deg, #eceff1, #cfd8dc); }
+.incoming-trade-card.wood { background: linear-gradient(160deg, #f0e6d6, #ddd0b8); }
+.incoming-trade-card.brick { background: linear-gradient(160deg, #f8e4d8, #f0cdb8); }
+.incoming-trade-card.sheep { background: linear-gradient(160deg, #eaf4e0, #d5e8c4); }
+.incoming-trade-card.wheat { background: linear-gradient(160deg, #faf0d4, #f0e0b0); }
+.incoming-trade-card.ore { background: linear-gradient(160deg, #e8ecf2, #d5dce6); }
 
 .incoming-trade-arrow {
   display: flex;
