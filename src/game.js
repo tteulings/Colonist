@@ -692,6 +692,8 @@ class ColonistFullGame {
     });
     this.resetBtn.addEventListener("click", () => {
       this.stopAutoplay();
+      const drawer = document.querySelector("#settingsDrawer");
+      if (drawer) drawer.removeAttribute("open");
       this._showDifficultyModal();
     });
     this.resetViewBtn.addEventListener("click", () => this.resetViewTransform());
