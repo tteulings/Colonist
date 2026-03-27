@@ -5088,10 +5088,28 @@ class ColonistFullGame {
             : Math.max(maxOverlap, Math.round((stripWidth - cardW) / (cards.length - 1)) - cardW);
           this.handStrip.style.setProperty("--card-overlap", `${Math.min(overlap, minOverlap)}px`);
           this.handStrip.innerHTML = cards.map((resource, i) =>
-            `<div class="hand-card ${resource}" style="--card-index:${i}">
+            `<div class="hand-card ${resource}" data-resource="${resource}" style="--card-index:${i};cursor:pointer">
               <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
             </div>`
           ).join("") + `<div class="hand-card-count-card"><span>${cards.length}</span></div>`;
+          // Tap a hand card to open trade with that resource
+          this.handStrip.querySelectorAll(".hand-card[data-resource]").forEach(el => {
+            el.addEventListener("click", () => {
+              if (!this.currentPlayer?.isHuman || this.phase !== "main") return;
+              const res = el.dataset.resource;
+              if (human.resources[res] <= 0) return;
+              if (this.tradeModal?.style.display === "none" || !this.tradeModal?.style.display) {
+                this.tradeOffer = makeEmptyResources();
+                this.tradeRequest = makeEmptyResources();
+              }
+              this.tradeOffer[res] = Math.min(human.resources[res], (this.tradeOffer[res] || 0) + 1);
+              this.tradeModal.style.display = "";
+              if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
+              this.buildTradeGrids();
+              this.updateTradeButtons();
+              this.sfx.click();
+            });
+          });
         }
       }
     }
