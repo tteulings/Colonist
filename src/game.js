@@ -1118,17 +1118,21 @@ class ColonistFullGame {
     if (!this.toastStack) return;
     const toast = document.createElement("div");
     toast.className = "toast";
-    toast.textContent = text;
+    // Use enriched HTML (with resource icons + colored player names) instead of plain text
+    toast.innerHTML = this._enrichLogText(text);
     this.toastStack.appendChild(toast);
     while (this.toastStack.children.length > this.maxToasts) {
       this.toastStack.removeChild(this.toastStack.firstChild);
     }
+    // Longer display for robber-related events so the player can follow what happened
+    const isRobberEvent = /(robber|stole|discard)/i.test(text);
+    const duration = isRobberEvent ? 4500 : 2600;
     window.setTimeout(() => {
       if (!toast.parentElement) return;
       toast.style.opacity = "0";
       toast.style.transform = "translateY(-4px)";
       window.setTimeout(() => toast.remove(), 180);
-    }, 2600);
+    }, duration);
   }
 
   rollDice() {
@@ -2856,7 +2860,8 @@ class ColonistFullGame {
           this.executeRollPhase(player);
           this.render();
           // Delay before AI actions so card-deal animation plays out
-          const actionDelay = this.lastRoll !== 7 ? 800 : 200;
+          // Longer delay on 7 so the robber move + steal are visible
+          const actionDelay = this.lastRoll !== 7 ? 800 : 1800;
           setTimeout(() => {
             if (this.phase === "main") {
               const result = this.executeAiMainPhase(player);
@@ -3517,6 +3522,7 @@ class ColonistFullGame {
     });
 
     this.pendingAction = null;
+    this.confirmBuild = null;
     this.currentTurnPlayedDevCard = false;
     this.lastRoll = null;
 
@@ -4938,6 +4944,15 @@ class ColonistFullGame {
       if (cards.length === 0) {
         this.handStrip.innerHTML = '<span class="hand-empty">No cards</span>';
       } else {
+        // Dynamic overlap: more cards → tighter packing so they fit on screen
+        const stripWidth = this.handStrip.clientWidth || 320;
+        const cardW = 36;
+        const maxOverlap = -22; // tightest
+        const minOverlap = -10; // loosest
+        const neededWidth = cards.length * cardW;
+        const overlap = cards.length <= 5 ? minOverlap
+          : Math.max(maxOverlap, Math.round((stripWidth - cardW) / (cards.length - 1)) - cardW);
+        this.handStrip.style.setProperty("--card-overlap", `${Math.min(overlap, minOverlap)}px`);
         this.handStrip.innerHTML = cards.map((resource, i) =>
           `<div class="hand-card ${resource}" style="--card-index:${i}">
             <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
