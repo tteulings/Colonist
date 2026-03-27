@@ -4097,7 +4097,7 @@ class ColonistFullGame {
     this.drawTileArtwork(hex);
 
     if (hex.number != null) {
-      const tokenR = hxs * 0.30;
+      const tokenR = hxs * 0.36;
       ctx.save();
       ctx.shadowColor = "rgba(44, 24, 16, 0.3)";
       ctx.shadowBlur = 8 * sc;
@@ -4118,7 +4118,7 @@ class ColonistFullGame {
       ctx.stroke();
 
       ctx.fillStyle = hex.number === 6 || hex.number === 8 ? "#be1a1a" : "#18212c";
-      ctx.font = `bold ${Math.round(hxs * 0.30)}px Inter, sans-serif`;
+      ctx.font = `bold ${Math.round(hxs * 0.38)}px Inter, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(String(hex.number), hex.center.x, hex.center.y - 2 * sc);
@@ -5079,7 +5079,7 @@ class ColonistFullGame {
           `<div class="hand-card ${resource}" style="--card-index:${i}">
             <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
           </div>`
-        ).join("") + `<div class="hand-card-count">${cards.length}</div>`;
+        ).join("") + `<div class="hand-card-count-card"><span>${cards.length}</span></div>`;
       }
     }
 
