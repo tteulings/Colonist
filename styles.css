@@ -2480,32 +2480,43 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .player-card-mini {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.2);
-    padding: 0.2rem 0.35rem;
+    padding: 0.2rem 0.3rem;
     font-size: 0.7rem;
-    flex-shrink: 0;
+    flex-shrink: 1;
     min-width: 0;
     flex: 1;
+    overflow: hidden;
   }
-  .player-card-mini .player-avatar { width: 28px; height: 28px; }
-  .player-card-mini .player-name { font-size: 0.82rem; color: #fff !important; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
+  .player-card-mini .player-avatar { width: 24px; height: 24px; flex-shrink: 0; }
+  .player-card-mini .player-name {
+    font-size: 0.72rem;
+    color: #fff !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 50px;
+  }
+  .player-info-col { gap: 0.05rem; overflow: hidden; }
+  .player-info-row1 { flex-wrap: nowrap; overflow: hidden; }
   .player-vp {
     color: #fff !important;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 900;
     text-shadow: 0 1px 2px rgba(0,0,0,0.3);
     background: rgba(255, 180, 50, 0.35);
-    padding: 0.05rem 0.3rem;
-    border-radius: 6px;
+    padding: 0.05rem 0.25rem;
+    border-radius: 5px;
     white-space: nowrap;
   }
-  .player-info-row2 { font-size: 0.72rem; gap: 0.35rem; color: #fff; }
-  .player-info-row2 span { color: #fff; font-weight: 600; }
-  .player-hand-counts { font-size: 0.75rem; }
-  .hand-count { color: #fff !important; font-weight: 700; font-size: 0.75rem; }
+  .player-info-row2 { font-size: 0.6rem; gap: 0.25rem; color: #fff; flex-wrap: nowrap; overflow: hidden; }
+  .player-info-row2 span { color: #fff; font-weight: 600; white-space: nowrap; }
+  .player-hand-counts { font-size: 0.68rem; }
+  .hand-count { color: #fff !important; font-weight: 700; font-size: 0.68rem; }
   .stat-icon { opacity: 1; }
-  .card-icon::before { width: 8px; height: 10px; background: #7aba6a; border-color: #5a9a4a; }
-  .dev-icon::before { width: 8px; height: 10px; background: #a080c8; border-color: #7a5aa0; }
-  .player-header-right { gap: 0.15rem; }
+  .card-icon::before { width: 7px; height: 9px; background: #7aba6a; border-color: #5a9a4a; }
+  .dev-icon::before { width: 7px; height: 9px; background: #a080c8; border-color: #7a5aa0; }
+  .player-header-right { gap: 0.1rem; flex-shrink: 0; }
   .player-card-mini.active {
     background: rgba(255, 255, 255, 0.22);
     border-color: rgba(74, 172, 233, 0.7);
@@ -2567,13 +2578,14 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .right-rail { min-width: auto; max-width: 140px; width: auto; }
   .rail-card { padding: 0.15rem; }
   .rail-players { padding: 0.25rem 0.3rem !important; }
-  .player-card-mini { padding: 0.25rem 0.3rem; font-size: 0.68rem; gap: 0.15rem; }
-  .player-card-mini .player-avatar { width: 22px; height: 22px; }
-  .player-card-mini .player-name { font-size: 0.7rem; }
-  .player-header-right { gap: 0.1rem; }
-  .player-vp { font-size: 0.72rem; padding: 0.04rem 0.2rem; }
-  .player-hand-counts { font-size: 0.58rem; }
-  .player-info-row2 { font-size: 0.56rem; }
+  .player-card-mini { padding: 0.15rem 0.2rem; font-size: 0.62rem; gap: 0.1rem; }
+  .player-card-mini .player-avatar { width: 20px; height: 20px; }
+  .player-card-mini .player-name { font-size: 0.62rem; max-width: 38px; }
+  .player-header-right { gap: 0.05rem; }
+  .player-vp { font-size: 0.68rem; padding: 0.03rem 0.15rem; }
+  .player-hand-counts { font-size: 0.55rem; }
+  .hand-count { font-size: 0.55rem !important; }
+  .player-info-row2 { font-size: 0.5rem; gap: 0.15rem; }
   #scoreboard { gap: 0.25rem; }
   .award-badge { font-size: 0.5rem; padding: 0.04rem 0.14rem; }
   .bottom-bar { padding: 0.25rem 0.3rem; gap: 0.2rem; border-radius: 0; min-height: 46px; }
