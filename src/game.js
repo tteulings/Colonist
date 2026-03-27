@@ -5185,6 +5185,20 @@ class ColonistFullGame {
     // Header now shows cost reference + bank supply — no player panels needed
   }
 
+  _alignScoreboardToHeader() {
+    const header = document.querySelector(".table-header");
+    const rail = document.querySelector(".rail-players");
+    if (!header || !rail || window.innerWidth > 1080) return;
+    const headerH = header.getBoundingClientRect().height;
+    rail.style.top = `${headerH}px`;
+    // Also update board-area padding to match
+    const boardArea = document.querySelector(".board-area");
+    if (boardArea) {
+      const railH = rail.getBoundingClientRect().height;
+      boardArea.style.paddingTop = `${headerH + railH + 2}px`;
+    }
+  }
+
   _enrichLogText(text) {
     // Replace resource names with inline icons
     let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -6063,6 +6077,7 @@ class ColonistFullGame {
   render() {
     this.drawCanvasScene();
     this.renderTopPanels();
+    this._alignScoreboardToHeader();
     this.renderResourceCards();
     this.renderScoreboard();
     this.renderLog();

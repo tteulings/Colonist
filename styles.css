@@ -2457,7 +2457,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   }
   .rail-players {
     position: fixed;
-    top: 51px; /* flush against header bottom */
+    top: 0; /* set dynamically by JS to match header height */
     left: 0;
     right: 0;
     width: 100%;
