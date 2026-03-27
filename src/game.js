@@ -5132,10 +5132,10 @@ class ColonistFullGame {
             </span>
           </div>
           <div class="player-info-row2">
-            <span title="Settlements built">&#127968;${settlements}</span>
-            <span title="Cities built">&#9962;${cities}</span>
+            <span title="Settlements: ${settlements} built, ${5 - settlements} remaining">&#127968;${settlements}/5</span>
+            <span title="Cities: ${cities} built, ${4 - cities} remaining">&#9962;${cities}/4</span>
+            <span title="Roads: ${player.roads.size} built, ${15 - player.roads.size} remaining">&#128739;${player.roads.size}/15</span>
             <span title="Knights played">&#9876;${knights}</span>
-            <span title="Longest road segment">&#128739;${roadLen}</span>
           </div>
         </div>
       `;
