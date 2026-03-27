@@ -5209,11 +5209,12 @@ class ColonistFullGame {
     if (!header || !rail || window.innerWidth > 1080) return;
     const headerH = header.getBoundingClientRect().height;
     rail.style.top = `${headerH}px`;
-    // Also update board-area padding to match
+    // Set board-area padding so canvas starts right below the fixed scoreboard
     const boardArea = document.querySelector(".board-area");
     if (boardArea) {
-      const railH = rail.getBoundingClientRect().height;
-      boardArea.style.paddingTop = `${headerH + railH + 2}px`;
+      const railBottom = headerH + rail.getBoundingClientRect().height;
+      const boardTop = boardArea.getBoundingClientRect().top;
+      boardArea.style.paddingTop = `${Math.max(0, railBottom - boardTop + 2)}px`;
     }
   }
 
