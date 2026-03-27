@@ -1336,6 +1336,12 @@ class ColonistFullGame {
     if (give === get) return;
     const ok = this.performBankTrade(player, give, get);
     if (ok) {
+      // Animate cards: give goes up, get comes down
+      const giveRes = makeEmptyResources();
+      giveRes[give] = this.getPlayerTradeRate(player, give);
+      const getRes = makeEmptyResources();
+      getRes[get] = 1;
+      this._animateTradeCards(giveRes, getRes);
       this.tradeOffer = makeEmptyResources();
       this.tradeRequest = makeEmptyResources();
       this.buildTradeGrids();
@@ -2035,6 +2041,50 @@ class ColonistFullGame {
     setTimeout(() => card.remove(), 600);
   }
 
+  _animateTradeCards(give, get) {
+    // Fly cards from hand to top (give) and from top to hand (get)
+    const boardPanel = document.querySelector(".board-panel");
+    if (!boardPanel) return;
+    const boardRect = boardPanel.getBoundingClientRect();
+    const handStrip = document.querySelector(".hand-strip");
+    const handRect = handStrip ? handStrip.getBoundingClientRect() : null;
+    const handY = handRect ? handRect.top - boardRect.top : boardRect.height - 50;
+    const handX = boardRect.width / 2;
+    const bankY = 20;
+
+    // Cards going up (give)
+    RESOURCES.forEach((r) => {
+      for (let i = 0; i < (give[r] || 0); i++) {
+        const card = document.createElement("div");
+        card.className = `flying-card ${r}`;
+        card.innerHTML = `<img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />`;
+        card.style.left = `${handX - 14 + i * 8}px`;
+        card.style.top = `${handY}px`;
+        card.style.setProperty("--fly-x", `${0}px`);
+        card.style.setProperty("--fly-y", `${bankY - handY}px`);
+        boardPanel.appendChild(card);
+        setTimeout(() => card.remove(), 600);
+      }
+    });
+    // Cards coming down (get) — delayed slightly
+    setTimeout(() => {
+      RESOURCES.forEach((r) => {
+        for (let i = 0; i < (get[r] || 0); i++) {
+          const card = document.createElement("div");
+          card.className = `flying-card ${r}`;
+          card.innerHTML = `<img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />`;
+          card.style.left = `${handX - 14 + i * 8}px`;
+          card.style.top = `${bankY}px`;
+          card.style.setProperty("--fly-x", `${0}px`);
+          card.style.setProperty("--fly-y", `${handY - bankY}px`);
+          card.style.borderColor = "rgba(61, 155, 143, 0.5)";
+          boardPanel.appendChild(card);
+          setTimeout(() => card.remove(), 600);
+        }
+      });
+    }, 250);
+  }
+
   _showStealAnimation(thief, victim, resource) {
     this._animateStealCard(thief, victim, resource);
     const stack = document.getElementById("toastStack");
@@ -2548,6 +2598,7 @@ class ColonistFullGame {
     const { fromPlayer, give, want, resolve } = this.pendingIncomingTrade;
     const human = this.players.find(p => p.isHuman);
     if (accepted && human) {
+      this._animateTradeCards(want, give);
       // AI gives 'give' to human, human gives 'want' to AI
       RESOURCES.forEach((r) => {
         human.resources[r] -= want[r];
@@ -3763,14 +3814,29 @@ class ColonistFullGame {
     ctx.fillStyle = ocean;
     ctx.fillRect(0, 0, w, h);
 
-    ctx.strokeStyle = "rgba(255, 248, 230, 0.06)";
+    // Animated caustic light patches
+    ctx.save();
+    for (let i = 0; i < 12; i++) {
+      const cx = w * (0.1 + Math.sin(t * 0.3 + i * 2.1) * 0.08 + (i % 4) * 0.22);
+      const cy = h * (0.1 + Math.cos(t * 0.25 + i * 1.7) * 0.06 + Math.floor(i / 4) * 0.3);
+      const r = 30 + Math.sin(t * 0.6 + i * 3.2) * 15;
+      const alpha = 0.025 + Math.sin(t * 0.8 + i * 1.5) * 0.015;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 250, 230, ${alpha})`;
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Flowing wave lines
+    ctx.strokeStyle = "rgba(255, 248, 230, 0.05)";
     ctx.lineWidth = 1.5;
     for (let i = 0; i < 18; i++) {
       const yBase = h * 0.05 + i * (h / 16);
-      const phase = t * 0.5 + i * 0.7;
+      const phase = t * 0.4 + i * 0.7;
       ctx.beginPath();
       for (let x = 0; x <= w; x += 8) {
-        const y = yBase + Math.sin(x / 80 + phase) * 3 + Math.sin(x / 40 + phase * 1.3) * 1.5;
+        const y = yBase + Math.sin(x / 90 + phase) * 3.5 + Math.sin(x / 45 + phase * 1.3) * 2;
         if (x === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
