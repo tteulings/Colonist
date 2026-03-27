@@ -2,11 +2,11 @@ const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore: "Or" };
 const RESOURCE_LABEL = { wood: "Wood", brick: "Brick", sheep: "Sheep", wheat: "Wheat", ore: "Ore" };
 const RESOURCE_ICON_PATH = {
-  wood: "./assets/icons/resource-wood.svg?v=56",
-  brick: "./assets/icons/resource-brick.svg?v=56",
-  sheep: "./assets/icons/resource-sheep.svg?v=56",
-  wheat: "./assets/icons/resource-wheat.svg?v=56",
-  ore: "./assets/icons/resource-ore.svg?v=56",
+  wood: "./assets/icons/resource-wood-v2.svg",
+  brick: "./assets/icons/resource-brick-v2.svg",
+  sheep: "./assets/icons/resource-sheep-v2.svg",
+  wheat: "./assets/icons/resource-wheat-v2.svg",
+  ore: "./assets/icons/resource-ore-v2.svg",
 };
 const RESOURCE_COLORS = {
   wood: "#4a7c3f",

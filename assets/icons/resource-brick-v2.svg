@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <!-- Warm terracotta background -->
+  <rect x="4" y="4" width="88" height="88" rx="20" ry="20" fill="#C4623E" stroke="#9E4A2E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Subtle inner glow -->
+  <rect x="8" y="8" width="80" height="80" rx="17" ry="17" fill="none" stroke="#D47A56" stroke-width="1.5" opacity="0.35" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Top brick — slightly uneven hand-drawn rectangle -->
+  <path d="M24 28 C25 27, 70 26, 72 28 C73 30, 73 42, 72 44 C70 45, 26 46, 24 44 C23 42, 23 30, 24 28Z"
+        fill="#E8A07A" stroke="#F2C9AE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Top brick texture lines -->
+  <path d="M30 33 C40 32, 55 33, 66 32" stroke="#D4896A" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.6"/>
+  <path d="M28 39 C42 40, 58 39, 68 40" stroke="#D4896A" stroke-width="1" stroke-linecap="round" fill="none" opacity="0.5"/>
+
+  <!-- Mortar line between bricks -->
+  <path d="M22 47 C40 48, 58 47, 74 48" stroke="#F2D6C4" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.5"/>
+
+  <!-- Bottom brick — offset slightly, hand-drawn -->
+  <path d="M22 50 C23 49, 68 48, 70 50 C71 52, 72 64, 70 66 C68 67, 24 68, 22 66 C21 64, 21 52, 22 50Z"
+        fill="#E8A07A" stroke="#F2C9AE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Bottom brick texture -->
+  <path d="M28 55 C38 54, 54 55, 64 54" stroke="#D4896A" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.6"/>
+  <path d="M26 61 C40 62, 56 61, 66 62" stroke="#D4896A" stroke-width="1" stroke-linecap="round" fill="none" opacity="0.5"/>
+
+  <!-- Subtle crack detail on top brick -->
+  <path d="M50 28 C49 32, 52 36, 50 44" stroke="#B85638" stroke-width="0.8" stroke-linecap="round" fill="none" opacity="0.3"/>
+</svg>
