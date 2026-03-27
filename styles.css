@@ -1708,7 +1708,104 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   border-radius: 8px;
   padding: 0.25rem 0.45rem;
   box-shadow: 0 2px 8px rgba(8, 35, 55, 0.18);
-  pointer-events: none;
+  pointer-events: auto;
+}
+
+.roll-stats-toggle {
+  background: none;
+  border: 1px solid rgba(120, 138, 162, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  color: #5a7a9a;
+  padding: 0.1rem 0.25rem;
+  line-height: 1;
+}
+.roll-stats-toggle:hover { background: rgba(0,0,0,0.06); }
+
+.roll-stats-panel {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 6px;
+  background: linear-gradient(180deg, rgba(240, 237, 229, 0.96), rgba(231, 224, 210, 0.96));
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(120, 138, 162, 0.35);
+  border-radius: 8px;
+  padding: 0.4rem 0.5rem;
+  box-shadow: 0 2px 12px rgba(8, 35, 55, 0.2);
+  min-width: 200px;
+  z-index: 16;
+}
+.roll-stats-panel.open { display: block; }
+
+.roll-stats-header {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #1a3a5c;
+  margin-bottom: 0.3rem;
+}
+.roll-stats-total { font-weight: 400; color: #5a7a9a; }
+
+.roll-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 60px;
+}
+
+.roll-bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  justify-content: flex-end;
+}
+.roll-bar-col.last-roll .roll-bar-label {
+  color: #be1a1a;
+  font-weight: 800;
+}
+
+.roll-bar-count {
+  font-size: 0.5rem;
+  font-weight: 700;
+  color: #1a3a5c;
+  min-height: 10px;
+  line-height: 1;
+}
+
+.roll-bar {
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.roll-bar-fill {
+  width: 100%;
+  max-width: 14px;
+  height: 100%;
+  min-height: 2px;
+  background: #7a9ab8;
+  border-radius: 2px 2px 0 0;
+}
+.roll-bar-fill.hot {
+  background: #be1a1a;
+}
+
+.roll-bar-label {
+  font-size: 0.55rem;
+  font-weight: 600;
+  color: #3a5a7a;
+  margin-top: 1px;
+}
+
+.roll-stats-empty {
+  font-size: 0.65rem;
+  color: #5a7a9a;
 }
 
 .last-dice-mini {

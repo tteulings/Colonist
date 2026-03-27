@@ -939,6 +939,8 @@ class ColonistFullGame {
     }));
 
     this.logEntries = [];
+    this.rollHistory = {}; // { 2: 0, 3: 0, ... 12: 0 }
+    for (let i = 2; i <= 12; i++) this.rollHistory[i] = 0;
     this.turn = 1;
     this.currentPlayerIndex = 0;
     this.phase = "pre_roll";
@@ -1860,6 +1862,7 @@ class ColonistFullGame {
       this.lastRollPlayer = player;
     }
     this.phase = "main";
+    if (this.rollHistory[this.lastRoll] != null) this.rollHistory[this.lastRoll]++;
     this.addLog(`Turn ${this.turn}: ${player.name} rolled ${this.lastRoll}.`);
     this.sfx.diceResult();
     // Highlight matching hex tokens
@@ -3777,6 +3780,7 @@ class ColonistFullGame {
       currentPlayerIndex: this.currentPlayerIndex,
       phase: this.phase,
       lastRoll: this.lastRoll,
+      rollHistory: { ...this.rollHistory },
       winnerId: this.winner ? this.winner.id : null,
       pendingAction: this.pendingAction,
       robberContext: this.robberContext,
@@ -3895,6 +3899,8 @@ class ColonistFullGame {
     this.currentPlayerIndex = data.currentPlayerIndex;
     this.phase = data.phase;
     this.lastRoll = data.lastRoll;
+    this.rollHistory = data.rollHistory || {};
+    for (let i = 2; i <= 12; i++) if (!this.rollHistory[i]) this.rollHistory[i] = 0;
     this.winner = data.winnerId != null ? this.players[data.winnerId] : null;
     this.pendingAction = data.pendingAction;
     this.robberContext = data.robberContext || null;
@@ -4097,7 +4103,10 @@ class ColonistFullGame {
     this.drawTileArtwork(hex);
 
     if (hex.number != null) {
-      const tokenR = hxs * 0.36;
+      // Scale token + font by dice probability: common numbers (6,8) are bigger, rare (2,12) smaller
+      const pips = DICE_WEIGHT[hex.number] || 1;
+      const probScale = 0.75 + 0.25 * (pips / 5); // range: 0.80 (2/12) → 1.0 (6/8)
+      const tokenR = hxs * 0.36 * probScale;
       ctx.save();
       ctx.shadowColor = "rgba(44, 24, 16, 0.3)";
       ctx.shadowBlur = 8 * sc;
@@ -4118,7 +4127,7 @@ class ColonistFullGame {
       ctx.stroke();
 
       ctx.fillStyle = hex.number === 6 || hex.number === 8 ? "#be1a1a" : "#18212c";
-      ctx.font = `bold ${Math.round(hxs * 0.38)}px Inter, sans-serif`;
+      ctx.font = `bold ${Math.round(hxs * 0.38 * probScale)}px Inter, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(String(hex.number), hex.center.x, hex.center.y - 2 * sc);
@@ -5363,6 +5372,48 @@ class ColonistFullGame {
       <div class="last-dice-mini">${pipHTML(this.lastDice.d1)}</div>
       <div class="last-dice-mini">${pipHTML(this.lastDice.d2)}</div>
       <span class="last-dice-total">${this.lastRoll}</span>
+      <button class="roll-stats-toggle" title="Roll statistics">&#9776;</button>
+    `;
+    el.querySelector(".roll-stats-toggle").addEventListener("click", (e) => {
+      e.stopPropagation();
+      const panel = document.getElementById("rollStatsPanel");
+      if (panel) panel.classList.toggle("open");
+    });
+    this.renderRollStats();
+  }
+
+  renderRollStats() {
+    let panel = document.getElementById("rollStatsPanel");
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = "rollStatsPanel";
+      panel.className = "roll-stats-panel";
+      this.lastDiceDisplay.parentElement.appendChild(panel);
+    }
+    const totalRolls = Object.values(this.rollHistory).reduce((a, b) => a + b, 0);
+    if (totalRolls === 0) {
+      panel.innerHTML = '<span class="roll-stats-empty">No rolls yet</span>';
+      return;
+    }
+    const maxCount = Math.max(...Object.values(this.rollHistory), 1);
+    let barsHTML = "";
+    for (let n = 2; n <= 12; n++) {
+      const count = this.rollHistory[n] || 0;
+      const pct = Math.round((count / maxCount) * 100);
+      const isHot = n === 6 || n === 8;
+      const isLast = n === this.lastRoll;
+      barsHTML += `
+        <div class="roll-bar-col${isLast ? " last-roll" : ""}">
+          <span class="roll-bar-count">${count || ""}</span>
+          <div class="roll-bar" style="height:${Math.max(pct, 4)}%">
+            <div class="roll-bar-fill${isHot ? " hot" : ""}"></div>
+          </div>
+          <span class="roll-bar-label">${n}</span>
+        </div>`;
+    }
+    panel.innerHTML = `
+      <div class="roll-stats-header">Rolls <span class="roll-stats-total">(${totalRolls})</span></div>
+      <div class="roll-bars">${barsHTML}</div>
     `;
   }
 
