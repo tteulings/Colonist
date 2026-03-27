@@ -5072,23 +5072,27 @@ class ColonistFullGame {
           cards.push(resource);
         }
       });
-      if (cards.length === 0) {
-        this.handStrip.innerHTML = '<span class="hand-empty">No cards</span>';
-      } else {
-        // Dynamic overlap: more cards → tighter packing so they fit on screen
-        const stripWidth = this.handStrip.clientWidth || 320;
-        const cardW = 36;
-        const maxOverlap = -22; // tightest
-        const minOverlap = -10; // loosest
-        const neededWidth = cards.length * cardW;
-        const overlap = cards.length <= 5 ? minOverlap
-          : Math.max(maxOverlap, Math.round((stripWidth - cardW) / (cards.length - 1)) - cardW);
-        this.handStrip.style.setProperty("--card-overlap", `${Math.min(overlap, minOverlap)}px`);
-        this.handStrip.innerHTML = cards.map((resource, i) =>
-          `<div class="hand-card ${resource}" style="--card-index:${i}">
-            <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
-          </div>`
-        ).join("") + `<div class="hand-card-count-card"><span>${cards.length}</span></div>`;
+      // Only re-render hand strip when card composition changes (avoids replaying deal animation)
+      const handKey = cards.join(",");
+      if (handKey !== this._lastHandKey) {
+        this._lastHandKey = handKey;
+        if (cards.length === 0) {
+          this.handStrip.innerHTML = '<span class="hand-empty">No cards</span>';
+        } else {
+          // Dynamic overlap: more cards → tighter packing so they fit on screen
+          const stripWidth = this.handStrip.clientWidth || 320;
+          const cardW = 36;
+          const maxOverlap = -22; // tightest
+          const minOverlap = -10; // loosest
+          const overlap = cards.length <= 5 ? minOverlap
+            : Math.max(maxOverlap, Math.round((stripWidth - cardW) / (cards.length - 1)) - cardW);
+          this.handStrip.style.setProperty("--card-overlap", `${Math.min(overlap, minOverlap)}px`);
+          this.handStrip.innerHTML = cards.map((resource, i) =>
+            `<div class="hand-card ${resource}" style="--card-index:${i}">
+              <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
+            </div>`
+          ).join("") + `<div class="hand-card-count-card"><span>${cards.length}</span></div>`;
+        }
       }
     }
 
@@ -5110,6 +5114,13 @@ class ColonistFullGame {
   }
 
   renderScoreboard() {
+    // Build a key from all visible data — skip re-render if unchanged (preserves tooltip)
+    const scoreKey = this.players.map((p, i) =>
+      `${i}:${p.victoryPoints}:${sumResources(p.resources)}:${p.settlements.size}:${p.cities.size}:${p.roads.size}:${p.knightsPlayed}:${p.longestRoadLength}:${this.longestRoadHolder}:${this.largestArmyHolder}:${this.currentPlayerIndex}`
+    ).join("|");
+    if (scoreKey === this._lastScoreKey) return;
+    this._lastScoreKey = scoreKey;
+
     this.scoreboard.innerHTML = "";
     this.players.forEach((player, idx) => {
       const card = document.createElement("div");
