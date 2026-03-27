@@ -350,13 +350,13 @@ main.table-layout {
   height: 24px;
   border-radius: 999px;
   object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  box-shadow: 0 1px 3px rgba(24, 57, 88, 0.2);
+  border: 1.5px solid var(--claude-gold);
+  box-shadow: 0 1px 4px rgba(44, 24, 16, 0.15);
   flex-shrink: 0;
 }
 
 .player-card-mini .player-name {
-  font-weight: 800;
+  font-weight: 700;
   font-size: 0.75rem;
   flex: 1;
   min-width: 0;
@@ -401,9 +401,9 @@ main.table-layout {
 }
 
 .player-vp {
-  font-weight: 700;
+  font-weight: 800;
   font-size: 0.72rem;
-  color: #1a3a5c;
+  color: var(--claude-accent);
   white-space: nowrap;
 }
 

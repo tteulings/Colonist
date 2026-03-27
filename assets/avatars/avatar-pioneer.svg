@@ -1,26 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
-  <defs>
-    <linearGradient id="bg" x1="18" y1="16" x2="102" y2="104" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#C7DCF4"/>
-      <stop offset="1" stop-color="#8FB4DD"/>
-    </linearGradient>
-    <linearGradient id="coat" x1="60" y1="66" x2="60" y2="112" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#4F789E"/>
-      <stop offset="1" stop-color="#315877"/>
-    </linearGradient>
-  </defs>
-  <circle cx="60" cy="60" r="54" fill="url(#bg)"/>
-  <circle cx="60" cy="60" r="54" stroke="#ECF5FF" stroke-width="4"/>
-  <path d="M21 104C27 83 42 72 60 72C78 72 93 83 99 104" fill="url(#coat)"/>
-  <path d="M47 72L60 88L73 72" fill="#E8F3FD" fill-opacity="0.86"/>
-  <ellipse cx="60" cy="48" rx="17" ry="18.5" fill="#FBD9C3"/>
-  <path d="M41 49C43 30 50 23 60 23C70 23 77 30 79 49L72 48C71 38 66 34 60 34C54 34 49 38 48 48L41 49Z" fill="#536983"/>
-  <path d="M42 52H78C76 42 70 36 60 36C50 36 44 42 42 52Z" fill="#41586F"/>
-  <path d="M50 45C52 43.5 55 43.5 57 44.6" stroke="#5E4A43" stroke-width="2.1" stroke-linecap="round"/>
-  <path d="M63 44.6C65 43.5 68 43.5 70 45" stroke="#5E4A43" stroke-width="2.1" stroke-linecap="round"/>
-  <circle cx="54" cy="51.5" r="2.1" fill="#44332F"/>
-  <circle cx="66" cy="51.5" r="2.1" fill="#44332F"/>
-  <path d="M58.3 58.5C59.3 59.2 60.7 59.2 61.7 58.5" stroke="#C48C79" stroke-width="1.8" stroke-linecap="round"/>
-  <path d="M54.5 63.5C57 66 63 66 65.5 63.5" stroke="#AB7566" stroke-width="2.2" stroke-linecap="round"/>
-  <path d="M42 46L36 43L40 35L47 39" fill="#6A7F96"/>
+  <!-- Soft blue background -->
+  <circle cx="60" cy="60" r="56" fill="#B8CCE0"/>
+  <circle cx="60" cy="60" r="54" fill="#B8CCE0" stroke="#96AECB" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Face -->
+  <circle cx="60" cy="58" r="22" fill="#FDDCC4" stroke="#2E4A66" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Explorer hat -->
+  <path d="M40 42L60 24L80 42" stroke="#2E4A66" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="#5A7A9A"/>
+  <path d="M36 44H84" stroke="#2E4A66" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M42 44L44 42" stroke="#2E4A66" stroke-width="2" stroke-linecap="round"/>
+  <path d="M78 44L76 42" stroke="#2E4A66" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Eyes - one raised eyebrow for curious look -->
+  <circle cx="52" cy="55" r="2.5" fill="#1E3448"/>
+  <circle cx="68" cy="55" r="2.5" fill="#1E3448"/>
+
+  <!-- Raised eyebrow (curious!) -->
+  <path d="M48 49C50 46 54 46 57 48" stroke="#2E4A66" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Normal eyebrow -->
+  <path d="M63 49C65 47 69 47 72 49" stroke="#2E4A66" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Slight open-mouth smile (curious/excited) -->
+  <path d="M53 65C56 69 64 69 67 65" stroke="#2E4A66" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Rosy cheeks -->
+  <circle cx="44" cy="61" r="3.5" fill="#E8A090" opacity="0.45"/>
+  <circle cx="76" cy="61" r="3.5" fill="#E8A090" opacity="0.45"/>
+
+  <!-- Simple body/shoulders -->
+  <path d="M32 100C38 84 48 78 60 78C72 78 82 84 88 100" stroke="#2E4A66" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="#7A9AB8"/>
 </svg>

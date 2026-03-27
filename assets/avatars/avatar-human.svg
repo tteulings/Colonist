@@ -1,31 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
-  <defs>
-    <linearGradient id="bg" x1="16" y1="12" x2="102" y2="108" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F7D0C2"/>
-      <stop offset="1" stop-color="#E79E87"/>
-    </linearGradient>
-    <linearGradient id="shirt" x1="60" y1="62" x2="60" y2="112" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#3A7BB2"/>
-      <stop offset="1" stop-color="#25547D"/>
-    </linearGradient>
-    <linearGradient id="hair" x1="60" y1="20" x2="60" y2="58" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#5A3A2D"/>
-      <stop offset="1" stop-color="#3E261F"/>
-    </linearGradient>
-  </defs>
-  <circle cx="60" cy="60" r="54" fill="url(#bg)"/>
-  <circle cx="60" cy="60" r="54" stroke="#F8F1ED" stroke-width="4"/>
-  <path d="M22 104C28 82 42 72 60 72C78 72 92 82 98 104" fill="url(#shirt)"/>
-  <path d="M44 72L60 94L76 72" fill="#E8F3FD" fill-opacity="0.88"/>
-  <ellipse cx="60" cy="47" rx="17" ry="19" fill="#FFD7C1"/>
-  <path d="M42 46C42 29 49 22 60 22C71 22 78 29 78 46V52H42V46Z" fill="url(#hair)"/>
-  <path d="M43 50C43 38 49 34 60 34C71 34 77 38 77 50" fill="#4A2F25"/>
-  <path d="M51 46C53 44 56 44 58 45" stroke="#5F433A" stroke-width="2.1" stroke-linecap="round"/>
-  <path d="M62 45C64 44 67 44 69 46" stroke="#5F433A" stroke-width="2.1" stroke-linecap="round"/>
-  <circle cx="54" cy="51" r="2.2" fill="#3F2F2A"/>
-  <circle cx="66" cy="51" r="2.2" fill="#3F2F2A"/>
-  <path d="M58 58C59 59 61 59 62 58" stroke="#C48876" stroke-width="1.8" stroke-linecap="round"/>
-  <path d="M54 63C56.5 66 63.5 66 66 63" stroke="#A56F61" stroke-width="2.2" stroke-linecap="round"/>
-  <circle cx="45" cy="56" r="2.5" fill="#F0B6A6" fill-opacity="0.6"/>
-  <circle cx="75" cy="56" r="2.5" fill="#F0B6A6" fill-opacity="0.6"/>
+  <!-- Warm peach/sand background -->
+  <circle cx="60" cy="60" r="56" fill="#E8D4B8"/>
+  <circle cx="60" cy="60" r="54" fill="#E8D4B8" stroke="#D4B896" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Face -->
+  <circle cx="60" cy="58" r="22" fill="#FDDCC4" stroke="#7A5C48" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Messy hair strokes -->
+  <path d="M40 48C42 34 50 28 60 28C70 28 78 34 80 48" stroke="#7A5C48" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="#8B6B52"/>
+  <path d="M38 50C40 46 43 42 46 40" stroke="#7A5C48" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M74 40C77 42 80 46 82 50" stroke="#7A5C48" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M48 30C52 27 56 26 62 27" stroke="#7A5C48" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M65 28C70 30 74 33 76 37" stroke="#7A5C48" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Eyes -->
+  <circle cx="52" cy="55" r="2.5" fill="#5A3E30"/>
+  <circle cx="68" cy="55" r="2.5" fill="#5A3E30"/>
+
+  <!-- Friendly smile -->
+  <path d="M52 66C55 70 65 70 68 66" stroke="#7A5C48" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Rosy cheeks -->
+  <circle cx="44" cy="61" r="4" fill="#E8A090" opacity="0.5"/>
+  <circle cx="76" cy="61" r="4" fill="#E8A090" opacity="0.5"/>
+
+  <!-- Simple body/shoulders -->
+  <path d="M32 100C38 84 48 78 60 78C72 78 82 84 88 100" stroke="#7A5C48" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="#C4A882"/>
 </svg>

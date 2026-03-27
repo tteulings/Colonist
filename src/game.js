@@ -39,10 +39,10 @@ const COSTS = {
 };
 
 const PLAYER_CONFIG = [
-  { name: "You", color: "#e63946", isHuman: true, avatar: "./assets/avatars/avatar-human.svg" },
-  { name: "Pioneer AI", color: "#2a6fdb", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg" },
-  { name: "Sage AI", color: "#e8a317", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg" },
-  { name: "Vector AI", color: "#2db87e", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg" },
+  { name: "You", color: "#e63946", isHuman: true, avatar: "./assets/avatars/avatar-human.svg?v=57" },
+  { name: "Pioneer AI", color: "#2a6fdb", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg?v=57" },
+  { name: "Sage AI", color: "#e8a317", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
+  { name: "Vector AI", color: "#2db87e", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
 ];
 
 const DEV_CARD_TYPES = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
@@ -3777,6 +3777,29 @@ class ColonistFullGame {
     }
   }
 
+  // Returns bezier control points for a wobbly edge between two points.
+  // Uses midpoint-seeded hash so shared edges between hexes always match.
+  _wobblyEdge(ax, ay, bx, by) {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    const mx = (ax + bx) * 0.5;
+    const my = (ay + by) * 0.5;
+    const edgeSeed1 = Math.sin(mx * 0.173 + my * 0.291) * 43758.5453;
+    const edgeSeed2 = Math.sin(mx * 0.317 + my * 0.119) * 23421.6312;
+    const w1 = (edgeSeed1 - Math.floor(edgeSeed1) - 0.5) * 6;
+    const w2 = (edgeSeed2 - Math.floor(edgeSeed2) - 0.5) * 6;
+    const fwd = ax < bx || (ax === bx && ay < by);
+    const s1 = fwd ? w1 : -w2;
+    const s2 = fwd ? w2 : -w1;
+    return {
+      cp1x: ax + dx * 0.33 + nx * s1, cp1y: ay + dy * 0.33 + ny * s1,
+      cp2x: ax + dx * 0.66 + nx * s2, cp2y: ay + dy * 0.66 + ny * s2,
+    };
+  }
+
   drawHexPath(corners, wobbly = false) {
     const ctx = this.ctx;
     ctx.beginPath();
@@ -3786,25 +3809,12 @@ class ColonistFullGame {
         else ctx.lineTo(corner.x, corner.y);
       });
     } else {
-      // Hand-drawn: wobbly Bezier curves between corners with double-curve for organic feel
       const n = corners.length;
       corners.forEach((corner, idx) => {
         const next = corners[(idx + 1) % n];
         if (idx === 0) ctx.moveTo(corner.x, corner.y);
-        const dx = next.x - corner.x;
-        const dy = next.y - corner.y;
-        const len = Math.sqrt(dx * dx + dy * dy) || 1;
-        const nx = -dy / len;
-        const ny = dx / len;
-        // Two control points for S-curve wobble
-        const wobble = 3.5;
-        const seed1 = idx * 17.3 + (corner.x * 0.13);
-        const seed2 = idx * 11.7 + (corner.y * 0.17);
-        const cp1x = corner.x + dx * 0.33 + nx * Math.sin(seed1) * wobble;
-        const cp1y = corner.y + dy * 0.33 + ny * Math.sin(seed1) * wobble;
-        const cp2x = corner.x + dx * 0.66 + nx * Math.sin(seed2) * -wobble;
-        const cp2y = corner.y + dy * 0.66 + ny * Math.sin(seed2) * -wobble;
-        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, next.x, next.y);
+        const cp = this._wobblyEdge(corner.x, corner.y, next.x, next.y);
+        ctx.bezierCurveTo(cp.cp1x, cp.cp1y, cp.cp2x, cp.cp2y, next.x, next.y);
       });
     }
     ctx.closePath();
@@ -3849,7 +3859,7 @@ class ColonistFullGame {
       ore: "#8a96a8",
       desert: "#dcc58a",
     };
-    this.drawHexPath(hex.corners);
+    this.drawHexPath(hex.corners, true);
     ctx.save();
     ctx.shadowColor = "rgba(38, 73, 106, 0.32)";
     ctx.shadowBlur = 7;
@@ -3860,7 +3870,7 @@ class ColonistFullGame {
 
     const hxs = this.geometry.hexSize;
     const sc = hxs / 74;
-    this.drawHexPath(hex.corners);
+    this.drawHexPath(hex.corners, true);
     const surface = ctx.createLinearGradient(hex.center.x - 38 * sc, hex.center.y - 38 * sc, hex.center.x + 38 * sc, hex.center.y + 38 * sc);
     surface.addColorStop(0, "rgba(255,250,230,0.22)");
     surface.addColorStop(0.5, "rgba(255,255,255,0)");
@@ -3870,7 +3880,7 @@ class ColonistFullGame {
 
     // Organic texture: soft splotches for watercolor/parchment feel
     ctx.save();
-    this.drawHexPath(hex.corners);
+    this.drawHexPath(hex.corners, true);
     ctx.clip();
     for (let i = 0; i < 8; i += 1) {
       const sx = hex.center.x + Math.sin(hex.id * 7.3 + i * 1.9) * 28 * sc;
@@ -3962,7 +3972,7 @@ class ColonistFullGame {
     const pulse = 0.5 + Math.sin(t * 1.2 + hex.id * 0.7) * 0.5;
     const artScale = this.geometry.hexSize / 74;
     ctx.save();
-    this.drawHexPath(hex.corners);
+    this.drawHexPath(hex.corners, true);
     ctx.clip();
     ctx.translate(hex.center.x, hex.center.y);
     ctx.scale(artScale, artScale);
@@ -4297,12 +4307,13 @@ class ColonistFullGame {
       const [a, b] = edge.nodes;
       const p1 = this.geometry.nodes[a];
       const p2 = this.geometry.nodes[b];
+      const cp = this._wobblyEdge(p1.x, p1.y, p2.x, p2.y);
 
       if (edge.owner == null) {
         ctx.beginPath();
         ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.strokeStyle = "rgba(228, 240, 255, 0.16)";
+        ctx.bezierCurveTo(cp.cp1x, cp.cp1y, cp.cp2x, cp.cp2y, p2.x, p2.y);
+        ctx.strokeStyle = "rgba(245, 239, 228, 0.12)";
         ctx.lineWidth = 2 * s;
         ctx.setLineDash([5 * s, 4 * s]);
         ctx.stroke();
@@ -4312,14 +4323,14 @@ class ColonistFullGame {
 
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
+      ctx.bezierCurveTo(cp.cp1x, cp.cp1y, cp.cp2x, cp.cp2y, p2.x, p2.y);
       ctx.strokeStyle = "rgba(13, 17, 25, 0.62)";
       ctx.lineWidth = 9.3 * s;
       ctx.stroke();
 
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
+      ctx.bezierCurveTo(cp.cp1x, cp.cp1y, cp.cp2x, cp.cp2y, p2.x, p2.y);
       ctx.strokeStyle = this.players[edge.owner].color;
       ctx.lineWidth = 6.6 * s;
       ctx.stroke();
@@ -4329,7 +4340,7 @@ class ColonistFullGame {
       highlight.addColorStop(1, "rgba(255,255,255,0)");
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
+      ctx.bezierCurveTo(cp.cp1x, cp.cp1y, cp.cp2x, cp.cp2y, p2.x, p2.y);
       ctx.strokeStyle = highlight;
       ctx.lineWidth = 2 * s;
       ctx.stroke();
@@ -4644,12 +4655,12 @@ class ColonistFullGame {
     this.geometry.hexes.forEach((hex) => {
       if (hex.id === this.robberHexId) {
         // Current robber location — blocked
-        this.drawHexPath(hex.corners);
+        this.drawHexPath(hex.corners, true);
         ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
         ctx.fill();
       } else {
         // Valid target — subtle red pulse border
-        this.drawHexPath(hex.corners);
+        this.drawHexPath(hex.corners, true);
         ctx.strokeStyle = `rgba(220, 60, 60, ${pulse})`;
         ctx.lineWidth = 2.5 * s;
         ctx.stroke();
@@ -4670,12 +4681,12 @@ class ColonistFullGame {
     this.geometry.hexes.forEach((hex) => {
       if (hex.number !== num || hex.id === this.robberHexId) return;
       // Glowing border around matching hexes
-      this.drawHexPath(hex.corners);
+      this.drawHexPath(hex.corners, true);
       ctx.strokeStyle = `rgba(255, 220, 40, ${alpha * (0.6 + pulse * 0.4)})`;
       ctx.lineWidth = 4 * s;
       ctx.stroke();
       // Bright fill
-      this.drawHexPath(hex.corners);
+      this.drawHexPath(hex.corners, true);
       ctx.fillStyle = `rgba(255, 240, 100, ${alpha * 0.12})`;
       ctx.fill();
       // Glow on the number token
@@ -4757,11 +4768,11 @@ class ColonistFullGame {
     if (this.hoverHexId != null) {
       const hex = this.geometry.hexes[this.hoverHexId];
       const isRobberMode = this.pendingAction === "robber";
-      this.drawHexPath(hex.corners);
+      this.drawHexPath(hex.corners, true);
       ctx.strokeStyle = isRobberMode ? "rgba(220, 50, 50, 0.85)" : "rgba(35, 132, 204, 0.75)";
       ctx.lineWidth = 3 * s;
       ctx.stroke();
-      this.drawHexPath(hex.corners);
+      this.drawHexPath(hex.corners, true);
       ctx.fillStyle = isRobberMode ? "rgba(220, 50, 50, 0.15)" : "rgba(76, 175, 255, 0.08)";
       ctx.fill();
     }

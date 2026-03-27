@@ -1,26 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
-  <defs>
-    <linearGradient id="bg" x1="14" y1="16" x2="106" y2="102" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#B3F1DF"/>
-      <stop offset="1" stop-color="#7FCAB1"/>
-    </linearGradient>
-    <linearGradient id="jacket" x1="60" y1="67" x2="60" y2="112" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#438A74"/>
-      <stop offset="1" stop-color="#306453"/>
-    </linearGradient>
-  </defs>
-  <circle cx="60" cy="60" r="54" fill="url(#bg)"/>
-  <circle cx="60" cy="60" r="54" stroke="#E7FFF6" stroke-width="4"/>
-  <path d="M21 104C27 83 42 72 60 72C78 72 93 83 99 104" fill="url(#jacket)"/>
-  <path d="M46.5 72H73.5L60 91L46.5 72Z" fill="#E5F7EF" fill-opacity="0.9"/>
-  <ellipse cx="60" cy="48" rx="17" ry="18.8" fill="#FBDAC4"/>
-  <path d="M41 48C43 31 50 23 60 23C70 23 77 31 79 48L72 47C71 38 66 34 60 34C54 34 49 38 48 47L41 48Z" fill="#3D685D"/>
-  <path d="M42 51C45 42 51 38 60 38C69 38 75 42 78 51" fill="#34584F"/>
-  <path d="M50 45.5C52 44.2 55 44.2 57 45.5" stroke="#5E4B43" stroke-width="2.1" stroke-linecap="round"/>
-  <path d="M63 45.5C65 44.2 68 44.2 70 45.5" stroke="#5E4B43" stroke-width="2.1" stroke-linecap="round"/>
-  <circle cx="54" cy="51.8" r="2.1" fill="#45352F"/>
-  <circle cx="66" cy="51.8" r="2.1" fill="#45352F"/>
-  <path d="M58.2 59C59.2 59.8 60.8 59.8 61.8 59" stroke="#C7907E" stroke-width="1.8" stroke-linecap="round"/>
-  <path d="M54.8 64.2C57.3 66.7 62.7 66.7 65.2 64.2" stroke="#A87563" stroke-width="2.2" stroke-linecap="round"/>
-  <circle cx="80" cy="47" r="4" fill="#5AB199"/>
+  <!-- Warm purple/mauve background -->
+  <circle cx="60" cy="60" r="56" fill="#D4C0E0"/>
+  <circle cx="60" cy="60" r="54" fill="#D4C0E0" stroke="#BEA6D0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Face -->
+  <circle cx="60" cy="58" r="22" fill="#FDDCC4" stroke="#4A2E66" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Pointy wizard/party hat -->
+  <path d="M44 40L60 14L76 40" stroke="#4A2E66" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="#9A78B8"/>
+  <!-- Little star on hat -->
+  <circle cx="60" cy="26" r="2.5" fill="#E8D4B8" stroke="#4A2E66" stroke-width="1.5"/>
+
+  <!-- Open eye -->
+  <circle cx="52" cy="55" r="2.5" fill="#2E1848"/>
+
+  <!-- Winking eye (closed) -->
+  <path d="M64 55C66 53 70 53 72 55" stroke="#4A2E66" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Playful grin -->
+  <path d="M50 65C54 71 66 71 70 65" stroke="#4A2E66" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Cheeky tongue or extra grin detail -->
+  <path d="M57 68C59 70 61 70 63 68" stroke="#4A2E66" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="#E8A090"/>
+
+  <!-- Rosy cheeks -->
+  <circle cx="44" cy="61" r="3.5" fill="#E8A090" opacity="0.45"/>
+  <circle cx="76" cy="61" r="3.5" fill="#E8A090" opacity="0.45"/>
+
+  <!-- Simple body/shoulders -->
+  <path d="M32 100C38 84 48 78 60 78C72 78 82 84 88 100" stroke="#4A2E66" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="#A88CC0"/>
 </svg>
