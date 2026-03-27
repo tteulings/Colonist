@@ -3755,16 +3755,16 @@ class ColonistFullGame {
     const h = this.boardHeight;
     const t = this.animTime || 0;
 
-    // Warm parchment-map ocean
+    // Warm-tinted blue ocean — slightly muted/desaturated for Claude feel
     const ocean = ctx.createRadialGradient(w * 0.47, h * 0.48, 50, w * 0.47, h * 0.48, w * 0.62);
-    ocean.addColorStop(0, "#c8b898");
-    ocean.addColorStop(0.4, "#b8a888");
-    ocean.addColorStop(1, "#a09070");
+    ocean.addColorStop(0, "#5aadcc");
+    ocean.addColorStop(0.4, "#4090b0");
+    ocean.addColorStop(1, "#2a6a88");
     ctx.fillStyle = ocean;
     ctx.fillRect(0, 0, w, h);
 
-    ctx.strokeStyle = "rgba(160, 130, 70, 0.07)";
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = "rgba(255, 248, 230, 0.06)";
+    ctx.lineWidth = 1.5;
     for (let i = 0; i < 18; i++) {
       const yBase = h * 0.05 + i * (h / 16);
       const phase = t * 0.5 + i * 0.7;
@@ -4228,9 +4228,9 @@ class ColonistFullGame {
       if (node.owner != null) return;
       ctx.beginPath();
       ctx.arc(node.x, node.y, 3.5 * s, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(220, 200, 170, 0.5)";
+      ctx.fillStyle = "rgba(240, 235, 220, 0.45)";
       ctx.fill();
-      ctx.strokeStyle = "rgba(140, 115, 65, 0.35)";
+      ctx.strokeStyle = "rgba(196, 162, 101, 0.3)";
       ctx.lineWidth = 0.8 * s;
       ctx.stroke();
     });
@@ -4314,7 +4314,7 @@ class ColonistFullGame {
         ctx.beginPath();
         ctx.moveTo(p1.x, p1.y);
         ctx.bezierCurveTo(cp.cp1x, cp.cp1y, cp.cp2x, cp.cp2y, p2.x, p2.y);
-        ctx.strokeStyle = "rgba(160, 130, 70, 0.12)";
+        ctx.strokeStyle = "rgba(255, 248, 230, 0.1)";
         ctx.lineWidth = 2 * s;
         ctx.setLineDash([5 * s, 4 * s]);
         ctx.stroke();
