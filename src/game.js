@@ -948,6 +948,7 @@ class ColonistFullGame {
     this.robberContext = null;
     this.robberVictimOptions = [];
     this.confirmBuild = null; // { type: "road"|"settlement"|"city", id: edgeId|nodeId }
+    this.freeRoadsRemaining = 0; // Road Building dev card
     if (this.victimPanel) this.victimPanel.style.display = "none";
     if (this.incomingTradePanel) this.incomingTradePanel.style.display = "none";
     this.pendingIncomingTrade = null;
@@ -1258,7 +1259,7 @@ class ColonistFullGame {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner || this.phase !== "main") return;
     if (this.pendingAction === "robber") return; // Cannot override robber placement
-    if (action === "road" && !hasResources(player.resources, COSTS.road)) return;
+    if (action === "road" && !this.freeRoadsRemaining && !hasResources(player.resources, COSTS.road)) return;
     if (action === "settlement" && !hasResources(player.resources, COSTS.settlement)) return;
     if (action === "city" && !hasResources(player.resources, COSTS.city)) return;
     this.pendingAction = this.pendingAction === action ? null : action;
@@ -1438,8 +1439,8 @@ class ColonistFullGame {
         }
       }
       const edgeId = this.findEdgeAt(x, y);
-      if (edgeId != null && hasResources(player.resources, COSTS.road)) {
-        if (this.canBuildRoad(player, edgeId, { free: false })) {
+      if (edgeId != null && (this.freeRoadsRemaining > 0 || hasResources(player.resources, COSTS.road))) {
+        if (this.canBuildRoad(player, edgeId, { free: this.freeRoadsRemaining > 0 })) {
           this.pendingAction = "road";
           this.confirmBuild = { type: "road", id: edgeId };
           this.canvas.style.cursor = "crosshair";
@@ -1456,9 +1457,14 @@ class ColonistFullGame {
       const cb = this.confirmBuild;
       let built = false;
       if (cb.type === "road") {
-        if (this.placeRoad(player, cb.id, { free: false })) {
-          payCost(player.resources, COSTS.road);
-          this.addLog(`${player.name} built a road.`);
+        const isFreeRoad = this.freeRoadsRemaining > 0;
+        if (this.placeRoad(player, cb.id, { free: isFreeRoad })) {
+          if (!isFreeRoad) payCost(player.resources, COSTS.road);
+          else {
+            this.freeRoadsRemaining -= 1;
+            this.addLog(`${player.name} placed a free road (${this.freeRoadsRemaining} remaining).`);
+          }
+          if (!isFreeRoad) this.addLog(`${player.name} built a road.`);
           this.sfx.buildRoad();
           built = true;
         }
@@ -1481,6 +1487,14 @@ class ColonistFullGame {
         // Trigger placement animation
         const animPos = this.getBuildPosition(cb);
         if (animPos) this.placementAnims.push({ ...animPos, type: cb.type, startTime: Date.now() });
+        // Stay in road mode if free roads remain from Road Building card
+        if (this.freeRoadsRemaining > 0) {
+          this.pendingAction = "road";
+          this.confirmBuild = null;
+          this.recomputeScores();
+          this.render();
+          return;
+        }
         this.pendingAction = null;
         this.confirmBuild = null;
         this.recomputeScores();
@@ -1494,7 +1508,8 @@ class ColonistFullGame {
     if (this.pendingAction === "road") {
       const edgeId = this.hoverEdgeId ?? this.findEdgeAt(x, y);
       if (edgeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
-      if (this.canBuildRoad(player, edgeId, { free: false })) {
+      const isFreeRoad = this.freeRoadsRemaining > 0;
+      if (this.canBuildRoad(player, edgeId, { free: isFreeRoad })) {
         this.confirmBuild = { type: "road", id: edgeId };
       } else {
         this.confirmBuild = null;
@@ -2295,7 +2310,7 @@ class ColonistFullGame {
     for (const other of this.players) {
       if (other.id === player.id) continue;
       if (other.isHuman) continue;
-      const accepts = this.aiEvaluateTrade(other, request, offer);
+      const accepts = this.aiEvaluateTrade(other, offer, request);
       responses.push({ player: other, accepts });
       if (accepts) acceptors.push(other);
     }
@@ -2783,6 +2798,14 @@ class ColonistFullGame {
       this.resolveRobber(player, "playing Knight");
       this.addLog(`${player.name} played Knight.`);
     } else if (type === "roadBuilding") {
+      if (player.isHuman) {
+        // Human: enter interactive free-road-placement mode
+        this.freeRoadsRemaining = 2;
+        this.pendingAction = "road";
+        this.addLog(`${player.name} played Road Building — place 2 free roads.`);
+        this.render();
+        return true; // Don't call recomputeScores yet, will be called after placement
+      }
       let built = 0;
       for (let i = 0; i < 2; i += 1) {
         const edgeId = this.chooseStrategicRoadEdge(player, true);
@@ -2791,12 +2814,39 @@ class ColonistFullGame {
       }
       this.addLog(`${player.name} played Road Building and placed ${built} road(s).`);
     } else if (type === "yearOfPlenty") {
+      if (player.isHuman) {
+        this._showResourcePicker("Year of Plenty — pick 2 resources", 2, (picks) => {
+          picks.forEach((resource) => { player.resources[resource] += 1; });
+          this.addLog(`${player.name} played Year of Plenty and gained ${picks.join(" + ")}.`);
+          this.recomputeScores();
+          this.checkForWinner(player);
+          this.render();
+        });
+        return true;
+      }
       const picks = this.chooseYearOfPlentyResources(player);
       picks.forEach((resource) => {
         player.resources[resource] += 1;
       });
       this.addLog(`${player.name} played Year of Plenty and gained ${picks.join(" + ")}.`);
     } else if (type === "monopoly") {
+      if (player.isHuman) {
+        this._showResourcePicker("Monopoly — pick 1 resource to steal", 1, (picks) => {
+          const target = picks[0];
+          let collected = 0;
+          this.players.forEach((other) => {
+            if (other.id === player.id) return;
+            collected += other.resources[target];
+            other.resources[target] = 0;
+          });
+          player.resources[target] += collected;
+          this.addLog(`${player.name} played Monopoly on ${target} and collected ${collected}.`);
+          this.recomputeScores();
+          this.checkForWinner(player);
+          this.render();
+        });
+        return true;
+      }
       const target = this.chooseBestMonopolyResource(player);
       let collected = 0;
       this.players.forEach((other) => {
@@ -2914,6 +2964,22 @@ class ColonistFullGame {
     }
 
     const actionFns = this._getActionPriority(player);
+    const actionLabels = this._getActionLabels(player);
+    // Show AI reasoning popup: evaluate which actions are possible
+    if (this.showAiReasoning) {
+      const considered = [];
+      for (let i = 0; i < actionLabels.length; i++) {
+        const label = actionLabels[i];
+        const canDo = this._canDoAction(player, label);
+        const score = actionLabels.length - i; // priority order = score
+        considered.push({ label, score, possible: canDo });
+      }
+      const top3 = considered.slice(0, 5);
+      const lines = top3.map((c, i) =>
+        `${i + 1}. ${c.label} ${c.possible ? "✓" : "✗"} (priority ${c.score})`
+      );
+      this._showAiReasoningPopup(player, lines);
+    }
     let actions = 0;
     while (actions < 10) {
       if (this.winner) break;
@@ -2930,6 +2996,62 @@ class ColonistFullGame {
 
   _aiLog(player, msg) {
     if (this.showAiReasoning) this.addLog(`[${player.name}] ${msg}`);
+  }
+
+  _getActionLabels(player) {
+    const s = player.strategy || {};
+    const robberOnSelf = this.geometry.hexes[this.robberHexId].nodes.some(nid =>
+      this.geometry.nodes[nid].owner === player.id
+    );
+    if (robberOnSelf && player.devCards.knight === 0 && s.devCards !== "none") {
+      return ["Buy Dev", "Settlement", "City", "Bank Trade", "Road"];
+    }
+    if (s.awareness === "advanced" && player.victoryPoints >= 8) {
+      return ["City", "Buy Dev", "Settlement", "Bank Trade", "Road"];
+    }
+    if (s.devCards === "strategic") {
+      const armyHolder = this.largestArmyHolder;
+      const holderKnights = armyHolder != null ? this.players[armyHolder].knightsPlayed : 2;
+      if (player.knightsPlayed >= holderKnights - 2 && armyHolder !== player.id) {
+        return ["Settlement", "City", "Buy Dev", "Road", "Bank Trade"];
+      }
+    }
+    return ["Settlement", "City", "Road", "Buy Dev", "Bank Trade"];
+  }
+
+  _canDoAction(player, label) {
+    switch (label) {
+      case "Settlement": return hasResources(player.resources, COSTS.settlement);
+      case "City": return hasResources(player.resources, COSTS.city);
+      case "Road": return hasResources(player.resources, COSTS.road);
+      case "Buy Dev": return hasResources(player.resources, COSTS.development);
+      case "Bank Trade": return sumResources(player.resources) >= 2;
+      default: return false;
+    }
+  }
+
+  _showAiReasoningPopup(player, lines) {
+    let popup = document.getElementById("aiReasoningPopup");
+    if (!popup) {
+      popup = document.createElement("div");
+      popup.id = "aiReasoningPopup";
+      popup.className = "ai-reasoning-popup";
+      document.body.appendChild(popup);
+    }
+    popup.innerHTML = `
+      <div class="ai-reasoning-header" style="color:${player.color}">
+        <img src="${player.avatar}" style="width:18px;height:18px;border-radius:99px" />
+        ${player.name}'s Turn
+      </div>
+      ${lines.map(l => `<div class="ai-reasoning-line">${l}</div>`).join("")}
+    `;
+    popup.style.display = "block";
+    popup.style.opacity = "1";
+    clearTimeout(this._aiReasoningTimeout);
+    this._aiReasoningTimeout = setTimeout(() => {
+      popup.style.opacity = "0";
+      setTimeout(() => { popup.style.display = "none"; }, 300);
+    }, 3000);
   }
 
   _getActionPriority(player) {
@@ -3573,7 +3695,7 @@ class ColonistFullGame {
     if (this.currentPlayer.isHuman) return;
     if (this.aiTurnTimeout) return;
 
-    const cadence = Math.max(400, Math.min(1200, Math.round(Number(this.speedRange.value) * 0.6)));
+    const cadence = Math.max(700, Math.min(2000, Math.round(Number(this.speedRange.value) * 0.7)));
     const step = () => {
       this.aiTurnTimeout = null;
       if (this.winner || this.autoplayInterval || this.currentPlayer.isHuman || this._aiDiceAnimating) {
@@ -4957,7 +5079,7 @@ class ColonistFullGame {
           `<div class="hand-card ${resource}" style="--card-index:${i}">
             <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
           </div>`
-        ).join("");
+        ).join("") + `<div class="hand-card-count">${cards.length}</div>`;
       }
     }
 
@@ -5023,6 +5145,16 @@ class ColonistFullGame {
         vpEl.style.cursor = "help";
         vpEl.addEventListener("mouseenter", () => this._showVPTooltip(player, vpEl));
         vpEl.addEventListener("mouseleave", () => this._hideVPTooltip());
+        vpEl.addEventListener("touchstart", (e) => {
+          e.preventDefault();
+          const visible = document.getElementById("vpTooltip");
+          if (visible) { this._hideVPTooltip(); return; }
+          this._showVPTooltip(player, vpEl);
+          // Auto-dismiss after 3s or on next touch anywhere
+          const dismiss = () => { this._hideVPTooltip(); document.removeEventListener("touchstart", dismiss); };
+          setTimeout(() => document.addEventListener("touchstart", dismiss, { once: true }), 50);
+          setTimeout(() => this._hideVPTooltip(), 3000);
+        }, { passive: false });
       }
       this.scoreboard.appendChild(card);
     });
@@ -5103,7 +5235,9 @@ class ColonistFullGame {
           if (this.confirmBuild) {
             this.actionPromptText.textContent = `Tap ✓ to confirm ${this.pendingAction}`;
           } else {
-            this.actionPromptText.textContent = `Place ${this.pendingAction}`;
+            this.actionPromptText.textContent = this.freeRoadsRemaining > 0
+              ? `Place free road (${this.freeRoadsRemaining} left)`
+              : `Place ${this.pendingAction}`;
           }
         } else {
           this.actionPromptText.textContent = `Turn ${this.turn} · ${active.name}`;
@@ -5789,6 +5923,48 @@ class ColonistFullGame {
   _hideVPTooltip() {
     const tip = document.getElementById("vpTooltip");
     if (tip) tip.remove();
+  }
+
+  _showResourcePicker(title, count, onConfirm) {
+    const existing = document.getElementById("resourcePickerOverlay");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.id = "resourcePickerOverlay";
+    overlay.className = "resource-picker-overlay";
+    const picks = [];
+    const renderPicker = () => {
+      overlay.innerHTML = `
+        <div class="resource-picker-panel">
+          <div class="resource-picker-title">${title}</div>
+          <div class="resource-picker-selected">${picks.length}/${count} selected: ${picks.join(", ") || "none"}</div>
+          <div class="resource-picker-grid">
+            ${RESOURCES.map(r => `
+              <button class="resource-picker-btn ${r}" data-res="${r}">
+                <img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />
+                <span>${r}</span>
+              </button>
+            `).join("")}
+          </div>
+          <div class="resource-picker-actions">
+            ${picks.length > 0 ? '<button class="btn-neutral resource-picker-undo">Undo</button>' : ""}
+            ${picks.length === count ? '<button class="btn-build resource-picker-confirm">Confirm</button>' : ""}
+          </div>
+        </div>
+      `;
+      overlay.querySelectorAll(".resource-picker-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          if (picks.length >= count) return;
+          picks.push(btn.dataset.res);
+          renderPicker();
+        });
+      });
+      const undoBtn = overlay.querySelector(".resource-picker-undo");
+      if (undoBtn) undoBtn.addEventListener("click", () => { picks.pop(); renderPicker(); });
+      const confirmBtn = overlay.querySelector(".resource-picker-confirm");
+      if (confirmBtn) confirmBtn.addEventListener("click", () => { overlay.remove(); onConfirm(picks); });
+    };
+    renderPicker();
+    document.body.appendChild(overlay);
   }
 
   drawCanvasScene() {

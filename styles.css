@@ -1904,6 +1904,77 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   font-weight: 800;
 }
 
+/* ── AI Reasoning Popup ── */
+.ai-reasoning-popup {
+  position: fixed;
+  bottom: 80px;
+  left: 10px;
+  z-index: 70;
+  background: rgba(20, 40, 60, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  padding: 0.5rem 0.7rem;
+  min-width: 180px;
+  max-width: 260px;
+  font-size: 0.65rem;
+  color: #dde8f0;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  transition: opacity 0.3s;
+  display: none;
+}
+.ai-reasoning-header {
+  font-weight: 800;
+  font-size: 0.72rem;
+  margin-bottom: 0.3rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.ai-reasoning-line {
+  padding: 0.1rem 0;
+  font-family: monospace;
+  font-size: 0.6rem;
+}
+
+/* ── Resource Picker Overlay (Year of Plenty / Monopoly) ── */
+.resource-picker-overlay {
+  position: fixed; inset: 0; z-index: 80;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+}
+.resource-picker-panel {
+  background: linear-gradient(180deg, #fff, #f0ede5);
+  border-radius: 12px; padding: 1rem 1.2rem; min-width: 260px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  text-align: center;
+}
+.resource-picker-title {
+  font-weight: 800; font-size: 0.9rem; color: #1a3a5c; margin-bottom: 0.5rem;
+}
+.resource-picker-selected {
+  font-size: 0.72rem; color: #5a7a9a; margin-bottom: 0.6rem;
+}
+.resource-picker-grid {
+  display: flex; gap: 0.4rem; justify-content: center; flex-wrap: wrap;
+}
+.resource-picker-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  padding: 0.4rem 0.5rem; border-radius: 8px; border: 2px solid rgba(0,0,0,0.1);
+  cursor: pointer; background: rgba(255,255,255,0.8); font-size: 0.65rem;
+  font-weight: 700; transition: transform 0.1s;
+}
+.resource-picker-btn:active { transform: scale(0.93); }
+.resource-picker-btn img { width: 28px; height: 28px; }
+.resource-picker-btn.ore { border-color: #8899aa; }
+.resource-picker-btn.brick { border-color: #c45533; }
+.resource-picker-btn.sheep { border-color: #6ab04c; }
+.resource-picker-btn.wheat { border-color: #d4a340; }
+.resource-picker-btn.wood { border-color: #2d8a4e; }
+.resource-picker-actions {
+  display: flex; gap: 0.4rem; justify-content: center; margin-top: 0.6rem;
+}
+
 /* ── Resource Gain Toasts (all players) ── */
 .resource-gain-toast {
   display: flex;
@@ -2211,6 +2282,9 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
     position: fixed; top: 0; left: 0; right: 0; z-index: 30;
     background: rgba(30, 55, 75, 0.92); backdrop-filter: blur(12px);
   }
+  .board-area {
+    padding-top: 78px; /* header (30px) + scoreboard strip (~48px) */
+  }
   .table-logo { font-size: 0.6rem; padding: 0.15rem 0.5rem; }
   .bank-strip {
     order: 0;
@@ -2254,6 +2328,21 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
     overflow-x: hidden;
     flex-wrap: nowrap;
   }
+  .hand-card-count {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    border-radius: 12px;
+    background: rgba(30, 55, 75, 0.85);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 800;
+    margin-left: 4px;
+    flex-shrink: 0;
+    align-self: center;
+  }
   .resource-card-strip { display: none; }
   .bottom-bar { order: 3; flex-shrink: 0; }
   .right-rail {
@@ -2271,7 +2360,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   }
   .rail-players {
     position: fixed;
-    top: 30px;
+    top: 34px;
     left: 0;
     right: 0;
     width: 100%;
