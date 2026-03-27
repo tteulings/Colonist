@@ -5148,23 +5148,24 @@ class ColonistFullGame {
           </div>
         </div>
       `;
-      // VP tooltip on hover
+      // VP tooltip on hover (desktop) or tap anywhere on card (mobile)
       const vpEl = card.querySelector(".player-vp");
       if (vpEl) {
         vpEl.style.cursor = "help";
         vpEl.addEventListener("mouseenter", () => this._showVPTooltip(player, vpEl));
         vpEl.addEventListener("mouseleave", () => this._hideVPTooltip());
-        vpEl.addEventListener("touchstart", (e) => {
-          e.preventDefault();
-          const visible = document.getElementById("vpTooltip");
-          if (visible) { this._hideVPTooltip(); return; }
-          this._showVPTooltip(player, vpEl);
-          // Auto-dismiss after 3s or on next touch anywhere
-          const dismiss = () => { this._hideVPTooltip(); document.removeEventListener("touchstart", dismiss); };
-          setTimeout(() => document.addEventListener("touchstart", dismiss, { once: true }), 50);
-          setTimeout(() => this._hideVPTooltip(), 3000);
-        }, { passive: false });
       }
+      card.style.cursor = "pointer";
+      card.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const visible = document.getElementById("vpTooltip");
+        if (visible) { this._hideVPTooltip(); return; }
+        this._showVPTooltip(player, card);
+        // Auto-dismiss after 4s or on next tap anywhere
+        const dismiss = () => { this._hideVPTooltip(); document.removeEventListener("click", dismiss); };
+        setTimeout(() => document.addEventListener("click", dismiss, { once: true }), 50);
+        setTimeout(() => this._hideVPTooltip(), 4000);
+      });
       this.scoreboard.appendChild(card);
     });
   }
@@ -5966,9 +5967,17 @@ class ColonistFullGame {
     tip.innerHTML = html;
 
     const rect = anchorEl.getBoundingClientRect();
-    tip.style.left = `${rect.left}px`;
-    tip.style.top = `${rect.bottom + 4}px`;
     document.body.appendChild(tip);
+    // Position below the anchor, clamped to viewport
+    const tipRect = tip.getBoundingClientRect();
+    let left = rect.left;
+    let top = rect.bottom + 4;
+    // Keep within viewport
+    if (left + tipRect.width > window.innerWidth - 8) left = window.innerWidth - tipRect.width - 8;
+    if (left < 8) left = 8;
+    if (top + tipRect.height > window.innerHeight - 8) top = rect.top - tipRect.height - 4;
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
   }
 
   _hideVPTooltip() {
