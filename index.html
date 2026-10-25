@@ -24,6 +24,7 @@
           <img src="./assets/icons/ui-logo.svg?v=63" alt="" />
           <span>Colonist</span>
         </div>
+        <span id="modeBadge" class="mode-badge" hidden></span>
         <div id="supplyOverview" class="supply-overview-header"></div>
       </section>
 
@@ -59,10 +60,31 @@
 
       <main class="table-layout">
         <section class="board-area">
+          <!-- Rush HUD: roll countdown, Ready votes, next-7 robber badge -->
+          <aside id="rushHud" class="rush-hud" hidden aria-label="Rush timer">
+            <div class="rush-card rush-timer-card">
+              <div class="rush-card-title">Next roll</div>
+              <div class="rush-ring" role="timer" aria-live="off">
+                <svg viewBox="0 0 100 100" aria-hidden="true">
+                  <circle class="rush-ring-track" cx="50" cy="50" r="44" />
+                  <circle id="rushRingFill" class="rush-ring-fill" cx="50" cy="50" r="44" />
+                </svg>
+                <div class="rush-ring-center"><span id="rushSeconds">15</span><small id="rushSecondsLabel">seconds</small></div>
+              </div>
+            </div>
+            <div class="rush-card rush-ready-card">
+              <button id="rushReadyBtn" class="rush-ready-btn" type="button">Ready – roll now</button>
+              <div id="rushVoters" class="rush-voters"></div>
+              <p class="rush-ready-help">Rolls immediately when everyone is ready.</p>
+            </div>
+            <div id="rushNext7" class="rush-card rush-next7"></div>
+          </aside>
           <section class="board-panel">
             <canvas id="board" width="1200" height="700" aria-label="Game board"></canvas>
             <div id="toastStack" class="toast-stack" aria-live="polite"></div>
             <div id="lastDiceDisplay" class="last-dice-display" style="display:none"></div>
+            <!-- Rush: bot trade offers to you (non-blocking) -->
+            <div id="rushOffers" class="rush-offers" aria-live="polite"></div>
           </section>
         </section>
 
@@ -89,6 +111,24 @@
         <div class="discard-panel-cards" id="discardCards"></div>
         <div class="discard-panel-selected" id="discardSelected"></div>
         <button id="discardConfirmBtn" class="btn-roll discard-confirm-btn" disabled>Confirm</button>
+      </div>
+
+      <!-- Rush: the game pauses on a 7 (discards, then the robber) -->
+      <div id="rushSevenPanel" class="rush-seven" hidden>
+        <div class="rush-seven-card" role="dialog" aria-label="Robber! Game paused">
+          <div class="rush-seven-head">
+            <span class="rush-seven-badge">7</span>
+            <h3>Robber! Game paused</h3>
+            <span class="rush-seven-frozen"></span>
+          </div>
+          <div class="rush-seven-step rush-seven-discard">
+            <div class="rush-seven-step-title"></div>
+            <div class="rush-seven-discard-slot"></div>
+            <div class="rush-seven-chips"></div>
+          </div>
+          <div class="rush-seven-step rush-seven-robber"></div>
+          <p class="rush-seven-foot">Building and trading resume automatically when the robber is placed.</p>
+        </div>
       </div>
 
       <!-- Robber victim selection overlay -->
