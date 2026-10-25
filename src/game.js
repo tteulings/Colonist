@@ -1,10 +1,12 @@
-import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg } from "./themes/manager.js";
+import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced } from "./themes/manager.js";
 import { SvgBoardRenderer } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
 import { TERRAIN_NAME, DEV_NAME, CARD_TEXT } from "./themes/art-util.js";
 
 const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
+/** Sunny Island colour palette from <html data-palette> (default light). */
+const currentPalette = () => (document.documentElement.dataset.palette === "vivid" ? "vivid" : "light");
 const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore: "Or" };
 // Glossary names (shared/glossary.md): cards are Lumber / Brick / Wool / Grain / Ore
 const RESOURCE_LABEL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
@@ -790,7 +792,7 @@ class ColonistFullGame {
     this.boardHeight = Number(this.canvas.getAttribute("height")) || 560;
     this.pixelRatio = 1;
     this.view = { offsetX: 0, offsetY: 0, scale: 1 };
-    this.dragState = { active: false, startX: 0, startY: 0, baseOffsetX: 0, baseOffsetY: 0 };
+    this.dragState = { pending: false, active: false, startX: 0, startY: 0, baseOffsetX: 0, baseOffsetY: 0 };
     this.hoverHexId = null;
     this.hoverNodeId = null;
     this.hoverEdgeId = null;
@@ -810,8 +812,13 @@ class ColonistFullGame {
     this.startAnimationLoop();
   }
 
+  /** Canvas backing-store ratio: up to 3x for the SVG-art renderer (crisp tiles when zoomed on phones). */
+  _targetPixelRatio() {
+    return clamp(window.devicePixelRatio || 1, 1, this.theme?.canvasArt ? 3 : 2);
+  }
+
   configureCanvasResolution() {
-    this.pixelRatio = clamp(window.devicePixelRatio || 1, 1, 2);
+    this.pixelRatio = this._targetPixelRatio();
     this.canvas.width = Math.round(this.boardWidth * this.pixelRatio);
     this.canvas.height = Math.round(this.boardHeight * this.pixelRatio);
     this.canvas.style.width = this.boardWidth + "px";
@@ -826,7 +833,7 @@ class ColonistFullGame {
     if (rect.width <= 0 || rect.height <= 0) return;
     const w = Math.round(rect.width);
     const h = Math.round(rect.height);
-    const dpr = clamp(window.devicePixelRatio || 1, 1, 2);
+    const dpr = this._targetPixelRatio();
     if (w !== this.boardWidth || h !== this.boardHeight || dpr !== this.pixelRatio) {
       this.boardWidth = w;
       this.boardHeight = h;
@@ -869,9 +876,22 @@ class ColonistFullGame {
   }
 
   handleResize() {
+    // Remember zoom + the board point in the middle of the view (in hex units: geometry is rebuilt)
+    let keep = null;
+    if (this.geometry && this._fitScale && this.view.scale > this._fitScale * 1.01) {
+      const g = this.geometry, w = this.screenToWorld(this.boardWidth / 2, this.boardHeight / 2);
+      keep = { z: this.view.scale / this._fitScale, ax: (w.x - g.centerX) / g.hexSize, ay: (w.y - g.centerY) / g.hexSize };
+    }
     this._updateLayoutMode();
     this.fitCanvasToContainer();
     this.fitView();
+    if (keep) {
+      const g = this.geometry, scale = this._fitScale * keep.z;
+      this.view.scale = scale;
+      this.view.offsetX = this.boardWidth / 2 - (g.centerX + keep.ax * g.hexSize) * scale;
+      this.view.offsetY = this.boardHeight / 2 - (g.centerY + keep.ay * g.hexSize) * scale;
+      this._clampView();
+    }
     this.boardRenderer?.invalidateStatic();
     this._invalidateUI();
     this.render();
@@ -894,7 +914,8 @@ class ColonistFullGame {
       // Classic: the original animated canvas at ~30 fps
       if (!this.lastAnimationTs) this.lastAnimationTs = ts;
       const deltaMs = ts - this.lastAnimationTs;
-      if (deltaMs < frameInterval) return;
+      if (deltaMs < frameInterval && !this._classicDirty) return;
+      this._classicDirty = false;
       this.lastAnimationTs = ts;
       this.animTime += deltaMs * 0.001;
       this.drawCanvasScene();
@@ -978,128 +999,21 @@ class ColonistFullGame {
       }
     });
     // Selecting a spot only redraws the board; refresh the status pill / confirm pill too
-    this.canvas.addEventListener("click", (event) => { this.handleBoardClick(event); this.renderStatusAndControls(); });
+    this.canvas.addEventListener("click", (event) => {
+      if (this._suppressClick) { this._suppressClick = false; return; } // the click that ends a mouse drag
+      this.handleBoardClick(event);
+      this.renderStatusAndControls();
+    });
     this.canvas.addEventListener("mousemove", (event) => this.handleCanvasMouseMove(event));
     this.canvas.addEventListener("mouseleave", () => this.handleCanvasMouseLeave());
     this.canvas.addEventListener("mousedown", (event) => this.handleCanvasMouseDown(event));
     window.addEventListener("mouseup", () => this.handleCanvasMouseUp());
-    this.canvas.addEventListener(
-      "wheel",
-      (event) => this.handleCanvasWheel(event),
-      { passive: false },
-    );
-    // ── Touch state ──
-    this.touchState = {
-      startTouches: null,
-      lastTouches: null,
-      isPinching: false,
-      isDragging: false,
-      startTime: 0,
-      startX: 0,
-      startY: 0,
-      totalMoved: 0,
-      lastTapTime: 0,
-      lastTapX: 0,
-      lastTapY: 0,
-    };
-
-    this.canvas.addEventListener("touchstart", (event) => {
-      event.preventDefault();
-      const ts = this.touchState;
-      ts.startTime = Date.now();
-
-      if (event.touches.length === 2) {
-        // Start pinch zoom
-        ts.isPinching = true;
-        ts.isDragging = false;
-        ts.startTouches = this.getTouchPair(event.touches);
-        ts.lastTouches = ts.startTouches;
-        this.dragState.active = false;
-      } else if (event.touches.length === 1) {
-        const touch = event.touches[0];
-        ts.startX = touch.clientX;
-        ts.startY = touch.clientY;
-        ts.totalMoved = 0;
-        ts.isPinching = false;
-        ts.isDragging = false;
-        // Start drag if not in placement mode
-        if (!this.pendingAction && !this.setupPhase) {
-          this.handleCanvasMouseDown({ clientX: touch.clientX, clientY: touch.clientY, button: 0 });
-        }
-      }
-    }, { passive: false });
-
-    this.canvas.addEventListener("touchmove", (event) => {
-      event.preventDefault();
-      const ts = this.touchState;
-
-      if (event.touches.length === 2 && ts.isPinching) {
-        const pair = this.getTouchPair(event.touches);
-        this.handlePinchMove(ts.lastTouches, pair);
-        ts.lastTouches = pair;
-      } else if (event.touches.length === 1 && !ts.isPinching) {
-        const touch = event.touches[0];
-        const dx = touch.clientX - ts.startX;
-        const dy = touch.clientY - ts.startY;
-        ts.totalMoved += Math.abs(dx - (ts.lastDx || 0)) + Math.abs(dy - (ts.lastDy || 0));
-        ts.lastDx = dx;
-        ts.lastDy = dy;
-        ts.isDragging = true;
-        this.handleCanvasMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
-      }
-    }, { passive: false });
-
-    this.canvas.addEventListener("touchend", (event) => {
-      event.preventDefault();
-      const ts = this.touchState;
-
-      if (ts.isPinching) {
-        // End pinch — if still one finger left, ignore until all up
-        if (event.touches.length === 0) {
-          ts.isPinching = false;
-        }
-        this.dragState.active = false;
-        return;
-      }
-
-      this.handleCanvasMouseUp();
-
-      // Only fire click if it was a quick tap without much movement
-      const now = Date.now();
-      const elapsed = now - ts.startTime;
-      const wasTap = elapsed < 300 && ts.totalMoved < 20;
-      if (wasTap && event.changedTouches.length === 1) {
-        const touch = event.changedTouches[0];
-        // Double-tap detection
-        const dtSince = now - ts.lastTapTime;
-        const dtDist = Math.hypot(touch.clientX - ts.lastTapX, touch.clientY - ts.lastTapY);
-        // While placing (setup, build/robber mode, or a ✓ is showing) a quick second tap is a
-        // selection/confirmation, never a double-tap zoom
-        const placing = this.setupPhase || this.pendingAction || this.confirmBuild;
-        if (!placing && dtSince < 350 && dtDist < 40) {
-          // Double tap — zoom in/out
-          this.handleDoubleTapZoom(touch.clientX, touch.clientY);
-          ts.lastTapTime = 0;
-        } else {
-          this.handleBoardClick({ clientX: touch.clientX, clientY: touch.clientY });
-          this.renderStatusAndControls();
-          ts.lastTapTime = now;
-          ts.lastTapX = touch.clientX;
-          ts.lastTapY = touch.clientY;
-        }
-      }
-
-      ts.isDragging = false;
-      ts.totalMoved = 0;
-      ts.lastDx = 0;
-      ts.lastDy = 0;
-    }, { passive: false });
-
-    this.canvas.addEventListener("touchcancel", () => {
-      this.touchState.isPinching = false;
-      this.touchState.isDragging = false;
-      this.dragState.active = false;
+    window.addEventListener("mousemove", (event) => {
+      if (event.target !== this.canvas && (this.dragState.pending || this.dragState.active)) this.handleCanvasMouseMove(event);
     });
+    this.canvas.addEventListener("wheel", (event) => this.handleCanvasWheel(event), { passive: false });
+    this.canvas.style.touchAction = "none"; // the board owns every touch gesture (no page zoom / scroll)
+    this._bindTouchGestures();
     window.addEventListener("keydown", (event) => this.handleKeyboardShortcut(event));
     this.logToggle.addEventListener("click", () => this.toggleLog());
     let resizeTimer;
@@ -1202,8 +1116,8 @@ class ColonistFullGame {
   }
 
   resetViewTransform() {
-    this.fitView();
-    this.render();
+    if (!this.geometry) return;
+    this._animateView(this._fitTarget(), 300);
   }
 
   resetGame() {
@@ -1918,99 +1832,335 @@ class ColonistFullGame {
     const { x: sx, y: sy } = this.getCanvasPoint(event);
     this.hoverPointer.x = sx;
     this.hoverPointer.y = sy;
-
-    if (this.dragState.active) {
-      this.view.offsetX = this.dragState.baseOffsetX + (sx - this.dragState.startX);
-      this.view.offsetY = this.dragState.baseOffsetY + (sy - this.dragState.startY);
+    const ds = this.dragState;
+    if (ds.pending && !ds.active && Math.hypot(sx - ds.startX, sy - ds.startY) > 4) {
+      ds.active = true; // a press only becomes a drag once it moves; a still press stays a click
+      this._setViewMoving(true);
+    }
+    if (ds.active) {
+      this.view.offsetX = ds.baseOffsetX + (sx - ds.startX);
+      this.view.offsetY = ds.baseOffsetY + (sy - ds.startY);
+      this._clampView();
       this.canvas.style.cursor = "grabbing";
-      this.drawCanvasScene();
+      this._viewChanged();
       return;
     }
-
     const world = this.screenToWorld(sx, sy);
     this.updateHoverTargets(world.x, world.y);
     this.drawCanvasScene();
   }
 
   handleCanvasMouseLeave() {
-    this.dragState.active = false;
     this.hoverHexId = null;
     this.hoverNodeId = null;
     this.hoverEdgeId = null;
     this.hoverTooltip = "";
-    this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
+    if (!this.dragState.active) this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
     this.drawCanvasScene();
   }
 
   handleCanvasMouseDown(event) {
     if (event.button !== 0) return;
-    if (this.pendingAction || this.setupPhase) return;
-    this.dragState.active = true;
+    this._stopViewMotion();
+    const ds = this.dragState;
     const { x: sx, y: sy } = this.getCanvasPoint(event);
-    this.dragState.startX = sx;
-    this.dragState.startY = sy;
-    this.dragState.baseOffsetX = this.view.offsetX;
-    this.dragState.baseOffsetY = this.view.offsetY;
-    this.canvas.style.cursor = "grabbing";
+    ds.pending = true;
+    ds.active = false;
+    ds.startX = sx;
+    ds.startY = sy;
+    ds.baseOffsetX = this.view.offsetX;
+    ds.baseOffsetY = this.view.offsetY;
   }
 
   handleCanvasMouseUp() {
-    if (!this.dragState.active) return;
-    this.dragState.active = false;
+    const ds = this.dragState;
+    const dragged = ds.active;
+    ds.pending = false;
+    ds.active = false;
+    if (!dragged) return;
+    this._suppressClick = true; // the click event that follows a drag is not a board click
+    window.setTimeout(() => { this._suppressClick = false; }, 0);
     this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
+    this._setViewMoving(false);
     this.drawCanvasScene();
   }
 
+  /** Mouse wheel zooms at the pointer; trackpad pinch (ctrl+wheel) zooms smoothly; two-finger trackpad scroll pans. */
   handleCanvasWheel(event) {
     event.preventDefault();
-    const { x: sx, y: sy } = this.getCanvasPoint(event);
+    this._stopViewMotion();
+    let dx = event.deltaX, dy = event.deltaY;
+    if (event.deltaMode === 1) { dx *= 16; dy *= 16; } else if (event.deltaMode === 2) { dx *= 400; dy *= 400; }
+    const pt = this.getCanvasPoint(event);
+    if (event.ctrlKey) this.zoomAt(pt.x, pt.y, Math.exp(-clamp(dy, -60, 60) * 0.01));
+    else if (Math.abs(dx) > 0.5) {
+      this.view.offsetX -= dx;
+      this.view.offsetY -= dy;
+      this._clampView();
+      this._viewChanged();
+    } else this.zoomAt(pt.x, pt.y, Math.exp(-clamp(dy, -120, 120) * 0.0022));
+    this._setViewMoving(true);
+    clearTimeout(this._wheelTimer);
+    this._wheelTimer = window.setTimeout(() => this._setViewMoving(false), 160);
+  }
+
+  // ── Touch: native-map style gestures ────────────────────────────────────
+  // One finger: tap = select/confirm (unchanged rules), drag = pan (with momentum).
+  // Two fingers: pinch-zoom anchored at the midpoint + pan with the midpoint.
+  // Double tap (only when no placement is in progress) toggles fit <-> 2x at the tapped point.
+  _bindTouchGestures() {
+    const ts = (this.touchState = { mode: null, startX: 0, startY: 0, lastX: 0, lastY: 0, startTime: 0, samples: [], pair: null, lastTapTime: 0, lastTapX: 0, lastTapY: 0 });
+    const pt = (t) => this.getCanvasPoint(t);
+    const pairOf = (list) => {
+      const a = pt(list[0]), b = pt(list[1]);
+      return { midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2, dist: Math.hypot(b.x - a.x, b.y - a.y) };
+    };
+    const startPan = (touch) => {
+      const p = pt(touch);
+      ts.mode = "pan";
+      ts.lastX = p.x;
+      ts.lastY = p.y;
+      ts.samples = [{ t: performance.now(), x: p.x, y: p.y }];
+      this._setViewMoving(true);
+    };
+    this.canvas.addEventListener("touchstart", (event) => {
+      event.preventDefault();
+      this._stopViewMotion();
+      this.dragState.pending = false;
+      this.dragState.active = false;
+      if (event.touches.length >= 2) {
+        ts.mode = "pinch";
+        ts.pair = pairOf(event.touches);
+        ts.lastTapTime = 0;
+        this._setViewMoving(true);
+      } else if (event.touches.length === 1) {
+        const p = pt(event.touches[0]);
+        ts.mode = "tap";
+        ts.startX = ts.lastX = p.x;
+        ts.startY = ts.lastY = p.y;
+        ts.startTime = event.timeStamp; // event time: a busy main thread must not turn a tap into a long press
+        ts.samples = [{ t: ts.startTime, x: p.x, y: p.y }];
+      }
+    }, { passive: false });
+
+    this.canvas.addEventListener("touchmove", (event) => {
+      event.preventDefault();
+      if (ts.mode === "pinch" && event.touches.length >= 2) {
+        const pair = pairOf(event.touches);
+        const prev = ts.pair;
+        const world = this.screenToWorld(prev.midX, prev.midY);
+        const f = prev.dist > 0 ? pair.dist / prev.dist : 1;
+        this.view.scale = clamp(this.view.scale * f, this._minScale(), this._maxScale());
+        this.view.offsetX = pair.midX - world.x * this.view.scale;
+        this.view.offsetY = pair.midY - world.y * this.view.scale;
+        this._clampView();
+        ts.pair = pair;
+        this._viewChanged();
+        return;
+      }
+      if (event.touches.length !== 1) return;
+      const p = pt(event.touches[0]);
+      if (ts.mode === "tap" && Math.hypot(p.x - ts.startX, p.y - ts.startY) > 10) {
+        ts.mode = "pan";
+        this._setViewMoving(true);
+      }
+      if (ts.mode !== "pan") return;
+      this.view.offsetX += p.x - ts.lastX;
+      this.view.offsetY += p.y - ts.lastY;
+      ts.lastX = p.x;
+      ts.lastY = p.y;
+      const now = event.timeStamp;
+      ts.samples.push({ t: now, x: p.x, y: p.y });
+      while (ts.samples.length > 2 && now - ts.samples[0].t > 100) ts.samples.shift();
+      this._clampView();
+      this._viewChanged();
+    }, { passive: false });
+
+    const end = (event, cancelled) => {
+      if (event.cancelable) event.preventDefault();
+      if (event.touches.length > 0) {
+        // pinch → one finger left: keep panning with it (no jump)
+        if (ts.mode === "pinch" && event.touches.length === 1) startPan(event.touches[0]);
+        else if (event.touches.length >= 2) ts.pair = pairOf(event.touches);
+        return;
+      }
+      const mode = ts.mode;
+      ts.mode = null;
+      if (mode === "pan" && !cancelled) {
+        const s0 = ts.samples[0], s1 = ts.samples[ts.samples.length - 1];
+        const dt = s1.t - s0.t;
+        if (dt > 0 && event.timeStamp - s1.t < 60) this._startMomentum((s1.x - s0.x) / dt, (s1.y - s0.y) / dt);
+        else this._setViewMoving(false);
+        return;
+      }
+      if (mode === "pan" || mode === "pinch") { this._setViewMoving(false); return; }
+      if (mode !== "tap" || cancelled || event.timeStamp - ts.startTime > 600) return;
+      const touch = event.changedTouches[0];
+      const p = pt(touch);
+      const now = event.timeStamp;
+      // While placing (setup, build/robber mode, or a ✓ is showing) a quick second tap is a
+      // selection/confirmation, never a double-tap zoom
+      const placing = !!(this.setupPhase || this.pendingAction || this.confirmBuild || this.robberVictimOptions?.length > 0);
+      if (!placing && now - ts.lastTapTime < 320 && Math.hypot(p.x - ts.lastTapX, p.y - ts.lastTapY) < 36) {
+        ts.lastTapTime = 0;
+        this.handleDoubleTapZoom(touch.clientX, touch.clientY);
+        return;
+      }
+      // Hover targets come from the tap point itself (never from an earlier drag)
+      const world = this.screenToWorld(p.x, p.y);
+      this.updateHoverTargets(world.x, world.y);
+      this.handleBoardClick({ clientX: touch.clientX, clientY: touch.clientY });
+      this.hoverNodeId = this.hoverEdgeId = this.hoverHexId = null;
+      this.hoverTooltip = "";
+      this.renderStatusAndControls();
+      ts.lastTapTime = placing ? 0 : now;
+      ts.lastTapX = p.x;
+      ts.lastTapY = p.y;
+    };
+    this.canvas.addEventListener("touchend", (event) => end(event, false), { passive: false });
+    this.canvas.addEventListener("touchcancel", (event) => end(event, true), { passive: false });
+  }
+
+  // ── View: limits, clamping, motion ──────────────────────────────────────
+  _minScale() { return this._fitScale; }
+  _maxScale() { return this._fitScale * 2.5; }
+
+  /** Island bounds (world) and the visible board area (screen), shared by fit and clamping. */
+  _viewFrame() {
+    const g = this.geometry, hs = g.hexSize;
+    const xs = g.hexes.map((h) => h.center.x), ys = g.hexes.map((h) => h.center.y);
+    // Phones: the tiles fill the width (harbours may overlap the screen edge a little)
+    const mx = hs * (this.isMobileLayout ? 0.93 : 1.75), my = hs * (this.isMobileLayout ? 1.16 : 1.7);
+    const box = { minX: Math.min(...xs) - mx, maxX: Math.max(...xs) + mx, minY: Math.min(...ys) - my, maxY: Math.max(...ys) + my };
+    let fan = 0;
+    if (this.isMobileLayout && this.app) fan = parseFloat(getComputedStyle(this.app).getPropertyValue("--fan-h")) || 112;
+    const ins = this.isMobileLayout ? { t: 4, r: 0, b: fan - 6, l: 0 } : { t: 10, r: 10, b: 10, l: 10 };
+    const vp = { l: ins.l, t: ins.t, W: Math.max(50, this.boardWidth - ins.l - ins.r), H: Math.max(50, this.boardHeight - ins.t - ins.b) };
+    return { box, vp };
+  }
+
+  /** Keep the island in view. On an axis where it is larger than the view it must cover the view
+   *  edge to edge; where it is smaller it must stay inside, and that slack shrinks smoothly to
+   *  "centred" as the zoom approaches fit (so the fitted board never drifts, and pinches stay anchored). */
+  _clampView(v = this.view) {
+    if (!this.geometry) return v;
+    const { box, vp } = this._viewFrame();
+    v.scale = clamp(v.scale, this._minScale(), this._maxScale());
+    const t = clamp((v.scale / this._minScale() - 1) / 0.06, 0, 1);
+    const axis = (off, min, max, start, size) => {
+      const span = (max - min) * v.scale;
+      const give = size * 0.12 * t; // a little overscroll once zoomed, so pinches near an edge stay anchored
+      if (span <= size) {
+        const centred = start + size / 2 - ((min + max) / 2) * v.scale;
+        const slack = ((size - span) / 2) * t + give;
+        return clamp(off, centred - slack, centred + slack);
+      }
+      return clamp(off, start + size - max * v.scale - give, start - min * v.scale + give);
+    };
+    v.offsetX = axis(v.offsetX, box.minX, box.maxX, vp.l, vp.W);
+    v.offsetY = axis(v.offsetY, box.minY, box.maxY, vp.t, vp.H);
+    return v;
+  }
+
+  /** The view moved: redraw on the next animation frame (at most once per frame). */
+  _viewChanged() {
+    if (this.boardRenderer) this.boardRenderer.requestDraw();
+    else this._classicDirty = true;
+  }
+
+  /** While the view moves, the SVG renderer reuses its cached layer (scaled) and re-bakes afterwards. */
+  _setViewMoving(on) {
+    this.viewMoving = on;
+    if (!on) this.boardRenderer?.requestDraw();
+  }
+
+  _stopViewMotion() {
+    if (this._viewAnim) { cancelAnimationFrame(this._viewAnim); this._viewAnim = null; }
+    this._setViewMoving(false);
+  }
+
+  _startMomentum(vx, vy) {
+    if (Math.hypot(vx, vy) < 0.25 || motionReduced()) { this._setViewMoving(false); return; }
+    let last = performance.now();
+    const step = (now) => {
+      const dt = Math.max(0, Math.min(40, now - last));
+      last = now;
+      const bx = this.view.offsetX, by = this.view.offsetY;
+      this.view.offsetX += vx * dt;
+      this.view.offsetY += vy * dt;
+      this._clampView();
+      if (Math.abs(this.view.offsetX - bx) < 0.01) vx = 0; // reached an edge on this axis
+      if (Math.abs(this.view.offsetY - by) < 0.01) vy = 0;
+      const decay = Math.exp(-dt / 325);
+      vx *= decay;
+      vy *= decay;
+      this._viewChanged();
+      if (Math.hypot(vx, vy) < 0.02) { this._viewAnim = null; this._setViewMoving(false); return; }
+      this._viewAnim = requestAnimationFrame(step);
+    };
+    this._setViewMoving(true);
+    this._viewAnim = requestAnimationFrame(step);
+  }
+
+  /** Animate the view to a target (ease-out, anchored at the zoom's fixed point; instant with reduced motion). */
+  _animateView(target, dur = 280) {
+    this._stopViewMotion();
+    const from = { ...this.view };
+    const to = this._clampView({ ...target });
+    if (motionReduced() || dur <= 0) {
+      Object.assign(this.view, to);
+      this._viewChanged();
+      return;
+    }
+    // Fixed point F of the transform from→to: F = off + w*scale for the same world point w in both views.
+    const ds = to.scale - from.scale;
+    let fixed = null;
+    if (Math.abs(ds) > 1e-6) {
+      const wx = (from.offsetX - to.offsetX) / ds, wy = (from.offsetY - to.offsetY) / ds;
+      fixed = { wx, wy, sx: from.offsetX + wx * from.scale, sy: from.offsetY + wy * from.scale };
+    }
+    const t0 = performance.now();
+    this._setViewMoving(true);
+    const step = (now) => {
+      const t = Math.min(1, (now - t0) / dur);
+      const e = 1 - Math.pow(1 - t, 3);
+      if (fixed) {
+        const sc = from.scale * Math.pow(to.scale / from.scale, e);
+        this.view.scale = sc;
+        this.view.offsetX = fixed.sx - fixed.wx * sc;
+        this.view.offsetY = fixed.sy - fixed.wy * sc;
+      } else {
+        this.view.offsetX = from.offsetX + (to.offsetX - from.offsetX) * e;
+        this.view.offsetY = from.offsetY + (to.offsetY - from.offsetY) * e;
+      }
+      if (t >= 1) Object.assign(this.view, to);
+      this._viewChanged();
+      if (t < 1) this._viewAnim = requestAnimationFrame(step);
+      else { this._viewAnim = null; this._setViewMoving(false); }
+    };
+    this._viewAnim = requestAnimationFrame(step);
+  }
+
+  /** Zoom by factor f keeping the board point under (sx, sy) fixed. */
+  zoomAt(sx, sy, f) {
     const before = this.screenToWorld(sx, sy);
-    const factor = event.deltaY < 0 ? 1.12 : 0.88;
-    this.view.scale = clamp(this.view.scale * factor, this._fitScale * 0.6, this._fitScale * 2.6);
+    this.view.scale = clamp(this.view.scale * f, this._minScale(), this._maxScale());
     this.view.offsetX = sx - before.x * this.view.scale;
     this.view.offsetY = sy - before.y * this.view.scale;
-    this.drawCanvasScene();
-  }
-
-  getTouchPair(touches) {
-    return {
-      x1: touches[0].clientX, y1: touches[0].clientY,
-      x2: touches[1].clientX, y2: touches[1].clientY,
-      dist: Math.hypot(touches[1].clientX - touches[0].clientX, touches[1].clientY - touches[0].clientY),
-      midX: (touches[0].clientX + touches[1].clientX) / 2,
-      midY: (touches[0].clientY + touches[1].clientY) / 2,
-    };
-  }
-
-  handlePinchMove(prev, curr) {
-    if (prev.dist === 0) return;
-    const factor = curr.dist / prev.dist;
-    const mid = this.getCanvasPoint({ clientX: curr.midX, clientY: curr.midY });
-    const before = this.screenToWorld(mid.x, mid.y);
-    this.view.scale = clamp(this.view.scale * factor, this._fitScale * 0.6, this._fitScale * 2.6);
-    this.view.offsetX = mid.x - before.x * this.view.scale;
-    this.view.offsetY = mid.y - before.y * this.view.scale;
-
-    // Also pan with the midpoint movement
-    const prevMid = this.getCanvasPoint({ clientX: prev.midX, clientY: prev.midY });
-    this.view.offsetX += (mid.x - prevMid.x);
-    this.view.offsetY += (mid.y - prevMid.y);
-
-    this.drawCanvasScene();
+    this._clampView();
+    this._viewChanged();
   }
 
   handleDoubleTapZoom(clientX, clientY) {
     const pt = this.getCanvasPoint({ clientX, clientY });
-    const before = this.screenToWorld(pt.x, pt.y);
-    // Toggle between zoomed-in and the fitted board
-    if (this.view.scale < this._fitScale * 1.4) {
-      this.view.scale = this._fitScale * 1.8;
-      this.view.offsetX = pt.x - before.x * this.view.scale;
-      this.view.offsetY = pt.y - before.y * this.view.scale;
+    // Toggle between the fitted board and 2x at the tapped point
+    if (this.view.scale < this._fitScale * 1.5) {
+      const w = this.screenToWorld(pt.x, pt.y);
+      const scale = this._fitScale * 2;
+      this._animateView({ scale, offsetX: pt.x - w.x * scale, offsetY: pt.y - w.y * scale });
     } else {
-      this.fitView();
+      this._animateView(this._fitTarget());
     }
-    this.drawCanvasScene();
   }
 
   handleKeyboardShortcut(event) {
@@ -5670,14 +5820,14 @@ class ColonistFullGame {
       ctx.moveTo(p1.x, p1.y);
       ctx.bezierCurveTo(cp.cp1x, cp.cp1y, cp.cp2x, cp.cp2y, p2.x, p2.y);
       ctx.strokeStyle = "rgba(13, 17, 25, 0.62)";
-      ctx.lineWidth = 9.3 * s;
+      ctx.lineWidth = 9.3 * s * (this.isMobileLayout ? 1.25 : 1);
       ctx.stroke();
 
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.bezierCurveTo(cp.cp1x, cp.cp1y, cp.cp2x, cp.cp2y, p2.x, p2.y);
       ctx.strokeStyle = this.players[edge.owner].color;
-      ctx.lineWidth = 6.6 * s;
+      ctx.lineWidth = 6.6 * s * (this.isMobileLayout ? 1.25 : 1);
       ctx.stroke();
 
       const highlight = ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
@@ -5696,7 +5846,7 @@ class ColonistFullGame {
   drawStructures() {
     const ctx = this.ctx;
     const s = this.geometry.hexSize / 74;
-    const structScale = 1.2; // 20% bigger structures
+    const structScale = this.isMobileLayout ? 1.45 : 1.2; // bigger structures; larger still on phones
 
     // Draw blue blinking build spots FIRST (behind structures)
     if (this.setupPhase && this.setupAction) {
@@ -7401,6 +7551,7 @@ class ColonistFullGame {
     this.theme = THEMES[storedThemeId()];
     document.documentElement.dataset.theme = this.theme.id;
     applyMotionAttr();
+    this.theme.setPalette?.(currentPalette());
     installSprite(this.theme);
     this.app = document.querySelector("#app");
     this.fx = new Fx(this);
@@ -7471,6 +7622,33 @@ class ColonistFullGame {
     });
     window.matchMedia("(max-width: 900px)").addEventListener?.("change", () => this.handleResize());
     document.addEventListener("visibilitychange", () => { if (!document.hidden) this.boardRenderer?.requestDraw(); });
+    // The board area changes size without a window resize (chrome bars laying out after load, the
+    // hand fan, sheets): keep the canvas backing store in step with its box, or the board is drawn
+    // squeezed and taps land in the wrong place.
+    const box = this.canvas.parentElement;
+    if (box && window.ResizeObserver) {
+      let raf = 0;
+      new ResizeObserver(() => {
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => {
+          const r = box.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0 && (Math.round(r.width) !== this.boardWidth || Math.round(r.height) !== this.boardHeight)) this.handleResize();
+        });
+      }).observe(box);
+    }
+    // Sunny Island colour palette (<html data-palette="light|vivid">): re-bake the board in place
+    document.addEventListener("colonist:palette", () => this._applyPalette());
+    new MutationObserver(() => this._applyPalette()).observe(document.documentElement, { attributes: true, attributeFilter: ["data-palette"] });
+  }
+
+  _applyPalette() {
+    const T = this.theme;
+    if (!T?.setPalette || !T.setPalette(currentPalette())) return;
+    installSprite(T);
+    this._applyThemeToPlayers();
+    this._invalidateUI();
+    this.boardRenderer?.invalidateStatic();
+    this.render();
   }
 
   _syncScrim() {
@@ -7515,29 +7693,25 @@ class ColonistFullGame {
 
   zoomBy(f) {
     const cx = this.boardWidth / 2, cy = this.boardHeight / 2;
-    const before = this.screenToWorld(cx, cy);
-    this.view.scale = clamp(this.view.scale * f, this._fitScale * 0.6, this._fitScale * 2.6);
-    this.view.offsetX = cx - before.x * this.view.scale;
-    this.view.offsetY = cy - before.y * this.view.scale;
-    this.drawCanvasScene();
+    const w = this.screenToWorld(cx, cy);
+    const scale = clamp(this.view.scale * f, this._minScale(), this._maxScale());
+    this._animateView({ scale, offsetX: cx - w.x * scale, offsetY: cy - w.y * scale }, 220);
+  }
+
+  /** The fitted view (also records the fit scale = minimum zoom). */
+  _fitTarget() {
+    const { box, vp } = this._viewFrame();
+    const scale = Math.min(vp.W / (box.maxX - box.minX), vp.H / (box.maxY - box.minY));
+    this._fitScale = scale;
+    return { scale, offsetX: vp.l + vp.W / 2 - ((box.minX + box.maxX) / 2) * scale, offsetY: vp.t + vp.H / 2 - ((box.minY + box.maxY) / 2) * scale };
   }
 
   /** Fit the island (with harbours) into the visible board area. */
   fitView() {
     if (!this.geometry) return;
-    const g = this.geometry, hs = g.hexSize;
-    const xs = g.hexes.map((h) => h.center.x), ys = g.hexes.map((h) => h.center.y);
-    const mx = hs * (this.isMobileLayout ? 1.12 : 1.75), my = hs * (this.isMobileLayout ? 1.3 : 1.7);
-    const minX = Math.min(...xs) - mx, maxX = Math.max(...xs) + mx, minY = Math.min(...ys) - my, maxY = Math.max(...ys) + my;
-    let fan = 0;
-    if (this.isMobileLayout && this.app) fan = parseFloat(getComputedStyle(this.app).getPropertyValue("--fan-h")) || 112;
-    const ins = this.isMobileLayout ? { t: 6, r: 4, b: fan - 6, l: 4 } : { t: 10, r: 10, b: 10, l: 10 };
-    const W = Math.max(50, this.boardWidth - ins.l - ins.r), H = Math.max(50, this.boardHeight - ins.t - ins.b);
-    const scale = Math.min(W / (maxX - minX), H / (maxY - minY));
-    this._fitScale = scale;
-    this.view.scale = scale;
-    this.view.offsetX = ins.l + W / 2 - ((minX + maxX) / 2) * scale;
-    this.view.offsetY = ins.t + H / 2 - ((minY + maxY) / 2) * scale;
+    this._stopViewMotion();
+    Object.assign(this.view, this._fitTarget());
+    this._viewChanged();
   }
 
   requestBoardDraw() {
@@ -7567,6 +7741,7 @@ class ColonistFullGame {
     this.theme = T;
     saveThemeId(id);
     root.dataset.theme = id;
+    T.setPalette?.(currentPalette());
     installSprite(T);
     if (T.canvasArt) {
       if (this.boardRenderer) this.boardRenderer.setTheme(T);
@@ -7585,6 +7760,7 @@ class ColonistFullGame {
       this._invalidateUI();
       this.render();
     });
+    this.fitCanvasToContainer();
     this.fitView();
     this.render();
   }
