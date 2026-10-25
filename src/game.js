@@ -509,6 +509,8 @@ class ColonistFullGame {
     this.pendingIncomingTrade = null;
     this.tradeOffer = makeEmptyResources();
     this.tradeRequest = makeEmptyResources();
+    this.tradeLocked = false; // set while a player-trade proposal awaits confirmation
+    this.pendingRobberFlow = null; // { rollerId, discards: [{ playerId, count }] } during a 7
     // Supply overview
     this.supplyOverview = document.querySelector("#supplyOverview");
     // Persistent dice display
@@ -849,7 +851,10 @@ class ColonistFullGame {
         // Double-tap detection
         const dtSince = now - ts.lastTapTime;
         const dtDist = Math.hypot(touch.clientX - ts.lastTapX, touch.clientY - ts.lastTapY);
-        if (dtSince < 350 && dtDist < 40) {
+        // While placing (setup, build/robber mode, or a ✓ is showing) a quick second tap is a
+        // selection/confirmation, never a double-tap zoom
+        const placing = this.setupPhase || this.pendingAction || this.confirmBuild;
+        if (!placing && dtSince < 350 && dtDist < 40) {
           // Double tap — zoom in/out
           this.handleDoubleTapZoom(touch.clientX, touch.clientY);
           ts.lastTapTime = 0;
@@ -917,6 +922,7 @@ class ColonistFullGame {
     this.stopAiTurnLoop();
     this._aiDiceAnimating = false;
     this.robberBusy = false;
+    this.pendingRobberFlow = null;
     this.diceResult = null;
     this.pendingDiscard = null;
     if (this.discardPanel) this.discardPanel.style.display = "none";
@@ -1060,6 +1066,8 @@ class ColonistFullGame {
       this.setupAction = null;
       this.currentPlayerIndex = this.setupQueue[0]; // first player in setup order starts the game
       this.phase = "pre_roll";
+      this.confirmBuild = null;
+      this.hoverTooltip = ""; // drop a stale "Confirm" tooltip from the last setup placement
       this.addLog("Initial placement complete.");
       this.saveToStorage();
       this.render();
@@ -1183,7 +1191,7 @@ class ColonistFullGame {
   }
 
   shouldToast(text) {
-    return /(rolled|built|upgraded|traded|played|stole|wins|moved robber|gains)/i.test(text);
+    return /(rolled|built|upgraded|traded|played|stole|\bwins?\b|moved robber|\bgains?\b)/i.test(text);
   }
 
   pushToast(text) {
@@ -1351,6 +1359,16 @@ class ColonistFullGame {
     this.render();
   }
 
+  // Verb suffix for log grammar: "You discard" vs "Sage AI discards"
+  _s(player) {
+    return player.isHuman ? "" : "s";
+  }
+
+  _hexLabel(hex) {
+    if (hex.resource === "desert" || !hex.number) return "the Desert";
+    return `the ${RESOURCE_LABEL[hex.resource]} hex (${hex.number})`;
+  }
+
   _robberInProgress() {
     return this.robberBusy || this.pendingAction === "robber" || !!this.pendingDiscard || this.robberVictimOptions?.length > 0;
   }
@@ -1410,7 +1428,7 @@ class ColonistFullGame {
 
   handleHumanBankTrade() {
     const player = this.currentPlayer;
-    if (!player || !player.isHuman || this.winner || this.phase !== "main") return;
+    if (!player || !player.isHuman || this.winner || this.phase !== "main" || this._robberInProgress()) return;
     const offeredTypes = RESOURCES.filter(r => this.tradeOffer[r] > 0);
     const requestedTypes = RESOURCES.filter(r => this.tradeRequest[r] > 0);
     if (offeredTypes.length !== 1 || requestedTypes.length !== 1) return;
@@ -1468,8 +1486,7 @@ class ColonistFullGame {
       }
       this.robberHexId = hexId;
       const hex = this.geometry.hexes[hexId];
-      const tileName = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
-      this.addLog(`${player.name} moved robber to ${tileName}.`);
+      this.addLog(`${player.name} moved robber to ${this._hexLabel(hex)}.`);
       this.pendingAction = null;
 
       // Check for steal victims
@@ -1492,6 +1509,7 @@ class ColonistFullGame {
         this.robberVictimOptions = victims;
         this.showVictimPanel(player, victims);
       }
+      this.saveToStorage();
       this.render();
       return;
     }
@@ -1849,7 +1867,7 @@ class ColonistFullGame {
     }
 
     // Robber placement: highlight hovered hex
-    if (humanMain && this.pendingAction === "robber") {
+    if (player?.isHuman && this.pendingAction === "robber") { // also before rolling (Knight)
       const hexId = this.findHexAt(worldX, worldY);
       if (hexId != null && hexId !== this.robberHexId) {
         this.hoverHexId = hexId;
@@ -1987,7 +2005,7 @@ class ColonistFullGame {
     });
     gainByPlayer.forEach((gain, playerId) => {
       if (sumResources(gain) > 0) {
-        this.addLog(`${this.players[playerId].name} gains ${resourceString(gain)}.`);
+        this.addLog(`${this.players[playerId].name} gain${this._s(this.players[playerId])} ${resourceString(gain)}.`);
       }
     });
     return gainByPlayer;
@@ -2022,7 +2040,7 @@ class ColonistFullGame {
           player.resources[chosen] -= 1;
           this.bank[chosen] += 1;
         }
-        this.addLog(`${player.name} discards ${discardCount} cards after ${reason}.`);
+        this.addLog(`${player.name} discard${this._s(player)} ${discardCount} cards after ${reason}.`);
       }
     });
 
@@ -2030,15 +2048,33 @@ class ColonistFullGame {
       this.moveRobber(currentPlayer);
       return Promise.resolve();
     }
-    // Human discards first; the rest of the turn waits on this promise
+    // Human discards first; the rest of the turn waits on this promise.
+    // The flow is kept in serializable form so a reload can resume it.
+    this.pendingRobberFlow = {
+      rollerId: currentPlayer.id,
+      discards: discardQueue.map(({ player, count }) => ({ playerId: player.id, count })),
+    };
+    this.saveToStorage();
+    return this._runPendingRobberFlow();
+  }
+
+  // Run (or resume after reload) the pending discards, then move the robber.
+  _runPendingRobberFlow() {
+    const flow = this.pendingRobberFlow;
     this.robberBusy = true;
-    const done = discardQueue.reduce(
-      (chain, { player, count }) => chain.then(() => this._showDiscardUI(player, count)),
-      Promise.resolve(),
-    );
-    return done.then(this._guard(() => {
+    const next = () => {
+      const item = flow.discards[0];
+      if (!item) return Promise.resolve();
+      return this._showDiscardUI(this.players[item.playerId], item.count).then(this._guard(() => {
+        flow.discards.shift();
+        return next();
+      }));
+    };
+    return next().then(this._guard(() => {
       this.robberBusy = false;
-      this.moveRobber(currentPlayer);
+      this.pendingRobberFlow = null;
+      this.moveRobber(this.players[flow.rollerId]);
+      this.saveToStorage();
       this.render();
     }));
   }
@@ -2102,7 +2138,7 @@ class ColonistFullGame {
 
   moveRobberAndSteal(currentPlayer, targetHexId) {
     this.robberHexId = targetHexId;
-    this.addLog(`${currentPlayer.name} moved robber to hex #${targetHexId}.`);
+    this.addLog(`${currentPlayer.name} moved robber to ${this._hexLabel(this.geometry.hexes[targetHexId])}.`);
     this.sfx.robber();
     const victimOptions = new Set();
     this.geometry.hexes[targetHexId].nodes.forEach((nodeId) => {
@@ -2262,13 +2298,15 @@ class ColonistFullGame {
         <span style="color:${v.color}">${v.name}</span>
         <span class="victim-cards">${totalCards} cards</span>
       `;
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", this._guard(() => {
+        if (!this.robberVictimOptions?.includes(vid)) return;
         this.stealFromVictim(currentPlayer, vid);
         this.robberContext = null;
         this.robberVictimOptions = [];
         this.victimPanel.style.display = "none";
+        this.saveToStorage();
         this.render();
-      });
+      }));
       this.victimOptionsEl.appendChild(btn);
     });
     this.victimPanel.style.display = "";
@@ -2286,13 +2324,19 @@ class ColonistFullGame {
     this.tradeModal.style.display = "";
     this.tradeOffer = makeEmptyResources();
     this.tradeRequest = makeEmptyResources();
+    this.tradeLocked = false;
     if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
     this.buildTradeGrids();
     this.updateTradeButtons();
   }
 
   closeTradeModal() {
-    if (this.tradeModal) this.tradeModal.style.display = "none";
+    if (!this.tradeModal) return;
+    if (this.tradeModal.style.display !== "none" && this.tradeProposalResult) {
+      this.tradeProposalResult.innerHTML = ""; // drop any pending Confirm/Accept buttons
+    }
+    this.tradeLocked = false;
+    this.tradeModal.style.display = "none";
   }
 
   hideTradePanel() {
@@ -2346,6 +2390,7 @@ class ColonistFullGame {
       `;
       // Left click = increment
       card.addEventListener("click", () => {
+        if (this.tradeLocked) return; // grid is locked while a proposal is pending
         const newVal = counts[resource] + 1;
         if (newVal > max) return;
         counts[resource] = newVal;
@@ -2354,7 +2399,7 @@ class ColonistFullGame {
       // Right click = decrement
       card.addEventListener("contextmenu", (e) => {
         e.preventDefault();
-        if (counts[resource] <= 0) return;
+        if (this.tradeLocked || counts[resource] <= 0) return;
         counts[resource] -= 1;
         this._refreshTradeGrids();
       });
@@ -2366,6 +2411,7 @@ class ColonistFullGame {
         minus.textContent = "−";
         minus.addEventListener("click", (e) => {
           e.stopPropagation();
+          if (this.tradeLocked) return;
           counts[resource] = Math.max(0, counts[resource] - 1);
           this._refreshTradeGrids();
         });
@@ -2458,10 +2504,13 @@ class ColonistFullGame {
 
     if (acceptors.length > 0) {
       if (this.tradeProposalResult) {
+        // Lock the grids: only the snapshot the AI accepted can be executed
+        this.tradeLocked = true;
         // Helper to execute trade with a chosen partner
         const executeTrade = this._guard((partner) => {
           if (!this._playerTradeStillValid(player, turnSerial, partner, offer, request)) {
             this.tradeProposalResult.innerHTML = '<span style="color:#c44">Trade no longer valid.</span>';
+            this.tradeLocked = false;
             return;
           }
           RESOURCES.forEach((r) => {
@@ -2477,6 +2526,7 @@ class ColonistFullGame {
           this.buildTradeGrids();
           this.updateTradeButtons();
           this.tradeProposalResult.innerHTML = `<strong style="color:#22a854">Traded with ${partner.name}!</strong>`;
+          this.tradeLocked = false;
           this.render();
         });
 
@@ -2496,6 +2546,7 @@ class ColonistFullGame {
           confirmBtn.addEventListener("click", () => executeTrade(acceptors[0]));
           cancelBtn.addEventListener("click", () => {
             this.tradeProposalResult.innerHTML = '<span style="color:#888">Trade cancelled.</span>';
+            this.tradeLocked = false;
           });
           btnRow.appendChild(confirmBtn);
           btnRow.appendChild(cancelBtn);
@@ -2519,6 +2570,7 @@ class ColonistFullGame {
           cancelBtn.textContent = "Cancel";
           cancelBtn.addEventListener("click", () => {
             this.tradeProposalResult.innerHTML = '<span style="color:#888">Trade cancelled.</span>';
+            this.tradeLocked = false;
           });
           btnRow.appendChild(cancelBtn);
           this.tradeProposalResult.appendChild(btnRow);
@@ -2542,6 +2594,7 @@ class ColonistFullGame {
           const human = player;
           if (!this._playerTradeStillValid(human, turnSerial, counter.player, counter.want, counter.give)) {
             this.tradeProposalResult.innerHTML = '<span style="color:#c44">Trade no longer valid.</span>';
+            this.tradeLocked = false;
             return;
           }
           RESOURCES.forEach(r => {
@@ -2557,6 +2610,7 @@ class ColonistFullGame {
           this.buildTradeGrids();
           this.updateTradeButtons();
           this.tradeProposalResult.innerHTML = `<strong style="color:#22a854">Traded with ${counter.player.name}!</strong>`;
+          this.tradeLocked = false;
           this.render();
         }));
         this.tradeProposalResult.appendChild(acceptBtn);
@@ -3842,7 +3896,7 @@ class ColonistFullGame {
     if (player.victoryPoints >= WINNING_POINTS) {
       this.winner = player;
       this.phase = "game_over";
-      this.addLog(`${player.name} wins with ${player.victoryPoints} VP!`);
+      this.addLog(`${player.name} win${this._s(player)} with ${player.victoryPoints} VP!`);
       this.stopAutoplay();
       this.saveToStorage();
       this.showGameOverOverlay();
@@ -3866,6 +3920,7 @@ class ColonistFullGame {
     this.lastRoll = null;
     // Invalidate any trade confirm/accept buttons left over from this turn
     this.turnSerial += 1;
+    this.tradeLocked = false;
     if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
 
     this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
@@ -3881,7 +3936,7 @@ class ColonistFullGame {
       );
       this.winner = leader;
       this.phase = "game_over";
-      this.addLog(`Turn limit reached. ${leader.name} wins by points.`);
+      this.addLog(`Turn limit reached. ${leader.name} win${this._s(leader)} by points.`);
       this.stopAutoplay();
       this.showGameOverOverlay();
     }
@@ -3953,7 +4008,7 @@ class ColonistFullGame {
     overlay.innerHTML = `
       <div class="game-over-card">
         <img class="game-over-avatar" src="${winner.avatar}" alt="${winner.name}" />
-        <h2 style="color:${winner.color}">${winner.name} wins!</h2>
+        <h2 style="color:${winner.color}">${winner.name} win${this._s(winner)}!</h2>
         <p>${winner.victoryPoints} Victory Points &middot; Turn ${this.turn}</p>
         <div class="game-over-stats">
           ${this.players.map(p => `<span style="color:${p.color}">${p.name}: ${p.victoryPoints} VP</span>`).join("")}
@@ -4013,6 +4068,8 @@ class ColonistFullGame {
       currentTurnPlayedDevCard: this.currentTurnPlayedDevCard,
       freeRoadsRemaining: this.freeRoadsRemaining,
       bank: { ...this.bank },
+      pendingRobberFlow: this.pendingRobberFlow,
+      robberVictimOptions: this.robberVictimOptions,
       longestRoadHolder: this.longestRoadHolder,
       largestArmyHolder: this.largestArmyHolder,
       logEntries: this.logEntries.slice(-60),
@@ -4168,8 +4225,17 @@ class ColonistFullGame {
       this.showGameOverOverlay();
     } else if (this.setupPhase) {
       this.processSetupQueue();
-    } else if (!this.currentPlayer.isHuman) {
-      this.scheduleAiTurnsUntilHuman();
+    } else {
+      // Resume an interrupted 7: pending discards, then the robber move
+      // (a pending human robber placement is restored via pendingAction)
+      if (data.pendingRobberFlow?.discards) {
+        this.pendingRobberFlow = data.pendingRobberFlow;
+        this._runPendingRobberFlow();
+      } else if (Array.isArray(data.robberVictimOptions) && data.robberVictimOptions.length && this.currentPlayer.isHuman) {
+        this.robberVictimOptions = data.robberVictimOptions;
+        this.showVictimPanel(this.currentPlayer, this.robberVictimOptions);
+      }
+      if (!this.currentPlayer.isHuman) this.scheduleAiTurnsUntilHuman();
     }
     return true;
   }
@@ -5248,6 +5314,8 @@ class ColonistFullGame {
 
   drawHoverTooltip() {
     if (!this.hoverTooltip) return;
+    // The ✓ tooltip is stale once the confirmation it pointed at is gone
+    if (this.hoverTooltip === "Confirm" && !this.confirmBuild) { this.hoverTooltip = ""; return; }
     const ctx = this.ctx;
     const s = this.geometry.hexSize / 74;
     const x = this.hoverPointer.x + 14 * s;
@@ -5286,7 +5354,7 @@ class ColonistFullGame {
       // Click resource card to open trade with that resource pre-selected as "give"
       this.resourceCardStrip.querySelectorAll(".resource-card[data-resource]").forEach(el => {
         el.addEventListener("click", () => {
-          if (!this.currentPlayer?.isHuman || this.phase !== "main") return;
+          if (!this.currentPlayer?.isHuman || this.phase !== "main" || this.tradeLocked) return;
           const res = el.dataset.resource;
           if (human.resources[res] <= 0) return;
           // Open trade panel and pre-select this resource
@@ -5335,7 +5403,7 @@ class ColonistFullGame {
           // Tap a hand card to open trade with that resource
           this.handStrip.querySelectorAll(".hand-card[data-resource]").forEach(el => {
             el.addEventListener("click", () => {
-              if (!this.currentPlayer?.isHuman || this.phase !== "main") return;
+              if (!this.currentPlayer?.isHuman || this.phase !== "main" || this.tradeLocked) return;
               const res = el.dataset.resource;
               if (human.resources[res] <= 0) return;
               if (this.tradeModal?.style.display === "none" || !this.tradeModal?.style.display) {
@@ -5474,7 +5542,7 @@ class ColonistFullGame {
       const text = typeof entry === "string" ? entry : entry.text;
       const line = document.createElement("div");
       line.className = "log-entry";
-      if (text.includes("wins")) line.classList.add("winner");
+      if (/\bwins?\b/.test(text)) line.classList.add("winner");
       line.innerHTML = this._enrichLogText(text);
       this.logContainer.appendChild(line);
     });
@@ -5514,7 +5582,7 @@ class ColonistFullGame {
           this.actionPromptText.textContent = `Setup · ${action}`;
         }
       } else if (this.winner) {
-        this.actionPromptText.textContent = `${this.winner.name} wins!`;
+        this.actionPromptText.textContent = `${this.winner.name} win${this._s(this.winner)}!`;
       } else if (humanTurn && this.pendingAction === "robber") {
         this.actionPromptText.textContent = "Move the robber — tap a hex";
       } else if (humanTurn && preRoll) {
@@ -5549,15 +5617,15 @@ class ColonistFullGame {
       rollBtn.disabled = inSetup || !(humanTurn && preRoll) || robberBlocking;
     }
     if (endBtn) {
-      endBtn.style.display = !inSetup && humanTurn && mainPhase && !this.pendingAction && !robberBlocking ? "inline-flex" : "none";
+      endBtn.style.display = !inSetup && humanTurn && mainPhase && (!this.pendingAction || this.freeRoadsRemaining > 0) && !robberBlocking ? "inline-flex" : "none";
       endBtn.disabled = inSetup || !(humanTurn && mainPhase) || robberBlocking;
     }
     if (buildPanel) {
-      buildPanel.style.display = !inSetup && humanTurn && mainPhase && !inRobberMode ? "flex" : "none";
+      buildPanel.style.display = !inSetup && humanTurn && mainPhase && !robberBlocking ? "flex" : "none";
     }
 
     // Hide trade panel when not in main phase or during robber
-    if (inRobberMode || !humanTurn || !mainPhase) {
+    if (robberBlocking || !humanTurn || !mainPhase) {
       this.hideTradePanel();
     }
 
@@ -5565,7 +5633,7 @@ class ColonistFullGame {
     const piecesHint = (type) => (this.piecesLeft(human, type) <= 0 ? `No ${type}s left` : null);
     setButtonState(
       this.buildRoadBtn,
-      humanTurn && mainPhase && hasRoadCost && !piecesHint("road"),
+      humanTurn && mainPhase && (hasRoadCost || this.freeRoadsRemaining > 0) && !piecesHint("road"),
       piecesHint("road") || (roadMissing ? `Need ${roadMissing}` : "Not available"),
       "Build road (1)",
     );
@@ -5589,7 +5657,7 @@ class ColonistFullGame {
     );
     // Trade button: only visible during human main phase, not during setup
     if (this.tradeBankBtn) {
-      const showTrade = !inSetup && humanTurn && mainPhase && !inRobberMode;
+      const showTrade = !inSetup && humanTurn && mainPhase && !robberBlocking;
       this.tradeBankBtn.style.display = showTrade ? "inline-flex" : "none";
       this.tradeBankBtn.disabled = !showTrade;
       this.tradeBankBtn.title = "Trade (T)";
@@ -6103,7 +6171,7 @@ class ColonistFullGame {
     const { player, selected, resolve } = this.pendingDiscard;
     this.payToBank(player, selected);
     const total = sumResources(selected);
-    this.addLog(`${player.name} discards ${total} cards.`);
+    this.addLog(`${player.name} discard${this._s(player)} ${total} cards.`);
     this.pendingDiscard = null;
     this.discardPanel.style.display = "none";
     this.render();
