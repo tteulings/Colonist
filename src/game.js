@@ -977,7 +977,8 @@ class ColonistFullGame {
         this.startAutoplay();
       }
     });
-    this.canvas.addEventListener("click", (event) => this.handleBoardClick(event));
+    // Selecting a spot only redraws the board; refresh the status pill / confirm pill too
+    this.canvas.addEventListener("click", (event) => { this.handleBoardClick(event); this.renderStatusAndControls(); });
     this.canvas.addEventListener("mousemove", (event) => this.handleCanvasMouseMove(event));
     this.canvas.addEventListener("mouseleave", () => this.handleCanvasMouseLeave());
     this.canvas.addEventListener("mousedown", (event) => this.handleCanvasMouseDown(event));
@@ -1081,6 +1082,7 @@ class ColonistFullGame {
           ts.lastTapTime = 0;
         } else {
           this.handleBoardClick({ clientX: touch.clientX, clientY: touch.clientY });
+          this.renderStatusAndControls();
           ts.lastTapTime = now;
           ts.lastTapX = touch.clientX;
           ts.lastTapY = touch.clientY;
@@ -2643,7 +2645,16 @@ class ColonistFullGame {
       this._refreshTradeGrids();
     };
     container.querySelectorAll(".trade-res-card").forEach((card) => {
-      card.addEventListener("click", () => inc(card.dataset.res));
+      card.addEventListener("click", () => {
+        // "You give": the first tap on a card offers a full bank/harbor set (fewer taps to trade)
+        const res = card.dataset.res;
+        if (isOffer && player && !this.tradeLocked && counts[res] === 0) {
+          const rate = this.getPlayerTradeRate(player, res);
+          const max = maxCounts ? maxCounts[res] : 19;
+          if (max >= rate) { counts[res] = rate; this._refreshTradeGrids(); return; }
+        }
+        inc(res);
+      });
       card.addEventListener("contextmenu", (e) => {
         e.preventDefault();
         if (this.tradeLocked || counts[card.dataset.res] <= 0) return;
@@ -4631,6 +4642,7 @@ class ColonistFullGame {
     if (key === this._lastOffersKey) return;
     this._lastOffersKey = key;
     const icons = (res) => RESOURCES.flatMap((r) => Array(res[r] || 0).fill(icon(r))).join("");
+    el.dataset.more = offers.length > 1 ? `+${offers.length - 1} more` : "";
     el.innerHTML = offers.map((o) => {
       const p = this.players[o.fromId];
       return `<div class="rush-offer" data-offer="${o.id}">
@@ -6352,8 +6364,8 @@ class ColonistFullGame {
     });
     this.logContainer.innerHTML = rows.join("");
     this.logContainer.scrollTop = this.logContainer.scrollHeight;
-    // Mobile: one-line ticker with the newest entry
-    if (this.tickerText && last) {
+    // Mobile: one-line ticker with the newest entry (or the next step, see renderStatusAndControls)
+    if (this.tickerText && last && !this._tickerPrompt) {
       const t = last.text.replace(/^Turn \d+: /, "").replace(/^Roll #\d+: rolled/, "Dice rolled");
       this.tickerText.innerHTML = this._enrichLogText(t);
       if (this.tickerIcon) this.tickerIcon.innerHTML = icon(this._logIcon(last.text));
@@ -6418,6 +6430,19 @@ class ColonistFullGame {
       status = preRoll ? "Rolling the dice…" : "Thinking…";
     }
     if (this.actionPromptText) this.actionPromptText.textContent = status;
+    // Phones: the ticker line becomes the instruction while you have to act (place, robber, discard)
+    const mustAct = !this.winner && ((this.setupPhase && humanTurn && this.setupAction) || (humanTurn && this.pendingAction) || !!this.pendingDiscard);
+    const prompt = mustAct ? (this.pendingDiscard ? "The robber came! Hand back half of your cards" : status) : "";
+    if (prompt !== (this._tickerPrompt || "")) {
+      this._tickerPrompt = prompt;
+      this._lastLogKey = null;
+      document.querySelector("#ticker")?.classList.toggle("prompt", !!prompt);
+      if (prompt && this.tickerText) {
+        this.tickerText.textContent = prompt;
+        if (this.tickerIcon) this.tickerIcon.innerHTML = icon(this.pendingDiscard || this.pendingAction === "robber" ? "robber" : this.confirmBuild?.type || this.pendingAction || this.setupAction || "build");
+      }
+      if (!prompt) this.renderLog();
+    }
     if (this.turnBannerTitle) this.turnBannerTitle.textContent = title;
     if (this.actionPromptAvatar) {
       const seat = String(active.id);
@@ -6449,10 +6474,12 @@ class ColonistFullGame {
       let wait = "";
       if (this.winner && !document.querySelector(".game-over-overlay")) {
         wait = `${icon("vp")}<div class="wt">${this.winner.name} win${this._s(this.winner)}<small>Game over</small></div><button type="button" class="btn primary" data-newgame>New game</button>`;
+      } else if (humanTurn && this.pendingAction === "robber") {
+        wait = `${icon("robber")}<div class="wt">Move the robber<small>Tap a tile on the board</small></div>`;
       } else if (oppTurn) {
         wait = `${this._av(active)}<div class="wt">${active.name} is playing<small>${inSetup ? "Placing a settlement" : preRoll ? "Rolling the dice" : "Building and trading"}</small></div><div class="dots"><i></i><i></i><i></i></div>`;
       }
-      const wkey = `${wait.length}:${active.id}:${preRoll}:${inSetup}:${!!this.winner}`;
+      const wkey = `${wait.length}:${active.id}:${preRoll}:${inSetup}:${!!this.winner}:${this.pendingAction}`;
       if (this.waitingBar.dataset.key !== wkey) {
         this.waitingBar.dataset.key = wkey;
         this.waitingBar.innerHTML = wait;
@@ -6461,7 +6488,7 @@ class ColonistFullGame {
       this.waitingBar.hidden = !wait;
       if (this.winner && wait) { rollBtn && (rollBtn.style.display = "none"); endBtn && (endBtn.style.display = "none"); }
     }
-    if (buildPanel) buildPanel.style.display = robberBlocking ? "none" : "";
+    if (buildPanel) buildPanel.style.display = this.pendingDiscard ? "none" : ""; // hidden while discarding; otherwise shown, disabled when not usable
 
     // Hide trade panel when not in main phase or during robber
     if (robberBlocking || !humanTurn || !mainPhase) this.hideTradePanel();
@@ -6494,7 +6521,7 @@ class ColonistFullGame {
       }
     });
     if (this.tradeBankBtn) {
-      this.tradeBankBtn.style.display = robberBlocking ? "none" : "inline-flex";
+      this.tradeBankBtn.style.display = this.pendingDiscard ? "none" : "inline-flex";
       this.tradeBankBtn.disabled = !(humanTurn && mainPhase) || inSetup || robberBlocking;
       this.tradeBankBtn.title = "Trade (T)";
     }
@@ -7403,10 +7430,6 @@ class ColonistFullGame {
 
   _updateLayoutMode() {
     this.isMobileLayout = window.matchMedia("(max-width: 900px)").matches;
-    // Mobile: bot trade offers sit in the journal-ticker row so they never cover the board or hand
-    const offers = document.querySelector("#rushOffers");
-    const home = this.isMobileLayout ? this.mtop : this.boardWrap;
-    if (offers && home && offers.parentElement !== home) home.appendChild(offers);
   }
 
   _bindThemeUI() {

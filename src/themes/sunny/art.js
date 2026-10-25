@@ -6,7 +6,7 @@
 import { f, rng, HEX, hexPath, pipCount, wrap, RES_NAME, DEV_NAME, CARD_TEXT, RESOURCE_KEYS } from "../art-util.js";
 
 const P = {
-  sea0: "#2B8C98", sea1: "#3CA9B0", sea2: "#6ACBC3", shallow: "#A6E4D6", foam: "#F6F1E4", sand: "#E9D8B2", sand2: "#D9C38F",
+  sea0: "#2B8C98", sea1: "#3CA9B0", sea2: "#6ACBC3", shallow: "#A6E4D6", foam: "#D9F0E6", sand: "#E4D0A2", sand2: "#D3BA84",
   olive: ["#8AAE58", "#6A8E42", "#B5D184"], forest: ["#5E9A55", "#457A42", "#8CC077"], cypress: ["#4A8250", "#356A3D", "#73A86C"],
   pasture: ["#B8D57A", "#97B95C", "#D6EAA2"], wheat: ["#EDC25E", "#D3A341", "#F8DA8E"], terra: ["#E07E5A", "#C0623F", "#F0A584"],
   slate: ["#93A2B4", "#728399", "#C3CEDB"], desert: ["#F0DAA8", "#DCBF85", "#F8EBCB"], wall: "#F7F2E6", roof: "#D9714E", ink: "#2E3A3D",
@@ -336,7 +336,7 @@ function island(centers) {
   return `<g filter="url(#a-coast)">
     <path d="${p(80)}" fill="${P.shallow}" stroke="${P.shallow}" stroke-width="40" stroke-linejoin="round" opacity=".35"/>
     <path d="${p(48)}" fill="${P.shallow}" stroke="${P.shallow}" stroke-width="26" stroke-linejoin="round" opacity=".6"/>
-    <path d="${p(30)}" fill="none" stroke="${P.foam}" stroke-width="5" stroke-linejoin="round" opacity=".7"/>
+    <path d="${p(30)}" fill="none" stroke="${P.foam}" stroke-width="4" stroke-linejoin="round" opacity=".45"/>
     <path d="${p(22)}" fill="${P.sand2}" stroke="${P.sand2}" stroke-width="14" stroke-linejoin="round"/>
     <path d="${p(12)}" fill="${P.sand}" stroke="${P.sand}" stroke-width="10" stroke-linejoin="round"/></g>
     <path d="${p(3)}" fill="#CDB98C"/>`;
