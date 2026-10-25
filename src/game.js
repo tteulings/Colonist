@@ -7274,7 +7274,7 @@ class ColonistFullGame {
                     <div class="ng-bot pc-${i + 1}">
                       ${avatarSvg(i + 1, "ng-bot-avatar")}
                       <div class="ng-bot-info">
-                        <div class="ng-bot-name"><span class="who pc-${i + 1}" style="color:${cfg.color}">${esc(cfg.name)}</span>${badge(botPreset(i))}</div>
+                        <div class="ng-bot-name"><span class="who pc-${i + 1}">${esc(cfg.name)}</span>${badge(botPreset(i))}</div>
                         <div class="ng-bot-desc">${strategySummary(botStrategy(i))}</div>
                       </div>
                       ${d.botStyleMode === "each" ? `
