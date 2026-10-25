@@ -1,7 +1,14 @@
 // Network-first service worker: always try fresh files (the app updates often),
 // fall back to the cache so the game still starts offline.
-const CACHE = "colonist-v64";
-const SHELL = ["./", "./index.html", "./styles.css", "./src/game.js", "./manifest.webmanifest", "./assets/favicon.svg"];
+const CACHE = "colonist-v65";
+const SHELL = [
+  "./", "./index.html", "./styles.css", "./manifest.webmanifest", "./assets/favicon.svg",
+  "./themes/base.css", "./themes/theme-sunny.css", "./themes/theme-classic.css",
+  "./src/game.js",
+  "./src/themes/manager.js", "./src/themes/art-util.js", "./src/themes/board-renderer.js",
+  "./src/themes/fx.js", "./src/themes/settings-ui.js",
+  "./src/themes/sunny/art.js", "./src/themes/classic/art.js",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));

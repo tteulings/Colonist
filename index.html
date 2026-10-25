@@ -32,10 +32,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- legacy styles in a low-priority cascade layer: the themed CSS below always wins -->
-    <style>@import url("./styles.css?v=64") layer(legacy);</style>
-    <link rel="stylesheet" href="./themes/base.css?v=64" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=64" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=64" />
+    <style>@import url("./styles.css?v=65") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=65" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=65" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=65" />
   </head>
   <body>
     <div class="app" id="app">
@@ -85,7 +85,7 @@
 
       <!-- Game settings (moved into Settings › Game at start-up by src/themes/settings-ui.js) -->
       <details class="settings-drawer-float" id="settingsDrawer">
-        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.64</span></summary>
+        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.65</span></summary>
         <div class="settings-float-body">
           <div class="button-row">
             <button id="nextTurnBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Let bots play</button>
@@ -109,7 +109,7 @@
             <summary>Bot personalities</summary>
             <div id="aiStrategyPanel" class="ai-strategy-panel"></div>
           </details>
-          <div class="settings-version">Colonist v0.64</div>
+          <div class="settings-version">Colonist v0.65</div>
         </div>
       </details>
 
@@ -262,7 +262,7 @@
     </div>
     <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=64"></script>
+    <script type="module" src="./src/game.js?v=65"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
