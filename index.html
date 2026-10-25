@@ -89,29 +89,35 @@
       <details class="settings-drawer-float" id="settingsDrawer">
         <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.67</span></summary>
         <div class="settings-float-body">
-          <div class="button-row">
-            <button id="nextTurnBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Let bots play</button>
-            <button id="autoplayBtn" class="btn-neutral">Watch bots play</button>
-            <button id="resetBtn" class="btn-neutral"><img class="btn-icon" src="./assets/icons/ui-reset.svg" alt="" />New game</button>
-            <button id="resetViewBtn" class="btn-neutral">Fit board</button>
-          </div>
-          <label for="speedRange">Bot speed</label>
-          <input id="speedRange" type="range" min="500" max="3000" step="50" value="1200" />
+          <button id="resetBtn" type="button" class="btn primary st-newgame"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-dice" x="-50" y="-50" width="100" height="100"/></svg>New game</button>
+          <div class="st-h">Sound &amp; pace</div>
           <div class="settings-toggles">
             <label class="settings-toggle-label"><input type="checkbox" id="soundToggle" checked /> Sounds</label>
-            <label class="settings-toggle-label"><input type="checkbox" id="aiReasoningToggle" /> Show bot thinking</label>
+            <label class="settings-toggle-label"><input type="checkbox" id="aiReasoningToggle" /> Show what the bots are thinking</label>
           </div>
-          <div class="button-row">
-            <button id="playKnightBtn" class="btn-dev"><img class="btn-icon" src="./assets/icons/dev-knight.svg" alt="" />Knight</button>
-            <button id="playRoadBuildingBtn" class="btn-dev"><img class="btn-icon" src="./assets/icons/dev-road-building.svg" alt="" />Road Building</button>
-            <button id="playYearOfPlentyBtn" class="btn-dev"><img class="btn-icon" src="./assets/icons/dev-year-of-plenty.svg" alt="" />Year of Plenty</button>
-            <button id="playMonopolyBtn" class="btn-dev"><img class="btn-icon" src="./assets/icons/dev-monopoly.svg" alt="" />Monopoly</button>
+          <label for="speedRange" class="st-range-label">Bot speed</label>
+          <input id="speedRange" type="range" min="500" max="3000" step="50" value="1200" />
+          <div class="dev-tools">
+            <div class="st-h">Developer</div>
+            <p class="sub">Hand your seat to a bot for a while — handy for testing or watching a game play out.</p>
+            <div class="button-row">
+              <button id="nextTurnBtn" type="button" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Let bots play</button>
+              <button id="autoplayBtn" type="button" class="btn-neutral">Watch bots play</button>
+            </div>
+          </div>
+          <!-- legacy hooks still wired in game.js; the Cards sheet and the board's fit button replace them -->
+          <div hidden>
+            <button id="resetViewBtn" type="button">Fit board</button>
+            <button id="playKnightBtn" type="button">Knight</button>
+            <button id="playRoadBuildingBtn" type="button">Road Building</button>
+            <button id="playYearOfPlentyBtn" type="button">Year of Plenty</button>
+            <button id="playMonopolyBtn" type="button">Monopoly</button>
           </div>
           <details class="ai-strategy-section">
             <summary>Bot personalities</summary>
             <div id="aiStrategyPanel" class="ai-strategy-panel"></div>
           </details>
-          <div class="settings-version">Colonist v0.67</div>
+          <div class="settings-version">Colonist <span class="app-version">v0.67</span></div>
         </div>
       </details>
 

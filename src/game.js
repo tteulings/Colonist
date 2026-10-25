@@ -7077,6 +7077,7 @@ class ColonistFullGame {
   _showDifficultyModal() {
     document.querySelector(".newgame-modal")?.remove();
     this.onboarding?.close();
+    this.settingsUI?.close();
     const last = normalizeSettings(ColonistFullGame.loadLastSettings());
     let d = normalizeSettings(JSON.parse(JSON.stringify(last)));
     const overlay = document.createElement("div");

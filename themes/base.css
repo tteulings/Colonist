@@ -559,9 +559,9 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 /* ---------- settings (Look & feel etc.) ---------- */
 .tm-settings { position: fixed; inset: 0; z-index: 70; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; animation: fadeIn 200ms ease; }
 .tm-settings .st-card { width: 100%; max-height: calc(100dvh - 40px); display: flex; flex-direction: column; background: var(--panel); color: var(--ink); border-radius: var(--sheet-radius) var(--sheet-radius) 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,.25); animation: sheetUp 280ms var(--ease-out, ease-out); font-family: var(--font-body); overflow: hidden; }
-.tm-settings .st-nav { display: flex; gap: 4px; overflow-x: auto; padding: 12px 12px 0; flex: none; scrollbar-width: none; }
+.tm-settings .st-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 12px 12px 0; flex: none; }
 .tm-settings .st-nav h1 { display: none; }
-.app .tm-settings .st-nav button, .tm-settings .st-nav button { flex: none; padding: 9px 12px; border-radius: 10px; font-weight: 650; color: var(--ink-soft); font-size: 14px; white-space: nowrap; }
+.app .tm-settings .st-nav button, .tm-settings .st-nav button { flex: none; min-height: 44px; padding: 6px 4px; border-radius: 10px; font-weight: 650; color: var(--ink-soft); font-size: 14px; line-height: 1.15; text-align: center; display: flex; align-items: center; justify-content: center; }
 .tm-settings .st-nav button.on { background: var(--active-row); color: var(--heading); box-shadow: inset 0 -2px 0 var(--accent); }
 .tm-settings .st-body { padding: 14px 16px calc(18px + env(safe-area-inset-bottom)); overflow-y: auto; flex: 1; min-height: 0; }
 .tm-settings .st-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -604,6 +604,13 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 .tm-settings .st-game input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
 .tm-settings .st-game .settings-version { color: var(--ink-faint); font-size: 12px; margin-top: 12px; }
 .tm-settings .st-game .settings-toggles { display: flex; flex-direction: column; gap: 2px; margin: 8px 0 12px; }
+.tm-settings .st-game .settings-toggle-label { min-height: 40px; }
+.tm-settings .st-newgame { width: 100%; height: 54px; margin: 4px 0 6px; }
+.tm-settings .st-range-label { justify-content: space-between; }
+.tm-settings .st-range-label small { font-size: 12px; color: var(--ink-soft); font-weight: 600; }
+.tm-settings .dev-tools .sub { margin: 0 0 10px; font-size: 13px; }
+.tm-settings .st-howto { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; margin: 0 0 14px; border-radius: var(--btn-radius); background: var(--btn); border: var(--btn-border); box-shadow: var(--btn-shadow); color: var(--btn-ink); font-weight: 700; font-size: 14.5px; }
+.tm-settings .st-howto .ic { font-size: 22px; }
 .tm-settings .st-h { font-size: 11.5px; font-weight: 800; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .08em; margin: 14px 0 6px; }
 .tm-settings .ai-strategy-panel { color: var(--ink); font-size: 13px; }
 .tm-settings .ai-strategy-panel select { font: inherit; padding: 6px 8px; border-radius: 8px; border: var(--btn-border); background: var(--btn); color: var(--ink); }
@@ -875,9 +882,9 @@ html.theme-switching *, html.theme-switching *::before { transition: background-
   .app .game-over-overlay { position: absolute; }
   .tm-settings { align-items: center; }
   .tm-settings .st-card { width: 900px; max-width: calc(100vw - 40px); height: min(760px, calc(100vh - 60px)); flex-direction: row; border-radius: 18px; }
-  .tm-settings .st-nav { flex-direction: column; width: 200px; flex: none; background: var(--group); border-right: var(--divider); padding: 22px 12px; gap: 4px; }
+  .tm-settings .st-nav { display: flex; flex-direction: column; width: 200px; flex: none; background: var(--group); border-right: var(--divider); padding: 22px 12px; gap: 4px; }
   .tm-settings .st-nav h1 { display: block; font-size: 26px; padding: 0 10px 14px; color: var(--heading); }
-  .tm-settings .st-nav button { text-align: left; padding: 11px 12px; }
+  .tm-settings .st-nav button { text-align: left; justify-content: flex-start; padding: 11px 12px; }
   .tm-settings .st-nav button.on { background: var(--panel); box-shadow: inset 3px 0 0 var(--accent); }
   .tm-settings .st-body { padding: 26px 30px; }
   .tcards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
