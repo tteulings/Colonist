@@ -1630,6 +1630,7 @@ class ColonistFullGame {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
     if (this.phase !== "main" || this._robberInProgress()) return;
+    if (document.getElementById("resourcePickerOverlay")) return; // finish Year of Plenty / Monopoly first
     this.hideTradePanel();
     this.endTurn();
     this.saveToStorage();
@@ -7479,6 +7480,8 @@ class ColonistFullGame {
     overlay.id = "resourcePickerOverlay";
     overlay.className = "resource-picker-overlay";
     const picks = [];
+    const gen = this.gameGen;
+    const turnIndex = this.currentPlayerIndex;
     const renderPicker = () => {
       overlay.innerHTML = `
         <div class="resource-picker-panel">
@@ -7508,7 +7511,11 @@ class ColonistFullGame {
       const undoBtn = overlay.querySelector(".resource-picker-undo");
       if (undoBtn) undoBtn.addEventListener("click", () => { picks.pop(); renderPicker(); });
       const confirmBtn = overlay.querySelector(".resource-picker-confirm");
-      if (confirmBtn) confirmBtn.addEventListener("click", () => { overlay.remove(); onConfirm(picks); });
+      // Ignore a confirm from an older game or after the turn moved on (picker left open)
+      if (confirmBtn) confirmBtn.addEventListener("click", () => {
+        overlay.remove();
+        if (gen === this.gameGen && (this.isRush() || this.currentPlayerIndex === turnIndex)) onConfirm(picks);
+      });
     };
     renderPicker();
     document.body.appendChild(overlay);
