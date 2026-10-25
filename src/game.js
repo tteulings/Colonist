@@ -191,6 +191,9 @@ const DEFAULT_SETTINGS = {
 const RUSH_INTERVALS = [10, 15, 20, 30];
 const RUSH_DISCARD_SECONDS = 20;
 const RUSH_ROBBER_SECONDS = 30;
+const RUSH_OFFER_MS = 10000;    // a bot's offer to you stays up this long (Rush game clock)
+const CLASSIC_OFFER_MS = 15000; // Classic: a bot's offer is declined automatically after this
+
 const FRIENDLY_ROBBER_VP = 2;
 
 function normalizeSettings(raw) {
@@ -3286,23 +3289,26 @@ class ColonistFullGame {
     return html + "</div>";
   }
 
+  /**
+   * A bot offers the human a trade (Classic, during the bot's turn). Shown as the same calm,
+   * non-blocking card as in Rush — board and hand stay usable — and declined automatically
+   * after 15 s (a thin bar shows the time left).
+   */
   showIncomingTrade(fromPlayer, give, want) {
     return new Promise((resolve) => {
-      if (!this.incomingTradePanel) { resolve(false); return; }
-      this.incomingTradeHeader.innerHTML = `${this._av(fromPlayer)}<span><span class="who pc-${fromPlayer.id}">${fromPlayer.name}</span> wants to trade</span>`;
-      const human = this.players.find((p) => p.isHuman);
-      const handHtml = human ? `<div class="your-hand">Your hand: ${RESOURCES.filter((r) => human.resources[r] > 0).map((r) => `<span>${icon(r)}${human.resources[r]}</span>`).join("") || "empty"}</div>` : "";
-      this.incomingTradeBody.innerHTML = `<div class="offer-rows">
-          <div class="offer-row"><span class="lbl2">You get</span>${this._renderTradeCards(give)}</div>
-          <div class="offer-row"><span class="lbl2">You give</span>${this._renderTradeCards(want)}</div>
-        </div>${handHtml}`;
-      this.pendingIncomingTrade = { fromPlayer, give, want, resolve };
-      this.toggleBuildSheet?.(false);
-      this.incomingTradePanel.style.display = "";
+      this._offerSeq = (this._offerSeq || 0) + 1;
+      const id = this._offerSeq;
+      this.pendingIncomingTrade = { fromPlayer, give, want, resolve, id, ms: CLASSIC_OFFER_MS };
+      this._later(() => {
+        if (this.pendingIncomingTrade?.id !== id) return;
+        this.addLog(`${fromPlayer.name}'s offer expired.`);
+        this.resolveIncomingTrade(false, true);
+      }, CLASSIC_OFFER_MS);
+      this._renderRushOffers();
     });
   }
 
-  resolveIncomingTrade(accepted) {
+  resolveIncomingTrade(accepted, expired = false) {
     if (!this.pendingIncomingTrade) return;
     const { fromPlayer, give, want, resolve } = this.pendingIncomingTrade;
     const human = this.players.find(p => p.isHuman);
@@ -3319,11 +3325,12 @@ class ColonistFullGame {
         fromPlayer.resources[r] += want[r];
       });
       this.addLog(`You accepted ${fromPlayer.name}'s trade: got ${resourceString(give)} for ${resourceString(want)}.`);
-    } else {
+    } else if (!expired) {
       this.addLog(`You rejected ${fromPlayer.name}'s trade offer.`);
     }
     this.pendingIncomingTrade = null;
     if (this.incomingTradePanel) this.incomingTradePanel.style.display = "none";
+    this._renderRushOffers();
     this.render();
     resolve(accepted);
   }
@@ -4602,6 +4609,7 @@ class ColonistFullGame {
       this._renderRushOffers();
     }
     this._renderRushHud();
+    this._updateOfferTimers();
   }
 
   _rushRoll() {
@@ -4862,7 +4870,7 @@ class ColonistFullGame {
     const r = this.rush;
     this._offerSeq = (this._offerSeq || 0) + 1;
     r.offers = r.offers.filter((o) => o.fromId !== fromPlayer.id).slice(-2);
-    r.offers.push({ id: this._offerSeq, fromId: fromPlayer.id, give: { ...give }, want: { ...want }, expiresAt: r.clockMs + 10000 });
+    r.offers.push({ id: this._offerSeq, fromId: fromPlayer.id, give: { ...give }, want: { ...want }, expiresAt: r.clockMs + RUSH_OFFER_MS });
     this.addLog(`${fromPlayer.name} offers you ${resourceString(give)} for ${resourceString(want)}.`);
     this._renderRushOffers();
   }
@@ -4893,29 +4901,46 @@ class ColonistFullGame {
     this.render();
   }
 
+  /** Bot trade offers to the human (Rush offers + a Classic incoming offer): calm cards over the board. */
   _renderRushOffers() {
     const el = this.rushOffersEl;
     if (!el) return;
-    const offers = this.rush && !this.winner ? this.rush.offers : [];
+    const pit = this.pendingIncomingTrade;
+    const offers = this.winner ? [] : this.rush ? this.rush.offers : pit ? [{ id: pit.id, fromId: pit.fromPlayer.id, give: pit.give, want: pit.want, classic: true }] : [];
     const key = offers.map((o) => o.id).join(",") + this.theme?.id;
     if (key === this._lastOffersKey) return;
     this._lastOffersKey = key;
-    const icons = (res) => RESOURCES.flatMap((r) => Array(res[r] || 0).fill(icon(r))).join("");
+    // "1× [Ore] → 1× [Wool]": what you give, then what you get, with 24 px icons and counts
+    const side = (res) => RESOURCES.filter((r) => res[r] > 0).map((r) => `<span class="oc" title="${res[r]} ${RESOURCE_LABEL[r]}"><b>${res[r]}×</b>${icon(r)}</span>`).join("");
+    const words = (res) => RESOURCES.filter((r) => res[r] > 0).map((r) => `${res[r]} ${RESOURCE_LABEL[r]}`).join(" + ");
     el.dataset.more = offers.length > 1 ? `+${offers.length - 1} more` : "";
     el.innerHTML = offers.map((o) => {
       const p = this.players[o.fromId];
-      return `<div class="rush-offer" data-offer="${o.id}">
+      return `<div class="rush-offer${o.classic ? " classic" : ""}" data-offer="${o.id}" role="group" aria-label="${p.name} offers ${words(o.give)} for your ${words(o.want)}" style="--offer-ms:${CLASSIC_OFFER_MS}ms">
         ${this._av(p, "rush-offer-avatar")}
         <div class="rush-offer-body">
-          <div class="rush-offer-title"><span class="who pc-${p.id}">${p.name}</span> offers</div>
-          <div class="rush-offer-cards">${icons(o.give)}<span class="rush-offer-for">for your</span>${icons(o.want)}</div>
+          <div class="rush-offer-title"><span class="who pc-${p.id}">${p.name}</span> offers a trade</div>
+          <div class="rush-offer-cards"><span class="ol">you give</span>${side(o.want)}<span class="arrow">→</span><span class="ol">get</span>${side(o.give)}</div>
         </div>
         <button type="button" class="rush-offer-accept" data-accept="${o.id}">Accept</button>
         <button type="button" class="rush-offer-decline" data-decline="${o.id}" aria-label="Decline">${icon("close")}</button>
+        <span class="offer-time" aria-hidden="true"><i></i></span>
       </div>`;
     }).join("");
-    el.querySelectorAll("[data-accept]").forEach((b) => b.addEventListener("click", () => this._resolveRushOffer(Number(b.dataset.accept), true)));
-    el.querySelectorAll("[data-decline]").forEach((b) => b.addEventListener("click", () => this._resolveRushOffer(Number(b.dataset.decline), false)));
+    const resolve = (id, yes) => (pit && !this.rush ? this.resolveIncomingTrade(yes) : this._resolveRushOffer(id, yes));
+    el.querySelectorAll("[data-accept]").forEach((b) => b.addEventListener("click", () => resolve(Number(b.dataset.accept), true)));
+    el.querySelectorAll("[data-decline]").forEach((b) => b.addEventListener("click", () => resolve(Number(b.dataset.decline), false)));
+    this._updateOfferTimers();
+  }
+
+  /** Rush offers: the time-left bar follows the game clock (it stops while the game is paused). */
+  _updateOfferTimers() {
+    const r = this.rush;
+    if (!r || !this.rushOffersEl) return;
+    this.rushOffersEl.querySelectorAll("[data-offer]").forEach((card) => {
+      const o = r.offers.find((x) => x.id === Number(card.dataset.offer));
+      if (o) card.style.setProperty("--left", String(clamp((o.expiresAt - r.clockMs) / RUSH_OFFER_MS, 0, 1)));
+    });
   }
 
   // ── Rush HUD: countdown ring, Ready votes, next-7 badge, header badge, 7-pause panel ──

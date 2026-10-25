@@ -469,7 +469,18 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 .rush-offer-body { flex: 1; min-width: 0; }
 .rush-offer-title { font-size: 12.5px; font-weight: 750; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rush-offer-cards { display: flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; color: var(--ink-soft); }
-.rush-offer-cards .ic { font-size: 20px; }
+.rush-offer-cards .ic { font-size: 24px; }
+.rush-offer { position: relative; overflow: hidden; }
+.rush-offer-cards { flex-wrap: wrap; row-gap: 0; margin-top: 2px; }
+.rush-offer-cards .oc { display: inline-flex; align-items: center; gap: 1px; color: var(--ink); }
+.rush-offer-cards .oc b { font-size: 13px; font-weight: 800; }
+.rush-offer-cards .ol { font-size: 11px; font-weight: 700; color: var(--ink-soft); }
+.rush-offer-cards .arrow { font-size: 15px; font-weight: 800; color: var(--ink-soft); margin: 0 2px; }
+/* thin time-left bar along the bottom edge (no countdown numbers, no flashing) */
+.offer-time { position: absolute; left: 10px; right: 10px; bottom: 3px; height: 3px; border-radius: 2px; background: var(--sep); overflow: hidden; pointer-events: none; }
+.offer-time i { display: block; height: 100%; width: 100%; background: var(--accent); opacity: .75; transform-origin: left center; transform: scaleX(var(--left, 1)); transition: transform 220ms linear; }
+.rush-offer.classic .offer-time i { animation: offerDrain var(--offer-ms, 15000ms) linear forwards; transition: none; }
+@keyframes offerDrain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 .app .rush-offer-accept { min-height: 40px; padding: 0 12px; border-radius: var(--btn-radius); background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); border: var(--primary-border); font-weight: 750; font-size: 14px; }
 .app .rush-offer-decline { width: 40px; height: 40px; border-radius: var(--btn-radius); background: var(--btn); border: var(--btn-border); color: var(--ink-soft); display: flex; align-items: center; justify-content: center; }
 .app .rush-offer-decline .ic { font-size: 16px; }
@@ -975,3 +986,4 @@ html.theme-switching *, html.theme-switching *::before { transition: background-
   html:not([data-motion="full"]) *, html:not([data-motion="full"]) *::before, html:not([data-motion="full"]) *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
 }
 html[data-motion="reduced"] *, html[data-motion="reduced"] *::before, html[data-motion="reduced"] *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
+html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none !important; }
