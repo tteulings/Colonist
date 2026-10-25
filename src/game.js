@@ -3,6 +3,7 @@ import { SvgBoardRenderer } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
 import { TERRAIN_NAME, DEV_NAME, CARD_TEXT } from "./themes/art-util.js";
+import { Onboarding, isFirstLaunch } from "./themes/onboarding.js";
 
 const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 /** Sunny Island colour palette from <html data-palette> (default light). */
@@ -808,11 +809,27 @@ class ColonistFullGame {
     this.populateResourceSelects();
     this.bindControls();
     this._bindThemeUI();
+    this.onboarding = new Onboarding(this, {
+      costs: COSTS, labels: RESOURCE_LABEL,
+      onQuick: () => this.startNewGame({ ...DEFAULT_SETTINGS, perBot: [...DEFAULT_SETTINGS.perBot] }),
+      onSettings: () => this._showDifficultyModal(),
+    });
     if (!this.loadFromStorage()) {
+      // First launch: the board waits behind a welcome sheet (bots do not start placing yet)
+      this.onboardingHold = isFirstLaunch();
       this.resetGame();
     }
     this._buildStrategyUI();
     this.startAnimationLoop();
+    if (this.onboardingHold) this.onboarding.showWelcome();
+  }
+
+  /** Leave the first-launch hold (a game is started, or bots take over). */
+  _releaseOnboarding(resume = true) {
+    if (!this.onboardingHold) return;
+    this.onboardingHold = false;
+    this.onboarding?.close();
+    if (resume && this.setupPhase && !this.setupAction) this.processSetupQueue();
   }
 
   /** Canvas backing-store ratio: up to 3x for the SVG-art renderer (crisp tiles when zoomed on phones). */
@@ -1237,6 +1254,7 @@ class ColonistFullGame {
 
   // Start a fresh game with the given settings
   startNewGame(settings) {
+    this._releaseOnboarding(false);
     this.settings = normalizeSettings(settings);
     ColonistFullGame.saveLastSettings(this.settings);
     this.resetGame();
@@ -1285,6 +1303,7 @@ class ColonistFullGame {
       this.render();
       return;
     }
+    if (this.onboardingHold) { this.render(); return; } // first launch: wait for the welcome sheet
 
     // AI placement with delay
     const nodeId = this.getBestInitialSettlementNode(player);
@@ -1350,7 +1369,7 @@ class ColonistFullGame {
     }
 
     if (this.setupAction === "settlement") {
-      const nodeId = this.findNodeAt(x, y);
+      const nodeId = this.findNodeAt(x, y, (id) => this.canBuildSettlement(player, id, true));
       if (nodeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
       if (!this.canBuildSettlement(player, nodeId, true)) {
         this.confirmBuild = null;
@@ -1364,7 +1383,7 @@ class ColonistFullGame {
     }
 
     if (this.setupAction === "road") {
-      const edgeId = this.findEdgeAt(x, y);
+      const edgeId = this.findEdgeAt(x, y, (id) => { const e = this.geometry.edges[id]; return e.owner == null && e.nodes.includes(this.lastSetupNodeId); });
       if (edgeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
       const edge = this.geometry.edges[edgeId];
       const adjacent = edge.nodes.includes(this.lastSetupNodeId);
@@ -1796,9 +1815,9 @@ class ColonistFullGame {
 
     // First tap: select a build spot (show confirm icon)
     if (this.pendingAction === "road") {
-      const edgeId = this.hoverEdgeId ?? this.findEdgeAt(x, y);
-      if (edgeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
       const isFreeRoad = this.freeRoadsRemaining > 0;
+      const edgeId = this.hoverEdgeId ?? this.findEdgeAt(x, y, (id) => this.canBuildRoad(player, id, { free: isFreeRoad }));
+      if (edgeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
       if (this.canBuildRoad(player, edgeId, { free: isFreeRoad })) {
         this.confirmBuild = { type: "road", id: edgeId };
       } else {
@@ -1807,7 +1826,8 @@ class ColonistFullGame {
       this.drawCanvasScene();
       return;
     } else {
-      const nodeId = this.hoverNodeId ?? this.findNodeAt(x, y);
+      const legal = this.pendingAction === "city" ? (id) => this.canBuildCity(player, id, false) : (id) => this.canBuildSettlement(player, id, false);
+      const nodeId = this.hoverNodeId ?? this.findNodeAt(x, y, legal);
       if (nodeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
       if (this.pendingAction === "settlement") {
         if (this.canBuildSettlement(player, nodeId, false)) {
@@ -2289,15 +2309,15 @@ class ColonistFullGame {
 
     if (this.setupPhase && player?.isHuman) {
       if (this.setupAction === "settlement") {
-        const nodeId = this.findNodeAt(worldX, worldY);
-        if (nodeId != null && this.canBuildSettlement(player, nodeId, true)) {
+        const nodeId = this.findNodeAt(worldX, worldY, (id) => this.canBuildSettlement(player, id, true));
+        if (nodeId != null) {
           this.hoverNodeId = nodeId;
           this.hoverTooltip = "Place settlement";
           this.canvas.style.cursor = "pointer";
           return;
         }
       } else if (this.setupAction === "road") {
-        const edgeId = this.findEdgeAt(worldX, worldY);
+        const edgeId = this.findEdgeAt(worldX, worldY, (id) => { const e = this.geometry.edges[id]; return e.owner == null && e.nodes.includes(this.lastSetupNodeId); });
         if (edgeId != null) {
           this.hoverEdgeId = edgeId;
           this.hoverTooltip = "Place road";
@@ -2325,8 +2345,8 @@ class ColonistFullGame {
     }
 
     if (humanMain && this.pendingAction === "road") {
-      const edgeId = this.findEdgeAt(worldX, worldY);
-      if (edgeId != null && this.canBuildRoad(player, edgeId, { free: false })) {
+      const edgeId = this.findEdgeAt(worldX, worldY, (id) => this.canBuildRoad(player, id, { free: this.freeRoadsRemaining > 0 }));
+      if (edgeId != null) {
         this.hoverEdgeId = edgeId;
         this.canvas.style.cursor = "pointer";
       } else {
@@ -2335,12 +2355,10 @@ class ColonistFullGame {
       return;
     }
     if (humanMain && (this.pendingAction === "settlement" || this.pendingAction === "city")) {
-      const nodeId = this.findNodeAt(worldX, worldY);
-      const buildable =
-        nodeId != null &&
-        (this.pendingAction === "settlement"
-          ? this.canBuildSettlement(player, nodeId, false)
-          : this.canBuildCity(player, nodeId, false));
+      const nodeId = this.findNodeAt(worldX, worldY, (id) => (this.pendingAction === "settlement"
+        ? this.canBuildSettlement(player, id, false)
+        : this.canBuildCity(player, id, false)));
+      const buildable = nodeId != null;
       if (buildable) {
         this.hoverNodeId = nodeId;
         this.canvas.style.cursor = "pointer";
@@ -2360,11 +2378,13 @@ class ColonistFullGame {
     return null;
   }
 
-  findNodeAt(x, y) {
+  /** Nearest node within a finger-sized radius (≥ 22 CSS px); `accept` limits it to legal spots. */
+  findNodeAt(x, y, accept = null) {
     let bestId = null;
-    const hitRadius = Math.max(16, this.geometry.hexSize * 0.28);
+    const hitRadius = Math.max(22 / (this.view.scale || 1), this.geometry.hexSize * 0.28);
     let bestDist = hitRadius;
     this.geometry.nodes.forEach((node) => {
+      if (accept && !accept(node.id)) return;
       const dist = Math.hypot(x - node.x, y - node.y);
       if (dist < bestDist) {
         bestDist = dist;
@@ -2374,11 +2394,13 @@ class ColonistFullGame {
     return bestId;
   }
 
-  findEdgeAt(x, y) {
+  /** Nearest edge within ≥ 16 CSS px; `accept` limits it to legal spots. */
+  findEdgeAt(x, y, accept = null) {
     let bestId = null;
-    const hitRadius = Math.max(10, this.geometry.hexSize * 0.18);
+    const hitRadius = Math.max(16 / (this.view.scale || 1), this.geometry.hexSize * 0.18);
     let bestDist = hitRadius;
     this.geometry.edges.forEach((edge) => {
+      if (accept && !accept(edge.id)) return;
       const [a, b] = edge.nodes;
       const p1 = this.geometry.nodes[a];
       const p2 = this.geometry.nodes[b];
@@ -4358,6 +4380,7 @@ class ColonistFullGame {
 
   startAutoplay() {
     if (this.winner) return;
+    this._releaseOnboarding();
     this.stopAiTurnLoop();
     const delay = Number(this.speedRange.value);
     this.autoplayInterval = window.setInterval(this._guard(() => {
@@ -5745,69 +5768,58 @@ class ColonistFullGame {
     });
   }
 
-  drawBuildableHighlights() {
-    const ctx = this.ctx;
-    const s = this.geometry.hexSize / 74;
-    const human = this.players.find(p => p.isHuman);
-    const isHumanMain = human && this.phase === "main" && this.currentPlayer.isHuman;
-    if (!isHumanMain) return;
-
-    const canSettlement = hasResources(human.resources, COSTS.settlement);
-    const canCity = hasResources(human.resources, COSTS.city);
-    const canRoad = hasResources(human.resources, COSTS.road);
-    const pulse = 0.5 + Math.sin(Date.now() / 400) * 0.3;
-
-    // Road highlights (draw first, under node highlights)
-    if (canRoad) {
-      ctx.lineCap = "round";
-      this.geometry.edges.forEach((edge) => {
-        if (edge.owner != null) return;
-        if (!this.canBuildRoad(human, edge.id, { free: false })) return;
-        const [a, b] = edge.nodes;
-        const p1 = this.geometry.nodes[a];
-        const p2 = this.geometry.nodes[b];
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.strokeStyle = `rgba(25, 160, 184, ${0.3 + pulse * 0.2})`;
-        ctx.lineWidth = 5 * s;
-        ctx.setLineDash([5 * s, 3 * s]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      });
+  /** Legal spots while the human places something (setup or build mode), or null. Shared by both renderers. */
+  _legalPlacementSpots() {
+    const player = this.currentPlayer;
+    if (!player?.isHuman || this.winner) return null;
+    const nodes = [], edges = [];
+    const g = this.geometry;
+    if (this.setupPhase) {
+      if (!this.setupAction) return null;
+      if (this.setupAction === "settlement") g.nodes.forEach((n) => { if (this.canBuildSettlement(player, n.id, true)) nodes.push(n.id); });
+      else if (this.setupAction === "road" && this.lastSetupNodeId != null) g.edges.forEach((e) => { if (e.owner == null && e.nodes.includes(this.lastSetupNodeId)) edges.push(e.id); });
+      return { nodes, edges, type: this.setupAction };
     }
-
-    // Settlement highlights
-    if (canSettlement) {
-      this.geometry.nodes.forEach((node) => {
-        if (node.owner != null) return;
-        if (!this.canBuildSettlement(human, node.id, false)) return;
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, 9 * s, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(25, 160, 184, ${0.15 + pulse * 0.1})`;
-        ctx.fill();
-        ctx.strokeStyle = `rgba(25, 160, 184, ${0.5 + pulse * 0.2})`;
-        ctx.lineWidth = 2 * s;
-        ctx.stroke();
-      });
-    }
-
-    // City upgrade highlights
-    if (canCity) {
-      this.geometry.nodes.forEach((node) => {
-        if (node.owner !== human.id || node.structure !== "settlement") return;
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, 14 * s, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 200, 60, ${0.1 + pulse * 0.1})`;
-        ctx.fill();
-        ctx.strokeStyle = `rgba(255, 200, 60, ${0.5 + pulse * 0.2})`;
-        ctx.lineWidth = 2.5 * s;
-        ctx.setLineDash([4 * s, 2 * s]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      });
-    }
+    const type = this.pendingAction;
+    if (!type || type === "robber") return null;
+    if (type === "settlement") g.nodes.forEach((n) => { if (this.canBuildSettlement(player, n.id, false)) nodes.push(n.id); });
+    else if (type === "city") g.nodes.forEach((n) => { if (this.canBuildCity(player, n.id, false)) nodes.push(n.id); });
+    else if (type === "road") g.edges.forEach((e) => { if (this.canBuildRoad(player, e.id, { free: this.freeRoadsRemaining > 0 })) edges.push(e.id); });
+    return { nodes, edges, type };
   }
+
+  /** Classic board: legal spots only, as calm white rings / dashed road ghosts (no colours that read as errors). */
+  drawBuildableHighlights() {
+    const spots = this._legalPlacementSpots();
+    if (!spots) return;
+    const ctx = this.ctx;
+    const px = 1 / (this.view.scale || 1); // world units per CSS pixel
+    const cb = this.confirmBuild;
+    ctx.save();
+    ctx.lineCap = "round";
+    spots.edges.forEach((id) => {
+      if (cb && cb.type === "road" && cb.id === id) return;
+      const [a, b] = this.geometry.edges[id].nodes.map((n) => this.geometry.nodes[n]);
+      const t = 0.22, ax = a.x + (b.x - a.x) * t, ay = a.y + (b.y - a.y) * t, bx = b.x - (b.x - a.x) * t, by = b.y - (b.y - a.y) * t;
+      ctx.setLineDash([6 * px, 5 * px]);
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+      ctx.strokeStyle = "rgba(15, 35, 50, 0.35)"; ctx.lineWidth = 6 * px; ctx.stroke();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.95)"; ctx.lineWidth = 3.5 * px; ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    spots.nodes.forEach((id) => {
+      if (cb && cb.id === id && cb.type !== "road") return;
+      const n = this.geometry.nodes[id];
+      const r = spots.type === "city" ? 15 * px : 7 * px;
+      ctx.beginPath(); ctx.arc(n.x, n.y, r + 1.5 * px, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(15, 35, 50, 0.35)"; ctx.lineWidth = 1.5 * px; ctx.stroke();
+      ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.22)"; ctx.fill();
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2.5 * px; ctx.stroke();
+    });
+    ctx.restore();
+  }
+
 
   drawRoads() {
     const ctx = this.ctx;
@@ -6580,9 +6592,13 @@ class ColonistFullGame {
     // ── status pill (desktop turn banner; mobile uses the ticker) ──
     let title = humanTurn ? "Your turn" : `${active.name}'s turn`;
     let status;
+    const mobile = this.isMobileLayout;
+    const confirmHint = mobile ? "Tap Place to confirm, or pick another spot" : "Click ✓ to confirm — or pick another spot";
+    const setupRound = this.setupStep < this.players.length ? 1 : 2;
     if (this.setupPhase && this.setupAction && humanTurn) {
-      title = "Your turn · setup";
-      status = this.confirmBuild ? "Tap ✓ to confirm — or pick another spot" : `Place ${placeName[this.setupAction]} · ${this.isMobileLayout ? "tap" : "click"} a glowing spot`;
+      title = `Setup ${setupRound} of 2`;
+      status = this.confirmBuild ? confirmHint
+        : this.setupAction === "settlement" ? `Pick your ${setupRound === 1 ? "first" : "second"} settlement` : "Add a road next to it";
     } else if (this.setupPhase) {
       status = "Placing a starting settlement…";
     } else if (this.winner) {
@@ -6600,8 +6616,9 @@ class ColonistFullGame {
       status = "Roll the dice to start your turn";
     } else if (humanTurn && mainPhase) {
       if (this.pendingAction) {
-        if (this.confirmBuild) status = "Tap ✓ to confirm — or pick another spot";
-        else status = this.freeRoadsRemaining > 0 ? `Place a free road (${this.freeRoadsRemaining} left)` : `Placing ${placeName[this.pendingAction] || this.pendingAction} · tap a glowing spot`;
+        if (this.confirmBuild) status = confirmHint;
+        else status = this.freeRoadsRemaining > 0 ? `Free road · ${this.freeRoadsRemaining} left · tap a glowing spot`
+          : mobile ? "Tap a glowing spot" : `Placing ${placeName[this.pendingAction] || this.pendingAction} · click a glowing spot`;
       } else {
         status = "Build, trade or play a card";
       }
@@ -6612,12 +6629,20 @@ class ColonistFullGame {
     // Phones: the ticker line becomes the instruction while you have to act (place, robber, discard)
     const mustAct = !this.winner && ((this.setupPhase && humanTurn && this.setupAction) || (humanTurn && this.pendingAction) || !!this.pendingDiscard);
     const prompt = mustAct ? (this.pendingDiscard ? "The robber came! Hand back half of your cards" : status) : "";
-    if (prompt !== (this._tickerPrompt || "")) {
+    // Build mode on phones: Cancel sits right in the instruction line
+    const canCancel = humanTurn && !this.setupPhase && !!(this.confirmBuild || (this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining));
+    const tickerCancel = document.querySelector("#tickerCancel");
+    if (tickerCancel) tickerCancel.hidden = !(mustAct && canCancel);
+    // the setup step chip only where the line has room (phones show it in the dock instead)
+    const stepChip = this.setupPhase && humanTurn && this.setupAction && window.innerWidth > 430 ? `Setup ${setupRound} of 2` : "";
+    const promptKey = prompt + "|" + stepChip;
+    if (promptKey !== (this._tickerPromptKey || "|")) {
+      this._tickerPromptKey = promptKey;
       this._tickerPrompt = prompt;
       this._lastLogKey = null;
       document.querySelector("#ticker")?.classList.toggle("prompt", !!prompt);
       if (prompt && this.tickerText) {
-        this.tickerText.textContent = prompt;
+        this.tickerText.innerHTML = `<span class="tk-main">${prompt}</span>${stepChip ? `<span class="tk-step">${stepChip}</span>` : ""}`;
         if (this.tickerIcon) this.tickerIcon.innerHTML = icon(this.pendingDiscard || this.pendingAction === "robber" ? "robber" : this.confirmBuild?.type || this.pendingAction || this.setupAction || "build");
       }
       if (!prompt) this.renderLog();
@@ -6645,7 +6670,7 @@ class ColonistFullGame {
       rollBtn.disabled = inSetup || !(humanTurn && preRoll) || robberBlocking;
     }
     if (endBtn) {
-      endBtn.style.display = !rushOn && humanTurn && (mainPhase || inSetup) && !robberBlocking ? "inline-flex" : "none";
+      endBtn.style.display = !rushOn && humanTurn && mainPhase && !inSetup && !robberBlocking ? "inline-flex" : "none";
       endBtn.disabled = inSetup || !(humanTurn && mainPhase) || robberBlocking || (!!this.pendingAction && !this.freeRoadsRemaining);
     }
     if (this.rushReadyBtn) this.rushReadyBtn.hidden = !rushOn || !!this.winner;
@@ -6655,10 +6680,13 @@ class ColonistFullGame {
         wait = `${icon("vp")}<div class="wt">${this.winner.name} win${this._s(this.winner)}<small>Game over</small></div><button type="button" class="btn primary" data-newgame>New game</button>`;
       } else if (humanTurn && this.pendingAction === "robber") {
         wait = `${icon("robber")}<div class="wt">Move the robber<small>Tap a tile on the board</small></div>`;
+      } else if (inSetup && humanTurn && !rushOn) {
+        wait = `${icon(this.setupAction || "settlement")}<div class="wt">Setup ${setupRound} of 2<small>${this.setupAction === "road" ? "Last step: a road" : "Then add a road"}</small></div>`;
       } else if (oppTurn) {
         wait = `${this._av(active)}<div class="wt">${active.name} is playing<small>${inSetup ? "Placing a settlement" : preRoll ? "Rolling the dice" : "Building and trading"}</small></div><div class="dots"><i></i><i></i><i></i></div>`;
       }
-      const wkey = `${wait.length}:${active.id}:${preRoll}:${inSetup}:${!!this.winner}:${this.pendingAction}`;
+      const wkey = `${wait.length}:${active.id}:${preRoll}:${inSetup}:${!!this.winner}:${this.pendingAction}:${this.setupAction}:${setupRound}`;
+
       if (this.waitingBar.dataset.key !== wkey) {
         this.waitingBar.dataset.key = wkey;
         this.waitingBar.innerHTML = wait;
@@ -6932,6 +6960,7 @@ class ColonistFullGame {
   // Mode (Classic / Rush), rules, dice, map and opponents. The last choice is remembered.
   _showDifficultyModal() {
     document.querySelector(".newgame-modal")?.remove();
+    this.onboarding?.close();
     const last = normalizeSettings(ColonistFullGame.loadLastSettings());
     let d = normalizeSettings(JSON.parse(JSON.stringify(last)));
     const overlay = document.createElement("div");
@@ -7197,14 +7226,15 @@ class ColonistFullGame {
     };
 
     const onKey = (e) => { if (e.key === "Escape") close(); };
-    const close = () => {
+    const close = (started = false) => {
       overlay.remove();
       document.removeEventListener("keydown", onKey);
       this.uiPaused = false;
       this._rushLastTs = performance.now();
+      if (!started && this.onboardingHold) this.onboarding.showWelcome(); // first launch: back to the welcome sheet
     };
     const start = () => {
-      close();
+      close(true);
       this.startNewGame(d);
     };
     document.addEventListener("keydown", onKey);
@@ -7631,6 +7661,7 @@ class ColonistFullGame {
     $("#mCardsBtn")?.addEventListener("click", (e) => { e.stopPropagation(); this.toggleDevCardPicker(); });
     $("#devPickerClose")?.addEventListener("click", () => this.hideDevCardPicker());
     this.cancelActionBtn?.addEventListener("click", () => this.cancelPlacement());
+    $("#tickerCancel")?.addEventListener("click", (e) => { e.stopPropagation(); this.cancelPlacement(); });
     $("#confirmPillCancel")?.addEventListener("click", () => { this.confirmBuild = null; this.render(); });
     $("#confirmPillPlace")?.addEventListener("click", () => this._confirmViaIcon());
     // choosing something in the mobile build sheet closes it

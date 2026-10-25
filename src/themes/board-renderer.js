@@ -356,7 +356,8 @@ export class SvgBoardRenderer {
     }
     this.detectChanges(now);
     this.anims = this.anims.filter((a) => now - a.start < a.dur);
-    const pulsing = this.placementActive();
+    // Placement: redraw only while the one-off pulse runs (and for the bobbing ✓ on desktop)
+    const pulsing = this.placementActive() && (now - (this._placeStart || 0) < 1300 || (g.confirmBuild && !g.isMobileLayout));
     if (!this.dirty && !this.anims.length && !pulsing) return;
     this.dirty = false;
     const t0 = performance.now();
@@ -614,67 +615,71 @@ export class SvgBoardRenderer {
   }
 
   legalSpots() {
-    const g = this.game, player = g.currentPlayer;
-    const nodes = [], edges = [];
-    if (g.setupPhase) {
-      if (g.setupAction === "settlement") g.geometry.nodes.forEach((n) => { if (g.canBuildSettlement(player, n.id, true)) nodes.push(n.id); });
-      else if (g.setupAction === "road" && g.lastSetupNodeId != null) g.geometry.edges.forEach((e) => { if (e.owner == null && e.nodes.includes(g.lastSetupNodeId)) edges.push(e.id); });
-      return { nodes, edges, type: g.setupAction };
-    }
-    const type = g.pendingAction;
-    if (type === "settlement") g.geometry.nodes.forEach((n) => { if (g.canBuildSettlement(player, n.id, false)) nodes.push(n.id); });
-    else if (type === "city") g.geometry.nodes.forEach((n) => { if (g.canBuildCity(player, n.id, false)) nodes.push(n.id); });
-    else if (type === "road") g.geometry.edges.forEach((e) => { if (g.canBuildRoad(player, e.id, { free: g.freeRoadsRemaining > 0 })) edges.push(e.id); });
-    return { nodes, edges, type };
+    return this.game._legalPlacementSpots() || { nodes: [], edges: [], type: null };
   }
 
+  /**
+   * Legal spots only: calm white rings (~14 px) on nodes, dashed ghost segments on edges, a dashed
+   * ring around settlements that can become cities. When the spots appear they get ONE gentle pulse
+   * in the player's colour, then stay still (no looping glow, no flashing). Sizes are in screen pixels
+   * so they read the same at every zoom.
+   */
   drawPlacement(ctx, now, reduced, devK) {
-    const g = this.game, T = this.theme, H = T.hint;
+    const g = this.game;
     const { nodes, edges, type } = this.legalSpots();
-    if (type === "robber") return;
-    const pulse = reduced ? 0 : Math.sin(now / 420);
+    if (!type || type === "robber") return;
     const cb = g.confirmBuild;
-    const hint = (x, y, small) => {
-      ctx.save(); ctx.translate(x, y);
-      const k = small ? 0.8 : 1;
-      ctx.beginPath(); ctx.arc(0, 0, (16 + pulse * 3) * k, 0, Math.PI * 2); ctx.fillStyle = H.halo; ctx.globalAlpha = 0.8 + pulse * 0.2; ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.beginPath(); ctx.arc(0, 0, 9 * k, 0, Math.PI * 2); ctx.fillStyle = H.fill; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = H.ring; ctx.stroke();
-      ctx.beginPath(); ctx.arc(0, 0, 3.4 * k, 0, Math.PI * 2); ctx.fillStyle = H.dot; ctx.fill();
-      ctx.restore();
-    };
-    nodes.forEach((id) => {
-      if (cb && cb.id === id && cb.type !== "road") return;
-      if (type === "city") return; // cities: the ring on the settlement itself
-      const p = this.nodeArt(id);
-      hint(p.x, p.y);
-    });
-    if (type === "city") nodes.forEach((id) => {
-      if (cb && cb.id === id) return;
-      const p = this.nodeArt(id);
-      ctx.save(); ctx.translate(p.x, p.y - 4); ctx.lineWidth = 3; ctx.strokeStyle = H.ring; ctx.globalAlpha = 0.6 + pulse * 0.3;
-      ctx.setLineDash([6, 5]); ctx.beginPath(); ctx.arc(0, 0, 30 + pulse * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
-    });
-    edges.forEach((id) => {
-      if (cb && cb.type === "road" && cb.id === id) return;
-      const e = g.geometry.edges[id];
-      const [a, b] = this.roadEnds(e);
-      ctx.save(); ctx.globalAlpha = 0.55 + pulse * 0.2; ctx.setLineDash([7, 6]); ctx.lineCap = "round"; ctx.lineWidth = 5; ctx.strokeStyle = H.fill;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.restore();
-      hint((a.x + b.x) / 2, (a.y + b.y) / 2, true);
-    });
-    // hover preview (desktop) — a fainter ghost
+    const px = 1 / (this.u * g.view.scale); // art units per CSS pixel
     const human = g.players[0];
     const c = this.pc(g.currentPlayer || human);
+    const key = `${type}:${nodes.join(",")}:${edges.join(",")}`;
+    if (key !== this._placeKey) { this._placeKey = key; this._placeStart = now; }
+    const t = reduced ? 1 : clamp01((now - this._placeStart) / 1100);
+    const e = easing(this.theme.motion.out)(t);
+    const pulseA = t < 1 ? 0.6 * (1 - t) : 0; // fades out once; nothing afterwards
+    const ink = "rgba(20,40,44,.32)";
+    const ring = (x, y, r) => {
+      ctx.save(); ctx.translate(x, y);
+      if (pulseA > 0) {
+        ctx.beginPath(); ctx.arc(0, 0, r + 10 * e * px, 0, Math.PI * 2);
+        ctx.globalAlpha = pulseA; ctx.lineWidth = 3 * px; ctx.strokeStyle = c.base; ctx.stroke(); ctx.globalAlpha = 1;
+      }
+      ctx.beginPath(); ctx.arc(0, 0, r + 1.6 * px, 0, Math.PI * 2); ctx.lineWidth = 1.4 * px; ctx.strokeStyle = ink; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,.24)"; ctx.fill();
+      ctx.lineWidth = 2.6 * px; ctx.strokeStyle = "#FFFFFF"; ctx.stroke();
+      ctx.restore();
+    };
+    edges.forEach((id) => {
+      if (cb && cb.type === "road" && cb.id === id) return;
+      const [a, b] = this.roadEnds(g.geometry.edges[id]);
+      ctx.save(); ctx.lineCap = "round";
+      if (pulseA > 0) {
+        ctx.globalAlpha = pulseA * 0.8; ctx.lineWidth = (5 + 8 * e) * px; ctx.strokeStyle = c.base;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.globalAlpha = 1;
+      }
+      ctx.setLineDash([6 * px, 5 * px]);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      ctx.lineWidth = 6 * px; ctx.strokeStyle = ink; ctx.stroke();
+      ctx.lineWidth = 3.6 * px; ctx.strokeStyle = "rgba(255,255,255,.96)"; ctx.stroke();
+      ctx.restore();
+    });
+    nodes.forEach((id) => {
+      if (cb && cb.id === id && cb.type !== "road") return;
+      const p = this.nodeArt(id);
+      if (type === "city") ring(p.x, p.y - 4, 30); // around the settlement itself
+      else ring(p.x, p.y, 7 * px);
+    });
+    // hover preview (desktop) — a fainter ghost
     const hoverNode = g.hoverNodeId != null && (!cb || cb.id !== g.hoverNodeId) && nodes.includes(g.hoverNodeId) ? g.hoverNodeId : null;
     const hoverEdge = g.hoverEdgeId != null && (!cb || cb.id !== g.hoverEdgeId) && edges.includes(g.hoverEdgeId) ? g.hoverEdgeId : null;
     if (hoverNode != null) this.ghost(ctx, type, hoverNode, c, 0.45, devK);
     if (hoverEdge != null) this.ghost(ctx, "road", hoverEdge, c, 0.45, devK);
-    if (cb) {
+    if (cb && cb.type !== "robber") {
       this.ghost(ctx, cb.type, cb.id, c, 1, devK);
       if (!g.isMobileLayout) this.drawConfirm(ctx, now, reduced, devK);
     }
   }
+
 
   ghost(ctx, type, id, c, alpha, devK) {
     const g = this.game, T = this.theme;
