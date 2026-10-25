@@ -328,6 +328,55 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 .app .trade-result button.primary-sm { background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); border: var(--primary-border); }
 .trade-result .row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 
+/* trade sheet: Bank | Players tabs */
+.trade-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: 10px 0 2px; border-radius: 12px; background: var(--group); border: var(--group-border); }
+.app .trade-tabs button { min-height: 44px; border-radius: 9px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--ink-soft); }
+.app .trade-tabs button .ic { font-size: 22px; }
+.app .trade-tabs button.on { background: var(--panel); color: var(--heading); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.trade-sheet .lead { font-size: 13.5px; margin: 8px 0 4px; }
+.trade-pane[hidden] { display: none; }
+.bank-cell { padding: 8px 0 6px; cursor: pointer; }
+.bank-cell .card { --cw: min(52px, 100%); }
+.bank-cell .have { font-size: 11px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
+.bank-cell .rate-tag { position: static; font-size: 11px; padding: 1px 6px; }
+.bank-cell .rate-tag.port { background: var(--good-bg); color: var(--good); }
+.bank-cell.dim { opacity: .45; }
+.bank-cell.pick { opacity: 1; }
+/* players: one row per resource, 44 px steppers on both sides */
+.trows-head { display: grid; grid-template-columns: 1fr 1fr; font-size: 11.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); margin: 10px 2px 6px; }
+.trows-head span:last-child { text-align: right; }
+.trows { display: grid; gap: 6px; }
+.trow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 4px; border-radius: var(--chip-radius); background: var(--chip); border: var(--chip-border); }
+.trow.pick { background: var(--active-row); }
+.tres { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
+.tres .card { --cw: 28px; }
+.tres b { display: block; font-size: 13px; line-height: 1.1; color: var(--heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tres small { display: block; font-size: 11px; font-weight: 650; color: var(--ink-soft); white-space: nowrap; }
+.tstep { display: flex; align-items: center; gap: 2px; }
+.app .tstep button { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--btn); border: var(--btn-border); color: var(--btn-ink); box-shadow: var(--btn-shadow); }
+.app .tstep button .ic { font-size: 18px; }
+.app .tstep button:disabled { opacity: .35; box-shadow: none; }
+.tstep .tn { min-width: 22px; text-align: center; font-family: var(--font-display); font-weight: var(--display-weight); font-size: 19px; color: var(--ink-faint); }
+.tstep .tn.on { color: var(--heading); }
+@media (max-width: 370px) {
+  .tres > span:last-child { display: none; }
+  .app .tstep button { width: 44px; }
+}
+/* answers + partner buttons */
+.trade-result .answers { display: flex; flex-wrap: wrap; gap: 6px; }
+.trade-result .answer { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--chip); border: var(--chip-border); font-size: 13px; }
+.trade-result .answer .avatar { --av: 24px; --av-ring: 2px; }
+.trade-result .answer.yes { background: var(--good-bg); border-color: transparent; }
+.trade-result .pick-lead { margin: 8px 0 2px; font-weight: 700; color: var(--ink); }
+.trade-result .row.partners { gap: 8px; }
+.app .trade-result .partner-btn {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 14px 0 6px; margin: 4px 0 0; border-radius: 999px;
+  background: color-mix(in srgb, var(--pc) 12%, var(--btn)); border: 2px solid var(--pc); color: var(--ink); font-weight: 650; font-size: 14px; box-shadow: var(--btn-shadow);
+}
+.app .trade-result .partner-btn .avatar { --av: 34px; --av-ring: 0px; }
+.app .trade-result .partner-btn b { font-weight: 800; }
+.app .trade-result .btn-neutral { min-height: 48px; margin: 4px 0 0; }
+
 .victim-options { display: grid; gap: 8px; }
 .app .victim-btn { display: flex; align-items: center; gap: 12px; padding: 10px 14px; min-height: 60px; border-radius: var(--chip-radius); background: var(--chip); border: var(--chip-border); text-align: left; font-weight: 750; font-size: 16px; }
 .victim-btn .avatar { --av: 40px; }
