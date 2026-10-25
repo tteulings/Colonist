@@ -1,16 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="hex" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#43aa8b"/>
-      <stop offset="100%" stop-color="#2d8a6e"/>
-    </linearGradient>
-    <linearGradient id="ocean" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#3a9fd4"/>
-      <stop offset="100%" stop-color="#1b6ba3"/>
-    </linearGradient>
+    <radialGradient id="sea" cx="0.28" cy="0.2" r="0.95">
+      <stop offset="0" stop-color="#45D3DD"/><stop offset="0.5" stop-color="#1AA6CC"/><stop offset="1" stop-color="#0C7BAF"/>
+    </radialGradient>
   </defs>
-  <rect width="64" height="64" rx="12" fill="url(#ocean)"/>
-  <polygon points="32,8 52,20 52,44 32,56 12,44 12,20" fill="url(#hex)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
-  <circle cx="32" cy="32" r="10" fill="#fff" opacity="0.95"/>
-  <text x="32" y="37" text-anchor="middle" font-family="Arial,sans-serif" font-weight="800" font-size="16" fill="#1a3a5c">C</text>
+  <rect width="512" height="512" rx="96" fill="url(#sea)"/>
+  <g transform="translate(256 256) scale(1.42) translate(-256 -256)"><path d="M230.95,105 Q250,94 269.05,105 L314.09,131 Q333.14,142 333.14,164 L333.14,216 Q333.14,238 314.09,249 L269.05,275 Q250,286 230.95,275 L185.91,249 Q166.86,238 166.86,216 L166.86,164 Q166.86,142 185.91,131 Z" fill="#F7E1AC"/><path d="M301.96,228 Q321.01,217 340.07,228 L385.1,254 Q404.15,265 404.15,287 L404.15,339 Q404.15,361 385.1,372 L340.07,398 Q321.01,409 301.96,398 L256.93,372 Q237.88,361 237.88,339 L237.88,287 Q237.88,265 256.93,254 Z" fill="#F7E1AC"/><path d="M159.93,228 Q178.99,217 198.04,228 L243.07,254 Q262.12,265 262.12,287 L262.12,339 Q262.12,361 243.07,372 L198.04,398 Q178.99,409 159.93,398 L114.9,372 Q95.85,361 95.85,339 L95.85,287 Q95.85,265 114.9,254 Z" fill="#F7E1AC"/><path d="M239.61,114 Q250,108 260.39,114 L310.62,143 Q321.01,149 321.01,161 L321.01,219 Q321.01,231 310.62,237 L260.39,266 Q250,272 239.61,266 L189.38,237 Q178.99,231 178.99,219 L178.99,161 Q178.99,149 189.38,143 Z" fill="#3FA05A"/><path d="M310.62,237 Q321.01,231 331.41,237 L381.64,266 Q392.03,272 392.03,284 L392.03,342 Q392.03,354 381.64,360 L331.41,389 Q321.01,395 310.62,389 L260.39,360 Q250,354 250,342 L250,284 Q250,272 260.39,266 Z" fill="#E36C43"/><path d="M168.59,237 Q178.99,231 189.38,237 L239.61,266 Q250,272 250,284 L250,342 Q250,354 239.61,360 L189.38,389 Q178.99,395 168.59,389 L118.36,360 Q107.97,354 107.97,342 L107.97,284 Q107.97,272 118.36,266 Z" fill="#F5BC3C"/><path d="M182,320.96 V239.36 L250,174.08 L318,239.36 V320.96 Z" fill="#FFFFFF"/><path d="M164.32,244.66 L250,164.36 L335.68,244.66" fill="none" stroke="#2F62D6" stroke-width="28.56" stroke-linejoin="round" stroke-linecap="round"/></g>
 </svg>

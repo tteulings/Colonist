@@ -283,7 +283,8 @@ ICONS.build = `<g transform="rotate(-38)"><rect x="-4" y="-12" width="8" height=
 ICONS.fit = `<g fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M-32,-12 V-32 H-12 M12,-32 H32 V-12 M32,12 V32 H12 M-12,32 H-32 V12"/></g><path d="${hexPath(0, 0, 14)}" fill="currentColor" opacity=".6"/>`;
 ICONS.zoomIn = zoom(1);
 ICONS.zoomOut = zoom(0);
-ICONS.logo = `<path d="${hexPath(0, 0, 44)}" fill="${P.sea1}"/><path d="M-36,16 Q-24,-10 0,-6 Q22,-30 38,10 L38,22 L0,44 L-38,22Z" fill="${P.olive[0]}"/><path d="M-38,22 Q0,34 38,22 L0,44Z" fill="${P.sand}"/><circle cx="16" cy="-20" r="8" fill="#E9C46A"/><path d="${hexPath(0, 0, 44)}" fill="none" stroke="#1E4E55" stroke-width="2.4"/>`;
+// App logo A: three-hex island with a house (assets/icons/ui-logo.svg), fitted to the -50..50 icon box
+ICONS.logo = `<g transform="scale(0.28) translate(-250 -250)"><path d="M230.95,102 Q250,91 269.05,102 L316.68,129.5 Q335.74,140.5 335.74,162.5 L335.74,217.5 Q335.74,239.5 316.68,250.5 L269.05,278 Q250,289 230.95,278 L183.32,250.5 Q164.26,239.5 164.26,217.5 L164.26,162.5 Q164.26,140.5 183.32,129.5 Z" fill="#F7E1AC"/><path d="M301.96,225 Q321.01,214 340.07,225 L387.7,252.5 Q406.75,263.5 406.75,285.5 L406.75,340.5 Q406.75,362.5 387.7,373.5 L340.07,401 Q321.01,412 301.96,401 L254.33,373.5 Q235.28,362.5 235.28,340.5 L235.28,285.5 Q235.28,263.5 254.33,252.5 Z" fill="#F7E1AC"/><path d="M159.93,225 Q178.99,214 198.04,225 L245.67,252.5 Q264.72,263.5 264.72,285.5 L264.72,340.5 Q264.72,362.5 245.67,373.5 L198.04,401 Q178.99,412 159.93,401 L112.3,373.5 Q93.25,362.5 93.25,340.5 L93.25,285.5 Q93.25,263.5 112.3,252.5 Z" fill="#F7E1AC"/><path d="M239.61,119 Q250,113 260.39,119 L306.29,145.5 Q316.68,151.5 316.68,163.5 L316.68,216.5 Q316.68,228.5 306.29,234.5 L260.39,261 Q250,267 239.61,261 L193.71,234.5 Q183.32,228.5 183.32,216.5 L183.32,163.5 Q183.32,151.5 193.71,145.5 Z" fill="#3FA05A"/><path d="M310.62,242 Q321.01,236 331.41,242 L377.31,268.5 Q387.7,274.5 387.7,286.5 L387.7,339.5 Q387.7,351.5 377.31,357.5 L331.41,384 Q321.01,390 310.62,384 L264.72,357.5 Q254.33,351.5 254.33,339.5 L254.33,286.5 Q254.33,274.5 264.72,268.5 Z" fill="#E36C43"/><path d="M168.59,242 Q178.99,236 189.38,242 L235.28,268.5 Q245.67,274.5 245.67,286.5 L245.67,339.5 Q245.67,351.5 235.28,357.5 L189.38,384 Q178.99,390 168.59,384 L122.69,357.5 Q112.3,351.5 112.3,339.5 L112.3,286.5 Q112.3,274.5 122.69,268.5 Z" fill="#F5BC3C"/><path d="M194,312.32 V245.12 L250,191.36 L306,245.12 V312.32 Z" fill="#FFFFFF"/><path d="M179.44,249.49 L250,183.35 L320.56,249.49" fill="none" stroke="#2F62D6" stroke-width="23.52" stroke-linejoin="round" stroke-linecap="round"/><rect x="238.8" y="274.69" width="22.4" height="37.63" rx="6.72" fill="#E8643C"/></g>`;
 ICONS.close = `<path d="M-18,-18 L18,18 M18,-18 L-18,18" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>`;
 ICONS.check = `<path d="M-24,0 L-8,16 L24,-18" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>`;
 ICONS.chevron = `<path d="M-16,-6 L0,10 L16,-6" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>`;
@@ -433,7 +434,9 @@ const sunny = {
   hint: { halo: "rgba(255,246,218,.35)", fill: "#FBF6EA", ring: "#D9714E", dot: "#D9714E" },
   confirm: { fill: "#D9714E", ring: "#FFF9F2" },
   robberDx: 46, robberDy: -12, tokenDy: 6,
-  icons: { ...ICONS, ...UI_ICONS }, // DOM sprite: crisp UI glyphs; card art keeps using ICONS directly
+  // DOM sprite: crisp UI glyphs over the palette icons; a getter so a palette re-bake (buildIcons) is picked up.
+  // Card art keeps using ICONS directly.
+  get icons() { return { ...ICONS, ...UI_ICONS }; },
   card, cardBack,
   avatar: (preset) => (AVP[preset] || AVP.you)(),
   die: (n) => dieFace(n, 2, 2, 0, 1.08),
