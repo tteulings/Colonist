@@ -183,7 +183,7 @@ export class SvgBoardRenderer {
     const raw = this.u * g.view.scale * g.pixelRatio;
     const b = Math.pow(2, Math.ceil(Math.log2(raw) * 4) / 4);
     const { W, H } = this.artBounds();
-    const cap = Math.sqrt((window.innerWidth <= 900 ? 12e6 : 16e6) / (W * H));
+    const cap = Math.sqrt((g.isMobileLayout ? 12e6 : 16e6) / (W * H));
     return Math.min(b, cap);
   }
 

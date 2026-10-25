@@ -60,6 +60,9 @@ const PLAYER_CONFIG = [
 const DEV_CARD_TYPES = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
 const SQRT3 = Math.sqrt(3);
 const BOARD_RADIUS = 2;
+// Layout breakpoints (keep in sync with themes/base.css): phones = narrow OR short (landscape)
+const MOBILE_MQ = "(max-width: 900px), (max-height: 500px)";
+const LANDSCAPE_MQ = "(max-height: 500px) and (orientation: landscape)";
 const TURN_LIMIT = 500;
 
 // ── AI Strategy Configuration ──────────────────────────────────────────
@@ -2029,13 +2032,25 @@ class ColonistFullGame {
   _viewFrame() {
     const g = this.geometry, hs = g.hexSize;
     const xs = g.hexes.map((h) => h.center.x), ys = g.hexes.map((h) => h.center.y);
-    // Phones: the tiles fill the width (harbours may overlap the screen edge a little)
-    const mx = hs * (this.isMobileLayout ? 0.93 : 1.75), my = hs * (this.isMobileLayout ? 1.16 : 1.7);
+    // Phones: the island (tiles + beach) fills the width; only the harbours may touch the screen edge
+    const mobile = this.isMobileLayout;
+    const mx = hs * (mobile ? 1.05 : 1.75), my = hs * (mobile ? 1.12 : 1.7);
     const box = { minX: Math.min(...xs) - mx, maxX: Math.max(...xs) + mx, minY: Math.min(...ys) - my, maxY: Math.max(...ys) + my };
-    let fan = 0;
-    if (this.isMobileLayout && this.app) fan = parseFloat(getComputedStyle(this.app).getPropertyValue("--fan-h")) || 112;
-    const ins = this.isMobileLayout ? { t: 4, r: 0, b: fan - 6, l: 0 } : { t: 10, r: 10, b: 10, l: 10 };
+    let fan = 0, top = 4;
+    if (mobile && this.app) {
+      const cs = getComputedStyle(this.app);
+      fan = parseFloat(cs.getPropertyValue("--fan-h")) || 112;
+      top = parseFloat(cs.getPropertyValue("--board-top")) || 4;
+    }
+    const ins = mobile ? { t: top, r: 0, b: fan - 6, l: 0 } : { t: 10, r: 10, b: 10, l: 10 };
     const vp = { l: ins.l, t: ins.t, W: Math.max(50, this.boardWidth - ins.l - ins.r), H: Math.max(50, this.boardHeight - ins.t - ins.b) };
+    if (mobile) {
+      // Width-bound portrait phones: sit the island just above the hand instead of leaving an empty
+      // band of sea there (most of the spare height goes to the top, where the dice and fit button float)
+      const scale = Math.min(vp.W / (box.maxX - box.minX), vp.H / (box.maxY - box.minY));
+      const slack = vp.H - (box.maxY - box.minY) * scale;
+      if (slack > 8) { const shift = slack * 0.8; vp.t += shift; vp.H -= shift; }
+    }
     return { box, vp };
   }
 
@@ -7594,7 +7609,9 @@ class ColonistFullGame {
   }
 
   _updateLayoutMode() {
-    this.isMobileLayout = window.matchMedia("(max-width: 900px)").matches;
+    // Phones in any orientation (incl. landscape: short screens) use the touch layout
+    this.isMobileLayout = window.matchMedia(MOBILE_MQ).matches;
+    this.isLandscapePhone = window.matchMedia(LANDSCAPE_MQ).matches;
   }
 
   _bindThemeUI() {
@@ -7634,7 +7651,8 @@ class ColonistFullGame {
     [this.tradeModal, this.devCardPicker, this.victimPanel, this.discardPanel, this.incomingTradePanel, this.railLog, this.app].forEach((el) => {
       if (el) mo.observe(el, { attributes: true, attributeFilter: ["style", "class"] });
     });
-    window.matchMedia("(max-width: 900px)").addEventListener?.("change", () => this.handleResize());
+    window.matchMedia(MOBILE_MQ).addEventListener?.("change", () => this.handleResize());
+    window.matchMedia(LANDSCAPE_MQ).addEventListener?.("change", () => this.handleResize());
     document.addEventListener("visibilitychange", () => { if (!document.hidden) this.boardRenderer?.requestDraw(); });
     // The board area changes size without a window resize (chrome bars laying out after load, the
     // hand fan, sheets): keep the canvas backing store in step with its box, or the board is drawn
