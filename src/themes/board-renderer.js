@@ -69,7 +69,20 @@ function kf(t, frames) {
   return frames[frames.length - 1];
 }
 
-function drawSpec(ctx, spec, { alpha = 1, k = 1 } = {}) {
+function drawSpec(ctx, spec, { alpha = 1, k = 1, rim = null, rimW = 6 } = {}) {
+  // light rim around the silhouette first, so the piece separates from busy or dark tiles
+  if (rim) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = rim;
+    ctx.lineJoin = "round";
+    for (const s of spec) {
+      if (!s.body) continue;
+      ctx.lineWidth = (s.sw || 1) + rimW;
+      ctx.stroke(P2D(s.d));
+    }
+    ctx.restore();
+  }
   for (const s of spec) {
     ctx.save();
     ctx.globalAlpha = alpha * (s.op ?? 1);
@@ -119,7 +132,6 @@ export class SvgBoardRenderer {
     this.game = game;
     this.theme = theme;
     this.layer = null; // { canvas, minX, minY, W, H, k, key }
-    this.glowSprite = null;
     this.bakeGen = 0;
     this.baking = null;
     this.dirty = true;
@@ -132,7 +144,6 @@ export class SvgBoardRenderer {
   setTheme(theme) {
     this.theme = theme;
     this.layer = null;
-    this.glowSprite = null;
     this.invalidateStatic();
   }
 
@@ -165,13 +176,14 @@ export class SvgBoardRenderer {
     return { minX, minY, W: maxX - minX, H: maxY - minY };
   }
 
-  /** Device pixels per art unit for the current view, bucketed so zooming re-bakes rarely. */
+  /** Device pixels per art unit for the current view, bucketed so zooming re-bakes rarely.
+   *  Capped by layer area (≈12 MP on phones, 16 MP on desktop) — enough for max zoom at 3x DPR. */
   targetK() {
     const g = this.game;
     const raw = this.u * g.view.scale * g.pixelRatio;
-    const b = Math.pow(2, Math.ceil(Math.log2(raw) * 3) / 3);
+    const b = Math.pow(2, Math.ceil(Math.log2(raw) * 4) / 4);
     const { W, H } = this.artBounds();
-    const cap = (window.innerWidth <= 900 ? 3072 : 4096) / Math.max(W, H);
+    const cap = Math.sqrt((window.innerWidth <= 900 ? 12e6 : 16e6) / (W * H));
     return Math.min(b, cap);
   }
 
@@ -189,30 +201,58 @@ export class SvgBoardRenderer {
 
   boardKey(k) {
     const g = this.game.geometry;
-    return [this.theme.id, k.toFixed(3), this.tokenScale, g.hexSize.toFixed(2), g.hexes.map((h) => h.resource + h.number).join(""), (this.game.ports || []).map((p) => p.edgeId + p.type).join(",")].join("|");
+    return [this.theme.id, this.theme.paletteId || "", k.toFixed(3), this.tokenScale, g.hexSize.toFixed(2), g.hexes.map((h) => h.resource + h.number).join(""), (this.game.ports || []).map((p) => p.edgeId + p.type).join(",")].join("|");
   }
 
+  /**
+   * Bake the static layer in small pieces so no single main-thread task is long (a re-bake runs
+   * right after every pinch / zoom): the island once at a modest resolution (soft shapes), each
+   * harbour in its own small box, and ONE raster per terrain type stamped onto every hex of that
+   * type. Each rasterize awaits an image decode, so the browser can paint in between.
+   */
   async bake(k, key) {
     const T = this.theme;
     const gen = ++this.bakeGen;
     const t0 = performance.now();
     const b = this.artBounds();
     const centers = this.game.geometry.hexes.map((h) => this.hexArt(h));
-    const ports = this.portData().map((p) => T.port(p));
-    let body = `<defs>${T.boardDefs()}</defs>`;
-    body += T.island(centers);
-    body += ports.map((p) => p.svg).join("");
-    body += this.game.geometry.hexes.map((h) => {
-      const c = this.hexArt(h);
-      return `<g transform="translate(${f(c.x)} ${f(c.y)})">${T.tile(h.resource)}</g>`;
-    }).join("");
-    const w = b.W * k, h = b.H * k;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${f(b.minX)} ${f(b.minY)} ${f(b.W)} ${f(b.H)}" width="${Math.round(w)}" height="${Math.round(h)}">${body}</svg>`;
+    const portData = this.portData();
+    const ports = portData.map((p) => T.port(p));
+    const defs = `<defs>${T.boardDefs()}</defs>`;
+    const svgOf = (x, y, w, h, kk, body) => `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${f(x)} ${f(y)} ${f(w)} ${f(h)}" width="${Math.round(w * kk)}" height="${Math.round(h * kk)}">${defs}${body}</svg>`;
     // Fonts must be ready before the token numbers are drawn into the layer.
     try { await Promise.all([document.fonts.load(`${T.tokenStyle.weight} ${T.tokenStyle.size}px ${T.tokenStyle.font}`), document.fonts.load(`700 12px ${T.tokenStyle.labelFont}`)]); } catch (_) { /* fallback font */ }
-    const canvas = await rasterize(svg, w, h);
-    if (gen !== this.bakeGen) return; // superseded
+    if (gen !== this.bakeGen) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(b.W * k));
+    canvas.height = Math.max(1, Math.round(b.H * k));
     const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    const at = (x, y) => [(x - b.minX) * k, (y - b.minY) * k];
+    // 1. beach + shallows (blurry by design: half resolution is invisible, and much cheaper)
+    const ki = Math.min(k, 1.2);
+    const isl = await rasterize(svgOf(b.minX, b.minY, b.W, b.H, ki, T.island(centers)), b.W * ki, b.H * ki);
+    if (gen !== this.bakeGen) return;
+    ctx.drawImage(isl, 0, 0, canvas.width, canvas.height);
+    // 2. harbours, each in a box around its pier
+    for (let i = 0; i < ports.length; i += 1) {
+      const pd = portData[i], R = 110;
+      const cx = pd.mx + pd.nx * 40, cy = pd.my + pd.ny * 40;
+      const pc = await rasterize(svgOf(cx - R, cy - R, 2 * R, 2 * R, k, ports[i].svg), 2 * R * k, 2 * R * k);
+      if (gen !== this.bakeGen) return;
+      ctx.drawImage(pc, ...at(cx - R, cy - R), 2 * R * k, 2 * R * k);
+    }
+    // 3. tiles: one raster per terrain type
+    const S = 103;
+    const sprites = {};
+    for (const h of this.game.geometry.hexes) {
+      if (!sprites[h.resource]) {
+        sprites[h.resource] = await rasterize(svgOf(-S, -S, 2 * S, 2 * S, k, T.tile(h.resource)), 2 * S * k, 2 * S * k);
+        if (gen !== this.bakeGen) return;
+      }
+      const c = this.hexArt(h);
+      ctx.drawImage(sprites[h.resource], ...at(c.x - S, c.y - S), 2 * S * k, 2 * S * k);
+    }
     ctx.setTransform(k, 0, 0, k, -b.minX * k, -b.minY * k);
     // number tokens
     this.game.geometry.hexes.forEach((hex) => {
@@ -228,18 +268,15 @@ export class SvgBoardRenderer {
       ctx.font = `700 ${label.size}px ${T.tokenStyle.labelFont}`;
       ctx.fillText(label.text, label.x, label.y);
     });
-    if (!this.glowSprite || this.glowSprite.k !== k) {
-      const gs = 260;
-      const gc = await rasterize(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="-130 -130 ${gs} ${gs}" width="${gs * k}" height="${gs * k}"><defs>${T.boardDefs()}</defs>${T.glow()}</svg>`, gs * k, gs * k);
-      if (gen !== this.bakeGen) return;
-      this.glowSprite = { canvas: gc, k };
-    }
     this.layer = { canvas, ...b, k, key };
     const ms = performance.now() - t0;
     this.stats.bakes += 1;
     this.stats.bakeMs += ms;
     this.requestDraw();
   }
+
+  /** Pieces are drawn larger on phones so they read clearly against the tiles. */
+  get pieceScale() { return this.game.isMobileLayout ? 1.34 : 1.12; }
 
   /** Number tokens grow on phones so the digits stay readable (≈14 px at 390 wide). */
   get tokenScale() { return this.game.isMobileLayout ? 1.38 : 1; }
@@ -297,7 +334,7 @@ export class SvgBoardRenderer {
     }
     for (const id of cur.edges) if (!prev.edges.has(id)) this.anims.push({ kind: "road", id, start: now, dur: 700 * M.k });
     if (prev.robber != null && cur.robber !== prev.robber) this.anims.push({ kind: "robber", from: prev.robber, to: cur.robber, start: now, dur: 1400 * M.k });
-    if (cur.roll && cur.roll !== prev.roll && cur.roll.number) this.anims.push({ kind: "glow", number: cur.roll.number, start: now, dur: 2900 });
+    if (cur.roll && cur.roll !== prev.roll && cur.roll.number) this.anims.push({ kind: "glow", number: cur.roll.number, start: now, dur: 2500 });
   }
 
   animFor(kind, id) { return this.anims.find((a) => a.kind === kind && a.id === id); }
@@ -309,11 +346,12 @@ export class SvgBoardRenderer {
     if (!g.geometry) return;
     const k = this.targetK();
     const key = this.boardKey(k);
-    if (key !== this.lastKey) {
+    // While a pinch / pan / zoom animation runs, keep drawing the cached layer scaled (cheap, 60 fps);
+    // re-rasterise at the new scale once the view comes to rest.
+    if (key !== this.lastKey && !(g.viewMoving && this.layer)) {
       this.lastKey = key;
-      // debounce re-bakes while zooming: keep using the old layer, scaled, in the meantime
       clearTimeout(this._bakeTimer);
-      const delay = this.layer ? 160 : 0;
+      const delay = this.layer ? 90 : 0;
       this._bakeTimer = setTimeout(() => this.bake(k, key).catch((e) => console.warn("board bake failed", e)), delay);
     }
     this.detectChanges(now);
@@ -358,9 +396,9 @@ export class SvgBoardRenderer {
       this.drawFallbackBoard(ctx, devK);
     }
 
-    // 2. rolled glow (tile pops, others wash out a little)
+    // 2. rolled number: calm outline on the producing tiles
     const glow = this.anims.find((a) => a.kind === "glow");
-    if (glow && L) this.drawGlow(ctx, glow, now, reduced);
+    if (glow) this.drawGlow(ctx, glow, now, reduced);
 
     // 3. robber dim (cross-fades while the robber moves)
     const rob = this.anims.find((a) => a.kind === "robber");
@@ -415,45 +453,25 @@ export class SvgBoardRenderer {
     ctx.restore();
   }
 
+  /** Rolled number: a calm warm outline on the producing tiles that fades in and out (no glow, no flashing). */
   drawGlow(ctx, a, now, reduced) {
-    const g = this.game, L = this.layer;
+    const g = this.game;
     const el = now - a.start;
-    const M = this.theme.motion;
-    // glow 0→1→.55→.9 over 1100ms, hold, then fade out
-    let ga = reduced ? 0.9 : kf(clamp01(el / (1100 * M.k)), [{ o: 0, v: 0, ease: M.inOut }, { o: 0.3, v: 1, ease: M.inOut }, { o: 0.6, v: 0.55, ease: M.inOut }, { o: 1, v: 0.9 }]).v;
-    if (el > 2100) ga *= 1 - clamp01((el - 2100) / 800);
-    const sc = reduced ? 1 : kf(clamp01(el / (700 * M.k)), [{ o: 0, v: 1, ease: M.pop }, { o: 0.3, v: 1.08, ease: M.pop }, { o: 1, v: 1 }]).v;
-    const hits = g.geometry.hexes.filter((h) => h.number === a.number && h.id !== g.robberHexId);
-    // gentle wash over the tiles that did not produce
-    const wash = Math.min(ga, 0.9) * 0.28;
+    const fadeIn = reduced ? 1 : clamp01(el / 300);
+    const fadeOut = 1 - clamp01((el - 1900) / 600);
+    const alpha = fadeIn * fadeOut;
+    if (alpha <= 0) return;
     g.geometry.hexes.forEach((h) => {
-      if (hits.includes(h)) return;
-      const c = this.hexArt(h);
-      ctx.save(); ctx.translate(c.x, c.y); ctx.globalAlpha = wash; ctx.fillStyle = "#EDE6D6"; ctx.fill(HEX_P(97)); ctx.restore();
-    });
-    hits.forEach((h) => {
+      if (h.number !== a.number || h.id === g.robberHexId) return;
       const c = this.hexArt(h);
       ctx.save();
       ctx.translate(c.x, c.y);
-      if (sc !== 1) {
-        // re-stamp the tile (from the board layer) slightly enlarged
-        ctx.save();
-        ctx.scale(sc, sc);
-        ctx.clip(HEX_P(100));
-        ctx.drawImage(L.canvas, (c.x - 100 - L.minX) * L.k, (c.y - 100 - L.minY) * L.k, 200 * L.k, 200 * L.k, -100, -100, 200, 200);
-        ctx.restore();
-      }
-      if (this.glowSprite) {
-        ctx.globalAlpha = ga;
-        ctx.drawImage(this.glowSprite.canvas, -130 * sc, -130 * sc, 260 * sc, 260 * sc);
-      }
+      ctx.globalAlpha = alpha;
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 7;
+      ctx.strokeStyle = "rgba(255,247,222,.95)";
+      ctx.stroke(HEX_P(91));
       ctx.restore();
-      // keep the token readable on top of the glow
-      if (sc !== 1 && h.number) {
-        ctx.save(); ctx.translate(c.x, c.y); ctx.scale(sc, sc); ctx.translate(-c.x, -c.y);
-        this.drawToken(ctx, c.x, c.y + (this.theme.tokenDy || 0), h.number, this.u * g.view.scale * g.pixelRatio);
-        ctx.restore();
-      }
     });
   }
 
@@ -474,7 +492,7 @@ export class SvgBoardRenderer {
     if (g.hoverHexId != null && g.hoverHexId !== g.robberHexId) {
       const c = this.hexArt(g.geometry.hexes[g.hoverHexId]);
       const rp = this.robberPos(g.hoverHexId);
-      ctx.save(); ctx.translate(rp.x, rp.y); ctx.globalAlpha = 0.55;
+      ctx.save(); ctx.translate(rp.x, rp.y + 32); ctx.scale(this.pieceScale, this.pieceScale); ctx.translate(0, -32); ctx.globalAlpha = 0.55;
       drawSpec(ctx, this.theme.pieces.robber, { alpha: 0.55 });
       ctx.restore();
     }
@@ -486,16 +504,18 @@ export class SvgBoardRenderer {
     return [{ x: a.x + dx * k, y: a.y + dy * k }, { x: b.x - dx * k, y: b.y - dy * k }];
   }
 
-  strokeRoad(ctx, a, b, c, alpha = 1) {
+  strokeRoad(ctx, a, b, c, alpha = 1, rim = true) {
     const R = this.theme.road;
+    const w = this.game.isMobileLayout ? 1.25 : 1.05;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.lineCap = "round";
     const line = () => { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); };
-    ctx.save(); ctx.translate(2, 3); line(); ctx.strokeStyle = R.shadow; ctx.lineWidth = R.outer; ctx.stroke(); ctx.restore();
-    line(); ctx.strokeStyle = c.dark; ctx.lineWidth = R.outer; ctx.stroke();
-    line(); ctx.strokeStyle = c.base; ctx.lineWidth = R.inner; ctx.stroke();
-    ctx.save(); ctx.translate(-1, -1.6); ctx.globalAlpha = alpha * 0.8; line(); ctx.strokeStyle = c.light; ctx.lineWidth = R.hi; ctx.stroke(); ctx.restore();
+    ctx.save(); ctx.translate(2, 3.5); line(); ctx.strokeStyle = R.shadow; ctx.lineWidth = R.outer * w + 2; ctx.stroke(); ctx.restore();
+    if (rim && R.rim) { line(); ctx.strokeStyle = R.rim; ctx.lineWidth = R.outer * w + 5; ctx.stroke(); }
+    line(); ctx.strokeStyle = c.line || c.dark; ctx.lineWidth = R.outer * w; ctx.stroke();
+    line(); ctx.strokeStyle = c.base; ctx.lineWidth = R.inner * w; ctx.stroke();
+    ctx.save(); ctx.translate(-0.8, -1.4); ctx.globalAlpha = alpha * 0.85; line(); ctx.strokeStyle = c.light; ctx.lineWidth = R.hi * w; ctx.stroke(); ctx.restore();
     ctx.restore();
   }
 
@@ -548,13 +568,16 @@ export class SvgBoardRenderer {
     this.stamp(ctx, spec, p.x, p.y + dy, { sx: 1, sy: 1, y: 0, a: fade }, devK);
   }
 
-  /** Draw a piece spec with squash/stretch around its base (y≈+16). */
+  /** Draw a piece spec (scaled for the device) with squash/stretch around its base (y≈+16). */
   stamp(ctx, spec, x, y, s, devK) {
+    const a = s.a ?? 1;
     ctx.save();
-    ctx.translate(x, y + (s.y || 0) + 16);
+    ctx.translate(x, y + (s.y || 0));
+    ctx.scale(this.pieceScale, this.pieceScale);
+    ctx.translate(0, 16);
     ctx.scale(s.sx ?? 1, s.sy ?? 1);
     ctx.translate(0, -16);
-    drawSpec(ctx, spec, { alpha: s.a ?? 1, k: devK });
+    drawSpec(ctx, spec, { alpha: a, k: devK, rim: this.theme.rim });
     ctx.restore();
   }
 
@@ -580,12 +603,13 @@ export class SvgBoardRenderer {
       s = { sx: v.sx, sy: v.sy, rot: v.rot };
       pos = { x: pos.x, y: pos.y + v.lift };
     }
+    const k = this.pieceScale;
     ctx.save();
     ctx.translate(pos.x, pos.y + 32);
     ctx.rotate((s.rot * Math.PI) / 180);
-    ctx.scale(s.sx, s.sy);
+    ctx.scale(s.sx * k, s.sy * k);
     ctx.translate(0, -32);
-    drawSpec(ctx, T.pieces.robber, { k: devK });
+    drawSpec(ctx, T.pieces.robber, { k: devK, rim: T.rim, rimW: 5 });
     ctx.restore();
   }
 
@@ -656,7 +680,7 @@ export class SvgBoardRenderer {
     const g = this.game, T = this.theme;
     if (type === "road") {
       const [a, b] = this.roadEnds(g.geometry.edges[id]);
-      this.strokeRoad(ctx, a, b, c, 0.6 * alpha);
+      this.strokeRoad(ctx, a, b, c, 0.6 * alpha, false);
       return;
     }
     const p = this.nodeArt(id);
@@ -665,6 +689,7 @@ export class SvgBoardRenderer {
     ctx.beginPath(); ctx.arc(0, 0, 27, 0, Math.PI * 2); ctx.fillStyle = "rgba(251,246,234,.3)"; ctx.fill();
     ctx.setLineDash([5, 4]); ctx.lineWidth = 2; ctx.strokeStyle = "#FBF6EA"; ctx.stroke(); ctx.setLineDash([]);
     ctx.translate(0, type === "city" ? -4 : -3);
+    ctx.scale(this.pieceScale, this.pieceScale);
     drawSpec(ctx, type === "city" ? T.pieces.city(c) : T.pieces.settlement(c), { alpha: 0.75 * alpha, k: devK });
     ctx.restore();
   }
@@ -706,24 +731,6 @@ export class SvgBoardRenderer {
         const r = 7 * (0.3 + 1.1 * e);
         ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = "#F4EEE1"; ctx.fill();
         ctx.beginPath(); ctx.arc(1.5, 1.5, r * 0.7, 0, Math.PI * 2); ctx.fillStyle = "rgba(0,0,0,.05)"; ctx.fill();
-        ctx.restore();
-      }
-    } else if (a.kind === "city") {
-      const t = (el - 700 * M.k) / (650 * M.k);
-      if (t <= 0 || t >= 1) return;
-      const p = this.nodeArt(a.id);
-      const e = easing(M.out)(t);
-      for (let i = 0; i < 6; i += 1) {
-        const ang = (i * 60 * Math.PI) / 180;
-        const d = 10 + 54 * e;
-        ctx.save();
-        ctx.globalAlpha = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7;
-        ctx.translate(p.x + Math.cos(ang) * d, p.y - 10 + Math.sin(ang) * d);
-        ctx.scale(0.2 + 0.8 * e, 0.2 + 0.8 * e);
-        ctx.fillStyle = "#F0D892";
-        ctx.beginPath();
-        ctx.moveTo(0, -7); ctx.lineTo(1.7, -1.7); ctx.lineTo(7, 0); ctx.lineTo(1.7, 1.7); ctx.lineTo(0, 7); ctx.lineTo(-1.7, 1.7); ctx.lineTo(-7, 0); ctx.lineTo(-1.7, -1.7); ctx.closePath();
-        ctx.fill();
         ctx.restore();
       }
     }
