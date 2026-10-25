@@ -51,7 +51,6 @@ const PLAYER_CONFIG = [
 const DEV_CARD_TYPES = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
 const SQRT3 = Math.sqrt(3);
 const BOARD_RADIUS = 2;
-const WINNING_POINTS = 10;
 const TURN_LIMIT = 500;
 
 // ── AI Strategy Configuration ──────────────────────────────────────────
@@ -108,9 +107,121 @@ const AI_PRESETS = {
   beginner:     { placement: "simple",  expansion: "simple",  trading: "none",         devCards: "none",     awareness: "none" },
   intermediate: { placement: "medium",  expansion: "medium",  trading: "balanced",     devCards: "reactive", awareness: "basic" },
   expert:       { placement: "complex", expansion: "complex", trading: "aggressive",   devCards: "strategic", awareness: "advanced" },
+  trader:       { placement: "medium",  expansion: "medium",  trading: "aggressive",   devCards: "reactive", awareness: "basic" },
+  builder:      { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "reactive", awareness: "basic" },
+  shark:        { placement: "medium",  expansion: "medium",  trading: "balanced",     devCards: "strategic", awareness: "advanced" },
+};
+
+// Player-facing names, short taglines and badge glyphs for the presets ("custom" = hand-tuned mix)
+const AI_PRESET_INFO = {
+  beginner:     { label: "Beginner",     tagline: "gentle, learns rules", glyph: "" },
+  intermediate: { label: "Intermediate", tagline: "solid all-rounder",    glyph: "" },
+  expert:       { label: "Expert",       tagline: "plays to win",         glyph: "" },
+  trader:       { label: "Trader",       tagline: "deals all game",       glyph: "\u21c4", isNew: true },
+  builder:      { label: "Builder",      tagline: "roads & cities",       glyph: "\u2692", isNew: true },
+  shark:        { label: "Shark",        tagline: "hunts the leader",     glyph: "\u25b2", isNew: true },
+  custom:       { label: "Custom",       tagline: "your mix",             glyph: "" },
+};
+
+// Plain-language one-liners for each AI level, shown in the new-game screen
+const AI_LEVEL_PLAIN = {
+  placement: {
+    simple:  "settles on the biggest numbers and ignores the rest.",
+    medium:  "picks good numbers but also mixes resources and grabs useful ports.",
+    complex: "also plans for resources it lacks, eyes 2:1 ports and dodges robber magnets.",
+  },
+  expansion: {
+    simple:  "builds roads toward the nearest open spot.",
+    medium:  "plans roads toward the best free spot it can reach.",
+    complex: "also races for Longest Road and valuable ports.",
+  },
+  trading: {
+    none:         "never trades.",
+    conservative: "trades with the bank only, and keeps a safety buffer.",
+    balanced:     "trades with you or the bank only when it clearly helps.",
+    aggressive:   "trades constantly and takes marginal deals.",
+  },
+  devCards: {
+    none:      "never buys development cards.",
+    reactive:  "buys when it can, plays a card when the use is obvious.",
+    strategic: "chases Largest Army and times Monopoly for the biggest haul.",
+  },
+  awareness: {
+    none:     "ignores other players; robber goes anywhere.",
+    basic:    "robs opponents, won't trade with someone about to win.",
+    advanced: "targets the leader and shifts gear near the end.",
+  },
+};
+const AI_LEVEL_LABEL = { conservative: "Careful", aggressive: "Eager" };
+const AI_DIMENSION_HINT = {
+  placement: "where it settles", expansion: "how it grows", trading: "how deal-happy",
+  devCards: "knights, monopoly…", awareness: "watches others",
 };
 
 const DEFAULT_AI_STRATEGY = { ...AI_PRESETS.intermediate };
+
+// ── Game settings (new-game screen) ──
+const DEFAULT_SETTINGS = {
+  mode: "classic",          // "classic" | "rush"
+  winPoints: 10,            // 5-15
+  discardLimit: 7,          // 7-12: holding more than this on a 7 discards half
+  friendlyRobber: false,    // robber can't hit players with <= 2 public VP
+  dice: "random",           // "random" | "balanced" | "deck"
+  map: "random",            // "random" | "balanced" | "beginner"
+  numBots: 3,               // 1-3
+  rushInterval: 15,         // seconds between automatic rolls (Rush)
+  botStyleMode: "all",      // "all" | "each"
+  allPreset: "intermediate",// preset applied to every bot ("custom" when hand-tuned)
+  allStrategy: { ...AI_PRESETS.intermediate },
+  perBot: ["builder", "trader", "shark"],
+};
+const RUSH_INTERVALS = [10, 15, 20, 30];
+const RUSH_DISCARD_SECONDS = 20;
+const RUSH_ROBBER_SECONDS = 30;
+const FRIENDLY_ROBBER_VP = 2;
+
+function normalizeSettings(raw) {
+  const s = { ...DEFAULT_SETTINGS, ...(raw && typeof raw === "object" ? raw : {}) };
+  s.mode = s.mode === "rush" ? "rush" : "classic";
+  s.winPoints = clamp(Math.round(Number(s.winPoints)) || 10, 5, 15);
+  s.discardLimit = clamp(Math.round(Number(s.discardLimit)) || 7, 7, 12);
+  s.friendlyRobber = !!s.friendlyRobber;
+  if (!["random", "balanced", "deck"].includes(s.dice)) s.dice = "random";
+  if (!["random", "balanced", "beginner"].includes(s.map)) s.map = "random";
+  s.numBots = clamp(Math.round(Number(s.numBots)) || 3, 1, 3);
+  if (!RUSH_INTERVALS.includes(Number(s.rushInterval))) s.rushInterval = 15;
+  s.rushInterval = Number(s.rushInterval);
+  s.botStyleMode = s.botStyleMode === "each" ? "each" : "all";
+  if (!AI_PRESET_INFO[s.allPreset]) s.allPreset = "intermediate";
+  const strat = { ...DEFAULT_AI_STRATEGY, ...(s.allStrategy || {}) };
+  Object.keys(AI_STRATEGY_CATEGORIES).forEach((k) => {
+    if (!AI_STRATEGY_CATEGORIES[k].levels.includes(strat[k])) strat[k] = DEFAULT_AI_STRATEGY[k];
+  });
+  s.allStrategy = strat;
+  const per = Array.isArray(s.perBot) ? s.perBot : [];
+  s.perBot = [0, 1, 2].map((i) => (AI_PRESETS[per[i]] ? per[i] : DEFAULT_SETTINGS.perBot[i]));
+  return s;
+}
+
+// Which preset (if any) a strategy object matches exactly
+function presetForStrategy(strategy) {
+  if (!strategy) return null;
+  const keys = Object.keys(AI_STRATEGY_CATEGORIES);
+  const match = Object.entries(AI_PRESETS).find(([, p]) => keys.every((k) => p[k] === strategy[k]));
+  return match ? match[0] : "custom";
+}
+
+// All 36 ordered two-dice outcomes, shuffled (balanced dice / event deck)
+function createDiceDeck() {
+  const cards = [];
+  for (let a = 1; a <= 6; a += 1) for (let b = 1; b <= 6; b += 1) cards.push([a, b]);
+  return shuffle(cards);
+}
+
+function formatClock(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
 
 function shuffle(list) {
   const arr = [...list];
@@ -292,7 +403,102 @@ function createBoardGeometry(canvasWidth, canvasHeight) {
   return { hexSize, centerX, centerY, hexes, nodes, edges };
 }
 
-function assignTiles(geometry) {
+// Official beginner layout, rows top to bottom (pointy-top hexes, rows = axial r)
+const BEGINNER_LAYOUT = [
+  ["ore", 10], ["sheep", 2], ["wood", 9],
+  ["wheat", 12], ["brick", 6], ["sheep", 4], ["brick", 10],
+  ["wheat", 9], ["wood", 11], ["desert", null], ["wood", 3], ["ore", 8],
+  ["wood", 8], ["ore", 3], ["wheat", 4], ["sheep", 5],
+  ["brick", 5], ["wheat", 6], ["sheep", 11],
+];
+
+function hexNeighborSets(geometry) {
+  const hexNeighbors = geometry.hexes.map(() => new Set());
+  geometry.edges.forEach((edge) => {
+    if (edge.hexIds.length === 2) {
+      hexNeighbors[edge.hexIds[0]].add(edge.hexIds[1]);
+      hexNeighbors[edge.hexIds[1]].add(edge.hexIds[0]);
+    }
+  });
+  return hexNeighbors;
+}
+
+// Map setting: "random" | "balanced" | "beginner". Returns the robber (desert) hex id.
+function assignTiles(geometry, mapMode = "random") {
+  if (mapMode === "beginner") {
+    const ordered = [...geometry.hexes].sort((a, b) => a.r - b.r || a.q - b.q);
+    let desertId = 0;
+    ordered.forEach((hex, i) => {
+      hex.resource = BEGINNER_LAYOUT[i][0];
+      hex.number = BEGINNER_LAYOUT[i][1];
+      if (hex.resource === "desert") desertId = hex.id;
+    });
+    return desertId;
+  }
+  if (mapMode === "balanced") return assignBalancedTiles(geometry);
+  return assignRandomTiles(geometry);
+}
+
+// Pips (number of dice combos out of 36) per number token
+function tokenPips(number) {
+  return number ? 6 - Math.abs(7 - number) : 0;
+}
+
+// Fair map: no adjacent 6/8, no adjacent equal numbers or 2/12, no 3 same tiles in a cluster,
+// and every resource's pips close to its fair share (no resource hogs the good numbers).
+function assignBalancedTiles(geometry) {
+  const hexNeighbors = hexNeighborSets(geometry);
+  let best = null;
+  let bestScore = Infinity;
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    assignRandomTiles(geometry);
+    const hexes = geometry.hexes;
+    // Hard constraints on number placement
+    let ok = true;
+    for (const hex of hexes) {
+      if (!hex.number) continue;
+      for (const nid of hexNeighbors[hex.id]) {
+        const n = hexes[nid].number;
+        if (!n) continue;
+        if (n === hex.number || (tokenPips(n) === 1 && tokenPips(hex.number) === 1)) { ok = false; break; }
+      }
+      if (!ok) break;
+    }
+    if (!ok) continue;
+    // Pip spread: each resource's average pips per tile vs the board average (58 / 18)
+    const pips = {};
+    const counts = {};
+    hexes.forEach((hex) => {
+      if (hex.resource === "desert") return;
+      pips[hex.resource] = (pips[hex.resource] || 0) + tokenPips(hex.number);
+      counts[hex.resource] = (counts[hex.resource] || 0) + 1;
+    });
+    const avg = 58 / 18;
+    let score = 0;
+    let maxDev = 0;
+    RESOURCES.forEach((r) => {
+      const dev = Math.abs(pips[r] / counts[r] - avg);
+      score += dev * dev;
+      maxDev = Math.max(maxDev, dev);
+    });
+    if (score < bestScore) {
+      bestScore = score;
+      best = hexes.map((h) => ({ resource: h.resource, number: h.number }));
+    }
+    if (maxDev <= 0.6) break;
+  }
+  let desertId = 0;
+  if (best) {
+    geometry.hexes.forEach((hex, i) => {
+      hex.resource = best[i].resource;
+      hex.number = best[i].number;
+    });
+  }
+  geometry.hexes.forEach((hex) => { if (hex.resource === "desert") desertId = hex.id; });
+  return desertId;
+}
+
+function assignRandomTiles(geometry) {
   const resourcePool = [
     "wood", "wood", "wood", "wood",
     "brick", "brick", "brick",
@@ -556,6 +762,15 @@ class ColonistFullGame {
     this.aiTurnTimeout = null;
     this.gameGen = 0; // bumped on reset/load; delayed callbacks from older games are ignored
     this._timers = new Set();
+    this.settings = normalizeSettings(ColonistFullGame.loadLastSettings());
+    this.rush = null; // Rush-mode state (null in Classic)
+    this.diceDeck = [];
+    this.lastDiceTotal = null;
+    this.rushHud = document.querySelector("#rushHud");
+    this.rushReadyBtn = document.querySelector("#rushReadyBtn");
+    this.rushOffersEl = document.querySelector("#rushOffers");
+    this.rushSevenPanel = document.querySelector("#rushSevenPanel");
+    this.modeBadge = document.querySelector("#modeBadge");
     this.bank = makeFullBank();
     this.robberBusy = false; // true while a 7/Knight robber flow waits on the human
     this.turnSerial = 0; // bumped each endTurn; used to invalidate stale trade buttons
@@ -744,6 +959,7 @@ class ColonistFullGame {
     this.acceptTradeBtn?.addEventListener("click", () => this.resolveIncomingTrade(true));
     this.rejectTradeBtn?.addEventListener("click", () => this.resolveIncomingTrade(false));
     this.discardConfirmBtn?.addEventListener("click", () => this._confirmDiscard());
+    this.rushReadyBtn?.addEventListener("click", () => this.toggleRushReady());
     document.addEventListener("click", (e) => {
       if (this.devCardPicker && this.devCardPicker.style.display !== "none" &&
           !this.devCardPicker.contains(e.target) && e.target !== this.playDevBtn) {
@@ -929,6 +1145,12 @@ class ColonistFullGame {
     this.pendingIncomingTrade = null;
     if (this.incomingTradePanel) this.incomingTradePanel.style.display = "none";
     document.querySelectorAll(".dice-overlay, #resourcePickerOverlay").forEach((el) => el.remove());
+    this._botTicks = new Map();
+    if (this.rush) this.rush.offers = [];
+    this._lastOffersKey = null;
+    this._lastVotersKey = null;
+    this._lastNext7Key = null;
+    if (this.rushOffersEl) this.rushOffersEl.innerHTML = "";
   }
 
   // ── Bank & piece supply ──
@@ -983,19 +1205,22 @@ class ColonistFullGame {
     this.removeGameOverOverlay();
     this.clearStorage();
     this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight);
-    this.robberHexId = assignTiles(this.geometry);
+    this.robberHexId = assignTiles(this.geometry, this.settings.map);
     this.ports = assignPorts(this.geometry);
     this.devDeck = createDevelopmentDeck();
     this.bank = makeFullBank();
+    this.diceDeck = [];
+    this.lastDiceTotal = null;
+    this.rush = null;
 
-    // Load persisted strategies or use defaults
-    const savedStrategies = this._loadStrategies();
-    this.players = PLAYER_CONFIG.map((config, id) => ({
+    const strategies = this._strategiesFromSettings();
+    this.players = PLAYER_CONFIG.slice(0, this.settings.numBots + 1).map((config, id) => ({
       id,
       name: config.name,
       color: config.color,
       isHuman: config.isHuman,
       avatar: config.avatar,
+      personality: config.isHuman ? null : strategies[id].personality,
       resources: makeEmptyResources(),
       roads: new Set(),
       settlements: new Set(),
@@ -1007,7 +1232,9 @@ class ColonistFullGame {
       longestRoadLength: 0,
       victoryPoints: 0,
       publicVictoryPoints: 0,
-      strategy: config.isHuman ? null : { ...(savedStrategies[id] || DEFAULT_AI_STRATEGY) },
+      strategy: config.isHuman ? null : { ...strategies[id].strategy },
+      rushDevPlayed: false,   // Rush: a dev card was played this roll interval
+      rushTradeTried: false,  // Rush (bots): already tried a player trade this roll interval
     }));
 
     this.logEntries = [];
@@ -1045,13 +1272,57 @@ class ColonistFullGame {
 
     this.initialPlacement();
     this.recomputeScores();
-    this.addLog("Game initialized with full rule set and strategic AI.");
+    this.addLog(`New ${this.isRush() ? "Rush" : "Classic"} game: first to ${this.settings.winPoints} VP.`);
     this.render();
+  }
+
+  isRush() {
+    return this.settings?.mode === "rush";
+  }
+
+  get winPoints() {
+    return this.settings.winPoints;
+  }
+
+  // Per-bot strategy + personality label derived from the new-game settings
+  _strategiesFromSettings() {
+    const s = this.settings;
+    const out = {};
+    for (let id = 1; id <= s.numBots; id += 1) {
+      if (s.botStyleMode === "each") {
+        const preset = s.perBot[id - 1];
+        out[id] = { strategy: { ...AI_PRESETS[preset] }, personality: preset };
+      } else {
+        out[id] = { strategy: { ...s.allStrategy }, personality: presetForStrategy(s.allStrategy) };
+      }
+    }
+    return out;
+  }
+
+  static LAST_SETTINGS_KEY = "colonist_last_settings";
+
+  static loadLastSettings() {
+    try {
+      const raw = localStorage.getItem(ColonistFullGame.LAST_SETTINGS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) { return null; }
+  }
+
+  static saveLastSettings(settings) {
+    try { localStorage.setItem(ColonistFullGame.LAST_SETTINGS_KEY, JSON.stringify(settings)); } catch (_) {}
+  }
+
+  // Start a fresh game with the given settings
+  startNewGame(settings) {
+    this.settings = normalizeSettings(settings);
+    ColonistFullGame.saveLastSettings(this.settings);
+    this.resetGame();
+    this._buildStrategyUI();
   }
 
   initialPlacement() {
     this.setupPhase = true;
-    const order = shuffle([0, 1, 2, 3]);
+    const order = shuffle(this.players.map((p) => p.id));
     this.setupQueue = [...order, ...order.slice().reverse()];
     this.currentPlayerIndex = order[0];
     this.setupStep = 0;
@@ -1069,6 +1340,10 @@ class ColonistFullGame {
       this.confirmBuild = null;
       this.hoverTooltip = ""; // drop a stale "Confirm" tooltip from the last setup placement
       this.addLog("Initial placement complete.");
+      if (this.isRush()) {
+        this._startRush();
+        return;
+      }
       this.saveToStorage();
       this.render();
       if (!this.currentPlayer.isHuman && !this.autoplayInterval) {
@@ -1183,7 +1458,9 @@ class ColonistFullGame {
   }
 
   addLog(text, meta = null) {
-    this.logEntries.push({ text, meta, time: Date.now() });
+    const entry = { text, meta, time: Date.now() };
+    if (this.rush) entry.clock = this.rush.clockMs; // Rush feed timestamp (mm:ss of game time)
+    this.logEntries.push(entry);
     if (this.logEntries.length > this.maxLogEntries) {
       this.logEntries = this.logEntries.slice(-this.maxLogEntries);
     }
@@ -1191,6 +1468,8 @@ class ColonistFullGame {
   }
 
   shouldToast(text) {
+    // Rush is busy: the feed carries the play-by-play, toasts only for the big moments
+    if (this.rush) return /(\bwins?\b|moved robber)/i.test(text);
     return /(rolled|built|upgraded|traded|played|stole|\bwins?\b|moved robber|\bgains?\b)/i.test(text);
   }
 
@@ -1215,13 +1494,34 @@ class ColonistFullGame {
     }, duration);
   }
 
+  // Dice setting: "random" (independent dice), "balanced" (colonist.io-style: a 36-card deck of
+  // all two-dice outcomes reshuffled when 12 cards remain, and a repeat of the previous total is
+  // redrawn once with 30% probability) or "deck" (36-card event deck, reshuffled when empty).
   rollDice() {
-    const d1 = 1 + Math.floor(Math.random() * 6);
-    const d2 = 1 + Math.floor(Math.random() * 6);
+    const mode = this.settings?.dice || "random";
+    let d1;
+    let d2;
+    if (mode === "random") {
+      d1 = 1 + Math.floor(Math.random() * 6);
+      d2 = 1 + Math.floor(Math.random() * 6);
+    } else {
+      const minLeft = mode === "balanced" ? 12 : 0;
+      if (!Array.isArray(this.diceDeck) || this.diceDeck.length <= minLeft) this.diceDeck = createDiceDeck();
+      const draw = () => this.diceDeck.splice(Math.floor(Math.random() * this.diceDeck.length), 1)[0];
+      let card = draw();
+      if (mode === "balanced" && card[0] + card[1] === this.lastDiceTotal && Math.random() < 0.3) {
+        const redraw = draw();
+        this.diceDeck.push(card); // the repeat goes back into the deck
+        card = redraw;
+      }
+      [d1, d2] = card;
+    }
+    this.lastDiceTotal = d1 + d2;
     return { total: d1 + d2, d1, d2 };
   }
 
   handleHumanRoll() {
+    if (this.isRush()) { this.toggleRushReady(); return; }
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
     if (this.phase !== "pre_roll" || this._robberInProgress()) return;
@@ -1326,9 +1626,11 @@ class ColonistFullGame {
   }
 
   handleHumanEndTurn() {
+    if (this.isRush()) return; // no turns in Rush
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
     if (this.phase !== "main" || this._robberInProgress()) return;
+    if (document.getElementById("resourcePickerOverlay")) return; // finish Year of Plenty / Monopoly first
     this.hideTradePanel();
     this.endTurn();
     this.saveToStorage();
@@ -1467,7 +1769,7 @@ class ColonistFullGame {
     if (!player || !player.isHuman || this.winner) return;
     // Robber placement is allowed before rolling (Knight); everything else needs the main phase
     const robberMode = this.pendingAction === "robber";
-    if (this.phase !== "main" && !(robberMode && this.phase === "pre_roll")) return;
+    if (this.phase !== "main" && !(robberMode && (this.phase === "pre_roll" || this.phase === "seven"))) return;
     if (this.pendingDiscard || this.robberVictimOptions?.length > 0) return;
 
     const { x: sx, y: sy } = this.getCanvasPoint(event);
@@ -1479,25 +1781,21 @@ class ColonistFullGame {
     if (robberMode) {
       const hexId = this.findHexAt(x, y);
       if (hexId == null) return;
-      if (hexId === this.robberHexId) {
-        this.addLog("Cannot place robber on the same hex.");
+      if (!this._robberHexAllowed(hexId, player)) {
+        this.addLog(hexId === this.robberHexId
+          ? "Cannot place robber on the same hex."
+          : "Friendly robber: that hex touches a player with 2 or fewer points.");
         this.render();
         return;
       }
       this.robberHexId = hexId;
       const hex = this.geometry.hexes[hexId];
       this.addLog(`${player.name} moved robber to ${this._hexLabel(hex)}.`);
+      this.sfx.robber();
       this.pendingAction = null;
 
       // Check for steal victims
-      const victimSet = new Set();
-      hex.nodes.forEach((nodeId) => {
-        const owner = this.geometry.nodes[nodeId].owner;
-        if (owner != null && owner !== player.id && sumResources(this.players[owner].resources) > 0) {
-          victimSet.add(owner);
-        }
-      });
-      const victims = [...victimSet];
+      const victims = this._stealVictims(hexId, player);
       if (victims.length === 0) {
         this.addLog("No one to steal from.");
         this.robberContext = null;
@@ -1585,6 +1883,14 @@ class ColonistFullGame {
           built = true;
         }
       }
+      if (!built && this.rush) {
+        // Rush: someone else built there first
+        this.addLog("Too slow — that spot was just taken.");
+        this.sfx.error();
+        this.confirmBuild = null;
+        this.render();
+        return;
+      }
       if (built) {
         // Trigger placement animation
         const animPos = this.getBuildPosition(cb);
@@ -1599,6 +1905,10 @@ class ColonistFullGame {
         }
         this.pendingAction = null;
         this.confirmBuild = null;
+        if (this.rush) {
+          this._rushAfterAction(player);
+          return;
+        }
         this.recomputeScores();
         this.checkForWinner(player);
         this.render();
@@ -1745,6 +2055,7 @@ class ColonistFullGame {
   }
 
   handleKeyboardShortcut(event) {
+    if (document.querySelector(".newgame-modal")) return; // setup screen owns the keyboard
     const target = event.target;
     if (
       target &&
@@ -2024,22 +2335,12 @@ class ColonistFullGame {
     const discardQueue = [];
     this.players.forEach((player) => {
       const total = sumResources(player.resources);
-      if (total <= 7) return;
+      if (total <= this.settings.discardLimit) return;
       const discardCount = Math.floor(total / 2);
       if (this._isInteractive(player)) {
         discardQueue.push({ player, count: discardCount });
       } else {
-        // AI auto-discards
-        for (let i = 0; i < discardCount; i += 1) {
-          const candidates = RESOURCES.filter((r) => player.resources[r] > 0).map((r) => ({
-            resource: r,
-            weight: player.resources[r],
-          }));
-          if (!candidates.length) break;
-          const chosen = chooseRandomWeighted(candidates).resource;
-          player.resources[chosen] -= 1;
-          this.bank[chosen] += 1;
-        }
+        this._autoDiscard(player, discardCount);
         this.addLog(`${player.name} discard${this._s(player)} ${discardCount} cards after ${reason}.`);
       }
     });
@@ -2056,6 +2357,58 @@ class ColonistFullGame {
     };
     this.saveToStorage();
     return this._runPendingRobberFlow();
+  }
+
+  // Discard `count` random cards (weighted by how many of each the player holds) to the bank.
+  _autoDiscard(player, count) {
+    const selected = makeEmptyResources();
+    for (let i = 0; i < count; i += 1) {
+      const candidates = RESOURCES.filter((r) => player.resources[r] - selected[r] > 0).map((r) => ({
+        resource: r,
+        weight: player.resources[r] - selected[r],
+      }));
+      if (!candidates.length) break;
+      selected[chooseRandomWeighted(candidates).resource] += 1;
+    }
+    this.payToBank(player, selected);
+    return selected;
+  }
+
+  // ── Friendly robber ──
+  // Players (other than the mover) with <= 2 public VP are protected when the rule is on.
+  _isRobberProtected(playerId, mover) {
+    if (!this.settings.friendlyRobber || playerId === mover?.id) return false;
+    return (this.players[playerId]?.publicVictoryPoints ?? 0) <= FRIENDLY_ROBBER_VP;
+  }
+
+  _hexTouchesProtected(hex, mover) {
+    return hex.nodes.some((nodeId) => {
+      const owner = this.geometry.nodes[nodeId].owner;
+      return owner != null && this._isRobberProtected(owner, mover);
+    });
+  }
+
+  // Hexes the robber may move to (falls back to any other hex if the rule blocks them all)
+  _legalRobberHexes(mover) {
+    const others = this.geometry.hexes.filter((h) => h.id !== this.robberHexId);
+    if (!this.settings.friendlyRobber) return others;
+    const strict = others.filter((h) => !this._hexTouchesProtected(h, mover));
+    return strict.length ? strict : others;
+  }
+
+  _robberHexAllowed(hexId, mover) {
+    return this._legalRobberHexes(mover).some((h) => h.id === hexId);
+  }
+
+  // Players the mover may steal from on a hex
+  _stealVictims(hexId, mover) {
+    const victims = new Set();
+    this.geometry.hexes[hexId].nodes.forEach((nodeId) => {
+      const owner = this.geometry.nodes[nodeId].owner;
+      if (owner == null || owner === mover.id || this._isRobberProtected(owner, mover)) return;
+      if (sumResources(this.players[owner].resources) > 0) victims.add(owner);
+    });
+    return [...victims];
   }
 
   // Run (or resume after reload) the pending discards, then move the robber.
@@ -2095,13 +2448,13 @@ class ColonistFullGame {
   chooseRobberHex(currentPlayer) {
     const awareness = currentPlayer.strategy?.awareness || "basic";
 
+    const legal = this._legalRobberHexes(currentPlayer);
+    const legalIds = new Set(legal.map((h) => h.id));
     // None: random non-desert hex
     if (awareness === "none") {
-      const candidates = this.geometry.hexes.filter(h =>
-        h.id !== this.robberHexId && h.resource !== "desert" && h.number
-      );
+      const candidates = legal.filter(h => h.resource !== "desert" && h.number);
       if (candidates.length) return candidates[Math.floor(Math.random() * candidates.length)].id;
-      return this.robberHexId;
+      return legal[0]?.id ?? this.robberHexId;
     }
 
     // Advanced: identify VP leader and target them specifically
@@ -2109,10 +2462,10 @@ class ColonistFullGame {
       ? this.players.filter(p => p.id !== currentPlayer.id).sort((a, b) => b.publicVictoryPoints - a.publicVictoryPoints)[0]
       : null;
 
-    let bestHex = this.robberHexId;
+    let bestHex = legal[0]?.id ?? this.robberHexId;
     let bestScore = Number.NEGATIVE_INFINITY;
     this.geometry.hexes.forEach((hex) => {
-      if (hex.id === this.robberHexId) return;
+      if (!legalIds.has(hex.id)) return;
       let score = 0;
       hex.nodes.forEach((nodeId) => {
         const node = this.geometry.nodes[nodeId];
@@ -2124,7 +2477,7 @@ class ColonistFullGame {
           score += base;
           // Advanced: heavily weight hexes that hurt the VP leader
           if (awareness === "advanced" && vpLeader && node.owner === vpLeader.id) {
-            score += base * (vpLeader.publicVictoryPoints >= 7 ? 2.0 : 0.8);
+            score += base * (vpLeader.publicVictoryPoints >= this.winPoints - 3 ? 2.0 : 0.8);
           }
         }
       });
@@ -2140,14 +2493,7 @@ class ColonistFullGame {
     this.robberHexId = targetHexId;
     this.addLog(`${currentPlayer.name} moved robber to ${this._hexLabel(this.geometry.hexes[targetHexId])}.`);
     this.sfx.robber();
-    const victimOptions = new Set();
-    this.geometry.hexes[targetHexId].nodes.forEach((nodeId) => {
-      const owner = this.geometry.nodes[nodeId].owner;
-      if (owner != null && owner !== currentPlayer.id && sumResources(this.players[owner].resources) > 0) {
-        victimOptions.add(owner);
-      }
-    });
-    const victims = [...victimOptions];
+    const victims = this._stealVictims(targetHexId, currentPlayer);
     if (!victims.length) return;
     // Advanced awareness: steal from VP leader
     let victimId;
@@ -2632,8 +2978,8 @@ class ColonistFullGame {
     // Opponent awareness affects trade willingness
     const awareness = aiPlayer.strategy?.awareness || "basic";
     const maxVP = Math.max(...this.players.filter(p => p.id !== aiPlayer.id).map(p => p.publicVictoryPoints));
-    if (awareness === "basic" && maxVP >= 8) return false;
-    if (awareness === "advanced" && maxVP >= 7) return false;
+    if (awareness === "basic" && maxVP >= this.winPoints - 2) return false;
+    if (awareness === "advanced" && maxVP >= this.winPoints - 3) return false;
 
     // Quick accept: 1:1 trade where AI has surplus and needs what's offered
     const giveTotal = sumResources(theyWant);
@@ -2985,6 +3331,7 @@ class ColonistFullGame {
   }
 
   canPlayDevelopmentCard(player, type) {
+    if (this.isRush()) return this._rushCanPlayDev(player, type);
     if (this.winner || this.setupPhase || this.currentTurnPlayedDevCard) return false;
     if (player !== this.currentPlayer || !(player.devCards[type] > 0)) return false;
     // Knight may be played before rolling; the other cards only after
@@ -2999,7 +3346,8 @@ class ColonistFullGame {
   playDevelopmentCard(player, type) {
     if (!this.canPlayDevelopmentCard(player, type)) return false;
     player.devCards[type] -= 1;
-    this.currentTurnPlayedDevCard = true;
+    if (this.isRush()) player.rushDevPlayed = true;
+    else this.currentTurnPlayedDevCard = true;
 
     if (type === "knight") {
       // Knight only moves the robber and steals — no discards (that's for rolling a 7)
@@ -3120,7 +3468,7 @@ class ColonistFullGame {
 
   autoPlayCurrentTurn() {
     // Never roll during setup, and never act while a roll/robber/trade flow is still in flight
-    if (this.winner || this.setupPhase) return;
+    if (this.winner || this.setupPhase || this.isRush()) return; // Rush bots run on their own ticks
     if (this._aiDiceAnimating || this.robberBusy || this.pendingDiscard || this.pendingIncomingTrade) return;
     const player = this.currentPlayer;
     if (this.phase === "pre_roll") {
@@ -3237,7 +3585,7 @@ class ColonistFullGame {
     if (robberOnSelf && player.devCards.knight === 0 && s.devCards !== "none") {
       return ["Buy Dev", "Settlement", "City", "Bank Trade", "Road"];
     }
-    if (s.awareness === "advanced" && player.victoryPoints >= 8) {
+    if (s.awareness === "advanced" && player.victoryPoints >= this.winPoints - 2) {
       return ["City", "Buy Dev", "Settlement", "Bank Trade", "Road"];
     }
     if (s.devCards === "strategic") {
@@ -3290,7 +3638,8 @@ class ColonistFullGame {
     const settlement = () => this.tryBuildSettlement(player);
     const city = () => this.tryBuildCity(player);
     const road = () => this.tryBuildRoad(player);
-    const dev = () => s.devCards !== "none" && this.buyDevelopmentCard(player);
+    const dev = () => s.devCards !== "none" && this.devDeck.length > 0
+      && hasResources(player.resources, COSTS.development) && this.buyDevelopmentCard(player);
     const trade = () => this.tryTradeForGoal(player);
 
     // Robber on own hex: prioritize dev cards to get a knight
@@ -3302,7 +3651,7 @@ class ColonistFullGame {
     }
 
     // Advanced awareness at 8+ VP: prioritize points
-    if (s.awareness === "advanced" && player.victoryPoints >= 8) {
+    if (s.awareness === "advanced" && player.victoryPoints >= this.winPoints - 2) {
       return [city, dev, settlement, trade, road];
     }
     // Strategic dev cards: buy dev cards earlier when chasing army
@@ -3320,7 +3669,7 @@ class ColonistFullGame {
   maybePlayBestDevCard(player) {
     const strat = player.strategy?.devCards || "reactive";
     if (strat === "none") return false;
-    if (this.currentTurnPlayedDevCard || this.phase !== "main") return false;
+    if ((this.isRush() ? player.rushDevPlayed : this.currentTurnPlayedDevCard) || this.phase !== "main") return false;
 
     if (player.devCards.knight > 0 && this.shouldPlayKnight(player)) {
       return this.playDevelopmentCard(player, "knight");
@@ -3891,13 +4240,16 @@ class ColonistFullGame {
   }
 
   checkForWinner(player) {
-    // You can only win on your own turn (uses the full total incl. hidden VP cards)
-    if (this.winner || this.setupPhase || player !== this.currentPlayer) return false;
-    if (player.victoryPoints >= WINNING_POINTS) {
+    // You can only win on your own turn (uses the full total incl. hidden VP cards);
+    // in Rush there are no turns, so anyone wins the moment they reach the target
+    if (this.winner || this.setupPhase) return false;
+    if (!this.isRush() && player !== this.currentPlayer) return false;
+    if (player.victoryPoints >= this.winPoints) {
       this.winner = player;
       this.phase = "game_over";
       this.addLog(`${player.name} win${this._s(player)} with ${player.victoryPoints} VP!`);
       this.stopAutoplay();
+      if (this.rush) this._stopRushTimers();
       this.saveToStorage();
       this.showGameOverOverlay();
       return true;
@@ -3953,6 +4305,11 @@ class ColonistFullGame {
       this.render();
     }), delay);
     this.autoplayBtn.textContent = "Stop Autoplay";
+    // Rush: the human seat joins the bot ticks while autoplay runs
+    if (this.rush && !this.setupPhase) {
+      const human = this.players.find((p) => p.isHuman);
+      if (human) this._scheduleBotTick(human, 500);
+    }
     // Setup waiting on the human's settlement: let autoplay place it (rolling waits for setup to finish)
     if (this.setupPhase && this.setupAction === "settlement") {
       this.setupAction = null;
@@ -3975,7 +4332,7 @@ class ColonistFullGame {
   }
 
   scheduleAiTurnsUntilHuman() {
-    if (this.winner || this.autoplayInterval || this.setupPhase) return;
+    if (this.winner || this.autoplayInterval || this.setupPhase || this.isRush()) return;
     if (this.currentPlayer.isHuman) return;
     if (this.aiTurnTimeout) return;
 
@@ -3998,6 +4355,535 @@ class ColonistFullGame {
     this.aiTurnTimeout = window.setTimeout(step, 500);
   }
 
+  // ══ Rush mode ═══════════════════════════════════════════════════════
+  // No turns: after the snake setup everyone builds, trades and plays dev cards at any time.
+  // The dice roll automatically every N seconds (or as soon as every player votes Ready).
+  // The game only pauses on a 7: discards, then the robber is moved by players in a fixed
+  // rotating order. All timers go through _later(), so reset/new game cancels them.
+
+  // Whether a seat is driven by the bot loop (the human seat too while autoplay runs)
+  _rushIsBot(player) {
+    return !player.isHuman || !!this.autoplayInterval;
+  }
+
+  _startRush(saved = null) {
+    const n = this.players.length;
+    this.rush = {
+      rollNo: 0,
+      remainingMs: this.settings.rushInterval * 1000,
+      clockMs: 0,
+      ready: [],
+      robberOrder: this.setupQueue.slice(0, n),
+      robberIdx: 0,
+      paused: false,
+      seven: null, // { stage: "discard"|"robber", discards: [{ playerId, count }], moverId, leftMs }
+      offers: [],  // bot trade offers to the human: { id, fromId, give, want, expiresAt }
+      ...(saved || {}),
+    };
+    this.rush.offers = (this.rush.offers || []).filter((o) => this.players[o.fromId]);
+    this._offerSeq = this.rush.offers.reduce((m, o) => Math.max(m, o.id), 0);
+    const human = this.players.find((p) => p.isHuman);
+    this.currentPlayerIndex = human ? human.id : 0; // the human may act at any time
+    this.turn = this.rush.rollNo;
+    this.phase = this.rush.seven ? "seven" : "main";
+    this.rush.paused = !!this.rush.seven;
+    this._botTicks = new Map();
+    if (!saved) this.addLog(`Rush! Build any time — dice roll every ${this.settings.rushInterval}s.`);
+    // The live feed is part of the Rush HUD on wide screens
+    if (window.innerWidth > 1080 && this.railLog && !this.railLog.classList.contains("open")) this.toggleLog();
+    this._rushLastTs = performance.now();
+    this._later(() => this._rushLoop(), 200);
+    this.players.forEach((p, i) => {
+      if (this._rushIsBot(p)) this._scheduleBotTick(p, 900 + i * 700 + Math.random() * 600);
+    });
+    if (this.rush.seven) this._rushRunSevenStage();
+    this.saveToStorage();
+    this.render();
+  }
+
+  _stopRushTimers() {
+    // Loop and bot ticks stop themselves once a winner exists; drop pending offers
+    if (this.rush) this.rush.offers = [];
+    this._renderRushOffers();
+  }
+
+  _scheduleBotTick(player, delay) {
+    if (!this._botTicks) this._botTicks = new Map();
+    if (this._botTicks.has(player.id)) return;
+    const id = this._later(() => {
+      this._botTicks.delete(player.id);
+      this._rushBotTick(player);
+    }, delay);
+    this._botTicks.set(player.id, id);
+  }
+
+  // Master clock: counts down to the next roll, runs 7-pause deadlines, expires offers.
+  _rushLoop() {
+    const r = this.rush;
+    if (!r || this.winner) return;
+    this._later(() => this._rushLoop(), 200);
+    const now = performance.now();
+    const dt = Math.min(1000, now - (this._rushLastTs || now));
+    this._rushLastTs = now;
+    // Everything freezes while the tab is hidden or the new-game screen is open
+    if (document.hidden || this.uiPaused) return;
+    this._rushSaveMs = (this._rushSaveMs || 0) + dt;
+    if (this._rushSaveMs >= 3000) {
+      this._rushSaveMs = 0;
+      this.saveToStorage();
+    }
+    if (!r.paused) {
+      r.clockMs += dt;
+      r.remainingMs -= dt;
+      const allReady = this.players.every((p) => r.ready.includes(p.id));
+      if (r.remainingMs <= 0 || allReady) {
+        this._rushRoll();
+        return;
+      }
+    } else if (r.seven && Number.isFinite(r.seven.leftMs)) {
+      r.seven.leftMs -= dt;
+      if (r.seven.leftMs <= 0) this._rushSevenTimeout();
+    }
+    if (r.offers.length && r.offers.some((o) => o.expiresAt <= r.clockMs)) {
+      r.offers = r.offers.filter((o) => o.expiresAt > r.clockMs);
+      this._renderRushOffers();
+    }
+    this._renderRushHud();
+  }
+
+  _rushRoll() {
+    const r = this.rush;
+    if (!r || this.winner || r.paused) return;
+    r.rollNo += 1;
+    this.turn = r.rollNo;
+    r.remainingMs = this.settings.rushInterval * 1000;
+    r.ready = [];
+    const res = this.rollDice();
+    this.lastRoll = res.total;
+    this.lastDice = { d1: res.d1, d2: res.d2 };
+    this.lastRollPlayer = null;
+    if (this.rollHistory[res.total] != null) this.rollHistory[res.total] += 1;
+    // New roll interval: last interval's purchases become playable, one dev card each again
+    this.players.forEach((p) => {
+      DEV_CARD_TYPES.forEach((t) => {
+        p.devCards[t] += p.newDevCards[t];
+        p.newDevCards[t] = 0;
+      });
+      p.rushDevPlayed = false;
+      p.rushTradeTried = false;
+    });
+    this.addLog(`Roll #${r.rollNo}: rolled ${res.total}.`);
+    this.sfx.diceResult();
+    this.lastDiceDisplay?.classList.remove("rush-flash");
+    void this.lastDiceDisplay?.offsetWidth; // restart the flash animation
+    this.lastDiceDisplay?.classList.add("rush-flash");
+    if (res.total === 7) {
+      this._rushBeginSeven();
+    } else {
+      this.highlightRoll = { number: res.total, startTime: Date.now() };
+      const gains = this.distributeResources(res.total);
+      if (gains) this.showResourceGainToasts(gains);
+    }
+    this._rushAfterAction();
+  }
+
+  // ── The 7: discards, then the robber (game paused) ──
+  _rushBeginSeven() {
+    const r = this.rush;
+    r.paused = true;
+    this.phase = "seven";
+    const human = this.players.find((p) => p.isHuman);
+    // Drop half-finished human build selections; finish a robber move left from a Knight
+    if (this.pendingAction && this.pendingAction !== "robber") this.pendingAction = null;
+    this.confirmBuild = null;
+    this.canvas.style.cursor = "grab";
+    this.hideTradePanel();
+    this.hideDevCardPicker();
+    if (human) this._rushAutoFinishHumanRobber(human);
+    const moverId = r.robberOrder[r.robberIdx % r.robberOrder.length];
+    r.robberIdx += 1;
+    const discards = [];
+    this.players.forEach((p) => {
+      const total = sumResources(p.resources);
+      if (total <= this.settings.discardLimit) return;
+      const count = Math.floor(total / 2);
+      if (this._isInteractive(p)) {
+        discards.push({ playerId: p.id, count });
+      } else {
+        this._autoDiscard(p, count);
+        this.addLog(`${p.name} discard${this._s(p)} ${count} cards.`);
+      }
+    });
+    r.seven = { stage: discards.length ? "discard" : "robber", discards, moverId, leftMs: Infinity };
+    this._rushRunSevenStage();
+  }
+
+  _rushRunSevenStage() {
+    const r = this.rush;
+    const seven = r?.seven;
+    if (!seven || this.winner) return;
+    if (seven.stage === "discard") {
+      const item = seven.discards[0];
+      if (!item) {
+        seven.stage = "robber";
+        this._rushRunSevenStage();
+        return;
+      }
+      seven.leftMs = RUSH_DISCARD_SECONDS * 1000;
+      this._showDiscardUI(this.players[item.playerId], item.count).then(this._guard(() => {
+        if (this.rush?.seven !== seven) return;
+        seven.discards.shift();
+        this._rushRunSevenStage();
+      }));
+    } else {
+      const mover = this.players[seven.moverId];
+      if (this._isInteractive(mover)) {
+        seven.leftMs = RUSH_ROBBER_SECONDS * 1000;
+        if (this.pendingAction !== "robber" && !this.robberVictimOptions?.length) this.moveRobber(mover);
+        this._rushWaitHumanRobber(seven);
+      } else {
+        seven.leftMs = Infinity;
+        this._later(() => {
+          if (this.rush?.seven !== seven) return;
+          this.moveRobberAndSteal(mover, this.chooseRobberHex(mover));
+          this._rushEndSeven();
+        }, 1400);
+      }
+    }
+    this.saveToStorage();
+    this.render();
+  }
+
+  _rushWaitHumanRobber(seven) {
+    this._later(() => {
+      if (this.rush?.seven !== seven) return;
+      if (this.pendingAction === "robber" || this.robberVictimOptions?.length) {
+        this._rushWaitHumanRobber(seven);
+        return;
+      }
+      this._rushEndSeven();
+    }, 250);
+  }
+
+  // A 7-pause deadline ran out: random discard for the human, or auto-place the robber.
+  _rushSevenTimeout() {
+    const seven = this.rush.seven;
+    seven.leftMs = Infinity;
+    if (seven.stage === "discard" && this.pendingDiscard) {
+      const { player, count } = this.pendingDiscard;
+      const picked = makeEmptyResources();
+      for (let i = 0; i < count; i += 1) {
+        const candidates = RESOURCES.filter((res) => player.resources[res] - picked[res] > 0)
+          .map((res) => ({ resource: res, weight: player.resources[res] - picked[res] }));
+        if (!candidates.length) break;
+        picked[chooseRandomWeighted(candidates).resource] += 1;
+      }
+      this.pendingDiscard.selected = picked;
+      this.addLog("Time's up — cards discarded at random.");
+      this._confirmDiscard();
+    } else if (seven.stage === "robber") {
+      const human = this.players[seven.moverId];
+      this.addLog("Time's up — the robber was placed for you.");
+      this._rushAutoFinishHumanRobber(human);
+    }
+  }
+
+  // Complete a human robber move (placement and/or victim choice) automatically.
+  _rushAutoFinishHumanRobber(human) {
+    if (this.robberVictimOptions?.length) {
+      const victim = this.robberVictimOptions[0];
+      this.robberVictimOptions = [];
+      if (this.victimPanel) this.victimPanel.style.display = "none";
+      this.stealFromVictim(human, victim);
+      this.robberContext = null;
+    }
+    if (this.pendingAction === "robber") {
+      this.pendingAction = null;
+      this.robberContext = null;
+      this.canvas.style.cursor = "grab";
+      this.moveRobberAndSteal(human, this.chooseRobberHex(human));
+    }
+  }
+
+  _rushEndSeven() {
+    const r = this.rush;
+    if (!r || !r.seven) return;
+    r.seven = null;
+    r.paused = false;
+    this.phase = "main";
+    r.remainingMs = this.settings.rushInterval * 1000;
+    this._rushLastTs = performance.now();
+    this._rushAfterAction();
+  }
+
+  // ── Bots ──
+  _rushBotTick(player) {
+    const r = this.rush;
+    if (!r || this.winner || !this.players.includes(player)) return;
+    if (!this._rushIsBot(player)) return; // human seat left autoplay
+    if (document.hidden || r.paused || this.uiPaused) {
+      this._scheduleBotTick(player, 600);
+      return;
+    }
+    const acted = this._rushBotAct(player);
+    if (acted) {
+      r.ready = r.ready.filter((id) => id !== player.id);
+      this._rushAfterAction(player);
+    } else if (!r.ready.includes(player.id)) {
+      r.ready.push(player.id); // nothing useful to do: vote to roll now
+      this._renderRushHud();
+      this._lastScoreKey = null;
+      this.renderScoreboard();
+    }
+    if (!this.winner) this._scheduleBotTick(player, 1500 + Math.random() * 2000);
+  }
+
+  // One bot action per tick, using the Classic AI decision functions.
+  _rushBotAct(player) {
+    if (this.maybePlayBestDevCard(player)) return true;
+    for (const fn of this._getActionPriority(player)) {
+      if (fn()) return true;
+    }
+    if (!player.rushTradeTried) {
+      player.rushTradeTried = true;
+      const result = this.aiTryPlayerTrade(player);
+      if (result?.type === "done") return true;
+      if (result?.type === "human") {
+        this._rushOfferToHuman(result.fromPlayer, result.give, result.want);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // After any Rush action: scores, contested spots, win check for everyone, save and redraw.
+  _rushAfterAction(actor = null) {
+    this.recomputeScores();
+    const human = this.players.find((p) => p.isHuman);
+    if (this.confirmBuild && human && !this._confirmBuildStillValid(human)) {
+      this.confirmBuild = null;
+      this.addLog("That spot was just taken.");
+    }
+    const order = actor ? [actor, ...this.players.filter((p) => p !== actor)] : this.players;
+    for (const p of order) {
+      if (this.checkForWinner(p)) break;
+    }
+    this.saveToStorage();
+    this.render();
+  }
+
+  _confirmBuildStillValid(player) {
+    const cb = this.confirmBuild;
+    if (!cb) return true;
+    if (cb.type === "road") return this.canBuildRoad(player, cb.id, { free: this.freeRoadsRemaining > 0 });
+    if (cb.type === "settlement") return this.canBuildSettlement(player, cb.id, false);
+    if (cb.type === "city") return this.canBuildCity(player, cb.id, false);
+    return true;
+  }
+
+  _rushCanPlayDev(player, type) {
+    if (this.winner || this.setupPhase || !this.rush || this.rush.paused || this.phase !== "main") return false;
+    if (player.rushDevPlayed || !(player.devCards[type] > 0)) return false;
+    if (this._isInteractive(player)
+      && (this._robberInProgress() || this.freeRoadsRemaining > 0 || document.getElementById("resourcePickerOverlay"))) return false;
+    if (type === "yearOfPlenty" && sumResources(this.bank) === 0) return false;
+    if (type === "roadBuilding" && !this._hasLegalRoad(player, true)) return false;
+    return true;
+  }
+
+  toggleRushReady() {
+    const r = this.rush;
+    const human = this.players.find((p) => p.isHuman);
+    if (!r || !human || r.paused || this.winner || this.setupPhase) return;
+    if (r.ready.includes(human.id)) r.ready = r.ready.filter((id) => id !== human.id);
+    else r.ready.push(human.id);
+    this.sfx.click();
+    this._lastScoreKey = null;
+    this.render();
+  }
+
+  // ── Bot trade offers to the human: non-blocking cards in the feed corner ──
+  _rushOfferToHuman(fromPlayer, give, want) {
+    const r = this.rush;
+    this._offerSeq = (this._offerSeq || 0) + 1;
+    r.offers = r.offers.filter((o) => o.fromId !== fromPlayer.id).slice(-2);
+    r.offers.push({ id: this._offerSeq, fromId: fromPlayer.id, give: { ...give }, want: { ...want }, expiresAt: r.clockMs + 10000 });
+    this.addLog(`${fromPlayer.name} offers you ${resourceString(give)} for ${resourceString(want)}.`);
+    this._renderRushOffers();
+  }
+
+  _resolveRushOffer(offerId, accept) {
+    const r = this.rush;
+    if (!r) return;
+    const offer = r.offers.find((o) => o.id === offerId);
+    if (!offer) return;
+    r.offers = r.offers.filter((o) => o.id !== offerId);
+    const from = this.players[offer.fromId];
+    const human = this.players.find((p) => p.isHuman);
+    if (accept) {
+      if (r.paused || this.winner || !hasResources(human.resources, offer.want) || !hasResources(from.resources, offer.give)) {
+        this.addLog(`Trade with ${from.name} is no longer possible.`);
+      } else {
+        RESOURCES.forEach((res) => {
+          human.resources[res] += offer.give[res] - offer.want[res];
+          from.resources[res] += offer.want[res] - offer.give[res];
+        });
+        this._animateTradeCards(offer.want, offer.give);
+        this.sfx.trade();
+        this.addLog(`You traded with ${from.name}: got ${resourceString(offer.give)} for ${resourceString(offer.want)}.`);
+        this._rushAfterAction(human);
+      }
+    }
+    this._renderRushOffers();
+    this.render();
+  }
+
+  _renderRushOffers() {
+    const el = this.rushOffersEl;
+    if (!el) return;
+    const offers = this.rush && !this.winner ? this.rush.offers : [];
+    const key = offers.map((o) => o.id).join(",");
+    if (key === this._lastOffersKey) return;
+    this._lastOffersKey = key;
+    el.innerHTML = offers.map((o) => {
+      const p = this.players[o.fromId];
+      return `<div class="rush-offer" data-offer="${o.id}">
+        <img class="rush-offer-avatar" src="${p.avatar}" alt="" />
+        <div class="rush-offer-body">
+          <div class="rush-offer-title"><span style="color:${p.color}">${p.name}</span> offers</div>
+          <div class="rush-offer-cards">${this._renderTradeCards(o.give)}<span class="rush-offer-for">for</span>${this._renderTradeCards(o.want)}</div>
+        </div>
+        <button class="btn-build rush-offer-accept" data-accept="${o.id}">Accept</button>
+        <button class="btn-neutral rush-offer-decline" data-decline="${o.id}" aria-label="Decline">&times;</button>
+      </div>`;
+    }).join("");
+    el.querySelectorAll("[data-accept]").forEach((b) => b.addEventListener("click", () => this._resolveRushOffer(Number(b.dataset.accept), true)));
+    el.querySelectorAll("[data-decline]").forEach((b) => b.addEventListener("click", () => this._resolveRushOffer(Number(b.dataset.decline), false)));
+  }
+
+  // ── Rush HUD: countdown ring, Ready votes, next-7 badge, header badge, 7-pause panel ──
+  _renderRushHud() {
+    const rushOn = this.isRush() && this.rush && !this.setupPhase;
+    const live = !!rushOn && !this.winner;
+    const wasLive = document.body.classList.contains("rush-live");
+    document.body.classList.toggle("rush-mode", this.isRush());
+    document.body.classList.toggle("rush-live", live);
+    // The HUD takes room above the board on small screens: refit the canvas when it appears
+    if (live !== wasLive) {
+      window.requestAnimationFrame(() => {
+        this._alignScoreboardToHeader();
+        this.handleResize();
+      });
+    }
+    if (this.modeBadge) {
+      this.modeBadge.hidden = !this.isRush();
+      if (this.isRush()) {
+        this.modeBadge.textContent = rushOn
+          ? `⚡ Rush · Roll #${this.rush.rollNo} · ${formatClock(this.rush.clockMs)}`
+          : "⚡ Rush · setup";
+      }
+    }
+    if (!this.rushHud) return;
+    this.rushHud.hidden = !rushOn || !!this.winner;
+    this._renderSevenPanel();
+    if (!rushOn) return;
+    const r = this.rush;
+    const total = this.settings.rushInterval * 1000;
+    const left = Math.max(0, r.remainingMs);
+    const secs = Math.ceil(left / 1000);
+    const secEl = this.rushHud.querySelector("#rushSeconds");
+    if (secEl) secEl.textContent = r.paused ? "7" : String(secs);
+    const label = this.rushHud.querySelector("#rushSecondsLabel");
+    if (label) label.textContent = r.paused ? "paused" : "seconds";
+    const ring = this.rushHud.querySelector("#rushRingFill");
+    if (ring) {
+      const c = 2 * Math.PI * 44;
+      ring.style.strokeDasharray = `${c}`;
+      ring.style.strokeDashoffset = `${c * (1 - left / total)}`;
+    }
+    this.rushHud.classList.toggle("paused", r.paused);
+    this.rushHud.classList.toggle("urgent", !r.paused && secs <= 3);
+    const human = this.players.find((p) => p.isHuman);
+    const n = this.players.length;
+    const humanReady = r.ready.includes(human?.id);
+    if (this.rushReadyBtn) {
+      this.rushReadyBtn.textContent = humanReady ? `Waiting (${r.ready.length}/${n})` : `Ready – roll now (${r.ready.length}/${n})`;
+      this.rushReadyBtn.classList.toggle("is-ready", humanReady);
+      this.rushReadyBtn.disabled = r.paused || !!this.autoplayInterval;
+    }
+    const votersKey = `${r.ready.join(",")}|${n}`;
+    const voters = this.rushHud.querySelector("#rushVoters");
+    if (voters && votersKey !== this._lastVotersKey) {
+      this._lastVotersKey = votersKey;
+      voters.innerHTML = this.players.map((p) => `<span class="rush-voter${r.ready.includes(p.id) ? " ready" : ""}" title="${p.name}${r.ready.includes(p.id) ? " is ready" : ""}">
+        <img src="${p.avatar}" alt="" /><span class="rush-voter-dot"></span><span class="rush-voter-name">${p.isHuman ? "You" : p.name.replace(/ AI$/, "")}</span></span>`).join("");
+    }
+    const next7 = this.rushHud.querySelector("#rushNext7");
+    if (next7) {
+      const nextId = r.robberOrder[r.robberIdx % r.robberOrder.length];
+      const np = this.players[nextId];
+      const key = `${nextId}`;
+      if (np && key !== this._lastNext7Key) {
+        this._lastNext7Key = key;
+        next7.innerHTML = `<span class="rush-next7-label">Next 7 · robber moved by</span>
+          <span class="rush-next7-player"><img src="${np.avatar}" alt="" /><span style="color:${np.color}">${np.isHuman ? "You" : np.name}</span></span>`;
+      }
+    }
+  }
+
+  _renderSevenPanel() {
+    const panel = this.rushSevenPanel;
+    if (!panel) return;
+    const seven = this.isRush() && !this.winner ? this.rush?.seven : null;
+    const slot = panel.querySelector(".rush-seven-discard-slot");
+    // In Rush the discard picker lives inside the 7-pause panel; in Classic it floats on its own
+    if (this.discardPanel) {
+      const home = this.isRush() && slot ? slot : document.querySelector(".app-shell");
+      if (home && this.discardPanel.parentElement !== home) home.appendChild(this.discardPanel);
+    }
+    panel.hidden = !seven;
+    if (!seven) return;
+    const mover = this.players[seven.moverId];
+    const humanPlacing = seven.stage === "robber" && this._isInteractive(mover);
+    panel.classList.toggle("robber-placing", humanPlacing);
+    const secs = Number.isFinite(seven.leftMs) ? Math.max(0, Math.ceil(seven.leftMs / 1000)) : null;
+    const frozen = panel.querySelector(".rush-seven-frozen");
+    if (frozen) frozen.textContent = `timer frozen at ${this.settings.rushInterval}s`;
+    const discardStep = panel.querySelector(".rush-seven-discard");
+    if (discardStep) {
+      const pendingIds = seven.discards.map((d) => d.playerId);
+      const timerHtml = seven.stage === "discard" && secs != null ? `<span class="rush-seven-timer">⏱ 0:${String(secs).padStart(2, "0")} left</span>` : "";
+      const status = this.players.map((p) => {
+        const cards = sumResources(p.resources);
+        let state = "safe ✓";
+        let cls = "safe";
+        if (pendingIds.includes(p.id)) { state = pendingIds[0] === p.id ? "choosing…" : "waiting"; cls = "choosing"; }
+        return `<span class="rush-seven-chip ${cls}"><img src="${p.avatar}" alt="" />${p.isHuman ? "You" : p.name} · ${cards}<em>${state}</em></span>`;
+      }).join("");
+      discardStep.querySelector(".rush-seven-step-title").innerHTML =
+        `<span class="rush-step-num">1</span>Discard half if you hold more than ${this.settings.discardLimit}${timerHtml}`;
+      discardStep.querySelector(".rush-seven-chips").innerHTML = status;
+      discardStep.classList.toggle("done", seven.stage !== "discard");
+    }
+    const robberStep = panel.querySelector(".rush-seven-robber");
+    if (robberStep) {
+      const order = this.rush.robberOrder;
+      const nexts = [1, 2, 3].slice(0, order.length - 1)
+        .map((k) => this.players[order[(this.rush.robberIdx - 1 + k) % order.length]])
+        .map((p) => `<span style="color:${p.color}">${p.isHuman ? "You" : p.name}</span>`).join(", then ");
+      let state = "waiting for discards";
+      if (seven.stage === "robber") {
+        state = humanPlacing
+          ? `tap a hex on the board${secs != null ? ` · 0:${String(secs).padStart(2, "0")}` : ""}`
+          : "choosing a hex…";
+      }
+      robberStep.innerHTML = `<div class="rush-seven-step-title"><span class="rush-step-num">2</span>Robber moved by
+          <img class="rush-seven-avatar" src="${mover.avatar}" alt="" /><span style="color:${mover.color}">${mover.isHuman ? "You" : mover.name}</span>
+          <span class="rush-seven-state">${state}</span></div>
+        ${nexts ? `<div class="rush-seven-next">Then the order continues: next 7 → ${nexts}.</div>` : ""}`;
+    }
+  }
+
   // ── Game-over overlay & restart ──────────────────────────────────────
   showGameOverOverlay() {
     if (document.querySelector(".game-over-overlay")) return;
@@ -4009,7 +4895,7 @@ class ColonistFullGame {
       <div class="game-over-card">
         <img class="game-over-avatar" src="${winner.avatar}" alt="${winner.name}" />
         <h2 style="color:${winner.color}">${winner.name} win${this._s(winner)}!</h2>
-        <p>${winner.victoryPoints} Victory Points &middot; Turn ${this.turn}</p>
+        <p>${winner.victoryPoints} Victory Points &middot; ${this.rush ? `Rush roll #${this.rush.rollNo} &middot; ${formatClock(this.rush.clockMs)}` : `Turn ${this.turn}`}</p>
         <div class="game-over-stats">
           ${this.players.map(p => `<span style="color:${p.color}">${p.name}: ${p.victoryPoints} VP</span>`).join("")}
         </div>
@@ -4055,7 +4941,14 @@ class ColonistFullGame {
         longestRoadLength: p.longestRoadLength,
         victoryPoints: p.victoryPoints,
         strategy: p.strategy ? { ...p.strategy } : null,
+        personality: p.personality || null,
+        rushDevPlayed: !!p.rushDevPlayed,
+        rushTradeTried: !!p.rushTradeTried,
       })),
+      settings: { ...this.settings },
+      rush: this.rush ? JSON.parse(JSON.stringify({ ...this.rush, seven: this.rush.seven && { ...this.rush.seven, leftMs: Number.isFinite(this.rush.seven.leftMs) ? this.rush.seven.leftMs : null } })) : null,
+      diceDeck: this.diceDeck,
+      lastDiceTotal: this.lastDiceTotal,
       devDeck: [...this.devDeck],
       turn: this.turn,
       currentPlayerIndex: this.currentPlayerIndex,
@@ -4092,6 +4985,11 @@ class ColonistFullGame {
   static STRATEGY_KEY = "colonist_ai_strategies";
 
   _saveStrategies() {
+    // Mid-game strategy edits also update the personality badges
+    this.players.forEach((p) => { if (p.strategy) p.personality = presetForStrategy(p.strategy); });
+    this._lastScoreKey = null;
+    if (this.scoreboard) this.renderScoreboard();
+    this.saveToStorage();
     try {
       const data = {};
       this.players.forEach(p => { if (p.strategy) data[p.id] = { ...p.strategy }; });
@@ -4117,6 +5015,11 @@ class ColonistFullGame {
     let data;
     try { data = JSON.parse(raw); } catch (_) { this.clearStorage(); return false; }
     this._cancelPendingWork();
+    // Older saves have no settings: Classic with the standard rules
+    this.settings = normalizeSettings(data.settings || { ...DEFAULT_SETTINGS, numBots: (data.players?.length || 4) - 1 });
+    this.diceDeck = Array.isArray(data.diceDeck) ? data.diceDeck : [];
+    this.lastDiceTotal = data.lastDiceTotal ?? null;
+    this.rush = null;
 
     // Rebuild geometry (deterministic layout)
     this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight);
@@ -4158,8 +5061,12 @@ class ColonistFullGame {
     }
 
     // Restore players
-    this.players = PLAYER_CONFIG.map((config, id) => {
-      const saved = data.players[id];
+    if (!Array.isArray(data.players) || data.players.length < 2 || data.players.length > PLAYER_CONFIG.length) {
+      this.clearStorage();
+      return false;
+    }
+    this.players = data.players.map((saved, id) => {
+      const config = PLAYER_CONFIG[id];
       return {
         id,
         name: config.name,
@@ -4178,6 +5085,9 @@ class ColonistFullGame {
         victoryPoints: saved.victoryPoints,
         publicVictoryPoints: saved.victoryPoints - (saved.devVictoryPoints || 0),
         strategy: config.isHuman ? null : (saved.strategy ? { ...saved.strategy } : { ...DEFAULT_AI_STRATEGY }),
+        personality: config.isHuman ? null : (saved.personality || presetForStrategy(saved.strategy || DEFAULT_AI_STRATEGY)),
+        rushDevPlayed: !!saved.rushDevPlayed,
+        rushTradeTried: !!saved.rushTradeTried,
       };
     });
     // Older saves have no bank: everything not in a hand is in the bank
@@ -4207,7 +5117,8 @@ class ColonistFullGame {
     this.largestArmyHolder = data.largestArmyHolder;
     this.logEntries = data.logEntries || [];
     this.setupPhase = data.setupPhase || false;
-    this.setupQueue = data.setupQueue || [0, 1, 2, 3, 3, 2, 1, 0];
+    const ids = this.players.map((p) => p.id);
+    this.setupQueue = data.setupQueue || [...ids, ...ids.slice().reverse()];
     this.setupStep = data.setupStep || 0;
     this.setupAction = data.setupAction || null;
     this.lastSetupNodeId = data.lastSetupNodeId ?? null;
@@ -4225,6 +5136,14 @@ class ColonistFullGame {
       this.showGameOverOverlay();
     } else if (this.setupPhase) {
       this.processSetupQueue();
+    } else if (this.isRush()) {
+      const saved = data.rush || {};
+      if (saved.seven && saved.seven.leftMs == null) saved.seven.leftMs = Infinity;
+      if (Array.isArray(data.robberVictimOptions) && data.robberVictimOptions.length) {
+        this.robberVictimOptions = data.robberVictimOptions;
+        this.showVictimPanel(this.players.find((p) => p.isHuman), this.robberVictimOptions);
+      }
+      this._startRush(saved);
     } else {
       // Resume an interrupted 7: pending discards, then the robber move
       // (a pending human robber placement is restored via pendingAction)
@@ -5162,9 +6081,11 @@ class ColonistFullGame {
     const pulse = 0.3 + Math.sin(Date.now() / 300) * 0.15;
 
     // Dim all hexes slightly, highlight valid targets
+    const human = this.players.find((p) => p.isHuman);
+    const legal = new Set(this._legalRobberHexes(human).map((h) => h.id));
     this.geometry.hexes.forEach((hex) => {
-      if (hex.id === this.robberHexId) {
-        // Current robber location — blocked
+      if (!legal.has(hex.id)) {
+        // Current robber location / friendly-robber protected — blocked
         this.drawHexPath(hex.corners, true);
         ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
         ctx.fill();
@@ -5436,9 +6357,10 @@ class ColonistFullGame {
 
   renderScoreboard() {
     // Build a key from all visible data — skip re-render if unchanged (preserves tooltip)
+    const readyIds = this.rush && !this.setupPhase ? this.rush.ready : null;
     const scoreKey = this.players.map((p, i) =>
-      `${i}:${this.displayVictoryPoints(p)}:${sumResources(p.resources)}:${p.settlements.size}:${p.cities.size}:${p.roads.size}:${p.knightsPlayed}:${p.longestRoadLength}:${this.longestRoadHolder}:${this.largestArmyHolder}:${this.currentPlayerIndex}`
-    ).join("|");
+      `${i}:${this.displayVictoryPoints(p)}:${sumResources(p.resources)}:${p.settlements.size}:${p.cities.size}:${p.roads.size}:${p.knightsPlayed}:${p.longestRoadLength}:${this.longestRoadHolder}:${this.largestArmyHolder}:${this.currentPlayerIndex}:${p.personality}:${readyIds ? readyIds.includes(p.id) : "-"}`
+    ).join("|") + `:${!!this.winner}:${this.isRush()}`;
     if (scoreKey === this._lastScoreKey) return;
     this._lastScoreKey = scoreKey;
 
@@ -5446,7 +6368,14 @@ class ColonistFullGame {
     this.players.forEach((player, idx) => {
       const card = document.createElement("div");
       card.className = "player-card player-card-mini";
-      if (idx === this.currentPlayerIndex && !this.winner) card.classList.add("active");
+      if (idx === this.currentPlayerIndex && !this.winner && !(this.isRush() && !this.setupPhase)) card.classList.add("active");
+      const isReady = readyIds?.includes(player.id);
+      if (isReady) card.classList.add("rush-ready");
+      const persona = player.personality ? AI_PRESET_INFO[player.personality] : null;
+      const personaBadge = persona
+        ? `<span class="persona-badge persona-${player.personality}" title="${persona.label}: ${persona.tagline}">${persona.glyph ? `${persona.glyph} ` : ""}${persona.label}</span>`
+        : "";
+      const readyBadge = isReady ? '<span class="ready-pill" title="Voted to roll now">Ready</span>' : "";
 
       const totalCards = sumResources(player.resources);
       const totalDev = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + player.devVictoryPoints;
@@ -5463,6 +6392,7 @@ class ColonistFullGame {
         <div class="player-info-col">
           <div class="player-info-row1">
             <span class="player-name" style="color:${player.color}">${player.name}</span>
+            ${readyBadge}
             <span class="player-header-right">
               <span class="player-vp" title="Hover for details">${this.displayVictoryPoints(player)} VP</span>
               ${awards}
@@ -5477,6 +6407,7 @@ class ColonistFullGame {
             <span title="Cities: ${cities} built, ${4 - cities} remaining">&#9962;${cities}/4</span>
             <span title="Roads: ${player.roads.size} built, ${15 - player.roads.size} remaining">&#128739;${player.roads.size}/15</span>
             <span title="Knights played">&#9876;${knights}</span>
+            ${personaBadge}
           </div>
         </div>
       `;
@@ -5517,7 +6448,14 @@ class ColonistFullGame {
     if (boardArea) {
       const railBottom = headerH + rail.getBoundingClientRect().height;
       const boardTop = boardArea.getBoundingClientRect().top;
-      boardArea.style.paddingTop = `${Math.max(0, railBottom - boardTop + 2)}px`;
+      let pad = Math.max(0, railBottom - boardTop + 2);
+      // Rush: the compact HUD row sits between the scoreboard and the board
+      const hud = this.rushHud;
+      if (hud && !hud.hidden) {
+        hud.style.top = `${pad + 2}px`;
+        pad += hud.getBoundingClientRect().height + 6;
+      }
+      boardArea.style.paddingTop = `${pad}px`;
     }
   }
 
@@ -5537,23 +6475,34 @@ class ColonistFullGame {
   }
 
   renderLog() {
+    const title = this.railLog?.querySelector("h2");
+    if (title) title.textContent = this.isRush() ? "Live Feed" : "Event Log";
     this.logContainer.innerHTML = "";
-    this.logEntries.slice(-20).forEach((entry) => {
+    this.logEntries.slice(this.isRush() ? -40 : -20).forEach((entry) => {
       const text = typeof entry === "string" ? entry : entry.text;
       const line = document.createElement("div");
       line.className = "log-entry";
       if (/\bwins?\b/.test(text)) line.classList.add("winner");
-      line.innerHTML = this._enrichLogText(text);
+      if (/^Roll #\d+/.test(text)) line.classList.add("feed-roll");
+      const stamp = this.isRush() && entry && Number.isFinite(entry.clock)
+        ? `<span class="feed-time">${formatClock(entry.clock)}</span>` : "";
+      if (stamp) {
+        line.classList.add("has-time");
+        line.innerHTML = `${stamp}<span class="feed-text">${this._enrichLogText(text)}</span>`;
+      } else {
+        line.innerHTML = this._enrichLogText(text);
+      }
       this.logContainer.appendChild(line);
     });
     this.logContainer.scrollTop = this.logContainer.scrollHeight;
   }
 
   renderStatusAndControls() {
+    const rushOn = this.isRush() && !this.setupPhase;
     const humanTurn = this.currentPlayer.isHuman && !this.winner;
     const mainPhase = this.phase === "main";
     const preRoll = this.phase === "pre_roll";
-    const noDevPlayed = !this.currentTurnPlayedDevCard;
+    const noDevPlayed = rushOn ? !this.currentPlayer.rushDevPlayed : !this.currentTurnPlayedDevCard;
     const human = this.currentPlayer;
     const active = this.currentPlayer;
     const hasRoadCost = hasResources(human.resources, COSTS.road);
@@ -5583,6 +6532,10 @@ class ColonistFullGame {
         }
       } else if (this.winner) {
         this.actionPromptText.textContent = `${this.winner.name} win${this._s(this.winner)}!`;
+      } else if (rushOn && this.phase === "seven" && this.pendingAction !== "robber") {
+        this.actionPromptText.textContent = "Robber! Game paused";
+      } else if (rushOn && mainPhase && !this.pendingAction) {
+        this.actionPromptText.textContent = this.autoplayInterval ? "Rush · autoplay" : "Rush · build any time";
       } else if (humanTurn && this.pendingAction === "robber") {
         this.actionPromptText.textContent = "Move the robber — tap a hex";
       } else if (humanTurn && preRoll) {
@@ -5617,7 +6570,7 @@ class ColonistFullGame {
       rollBtn.disabled = inSetup || !(humanTurn && preRoll) || robberBlocking;
     }
     if (endBtn) {
-      endBtn.style.display = !inSetup && humanTurn && mainPhase && (!this.pendingAction || this.freeRoadsRemaining > 0) && !robberBlocking ? "inline-flex" : "none";
+      endBtn.style.display = !rushOn && !inSetup && humanTurn && mainPhase && (!this.pendingAction || this.freeRoadsRemaining > 0) && !robberBlocking ? "inline-flex" : "none";
       endBtn.disabled = inSetup || !(humanTurn && mainPhase) || robberBlocking;
     }
     if (buildPanel) {
@@ -5629,7 +6582,7 @@ class ColonistFullGame {
       this.hideTradePanel();
     }
 
-    this.nextTurnBtn.disabled = !!this.winner || humanTurn || this.autoplayInterval != null;
+    this.nextTurnBtn.disabled = !!this.winner || humanTurn || this.autoplayInterval != null || this.isRush();
     const piecesHint = (type) => (this.piecesLeft(human, type) <= 0 ? `No ${type}s left` : null);
     setButtonState(
       this.buildRoadBtn,
@@ -5691,7 +6644,7 @@ class ColonistFullGame {
       if (this.pendingAction === "road") this.buildRoadBtn?.classList.add("attention");
       else if (this.pendingAction === "settlement") this.buildSettlementBtn?.classList.add("attention");
       else if (this.pendingAction === "city") this.buildCityBtn?.classList.add("attention");
-      else if (endBtn) endBtn.classList.add("attention");
+      else if (endBtn && !rushOn) endBtn.classList.add("attention");
     }
   }
 
@@ -5887,100 +6840,289 @@ class ColonistFullGame {
     },
   };
 
-  // ── Difficulty Modal ──────────────────────────────────────────────────
+  // ── New-game setup screen ─────────────────────────────────────────────
+  // Mode (Classic / Rush), rules, dice, map and opponents. The last choice is remembered.
   _showDifficultyModal() {
-    // Remove existing
-    document.querySelector(".difficulty-modal")?.remove();
-
-    const presetDescriptions = {
-      beginner: "AI makes simple decisions. No trading, no dev cards, random robber. Great for learning.",
-      intermediate: "Balanced AI. Trades with bank and players, plays dev cards when useful, targets opponents with robber.",
-      expert: "Aggressive AI. Trades hard, chases Longest Road and Largest Army, targets the VP leader.",
-    };
-
+    document.querySelector(".newgame-modal")?.remove();
+    const last = normalizeSettings(ColonistFullGame.loadLastSettings());
+    let d = normalizeSettings(JSON.parse(JSON.stringify(last)));
     const overlay = document.createElement("div");
-    overlay.className = "difficulty-modal";
-
-    let selectedPreset = "intermediate";
-    let customStrategy = { ...AI_PRESETS.intermediate };
-
-    const renderModal = () => {
-      overlay.innerHTML = `
-        <div class="difficulty-modal-card">
-          <h2>New Game</h2>
-          <p class="difficulty-subtitle">Choose AI difficulty</p>
-          <div class="difficulty-presets">
-            ${Object.entries(AI_PRESETS).map(([name, preset]) => `
-              <button class="difficulty-preset-btn ${name === selectedPreset ? "selected" : ""}" data-preset="${name}">
-                <span class="difficulty-preset-name">${name.charAt(0).toUpperCase() + name.slice(1)}</span>
-                <span class="difficulty-preset-desc">${presetDescriptions[name]}</span>
-              </button>
-            `).join("")}
-          </div>
-          <details class="difficulty-advanced">
-            <summary>Advanced settings</summary>
-            <div class="difficulty-advanced-grid">
-              ${Object.entries(AI_STRATEGY_CATEGORIES).map(([key, cat]) => `
-                <div class="difficulty-adv-row">
-                  <label>${cat.label}</label>
-                  <select data-key="${key}">
-                    ${cat.levels.map(level => `
-                      <option value="${level}" ${customStrategy[key] === level ? "selected" : ""}>${level.charAt(0).toUpperCase() + level.slice(1)}</option>
-                    `).join("")}
-                  </select>
-                  <span class="difficulty-adv-desc">${cat.descriptions[customStrategy[key]]}</span>
-                </div>
-              `).join("")}
-            </div>
-          </details>
-          <div class="difficulty-actions">
-            <button class="difficulty-start-btn">Start Game</button>
-            <button class="difficulty-cancel-btn">Cancel</button>
-          </div>
-        </div>
-      `;
-
-      // Wire preset buttons
-      overlay.querySelectorAll(".difficulty-preset-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-          selectedPreset = btn.dataset.preset;
-          customStrategy = { ...AI_PRESETS[selectedPreset] };
-          renderModal();
-        });
-      });
-
-      // Wire advanced selects
-      overlay.querySelectorAll(".difficulty-advanced select").forEach(sel => {
-        sel.addEventListener("change", () => {
-          customStrategy[sel.dataset.key] = sel.value;
-          selectedPreset = null; // Custom config
-          // Update description
-          const row = sel.closest(".difficulty-adv-row");
-          const cat = AI_STRATEGY_CATEGORIES[sel.dataset.key];
-          row.querySelector(".difficulty-adv-desc").textContent = cat.descriptions[sel.value];
-          overlay.querySelectorAll(".difficulty-preset-btn").forEach(b => b.classList.remove("selected"));
-        });
-      });
-
-      // Wire start/cancel
-      overlay.querySelector(".difficulty-start-btn").addEventListener("click", () => {
-        // Apply strategy to all AI players
-        const strat = { ...customStrategy };
-        localStorage.setItem(ColonistFullGame.STRATEGY_KEY, JSON.stringify({
-          1: strat, 2: strat, 3: strat,
-        }));
-        overlay.remove();
-        this.resetGame();
-        this._buildStrategyUI();
-      });
-
-      overlay.querySelector(".difficulty-cancel-btn").addEventListener("click", () => {
-        overlay.remove();
-      });
+    overlay.className = "newgame-modal";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-label", "New game");
+    // Hold the Rush clock while the screen is open
+    this.uiPaused = true;
+    let fineTuneOpen = window.innerWidth > 700;
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+    const levelLabel = (level) => AI_LEVEL_LABEL[level] || cap(level);
+    const presetLabel = (key) => AI_PRESET_INFO[key]?.label || "Custom";
+    const strategySummary = (s) => {
+      const trade = { none: "no trades", conservative: "careful trades", balanced: "fair trades", aggressive: "eager trades" }[s.trading];
+      const dev = { none: "no dev cards", reactive: "reactive cards", strategic: "strategic cards" }[s.devCards];
+      const aware = { none: "ignores rivals", basic: "watches rivals", advanced: "targets leader" }[s.awareness];
+      return `${cap(s.placement)} placement · ${trade} · ${dev} · ${aware}`;
+    };
+    const badge = (key) => {
+      const info = AI_PRESET_INFO[key] || AI_PRESET_INFO.custom;
+      return `<span class="persona-badge persona-${key}">${info.glyph ? `${info.glyph} ` : ""}${info.label}</span>`;
+    };
+    const botPreset = (i) => (d.botStyleMode === "each" ? d.perBot[i] : d.allPreset);
+    const botStrategy = (i) => (d.botStyleMode === "each" ? AI_PRESETS[d.perBot[i]] : d.allStrategy);
+    const diceHelp = {
+      random: "Random: two independent dice, every roll a fresh throw.",
+      balanced: "Balanced: real dice odds, but long streaks and droughts are smoothed out.",
+      deck: "Event deck: all 36 dice results drawn from a deck, reshuffled when empty.",
+    };
+    const mapHelp = {
+      random: "Random: tiles and numbers shuffled freely.",
+      balanced: "Balanced: no adjacent 6/8 or equal numbers, every resource on fair numbers.",
+      beginner: "Beginner: the official fixed starter layout.",
+    };
+    const mapIcon = (kind) => {
+      const colors = {
+        random: ["#4e8a3a", "#c9a53a", "#c8643c", "#8d9aa8", "#7fbf4a"],
+        balanced: ["#c8643c", "#4e8a3a", "#c9a53a", "#7fbf4a", "#8d9aa8"],
+        beginner: ["#8d9aa8", "#7fbf4a", "#c9a53a", "#4e8a3a", "#c8643c"],
+      }[kind];
+      return `<span class="ng-map-icon" aria-hidden="true">${colors.map((c) => `<i style="--hex:${c}"></i>`).join("")}</span>`;
+    };
+    const seg = (name, options, value, extraClass = "") => `
+      <div class="ng-seg ${extraClass}" role="radiogroup" data-seg="${name}">
+        ${options.map(([v, label]) => `<button type="button" role="radio" aria-checked="${String(v) === String(value)}" class="ng-seg-btn${String(v) === String(value) ? " selected" : ""}" data-value="${v}">${label}</button>`).join("")}
+      </div>`;
+    const stepper = (name, value, min, max) => `
+      <div class="ng-stepper" data-stepper="${name}" data-min="${min}" data-max="${max}">
+        <button type="button" class="ng-step-btn" data-step="-1" aria-label="Decrease" ${value <= min ? "disabled" : ""}>&minus;</button>
+        <span class="ng-step-value" aria-live="polite">${value}</span>
+        <button type="button" class="ng-step-btn" data-step="1" aria-label="Increase" ${value >= max ? "disabled" : ""}>+</button>
+      </div>`;
+    const summaryText = () => {
+      const bots = PLAYER_CONFIG.slice(1, d.numBots + 1).map((_, i) => presetLabel(botPreset(i)));
+      const uniq = [...new Set(bots)];
+      const mode = d.mode === "rush" ? `<strong>Rush · ${d.rushInterval}s rolls</strong>` : "<strong>Classic</strong>";
+      const extras = [
+        `${d.winPoints} VP`,
+        d.discardLimit !== 7 ? `discard over ${d.discardLimit}` : null,
+        d.friendlyRobber ? "friendly robber" : null,
+        `${d.dice === "deck" ? "event-deck" : d.dice} dice`,
+        `${d.map} map`,
+        `${d.numBots} bot${d.numBots > 1 ? "s" : ""} (${uniq.length === 1 && bots.length > 1 ? `all ${uniq[0]}` : bots.join(", ")})`,
+      ].filter(Boolean);
+      return `${mode} · ${extras.join(" · ")}`;
     };
 
-    renderModal();
-    document.querySelector(".board-panel").appendChild(overlay);
+    const render = () => {
+      const presetKeys = [...Object.keys(AI_PRESETS), "custom"];
+      overlay.innerHTML = `
+        <div class="ng-card">
+          <header class="ng-header">
+            <div>
+              <h2 class="ng-title">New Game</h2>
+              <p class="ng-subtitle">Pick a mode, tune the rules, and choose your opponents.</p>
+            </div>
+            <button type="button" class="ng-pill-btn" data-action="last" title="Restore the settings of your last game">&#8635; Use last settings</button>
+          </header>
+          <div class="ng-columns">
+            <div class="ng-col">
+              <section class="ng-section">
+                <h3 class="ng-section-title">Mode</h3>
+                <div class="ng-mode-row">
+                  <button type="button" class="ng-mode-card${d.mode === "classic" ? " selected" : ""}" data-mode="classic" aria-pressed="${d.mode === "classic"}">
+                    <span class="ng-mode-name"><span class="ng-mode-icon">&#10227;</span>Classic</span>
+                    <span class="ng-mode-desc">Take turns: roll, trade, build, end turn. Calm and tactical.</span>
+                  </button>
+                  <button type="button" class="ng-mode-card rush${d.mode === "rush" ? " selected" : ""}" data-mode="rush" aria-pressed="${d.mode === "rush"}">
+                    <span class="ng-mode-tag">Fast</span>
+                    <span class="ng-mode-name"><span class="ng-mode-icon">&#9889;</span>Rush</span>
+                    <span class="ng-mode-desc">No turns. Everyone builds &amp; trades at once; dice roll on a timer.</span>
+                  </button>
+                </div>
+              </section>
+              ${d.mode === "rush" ? `
+              <section class="ng-section ng-rush-section">
+                <h3 class="ng-section-title">Rush settings</h3>
+                <div class="ng-row">
+                  <div class="ng-row-label">Roll every</div>
+                  <div class="ng-row-control">
+                    ${seg("rushInterval", RUSH_INTERVALS.map((s) => [s, `${s}s`]), d.rushInterval, "ng-seg-pills")}
+                    <p class="ng-help">Everyone can vote &ldquo;Ready&rdquo; to roll early once all players agree.</p>
+                  </div>
+                </div>
+                <div class="ng-row">
+                  <div class="ng-row-label">Robber on 7</div>
+                  <div class="ng-row-control">
+                    <p class="ng-help ng-help-tight">Players in order: the game pauses for discards and the robber; a badge shows who moves it next.</p>
+                  </div>
+                </div>
+              </section>` : ""}
+              <section class="ng-section">
+                <h3 class="ng-section-title">Rules</h3>
+                <div class="ng-row">
+                  <div class="ng-row-label">Points to win</div>
+                  <div class="ng-row-control">${stepper("winPoints", d.winPoints, 5, 15)}</div>
+                </div>
+                <div class="ng-row">
+                  <div class="ng-row-label">Discard limit</div>
+                  <div class="ng-row-control">
+                    ${stepper("discardLimit", d.discardLimit, 7, 12)}
+                    <p class="ng-help">On a 7, anyone holding more than ${d.discardLimit} cards discards half.</p>
+                  </div>
+                </div>
+                <div class="ng-row">
+                  <div class="ng-row-label">Friendly robber</div>
+                  <div class="ng-row-control">
+                    <button type="button" class="ng-switch${d.friendlyRobber ? " on" : ""}" role="switch" aria-checked="${d.friendlyRobber}" data-action="friendly" aria-label="Friendly robber"><span></span></button>
+                    <p class="ng-help">Robber can&rsquo;t block or steal from players with 2 points or fewer.</p>
+                  </div>
+                </div>
+                <div class="ng-row">
+                  <div class="ng-row-label">Dice</div>
+                  <div class="ng-row-control">
+                    ${seg("dice", [["random", "&#127922; Random"], ["balanced", "&#9878; Balanced"], ["deck", "&#127183; Event deck"]], d.dice, "ng-seg-pills")}
+                    <p class="ng-help">${diceHelp[d.dice]}</p>
+                  </div>
+                </div>
+                <div class="ng-row">
+                  <div class="ng-row-label">Map</div>
+                  <div class="ng-row-control">
+                    <div class="ng-map-row" role="radiogroup">
+                      ${[["random", "Random"], ["balanced", "Balanced / fair"], ["beginner", "Beginner (fixed)"]].map(([v, label]) => `
+                        <button type="button" role="radio" aria-checked="${d.map === v}" class="ng-map-card${d.map === v ? " selected" : ""}" data-map="${v}">${mapIcon(v)}<span>${label}</span></button>`).join("")}
+                    </div>
+                    <p class="ng-help">${mapHelp[d.map]}</p>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div class="ng-col">
+              <section class="ng-section">
+                <h3 class="ng-section-title">Opponents</h3>
+                <div class="ng-row ng-row-inline">
+                  <div class="ng-row-label">Number of bots</div>
+                  ${seg("numBots", [[1, "1"], [2, "2"], [3, "3"]], d.numBots, "ng-seg-pills ng-seg-round")}
+                </div>
+                <div class="ng-row ng-row-inline">
+                  <div class="ng-row-label ng-row-label-sm">Style for</div>
+                  ${seg("botStyleMode", [["all", "All bots"], ["each", "Each bot separately"]], d.botStyleMode, "ng-seg-pills")}
+                </div>
+                ${d.botStyleMode === "all" ? `
+                <div class="ng-presets">
+                  ${presetKeys.map((key) => {
+                    const info = AI_PRESET_INFO[key];
+                    return `<button type="button" class="ng-preset${d.allPreset === key ? " selected" : ""}" data-preset="${key}" aria-pressed="${d.allPreset === key}">
+                      <span class="ng-preset-name">${info.label}</span>
+                      <span class="ng-preset-tag">${info.tagline}</span>
+                      ${info.isNew ? '<span class="ng-new">New</span>' : ""}
+                    </button>`;
+                  }).join("")}
+                </div>
+                <details class="ng-finetune"${fineTuneOpen ? " open" : ""}>
+                  <summary>Fine-tune <span class="ng-finetune-hint">5 strategy dials</span></summary>
+                  <div class="ng-dims">
+                    ${Object.entries(AI_STRATEGY_CATEGORIES).map(([key, cat]) => `
+                      <div class="ng-dim">
+                        <div class="ng-dim-label">${cat.label}<span>${AI_DIMENSION_HINT[key]}</span></div>
+                        <div class="ng-dim-control">
+                          ${seg(`dim:${key}`, cat.levels.map((l) => [l, levelLabel(l)]), d.allStrategy[key], "ng-seg-bar")}
+                          <p class="ng-help"><strong>${levelLabel(d.allStrategy[key])}:</strong> ${AI_LEVEL_PLAIN[key][d.allStrategy[key]]}</p>
+                        </div>
+                      </div>`).join("")}
+                  </div>
+                </details>` : `
+                <p class="ng-help">Pick a personality per bot. You can fine-tune each bot later under &#9881; &rsaquo; AI Strategy Config.</p>`}
+              </section>
+              <section class="ng-section">
+                <h3 class="ng-section-title">Your table</h3>
+                <div class="ng-table">
+                  ${PLAYER_CONFIG.slice(1, d.numBots + 1).map((cfg, i) => `
+                    <div class="ng-bot">
+                      <img class="ng-bot-avatar" src="${cfg.avatar}" alt="" style="border-color:${cfg.color}" />
+                      <div class="ng-bot-info">
+                        <div class="ng-bot-name"><span style="color:${cfg.color}">${esc(cfg.name)}</span>${badge(botPreset(i))}</div>
+                        <div class="ng-bot-desc">${strategySummary(botStrategy(i))}</div>
+                      </div>
+                      ${d.botStyleMode === "each" ? `
+                      <select class="ng-bot-select" data-bot="${i}" aria-label="${esc(cfg.name)} personality">
+                        ${Object.keys(AI_PRESETS).map((key) => `<option value="${key}"${d.perBot[i] === key ? " selected" : ""}>${presetLabel(key)}</option>`).join("")}
+                      </select>` : ""}
+                    </div>`).join("")}
+                </div>
+              </section>
+            </div>
+          </div>
+          <footer class="ng-footer">
+            <div class="ng-summary">${summaryText()}</div>
+            <div class="ng-actions">
+              <button type="button" class="ng-cancel btn-neutral" data-action="cancel">Cancel</button>
+              <button type="button" class="ng-start btn-build" data-action="start">Start Game</button>
+            </div>
+          </footer>
+        </div>`;
+      wire();
+    };
+
+    const wire = () => {
+      const card = overlay.querySelector(".ng-card");
+      overlay.querySelector(".ng-finetune")?.addEventListener("toggle", (e) => { fineTuneOpen = e.target.open; });
+      card.addEventListener("click", (e) => {
+        const t = e.target.closest("button");
+        if (!t || !card.contains(t)) return;
+        let changed = true;
+        if (t.dataset.mode) d.mode = t.dataset.mode;
+        else if (t.dataset.map) d.map = t.dataset.map;
+        else if (t.dataset.preset) {
+          d.allPreset = t.dataset.preset;
+          if (AI_PRESETS[d.allPreset]) d.allStrategy = { ...AI_PRESETS[d.allPreset] };
+        } else if (t.dataset.step) {
+          const box = t.closest("[data-stepper]");
+          const key = box.dataset.stepper;
+          d[key] = clamp(d[key] + Number(t.dataset.step), Number(box.dataset.min), Number(box.dataset.max));
+        } else if (t.classList.contains("ng-seg-btn")) {
+          const key = t.closest("[data-seg]").dataset.seg;
+          const raw = t.dataset.value;
+          if (key.startsWith("dim:")) {
+            d.allStrategy = { ...d.allStrategy, [key.slice(4)]: raw };
+            d.allPreset = presetForStrategy(d.allStrategy);
+          } else {
+            d[key] = ["rushInterval", "numBots"].includes(key) ? Number(raw) : raw;
+          }
+        } else if (t.dataset.action === "friendly") d.friendlyRobber = !d.friendlyRobber;
+        else if (t.dataset.action === "last") d = normalizeSettings(JSON.parse(JSON.stringify(last)));
+        else if (t.dataset.action === "cancel") { close(); return; }
+        else if (t.dataset.action === "start") { start(); return; }
+        else changed = false;
+        if (changed) {
+          this.sfx.click();
+          const scroll = card.scrollTop;
+          render();
+          overlay.querySelector(".ng-card").scrollTop = scroll;
+        }
+      });
+      card.querySelectorAll(".ng-bot-select").forEach((sel) => sel.addEventListener("change", () => {
+        d.perBot = d.perBot.map((p, i) => (i === Number(sel.dataset.bot) ? sel.value : p));
+        const scroll = card.scrollTop;
+        render();
+        overlay.querySelector(".ng-card").scrollTop = scroll;
+      }));
+    };
+
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener("keydown", onKey);
+      this.uiPaused = false;
+      this._rushLastTs = performance.now();
+    };
+    const start = () => {
+      close();
+      this.startNewGame(d);
+    };
+    document.addEventListener("keydown", onKey);
+    render();
+    document.body.appendChild(overlay);
+    overlay.querySelector(".ng-start")?.focus({ preventScroll: true });
   }
 
   // ── AI Strategy Config UI ─────────────────────────────────────────────
@@ -5996,7 +7138,7 @@ class ColonistFullGame {
     Object.entries(AI_PRESETS).forEach(([name, preset]) => {
       const btn = document.createElement("button");
       btn.className = "ai-strat-preset-btn btn-neutral";
-      btn.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+      btn.textContent = AI_PRESET_INFO[name].label;
       btn.addEventListener("click", () => {
         this.players.forEach(p => {
           if (p.strategy) Object.assign(p.strategy, preset);
@@ -6338,6 +7480,8 @@ class ColonistFullGame {
     overlay.id = "resourcePickerOverlay";
     overlay.className = "resource-picker-overlay";
     const picks = [];
+    const gen = this.gameGen;
+    const turnIndex = this.currentPlayerIndex;
     const renderPicker = () => {
       overlay.innerHTML = `
         <div class="resource-picker-panel">
@@ -6367,7 +7511,11 @@ class ColonistFullGame {
       const undoBtn = overlay.querySelector(".resource-picker-undo");
       if (undoBtn) undoBtn.addEventListener("click", () => { picks.pop(); renderPicker(); });
       const confirmBtn = overlay.querySelector(".resource-picker-confirm");
-      if (confirmBtn) confirmBtn.addEventListener("click", () => { overlay.remove(); onConfirm(picks); });
+      // Ignore a confirm from an older game or after the turn moved on (picker left open)
+      if (confirmBtn) confirmBtn.addEventListener("click", () => {
+        overlay.remove();
+        if (gen === this.gameGen && (this.isRush() || this.currentPlayerIndex === turnIndex)) onConfirm(picks);
+      });
     };
     renderPicker();
     document.body.appendChild(overlay);
@@ -6405,6 +7553,8 @@ class ColonistFullGame {
     this.renderStatusAndControls();
     this.renderLastDice();
     this.renderSupplyOverview();
+    this._renderRushHud();
+    this._renderRushOffers();
     if (!document.body.dataset.gameReady) {
       document.body.dataset.gameReady = "true";
     }
@@ -6412,3 +7562,4 @@ class ColonistFullGame {
 }
 
 const game = new ColonistFullGame();
+window.__colonistGame = game; // debug/testing handle
