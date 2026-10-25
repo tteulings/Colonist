@@ -4640,6 +4640,11 @@ class ColonistFullGame {
     void this.lastDiceDisplay?.offsetWidth; // restart the flash animation
     this.lastDiceDisplay?.classList.add("rush-flash");
     if (res.total === 7) {
+      // the 7-pause panel (with its discard buttons) opens right away: the tumbling dice go
+      // underneath it instead of over the buttons
+      document.body.classList.add("fx-under-sheets");
+      window.clearTimeout(this._fxUnderTimer);
+      this._fxUnderTimer = window.setTimeout(() => document.body.classList.remove("fx-under-sheets"), 2200);
       this._rushBeginSeven();
     } else {
       this.highlightRoll = { number: res.total, startTime: Date.now() };
@@ -5029,6 +5034,7 @@ class ColonistFullGame {
     }
     panel.hidden = !seven;
     if (!seven) return;
+
     const mover = this.players[seven.moverId];
     const humanPlacing = seven.stage === "robber" && this._isInteractive(mover);
     panel.classList.toggle("robber-placing", humanPlacing);
@@ -6658,7 +6664,12 @@ class ColonistFullGame {
       // trade offers are already on screen as a card (Rush) or a sheet (Classic): don't repeat them here
       const NOISE = /^(Session restored|Initial placement complete|Game (saved|loaded))|\boffers you\b/;
       const real = [...this.logEntries].reverse().find((e) => !NOISE.test(e.text.replace(/^Turn \d+: /, "")));
-      if (real) {
+      const own = this._ownRollSummary();
+      if (own) {
+        // Right after your roll the line is about YOU, not the last bot that collected
+        this.tickerText.innerHTML = this._enrichLogText(own);
+        if (this.tickerIcon) this.tickerIcon.innerHTML = icon("dice");
+      } else if (real) {
         const t = real.text.replace(/^Turn \d+: /, "").replace(/^Roll #\d+: rolled/, "Dice rolled");
         this.tickerText.innerHTML = this._enrichLogText(t);
         if (this.tickerIcon) this.tickerIcon.innerHTML = icon(this._logIcon(real.text));
@@ -6671,6 +6682,19 @@ class ColonistFullGame {
         if (this.tickerIcon) this.tickerIcon.innerHTML = icon(cp.isHuman && this.phase === "pre_roll" ? "dice" : "log");
       }
     }
+  }
+
+  /** "You rolled 8 · +1 Lumber" while nothing but the payout has happened since your roll. */
+  _ownRollSummary() {
+    const L = this.logEntries;
+    let i = L.length - 1;
+    const quiet = /\bcollects?\b|^Bank is short/;
+    while (i >= 0 && quiet.test(L[i].text)) i -= 1;
+    const m = i >= 0 ? /^Turn \d+: You rolled (\d+)\.$/.exec(L[i].text) : null;
+    if (!m || m[1] === "7") return "";
+    const mine = L.slice(i + 1).map((e) => /^You collect (.+)\.$/.exec(e.text)).find(Boolean);
+    const gain = mine ? mine[1].split(", ").map((p) => `+${p}`).join(" · ") : "nothing for you this time";
+    return `You rolled ${m[1]} · ${gain}`;
   }
 
   renderStatusAndControls() {
@@ -6781,7 +6805,8 @@ class ColonistFullGame {
     }
     if (endBtn) {
       endBtn.style.display = !rushOn && humanTurn && mainPhase && !inSetup && !robberBlocking ? "inline-flex" : "none";
-      endBtn.disabled = inSetup || !(humanTurn && mainPhase) || robberBlocking || (!!this.pendingAction && !this.freeRoadsRemaining);
+      // also while Road Building's free roads are still to be placed
+      endBtn.disabled = inSetup || !(humanTurn && mainPhase) || robberBlocking || !!this.pendingAction;
     }
     if (this.rushReadyBtn) this.rushReadyBtn.hidden = !rushOn || !!this.winner;
     if (this.waitingBar) {
@@ -6859,12 +6884,17 @@ class ColonistFullGame {
       this.playDevBtn.style.display = showPlayDev ? "inline-flex" : "none";
       if (!showPlayDev && !this.isMobileLayout) this.hideDevCardPicker();
     }
+    // Cards: the badge counts every development card (same number as on your player chip);
+    // the button only stands out when one of them can be played right now
     const mDot = document.querySelector("#mCardsDot");
+    const playableNow = !inSetup && noDevPlayed && DEV_CARD_TYPES.some(canPlayDev);
     if (mDot) {
       const nDev = DEV_CARD_TYPES.reduce((s, t) => s + human.devCards[t] + human.newDevCards[t], 0) + human.devVictoryPoints;
       mDot.hidden = !nDev;
       mDot.textContent = String(nDev);
+      mDot.classList.toggle("go", playableNow);
     }
+    document.querySelector("#mCardsBtn")?.classList.toggle("quiet", !playableNow);
     const mBuild = document.querySelector("#mBuildBtn");
     if (mBuild) mBuild.disabled = !canBuildNow;
 
@@ -7506,8 +7536,9 @@ class ColonistFullGame {
     this.discardCards.innerHTML = RESOURCES.map((r) => {
       const have = player.resources[r];
       const sel = selected[r];
+      // the badge shows what you keep; the line under it what goes back
       return `<div class="rcell${sel ? " pick" : ""}${have ? "" : " dim"}" data-res="${r}">
-        <button type="button" class="card discard-card" data-add="${r}" aria-label="Hand back 1 ${RESOURCE_LABEL[r]}" ${have ? "" : "disabled"}>${cardSvg(r)}<span class="count">${have}</span></button>
+        <button type="button" class="card discard-card" data-add="${r}" aria-label="Hand back 1 ${RESOURCE_LABEL[r]} (keeping ${have - sel})" ${have ? "" : "disabled"}>${cardSvg(r)}<span class="count">${have - sel}</span></button>
         <span class="n">${sel ? `−${sel}` : "·"}</span>
         <div class="step"><button type="button" data-sub="${r}" aria-label="One less" ${sel ? "" : "disabled"}>−</button><button type="button" data-add="${r}" aria-label="One more" ${sel < have && totalSelected < count ? "" : "disabled"}>+</button></div></div>`;
     }).join("");
@@ -7520,7 +7551,7 @@ class ColonistFullGame {
     };
     this.discardCards.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => change(b.dataset.add, 1)));
     this.discardCards.querySelectorAll("[data-sub]").forEach((b) => b.addEventListener("click", () => change(b.dataset.sub, -1)));
-    this.discardSelected.textContent = `${totalSelected} of ${count} chosen`;
+    this.discardSelected.textContent = `${totalSelected} of ${count} chosen · you keep ${sumResources(player.resources) - totalSelected}`;
     const lbl = document.querySelector("#discardConfirmLabel");
     if (lbl) lbl.textContent = totalSelected === count ? `Hand back ${count} cards` : `Choose ${count - totalSelected} more`;
     this.discardConfirmBtn.disabled = totalSelected !== count;

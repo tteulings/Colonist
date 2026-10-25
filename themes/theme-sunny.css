@@ -287,6 +287,8 @@
     opacity: 1; filter: none; background: var(--dis-bg); color: var(--dis-ink); border: 0; box-shadow: inset 0 0 0 1.5px var(--dis-line);
   }
   [data-theme="A"] .app :is(#mBuildBtn, #tradeBankBtn, #mCardsBtn):disabled .ic { filter: var(--dis-ic); opacity: var(--dis-ic-op); }
+  [data-theme="A"] .app #mCardsBtn.quiet { opacity: 1; filter: none; background: var(--dis-bg); color: var(--dis-ink); border: 0; box-shadow: inset 0 0 0 1.5px var(--dis-line); }
+  [data-theme="A"] .app #mCardsBtn.quiet .ic { filter: var(--dis-ic); opacity: var(--dis-ic-op); }
   [data-theme="A"] .waiting { color: var(--bar-ink); box-shadow: var(--glass-shadow); }
   [data-theme="A"] .waiting .dots i { background: var(--bar-ink); animation: none; opacity: .45; }
   [data-theme="A"] .hand .card .count { box-shadow: 0 0 0 2px #fff; }
