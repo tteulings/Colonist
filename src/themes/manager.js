@@ -1,0 +1,94 @@
+// Theme registry + persistence + lazy fonts + motion preference + DOM sprite.
+// A theme = CSS tokens on [data-theme="<id>"] (themes/*.css) + one art module (src/themes/<name>/art.js).
+// Adding Wooden Board Game (B) / Storybook (C) later = register their art module here and add a CSS file.
+import sunny from "./sunny/art.js";
+import classic from "./classic/art.js";
+import { RESOURCE_KEYS, DEV_KEYS } from "./art-util.js";
+
+export const THEMES = { A: sunny, classic };
+export const THEME_ORDER = ["A", "classic"];
+/** Shown in Settings › Look & feel as "coming soon". */
+export const UPCOMING = [
+  { id: "B", name: "Wooden Board Game", mood: "Real wood, paper and felt; painted wooden pieces.", dots: ["#7A5232", "#C9A26B", "#3F6B4A", "#E9DFC7", "#9B3B2E"] },
+  { id: "C", name: "Storybook", mood: "Bold, flat, cheerful colour fields with black silhouettes.", dots: ["#F26B21", "#FFD23F", "#4CB944", "#2EC4B6", "#F78FB3"] },
+];
+export const DEFAULT_THEME = "A";
+const THEME_KEY = "colonist.theme";
+const MOTION_KEY = "colonist.motion";
+
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (_) { /* private mode */ } },
+};
+
+export function storedThemeId() {
+  const id = store.get(THEME_KEY);
+  return THEMES[id] ? id : DEFAULT_THEME;
+}
+export function saveThemeId(id) { store.set(THEME_KEY, id); }
+
+// ── motion ───────────────────────────────────────────────────────────────
+// "full" | "reduced" | "system" (follow prefers-reduced-motion)
+export function motionPref() {
+  const v = store.get(MOTION_KEY);
+  return v === "full" || v === "reduced" ? v : "system";
+}
+const mq = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+export function motionReduced() {
+  const p = motionPref();
+  return p === "reduced" || (p === "system" && !!mq?.matches);
+}
+export function setMotionPref(v) {
+  store.set(MOTION_KEY, v);
+  applyMotionAttr();
+}
+export function applyMotionAttr() {
+  document.documentElement.dataset.motion = motionReduced() ? "reduced" : "full";
+}
+mq?.addEventListener?.("change", applyMotionAttr);
+
+// ── fonts (Google Fonts, per theme, loaded lazily) ───────────────────────
+export function prefetchFonts(theme) {
+  if (!theme?.fonts?.url || document.querySelector(`link[data-font="${theme.id}"]`)) return;
+  const l = document.createElement("link");
+  l.rel = "stylesheet";
+  l.href = theme.fonts.url;
+  l.dataset.font = theme.id;
+  document.head.append(l);
+}
+/** Resolves once the theme's fonts are usable (or after a short timeout — system fallbacks apply). */
+export async function loadFonts(theme) {
+  if (!theme?.fonts) return;
+  prefetchFonts(theme);
+  const wait = Promise.all(theme.fonts.families.map((fam) => document.fonts.load(`400 24px "${fam}"`).catch(() => null)));
+  await Promise.race([wait, new Promise((r) => setTimeout(r, 2500))]);
+}
+
+// ── DOM sprite: icons, cards, avatars, dice as <symbol>s ─────────────────
+export const SEAT_PRESETS = ["you", "trader", "builder", "shark"];
+export const BOT_PROFILE = {
+  you: { name: "You", tag: "Your colony" },
+  trader: { name: "Marina", tag: "The Trader" },
+  builder: { name: "Bruno", tag: "The Builder" },
+  shark: { name: "Viktor", tag: "The Shark" },
+};
+export function buildSprite(T) {
+  let s = `<svg id="themeSprite" class="sprites" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>${T.uiDefs ? T.uiDefs() : ""}`;
+  for (const [k, v] of Object.entries(T.icons)) s += `<symbol id="ic-${k}" viewBox="-50 -50 100 100" overflow="visible">${v}</symbol>`;
+  for (const k of [...RESOURCE_KEYS, ...DEV_KEYS]) s += `<symbol id="card-${k}" viewBox="0 0 250 350">${T.card(k)}</symbol><symbol id="cardm-${k}" viewBox="0 0 250 350">${T.card(k, true)}</symbol>`;
+  s += `<symbol id="card-back" viewBox="0 0 250 350">${T.cardBack()}</symbol>`;
+  SEAT_PRESETS.forEach((p, i) => { s += `<symbol id="av-${i}" viewBox="-50 -50 100 100">${T.avatar(p)}</symbol>`; });
+  for (let n = 1; n <= 6; n += 1) s += `<symbol id="die-${n}" viewBox="-50 -50 100 100" overflow="visible">${T.die(n)}</symbol>`;
+  return s + "</defs></svg>";
+}
+export function installSprite(T) {
+  document.getElementById("themeSprite")?.remove();
+  document.body.insertAdjacentHTML("afterbegin", buildSprite(T));
+}
+
+// ── tiny markup helpers shared by the DOM UI ─────────────────────────────
+export const icon = (n, cls = "") => `<svg class="ic ${cls}" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-${n}" x="-50" y="-50" width="100" height="100"/></svg>`;
+export const avatarSvg = (seat, cls = "") => `<span class="avatar pc-${seat} ${cls}"><svg viewBox="-50 -50 100 100" aria-hidden="true"><use href="#av-${seat}" x="-50" y="-50" width="100" height="100"/></svg></span>`;
+export const dieSvg = (n, cls = "") => `<svg class="die ${cls}" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#die-${n}" x="-50" y="-50" width="100" height="100"/></svg>`;
+export const cardSvg = (k, big = false) => `<svg viewBox="0 0 250 350" aria-hidden="true"><use href="#${big ? "card" : "cardm"}-${k}"/></svg>`;
+export const cardBackSvg = () => `<svg viewBox="0 0 250 350" aria-hidden="true"><use href="#card-back"/></svg>`;

@@ -1,0 +1,151 @@
+/* THEME A · Sunny Island — warm ivory chrome tinted with sea and terracotta, Mediterranean palette,
+   one accent (terracotta). DM Serif Display (headings, numbers) + DM Sans (UI). Hairline borders,
+   soft shadows, 4/8 px grid. Player colours are colour-blind safe by lightness; the human is blue. */
+[data-theme="A"] {
+  color-scheme: light;
+  --font-display: "DM Serif Display", Georgia, "Times New Roman", serif;
+  --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --display-weight: 400; --display-tracking: .005em; --h2-size: 20px; --brand-size: 27px; --jturn-transform: uppercase;
+  --ink: #2E3A3D; --ink-soft: #6B7476; --ink-faint: #9AA0A0; --heading: #22302F; --brand-ink: #1F6E77;
+  --bg: #F7F2E8; --bg-image: none;
+  --chrome: #EEF7F4; --chrome-image: linear-gradient(#F3FAF7, #E8F4F1); --chrome-ink: #2E3A3D; --chrome-border: 1px solid #CFE5E0; --chrome-shadow: 0 1px 0 rgba(255,255,255,.8);
+  --m-top: #EEF7F4; --m-top-image: linear-gradient(#F3FAF7, #E8F4F1); --status-ink: #22302F;
+  --rail: #FBEFE4; --rail-image: linear-gradient(#FCF2E8, #F8E9DC); --rail-border: 1px solid #F0DCC8;
+  --panel: #FDFBF6; --panel-image: none; --panel-border: 1px solid #E6DDCB; --panel-radius: 14px; --panel-shadow: 0 1px 2px rgba(60,50,30,.06), 0 8px 24px rgba(60,50,30,.06);
+  --dock: #FCF3E6; --dock-image: linear-gradient(#FDF6EC, #FAEEDD); --dock-border: 1px solid #F0DCC8; --dock-shadow: 0 -6px 24px rgba(60,50,30,.05);
+  --float: rgba(253,251,246,.95); --float-border: 1px solid rgba(214,201,174,.9); --float-shadow: 0 2px 6px rgba(20,40,40,.10), 0 10px 30px rgba(20,40,40,.12);
+  --banner: rgba(253,251,246,.96); --banner-image: none; --banner-border: 1px solid rgba(214,201,174,.9); --banner-shadow: 0 2px 6px rgba(20,40,40,.1), 0 10px 30px rgba(20,40,40,.12); --banner-radius: 14px;
+  --sheet: #FDFBF6; --sheet-image: none; --sheet-border: 1px solid #E6DDCB; --sheet-radius: 22px;
+  --chip: #FFFFFF; --chip-border: 1px solid #D7EBE6; --chip-ink: #4A5557; --chip-radius: 10px;
+  --group: #FBE9C9; --group-border: 1px solid #F2D9A8;
+  --sea-bg: #3CA9B0;
+  --sea-image: radial-gradient(ellipse 85% 70% at 50% 46%, #6ACBC3 0%, #3CA9B0 52%, #2B8C98 100%);
+  --ripple-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='90'%3E%3Cpath d='M14,24 q12,-5 24,0' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round'/%3E%3Cpath d='M96,66 q10,-4 20,0' fill='none' stroke='%23fff' stroke-opacity='.7' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  --shimmer-a: .16;
+  --fan-bg: linear-gradient(rgba(247,242,232,0), rgba(247,242,232,.92) 58%);
+  --scrim: rgba(24,40,42,.42); --spot: rgba(18,30,32,.55); --home-ind: #22302F;
+  --btn: #FFFFFF; --btn-image: none; --btn-ink: #2E3A3D; --btn-border: 1px solid #D9CEB6; --btn-shadow: 0 1px 2px rgba(60,50,30,.08); --btn-radius: 10px;
+  --btn-on: #FCEBE3; --btn-on-ink: #A84E2F; --btn-on-border: 1.5px solid #D9714E; --btn-on-shadow: 0 0 0 3px rgba(217,113,78,.16);
+  --primary: #D9714E; --primary-image: linear-gradient(#E07C59, #D06844); --primary-ink: #FFF9F2; --primary-border: 1px solid #BA5A38; --primary-shadow: 0 1px 2px rgba(120,50,20,.2), 0 6px 16px rgba(160,79,47,.22); --primary-size: 21px;
+  --accent: #D9714E; --good: #4F8A33; --good-bg: #E5F1DB; --danger: #C0503A;
+  --kbd-bg: #E3F1EE; --kbd-ink: #2B8C98;
+  --badge: #2B8C98; --badge-ink: #FBF8F1; --badge-border: 2px solid #FBF8F1;
+  --vp-bg: #FFFFFF; --vp-ink: #22302F; --vp-border: 1px solid #E0D4BA; --vp-radius: 12px;
+  --active-row: #FCEEE6; --divider: 1px solid #EFE7D7; --divider-soft: 1px solid #F1EADC; --sep: #E6DDCB;
+  --fab-radius: 12px; --card-radius: 8px; --card-shadow: drop-shadow(0 1px 1px rgba(40,30,10,.12)) drop-shadow(0 4px 8px rgba(40,30,10,.10));
+  --avatar-radius: 50%; --avatar-shadow: 0 1px 3px rgba(0,0,0,.12);
+  /* seats: You (blue) · orange · ivory · charcoal */
+  --p0: #4A7FD6; --p1: #F2934A; --p2: #D8CFBB; --p3: #3E4752;
+  --p0-text: #2C5BA8; --p1-text: #C7661F; --p2-text: #8C7B57; --p3-text: #3E4752;
+  --p0-ink: #fff; --p1-ink: #fff; --p2-ink: #2E3A3D; --p3-ink: #fff;
+  --row-tint: 7%; --vp-tint: 22%;
+  --h2-bg: linear-gradient(90deg, #FCE7DC, #FDF4EC); --h2-bg-2: linear-gradient(90deg, #E2F2EE, #F1F8F5); --h2-border: 1px solid #F1E2D3;
+  --jicon-bg: #EEF7F4; --jicon-pad: 3px; --jicon-size: 22px;
+  --dust: #F4EEE1; --spark: #F0D892; --smoke: #F3EDE2; --ray: rgba(255,244,210,.55);
+  --ease-pop: cubic-bezier(.3,1.3,.6,1); --ease-out: cubic-bezier(.22,1,.36,1);
+  --bank-bg: #FFF6E6; --bank-border: 1px solid #F2DDB4;
+  --m-build-bg: #FBEFD9; --m-build-border: #F0D7A6; --m-trade-bg: #E6F4F1; --m-trade-border: #BFE0D9; --m-cards-bg: #E8EFFB; --m-cards-border: #C6D6F2;
+  --rush-ring: #D9714E; --rush-track: #F1E6D6; --rush-badge-bg: #FCEBE3; --rush-badge-ink: #A84E2F;
+  --persona-bg: #EEF2F1; --persona-ink: #4A5557; --persona-border: 0;
+  --persona-trader-bg: #E2F2EE; --persona-trader-ink: #1F6E77;
+  --persona-builder-bg: #FBEFD9; --persona-builder-ink: #8A5A12;
+  --persona-shark-bg: #FCE3DB; --persona-shark-ink: #A84E2F;
+  --persona-expert-bg: #E8EFFB; --persona-expert-ink: #2C5BA8;
+  --persona-beginner-bg: #E9F2DA; --persona-beginner-ink: #4F7A2A;
+}
+[data-theme="A"] .panel > h2 .ic { font-size: 20px; opacity: .9; }
+[data-theme="A"] .app .btn { font-weight: 600; }
+[data-theme="A"] .app .side-actions .btn:first-child { background: #E6F4F1; border-color: #BFE0D9; color: #1F6E77; }
+[data-theme="A"] .app .side-actions .btn:last-child { background: #E8EFFB; border-color: #C6D6F2; color: #2C5BA8; }
+[data-theme="A"] .cost { background: #FFFFFF; }
+[data-theme="A"] .turn-banner b { font-size: 22px; }
+
+/* ── New-game screen (owned by game.js) in the Sunny Island look ─────────── */
+[data-theme="A"] .newgame-modal { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; background: rgba(24,40,42,.45); backdrop-filter: blur(3px); padding: 16px; font-family: var(--font-body); color: var(--ink); }
+[data-theme="A"] .newgame-modal .ng-card { background: var(--panel); border: var(--panel-border); border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,.3); width: min(960px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 22px 26px 0; text-align: left; }
+[data-theme="A"] .newgame-modal .ng-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+[data-theme="A"] .newgame-modal .ng-title { font-family: var(--font-display); font-weight: 400; font-size: 32px; color: var(--heading); margin: 0; }
+[data-theme="A"] .newgame-modal .ng-subtitle { color: var(--ink-soft); font-size: 14.5px; margin: 4px 0 0; }
+[data-theme="A"] .newgame-modal button { font-family: var(--font-body); }
+[data-theme="A"] .newgame-modal .ng-pill-btn { min-height: 40px; padding: 0 14px; border-radius: 999px; background: var(--btn); border: var(--btn-border); color: var(--ink); font-weight: 650; font-size: 13.5px; box-shadow: var(--btn-shadow); }
+[data-theme="A"] .newgame-modal .ng-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 16px; }
+[data-theme="A"] .newgame-modal .ng-section { background: #FFFFFF; border: 1px solid #EDE4D3; border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+[data-theme="A"] .newgame-modal .ng-rush-section { background: #FFF6F0; border-color: #F3D9CB; }
+[data-theme="A"] .newgame-modal .ng-section-title { font-family: var(--font-body); font-size: 11.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); margin: 0 0 10px; }
+[data-theme="A"] .newgame-modal .ng-rush-section .ng-section-title { color: #A84E2F; }
+[data-theme="A"] .newgame-modal .ng-mode-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+[data-theme="A"] .newgame-modal .ng-mode-card { position: relative; display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 12px 14px; border-radius: 12px; background: var(--btn); border: 1.5px solid #E2D8C4; color: var(--ink); min-height: 96px; }
+[data-theme="A"] .newgame-modal .ng-mode-card.selected { border-color: var(--accent); background: #FFF6F0; box-shadow: 0 0 0 3px rgba(217,113,78,.14); }
+[data-theme="A"] .newgame-modal .ng-mode-name { font-family: var(--font-display); font-size: 21px; color: var(--heading); display: flex; align-items: center; gap: 8px; }
+[data-theme="A"] .newgame-modal .ng-mode-icon { width: 28px; height: 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; background: #E6F4F1; color: #1F6E77; font-family: var(--font-body); }
+[data-theme="A"] .newgame-modal .rush .ng-mode-icon { background: #FCE3DB; color: #A84E2F; }
+[data-theme="A"] .newgame-modal .ng-mode-desc { font-size: 12.5px; color: var(--ink-soft); line-height: 1.35; }
+[data-theme="A"] .newgame-modal .ng-mode-tag, [data-theme="A"] .newgame-modal .ng-new { position: absolute; top: 8px; right: 8px; font-size: 9.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--accent); color: #fff; }
+[data-theme="A"] .newgame-modal .ng-row { padding: 10px 0; border-top: 1px solid #F1EADC; display: flex; flex-direction: column; gap: 6px; }
+[data-theme="A"] .newgame-modal .ng-section-title + .ng-row, [data-theme="A"] .newgame-modal .ng-mode-row + .ng-row { border-top: 0; padding-top: 0; }
+[data-theme="A"] .newgame-modal .ng-row-inline { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+[data-theme="A"] .newgame-modal .ng-row-label { font-weight: 750; font-size: 14.5px; color: var(--heading); }
+[data-theme="A"] .newgame-modal .ng-row-label-sm { font-size: 13px; color: var(--ink-soft); }
+[data-theme="A"] .newgame-modal .ng-help { font-size: 12.5px; color: var(--ink-soft); line-height: 1.4; margin: 4px 0 0; }
+[data-theme="A"] .newgame-modal .ng-help strong { color: var(--ink); }
+[data-theme="A"] .newgame-modal .ng-seg { display: flex; flex-wrap: wrap; gap: 6px; }
+[data-theme="A"] .newgame-modal .ng-seg-btn { min-height: 38px; padding: 0 14px; border-radius: 999px; background: var(--btn); border: 1px solid #E2D8C4; color: var(--ink); font-weight: 650; font-size: 13.5px; }
+[data-theme="A"] .newgame-modal .ng-seg-btn.selected { background: #FFF6F0; border: 1.5px solid var(--accent); color: #A84E2F; box-shadow: 0 0 0 2px rgba(217,113,78,.12); }
+[data-theme="A"] .newgame-modal .ng-seg-round .ng-seg-btn { width: 40px; padding: 0; }
+[data-theme="A"] .newgame-modal .ng-seg-bar { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0; border: 1px solid #E2D8C4; border-radius: 10px; overflow: hidden; background: var(--btn); }
+[data-theme="A"] .newgame-modal .ng-seg-bar .ng-seg-btn { border: 0; border-radius: 0; min-height: 34px; padding: 0 6px; font-size: 12.5px; box-shadow: none; }
+[data-theme="A"] .newgame-modal .ng-seg-bar .ng-seg-btn + .ng-seg-btn { border-left: 1px solid #EFE7D7; }
+[data-theme="A"] .newgame-modal .ng-seg-bar .ng-seg-btn.selected { background: #E6F4F1; color: #1F6E77; box-shadow: none; }
+[data-theme="A"] .newgame-modal .ng-stepper { display: inline-flex; align-items: center; border: 1px solid #E2D8C4; border-radius: 10px; background: var(--btn); overflow: hidden; }
+[data-theme="A"] .newgame-modal .ng-step-btn { width: 40px; height: 38px; font-size: 18px; font-weight: 700; color: var(--ink); }
+[data-theme="A"] .newgame-modal .ng-step-btn:disabled { opacity: .35; }
+[data-theme="A"] .newgame-modal .ng-step-value { min-width: 40px; text-align: center; font-family: var(--font-display); font-size: 20px; color: var(--heading); }
+[data-theme="A"] .newgame-modal .ng-switch { width: 46px; height: 28px; border-radius: 14px; background: #D9CFBB; position: relative; }
+[data-theme="A"] .newgame-modal .ng-switch span { position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left 160ms; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+[data-theme="A"] .newgame-modal .ng-switch.on { background: var(--accent); }
+[data-theme="A"] .newgame-modal .ng-switch.on span { left: 21px; }
+[data-theme="A"] .newgame-modal .ng-map-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+[data-theme="A"] .newgame-modal .ng-map-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; border-radius: 12px; background: var(--btn); border: 1px solid #E2D8C4; font-size: 12.5px; font-weight: 650; color: var(--ink); text-align: center; }
+[data-theme="A"] .newgame-modal .ng-map-card.selected { border: 1.5px solid var(--accent); background: #FFF6F0; color: #A84E2F; }
+[data-theme="A"] .newgame-modal .ng-map-icon { display: grid; grid-template-columns: repeat(3, 12px); gap: 1px 0; justify-content: center; }
+[data-theme="A"] .newgame-modal .ng-map-icon i { width: 12px; height: 13px; background: var(--hex); clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+[data-theme="A"] .newgame-modal .ng-map-icon i:nth-child(n+4) { transform: translateX(6px); }
+[data-theme="A"] .newgame-modal .ng-presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin: 10px 0 4px; }
+[data-theme="A"] .newgame-modal .ng-preset { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; padding: 9px 11px; border-radius: 12px; background: var(--btn); border: 1px solid #E2D8C4; color: var(--ink); min-height: 54px; }
+[data-theme="A"] .newgame-modal .ng-preset.selected { border: 1.5px solid var(--accent); background: #FFF6F0; box-shadow: 0 0 0 2px rgba(217,113,78,.12); }
+[data-theme="A"] .newgame-modal .ng-preset-name { font-weight: 750; font-size: 14px; color: var(--heading); }
+[data-theme="A"] .newgame-modal .ng-preset-tag { font-size: 11.5px; color: var(--ink-soft); }
+[data-theme="A"] .newgame-modal .ng-preset .ng-new { top: auto; bottom: 6px; right: 6px; font-size: 8.5px; padding: 1px 5px; background: #E2F2EE; color: #1F6E77; }
+[data-theme="A"] .newgame-modal .ng-finetune { margin-top: 8px; border-top: 1px solid #F1EADC; padding-top: 8px; }
+[data-theme="A"] .newgame-modal .ng-finetune summary { cursor: pointer; background: none; border: 0; padding-left: 0; font-weight: 750; font-size: 14px; color: var(--heading); padding: 6px 0; list-style: none; }
+[data-theme="A"] .newgame-modal .ng-finetune summary::-webkit-details-marker { display: none; }
+[data-theme="A"] .newgame-modal .ng-finetune summary::before { content: "▸ "; color: var(--accent); }
+[data-theme="A"] .newgame-modal .ng-finetune[open] summary::before { content: "▾ "; }
+[data-theme="A"] .newgame-modal .ng-finetune-hint { font-weight: 600; font-size: 12px; color: var(--ink-soft); margin-left: 4px; }
+[data-theme="A"] .newgame-modal .ng-dim { padding: 8px 0; }
+[data-theme="A"] .newgame-modal .ng-dim-label { font-weight: 750; font-size: 13.5px; color: var(--heading); margin-bottom: 5px; }
+[data-theme="A"] .newgame-modal .ng-dim-label span { font-weight: 600; font-size: 11.5px; color: var(--ink-soft); margin-left: 6px; }
+[data-theme="A"] .newgame-modal .ng-table { display: flex; flex-direction: column; gap: 8px; }
+[data-theme="A"] .newgame-modal .ng-bot { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--pc) 7%, #fff); border: 1px solid #EDE4D3; }
+[data-theme="A"] .newgame-modal .ng-bot .avatar { --av: 40px; --av-ring: 2.5px; }
+[data-theme="A"] .newgame-modal .ng-bot-info { flex: 1; min-width: 0; }
+[data-theme="A"] .newgame-modal .ng-bot-name { display: flex; align-items: center; gap: 6px; font-weight: 750; font-size: 15px; flex-wrap: wrap; }
+[data-theme="A"] .newgame-modal .ng-bot-name > span:first-child { color: var(--pc-text) !important; }
+[data-theme="A"] .newgame-modal .ng-bot-desc { font-size: 12px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-theme="A"] .newgame-modal .ng-bot-select { font: inherit; font-size: 13px; padding: 8px; border-radius: 10px; border: 1px solid #E2D8C4; background: var(--btn); color: var(--ink); }
+[data-theme="A"] .newgame-modal .ng-footer { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin: 4px -26px 0; padding: 14px 26px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(rgba(253,251,246,.9), var(--panel) 30%); border-top: 1px solid #EFE7D7; }
+[data-theme="A"] .newgame-modal .ng-summary { font-size: 13px; color: var(--ink-soft); flex: 1 1 260px; line-height: 1.4; }
+[data-theme="A"] .newgame-modal .ng-summary strong { color: var(--heading); }
+[data-theme="A"] .newgame-modal .ng-actions { display: flex; gap: 10px; }
+[data-theme="A"] .newgame-modal .ng-cancel { min-height: 48px; padding: 0 20px; border-radius: 10px; background: var(--btn); border: var(--btn-border); color: var(--ink); font-weight: 650; font-size: 15px; }
+[data-theme="A"] .newgame-modal .ng-start { min-height: 48px; padding: 0 26px; border-radius: 10px; background: var(--primary); background-image: var(--primary-image); border: var(--primary-border); color: var(--primary-ink); font-family: var(--font-display); font-size: 20px; box-shadow: var(--primary-shadow); }
+@media (max-width: 760px) {
+  [data-theme="A"] .newgame-modal { padding: 0; align-items: flex-end; }
+  [data-theme="A"] .newgame-modal .ng-card { border-radius: 22px 22px 0 0; max-height: calc(100dvh - 12px); padding: 18px 14px 0; }
+  [data-theme="A"] .newgame-modal .ng-columns { grid-template-columns: 1fr; gap: 0; }
+  [data-theme="A"] .newgame-modal .ng-title { font-size: 28px; }
+  [data-theme="A"] .newgame-modal .ng-section { padding: 12px; }
+  [data-theme="A"] .newgame-modal .ng-footer { margin: 4px -14px 0; padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); }
+  [data-theme="A"] .newgame-modal .ng-actions { width: 100%; display: grid; grid-template-columns: 1fr 1.6fr; }
+  [data-theme="A"] .newgame-modal .ng-summary { flex-basis: 100%; }
+}

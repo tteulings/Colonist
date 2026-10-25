@@ -1,6 +1,13 @@
+import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg } from "./themes/manager.js";
+import { SvgBoardRenderer } from "./themes/board-renderer.js";
+import { Fx } from "./themes/fx.js";
+import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
+import { TERRAIN_NAME, DEV_NAME, CARD_TEXT } from "./themes/art-util.js";
+
 const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore: "Or" };
-const RESOURCE_LABEL = { wood: "Wood", brick: "Brick", sheep: "Sheep", wheat: "Wheat", ore: "Ore" };
+// Glossary names (shared/glossary.md): cards are Lumber / Brick / Wool / Grain / Ore
+const RESOURCE_LABEL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
 const RESOURCE_ICON_PATH = {
   wood: "./assets/icons/resource-wood-v2.svg",
   brick: "./assets/icons/resource-brick-v2.svg",
@@ -43,9 +50,9 @@ const PIECE_LIMITS = { road: 15, settlement: 5, city: 4 };
 
 const PLAYER_CONFIG = [
   { name: "You", color: "#e63946", isHuman: true, avatar: "./assets/avatars/avatar-human.svg?v=57" },
-  { name: "Pioneer AI", color: "#2a6fdb", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg?v=57" },
-  { name: "Sage AI", color: "#e8a317", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
-  { name: "Vector AI", color: "#2db87e", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
+  { name: "Marina", color: "#2a6fdb", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg?v=57" },
+  { name: "Bruno", color: "#e8a317", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
+  { name: "Viktor", color: "#2db87e", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
 ];
 
 const DEV_CARD_TYPES = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
@@ -790,10 +797,12 @@ class ColonistFullGame {
     this.hoverPointer = { x: 0, y: 0 };
     this.hoverTooltip = "";
 
+    this._initTheme();
     this.configureCanvasResolution();
     this.fitCanvasToContainer();
     this.populateResourceSelects();
     this.bindControls();
+    this._bindThemeUI();
     if (!this.loadFromStorage()) {
       this.resetGame();
     }
@@ -815,31 +824,20 @@ class ColonistFullGame {
     if (!container) return;
     const rect = container.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
-    if (window.innerWidth <= 1080) {
-      const w = Math.round(rect.width);
-      const h = Math.round(rect.height);
-      if (w !== this.boardWidth || h !== this.boardHeight) {
-        this.boardWidth = w;
-        this.boardHeight = h;
-        this.configureCanvasResolution();
-        this.rebuildGeometry();
-      }
-      this.canvas.style.width = "100%";
-      this.canvas.style.height = "100%";
-      this.canvas.style.margin = "0";
-      return;
+    const w = Math.round(rect.width);
+    const h = Math.round(rect.height);
+    const dpr = clamp(window.devicePixelRatio || 1, 1, 2);
+    if (w !== this.boardWidth || h !== this.boardHeight || dpr !== this.pixelRatio) {
+      this.boardWidth = w;
+      this.boardHeight = h;
+      this.configureCanvasResolution();
+      this.rebuildGeometry();
+      this.fitView();
+      this.boardRenderer?.invalidateStatic();
     }
-    const aspect = this.boardWidth / this.boardHeight;
-    const containerAspect = rect.width / rect.height;
-    if (containerAspect > aspect) {
-      this.canvas.style.height = "100%";
-      this.canvas.style.width = Math.round(rect.height * aspect) + "px";
-      this.canvas.style.margin = "0 auto";
-    } else {
-      this.canvas.style.width = "100%";
-      this.canvas.style.height = Math.round(rect.width / aspect) + "px";
-      this.canvas.style.margin = "auto 0";
-    }
+    this.canvas.style.width = "100%";
+    this.canvas.style.height = "100%";
+    this.canvas.style.margin = "0";
   }
 
   rebuildGeometry() {
@@ -871,28 +869,35 @@ class ColonistFullGame {
   }
 
   handleResize() {
+    this._updateLayoutMode();
     this.fitCanvasToContainer();
+    this.fitView();
+    this.boardRenderer?.invalidateStatic();
+    this._invalidateUI();
     this.render();
   }
 
   startAnimationLoop() {
     const frameInterval = 1000 / 32;
     const step = (ts) => {
-      if (!this.lastAnimationTs) this.lastAnimationTs = ts;
-      const deltaMs = ts - this.lastAnimationTs;
+      this.animationFrame = window.requestAnimationFrame(step);
       if (document.hidden) {
         this.lastAnimationTs = ts;
-        this.animationFrame = window.requestAnimationFrame(step);
         return;
       }
-      if (deltaMs < frameInterval) {
-        this.animationFrame = window.requestAnimationFrame(step);
+      // SVG-art themes: the renderer redraws only when something changed or moves
+      if (this.boardRenderer) {
+        this.lastAnimationTs = ts;
+        this.boardRenderer.frame(ts);
         return;
       }
+      // Classic: the original animated canvas at ~30 fps
+      if (!this.lastAnimationTs) this.lastAnimationTs = ts;
+      const deltaMs = ts - this.lastAnimationTs;
+      if (deltaMs < frameInterval) return;
       this.lastAnimationTs = ts;
       this.animTime += deltaMs * 0.001;
       this.drawCanvasScene();
-      this.animationFrame = window.requestAnimationFrame(step);
     };
     this.animationFrame = window.requestAnimationFrame(step);
   }
@@ -972,7 +977,8 @@ class ColonistFullGame {
         this.startAutoplay();
       }
     });
-    this.canvas.addEventListener("click", (event) => this.handleBoardClick(event));
+    // Selecting a spot only redraws the board; refresh the status pill / confirm pill too
+    this.canvas.addEventListener("click", (event) => { this.handleBoardClick(event); this.renderStatusAndControls(); });
     this.canvas.addEventListener("mousemove", (event) => this.handleCanvasMouseMove(event));
     this.canvas.addEventListener("mouseleave", () => this.handleCanvasMouseLeave());
     this.canvas.addEventListener("mousedown", (event) => this.handleCanvasMouseDown(event));
@@ -1076,6 +1082,7 @@ class ColonistFullGame {
           ts.lastTapTime = 0;
         } else {
           this.handleBoardClick({ clientX: touch.clientX, clientY: touch.clientY });
+          this.renderStatusAndControls();
           ts.lastTapTime = now;
           ts.lastTapX = touch.clientX;
           ts.lastTapY = touch.clientY;
@@ -1102,10 +1109,11 @@ class ColonistFullGame {
     });
   }
 
-  toggleLog() {
-    const isOpen = this.railLog.classList.toggle("open");
-    this.logToggle.classList.toggle("active", isOpen);
-    this.logToggle.innerHTML = isOpen ? "&#10005;" : "&#9776;";
+  toggleLog(force) {
+    const isOpen = this.railLog.classList.toggle("open", force ?? !this.railLog.classList.contains("open"));
+    this.logToggle?.classList.toggle("active", isOpen);
+    if (isOpen) this.logContainer.scrollTop = this.logContainer.scrollHeight;
+    this._syncScrim?.();
   }
 
   get currentPlayer() {
@@ -1194,9 +1202,7 @@ class ColonistFullGame {
   }
 
   resetViewTransform() {
-    this.view.offsetX = 0;
-    this.view.offsetY = 0;
-    this.view.scale = 1;
+    this.fitView();
     this.render();
   }
 
@@ -1261,9 +1267,9 @@ class ColonistFullGame {
     this.currentTurnPlayedDevCard = false;
     this.longestRoadHolder = null;
     this.largestArmyHolder = null;
-    this.view.offsetX = 0;
-    this.view.offsetY = 0;
-    this.view.scale = 1;
+    this.fitView();
+    this.boardRenderer?.resync();
+    this._applyThemeToPlayers();
     this.hoverHexId = null;
     this.hoverNodeId = null;
     this.hoverEdgeId = null;
@@ -1272,7 +1278,7 @@ class ColonistFullGame {
 
     this.initialPlacement();
     this.recomputeScores();
-    this.addLog(`New ${this.isRush() ? "Rush" : "Classic"} game: first to ${this.settings.winPoints} VP.`);
+    this.addLog(`New ${this.isRush() ? "Rush" : "Classic"} game: first to ${this.settings.winPoints} points.`);
     this.render();
   }
 
@@ -1470,22 +1476,20 @@ class ColonistFullGame {
   shouldToast(text) {
     // Rush is busy: the feed carries the play-by-play, toasts only for the big moments
     if (this.rush) return /(\bwins?\b|moved robber)/i.test(text);
-    return /(rolled|built|upgraded|traded|played|stole|\bwins?\b|moved robber|\bgains?\b)/i.test(text);
+    return /(rolled|built|upgraded|traded|played|stole|\bwins?\b|moved robber|\bcollects?\b)/i.test(text);
   }
 
-  pushToast(text) {
+  pushToast(text, cls = "") {
     if (!this.toastStack) return;
     const toast = document.createElement("div");
-    toast.className = "toast";
-    // Use enriched HTML (with resource icons + colored player names) instead of plain text
-    toast.innerHTML = this._enrichLogText(text);
+    toast.className = `toast ${cls}`.trim();
+    toast.innerHTML = `${icon(this._logIcon(text))}<div>${this._enrichLogText(text)}</div>`;
     this.toastStack.appendChild(toast);
     while (this.toastStack.children.length > this.maxToasts) {
       this.toastStack.removeChild(this.toastStack.firstChild);
     }
     // Longer display for robber-related events so the player can follow what happened
-    const isRobberEvent = /(robber|stole|discard)/i.test(text);
-    const duration = isRobberEvent ? 4500 : 2600;
+    const duration = /(robber|stole|discard)/i.test(text) ? 4500 : 2600;
     window.setTimeout(() => {
       if (!toast.parentElement) return;
       toast.style.opacity = "0";
@@ -1555,59 +1559,11 @@ class ColonistFullGame {
 
   animateDiceRoll(callback, rollerPlayer = null) {
     callback = this._guard(callback);
-    const player = rollerPlayer || this.currentPlayer;
-    const overlay = document.createElement("div");
-    overlay.className = "dice-overlay";
-
-    // Show who is rolling
-    const label = document.createElement("div");
-    label.className = "dice-roller-label";
-    label.innerHTML = `<img src="${player.avatar}" alt="" /><span style="color:${player.color}">${player.name}</span>`;
-    overlay.appendChild(label);
-
-    const row = document.createElement("div");
-    row.className = "dice-row";
-    const die1 = document.createElement("div");
-    die1.className = "die rolling";
-    const die2 = document.createElement("div");
-    die2.className = "die rolling";
-    row.appendChild(die1);
-    row.appendChild(die2);
-    overlay.appendChild(row);
-
-    const totalEl = document.createElement("div");
-    totalEl.className = "dice-total";
-    totalEl.textContent = "";
-    overlay.appendChild(totalEl);
-
-    document.querySelector(".board-panel").appendChild(overlay);
+    const result = this.rollDice();
+    this.diceResult = result;
     this.sfx.diceRoll();
-
-    let ticks = 0;
-    const maxTicks = 12;
-    const tickInterval = setInterval(() => {
-      this._renderDieFace(die1, 1 + Math.floor(Math.random() * 6));
-      this._renderDieFace(die2, 1 + Math.floor(Math.random() * 6));
-      // Tick sounds during roll
-      if (ticks % 3 === 0) this._playNoise(0.02, 0.04);
-      ticks++;
-      if (ticks >= maxTicks) {
-        clearInterval(tickInterval);
-        const result = this.rollDice();
-        this.diceResult = result;
-        this._renderDieFace(die1, result.d1);
-        this._renderDieFace(die2, result.d2);
-        die1.classList.remove("rolling");
-        die2.classList.remove("rolling");
-        die1.classList.add("landed");
-        die2.classList.add("landed");
-        totalEl.textContent = result.total;
-        setTimeout(() => {
-          overlay.classList.add("fade-out");
-          setTimeout(() => { overlay.remove(); callback(); }, 300);
-        }, 600);
-      }
-    }, 70);
+    const ms = this.fx ? this.fx.diceRoll(result.d1, result.d2) : 600;
+    window.setTimeout(() => callback(), ms);
   }
 
   animateResourceGain(gains) {
@@ -1668,7 +1624,7 @@ class ColonistFullGame {
 
   _hexLabel(hex) {
     if (hex.resource === "desert" || !hex.number) return "the Desert";
-    return `the ${RESOURCE_LABEL[hex.resource]} hex (${hex.number})`;
+    return `the ${TERRAIN_NAME[hex.resource]} hex (${hex.number})`;
   }
 
   _robberInProgress() {
@@ -1691,6 +1647,8 @@ class ColonistFullGame {
   toggleDevCardPicker() {
     if (!this.devCardPicker) return;
     if (this.devCardPicker.style.display === "none") {
+      this.toggleBuildSheet?.(false);
+      this.hideTradePanel();
       this.renderDevCardPicker();
       this.devCardPicker.style.display = "";
     } else {
@@ -1704,27 +1662,30 @@ class ColonistFullGame {
 
   renderDevCardPicker() {
     if (!this.devPickerCards) return;
-    const human = this.players.find(p => p.isHuman);
+    const human = this.players.find((p) => p.isHuman);
     if (!human) return;
     const canPlay = this.currentPlayer.isHuman;
-    const DEV_TYPES = [
-      { type: "knight", label: "Knight", icon: "./assets/icons/dev-knight.svg" },
-      { type: "roadBuilding", label: "Roads", icon: "./assets/icons/dev-road-building.svg" },
-      { type: "yearOfPlenty", label: "Plenty", icon: "./assets/icons/dev-year-of-plenty.svg" },
-      { type: "monopoly", label: "Monopoly", icon: "./assets/icons/dev-monopoly.svg" },
-    ];
-    this.devPickerCards.innerHTML = DEV_TYPES.map(d => {
-      const count = human.devCards[d.type] || 0;
-      const enabled = canPlay && this.canPlayDevelopmentCard(human, d.type);
-      return `<button class="dev-picker-btn ${enabled ? "" : "disabled"}" data-dev-type="${d.type}" ${enabled ? "" : "disabled"}>
-        <img src="${d.icon}" alt="" /><span>${d.label}</span><span class="dev-picker-count">${count}</span>
-      </button>`;
+    const rush = this.isRush();
+    const lead = document.querySelector("#devPickerLead");
+    if (lead) lead.textContent = rush ? "One card per roll. Cards bought now can be played after the next roll." : "One card per turn. Cards bought this turn can be played next turn.";
+    const types = [...DEV_CARD_TYPES, "victoryPoint"];
+    const owned = types.filter((t) => (t === "victoryPoint" ? human.devVictoryPoints : human.devCards[t] + human.newDevCards[t]) > 0);
+    if (!owned.length) {
+      this.devPickerCards.innerHTML = `<p class="lead" style="grid-column:1/-1">No development cards yet. Buy one for ${resourceString(COSTS.development)}.</p>`;
+      return;
+    }
+    this.devPickerCards.innerHTML = owned.map((t) => {
+      if (t === "victoryPoint") {
+        return `<div class="dev-item">${`<span class="card">${cardSvg(t)}<span class="count">${human.devVictoryPoints}</span></span>`}<span class="dn">Victory Point</span><span class="dd">Counts automatically</span></div>`;
+      }
+      const count = human.devCards[t] + human.newDevCards[t];
+      const enabled = canPlay && human.devCards[t] > 0 && this.canPlayDevelopmentCard(human, t);
+      const why = human.devCards[t] === 0 ? (rush ? "New — after the next roll" : "New — play next turn") : CARD_TEXT[t];
+      return `<div class="dev-item${enabled ? "" : " none"}"><span class="card">${cardSvg(t)}<span class="count">${count}</span></span><span class="dn">${DEV_NAME[t]}</span><span class="dd">${why}</span>
+        <button type="button" class="btn primary dev-picker-btn" data-dev-type="${t}" ${enabled ? "" : "disabled"}>Play</button></div>`;
     }).join("");
-    // Add click handlers
-    this.devPickerCards.querySelectorAll(".dev-picker-btn:not(.disabled)").forEach(btn => {
-      btn.addEventListener("click", () => {
-        this.handleHumanPlayDevCard(btn.dataset.devType);
-      });
+    this.devPickerCards.querySelectorAll(".dev-picker-btn:not(:disabled)").forEach((btn) => {
+      btn.addEventListener("click", () => this.handleHumanPlayDevCard(btn.dataset.devType));
     });
   }
 
@@ -1749,10 +1710,10 @@ class ColonistFullGame {
       this.tradeRequest = makeEmptyResources();
       this.buildTradeGrids();
       this.updateTradeButtons();
-      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = '<span style="color:#22a854">Bank trade complete!</span>';
+      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = '<span class="ok">Harbor trade done!</span>';
       this.sfx.trade();
     } else {
-      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = '<span style="color:#c44">Bank trade failed.</span>';
+      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = '<span class="no">Harbor trade failed.</span>';
       this.sfx.error();
     }
     this.render();
@@ -2005,7 +1966,7 @@ class ColonistFullGame {
     const { x: sx, y: sy } = this.getCanvasPoint(event);
     const before = this.screenToWorld(sx, sy);
     const factor = event.deltaY < 0 ? 1.12 : 0.88;
-    this.view.scale = clamp(this.view.scale * factor, 0.45, 1.95);
+    this.view.scale = clamp(this.view.scale * factor, this._fitScale * 0.6, this._fitScale * 2.6);
     this.view.offsetX = sx - before.x * this.view.scale;
     this.view.offsetY = sy - before.y * this.view.scale;
     this.drawCanvasScene();
@@ -2026,7 +1987,7 @@ class ColonistFullGame {
     const factor = curr.dist / prev.dist;
     const mid = this.getCanvasPoint({ clientX: curr.midX, clientY: curr.midY });
     const before = this.screenToWorld(mid.x, mid.y);
-    this.view.scale = clamp(this.view.scale * factor, 0.35, 2.5);
+    this.view.scale = clamp(this.view.scale * factor, this._fitScale * 0.6, this._fitScale * 2.6);
     this.view.offsetX = mid.x - before.x * this.view.scale;
     this.view.offsetY = mid.y - before.y * this.view.scale;
 
@@ -2041,15 +2002,13 @@ class ColonistFullGame {
   handleDoubleTapZoom(clientX, clientY) {
     const pt = this.getCanvasPoint({ clientX, clientY });
     const before = this.screenToWorld(pt.x, pt.y);
-    // Toggle between zoomed-in and default
-    const targetScale = this.view.scale < 1.4 ? 1.8 : 1.0;
-    this.view.scale = targetScale;
-    if (targetScale === 1.0) {
-      this.view.offsetX = 0;
-      this.view.offsetY = 0;
-    } else {
+    // Toggle between zoomed-in and the fitted board
+    if (this.view.scale < this._fitScale * 1.4) {
+      this.view.scale = this._fitScale * 1.8;
       this.view.offsetX = pt.x - before.x * this.view.scale;
       this.view.offsetY = pt.y - before.y * this.view.scale;
+    } else {
+      this.fitView();
     }
     this.drawCanvasScene();
   }
@@ -2079,8 +2038,11 @@ class ColonistFullGame {
         this.canvas.style.cursor = "grab";
         this.render();
       }
-      // Close trade panel on Escape
+      // Close trade panel and sheets on Escape
       this.hideTradePanel();
+      this.hideDevCardPicker();
+      this.toggleBuildSheet?.(false);
+      if (this.railLog?.classList.contains("open") && this.isMobileLayout) this.toggleLog(false);
       return;
     }
 
@@ -2113,6 +2075,11 @@ class ColonistFullGame {
     }
     if (key === "b") {
       this.handleHumanBuyDevCard();
+      event.preventDefault();
+      return;
+    }
+    if (key === "p") {
+      this.toggleDevCardPicker();
       event.preventDefault();
       return;
     }
@@ -2307,7 +2274,7 @@ class ColonistFullGame {
       const totalOwed = claimants.reduce((sum, id) => sum + owed[id][resource], 0);
       if (!totalOwed) return;
       if (totalOwed > this.bank[resource] && claimants.length > 1) {
-        this.addLog(`Bank is short of ${resource} — no one receives it.`);
+        this.addLog(`Bank is short of ${RESOURCE_LABEL[resource]} — no one receives it.`);
         return;
       }
       claimants.forEach((id) => {
@@ -2316,7 +2283,7 @@ class ColonistFullGame {
     });
     gainByPlayer.forEach((gain, playerId) => {
       if (sumResources(gain) > 0) {
-        this.addLog(`${this.players[playerId].name} gain${this._s(this.players[playerId])} ${resourceString(gain)}.`);
+        this.addLog(`${this.players[playerId].name} collect${this._s(this.players[playerId])} ${resourceString(gain)}.`);
       }
     });
     return gainByPlayer;
@@ -2437,7 +2404,7 @@ class ColonistFullGame {
     if (this._isInteractive(currentPlayer)) {
       this.robberContext = { playerId: currentPlayer.id };
       this.pendingAction = "robber";
-      this.addLog("Move the robber — tap a hex.");
+      this.addLog("Move the robber — tap a tile.");
       this.render();
       return;
     }
@@ -2517,7 +2484,7 @@ class ColonistFullGame {
     const stolen = chooseRandomWeighted(available).resource;
     victim.resources[stolen] -= 1;
     currentPlayer.resources[stolen] += 1;
-    this.addLog(`${currentPlayer.name} stole 1 ${stolen} from ${victim.name}.`);
+    this.addLog(`${currentPlayer.name} stole 1 ${RESOURCE_LABEL[stolen]} from ${victim.name}.`);
     this.sfx.steal();
     this._showStealAnimation(currentPlayer, victim, stolen);
   }
@@ -2561,70 +2528,19 @@ class ColonistFullGame {
   }
 
   _animateTradeCards(give, get) {
-    // Fly cards from hand to top (give) and from top to hand (get)
-    const boardPanel = document.querySelector(".board-panel");
-    if (!boardPanel) return;
-    const boardRect = boardPanel.getBoundingClientRect();
-    const handStrip = document.querySelector(".hand-strip");
-    const handRect = handStrip ? handStrip.getBoundingClientRect() : null;
-    const handY = handRect ? handRect.top - boardRect.top : boardRect.height - 50;
-    const handX = boardRect.width / 2;
-    const bankY = 20;
-
-    // Cards going up (give)
-    RESOURCES.forEach((r) => {
-      for (let i = 0; i < (give[r] || 0); i++) {
-        const card = document.createElement("div");
-        card.className = `flying-card ${r}`;
-        card.innerHTML = `<img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />`;
-        card.style.left = `${handX - 14 + i * 8}px`;
-        card.style.top = `${handY}px`;
-        card.style.setProperty("--fly-x", `${0}px`);
-        card.style.setProperty("--fly-y", `${bankY - handY}px`);
-        boardPanel.appendChild(card);
-        setTimeout(() => card.remove(), 600);
-      }
-    });
-    // Cards coming down (get) — delayed slightly
-    setTimeout(() => {
+    // Received cards pop on the hand with a "+n" once the hand has re-rendered
+    window.setTimeout(() => {
       RESOURCES.forEach((r) => {
-        for (let i = 0; i < (get[r] || 0); i++) {
-          const card = document.createElement("div");
-          card.className = `flying-card ${r}`;
-          card.innerHTML = `<img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />`;
-          card.style.left = `${handX - 14 + i * 8}px`;
-          card.style.top = `${bankY}px`;
-          card.style.setProperty("--fly-x", `${0}px`);
-          card.style.setProperty("--fly-y", `${handY - bankY}px`);
-          card.style.borderColor = "rgba(61, 155, 143, 0.5)";
-          boardPanel.appendChild(card);
-          setTimeout(() => card.remove(), 600);
-        }
+        if (!get[r]) return;
+        const card = document.querySelector(`#resourceCardStrip .card[data-card="${r}"]`);
+        if (card) this.fx?.plus(card, get[r]);
       });
-    }, 250);
+    }, 60);
   }
 
   _showStealAnimation(thief, victim, resource) {
-    this._animateStealCard(thief, victim, resource);
-    const stack = document.getElementById("toastStack");
-    if (!stack) return;
-    const toast = document.createElement("div");
-    toast.className = "toast steal-toast";
-    toast.innerHTML = `
-      <img class="rgt-avatar" src="${thief.avatar}" alt="" />
-      <span style="color:${thief.color};font-weight:700;font-size:0.68rem">${thief.name}</span>
-      <span style="font-size:0.65rem;color:#c44">stole</span>
-      <img style="width:16px;height:16px" src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
-      <span style="font-size:0.65rem">from</span>
-      <img class="rgt-avatar" src="${victim.avatar}" alt="" />
-      <span style="color:${victim.color};font-weight:700;font-size:0.68rem">${victim.name}</span>
-    `;
-    stack.appendChild(toast);
-    setTimeout(() => {
-      toast.style.opacity = "0";
-      toast.style.transform = "translateY(-4px)";
-      setTimeout(() => toast.remove(), 180);
-    }, 3000);
+    const youInvolved = thief.isHuman || victim.isHuman;
+    this.fx?.steal(thief.id, victim.id, resource, youInvolved);
   }
 
   stealFromVictim(currentPlayer, victimId) {
@@ -2638,12 +2554,9 @@ class ColonistFullGame {
       const v = this.players[vid];
       const totalCards = sumResources(v.resources);
       const btn = document.createElement("button");
+      btn.type = "button";
       btn.className = "victim-btn";
-      btn.innerHTML = `
-        <img class="victim-avatar" src="${v.avatar}" alt="${v.name}" />
-        <span style="color:${v.color}">${v.name}</span>
-        <span class="victim-cards">${totalCards} cards</span>
-      `;
+      btn.innerHTML = `${this._av(v)}<span class="who pc-${v.id}">${v.name}</span><span class="vc">${icon("cards")}${totalCards} card${totalCards === 1 ? "" : "s"}</span>`;
       btn.addEventListener("click", this._guard(() => {
         if (!this.robberVictimOptions?.includes(vid)) return;
         this.stealFromVictim(currentPlayer, vid);
@@ -2698,73 +2611,64 @@ class ColonistFullGame {
   }
 
   _renderTradeHand(player) {
-    let strip = this.tradeModal?.querySelector(".trade-hand-strip");
-    if (!strip) {
-      strip = document.createElement("div");
-      strip.className = "trade-hand-strip";
-      // Insert after the header
-      const header = this.tradeModal.querySelector(".trade-panel-header");
-      header.insertAdjacentElement("afterend", strip);
-    }
-    if (!player) { strip.innerHTML = ""; return; }
-    const total = sumResources(player.resources);
-    strip.innerHTML = RESOURCES.map(r =>
-      `<div class="trade-hand-card ${r}${player.resources[r] === 0 ? " empty" : ""}">
-        <img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />
-        <span class="trade-hand-count">${player.resources[r]}</span>
-      </div>`
-    ).join("") + `<span class="trade-hand-total">${total}</span>`;
+    // Rates row: bank 4:1 plus the harbours this player owns
+    const el = document.querySelector("#tradeRates");
+    if (!el || !player) return;
+    const ports = new Set();
+    [...player.settlements, ...player.cities].forEach((n) => this.geometry.nodes[n].ports.forEach((t) => ports.add(t)));
+    const chips = [`<span class="rate">${icon("bank")}Bank 4 : 1</span>`];
+    if (ports.has("any")) chips.push(`<span class="rate">${icon("trade")}Any 3 : 1</span>`);
+    RESOURCES.filter((r) => ports.has(r)).forEach((r) => chips.push(`<span class="rate">${icon(r)}Your harbor 2 : 1</span>`));
+    el.innerHTML = chips.join("");
   }
 
   _renderResourceGrid(container, counts, maxCounts, isOffer) {
     if (!container) return;
-    container.innerHTML = "";
     const player = this.currentPlayer;
-    RESOURCES.forEach((resource) => {
-      const item = document.createElement("div");
-      item.className = "trade-res-item";
+    container.innerHTML = RESOURCES.map((resource) => {
       const max = maxCounts ? maxCounts[resource] : 19;
       const count = counts[resource];
       const rate = isOffer && player ? this.getPlayerTradeRate(player, resource) : null;
-
-      const card = document.createElement("div");
-      card.className = `trade-res-card ${resource}${count > 0 ? " has-count" : ""}`;
-      card.innerHTML = `
-        <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
-        ${count > 0 ? `<span class="trade-card-badge">${count}</span>` : ""}
-        ${isOffer && rate ? `<span class="trade-card-rate">${rate}:1</span>` : ""}
-      `;
-      // Left click = increment
+      return `<div class="rcell trade-res-item${count > 0 ? " pick" : ""}${isOffer && !max ? " dim" : ""}">
+        ${rate && rate < 4 ? `<span class="rate-tag">${rate}:1</span>` : ""}
+        <button type="button" class="card trade-res-card ${resource}${count > 0 ? " has-count" : ""}" data-res="${resource}" aria-label="${isOffer ? "Give" : "Want"} ${RESOURCE_LABEL[resource]}">${cardSvg(resource)}</button>
+        <span class="n">${count}</span>
+        ${isOffer ? `<span class="have">of ${max}</span>` : ""}
+        <div class="step"><button type="button" class="trade-res-minus" data-minus="${resource}" aria-label="One less" ${count > 0 && !this.tradeLocked ? "" : "disabled"}>−</button><button type="button" data-plus="${resource}" aria-label="One more" ${count < max && !this.tradeLocked ? "" : "disabled"}>+</button></div>
+      </div>`;
+    }).join("");
+    const inc = (resource) => {
+      if (this.tradeLocked) return; // grid is locked while a proposal is pending
+      const max = maxCounts ? maxCounts[resource] : 19;
+      if (counts[resource] + 1 > max) return;
+      counts[resource] += 1;
+      this._refreshTradeGrids();
+    };
+    container.querySelectorAll(".trade-res-card").forEach((card) => {
       card.addEventListener("click", () => {
-        if (this.tradeLocked) return; // grid is locked while a proposal is pending
-        const newVal = counts[resource] + 1;
-        if (newVal > max) return;
-        counts[resource] = newVal;
-        this._refreshTradeGrids();
+        // "You give": the first tap on a card offers a full bank/harbor set (fewer taps to trade)
+        const res = card.dataset.res;
+        if (isOffer && player && !this.tradeLocked && counts[res] === 0) {
+          const rate = this.getPlayerTradeRate(player, res);
+          const max = maxCounts ? maxCounts[res] : 19;
+          if (max >= rate) { counts[res] = rate; this._refreshTradeGrids(); return; }
+        }
+        inc(res);
       });
-      // Right click = decrement
       card.addEventListener("contextmenu", (e) => {
         e.preventDefault();
-        if (this.tradeLocked || counts[resource] <= 0) return;
-        counts[resource] -= 1;
+        if (this.tradeLocked || counts[card.dataset.res] <= 0) return;
+        counts[card.dataset.res] -= 1;
         this._refreshTradeGrids();
       });
-      item.appendChild(card);
-      // Small minus button when count > 0
-      if (count > 0) {
-        const minus = document.createElement("button");
-        minus.className = "trade-res-minus";
-        minus.textContent = "−";
-        minus.addEventListener("click", (e) => {
-          e.stopPropagation();
-          if (this.tradeLocked) return;
-          counts[resource] = Math.max(0, counts[resource] - 1);
-          this._refreshTradeGrids();
-        });
-        item.appendChild(minus);
-      }
-      container.appendChild(item);
     });
+    container.querySelectorAll("[data-plus]").forEach((b) => b.addEventListener("click", () => inc(b.dataset.plus)));
+    container.querySelectorAll("[data-minus]").forEach((b) => b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (this.tradeLocked) return;
+      counts[b.dataset.minus] = Math.max(0, counts[b.dataset.minus] - 1);
+      this._refreshTradeGrids();
+    }));
   }
 
   _refreshTradeGrids() {
@@ -2790,8 +2694,25 @@ class ColonistFullGame {
     }
     if (this.tradeExecuteBtn) {
       this.tradeExecuteBtn.disabled = !canBank;
-      const rateText = offeredTypes.length === 1 ? `(${this.getPlayerTradeRate(player, offeredTypes[0])}:1)` : "";
-      this.tradeExecuteBtn.textContent = `Bank ${rateText}`;
+      const rate = offeredTypes.length === 1 ? this.getPlayerTradeRate(player, offeredTypes[0]) : 4;
+      this.tradeExecuteBtn.innerHTML = `${icon("bank")}<span>${rate < 4 ? "Harbor" : "Bank"} ${rate}:1</span>`;
+    }
+    // Say why the bank/harbor trade is not available yet
+    const hint = document.querySelector("#tradeHint");
+    if (hint) {
+      let why = "";
+      if (!canBank) {
+        if (!offerTotal && !requestTotal) why = "Bank: give 4 of one kind (less at your harbors) for 1 card. Ask players: any mix.";
+        else if (offeredTypes.length !== 1) why = "Bank trades take one kind of card.";
+        else if (requestedTypes.length !== 1 || this.tradeRequest[requestedTypes[0]] !== 1) why = "Bank: pick exactly 1 card you want.";
+        else if (offeredTypes[0] === requestedTypes[0]) why = "Pick a different card to get.";
+        else if (this.bank[requestedTypes[0]] < 1) why = `The bank is out of ${RESOURCE_LABEL[requestedTypes[0]]}.`;
+        else {
+          const rate = this.getPlayerTradeRate(player, offeredTypes[0]);
+          why = `Bank: give exactly ${rate} ${RESOURCE_LABEL[offeredTypes[0]]} for 1.`;
+        }
+      }
+      hint.textContent = why;
     }
     // Player trade: any non-zero offer and request, with no resource on both sides
     if (this.tradeProposalBtn) {
@@ -2844,7 +2765,7 @@ class ColonistFullGame {
     // Show visual response for each player
     if (this.tradeProposalResult) {
       this.tradeProposalResult.innerHTML = responses.map(r =>
-        `<span style="color:${r.player.color};font-weight:800">${r.player.name}</span> ${r.accepts ? '<span style="color:#22a854">✓</span>' : '<span style="color:#c44">✗</span>'}`
+        `<span class="who pc-${r.player.id}">${r.player.name}</span> ${r.accepts ? '<span class="ok">✓</span>' : '<span class="no">✗</span>'}`
       ).join("&nbsp;&nbsp;");
     }
 
@@ -2855,7 +2776,7 @@ class ColonistFullGame {
         // Helper to execute trade with a chosen partner
         const executeTrade = this._guard((partner) => {
           if (!this._playerTradeStillValid(player, turnSerial, partner, offer, request)) {
-            this.tradeProposalResult.innerHTML = '<span style="color:#c44">Trade no longer valid.</span>';
+            this.tradeProposalResult.innerHTML = '<span class="no">Trade no longer valid.</span>';
             this.tradeLocked = false;
             return;
           }
@@ -2871,27 +2792,25 @@ class ColonistFullGame {
           this.tradeRequest = makeEmptyResources();
           this.buildTradeGrids();
           this.updateTradeButtons();
-          this.tradeProposalResult.innerHTML = `<strong style="color:#22a854">Traded with ${partner.name}!</strong>`;
+          this.tradeProposalResult.innerHTML = `<span class="ok">Traded with ${partner.name}!</span>`;
           this.tradeLocked = false;
           this.render();
         });
 
         if (acceptors.length === 1) {
           // Single acceptor: confirm/cancel
-          this.tradeProposalResult.innerHTML += `<br><strong style="color:#22a854">${acceptors[0].name} accepts!</strong>`;
+          this.tradeProposalResult.innerHTML += `<br><span class="ok">${acceptors[0].name} accepts!</span>`;
           const btnRow = document.createElement("div");
-          btnRow.style.cssText = "display:flex;gap:0.3rem;margin-top:0.3rem;justify-content:center";
+          btnRow.className = "row";
           const confirmBtn = document.createElement("button");
-          confirmBtn.className = "btn-build";
-          confirmBtn.style.cssText = "font-size:0.68rem;padding:0.25rem 0.7rem";
+          confirmBtn.className = "primary-sm";
           confirmBtn.textContent = "Confirm";
           const cancelBtn = document.createElement("button");
           cancelBtn.className = "btn-neutral";
-          cancelBtn.style.cssText = "font-size:0.68rem;padding:0.25rem 0.7rem";
           cancelBtn.textContent = "Cancel";
           confirmBtn.addEventListener("click", () => executeTrade(acceptors[0]));
           cancelBtn.addEventListener("click", () => {
-            this.tradeProposalResult.innerHTML = '<span style="color:#888">Trade cancelled.</span>';
+            this.tradeProposalResult.innerHTML = '<span>Trade cancelled.</span>';
             this.tradeLocked = false;
           });
           btnRow.appendChild(confirmBtn);
@@ -2901,21 +2820,19 @@ class ColonistFullGame {
           // Multiple acceptors: let player choose
           this.tradeProposalResult.innerHTML += `<br><span style="font-size:0.65rem">Choose trading partner:</span>`;
           const btnRow = document.createElement("div");
-          btnRow.style.cssText = "display:flex;gap:0.25rem;margin-top:0.25rem;justify-content:center;flex-wrap:wrap";
+          btnRow.className = "row";
           acceptors.forEach(acc => {
             const btn = document.createElement("button");
-            btn.className = "btn-build";
-            btn.style.cssText = `font-size:0.65rem;padding:0.2rem 0.5rem;color:#fff`;
-            btn.innerHTML = `<img src="${acc.avatar}" style="width:14px;height:14px;border-radius:99px;vertical-align:middle;margin-right:3px" />${acc.name}`;
+            btn.className = "primary-sm";
+            btn.innerHTML = `${acc.name}`;
             btn.addEventListener("click", () => executeTrade(acc));
             btnRow.appendChild(btn);
           });
           const cancelBtn = document.createElement("button");
           cancelBtn.className = "btn-neutral";
-          cancelBtn.style.cssText = "font-size:0.65rem;padding:0.2rem 0.5rem";
           cancelBtn.textContent = "Cancel";
           cancelBtn.addEventListener("click", () => {
-            this.tradeProposalResult.innerHTML = '<span style="color:#888">Trade cancelled.</span>';
+            this.tradeProposalResult.innerHTML = '<span>Trade cancelled.</span>';
             this.tradeLocked = false;
           });
           btnRow.appendChild(cancelBtn);
@@ -2929,17 +2846,16 @@ class ColonistFullGame {
       if (counter && this.tradeProposalResult) {
         const cGive = resourceString(counter.give);
         const cWant = resourceString(counter.want);
-        this.tradeProposalResult.innerHTML += `<br><span style="color:${counter.player.color};font-weight:700">${counter.player.name}</span>: I'll give ${cGive} for ${cWant}`;
+        this.tradeProposalResult.innerHTML += `<br><span class="who pc-${counter.player.id}">${counter.player.name}</span>: “I'll give ${cGive} for ${cWant}.”`;
         // Add accept button for counter-offer
         const acceptBtn = document.createElement("button");
-        acceptBtn.className = "btn-build";
-        acceptBtn.style.cssText = "font-size:0.65rem;padding:0.2rem 0.5rem;margin-left:0.3rem";
+        acceptBtn.className = "primary-sm";
         acceptBtn.textContent = "Accept";
         acceptBtn.addEventListener("click", this._guard(() => {
           // Execute the counter-offer trade — revalidate turn, phase and both hands first
           const human = player;
           if (!this._playerTradeStillValid(human, turnSerial, counter.player, counter.want, counter.give)) {
-            this.tradeProposalResult.innerHTML = '<span style="color:#c44">Trade no longer valid.</span>';
+            this.tradeProposalResult.innerHTML = '<span class="no">Trade no longer valid.</span>';
             this.tradeLocked = false;
             return;
           }
@@ -2955,7 +2871,7 @@ class ColonistFullGame {
           this.tradeRequest = makeEmptyResources();
           this.buildTradeGrids();
           this.updateTradeButtons();
-          this.tradeProposalResult.innerHTML = `<strong style="color:#22a854">Traded with ${counter.player.name}!</strong>`;
+          this.tradeProposalResult.innerHTML = `<span class="ok">Traded with ${counter.player.name}!</span>`;
           this.tradeLocked = false;
           this.render();
         }));
@@ -3106,44 +3022,25 @@ class ColonistFullGame {
   }
 
   _renderTradeCards(resources) {
-    let html = '<div class="incoming-trade-cards">';
-    RESOURCES.forEach(r => {
-      if (resources[r] > 0) {
-        for (let i = 0; i < resources[r]; i++) {
-          html += `<div class="incoming-trade-card ${r}"><img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" /></div>`;
-        }
-      }
+    let html = '<div class="offer-cards incoming-trade-cards">';
+    RESOURCES.forEach((r) => {
+      for (let i = 0; i < (resources[r] || 0); i += 1) html += `<span class="card incoming-trade-card ${r}" title="${RESOURCE_LABEL[r]}">${cardSvg(r)}</span>`;
     });
-    html += '</div>';
-    return html;
+    return html + "</div>";
   }
 
   showIncomingTrade(fromPlayer, give, want) {
     return new Promise((resolve) => {
       if (!this.incomingTradePanel) { resolve(false); return; }
-      // Render header with avatar
-      this.incomingTradeHeader.innerHTML = `<img src="${fromPlayer.avatar}" alt="" /><span style="color:${fromPlayer.color}">${fromPlayer.name}</span> wants to trade`;
-      // Render body with visual cards
-      const human = this.players.find(p => p.isHuman);
-      const handHtml = human ? `<div class="incoming-trade-hand">
-        <span class="incoming-trade-hand-label">Your hand:</span>
-        <div class="incoming-trade-hand-items">${RESOURCES.map(r =>
-          human.resources[r] > 0 ? `<span class="incoming-trade-hand-item ${r}"><img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />${human.resources[r]}</span>` : ""
-        ).join("")}</div>
-      </div>` : "";
-      this.incomingTradeBody.innerHTML = `
-        ${handHtml}
-        <div class="incoming-trade-row">
-          <span class="incoming-trade-row-label">You get:</span>
-          ${this._renderTradeCards(give)}
-        </div>
-        <div class="incoming-trade-arrow"><div class="incoming-trade-arrow-icon">&#8645;</div></div>
-        <div class="incoming-trade-row">
-          <span class="incoming-trade-row-label">You give:</span>
-          ${this._renderTradeCards(want)}
-        </div>
-      `;
+      this.incomingTradeHeader.innerHTML = `${this._av(fromPlayer)}<span><span class="who pc-${fromPlayer.id}">${fromPlayer.name}</span> wants to trade</span>`;
+      const human = this.players.find((p) => p.isHuman);
+      const handHtml = human ? `<div class="your-hand">Your hand: ${RESOURCES.filter((r) => human.resources[r] > 0).map((r) => `<span>${icon(r)}${human.resources[r]}</span>`).join("") || "empty"}</div>` : "";
+      this.incomingTradeBody.innerHTML = `<div class="offer-rows">
+          <div class="offer-row"><span class="lbl2">You get</span>${this._renderTradeCards(give)}</div>
+          <div class="offer-row"><span class="lbl2">You give</span>${this._renderTradeCards(want)}</div>
+        </div>${handHtml}`;
       this.pendingIncomingTrade = { fromPlayer, give, want, resolve };
+      this.toggleBuildSheet?.(false);
       this.incomingTradePanel.style.display = "";
     });
   }
@@ -3265,7 +3162,7 @@ class ColonistFullGame {
     player.resources[give] -= rate;
     this.bank[give] += rate;
     this.takeFromBank(player, get, 1);
-    this.addLog(`${player.name} traded ${rate} ${give} for 1 ${get}.`);
+    this.addLog(`${player.name} traded ${rate} ${RESOURCE_LABEL[give]} for 1 ${RESOURCE_LABEL[get]}.`);
     return true;
   }
 
@@ -3283,7 +3180,7 @@ class ColonistFullGame {
     if (card === "victoryPoint") {
       player.devVictoryPoints += 1;
       if (player.isHuman) {
-        this.addLog(`You drew a Victory Point! (kept secret)`);
+        this.addLog(`You drew a Victory Point card (kept secret).`);
         this._showDevCardPopup("Victory Point", "Counts as 1 VP at game end");
       } else {
         this.addLog(`${player.name} bought a development card.`);
@@ -3313,15 +3210,13 @@ class ColonistFullGame {
   }
 
   _showDevCardPopup(title, description) {
+    const type = Object.keys(DEV_NAME).find((k) => DEV_NAME[k] === title) || "knight";
+    this.fx?.devReveal(type);
     const stack = document.getElementById("toastStack");
     if (!stack) return;
     const toast = document.createElement("div");
     toast.className = "toast dev-card-toast";
-    toast.innerHTML = `
-      <div style="font-weight:800;font-size:0.78rem;color:#1a3a5c">You drew:</div>
-      <div style="font-weight:800;font-size:0.9rem;color:#44965f">${title}</div>
-      <div style="font-size:0.65rem;color:#45658f;margin-top:0.1rem">${description}</div>
-    `;
+    toast.innerHTML = `<span class="card">${cardSvg(type)}</span><div>You drew <b>${title}</b><span class="sub">${description}</span></div>`;
     stack.appendChild(toast);
     setTimeout(() => {
       toast.style.opacity = "0";
@@ -3376,7 +3271,7 @@ class ColonistFullGame {
         const count = Math.min(2, sumResources(this.bank));
         this._showResourcePicker(`Year of Plenty — pick ${count} resource${count > 1 ? "s" : ""}`, count, this._guard((picks) => {
           const gained = picks.filter((resource) => this.takeFromBank(player, resource, 1) > 0);
-          this.addLog(`${player.name} played Year of Plenty and gained ${gained.join(" + ")}.`);
+          this.addLog(`${player.name} played Year of Plenty and took ${gained.map((r) => `1 ${RESOURCE_LABEL[r]}`).join(" + ")}.`);
           this.recomputeScores();
           this.checkForWinner(player);
           this.render();
@@ -3385,7 +3280,7 @@ class ColonistFullGame {
       }
       const picks = this.chooseYearOfPlentyResources(player);
       const gained = picks.filter((resource) => this.takeFromBank(player, resource, 1) > 0);
-      this.addLog(`${player.name} played Year of Plenty and gained ${gained.join(" + ")}.`);
+      this.addLog(`${player.name} played Year of Plenty and took ${gained.map((r) => `1 ${RESOURCE_LABEL[r]}`).join(" + ")}.`);
     } else if (type === "monopoly") {
       if (this._isInteractive(player)) {
         this._showResourcePicker("Monopoly — pick 1 resource to steal", 1, this._guard((picks) => {
@@ -3397,7 +3292,7 @@ class ColonistFullGame {
             other.resources[target] = 0;
           });
           player.resources[target] += collected;
-          this.addLog(`${player.name} played Monopoly on ${target} and collected ${collected}.`);
+          this.addLog(`${player.name} played Monopoly on ${RESOURCE_LABEL[target]} and collected ${collected}.`);
           this.recomputeScores();
           this.checkForWinner(player);
           this.render();
@@ -3412,7 +3307,7 @@ class ColonistFullGame {
         other.resources[target] = 0;
       });
       player.resources[target] += collected;
-      this.addLog(`${player.name} played Monopoly on ${target} and collected ${collected}.`);
+      this.addLog(`${player.name} played Monopoly on ${RESOURCE_LABEL[target]} and collected ${collected}.`);
     }
 
     this.recomputeScores();
@@ -3619,7 +3514,7 @@ class ColonistFullGame {
     }
     popup.innerHTML = `
       <div class="ai-reasoning-header" style="color:${player.color}">
-        <img src="${player.avatar}" style="width:18px;height:18px;border-radius:99px" />
+        ${this._av(player)}
         ${player.name}'s Turn
       </div>
       ${lines.map(l => `<div class="ai-reasoning-line">${l}</div>`).join("")}
@@ -4247,7 +4142,7 @@ class ColonistFullGame {
     if (player.victoryPoints >= this.winPoints) {
       this.winner = player;
       this.phase = "game_over";
-      this.addLog(`${player.name} win${this._s(player)} with ${player.victoryPoints} VP!`);
+      this.addLog(`${player.name} win${this._s(player)} with ${player.victoryPoints} points!`);
       this.stopAutoplay();
       if (this.rush) this._stopRushTimers();
       this.saveToStorage();
@@ -4304,7 +4199,7 @@ class ColonistFullGame {
       this.autoPlayCurrentTurn();
       this.render();
     }), delay);
-    this.autoplayBtn.textContent = "Stop Autoplay";
+    this.autoplayBtn.textContent = "Stop watching";
     // Rush: the human seat joins the bot ticks while autoplay runs
     if (this.rush && !this.setupPhase) {
       const human = this.players.find((p) => p.isHuman);
@@ -4322,7 +4217,7 @@ class ColonistFullGame {
     if (!this.autoplayInterval) return;
     window.clearInterval(this.autoplayInterval);
     this.autoplayInterval = null;
-    this.autoplayBtn.textContent = "Start Autoplay";
+    this.autoplayBtn.textContent = "Watch bots play";
   }
 
   stopAiTurnLoop() {
@@ -4473,6 +4368,7 @@ class ColonistFullGame {
       p.rushTradeTried = false;
     });
     this.addLog(`Roll #${r.rollNo}: rolled ${res.total}.`);
+    this.fx?.diceRoll(res.d1, res.d2);
     this.sfx.diceResult();
     this.lastDiceDisplay?.classList.remove("rush-flash");
     void this.lastDiceDisplay?.offsetWidth; // restart the flash animation
@@ -4742,19 +4638,21 @@ class ColonistFullGame {
     const el = this.rushOffersEl;
     if (!el) return;
     const offers = this.rush && !this.winner ? this.rush.offers : [];
-    const key = offers.map((o) => o.id).join(",");
+    const key = offers.map((o) => o.id).join(",") + this.theme?.id;
     if (key === this._lastOffersKey) return;
     this._lastOffersKey = key;
+    const icons = (res) => RESOURCES.flatMap((r) => Array(res[r] || 0).fill(icon(r))).join("");
+    el.dataset.more = offers.length > 1 ? `+${offers.length - 1} more` : "";
     el.innerHTML = offers.map((o) => {
       const p = this.players[o.fromId];
       return `<div class="rush-offer" data-offer="${o.id}">
-        <img class="rush-offer-avatar" src="${p.avatar}" alt="" />
+        ${this._av(p, "rush-offer-avatar")}
         <div class="rush-offer-body">
-          <div class="rush-offer-title"><span style="color:${p.color}">${p.name}</span> offers</div>
-          <div class="rush-offer-cards">${this._renderTradeCards(o.give)}<span class="rush-offer-for">for</span>${this._renderTradeCards(o.want)}</div>
+          <div class="rush-offer-title"><span class="who pc-${p.id}">${p.name}</span> offers</div>
+          <div class="rush-offer-cards">${icons(o.give)}<span class="rush-offer-for">for your</span>${icons(o.want)}</div>
         </div>
-        <button class="btn-build rush-offer-accept" data-accept="${o.id}">Accept</button>
-        <button class="btn-neutral rush-offer-decline" data-decline="${o.id}" aria-label="Decline">&times;</button>
+        <button type="button" class="rush-offer-accept" data-accept="${o.id}">Accept</button>
+        <button type="button" class="rush-offer-decline" data-decline="${o.id}" aria-label="Decline">${icon("close")}</button>
       </div>`;
     }).join("");
     el.querySelectorAll("[data-accept]").forEach((b) => b.addEventListener("click", () => this._resolveRushOffer(Number(b.dataset.accept), true)));
@@ -4791,6 +4689,8 @@ class ColonistFullGame {
     const total = this.settings.rushInterval * 1000;
     const left = Math.max(0, r.remainingMs);
     const secs = Math.ceil(left / 1000);
+    const titleEl = this.rushHud.querySelector("#rushTitle");
+    if (titleEl) titleEl.innerHTML = r.paused ? "<b>Paused</b> · robber!" : `Next roll · <b>Roll #${r.rollNo + 1}</b> · ${formatClock(r.clockMs)}`;
     const secEl = this.rushHud.querySelector("#rushSeconds");
     if (secEl) secEl.textContent = r.paused ? "7" : String(secs);
     const label = this.rushHud.querySelector("#rushSecondsLabel");
@@ -4807,7 +4707,9 @@ class ColonistFullGame {
     const n = this.players.length;
     const humanReady = r.ready.includes(human?.id);
     if (this.rushReadyBtn) {
-      this.rushReadyBtn.textContent = humanReady ? `Waiting (${r.ready.length}/${n})` : `Ready – roll now (${r.ready.length}/${n})`;
+      this.rushReadyBtn.innerHTML = humanReady
+        ? `${icon("check")}<span class="rr">Ready<small>waiting · ${r.ready.length}/${n}</small></span>`
+        : `${icon("dice")}<span class="rr">Ready<small>roll now · ${r.ready.length}/${n}</small></span>`;
       this.rushReadyBtn.classList.toggle("is-ready", humanReady);
       this.rushReadyBtn.disabled = r.paused || !!this.autoplayInterval;
     }
@@ -4816,7 +4718,7 @@ class ColonistFullGame {
     if (voters && votersKey !== this._lastVotersKey) {
       this._lastVotersKey = votersKey;
       voters.innerHTML = this.players.map((p) => `<span class="rush-voter${r.ready.includes(p.id) ? " ready" : ""}" title="${p.name}${r.ready.includes(p.id) ? " is ready" : ""}">
-        <img src="${p.avatar}" alt="" /><span class="rush-voter-dot"></span><span class="rush-voter-name">${p.isHuman ? "You" : p.name.replace(/ AI$/, "")}</span></span>`).join("");
+        ${this._av(p)}<span class="rush-voter-dot"></span><span class="rush-voter-name">${p.isHuman ? "You" : p.name.replace(/ AI$/, "")}</span></span>`).join("");
     }
     const next7 = this.rushHud.querySelector("#rushNext7");
     if (next7) {
@@ -4825,8 +4727,8 @@ class ColonistFullGame {
       const key = `${nextId}`;
       if (np && key !== this._lastNext7Key) {
         this._lastNext7Key = key;
-        next7.innerHTML = `<span class="rush-next7-label">Next 7 · robber moved by</span>
-          <span class="rush-next7-player"><img src="${np.avatar}" alt="" /><span style="color:${np.color}">${np.isHuman ? "You" : np.name}</span></span>`;
+        next7.innerHTML = `<span class="rush-next7-label">Next 7</span>
+          <span class="rush-next7-player" title="Next 7: the robber is moved by ${np.isHuman ? "you" : np.name}">${this._av(np)}<span class="nm who pc-${np.id}">${np.isHuman ? "You" : np.name}</span></span>`;
       }
     }
   }
@@ -4838,7 +4740,7 @@ class ColonistFullGame {
     const slot = panel.querySelector(".rush-seven-discard-slot");
     // In Rush the discard picker lives inside the 7-pause panel; in Classic it floats on its own
     if (this.discardPanel) {
-      const home = this.isRush() && slot ? slot : document.querySelector(".app-shell");
+      const home = this.isRush() && slot ? slot : document.querySelector("#app");
       if (home && this.discardPanel.parentElement !== home) home.appendChild(this.discardPanel);
     }
     panel.hidden = !seven;
@@ -4858,7 +4760,7 @@ class ColonistFullGame {
         let state = "safe ✓";
         let cls = "safe";
         if (pendingIds.includes(p.id)) { state = pendingIds[0] === p.id ? "choosing…" : "waiting"; cls = "choosing"; }
-        return `<span class="rush-seven-chip ${cls}"><img src="${p.avatar}" alt="" />${p.isHuman ? "You" : p.name} · ${cards}<em>${state}</em></span>`;
+        return `<span class="rush-seven-chip ${cls}">${this._av(p)}${p.isHuman ? "You" : p.name} · ${cards}<em>${state}</em></span>`;
       }).join("");
       discardStep.querySelector(".rush-seven-step-title").innerHTML =
         `<span class="rush-step-num">1</span>Discard half if you hold more than ${this.settings.discardLimit}${timerHtml}`;
@@ -4870,7 +4772,7 @@ class ColonistFullGame {
       const order = this.rush.robberOrder;
       const nexts = [1, 2, 3].slice(0, order.length - 1)
         .map((k) => this.players[order[(this.rush.robberIdx - 1 + k) % order.length]])
-        .map((p) => `<span style="color:${p.color}">${p.isHuman ? "You" : p.name}</span>`).join(", then ");
+        .map((p) => `<span class="who pc-${p.id}">${p.isHuman ? "You" : p.name}</span>`).join(", then ");
       let state = "waiting for discards";
       if (seven.stage === "robber") {
         state = humanPlacing
@@ -4878,7 +4780,7 @@ class ColonistFullGame {
           : "choosing a hex…";
       }
       robberStep.innerHTML = `<div class="rush-seven-step-title"><span class="rush-step-num">2</span>Robber moved by
-          <img class="rush-seven-avatar" src="${mover.avatar}" alt="" /><span style="color:${mover.color}">${mover.isHuman ? "You" : mover.name}</span>
+          ${this._av(mover, "rush-seven-avatar")}<span class="who pc-${mover.id}">${mover.isHuman ? "You" : mover.name}</span>
           <span class="rush-seven-state">${state}</span></div>
         ${nexts ? `<div class="rush-seven-next">Then the order continues: next 7 → ${nexts}.</div>` : ""}`;
     }
@@ -4888,25 +4790,37 @@ class ColonistFullGame {
   showGameOverOverlay() {
     if (document.querySelector(".game-over-overlay")) return;
     this.sfx.victory();
+    this.hideTradePanel();
+    this.toggleBuildSheet?.(false);
     const overlay = document.createElement("div");
-    overlay.className = "game-over-overlay";
+    overlay.className = "game-over-overlay tm";
     const winner = this.winner;
-    overlay.innerHTML = `
-      <div class="game-over-card">
-        <img class="game-over-avatar" src="${winner.avatar}" alt="${winner.name}" />
-        <h2 style="color:${winner.color}">${winner.name} win${this._s(winner)}!</h2>
-        <p>${winner.victoryPoints} Victory Points &middot; ${this.rush ? `Rush roll #${this.rush.rollNo} &middot; ${formatClock(this.rush.clockMs)}` : `Turn ${this.turn}`}</p>
-        <div class="game-over-stats">
-          ${this.players.map(p => `<span style="color:${p.color}">${p.name}: ${p.victoryPoints} VP</span>`).join("")}
-        </div>
-        <button class="game-over-btn" id="newGameBtn">New Game</button>
-      </div>
-    `;
-    document.querySelector(".board-panel").appendChild(overlay);
+    const ranked = [...this.players].sort((a, b) => b.victoryPoints - a.victoryPoints);
+    const lead = this.rush ? `${winner.victoryPoints} points · Rush roll #${this.rush.rollNo} · ${formatClock(this.rush.clockMs)}`
+      : `${winner.victoryPoints} points on turn ${this.turn}${winner.isHuman ? " — a fine colony." : "."}`;
+    overlay.innerHTML = `<div class="confetti-box"></div>
+      <div class="panel over-panel" role="dialog" aria-label="Game over">
+        <svg class="trophy" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-victoryPoint" x="-50" y="-50" width="100" height="100"/></svg>
+        <h3>${winner.isHuman ? "You win!" : `${winner.name} wins`}</h3>
+        <p class="lead">${lead}</p>
+        <div class="podium">${ranked.map((p, k) => {
+          const persona = p.personality ? AI_PRESET_INFO[p.personality]?.label : "";
+          return `<div class="r${p === winner ? " win" : ""}"><span class="pl">${k + 1}</span>${this._av(p)}<span class="nmc"><span class="pname">${p.name}</span>${persona ? `<small>${persona}</small>` : ""}</span><span class="s">${p.victoryPoints}</span></div>`;
+        }).join("")}</div>
+        <div class="btnrow"><button type="button" class="btn" data-see>${icon("fit")}See board</button><button type="button" class="btn primary game-over-btn" id="newGameBtn">${icon("dice")}Play again</button></div>
+      </div>`;
+    const host = this.isMobileLayout ? this.app : document.querySelector(".board-panel");
+    (host || document.body).appendChild(overlay);
+    this.fx?.pop(overlay.querySelector(".over-panel"));
+    if (winner.isHuman) this.fx?.confetti(overlay.querySelector(".confetti-box"));
     overlay.querySelector("#newGameBtn").addEventListener("click", () => {
       overlay.remove();
       this.stopAutoplay();
       this._showDifficultyModal();
+    });
+    overlay.querySelector("[data-see]").addEventListener("click", () => {
+      overlay.remove();
+      this.render();
     });
   }
 
@@ -5123,7 +5037,9 @@ class ColonistFullGame {
     this.setupAction = data.setupAction || null;
     this.lastSetupNodeId = data.lastSetupNodeId ?? null;
 
-    this.view = { offsetX: 0, offsetY: 0, scale: 1 };
+    this.fitView();
+    this.boardRenderer?.resync();
+    this._applyThemeToPlayers();
     this.hoverHexId = null;
     this.hoverNodeId = null;
     this.hoverEdgeId = null;
@@ -6260,177 +6176,120 @@ class ColonistFullGame {
 
   renderResourceCards() {
     const human = this.players.find((p) => p.isHuman);
-    if (!human) return;
-
-    // Bottom bar summary cards (desktop) — clickable to open trade
-    if (this.resourceCardStrip) {
-      const total = sumResources(human.resources);
-      this.resourceCardStrip.innerHTML = RESOURCES.map(
-        (resource) =>
-          `<div class="resource-card ${resource}" data-resource="${resource}" aria-label="${resource} ${human.resources[resource]}" style="cursor:pointer" title="Click to trade ${resource}">
-            <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
-            <span class="resource-count">${human.resources[resource]}</span>
-          </div>`,
-      ).join("") + `<div class="resource-total" title="Total cards">${total}</div>`;
-      // Click resource card to open trade with that resource pre-selected as "give"
-      this.resourceCardStrip.querySelectorAll(".resource-card[data-resource]").forEach(el => {
-        el.addEventListener("click", () => {
-          if (!this.currentPlayer?.isHuman || this.phase !== "main" || this.tradeLocked) return;
-          const res = el.dataset.resource;
-          if (human.resources[res] <= 0) return;
-          // Open trade panel and pre-select this resource
-          if (this.tradeModal?.style.display === "none" || !this.tradeModal?.style.display) {
-            this.tradeOffer = makeEmptyResources();
-            this.tradeRequest = makeEmptyResources();
-          }
-          this.tradeOffer[res] = Math.min(human.resources[res], (this.tradeOffer[res] || 0) + 1);
-          this.tradeModal.style.display = "";
-          if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
-          this.buildTradeGrids();
-          this.updateTradeButtons();
-          this.sfx.click();
-        });
-      });
-    }
-
-    // Hand strip — individual overlapping cards (bottom, above action bar on mobile)
-    if (this.handStrip) {
-      const cards = [];
-      RESOURCES.forEach((resource) => {
-        for (let i = 0; i < human.resources[resource]; i++) {
-          cards.push(resource);
-        }
-      });
-      // Only re-render hand strip when card composition changes (avoids replaying deal animation)
-      const handKey = cards.join(",");
-      if (handKey !== this._lastHandKey) {
-        this._lastHandKey = handKey;
-        if (cards.length === 0) {
-          this.handStrip.innerHTML = '<span class="hand-empty">No cards</span>';
-        } else {
-          // Dynamic overlap: more cards → tighter packing so they fit on screen
-          const stripWidth = this.handStrip.clientWidth || 320;
-          const cardW = 36;
-          const maxOverlap = -22; // tightest
-          const minOverlap = -10; // loosest
-          const overlap = cards.length <= 5 ? minOverlap
-            : Math.max(maxOverlap, Math.round((stripWidth - cardW) / (cards.length - 1)) - cardW);
-          this.handStrip.style.setProperty("--card-overlap", `${Math.min(overlap, minOverlap)}px`);
-          this.handStrip.innerHTML = cards.map((resource, i) =>
-            `<div class="hand-card ${resource}" data-resource="${resource}" style="--card-index:${i};cursor:pointer">
-              <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
-            </div>`
-          ).join("") + `<div class="hand-card-count-card"><span>${cards.length}</span></div>`;
-          // Tap a hand card to open trade with that resource
-          this.handStrip.querySelectorAll(".hand-card[data-resource]").forEach(el => {
-            el.addEventListener("click", () => {
-              if (!this.currentPlayer?.isHuman || this.phase !== "main" || this.tradeLocked) return;
-              const res = el.dataset.resource;
-              if (human.resources[res] <= 0) return;
-              if (this.tradeModal?.style.display === "none" || !this.tradeModal?.style.display) {
-                this.tradeOffer = makeEmptyResources();
-                this.tradeRequest = makeEmptyResources();
-              }
-              this.tradeOffer[res] = Math.min(human.resources[res], (this.tradeOffer[res] || 0) + 1);
-              this.tradeModal.style.display = "";
-              if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
-              this.buildTradeGrids();
-              this.updateTradeButtons();
-              this.sfx.click();
-            });
-          });
-        }
-      }
-    }
-
-    // Bank strip — stock counts at top of screen on mobile
-    if (this.bankStrip) {
-      this.bankStrip.innerHTML = RESOURCES.map(resource => {
-        const bankCount = this.bank[resource];
-        return `<div class="bank-item">
-          <img src="${RESOURCE_ICON_PATH[resource]}" alt="${resource}" />
-          <span>${bankCount}</span>
-        </div>`;
+    if (!human || !this.resourceCardStrip) return;
+    const devCounts = {};
+    DEV_CARD_TYPES.forEach((t) => { devCounts[t] = human.devCards[t] + human.newDevCards[t]; });
+    devCounts.victoryPoint = human.devVictoryPoints;
+    const total = sumResources(human.resources);
+    const devTotal = Object.values(devCounts).reduce((a, b) => a + b, 0);
+    if (this.handSummary) this.handSummary.textContent = `${total} resource card${total === 1 ? "" : "s"} · ${devTotal} development card${devTotal === 1 ? "" : "s"}`;
+    const key = JSON.stringify([human.resources, devCounts, human.newDevCards, this.theme.id, this.isMobileLayout]);
+    if (key === this._lastHandKey) return;
+    this._lastHandKey = key;
+    const devTypes = [...DEV_CARD_TYPES, "victoryPoint"].filter((t) => devCounts[t] > 0);
+    const n = RESOURCES.length + devTypes.length;
+    // Mobile: a gentle fan (±3°); desktop ignores the rotation
+    const fan = (i) => `--rot:${((i - (n - 1) / 2) * 2.6).toFixed(1)}deg;--dy:${(Math.abs(i - (n - 1) / 2) * 1.6).toFixed(1)}px`;
+    let html = RESOURCES.map((r, i) => {
+      const c = human.resources[r];
+      return `<button type="button" class="card${c ? "" : " empty"}" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: ${c}" title="${RESOURCE_LABEL[r]} — tap to trade">${cardSvg(r)}<span class="count">${c}</span></button>`;
+    }).join("");
+    if (devTypes.length) {
+      html += '<span class="sep"></span>' + devTypes.map((t, j) => {
+        const fresh = t !== "victoryPoint" && human.newDevCards[t] > 0 && human.devCards[t] === 0;
+        const name = DEV_NAME[t];
+        return `<button type="button" class="card dev${fresh ? " new" : ""}" data-dev="${t}" style="${fan(RESOURCES.length + j)}" aria-label="${name}: ${devCounts[t]}" title="${name}${fresh ? " — playable next turn" : ""}">${cardSvg(t)}<span class="count">${devCounts[t]}</span></button>`;
       }).join("");
     }
+    this.resourceCardStrip.innerHTML = html;
+    this.resourceCardStrip.querySelectorAll(".card[data-card]").forEach((el) => {
+      el.addEventListener("click", () => {
+        if (!this.currentPlayer?.isHuman || this.phase !== "main" || this.tradeLocked || this._robberInProgress()) return;
+        const res = el.dataset.card;
+        if (human.resources[res] <= 0) return;
+        // Open trade with this resource pre-selected as "give"
+        if (this.tradeModal?.style.display === "none" || !this.tradeModal?.style.display) {
+          this.tradeOffer = makeEmptyResources();
+          this.tradeRequest = makeEmptyResources();
+        }
+        this.tradeOffer[res] = Math.min(human.resources[res], (this.tradeOffer[res] || 0) + 1);
+        this.toggleBuildSheet(false);
+        this.hideDevCardPicker();
+        this.tradeModal.style.display = "";
+        if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
+        this.buildTradeGrids();
+        this.updateTradeButtons();
+        this.sfx.click();
+      });
+    });
+    this.resourceCardStrip.querySelectorAll(".card[data-dev]").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (this.devCardPicker?.style.display === "none") this.toggleDevCardPicker();
+      });
+    });
+    const strip = this.resourceCardStrip;
+    window.requestAnimationFrame(() => this.handArea?.classList.toggle("fits", strip.scrollWidth <= strip.clientWidth + 2));
   }
 
   renderScoreboard() {
     // Build a key from all visible data — skip re-render if unchanged (preserves tooltip)
     const readyIds = this.rush && !this.setupPhase ? this.rush.ready : null;
     const scoreKey = this.players.map((p, i) =>
-      `${i}:${this.displayVictoryPoints(p)}:${sumResources(p.resources)}:${p.settlements.size}:${p.cities.size}:${p.roads.size}:${p.knightsPlayed}:${p.longestRoadLength}:${this.longestRoadHolder}:${this.largestArmyHolder}:${this.currentPlayerIndex}:${p.personality}:${readyIds ? readyIds.includes(p.id) : "-"}`
-    ).join("|") + `:${!!this.winner}:${this.isRush()}`;
+      `${i}:${this.displayVictoryPoints(p)}:${sumResources(p.resources)}:${p.settlements.size}:${p.cities.size}:${p.roads.size}:${p.knightsPlayed}:${p.longestRoadLength}:${this.longestRoadHolder}:${this.largestArmyHolder}:${this.currentPlayerIndex}:${p.personality}:${readyIds ? readyIds.includes(p.id) : "-"}:${DEV_CARD_TYPES.reduce((s, t) => s + p.devCards[t] + p.newDevCards[t], 0)}`
+    ).join("|") + `:${!!this.winner}:${this.isRush()}:${this.theme.id}:${this.setupPhase}`;
     if (scoreKey === this._lastScoreKey) return;
     this._lastScoreKey = scoreKey;
-
-    this.scoreboard.innerHTML = "";
+    const rows = [];
+    const chips = [];
     this.players.forEach((player, idx) => {
-      const card = document.createElement("div");
-      card.className = "player-card player-card-mini";
-      if (idx === this.currentPlayerIndex && !this.winner && !(this.isRush() && !this.setupPhase)) card.classList.add("active");
-      const isReady = readyIds?.includes(player.id);
-      if (isReady) card.classList.add("rush-ready");
+      const active = idx === this.currentPlayerIndex && !this.winner && !(this.isRush() && !this.setupPhase);
+      const isReady = !!readyIds?.includes(player.id);
       const persona = player.personality ? AI_PRESET_INFO[player.personality] : null;
       const personaBadge = persona
         ? `<span class="persona-badge persona-${player.personality}" title="${persona.label}: ${persona.tagline}">${persona.glyph ? `${persona.glyph} ` : ""}${persona.label}</span>`
         : "";
-      const readyBadge = isReady ? '<span class="ready-pill" title="Voted to roll now">Ready</span>' : "";
-
       const totalCards = sumResources(player.resources);
-      const totalDev = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + player.devVictoryPoints;
-      const hasLR = this.longestRoadHolder === player.id;
-      const hasLA = this.largestArmyHolder === player.id;
-      const awards = (hasLR ? '<span class="award-badge longest-road" title="Longest Road (+2 VP)">LR</span>' : '')
-        + (hasLA ? '<span class="award-badge largest-army" title="Largest Army (+2 VP)">LA</span>' : '');
-      const settlements = player.settlements.size;
-      const cities = player.cities.size;
-      const knights = player.knightsPlayed;
-      const roadLen = player.longestRoadLength;
-      card.innerHTML = `
-        <img class="player-avatar" src="${player.avatar}" alt="${player.name} avatar" />
-        <div class="player-info-col">
-          <div class="player-info-row1">
-            <span class="player-name" style="color:${player.color}">${player.name}</span>
-            ${readyBadge}
-            <span class="player-header-right">
-              <span class="player-vp" title="Hover for details">${this.displayVictoryPoints(player)} VP</span>
-              ${awards}
-              <span class="player-hand-counts">
-                <span class="hand-count" title="${totalCards} resource cards"><span class="stat-icon card-icon"></span>${totalCards}</span>
-                <span class="hand-count" title="${totalDev} dev cards"><span class="stat-icon dev-icon"></span>${totalDev}</span>
-              </span>
-            </span>
-          </div>
-          <div class="player-info-row2">
-            <span title="Settlements: ${settlements} built, ${5 - settlements} remaining">&#127968;${settlements}/5</span>
-            <span title="Cities: ${cities} built, ${4 - cities} remaining">&#9962;${cities}/4</span>
-            <span title="Roads: ${player.roads.size} built, ${15 - player.roads.size} remaining">&#128739;${player.roads.size}/15</span>
-            <span title="Knights played">&#9876;${knights}</span>
-            ${personaBadge}
-          </div>
-        </div>
-      `;
-      // VP tooltip on hover (desktop) or tap anywhere on card (mobile)
-      const vpEl = card.querySelector(".player-vp");
+      const totalDev = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + (player.isHuman ? player.devVictoryPoints : 0);
+      const awards = (this.longestRoadHolder === player.id ? `<span title="Longest Road (+2 points)">${icon("longestRoad")}</span>` : "")
+        + (this.largestArmyHolder === player.id ? `<span title="Largest Army (+2 points)">${icon("largestArmy")}</span>` : "");
+      const vp = this.displayVictoryPoints(player);
+      rows.push(`<div class="prow player-card-mini pc-${idx}${active ? " active" : ""}${isReady ? " rush-ready" : ""}" data-seat="${idx}">
+        ${this._av(player, "player-avatar")}
+        <div class="nm"><span class="pname">${player.name}${isReady ? '<span class="ready-pill" title="Voted to roll now">Ready</span>' : ""}</span>
+          <span class="tag">${player.isHuman ? "Your colony" : personaBadge}</span>
+          <div class="stats"><span title="${totalCards} resource cards">${icon("cards")}${totalCards}</span><span title="${totalDev} development cards">${icon("devcard")}${totalDev}</span><span class="badges">${awards}</span></div></div>
+        <div class="vp player-vp" title="Points — tap for details">${vp}<small>points</small></div></div>`);
+      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}" role="button" tabindex="0" aria-label="${player.name}: ${vp} points">
+        <div class="bdg">${awards}</div>
+        <div class="row">${this._av(player)}<div class="vpn">${vp}<small>PTS</small></div></div>
+        <div class="pn">${player.name}</div>${player.isHuman ? "" : personaBadge}
+        <div class="mini"><span>${icon("cards")}${totalCards}</span><span>${icon("devcard")}${totalDev}</span></div></div>`);
+    });
+    this.scoreboard.innerHTML = rows.join("");
+    if (this.playerStrip) {
+      this.playerStrip.innerHTML = chips.join("");
+      this.playerStrip.style.setProperty("--n", this.players.length);
+    }
+    const wire = (el) => {
+      const player = this.players[Number(el.dataset.seat)];
+      const vpEl = el.querySelector(".player-vp");
       if (vpEl) {
         vpEl.style.cursor = "help";
         vpEl.addEventListener("mouseenter", () => this._showVPTooltip(player, vpEl));
         vpEl.addEventListener("mouseleave", () => this._hideVPTooltip());
       }
-      card.style.cursor = "pointer";
-      card.addEventListener("click", (e) => {
+      el.addEventListener("click", (e) => {
         e.stopPropagation();
-        const visible = document.getElementById("vpTooltip");
-        if (visible) { this._hideVPTooltip(); return; }
-        this._showVPTooltip(player, card);
-        // Auto-dismiss after 4s or on next tap anywhere
+        if (document.getElementById("vpTooltip")) { this._hideVPTooltip(); return; }
+        this._showVPTooltip(player, el);
         const dismiss = () => { this._hideVPTooltip(); document.removeEventListener("click", dismiss); };
         setTimeout(() => document.addEventListener("click", dismiss, { once: true }), 50);
         setTimeout(() => this._hideVPTooltip(), 4000);
       });
-      this.scoreboard.appendChild(card);
-    });
+    };
+    this.scoreboard.querySelectorAll("[data-seat]").forEach(wire);
+    this.playerStrip?.querySelectorAll("[data-seat]").forEach(wire);
   }
 
   renderTopPanels() {
@@ -6460,41 +6319,57 @@ class ColonistFullGame {
   }
 
   _enrichLogText(text) {
-    // Replace resource names with inline icons
     let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    RESOURCES.forEach(r => {
-      const regex = new RegExp(`\\b(\\d+)\\s+${RESOURCE_LABEL[r]}\\b`, "gi");
-      html = html.replace(regex, `$1 <img class="log-res-icon" src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />`);
+    // "2 Lumber" → "2 [icon] Lumber"
+    RESOURCES.forEach((r) => {
+      const regex = new RegExp(`\\b(\\d+)\\s+${RESOURCE_LABEL[r]}\\b`, "g");
+      html = html.replace(regex, `$1 ${icon(r)} ${RESOURCE_LABEL[r]}`);
     });
-    // Color player names
-    this.players.forEach(p => {
-      html = html.replace(new RegExp(`\\b${p.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, "g"),
-        `<span style="color:${p.color};font-weight:700">${p.name}</span>`);
+    // Player names in their colour
+    this.players.forEach((p) => {
+      html = html.replace(new RegExp(`\\b${p.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g"), `<span class="who pc-${p.id}">${p.name}</span>`);
     });
     return html;
   }
 
   renderLog() {
+    const rush = this.isRush();
+    const last = this.logEntries[this.logEntries.length - 1];
+    const key = `${this.logEntries.length}:${last?.time}:${last?.text}:${rush}:${this.theme.id}`;
+    if (key === this._lastLogKey) return;
+    this._lastLogKey = key;
     const title = this.railLog?.querySelector("h2");
-    if (title) title.textContent = this.isRush() ? "Live Feed" : "Event Log";
-    this.logContainer.innerHTML = "";
-    this.logEntries.slice(this.isRush() ? -40 : -20).forEach((entry) => {
+    if (title && title.dataset.mode !== String(rush)) {
+      title.dataset.mode = String(rush);
+      title.innerHTML = `${icon("log")}${rush ? "Live feed" : "Journal"} <span class="sub">Newest at the bottom</span>
+        <button class="btn ghost icon-only sheet-close" id="journalClose" aria-label="Close journal">${icon("close")}</button>`;
+      title.querySelector("#journalClose").addEventListener("click", () => this.toggleLog(false));
+    }
+    const rows = [];
+    this.logEntries.slice(rush ? -40 : -30).forEach((entry) => {
       const text = typeof entry === "string" ? entry : entry.text;
-      const line = document.createElement("div");
-      line.className = "log-entry";
-      if (/\bwins?\b/.test(text)) line.classList.add("winner");
-      if (/^Roll #\d+/.test(text)) line.classList.add("feed-roll");
-      const stamp = this.isRush() && entry && Number.isFinite(entry.clock)
-        ? `<span class="feed-time">${formatClock(entry.clock)}</span>` : "";
-      if (stamp) {
-        line.classList.add("has-time");
-        line.innerHTML = `${stamp}<span class="feed-text">${this._enrichLogText(text)}</span>`;
-      } else {
-        line.innerHTML = this._enrichLogText(text);
+      const stamp = rush && entry && Number.isFinite(entry.clock) ? `<span class="time feed-time">${formatClock(entry.clock)}</span>` : "";
+      let m = /^Turn (\d+): (.+) rolled (\d+)\.$/.exec(text);
+      if (m) {
+        rows.push(`<div class="jturn">Turn ${m[1]} · ${m[2]}</div><div class="jrow">${icon("dice")}<div class="t">${this._enrichLogText(m[2])} rolled <b>${m[3]}</b></div></div>`);
+        return;
       }
-      this.logContainer.appendChild(line);
+      m = /^Roll #(\d+): rolled (\d+)\.$/.exec(text);
+      if (m) {
+        rows.push(`<div class="jturn feed-roll">Roll ${m[1]}${stamp ? ` · ${formatClock(entry.clock)}` : ""}</div><div class="jrow">${icon("dice")}<div class="t">Dice rolled <b>${m[2]}</b></div></div>`);
+        return;
+      }
+      const cls = /\bwins?\b/.test(text) ? " win winner" : /^(Session restored|Initial placement|Place your|Now place)/.test(text) ? " dim" : "";
+      rows.push(`<div class="jrow${cls}">${icon(this._logIcon(text))}<div class="t">${stamp}${this._enrichLogText(text)}</div></div>`);
     });
+    this.logContainer.innerHTML = rows.join("");
     this.logContainer.scrollTop = this.logContainer.scrollHeight;
+    // Mobile: one-line ticker with the newest entry (or the next step, see renderStatusAndControls)
+    if (this.tickerText && last && !this._tickerPrompt) {
+      const t = last.text.replace(/^Turn \d+: /, "").replace(/^Roll #\d+: rolled/, "Dice rolled");
+      this.tickerText.innerHTML = this._enrichLogText(t);
+      if (this.tickerIcon) this.tickerIcon.innerHTML = icon(this._logIcon(last.text));
+    }
   }
 
   renderStatusAndControls() {
@@ -6503,17 +6378,19 @@ class ColonistFullGame {
     const mainPhase = this.phase === "main";
     const preRoll = this.phase === "pre_roll";
     const noDevPlayed = rushOn ? !this.currentPlayer.rushDevPlayed : !this.currentTurnPlayedDevCard;
-    const human = this.currentPlayer;
+    const human = this.players.find((p) => p.isHuman) || this.currentPlayer;
     const active = this.currentPlayer;
     const hasRoadCost = hasResources(human.resources, COSTS.road);
     const hasSettlementCost = hasResources(human.resources, COSTS.settlement);
     const hasCityCost = hasResources(human.resources, COSTS.city);
     const hasDevCost = hasResources(human.resources, COSTS.development);
-    const canTradeBank = RESOURCES.some((resource) => human.resources[resource] >= this.getPlayerTradeRate(human, resource));
     const roadMissing = missingCostString(human.resources, COSTS.road);
     const settlementMissing = missingCostString(human.resources, COSTS.settlement);
     const cityMissing = missingCostString(human.resources, COSTS.city);
     const devMissing = missingCostString(human.resources, COSTS.development);
+    const inSetup = this.setupPhase;
+    const robberBlocking = this._robberInProgress();
+    const placeName = { road: "a road", settlement: "a settlement", city: "a city" };
 
     const setButtonState = (button, enabled, disabledHint, enabledHint = "") => {
       if (!button) return;
@@ -6521,98 +6398,131 @@ class ColonistFullGame {
       button.title = enabled ? enabledHint : disabledHint;
     };
 
-    if (this.actionPromptAvatar) this.actionPromptAvatar.src = active.avatar;
-    if (this.actionPromptText) {
-      if (this.setupPhase && this.setupAction) {
-        if (this.confirmBuild) {
-          this.actionPromptText.textContent = `Setup · Tap ✓ to confirm`;
-        } else {
-          const action = this.setupAction === "settlement" ? "Place settlement" : "Place road";
-          this.actionPromptText.textContent = `Setup · ${action}`;
-        }
-      } else if (this.winner) {
-        this.actionPromptText.textContent = `${this.winner.name} win${this._s(this.winner)}!`;
-      } else if (rushOn && this.phase === "seven" && this.pendingAction !== "robber") {
-        this.actionPromptText.textContent = "Robber! Game paused";
-      } else if (rushOn && mainPhase && !this.pendingAction) {
-        this.actionPromptText.textContent = this.autoplayInterval ? "Rush · autoplay" : "Rush · build any time";
-      } else if (humanTurn && this.pendingAction === "robber") {
-        this.actionPromptText.textContent = "Move the robber — tap a hex";
-      } else if (humanTurn && preRoll) {
-        this.actionPromptText.textContent = "Roll dice";
-      } else if (humanTurn && mainPhase) {
-        if (this.pendingAction === "robber") {
-          this.actionPromptText.textContent = "Move the robber — tap a hex";
-        } else if (this.pendingAction) {
-          if (this.confirmBuild) {
-            this.actionPromptText.textContent = `Tap ✓ to confirm ${this.pendingAction}`;
-          } else {
-            this.actionPromptText.textContent = this.freeRoadsRemaining > 0
-              ? `Place free road (${this.freeRoadsRemaining} left)`
-              : `Place ${this.pendingAction}`;
-          }
-        } else {
-          this.actionPromptText.textContent = `Turn ${this.turn} · ${active.name}`;
-        }
+    // ── status pill (desktop turn banner; mobile uses the ticker) ──
+    let title = humanTurn ? "Your turn" : `${active.name}'s turn`;
+    let status;
+    if (this.setupPhase && this.setupAction && humanTurn) {
+      title = "Your turn · setup";
+      status = this.confirmBuild ? "Tap ✓ to confirm — or pick another spot" : `Place ${placeName[this.setupAction]} · ${this.isMobileLayout ? "tap" : "click"} a glowing spot`;
+    } else if (this.setupPhase) {
+      status = "Placing a starting settlement…";
+    } else if (this.winner) {
+      title = `${this.winner.name} win${this._s(this.winner)}!`;
+      status = `${this.winner.victoryPoints} points`;
+    } else if (rushOn && this.phase === "seven" && this.pendingAction !== "robber") {
+      title = "Robber!";
+      status = "Game paused — discards, then the robber";
+    } else if (humanTurn && this.pendingAction === "robber") {
+      status = "Move the robber · tap a tile";
+    } else if (rushOn && mainPhase && !this.pendingAction) {
+      title = "Rush";
+      status = this.autoplayInterval ? "Bots are playing for you" : "Build, trade or play a card any time";
+    } else if (humanTurn && preRoll) {
+      status = "Roll the dice to start your turn";
+    } else if (humanTurn && mainPhase) {
+      if (this.pendingAction) {
+        if (this.confirmBuild) status = "Tap ✓ to confirm — or pick another spot";
+        else status = this.freeRoadsRemaining > 0 ? `Place a free road (${this.freeRoadsRemaining} left)` : `Placing ${placeName[this.pendingAction] || this.pendingAction} · tap a glowing spot`;
       } else {
-        this.actionPromptText.textContent = `${active.name} · Turn ${this.turn}`;
+        status = "Build, trade or play a card";
+      }
+    } else {
+      status = preRoll ? "Rolling the dice…" : "Thinking…";
+    }
+    if (this.actionPromptText) this.actionPromptText.textContent = status;
+    // Phones: the ticker line becomes the instruction while you have to act (place, robber, discard)
+    const mustAct = !this.winner && ((this.setupPhase && humanTurn && this.setupAction) || (humanTurn && this.pendingAction) || !!this.pendingDiscard);
+    const prompt = mustAct ? (this.pendingDiscard ? "The robber came! Hand back half of your cards" : status) : "";
+    if (prompt !== (this._tickerPrompt || "")) {
+      this._tickerPrompt = prompt;
+      this._lastLogKey = null;
+      document.querySelector("#ticker")?.classList.toggle("prompt", !!prompt);
+      if (prompt && this.tickerText) {
+        this.tickerText.textContent = prompt;
+        if (this.tickerIcon) this.tickerIcon.innerHTML = icon(this.pendingDiscard || this.pendingAction === "robber" ? "robber" : this.confirmBuild?.type || this.pendingAction || this.setupAction || "build");
+      }
+      if (!prompt) this.renderLog();
+    }
+    if (this.turnBannerTitle) this.turnBannerTitle.textContent = title;
+    if (this.actionPromptAvatar) {
+      const seat = String(active.id);
+      if (this.actionPromptAvatar.dataset.seat !== seat || this.actionPromptAvatar.dataset.theme !== this.theme.id) {
+        this.actionPromptAvatar.dataset.seat = seat;
+        this.actionPromptAvatar.dataset.theme = this.theme.id;
+        this.actionPromptAvatar.innerHTML = this._av(active);
       }
     }
+    if (this.turnBanner) this.turnBanner.className = `turn-banner pc-${(rushOn ? human : active).id}`;
+    if (this.cancelActionBtn) this.cancelActionBtn.hidden = !(humanTurn && (this.confirmBuild || (this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining)));
 
+    // ── primary action: Roll dice ↔ End turn (Classic), Ready (Rush), waiting bar (opponent) ──
     const rollBtn = this.rollDiceBtn;
     const endBtn = this.endTurnBtn;
     const buildPanel = this.actionPromptBuild;
-    const inSetup = this.setupPhase;
-    const inRobberMode = this.pendingAction === "robber";
-    const robberBlocking = this._robberInProgress();
+    const oppTurn = !rushOn && !this.winner && !humanTurn;
+    this.app?.classList.toggle("opp-turn", oppTurn);
     if (rollBtn) {
-      rollBtn.style.display = !inSetup && humanTurn && preRoll && !robberBlocking ? "inline-flex" : "none";
+      rollBtn.style.display = !rushOn && !inSetup && humanTurn && preRoll && !robberBlocking ? "inline-flex" : "none";
       rollBtn.disabled = inSetup || !(humanTurn && preRoll) || robberBlocking;
     }
     if (endBtn) {
-      endBtn.style.display = !rushOn && !inSetup && humanTurn && mainPhase && (!this.pendingAction || this.freeRoadsRemaining > 0) && !robberBlocking ? "inline-flex" : "none";
-      endBtn.disabled = inSetup || !(humanTurn && mainPhase) || robberBlocking;
+      endBtn.style.display = !rushOn && humanTurn && (mainPhase || inSetup) && !robberBlocking ? "inline-flex" : "none";
+      endBtn.disabled = inSetup || !(humanTurn && mainPhase) || robberBlocking || (!!this.pendingAction && !this.freeRoadsRemaining);
     }
-    if (buildPanel) {
-      buildPanel.style.display = !inSetup && humanTurn && mainPhase && !robberBlocking ? "flex" : "none";
+    if (this.rushReadyBtn) this.rushReadyBtn.hidden = !rushOn || !!this.winner;
+    if (this.waitingBar) {
+      let wait = "";
+      if (this.winner && !document.querySelector(".game-over-overlay")) {
+        wait = `${icon("vp")}<div class="wt">${this.winner.name} win${this._s(this.winner)}<small>Game over</small></div><button type="button" class="btn primary" data-newgame>New game</button>`;
+      } else if (humanTurn && this.pendingAction === "robber") {
+        wait = `${icon("robber")}<div class="wt">Move the robber<small>Tap a tile on the board</small></div>`;
+      } else if (oppTurn) {
+        wait = `${this._av(active)}<div class="wt">${active.name} is playing<small>${inSetup ? "Placing a settlement" : preRoll ? "Rolling the dice" : "Building and trading"}</small></div><div class="dots"><i></i><i></i><i></i></div>`;
+      }
+      const wkey = `${wait.length}:${active.id}:${preRoll}:${inSetup}:${!!this.winner}:${this.pendingAction}`;
+      if (this.waitingBar.dataset.key !== wkey) {
+        this.waitingBar.dataset.key = wkey;
+        this.waitingBar.innerHTML = wait;
+        this.waitingBar.querySelector("[data-newgame]")?.addEventListener("click", () => this._showDifficultyModal());
+      }
+      this.waitingBar.hidden = !wait;
+      if (this.winner && wait) { rollBtn && (rollBtn.style.display = "none"); endBtn && (endBtn.style.display = "none"); }
     }
+    if (buildPanel) buildPanel.style.display = this.pendingDiscard ? "none" : ""; // hidden while discarding; otherwise shown, disabled when not usable
 
     // Hide trade panel when not in main phase or during robber
-    if (robberBlocking || !humanTurn || !mainPhase) {
-      this.hideTradePanel();
-    }
+    if (robberBlocking || !humanTurn || !mainPhase) this.hideTradePanel();
 
     this.nextTurnBtn.disabled = !!this.winner || humanTurn || this.autoplayInterval != null || this.isRush();
+    const canBuildNow = humanTurn && mainPhase && !robberBlocking;
     const piecesHint = (type) => (this.piecesLeft(human, type) <= 0 ? `No ${type}s left` : null);
-    setButtonState(
-      this.buildRoadBtn,
-      humanTurn && mainPhase && (hasRoadCost || this.freeRoadsRemaining > 0) && !piecesHint("road"),
-      piecesHint("road") || (roadMissing ? `Need ${roadMissing}` : "Not available"),
-      "Build road (1)",
-    );
-    setButtonState(
-      this.buildSettlementBtn,
-      humanTurn && mainPhase && hasSettlementCost && !piecesHint("settlement"),
-      piecesHint("settlement") || (settlementMissing ? `Need ${settlementMissing}` : "Not available"),
-      "Build settlement (2)",
-    );
-    setButtonState(
-      this.buildCityBtn,
-      humanTurn && mainPhase && hasCityCost && !piecesHint("city"),
-      piecesHint("city") || (cityMissing ? `Need ${cityMissing}` : "Not available"),
-      "Build city (3)",
-    );
-    setButtonState(
-      this.buyDevBtn,
-      humanTurn && mainPhase && hasDevCost && this.devDeck.length > 0,
-      this.devDeck.length <= 0 ? "Deck empty" : devMissing ? `Need ${devMissing}` : "Not available",
-      "Buy dev card (B)",
-    );
-    // Trade button: only visible during human main phase, not during setup
+    setButtonState(this.buildRoadBtn, canBuildNow && (hasRoadCost || this.freeRoadsRemaining > 0) && !piecesHint("road"),
+      piecesHint("road") || (roadMissing ? `Need ${roadMissing}` : "Not available now"), "Build a road (1)");
+    setButtonState(this.buildSettlementBtn, canBuildNow && hasSettlementCost && !piecesHint("settlement"),
+      piecesHint("settlement") || (settlementMissing ? `Need ${settlementMissing}` : "Not available now"), "Build a settlement (2)");
+    setButtonState(this.buildCityBtn, canBuildNow && hasCityCost && !piecesHint("city"),
+      piecesHint("city") || (cityMissing ? `Need ${cityMissing}` : "Not available now"), "Upgrade to a city (3)");
+    setButtonState(this.buyDevBtn, canBuildNow && hasDevCost && this.devDeck.length > 0,
+      this.devDeck.length <= 0 ? "Deck empty" : devMissing ? `Need ${devMissing}` : "Not available now", "Buy a development card (B)");
+    // pieces left + which cost icons are still missing
+    [["road", this.buildRoadBtn], ["settlement", this.buildSettlementBtn], ["city", this.buildCityBtn], ["development", this.buyDevBtn]].forEach(([type, btn]) => {
+      if (!btn) return;
+      const left = btn.querySelector(".left");
+      if (left) left.textContent = type === "development" ? `${this.devDeck.length} in deck` : `${this.piecesLeft(human, type)} left`;
+      const need = btn.querySelector(".need");
+      if (need) {
+        const have = { ...human.resources };
+        need.querySelectorAll("[data-r]").forEach((ic) => {
+          const r = ic.dataset.r;
+          const ok = have[r] > 0;
+          if (ok) have[r] -= 1;
+          ic.classList.toggle("miss", !ok);
+        });
+      }
+    });
     if (this.tradeBankBtn) {
-      const showTrade = !inSetup && humanTurn && mainPhase && !robberBlocking;
-      this.tradeBankBtn.style.display = showTrade ? "inline-flex" : "none";
-      this.tradeBankBtn.disabled = !showTrade;
+      this.tradeBankBtn.style.display = this.pendingDiscard ? "none" : "inline-flex";
+      this.tradeBankBtn.disabled = !(humanTurn && mainPhase) || inSetup || robberBlocking;
       this.tradeBankBtn.title = "Trade (T)";
     }
 
@@ -6621,30 +6531,34 @@ class ColonistFullGame {
     this.playRoadBuildingBtn.disabled = !canPlayDev("roadBuilding");
     this.playYearOfPlentyBtn.disabled = !canPlayDev("yearOfPlenty");
     this.playMonopolyBtn.disabled = !canPlayDev("monopoly");
-
-    // Play dev card button: show when human has any playable dev cards (Knight also before rolling)
     if (this.playDevBtn) {
       const showPlayDev = !inSetup && noDevPlayed && DEV_CARD_TYPES.some(canPlayDev);
       this.playDevBtn.style.display = showPlayDev ? "inline-flex" : "none";
-      if (!showPlayDev) this.hideDevCardPicker();
+      if (!showPlayDev && !this.isMobileLayout) this.hideDevCardPicker();
     }
+    const mDot = document.querySelector("#mCardsDot");
+    if (mDot) {
+      const nDev = DEV_CARD_TYPES.reduce((s, t) => s + human.devCards[t] + human.newDevCards[t], 0) + human.devVictoryPoints;
+      mDot.hidden = !nDev;
+      mDot.textContent = String(nDev);
+    }
+    const mBuild = document.querySelector("#mBuildBtn");
+    if (mBuild) mBuild.disabled = !canBuildNow;
 
-    [this.buildRoadBtn, this.buildSettlementBtn, this.buildCityBtn].forEach((btn) =>
-      btn?.classList.remove("selected-action"),
-    );
+    [this.buildRoadBtn, this.buildSettlementBtn, this.buildCityBtn].forEach((btn) => btn?.classList.remove("selected-action"));
     if (this.pendingAction === "road") this.buildRoadBtn?.classList.add("selected-action");
     if (this.pendingAction === "settlement") this.buildSettlementBtn?.classList.add("selected-action");
     if (this.pendingAction === "city") this.buildCityBtn?.classList.add("selected-action");
 
-    [rollBtn, endBtn, this.buildRoadBtn, this.buildSettlementBtn, this.buildCityBtn].forEach(
-      (btn) => btn?.classList.remove("attention"),
-    );
-    if (humanTurn && preRoll && rollBtn) rollBtn.classList.add("attention");
-    else if (humanTurn && mainPhase) {
-      if (this.pendingAction === "road") this.buildRoadBtn?.classList.add("attention");
-      else if (this.pendingAction === "settlement") this.buildSettlementBtn?.classList.add("attention");
-      else if (this.pendingAction === "city") this.buildCityBtn?.classList.add("attention");
-      else if (endBtn && !rushOn) endBtn.classList.add("attention");
+    // ── mobile confirm pill: the Place button sits right above the thumb ──
+    if (this.confirmPill) {
+      const info = this.isMobileLayout && humanTurn && this.confirmBuild ? this._confirmPillInfo() : null;
+      this.confirmPill.hidden = !info;
+      if (info) {
+        document.querySelector("#confirmPillIcon").innerHTML = icon(info.icon);
+        document.querySelector("#confirmPillTitle").textContent = info.title;
+        document.querySelector("#confirmPillSub").textContent = info.sub;
+      }
     }
   }
 
@@ -6654,36 +6568,31 @@ class ColonistFullGame {
     if (!el) return;
     if (!this.lastDice || !this.lastRoll) {
       el.style.display = "none";
+      this._lastDiceKey = null;
       return;
     }
     el.style.display = "flex";
-    const pipHTML = (value) => {
-      const layouts = {
-        1: [0,0,0, 0,1,0, 0,0,0],
-        2: [0,0,1, 0,0,0, 1,0,0],
-        3: [0,0,1, 0,1,0, 1,0,0],
-        4: [1,0,1, 0,0,0, 1,0,1],
-        5: [1,0,1, 0,1,0, 1,0,1],
-        6: [1,0,1, 1,0,1, 1,0,1],
-      };
-      const l = layouts[value] || layouts[1];
-      return l.map(v => `<div class="pip${v ? "" : " hidden"}"></div>`).join("");
-    };
-    const playerHTML = this.lastRollPlayer
-      ? `<div class="last-dice-player"><img src="${this.lastRollPlayer.avatar}" alt="" /><span style="color:${this.lastRollPlayer.color}">${this.lastRollPlayer.name}</span></div>`
-      : "";
-    el.innerHTML = `
-      ${playerHTML}
-      <div class="last-dice-mini">${pipHTML(this.lastDice.d1)}</div>
-      <div class="last-dice-mini">${pipHTML(this.lastDice.d2)}</div>
-      <span class="last-dice-total">${this.lastRoll}</span>
-      <button class="roll-stats-toggle" title="Roll statistics">&#9776;</button>
-    `;
-    el.querySelector(".roll-stats-toggle").addEventListener("click", (e) => {
+    const key = `${this.lastDice.d1}:${this.lastDice.d2}:${this.lastRoll}:${this.turn}:${this.rush?.rollNo}:${this.theme.id}`;
+    if (key === this._lastDiceKey) return;
+    const fresh = this._lastDiceKey != null;
+    this._lastDiceKey = key;
+    let label = "Robber!";
+    if (this.lastRoll !== 7) {
+      const terr = [...new Set(this.geometry.hexes.filter((h) => h.number === this.lastRoll && h.id !== this.robberHexId).map((h) => TERRAIN_NAME[h.resource]))];
+      label = terr.length ? `${terr.join(" & ")} paid out` : "Nothing paid out";
+    }
+    el.innerHTML = `${dieSvg(this.lastDice.d1, "die-svg")}${dieSvg(this.lastDice.d2, "die-svg")}<span class="sum">${this.lastRoll}</span><span class="dl">${label}</span>
+      <button class="stats-btn" type="button" title="Roll statistics" aria-label="Roll statistics">${icon("dice")}</button>`;
+    el.title = `Last roll ${this.lastRoll}`;
+    el.querySelector(".stats-btn").addEventListener("click", (e) => {
       e.stopPropagation();
-      const panel = document.getElementById("rollStatsPanel");
-      if (panel) panel.classList.toggle("open");
+      document.getElementById("rollStatsPanel")?.classList.toggle("open");
     });
+    if (fresh) {
+      el.classList.remove("flash");
+      void el.offsetWidth;
+      el.classList.add("flash");
+    }
     this.renderRollStats();
   }
 
@@ -7031,16 +6940,16 @@ class ColonistFullGame {
                       </div>`).join("")}
                   </div>
                 </details>` : `
-                <p class="ng-help">Pick a personality per bot. You can fine-tune each bot later under &#9881; &rsaquo; AI Strategy Config.</p>`}
+                <p class="ng-help">Pick a personality per bot. You can fine-tune each bot later under Settings &rsaquo; Bot personalities.</p>`}
               </section>
               <section class="ng-section">
                 <h3 class="ng-section-title">Your table</h3>
                 <div class="ng-table">
                   ${PLAYER_CONFIG.slice(1, d.numBots + 1).map((cfg, i) => `
-                    <div class="ng-bot">
-                      <img class="ng-bot-avatar" src="${cfg.avatar}" alt="" style="border-color:${cfg.color}" />
+                    <div class="ng-bot pc-${i + 1}">
+                      ${avatarSvg(i + 1, "ng-bot-avatar")}
                       <div class="ng-bot-info">
-                        <div class="ng-bot-name"><span style="color:${cfg.color}">${esc(cfg.name)}</span>${badge(botPreset(i))}</div>
+                        <div class="ng-bot-name"><span class="who pc-${i + 1}" style="color:${cfg.color}">${esc(cfg.name)}</span>${badge(botPreset(i))}</div>
                         <div class="ng-bot-desc">${strategySummary(botStrategy(i))}</div>
                       </div>
                       ${d.botStyleMode === "each" ? `
@@ -7175,7 +7084,7 @@ class ColonistFullGame {
       if (!this._applyAllStrategies) {
         const header = document.createElement("div");
         header.className = "ai-strat-player-header";
-        header.innerHTML = `<img src="${bot.avatar}" alt="" /><span style="color:${bot.color}">${bot.name}</span>`;
+        header.innerHTML = `${this._av(bot)}<span class="who pc-${bot.id}">${bot.name}</span>`;
         section.appendChild(header);
       }
 
@@ -7224,39 +7133,31 @@ class ColonistFullGame {
   renderSupplyOverview() {
     const el = this.supplyOverview;
     if (!el) return;
-    // Resource bank (tracked)
-    const resHTML = RESOURCES.map(r => {
-      const bankCount = this.bank[r];
-      return `<span class="supply-item"><img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" /><span>${bankCount}</span></span>`;
-    }).join("");
-
-    // Dev cards remaining
     const devRemaining = this.devDeck ? this.devDeck.length : 0;
-
-    el.innerHTML = `
-      <span class="supply-section-label">Bank</span>
-      <span class="supply-section">${resHTML}</span>
-      <span class="supply-divider"></span>
-      <span class="supply-section-label">Dev</span>
-      <span class="supply-item"><span>${devRemaining}</span></span>
-    `;
+    const key = `${RESOURCES.map((r) => this.bank[r]).join(",")}:${devRemaining}:${this.theme.id}`;
+    if (key === this._lastSupplyKey) return;
+    this._lastSupplyKey = key;
+    el.innerHTML = `${icon("bank")}${RESOURCES.map((r) => `<span class="r" title="${RESOURCE_LABEL[r]} in the bank">${icon(r)}${this.bank[r]}</span>`).join("")}
+      <span class="dv" title="Development cards left">${icon("devcard")}${devRemaining}</span>`;
   }
 
   // ── Build Cost Reference ──────────────────────────────────────────────
   _initCostReference() {
-    if (!this.costRefItems) return;
     const items = [
-      { label: "Road", cost: COSTS.road },
-      { label: "Settle", cost: COSTS.settlement },
-      { label: "City", cost: COSTS.city },
-      { label: "Dev", cost: COSTS.development },
+      { key: "road", label: "Road", icon: "road", cost: COSTS.road },
+      { key: "settlement", label: "Settlement", icon: "settlement", cost: COSTS.settlement },
+      { key: "city", label: "City", icon: "city", cost: COSTS.city },
+      { key: "development", label: "Card", icon: "devcard", cost: COSTS.development },
     ];
-    this.costRefItems.innerHTML = items.map(item => {
-      const resHTML = RESOURCES.filter(r => (item.cost[r] || 0) > 0)
-        .flatMap(r => Array((item.cost[r] || 0)).fill(`<img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />`))
-        .join("");
-      return `<div class="cost-ref-row"><span class="cost-ref-label">${item.label}</span><div class="cost-ref-res">${resHTML}</div></div>`;
-    }).join("");
+    const icons = (cost) => RESOURCES.filter((r) => (cost[r] || 0) > 0)
+      .flatMap((r) => Array(cost[r]).fill(`<svg class="ic" viewBox="-50 -50 100 100" data-r="${r}" aria-label="${RESOURCE_LABEL[r]}"><use href="#ic-${r}" x="-50" y="-50" width="100" height="100"/></svg>`)).join("");
+    if (this.costRefItems) {
+      this.costRefItems.innerHTML = items.map((it) => `<div class="cost" title="${it.label}: ${resourceString(it.cost)}">${icon(it.icon)}<span>${it.label}</span><span class="res">${icons(it.cost)}</span></div>`).join("");
+    }
+    items.forEach((it) => {
+      const need = document.querySelector(`.bbtn .need[data-cost="${it.key}"]`);
+      if (need) need.innerHTML = icons(it.cost);
+    });
   }
 
   // ── Discard UI ──────────────────────────────────────────────────────
@@ -7264,7 +7165,9 @@ class ColonistFullGame {
     return new Promise((resolve) => {
       if (!this.discardPanel) { resolve(); return; }
       this.pendingDiscard = { player, count: discardCount, selected: makeEmptyResources(), resolve };
-      this.discardInfo.textContent = `You have ${sumResources(player.resources)} cards. Discard ${discardCount}.`;
+      this.toggleBuildSheet?.(false);
+      this.hideDevCardPicker();
+      this.discardInfo.textContent = `You hold ${sumResources(player.resources)} cards — choose ${discardCount} to hand back to the bank.`;
       this._renderDiscardCards();
       this.discardPanel.style.display = "";
     });
@@ -7274,37 +7177,26 @@ class ColonistFullGame {
     if (!this.pendingDiscard) return;
     const { player, count, selected } = this.pendingDiscard;
     const totalSelected = sumResources(selected);
-
-    // Render each card
-    const cards = [];
-    RESOURCES.forEach(r => {
-      for (let i = 0; i < player.resources[r]; i++) {
-        const isSelected = i < selected[r];
-        cards.push({ resource: r, index: i, selected: isSelected });
-      }
-    });
-
-    this.discardCards.innerHTML = cards.map((c, idx) =>
-      `<div class="discard-card ${c.resource}${c.selected ? " selected" : ""}" data-res="${c.resource}" data-idx="${idx}">
-        <img src="${RESOURCE_ICON_PATH[c.resource]}" alt="${c.resource}" />
-      </div>`
-    ).join("");
-
-    this.discardCards.querySelectorAll(".discard-card").forEach(el => {
-      el.addEventListener("click", () => {
-        const res = el.dataset.res;
-        if (el.classList.contains("selected")) {
-          this.pendingDiscard.selected[res] = Math.max(0, this.pendingDiscard.selected[res] - 1);
-        } else {
-          const curTotal = sumResources(this.pendingDiscard.selected);
-          if (curTotal >= count) return;
-          this.pendingDiscard.selected[res] = Math.min(player.resources[res], this.pendingDiscard.selected[res] + 1);
-        }
-        this._renderDiscardCards();
-      });
-    });
-
-    this.discardSelected.textContent = `Selected: ${totalSelected} / ${count}`;
+    this.discardCards.innerHTML = RESOURCES.map((r) => {
+      const have = player.resources[r];
+      const sel = selected[r];
+      return `<div class="rcell${sel ? " pick" : ""}${have ? "" : " dim"}" data-res="${r}">
+        <button type="button" class="card discard-card" data-add="${r}" aria-label="Hand back 1 ${RESOURCE_LABEL[r]}" ${have ? "" : "disabled"}>${cardSvg(r)}<span class="count">${have}</span></button>
+        <span class="n">${sel ? `−${sel}` : "·"}</span>
+        <div class="step"><button type="button" data-sub="${r}" aria-label="One less" ${sel ? "" : "disabled"}>−</button><button type="button" data-add="${r}" aria-label="One more" ${sel < have && totalSelected < count ? "" : "disabled"}>+</button></div></div>`;
+    }).join("");
+    const change = (r, d) => {
+      const cur = sumResources(this.pendingDiscard.selected);
+      if (d > 0 && (cur >= count || this.pendingDiscard.selected[r] >= player.resources[r])) return;
+      this.pendingDiscard.selected[r] = clamp(this.pendingDiscard.selected[r] + d, 0, player.resources[r]);
+      this.sfx.click();
+      this._renderDiscardCards();
+    };
+    this.discardCards.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => change(b.dataset.add, 1)));
+    this.discardCards.querySelectorAll("[data-sub]").forEach((b) => b.addEventListener("click", () => change(b.dataset.sub, -1)));
+    this.discardSelected.textContent = `${totalSelected} of ${count} chosen`;
+    const lbl = document.querySelector("#discardConfirmLabel");
+    if (lbl) lbl.textContent = totalSelected === count ? `Hand back ${count} cards` : `Choose ${count - totalSelected} more`;
     this.discardConfirmBtn.disabled = totalSelected !== count;
   }
 
@@ -7322,38 +7214,24 @@ class ColonistFullGame {
 
   // ── Resource Gain Toasts for all players ─────────────────────────────
   showResourceGainToasts(gainByPlayer) {
-    const stack = document.getElementById("toastStack");
-    if (!stack) return;
-    let delay = 0;
-    gainByPlayer.forEach((gain, playerId) => {
-      if (sumResources(gain) === 0) return;
-      const player = this.players[playerId];
-
-      // Animate flying cards from board to player
-      this._animateCardDeal(player, gain, delay);
-
-      // Show toast with a stagger
-      setTimeout(() => {
-        const toast = document.createElement("div");
-        toast.className = "toast resource-gain-toast";
-        const resHTML = RESOURCES.filter(r => gain[r] > 0)
-          .map(r => `<span class="rgt-res"><span>+${gain[r]}</span><img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" /></span>`)
-          .join("");
-        toast.innerHTML = `
-          <img class="rgt-avatar" src="${player.avatar}" alt="" />
-          <span style="color:${player.color};font-weight:700;font-size:0.65rem">${player.name}</span>
-          <span class="rgt-resources">${resHTML}</span>
-        `;
-        stack.appendChild(toast);
-        this.sfx.resourceGain();
-        setTimeout(() => {
-          toast.style.opacity = "0";
-          toast.style.transform = "translateY(-4px)";
-          setTimeout(() => toast.remove(), 180);
-        }, 2800);
-      }, delay);
-      delay += 300;
-    });
+    // Cards fly from the producing tiles to the hand (you) or to the player's portrait (bots)
+    this.fx?.flyResources(gainByPlayer, this.lastRoll);
+    if (gainByPlayer.some((g) => sumResources(g) > 0)) window.setTimeout(() => this.sfx.resourceGain(), 900);
+    const human = this.players.find((p) => p.isHuman);
+    const gain = human ? gainByPlayer[human.id] : null;
+    if (!gain || !sumResources(gain) || !this.toastStack) return;
+    const res = RESOURCES.filter((r) => gain[r] > 0);
+    const terr = [...new Set(this.geometry.hexes.filter((h) => h.number === this.lastRoll && res.includes(h.resource)).map((h) => TERRAIN_NAME[h.resource]))];
+    const toast = document.createElement("div");
+    toast.className = "toast resource-gain-toast";
+    toast.innerHTML = `<span class="card">${cardSvg(res[0])}</span><div>${res.map((r) => `<span class="plus">+${gain[r]}</span> ${RESOURCE_LABEL[r]}`).join(" · ")}<span class="sub">from the ${terr.join(" & ")} ${this.lastRoll}</span></div>`;
+    this.toastStack.appendChild(toast);
+    while (this.toastStack.children.length > this.maxToasts) this.toastStack.removeChild(this.toastStack.firstChild);
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateY(-4px)";
+      setTimeout(() => toast.remove(), 180);
+    }, 2800);
   }
 
   _animateCardDeal(player, gain, startDelay = 0) {
@@ -7478,51 +7356,317 @@ class ColonistFullGame {
     if (existing) existing.remove();
     const overlay = document.createElement("div");
     overlay.id = "resourcePickerOverlay";
-    overlay.className = "resource-picker-overlay";
+    overlay.className = "resource-picker-overlay tm-modal";
     const picks = [];
-    const gen = this.gameGen;
-    const turnIndex = this.currentPlayerIndex;
     const renderPicker = () => {
+      const n = (r) => picks.filter((p) => p === r).length;
       overlay.innerHTML = `
-        <div class="resource-picker-panel">
+        <div class="resource-picker-panel" role="dialog" aria-label="${title}">
           <div class="resource-picker-title">${title}</div>
-          <div class="resource-picker-selected">${picks.length}/${count} selected: ${picks.join(", ") || "none"}</div>
+          <div class="resource-picker-selected">${picks.length} of ${count} chosen${picks.length ? `: ${picks.map((p) => RESOURCE_LABEL[p]).join(", ")}` : ""}</div>
           <div class="resource-picker-grid">
-            ${RESOURCES.map(r => `
-              <button class="resource-picker-btn ${r}" data-res="${r}"${limits && picks.filter(p => p === r).length >= limits[r] ? " disabled" : ""}>
-                <img src="${RESOURCE_ICON_PATH[r]}" alt="${r}" />
-                <span>${r}</span>
-              </button>
-            `).join("")}
+            ${RESOURCES.map((r) => `
+              <button type="button" class="resource-picker-btn ${r}" data-res="${r}"${(limits && n(r) >= limits[r]) || picks.length >= count ? " disabled" : ""}>
+                <span class="card">${cardSvg(r)}</span><span>${RESOURCE_LABEL[r]}</span><span class="pk">${n(r) ? `×${n(r)}` : ""}</span>
+              </button>`).join("")}
           </div>
           <div class="resource-picker-actions">
-            ${picks.length > 0 ? '<button class="btn-neutral resource-picker-undo">Undo</button>' : ""}
-            ${picks.length === count ? '<button class="btn-build resource-picker-confirm">Confirm</button>' : ""}
+            <button type="button" class="btn resource-picker-undo" ${picks.length ? "" : "disabled"}>Undo</button>
+            <button type="button" class="btn primary resource-picker-confirm" ${picks.length === count ? "" : "disabled"}>${icon("check")}Confirm</button>
           </div>
-        </div>
-      `;
-      overlay.querySelectorAll(".resource-picker-btn").forEach(btn => {
+        </div>`;
+      overlay.querySelectorAll(".resource-picker-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
           if (picks.length >= count || btn.disabled) return;
           picks.push(btn.dataset.res);
+          this.sfx.click();
           renderPicker();
         });
       });
-      const undoBtn = overlay.querySelector(".resource-picker-undo");
-      if (undoBtn) undoBtn.addEventListener("click", () => { picks.pop(); renderPicker(); });
-      const confirmBtn = overlay.querySelector(".resource-picker-confirm");
-      // Ignore a confirm from an older game or after the turn moved on (picker left open)
-      if (confirmBtn) confirmBtn.addEventListener("click", () => {
+      overlay.querySelector(".resource-picker-undo").addEventListener("click", () => { picks.pop(); renderPicker(); });
+      overlay.querySelector(".resource-picker-confirm").addEventListener("click", () => {
+        if (picks.length !== count) return;
         overlay.remove();
-        if (gen === this.gameGen && (this.isRush() || this.currentPlayerIndex === turnIndex)) onConfirm(picks);
+        onConfirm(picks);
       });
     };
     renderPicker();
     document.body.appendChild(overlay);
   }
 
+  // ══ Theme layer (src/themes/*, themes/*.css) ═════════════════════════
+  // Themes change art, tokens and motion only; the DOM below is shared by every theme.
+
+  _initTheme() {
+    this.theme = THEMES[storedThemeId()];
+    document.documentElement.dataset.theme = this.theme.id;
+    applyMotionAttr();
+    installSprite(this.theme);
+    this.app = document.querySelector("#app");
+    this.fx = new Fx(this);
+    this.boardRenderer = this.theme.canvasArt ? new SvgBoardRenderer(this, this.theme) : null;
+    this._fitScale = 1;
+    const $ = (s) => document.querySelector(s);
+    this.playerStrip = $("#playerStrip");
+    this.tickerText = $("#tickerText");
+    this.tickerIcon = $("#tickerIcon");
+    this.turnBanner = $("#turnBanner");
+    this.turnBannerTitle = $("#turnBannerTitle");
+    this.cancelActionBtn = $("#cancelActionBtn");
+    this.confirmPill = $("#confirmPill");
+    this.waitingBar = $("#waitingBar");
+    this.handSummary = $("#handSummary");
+    this.handArea = $("#handArea");
+    this.scrim = $("#scrim");
+    this.mtop = $("#mtop");
+    this.boardWrap = $("#boardWrap");
+    this._updateLayoutMode();
+    loadFonts(this.theme).then(() => {
+      this.boardRenderer?.invalidateStatic();
+      this._invalidateUI();
+      if (this.players) this.render();
+    });
+  }
+
+  _updateLayoutMode() {
+    this.isMobileLayout = window.matchMedia("(max-width: 900px)").matches;
+  }
+
+  _bindThemeUI() {
+    const $ = (s) => document.querySelector(s);
+    this.settingsUI = new SettingsUI(this);
+    $("#settingsBtn")?.addEventListener("click", () => this.settingsUI.open("look"));
+    $("#mSettingsBtn")?.addEventListener("click", () => this.settingsUI.open("game"));
+    renderQuickToggle($("#themeToggle"), this);
+    $("#fitBoardBtn")?.addEventListener("click", () => this.resetViewTransform());
+    $("#zoomInBtn")?.addEventListener("click", () => this.zoomBy(1.2));
+    $("#zoomOutBtn")?.addEventListener("click", () => this.zoomBy(1 / 1.2));
+    $("#tickerMore")?.addEventListener("click", () => this.toggleLog(true));
+    $("#tickerText")?.addEventListener("click", () => this.toggleLog(true));
+    $("#journalClose")?.addEventListener("click", () => this.toggleLog(false));
+    $("#mBuildBtn")?.addEventListener("click", () => this.toggleBuildSheet());
+    $("#buildSheetClose")?.addEventListener("click", () => this.toggleBuildSheet(false));
+    $("#mCardsBtn")?.addEventListener("click", (e) => { e.stopPropagation(); this.toggleDevCardPicker(); });
+    $("#devPickerClose")?.addEventListener("click", () => this.hideDevCardPicker());
+    this.cancelActionBtn?.addEventListener("click", () => this.cancelPlacement());
+    $("#confirmPillCancel")?.addEventListener("click", () => { this.confirmBuild = null; this.render(); });
+    $("#confirmPillPlace")?.addEventListener("click", () => this._confirmViaIcon());
+    // choosing something in the mobile build sheet closes it
+    this.actionPromptBuild?.addEventListener("click", (e) => {
+      if (e.target.closest(".bbtn") && this.isMobileLayout) window.setTimeout(() => this.toggleBuildSheet(false), 0);
+    });
+    this.scrim?.addEventListener("click", () => {
+      this.toggleBuildSheet(false);
+      this.hideDevCardPicker();
+      if (this.railLog?.classList.contains("open")) this.toggleLog(false);
+      if (this.tradeModal?.style.display !== "none" && !this.tradeLocked) this.closeTradeModal();
+      this._syncScrim();
+    });
+    const cards = this.resourceCardStrip;
+    cards?.addEventListener("scroll", () => this.handArea?.classList.toggle("scrolled", cards.scrollLeft > 8), { passive: true });
+    // Keep the scrim in sync with whichever sheet code opens or closes
+    const mo = new MutationObserver(() => this._syncScrim());
+    [this.tradeModal, this.devCardPicker, this.victimPanel, this.discardPanel, this.incomingTradePanel, this.railLog, this.app].forEach((el) => {
+      if (el) mo.observe(el, { attributes: true, attributeFilter: ["style", "class"] });
+    });
+    window.matchMedia("(max-width: 900px)").addEventListener?.("change", () => this.handleResize());
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) this.boardRenderer?.requestDraw(); });
+  }
+
+  _syncScrim() {
+    if (!this.scrim) return;
+    const shown = (el) => el && el.style.display !== "none" && !el.closest(".rush-seven");
+    const mobile = this.isMobileLayout;
+    const any = mobile
+      ? this.app?.classList.contains("build-open") || this.railLog?.classList.contains("open") || [this.tradeModal, this.devCardPicker, this.victimPanel, this.discardPanel, this.incomingTradePanel].some(shown)
+      : [this.victimPanel, this.discardPanel, this.incomingTradePanel].some(shown);
+    this.scrim.hidden = !any;
+  }
+
+  toggleBuildSheet(force) {
+    const open = force ?? !this.app.classList.contains("build-open");
+    this.app.classList.toggle("build-open", open && this.isMobileLayout);
+    if (open) { this.hideDevCardPicker(); this.hideTradePanel(); }
+    this._syncScrim();
+  }
+
+  cancelPlacement() {
+    if (this.confirmBuild) this.confirmBuild = null;
+    if (this.pendingAction && this.pendingAction !== "robber") {
+      this.pendingAction = null;
+      this.canvas.style.cursor = "grab";
+    }
+    this.render();
+  }
+
+  /** The confirm pill / Place button: same path as tapping the ✓ on the board. */
+  _confirmViaIcon() {
+    const ic = this.getConfirmIconCenter();
+    if (!ic) return;
+    if (this.setupPhase) {
+      this.handleSetupClick(ic.x, ic.y);
+      this.render();
+      return;
+    }
+    const s = this.worldToScreen(ic.x, ic.y);
+    const rect = this.canvas.getBoundingClientRect();
+    this.handleBoardClick({ clientX: rect.left + (s.x * rect.width) / this.boardWidth, clientY: rect.top + (s.y * rect.height) / this.boardHeight });
+  }
+
+  zoomBy(f) {
+    const cx = this.boardWidth / 2, cy = this.boardHeight / 2;
+    const before = this.screenToWorld(cx, cy);
+    this.view.scale = clamp(this.view.scale * f, this._fitScale * 0.6, this._fitScale * 2.6);
+    this.view.offsetX = cx - before.x * this.view.scale;
+    this.view.offsetY = cy - before.y * this.view.scale;
+    this.drawCanvasScene();
+  }
+
+  /** Fit the island (with harbours) into the visible board area. */
+  fitView() {
+    if (!this.geometry) return;
+    const g = this.geometry, hs = g.hexSize;
+    const xs = g.hexes.map((h) => h.center.x), ys = g.hexes.map((h) => h.center.y);
+    const mx = hs * (this.isMobileLayout ? 1.12 : 1.75), my = hs * (this.isMobileLayout ? 1.3 : 1.7);
+    const minX = Math.min(...xs) - mx, maxX = Math.max(...xs) + mx, minY = Math.min(...ys) - my, maxY = Math.max(...ys) + my;
+    let fan = 0;
+    if (this.isMobileLayout && this.app) fan = parseFloat(getComputedStyle(this.app).getPropertyValue("--fan-h")) || 112;
+    const ins = this.isMobileLayout ? { t: 6, r: 4, b: fan - 6, l: 4 } : { t: 10, r: 10, b: 10, l: 10 };
+    const W = Math.max(50, this.boardWidth - ins.l - ins.r), H = Math.max(50, this.boardHeight - ins.t - ins.b);
+    const scale = Math.min(W / (maxX - minX), H / (maxY - minY));
+    this._fitScale = scale;
+    this.view.scale = scale;
+    this.view.offsetX = ins.l + W / 2 - ((minX + maxX) / 2) * scale;
+    this.view.offsetY = ins.t + H / 2 - ((minY + maxY) / 2) * scale;
+  }
+
+  requestBoardDraw() {
+    if (this.boardRenderer) this.boardRenderer.requestDraw();
+    else this.drawCanvasScene();
+  }
+
+  /** Switch theme instantly — no reload, game state untouched. */
+  setTheme(id) {
+    const T = THEMES[id];
+    if (!T || T === this.theme) return;
+    try {
+      const snap = document.createElement("canvas");
+      snap.width = this.canvas.width;
+      snap.height = this.canvas.height;
+      snap.getContext("2d").drawImage(this.canvas, 0, 0);
+      snap.className = "theme-snapshot";
+      snap.style.width = "100%";
+      snap.style.height = "100%";
+      this.canvas.parentElement.appendChild(snap);
+      window.setTimeout(() => { snap.style.opacity = "0"; }, 60);
+      window.setTimeout(() => snap.remove(), 520);
+    } catch (_) { /* tainted or empty canvas: skip the cross-fade */ }
+    const root = document.documentElement;
+    root.classList.add("theme-switching");
+    window.setTimeout(() => root.classList.remove("theme-switching"), 420);
+    this.theme = T;
+    saveThemeId(id);
+    root.dataset.theme = id;
+    installSprite(T);
+    if (T.canvasArt) {
+      if (this.boardRenderer) this.boardRenderer.setTheme(T);
+      else this.boardRenderer = new SvgBoardRenderer(this, T);
+      this.boardRenderer.resync();
+    } else {
+      this.boardRenderer = null;
+      this.lastAnimationTs = 0;
+    }
+    this._applyThemeToPlayers();
+    this._initCostReference();
+    renderQuickToggle(document.querySelector("#themeToggle"), this);
+    this._invalidateUI();
+    loadFonts(T).then(() => {
+      this.boardRenderer?.invalidateStatic();
+      this._invalidateUI();
+      this.render();
+    });
+    this.fitView();
+    this.render();
+  }
+
+  _applyThemeToPlayers() {
+    const T = this.theme;
+    (this.players || []).forEach((p) => {
+      p.color = T.textColors ? T.textColors[T.seatKeys[p.id]] : T.seatColors[p.id];
+    });
+    this._lastScoreKey = null;
+  }
+
+  _invalidateUI() {
+    this._lastScoreKey = null;
+    this._lastHandKey = null;
+    this._lastOffersKey = null;
+    this._lastVotersKey = null;
+    this._lastNext7Key = null;
+    this._lastLogKey = null;
+    this._lastDiceKey = null;
+    this._lastSupplyKey = null;
+  }
+
+  _av(player, cls = "") { return avatarSvg(player.id, cls); }
+
+  /** Element to fly things to/from for a player (avatar in the strip or the rail). */
+  playerAnchor(pid) {
+    const sel = this.isMobileLayout ? `#playerStrip [data-seat="${pid}"] .avatar` : `#scoreboard [data-seat="${pid}"] .avatar`;
+    return document.querySelector(sel);
+  }
+
+  /** Turn spotlight + badge transfers, detected from state changes between renders. */
+  _themeEffects() {
+    if (!this.players || !this.fx) return;
+    const now = { gen: this.gameGen, cur: this.currentPlayerIndex, lr: this.longestRoadHolder, la: this.largestArmyHolder, setup: this.setupPhase };
+    const p = this._fxPrev;
+    this._fxPrev = now;
+    if (!p || p.gen !== now.gen) return;
+    if (!this.isRush() && !now.setup && !p.setup && p.cur !== now.cur && !this.winner) this.fx.spotlight(now.cur);
+    if (now.lr !== p.lr && now.lr != null) this.fx.badge("longestRoad", p.lr, now.lr);
+    if (now.la !== p.la && now.la != null) this.fx.badge("largestArmy", p.la, now.la);
+  }
+
+  _logIcon(text) {
+    if (/\bwins?\b/.test(text)) return "vp";
+    if (/rolled|^Roll #/.test(text)) return "dice";
+    if (/robber|stole|discard/i.test(text)) return "robber";
+    if (/Longest Road/.test(text)) return "longestRoad";
+    if (/Largest Army/.test(text)) return "largestArmy";
+    if (/Knight/.test(text)) return "knight";
+    if (/Monopoly/.test(text)) return "monopoly";
+    if (/Year of Plenty/.test(text)) return "yearOfPlenty";
+    if (/Road Building/.test(text)) return "roadBuilding";
+    if (/development|Victory Point card|You drew/.test(text)) return "devcard";
+    if (/trade|traded|offers/i.test(text)) return "trade";
+    if (/city/i.test(text)) return "city";
+    if (/settlement/i.test(text)) return "settlement";
+    if (/road/i.test(text)) return "road";
+    const res = RESOURCES.find((r) => text.includes(RESOURCE_LABEL[r]));
+    if (res) return res;
+    return "log";
+  }
+
+  _confirmPillInfo() {
+    const cb = this.confirmBuild;
+    if (!cb) return null;
+    const terr = (nodeId) => this.geometry.nodes[nodeId].adjacentHexes.map((hid) => this.geometry.hexes[hid])
+      .filter((h) => h.resource !== "desert").map((h) => `${RESOURCE_LABEL[h.resource]} ${h.number}`).join(" · ");
+    if (cb.type === "road") {
+      const free = this.setupPhase || this.freeRoadsRemaining > 0;
+      return { icon: "road", title: "Road here?", sub: free ? "Free road" : "Costs 1 Lumber + 1 Brick" };
+    }
+    if (cb.type === "city") return { icon: "city", title: "Upgrade to a city?", sub: `Produces double · ${terr(cb.id) || "no tiles"}` };
+    return { icon: "settlement", title: "Settlement here?", sub: `Touches ${terr(cb.id) || "only the coast"}` };
+  }
+
   drawCanvasScene() {
     if (!this.geometry) return;
+    if (this.boardRenderer) {
+      this.boardRenderer.requestDraw();
+      return;
+    }
     this.ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
     this.ctx.clearRect(0, 0, this.boardWidth, this.boardHeight);
     this.drawBoardBackdrop();
@@ -7546,7 +7690,6 @@ class ColonistFullGame {
   render() {
     this.drawCanvasScene();
     this.renderTopPanels();
-    this._alignScoreboardToHeader();
     this.renderResourceCards();
     this.renderScoreboard();
     this.renderLog();
@@ -7555,6 +7698,8 @@ class ColonistFullGame {
     this.renderSupplyOverview();
     this._renderRushHud();
     this._renderRushOffers();
+    this._themeEffects();
+    this._syncScrim();
     if (!document.body.dataset.gameReady) {
       document.body.dataset.gameReady = "true";
     }

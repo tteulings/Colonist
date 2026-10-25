@@ -1,0 +1,57 @@
+/* THEME "Classic" — the original Colonist palette: deep-sea chrome, sand panels, terracotta accent,
+   the original hand-drawn canvas board and the original icons/avatars from assets/. */
+[data-theme="classic"] {
+  color-scheme: light;
+  --font-display: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-body: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --display-weight: 800; --display-tracking: 0; --h2-size: 16px; --brand-size: 20px; --jturn-transform: uppercase;
+  --ink: #2c1810; --ink-soft: #6b5744; --ink-faint: #a08f7a; --heading: #1a3a52; --brand-ink: #fff;
+  --bg: #2d6888; --bg-image: linear-gradient(180deg, #3a7a9e 0%, #2d6888 60%, #1e4e6e 100%);
+  --chrome: #1e374b; --chrome-image: linear-gradient(rgba(30,55,75,.92), rgba(30,55,75,.86)); --chrome-ink: #f5efe4; --chrome-border: 1px solid rgba(196,162,101,.3); --chrome-shadow: none;
+  --m-top: #233f55; --m-top-image: linear-gradient(#24425a, #1e374b); --status-ink: #fff;
+  --rail: #2a5f7e; --rail-image: linear-gradient(#2d6888, #24597a); --rail-border: 1px solid rgba(196,162,101,.25);
+  --panel: #f5efe4; --panel-image: linear-gradient(180deg, #faf6ef, #f0e8da); --panel-border: 1px solid rgba(160,140,110,.4); --panel-radius: 12px; --panel-shadow: 0 4px 12px rgba(44,24,16,.15);
+  --dock: #f5efe4; --dock-image: linear-gradient(180deg, #faf6ef, #ece2d0); --dock-border: 1px solid rgba(160,140,110,.4); --dock-shadow: 0 -4px 14px rgba(0,0,0,.18);
+  --float: rgba(250,246,239,.96); --float-border: 1px solid rgba(160,140,110,.4); --float-shadow: 0 4px 14px rgba(44,24,16,.2);
+  --banner: rgba(250,246,239,.96); --banner-image: none; --banner-border: 1px solid rgba(160,140,110,.4); --banner-shadow: 0 4px 14px rgba(44,24,16,.2); --banner-radius: 12px;
+  --sheet: #f5efe4; --sheet-image: linear-gradient(180deg, #faf6ef, #f0e8da); --sheet-border: 1px solid rgba(160,140,110,.4); --sheet-radius: 18px;
+  --chip: #fffaf2; --chip-border: 1px solid rgba(160,140,110,.35); --chip-ink: #2c1810; --chip-radius: 10px;
+  --group: #ece2d0; --group-border: 1px solid rgba(160,140,110,.35);
+  --sea-bg: #4090b0; --sea-image: radial-gradient(ellipse at 47% 48%, #5aadcc, #4090b0 40%, #2a6a88);
+  --ripple-image: none; --shimmer-a: 0;
+  --fan-bg: linear-gradient(rgba(30,55,75,0), rgba(30,55,75,.55) 60%);
+  --scrim: rgba(20,45,65,.6); --spot: rgba(10,25,40,.6); --home-ind: #fff;
+  --btn: #faf6ef; --btn-image: linear-gradient(180deg, #faf6ef, #e8dcc8); --btn-ink: #2c1810; --btn-border: 1px solid rgba(0,0,0,.15); --btn-shadow: 0 1px 2px rgba(0,0,0,.1); --btn-radius: 10px;
+  --btn-on: #e0f4f7; --btn-on-ink: #1a3a52; --btn-on-border: 2px solid #19a0b8; --btn-on-shadow: 0 0 0 3px rgba(25,160,184,.2);
+  --primary: #da7756; --primary-image: linear-gradient(135deg, #da7756, #c4623e); --primary-ink: #fff; --primary-border: 1px solid rgba(218,119,86,.3); --primary-shadow: 0 3px 10px rgba(218,119,86,.35); --primary-size: 19px;
+  --accent: #da7756; --good: #22a854; --good-bg: #dff3e6; --danger: #c44;
+  --kbd-bg: rgba(0,0,0,.08); --kbd-ink: #1a3a52;
+  --badge: #1a3a52; --badge-ink: #fff; --badge-border: 2px solid #fff;
+  --vp-bg: #fffaf2; --vp-ink: #1a3a52; --vp-border: 1px solid rgba(160,140,110,.4); --vp-radius: 10px;
+  --active-row: #fdeee6; --divider: 1px solid rgba(160,140,110,.25); --divider-soft: 1px solid rgba(160,140,110,.18); --sep: rgba(160,140,110,.35);
+  --fab-radius: 12px; --card-radius: 10px; --card-shadow: drop-shadow(0 2px 3px rgba(0,0,0,.2));
+  --avatar-radius: 50%; --avatar-shadow: 0 1px 3px rgba(0,0,0,.2);
+  --p0: #e63946; --p1: #2a6fdb; --p2: #e8a317; --p3: #2db87e;
+  --p0-text: #d02a37; --p1-text: #2a6fdb; --p2-text: #b07a08; --p3-text: #1f9466;
+  --p0-ink: #fff; --p1-ink: #fff; --p2-ink: #2c1810; --p3-ink: #fff;
+  --row-tint: 6%; --vp-tint: 14%;
+  --h2-bg: transparent; --h2-bg-2: transparent; --h2-border: 1px solid rgba(160,140,110,.2);
+  --jicon-bg: transparent; --jicon-pad: 0; --jicon-size: 22px;
+  --dust: #f5efe4; --spark: #ffe680; --smoke: #eee; --ray: rgba(255,240,170,.55);
+  --ease-pop: cubic-bezier(.34,1.56,.64,1); --ease-out: cubic-bezier(.22,1,.36,1);
+  --rush-ring: #da7756; --rush-track: rgba(160,140,110,.25); --rush-badge-bg: rgba(255,255,255,.12); --rush-badge-ink: #fff;
+  --persona-bg: #eef2f5; --persona-ink: #45658f; --persona-border: 0;
+  --persona-trader-bg: #ece8f8; --persona-trader-ink: #5a4ba0;
+  --persona-builder-bg: #e3f3ef; --persona-builder-ink: #2d7a70;
+  --persona-shark-bg: #fbe6e6; --persona-shark-ink: #b03434;
+  --persona-expert-bg: #e5eefb; --persona-expert-ink: #2a5fa8;
+  --persona-beginner-bg: #e8f5e1; --persona-beginner-ink: #4a7d2a;
+}
+[data-theme="classic"] .brand-name { text-transform: uppercase; letter-spacing: .08em; }
+[data-theme="classic"] .cost, [data-theme="classic"] .bank { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.12); color: #f5efe4; }
+[data-theme="classic"] .ticker, [data-theme="classic"] .pchip .pn, [data-theme="classic"] .pchip .vpn { color: #f5efe4; }
+[data-theme="classic"] .pchip .vpn small, [data-theme="classic"] .pchip .mini, [data-theme="classic"] .ticker .more { color: #c9d6e0; }
+[data-theme="classic"] .pchip.active { background: rgba(255,255,255,.12); }
+[data-theme="classic"] .rush-hud .rush-card-title, [data-theme="classic"] .rush-next7 { color: #c9d6e0; }
+[data-theme="classic"] .rush-hud .rush-ring-center span { color: #fff; }
+[data-theme="classic"] .ticker .who { filter: brightness(1.5); }

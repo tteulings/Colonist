@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="A">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./assets/pwa/apple-touch-icon.png" />
@@ -12,37 +12,92 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Colonist" />
     <title>Colonist</title>
-    <link rel="stylesheet" href="./styles.css?v=64" />
+    <script>
+      // Theme + motion before first paint (src/themes/manager.js owns the logic afterwards)
+      (function () {
+        var d = document.documentElement, t = "A", m = "system";
+        try { t = localStorage.getItem("colonist.theme") || "A"; m = localStorage.getItem("colonist.motion") || "system"; } catch (e) {}
+        if (t !== "A" && t !== "classic") t = "A";
+        d.dataset.theme = t;
+        var rm = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+        d.dataset.motion = m === "reduced" || (m !== "full" && rm) ? "reduced" : "full";
+        if (t === "A") {
+          var l = document.createElement("link");
+          l.rel = "stylesheet"; l.dataset.font = "A";
+          l.href = "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:opsz,wght@9..40,400..800&display=swap";
+          document.head.appendChild(l);
+        }
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- legacy styles in a low-priority cascade layer: the themed CSS below always wins -->
+    <style>@import url("./styles.css?v=65") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=65" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=65" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=65" />
   </head>
   <body>
-    <div class="app-shell">
-      <section class="table-header">
-        <div id="costReference" class="cost-reference-header">
-          <div class="cost-ref-items" id="costRefItems"></div>
-        </div>
-        <div class="table-logo">
-          <img src="./assets/icons/ui-logo.svg?v=64" alt="" />
-          <span>Colonist</span>
+    <div class="app" id="app">
+      <header class="topbar" id="topbar">
+        <div class="brand">
+          <svg class="mark" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>
+          <span class="brand-name">Colonist</span>
         </div>
         <span id="modeBadge" class="mode-badge" hidden></span>
-        <div id="supplyOverview" class="supply-overview-header"></div>
-      </section>
+        <div id="costReference" class="costs" title="Build costs">
+          <div class="cost-ref-items" id="costRefItems"></div>
+        </div>
+        <div class="top-right">
+          <div id="supplyOverview" class="bank" title="Bank supply"></div>
+          <div class="theme-toggle" id="themeToggle" role="radiogroup" aria-label="Theme"></div>
+          <button class="btn icon-only" id="settingsBtn" aria-label="Settings" title="Settings"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-settings" x="-50" y="-50" width="100" height="100"/></svg></button>
+        </div>
+      </header>
 
-      <!-- Settings gear — top-left floating -->
+      <!-- Mobile: player strip + one-line journal ticker -->
+      <div class="mtop" id="mtop">
+        <div class="pstrip" id="playerStrip"></div>
+        <div class="ticker" id="ticker">
+          <span class="ticker-ic" id="tickerIcon"></span>
+          <span class="txt" id="tickerText"></span>
+          <button class="more" id="mSettingsBtn" aria-label="Settings"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-settings" x="-50" y="-50" width="100" height="100"/></svg></button>
+          <button class="more" id="tickerMore" aria-label="Open journal"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-chevron" x="-50" y="-50" width="100" height="100"/></svg></button>
+        </div>
+      </div>
+
+
+      <!-- Rush HUD: roll countdown, Ready votes, next-7 robber badge -->
+      <aside id="rushHud" class="rush-hud" hidden aria-label="Rush timer">
+        <div class="rush-ring" role="timer" aria-live="off">
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            <circle class="rush-ring-track" cx="50" cy="50" r="44" />
+            <circle id="rushRingFill" class="rush-ring-fill" cx="50" cy="50" r="44" />
+          </svg>
+          <div class="rush-ring-center"><span id="rushSeconds">15</span><small id="rushSecondsLabel">seconds</small></div>
+        </div>
+        <div class="rush-mid">
+          <div class="rush-card-title" id="rushTitle">Next roll</div>
+          <div id="rushVoters" class="rush-voters"></div>
+        </div>
+        <div id="rushNext7" class="rush-next7"></div>
+      </aside>
+
+      <!-- Game settings (moved into Settings › Game at start-up by src/themes/settings-ui.js) -->
       <details class="settings-drawer-float" id="settingsDrawer">
-        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.64</span></summary>
+        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.65</span></summary>
         <div class="settings-float-body">
           <div class="button-row">
-            <button id="nextTurnBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Play AI Turns</button>
-            <button id="autoplayBtn" class="btn-neutral">Start Autoplay</button>
-            <button id="resetBtn" class="btn-neutral"><img class="btn-icon" src="./assets/icons/ui-reset.svg" alt="" />Reset</button>
-            <button id="resetViewBtn" class="btn-neutral">Reset View</button>
+            <button id="nextTurnBtn" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Let bots play</button>
+            <button id="autoplayBtn" class="btn-neutral">Watch bots play</button>
+            <button id="resetBtn" class="btn-neutral"><img class="btn-icon" src="./assets/icons/ui-reset.svg" alt="" />New game</button>
+            <button id="resetViewBtn" class="btn-neutral">Fit board</button>
           </div>
-          <label for="speedRange">Autoplay Speed</label>
+          <label for="speedRange">Bot speed</label>
           <input id="speedRange" type="range" min="500" max="3000" step="50" value="1200" />
           <div class="settings-toggles">
-            <label class="settings-toggle-label"><input type="checkbox" id="soundToggle" checked /> Sound effects</label>
-            <label class="settings-toggle-label"><input type="checkbox" id="aiReasoningToggle" /> Show AI reasoning</label>
+            <label class="settings-toggle-label"><input type="checkbox" id="soundToggle" checked /> Sounds</label>
+            <label class="settings-toggle-label"><input type="checkbox" id="aiReasoningToggle" /> Show bot thinking</label>
           </div>
           <div class="button-row">
             <button id="playKnightBtn" class="btn-dev"><img class="btn-icon" src="./assets/icons/dev-knight.svg" alt="" />Knight</button>
@@ -51,71 +106,100 @@
             <button id="playMonopolyBtn" class="btn-dev"><img class="btn-icon" src="./assets/icons/dev-monopoly.svg" alt="" />Monopoly</button>
           </div>
           <details class="ai-strategy-section">
-            <summary>AI Strategy Config</summary>
+            <summary>Bot personalities</summary>
             <div id="aiStrategyPanel" class="ai-strategy-panel"></div>
           </details>
-          <div class="settings-version">Colonist v0.64</div>
+          <div class="settings-version">Colonist v0.65</div>
         </div>
       </details>
 
-      <main class="table-layout">
-        <section class="board-area">
-          <!-- Rush HUD: roll countdown, Ready votes, next-7 robber badge -->
-          <aside id="rushHud" class="rush-hud" hidden aria-label="Rush timer">
-            <div class="rush-card rush-timer-card">
-              <div class="rush-card-title">Next roll</div>
-              <div class="rush-ring" role="timer" aria-live="off">
-                <svg viewBox="0 0 100 100" aria-hidden="true">
-                  <circle class="rush-ring-track" cx="50" cy="50" r="44" />
-                  <circle id="rushRingFill" class="rush-ring-fill" cx="50" cy="50" r="44" />
-                </svg>
-                <div class="rush-ring-center"><span id="rushSeconds">15</span><small id="rushSecondsLabel">seconds</small></div>
-              </div>
+      <main class="table" id="table">
+        <section class="board-wrap board-panel" id="boardWrap">
+          <div class="sea" aria-hidden="true"></div>
+          <canvas id="board" width="1200" height="700" aria-label="Game board"></canvas>
+          <div class="lefttop">
+            <div class="turn-banner" id="turnBanner">
+              <span id="actionPromptAvatar" class="banner-avatar"></span>
+              <div class="banner-text"><b id="turnBannerTitle">Your turn</b><span class="action-prompt-text" id="actionPromptText">Roll dice</span></div>
+              <button class="btn banner-cancel" id="cancelActionBtn" hidden>Cancel <span class="kbd">Esc</span></button>
             </div>
-            <div class="rush-card rush-ready-card">
-              <button id="rushReadyBtn" class="rush-ready-btn" type="button">Ready – roll now</button>
-              <div id="rushVoters" class="rush-voters"></div>
-              <p class="rush-ready-help">Rolls immediately when everyone is ready.</p>
-            </div>
-            <div id="rushNext7" class="rush-card rush-next7"></div>
-          </aside>
-          <section class="board-panel">
-            <canvas id="board" width="1200" height="700" aria-label="Game board"></canvas>
-            <div id="toastStack" class="toast-stack" aria-live="polite"></div>
-            <div id="lastDiceDisplay" class="last-dice-display" style="display:none"></div>
-            <!-- Rush: bot trade offers to you (non-blocking) -->
-            <div id="rushOffers" class="rush-offers" aria-live="polite"></div>
-          </section>
+            <div id="lastDiceDisplay" class="dice-tray" style="display: none"></div>
+          </div>
+          <div id="toastStack" class="toasts" aria-live="polite"></div>
+          <!-- Rush: bot trade offers to you (non-blocking) -->
+          <div id="rushOffers" class="rush-offers" aria-live="polite"></div>
+          <div class="board-tools">
+            <button class="btn icon-only" id="fitBoardBtn" aria-label="Fit board" title="Fit board (V)"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-fit" x="-50" y="-50" width="100" height="100"/></svg></button>
+            <button class="btn icon-only" id="zoomInBtn" aria-label="Zoom in" title="Zoom in"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-zoomIn" x="-50" y="-50" width="100" height="100"/></svg></button>
+            <button class="btn icon-only" id="zoomOutBtn" aria-label="Zoom out" title="Zoom out"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-zoomOut" x="-50" y="-50" width="100" height="100"/></svg></button>
+          </div>
+          <div class="confirm-pill" id="confirmPill" hidden>
+            <span class="cp-ic" id="confirmPillIcon"></span>
+            <div class="txt"><span id="confirmPillTitle">Settlement here?</span><small id="confirmPillSub"></small></div>
+            <button class="btn ghost icon-only" id="confirmPillCancel" aria-label="Cancel"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-close" x="-50" y="-50" width="100" height="100"/></svg></button>
+            <button class="btn primary" id="confirmPillPlace"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-check" x="-50" y="-50" width="100" height="100"/></svg>Place</button>
+          </div>
         </section>
 
-        <aside class="right-rail">
-          <section class="rail-card rail-log" id="railLog">
-            <h2>Event Log</h2>
-            <div id="log" class="log"></div>
-          </section>
-          <section class="rail-card rail-players">
-            <h2>Players</h2>
+        <aside class="rail" id="rail">
+          <section class="panel players">
+            <h2><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-vp" x="-50" y="-50" width="100" height="100"/></svg>Players <span class="sub">First to 10 points wins</span></h2>
             <div id="scoreboard"></div>
           </section>
+          <section class="panel journal" id="railLog">
+            <h2><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-log" x="-50" y="-50" width="100" height="100"/></svg>Journal <span class="sub">Newest at the bottom</span>
+              <button class="btn ghost icon-only sheet-close" id="journalClose" aria-label="Close journal"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-close" x="-50" y="-50" width="100" height="100"/></svg></button></h2>
+            <div id="log" class="jlist"></div>
+          </section>
+          <button class="log-toggle" id="logToggle" hidden title="Toggle journal">&#9776;</button>
         </aside>
-
-        <button class="log-toggle" id="logToggle" title="Toggle event log">&#9776;</button>
       </main>
 
-      <div class="hand-strip" id="handStrip" aria-label="Your cards"></div>
+      <footer class="dock" id="dock">
+        <div class="hand" id="handArea">
+          <div class="lbl">Your hand <small id="handSummary"></small></div>
+          <div class="cards" id="resourceCardStrip" aria-label="Your cards"></div>
+          <span class="swipe" aria-hidden="true">swipe ›</span>
+        </div>
+        <div class="actions">
+          <button class="mbtn m-only" id="mBuildBtn"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-build" x="-50" y="-50" width="100" height="100"/></svg>Build</button>
+          <div class="buildgrp" id="actionPromptBuild">
+            <div class="sheet-head m-only"><h3><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-build" x="-50" y="-50" width="100" height="100"/></svg>Build</h3>
+              <button class="btn ghost icon-only" id="buildSheetClose" aria-label="Close"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-close" x="-50" y="-50" width="100" height="100"/></svg></button></div>
+            <button id="buildRoadBtn" class="bbtn" data-build="road"><span class="kbd">1</span><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-road" x="-50" y="-50" width="100" height="100"/></svg><span class="bl">Road</span><span class="need" data-cost="road"></span><span class="left"></span></button>
+            <button id="buildSettlementBtn" class="bbtn" data-build="settlement"><span class="kbd">2</span><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-settlement" x="-50" y="-50" width="100" height="100"/></svg><span class="bl">Settlement</span><span class="need" data-cost="settlement"></span><span class="left"></span></button>
+            <button id="buildCityBtn" class="bbtn" data-build="city"><span class="kbd">3</span><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-city" x="-50" y="-50" width="100" height="100"/></svg><span class="bl">City</span><span class="need" data-cost="city"></span><span class="left"></span></button>
+            <button id="buyDevBtn" class="bbtn" data-build="development"><span class="kbd">B</span><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-devcard" x="-50" y="-50" width="100" height="100"/></svg><span class="bl">Buy card</span><span class="need" data-cost="development"></span><span class="left"></span></button>
+          </div>
+          <div class="side-actions">
+            <button id="tradeBankBtn" class="btn trade-btn mbtn-able"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-trade" x="-50" y="-50" width="100" height="100"/></svg><span>Trade</span> <span class="kbd">T</span></button>
+            <button id="playDevBtn" class="btn play-btn"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-knight" x="-50" y="-50" width="100" height="100"/></svg><span>Play card</span> <span class="kbd">P</span></button>
+          </div>
+          <button class="mbtn m-only" id="mCardsBtn"><span class="dot" id="mCardsDot" hidden></span><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-devcard" x="-50" y="-50" width="100" height="100"/></svg>Cards</button>
+          <div class="primary-slot">
+            <button id="rollDiceBtn" class="btn primary mainbtn" title="Roll dice (R)"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-dice" x="-50" y="-50" width="100" height="100"/></svg><span>Roll dice</span><small>R</small></button>
+            <button id="endTurnBtn" class="btn primary mainbtn" title="End turn (E)" style="display: none"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-endTurn" x="-50" y="-50" width="100" height="100"/></svg><span>End turn</span><small>E</small></button>
+            <button id="rushReadyBtn" class="btn primary mainbtn rush-ready-btn" type="button" title="Ready – roll now (R)" hidden>Ready</button>
+            <div class="waiting" id="waitingBar" hidden></div>
+          </div>
+        </div>
+      </footer>
 
-      <!-- Discard selection overlay (when 7 is rolled) -->
-      <div id="discardPanel" class="discard-panel" style="display:none">
-        <div class="discard-panel-header">Discard cards</div>
-        <div class="discard-panel-info" id="discardInfo"></div>
-        <div class="discard-panel-cards" id="discardCards"></div>
-        <div class="discard-panel-selected" id="discardSelected"></div>
-        <button id="discardConfirmBtn" class="btn-roll discard-confirm-btn" disabled>Confirm</button>
+      <!-- Sheets (bottom sheets on mobile, floating panels on desktop) -->
+      <div class="scrim" id="scrim" hidden></div>
+
+      <div id="discardPanel" class="sheet discard-sheet" style="display: none" role="dialog" aria-labelledby="discardTitle">
+        <div class="grab"></div>
+        <h3 id="discardTitle"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-robber" x="-50" y="-50" width="100" height="100"/></svg><span id="discardHeader">The robber came!</span></h3>
+        <p class="lead" id="discardInfo"></p>
+        <div class="rgrid" id="discardCards"></div>
+        <div class="rates"><span class="rate" id="discardSelected"></span></div>
+        <div class="btnrow one"><button id="discardConfirmBtn" class="btn primary" disabled><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-check" x="-50" y="-50" width="100" height="100"/></svg><span id="discardConfirmLabel">Hand back</span></button></div>
       </div>
 
       <!-- Rush: the game pauses on a 7 (discards, then the robber) -->
       <div id="rushSevenPanel" class="rush-seven" hidden>
-        <div class="rush-seven-card" role="dialog" aria-label="Robber! Game paused">
+        <div class="rush-seven-card sheet" role="dialog" aria-label="Robber! Game paused">
           <div class="rush-seven-head">
             <span class="rush-seven-badge">7</span>
             <h3>Robber! Game paused</h3>
@@ -131,70 +215,54 @@
         </div>
       </div>
 
-      <!-- Robber victim selection overlay -->
-      <div id="victimPanel" class="victim-panel" style="display:none">
-        <div class="victim-panel-header">Steal from:</div>
+      <div id="victimPanel" class="sheet victim-sheet" style="display: none" role="dialog">
+        <div class="grab"></div>
+        <h3><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-robber" x="-50" y="-50" width="100" height="100"/></svg>Rob whom?</h3>
+        <p class="lead">Pick a player next to the robber. You take 1 random card.</p>
         <div id="victimOptions" class="victim-options"></div>
       </div>
 
-      <!-- Trade floating panel -->
-      <div id="tradeModal" class="trade-panel-float" style="display:none">
-        <div class="trade-panel-header">
-          <span>Trade</span>
-          <button id="tradeModalClose" class="trade-panel-close">&times;</button>
+      <div id="tradeModal" class="sheet trade-sheet" style="display: none" role="dialog" aria-labelledby="tradeTitle">
+        <div class="grab"></div>
+        <div class="sheet-head"><h3 id="tradeTitle"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-trade" x="-50" y="-50" width="100" height="100"/></svg>Trade</h3>
+          <button id="tradeModalClose" class="btn ghost icon-only" aria-label="Close"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-close" x="-50" y="-50" width="100" height="100"/></svg></button></div>
+        <p class="lead">Tap a card to give a full bank set · use + and − for single cards.</p>
+        <div class="lbl">You give</div>
+        <div id="tradeOfferGrid" class="rgrid"></div>
+        <div class="lbl">You want</div>
+        <div id="tradeRequestGrid" class="rgrid"></div>
+        <div class="rates" id="tradeRates"></div>
+        <div id="tradeProposalResult" class="trade-result"></div>
+        <p class="trade-hint" id="tradeHint"></p>
+        <div class="btnrow">
+          <button id="tradeProposalBtn" class="btn"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-trade" x="-50" y="-50" width="100" height="100"/></svg>Ask players</button>
+          <button id="tradeExecuteBtn" class="btn primary"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-bank" x="-50" y="-50" width="100" height="100"/></svg><span>Harbor trade</span></button>
         </div>
-        <div class="trade-section-label">You get:</div>
-        <div id="tradeRequestGrid" class="trade-resource-grid"></div>
-        <div class="trade-section-label">You give:</div>
-        <div id="tradeOfferGrid" class="trade-resource-grid"></div>
-        <div id="tradeProposalResult" class="trade-proposal-result"></div>
-        <div class="trade-panel-actions">
-          <button id="tradeExecuteBtn" class="btn-trade trade-action-btn">Bank</button>
-          <button id="tradeProposalBtn" class="btn-build trade-action-btn">Propose</button>
-        </div>
-        <select id="giveResourceSelect" style="display:none"></select>
-        <select id="getResourceSelect" style="display:none"></select>
+        <select id="giveResourceSelect" style="display: none"></select>
+        <select id="getResourceSelect" style="display: none"></select>
       </div>
 
-      <!-- Incoming trade offer popup -->
-      <div id="incomingTradePanel" class="incoming-trade-panel" style="display:none">
-        <div class="incoming-trade-header" id="incomingTradeHeader">Trade offer</div>
-        <div class="incoming-trade-body" id="incomingTradeBody"></div>
-        <div class="incoming-trade-actions">
-          <button id="acceptTradeBtn" class="btn-build">Accept</button>
-          <button id="rejectTradeBtn" class="btn-neutral">Reject</button>
+      <div id="incomingTradePanel" class="sheet incoming-sheet" style="display: none" role="dialog">
+        <div class="grab"></div>
+        <h3 id="incomingTradeHeader">Trade offer</h3>
+        <div id="incomingTradeBody"></div>
+        <div class="btnrow">
+          <button id="rejectTradeBtn" class="btn">Decline</button>
+          <button id="acceptTradeBtn" class="btn primary"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-check" x="-50" y="-50" width="100" height="100"/></svg>Accept</button>
         </div>
       </div>
 
-      <!-- Dev card picker popup -->
-      <div id="devCardPicker" class="dev-card-picker" style="display:none">
+      <div id="devCardPicker" class="sheet dev-sheet" style="display: none" role="dialog">
+        <div class="grab"></div>
+        <div class="sheet-head"><h3><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-devcard" x="-50" y="-50" width="100" height="100"/></svg>Development cards</h3>
+          <button class="btn ghost icon-only" id="devPickerClose" aria-label="Close"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-close" x="-50" y="-50" width="100" height="100"/></svg></button></div>
+        <p class="lead" id="devPickerLead">One card per turn. Cards bought this turn can be played next turn.</p>
         <div class="dev-picker-cards" id="devPickerCards"></div>
       </div>
-
-      <section class="bottom-bar">
-        <div class="resource-card-strip" id="resourceCardStrip" aria-label="Your resources">
-          <!-- Populated by game.js -->
-        </div>
-        <div class="action-prompt-row">
-          <div class="action-prompt-status">
-            <img class="action-prompt-avatar" id="actionPromptAvatar" src="./assets/avatars/avatar-human.svg?v=64" alt="" />
-            <span class="action-prompt-text" id="actionPromptText">Roll dice</span>
-          </div>
-          <button id="rollDiceBtn" class="action-btn btn-roll" title="R">Roll</button>
-          <button id="endTurnBtn" class="action-btn btn-neutral" title="E" style="display:none">End Turn</button>
-          <div class="action-prompt-build" id="actionPromptBuild" style="display:none">
-            <button id="buildRoadBtn" class="action-btn btn-build" title="1"><span class="build-glyph road"></span> Road</button>
-            <button id="buildSettlementBtn" class="action-btn btn-build" title="2"><span class="build-glyph settlement"></span> Settle</button>
-            <button id="buildCityBtn" class="action-btn btn-build" title="3"><span class="build-glyph city"></span> City</button>
-            <button id="buyDevBtn" class="action-btn btn-dev" title="B">Dev</button>
-          </div>
-          <button id="playDevBtn" class="action-btn btn-dev-play" title="D" style="display:none">Play</button>
-          <button id="tradeBankBtn" class="action-btn btn-trade" title="T" style="display:none">Trade</button>
-        </div>
-      </section>
     </div>
+    <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=64"></script>
+    <script type="module" src="./src/game.js?v=65"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
