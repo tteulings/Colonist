@@ -410,7 +410,8 @@ export class SvgBoardRenderer {
     } else this.dimHex(g.robberHexId, 1);
 
     // 4. robber-mode targets
-    if (g.pendingAction === "robber" && g.currentPlayer?.isHuman) this.drawRobberTargets(ctx, now);
+    if (g.pendingAction === "robber" && g.currentPlayer?.isHuman) this.drawRobberTargets(ctx);
+
 
     // 5. roads
     g.geometry.edges.forEach((e) => { if (e.owner != null) this.drawRoad(ctx, e, g.players[e.owner], now, reduced); });
@@ -424,6 +425,7 @@ export class SvgBoardRenderer {
 
     // 8. placement hints + ghost + confirm
     if (this.placementActive()) this.drawPlacement(ctx, now, reduced, devK);
+    if (g.pendingAction === "robber" && g.confirmBuild?.type === "robber" && !g.isMobileLayout && g.currentPlayer?.isHuman) this.drawConfirm(ctx, now, reduced, devK);
 
     // 9. dust / sparks
     this.anims.forEach((a) => this.drawParticles(ctx, a, now, reduced));
@@ -476,25 +478,34 @@ export class SvgBoardRenderer {
     });
   }
 
-  drawRobberTargets(ctx, now) {
-    const g = this.game;
-    const pulse = motionReduced() ? 0.6 : 0.45 + Math.sin(now / 300) * 0.2;
+  /**
+   * Robber mode, calm: tiles the robber may not go to are dimmed, every candidate tile shows the
+   * portraits of the players you could rob there, and the chosen (or hovered) tile gets a white
+   * outline plus a ghost robber. Nothing pulses.
+   */
+  drawRobberTargets(ctx) {
+    const g = this.game, mover = g.currentPlayer;
+    const legal = new Set(g._legalRobberHexes(mover).map((h) => h.id));
+    const sel = g.confirmBuild?.type === "robber" ? g.confirmBuild.id : null;
+    const px = 1 / (this.u * g.view.scale);
     g.geometry.hexes.forEach((h) => {
-      if (h.id === g.robberHexId) return;
+      if (!legal.has(h.id)) { if (h.id !== g.robberHexId) this.dimHex(h.id, 1); return; }
       const c = this.hexArt(h);
-      ctx.save(); ctx.translate(c.x, c.y);
-      const hover = g.hoverHexId === h.id;
-      ctx.lineWidth = hover ? 6 : 3;
-      ctx.strokeStyle = hover ? this.theme.hint.ring : `rgba(255,248,232,${pulse})`;
-      ctx.stroke(HEX_P(92));
-      if (hover) { ctx.globalAlpha = 0.18; ctx.fillStyle = "#FFF6DA"; ctx.fill(HEX_P(92)); }
-      ctx.restore();
+      if (h.id === sel || h.id === g.hoverHexId) {
+        ctx.save(); ctx.translate(c.x, c.y);
+        ctx.lineWidth = Math.max(5, 3.5 * px); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.lineJoin = "round";
+        ctx.stroke(HEX_P(91));
+        ctx.restore();
+      }
+      const victims = g._stealVictims(h.id, mover);
+      const r = 10 * px;
+      victims.forEach((pid, i) => g._drawAvatarDisc(ctx, pid, c.x + (i - (victims.length - 1) / 2) * 2.4 * r, c.y + 70, r));
     });
-    if (g.hoverHexId != null && g.hoverHexId !== g.robberHexId) {
-      const c = this.hexArt(g.geometry.hexes[g.hoverHexId]);
-      const rp = this.robberPos(g.hoverHexId);
-      ctx.save(); ctx.translate(rp.x, rp.y + 32); ctx.scale(this.pieceScale, this.pieceScale); ctx.translate(0, -32); ctx.globalAlpha = 0.55;
-      drawSpec(ctx, this.theme.pieces.robber, { alpha: 0.55 });
+    const ghostAt = sel ?? (g.hoverHexId != null && legal.has(g.hoverHexId) ? g.hoverHexId : null);
+    if (ghostAt != null) {
+      const rp = this.robberPos(ghostAt);
+      ctx.save(); ctx.translate(rp.x, rp.y + 32); ctx.scale(this.pieceScale, this.pieceScale); ctx.translate(0, -32);
+      drawSpec(ctx, this.theme.pieces.robber, { alpha: sel != null ? 0.75 : 0.5 });
       ctx.restore();
     }
   }

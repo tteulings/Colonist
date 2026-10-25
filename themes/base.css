@@ -232,7 +232,7 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 .mbtn .dot { position: absolute; top: 4px; right: 6px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--badge); color: var(--badge-ink); font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 4px; border: var(--badge-border); }
 .waiting { flex: 1; display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 12px; border-radius: var(--btn-radius); background: var(--chip); border: var(--chip-border); font-weight: 750; font-size: 14px; min-width: 0; }
 .waiting .avatar { --av: 34px; --av-ring: 2.5px; }
-.waiting > .ic { font-size: 32px; }
+.waiting > .ic { font-size: 26px; margin-right: -2px; }
 .waiting .wt { min-width: 0; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .waiting .wt small { display: block; font-size: 12px; color: var(--ink-soft); font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .waiting .dots { margin-left: auto; display: flex; gap: 4px; }

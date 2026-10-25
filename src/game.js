@@ -1,4 +1,4 @@
-import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced } from "./themes/manager.js";
+import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced, SEAT_PRESETS } from "./themes/manager.js";
 import { SvgBoardRenderer } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
@@ -1674,37 +1674,26 @@ class ColonistFullGame {
     const x = world.x;
     const y = world.y;
 
-    // Robber placement mode
+    // Robber placement mode: the first tap only selects a tile (ghost robber + "Robber on … · steal
+    // from …" in the confirm pill); Place / the ✓ commits it.
     if (robberMode) {
+      const cb = this.confirmBuild?.type === "robber" ? this.confirmBuild : null;
+      if (cb && !this.isMobileLayout && this.hitTestConfirmIcon(x, y)) {
+        this._commitRobber(player, cb.id);
+        return;
+      }
       const hexId = this.findHexAt(x, y);
       if (hexId == null) return;
       if (!this._robberHexAllowed(hexId, player)) {
+        this.confirmBuild = null;
         this.addLog(hexId === this.robberHexId
           ? "Cannot place robber on the same hex."
           : "Friendly robber: that hex touches a player with 2 or fewer points.");
         this.render();
         return;
       }
-      this.robberHexId = hexId;
-      const hex = this.geometry.hexes[hexId];
-      this.addLog(`${player.name} moved robber to ${this._hexLabel(hex)}.`);
-      this.sfx.robber();
-      this.pendingAction = null;
-
-      // Check for steal victims
-      const victims = this._stealVictims(hexId, player);
-      if (victims.length === 0) {
-        this.addLog("No one to steal from.");
-        this.robberContext = null;
-      } else if (victims.length === 1) {
-        this.stealFromVictim(player, victims[0]);
-        this.robberContext = null;
-      } else {
-        // Multiple victims — show selection panel
-        this.robberVictimOptions = victims;
-        this.showVictimPanel(player, victims);
-      }
-      this.saveToStorage();
+      this.confirmBuild = { type: "robber", id: hexId };
+      this.sfx.click();
       this.render();
       return;
     }
@@ -1848,6 +1837,33 @@ class ColonistFullGame {
 
     this.recomputeScores();
     this.checkForWinner(player);
+    this.render();
+  }
+
+  /** Move the robber to a chosen (legal) tile and steal — the confirm step of robber mode. */
+  _commitRobber(player, hexId) {
+    if (this.pendingAction !== "robber" || !this._robberHexAllowed(hexId, player)) return;
+    this.confirmBuild = null;
+    this.robberHexId = hexId;
+    const hex = this.geometry.hexes[hexId];
+    this.addLog(`${player.name} moved robber to ${this._hexLabel(hex)}.`);
+    this.sfx.robber();
+    this.pendingAction = null;
+
+    // Check for steal victims
+    const victims = this._stealVictims(hexId, player);
+    if (victims.length === 0) {
+      this.addLog("No one to steal from.");
+      this.robberContext = null;
+    } else if (victims.length === 1) {
+      this.stealFromVictim(player, victims[0]);
+      this.robberContext = null;
+    } else {
+      // Multiple victims — show selection panel
+      this.robberVictimOptions = victims;
+      this.showVictimPanel(player, victims);
+    }
+    this.saveToStorage();
     this.render();
   }
 
@@ -2332,7 +2348,7 @@ class ColonistFullGame {
     // Robber placement: highlight hovered hex
     if (player?.isHuman && this.pendingAction === "robber") { // also before rolling (Knight)
       const hexId = this.findHexAt(worldX, worldY);
-      if (hexId != null && hexId !== this.robberHexId) {
+      if (hexId != null && this._robberHexAllowed(hexId, player)) {
         this.hoverHexId = hexId;
         const hex = this.geometry.hexes[hexId];
         const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
@@ -4674,6 +4690,7 @@ class ColonistFullGame {
 
   // Complete a human robber move (placement and/or victim choice) automatically.
   _rushAutoFinishHumanRobber(human) {
+    if (this.confirmBuild?.type === "robber") this.confirmBuild = null;
     if (this.robberVictimOptions?.length) {
       const victim = this.robberVictimOptions[0];
       this.robberVictimOptions = [];
@@ -6034,23 +6051,11 @@ class ColonistFullGame {
     const ctx = this.ctx;
     const s = this.geometry.hexSize / 74;
     const cb = this.confirmBuild;
-    let cx, cy;
-
-    if (cb.type === "road") {
-      const edge = this.geometry.edges[cb.id];
-      const [a, b] = edge.nodes;
-      const p1 = this.geometry.nodes[a];
-      const p2 = this.geometry.nodes[b];
-      cx = (p1.x + p2.x) / 2;
-      cy = (p1.y + p2.y) / 2;
-    } else {
-      const node = this.geometry.nodes[cb.id];
-      cx = node.x;
-      cy = node.y;
-    }
+    const ic = this.getConfirmIconCenter();
+    const cx = ic.x;
 
     // Position icon above the spot
-    const iconY = cy - 30 * s;
+    const iconY = ic.y;
     const iconR = 16 * s;
     const bounce = Math.sin(Date.now() / 200) * 2 * s;
     const iy = iconY + bounce;
@@ -6110,6 +6115,12 @@ class ColonistFullGame {
       ctx.lineWidth = 4;
       ctx.lineCap = "round";
       ctx.stroke();
+    } else {
+      // Robber: a check mark
+      ctx.beginPath();
+      ctx.moveTo(-8, 0); ctx.lineTo(-2, 6); ctx.lineTo(9, -7);
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 3.5; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.stroke();
     }
     ctx.restore();
 
@@ -6126,6 +6137,7 @@ class ColonistFullGame {
   }
 
   getBuildPosition(cb) {
+    if (cb.type === "robber") return { ...this.geometry.hexes[cb.id].center };
     if (cb.type === "road") {
       const edge = this.geometry.edges[cb.id];
       const [a, b] = edge.nodes;
@@ -6141,20 +6153,9 @@ class ColonistFullGame {
     if (!this.confirmBuild) return null;
     const s = this.geometry.hexSize / 74;
     const cb = this.confirmBuild;
-    let cx, cy;
-    if (cb.type === "road") {
-      const edge = this.geometry.edges[cb.id];
-      const [a, b] = edge.nodes;
-      const p1 = this.geometry.nodes[a];
-      const p2 = this.geometry.nodes[b];
-      cx = (p1.x + p2.x) / 2;
-      cy = (p1.y + p2.y) / 2;
-    } else {
-      const node = this.geometry.nodes[cb.id];
-      cx = node.x;
-      cy = node.y;
-    }
-    return { x: cx, y: cy - 30 * s, r: 16 * s };
+    const p = this.getBuildPosition(cb);
+    // robber: the ✓ floats over the top of the chosen tile
+    return { x: p.x, y: p.y - (cb.type === "robber" ? this.geometry.hexSize * 0.55 : 30 * s), r: 16 * s };
   }
 
   hitTestConfirmIcon(worldX, worldY) {
@@ -6168,28 +6169,58 @@ class ColonistFullGame {
   }
 
   drawRobberModeOverlay() {
-    if (this.pendingAction !== "robber") return;
+    if (this.pendingAction !== "robber" || !this.currentPlayer?.isHuman) return;
     const ctx = this.ctx;
-    const s = this.geometry.hexSize / 74;
-    const pulse = 0.3 + Math.sin(Date.now() / 300) * 0.15;
-
-    // Dim all hexes slightly, highlight valid targets
-    const human = this.players.find((p) => p.isHuman);
-    const legal = new Set(this._legalRobberHexes(human).map((h) => h.id));
+    const px = 1 / (this.view.scale || 1);
+    const mover = this.currentPlayer;
+    const legal = new Set(this._legalRobberHexes(mover).map((h) => h.id));
+    const sel = this.confirmBuild?.type === "robber" ? this.confirmBuild.id : null;
     this.geometry.hexes.forEach((hex) => {
       if (!legal.has(hex.id)) {
-        // Current robber location / friendly-robber protected — blocked
+        // Current robber location / friendly-robber protected: dimmed, not a target
         this.drawHexPath(hex.corners, true);
-        ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+        ctx.fillStyle = "rgba(10, 25, 35, 0.42)";
         ctx.fill();
-      } else {
-        // Valid target — subtle red pulse border
+        return;
+      }
+      if (hex.id === sel || hex.id === this.hoverHexId) {
         this.drawHexPath(hex.corners, true);
-        ctx.strokeStyle = `rgba(220, 60, 60, ${pulse})`;
-        ctx.lineWidth = 2.5 * s;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
+        ctx.lineWidth = 3.5 * px;
         ctx.stroke();
       }
+      const victims = this._stealVictims(hex.id, mover);
+      victims.forEach((pid, i) => {
+        const x = hex.center.x + (i - (victims.length - 1) / 2) * 24 * px, y = hex.center.y + this.geometry.hexSize * 0.66;
+        this._drawAvatarDisc(ctx, pid, x, y, 10 * px);
+      });
     });
+  }
+
+  /** A player's portrait as a small disc on the board (robber victims). Radius in canvas units. */
+  _drawAvatarDisc(ctx, pid, x, y, r) {
+    const img = this._avatarImage(pid);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y, r + r * 0.18, 0, Math.PI * 2);
+    ctx.fillStyle = this.players[pid]?.color || "#fff"; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+    if (img?.complete && img.naturalWidth) { ctx.clip(); ctx.drawImage(img, x - r, y - r, 2 * r, 2 * r); }
+    ctx.restore();
+  }
+
+  /** Cached raster of a seat's portrait (theme art), for canvas use. */
+  _avatarImage(pid) {
+    const key = `${this.theme.id}|${this.theme.paletteId || ""}|${pid}`;
+    this._avatarImgs = this._avatarImgs || new Map();
+    let img = this._avatarImgs.get(key);
+    if (!img) {
+      img = new Image();
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-50 -50 100 100" width="96" height="96">${this.theme.avatar(SEAT_PRESETS[pid] || "you")}</svg>`;
+      img.onload = () => this.requestBoardDraw();
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+      this._avatarImgs.set(key, img);
+    }
+    return img;
   }
 
   drawRollHighlight() {
@@ -6593,7 +6624,7 @@ class ColonistFullGame {
     let title = humanTurn ? "Your turn" : `${active.name}'s turn`;
     let status;
     const mobile = this.isMobileLayout;
-    const confirmHint = mobile ? "Tap Place to confirm, or pick another spot" : "Click ✓ to confirm — or pick another spot";
+    const confirmHint = mobile ? "Tap Place to confirm" : "Click ✓ to confirm — or pick another spot";
     const setupRound = this.setupStep < this.players.length ? 1 : 2;
     if (this.setupPhase && this.setupAction && humanTurn) {
       title = `Setup ${setupRound} of 2`;
@@ -6608,7 +6639,7 @@ class ColonistFullGame {
       title = "Robber!";
       status = "Game paused — discards, then the robber";
     } else if (humanTurn && this.pendingAction === "robber") {
-      status = "Move the robber · tap a tile";
+      status = this.confirmBuild ? confirmHint : mobile ? "Pick a tile for the robber" : "Move the robber · click a tile";
     } else if (rushOn && mainPhase && !this.pendingAction) {
       title = "Rush";
       status = this.autoplayInterval ? "Bots are playing for you" : "Build, trade or play a card any time";
@@ -6676,16 +6707,16 @@ class ColonistFullGame {
     if (this.rushReadyBtn) this.rushReadyBtn.hidden = !rushOn || !!this.winner;
     if (this.waitingBar) {
       let wait = "";
-      if (this.winner && !document.querySelector(".game-over-overlay")) {
-        wait = `${icon("vp")}<div class="wt">${this.winner.name} win${this._s(this.winner)}<small>Game over</small></div><button type="button" class="btn primary" data-newgame>New game</button>`;
+      if (this.winner) {
+        wait = ""; // after "See board": one clean New game button instead (below)
       } else if (humanTurn && this.pendingAction === "robber") {
-        wait = `${icon("robber")}<div class="wt">Move the robber<small>Tap a tile on the board</small></div>`;
+        wait = `${icon("robber")}<div class="wt">Place robber<small>${this.confirmBuild ? "Confirm above" : "Pick a tile"}</small></div>`;
       } else if (inSetup && humanTurn && !rushOn) {
         wait = `${icon(this.setupAction || "settlement")}<div class="wt">Setup ${setupRound} of 2<small>${this.setupAction === "road" ? "Last step: a road" : "Then add a road"}</small></div>`;
       } else if (oppTurn) {
         wait = `${this._av(active)}<div class="wt">${active.name} is playing<small>${inSetup ? "Placing a settlement" : preRoll ? "Rolling the dice" : "Building and trading"}</small></div><div class="dots"><i></i><i></i><i></i></div>`;
       }
-      const wkey = `${wait.length}:${active.id}:${preRoll}:${inSetup}:${!!this.winner}:${this.pendingAction}:${this.setupAction}:${setupRound}`;
+      const wkey = `${wait.length}:${active.id}:${preRoll}:${inSetup}:${!!this.winner}:${this.pendingAction}:${this.setupAction}:${setupRound}:${this.confirmBuild?.type}`;
 
       if (this.waitingBar.dataset.key !== wkey) {
         this.waitingBar.dataset.key = wkey;
@@ -6693,8 +6724,14 @@ class ColonistFullGame {
         this.waitingBar.querySelector("[data-newgame]")?.addEventListener("click", () => this._showDifficultyModal());
       }
       this.waitingBar.hidden = !wait;
-      if (this.winner && wait) { rollBtn && (rollBtn.style.display = "none"); endBtn && (endBtn.style.display = "none"); }
     }
+    const newGameBtn = document.querySelector("#newGameMainBtn");
+    if (newGameBtn) {
+      const over = !!this.winner && !document.querySelector(".game-over-overlay");
+      newGameBtn.hidden = !over;
+      if (over) { rollBtn && (rollBtn.style.display = "none"); endBtn && (endBtn.style.display = "none"); }
+    }
+
     if (buildPanel) buildPanel.style.display = this.pendingDiscard ? "none" : ""; // hidden while discarding; otherwise shown, disabled when not usable
 
     // Hide trade panel when not in main phase or during robber
@@ -7662,6 +7699,7 @@ class ColonistFullGame {
     $("#devPickerClose")?.addEventListener("click", () => this.hideDevCardPicker());
     this.cancelActionBtn?.addEventListener("click", () => this.cancelPlacement());
     $("#tickerCancel")?.addEventListener("click", (e) => { e.stopPropagation(); this.cancelPlacement(); });
+    $("#newGameMainBtn")?.addEventListener("click", () => this._showDifficultyModal());
     $("#confirmPillCancel")?.addEventListener("click", () => { this.confirmBuild = null; this.render(); });
     $("#confirmPillPlace")?.addEventListener("click", () => this._confirmViaIcon());
     // choosing something in the mobile build sheet closes it
@@ -7744,6 +7782,10 @@ class ColonistFullGame {
   _confirmViaIcon() {
     const ic = this.getConfirmIconCenter();
     if (!ic) return;
+    if (this.confirmBuild?.type === "robber") {
+      this._commitRobber(this.currentPlayer, this.confirmBuild.id);
+      return;
+    }
     if (this.setupPhase) {
       this.handleSetupClick(ic.x, ic.y);
       this.render();
@@ -7892,6 +7934,13 @@ class ColonistFullGame {
     if (!cb) return null;
     const terr = (nodeId) => this.geometry.nodes[nodeId].adjacentHexes.map((hid) => this.geometry.hexes[hid])
       .filter((h) => h.resource !== "desert").map((h) => `${RESOURCE_LABEL[h.resource]} ${h.number}`).join(" · ");
+    if (cb.type === "robber") {
+      const hex = this.geometry.hexes[cb.id];
+      const where = hex.resource === "desert" || !hex.number ? "the Desert" : `${TERRAIN_NAME[hex.resource]} ${hex.number}`;
+      const v = this._stealVictims(cb.id, this.currentPlayer).map((id) => this.players[id].name);
+      const sub = !v.length ? "Nobody to steal from here" : v.length === 1 ? `Steal from ${v[0]}` : `Steal from ${v.slice(0, -1).join(", ")} or ${v[v.length - 1]}`;
+      return { icon: "robber", title: `Robber on ${where}`, sub };
+    }
     if (cb.type === "road") {
       const free = this.setupPhase || this.freeRoadsRemaining > 0;
       return { icon: "road", title: "Road here?", sub: free ? "Free road" : "Costs 1 Lumber + 1 Brick" };
