@@ -42,6 +42,15 @@ export function setMotionPref(v) {
   store.set(MOTION_KEY, v);
   applyMotionAttr();
 }
+// Sunny Island colour palette: "light" (default) | "vivid". Contract: scratchpad/palette-contract.md
+const PALETTE_KEY = "colonist.palette";
+export function palettePref() { return store.get(PALETTE_KEY) === "vivid" ? "vivid" : "light"; }
+export function setPalette(v) {
+  const p = v === "vivid" ? "vivid" : "light";
+  store.set(PALETTE_KEY, p);
+  document.documentElement.dataset.palette = p;
+  document.dispatchEvent(new CustomEvent("colonist:palette", { detail: { palette: p } }));
+}
 export function applyMotionAttr() {
   document.documentElement.dataset.motion = motionReduced() ? "reduced" : "full";
 }

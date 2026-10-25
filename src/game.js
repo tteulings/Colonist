@@ -4690,7 +4690,7 @@ class ColonistFullGame {
     const left = Math.max(0, r.remainingMs);
     const secs = Math.ceil(left / 1000);
     const titleEl = this.rushHud.querySelector("#rushTitle");
-    if (titleEl) titleEl.innerHTML = r.paused ? "<b>Paused</b> · robber!" : `Next roll · <b>Roll #${r.rollNo + 1}</b> · ${formatClock(r.clockMs)}`;
+    if (titleEl) titleEl.innerHTML = r.paused ? "<b>Paused</b> · robber!" : `Next roll · <b>Roll #${r.rollNo + 1}</b>`;
     const secEl = this.rushHud.querySelector("#rushSeconds");
     if (secEl) secEl.textContent = r.paused ? "7" : String(secs);
     const label = this.rushHud.querySelector("#rushSecondsLabel");
@@ -4717,7 +4717,7 @@ class ColonistFullGame {
     const voters = this.rushHud.querySelector("#rushVoters");
     if (voters && votersKey !== this._lastVotersKey) {
       this._lastVotersKey = votersKey;
-      voters.innerHTML = this.players.map((p) => `<span class="rush-voter${r.ready.includes(p.id) ? " ready" : ""}" title="${p.name}${r.ready.includes(p.id) ? " is ready" : ""}">
+      voters.innerHTML = this.players.map((p) => `<span class="rush-voter pc-${p.id}${r.ready.includes(p.id) ? " ready" : ""}" title="${p.name}${r.ready.includes(p.id) ? " is ready" : ""}">
         ${this._av(p)}<span class="rush-voter-dot"></span><span class="rush-voter-name">${p.isHuman ? "You" : p.name.replace(/ AI$/, "")}</span></span>`).join("");
     }
     const next7 = this.rushHud.querySelector("#rushNext7");
@@ -6335,7 +6335,7 @@ class ColonistFullGame {
   renderLog() {
     const rush = this.isRush();
     const last = this.logEntries[this.logEntries.length - 1];
-    const key = `${this.logEntries.length}:${last?.time}:${last?.text}:${rush}:${this.theme.id}`;
+    const key = `${this.logEntries.length}:${last?.time}:${last?.text}:${rush}:${this.theme.id}:${this.currentPlayerIndex}:${this.phase}`;
     if (key === this._lastLogKey) return;
     this._lastLogKey = key;
     const title = this.railLog?.querySelector("h2");
@@ -6365,10 +6365,24 @@ class ColonistFullGame {
     this.logContainer.innerHTML = rows.join("");
     this.logContainer.scrollTop = this.logContainer.scrollHeight;
     // Mobile: one-line ticker with the newest entry (or the next step, see renderStatusAndControls)
-    if (this.tickerText && last && !this._tickerPrompt) {
-      const t = last.text.replace(/^Turn \d+: /, "").replace(/^Roll #\d+: rolled/, "Dice rolled");
-      this.tickerText.innerHTML = this._enrichLogText(t);
-      if (this.tickerIcon) this.tickerIcon.innerHTML = icon(this._logIcon(last.text));
+    // System noise ("Session restored.", …) and trade-offer lines never fill the ticker:
+    // show the newest real event, or else what happens next.
+    if (this.tickerText && !this._tickerPrompt) {
+      // trade offers are already on screen as a card (Rush) or a sheet (Classic): don't repeat them here
+      const NOISE = /^(Session restored|Initial placement complete|Game (saved|loaded))|\boffers you\b/;
+      const real = [...this.logEntries].reverse().find((e) => !NOISE.test(e.text.replace(/^Turn \d+: /, "")));
+      if (real) {
+        const t = real.text.replace(/^Turn \d+: /, "").replace(/^Roll #\d+: rolled/, "Dice rolled");
+        this.tickerText.innerHTML = this._enrichLogText(t);
+        if (this.tickerIcon) this.tickerIcon.innerHTML = icon(this._logIcon(real.text));
+      } else if (this.currentPlayer && !this.winner) {
+        const cp = this.currentPlayer;
+        const t = rush && !this.setupPhase ? "Rush · build and trade until the next roll"
+          : cp.isHuman ? (this.phase === "pre_roll" ? "Your turn · roll the dice" : "Your turn · build, trade or play a card")
+          : `${cp.name} is playing`;
+        this.tickerText.innerHTML = this._enrichLogText(t);
+        if (this.tickerIcon) this.tickerIcon.innerHTML = icon(cp.isHuman && this.phase === "pre_roll" ? "dice" : "log");
+      }
     }
   }
 

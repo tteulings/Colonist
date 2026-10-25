@@ -4,6 +4,7 @@
 // One light source (upper-left). UI accent = terracotta. All art is plain SVG strings in art
 // units (hex radius 100); the board renderer rasterises it once per size (see board-renderer.js).
 import { f, rng, HEX, hexPath, pipCount, wrap, RES_NAME, DEV_NAME, CARD_TEXT, RESOURCE_KEYS } from "../art-util.js";
+import { UI_ICONS } from "./ui-icons.js";
 
 const P = {
   sea0: "#2B8C98", sea1: "#3CA9B0", sea2: "#6ACBC3", shallow: "#A6E4D6", foam: "#D9F0E6", sand: "#E4D0A2", sand2: "#D3BA84",
@@ -401,7 +402,7 @@ const sunny = {
   hint: { halo: "rgba(255,246,218,.35)", fill: "#FBF6EA", ring: "#D9714E", dot: "#D9714E" },
   confirm: { fill: "#D9714E", ring: "#FFF9F2" },
   robberDx: 46, robberDy: -12, tokenDy: 6,
-  icons: ICONS,
+  icons: { ...ICONS, ...UI_ICONS }, // DOM sprite: crisp UI glyphs; card art keeps using ICONS directly
   card, cardBack,
   avatar: (preset) => (AVP[preset] || AVP.you)(),
   die: (n) => dieFace(n, 2, 2, 0, 1.08),

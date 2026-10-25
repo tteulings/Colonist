@@ -1,7 +1,7 @@
 // Settings dialog (desktop modal / mobile bottom sheet): Game · Look & feel · Bot personalities · About.
 // "Game" hosts the existing game controls from index.html (#settingsDrawer body, moved here so
 // their listeners stay intact). Look & feel: theme cards, Motion, quick toggle. Applies instantly.
-import { THEMES, THEME_ORDER, UPCOMING, motionPref, setMotionPref, prefetchFonts, icon } from "./manager.js";
+import { THEMES, THEME_ORDER, UPCOMING, motionPref, setMotionPref, palettePref, setPalette, prefetchFonts, icon } from "./manager.js";
 
 /** A tiny live preview of a theme: seven hexes in the theme's palette on its sea. */
 function miniBoard(dots, sea) {
@@ -90,13 +90,16 @@ export class SettingsUI {
       const m = motionPref();
       body.innerHTML = this.head("Look &amp; feel", "Pick a world for your island. Board, cards, pieces and motion follow the theme. Applies instantly.") +
         `<div class="tcards">${THEME_ORDER.map((id) => card(THEMES[id])).join("")}${UPCOMING.map(soon).join("")}</div>
-        <div class="st-row" style="margin-top:14px"><div><b>Motion</b><small>Reduced replaces travel and spin with short fades.</small></div>
+        ${g.theme?.id === "A" ? `<div class="st-row" style="margin-top:14px"><div><b>Colours</b><small>Light is soft and airy · Vivid is bold and saturated.</small></div>
+          <div class="seg pal-seg" role="radiogroup" aria-label="Colours">${[["light", "Light"], ["vivid", "Vivid"]].map(([v, l]) => `<button type="button" data-palette="${v}" class="${palettePref() === v ? "on" : ""}" aria-checked="${palettePref() === v}" role="radio"><i class="pal-dot pal-${v}"></i>${l}</button>`).join("")}</div></div>` : ""}
+        <div class="st-row"><div><b>Motion</b><small>Reduced replaces travel and spin with short fades.</small></div>
           <div class="seg" role="radiogroup" aria-label="Motion">${[["full", "Full"], ["reduced", "Reduced"], ["system", "Follow system"]].map(([v, l]) => `<button type="button" data-motion="${v}" class="${m === v ? "on" : ""}" aria-checked="${m === v}" role="radio">${l}</button>`).join("")}</div></div>
         <div class="st-row"><div><b>Quick toggle</b><small>The same swatches sit in the top bar on wide screens.</small></div><div class="theme-toggle" data-qt></div></div>`;
       body.querySelectorAll("[data-theme-id]").forEach((b) => {
         b.addEventListener("pointerenter", () => prefetchFonts(THEMES[b.dataset.themeId]));
         b.addEventListener("click", () => { g.setTheme(b.dataset.themeId); this.renderBody(); });
       });
+      body.querySelectorAll("button[data-palette]").forEach((b) => b.addEventListener("click", () => { setPalette(b.dataset.palette); g.requestBoardDraw(); this.renderBody(); }));
       body.querySelectorAll("[data-motion]").forEach((b) => b.addEventListener("click", () => { setMotionPref(b.dataset.motion); g.requestBoardDraw(); this.renderBody(); }));
       renderQuickToggle(body.querySelector("[data-qt]"), g, () => this.renderBody());
     }
