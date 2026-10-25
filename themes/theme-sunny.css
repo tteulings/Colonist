@@ -68,7 +68,8 @@
 [data-theme="A"] .newgame-modal .ng-subtitle { color: var(--ink-soft); font-size: 14.5px; margin: 4px 0 0; }
 [data-theme="A"] .newgame-modal button { font-family: var(--font-body); }
 [data-theme="A"] .newgame-modal .ng-pill-btn { min-height: 40px; padding: 0 14px; border-radius: 999px; background: var(--btn); border: var(--btn-border); color: var(--ink); font-weight: 650; font-size: 13.5px; box-shadow: var(--btn-shadow); }
-[data-theme="A"] .newgame-modal .ng-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 16px; }
+[data-theme="A"] .newgame-modal .ng-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 16px; }
+[data-theme="A"] .newgame-modal .ng-col, [data-theme="A"] .newgame-modal .ng-section { min-width: 0; }
 [data-theme="A"] .newgame-modal .ng-section { background: #FFFFFF; border: 1px solid #EDE4D3; border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
 [data-theme="A"] .newgame-modal .ng-rush-section { background: #FFF6F0; border-color: #F3D9CB; }
 [data-theme="A"] .newgame-modal .ng-section-title { font-family: var(--font-body); font-size: 11.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); margin: 0 0 10px; }
@@ -79,6 +80,7 @@
 [data-theme="A"] .newgame-modal .ng-mode-name { font-family: var(--font-display); font-size: 21px; color: var(--heading); display: flex; align-items: center; gap: 8px; }
 [data-theme="A"] .newgame-modal .ng-mode-icon { width: 28px; height: 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; background: #E6F4F1; color: #1F6E77; font-family: var(--font-body); }
 [data-theme="A"] .newgame-modal .rush .ng-mode-icon { background: #FCE3DB; color: #A84E2F; }
+[data-theme="A"] .newgame-modal .rush .ng-mode-name { padding-right: 46px; }
 [data-theme="A"] .newgame-modal .ng-mode-desc { font-size: 12.5px; color: var(--ink-soft); line-height: 1.35; }
 [data-theme="A"] .newgame-modal .ng-mode-tag, [data-theme="A"] .newgame-modal .ng-new { position: absolute; top: 8px; right: 8px; font-size: 9.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--accent); color: #fff; }
 [data-theme="A"] .newgame-modal .ng-row { padding: 10px 0; border-top: 1px solid #F1EADC; display: flex; flex-direction: column; gap: 6px; }
@@ -142,12 +144,35 @@
 @media (max-width: 760px) {
   [data-theme="A"] .newgame-modal { padding: 0; align-items: flex-end; }
   [data-theme="A"] .newgame-modal .ng-card { border-radius: 22px 22px 0 0; max-height: calc(100dvh - 12px); padding: 18px 14px 0; }
-  [data-theme="A"] .newgame-modal .ng-columns { grid-template-columns: 1fr; gap: 0; }
+  [data-theme="A"] .newgame-modal .ng-columns { grid-template-columns: minmax(0, 1fr); gap: 0; }
   [data-theme="A"] .newgame-modal .ng-title { font-size: 28px; }
   [data-theme="A"] .newgame-modal .ng-section { padding: 12px; }
   [data-theme="A"] .newgame-modal .ng-footer { margin: 4px -14px 0; padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); }
   [data-theme="A"] .newgame-modal .ng-actions { width: 100%; display: grid; grid-template-columns: 1fr 1.6fr; }
   [data-theme="A"] .newgame-modal .ng-summary { flex-basis: 100%; }
+}
+/* phones: one column of stacked controls, two preset columns, nothing wider than the screen */
+@media (max-width: 480px) {
+  [data-theme="A"] .newgame-modal .ng-card { overflow-x: hidden; }
+  [data-theme="A"] .newgame-modal .ng-header { flex-direction: column; align-items: stretch; }
+  [data-theme="A"] .newgame-modal .ng-pill-btn { align-self: flex-start; }
+  [data-theme="A"] .newgame-modal .ng-row-inline { flex-direction: column; align-items: stretch; gap: 8px; }
+  [data-theme="A"] .newgame-modal .ng-seg { flex-wrap: wrap; }
+  [data-theme="A"] .newgame-modal .ng-row-inline .ng-seg:not(.ng-seg-round) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  [data-theme="A"] .newgame-modal .ng-seg-btn { white-space: normal; line-height: 1.2; padding: 6px 10px; }
+  [data-theme="A"] .newgame-modal .ng-seg-round .ng-seg-btn { width: 44px; min-height: 44px; }
+  [data-theme="A"] .newgame-modal .ng-presets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  [data-theme="A"] .newgame-modal .ng-preset { min-width: 0; padding-right: 40px; }
+  [data-theme="A"] .newgame-modal .ng-mode-card { padding: 10px 12px; min-width: 0; }
+  [data-theme="A"] .newgame-modal .ng-mode-name { font-size: 19px; }
+  [data-theme="A"] .newgame-modal .ng-mode-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  [data-theme="A"] .newgame-modal .ng-seg-bar { grid-auto-columns: minmax(0, 1fr); }
+  [data-theme="A"] .newgame-modal .ng-seg-bar .ng-seg-btn { padding: 4px 2px; font-size: 11.5px; white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+  [data-theme="A"] .newgame-modal .ng-bot { flex-wrap: wrap; }
+  [data-theme="A"] .newgame-modal .ng-bot-desc { white-space: normal; }
+  [data-theme="A"] .newgame-modal .ng-bot-select { width: 100%; min-height: 44px; }
+  [data-theme="A"] .newgame-modal .ng-step-btn { width: 44px; height: 44px; }
+  [data-theme="A"] .newgame-modal .ng-actions { grid-template-columns: 1fr 1.6fr; }
 }
 
 /* ══ Mobile chrome v4 · "Sea all the way" ═══════════════════════════════════════════════════════
