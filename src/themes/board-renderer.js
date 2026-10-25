@@ -1,0 +1,737 @@
+// Canvas board renderer for SVG-art themes (Sunny Island and later B/C).
+//
+// Performance model (see SPEC §1.3):
+//  * The static board — island/shallows (with the SVG coast filter), ports, tiles, number tokens —
+//    is rasterised ONCE into an offscreen "board layer" canvas at the current device scale and only
+//    re-baked when the board, zoom bucket, size/DPR or theme changes. Panning never re-bakes.
+//  * The visible canvas is redrawn only when something changed (dirty flag) or while an animation
+//    or placement pulse is running: one drawImage of the board layer + pieces drawn as Path2D.
+//  * Pieces / robber / hints are vector specs (Path2D) — crisp at any zoom, nothing to bake.
+//  * The sea is a CSS layer behind the (transparent) canvas, so idle water costs no canvas work.
+import { hexPath, pipCount, f } from "./art-util.js";
+import { motionReduced } from "./manager.js";
+
+const path2d = new Map();
+const P2D = (d) => {
+  let p = path2d.get(d);
+  if (!p) { p = new Path2D(d); path2d.set(d, p); }
+  return p;
+};
+const HEX_P = (r = 100) => P2D(hexPath(0, 0, r));
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+// cubic-bezier easing (same curves as the CSS/WAAPI motion personalities)
+function bezier(x1, y1, x2, y2) {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+  const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const sx = (t) => ((ax * t + bx) * t + cx) * t;
+  const sy = (t) => ((ay * t + by) * t + cy) * t;
+  const dsx = (t) => (3 * ax * t + 2 * bx) * t + cx;
+  return (x) => {
+    let t = x;
+    for (let i = 0; i < 6; i += 1) {
+      const e = sx(t) - x;
+      const d = dsx(t);
+      if (Math.abs(e) < 1e-4 || Math.abs(d) < 1e-6) break;
+      t -= e / d;
+    }
+    return sy(clamp01(t));
+  };
+}
+const easeCache = new Map();
+function easing(css) {
+  if (!css || css === "linear") return (t) => t;
+  let e = easeCache.get(css);
+  if (!e) {
+    const m = /cubic-bezier\(([^)]+)\)/.exec(css);
+    const [a, b, c, d] = m ? m[1].split(",").map(Number) : [0.25, 0.1, 0.25, 1];
+    e = bezier(a, b, c, d);
+    easeCache.set(css, e);
+  }
+  return e;
+}
+
+/** Interpolate keyframes [{o, ...props, ease}] at progress t (0..1). */
+function kf(t, frames) {
+  if (t <= frames[0].o) return frames[0];
+  for (let i = 1; i < frames.length; i += 1) {
+    const b = frames[i];
+    if (t <= b.o) {
+      const a = frames[i - 1];
+      const local = (t - a.o) / (b.o - a.o || 1);
+      const e = easing(a.ease)(local);
+      const out = {};
+      for (const k of Object.keys(b)) if (k !== "o" && k !== "ease") out[k] = (a[k] ?? b[k]) + (b[k] - (a[k] ?? b[k])) * e;
+      for (const k of Object.keys(a)) if (!(k in out) && k !== "o" && k !== "ease") out[k] = a[k];
+      return out;
+    }
+  }
+  return frames[frames.length - 1];
+}
+
+function drawSpec(ctx, spec, { alpha = 1, k = 1 } = {}) {
+  for (const s of spec) {
+    ctx.save();
+    ctx.globalAlpha = alpha * (s.op ?? 1);
+    if (s.dropShadow) {
+      ctx.shadowColor = "rgba(27,42,42,.28)";
+      ctx.shadowBlur = 4.8 * k;
+      ctx.shadowOffsetX = 2 * k;
+      ctx.shadowOffsetY = 3 * k;
+    }
+    let p;
+    if (s.el === "ellipse") { p = new Path2D(); p.ellipse(s.cx, s.cy, s.rx, s.ry, 0, 0, Math.PI * 2); }
+    else if (s.el === "circle") { p = new Path2D(); p.arc(s.cx, s.cy, s.r, 0, Math.PI * 2); }
+    else p = P2D(s.d);
+    if (s.fill) { ctx.fillStyle = s.fill; ctx.fill(p); }
+    if (s.stroke) {
+      ctx.shadowColor = "transparent";
+      ctx.strokeStyle = s.stroke;
+      ctx.lineWidth = s.sw || 1;
+      ctx.lineJoin = "round";
+      ctx.lineCap = s.cap || "butt";
+      ctx.stroke(p);
+    }
+    ctx.restore();
+  }
+}
+
+/** Rasterise an SVG string into a canvas of w×h device pixels. */
+async function rasterize(svg, w, h) {
+  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+  try {
+    const im = new Image();
+    im.decoding = "async";
+    im.src = url;
+    await im.decode();
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(w));
+    c.height = Math.max(1, Math.round(h));
+    c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+    return c;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export class SvgBoardRenderer {
+  constructor(game, theme) {
+    this.game = game;
+    this.theme = theme;
+    this.layer = null; // { canvas, minX, minY, W, H, k, key }
+    this.glowSprite = null;
+    this.bakeGen = 0;
+    this.baking = null;
+    this.dirty = true;
+    this.anims = [];
+    this.known = null; // last seen board state for change → animation detection
+    this.stats = { frames: 0, drawMs: 0, maxMs: 0, bakes: 0, bakeMs: 0 };
+    this.lastKey = "";
+  }
+
+  setTheme(theme) {
+    this.theme = theme;
+    this.layer = null;
+    this.glowSprite = null;
+    this.invalidateStatic();
+  }
+
+  /** Board/theme/size changed: re-bake the static board layer (async). */
+  invalidateStatic() {
+    this.lastKey = "";
+    this.requestDraw();
+  }
+
+  requestDraw() { this.dirty = true; }
+
+  /** Forget the previous board state so the next draw does not animate (new game / reload). */
+  resync() { this.known = null; this.anims = []; this.requestDraw(); }
+
+  // ── geometry helpers ───────────────────────────────────────────────────
+  get u() { return this.game.geometry.hexSize / 100; } // world px per art unit
+  toArt(x, y) {
+    const g = this.game.geometry;
+    return { x: (x - g.centerX) / this.u, y: (y - g.centerY) / this.u };
+  }
+  hexArt(hex) { return this.toArt(hex.center.x, hex.center.y); }
+  nodeArt(id) { const n = this.game.geometry.nodes[id]; return this.toArt(n.x, n.y); }
+
+  artBounds() {
+    const hs = this.game.geometry.hexes.map((h) => this.hexArt(h));
+    const xs = hs.map((h) => h.x), ys = hs.map((h) => h.y);
+    const m = 175;
+    const minX = Math.min(...xs) - 100 - m, maxX = Math.max(...xs) + 100 + m;
+    const minY = Math.min(...ys) - 100 - m, maxY = Math.max(...ys) + 100 + m;
+    return { minX, minY, W: maxX - minX, H: maxY - minY };
+  }
+
+  /** Device pixels per art unit for the current view, bucketed so zooming re-bakes rarely. */
+  targetK() {
+    const g = this.game;
+    const raw = this.u * g.view.scale * g.pixelRatio;
+    const b = Math.pow(2, Math.ceil(Math.log2(raw) * 3) / 3);
+    const { W, H } = this.artBounds();
+    const cap = (window.innerWidth <= 900 ? 3072 : 4096) / Math.max(W, H);
+    return Math.min(b, cap);
+  }
+
+  portData() {
+    const g = this.game.geometry;
+    return (this.game.ports || []).map((port) => {
+      const edge = g.edges[port.edgeId];
+      const a = this.nodeArt(edge.nodes[0]), b = this.nodeArt(edge.nodes[1]);
+      const hc = this.hexArt(g.hexes[edge.hexIds[0]]);
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const len = Math.hypot(mx - hc.x, my - hc.y) || 1;
+      return { a, b, mx, my, nx: (mx - hc.x) / len, ny: (my - hc.y) / len, res: port.type === "any" ? null : port.type, ratio: port.type === "any" ? "3:1" : "2:1" };
+    });
+  }
+
+  boardKey(k) {
+    const g = this.game.geometry;
+    return [this.theme.id, k.toFixed(3), this.tokenScale, g.hexSize.toFixed(2), g.hexes.map((h) => h.resource + h.number).join(""), (this.game.ports || []).map((p) => p.edgeId + p.type).join(",")].join("|");
+  }
+
+  async bake(k, key) {
+    const T = this.theme;
+    const gen = ++this.bakeGen;
+    const t0 = performance.now();
+    const b = this.artBounds();
+    const centers = this.game.geometry.hexes.map((h) => this.hexArt(h));
+    const ports = this.portData().map((p) => T.port(p));
+    let body = `<defs>${T.boardDefs()}</defs>`;
+    body += T.island(centers);
+    body += ports.map((p) => p.svg).join("");
+    body += this.game.geometry.hexes.map((h) => {
+      const c = this.hexArt(h);
+      return `<g transform="translate(${f(c.x)} ${f(c.y)})">${T.tile(h.resource)}</g>`;
+    }).join("");
+    const w = b.W * k, h = b.H * k;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${f(b.minX)} ${f(b.minY)} ${f(b.W)} ${f(b.H)}" width="${Math.round(w)}" height="${Math.round(h)}">${body}</svg>`;
+    // Fonts must be ready before the token numbers are drawn into the layer.
+    try { await Promise.all([document.fonts.load(`${T.tokenStyle.weight} ${T.tokenStyle.size}px ${T.tokenStyle.font}`), document.fonts.load(`700 12px ${T.tokenStyle.labelFont}`)]); } catch (_) { /* fallback font */ }
+    const canvas = await rasterize(svg, w, h);
+    if (gen !== this.bakeGen) return; // superseded
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(k, 0, 0, k, -b.minX * k, -b.minY * k);
+    // number tokens
+    this.game.geometry.hexes.forEach((hex) => {
+      if (!hex.number) return;
+      const c = this.hexArt(hex);
+      this.drawToken(ctx, c.x, c.y + (T.tokenDy || 0), hex.number, k);
+    });
+    // port ratio labels
+    ctx.fillStyle = T.palette.ink;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ports.forEach(({ label }) => {
+      ctx.font = `700 ${label.size}px ${T.tokenStyle.labelFont}`;
+      ctx.fillText(label.text, label.x, label.y);
+    });
+    if (!this.glowSprite || this.glowSprite.k !== k) {
+      const gs = 260;
+      const gc = await rasterize(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="-130 -130 ${gs} ${gs}" width="${gs * k}" height="${gs * k}"><defs>${T.boardDefs()}</defs>${T.glow()}</svg>`, gs * k, gs * k);
+      if (gen !== this.bakeGen) return;
+      this.glowSprite = { canvas: gc, k };
+    }
+    this.layer = { canvas, ...b, k, key };
+    const ms = performance.now() - t0;
+    this.stats.bakes += 1;
+    this.stats.bakeMs += ms;
+    this.requestDraw();
+  }
+
+  /** Number tokens grow on phones so the digits stay readable (≈14 px at 390 wide). */
+  get tokenScale() { return this.game.isMobileLayout ? 1.38 : 1; }
+
+  drawToken(ctx, x, y, n, k) {
+    const s = this.theme.tokenStyle;
+    const hot = n === 6 || n === 8;
+    const col = hot ? s.hot : s.ink;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(this.tokenScale, this.tokenScale);
+    ctx.shadowColor = "rgba(27,42,42,.28)";
+    ctx.shadowBlur = 4.8 * k;
+    ctx.shadowOffsetX = 2 * k;
+    ctx.shadowOffsetY = 3 * k;
+    ctx.beginPath(); ctx.arc(0, 0, s.r, 0, Math.PI * 2); ctx.fillStyle = s.fill; ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.lineWidth = 1.2; ctx.strokeStyle = s.ring; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, s.r - 4, 0, Math.PI * 2); ctx.lineWidth = 1; ctx.strokeStyle = s.inner; ctx.stroke();
+    ctx.fillStyle = col;
+    ctx.font = `${s.weight} ${hot ? s.hotSize : s.size}px ${s.font}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(String(n), 0, hot ? s.hotDy : s.dy);
+    const p = pipCount(n);
+    for (let i = 0; i < p; i += 1) {
+      ctx.beginPath();
+      ctx.arc((i - (p - 1) / 2) * s.pipGap, s.pipY, s.pipR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ── change detection → animations ──────────────────────────────────────
+  snapshot() {
+    const g = this.game.geometry;
+    const nodes = new Map();
+    g.nodes.forEach((n) => { if (n.structure) nodes.set(n.id, n.structure + ":" + n.owner); });
+    const edges = new Set(g.edges.filter((e) => e.owner != null).map((e) => e.id));
+    return { nodes, edges, robber: this.game.robberHexId, gen: this.game.gameGen, roll: this.game.highlightRoll };
+  }
+
+  detectChanges(now) {
+    const cur = this.snapshot();
+    const prev = this.known;
+    this.known = cur;
+    if (!prev || prev.gen !== cur.gen) return;
+    const M = this.theme.motion;
+    for (const [id, v] of cur.nodes) {
+      const old = prev.nodes.get(id);
+      if (old === v) continue;
+      const [type] = v.split(":");
+      if (type === "city" && old && old.startsWith("settlement")) this.anims.push({ kind: "city", id, start: now, dur: 1350 * M.k });
+      else this.anims.push({ kind: "drop", id, start: now, dur: 1100 * M.k });
+    }
+    for (const id of cur.edges) if (!prev.edges.has(id)) this.anims.push({ kind: "road", id, start: now, dur: 700 * M.k });
+    if (prev.robber != null && cur.robber !== prev.robber) this.anims.push({ kind: "robber", from: prev.robber, to: cur.robber, start: now, dur: 1400 * M.k });
+    if (cur.roll && cur.roll !== prev.roll && cur.roll.number) this.anims.push({ kind: "glow", number: cur.roll.number, start: now, dur: 2900 });
+  }
+
+  animFor(kind, id) { return this.anims.find((a) => a.kind === kind && a.id === id); }
+
+  // ── frame ────────────────────────────────────────────────────────────────
+  /** Called from the game's rAF loop. Draws only when needed. */
+  frame(now) {
+    const g = this.game;
+    if (!g.geometry) return;
+    const k = this.targetK();
+    const key = this.boardKey(k);
+    if (key !== this.lastKey) {
+      this.lastKey = key;
+      // debounce re-bakes while zooming: keep using the old layer, scaled, in the meantime
+      clearTimeout(this._bakeTimer);
+      const delay = this.layer ? 160 : 0;
+      this._bakeTimer = setTimeout(() => this.bake(k, key).catch((e) => console.warn("board bake failed", e)), delay);
+    }
+    this.detectChanges(now);
+    this.anims = this.anims.filter((a) => now - a.start < a.dur);
+    const pulsing = this.placementActive();
+    if (!this.dirty && !this.anims.length && !pulsing) return;
+    this.dirty = false;
+    const t0 = performance.now();
+    this.draw(now);
+    const ms = performance.now() - t0;
+    this.stats.frames += 1;
+    this.stats.drawMs += ms;
+    if (ms > this.stats.maxMs) this.stats.maxMs = ms;
+  }
+
+  placementActive() {
+    const g = this.game;
+    const human = g.currentPlayer?.isHuman;
+    if (g.winner) return false;
+    if (g.setupPhase) return !!(human && g.setupAction);
+    return !!(human && g.pendingAction);
+  }
+
+  draw(now) {
+    const g = this.game, T = this.theme, ctx = g.ctx, u = this.u;
+    const reduced = motionReduced();
+    ctx.setTransform(g.pixelRatio, 0, 0, g.pixelRatio, 0, 0);
+    ctx.clearRect(0, 0, g.boardWidth, g.boardHeight);
+    ctx.save();
+    ctx.translate(g.view.offsetX, g.view.offsetY);
+    ctx.scale(g.view.scale, g.view.scale);
+    ctx.translate(g.geometry.centerX, g.geometry.centerY);
+    ctx.scale(u, u);
+    const devK = u * g.view.scale * g.pixelRatio; // device px per art unit (for shadows)
+
+    // 1. static board layer
+    const L = this.layer;
+    if (L) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(L.canvas, L.minX, L.minY, L.W, L.H);
+    } else {
+      this.drawFallbackBoard(ctx, devK);
+    }
+
+    // 2. rolled glow (tile pops, others wash out a little)
+    const glow = this.anims.find((a) => a.kind === "glow");
+    if (glow && L) this.drawGlow(ctx, glow, now, reduced);
+
+    // 3. robber dim (cross-fades while the robber moves)
+    const rob = this.anims.find((a) => a.kind === "robber");
+    const robT = rob ? clamp01((now - rob.start) / rob.dur) : 1;
+    if (rob && !reduced) {
+      this.dimHex(rob.from, 1 - clamp01((robT * 1400 - 200) / 500));
+      this.dimHex(rob.to, clamp01((robT * 1400 - 900) / 500));
+    } else this.dimHex(g.robberHexId, 1);
+
+    // 4. robber-mode targets
+    if (g.pendingAction === "robber" && g.currentPlayer?.isHuman) this.drawRobberTargets(ctx, now);
+
+    // 5. roads
+    g.geometry.edges.forEach((e) => { if (e.owner != null) this.drawRoad(ctx, e, g.players[e.owner], now, reduced); });
+
+    // 6. buildings, y-sorted
+    const blds = g.geometry.nodes.filter((n) => n.structure).sort((a, b) => a.y - b.y);
+    blds.forEach((n) => this.drawBuilding(ctx, n, now, reduced, devK));
+
+    // 7. robber
+    this.drawRobber(ctx, rob, robT, reduced, devK);
+
+    // 8. placement hints + ghost + confirm
+    if (this.placementActive()) this.drawPlacement(ctx, now, reduced, devK);
+
+    // 9. dust / sparks
+    this.anims.forEach((a) => this.drawParticles(ctx, a, now, reduced));
+    ctx.restore();
+  }
+
+  drawFallbackBoard(ctx) {
+    const T = this.theme, P = T.palette;
+    const fill = { wood: P.forest[0], brick: P.terra[0], sheep: P.pasture[0], wheat: P.wheat[0], ore: P.slate[0], desert: P.desert[0] };
+    this.game.geometry.hexes.forEach((h) => {
+      const c = this.hexArt(h);
+      ctx.save(); ctx.translate(c.x, c.y);
+      ctx.fillStyle = P.sand; ctx.fill(HEX_P(110));
+      ctx.fillStyle = fill[h.resource] || P.sand; ctx.fill(HEX_P(97));
+      ctx.restore();
+      if (h.number) this.drawToken(ctx, c.x, c.y + (T.tokenDy || 0), h.number, 1);
+    });
+  }
+
+  dimHex(hexId, a) {
+    if (hexId == null || a <= 0) return;
+    const ctx = this.game.ctx;
+    const c = this.hexArt(this.game.geometry.hexes[hexId]);
+    ctx.save(); ctx.translate(c.x, c.y);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = this.theme.dimFill;
+    ctx.fill(HEX_P(97));
+    ctx.restore();
+  }
+
+  drawGlow(ctx, a, now, reduced) {
+    const g = this.game, L = this.layer;
+    const el = now - a.start;
+    const M = this.theme.motion;
+    // glow 0→1→.55→.9 over 1100ms, hold, then fade out
+    let ga = reduced ? 0.9 : kf(clamp01(el / (1100 * M.k)), [{ o: 0, v: 0, ease: M.inOut }, { o: 0.3, v: 1, ease: M.inOut }, { o: 0.6, v: 0.55, ease: M.inOut }, { o: 1, v: 0.9 }]).v;
+    if (el > 2100) ga *= 1 - clamp01((el - 2100) / 800);
+    const sc = reduced ? 1 : kf(clamp01(el / (700 * M.k)), [{ o: 0, v: 1, ease: M.pop }, { o: 0.3, v: 1.08, ease: M.pop }, { o: 1, v: 1 }]).v;
+    const hits = g.geometry.hexes.filter((h) => h.number === a.number && h.id !== g.robberHexId);
+    // gentle wash over the tiles that did not produce
+    const wash = Math.min(ga, 0.9) * 0.28;
+    g.geometry.hexes.forEach((h) => {
+      if (hits.includes(h)) return;
+      const c = this.hexArt(h);
+      ctx.save(); ctx.translate(c.x, c.y); ctx.globalAlpha = wash; ctx.fillStyle = "#EDE6D6"; ctx.fill(HEX_P(97)); ctx.restore();
+    });
+    hits.forEach((h) => {
+      const c = this.hexArt(h);
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      if (sc !== 1) {
+        // re-stamp the tile (from the board layer) slightly enlarged
+        ctx.save();
+        ctx.scale(sc, sc);
+        ctx.clip(HEX_P(100));
+        ctx.drawImage(L.canvas, (c.x - 100 - L.minX) * L.k, (c.y - 100 - L.minY) * L.k, 200 * L.k, 200 * L.k, -100, -100, 200, 200);
+        ctx.restore();
+      }
+      if (this.glowSprite) {
+        ctx.globalAlpha = ga;
+        ctx.drawImage(this.glowSprite.canvas, -130 * sc, -130 * sc, 260 * sc, 260 * sc);
+      }
+      ctx.restore();
+      // keep the token readable on top of the glow
+      if (sc !== 1 && h.number) {
+        ctx.save(); ctx.translate(c.x, c.y); ctx.scale(sc, sc); ctx.translate(-c.x, -c.y);
+        this.drawToken(ctx, c.x, c.y + (this.theme.tokenDy || 0), h.number, this.u * g.view.scale * g.pixelRatio);
+        ctx.restore();
+      }
+    });
+  }
+
+  drawRobberTargets(ctx, now) {
+    const g = this.game;
+    const pulse = motionReduced() ? 0.6 : 0.45 + Math.sin(now / 300) * 0.2;
+    g.geometry.hexes.forEach((h) => {
+      if (h.id === g.robberHexId) return;
+      const c = this.hexArt(h);
+      ctx.save(); ctx.translate(c.x, c.y);
+      const hover = g.hoverHexId === h.id;
+      ctx.lineWidth = hover ? 6 : 3;
+      ctx.strokeStyle = hover ? this.theme.hint.ring : `rgba(255,248,232,${pulse})`;
+      ctx.stroke(HEX_P(92));
+      if (hover) { ctx.globalAlpha = 0.18; ctx.fillStyle = "#FFF6DA"; ctx.fill(HEX_P(92)); }
+      ctx.restore();
+    });
+    if (g.hoverHexId != null && g.hoverHexId !== g.robberHexId) {
+      const c = this.hexArt(g.geometry.hexes[g.hoverHexId]);
+      const rp = this.robberPos(g.hoverHexId);
+      ctx.save(); ctx.translate(rp.x, rp.y); ctx.globalAlpha = 0.55;
+      drawSpec(ctx, this.theme.pieces.robber, { alpha: 0.55 });
+      ctx.restore();
+    }
+  }
+
+  roadEnds(edge) {
+    const a = this.nodeArt(edge.nodes[0]), b = this.nodeArt(edge.nodes[1]);
+    const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy), k = this.theme.road.trim / L;
+    return [{ x: a.x + dx * k, y: a.y + dy * k }, { x: b.x - dx * k, y: b.y - dy * k }];
+  }
+
+  strokeRoad(ctx, a, b, c, alpha = 1) {
+    const R = this.theme.road;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.lineCap = "round";
+    const line = () => { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); };
+    ctx.save(); ctx.translate(2, 3); line(); ctx.strokeStyle = R.shadow; ctx.lineWidth = R.outer; ctx.stroke(); ctx.restore();
+    line(); ctx.strokeStyle = c.dark; ctx.lineWidth = R.outer; ctx.stroke();
+    line(); ctx.strokeStyle = c.base; ctx.lineWidth = R.inner; ctx.stroke();
+    ctx.save(); ctx.translate(-1, -1.6); ctx.globalAlpha = alpha * 0.8; line(); ctx.strokeStyle = c.light; ctx.lineWidth = R.hi; ctx.stroke(); ctx.restore();
+    ctx.restore();
+  }
+
+  pc(player) { return this.theme.pc[this.theme.seatKeys[player.id]] || this.theme.pc.blue; }
+
+  drawRoad(ctx, edge, player, now, reduced) {
+    let [a, b] = this.roadEnds(edge);
+    const an = this.animFor("road", edge.id);
+    let alpha = 1;
+    if (an) {
+      const t = clamp01((now - an.start) / an.dur);
+      if (reduced) alpha = clamp01(t / 0.3);
+      else {
+        const p = Math.max(0.02, easing(this.theme.motion.out)(t));
+        b = { x: a.x + (b.x - a.x) * p, y: a.y + (b.y - a.y) * p };
+        alpha = 0.4 + 0.6 * clamp01(t / 0.2);
+      }
+    }
+    this.strokeRoad(ctx, a, b, this.pc(player), alpha);
+  }
+
+  drawBuilding(ctx, node, now, reduced, devK) {
+    const T = this.theme, g = this.game;
+    const player = g.players[node.owner];
+    const c = this.pc(player);
+    const p = this.toArt(node.x, node.y);
+    const M = T.motion;
+    const drop = this.animFor("drop", node.id);
+    const city = this.animFor("city", node.id);
+    const isCity = node.structure === "city";
+    const spec = isCity ? T.pieces.city(c) : T.pieces.settlement(c);
+    const dy = isCity ? T.pieces.cityDy : T.pieces.settlementDy;
+    if (city && !reduced) {
+      const t = now - city.start;
+      // old settlement sinks (0..450ms), city rises (380..1130ms)
+      const o = kf(clamp01(t / (450 * M.k)), [{ o: 0, sx: 1, sy: 1, y: 0, a: 1, ease: M.inOut }, { o: 0.4, sx: 1.1, sy: 0.85, y: 0, a: 1, ease: M.inOut }, { o: 1, sx: 0.2, sy: 0.2, y: 30, a: 0 }]);
+      if (o.a > 0.01) this.stamp(ctx, T.pieces.settlement(c), p.x, p.y + T.pieces.settlementDy, o, devK);
+      const n = kf(clamp01((t - 380 * M.k) / (750 * M.k)), [{ o: 0, sx: 0.2, sy: 0.4, y: 40, a: 0, ease: M.pop }, { o: 0.55, sx: 0.95, sy: 1.15, y: -14, a: 1, ease: M.pop }, { o: 0.75, sx: M.squash[0] * 0.95, sy: M.squash[1] * 1.05, y: 0, a: 1, ease: M.pop }, { o: 1, sx: 1, sy: 1, y: 0, a: 1 }]);
+      if (t > 380 * M.k) this.stamp(ctx, spec, p.x, p.y + dy, n, devK);
+      return;
+    }
+    if (drop && !reduced) {
+      const t = clamp01((now - drop.start) / (900 * M.k));
+      const [sx, sy] = M.squash;
+      const s = kf(t, [{ o: 0, y: -110, sx: 0.9, sy: 1.12, a: 0, ease: M.fall }, { o: 0.15, a: 1, y: -88, sx: 0.9, sy: 1.12, ease: M.fall }, { o: 0.45, y: 0, sx: 0.92, sy: 1.1, a: 1, ease: "linear" }, { o: 0.55, y: 0, sx, sy, a: 1, ease: M.out }, { o: 0.72, y: -8, sx: 0.96, sy: 1.05, a: 1, ease: M.inOut }, { o: 1, y: 0, sx: 1, sy: 1, a: 1 }]);
+      this.stamp(ctx, spec, p.x, p.y + dy, s, devK);
+      return;
+    }
+    const fade = (drop || city) && reduced ? clamp01((now - (drop || city).start) / 220) : 1;
+    this.stamp(ctx, spec, p.x, p.y + dy, { sx: 1, sy: 1, y: 0, a: fade }, devK);
+  }
+
+  /** Draw a piece spec with squash/stretch around its base (y≈+16). */
+  stamp(ctx, spec, x, y, s, devK) {
+    ctx.save();
+    ctx.translate(x, y + (s.y || 0) + 16);
+    ctx.scale(s.sx ?? 1, s.sy ?? 1);
+    ctx.translate(0, -16);
+    drawSpec(ctx, spec, { alpha: s.a ?? 1, k: devK });
+    ctx.restore();
+  }
+
+  robberPos(hexId) {
+    const c = this.hexArt(this.game.geometry.hexes[hexId]);
+    const extra = (this.tokenScale - 1) * this.theme.tokenStyle.r;
+    return { x: c.x + this.theme.robberDx + extra, y: c.y + this.theme.robberDy };
+  }
+
+  drawRobber(ctx, rob, t, reduced, devK) {
+    const g = this.game, T = this.theme, M = T.motion;
+    if (g.robberHexId == null) return;
+    let pos = this.robberPos(g.robberHexId), s = { sx: 1, sy: 1, rot: 0 }, sh = 1;
+    if (rob && !reduced) {
+      const a = this.robberPos(rob.from), b = this.robberPos(rob.to);
+      const tt = clamp01(t * 1400 / 1100);
+      const v = kf(tt, [{ o: 0, p: 0, lift: 0, rot: 0, sx: 1, sy: 1, ease: M.out }, { o: 0.12, p: 0.15, lift: -14, rot: -8, sx: 1.05, sy: 0.95, ease: M.inOut }, { o: 0.5, p: 0.5, lift: -80, rot: 8, sx: 1.08, sy: 1.08, ease: M.fall }, { o: 0.85, p: 1, lift: 0, rot: 0, sx: M.squash[0], sy: M.squash[1], ease: M.out }, { o: 1, p: 1, lift: 0, rot: 0, sx: 1, sy: 1 }]);
+      pos = { x: a.x + (b.x - a.x) * v.p, y: a.y + (b.y - a.y) * v.p };
+      sh = 1 + v.lift / 160;
+      // shadow on the ground, robber lifted above it
+      ctx.save(); ctx.globalAlpha = 0.25 * sh; ctx.fillStyle = "#1B2A2A";
+      ctx.beginPath(); ctx.ellipse(pos.x + 2, pos.y + 32, 16 * sh, 5 * sh, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      s = { sx: v.sx, sy: v.sy, rot: v.rot };
+      pos = { x: pos.x, y: pos.y + v.lift };
+    }
+    ctx.save();
+    ctx.translate(pos.x, pos.y + 32);
+    ctx.rotate((s.rot * Math.PI) / 180);
+    ctx.scale(s.sx, s.sy);
+    ctx.translate(0, -32);
+    drawSpec(ctx, T.pieces.robber, { k: devK });
+    ctx.restore();
+  }
+
+  legalSpots() {
+    const g = this.game, player = g.currentPlayer;
+    const nodes = [], edges = [];
+    if (g.setupPhase) {
+      if (g.setupAction === "settlement") g.geometry.nodes.forEach((n) => { if (g.canBuildSettlement(player, n.id, true)) nodes.push(n.id); });
+      else if (g.setupAction === "road" && g.lastSetupNodeId != null) g.geometry.edges.forEach((e) => { if (e.owner == null && e.nodes.includes(g.lastSetupNodeId)) edges.push(e.id); });
+      return { nodes, edges, type: g.setupAction };
+    }
+    const type = g.pendingAction;
+    if (type === "settlement") g.geometry.nodes.forEach((n) => { if (g.canBuildSettlement(player, n.id, false)) nodes.push(n.id); });
+    else if (type === "city") g.geometry.nodes.forEach((n) => { if (g.canBuildCity(player, n.id, false)) nodes.push(n.id); });
+    else if (type === "road") g.geometry.edges.forEach((e) => { if (g.canBuildRoad(player, e.id, { free: g.freeRoadsRemaining > 0 })) edges.push(e.id); });
+    return { nodes, edges, type };
+  }
+
+  drawPlacement(ctx, now, reduced, devK) {
+    const g = this.game, T = this.theme, H = T.hint;
+    const { nodes, edges, type } = this.legalSpots();
+    if (type === "robber") return;
+    const pulse = reduced ? 0 : Math.sin(now / 420);
+    const cb = g.confirmBuild;
+    const hint = (x, y, small) => {
+      ctx.save(); ctx.translate(x, y);
+      const k = small ? 0.8 : 1;
+      ctx.beginPath(); ctx.arc(0, 0, (16 + pulse * 3) * k, 0, Math.PI * 2); ctx.fillStyle = H.halo; ctx.globalAlpha = 0.8 + pulse * 0.2; ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(0, 0, 9 * k, 0, Math.PI * 2); ctx.fillStyle = H.fill; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = H.ring; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, 3.4 * k, 0, Math.PI * 2); ctx.fillStyle = H.dot; ctx.fill();
+      ctx.restore();
+    };
+    nodes.forEach((id) => {
+      if (cb && cb.id === id && cb.type !== "road") return;
+      if (type === "city") return; // cities: the ring on the settlement itself
+      const p = this.nodeArt(id);
+      hint(p.x, p.y);
+    });
+    if (type === "city") nodes.forEach((id) => {
+      if (cb && cb.id === id) return;
+      const p = this.nodeArt(id);
+      ctx.save(); ctx.translate(p.x, p.y - 4); ctx.lineWidth = 3; ctx.strokeStyle = H.ring; ctx.globalAlpha = 0.6 + pulse * 0.3;
+      ctx.setLineDash([6, 5]); ctx.beginPath(); ctx.arc(0, 0, 30 + pulse * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    });
+    edges.forEach((id) => {
+      if (cb && cb.type === "road" && cb.id === id) return;
+      const e = g.geometry.edges[id];
+      const [a, b] = this.roadEnds(e);
+      ctx.save(); ctx.globalAlpha = 0.55 + pulse * 0.2; ctx.setLineDash([7, 6]); ctx.lineCap = "round"; ctx.lineWidth = 5; ctx.strokeStyle = H.fill;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.restore();
+      hint((a.x + b.x) / 2, (a.y + b.y) / 2, true);
+    });
+    // hover preview (desktop) — a fainter ghost
+    const human = g.players[0];
+    const c = this.pc(g.currentPlayer || human);
+    const hoverNode = g.hoverNodeId != null && (!cb || cb.id !== g.hoverNodeId) && nodes.includes(g.hoverNodeId) ? g.hoverNodeId : null;
+    const hoverEdge = g.hoverEdgeId != null && (!cb || cb.id !== g.hoverEdgeId) && edges.includes(g.hoverEdgeId) ? g.hoverEdgeId : null;
+    if (hoverNode != null) this.ghost(ctx, type, hoverNode, c, 0.45, devK);
+    if (hoverEdge != null) this.ghost(ctx, "road", hoverEdge, c, 0.45, devK);
+    if (cb) {
+      this.ghost(ctx, cb.type, cb.id, c, 1, devK);
+      if (!g.isMobileLayout) this.drawConfirm(ctx, now, reduced, devK);
+    }
+  }
+
+  ghost(ctx, type, id, c, alpha, devK) {
+    const g = this.game, T = this.theme;
+    if (type === "road") {
+      const [a, b] = this.roadEnds(g.geometry.edges[id]);
+      this.strokeRoad(ctx, a, b, c, 0.6 * alpha);
+      return;
+    }
+    const p = this.nodeArt(id);
+    ctx.save(); ctx.translate(p.x, p.y);
+    ctx.globalAlpha = alpha;
+    ctx.beginPath(); ctx.arc(0, 0, 27, 0, Math.PI * 2); ctx.fillStyle = "rgba(251,246,234,.3)"; ctx.fill();
+    ctx.setLineDash([5, 4]); ctx.lineWidth = 2; ctx.strokeStyle = "#FBF6EA"; ctx.stroke(); ctx.setLineDash([]);
+    ctx.translate(0, type === "city" ? -4 : -3);
+    drawSpec(ctx, type === "city" ? T.pieces.city(c) : T.pieces.settlement(c), { alpha: 0.75 * alpha, k: devK });
+    ctx.restore();
+  }
+
+  /** Confirm button above the selected spot (desktop). Same hit area as game.getConfirmIconCenter(). */
+  drawConfirm(ctx, now, reduced, devK) {
+    const g = this.game, icon = g.getConfirmIconCenter();
+    if (!icon) return;
+    const p = this.toArt(icon.x, icon.y);
+    const r = icon.r / this.u;
+    const bob = reduced ? 0 : Math.sin(now / 260) * 2;
+    ctx.save();
+    ctx.translate(p.x, p.y + bob);
+    ctx.shadowColor = "rgba(27,42,42,.3)"; ctx.shadowBlur = 6 * devK; ctx.shadowOffsetY = 2 * devK;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = this.theme.confirm.fill; ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.lineWidth = 2.5; ctx.strokeStyle = this.theme.confirm.ring; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-r * 0.42, 0); ctx.lineTo(-r * 0.12, r * 0.3); ctx.lineTo(r * 0.45, -r * 0.32);
+    ctx.lineWidth = r * 0.2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = this.theme.confirm.ring; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-6, r - 1); ctx.lineTo(6, r - 1); ctx.lineTo(0, r + 8); ctx.closePath(); ctx.fillStyle = this.theme.confirm.fill; ctx.fill();
+    ctx.restore();
+  }
+
+  drawParticles(ctx, a, now, reduced) {
+    if (reduced) return;
+    const M = this.theme.motion;
+    const el = now - a.start;
+    if (a.kind === "drop") {
+      const t = (el - 460 * M.k) / (600 * M.k);
+      if (t <= 0 || t >= 1) return;
+      const p = this.nodeArt(a.id);
+      const e = easing(M.out)(t);
+      for (let i = 0; i < 5; i += 1) {
+        const ang = ((i * 72 + 20) * Math.PI) / 180;
+        const d = 4 + (30 + i * 3) * e;
+        ctx.save();
+        ctx.globalAlpha = t < 0.2 ? (t / 0.2) * 0.9 : 0.9 * (1 - (t - 0.2) / 0.8);
+        ctx.translate(p.x + Math.cos(ang) * d, p.y + 14 + Math.sin(ang) * d * 0.45);
+        const r = 7 * (0.3 + 1.1 * e);
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = "#F4EEE1"; ctx.fill();
+        ctx.beginPath(); ctx.arc(1.5, 1.5, r * 0.7, 0, Math.PI * 2); ctx.fillStyle = "rgba(0,0,0,.05)"; ctx.fill();
+        ctx.restore();
+      }
+    } else if (a.kind === "city") {
+      const t = (el - 700 * M.k) / (650 * M.k);
+      if (t <= 0 || t >= 1) return;
+      const p = this.nodeArt(a.id);
+      const e = easing(M.out)(t);
+      for (let i = 0; i < 6; i += 1) {
+        const ang = (i * 60 * Math.PI) / 180;
+        const d = 10 + 54 * e;
+        ctx.save();
+        ctx.globalAlpha = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7;
+        ctx.translate(p.x + Math.cos(ang) * d, p.y - 10 + Math.sin(ang) * d);
+        ctx.scale(0.2 + 0.8 * e, 0.2 + 0.8 * e);
+        ctx.fillStyle = "#F0D892";
+        ctx.beginPath();
+        ctx.moveTo(0, -7); ctx.lineTo(1.7, -1.7); ctx.lineTo(7, 0); ctx.lineTo(1.7, 1.7); ctx.lineTo(0, 7); ctx.lineTo(-1.7, 1.7); ctx.lineTo(-7, 0); ctx.lineTo(-1.7, -1.7); ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+
+  /** Screen (CSS px, relative to the canvas) position of a hex centre — used by DOM effects. */
+  hexScreen(hexId) {
+    const g = this.game, h = g.geometry.hexes[hexId];
+    return g.worldToScreen(h.center.x, h.center.y);
+  }
+}
