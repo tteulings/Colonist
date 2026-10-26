@@ -391,31 +391,31 @@ const tile = (t) => `<g clip-path="url(#a-hexclip)" transform="scale(.968)"><use
 const glow = () => `<path d="${hexPath(0, 0, 97)}" fill="none" stroke="#FFE9A8" stroke-width="16" filter="url(#a-glow)"/><path d="${hexPath(0, 0, 93)}" fill="#FFF4CF" opacity=".14" stroke="#FFF1C2" stroke-width="3.4"/>`;
 
 /**
- * Harbour (v0.76): a cream badge in the sea off the coast — the resource tile (the same white-glyph tile
- * as the bank bar) or a neutral "?" tile for 3:1, next to the ratio in bold — two plank piers to the coast
- * corners, and a small coloured dot on each of those corners. Geometry: harbourBadges (p.badge).
+ * Harbour (v0.78): a cream pill in the sea off the coast — for 2:1 the painted resource icon beside the ratio
+ * with an outline in the resource's colour (accent only, never a solid fill that could read as a player), for
+ * 3:1 just the ratio — two plank piers to the coast corners, a small dot on each of those corners, and a small
+ * sailing boat beside the pill wherever one fits (layout: harbourBadges, p.badge).
  * Text is returned as labels so the canvas draws it with the page font (fonts don't load in rasterised SVG).
  * p = { a, b, mx, my, nx, ny, res, ratio, s, badge, piers } in art units.
  */
-const PORT_TONE = { wood: "#3E9A4E", brick: "#D8613C", sheep: "#86BF3C", wheat: "#EFAE2C", ore: "#7D8DA5" };
-const PORT_ANY = ["#3F7280", "#33626F"]; // white "?" on it: 5.3:1
+const PORT_TONE = { wood: "#3E9A4E", brick: "#D8613C", sheep: "#86BF3C", wheat: "#E3A21F", ore: "#7D8DA5" };
+const PORT_ANY = { fill: "#F7F1E3", ring: "#CDBB94", dot: "#7E949B" };
+const harbourBoat = (sh, flip) => `<g transform="translate(${f(sh.x)} ${f(sh.y + 13 * sh.scale)}) scale(${+(flip * sh.scale).toFixed(3)} ${+sh.scale.toFixed(3)})" filter="url(#a-shadow)"><path d="M-28,2 L28,2 Q24,14 16,14 L-20,14 Q-26,11 -28,2Z" fill="#9A6B45"/><path d="M-24,6 H24" stroke="#C49770" stroke-width="1.4"/>
+  <path d="M-2,2 V-40" stroke="#5C4630" stroke-width="2"/><path d="M0,-38 Q22,-22 20,-2 L0,-2Z" fill="#F7F1E2"/><path d="M-4,-30 Q-18,-18 -16,-2 L-4,-2Z" fill="#EDE4CF"/></g>
+  <path d="M${f(sh.x - 20 * sh.scale)},${f(sh.y + 30 * sh.scale)} q${f(20 * sh.scale)},${f(5 * sh.scale)} ${f(40 * sh.scale)},0" stroke="#fff" stroke-opacity=".4" stroke-width="${f(2 * sh.scale)}" fill="none"/>`;
 function port(p) {
-  const q = p.badge, s = p.s || 1, tone = p.res ? PORT_TONE[p.res] : PORT_ANY[0];
+  const q = p.badge, s = p.s || 1, tone = p.res ? PORT_TONE[p.res] : PORT_ANY.dot;
   const pier = ([c, e]) => {
     const d = `M${f(c.x)},${f(c.y)} L${f(e[0])},${f(e[1])}`;
     return `<path d="${d}" stroke="#7E6A50" stroke-width="${f(6.4 * s)}" stroke-linecap="round"/><path d="${d}" stroke="#C7AE88" stroke-width="${f(3.8 * s)}" stroke-linecap="round"/><path d="${d}" stroke="#9C8564" stroke-width="${f(3.8 * s)}" stroke-dasharray="1 ${f(4 * s)}"/>`;
   };
   const dot = (c) => `<circle cx="${f(c.x)}" cy="${f(c.y)}" r="${f(5.6 * s)}" fill="${tone}" stroke="#FBF6EA" stroke-width="${f(2 * s)}"/>`;
-  const ic = q.icon, k = ic.size / 84;
-  const tile = p.res ? UI_ICONS[p.res]
-    : `<rect x="-42" y="-42" width="84" height="84" rx="18" fill="${PORT_ANY[0]}"/><path d="M-42,10 V24 Q-42,42 -24,42 H24 Q42,42 42,24 V10 Q0,30 -42,10Z" fill="${PORT_ANY[1]}"/>`;
-  const svg = `<g>${p.piers.map(pier).join("")}${dot(p.a)}${dot(p.b)}
-    <rect x="${f(q.x - q.w / 2)}" y="${f(q.y - q.h / 2)}" width="${f(q.w)}" height="${f(q.h)}" rx="${f(q.r)}" fill="#FBF6EA" filter="url(#a-shadow)"/>
-    <rect x="${f(q.x - q.w / 2)}" y="${f(q.y - q.h / 2)}" width="${f(q.w)}" height="${f(q.h)}" rx="${f(q.r)}" fill="none" stroke="${tone}" stroke-width="${f(2.2 * s)}"/>
-    <g transform="translate(${f(ic.x)} ${f(ic.y)}) scale(${+k.toFixed(4)})">${tile}</g></g>`;
-  const labels = [{ x: q.text.x, y: q.text.y, text: p.ratio, size: q.text.size, color: P.ink, weight: 800 }];
-  if (!p.res) labels.push({ x: ic.x, y: ic.y + ic.size * 0.27, text: "?", size: ic.size * 0.74, color: "#FFFFFF", weight: 800 });
-  return { svg, labels };
+  const R = (fill, extra = "") => `<rect x="${f(q.x - q.w / 2)}" y="${f(q.y - q.h / 2)}" width="${f(q.w)}" height="${f(q.h)}" rx="${f(q.r)}" fill="${fill}" ${extra}/>`;
+  const ic = q.icon;
+  const svg = `<g>${p.piers.map(pier).join("")}${dot(p.a)}${dot(p.b)}${q.ship && !p.noBoat ? harbourBoat(q.ship, q.ship.flip) : ""}
+    ${R(p.res ? "#FBF6EA" : PORT_ANY.fill, 'filter="url(#a-shadow)"')}${R("none", `stroke="${p.res ? tone : PORT_ANY.ring}" stroke-width="${f((p.res ? 2.2 : 1.6) * s)}"`)}
+    ${ic ? `<circle cx="${f(ic.x)}" cy="${f(ic.y)}" r="${f(ic.size / 2 + 1 * s)}" fill="${tone}" opacity=".2"/><g transform="translate(${f(ic.x)} ${f(ic.y + ic.size * 0.04)}) scale(${+(ic.size / 84).toFixed(4)})">${ICONS[p.res]}</g>` : ""}</g>`;
+  return { svg, labels: [{ x: q.text.x, y: q.text.y, text: p.ratio, size: q.text.size, color: P.ink, weight: 800 }] };
 }
 
 /** Number token, drawn on the canvas (so the number uses the loaded display font). Pips: round dots in

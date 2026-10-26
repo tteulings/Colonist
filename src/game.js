@@ -6928,14 +6928,19 @@ class ColonistFullGame {
     ctx.restore();
   }
 
-  /** Classic harbours (v0.76): the same badge as the themed boards (harbourBadges) — the resource icon (or a
-   *  "?" seal for 3:1) beside the ratio in bold, two piers to the coast corners, a dot on each corner. */
+  /** Classic harbours (v0.78): the same pill as the themed boards (harbourBadges) — the resource glyph (the card
+   *  icon without its coloured tile, so a brick harbour never reads as a red player) beside the ratio in bold, or
+   *  just "3:1"; two piers to the coast corners, a dot on each corner. */
   drawPorts() {
     const ctx = this.ctx, g = this.geometry, u = g.hexSize / 100, s = this.isMobileLayout ? 1.38 : 1;
     const portColor = { wood: "#4a7c3f", brick: "#b5532e", sheep: "#5f9a36", wheat: "#b8931f", ore: "#6a7588", any: "#3d5f72" };
     if (!this._portImgs) {
       this._portImgs = {};
-      Object.entries(RESOURCE_ICON_PATH).forEach(([r, src]) => { const im = new Image(); im.onload = () => this.render?.(); im.src = src; this._portImgs[r] = im; });
+      // the card icons sit on a coloured rounded tile: drop the tile (the first two <rect>s), keep the glyph
+      Object.entries(RESOURCE_ICON_PATH).forEach(([r, src]) => {
+        const im = new Image(); im.onload = () => this.render?.(); this._portImgs[r] = im;
+        fetch(src).then((res) => res.text()).then((svg) => { im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg.replace(/<rect x="4" y="4"[^>]*\/>/, "").replace(/<rect x="8" y="8"[^>]*\/>/, "")); }).catch(() => { im.src = src; });
+      });
     }
     const badges = harbourBadges(this, s);
     this.ports.forEach((port, pi) => {
@@ -6958,19 +6963,27 @@ class ColonistFullGame {
         ctx.strokeStyle = "#c9a874"; ctx.lineWidth = 3.4 * s * u; ctx.stroke();
       });
       [p1, p2].forEach((n) => { ctx.beginPath(); ctx.arc(n.x, n.y, 5.6 * s * u, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); ctx.lineWidth = 2 * s * u; ctx.strokeStyle = "#f5efe4"; ctx.stroke(); });
-      // badge
+      // pill: cream, the resource colour only as an outline accent
       ctx.shadowColor = "rgba(15, 23, 34, 0.35)"; ctx.shadowBlur = 5 * s * u; ctx.shadowOffsetY = 2 * s * u;
       this.drawRoundedRect(bx - W / 2, by - H / 2, W, H, (q.r) * u);
-      ctx.fillStyle = "#f5efe4"; ctx.fill();
+      ctx.fillStyle = q.icon ? "#f5efe4" : "#F7F1E3"; ctx.fill();
       ctx.shadowColor = "transparent";
-      ctx.strokeStyle = color; ctx.lineWidth = 2.4 * s * u; ctx.stroke();
-      const [ix, iy] = P(q.icon.x, q.icon.y), is = q.icon.size * u;
-      const im = this._portImgs[port.type];
-      if (im) { if (im.complete && im.naturalWidth) ctx.drawImage(im, ix - is / 2, iy - is / 2, is, is); }
-      else {
-        ctx.beginPath(); ctx.arc(ix, iy, is / 2, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
-        ctx.fillStyle = "#ffffff"; ctx.font = `800 ${is * 0.74}px Inter, system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-        ctx.fillText("?", ix, iy + is * 0.27);
+      ctx.strokeStyle = q.icon ? color : "#b9a786"; ctx.lineWidth = (q.icon ? 2.4 : 1.6) * s * u; ctx.stroke();
+      if (q.icon) {
+        const [ix, iy] = P(q.icon.x, q.icon.y), is = q.icon.size * u * 1.2;
+        const im = this._portImgs[port.type];
+        if (im && im.complete && im.naturalWidth) {
+          // the glyph as a solid silhouette in the resource colour (cached per type)
+          this._portGlyphs = this._portGlyphs || {};
+          let gc = this._portGlyphs[port.type];
+          if (!gc) {
+            gc = document.createElement("canvas"); gc.width = gc.height = 128;
+            const x2 = gc.getContext("2d"); x2.drawImage(im, 0, 0, 128, 128);
+            x2.globalCompositeOperation = "source-in"; x2.fillStyle = color; x2.fillRect(0, 0, 128, 128);
+            this._portGlyphs[port.type] = gc;
+          }
+          ctx.drawImage(gc, ix - is / 2, iy - is / 2, is, is);
+        }
       }
       const [tx, ty] = P(q.text.x, q.text.y);
       ctx.fillStyle = "#1a3a52"; ctx.font = `800 ${q.text.size * u}px Inter, system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";

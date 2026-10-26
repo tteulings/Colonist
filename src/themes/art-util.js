@@ -86,25 +86,33 @@ function boxHexDist(x, y, hw, hh, c) {
   return d;
 }
 const layoutCache = new Map();
+const boxGap = (p, q) => Math.max(Math.abs(p.x - q.x) - (p.w + q.w) / 2, Math.abs(p.y - q.y) - (p.h + q.h) / 2);
+/** Does segment a→b come within m of box q? (sampled; boxes and piers are small) */
+const segNearBox = (ax, ay, bx, by, q, m) => {
+  for (let k = 0; k <= 24; k += 1) { const x = ax + ((bx - ax) * k) / 24, y = ay + ((by - ay) * k) / 24; if (Math.abs(x - q.x) <= q.w / 2 + m && Math.abs(y - q.y) <= q.h / 2 + m) return true; }
+  return false;
+};
 export function harbourBadges(game, s = 1) {
   const g = game.geometry, ports = game.ports || [];
   if (!g || !ports.length) return [];
   const u = g.hexSize / 100, A = (p) => ({ x: (p.x - g.centerX) / u, y: (p.y - g.centerY) / u });
   const land = g.hexes.filter((h) => h.resource !== "sea");
-  const key = [s, g.hexSize.toFixed(3), g.centerX.toFixed(2), g.centerY.toFixed(2), ports.map((p) => p.edgeId + p.type).join(","), land.map((h) => h.id).join(".")].join("|");
+  const key = [s, !!game.sea, g.hexSize.toFixed(3), g.centerX.toFixed(2), g.centerY.toFixed(2), ports.map((p) => p.edgeId + p.type).join(","), land.map((h) => h.id).join(".")].join("|");
   if (layoutCache.has(key)) return layoutCache.get(key);
   const centers = land.map((h) => A(h.center));
-  const w = 66 * s, h = 36 * s, hw = w / 2, hh = h / 2, clear = Math.max(22 * s, 30), gap = 6 * s; // clear: past the beach band (~30) and a corner piece
+  const clear = Math.max(22 * s, 30), gap = 6 * s; // clear: past the beach band (~30) and a corner piece
   const placed = [];
   const out = ports.map((port) => {
+    const any = port.type === "any";
+    // 2:1: resource icon + ratio; 3:1: just the ratio (a narrower pill)
+    const w = (any ? 48 : 70) * s, h = 36 * s, hw = w / 2, hh = h / 2;
     const edge = g.edges[port.edgeId];
     const a = A(g.nodes[edge.nodes[0]]), b = A(g.nodes[edge.nodes[1]]);
     const hc = A(g.hexes[edge.hexIds.find((id) => g.hexes[id].resource !== "sea") ?? edge.hexIds[0]].center);
     const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, len = Math.hypot(mx - hc.x, my - hc.y) || 1;
     const nx = (mx - hc.x) / len, ny = (my - hc.y) / len, tx = -ny, ty = nx;
     const near = centers.filter((c) => Math.hypot(c.x - mx, c.y - my) < 330 * Math.max(1, s));
-    const ok = (x, y) => near.every((c) => boxHexDist(x, y, hw, hh, c) >= clear)
-      && placed.every((q) => Math.abs(q.x - x) - hw * 2 >= gap || Math.abs(q.y - y) - hh * 2 >= gap);
+    const ok = (x, y) => near.every((c) => boxHexDist(x, y, hw, hh, c) >= clear) && placed.every((q) => boxGap(q, { x, y, w, h }) >= gap);
     let best = null;
     for (let d = 0; d <= 200 * s && !best; d += 3 * s) {
       for (let k = 0; k <= 6 && !best; k += 1) { // slide along the coast up to 36·s before moving further out
@@ -116,15 +124,38 @@ export function harbourBadges(game, s = 1) {
       }
     }
     if (!best) best = { x: mx + nx * (200 * s), y: my + ny * (200 * s) };
-    placed.push(best);
-    const { x, y } = best, ic = 25 * s, fs = 20 * s;
+    const { x, y } = best, ic = 29 * s, fs = 20 * s;
+    placed.push({ x, y, w, h });
     // pier ends: tucked under the pill, spread along the coast, each paired with the nearer corner
     const lat = (Math.abs(tx) * hw + Math.abs(ty) * hh) * 0.45, e0 = [x - tx * lat, y - ty * lat], e1 = [x + tx * lat, y + ty * lat];
     const dd = (c, e) => Math.hypot(c.x - e[0], c.y - e[1]);
     const piers = dd(a, e0) + dd(b, e1) <= dd(a, e1) + dd(b, e0) ? [[a, e0], [b, e1]] : [[a, e1], [b, e0]];
-    return { x, y, w, h, r: hh, a, b, mx, my, nx, ny, piers,
-      icon: { x: x - 16.5 * s, y, size: ic }, text: { x: x + 13.5 * s, y: y + fs * 0.36, size: fs } };
+    return { x, y, w, h, r: hh, a, b, mx, my, nx, ny, piers, any,
+      icon: any ? null : { x: x - 17 * s, y, size: ic },
+      text: any ? { x, y: y + fs * 1.1 * 0.36, size: fs * 1.1 } : { x: x + 15.5 * s, y: y + fs * 0.36, size: fs } };
   });
+  // Optional decoration (themes that want it): a small ship beside each pill, only where it fits fully in the
+  // sea, clear of every pill, pier and other ship, and inside the box the pills already span (so it never
+  // shrinks the board). None in Seafarers, where a ship reads as a player's ship.
+  if (!game.sea) {
+    const all = [...centers.map((c) => ({ x: c.x, y: c.y, w: 2 * (87 + clear), h: 2 * (100 + clear) })), ...out];
+    const bb = { x0: Math.min(...all.map((q) => q.x - q.w / 2)), x1: Math.max(...all.map((q) => q.x + q.w / 2)), y0: Math.min(...all.map((q) => q.y - q.h / 2)), y1: Math.max(...all.map((q) => q.y + q.h / 2)) };
+    const ships = [];
+    out.forEach((q) => {
+      const sw = 34 * s, sh = 32 * s;
+      const cands = [[q.x + q.w / 2 + 3 * s + sw / 2, q.y - 2 * s], [q.x - q.w / 2 - 3 * s - sw / 2, q.y - 2 * s]];
+      for (const [x, y] of cands) {
+        const box = { x, y, w: sw, h: sh };
+        if (x - sw / 2 < bb.x0 || x + sw / 2 > bb.x1 || y - sh / 2 < bb.y0 || y + sh / 2 > bb.y1) continue;
+        if (!centers.every((c) => boxHexDist(x, y, sw / 2, sh / 2, c) >= clear)) continue;
+        if (!out.every((o) => o === q ? true : boxGap(o, box) >= gap) || !ships.every((o) => boxGap(o, box) >= gap)) continue;
+        if (out.some((o) => o.piers.some(([c, e]) => segNearBox(c.x, c.y, e[0], e[1], box, 2 * s)))) continue;
+        q.ship = { x, y, w: sw, h: sh, flip: x > q.x ? 1 : -1, scale: 0.6 * s };
+        ships.push(box);
+        break;
+      }
+    });
+  }
   if (layoutCache.size > 40) layoutCache.clear();
   layoutCache.set(key, out);
   return out;
