@@ -329,6 +329,7 @@ export class SvgBoardRenderer {
       const old = prev.nodes.get(id);
       if (old === v) continue;
       const [type] = v.split(":");
+      if (type === "settlement" && old && old.startsWith("city")) continue; // Undo of a city: no drop
       if (type === "city" && old && old.startsWith("settlement")) this.anims.push({ kind: "city", id, start: now, dur: 1350 * M.k });
       else this.anims.push({ kind: "drop", id, start: now, dur: 1100 * M.k });
     }
@@ -643,7 +644,7 @@ export class SvgBoardRenderer {
   }
 
   legalSpots() {
-    return this.game._legalPlacementSpots() || { nodes: [], edges: [], type: null };
+    return this.game._legalPlacementSpots() || { nodes: [], cities: [], edges: [], type: null };
   }
 
   /**
@@ -654,13 +655,13 @@ export class SvgBoardRenderer {
    */
   drawPlacement(ctx, now, reduced, devK) {
     const g = this.game;
-    const { nodes, edges, type } = this.legalSpots();
+    const { nodes, edges, type, cities = [] } = this.legalSpots();
     if (!type || type === "robber") return;
     const cb = g.confirmBuild;
     const px = 1 / (this.u * g.view.scale); // art units per CSS pixel
     const human = g.players[0];
     const c = this.pc(g.currentPlayer || human);
-    const key = `${type}:${nodes.join(",")}:${edges.join(",")}`;
+    const key = `${type}:${nodes.join(",")}:${cities.join(",")}:${edges.join(",")}`;
     if (key !== this._placeKey) { this._placeKey = key; this._placeStart = now; }
     const t = reduced ? 1 : clamp01((now - this._placeStart) / 1100);
     const e = easing(this.theme.motion.out)(t);
@@ -694,13 +695,17 @@ export class SvgBoardRenderer {
     nodes.forEach((id) => {
       if (cb && cb.id === id && cb.type !== "road") return;
       const p = this.nodeArt(id);
-      if (type === "city") ring(p.x, p.y - 4, 30); // around the settlement itself
-      else ring(p.x, p.y, 7 * px);
+      ring(p.x, p.y, 7 * px);
+    });
+    cities.forEach((id) => {
+      if (cb && cb.id === id && cb.type !== "road") return;
+      const p = this.nodeArt(id);
+      ring(p.x, p.y - 4, 30); // around the settlement itself
     });
     // hover preview (desktop) — a fainter ghost
-    const hoverNode = g.hoverNodeId != null && (!cb || cb.id !== g.hoverNodeId) && nodes.includes(g.hoverNodeId) ? g.hoverNodeId : null;
+    const hoverNode = g.hoverNodeId != null && (!cb || cb.id !== g.hoverNodeId) && (nodes.includes(g.hoverNodeId) || cities.includes(g.hoverNodeId)) ? g.hoverNodeId : null;
     const hoverEdge = g.hoverEdgeId != null && (!cb || cb.id !== g.hoverEdgeId) && edges.includes(g.hoverEdgeId) ? g.hoverEdgeId : null;
-    if (hoverNode != null) this.ghost(ctx, type, hoverNode, c, 0.45, devK);
+    if (hoverNode != null) this.ghost(ctx, cities.includes(hoverNode) ? "city" : "settlement", hoverNode, c, 0.45, devK);
     if (hoverEdge != null) this.ghost(ctx, "road", hoverEdge, c, 0.45, devK);
     if (cb && cb.type !== "robber") {
       this.ghost(ctx, cb.type, cb.id, c, 1, devK);
