@@ -58,7 +58,8 @@ export const SeaAI = {
       if (roadReach && roadReach.dist[node.id] <= d && !(d === 0 && roadReach.dist[node.id] > 0)) return; // the road planner already covers it as cheaply
       const isl = this.islandOfNode(node.id);
       const fresh = isl > 0 && !owned.has(isl);
-      const h = g.getNodeProductionScore(node.id, player, profile) + (fresh ? 2.2 : 0) - d * 0.5;
+      const goldPips = node.adjacentHexes.reduce((a, hid) => { const hx = g.geometry.hexes[hid]; return a + (hx.resource === "gold" && hx.number ? PIPS[hx.number] || 0 : 0); }, 0);
+      const h = g.getNodeProductionScore(node.id, player, profile) + (fresh ? 2.2 : 0) + goldPips * 0.12 - d * 0.5; // gold: any card you need
       spots.push({ nodeId: node.id, d, h, fresh, isl });
     });
     spots.sort((a, b) => b.h - a.h);
@@ -213,7 +214,9 @@ export const SeaAI = {
         const e = g.geometry.edges[eid];
         if (e.owner == null || !e.ship) return;
         if (e.owner === mover.id) { s -= 0.8; return; }
-        s += 0.45 * weight(e.owner); // blocks building / moving there
+        // blocks building / moving there: an open end of a route (where they sail on next) hurts most
+        const open = e.nodes.some((n) => g.geometry.nodes[n].owner !== e.owner && !g.geometry.nodes[n].edgeIds.some((x) => x !== eid && g.geometry.edges[x].owner === e.owner));
+        s += (open ? 1.1 : 0.3) * weight(e.owner);
         if (!prot(e.owner) && RES.some((r) => g.players[e.owner].resources[r] > 0)) vic.add(e.owner);
       });
       if (vic.size) s += Math.max(...[...vic].map((v) => weight(v) * 0.9));

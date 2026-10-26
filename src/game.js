@@ -2077,7 +2077,7 @@ class ColonistFullGame {
     else { this.pendingAction = null; this.canvas.style.cursor = "grab"; }
     this.trayMode = null;
     if (this.devPlayed?.type === "roadBuilding") this.devPlayed = null; // the card took effect
-    const undo = { kind: "build", type: cb.type, id: cb.id, pid: player.id, paid, ...before, isle,
+    const undo = { kind: "build", type: cb.type, id: cb.id, pid: player.id, paid, ...before, isle, dock: !!isle, // ⚓ a new island: Undo / OK in the dock
       icon: cb.type, noun: cb.type === "settlement" ? "" : cb.type, label: { road: before.free ? "Free road placed" : "Road built", ship: before.free ? "Free ship placed" : "Ship built", settlement: isle ? "+2 points · New island" : "Settlement built", city: "City built" }[cb.type] };
     if (this.rush) {
       this._rushAfterAction(player);
@@ -7605,6 +7605,8 @@ class ColonistFullGame {
         <div class="mini"><span>${icon("cards")}${totalCards}</span><span>${icon("devcard")}${totalDev}</span></div></div>`);
     });
     this.scoreboard.innerHTML = rows.join("");
+    const goal = this.scoreboard.parentElement?.querySelector("h2 .sub");
+    if (goal && /points wins/.test(goal.textContent)) goal.textContent = `First to ${this.winPoints} points wins${this.sea ? " · Seafarers" : ""}`; // ⚓ 14 at sea
     if (this.playerStrip) {
       this.playerStrip.innerHTML = chips.join("");
       this.playerStrip.style.setProperty("--n", this.players.length);
@@ -9078,7 +9080,7 @@ class ColonistFullGame {
         const n = g.nodes[u.id];
         if (n.owner !== p.id || n.structure !== "settlement") return;
         n.owner = null; n.structure = null; p.settlements.delete(u.id);
-        if (u.isle) this.sea?.dropBonus(p, u.isle.island); // ⚓
+        if (u.isle) { this.sea?.dropBonus(p, u.isle.island); this._seaIslandNote = null; } // ⚓
       } else {
         const n = g.nodes[u.id];
         if (n.owner !== p.id || n.structure !== "city") return;
@@ -9347,8 +9349,10 @@ class ColonistFullGame {
       const blocks = info.prod ? `blocks ${RESOURCE_LABEL[info.prod.res] || TERRAIN_NAME[info.prod.res]} on ${info.prod.num}` : hex.resource === "sea" ? "no ships here for now" : "produces nothing";
       const own = info.own ? " (yours too)" : "";
       const vic = info.victims;
+      const pir = this.sea && hex.resource === "sea" ? this._seaPirateText(cb.id, cur) : null; // ⚓ the pirate's own words
+      const lead = pir ? pir.hint : `Robber on ${where} · ${blocks}${own}`, sub = pir ? pir.sub : `${where} · ${blocks}`;
       if (vic.length > 1 && (!cb.victim || this.confirmPlacements)) {
-        return { mode: "robber", hint: `Robber on ${where} · ${blocks}${own} · ${this.confirmPlacements ? "pick who to rob, then Place" : "rob whom?"}`,
+        return { mode: "robber", hint: `${lead} · ${this.confirmPlacements ? "pick who to rob, then Place" : "rob whom?"}`,
           html: vic.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
             return tbtn(`data-victim="${id}" aria-pressed="${cb.victim === id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}${cb.victim === id ? " sel" : ""}`); }).join("")
             + (this.confirmPlacements ? tbtn(`data-rob-now ${cb.victim != null ? "" : "disabled"}`, `${icon("check")}<span>Place</span>`, "primary") : "")
@@ -9357,8 +9361,8 @@ class ColonistFullGame {
       const v = vic.length ? this.players[cb.victim ?? vic[0]] : null;
       const timed = !this.confirmPlacements && !!this._robberTimer;
       return { mode: "robber", key: `${this._robberTimerAt}`,
-        hint: `Robber on ${where} · ${blocks}${own}`,
-        html: `<div class="tinfo rob${timed ? " timed" : ""}" style="--settle-ms:${ROBBER_SETTLE_MS}ms">${v ? this._av(v) : icon("robber")}<span>${v ? `Rob <b class="who pc-${v.id}">${v.name}</b>` : "Nobody to rob"}<small>${where} · ${blocks}</small></span><i class="ttime" aria-hidden="true"></i></div>`
+        hint: lead,
+        html: `<div class="tinfo rob${timed ? " timed" : ""}" style="--settle-ms:${ROBBER_SETTLE_MS}ms">${v ? this._av(v) : icon(pir ? "pirate" : "robber")}<span>${v ? `Rob <b class="who pc-${v.id}">${v.name}</b>` : "Nobody to rob"}<small>${sub}</small></span><i class="ttime" aria-hidden="true"></i></div>`
           + tbtn("data-rob-undo", `${icon("undo")}<span>${this.confirmPlacements ? "Back" : "Undo"}</span>`)
           + tbtn("data-rob-now", `${icon("check")}<span>${this.confirmPlacements ? "Place" : v ? "Rob now" : "Done"}</span>`, "primary") };
     }
@@ -9602,7 +9606,7 @@ class ColonistFullGame {
     this._fxPrev = now;
     if (!p || p.gen !== now.gen) return;
     if (!this.isRush() && !now.setup && !p.setup && p.cur !== now.cur && !this.winner) this.fx.spotlight(now.cur);
-    if (now.lr !== p.lr && now.lr != null) this.fx.badge("longestRoad", p.lr, now.lr);
+    if (now.lr !== p.lr && now.lr != null) this.fx.badge(this.sea ? "tradeRoute" : "longestRoad", p.lr, now.lr); // ⚓
     if (now.la !== p.la && now.la != null) this.fx.badge("largestArmy", p.la, now.la);
   }
 

@@ -56,20 +56,23 @@ const spark = (x, y, s = 1, c = "#FFFFFF", o = 0.9) => `<path d="M${x},${y - 6 *
  * default: soft painted ground.
  */
 export function goldTile(flavour = "soft") {
+  const R = flavour === "flat" ? 95.5 : flavour === "printed" ? 96 : 100; // the theme's own tile size
+  const under = flavour === "printed" ? `<path d="${hexPath(0, 6, 96)}" fill="#5E5040"/>` : "";
+  const clip = (body) => `${under}<defs><clipPath id="sg-clip-${flavour}"><path d="${hexPath(0, 0, R)}"/></clipPath></defs><g clip-path="url(#sg-clip-${flavour})">${body}</g>`;
   if (flavour === "flat") {
-    return `<path d="${HEX}" fill="#E7A72C"/><path d="M-100,-30 Q-40,-56 20,-36 Q60,-24 100,-40 V-100 H-100Z" fill="#F1BE4A" opacity=".8"/>
+    return clip(`<path d="${HEX}" fill="#E7A72C"/><path d="M-100,-30 Q-40,-56 20,-36 Q60,-24 100,-40 V-100 H-100Z" fill="#F1BE4A" opacity=".8"/>
       ${nugget(-40, -40, 1.25, "#F6D35B", "#D9A22A", "#FFF0B0", "#1C1A19")}${nugget(46, -26, 0.95, "#F6D35B", "#D9A22A", "#FFF0B0", "#1C1A19")}${nugget(-28, 62, 0.9, "#F6D35B", "#D9A22A", "#FFF0B0", "#1C1A19")}
       ${spark(32, 44, 1.2, "#FFF9EE")}${spark(-62, -4, 0.9, "#FFF9EE")}
-      <path d="${hexPath(0, 0, 97)}" fill="none" stroke="#1C1A19" stroke-opacity=".5" stroke-width="2"/>`;
+      <path d="${hexPath(0, 0, 97)}" fill="none" stroke="#1C1A19" stroke-opacity=".5" stroke-width="2"/>`);
   }
   const base = flavour === "printed" ? ["#E4BC55", "#C49433", "#F4D98C"] : ["#E9C35A", "#C9962E", "#F6DE94"];
-  return `<defs><linearGradient id="sg-gold-${flavour}" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="${base[2]}"/><stop offset=".45" stop-color="${base[0]}"/><stop offset="1" stop-color="${base[1]}"/></linearGradient></defs>
+  return clip(`<defs><linearGradient id="sg-gold-${flavour}" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="${base[2]}"/><stop offset=".45" stop-color="${base[0]}"/><stop offset="1" stop-color="${base[1]}"/></linearGradient></defs>
     <path d="${HEX}" fill="url(#sg-gold-${flavour})"/>
     <path d="M-100,-30 Q-50,-58 10,-40 Q60,-54 100,-34 V-100 H-100Z" fill="#B98A2A" opacity=".22"/>
     <path d="M-100,58 Q-30,34 30,54 Q70,46 100,56 V100 H-100Z" fill="#B98A2A" opacity=".28"/>
     ${nugget(-44, -40, 1.25, "#F4D46A", "#D9A93A", "#FFF0B0", "#8A6420")}${nugget(48, -30, 0.95, "#F1CC5A", "#D19E32", "#FFEFAE", "#8A6420")}${nugget(-30, 62, 0.9, "#F1CC5A", "#D19E32", "#FFEFAE", "#8A6420")}
     ${spark(30, 46)}${spark(-62, -6, 0.7)}
-    ${flavour === "printed" ? `<path d="${hexPath(0, 0, 93)}" fill="none" stroke="#F3EBDA" stroke-width="7" opacity=".85"/><path d="${hexPath(0, 0, 97)}" fill="none" stroke="#5E5040" stroke-width="2" opacity=".6"/>` : `<path d="${hexPath(0, 0, 96.8)}" fill="none" stroke="#5C5440" stroke-opacity=".35" stroke-width="1.4"/>`}`;
+    ${flavour === "printed" ? `<path d="${hexPath(0, 0, 93)}" fill="none" stroke="#F3EBDA" stroke-width="7" opacity=".85"/><path d="${hexPath(0, 0, 97)}" fill="none" stroke="#5E5040" stroke-width="2" opacity=".6"/>` : `<path d="${hexPath(0, 0, 96.8)}" fill="none" stroke="#5C5440" stroke-opacity=".35" stroke-width="1.4"/>`}`);
 }
 
 /** Sprite icons (viewBox -50..50) every theme gets unless it draws its own. */

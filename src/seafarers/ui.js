@@ -210,6 +210,16 @@ export const SeaGame = {
   // ── robber or pirate ─────────────────────────────────────────────────
   _seaHexKind(hexId) { return this.geometry.hexes[hexId]?.resource === "sea" ? "pirate" : "robber"; },
 
+  /** Dock / ticker words for a chosen pirate hex: whose ships it touches, what it blocks. */
+  _seaPirateText(hexId, mover) {
+    const hex = this.geometry.hexes[hexId];
+    const owners = [...new Set(hex.edges.map((e) => this.geometry.edges[e]).filter((e) => e.ship && e.owner != null).map((e) => e.owner))];
+    const others = owners.filter((o) => o !== mover.id).map((o) => this.players[o].name);
+    const mine = owners.includes(mover.id) ? " (yours too)" : "";
+    const who = others.length ? `Pirate next to ${others.join(" and ")}'s ships` : "Pirate on open water";
+    return { hint: `${who} · no new ships on its edges${mine}`, sub: others.length ? "steals 1 card · blocks ships here" : "blocks ships here" };
+  },
+
   _seaSetThief(mode) {
     if (!this.sea || this.pendingAction !== "robber") return;
     this.sea.thief = mode;
@@ -260,7 +270,13 @@ export const SeaGame = {
       return { mode: "moved", key: String(u.from) + ":" + u.to,
         hint: "Ship moved · Undo for a few seconds",
         html: `<div class="tinfo">${icon("ship")}<span>Ship moved<small>Next move: next turn</small></span></div>`
-          + tbtn("data-move-undo", `${icon("undo")}<span>Undo</span>`) + tbtn("data-move-done", `${icon("check")}<span>Done</span>`, "primary") };
+          + tbtn("data-dock-undo", `${icon("undo")}<span>Undo</span>`) + tbtn("data-dock-done", `${icon("check")}<span>Done</span>`, "primary") };
+    }
+    if (u?.kind === "build" && u.isle && u.dock) {
+      return { mode: "island", key: String(u.id),
+        hint: `New island! First settlement on ${sea.islandName(u.isle.island)}: +2 points`,
+        html: `<div class="tinfo">${icon("island")}<span>+2 points<small>New island · ${sea.islandName(u.isle.island)}</small></span></div>`
+          + tbtn("data-dock-undo", `${icon("undo")}<span>Undo</span>`) + tbtn("data-dock-done", `${icon("check")}<span>OK</span>`, "primary") };
     }
     return null;
   },
@@ -278,8 +294,8 @@ export const SeaGame = {
     if (d.gold) { this._seaGoldTap(d.gold); return true; }
     if (d.thief) { this._seaSetThief(d.thief); return true; }
     if ("moveCancel" in d) { this._seaCancelMove(); return true; }
-    if ("moveUndo" in d) { this.undoLast(); return true; }
-    if ("moveDone" in d) { this._dropUndo(); this.render(); return true; }
+    if ("dockUndo" in d) { this.undoLast(); return true; }
+    if ("dockDone" in d) { this._dropUndo(); this._seaIslandNote = null; this.render(); return true; }
     if (d.setupPiece) { this.sea.setupPiece = d.setupPiece; this.confirmBuild = null; this.sfx.click(); this.render(); return true; }
     if (cur && d.trayBuild === "ship") return false;
     return false;
