@@ -5871,10 +5871,11 @@ class ColonistFullGame {
 
   // Every state change ends in render(), so render() queues a save: builds, bank and player
   // trades, accepted offers and dev-card buys/plays survive a reload (no "undo by reloading").
-  // Coalesced to one write per task; identical states are not rewritten.
+  // Coalesced (at most one write per 250 ms, never postponed by further renders); identical states
+  // are not rewritten; pagehide / going to the background flush it immediately.
   _queueSave() {
     if (this._saveTimer) return;
-    this._saveTimer = window.setTimeout(() => { this._saveTimer = null; this.saveToStorage(); }, 0);
+    this._saveTimer = window.setTimeout(() => { this._saveTimer = null; this.saveToStorage(); }, 250);
   }
 
   // Strategy persistence — survives game resets
@@ -8508,13 +8509,16 @@ class ColonistFullGame {
       const vw = document.documentElement.clientWidth || window.innerWidth;
       const M = 8;
       document.querySelectorAll(ColonistFullGame.FLOATERS).forEach((el) => {
-        el.style.translate = "";
+        if (el.hidden || !el.offsetParent && getComputedStyle(el).position !== "fixed") return;
         const r = el.getBoundingClientRect();
-        if (!r.width || el.hidden) return;
+        if (!r.width) return;
+        const cur = parseFloat(el.style.translate) || 0; // shift applied last time
+        const left = r.left - cur, right = r.right - cur;
         let dx = 0;
-        if (r.right > vw - M) dx = vw - M - r.right;
-        if (r.left + dx < M) dx = M - r.left;
-        if (dx) el.style.translate = `${Math.round(dx)}px 0`;
+        if (right > vw - M) dx = vw - M - right;
+        if (left + dx < M) dx = M - left;
+        dx = Math.round(dx);
+        if (dx !== cur) el.style.translate = dx ? `${dx}px 0` : "";
       });
     });
   }
