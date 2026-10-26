@@ -1,20 +1,17 @@
-// First launch: a calm welcome sheet (Quick game / Choose settings) and an optional, skippable
-// three-card "How to play" intro. Both are remembered in localStorage.
+// The optional, skippable three-card "How to play" intro (from the home screen, Menu and Settings ›
+// About). Seen-state is remembered in localStorage; the home screen highlights it until then.
 import { icon } from "./manager.js";
 
-const WELCOMED_KEY = "colonist.welcomed";
 const INTRO_KEY = "colonist.intro";
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch (_) { /* private mode */ } },
 };
 
-/** True until the player has picked Quick game / Choose settings once. */
-export function isFirstLaunch() { return !store.get(WELCOMED_KEY); }
 export function introSeen() { return store.get(INTRO_KEY) === "done"; }
 
 export class Onboarding {
-  /** opts: { costs: {road, settlement, city, development}, labels: {wood: "Lumber", …}, onQuick(), onSettings() } */
+  /** opts: { costs: {road, settlement, city, development}, labels: {wood: "Lumber", …} } */
   constructor(game, opts) {
     this.game = game;
     this.opts = opts;
@@ -46,26 +43,10 @@ export class Onboarding {
     document.removeEventListener("keydown", this.onKey);
   }
 
-  showWelcome() {
-    this.mode = "welcome";
-    this.mount(`
-      <svg class="wl-logo" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>
-      <h2 class="wl-title">Welcome to Colonist</h2>
-      <p class="wl-lead">Settle a sunny island, trade with friendly bots and be the first to reach 10 points.</p>
-      <div class="wl-actions">
-        <button type="button" class="wl-btn primary" data-welcome="quick">${icon("dice")}<span><b>Quick game</b><small>Classic vs 3 bots</small></span></button>
-        <button type="button" class="wl-btn" data-welcome="settings">${icon("settings")}<span><b>Choose settings</b><small>Mode, rules and opponents</small></span></button>
-      </div>
-      <button type="button" class="wl-link" data-welcome="intro">${introSeen() ? "How to play" : "New here? How to play in 3 short cards"}</button>`, "Welcome");
-    this.el.querySelector("[data-welcome='quick']").addEventListener("click", () => { store.set(WELCOMED_KEY, "1"); this.close(); this.opts.onQuick(); });
-    this.el.querySelector("[data-welcome='settings']").addEventListener("click", () => { store.set(WELCOMED_KEY, "1"); this.close(); this.opts.onSettings(); });
-    this.el.querySelector("[data-welcome='intro']").addEventListener("click", () => this.showIntro(0, true));
-  }
-
-  /** The three intro cards. fromWelcome: return to the welcome sheet afterwards. */
-  showIntro(step = 0, fromWelcome = false) {
+  /** The three intro cards. fromHome: opened from the home screen (which stays underneath). */
+  showIntro(step = 0, fromHome = false) {
     this.mode = "intro";
-    this.fromWelcome = fromWelcome;
+    this.fromHome = fromHome;
     const { costs, labels } = this.opts;
     const res = (cost) => Object.entries(cost).filter(([, n]) => n > 0)
       .map(([r, n]) => `<span class="wl-res" title="${n} ${labels[r]}">${n > 1 ? `<i>${n}×</i>` : ""}${icon(r)}</span>`).join("");
@@ -100,13 +81,13 @@ export class Onboarding {
         <button type="button" class="wl-btn ghost" data-intro="skip">${last ? "Back" : "Skip"}</button>
         <button type="button" class="wl-btn primary" data-intro="next">${last ? "Got it" : "Next"}</button>
       </div>`, "How to play");
-    this.el.querySelector("[data-intro='next']").addEventListener("click", () => (last ? this.endIntro() : this.showIntro(step + 1, fromWelcome)));
-    this.el.querySelector("[data-intro='skip']").addEventListener("click", () => (last ? this.showIntro(step - 1, fromWelcome) : this.endIntro()));
+    this.el.querySelector("[data-intro='next']").addEventListener("click", () => (last ? this.endIntro() : this.showIntro(step + 1, fromHome)));
+    this.el.querySelector("[data-intro='skip']").addEventListener("click", () => (last ? this.showIntro(step - 1, fromHome) : this.endIntro()));
   }
 
   endIntro() {
     store.set(INTRO_KEY, "done");
-    if (this.fromWelcome && this.game.onboardingHold) this.showWelcome();
-    else this.close();
+    this.close();
+    if (this.fromHome && this.game.home?.open) this.game.home.render(); // drop the "New here?" hint
   }
 }
