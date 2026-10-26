@@ -1,17 +1,14 @@
 // Theme registry + persistence + lazy fonts + motion preference + DOM sprite.
 // A theme = CSS tokens on [data-theme="<id>"] (themes/*.css) + one art module (src/themes/<name>/art.js).
-// Adding Wooden Board Game (B) / Storybook (C) later = register their art module here and add a CSS file.
+// Themes: A Sunny Island, B Wooden Board Game, C Silhouette, Classic.
 import sunny from "./sunny/art.js";
+import wood from "./wood/art.js";
+import silhouette from "./silhouette/art.js";
 import classic from "./classic/art.js";
 import { RESOURCE_KEYS, DEV_KEYS } from "./art-util.js";
 
-export const THEMES = { A: sunny, classic };
-export const THEME_ORDER = ["A", "classic"];
-/** Shown in Settings › Look & feel as "coming soon". */
-export const UPCOMING = [
-  { id: "B", name: "Wooden Board Game", mood: "Real wood, paper and felt; painted wooden pieces.", dots: ["#7A5232", "#C9A26B", "#3F6B4A", "#E9DFC7", "#9B3B2E"] },
-  { id: "C", name: "Storybook", mood: "Bold, flat, cheerful colour fields with black silhouettes.", dots: ["#F26B21", "#FFD23F", "#4CB944", "#2EC4B6", "#F78FB3"] },
-];
+export const THEMES = { A: sunny, B: wood, C: silhouette, classic };
+export const THEME_ORDER = ["A", "B", "C", "classic"];
 export const DEFAULT_THEME = "A";
 const THEME_KEY = "colonist.theme";
 const MOTION_KEY = "colonist.motion";

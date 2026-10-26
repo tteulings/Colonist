@@ -1,0 +1,302 @@
+/* THEME C · Silhouette (after Fiep Westendorp's graphic picture-book style) — white paper, Indian-ink
+   rules, flat gouache colour on the board and cards only, ONE accent (vermilion). Kalam (hand-lettered
+   headings and numbers) + Alegreya Sans (UI). No gradients, almost no shadows.
+   Mobile: the same V4 Sea layout as Sunny Island — paper runs edge to edge, the cut-paper sea sits
+   around the island, and the player bar, ticker, Rush HUD and buttons are paper cards with ink rules.
+   Generated layout parts come from theme-sunny.css (see the New game / Mobile chrome sections). */
+@font-face { font-family: "Kalam"; src: url("../assets/fonts/Kalam-700.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url("../assets/fonts/AlegreyaSans-500.woff2") format("woff2"); font-weight: 400 500; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url("../assets/fonts/AlegreyaSans-700.woff2") format("woff2"); font-weight: 600 700; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url("../assets/fonts/AlegreyaSans-800.woff2") format("woff2"); font-weight: 750 900; font-display: swap; }
+
+[data-theme="C"] {
+  color-scheme: light;
+  --font-display: "Kalam", "Comic Sans MS", cursive;
+  --font-body: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --display-weight: 700; --display-tracking: 0; --h2-size: 22px; --brand-size: 30px; --jturn-transform: none;
+  --ink: #1C1A19; --ink-soft: #5A544E; --ink-faint: #726B64; --heading: #1C1A19; --brand-ink: #1C1A19;
+  --bg: #FFFDF6; --bg-image: none;
+  --chrome: #FFFDF6; --chrome-image: none; --chrome-ink: #1C1A19; --chrome-border: 1.5px solid #1C1A19; --chrome-shadow: none;
+  --m-top: #FFFDF6; --m-top-image: none; --status-ink: #1C1A19;
+  --rail: #FFFDF6; --rail-image: none; --rail-border: 1.5px solid #1C1A19;
+  --panel: #FFFDF6; --panel-image: none; --panel-border: 1.5px solid #1C1A19; --panel-radius: 12px; --panel-shadow: none;
+  --dock: #FFFDF6; --dock-image: none; --dock-border: 1.5px solid #1C1A19; --dock-shadow: none;
+  --float: #FFFDF6; --float-border: 1.5px solid #1C1A19; --float-shadow: 0 2px 0 rgba(28,26,25,.14);
+  --banner: #FFFDF6; --banner-image: none; --banner-border: 1.5px solid #1C1A19; --banner-shadow: 0 2px 0 rgba(28,26,25,.14); --banner-radius: 14px;
+  --sheet: #FFFDF6; --sheet-image: none; --sheet-border: 1.5px solid #1C1A19; --sheet-radius: 18px;
+  --chip: #FFFDF6; --chip-border: 1px solid #CFC7B8; --chip-ink: #1C1A19; --chip-radius: 12px;
+  --group: #F7F2E6; --group-border: 1px dashed #9A9188;
+  --sea-bg: #FFFDF6; --sea-image: linear-gradient(#FFFDF6, #FFFDF6);
+  --ripple-image: none; --shimmer-a: 0;
+  --fan-bg: linear-gradient(rgba(255,253,246,0), rgba(255,253,246,.92) 55%);
+  --scrim: rgba(28,26,25,.42); --spot: rgba(28,26,25,.5); --home-ind: #1C1A19;
+  --btn: #FFFDF6; --btn-image: none; --btn-ink: #1C1A19; --btn-border: 1.5px solid #1C1A19; --btn-shadow: none; --btn-radius: 12px;
+  --btn-on: #FCE7DC; --btn-on-ink: #1C1A19; --btn-on-border: 2px solid #D9412B; --btn-on-shadow: none;
+  --primary: #C2361E; --primary-image: none; --primary-ink: #FFFDF6; --primary-border: 1.5px solid #1C1A19; --primary-shadow: 0 2px 0 #1C1A19; --primary-size: 22px;
+  --accent: #D9412B; --good: #2F7F3A; --good-bg: #E7F2DD; --danger: #B3301C;
+  --kbd-bg: transparent; --kbd-ink: #5A544E;
+  --badge: #1C1A19; --badge-ink: #FFFDF6; --badge-border: 2px solid #FFFDF6;
+  --vp-bg: #FFFDF6; --vp-ink: #1C1A19; --vp-border: 1.5px solid #1C1A19; --vp-radius: 999px;
+  --active-row: #FCEFD6; --divider: 1px solid #E4DDCF; --divider-soft: 1px solid #EFE9DD; --sep: #CFC7B8;
+  --fab-radius: 999px; --card-radius: 8px; --card-shadow: drop-shadow(0 1px 0 rgba(28,26,25,.3));
+  --avatar-radius: 50%; --avatar-shadow: none;
+  /* seats: identical in every theme — You (blue) · orange · ivory · charcoal */
+  --p0: #4A7FD6; --p1: #F2934A; --p2: #D8CFBB; --p3: #3E4752;
+  --p0-text: #2C5BA8; --p1-text: #A65314; --p2-text: #7D6D4C; --p3-text: #3E4752;
+  --p0-ink: #fff; --p1-ink: #1C1A19; --p2-ink: #2E3A3D; --p3-ink: #fff;
+  --row-tint: 0%; --vp-tint: 0%;
+  --h2-bg: transparent; --h2-bg-2: transparent; --h2-border: 1.5px solid #1C1A19;
+  --jicon-bg: transparent; --jicon-pad: 0; --jicon-size: 22px;
+  --dust: #1C1A19; --spark: #F5C02E; --smoke: #FFFDF6; --ray: rgba(245,192,46,.5);
+  --ease-pop: cubic-bezier(.3,1.35,.5,1); --ease-out: cubic-bezier(.22,.8,.3,1);
+  --bank-bg: #FFFDF6; --bank-border: 1.5px solid #1C1A19;
+  --rush-ring: #D9412B; --rush-track: #EFE9DD; --rush-badge-bg: #FCE7DC; --rush-badge-ink: #B3301C;
+  --persona-bg: #F3EFE6; --persona-ink: #1C1A19; --persona-border: 1px solid #1C1A19;
+  --persona-trader-bg: #FFFDF6; --persona-trader-ink: #1C1A19;
+  --persona-builder-bg: #FFFDF6; --persona-builder-ink: #1C1A19;
+  --persona-shark-bg: #FFFDF6; --persona-shark-ink: #1C1A19;
+  --persona-expert-bg: #FFFDF6; --persona-expert-ink: #1C1A19;
+  --persona-beginner-bg: #FFFDF6; --persona-beginner-ink: #1C1A19;
+  /* mobile chrome on paper (see the V4 Sea section) */
+  --glass: #FFFDF6; --glass-line: #1C1A19; --glass-active: #FFF4E2;
+  --glass-shadow: 0 2px 0 rgba(28,26,25,.12);
+  --bar-ink: #1C1A19; --bar-ink-soft: #5A544E; --mono: #1C1A19;
+  --ring: #D9412B; --ready: #2F7F3A;
+  --dis-bg: #FFFDF6; --dis-ink: #8F8780; --dis-line: #CFC7B8; --dis-ic: grayscale(1); --dis-ic-op: .4;
+  --hand-bg: none;
+}
+[data-theme="C"] body { font-variant-numeric: lining-nums; }
+[data-theme="C"] .app .btn { font-weight: 700; }
+[data-theme="C"] .panel > h2 { font-weight: 700; }
+[data-theme="C"] .avatar { box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 1.2px) #1C1A19; }
+[data-theme="C"] .bank-cell .rate-tag { opacity: 1; color: var(--ink-soft); }
+[data-theme="C"] .btn.primary small, [data-theme="C"] .btn.primary .rr small { opacity: 1; }
+
+/* ── New game ──────────────────────────────────────────────────────────── */
+[data-theme="C"] .newgame-modal { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; background: rgba(28,26,25,.42); backdrop-filter: blur(3px); padding: 16px; font-family: var(--font-body); color: var(--ink); }
+[data-theme="C"] .newgame-modal .ng-card { background: var(--panel); border: var(--panel-border); border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,.3); width: min(960px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 22px 26px 0; text-align: left; }
+[data-theme="C"] .newgame-modal .ng-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+[data-theme="C"] .newgame-modal .ng-title { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 32px; color: var(--heading); margin: 0; }
+[data-theme="C"] .newgame-modal .ng-subtitle { color: var(--ink-soft); font-size: 14.5px; margin: 4px 0 0; }
+[data-theme="C"] .newgame-modal button { font-family: var(--font-body); }
+[data-theme="C"] .newgame-modal .ng-pill-btn { min-height: 40px; padding: 0 14px; border-radius: 999px; background: var(--btn); border: var(--btn-border); color: var(--ink); font-weight: 650; font-size: 13.5px; box-shadow: var(--btn-shadow); }
+[data-theme="C"] .newgame-modal .ng-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 16px; }
+[data-theme="C"] .newgame-modal .ng-col, [data-theme="C"] .newgame-modal .ng-section { min-width: 0; }
+[data-theme="C"] .newgame-modal .ng-section { background: #FFFDF6; border: 1px solid #D9D2C2; border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+[data-theme="C"] .newgame-modal .ng-rush-section { background: #FCEDE6; border-color: #F0C6B8; }
+[data-theme="C"] .newgame-modal .ng-section-title { font-family: var(--font-body); font-size: 11.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); margin: 0 0 10px; }
+[data-theme="C"] .newgame-modal .ng-rush-section .ng-section-title { color: #B3301C; }
+[data-theme="C"] .newgame-modal .ng-mode-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+[data-theme="C"] .newgame-modal .ng-mode-card { position: relative; display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 12px 14px; border-radius: 12px; background: var(--btn); border: 1.5px solid #9A9188; color: var(--ink); min-height: 96px; }
+[data-theme="C"] .newgame-modal .ng-mode-card.selected { border-color: var(--accent); background: #FCEDE6; box-shadow: 0 0 0 3px rgba(217,65,43,.14); }
+[data-theme="C"] .newgame-modal .ng-mode-name { font-family: var(--font-display); font-size: 21px; color: var(--heading); display: flex; align-items: center; gap: 8px; }
+[data-theme="C"] .newgame-modal .ng-mode-icon { width: 28px; height: 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; background: #FCEDE6; color: #1C1A19; font-family: var(--font-body); }
+[data-theme="C"] .newgame-modal .rush .ng-mode-icon { background: #FCE7DC; color: #B3301C; }
+[data-theme="C"] .newgame-modal .rush .ng-mode-name { padding-right: 46px; }
+[data-theme="C"] .newgame-modal .ng-mode-desc { font-size: 12.5px; color: var(--ink-soft); line-height: 1.35; }
+[data-theme="C"] .newgame-modal .ng-mode-tag, [data-theme="C"] .newgame-modal .ng-new { position: absolute; top: 8px; right: 8px; font-size: 9.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--accent); color: #fff; }
+[data-theme="C"] .newgame-modal .ng-row { padding: 10px 0; border-top: 1px solid #EFE9DD; display: flex; flex-direction: column; gap: 6px; }
+[data-theme="C"] .newgame-modal .ng-section-title + .ng-row, [data-theme="C"] .newgame-modal .ng-mode-row + .ng-row { border-top: 0; padding-top: 0; }
+[data-theme="C"] .newgame-modal .ng-row-inline { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+[data-theme="C"] .newgame-modal .ng-row-label { font-weight: 750; font-size: 14.5px; color: var(--heading); }
+[data-theme="C"] .newgame-modal .ng-row-label-sm { font-size: 13px; color: var(--ink-soft); }
+[data-theme="C"] .newgame-modal .ng-help { font-size: 12.5px; color: var(--ink-soft); line-height: 1.4; margin: 4px 0 0; }
+[data-theme="C"] .newgame-modal .ng-help strong { color: var(--ink); }
+[data-theme="C"] .newgame-modal .ng-seg { display: flex; flex-wrap: wrap; gap: 6px; }
+[data-theme="C"] .newgame-modal .ng-seg-btn { min-height: 38px; padding: 0 14px; border-radius: 999px; background: var(--btn); border: 1px solid #9A9188; color: var(--ink); font-weight: 650; font-size: 13.5px; }
+[data-theme="C"] .newgame-modal .ng-seg-btn.selected { background: #FCEDE6; border: 1.5px solid var(--accent); color: #B3301C; box-shadow: 0 0 0 2px rgba(217,65,43,.12); }
+[data-theme="C"] .newgame-modal .ng-seg-round .ng-seg-btn { width: 40px; padding: 0; }
+[data-theme="C"] .newgame-modal .ng-seg-bar { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0; border: 1px solid #9A9188; border-radius: 10px; overflow: hidden; background: var(--btn); }
+[data-theme="C"] .newgame-modal .ng-seg-bar .ng-seg-btn { border: 0; border-radius: 0; min-height: 34px; padding: 0 6px; font-size: 12.5px; box-shadow: none; }
+[data-theme="C"] .newgame-modal .ng-seg-bar .ng-seg-btn + .ng-seg-btn { border-left: 1px solid #E4DDCF; }
+[data-theme="C"] .newgame-modal .ng-seg-bar .ng-seg-btn.selected { background: #FCEDE6; color: #1C1A19; box-shadow: none; }
+[data-theme="C"] .newgame-modal .ng-stepper { display: inline-flex; align-items: center; border: 1px solid #9A9188; border-radius: 10px; background: var(--btn); overflow: hidden; }
+[data-theme="C"] .newgame-modal .ng-step-btn { width: 40px; height: 38px; font-size: 18px; font-weight: 700; color: var(--ink); }
+[data-theme="C"] .newgame-modal .ng-step-btn:disabled { opacity: .35; }
+[data-theme="C"] .newgame-modal .ng-step-value { min-width: 40px; text-align: center; font-family: var(--font-display); font-size: 20px; color: var(--heading); }
+[data-theme="C"] .newgame-modal .ng-switch { width: 46px; height: 28px; border-radius: 14px; background: #CFC7B8; position: relative; }
+[data-theme="C"] .newgame-modal .ng-switch span { position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left 160ms; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+[data-theme="C"] .newgame-modal .ng-switch.on { background: var(--accent); }
+[data-theme="C"] .newgame-modal .ng-switch.on span { left: 21px; }
+[data-theme="C"] .newgame-modal .ng-map-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+[data-theme="C"] .newgame-modal .ng-map-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; border-radius: 12px; background: var(--btn); border: 1px solid #9A9188; font-size: 12.5px; font-weight: 650; color: var(--ink); text-align: center; }
+[data-theme="C"] .newgame-modal .ng-map-card.selected { border: 1.5px solid var(--accent); background: #FCEDE6; color: #B3301C; }
+[data-theme="C"] .newgame-modal .ng-map-icon { display: grid; grid-template-columns: repeat(3, 12px); gap: 1px 0; justify-content: center; }
+[data-theme="C"] .newgame-modal .ng-map-icon i { width: 12px; height: 13px; background: var(--hex); clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+[data-theme="C"] .newgame-modal .ng-map-icon i:nth-child(n+4) { transform: translateX(6px); }
+[data-theme="C"] .newgame-modal .ng-presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin: 10px 0 4px; }
+[data-theme="C"] .newgame-modal .ng-preset { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; padding: 9px 11px; border-radius: 12px; background: var(--btn); border: 1px solid #9A9188; color: var(--ink); min-height: 54px; }
+[data-theme="C"] .newgame-modal .ng-preset.selected { border: 1.5px solid var(--accent); background: #FCEDE6; box-shadow: 0 0 0 2px rgba(217,65,43,.12); }
+[data-theme="C"] .newgame-modal .ng-preset-name { font-weight: 750; font-size: 14px; color: var(--heading); }
+[data-theme="C"] .newgame-modal .ng-preset-tag { font-size: 11.5px; color: var(--ink-soft); }
+[data-theme="C"] .newgame-modal .ng-preset .ng-new { top: auto; bottom: 6px; right: 6px; font-size: 8.5px; padding: 1px 5px; background: #F3EFE6; color: #1C1A19; }
+[data-theme="C"] .newgame-modal .ng-finetune { margin-top: 8px; border-top: 1px solid #EFE9DD; padding-top: 8px; }
+[data-theme="C"] .newgame-modal .ng-finetune summary { cursor: pointer; background: none; border: 0; padding-left: 0; font-weight: 750; font-size: 14px; color: var(--heading); padding: 6px 0; list-style: none; }
+[data-theme="C"] .newgame-modal .ng-finetune summary::-webkit-details-marker { display: none; }
+[data-theme="C"] .newgame-modal .ng-finetune summary::before { content: "▸ "; color: var(--accent); }
+[data-theme="C"] .newgame-modal .ng-finetune[open] summary::before { content: "▾ "; }
+[data-theme="C"] .newgame-modal .ng-finetune-hint { font-weight: 600; font-size: 12px; color: var(--ink-soft); margin-left: 4px; }
+[data-theme="C"] .newgame-modal .ng-dim { padding: 8px 0; }
+[data-theme="C"] .newgame-modal .ng-dim-label { font-weight: 750; font-size: 13.5px; color: var(--heading); margin-bottom: 5px; }
+[data-theme="C"] .newgame-modal .ng-dim-label span { font-weight: 600; font-size: 11.5px; color: var(--ink-soft); margin-left: 6px; }
+[data-theme="C"] .newgame-modal .ng-table { display: flex; flex-direction: column; gap: 8px; }
+[data-theme="C"] .newgame-modal .ng-bot { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--pc) 7%, #fff); border: 1px solid #D9D2C2; }
+[data-theme="C"] .newgame-modal .ng-bot .avatar { --av: 40px; --av-ring: 2.5px; }
+[data-theme="C"] .newgame-modal .ng-bot-info { flex: 1; min-width: 0; }
+[data-theme="C"] .newgame-modal .ng-bot-name { display: flex; align-items: center; gap: 6px; font-weight: 750; font-size: 15px; flex-wrap: wrap; }
+[data-theme="C"] .newgame-modal .ng-bot-name > span:first-child { color: var(--pc-text) !important; }
+[data-theme="C"] .newgame-modal .ng-bot-desc { font-size: 12px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-theme="C"] .newgame-modal .ng-bot-select { font: inherit; font-size: 13px; padding: 8px; border-radius: 10px; border: 1px solid #9A9188; background: var(--btn); color: var(--ink); }
+[data-theme="C"] .newgame-modal .ng-footer { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin: 4px -26px 0; padding: 14px 26px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(rgba(255,253,246,.9), var(--panel) 30%); border-top: 1px solid #E4DDCF; }
+[data-theme="C"] .newgame-modal .ng-summary { font-size: 13px; color: var(--ink-soft); flex: 1 1 260px; line-height: 1.4; }
+[data-theme="C"] .newgame-modal .ng-summary strong { color: var(--heading); }
+[data-theme="C"] .newgame-modal .ng-actions { display: flex; gap: 10px; }
+[data-theme="C"] .newgame-modal .ng-cancel { min-height: 48px; padding: 0 20px; border-radius: 10px; background: var(--btn); border: var(--btn-border); color: var(--ink); font-weight: 650; font-size: 15px; }
+[data-theme="C"] .newgame-modal .ng-start { min-height: 48px; padding: 0 26px; border-radius: 10px; background: var(--primary); background-image: var(--primary-image); border: var(--primary-border); color: var(--primary-ink); font-family: var(--font-display); font-size: 21px; font-weight: 700; box-shadow: var(--primary-shadow); }
+@media (max-width: 760px) {
+  [data-theme="C"] .newgame-modal { padding: 0; align-items: flex-end; }
+  [data-theme="C"] .newgame-modal .ng-card { border-radius: 22px 22px 0 0; max-height: calc(100dvh - 12px); padding: 18px 14px 0; }
+  [data-theme="C"] .newgame-modal .ng-columns { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  [data-theme="C"] .newgame-modal .ng-title { font-size: 28px; }
+  [data-theme="C"] .newgame-modal .ng-section { padding: 12px; }
+  [data-theme="C"] .newgame-modal .ng-footer { margin: 4px -14px 0; padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); }
+  [data-theme="C"] .newgame-modal .ng-actions { width: 100%; display: grid; grid-template-columns: 1fr 1.6fr; }
+  [data-theme="C"] .newgame-modal .ng-summary { flex-basis: 100%; }
+}
+/* phones: one column of stacked controls, two preset columns, nothing wider than the screen */
+@media (max-width: 480px) {
+  [data-theme="C"] .newgame-modal .ng-card { overflow-x: hidden; }
+  [data-theme="C"] .newgame-modal .ng-header { flex-direction: column; align-items: stretch; }
+  [data-theme="C"] .newgame-modal .ng-pill-btn { align-self: flex-start; }
+  [data-theme="C"] .newgame-modal .ng-row-inline { flex-direction: column; align-items: stretch; gap: 8px; }
+  [data-theme="C"] .newgame-modal .ng-seg { flex-wrap: wrap; }
+  [data-theme="C"] .newgame-modal .ng-row-inline .ng-seg:not(.ng-seg-round) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  [data-theme="C"] .newgame-modal .ng-seg-btn { white-space: normal; line-height: 1.2; padding: 6px 10px; }
+  [data-theme="C"] .newgame-modal .ng-seg-round .ng-seg-btn { width: 44px; min-height: 44px; }
+  [data-theme="C"] .newgame-modal .ng-presets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  [data-theme="C"] .newgame-modal .ng-preset { min-width: 0; padding-right: 40px; }
+  [data-theme="C"] .newgame-modal .ng-mode-card { padding: 10px 12px; min-width: 0; }
+  [data-theme="C"] .newgame-modal .ng-mode-name { font-size: 19px; }
+  [data-theme="C"] .newgame-modal .ng-mode-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  [data-theme="C"] .newgame-modal .ng-seg-bar { grid-auto-columns: minmax(0, 1fr); }
+  [data-theme="C"] .newgame-modal .ng-seg-bar .ng-seg-btn { padding: 4px 2px; font-size: 11.5px; white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+  [data-theme="C"] .newgame-modal .ng-bot { flex-wrap: wrap; }
+  [data-theme="C"] .newgame-modal .ng-bot-desc { white-space: normal; }
+  [data-theme="C"] .newgame-modal .ng-bot-select { width: 100%; min-height: 44px; }
+  [data-theme="C"] .newgame-modal .ng-step-btn { width: 44px; height: 44px; }
+  [data-theme="C"] .newgame-modal .ng-actions { grid-template-columns: 1fr 1.6fr; }
+}
+
+/* ══ Mobile chrome: the V4 Sea layout of Sunny Island, in this theme's materials ═══════════════════ */
+@media (max-width: 900px), (max-height: 500px) {
+  /* the board's sea layer becomes the screen's sea: fixed to the viewport, under all chrome */
+  [data-theme="C"] .app { background: var(--sea-image), var(--sea-bg); }
+  [data-theme="C"] .board-wrap { background: transparent; }
+  [data-theme="C"] .board-wrap .sea { position: fixed; inset: 0; }
+  [data-theme="C"] :is(.mtop, .rush-hud, .dock) {
+    --ink: var(--bar-ink); --heading: var(--bar-ink); --ink-soft: var(--bar-ink-soft); --ink-faint: var(--bar-ink-soft);
+    --chip: var(--glass); --chip-border: 1px solid var(--glass-line);
+  }
+  [data-theme="C"] :is(.pchip, .ticker, .rush-hud, .waiting) {
+    background: var(--glass); border: 1px solid var(--glass-line);
+  }
+  [data-theme="C"] .mtop { background: none; border: 0; box-shadow: none; }
+
+  /* ── player bar: name · points · cards · dev cards (+ persona / awards as small mono marks) ── */
+  [data-theme="C"] .pstrip { gap: 6px; padding: 8px 8px 6px; }
+  [data-theme="C"] .pchip {
+    display: grid; grid-template-columns: 1fr auto; grid-template-areas: "av vp" "pn pn" "mini mini"; align-items: center;
+    gap: 4px 4px; padding: 7px 7px 6px; min-height: 0; border-radius: 14px; box-shadow: inset 0 3px 0 var(--pc), var(--glass-shadow);
+  }
+  [data-theme="C"] .pchip .row { display: contents; }
+  [data-theme="C"] .pchip .avatar { grid-area: av; --av: 30px; --av-ring: 2px; }
+  [data-theme="C"] .pchip .vpn {
+    grid-area: vp; min-width: 30px; height: 30px; padding: 0 6px; border-radius: 9px; justify-content: center;
+    background: var(--pc); color: var(--pc-ink); font-size: 21px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.3);
+  }
+  [data-theme="C"] .pchip .vpn small { display: none; }
+  [data-theme="C"] .pchip .pn { grid-area: pn; text-align: left; font-size: 12.5px; font-weight: 750; color: var(--bar-ink); overflow: hidden; text-overflow: ellipsis; }
+  [data-theme="C"] .pchip:has(.bdg span) .pn { padding-right: 16px; }
+  [data-theme="C"] .pchip:has(.bdg span + span) .pn { padding-right: 32px; }
+  [data-theme="C"] .pchip .mini { grid-area: mini; justify-content: flex-start; gap: 9px; font-size: 12.5px; font-weight: 600; color: var(--bar-ink); }
+  [data-theme="C"] .pchip .mini span { gap: 3px; }
+  [data-theme="C"] .pchip .mini .ic { font-size: 15px; }
+  /* awards (only while held) and persona: small monochrome marks, never a colour of their own */
+  [data-theme="C"] .pchip .bdg { top: 44px; right: 6px; gap: 2px; }
+  [data-theme="C"] .pchip .bdg .ic { font-size: 14px; filter: grayscale(1) contrast(1.1); opacity: .8; }
+  [data-theme="C"] .pchip .persona-badge {
+    position: absolute; left: 27px; top: 27px; width: 15px; height: 15px; padding: 0; border-radius: 50%; font-size: 0; line-height: 0;
+    background-color: var(--mono); background-size: 62%; background-position: center; background-repeat: no-repeat; border: 0; box-shadow: none;
+  }
+  [data-theme="C"] .pchip.active { background: var(--glass-active); box-shadow: inset 0 3px 0 var(--pc), 0 0 0 2px var(--ring), var(--glass-shadow); }
+  [data-theme="C"] .pchip.ready::after { left: 4px; top: 4px; width: 9px; height: 9px; background: var(--ready); box-shadow: 0 0 0 2px var(--glass-active); }
+
+  /* ── ticker: one calm line; an icon only when it means something (your step, dice, robber) ── */
+  [data-theme="C"] .tkrow { margin: 0 8px 8px; gap: 6px; border-top: 0; }
+  [data-theme="C"] .mgear {
+    width: 40px; height: 40px; margin: 0; color: var(--bar-ink); background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--glass-shadow);
+  }
+  [data-theme="C"] .ticker { height: 40px; margin: 0; padding: 0 2px 0 14px; border-radius: 999px; box-shadow: var(--glass-shadow); font-size: 13.5px; font-weight: 600; }
+  [data-theme="C"] .ticker-ic { display: none; }
+  [data-theme="C"] .ticker:is(.prompt, :has(.ticker-ic use[href="#ic-dice"]), :has(.ticker-ic use[href="#ic-robber"])) .ticker-ic { display: flex; margin-left: -6px; }
+  [data-theme="C"] .ticker-ic .ic { font-size: 20px; }
+  [data-theme="C"] .ticker .txt .ic { font-size: 16px; vertical-align: -3px; }
+  [data-theme="C"] .ticker .who { color: var(--bar-ink); font-weight: 750; }
+  [data-theme="C"] .ticker .more { width: 38px; height: 38px; color: var(--bar-ink-soft); }
+  [data-theme="C"] .ticker .more .ic { font-size: 18px; }
+  [data-theme="C"] .ticker.prompt { background: var(--glass-active); box-shadow: 0 0 0 2px var(--ring), var(--glass-shadow); font-weight: 750; }
+
+  /* ── Rush HUD: one clock (the ring); voters as small dots ── */
+  [data-theme="C"] .rush-hud { margin: 0 8px 6px; padding: 6px 12px; border-radius: 16px; box-shadow: var(--glass-shadow); --rush-track: var(--glass-line); }
+  [data-theme="C"] .rush-ring { width: 42px; height: 42px; }
+  [data-theme="C"] .rush-card-title { color: var(--bar-ink-soft); font-weight: 600; font-size: 12.5px; }
+  [data-theme="C"] .rush-card-title b { font-weight: 750; }
+  [data-theme="C"] .rush-voters { gap: 7px; align-items: center; padding-top: 2px; }
+  [data-theme="C"] .rush-voter { padding: 0; background: none; border: 0; }
+  [data-theme="C"] .rush-voter .avatar { display: none; }
+  [data-theme="C"] .rush-voter-dot { width: 10px; height: 10px; opacity: 1; background: var(--glass-active); box-shadow: inset 0 0 0 2px var(--pc); }
+  [data-theme="C"] .rush-voter.ready { background: none; }
+  [data-theme="C"] .rush-voter.ready .rush-voter-dot { background: var(--ready); box-shadow: none; }
+  [data-theme="C"] .rush-next7, [data-theme="C"] .rush-next7-label { color: var(--bar-ink-soft); font-weight: 750; }
+
+  /* ── dock: neutral glass buttons, coloured icons; the primary action is the only accent ── */
+  [data-theme="C"] .dock { background: none; border: 0; box-shadow: none; }
+  [data-theme="C"] .hand { background: var(--hand-bg); }
+  [data-theme="C"] .app :is(#mBuildBtn, #tradeBankBtn, #mCardsBtn) {
+    background: var(--float); border: var(--float-border); color: var(--btn-ink); box-shadow: var(--glass-shadow); font-size: 12px; font-weight: 750;
+  }
+  [data-theme="C"] .app :is(#mBuildBtn, #tradeBankBtn, #mCardsBtn):disabled {
+    opacity: 1; filter: none; background: var(--dis-bg); color: var(--dis-ink); border: 0; box-shadow: inset 0 0 0 1.5px var(--dis-line);
+  }
+  [data-theme="C"] .app :is(#mBuildBtn, #tradeBankBtn, #mCardsBtn):disabled .ic { filter: var(--dis-ic); opacity: var(--dis-ic-op); }
+  [data-theme="C"] .app #mCardsBtn.quiet { opacity: 1; filter: none; background: var(--dis-bg); color: var(--dis-ink); border: 0; box-shadow: inset 0 0 0 1.5px var(--dis-line); }
+  [data-theme="C"] .app #mCardsBtn.quiet .ic { filter: var(--dis-ic); opacity: var(--dis-ic-op); }
+  [data-theme="C"] .waiting { color: var(--bar-ink); box-shadow: var(--glass-shadow); }
+  [data-theme="C"] .waiting .dots i { background: var(--bar-ink); animation: none; opacity: .45; }
+  [data-theme="C"] .hand .card .count { box-shadow: 0 0 0 2px #fff; }
+}
+@media (max-width: 900px), (max-height: 500px) {
+  /* persona marks: white glyph on the neutral --mono disc */
+  [data-theme="C"] .pchip .persona-beginner { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-50%20-50%20100%20100%22%3E%3Cpath%20d%3D%22M0%2C40%20V2%22%20stroke%3D%22%23fff%22%20stroke-width%3D%2210%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M0%2C6%20Q-38%2C6%20-36%2C-30%20Q0%2C-28%200%2C6Z%20M0%2C-2%20Q32%2C-4%2034%2C-36%20Q4%2C-36%200%2C-2Z%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E"); }
+  [data-theme="C"] .pchip .persona-intermediate { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-50%20-50%20100%20100%22%3E%3Cpath%20d%3D%22M-26%2C-2%20L0%2C-24%20L26%2C-2%20M-26%2C26%20L0%2C4%20L26%2C26%22%20stroke%3D%22%23fff%22%20stroke-width%3D%2212%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20fill%3D%22none%22%2F%3E%3C%2Fsvg%3E"); }
+  [data-theme="C"] .pchip .persona-expert { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-50%20-50%20100%20100%22%3E%3Cpath%20d%3D%22M-32%2C24%20L-36%2C-22%20L-14%2C-2%20L0%2C-30%20L14%2C-2%20L36%2C-22%20L32%2C24Z%22%20fill%3D%22%23fff%22%20stroke%3D%22%23fff%22%20stroke-width%3D%226%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E"); }
+  [data-theme="C"] .pchip .persona-trader { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-50%20-50%20100%20100%22%3E%3Cpath%20d%3D%22M-28%2C-12%20H20%20M28%2C14%20H-20%22%20stroke%3D%22%23fff%22%20stroke-width%3D%2210%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M10%2C-30%20L34%2C-12%20L10%2C6Z%20M-10%2C-4%20L-34%2C14%20L-10%2C32Z%22%20fill%3D%22%23fff%22%20stroke%3D%22%23fff%22%20stroke-width%3D%224%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E"); }
+  [data-theme="C"] .pchip .persona-builder { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-50%20-50%20100%20100%22%3E%3Cg%20transform%3D%22rotate%28-40%29%22%3E%3Crect%20x%3D%22-6%22%20y%3D%22-12%22%20width%3D%2212%22%20height%3D%2254%22%20rx%3D%226%22%20fill%3D%22%23fff%22%2F%3E%3Crect%20x%3D%22-34%22%20y%3D%22-36%22%20width%3D%2266%22%20height%3D%2224%22%20rx%3D%228%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E"); }
+  [data-theme="C"] .pchip .persona-shark { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-50%20-50%20100%20100%22%3E%3Cpath%20d%3D%22M-38%2C24%20Q-6%2C18%2012%2C-36%20Q14%2C6%2038%2C24Z%22%20fill%3D%22%23fff%22%20stroke%3D%22%23fff%22%20stroke-width%3D%224%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E"); }
+  [data-theme="C"] .pchip .persona-custom { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-50%20-50%20100%20100%22%3E%3Cpath%20d%3D%22M-30%2C-18%20H30%20M-30%2C18%20H30%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%22-10%22%20cy%3D%22-18%22%20r%3D%2210%22%20fill%3D%22%23fff%22%2F%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2218%22%20r%3D%2210%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E"); }
+}
+
+/* ── Silhouette materials on the V4 layout: paper cards with 1.5 px ink rules, no blur, no glow ─────── */
+@media (max-width: 900px), (max-height: 500px) {
+  [data-theme="C"] :is(.pchip, .ticker, .rush-hud, .waiting, .mgear) { border: 1.5px solid var(--glass-line); }
+  [data-theme="C"] .pchip { box-shadow: inset 0 3px 0 var(--pc), var(--glass-shadow); }
+  [data-theme="C"] .pchip.active { box-shadow: inset 0 3px 0 var(--pc), 0 0 0 2px var(--ring), var(--glass-shadow); }
+  [data-theme="C"] .pchip .vpn { font-size: 22px; box-shadow: inset 0 0 0 1.5px #1C1A19; padding-top: 2px; }
+  [data-theme="C"] .pchip.pc-ivory .vpn, [data-theme="C"] .pchip .vpn { line-height: 1; }
+  [data-theme="C"] .ticker.prompt { box-shadow: 0 0 0 2px var(--ring), var(--glass-shadow); }
+  [data-theme="C"] .app :is(#mBuildBtn, #tradeBankBtn, #mCardsBtn) { border: 1.5px solid #1C1A19; box-shadow: 0 2px 0 rgba(28,26,25,.14); font-weight: 700; font-size: 13px; }
+  [data-theme="C"] .app :is(#mBuildBtn, #tradeBankBtn, #mCardsBtn):disabled, [data-theme="C"] .app #mCardsBtn.quiet { border: 0; }
+  [data-theme="C"] .app #tradeBankBtn[aria-disabled="true"] { opacity: 1; filter: none; background: var(--dis-bg); color: var(--dis-ink); border: 0; box-shadow: inset 0 0 0 1.5px var(--dis-line); }
+  [data-theme="C"] .app #tradeBankBtn[aria-disabled="true"] .ic { filter: var(--dis-ic); opacity: var(--dis-ic-op); }
+  [data-theme="C"] .pchip .persona-badge { box-shadow: 0 0 0 1.5px #FFFDF6; }
+}
