@@ -197,12 +197,12 @@
   --sea-bg: #1394C4;
   --sea-image: radial-gradient(ellipse 85% 70% at 50% 46%, #48D0D9 0%, #1AA8CF 50%, #0E80B9 100%);
   --shimmer-a: .2;
-  --primary: #F2643A; --primary-image: linear-gradient(#F57650, #E9592F); --primary-border: 1px solid #CF4A22; --accent: #F2643A;
+  --primary: #F2643A; --primary-image: linear-gradient(#EA5F36, #DD4E25); --primary-border: 1px solid #C4441D; --accent: #F2643A;
   --primary-shadow: 0 1px 2px rgba(120,40,10,.25), 0 6px 16px rgba(120,40,10,.22);
   --rush-ring: #F2643A;
   --p0: #3D78E0; --p1: #F6852C;
   --float: rgba(236,248,251,.95);
-  --glass: rgba(8,62,104,.34); --glass-line: rgba(255,255,255,.13); --glass-active: rgba(255,255,255,.22);
+  --glass: rgba(8,62,104,.44); --glass-line: rgba(255,255,255,.13); --glass-active: rgba(4,46,84,.58);
   --glass-shadow: 0 1px 2px rgba(0,30,60,.12), 0 6px 18px rgba(0,30,60,.16);
   --bar-ink: #FFFFFF; --bar-ink-soft: rgba(255,255,255,.78); --mono: #0B5584;
   --ring: #FFD25A; --ready: #45CC79;
@@ -237,6 +237,9 @@
     background: var(--pc); color: var(--pc-ink); font-size: 21px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.3);
   }
   [data-theme="A"] .pchip .vpn small { display: none; }
+  /* points on the seat colour at AA: the blue seat uses its deeper shade, the orange seat dark ink */
+  [data-theme="A"] .pchip.pc-0 .vpn { background: var(--p0-text); }
+  [data-theme="A"] .pchip.pc-1 .vpn { color: #2E1F14; }
   [data-theme="A"] .pchip .pn { grid-area: pn; text-align: left; font-size: 12.5px; font-weight: 750; color: var(--bar-ink); overflow: hidden; text-overflow: ellipsis; }
   [data-theme="A"] .pchip:has(.bdg span) .pn { padding-right: 16px; }
   [data-theme="A"] .pchip:has(.bdg span + span) .pn { padding-right: 32px; }
@@ -314,4 +317,10 @@
   [data-theme="A"] .pchip .persona-builder { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-50%20-50%20100%20100%22%3E%3Cg%20transform%3D%22rotate%28-40%29%22%3E%3Crect%20x%3D%22-6%22%20y%3D%22-12%22%20width%3D%2212%22%20height%3D%2254%22%20rx%3D%226%22%20fill%3D%22%23fff%22%2F%3E%3Crect%20x%3D%22-34%22%20y%3D%22-36%22%20width%3D%2266%22%20height%3D%2224%22%20rx%3D%228%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E"); }
   [data-theme="A"] .pchip .persona-shark { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-50%20-50%20100%20100%22%3E%3Cpath%20d%3D%22M-38%2C24%20Q-6%2C18%2012%2C-36%20Q14%2C6%2038%2C24Z%22%20fill%3D%22%23fff%22%20stroke%3D%22%23fff%22%20stroke-width%3D%224%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E"); }
   [data-theme="A"] .pchip .persona-custom { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-50%20-50%20100%20100%22%3E%3Cpath%20d%3D%22M-30%2C-18%20H30%20M-30%2C18%20H30%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%22-10%22%20cy%3D%22-18%22%20r%3D%2210%22%20fill%3D%22%23fff%22%2F%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2218%22%20r%3D%2210%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E"); }
+}
+/* Phone landscape: the base layout floats the ticker/gear on the light --float pill; keep Sunny's glass
+   so its bar ink (white in Vivid) stays readable */
+@media (max-height: 500px) and (orientation: landscape) {
+  [data-theme="A"] .app .mtop .ticker, [data-theme="A"] .app .mtop .mgear { background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--glass-shadow); }
+  [data-theme="A"] .app .mtop .ticker.prompt { background: var(--glass-active); box-shadow: 0 0 0 2px var(--ring), var(--glass-shadow); }
 }
