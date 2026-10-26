@@ -2,7 +2,7 @@ import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMoti
 import { SvgBoardRenderer } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
-import { TERRAIN_NAME, DEV_NAME, CARD_TEXT } from "./themes/art-util.js";
+import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges } from "./themes/art-util.js";
 import { Onboarding, introSeen } from "./themes/onboarding.js";
 import { Home, GameMenu } from "./themes/home.js";
 import { SoundEngine } from "./sound.js";
@@ -2382,6 +2382,11 @@ class ColonistFullGame {
     const mx = hs * (this.sea ? 0.9 : mobile ? 1.05 : 1.75), my = hs * (this.sea ? 1.0 : mobile ? 1.12 : 1.7);
     const box = { minX: Math.min(...xs) - mx, maxX: Math.max(...xs) + mx, minY: Math.min(...ys) - my, maxY: Math.max(...ys) + my };
     let fan = 0, top = 4, side = 0;
+    // v0.77: harbour pills that sit further out than the margin (bays of the 5–6 player board) widen the box
+    if (!mobile) harbourBadges(this, 1).forEach((q) => {
+      const u = hs / 100, bx = g.centerX + q.x * u, by = g.centerY + q.y * u, hw = (q.w / 2 + 6) * u, hh = (q.h / 2 + 6) * u;
+      box.minX = Math.min(box.minX, bx - hw); box.maxX = Math.max(box.maxX, bx + hw); box.minY = Math.min(box.minY, by - hh); box.maxY = Math.max(box.maxY, by + hh);
+    });
     if (mobile && this.app) {
       const cs = getComputedStyle(this.app);
       // + the room a docked trade offer takes above the hand (only while one is up)
@@ -2394,14 +2399,13 @@ class ColonistFullGame {
         // without a harbour at the far left/right gets the full width.
         const cx = (box.minX + box.maxX) / 2, half = (box.maxX - box.minX) / 2;
         let reach = 0;
-        (this.ports || []).forEach((p) => {
-          const e = g.edges[p.edgeId]; if (!e) return;
-          const [a, b] = e.nodes.map((id) => g.nodes[id]); const hc = g.hexes[e.hexIds.find((h) => g.hexes[h].resource !== "sea") ?? e.hexIds[0]].center; // ⚓ land side
-          const px = (a.x + b.x) / 2, py = (a.y + b.y) / 2, len = Math.hypot(px - hc.x, py - hc.y) || 1;
-          reach = Math.max(reach, Math.abs(px + ((px - hc.x) / len) * hs * 0.85 - cx)); // boat tip
+        // v0.77: every harbour pill (same layout as the art, world units = hexSize / 100) fully on screen
+        const u = hs / 100, M = 4 * u;
+        harbourBadges(this, 1.38).forEach((q) => {
+          const bx = g.centerX + q.x * u, by = g.centerY + q.y * u;
+          reach = Math.max(reach, Math.abs(bx - cx) + (q.w / 2) * u + M);
           // v0.73: the whole world on screen — harbours above / below the island count for the height too
-          const ty = py + ((py - hc.y) / len) * hs * 0.85;
-          box.minY = Math.min(box.minY, ty - hs * 0.12); box.maxY = Math.max(box.maxY, ty + hs * 0.12);
+          box.minY = Math.min(box.minY, by - (q.h / 2) * u - M); box.maxY = Math.max(box.maxY, by + (q.h / 2) * u + M);
         });
         const avail = this.boardWidth / 2;
         // v0.73: every harbour boat fully on screen (playtest: "I can't always see the whole world");
@@ -6914,78 +6918,53 @@ class ColonistFullGame {
     ctx.restore();
   }
 
+  /** Classic harbours (v0.77): the same badge as the themed boards (harbourBadges) — the resource icon (or a
+   *  "?" seal for 3:1) beside the ratio in bold, two piers to the coast corners, a dot on each corner. */
   drawPorts() {
-    const ctx = this.ctx;
-    const s = this.geometry.hexSize / 74;
-    const portColor = {
-      wood: "#6b5030", brick: "#a85538", sheep: "#5a7a40",
-      wheat: "#a08530", ore: "#6a7588", any: "#5a7080",
-    };
-    this.ports.forEach((port) => {
-      const edge = this.geometry.edges[port.edgeId];
-      const p1 = this.geometry.nodes[edge.nodes[0]];
-      const p2 = this.geometry.nodes[edge.nodes[1]];
-      const mx = (p1.x + p2.x) / 2;
-      const my = (p1.y + p2.y) / 2;
-      const dx = mx - this.geometry.centerX;
-      const dy = my - this.geometry.centerY;
-      const len = Math.hypot(dx, dy) || 1;
-      const nx = dx / len;
-      const ny = dy / len;
-
-      const dockDist = 30 * s;
-      let dockX = mx + nx * dockDist;
-      let dockY = my + ny * dockDist;
+    const ctx = this.ctx, g = this.geometry, u = g.hexSize / 100, s = this.isMobileLayout ? 1.38 : 1;
+    const portColor = { wood: "#4a7c3f", brick: "#b5532e", sheep: "#5f9a36", wheat: "#b8931f", ore: "#6a7588", any: "#3d5f72" };
+    if (!this._portImgs) {
+      this._portImgs = {};
+      Object.entries(RESOURCE_ICON_PATH).forEach(([r, src]) => { const im = new Image(); im.onload = () => this.render?.(); im.src = src; this._portImgs[r] = im; });
+    }
+    const badges = harbourBadges(this, s);
+    this.ports.forEach((port, pi) => {
+      const q = badges[pi]; if (!q) return;
+      const W = q.w * u, H = q.h * u;
+      let bx = g.centerX + q.x * u, by = g.centerY + q.y * u;
+      // zoomed in: keep the whole pill on screen (its piers follow)
+      const shift = this._keepOnScreen(bx - W / 2, by - H / 2, W, H);
+      bx += shift.x; by += shift.y;
+      const P = (x, y) => [bx + (x - q.x) * u, by + (y - q.y) * u];
       const color = portColor[port.type] || portColor.any;
-
-      // Label size first: on a phone the outer labels ("2:1 Lumber") can stick out past the screen
-      // edge, so the label (and its ropes) shift inward until the whole box is visible.
-      const label = port.type === "any" ? "3:1" : `2:1 ${RESOURCE_LABEL[port.type]}`;
-      const portFontSize = Math.round(9.5 * s);
-      ctx.font = `700 ${portFontSize}px Inter, system-ui, sans-serif`;
-      const tw = ctx.measureText(label).width;
-      const boxW = Math.max(36 * s, tw + 12 * s);
-      const boxH = 20 * s;
-      const shift = this._keepOnScreen(dockX - boxW / 2, dockY - boxH / 2, boxW, boxH);
-      dockX += shift.x;
-      dockY += shift.y;
-
-      // Rope lines to port
+      const W2 = (p) => ({ x: g.centerX + p.x * u, y: g.centerY + p.y * u });
+      const pairs = q.piers.map(([n, e]) => [W2(n), P(e[0], e[1])]);
+      const p1 = W2(q.a), p2 = W2(q.b);
       ctx.save();
-      ctx.strokeStyle = "rgba(160, 130, 70, 0.4)";
-      ctx.lineWidth = 2 * s;
-      ctx.setLineDash([3 * s, 3 * s]);
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(dockX, dockY);
-      ctx.moveTo(p2.x, p2.y);
-      ctx.lineTo(dockX, dockY);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
-
-      // Parchment-style label
-      ctx.save();
-      ctx.shadowColor = "rgba(44, 24, 16, 0.25)";
-      ctx.shadowBlur = 4 * s;
-      ctx.shadowOffsetY = 2 * s;
-      const bx = dockX - boxW / 2;
-      const by = dockY - boxH / 2;
-
-      this.drawRoundedRect(bx, by, boxW, boxH, 5 * s);
-      ctx.fillStyle = "rgba(245, 239, 228, 0.92)";
-      ctx.fill();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5 * s;
-      ctx.stroke();
-      ctx.restore();
-
-      ctx.save();
-      ctx.fillStyle = color;
-      ctx.font = `700 ${portFontSize}px Inter, system-ui, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(label, dockX, dockY + 0.5);
+      ctx.lineCap = "round";
+      pairs.forEach(([n, e]) => {
+        ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(e[0], e[1]);
+        ctx.strokeStyle = "#6b5236"; ctx.lineWidth = 6 * s * u; ctx.stroke();
+        ctx.strokeStyle = "#c9a874"; ctx.lineWidth = 3.4 * s * u; ctx.stroke();
+      });
+      [p1, p2].forEach((n) => { ctx.beginPath(); ctx.arc(n.x, n.y, 5.6 * s * u, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); ctx.lineWidth = 2 * s * u; ctx.strokeStyle = "#f5efe4"; ctx.stroke(); });
+      // badge
+      ctx.shadowColor = "rgba(15, 23, 34, 0.35)"; ctx.shadowBlur = 5 * s * u; ctx.shadowOffsetY = 2 * s * u;
+      this.drawRoundedRect(bx - W / 2, by - H / 2, W, H, (q.r) * u);
+      ctx.fillStyle = "#f5efe4"; ctx.fill();
+      ctx.shadowColor = "transparent";
+      ctx.strokeStyle = color; ctx.lineWidth = 2.4 * s * u; ctx.stroke();
+      const [ix, iy] = P(q.icon.x, q.icon.y), is = q.icon.size * u;
+      const im = this._portImgs[port.type];
+      if (im) { if (im.complete && im.naturalWidth) ctx.drawImage(im, ix - is / 2, iy - is / 2, is, is); }
+      else {
+        ctx.beginPath(); ctx.arc(ix, iy, is / 2, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+        ctx.fillStyle = "#ffffff"; ctx.font = `800 ${is * 0.74}px Inter, system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+        ctx.fillText("?", ix, iy + is * 0.27);
+      }
+      const [tx, ty] = P(q.text.x, q.text.y);
+      ctx.fillStyle = "#1a3a52"; ctx.font = `800 ${q.text.size * u}px Inter, system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+      ctx.fillText(port.type === "any" ? "3:1" : "2:1", tx, ty);
       ctx.restore();
     });
   }
