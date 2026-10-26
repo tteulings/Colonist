@@ -2689,7 +2689,7 @@ class ColonistFullGame {
       if (hexId != null && this._robberHexAllowed(hexId, player)) {
         this.hoverHexId = hexId;
         const hex = this.geometry.hexes[hexId];
-        const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
+        const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource] || TERRAIN_NAME[hex.resource]; // ⚓ "Gold field"
         // No tooltip — hex highlight is enough
         this.canvas.style.cursor = "pointer";
       } else {
@@ -6641,7 +6641,7 @@ class ColonistFullGame {
       this.drawTokenPips(hex);
     }
 
-    const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
+    const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource] || TERRAIN_NAME[hex.resource]; // ⚓ "Gold field"
     ctx.fillStyle = "rgba(44, 24, 16, 0.5)";
     ctx.font = `600 ${Math.round(hxs * 0.12)}px Inter, system-ui, sans-serif`;
     ctx.textAlign = "center";
