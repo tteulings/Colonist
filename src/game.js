@@ -5278,7 +5278,7 @@ class ColonistFullGame {
     this.updateLargestArmyHolder();
     // v0.73: the journal says when an award moves (it only showed as a small badge before)
     if (this.players.length && !this._loadingState) {
-      this._logAward("Longest Road", prevLR, this.longestRoadHolder, (p) => `${p.longestRoadLength} roads`);
+      this._logAward(this.sea ? "Longest Trade Route" : "Longest Road", prevLR, this.longestRoadHolder, (p) => `${p.longestRoadLength} ${this.sea ? "roads and ships" : "roads"}`); // ⚓
       this._logAward("Largest Army", prevLA, this.largestArmyHolder, (p) => `${p.knightsPlayed} knights`);
     }
 
@@ -5300,7 +5300,7 @@ class ColonistFullGame {
       this.addLog(`${p.name} ${p.isHuman ? "take" : "takes"} ${name} (${why(p)}) · +2 points${prev != null ? ` from ${P(prev).name}` : ""}.`);
     } else if (prev != null) {
       const p = P(prev);
-      this.addLog(`${p.name} ${p.isHuman ? "lose" : "loses"} ${name}${name === "Longest Road" ? ` (now ${p.longestRoadLength})` : ""} · nobody holds it.`);
+      this.addLog(`${p.name} ${p.isHuman ? "lose" : "loses"} ${name}${/^Longest (Road|Trade Route)$/.test(name) ? ` (now ${p.longestRoadLength})` : ""} · nobody holds it.`);
     }
   }
 
@@ -7640,7 +7640,6 @@ class ColonistFullGame {
       const totalCards = sumResources(player.resources);
       const totalDev = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + (player.isHuman ? player.devVictoryPoints : 0);
       const awards = (this.longestRoadHolder === player.id ? (this.sea ? `<span title="Longest Trade Route (+2 points)">${icon("tradeRoute")}</span>` : `<span title="Longest Road (+2 points)">${icon("longestRoad")}</span>`) : "") // ⚓
-        + (this.sea && this.sea.bonus[player.id]?.length ? `<span class="isle-badge" title="New islands: +${this.sea.bonusVP(player)} points">${icon("island")}<b>${this.sea.bonus[player.id].length}</b></span>` : "")
         + (this.largestArmyHolder === player.id ? `<span title="Largest Army (+2 points)">${icon("largestArmy")}</span>` : "");
       const vp = this.displayVictoryPoints(player);
       // v0.73: knights played and road length per player, only once they mean something (knights > 0,
@@ -7651,7 +7650,10 @@ class ColonistFullGame {
         `<span data-stat="cards"${over ? ' class="warn"' : ""} title="${totalCards} resource card${totalCards === 1 ? "" : "s"}${over ? ` (more than ${this.settings?.discardLimit ?? 7}: hands back half on a 7)` : ""}">${icon("cards")}${totalCards}</span>`,
         totalDev > 0 ? `<span data-stat="dev" title="${totalDev} development card${totalDev === 1 ? "" : "s"}">${icon("devcard")}${totalDev}</span>` : "",
         player.knightsPlayed > 0 || la ? `<span data-stat="knights"${la ? ' class="award"' : ""} title="${player.knightsPlayed} knight${player.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest Army (+2 points)" : ""}">${icon("knight")}${player.knightsPlayed}</span>` : "",
-        player.longestRoadLength >= 3 || lr ? `<span data-stat="road"${lr ? ' class="award"' : ""} title="Longest road ${player.longestRoadLength}${lr ? " · Longest Road (+2 points)" : " (5+ to win Longest Road)"}">${icon("road")}${player.longestRoadLength}</span>` : "",
+        player.longestRoadLength >= 3 || lr ? (this.sea // ⚓ Seafarers: the trade route counts roads + ships
+          ? `<span data-stat="road"${lr ? ' class="award"' : ""} title="Trade route ${player.longestRoadLength}${lr ? " · Longest Trade Route (+2 points)" : " (5+ to win Longest Trade Route)"}">${icon("tradeRoute")}${player.longestRoadLength}</span>`
+          : `<span data-stat="road"${lr ? ' class="award"' : ""} title="Longest road ${player.longestRoadLength}${lr ? " · Longest Road (+2 points)" : " (5+ to win Longest Road)"}">${icon("road")}${player.longestRoadLength}</span>`) : "",
+        this.sea && this.sea.bonus[player.id]?.length ? `<span data-stat="isle" class="award" title="New islands: ${this.sea.bonus[player.id].length} (+${this.sea.bonusVP(player)} points)">${icon("island")}${this.sea.bonus[player.id].length}</span>` : "", // ⚓
       ].filter(Boolean);
       rows.push(`<div class="prow player-card-mini pc-${idx}${active ? " active" : ""}${isReady ? " rush-ready" : ""}" data-seat="${idx}">
         ${this._av(player, "player-avatar")}
@@ -9712,6 +9714,7 @@ class ColonistFullGame {
     if (/\bwins?\b/.test(text)) return "vp";
     if (/rolled|^Roll #/.test(text)) return "dice";
     if (/robber|stole|discard/i.test(text)) return "robber";
+    if (/Longest Trade Route/.test(text)) return "tradeRoute"; // ⚓
     if (/Longest Road/.test(text)) return "longestRoad";
     if (/new island/.test(text)) return "island"; // ⚓ Seafarers
     if (/pirate/.test(text)) return "pirate";
@@ -9790,7 +9793,7 @@ class ColonistFullGame {
     const cb = this.confirmBuild;
     if (!cb) return null;
     const terr = (nodeId) => this.geometry.nodes[nodeId].adjacentHexes.map((hid) => this.geometry.hexes[hid])
-      .filter((h) => h.resource !== "desert").map((h) => `${RESOURCE_LABEL[h.resource]} ${h.number}`).join(" · ");
+      .filter((h) => h.number && h.resource !== "desert").map((h) => `${RESOURCE_LABEL[h.resource] || TERRAIN_NAME[h.resource]} ${h.number}`).join(" · "); // ⚓ gold fields, no sea
     if (cb.type === "robber") {
       const hex = this.geometry.hexes[cb.id];
       const where = hex.resource === "desert" || !hex.number ? "the Desert" : `${TERRAIN_NAME[hex.resource]} ${hex.number}`;
@@ -9805,6 +9808,7 @@ class ColonistFullGame {
       const free = this.setupPhase || this.freeRoadsRemaining > 0;
       return { icon: "road", title: "Road here?", sub: free ? "Free road" : "Costs 1 Lumber + 1 Brick" };
     }
+    if (cb.type === "ship") return { icon: "ship", title: "Ship here?", sub: this.setupPhase || this.freeRoadsRemaining > 0 ? "Free ship" : "Costs 1 Lumber + 1 Wool" }; // ⚓
     if (cb.type === "city") return { icon: "city", title: "Upgrade to a city?", sub: `Produces double · ${terr(cb.id) || "no tiles"}` };
     return { icon: "settlement", title: "Settlement here?", sub: `Touches ${terr(cb.id) || "only the coast"}` };
   }
