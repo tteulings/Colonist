@@ -51,8 +51,11 @@
 [data-theme="classic"] .brand-name { text-transform: uppercase; letter-spacing: .08em; }
 [data-theme="classic"] .cost, [data-theme="classic"] .bank { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.12); color: #f5efe4; }
 [data-theme="classic"] .ticker, [data-theme="classic"] .pchip .pn, [data-theme="classic"] .pchip .vpn { color: #f5efe4; }
-[data-theme="classic"] .pchip .vpn small, [data-theme="classic"] .pchip .mini, [data-theme="classic"] .ticker .more { color: #c9d6e0; }
+[data-theme="classic"] .pchip .vpn small, [data-theme="classic"] .pchip .mini, [data-theme="classic"] .ticker .more, [data-theme="classic"] .mgear { color: #c9d6e0; }
 [data-theme="classic"] .pchip.active { background: rgba(255,255,255,.12); }
 [data-theme="classic"] .rush-hud .rush-card-title, [data-theme="classic"] .rush-next7 { color: #c9d6e0; }
 [data-theme="classic"] .rush-hud .rush-ring-center span { color: #fff; }
 [data-theme="classic"] .ticker .who { color: #fff; filter: none; text-decoration: underline 2px var(--pc); text-underline-offset: 3px; }
+[data-theme="classic"] .ticker.prompt { color: #1d2a36; }
+[data-theme="classic"] .ticker.prompt .more { color: #4a5a68; }
+[data-theme="classic"] .ticker.prompt .who { color: inherit; }

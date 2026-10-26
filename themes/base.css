@@ -143,6 +143,11 @@ h1, h2, h3, .display { font-family: var(--font-display); font-weight: var(--disp
 .ticker .txt .ic { font-size: 16px; vertical-align: -3px; }
 .ticker .more { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: var(--ink-soft); }
 .ticker .more .ic { font-size: 18px; }
+/* settings: its own round button at the far right of the ticker row (the ticker truncates before it) */
+.tkrow { display: flex; align-items: center; gap: 6px; border-top: var(--divider-soft); }
+.tkrow .ticker { flex: 1; min-width: 0; border-top: 0; }
+.mgear { flex: none; width: 44px; height: 44px; margin-right: 2px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--ink-soft); }
+.mgear .ic { font-size: 20px; }
 
 /* the table: board (+ desktop rail) */
 .table { flex: 1; min-height: 0; position: relative; display: block; }
@@ -205,6 +210,35 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 .confirm-pill .txt small { display: block; font-weight: 650; color: var(--ink-soft); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .app .confirm-pill .btn { height: 52px; }
 .app .confirm-pill .btn.primary { font-size: 19px; padding: 0 18px; }
+/* robber: the pill becomes a compact sheet — tile line, everyone on the tile, then a full-width Place */
+.confirm-pill.robber { flex-wrap: wrap; row-gap: 6px; padding: 8px 10px 10px; max-height: calc(100% - var(--fan-h, 0px) - 16px); overflow-y: auto; overscroll-behavior: contain; }
+.confirm-pill.robber .txt small { white-space: normal; display: flex; align-items: center; gap: 3px; flex-wrap: wrap; font-size: 12.5px; }
+.confirm-pill.robber .txt small .ic { font-size: 16px; }
+.confirm-pill.robber .txt small b { color: var(--heading); font-weight: 800; }
+.cp-pips { letter-spacing: -1px; font-size: 13px; color: var(--ink-soft); }
+.cp-pips.hot { color: var(--danger); }
+.confirm-pill.robber.at-top { top: calc(var(--board-top, 0px) + 8px); bottom: auto; max-height: calc(100% - var(--board-top, 0px) - var(--fan-h, 0px) - 16px); }
+.cp-victims { order: 5; flex: 1 1 100%; display: grid; gap: 5px; min-width: 0; }
+.cp-victims[hidden] { display: none; }
+.app .confirm-pill.robber #confirmPillPlace { order: 6; flex: 1 1 100%; height: 48px; justify-content: center; }
+.cp-ask, .cp-none, .cp-note { font-size: 12px; font-weight: 700; color: var(--ink-soft); padding: 0 2px; }
+.cp-none { font-size: 14px; color: var(--ink); padding: 6px 2px; }
+.cp-victim { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 5px 10px; width: 100%; text-align: left;
+  border-radius: var(--chip-radius); background: var(--chip); border: var(--chip-border); color: var(--ink); font: inherit; cursor: pointer; }
+.cp-victim.off { opacity: .6; cursor: default; }
+.cp-victim.sel { box-shadow: inset 0 0 0 2px var(--pc), 0 0 0 0 transparent; }
+.cp-victim .avatar { --av: 32px; --av-ring: 2px; }
+.cv-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cv-name { display: flex; align-items: center; gap: 6px; font-size: 14px; line-height: 1.15; }
+.cv-lead { font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); border: 1px solid var(--divider, rgba(0,0,0,.15)); border-radius: 6px; padding: 0 4px; }
+.cv-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; min-width: 0; }
+.cv-meta > span { display: inline-flex; align-items: center; gap: 2px; }
+.cv-meta .ic { font-size: 14px; }
+.cv-meta .cv-bld { overflow: hidden; text-overflow: ellipsis; display: block; min-width: 0; }
+.cv-vp { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 20px; line-height: 1; color: var(--heading); display: flex; flex-direction: column; align-items: center; }
+.cv-vp small { font-family: var(--font-body); font-size: 8.5px; letter-spacing: .06em; font-weight: 750; color: var(--ink-soft); }
+.cv-radio { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--ink-faint, rgba(0,0,0,.3)); flex: none; }
+.cp-victim.sel .cv-radio { border-color: var(--pc); background: radial-gradient(circle, var(--pc) 0 45%, transparent 50%); }
 
 /* dock: mobile action bar */
 .dock {
@@ -814,6 +848,8 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
   .toasts { right: 16px; top: 16px; width: 300px; }
   .toasts .toast { display: flex; }
   .confirm-pill { display: none !important; }
+  /* robber popover: the same robber sheet, centred at the bottom of the board */
+  .confirm-pill.robber:not([hidden]) { display: flex !important; left: calc(50% - 190px); right: auto; width: 380px; bottom: 16px; }
 
   /* dock */
   .dock { grid-row: 3; height: 168px; position: relative; display: flex; align-items: stretch; gap: 14px; padding: 12px 18px 14px; min-width: 0; }
@@ -933,10 +969,12 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
     padding: calc(6px + env(safe-area-inset-top)) 0 6px calc(6px + env(safe-area-inset-left));
   }
   .app .mtop .pchip { min-height: 0; }
+  .app .mtop .tkrow { grid-column: 2; grid-row: 1; align-self: start; z-index: 6; position: relative; margin: 6px 8px 0; min-width: 0; border-top: 0; }
   .app .mtop .ticker {
-    grid-column: 2; grid-row: 1; align-self: start; z-index: 6; position: relative; margin: 6px 8px 0; height: 38px; min-width: 0;
+    margin: 0; height: 38px; min-width: 0;
     border-radius: 999px; border: var(--float-border); background: var(--float); box-shadow: var(--float-shadow);
   }
+  .app .mtop .mgear { width: 38px; height: 38px; margin: 0; border: var(--float-border); background: var(--float); box-shadow: var(--float-shadow); }
   .table { grid-column: 2; grid-row: 1 / -1; min-width: 0; }
   .app .rush-hud.rush-hud { grid-column: 3; grid-row: 1; margin: 6px calc(6px + env(safe-area-inset-right)) 0 0; padding: 4px 8px; gap: 6px; border-radius: 14px; }
   .app .rush-hud .rush-ring { width: 36px; height: 36px; }

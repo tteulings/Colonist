@@ -1,6 +1,6 @@
 // Network-first service worker: always try fresh files (the app updates often),
 // fall back to the cache so the game still starts offline.
-const CACHE = "colonist-v68";
+const CACHE = "colonist-v69";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./manifest.webmanifest", "./assets/favicon.svg",
   "./themes/base.css", "./themes/theme-sunny.css", "./themes/theme-classic.css",

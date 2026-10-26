@@ -911,9 +911,11 @@ class ColonistFullGame {
   }
 
   handleResize() {
-    // Remember zoom + the board point in the middle of the view (in hex units: geometry is rebuilt)
+    // Remember zoom + the board point in the middle of the view (in hex units: geometry is rebuilt),
+    // but only when the player zoomed in themselves: a fit computed while the chrome was still
+    // laying out (hand fan, browser bars) must never turn into a "zoom" on the next resize.
     let keep = null;
-    if (this.geometry && this._fitScale && this.view.scale > this._fitScale * 1.01) {
+    if (this.geometry && this._userZoomed && this._fitScale && this.view.scale > this._fitScale * 1.01) {
       const g = this.geometry, w = this.screenToWorld(this.boardWidth / 2, this.boardHeight / 2);
       keep = { z: this.view.scale / this._fitScale, ax: (w.x - g.centerX) / g.hexSize, ay: (w.y - g.centerY) / g.hexSize };
     }
@@ -926,6 +928,7 @@ class ColonistFullGame {
       this.view.offsetX = this.boardWidth / 2 - (g.centerX + keep.ax * g.hexSize) * scale;
       this.view.offsetY = this.boardHeight / 2 - (g.centerY + keep.ay * g.hexSize) * scale;
       this._clampView();
+      this._userZoomed = true;
     }
     this.boardRenderer?.invalidateStatic();
     this._invalidateUI();
@@ -1156,6 +1159,7 @@ class ColonistFullGame {
 
   resetViewTransform() {
     if (!this.geometry) return;
+    this._userZoomed = false;
     this._animateView(this._fitTarget(), 300);
   }
 
@@ -1699,7 +1703,7 @@ class ColonistFullGame {
     if (robberMode) {
       const cb = this.confirmBuild?.type === "robber" ? this.confirmBuild : null;
       if (cb && !this.isMobileLayout && this.hitTestConfirmIcon(x, y)) {
-        this._commitRobber(player, cb.id);
+        this._commitRobber(player, cb.id, cb.victim);
         return;
       }
       const hexId = this.findHexAt(x, y);
@@ -1712,7 +1716,8 @@ class ColonistFullGame {
         this.render();
         return;
       }
-      this.confirmBuild = { type: "robber", id: hexId };
+      // Victim chosen right in the robber sheet; the leader (most points, then most cards) is preselected
+      this.confirmBuild = { type: "robber", id: hexId, victim: this._defaultRobberVictim(hexId, player) };
       this.sfx.click();
       this.render();
       return;
@@ -1861,7 +1866,7 @@ class ColonistFullGame {
   }
 
   /** Move the robber to a chosen (legal) tile and steal — the confirm step of robber mode. */
-  _commitRobber(player, hexId) {
+  _commitRobber(player, hexId, chosenVictim = null) {
     if (this.pendingAction !== "robber" || !this._robberHexAllowed(hexId, player)) return;
     this.confirmBuild = null;
     this.robberHexId = hexId;
@@ -1875,8 +1880,8 @@ class ColonistFullGame {
     if (victims.length === 0) {
       this.addLog("No one to steal from.");
       this.robberContext = null;
-    } else if (victims.length === 1) {
-      this.stealFromVictim(player, victims[0]);
+    } else if (victims.length === 1 || victims.includes(chosenVictim)) {
+      this.stealFromVictim(player, victims.includes(chosenVictim) ? chosenVictim : victims[0]);
       this.robberContext = null;
     } else {
       // Multiple victims — show selection panel
@@ -2010,6 +2015,7 @@ class ColonistFullGame {
         const world = this.screenToWorld(prev.midX, prev.midY);
         const f = prev.dist > 0 ? pair.dist / prev.dist : 1;
         this.view.scale = clamp(this.view.scale * f, this._minScale(), this._maxScale());
+        this._userZoomed = true;
         this.view.offsetX = pair.midX - world.x * this.view.scale;
         this.view.offsetY = pair.midY - world.y * this.view.scale;
         this._clampView();
@@ -2216,6 +2222,7 @@ class ColonistFullGame {
   zoomAt(sx, sy, f) {
     const before = this.screenToWorld(sx, sy);
     this.view.scale = clamp(this.view.scale * f, this._minScale(), this._maxScale());
+    this._userZoomed = true;
     this.view.offsetX = sx - before.x * this.view.scale;
     this.view.offsetY = sy - before.y * this.view.scale;
     this._clampView();
@@ -2228,8 +2235,10 @@ class ColonistFullGame {
     if (this.view.scale < this._fitScale * 1.5) {
       const w = this.screenToWorld(pt.x, pt.y);
       const scale = this._fitScale * 2;
+      this._userZoomed = true;
       this._animateView({ scale, offsetX: pt.x - w.x * scale, offsetY: pt.y - w.y * scale });
     } else {
+      this._userZoomed = false;
       this._animateView(this._fitTarget());
     }
   }
@@ -5765,6 +5774,9 @@ class ColonistFullGame {
 
     this.addLog("Session restored.");
     this.render();
+    // Resumed games always open fitted: refit once the layout (hand fan, browser bars) has settled,
+    // unless the player has already zoomed in by then.
+    window.setTimeout(() => { if (!this._userZoomed && this.geometry) { this.fitCanvasToContainer(); this.fitView(); this.render(); } }, 350);
     if (this.winner) {
       this.showGameOverOverlay();
     } else if (this.setupPhase) {
@@ -6701,38 +6713,7 @@ class ColonistFullGame {
         ctx.lineWidth = 3.5 * px;
         ctx.stroke();
       }
-      const victims = this._stealVictims(hex.id, mover);
-      victims.forEach((pid, i) => {
-        const x = hex.center.x + (i - (victims.length - 1) / 2) * 24 * px, y = hex.center.y + this.geometry.hexSize * 0.66;
-        this._drawAvatarDisc(ctx, pid, x, y, 10 * px);
-      });
     });
-  }
-
-  /** A player's portrait as a small disc on the board (robber victims). Radius in canvas units. */
-  _drawAvatarDisc(ctx, pid, x, y, r) {
-    const img = this._avatarImage(pid);
-    ctx.save();
-    ctx.beginPath(); ctx.arc(x, y, r + r * 0.18, 0, Math.PI * 2);
-    ctx.fillStyle = this.players[pid]?.color || "#fff"; ctx.fill();
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
-    if (img?.complete && img.naturalWidth) { ctx.clip(); ctx.drawImage(img, x - r, y - r, 2 * r, 2 * r); }
-    ctx.restore();
-  }
-
-  /** Cached raster of a seat's portrait (theme art), for canvas use. */
-  _avatarImage(pid) {
-    const key = `${this.theme.id}|${this.theme.paletteId || ""}|${pid}`;
-    this._avatarImgs = this._avatarImgs || new Map();
-    let img = this._avatarImgs.get(key);
-    if (!img) {
-      img = new Image();
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-50 -50 100 100" width="96" height="96">${this.theme.avatar(SEAT_PRESETS[pid] || "you")}</svg>`;
-      img.onload = () => this.requestBoardDraw();
-      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-      this._avatarImgs.set(key, img);
-    }
-    return img;
   }
 
   drawRollHighlight() {
@@ -7332,13 +7313,30 @@ class ColonistFullGame {
 
     // ── mobile confirm pill: the Place button sits right above the thumb ──
     if (this.confirmPill) {
-      const info = this.isMobileLayout && humanTurn && this.confirmBuild ? this._confirmPillInfo() : null;
+      // Robber: the pill grows into a compact sheet (desktop: a popover) with everyone on the tile
+      const robberSel = this.confirmBuild?.type === "robber" && this.pendingAction === "robber";
+      const info = (this.isMobileLayout || robberSel) && humanTurn && this.confirmBuild ? this._confirmPillInfo() : null;
       this.confirmPill.hidden = !info;
+      this.confirmPill.classList.toggle("robber", !!info?.robber);
+      const vEl = document.querySelector("#confirmPillVictims");
       if (info) {
         document.querySelector("#confirmPillIcon").innerHTML = icon(info.icon);
         document.querySelector("#confirmPillTitle").textContent = info.title;
-        document.querySelector("#confirmPillSub").textContent = info.sub;
+        const subEl = document.querySelector("#confirmPillSub");
+        if (info.subHtml) subEl.innerHTML = info.subHtml; else subEl.textContent = info.sub;
       }
+      if (vEl) {
+        const html = info?.robber ? this._robberVictimsHtml(info.robber, this.confirmBuild.victim) : "";
+        if (vEl.__html !== html) { vEl.innerHTML = html; vEl.__html = html; }
+        vEl.hidden = !html;
+      }
+      // Phones: keep the chosen tile in sight; the robber sheet moves to the top when the tile is low
+      let atTop = false;
+      if (info?.robber && this.isMobileLayout) {
+        const hex = this.geometry.hexes[this.confirmBuild.id];
+        atTop = this.worldToScreen(hex.center.x, hex.center.y).y > this.boardHeight * 0.5;
+      }
+      this.confirmPill.classList.toggle("at-top", atTop);
     }
   }
 
@@ -8240,6 +8238,16 @@ class ColonistFullGame {
     $("#newGameMainBtn")?.addEventListener("click", () => this._showDifficultyModal());
     $("#confirmPillCancel")?.addEventListener("click", () => { this.confirmBuild = null; this.render(); });
     $("#confirmPillPlace")?.addEventListener("click", () => this._confirmViaIcon());
+    $("#confirmPillVictims")?.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-victim]");
+      const cb = this.confirmBuild;
+      if (!b || cb?.type !== "robber") return;
+      const id = Number(b.dataset.victim);
+      if (!this._stealVictims(cb.id, this.currentPlayer).includes(id)) return;
+      cb.victim = id;
+      this.sfx.click();
+      this.render();
+    });
     // choosing something in the mobile build sheet closes it
     this.actionPromptBuild?.addEventListener("click", (e) => {
       if (e.target.closest(".bbtn") && this.isMobileLayout) window.setTimeout(() => this.toggleBuildSheet(false), 0);
@@ -8321,7 +8329,7 @@ class ColonistFullGame {
     const ic = this.getConfirmIconCenter();
     if (!ic) return;
     if (this.confirmBuild?.type === "robber") {
-      this._commitRobber(this.currentPlayer, this.confirmBuild.id);
+      this._commitRobber(this.currentPlayer, this.confirmBuild.id, this.confirmBuild.victim);
       return;
     }
     if (this.setupPhase) {
@@ -8338,6 +8346,7 @@ class ColonistFullGame {
     const cx = this.boardWidth / 2, cy = this.boardHeight / 2;
     const w = this.screenToWorld(cx, cy);
     const scale = clamp(this.view.scale * f, this._minScale(), this._maxScale());
+    this._userZoomed = f > 1 || scale > this._fitScale * 1.01;
     this._animateView({ scale, offsetX: cx - w.x * scale, offsetY: cy - w.y * scale }, 220);
   }
 
@@ -8353,6 +8362,7 @@ class ColonistFullGame {
   fitView() {
     if (!this.geometry) return;
     this._stopViewMotion();
+    this._userZoomed = false;
     Object.assign(this.view, this._fitTarget());
     this._viewChanged();
   }
@@ -8467,6 +8477,60 @@ class ColonistFullGame {
     return "log";
   }
 
+  /** What a robber on this tile means: production blocked, who touches it, who can be robbed. */
+  _robberTileInfo(hexId, mover) {
+    const hex = this.geometry.hexes[hexId];
+    const prod = hex.resource !== "desert" && hex.number ? { res: hex.resource, num: hex.number, pips: DICE_WEIGHT[hex.number] || 0 } : null;
+    const touch = new Map();
+    hex.nodes.forEach((nid) => {
+      const n = this.geometry.nodes[nid];
+      if (n.owner == null) return;
+      const t = touch.get(n.owner) || { s: 0, c: 0 };
+      if (n.structure === "city") t.c += 1; else t.s += 1;
+      touch.set(n.owner, t);
+    });
+    const victims = this._stealVictims(hexId, mover);
+    const opp = this.players.filter((p) => p.id !== mover.id);
+    const vps = opp.map((p) => this.displayVictoryPoints(p));
+    const top = Math.max(...vps);
+    const leaderId = vps.filter((v) => v === top).length === 1 ? opp[vps.indexOf(top)].id : null;
+    const rows = [...touch.keys()].filter((pid) => pid !== mover.id).sort((a, b) => a - b).map((pid) => {
+      const p = this.players[pid];
+      return { id: pid, name: p.name, vp: this.displayVictoryPoints(p), cards: sumResources(p.resources),
+        dev: DEV_CARD_TYPES.reduce((n, t) => n + p.devCards[t] + p.newDevCards[t], 0),
+        s: touch.get(pid).s, c: touch.get(pid).c, canRob: victims.includes(pid), leader: pid === leaderId };
+    });
+    return { hex, prod, rows, victims, own: touch.get(mover.id) || null };
+  }
+
+  /** Preselected victim for a robber tile: the one with most points, then most cards. */
+  _defaultRobberVictim(hexId, mover) {
+    const v = this._stealVictims(hexId, mover);
+    if (!v.length) return null;
+    const key = (id) => this.displayVictoryPoints(this.players[id]) * 100 + sumResources(this.players[id].resources);
+    return v.slice().sort((a, b) => key(b) - key(a))[0];
+  }
+
+  /** Inner HTML for the robber sheet's victim list (inside the confirm pill / desktop popover). */
+  _robberVictimsHtml(info, chosen) {
+    const bld = (r) => [r.c ? `${r.c} cit${r.c === 1 ? "y" : "ies"}` : "", r.s ? `${r.s} settlement${r.s === 1 ? "" : "s"}` : ""].filter(Boolean).join(", ");
+    const pick = info.victims.length > 1;
+    let h = "";
+    if (!info.rows.length) h += `<div class="cp-none">Nobody to rob here</div>`;
+    else if (!info.victims.length) h += `<div class="cp-none">Nobody to rob here: no cards in hand</div>`;
+    else if (pick) h += `<div class="cp-ask">Rob whom? You take 1 random card.</div>`;
+    info.rows.forEach((r) => {
+      const sel = r.canRob && r.id === chosen;
+      const tag = r.canRob ? "button" : "div";
+      h += `<${tag}${r.canRob ? ` type="button" role="radio" aria-checked="${sel}" data-victim="${r.id}"` : ""} class="cp-victim pc-${r.id}${sel ? " sel" : ""}${r.canRob ? "" : " off"}">`
+        + `${this._av(this.players[r.id])}<span class="cv-main"><span class="cv-name"><b class="who pc-${r.id}">${r.name}</b>${r.leader ? '<span class="cv-lead">Leader</span>' : ""}</span>`
+        + `<span class="cv-meta"><span title="Resource cards">${icon("cards")}${r.cards}</span><span title="Development cards">${icon("devcard")}${r.dev}</span><span class="cv-bld">${bld(r)}</span></span></span>`
+        + `<span class="cv-vp">${r.vp}<small>VP</small></span>${pick && r.canRob ? '<span class="cv-radio" aria-hidden="true"></span>' : ""}</${tag}>`;
+    });
+    if (info.own) h += `<div class="cp-note">Your ${info.own.c ? "city" : "settlement"}${info.own.s + info.own.c > 1 ? "s" : ""} here would be blocked too</div>`;
+    return h;
+  }
+
   _confirmPillInfo() {
     const cb = this.confirmBuild;
     if (!cb) return null;
@@ -8475,9 +8539,12 @@ class ColonistFullGame {
     if (cb.type === "robber") {
       const hex = this.geometry.hexes[cb.id];
       const where = hex.resource === "desert" || !hex.number ? "the Desert" : `${TERRAIN_NAME[hex.resource]} ${hex.number}`;
-      const v = this._stealVictims(cb.id, this.currentPlayer).map((id) => this.players[id].name);
-      const sub = !v.length ? "Nobody to steal from here" : v.length === 1 ? `Steal from ${v[0]}` : `Steal from ${v.slice(0, -1).join(", ")} or ${v[v.length - 1]}`;
-      return { icon: "robber", title: `Robber on ${where}`, sub };
+      const info = this._robberTileInfo(cb.id, this.currentPlayer);
+      const p = info.prod;
+      const subHtml = p
+        ? `Blocks ${icon(p.res)}${RESOURCE_LABEL[p.res]} on <b>${p.num}</b> <span class="cp-pips${p.pips >= 5 ? " hot" : ""}" title="${p.pips} of 36 rolls">${"•".repeat(p.pips)}</span>`
+        : "Produces nothing";
+      return { icon: "robber", title: `Robber on ${where}`, sub: p ? `Blocks ${RESOURCE_LABEL[p.res]} on ${p.num}` : "Produces nothing", subHtml, robber: info };
     }
     if (cb.type === "road") {
       const free = this.setupPhase || this.freeRoadsRemaining > 0;

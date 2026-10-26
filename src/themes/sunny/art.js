@@ -429,8 +429,8 @@ const sunny = {
   dimFill: "rgba(30,42,46,.38)",
   get seaColors() { return [P.sea2, P.sea1, P.sea0]; },
   pieces: { settlement: home, city: cityArt, robber: robberSpec, settlementDy: -2, cityDy: -4 },
-  road: { shadow: "rgba(20,32,31,.3)", outer: 14, inner: 10, hi: 2.2, trim: 21, rim: "rgba(255,252,242,.92)" },
-  rim: "rgba(255,252,242,.95)", // light rim around piece silhouettes
+  road: { shadow: "rgba(20,32,31,.3)", outer: 14, inner: 10, hi: 2.2, trim: 21, rim: "rgba(255,252,242,.5)", rimW: 2.5 },
+  rim: "rgba(255,252,242,.55)", rimW: 2.5, // thin, soft light rim around piece silhouettes
   hint: { halo: "rgba(255,246,218,.35)", fill: "#FBF6EA", ring: "#D9714E", dot: "#D9714E" },
   confirm: { fill: "#D9714E", ring: "#FFF9F2" },
   robberDx: 46, robberDy: -12, tokenDy: 6,

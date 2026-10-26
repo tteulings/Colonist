@@ -33,10 +33,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- legacy styles in a low-priority cascade layer: the themed CSS below always wins -->
-    <style>@import url("./styles.css?v=68") layer(legacy);</style>
-    <link rel="stylesheet" href="./themes/base.css?v=68" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=68" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=68" />
+    <style>@import url("./styles.css?v=69") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=69" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=69" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=69" />
   </head>
   <body>
     <div class="app" id="app">
@@ -59,12 +59,14 @@
       <!-- Mobile: player strip + one-line journal ticker -->
       <div class="mtop" id="mtop">
         <div class="pstrip" id="playerStrip"></div>
-        <div class="ticker" id="ticker">
-          <span class="ticker-ic" id="tickerIcon"></span>
-          <span class="txt" id="tickerText"></span>
-          <button class="tk-cancel" id="tickerCancel" type="button" hidden>Cancel</button>
-          <button class="more" id="mSettingsBtn" aria-label="Settings"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-settings" x="-50" y="-50" width="100" height="100"/></svg></button>
-          <button class="more" id="tickerMore" aria-label="Open journal"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-chevron" x="-50" y="-50" width="100" height="100"/></svg></button>
+        <div class="tkrow">
+          <div class="ticker" id="ticker">
+            <span class="ticker-ic" id="tickerIcon"></span>
+            <span class="txt" id="tickerText"></span>
+            <button class="tk-cancel" id="tickerCancel" type="button" hidden>Cancel</button>
+            <button class="more" id="tickerMore" aria-label="Open journal"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-chevron" x="-50" y="-50" width="100" height="100"/></svg></button>
+          </div>
+          <button class="mgear" id="mSettingsBtn" aria-label="Settings"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-settings" x="-50" y="-50" width="100" height="100"/></svg></button>
         </div>
       </div>
 
@@ -87,7 +89,7 @@
 
       <!-- Game settings (moved into Settings › Game at start-up by src/themes/settings-ui.js) -->
       <details class="settings-drawer-float" id="settingsDrawer">
-        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.68</span></summary>
+        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.69</span></summary>
         <div class="settings-float-body">
           <button id="resetBtn" type="button" class="btn primary st-newgame"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-dice" x="-50" y="-50" width="100" height="100"/></svg>New game</button>
           <div class="st-h">Sound &amp; pace</div>
@@ -117,7 +119,7 @@
             <summary>Bot personalities</summary>
             <div id="aiStrategyPanel" class="ai-strategy-panel"></div>
           </details>
-          <div class="settings-version">Colonist <span class="app-version">v0.68</span></div>
+          <div class="settings-version">Colonist <span class="app-version">v0.69</span></div>
         </div>
       </details>
 
@@ -144,6 +146,7 @@
           <div class="confirm-pill" id="confirmPill" hidden>
             <span class="cp-ic" id="confirmPillIcon"></span>
             <div class="txt"><span id="confirmPillTitle">Settlement here?</span><small id="confirmPillSub"></small></div>
+            <div class="cp-victims" id="confirmPillVictims" role="radiogroup" aria-label="Who to rob" hidden></div>
             <button class="btn ghost icon-only" id="confirmPillCancel" aria-label="Cancel"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-close" x="-50" y="-50" width="100" height="100"/></svg></button>
             <button class="btn primary" id="confirmPillPlace"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-check" x="-50" y="-50" width="100" height="100"/></svg>Place</button>
           </div>
@@ -281,7 +284,7 @@
     </div>
     <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=68"></script>
+    <script type="module" src="./src/game.js?v=69"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

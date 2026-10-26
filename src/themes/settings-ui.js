@@ -5,7 +5,7 @@
 import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, prefetchFonts, icon } from "./manager.js";
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "0.68";
+export const APP_VERSION = "0.69";
 
 /** A tiny live preview of a theme: seven hexes in the theme's palette on its sea. */
 function miniBoard(dots, sea) {
