@@ -8,9 +8,10 @@
 // No characters or artworks are copied; figures are generic slender silhouettes.
 import { f, rng, pipCount, wrap, RES_NAME, DEV_NAME, CARD_TEXT, RESOURCE_KEYS } from "../art-util.js";
 import { specSvg, tp } from "../spec-util.js";
-import { portrait } from "../portraits.js";
+import { portrait, PERSONAS } from "../portraits.js";
 
 const B = "#1C1A19"; // Indian ink
+const FIG = "#3A3532"; // v0.77: people and the robber in a soft warm charcoal instead of pure ink (less harsh)
 const PA = "#FFF9EE"; // white-cream: only a highlight (tokens, eyes, wave curls)
 const CREAM = "#FBF1DC"; // the paper of cards, beaches and chrome
 const SEA = "#2E9FAC"; // one flat turquoise field (matches --c-sea in theme-silhouette.css)
@@ -45,7 +46,7 @@ const hexD = (r, cx = 0, cy = 0) => "M" + Array.from({ length: 6 }, (_, i) => { 
    can be an SVG silhouette on a tile and a canvas piece (the robber). */
 function personItems(o = {}) {
   const w = 1.5, it = [];
-  const F = (d, c = B) => it.push({ d, fill: c }), S = (d, sw = w, c = B) => it.push({ d, stroke: c, sw, cap: "round" }), Cc = (cx, cy, r, c = B) => it.push({ el: "circle", cx, cy, r, fill: c });
+  const F = (d, c = FIG) => it.push({ d, fill: c }), S = (d, sw = w, c = FIG) => it.push({ d, stroke: c, sw, cap: "round" }), Cc = (cx, cy, r, c = FIG) => it.push({ el: "circle", cx, cy, r, fill: c });
   Cc(0, -21.5, 4.6);
   const hat = o.hat || "hair";
   if (hat === "cap") F("M-4.8,-22.6 Q-4.6,-27.4 .4,-27.4 Q4.6,-27.2 5,-23.4 L8.2,-22.6 L4.6,-22 Z");
@@ -54,7 +55,7 @@ function personItems(o = {}) {
   if (hat === "scarf") F("M-5.4,-21 Q-6,-28 0,-27.8 Q6,-28 5.4,-21 Q5,-25 0,-25.4 Q-5,-25 -5.4,-21Z M-5,-19 l-3,4 l3.4,-1.2Z", o.hc || K.red);
   Cc(4.6, -21, 1.3);
   if (!o.mask) Cc(2, -22.6, 0.75, PA);
-  F(o.dress ? "M-2.8,-17 Q-4.6,-10 -7,-4.6 L7,-4.6 Q4.6,-10 2.8,-17 Q0,-18 -2.8,-17Z" : "M-3,-17.2 Q-4.2,-12 -3.8,-7.6 L3.8,-7.6 Q4.2,-12 3,-17.2 Q0,-18.2 -3,-17.2Z", o.coat || B);
+  F(o.dress ? "M-2.8,-17 Q-4.6,-10 -7,-4.6 L7,-4.6 Q4.6,-10 2.8,-17 Q0,-18 -2.8,-17Z" : "M-3,-17.2 Q-4.2,-12 -3.8,-7.6 L3.8,-7.6 Q4.2,-12 3,-17.2 Q0,-18.2 -3,-17.2Z", o.coat || FIG);
   const pose = o.pose || "stand";
   const legs = { stand: "M-1.6,-7.6 L-2,0 M1.8,-7.6 L2.4,0", walk: "M-1.4,-7.6 L-4.4,0 M1.6,-7.6 L4.4,-.4", push: "M-1,-7.6 L-5.6,0 M1.6,-7.6 L1.4,0", tiptoe: "M-1.4,-7.6 L-4.6,-1.4 L-3.6,.6 M1.6,-7.6 L4.6,-2 L7.4,-1" }[pose];
   S(o.dress ? "M-2.4,-4.6 L-2.6,0 M2.4,-4.6 L2.8,0" : legs);
@@ -66,12 +67,12 @@ function personItems(o = {}) {
   return it;
 }
 const TOOLS = {
-  axe: [{ d: "M7.6,-11 L5.4,-25", stroke: B, sw: 1.3, cap: "round" }, { d: "M4.6,-25.4 L8.6,-27.6 L7.8,-22.6Z", fill: B }],
-  crook: [{ d: "M5.6,-8.8 L8,-30 Q8.6,-34 11.4,-33 Q13,-31.6 11.6,-29.6", stroke: B, sw: 1.2, cap: "round" }],
-  scythe: [{ d: "M5.6,-8.8 L8,-30 M8,-30 Q1,-33.4 -6,-29.4", stroke: B, sw: 1.2, cap: "round" }],
-  pick: [{ d: "M8,-11.4 L11,-22 M7,-23.4 Q10.6,-24.4 14,-21", stroke: B, sw: 1.3, cap: "round" }],
-  lantern: [{ d: "M5.6,-8.8 l0,1.6", stroke: B, sw: 1, cap: "round" }, { d: "M3.6,-7.4 h4 v5 h-4Z", fill: K.yellow, stroke: B, sw: 0.9 }],
-  sack: [{ d: "M6,-26 Q14,-32 16,-22 Q17,-14 9,-15 Q5,-17 6,-26Z", fill: B }],
+  axe: [{ d: "M7.6,-11 L5.4,-25", stroke: FIG, sw: 1.3, cap: "round" }, { d: "M4.6,-25.4 L8.6,-27.6 L7.8,-22.6Z", fill: FIG }],
+  crook: [{ d: "M5.6,-8.8 L8,-30 Q8.6,-34 11.4,-33 Q13,-31.6 11.6,-29.6", stroke: FIG, sw: 1.2, cap: "round" }],
+  scythe: [{ d: "M5.6,-8.8 L8,-30 M8,-30 Q1,-33.4 -6,-29.4", stroke: FIG, sw: 1.2, cap: "round" }],
+  pick: [{ d: "M8,-11.4 L11,-22 M7,-23.4 Q10.6,-24.4 14,-21", stroke: FIG, sw: 1.3, cap: "round" }],
+  lantern: [{ d: "M5.6,-8.8 l0,1.6", stroke: FIG, sw: 1, cap: "round" }, { d: "M3.6,-7.4 h4 v5 h-4Z", fill: K.yellow, stroke: FIG, sw: 0.9 }],
+  sack: [{ d: "M6,-26 Q14,-32 16,-22 Q17,-14 9,-15 Q5,-17 6,-26Z", fill: FIG }],
 };
 const person = (x, y, o = {}) => `<g transform="translate(${f(x)} ${f(y)}) scale(${f((o.s || 1) * (o.flip ? -1 : 1))} ${f(o.s || 1)})">${specSvg(personItems(o))}</g>`;
 const tree = (x, y, h, kind = "round", c = B) => {
@@ -214,8 +215,8 @@ const RS = 2.15;
 const robberSpec = [
   { el: "ellipse", cx: 3, cy: 32, rx: 18, ry: 4.6, fill: "#14120F", op: 0.32, shadow: true },
   ...personItems({ pose: "tiptoe", hat: "cap", mask: true, tool: TOOLS.sack }).map((s) => {
-    if (s.el === "circle") return { ...s, cx: f(s.cx * RS), cy: f(s.cy * RS + 32), r: f(s.r * RS), body: s.fill === B };
-    return { ...s, d: tp(s.d, RS, 0, 32), sw: s.sw ? s.sw * RS : undefined, body: s.fill === B || s.stroke === B };
+    if (s.el === "circle") return { ...s, cx: f(s.cx * RS), cy: f(s.cy * RS + 32), r: f(s.r * RS), body: s.fill === FIG };
+    return { ...s, d: tp(s.d, RS, 0, 32), sw: s.sw ? s.sw * RS : undefined, body: s.fill === FIG || s.stroke === FIG };
   }),
 ];
 
@@ -276,8 +277,8 @@ const ICONS = {};
   ic.victoryPoint = fl(star(58, 22, 6)) + circ(0, 7, 8.5, K.yellow);
   ic.vp = ic.victoryPoint;
   // the robber: a burglar in a flat cap, cream mask, red scarf
-  ic.robber = fl("M-36,48 Q-36,20 -10,14 L12,14 Q36,18 38,48Z") + fl("M-20,-4 Q-22,-30 2,-32 Q22,-32 24,-12 Q31,-8 28,-2 Q25,1 22,2 Q20,14 2,16 Q-18,16 -20,-4Z") +
-    fl("M-25,-14 Q-23,-38 3,-38 Q24,-36 26,-22 L41,-18 Q39,-13 24,-14Z") + fl("M-21,-11 Q2,-13 25,-11 L26,-2 Q2,-4 -21,-2Z", PA) + circ(13, -6.5, 3.2) +
+  ic.robber = fl("M-36,48 Q-36,20 -10,14 L12,14 Q36,18 38,48Z", FIG) + fl("M-20,-4 Q-22,-30 2,-32 Q22,-32 24,-12 Q31,-8 28,-2 Q25,1 22,2 Q20,14 2,16 Q-18,16 -20,-4Z", FIG) +
+    fl("M-25,-14 Q-23,-38 3,-38 Q24,-36 26,-22 L41,-18 Q39,-13 24,-14Z", FIG) + fl("M-21,-11 Q2,-13 25,-11 L26,-2 Q2,-4 -21,-2Z", PA) + circ(13, -6.5, 3.2, FIG) +
     fl("M-15,13 Q2,21 19,13 L23,22 Q2,30 -19,22Z", K.red);
   // awards: a winding road to a red pennant; two helmets, one with the red plume
   ic.longestRoad = fl("M-46,46 Q-46,16 -14,12 Q14,10 12,-6 Q10,-19 20,-25 L30,-16 Q24,-12 26,-3 Q28,26 -4,26 Q-28,26 -30,46Z") +
@@ -310,9 +311,10 @@ const ICONS = {};
   ic.minus = `<path d="M-20,0 H20" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>`;
 }
 
-/* ---------- avatars: the six seat personas (src/themes/portraits.js) as Fiep-style ink silhouettes:
-   black hair and face with cream eyes, clothes in the seat colour, an emblem brooch ---------- */
-const avatar6 = (preset) => portrait(preset, { style: "ink", ink: B, paper: PA });
+/* ---------- avatars: the six seat personas (src/themes/portraits.js) as Fiep-style silhouettes:
+   hair and face in a deep seat tint with cream eyes, clothes in the seat colour, an emblem brooch ---------- */
+// v0.77: each silhouette in a deep tint of its seat colour (not pure ink), so the six read softer
+const avatar6 = (preset) => portrait(preset, { style: "ink", ink: PERSONAS[preset]?.deep || FIG, paper: PA });
 
 /* ---------- cards: one flat colour field, a silhouette scene, hand-lettered title on paper ---------- */
 // card scenes may be busier than tiles (they are pictures, not a playing surface)

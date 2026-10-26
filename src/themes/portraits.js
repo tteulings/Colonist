@@ -5,15 +5,16 @@
 // A small brooch at the lower left carries the persona's emblem; it stays clear of the strip's points badge.
 //
 // Two renderings share every shape: "flat" (themes A, B, Classic: skin, hair colours, a soft face) and
-// "ink" (theme C: Fiep-style black silhouettes with cream eyes; the seat colour and a cream accent only).
+// "ink" (theme C: Fiep-style silhouettes with cream eyes, filled with the persona's deep seat tint `deep`
+// rather than pure black; the seat colour and a cream accent only).
 
 export const PERSONAS = {
-  rosa: { name: "Roodhart", full: "Rosa Roodhart", seat: "#E63946", bg: "#FADBD6", emblem: "heart" },
-  blaauw: { name: "Blaauw", full: "Mevrouw Blaauw van Draet", seat: "#2A6FDB", bg: "#D9E5F8", emblem: "feather" },
-  geelen: { name: "Van Geelen", short: "Geelen", full: "Kolonel Van Geelen", seat: "#F58A1F", bg: "#FDE4CB", emblem: "medal" },
-  groenewoud: { name: "Groenewoud", short: "Groen", full: "Dominee Groenewoud", seat: "#2DB87E", bg: "#D8F0E2", emblem: "clover" },
-  dewit: { name: "De Wit", full: "Mevrouw De Wit", seat: "#EFE6D2", bg: "#DCD3C1", emblem: "star", dark: true },
-  pimpel: { name: "Pimpel", full: "Professor Pimpel", seat: "#8B5FA8", bg: "#E8DEF3", emblem: "diamond" },
+  rosa: { name: "Roodhart", full: "Rosa Roodhart", seat: "#E63946", bg: "#FADBD6", emblem: "heart", deep: "#4A2B2B" },
+  blaauw: { name: "Blaauw", full: "Mevrouw Blaauw van Draet", seat: "#2A6FDB", bg: "#D9E5F8", emblem: "feather", deep: "#26324A" },
+  geelen: { name: "Van Geelen", short: "Geelen", full: "Kolonel Van Geelen", seat: "#F58A1F", bg: "#FDE4CB", emblem: "medal", deep: "#4A3322" },
+  groenewoud: { name: "Groenewoud", short: "Groen", full: "Dominee Groenewoud", seat: "#2DB87E", bg: "#D8F0E2", emblem: "clover", deep: "#243D32" },
+  dewit: { name: "De Wit", full: "Mevrouw De Wit", seat: "#EFE6D2", bg: "#DCD3C1", emblem: "star", deep: "#3A3532", dark: true },
+  pimpel: { name: "Pimpel", full: "Professor Pimpel", seat: "#8B5FA8", bg: "#E8DEF3", emblem: "diamond", deep: "#372B45" },
 };
 
 const SKIN = {
