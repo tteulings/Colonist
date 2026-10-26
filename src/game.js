@@ -1,8 +1,9 @@
-import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced } from "./themes/manager.js";
+import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced, SEAT_PRESETS } from "./themes/manager.js";
 import { SvgBoardRenderer } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
 import { TERRAIN_NAME, DEV_NAME, CARD_TEXT } from "./themes/art-util.js";
+import { Onboarding, isFirstLaunch } from "./themes/onboarding.js";
 
 const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 /** Sunny Island colour palette from <html data-palette> (default light). */
@@ -60,6 +61,9 @@ const PLAYER_CONFIG = [
 const DEV_CARD_TYPES = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
 const SQRT3 = Math.sqrt(3);
 const BOARD_RADIUS = 2;
+// Layout breakpoints (keep in sync with themes/base.css): phones = narrow OR short (landscape)
+const MOBILE_MQ = "(max-width: 900px), (max-height: 500px)";
+const LANDSCAPE_MQ = "(max-height: 500px) and (orientation: landscape)";
 const TURN_LIMIT = 500;
 
 // ── AI Strategy Configuration ──────────────────────────────────────────
@@ -77,9 +81,9 @@ const AI_STRATEGY_CATEGORIES = {
     label: "Expansion",
     levels: ["simple", "medium", "complex"],
     descriptions: {
-      simple:  "Builds roads to nearest good spot",
-      medium:  "Pathfinds to best reachable settlement location",
-      complex: "Also hunts Longest Road and targets valuable ports",
+      simple:  "Builds whatever it can afford in a fixed order; roads to the nearest spot",
+      medium:  "Plans its next build (settlement, city or card) by points and production per expected turn, and saves cards for it",
+      complex: "Same plan, plus races for Longest Road and values reachable ports",
     },
   },
   trading: {
@@ -87,9 +91,9 @@ const AI_STRATEGY_CATEGORIES = {
     levels: ["none", "conservative", "balanced", "aggressive"],
     descriptions: {
       none:         "Never trades",
-      conservative: "Bank trades only, keeps a resource buffer",
-      balanced:     "Bank + player trades when clearly beneficial",
-      aggressive:   "Trades often, accepts marginal deals, offers 2-for-1",
+      conservative: "Bank and port trades only, when they bring its next build at least a turn closer",
+      balanced:     "Bank/port trades plus fair player deals that bring its plan closer; refuses lopsided offers and never helps a leader",
+      aggressive:   "Offers deals to everyone each turn, pays 2-for-1 to finish a build now, accepts small but real gains",
     },
   },
   devCards: {
@@ -97,27 +101,27 @@ const AI_STRATEGY_CATEGORIES = {
     levels: ["none", "reactive", "strategic"],
     descriptions: {
       none:      "Never buys or plays dev cards",
-      reactive:  "Buys when affordable, plays when obviously useful",
-      strategic: "Chases Largest Army, times Monopoly for max steal, saves cards",
+      reactive:  "Buys with spare cards, plays when obviously useful; Monopoly on what it needs",
+      strategic: "Chases Largest Army, holds Monopoly for the biggest estimated haul of what it needs",
     },
   },
   awareness: {
     label: "Awareness",
     levels: ["none", "basic", "advanced"],
     descriptions: {
-      none:     "Ignores other players entirely, random robber placement",
-      basic:    "Targets opponents with robber, won't help near-winners",
-      advanced: "Targets VP leader, steals from leader, shifts priorities near endgame",
+      none:     "Ignores who is winning; robber blocks the busiest opponent tile, steals at random",
+      basic:    "Robs the richest opponent, won't trade with a leader",
+      advanced: "Targets the VP leader, reads public card counts, shifts to points near the endgame",
     },
   },
 };
 
 const AI_PRESETS = {
-  beginner:     { placement: "simple",  expansion: "simple",  trading: "none",         devCards: "none",     awareness: "none" },
-  intermediate: { placement: "medium",  expansion: "medium",  trading: "balanced",     devCards: "reactive", awareness: "basic" },
-  expert:       { placement: "complex", expansion: "complex", trading: "aggressive",   devCards: "strategic", awareness: "advanced" },
-  trader:       { placement: "medium",  expansion: "medium",  trading: "aggressive",   devCards: "reactive", awareness: "basic" },
-  builder:      { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "reactive", awareness: "basic" },
+  beginner:     { placement: "simple",  expansion: "simple",  trading: "conservative", devCards: "reactive",  awareness: "none" },
+  intermediate: { placement: "medium",  expansion: "medium",  trading: "balanced",     devCards: "reactive",  awareness: "basic" },
+  expert:       { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced" },
+  trader:       { placement: "medium",  expansion: "medium",  trading: "aggressive",   devCards: "reactive",  awareness: "basic" },
+  builder:      { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "reactive",  awareness: "basic" },
   shark:        { placement: "medium",  expansion: "medium",  trading: "balanced",     devCards: "strategic", awareness: "advanced" },
 };
 
@@ -140,25 +144,25 @@ const AI_LEVEL_PLAIN = {
     complex: "also plans for resources it lacks, eyes 2:1 ports and dodges robber magnets.",
   },
   expansion: {
-    simple:  "builds roads toward the nearest open spot.",
-    medium:  "plans roads toward the best free spot it can reach.",
-    complex: "also races for Longest Road and valuable ports.",
+    simple:  "builds whatever it can afford, roads toward the nearest open spot.",
+    medium:  "picks its next build (settlement, city or card) by what pays off soonest, and saves cards for it.",
+    complex: "plans the same way, and also races for Longest Road and ports it can reach.",
   },
   trading: {
     none:         "never trades.",
-    conservative: "trades with the bank only, and keeps a safety buffer.",
-    balanced:     "trades with you or the bank only when it clearly helps.",
-    aggressive:   "trades constantly and takes marginal deals.",
+    conservative: "trades only with the bank or its ports, when that gets its next build a turn sooner.",
+    balanced:     "also makes fair deals with players that help its plan; never helps the leader.",
+    aggressive:   "offers deals every turn and pays 2-for-1 to finish a build, but never takes a bad deal.",
   },
   devCards: {
     none:      "never buys development cards.",
-    reactive:  "buys when it can, plays a card when the use is obvious.",
-    strategic: "chases Largest Army and times Monopoly for the biggest haul.",
+    reactive:  "buys with spare cards, plays a card when the use is obvious.",
+    strategic: "chases Largest Army and saves Monopoly for a big haul of what it needs.",
   },
   awareness: {
-    none:     "ignores other players; robber goes anywhere.",
-    basic:    "robs opponents, won't trade with someone about to win.",
-    advanced: "targets the leader and shifts gear near the end.",
+    none:     "ignores who is winning; robber just blocks the busiest tile.",
+    basic:    "robs the richest opponent, won't trade with someone about to win.",
+    advanced: "targets the leader, counts cards in the open and shifts gear near the end.",
   },
 };
 const AI_LEVEL_LABEL = { conservative: "Careful", aggressive: "Eager" };
@@ -168,6 +172,18 @@ const AI_DIMENSION_HINT = {
 };
 
 const DEFAULT_AI_STRATEGY = { ...AI_PRESETS.intermediate };
+
+// Planner weights (see _aiPlan), tuned with the bot tournament harness:
+//   devCard        value of a development card in VP (reactive); devStrategic: extra for strategic
+//   prodVPPerCard  VP worth of one card of future production
+//   turnsLeft      turns the planner assumes are left (advanced awareness reads the race instead)
+//   etaOffset      goals are ranked by value / (ETA + etaOffset)
+//   sideBuildDelay a build off the plan is fine if it delays the planned one by at most this many turns
+//   roadPenalty    spot-ranking penalty per road needed (medium / complex expansion)
+const AI_PLAN_WEIGHTS = {
+  devCard: 0.85, devStrategic: 0.25, prodVPPerCard: 0.12, turnsLeft: 10, etaOffset: 1, sideBuildDelay: 0.5,
+  roadPenalty: { medium: 0.45, complex: 0.4 },
+};
 
 // ── Game settings (new-game screen) ──
 const DEFAULT_SETTINGS = {
@@ -187,6 +203,9 @@ const DEFAULT_SETTINGS = {
 const RUSH_INTERVALS = [10, 15, 20, 30];
 const RUSH_DISCARD_SECONDS = 20;
 const RUSH_ROBBER_SECONDS = 30;
+const RUSH_OFFER_MS = 10000;    // a bot's offer to you stays up this long (Rush game clock)
+const CLASSIC_OFFER_MS = 15000; // Classic: a bot's offer is declined automatically after this
+
 const FRIENDLY_ROBBER_VP = 2;
 
 function normalizeSettings(raw) {
@@ -805,11 +824,27 @@ class ColonistFullGame {
     this.populateResourceSelects();
     this.bindControls();
     this._bindThemeUI();
+    this.onboarding = new Onboarding(this, {
+      costs: COSTS, labels: RESOURCE_LABEL,
+      onQuick: () => this.startNewGame({ ...DEFAULT_SETTINGS, perBot: [...DEFAULT_SETTINGS.perBot] }),
+      onSettings: () => this._showDifficultyModal(),
+    });
     if (!this.loadFromStorage()) {
+      // First launch: the board waits behind a welcome sheet (bots do not start placing yet)
+      this.onboardingHold = isFirstLaunch();
       this.resetGame();
     }
     this._buildStrategyUI();
     this.startAnimationLoop();
+    if (this.onboardingHold) this.onboarding.showWelcome();
+  }
+
+  /** Leave the first-launch hold (a game is started, or bots take over). */
+  _releaseOnboarding(resume = true) {
+    if (!this.onboardingHold) return;
+    this.onboardingHold = false;
+    this.onboarding?.close();
+    if (resume && this.setupPhase && !this.setupAction) this.processSetupQueue();
   }
 
   /** Canvas backing-store ratio: up to 3x for the SVG-art renderer (crisp tiles when zoomed on phones). */
@@ -980,6 +1015,8 @@ class ColonistFullGame {
     });
     this.tradeModalClose?.addEventListener("click", () => this.closeTradeModal());
     this.tradeModal?.addEventListener("click", (e) => { if (e.target === this.tradeModal) this.closeTradeModal(); });
+    this.tradeModal?.querySelectorAll("[data-trade-tab]").forEach((b) => b.addEventListener("click", () => this.setTradeTab(b.dataset.tradeTab)));
+
     this.tradeExecuteBtn?.addEventListener("click", () => this.handleHumanBankTrade());
     this.tradeProposalBtn?.addEventListener("click", () => this.handleHumanPlayerTrade());
     this.acceptTradeBtn?.addEventListener("click", () => this.resolveIncomingTrade(true));
@@ -1077,12 +1114,14 @@ class ColonistFullGame {
 
   // ── Bank & piece supply ──
   payToBank(player, cost) {
+    this._aiTrkNote(player, cost, -1); // public: builds, bank trades and discards are visible
     payCost(player.resources, cost);
     RESOURCES.forEach((r) => { this.bank[r] += cost[r] || 0; });
   }
 
   takeFromBank(player, resource, amount = 1) {
     const n = Math.min(amount, this.bank[resource]);
+    this._aiTrkNote(player, { [resource]: n }, 1);
     this.bank[resource] -= n;
     player.resources[resource] += n;
     return n;
@@ -1234,6 +1273,7 @@ class ColonistFullGame {
 
   // Start a fresh game with the given settings
   startNewGame(settings) {
+    this._releaseOnboarding(false);
     this.settings = normalizeSettings(settings);
     ColonistFullGame.saveLastSettings(this.settings);
     this.resetGame();
@@ -1282,6 +1322,7 @@ class ColonistFullGame {
       this.render();
       return;
     }
+    if (this.onboardingHold) { this.render(); return; } // first launch: wait for the welcome sheet
 
     // AI placement with delay
     const nodeId = this.getBestInitialSettlementNode(player);
@@ -1347,7 +1388,7 @@ class ColonistFullGame {
     }
 
     if (this.setupAction === "settlement") {
-      const nodeId = this.findNodeAt(x, y);
+      const nodeId = this.findNodeAt(x, y, (id) => this.canBuildSettlement(player, id, true));
       if (nodeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
       if (!this.canBuildSettlement(player, nodeId, true)) {
         this.confirmBuild = null;
@@ -1361,7 +1402,7 @@ class ColonistFullGame {
     }
 
     if (this.setupAction === "road") {
-      const edgeId = this.findEdgeAt(x, y);
+      const edgeId = this.findEdgeAt(x, y, (id) => { const e = this.geometry.edges[id]; return e.owner == null && e.nodes.includes(this.lastSetupNodeId); });
       if (edgeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
       const edge = this.geometry.edges[edgeId];
       const adjacent = edge.nodes.includes(this.lastSetupNodeId);
@@ -1624,10 +1665,11 @@ class ColonistFullGame {
       this.tradeRequest = makeEmptyResources();
       this.buildTradeGrids();
       this.updateTradeButtons();
-      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = '<span class="ok">Harbor trade done!</span>';
+      const rate = giveRes[give];
+      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = `<span class="ok">Traded ${rate} ${RESOURCE_LABEL[give]} → 1 ${RESOURCE_LABEL[get]}</span>`;
       this.sfx.trade();
     } else {
-      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = '<span class="no">Harbor trade failed.</span>';
+      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = '<span class="no">That trade is not possible right now.</span>';
       this.sfx.error();
     }
     this.render();
@@ -1652,37 +1694,26 @@ class ColonistFullGame {
     const x = world.x;
     const y = world.y;
 
-    // Robber placement mode
+    // Robber placement mode: the first tap only selects a tile (ghost robber + "Robber on … · steal
+    // from …" in the confirm pill); Place / the ✓ commits it.
     if (robberMode) {
+      const cb = this.confirmBuild?.type === "robber" ? this.confirmBuild : null;
+      if (cb && !this.isMobileLayout && this.hitTestConfirmIcon(x, y)) {
+        this._commitRobber(player, cb.id);
+        return;
+      }
       const hexId = this.findHexAt(x, y);
       if (hexId == null) return;
       if (!this._robberHexAllowed(hexId, player)) {
+        this.confirmBuild = null;
         this.addLog(hexId === this.robberHexId
           ? "Cannot place robber on the same hex."
           : "Friendly robber: that hex touches a player with 2 or fewer points.");
         this.render();
         return;
       }
-      this.robberHexId = hexId;
-      const hex = this.geometry.hexes[hexId];
-      this.addLog(`${player.name} moved robber to ${this._hexLabel(hex)}.`);
-      this.sfx.robber();
-      this.pendingAction = null;
-
-      // Check for steal victims
-      const victims = this._stealVictims(hexId, player);
-      if (victims.length === 0) {
-        this.addLog("No one to steal from.");
-        this.robberContext = null;
-      } else if (victims.length === 1) {
-        this.stealFromVictim(player, victims[0]);
-        this.robberContext = null;
-      } else {
-        // Multiple victims — show selection panel
-        this.robberVictimOptions = victims;
-        this.showVictimPanel(player, victims);
-      }
-      this.saveToStorage();
+      this.confirmBuild = { type: "robber", id: hexId };
+      this.sfx.click();
       this.render();
       return;
     }
@@ -1793,9 +1824,9 @@ class ColonistFullGame {
 
     // First tap: select a build spot (show confirm icon)
     if (this.pendingAction === "road") {
-      const edgeId = this.hoverEdgeId ?? this.findEdgeAt(x, y);
-      if (edgeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
       const isFreeRoad = this.freeRoadsRemaining > 0;
+      const edgeId = this.hoverEdgeId ?? this.findEdgeAt(x, y, (id) => this.canBuildRoad(player, id, { free: isFreeRoad }));
+      if (edgeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
       if (this.canBuildRoad(player, edgeId, { free: isFreeRoad })) {
         this.confirmBuild = { type: "road", id: edgeId };
       } else {
@@ -1804,7 +1835,8 @@ class ColonistFullGame {
       this.drawCanvasScene();
       return;
     } else {
-      const nodeId = this.hoverNodeId ?? this.findNodeAt(x, y);
+      const legal = this.pendingAction === "city" ? (id) => this.canBuildCity(player, id, false) : (id) => this.canBuildSettlement(player, id, false);
+      const nodeId = this.hoverNodeId ?? this.findNodeAt(x, y, legal);
       if (nodeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
       if (this.pendingAction === "settlement") {
         if (this.canBuildSettlement(player, nodeId, false)) {
@@ -1825,6 +1857,33 @@ class ColonistFullGame {
 
     this.recomputeScores();
     this.checkForWinner(player);
+    this.render();
+  }
+
+  /** Move the robber to a chosen (legal) tile and steal — the confirm step of robber mode. */
+  _commitRobber(player, hexId) {
+    if (this.pendingAction !== "robber" || !this._robberHexAllowed(hexId, player)) return;
+    this.confirmBuild = null;
+    this.robberHexId = hexId;
+    const hex = this.geometry.hexes[hexId];
+    this.addLog(`${player.name} moved robber to ${this._hexLabel(hex)}.`);
+    this.sfx.robber();
+    this.pendingAction = null;
+
+    // Check for steal victims
+    const victims = this._stealVictims(hexId, player);
+    if (victims.length === 0) {
+      this.addLog("No one to steal from.");
+      this.robberContext = null;
+    } else if (victims.length === 1) {
+      this.stealFromVictim(player, victims[0]);
+      this.robberContext = null;
+    } else {
+      // Multiple victims — show selection panel
+      this.robberVictimOptions = victims;
+      this.showVictimPanel(player, victims);
+    }
+    this.saveToStorage();
     this.render();
   }
 
@@ -2029,13 +2088,25 @@ class ColonistFullGame {
   _viewFrame() {
     const g = this.geometry, hs = g.hexSize;
     const xs = g.hexes.map((h) => h.center.x), ys = g.hexes.map((h) => h.center.y);
-    // Phones: the tiles fill the width (harbours may overlap the screen edge a little)
-    const mx = hs * (this.isMobileLayout ? 0.93 : 1.75), my = hs * (this.isMobileLayout ? 1.16 : 1.7);
+    // Phones: the island (tiles + beach) fills the width; only the harbours may touch the screen edge
+    const mobile = this.isMobileLayout;
+    const mx = hs * (mobile ? 1.05 : 1.75), my = hs * (mobile ? 1.12 : 1.7);
     const box = { minX: Math.min(...xs) - mx, maxX: Math.max(...xs) + mx, minY: Math.min(...ys) - my, maxY: Math.max(...ys) + my };
-    let fan = 0;
-    if (this.isMobileLayout && this.app) fan = parseFloat(getComputedStyle(this.app).getPropertyValue("--fan-h")) || 112;
-    const ins = this.isMobileLayout ? { t: 4, r: 0, b: fan - 6, l: 0 } : { t: 10, r: 10, b: 10, l: 10 };
+    let fan = 0, top = 4;
+    if (mobile && this.app) {
+      const cs = getComputedStyle(this.app);
+      fan = parseFloat(cs.getPropertyValue("--fan-h")) || 112;
+      top = parseFloat(cs.getPropertyValue("--board-top")) || 4;
+    }
+    const ins = mobile ? { t: top, r: 0, b: fan - 6, l: 0 } : { t: 10, r: 10, b: 10, l: 10 };
     const vp = { l: ins.l, t: ins.t, W: Math.max(50, this.boardWidth - ins.l - ins.r), H: Math.max(50, this.boardHeight - ins.t - ins.b) };
+    if (mobile) {
+      // Width-bound portrait phones: sit the island just above the hand instead of leaving an empty
+      // band of sea there (most of the spare height goes to the top, where the dice and fit button float)
+      const scale = Math.min(vp.W / (box.maxX - box.minX), vp.H / (box.maxY - box.minY));
+      const slack = vp.H - (box.maxY - box.minY) * scale;
+      if (slack > 8) { const shift = slack * 0.8; vp.t += shift; vp.H -= shift; }
+    }
     return { box, vp };
   }
 
@@ -2274,15 +2345,15 @@ class ColonistFullGame {
 
     if (this.setupPhase && player?.isHuman) {
       if (this.setupAction === "settlement") {
-        const nodeId = this.findNodeAt(worldX, worldY);
-        if (nodeId != null && this.canBuildSettlement(player, nodeId, true)) {
+        const nodeId = this.findNodeAt(worldX, worldY, (id) => this.canBuildSettlement(player, id, true));
+        if (nodeId != null) {
           this.hoverNodeId = nodeId;
           this.hoverTooltip = "Place settlement";
           this.canvas.style.cursor = "pointer";
           return;
         }
       } else if (this.setupAction === "road") {
-        const edgeId = this.findEdgeAt(worldX, worldY);
+        const edgeId = this.findEdgeAt(worldX, worldY, (id) => { const e = this.geometry.edges[id]; return e.owner == null && e.nodes.includes(this.lastSetupNodeId); });
         if (edgeId != null) {
           this.hoverEdgeId = edgeId;
           this.hoverTooltip = "Place road";
@@ -2297,7 +2368,7 @@ class ColonistFullGame {
     // Robber placement: highlight hovered hex
     if (player?.isHuman && this.pendingAction === "robber") { // also before rolling (Knight)
       const hexId = this.findHexAt(worldX, worldY);
-      if (hexId != null && hexId !== this.robberHexId) {
+      if (hexId != null && this._robberHexAllowed(hexId, player)) {
         this.hoverHexId = hexId;
         const hex = this.geometry.hexes[hexId];
         const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource];
@@ -2310,8 +2381,8 @@ class ColonistFullGame {
     }
 
     if (humanMain && this.pendingAction === "road") {
-      const edgeId = this.findEdgeAt(worldX, worldY);
-      if (edgeId != null && this.canBuildRoad(player, edgeId, { free: false })) {
+      const edgeId = this.findEdgeAt(worldX, worldY, (id) => this.canBuildRoad(player, id, { free: this.freeRoadsRemaining > 0 }));
+      if (edgeId != null) {
         this.hoverEdgeId = edgeId;
         this.canvas.style.cursor = "pointer";
       } else {
@@ -2320,12 +2391,10 @@ class ColonistFullGame {
       return;
     }
     if (humanMain && (this.pendingAction === "settlement" || this.pendingAction === "city")) {
-      const nodeId = this.findNodeAt(worldX, worldY);
-      const buildable =
-        nodeId != null &&
-        (this.pendingAction === "settlement"
-          ? this.canBuildSettlement(player, nodeId, false)
-          : this.canBuildCity(player, nodeId, false));
+      const nodeId = this.findNodeAt(worldX, worldY, (id) => (this.pendingAction === "settlement"
+        ? this.canBuildSettlement(player, id, false)
+        : this.canBuildCity(player, id, false)));
+      const buildable = nodeId != null;
       if (buildable) {
         this.hoverNodeId = nodeId;
         this.canvas.style.cursor = "pointer";
@@ -2345,11 +2414,13 @@ class ColonistFullGame {
     return null;
   }
 
-  findNodeAt(x, y) {
+  /** Nearest node within a finger-sized radius (≥ 22 CSS px); `accept` limits it to legal spots. */
+  findNodeAt(x, y, accept = null) {
     let bestId = null;
-    const hitRadius = Math.max(16, this.geometry.hexSize * 0.28);
+    const hitRadius = Math.max(22 / (this.view.scale || 1), this.geometry.hexSize * 0.28);
     let bestDist = hitRadius;
     this.geometry.nodes.forEach((node) => {
+      if (accept && !accept(node.id)) return;
       const dist = Math.hypot(x - node.x, y - node.y);
       if (dist < bestDist) {
         bestDist = dist;
@@ -2359,11 +2430,13 @@ class ColonistFullGame {
     return bestId;
   }
 
-  findEdgeAt(x, y) {
+  /** Nearest edge within ≥ 16 CSS px; `accept` limits it to legal spots. */
+  findEdgeAt(x, y, accept = null) {
     let bestId = null;
-    const hitRadius = Math.max(10, this.geometry.hexSize * 0.18);
+    const hitRadius = Math.max(16 / (this.view.scale || 1), this.geometry.hexSize * 0.18);
     let bestDist = hitRadius;
     this.geometry.edges.forEach((edge) => {
+      if (accept && !accept(edge.id)) return;
       const [a, b] = edge.nodes;
       const p1 = this.geometry.nodes[a];
       const p2 = this.geometry.nodes[b];
@@ -2476,16 +2549,27 @@ class ColonistFullGame {
     return this._runPendingRobberFlow();
   }
 
-  // Discard `count` random cards (weighted by how many of each the player holds) to the bank.
+  // Bot discard: drop the cards that hurt its build plan least (keeps the cards for the build
+  // closest to completion / its current goal; surplus it could trade away goes first).
   _autoDiscard(player, count) {
     const selected = makeEmptyResources();
+    const hand = copyResources(player.resources);
+    let plan = null;
+    try { plan = this._aiPlan(player); } catch (_) { plan = null; }
     for (let i = 0; i < count; i += 1) {
-      const candidates = RESOURCES.filter((r) => player.resources[r] - selected[r] > 0).map((r) => ({
-        resource: r,
-        weight: player.resources[r] - selected[r],
-      }));
-      if (!candidates.length) break;
-      selected[chooseRandomWeighted(candidates).resource] += 1;
+      let best = null;
+      let bestVal = Number.NEGATIVE_INFINITY;
+      RESOURCES.forEach((r) => {
+        if (hand[r] <= 0) return;
+        hand[r] -= 1;
+        // tie-break: drop from the biggest pile (most replaceable)
+        const v = (plan ? this._aiKeepValue(plan, hand) : 0) + hand[r] * 1e-4;
+        hand[r] += 1;
+        if (v > bestVal) { bestVal = v; best = r; }
+      });
+      if (!best) break;
+      hand[best] -= 1;
+      selected[best] += 1;
     }
     this.payToBank(player, selected);
     return selected;
@@ -2562,42 +2646,44 @@ class ColonistFullGame {
     this.moveRobberAndSteal(currentPlayer, targetHexId);
   }
 
+  // Robber placement by awareness level. Scores are in "cards": production blocked over the
+  // ~10 rolls the robber usually stays, plus the card stolen.
+  //   none:     blocks the busiest opponent tile, ignoring who is winning
+  //   basic:    also counts the steal, leans on players with more public VP
+  //   advanced: hunts the public VP leader (hard when near the win)
   chooseRobberHex(currentPlayer) {
-    const awareness = currentPlayer.strategy?.awareness || "basic";
-
+    const awareness = this._aiStrat(currentPlayer).awareness;
     const legal = this._legalRobberHexes(currentPlayer);
-    const legalIds = new Set(legal.map((h) => h.id));
-    // None: random non-desert hex
-    if (awareness === "none") {
-      const candidates = legal.filter(h => h.resource !== "desert" && h.number);
-      if (candidates.length) return candidates[Math.floor(Math.random() * candidates.length)].id;
-      return legal[0]?.id ?? this.robberHexId;
-    }
-
-    // Advanced: identify VP leader and target them specifically
-    const vpLeader = awareness === "advanced"
-      ? this.players.filter(p => p.id !== currentPlayer.id).sort((a, b) => b.publicVictoryPoints - a.publicVictoryPoints)[0]
-      : null;
-
+    const others = this.players.filter((p) => p.id !== currentPlayer.id);
+    const avgVP = others.reduce((a, p) => a + p.publicVictoryPoints, 0) / Math.max(1, others.length);
+    const topVP = Math.max(...others.map((p) => p.publicVictoryPoints));
+    const weight = (owner) => {
+      if (awareness === "none") return 1;
+      const p = this.players[owner];
+      if (awareness === "basic") return Math.max(0.5, 1 + 0.15 * (p.publicVictoryPoints - avgVP));
+      if (p.publicVictoryPoints < topVP) return 0.8;
+      return p.publicVictoryPoints >= this.winPoints - 3 ? 3 : 1.8;
+    };
     let bestHex = legal[0]?.id ?? this.robberHexId;
     let bestScore = Number.NEGATIVE_INFINITY;
-    this.geometry.hexes.forEach((hex) => {
-      if (!legalIds.has(hex.id)) return;
+    legal.forEach((hex) => {
+      const pips = hex.number && hex.resource !== "desert" ? DICE_WEIGHT[hex.number] : 0;
       let score = 0;
+      const victims = new Set();
       hex.nodes.forEach((nodeId) => {
         const node = this.geometry.nodes[nodeId];
-        if (node.owner == null || node.structure == null || !hex.number) return;
-        const base = (node.structure === "city" ? 2 : 1) * (DICE_WEIGHT[hex.number] / 6);
-        if (node.owner === currentPlayer.id) {
-          score -= base;
-        } else {
-          score += base;
-          // Advanced: heavily weight hexes that hurt the VP leader
-          if (awareness === "advanced" && vpLeader && node.owner === vpLeader.id) {
-            score += base * (vpLeader.publicVictoryPoints >= this.winPoints - 3 ? 2.0 : 0.8);
-          }
+        if (node.owner == null || node.structure == null) return;
+        const cards = (pips / 36) * (node.structure === "city" ? 2 : 1) * 10;
+        if (node.owner === currentPlayer.id) score -= cards * (awareness === "none" ? 1 : 1.5);
+        else {
+          score += cards * weight(node.owner);
+          if (!this._isRobberProtected(node.owner, currentPlayer) && sumResources(this.players[node.owner].resources) > 0) victims.add(node.owner);
         }
       });
+      if (awareness !== "none" && victims.size) {
+        // a steal is worth about a card; more from a big (public) hand that may hold what we need
+        score += Math.max(...[...victims].map((v) => Math.min(1.5, 0.6 + sumResources(this.players[v].resources) * 0.08) * weight(v)));
+      }
       if (score > bestScore) {
         bestScore = score;
         bestHex = hex.id;
@@ -2606,21 +2692,38 @@ class ColonistFullGame {
     return bestHex;
   }
 
+  // Who to steal from: none = random; basic = biggest hand; advanced = leader / likeliest useful card
+  // (public card-count estimates only — never the hidden hands).
+  _aiChooseVictim(currentPlayer, victims) {
+    const awareness = this._aiStrat(currentPlayer).awareness;
+    if (victims.length <= 1 || awareness === "none") return victims[Math.floor(Math.random() * victims.length)];
+    const handSize = (id) => sumResources(this.players[id].resources);
+    if (awareness === "basic") return victims.slice().sort((a, b) => handSize(b) - handSize(a))[0];
+    let need = null;
+    try { need = this._aiPlan(currentPlayer).goals[0]?.cost || null; } catch (_) { need = null; }
+    const topVP = Math.max(...this.players.filter((p) => p.id !== currentPlayer.id).map((p) => p.publicVictoryPoints));
+    let best = victims[0];
+    let bestScore = Number.NEGATIVE_INFINITY;
+    victims.forEach((id) => {
+      const p = this.players[id];
+      const est = this._aiEstimate(p);
+      const n = Math.max(1e-6, sumResources(est));
+      const useful = need ? RESOURCES.reduce((a, r) => a + ((need[r] || 0) > currentPlayer.resources[r] ? est[r] / n : 0), 0) : 0;
+      let score = useful * 2 + Math.min(8, handSize(id)) * 0.1;
+      if (p.publicVictoryPoints === topVP) score += 0.6;
+      if (p.publicVictoryPoints >= this.winPoints - 2) score += 2;
+      if (score > bestScore) { bestScore = score; best = id; }
+    });
+    return best;
+  }
+
   moveRobberAndSteal(currentPlayer, targetHexId) {
     this.robberHexId = targetHexId;
     this.addLog(`${currentPlayer.name} moved robber to ${this._hexLabel(this.geometry.hexes[targetHexId])}.`);
     this.sfx.robber();
     const victims = this._stealVictims(targetHexId, currentPlayer);
     if (!victims.length) return;
-    // Advanced awareness: steal from VP leader
-    let victimId;
-    const awareness = currentPlayer.strategy?.awareness || "basic";
-    if (awareness === "advanced" && victims.length > 1) {
-      victimId = victims.sort((a, b) => this.players[b].publicVictoryPoints - this.players[a].publicVictoryPoints)[0];
-    } else {
-      victimId = victims[Math.floor(Math.random() * victims.length)];
-    }
-    this._doSteal(currentPlayer, victimId);
+    this._doSteal(currentPlayer, this._aiChooseVictim(currentPlayer, victims));
   }
 
   _doSteal(currentPlayer, victimId) {
@@ -2632,6 +2735,7 @@ class ColonistFullGame {
     }));
     if (!available.length) return;
     const stolen = chooseRandomWeighted(available).resource;
+    this._aiTrkSteal(victim, currentPlayer); // the card itself is hidden from the other players
     victim.resources[stolen] -= 1;
     currentPlayer.resources[stolen] += 1;
     this.addLog(`${currentPlayer.name} stole 1 ${RESOURCE_LABEL[stolen]} from ${victim.name}.`);
@@ -2723,7 +2827,7 @@ class ColonistFullGame {
 
   // ── Trade Modal ──────────────────────────────────────────────────────
 
-  openTradeModal() {
+  openTradeModal(tab = null) {
     if (!this.tradeModal) return;
     // Toggle: if already open, close it
     if (this.tradeModal.style.display !== "none") {
@@ -2734,6 +2838,7 @@ class ColonistFullGame {
     this.tradeOffer = makeEmptyResources();
     this.tradeRequest = makeEmptyResources();
     this.tradeLocked = false;
+    this.tradeTab = tab || this.tradeTab || "bank";
     if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
     this.buildTradeGrids();
     this.updateTradeButtons();
@@ -2752,73 +2857,137 @@ class ColonistFullGame {
     this.closeTradeModal();
   }
 
+  /** Bank | Players tabs. Switching clears the selection (the two trades work differently). */
+  setTradeTab(tab) {
+    if (this.tradeLocked || (tab !== "bank" && tab !== "players")) return;
+    if (tab !== this.tradeTab) {
+      this.tradeTab = tab;
+      this.tradeOffer = makeEmptyResources();
+      this.tradeRequest = makeEmptyResources();
+      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
+    }
+    this.buildTradeGrids();
+    this.updateTradeButtons();
+  }
+
   buildTradeGrids() {
     const player = this.currentPlayer;
-    const maxOffer = player?.isHuman ? player.resources : null;
-    this._renderResourceGrid(this.tradeOfferGrid, this.tradeOffer, maxOffer, true);
-    this._renderResourceGrid(this.tradeRequestGrid, this.tradeRequest, null, false);
+    const tab = this.tradeTab || "bank";
+    this.tradeModal?.querySelectorAll("[data-trade-tab]").forEach((b) => {
+      const on = b.dataset.tradeTab === tab;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-selected", String(on));
+    });
+    const bankPane = document.querySelector("#tradeBankPane"), playersPane = document.querySelector("#tradePlayersPane");
+    if (bankPane) bankPane.hidden = tab !== "bank";
+    if (playersPane) playersPane.hidden = tab !== "players";
+    if (tab === "bank") {
+      this._renderBankGrid(this.tradeOfferGrid, true);
+      this._renderBankGrid(this.tradeRequestGrid, false);
+    } else {
+      this._renderTradeRows(player);
+    }
     this._renderTradeHand(player);
   }
 
   _renderTradeHand(player) {
-    // Rates row: bank 4:1 plus the harbours this player owns
-    const el = document.querySelector("#tradeRates");
-    if (!el || !player) return;
-    const ports = new Set();
-    [...player.settlements, ...player.cities].forEach((n) => this.geometry.nodes[n].ports.forEach((t) => ports.add(t)));
-    const chips = [`<span class="rate">${icon("bank")}Bank 4 : 1</span>`];
-    if (ports.has("any")) chips.push(`<span class="rate">${icon("trade")}Any 3 : 1</span>`);
-    RESOURCES.filter((r) => ports.has(r)).forEach((r) => chips.push(`<span class="rate">${icon(r)}Your harbor 2 : 1</span>`));
-    el.innerHTML = chips.join("");
+    // One calm line under the tabs: what this tab does (+ your rates for the bank)
+    const lead = document.querySelector("#tradeLead");
+    if (!lead || !player) return;
+    if ((this.tradeTab || "bank") === "bank") {
+      const ports = new Set();
+      [...player.settlements, ...player.cities].forEach((n) => this.geometry.nodes[n].ports.forEach((t) => ports.add(t)));
+      const rate = ports.has("any") ? "3 of a kind" : "4 of a kind";
+      const two = RESOURCES.filter((r) => ports.has(r)).map((r) => `2 ${RESOURCE_LABEL[r]}`);
+      lead.textContent = `Tap what you give, then what you get. ${rate}${two.length ? ` (${two.join(", ")})` : ""} for 1 card.`;
+    } else {
+      lead.textContent = "Offer any mix of cards. Bots say yes or no; you pick who to trade with.";
+    }
   }
 
-  _renderResourceGrid(container, counts, maxCounts, isOffer) {
+  /** Bank tab: one tap picks the full set you give (at your rate), one tap picks the card you get. */
+  _renderBankGrid(container, isOffer) {
     if (!container) return;
     const player = this.currentPlayer;
+    if (!player) return;
+    const give = RESOURCES.find((r) => this.tradeOffer[r] > 0) || null;
+    const get = RESOURCES.find((r) => this.tradeRequest[r] > 0) || null;
     container.innerHTML = RESOURCES.map((resource) => {
-      const max = maxCounts ? maxCounts[resource] : 19;
-      const count = counts[resource];
-      const rate = isOffer && player ? this.getPlayerTradeRate(player, resource) : null;
-      return `<div class="rcell trade-res-item${count > 0 ? " pick" : ""}${isOffer && !max ? " dim" : ""}">
-        ${rate && rate < 4 ? `<span class="rate-tag">${rate}:1</span>` : ""}
-        <button type="button" class="card trade-res-card ${resource}${count > 0 ? " has-count" : ""}" data-res="${resource}" aria-label="${isOffer ? "Give" : "Want"} ${RESOURCE_LABEL[resource]}">${cardSvg(resource)}</button>
-        <span class="n">${count}</span>
-        ${isOffer ? `<span class="have">of ${max}</span>` : ""}
-        <div class="step"><button type="button" class="trade-res-minus" data-minus="${resource}" aria-label="One less" ${count > 0 && !this.tradeLocked ? "" : "disabled"}>−</button><button type="button" data-plus="${resource}" aria-label="One more" ${count < max && !this.tradeLocked ? "" : "disabled"}>+</button></div>
+      const rate = this.getPlayerTradeRate(player, resource);
+      const have = player.resources[resource];
+      const picked = isOffer ? give === resource : get === resource;
+      const usable = isOffer ? have >= rate : resource !== give && this.bank[resource] > 0;
+      return `<div class="rcell bank-cell${picked ? " pick" : ""}${usable ? "" : " dim"}">
+        <button type="button" class="card trade-res-card ${resource}" data-res="${resource}" aria-pressed="${picked}" aria-label="${isOffer ? `Give ${rate}` : "Get 1"} ${RESOURCE_LABEL[resource]}" ${usable || picked ? "" : "aria-disabled=\"true\""}>${cardSvg(resource)}</button>
+        <span class="have">${isOffer ? `you have ${have}` : RESOURCE_LABEL[resource]}</span>
+        ${isOffer ? `<span class="rate-tag${rate < 4 ? " port" : ""}">${rate} : 1</span>` : ""}
       </div>`;
     }).join("");
-    const inc = (resource) => {
-      if (this.tradeLocked) return; // grid is locked while a proposal is pending
-      const max = maxCounts ? maxCounts[resource] : 19;
-      if (counts[resource] + 1 > max) return;
-      counts[resource] += 1;
-      this._refreshTradeGrids();
-    };
     container.querySelectorAll(".trade-res-card").forEach((card) => {
       card.addEventListener("click", () => {
-        // "You give": the first tap on a card offers a full bank/harbor set (fewer taps to trade)
+        if (this.tradeLocked) return;
         const res = card.dataset.res;
-        if (isOffer && player && !this.tradeLocked && counts[res] === 0) {
+        if (isOffer) {
           const rate = this.getPlayerTradeRate(player, res);
-          const max = maxCounts ? maxCounts[res] : 19;
-          if (max >= rate) { counts[res] = rate; this._refreshTradeGrids(); return; }
+          if (player.resources[res] < rate) {
+            this._tradeHint(`You need ${rate} ${RESOURCE_LABEL[res]} to trade with the bank.`);
+            return;
+          }
+          const was = this.tradeOffer[res] > 0;
+          this.tradeOffer = makeEmptyResources();
+          if (!was) this.tradeOffer[res] = rate;
+          if (this.tradeRequest[res]) this.tradeRequest = makeEmptyResources();
+        } else {
+          if (res === give || this.bank[res] < 1) return;
+          const was = this.tradeRequest[res] > 0;
+          this.tradeRequest = makeEmptyResources();
+          if (!was) this.tradeRequest[res] = 1;
         }
-        inc(res);
-      });
-      card.addEventListener("contextmenu", (e) => {
-        e.preventDefault();
-        if (this.tradeLocked || counts[card.dataset.res] <= 0) return;
-        counts[card.dataset.res] -= 1;
+        this.sfx.click();
         this._refreshTradeGrids();
       });
     });
-    container.querySelectorAll("[data-plus]").forEach((b) => b.addEventListener("click", () => inc(b.dataset.plus)));
-    container.querySelectorAll("[data-minus]").forEach((b) => b.addEventListener("click", (e) => {
-      e.stopPropagation();
+  }
+
+  /** Players tab: one row per resource with 44 px − / + steppers for what you give and what you get. */
+  _renderTradeRows(player) {
+    const el = document.querySelector("#tradeRows");
+    if (!el || !player) return;
+    const lock = this.tradeLocked;
+    const stepper = (side, r, n, max) => `<div class="tstep" data-side="${side}">
+        <button type="button" data-${side}-minus="${r}" aria-label="${side === "give" ? "Give" : "Get"} one ${RESOURCE_LABEL[r]} less" ${n > 0 && !lock ? "" : "disabled"}>${icon("minus")}</button>
+        <span class="tn${n ? " on" : ""}">${n}</span>
+        <button type="button" data-${side}-plus="${r}" aria-label="${side === "give" ? "Give" : "Get"} one ${RESOURCE_LABEL[r]} more" ${n < max && !lock ? "" : "disabled"}>${icon("plus")}</button>
+      </div>`;
+    el.innerHTML = RESOURCES.map((r) => {
+      const have = player.resources[r];
+      return `<div class="trow${this.tradeOffer[r] || this.tradeRequest[r] ? " pick" : ""}">
+        ${stepper("give", r, this.tradeOffer[r], have)}
+        <div class="tres"><span class="card">${cardSvg(r)}</span><span><b>${RESOURCE_LABEL[r]}</b><small>you have ${have}</small></span></div>
+        ${stepper("get", r, this.tradeRequest[r], 19)}
+      </div>`;
+    }).join("");
+    const change = (side, r, d) => {
       if (this.tradeLocked) return;
-      counts[b.dataset.minus] = Math.max(0, counts[b.dataset.minus] - 1);
+      const mine = side === "give" ? this.tradeOffer : this.tradeRequest;
+      const other = side === "give" ? this.tradeRequest : this.tradeOffer;
+      const max = side === "give" ? player.resources[r] : 19;
+      mine[r] = clamp(mine[r] + d, 0, max);
+      if (d > 0) other[r] = 0; // never give and get the same card
+      this.sfx.click();
       this._refreshTradeGrids();
-    }));
+    };
+    el.querySelectorAll("button").forEach((b) => {
+      const [k, r] = Object.entries(b.dataset)[0] || [];
+      if (!k) return;
+      const side = k.startsWith("give") ? "give" : "get";
+      b.addEventListener("click", () => change(side, r, k.endsWith("Plus") ? 1 : -1));
+    });
+  }
+
+  _tradeHint(text) {
+    const hint = document.querySelector("#tradeHint");
+    if (hint) hint.textContent = text;
   }
 
   _refreshTradeGrids() {
@@ -2829,46 +2998,43 @@ class ColonistFullGame {
   updateTradeButtons() {
     const player = this.currentPlayer;
     if (!player || !player.isHuman) return;
+    const tab = this.tradeTab || "bank";
     const offerTotal = sumResources(this.tradeOffer);
     const requestTotal = sumResources(this.tradeRequest);
-
-    // Bank trade: exactly 1 resource type offered, exactly 1 requested, at correct rate
-    const offeredTypes = RESOURCES.filter(r => this.tradeOffer[r] > 0);
-    const requestedTypes = RESOURCES.filter(r => this.tradeRequest[r] > 0);
+    const offeredTypes = RESOURCES.filter((r) => this.tradeOffer[r] > 0);
+    const requestedTypes = RESOURCES.filter((r) => this.tradeRequest[r] > 0);
+    // Bank trade: exactly one full set at your rate for exactly 1 card
     let canBank = false;
     if (offeredTypes.length === 1 && requestedTypes.length === 1 && offeredTypes[0] !== requestedTypes[0]) {
       const giveRes = offeredTypes[0];
       const rate = this.getPlayerTradeRate(player, giveRes);
       canBank = this.tradeOffer[giveRes] === rate && this.tradeRequest[requestedTypes[0]] === 1
-        && this.bank[requestedTypes[0]] >= 1;
+        && this.bank[requestedTypes[0]] >= 1 && player.resources[giveRes] >= rate;
     }
     if (this.tradeExecuteBtn) {
+      this.tradeExecuteBtn.hidden = tab !== "bank";
       this.tradeExecuteBtn.disabled = !canBank;
-      const rate = offeredTypes.length === 1 ? this.getPlayerTradeRate(player, offeredTypes[0]) : 4;
-      this.tradeExecuteBtn.innerHTML = `${icon("bank")}<span>${rate < 4 ? "Harbor" : "Bank"} ${rate}:1</span>`;
+      const give = offeredTypes[0], get = requestedTypes[0];
+      const label = canBank ? `Trade ${this.tradeOffer[give]} ${RESOURCE_LABEL[give]} → 1 ${RESOURCE_LABEL[get]}`
+        : !give ? "Pick what you give" : "Pick what you get";
+      this.tradeExecuteBtn.innerHTML = `${icon("bank")}<span>${label}</span>`;
     }
-    // Say why the bank/harbor trade is not available yet
-    const hint = document.querySelector("#tradeHint");
-    if (hint) {
-      let why = "";
-      if (!canBank) {
-        if (!offerTotal && !requestTotal) why = "Bank: give 4 of one kind (less at your harbors) for 1 card. Ask players: any mix.";
-        else if (offeredTypes.length !== 1) why = "Bank trades take one kind of card.";
-        else if (requestedTypes.length !== 1 || this.tradeRequest[requestedTypes[0]] !== 1) why = "Bank: pick exactly 1 card you want.";
-        else if (offeredTypes[0] === requestedTypes[0]) why = "Pick a different card to get.";
-        else if (this.bank[requestedTypes[0]] < 1) why = `The bank is out of ${RESOURCE_LABEL[requestedTypes[0]]}.`;
-        else {
-          const rate = this.getPlayerTradeRate(player, offeredTypes[0]);
-          why = `Bank: give exactly ${rate} ${RESOURCE_LABEL[offeredTypes[0]]} for 1.`;
-        }
-      }
-      hint.textContent = why;
-    }
-    // Player trade: any non-zero offer and request, with no resource on both sides
     if (this.tradeProposalBtn) {
-      const overlap = RESOURCES.some(r => this.tradeOffer[r] > 0 && this.tradeRequest[r] > 0);
-      this.tradeProposalBtn.disabled = !(offerTotal > 0 && requestTotal > 0) || overlap;
+      const overlap = RESOURCES.some((r) => this.tradeOffer[r] > 0 && this.tradeRequest[r] > 0);
+      this.tradeProposalBtn.hidden = tab !== "players";
+      this.tradeProposalBtn.disabled = !(offerTotal > 0 && requestTotal > 0) || overlap || this.tradeLocked;
     }
+    // One short, correct hint for the active tab
+    let why = "";
+    if (tab === "bank") {
+      if (!offerTotal && !RESOURCES.some((r) => player.resources[r] >= this.getPlayerTradeRate(player, r))) why = "You don't hold a full set yet. Try the Players tab.";
+      else if (offeredTypes.length === 1 && requestedTypes.length === 1 && this.bank[requestedTypes[0]] < 1) why = `The bank is out of ${RESOURCE_LABEL[requestedTypes[0]]}.`;
+    } else if (!this.tradeLocked) {
+      if (!offerTotal && !requestTotal) why = "";
+      else if (!offerTotal) why = "Add at least one card to give.";
+      else if (!requestTotal) why = "Add at least one card you want.";
+    }
+    this._tradeHint(why);
   }
 
   // A player trade is only valid on the proposer's own main phase, in the same turn it was
@@ -2897,7 +3063,7 @@ class ColonistFullGame {
     // Check player can afford offer
     for (const r of RESOURCES) {
       if (player.resources[r] < offer[r]) {
-        if (this.tradeProposalResult) this.tradeProposalResult.textContent = `Not enough ${r}.`;
+        if (this.tradeProposalResult) this.tradeProposalResult.textContent = `Not enough ${RESOURCE_LABEL[r]}.`;
         return;
       }
     }
@@ -2912,11 +3078,11 @@ class ColonistFullGame {
       if (accepts) acceptors.push(other);
     }
 
-    // Show visual response for each player
+    // Each bot's answer as a chip: portrait + ✓ / ✗
+    const unlock = () => { this.tradeLocked = false; this.buildTradeGrids(); this.updateTradeButtons(); };
     if (this.tradeProposalResult) {
-      this.tradeProposalResult.innerHTML = responses.map(r =>
-        `<span class="who pc-${r.player.id}">${r.player.name}</span> ${r.accepts ? '<span class="ok">✓</span>' : '<span class="no">✗</span>'}`
-      ).join("&nbsp;&nbsp;");
+      this.tradeProposalResult.innerHTML = `<div class="answers">${responses.map((r) =>
+        `<span class="answer pc-${r.player.id}${r.accepts ? " yes" : ""}">${this._av(r.player)}<span class="who pc-${r.player.id}">${r.player.name}</span>${r.accepts ? '<span class="ok">✓</span>' : '<span class="no">✗</span>'}</span>`).join("")}</div>`;
     }
 
     if (acceptors.length > 0) {
@@ -2927,7 +3093,7 @@ class ColonistFullGame {
         const executeTrade = this._guard((partner) => {
           if (!this._playerTradeStillValid(player, turnSerial, partner, offer, request)) {
             this.tradeProposalResult.innerHTML = '<span class="no">Trade no longer valid.</span>';
-            this.tradeLocked = false;
+            unlock();
             return;
           }
           RESOURCES.forEach((r) => {
@@ -2937,57 +3103,42 @@ class ColonistFullGame {
             partner.resources[r] += offer[r];
           });
           this.addLog(`Traded with ${partner.name}: gave ${resourceString(offer)} for ${resourceString(request)}.`);
+          this._animateTradeCards(offer, request);
           this.sfx.trade();
           this.tradeOffer = makeEmptyResources();
           this.tradeRequest = makeEmptyResources();
-          this.buildTradeGrids();
-          this.updateTradeButtons();
-          this.tradeProposalResult.innerHTML = `<span class="ok">Traded with ${partner.name}!</span>`;
-          this.tradeLocked = false;
+          this.tradeProposalResult.innerHTML = `<span class="ok">Traded with ${partner.name}: ${resourceString(offer)} → ${resourceString(request)}</span>`;
+          unlock();
           this.render();
         });
 
-        if (acceptors.length === 1) {
-          // Single acceptor: confirm/cancel
-          this.tradeProposalResult.innerHTML += `<br><span class="ok">${acceptors[0].name} accepts!</span>`;
-          const btnRow = document.createElement("div");
-          btnRow.className = "row";
-          const confirmBtn = document.createElement("button");
-          confirmBtn.className = "primary-sm";
-          confirmBtn.textContent = "Confirm";
-          const cancelBtn = document.createElement("button");
-          cancelBtn.className = "btn-neutral";
-          cancelBtn.textContent = "Cancel";
-          confirmBtn.addEventListener("click", () => executeTrade(acceptors[0]));
-          cancelBtn.addEventListener("click", () => {
-            this.tradeProposalResult.innerHTML = '<span>Trade cancelled.</span>';
-            this.tradeLocked = false;
-          });
-          btnRow.appendChild(confirmBtn);
-          btnRow.appendChild(cancelBtn);
-          this.tradeProposalResult.appendChild(btnRow);
-        } else {
-          // Multiple acceptors: let player choose
-          this.tradeProposalResult.innerHTML += `<br><span style="font-size:0.65rem">Choose trading partner:</span>`;
-          const btnRow = document.createElement("div");
-          btnRow.className = "row";
-          acceptors.forEach(acc => {
-            const btn = document.createElement("button");
-            btn.className = "primary-sm";
-            btn.innerHTML = `${acc.name}`;
-            btn.addEventListener("click", () => executeTrade(acc));
-            btnRow.appendChild(btn);
-          });
-          const cancelBtn = document.createElement("button");
-          cancelBtn.className = "btn-neutral";
-          cancelBtn.textContent = "Cancel";
-          cancelBtn.addEventListener("click", () => {
-            this.tradeProposalResult.innerHTML = '<span>Trade cancelled.</span>';
-            this.tradeLocked = false;
-          });
-          btnRow.appendChild(cancelBtn);
-          this.tradeProposalResult.appendChild(btnRow);
-        }
+        // Partner buttons: portrait + name in the player's colour (one per bot that said yes)
+        const lead = document.createElement("div");
+        lead.className = "pick-lead";
+        lead.textContent = acceptors.length === 1 ? `${acceptors[0].name} accepts. Trade?` : "Pick who to trade with:";
+        this.tradeProposalResult.appendChild(lead);
+        const btnRow = document.createElement("div");
+        btnRow.className = "row partners";
+        acceptors.forEach((acc) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = `partner-btn pc-${acc.id}`;
+          btn.dataset.partner = String(acc.id);
+          btn.innerHTML = `${this._av(acc)}<span>Trade with <b class="who pc-${acc.id}">${acc.name}</b></span>`;
+          btn.addEventListener("click", () => executeTrade(acc));
+          btnRow.appendChild(btn);
+        });
+        const cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.className = "btn-neutral";
+        cancelBtn.textContent = "Cancel";
+        cancelBtn.addEventListener("click", () => {
+          this.tradeProposalResult.innerHTML = '<span>Trade cancelled.</span>';
+          unlock();
+        });
+        btnRow.appendChild(cancelBtn);
+        this.tradeProposalResult.appendChild(btnRow);
+        this.updateTradeButtons();
       }
     } else {
       this.addLog("All players rejected your trade offer.");
@@ -2996,11 +3147,13 @@ class ColonistFullGame {
       if (counter && this.tradeProposalResult) {
         const cGive = resourceString(counter.give);
         const cWant = resourceString(counter.want);
-        this.tradeProposalResult.innerHTML += `<br><span class="who pc-${counter.player.id}">${counter.player.name}</span>: “I'll give ${cGive} for ${cWant}.”`;
+        this.tradeProposalResult.insertAdjacentHTML("beforeend", `<div class="pick-lead"><span class="who pc-${counter.player.id}">${counter.player.name}</span> offers: ${cGive} for your ${cWant}.</div>`);
         // Add accept button for counter-offer
         const acceptBtn = document.createElement("button");
-        acceptBtn.className = "primary-sm";
-        acceptBtn.textContent = "Accept";
+        acceptBtn.type = "button";
+        acceptBtn.className = `partner-btn pc-${counter.player.id}`;
+        acceptBtn.dataset.partner = String(counter.player.id);
+        acceptBtn.innerHTML = `${this._av(counter.player)}<span>Accept <b class="who pc-${counter.player.id}">${counter.player.name}</b>'s offer</span>`;
         acceptBtn.addEventListener("click", this._guard(() => {
           // Execute the counter-offer trade — revalidate turn, phase and both hands first
           const human = player;
@@ -3016,147 +3169,155 @@ class ColonistFullGame {
             counter.player.resources[r] += counter.want[r];
           });
           this.addLog(`You traded with ${counter.player.name}: gave ${cWant} for ${cGive}.`);
+          this._animateTradeCards(counter.want, counter.give);
           this.sfx.trade();
           this.tradeOffer = makeEmptyResources();
           this.tradeRequest = makeEmptyResources();
-          this.buildTradeGrids();
-          this.updateTradeButtons();
-          this.tradeProposalResult.innerHTML = `<span class="ok">Traded with ${counter.player.name}!</span>`;
-          this.tradeLocked = false;
+          this.tradeProposalResult.innerHTML = `<span class="ok">Traded with ${counter.player.name}: ${cWant} → ${cGive}</span>`;
+          unlock();
           this.render();
         }));
-        this.tradeProposalResult.appendChild(acceptBtn);
+        const row = document.createElement("div");
+        row.className = "row partners";
+        row.appendChild(acceptBtn);
+        this.tradeProposalResult.appendChild(row);
       }
     }
   }
 
   // ── AI Trade Evaluation ─────────────────────────────────────────────
 
-  aiEvaluateTrade(aiPlayer, theyGive, theyWant) {
-    const strat = aiPlayer.strategy?.trading || "balanced";
-    if (strat === "none" || strat === "conservative") return false;
+  // Would this bot accept: it receives `theyGive`, hands over `theyWant`, from `proposer`?
+  // Rules (balanced/aggressive only): never help a public leader near the win; cards received must be
+  // >= cards given, except a 2-for-1 that completes a build right now and beats the bank; and the
+  // trade must clearly improve its own plan (best build value per expected turn).
+  aiEvaluateTrade(aiPlayer, theyGive, theyWant, proposer = this.currentPlayer) {
+    const strat = this._aiStrat(aiPlayer);
+    if (strat.trading === "none" || strat.trading === "conservative") return false;
+    if (RESOURCES.some((r) => aiPlayer.resources[r] < (theyWant[r] || 0))) return false;
+    if (RESOURCES.some((r) => (theyWant[r] || 0) > 0 && (theyGive[r] || 0) > 0)) return false;
+    const given = sumResources(theyWant);
+    const got = sumResources(theyGive);
+    if (!given || !got) return false;
+    if (proposer && proposer.id !== aiPlayer.id && this._aiHelpsLeader(proposer)) return false;
+    // Advanced awareness: no deals with anyone clearly ahead of it
+    if (strat.awareness === "advanced" && proposer && proposer.id !== aiPlayer.id
+      && proposer.publicVictoryPoints >= aiPlayer.publicVictoryPoints + 2) return false;
 
-    // Check AI can afford what's being asked
-    for (const r of RESOURCES) {
-      if (aiPlayer.resources[r] < theyWant[r]) return false;
+    const plan = this._aiPlan(aiPlayer);
+    if (!plan.goals.length) return false;
+    const after = copyResources(aiPlayer.resources);
+    RESOURCES.forEach((r) => { after[r] += (theyGive[r] || 0) - (theyWant[r] || 0); });
+    if (got < given) {
+      if (given - got > 1) return false;
+      const completes = plan.goals.some((g) => !hasResources(aiPlayer.resources, this._aiStepCost(g))
+        && hasResources(after, this._aiStepCost(g)));
+      const cheapestRate = Math.min(...RESOURCES.filter((r) => theyWant[r] > 0).map((r) => (plan.rates ? plan.rates[r] : 4)));
+      if (!completes || given >= cheapestRate) return false;
     }
+    const before = this._aiBestScore(plan, aiPlayer.resources);
+    const afterScore = this._aiBestScore(plan, after);
+    const margin = strat.trading === "aggressive" ? 0.03 : 0.08;
+    return afterScore > before * (1 + margin) + 1e-6;
+  }
 
-    // Opponent awareness affects trade willingness
-    const awareness = aiPlayer.strategy?.awareness || "basic";
-    const maxVP = Math.max(...this.players.filter(p => p.id !== aiPlayer.id).map(p => p.publicVictoryPoints));
-    if (awareness === "basic" && maxVP >= this.winPoints - 2) return false;
-    if (awareness === "advanced" && maxVP >= this.winPoints - 3) return false;
-
-    // Quick accept: 1:1 trade where AI has surplus and needs what's offered
-    const giveTotal = sumResources(theyWant);
-    const getTotal = sumResources(theyGive);
-    if (giveTotal === 1 && getTotal === 1) {
-      const giveRes = RESOURCES.find(r => theyWant[r] > 0);
-      const getRes = RESOURCES.find(r => theyGive[r] > 0);
-      // Accept if AI has 2+ of what's asked and needs what's offered for any goal
-      const goals = [COSTS.city, COSTS.settlement, COSTS.development, COSTS.road];
-      const needsGet = goals.some(g => (g[getRes] || 0) > aiPlayer.resources[getRes]);
-      const hasSurplus = aiPlayer.resources[giveRes] >= 2;
-      if (needsGet && hasSurplus) return true;
-    }
-
-    // Score: does the trade help AI reach a goal?
-    const goals = [COSTS.city, COSTS.settlement, COSTS.development, COSTS.road];
-    const resBefore = { ...aiPlayer.resources };
-    const resAfter = {};
-    RESOURCES.forEach((r) => {
-      resAfter[r] = resBefore[r] - theyWant[r] + theyGive[r];
-    });
-
-    let scoreBefore = 0;
-    let scoreAfter = 0;
-    for (const goal of goals) {
-      const defBefore = RESOURCES.reduce((sum, r) => sum + Math.max(0, (goal[r] || 0) - resBefore[r]), 0);
-      const defAfter = RESOURCES.reduce((sum, r) => sum + Math.max(0, (goal[r] || 0) - resAfter[r]), 0);
-      scoreBefore += defBefore === 0 ? 10 : (1 / (1 + defBefore));
-      scoreAfter += defAfter === 0 ? 10 : (1 / (1 + defAfter));
-    }
-
-    // Aggressive: accept marginal trades; Balanced: need clear improvement
-    const threshold = strat === "aggressive" ? 0.0 : 0.05;
-    return scoreAfter > scoreBefore + threshold;
+  // A public leader close to winning (visible VP only): bots won't trade with them.
+  _aiHelpsLeader(partner) {
+    const pv = partner.publicVictoryPoints;
+    if (pv >= this.winPoints - 2) return true;
+    const top = Math.max(...this.players.map((p) => p.publicVictoryPoints));
+    return pv >= Math.round(this.winPoints * 0.7) && pv >= top;
   }
 
   // Generate a counter-offer: "I'll give you what you want, but I need X from you instead"
   _generateCounterOffer(humanPlayer, humanOffer, humanRequest) {
     const requestedRes = RESOURCES.filter(r => humanRequest[r] > 0);
-    if (!requestedRes.length) return null;
+    if (!requestedRes.length || this._aiHelpsLeader(humanPlayer)) return null;
+    const offeredRes = RESOURCES.filter(r => humanOffer[r] > 0);
 
     for (const ai of this.players) {
       if (ai.isHuman || ai.id === humanPlayer.id) continue;
-      const strat = ai.strategy?.trading || "balanced";
+      const strat = this._aiStrat(ai).trading;
       if (strat === "none" || strat === "conservative") continue;
-
-      // Can this AI give what the human wants?
-      let canGive = true;
-      for (const r of requestedRes) {
-        if (ai.resources[r] < humanRequest[r]) { canGive = false; break; }
+      if (ai.resources[requestedRes[0]] < 1) continue;
+      // What the bot's plan is short of (and not what the human already offered or asked for)
+      const goal = this._aiPlan(ai).goals[0];
+      if (!goal) continue;
+      const newNeeds = RESOURCES.filter((r) => (goal.cost[r] || 0) > ai.resources[r]
+        && !offeredRes.includes(r) && !requestedRes.includes(r) && humanPlayer.resources[r] > 0);
+      for (const need of newNeeds) {
+        const want = makeEmptyResources();
+        want[need] = 1;
+        const give = makeEmptyResources();
+        give[requestedRes[0]] = 1;
+        // Only counter with a deal the bot itself would accept
+        if (this.aiEvaluateTrade(ai, want, give, humanPlayer)) return { player: ai, give, want };
       }
-      if (!canGive) continue;
-
-      // What does the AI actually need? (different from what human offered)
-      const goals = [COSTS.city, COSTS.settlement, COSTS.development, COSTS.road];
-      const aiNeeds = RESOURCES.filter(r => {
-        return goals.some(g => (g[r] || 0) > ai.resources[r]) && humanPlayer.resources[r] > 0;
-      });
-      // Filter out resources the human already offered (that's the original offer)
-      const offeredRes = RESOURCES.filter(r => humanOffer[r] > 0);
-      // ...and never ask for the same resource the AI would be giving
-      const newNeeds = aiNeeds.filter(r => !offeredRes.includes(r) && !requestedRes.includes(r));
-      if (!newNeeds.length) continue;
-
-      // Counter: AI gives what human wants, but wants a different resource
-      const want = makeEmptyResources();
-      want[newNeeds[0]] = 1;
-      const give = makeEmptyResources();
-      give[requestedRes[0]] = 1;
-      return { player: ai, give, want };
     }
     return null;
   }
 
-  // AI proposes trades during its turn
-  aiTryPlayerTrade(aiPlayer) {
-    const strat = aiPlayer.strategy?.trading || "balanced";
+  // AI proposes trades during its turn: 1-for-1 of a spare card for one its plan is short of
+  // (aggressive bots also try 2-for-1 when that finishes a build now). Partners are picked from
+  // public information only (estimated hands), never from looking at hidden cards.
+  aiTryPlayerTrade(aiPlayer, { botsOnly = false } = {}) {
+    const strat = this._aiStrat(aiPlayer).trading;
     if (strat === "none" || strat === "conservative") return null;
-    const goals = [COSTS.city, COSTS.settlement, COSTS.development, COSTS.road];
-    for (const goal of goals) {
-      if (hasResources(aiPlayer.resources, goal)) continue;
-      // Find what we need
-      const needs = RESOURCES.filter(r => (goal[r] || 0) > aiPlayer.resources[r]);
-      // Find what we have surplus of
-      const surpluses = RESOURCES.filter(r => {
-        const needed = goals.reduce((max, g) => Math.max(max, g[r] || 0), 0);
-        return aiPlayer.resources[r] > needed;
-      });
-      if (!needs.length || !surpluses.length) continue;
-
-      const wanted = needs[0];
-      const giving = surpluses[0];
-      if (wanted === giving) continue;
-
-      const offer = makeEmptyResources();
-      const request = makeEmptyResources();
-      offer[giving] = 1;
-      request[wanted] = 1;
-
-      // Try trading with each other player
-      for (const other of this.players) {
-        if (other.id === aiPlayer.id) continue;
-        if (other.resources[wanted] <= 0) continue;
-
+    const plan = this._aiPlan(aiPlayer);
+    const goal = plan.goals[0];
+    if (!goal || goal.eta === 0) return null;
+    const hand = aiPlayer.resources;
+    const cost = goal.cost;
+    const second = plan.goals[1]?.cost || {};
+    const short = (r) => (cost[r] || 0) - hand[r];
+    const needs = RESOURCES.filter((r) => short(r) > 0)
+      .sort((a, b) => short(b) / (plan.incTurn[b] + 0.05) - short(a) / (plan.incTurn[a] + 0.05));
+    const spare = (r) => hand[r] - (cost[r] || 0);
+    const surplus = RESOURCES.filter((r) => spare(r) > 0)
+      .sort((a, b) => (spare(b) - (second[b] || 0) * 0.5) - (spare(a) - (second[a] || 0) * 0.5));
+    if (!needs.length || !surplus.length) return null;
+    const offers = [];
+    for (const wanted of needs) {
+      for (const giving of surplus) {
+        if (giving === wanted) continue;
+        const offer = makeEmptyResources();
+        const request = makeEmptyResources();
+        offer[giving] = 1;
+        request[wanted] = 1;
+        offers.push({ offer, request });
+        if (strat === "aggressive" && spare(giving) >= 2) {
+          const after = copyResources(hand);
+          after[giving] -= 2;
+          after[wanted] += 1;
+          if (hasResources(after, this._aiStepCost(goal))) {
+            const offer2 = makeEmptyResources();
+            offer2[giving] = 2;
+            offers.push({ offer: offer2, request });
+          }
+        }
+      }
+    }
+    const maxOffers = strat === "aggressive" ? 6 : 2;
+    const partners = this.players.filter((p) => p.id !== aiPlayer.id && !this._aiHelpsLeader(p))
+      .sort((a, b) => a.publicVictoryPoints - b.publicVictoryPoints);
+    for (const { offer, request } of offers.slice(0, maxOffers)) {
+      const after = copyResources(hand);
+      RESOURCES.forEach((r) => { after[r] += request[r] - offer[r]; });
+      const eta = this._aiEta(cost, after, plan.incTurn, plan.rates);
+      if (eta > goal.eta - (strat === "aggressive" ? 0.1 : 0.25)) continue;
+      const wanted = RESOURCES.find((r) => request[r] > 0);
+      for (const other of partners) {
+        if (this._aiEstimate(other)[wanted] < 0.5) continue; // probably doesn't hold it (public estimate)
         if (this._isInteractive(other)) {
+          if (botsOnly) continue;
           // Show incoming trade popup to human — handled async (during autoplay the human seat is a bot)
           return { type: "human", fromPlayer: aiPlayer, give: offer, want: request };
         }
-
-        // AI-to-AI: check if other AI accepts
-        if (this.aiEvaluateTrade(other, offer, request)) {
+        if (this.aiEvaluateTrade(other, offer, request, aiPlayer)) {
+          this._aiTrkNote(aiPlayer, offer, -1);
+          this._aiTrkNote(aiPlayer, request, 1);
+          this._aiTrkNote(other, request, -1);
+          this._aiTrkNote(other, offer, 1);
           RESOURCES.forEach((r) => {
             aiPlayer.resources[r] -= offer[r];
             aiPlayer.resources[r] += request[r];
@@ -3179,23 +3340,26 @@ class ColonistFullGame {
     return html + "</div>";
   }
 
+  /**
+   * A bot offers the human a trade (Classic, during the bot's turn). Shown as the same calm,
+   * non-blocking card as in Rush — board and hand stay usable — and declined automatically
+   * after 15 s (a thin bar shows the time left).
+   */
   showIncomingTrade(fromPlayer, give, want) {
     return new Promise((resolve) => {
-      if (!this.incomingTradePanel) { resolve(false); return; }
-      this.incomingTradeHeader.innerHTML = `${this._av(fromPlayer)}<span><span class="who pc-${fromPlayer.id}">${fromPlayer.name}</span> wants to trade</span>`;
-      const human = this.players.find((p) => p.isHuman);
-      const handHtml = human ? `<div class="your-hand">Your hand: ${RESOURCES.filter((r) => human.resources[r] > 0).map((r) => `<span>${icon(r)}${human.resources[r]}</span>`).join("") || "empty"}</div>` : "";
-      this.incomingTradeBody.innerHTML = `<div class="offer-rows">
-          <div class="offer-row"><span class="lbl2">You get</span>${this._renderTradeCards(give)}</div>
-          <div class="offer-row"><span class="lbl2">You give</span>${this._renderTradeCards(want)}</div>
-        </div>${handHtml}`;
-      this.pendingIncomingTrade = { fromPlayer, give, want, resolve };
-      this.toggleBuildSheet?.(false);
-      this.incomingTradePanel.style.display = "";
+      this._offerSeq = (this._offerSeq || 0) + 1;
+      const id = this._offerSeq;
+      this.pendingIncomingTrade = { fromPlayer, give, want, resolve, id, ms: CLASSIC_OFFER_MS };
+      this._later(() => {
+        if (this.pendingIncomingTrade?.id !== id) return;
+        this.addLog(`${fromPlayer.name}'s offer expired.`);
+        this.resolveIncomingTrade(false, true);
+      }, CLASSIC_OFFER_MS);
+      this._renderRushOffers();
     });
   }
 
-  resolveIncomingTrade(accepted) {
+  resolveIncomingTrade(accepted, expired = false) {
     if (!this.pendingIncomingTrade) return;
     const { fromPlayer, give, want, resolve } = this.pendingIncomingTrade;
     const human = this.players.find(p => p.isHuman);
@@ -3212,11 +3376,12 @@ class ColonistFullGame {
         fromPlayer.resources[r] += want[r];
       });
       this.addLog(`You accepted ${fromPlayer.name}'s trade: got ${resourceString(give)} for ${resourceString(want)}.`);
-    } else {
+    } else if (!expired) {
       this.addLog(`You rejected ${fromPlayer.name}'s trade offer.`);
     }
     this.pendingIncomingTrade = null;
     if (this.incomingTradePanel) this.incomingTradePanel.style.display = "none";
+    this._renderRushOffers();
     this.render();
     resolve(accepted);
   }
@@ -3309,6 +3474,7 @@ class ColonistFullGame {
   performBankTrade(player, give, get) {
     const rate = this.getPlayerTradeRate(player, give);
     if (give === get || player.resources[give] < rate || this.bank[get] < 1) return false;
+    this._aiTrkNote(player, { [give]: rate }, -1);
     player.resources[give] -= rate;
     this.bank[give] += rate;
     this.takeFromBank(player, get, 1);
@@ -3442,6 +3608,7 @@ class ColonistFullGame {
             other.resources[target] = 0;
           });
           player.resources[target] += collected;
+          this._aiTrkMonopoly(player, target, collected);
           this.addLog(`${player.name} played Monopoly on ${RESOURCE_LABEL[target]} and collected ${collected}.`);
           this.recomputeScores();
           this.checkForWinner(player);
@@ -3457,6 +3624,7 @@ class ColonistFullGame {
         other.resources[target] = 0;
       });
       player.resources[target] += collected;
+      this._aiTrkMonopoly(player, target, collected);
       this.addLog(`${player.name} played Monopoly on ${RESOURCE_LABEL[target]} and collected ${collected}.`);
     }
 
@@ -3464,8 +3632,8 @@ class ColonistFullGame {
     return true;
   }
 
+  // Year of Plenty: the cards its planned build is short of (then the next build's), bank permitting
   chooseYearOfPlentyResources(player) {
-    // Picks are limited to what the bank holds
     const bank = copyResources(this.bank);
     const picks = [];
     const take = (resource) => {
@@ -3474,41 +3642,35 @@ class ColonistFullGame {
         picks.push(resource);
       }
     };
-    const goals = [COSTS.city, COSTS.settlement, COSTS.development, COSTS.road];
-    for (const goal of goals) {
-      const deficits = RESOURCES.flatMap((resource) => {
-        const need = Math.max(0, (goal[resource] || 0) - player.resources[resource]);
-        return Array(need).fill(resource);
+    const hand = copyResources(player.resources);
+    const goals = this._aiPlan(player).goals;
+    for (const goal of goals.slice(0, 2)) {
+      RESOURCES.forEach((r) => {
+        for (let k = hand[r]; k < (goal.cost[r] || 0) && picks.length < 2; k += 1) { take(r); hand[r] += 1; }
       });
-      if (deficits.length) {
-        deficits.forEach(take);
-        if (deficits.length === 1) take(deficits[0]);
-        break;
-      }
     }
     ["wheat", "ore", ...RESOURCES].forEach(take);
     return picks;
   }
 
-  chooseBestMonopolyResource(player) {
-    let bestResource = "wheat";
-    let bestScore = Number.NEGATIVE_INFINITY;
-    RESOURCES.forEach((resource) => {
-      const fromOpponents = this.players.reduce((acc, other) => {
-        if (other.id === player.id) return acc;
-        return acc + other.resources[resource];
-      }, 0);
-      const ownNeed = Math.max(
-        0,
-        2 - player.resources[resource] + (resource === "ore" || resource === "wheat" ? 1 : 0),
-      );
-      const score = fromOpponents + ownNeed * 0.5;
-      if (score > bestScore) {
-        bestScore = score;
-        bestResource = resource;
-      }
+  // Monopoly target from public card-count estimates, valued by need: cards its plan is short of
+  // count fully, extra cards count as what they would fetch at its bank/port rate.
+  _aiMonopolyPick(player) {
+    const plan = this._aiPlan(player);
+    const goal = plan.goals[0];
+    let best = { resource: "wheat", count: 0, value: Number.NEGATIVE_INFINITY };
+    RESOURCES.forEach((r) => {
+      const count = this.players.reduce((acc, other) => (other.id === player.id ? acc : acc + this._aiEstimate(other)[r]), 0);
+      const short = goal ? Math.max(0, (goal.cost[r] || 0) - player.resources[r]) : 0;
+      const rate = plan.rates ? plan.rates[r] : 4;
+      const value = Math.min(count, short) + Math.max(0, count - short) / rate * 1.5;
+      if (value > best.value) best = { resource: r, count, value, short };
     });
-    return bestResource;
+    return best;
+  }
+
+  chooseBestMonopolyResource(player) {
+    return this._aiMonopolyPick(player).resource;
   }
 
   autoPlayCurrentTurn() {
@@ -3588,30 +3750,26 @@ class ColonistFullGame {
     }
 
     const actionFns = this._getActionPriority(player);
-    const actionLabels = this._getActionLabels(player);
-    // Show AI reasoning popup: evaluate which actions are possible
-    if (this.showAiReasoning) {
-      const considered = [];
-      for (let i = 0; i < actionLabels.length; i++) {
-        const label = actionLabels[i];
-        const canDo = this._canDoAction(player, label);
-        const score = actionLabels.length - i; // priority order = score
-        considered.push({ label, score, possible: canDo });
-      }
-      const top3 = considered.slice(0, 5);
-      const lines = top3.map((c, i) =>
-        `${i + 1}. ${c.label} ${c.possible ? "✓" : "✗"} (priority ${c.score})`
-      );
-      this._showAiReasoningPopup(player, lines);
-    }
+    // Show AI reasoning popup: the bot's ranked build plan
+    if (this.showAiReasoning) this._showAiReasoningPopup(player, this._aiPlanSummary(player));
     let actions = 0;
-    while (actions < 10) {
-      if (this.winner) break;
-      let acted = false;
-      for (const fn of actionFns) {
-        if (fn()) { acted = true; actions++; break; }
+    const runActions = () => {
+      while (actions < 10) {
+        if (this.winner) break;
+        let acted = false;
+        for (const fn of actionFns) {
+          if (fn()) { acted = true; actions++; break; }
+        }
+        if (!acted) break;
       }
-      if (!acted) break;
+    };
+    runActions();
+    // Aggressive traders keep dealing with the other bots after building (up to 2 more deals)
+    if (this._aiStrat(player).trading === "aggressive") {
+      for (let k = 0; k < 2 && !this.winner; k += 1) {
+        if (this.aiTryPlayerTrade(player, { botsOnly: true })?.type !== "done") break;
+        runActions();
+      }
     }
     this.recomputeScores();
     this.checkForWinner(player);
@@ -3622,36 +3780,13 @@ class ColonistFullGame {
     if (this.showAiReasoning) this.addLog(`[${player.name}] ${msg}`);
   }
 
-  _getActionLabels(player) {
-    const s = player.strategy || {};
-    const robberOnSelf = this.geometry.hexes[this.robberHexId].nodes.some(nid =>
-      this.geometry.nodes[nid].owner === player.id
-    );
-    if (robberOnSelf && player.devCards.knight === 0 && s.devCards !== "none") {
-      return ["Buy Dev", "Settlement", "City", "Bank Trade", "Road"];
-    }
-    if (s.awareness === "advanced" && player.victoryPoints >= this.winPoints - 2) {
-      return ["City", "Buy Dev", "Settlement", "Bank Trade", "Road"];
-    }
-    if (s.devCards === "strategic") {
-      const armyHolder = this.largestArmyHolder;
-      const holderKnights = armyHolder != null ? this.players[armyHolder].knightsPlayed : 2;
-      if (player.knightsPlayed >= holderKnights - 2 && armyHolder !== player.id) {
-        return ["Settlement", "City", "Buy Dev", "Road", "Bank Trade"];
-      }
-    }
-    return ["Settlement", "City", "Road", "Buy Dev", "Bank Trade"];
-  }
-
-  _canDoAction(player, label) {
-    switch (label) {
-      case "Settlement": return hasResources(player.resources, COSTS.settlement);
-      case "City": return hasResources(player.resources, COSTS.city);
-      case "Road": return hasResources(player.resources, COSTS.road);
-      case "Buy Dev": return hasResources(player.resources, COSTS.development);
-      case "Bank Trade": return sumResources(player.resources) >= 2;
-      default: return false;
-    }
+  _aiPlanSummary(player) {
+    const plan = this._aiPlan(player);
+    if (!plan.goals.length) return ["Nothing to build — passing."];
+    return plan.goals.slice(0, 4).map((g, i) => {
+      const now = hasResources(player.resources, this._aiStepCost(g)) ? " ✓" : "";
+      return `${i + 1}. ${g.label} — ${g.eta === 0 ? "now" : `~${g.eta.toFixed(1)} turns`} (value ${g.value.toFixed(1)})${now}`;
+    });
   }
 
   _showAiReasoningPopup(player, lines) {
@@ -3678,37 +3813,20 @@ class ColonistFullGame {
     }, 3000);
   }
 
+  // Ordered action functions; each returns true when it did something. Rush calls them one per tick.
+  // expansion "simple": fixed order (whatever it can afford first). Otherwise one planned step at a time.
   _getActionPriority(player) {
-    const s = player.strategy || {};
-    const settlement = () => this.tryBuildSettlement(player);
-    const city = () => this.tryBuildCity(player);
-    const road = () => this.tryBuildRoad(player);
+    const s = this._aiStrat(player);
+    if (s.expansion !== "simple") return [() => this._aiPlannedStep(player)];
     const dev = () => s.devCards !== "none" && this.devDeck.length > 0
       && hasResources(player.resources, COSTS.development) && this.buyDevelopmentCard(player);
-    const trade = () => this.tryTradeForGoal(player);
-
-    // Robber on own hex: prioritize dev cards to get a knight
-    const robberOnSelf = this.geometry.hexes[this.robberHexId].nodes.some(nid =>
-      this.geometry.nodes[nid].owner === player.id
-    );
-    if (robberOnSelf && player.devCards.knight === 0 && s.devCards !== "none") {
-      return [dev, settlement, city, trade, road];
-    }
-
-    // Advanced awareness at 8+ VP: prioritize points
-    if (s.awareness === "advanced" && player.victoryPoints >= this.winPoints - 2) {
-      return [city, dev, settlement, trade, road];
-    }
-    // Strategic dev cards: buy dev cards earlier when chasing army
-    if (s.devCards === "strategic") {
-      const armyHolder = this.largestArmyHolder;
-      const holderKnights = armyHolder != null ? this.players[armyHolder].knightsPlayed : 2;
-      if (player.knightsPlayed >= holderKnights - 2 && armyHolder !== player.id) {
-        return [settlement, city, dev, road, trade];
-      }
-    }
-    // Default priority
-    return [settlement, city, road, dev, trade];
+    return [
+      () => this.tryBuildSettlement(player),
+      () => this.tryBuildCity(player),
+      () => this.tryBuildRoad(player),
+      dev,
+      () => this.tryTradeForGoal(player),
+    ];
   }
 
   maybePlayBestDevCard(player) {
@@ -3732,7 +3850,7 @@ class ColonistFullGame {
   }
 
   shouldPlayKnight(player) {
-    const strat = player.strategy?.devCards || "reactive";
+    const strat = this._aiStrat(player).devCards;
     const badRobber = this.geometry.hexes[this.robberHexId].nodes.some((nodeId) => {
       const node = this.geometry.nodes[nodeId];
       return node.owner === player.id;
@@ -3743,8 +3861,12 @@ class ColonistFullGame {
     const armyHolder = this.largestArmyHolder;
     const holderKnights = armyHolder != null ? this.players[armyHolder].knightsPlayed : 2;
     if (armyHolder !== player.id && player.knightsPlayed + 1 > holderKnights) return true;
-    // Strategic: hold the knight while we already own the army (unless chasing is close)
-    if (strat === "strategic" && armyHolder === player.id) return false;
+    if (strat === "strategic") {
+      // Strategic: keep a lead in the army race (or build toward it), else hold the knight in reserve
+      const rival = Math.max(0, ...this.players.filter((p) => p.id !== player.id).map((p) => p.knightsPlayed));
+      if (armyHolder === player.id) return rival >= player.knightsPlayed - 1;
+      if (player.knightsPlayed + 2 >= holderKnights) return true;
+    }
 
     // Otherwise only worth it to block a high-yield hex of the (publicly) leading opponent
     const target = this.chooseRobberHex(player);
@@ -3759,14 +3881,18 @@ class ColonistFullGame {
   }
 
   // AI: play a Knight before rolling when the robber is sitting on one of our hexes.
+  // Strategic bots also play a knight they would play anyway this turn before rolling (the stolen card
+  // can combine with this roll), unless they hold a progress card to play after the roll.
   maybePlayKnightBeforeRoll(player) {
     if (player.isHuman && !this.autoplayInterval) return false;
-    if ((player.strategy?.devCards || "reactive") === "none") return false;
+    const strat = this._aiStrat(player).devCards;
+    if (strat === "none") return false;
     if (!this.canPlayDevelopmentCard(player, "knight")) return false;
     const robberOnUs = this.geometry.hexes[this.robberHexId].nodes.some(
       (nodeId) => this.geometry.nodes[nodeId].owner === player.id,
     );
-    if (!robberOnUs) return false;
+    const progress = player.devCards.monopoly + player.devCards.yearOfPlenty + player.devCards.roadBuilding > 0;
+    if (!robberOnUs && !(strat === "strategic" && !progress && this.shouldPlayKnight(player))) return false;
     const played = this.playDevelopmentCard(player, "knight");
     if (played) {
       this.recomputeScores();
@@ -3776,37 +3902,43 @@ class ColonistFullGame {
   }
 
   shouldPlayMonopoly(player) {
-    const strat = player.strategy?.devCards || "reactive";
-    const target = this.chooseBestMonopolyResource(player);
-    const total = this.players.reduce((acc, other) => {
-      if (other.id === player.id) return acc;
-      return acc + other.resources[target];
-    }, 0);
-
+    const strat = this._aiStrat(player).devCards;
+    const pick = this._aiMonopolyPick(player);
+    if (pick.count < 2) return false;
     if (strat === "strategic") {
-      // Strategic: play even at 2 if we urgently need that resource for a build
-      const goals = [COSTS.city, COSTS.settlement];
-      for (const goal of goals) {
-        if ((goal[target] || 0) > player.resources[target] && total >= 2) return true;
-      }
-      // Otherwise wait for higher threshold
-      return total >= 4;
+      // Strategic: fire when the estimated haul covers what it is short of, or is big
+      if (pick.short > 0 && pick.count >= pick.short && pick.value >= 2) return true;
+      return pick.value >= 3.5;
     }
-    return total >= 3;
+    return pick.value >= 2.5;
   }
 
   shouldPlayYearOfPlenty(player) {
     const picks = this.chooseYearOfPlentyResources(player);
-    return picks.length === 2;
+    if (picks.length < 2) return false;
+    if (this._aiStrat(player).devCards !== "strategic") return true;
+    // Strategic: play when the two cards let it build now or bring its plan clearly closer
+    const plan = this._aiPlan(player);
+    const goal = plan.goals[0];
+    if (!goal) return true;
+    const after = copyResources(player.resources);
+    picks.forEach((r) => { after[r] += 1; });
+    if (hasResources(after, this._aiStepCost(goal))) return true;
+    return this._aiEta(goal.cost, player.resources, plan.incTurn, null) - this._aiEta(goal.cost, after, plan.incTurn, null) >= 1.5;
   }
 
   shouldPlayRoadBuilding(player) {
-    return this.chooseStrategicRoadEdge(player, true) != null;
+    if (this._aiStrat(player).devCards !== "strategic") return this.chooseStrategicRoadEdge(player, true) != null;
+    // Strategic: save it for roads the plan actually needs (toward a spot, or Longest Road)
+    const planned = this._aiPlan(player).goals.find((g) => g.edge != null);
+    return !!planned && this.canBuildRoad(player, planned.edge, { free: true });
   }
 
-  tryBuildSettlement(player) {
+  tryBuildSettlement(player, nodeId = null) {
     if (!hasResources(player.resources, COSTS.settlement)) return false;
-    const candidates = this.getBuildableSettlementNodes(player);
+    const candidates = nodeId != null
+      ? (this.canBuildSettlement(player, nodeId, false) ? [{ nodeId, score: this.getNodeProductionScore(nodeId, player) }] : [])
+      : this.getBuildableSettlementNodes(player);
     if (!candidates.length) return false;
     candidates.sort((a, b) => b.score - a.score);
     const best = candidates[0];
@@ -3820,9 +3952,9 @@ class ColonistFullGame {
     return true;
   }
 
-  tryBuildCity(player) {
+  tryBuildCity(player, target = null) {
     if (!hasResources(player.resources, COSTS.city)) return false;
-    const nodeId = this.getBestCityTarget(player);
+    const nodeId = target ?? this.getBestCityTarget(player);
     if (nodeId == null) return false;
     if (!this.placeCity(player, nodeId, false)) return false;
     this.payToBank(player, COSTS.city);
@@ -3858,48 +3990,440 @@ class ColonistFullGame {
     return true;
   }
 
+  // Bank/port trade toward the bot's current goal (see _aiBankTradeToward)
   tryTradeForGoal(player) {
-    const strat = player.strategy?.trading || "balanced";
-    if (strat === "none") return false;
+    const plan = this._aiPlan(player);
+    return plan.goals.length ? this._aiBankTradeToward(player, plan, plan.goals[0]) : false;
+  }
 
-    const goals = [COSTS.settlement, COSTS.city, COSTS.development, COSTS.road];
-    let traded = false;
-    for (const goal of goals) {
-      if (hasResources(player.resources, goal)) continue;
-      const deficits = RESOURCES.map((resource) => ({
-        resource,
-        need: Math.max(0, (goal[resource] || 0) - player.resources[resource]),
-      }))
-        .filter((entry) => entry.need > 0)
-        .sort((a, b) => b.need - a.need);
-      if (!deficits.length) continue;
+  // ── AI planner ──────────────────────────────────────────────────────
+  // Every bot keeps a ranked list of candidate builds ("goals"): a city, its best few settlement
+  // spots (with the roads needed to reach them), a development card and, for complex expansion,
+  // a Longest Road grab. Each goal has a value (VP + production it adds, converted to VP over the
+  // turns that are likely left) and an ETA (expected turns until affordable from income, plus bank
+  // and port trades). Goals are ranked by value per turn: value / (ETA + 1).
 
-      const wanted = deficits[0].resource;
-      if (this.bank[wanted] < 1) continue; // bank can't supply it
-      const incomes = this.getResourceIncomeProfile(player);
-      const donors = RESOURCES.map((resource) => ({
-        resource,
-        rate: this.getPlayerTradeRate(player, resource),
-        surplus: player.resources[resource] - (goal[resource] || 0),
-        income: incomes[resource],
-      }))
-        .filter((entry) => {
-          if (entry.resource === wanted) return false;
-          // Conservative: need extra buffer beyond rate
-          if (strat === "conservative") return entry.surplus >= entry.rate + 1;
-          // Aggressive: trade even at exactly the rate
-          if (strat === "aggressive") return player.resources[entry.resource] >= entry.rate;
-          // Balanced (default): surplus must cover rate
-          return entry.surplus >= entry.rate;
-        })
-        .sort((a, b) => b.surplus - a.surplus || b.income - a.income);
-      if (!donors.length) continue;
-      this._aiLog(player, `Bank trade: ${donors[0].resource} → ${wanted} (rate ${donors[0].rate}:1, surplus ${donors[0].surplus})`);
-      if (!this.performBankTrade(player, donors[0].resource, wanted)) continue;
-      if (strat === "aggressive") { traded = true; continue; }
-      return true;
+  _aiStrat(player) {
+    return player?.strategy ? { ...DEFAULT_AI_STRATEGY, ...player.strategy } : DEFAULT_AI_STRATEGY;
+  }
+
+  // Expected cards per roll by resource (the robber's tile produces nothing)
+  _aiIncome(player) {
+    const inc = makeEmptyResources();
+    const add = (nodeId, amount) => this.geometry.nodes[nodeId].adjacentHexes.forEach((hexId) => {
+      const hex = this.geometry.hexes[hexId];
+      if (!hex.number || hex.resource === "desert" || hexId === this.robberHexId) return;
+      inc[hex.resource] += (DICE_WEIGHT[hex.number] / 36) * amount;
+    });
+    player.settlements.forEach((n) => add(n, 1));
+    player.cities.forEach((n) => add(n, 2));
+    return inc;
+  }
+
+  // Cards per roll a building at this node adds; resources we barely produce count extra
+  _aiNodeProd(nodeId, inc) {
+    let v = 0;
+    this.geometry.nodes[nodeId].adjacentHexes.forEach((hexId) => {
+      const hex = this.geometry.hexes[hexId];
+      if (!hex.number || hex.resource === "desert") return;
+      const w = inc[hex.resource] < 0.03 ? 1.35 : inc[hex.resource] < 0.1 ? 1.15 : 1;
+      v += (DICE_WEIGHT[hex.number] / 36) * w * (hexId === this.robberHexId ? 0.6 : 1);
+    });
+    return v;
+  }
+
+  // Expected turns until `cost` is affordable from `hand` with income `inc` (cards per turn).
+  // With `rates` the bot may also trade surplus at those bank/port rates; each card bought that way
+  // adds a small penalty. Without `rates`: income only.
+  _aiEta(cost, hand, inc, rates) {
+    const MAX = 30;
+    let def = 0;
+    let tNo = 0;
+    for (const r of RESOURCES) {
+      const need = (cost[r] || 0) - hand[r];
+      if (need > 0) {
+        def += need;
+        tNo = Math.max(tNo, inc[r] > 1e-6 ? need / inc[r] : MAX);
+      }
     }
-    return traded;
+    if (def <= 0) return 0;
+    tNo = Math.min(MAX, tNo);
+    if (!rates) return tNo;
+    let capNow = 0;
+    for (const r of RESOURCES) {
+      const spare = hand[r] - (cost[r] || 0);
+      if (spare > 0) capNow += Math.floor(spare / rates[r]);
+    }
+    if (capNow >= def) return 0.3 * def;
+    const gap = (t) => {
+      let d = 0;
+      let c = 0;
+      for (const r of RESOURCES) {
+        const x = (cost[r] || 0) - hand[r] - inc[r] * t;
+        if (x > 0) d += x;
+        else c -= x / rates[r];
+      }
+      return [d, c];
+    };
+    let [d, c] = gap(tNo);
+    if (d > c) return tNo;
+    let lo = 0;
+    let hi = tNo;
+    for (let i = 0; i < 10; i += 1) {
+      const mid = (lo + hi) / 2;
+      [d, c] = gap(mid);
+      if (d <= c) hi = mid;
+      else lo = mid;
+    }
+    [d] = gap(hi);
+    return Math.min(tNo, hi + 0.3 * d);
+  }
+
+  // Cost of the next concrete action toward a goal (a road first when the spot is not reached yet)
+  _aiStepCost(goal) {
+    if (goal.type === "road" || (goal.type === "settlement" && goal.dist > 0)) return COSTS.road;
+    return goal.type === "city" ? COSTS.city : goal.type === "dev" ? COSTS.development : COSTS.settlement;
+  }
+
+  // Road distances (0-1 BFS: own roads are free) from the bot's network to every node, plus the
+  // first new road to build on that path.
+  _aiRoadReach(player) {
+    const nodes = this.geometry.nodes;
+    const dist = new Array(nodes.length).fill(Infinity);
+    const first = new Array(nodes.length).fill(null);
+    const queue = [];
+    this.getRoadNetworkNodes(player).forEach((n) => { dist[n] = 0; queue.push(n); });
+    while (queue.length) {
+      const u = queue.shift();
+      const node = nodes[u];
+      if (node.owner != null && node.owner !== player.id) continue; // can't build past an opponent's town
+      for (const edgeId of node.edgeIds) {
+        const edge = this.geometry.edges[edgeId];
+        if (edge.owner != null && edge.owner !== player.id) continue;
+        const v = edge.nodes[0] === u ? edge.nodes[1] : edge.nodes[0];
+        const w = edge.owner === player.id ? 0 : 1;
+        if (dist[u] + w >= dist[v]) continue;
+        dist[v] = dist[u] + w;
+        first[v] = w ? (first[u] ?? edgeId) : first[u];
+        if (w) queue.push(v);
+        else queue.unshift(v);
+      }
+    }
+    return { dist, first };
+  }
+
+  // A buildable road that makes our longest road longer (null if none)
+  _aiRoadExtendEdge(player) {
+    let best = null;
+    let bestLen = player.longestRoadLength;
+    this.geometry.edges.forEach((edge) => {
+      if (!this.canBuildRoad(player, edge.id, { free: true })) return;
+      edge.owner = player.id;
+      player.roads.add(edge.id);
+      const len = this.computeLongestRoadLength(player);
+      edge.owner = null;
+      player.roads.delete(edge.id);
+      if (len > bestLen) { bestLen = len; best = edge.id; }
+    });
+    return best;
+  }
+
+  _aiDevValue(player, strat, W) {
+    let v = W.devCard;
+    if (strat.devCards === "strategic") {
+      v += W.devStrategic;
+      const holder = this.largestArmyHolder;
+      const mine = player.knightsPlayed + player.devCards.knight + player.newDevCards.knight;
+      if (holder !== player.id) {
+        const need = (holder != null ? this.players[holder].knightsPlayed + 1 : 3) - mine;
+        v += need <= 2 ? 0.6 : need <= 3 ? 0.25 : 0;
+      } else {
+        const rival = Math.max(...this.players.filter((p) => p.id !== player.id).map((p) => p.knightsPlayed));
+        if (rival >= player.knightsPlayed - 1) v += 0.35;
+      }
+      if (this.winPoints - player.victoryPoints <= 2) v += 0.2; // a VP card could win it
+    }
+    return v;
+  }
+
+  _aiPlan(player) {
+    const strat = this._aiStrat(player);
+    const W = AI_PLAN_WEIGHTS;
+    const R = this.players.length; // rolls per round
+    const inc = this._aiIncome(player);
+    const incTurn = makeEmptyResources();
+    RESOURCES.forEach((r) => { incTurn[r] = inc[r] * R; });
+    let rates = null;
+    if (strat.trading !== "none") {
+      rates = {};
+      RESOURCES.forEach((r) => { rates[r] = this.getPlayerTradeRate(player, r); });
+    }
+    // Turns likely left: advanced awareness reads the race (production matters less near the end)
+    let tLeft = W.turnsLeft;
+    if (strat.awareness === "advanced") {
+      const leader = Math.max(...this.players.filter((p) => p.id !== player.id).map((p) => p.publicVictoryPoints));
+      const left = Math.min(this.winPoints - player.victoryPoints, this.winPoints - leader);
+      tLeft = clamp(left * 2.2, 2, 16);
+    }
+    const prodVP = (prod) => prod * R * tLeft * W.prodVPPerCard;
+    const goals = [];
+    const add = (g) => {
+      g.value = g.vp + prodVP(g.prod || 0) + (player.victoryPoints + g.vp >= this.winPoints ? 6 : 0);
+      goals.push(g);
+    };
+    // City on the best-producing settlement
+    if (this.piecesLeft(player, "city") > 0 && player.settlements.size) {
+      let best = null;
+      player.settlements.forEach((nodeId) => {
+        const prod = this._aiNodeProd(nodeId, inc);
+        if (!best || prod > best.prod) best = { nodeId, prod };
+      });
+      add({ type: "city", label: "City", cost: COSTS.city, vp: 1, prod: best.prod, nodeId: best.nodeId });
+    }
+    // Settlement spots in reach (a few best by the placement level's own judgement)
+    const roadsLeft = this.piecesLeft(player, "road");
+    if (this.piecesLeft(player, "settlement") > 0) {
+      const reach = this._aiRoadReach(player);
+      const maxD = Math.min(strat.expansion === "complex" ? 4 : 3, roadsLeft);
+      const profile = this.getResourceIncomeProfile(player);
+      const pen = W.roadPenalty[strat.expansion] ?? W.roadPenalty.medium;
+      const spots = [];
+      this.geometry.nodes.forEach((node) => {
+        const d = reach.dist[node.id];
+        if (!(d <= maxD) || node.structure != null) return;
+        if (node.neighbors.some((n) => this.geometry.nodes[n].structure != null)) return;
+        if (d > 0 && reach.first[node.id] == null) return;
+        let h = this.getNodeProductionScore(node.id, player, profile) - d * pen;
+        if (strat.expansion === "complex") {
+          node.ports.forEach((type) => { h += type === "any" ? 0.3 : profile[type] >= 0.12 ? 0.8 : 0; });
+        }
+        spots.push({ nodeId: node.id, d, h });
+      });
+      spots.sort((a, b) => b.h - a.h);
+      spots.slice(0, strat.expansion === "simple" ? 1 : 3).forEach(({ nodeId, d }) => {
+        const cost = { ...COSTS.settlement };
+        cost.wood += d;
+        cost.brick += d;
+        let prod = this._aiNodeProd(nodeId, inc);
+        this.geometry.nodes[nodeId].ports.forEach((type) => { prod += type === "any" ? 0.03 : inc[type] > 0.1 ? 0.05 : 0; });
+        add({ type: "settlement", label: d ? `Settlement (+${d} road${d > 1 ? "s" : ""})` : "Settlement",
+          cost, vp: 1, prod, nodeId, dist: d, edge: d ? reach.first[nodeId] : null });
+      });
+    }
+    // Development card
+    if (strat.devCards !== "none" && this.devDeck.length > 0) {
+      add({ type: "dev", label: "Development card", cost: COSTS.development, vp: this._aiDevValue(player, strat, W), prod: 0 });
+    }
+    // Longest Road grab (complex expansion): 1-2 roads away from taking the 2 VP
+    if (strat.expansion === "complex" && roadsLeft > 0 && this.longestRoadHolder !== player.id) {
+      const holder = this.longestRoadHolder;
+      const k = (holder != null ? this.players[holder].longestRoadLength + 1 : 5) - player.longestRoadLength;
+      if (k >= 1 && k <= 2 && roadsLeft >= k) {
+        const edge = this._aiRoadExtendEdge(player);
+        const nearWin = holder != null && this.players[holder].publicVictoryPoints >= this.winPoints - 3;
+        if (edge != null) add({ type: "road", label: "Longest Road", cost: { wood: k, brick: k }, vp: 2 + (nearWin && strat.awareness === "advanced" ? 1 : 0), prod: 0, edge });
+      }
+    }
+    const plan = { strat, inc, incTurn, rates, goals, R, W };
+    goals.forEach((g) => {
+      g.eta = this._aiEta(g.cost, player.resources, incTurn, rates);
+      g.score = g.value / (g.eta + W.etaOffset);
+    });
+    if (strat.expansion === "simple") {
+      // Simple: chase whatever is fewest cards away (settlement, city, card)
+      const order = { settlement: 0, city: 1, road: 2, dev: 3 };
+      const missing = (g) => RESOURCES.reduce((a, r) => a + Math.max(0, (g.cost[r] || 0) - player.resources[r]), 0);
+      goals.sort((a, b) => missing(a) - missing(b) || order[a.type] - order[b.type]);
+    } else {
+      goals.sort((a, b) => b.score - a.score);
+    }
+    return plan;
+  }
+
+  _aiBestScore(plan, hand) {
+    let best = 0;
+    plan.goals.forEach((g) => {
+      best = Math.max(best, g.value / (this._aiEta(g.cost, hand, plan.incTurn, plan.rates) + plan.W.etaOffset));
+    });
+    return best;
+  }
+
+  // How much a hand is worth to the plan (best goal counts most); used to pick discards
+  _aiKeepValue(plan, hand) {
+    const scores = plan.goals.map((g) => g.value / (this._aiEta(g.cost, hand, plan.incTurn, plan.rates) + plan.W.etaOffset)).sort((a, b) => b - a);
+    return (scores[0] || 0) + 0.35 * (scores[1] || 0) + 0.15 * (scores[2] || 0);
+  }
+
+  // Bank/port trades that make `cost` affordable right now, spending only cards beyond it
+  // (cheapest rate first, sparing the next build's cards). Null if impossible.
+  _aiTradesToComplete(hand, cost, rates, spare = {}) {
+    const h = copyResources(hand);
+    const bank = copyResources(this.bank);
+    const trades = [];
+    for (let guard = 0; guard < 6; guard += 1) {
+      const short = RESOURCES.filter((r) => (cost[r] || 0) > h[r]);
+      if (!short.length) return trades;
+      const want = short.filter((r) => bank[r] > 0).sort((a, b) => (cost[b] - h[b]) - (cost[a] - h[a]))[0];
+      if (!want) return null;
+      const donors = RESOURCES.filter((r) => r !== want && h[r] - (cost[r] || 0) >= rates[r])
+        .sort((a, b) => rates[a] - rates[b] || (spare[a] || 0) - (spare[b] || 0) || h[b] - h[a]);
+      if (!donors.length) return null;
+      const d = donors[0];
+      h[d] -= rates[d];
+      bank[d] += rates[d];
+      h[want] += 1;
+      bank[want] -= 1;
+      trades.push([d, want]);
+    }
+    return null;
+  }
+
+  // Trade with the bank (or ports) toward a goal, protecting the goal's own cards:
+  //  1. a set of trades that lets it take the next step right now, if waiting would take >= 1 turn;
+  //  2. (balanced/aggressive) one trade that brings the whole goal >= 1 turn closer.
+  // Holding more cards than the discard limit lowers both bars (a 7 would cost half the hand).
+  _aiBankTradeToward(player, plan, goal) {
+    if (!plan.rates) return false;
+    const hand = copyResources(player.resources);
+    const over = this._aiOverLimit(player);
+    const next = plan.goals.find((g) => g !== goal)?.cost || {};
+    const step = this._aiStepCost(goal);
+    const stepWait = this._aiEta(step, hand, plan.incTurn, null);
+    if (stepWait >= 1 || (over && stepWait > 0)) {
+      const trades = this._aiTradesToComplete(hand, step, plan.rates, next);
+      if (trades && trades.length) {
+        let done = 0;
+        for (const [give, get] of trades) {
+          this._aiLog(player, `Bank trade toward ${goal.label}: ${give} → ${get} (${plan.rates[give]}:1)`);
+          if (this.performBankTrade(player, give, get)) done += 1;
+          else break;
+        }
+        return done > 0;
+      }
+    }
+    if (plan.strat.trading === "conservative") return false;
+    const cost = goal.cost;
+    const wait = this._aiEta(cost, hand, plan.incTurn, null);
+    if (wait === 0) return false;
+    let best = null;
+    RESOURCES.forEach((give) => {
+      const rate = plan.rates[give];
+      if (hand[give] - (cost[give] || 0) < rate) return;
+      RESOURCES.forEach((get) => {
+        if (get === give || this.bank[get] < 1 || (cost[get] || 0) <= hand[get]) return;
+        const h2 = copyResources(hand);
+        h2[give] -= rate;
+        h2[get] += 1;
+        const gain = wait - this._aiEta(cost, h2, plan.incTurn, null);
+        const v = gain - ((next[give] || 0) > h2[give] ? 0.3 : 0);
+        if (!best || v > best.v) best = { give, get, gain, v };
+      });
+    });
+    if (best && (best.gain >= 1 || (over && best.gain > 0))) {
+      this._aiLog(player, `Bank trade toward ${goal.label}: ${best.give} → ${best.get} (saves ${best.gain.toFixed(1)} turns)`);
+      return this.performBankTrade(player, best.give, best.get);
+    }
+    return false;
+  }
+
+  // Holding more cards than the discard limit: a 7 would cost half the hand
+  _aiOverLimit(player) {
+    return sumResources(player.resources) > this.settings.discardLimit;
+  }
+
+  _aiTryGoal(player, goal) {
+    switch (goal.type) {
+      case "city": return this.tryBuildCity(player, goal.nodeId);
+      case "settlement": return goal.dist > 0 ? this._aiBuildRoad(player, goal.edge) : this.tryBuildSettlement(player, goal.nodeId);
+      case "road": return this._aiBuildRoad(player, goal.edge);
+      case "dev": return this.devDeck.length > 0 && hasResources(player.resources, COSTS.development) && this.buyDevelopmentCard(player);
+      default: return false;
+    }
+  }
+
+  // One planned action: build the top goal (or its next road), else trade toward it, else a side
+  // build that doesn't delay it (any useful build when holding more cards than the discard limit).
+  _aiPlannedStep(player) {
+    const plan = this._aiPlan(player);
+    const [goal, ...rest] = plan.goals;
+    if (!goal) return false;
+    if (hasResources(player.resources, this._aiStepCost(goal)) && this._aiTryGoal(player, goal)) return true;
+    if (this._aiBankTradeToward(player, plan, goal)) return true;
+    const over = this._aiOverLimit(player);
+    for (const side of rest) {
+      const step = this._aiStepCost(side);
+      if (!hasResources(player.resources, step)) continue;
+      const after = copyResources(player.resources);
+      payCost(after, step);
+      const delay = this._aiEta(goal.cost, after, plan.incTurn, plan.rates) - goal.eta;
+      if ((delay <= plan.W.sideBuildDelay || over) && this._aiTryGoal(player, side)) return true;
+    }
+    return false;
+  }
+
+  // ── Public card tracking ──
+  // What any player at the table could know about each hand: production, builds, bank trades,
+  // discards, Monopoly and bot trades are public; a stolen card is not (spread by the victim's
+  // estimate). Estimates are reconciled to the public hand sizes, so they never read hidden cards.
+  _aiTrk() {
+    if (this._aiCardTrack?.players === this.players) return this._aiCardTrack;
+    const est = this.players.map((p) => this._aiSpread(p, sumResources(p.resources), makeEmptyResources()));
+    this._aiCardTrack = { players: this.players, est };
+    return this._aiCardTrack;
+  }
+
+  // Add n unknown cards to an estimate, split by the player's (public) production profile
+  _aiSpread(player, n, into) {
+    if (n <= 0) return into;
+    const inc = this.geometry ? this._aiIncome(player) : makeEmptyResources();
+    const total = sumResources(inc);
+    RESOURCES.forEach((r) => { into[r] += n * (total > 0 ? inc[r] / total : 0.2); });
+    return into;
+  }
+
+  _aiTrkNote(player, delta, sign) {
+    if (!player || !this.players?.includes(player)) return;
+    const e = this._aiTrk().est[player.id];
+    RESOURCES.forEach((r) => { if (delta[r]) e[r] = Math.max(0, e[r] + sign * delta[r]); });
+  }
+
+  _aiTrkSteal(victim, thief) {
+    const est = this._aiEstimate(victim);
+    const n = sumResources(est);
+    if (n <= 0) return;
+    const t = this._aiTrk().est[thief.id];
+    RESOURCES.forEach((r) => { const share = est[r] / n; est[r] = Math.max(0, est[r] - share); t[r] += share; });
+  }
+
+  _aiTrkMonopoly(player, resource, collected) {
+    const trk = this._aiTrk();
+    this.players.forEach((p) => { if (p.id !== player.id) trk.est[p.id][resource] = 0; });
+    trk.est[player.id][resource] += collected;
+  }
+
+  // Estimated hand of a player, reconciled to their public card count
+  _aiEstimate(player) {
+    const e = this._aiTrk().est[player.id];
+    const total = sumResources(player.resources);
+    const sum = sumResources(e);
+    if (sum > total + 1e-9) {
+      const k = sum > 0 ? total / sum : 0;
+      RESOURCES.forEach((r) => { e[r] *= k; });
+    } else if (sum < total - 1e-9) {
+      this._aiSpread(player, total - sum, e);
+    }
+    return e;
+  }
+
+  _aiBuildRoad(player, edgeId) {
+    if (edgeId == null || !this.canBuildRoad(player, edgeId, { free: false })) return false;
+    if (!this.placeRoad(player, edgeId, { free: false })) return false;
+    this.payToBank(player, COSTS.road);
+    this.addLog(`${player.name} built a road.`);
+    this.sfx.buildRoad();
+    this.recomputeScores();
+    this.checkForWinner(player);
+    return true;
   }
 
   getResourceIncomeProfile(player) {
@@ -3916,7 +4440,7 @@ class ColonistFullGame {
     return income;
   }
 
-  getNodeProductionScore(nodeId, player) {
+  getNodeProductionScore(nodeId, player, incomeProfile = null) {
     const node = this.geometry.nodes[nodeId];
     if (node.structure != null) return Number.NEGATIVE_INFINITY;
     if (node.neighbors.some((neighborId) => this.geometry.nodes[neighborId].structure != null)) {
@@ -3937,7 +4461,7 @@ class ColonistFullGame {
     }
 
     // ── Medium (default): scarcity + diversity + ports + blocking ──
-    const income = this.getResourceIncomeProfile(player);
+    const income = incomeProfile || this.getResourceIncomeProfile(player);
     const resourceSeen = new Set();
     let score = 0;
     node.adjacentHexes.forEach((hexId) => {
@@ -3960,31 +4484,44 @@ class ColonistFullGame {
     });
     score += blockValue;
 
-    // ── Complex: add goal-completion bonus, port targeting, robber avoidance ──
+    // ── Complex: board-wide scarcity, resource sets, matching 2:1 ports, robber magnets ──
     if (strat === "complex") {
-      // Bonus for completing resource sets needed for buildings
-      const needed = {};
-      [COSTS.settlement, COSTS.city].forEach(cost => {
-        RESOURCES.forEach(r => { needed[r] = Math.max(needed[r] || 0, cost[r] || 0); });
-      });
-      const missingTypes = RESOURCES.filter(r => income[r] < 0.2 && (needed[r] || 0) > 0);
+      const boardW = this._aiBoardScarcity();
+      const here = makeEmptyResources();
       node.adjacentHexes.forEach((hexId) => {
         const hex = this.geometry.hexes[hexId];
         if (hex.resource === "desert" || !hex.number) return;
-        if (missingTypes.includes(hex.resource)) score += 0.5;
+        here[hex.resource] += DICE_WEIGHT[hex.number] / 36;
+        score += (DICE_WEIGHT[hex.number] / 6) * (boardW[hex.resource] - 1);
+        if (income[hex.resource] < 0.05) score += 0.35; // a resource we don't produce yet
       });
-      // Port targeting: 2:1 port for a resource we produce a lot of
-      ports.forEach(type => {
-        if (type !== "any" && income[type] > 0.8) score += 0.6;
+      const has = (r) => income[r] + here[r] > 0.02;
+      if (has("ore") && has("wheat") && (here.ore > 0 || here.wheat > 0)) score += 0.35;   // city set
+      if (has("wood") && has("brick") && (here.wood > 0 || here.brick > 0)) score += 0.3;  // road set
+      // 2:1 port for a resource we (will) produce well
+      ports.forEach((type) => {
+        if (type !== "any" && income[type] + here[type] >= 0.12) score += 0.8;
       });
       // Slight penalty for 6/8 hexes (robber targets)
       node.adjacentHexes.forEach((hexId) => {
         const hex = this.geometry.hexes[hexId];
-        if (hex.number === 6 || hex.number === 8) score -= 0.15;
+        if (hex.number === 6 || hex.number === 8) score -= 0.05;
       });
     }
 
     return score;
+  }
+
+  // Per-resource weight from how much of it the board produces (rare resources are worth more)
+  _aiBoardScarcity() {
+    if (this._aiBoardW?.geometry === this.geometry) return this._aiBoardW.w;
+    const pips = makeEmptyResources();
+    this.geometry.hexes.forEach((hex) => { if (hex.number && hex.resource !== "desert") pips[hex.resource] += DICE_WEIGHT[hex.number]; });
+    const avg = sumResources(pips) / RESOURCES.length;
+    const w = makeEmptyResources();
+    RESOURCES.forEach((r) => { w[r] = clamp(avg / Math.max(1, pips[r]), 0.8, 1.5); });
+    this._aiBoardW = { geometry: this.geometry, w };
+    return w;
   }
 
   getBestInitialSettlementNode(player) {
@@ -4062,6 +4599,10 @@ class ColonistFullGame {
       return this.getFallbackRoad(player, freeBuild);
     }
 
+    // Medium + Complex: follow the build plan (road toward the planned spot / Longest Road)
+    const planned = this._aiPlan(player).goals.find((g) => g.edge != null);
+    if (planned && this.canBuildRoad(player, planned.edge, { free: freeBuild })) return planned.edge;
+
     // Complex: check if we should chase longest road
     if (strat === "complex") {
       const lrEdge = this._longestRoadChaseEdge(player, freeBuild);
@@ -4127,7 +4668,7 @@ class ColonistFullGame {
       if (strat === "complex" && node.ports.length > 0) {
         const income = this.getResourceIncomeProfile(player);
         node.ports.forEach(type => {
-          if (type !== "any" && income[type] > 0.6) portBonus += 0.8;
+          if (type !== "any" && income[type] >= 0.12) portBonus += 0.8;
           else if (type === "any") portBonus += 0.3;
         });
       }
@@ -4343,6 +4884,7 @@ class ColonistFullGame {
 
   startAutoplay() {
     if (this.winner) return;
+    this._releaseOnboarding();
     this.stopAiTurnLoop();
     const delay = Number(this.speedRange.value);
     this.autoplayInterval = window.setInterval(this._guard(() => {
@@ -4494,6 +5036,7 @@ class ColonistFullGame {
       this._renderRushOffers();
     }
     this._renderRushHud();
+    this._updateOfferTimers();
   }
 
   _rushRoll() {
@@ -4524,6 +5067,11 @@ class ColonistFullGame {
     void this.lastDiceDisplay?.offsetWidth; // restart the flash animation
     this.lastDiceDisplay?.classList.add("rush-flash");
     if (res.total === 7) {
+      // the 7-pause panel (with its discard buttons) opens right away: the tumbling dice go
+      // underneath it instead of over the buttons
+      document.body.classList.add("fx-under-sheets");
+      window.clearTimeout(this._fxUnderTimer);
+      this._fxUnderTimer = window.setTimeout(() => document.body.classList.remove("fx-under-sheets"), 2200);
       this._rushBeginSeven();
     } else {
       this.highlightRoll = { number: res.total, startTime: Date.now() };
@@ -4636,6 +5184,7 @@ class ColonistFullGame {
 
   // Complete a human robber move (placement and/or victim choice) automatically.
   _rushAutoFinishHumanRobber(human) {
+    if (this.confirmBuild?.type === "robber") this.confirmBuild = null;
     if (this.robberVictimOptions?.length) {
       const victim = this.robberVictimOptions[0];
       this.robberVictimOptions = [];
@@ -4753,7 +5302,7 @@ class ColonistFullGame {
     const r = this.rush;
     this._offerSeq = (this._offerSeq || 0) + 1;
     r.offers = r.offers.filter((o) => o.fromId !== fromPlayer.id).slice(-2);
-    r.offers.push({ id: this._offerSeq, fromId: fromPlayer.id, give: { ...give }, want: { ...want }, expiresAt: r.clockMs + 10000 });
+    r.offers.push({ id: this._offerSeq, fromId: fromPlayer.id, give: { ...give }, want: { ...want }, expiresAt: r.clockMs + RUSH_OFFER_MS });
     this.addLog(`${fromPlayer.name} offers you ${resourceString(give)} for ${resourceString(want)}.`);
     this._renderRushOffers();
   }
@@ -4784,29 +5333,46 @@ class ColonistFullGame {
     this.render();
   }
 
+  /** Bot trade offers to the human (Rush offers + a Classic incoming offer): calm cards over the board. */
   _renderRushOffers() {
     const el = this.rushOffersEl;
     if (!el) return;
-    const offers = this.rush && !this.winner ? this.rush.offers : [];
+    const pit = this.pendingIncomingTrade;
+    const offers = this.winner ? [] : this.rush ? this.rush.offers : pit ? [{ id: pit.id, fromId: pit.fromPlayer.id, give: pit.give, want: pit.want, classic: true }] : [];
     const key = offers.map((o) => o.id).join(",") + this.theme?.id;
     if (key === this._lastOffersKey) return;
     this._lastOffersKey = key;
-    const icons = (res) => RESOURCES.flatMap((r) => Array(res[r] || 0).fill(icon(r))).join("");
+    // "1× [Ore] → 1× [Wool]": what you give, then what you get, with 24 px icons and counts
+    const side = (res) => RESOURCES.filter((r) => res[r] > 0).map((r) => `<span class="oc" title="${res[r]} ${RESOURCE_LABEL[r]}"><b>${res[r]}×</b>${icon(r)}</span>`).join("");
+    const words = (res) => RESOURCES.filter((r) => res[r] > 0).map((r) => `${res[r]} ${RESOURCE_LABEL[r]}`).join(" + ");
     el.dataset.more = offers.length > 1 ? `+${offers.length - 1} more` : "";
     el.innerHTML = offers.map((o) => {
       const p = this.players[o.fromId];
-      return `<div class="rush-offer" data-offer="${o.id}">
+      return `<div class="rush-offer${o.classic ? " classic" : ""}" data-offer="${o.id}" role="group" aria-label="${p.name} offers ${words(o.give)} for your ${words(o.want)}" style="--offer-ms:${CLASSIC_OFFER_MS}ms">
         ${this._av(p, "rush-offer-avatar")}
         <div class="rush-offer-body">
-          <div class="rush-offer-title"><span class="who pc-${p.id}">${p.name}</span> offers</div>
-          <div class="rush-offer-cards">${icons(o.give)}<span class="rush-offer-for">for your</span>${icons(o.want)}</div>
+          <div class="rush-offer-title"><span class="who pc-${p.id}">${p.name}</span> offers a trade</div>
+          <div class="rush-offer-cards"><span class="ol">you give</span>${side(o.want)}<span class="arrow">→</span><span class="ol">get</span>${side(o.give)}</div>
         </div>
         <button type="button" class="rush-offer-accept" data-accept="${o.id}">Accept</button>
         <button type="button" class="rush-offer-decline" data-decline="${o.id}" aria-label="Decline">${icon("close")}</button>
+        <span class="offer-time" aria-hidden="true"><i></i></span>
       </div>`;
     }).join("");
-    el.querySelectorAll("[data-accept]").forEach((b) => b.addEventListener("click", () => this._resolveRushOffer(Number(b.dataset.accept), true)));
-    el.querySelectorAll("[data-decline]").forEach((b) => b.addEventListener("click", () => this._resolveRushOffer(Number(b.dataset.decline), false)));
+    const resolve = (id, yes) => (pit && !this.rush ? this.resolveIncomingTrade(yes) : this._resolveRushOffer(id, yes));
+    el.querySelectorAll("[data-accept]").forEach((b) => b.addEventListener("click", () => resolve(Number(b.dataset.accept), true)));
+    el.querySelectorAll("[data-decline]").forEach((b) => b.addEventListener("click", () => resolve(Number(b.dataset.decline), false)));
+    this._updateOfferTimers();
+  }
+
+  /** Rush offers: the time-left bar follows the game clock (it stops while the game is paused). */
+  _updateOfferTimers() {
+    const r = this.rush;
+    if (!r || !this.rushOffersEl) return;
+    this.rushOffersEl.querySelectorAll("[data-offer]").forEach((card) => {
+      const o = r.offers.find((x) => x.id === Number(card.dataset.offer));
+      if (o) card.style.setProperty("--left", String(clamp((o.expiresAt - r.clockMs) / RUSH_OFFER_MS, 0, 1)));
+    });
   }
 
   // ── Rush HUD: countdown ring, Ready votes, next-7 badge, header badge, 7-pause panel ──
@@ -4895,6 +5461,7 @@ class ColonistFullGame {
     }
     panel.hidden = !seven;
     if (!seven) return;
+
     const mover = this.players[seven.moverId];
     const humanPlacing = seven.stage === "robber" && this._isInteractive(mover);
     panel.classList.toggle("robber-placing", humanPlacing);
@@ -5730,69 +6297,58 @@ class ColonistFullGame {
     });
   }
 
-  drawBuildableHighlights() {
-    const ctx = this.ctx;
-    const s = this.geometry.hexSize / 74;
-    const human = this.players.find(p => p.isHuman);
-    const isHumanMain = human && this.phase === "main" && this.currentPlayer.isHuman;
-    if (!isHumanMain) return;
-
-    const canSettlement = hasResources(human.resources, COSTS.settlement);
-    const canCity = hasResources(human.resources, COSTS.city);
-    const canRoad = hasResources(human.resources, COSTS.road);
-    const pulse = 0.5 + Math.sin(Date.now() / 400) * 0.3;
-
-    // Road highlights (draw first, under node highlights)
-    if (canRoad) {
-      ctx.lineCap = "round";
-      this.geometry.edges.forEach((edge) => {
-        if (edge.owner != null) return;
-        if (!this.canBuildRoad(human, edge.id, { free: false })) return;
-        const [a, b] = edge.nodes;
-        const p1 = this.geometry.nodes[a];
-        const p2 = this.geometry.nodes[b];
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.strokeStyle = `rgba(25, 160, 184, ${0.3 + pulse * 0.2})`;
-        ctx.lineWidth = 5 * s;
-        ctx.setLineDash([5 * s, 3 * s]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      });
+  /** Legal spots while the human places something (setup or build mode), or null. Shared by both renderers. */
+  _legalPlacementSpots() {
+    const player = this.currentPlayer;
+    if (!player?.isHuman || this.winner) return null;
+    const nodes = [], edges = [];
+    const g = this.geometry;
+    if (this.setupPhase) {
+      if (!this.setupAction) return null;
+      if (this.setupAction === "settlement") g.nodes.forEach((n) => { if (this.canBuildSettlement(player, n.id, true)) nodes.push(n.id); });
+      else if (this.setupAction === "road" && this.lastSetupNodeId != null) g.edges.forEach((e) => { if (e.owner == null && e.nodes.includes(this.lastSetupNodeId)) edges.push(e.id); });
+      return { nodes, edges, type: this.setupAction };
     }
-
-    // Settlement highlights
-    if (canSettlement) {
-      this.geometry.nodes.forEach((node) => {
-        if (node.owner != null) return;
-        if (!this.canBuildSettlement(human, node.id, false)) return;
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, 9 * s, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(25, 160, 184, ${0.15 + pulse * 0.1})`;
-        ctx.fill();
-        ctx.strokeStyle = `rgba(25, 160, 184, ${0.5 + pulse * 0.2})`;
-        ctx.lineWidth = 2 * s;
-        ctx.stroke();
-      });
-    }
-
-    // City upgrade highlights
-    if (canCity) {
-      this.geometry.nodes.forEach((node) => {
-        if (node.owner !== human.id || node.structure !== "settlement") return;
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, 14 * s, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 200, 60, ${0.1 + pulse * 0.1})`;
-        ctx.fill();
-        ctx.strokeStyle = `rgba(255, 200, 60, ${0.5 + pulse * 0.2})`;
-        ctx.lineWidth = 2.5 * s;
-        ctx.setLineDash([4 * s, 2 * s]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      });
-    }
+    const type = this.pendingAction;
+    if (!type || type === "robber") return null;
+    if (type === "settlement") g.nodes.forEach((n) => { if (this.canBuildSettlement(player, n.id, false)) nodes.push(n.id); });
+    else if (type === "city") g.nodes.forEach((n) => { if (this.canBuildCity(player, n.id, false)) nodes.push(n.id); });
+    else if (type === "road") g.edges.forEach((e) => { if (this.canBuildRoad(player, e.id, { free: this.freeRoadsRemaining > 0 })) edges.push(e.id); });
+    return { nodes, edges, type };
   }
+
+  /** Classic board: legal spots only, as calm white rings / dashed road ghosts (no colours that read as errors). */
+  drawBuildableHighlights() {
+    const spots = this._legalPlacementSpots();
+    if (!spots) return;
+    const ctx = this.ctx;
+    const px = 1 / (this.view.scale || 1); // world units per CSS pixel
+    const cb = this.confirmBuild;
+    ctx.save();
+    ctx.lineCap = "round";
+    spots.edges.forEach((id) => {
+      if (cb && cb.type === "road" && cb.id === id) return;
+      const [a, b] = this.geometry.edges[id].nodes.map((n) => this.geometry.nodes[n]);
+      const t = 0.22, ax = a.x + (b.x - a.x) * t, ay = a.y + (b.y - a.y) * t, bx = b.x - (b.x - a.x) * t, by = b.y - (b.y - a.y) * t;
+      ctx.setLineDash([6 * px, 5 * px]);
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+      ctx.strokeStyle = "rgba(15, 35, 50, 0.35)"; ctx.lineWidth = 6 * px; ctx.stroke();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.95)"; ctx.lineWidth = 3.5 * px; ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    spots.nodes.forEach((id) => {
+      if (cb && cb.id === id && cb.type !== "road") return;
+      const n = this.geometry.nodes[id];
+      const r = spots.type === "city" ? 15 * px : 7 * px;
+      ctx.beginPath(); ctx.arc(n.x, n.y, r + 1.5 * px, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(15, 35, 50, 0.35)"; ctx.lineWidth = 1.5 * px; ctx.stroke();
+      ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.22)"; ctx.fill();
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2.5 * px; ctx.stroke();
+    });
+    ctx.restore();
+  }
+
 
   drawRoads() {
     const ctx = this.ctx;
@@ -6007,23 +6563,11 @@ class ColonistFullGame {
     const ctx = this.ctx;
     const s = this.geometry.hexSize / 74;
     const cb = this.confirmBuild;
-    let cx, cy;
-
-    if (cb.type === "road") {
-      const edge = this.geometry.edges[cb.id];
-      const [a, b] = edge.nodes;
-      const p1 = this.geometry.nodes[a];
-      const p2 = this.geometry.nodes[b];
-      cx = (p1.x + p2.x) / 2;
-      cy = (p1.y + p2.y) / 2;
-    } else {
-      const node = this.geometry.nodes[cb.id];
-      cx = node.x;
-      cy = node.y;
-    }
+    const ic = this.getConfirmIconCenter();
+    const cx = ic.x;
 
     // Position icon above the spot
-    const iconY = cy - 30 * s;
+    const iconY = ic.y;
     const iconR = 16 * s;
     const bounce = Math.sin(Date.now() / 200) * 2 * s;
     const iy = iconY + bounce;
@@ -6083,6 +6627,12 @@ class ColonistFullGame {
       ctx.lineWidth = 4;
       ctx.lineCap = "round";
       ctx.stroke();
+    } else {
+      // Robber: a check mark
+      ctx.beginPath();
+      ctx.moveTo(-8, 0); ctx.lineTo(-2, 6); ctx.lineTo(9, -7);
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 3.5; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.stroke();
     }
     ctx.restore();
 
@@ -6099,6 +6649,7 @@ class ColonistFullGame {
   }
 
   getBuildPosition(cb) {
+    if (cb.type === "robber") return { ...this.geometry.hexes[cb.id].center };
     if (cb.type === "road") {
       const edge = this.geometry.edges[cb.id];
       const [a, b] = edge.nodes;
@@ -6114,20 +6665,9 @@ class ColonistFullGame {
     if (!this.confirmBuild) return null;
     const s = this.geometry.hexSize / 74;
     const cb = this.confirmBuild;
-    let cx, cy;
-    if (cb.type === "road") {
-      const edge = this.geometry.edges[cb.id];
-      const [a, b] = edge.nodes;
-      const p1 = this.geometry.nodes[a];
-      const p2 = this.geometry.nodes[b];
-      cx = (p1.x + p2.x) / 2;
-      cy = (p1.y + p2.y) / 2;
-    } else {
-      const node = this.geometry.nodes[cb.id];
-      cx = node.x;
-      cy = node.y;
-    }
-    return { x: cx, y: cy - 30 * s, r: 16 * s };
+    const p = this.getBuildPosition(cb);
+    // robber: the ✓ floats over the top of the chosen tile
+    return { x: p.x, y: p.y - (cb.type === "robber" ? this.geometry.hexSize * 0.55 : 30 * s), r: 16 * s };
   }
 
   hitTestConfirmIcon(worldX, worldY) {
@@ -6141,28 +6681,58 @@ class ColonistFullGame {
   }
 
   drawRobberModeOverlay() {
-    if (this.pendingAction !== "robber") return;
+    if (this.pendingAction !== "robber" || !this.currentPlayer?.isHuman) return;
     const ctx = this.ctx;
-    const s = this.geometry.hexSize / 74;
-    const pulse = 0.3 + Math.sin(Date.now() / 300) * 0.15;
-
-    // Dim all hexes slightly, highlight valid targets
-    const human = this.players.find((p) => p.isHuman);
-    const legal = new Set(this._legalRobberHexes(human).map((h) => h.id));
+    const px = 1 / (this.view.scale || 1);
+    const mover = this.currentPlayer;
+    const legal = new Set(this._legalRobberHexes(mover).map((h) => h.id));
+    const sel = this.confirmBuild?.type === "robber" ? this.confirmBuild.id : null;
     this.geometry.hexes.forEach((hex) => {
       if (!legal.has(hex.id)) {
-        // Current robber location / friendly-robber protected — blocked
+        // Current robber location / friendly-robber protected: dimmed, not a target
         this.drawHexPath(hex.corners, true);
-        ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+        ctx.fillStyle = "rgba(10, 25, 35, 0.42)";
         ctx.fill();
-      } else {
-        // Valid target — subtle red pulse border
+        return;
+      }
+      if (hex.id === sel || hex.id === this.hoverHexId) {
         this.drawHexPath(hex.corners, true);
-        ctx.strokeStyle = `rgba(220, 60, 60, ${pulse})`;
-        ctx.lineWidth = 2.5 * s;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
+        ctx.lineWidth = 3.5 * px;
         ctx.stroke();
       }
+      const victims = this._stealVictims(hex.id, mover);
+      victims.forEach((pid, i) => {
+        const x = hex.center.x + (i - (victims.length - 1) / 2) * 24 * px, y = hex.center.y + this.geometry.hexSize * 0.66;
+        this._drawAvatarDisc(ctx, pid, x, y, 10 * px);
+      });
     });
+  }
+
+  /** A player's portrait as a small disc on the board (robber victims). Radius in canvas units. */
+  _drawAvatarDisc(ctx, pid, x, y, r) {
+    const img = this._avatarImage(pid);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y, r + r * 0.18, 0, Math.PI * 2);
+    ctx.fillStyle = this.players[pid]?.color || "#fff"; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+    if (img?.complete && img.naturalWidth) { ctx.clip(); ctx.drawImage(img, x - r, y - r, 2 * r, 2 * r); }
+    ctx.restore();
+  }
+
+  /** Cached raster of a seat's portrait (theme art), for canvas use. */
+  _avatarImage(pid) {
+    const key = `${this.theme.id}|${this.theme.paletteId || ""}|${pid}`;
+    this._avatarImgs = this._avatarImgs || new Map();
+    let img = this._avatarImgs.get(key);
+    if (!img) {
+      img = new Image();
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-50 -50 100 100" width="96" height="96">${this.theme.avatar(SEAT_PRESETS[pid] || "you")}</svg>`;
+      img.onload = () => this.requestBoardDraw();
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+      this._avatarImgs.set(key, img);
+    }
+    return img;
   }
 
   drawRollHighlight() {
@@ -6357,18 +6927,18 @@ class ColonistFullGame {
         if (!this.currentPlayer?.isHuman || this.phase !== "main" || this.tradeLocked || this._robberInProgress()) return;
         const res = el.dataset.card;
         if (human.resources[res] <= 0) return;
-        // Open trade with this resource pre-selected as "give"
-        if (this.tradeModal?.style.display === "none" || !this.tradeModal?.style.display) {
-          this.tradeOffer = makeEmptyResources();
-          this.tradeRequest = makeEmptyResources();
-        }
-        this.tradeOffer[res] = Math.min(human.resources[res], (this.tradeOffer[res] || 0) + 1);
+        // Open trade with this card pre-selected as "give": a full bank set when you hold one,
+        // otherwise one card offered to the players
+        const rate = this.getPlayerTradeRate(human, res);
         this.toggleBuildSheet(false);
         this.hideDevCardPicker();
-        this.tradeModal.style.display = "";
-        if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
-        this.buildTradeGrids();
-        this.updateTradeButtons();
+        const tab = human.resources[res] >= rate ? "bank" : "players";
+        if (this.tradeModal.style.display === "none") this.openTradeModal(tab);
+        else this.setTradeTab(tab);
+        if (this.tradeTab === "bank") { this.tradeOffer = makeEmptyResources(); this.tradeOffer[res] = rate; }
+        else this.tradeOffer[res] = Math.min(human.resources[res], (this.tradeOffer[res] || 0) + 1);
+        if (this.tradeRequest[res]) this.tradeRequest[res] = 0;
+        this._refreshTradeGrids();
         this.sfx.click();
       });
     });
@@ -6521,7 +7091,12 @@ class ColonistFullGame {
       // trade offers are already on screen as a card (Rush) or a sheet (Classic): don't repeat them here
       const NOISE = /^(Session restored|Initial placement complete|Game (saved|loaded))|\boffers you\b/;
       const real = [...this.logEntries].reverse().find((e) => !NOISE.test(e.text.replace(/^Turn \d+: /, "")));
-      if (real) {
+      const own = this._ownRollSummary();
+      if (own) {
+        // Right after your roll the line is about YOU, not the last bot that collected
+        this.tickerText.innerHTML = this._enrichLogText(own);
+        if (this.tickerIcon) this.tickerIcon.innerHTML = icon("dice");
+      } else if (real) {
         const t = real.text.replace(/^Turn \d+: /, "").replace(/^Roll #\d+: rolled/, "Dice rolled");
         this.tickerText.innerHTML = this._enrichLogText(t);
         if (this.tickerIcon) this.tickerIcon.innerHTML = icon(this._logIcon(real.text));
@@ -6534,6 +7109,19 @@ class ColonistFullGame {
         if (this.tickerIcon) this.tickerIcon.innerHTML = icon(cp.isHuman && this.phase === "pre_roll" ? "dice" : "log");
       }
     }
+  }
+
+  /** "You rolled 8 · +1 Lumber" while nothing but the payout has happened since your roll. */
+  _ownRollSummary() {
+    const L = this.logEntries;
+    let i = L.length - 1;
+    const quiet = /\bcollects?\b|^Bank is short/;
+    while (i >= 0 && quiet.test(L[i].text)) i -= 1;
+    const m = i >= 0 ? /^Turn \d+: You rolled (\d+)\.$/.exec(L[i].text) : null;
+    if (!m || m[1] === "7") return "";
+    const mine = L.slice(i + 1).map((e) => /^You collect (.+)\.$/.exec(e.text)).find(Boolean);
+    const gain = mine ? mine[1].split(", ").map((p) => `+${p}`).join(" · ") : "nothing for you this time";
+    return `You rolled ${m[1]} · ${gain}`;
   }
 
   renderStatusAndControls() {
@@ -6565,9 +7153,13 @@ class ColonistFullGame {
     // ── status pill (desktop turn banner; mobile uses the ticker) ──
     let title = humanTurn ? "Your turn" : `${active.name}'s turn`;
     let status;
+    const mobile = this.isMobileLayout;
+    const confirmHint = mobile ? "Tap Place to confirm" : "Click ✓ to confirm — or pick another spot";
+    const setupRound = this.setupStep < this.players.length ? 1 : 2;
     if (this.setupPhase && this.setupAction && humanTurn) {
-      title = "Your turn · setup";
-      status = this.confirmBuild ? "Tap ✓ to confirm — or pick another spot" : `Place ${placeName[this.setupAction]} · ${this.isMobileLayout ? "tap" : "click"} a glowing spot`;
+      title = `Setup ${setupRound} of 2`;
+      status = this.confirmBuild ? confirmHint
+        : this.setupAction === "settlement" ? `Pick your ${setupRound === 1 ? "first" : "second"} settlement` : "Add a road next to it";
     } else if (this.setupPhase) {
       status = "Placing a starting settlement…";
     } else if (this.winner) {
@@ -6577,7 +7169,7 @@ class ColonistFullGame {
       title = "Robber!";
       status = "Game paused — discards, then the robber";
     } else if (humanTurn && this.pendingAction === "robber") {
-      status = "Move the robber · tap a tile";
+      status = this.confirmBuild ? confirmHint : mobile ? "Pick a tile for the robber" : "Move the robber · click a tile";
     } else if (rushOn && mainPhase && !this.pendingAction) {
       title = "Rush";
       status = this.autoplayInterval ? "Bots are playing for you" : "Build, trade or play a card any time";
@@ -6585,8 +7177,9 @@ class ColonistFullGame {
       status = "Roll the dice to start your turn";
     } else if (humanTurn && mainPhase) {
       if (this.pendingAction) {
-        if (this.confirmBuild) status = "Tap ✓ to confirm — or pick another spot";
-        else status = this.freeRoadsRemaining > 0 ? `Place a free road (${this.freeRoadsRemaining} left)` : `Placing ${placeName[this.pendingAction] || this.pendingAction} · tap a glowing spot`;
+        if (this.confirmBuild) status = confirmHint;
+        else status = this.freeRoadsRemaining > 0 ? `Free road · ${this.freeRoadsRemaining} left · tap a glowing spot`
+          : mobile ? "Tap a glowing spot" : `Placing ${placeName[this.pendingAction] || this.pendingAction} · click a glowing spot`;
       } else {
         status = "Build, trade or play a card";
       }
@@ -6597,12 +7190,20 @@ class ColonistFullGame {
     // Phones: the ticker line becomes the instruction while you have to act (place, robber, discard)
     const mustAct = !this.winner && ((this.setupPhase && humanTurn && this.setupAction) || (humanTurn && this.pendingAction) || !!this.pendingDiscard);
     const prompt = mustAct ? (this.pendingDiscard ? "The robber came! Hand back half of your cards" : status) : "";
-    if (prompt !== (this._tickerPrompt || "")) {
+    // Build mode on phones: Cancel sits right in the instruction line
+    const canCancel = humanTurn && !this.setupPhase && !!(this.confirmBuild || (this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining));
+    const tickerCancel = document.querySelector("#tickerCancel");
+    if (tickerCancel) tickerCancel.hidden = !(mustAct && canCancel);
+    // the setup step chip only where the line has room (phones show it in the dock instead)
+    const stepChip = this.setupPhase && humanTurn && this.setupAction && window.innerWidth > 430 ? `Setup ${setupRound} of 2` : "";
+    const promptKey = prompt + "|" + stepChip;
+    if (promptKey !== (this._tickerPromptKey || "|")) {
+      this._tickerPromptKey = promptKey;
       this._tickerPrompt = prompt;
       this._lastLogKey = null;
       document.querySelector("#ticker")?.classList.toggle("prompt", !!prompt);
       if (prompt && this.tickerText) {
-        this.tickerText.textContent = prompt;
+        this.tickerText.innerHTML = `<span class="tk-main">${prompt}</span>${stepChip ? `<span class="tk-step">${stepChip}</span>` : ""}`;
         if (this.tickerIcon) this.tickerIcon.innerHTML = icon(this.pendingDiscard || this.pendingAction === "robber" ? "robber" : this.confirmBuild?.type || this.pendingAction || this.setupAction || "build");
       }
       if (!prompt) this.renderLog();
@@ -6630,28 +7231,38 @@ class ColonistFullGame {
       rollBtn.disabled = inSetup || !(humanTurn && preRoll) || robberBlocking;
     }
     if (endBtn) {
-      endBtn.style.display = !rushOn && humanTurn && (mainPhase || inSetup) && !robberBlocking ? "inline-flex" : "none";
-      endBtn.disabled = inSetup || !(humanTurn && mainPhase) || robberBlocking || (!!this.pendingAction && !this.freeRoadsRemaining);
+      endBtn.style.display = !rushOn && humanTurn && mainPhase && !inSetup && !robberBlocking ? "inline-flex" : "none";
+      // also while Road Building's free roads are still to be placed
+      endBtn.disabled = inSetup || !(humanTurn && mainPhase) || robberBlocking || !!this.pendingAction;
     }
     if (this.rushReadyBtn) this.rushReadyBtn.hidden = !rushOn || !!this.winner;
     if (this.waitingBar) {
       let wait = "";
-      if (this.winner && !document.querySelector(".game-over-overlay")) {
-        wait = `${icon("vp")}<div class="wt">${this.winner.name} win${this._s(this.winner)}<small>Game over</small></div><button type="button" class="btn primary" data-newgame>New game</button>`;
+      if (this.winner) {
+        wait = ""; // after "See board": one clean New game button instead (below)
       } else if (humanTurn && this.pendingAction === "robber") {
-        wait = `${icon("robber")}<div class="wt">Move the robber<small>Tap a tile on the board</small></div>`;
+        wait = `${icon("robber")}<div class="wt">Place robber<small>${this.confirmBuild ? "Confirm above" : "Pick a tile"}</small></div>`;
+      } else if (inSetup && humanTurn && !rushOn) {
+        wait = `${icon(this.setupAction || "settlement")}<div class="wt">Setup ${setupRound} of 2<small>${this.setupAction === "road" ? "Last step: a road" : "Then add a road"}</small></div>`;
       } else if (oppTurn) {
         wait = `${this._av(active)}<div class="wt">${active.name} is playing<small>${inSetup ? "Placing a settlement" : preRoll ? "Rolling the dice" : "Building and trading"}</small></div><div class="dots"><i></i><i></i><i></i></div>`;
       }
-      const wkey = `${wait.length}:${active.id}:${preRoll}:${inSetup}:${!!this.winner}:${this.pendingAction}`;
+      const wkey = `${wait.length}:${active.id}:${preRoll}:${inSetup}:${!!this.winner}:${this.pendingAction}:${this.setupAction}:${setupRound}:${this.confirmBuild?.type}`;
+
       if (this.waitingBar.dataset.key !== wkey) {
         this.waitingBar.dataset.key = wkey;
         this.waitingBar.innerHTML = wait;
         this.waitingBar.querySelector("[data-newgame]")?.addEventListener("click", () => this._showDifficultyModal());
       }
       this.waitingBar.hidden = !wait;
-      if (this.winner && wait) { rollBtn && (rollBtn.style.display = "none"); endBtn && (endBtn.style.display = "none"); }
     }
+    const newGameBtn = document.querySelector("#newGameMainBtn");
+    if (newGameBtn) {
+      const over = !!this.winner && !document.querySelector(".game-over-overlay");
+      newGameBtn.hidden = !over;
+      if (over) { rollBtn && (rollBtn.style.display = "none"); endBtn && (endBtn.style.display = "none"); }
+    }
+
     if (buildPanel) buildPanel.style.display = this.pendingDiscard ? "none" : ""; // hidden while discarding; otherwise shown, disabled when not usable
 
     // Hide trade panel when not in main phase or during robber
@@ -6700,12 +7311,17 @@ class ColonistFullGame {
       this.playDevBtn.style.display = showPlayDev ? "inline-flex" : "none";
       if (!showPlayDev && !this.isMobileLayout) this.hideDevCardPicker();
     }
+    // Cards: the badge counts every development card (same number as on your player chip);
+    // the button only stands out when one of them can be played right now
     const mDot = document.querySelector("#mCardsDot");
+    const playableNow = !inSetup && noDevPlayed && DEV_CARD_TYPES.some(canPlayDev);
     if (mDot) {
       const nDev = DEV_CARD_TYPES.reduce((s, t) => s + human.devCards[t] + human.newDevCards[t], 0) + human.devVictoryPoints;
       mDot.hidden = !nDev;
       mDot.textContent = String(nDev);
+      mDot.classList.toggle("go", playableNow);
     }
+    document.querySelector("#mCardsBtn")?.classList.toggle("quiet", !playableNow);
     const mBuild = document.querySelector("#mBuildBtn");
     if (mBuild) mBuild.disabled = !canBuildNow;
 
@@ -6917,6 +7533,8 @@ class ColonistFullGame {
   // Mode (Classic / Rush), rules, dice, map and opponents. The last choice is remembered.
   _showDifficultyModal() {
     document.querySelector(".newgame-modal")?.remove();
+    this.onboarding?.close();
+    this.settingsUI?.close();
     const last = normalizeSettings(ColonistFullGame.loadLastSettings());
     let d = normalizeSettings(JSON.parse(JSON.stringify(last)));
     const overlay = document.createElement("div");
@@ -7113,7 +7731,7 @@ class ColonistFullGame {
                     <div class="ng-bot pc-${i + 1}">
                       ${avatarSvg(i + 1, "ng-bot-avatar")}
                       <div class="ng-bot-info">
-                        <div class="ng-bot-name"><span class="who pc-${i + 1}" style="color:${cfg.color}">${esc(cfg.name)}</span>${badge(botPreset(i))}</div>
+                        <div class="ng-bot-name"><span class="who pc-${i + 1}">${esc(cfg.name)}</span>${badge(botPreset(i))}</div>
                         <div class="ng-bot-desc">${strategySummary(botStrategy(i))}</div>
                       </div>
                       ${d.botStyleMode === "each" ? `
@@ -7182,14 +7800,15 @@ class ColonistFullGame {
     };
 
     const onKey = (e) => { if (e.key === "Escape") close(); };
-    const close = () => {
+    const close = (started = false) => {
       overlay.remove();
       document.removeEventListener("keydown", onKey);
       this.uiPaused = false;
       this._rushLastTs = performance.now();
+      if (!started && this.onboardingHold) this.onboarding.showWelcome(); // first launch: back to the welcome sheet
     };
     const start = () => {
-      close();
+      close(true);
       this.startNewGame(d);
     };
     document.addEventListener("keydown", onKey);
@@ -7344,8 +7963,9 @@ class ColonistFullGame {
     this.discardCards.innerHTML = RESOURCES.map((r) => {
       const have = player.resources[r];
       const sel = selected[r];
+      // the badge shows what you keep; the line under it what goes back
       return `<div class="rcell${sel ? " pick" : ""}${have ? "" : " dim"}" data-res="${r}">
-        <button type="button" class="card discard-card" data-add="${r}" aria-label="Hand back 1 ${RESOURCE_LABEL[r]}" ${have ? "" : "disabled"}>${cardSvg(r)}<span class="count">${have}</span></button>
+        <button type="button" class="card discard-card" data-add="${r}" aria-label="Hand back 1 ${RESOURCE_LABEL[r]} (keeping ${have - sel})" ${have ? "" : "disabled"}>${cardSvg(r)}<span class="count">${have - sel}</span></button>
         <span class="n">${sel ? `−${sel}` : "·"}</span>
         <div class="step"><button type="button" data-sub="${r}" aria-label="One less" ${sel ? "" : "disabled"}>−</button><button type="button" data-add="${r}" aria-label="One more" ${sel < have && totalSelected < count ? "" : "disabled"}>+</button></div></div>`;
     }).join("");
@@ -7358,7 +7978,7 @@ class ColonistFullGame {
     };
     this.discardCards.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => change(b.dataset.add, 1)));
     this.discardCards.querySelectorAll("[data-sub]").forEach((b) => b.addEventListener("click", () => change(b.dataset.sub, -1)));
-    this.discardSelected.textContent = `${totalSelected} of ${count} chosen`;
+    this.discardSelected.textContent = `${totalSelected} of ${count} chosen · you keep ${sumResources(player.resources) - totalSelected}`;
     const lbl = document.querySelector("#discardConfirmLabel");
     if (lbl) lbl.textContent = totalSelected === count ? `Hand back ${count} cards` : `Choose ${count - totalSelected} more`;
     this.discardConfirmBtn.disabled = totalSelected !== count;
@@ -7594,7 +8214,9 @@ class ColonistFullGame {
   }
 
   _updateLayoutMode() {
-    this.isMobileLayout = window.matchMedia("(max-width: 900px)").matches;
+    // Phones in any orientation (incl. landscape: short screens) use the touch layout
+    this.isMobileLayout = window.matchMedia(MOBILE_MQ).matches;
+    this.isLandscapePhone = window.matchMedia(LANDSCAPE_MQ).matches;
   }
 
   _bindThemeUI() {
@@ -7614,6 +8236,8 @@ class ColonistFullGame {
     $("#mCardsBtn")?.addEventListener("click", (e) => { e.stopPropagation(); this.toggleDevCardPicker(); });
     $("#devPickerClose")?.addEventListener("click", () => this.hideDevCardPicker());
     this.cancelActionBtn?.addEventListener("click", () => this.cancelPlacement());
+    $("#tickerCancel")?.addEventListener("click", (e) => { e.stopPropagation(); this.cancelPlacement(); });
+    $("#newGameMainBtn")?.addEventListener("click", () => this._showDifficultyModal());
     $("#confirmPillCancel")?.addEventListener("click", () => { this.confirmBuild = null; this.render(); });
     $("#confirmPillPlace")?.addEventListener("click", () => this._confirmViaIcon());
     // choosing something in the mobile build sheet closes it
@@ -7634,7 +8258,8 @@ class ColonistFullGame {
     [this.tradeModal, this.devCardPicker, this.victimPanel, this.discardPanel, this.incomingTradePanel, this.railLog, this.app].forEach((el) => {
       if (el) mo.observe(el, { attributes: true, attributeFilter: ["style", "class"] });
     });
-    window.matchMedia("(max-width: 900px)").addEventListener?.("change", () => this.handleResize());
+    window.matchMedia(MOBILE_MQ).addEventListener?.("change", () => this.handleResize());
+    window.matchMedia(LANDSCAPE_MQ).addEventListener?.("change", () => this.handleResize());
     document.addEventListener("visibilitychange", () => { if (!document.hidden) this.boardRenderer?.requestDraw(); });
     // The board area changes size without a window resize (chrome bars laying out after load, the
     // hand fan, sheets): keep the canvas backing store in step with its box, or the board is drawn
@@ -7695,6 +8320,10 @@ class ColonistFullGame {
   _confirmViaIcon() {
     const ic = this.getConfirmIconCenter();
     if (!ic) return;
+    if (this.confirmBuild?.type === "robber") {
+      this._commitRobber(this.currentPlayer, this.confirmBuild.id);
+      return;
+    }
     if (this.setupPhase) {
       this.handleSetupClick(ic.x, ic.y);
       this.render();
@@ -7843,6 +8472,13 @@ class ColonistFullGame {
     if (!cb) return null;
     const terr = (nodeId) => this.geometry.nodes[nodeId].adjacentHexes.map((hid) => this.geometry.hexes[hid])
       .filter((h) => h.resource !== "desert").map((h) => `${RESOURCE_LABEL[h.resource]} ${h.number}`).join(" · ");
+    if (cb.type === "robber") {
+      const hex = this.geometry.hexes[cb.id];
+      const where = hex.resource === "desert" || !hex.number ? "the Desert" : `${TERRAIN_NAME[hex.resource]} ${hex.number}`;
+      const v = this._stealVictims(cb.id, this.currentPlayer).map((id) => this.players[id].name);
+      const sub = !v.length ? "Nobody to steal from here" : v.length === 1 ? `Steal from ${v[0]}` : `Steal from ${v.slice(0, -1).join(", ")} or ${v[v.length - 1]}`;
+      return { icon: "robber", title: `Robber on ${where}`, sub };
+    }
     if (cb.type === "road") {
       const free = this.setupPhase || this.freeRoadsRemaining > 0;
       return { icon: "road", title: "Road here?", sub: free ? "Free road" : "Costs 1 Lumber + 1 Brick" };

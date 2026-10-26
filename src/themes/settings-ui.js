@@ -1,7 +1,11 @@
-// Settings dialog (desktop modal / mobile bottom sheet): Game · Look & feel · Bot personalities · About.
-// "Game" hosts the existing game controls from index.html (#settingsDrawer body, moved here so
-// their listeners stay intact). Look & feel: theme cards, Motion, quick toggle. Applies instantly.
-import { THEMES, THEME_ORDER, UPCOMING, motionPref, setMotionPref, palettePref, setPalette, prefetchFonts, icon } from "./manager.js";
+// Settings dialog (desktop modal / mobile bottom sheet): Game · Look & feel · Bots · About.
+// "Game" hosts the game controls from index.html (#settingsDrawer body, moved here so their
+// listeners stay intact): New game first, then sound and pace. The bot-autoplay controls live in
+// About › Developer. Look & feel: theme cards, Motion, quick toggle. Applies instantly.
+import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, prefetchFonts, icon } from "./manager.js";
+
+/** Shown in Settings › About and on the settings button; bumped with every release. */
+export const APP_VERSION = "0.68";
 
 /** A tiny live preview of a theme: seven hexes in the theme's palette on its sea. */
 function miniBoard(dots, sea) {
@@ -25,11 +29,16 @@ export class SettingsUI {
     this.gamePane.className = "st-game";
     this.botPane = document.createElement("div");
     this.botPane.className = "st-game";
+    this.devPane = document.createElement("div");
+    this.devPane.className = "st-game";
     if (body) {
       const strat = body.querySelector(".ai-strategy-section");
       if (strat) { strat.open = true; this.botPane.appendChild(strat); }
+      const dev = body.querySelector(".dev-tools");
+      if (dev) this.devPane.appendChild(dev);
       while (body.firstChild) this.gamePane.appendChild(body.firstChild);
     }
+    document.querySelectorAll(".app-version, .version-label").forEach((el) => { el.textContent = `v${APP_VERSION}`; });
   }
 
   open(tab = this.tab) {
@@ -41,7 +50,7 @@ export class SettingsUI {
     el.setAttribute("aria-modal", "true");
     el.setAttribute("aria-label", "Settings");
     el.innerHTML = `<div class="st-card"><nav class="st-nav"><h1>Settings</h1>
-        ${[["game", "Game"], ["look", "Look & feel"], ["bots", "Bot personalities"], ["about", "About"]].map(([k, l]) => `<button type="button" data-tab="${k}" class="${k === tab ? "on" : ""}">${l}</button>`).join("")}
+        ${[["game", "Game"], ["look", "Look & feel"], ["bots", "Bots"], ["about", "About"]].map(([k, l]) => `<button type="button" data-tab="${k}" class="${k === tab ? "on" : ""}">${l}</button>`).join("")}
       </nav><div class="st-body"></div></div>`;
     el.addEventListener("click", (e) => { if (e.target === el) this.close(); });
     el.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => { this.tab = b.dataset.tab; this.renderBody(); el.querySelectorAll("[data-tab]").forEach((x) => x.classList.toggle("on", x === b)); }));
@@ -57,6 +66,7 @@ export class SettingsUI {
     // park the moved game controls so they survive
     this.gamePane.remove();
     this.botPane.remove();
+    this.devPane.remove();
     this.el.remove();
     this.el = null;
     document.removeEventListener("keydown", this.onKey);
@@ -71,25 +81,28 @@ export class SettingsUI {
     const g = this.game;
     this.gamePane.remove();
     this.botPane.remove();
+    this.devPane.remove();
     if (this.tab === "game") {
-      body.innerHTML = this.head("Game", "Start a new game, let the bots play, sounds and speed.");
+      body.innerHTML = this.head("Game", "");
       body.appendChild(this.gamePane);
     } else if (this.tab === "bots") {
       body.innerHTML = this.head("Bot personalities", "How each bot plays. New games use the choices from the New game screen.");
       body.appendChild(this.botPane);
     } else if (this.tab === "about") {
-      body.innerHTML = this.head("About", "") + `<p class="sub">Colonist — a settle-and-trade island game against friendly bots. Themes: Sunny Island and Classic; Wooden Board Game and Storybook are on the way.</p><p class="sub">Keyboard: R roll dice · E end turn · 1–3 build · B buy card · T trade · V fit board · Esc cancel.</p>`;
+      body.innerHTML = this.head("About", "") + `<p class="sub">Colonist ${"v" + APP_VERSION} — a settle-and-trade island game against friendly bots.</p>
+        <button type="button" class="st-howto">${icon("hint")}How to play</button>
+        <p class="sub">Keyboard: R roll dice · E end turn · 1–3 build · B buy card · T trade · V fit board · Esc cancel.</p>`;
+      body.querySelector(".st-howto").addEventListener("click", () => { this.close(); g.onboarding?.showIntro(0, false); });
+      body.appendChild(this.devPane);
     } else {
       const cur = g.theme.id;
       const card = (T) => `<button type="button" class="tc ${T.id === cur ? "on" : ""}" data-theme-id="${T.id}" aria-pressed="${T.id === cur}">
           <div class="pv">${miniBoard(T.paletteDots, T.id === "A" ? "#3CA9B0" : "#2a6a88")}</div><span class="radio"></span>
           <div class="meta"><div class="nm"><b>${T.name}</b><span class="aa" style="font-family:${T.id === "A" ? "'DM Serif Display',Georgia,serif" : "Inter,sans-serif"}">Aa</span></div>
           <p>${T.mood}</p><div class="dots">${T.paletteDots.map((c) => `<i style="background:${c}"></i>`).join("")}</div></div></button>`;
-      const soon = (U) => `<div class="tc soon" aria-disabled="true"><div class="pv"><div class="ph">preview coming soon</div></div><span class="soon-tag">Coming soon</span>
-          <div class="meta"><div class="nm"><b>${U.name}</b></div><p>${U.mood}</p><div class="dots">${U.dots.map((c) => `<i style="background:${c}"></i>`).join("")}</div></div></div>`;
       const m = motionPref();
       body.innerHTML = this.head("Look &amp; feel", "Pick a world for your island. Board, cards, pieces and motion follow the theme. Applies instantly.") +
-        `<div class="tcards">${THEME_ORDER.map((id) => card(THEMES[id])).join("")}${UPCOMING.map(soon).join("")}</div>
+        `<div class="tcards">${THEME_ORDER.map((id) => card(THEMES[id])).join("")}</div>
         ${g.theme?.id === "A" ? `<div class="st-row" style="margin-top:14px"><div><b>Colours</b><small>Light is soft and airy · Vivid is bold and saturated.</small></div>
           <div class="seg pal-seg" role="radiogroup" aria-label="Colours">${[["light", "Light"], ["vivid", "Vivid"]].map(([v, l]) => `<button type="button" data-palette="${v}" class="${palettePref() === v ? "on" : ""}" aria-checked="${palettePref() === v}" role="radio"><i class="pal-dot pal-${v}"></i>${l}</button>`).join("")}</div></div>` : ""}
         <div class="st-row"><div><b>Motion</b><small>Reduced replaces travel and spin with short fades.</small></div>

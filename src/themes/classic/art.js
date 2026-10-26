@@ -2,6 +2,7 @@
 // original resource / development / UI icons and avatars from assets/, deep-sea chrome.
 // The board itself is still drawn by the legacy canvas code in game.js (canvasArt: false).
 import { RES_NAME, DEV_NAME, RESOURCE_KEYS } from "../art-util.js";
+import sunny from "../sunny/art.js";
 
 const img = (href, s = 80) => `<image href="${href}" x="${-s / 2}" y="${-s / 2}" width="${s}" height="${s}"/>`;
 const RES_ICON = {
@@ -13,7 +14,9 @@ const DEV_ICON = {
   yearOfPlenty: "./assets/icons/dev-year-of-plenty.svg", monopoly: "./assets/icons/dev-monopoly.svg",
 };
 const RES_COLOR = { wood: "#4a7c3f", brick: "#c66536", sheep: "#7ec850", wheat: "#d9bc52", ore: "#8b96a8", desert: "#d6c28e" };
-const SEAT_COLORS = ["#e63946", "#2a6fdb", "#e8a317", "#2db87e"];
+// Seats look the same in every theme: You blue, Marina orange, Bruno ivory, Viktor charcoal
+// (the Sunny Island piece colours and portraits), so switching themes never recolours a player.
+const SEAT_COLORS = ["#3A76DC", "#F68B3A", "#F3EEE2", "#353D47"];
 const ink = "#1a3a52";
 
 const star = `<path d="M0,-34 l10,20 22,3 -16,15 4,22 -20,-10 -20,10 4,-22 -16,-15 22,-3Z" fill="#c4a265" stroke="#8a6a2c" stroke-width="3" stroke-linejoin="round"/>`;
@@ -62,9 +65,7 @@ function card(k, mini) {
 }
 const cardBack = () => `<rect x="1" y="1" width="248" height="348" rx="18" fill="#1a3a52" stroke="#c4a265" stroke-width="4"/><g transform="translate(125 175) scale(2.2)">${ICONS.logo}</g>`;
 
-const AV = ["avatar-human", "avatar-pioneer", "avatar-sage", "avatar-vector"];
-const PRESET_SEAT = { you: 0, trader: 1, builder: 2, shark: 3, beginner: 1, intermediate: 2, expert: 3 };
-const avatar = (preset) => `<circle r="50" fill="#f5efe4"/>${img(`./assets/avatars/${AV[PRESET_SEAT[preset] ?? 0]}.svg`, 100)}`;
+const avatar = (preset) => sunny.avatar(preset);
 
 const PIPS = { 1: [[0, 0]], 2: [[-14, -14], [14, 14]], 3: [[-14, -14], [0, 0], [14, 14]], 4: [[-14, -14], [14, -14], [-14, 14], [14, 14]], 5: [[-14, -14], [14, -14], [0, 0], [-14, 14], [14, 14]], 6: [[-14, -16], [14, -16], [-14, 0], [14, 0], [-14, 16], [14, 16]] };
 const die = (n) => `<rect x="-36" y="-36" width="72" height="72" rx="14" fill="#fffdf8" stroke="#8a7a5a" stroke-width="3"/>${PIPS[n].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="6.4" fill="#18212c"/>`).join("")}`;
