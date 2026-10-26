@@ -31,7 +31,7 @@
   --active-row: #fdeee6; --divider: 1px solid rgba(160,140,110,.25); --divider-soft: 1px solid rgba(160,140,110,.18); --sep: rgba(160,140,110,.35);
   --fab-radius: 12px; --card-radius: 10px; --card-shadow: drop-shadow(0 2px 3px rgba(0,0,0,.2));
   --avatar-radius: 50%; --avatar-shadow: 0 1px 3px rgba(0,0,0,.2);
-  /* seats match every theme: You blue · Marina orange · Bruno ivory · Viktor plum */
+  /* seats match every theme (You · Blaauw · Van Geelen · Groenewoud) */
   --p0: #4A7FD6; --p1: #F2934A; --p2: #D8CFBB; --p3: #A8306F;
   --p0-text: #2C5BA8; --p1-text: #C7661F; --p2-text: #8C7B57; --p3-text: #8E2560;
   --p0-ink: #fff; --p1-ink: #fff; --p2-ink: #2E3A3D; --p3-ink: #fff;

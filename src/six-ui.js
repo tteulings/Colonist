@@ -37,9 +37,9 @@ export const SixUiMixin = {
   /** One six-up chip (design option A): avatar with a points badge, full name, cards + development cards. */
   _sixChip(player, { active, ready, vp, cards, dev, leader, building, awards, over }) {
     const cls = `pchip six pc-${player.id}${active ? " active" : ""}${ready ? " ready" : ""}${leader ? " leader" : ""}${building ? " building" : ""}`;
-    return `<div class="${cls}" data-seat="${player.id}" role="button" tabindex="0" aria-label="${player.name}: ${vp} points, ${cards} cards, ${dev} development cards${leader ? ", in the lead" : ""}${building ? ", building" : ""}">
+    return `<div class="${cls}" data-seat="${player.id}" role="button" tabindex="0" aria-label="${player.name}: ${vp} points, ${cards} cards, ${dev} development cards${leader ? ", in the lead" : ""}${building ? ", building" : ""}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
       <div class="sx-av">${avatarSvg(player.id)}<b class="sx-vp">${vp}</b>${leader ? CROWN : ""}${building ? `<span class="sx-sbp">${icon("build")}</span>` : ""}</div>
-      <div class="pn">${player.name}</div>
+      <div class="pn">${player.short || player.name}</div>
       <div class="mini"><span data-stat="cards"${over ? ` class="warn" title="more than ${this.settings?.discardLimit ?? 7}: hands back half on a 7"` : ""}>${icon("cards")}${cards}</span><span>${icon("devcard")}${dev}</span></div>
       ${awards ? `<div class="bdg">${awards}</div>` : ""}</div>`;
   },
@@ -82,7 +82,7 @@ export const SixUiMixin = {
     return !!(this.sbp?.human && this.currentPlayer?.isHuman && !this.winner);
   },
 
-  /** Whose turn starts after the build window: { short: "Bruno next", long: "Bruno is next" }. */
+  /** Whose turn starts after the build window: { short: "Van Geelen next", long: "Van Geelen is next" }. */
   _sbpNext() {
     const s = this.sbp;
     if (!s) return { short: "", long: "" };

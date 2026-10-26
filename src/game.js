@@ -61,13 +61,16 @@ const BANK_SIZE = 19; // cards of each resource in the game
 const PIECE_LIMITS = { road: 15, settlement: 5, city: 4, ship: 15 }; // ⚓ ship: Seafarers only
 
 const PLAYER_CONFIG = [
-  { name: "You", color: "#e63946", isHuman: true, avatar: "./assets/avatars/avatar-human.svg?v=57" },
-  { name: "Marina", color: "#2a6fdb", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg?v=57" },
-  { name: "Bruno", color: "#e8a317", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
-  { name: "Viktor", color: "#2db87e", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
+  // Names: a homage to the Dutch Cluedo cast (portraits: src/themes/portraits.js). Seat 0 is "You";
+  // its persona is Rosa Roodhart (fullName; "Roodhart" wherever the seat is named as a bot).
+  // short: the label in the phone player strip, where the full surname would not fit at 360px.
+  { name: "You", fullName: "Rosa Roodhart", color: "#e63946", isHuman: true, avatar: "./assets/avatars/avatar-human.svg?v=57" },
+  { name: "Blaauw", fullName: "Mevrouw Blaauw van Draet", color: "#2a6fdb", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg?v=57" },
+  { name: "Van Geelen", short: "Geelen", fullName: "Kolonel Van Geelen", color: "#e8a317", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
+  { name: "Groenewoud", short: "Groen", fullName: "Dominee Groenewoud", color: "#2db87e", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
   // seats 5 and 6 (5–6 player games); colours come from the theme (see src/themes/seats.js)
-  { name: "Nora", color: "#E01000", isHuman: false, avatar: "" },
-  { name: "Hugo", color: "#4CCBF5", isHuman: false, avatar: "" },
+  { name: "De Wit", fullName: "Mevrouw De Wit", color: "#E01000", isHuman: false, avatar: "" },
+  { name: "Pimpel", fullName: "Professor Pimpel", color: "#4CCBF5", isHuman: false, avatar: "" },
 ];
 
 const DEV_CARD_TYPES = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
@@ -1360,6 +1363,8 @@ class ColonistFullGame {
     this.players = PLAYER_CONFIG.slice(0, this.settings.numBots + 1).map((config, id) => ({
       id,
       name: config.name,
+      fullName: config.fullName,
+      short: config.short,
       color: config.color,
       isHuman: config.isHuman,
       avatar: config.avatar,
@@ -6395,6 +6400,8 @@ class ColonistFullGame {
       return {
         id,
         name: config.name,
+        fullName: config.fullName,
+        short: config.short,
         color: config.color,
         isHuman: config.isHuman,
         avatar: config.avatar,
@@ -7714,9 +7721,9 @@ class ColonistFullGame {
           <span class="tag">${player.isHuman ? "Your colony" : personaBadge}</span>
           <div class="stats">${stats.join("")}<span class="badges">${awards}</span></div></div>
         <div class="vp player-vp" title="Points — tap for details">${vp}<small>points</small></div></div>`);
-      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}" role="button" tabindex="0" aria-label="${player.name}: ${vp} points">
+      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}" role="button" tabindex="0" aria-label="${player.name}: ${vp} points"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
         <div class="row">${this._av(player)}<div class="vpn">${vp}<small>PTS</small></div></div>
-        <div class="pn">${player.name}</div>${player.isHuman ? "" : personaBadge}
+        <div class="pn">${player.short || player.name}</div>${player.isHuman ? "" : personaBadge}
         <div class="pcards">${stats[0]}</div>
         <div class="mini${stats.length > 3 ? " dense" : ""}">${stats.slice(1).join("")}</div></div>`);
     });

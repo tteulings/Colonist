@@ -8,6 +8,7 @@
 // No characters or artworks are copied; figures are generic slender silhouettes.
 import { f, rng, pipCount, wrap, RES_NAME, DEV_NAME, CARD_TEXT, RESOURCE_KEYS } from "../art-util.js";
 import { specSvg, tp } from "../spec-util.js";
+import { portrait } from "../portraits.js";
 
 const B = "#1C1A19"; // Indian ink
 const PA = "#FFF9EE"; // white-cream: only a highlight (tokens, eyes, wave curls)
@@ -309,41 +310,9 @@ const ICONS = {};
   ic.minus = `<path d="M-20,0 H20" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>`;
 }
 
-/* ---------- avatars: the same four characters as every theme, as ink silhouette portraits (three-quarter
-   profile, a cream eye) on a flat colour backdrop; clothes in the seat colour ---------- */
-const AV_BG = { you: "#BCD2F2", trader: "#F7CDA8", builder: "#F2DFA6", shark: "#EBCCDC" };
-const AV_CLOTH = { you: PC.blue.base, trader: PC.orange.base, builder: "#EFE6D2", shark: PC.plum.base };
-function avatar(preset) {
-  const p = AV_BG[preset] ? preset : "you";
-  const head = fl("M-16,-4 Q-18,-27 2,-28 Q19,-28 21,-11 Q27,-7 25,-1 Q23,2 20,3 Q19,13 4,15 Q-14,15 -16,-4Z");
-  const eye = `<ellipse cx="11" cy="-7" rx="3" ry="3.4" fill="${PA}"/>` + circ(12, -6.6, 1.5);
-  const neck = fl("M-7,8 L7,8 L8,22 L-7,22Z");
-  const body = `<path d="M-40,54 Q-40,24 -8,19 L10,19 Q40,24 40,54Z" fill="${AV_CLOTH[p]}" stroke="${B}" stroke-width="2"/>`;
-  const hair = {
-    you: fl("M-18,-6 Q-24,-32 0,-33 Q18,-34 22,-18 Q12,-23 4,-20 Q8,-26 2,-28 Q-2,-20 -10,-18 Q-14,-12 -12,-2Z"),
-    trader: fl("M-16,-14 Q-26,10 -22,32 Q-14,36 -10,26 Q-14,6 -11,-8Z") + fl("M-32,-17 Q0,-26 34,-15 Q26,-11 0,-14 Q-24,-12 -32,-17Z") + fl("M-15,-17 Q-14,-36 2,-36 Q16,-36 17,-17Z"),
-    builder: fl("M-18,-15 Q-18,-36 2,-36 Q21,-36 22,-15Z") + fl("M-23,-17 Q2,-20 28,-15 L28,-11 Q2,-15 -23,-12Z") + fl("M-12,4 Q-12,19 4,21 Q19,19 21,4 Q12,10 4,9 Q-5,10 -12,4Z") + st("M2,-36 L2,-17", 2, PA),
-    shark: fl("M-17,-16 Q-19,-36 2,-36 Q21,-36 22,-17Z") + fl("M-18,-18 Q4,-13 30,-19 L29,-13 Q6,-8 -18,-13Z") + st("M-16,-21 Q3,-17 21,-21", 1.8, "#E2C27A") + `<path d="M-6,19 L2,30 L10,19Z" fill="${PA}" stroke="${B}" stroke-width="1.6"/>`,
-  }[p];
-  return `<circle r="50" fill="${AV_BG[p]}"/>${body}${neck}${head}${hair}${eye}`;
-}
-
-// seats 5–6 (5–6 player games): Nora (bob, glasses) and Hugo (curls, beard), same build as the four above
-const AV_EXTRA = {
-  nora: { bg: "#F6D0CF", cloth: "#E01000", hair: () => fl("M-20,6 Q-26,-34 2,-35 Q24,-34 24,-10 Q14,-22 2,-22 Q-10,-20 -12,6Z")
-    + `<circle cx="11" cy="-7" r="5.4" fill="none" stroke="${PA}" stroke-width="1.6"/>` },
-  hugo: { bg: "#CDEFFB", cloth: "#4CCBF5", hair: () => fl("M-18,-8 Q-26,-30 -8,-34 Q0,-40 10,-34 Q24,-30 22,-14 Q14,-24 2,-20 Q-8,-24 -12,-6Z")
-    + fl("M-4,6 Q4,18 20,4 Q18,16 6,17 Q-4,16 -4,6Z") },
-};
-function avatar6(preset) {
-  const x = AV_EXTRA[preset];
-  if (!x) return avatar(preset);
-  const head = fl("M-16,-4 Q-18,-27 2,-28 Q19,-28 21,-11 Q27,-7 25,-1 Q23,2 20,3 Q19,13 4,15 Q-14,15 -16,-4Z");
-  const eye = `<ellipse cx="11" cy="-7" rx="3" ry="3.4" fill="${PA}"/>` + circ(12, -6.6, 1.5);
-  const neck = fl("M-7,8 L7,8 L8,22 L-7,22Z");
-  const body = `<path d="M-40,54 Q-40,24 -8,19 L10,19 Q40,24 40,54Z" fill="${x.cloth}" stroke="${B}" stroke-width="2"/>`;
-  return `<circle r="50" fill="${x.bg}"/>${body}${neck}${head}${x.hair()}${eye}`;
-}
+/* ---------- avatars: the six seat personas (src/themes/portraits.js) as Fiep-style ink silhouettes:
+   black hair and face with cream eyes, clothes in the seat colour, an emblem brooch ---------- */
+const avatar6 = (preset) => portrait(preset, { style: "ink", ink: B, paper: PA });
 
 /* ---------- cards: one flat colour field, a silhouette scene, hand-lettered title on paper ---------- */
 // card scenes may be busier than tiles (they are pictures, not a playing surface)
