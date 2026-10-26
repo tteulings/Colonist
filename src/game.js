@@ -5057,12 +5057,17 @@ class ColonistFullGame {
     this.render();
   }
 
-  /** Pause between bot steps in ms: the whole slider maps linearly from 2400 ms (Slow) to 350 ms (Fast). */
-  botStepMs() {
+  /**
+   * Pause between bot moves in ms. The whole slider maps linearly, right = faster:
+   * bot turns 2300 ms (Slow) … 280 ms (Fast); "Watch bots play" turns 3000 … 500 ms.
+   * The default (72) keeps the old pace: ~850 ms per bot move, 1200 ms per watched turn.
+   */
+  botStepMs(kind = "bot") {
     const min = Number(this.speedRange?.min ?? 0), max = Number(this.speedRange?.max ?? 100);
     const v = Number(this.speedRange?.value);
-    const t = Number.isFinite(v) && max > min ? Math.min(1, Math.max(0, (v - min) / (max - min))) : 0.75;
-    return Math.round(2400 - t * (2400 - 350));
+    const t = Number.isFinite(v) && max > min ? Math.min(1, Math.max(0, (v - min) / (max - min))) : 0.72;
+    const [slow, fast] = kind === "autoplay" ? [3000, 500] : [2300, 280];
+    return Math.round(slow - t * (slow - fast));
   }
 
   _syncSpeedLabel() {
@@ -5076,7 +5081,7 @@ class ColonistFullGame {
     if (this.winner) return;
     this._releaseOnboarding();
     this.stopAiTurnLoop();
-    const delay = Math.round(this.botStepMs() * 1.4);
+    const delay = this.botStepMs("autoplay");
     this.autoplayInterval = window.setInterval(this._guard(() => {
       this.autoPlayCurrentTurn();
       this.render();
