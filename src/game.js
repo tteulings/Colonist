@@ -5830,10 +5830,22 @@ class ColonistFullGame {
   }
 
   saveToStorage() {
+    if (this._saveTimer) { window.clearTimeout(this._saveTimer); this._saveTimer = null; }
+    if (!this.geometry || !this.players?.length || this.onboardingHold) return;
     try {
-      const data = this.serializeState();
-      localStorage.setItem(ColonistFullGame.STORAGE_KEY, JSON.stringify(data));
+      const json = JSON.stringify(this.serializeState());
+      if (json === this._lastSavedJson) return;
+      localStorage.setItem(ColonistFullGame.STORAGE_KEY, json);
+      this._lastSavedJson = json;
     } catch (_) { /* quota exceeded or private mode — ignore */ }
+  }
+
+  // Every state change ends in render(), so render() queues a save: builds, bank and player
+  // trades, accepted offers and dev-card buys/plays survive a reload (no "undo by reloading").
+  // Coalesced to one write per task; identical states are not rewritten.
+  _queueSave() {
+    if (this._saveTimer) return;
+    this._saveTimer = window.setTimeout(() => { this._saveTimer = null; this.saveToStorage(); }, 0);
   }
 
   // Strategy persistence — survives game resets
@@ -5860,6 +5872,8 @@ class ColonistFullGame {
   }
 
   clearStorage() {
+    if (this._saveTimer) { window.clearTimeout(this._saveTimer); this._saveTimer = null; }
+    this._lastSavedJson = null;
     try { localStorage.removeItem(ColonistFullGame.STORAGE_KEY); } catch (_) {}
   }
 
@@ -8396,7 +8410,11 @@ class ColonistFullGame {
     });
     window.matchMedia(MOBILE_MQ).addEventListener?.("change", () => this.handleResize());
     window.matchMedia(LANDSCAPE_MQ).addEventListener?.("change", () => this.handleResize());
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) this.boardRenderer?.requestDraw(); });
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) this.boardRenderer?.requestDraw();
+      else this.saveToStorage(); // backgrounded on a phone: may be killed without pagehide
+    });
+    window.addEventListener("pagehide", () => this.saveToStorage());
     // The board area changes size without a window resize (chrome bars laying out after load, the
     // hand fan, sheets): keep the canvas backing store in step with its box, or the board is drawn
     // squeezed and taps land in the wrong place.
@@ -8709,6 +8727,7 @@ class ColonistFullGame {
   }
 
   render() {
+    this._queueSave();
     this.drawCanvasScene();
     this.renderTopPanels();
     this.renderResourceCards();
