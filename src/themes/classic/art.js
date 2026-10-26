@@ -14,9 +14,9 @@ const DEV_ICON = {
   yearOfPlenty: "./assets/icons/dev-year-of-plenty.svg", monopoly: "./assets/icons/dev-monopoly.svg",
 };
 const RES_COLOR = { wood: "#4a7c3f", brick: "#c66536", sheep: "#7ec850", wheat: "#d9bc52", ore: "#8b96a8", desert: "#d6c28e" };
-// Seats look the same in every theme: You blue, Marina orange, Bruno ivory, Viktor charcoal
+// Seats look the same in every theme: You blue, Marina orange, Bruno ivory, Viktor plum
 // (the Sunny Island piece colours and portraits), so switching themes never recolours a player.
-const SEAT_COLORS = ["#3A76DC", "#F68B3A", "#F3EEE2", "#353D47"];
+const SEAT_COLORS = ["#3A76DC", "#F68B3A", "#F3EEE2", "#A8306F"];
 const ink = "#1a3a52";
 
 const star = `<path d="M0,-34 l10,20 22,3 -16,15 4,22 -20,-10 -20,10 4,-22 -16,-15 22,-3Z" fill="#c4a265" stroke="#8a6a2c" stroke-width="3" stroke-linejoin="round"/>`;

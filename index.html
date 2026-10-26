@@ -63,13 +63,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- legacy styles in a low-priority cascade layer: the themed CSS below always wins -->
-    <style>@import url("./styles.css?v=72") layer(legacy);</style>
-    <link rel="stylesheet" href="./themes/base.css?v=72" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=72" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=72" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=72" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=72" />
-    <link rel="stylesheet" href="./themes/seafarers.css?v=72" />
+    <style>@import url("./styles.css?v=73") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=73" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=73" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=73" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=73" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=73" />
+    <link rel="stylesheet" href="./themes/seafarers.css?v=73" />
   </head>
   <body>
     <div class="app" id="app">
@@ -122,7 +122,7 @@
 
       <!-- Game settings (moved into Settings › Game at start-up by src/themes/settings-ui.js) -->
       <details class="settings-drawer-float" id="settingsDrawer">
-        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.72</span></summary>
+        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.73</span></summary>
         <div class="settings-float-body">
           <button id="resetBtn" type="button" class="btn primary st-newgame"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-dice" x="-50" y="-50" width="100" height="100"/></svg>New game</button>
           <div class="st-h">Sound &amp; pace</div>
@@ -158,7 +158,7 @@
             <summary>Bot personalities</summary>
             <div id="aiStrategyPanel" class="ai-strategy-panel"></div>
           </details>
-          <div class="settings-version">Colonist <span class="app-version">v0.72</span></div>
+          <div class="settings-version">Colonist <span class="app-version">v0.73</span></div>
         </div>
       </details>
 
@@ -208,6 +208,7 @@
       <footer class="dock" id="dock">
         <div class="hand" id="handArea">
           <div class="lbl">Your hand <small id="handSummary"></small></div>
+          <div class="hand-bar" id="handBar" aria-label="Card totals"></div>
           <div class="cards" id="resourceCardStrip" aria-label="Your cards"></div>
           <span class="swipe" aria-hidden="true">swipe ›</span>
         </div>
@@ -300,7 +301,7 @@
     </div>
     <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=72"></script>
+    <script type="module" src="./src/game.js?v=73"></script>
     <script>
       // Updates: sw.js and its imports are never taken from the HTTP cache (updateViaCache), the
       // registration is re-checked whenever the app comes back to the foreground, and a new

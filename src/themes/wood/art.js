@@ -17,9 +17,9 @@ const PC = {
   blue: { base: "#3A76DC", dark: "#2557B0", light: "#7AA5F0", line: "#163777" },
   orange: { base: "#F68B3A", dark: "#BF6118", light: "#FBB57A", line: "#6E380C" },
   ivory: { base: "#FDFBF6", dark: "#C8BFAA", light: "#FFFFFF", line: "#4A443A" },
-  slate: { base: "#353D47", dark: "#1E242B", light: "#65717E", line: "#090C0F" },
+  plum: { base: "#A8306F", dark: "#7A1F50", light: "#D06A9E", line: "#3A0A24" },
 };
-const TEXT = { blue: "#2C5BA8", orange: "#A65314", ivory: "#7D6D4C", slate: "#3E4752" }; // seat hues, darkened to AA on paper
+const TEXT = { blue: "#2C5BA8", orange: "#A65314", ivory: "#7D6D4C", plum: "#8E2560" }; // seat hues, darkened to AA on paper
 
 // printed terrain tones [shade, mid, light]
 const TER = {
@@ -334,7 +334,7 @@ const wood = {
   paletteDots: ["#A8673A", "#62BCCB", "#5E9F58", "#F2C552", "#2E6650"],
   confettiColors: [BRASS, "#F3EBDA", "#3A76DC", "#F68B3A", ACC, "#9FBC6A"],
   motion: { name: "Weighty & tactile", k: 1.08, pop: "cubic-bezier(.34,1.2,.64,1)", out: "cubic-bezier(.2,.9,.3,1)", inOut: "cubic-bezier(.65,0,.35,1)", fall: "cubic-bezier(.55,0,1,.45)", squash: [1.08, 0.93], bounces: 1, sway: 0 },
-  seatKeys: ["blue", "orange", "ivory", "slate"],
+  seatKeys: ["blue", "orange", "ivory", "plum"],
   textColors: TEXT,
   pc: PC,
   palette: P,

@@ -17,14 +17,14 @@ const PALETTES = {
       pasture: ["#9AD658", "#74B436", "#CBEF92"], wheat: ["#F5BB2A", "#D69810", "#FCDA72"], terra: ["#E35D33", "#B5421E", "#F49068"],
       slate: ["#7B93B6", "#566F96", "#B3C5DE"], desert: ["#F1D79E", "#D9B672", "#F9EAC6"], wall: "#F7F2E6", roof: "#D9714E", ink: "#26303A",
     },
-    // Pieces: clear blue / strong orange / crisp white / deep charcoal; `line` = the dark outline
+    // Pieces: clear blue / strong orange / crisp white / plum (v0.73: was charcoal, unclear next to the robber); `line` = the dark outline
     PC: {
       blue: { base: "#2E6FE6", dark: "#1E50B4", light: "#78A5F8", line: "#0E2C68" },
       orange: { base: "#FF8A1F", dark: "#C95F0A", light: "#FFB868", line: "#6A3004" },
       ivory: { base: "#FFFFFF", dark: "#D3CCBC", light: "#FFFFFF", line: "#3B362E" },
-      slate: { base: "#2A313A", dark: "#161B21", light: "#5A6672", line: "#050709" },
+      plum: { base: "#B0246F", dark: "#801650", light: "#DC6CA6", line: "#3C0622" },
     },
-    TEXT: { blue: "#1F5BC7", orange: "#C2610F", ivory: "#6F6553", slate: "#2B323B" },
+    TEXT: { blue: "#1F5BC7", orange: "#C2610F", ivory: "#6F6553", plum: "#8A1D58" },
   },
   light: {
     P: {
@@ -38,13 +38,13 @@ const PALETTES = {
       blue: { base: "#3A76DC", dark: "#2557B0", light: "#7AA5F0", line: "#163777" },
       orange: { base: "#F68B3A", dark: "#BF6118", light: "#FBB57A", line: "#6E380C" },
       ivory: { base: "#FDFBF6", dark: "#C8BFAA", light: "#FFFFFF", line: "#4A443A" },
-      slate: { base: "#353D47", dark: "#1E242B", light: "#65717E", line: "#090C0F" },
+      plum: { base: "#A8306F", dark: "#7A1F50", light: "#D06A9E", line: "#3A0A24" },
     },
-    TEXT: { blue: "#2C5BA8", orange: "#C7661F", ivory: "#8C7B57", slate: "#3E4752" },
+    TEXT: { blue: "#2C5BA8", orange: "#C7661F", ivory: "#8C7B57", plum: "#8E2560" },
   },
 };
 const P = {};
-const PC = { blue: {}, orange: {}, ivory: {}, slate: {} };
+const PC = { blue: {}, orange: {}, ivory: {}, plum: {} };
 const TEXT = {};
 let paletteId = null;
 const clonePal = (o) => JSON.parse(JSON.stringify(o));
@@ -322,7 +322,7 @@ const AVP = {
   you: () => bust("#DEE8F8", "#4A7FD6", "#2C5BA8", "#EDC7A6", "#C9997A") + `<path d="M-19,-10 Q-22,-34 0,-32 Q22,-34 19,-10 Q14,-24 0,-22 Q-12,-24 -19,-10Z" fill="#5A3E2B" stroke="#3E2A1D" stroke-width="1.2"/>` + face("#EDC7A6", "#C9997A", "#3A2A20") + `<path d="M-17,-14 Q-10,-30 6,-26" stroke="#5A3E2B" stroke-width="5" fill="none" stroke-linecap="round"/>`,
   trader: () => bust("#FBE6CF", "#F2934A", "#B9651F", "#C99372", "#A3705A") + `<path d="M-20,-16 Q-27,12 -21,30 Q-15,33 -11,26 Q-15,6 -13,-10Z M20,-16 Q27,12 21,30 Q15,33 11,26 Q15,6 13,-10Z" fill="#3A2722" stroke="#241815" stroke-width="1"/>` + face("#C99372", "#A3705A", "#2B1E1A", -1) + `<path d="M-30,-20 Q0,-30 30,-20 Q24,-16 0,-18 Q-24,-16 -30,-20Z" fill="#6B4425" stroke="#4A2E18" stroke-width="1.2"/><path d="M-15,-20 Q-14,-38 0,-38 Q14,-38 15,-20Z" fill="#7E5230" stroke="#4A2E18" stroke-width="1.2"/><path d="M-14,-24 H14" stroke="#E5B04A" stroke-width="2.4"/><circle cx="17" cy="0" r="2" fill="#E5B04A"/>`,
   builder: () => bust("#EEE7D8", "#7D6B52", "#55473A", "#E3B08C", "#BC8466") + face("#E3B08C", "#BC8466", "#33261E") + `<path d="M-15,4 Q-15,24 0,26 Q15,24 15,4 Q8,12 0,11 Q-8,12 -15,4Z" fill="#9A5B33" stroke="#6E3E22" stroke-width="1.2"/><path d="M-19,-16 Q-19,-36 0,-36 Q19,-36 19,-16Z" fill="#E1A93C" stroke="#A9781F" stroke-width="1.2"/><rect x="-23" y="-18" width="46" height="5" rx="2" fill="#C9902A" stroke="#A9781F" stroke-width="1"/>`,
-  shark: () => bust("#E1E6EB", "#3E4752", "#232A31", "#EBC9AE", "#C49A80") + `<path d="M-8,18 L0,30 L8,18" fill="#F6F0E3" stroke="#9AA3AB" stroke-width="1"/>` + face("#EBC9AE", "#C49A80", "#22282E", -1.5) + `<path d="M-10,-12 q4,-4 7,-1 M3,-13 q4,-3 7,1" stroke="#22282E" stroke-width="1.8" fill="none"/><path d="M-19,-17 Q-21,-37 0,-37 Q21,-37 19,-17Z" fill="#2A323A" stroke="#11161A" stroke-width="1.2"/><path d="M-20,-18 Q0,-13 24,-20 L23,-14 Q2,-8 -20,-13Z" fill="#11161A"/><path d="M-19,-22 Q0,-17 19,-22" stroke="#E2C27A" stroke-width="1.6" fill="none"/><circle cx="0" cy="-28" r="2.6" fill="#E2C27A"/><path d="M-4,4 Q2,7 7,5" stroke="#22282E" stroke-width="1.2" fill="none"/>`,
+  shark: () => bust("#F3DDE8", "#A8306F", "#7A1F50", "#EBC9AE", "#C49A80") + `<path d="M-8,18 L0,30 L8,18" fill="#F6F0E3" stroke="#9AA3AB" stroke-width="1"/>` + face("#EBC9AE", "#C49A80", "#22282E", -1.5) + `<path d="M-10,-12 q4,-4 7,-1 M3,-13 q4,-3 7,1" stroke="#22282E" stroke-width="1.8" fill="none"/><path d="M-19,-17 Q-21,-37 0,-37 Q21,-37 19,-17Z" fill="#2A323A" stroke="#11161A" stroke-width="1.2"/><path d="M-20,-18 Q0,-13 24,-20 L23,-14 Q2,-8 -20,-13Z" fill="#11161A"/><path d="M-19,-22 Q0,-17 19,-22" stroke="#E2C27A" stroke-width="1.6" fill="none"/><circle cx="0" cy="-28" r="2.6" fill="#E2C27A"/><path d="M-4,4 Q2,7 7,5" stroke="#22282E" stroke-width="1.2" fill="none"/>`,
   beginner: () => bust("#E9F2DA", "#8AAE58", "#6A8E42", "#F1D2B6", "#CFA588") + `<path d="M-19,-6 Q-24,-34 0,-32 Q24,-34 19,-6 Q18,-22 4,-24 Q-14,-26 -19,-6Z" fill="#C8873E" stroke="#9A6328" stroke-width="1.2"/>` + face("#F1D2B6", "#CFA588", "#3A2A20", 1) + `<path d="M0,-32 Q-3,-42 -11,-44 Q-5,-37 0,-32 Q4,-41 12,-41 Q6,-35 0,-32" fill="#5A7B34"/>`,
   intermediate: () => bust("#D8F0EE", "#3CA9B0", "#2B8C98", "#DDB08E", "#B88566") + `<path d="M-19,-8 Q-21,-34 0,-32 Q21,-34 19,-8 Q16,-20 6,-22 Q-4,-16 -19,-8Z" fill="#2C2622" stroke="#1A1614" stroke-width="1.2"/>` + face("#DDB08E", "#B88566", "#2A2420") + `<g fill="none" stroke="#5C4A3A" stroke-width="1.6"><circle cx="-6.5" cy="-6.5" r="5.4"/><circle cx="6.5" cy="-6.5" r="5.4"/><path d="M-1.2,-7 h2.4"/></g>`,
   expert: () => bust("#F5E7CC", "#8B5FA8", "#62407A", "#EED0B8", "#C8A48C") + `<path d="M-18,-8 Q-22,-32 0,-31 Q22,-32 18,-8 Q16,-18 0,-20 Q-16,-18 -18,-8Z" fill="#E6E2DA" stroke="#B8B2A6" stroke-width="1.2"/>` + face("#EED0B8", "#C8A48C", "#3A2E28") + `<path d="M-20,-22 Q-10,-30 0,-28 Q10,-30 20,-22" stroke="#C9A04A" stroke-width="3" fill="none"/>${[-16, -8, 8, 16].map((x) => `<ellipse cx="${x}" cy="${-26 - (Math.abs(x) < 10 ? 2 : 0)}" rx="3" ry="1.6" fill="#7A9B47" transform="rotate(${x * 2} ${x} -26)"/>`).join("")}`,
@@ -429,7 +429,7 @@ const sunny = {
   confettiColors: ["#D9714E", "#E2C27A", "#3CA9B0", "#F4EEE1", "#7D8F55"],
   motion: { name: "Crisp & airy", k: 1, pop: "cubic-bezier(.3,1.3,.6,1)", out: "cubic-bezier(.22,1,.36,1)", inOut: "cubic-bezier(.65,0,.35,1)", fall: "cubic-bezier(.55,0,1,.45)", squash: [1.14, 0.88], bounces: 2, sway: 0 },
   // Seat → colour key / portrait. Seat 0 is the human (always blue).
-  seatKeys: ["blue", "orange", "ivory", "slate"],
+  seatKeys: ["blue", "orange", "ivory", "plum"],
   textColors: TEXT,
   pc: PC,
   /** Colour palette ("light" | "vivid"); returns true when it changed (caller re-bakes + reinstalls the sprite). */
