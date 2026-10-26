@@ -11,12 +11,12 @@
 const FRAME = "#C9C2B6"; // ink style: thin light frame for glasses and the monocle
 
 export const PERSONAS = {
-  rosa: { name: "Roodhart", full: "Rosa Roodhart", seat: "#E63946", bg: "#FADBD6", emblem: "heart" },
-  blaauw: { name: "Blaauw", full: "Mevrouw Blaauw van Draet", seat: "#2A6FDB", bg: "#D9E5F8", emblem: "feather" },
-  geelen: { name: "Van Geelen", short: "Geelen", full: "Kolonel Van Geelen", seat: "#F58A1F", bg: "#FDE4CB", emblem: "medal" },
-  groenewoud: { name: "Groenewoud", short: "Groen", full: "Dominee Groenewoud", seat: "#2DB87E", bg: "#D8F0E2", emblem: "clover" },
-  dewit: { name: "De Wit", full: "Mevrouw De Wit", seat: "#EFE6D2", bg: "#DCD3C1", emblem: "star", dark: true },
-  pimpel: { name: "Pimpel", full: "Professor Pimpel", seat: "#8B5FA8", bg: "#E8DEF3", emblem: "diamond" },
+  rosa: { name: "Roodhart", full: "Rosa Roodhart", seat: "#D1453A", bg: "#FADBD6", emblem: "heart" },
+  blaauw: { name: "Blaauw", full: "Mevrouw Blaauw van Draet", seat: "#3A73C4", bg: "#D9E5F8", emblem: "feather" },
+  geelen: { name: "Van Geelen", short: "Geelen", full: "Kolonel Van Geelen", seat: "#F08A2E", bg: "#FDE4CB", emblem: "medal" },
+  groenewoud: { name: "Groenewoud", short: "Groen", full: "Dominee Groenewoud", seat: "#2A8556", bg: "#D8F0E2", emblem: "clover" },
+  dewit: { name: "De Wit", full: "Mevrouw De Wit", seat: "#EFE7D4", bg: "#DCD3C1", emblem: "star", dark: true },
+  pimpel: { name: "Pimpel", full: "Professor Pimpel", seat: "#7E4AAE", bg: "#E8DEF3", emblem: "diamond" },
 };
 
 const SKIN = {
@@ -103,7 +103,7 @@ const SHAPES = {
     front: "M-21,-4 Q-27,-18 -19,-26 Q-18,-38 -5,-34 Q3,-43 12,-35 Q25,-37 23,-23 Q29,-14 21,-4 Q19,-17 9,-19 Q-1,-15 -11,-20 Q-17,-15 -21,-4Z",
     hair: "#8C7A68", hair2: "#5E4F42",
     glasses: true,
-    cloth: (k, ink, flat) => p("M-10,22 L0,32 L10,22Z", flat ? "#FFFDF8" : "#FFF9EE") + `<path d="M-7,27 L-1,30 L-7,33Z M7,27 L1,30 L7,33Z" style="fill:var(--pc,#8B5FA8)" stroke="${ink}" stroke-opacity=".5" stroke-width="1"/>`,
+    cloth: (k, ink, flat) => p("M-10,22 L0,32 L10,22Z", flat ? "#FFFDF8" : "#FFF9EE") + `<path d="M-7,27 L-1,30 L-7,33Z M7,27 L1,30 L7,33Z" style="fill:var(--pc,#7E4AAE)" stroke="${ink}" stroke-opacity=".5" stroke-width="1"/>`,
   },
 };
 
@@ -111,7 +111,7 @@ const SHAPES = {
  * One portrait in the -50..50 box.
  * style "flat": skin and hair colours; "ink": black silhouette (hair and face), cream eyes.
  */
-export function portrait(k, { style = "flat", ink = "#2B211C", paper = "#FFF9EE" } = {}) {
+export function portrait(k, { style = "flat", ink = "#2B211C", paper = "#FFF9EE", tone = "A" } = {}) {
   const P = PERSONAS[k] || PERSONAS.rosa, S = SHAPES[k] || SHAPES.rosa;
   k = PERSONAS[k] ? k : "rosa";
   const flat = style === "flat";
@@ -119,8 +119,19 @@ export function portrait(k, { style = "flat", ink = "#2B211C", paper = "#FFF9EE"
   const paperHair = !flat && k === "dewit"; // white hair stays white in the ink theme
   const hair = flat ? S.hair : paperHair ? paper : ink, hair2 = flat ? S.hair2 : ink;
   const line = flat ? ` stroke="${hair2}" stroke-width="1.2"` : paperHair ? ` stroke="${ink}" stroke-width="2"` : "";
-  const cloth = `<path d="${BODY}" ${seatFill(k)} stroke="${flat ? "rgba(0,0,0,.28)" : ink}" stroke-width="${flat ? 1.2 : 2}"/>`;
-  let s = `<circle r="50" fill="${P.bg}"/>`;
+  // v0.78 (flat): rendered like the board art and the houses — clothes in the house colour (var(--pc)) edged
+  // in its own deep tint (--pc-line, ~the houses' outline), lit from the upper left (a --pc-light highlight on
+  // the near shoulder, a --pc-dark shade on the far side); the backdrop a soft tint of the same house colour.
+  const pcv = (v, fb) => `var(--pc-${v},${fb})`;
+  const cloth = flat
+    ? `<path d="${BODY}" style="fill:var(--pc,${P.seat});stroke:${pcv("line", "rgba(0,0,0,.35)")}" stroke-width="1.8"/>`
+      + `<path d="M14,22 Q44,27 46,54 L10,54 Q20,40 14,22Z" style="fill:${pcv("dark", P.seat)}" opacity=".55"/>`
+      + `<path d="M-38,40 Q-32,28 -16,24 Q-26,32 -30,44Z" style="fill:${pcv("light", P.seat)}" opacity=".6"/>`
+    : `<path d="${BODY}" ${seatFill(k)} stroke="${ink}" stroke-width="2"/>`;
+  const tint = tone === "B" ? "#F1E6CF" : "#FFF8EC";
+  let s = flat
+    ? `<circle r="50" fill="${P.bg}"/><circle r="50" style="fill:color-mix(in srgb, var(--pc,${P.seat}) 24%, ${tint})"/>`
+    : `<circle r="50" fill="${P.bg}"/>`;
   if (S.bun) s += `<circle cx="${S.bun[0]}" cy="${S.bun[1]}" r="${S.bun[2]}" fill="${hair}"${line}/>`;
   if (S.back) s += p(S.back, hair, line);
   s += cloth + S.cloth(k, ink, flat);
@@ -140,7 +151,8 @@ export function portrait(k, { style = "flat", ink = "#2B211C", paper = "#FFF9EE"
   if (S.side) s += p(S.side, hair, line);
   if (S.front) s += p(S.front, hair, line);
   if (S.cap) {
-    s += p(S.front, `var(--pc,${P.seat})`, ` style="fill:var(--pc,${P.seat})" stroke="${flat ? "rgba(0,0,0,.3)" : ink}" stroke-width="${flat ? 1.2 : 2}"`);
+    s += p(S.front, `var(--pc,${P.seat})`, ` style="fill:var(--pc,${P.seat})${flat ? `;stroke:${pcv("line", "rgba(0,0,0,.3)")}` : ""}"${flat ? "" : ` stroke="${ink}"`} stroke-width="${flat ? 1.6 : 2}"`);
+    if (flat) s += p("M-14,-30 Q-4,-36 8,-34 Q-2,-31 -10,-26Z", pcv("light", P.seat), ` style="fill:${pcv("light", P.seat)}" opacity=".7"`);
     s += p("M-20,-19 Q0,-15 20,-19 L20,-14 Q0,-10 -20,-14Z", flat ? "#3A2E22" : ink);
     s += p("M-21,-15 Q0,-9 23,-16 L21,-10 Q0,-3 -21,-10Z", flat ? "#1F1A16" : ink);
     s += `<circle cx="0" cy="-26" r="3.2" fill="#E2C27A" stroke="${flat ? "#A9822F" : ink}" stroke-width=".8"/>`;
@@ -167,6 +179,7 @@ export function portrait(k, { style = "flat", ink = "#2B211C", paper = "#FFF9EE"
   // Rosa in ink: a bow in the seat colour on her hair
   if (!flat && k === "rosa") s += `<g transform="translate(-15 -25) rotate(-24) scale(1.3)" style="fill:var(--pc,${P.seat})" stroke="${ink}" stroke-width="1.2"><path d="M0,0 L-8,-5 L-8,5Z M0,0 L8,-5 L8,5Z"/><circle r="2.4"/></g>`;
   s += brooch(k, flat ? "#000" : ink);
+  if (flat && tone === "B") s += `<circle r="50" fill="#9A6A32" opacity=".07"/>`; // B: the wood-stain warmth over the whole print
   return s;
 }
 

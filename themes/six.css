@@ -2,8 +2,8 @@
    Everything is scoped to .six-up / [data-seats] / .sbp-* so 2–4 player games look exactly as before.
    Seat colours --p4 / --p5 come from src/themes/seats.js (set on :root at start-up). */
 
-.pc-4 { --pc: var(--p4, #D8CFBB); --pc-text: var(--p4-text, #5E5139); --pc-ink: var(--p4-ink, #2E3A3D); }
-.pc-5 { --pc: var(--p5, #72309F); --pc-text: var(--p5-text, #72309F); --pc-ink: var(--p5-ink, #fff); }
+.pc-4 { --pc: var(--p4, #EFE7D4); --pc-text: var(--p4-text, #5E5139); --pc-ink: var(--p4-ink, #2E3A3D); --pc-light: var(--p4-light, #FBF7EC); --pc-dark: var(--p4-dark, #CEC3A8); --pc-line: var(--p4-line, #6B6253); }
+.pc-5 { --pc: var(--p5, #7E4AAE); --pc-text: var(--p5-text, #5A3282); --pc-ink: var(--p5-ink, #fff); --pc-light: var(--p5-light, #AE88D6); --pc-dark: var(--p5-dark, #5A3282); --pc-line: var(--p5-line, #2A1242); }
 
 /* ── six-up strip (option A): six chips in one row ─────────────────────────────────────────────── */
 .pstrip.six-up { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
@@ -18,11 +18,7 @@
   display: grid; place-items: center; font-family: var(--font-display); font-weight: var(--display-weight, 700); font-size: 15px; line-height: 1;
   background: var(--pc); color: var(--pc-ink); box-shadow: 0 0 0 1.5px var(--glass-active, rgba(255,255,255,.9));
 }
-/* points on the seat colour at AA (v0.75 seats): the red seat uses its deeper shade, orange, green and ivory dark ink */
-.pstrip.six-up > .pchip.six.pc-0 .sx-vp { background: var(--p0-text); color: #fff; }
-.pstrip.six-up > .pchip.six.pc-2 .sx-vp { color: #2E1F14; }
-.pstrip.six-up > .pchip.six.pc-3 .sx-vp { color: var(--p3-ink, #0F2418); }
-.pstrip.six-up > .pchip.six.pc-4 .sx-vp { color: #2E3A3D; }
+/* v0.78: points on the house colour itself; --pc-ink is derived for AA (src/themes/seats.js) */
 .pstrip.six-up > .pchip.six .pn {
   grid-area: auto; max-width: 100%; padding: 0 1px !important; text-align: center; font-size: 11.5px; font-weight: 750; letter-spacing: -.01em;
   white-space: nowrap; overflow: hidden; text-overflow: clip; line-height: 1.15;

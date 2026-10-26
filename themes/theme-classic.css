@@ -32,8 +32,8 @@
   --fab-radius: 12px; --card-radius: 10px; --card-shadow: drop-shadow(0 2px 3px rgba(0,0,0,.2));
   --avatar-radius: 50%; --avatar-shadow: 0 1px 3px rgba(0,0,0,.2);
   /* seats (v0.75, colonist.io order), identical in every theme: You red · Blaauw blue · Van Geelen orange · Groenewoud green
-     (+ De Wit ivory · Pimpel purple from src/themes/seats.js). -text: AA on paper; -ink: AA on the seat colour */
-  --p0: #E0312B; --p1: #2F6FE6; --p2: #F7931E; --p3: #2E9E5E;
+     (+ De Wit ivory · Pimpel purple from src/themes/seats.js). -text / -ink / -light / -dark are derived from the board pieces at runtime (src/themes/seats.js) */
+  --p0: #D1453A; --p1: #3A73C4; --p2: #F08A2E; --p3: #2A8556; /* v0.78 first-paint fallback: applySeatTokens sets every --pN* from the pieces */
   --p0-text: #A01D18; --p1-text: #1F4FAE; --p2-text: #8F4710; --p3-text: #12603A;
   --p0-ink: #fff; --p1-ink: #fff; --p2-ink: #2E1F14; --p3-ink: #0F2418;
   --row-tint: 6%; --vp-tint: 14%;

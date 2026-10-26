@@ -12,17 +12,17 @@ import sunny from "../sunny/art.js";
 
 const INK = "#2A241E", INK2 = "#5E5245", IVORY = "#F3EBDA", RED = "#A8352B", ACC = "#2E6650", BRASS = "#D9AE4E";
 
-// Seats: identical to Sunny Island (light) so switching themes never recolours a player
-// (v0.75: You red · Marina blue · Bruno orange · Viktor green, colonist.io order).
+// Seats (v0.78): the Sunny hues in B's wood-stain look — a touch warmer and more muted, as painted wooden
+// pieces (You red · Blaauw blue · Van Geelen orange · Groenewoud green · De Wit ivory · Pimpel purple).
 const PC = {
-  red: { base: "#E0312B", dark: "#A8201B", light: "#F47A72", line: "#1A1A1A" },
-  blue: { base: "#2F6FE6", dark: "#1F50B8", light: "#7AA5F5", line: "#1A1A1A" },
-  orange: { base: "#F7931E", dark: "#C0680A", light: "#FCC06E", line: "#1A1A1A" },
-  green: { base: "#2E9E5E", dark: "#1D7642", light: "#72CC95", line: "#1A1A1A" },
-  ivory: { base: "#EDE6D3", dark: "#C8BFAA", light: "#FBF7EC", line: "#6B6253" },
-  purple: { base: "#72309F", dark: "#521E76", light: "#A872D0", line: "#1A1A1A" },
+  red: { base: "#C4463A", dark: "#963026", light: "#DE7C6C", line: "#3E1610" },
+  blue: { base: "#3B6FB5", dark: "#2A5288", light: "#7FA0D2", line: "#142B4E" },
+  orange: { base: "#E3893A", dark: "#AE5F1C", light: "#F0B479", line: "#4E2A0C" },
+  green: { base: "#2F8055", dark: "#1F6040", light: "#6AAE88", line: "#0F3020" },
+  ivory: { base: "#EEE4CC", dark: "#CBBE9F", light: "#F8F2E2", line: "#6B5D46" },
+  purple: { base: "#7A4BA6", dark: "#57337C", light: "#A886CC", line: "#26123C" },
 };
-const TEXT = { red: "#A01D18", blue: "#1F4FAE", orange: "#8F4710", green: "#12603A", ivory: "#5E5139", purple: "#72309F" }; // seat hues, darkened to AA on paper
+const TEXT = { red: "#963026", blue: "#2A5288", orange: "#A0571A", green: "#1F6040", ivory: "#5E5139", purple: "#57337C" }; // seat hues as text on paper (applySeatTokens darkens further where AA needs it)
 
 // printed terrain tones [shade, mid, light]
 const TER = {
@@ -338,7 +338,7 @@ const wood = {
   // local font files (assets/fonts, declared in themes/theme-wood.css): work offline, nothing to fetch from Google
   fonts: { families: ["Playfair Display", "Source Sans 3", "Colonist Wood Numerals"] },
   paletteDots: ["#A8673A", "#62BCCB", "#5E9F58", "#F2C552", "#2E6650"],
-  confettiColors: [BRASS, "#F3EBDA", "#E0312B", "#2F6FE6", ACC, "#9FBC6A"],
+  confettiColors: [BRASS, "#F3EBDA", PC.red.base, PC.blue.base, ACC, "#9FBC6A"],
   motion: { name: "Weighty & tactile", k: 1.08, pop: "cubic-bezier(.34,1.2,.64,1)", out: "cubic-bezier(.2,.9,.3,1)", inOut: "cubic-bezier(.65,0,.35,1)", fall: "cubic-bezier(.55,0,1,.45)", squash: [1.08, 0.93], bounces: 1, sway: 0 },
   seatKeys: ["red", "blue", "orange", "green"], // v0.75 colonist.io order; seats 5–6 (ivory, purple) via src/themes/seats.js
   textColors: TEXT,
@@ -355,7 +355,7 @@ const wood = {
   robberDx: 46, robberDy: -12, tokenDy: 0,
   icons: ICONS,
   card, cardBack,
-  avatar: (preset) => sunny.avatar(preset),
+  avatar: (preset) => sunny.avatar(preset, "B"), // v0.78: the shared portraits in B's wood-stain warmth
   die,
   thumb,
   swatch: () => `<svg viewBox="0 0 36 36"><rect width="36" height="36" fill="#A8673A"/><path d="M0,8 Q18,4 36,9 M0,20 Q18,16 36,22 M0,30 Q18,27 36,32" stroke="#7E4C2A" stroke-width="1.4" fill="none"/><path d="${hexPath(18, 18, 11)}" fill="#62BCCB"/><path d="${hexPath(18, 18, 6.5)}" fill="#F3EBDA"/></svg>`,

@@ -46,9 +46,9 @@
   --active-row: var(--c-ochre); --divider: 1px solid #E2CFA6; --divider-soft: 1px solid #EADBB8; --sep: #D9C69C;
   --fab-radius: 999px; --card-radius: 8px; --card-shadow: drop-shadow(0 1px 0 rgba(28,26,25,.35));
   --avatar-radius: 50%; --avatar-shadow: none;
-  /* seats (v0.75, colonist.io order), identical in every theme: You red · Marina blue · Bruno orange · Viktor green
-     (+ Nora ivory · Hugo purple from src/themes/seats.js). -text: AA on paper; -ink: AA on the seat colour */
-  --p0: #E0312B; --p1: #2F6FE6; --p2: #F7931E; --p3: #2E9E5E;
+  /* seats (v0.75, colonist.io order), identical in every theme: You red · Blaauw blue · Van Geelen orange · Groenewoud green
+     (+ De Wit ivory · Pimpel purple from src/themes/seats.js). -text / -ink / -light / -dark are derived from the board pieces at runtime (src/themes/seats.js) */
+  --p0: #D2412F; --p1: #2F6BB3; --p2: #F29236; --p3: #2A8556; /* v0.78 first-paint fallback: applySeatTokens sets every --pN* from the pieces */
   --p0-text: #A01D18; --p1-text: #1F4FAE; --p2-text: #8F4710; --p3-text: #12603A;
   --p0-ink: #fff; --p1-ink: #fff; --p2-ink: #1C1A19; --p3-ink: #0F2418;
   --row-tint: 0%; --vp-tint: 0%;
@@ -224,10 +224,7 @@
     background: var(--pc); color: var(--pc-ink); font-size: 18px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.3);
   }
   [data-theme="C"] .pchip .vpn small { display: none; }
-  /* points on the seat colour at AA: the red seat uses its deeper shade, the orange and green seats dark ink */
-  [data-theme="C"] .pchip.pc-0 .vpn { background: var(--p0-text); }
-  [data-theme="C"] .pchip.pc-2 .vpn { color: #2E1F14; }
-  [data-theme="C"] .pchip.pc-3 .vpn { color: var(--p3-ink); }
+  /* v0.78: points on the house colour itself; --pc-ink (white or the piece's dark line) is chosen for AA */
   [data-theme="C"] .pchip .pn { grid-area: pn; text-align: left; font-size: 11.5px; line-height: 13px; font-weight: 750; color: var(--bar-ink); overflow: hidden; text-overflow: ellipsis; }
   [data-theme="C"] .pchip:has(.bdg span) .pn { padding-right: 16px; }
   [data-theme="C"] .pchip:has(.bdg span + span) .pn { padding-right: 32px; }

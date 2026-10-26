@@ -86,6 +86,15 @@ function boxHexDist(x, y, hw, hh, c) {
   return d;
 }
 const layoutCache = new Map();
+/** v0.78: harbour pill scale. Phones: sized so the ratio reads at ~12-14 css px whatever the board (the 5–6
+ *  player board has smaller hexes, so its pills scale up more); desktop: 1. Shared by every renderer and the fit. */
+export function harbourScale(game) {
+  if (!game.isMobileLayout) return 1;
+  if (game._hScale) return game._hScale; // set by the board fit (largest scale that keeps the v0.77 board size)
+  const hs = game.geometry?.hexSize || 32;
+  return harbourScaleWanted(hs);
+}
+export const harbourScaleWanted = (hs) => Math.max(1.38, Math.min(2.4, 55 / hs));
 const boxGap = (p, q) => Math.max(Math.abs(p.x - q.x) - (p.w + q.w) / 2, Math.abs(p.y - q.y) - (p.h + q.h) / 2);
 /** Does segment a→b come within m of box q? (sampled; boxes and piers are small) */
 const segNearBox = (ax, ay, bx, by, q, m) => {
@@ -100,12 +109,14 @@ export function harbourBadges(game, s = 1) {
   const key = [s, !!game.sea, g.hexSize.toFixed(3), g.centerX.toFixed(2), g.centerY.toFixed(2), ports.map((p) => p.edgeId + p.type).join(","), land.map((h) => h.id).join(".")].join("|");
   if (layoutCache.has(key)) return layoutCache.get(key);
   const centers = land.map((h) => A(h.center));
-  const clear = Math.max(22 * s, 30), gap = 6 * s; // clear: past the beach band (~30) and a corner piece
+  // clear: past the beach band (~30) and a corner piece; v0.78: no longer grows with s, so bigger (phone) pills
+  // sit as close to the coast as the small ones and don't push the board fit out
+  const clear = 30, gap = 5 * Math.min(s, 1.6);
   const placed = [];
   const out = ports.map((port) => {
     const any = port.type === "any";
     // 2:1: resource icon + ratio; 3:1: just the ratio (a narrower pill)
-    const w = (any ? 48 : 70) * s, h = 36 * s, hw = w / 2, hh = h / 2;
+    const w = (any ? 48 : 70) * s, h = 31 * s, hw = w / 2, hh = h / 2; // v0.78: compact pill, the ratio is what grows
     const edge = g.edges[port.edgeId];
     const a = A(g.nodes[edge.nodes[0]]), b = A(g.nodes[edge.nodes[1]]);
     const hc = A(g.hexes[edge.hexIds.find((id) => g.hexes[id].resource !== "sea") ?? edge.hexIds[0]].center);
@@ -124,7 +135,7 @@ export function harbourBadges(game, s = 1) {
       }
     }
     if (!best) best = { x: mx + nx * (200 * s), y: my + ny * (200 * s) };
-    const { x, y } = best, ic = 29 * s, fs = 20 * s;
+    const { x, y } = best, ic = 24 * s, fs = 25 * s; // v0.78: a bigger ratio in a compact pill
     placed.push({ x, y, w, h });
     // pier ends: tucked under the pill, spread along the coast, each paired with the nearer corner
     const lat = (Math.abs(tx) * hw + Math.abs(ty) * hh) * 0.45, e0 = [x - tx * lat, y - ty * lat], e1 = [x + tx * lat, y + ty * lat];
@@ -132,7 +143,7 @@ export function harbourBadges(game, s = 1) {
     const piers = dd(a, e0) + dd(b, e1) <= dd(a, e1) + dd(b, e0) ? [[a, e0], [b, e1]] : [[a, e1], [b, e0]];
     return { x, y, w, h, r: hh, a, b, mx, my, nx, ny, piers, any,
       icon: any ? null : { x: x - 17 * s, y, size: ic },
-      text: any ? { x, y: y + fs * 1.1 * 0.36, size: fs * 1.1 } : { x: x + 15.5 * s, y: y + fs * 0.36, size: fs } };
+      text: any ? { x, y: y + fs * 0.36, size: fs } : { x: x + 15 * s, y: y + fs * 0.36, size: fs } };
   });
   // Optional decoration (themes that want it): a small ship beside each pill, only where it fits fully in the
   // sea, clear of every pill, pier and other ship, and inside the box the pills already span (so it never
@@ -142,15 +153,15 @@ export function harbourBadges(game, s = 1) {
     const bb = { x0: Math.min(...all.map((q) => q.x - q.w / 2)), x1: Math.max(...all.map((q) => q.x + q.w / 2)), y0: Math.min(...all.map((q) => q.y - q.h / 2)), y1: Math.max(...all.map((q) => q.y + q.h / 2)) };
     const ships = [];
     out.forEach((q) => {
-      const sw = 34 * s, sh = 32 * s;
-      const cands = [[q.x + q.w / 2 + 3 * s + sw / 2, q.y - 2 * s], [q.x - q.w / 2 - 3 * s - sw / 2, q.y - 2 * s]];
+      const ss = Math.min(s, 1.38), sw = 34 * ss, sh = 32 * ss; // ships stay small: they never grow with the pill
+      const cands = [[q.x + q.w / 2 + 3 * ss + sw / 2, q.y - 2 * ss], [q.x - q.w / 2 - 3 * ss - sw / 2, q.y - 2 * ss]];
       for (const [x, y] of cands) {
         const box = { x, y, w: sw, h: sh };
         if (x - sw / 2 < bb.x0 || x + sw / 2 > bb.x1 || y - sh / 2 < bb.y0 || y + sh / 2 > bb.y1) continue;
         if (!centers.every((c) => boxHexDist(x, y, sw / 2, sh / 2, c) >= clear)) continue;
         if (!out.every((o) => o === q ? true : boxGap(o, box) >= gap) || !ships.every((o) => boxGap(o, box) >= gap)) continue;
         if (out.some((o) => o.piers.some(([c, e]) => segNearBox(c.x, c.y, e[0], e[1], box, 2 * s)))) continue;
-        q.ship = { x, y, w: sw, h: sh, flip: x > q.x ? 1 : -1, scale: 0.6 * s };
+        q.ship = { x, y, w: sw, h: sh, flip: x > q.x ? 1 : -1, scale: 0.6 * ss };
         ships.push(box);
         break;
       }

@@ -6,7 +6,7 @@ import wood from "./wood/art.js";
 import silhouette from "./silhouette/art.js";
 import classic from "./classic/art.js";
 import { RESOURCE_KEYS, DEV_KEYS } from "./art-util.js";
-import { addExtraSeats, applyExtraSeatTokens } from "./seats.js";
+import { addExtraSeats, applyExtraSeatTokens, applySeatTokens } from "./seats.js";
 import { SEAT_PERSONAS } from "./portraits.js";
 import { seaIcons } from "../seafarers/art.js"; // ⚓ Seafarers icons (themes may draw their own)
 
@@ -98,6 +98,7 @@ export function buildSprite(T) {
   return s + "</defs></svg>";
 }
 export function installSprite(T) {
+  applySeatTokens(T); // v0.78: UI seat colours = this theme's pieces (also re-run on a palette change)
   document.getElementById("themeSprite")?.remove();
   document.body.insertAdjacentHTML("afterbegin", buildSprite(T));
 }

@@ -19,16 +19,17 @@ const K = {
   orange: "#EC6A2C", red: "#D9412B", yellow: "#F5C02E", green: "#77B347", leaf: "#4E9A3E", lime: "#B7D257",
   turq: "#3BA7B8", sky: "#8FD0DC", blue: "#2F6BB3", pink: "#EE9AA8", sand: "#F1D6A4", ochre: "#E39B33", grey: "#8FA3B4", slate: "#5D7E99",
 };
-// Seats: identical to Sunny Island (light) so switching themes never recolours a player.
+// Seats (v0.78): flat ink-and-colour like C's board — the same six hues as the other themes in C's flat
+// gouache tones, outlined in the board's Indian ink.
 const PC = {
-  red: { base: "#E0312B", dark: "#A8201B", light: "#F47A72", line: "#1A1A1A" },
-  blue: { base: "#2F6FE6", dark: "#1F50B8", light: "#7AA5F5", line: "#1A1A1A" },
-  orange: { base: "#F7931E", dark: "#C0680A", light: "#FCC06E", line: "#1A1A1A" },
-  green: { base: "#2E9E5E", dark: "#1D7642", light: "#72CC95", line: "#1A1A1A" },
-  ivory: { base: "#EDE6D3", dark: "#C8BFAA", light: "#FBF7EC", line: "#6B6253" },
-  purple: { base: "#72309F", dark: "#521E76", light: "#A872D0", line: "#1A1A1A" },
+  red: { base: "#D2412F", dark: "#A32E20", light: "#E8806F", line: "#1C1A19" },
+  blue: { base: "#2F6BB3", dark: "#225088", light: "#7BA2D4", line: "#1C1A19" },
+  orange: { base: "#F29236", dark: "#BF6514", light: "#F8BC78", line: "#1C1A19" },
+  green: { base: "#2A8556", dark: "#1D6340", light: "#66B58A", line: "#1C1A19" },
+  ivory: { base: "#F4EBD6", dark: "#D3C7AA", light: "#FFFBF0", line: "#1C1A19" },
+  purple: { base: "#7A49A8", dark: "#57337C", light: "#A886CC", line: "#1C1A19" },
 };
-const TEXT = { red: "#A01D18", blue: "#1F4FAE", orange: "#8F4710", green: "#12603A", ivory: "#5E5139", purple: "#72309F" }; // seat hues, darkened to AA on paper
+const TEXT = { red: "#A32E20", blue: "#225088", orange: "#A25611", green: "#1D6340", ivory: "#5E5139", purple: "#57337C" }; // seat hues as text on paper (applySeatTokens darkens further where AA needs it)
 const BUILD_INK = { base: "#22313A", dark: "#16222A", light: "#4A5A64", line: "#0E161B" };
 // v0.75: brick a deeper terracotta so the orange seat stands clear of it
 const TC = { wood: [K.green, K.leaf], brick: ["#C8502A", "#A8401E"], sheep: [K.lime, "#9FC24A"], wheat: [K.yellow, K.ochre], ore: [K.grey, K.slate], desert: [K.sand, "#E6C48A"] };

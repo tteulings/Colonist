@@ -18,16 +18,17 @@ const PALETTES = {
       pasture: ["#9AD658", "#74B436", "#CBEF92"], wheat: ["#F5BB2A", "#D69810", "#FCDA72"], terra: ["#E35D33", "#B5421E", "#F49068"],
       slate: ["#7B93B6", "#566F96", "#B3C5DE"], desert: ["#F1D79E", "#D9B672", "#F9EAC6"], wall: "#F7F2E6", roof: "#D9714E", ink: "#26303A",
     },
-    // Pieces (v0.75, colonist.io order): red / blue / orange / green / crisp white / deep purple; `line` = the dark outline
+    // Pieces (v0.78): red / blue / orange / green / ivory / purple tuned to the vivid board's saturation; `line` = a deep
+    // tint of the piece's own hue (the board edges every shape in a darker tint of its colour), drawn ~1.5px
     PC: {
-      red: { base: "#EC2F26", dark: "#AE1E18", light: "#F8807A", line: "#1A1A1A" },
-      blue: { base: "#2E6FE6", dark: "#1E50B4", light: "#78A5F8", line: "#1A1A1A" },
-      orange: { base: "#FF931A", dark: "#C9670A", light: "#FFC06A", line: "#1A1A1A" },
-      green: { base: "#2E9E5E", dark: "#1D7642", light: "#72CC95", line: "#1A1A1A" },
-      ivory: { base: "#EDE6D3", dark: "#C8BFAA", light: "#FBF7EC", line: "#6B6253" },
-      purple: { base: "#72309F", dark: "#521E76", light: "#A872D0", line: "#1A1A1A" },
+      red: { base: "#D8382C", dark: "#A62820", light: "#F27A6A", line: "#4A120D" },
+      blue: { base: "#2F6CD0", dark: "#1F4FA0", light: "#78A2EE", line: "#10295A" },
+      orange: { base: "#F7891F", dark: "#C0600C", light: "#FDB868", line: "#552805" },
+      green: { base: "#1C8250", dark: "#136640", light: "#5CC08A", line: "#0A3020" },
+      ivory: { base: "#F2EBDA", dark: "#CEC3A8", light: "#FFFDF6", line: "#6B6253" },
+      purple: { base: "#7A3FB0", dark: "#562A85", light: "#A97DDA", line: "#26103F" },
     },
-    TEXT: { red: "#A01D18", blue: "#1F4FAE", orange: "#8F4710", green: "#12603A", ivory: "#5E5139", purple: "#72309F" },
+    TEXT: { red: "#A62820", blue: "#1F4FA0", orange: "#A3510A", green: "#136640", ivory: "#5E5139", purple: "#562A85" },
   },
   light: {
     P: {
@@ -37,16 +38,17 @@ const PALETTES = {
       slate: ["#93A2B4", "#728399", "#C3CEDB"], desert: ["#F0DAA8", "#DCBF85", "#F8EBCB"], wall: "#F7F2E6", roof: "#D9714E", ink: "#2E3A3D",
     },
     PC: {
-      // pieces stay the most salient thing on the board: saturated primaries, a touch softer than vivid.
-      // Green is a cool, deep green (well apart from the yellow-green pasture and the olive forest) with a dark line.
-      red: { base: "#E0312B", dark: "#A8201B", light: "#F47A72", line: "#1A1A1A" },
-      blue: { base: "#2F6FE6", dark: "#1F50B8", light: "#7AA5F5", line: "#1A1A1A" },
-      orange: { base: "#F7931E", dark: "#C0680A", light: "#FCC06E", line: "#1A1A1A" },
-      green: { base: "#2E9E5E", dark: "#1D7642", light: "#72CC95", line: "#1A1A1A" },
-      ivory: { base: "#EDE6D3", dark: "#C8BFAA", light: "#FBF7EC", line: "#6B6253" },
-      purple: { base: "#72309F", dark: "#521E76", light: "#A872D0", line: "#1A1A1A" },
+      // v0.78 pieces in the board's own palette family: the warm, sun-lit tones of the hex art, a touch deeper
+      // than the terrain so they stay the most salient thing (red deeper than the brick hex, green cooler and
+      // darker than forest / pasture, orange apart from grain); the outline is a deep tint of each hue
+      red: { base: "#D1453A", dark: "#A3302A", light: "#EB8070", line: "#4A1712" },
+      blue: { base: "#3A73C4", dark: "#28569A", light: "#7FA6E0", line: "#14305A" },
+      orange: { base: "#F08A2E", dark: "#BA6018", light: "#F8B670", line: "#552A08" },
+      green: { base: "#2A8556", dark: "#1D6340", light: "#66B58A", line: "#0E3020" },
+      ivory: { base: "#EFE7D4", dark: "#CEC3A8", light: "#FBF7EC", line: "#6B6253" },
+      purple: { base: "#7E4AAE", dark: "#5A3282", light: "#AE88D6", line: "#2A1242" },
     },
-    TEXT: { red: "#A01D18", blue: "#1F4FAE", orange: "#8F4710", green: "#12603A", ivory: "#5E5139", purple: "#72309F" },
+    TEXT: { red: "#A3302A", blue: "#28569A", orange: "#AB5816", green: "#1D6340", ivory: "#5E5139", purple: "#5A3282" },
   },
 };
 const P = {};
@@ -475,7 +477,7 @@ const sunny = {
   get icons() { return { ...ICONS, ...UI_ICONS }; },
   card, cardBack,
   // seat portraits: the shared persona drawings (src/themes/portraits.js), also used by B and Classic
-  avatar: (preset) => (AVP[preset] ? AVP[preset]() : portrait(preset)),
+  avatar: (preset, tone = "A") => (AVP[preset] ? AVP[preset]() : portrait(preset, { tone })),
   die: (n) => dieFace(n, 2, 2, 0, 1.08),
   swatch: () => `<svg viewBox="0 0 36 36"><rect width="36" height="36" fill="${P.sea1}"/><path d="M0,24 Q10,16 18,20 Q26,12 36,18 V36 H0Z" fill="${P.olive[0]}"/><path d="M0,30 Q18,26 36,30 V36 H0Z" fill="${P.sand}"/><circle cx="25" cy="10" r="5" fill="#E9C46A"/></svg>`,
   uiDefs: () => boardDefs(),

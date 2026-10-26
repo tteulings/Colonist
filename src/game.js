@@ -2,7 +2,7 @@ import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMoti
 import { SvgBoardRenderer } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
-import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges } from "./themes/art-util.js";
+import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted } from "./themes/art-util.js";
 import { Onboarding, introSeen } from "./themes/onboarding.js";
 import { Home, GameMenu } from "./themes/home.js";
 import { SoundEngine } from "./sound.js";
@@ -2349,6 +2349,7 @@ class ColonistFullGame {
     const xs = g.hexes.map((h) => h.center.x), ys = g.hexes.map((h) => h.center.y);
     // Phones: the island (tiles + beach) fills the width; only the harbours may touch the screen edge
     const mobile = this.isMobileLayout;
+    this._hScale = 0; // v0.78: re-chosen below on phones (see harbourScale)
     // ⚓ Seafarers: the whole scenario frame (outer sea hexes included, ships may sail there), no harbour boats
     const mx = hs * (this.sea ? 0.9 : mobile ? 1.05 : 1.75), my = hs * (this.sea ? 1.0 : mobile ? 1.12 : 1.7);
     const box = { minX: Math.min(...xs) - mx, maxX: Math.max(...xs) + mx, minY: Math.min(...ys) - my, maxY: Math.max(...ys) + my };
@@ -2369,16 +2370,30 @@ class ColonistFullGame {
         // that gutter; only the very tip of a boat may run off screen. Only the ports this map really has count, so a map
         // without a harbour at the far left/right gets the full width.
         const cx = (box.minX + box.maxX) / 2, half = (box.maxX - box.minX) / 2;
-        let reach = 0;
+        const avail = this.boardWidth / 2;
         // v0.76: every harbour pill (same layout as the art, world units = hexSize / 100) fully on screen
         const u = hs / 100, M = 4 * u;
-        harbourBadges(this, 1.38).forEach((q) => {
-          const bx = g.centerX + q.x * u, by = g.centerY + q.y * u;
-          reach = Math.max(reach, Math.abs(bx - cx) + (q.w / 2) * u + M);
-          // v0.73: the whole world on screen — harbours above / below the island count for the height too
-          box.minY = Math.min(box.minY, by - (q.h / 2) * u - M); box.maxY = Math.max(box.maxY, by + (q.h / 2) * u + M);
-        });
-        const avail = this.boardWidth / 2;
+        const measure = (s) => {
+          let reach = 0, y0 = box.minY, y1 = box.maxY;
+          harbourBadges(this, s).forEach((q) => {
+            const bx = g.centerX + q.x * u, by = g.centerY + q.y * u;
+            reach = Math.max(reach, Math.abs(bx - cx) + (q.w / 2) * u + M);
+            // v0.73: the whole world on screen — harbours above / below the island count for the height too
+            y0 = Math.min(y0, by - (q.h / 2) * u - M); y1 = Math.max(y1, by + (q.h / 2) * u + M);
+          });
+          return { reach, y0, y1 };
+        };
+        // v0.78: the harbour pills grow on phones (ratio >= 12 px) but never at the cost of the board: take the
+        // largest pill scale that costs the board at most 4% of the size the v0.77-size pills (scale 1.38) allowed
+        const k77 = (() => { const m = measure(1.38); return Math.min((avail - side) / half, m.reach ? (avail - 3) / m.reach : Infinity); })();
+        let hS = 1.38;
+        for (let s = harbourScaleWanted(hs); s > 1.38; s -= 0.08) {
+          const m = measure(s);
+          if (!m.reach || (avail - 3) / m.reach >= k77 * 0.96) { hS = s; break; }
+        }
+        this._hScale = hS;
+        const { reach, y0, y1 } = measure(hS);
+        box.minY = y0; box.maxY = y1;
         // v0.73: every harbour boat fully on screen (playtest: "I can't always see the whole world");
         // was: a boat tip could run 6 px off the edge
         const k = Math.min((avail - side) / half, reach ? (avail - 3) / reach : Infinity);
@@ -6932,7 +6947,7 @@ class ColonistFullGame {
    *  icon without its coloured tile, so a brick harbour never reads as a red player) beside the ratio in bold, or
    *  just "3:1"; two piers to the coast corners, a dot on each corner. */
   drawPorts() {
-    const ctx = this.ctx, g = this.geometry, u = g.hexSize / 100, s = this.isMobileLayout ? 1.38 : 1;
+    const ctx = this.ctx, g = this.geometry, u = g.hexSize / 100, s = harbourScale(this);
     const portColor = { wood: "#4a7c3f", brick: "#b5532e", sheep: "#5f9a36", wheat: "#b8931f", ore: "#6a7588", any: "#3d5f72" };
     if (!this._portImgs) {
       this._portImgs = {};
