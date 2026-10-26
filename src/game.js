@@ -7835,7 +7835,7 @@ class ColonistFullGame {
       document.querySelector("#ticker")?.classList.toggle("prompt", !!prompt);
       if (prompt && this.tickerText) {
         this.tickerText.innerHTML = `<span class="tk-main">${prompt}</span>${stepChip ? `<span class="tk-step">${stepChip}</span>` : ""}`;
-        const ic = { gold: "gold", thief: "pirate", moveShip: "ship", moved: "ship", setupPiece: "ship" }[tray?.mode] // ⚓
+        const ic = { gold: "gold", thief: "pirate", moveShip: "ship", moved: "ship", setupPiece: "ship", island: "island" }[tray?.mode] // ⚓
           || (this.sea && this.pendingAction === "robber" && this.confirmBuild && this._seaHexKind(this.confirmBuild.id) === "pirate" ? "pirate" : null)
           || (this.pendingDiscard || this.pendingAction === "robber" || tray?.mode === "victims" ? "robber"
           : tray?.mode === "cards" || tray?.mode === "pick" ? "devcard" : this.confirmBuild?.type || (this.pendingAction !== "build" && this.pendingAction) || this.setupAction || "build");
