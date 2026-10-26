@@ -208,6 +208,25 @@ export class Fx {
     this.later(all, 2750);
   }
 
+  /** A bought development card: face-up, it glides from the Buy button into your hand (no splash). */
+  devToHand(type, fromRect) {
+    const target = document.querySelector(`#resourceCardStrip .card[data-dev="${type}"]`) || document.querySelector("#resourceCardStrip");
+    const tr = rect(target);
+    if (!tr) return;
+    const cw = Math.max(40, Math.min(64, tr.width || 56));
+    const src = fromRect ? center(fromRect) : { x: innerWidth / 2, y: tr.top - 80 };
+    const dst = center(tr);
+    const el = this.actor(cardSvg(type), src.x - cw / 2, src.y - cw * 0.7, cw, "fx-card fx-devfly");
+    const dx = dst.x - src.x, dy = dst.y - src.y;
+    this.A(el, [
+      { transform: "translate(0,0) scale(.5)", opacity: 0 },
+      { transform: `translate(${dx * 0.4}px,${dy * 0.4 - 40}px) scale(1.1)`, opacity: 1, offset: 0.45, easing: this.M.inOut },
+      { transform: `translate(${dx}px,${dy}px) scale(1)`, opacity: 1, offset: 0.92 },
+      { transform: `translate(${dx}px,${dy}px) scale(1)`, opacity: 0 },
+    ], { duration: 750, easing: this.M.out });
+    this.later([el], 800);
+  }
+
   // ── badge transfer (Longest Road / Largest Army) ────────────────────────
   badge(kind, fromId, toId) {
     const g = this.game;

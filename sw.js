@@ -1,17 +1,26 @@
 // Network-first service worker: always try fresh files (the app updates often),
 // fall back to the cache so the game still starts offline.
-const CACHE = "colonist-v68";
+const CACHE = "colonist-v69";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./manifest.webmanifest", "./assets/favicon.svg",
   "./themes/base.css", "./themes/theme-sunny.css", "./themes/theme-classic.css",
-  "./src/game.js",
+  "./src/game.js", "./src/sound.js",
   "./src/themes/manager.js", "./src/themes/art-util.js", "./src/themes/board-renderer.js",
   "./src/themes/fx.js", "./src/themes/settings-ui.js", "./src/themes/onboarding.js",
   "./src/themes/sunny/art.js", "./src/themes/sunny/ui-icons.js", "./src/themes/classic/art.js",
+  "./assets/icons/resource-wood-v3.svg", "./assets/icons/resource-brick-v2.svg", "./assets/icons/resource-sheep-v2.svg",
+  "./assets/icons/resource-wheat-v2.svg", "./assets/icons/resource-ore-v2.svg",
+  "./assets/icons/dev-knight.svg", "./assets/icons/dev-monopoly.svg", "./assets/icons/dev-road-building.svg",
+  "./assets/icons/dev-year-of-plenty.svg",
+  "./assets/icons/ui-bot-turns.svg", "./assets/icons/ui-build.svg", "./assets/icons/ui-dice.svg",
+  "./assets/icons/ui-end-turn.svg", "./assets/icons/ui-logo.svg", "./assets/icons/ui-trade.svg",
+  "./assets/avatars/avatar-human.svg", "./assets/avatars/avatar-pioneer.svg", "./assets/avatars/avatar-sage.svg",
+  "./assets/avatars/avatar-vector.svg", "./assets/pwa/apple-touch-icon.png", "./assets/pwa/icon-192.png",
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+  // The shell is fetched past the HTTP cache too, or a fresh SW could precache stale files
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL.map((url) => new Request(url, { cache: "no-cache" })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -26,7 +35,11 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET" || new URL(request.url).origin !== self.location.origin) return;
   event.respondWith(
-    fetch(request)
+    // Always revalidate with the server, never answer from the HTTP cache: GitHub Pages serves
+    // everything with max-age=600, so a plain fetch() hands out the old index.html (and old
+    // unversioned modules such as src/themes/*.js) for up to 10 minutes after a deploy.
+    // no-cache still lets the server answer 304, so an unchanged file costs almost nothing.
+    fetch(request, { cache: "no-cache" })
       .then((response) => {
         if (response.ok) {
           const copy = response.clone();

@@ -329,6 +329,7 @@ export class SvgBoardRenderer {
       const old = prev.nodes.get(id);
       if (old === v) continue;
       const [type] = v.split(":");
+      if (type === "settlement" && old && old.startsWith("city")) continue; // Undo of a city: no drop
       if (type === "city" && old && old.startsWith("settlement")) this.anims.push({ kind: "city", id, start: now, dur: 1350 * M.k });
       else this.anims.push({ kind: "drop", id, start: now, dur: 1100 * M.k });
     }
@@ -414,7 +415,7 @@ export class SvgBoardRenderer {
 
 
     // 5. roads
-    g.geometry.edges.forEach((e) => { if (e.owner != null) this.drawRoad(ctx, e, g.players[e.owner], now, reduced); });
+    this.drawRoads(ctx, now, reduced);
 
     // 6. buildings, y-sorted
     const blds = g.geometry.nodes.filter((n) => n.structure).sort((a, b) => a.y - b.y);
@@ -479,8 +480,8 @@ export class SvgBoardRenderer {
   }
 
   /**
-   * Robber mode, calm: tiles the robber may not go to are dimmed, every candidate tile shows the
-   * portraits of the players you could rob there, and the chosen (or hovered) tile gets a white
+   * Robber mode, calm: tiles the robber may not go to are dimmed, candidate tiles carry no marks
+   * (who you could rob is listed in the robber sheet), and the chosen (or hovered) tile gets a white
    * outline plus a ghost robber. Nothing pulses.
    */
   drawRobberTargets(ctx) {
@@ -497,9 +498,6 @@ export class SvgBoardRenderer {
         ctx.stroke(HEX_P(91));
         ctx.restore();
       }
-      const victims = g._stealVictims(h.id, mover);
-      const r = 10 * px;
-      victims.forEach((pid, i) => g._drawAvatarDisc(ctx, pid, c.x + (i - (victims.length - 1) / 2) * 2.4 * r, c.y + 70, r));
     });
     const ghostAt = sel ?? (g.hoverHexId != null && legal.has(g.hoverHexId) ? g.hoverHexId : null);
     if (ghostAt != null) {
@@ -510,31 +508,51 @@ export class SvgBoardRenderer {
     }
   }
 
-  roadEnds(edge) {
+  roadEnds(edge, trim = this.theme.road.trim) {
     const a = this.nodeArt(edge.nodes[0]), b = this.nodeArt(edge.nodes[1]);
-    const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy), k = this.theme.road.trim / L;
+    const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy), k = trim / L;
     return [{ x: a.x + dx * k, y: a.y + dy * k }, { x: b.x - dx * k, y: b.y - dy * k }];
   }
 
-  strokeRoad(ctx, a, b, c, alpha = 1, rim = true) {
+  /** A road segment, or (a = [[a, b], ...]) several stroked as one path. `pass` (0 shadow, 1 rim,
+   *  2 outline, 3 body, 4 highlight) draws a single layer: the board draws all roads layer by layer
+   *  as joined paths, so touching segments meet seamlessly and translucent layers never double up. */
+  strokeRoad(ctx, a, b, c, alpha = 1, rim = true, pass = null) {
     const R = this.theme.road;
     const w = this.game.isMobileLayout ? 1.25 : 1.05;
+    const on = (i) => pass == null || pass === i;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.lineCap = "round";
-    const line = () => { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); };
-    ctx.save(); ctx.translate(2, 3.5); line(); ctx.strokeStyle = R.shadow; ctx.lineWidth = R.outer * w + 2; ctx.stroke(); ctx.restore();
-    if (rim && R.rim) { line(); ctx.strokeStyle = R.rim; ctx.lineWidth = R.outer * w + 5; ctx.stroke(); }
-    line(); ctx.strokeStyle = c.line || c.dark; ctx.lineWidth = R.outer * w; ctx.stroke();
-    line(); ctx.strokeStyle = c.base; ctx.lineWidth = R.inner * w; ctx.stroke();
-    ctx.save(); ctx.translate(-0.8, -1.4); ctx.globalAlpha = alpha * 0.85; line(); ctx.strokeStyle = c.light; ctx.lineWidth = R.hi * w; ctx.stroke(); ctx.restore();
+    const list = Array.isArray(a) ? a : [[a, b]];
+    const line = () => { ctx.beginPath(); list.forEach(([p, q]) => { ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); }); };
+    if (on(0)) { ctx.save(); ctx.translate(2, 3.5); line(); ctx.strokeStyle = R.shadow; ctx.lineWidth = R.outer * w + 2; ctx.stroke(); ctx.restore(); }
+    if (on(1) && rim && R.rim) { line(); ctx.strokeStyle = R.rim; ctx.lineWidth = R.outer * w + (R.rimW ?? 5); ctx.stroke(); }
+    if (on(2)) { line(); ctx.strokeStyle = c.line || c.dark; ctx.lineWidth = R.outer * w; ctx.stroke(); }
+    if (on(3)) { line(); ctx.strokeStyle = c.base; ctx.lineWidth = R.inner * w; ctx.stroke(); }
+    if (on(4)) { ctx.save(); ctx.translate(-0.8, -1.4); ctx.globalAlpha = alpha * 0.85; line(); ctx.strokeStyle = c.light; ctx.lineWidth = R.hi * w; ctx.stroke(); ctx.restore(); }
     ctx.restore();
   }
 
   pc(player) { return this.theme.pc[this.theme.seatKeys[player.id]] || this.theme.pc.blue; }
 
-  drawRoad(ctx, edge, player, now, reduced) {
-    let [a, b] = this.roadEnds(edge);
+  /** All built roads, node centre to node centre, layer by layer: a player's network reads as one
+   *  continuous line with rounded joints, and buildings (drawn after) sit on top of the ends. */
+  drawRoads(ctx, now, reduced) {
+    const g = this.game;
+    const segs = g.geometry.edges.filter((e) => e.owner != null).map((e) => this.roadSeg(e, g.players[e.owner], now, reduced));
+    // shadow + rim: one path for every settled road; outline/body/highlight: one path per player
+    const settled = segs.filter((s) => s.alpha >= 1), fading = segs.filter((s) => s.alpha < 1);
+    const groups = new Map();
+    settled.forEach((s) => { if (!groups.has(s.c)) groups.set(s.c, []); groups.get(s.c).push([s.a, s.b]); });
+    const all = settled.map((s) => [s.a, s.b]);
+    if (all.length) { this.strokeRoad(ctx, all, null, null, 1, true, 0); this.strokeRoad(ctx, all, null, null, 1, true, 1); }
+    for (let pass = 2; pass <= 4; pass += 1) groups.forEach((list, c) => this.strokeRoad(ctx, list, null, c, 1, true, pass));
+    fading.forEach((s) => this.strokeRoad(ctx, s.a, s.b, s.c, s.alpha, true));
+  }
+
+  roadSeg(edge, player, now, reduced) {
+    let [a, b] = this.roadEnds(edge, 0);
     const an = this.animFor("road", edge.id);
     let alpha = 1;
     if (an) {
@@ -546,7 +564,7 @@ export class SvgBoardRenderer {
         alpha = 0.4 + 0.6 * clamp01(t / 0.2);
       }
     }
-    this.strokeRoad(ctx, a, b, this.pc(player), alpha);
+    return { a, b, c: this.pc(player), alpha };
   }
 
   drawBuilding(ctx, node, now, reduced, devK) {
@@ -589,7 +607,7 @@ export class SvgBoardRenderer {
     ctx.translate(0, 16);
     ctx.scale(s.sx ?? 1, s.sy ?? 1);
     ctx.translate(0, -16);
-    drawSpec(ctx, spec, { alpha: a, k: devK, rim: this.theme.rim });
+    drawSpec(ctx, spec, { alpha: a, k: devK, rim: this.theme.rim, rimW: this.theme.rimW ?? 6 });
     ctx.restore();
   }
 
@@ -621,12 +639,12 @@ export class SvgBoardRenderer {
     ctx.rotate((s.rot * Math.PI) / 180);
     ctx.scale(s.sx * k, s.sy * k);
     ctx.translate(0, -32);
-    drawSpec(ctx, T.pieces.robber, { k: devK, rim: T.rim, rimW: 5 });
+    drawSpec(ctx, T.pieces.robber, { k: devK, rim: T.rim, rimW: T.rimW ?? 5 });
     ctx.restore();
   }
 
   legalSpots() {
-    return this.game._legalPlacementSpots() || { nodes: [], edges: [], type: null };
+    return this.game._legalPlacementSpots() || { nodes: [], cities: [], edges: [], type: null };
   }
 
   /**
@@ -637,13 +655,13 @@ export class SvgBoardRenderer {
    */
   drawPlacement(ctx, now, reduced, devK) {
     const g = this.game;
-    const { nodes, edges, type } = this.legalSpots();
+    const { nodes, edges, type, cities = [] } = this.legalSpots();
     if (!type || type === "robber") return;
     const cb = g.confirmBuild;
     const px = 1 / (this.u * g.view.scale); // art units per CSS pixel
     const human = g.players[0];
     const c = this.pc(g.currentPlayer || human);
-    const key = `${type}:${nodes.join(",")}:${edges.join(",")}`;
+    const key = `${type}:${nodes.join(",")}:${cities.join(",")}:${edges.join(",")}`;
     if (key !== this._placeKey) { this._placeKey = key; this._placeStart = now; }
     const t = reduced ? 1 : clamp01((now - this._placeStart) / 1100);
     const e = easing(this.theme.motion.out)(t);
@@ -677,13 +695,17 @@ export class SvgBoardRenderer {
     nodes.forEach((id) => {
       if (cb && cb.id === id && cb.type !== "road") return;
       const p = this.nodeArt(id);
-      if (type === "city") ring(p.x, p.y - 4, 30); // around the settlement itself
-      else ring(p.x, p.y, 7 * px);
+      ring(p.x, p.y, 7 * px);
+    });
+    cities.forEach((id) => {
+      if (cb && cb.id === id && cb.type !== "road") return;
+      const p = this.nodeArt(id);
+      ring(p.x, p.y - 4, 30); // around the settlement itself
     });
     // hover preview (desktop) — a fainter ghost
-    const hoverNode = g.hoverNodeId != null && (!cb || cb.id !== g.hoverNodeId) && nodes.includes(g.hoverNodeId) ? g.hoverNodeId : null;
+    const hoverNode = g.hoverNodeId != null && (!cb || cb.id !== g.hoverNodeId) && (nodes.includes(g.hoverNodeId) || cities.includes(g.hoverNodeId)) ? g.hoverNodeId : null;
     const hoverEdge = g.hoverEdgeId != null && (!cb || cb.id !== g.hoverEdgeId) && edges.includes(g.hoverEdgeId) ? g.hoverEdgeId : null;
-    if (hoverNode != null) this.ghost(ctx, type, hoverNode, c, 0.45, devK);
+    if (hoverNode != null) this.ghost(ctx, cities.includes(hoverNode) ? "city" : "settlement", hoverNode, c, 0.45, devK);
     if (hoverEdge != null) this.ghost(ctx, "road", hoverEdge, c, 0.45, devK);
     if (cb && cb.type !== "robber") {
       this.ghost(ctx, cb.type, cb.id, c, 1, devK);
