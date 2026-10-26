@@ -1170,7 +1170,6 @@ class ColonistFullGame {
     });
     this.tradeModalClose?.addEventListener("click", () => this.closeTradeModal());
     this.tradeModal?.addEventListener("click", (e) => { if (e.target === this.tradeModal) this.closeTradeModal(); });
-    this.tradeModal?.querySelectorAll("[data-trade-tab]").forEach((b) => b.addEventListener("click", () => this.setTradeTab(b.dataset.tradeTab)));
 
     this.tradeExecuteBtn?.addEventListener("click", () => this.handleHumanBankTrade());
     this.tradeProposalBtn?.addEventListener("click", () => this._onTradeProposalBtn());
@@ -1876,45 +1875,6 @@ class ColonistFullGame {
     this.devPickerCards.querySelectorAll(".dev-picker-btn:not(:disabled)").forEach((btn) => {
       btn.addEventListener("click", () => this.handleHumanPlayDevCard(btn.dataset.devType));
     });
-  }
-
-  handleHumanBankTrade() {
-    const player = this.currentPlayer;
-    if (!player || !player.isHuman || this.winner || this.phase !== "main" || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return;
-    const offeredTypes = RESOURCES.filter(r => this.tradeOffer[r] > 0);
-    const requestedTypes = RESOURCES.filter(r => this.tradeRequest[r] > 0);
-    if (offeredTypes.length !== 1 || requestedTypes.length !== 1) return;
-    const give = offeredTypes[0];
-    const get = requestedTypes[0];
-    if (give === get) return;
-    const ok = this.performBankTrade(player, give, get);
-    if (ok) {
-      // Animate cards: give goes up, get comes down
-      const giveRes = makeEmptyResources();
-      giveRes[give] = this.getPlayerTradeRate(player, give);
-      const getRes = makeEmptyResources();
-      getRes[get] = 1;
-      // the "You get" card the player tapped is where the new card flies from
-      const src = this.tradeRequestGrid?.querySelector(`[data-res="${get}"]`)?.getBoundingClientRect();
-      this.tradeOffer = makeEmptyResources();
-      this.tradeRequest = makeEmptyResources();
-      this.buildTradeGrids();
-      this.updateTradeButtons();
-      const rate = giveRes[give];
-      const msg = `Traded ${rate} ${RESOURCE_LABEL[give]} → 1 ${RESOURCE_LABEL[get]}`;
-      // the result line in the body is for screen readers; the footer shows it where the eye already is
-      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = `<span class="ok sr-only">${msg}</span>`;
-      this._tradeHint(`✓ ${msg}`, "ok");
-      this._animateTradeCards(giveRes, getRes, src ? { getBoundingClientRect: () => src } : null);
-      this.sfx.trade();
-      this._dropUndo();
-      // Done unless another bank trade is possible ("trade again" stays open)
-      if (!RESOURCES.some((r) => player.resources[r] >= this.getPlayerTradeRate(player, r))) this.closeTradeModal();
-    } else {
-      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = '<span class="no">That trade is not possible right now.</span>';
-      this.sfx.error();
-    }
-    this.render();
   }
 
   handleBoardClick(event) {
@@ -3162,7 +3122,7 @@ class ColonistFullGame {
   _animateTradeCards(give, get, src = null) {
     window.setTimeout(() => {
       const sheetOpen = this.tradeModal && this.tradeModal.style.display !== "none";
-      const target = (r) => (sheetOpen ? document.querySelector(`#tradeHand [data-hand="${r}"]`) : null)
+      const target = (r) => (sheetOpen ? document.querySelector(`#tradeOfferGrid [data-hand="${r}"]`) : null)
         || document.querySelector(`#resourceCardStrip .card[data-card="${r}"]`);
       const sr = src?.getBoundingClientRect?.();
       const canFly = !!(this.fx && sr && sr.width && !motionReduced());
@@ -3247,11 +3207,15 @@ class ColonistFullGame {
     this.victimPanel.style.display = "";
   }
 
-  // ── Trade Modal ──────────────────────────────────────────────────────
+  // ── Trade sheet ──────────────────────────────────────────────────────
 
   /**
-   * The trade sheet's markup is built here, not taken from index.html: a phone that still has an
-   * older cached index.html (with the new game.js) then shows the same sheet as everyone else.
+   * v0.76: one trade panel, no Bank | Players tabs. You pick what you give and what you get once;
+   * the footer then offers both routes side by side: the bank (your best rate — 4:1, 3:1 or a 2:1
+   * harbour — applied by itself) and "Offer" to the players, whose answers appear on their avatars
+   * (✓ tap to trade · ✗ · ⇄ counter-offer).
+   * The markup is built here, not taken from index.html: a phone that still has an older cached
+   * index.html (with the new game.js) then shows the same sheet as everyone else.
    */
   _buildTradeSheet() {
     const el = document.querySelector("#tradeModal");
@@ -3262,31 +3226,22 @@ class ColonistFullGame {
     el.innerHTML = `<div class="grab"></div>
       <div class="sheet-head"><h3 id="tradeTitle">${icon("trade")}Trade</h3>
         <button type="button" id="tradeModalClose" class="btn ghost icon-only" aria-label="Close">${icon("close")}</button></div>
-      <div class="trade-tabs" role="tablist" aria-label="Trade with">
-        <button type="button" role="tab" data-trade-tab="bank" aria-selected="true">${icon("bank")}Bank</button>
-        <button type="button" role="tab" data-trade-tab="players" aria-selected="false">${icon("trade")}Players</button>
-      </div>
       <div class="trade-body" id="tradeBody">
-        <div class="trade-hand" id="tradeHand" aria-label="Your hand"></div>
-        <p class="lead" id="tradeLead"></p>
-        <div class="trade-pane" id="tradeBankPane">
-          <div class="lbl"><span class="stepn">1</span>You give</div>
-          <div id="tradeOfferGrid" class="rgrid"></div>
-          <div class="lbl"><span class="stepn">2</span>You get</div>
-          <div id="tradeRequestGrid" class="rgrid"></div>
+        <div class="tlbl"><span>You give</span></div>
+        <div id="tradeOfferGrid" class="tgrid give" role="group" aria-label="You give"></div>
+        <div class="tlbl"><span>You get</span></div>
+        <div id="tradeRequestGrid" class="tgrid get" role="group" aria-label="You get"></div>
+        <div class="tplayers" id="tradePlayers">
+          <div class="tp-head"><span>Players</span><small id="tradePlayersNote"></small></div>
+          <div class="tp-row" id="tradePlayerRow"></div>
+          <div id="tradeProposalResult" class="trade-result" aria-live="polite"></div>
         </div>
-        <div class="trade-pane" id="tradePlayersPane" hidden>
-          <div class="trows-head"><span>You give</span><span>You get</span></div>
-          <div id="tradeRows" class="trows"></div>
-        </div>
-        <div class="rates" id="tradeRates" hidden></div>
-        <div id="tradeProposalResult" class="trade-result" aria-live="polite"></div>
       </div>
       <div class="trade-foot">
         <p class="trade-hint" id="tradeHint" aria-live="polite"></p>
-        <div class="btnrow one">
-          <button type="button" id="tradeExecuteBtn" class="btn primary">${icon("bank")}<span>Trade</span></button>
-          <button type="button" id="tradeProposalBtn" class="btn primary" hidden>${icon("trade")}<span>Ask players</span></button>
+        <div class="btnrow two">
+          <button type="button" id="tradeExecuteBtn" class="btn route bank"></button>
+          <button type="button" id="tradeProposalBtn" class="btn route offer primary"></button>
         </div>
       </div>
       <select id="giveResourceSelect" hidden></select>
@@ -3309,7 +3264,7 @@ class ColonistFullGame {
     return this.phase === "main" ? null : "Trading opens on your turn.";
   }
 
-  openTradeModal(tab = null) {
+  openTradeModal() {
     if (!this.tradeModal) return;
     // Toggle: if already open, close it
     if (this.tradeModal.style.display !== "none") {
@@ -3326,175 +3281,152 @@ class ColonistFullGame {
     this.tradeRequest = makeEmptyResources();
     this.tradeLocked = false;
     this._tradeAsked = null;
-    this.tradeTab = tab || this.tradeTab || "bank";
+    this._tradeAnswers = null;
     if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
-    this.buildTradeGrids();
-    this.updateTradeButtons();
+    this._refreshTradeGrids();
     this._syncScrim?.();
   }
 
   closeTradeModal() {
     if (!this.tradeModal) return;
     if (this.tradeModal.style.display !== "none" && this.tradeProposalResult) {
-      this.tradeProposalResult.innerHTML = ""; // drop any pending Confirm/Accept buttons
+      this.tradeProposalResult.innerHTML = ""; // drop any pending counter-offer buttons
     }
     this.tradeLocked = false;
     this._tradeAsked = null;
+    this._tradeAnswers = null;
+    this._markStripAnswers();
     this.tradeModal.style.display = "none";
+    this._syncScrim?.();
   }
 
   hideTradePanel() {
     this.closeTradeModal();
   }
 
-  /** Bank | Players tabs. Switching clears the selection (the two trades work differently). */
-  setTradeTab(tab) {
-    if (this.tradeLocked || (tab !== "bank" && tab !== "players")) return;
-    if (tab !== this.tradeTab) {
-      this.tradeTab = tab;
-      this.tradeOffer = makeEmptyResources();
-      this.tradeRequest = makeEmptyResources();
-      this._tradeAsked = null;
-      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
+  /** The players' answers belong to the offer they were given: any change to the picks clears them. */
+  _clearTradeAnswers() {
+    this._tradeAsked = null;
+    this._tradeAnswers = null;
+    if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
+    this._markStripAnswers();
+  }
+
+  /** Add (+1) or take back (-1) one card on the give or get side. Never give and get the same kind. */
+  _tradePick(side, r, d) {
+    const player = this.currentPlayer;
+    if (!player?.isHuman) return;
+    const mine = side === "give" ? this.tradeOffer : this.tradeRequest;
+    const other = side === "give" ? this.tradeRequest : this.tradeOffer;
+    const max = side === "give" ? player.resources[r] : this.bankSize || BANK_SIZE;
+    if (d > 0 && mine[r] >= max) {
+      this._tradeHint(side === "give" ? `You have ${player.resources[r]} ${RESOURCE_LABEL[r]}.` : "");
+      this.sfx.error?.();
+      return;
     }
-    this.buildTradeGrids();
-    this.updateTradeButtons();
+    mine[r] = clamp(mine[r] + d, 0, max);
+    if (d > 0) other[r] = 0;
+    this._clearTradeAnswers();
+    this.sfx.click();
+    this._refreshTradeGrids();
   }
 
   buildTradeGrids() {
     const player = this.currentPlayer;
-    const tab = this.tradeTab || "bank";
-    this.tradeModal?.querySelectorAll("[data-trade-tab]").forEach((b) => {
-      const on = b.dataset.tradeTab === tab;
-      b.classList.toggle("on", on);
-      b.setAttribute("aria-selected", String(on));
-    });
-    const bankPane = document.querySelector("#tradeBankPane"), playersPane = document.querySelector("#tradePlayersPane");
-    if (bankPane) bankPane.hidden = tab !== "bank";
-    if (playersPane) playersPane.hidden = tab !== "players";
-    if (tab === "bank") {
-      this._renderBankGrid(this.tradeOfferGrid, true);
-      this._renderBankGrid(this.tradeRequestGrid, false);
-    } else {
-      this._renderTradeRows(player);
-    }
-    this._renderTradeHand(player);
-  }
-
-  /** Your hand inside the sheet: five slots with big counts; a picked trade shows "5 → 1" on the slots it changes. */
-  _renderTradeHand(player) {
-    const lead = document.querySelector("#tradeLead");
-    const handEl = document.querySelector("#tradeHand");
     if (!player) return;
-    const tab = this.tradeTab || "bank";
-    if (handEl) {
-      handEl.innerHTML = `<span class="th-lbl">Your hand</span>` + RESOURCES.map((r) => {
-        const have = player.resources[r];
-        const after = have - (this.tradeOffer[r] || 0) + (this.tradeRequest[r] || 0);
-        const delta = after - have;
-        return `<span class="th-slot ${r}${have ? "" : " zero"}${delta < 0 ? " down" : delta > 0 ? " up" : ""}" data-hand="${r}" title="${RESOURCE_LABEL[r]}: ${have}${delta ? ` → ${after}` : ""}">${icon(r)}<b>${have}</b>${delta ? `<i>→ ${after}</i>` : ""}</span>`;
-      }).join("");
-    }
-    if (!lead) return;
-    if (tab === "bank") {
-      const rates = RESOURCES.map((r) => this.getPlayerTradeRate(player, r));
-      const best = Math.min(...rates);
-      const ports = RESOURCES.filter((r, i) => rates[i] === 2).map((r) => RESOURCE_LABEL[r]);
-      const base = rates.some((x) => x === 3) ? "3" : "4";
-      const canAny = RESOURCES.some((r, i) => player.resources[r] >= rates[i]);
-      lead.textContent = canAny
-        ? `Tap a card you have enough of, then the card you want. ${base} of a kind${ports.length ? ` (2 ${ports.join(", 2 ")})` : ""} buys 1.`
-        : `The bank swaps ${base} of a kind${best < Number(base) ? " (2 at your harbour)" : ""} for 1 card. You don't have enough of any kind yet: try Players.`;
-    } else {
-      lead.textContent = "Pick what you give and what you want, then ask. Each bot says yes, no, or makes a counter-offer.";
-    }
+    this._renderTradePicks(this.tradeOfferGrid, "give", player);
+    this._renderTradePicks(this.tradeRequestGrid, "get", player);
+    this._renderTradePlayers(player);
   }
 
-  /** Bank tab: one tap picks the full set you give (at your rate), one tap picks the card you get. */
-  _renderBankGrid(container, isOffer) {
+  /**
+   * One row of five resource tiles. Tap a tile: one more of that card; the "−" under a picked tile
+   * takes one back. Give tiles show what you hold (and what is left after the trade).
+   */
+  _renderTradePicks(container, side, player) {
     if (!container) return;
-    const player = this.currentPlayer;
-    if (!player) return;
-    const give = RESOURCES.find((r) => this.tradeOffer[r] > 0) || null;
-    const get = RESOURCES.find((r) => this.tradeRequest[r] > 0) || null;
-    container.innerHTML = RESOURCES.map((resource) => {
-      const rate = this.getPlayerTradeRate(player, resource);
-      const have = player.resources[resource];
-      const picked = isOffer ? give === resource : get === resource;
-      const usable = isOffer ? have >= rate : resource !== give && this.bank[resource] > 0;
-      // Under each card: what you have (give) or why you can't take it (get)
-      const sub = isOffer
-        ? `<span class="have${usable ? " ok" : " short"}">${usable ? `have ${have}` : `have ${have}/${rate}`}</span>
-           <span class="rate-tag${rate < 4 ? " port" : ""}">${rate}:1${rate < 4 ? " port" : ""}</span>`
-        : `<span class="have" title="${this.bank[resource]} ${RESOURCE_LABEL[resource]} left in the bank">${resource === give ? "giving" : this.bank[resource] > 0 ? `bank <span class="bn">${this.bank[resource]}</span>` : "bank empty"}</span>`;
-      return `<div class="rcell bank-cell${picked ? " pick" : ""}${usable ? "" : " dim"}">
-        <button type="button" class="card trade-res-card ${resource}" data-res="${resource}" aria-pressed="${picked}" aria-label="${isOffer ? `Give ${rate}` : "Get 1"} ${RESOURCE_LABEL[resource]}${isOffer ? ` (you have ${have})` : ""}" ${usable || picked ? "" : "aria-disabled=\"true\""}>${cardSvg(resource)}</button>
-        ${sub}
+    const picks = side === "give" ? this.tradeOffer : this.tradeRequest;
+    // ratio tags only where a 2:1 harbour beats your usual rate (4:1, or 3:1 with a 3:1 harbour)
+    const baseRate = Math.max(...RESOURCES.map((r) => this.getPlayerTradeRate(player, r)).filter((x) => x > 2), 3);
+    container.innerHTML = RESOURCES.map((r) => {
+      const n = picks[r] || 0;
+      const have = player.resources[r];
+      const name = RESOURCE_LABEL[r];
+      const usable = side === "give" ? have > 0 : true;
+      const rate = this.getPlayerTradeRate(player, r);
+      const sub = side === "give" ? (n ? `<span class="aft">${have - n} left</span>` : `have ${have}`)
+        : this.bank[r] > 0 ? name : "bank empty";
+      const label = side === "give" ? `Give one more ${name} (you have ${have}${n ? `, giving ${n}` : ""})` : `Get one more ${name}${n ? ` (asking ${n})` : ""}`;
+      return `<div class="tcell ${r}${n ? " pick" : ""}${usable ? "" : " none"}" data-hand="${side === "give" ? r : ""}" data-res="${r}">
+        <button type="button" class="tpick" data-${side}="${r}" aria-label="${label}" ${usable ? "" : "aria-disabled=\"true\""}>${side === "give" && rate < baseRate ? `<span class="rate-tag port">${rate}:1</span>` : ""}${icon(r)}${n ? `<b class="tbadge">${n}</b>` : ""}<small>${sub}</small></button>
+        <button type="button" class="tminus" data-${side}-minus="${r}" aria-label="${side === "give" ? "Give" : "Get"} one ${name} less" ${n ? "" : "tabindex=\"-1\" aria-hidden=\"true\""}>${icon("minus")}</button>
       </div>`;
     }).join("");
-    container.querySelectorAll(".trade-res-card").forEach((card) => {
-      card.addEventListener("click", () => {
-        if (this.tradeLocked) return;
-        const res = card.dataset.res;
-        if (isOffer) {
-          const rate = this.getPlayerTradeRate(player, res);
-          if (player.resources[res] < rate) {
-            this._tradeHint(`You have ${player.resources[res]} ${RESOURCE_LABEL[res]}; the bank needs ${rate}. Players may take fewer.`);
-            return;
-          }
-          const was = this.tradeOffer[res] > 0;
-          this.tradeOffer = makeEmptyResources();
-          if (!was) this.tradeOffer[res] = rate;
-          if (this.tradeRequest[res]) this.tradeRequest = makeEmptyResources();
-        } else {
-          if (res === give || this.bank[res] < 1) return;
-          const was = this.tradeRequest[res] > 0;
-          this.tradeRequest = makeEmptyResources();
-          if (!was) this.tradeRequest[res] = 1;
-        }
-        this.sfx.click();
-        this._refreshTradeGrids();
+    container.querySelectorAll("button").forEach((b) => {
+      const [k, r] = Object.entries(b.dataset)[0] || [];
+      if (!k || !r) return;
+      b.addEventListener("click", () => {
+        if (k.endsWith("Minus")) { if (picks[r] > 0) this._tradePick(side, r, -1); return; }
+        if (side === "give" && player.resources[r] < 1) { this._tradeHint(`You have no ${RESOURCE_LABEL[r]}.`); return; }
+        this._tradePick(side, r, 1);
       });
     });
   }
 
-  /** Players tab: one row per resource with 44 px − / + steppers for what you give and what you get. */
-  _renderTradeRows(player) {
-    const el = document.querySelector("#tradeRows");
-    if (!el || !player) return;
-    const lock = this.tradeLocked;
-    const stepper = (side, r, n, max) => `<div class="tstep" data-side="${side}">
-        <button type="button" data-${side}-minus="${r}" aria-label="${side === "give" ? "Give" : "Get"} one ${RESOURCE_LABEL[r]} less" ${n > 0 && !lock ? "" : "disabled"}>${icon("minus")}</button>
-        <span class="tn${n ? " on" : ""}">${n}</span>
-        <button type="button" data-${side}-plus="${r}" aria-label="${side === "give" ? "Give" : "Get"} one ${RESOURCE_LABEL[r]} more" ${n < max && !lock ? "" : "disabled"}>${icon("plus")}</button>
-      </div>`;
-    el.innerHTML = RESOURCES.map((r) => {
-      const have = player.resources[r];
-      return `<div class="trow${this.tradeOffer[r] || this.tradeRequest[r] ? " pick" : ""}${have ? "" : " none"}">
-        ${stepper("give", r, this.tradeOffer[r], have)}
-        <div class="tres"><span class="card">${cardSvg(r)}</span><span><b>${RESOURCE_LABEL[r]}</b><small class="${have ? "" : "short"}">have ${have}</small></span></div>
-        ${stepper("get", r, this.tradeRequest[r], 19)}
-      </div>`;
+  /** The players you can offer to: avatar + name; after an offer each carries its answer (✓ ✗ ⇄). */
+  _renderTradePlayers(player) {
+    const row = document.querySelector("#tradePlayerRow");
+    const note = document.querySelector("#tradePlayersNote");
+    if (!row) return;
+    const ans = this._tradeAnswers;
+    const others = this.players.filter((p) => p.id !== player.id);
+    row.innerHTML = others.map((p) => {
+      const v = this._tradeVerdict(p.id);
+      const badge = v === "yes" ? icon("check") : v === "no" ? icon("close") : v === "counter" ? icon("trade") : "";
+      const word = v === "yes" ? "accepts · tap to trade" : v === "no" ? "declines" : v === "counter" ? "counter-offer" : "";
+      return `<button type="button" class="tp pc-${p.id}${v ? ` ${v}` : ""}" data-partner="${p.id}" ${v === "yes" ? "" : "aria-disabled=\"true\""} aria-label="${p.name}${word ? `: ${word}` : ""}">
+        <span class="tp-av">${this._av(p)}${badge ? `<i class="tp-st ${v}">${badge}</i>` : ""}</span>
+        <span class="who pc-${p.id}">${p.name}</span>${v === "yes" ? '<em class="tp-go">Trade</em>' : ""}
+      </button>`;
     }).join("");
-    const change = (side, r, d) => {
-      if (this.tradeLocked) return;
-      const mine = side === "give" ? this.tradeOffer : this.tradeRequest;
-      const other = side === "give" ? this.tradeRequest : this.tradeOffer;
-      const max = side === "give" ? player.resources[r] : 19;
-      mine[r] = clamp(mine[r] + d, 0, max);
-      if (d > 0) other[r] = 0; // never give and get the same card
-      // a changed offer clears the last answers
-      if (this.tradeProposalResult && this._tradeAsked) this.tradeProposalResult.innerHTML = "";
-      this._tradeAsked = null;
-      this.sfx.click();
-      this._refreshTradeGrids();
-    };
-    el.querySelectorAll("button").forEach((b) => {
-      const [k, r] = Object.entries(b.dataset)[0] || [];
-      if (!k) return;
-      const side = k.startsWith("give") ? "give" : "get";
-      b.addEventListener("click", () => change(side, r, k.endsWith("Plus") ? 1 : -1));
-    });
+    row.querySelectorAll("button.tp.yes").forEach((b) => b.addEventListener("click", () => {
+      const partner = this.players[Number(b.dataset.partner)];
+      this._executePlayerTrade(partner, ans.offer, ans.request);
+    }));
+    this._markStripAnswers();
+    if (note) {
+      const yes = ans ? ans.responses.filter((x) => x.accepts).length : 0;
+      note.textContent = !ans ? (sumResources(this.tradeOffer) && sumResources(this.tradeRequest) ? "tap Offer to ask them" : "")
+        : yes ? "tap a ✓ to trade" : ans.counter ? "no takers · one counter-offer" : "no takers this time";
+    }
+  }
+
+  /**
+   * The bank route for the current picks (null fields + `why` when there is none). The rate is
+   * applied by itself: picking 1 Lumber still trades your 4 (or 3, or 2 at a harbour) — the button
+   * says so. With nothing picked to give, the best card you can spare at your rate is used.
+   */
+  _bankPlan(player) {
+    const req = this.tradeRequest, off = this.tradeOffer;
+    const k = sumResources(req);
+    const getT = RESOURCES.filter((r) => req[r] > 0);
+    if (!k) return { why: "pick what you get" };
+    const out = getT.find((r) => this.bank[r] < req[r]);
+    if (out) return { why: `bank is out of ${RESOURCE_LABEL[out]}` };
+    const offT = RESOURCES.filter((r) => off[r] > 0);
+    if (offT.length > 1) return { why: "one kind only" };
+    if (offT.length === 1) {
+      const give = offT[0], rate = this.getPlayerTradeRate(player, give), n = rate * k;
+      if (player.resources[give] < n) return { why: `needs ${n} ${RESOURCE_LABEL[give]}`, give, rate, n };
+      return { give, rate, n, k };
+    }
+    const cands = RESOURCES.filter((r) => !getT.includes(r))
+      .map((r) => ({ r, rate: this.getPlayerTradeRate(player, r) }))
+      .filter((c) => player.resources[c.r] >= c.rate * k)
+      .sort((a, b) => a.rate - b.rate || (player.resources[b.r] - b.rate * k) - (player.resources[a.r] - a.rate * k));
+    if (!cands.length) return { why: "not enough of one kind" };
+    const { r, rate } = cands[0];
+    return { give: r, rate, n: rate * k, k, auto: true };
   }
 
   /** The footer line (always on screen): a short reason, or ("ok") what the last trade did. */
@@ -3512,63 +3444,118 @@ class ColonistFullGame {
 
   /** Your hand changed while the sheet is open (Rush rolls, a steal): redraw it, keep picks you can still pay. */
   _syncTradeSheet() {
-    if (!this.tradeModal || this.tradeModal.style.display === "none" || this.tradeLocked) return;
+    if (!this.tradeModal || this.tradeModal.style.display === "none") return;
     const player = this.currentPlayer;
     if (!player?.isHuman) return;
-    RESOURCES.forEach((r) => {
-      if ((this.tradeTab || "bank") === "bank") {
-        if (this.tradeOffer[r] && player.resources[r] < this.tradeOffer[r]) this.tradeOffer = makeEmptyResources();
-      } else this.tradeOffer[r] = Math.min(this.tradeOffer[r], player.resources[r]);
-    });
+    RESOURCES.forEach((r) => { this.tradeOffer[r] = Math.min(this.tradeOffer[r], player.resources[r]); });
     const hint = document.querySelector("#tradeHint");
     const keep = hint?.classList.contains("ok") ? hint.textContent : null;
     this._refreshTradeGrids();
     if (keep) this._tradeHint(keep, "ok");
   }
 
+  /** A player's answer to your open offer ("yes" | "no" | "counter" | ""), also shown on the top strip. */
+  _tradeVerdict(id) {
+    const ans = this._tradeAnswers;
+    const a = ans?.responses.find((x) => x.player.id === id);
+    return !a ? "" : a.accepts ? "yes" : ans.counter?.player.id === id ? "counter" : "no";
+  }
+
+  /** Mirror the answers on the top player strip (the sheet leaves it visible). */
+  _markStripAnswers() {
+    document.querySelectorAll(".pstrip .pchip[data-seat]").forEach((c) => {
+      const v = this._tradeVerdict(Number(c.dataset.seat));
+      if (v) c.dataset.trade = v; else delete c.dataset.trade;
+    });
+  }
+
+  /** "4 [Lumber] → 1 [Ore]" for the route buttons. */
+  _tradeDealHtml(give, get) {
+    const side = (res) => RESOURCES.filter((r) => res[r] > 0).map((r) => `<span class="rd">${res[r]}${icon(r)}</span>`).join("");
+    return `${side(give)}<span class="ar">→</span>${side(get)}`;
+  }
+
   updateTradeButtons() {
     const player = this.currentPlayer;
     if (!player || !player.isHuman) return;
-    const tab = this.tradeTab || "bank";
     const offerTotal = sumResources(this.tradeOffer);
     const requestTotal = sumResources(this.tradeRequest);
-    const offeredTypes = RESOURCES.filter((r) => this.tradeOffer[r] > 0);
-    const requestedTypes = RESOURCES.filter((r) => this.tradeRequest[r] > 0);
-    // Bank trade: exactly one full set at your rate for exactly 1 card
-    let canBank = false;
-    if (offeredTypes.length === 1 && requestedTypes.length === 1 && offeredTypes[0] !== requestedTypes[0]) {
-      const giveRes = offeredTypes[0];
-      const rate = this.getPlayerTradeRate(player, giveRes);
-      canBank = this.tradeOffer[giveRes] === rate && this.tradeRequest[requestedTypes[0]] === 1
-        && this.bank[requestedTypes[0]] >= 1 && player.resources[giveRes] >= rate;
-    }
+    // Route 1: the bank (or your harbour)
+    const plan = this._bankPlan(player);
+    this._bankPlanNow = plan.k ? plan : null;
     if (this.tradeExecuteBtn) {
-      this.tradeExecuteBtn.hidden = tab !== "bank";
-      this.tradeExecuteBtn.disabled = !canBank;
-      const give = offeredTypes[0], get = requestedTypes[0];
-      const label = canBank ? `Trade ${this.tradeOffer[give]} ${RESOURCE_LABEL[give]} → 1 ${RESOURCE_LABEL[get]}`
-        : !give ? "Pick what you give" : "Pick what you get";
-      this.tradeExecuteBtn.innerHTML = `${icon("bank")}<span>${label}</span>`;
+      const ok = !!plan.k;
+      this.tradeExecuteBtn.disabled = !ok;
+      const where = plan.rate < 4 ? `Harbour ${plan.rate}:1` : "Trade with bank";
+      this.tradeExecuteBtn.classList.toggle("ready", ok);
+      const giveRes = makeEmptyResources();
+      if (plan.give) giveRes[plan.give] = plan.n;
+      const top = ok ? this._tradeDealHtml(giveRes, this.tradeRequest) : "Bank";
+      const sub = ok ? where : plan.why;
+      this.tradeExecuteBtn.innerHTML = `${icon("bank")}<span class="rt"><b>${top}</b><small>${sub}</small></span>`;
+      this.tradeExecuteBtn.setAttribute("aria-label", ok
+        ? `Trade ${plan.n} ${RESOURCE_LABEL[plan.give]} → ${RESOURCES.filter((r) => this.tradeRequest[r] > 0).map((r) => `${this.tradeRequest[r]} ${RESOURCE_LABEL[r]}`).join(" + ")} with the ${plan.rate < 4 ? "harbour" : "bank"}`
+        : `Bank: ${plan.why}`);
     }
-    const overlap = RESOURCES.some((r) => this.tradeOffer[r] > 0 && this.tradeRequest[r] > 0);
+    // Route 2: offer to the players
     const askKey = JSON.stringify([this.tradeOffer, this.tradeRequest]);
     const askedSame = this._tradeAsked === askKey;
+    const n = this.players.filter((p) => p.id !== player.id).length;
     if (this.tradeProposalBtn) {
-      this.tradeProposalBtn.hidden = tab !== "players";
-      // While a yes is waiting for your pick the footer button backs out ("Change offer")
-      this.tradeProposalBtn.classList.toggle("primary", !this.tradeLocked);
-      this.tradeProposalBtn.disabled = !this.tradeLocked && (!(offerTotal > 0 && requestTotal > 0) || overlap || askedSame);
-      const label = this.tradeLocked ? "Change offer" : !offerTotal ? "Pick what you give" : !requestTotal ? "Pick what you want" : "Ask players";
-      this.tradeProposalBtn.innerHTML = `${icon("trade")}<span>${label}</span>`;
+      this.tradeProposalBtn.disabled = !(offerTotal > 0 && requestTotal > 0) || askedSame;
+      // sent: a calm outline button (green stays for ✓ accept only)
+      this.tradeProposalBtn.classList.toggle("primary", !askedSame);
+      this.tradeProposalBtn.classList.toggle("sent", askedSame);
+      const sub = askedSame ? "edit to ask again" : !offerTotal ? "pick what you give" : !requestTotal ? "pick what you get" : `to ${n === 1 ? "1 player" : `${n} players`}`;
+      this.tradeProposalBtn.innerHTML = `${icon("trade")}<span class="rt"><b>${askedSame ? "Offer sent" : "Offer"}</b><small>${sub}</small></span>`;
+      this.tradeProposalBtn.setAttribute("aria-label", askedSame ? "Offered to the players · change your offer to ask again" : `Offer to the players${offerTotal && requestTotal ? "" : `: ${sub}`}`);
     }
-    // One short, correct hint for the active tab
-    let why = "";
-    if (tab === "bank") {
-      if (offeredTypes.length === 1 && requestedTypes.length === 1 && this.bank[requestedTypes[0]] < 1) why = `The bank is out of ${RESOURCE_LABEL[requestedTypes[0]]}.`;
-    } else if (!this.tradeLocked) {
-      if (askedSame) why = "Change your offer to ask again.";
+    const hint = document.querySelector("#tradeHint");
+    if (!hint?.classList.contains("ok")) this._tradeHint("");
+  }
+
+  /** Bank / harbour route: your rate × each card you get, in one tap. */
+  handleHumanBankTrade() {
+    const player = this.currentPlayer;
+    if (!player || !player.isHuman || this.winner || this.phase !== "main" || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return;
+    const plan = this._bankPlan(player);
+    if (!plan.k) {
+      if (plan.why) this._tradeHint(`Bank: ${plan.why}.`);
+      this.sfx.error();
+      return;
     }
-    this._tradeHint(why);
+    const gets = RESOURCES.filter((r) => this.tradeRequest[r] > 0);
+    const giveRes = makeEmptyResources();
+    const getRes = makeEmptyResources();
+    let ok = true;
+    for (const r of gets) {
+      for (let i = 0; i < this.tradeRequest[r]; i += 1) {
+        if (!this.performBankTrade(player, plan.give, r)) { ok = false; break; }
+        giveRes[plan.give] += plan.rate;
+        getRes[r] += 1;
+      }
+      if (!ok) break;
+    }
+    if (sumResources(getRes) > 0) {
+      // the "You get" tile the player tapped is where the new card flies from
+      const src = this.tradeRequestGrid?.querySelector(`[data-res="${gets[0]}"]`)?.getBoundingClientRect();
+      this.tradeOffer = makeEmptyResources();
+      this.tradeRequest = makeEmptyResources();
+      this._clearTradeAnswers();
+      const msg = `Traded ${giveRes[plan.give]} ${RESOURCE_LABEL[plan.give]} → ${resourceString(getRes)}`;
+      this._tradeHint(`✓ ${msg}`, "ok");
+      this._refreshTradeGrids();
+      this._tradeHint(`✓ ${msg}`, "ok");
+      this._animateTradeCards(giveRes, getRes, src ? { getBoundingClientRect: () => src } : null);
+      this.sfx.trade();
+      this._dropUndo();
+      // Done unless another bank trade is possible ("trade again" stays open)
+      if (!RESOURCES.some((r) => player.resources[r] >= this.getPlayerTradeRate(player, r))) this.closeTradeModal();
+    } else {
+      this._tradeHint("That trade is not possible right now.");
+      this.sfx.error();
+    }
+    this.render();
   }
 
   // A player trade is only valid on the proposer's own main phase, in the same turn it was
@@ -3579,15 +3566,8 @@ class ColonistFullGame {
       && hasResources(proposer.resources, proposerGives) && hasResources(partner.resources, partnerGives);
   }
 
-  /** Footer button on the Players tab: ask, or (while a yes waits for your pick) back out to change the offer. */
+  /** Footer "Offer" button: ask every player at once. */
   _onTradeProposalBtn() {
-    if (this.tradeLocked) {
-      this.tradeLocked = false;
-      this._tradeAsked = null;
-      if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
-      this._refreshTradeGrids();
-      return;
-    }
     this.handleHumanPlayerTrade();
   }
 
@@ -3599,29 +3579,44 @@ class ColonistFullGame {
     });
   }
 
+  /** Swap with a player who said yes (or whose counter-offer you accepted). */
+  _executePlayerTrade(partner, gave, got) {
+    const player = this.currentPlayer;
+    const ans = this._tradeAnswers;
+    if (!player?.isHuman || !partner) return;
+    if (!this._playerTradeStillValid(player, ans ? ans.turnSerial : this.turnSerial, partner, gave, got)) {
+      this._clearTradeAnswers();
+      this._refreshTradeGrids();
+      this._tradeHint("Trade no longer valid.");
+      return;
+    }
+    const src = document.querySelector(`#tradePlayerRow [data-partner="${partner.id}"]`)?.getBoundingClientRect();
+    this._swapCards(player, gave, partner, got);
+    this.addLog(`Traded with ${partner.name}: gave ${resourceString(gave)} for ${resourceString(got)}.`);
+    this.sfx.trade();
+    this.tradeOffer = makeEmptyResources();
+    this.tradeRequest = makeEmptyResources();
+    this._clearTradeAnswers();
+    const msg = `✓ Traded with ${partner.name}: ${resourceString(gave)} → ${resourceString(got)}`;
+    this._tradeHint(msg, "ok");
+    this._refreshTradeGrids();
+    this._tradeHint(msg, "ok");
+    this.render();
+    this._animateTradeCards(gave, got, src ? { getBoundingClientRect: () => src } : null);
+  }
+
   handleHumanPlayerTrade() {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.phase !== "main" || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return;
-    // Snapshot the offer — the trade grids may change before the player confirms
+    // Snapshot the offer — the picks may change before the player taps a ✓
     const offer = copyResources(this.tradeOffer);
     const request = copyResources(this.tradeRequest);
-    const turnSerial = this.turnSerial;
-    const res = this.tradeProposalResult;
-    if (sumResources(offer) === 0 || sumResources(request) === 0) {
-      if (res) res.textContent = "Select resources to give and get.";
-      return;
-    }
-    if (RESOURCES.some(r => offer[r] > 0 && request[r] > 0)) {
-      if (res) res.textContent = "Can't give and get the same resource.";
-      return;
-    }
-    // Check player can afford offer
-    for (const r of RESOURCES) {
-      if (player.resources[r] < offer[r]) {
-        if (res) res.textContent = `Not enough ${RESOURCE_LABEL[r]}.`;
-        return;
-      }
-    }
+    // a refusal shows in the footer hint (and the result line, for screen readers)
+    const refuse = (msg) => { this._tradeHint(msg); if (this.tradeProposalResult) this.tradeProposalResult.textContent = msg; };
+    if (sumResources(offer) === 0 || sumResources(request) === 0) { refuse("Select resources to give and get."); return; }
+    if (RESOURCES.some((r) => offer[r] > 0 && request[r] > 0)) { refuse("Can't give and get the same resource."); return; }
+    const short = RESOURCES.find((r) => player.resources[r] < offer[r]);
+    if (short) { refuse(`Not enough ${RESOURCE_LABEL[short]}.`); return; }
     // Propose to all players — collect responses
     const responses = [];
     for (const other of this.players) {
@@ -3631,68 +3626,45 @@ class ColonistFullGame {
     const acceptors = responses.filter((r) => r.accepts).map((r) => r.player);
     // Nobody says yes: one bot may come back with a counter-offer
     const counter = acceptors.length ? null : this._generateCounterOffer(player, offer, request);
-    this._tradeAsked = JSON.stringify([offer, request]);
     if (!acceptors.length) this.addLog(counter ? `${counter.player.name} made a counter-offer.` : "All players rejected your trade offer.");
-    if (!res) return;
-
-    const unlock = () => { this.tradeLocked = false; this.buildTradeGrids(); this.updateTradeButtons(); };
-    const done = (partner, gave, got) => {
-      this._swapCards(player, gave, partner, got);
-      this.addLog(`Traded with ${partner.name}: gave ${resourceString(gave)} for ${resourceString(got)}.`);
-      this.sfx.trade();
-      this.tradeOffer = makeEmptyResources();
-      this.tradeRequest = makeEmptyResources();
-      this._tradeAsked = null;
-      res.innerHTML = `<span class="ok">Traded with ${partner.name}: ${resourceString(gave)} → ${resourceString(got)}</span>`;
-      unlock();
-      this._tradeHint(`✓ Traded with ${partner.name}`, "ok");
-      this.render();
-      this._animateTradeCards(gave, got, res.querySelector(".ok"));
-    };
-    const execute = this._guard((partner, gave, got) => {
-      if (!this._playerTradeStillValid(player, turnSerial, partner, gave, got)) {
-        res.innerHTML = '<span class="no">Trade no longer valid.</span>';
-        this._tradeAsked = null;
-        unlock();
-        return;
-      }
-      done(partner, gave, got);
-    });
-    // "1 [icon] Wool (have 2)" chips for a counter's details
-    const chips = (cards, mine) => RESOURCES.filter((r) => cards[r] > 0).map((r) =>
-      `<span class="oc">${cards[r]} ${icon(r)} ${RESOURCE_LABEL[r]}${mine ? ` <small class="${player.resources[r] >= cards[r] ? "" : "short"}">(have ${player.resources[r]})</small>` : ""}</span>`).join(" + ");
-
-    // One row per bot: portrait, name, its answer; a yes or a counter carries its own button
-    res.innerHTML = `<div class="answers">${responses.map(({ player: p, accepts }) => {
-      const isCounter = counter?.player === p;
-      const verdict = accepts ? '<span class="verdict yes">Accepts</span>'
-        : isCounter ? '<span class="verdict counter">Counter-offer</span>' : '<span class="verdict no">Declines</span>';
-      const detail = isCounter ? `<div class="adetail">Wants your ${chips(counter.want, true)} for ${chips(counter.give)}</div>` : "";
-      const btn = accepts ? `<button type="button" class="partner-btn pc-${p.id}" data-partner="${p.id}">Trade</button>`
-        : isCounter ? `<button type="button" class="partner-btn pc-${p.id}" data-partner="${p.id}" data-counter="1">Accept</button>` : "";
-      return `<div class="answer pc-${p.id}${accepts ? " yes" : isCounter ? " counter" : " no"}">${this._av(p)}<div class="abody"><span class="aname"><span class="who pc-${p.id}">${p.name}</span>${verdict}</span>${detail}</div>${btn}</div>`;
-    }).join("")}</div>`;
-    if (acceptors.length) {
-      // Lock the grids: only the snapshot the AI accepted can be executed
-      this.tradeLocked = true;
-      res.insertAdjacentHTML("afterbegin", `<div class="pick-lead">${acceptors.length === 1 ? `${acceptors[0].name} accepts. Tap Trade to swap.` : "Pick who to trade with:"}</div>`);
-    }
-    res.querySelectorAll("button[data-partner]").forEach((b) => b.addEventListener("click", () => {
-      const partner = this.players[Number(b.dataset.partner)];
-      if (b.dataset.counter) execute(partner, counter.want, counter.give);
-      else execute(partner, offer, request);
-    }));
     // Exactly one bot says yes: the trade you asked for happens right away (nothing left to choose)
     if (acceptors.length === 1) {
+      this._tradeAnswers = { offer, request, responses, counter: null, turnSerial: this.turnSerial };
       this._dropUndo();
-      execute(acceptors[0], offer, request);
-      if (!this.tradeLocked) this.closeTradeModal();
+      this._executePlayerTrade(acceptors[0], offer, request);
+      this.closeTradeModal();
       this.render();
       return;
     }
-    this.updateTradeButtons();
-    // the answers sit under the rows: bring them into view
-    window.requestAnimationFrame(() => res.scrollIntoView?.({ block: "end", behavior: motionReduced() ? "auto" : "smooth" }));
+    this._tradeAnswers = { offer, request, responses, counter, turnSerial: this.turnSerial };
+    this._tradeAsked = JSON.stringify([offer, request]);
+    const res = this.tradeProposalResult;
+    if (res) {
+      // A counter-offer: what you'd give and get, with one-tap ✓ / ✗
+      res.innerHTML = counter ? `<div class="tcounter pc-${counter.player.id}">${this._av(counter.player)}
+          <div class="tc-body"><span class="who pc-${counter.player.id}">${counter.player.name}</span> counters:
+            <span class="tc-deal"><span class="give">You give</span> ${this._offerSide(counter.want, player)} <span class="get">You get</span> ${this._offerSide(counter.give)}</span></div>
+          <button type="button" class="tc-no" data-counter-no aria-label="Decline ${counter.player.name}'s counter-offer">${icon("close")}</button>
+          <button type="button" class="tc-yes" data-partner="${counter.player.id}" data-counter="1" aria-label="Accept ${counter.player.name}'s counter-offer">${icon("check")}</button>
+        </div>` : "";
+      res.querySelector("[data-counter]")?.addEventListener("click", () => this._executePlayerTrade(counter.player, counter.want, counter.give));
+      res.querySelector("[data-counter-no]")?.addEventListener("click", () => {
+        this.addLog(`You declined ${counter.player.name}'s counter-offer.`);
+        if (this._tradeAnswers) this._tradeAnswers.counter = null;
+        res.innerHTML = "";
+        this._renderTradePlayers(player);
+      });
+    }
+    this._refreshTradeGrids();
+    if (!acceptors.length && !counter) this._tradeHint("No one wants this trade. Change it and offer again.");
+    // the answers sit above the footer: bring them into view
+    window.requestAnimationFrame(() => document.querySelector("#tradePlayers")?.scrollIntoView?.({ block: "nearest", behavior: motionReduced() ? "auto" : "smooth" }));
+  }
+
+  /** "1 [Grain] Grain (have 1)" chips for an offer side. */
+  _offerSide(cards, mine = null) {
+    return RESOURCES.filter((r) => cards[r] > 0).map((r) =>
+      `<span class="oc ${r}"><b>${cards[r]}</b>${icon(r)}<span class="on">${RESOURCE_LABEL[r]}</span>${mine ? ` <small class="${mine.resources[r] >= cards[r] ? "" : "short"}">(have ${mine.resources[r]})</small>` : ""}</span>`).join('<span class="plus">+</span>');
   }
 
   // ── AI Trade Evaluation ─────────────────────────────────────────────
@@ -5975,8 +5947,6 @@ class ColonistFullGame {
     // "1 [Lumber] Lumber": count, a 26 px icon and the name
     const side = (res) => n(res).map((r) => `<span class="oc ${r}"><b>${res[r]}</b>${icon(r)}<span class="on">${RESOURCE_LABEL[r]}</span></span>`).join('<span class="plus">+</span>');
     const words = (res) => n(res).map((r) => `${res[r]} ${RESOURCE_LABEL[r]}`).join(" + ");
-    // what you hold of each card the bot asks for, and what is left after the trade
-    const have = (want) => n(want).map((r) => `You have ${human.resources[r]} ${RESOURCE_LABEL[r]}, ${human.resources[r] - want[r]} after`).join(" · ");
     el.dataset.more = offers.length > 1 ? `+${offers.length - 1}` : "";
     el.innerHTML = offers.map((o) => {
       const p = this.players[o.fromId];
@@ -5984,11 +5954,10 @@ class ColonistFullGame {
       return `<div class="rush-offer${o.classic ? " classic" : ""}" data-offer="${o.id}" role="group" aria-label="${p.name} offers ${words(o.give)} for your ${words(o.want)}" style="--offer-ms:${CLASSIC_OFFER_MS}ms">
         ${this._av(p, "rush-offer-avatar")}
         <div class="rush-offer-body">
-          <div class="rush-offer-deal"><span class="who pc-${p.id}">${p.name}:</span> <span class="grp"><span class="ol">your</span> ${side(o.want)}</span> <span class="grp"><span class="ol">for</span> ${side(o.give)}</span></div>
-          <div class="rush-offer-have">${human ? have(o.want) : ""}</div>
+          <div class="rush-offer-deal"><span class="ol give">You give</span><span class="grp">${side(o.want)}${human && this._offerCostsBuild(human, o) ? `<span class="owarn" role="img" aria-label="You could not build ${this._offerCostsBuild(human, o)} after this" title="You could not build ${this._offerCostsBuild(human, o)} after this"><svg viewBox="0 0 20 18" aria-hidden="true"><path d="M10 1.5 19 16.5H1Z" fill="#F2B233" stroke="#8A5A00" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 6.5v5" stroke="#3A2600" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="14" r="1.2" fill="#3A2600"/></svg></span>` : ""}</span><span class="ol get">You get</span><span class="grp">${side(o.give)}</span></div>
         </div>
-        <button type="button" class="rush-offer-accept" data-accept="${o.id}" ${ok ? "" : "disabled"}>Accept</button>
         <button type="button" class="rush-offer-decline" data-decline="${o.id}" aria-label="Decline">${icon("close")}</button>
+        <button type="button" class="rush-offer-accept" data-accept="${o.id}" aria-label="Accept: give ${words(o.want)}, get ${words(o.give)}" ${ok ? "" : "disabled"}>${icon("check")}</button>
         <span class="offer-time" aria-hidden="true"><i></i></span>
       </div>`;
     }).join("");
@@ -6006,6 +5975,15 @@ class ColonistFullGame {
         if (card) this._pulseClass(card, "asked", 2600);
       });
     }
+  }
+
+  /** What you can build now but could not after accepting this offer ("a city"), or "" — the offer bar's only warning. */
+  _offerCostsBuild(human, o) {
+    const after = copyResources(human.resources);
+    RESOURCES.forEach((r) => { after[r] += (o.give[r] || 0) - (o.want[r] || 0); });
+    const names = { city: "a city", settlement: "a settlement", road: "a road", development: "a development card" };
+    const k = Object.keys(names).find((t) => COSTS[t] && hasResources(human.resources, COSTS[t]) && !hasResources(after, COSTS[t]));
+    return k ? names[k] : "";
   }
 
   /** Phones: while an offer is up the board's fit area ends above it, so the card never covers tiles. */
@@ -7647,17 +7625,14 @@ class ColonistFullGame {
         if (!this.currentPlayer?.isHuman || this.phase !== "main" || this.tradeLocked || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */ || this.devPick) return;
         const res = el.dataset.card;
         if (human.resources[res] <= 0) return;
-        // Open trade with this card pre-selected as "give": a full bank set when you hold one,
-        // otherwise one card offered to the players
-        const rate = this.getPlayerTradeRate(human, res);
+        // Open trade with this card picked as "give" (the bank route applies your rate by itself)
         this.toggleBuildSheet(false);
         this.hideDevCardPicker();
-        const tab = human.resources[res] >= rate ? "bank" : "players";
-        if (this.tradeModal.style.display === "none") this.openTradeModal(tab);
-        else this.setTradeTab(tab);
-        if (this.tradeTab === "bank") { this.tradeOffer = makeEmptyResources(); this.tradeOffer[res] = rate; }
-        else this.tradeOffer[res] = Math.min(human.resources[res], (this.tradeOffer[res] || 0) + 1);
+        if (this.tradeModal.style.display === "none") this.openTradeModal();
+        if (this.tradeModal.style.display === "none") return;
+        this.tradeOffer[res] = Math.min(human.resources[res], (this.tradeOffer[res] || 0) + 1);
         if (this.tradeRequest[res]) this.tradeRequest[res] = 0;
+        this._clearTradeAnswers();
         this._refreshTradeGrids();
         this.sfx.click();
       });
@@ -7714,7 +7689,7 @@ class ColonistFullGame {
           <span class="tag">${player.isHuman ? "Your colony" : personaBadge}</span>
           <div class="stats">${stats.join("")}<span class="badges">${awards}</span></div></div>
         <div class="vp player-vp" title="Points — tap for details">${vp}<small>points</small></div></div>`);
-      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}" role="button" tabindex="0" aria-label="${player.name}: ${vp} points">
+      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points">
         <div class="row">${this._av(player)}<div class="vpn">${vp}<small>PTS</small></div></div>
         <div class="pn">${player.name}</div>${player.isHuman ? "" : personaBadge}
         <div class="pcards">${stats[0]}</div>
@@ -8003,7 +7978,7 @@ class ColonistFullGame {
       } else if (inSetup && humanTurn && !rushOn) {
         wait = `${icon(this.setupAction || "settlement")}<div class="wt">Setup ${setupRound} of 2<small>${this.setupAction === "road" ? "Last step: a road" : "Then add a road"}</small></div>`;
       } else if (oppTurn) {
-        wait = `${this._av(active)}<div class="wt">${active.name} is playing<small>${inSetup ? "Placing a settlement" : preRoll ? "Rolling the dice" : this.pendingIncomingTrade ? "Waiting for your answer" : "Trading opens on your turn"}</small></div><div class="dots"><i></i><i></i><i></i></div>`;
+        wait = `${this._av(active)}<div class="wt">${active.name} is playing</div><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>`; // v0.76: no sub-line (a Trade tap says when trading opens)
       }
       const wkey = `${wait.length}:${active.id}:${preRoll}:${inSetup}:${!!this.winner}:${this.pendingAction}:${this.setupAction}:${setupRound}:${this.confirmBuild?.type}`;
 
@@ -9138,6 +9113,7 @@ class ColonistFullGame {
       ? this.app?.classList.contains("build-open") || this.railLog?.classList.contains("open") || [this.tradeModal, this.devCardPicker, this.victimPanel, this.discardPanel, this.incomingTradePanel].some(shown)
       : [this.victimPanel, this.discardPanel, this.incomingTradePanel].some(shown);
     this.scrim.hidden = !any;
+    this.app?.classList.toggle("trade-open", !!(mobile && shown(this.tradeModal)));
   }
 
   toggleBuildSheet(force) {
