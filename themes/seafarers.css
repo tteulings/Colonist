@@ -1,0 +1,76 @@
+/* ⚓ Seafarers ("Heading for New Shores"). Everything here is scoped to html[data-map="seafarers"]
+   (set while a Seafarers game is on); the basic island never sees these rules. */
+
+/* pieces / costs that only exist at sea */
+html:not([data-map="seafarers"]) .sea-only { display: none !important; }
+
+/* ── dock build tray (phones): Road · Ship · Settle · City · Card, each with its cost in small chips ── */
+[data-map="seafarers"] .tray[data-mode="build"] { gap: 4px; }
+[data-map="seafarers"] .tray[data-mode="build"] .tbtn { gap: 0; font-size: 11px; padding: 2px 1px 3px; }
+[data-map="seafarers"] .tray[data-mode="build"] .tbtn .ic { font-size: 22px; }
+[data-map="seafarers"] .tray[data-mode="build"] > .tclose { flex: 0 0 36px; }
+[data-map="seafarers"] .tbtn .tcost { display: flex; gap: 0; margin-top: 1px; max-width: 100%; overflow: hidden; }
+[data-map="seafarers"] .tbtn .tcost .cc { display: inline-flex; width: 11px; height: 11px; justify-content: center; align-items: center; }
+[data-map="seafarers"] .tbtn .tcost .cc .ic { font-size: 12px; }
+[data-map="seafarers"] .tbtn > .tcost { max-width: none; }
+
+/* robber or pirate: two wide buttons with a small line under the name */
+[data-map="seafarers"] .tray[data-mode="thief"] .tbtn { flex-direction: row; gap: 8px; font-size: 14px; }
+[data-map="seafarers"] .tray[data-mode="thief"] .tbtn .ic { font-size: 32px; }
+[data-map="seafarers"] .tray[data-mode="thief"] .tbtn > span { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+[data-map="seafarers"] .tray[data-mode="thief"] .tbtn small { font-size: 11px; font-weight: 650; color: var(--ink-soft); }
+
+/* gold: the five resources inline (like Year of Plenty) */
+[data-map="seafarers"] .tray[data-mode="gold"] .tbtn .card { --cw: 22px; }
+[data-map="seafarers"] .tray[data-mode="gold"] .tbtn.sel .pk { color: var(--btn-on-ink); }
+
+/* set-up: Road / Ship choice */
+[data-map="seafarers"] .tray[data-mode="setupPiece"] .tbtn { flex-direction: row; gap: 6px; font-size: 14px; }
+[data-map="seafarers"] .tray[data-mode="setupPiece"] .tbtn .ic { font-size: 30px; }
+
+/* moved ship: Undo / Done next to the note */
+[data-map="seafarers"] .tray[data-mode="moved"] > .tinfo, [data-map="seafarers"] .tray[data-mode="moveShip"] > .tinfo { flex: 2.4 1 0; }
+
+/* home: Map row (Island | Seafarers) and its one-line note (home is outside any game, so not scoped) */
+.hm-note { margin: 6px 0 0 84px; font-size: 12px; font-weight: 650; color: var(--ink-soft); line-height: 1.3; }
+@media (max-width: 420px) { .hm-note { margin-left: 76px; } }
+/* the Map row adds a line to home: short portrait phones (360x700 with browser bars) still fit without scrolling */
+/* Opponents 4–5 (the 5–6 player game) are off while Map = Seafarers (a 3–4 player scenario) */
+.home .hm-seg button:disabled { opacity: .4; cursor: not-allowed; }
+@media (max-height: 760px) and (max-width: 600px) {
+  /* short phones: only the "up to 4 players" part of the note stays (it explains the greyed 4 and 5) */
+  .hm-note { font-size: 0; margin-top: 3px; line-height: 1; }
+  .hm-note .hm-seacap { font-size: 12px; line-height: 15px; }
+  .home .hm-seg button { min-height: 38px; }
+  .hm-h { margin-bottom: 6px; }
+  .hm-row { margin-top: 7px; }
+  .hm-tile { min-height: 104px; }
+  .hm-list button { min-height: 44px; }
+  .hm-list button small { display: none; }
+  .home .hm-col { gap: 8px; }
+  .home.has-save .hm-tile { min-height: 92px; }
+  .home.has-save .hm-tile small { line-height: 1.2; }
+  /* v0.74, with Opponents 1–5 too: the "vs N bots · level" line repeats the rows right below it,
+     and the 5–6 player caption takes one line under the Opponents row */
+  .home .hm-tile .hm-vs { display: none; }
+  .home .hm-cap { margin: 2px 0 -2px; text-align: right; font-size: 12px; white-space: nowrap; }
+  .home { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+}
+
+/* player chips: island badge (+2 per new island) next to the awards */
+.isle-badge { display: inline-flex; align-items: center; gap: 1px; }
+.isle-badge b { font-size: 10px; font-weight: 800; line-height: 1; }
+
+/* ── desktop: five build buttons and compact cost chips so Ship fits the top bar ── */
+@media (min-width: 901px) and (min-height: 501px) {
+  [data-map="seafarers"] .buildgrp, [data-map="seafarers"] .app.build-open .buildgrp { grid-template-columns: repeat(5, auto); gap: 6px; }
+  [data-map="seafarers"] .app .bbtn { width: 74px; }
+  [data-map="seafarers"] .cost-ref-items { gap: 4px; }
+  [data-map="seafarers"] .cost { gap: 3px; padding: 4px 7px 4px 4px; font-size: 12px; }
+  [data-map="seafarers"] .cost > span:not(.res) { display: none; }
+  [data-map="seafarers"] .cost > .ic { font-size: 20px; }
+  [data-map="seafarers"] .cost .res .ic { font-size: 15px; }
+  [data-map="seafarers"] .tray[data-mode="build"] .tbtn .ic { font-size: 30px; }
+  [data-map="seafarers"] .tbtn .tcost .cc { width: 14px; height: 14px; }
+  [data-map="seafarers"] .tbtn .tcost .cc .ic { font-size: 15px; }
+}

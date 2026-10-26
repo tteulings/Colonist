@@ -5,6 +5,7 @@
 // units (hex radius 100); the board renderer rasterises it once per size (see board-renderer.js).
 import { f, rng, HEX, hexPath, pipCount, wrap, RES_NAME, DEV_NAME, CARD_TEXT, RESOURCE_KEYS } from "../art-util.js";
 import { UI_ICONS } from "./ui-icons.js";
+import { shipSpec, pirateSpec, seaIcons } from "../../seafarers/art.js"; // ⚓ Seafarers pieces / icons
 
 // Two colour palettes, chosen with <html data-palette="light|vivid"> (default light). P / PC / TEXT
 // are mutated in place by setPalette(), so every art function reads the active palette at bake time.
@@ -164,6 +165,18 @@ const SCN = {
     s += rock(58, 22, 1.4) + rock(40, 70, 1.1);
     return s;
   },
+  // ⚓ Seafarers: gold field — warm ochre ground, three nuggets and a glint, same calm composition as the others
+  gold() {
+    let s = ground("gold", ["#E9C35A", "#C9962E", "#F6DE94"], 0.45);
+    s += `<path d="M-120,-30 Q-50,-58 10,-40 Q60,-54 120,-34 V-120 H-120Z" fill="#B98A2A" opacity=".22"/>`;
+    s += `<path d="M-120,58 Q-30,34 30,54 Q70,46 120,56 V120 H-120Z" fill="#B98A2A" opacity=".28"/>`;
+    s += `<g transform="translate(-44 -40) scale(1.25)">${nug(0, 0, 1, "#F4D46A", "#D9A93A", "#FFF0B0").replace(/#4E5C6E/g, "#8A6420")}</g>`;
+    s += `<g transform="translate(48 -30) scale(.95)">${nug(0, 0, 1, "#F1CC5A", "#D19E32", "#FFEFAE").replace(/#4E5C6E/g, "#8A6420")}</g>`;
+    s += `<g transform="translate(-30 62) scale(.9)">${nug(0, 0, 1, "#F1CC5A", "#D19E32", "#FFEFAE").replace(/#4E5C6E/g, "#8A6420")}</g>`;
+    s += rock(50, 64, 1.2, ["#C9A35A", "#A07C3A", "#E6CB8A"]) + cypress(-64, 6, 22);
+    s += `<path d="M30,40 l2,-6 2,6 6,2 -6,2 -2,6 -2,-6 -6,-2Z" fill="#FFFFFF" opacity=".9"/><path d="M-62,-6 l1.4,-4 1.4,4 4,1.4 -4,1.4 -1.4,4 -1.4,-4 -4,-1.4Z" fill="#FFFFFF" opacity=".8"/>`;
+    return s;
+  },
   desert() {
     let s = ground("desert", P.desert, 0.45);
     s += `<path d="M-120,-40 Q-50,-68 10,-46 Q60,-60 120,-40 V-120 H-120Z" fill="${P.desert[1]}" opacity=".4"/><path d="M-120,-40 Q-50,-68 10,-46 Q60,-60 120,-40" stroke="${P.desert[2]}" stroke-width="2.2" fill="none"/>`;
@@ -263,6 +276,7 @@ ICONS.monopoly = `${sh(0, 40, 36, 5, 0.14)}<path d="M-30,30 V22 H30 V30Z" fill="
 ICONS.victoryPoint = `${sh(0, 42, 26, 4.5, 0.14)}<path d="M-20,-34 Q-40,-34 -34,-16 Q-30,-4 -14,-2 M20,-34 Q40,-34 34,-16 Q30,-4 14,-2" stroke="#B78D3E" stroke-width="4" fill="none"/><path d="M-24,-40 H24 Q24,4 0,10 Q-24,4 -24,-40Z" fill="#E2C27A" ${o("#8A6A2C")}/><path d="M2,-40 H24 Q24,4 2,10Z" fill="#C9A04A" opacity=".7"/>
   <path d="M-5,10 h10 l3,16 h-16Z" fill="#C9A04A" ${o("#8A6A2C", 1.6)}/><rect x="-20" y="26" width="40" height="10" rx="2" fill="#6B5A43" ${o("#4A3726", 1.6)}/><path d="M0,-30 l4,8 9,1.3 -6.5,6.3 1.5,9 -8,-4.2 -8,4.2 1.5,-9 -6.5,-6.3 9,-1.3Z" fill="#FBF6EA"/>`;
 ICONS.road = `${sh(4, 26, 40, 5, 0.14)}<g transform="rotate(-22)"><rect x="-40" y="-8" width="80" height="16" rx="8" fill="${PC.blue.base}" ${o(PC.blue.dark)}/><path d="M-32,-3 H30" stroke="${PC.blue.light}" stroke-width="2.4" stroke-linecap="round"/></g>`;
+Object.assign(ICONS, seaIcons(PC.blue, P.ink)); // ⚓ Seafarers: ship, pirate, gold, island, trade route
 ICONS.settlement = `<g transform="translate(-6 4) scale(1.9)">${homeSvg(PC.blue)}</g>`;
 ICONS.city = `<g transform="translate(0 4) scale(1.45)">${citySvg(PC.blue)}</g>`;
 ICONS.trade = `<path d="M-36,-10 Q-36,-28 -14,-28 H14 V-38 L36,-20 L14,-2 V-12 H-12 Q-20,-12 -20,-4Z" fill="${P.roof}" ${o("#8E4429")}/><path d="M36,10 Q36,28 14,28 H-14 V38 L-36,20 L-14,2 V12 H12 Q20,12 20,4Z" fill="${P.sea1}" ${o(P.sea0)}/>`;
@@ -309,6 +323,9 @@ const AVP = {
   trader: () => bust("#FBE6CF", "#F2934A", "#B9651F", "#C99372", "#A3705A") + `<path d="M-20,-16 Q-27,12 -21,30 Q-15,33 -11,26 Q-15,6 -13,-10Z M20,-16 Q27,12 21,30 Q15,33 11,26 Q15,6 13,-10Z" fill="#3A2722" stroke="#241815" stroke-width="1"/>` + face("#C99372", "#A3705A", "#2B1E1A", -1) + `<path d="M-30,-20 Q0,-30 30,-20 Q24,-16 0,-18 Q-24,-16 -30,-20Z" fill="#6B4425" stroke="#4A2E18" stroke-width="1.2"/><path d="M-15,-20 Q-14,-38 0,-38 Q14,-38 15,-20Z" fill="#7E5230" stroke="#4A2E18" stroke-width="1.2"/><path d="M-14,-24 H14" stroke="#E5B04A" stroke-width="2.4"/><circle cx="17" cy="0" r="2" fill="#E5B04A"/>`,
   builder: () => bust("#EEE7D8", "#7D6B52", "#55473A", "#E3B08C", "#BC8466") + face("#E3B08C", "#BC8466", "#33261E") + `<path d="M-15,4 Q-15,24 0,26 Q15,24 15,4 Q8,12 0,11 Q-8,12 -15,4Z" fill="#9A5B33" stroke="#6E3E22" stroke-width="1.2"/><path d="M-19,-16 Q-19,-36 0,-36 Q19,-36 19,-16Z" fill="#E1A93C" stroke="#A9781F" stroke-width="1.2"/><rect x="-23" y="-18" width="46" height="5" rx="2" fill="#C9902A" stroke="#A9781F" stroke-width="1"/>`,
   shark: () => bust("#F3DDE8", "#A8306F", "#7A1F50", "#EBC9AE", "#C49A80") + `<path d="M-8,18 L0,30 L8,18" fill="#F6F0E3" stroke="#9AA3AB" stroke-width="1"/>` + face("#EBC9AE", "#C49A80", "#22282E", -1.5) + `<path d="M-10,-12 q4,-4 7,-1 M3,-13 q4,-3 7,1" stroke="#22282E" stroke-width="1.8" fill="none"/><path d="M-19,-17 Q-21,-37 0,-37 Q21,-37 19,-17Z" fill="#2A323A" stroke="#11161A" stroke-width="1.2"/><path d="M-20,-18 Q0,-13 24,-20 L23,-14 Q2,-8 -20,-13Z" fill="#11161A"/><path d="M-19,-22 Q0,-17 19,-22" stroke="#E2C27A" stroke-width="1.6" fill="none"/><circle cx="0" cy="-28" r="2.6" fill="#E2C27A"/><path d="M-4,4 Q2,7 7,5" stroke="#22282E" stroke-width="1.2" fill="none"/>`,
+  // seats 5–6 (5–6 player games): Nora (grey bob, round glasses) and Hugo (curly hair, beard)
+  nora: () => bust("#FBE3E3", "#E01000", "#A30B00", "#E8BFA0", "#C4967A") + `<path d="M-21,4 Q-26,-36 0,-34 Q26,-36 21,4 Q20,-14 12,-20 Q0,-12 -14,-20 Q-20,-14 -21,4Z" fill="#B9B4AE" stroke="#8E8984" stroke-width="1.2"/>` + face("#E8BFA0", "#C4967A", "#3A2A24", 1) + `<circle cx="-6.5" cy="-6.5" r="5.2" fill="none" stroke="#5A1E1E" stroke-width="1.5"/><circle cx="6.5" cy="-6.5" r="5.2" fill="none" stroke="#5A1E1E" stroke-width="1.5"/><path d="M-1.3,-6.5 h2.6" stroke="#5A1E1E" stroke-width="1.5"/>`,
+  hugo: () => bust("#DDF3FC", "#4CCBF5", "#1E9CCB", "#B9835E", "#966346") + `<path d="M-19,-10 Q-24,-24 -14,-30 Q-10,-38 0,-35 Q10,-38 14,-30 Q24,-24 19,-10 Q16,-20 8,-22 Q0,-18 -8,-22 Q-16,-20 -19,-10Z" fill="#2A1E18" stroke="#17100C" stroke-width="1.2"/>` + face("#B9835E", "#966346", "#1E1612", 1.5) + `<path d="M-12,9 Q0,17 12,9 Q10,20 0,21 Q-10,20 -12,9Z" fill="#2A1E18" opacity=".85"/>`,
   beginner: () => bust("#E9F2DA", "#8AAE58", "#6A8E42", "#F1D2B6", "#CFA588") + `<path d="M-19,-6 Q-24,-34 0,-32 Q24,-34 19,-6 Q18,-22 4,-24 Q-14,-26 -19,-6Z" fill="#C8873E" stroke="#9A6328" stroke-width="1.2"/>` + face("#F1D2B6", "#CFA588", "#3A2A20", 1) + `<path d="M0,-32 Q-3,-42 -11,-44 Q-5,-37 0,-32 Q4,-41 12,-41 Q6,-35 0,-32" fill="#5A7B34"/>`,
   intermediate: () => bust("#D8F0EE", "#3CA9B0", "#2B8C98", "#DDB08E", "#B88566") + `<path d="M-19,-8 Q-21,-34 0,-32 Q21,-34 19,-8 Q16,-20 6,-22 Q-4,-16 -19,-8Z" fill="#2C2622" stroke="#1A1614" stroke-width="1.2"/>` + face("#DDB08E", "#B88566", "#2A2420") + `<g fill="none" stroke="#5C4A3A" stroke-width="1.6"><circle cx="-6.5" cy="-6.5" r="5.4"/><circle cx="6.5" cy="-6.5" r="5.4"/><path d="M-1.2,-7 h2.4"/></g>`,
   expert: () => bust("#F5E7CC", "#8B5FA8", "#62407A", "#EED0B8", "#C8A48C") + `<path d="M-18,-8 Q-22,-32 0,-31 Q22,-32 18,-8 Q16,-18 0,-20 Q-16,-18 -18,-8Z" fill="#E6E2DA" stroke="#B8B2A6" stroke-width="1.2"/>` + face("#EED0B8", "#C8A48C", "#3A2E28") + `<path d="M-20,-22 Q-10,-30 0,-28 Q10,-30 20,-22" stroke="#C9A04A" stroke-width="3" fill="none"/>${[-16, -8, 8, 16].map((x) => `<ellipse cx="${x}" cy="${-26 - (Math.abs(x) < 10 ? 2 : 0)}" rx="3" ry="1.6" fill="#7A9B47" transform="rotate(${x * 2} ${x} -26)"/>`).join("")}`,
@@ -366,7 +383,7 @@ function island(centers) {
     <path d="${p(12)}" fill="${P.sand}" stroke="${P.sand}" stroke-width="10" stroke-linejoin="round"/></g>
     <path d="${p(3)}" fill="#CDB98C"/>`;
 }
-const EDGE = { wood: "forest", sheep: "pasture", wheat: "wheat", brick: "terra", ore: "slate", desert: "desert" };
+const EDGE = { wood: "forest", sheep: "pasture", wheat: "wheat", brick: "terra", ore: "slate", desert: "desert", gold: "wheat" };
 const tile = (t) => `<g clip-path="url(#a-hexclip)" transform="scale(.968)"><use href="#ta-${t}" x="-87" y="-100" width="174" height="200"/><path d="${hexPath(0, 0, 94)}" fill="none" stroke="${(P[EDGE[t]] || P.desert)[0]}" stroke-width="22" stroke-linejoin="round" opacity=".5"/><path d="${HEX}" fill="url(#a-light)"/></g>
   <path d="${hexPath(0, 0, 96.8)}" fill="none" stroke="#5C5440" stroke-opacity=".35" stroke-width="1.4" stroke-linejoin="round"/>
   <path d="M-83,44 L-83,-47 L0,-95 L83,-47" fill="none" stroke="#FFF8E8" stroke-opacity=".35" stroke-width="1.4" stroke-linejoin="round"/>`;
@@ -384,10 +401,11 @@ function port(p) {
     const d = `M${f(c.x)},${f(c.y)} L${f(ex)},${f(ey)}`;
     return `<path d="${d}" stroke="#7E6A50" stroke-width="7" stroke-linecap="round"/><path d="${d}" stroke="#C7AE88" stroke-width="4.4" stroke-linecap="round"/><path d="${d}" stroke="#9C8564" stroke-width="4.4" stroke-dasharray="1 4"/>`;
   };
-  const lx = px - flip * 30, ly = py - 22;
+  // ⚓ Seafarers: no harbour boat (it would read as a ship); the label disc sits where the boat was
+  const lx = p.noBoat ? px - p.nx * 18 : px - flip * 30, ly = p.noBoat ? py - p.ny * 18 : py - 22;
   const svg = `<g>${pier(p.a)}${pier(p.b)}<g transform="translate(${f(px)} ${f(py)})">
     <path d="M-34,16 q34,7 68,0" stroke="#fff" stroke-opacity=".35" stroke-width="2" fill="none"/>
-    <g transform="scale(${flip} 1)" filter="url(#a-shadow)"><path d="M-28,2 L28,2 Q24,14 16,14 L-20,14 Q-26,11 -28,2Z" fill="#9A6B45"/><path d="M-24,6 H24" stroke="#C49770" stroke-width="1.4"/>
+    <g transform="scale(${flip} 1)" filter="url(#a-shadow)"${p.noBoat ? ' display="none"' : ""}><path d="M-28,2 L28,2 Q24,14 16,14 L-20,14 Q-26,11 -28,2Z" fill="#9A6B45"/><path d="M-24,6 H24" stroke="#C49770" stroke-width="1.4"/>
       <path d="M-2,2 V-40" stroke="#5C4630" stroke-width="2"/><path d="M0,-38 Q22,-22 20,-2 L0,-2Z" fill="#F7F1E2"/><path d="M-4,-30 Q-18,-18 -16,-2 L-4,-2Z" fill="#EDE4CF"/></g></g>
     <g transform="translate(${f(lx)} ${f(ly)})"><circle r="16" fill="#FBF6EA" filter="url(#a-shadow)"/><circle r="16" fill="none" stroke="#CDBB94" stroke-width="1"/>${p.res ? `<g transform="translate(0 -3) scale(.2)">${ICONS[p.res]}</g>` : ""}</g></g>`;
   return { svg, label: { x: lx, y: ly + (p.res ? 11 : 5), text: p.ratio, size: p.res ? 9 : 12 } };
@@ -430,6 +448,15 @@ const sunny = {
   dimFill: "rgba(30,42,46,.38)",
   get seaColors() { return [P.sea2, P.sea1, P.sea0]; },
   pieces: { settlement: home, city: cityArt, robber: robberSpec, settlementDy: -2, cityDy: -4 },
+  // ⚓ Seafarers (only drawn in a Seafarers game)
+  sea: {
+    ship: (c) => shipSpec(c, { sail: "#FBF6EA", sail2: "#EFE6D2" }),
+    pirate: pirateSpec(),
+    goldTile: () => tile("gold"),
+    seaMark: { line: "rgba(255,255,255,.13)", wave: "rgba(230,250,244,.42)" },
+    lane: "rgba(255,255,255,.9)",
+    chip: { fill: "#F3D27A", ring: "#8A6A2C", ink: "#4A3A12" },
+  },
   road: { shadow: "rgba(20,32,31,.3)", outer: 14, inner: 10, hi: 2.2, trim: 21, rim: "rgba(255,252,242,.5)", rimW: 2.5 },
   rim: "rgba(255,252,242,.55)", rimW: 2.5, // thin, soft light rim around piece silhouettes
   hint: { halo: "rgba(255,246,218,.35)", fill: "#FBF6EA", ring: "#D9714E", dot: "#D9714E" },

@@ -53,6 +53,10 @@
 [data-theme="classic"] .ticker, [data-theme="classic"] .pchip .pn, [data-theme="classic"] .pchip .vpn { color: #f5efe4; }
 [data-theme="classic"] .pchip .vpn small, [data-theme="classic"] .pchip .mini, [data-theme="classic"] .ticker .more { color: #c9d6e0; }
 [data-theme="classic"] .pchip.active { background: rgba(255,255,255,.12); }
+/* v0.74: the chip card count (name row, v0.73) and low-card warnings sit on the dark blue strip:
+   light ink instead of the paper --ink-soft brown (was 1.15:1) */
+[data-theme="classic"] .app .pstrip .pchip .pcards, [data-theme="classic"] .app .pchip .mini { color: #c9d6e0; }
+[data-theme="classic"] .app .pstrip .pchip .pcards span.warn, [data-theme="classic"] .app .pchip .mini span.warn { color: #ffc9a8; }
 [data-theme="classic"] .rush-hud .rush-card-title, [data-theme="classic"] .rush-next7 { color: #c9d6e0; }
 [data-theme="classic"] .rush-hud .rush-ring-center span { color: #fff; }
 [data-theme="classic"] .ticker .who { color: #fff; filter: none; text-decoration: underline 2px var(--pc); text-underline-offset: 3px; }

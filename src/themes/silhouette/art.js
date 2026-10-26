@@ -173,7 +173,7 @@ function port(p) {
   const barge = fl("M-30,0 Q-32,-7 -26,-8 L24,-8 Q32,-8 32,-2 Q28,6 18,7 L-22,7 Q-29,6 -30,0Z") + fl("M-20,-8 L-20,-16 L-6,-16 L-6,-8Z") + fl("M-17,-13.5 h3 v3 h-3Z M-11,-13.5 h3 v3 h-3Z", K.yellow) + st("M8,-8 L8,-36", 1.6) + fl("M8,-35 L21,-31.5 L8,-28Z", K.red);
   const ic = p.res ? ICONS[p.res] : ICONS.trade;
   const svg = `<g>${pier(p.a)}${pier(p.b)}<g transform="translate(${f(px)} ${f(py - 8)})">${st("M-34,11 q5,-4 10,0 t10,0 M14,11 q5,-4 10,0 t10,0", 1.6, PA)}
-      <g transform="scale(${fx * 0.78} .78)">${barge}</g>
+      ${p.noBoat ? "" : `<g transform="scale(${fx * 0.78} .78)">${barge}</g>`}
       <g transform="translate(0 25)"><rect x="-31" y="-14" width="62" height="28" rx="14" fill="${CREAM}" stroke="${B}" stroke-width="1.4"/>
         <g transform="translate(-14.5 0) scale(.23)">${ic}</g></g></g></g>`;
   return { svg, label: { x: px + 11, y: py - 8 + 25 + 6.6, text: p.ratio, size: 19 } };
@@ -328,6 +328,23 @@ function avatar(preset) {
   return `<circle r="50" fill="${AV_BG[p]}"/>${body}${neck}${head}${hair}${eye}`;
 }
 
+// seats 5–6 (5–6 player games): Nora (bob, glasses) and Hugo (curls, beard), same build as the four above
+const AV_EXTRA = {
+  nora: { bg: "#F6D0CF", cloth: "#E01000", hair: () => fl("M-20,6 Q-26,-34 2,-35 Q24,-34 24,-10 Q14,-22 2,-22 Q-10,-20 -12,6Z")
+    + `<circle cx="11" cy="-7" r="5.4" fill="none" stroke="${PA}" stroke-width="1.6"/>` },
+  hugo: { bg: "#CDEFFB", cloth: "#4CCBF5", hair: () => fl("M-18,-8 Q-26,-30 -8,-34 Q0,-40 10,-34 Q24,-30 22,-14 Q14,-24 2,-20 Q-8,-24 -12,-6Z")
+    + fl("M-4,6 Q4,18 20,4 Q18,16 6,17 Q-4,16 -4,6Z") },
+};
+function avatar6(preset) {
+  const x = AV_EXTRA[preset];
+  if (!x) return avatar(preset);
+  const head = fl("M-16,-4 Q-18,-27 2,-28 Q19,-28 21,-11 Q27,-7 25,-1 Q23,2 20,3 Q19,13 4,15 Q-14,15 -16,-4Z");
+  const eye = `<ellipse cx="11" cy="-7" rx="3" ry="3.4" fill="${PA}"/>` + circ(12, -6.6, 1.5);
+  const neck = fl("M-7,8 L7,8 L8,22 L-7,22Z");
+  const body = `<path d="M-40,54 Q-40,24 -8,19 L10,19 Q40,24 40,54Z" fill="${x.cloth}" stroke="${B}" stroke-width="2"/>`;
+  return `<circle r="50" fill="${x.bg}"/>${body}${neck}${head}${x.hair()}${eye}`;
+}
+
 /* ---------- cards: one flat colour field, a silhouette scene, hand-lettered title on paper ---------- */
 // card scenes may be busier than tiles (they are pictures, not a playing surface)
 const sceneBrick = () => {
@@ -448,7 +465,7 @@ const silhouette = {
   robberDx: 46, robberDy: 8, tokenDy: 24,
   icons: ICONS,
   card, cardBack,
-  avatar,
+  avatar: avatar6,
   die,
   thumb,
   swatch: () => `<svg viewBox="0 0 36 36"><rect width="36" height="36" fill="${K.orange}"/><path d="M11,30 V18 L18,10 L25,18 V30Z" fill="${B}"/><rect x="16" y="23" width="4" height="7" fill="${K.yellow}"/></svg>`,
