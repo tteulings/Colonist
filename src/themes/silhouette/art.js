@@ -173,7 +173,7 @@ function port(p) {
   const barge = fl("M-30,0 Q-32,-7 -26,-8 L24,-8 Q32,-8 32,-2 Q28,6 18,7 L-22,7 Q-29,6 -30,0Z") + fl("M-20,-8 L-20,-16 L-6,-16 L-6,-8Z") + fl("M-17,-13.5 h3 v3 h-3Z M-11,-13.5 h3 v3 h-3Z", K.yellow) + st("M8,-8 L8,-36", 1.6) + fl("M8,-35 L21,-31.5 L8,-28Z", K.red);
   const ic = p.res ? ICONS[p.res] : ICONS.trade;
   const svg = `<g>${pier(p.a)}${pier(p.b)}<g transform="translate(${f(px)} ${f(py - 8)})">${st("M-34,11 q5,-4 10,0 t10,0 M14,11 q5,-4 10,0 t10,0", 1.6, PA)}
-      <g transform="scale(${fx * 0.78} .78)">${barge}</g>
+      ${p.noBoat ? "" : `<g transform="scale(${fx * 0.78} .78)">${barge}</g>`}
       <g transform="translate(0 25)"><rect x="-31" y="-14" width="62" height="28" rx="14" fill="${CREAM}" stroke="${B}" stroke-width="1.4"/>
         <g transform="translate(-14.5 0) scale(.23)">${ic}</g></g></g></g>`;
   return { svg, label: { x: px + 11, y: py - 8 + 25 + 6.6, text: p.ratio, size: 19 } };
