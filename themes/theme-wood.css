@@ -210,46 +210,46 @@
   [data-theme="B"] .mtop { background: none; border: 0; box-shadow: none; }
 
   /* ── player bar: name · points · cards · dev cards (+ persona / awards as small mono marks) ── */
-  [data-theme="B"] .pstrip { gap: 6px; padding: 8px var(--gut) 6px; }
+  [data-theme="B"] .pstrip { gap: 5px; padding: 6px var(--gut) 5px; }
   [data-theme="B"] .pchip {
     display: grid; grid-template-columns: 1fr auto; grid-template-areas: "av vp" "pn pn" "mini mini"; align-items: center;
-    gap: 4px 4px; padding: 7px 7px 6px; min-height: 0; border-radius: 14px; box-shadow: inset 0 3px 0 var(--pc), var(--glass-shadow);
+    gap: 2px 3px; padding: 5px 5px 4px; min-height: 0; border-radius: 13px; box-shadow: inset 0 3px 0 var(--pc), var(--glass-shadow);
   }
   [data-theme="B"] .pchip .row { display: contents; }
-  [data-theme="B"] .pchip .avatar { grid-area: av; --av: 30px; --av-ring: 2px; }
+  [data-theme="B"] .pchip .avatar { grid-area: av; --av: 26px; --av-ring: 2px; }
   [data-theme="B"] .pchip .vpn {
-    grid-area: vp; min-width: 30px; height: 30px; padding: 0 6px; border-radius: 9px; justify-content: center;
-    background: var(--pc); color: var(--pc-ink); font-size: 21px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.3);
+    grid-area: vp; min-width: 26px; height: 26px; padding: 0 5px; border-radius: 8px; justify-content: center;
+    background: var(--pc); color: var(--pc-ink); font-size: 18px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.3);
   }
   [data-theme="B"] .pchip .vpn small { display: none; }
   /* points on the seat colour at AA: the blue seat uses its deeper shade, the orange seat dark ink */
   [data-theme="B"] .pchip.pc-0 .vpn { background: var(--p0-text); }
   [data-theme="B"] .pchip.pc-1 .vpn { color: #2E1F14; }
-  [data-theme="B"] .pchip .pn { grid-area: pn; text-align: left; font-size: 12.5px; font-weight: 750; color: var(--bar-ink); overflow: hidden; text-overflow: ellipsis; }
+  [data-theme="B"] .pchip .pn { grid-area: pn; text-align: left; font-size: 11.5px; line-height: 13px; font-weight: 750; color: var(--bar-ink); overflow: hidden; text-overflow: ellipsis; }
   [data-theme="B"] .pchip:has(.bdg span) .pn { padding-right: 16px; }
   [data-theme="B"] .pchip:has(.bdg span + span) .pn { padding-right: 32px; }
-  [data-theme="B"] .pchip .mini { grid-area: mini; justify-content: flex-start; gap: 9px; font-size: 12.5px; font-weight: 600; color: var(--bar-ink); }
-  [data-theme="B"] .pchip .mini span { gap: 3px; }
-  [data-theme="B"] .pchip .mini .ic { font-size: 15px; }
+  [data-theme="B"] .pchip .mini { grid-area: mini; justify-content: flex-start; gap: 4px; font-size: 11px; line-height: 14px; min-width: 0; font-weight: 600; color: var(--bar-ink); }
+  [data-theme="B"] .pchip .mini span { gap: 1px; }
+  [data-theme="B"] .pchip .mini .ic { font-size: 13px; }
   /* awards (only while held) and persona: small monochrome marks, never a colour of their own */
   [data-theme="B"] .pchip .bdg { top: 44px; right: 6px; gap: 2px; }
   [data-theme="B"] .pchip .bdg .ic { font-size: 14px; filter: grayscale(1) contrast(1.1); opacity: .8; }
   [data-theme="B"] .pchip .persona-badge {
-    position: absolute; left: 27px; top: 27px; width: 15px; height: 15px; padding: 0; border-radius: 50%; font-size: 0; line-height: 0;
+    position: absolute; left: 22px; top: 21px; width: 13px; height: 13px; padding: 0; border-radius: 50%; font-size: 0; line-height: 0;
     background-color: var(--mono); background-size: 62%; background-position: center; background-repeat: no-repeat; border: 0; box-shadow: none;
   }
   [data-theme="B"] .pchip.active { background: var(--glass-active); box-shadow: inset 0 3px 0 var(--pc), 0 0 0 2px var(--ring), var(--glass-shadow); }
   [data-theme="B"] .pchip.ready::after { left: 4px; top: 4px; width: 9px; height: 9px; background: var(--ready); box-shadow: 0 0 0 2px var(--glass-active); }
 
   /* ── ticker: one calm line; an icon only when it means something (your step, dice, robber) ── */
-  [data-theme="B"] .tkrow { margin: 0 var(--gut) 8px; gap: 6px; border-top: 0; }
-  [data-theme="B"] .ticker { height: 40px; margin: 0; padding: 0 2px 0 14px; border-radius: 999px; box-shadow: var(--glass-shadow); font-size: 13.5px; font-weight: 600; }
+  [data-theme="B"] .tkrow { margin: 0 var(--gut) 6px; gap: 6px; border-top: 0; }
+  [data-theme="B"] .ticker { height: 34px; margin: 0; padding: 0 2px 0 14px; border-radius: 999px; box-shadow: var(--glass-shadow); font-size: 13.5px; font-weight: 600; }
   [data-theme="B"] .ticker-ic { display: none; }
   [data-theme="B"] .ticker:is(.prompt, :has(.ticker-ic use[href="#ic-dice"]), :has(.ticker-ic use[href="#ic-robber"])) .ticker-ic { display: flex; margin-left: -6px; }
   [data-theme="B"] .ticker-ic .ic { font-size: 20px; }
   [data-theme="B"] .ticker .txt .ic { font-size: 16px; vertical-align: -3px; }
   [data-theme="B"] .ticker .who { color: var(--bar-ink); font-weight: 750; }
-  [data-theme="B"] .ticker .more { width: 38px; height: 38px; color: var(--bar-ink-soft); }
+  [data-theme="B"] .ticker .more { width: 34px; height: 32px; color: var(--bar-ink-soft); }
   [data-theme="B"] .ticker .more .ic { font-size: 18px; }
   [data-theme="B"] .ticker.prompt { background: var(--glass-active); box-shadow: 0 0 0 2px var(--ring), var(--glass-shadow); font-weight: 750; }
 

@@ -2300,9 +2300,14 @@ class ColonistFullGame {
           const [a, b] = e.nodes.map((id) => g.nodes[id]); const hc = g.hexes[e.hexIds[0]].center;
           const px = (a.x + b.x) / 2, py = (a.y + b.y) / 2, len = Math.hypot(px - hc.x, py - hc.y) || 1;
           reach = Math.max(reach, Math.abs(px + ((px - hc.x) / len) * hs * 0.85 - cx)); // boat tip
+          // v0.73: the whole world on screen — harbours above / below the island count for the height too
+          const ty = py + ((py - hc.y) / len) * hs * 0.85;
+          box.minY = Math.min(box.minY, ty - hs * 0.12); box.maxY = Math.max(box.maxY, ty + hs * 0.12);
         });
         const avail = this.boardWidth / 2;
-        const k = Math.min((avail - side) / half, reach ? (avail + 6) / reach : Infinity); // a boat tip may run 6px off
+        // v0.73: every harbour boat fully on screen (playtest: "I can't always see the whole world");
+        // was: a boat tip could run 6 px off the edge
+        const k = Math.min((avail - side) / half, reach ? (avail - 3) / reach : Infinity);
         box.minX = cx - avail / k; box.maxX = cx + avail / k;
         side = 0;
       }
@@ -3298,7 +3303,7 @@ class ColonistFullGame {
       const sub = isOffer
         ? `<span class="have${usable ? " ok" : " short"}">${usable ? `have ${have}` : `have ${have}/${rate}`}</span>
            <span class="rate-tag${rate < 4 ? " port" : ""}">${rate}:1${rate < 4 ? " port" : ""}</span>`
-        : `<span class="have">${resource === give ? "giving" : this.bank[resource] > 0 ? RESOURCE_LABEL[resource] : "bank empty"}</span>`;
+        : `<span class="have" title="${this.bank[resource]} ${RESOURCE_LABEL[resource]} left in the bank">${resource === give ? "giving" : this.bank[resource] > 0 ? `bank <span class="bn">${this.bank[resource]}</span>` : "bank empty"}</span>`;
       return `<div class="rcell bank-cell${picked ? " pick" : ""}${usable ? "" : " dim"}">
         <button type="button" class="card trade-res-card ${resource}" data-res="${resource}" aria-pressed="${picked}" aria-label="${isOffer ? `Give ${rate}` : "Get 1"} ${RESOURCE_LABEL[resource]}${isOffer ? ` (you have ${have})` : ""}" ${usable || picked ? "" : "aria-disabled=\"true\""}>${cardSvg(resource)}</button>
         ${sub}
@@ -5156,8 +5161,14 @@ class ColonistFullGame {
     this.players.forEach((player) => {
       player.longestRoadLength = this.computeLongestRoadLength(player);
     });
+    const prevLR = this.longestRoadHolder, prevLA = this.largestArmyHolder;
     this.updateLongestRoadHolder();
     this.updateLargestArmyHolder();
+    // v0.73: the journal says when an award moves (it only showed as a small badge before)
+    if (this.players.length && !this._loadingState) {
+      this._logAward("Longest Road", prevLR, this.longestRoadHolder, (p) => `${p.longestRoadLength} roads`);
+      this._logAward("Largest Army", prevLA, this.largestArmyHolder, (p) => `${p.knightsPlayed} knights`);
+    }
 
     this.players.forEach((player, idx) => {
       const base = player.settlements.size + player.cities.size * 2 + player.devVictoryPoints;
@@ -5167,6 +5178,18 @@ class ColonistFullGame {
       // What opponents can see: hidden Victory Point cards excluded
       player.publicVictoryPoints = player.victoryPoints - player.devVictoryPoints;
     });
+  }
+
+  _logAward(name, prev, now, why) {
+    if (prev === now) return;
+    const P = (id) => this.players[id];
+    if (now != null) {
+      const p = P(now);
+      this.addLog(`${p.name} ${p.isHuman ? "take" : "takes"} ${name} (${why(p)}) · +2 points${prev != null ? ` from ${P(prev).name}` : ""}.`);
+    } else if (prev != null) {
+      const p = P(prev);
+      this.addLog(`${p.name} ${p.isHuman ? "lose" : "loses"} ${name}${name === "Longest Road" ? ` (now ${p.longestRoadLength})` : ""} · nobody holds it.`);
+    }
   }
 
   // VP shown to the human: full total for their own seat, public total for everyone else.
@@ -7407,6 +7430,7 @@ class ColonistFullGame {
     const total = sumResources(human.resources);
     const devTotal = Object.values(devCounts).reduce((a, b) => a + b, 0);
     if (this.handSummary) this.handSummary.textContent = `${total} resource card${total === 1 ? "" : "s"} · ${devTotal} development card${devTotal === 1 ? "" : "s"}`;
+    this.renderHandBar(human, total, devTotal);
     const pd = this.pendingDiscard?.player === human ? this.pendingDiscard : null;
     this.handArea?.classList.toggle("discarding", !!pd);
     const key = JSON.stringify([human.resources, devCounts, human.newDevCards, this.theme.id, this.isMobileLayout, pd?.selected || null, this._newDevPulse || null]);
@@ -7490,17 +7514,27 @@ class ColonistFullGame {
       const awards = (this.longestRoadHolder === player.id ? `<span title="Longest Road (+2 points)">${icon("longestRoad")}</span>` : "")
         + (this.largestArmyHolder === player.id ? `<span title="Largest Army (+2 points)">${icon("largestArmy")}</span>` : "");
       const vp = this.displayVictoryPoints(player);
+      // v0.73: knights played and road length per player, only once they mean something (knights > 0,
+      // a road of 3+ or the award); the award itself is the same number on a gold chip, not an extra badge
+      const lr = this.longestRoadHolder === player.id, la = this.largestArmyHolder === player.id;
+      const over = totalCards > (this.settings?.discardLimit ?? 7);
+      const stats = [
+        `<span data-stat="cards"${over ? ' class="warn"' : ""} title="${totalCards} resource card${totalCards === 1 ? "" : "s"}${over ? ` (more than ${this.settings?.discardLimit ?? 7}: hands back half on a 7)` : ""}">${icon("cards")}${totalCards}</span>`,
+        totalDev > 0 ? `<span data-stat="dev" title="${totalDev} development card${totalDev === 1 ? "" : "s"}">${icon("devcard")}${totalDev}</span>` : "",
+        player.knightsPlayed > 0 || la ? `<span data-stat="knights"${la ? ' class="award"' : ""} title="${player.knightsPlayed} knight${player.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest Army (+2 points)" : ""}">${icon("knight")}${player.knightsPlayed}</span>` : "",
+        player.longestRoadLength >= 3 || lr ? `<span data-stat="road"${lr ? ' class="award"' : ""} title="Longest road ${player.longestRoadLength}${lr ? " · Longest Road (+2 points)" : " (5+ to win Longest Road)"}">${icon("road")}${player.longestRoadLength}</span>` : "",
+      ].filter(Boolean);
       rows.push(`<div class="prow player-card-mini pc-${idx}${active ? " active" : ""}${isReady ? " rush-ready" : ""}" data-seat="${idx}">
         ${this._av(player, "player-avatar")}
         <div class="nm"><span class="pname">${player.name}${isReady ? '<span class="ready-pill" title="Voted to roll now">Ready</span>' : ""}</span>
           <span class="tag">${player.isHuman ? "Your colony" : personaBadge}</span>
-          <div class="stats"><span title="${totalCards} resource cards">${icon("cards")}${totalCards}</span><span title="${totalDev} development cards">${icon("devcard")}${totalDev}</span><span class="badges">${awards}</span></div></div>
+          <div class="stats">${stats.join("")}<span class="badges">${awards}</span></div></div>
         <div class="vp player-vp" title="Points — tap for details">${vp}<small>points</small></div></div>`);
       chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}" role="button" tabindex="0" aria-label="${player.name}: ${vp} points">
-        <div class="bdg">${awards}</div>
         <div class="row">${this._av(player)}<div class="vpn">${vp}<small>PTS</small></div></div>
         <div class="pn">${player.name}</div>${player.isHuman ? "" : personaBadge}
-        <div class="mini"><span>${icon("cards")}${totalCards}</span><span>${icon("devcard")}${totalDev}</span></div></div>`);
+        <div class="pcards">${stats[0]}</div>
+        <div class="mini${stats.length > 3 ? " dense" : ""}">${stats.slice(1).join("")}</div></div>`);
     });
     this.scoreboard.innerHTML = rows.join("");
     if (this.playerStrip) {
@@ -8365,6 +8399,29 @@ class ColonistFullGame {
     });
   }
 
+  /**
+   * v0.73 phones: one slim line above the hand. Left: your total ("7 cards · 1 dev"), tinted once you
+   * hold more than the discard limit (a 7 then costs half). Right: the bank's cards left per resource
+   * and the development deck (tap to fold it to just "Bank"; remembered on this device).
+   */
+  renderHandBar(human = this.players?.find((p) => p.isHuman), total = human ? sumResources(human.resources) : 0, devTotal = null) {
+    const el = this.handBar;
+    if (!el || !human) return;
+    if (devTotal == null) devTotal = DEV_CARD_TYPES.reduce((a, t) => a + human.devCards[t] + human.newDevCards[t], 0) + human.devVictoryPoints;
+    if (this._bankOpen == null) { let v = null; try { v = localStorage.getItem("colonist.bankBar"); } catch (_) {} this._bankOpen = v !== "closed"; }
+    const limit = this.settings?.discardLimit ?? 7;
+    const deck = this.devDeck ? this.devDeck.length : 0;
+    const key = [total, devTotal, limit, deck, this._bankOpen, this.theme?.id, ...RESOURCES.map((r) => this.bank[r])].join("|");
+    if (key === this._lastHandBarKey) return;
+    this._lastHandBarKey = key;
+    const over = total > limit;
+    el.innerHTML = `<span class="hb-total${over ? " warn" : ""}" data-total="${total}" title="${total} resource card${total === 1 ? "" : "s"}${over ? ` · more than ${limit}: on a 7 you hand back half` : ""}"><b>${total}</b> card${total === 1 ? "" : "s"}${devTotal ? ` · <b>${devTotal}</b> dev` : ""}</span>`
+      + `<button type="button" class="hb-bank${this._bankOpen ? " open" : ""}" aria-expanded="${this._bankOpen}" aria-label="Bank: ${RESOURCES.map((r) => `${this.bank[r]} ${RESOURCE_LABEL[r]}`).join(", ")}, ${deck} development cards left" title="Cards left in the bank (tap to ${this._bankOpen ? "fold" : "show"})">`
+      + `${icon("bank")}<span class="hb-lbl">Bank</span>`
+      + RESOURCES.map((r) => `<span class="bk${this.bank[r] <= 3 ? " low" : ""}" data-bank="${r}">${icon(r)}<b>${this.bank[r]}</b></span>`).join("")
+      + `<span class="bk dv" data-bank="dev">${icon("devcard")}<b>${deck}</b></span></button>`;
+  }
+
   // ── Supply Overview ─────────────────────────────────────────────────
   renderSupplyOverview() {
     const el = this.supplyOverview;
@@ -8571,7 +8628,7 @@ class ColonistFullGame {
     html += '<div class="vp-tooltip-section" style="margin-top:0.3rem">Dev Cards</div>';
     html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">In hand</span><span class="vp-tooltip-value">${totalDevCards}</span></div>`;
     html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Knights played</span><span class="vp-tooltip-value">${player.knightsPlayed}</span></div>`;
-    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Road length</span><span class="vp-tooltip-value">${player.longestRoadLength}</span></div>`;
+    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Longest road</span><span class="vp-tooltip-value">${player.longestRoadLength}</span></div>`;
 
     tip.innerHTML = html;
 
@@ -8661,6 +8718,16 @@ class ColonistFullGame {
     this.confirmPill = $("#confirmPill");
     this.waitingBar = $("#waitingBar");
     this.handSummary = $("#handSummary");
+    this.handBar = $("#handBar");
+    this.handBar?.addEventListener("click", (e) => {
+      const bank = e.target.closest(".hb-bank");
+      if (!bank) return;
+      e.stopPropagation();
+      this._bankOpen = !this._bankOpen;
+      try { localStorage.setItem("colonist.bankBar", this._bankOpen ? "open" : "closed"); } catch (_) {}
+      this._lastHandBarKey = null;
+      this.renderHandBar();
+    });
     this.handArea = $("#handArea");
     this.scrim = $("#scrim");
     this.mtop = $("#mtop");
