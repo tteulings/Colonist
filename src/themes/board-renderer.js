@@ -129,6 +129,30 @@ async function rasterize(svg, w, h) {
   }
 }
 
+/** Probability pips under a token's number, styled per theme (tokenStyle.pipStyle):
+ *  "dot" round dots · "inlay" burned-in holes (dark core, light catch-light on the lower rim) ·
+ *  "brush" ink dabs (slightly oval, each turned a little differently, fixed per number). */
+function drawPips(ctx, s, n, col) {
+  const p = pipCount(n), hot = n === 6 || n === 8, r = s.pipR, style = s.pipStyle || "dot";
+  for (let i = 0; i < p; i += 1) {
+    const x = (i - (p - 1) / 2) * s.pipGap, y = s.pipY;
+    ctx.beginPath();
+    if (style === "brush") {
+      const rot = (((n * 7 + i * 13) % 9) - 4) * 0.2, jy = (((n + i * 5) % 3) - 1) * 0.3, sz = 0.9 + ((n * 3 + i * 7) % 4) * 0.08;
+      ctx.ellipse(x, y + jy, r * 1.3 * sz, r * 0.82 * sz, rot, 0, Math.PI * 2);
+      ctx.fillStyle = col; ctx.fill();
+    } else if (style === "inlay") {
+      const g = ctx.createRadialGradient(x - r * 0.25, y - r * 0.3, 0, x, y, r);
+      g.addColorStop(0, hot ? s.pipHotCore || col : s.pipCore || col); g.addColorStop(1, col);
+      ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, r + 0.15, Math.PI * 0.1, Math.PI * 0.9);
+      ctx.lineWidth = 0.8; ctx.strokeStyle = s.pipLight || "rgba(255,250,235,.95)"; ctx.stroke();
+    } else {
+      ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+    }
+  }
+}
+
 export class SvgBoardRenderer {
   constructor(game, theme) {
     this.game = game;
@@ -305,12 +329,7 @@ export class SvgBoardRenderer {
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
     ctx.fillText(String(n), 0, hot ? s.hotDy : s.dy);
-    const p = pipCount(n);
-    for (let i = 0; i < p; i += 1) {
-      ctx.beginPath();
-      ctx.arc((i - (p - 1) / 2) * s.pipGap, s.pipY, s.pipR, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    drawPips(ctx, s, n, hot ? s.pipHot || col : s.pipInk || col);
     ctx.restore();
   }
 

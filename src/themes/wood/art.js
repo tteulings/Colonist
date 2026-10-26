@@ -325,7 +325,8 @@ function thumb() {
 /** Number disc, drawn on the canvas with lining figures (WoodNumerals = Playfair Display bold digits). */
 const tokenStyle = {
   r: 27, fill: "#FBF6EA", ring: "#B9A786", inner: "#D8C9A8", ink: INK, hot: RED,
-  font: "'Colonist Wood Numerals', 'Playfair Display', Georgia, serif", weight: "700", size: 24, hotSize: 28, dy: 8, hotDy: 9.5, pipY: 16, pipR: 1.9, pipGap: 5.4,
+  font: "'Colonist Wood Numerals', 'Playfair Display', Georgia, serif", weight: "700", size: 24, hotSize: 28, dy: 8, hotDy: 9.5, pipY: 16.3, pipR: 2.25, pipGap: 5.7,
+  pipStyle: "inlay", pipInk: "#4A3A2A", pipCore: "#1E1610", pipHot: RED, pipHotCore: "#5A1810", // burned-in holes
   labelFont: "'Source Sans 3', system-ui, sans-serif",
 };
 

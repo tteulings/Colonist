@@ -22,12 +22,12 @@
         d.dataset.theme = t;
         var rm = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
         d.dataset.motion = m === "reduced" || (m !== "full" && rm) ? "reduced" : "full";
-        if (t === "A") {
+        if (t === "A") ["Outfit", "Figtree"].forEach(function (f) {
           var l = document.createElement("link");
-          l.rel = "stylesheet"; l.dataset.font = "A";
-          l.href = "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:opsz,wght@9..40,400..800&display=swap";
+          l.rel = "preload"; l.as = "font"; l.type = "font/woff2"; l.crossOrigin = "anonymous";
+          l.href = "./assets/fonts/" + f + ".woff2";
           document.head.appendChild(l);
-        }
+        });
       })();
     </script>
     <script>
@@ -60,8 +60,6 @@
         if (window.visualViewport) window.visualViewport.addEventListener("resize", apply);
       })();
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- legacy styles in a low-priority cascade layer: the themed CSS below always wins -->
     <style>@import url("./styles.css?v=76") layer(legacy);</style>
     <link rel="stylesheet" href="./themes/base.css?v=76" />
