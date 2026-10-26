@@ -8444,6 +8444,7 @@ class ColonistFullGame {
       else this.saveToStorage(); // backgrounded on a phone: may be killed without pagehide
     });
     window.addEventListener("pagehide", () => this.saveToStorage());
+    window.addEventListener("resize", () => this._clampFloaters());
     // The board area changes size without a window resize (chrome bars laying out after load, the
     // hand fan, sheets): keep the canvas backing store in step with its box, or the board is drawn
     // squeezed and taps land in the wrong place.
@@ -8472,6 +8473,28 @@ class ColonistFullGame {
     this.boardRenderer?.invalidateStatic();
     this.render();
   }
+
+  // Floating pills and popovers never poke out of the screen: after layout, any that crosses the
+  // left/right edge (narrow phones, an odd container width, long names) is shifted back inside.
+  _clampFloaters() {
+    if (this._clampRaf) return;
+    this._clampRaf = window.requestAnimationFrame(() => {
+      this._clampRaf = 0;
+      const vw = document.documentElement.clientWidth || window.innerWidth;
+      const M = 8;
+      document.querySelectorAll(ColonistFullGame.FLOATERS).forEach((el) => {
+        el.style.translate = "";
+        const r = el.getBoundingClientRect();
+        if (!r.width || el.hidden) return;
+        let dx = 0;
+        if (r.right > vw - M) dx = vw - M - r.right;
+        if (r.left + dx < M) dx = M - r.left;
+        if (dx) el.style.translate = `${Math.round(dx)}px 0`;
+      });
+    });
+  }
+
+  static FLOATERS = "#confirmPill, .confirm-pill, .ai-reasoning-popup, .rush-offers, .toasts, .update-chip, .vp-tooltip";
 
   _syncScrim() {
     if (!this.scrim) return;
@@ -8769,6 +8792,7 @@ class ColonistFullGame {
     this._renderRushOffers();
     this._themeEffects();
     this._syncScrim();
+    this._clampFloaters();
     if (!document.body.dataset.gameReady) {
       document.body.dataset.gameReady = "true";
     }

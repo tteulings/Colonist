@@ -1195,3 +1195,6 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .update-chip b { color: var(--btn-on-ink, #A84E2F); font-weight: 800; }
 @keyframes update-chip-in { from { opacity: 0; transform: translate(-50%, -8px); } }
 @media (prefers-reduced-motion: reduce) { .update-chip { animation: none; } }
+
+/* floating pills/popovers never wider than the screen (game.js _clampFloaters keeps them inside) */
+.confirm-pill, .ai-reasoning-popup, .rush-offers, .toasts { max-width: calc(100vw - 16px); box-sizing: border-box; }
