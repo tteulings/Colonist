@@ -187,6 +187,7 @@
   [data-theme="C"] .newgame-modal .ng-actions { grid-template-columns: 1fr 1.6fr; }
 }
 
+
 /* ══ Mobile chrome: the V4 Sea layout of Sunny Island, in this theme's materials ═══════════════════ */
 @media (max-width: 900px), (max-height: 500px) {
   /* the board's sea layer becomes the screen's sea: fixed to the viewport, under all chrome */
@@ -203,7 +204,7 @@
   [data-theme="C"] .mtop { background: none; border: 0; box-shadow: none; }
 
   /* ── player bar: name · points · cards · dev cards (+ persona / awards as small mono marks) ── */
-  [data-theme="C"] .pstrip { gap: 6px; padding: 8px 8px 6px; }
+  [data-theme="C"] .pstrip { gap: 6px; padding: 8px var(--gut) 6px; }
   [data-theme="C"] .pchip {
     display: grid; grid-template-columns: 1fr auto; grid-template-areas: "av vp" "pn pn" "mini mini"; align-items: center;
     gap: 4px 4px; padding: 7px 7px 6px; min-height: 0; border-radius: 14px; box-shadow: inset 0 3px 0 var(--pc), var(--glass-shadow);
@@ -215,6 +216,9 @@
     background: var(--pc); color: var(--pc-ink); font-size: 21px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.3);
   }
   [data-theme="C"] .pchip .vpn small { display: none; }
+  /* points on the seat colour at AA: the blue seat uses its deeper shade, the orange seat dark ink */
+  [data-theme="C"] .pchip.pc-0 .vpn { background: var(--p0-text); }
+  [data-theme="C"] .pchip.pc-1 .vpn { color: #2E1F14; }
   [data-theme="C"] .pchip .pn { grid-area: pn; text-align: left; font-size: 12.5px; font-weight: 750; color: var(--bar-ink); overflow: hidden; text-overflow: ellipsis; }
   [data-theme="C"] .pchip:has(.bdg span) .pn { padding-right: 16px; }
   [data-theme="C"] .pchip:has(.bdg span + span) .pn { padding-right: 32px; }
@@ -232,10 +236,7 @@
   [data-theme="C"] .pchip.ready::after { left: 4px; top: 4px; width: 9px; height: 9px; background: var(--ready); box-shadow: 0 0 0 2px var(--glass-active); }
 
   /* ── ticker: one calm line; an icon only when it means something (your step, dice, robber) ── */
-  [data-theme="C"] .tkrow { margin: 0 8px 8px; gap: 6px; border-top: 0; }
-  [data-theme="C"] .mgear {
-    width: 40px; height: 40px; margin: 0; color: var(--bar-ink); background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--glass-shadow);
-  }
+  [data-theme="C"] .tkrow { margin: 0 var(--gut) 8px; gap: 6px; border-top: 0; }
   [data-theme="C"] .ticker { height: 40px; margin: 0; padding: 0 2px 0 14px; border-radius: 999px; box-shadow: var(--glass-shadow); font-size: 13.5px; font-weight: 600; }
   [data-theme="C"] .ticker-ic { display: none; }
   [data-theme="C"] .ticker:is(.prompt, :has(.ticker-ic use[href="#ic-dice"]), :has(.ticker-ic use[href="#ic-robber"])) .ticker-ic { display: flex; margin-left: -6px; }
@@ -247,7 +248,7 @@
   [data-theme="C"] .ticker.prompt { background: var(--glass-active); box-shadow: 0 0 0 2px var(--ring), var(--glass-shadow); font-weight: 750; }
 
   /* ── Rush HUD: one clock (the ring); voters as small dots ── */
-  [data-theme="C"] .rush-hud { margin: 0 8px 6px; padding: 6px 12px; border-radius: 16px; box-shadow: var(--glass-shadow); --rush-track: var(--glass-line); }
+  [data-theme="C"] .rush-hud { margin: 0 var(--gut) 6px; padding: 6px 12px; border-radius: 16px; box-shadow: var(--glass-shadow); --rush-track: var(--glass-line); }
   [data-theme="C"] .rush-ring { width: 42px; height: 42px; }
   [data-theme="C"] .rush-card-title { color: var(--bar-ink-soft); font-weight: 600; font-size: 12.5px; }
   [data-theme="C"] .rush-card-title b { font-weight: 750; }
@@ -262,7 +263,7 @@
   /* ── dock: neutral glass buttons, coloured icons; the primary action is the only accent ── */
   [data-theme="C"] .dock { background: none; border: 0; box-shadow: none; }
   [data-theme="C"] .hand { background: var(--hand-bg); }
-  [data-theme="C"] .app :is(#mBuildBtn, #tradeBankBtn, #mCardsBtn) {
+  [data-theme="C"] .app :is(#mMenuBtn, #mBuildBtn, #tradeBankBtn, #mCardsBtn) {
     background: var(--float); border: var(--float-border); color: var(--btn-ink); box-shadow: var(--glass-shadow); font-size: 12px; font-weight: 750;
   }
   [data-theme="C"] .app :is(#mBuildBtn, #tradeBankBtn, #mCardsBtn):disabled {
@@ -288,13 +289,13 @@
 
 /* ── Silhouette materials on the V4 layout: paper cards with 1.5 px ink rules, no blur, no glow ─────── */
 @media (max-width: 900px), (max-height: 500px) {
-  [data-theme="C"] :is(.pchip, .ticker, .rush-hud, .waiting, .mgear) { border: 1.5px solid var(--glass-line); }
+  [data-theme="C"] :is(.pchip, .ticker, .rush-hud, .waiting) { border: 1.5px solid var(--glass-line); }
   [data-theme="C"] .pchip { box-shadow: inset 0 3px 0 var(--pc), var(--glass-shadow); }
   [data-theme="C"] .pchip.active { box-shadow: inset 0 3px 0 var(--pc), 0 0 0 2px var(--ring), var(--glass-shadow); }
   [data-theme="C"] .pchip .vpn { font-size: 22px; box-shadow: inset 0 0 0 1.5px #1C1A19; padding-top: 2px; }
   [data-theme="C"] .pchip.pc-ivory .vpn, [data-theme="C"] .pchip .vpn { line-height: 1; }
   [data-theme="C"] .ticker.prompt { box-shadow: 0 0 0 2px var(--ring), var(--glass-shadow); }
-  [data-theme="C"] .app :is(#mBuildBtn, #tradeBankBtn, #mCardsBtn) { border: 1.5px solid #1C1A19; box-shadow: 0 2px 0 rgba(28,26,25,.14); font-weight: 700; font-size: 13px; }
+  [data-theme="C"] .app :is(#mMenuBtn, #mBuildBtn, #tradeBankBtn, #mCardsBtn) { border: 1.5px solid #1C1A19; box-shadow: 0 2px 0 rgba(28,26,25,.14); font-weight: 700; font-size: 13px; }
   [data-theme="C"] .app :is(#mBuildBtn, #tradeBankBtn, #mCardsBtn):disabled, [data-theme="C"] .app #mCardsBtn.quiet { border: 0; }
   [data-theme="C"] .app #tradeBankBtn[aria-disabled="true"] { opacity: 1; filter: none; background: var(--dis-bg); color: var(--dis-ink); border: 0; box-shadow: inset 0 0 0 1.5px var(--dis-line); }
   [data-theme="C"] .app #tradeBankBtn[aria-disabled="true"] .ic { filter: var(--dis-ic); opacity: var(--dis-ic-op); }
