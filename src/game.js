@@ -6,6 +6,9 @@ import { TERRAIN_NAME, DEV_NAME, CARD_TEXT } from "./themes/art-util.js";
 import { Onboarding, introSeen } from "./themes/onboarding.js";
 import { Home, GameMenu } from "./themes/home.js";
 import { SoundEngine } from "./sound.js";
+// ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
+// this file only calls in through hooks marked with ⚓.
+import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS, SHIP_COST } from "./seafarers/index.js";
 
 const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 /** Sunny Island colour palette from <html data-palette> (default light). */
@@ -27,6 +30,7 @@ const RESOURCE_COLORS = {
   wheat: "#d9bc52",
   ore: "#8b96a8",
   desert: "#d6c28e",
+  gold: "#e5bc52", // ⚓ Seafarers gold field
 };
 
 const DICE_WEIGHT = {
@@ -48,10 +52,11 @@ const COSTS = {
   settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 },
   city: { wheat: 2, ore: 3 },
   development: { sheep: 1, wheat: 1, ore: 1 },
+  ship: SHIP_COST, // ⚓ Seafarers
 };
 
 const BANK_SIZE = 19; // cards of each resource in the game
-const PIECE_LIMITS = { road: 15, settlement: 5, city: 4 };
+const PIECE_LIMITS = { road: 15, settlement: 5, city: 4, ship: 15 }; // ⚓ ship: Seafarers only
 
 const PLAYER_CONFIG = [
   { name: "You", color: "#e63946", isHuman: true, avatar: "./assets/avatars/avatar-human.svg?v=57" },
@@ -195,6 +200,7 @@ const DEFAULT_SETTINGS = {
   friendlyRobber: false,    // robber can't hit players with <= 2 public VP
   dice: "random",           // "random" | "balanced" | "deck"
   map: "random",            // "random" | "balanced" | "beginner"
+  board: "island",          // ⚓ "island" (basic) | "seafarers" (Heading for New Shores)
   numBots: 3,               // 1-3
   rushInterval: 15,         // seconds between automatic rolls (Rush)
   botStyleMode: "all",      // "all" | "each"
@@ -221,6 +227,7 @@ function normalizeSettings(raw) {
   s.friendlyRobber = !!s.friendlyRobber;
   if (!["random", "balanced", "deck"].includes(s.dice)) s.dice = "random";
   if (!["random", "balanced", "beginner"].includes(s.map)) s.map = "random";
+  s.board = s.board === "seafarers" ? "seafarers" : "island"; // ⚓
   s.numBots = clamp(Math.round(Number(s.numBots)) || 3, 1, 3);
   if (!RUSH_INTERVALS.includes(Number(s.rushInterval))) s.rushInterval = 15;
   s.rushInterval = Number(s.rushInterval);
@@ -355,7 +362,7 @@ function createAxialHexes(radius) {
   return hexes;
 }
 
-function createBoardGeometry(canvasWidth, canvasHeight) {
+function createBoardGeometry(canvasWidth, canvasHeight, layout = null) { // ⚓ layout: Seafarers hex list
   const aspect = canvasWidth / canvasHeight;
   // On tall screens (mobile portrait), allow larger hexes by loosening the width constraint
   const wDiv = aspect < 1 ? 11 : 14.5;
@@ -400,7 +407,7 @@ function createBoardGeometry(canvasWidth, canvasHeight) {
     return id;
   };
 
-  for (const axial of createAxialHexes(BOARD_RADIUS)) {
+  for (const axial of layout || createAxialHexes(BOARD_RADIUS)) {
     const center = axialToPixel(axial.q, axial.r, hexSize, centerX, centerY);
     const corners = getHexCorners(center, hexSize);
     const nodeIds = corners.map(createNode);
@@ -424,6 +431,7 @@ function createBoardGeometry(canvasWidth, canvasHeight) {
       edges: edgeIds,
       resource: null,
       number: null,
+      ...(axial.kind ? { kind: axial.kind, key: axial.key, island: { L: 0, W: 1, S: 2, E: 3 }[axial.kind] ?? null } : {}), // ⚓
     });
   }
 
@@ -670,6 +678,14 @@ function distancePointToSegment(px, py, x1, y1, x2, y2) {
   const x = x1 + clamped * dx;
   const y = y1 + clamped * dy;
   return Math.hypot(px - x, py - y);
+}
+
+// ⚓ Seafarers: for planning, a gold field counts as the resource the player is shortest of
+function prodRes(hex, inc) {
+  if (hex.resource !== "gold") return hex.resource;
+  let best = "wheat";
+  RESOURCES.forEach((r) => { if ((inc[r] || 0) < (inc[best] || 0)) best = r; });
+  return best;
 }
 
 function clamp(value, min, max) {
@@ -924,7 +940,7 @@ class ColonistFullGame {
   _savedSummary() {
     if (!this._homeSave || this.winner || !this.players?.length) return null;
     return {
-      mode: this.isRush() || this.settings?.mode === "rush" ? "Rush" : "Classic",
+      mode: (this.isRush() || this.settings?.mode === "rush" ? "Rush" : "Classic") + (this.sea ? " · Seafarers" : ""), // ⚓
       turn: this.turn || 1,
       players: this.players.map((p) => ({ name: p.name, seat: p.id, vp: p.isHuman ? p.victoryPoints : (p.publicVictoryPoints ?? p.victoryPoints) })),
     };
@@ -942,9 +958,10 @@ class ColonistFullGame {
   }
 
   /** Home › Classic / Rush tile: start at once with the chosen opponents and bot level. */
-  _quickStart({ mode, numBots, preset }) {
+  _quickStart({ mode, numBots, preset, board }) {
     const last = normalizeSettings(ColonistFullGame.loadLastSettings());
     const s = { ...last, mode: mode === "rush" ? "rush" : "classic", numBots: clamp(Number(numBots) || 3, 1, 3) };
+    if (board) s.board = board === "seafarers" ? "seafarers" : "island"; // ⚓ Home › Map
     if (preset && preset !== "custom" && AI_PRESETS[preset]) {
       s.botStyleMode = "all";
       s.allPreset = preset;
@@ -1006,8 +1023,8 @@ class ColonistFullGame {
     if (!this.geometry) return;
     const oldHexes = this.geometry.hexes.map(h => ({ resource: h.resource, number: h.number }));
     const oldNodes = this.geometry.nodes.map(n => ({ owner: n.owner, structure: n.structure }));
-    const oldEdges = this.geometry.edges.map(e => ({ owner: e.owner }));
-    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight);
+    const oldEdges = this.geometry.edges.map(e => ({ owner: e.owner, ship: e.ship }));
+    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight, this._seaLayout()); // ⚓
     this.geometry.hexes.forEach((hex, i) => {
       hex.resource = oldHexes[i].resource;
       hex.number = oldHexes[i].number;
@@ -1018,6 +1035,7 @@ class ColonistFullGame {
     });
     this.geometry.edges.forEach((edge, i) => {
       edge.owner = oldEdges[i].owner;
+      if (oldEdges[i].ship) edge.ship = true; // ⚓
     });
     // Restore port data on nodes
     this.geometry.nodes.forEach(n => { n.ports = []; });
@@ -1119,6 +1137,8 @@ class ColonistFullGame {
     this.buildRoadBtn.addEventListener("click", () => this.setPendingAction("road"));
     this.buildSettlementBtn.addEventListener("click", () => this.setPendingAction("settlement"));
     this.buildCityBtn.addEventListener("click", () => this.setPendingAction("city"));
+    this.buildShipBtn = document.querySelector("#buildShipBtn"); // ⚓ Seafarers (hidden on the basic island)
+    this.buildShipBtn?.addEventListener("click", () => this.setPendingAction("ship"));
     this.buyDevBtn.addEventListener("click", () => { this._buyFrom = this.buyDevBtn; this.handleHumanBuyDevCard(); });
     this.playDevBtn?.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1266,6 +1286,7 @@ class ColonistFullGame {
   }
 
   piecesLeft(player, type) {
+    if (type === "ship") return this.sea ? this.sea.shipsLeft(player) : 0; // ⚓
     const used = type === "road" ? player.roads.size : type === "settlement" ? player.settlements.size : player.cities.size;
     return PIECE_LIMITS[type] - used;
   }
@@ -1302,9 +1323,10 @@ class ColonistFullGame {
     this._cancelPendingWork();
     this.removeGameOverOverlay();
     this.clearStorage();
-    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight);
-    this.robberHexId = assignTiles(this.geometry, this.settings.map);
-    this.ports = assignPorts(this.geometry);
+    this._seaNew(); // ⚓ game.sea (null unless the board is Seafarers)
+    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight, this._seaLayout());
+    this.robberHexId = this.sea ? this._seaAssignBoard(this.settings.map, createBoardGeometry, assignTiles) : assignTiles(this.geometry, this.settings.map);
+    this.ports = this.sea ? this._seaPorts() : assignPorts(this.geometry);
     this.devDeck = createDevelopmentDeck();
     this.bank = makeFullBank();
     this.diceDeck = [];
@@ -1321,6 +1343,7 @@ class ColonistFullGame {
       personality: config.isHuman ? null : strategies[id].personality,
       resources: makeEmptyResources(),
       roads: new Set(),
+      ships: new Set(), // ⚓ Seafarers
       settlements: new Set(),
       cities: new Set(),
       devCards: makeEmptyDevCards(),
@@ -1370,7 +1393,8 @@ class ColonistFullGame {
 
     this.initialPlacement();
     this.recomputeScores();
-    this.addLog(`New ${this.isRush() ? "Rush" : "Classic"} game: first to ${this.settings.winPoints} points.`);
+    this.addLog(this.sea ? `New ${this.isRush() ? "Rush" : "Classic"} Seafarers game: Heading for New Shores, first to ${this.winPoints} points.`
+      : `New ${this.isRush() ? "Rush" : "Classic"} game: first to ${this.settings.winPoints} points.`);
     this.render();
   }
 
@@ -1379,7 +1403,7 @@ class ColonistFullGame {
   }
 
   get winPoints() {
-    return this.settings.winPoints;
+    return this.sea ? SEA_WIN_POINTS : this.settings.winPoints; // ⚓ Seafarers: 14
   }
 
   // Per-bot strategy + personality label derived from the new-game settings
@@ -1438,6 +1462,7 @@ class ColonistFullGame {
       this.phase = "pre_roll";
       this.confirmBuild = null;
       this.hoverTooltip = ""; // drop a stale "Confirm" tooltip from the last setup placement
+      this.sea?.onNewTurn(); // ⚓ set-up ships may move from the first turn on
       this.addLog("Initial placement complete.");
       if (this.isRush()) {
         this._startRush();
@@ -1473,15 +1498,22 @@ class ColonistFullGame {
     this.render();
 
     this._later(() => {
-      const roadId = this.getBestRoadFromNode(player, nodeId);
-      if (roadId != null) this.placeRoad(player, roadId, { free: true, setupNode: nodeId });
+      let piece = "road";
+      if (this.sea) { // ⚓ Seafarers: a road, or a ship from a coastal settlement
+        const pc = this.sea.aiSetupPiece(player, nodeId);
+        if (pc?.type === "ship") { this.sea.placeShip(player, pc.id, { free: true, setupNode: nodeId }); piece = "ship"; }
+        else if (pc) this.placeRoad(player, pc.id, { free: true, setupNode: nodeId });
+      } else {
+        const roadId = this.getBestRoadFromNode(player, nodeId);
+        if (roadId != null) this.placeRoad(player, roadId, { free: true, setupNode: nodeId });
+      }
       if (this.setupStep >= this.players.length) {
         this.geometry.nodes[nodeId].adjacentHexes.forEach((hexId) => {
           const hex = this.geometry.hexes[hexId];
-          if (hex.resource !== "desert") this.takeFromBank(player, hex.resource, 1);
+          if (RESOURCES.includes(hex.resource)) this.takeFromBank(player, hex.resource, 1);
         });
       }
-      this.addLog(`${player.name} placed a road.`);
+      this.addLog(`${player.name} placed a ${piece}.`);
       this.sfx.buildRoad();
       this.recomputeScores();
       this.render();
@@ -1504,6 +1536,8 @@ class ColonistFullGame {
     if (this.setupAction === "settlement") {
       const nodeId = this.findNodeAt(x, y, (id) => this.canBuildSettlement(player, id, true));
       if (nodeId != null) target = { type: "settlement", id: nodeId };
+    } else if (this.setupAction === "road" && this.sea) {
+      target = this._seaSetupEdgeAt(player, x, y); // ⚓ road or ship
     } else if (this.setupAction === "road") {
       const edgeId = this.findEdgeAt(x, y, (id) => { const e = this.geometry.edges[id]; return e.owner == null && e.nodes.includes(this.lastSetupNodeId); });
       if (edgeId != null) target = { type: "road", id: edgeId };
@@ -1523,6 +1557,7 @@ class ColonistFullGame {
       this.sfx.buildSettlement();
       this.lastSetupNodeId = cb.id;
       this.setupAction = "road";
+      if (this.sea) this.sea.setupPiece = "road"; // ⚓
       const logLen = this.logEntries.length;
       this.addLog("Now place a road from your settlement.");
       // Undo stays offered until the road is placed (no time limit)
@@ -1530,14 +1565,16 @@ class ColonistFullGame {
       this.render();
       return;
     }
-    if (cb.type === "road" && this.setupAction === "road") {
-      if (!this.placeRoad(player, cb.id, { free: true, setupNode: this.lastSetupNodeId })) return;
+    if ((cb.type === "road" || cb.type === "ship") && this.setupAction === "road") {
+      const placed = cb.type === "ship" ? this.sea?.placeShip(player, cb.id, { free: true, setupNode: this.lastSetupNodeId }) // ⚓
+        : this.placeRoad(player, cb.id, { free: true, setupNode: this.lastSetupNodeId });
+      if (!placed) return;
       this._dropUndo();
       this.sfx.buildRoad();
       if (this.setupStep >= this.players.length) {
         this.geometry.nodes[this.lastSetupNodeId].adjacentHexes.forEach((hexId) => {
           const hex = this.geometry.hexes[hexId];
-          if (hex.resource !== "desert") this.takeFromBank(player, hex.resource, 1);
+          if (RESOURCES.includes(hex.resource)) this.takeFromBank(player, hex.resource, 1);
         });
       }
       this.setupStep++;
@@ -1614,7 +1651,7 @@ class ColonistFullGame {
     if (this.isRush()) { this.toggleRushReady(); return; }
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
-    if (this.phase !== "pre_roll" || this._robberInProgress()) return;
+    if (this.phase !== "pre_roll" || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return;
     this._dropUndo();
     this.devPlayed = null;
     this.trayMode = null;
@@ -1674,7 +1711,7 @@ class ColonistFullGame {
     if (this.isRush()) return; // no turns in Rush
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
-    if (this.phase !== "main" || this._robberInProgress()) return;
+    if (this.phase !== "main" || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return;
     if (this.devPick) return; // finish Year of Plenty / Monopoly first
     this._dropUndo();
     this.trayMode = null;
@@ -1687,13 +1724,15 @@ class ColonistFullGame {
   setPendingAction(action, { keepTray = false } = {}) {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner || this.phase !== "main") return;
-    if (this._robberInProgress()) return; // Cannot override robber placement / discard
-    if (["road", "settlement", "city"].includes(action) && this.piecesLeft(player, action) <= 0) return;
+    if ((this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return; // Cannot override robber placement / discard
+    if (["road", "settlement", "city", "ship"].includes(action) && this.piecesLeft(player, action) <= 0) return;
+    if (action === "ship" && (!this.sea || (!this.freeRoadsRemaining && !hasResources(player.resources, COSTS.ship)))) return; // ⚓
     if (action === "road" && !this.freeRoadsRemaining && !hasResources(player.resources, COSTS.road)) return;
     if (action === "settlement" && !hasResources(player.resources, COSTS.settlement)) return;
     if (action === "city" && !hasResources(player.resources, COSTS.city)) return;
-    if (this.freeRoadsRemaining > 0 && action !== "road") return; // Road Building: place the free roads first
+    if (this.freeRoadsRemaining > 0 && action !== "road" && action !== "ship") return; // Road Building: place the free roads (or ships) first
     this._dropUndo();
+    if (this.sea) this.sea.moveSel = null; // ⚓
     this.pendingAction = this.pendingAction === action ? null : action;
     this.confirmBuild = null;
     if (!keepTray && this.trayMode === "cards") this.trayMode = null;
@@ -1705,7 +1744,7 @@ class ColonistFullGame {
 
   handleHumanBuyDevCard() {
     const player = this.currentPlayer;
-    if (!player || !player.isHuman || this.winner || this.phase !== "main" || this._robberInProgress()) return;
+    if (!player || !player.isHuman || this.winner || this.phase !== "main" || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return;
     if (!hasResources(player.resources, COSTS.development) || !this.devDeck.length) {
       this._flashPrompt(this.devDeck.length ? `A card costs ${resourceString(COSTS.development)} · you need ${missingCostString(player.resources, COSTS.development)}` : "The development deck is empty");
       return;
@@ -1727,6 +1766,7 @@ class ColonistFullGame {
   }
 
   _hexLabel(hex) {
+    if (hex.resource === "sea") return "the sea"; // ⚓
     if (hex.resource === "desert" || !hex.number) return "the Desert";
     return `${TERRAIN_NAME[hex.resource]} ${hex.number}`;
   }
@@ -1738,7 +1778,7 @@ class ColonistFullGame {
   handleHumanPlayDevCard(type) {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
-    if (!this.canPlayDevelopmentCard(player, type)) return; // checks phase (Knight may be played before rolling)
+    if (!this.canPlayDevelopmentCard(player, type) || this._seaHumanBlocked()) return; // checks phase (Knight may be played before rolling)
     if (this.devPick) return;
     this.hideDevCardPicker();
     this._dropUndo();
@@ -1814,7 +1854,7 @@ class ColonistFullGame {
 
   handleHumanBankTrade() {
     const player = this.currentPlayer;
-    if (!player || !player.isHuman || this.winner || this.phase !== "main" || this._robberInProgress()) return;
+    if (!player || !player.isHuman || this.winner || this.phase !== "main" || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return;
     const offeredTypes = RESOURCES.filter(r => this.tradeOffer[r] > 0);
     const requestedTypes = RESOURCES.filter(r => this.tradeRequest[r] > 0);
     if (offeredTypes.length !== 1 || requestedTypes.length !== 1) return;
@@ -1860,6 +1900,7 @@ class ColonistFullGame {
     }
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
+    if (this._seaHumanBlocked()) return; // ⚓ pick your gold first
     // Robber placement is allowed before rolling (Knight); everything else needs the main phase
     const robberMode = this.pendingAction === "robber";
     if (this.phase !== "main" && !(robberMode && (this.phase === "pre_roll" || this.phase === "seven"))) return;
@@ -1881,6 +1922,7 @@ class ColonistFullGame {
       }
       const hexId = this.findHexAt(x, y);
       if (hexId == null) return;
+      if (this.sea && this.sea.thief !== this._seaHexKind(hexId) && this._robberHexAllowed(hexId, player)) this.sea.thief = this._seaHexKind(hexId); // ⚓ land = robber, sea = pirate
       if (!this._robberHexAllowed(hexId, player)) {
         this._flashPrompt(this._robberBlockedReason(hexId, player));
         this.sfx.error?.();
@@ -1899,6 +1941,13 @@ class ColonistFullGame {
       this.sfx.click();
       this.render();
       return;
+    }
+
+    // ⚓ Seafarers: a lifted ship goes to the tapped dotted spot; a tap on an open-end ship lifts it
+    if (this.pendingAction === "moveShip") { this._seaMoveTap(player, x, y); return; }
+    if (this.sea && (!this.pendingAction || this.pendingAction === "build") && !this.freeRoadsRemaining && !this.confirmBuild) {
+      const ship = this._seaShipAt(player, x, y);
+      if (ship != null && !(this.pendingAction === "build" && this._buildTargetAt(player, x, y))) { this._seaStartMove(player, ship); return; }
     }
 
     if (!this.pendingAction) {
@@ -1944,8 +1993,11 @@ class ColonistFullGame {
     const wantSet = pa === "settlement" || (all && !free);
     const wantCity = pa === "city" || (all && !free);
     let node = null, edge = null;
+    // ⚓ Seafarers: an edge may take a road or a ship ("ship" mode: ships only; Road Building: either)
+    const sea = this.sea, wantShip = !!sea && (pa === "ship" || all || free);
+    const edgeType = (id) => (sea ? this._seaEdgeType(player, id, pa === "build" ? null : pa, free) : "road");
     if (wantSet || wantCity) node = this.findNodeAt(x, y, (id) => (wantCity && this.canBuildCity(player, id, false)) || (wantSet && this.canBuildSettlement(player, id, false)));
-    if (wantRoad) edge = this.findEdgeAt(x, y, (id) => this.canBuildRoad(player, id, { free }));
+    if (wantRoad || wantShip) edge = this.findEdgeAt(x, y, (id) => (sea ? edgeType(id) != null : this.canBuildRoad(player, id, { free })));
     if (node != null && edge != null) {
       // both in reach: the one closer relative to its own hit radius wins
       const n = this.geometry.nodes[node];
@@ -1958,7 +2010,7 @@ class ColonistFullGame {
       else edge = null;
     }
     if (node != null) return { type: this.canBuildCity(player, node, false) && wantCity ? "city" : "settlement", id: node };
-    if (edge != null) return { type: "road", id: edge };
+    if (edge != null) return { type: edgeType(edge), id: edge };
     return null;
   }
 
@@ -1969,7 +2021,20 @@ class ColonistFullGame {
     this._dropUndo();
     let built = false;
     let paid = null;
-    if (cb.type === "road") {
+    let isle = null; // ⚓ island bonus earned by this settlement
+    if (cb.type === "ship") { // ⚓ Seafarers
+      const isFree = this.freeRoadsRemaining > 0;
+      if (this.sea?.placeShip(player, cb.id, { free: isFree })) {
+        if (!isFree) { this.payToBank(player, COSTS.ship); paid = COSTS.ship; this.addLog(`${player.name} built a ship.`); }
+        else {
+          this.freeRoadsRemaining -= 1;
+          if (this.freeRoadsRemaining > 0 && !this._hasLegalRoad(player, true)) this.freeRoadsRemaining = 0;
+          this.addLog(`${player.name} placed a free ship (${this.freeRoadsRemaining} remaining).`);
+        }
+        this.sfx.buildRoad();
+        built = true;
+      }
+    } else if (cb.type === "road") {
       const isFreeRoad = this.freeRoadsRemaining > 0;
       if (this.placeRoad(player, cb.id, { free: isFreeRoad })) {
         if (!isFreeRoad) { this.payToBank(player, COSTS.road); paid = COSTS.road; }
@@ -1987,6 +2052,7 @@ class ColonistFullGame {
       if (this.placeSettlement(player, cb.id, false)) {
         this.payToBank(player, COSTS.settlement); paid = COSTS.settlement;
         this.addLog(`${player.name} built a settlement.`);
+        if (this.sea) isle = this._seaOnSettlement(player, cb.id); // ⚓ +2 for a new island
         this.sfx.buildSettlement();
         built = true;
       }
@@ -2011,8 +2077,8 @@ class ColonistFullGame {
     else { this.pendingAction = null; this.canvas.style.cursor = "grab"; }
     this.trayMode = null;
     if (this.devPlayed?.type === "roadBuilding") this.devPlayed = null; // the card took effect
-    const undo = { kind: "build", type: cb.type, id: cb.id, pid: player.id, paid, ...before,
-      icon: cb.type, noun: cb.type === "settlement" ? "" : cb.type, label: { road: before.free ? "Free road placed" : "Road built", settlement: "Settlement built", city: "City built" }[cb.type] };
+    const undo = { kind: "build", type: cb.type, id: cb.id, pid: player.id, paid, ...before, isle,
+      icon: cb.type, noun: cb.type === "settlement" ? "" : cb.type, label: { road: before.free ? "Free road placed" : "Road built", ship: before.free ? "Free ship placed" : "Ship built", settlement: isle ? "+2 points · New island" : "Settlement built", city: "City built" }[cb.type] };
     if (this.rush) {
       this._rushAfterAction(player);
     } else {
@@ -2032,9 +2098,10 @@ class ColonistFullGame {
     this._cancelRobberTimer();
     this.confirmBuild = null;
     this.devPlayed = null; // a Knight can no longer be taken back
-    this.robberHexId = hexId;
     const hex = this.geometry.hexes[hexId];
-    this.addLog(`${player.name} moved robber to ${this._hexLabel(hex)}.`);
+    if (this.sea && hex.resource === "sea") { this.sea.pirateHexId = hexId; this.addLog(`${player.name} moved the pirate.`); } // ⚓
+    else { this.robberHexId = hexId; this.addLog(`${player.name} moved robber to ${this._hexLabel(hex)}.`); }
+    if (this.sea) this.sea.thief = null;
     this.sfx.robber();
     this.pendingAction = null;
 
@@ -2251,7 +2318,7 @@ class ColonistFullGame {
 
   // ── View: limits, clamping, motion ──────────────────────────────────────
   _minScale() { return this._fitScale; }
-  _maxScale() { return this._fitScale * 2.5; }
+  _maxScale() { return this._fitScale * (this.sea ? 3.4 : 2.5); } // ⚓ the Seafarers map is bigger: zoom in further
 
   /** Island bounds (world) and the visible board area (screen), shared by fit and clamping. */
   _viewFrame() {
@@ -2276,7 +2343,7 @@ class ColonistFullGame {
         let reach = 0;
         (this.ports || []).forEach((p) => {
           const e = g.edges[p.edgeId]; if (!e) return;
-          const [a, b] = e.nodes.map((id) => g.nodes[id]); const hc = g.hexes[e.hexIds[0]].center;
+          const [a, b] = e.nodes.map((id) => g.nodes[id]); const hc = g.hexes[e.hexIds.find((h) => g.hexes[h].resource !== "sea") ?? e.hexIds[0]].center; // ⚓ land side
           const px = (a.x + b.x) / 2, py = (a.y + b.y) / 2, len = Math.hypot(px - hc.x, py - hc.y) || 1;
           reach = Math.max(reach, Math.abs(px + ((px - hc.x) / len) * hs * 0.85 - cx)); // boat tip
         });
@@ -2512,6 +2579,11 @@ class ColonistFullGame {
       event.preventDefault();
       return;
     }
+    if (key === "4" && this.sea) { // ⚓
+      this.setPendingAction("ship");
+      event.preventDefault();
+      return;
+    }
     if (key === "b") {
       this.handleHumanBuyDevCard();
       event.preventDefault();
@@ -2571,7 +2643,8 @@ class ColonistFullGame {
           return;
         }
       } else if (this.setupAction === "road") {
-        const edgeId = this.findEdgeAt(worldX, worldY, (id) => { const e = this.geometry.edges[id]; return e.owner == null && e.nodes.includes(this.lastSetupNodeId); });
+        const edgeId = this.sea ? this._seaSetupEdgeAt(player, worldX, worldY)?.id ?? null // ⚓
+          : this.findEdgeAt(worldX, worldY, (id) => { const e = this.geometry.edges[id]; return e.owner == null && e.nodes.includes(this.lastSetupNodeId); });
         if (edgeId != null) {
           this.hoverEdgeId = edgeId;
           this.hoverTooltip = "Place road";
@@ -2600,13 +2673,14 @@ class ColonistFullGame {
 
     if (humanMain && this.pendingAction === "build") {
       const t = this._buildTargetAt(player, worldX, worldY);
-      if (t?.type === "road") this.hoverEdgeId = t.id;
+      if (t?.type === "road" || t?.type === "ship") this.hoverEdgeId = t.id; // ⚓ ship
       else if (t) this.hoverNodeId = t.id;
       this.canvas.style.cursor = t ? "pointer" : "crosshair";
       return;
     }
-    if (humanMain && this.pendingAction === "road") {
-      const edgeId = this.findEdgeAt(worldX, worldY, (id) => this.canBuildRoad(player, id, { free: this.freeRoadsRemaining > 0 }));
+    if (humanMain && ["road", "ship", "moveShip"].includes(this.pendingAction)) { // ⚓ ship / move ship
+      const spots = this._legalPlacementSpots() || { edges: [], ships: [] };
+      const edgeId = this.findEdgeAt(worldX, worldY, (id) => spots.edges.includes(id) || (spots.ships || []).includes(id));
       if (edgeId != null) {
         this.hoverEdgeId = edgeId;
         this.canvas.style.cursor = "pointer";
@@ -2706,11 +2780,13 @@ class ColonistFullGame {
 
   distributeResources(roll) {
     const owed = this.players.map(() => makeEmptyResources());
+    const goldOwed = this.players.map(() => 0); // ⚓ Seafarers gold fields: cards of free choice
     this.geometry.hexes.forEach((hex) => {
       if (hex.id === this.robberHexId || hex.number !== roll) return;
       hex.nodes.forEach((nodeId) => {
         const node = this.geometry.nodes[nodeId];
         if (node.owner == null || node.structure == null) return;
+        if (hex.resource === "gold") { goldOwed[node.owner] += node.structure === "city" ? 2 : 1; return; }
         owed[node.owner][hex.resource] += node.structure === "city" ? 2 : 1;
       });
     });
@@ -2734,6 +2810,7 @@ class ColonistFullGame {
         this.addLog(`${this.players[playerId].name} collect${this._s(this.players[playerId])} ${resourceString(gain)}.`);
       }
     });
+    if (this.sea && goldOwed.some((n) => n > 0)) this.sea.payGold(goldOwed, gainByPlayer, this.isRush() ? null : this.currentPlayer); // ⚓ after the normal cards
     return gainByPlayer;
   }
 
@@ -2816,6 +2893,9 @@ class ColonistFullGame {
 
   // Hexes the robber may move to (falls back to any other hex if the rule blocks them all)
   _legalRobberHexes(mover) {
+    // ⚓ Seafarers: the robber stays on land, the pirate at sea (sea.thief picks one, null = either)
+    if (this.sea) return this.sea.legalThiefHexes(mover, this.sea.thief, this.settings.friendlyRobber
+      ? (h) => (h.resource === "sea" ? this.sea.hexTouchesShipOf(h, (o) => this._isRobberProtected(o, mover)) : this._hexTouchesProtected(h, mover)) : null);
     const others = this.geometry.hexes.filter((h) => h.id !== this.robberHexId);
     if (!this.settings.friendlyRobber) return others;
     const strict = others.filter((h) => !this._hexTouchesProtected(h, mover));
@@ -2823,11 +2903,17 @@ class ColonistFullGame {
   }
 
   _robberHexAllowed(hexId, mover) {
+    if (this.sea) { // ⚓ judged for the piece that goes there (land: robber, sea: pirate)
+      const prev = this.sea.thief;
+      this.sea.thief = this._seaHexKind(hexId);
+      try { return this._legalRobberHexes(mover).some((h) => h.id === hexId); } finally { this.sea.thief = prev; }
+    }
     return this._legalRobberHexes(mover).some((h) => h.id === hexId);
   }
 
   // Players the mover may steal from on a hex
   _stealVictims(hexId, mover) {
+    if (this.sea && this.geometry.hexes[hexId].resource === "sea") return this.sea.shipVictims(hexId, mover, (o) => this._isRobberProtected(o, mover)); // ⚓ pirate: ship owners
     const victims = new Set();
     this.geometry.hexes[hexId].nodes.forEach((nodeId) => {
       const owner = this.geometry.nodes[nodeId].owner;
@@ -2863,7 +2949,8 @@ class ColonistFullGame {
     if (this._isInteractive(currentPlayer)) {
       this.robberContext = { playerId: currentPlayer.id };
       this.pendingAction = "robber";
-      this.addLog("Move the robber — tap a tile.");
+      if (this.sea) { this.sea.thief = null; this.sea.moveSel = null; } // ⚓ robber or pirate: chosen in the dock or by the tapped hex
+      this.addLog(this.sea ? "Move the robber (land) or the pirate (sea)." : "Move the robber — tap a tile.");
       this.render();
       return;
     }
@@ -2877,6 +2964,7 @@ class ColonistFullGame {
   //   basic:    also counts the steal, leans on players with more public VP
   //   advanced: hunts the public VP leader (hard when near the win)
   chooseRobberHex(currentPlayer) {
+    if (this.sea && !this.sea._evalRobber) return this.sea.chooseThiefHex(currentPlayer); // ⚓ robber or pirate
     const awareness = this._aiStrat(currentPlayer).awareness;
     const legal = this._legalRobberHexes(currentPlayer);
     const others = this.players.filter((p) => p.id !== currentPlayer.id);
@@ -2943,8 +3031,8 @@ class ColonistFullGame {
   }
 
   moveRobberAndSteal(currentPlayer, targetHexId) {
-    this.robberHexId = targetHexId;
-    this.addLog(`${currentPlayer.name} moved robber to ${this._hexLabel(this.geometry.hexes[targetHexId])}.`);
+    if (this.sea && this.geometry.hexes[targetHexId].resource === "sea") { this.sea.pirateHexId = targetHexId; this.addLog(`${currentPlayer.name} moved the pirate.`); } // ⚓
+    else { this.robberHexId = targetHexId; this.addLog(`${currentPlayer.name} moved robber to ${this._hexLabel(this.geometry.hexes[targetHexId])}.`); }
     this.sfx.robber();
     const victims = this._stealVictims(targetHexId, currentPlayer);
     if (!victims.length) return;
@@ -3153,6 +3241,7 @@ class ColonistFullGame {
     if (this.setupPhase) return "Trading opens after setup.";
     if (this.pendingDiscard) return "Hand back your cards first.";
     if (this._robberInProgress()) return "Move the robber first.";
+    if (this._seaHumanBlocked()) return "Pick your gold first."; // ⚓
     if (this.isRush()) return this.rush && !this.rush.paused && this.phase === "main" ? null : "Trading resumes after the robber.";
     if (this.currentPlayer !== human) return "Trading opens on your turn.";
     if (this.phase === "pre_roll") return "Roll the dice first, then you can trade.";
@@ -3451,7 +3540,7 @@ class ColonistFullGame {
 
   handleHumanPlayerTrade() {
     const player = this.currentPlayer;
-    if (!player || !player.isHuman || this.phase !== "main" || this._robberInProgress()) return;
+    if (!player || !player.isHuman || this.phase !== "main" || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return;
     // Snapshot the offer — the trade grids may change before the player confirms
     const offer = copyResources(this.tradeOffer);
     const request = copyResources(this.tradeRequest);
@@ -3750,6 +3839,7 @@ class ColonistFullGame {
   }
 
   canBuildRoad(player, edgeId, options = {}) {
+    if (this.sea) return this.sea.canBuildRoad(player, edgeId, options, hasResources(player.resources, COSTS.road)); // ⚓
     const edge = this.geometry.edges[edgeId];
     if (!edge || edge.owner != null) return false;
     if (this.piecesLeft(player, "road") <= 0) return false;
@@ -3771,6 +3861,7 @@ class ColonistFullGame {
     if (!node || node.structure != null) return false;
     if (this.piecesLeft(player, "settlement") <= 0) return false;
     if (node.neighbors.some((neighborId) => this.geometry.nodes[neighborId].structure != null)) return false;
+    if (this.sea && (!this.sea.nodeIsLand(nodeId) || (setup && this.sea.islandOfNode(nodeId) !== 0))) return false; // ⚓ land only; set-up on the main island
     if (setup) return true;
     if (!hasResources(player.resources, COSTS.settlement)) return false;
     return node.edgeIds.some((edgeId) => this.geometry.edges[edgeId].owner === player.id);
@@ -3785,7 +3876,7 @@ class ColonistFullGame {
   }
 
   _hasLegalRoad(player, free) {
-    return this.geometry.edges.some((edge) => this.canBuildRoad(player, edge.id, { free }));
+    return this.geometry.edges.some((edge) => this.canBuildRoad(player, edge.id, { free }) || this.canBuildShip(player, edge.id, { free })); // ⚓ or a ship
   }
 
   placeRoad(player, edgeId, options = {}) {
@@ -3945,19 +4036,25 @@ class ColonistFullGame {
     } else if (type === "roadBuilding") {
       if (this._isInteractive(player)) {
         // Human: enter interactive free-road-placement mode
-        this.freeRoadsRemaining = Math.min(2, this.piecesLeft(player, "road"));
+        this.freeRoadsRemaining = Math.min(2, this.piecesLeft(player, "road") + (this.sea ? this.sea.shipsLeft(player) : 0)); // ⚓ roads or ships
         this.pendingAction = "road";
-        this.addLog(`${player.name} played Road Building — place 2 free roads.`);
+        this.addLog(`${player.name} played Road Building — place 2 free ${this.sea ? "roads or ships" : "roads"}.`);
         this.render();
         return true; // Don't call recomputeScores yet, will be called after placement
       }
       let built = 0;
       for (let i = 0; i < 2; i += 1) {
+        if (this.sea) { // ⚓ Seafarers: 2 roads, 2 ships or one of each (rulebook p. 5 §8)
+          const pc = this.sea.aiFreePiece(player);
+          if (!pc) break;
+          if (pc.type === "ship" ? this.sea.placeShip(player, pc.id, { free: true }) : this.placeRoad(player, pc.id, { free: true })) built += 1;
+          continue;
+        }
         const edgeId = this.chooseStrategicRoadEdge(player, true);
         if (edgeId == null) break;
         if (this.placeRoad(player, edgeId, { free: true })) built += 1;
       }
-      this.addLog(`${player.name} played Road Building and placed ${built} road(s).`);
+      this.addLog(`${player.name} played Road Building and placed ${built} ${this.sea ? "piece" : "road"}(s).`);
     } else if (type === "yearOfPlenty") {
       if (this._isInteractive(player)) {
         // Can only take what the bank actually has: pick in the dock (no popup)
@@ -4183,6 +4280,7 @@ class ColonistFullGame {
       () => this.tryBuildSettlement(player),
       () => this.tryBuildCity(player),
       () => this.tryBuildRoad(player),
+      () => (this.sea ? this.sea.aiSimpleShip(player) : false), // ⚓
       dev,
       () => this.tryTradeForGoal(player),
     ];
@@ -4287,6 +4385,7 @@ class ColonistFullGame {
   }
 
   shouldPlayRoadBuilding(player) {
+    if (this.sea) return !!this.sea.aiFreePiece(player); // ⚓
     if (this._aiStrat(player).devCards !== "strategic") return this.chooseStrategicRoadEdge(player, true) != null;
     // Strategic: save it for roads the plan actually needs (toward a spot, or Longest Road)
     const planned = this._aiPlan(player).goals.find((g) => g.edge != null);
@@ -4304,6 +4403,7 @@ class ColonistFullGame {
     if (!this.placeSettlement(player, best.nodeId, false)) return false;
     this.payToBank(player, COSTS.settlement);
     this.addLog(`${player.name} built a settlement.`);
+    if (this.sea) this._seaOnSettlement(player, best.nodeId); // ⚓ +2 for a new island
     this.sfx.buildSettlement();
     this._aiLog(player, `Chose settlement at node ${best.nodeId} (score ${best.score.toFixed(2)}, ${candidates.length} options)`);
     this.recomputeScores();
@@ -4372,7 +4472,7 @@ class ColonistFullGame {
     const add = (nodeId, amount) => this.geometry.nodes[nodeId].adjacentHexes.forEach((hexId) => {
       const hex = this.geometry.hexes[hexId];
       if (!hex.number || hex.resource === "desert" || hexId === this.robberHexId) return;
-      inc[hex.resource] += (DICE_WEIGHT[hex.number] / 36) * amount;
+      inc[prodRes(hex, inc)] += (DICE_WEIGHT[hex.number] / 36) * amount;
     });
     player.settlements.forEach((n) => add(n, 1));
     player.cities.forEach((n) => add(n, 2));
@@ -4385,7 +4485,8 @@ class ColonistFullGame {
     this.geometry.nodes[nodeId].adjacentHexes.forEach((hexId) => {
       const hex = this.geometry.hexes[hexId];
       if (!hex.number || hex.resource === "desert") return;
-      const w = inc[hex.resource] < 0.03 ? 1.35 : inc[hex.resource] < 0.1 ? 1.15 : 1;
+      const res = prodRes(hex, inc);
+      const w = inc[res] < 0.03 ? 1.35 : inc[res] < 0.1 ? 1.15 : 1;
       v += (DICE_WEIGHT[hex.number] / 36) * w * (hexId === this.robberHexId ? 0.6 : 1);
     });
     return v;
@@ -4440,6 +4541,7 @@ class ColonistFullGame {
 
   // Cost of the next concrete action toward a goal (a road first when the spot is not reached yet)
   _aiStepCost(goal) {
+    if (goal.via === "ship" && goal.dist > 0) return COSTS.ship; // ⚓ next ship toward a sea goal
     if (goal.type === "road" || (goal.type === "settlement" && goal.dist > 0)) return COSTS.road;
     return goal.type === "city" ? COSTS.city : goal.type === "dev" ? COSTS.development : COSTS.settlement;
   }
@@ -4459,6 +4561,7 @@ class ColonistFullGame {
       for (const edgeId of node.edgeIds) {
         const edge = this.geometry.edges[edgeId];
         if (edge.owner != null && edge.owner !== player.id) continue;
+        if (this.sea && (edge.ship || this.sea.edgeKind(edgeId) === "sea")) continue; // ⚓ roads: land and coast only
         const v = edge.nodes[0] === u ? edge.nodes[1] : edge.nodes[0];
         const w = edge.owner === player.id ? 0 : 1;
         if (dist[u] + w >= dist[v]) continue;
@@ -4539,6 +4642,8 @@ class ColonistFullGame {
       });
       add({ type: "city", label: "City", cost: COSTS.city, vp: 1, prod: best.prod, nodeId: best.nodeId });
     }
+    // ⚓ Seafarers: coastal spots reached by ships (new islands score their +2)
+    if (this.sea) this.sea.addSeaGoals(player, { add, inc, strat, profile: this.getResourceIncomeProfile(player), roadReach: this._aiRoadReach(player) });
     // Settlement spots in reach (a few best by the placement level's own judgement)
     const roadsLeft = this.piecesLeft(player, "road");
     if (this.piecesLeft(player, "settlement") > 0) {
@@ -4693,7 +4798,7 @@ class ColonistFullGame {
   _aiTryGoal(player, goal) {
     switch (goal.type) {
       case "city": return this.tryBuildCity(player, goal.nodeId);
-      case "settlement": return goal.dist > 0 ? this._aiBuildRoad(player, goal.edge) : this.tryBuildSettlement(player, goal.nodeId);
+      case "settlement": return goal.dist > 0 ? (goal.via === "ship" ? this.sea.aiBuildShip(player, goal.edge) : this._aiBuildRoad(player, goal.edge)) : this.tryBuildSettlement(player, goal.nodeId); // ⚓ via ship
       case "road": return this._aiBuildRoad(player, goal.edge);
       case "dev": return this.devDeck.length > 0 && hasResources(player.resources, COSTS.development) && this.buyDevelopmentCard(player);
       default: return false;
@@ -4704,6 +4809,7 @@ class ColonistFullGame {
   // build that doesn't delay it (any useful build when holding more cards than the discard limit).
   _aiPlannedStep(player) {
     const plan = this._aiPlan(player);
+    if (this.sea && this.sea.aiMoveStep(player, plan)) return true; // ⚓ a free ship move toward a target
     const [goal, ...rest] = plan.goals;
     if (!goal) return false;
     if (hasResources(player.resources, this._aiStepCost(goal)) && this._aiTryGoal(player, goal)) return true;
@@ -4793,7 +4899,7 @@ class ColonistFullGame {
       node.adjacentHexes.forEach((hexId) => {
         const hex = this.geometry.hexes[hexId];
         if (!hex.number || hex.resource === "desert") return;
-        income[hex.resource] += (DICE_WEIGHT[hex.number] / 36) * amount;
+        income[prodRes(hex, income)] += (DICE_WEIGHT[hex.number] / 36) * amount;
       });
     });
     return income;
@@ -4826,9 +4932,10 @@ class ColonistFullGame {
     node.adjacentHexes.forEach((hexId) => {
       const hex = this.geometry.hexes[hexId];
       if (hex.resource === "desert" || !hex.number) return;
-      const scarcityWeight = 1 + Math.max(0, 0.85 - income[hex.resource]) * 0.7;
+      const res = prodRes(hex, income);
+      const scarcityWeight = 1 + Math.max(0, 0.85 - income[res]) * 0.7;
       score += (DICE_WEIGHT[hex.number] / 6) * scarcityWeight;
-      resourceSeen.add(hex.resource);
+      resourceSeen.add(res);
     });
     score += resourceSeen.size * 0.42;
 
@@ -4850,9 +4957,10 @@ class ColonistFullGame {
       node.adjacentHexes.forEach((hexId) => {
         const hex = this.geometry.hexes[hexId];
         if (hex.resource === "desert" || !hex.number) return;
-        here[hex.resource] += DICE_WEIGHT[hex.number] / 36;
-        score += (DICE_WEIGHT[hex.number] / 6) * (boardW[hex.resource] - 1);
-        if (income[hex.resource] < 0.05) score += 0.35; // a resource we don't produce yet
+        const res = prodRes(hex, income);
+        here[res] += DICE_WEIGHT[hex.number] / 36;
+        score += (DICE_WEIGHT[hex.number] / 6) * ((boardW[res] ?? 1) - 1);
+        if (income[res] < 0.05) score += 0.35; // a resource we don't produce yet
       });
       const has = (r) => income[r] + here[r] > 0.02;
       if (has("ore") && has("wheat") && (here.ore > 0 || here.wheat > 0)) score += 0.35;   // city set
@@ -4875,7 +4983,7 @@ class ColonistFullGame {
   _aiBoardScarcity() {
     if (this._aiBoardW?.geometry === this.geometry) return this._aiBoardW.w;
     const pips = makeEmptyResources();
-    this.geometry.hexes.forEach((hex) => { if (hex.number && hex.resource !== "desert") pips[hex.resource] += DICE_WEIGHT[hex.number]; });
+    this.geometry.hexes.forEach((hex) => { if (hex.number && RESOURCES.includes(hex.resource)) pips[hex.resource] += DICE_WEIGHT[hex.number]; });
     const avg = sumResources(pips) / RESOURCES.length;
     const w = makeEmptyResources();
     RESOURCES.forEach((r) => { w[r] = clamp(avg / Math.max(1, pips[r]), 0.8, 1.5); });
@@ -4887,6 +4995,7 @@ class ColonistFullGame {
     let bestNodeId = null;
     let bestScore = Number.NEGATIVE_INFINITY;
     this.geometry.nodes.forEach((node) => {
+      if (this.sea && !this.canBuildSettlement(player, node.id, true)) return; // ⚓ set-up: main island only
       const score = this.getNodeProductionScore(node.id, player);
       if (!Number.isFinite(score)) return;
       if (score > bestScore) {
@@ -5052,6 +5161,7 @@ class ColonistFullGame {
       for (const edgeId of this.geometry.nodes[current.nodeId].edgeIds) {
         const edge = this.geometry.edges[edgeId];
         if (edge.owner != null && edge.owner !== player.id) continue;
+        if (this.sea && (edge.ship || this.sea.edgeKind(edgeId) === "sea")) continue; // ⚓ roads: land and coast only
         const next = edge.nodes[0] === current.nodeId ? edge.nodes[1] : edge.nodes[0];
         if (visited.has(next)) continue;
         const nextNode = this.geometry.nodes[next];
@@ -5092,6 +5202,7 @@ class ColonistFullGame {
   }
 
   computeLongestRoadLength(player) {
+    if (this.sea) return this.sea.tradeRouteLength(player); // ⚓ Longest Trade Route: roads + ships
     if (!player.roads.size) return 0;
     const playerEdgeIds = [...player.roads];
     const incident = new Map();
@@ -5138,7 +5249,7 @@ class ColonistFullGame {
     this.updateLargestArmyHolder();
 
     this.players.forEach((player, idx) => {
-      const base = player.settlements.size + player.cities.size * 2 + player.devVictoryPoints;
+      const base = player.settlements.size + player.cities.size * 2 + player.devVictoryPoints + (this.sea ? this.sea.bonusVP(player) : 0); // ⚓ +2 per new island
       const roadBonus = this.longestRoadHolder === idx ? 2 : 0;
       const armyBonus = this.largestArmyHolder === idx ? 2 : 0;
       player.victoryPoints = base + roadBonus + armyBonus;
@@ -5218,6 +5329,7 @@ class ColonistFullGame {
     this.currentTurnPlayedDevCard = false;
     this.freeRoadsRemaining = 0;
     this.lastRoll = null;
+    this.sea?.onNewTurn(); // ⚓ ship move + "built this turn" reset
     // Invalidate any trade confirm/accept buttons left over from this turn
     this.turnSerial += 1;
     this.tradeLocked = false;
@@ -5442,6 +5554,11 @@ class ColonistFullGame {
       p.rushDevPlayed = false;
       p.rushTradeTried = false;
     });
+    if (this.sea) { // ⚓ a new roll interval: one ship move each again; an unpicked gold choice is made for you
+      if (this.pendingAction === "moveShip") { this.pendingAction = null; this.sea.moveSel = null; }
+      this.sea.onNewTurn();
+      this.players.forEach((p) => { if (this.sea.goldFor(p.id)) this.sea.autoGold(p); });
+    }
     this.addLog(`Roll #${r.rollNo}: rolled ${res.total}.`);
     this.fx?.diceRoll(res.d1, res.d2);
     this.sfx.diceRoll();
@@ -5662,6 +5779,7 @@ class ColonistFullGame {
     const cb = this.confirmBuild;
     if (!cb) return true;
     if (cb.type === "road") return this.canBuildRoad(player, cb.id, { free: this.freeRoadsRemaining > 0 });
+    if (cb.type === "ship") return this.canBuildShip(player, cb.id, { free: this.freeRoadsRemaining > 0 }); // ⚓
     if (cb.type === "settlement") return this.canBuildSettlement(player, cb.id, false);
     if (cb.type === "city") return this.canBuildCity(player, cb.id, false);
     return true;
@@ -6022,9 +6140,12 @@ class ColonistFullGame {
       edges: this.geometry.edges
         .filter(e => e.owner != null)
         .map(e => ({ id: e.id, owner: e.owner })),
+      sea: this.sea ? this.sea.toJSON() : null, // ⚓ Seafarers: pirate, bonuses, moves, gold picks
+      shipEdges: this.sea ? this.geometry.edges.filter((e) => e.ship).map((e) => e.id) : undefined,
       players: this.players.map(p => ({
         resources: { ...p.resources },
         roads: [...p.roads],
+        ...(this.sea ? { ships: [...p.ships] } : {}),
         settlements: [...p.settlements],
         cities: [...p.cities],
         devCards: { ...p.devCards },
@@ -6130,7 +6251,7 @@ class ColonistFullGame {
     this.rush = null;
 
     // Rebuild geometry (deterministic layout)
-    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight);
+    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight, this._seaLayout()); // ⚓ Seafarers board
 
     // Restore hex tiles
     if (!data.hexes || data.hexes.length !== this.geometry.hexes.length) { this.clearStorage(); return false; }
@@ -6198,6 +6319,7 @@ class ColonistFullGame {
         rushTradeTried: !!saved.rushTradeTried,
       };
     });
+    this._seaRestore(data); // ⚓ game.sea + ships (null in a normal game)
     // Older saves have no bank: everything not in a hand is in the bank
     this.bank = makeFullBank();
     RESOURCES.forEach((r) => {
@@ -6813,17 +6935,22 @@ class ColonistFullGame {
     if (this.setupPhase) {
       if (!this.setupAction) return null;
       if (this.setupAction === "settlement") g.nodes.forEach((n) => { if (this.canBuildSettlement(player, n.id, true)) nodes.push(n.id); });
+      else if (this.setupAction === "road" && this.lastSetupNodeId != null && this.sea) return { nodes, cities, ...this._seaSetupSpots(player), type: "road" }; // ⚓
       else if (this.setupAction === "road" && this.lastSetupNodeId != null) g.edges.forEach((e) => { if (e.owner == null && e.nodes.includes(this.lastSetupNodeId)) edges.push(e.id); });
       return { nodes, cities, edges, type: this.setupAction };
     }
     const type = this.pendingAction;
     if (!type || type === "robber") return null;
+    if (type === "moveShip") return { nodes, cities, edges, ships: this.sea?.moveSel?.targets || [], type }; // ⚓
     const free = this.freeRoadsRemaining > 0;
     const all = type === "build" && !free;
+    const ships = [];
     if (type === "settlement" || all) g.nodes.forEach((n) => { if (this.canBuildSettlement(player, n.id, false)) nodes.push(n.id); });
     if (type === "city" || all) g.nodes.forEach((n) => { if (this.canBuildCity(player, n.id, false)) cities.push(n.id); });
     if (type === "road" || all || (type === "build" && free)) g.edges.forEach((e) => { if (this.canBuildRoad(player, e.id, { free })) edges.push(e.id); });
-    return { nodes, cities, edges, type };
+    // ⚓ Seafarers: ship spots (a coast edge that also takes a road is shown as a road spot)
+    if (this.sea && (type === "ship" || all || free)) g.edges.forEach((e) => { if (this.canBuildShip(player, e.id, { free }) && (type === "ship" || !edges.includes(e.id))) ships.push(e.id); });
+    return { nodes, cities, edges, ships, type };
   }
 
   /** Classic board: legal spots only, as calm white rings / dashed road ghosts (no colours that read as errors). */
@@ -7159,7 +7286,7 @@ class ColonistFullGame {
 
   getBuildPosition(cb) {
     if (cb.type === "robber") return { ...this.geometry.hexes[cb.id].center };
-    if (cb.type === "road") {
+    if (cb.type === "road" || cb.type === "ship") {
       const edge = this.geometry.edges[cb.id];
       const [a, b] = edge.nodes;
       const p1 = this.geometry.nodes[a];
@@ -7413,7 +7540,7 @@ class ColonistFullGame {
     this.resourceCardStrip.querySelectorAll(".card[data-card]").forEach((el) => {
       el.addEventListener("click", () => {
         if (this.pendingDiscard?.player === human) { this._discardMark(el.dataset.card); return; }
-        if (!this.currentPlayer?.isHuman || this.phase !== "main" || this.tradeLocked || this._robberInProgress() || this.devPick) return;
+        if (!this.currentPlayer?.isHuman || this.phase !== "main" || this.tradeLocked || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */ || this.devPick) return;
         const res = el.dataset.card;
         if (human.resources[res] <= 0) return;
         // Open trade with this card pre-selected as "give": a full bank set when you hold one,
@@ -7461,7 +7588,8 @@ class ColonistFullGame {
         : "";
       const totalCards = sumResources(player.resources);
       const totalDev = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + (player.isHuman ? player.devVictoryPoints : 0);
-      const awards = (this.longestRoadHolder === player.id ? `<span title="Longest Road (+2 points)">${icon("longestRoad")}</span>` : "")
+      const awards = (this.longestRoadHolder === player.id ? (this.sea ? `<span title="Longest Trade Route (+2 points)">${icon("tradeRoute")}</span>` : `<span title="Longest Road (+2 points)">${icon("longestRoad")}</span>`) : "") // ⚓
+        + (this.sea && this.sea.bonus[player.id]?.length ? `<span class="isle-badge" title="New islands: +${this.sea.bonusVP(player)} points">${icon("island")}<b>${this.sea.bonus[player.id].length}</b></span>` : "")
         + (this.largestArmyHolder === player.id ? `<span title="Largest Army (+2 points)">${icon("largestArmy")}</span>` : "");
       const vp = this.displayVictoryPoints(player);
       rows.push(`<div class="prow player-card-mini pc-${idx}${active ? " active" : ""}${isReady ? " rush-ready" : ""}" data-seat="${idx}">
@@ -7631,7 +7759,7 @@ class ColonistFullGame {
     const cityMissing = missingCostString(human.resources, COSTS.city);
     const devMissing = missingCostString(human.resources, COSTS.development);
     const inSetup = this.setupPhase;
-    const robberBlocking = this._robberInProgress();
+    const robberBlocking = (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */;
     const placeName = { road: "a road", settlement: "a settlement", city: "a city" };
 
     const setButtonState = (button, enabled, disabledHint, enabledHint = "") => {
@@ -7682,7 +7810,7 @@ class ColonistFullGame {
     // The dock tray (build, cards, picks, robber, discard) says what to do in the same line
     const tray = this._renderTray();
     if (tray?.hint) status = tray.hint;
-    const flash = this._flash && this._flash.until > Date.now() ? this._flash.text : null;
+    const flash = (this._flash && this._flash.until > Date.now() ? this._flash.text : null) || this._seaStatus(); // ⚓ "New island! …"
     if (flash) status = flash;
     if (this.actionPromptText) this.actionPromptText.textContent = status;
     // Phones: the ticker line becomes the instruction while you have to act (place, robber, discard)
@@ -7705,8 +7833,10 @@ class ColonistFullGame {
       document.querySelector("#ticker")?.classList.toggle("prompt", !!prompt);
       if (prompt && this.tickerText) {
         this.tickerText.innerHTML = `<span class="tk-main">${prompt}</span>${stepChip ? `<span class="tk-step">${stepChip}</span>` : ""}`;
-        const ic = this.pendingDiscard || this.pendingAction === "robber" || tray?.mode === "victims" ? "robber"
-          : tray?.mode === "cards" || tray?.mode === "pick" ? "devcard" : this.confirmBuild?.type || (this.pendingAction !== "build" && this.pendingAction) || this.setupAction || "build";
+        const ic = { gold: "gold", thief: "pirate", moveShip: "ship", moved: "ship", setupPiece: "ship" }[tray?.mode] // ⚓
+          || (this.sea && this.pendingAction === "robber" && this.confirmBuild && this._seaHexKind(this.confirmBuild.id) === "pirate" ? "pirate" : null)
+          || (this.pendingDiscard || this.pendingAction === "robber" || tray?.mode === "victims" ? "robber"
+          : tray?.mode === "cards" || tray?.mode === "pick" ? "devcard" : this.confirmBuild?.type || (this.pendingAction !== "build" && this.pendingAction) || this.setupAction || "build");
         if (this.tickerIcon) this.tickerIcon.innerHTML = icon(ic);
       }
       if (!prompt) this.renderLog();
@@ -7780,6 +7910,16 @@ class ColonistFullGame {
       piecesHint("settlement") || (settlementMissing ? `Need ${settlementMissing}` : "Not available now"), "Build a settlement (2)");
     setButtonState(this.buildCityBtn, canBuildNow && hasCityCost && !piecesHint("city"),
       piecesHint("city") || (cityMissing ? `Need ${cityMissing}` : "Not available now"), "Upgrade to a city (3)");
+    if (this.buildShipBtn) { // ⚓ Seafarers
+      const shipMissing = missingCostString(human.resources, COSTS.ship);
+      setButtonState(this.buildShipBtn, !!this.sea && canBuildNow && (hasResources(human.resources, COSTS.ship) || this.freeRoadsRemaining > 0) && this.piecesLeft(human, "ship") > 0,
+        this.sea && this.piecesLeft(human, "ship") <= 0 ? "No ships left" : shipMissing ? `Need ${shipMissing}` : "Not available now", "Build a ship (4)");
+      const left = this.buildShipBtn.querySelector(".left");
+      if (left) left.textContent = this.sea ? `${this.piecesLeft(human, "ship")} left` : "";
+      const need = this.buildShipBtn.querySelector(".need");
+      if (need) { const have = { ...human.resources }; need.querySelectorAll("[data-r]").forEach((ic) => { const r = ic.dataset.r; const ok = have[r] > 0; if (ok) have[r] -= 1; ic.classList.toggle("miss", !ok); }); }
+      this.buildShipBtn.classList.toggle("selected-action", this.pendingAction === "ship");
+    }
     setButtonState(this.buyDevBtn, canBuildNow && hasDevCost && this.devDeck.length > 0,
       this.devDeck.length <= 0 ? "Deck empty" : devMissing ? `Need ${devMissing}` : "Not available now", "Buy a development card (B)");
     // pieces left + which cost icons are still missing
@@ -8021,7 +8161,7 @@ class ColonistFullGame {
       const uniq = [...new Set(bots)];
       const mode = d.mode === "rush" ? `<strong>Rush · ${d.rushInterval}s rolls</strong>` : "<strong>Classic</strong>";
       const extras = [
-        `${d.winPoints} VP`,
+        d.board === "seafarers" ? "Seafarers · 14 VP" : `${d.winPoints} VP`, // ⚓
         d.discardLimit !== 7 ? `discard over ${d.discardLimit}` : null,
         d.friendlyRobber ? "friendly robber" : null,
         `${d.dice === "deck" ? "event-deck" : d.dice} dice`,
@@ -8078,8 +8218,15 @@ class ColonistFullGame {
               <section class="ng-section">
                 <h3 class="ng-section-title">Rules</h3>
                 <div class="ng-row">
+                  <div class="ng-row-label">Board</div>
+                  <div class="ng-row-control">
+                    ${seg("board", [["island", "Island"], ["seafarers", "&#9875; Seafarers"]], d.board, "ng-seg-pills")}
+                    <p class="ng-help">${d.board === "seafarers" ? "Heading for New Shores: build ships, sail to three small islands (+2 points for your first settlement on each), gold fields and a pirate. First to 14 points." : "The classic island of 19 tiles."}</p>
+                  </div>
+                </div>
+                <div class="ng-row">
                   <div class="ng-row-label">Points to win</div>
-                  <div class="ng-row-control">${stepper("winPoints", d.winPoints, 5, 15)}</div>
+                  <div class="ng-row-control">${d.board === "seafarers" ? `<p class="ng-help ng-help-tight"><strong>14</strong> (Seafarers scenario)</p>` : stepper("winPoints", d.winPoints, 5, 15)}</div>
                 </div>
                 <div class="ng-row">
                   <div class="ng-row-label">Discard limit</div>
@@ -8358,11 +8505,12 @@ class ColonistFullGame {
       { key: "settlement", label: "Settlement", icon: "settlement", cost: COSTS.settlement },
       { key: "city", label: "City", icon: "city", cost: COSTS.city },
       { key: "development", label: "Card", icon: "devcard", cost: COSTS.development },
+      { key: "ship", label: "Ship", icon: "ship", cost: COSTS.ship, cls: "sea-only" }, // ⚓ shown in Seafarers games only
     ];
     const icons = (cost) => RESOURCES.filter((r) => (cost[r] || 0) > 0)
       .flatMap((r) => Array(cost[r]).fill(`<svg class="ic" viewBox="-50 -50 100 100" data-r="${r}" aria-label="${RESOURCE_LABEL[r]}"><use href="#ic-${r}" x="-50" y="-50" width="100" height="100"/></svg>`)).join("");
     if (this.costRefItems) {
-      this.costRefItems.innerHTML = items.map((it) => `<div class="cost" title="${it.label}: ${resourceString(it.cost)}">${icon(it.icon)}<span>${it.label}</span><span class="res">${icons(it.cost)}</span></div>`).join("");
+      this.costRefItems.innerHTML = items.map((it) => `<div class="cost${it.cls ? ` ${it.cls}` : ""}" title="${it.label}: ${resourceString(it.cost)}">${icon(it.icon)}<span>${it.label}</span><span class="res">${icons(it.cost)}</span></div>`).join("");
     }
     items.forEach((it) => {
       const need = document.querySelector(`.bbtn .need[data-cost="${it.key}"]`);
@@ -8515,7 +8663,7 @@ class ColonistFullGame {
     const devVP = player.isHuman ? player.devVictoryPoints : 0; // opponents' VP cards stay hidden
     const longestRoad = this.longestRoadHolder === player.id ? 2 : 0;
     const largestArmy = this.largestArmyHolder === player.id ? 2 : 0;
-    const total = settlements + cities * 2 + devVP + longestRoad + largestArmy;
+    const total = settlements + cities * 2 + devVP + longestRoad + largestArmy + (this.sea ? this.sea.bonusVP(player) : 0); // ⚓
     const totalDevCards = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0);
 
     const tip = document.createElement("div");
@@ -8528,7 +8676,8 @@ class ColonistFullGame {
       { label: `Cities (${cities}/4)`, value: `${cities} x 2 = ${cities * 2}` },
     ];
     if (devVP > 0) vpRows.push({ label: "Dev VP", value: devVP });
-    if (longestRoad) vpRows.push({ label: "Longest Road", value: 2 });
+    if (longestRoad) vpRows.push({ label: this.sea ? "Longest Trade Route" : "Longest Road", value: 2 }); // ⚓
+    vpRows.push(...this._seaVpRows(player));
     if (largestArmy) vpRows.push({ label: "Largest Army", value: 2 });
     vpRows.push({ label: "Total", value: total, total: true });
     html += vpRows.map(r =>
@@ -8538,6 +8687,7 @@ class ColonistFullGame {
     // Building pieces remaining
     html += '<div class="vp-tooltip-section" style="margin-top:0.3rem">Pieces</div>';
     html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Roads</span><span class="vp-tooltip-value">${roads}/15</span></div>`;
+    if (this.sea) html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Ships</span><span class="vp-tooltip-value">${player.ships.size}/15</span></div>`; // ⚓
     html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Settlements</span><span class="vp-tooltip-value">${settlements}/5</span></div>`;
     html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Cities</span><span class="vp-tooltip-value">${cities}/4</span></div>`;
 
@@ -8545,7 +8695,7 @@ class ColonistFullGame {
     html += '<div class="vp-tooltip-section" style="margin-top:0.3rem">Dev Cards</div>';
     html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">In hand</span><span class="vp-tooltip-value">${totalDevCards}</span></div>`;
     html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Knights played</span><span class="vp-tooltip-value">${player.knightsPlayed}</span></div>`;
-    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Road length</span><span class="vp-tooltip-value">${player.longestRoadLength}</span></div>`;
+    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">${this.sea ? "Trade route" : "Road length"}</span><span class="vp-tooltip-value">${player.longestRoadLength}</span></div>`;
 
     tip.innerHTML = html;
 
@@ -8834,6 +8984,7 @@ class ColonistFullGame {
       this.pendingAction = null;
       this.canvas.style.cursor = "grab";
     }
+    if (this.sea) this.sea.moveSel = null; // ⚓
     this.render();
   }
 
@@ -8893,7 +9044,7 @@ class ColonistFullGame {
     }
     if (home && el.parentElement !== home) home.appendChild(el);
     const u = this.undoState;
-    if (!u) { el.hidden = true; el.innerHTML = ""; return; }
+    if (!u || u.dock) { el.hidden = true; el.innerHTML = ""; return; } // ⚓ a ship move offers Undo in the dock
     el.hidden = false;
     el.classList.toggle("timed", !!u.ms);
     el.style.setProperty("--undo-ms", `${u.ms || 0}ms`);
@@ -8917,7 +9068,9 @@ class ColonistFullGame {
       this.logEntries.length = Math.min(this.logEntries.length, u.logLen);
     } else if (u.kind === "build") {
       if (u.paid && !hasResources(this.bank, u.paid)) return;
-      if (u.type === "road") {
+      if (u.type === "ship") { // ⚓
+        if (!this.sea?.removeShip(p, u.id)) return;
+      } else if (u.type === "road") {
         const e = g.edges[u.id];
         if (e.owner !== p.id) return;
         e.owner = null; p.roads.delete(u.id);
@@ -8925,6 +9078,7 @@ class ColonistFullGame {
         const n = g.nodes[u.id];
         if (n.owner !== p.id || n.structure !== "settlement") return;
         n.owner = null; n.structure = null; p.settlements.delete(u.id);
+        if (u.isle) this.sea?.dropBonus(p, u.isle.island); // ⚓
       } else {
         const n = g.nodes[u.id];
         if (n.owner !== p.id || n.structure !== "city") return;
@@ -8943,6 +9097,8 @@ class ColonistFullGame {
       this.largestArmyHolder = u.la;
       dropLogs(u.logs);
       this.recomputeScores();
+    } else if (u.kind === "moveShip") { // ⚓
+      this._seaUndoMove(u);
     } else if (u.kind === "yop") {
       if (!u.picks.every((r) => p.resources[r] > 0)) return;
       u.picks.forEach((r) => { p.resources[r] -= 1; this.bank[r] += 1; });
@@ -8971,6 +9127,7 @@ class ColonistFullGame {
 
   _robberBlockedReason(hexId, mover) {
     if (hexId === this.robberHexId) return "The robber is already on that tile — pick another one";
+    if (this.sea && hexId === this.sea.pirateHexId) return "The pirate is already there — pick another sea hex"; // ⚓
     const prot = [...new Set(this.geometry.hexes[hexId].nodes.map((id) => this.geometry.nodes[id].owner)
       .filter((o) => o != null && this._isRobberProtected(o, mover)))].map((o) => this.players[o].name);
     return prot.length ? `${prot.join(" and ")} ${prot.length > 1 ? "are" : "is"} protected (${FRIENDLY_ROBBER_VP} points or fewer)` : "The robber can't go there";
@@ -9028,7 +9185,7 @@ class ColonistFullGame {
     const open = force ?? this.trayMode !== "build";
     if (!open) { this.closeTray(); return; }
     const player = this.currentPlayer;
-    if (!player?.isHuman || this.winner || this.phase !== "main" || this._robberInProgress() || this.devPick) return;
+    if (!player?.isHuman || this.winner || this.phase !== "main" || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */ || this.devPick) return;
     this._dropUndo();
     this.hideTradePanel();
     this.trayMode = "build";
@@ -9172,8 +9329,12 @@ class ColonistFullGame {
           + tbtn(`data-discard-undo ${sel ? "" : "disabled"}`, `${icon("undo")}<span>Undo</span>`)
           + tbtn(`data-discard-ok ${sel === pd.count ? "" : "disabled"}`, `${icon("check")}<span>Hand back</span>`, "primary wide") };
     }
+    const goldTray = this.sea ? this._seaTrayGold(human, tbtn) : null; // ⚓ gold pick (also during a bot's turn)
+    if (goldTray) return goldTray;
     if (!cur?.isHuman) return null;
     const cb = this.confirmBuild;
+    const seaTray = this.sea && !this.robberVictimOptions?.length ? this._seaTray(human, cur, tbtn, close) : null; // ⚓ robber/pirate, move ship, set-up ship
+    if (seaTray) return seaTray;
     if (this.robberVictimOptions?.length) {
       return { mode: "victims", hint: "Rob whom? You take 1 random card",
         html: this.robberVictimOptions.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
@@ -9182,8 +9343,8 @@ class ColonistFullGame {
     if (this.pendingAction === "robber" && cb?.type === "robber") {
       const info = this._robberTileInfo(cb.id, cur);
       const hex = info.hex;
-      const where = hex.resource === "desert" || !hex.number ? "the Desert" : `${TERRAIN_NAME[hex.resource]} ${hex.number}`;
-      const blocks = info.prod ? `blocks ${RESOURCE_LABEL[info.prod.res]} on ${info.prod.num}` : "produces nothing";
+      const where = this._hexLabel(hex); // ⚓ "the sea" for the pirate
+      const blocks = info.prod ? `blocks ${RESOURCE_LABEL[info.prod.res] || TERRAIN_NAME[info.prod.res]} on ${info.prod.num}` : hex.resource === "sea" ? "no ships here for now" : "produces nothing";
       const own = info.own ? " (yours too)" : "";
       const vic = info.victims;
       if (vic.length > 1 && (!cb.victim || this.confirmPlacements)) {
@@ -9246,12 +9407,13 @@ class ColonistFullGame {
       const pa = this.pendingAction;
       const can = (t) => this.phase === "main" && (t === "development" ? hasResources(human.resources, COSTS.development) && this.devDeck.length > 0
         : hasResources(human.resources, COSTS[t]) && this.piecesLeft(human, t) > 0);
-      const piece = (t, label) => tbtn(`data-tray-build="${t}" ${can(t) ? "" : "disabled"} aria-pressed="${pa === t}"`, `${icon(t)}<span>${label}</span>`, pa === t ? "sel" : "");
-      const any = ["road", "settlement", "city", "development"].some(can);
+      const chips = (t) => (this.sea ? this._seaCostChips(t) : ""); // ⚓ Seafarers: costs under each button
+      const piece = (t, label) => tbtn(`data-tray-build="${t}" ${can(t) ? "" : "disabled"} aria-pressed="${pa === t}"`, `${icon(t)}<span>${label}</span>${chips(t)}`, pa === t ? "sel" : "");
+      const any = ["road", "settlement", "city", "development", ...(this.sea ? ["ship"] : [])].some(can);
       const hint = this.freeRoadsRemaining ? `Free road · ${this.freeRoadsRemaining} left · tap a glowing spot`
         : pa && pa !== "robber" ? "Tap a glowing spot to build" : any ? "Pick what to buy" : `Not enough cards yet · road ${resourceString(COSTS.road)}`;
       return { mode: "build", hint,
-        html: piece("road", "Road") + piece("settlement", "Settle") + piece("city", "City") + tbtn(`data-tray-buy ${can("development") ? "" : "disabled"}`, `${icon("devcard")}<span>Card</span>`) + close() };
+        html: piece("road", "Road") + (this.sea ? piece("ship", "Ship") : "") + piece("settlement", "Settle") + piece("city", "City") + tbtn(`data-tray-buy ${can("development") ? "" : "disabled"}`, `${icon("devcard")}<span>Card</span>${chips("development")}`) + close() };
     }
     return null;
   }
@@ -9273,6 +9435,7 @@ class ColonistFullGame {
     if (!b || b.disabled) return;
     const d = b.dataset;
     const cur = this.currentPlayer;
+    if (this._seaTrayClick(d)) return; // ⚓
     if ("discardOk" in d) { if (this.pendingDiscard && sumResources(this.pendingDiscard.selected) === this.pendingDiscard.count) this._confirmDiscard(); return; }
     if ("discardUndo" in d) { this._discardUnmark(); return; }
     if ("discardSuggest" in d) { this._discardSuggest(); return; }
@@ -9448,6 +9611,10 @@ class ColonistFullGame {
     if (/rolled|^Roll #/.test(text)) return "dice";
     if (/robber|stole|discard/i.test(text)) return "robber";
     if (/Longest Road/.test(text)) return "longestRoad";
+    if (/new island/.test(text)) return "island"; // ⚓ Seafarers
+    if (/pirate/.test(text)) return "pirate";
+    if (/gold/.test(text)) return "gold";
+    if (/\bship\b/.test(text)) return "ship";
     if (/Largest Army/.test(text)) return "largestArmy";
     if (/Knight/.test(text)) return "knight";
     if (/Monopoly/.test(text)) return "monopoly";
@@ -9552,12 +9719,13 @@ class ColonistFullGame {
     this.ctx.save();
     this.ctx.translate(this.view.offsetX, this.view.offsetY);
     this.ctx.scale(this.view.scale, this.view.scale);
-    this.geometry.hexes.forEach((hex) => this.drawHex(hex));
+    this.geometry.hexes.forEach((hex) => { if (hex.resource !== "sea") this.drawHex(hex); }); // ⚓ sea hexes: open water
     this.drawRobberModeOverlay();
     this.drawRollHighlight();
     this.drawNodeDots();
     this.drawPorts();
     this.drawRoads();
+    if (this.sea) drawClassicSea(this, this.ctx); // ⚓ ships, pirate, +2 chips, ship spots
     this.drawStructures();
     this.drawBuildableHighlights();
     this.drawPlacementAnims();
@@ -9586,6 +9754,8 @@ class ColonistFullGame {
     }
   }
 }
+
+Object.assign(ColonistFullGame.prototype, SeaGame); // ⚓ Seafarers game-side methods (src/seafarers/ui.js)
 
 const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle

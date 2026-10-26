@@ -10,6 +10,8 @@
 //  * The sea is a CSS layer behind the (transparent) canvas, so idle water costs no canvas work.
 import { hexPath, pipCount, f } from "./art-util.js";
 import { motionReduced } from "./manager.js";
+// ⚓ Seafarers drawing (only used while game.sea is set)
+import { seaArt, portLandHex, bakeSeaMarks, drawShips, drawPirateAndChips, drawShipSpots, ghostShip, ghostPirate } from "../seafarers/render.js";
 
 const path2d = new Map();
 const P2D = (d) => {
@@ -192,16 +194,16 @@ export class SvgBoardRenderer {
     return (this.game.ports || []).map((port) => {
       const edge = g.edges[port.edgeId];
       const a = this.nodeArt(edge.nodes[0]), b = this.nodeArt(edge.nodes[1]);
-      const hc = this.hexArt(g.hexes[edge.hexIds[0]]);
+      const hc = this.hexArt(g.hexes[portLandHex(this.game, edge)]); // ⚓ the land side of a coast edge
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       const len = Math.hypot(mx - hc.x, my - hc.y) || 1;
-      return { a, b, mx, my, nx: (mx - hc.x) / len, ny: (my - hc.y) / len, res: port.type === "any" ? null : port.type, ratio: port.type === "any" ? "3:1" : "2:1" };
+      return { a, b, mx, my, nx: (mx - hc.x) / len, ny: (my - hc.y) / len, res: port.type === "any" ? null : port.type, ratio: port.type === "any" ? "3:1" : "2:1", noBoat: !!this.game.sea };
     });
   }
 
   boardKey(k) {
     const g = this.game.geometry;
-    return [this.theme.id, this.theme.paletteId || "", k.toFixed(3), this.tokenScale, g.hexSize.toFixed(2), g.hexes.map((h) => h.resource + h.number).join(""), (this.game.ports || []).map((p) => p.edgeId + p.type).join(",")].join("|");
+    return [this.theme.id, this.theme.paletteId || "", k.toFixed(3), this.tokenScale, !!this.game.sea, g.hexSize.toFixed(2), g.hexes.map((h) => h.resource + h.number).join(""), (this.game.ports || []).map((p) => p.edgeId + p.type).join(",")].join("|");
   }
 
   /**
@@ -215,7 +217,8 @@ export class SvgBoardRenderer {
     const gen = ++this.bakeGen;
     const t0 = performance.now();
     const b = this.artBounds();
-    const centers = this.game.geometry.hexes.map((h) => this.hexArt(h));
+    const sea = !!this.game.sea; // ⚓ Seafarers: beaches round the islands only; sea hexes get faint marks
+    const centers = this.game.geometry.hexes.filter((h) => !sea || h.resource !== "sea").map((h) => this.hexArt(h));
     const portData = this.portData();
     const ports = portData.map((p) => T.port(p));
     const defs = `<defs>${T.boardDefs()}</defs>`;
@@ -229,6 +232,7 @@ export class SvgBoardRenderer {
     const ctx = canvas.getContext("2d");
     ctx.imageSmoothingEnabled = true;
     const at = (x, y) => [(x - b.minX) * k, (y - b.minY) * k];
+    if (sea) bakeSeaMarks(this, ctx, b, k);
     // 1. beach + shallows (blurry by design: half resolution is invisible, and much cheaper)
     const ki = Math.min(k, 1.2);
     const isl = await rasterize(svgOf(b.minX, b.minY, b.W, b.H, ki, T.island(centers)), b.W * ki, b.H * ki);
@@ -246,8 +250,10 @@ export class SvgBoardRenderer {
     const S = 103;
     const sprites = {};
     for (const h of this.game.geometry.hexes) {
+      if (h.resource === "sea") continue; // ⚓
       if (!sprites[h.resource]) {
-        sprites[h.resource] = await rasterize(svgOf(-S, -S, 2 * S, 2 * S, k, T.tile(h.resource)), 2 * S * k, 2 * S * k);
+        const art = h.resource === "gold" ? seaArt(T).goldTile() : T.tile(h.resource); // ⚓ gold field
+        sprites[h.resource] = await rasterize(svgOf(-S, -S, 2 * S, 2 * S, k, art), 2 * S * k, 2 * S * k);
         if (gen !== this.bakeGen) return;
       }
       const c = this.hexArt(h);
@@ -416,6 +422,7 @@ export class SvgBoardRenderer {
 
     // 5. roads
     this.drawRoads(ctx, now, reduced);
+    if (g.sea) drawShips(this, ctx, now, reduced, devK, drawSpec); // ⚓ ships sail between roads and buildings
 
     // 6. buildings, y-sorted
     const blds = g.geometry.nodes.filter((n) => n.structure).sort((a, b) => a.y - b.y);
@@ -423,6 +430,7 @@ export class SvgBoardRenderer {
 
     // 7. robber
     this.drawRobber(ctx, rob, robT, reduced, devK);
+    if (g.sea) drawPirateAndChips(this, ctx, now, reduced, devK, drawSpec); // ⚓ pirate, +2 island chips
 
     // 8. placement hints + ghost + confirm
     if (this.placementActive()) this.drawPlacement(ctx, now, reduced, devK);
@@ -435,8 +443,9 @@ export class SvgBoardRenderer {
 
   drawFallbackBoard(ctx) {
     const T = this.theme, P = T.palette;
-    const fill = { wood: P.forest[0], brick: P.terra[0], sheep: P.pasture[0], wheat: P.wheat[0], ore: P.slate[0], desert: P.desert[0] };
+    const fill = { wood: P.forest[0], brick: P.terra[0], sheep: P.pasture[0], wheat: P.wheat[0], ore: P.slate[0], desert: P.desert[0], gold: "#E5BC52" };
     this.game.geometry.hexes.forEach((h) => {
+      if (h.resource === "sea") return; // ⚓
       const c = this.hexArt(h);
       ctx.save(); ctx.translate(c.x, c.y);
       ctx.fillStyle = P.sand; ctx.fill(HEX_P(110));
@@ -490,7 +499,8 @@ export class SvgBoardRenderer {
     const sel = g.confirmBuild?.type === "robber" ? g.confirmBuild.id : null;
     const px = 1 / (this.u * g.view.scale);
     g.geometry.hexes.forEach((h) => {
-      if (!legal.has(h.id)) { if (h.id !== g.robberHexId) this.dimHex(h.id, 1); return; }
+      // ⚓ Seafarers: the sea is never dimmed (robber mode simply ignores it; pirate mode dims the land)
+      if (!legal.has(h.id)) { if (h.id !== g.robberHexId && !(g.sea && h.resource === "sea")) this.dimHex(h.id, 1); return; }
       const c = this.hexArt(h);
       if (h.id === sel || h.id === g.hoverHexId) {
         ctx.save(); ctx.translate(c.x, c.y);
@@ -500,7 +510,8 @@ export class SvgBoardRenderer {
       }
     });
     const ghostAt = sel ?? (g.hoverHexId != null && legal.has(g.hoverHexId) ? g.hoverHexId : null);
-    if (ghostAt != null) {
+    if (ghostAt != null && g.sea && g.geometry.hexes[ghostAt].resource === "sea") ghostPirate(this, ctx, ghostAt, sel != null ? 0.75 : 0.5, drawSpec); // ⚓
+    else if (ghostAt != null) {
       const rp = this.robberPos(ghostAt);
       ctx.save(); ctx.translate(rp.x, rp.y + 32); ctx.scale(this.pieceScale, this.pieceScale); ctx.translate(0, -32);
       drawSpec(ctx, this.theme.pieces.robber, { alpha: sel != null ? 0.75 : 0.5 });
@@ -540,7 +551,7 @@ export class SvgBoardRenderer {
    *  continuous line with rounded joints, and buildings (drawn after) sit on top of the ends. */
   drawRoads(ctx, now, reduced) {
     const g = this.game;
-    const segs = g.geometry.edges.filter((e) => e.owner != null).map((e) => this.roadSeg(e, g.players[e.owner], now, reduced));
+    const segs = g.geometry.edges.filter((e) => e.owner != null && !e.ship).map((e) => this.roadSeg(e, g.players[e.owner], now, reduced)); // ⚓ ships drawn apart
     // shadow + rim: one path for every settled road; outline/body/highlight: one path per player
     const settled = segs.filter((s) => s.alpha >= 1), fading = segs.filter((s) => s.alpha < 1);
     const groups = new Map();
@@ -655,13 +666,13 @@ export class SvgBoardRenderer {
    */
   drawPlacement(ctx, now, reduced, devK) {
     const g = this.game;
-    const { nodes, edges, type, cities = [] } = this.legalSpots();
+    const { nodes, edges, type, cities = [], ships = [] } = this.legalSpots();
     if (!type || type === "robber") return;
     const cb = g.confirmBuild;
     const px = 1 / (this.u * g.view.scale); // art units per CSS pixel
     const human = g.players[0];
     const c = this.pc(g.currentPlayer || human);
-    const key = `${type}:${nodes.join(",")}:${cities.join(",")}:${edges.join(",")}`;
+    const key = `${type}:${nodes.join(",")}:${cities.join(",")}:${edges.join(",")}:${ships.join(",")}`;
     if (key !== this._placeKey) { this._placeKey = key; this._placeStart = now; }
     const t = reduced ? 1 : clamp01((now - this._placeStart) / 1100);
     const e = easing(this.theme.motion.out)(t);
@@ -692,8 +703,9 @@ export class SvgBoardRenderer {
       ctx.lineWidth = 3.6 * px; ctx.strokeStyle = "rgba(255,255,255,.96)"; ctx.stroke();
       ctx.restore();
     });
+    if (ships.length) drawShipSpots(this, ctx, ships, cb, { a: pulseA, e }, c.base); // ⚓ dotted spots on the water
     nodes.forEach((id) => {
-      if (cb && cb.id === id && cb.type !== "road") return;
+      if (cb && cb.id === id && !["road", "ship"].includes(cb.type)) return;
       const p = this.nodeArt(id);
       ring(p.x, p.y, 7 * px);
     });
@@ -704,9 +716,9 @@ export class SvgBoardRenderer {
     });
     // hover preview (desktop) — a fainter ghost
     const hoverNode = g.hoverNodeId != null && (!cb || cb.id !== g.hoverNodeId) && (nodes.includes(g.hoverNodeId) || cities.includes(g.hoverNodeId)) ? g.hoverNodeId : null;
-    const hoverEdge = g.hoverEdgeId != null && (!cb || cb.id !== g.hoverEdgeId) && edges.includes(g.hoverEdgeId) ? g.hoverEdgeId : null;
+    const hoverEdge = g.hoverEdgeId != null && (!cb || cb.id !== g.hoverEdgeId) && (edges.includes(g.hoverEdgeId) || ships.includes(g.hoverEdgeId)) ? g.hoverEdgeId : null;
     if (hoverNode != null) this.ghost(ctx, cities.includes(hoverNode) ? "city" : "settlement", hoverNode, c, 0.45, devK);
-    if (hoverEdge != null) this.ghost(ctx, "road", hoverEdge, c, 0.45, devK);
+    if (hoverEdge != null) this.ghost(ctx, edges.includes(hoverEdge) ? "road" : "ship", hoverEdge, c, 0.45, devK);
     if (cb && cb.type !== "robber") {
       this.ghost(ctx, cb.type, cb.id, c, 1, devK);
       if (!g.isMobileLayout) this.drawConfirm(ctx, now, reduced, devK);
@@ -716,6 +728,7 @@ export class SvgBoardRenderer {
 
   ghost(ctx, type, id, c, alpha, devK) {
     const g = this.game, T = this.theme;
+    if (type === "ship") { ghostShip(this, ctx, id, c, alpha, devK, drawSpec); return; } // ⚓
     if (type === "road") {
       const [a, b] = this.roadEnds(g.geometry.edges[id]);
       this.strokeRoad(ctx, a, b, c, 0.6 * alpha, false);

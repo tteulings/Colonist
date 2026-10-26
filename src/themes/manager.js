@@ -6,6 +6,7 @@ import wood from "./wood/art.js";
 import silhouette from "./silhouette/art.js";
 import classic from "./classic/art.js";
 import { RESOURCE_KEYS, DEV_KEYS } from "./art-util.js";
+import { seaIcons } from "../seafarers/art.js"; // ⚓ Seafarers icons (themes may draw their own)
 
 export const THEMES = { A: sunny, B: wood, C: silhouette, classic };
 export const THEME_ORDER = ["A", "B", "C", "classic"];
@@ -81,7 +82,7 @@ export const BOT_PROFILE = {
 export function buildSprite(T) {
   let s = `<svg id="themeSprite" class="sprites" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>${T.uiDefs ? T.uiDefs() : ""}`;
   // the Menu glyph: three lines unless the theme draws its own
-  const icons = { menu: `<path d="M-30 -22H30M-30 0H30M-30 22H30" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/>`, ...T.icons };
+  const icons = { menu: `<path d="M-30 -22H30M-30 0H30M-30 22H30" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/>`, ...seaIcons(T.pc?.blue, T.palette?.ink), ...T.icons };
   for (const [k, v] of Object.entries(icons)) s += `<symbol id="ic-${k}" viewBox="-50 -50 100 100" overflow="visible">${v}</symbol>`;
   for (const k of [...RESOURCE_KEYS, ...DEV_KEYS]) s += `<symbol id="card-${k}" viewBox="0 0 250 350">${T.card(k)}</symbol><symbol id="cardm-${k}" viewBox="0 0 250 350">${T.card(k, true)}</symbol>`;
   s += `<symbol id="card-back" viewBox="0 0 250 350">${T.cardBack()}</symbol>`;

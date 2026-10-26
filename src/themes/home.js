@@ -40,7 +40,7 @@ export class Home {
   show() {
     const last = this.opts.last();
     const custom = last.botStyleMode === "each" || !LEVELS.some(([k]) => k === last.allPreset);
-    this.pick = { numBots: last.numBots || 3, preset: custom ? "custom" : last.allPreset, rushInterval: last.rushInterval || 15 };
+    this.pick = { numBots: last.numBots || 3, preset: custom ? "custom" : last.allPreset, rushInterval: last.rushInterval || 15, board: last.board === "seafarers" ? "seafarers" : "island" }; // ⚓ board
     if (!this.el) {
       this.el = document.createElement("div");
       this.el.className = "home";
@@ -66,14 +66,14 @@ export class Home {
     const s = this.opts.saved();
     const p = this.pick;
     const lvl = (LEVELS.find(([k]) => k === p.preset) || [, "Custom"])[1];
-    const vs = `vs ${p.numBots} bot${p.numBots > 1 ? "s" : ""} · ${lvl}`;
+    const vs = `vs ${p.numBots} bot${p.numBots > 1 ? "s" : ""} · ${lvl}${p.board === "seafarers" ? " · Seafarers" : ""}`;
     const levels = p.preset === "custom" ? [...LEVELS, ["custom", "Custom"]] : LEVELS;
     const fresh = !this.opts.introSeen();
     this.el.classList.toggle("has-save", !!s);
     this.el.innerHTML = `<div class="hm-col">
       <header class="hm-brand"><svg class="hm-logo" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>
         <h1>Colonist</h1>${s ? "" : `<p>Settle the island, trade with friendly bots, reach 10 points first.</p>`}</header>
-      ${s ? `<button type="button" class="hm-continue" data-home="continue">${PLAY_IC}<span class="hm-ct"><b>Continue game</b><small>${s.mode} · ${s.mode === "Rush" ? "roll" : "turn"} ${s.turn}</small></span>${CHEV}
+      ${s ? `<button type="button" class="hm-continue" data-home="continue">${PLAY_IC}<span class="hm-ct"><b>Continue game</b><small>${s.mode} · ${s.mode.startsWith("Rush") ? "roll" : "turn"} ${s.turn}</small></span>${CHEV}
         <span class="hm-score">${s.players.map((q) => `<span class="pc-${q.seat}" title="${q.name}: ${q.vp} points"><i></i><em class="nm">${q.name}</em><em class="ini" aria-hidden="true">${q.name.slice(0, 1)}</em> <b>${q.vp}</b></span>`).join("")}</span></button>` : ""}
       <section class="hm-card hm-new" aria-labelledby="hmNewH">
         <h2 class="hm-h" id="hmNewH">${s ? "Start a new game" : "Choose a game"}</h2>
@@ -83,6 +83,8 @@ export class Home {
         </div>
         <div class="hm-row"><span>Opponents</span>${seg("bots", "Opponents", [[1, "1 bot"], [2, "2 bots"], [3, "3 bots"]], p.numBots)}</div>
         <div class="hm-row"><span>Bots play</span>${seg("level", "Bot level", levels, p.preset)}</div>
+        <div class="hm-row hm-map"><span>Map</span>${seg("board", "Map", [["island", "Island"], ["seafarers", "Seafarers"]], p.board)}</div>
+        ${p.board === "seafarers" ? `<p class="hm-note">Heading for New Shores · ships and small islands · 14 points</p>` : ""}
       </section>
       <nav class="hm-card hm-list" aria-label="More">
         <button type="button" data-home="more">${themed(this.game, "sliders", SLIDERS_IC)}<span>More settings<small>Rules, dice, map, each bot</small></span>${CHEV}</button>
@@ -92,7 +94,8 @@ export class Home {
     </div>`;
     const on = (sel, fn) => this.el.querySelectorAll(sel).forEach((b) => b.addEventListener("click", fn));
     on("[data-home='continue']", () => this.opts.onContinue());
-    on(".hm-tile", (e) => this.opts.onStart({ mode: e.currentTarget.dataset.mode, numBots: p.numBots, preset: p.preset }));
+    on(".hm-tile", (e) => this.opts.onStart({ mode: e.currentTarget.dataset.mode, numBots: p.numBots, preset: p.preset, board: p.board }));
+    on("[data-board]", (e) => { p.board = e.currentTarget.dataset.board === "seafarers" ? "seafarers" : "island"; this.render(); this.el.querySelector(`[data-board="${p.board}"]`)?.focus(); }); // ⚓
     on("[data-bots]", (e) => { p.numBots = Number(e.currentTarget.dataset.bots); this.render(); this.el.querySelector(`[data-bots="${p.numBots}"]`)?.focus(); });
     on("[data-level]", (e) => { p.preset = e.currentTarget.dataset.level; this.render(); this.el.querySelector(`[data-level="${p.preset}"]`)?.focus(); });
     on("[data-home='more']", () => this.opts.onMore());
