@@ -13,7 +13,7 @@ const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore:
 // Glossary names (shared/glossary.md): cards are Lumber / Brick / Wool / Grain / Ore
 const RESOURCE_LABEL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
 const RESOURCE_ICON_PATH = {
-  wood: "./assets/icons/resource-wood-v2.svg",
+  wood: "./assets/icons/resource-wood-v3.svg",
   brick: "./assets/icons/resource-brick-v2.svg",
   sheep: "./assets/icons/resource-sheep-v2.svg",
   wheat: "./assets/icons/resource-wheat-v2.svg",
@@ -772,9 +772,11 @@ class ColonistFullGame {
     this._applyAllStrategies = true;
     // AI reasoning toggle
     this.aiReasoningToggle = document.querySelector("#aiReasoningToggle");
+    try { if (this.aiReasoningToggle) this.aiReasoningToggle.checked = localStorage.getItem("colonist.aiReasoning") === "on"; } catch (_) {}
     this.showAiReasoning = this.aiReasoningToggle?.checked || false;
     this.aiReasoningToggle?.addEventListener("change", () => {
       this.showAiReasoning = this.aiReasoningToggle.checked;
+      try { localStorage.setItem("colonist.aiReasoning", this.showAiReasoning ? "on" : "off"); } catch (_) {}
     });
 
     // Sound engine
@@ -1075,7 +1077,17 @@ class ColonistFullGame {
         this.hideDevCardPicker();
       }
     });
+    // Bot speed: 0 (slow) … 100 (fast), right = faster; remembered between visits
+    try {
+      const saved = localStorage.getItem("colonist.botSpeed");
+      if (saved != null && Number.isFinite(Number(saved))) this.speedRange.value = String(Number(saved));
+    } catch (_) {}
+    this._syncSpeedLabel();
+    this.speedRange.addEventListener("change", () => {
+      try { localStorage.setItem("colonist.botSpeed", this.speedRange.value); } catch (_) {}
+    });
     this.speedRange.addEventListener("input", () => {
+      this._syncSpeedLabel();
       if (this.autoplayInterval) {
         this.stopAutoplay();
         this.startAutoplay();
@@ -3741,7 +3753,9 @@ class ColonistFullGame {
       return false;
     }
     if (!hasResources(player.resources, COSTS.development)) {
-      this.addLog(`${player.name} cannot afford a development card.`);
+      // Bots probe this every turn: keep it out of the player-visible ticker/journal
+      if (player.isHuman) this.addLog(`${player.name} cannot afford a development card.`);
+      else this._aiLog(player, "Cannot afford a development card.");
       return false;
     }
     this.payToBank(player, COSTS.development);
@@ -5132,11 +5146,31 @@ class ColonistFullGame {
     this.render();
   }
 
+  /**
+   * Pause between bot moves in ms. The whole slider maps linearly, right = faster:
+   * bot turns 2300 ms (Slow) … 280 ms (Fast); "Watch bots play" turns 3000 … 500 ms.
+   * The default (72) keeps the old pace: ~850 ms per bot move, 1200 ms per watched turn.
+   */
+  botStepMs(kind = "bot") {
+    const min = Number(this.speedRange?.min ?? 0), max = Number(this.speedRange?.max ?? 100);
+    const v = Number(this.speedRange?.value);
+    const t = Number.isFinite(v) && max > min ? Math.min(1, Math.max(0, (v - min) / (max - min))) : 0.72;
+    const [slow, fast] = kind === "autoplay" ? [3000, 500] : [2300, 280];
+    return Math.round(slow - t * (slow - fast));
+  }
+
+  _syncSpeedLabel() {
+    if (!this.speedRange) return;
+    const ms = this.botStepMs();
+    const word = ms >= 1900 ? "Slow" : ms >= 1300 ? "Relaxed" : ms >= 750 ? "Normal" : "Fast";
+    this.speedRange.setAttribute("aria-valuetext", `${word} (${(ms / 1000).toFixed(1)} s per bot move)`);
+  }
+
   startAutoplay() {
     if (this.winner) return;
     this._releaseOnboarding();
     this.stopAiTurnLoop();
-    const delay = Number(this.speedRange.value);
+    const delay = this.botStepMs("autoplay");
     this.autoplayInterval = window.setInterval(this._guard(() => {
       this.autoPlayCurrentTurn();
       this.render();
@@ -5173,7 +5207,7 @@ class ColonistFullGame {
     if (this.currentPlayer.isHuman) return;
     if (this.aiTurnTimeout) return;
 
-    const cadence = Math.max(700, Math.min(2000, Math.round(Number(this.speedRange.value) * 0.7)));
+    const cadence = this.botStepMs();
     const step = this._guard(() => {
       this.aiTurnTimeout = null;
       if (this.winner || this.autoplayInterval || this.setupPhase || this.currentPlayer.isHuman || this._aiDiceAnimating) {
@@ -5936,10 +5970,23 @@ class ColonistFullGame {
   }
 
   saveToStorage() {
+    if (this._saveTimer) { window.clearTimeout(this._saveTimer); this._saveTimer = null; }
+    if (!this.geometry || !this.players?.length || this.onboardingHold) return;
     try {
-      const data = this.serializeState();
-      localStorage.setItem(ColonistFullGame.STORAGE_KEY, JSON.stringify(data));
+      const json = JSON.stringify(this.serializeState());
+      if (json === this._lastSavedJson) return;
+      localStorage.setItem(ColonistFullGame.STORAGE_KEY, json);
+      this._lastSavedJson = json;
     } catch (_) { /* quota exceeded or private mode — ignore */ }
+  }
+
+  // Every state change ends in render(), so render() queues a save: builds, bank and player
+  // trades, accepted offers and dev-card buys/plays survive a reload (no "undo by reloading").
+  // Coalesced (at most one write per 250 ms, never postponed by further renders); identical states
+  // are not rewritten; pagehide / going to the background flush it immediately.
+  _queueSave() {
+    if (this._saveTimer) return;
+    this._saveTimer = window.setTimeout(() => { this._saveTimer = null; this.saveToStorage(); }, 250);
   }
 
   // Strategy persistence — survives game resets
@@ -5966,6 +6013,8 @@ class ColonistFullGame {
   }
 
   clearStorage() {
+    if (this._saveTimer) { window.clearTimeout(this._saveTimer); this._saveTimer = null; }
+    this._lastSavedJson = null;
     try { localStorage.removeItem(ColonistFullGame.STORAGE_KEY); } catch (_) {}
   }
 
@@ -6565,9 +6614,21 @@ class ColonistFullGame {
       const ny = dy / len;
 
       const dockDist = 30 * s;
-      const dockX = mx + nx * dockDist;
-      const dockY = my + ny * dockDist;
+      let dockX = mx + nx * dockDist;
+      let dockY = my + ny * dockDist;
       const color = portColor[port.type] || portColor.any;
+
+      // Label size first: on a phone the outer labels ("2:1 Lumber") can stick out past the screen
+      // edge, so the label (and its ropes) shift inward until the whole box is visible.
+      const label = port.type === "any" ? "3:1" : `2:1 ${RESOURCE_LABEL[port.type]}`;
+      const portFontSize = Math.round(9.5 * s);
+      ctx.font = `700 ${portFontSize}px Inter, system-ui, sans-serif`;
+      const tw = ctx.measureText(label).width;
+      const boxW = Math.max(36 * s, tw + 12 * s);
+      const boxH = 20 * s;
+      const shift = this._keepOnScreen(dockX - boxW / 2, dockY - boxH / 2, boxW, boxH);
+      dockX += shift.x;
+      dockY += shift.y;
 
       // Rope lines to port
       ctx.save();
@@ -6588,12 +6649,6 @@ class ColonistFullGame {
       ctx.shadowColor = "rgba(44, 24, 16, 0.25)";
       ctx.shadowBlur = 4 * s;
       ctx.shadowOffsetY = 2 * s;
-      const label = port.type === "any" ? "3:1" : `2:1 ${RESOURCE_LABEL[port.type]}`;
-      const portFontSize = Math.round(9.5 * s);
-      ctx.font = `700 ${portFontSize}px Inter, system-ui, sans-serif`;
-      const tw = ctx.measureText(label).width;
-      const boxW = Math.max(36 * s, tw + 12 * s);
-      const boxH = 20 * s;
       const bx = dockX - boxW / 2;
       const by = dockY - boxH / 2;
 
@@ -6613,6 +6668,25 @@ class ColonistFullGame {
       ctx.fillText(label, dockX, dockY + 0.5);
       ctx.restore();
     });
+  }
+
+  /** World-space offset that moves a world-space box fully inside the visible part of the canvas (6px margin). */
+  _keepOnScreen(x, y, w, h) {
+    const k = this.view.scale || 1;
+    const M = 6;
+    // visible part of the canvas, in canvas units (the canvas can be wider than the screen)
+    let minX = M, maxX = this.boardWidth - M, minY = M, maxY = this.boardHeight - M;
+    const r = this.canvas.getBoundingClientRect();
+    if (r.width) {
+      const ux = this.boardWidth / r.width, uy = this.boardHeight / r.height;
+      minX = Math.max(minX, (M - r.left) * ux); maxX = Math.min(maxX, (window.innerWidth - M - r.left) * ux);
+      minY = Math.max(minY, (M - r.top) * uy); maxY = Math.min(maxY, (window.innerHeight - M - r.top) * uy);
+    }
+    const a = this.worldToScreen(x, y), bw = w * k, bh = h * k;
+    let dx = 0, dy = 0;
+    if (bw <= maxX - minX) { if (a.x < minX) dx = minX - a.x; else if (a.x + bw > maxX) dx = maxX - (a.x + bw); }
+    if (bh <= maxY - minY) { if (a.y < minY) dy = minY - a.y; else if (a.y + bh > maxY) dy = maxY - (a.y + bh); }
+    return { x: dx / k, y: dy / k };
   }
 
   drawNodeDots() {
@@ -8533,7 +8607,12 @@ class ColonistFullGame {
     });
     window.matchMedia(MOBILE_MQ).addEventListener?.("change", () => this.handleResize());
     window.matchMedia(LANDSCAPE_MQ).addEventListener?.("change", () => this.handleResize());
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) this.boardRenderer?.requestDraw(); });
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) this.boardRenderer?.requestDraw();
+      else this.saveToStorage(); // backgrounded on a phone: may be killed without pagehide
+    });
+    window.addEventListener("pagehide", () => this.saveToStorage());
+    window.addEventListener("resize", () => this._clampFloaters());
     // The board area changes size without a window resize (chrome bars laying out after load, the
     // hand fan, sheets): keep the canvas backing store in step with its box, or the board is drawn
     // squeezed and taps land in the wrong place.
@@ -8603,6 +8682,31 @@ class ColonistFullGame {
     this.boardRenderer?.invalidateStatic();
     this.render();
   }
+
+  // Floating pills and popovers never poke out of the screen: after layout, any that crosses the
+  // left/right edge (narrow phones, an odd container width, long names) is shifted back inside.
+  _clampFloaters() {
+    if (this._clampRaf) return;
+    this._clampRaf = window.requestAnimationFrame(() => {
+      this._clampRaf = 0;
+      const vw = document.documentElement.clientWidth || window.innerWidth;
+      const M = 8;
+      document.querySelectorAll(ColonistFullGame.FLOATERS).forEach((el) => {
+        if (el.hidden || !el.offsetParent && getComputedStyle(el).position !== "fixed") return;
+        const r = el.getBoundingClientRect();
+        if (!r.width) return;
+        const cur = parseFloat(el.style.translate) || 0; // shift applied last time
+        const left = r.left - cur, right = r.right - cur;
+        let dx = 0;
+        if (right > vw - M) dx = vw - M - right;
+        if (left + dx < M) dx = M - left;
+        dx = Math.round(dx);
+        if (dx !== cur) el.style.translate = dx ? `${dx}px 0` : "";
+      });
+    });
+  }
+
+  static FLOATERS = "#confirmPill, .confirm-pill, .ai-reasoning-popup, .rush-offers, .toasts, .update-chip, .vp-tooltip";
 
   _syncScrim() {
     if (!this.scrim) return;
@@ -9363,6 +9467,7 @@ class ColonistFullGame {
   }
 
   render() {
+    this._queueSave();
     this.drawCanvasScene();
     this.renderTopPanels();
     this.renderResourceCards();
@@ -9375,6 +9480,7 @@ class ColonistFullGame {
     this._renderRushOffers();
     this._themeEffects();
     this._syncScrim();
+    this._clampFloaters();
     if (!document.body.dataset.gameReady) {
       document.body.dataset.gameReady = "true";
     }

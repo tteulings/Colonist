@@ -103,7 +103,8 @@
             <label class="settings-toggle-label" title="Off: a tap on a glowing spot builds at once and Undo appears for a few seconds. On: a tap selects, then Place confirms."><input type="checkbox" id="confirmPlacementsToggle" /> Confirm placements <small class="st-note">tap, then Place (otherwise: tap builds, with Undo)</small></label>
           </div>
           <label for="speedRange" class="st-range-label">Bot speed</label>
-          <input id="speedRange" type="range" min="500" max="3000" step="50" value="1200" />
+          <input id="speedRange" type="range" min="0" max="100" step="1" value="72" />
+          <div class="st-range-ends" aria-hidden="true"><span>Slow</span><span>Fast</span></div>
           <div class="dev-tools">
             <div class="st-h">Developer</div>
             <p class="sub">Hand your seat to a bot for a while — handy for testing or watching a game play out.</p>
@@ -266,8 +267,48 @@
 
     <script type="module" src="./src/game.js?v=69"></script>
     <script>
+      // Updates: sw.js and its imports are never taken from the HTTP cache (updateViaCache), the
+      // registration is re-checked whenever the app comes back to the foreground, and a new
+      // version is offered with a calm chip instead of reloading mid-game (the game is saved
+      // after every action, so the reload is safe whenever the player taps it).
       if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+        const sw = navigator.serviceWorker;
+        const hadController = !!sw.controller;
+        const offerUpdate = () => {
+          if (document.getElementById("updateChip")) return;
+          const chip = document.createElement("button");
+          chip.type = "button"; chip.id = "updateChip"; chip.className = "update-chip";
+          chip.setAttribute("aria-live", "polite");
+          chip.innerHTML = "Update ready <span aria-hidden=\"true\">·</span> <b>Reload</b>";
+          chip.addEventListener("click", () => {
+            try { window.__colonistGame && window.__colonistGame.saveToStorage(); } catch (e) {}
+            window.location.reload();
+          });
+          document.body.appendChild(chip);
+          // On phones, sit just under the top bar (players + ticker) instead of covering it
+          const place = () => {
+            const top = document.querySelector(".mtop");
+            const r = top && top.offsetParent !== null ? top.getBoundingClientRect() : null;
+            chip.style.top = r && r.height ? `${Math.round(r.bottom + 8)}px` : "";
+          };
+          place();
+          window.addEventListener("resize", place);
+        };
+        sw.addEventListener("controllerchange", () => { if (hadController) offerUpdate(); });
+        window.addEventListener("load", () => {
+          sw.register("./sw.js", { updateViaCache: "none" }).then((reg) => {
+            const watch = (worker) => worker && worker.addEventListener("statechange", () => {
+              if (worker.state === "installed" && sw.controller) offerUpdate();
+            });
+            if (reg.waiting && sw.controller) offerUpdate();
+            watch(reg.installing);
+            reg.addEventListener("updatefound", () => watch(reg.installing));
+            const check = () => { reg.update().catch(() => {}); };
+            document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
+            window.setInterval(check, 30 * 60 * 1000);
+            check();
+          }).catch(() => {});
+        });
       }
     </script>
   </body>

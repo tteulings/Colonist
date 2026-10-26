@@ -59,3 +59,12 @@
 [data-theme="classic"] .ticker.prompt { color: #1d2a36; }
 [data-theme="classic"] .ticker.prompt .more { color: #4a5a68; }
 [data-theme="classic"] .ticker.prompt .who { color: inherit; }
+/* Phone landscape: the ticker and gear float on the light --float pill and the players rail sits on
+   the sea, so the cream "on dark chrome" text above became invisible. Dark ink on the pill, and the
+   rail gets the dark chrome background it has in portrait (WCAG AA in both orientations). */
+@media (max-height: 500px) and (orientation: landscape) {
+  [data-theme="classic"] .app .mtop .ticker { color: var(--ink); }
+  [data-theme="classic"] .app .mtop .ticker .who { color: var(--heading); }
+  [data-theme="classic"] .app .mtop .ticker .more, [data-theme="classic"] .app .mtop .mgear { color: var(--ink-soft); }
+  [data-theme="classic"] .app .mtop .pstrip { background: var(--m-top); background-image: var(--m-top-image); border-right: var(--chrome-border); }
+}
