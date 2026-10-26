@@ -47,6 +47,7 @@ const ICONS = {
   fit: `<g fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M-32,-12 V-32 H-12 M12,-32 H32 V-12 M32,12 V32 H12 M-12,32 H-32 V12"/></g>`,
   zoomIn: `<circle cx="-6" cy="-6" r="22" fill="none" stroke="currentColor" stroke-width="6"/><path d="M10,10 L30,30 M-16,-6 h20 M-6,-16 v20" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>`,
   zoomOut: `<circle cx="-6" cy="-6" r="22" fill="none" stroke="currentColor" stroke-width="6"/><path d="M10,10 L30,30 M-16,-6 h20" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>`,
+  undo: `<path d="M-14,-22 L-28,-8 L-14,6" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M-26,-8 H8 Q28,-8 28,12 Q28,30 8,30 H-6" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>`,
   close: `<path d="M-18,-18 L18,18 M18,-18 L-18,18" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>`,
   check: `<path d="M-24,0 L-8,16 L24,-18" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>`,
   chevron: `<path d="M-16,-6 L0,10 L16,-6" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>`,

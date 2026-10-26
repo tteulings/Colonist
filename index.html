@@ -100,6 +100,7 @@
               <input id="volumeRange" type="range" min="0" max="100" step="5" value="60" aria-label="Sound volume" />
             </div>
             <label class="settings-toggle-label"><input type="checkbox" id="aiReasoningToggle" /> Show what the bots are thinking</label>
+            <label class="settings-toggle-label" title="Off: a tap on a glowing spot builds at once and Undo appears for a few seconds. On: a tap selects, then Place confirms."><input type="checkbox" id="confirmPlacementsToggle" /> Confirm placements <small class="st-note">tap, then Place (otherwise: tap builds, with Undo)</small></label>
           </div>
           <label for="speedRange" class="st-range-label">Bot speed</label>
           <input id="speedRange" type="range" min="500" max="3000" step="50" value="1200" />
@@ -177,6 +178,8 @@
           <span class="swipe" aria-hidden="true">swipe ›</span>
         </div>
         <div class="actions">
+          <!-- Dock tray: build pieces, cards, Year of Plenty / Monopoly picks, robber, discard (game.js fills it) -->
+          <div class="tray" id="dockPicker" role="group" aria-label="Choices" hidden></div>
           <button class="mbtn m-only" id="mBuildBtn"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-build" x="-50" y="-50" width="100" height="100"/></svg>Build</button>
           <div class="buildgrp" id="actionPromptBuild">
             <div class="sheet-head m-only"><h3><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-build" x="-50" y="-50" width="100" height="100"/></svg>Build</h3>

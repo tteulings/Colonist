@@ -1186,3 +1186,121 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
   .hand .card.slot .slot-name, .hand .card.slot .slot-ic { display: none; }
   .hand .card:not(.slot) .count { min-width: 20px; height: 20px; font-size: 12px; padding: 0 5px; top: -7px; right: -7px; }
 }
+
+/* ==========================================================================
+   v0.69 direct manipulation: dock tray, Undo, inline discard, compact 7-pause
+   ========================================================================== */
+/* The tray takes the place of the dock buttons (same row, same height): no sheet, no scrim */
+.tray { display: none; }
+.app.tray-open .actions > :not(.tray) { display: none !important; }
+.app.tray-open .actions > .tray { display: flex !important; }
+.tray { grid-column: 1 / -1; gap: 6px; height: 60px; min-width: 0; align-items: stretch; animation: trayIn 200ms var(--ease-out, ease-out); }
+@keyframes trayIn { from { opacity: 0; transform: translateY(6px); } }
+.app .tbtn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 0; padding: 0 2px; position: relative;
+  border-radius: var(--btn-radius); background: var(--btn); background-image: var(--btn-image); border: var(--btn-border); box-shadow: var(--btn-shadow);
+  color: var(--btn-ink); font: inherit; font-size: 11.5px; font-weight: 700; white-space: nowrap; cursor: pointer; overflow: hidden;
+}
+.app .tbtn:not(:disabled):active { transform: scale(.97); }
+.tbtn .ic { font-size: 26px; flex: none; }
+.tbtn > span:not(.card) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.tbtn .card { --cw: 24px; flex: none; }
+.tbtn .pk { position: absolute; top: 3px; right: 5px; font-style: normal; font-size: 11px; font-weight: 800; color: var(--accent); }
+.app .tbtn:disabled, .app .tbtn.off { opacity: .42; filter: saturate(.3); cursor: default; }
+.app .tbtn.sel, .app .tbtn.focus { background: var(--btn-on); background-image: none; box-shadow: var(--btn-on-shadow); border: var(--btn-on-border); color: var(--btn-on-ink); }
+.app .tbtn.primary { background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); border: var(--primary-border); box-shadow: var(--primary-shadow); font-size: 13px; }
+.app .tbtn.primary:disabled { opacity: .5; }
+.tray > * { flex: 1 1 0; }
+.tray > .tclose { flex: 0 0 44px; }
+.tray > .tinfo { flex: 2.2 1 0; }
+.tray[data-mode="discard"] > .tinfo { flex: 1.5 1 0; }
+.tray > .wide { flex: 1.5 1 0; }
+.tray > .victim { flex: 1.6 1 0; }
+.tray .victim { flex-direction: row; justify-content: flex-start; gap: 6px; padding: 0 8px; text-align: left; }
+.tray .victim .avatar { --av: 30px; --av-ring: 2px; flex: none; }
+.tray .vn { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.tray .vn b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+.tray .vn small { font-size: 11px; font-weight: 650; color: var(--ink-soft); }
+.app .tray .victim.sel { box-shadow: inset 0 0 0 2px var(--pc, var(--accent)); }
+.tinfo { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 10px; border-radius: var(--btn-radius); background: var(--chip); border: var(--chip-border); overflow: hidden; }
+.tinfo > b { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 26px; color: var(--heading); line-height: 1; }
+.tinfo > b small { font-size: 15px; color: var(--ink-soft); }
+.tinfo > span { display: flex; flex-direction: column; min-width: 0; font-size: 12.5px; font-weight: 750; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tinfo > span small { font-size: 11px; font-weight: 650; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; }
+.tinfo .avatar { --av: 32px; --av-ring: 2px; flex: none; }
+.tinfo > .ic { font-size: 28px; flex: none; }
+/* robber with one victim: a thin line runs out while the move settles (Undo stops it) */
+.tinfo .ttime { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--accent); transform-origin: 0 50%; transform: scaleX(0); }
+.tinfo.timed .ttime { animation: settle var(--settle-ms, 2800ms) linear forwards; }
+@keyframes settle { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* Undo: docked in the ticker row (phones) / under the turn banner (desktop) — never over tiles */
+.undo-toast { display: flex; align-items: center; gap: 8px; padding: 0 4px 0 12px; height: 40px; border-radius: 999px; position: relative; overflow: hidden;
+  background: var(--float); border: var(--float-border); box-shadow: var(--float-shadow); font-size: 13px; font-weight: 750; color: var(--heading); animation: toastIn 220ms var(--ease-pop, ease-out); white-space: nowrap; }
+.undo-toast[hidden] { display: none; }
+.undo-toast > .ic { font-size: 20px; flex: none; }
+.undo-toast .ut { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.app .undo-toast .ut-btn { height: 32px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 800; gap: 4px; display: inline-flex; align-items: center; flex: none; }
+.undo-toast .ut-btn .ic { font-size: 16px; }
+.undo-toast .ut-time { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; }
+.undo-toast .ut-time i { display: block; height: 100%; background: var(--accent); opacity: .7; transform-origin: 0 50%; }
+.undo-toast.timed .ut-time i { animation: settle var(--undo-ms, 4000ms) linear forwards; }
+.tkrow { position: relative; }
+.tkrow .undo-toast .ut, .tkrow .undo-toast > .ic { display: none; }
+.tkrow .undo-toast { padding: 0 4px; position: absolute; right: 52px; top: 50%; transform: translateY(-50%); max-width: calc(100% - 64px); z-index: 2; }
+.lefttop .undo-toast { margin-top: 8px; width: max-content; max-width: 100%; }
+
+/* discard: marked cards in the hand */
+.hand.discarding .card[data-card]:not(.empty) { cursor: pointer; }
+.hand .card.marked::after { content: ""; position: absolute; inset: -3px; border-radius: calc(var(--card-radius, 8px) + 3px); border: 2.5px dashed var(--danger); pointer-events: none; }
+.hand .card.marked svg { opacity: .55; }
+.hand .card .dsel { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); min-width: 26px; padding: 1px 6px; border-radius: 999px; font-size: 12.5px; font-weight: 800; color: #fff; background: var(--danger); text-align: center; z-index: 2; }
+/* a card just bought: one soft pulse in the hand */
+.hand .card.drawn { animation: drawnPulse 1200ms var(--ease-out, ease-out); }
+@keyframes drawnPulse { 0% { transform: translateY(-14px) scale(1.08); } 100% { transform: rotate(var(--rot, 0deg)) translateY(var(--dy, 0px)); } }
+
+/* Rush 7: a calm banner at the top (no scrim); discards happen in your hand, the robber on the board */
+.rush-seven.compact { inset: auto 0 auto 0; top: 0; background: none; align-items: flex-start; pointer-events: none; }
+.app .rush-seven.compact .rush-seven-card { pointer-events: auto; border-radius: 0 0 var(--sheet-radius) var(--sheet-radius); padding: calc(8px + env(safe-area-inset-top)) 14px 10px; max-height: 40vh; overflow-y: auto; }
+.rush-seven.compact .rush-seven-foot, .rush-seven.compact .rush-seven-next, .rush-seven.compact .rush-seven-frozen { display: none; }
+.rush-seven.compact .rush-seven-head { margin-bottom: 4px; }
+.rush-seven.compact .rush-seven-step { margin: 0 0 4px; padding: 6px 10px; }
+.rush-seven.compact .rush-seven-step.done { display: none; }
+.rush-seven.compact .rush-seven-badge { width: 30px; height: 30px; font-size: 20px; }
+.rush-seven.compact .rush-seven-head h3 { font-size: 17px; }
+
+/* ticker: up to two lines so the important end of a message is never cut off */
+.ticker .txt, .ticker .txt .tk-main { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.2; }
+.ticker .txt:has(.tk-main) { display: flex; }
+.mtop .ticker { font-size: 12.5px; }
+.st-note { display: block; font-size: 11.5px; font-weight: 600; color: var(--ink-soft); margin-left: 26px; }
+
+@media (min-width: 901px) and (min-height: 501px) {
+  .tray { height: 112px; gap: 8px; max-width: 760px; grid-column: auto; }
+  .app.tray-open .actions { flex: 1; justify-content: flex-end; }
+  .app.tray-open .actions > .tray { flex: 1; }
+  .app .tbtn { font-size: 13.5px; gap: 4px; }
+  .tbtn .ic { font-size: 36px; }
+  .tbtn .card { --cw: 40px; }
+  .tray > .tclose { flex: 0 0 56px; }
+  .tinfo > b { font-size: 34px; }
+  .tinfo > span { font-size: 14px; }
+  .rush-seven.compact { left: 50%; right: auto; top: 80px; transform: translateX(-50%); }
+  .app .rush-seven.compact .rush-seven-card { width: 440px; border-radius: var(--panel-radius); padding: 10px 16px; }
+  .ticker .txt { -webkit-line-clamp: 1; }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .app.tray-open .actions > .tray { display: flex !important; flex-direction: column; height: auto; gap: 5px; }
+  .tray .tbtn, .tray .tinfo { height: 40px; flex: none; flex-direction: row; justify-content: flex-start; gap: 6px; padding: 0 8px; font-size: 12px; }
+  .tray > .tclose { width: 100%; justify-content: center; flex: none; }
+  .tray .tbtn .card { --cw: 18px; }
+  .tray .tbtn .ic { font-size: 20px; }
+  .tray .victim .avatar, .tinfo .avatar { --av: 24px; }
+  .tinfo > b { font-size: 20px; }
+  .tkrow .undo-toast { right: 46px; height: 34px; }
+}
+@media (min-width: 901px) and (min-height: 501px) {
+  /* the instruction may need two lines: wrap instead of cutting it off */
+  .turn-banner { white-space: normal; }
+  .banner-text span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; max-width: 380px; }
+}
