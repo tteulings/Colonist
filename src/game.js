@@ -1,4 +1,4 @@
-import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced, SEAT_PRESETS } from "./themes/manager.js";
+import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced, SEAT_PRESETS, awardStat } from "./themes/manager.js";
 import { SvgBoardRenderer } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
@@ -61,13 +61,14 @@ const BANK_SIZE = 19; // cards of each resource in the game
 const PIECE_LIMITS = { road: 15, settlement: 5, city: 4, ship: 15 }; // ⚓ ship: Seafarers only
 
 const PLAYER_CONFIG = [
-  { name: "You", color: "#e63946", isHuman: true, avatar: "./assets/avatars/avatar-human.svg?v=57" },
-  { name: "Marina", color: "#2a6fdb", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg?v=57" },
-  { name: "Bruno", color: "#e8a317", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
-  { name: "Viktor", color: "#2db87e", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
-  // seats 5 and 6 (5–6 player games); colours come from the theme (see src/themes/seats.js)
-  { name: "Nora", color: "#E01000", isHuman: false, avatar: "" },
-  { name: "Hugo", color: "#4CCBF5", isHuman: false, avatar: "" },
+  { name: "You", color: "#E0312B", isHuman: true, avatar: "./assets/avatars/avatar-human.svg?v=57" },
+  { name: "Marina", color: "#2F6FE6", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg?v=57" },
+  { name: "Bruno", color: "#F7931E", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
+  { name: "Viktor", color: "#2E9E5E", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
+  // seats 5 and 6 (5–6 player games); colours come from the theme (see src/themes/seats.js).
+  // v0.75 seat colours (colonist.io order): red · blue · orange · green · ivory · purple; the theme overrides these
+  { name: "Nora", color: "#EDE6D3", isHuman: false, avatar: "" },
+  { name: "Hugo", color: "#72309F", isHuman: false, avatar: "" },
 ];
 
 const DEV_CARD_TYPES = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
@@ -7673,17 +7674,17 @@ class ColonistFullGame {
       const awards = (this.longestRoadHolder === player.id ? (this.sea ? `<span title="Longest Trade Route (+2 points)">${icon("tradeRoute")}</span>` : `<span title="Longest Road (+2 points)">${icon("longestRoad")}</span>`) : "") // ⚓
         + (this.largestArmyHolder === player.id ? `<span title="Largest Army (+2 points)">${icon("largestArmy")}</span>` : "");
       const vp = this.displayVictoryPoints(player);
-      // v0.73: knights played and road length per player, only once they mean something (knights > 0,
-      // a road of 3+ or the award); the award itself is the same number on a gold chip, not an extra badge
+      // knights played and road length only once they mean something (knights > 0, a road of 3+ or the award);
+      // v0.75: the award holder's number sits on a gold pill with "+2" (gold: never a seat colour)
       const lr = this.longestRoadHolder === player.id, la = this.largestArmyHolder === player.id;
       const over = totalCards > (this.settings?.discardLimit ?? 7);
       const stats = [
         `<span data-stat="cards"${over ? ' class="warn"' : ""} title="${totalCards} resource card${totalCards === 1 ? "" : "s"}${over ? ` (more than ${this.settings?.discardLimit ?? 7}: hands back half on a 7)` : ""}">${icon("cards")}${totalCards}</span>`,
         totalDev > 0 ? `<span data-stat="dev" title="${totalDev} development card${totalDev === 1 ? "" : "s"}">${icon("devcard")}${totalDev}</span>` : "",
-        player.knightsPlayed > 0 || la ? `<span data-stat="knights"${la ? ' class="award"' : ""} title="${player.knightsPlayed} knight${player.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest Army (+2 points)" : ""}">${icon("knight")}${player.knightsPlayed}</span>` : "",
-        player.longestRoadLength >= 3 || lr ? (this.sea // ⚓ Seafarers: the trade route counts roads + ships
-          ? `<span data-stat="road"${lr ? ' class="award"' : ""} title="Trade route ${player.longestRoadLength}${lr ? " · Longest Trade Route (+2 points)" : " (5+ to win Longest Trade Route)"}">${icon("tradeRoute")}${player.longestRoadLength}</span>`
-          : `<span data-stat="road"${lr ? ' class="award"' : ""} title="Longest road ${player.longestRoadLength}${lr ? " · Longest Road (+2 points)" : " (5+ to win Longest Road)"}">${icon("road")}${player.longestRoadLength}</span>`) : "",
+        awardStat("knights", player.knightsPlayed, la, `${player.knightsPlayed} knight${player.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest Army (+2 points)" : " (3+ to win Largest Army)"}`, "knight"),
+        this.sea // ⚓ Seafarers: the trade route counts roads + ships
+          ? awardStat("road", player.longestRoadLength, lr, `Trade route ${player.longestRoadLength}${lr ? " · Longest Trade Route (+2 points)" : " (5+ to win Longest Trade Route)"}`, "tradeRoute")
+          : awardStat("road", player.longestRoadLength, lr, `Longest road ${player.longestRoadLength}${lr ? " · Longest Road (+2 points)" : " (5+ to win Longest Road)"}`, "road"),
         this.sea && this.sea.bonus[player.id]?.length ? `<span data-stat="isle" class="award" title="New islands: ${this.sea.bonus[player.id].length} (+${this.sea.bonusVP(player)} points)">${icon("island")}${this.sea.bonus[player.id].length}</span>` : "", // ⚓
       ].filter(Boolean);
       rows.push(`<div class="prow player-card-mini pc-${idx}${active ? " active" : ""}${isReady ? " rush-ready" : ""}" data-seat="${idx}">

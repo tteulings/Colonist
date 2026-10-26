@@ -12,14 +12,17 @@ import sunny from "../sunny/art.js";
 
 const INK = "#2A241E", INK2 = "#5E5245", IVORY = "#F3EBDA", RED = "#A8352B", ACC = "#2E6650", BRASS = "#D9AE4E";
 
-// Seats: identical to Sunny Island (light) so switching themes never recolours a player.
+// Seats: identical to Sunny Island (light) so switching themes never recolours a player
+// (v0.75: You red · Marina blue · Bruno orange · Viktor green, colonist.io order).
 const PC = {
-  blue: { base: "#3A76DC", dark: "#2557B0", light: "#7AA5F0", line: "#163777" },
-  orange: { base: "#F68B3A", dark: "#BF6118", light: "#FBB57A", line: "#6E380C" },
-  ivory: { base: "#FDFBF6", dark: "#C8BFAA", light: "#FFFFFF", line: "#4A443A" },
-  plum: { base: "#A8306F", dark: "#7A1F50", light: "#D06A9E", line: "#3A0A24" },
+  red: { base: "#E0312B", dark: "#A8201B", light: "#F47A72", line: "#1A1A1A" },
+  blue: { base: "#2F6FE6", dark: "#1F50B8", light: "#7AA5F5", line: "#1A1A1A" },
+  orange: { base: "#F7931E", dark: "#C0680A", light: "#FCC06E", line: "#1A1A1A" },
+  green: { base: "#2E9E5E", dark: "#1D7642", light: "#72CC95", line: "#1A1A1A" },
+  ivory: { base: "#EDE6D3", dark: "#C8BFAA", light: "#FBF7EC", line: "#6B6253" },
+  purple: { base: "#72309F", dark: "#521E76", light: "#A872D0", line: "#1A1A1A" },
 };
-const TEXT = { blue: "#2C5BA8", orange: "#A65314", ivory: "#7D6D4C", plum: "#8E2560" }; // seat hues, darkened to AA on paper
+const TEXT = { red: "#A01D18", blue: "#1F4FAE", orange: "#8F4710", green: "#12603A", ivory: "#5E5139", purple: "#72309F" }; // seat hues, darkened to AA on paper
 
 // printed terrain tones [shade, mid, light]
 const TER = {
@@ -225,17 +228,17 @@ const ICON_RAW = {
   desert: `<g ${st}><path d="M-40,26 Q-14,4 6,14 Q22,2 40,16 V30 H-40 Z" fill="#D9C391"/><circle cx="16" cy="-18" r="12" fill="#E8C46A"/></g>`,
 };
 const gearD = (() => { let d = ""; for (let i = 0; i < 16; i += 1) { const a = (i * Math.PI) / 8 + Math.PI / 16, r = i % 2 ? 26 : 36; d += (i ? "L" : "M") + f(r * Math.cos(a - 0.1)) + "," + f(r * Math.sin(a - 0.1)) + "L" + f(r * Math.cos(a + 0.1)) + "," + f(r * Math.sin(a + 0.1)); } return d + "Z"; })();
-const BLUE = PC.blue;
+const BUILD_INK = { base: "#22313A", dark: "#16222A", light: "#4A5A64", line: "#0E161B" }; // v0.75: build / dock icons in neutral ink (UI, not a seat colour)
 const ICONS = {
   ...ICON_RAW,
   knight: `<g ${st}><path d="M-24,-6 Q-24,-34 0,-36 Q24,-34 24,-6 V22 Q24,34 0,38 Q-24,34 -24,22 Z" fill="#9BA3AC"/><path d="M-24,0 H24" fill="none"/><path d="M-14,-6 H14 M-14,8 H-4 M4,8 H14" fill="none" stroke-width="5"/><path d="M0,-36 V-46 M-8,-46 Q0,-52 8,-46" fill="none"/></g><path d="M-18,-12 Q-16,-30 0,-31" fill="none" stroke="#DDE1E4" stroke-width="3" stroke-linecap="round"/><path d="M0,8 V34" stroke="${INK}" stroke-width="3"/>`,
-  roadBuilding: `<g ${st}><path d="M-38,18 L-6,-26 L4,-18 L-28,26 Z" fill="${BLUE.base}"/><path d="M-4,30 L28,-14 L38,-6 L6,38 Z" fill="${BLUE.base}"/></g><path d="M-30,14 L-6,-18" stroke="${BLUE.light}" stroke-width="3" stroke-linecap="round"/><path d="M2,26 L26,-6" stroke="${BLUE.light}" stroke-width="3" stroke-linecap="round"/>`,
+  roadBuilding: `<g ${st}><path d="M-38,18 L-6,-26 L4,-18 L-28,26 Z" fill="${BUILD_INK.base}"/><path d="M-4,30 L28,-14 L38,-6 L6,38 Z" fill="${BUILD_INK.base}"/></g><path d="M-30,14 L-6,-18" stroke="${BUILD_INK.light}" stroke-width="3" stroke-linecap="round"/><path d="M2,26 L26,-6" stroke="${BUILD_INK.light}" stroke-width="3" stroke-linecap="round"/>`,
   yearOfPlenty: `<g ${st}><path d="M-34,-6 H34 L26,34 H-26 Z" fill="#B88A55"/><path d="M-34,-6 Q-20,-30 -6,-12 Q0,-34 14,-14 Q26,-28 34,-6" fill="#EBC566"/></g><path d="M-30,6 H30 M-28,18 H28" stroke="${INK}" stroke-width="2.6" opacity=".7"/>`,
   monopoly: `<g ${st}><path d="M0,-38 V30 M-22,36 H22 M-34,-24 H34" fill="none"/><path d="M-34,-24 L-46,4 H-22 Z M34,-24 L22,4 H46 Z" fill="${BRASS}"/><circle cy="-38" r="5" fill="${BRASS}"/></g>`,
   victoryPoint: `<g ${st}><path d="M-20,-36 H20 V-6 Q20,16 0,18 Q-20,16 -20,-6 Z" fill="${BRASS}"/><path d="M-20,-28 Q-36,-28 -34,-14 Q-32,-2 -18,0 M20,-28 Q36,-28 34,-14 Q32,-2 18,0" fill="none"/><path d="M0,18 V28 M-16,38 H16 L12,28 H-12 Z" fill="${BRASS}"/></g><path d="M-12,-30 V-10" stroke="#EAD08F" stroke-width="4" stroke-linecap="round"/>`,
-  road: `<g ${st}><rect x="-40" y="-9" width="80" height="18" rx="3" fill="${BLUE.base}" transform="rotate(-30)"/></g><path d="M-30,10 L28,-24" stroke="#fff" stroke-opacity=".35" stroke-width="3" stroke-linecap="round"/>`,
-  settlement: `<g transform="translate(-6 2) scale(1.8)">${specSvg(house(BLUE))}</g>`,
-  city: `<g transform="translate(-2 4) scale(1.4)">${specSvg(cityArt(BLUE))}</g>`,
+  road: `<g ${st}><rect x="-40" y="-9" width="80" height="18" rx="3" fill="${BUILD_INK.base}" transform="rotate(-30)"/></g><path d="M-30,10 L28,-24" stroke="#fff" stroke-opacity=".35" stroke-width="3" stroke-linecap="round"/>`,
+  settlement: `<g transform="translate(-6 2) scale(1.8)">${specSvg(house(BUILD_INK))}</g>`,
+  city: `<g transform="translate(-2 4) scale(1.4)">${specSvg(cityArt(BUILD_INK))}</g>`,
   trade: `<g ${st}><path d="M-36,-18 H14 V-30 L36,-12 L14,6 V-6 H-36 Z" fill="#E8954A"/><path d="M36,18 H-14 V6 L-36,24 L-14,42 V30 H36 Z" fill="#62BCCB" transform="translate(0 -6)"/></g>`,
   bank: `<g ${st}><path d="M-36,-14 L0,-36 L36,-14 Z" fill="${BRASS}"/><path d="M-36,34 H36 V26 H-36 Z" fill="${BRASS}"/><path d="M-24,-8 V20 M-8,-8 V20 M8,-8 V20 M24,-8 V20" fill="none" stroke-width="6"/></g>`,
   dice: `<g ${st}><rect x="-36" y="-22" width="40" height="40" rx="7" fill="#E7D3A8" transform="rotate(-12 -16 -2)"/><rect x="0" y="-8" width="38" height="38" rx="7" fill="#F3E6C8" transform="rotate(10 19 11)"/></g><g fill="${INK}"><circle cx="-24" cy="-8" r="3.6"/><circle cx="-10" cy="4" r="3.6"/><circle cx="12" cy="4" r="3.4"/><circle cx="26" cy="20" r="3.4"/><circle cx="19" cy="12" r="3.4"/></g>`,
@@ -319,7 +322,7 @@ function thumb() {
     <path d="${hx(1.5, 3, 50)}" fill="#3A2412" opacity=".35"/><path d="${hx(0, 1.5, 50)}" fill="#7C6B52"/><path d="${hx(0, 0, 50)}" fill="#62BCCB"/><path d="${hx(0, 0, 46)}" fill="none" stroke="#F3EBDA" stroke-opacity=".6" stroke-width=".8"/>
     ${pos.map(([x, y, t]) => `<path d="${hx(x, y + 1.6, 14.5)}" fill="#5E5040"/><path d="${hx(x, y, 14.5)}" fill="${TER[t].base}"/>`).join("")}
     <circle cx="0" cy="0" r="6" fill="#FBF6EA" stroke="#B9A786" stroke-width=".8"/><text x="0" y="2.6" text-anchor="middle" font-size="7.5" font-weight="700" font-family="Georgia,serif" fill="${RED}">8</text>
-    <g transform="translate(13 -11) scale(.32)">${specSvg(house(PC.orange).slice(1))}</g><g transform="translate(-13 11) scale(.32)">${specSvg(house(PC.blue).slice(1))}</g></svg>`;
+    <g transform="translate(13 -11) scale(.32)">${specSvg(house(PC.blue).slice(1))}</g><g transform="translate(-13 11) scale(.32)">${specSvg(house(PC.red).slice(1))}</g></svg>`;
 }
 
 /** Number disc, drawn on the canvas with lining figures (WoodNumerals = Playfair Display bold digits). */
@@ -339,9 +342,9 @@ const wood = {
   // local font files (assets/fonts, declared in themes/theme-wood.css): work offline, nothing to fetch from Google
   fonts: { families: ["Playfair Display", "Source Sans 3", "Colonist Wood Numerals"] },
   paletteDots: ["#A8673A", "#62BCCB", "#5E9F58", "#F2C552", "#2E6650"],
-  confettiColors: [BRASS, "#F3EBDA", "#3A76DC", "#F68B3A", ACC, "#9FBC6A"],
+  confettiColors: [BRASS, "#F3EBDA", "#E0312B", "#2F6FE6", ACC, "#9FBC6A"],
   motion: { name: "Weighty & tactile", k: 1.08, pop: "cubic-bezier(.34,1.2,.64,1)", out: "cubic-bezier(.2,.9,.3,1)", inOut: "cubic-bezier(.65,0,.35,1)", fall: "cubic-bezier(.55,0,1,.45)", squash: [1.08, 0.93], bounces: 1, sway: 0 },
-  seatKeys: ["blue", "orange", "ivory", "plum"],
+  seatKeys: ["red", "blue", "orange", "green"], // v0.75 colonist.io order; seats 5–6 (ivory, purple) via src/themes/seats.js
   textColors: TEXT,
   pc: PC,
   palette: P,

@@ -45,10 +45,11 @@
   --active-row: #EDF3EC; --divider: 1px solid #E4D9C3; --divider-soft: 1px solid #EDE4D2; --sep: #D3C5A8;
   --fab-radius: 10px; --card-radius: 7px; --card-shadow: drop-shadow(0 1px 1px rgba(40,25,10,.35)) drop-shadow(0 4px 6px rgba(40,25,10,.18));
   --avatar-radius: 50%; --avatar-shadow: 0 1px 2px rgba(0,0,0,.25);
-  /* seats: identical in every theme — You (blue) · orange · ivory · plum */
-  --p0: #4A7FD6; --p1: #F2934A; --p2: #D8CFBB; --p3: #A8306F;
-  --p0-text: #2C5BA8; --p1-text: #A65314; --p2-text: #7D6D4C; --p3-text: #8E2560;
-  --p0-ink: #fff; --p1-ink: #2A241E; --p2-ink: #2E3A3D; --p3-ink: #fff;
+  /* seats (v0.75, colonist.io order), identical in every theme: You red · Marina blue · Bruno orange · Viktor green
+     (+ Nora ivory · Hugo purple from src/themes/seats.js). -text: AA on paper; -ink: AA on the seat colour */
+  --p0: #E0312B; --p1: #2F6FE6; --p2: #F7931E; --p3: #2E9E5E;
+  --p0-text: #A01D18; --p1-text: #1F4FAE; --p2-text: #8F4710; --p3-text: #12603A;
+  --p0-ink: #fff; --p1-ink: #fff; --p2-ink: #2A241E; --p3-ink: #0F2418;
   --row-tint: 7%; --vp-tint: 18%;
   --h2-bg: linear-gradient(#F7E8C4, #F3DFB0); --h2-bg-2: linear-gradient(#E6EFDB, #DCE9CD); --h2-border: 1px solid rgba(120,90,40,.15);
   --jicon-bg: #F6EBD3; --jicon-pad: 3px; --jicon-size: 20px;
@@ -222,9 +223,10 @@
     background: var(--pc); color: var(--pc-ink); font-size: 18px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.3);
   }
   [data-theme="B"] .pchip .vpn small { display: none; }
-  /* points on the seat colour at AA: the blue seat uses its deeper shade, the orange seat dark ink */
+  /* points on the seat colour at AA: the red seat uses its deeper shade, the orange and green seats dark ink */
   [data-theme="B"] .pchip.pc-0 .vpn { background: var(--p0-text); }
-  [data-theme="B"] .pchip.pc-1 .vpn { color: #2E1F14; }
+  [data-theme="B"] .pchip.pc-2 .vpn { color: #2E1F14; }
+  [data-theme="B"] .pchip.pc-3 .vpn { color: var(--p3-ink); }
   [data-theme="B"] .pchip .pn { grid-area: pn; text-align: left; font-size: 11.5px; line-height: 13px; font-weight: 750; color: var(--bar-ink); overflow: hidden; text-overflow: ellipsis; }
   [data-theme="B"] .pchip:has(.bdg span) .pn { padding-right: 16px; }
   [data-theme="B"] .pchip:has(.bdg span + span) .pn { padding-right: 32px; }

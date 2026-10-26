@@ -14,9 +14,12 @@ const DEV_ICON = {
   yearOfPlenty: "./assets/icons/dev-year-of-plenty.svg", monopoly: "./assets/icons/dev-monopoly.svg",
 };
 const RES_COLOR = { wood: "#4a7c3f", brick: "#c66536", sheep: "#7ec850", wheat: "#d9bc52", ore: "#8b96a8", desert: "#d6c28e" };
-// Seats look the same in every theme: You blue, Marina orange, Bruno ivory, Viktor plum
-// (the Sunny Island piece colours and portraits), so switching themes never recolours a player.
-const SEAT_COLORS = ["#3A76DC", "#F68B3A", "#F3EEE2", "#A8306F"];
+// Seats look the same in every theme (v0.75, colonist.io order): You red, Marina blue, Bruno orange, Viktor green
+// (+ Nora ivory, Hugo purple in 5–6 player games, appended by src/themes/seats.js) — the Sunny Island piece
+// colours and portraits, so switching themes never recolours a player.
+const SEAT_COLORS = ["#E0312B", "#2F6FE6", "#F7931E", "#2E9E5E"];
+// Classic has no per-seat piece shades (theme.pc); the build / Seafarers ship icons use this neutral ink
+const YOU_PC = { base: "#22313A", dark: "#16222A", light: "#4A5A64", line: "#0E161B" }; // v0.75: build icons in neutral ink (UI, not a seat colour)
 const ink = "#1a3a52";
 
 const star = `<path d="M0,-34 l10,20 22,3 -16,15 4,22 -20,-10 -20,10 4,-22 -16,-15 22,-3Z" fill="#c4a265" stroke="#8a6a2c" stroke-width="3" stroke-linejoin="round"/>`;
@@ -26,9 +29,9 @@ const ICONS = {
   ...Object.fromEntries(Object.entries(DEV_ICON).map(([k, v]) => [k, img(v, 84)])),
   desert: `<rect x="-40" y="-40" width="80" height="80" rx="18" fill="${RES_COLOR.desert}" stroke="#a08a55" stroke-width="3"/><path d="M-30,20 Q-10,0 10,14 Q22,6 32,14" stroke="#9a7630" stroke-width="5" fill="none" stroke-linecap="round"/>`,
   victoryPoint: `<rect x="-40" y="-40" width="80" height="80" rx="18" fill="#f5efe4" stroke="#c4a265" stroke-width="3"/>${star}`,
-  road: `<rect x="-38" y="-8" width="76" height="16" rx="8" fill="${SEAT_COLORS[0]}" stroke="#0f1722" stroke-width="4" transform="rotate(-22)"/>`,
-  settlement: house(SEAT_COLORS[0]),
-  city: `<path d="M-32,26 V-4 H-10 V-22 L2,-34 L14,-22 V-4 H32 V26Z" fill="${SEAT_COLORS[0]}" stroke="#0f1722" stroke-width="4" stroke-linejoin="round"/>`,
+  road: `<rect x="-38" y="-8" width="76" height="16" rx="8" fill="${YOU_PC.base}" stroke="#0f1722" stroke-width="4" transform="rotate(-22)"/>`,
+  settlement: house(YOU_PC.base),
+  city: `<path d="M-32,26 V-4 H-10 V-22 L2,-34 L14,-22 V-4 H32 V26Z" fill="${YOU_PC.base}" stroke="#0f1722" stroke-width="4" stroke-linejoin="round"/>`,
   trade: img("./assets/icons/ui-trade.svg", 90),
   build: img("./assets/icons/ui-build.svg", 90),
   dice: img("./assets/icons/ui-dice.svg", 90),
@@ -40,7 +43,7 @@ const ICONS = {
   log: `<rect x="-28" y="-36" width="56" height="72" rx="6" fill="#f5efe4" stroke="#8a7a5a" stroke-width="3"/><path d="M-16,-18 H16 M-16,-4 H16 M-16,10 H8" stroke="#8a7a5a" stroke-width="4" stroke-linecap="round"/>`,
   robber: `<circle cy="-20" r="12" fill="#1a2030"/><path d="M-20,30 L-12,4 L0,-8 L12,4 L20,30Z" fill="#1a2030" stroke="#8a95a5" stroke-width="2"/>`,
   longestRoad: `<rect x="-40" y="-24" width="80" height="48" rx="12" fill="#f0d070" stroke="#a08530" stroke-width="3"/><text y="10" text-anchor="middle" font-size="30" font-weight="800" fill="#6b5030" font-family="Inter, sans-serif">LR</text>`,
-  largestArmy: `<rect x="-40" y="-24" width="80" height="48" rx="12" fill="#d86a6a" stroke="#8e3030" stroke-width="3"/><text y="10" text-anchor="middle" font-size="30" font-weight="800" fill="#fff" font-family="Inter, sans-serif">LA</text>`,
+  largestArmy: `<rect x="-40" y="-24" width="80" height="48" rx="12" fill="#f0d070" stroke="#a08530" stroke-width="3"/><text y="10" text-anchor="middle" font-size="30" font-weight="800" fill="#6b5030" font-family="Inter, sans-serif">LA</text>`,
   vp: star,
   cards: `<rect x="-26" y="-34" width="40" height="58" rx="5" fill="#44965f" stroke="#2c5e3c" stroke-width="3" transform="rotate(-12)"/><rect x="-10" y="-30" width="40" height="58" rx="5" fill="#f5efe4" stroke="#8a7a5a" stroke-width="3" transform="rotate(10)"/>`,
   devcard: `<rect x="-24" y="-34" width="48" height="68" rx="6" fill="#7a5ec4" stroke="#4e3a8a" stroke-width="3"/><path d="M0,-12 l4.6,9.4 10.4,1.5 -7.5,7.3 1.8,10.3 -9.3,-4.9 -9.3,4.9 1.8,-10.3 -7.5,-7.3 10.4,-1.5Z" fill="#f0d070"/>`,
@@ -79,9 +82,10 @@ const classic = {
   sample: "Aa",
   fonts: null, // system / Inter stack, nothing to load
   paletteDots: ["#4090b0", "#4a7c3f", "#d9bc52", "#c66536", "#da7756"],
-  confettiColors: ["#e63946", "#2a6fdb", "#e8a317", "#2db87e", "#f5efe4"],
+  confettiColors: ["#E0312B", "#2F6FE6", "#F7931E", "#2E9E5E", "#f5efe4"],
   motion: { name: "Crisp & airy", k: 1, pop: "cubic-bezier(.3,1.3,.6,1)", out: "cubic-bezier(.22,1,.36,1)", inOut: "cubic-bezier(.65,0,.35,1)", fall: "cubic-bezier(.55,0,1,.45)", squash: [1.14, 0.88], bounces: 2, sway: 0 },
   seatColors: SEAT_COLORS,
+  youPc: YOU_PC,
   textColors: null, // seat colours are used as-is
   canvasArt: false, // legacy canvas renderer in game.js
   icons: ICONS,
