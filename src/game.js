@@ -4,6 +4,7 @@ import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
 import { TERRAIN_NAME, DEV_NAME, CARD_TEXT } from "./themes/art-util.js";
 import { Onboarding, isFirstLaunch } from "./themes/onboarding.js";
+import { SoundEngine } from "./sound.js";
 
 const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 /** Sunny Island colour palette from <html data-palette> (default light). */
@@ -774,15 +775,34 @@ class ColonistFullGame {
 
     // Sound engine
     this.soundToggle = document.querySelector("#soundToggle");
-    this.soundEnabled = localStorage.getItem("colonist_sound") !== "off";
+    this.soundEnabled = true;
+    try { this.soundEnabled = localStorage.getItem("colonist_sound") !== "off"; } catch (_) {}
+    this.sound = new SoundEngine({ enabled: () => this.soundEnabled });
+    this.volumeRange = document.querySelector("#volumeRange");
+    this.volumeValue = document.querySelector("#volumeValue");
+    const syncVolumeUi = () => {
+      if (!this.volumeRange) return;
+      this.volumeRange.disabled = !this.soundEnabled;
+      this.volumeRange.closest(".st-volume")?.classList.toggle("off", !this.soundEnabled);
+      if (this.volumeValue) this.volumeValue.textContent = `${Math.round(this.sound.volume * 100)}%`;
+    };
     if (this.soundToggle) {
       this.soundToggle.checked = this.soundEnabled;
       this.soundToggle.addEventListener("change", () => {
         this.soundEnabled = this.soundToggle.checked;
-        localStorage.setItem("colonist_sound", this.soundEnabled ? "on" : "off");
+        try { localStorage.setItem("colonist_sound", this.soundEnabled ? "on" : "off"); } catch (_) {}
+        syncVolumeUi();
+        if (this.soundEnabled) this.sfx.click();
       });
     }
-    this._audioCtx = null;
+    if (this.volumeRange) {
+      this.volumeRange.value = String(Math.round(this.sound.volume * 100));
+      this.volumeRange.addEventListener("input", () => { this.sound.setVolume(Number(this.volumeRange.value) / 100); syncVolumeUi(); });
+      // a short preview when the thumb is released
+      this.volumeRange.addEventListener("change", () => this.sfx.buildSettlement());
+    }
+    syncVolumeUi();
+    this._rushTickSec = null;
 
     this.maxLogEntries = 260;
     this.maxToasts = 4;
@@ -5062,7 +5082,7 @@ class ColonistFullGame {
     });
     this.addLog(`Roll #${r.rollNo}: rolled ${res.total}.`);
     this.fx?.diceRoll(res.d1, res.d2);
-    this.sfx.diceResult();
+    this.sfx.diceRoll();
     this.lastDiceDisplay?.classList.remove("rush-flash");
     void this.lastDiceDisplay?.offsetWidth; // restart the flash animation
     this.lastDiceDisplay?.classList.add("rush-flash");
@@ -5419,6 +5439,10 @@ class ColonistFullGame {
     }
     this.rushHud.classList.toggle("paused", r.paused);
     this.rushHud.classList.toggle("urgent", !r.paused && secs <= 3);
+    // very soft ticks on the last three seconds (once per second)
+    if (!r.paused && secs >= 1 && secs <= 3 && !this.uiPaused) {
+      if (this._rushTickSec !== secs) { this._rushTickSec = secs; this.sfx.rushTick(secs === 1); }
+    } else this._rushTickSec = null;
     const human = this.players.find((p) => p.isHuman);
     const n = this.players.length;
     const humanReady = r.ready.includes(human?.id);
@@ -7411,122 +7435,26 @@ class ColonistFullGame {
     `;
   }
 
-  // ── Sound Engine (Web Audio API synthesis) ────────────────────────────
-  _getAudioCtx() {
-    if (!this._audioCtx) {
-      this._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (this._audioCtx.state === "suspended") this._audioCtx.resume();
-    return this._audioCtx;
-  }
-
-  _playTone(freq, duration = 0.12, type = "sine", vol = 0.15) {
-    if (!this.soundEnabled) return;
-    try {
-      const ctx = this._getAudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = type;
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(vol, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + duration);
-    } catch (_) {}
-  }
-
-  _playChord(freqs, duration = 0.2, type = "sine", vol = 0.08) {
-    freqs.forEach(f => this._playTone(f, duration, type, vol));
-  }
-
-  _playNoise(duration = 0.08, vol = 0.1) {
-    if (!this.soundEnabled) return;
-    try {
-      const ctx = this._getAudioCtx();
-      const bufferSize = ctx.sampleRate * duration;
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * vol;
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(vol, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-      source.connect(gain);
-      gain.connect(ctx.destination);
-      source.start();
-    } catch (_) {}
-  }
-
-  // Named sound effects
+  // ── Sound effects (synthesised in src/sound.js: soft wood, paper and mallet sounds) ──
+  // Muted by the Sounds toggle, silent until the first user gesture, throttled in the engine.
   sfx = {
-    diceRoll: () => {
-      // Rattle-like: quick noise bursts
-      for (let i = 0; i < 3; i++) {
-        setTimeout(() => this._playNoise(0.04, 0.06), i * 50);
-      }
-    },
-    diceResult: () => {
-      this._playTone(440, 0.1, "triangle", 0.12);
-      setTimeout(() => this._playTone(554, 0.15, "triangle", 0.1), 80);
-    },
-    buildSettlement: () => {
-      this._playTone(523, 0.1, "square", 0.08);
-      setTimeout(() => this._playTone(659, 0.12, "square", 0.08), 80);
-      setTimeout(() => this._playTone(784, 0.18, "square", 0.06), 160);
-    },
-    buildCity: () => {
-      this._playChord([523, 659, 784], 0.25, "triangle", 0.07);
-      setTimeout(() => this._playChord([587, 740, 880], 0.3, "triangle", 0.06), 150);
-    },
-    buildRoad: () => {
-      this._playTone(330, 0.08, "square", 0.07);
-      setTimeout(() => this._playTone(392, 0.1, "square", 0.06), 60);
-    },
-    trade: () => {
-      this._playTone(440, 0.08, "sine", 0.1);
-      setTimeout(() => this._playTone(554, 0.08, "sine", 0.1), 70);
-      setTimeout(() => this._playTone(659, 0.12, "sine", 0.08), 140);
-    },
-    tradeReject: () => {
-      this._playTone(330, 0.12, "sawtooth", 0.06);
-      setTimeout(() => this._playTone(277, 0.18, "sawtooth", 0.05), 100);
-    },
-    robber: () => {
-      this._playTone(220, 0.2, "sawtooth", 0.08);
-      setTimeout(() => this._playTone(185, 0.25, "sawtooth", 0.06), 150);
-    },
-    steal: () => {
-      this._playTone(600, 0.06, "sine", 0.08);
-      setTimeout(() => this._playTone(400, 0.1, "sine", 0.06), 50);
-    },
-    devCard: () => {
-      this._playTone(392, 0.1, "triangle", 0.1);
-      setTimeout(() => this._playTone(494, 0.12, "triangle", 0.08), 80);
-    },
-    yourTurn: () => {
-      this._playTone(523, 0.08, "sine", 0.12);
-      setTimeout(() => this._playTone(659, 0.08, "sine", 0.1), 100);
-      setTimeout(() => this._playTone(784, 0.15, "sine", 0.08), 200);
-    },
-    victory: () => {
-      const notes = [523, 659, 784, 1047];
-      notes.forEach((f, i) => {
-        setTimeout(() => this._playTone(f, 0.25, "triangle", 0.1), i * 150);
-      });
-    },
-    click: () => {
-      this._playTone(800, 0.04, "sine", 0.06);
-    },
-    error: () => {
-      this._playTone(200, 0.15, "square", 0.08);
-    },
-    resourceGain: () => {
-      this._playTone(880, 0.06, "sine", 0.06);
-      setTimeout(() => this._playTone(1100, 0.08, "sine", 0.05), 50);
-    },
+    diceRoll: () => this.sound.play("diceRoll"),
+    diceResult: () => this.sound.play("diceResult"),
+    buildRoad: () => this.sound.play("buildRoad"),
+    buildSettlement: () => this.sound.play("buildSettlement"),
+    buildCity: () => this.sound.play("buildCity"),
+    trade: () => this.sound.play("trade"),
+    tradeReject: () => this.sound.play("tradeReject"),
+    robber: () => this.sound.play("robber"),
+    steal: () => this.sound.play("steal"),
+    devCard: () => this.sound.play("devCard"),
+    yourTurn: () => this.sound.play("yourTurn"),
+    victory: () => this.sound.play("victory"),
+    click: () => this.sound.play("click"),
+    error: () => this.sound.play("error"),
+    rushTick: (last = false) => this.sound.play("rushTick", last),
+    /** kinds: resource kinds you gained (louder, pitched per resource); empty = bots only */
+    resourceGain: (kinds = []) => this.sound.play("resourceGain", kinds),
   };
 
   // ── New-game setup screen ─────────────────────────────────────────────
@@ -8000,8 +7928,11 @@ class ColonistFullGame {
   showResourceGainToasts(gainByPlayer) {
     // Cards fly from the producing tiles to the hand (you) or to the player's portrait (bots)
     this.fx?.flyResources(gainByPlayer, this.lastRoll);
-    if (gainByPlayer.some((g) => sumResources(g) > 0)) window.setTimeout(() => this.sfx.resourceGain(), 900);
     const human = this.players.find((p) => p.isHuman);
+    if (gainByPlayer.some((g) => sumResources(g) > 0)) {
+      const mine = human && gainByPlayer[human.id] ? RESOURCES.filter((r) => gainByPlayer[human.id][r] > 0) : [];
+      window.setTimeout(() => this.sfx.resourceGain(mine), 900);
+    }
     const gain = human ? gainByPlayer[human.id] : null;
     if (!gain || !sumResources(gain) || !this.toastStack) return;
     const res = RESOURCES.filter((r) => gain[r] > 0);

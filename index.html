@@ -93,6 +93,10 @@
           <div class="st-h">Sound &amp; pace</div>
           <div class="settings-toggles">
             <label class="settings-toggle-label"><input type="checkbox" id="soundToggle" checked /> Sounds</label>
+            <div class="st-volume">
+              <label for="volumeRange" class="st-range-label">Volume <output id="volumeValue" for="volumeRange">60%</output></label>
+              <input id="volumeRange" type="range" min="0" max="100" step="5" value="60" aria-label="Sound volume" />
+            </div>
             <label class="settings-toggle-label"><input type="checkbox" id="aiReasoningToggle" /> Show what the bots are thinking</label>
           </div>
           <label for="speedRange" class="st-range-label">Bot speed</label>
