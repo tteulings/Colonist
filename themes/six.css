@@ -66,8 +66,13 @@
   .app .mtop .pstrip.six-up > .pchip.six .mini { justify-content: flex-start; font-size: 10px; }
   .app .mtop .pstrip.six-up > .pchip.six .bdg { display: none; }
 }
-/* desktop rail: six rows a little tighter */
-#scoreboard:has(> [data-seat="5"]) .prow { padding-top: 6px; padding-bottom: 6px; }
+/* desktop rail: five or six rows stay compact (no persona line, smaller portrait and points) so all fit */
+#scoreboard:has(> [data-seat="4"]) .prow { padding-top: 5px; padding-bottom: 5px; gap: 10px; }
+#scoreboard:has(> [data-seat="4"]) .prow .avatar { --av: 36px; }
+#scoreboard:has(> [data-seat="4"]) .prow .nm .tag { display: none; }
+#scoreboard:has(> [data-seat="4"]) .prow .stats { margin-top: 1px; }
+#scoreboard:has(> [data-seat="4"]) .prow .vp { min-width: 44px; height: 40px; }
+#scoreboard:has(> [data-seat="4"]) .prow .vp small { display: none; }
 
 /* ── Special Building Phase: your window ──────────────────────────────────────────────────────── */
 .ticker.sbp-ticker { position: relative; overflow: hidden; }
