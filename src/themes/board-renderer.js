@@ -237,9 +237,9 @@ export class SvgBoardRenderer {
     ctx.drawImage(isl, 0, 0, canvas.width, canvas.height);
     // 2. harbours, each in a box around its piers + badge
     for (let i = 0; i < ports.length; i += 1) {
-      const { a, b: bb, badge: q } = portData[i], M = 16;
-      const x0 = Math.min(a.x, bb.x, q.x - q.w / 2) - M, x1 = Math.max(a.x, bb.x, q.x + q.w / 2) + M;
-      const y0 = Math.min(a.y, bb.y, q.y - q.h / 2) - M, y1 = Math.max(a.y, bb.y, q.y + q.h / 2) + M;
+      const { a, b: bb, badge: q } = portData[i], M = 16, sh = q.ship || q;
+      const x0 = Math.min(a.x, bb.x, q.x - q.w / 2, sh.x - sh.w / 2) - M, x1 = Math.max(a.x, bb.x, q.x + q.w / 2, sh.x + sh.w / 2) + M;
+      const y0 = Math.min(a.y, bb.y, q.y - q.h / 2, sh.y - sh.h / 2) - M, y1 = Math.max(a.y, bb.y, q.y + q.h / 2, sh.y + sh.h / 2) + M;
       const pc = await rasterize(svgOf(x0, y0, x1 - x0, y1 - y0, k, ports[i].svg), (x1 - x0) * k, (y1 - y0) * k);
       if (gen !== this.bakeGen) return;
       ctx.drawImage(pc, ...at(x0, y0), (x1 - x0) * k, (y1 - y0) * k);

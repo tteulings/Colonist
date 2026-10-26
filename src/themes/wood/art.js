@@ -140,24 +140,20 @@ const glow = () => `<path d="${hexPath(0, 0, 93)}" fill="none" stroke="#FFF8E6" 
    Ratio label is drawn by the canvas with the page font (fonts don't load inside rasterised SVG). */
 const RES_TONE = { wood: "#5F9A57", brick: "#D98260", sheep: "#9FBC6A", wheat: "#D9AE4E", ore: "#8E9AB0" };
 // v0.77: a printed badge (the token's paper disc stretched to a lozenge) off the coast: the printed resource
-// icon in a ring of its colour, or a "?" seal for 3:1, beside the ratio; dashed rope piers to the coast
+// icon in a ring of its colour beside the ratio (3:1: just the ratio); dashed rope piers to the coast
 // corners, each marked by a small dot of the harbour's colour. Geometry: harbourBadges (p.badge).
-const PORT_ANY = "#2F6573"; // ivory "?" on it: 5.5:1
+const PORT_ANY = "#2F6573"; // 3:1 corner dots
 function port(p) {
   const q = p.badge, s = p.s || 1, tone = p.res ? RES_TONE[p.res] : PORT_ANY;
   const pier = ([c, e]) => `<path d="M${f(c.x)},${f(c.y)} L${f(e[0])},${f(e[1])}" stroke="#3F7D8C" stroke-width="${f(7 * s)}" stroke-linecap="round" opacity=".45"/><path d="M${f(c.x)},${f(c.y)} L${f(e[0])},${f(e[1])}" stroke="#E6D8B8" stroke-width="${f(3.8 * s)}" stroke-dasharray="${f(4 * s)} ${f(2.5 * s)}"/>`;
   const dot = (c) => `<circle cx="${f(c.x)}" cy="${f(c.y)}" r="${f(5.6 * s)}" fill="${tone}" stroke="${INK}" stroke-width="${f(1.6 * s)}"/>`;
-  const x0 = q.x - q.w / 2, y0 = q.y - q.h / 2, ic = q.icon, rr = ic.size / 2;
+  const x0 = q.x - q.w / 2, y0 = q.y - q.h / 2, ic = q.icon, rr = ic ? ic.size / 2 : 0;
   const rect = (dx, dy, fill, extra = "") => `<rect x="${f(x0 + dx)}" y="${f(y0 + dy)}" width="${f(q.w)}" height="${f(q.h)}" rx="${f(q.r)}" fill="${fill}" ${extra}/>`;
   const svg = `<g>${p.piers.map(pier).join("")}${dot(p.a)}${dot(p.b)}
     ${rect(2.5 * s, 4.5 * s, "#06121A", 'opacity=".45" filter="url(#b-blur3)"')}${rect(0, 2.5 * s, "#A8977A")}${rect(0, 0, "url(#b-disc)")}${rect(0, 0, "url(#b-paper)", 'opacity=".5"')}
-    ${rect(0, 0, "none", `stroke="${tone}" stroke-width="${f(2.4 * s)}"`)}
-    <g transform="translate(${f(ic.x)} ${f(ic.y)})">${p.res
-      ? `<circle r="${f(rr)}" fill="#FBF6EA" stroke="${tone}" stroke-width="${f(2.2 * s)}"/><g transform="scale(${+(ic.size / 92).toFixed(4)})">${ICON_RAW[p.res]}</g>`
-      : `<circle r="${f(rr)}" fill="${PORT_ANY}"/><circle r="${f(rr - 2.4 * s)}" fill="none" stroke="#E6D8B8" stroke-width="${f(1.2 * s)}" opacity=".7"/>`}</g></g>`;
-  const labels = [{ x: q.text.x, y: q.text.y, text: p.ratio, size: q.text.size, color: INK, weight: 800 }];
-  if (!p.res) labels.push({ x: ic.x, y: ic.y + ic.size * 0.27, text: "?", size: ic.size * 0.74, color: IVORY, weight: 800 });
-  return { svg, labels };
+    ${rect(0, 0, "none", `stroke="${p.res ? tone : "#9C8A6A"}" stroke-width="${f((p.res ? 2.4 : 1.6) * s)}"`)}
+    ${p.res ? `<g transform="translate(${f(ic.x)} ${f(ic.y)})"><circle r="${f(rr)}" fill="#FBF6EA" stroke="${tone}" stroke-width="${f(2.2 * s)}"/><g transform="scale(${+(ic.size / 92).toFixed(4)})">${ICON_RAW[p.res]}</g></g>` : ""}</g>`;
+  return { svg, labels: [{ x: q.text.x, y: q.text.y, text: p.ratio, size: q.text.size, color: INK, weight: 800 }] };
 }
 
 /* ======================= painted wooden pieces (canvas specs) =======================
