@@ -105,8 +105,8 @@ h1, h2, h3, .display { font-family: var(--font-display); font-weight: var(--disp
    APP SHELL — mobile first
    ========================================================================== */
 .app {
-  --dock-h: calc(78px + env(safe-area-inset-bottom));
-  --fan-h: 118px;
+  --dock-h: calc(72px + env(safe-area-inset-bottom));
+  --fan-h: 112px; /* v0.73: totals bar (22) + cards; was 118 without the bar */
   /* side gutters of the phone chrome; the board fit keeps the island (with harbours) inside --board-side */
   --gut: 14px; --board-side: 14px; --menu-w: 44px;
   position: relative; height: 100vh; height: 100dvh; height: var(--app-h, 100dvh); width: 100%; overflow: hidden;
@@ -245,10 +245,10 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
   flex: none; height: var(--dock-h); position: static; z-index: 6; padding: 8px var(--gut) env(safe-area-inset-bottom);
   background: var(--dock); background-image: var(--dock-image); border-top: var(--dock-border); box-shadow: var(--dock-shadow);
 }
-.actions { display: grid; grid-template-columns: var(--menu-w) repeat(3, minmax(0, 56px)) minmax(0, 1fr); gap: 6px; align-items: center; height: 60px; }
+.actions { display: grid; grid-template-columns: var(--menu-w) repeat(3, minmax(0, 56px)) minmax(0, 1fr); gap: 6px; align-items: center; height: 56px; }
 .side-actions { display: contents; }
 .app .mbtn, .app .side-actions .btn {
-  height: 60px; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0;
+  height: 56px; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0;
   border-radius: var(--btn-radius); background: var(--btn); background-image: var(--btn-image); border: var(--btn-border);
   box-shadow: var(--btn-shadow); color: var(--btn-ink); font-size: 11.5px; font-weight: 700; position: relative; white-space: nowrap;
 }
@@ -262,8 +262,8 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 #tradeBankBtn { order: 2; background-color: var(--m-trade-bg, var(--btn)); border-color: var(--m-trade-border, transparent); }
 #mCardsBtn { order: 3; background-color: var(--m-cards-bg, var(--btn)); border-color: var(--m-cards-border, transparent); }
 #playDevBtn { display: none !important; }
-.primary-slot { order: 4; grid-column: -2 / -1; height: 60px; display: flex; min-width: 0; }
-.app .mainbtn { flex: 1; height: 60px; min-width: 0; padding: 0 8px; gap: 6px; font-size: 21px; flex-direction: row; overflow: hidden; }
+.primary-slot { order: 4; grid-column: -2 / -1; height: 56px; display: flex; min-width: 0; }
+.app .mainbtn { flex: 1; height: 56px; min-width: 0; padding: 0 8px; gap: 6px; font-size: 21px; flex-direction: row; overflow: hidden; }
 /* the dock shares its row with Menu: the main label steps down on narrower phones so it never truncates */
 .app .btn.primary.mainbtn { font-size: var(--main-fs, var(--primary-size)); }
 .app .mainbtn .ic { font-size: 28px; }
@@ -274,7 +274,7 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 .app #mCardsBtn.quiet { opacity: .6; filter: saturate(.4); }
 .mbtn .dot.go { background: var(--accent); }
 .mbtn .dot { position: absolute; top: 4px; right: 6px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--badge); color: var(--badge-ink); font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 4px; border: var(--badge-border); }
-.waiting { flex: 1; display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 12px; border-radius: var(--btn-radius); background: var(--chip); border: var(--chip-border); font-weight: 750; font-size: 14px; min-width: 0; }
+.waiting { flex: 1; display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 12px; border-radius: var(--btn-radius); background: var(--chip); border: var(--chip-border); font-weight: 750; font-size: 14px; min-width: 0; }
 .waiting .avatar { --av: 34px; --av-ring: 2.5px; }
 .waiting > .ic { font-size: 26px; margin-right: -2px; }
 .waiting .wt { min-width: 0; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -298,14 +298,14 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 .hand .lbl { display: none; }
 .hand .cards {
   pointer-events: auto; display: flex; align-items: flex-end; gap: 0; overflow-x: auto; overflow-y: visible; scrollbar-width: none;
-  padding: 16px var(--gut) 8px calc(var(--gut) + 12px); scroll-padding-left: calc(var(--gut) + 12px); /* + room for the fan tilt */ scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
+  padding: 11px var(--gut) 6px calc(var(--gut) + 12px); scroll-padding-left: calc(var(--gut) + 12px); /* + room for the fan tilt */ scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
 }
 .hand .cards::-webkit-scrollbar { display: none; }
-.hand .card { --cw: 56px; margin-right: -8px; transform-origin: 50% 120%; transform: rotate(var(--rot, 0deg)) translateY(var(--dy, 0px)); scroll-snap-align: start; transition: transform 200ms var(--ease-pop, ease); }
+.hand .card { --cw: 50px; margin-right: -8px; transform-origin: 50% 120%; transform: rotate(var(--rot, 0deg)) translateY(var(--dy, 0px)); scroll-snap-align: start; transition: transform 200ms var(--ease-pop, ease); }
 .hand .card .count { min-width: 22px; height: 22px; font-size: 12.5px; right: -4px; top: -7px; }
 .hand .card:last-child { margin-right: 14px; }
 .hand .sep { flex: none; width: 14px; }
-.hand .swipe { position: absolute; right: var(--gut); top: 0; font-size: 11px; font-weight: 750; color: var(--ink-soft); background: var(--float); border: var(--float-border); border-radius: 999px; padding: 3px 9px; box-shadow: var(--float-shadow); pointer-events: none; transition: opacity 300ms; }
+.hand .swipe { position: absolute; right: var(--gut); top: 26px; font-size: 11px; font-weight: 750; color: var(--ink-soft); background: var(--float); border: var(--float-border); border-radius: 999px; padding: 3px 9px; box-shadow: var(--float-shadow); pointer-events: none; transition: opacity 300ms; }
 .hand.fits .swipe, .hand.scrolled .swipe { opacity: 0; }
 .hand .hand-empty { pointer-events: none; align-self: center; margin-bottom: 30px; font-size: 13px; font-weight: 650; color: var(--ink-soft); background: var(--float); border: var(--float-border); border-radius: 999px; padding: 6px 12px; }
 
@@ -899,15 +899,9 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
   .app .mainbtn { gap: 5px; padding: 0 6px; }
   .app .mainbtn .ic { font-size: 24px; }
   .rgrid { gap: 5px; }
-  .hand .card { --cw: 50px; margin-right: -9px; }
-  .app { --fan-h: 104px; }
+  .hand .card { --cw: 46px; margin-right: -8px; }
 }
-/* short phones: keep the board tall */
-@media (max-height: 700px) and (max-width: 900px) {
-  .pchip .mini { display: none; }
-  .app { --fan-h: 100px; }
-  .hand .card { --cw: 52px; }
-}
+/* short phones: keep the board tall (v0.73: the player chips keep their stats line, they are compact everywhere) */
 
 /* ==========================================================================
    DESKTOP
@@ -1451,3 +1445,53 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 
 /* floating pills/popovers never wider than the screen (game.js _clampFloaters keeps them inside) */
 .confirm-pill, .ai-reasoning-popup, .rush-offers, .toasts { max-width: calc(100vw - 16px); box-sizing: border-box; }
+
+/* ==========================================================================
+   v0.73 · player chip stats, hand totals bar, bank counts
+   ========================================================================== */
+/* chips: cards always; dev cards, knights played and road length only once they mean something;
+   a held award is the same number on a calm gold chip (no extra badge) */
+.pchip .mini { white-space: nowrap; overflow: hidden; }
+.pchip .mini span { flex: none; font-variant-numeric: tabular-nums; }
+.app .pchip .mini span.award { background: var(--award-bg, #F5D57E); color: var(--award-ink, #3A2A06); border-radius: 6px; padding: 0 3px 0 1px; }
+.app .pchip .mini span.warn { color: var(--warn-ink, #B23A1E); font-weight: 800; }
+.app .pchip .mini.dense { gap: 2px; font-size: 10.5px; letter-spacing: -.02em; }
+.app .pchip .mini.dense .ic { font-size: 12px; }
+.prow .stats span.award { background: var(--award-bg, #F5D57E); color: var(--award-ink, #3A2A06); border-radius: 6px; padding: 0 4px; }
+.prow .stats span.warn { color: var(--warn-ink, #B23A1E); }
+/* hand totals bar (phones, portrait): "7 cards · 1 dev" on the left, the bank on the right */
+.hand-bar { display: none; }
+@media (max-width: 900px) and (min-height: 501px) {
+  .hand-bar {
+    display: flex; align-items: center; gap: 6px; height: 22px; flex: none; padding: 0 var(--gut); pointer-events: none;
+    font-size: 11.5px; font-weight: 650; color: var(--bar-ink, var(--ink)); white-space: nowrap;
+  }
+  .hand-bar > * { pointer-events: auto; display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 8px; border-radius: 999px;
+    background: var(--glass, var(--float)); border: 1px solid var(--glass-line, rgba(255,255,255,.4)); box-shadow: var(--glass-shadow, none); }
+  .hand-bar b { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .hand-bar .hb-total.warn { background: var(--warn-bg, #FBE2B8); color: var(--warn-ink, #8A3A0E); border-color: rgba(176,90,20,.35); }
+  .hand-bar .hb-bank { margin-left: auto; font: inherit; color: inherit; cursor: pointer; padding: 0 7px 0 6px; min-width: 0; }
+  .hand-bar .hb-bank .ic { font-size: 13px; }
+  .hand-bar .hb-bank .bk { display: inline-flex; align-items: center; gap: 0; }
+  .hand-bar .hb-bank .bk + .bk { margin-left: 4px; }
+  .hand-bar .hb-bank .bk.low b { color: var(--warn-ink, #B23A1E); }
+  .hand-bar .hb-bank .bk.dv { padding-left: 5px; margin-left: 5px; border-left: 1px solid currentColor; border-left-color: rgba(127,127,127,.35); }
+  .hand-bar .hb-bank:not(.open) .bk { display: none; }
+  .hand-bar .hb-bank .hb-lbl { font-weight: 750; }
+  .hand-bar .hb-bank.open .hb-lbl { display: none; }
+}
+/* trade sheet, Bank tab: what the bank still has under each card you can get */
+.bank-cell .have .bn { font-weight: 800; font-variant-numeric: tabular-nums; }
+/* chips: the card count shares the name row (right); dev cards / knights / road go on the stats line */
+@media (max-width: 900px), (max-height: 500px) {
+  .app .pstrip .pchip { grid-template-areas: "av vp" "pn pcards" "mini mini"; padding-left: 4px; padding-right: 4px; }
+  .app .pstrip .pchip .pcards { grid-area: pcards; display: flex; justify-content: flex-end; font-size: 11px; line-height: 13px; font-weight: 650; color: var(--bar-ink, var(--ink-soft)); }
+  .app .pstrip .pchip .pcards span { display: flex; align-items: center; gap: 1px; font-variant-numeric: tabular-nums; }
+  .app .pstrip .pchip .pcards .ic { font-size: 12px; }
+  .app .pstrip .pchip .pcards span.warn { color: var(--warn-ink, #B23A1E); font-weight: 800; }
+  .app .pstrip .pchip .pn { min-width: 0; }
+  .app .pstrip .pchip .mini { min-height: 14px; gap: 3px; }
+  .app .pstrip .pchip .mini .ic { font-size: 12px; }
+  .app .pstrip .pchip .mini.dense { gap: 2px; }
+  .app .pstrip .pchip .mini.dense .ic { font-size: 11px; }
+}
