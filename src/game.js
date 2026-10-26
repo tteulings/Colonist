@@ -2267,8 +2267,24 @@ class ColonistFullGame {
       // + the room a docked trade offer takes above the hand (only while one is up)
       fan = (parseFloat(cs.getPropertyValue("--fan-h")) || 112) + (parseFloat(cs.getPropertyValue("--offer-room")) || 0);
       top = parseFloat(cs.getPropertyValue("--board-top")) || 4;
-      side = parseFloat(cs.getPropertyValue("--board-side")) || 0; // side gutters (harbours stay inside them)
-      if (side) { box.minX -= hs * 0.7; box.maxX += hs * 0.7; } // harbour boats reach about this far past the beach
+      side = parseFloat(cs.getPropertyValue("--board-side")) || 0;
+      if (side) {
+        // Side gutters: the beach keeps --board-side from the screen edge; the harbour boats may use
+        // that gutter but stay on screen (4px). Only the ports this map really has count, so a map
+        // without a harbour at the far left/right gets the full width.
+        const cx = (box.minX + box.maxX) / 2, half = (box.maxX - box.minX) / 2;
+        let reach = 0;
+        (this.ports || []).forEach((p) => {
+          const e = g.edges[p.edgeId]; if (!e) return;
+          const [a, b] = e.nodes.map((id) => g.nodes[id]); const hc = g.hexes[e.hexIds[0]].center;
+          const px = (a.x + b.x) / 2, py = (a.y + b.y) / 2, len = Math.hypot(px - hc.x, py - hc.y) || 1;
+          reach = Math.max(reach, Math.abs(px + ((px - hc.x) / len) * hs * 0.85 - cx)); // boat tip
+        });
+        const avail = this.boardWidth / 2;
+        const k = Math.min((avail - side) / half, reach ? (avail - 4) / reach : Infinity);
+        box.minX = cx - avail / k; box.maxX = cx + avail / k;
+        side = 0;
+      }
     }
     const ins = mobile ? { t: top, r: side, b: fan - 6, l: side } : { t: 10, r: 10, b: 10, l: 10 };
     const vp = { l: ins.l, t: ins.t, W: Math.max(50, this.boardWidth - ins.l - ins.r), H: Math.max(50, this.boardHeight - ins.t - ins.b) };

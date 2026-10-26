@@ -742,6 +742,7 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
 .hm-score { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
 .hm-score > span { display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; padding: 4px 6px; border-radius: 10px; background: rgba(0,0,0,.2); font-size: 13px; font-weight: 700; white-space: nowrap; }
 .hm-score em { font-style: normal; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.hm-score em.ini { display: none; }
 .hm-score b { font-weight: 800; }
 .hm-score i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 1.5px rgba(255,255,255,.85); }
 .hm-card { background: var(--sheet); background-image: var(--sheet-image); border: var(--sheet-border); border-radius: 20px; padding: 14px; box-shadow: 0 8px 28px rgba(0,30,60,.22); color: var(--ink); }
@@ -777,7 +778,9 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
   .hm-row > span { font-size: 12.5px; }
   .home .hm-seg button { font-size: 13px; }
   .hm-score { gap: 4px; }
-  .hm-score > span { font-size: 11.5px; padding: 4px 2px; gap: 3px; }
+  .hm-score > span { font-size: 12.5px; padding: 4px 2px; gap: 4px; }
+  .hm-score em.nm { display: none; } /* narrow phones: initial + points, the full name is in the title */
+  .hm-score em.ini { display: inline; }
   .hm-score i { width: 8px; height: 8px; }
 }
 @media (max-height: 760px) {

@@ -72,12 +72,12 @@ export class Home {
       <header class="hm-brand"><svg class="hm-logo" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>
         <h1>Colonist</h1>${s ? "" : `<p>Settle the island, trade with friendly bots, reach 10 points first.</p>`}</header>
       ${s ? `<button type="button" class="hm-continue" data-home="continue">${PLAY_IC}<span class="hm-ct"><b>Continue game</b><small>${s.mode} · ${s.mode === "Rush" ? "roll" : "turn"} ${s.turn}</small></span>${CHEV}
-        <span class="hm-score">${s.players.map((q) => `<span class="pc-${q.seat}"><i></i><em>${q.name}</em> <b>${q.vp}</b></span>`).join("")}</span></button>` : ""}
+        <span class="hm-score">${s.players.map((q) => `<span class="pc-${q.seat}" title="${q.name}: ${q.vp} points"><i></i><em class="nm">${q.name}</em><em class="ini" aria-hidden="true">${q.name.slice(0, 1)}</em> <b>${q.vp}</b></span>`).join("")}</span></button>` : ""}
       <section class="hm-card hm-new" aria-labelledby="hmNewH">
         <h2 class="hm-h" id="hmNewH">${s ? "Start a new game" : "Choose a game"}</h2>
         <div class="hm-tiles">
           <button type="button" class="hm-tile" data-mode="classic">${icon("dice")}<b>Classic</b><small>Take turns at your own pace</small><span class="hm-vs">${vs}</span></button>
-          <button type="button" class="hm-tile" data-mode="rush">${CLOCK_IC}<b>Rush</b><small>Everyone plays at once, dice every ${p.rushInterval}&nbsp;s</small><span class="hm-vs">${vs}</span></button>
+          <button type="button" class="hm-tile" data-mode="rush">${CLOCK_IC}<b>Rush</b><small>Everyone plays at once, dice every ${p.rushInterval}s</small><span class="hm-vs">${vs}</span></button>
         </div>
         <div class="hm-row"><span>Opponents</span>${seg("bots", "Opponents", [[1, "1 bot"], [2, "2 bots"], [3, "3 bots"]], p.numBots)}</div>
         <div class="hm-row"><span>Bots play</span>${seg("level", "Bot level", levels, p.preset)}</div>
