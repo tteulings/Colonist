@@ -6,6 +6,8 @@ import { TERRAIN_NAME, DEV_NAME, CARD_TEXT } from "./themes/art-util.js";
 import { Onboarding, introSeen } from "./themes/onboarding.js";
 import { Home, GameMenu } from "./themes/home.js";
 import { SoundEngine } from "./sound.js";
+import { isBigTable, bigAxialHexes, BIG_CENTER_SHIFT, BIG_BANK_SIZE, BIG_RUSH_INTERVAL, assignBigTiles, assignBigPorts, createBigDevDeck, SbpMixin } from "./six.js";
+import { SixUiMixin } from "./six-ui.js";
 
 const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 /** Sunny Island colour palette from <html data-palette> (default light). */
@@ -58,6 +60,9 @@ const PLAYER_CONFIG = [
   { name: "Marina", color: "#2a6fdb", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg?v=57" },
   { name: "Bruno", color: "#e8a317", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
   { name: "Viktor", color: "#2db87e", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
+  // seats 5 and 6 (5–6 player games); colours come from the theme (see src/themes/seats.js)
+  { name: "Nora", color: "#8F4B86", isHuman: false, avatar: "" },
+  { name: "Hugo", color: "#7EC4EC", isHuman: false, avatar: "" },
 ];
 
 const DEV_CARD_TYPES = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
@@ -195,12 +200,12 @@ const DEFAULT_SETTINGS = {
   friendlyRobber: false,    // robber can't hit players with <= 2 public VP
   dice: "random",           // "random" | "balanced" | "deck"
   map: "random",            // "random" | "balanced" | "beginner"
-  numBots: 3,               // 1-3
+  numBots: 3,               // 1-5 (4-5 bots: the 5–6 player island + Special Building Phase)
   rushInterval: 15,         // seconds between automatic rolls (Rush)
   botStyleMode: "all",      // "all" | "each"
   allPreset: "intermediate",// preset applied to every bot ("custom" when hand-tuned)
   allStrategy: { ...AI_PRESETS.intermediate },
-  perBot: ["builder", "trader", "shark"],
+  perBot: ["builder", "trader", "shark", "builder", "trader"],
 };
 const RUSH_INTERVALS = [10, 15, 20, 30];
 const RUSH_DISCARD_SECONDS = 20;
@@ -221,7 +226,7 @@ function normalizeSettings(raw) {
   s.friendlyRobber = !!s.friendlyRobber;
   if (!["random", "balanced", "deck"].includes(s.dice)) s.dice = "random";
   if (!["random", "balanced", "beginner"].includes(s.map)) s.map = "random";
-  s.numBots = clamp(Math.round(Number(s.numBots)) || 3, 1, 3);
+  s.numBots = clamp(Math.round(Number(s.numBots)) || 3, 1, PLAYER_CONFIG.length - 1);
   if (!RUSH_INTERVALS.includes(Number(s.rushInterval))) s.rushInterval = 15;
   s.rushInterval = Number(s.rushInterval);
   s.botStyleMode = s.botStyleMode === "each" ? "each" : "all";
@@ -232,7 +237,7 @@ function normalizeSettings(raw) {
   });
   s.allStrategy = strat;
   const per = Array.isArray(s.perBot) ? s.perBot : [];
-  s.perBot = [0, 1, 2].map((i) => (AI_PRESETS[per[i]] ? per[i] : DEFAULT_SETTINGS.perBot[i]));
+  s.perBot = DEFAULT_SETTINGS.perBot.map((d, i) => (AI_PRESETS[per[i]] ? per[i] : d));
   return s;
 }
 
@@ -269,8 +274,8 @@ function makeEmptyResources() {
   return { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 };
 }
 
-function makeFullBank() {
-  return Object.fromEntries(RESOURCES.map((r) => [r, BANK_SIZE]));
+function makeFullBank(size = BANK_SIZE) {
+  return Object.fromEntries(RESOURCES.map((r) => [r, size]));
 }
 
 function makeEmptyDevCards() {
@@ -355,12 +360,14 @@ function createAxialHexes(radius) {
   return hexes;
 }
 
-function createBoardGeometry(canvasWidth, canvasHeight) {
+// big: the 30-hex 5–6 player island (src/six.js) instead of the 19-hex one
+function createBoardGeometry(canvasWidth, canvasHeight, big = false) {
   const aspect = canvasWidth / canvasHeight;
   // On tall screens (mobile portrait), allow larger hexes by loosening the width constraint
   const wDiv = aspect < 1 ? 11 : 14.5;
   const hDiv = aspect < 1 ? 7.6 : 8.2;
-  const hexSize = Math.min(canvasWidth / wDiv, canvasHeight / hDiv);
+  // the big island has 7 rows instead of 5: smaller hexes keep it about the same size in world units
+  const hexSize = Math.min(canvasWidth / wDiv, canvasHeight / hDiv) * (big ? 5 / 7 : 1);
   const centerX = canvasWidth * 0.46;
   const centerY = canvasHeight * 0.5;
 
@@ -400,8 +407,9 @@ function createBoardGeometry(canvasWidth, canvasHeight) {
     return id;
   };
 
-  for (const axial of createAxialHexes(BOARD_RADIUS)) {
-    const center = axialToPixel(axial.q, axial.r, hexSize, centerX, centerY);
+  const originX = big ? centerX + hexSize * SQRT3 * BIG_CENTER_SHIFT : centerX;
+  for (const axial of big ? bigAxialHexes() : createAxialHexes(BOARD_RADIUS)) {
+    const center = axialToPixel(axial.q, axial.r, hexSize, originX, centerY);
     const corners = getHexCorners(center, hexSize);
     const nodeIds = corners.map(createNode);
     const edgeIds = [];
@@ -944,7 +952,9 @@ class ColonistFullGame {
   /** Home › Classic / Rush tile: start at once with the chosen opponents and bot level. */
   _quickStart({ mode, numBots, preset }) {
     const last = normalizeSettings(ColonistFullGame.loadLastSettings());
-    const s = { ...last, mode: mode === "rush" ? "rush" : "classic", numBots: clamp(Number(numBots) || 3, 1, 3) };
+    const s = { ...last, mode: mode === "rush" ? "rush" : "classic", numBots: clamp(Number(numBots) || 3, 1, PLAYER_CONFIG.length - 1) };
+    // Rush with 5–6 players: a roll every 20 s unless a slower pace was picked
+    if (s.mode === "rush" && isBigTable(s.numBots + 1) && s.rushInterval < BIG_RUSH_INTERVAL) s.rushInterval = BIG_RUSH_INTERVAL;
     if (preset && preset !== "custom" && AI_PRESETS[preset]) {
       s.botStyleMode = "all";
       s.allPreset = preset;
@@ -1007,7 +1017,7 @@ class ColonistFullGame {
     const oldHexes = this.geometry.hexes.map(h => ({ resource: h.resource, number: h.number }));
     const oldNodes = this.geometry.nodes.map(n => ({ owner: n.owner, structure: n.structure }));
     const oldEdges = this.geometry.edges.map(e => ({ owner: e.owner }));
-    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight);
+    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight, this.bigBoard);
     this.geometry.hexes.forEach((hex, i) => {
       hex.resource = oldHexes[i].resource;
       hex.number = oldHexes[i].number;
@@ -1204,6 +1214,11 @@ class ColonistFullGame {
     return this.players[this.currentPlayerIndex];
   }
 
+  /** Building is allowed: your main phase, or your Special Building Phase window (5–6 players). */
+  _buildPhase() {
+    return this.phase === "main" || this.phase === "sbp";
+  }
+
   // Wrap a callback so it only runs if the game hasn't been reset/reloaded since it was created.
   _guard(fn) {
     const gen = this.gameGen;
@@ -1302,14 +1317,19 @@ class ColonistFullGame {
     this._cancelPendingWork();
     this.removeGameOverOverlay();
     this.clearStorage();
-    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight);
-    this.robberHexId = assignTiles(this.geometry, this.settings.map);
-    this.ports = assignPorts(this.geometry);
-    this.devDeck = createDevelopmentDeck();
-    this.bank = makeFullBank();
+    // 5–6 players: the 30-hex island, 24 cards of each resource, 34 development cards (src/six.js)
+    this.bigBoard = isBigTable(this.settings.numBots + 1);
+    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight, this.bigBoard);
+    this.robberHexId = this.bigBoard ? assignBigTiles(this.geometry, this.settings.map) : assignTiles(this.geometry, this.settings.map);
+    this.ports = this.bigBoard ? assignBigPorts(this.geometry) : assignPorts(this.geometry);
+    this.devDeck = this.bigBoard ? createBigDevDeck() : createDevelopmentDeck();
+    this.bankSize = this.bigBoard ? BIG_BANK_SIZE : BANK_SIZE;
+    this.bank = makeFullBank(this.bankSize);
     this.diceDeck = [];
     this.lastDiceTotal = null;
     this.rush = null;
+    this.sbp = null;
+    this.sbpRecent = null;
 
     const strategies = this._strategiesFromSettings();
     this.players = PLAYER_CONFIG.slice(0, this.settings.numBots + 1).map((config, id) => ({
@@ -1562,6 +1582,7 @@ class ColonistFullGame {
   shouldToast(text) {
     // Rush is busy: the feed carries the play-by-play, toasts only for the big moments
     if (this.rush) return /(\bwins?\b|moved robber)/i.test(text);
+    if (this._sbpQuiet) return false; // bots building between turns: one summary line instead
     return /(rolled|built|upgraded|traded|played|stole|\bwins?\b|moved robber|\bcollects?\b)/i.test(text);
   }
 
@@ -1686,7 +1707,7 @@ class ColonistFullGame {
 
   setPendingAction(action, { keepTray = false } = {}) {
     const player = this.currentPlayer;
-    if (!player || !player.isHuman || this.winner || this.phase !== "main") return;
+    if (!player || !player.isHuman || this.winner || !this._buildPhase()) return;
     if (this._robberInProgress()) return; // Cannot override robber placement / discard
     if (["road", "settlement", "city"].includes(action) && this.piecesLeft(player, action) <= 0) return;
     if (action === "road" && !this.freeRoadsRemaining && !hasResources(player.resources, COSTS.road)) return;
@@ -1705,7 +1726,7 @@ class ColonistFullGame {
 
   handleHumanBuyDevCard() {
     const player = this.currentPlayer;
-    if (!player || !player.isHuman || this.winner || this.phase !== "main" || this._robberInProgress()) return;
+    if (!player || !player.isHuman || this.winner || !this._buildPhase() || this._robberInProgress()) return;
     if (!hasResources(player.resources, COSTS.development) || !this.devDeck.length) {
       this._flashPrompt(this.devDeck.length ? `A card costs ${resourceString(COSTS.development)} · you need ${missingCostString(player.resources, COSTS.development)}` : "The development deck is empty");
       return;
@@ -1716,6 +1737,7 @@ class ColonistFullGame {
     // leave a build mode the purchase made unaffordable
     if (this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining && !this._canPlaceAnything(player)) { this.pendingAction = null; this.confirmBuild = null; }
     if (this.trayMode === "build" && !["road", "settlement", "city", "development"].some((t) => hasResources(player.resources, COSTS[t]))) this.trayMode = null;
+    if (this.sbp) this._sbpAfterHumanBuild();
     this.recomputeScores();
     if (this.rush) this._rushAfterAction(player);
     else { this.checkForWinner(player); this.saveToStorage(); this.render(); }
@@ -1862,7 +1884,7 @@ class ColonistFullGame {
     if (!player || !player.isHuman || this.winner) return;
     // Robber placement is allowed before rolling (Knight); everything else needs the main phase
     const robberMode = this.pendingAction === "robber";
-    if (this.phase !== "main" && !(robberMode && (this.phase === "pre_roll" || this.phase === "seven"))) return;
+    if (!this._buildPhase() && !(robberMode && (this.phase === "pre_roll" || this.phase === "seven"))) return;
     if (this.pendingDiscard || this.robberVictimOptions?.length > 0) return;
 
     const { x: sx, y: sy } = this.getCanvasPoint(event);
@@ -2016,6 +2038,7 @@ class ColonistFullGame {
     if (this.rush) {
       this._rushAfterAction(player);
     } else {
+      if (this.sbp) this._sbpAfterHumanBuild();
       this.recomputeScores();
       this.checkForWinner(player);
       this.saveToStorage();
@@ -2251,7 +2274,7 @@ class ColonistFullGame {
 
   // ── View: limits, clamping, motion ──────────────────────────────────────
   _minScale() { return this._fitScale; }
-  _maxScale() { return this._fitScale * 2.5; }
+  _maxScale() { return this._fitScale * (this.bigBoard ? 3 : 2.5); }
 
   /** Island bounds (world) and the visible board area (screen), shared by fit and clamping. */
   _viewFrame() {
@@ -2492,8 +2515,9 @@ class ColonistFullGame {
       event.preventDefault();
       return;
     }
-    if (key === "e") {
-      this.handleHumanEndTurn();
+    if (key === "e" || (key === "s" && this.sbp?.human)) {
+      // E / S: End turn, or Skip / Done your build window (5–6 players)
+      if (this.sbp?.human) this.sbpSkip(); else this.handleHumanEndTurn();
       event.preventDefault();
       return;
     }
@@ -2559,7 +2583,7 @@ class ColonistFullGame {
     }
 
     const player = this.currentPlayer;
-    const humanMain = player?.isHuman && this.phase === "main";
+    const humanMain = player?.isHuman && this._buildPhase();
 
     if (this.setupPhase && player?.isHuman) {
       if (this.setupAction === "settlement") {
@@ -3156,6 +3180,7 @@ class ColonistFullGame {
     if (this.isRush()) return this.rush && !this.rush.paused && this.phase === "main" ? null : "Trading resumes after the robber.";
     if (this.currentPlayer !== human) return "Trading opens on your turn.";
     if (this.phase === "pre_roll") return "Roll the dice first, then you can trade.";
+    if (this.phase === "sbp") return "No trading in the build window · build or buy with your own cards";
     return this.phase === "main" ? null : "Trading opens on your turn.";
   }
 
@@ -3835,6 +3860,7 @@ class ColonistFullGame {
   }
 
   performBankTrade(player, give, get) {
+    if (this.phase === "sbp") return false; // Special Building Phase: no maritime trade either
     const rate = this.getPlayerTradeRate(player, give);
     if (give === get || player.resources[give] < rate || this.bank[get] < 1) return false;
     this._aiTrkNote(player, { [give]: rate }, -1);
@@ -4036,6 +4062,7 @@ class ColonistFullGame {
     // Never roll during setup, and never act while a roll/robber/trade flow is still in flight
     if (this.winner || this.setupPhase || this.isRush()) return; // Rush bots run on their own ticks
     if (this._aiDiceAnimating || this.robberBusy || this.pendingDiscard || this.pendingIncomingTrade) return;
+    if (this.phase === "sbp") { this._sbpRun(); return; } // build phase between turns (bots, or you while watching)
     const player = this.currentPlayer;
     if (this.phase === "pre_roll") {
       if (this._robberInProgress()) return; // human placing robber from a pre-roll Knight
@@ -5188,6 +5215,7 @@ class ColonistFullGame {
     // You can only win on your own turn (uses the full total incl. hidden VP cards);
     // in Rush there are no turns, so anyone wins the moment they reach the target
     if (this.winner || this.setupPhase) return false;
+    if (this.phase === "sbp") return false; // building between turns never wins: only on your own turn
     if (!this.isRush() && player !== this.currentPlayer) return false;
     if (player.victoryPoints >= this.winPoints) {
       this.winner = player;
@@ -5223,6 +5251,13 @@ class ColonistFullGame {
     this.tradeLocked = false;
     if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
 
+    // 5–6 players: the others may build first (Special Building Phase, src/six.js); it ends in _advanceTurn()
+    if (this._sbpBegin(player)) return;
+    this._advanceTurn();
+  }
+
+  /** Pass the dice to the next player (after the Special Building Phase, if any). */
+  _advanceTurn() {
     this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
     // A new round starts when play returns to the first player in setup order
     if (this.currentPlayerIndex === (this.setupQueue?.[0] ?? 0)) this.turn += 1;
@@ -6064,6 +6099,7 @@ class ColonistFullGame {
       setupStep: this.setupStep,
       setupAction: this.setupAction,
       lastSetupNodeId: this.lastSetupNodeId,
+      sbp: this.sbp ? JSON.parse(JSON.stringify(this.sbp)) : null, // 5–6 players: mid build window
     };
   }
 
@@ -6129,8 +6165,12 @@ class ColonistFullGame {
     this.lastDiceTotal = data.lastDiceTotal ?? null;
     this.rush = null;
 
-    // Rebuild geometry (deterministic layout)
-    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight);
+    // Rebuild geometry (deterministic layout); 30 tiles = the 5–6 player island
+    this.bigBoard = data.hexes?.length === 30;
+    this.bankSize = this.bigBoard ? BIG_BANK_SIZE : BANK_SIZE;
+    this.sbp = null;
+    this.sbpRecent = null;
+    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight, this.bigBoard);
 
     // Restore hex tiles
     if (!data.hexes || data.hexes.length !== this.geometry.hexes.length) { this.clearStorage(); return false; }
@@ -6199,11 +6239,11 @@ class ColonistFullGame {
       };
     });
     // Older saves have no bank: everything not in a hand is in the bank
-    this.bank = makeFullBank();
+    this.bank = makeFullBank(this.bankSize);
     RESOURCES.forEach((r) => {
       this.bank[r] = data.bank && Number.isFinite(data.bank[r])
         ? data.bank[r]
-        : BANK_SIZE - this.players.reduce((sum, p) => sum + (p.resources[r] || 0), 0);
+        : this.bankSize - this.players.reduce((sum, p) => sum + (p.resources[r] || 0), 0);
     });
 
     this.devDeck = data.devDeck || [];
@@ -6230,6 +6270,8 @@ class ColonistFullGame {
     this.setupStep = data.setupStep || 0;
     this.setupAction = data.setupAction || null;
     this.lastSetupNodeId = data.lastSetupNodeId ?? null;
+    if (data.sbp && this.phase === "sbp" && Array.isArray(data.sbp.order)) this.sbp = data.sbp;
+    else if (this.phase === "sbp") this.phase = "main"; // a damaged save: let the turn owner carry on
 
     this.fitView();
     this.boardRenderer?.resync();
@@ -6268,7 +6310,8 @@ class ColonistFullGame {
         this.robberVictimOptions = data.robberVictimOptions;
         this.showVictimPanel(this.currentPlayer, this.robberVictimOptions);
       }
-      if (!this.currentPlayer.isHuman) this.scheduleAiTurnsUntilHuman();
+      if (this.sbp) this._sbpResume(); // inside the Special Building Phase (5–6 players)
+      else if (!this.currentPlayer.isHuman) this.scheduleAiTurnsUntilHuman();
     }
     return true;
   }
@@ -6943,7 +6986,7 @@ class ColonistFullGame {
         });
         ctx.setLineDash([]);
       }
-    } else if (this.currentPlayer?.isHuman && this.phase === "main") {
+    } else if (this.currentPlayer?.isHuman && this._buildPhase()) {
       const player = this.currentPlayer;
       const pulse = 0.4 + (Math.sin(Date.now() / 240) + 1) * 0.2;
       const showSettlements = this.pendingAction === "settlement";
@@ -7447,13 +7490,13 @@ class ColonistFullGame {
     const readyIds = this.rush && !this.setupPhase ? this.rush.ready : null;
     const scoreKey = this.players.map((p, i) =>
       `${i}:${this.displayVictoryPoints(p)}:${sumResources(p.resources)}:${p.settlements.size}:${p.cities.size}:${p.roads.size}:${p.knightsPlayed}:${p.longestRoadLength}:${this.longestRoadHolder}:${this.largestArmyHolder}:${this.currentPlayerIndex}:${p.personality}:${readyIds ? readyIds.includes(p.id) : "-"}:${DEV_CARD_TYPES.reduce((s, t) => s + p.devCards[t] + p.newDevCards[t], 0)}`
-    ).join("|") + `:${!!this.winner}:${this.isRush()}:${this.theme.id}:${this.setupPhase}`;
+    ).join("|") + `:${!!this.winner}:${this.isRush()}:${this.theme.id}:${this.setupPhase}:${this._sixKey()}`;
     if (scoreKey === this._lastScoreKey) return;
     this._lastScoreKey = scoreKey;
     const rows = [];
     const chips = [];
     this.players.forEach((player, idx) => {
-      const active = idx === this.currentPlayerIndex && !this.winner && !(this.isRush() && !this.setupPhase);
+      const active = idx === this._turnOwnerIndex() && !this.winner && !(this.isRush() && !this.setupPhase);
       const isReady = !!readyIds?.includes(player.id);
       const persona = player.personality ? AI_PRESET_INFO[player.personality] : null;
       const personaBadge = persona
@@ -7478,8 +7521,10 @@ class ColonistFullGame {
     });
     this.scoreboard.innerHTML = rows.join("");
     if (this.playerStrip) {
-      this.playerStrip.innerHTML = chips.join("");
+      // 5–6 players: six compact chips in one row (src/six-ui.js)
+      this.playerStrip.innerHTML = this._sixUp() ? this._sixChips() : chips.join("");
       this.playerStrip.style.setProperty("--n", this.players.length);
+      this._sixStripAttrs();
     }
     const wire = (el) => {
       const player = this.players[Number(el.dataset.seat)];
@@ -7666,6 +7711,10 @@ class ColonistFullGame {
     } else if (rushOn && mainPhase && !this.pendingAction) {
       title = "Rush";
       status = this.autoplayInterval ? "Bots are playing for you" : "Build, trade or play a card any time";
+    } else if (humanTurn && this.phase === "sbp") {
+      // 5–6 players: your Special Building Phase window (src/six.js)
+      title = "Your build window";
+      status = this.pendingAction ? (this.confirmBuild ? confirmHint : `${tapW} a glowing spot to build`) : this._sbpStatus();
     } else if (humanTurn && preRoll) {
       status = "Roll the dice to start your turn";
     } else if (humanTurn && mainPhase) {
@@ -7686,7 +7735,8 @@ class ColonistFullGame {
     if (flash) status = flash;
     if (this.actionPromptText) this.actionPromptText.textContent = status;
     // Phones: the ticker line becomes the instruction while you have to act (place, robber, discard)
-    const mustAct = !this.winner && (!!flash || !!tray || (this.setupPhase && humanTurn && this.setupAction) || (humanTurn && this.pendingAction) || !!this.pendingDiscard);
+    const sbpLine = !flash && !tray && !this.pendingAction && this._sbpWindowOpen() ? this._sbpTickerHtml() : "";
+    const mustAct = !this.winner && (!!flash || !!tray || !!sbpLine || (this.setupPhase && humanTurn && this.setupAction) || (humanTurn && this.pendingAction) || !!this.pendingDiscard);
     const prompt = mustAct ? status : "";
     // Cancel sits right in the instruction line: leave build mode / a tray, or take back a card played by mistake
     const devCancel = !!this.devPlayed && ((this.devPlayed.type === "knight" && this.pendingAction === "robber" && !this.confirmBuild)
@@ -7704,7 +7754,7 @@ class ColonistFullGame {
       this._lastLogKey = null;
       document.querySelector("#ticker")?.classList.toggle("prompt", !!prompt);
       if (prompt && this.tickerText) {
-        this.tickerText.innerHTML = `<span class="tk-main">${prompt}</span>${stepChip ? `<span class="tk-step">${stepChip}</span>` : ""}`;
+        this.tickerText.innerHTML = sbpLine || `<span class="tk-main">${prompt}</span>${stepChip ? `<span class="tk-step">${stepChip}</span>` : ""}`;
         const ic = this.pendingDiscard || this.pendingAction === "robber" || tray?.mode === "victims" ? "robber"
           : tray?.mode === "cards" || tray?.mode === "pick" ? "devcard" : this.confirmBuild?.type || (this.pendingAction !== "build" && this.pendingAction) || this.setupAction || "build";
         if (this.tickerIcon) this.tickerIcon.innerHTML = icon(ic);
@@ -7772,7 +7822,7 @@ class ColonistFullGame {
     if (robberBlocking || !humanTurn || !mainPhase) this.hideTradePanel();
 
     this.nextTurnBtn.disabled = !!this.winner || humanTurn || this.autoplayInterval != null || this.isRush();
-    const canBuildNow = humanTurn && mainPhase && !robberBlocking;
+    const canBuildNow = humanTurn && this._buildPhase() && !robberBlocking;
     const piecesHint = (type) => (this.piecesLeft(human, type) <= 0 ? `No ${type}s left` : null);
     setButtonState(this.buildRoadBtn, canBuildNow && (hasRoadCost || this.freeRoadsRemaining > 0) && !piecesHint("road"),
       piecesHint("road") || (roadMissing ? `Need ${roadMissing}` : "Not available now"), "Build a road (1)");
@@ -7863,6 +7913,7 @@ class ColonistFullGame {
       }
       this.confirmPill.classList.toggle("at-top", atTop);
     }
+    this._renderSbpControls(); // 5–6 players: Skip / Done while your build window is open
   }
 
   // ── Persistent Dice Display ──────────────────────────────────────────
@@ -8109,7 +8160,7 @@ class ColonistFullGame {
                       ${[["random", "Random"], ["balanced", "Balanced / fair"], ["beginner", "Beginner (fixed)"]].map(([v, label]) => `
                         <button type="button" role="radio" aria-checked="${d.map === v}" class="ng-map-card${d.map === v ? " selected" : ""}" data-map="${v}">${mapIcon(v)}<span>${label}</span></button>`).join("")}
                     </div>
-                    <p class="ng-help">${mapHelp[d.map]}</p>
+                    <p class="ng-help">${isBigTable(d.numBots + 1) && d.map === "beginner" ? "Beginner: there is no official 5–6 player starter layout, so you get a balanced (fair) island." : mapHelp[d.map]}</p>
                   </div>
                 </div>
               </section>
@@ -8119,8 +8170,9 @@ class ColonistFullGame {
                 <h3 class="ng-section-title">Opponents</h3>
                 <div class="ng-row ng-row-inline">
                   <div class="ng-row-label">Number of bots</div>
-                  ${seg("numBots", [[1, "1"], [2, "2"], [3, "3"]], d.numBots, "ng-seg-pills ng-seg-round")}
+                  ${seg("numBots", PLAYER_CONFIG.slice(1).map((_, i) => [i + 1, String(i + 1)]), d.numBots, "ng-seg-pills ng-seg-round")}
                 </div>
+                ${isBigTable(d.numBots + 1) ? `<p class="ng-help ng-six-help">${d.numBots + 1} players: the bigger island (30 tiles, 24 of each card) and a build window between turns${d.mode === "rush" ? " (Classic only)" : ""}.</p>` : ""}
                 <div class="ng-row ng-row-inline">
                   <div class="ng-row-label ng-row-label-sm">Style for</div>
                   ${seg("botStyleMode", [["all", "All bots"], ["each", "Each bot separately"]], d.botStyleMode, "ng-seg-pills")}
@@ -8204,7 +8256,13 @@ class ColonistFullGame {
             d.allStrategy = { ...d.allStrategy, [key.slice(4)]: raw };
             d.allPreset = presetForStrategy(d.allStrategy);
           } else {
+            const prevBots = d.numBots;
             d[key] = ["rushInterval", "numBots"].includes(key) ? Number(raw) : raw;
+            // 5–6 players: Rush rolls every 20 s by default (back to 15 s for a smaller table)
+            if (key === "numBots" && isBigTable(d.numBots + 1) !== isBigTable(prevBots + 1)) {
+              if (isBigTable(d.numBots + 1) && d.rushInterval < BIG_RUSH_INTERVAL) d.rushInterval = BIG_RUSH_INTERVAL;
+              else if (!isBigTable(d.numBots + 1) && d.rushInterval === BIG_RUSH_INTERVAL) d.rushInterval = DEFAULT_SETTINGS.rushInterval;
+            }
           }
         } else if (t.dataset.action === "friendly") d.friendlyRobber = !d.friendlyRobber;
         else if (t.dataset.action === "last") d = normalizeSettings(JSON.parse(JSON.stringify(last)));
@@ -9028,7 +9086,7 @@ class ColonistFullGame {
     const open = force ?? this.trayMode !== "build";
     if (!open) { this.closeTray(); return; }
     const player = this.currentPlayer;
-    if (!player?.isHuman || this.winner || this.phase !== "main" || this._robberInProgress() || this.devPick) return;
+    if (!player?.isHuman || this.winner || !this._buildPhase() || this._robberInProgress() || this.devPick) return;
     this._dropUndo();
     this.hideTradePanel();
     this.trayMode = "build";
@@ -9203,7 +9261,7 @@ class ColonistFullGame {
     }
     // a selected spot (Confirm placements on, or a tap outside build mode): Place sits in the dock,
     // nothing floats over the tiles
-    if (cb && cb.type !== "robber" && this.isMobileLayout && (this.setupPhase ? !!this.setupAction : this.phase === "main")) {
+    if (cb && cb.type !== "robber" && this.isMobileLayout && (this.setupPhase ? !!this.setupAction : this._buildPhase())) {
       const info = this._confirmPillInfo();
       return { mode: "confirm", hint: `${info.title} ${info.sub}`,
         html: `<div class="tinfo">${icon(info.icon)}<span>${info.title}<small>${info.sub}</small></span></div>`
@@ -9228,7 +9286,7 @@ class ColonistFullGame {
     }
     if (this.trayMode === "cards") {
       const types = DEV_CARD_TYPES.filter((t) => human.devCards[t] + human.newDevCards[t] > 0);
-      const canBuy = cur.isHuman && this.phase === "main" && !this._robberInProgress() && hasResources(human.resources, COSTS.development) && this.devDeck.length > 0;
+      const canBuy = cur.isHuman && this._buildPhase() && !this._robberInProgress() && hasResources(human.resources, COSTS.development) && this.devDeck.length > 0;
       const focus = this._trayFocus;
       const btns = types.map((t) => {
         const ok = this.canPlayDevelopmentCard(human, t) && !this.devPick;
@@ -9244,7 +9302,7 @@ class ColonistFullGame {
     }
     if (this.trayMode === "build" && this.isMobileLayout) {
       const pa = this.pendingAction;
-      const can = (t) => this.phase === "main" && (t === "development" ? hasResources(human.resources, COSTS.development) && this.devDeck.length > 0
+      const can = (t) => this._buildPhase() && (t === "development" ? hasResources(human.resources, COSTS.development) && this.devDeck.length > 0
         : hasResources(human.resources, COSTS[t]) && this.piecesLeft(human, t) > 0);
       const piece = (t, label) => tbtn(`data-tray-build="${t}" ${can(t) ? "" : "disabled"} aria-pressed="${pa === t}"`, `${icon(t)}<span>${label}</span>`, pa === t ? "sel" : "");
       const any = ["road", "settlement", "city", "development"].some(can);
@@ -9322,6 +9380,7 @@ class ColonistFullGame {
     if (!h) return "";
     if (h.devCards[t] === 0) return this.isRush() ? `${DEV_NAME[t]} is new: playable after the next roll` : `${DEV_NAME[t]} is new: play it next turn`;
     if (!this.currentPlayer?.isHuman) return "Cards are played on your turn";
+    if (this.phase === "sbp") return "No cards in the build window · play it on your turn";
     if (this.isRush() ? h.rushDevPlayed : this.currentTurnPlayedDevCard) return "One development card per turn";
     if (this.phase === "pre_roll" && t !== "knight") return "Roll the dice first (only a Knight can be played before)";
     if (t === "roadBuilding") return "No free spot for a road";
@@ -9444,6 +9503,7 @@ class ColonistFullGame {
   }
 
   _logIcon(text) {
+    if (/^Build window/.test(text)) return "build";
     if (/\bwins?\b/.test(text)) return "vp";
     if (/rolled|^Roll #/.test(text)) return "dice";
     if (/robber|stole|discard/i.test(text)) return "robber";
@@ -9586,6 +9646,9 @@ class ColonistFullGame {
     }
   }
 }
+
+// 5–6 players: Special Building Phase engine + bots (src/six.js) and its UI (src/six-ui.js)
+Object.assign(ColonistFullGame.prototype, SbpMixin, SixUiMixin);
 
 const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle

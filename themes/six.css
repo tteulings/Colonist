@@ -1,0 +1,98 @@
+/* 5–6 players: seats 5–6, the six-up player strip and the Special Building Phase (src/six.js, src/six-ui.js).
+   Everything is scoped to .six-up / [data-seats] / .sbp-* so 2–4 player games look exactly as before.
+   Seat colours --p4 / --p5 come from src/themes/seats.js (set on :root at start-up). */
+
+.pc-4 { --pc: var(--p4, #8F4B86); --pc-text: var(--p4-text, #7E3B75); --pc-ink: var(--p4-ink, #fff); }
+.pc-5 { --pc: var(--p5, #7EC4EC); --pc-text: var(--p5-text, #26719C); --pc-ink: var(--p5-ink, #12324A); }
+
+/* ── six-up strip (option A): six chips in one row ─────────────────────────────────────────────── */
+.pstrip.six-up { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.pstrip.six-up > .pchip.six {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px;
+  padding: 6px 1px 5px; min-height: 0; min-width: 0; grid-template-areas: none;
+}
+.pstrip.six-up > .pchip.six .sx-av { position: relative; padding-right: 10px; flex: none; }
+.pstrip.six-up > .pchip.six .avatar { --av: 30px; --av-ring: 2px; }
+.pstrip.six-up > .pchip.six .sx-vp {
+  position: absolute; right: -2px; bottom: -3px; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 7px;
+  display: grid; place-items: center; font-family: var(--font-display); font-weight: var(--display-weight, 700); font-size: 15px; line-height: 1;
+  background: var(--pc); color: var(--pc-ink); box-shadow: 0 0 0 1.5px var(--glass-active, rgba(255,255,255,.9));
+}
+/* points on the seat colour at AA: the blue seat uses its deeper shade, orange and ivory dark ink */
+.pstrip.six-up > .pchip.six.pc-0 .sx-vp { background: var(--p0-text); color: #fff; }
+.pstrip.six-up > .pchip.six.pc-1 .sx-vp { color: #2E1F14; }
+.pstrip.six-up > .pchip.six.pc-2 .sx-vp { color: #2E3A3D; }
+.pstrip.six-up > .pchip.six .pn {
+  grid-area: auto; max-width: 100%; padding: 0 1px !important; text-align: center; font-size: 11.5px; font-weight: 750; letter-spacing: -.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: clip; line-height: 1.15;
+}
+.pstrip.six-up > .pchip.six .mini {
+  grid-area: auto; display: flex; justify-content: center; gap: 4px; font-size: 11px; font-weight: 650; line-height: 1;
+}
+.pstrip.six-up > .pchip.six .mini span { display: flex; align-items: center; gap: 1px; }
+.pstrip.six-up > .pchip.six .mini .ic { font-size: 12px; width: 12px; height: 12px; }
+.pstrip.six-up > .pchip.six .bdg { position: absolute; top: 3px; left: 3px; right: auto; display: flex; flex-direction: column; gap: 1px; }
+.pstrip.six-up > .pchip.six .bdg .ic { font-size: 12px; }
+.pstrip.six-up > .pchip.six .sx-crown { position: absolute; left: -6px; top: -7px; width: 15px; height: 15px; }
+.pstrip.six-up > .pchip.six .sx-sbp {
+  position: absolute; right: -4px; top: -5px; width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--glass-active, #FDFBF6); box-shadow: 0 1px 3px rgba(0,0,0,.25);
+}
+.pstrip.six-up > .pchip.six .sx-sbp .ic { font-size: 12px; width: 12px; height: 12px; }
+.pstrip.six-up > .pchip.six .persona-badge { display: none; }
+/* short phones: the 4-player strip drops the counts; six-up keeps them on one tight line */
+@media (max-height: 700px) and (max-width: 900px) {
+  .pstrip.six-up > .pchip.six { padding: 5px 1px 4px; gap: 1px; }
+  .pstrip.six-up > .pchip.six .avatar { --av: 26px; }
+  .pstrip.six-up > .pchip.six .sx-vp { min-width: 18px; height: 18px; font-size: 13.5px; }
+  .pstrip.six-up > .pchip.six .mini { display: flex; font-size: 10.5px; }
+}
+@media (max-width: 370px) {
+  .pstrip.six-up { gap: 3px; }
+  .pstrip.six-up > .pchip.six .pn { font-size: 11px; letter-spacing: -.02em; }
+  .pstrip.six-up > .pchip.six .mini { gap: 3px; font-size: 10.5px; }
+}
+/* landscape phones: the strip is the left rail; six rows share its height */
+@media (max-height: 500px) and (orientation: landscape) {
+  .app .mtop .pstrip.six-up { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(0, 1fr); gap: 4px; }
+  .app .mtop .pstrip.six-up > .pchip.six {
+    display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 4px; row-gap: 0;
+    align-items: center; justify-items: start; padding: 3px 4px;
+  }
+  .app .mtop .pstrip.six-up > .pchip.six .sx-av { grid-row: 1 / 3; }
+  .app .mtop .pstrip.six-up > .pchip.six .avatar { --av: 24px; }
+  .app .mtop .pstrip.six-up > .pchip.six .sx-vp { min-width: 17px; height: 17px; font-size: 12.5px; }
+  .app .mtop .pstrip.six-up > .pchip.six .pn { text-align: left; font-size: 11px; }
+  .app .mtop .pstrip.six-up > .pchip.six .mini { justify-content: flex-start; font-size: 10px; }
+  .app .mtop .pstrip.six-up > .pchip.six .bdg { display: none; }
+}
+/* desktop rail: six rows a little tighter */
+#scoreboard:has(> [data-seat="5"]) .prow { padding-top: 6px; padding-bottom: 6px; }
+
+/* ── Special Building Phase: your window ──────────────────────────────────────────────────────── */
+.ticker.sbp-ticker { position: relative; overflow: hidden; }
+.ticker.sbp-ticker .tk-main b { font-weight: 800; }
+.ticker.sbp-ticker .sbp-sub { font-weight: 500; opacity: .85; }
+.ticker .sbp-time { margin-left: auto; padding: 0 6px 0 8px; font-size: 12px; font-weight: 700; opacity: .85; font-variant-numeric: tabular-nums; flex: none; }
+.ticker.sbp-ticker.sbp-held .sbp-time { opacity: .45; }
+.ticker.sbp-ticker::after {
+  content: ""; position: absolute; left: 16px; right: 16px; bottom: 4px; height: 2px; border-radius: 2px; pointer-events: none;
+  background: linear-gradient(90deg, var(--ring, #E8A13A) calc(var(--sbp-left, 1) * 100%), color-mix(in srgb, var(--bar-ink, #333) 15%, transparent) 0);
+  transition: background .2s linear;
+}
+.ticker.sbp-ticker .txt { display: flex; align-items: center; min-width: 0; white-space: nowrap; overflow: hidden; }
+.ticker.sbp-ticker .tk-main { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.app .sbp-skip {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+  background: var(--glass-active, var(--panel, #FDFBF6)); color: var(--bar-ink, var(--ink, #2E3A3D));
+  border: 1px solid var(--glass-line, var(--sep, #ddd)); box-shadow: var(--glass-shadow, none);
+}
+.app .sbp-skip[hidden] { display: none; }
+.app .sbp-skip .sx-l { font-family: var(--font-display); font-weight: var(--display-weight, 700); font-size: var(--main-fs, 21px); line-height: 1.05; }
+.app .sbp-skip .sx-s { display: block !important; font-family: var(--font-body); font-size: 11.5px; font-weight: 600; opacity: .8; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.app #mBuildBtn.sbp-lit:not(:disabled) { box-shadow: 0 0 0 2px var(--ring, var(--accent)), var(--glass-shadow, none); opacity: 1; filter: none; }
+.app .sbp-off { opacity: .45; filter: saturate(.3); }
+
+/* ── home: Opponents 1–5, a caption for the 5–6 player game ─────────────────────────────────── */
+.home .hm-cap { margin: 6px 0 0 84px; font-size: 12.5px; font-weight: 600; line-height: 1.3; color: var(--ink-soft); }
+@media (max-width: 400px) { .home .hm-cap { margin-left: 76px; font-size: 12px; } }

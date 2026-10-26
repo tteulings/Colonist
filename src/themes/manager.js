@@ -6,8 +6,11 @@ import wood from "./wood/art.js";
 import silhouette from "./silhouette/art.js";
 import classic from "./classic/art.js";
 import { RESOURCE_KEYS, DEV_KEYS } from "./art-util.js";
+import { addExtraSeats, applyExtraSeatTokens } from "./seats.js";
 
 export const THEMES = { A: sunny, B: wood, C: silhouette, classic };
+Object.values(THEMES).forEach(addExtraSeats); // seats 5–6 (5–6 player games)
+applyExtraSeatTokens();
 export const THEME_ORDER = ["A", "B", "C", "classic"];
 export const DEFAULT_THEME = "A";
 const THEME_KEY = "colonist.theme";
@@ -71,12 +74,14 @@ export async function loadFonts(theme) {
 }
 
 // ── DOM sprite: icons, cards, avatars, dice as <symbol>s ─────────────────
-export const SEAT_PRESETS = ["you", "trader", "builder", "shark"];
+export const SEAT_PRESETS = ["you", "trader", "builder", "shark", "nora", "hugo"]; // nora, hugo: seats 5–6
 export const BOT_PROFILE = {
   you: { name: "You", tag: "Your colony" },
   trader: { name: "Marina", tag: "The Trader" },
   builder: { name: "Bruno", tag: "The Builder" },
   shark: { name: "Viktor", tag: "The Shark" },
+  nora: { name: "Nora", tag: "Seat 5" },
+  hugo: { name: "Hugo", tag: "Seat 6" },
 };
 export function buildSprite(T) {
   let s = `<svg id="themeSprite" class="sprites" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>${T.uiDefs ? T.uiDefs() : ""}`;

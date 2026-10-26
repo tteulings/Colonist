@@ -328,6 +328,23 @@ function avatar(preset) {
   return `<circle r="50" fill="${AV_BG[p]}"/>${body}${neck}${head}${hair}${eye}`;
 }
 
+// seats 5–6 (5–6 player games): Nora (bob, glasses) and Hugo (curls, beard), same build as the four above
+const AV_EXTRA = {
+  nora: { bg: "#E6CFE2", cloth: "#8F4B86", hair: () => fl("M-20,6 Q-26,-34 2,-35 Q24,-34 24,-10 Q14,-22 2,-22 Q-10,-20 -12,6Z")
+    + `<circle cx="11" cy="-7" r="5.4" fill="none" stroke="${PA}" stroke-width="1.6"/>` },
+  hugo: { bg: "#CDE8F6", cloth: "#7EC4EC", hair: () => fl("M-18,-8 Q-26,-30 -8,-34 Q0,-40 10,-34 Q24,-30 22,-14 Q14,-24 2,-20 Q-8,-24 -12,-6Z")
+    + fl("M-4,6 Q4,18 20,4 Q18,16 6,17 Q-4,16 -4,6Z") },
+};
+function avatar6(preset) {
+  const x = AV_EXTRA[preset];
+  if (!x) return avatar(preset);
+  const head = fl("M-16,-4 Q-18,-27 2,-28 Q19,-28 21,-11 Q27,-7 25,-1 Q23,2 20,3 Q19,13 4,15 Q-14,15 -16,-4Z");
+  const eye = `<ellipse cx="11" cy="-7" rx="3" ry="3.4" fill="${PA}"/>` + circ(12, -6.6, 1.5);
+  const neck = fl("M-7,8 L7,8 L8,22 L-7,22Z");
+  const body = `<path d="M-40,54 Q-40,24 -8,19 L10,19 Q40,24 40,54Z" fill="${x.cloth}" stroke="${B}" stroke-width="2"/>`;
+  return `<circle r="50" fill="${x.bg}"/>${body}${neck}${head}${x.hair()}${eye}`;
+}
+
 /* ---------- cards: one flat colour field, a silhouette scene, hand-lettered title on paper ---------- */
 // card scenes may be busier than tiles (they are pictures, not a playing surface)
 const sceneBrick = () => {
@@ -448,7 +465,7 @@ const silhouette = {
   robberDx: 46, robberDy: 8, tokenDy: 24,
   icons: ICONS,
   card, cardBack,
-  avatar,
+  avatar: avatar6,
   die,
   thumb,
   swatch: () => `<svg viewBox="0 0 36 36"><rect width="36" height="36" fill="${K.orange}"/><path d="M11,30 V18 L18,10 L25,18 V30Z" fill="${B}"/><rect x="16" y="23" width="4" height="7" fill="${K.yellow}"/></svg>`,

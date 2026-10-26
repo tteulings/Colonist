@@ -16,9 +16,13 @@ const CHEV = `<span class="hm-chev" aria-hidden="true">›</span>`;
 export const LEVELS = [["beginner", "Easy"], ["intermediate", "Medium"], ["expert", "Hard"]];
 
 function seg(name, label, items, on) {
-  return `<div class="hm-seg" role="radiogroup" aria-label="${label}">${items.map(([v, l]) =>
-    `<button type="button" role="radio" data-${name}="${v}" aria-checked="${String(v) === String(on)}" class="${String(v) === String(on) ? "on" : ""}">${l}</button>`).join("")}</div>`;
+  return `<div class="hm-seg" role="radiogroup" aria-label="${label}">${items.map(([v, l, aria]) =>
+    `<button type="button" role="radio" data-${name}="${v}" aria-checked="${String(v) === String(on)}" class="${String(v) === String(on) ? "on" : ""}"${aria ? ` aria-label="${aria}"` : ""}>${l}</button>`).join("")}</div>`;
 }
+// Opponents 1–5; 4–5 bots play the 5–6 player game (bigger island, build between turns)
+const MAX_BOTS = 5;
+const BIG_FROM_BOTS = 4;
+const BIG_RUSH_SECONDS = 20;
 
 export class Home {
   /**
@@ -79,9 +83,10 @@ export class Home {
         <h2 class="hm-h" id="hmNewH">${s ? "Start a new game" : "Choose a game"}</h2>
         <div class="hm-tiles">
           <button type="button" class="hm-tile" data-mode="classic">${icon("dice")}<b>Classic</b><small>Take turns at your own pace</small><span class="hm-vs">${vs}</span></button>
-          <button type="button" class="hm-tile" data-mode="rush">${themed(this.game, "clock", CLOCK_IC, "hm-clock")}<b>Rush</b><small>Everyone plays at once, dice every ${p.rushInterval}s</small><span class="hm-vs">${vs}</span></button>
+          <button type="button" class="hm-tile" data-mode="rush">${themed(this.game, "clock", CLOCK_IC, "hm-clock")}<b>Rush</b><small>Everyone plays at once, dice every ${p.numBots >= BIG_FROM_BOTS ? Math.max(p.rushInterval, BIG_RUSH_SECONDS) : p.rushInterval}s</small><span class="hm-vs">${vs}</span></button>
         </div>
-        <div class="hm-row"><span>Opponents</span>${seg("bots", "Opponents", [[1, "1 bot"], [2, "2 bots"], [3, "3 bots"]], p.numBots)}</div>
+        <div class="hm-row"><span>Opponents</span>${seg("bots", "Opponents", Array.from({ length: MAX_BOTS }, (_, i) => [i + 1, String(i + 1), `${i + 1} bot${i ? "s" : ""}`]), p.numBots)}</div>
+        ${p.numBots >= BIG_FROM_BOTS ? `<p class="hm-cap">${p.numBots + 1} players · bigger island · build between turns</p>` : ""}
         <div class="hm-row"><span>Bots play</span>${seg("level", "Bot level", levels, p.preset)}</div>
       </section>
       <nav class="hm-card hm-list" aria-label="More">
