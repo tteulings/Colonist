@@ -1,17 +1,14 @@
 // Theme registry + persistence + lazy fonts + motion preference + DOM sprite.
 // A theme = CSS tokens on [data-theme="<id>"] (themes/*.css) + one art module (src/themes/<name>/art.js).
-// Adding Wooden Board Game (B) / Storybook (C) later = register their art module here and add a CSS file.
+// Themes: A Sunny Island, B Wooden Board Game, C Silhouette, Classic.
 import sunny from "./sunny/art.js";
+import wood from "./wood/art.js";
+import silhouette from "./silhouette/art.js";
 import classic from "./classic/art.js";
 import { RESOURCE_KEYS, DEV_KEYS } from "./art-util.js";
 
-export const THEMES = { A: sunny, classic };
-export const THEME_ORDER = ["A", "classic"];
-/** Shown in Settings › Look & feel as "coming soon". */
-export const UPCOMING = [
-  { id: "B", name: "Wooden Board Game", mood: "Real wood, paper and felt; painted wooden pieces.", dots: ["#7A5232", "#C9A26B", "#3F6B4A", "#E9DFC7", "#9B3B2E"] },
-  { id: "C", name: "Storybook", mood: "Bold, flat, cheerful colour fields with black silhouettes.", dots: ["#F26B21", "#FFD23F", "#4CB944", "#2EC4B6", "#F78FB3"] },
-];
+export const THEMES = { A: sunny, B: wood, C: silhouette, classic };
+export const THEME_ORDER = ["A", "B", "C", "classic"];
 export const DEFAULT_THEME = "A";
 const THEME_KEY = "colonist.theme";
 const MOTION_KEY = "colonist.motion";
@@ -83,7 +80,9 @@ export const BOT_PROFILE = {
 };
 export function buildSprite(T) {
   let s = `<svg id="themeSprite" class="sprites" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>${T.uiDefs ? T.uiDefs() : ""}`;
-  for (const [k, v] of Object.entries(T.icons)) s += `<symbol id="ic-${k}" viewBox="-50 -50 100 100" overflow="visible">${v}</symbol>`;
+  // the Menu glyph: three lines unless the theme draws its own
+  const icons = { menu: `<path d="M-30 -22H30M-30 0H30M-30 22H30" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/>`, ...T.icons };
+  for (const [k, v] of Object.entries(icons)) s += `<symbol id="ic-${k}" viewBox="-50 -50 100 100" overflow="visible">${v}</symbol>`;
   for (const k of [...RESOURCE_KEYS, ...DEV_KEYS]) s += `<symbol id="card-${k}" viewBox="0 0 250 350">${T.card(k)}</symbol><symbol id="cardm-${k}" viewBox="0 0 250 350">${T.card(k, true)}</symbol>`;
   s += `<symbol id="card-back" viewBox="0 0 250 350">${T.cardBack()}</symbol>`;
   SEAT_PRESETS.forEach((p, i) => { s += `<symbol id="av-${i}" viewBox="-50 -50 100 100">${T.avatar(p)}</symbol>`; });
