@@ -109,7 +109,7 @@ h1, h2, h3, .display { font-family: var(--font-display); font-weight: var(--disp
   --fan-h: 118px;
   /* side gutters of the phone chrome; the board fit keeps the island (with harbours) inside --board-side */
   --gut: 14px; --board-side: 14px; --menu-w: 44px;
-  position: relative; height: 100vh; height: 100dvh; width: 100%; overflow: hidden;
+  position: relative; height: 100vh; height: 100dvh; height: var(--app-h, 100dvh); width: 100%; overflow: hidden;
   display: flex; flex-direction: column; background: var(--sea-bg);
 }
 .topbar { display: none; }
@@ -339,7 +339,7 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 @keyframes fadeIn { from { opacity: 0; } }
 @keyframes sheetUp { from { transform: translateY(40px); opacity: 0; } }
 .app .sheet {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 42; max-height: calc(100dvh - 60px); overflow-y: auto;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 42; max-height: calc(var(--app-h, 100dvh) - 60px); overflow-y: auto;
   background: var(--sheet); background-image: var(--sheet-image); border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
   box-shadow: 0 -10px 40px rgba(0,0,0,.25); border-top: var(--sheet-border); padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
   color: var(--ink); animation: sheetUp 280ms var(--ease-out, ease-out); width: auto; transform: none; top: auto;
@@ -607,7 +607,7 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 
 /* ---------- settings (Look & feel etc.) ---------- */
 .tm-settings { position: fixed; inset: 0; z-index: 70; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; animation: fadeIn 200ms ease; }
-.tm-settings .st-card { width: 100%; max-height: calc(100dvh - 40px); display: flex; flex-direction: column; background: var(--panel); color: var(--ink); border-radius: var(--sheet-radius) var(--sheet-radius) 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,.25); animation: sheetUp 280ms var(--ease-out, ease-out); font-family: var(--font-body); overflow: hidden; }
+.tm-settings .st-card { width: 100%; max-height: calc(var(--app-h, 100dvh) - 40px); display: flex; flex-direction: column; background: var(--panel); color: var(--ink); border-radius: var(--sheet-radius) var(--sheet-radius) 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,.25); animation: sheetUp 280ms var(--ease-out, ease-out); font-family: var(--font-body); overflow: hidden; }
 .tm-settings .st-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 12px 12px 0; flex: none; }
 .tm-settings .st-nav h1 { display: none; }
 .app .tm-settings .st-nav button, .tm-settings .st-nav button { flex: none; min-height: 44px; padding: 6px 4px; border-radius: 10px; font-weight: 650; color: var(--ink-soft); font-size: 14px; line-height: 1.15; text-align: center; display: flex; align-items: center; justify-content: center; }
@@ -818,7 +818,7 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
 
 /* ---------- in-game Menu: bottom sheet on phones, small card on desktop ---------- */
 .menu-sheet { position: fixed; inset: 0; z-index: 65; display: flex; align-items: flex-end; justify-content: center; background: var(--scrim); animation: fadeIn 180ms ease; font-family: var(--font-body); color: var(--ink); }
-.mn-card { width: 100%; max-height: calc(100dvh - 24px); overflow-y: auto; padding: 10px 16px calc(14px + env(safe-area-inset-bottom)); background: var(--sheet); background-image: var(--sheet-image); border-radius: var(--sheet-radius) var(--sheet-radius) 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,.22); animation: sheetUp 260ms var(--ease-out, ease-out); }
+.mn-card { width: 100%; max-height: calc(var(--app-h, 100dvh) - 24px); overflow-y: auto; padding: 10px 16px calc(14px + env(safe-area-inset-bottom)); background: var(--sheet); background-image: var(--sheet-image); border-radius: var(--sheet-radius) var(--sheet-radius) 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,.22); animation: sheetUp 260ms var(--ease-out, ease-out); }
 .mn-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 2px 4px; }
 .mn-head h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-family: var(--font-display); font-weight: var(--display-weight); font-size: 22px; color: var(--heading); }
 .mn-head h2 .ic { font-size: 20px; color: var(--ink-soft); }
@@ -829,14 +829,14 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
 .mn-list button small { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
 @media (min-width: 901px) and (min-height: 501px), (max-height: 500px) and (orientation: landscape) {
   .menu-sheet { align-items: center; }
-  .mn-card { width: min(380px, calc(100vw - 32px)); border-radius: 20px; padding: 12px 18px 14px; max-height: calc(100dvh - 16px); }
+  .mn-card { width: min(380px, calc(100vw - 32px)); border-radius: 20px; padding: 12px 18px 14px; max-height: calc(var(--app-h, 100dvh) - 16px); }
 }
 .ic-menu { color: currentColor; }
 
 /* ---------- how-to-play cards ---------- */
 .welcome { position: fixed; inset: 0; z-index: 85; display: flex; align-items: flex-end; justify-content: center; background: var(--scrim); animation: fadeIn 240ms ease; font-family: var(--font-body); color: var(--ink); }
 .wl-card {
-  width: 100%; max-height: calc(100dvh - 24px); overflow-y: auto; padding: 22px 20px calc(18px + env(safe-area-inset-bottom)); text-align: center;
+  width: 100%; max-height: calc(var(--app-h, 100dvh) - 24px); overflow-y: auto; padding: 22px 20px calc(18px + env(safe-area-inset-bottom)); text-align: center;
   background: var(--sheet); background-image: var(--sheet-image); border-radius: var(--sheet-radius) var(--sheet-radius) 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,.22);
   animation: sheetUp 320ms var(--ease-out, ease-out);
 }
@@ -875,7 +875,7 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
 .welcome .wl-nav .wl-btn { justify-content: center; text-align: center; min-height: 52px; font-weight: 750; font-size: 16px; }
 @media (min-width: 901px) and (min-height: 501px), (max-height: 500px) and (orientation: landscape) {
   .welcome { align-items: center; }
-  .wl-card { width: min(440px, calc(100vw - 32px)); border-radius: 20px; padding: 24px 24px 20px; max-height: calc(100dvh - 16px); }
+  .wl-card { width: min(440px, calc(100vw - 32px)); border-radius: 20px; padding: 24px 24px 20px; max-height: calc(var(--app-h, 100dvh) - 16px); }
 }
 @media (max-height: 500px) and (orientation: landscape) {
   .wl-logo { width: 40px; height: 40px; }
@@ -1151,17 +1151,17 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
   .confirm-pill { left: max(10px, calc(50% - 220px)); right: max(10px, calc(50% - 220px)); }
   /* sheets: centred columns that use the full height */
   .app > .sheet, .app.build-open .buildgrp, .app .journal.open {
-    left: max(8px, calc(50% - 280px)); right: max(8px, calc(50% - 280px)); width: auto; max-height: calc(100dvh - 8px);
+    left: max(8px, calc(50% - 280px)); right: max(8px, calc(50% - 280px)); width: auto; max-height: calc(var(--app-h, 100dvh) - 8px);
   }
-  .tm-settings .st-card, .tm-modal .resource-picker-panel { width: min(560px, calc(100vw - 16px)); max-height: calc(100dvh - 8px); }
+  .tm-settings .st-card, .tm-modal .resource-picker-panel { width: min(560px, calc(100vw - 16px)); max-height: calc(var(--app-h, 100dvh) - 8px); }
   .app.build-open .buildgrp { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .app .bbtn { grid-template-columns: 1fr; justify-items: center; text-align: center; min-height: 0; padding: 8px 6px; row-gap: 2px; }
   .app .bbtn > .ic { grid-row: auto; font-size: 34px; }
   .app .bbtn .bl, .app .bbtn .left { align-self: center; }
-  .app .journal.open { height: calc(100dvh - 8px); }
+  .app .journal.open { height: calc(var(--app-h, 100dvh) - 8px); }
   .rush-seven { align-items: center; justify-content: center; }
-  .app .rush-seven .rush-seven-card { width: min(560px, calc(100vw - 16px)); max-height: calc(100dvh - 8px); border-radius: var(--sheet-radius); }
-  .over-panel { max-height: calc(100dvh - 16px); overflow-y: auto; padding-top: 14px; }
+  .app .rush-seven .rush-seven-card { width: min(560px, calc(100vw - 16px)); max-height: calc(var(--app-h, 100dvh) - 8px); border-radius: var(--sheet-radius); }
+  .over-panel { max-height: calc(var(--app-h, 100dvh) - 16px); overflow-y: auto; padding-top: 14px; }
   .over-panel .trophy { width: 48px; height: 48px; margin: 0 auto; }
   .over-panel h3 { font-size: 28px; }
   .podium .r { padding: 3px 10px; }

@@ -2289,11 +2289,12 @@ class ColonistFullGame {
     const ins = mobile ? { t: top, r: side, b: fan - 6, l: side } : { t: 10, r: 10, b: 10, l: 10 };
     const vp = { l: ins.l, t: ins.t, W: Math.max(50, this.boardWidth - ins.l - ins.r), H: Math.max(50, this.boardHeight - ins.t - ins.b) };
     if (mobile) {
-      // Width-bound portrait phones: sit the island just above the hand instead of leaving an empty
-      // band of sea there (most of the spare height goes to the top, where the dice and fit button float)
+      // Width-bound portrait phones: balance the spare sea above and below the island — 60% above (where
+      // the fit button floats), 40% above the hand. v0.72: was 90% on top (shift 0.8), which left a big empty
+      // band of sea under the ticker on tall phones. (The island is centred in what is left after the shift.)
       const scale = Math.min(vp.W / (box.maxX - box.minX), vp.H / (box.maxY - box.minY));
       const slack = vp.H - (box.maxY - box.minY) * scale;
-      if (slack > 8) { const shift = slack * 0.8; vp.t += shift; vp.H -= shift; }
+      if (slack > 8) { const shift = slack * 0.2; vp.t += shift; vp.H -= shift; }
     }
     return { box, vp };
   }

@@ -5,7 +5,22 @@
 import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, prefetchFonts, icon } from "./manager.js";
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "0.71";
+export const APP_VERSION = "0.72";
+
+/** One line of real viewport numbers for bug reports (Settings › About). */
+function viewportDebug() {
+  const vv = window.visualViewport, d = document.documentElement;
+  const mode = ["fullscreen", "standalone", "minimal-ui"].find((m) => matchMedia(`(display-mode: ${m})`).matches) || "browser";
+  let sab = 0, sat = 0;
+  try {
+    const p = document.createElement("div");
+    p.style.cssText = "position:fixed;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)";
+    document.body.appendChild(p); const cs = getComputedStyle(p); sat = parseFloat(cs.paddingTop) || 0; sab = parseFloat(cs.paddingBottom) || 0; p.remove();
+  } catch (e) { /* ignore */ }
+  const app = document.getElementById("app");
+  const r = (n) => Math.round(n * 10) / 10;
+  return `Viewport: inner ${innerHeight} · visual ${vv ? r(vv.height) : "–"} · client ${d.clientHeight} · app ${app ? r(app.getBoundingClientRect().height) : "–"} (--app-h ${d.style.getPropertyValue("--app-h") || "–"}) · screen ${screen.height} (avail ${screen.availHeight}) · ${mode} · safe-area top ${r(sat)} bottom ${r(sab)}`;
+}
 
 /** A tiny live preview of a theme: seven hexes in the theme's palette on its sea. */
 function miniBoard(dots, sea) {
@@ -92,7 +107,8 @@ export class SettingsUI {
       body.innerHTML = this.head("About", "") + `<p class="sub">Colonist ${"v" + APP_VERSION} — a settle-and-trade island game against friendly bots.</p>
         <button type="button" class="st-howto">${icon("hint")}How to play</button>
         <p class="sub">Keyboard: R roll dice · E end turn · 1–3 build · B buy card · T trade · V fit board · Esc cancel.</p>
-        <p class="sub st-screen">Screen: ${innerWidth}×${innerHeight} @${+(window.devicePixelRatio || 1).toFixed(2)}x${matchMedia("(display-mode: standalone)").matches ? " · installed app" : ""}</p>`;
+        <p class="sub st-screen">Screen: ${innerWidth}×${innerHeight} @${+(window.devicePixelRatio || 1).toFixed(2)}x${matchMedia("(display-mode: standalone)").matches ? " · installed app" : ""}</p>
+        <p class="sub st-viewport">${viewportDebug()}</p>`;
       body.querySelector(".st-howto").addEventListener("click", () => { this.close(); g.onboarding?.showIntro(0, false); });
       body.appendChild(this.devPane);
     } else {
