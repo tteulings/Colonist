@@ -165,7 +165,7 @@ const tile = (t) => tileCache[t] || (tileCache[t] = `${cut(`<path d="${hexD(95.5
   <g clip-path="url(#c-clip-${t})">${cut(TS[t]())}<path d="${hexD(96)}" filter="url(#c-gouache)" opacity=".3"/></g>`);
 const glow = () => `<path d="${hexD(101)}" fill="none" stroke="${K.yellow}" stroke-width="10" stroke-linejoin="round"/>`;
 
-/* ---------- ports (v0.77): a cream paper tag off the coast, the ink resource silhouette (or a black "?"
+/* ---------- ports (v0.76): a cream paper tag off the coast, the ink resource silhouette (or a black "?"
    seal for 3:1) beside the ratio; thin ink piers to the coast corners, each ending in a small ink dot with the
    harbour's flat colour. Geometry: harbourBadges (p.badge). ---------- */
 const PORT_TONE = { wood: K.green, brick: K.orange, sheep: K.lime, wheat: K.yellow, ore: K.grey };

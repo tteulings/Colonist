@@ -139,7 +139,7 @@ const glow = () => `<path d="${hexPath(0, 0, 93)}" fill="none" stroke="#FFF8E6" 
 /* ======================= harbours: printed frame discs =======================
    Ratio label is drawn by the canvas with the page font (fonts don't load inside rasterised SVG). */
 const RES_TONE = { wood: "#5F9A57", brick: "#D98260", sheep: "#9FBC6A", wheat: "#D9AE4E", ore: "#8E9AB0" };
-// v0.77: a printed badge (the token's paper disc stretched to a lozenge) off the coast: the printed resource
+// v0.76: a printed badge (the token's paper disc stretched to a lozenge) off the coast: the printed resource
 // icon in a ring of its colour, or a "?" seal for 3:1, beside the ratio; dashed rope piers to the coast
 // corners, each marked by a small dot of the harbour's colour. Geometry: harbourBadges (p.badge).
 const PORT_ANY = "#2F6573"; // ivory "?" on it: 5.5:1

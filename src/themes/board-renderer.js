@@ -189,7 +189,7 @@ export class SvgBoardRenderer {
     return Math.min(b, cap);
   }
 
-  /** v0.77: one readable pill per harbour, placed fully in the sea (shared layout, see harbourBadges). */
+  /** v0.76: one readable pill per harbour, placed fully in the sea (shared layout, see harbourBadges). */
   portData() {
     const badges = harbourBadges(this.game, this.tokenScale);
     return (this.game.ports || []).map((port, i) => {

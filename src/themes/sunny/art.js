@@ -390,7 +390,7 @@ const tile = (t) => `<g clip-path="url(#a-hexclip)" transform="scale(.968)"><use
 const glow = () => `<path d="${hexPath(0, 0, 97)}" fill="none" stroke="#FFE9A8" stroke-width="16" filter="url(#a-glow)"/><path d="${hexPath(0, 0, 93)}" fill="#FFF4CF" opacity=".14" stroke="#FFF1C2" stroke-width="3.4"/>`;
 
 /**
- * Harbour (v0.77): a cream badge in the sea off the coast — the resource tile (the same white-glyph tile
+ * Harbour (v0.76): a cream badge in the sea off the coast — the resource tile (the same white-glyph tile
  * as the bank bar) or a neutral "?" tile for 3:1, next to the ratio in bold — two plank piers to the coast
  * corners, and a small coloured dot on each of those corners. Geometry: harbourBadges (p.badge).
  * Text is returned as labels so the canvas draws it with the page font (fonts don't load in rasterised SVG).

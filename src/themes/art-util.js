@@ -55,7 +55,7 @@ export const CARD_TEXT = {
 /** Escape text for use inside SVG/HTML. */
 export const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-/* ---------------------------------------------------------------- harbours (v0.77)
+/* ---------------------------------------------------------------- harbours (v0.76)
  * One badge per harbour, in the sea off its coast edge: a horizontal pill with the resource icon (or a "?"
  * for 3:1) left of the ratio in bold, plus two short piers to the coast corners that trade there.
  * harbourBadges(game, s) places every badge once and is shared by every theme, the legacy Classic renderer
