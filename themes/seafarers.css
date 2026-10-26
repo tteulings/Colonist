@@ -34,6 +34,19 @@ html:not([data-map="seafarers"]) .sea-only { display: none !important; }
 /* home: Map row (Island | Seafarers) and its one-line note (home is outside any game, so not scoped) */
 .hm-note { margin: 6px 0 0 84px; font-size: 12px; font-weight: 650; color: var(--ink-soft); line-height: 1.3; }
 @media (max-width: 420px) { .hm-note { margin-left: 76px; } }
+/* the Map row adds a line to home: short portrait phones (360x700 with browser bars) still fit without scrolling */
+@media (max-height: 760px) and (max-width: 600px) {
+  .hm-note { display: none; }
+  .home .hm-seg button { min-height: 38px; }
+  .hm-h { margin-bottom: 6px; }
+  .hm-row { margin-top: 7px; }
+  .hm-tile { min-height: 104px; }
+  .hm-list button { min-height: 44px; }
+  .hm-list button small { display: none; }
+  .home .hm-col { gap: 8px; }
+  .home.has-save .hm-tile { min-height: 92px; }
+  .home.has-save .hm-tile small { line-height: 1.2; }
+}
 
 /* player chips: island badge (+2 per new island) next to the awards */
 .isle-badge { display: inline-flex; align-items: center; gap: 1px; }
