@@ -3,11 +3,14 @@
 const CACHE = "colonist-v69";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./manifest.webmanifest", "./assets/favicon.svg",
-  "./themes/base.css", "./themes/theme-sunny.css", "./themes/theme-classic.css",
+  "./themes/base.css", "./themes/theme-sunny.css", "./themes/theme-wood.css", "./themes/theme-silhouette.css", "./themes/theme-classic.css",
   "./src/game.js", "./src/sound.js",
   "./src/themes/manager.js", "./src/themes/art-util.js", "./src/themes/board-renderer.js",
   "./src/themes/fx.js", "./src/themes/settings-ui.js", "./src/themes/onboarding.js",
   "./src/themes/sunny/art.js", "./src/themes/sunny/ui-icons.js", "./src/themes/classic/art.js",
+  "./src/themes/spec-util.js", "./src/themes/wood/art.js", "./src/themes/silhouette/art.js",
+  "./assets/fonts/PlayfairDisplay.woff2", "./assets/fonts/SourceSans3.woff2", "./assets/fonts/WoodNumerals.woff2",
+  "./assets/fonts/Kalam-700.woff2", "./assets/fonts/AlegreyaSans-500.woff2", "./assets/fonts/AlegreyaSans-700.woff2", "./assets/fonts/AlegreyaSans-800.woff2",
 ];
 
 self.addEventListener("install", (event) => {

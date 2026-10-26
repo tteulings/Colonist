@@ -97,14 +97,15 @@ export class SettingsUI {
     } else {
       const cur = g.theme.id;
       const card = (T) => `<button type="button" class="tc ${T.id === cur ? "on" : ""}" data-theme-id="${T.id}" aria-pressed="${T.id === cur}">
-          <div class="pv">${miniBoard(T.paletteDots, T.id === "A" ? "#3CA9B0" : "#2a6a88")}</div><span class="radio"></span>
-          <div class="meta"><div class="nm"><b>${T.name}</b><span class="aa" style="font-family:${T.id === "A" ? "'DM Serif Display',Georgia,serif" : "Inter,sans-serif"}">Aa</span></div>
+          <div class="pv">${T.thumb ? T.thumb() : miniBoard(T.paletteDots, T.id === "A" ? "#3CA9B0" : "#2a6a88")}</div><span class="radio"></span>
+          <div class="meta"><div class="nm"><b>${T.name}</b><span class="aa" style="font-family:${T.sampleFont || (T.id === "A" ? "'DM Serif Display',Georgia,serif" : "Inter,sans-serif")}">Aa</span></div>
           <p>${T.mood}</p><div class="dots">${T.paletteDots.map((c) => `<i style="background:${c}"></i>`).join("")}</div></div></button>`;
       const m = motionPref();
       body.innerHTML = this.head("Look &amp; feel", "Pick a world for your island. Board, cards, pieces and motion follow the theme. Applies instantly.") +
         `<div class="tcards">${THEME_ORDER.map((id) => card(THEMES[id])).join("")}</div>
-        ${g.theme?.id === "A" ? `<div class="st-row" style="margin-top:14px"><div><b>Colours</b><small>Light is soft and airy · Vivid is bold and saturated.</small></div>
-          <div class="seg pal-seg" role="radiogroup" aria-label="Colours">${[["light", "Light"], ["vivid", "Vivid"]].map(([v, l]) => `<button type="button" data-palette="${v}" class="${palettePref() === v ? "on" : ""}" aria-checked="${palettePref() === v}" role="radio"><i class="pal-dot pal-${v}"></i>${l}</button>`).join("")}</div></div>` : ""}
+        ${(() => { const pal = !!g.theme?.setPalette; // Light | Vivid exists only where the theme has two palettes (Sunny Island)
+          return `<div class="st-row${pal ? "" : " is-off"}" style="margin-top:14px"><div><b>Colours</b><small>${pal ? "Light is soft and airy · Vivid is bold and saturated." : `${g.theme.name} has one palette; Light and Vivid are a Sunny Island option.`}</small></div>
+          <div class="seg pal-seg" role="radiogroup" aria-label="Colours" aria-disabled="${!pal}">${[["light", "Light"], ["vivid", "Vivid"]].map(([v, l]) => `<button type="button" data-palette="${v}" class="${pal && palettePref() === v ? "on" : ""}" aria-checked="${pal && palettePref() === v}" role="radio"${pal ? "" : " disabled"}><i class="pal-dot pal-${v}"></i>${l}</button>`).join("")}</div></div>`; })()}
         <div class="st-row"><div><b>Motion</b><small>Reduced replaces travel and spin with short fades.</small></div>
           <div class="seg" role="radiogroup" aria-label="Motion">${[["full", "Full"], ["reduced", "Reduced"], ["system", "Follow system"]].map(([v, l]) => `<button type="button" data-motion="${v}" class="${m === v ? "on" : ""}" aria-checked="${m === v}" role="radio">${l}</button>`).join("")}</div></div>
         <div class="st-row"><div><b>Quick toggle</b><small>The same swatches sit in the top bar on wide screens.</small></div><div class="theme-toggle" data-qt></div></div>`;

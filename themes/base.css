@@ -625,6 +625,7 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 .st-row b { font-size: 15px; color: var(--heading); }
 .st-row small { display: block; color: var(--ink-soft); font-size: 12.5px; font-weight: 500; margin-top: 2px; }
 .st-row > div:first-child { flex: 1 1 200px; }
+.st-row.is-off .seg { opacity: .45; filter: grayscale(1); pointer-events: none; }
 .seg { display: inline-flex; background: var(--group); border: var(--group-border); border-radius: 10px; padding: 3px; }
 .tm-settings .seg button { padding: 8px 12px; border-radius: 8px; font-size: 13.5px; font-weight: 650; color: var(--ink-soft); min-height: 38px; }
 .tm-settings .seg button.on { background: var(--panel); color: var(--heading); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
