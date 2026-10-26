@@ -26,7 +26,8 @@
   --scrim: rgba(24,40,42,.42); --spot: rgba(18,30,32,.55); --home-ind: #22302F;
   --btn: #FFFFFF; --btn-image: none; --btn-ink: #2E3A3D; --btn-border: 1px solid #D9CEB6; --btn-shadow: 0 1px 2px rgba(60,50,30,.08); --btn-radius: 10px;
   --btn-on: #FCEBE3; --btn-on-ink: #A84E2F; --btn-on-border: 1.5px solid #D9714E; --btn-on-shadow: 0 0 0 3px rgba(217,113,78,.16);
-  --primary: #B85634; --primary-image: linear-gradient(#C05D3A, #B0502F); --primary-ink: #FFF9F2; --primary-border: 1px solid #9C4426; --primary-shadow: 0 1px 2px rgba(120,50,20,.2), 0 6px 16px rgba(160,79,47,.22); --primary-size: 21px;
+  /* v0.75: the primary button is deep sea teal — terracotta read as the red "You" seat */
+  --primary: #1F5F66; --primary-image: linear-gradient(#22666D, #1C585F); --primary-ink: #FFF9F2; --primary-border: 1px solid #164C52; --primary-shadow: 0 1px 2px rgba(16,60,66,.22), 0 6px 16px rgba(20,84,92,.24); --primary-size: 21px;
   --accent: #D9714E; --good: #4F8A33; --good-bg: #E5F1DB; --danger: #A8402C;
   --kbd-bg: #E3F1EE; --kbd-ink: #1F6E77;
   --badge: #2B8C98; --badge-ink: #FBF8F1; --badge-border: 2px solid #FBF8F1;
@@ -34,10 +35,11 @@
   --active-row: #FCEEE6; --divider: 1px solid #EFE7D7; --divider-soft: 1px solid #F1EADC; --sep: #E6DDCB;
   --fab-radius: 12px; --card-radius: 8px; --card-shadow: drop-shadow(0 1px 1px rgba(40,30,10,.12)) drop-shadow(0 4px 8px rgba(40,30,10,.10));
   --avatar-radius: 50%; --avatar-shadow: 0 1px 3px rgba(0,0,0,.12);
-  /* seats: You (blue) · orange · ivory · plum */
-  --p0: #4A7FD6; --p1: #F2934A; --p2: #D8CFBB; --p3: #A8306F;
-  --p0-text: #2C5BA8; --p1-text: #A85516; --p2-text: #8C7B57; --p3-text: #8E2560;
-  --p0-ink: #fff; --p1-ink: #fff; --p2-ink: #2E3A3D; --p3-ink: #fff;
+  /* seats (v0.75, colonist.io order), identical in every theme: You red · Marina blue · Bruno orange · Viktor green
+     (+ Nora ivory · Hugo purple from src/themes/seats.js). -text: AA on paper; -ink: AA on the seat colour */
+  --p0: #E0312B; --p1: #2F6FE6; --p2: #F7931E; --p3: #2E9E5E;
+  --p0-text: #A01D18; --p1-text: #1F4FAE; --p2-text: #8F4710; --p3-text: #12603A;
+  --p0-ink: #fff; --p1-ink: #fff; --p2-ink: #2E1F14; --p3-ink: #0F2418;
   --row-tint: 7%; --vp-tint: 22%;
   --h2-bg: linear-gradient(90deg, #FCE7DC, #FDF4EC); --h2-bg-2: linear-gradient(90deg, #E2F2EE, #F1F8F5); --h2-border: 1px solid #F1E2D3;
   --jicon-bg: #EEF7F4; --jicon-pad: 3px; --jicon-size: 22px;
@@ -197,10 +199,10 @@
   --sea-bg: #1394C4;
   --sea-image: radial-gradient(ellipse 85% 70% at 50% 46%, #48D0D9 0%, #1AA8CF 50%, #0E80B9 100%);
   --shimmer-a: .2;
-  --primary: #C8471E; --primary-image: linear-gradient(#D04C22, #C0421A); --primary-border: 1px solid #A8391A; --accent: #F2643A;
-  --primary-shadow: 0 1px 2px rgba(120,40,10,.25), 0 6px 16px rgba(120,40,10,.22);
+  --primary: #0E5A66; --primary-image: linear-gradient(#106270, #0C525D); --primary-border: 1px solid #0A4650; --accent: #F2643A;
+  --primary-shadow: 0 1px 2px rgba(4,40,48,.3), 0 6px 16px rgba(4,40,48,.26);
   --rush-ring: #F2643A;
-  --p0: #3D78E0; --p1: #F6852C;
+  --p0: #EC2F26; --p1: #2E6FE6; --p2: #FF931A; /* the vivid pieces (src/themes/sunny/art.js) */
   --float: rgba(236,248,251,.95);
   --glass: rgba(8,62,104,.44); --glass-line: rgba(255,255,255,.13); --glass-active: rgba(4,46,84,.58);
   --glass-shadow: 0 1px 2px rgba(0,30,60,.12), 0 6px 18px rgba(0,30,60,.16);
@@ -237,9 +239,10 @@
     background: var(--pc); color: var(--pc-ink); font-size: 18px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.3);
   }
   [data-theme="A"] .pchip .vpn small { display: none; }
-  /* points on the seat colour at AA: the blue seat uses its deeper shade, the orange seat dark ink */
+  /* points on the seat colour at AA: the red seat uses its deeper shade, the orange and green seats dark ink */
   [data-theme="A"] .pchip.pc-0 .vpn { background: var(--p0-text); }
-  [data-theme="A"] .pchip.pc-1 .vpn { color: #2E1F14; }
+  [data-theme="A"] .pchip.pc-2 .vpn { color: #2E1F14; }
+  [data-theme="A"] .pchip.pc-3 .vpn { color: var(--p3-ink); }
   [data-theme="A"] .pchip .pn { grid-area: pn; text-align: left; font-size: 11.5px; line-height: 13px; font-weight: 750; color: var(--bar-ink); overflow: hidden; text-overflow: ellipsis; }
   [data-theme="A"] .pchip:has(.bdg span) .pn { padding-right: 16px; }
   [data-theme="A"] .pchip:has(.bdg span + span) .pn { padding-right: 32px; }

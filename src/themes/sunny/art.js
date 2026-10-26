@@ -17,14 +17,16 @@ const PALETTES = {
       pasture: ["#9AD658", "#74B436", "#CBEF92"], wheat: ["#F5BB2A", "#D69810", "#FCDA72"], terra: ["#E35D33", "#B5421E", "#F49068"],
       slate: ["#7B93B6", "#566F96", "#B3C5DE"], desert: ["#F1D79E", "#D9B672", "#F9EAC6"], wall: "#F7F2E6", roof: "#D9714E", ink: "#26303A",
     },
-    // Pieces: clear blue / strong orange / crisp white / plum (v0.73: was charcoal, unclear next to the robber); `line` = the dark outline
+    // Pieces (v0.75, colonist.io order): red / blue / orange / green / crisp white / deep purple; `line` = the dark outline
     PC: {
-      blue: { base: "#2E6FE6", dark: "#1E50B4", light: "#78A5F8", line: "#0E2C68" },
-      orange: { base: "#FF8A1F", dark: "#C95F0A", light: "#FFB868", line: "#6A3004" },
-      ivory: { base: "#FFFFFF", dark: "#D3CCBC", light: "#FFFFFF", line: "#3B362E" },
-      plum: { base: "#B0246F", dark: "#801650", light: "#DC6CA6", line: "#3C0622" },
+      red: { base: "#EC2F26", dark: "#AE1E18", light: "#F8807A", line: "#1A1A1A" },
+      blue: { base: "#2E6FE6", dark: "#1E50B4", light: "#78A5F8", line: "#1A1A1A" },
+      orange: { base: "#FF931A", dark: "#C9670A", light: "#FFC06A", line: "#1A1A1A" },
+      green: { base: "#2E9E5E", dark: "#1D7642", light: "#72CC95", line: "#1A1A1A" },
+      ivory: { base: "#EDE6D3", dark: "#C8BFAA", light: "#FBF7EC", line: "#6B6253" },
+      purple: { base: "#72309F", dark: "#521E76", light: "#A872D0", line: "#1A1A1A" },
     },
-    TEXT: { blue: "#1F5BC7", orange: "#C2610F", ivory: "#6F6553", plum: "#8A1D58" },
+    TEXT: { red: "#A01D18", blue: "#1F4FAE", orange: "#8F4710", green: "#12603A", ivory: "#5E5139", purple: "#72309F" },
   },
   light: {
     P: {
@@ -34,17 +36,22 @@ const PALETTES = {
       slate: ["#93A2B4", "#728399", "#C3CEDB"], desert: ["#F0DAA8", "#DCBF85", "#F8EBCB"], wall: "#F7F2E6", roof: "#D9714E", ink: "#2E3A3D",
     },
     PC: {
-      // pieces stay the most salient thing on the board, so they are only a touch softer than vivid
-      blue: { base: "#3A76DC", dark: "#2557B0", light: "#7AA5F0", line: "#163777" },
-      orange: { base: "#F68B3A", dark: "#BF6118", light: "#FBB57A", line: "#6E380C" },
-      ivory: { base: "#FDFBF6", dark: "#C8BFAA", light: "#FFFFFF", line: "#4A443A" },
-      plum: { base: "#A8306F", dark: "#7A1F50", light: "#D06A9E", line: "#3A0A24" },
+      // pieces stay the most salient thing on the board: saturated primaries, a touch softer than vivid.
+      // Green is a cool, deep green (well apart from the yellow-green pasture and the olive forest) with a dark line.
+      red: { base: "#E0312B", dark: "#A8201B", light: "#F47A72", line: "#1A1A1A" },
+      blue: { base: "#2F6FE6", dark: "#1F50B8", light: "#7AA5F5", line: "#1A1A1A" },
+      orange: { base: "#F7931E", dark: "#C0680A", light: "#FCC06E", line: "#1A1A1A" },
+      green: { base: "#2E9E5E", dark: "#1D7642", light: "#72CC95", line: "#1A1A1A" },
+      ivory: { base: "#EDE6D3", dark: "#C8BFAA", light: "#FBF7EC", line: "#6B6253" },
+      purple: { base: "#72309F", dark: "#521E76", light: "#A872D0", line: "#1A1A1A" },
     },
-    TEXT: { blue: "#2C5BA8", orange: "#C7661F", ivory: "#8C7B57", plum: "#8E2560" },
+    TEXT: { red: "#A01D18", blue: "#1F4FAE", orange: "#8F4710", green: "#12603A", ivory: "#5E5139", purple: "#72309F" },
   },
 };
 const P = {};
-const PC = { blue: {}, orange: {}, ivory: {}, plum: {} };
+const PC = { red: {}, blue: {}, orange: {}, green: {}, ivory: {}, purple: {} };
+// v0.75: Road / Settlement / City / Ship icons (build sheet, dock, costs) are UI, so neutral ink rather than a seat colour
+const BUILD_INK = { base: "#22313A", dark: "#16222A", light: "#4A5A64", line: "#0E161B" };
 const TEXT = {};
 let paletteId = null;
 const clonePal = (o) => JSON.parse(JSON.stringify(o));
@@ -261,8 +268,8 @@ ICONS.wheat = `${sh(0, 40, 24, 4, 0.14)}${[[-16, -2, -16], [0, -10, 0], [16, -2,
 ICONS.ore = `${sh(4, 38, 38, 5, 0.14)}${nug(-16, 22, 1.25, "#9AA9BB", "#71839A", "#D2DCE7")}${nug(18, 24, 1.05, "#8797AB", "#64758C", "#C6D2DE")}${nug(2, -4, 1.35, "#A9B7C7", "#7C8DA3", "#E3EAF1")}<path d="M-2,-22 l2,-6 2,6 6,2 -6,2 -2,6 -2,-6 -6,-2Z" fill="#FFFFFF"/><path d="M26,6 l1.4,-4 1.4,4 4,1.4 -4,1.4 -1.4,4 -1.4,-4 -4,-1.4Z" fill="#F4F7FA"/>`;
 ICONS.desert = `${sh(0, 38, 40, 5, 0.14)}<path d="M-44,36 Q-20,10 6,22 Q26,8 44,24 V36Z" fill="${P.desert[0]}" ${o(P.desert[1])}/><g transform="translate(-6 18)">${[-60, -30, 0, 30, 60].map((a) => `<path d="M0,0 Q${f(Math.sin((a * Math.PI) / 180) * 10)},-14 ${f(Math.sin((a * Math.PI) / 180) * 22)},${f(-26 + Math.abs(a) / 6)}" stroke="#7E9A78" stroke-width="5" fill="none" stroke-linecap="round"/>`).join("")}</g><circle cx="24" cy="-26" r="10" fill="#EBC46A" opacity=".9"/>`;
 ICONS.knight = `${sh(2, 42, 30, 5, 0.14)}<g transform="rotate(-36)"><rect x="-3" y="-50" width="6" height="64" rx="2" fill="#D9DEE0" ${o("#7F8A90", 1.6)}/><rect x="-12" y="14" width="24" height="5" rx="2" fill="#C9A04A" ${o("#8A6A2C", 1.4)}/><rect x="-2.5" y="19" width="5" height="14" fill="#7A5A3C"/></g>
-  <path d="M-28,-28 H28 V0 Q28,28 0,40 Q-28,28 -28,0Z" fill="${PC.blue.base}" ${o(PC.blue.dark)}/><path d="M0,-28 H28 V0 Q28,28 0,40Z" fill="${PC.blue.dark}" opacity=".45"/><path d="M-22,-22 H22 V0 Q22,22 0,32 Q-22,22 -22,0Z" fill="none" stroke="#E2C27A" stroke-width="1.6"/>
-  <path d="M-10,16 V-4 h-3 v-9 h5 v4 h4 v-4 h8 v4 h4 v-4 h5 v9 h-3 V16Z" fill="#F4EEE1" ${o("#A69A7E", 1.2)}/><path d="M-3,16 v-7 q3,-4 6,0 v7Z" fill="${PC.blue.dark}"/>`;
+  <path d="M-28,-28 H28 V0 Q28,28 0,40 Q-28,28 -28,0Z" fill="${PC.red.base}" ${o(PC.red.dark)}/><path d="M0,-28 H28 V0 Q28,28 0,40Z" fill="${PC.red.dark}" opacity=".45"/><path d="M-22,-22 H22 V0 Q22,22 0,32 Q-22,22 -22,0Z" fill="none" stroke="#E2C27A" stroke-width="1.6"/>
+  <path d="M-10,16 V-4 h-3 v-9 h5 v4 h4 v-4 h8 v4 h4 v-4 h5 v9 h-3 V16Z" fill="#F4EEE1" ${o("#A69A7E", 1.2)}/><path d="M-3,16 v-7 q3,-4 6,0 v7Z" fill="${PC.red.dark}"/>`;
 ICONS.roadBuilding = `${sh(0, 40, 40, 5, 0.14)}<path d="M-40,38 Q-16,20 0,4 Q14,-10 6,-30" stroke="#B9A57E" stroke-width="22" fill="none" stroke-linecap="round"/><path d="M-40,38 Q-16,20 0,4 Q14,-10 6,-30" stroke="#E7D7B2" stroke-width="18" fill="none" stroke-linecap="round"/><path d="M-36,34 Q-16,20 0,4 Q12,-8 6,-26" stroke="#FBF6EA" stroke-width="2" stroke-dasharray="5 5" fill="none"/>
   <path d="M24,40 V-36" stroke="#6B5A43" stroke-width="4"/><g ${o("#7A4A2C", 1.6)}><path d="M24,-34 H44 L50,-28 L44,-22 H24Z" fill="${P.roof}"/><path d="M24,-18 H6 L0,-12 L6,-6 H24Z" fill="${P.terra[2]}"/></g>`;
 ICONS.yearOfPlenty = `${sh(4, 40, 38, 5, 0.14)}<path d="M-40,-30 Q-44,-14 -30,-8 Q-14,-2 0,-14 L8,22 Q-20,30 -34,12 Q-48,-6 -40,-30Z" fill="#C9A06A" ${o("#7A5A3C")}/><path d="M-40,-30 Q-36,-20 -26,-18" stroke="#7A5A3C" stroke-width="2" fill="none"/>
@@ -272,13 +279,13 @@ ICONS.yearOfPlenty = `${sh(4, 40, 38, 5, 0.14)}<path d="M-40,-30 Q-44,-14 -30,-8
   <circle cx="28" cy="14" r="9" fill="${P.wheat[0]}" ${o("#8A6A2C", 1.6)}/><circle cx="12" cy="26" r="8" fill="${P.olive[0]}" ${o(P.olive[1], 1.6)}/><circle cx="34" cy="32" r="6" fill="#7E5A8A" ${o("#5A3E66", 1.4)}/>
   <path d="M20,-16 q2,-8 8,-10" stroke="${P.olive[1]}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`;
 ICONS.monopoly = `${sh(0, 40, 36, 5, 0.14)}<path d="M-30,30 V22 H30 V30Z" fill="#B78D3E" ${o("#7A5A22")}/><path d="M-32,22 L-38,-16 L-18,0 L0,-30 L18,0 L38,-16 L32,22Z" fill="#E2C27A" ${o("#8A6A2C")}/><path d="M0,-30 L18,0 L38,-16 L32,22 H6Z" fill="#C9A04A" opacity=".7"/>
-  <circle cx="0" cy="8" r="5" fill="${PC.blue.base}" ${o(PC.blue.dark, 1.2)}/><circle cx="-18" cy="10" r="3.6" fill="${P.roof}"/><circle cx="18" cy="10" r="3.6" fill="${P.olive[0]}"/>`;
+  <circle cx="0" cy="8" r="5" fill="${PC.red.base}" ${o(PC.red.dark, 1.2)}/><circle cx="-18" cy="10" r="3.6" fill="${P.roof}"/><circle cx="18" cy="10" r="3.6" fill="${P.olive[0]}"/>`;
 ICONS.victoryPoint = `${sh(0, 42, 26, 4.5, 0.14)}<path d="M-20,-34 Q-40,-34 -34,-16 Q-30,-4 -14,-2 M20,-34 Q40,-34 34,-16 Q30,-4 14,-2" stroke="#B78D3E" stroke-width="4" fill="none"/><path d="M-24,-40 H24 Q24,4 0,10 Q-24,4 -24,-40Z" fill="#E2C27A" ${o("#8A6A2C")}/><path d="M2,-40 H24 Q24,4 2,10Z" fill="#C9A04A" opacity=".7"/>
   <path d="M-5,10 h10 l3,16 h-16Z" fill="#C9A04A" ${o("#8A6A2C", 1.6)}/><rect x="-20" y="26" width="40" height="10" rx="2" fill="#6B5A43" ${o("#4A3726", 1.6)}/><path d="M0,-30 l4,8 9,1.3 -6.5,6.3 1.5,9 -8,-4.2 -8,4.2 1.5,-9 -6.5,-6.3 9,-1.3Z" fill="#FBF6EA"/>`;
-ICONS.road = `${sh(4, 26, 40, 5, 0.14)}<g transform="rotate(-22)"><rect x="-40" y="-8" width="80" height="16" rx="8" fill="${PC.blue.base}" ${o(PC.blue.dark)}/><path d="M-32,-3 H30" stroke="${PC.blue.light}" stroke-width="2.4" stroke-linecap="round"/></g>`;
-Object.assign(ICONS, seaIcons(PC.blue, P.ink)); // ⚓ Seafarers: ship, pirate, gold, island, trade route
-ICONS.settlement = `<g transform="translate(-6 4) scale(1.9)">${homeSvg(PC.blue)}</g>`;
-ICONS.city = `<g transform="translate(0 4) scale(1.45)">${citySvg(PC.blue)}</g>`;
+ICONS.road = `${sh(4, 26, 40, 5, 0.14)}<g transform="rotate(-22)"><rect x="-40" y="-8" width="80" height="16" rx="8" fill="${BUILD_INK.base}" ${o(BUILD_INK.dark)}/><path d="M-32,-3 H30" stroke="${BUILD_INK.light}" stroke-width="2.4" stroke-linecap="round"/></g>`;
+Object.assign(ICONS, seaIcons(BUILD_INK, P.ink)); // build icons in neutral ink (UI, not a seat) · ⚓ Seafarers: ship, pirate, gold, island, trade route
+ICONS.settlement = `<g transform="translate(-6 4) scale(1.9)">${homeSvg(BUILD_INK)}</g>`;
+ICONS.city = `<g transform="translate(0 4) scale(1.45)">${citySvg(BUILD_INK)}</g>`;
 ICONS.trade = `<path d="M-36,-10 Q-36,-28 -14,-28 H14 V-38 L36,-20 L14,-2 V-12 H-12 Q-20,-12 -20,-4Z" fill="${P.roof}" ${o("#8E4429")}/><path d="M36,10 Q36,28 14,28 H-14 V38 L-36,20 L-14,2 V12 H12 Q20,12 20,4Z" fill="${P.sea1}" ${o(P.sea0)}/>`;
 ICONS.bank = `${sh(0, 42, 40, 5, 0.14)}<path d="M-40,-14 L0,-38 L40,-14Z" fill="${P.terra[0]}" ${o(P.terra[1])}/><rect x="-38" y="-14" width="76" height="7" fill="#F4EEE1" ${o("#A69A7E")}/><g fill="#F4EEE1" ${o("#A69A7E", 1.6)}>${[-28, -10, 6, 22].map((x) => `<rect x="${x}" y="-7" width="8" height="34"/>`).join("")}</g><rect x="-42" y="27" width="84" height="9" rx="1.5" fill="${P.wheat[2]}" ${o("#B48F45")}/><circle cx="0" cy="-22" r="5" fill="#E2C27A" ${o("#8A6A2C", 1.4)}/>`;
 ICONS.dice = `${sh(2, 40, 40, 5, 0.14)}${dieFace(3, -16, 10, -10, 0.62)}${dieFace(5, 18, -8, 12, 0.58)}`;
@@ -319,13 +326,13 @@ const face = (skin, sk2, ink, mood = 0) => `<ellipse cx="0" cy="-6" rx="17" ry="
   <circle cx="-10" cy="2" r="3.2" fill="#E8907A" opacity=".22"/><circle cx="10" cy="2" r="3.2" fill="#E8907A" opacity=".22"/>`;
 const bust = (bg, cloth, cl2, skin, sk2) => `<circle r="50" fill="${bg}"/><path d="M-38,52 Q-38,20 0,18 Q38,20 38,52Z" fill="${cloth}" stroke="${cl2}" stroke-width="1.2"/><path d="M-7,8 h14 v12 q-7,5 -14,0Z" fill="${sk2}"/>`;
 const AVP = {
-  you: () => bust("#DEE8F8", "#4A7FD6", "#2C5BA8", "#EDC7A6", "#C9997A") + `<path d="M-19,-10 Q-22,-34 0,-32 Q22,-34 19,-10 Q14,-24 0,-22 Q-12,-24 -19,-10Z" fill="#5A3E2B" stroke="#3E2A1D" stroke-width="1.2"/>` + face("#EDC7A6", "#C9997A", "#3A2A20") + `<path d="M-17,-14 Q-10,-30 6,-26" stroke="#5A3E2B" stroke-width="5" fill="none" stroke-linecap="round"/>`,
-  trader: () => bust("#FBE6CF", "#F2934A", "#B9651F", "#C99372", "#A3705A") + `<path d="M-20,-16 Q-27,12 -21,30 Q-15,33 -11,26 Q-15,6 -13,-10Z M20,-16 Q27,12 21,30 Q15,33 11,26 Q15,6 13,-10Z" fill="#3A2722" stroke="#241815" stroke-width="1"/>` + face("#C99372", "#A3705A", "#2B1E1A", -1) + `<path d="M-30,-20 Q0,-30 30,-20 Q24,-16 0,-18 Q-24,-16 -30,-20Z" fill="#6B4425" stroke="#4A2E18" stroke-width="1.2"/><path d="M-15,-20 Q-14,-38 0,-38 Q14,-38 15,-20Z" fill="#7E5230" stroke="#4A2E18" stroke-width="1.2"/><path d="M-14,-24 H14" stroke="#E5B04A" stroke-width="2.4"/><circle cx="17" cy="0" r="2" fill="#E5B04A"/>`,
-  builder: () => bust("#EEE7D8", "#7D6B52", "#55473A", "#E3B08C", "#BC8466") + face("#E3B08C", "#BC8466", "#33261E") + `<path d="M-15,4 Q-15,24 0,26 Q15,24 15,4 Q8,12 0,11 Q-8,12 -15,4Z" fill="#9A5B33" stroke="#6E3E22" stroke-width="1.2"/><path d="M-19,-16 Q-19,-36 0,-36 Q19,-36 19,-16Z" fill="#E1A93C" stroke="#A9781F" stroke-width="1.2"/><rect x="-23" y="-18" width="46" height="5" rx="2" fill="#C9902A" stroke="#A9781F" stroke-width="1"/>`,
-  shark: () => bust("#F3DDE8", "#A8306F", "#7A1F50", "#EBC9AE", "#C49A80") + `<path d="M-8,18 L0,30 L8,18" fill="#F6F0E3" stroke="#9AA3AB" stroke-width="1"/>` + face("#EBC9AE", "#C49A80", "#22282E", -1.5) + `<path d="M-10,-12 q4,-4 7,-1 M3,-13 q4,-3 7,1" stroke="#22282E" stroke-width="1.8" fill="none"/><path d="M-19,-17 Q-21,-37 0,-37 Q21,-37 19,-17Z" fill="#2A323A" stroke="#11161A" stroke-width="1.2"/><path d="M-20,-18 Q0,-13 24,-20 L23,-14 Q2,-8 -20,-13Z" fill="#11161A"/><path d="M-19,-22 Q0,-17 19,-22" stroke="#E2C27A" stroke-width="1.6" fill="none"/><circle cx="0" cy="-28" r="2.6" fill="#E2C27A"/><path d="M-4,4 Q2,7 7,5" stroke="#22282E" stroke-width="1.2" fill="none"/>`,
+  you: () => bust("#FBE1DE", "#E0312B", "#A8201B", "#EDC7A6", "#C9997A") + `<path d="M-19,-10 Q-22,-34 0,-32 Q22,-34 19,-10 Q14,-24 0,-22 Q-12,-24 -19,-10Z" fill="#5A3E2B" stroke="#3E2A1D" stroke-width="1.2"/>` + face("#EDC7A6", "#C9997A", "#3A2A20") + `<path d="M-17,-14 Q-10,-30 6,-26" stroke="#5A3E2B" stroke-width="5" fill="none" stroke-linecap="round"/>`,
+  trader: () => bust("#DEE8F8", "#2F6FE6", "#1F50B8", "#C99372", "#A3705A") + `<path d="M-20,-16 Q-27,12 -21,30 Q-15,33 -11,26 Q-15,6 -13,-10Z M20,-16 Q27,12 21,30 Q15,33 11,26 Q15,6 13,-10Z" fill="#3A2722" stroke="#241815" stroke-width="1"/>` + face("#C99372", "#A3705A", "#2B1E1A", -1) + `<path d="M-30,-20 Q0,-30 30,-20 Q24,-16 0,-18 Q-24,-16 -30,-20Z" fill="#6B4425" stroke="#4A2E18" stroke-width="1.2"/><path d="M-15,-20 Q-14,-38 0,-38 Q14,-38 15,-20Z" fill="#7E5230" stroke="#4A2E18" stroke-width="1.2"/><path d="M-14,-24 H14" stroke="#E5B04A" stroke-width="2.4"/><circle cx="17" cy="0" r="2" fill="#E5B04A"/>`,
+  builder: () => bust("#FBE6CF", "#F7931E", "#C0680A", "#E3B08C", "#BC8466") + face("#E3B08C", "#BC8466", "#33261E") + `<path d="M-15,4 Q-15,24 0,26 Q15,24 15,4 Q8,12 0,11 Q-8,12 -15,4Z" fill="#9A5B33" stroke="#6E3E22" stroke-width="1.2"/><path d="M-19,-16 Q-19,-36 0,-36 Q19,-36 19,-16Z" fill="#E1A93C" stroke="#A9781F" stroke-width="1.2"/><rect x="-23" y="-18" width="46" height="5" rx="2" fill="#C9902A" stroke="#A9781F" stroke-width="1"/>`,
+  shark: () => bust("#DCF0E3", "#2E9E5E", "#1D7642", "#EBC9AE", "#C49A80") + `<path d="M-8,18 L0,30 L8,18" fill="#F6F0E3" stroke="#9AA3AB" stroke-width="1"/>` + face("#EBC9AE", "#C49A80", "#22282E", -1.5) + `<path d="M-10,-12 q4,-4 7,-1 M3,-13 q4,-3 7,1" stroke="#22282E" stroke-width="1.8" fill="none"/><path d="M-19,-17 Q-21,-37 0,-37 Q21,-37 19,-17Z" fill="#2A323A" stroke="#11161A" stroke-width="1.2"/><path d="M-20,-18 Q0,-13 24,-20 L23,-14 Q2,-8 -20,-13Z" fill="#11161A"/><path d="M-19,-22 Q0,-17 19,-22" stroke="#E2C27A" stroke-width="1.6" fill="none"/><circle cx="0" cy="-28" r="2.6" fill="#E2C27A"/><path d="M-4,4 Q2,7 7,5" stroke="#22282E" stroke-width="1.2" fill="none"/>`,
   // seats 5–6 (5–6 player games): Nora (grey bob, round glasses) and Hugo (curly hair, beard)
-  nora: () => bust("#FBE3E3", "#E01000", "#A30B00", "#E8BFA0", "#C4967A") + `<path d="M-21,4 Q-26,-36 0,-34 Q26,-36 21,4 Q20,-14 12,-20 Q0,-12 -14,-20 Q-20,-14 -21,4Z" fill="#B9B4AE" stroke="#8E8984" stroke-width="1.2"/>` + face("#E8BFA0", "#C4967A", "#3A2A24", 1) + `<circle cx="-6.5" cy="-6.5" r="5.2" fill="none" stroke="#5A1E1E" stroke-width="1.5"/><circle cx="6.5" cy="-6.5" r="5.2" fill="none" stroke="#5A1E1E" stroke-width="1.5"/><path d="M-1.3,-6.5 h2.6" stroke="#5A1E1E" stroke-width="1.5"/>`,
-  hugo: () => bust("#DDF3FC", "#4CCBF5", "#1E9CCB", "#B9835E", "#966346") + `<path d="M-19,-10 Q-24,-24 -14,-30 Q-10,-38 0,-35 Q10,-38 14,-30 Q24,-24 19,-10 Q16,-20 8,-22 Q0,-18 -8,-22 Q-16,-20 -19,-10Z" fill="#2A1E18" stroke="#17100C" stroke-width="1.2"/>` + face("#B9835E", "#966346", "#1E1612", 1.5) + `<path d="M-12,9 Q0,17 12,9 Q10,20 0,21 Q-10,20 -12,9Z" fill="#2A1E18" opacity=".85"/>`,
+  nora: () => bust("#EEE7D8", "#FDFBF6", "#8C7B57", "#E8BFA0", "#C4967A") + `<path d="M-21,4 Q-26,-36 0,-34 Q26,-36 21,4 Q20,-14 12,-20 Q0,-12 -14,-20 Q-20,-14 -21,4Z" fill="#B9B4AE" stroke="#8E8984" stroke-width="1.2"/>` + face("#E8BFA0", "#C4967A", "#3A2A24", 1) + `<circle cx="-6.5" cy="-6.5" r="5.2" fill="none" stroke="#5A1E1E" stroke-width="1.5"/><circle cx="6.5" cy="-6.5" r="5.2" fill="none" stroke="#5A1E1E" stroke-width="1.5"/><path d="M-1.3,-6.5 h2.6" stroke="#5A1E1E" stroke-width="1.5"/>`,
+  hugo: () => bust("#ECDDF5", "#72309F", "#521E76", "#B9835E", "#966346") + `<path d="M-19,-10 Q-24,-24 -14,-30 Q-10,-38 0,-35 Q10,-38 14,-30 Q24,-24 19,-10 Q16,-20 8,-22 Q0,-18 -8,-22 Q-16,-20 -19,-10Z" fill="#2A1E18" stroke="#17100C" stroke-width="1.2"/>` + face("#B9835E", "#966346", "#1E1612", 1.5) + `<path d="M-12,9 Q0,17 12,9 Q10,20 0,21 Q-10,20 -12,9Z" fill="#2A1E18" opacity=".85"/>`,
   beginner: () => bust("#E9F2DA", "#8AAE58", "#6A8E42", "#F1D2B6", "#CFA588") + `<path d="M-19,-6 Q-24,-34 0,-32 Q24,-34 19,-6 Q18,-22 4,-24 Q-14,-26 -19,-6Z" fill="#C8873E" stroke="#9A6328" stroke-width="1.2"/>` + face("#F1D2B6", "#CFA588", "#3A2A20", 1) + `<path d="M0,-32 Q-3,-42 -11,-44 Q-5,-37 0,-32 Q4,-41 12,-41 Q6,-35 0,-32" fill="#5A7B34"/>`,
   intermediate: () => bust("#D8F0EE", "#3CA9B0", "#2B8C98", "#DDB08E", "#B88566") + `<path d="M-19,-8 Q-21,-34 0,-32 Q21,-34 19,-8 Q16,-20 6,-22 Q-4,-16 -19,-8Z" fill="#2C2622" stroke="#1A1614" stroke-width="1.2"/>` + face("#DDB08E", "#B88566", "#2A2420") + `<g fill="none" stroke="#5C4A3A" stroke-width="1.6"><circle cx="-6.5" cy="-6.5" r="5.4"/><circle cx="6.5" cy="-6.5" r="5.4"/><path d="M-1.2,-7 h2.4"/></g>`,
   expert: () => bust("#F5E7CC", "#8B5FA8", "#62407A", "#EED0B8", "#C8A48C") + `<path d="M-18,-8 Q-22,-32 0,-31 Q22,-32 18,-8 Q16,-18 0,-20 Q-16,-18 -18,-8Z" fill="#E6E2DA" stroke="#B8B2A6" stroke-width="1.2"/>` + face("#EED0B8", "#C8A48C", "#3A2E28") + `<path d="M-20,-22 Q-10,-30 0,-28 Q10,-30 20,-22" stroke="#C9A04A" stroke-width="3" fill="none"/>${[-16, -8, 8, 16].map((x) => `<ellipse cx="${x}" cy="${-26 - (Math.abs(x) < 10 ? 2 : 0)}" rx="3" ry="1.6" fill="#7A9B47" transform="rotate(${x * 2} ${x} -26)"/>`).join("")}`,
@@ -431,8 +438,9 @@ const sunny = {
   paletteDots: ["#3CA9B0", "#8AAE58", "#EDC25E", "#E07E5A", "#93A2B4"],
   confettiColors: ["#D9714E", "#E2C27A", "#3CA9B0", "#F4EEE1", "#7D8F55"],
   motion: { name: "Crisp & airy", k: 1, pop: "cubic-bezier(.3,1.3,.6,1)", out: "cubic-bezier(.22,1,.36,1)", inOut: "cubic-bezier(.65,0,.35,1)", fall: "cubic-bezier(.55,0,1,.45)", squash: [1.14, 0.88], bounces: 2, sway: 0 },
-  // Seat → colour key / portrait. Seat 0 is the human (always blue).
-  seatKeys: ["blue", "orange", "ivory", "plum"],
+  // Seat → colour key / portrait (v0.75, colonist.io order). Seat 0 is the human (always red); seats 5–6
+  // (ivory, purple) are appended by src/themes/seats.js.
+  seatKeys: ["red", "blue", "orange", "green"],
   textColors: TEXT,
   pc: PC,
   /** Colour palette ("light" | "vivid"); returns true when it changed (caller re-bakes + reinstalls the sprite). */

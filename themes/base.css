@@ -1449,15 +1449,22 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 /* ==========================================================================
    v0.73 · player chip stats, hand totals bar, bank counts
    ========================================================================== */
-/* chips: cards always; dev cards, knights played and road length only once they mean something;
-   a held award is the same number on a calm gold chip (no extra badge) */
+/* chips: cards always; dev cards, knights played and road length only once they mean something.
+   v0.75: a held award (Largest Army / Longest Road) is that number on a gold pill with
+   "+2": gold with a dark rim, never a seat colour (seats: red, blue, orange, green, ivory, purple) */
 .pchip .mini { white-space: nowrap; overflow: hidden; }
 .pchip .mini span { flex: none; font-variant-numeric: tabular-nums; }
-.app .pchip .mini span.award { background: var(--award-bg, #F5D57E); color: var(--award-ink, #3A2A06); border-radius: 6px; padding: 0 3px 0 1px; }
+.app .pchip .mini span.award, .prow .stats span.award {
+  background: var(--award-bg, #FFE27A); color: var(--award-ink, #2B1F00); border-radius: 6px; padding: 0 3px 0 1px;
+  box-shadow: inset 0 0 0 1px var(--award-rim, #8A6A00); font-weight: 800;
+}
+.app .pchip span.award .aw-plus, .prow .stats span.award .aw-plus { margin-left: 2px; font-size: .86em; font-weight: 900; letter-spacing: -.02em; }
+/* knight / road glyphs in everyone's chip are drawn in your colour (red): neutral grey here so they never read as "you" */
+.app .pchip .mini :is([data-stat="knights"], [data-stat="road"]) .ic, .prow .stats :is([data-stat="knights"], [data-stat="road"]) .ic { filter: grayscale(1) contrast(1.15); }
+
 .app .pchip .mini span.warn { color: var(--warn-ink, #B23A1E); font-weight: 800; }
 .app .pchip .mini.dense { gap: 2px; font-size: 10.5px; letter-spacing: -.02em; }
 .app .pchip .mini.dense .ic { font-size: 12px; }
-.prow .stats span.award { background: var(--award-bg, #F5D57E); color: var(--award-ink, #3A2A06); border-radius: 6px; padding: 0 4px; }
 .prow .stats span.warn { color: var(--warn-ink, #B23A1E); }
 /* hand totals bar (phones, portrait): "7 cards · 1 dev" on the left, the bank on the right */
 .hand-bar { display: none; }

@@ -19,13 +19,17 @@ const K = {
 };
 // Seats: identical to Sunny Island (light) so switching themes never recolours a player.
 const PC = {
-  blue: { base: "#3A76DC", dark: "#2557B0", light: "#7AA5F0", line: "#163777" },
-  orange: { base: "#F68B3A", dark: "#BF6118", light: "#FBB57A", line: "#6E380C" },
-  ivory: { base: "#FDFBF6", dark: "#C8BFAA", light: "#FFFFFF", line: "#4A443A" },
-  plum: { base: "#A8306F", dark: "#7A1F50", light: "#D06A9E", line: "#3A0A24" },
+  red: { base: "#E0312B", dark: "#A8201B", light: "#F47A72", line: "#1A1A1A" },
+  blue: { base: "#2F6FE6", dark: "#1F50B8", light: "#7AA5F5", line: "#1A1A1A" },
+  orange: { base: "#F7931E", dark: "#C0680A", light: "#FCC06E", line: "#1A1A1A" },
+  green: { base: "#2E9E5E", dark: "#1D7642", light: "#72CC95", line: "#1A1A1A" },
+  ivory: { base: "#EDE6D3", dark: "#C8BFAA", light: "#FBF7EC", line: "#6B6253" },
+  purple: { base: "#72309F", dark: "#521E76", light: "#A872D0", line: "#1A1A1A" },
 };
-const TEXT = { blue: "#2C5BA8", orange: "#A65314", ivory: "#7D6D4C", plum: "#8E2560" }; // seat hues, darkened to AA on paper
-const TC = { wood: [K.green, K.leaf], brick: [K.orange, "#C8502A"], sheep: [K.lime, "#9FC24A"], wheat: [K.yellow, K.ochre], ore: [K.grey, K.slate], desert: [K.sand, "#E6C48A"] };
+const TEXT = { red: "#A01D18", blue: "#1F4FAE", orange: "#8F4710", green: "#12603A", ivory: "#5E5139", purple: "#72309F" }; // seat hues, darkened to AA on paper
+const BUILD_INK = { base: "#22313A", dark: "#16222A", light: "#4A5A64", line: "#0E161B" };
+// v0.75: brick a deeper terracotta so the orange seat stands clear of it
+const TC = { wood: [K.green, K.leaf], brick: ["#C8502A", "#A8401E"], sheep: [K.lime, "#9FC24A"], wheat: [K.yellow, K.ochre], ore: [K.grey, K.slate], desert: [K.sand, "#E6C48A"] };
 const P = { ink: B, sand: PA, forest: [K.green], terra: [K.orange], pasture: [K.lime], wheat: [K.yellow], slate: [K.grey], desert: [K.sand] };
 
 /* ---------- primitives (plain path / circle markup, Path2D-friendly) ---------- */
@@ -180,7 +184,7 @@ function port(p) {
 }
 
 /* ---------- pieces (canvas specs): gabled canal house; tall flat + gable house; ink burglar ---------- */
-const winFor = (c) => (c === PC.plum ? K.yellow : c === PC.ivory ? c.line : PA);
+const winFor = (c) => (c === PC.purple ? K.yellow : c === PC.ivory ? c.line : PA);
 function house(c) {
   const wc = winFor(c);
   return [
@@ -188,7 +192,7 @@ function house(c) {
     { d: "M-12,16 V-4 L-10,-4 L0,-19 L10,-4 L12,-4 V16Z", fill: c.base, stroke: c.line, sw: 2.2, body: true },
     { d: "M-13.6,-3.2 L0,-21.4 L13.6,-3.2 L11.2,-2 L0,-16.6 L-11.2,-2Z", fill: c.line, stroke: c.line, sw: 1, body: true },
     { d: "M-7.5,0 h4.4 v5 h-4.4Z M3.1,0 h4.4 v5 h-4.4Z", fill: wc },
-    { d: "M-2.6,16 V10.4 Q0,7.6 2.6,10.4 V16Z", fill: c === PC.plum ? K.yellow : c.line },
+    { d: "M-2.6,16 V10.4 Q0,7.6 2.6,10.4 V16Z", fill: c === PC.purple ? K.yellow : c.line },
     { el: "circle", cx: 0, cy: -9, r: 1.8, fill: wc },
   ];
 }
@@ -204,8 +208,8 @@ function cityArt(c) {
     { d: "M-1,16 V-1 L1,-1 L10.5,-13.5 L20,-1 L22,-1 V16Z", fill: c.base, stroke: c.line, sw: 2.2, body: true },
     { d: "M-2.4,-.4 L10.5,-15.8 L23.4,-.4 L21.2,.8 L10.5,-11.4 L-.2,.8Z", fill: c.line, stroke: c.line, sw: 1, body: true },
     { d: "M5,3 h4 v4.6 h-4Z M12,3 h4 v4.6 h-4Z", fill: wc },
-    { d: "M8.4,16 v-5.6 h4.2 V16Z", fill: c === PC.plum ? K.yellow : c.line },
-    { d: "M-14.6,16 v-6 h4.2 V16Z", fill: c === PC.plum ? K.yellow : c.line },
+    { d: "M8.4,16 v-5.6 h4.2 V16Z", fill: c === PC.purple ? K.yellow : c.line },
+    { d: "M-14.6,16 v-6 h4.2 V16Z", fill: c === PC.purple ? K.yellow : c.line },
   ];
 }
 // burglar on tiptoe with a sack: the person silhouette at 2.15x, feet on the ground line (y = 32)
@@ -295,9 +299,9 @@ const ICONS = {};
   ic.sliders = fl("M-40,-22 Q0,-26 40,-21 Q43,-17 40,-14 Q0,-17 -40,-13 Q-44,-17 -40,-22Z M-40,15 Q0,12 40,16 Q43,20 40,23 Q0,20 -40,24 Q-44,20 -40,15Z") + circ(14, -17.5, 10) + circ(-12, 19.5, 10) + circ(14, -17.5, 4, PA) + circ(-12, 19.5, 4, K.orange);
   ic.book = fl("M0,-30 Q-22,-40 -46,-34 V32 Q-22,26 0,36 Q22,26 46,32 V-34 Q22,-40 0,-30Z") + st("M-36,-16 Q-22,-21 -9,-15 M-36,-3 Q-22,-8 -9,-2 M9,-15 Q22,-21 36,-16 M9,-2 Q22,-8 36,-3", 3.2, PA);
   ic.info = fl(blob(0, 0, 42, 41, 12, 0.02)) + circ(0, -19, 6, PA) + fl("M-6,-6 Q0,-8 6,-6 L6,22 Q0,24 -6,22Z", PA);
-  ic.road = fl("M-42,26 L26,-36 L42,-20 L-26,42Z", PC.blue.base) + st("M-42,26 L26,-36 L42,-20 L-26,42Z", 3, PC.blue.line);
-  ic.settlement = `<g transform="translate(0 2) scale(2)">${specSvg(house(PC.blue).slice(1))}</g>`;
-  ic.city = `<g transform="translate(0 4) scale(1.45)">${specSvg(cityArt(PC.blue).slice(1))}</g>`;
+  ic.road = fl("M-42,26 L26,-36 L42,-20 L-26,42Z", BUILD_INK.base) + st("M-42,26 L26,-36 L42,-20 L-26,42Z", 3, BUILD_INK.line); // v0.75: build icons in neutral ink
+  ic.settlement = `<g transform="translate(0 2) scale(2)">${specSvg(house(BUILD_INK).slice(1))}</g>`;
+  ic.city = `<g transform="translate(0 4) scale(1.45)">${specSvg(cityArt(BUILD_INK).slice(1))}</g>`;
   ic.fit = `<path d="M-38,-16 V-38 H-16 M16,-38 H38 V-16 M38,16 V38 H16 M-16,38 H-38 V16" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>` + fl(hexD(17), K.green);
   const zoom = (plus) => `<g stroke="currentColor" stroke-linecap="round" fill="none"><circle cx="-6" cy="-6" r="22" stroke-width="7"/><path d="M14,14 L34,34" stroke-width="10"/><path d="M-16,-6 h20${plus ? " M-6,-16 v20" : ""}" stroke-width="5"/></g>`;
   ic.zoomIn = zoom(1); ic.zoomOut = zoom(0);
@@ -311,8 +315,8 @@ const ICONS = {};
 
 /* ---------- avatars: the same four characters as every theme, as ink silhouette portraits (three-quarter
    profile, a cream eye) on a flat colour backdrop; clothes in the seat colour ---------- */
-const AV_BG = { you: "#BCD2F2", trader: "#F7CDA8", builder: "#F2DFA6", shark: "#EBCCDC" };
-const AV_CLOTH = { you: PC.blue.base, trader: PC.orange.base, builder: "#EFE6D2", shark: PC.plum.base };
+const AV_BG = { you: "#F6CCC8", trader: "#BCD2F2", builder: "#F7CDA8", shark: "#C4E6D0" };
+const AV_CLOTH = { you: PC.red.base, trader: PC.blue.base, builder: PC.orange.base, shark: PC.green.base }; // v0.75 seat order
 function avatar(preset) {
   const p = AV_BG[preset] ? preset : "you";
   const head = fl("M-16,-4 Q-18,-27 2,-28 Q19,-28 21,-11 Q27,-7 25,-1 Q23,2 20,3 Q19,13 4,15 Q-14,15 -16,-4Z");
@@ -330,9 +334,9 @@ function avatar(preset) {
 
 // seats 5–6 (5–6 player games): Nora (bob, glasses) and Hugo (curls, beard), same build as the four above
 const AV_EXTRA = {
-  nora: { bg: "#F6D0CF", cloth: "#E01000", hair: () => fl("M-20,6 Q-26,-34 2,-35 Q24,-34 24,-10 Q14,-22 2,-22 Q-10,-20 -12,6Z")
+  nora: { bg: "#E6DCC6", cloth: "#FDFBF6", hair: () => fl("M-20,6 Q-26,-34 2,-35 Q24,-34 24,-10 Q14,-22 2,-22 Q-10,-20 -12,6Z")
     + `<circle cx="11" cy="-7" r="5.4" fill="none" stroke="${PA}" stroke-width="1.6"/>` },
-  hugo: { bg: "#CDEFFB", cloth: "#4CCBF5", hair: () => fl("M-18,-8 Q-26,-30 -8,-34 Q0,-40 10,-34 Q24,-30 22,-14 Q14,-24 2,-20 Q-8,-24 -12,-6Z")
+  hugo: { bg: "#DCC8EC", cloth: "#72309F", hair: () => fl("M-18,-8 Q-26,-30 -8,-34 Q0,-40 10,-34 Q24,-30 22,-14 Q14,-24 2,-20 Q-8,-24 -12,-6Z")
     + fl("M-4,6 Q4,18 20,4 Q18,16 6,17 Q-4,16 -4,6Z") },
 };
 function avatar6(preset) {
@@ -431,7 +435,7 @@ function thumb() {
     <path d="${[[0, 0], [26, 0], [-26, 0], [13, 22.5], [-13, 22.5], [13, -22.5], [-13, -22.5]].map(([x, y]) => hexD(17.5, x, y)).join(" ")}" fill="${CREAM}" stroke="${CREAM}" stroke-width="3" stroke-linejoin="round"/>${st("M-62,-30 q3,-3 6,0 q3,3 6,0 M48,28 q3,-3 6,0 q3,3 6,0", 1.2, PA)}
     ${pos.map(([x, y, t]) => `<path d="${hexD(14.6, x, y)}" fill="${TC[t][0]}"/>`).join("")}
     <circle cx="0" cy="3" r="5.6" fill="${PA}"/><text x="0" y="5.6" text-anchor="middle" font-size="7.5" font-weight="700" font-family="Kalam, cursive" fill="${K.red}">8</text>
-    <g transform="translate(-26 -6) scale(.62)">${tree(0, 6, 18, "pine")}</g><g transform="translate(13 -12) scale(.42)">${specSvg(house(PC.orange).slice(1))}</g><g transform="translate(-13 12) scale(.42)">${specSvg(house(PC.blue).slice(1))}</g>${bird(-48, -30, 1)}${bird(-38, -34, 0.8)}</svg>`;
+    <g transform="translate(-26 -6) scale(.62)">${tree(0, 6, 18, "pine")}</g><g transform="translate(13 -12) scale(.42)">${specSvg(house(PC.blue).slice(1))}</g><g transform="translate(-13 12) scale(.42)">${specSvg(house(PC.red).slice(1))}</g>${bird(-48, -30, 1)}${bird(-38, -34, 0.8)}</svg>`;
 }
 
 const tokenStyle = {
@@ -450,7 +454,7 @@ const silhouette = {
   paletteDots: [SEA, K.orange, K.yellow, K.green, B],
   confettiColors: [K.orange, K.yellow, K.turq, K.green, K.pink, B],
   motion: { name: "Gentle, page-like", k: 1.05, pop: "cubic-bezier(.3,1.35,.5,1)", out: "cubic-bezier(.22,.8,.3,1)", inOut: "cubic-bezier(.65,0,.35,1)", fall: "cubic-bezier(.55,0,1,.45)", squash: [1.1, 0.9], bounces: 1, sway: 0 },
-  seatKeys: ["blue", "orange", "ivory", "plum"],
+  seatKeys: ["red", "blue", "orange", "green"], // v0.75 colonist.io order; seats 5–6 (ivory, purple) via src/themes/seats.js
   textColors: TEXT,
   pc: PC,
   palette: P,

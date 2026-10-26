@@ -2,8 +2,8 @@
    Everything is scoped to .six-up / [data-seats] / .sbp-* so 2–4 player games look exactly as before.
    Seat colours --p4 / --p5 come from src/themes/seats.js (set on :root at start-up). */
 
-.pc-4 { --pc: var(--p4, #E01000); --pc-text: var(--p4-text, #B5000F); --pc-ink: var(--p4-ink, #fff); }
-.pc-5 { --pc: var(--p5, #4CCBF5); --pc-text: var(--p5-text, #0B6E96); --pc-ink: var(--p5-ink, #0B3550); }
+.pc-4 { --pc: var(--p4, #D8CFBB); --pc-text: var(--p4-text, #5E5139); --pc-ink: var(--p4-ink, #2E3A3D); }
+.pc-5 { --pc: var(--p5, #72309F); --pc-text: var(--p5-text, #72309F); --pc-ink: var(--p5-ink, #fff); }
 
 /* ── six-up strip (option A): six chips in one row ─────────────────────────────────────────────── */
 .pstrip.six-up { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
@@ -18,10 +18,11 @@
   display: grid; place-items: center; font-family: var(--font-display); font-weight: var(--display-weight, 700); font-size: 15px; line-height: 1;
   background: var(--pc); color: var(--pc-ink); box-shadow: 0 0 0 1.5px var(--glass-active, rgba(255,255,255,.9));
 }
-/* points on the seat colour at AA: the blue seat uses its deeper shade, orange and ivory dark ink */
+/* points on the seat colour at AA (v0.75 seats): the red seat uses its deeper shade, orange, green and ivory dark ink */
 .pstrip.six-up > .pchip.six.pc-0 .sx-vp { background: var(--p0-text); color: #fff; }
-.pstrip.six-up > .pchip.six.pc-1 .sx-vp { color: #2E1F14; }
-.pstrip.six-up > .pchip.six.pc-2 .sx-vp { color: #2E3A3D; }
+.pstrip.six-up > .pchip.six.pc-2 .sx-vp { color: #2E1F14; }
+.pstrip.six-up > .pchip.six.pc-3 .sx-vp { color: var(--p3-ink, #0F2418); }
+.pstrip.six-up > .pchip.six.pc-4 .sx-vp { color: #2E3A3D; }
 .pstrip.six-up > .pchip.six .pn {
   grid-area: auto; max-width: 100%; padding: 0 1px !important; text-align: center; font-size: 11.5px; font-weight: 750; letter-spacing: -.01em;
   white-space: nowrap; overflow: hidden; text-overflow: clip; line-height: 1.15;
@@ -31,6 +32,10 @@
 }
 .pstrip.six-up > .pchip.six .mini span { display: flex; align-items: center; gap: 1px; }
 .pstrip.six-up > .pchip.six .mini .ic { font-size: 12px; width: 12px; height: 12px; }
+/* v0.75: knights played · road length on their own line; a held award is a gold "+2" pill (base.css) */
+.pstrip.six-up > .pchip.six .mini.feats { gap: 3px; }
+.pstrip.six-up > .pchip.six .mini.feats span.award { padding: 0 2px 0 1px; }
+.pstrip.six-up > .pchip.six .mini.feats span.award .aw-plus { margin-left: 1px; }
 .pstrip.six-up > .pchip.six .bdg { position: absolute; top: 3px; left: 3px; right: auto; display: flex; flex-direction: column; gap: 1px; }
 .pstrip.six-up > .pchip.six .bdg .ic { font-size: 12px; }
 .pstrip.six-up > .pchip.six .sx-crown { position: absolute; left: -6px; top: -7px; width: 15px; height: 15px; }
