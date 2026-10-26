@@ -334,9 +334,9 @@
 [data-theme="C"] .home button:focus-visible { outline-color: #1C1A19; }
 
 /* ── Menu sheet: cream paper with an ink rule, black silhouette icons ── */
-[data-theme="C"] .mn-card { border-top: 1.5px solid #1C1A19; box-shadow: 0 -3px 0 rgba(28,26,25,.2); }
+[data-theme="C"] .mn-card { box-shadow: 0 -1.5px 0 #1C1A19, 0 -4px 0 rgba(28,26,25,.15); }
 [data-theme="C"] .mn-list button .ic, [data-theme="C"] .mn-head h2 .ic { color: #1C1A19; }
 [data-theme="C"] .mn-list button + button { border-top-color: #E2CFA6; }
 @media (min-width: 901px) and (min-height: 501px), (max-height: 500px) and (orientation: landscape) {
-  [data-theme="C"] .mn-card { border: 1.5px solid #1C1A19; box-shadow: 0 3px 0 rgba(28,26,25,.25); }
+  [data-theme="C"] .mn-card { box-shadow: 0 0 0 1.5px #1C1A19, 0 4px 0 rgba(28,26,25,.25); }
 }

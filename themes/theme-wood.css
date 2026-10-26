@@ -305,3 +305,5 @@
   [data-theme="B"] .board-wrap .sea { background: var(--sea-image), var(--sea-bg); }
   [data-theme="B"] .fit-btn, [data-theme="B"] .zoom-btn { background-image: var(--paper-tex); }
 }
+/* narrow phones: Playfair runs wider than DM Sans, so the main action label steps down a little more */
+@media (max-width: 400px) { [data-theme="B"] .app { --main-fs: 16.5px; } [data-theme="B"] .app .mainbtn { gap: 4px; padding: 0 5px; } }
