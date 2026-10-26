@@ -3649,7 +3649,9 @@ class ColonistFullGame {
       return false;
     }
     if (!hasResources(player.resources, COSTS.development)) {
-      this.addLog(`${player.name} cannot afford a development card.`);
+      // Bots probe this every turn: keep it out of the player-visible ticker/journal
+      if (player.isHuman) this.addLog(`${player.name} cannot afford a development card.`);
+      else this._aiLog(player, "Cannot afford a development card.");
       return false;
     }
     this.payToBank(player, COSTS.development);
