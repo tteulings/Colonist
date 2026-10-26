@@ -1,6 +1,6 @@
 // Network-first service worker: always try fresh files (the app updates often),
 // fall back to the cache so the game still starts offline.
-const CACHE = "colonist-v74";
+const CACHE = "colonist-v76";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./manifest.webmanifest", "./assets/favicon.svg",
   "./themes/base.css", "./themes/theme-sunny.css", "./themes/theme-wood.css", "./themes/theme-silhouette.css", "./themes/theme-classic.css", "./themes/six.css", "./themes/seafarers.css",
@@ -10,7 +10,7 @@ const SHELL = [
   "./src/themes/sunny/art.js", "./src/themes/sunny/ui-icons.js", "./src/themes/classic/art.js",
   "./src/themes/spec-util.js", "./src/themes/wood/art.js", "./src/themes/silhouette/art.js",
   "./src/seafarers/index.js", "./src/seafarers/rules.js", "./src/seafarers/ai.js", "./src/seafarers/ui.js", "./src/seafarers/render.js", "./src/seafarers/art.js", "./src/seafarers/scenario.js",
-  "./assets/fonts/PlayfairDisplay.woff2", "./assets/fonts/SourceSans3.woff2", "./assets/fonts/WoodNumerals.woff2",
+  "./assets/fonts/Outfit.woff2", "./assets/fonts/Figtree.woff2", "./assets/fonts/PlayfairDisplay.woff2", "./assets/fonts/SourceSans3.woff2", "./assets/fonts/WoodNumerals.woff2",
   "./assets/fonts/Kalam-700.woff2", "./assets/fonts/AlegreyaSans-500.woff2", "./assets/fonts/AlegreyaSans-700.woff2", "./assets/fonts/AlegreyaSans-800.woff2",
   "./assets/icons/resource-wood-v3.svg", "./assets/icons/resource-brick-v2.svg", "./assets/icons/resource-sheep-v2.svg",
   "./assets/icons/resource-wheat-v2.svg", "./assets/icons/resource-ore-v2.svg",

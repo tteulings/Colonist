@@ -22,12 +22,12 @@
         d.dataset.theme = t;
         var rm = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
         d.dataset.motion = m === "reduced" || (m !== "full" && rm) ? "reduced" : "full";
-        if (t === "A") {
+        if (t === "A") ["Outfit", "Figtree"].forEach(function (f) {
           var l = document.createElement("link");
-          l.rel = "stylesheet"; l.dataset.font = "A";
-          l.href = "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:opsz,wght@9..40,400..800&display=swap";
+          l.rel = "preload"; l.as = "font"; l.type = "font/woff2"; l.crossOrigin = "anonymous";
+          l.href = "./assets/fonts/" + f + ".woff2";
           document.head.appendChild(l);
-        }
+        });
       })();
     </script>
     <script>
@@ -60,17 +60,15 @@
         if (window.visualViewport) window.visualViewport.addEventListener("resize", apply);
       })();
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- legacy styles in a low-priority cascade layer: the themed CSS below always wins -->
-    <style>@import url("./styles.css?v=74") layer(legacy);</style>
-    <link rel="stylesheet" href="./themes/base.css?v=74" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=74" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=74" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=74" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=74" />
-    <link rel="stylesheet" href="./themes/six.css?v=74" />
-    <link rel="stylesheet" href="./themes/seafarers.css?v=74" />
+    <style>@import url("./styles.css?v=76") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=76" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=76" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=76" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=76" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=76" />
+    <link rel="stylesheet" href="./themes/six.css?v=76" />
+    <link rel="stylesheet" href="./themes/seafarers.css?v=76" />
   </head>
   <body>
     <div class="app" id="app">
@@ -123,7 +121,7 @@
 
       <!-- Game settings (moved into Settings › Game at start-up by src/themes/settings-ui.js) -->
       <details class="settings-drawer-float" id="settingsDrawer">
-        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.74</span></summary>
+        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.76</span></summary>
         <div class="settings-float-body">
           <button id="resetBtn" type="button" class="btn primary st-newgame"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-dice" x="-50" y="-50" width="100" height="100"/></svg>New game</button>
           <div class="st-h">Sound &amp; pace</div>
@@ -159,7 +157,7 @@
             <summary>Bot personalities</summary>
             <div id="aiStrategyPanel" class="ai-strategy-panel"></div>
           </details>
-          <div class="settings-version">Colonist <span class="app-version">v0.74</span></div>
+          <div class="settings-version">Colonist <span class="app-version">v0.76</span></div>
         </div>
       </details>
 
@@ -302,7 +300,7 @@
     </div>
     <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=74"></script>
+    <script type="module" src="./src/game.js?v=76"></script>
     <script>
       // Updates: sw.js and its imports are never taken from the HTTP cache (updateViaCache), the
       // registration is re-checked whenever the app comes back to the foreground, and a new

@@ -354,11 +354,11 @@ function card(k, mini) {
     <rect x="7" y="7" width="236" height="336" rx="12" fill="none" stroke="${c.acc}" stroke-opacity=".55" stroke-width="1"/>
     <g clip-path="url(#${id}-w)">${scene}${hero}<rect x="${W.x}" y="${W.y}" width="${W.w}" height="${W.h}" fill="url(#${id}-veil)"/></g>
     <rect x="${W.x}" y="${W.y}" width="${W.w}" height="${W.h}" rx="10" fill="none" stroke="#5C5440" stroke-opacity=".25" stroke-width="1"/>
-    ${mini ? `<text x="125" y="${ty}" text-anchor="middle" font-family="DM Serif Display, Georgia, serif" font-size="${name.length > 11 ? 27 : 34}" fill="${P.ink}">${name}</text>`
-      : `<text x="125" y="240" text-anchor="middle" font-family="DM Sans, system-ui, sans-serif" font-weight="700" font-size="10" letter-spacing="2.6" fill="${c.acc}">${res ? "RESOURCE" : "DEVELOPMENT"}</text>
-    <text x="125" y="${ty + 6}" text-anchor="middle" font-family="DM Serif Display, Georgia, serif" font-size="${name.length > 11 ? 25 : 30}" fill="${P.ink}">${name}</text>
+    ${mini ? `<text x="125" y="${ty}" text-anchor="middle" font-family="Outfit, system-ui, sans-serif" font-weight="650" font-size="${name.length > 11 ? 27 : 34}" fill="${P.ink}">${name}</text>`
+      : `<text x="125" y="240" text-anchor="middle" font-family="Figtree, system-ui, sans-serif" font-weight="700" font-size="10" letter-spacing="2.6" fill="${c.acc}">${res ? "RESOURCE" : "DEVELOPMENT"}</text>
+    <text x="125" y="${ty + 6}" text-anchor="middle" font-family="Outfit, system-ui, sans-serif" font-weight="650" font-size="${name.length > 11 ? 25 : 30}" fill="${P.ink}">${name}</text>
     <path d="M78,${ty + 20} H116 M134,${ty + 20} H172" stroke="${c.acc}" stroke-opacity=".6" stroke-width="1"/><path d="M125,${ty + 16} l4,4 -4,4 -4,-4Z" fill="${c.acc}" opacity=".8"/>
-    <text x="125" y="${ty + 44}" text-anchor="middle" font-family="DM Sans, system-ui, sans-serif" font-weight="500" font-size="13" fill="#5E676A">${wrap(CARD_TEXT[k], 30).map((l, i) => `<tspan x="125" dy="${i ? 16 : 0}">${l}</tspan>`).join("")}</text>`}`;
+    <text x="125" y="${ty + 44}" text-anchor="middle" font-family="Figtree, system-ui, sans-serif" font-weight="500" font-size="13" fill="#5E676A">${wrap(CARD_TEXT[k], 30).map((l, i) => `<tspan x="125" dy="${i ? 16 : 0}">${l}</tspan>`).join("")}</text>`}`;
 }
 const cardBack = () => `<rect x="1" y="1" width="248" height="348" rx="16" fill="${P.sea0}" stroke="#1E4E55" stroke-width="1.4"/><rect x="9" y="9" width="232" height="332" rx="11" fill="none" stroke="#E2C27A" stroke-opacity=".7" stroke-width="1.2"/>
   <g opacity=".14" stroke="#fff" stroke-width="1.4" fill="none">${Array.from({ length: 12 }, (_, i) => `<path d="M20,${36 + i * 26} q13,-6 26,0 t26,0 t26,0 t26,0 t26,0 t26,0 t26,0 t26,0"/>`).join("")}</g>
@@ -390,32 +390,39 @@ const tile = (t) => `<g clip-path="url(#a-hexclip)" transform="scale(.968)"><use
 const glow = () => `<path d="${hexPath(0, 0, 97)}" fill="none" stroke="#FFE9A8" stroke-width="16" filter="url(#a-glow)"/><path d="${hexPath(0, 0, 93)}" fill="#FFF4CF" opacity=".14" stroke="#FFF1C2" stroke-width="3.4"/>`;
 
 /**
- * Port: boat + two piers to the coast corners. The ratio label is returned separately so the
- * canvas can draw it with the page font (fonts are not available inside rasterised SVG).
- * p = { a, b, mx, my, nx, ny, res, ratio } in art units.
+ * Harbour (v0.76): a cream badge in the sea off the coast — the resource tile (the same white-glyph tile
+ * as the bank bar) or a neutral "?" tile for 3:1, next to the ratio in bold — two plank piers to the coast
+ * corners, and a small coloured dot on each of those corners. Geometry: harbourBadges (p.badge).
+ * Text is returned as labels so the canvas draws it with the page font (fonts don't load in rasterised SVG).
+ * p = { a, b, mx, my, nx, ny, res, ratio, s, badge, piers } in art units.
  */
+const PORT_TONE = { wood: "#3E9A4E", brick: "#D8613C", sheep: "#86BF3C", wheat: "#EFAE2C", ore: "#7D8DA5" };
+const PORT_ANY = ["#3F7280", "#33626F"]; // white "?" on it: 5.3:1
 function port(p) {
-  const px = p.mx + p.nx * 64, py = p.my + p.ny * 64, flip = p.nx < -0.1 ? -1 : 1;
-  const pier = (c) => {
-    const ex = px - p.nx * 10 + (c.x - p.mx) * 0.3, ey = py - p.ny * 10 + (c.y - p.my) * 0.3;
-    const d = `M${f(c.x)},${f(c.y)} L${f(ex)},${f(ey)}`;
-    return `<path d="${d}" stroke="#7E6A50" stroke-width="7" stroke-linecap="round"/><path d="${d}" stroke="#C7AE88" stroke-width="4.4" stroke-linecap="round"/><path d="${d}" stroke="#9C8564" stroke-width="4.4" stroke-dasharray="1 4"/>`;
+  const q = p.badge, s = p.s || 1, tone = p.res ? PORT_TONE[p.res] : PORT_ANY[0];
+  const pier = ([c, e]) => {
+    const d = `M${f(c.x)},${f(c.y)} L${f(e[0])},${f(e[1])}`;
+    return `<path d="${d}" stroke="#7E6A50" stroke-width="${f(6.4 * s)}" stroke-linecap="round"/><path d="${d}" stroke="#C7AE88" stroke-width="${f(3.8 * s)}" stroke-linecap="round"/><path d="${d}" stroke="#9C8564" stroke-width="${f(3.8 * s)}" stroke-dasharray="1 ${f(4 * s)}"/>`;
   };
-  // ⚓ Seafarers: no harbour boat (it would read as a ship); the label disc sits where the boat was
-  const lx = p.noBoat ? px - p.nx * 18 : px - flip * 30, ly = p.noBoat ? py - p.ny * 18 : py - 22;
-  const svg = `<g>${pier(p.a)}${pier(p.b)}<g transform="translate(${f(px)} ${f(py)})">
-    <path d="M-34,16 q34,7 68,0" stroke="#fff" stroke-opacity=".35" stroke-width="2" fill="none"/>
-    <g transform="scale(${flip} 1)" filter="url(#a-shadow)"${p.noBoat ? ' display="none"' : ""}><path d="M-28,2 L28,2 Q24,14 16,14 L-20,14 Q-26,11 -28,2Z" fill="#9A6B45"/><path d="M-24,6 H24" stroke="#C49770" stroke-width="1.4"/>
-      <path d="M-2,2 V-40" stroke="#5C4630" stroke-width="2"/><path d="M0,-38 Q22,-22 20,-2 L0,-2Z" fill="#F7F1E2"/><path d="M-4,-30 Q-18,-18 -16,-2 L-4,-2Z" fill="#EDE4CF"/></g></g>
-    <g transform="translate(${f(lx)} ${f(ly)})"><circle r="16" fill="#FBF6EA" filter="url(#a-shadow)"/><circle r="16" fill="none" stroke="#CDBB94" stroke-width="1"/>${p.res ? `<g transform="translate(0 -3) scale(.2)">${ICONS[p.res]}</g>` : ""}</g></g>`;
-  return { svg, label: { x: lx, y: ly + (p.res ? 11 : 5), text: p.ratio, size: p.res ? 9 : 12 } };
+  const dot = (c) => `<circle cx="${f(c.x)}" cy="${f(c.y)}" r="${f(5.6 * s)}" fill="${tone}" stroke="#FBF6EA" stroke-width="${f(2 * s)}"/>`;
+  const ic = q.icon, k = ic.size / 84;
+  const tile = p.res ? UI_ICONS[p.res]
+    : `<rect x="-42" y="-42" width="84" height="84" rx="18" fill="${PORT_ANY[0]}"/><path d="M-42,10 V24 Q-42,42 -24,42 H24 Q42,42 42,24 V10 Q0,30 -42,10Z" fill="${PORT_ANY[1]}"/>`;
+  const svg = `<g>${p.piers.map(pier).join("")}${dot(p.a)}${dot(p.b)}
+    <rect x="${f(q.x - q.w / 2)}" y="${f(q.y - q.h / 2)}" width="${f(q.w)}" height="${f(q.h)}" rx="${f(q.r)}" fill="#FBF6EA" filter="url(#a-shadow)"/>
+    <rect x="${f(q.x - q.w / 2)}" y="${f(q.y - q.h / 2)}" width="${f(q.w)}" height="${f(q.h)}" rx="${f(q.r)}" fill="none" stroke="${tone}" stroke-width="${f(2.2 * s)}"/>
+    <g transform="translate(${f(ic.x)} ${f(ic.y)}) scale(${+k.toFixed(4)})">${tile}</g></g>`;
+  const labels = [{ x: q.text.x, y: q.text.y, text: p.ratio, size: q.text.size, color: P.ink, weight: 800 }];
+  if (!p.res) labels.push({ x: ic.x, y: ic.y + ic.size * 0.27, text: "?", size: ic.size * 0.74, color: "#FFFFFF", weight: 800 });
+  return { svg, labels };
 }
 
-/** Number token, drawn on the canvas (so the number uses the loaded display font). */
+/** Number token, drawn on the canvas (so the number uses the loaded display font). Pips: round dots in
+ *  the digit's colour, hung a fixed gap under the digits' baseline. */
 const tokenStyle = {
   r: 27, fill: "#FBF6EA", ring: "#CDBB94", inner: "#E7DCC2", ink: P.ink, hot: "#B5452A",
-  font: "'DM Serif Display', Georgia, serif", weight: "400", size: 25, hotSize: 29, dy: 7, hotDy: 8, pipY: 15.5, pipR: 1.9, pipGap: 5.4,
-  labelFont: "'DM Sans', system-ui, sans-serif",
+  font: "'Outfit', system-ui, sans-serif", weight: "650", size: 24, hotSize: 28, dy: 7.5, hotDy: 8.5, pipY: 16, pipR: 2, pipGap: 5.2,
+  labelFont: "'Figtree', system-ui, sans-serif",
 };
 
 /* ------------------------------------------------------------------ the theme object */
@@ -425,8 +432,7 @@ const sunny = {
   mood: "Soft-vivid Mediterranean light, calm illustrated terrain.",
   sample: "Aa",
   fonts: {
-    url: "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:opsz,wght@9..40,400..800&display=swap",
-    families: ["DM Serif Display", "DM Sans"],
+    families: ["Outfit", "Figtree"],
   },
   paletteDots: ["#3CA9B0", "#8AAE58", "#EDC25E", "#E07E5A", "#93A2B4"],
   confettiColors: ["#D9714E", "#E2C27A", "#3CA9B0", "#F4EEE1", "#7D8F55"],

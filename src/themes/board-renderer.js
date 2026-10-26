@@ -8,7 +8,7 @@
 //    or placement pulse is running: one drawImage of the board layer + pieces drawn as Path2D.
 //  * Pieces / robber / hints are vector specs (Path2D) — crisp at any zoom, nothing to bake.
 //  * The sea is a CSS layer behind the (transparent) canvas, so idle water costs no canvas work.
-import { hexPath, pipCount, f } from "./art-util.js";
+import { hexPath, pipCount, f, harbourBadges } from "./art-util.js";
 import { motionReduced } from "./manager.js";
 // ⚓ Seafarers drawing (only used while game.sea is set)
 import { seaArt, portLandHex, bakeSeaMarks, drawShips, drawPirateAndChips, drawShipSpots, ghostShip, ghostPirate } from "../seafarers/render.js";
@@ -129,6 +129,30 @@ async function rasterize(svg, w, h) {
   }
 }
 
+/** Probability pips under a token's number, styled per theme (tokenStyle.pipStyle):
+ *  "dot" round dots · "inlay" burned-in holes (dark core, light catch-light on the lower rim) ·
+ *  "brush" ink dabs (slightly oval, each turned a little differently, fixed per number). */
+function drawPips(ctx, s, n, col) {
+  const p = pipCount(n), hot = n === 6 || n === 8, r = s.pipR, style = s.pipStyle || "dot";
+  for (let i = 0; i < p; i += 1) {
+    const x = (i - (p - 1) / 2) * s.pipGap, y = s.pipY;
+    ctx.beginPath();
+    if (style === "brush") {
+      const rot = (((n * 7 + i * 13) % 9) - 4) * 0.2, jy = (((n + i * 5) % 3) - 1) * 0.3, sz = 0.9 + ((n * 3 + i * 7) % 4) * 0.08;
+      ctx.ellipse(x, y + jy, r * 1.3 * sz, r * 0.82 * sz, rot, 0, Math.PI * 2);
+      ctx.fillStyle = col; ctx.fill();
+    } else if (style === "inlay") {
+      const g = ctx.createRadialGradient(x - r * 0.25, y - r * 0.3, 0, x, y, r);
+      g.addColorStop(0, hot ? s.pipHotCore || col : s.pipCore || col); g.addColorStop(1, col);
+      ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, r + 0.15, Math.PI * 0.1, Math.PI * 0.9);
+      ctx.lineWidth = 0.8; ctx.strokeStyle = s.pipLight || "rgba(255,250,235,.95)"; ctx.stroke();
+    } else {
+      ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+    }
+  }
+}
+
 export class SvgBoardRenderer {
   constructor(game, theme) {
     this.game = game;
@@ -189,15 +213,12 @@ export class SvgBoardRenderer {
     return Math.min(b, cap);
   }
 
+  /** v0.76: one readable pill per harbour, placed fully in the sea (shared layout, see harbourBadges). */
   portData() {
-    const g = this.game.geometry;
-    return (this.game.ports || []).map((port) => {
-      const edge = g.edges[port.edgeId];
-      const a = this.nodeArt(edge.nodes[0]), b = this.nodeArt(edge.nodes[1]);
-      const hc = this.hexArt(g.hexes[portLandHex(this.game, edge)]); // ⚓ the land side of a coast edge
-      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      const len = Math.hypot(mx - hc.x, my - hc.y) || 1;
-      return { a, b, mx, my, nx: (mx - hc.x) / len, ny: (my - hc.y) / len, res: port.type === "any" ? null : port.type, ratio: port.type === "any" ? "3:1" : "2:1", noBoat: !!this.game.sea };
+    const badges = harbourBadges(this.game, this.tokenScale);
+    return (this.game.ports || []).map((port, i) => {
+      const q = badges[i];
+      return { a: q.a, b: q.b, mx: q.mx, my: q.my, nx: q.nx, ny: q.ny, res: port.type === "any" ? null : port.type, ratio: port.type === "any" ? "3:1" : "2:1", noBoat: !!this.game.sea, s: this.tokenScale, badge: q, piers: q.piers };
     });
   }
 
@@ -238,13 +259,14 @@ export class SvgBoardRenderer {
     const isl = await rasterize(svgOf(b.minX, b.minY, b.W, b.H, ki, T.island(centers)), b.W * ki, b.H * ki);
     if (gen !== this.bakeGen) return;
     ctx.drawImage(isl, 0, 0, canvas.width, canvas.height);
-    // 2. harbours, each in a box around its pier
+    // 2. harbours, each in a box around its piers + badge
     for (let i = 0; i < ports.length; i += 1) {
-      const pd = portData[i], R = 110;
-      const cx = pd.mx + pd.nx * 40, cy = pd.my + pd.ny * 40;
-      const pc = await rasterize(svgOf(cx - R, cy - R, 2 * R, 2 * R, k, ports[i].svg), 2 * R * k, 2 * R * k);
+      const { a, b: bb, badge: q } = portData[i], M = 16;
+      const x0 = Math.min(a.x, bb.x, q.x - q.w / 2) - M, x1 = Math.max(a.x, bb.x, q.x + q.w / 2) + M;
+      const y0 = Math.min(a.y, bb.y, q.y - q.h / 2) - M, y1 = Math.max(a.y, bb.y, q.y + q.h / 2) + M;
+      const pc = await rasterize(svgOf(x0, y0, x1 - x0, y1 - y0, k, ports[i].svg), (x1 - x0) * k, (y1 - y0) * k);
       if (gen !== this.bakeGen) return;
-      ctx.drawImage(pc, ...at(cx - R, cy - R), 2 * R * k, 2 * R * k);
+      ctx.drawImage(pc, ...at(x0, y0), (x1 - x0) * k, (y1 - y0) * k);
     }
     // 3. tiles: one raster per terrain type
     const S = 103;
@@ -266,14 +288,14 @@ export class SvgBoardRenderer {
       const c = this.hexArt(hex);
       this.drawToken(ctx, c.x, c.y + (T.tokenDy || 0), hex.number, k);
     });
-    // port ratio labels
-    ctx.fillStyle = T.palette.ink;
+    // port ratio labels (and the "?" of a 3:1 badge): drawn here so they use the page font
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
-    ports.forEach(({ label }) => {
-      ctx.font = `700 ${label.size}px ${T.tokenStyle.labelFont}`;
-      ctx.fillText(label.text, label.x, label.y);
-    });
+    ports.forEach(({ label, labels }) => (labels || [label]).forEach((l) => {
+      ctx.fillStyle = l.color || T.palette.ink;
+      ctx.font = `${l.weight || 700} ${l.size}px ${l.font || T.tokenStyle.labelFont}`;
+      ctx.fillText(l.text, l.x, l.y);
+    }));
     this.layer = { canvas, ...b, k, key };
     const ms = performance.now() - t0;
     this.stats.bakes += 1;
@@ -307,12 +329,7 @@ export class SvgBoardRenderer {
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
     ctx.fillText(String(n), 0, hot ? s.hotDy : s.dy);
-    const p = pipCount(n);
-    for (let i = 0; i < p; i += 1) {
-      ctx.beginPath();
-      ctx.arc((i - (p - 1) / 2) * s.pipGap, s.pipY, s.pipR, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    drawPips(ctx, s, n, hot ? s.pipHot || col : s.pipInk || col);
     ctx.restore();
   }
 

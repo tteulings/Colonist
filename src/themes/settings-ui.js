@@ -5,7 +5,7 @@
 import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, prefetchFonts, icon } from "./manager.js";
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "0.74";
+export const APP_VERSION = "0.76";
 
 /** One line of real viewport numbers for bug reports (Settings › About). */
 function viewportDebug() {
@@ -115,7 +115,7 @@ export class SettingsUI {
       const cur = g.theme.id;
       const card = (T) => `<button type="button" class="tc ${T.id === cur ? "on" : ""}" data-theme-id="${T.id}" aria-pressed="${T.id === cur}">
           <div class="pv">${T.thumb ? T.thumb() : miniBoard(T.paletteDots, T.id === "A" ? "#3CA9B0" : "#2a6a88")}</div><span class="radio"></span>
-          <div class="meta"><div class="nm"><b>${T.name}</b><span class="aa" style="font-family:${T.sampleFont || (T.id === "A" ? "'DM Serif Display',Georgia,serif" : "Inter,sans-serif")}">Aa</span></div>
+          <div class="meta"><div class="nm"><b>${T.name}</b><span class="aa" style="font-family:${T.sampleFont || (T.id === "A" ? "Outfit,system-ui,sans-serif" : "Inter,sans-serif")}">Aa</span></div>
           <p>${T.mood}</p><div class="dots">${T.paletteDots.map((c) => `<i style="background:${c}"></i>`).join("")}</div></div></button>`;
       const m = motionPref();
       body.innerHTML = this.head("Look &amp; feel", "Pick a world for your island. Board, cards, pieces and motion follow the theme. Applies instantly.") +

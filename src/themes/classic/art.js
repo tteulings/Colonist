@@ -55,13 +55,14 @@ const ICONS = {
   minus: `<path d="M-20,0 H20" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>`,
 };
 
+// mini cards (the hand): the icon sits a little smaller and lower, leaving the top-left corner to the count (v0.76)
 function card(k, mini) {
   const res = RESOURCE_KEYS.includes(k), name = RES_NAME[k] || DEV_NAME[k];
   const bg = res ? RES_COLOR[k] : k === "victoryPoint" ? "#c4a265" : "#5a4a9a";
   const icon = res ? img(RES_ICON[k], 150) : DEV_ICON[k] ? img(DEV_ICON[k], 150) : `<g transform="scale(2.4)">${star}</g>`;
   return `<rect x="1" y="1" width="248" height="348" rx="18" fill="#f5efe4" stroke="#c4a265" stroke-width="3"/>
     <rect x="14" y="14" width="222" height="${mini ? 254 : 220}" rx="12" fill="${bg}"/>
-    <g transform="translate(125 ${mini ? 141 : 124})">${icon}</g>
+    <g transform="${mini ? "translate(125 170) scale(.7)" : "translate(125 124)"}">${icon}</g>
     <text x="125" y="${mini ? 316 : 290}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-weight="800" font-size="${name.length > 11 ? 24 : 32}" fill="${ink}">${name}</text>`;
 }
 const cardBack = () => `<rect x="1" y="1" width="248" height="348" rx="18" fill="#1a3a52" stroke="#c4a265" stroke-width="4"/><g transform="translate(125 175) scale(2.2)">${ICONS.logo}</g>`;

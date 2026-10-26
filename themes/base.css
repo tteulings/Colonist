@@ -1338,6 +1338,12 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .tbtn > span:not(.card) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .tbtn .card { --cw: 24px; flex: none; }
 .tbtn .pk { position: absolute; top: 3px; right: 5px; font-style: normal; font-size: 11px; font-weight: 800; color: var(--accent); }
+/* Cards tray: Buy card shows its cost; a card bought this turn says when it can be played */
+.tbtn .tcost { display: flex; gap: 0; margin-top: 1px; max-width: 100%; overflow: hidden; }
+.tbtn .tcost .cc { display: inline-flex; width: 13px; height: 13px; justify-content: center; align-items: center; }
+.tbtn .tcost .cc .ic { font-size: 14px; }
+.tbtn .tnew { font-size: 9.5px; font-weight: 700; line-height: 1; opacity: .9; }
+.tray[data-mode="cards"] > .buy { flex: 1.4 1 0; }
 .app .tbtn:disabled, .app .tbtn.off { opacity: .42; filter: saturate(.3); cursor: default; }
 .app .tbtn.sel, .app .tbtn.focus { background: var(--btn-on); background-image: none; box-shadow: var(--btn-on-shadow); border: var(--btn-on-border); color: var(--btn-on-ink); }
 .app .tbtn.primary { background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); border: var(--primary-border); box-shadow: var(--primary-shadow); font-size: 13px; }
@@ -1495,3 +1501,148 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
   .app .pstrip .pchip .mini.dense { gap: 2px; }
   .app .pstrip .pchip .mini.dense .ic { font-size: 11px; }
 }
+
+/* ==========================================================================
+   v0.76 trade: one panel (give row · get row · players with their answers),
+   two routes in the footer (bank/harbour · offer). Green is only for ✓ accept.
+   ========================================================================== */
+:root { --accept: #1A7F50; --accept-ink: #FFFFFF; --accept-shadow: #125C3A; --route-bank: #1F7F86; --route-bank-ink: #FFFFFF; }
+.app .trade-sheet { max-height: calc(var(--app-h, 100dvh) - var(--strip-h, 92px)); }
+.app.trade-open .pstrip { position: relative; z-index: 41; }
+.trade-sheet .sheet-head h3 { margin: 0; }
+.tlbl { display: flex; align-items: baseline; justify-content: space-between; font-size: 12px; font-weight: 800; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .08em; margin: 10px 2px 6px; }
+.tgrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+.tcell { position: relative; display: flex; flex-direction: column; min-width: 0; border-radius: 12px; background: var(--chip); border: var(--chip-border); }
+.app .tcell .tpick { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 100%; min-height: 66px; padding: 8px 0 4px; border: 0; background: none; color: var(--ink); border-radius: 12px 12px 0 0; cursor: pointer; }
+.tcell .tpick .ic { font-size: 36px; }
+.tcell .tpick small { font-size: 12px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; line-height: 1.1; }
+.tcell .tpick small .aft { color: var(--heading); font-weight: 800; }
+.tcell .tbadge { position: absolute; top: -8px; right: -6px; min-width: 24px; height: 24px; padding: 0 6px; box-sizing: border-box; border-radius: 12px; background: var(--heading); color: var(--sheet, #fff); font-size: 14px; font-weight: 800; display: flex; align-items: center; justify-content: center; border: 2px solid var(--sheet, #fff); z-index: 1; }
+.tcell .rate-tag { position: absolute; top: 3px; left: 3px; font-size: 11px; font-weight: 800; line-height: 15px; padding: 0 4px; border-radius: 5px; color: var(--kbd-ink); background: var(--kbd-bg); }
+.tcell .rate-tag.port { background: var(--good-bg); color: var(--good); }
+.app .tcell .tminus { height: 30px; width: 100%; border: 0; border-top: 1px solid var(--sep); border-radius: 0 0 12px 12px; background: none; color: var(--pick-ring, #22313A); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.tcell .tminus .ic { font-size: 16px; }
+.tcell:not(.pick) .tminus { visibility: hidden; }
+.tcell.pick { background: var(--pick-bg, #FFF6E0); border-color: transparent; box-shadow: inset 0 0 0 2px var(--pick-ring, #22313A); }
+.tcell.none .tpick .ic { opacity: .35; filter: grayscale(.85); }
+.tcell.none .rate-tag { opacity: .5; }
+
+.tplayers { margin-top: 12px; padding: 8px 10px 10px; border-radius: 14px; background: var(--kbd-bg); border: var(--chip-border); }
+.tp-head { display: flex; align-items: baseline; gap: 8px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--kbd-ink); }
+.tp-head small { font-size: 12.5px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ink); }
+.tp-row { display: flex; justify-content: space-around; gap: 4px; margin-top: 6px; }
+.app .tp { position: relative; flex: 1 1 0; min-width: 0; max-width: 92px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 2px 5px; border: 0; border-radius: 12px; background: none; color: var(--ink); font-size: 12.5px; font-weight: 700; cursor: default; }
+.app .tp .who { color: var(--heading); }
+.tp .who { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-av { position: relative; display: inline-flex; }
+.tp .avatar { --av: 40px; --av-ring: 2px; }
+.tp-st { position: absolute; top: -4px; right: -10px; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid var(--sheet, #fff); color: #fff; }
+.tp-st .ic { font-size: 14px; }
+.tp-st.yes { background: var(--accept); }
+.tp-st.no { background: #8B9496; }
+.tp-st.counter { background: #E5A11C; }
+.tp-st.counter .ic { filter: brightness(0) invert(1); }
+.app .tp.yes { background: var(--good-bg); box-shadow: inset 0 0 0 2px var(--accept); cursor: pointer; }
+.tp.no { opacity: .6; }
+.tp-go { font-style: normal; font-size: 12px; font-weight: 800; color: var(--accept-ink); background: var(--accept); border-radius: 8px; padding: 1px 10px; }
+.tplayers .trade-result { margin-top: 6px; }
+.tcounter { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 12px; background: var(--chip); border: var(--group-border); }
+.tcounter .avatar { --av: 32px; --av-ring: 2px; }
+.tc-body { flex: 1; min-width: 0; font-size: 13px; font-weight: 650; color: var(--ink-soft); line-height: 1.35; }
+.tc-body .who { font-weight: 800; }
+.tc-deal { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0 6px; }
+.tc-deal .oc, .rush-offer-deal .oc { display: inline-flex; align-items: center; gap: 2px; color: var(--ink); font-weight: 800; white-space: nowrap; }
+.tc-deal .oc .ic { font-size: 20px; }
+.tc-deal .oc .on, .tc-deal small { display: none; }
+.give { color: var(--danger); font-weight: 750; }
+.get { color: var(--good); font-weight: 750; }
+.app .trade-result .tc-yes, .app .rush-offer-accept { flex: none; width: 48px; height: 48px; min-height: 0; padding: 0; border-radius: 50%; border: 0; background: var(--accept); background-image: none; color: var(--accept-ink); box-shadow: 0 2px 0 var(--accept-shadow), 0 6px 14px rgba(26,127,80,.28); display: flex; align-items: center; justify-content: center; }
+.app .trade-result .tc-yes .ic, .app .rush-offer-accept .ic { font-size: 24px; }
+.app .trade-result .tc-no, .app .rush-offer-decline { flex: none; width: 44px; height: 44px; padding: 0; border-radius: 50%; background: var(--btn); border: var(--btn-border); color: var(--ink-soft); display: flex; align-items: center; justify-content: center; }
+.app .trade-result .tc-no .ic, .app .rush-offer-decline .ic { font-size: 16px; }
+.app .rush-offer-accept:disabled { opacity: .4; filter: grayscale(1); box-shadow: none; }
+
+/* footer: two routes side by side */
+.app .trade-sheet .trade-foot .btnrow.two { grid-template-columns: 1fr 1fr; gap: 8px; }
+.app .trade-sheet .trade-foot .btn.route { height: 58px; padding: 0 10px; justify-content: flex-start; gap: 8px; text-align: left; font-size: 15px; }
+.btn.route .ic { font-size: 26px; flex: none; }
+.btn.route .rt { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.btn.route .rt b { display: inline-flex; align-items: center; gap: 2px; font-weight: 800; font-size: 16px; white-space: nowrap; }
+.btn.route .rt b .rd { display: inline-flex; align-items: center; gap: 1px; }
+.btn.route .rt b .rd .ic { font-size: 20px; }
+.btn.route .rt b .ar { margin: 0 3px; }
+.btn.route .rt small { font-size: 12px; font-weight: 700; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app .trade-sheet .btn.route.bank.ready { background: var(--route-bank); background-image: none; color: var(--route-bank-ink); border: 0; box-shadow: 0 2px 0 rgba(0,0,0,.12); }
+.app .trade-sheet .btn.route:disabled { background: var(--dis-bg, #F1ECE2); background-image: none; color: var(--dis-ink, #6B7275); border: 0; box-shadow: inset 0 0 0 1.5px var(--dis-line, #E2D9C6); opacity: 1; filter: none; }
+.app .trade-sheet .btn.route:disabled .ic { filter: grayscale(1); opacity: .55; }
+.app .trade-sheet .btn.route.offer.sent { background: var(--btn); color: var(--ink-soft); box-shadow: inset 0 0 0 1.5px var(--sep); }
+
+/* the top strip mirrors the answers while the sheet is open */
+.pchip[data-trade] { position: relative; }
+.pchip[data-trade]::after { content: ""; position: absolute; top: 1px; left: 24px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; background: #8B9496 center / 13px no-repeat; z-index: 2;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 6l12 12M18 6L6 18' fill='none' stroke='%23fff' stroke-width='3.4' stroke-linecap='round'/%3E%3C/svg%3E"); }
+.pchip[data-trade="yes"]::after { background-color: var(--accept);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='%23fff' stroke-width='3.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.pchip[data-trade="counter"]::after { background-color: #E5A11C;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 8h13m-4-4 4 4-4 4M20 16H7m4-4-4 4 4 4' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+
+/* incoming offer: who, then "You give … / You get …" spelled out, ✗ and a big green ✓ */
+.rush-offer-who { font-size: 13px; font-weight: 700; color: var(--ink-soft); }
+.rush-offer-who .who { font-weight: 800; }
+.rush-offer .rush-offer-deal { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0 8px; margin-top: 2px; font-size: 14px; }
+.rush-offer-deal .ol.give, .rush-offer-deal .ol.get { font-size: 12.5px; }
+.rush-offer-deal .ol.give { color: var(--danger); }
+.rush-offer-deal .ol.get { color: var(--good); }
+.rush-offer-have { font-size: 12px; }
+@media (max-height: 500px) and (orientation: landscape) {
+  .app .tcell .tpick { min-height: 50px; padding: 4px 0 2px; } .tcell .tpick .ic { font-size: 26px; }
+  .app .tcell .tminus { height: 26px; }
+  .tplayers { margin-top: 6px; padding: 4px 8px 6px; }
+  .tp .avatar { --av: 30px; }
+  .app .trade-sheet .trade-foot .btn.route { height: 48px; }
+  .trade-sheet .tgrid, .trade-sheet .tlbl { margin-right: 48px; } /* room for the floating close button */
+}
+
+/* v0.76 hand: the count is worked into the card, tone on tone: a big bold numeral in a deep shade
+   of the card's own colour with a thin halo of the card's paper hugging the glyph (no disc, no glow), in the card's
+   top-left — the part the next card in the fan never covers. Themes set the per-card shades. */
+.app .hand .card .count, .app .hand .card:not(.slot) .count {
+  left: 1px; top: 1px; right: auto; z-index: 1; min-width: 30px; height: 32px; padding: 0 4px; box-sizing: border-box;
+  border: 0; border-radius: 50%; box-shadow: none;
+  background: none;
+  color: var(--cnt-ink); -webkit-text-stroke: 4px var(--cnt-halo, #FFF8EC); paint-order: stroke fill; text-shadow: 0 1px 1px rgba(40,30,10,.18);
+  font-family: var(--font-body); font-weight: 900; font-size: 24px; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums lining-nums;
+}
+.app .hand .card { --cnt-ink: #22302F; --cnt-tint: rgba(255,250,240,.85); }
+.app .hand .card[data-card="wood"]  { --cnt-ink: #1C5226; --cnt-tint: #D7EED9; }
+.app .hand .card[data-card="brick"] { --cnt-ink: #7E2810; --cnt-tint: #F9DCCF; }
+.app .hand .card[data-card="sheep"] { --cnt-ink: #2F5512; --cnt-tint: #E6F3D3; }
+.app .hand .card[data-card="wheat"] { --cnt-ink: #6E4204; --cnt-tint: #FCEBC4; }
+.app .hand .card[data-card="ore"]   { --cnt-ink: #263246; --cnt-tint: #E1E6EE; }
+/* dev cards: their art is busy, so the count is plain ink on the card's paper (never part of the picture) */
+.app .hand .card.dev { --cnt-ink: var(--heading, #22302F); --cnt-tint: rgba(255,248,236,.92); }
+[data-theme] .app .hand .card .count { box-shadow: none; }
+/* Wood: a burned numeral (the theme's wood numerals) on a parchment tint of the card's hue */
+[data-theme="B"] .app .hand .card .count { font-family: "Colonist Wood Numerals", var(--font-display); font-weight: 700; --cnt-halo: #F6E9CC; }
+[data-theme="B"] .app .hand .card[data-card="wood"]  { --cnt-ink: #1F4419; --cnt-tint: #E6EBCF; }
+[data-theme="B"] .app .hand .card[data-card="brick"] { --cnt-ink: #66220E; --cnt-tint: #F2DEC8; }
+[data-theme="B"] .app .hand .card[data-card="sheep"] { --cnt-ink: #2F4A0E; --cnt-tint: #ECEFCD; }
+[data-theme="B"] .app .hand .card[data-card="wheat"] { --cnt-ink: #633B07; --cnt-tint: #F5E4B8; }
+[data-theme="B"] .app .hand .card[data-card="ore"]   { --cnt-ink: #22324A; --cnt-tint: #DFE4E6; }
+/* Fiep: an ink numeral tinted with the card's colour, on the paper of the card */
+[data-theme="C"] .app .hand .card .count { font-family: var(--font-body); font-weight: 900; --cnt-halo: var(--c-paper, #FBF6EC); }
+[data-theme="C"] .app .hand .card[data-card="wood"]  { --cnt-ink: #12321A; --cnt-tint: #EAF2E2; }
+[data-theme="C"] .app .hand .card[data-card="brick"] { --cnt-ink: #4A1A0A; --cnt-tint: #FBE6D8; }
+[data-theme="C"] .app .hand .card[data-card="sheep"] { --cnt-ink: #253A0C; --cnt-tint: #F0F6DE; }
+[data-theme="C"] .app .hand .card[data-card="wheat"] { --cnt-ink: #4A3006; --cnt-tint: #FCF0CF; }
+[data-theme="C"] .app .hand .card[data-card="ore"]   { --cnt-ink: #18253A; --cnt-tint: #E6EDF3; }
+/* Classic: the same idea in the classic card palette */
+/* Classic: the mini card's icon sits lower (classic/art.js), so the number has a clear corner */
+[data-theme="classic"] .app .hand .card { --cnt-halo: #F5EFE4; }
+[data-theme="classic"] .app .hand .card[data-card="wood"]  { --cnt-ink: #2A3A12; --cnt-tint: #E8EDD6; }
+[data-theme="classic"] .app .hand .card[data-card="brick"] { --cnt-ink: #6E2712; --cnt-tint: #F6DED2; }
+[data-theme="classic"] .app .hand .card[data-card="sheep"] { --cnt-ink: #315A16; --cnt-tint: #E6F2D6; }
+[data-theme="classic"] .app .hand .card[data-card="wheat"] { --cnt-ink: #634206; --cnt-tint: #F8EBC6; }
+[data-theme="classic"] .app .hand .card[data-card="ore"]   { --cnt-ink: #2A3446; --cnt-tint: #E2E6EC; }
+@media (max-height: 500px) and (orientation: landscape) { .app .hand .card .count, .app .hand .card:not(.slot) .count { min-width: 24px; height: 26px; font-size: 19px; } }
+.rush-offer .owarn { display: inline-flex; margin-left: 5px; cursor: help; } .rush-offer .owarn svg { width: 20px; height: 18px; display: block; }

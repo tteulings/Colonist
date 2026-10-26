@@ -165,18 +165,22 @@ const tile = (t) => tileCache[t] || (tileCache[t] = `${cut(`<path d="${hexD(95.5
   <g clip-path="url(#c-clip-${t})">${cut(TS[t]())}<path d="${hexD(96)}" filter="url(#c-gouache)" opacity=".3"/></g>`);
 const glow = () => `<path d="${hexD(101)}" fill="none" stroke="${K.yellow}" stroke-width="10" stroke-linejoin="round"/>`;
 
-/* ---------- ports: a small black canal barge with a red pennant, a paper tag (icon + ratio) ---------- */
+/* ---------- ports (v0.76): a cream paper tag off the coast, the ink resource silhouette (or a black "?"
+   seal for 3:1) beside the ratio; thin ink piers to the coast corners, each ending in a small ink dot with the
+   harbour's flat colour. Geometry: harbourBadges (p.badge). ---------- */
+const PORT_TONE = { wood: K.green, brick: K.orange, sheep: K.lime, wheat: K.yellow, ore: K.grey };
 function port(p) {
-  const px = p.mx + p.nx * 58, py = p.my + p.ny * 58;
-  const pier = (c) => { const ex = px - p.nx * 20 + (c.x - p.mx) * 0.3, ey = py - p.ny * 20 + (c.y - p.my) * 0.3; return st(`M${f(c.x)},${f(c.y)} L${f(ex)},${f(ey)}`, 1.4) + circ(ex, ey, 2.4); };
-  const fx = p.nx < -0.1 ? -1 : 1;
-  const barge = fl("M-30,0 Q-32,-7 -26,-8 L24,-8 Q32,-8 32,-2 Q28,6 18,7 L-22,7 Q-29,6 -30,0Z") + fl("M-20,-8 L-20,-16 L-6,-16 L-6,-8Z") + fl("M-17,-13.5 h3 v3 h-3Z M-11,-13.5 h3 v3 h-3Z", K.yellow) + st("M8,-8 L8,-36", 1.6) + fl("M8,-35 L21,-31.5 L8,-28Z", K.red);
-  const ic = p.res ? ICONS[p.res] : ICONS.trade;
-  const svg = `<g>${pier(p.a)}${pier(p.b)}<g transform="translate(${f(px)} ${f(py - 8)})">${st("M-34,11 q5,-4 10,0 t10,0 M14,11 q5,-4 10,0 t10,0", 1.6, PA)}
-      ${p.noBoat ? "" : `<g transform="scale(${fx * 0.78} .78)">${barge}</g>`}
-      <g transform="translate(0 25)"><rect x="-31" y="-14" width="62" height="28" rx="14" fill="${CREAM}" stroke="${B}" stroke-width="1.4"/>
-        <g transform="translate(-14.5 0) scale(.23)">${ic}</g></g></g></g>`;
-  return { svg, label: { x: px + 11, y: py - 8 + 25 + 6.6, text: p.ratio, size: 19 } };
+  const q = p.badge, s = p.s || 1, ic = q.icon;
+  const pier = ([c, e]) => st(`M${f(c.x)},${f(c.y)} L${f(e[0])},${f(e[1])}`, 1.6 * s);
+  const dot = (c) => `<circle cx="${f(c.x)}" cy="${f(c.y)}" r="${f(5.4 * s)}" fill="${p.res ? PORT_TONE[p.res] : PA}" stroke="${B}" stroke-width="${f(1.8 * s)}"/>`;
+  const svg = `<g>${p.piers.map(pier).join("")}${dot(p.a)}${dot(p.b)}
+    <rect x="${f(q.x - q.w / 2)}" y="${f(q.y - q.h / 2)}" width="${f(q.w)}" height="${f(q.h)}" rx="${f(q.r)}" fill="${CREAM}" stroke="${B}" stroke-width="${f(1.6 * s)}"/>
+    <g transform="translate(${f(ic.x)} ${f(ic.y)})">${p.res
+      ? `<g transform="scale(${+(ic.size / 96).toFixed(4)})">${ICONS[p.res]}</g>`
+      : `<circle r="${f(ic.size / 2)}" fill="${B}"/>`}</g></g>`;
+  const labels = [{ x: q.text.x, y: q.text.y, text: p.ratio, size: q.text.size * 1.08, color: B, weight: 700 }];
+  if (!p.res) labels.push({ x: ic.x, y: ic.y + ic.size * 0.3, text: "?", size: ic.size * 0.8, color: PA, weight: 700 });
+  return { svg, labels };
 }
 
 /* ---------- pieces (canvas specs): gabled canal house; tall flat + gable house; ink burglar ---------- */
@@ -436,7 +440,8 @@ function thumb() {
 
 const tokenStyle = {
   r: 25, fill: PA, ring: "#3A3633", inner: "rgba(0,0,0,0)", ink: B, hot: K.red,
-  font: "'Kalam', cursive", weight: "700", size: 24, hotSize: 27, dy: 6, hotDy: 7, pipY: 15, pipR: 1.7, pipGap: 4.6,
+  font: "'Kalam', cursive", weight: "700", size: 24, hotSize: 27, dy: 6, hotDy: 7, pipY: 16, pipR: 2, pipGap: 5.2,
+  pipStyle: "brush", // ink dabs
   labelFont: "'Kalam', cursive",
 };
 
