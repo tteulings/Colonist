@@ -1845,19 +1845,12 @@ class ColonistFullGame {
 
   /** Mode-less tap: a city upgrade, a settlement spot or a road you can afford right now. */
   _autoDetectTarget(player, x, y) {
-    const nodeId = this.findNodeAt(x, y);
-    if (nodeId != null) {
-      if (this.canBuildCity(player, nodeId, false)) return { type: "city", id: nodeId };
-      if (this.canBuildSettlement(player, nodeId, false)) return { type: "settlement", id: nodeId };
-    }
-    const free = this.freeRoadsRemaining > 0;
-    const edgeId = this.findEdgeAt(x, y, (id) => this.canBuildRoad(player, id, { free }));
-    return edgeId != null ? { type: "road", id: edgeId } : null;
+    // same picking as build mode: a tap near a corner means the corner, mid-edge means the road
+    return this._buildTargetAt(player, x, y, this.freeRoadsRemaining > 0 ? "road" : "build");
   }
 
   /** In build mode ("build" = every piece you can afford): the nearest legal spot to the tap. */
-  _buildTargetAt(player, x, y) {
-    const pa = this.pendingAction;
+  _buildTargetAt(player, x, y, pa = this.pendingAction) {
     const free = this.freeRoadsRemaining > 0;
     const all = pa === "build";
     const wantRoad = pa === "road" || (all && !free);
