@@ -7609,13 +7609,13 @@ class ColonistFullGame {
         const sel = pd.selected[r];
         return `<button type="button" class="card${sel ? " marked" : ""}" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: ${c}${sel ? `, ${sel} to hand back` : ""}" title="Tap to hand back one ${RESOURCE_LABEL[r]}">${cardSvg(r)}<span class="count">${c - sel}</span>${sel ? `<span class="dsel">−${sel}</span>` : ""}</button>`;
       }
-      return `<button type="button" class="card" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: ${c}" title="${RESOURCE_LABEL[r]} — tap to trade">${cardSvg(r)}<span class="count">${c}</span></button>`;
+      return `<button type="button" class="card" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: ${c}" title="${RESOURCE_LABEL[r]} — tap to trade" data-n="${Math.min(c, 4)}">${cardSvg(r)}<span class="count">${c}</span><span class="rib" aria-hidden="true"><b>${c}</b><span>${RESOURCE_LABEL[r]}</span></span></button>`;
     }).join("");
     if (devTypes.length) {
       html += '<span class="sep"></span>' + devTypes.map((t, j) => {
         const fresh = t !== "victoryPoint" && human.newDevCards[t] > 0 && human.devCards[t] === 0;
         const name = DEV_NAME[t];
-        return `<button type="button" class="card dev${fresh ? " new" : ""}${this._newDevPulse === t ? " drawn" : ""}" data-dev="${t}" style="${fan(RESOURCES.length + j)}" aria-label="${name}: ${devCounts[t]}" title="${name}${fresh ? " — playable next turn" : ""}">${cardSvg(t)}<span class="count">${devCounts[t]}</span></button>`;
+        return `<button type="button" class="card dev${fresh ? " new" : ""}${this._newDevPulse === t ? " drawn" : ""}" data-dev="${t}" style="${fan(RESOURCES.length + j)}" aria-label="${name}: ${devCounts[t]}" title="${name}${fresh ? " — playable next turn" : ""}" data-n="${Math.min(devCounts[t], 4)}">${cardSvg(t)}<span class="count">${devCounts[t]}</span><span class="rib" aria-hidden="true"><b>${devCounts[t]}</b><span>${name}</span></span></button>`;
       }).join("");
     }
     this.resourceCardStrip.innerHTML = html;
@@ -8906,6 +8906,7 @@ class ColonistFullGame {
     this.theme = THEMES[storedThemeId()];
     document.documentElement.dataset.theme = this.theme.id;
     applyMotionAttr();
+    try { document.documentElement.dataset.handCounts = localStorage.getItem("colonist.handCounts") || "stack"; } catch (_) { /* private mode */ }
     this.theme.setPalette?.(currentPalette());
     installSprite(this.theme);
     this.app = document.querySelector("#app");
