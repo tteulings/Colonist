@@ -2249,7 +2249,10 @@ class ColonistFullGame {
     if (Math.hypot(vx, vy) < 0.25 || motionReduced()) { this._setViewMoving(false); return; }
     let last = performance.now();
     const step = (now) => {
-      const dt = Math.max(0, Math.min(40, now - last));
+      // A frame's timestamp can precede the touchend's performance.now(): skip such frames instead
+      // of reading "no movement" as having hit an edge (which used to kill the glide at random).
+      const dt = Math.min(40, now - last);
+      if (dt <= 0) { this._viewAnim = requestAnimationFrame(step); return; }
       last = now;
       const bx = this.view.offsetX, by = this.view.offsetY;
       this.view.offsetX += vx * dt;
