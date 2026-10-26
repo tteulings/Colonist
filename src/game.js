@@ -1140,10 +1140,15 @@ class ColonistFullGame {
       this._showDifficultyModal();
     });
     this.resetViewBtn.addEventListener("click", () => this.resetViewTransform());
-    this.rollDiceBtn.addEventListener("click", () => {
+    // The dock's primary button (Roll dice / End turn / Ready) sits right under the trade sheet's
+    // Offer / Bank buttons and near the offer card's ✓ / ✗. When a tap there closes the sheet, the
+    // next tap (a double tap, an impatient second tap, a ghost click) must not roll / end the turn.
+    this.rollDiceBtn.addEventListener("click", (e) => {
+      if (this._primaryTapGuarded(e)) return;
       this.handleHumanRoll();
     });
-    this.endTurnBtn.addEventListener("click", () => {
+    this.endTurnBtn.addEventListener("click", (e) => {
+      if (this._primaryTapGuarded(e)) return;
       this.handleHumanEndTurn();
     });
     this.buildRoadBtn.addEventListener("click", () => this.setPendingAction("road"));
@@ -1173,10 +1178,10 @@ class ColonistFullGame {
 
     this.tradeExecuteBtn?.addEventListener("click", () => this.handleHumanBankTrade());
     this.tradeProposalBtn?.addEventListener("click", () => this._onTradeProposalBtn());
-    this.acceptTradeBtn?.addEventListener("click", () => this.resolveIncomingTrade(true));
-    this.rejectTradeBtn?.addEventListener("click", () => this.resolveIncomingTrade(false));
+    this.acceptTradeBtn?.addEventListener("click", () => { this._guardPrimaryTap(); this.resolveIncomingTrade(true); });
+    this.rejectTradeBtn?.addEventListener("click", () => { this._guardPrimaryTap(); this.resolveIncomingTrade(false); });
     this.discardConfirmBtn?.addEventListener("click", () => this._confirmDiscard());
-    this.rushReadyBtn?.addEventListener("click", () => this.toggleRushReady());
+    this.rushReadyBtn?.addEventListener("click", (e) => { if (!this._primaryTapGuarded(e)) this.toggleRushReady(); });
     document.addEventListener("click", (e) => {
       if (this.devCardPicker && this.devCardPicker.style.display !== "none" &&
           !this.devCardPicker.contains(e.target) && e.target !== this.playDevBtn) {
@@ -3300,12 +3305,26 @@ class ColonistFullGame {
     this._tradeAsked = null;
     this._tradeAnswers = null;
     this._markStripAnswers();
+    if (this.tradeModal.style.display !== "none") this._guardPrimaryTap();
     this.tradeModal.style.display = "none";
     this._syncScrim?.();
   }
 
   hideTradePanel() {
     this.closeTradeModal();
+  }
+
+  /** A sheet / offer button just closed what covered the dock: hold off the primary button briefly. */
+  _guardPrimaryTap(ms = 650) {
+    this._primaryGuardUntil = performance.now() + ms;
+  }
+
+  /** True (and the tap is swallowed) while a tap could still be meant for the sheet that just closed. */
+  _primaryTapGuarded(e) {
+    if (!(performance.now() < (this._primaryGuardUntil || 0))) return false;
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    return true;
   }
 
   /** The players' answers belong to the offer they were given: any change to the picks clears them. */
@@ -5965,7 +5984,7 @@ class ColonistFullGame {
         <span class="offer-time" aria-hidden="true"><i></i></span>
       </div>`;
     }).join("");
-    const resolve = (id, yes) => (pit && !this.rush ? this.resolveIncomingTrade(yes) : this._resolveRushOffer(id, yes));
+    const resolve = (id, yes) => { this._guardPrimaryTap(); return pit && !this.rush ? this.resolveIncomingTrade(yes) : this._resolveRushOffer(id, yes); };
     el.querySelectorAll("[data-accept]").forEach((b) => b.addEventListener("click", () => resolve(Number(b.dataset.accept), true)));
     el.querySelectorAll("[data-decline]").forEach((b) => b.addEventListener("click", () => resolve(Number(b.dataset.decline), false)));
     this._updateOfferTimers();
@@ -7593,13 +7612,13 @@ class ColonistFullGame {
         const sel = pd.selected[r];
         return `<button type="button" class="card${sel ? " marked" : ""}" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: ${c}${sel ? `, ${sel} to hand back` : ""}" title="Tap to hand back one ${RESOURCE_LABEL[r]}">${cardSvg(r)}<span class="count">${c - sel}</span>${sel ? `<span class="dsel">−${sel}</span>` : ""}</button>`;
       }
-      return `<button type="button" class="card" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: ${c}" title="${RESOURCE_LABEL[r]} — tap to trade">${cardSvg(r)}<span class="count">${c}</span></button>`;
+      return `<button type="button" class="card" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: ${c}" title="${RESOURCE_LABEL[r]} — tap to trade" data-n="${Math.min(c, 4)}">${cardSvg(r)}<span class="count">${c}</span><span class="rib" aria-hidden="true"><b>${c}</b><span>${RESOURCE_LABEL[r]}</span></span></button>`;
     }).join("");
     if (devTypes.length) {
       html += '<span class="sep"></span>' + devTypes.map((t, j) => {
         const fresh = t !== "victoryPoint" && human.newDevCards[t] > 0 && human.devCards[t] === 0;
         const name = DEV_NAME[t];
-        return `<button type="button" class="card dev${fresh ? " new" : ""}${this._newDevPulse === t ? " drawn" : ""}" data-dev="${t}" style="${fan(RESOURCES.length + j)}" aria-label="${name}: ${devCounts[t]}" title="${name}${fresh ? " — playable next turn" : ""}">${cardSvg(t)}<span class="count">${devCounts[t]}</span></button>`;
+        return `<button type="button" class="card dev${fresh ? " new" : ""}${this._newDevPulse === t ? " drawn" : ""}" data-dev="${t}" style="${fan(RESOURCES.length + j)}" aria-label="${name}: ${devCounts[t]}" title="${name}${fresh ? " — playable next turn" : ""}" data-n="${Math.min(devCounts[t], 4)}">${cardSvg(t)}<span class="count">${devCounts[t]}</span><span class="rib" aria-hidden="true"><b>${devCounts[t]}</b><span>${name}</span></span></button>`;
       }).join("");
     }
     this.resourceCardStrip.innerHTML = html;
@@ -8898,6 +8917,7 @@ class ColonistFullGame {
     this.theme = THEMES[storedThemeId()];
     document.documentElement.dataset.theme = this.theme.id;
     applyMotionAttr();
+    try { document.documentElement.dataset.handCounts = localStorage.getItem("colonist.handCounts") || "stack"; } catch (_) { /* private mode */ }
     this.theme.setPalette?.(currentPalette());
     installSprite(this.theme);
     this.app = document.querySelector("#app");

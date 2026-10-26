@@ -1646,3 +1646,30 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 [data-theme="classic"] .app .hand .card[data-card="ore"]   { --cnt-ink: #2A3446; --cnt-tint: #E2E6EC; }
 @media (max-height: 500px) and (orientation: landscape) { .app .hand .card .count, .app .hand .card:not(.slot) .count { min-width: 24px; height: 26px; font-size: 19px; } }
 .rush-offer .owarn { display: inline-flex; margin-left: 5px; cursor: help; } .rush-offer .owarn svg { width: 20px; height: 18px; display: block; }
+
+/* v0.77 option "stack" (html[data-hand-counts=stack]): quantity as a physical stack — 1-3 card edges
+   peeking out above the card — and the exact count, big, in the card's own name ribbon (in the
+   card's deep hue). At 360 px a name at a readable size does not fit beside it (8 kinds leave ~40 px
+   a card; "Lumber" alone is 38 px at 10 px), so the art says what it is and the ribbon says how many. */
+.app .hand .card .rib { display: none; }
+[data-hand-counts="stack"] .app .hand .card .count { display: none; }
+[data-hand-counts="stack"] .app .hand .card .rib {
+  display: flex; align-items: center; justify-content: center; position: absolute; left: 5%; right: 5%; bottom: 3.5%; height: 22%; overflow: hidden;
+  background: var(--rib-paper, #FBF6EA); border-radius: 0 0 calc(var(--card-radius) - 3px) calc(var(--card-radius) - 3px);
+}
+[data-hand-counts="stack"] .app .hand .card .rib b { font-family: var(--font-body); font-weight: 900; font-size: 16px; line-height: 1; margin-top: 1px; letter-spacing: -.02em; color: var(--cnt-ink); font-variant-numeric: tabular-nums lining-nums; }
+[data-hand-counts="stack"] .app .hand .card .rib span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+[data-hand-counts="stack"] .app .hand .card.dev .rib b { color: var(--heading); }
+[data-hand-counts="stack"] .app .hand .card[data-n="2"] { box-shadow: -2px -4px 0 0 var(--stack-1, #EADFC6); }
+[data-hand-counts="stack"] .app .hand .card[data-n="3"] { box-shadow: -2px -4px 0 0 var(--stack-1, #EADFC6), -4px -8px 0 0 var(--stack-2, #DCCFB2); }
+[data-hand-counts="stack"] .app .hand .card[data-n="4"] { box-shadow: -2px -4px 0 0 var(--stack-1, #EADFC6), -4px -8px 0 0 var(--stack-2, #DCCFB2), -6px -12px 0 0 var(--stack-3, #CDBF9F); }
+/* fit 5 resources + 3 dev kinds at 360 px without a swipe; more kinds than that scroll as before */
+[data-hand-counts="stack"] .app .hand .cards { padding-top: 16px; padding-left: calc(var(--gut) + 8px); }
+[data-hand-counts="stack"] .app .hand .card { --cw: clamp(40px, calc((100vw - 60px) / 8 + 4px), 54px); margin-right: -4px; }
+[data-hand-counts="stack"] .app .hand .card:last-child { margin-right: 6px; }
+[data-hand-counts="stack"] .app .hand .sep { width: 8px; }
+[data-theme="B"] { --rib-paper: #F3E6C8; --stack-1: #E2CFA4; --stack-2: #CDB582; --stack-3: #B39866; }
+[data-theme="C"] { --rib-paper: var(--c-paper, #FBF6EC); --stack-1: #E8E0CF; --stack-2: #CFC5B0; --stack-3: #B9AE96; }
+[data-theme="classic"] { --rib-paper: #F5EFE4; --stack-1: #E6DCC8; --stack-2: #D2C4A6; --stack-3: #BBA984; }
+@media (min-width: 901px) and (min-height: 501px) { [data-hand-counts="stack"] .app .hand .card { --cw: clamp(54px, 4.9vw, 76px); margin-right: 0; } }
+@media (max-height: 500px) and (orientation: landscape) { [data-hand-counts="stack"] .app .hand .card .rib b { font-size: 14px; } [data-hand-counts="stack"] .app .hand .cards { padding-top: 12px; } }
