@@ -6,7 +6,7 @@ import sunny from "../sunny/art.js";
 
 const img = (href, s = 80) => `<image href="${href}" x="${-s / 2}" y="${-s / 2}" width="${s}" height="${s}"/>`;
 const RES_ICON = {
-  wood: "./assets/icons/resource-wood-v2.svg", brick: "./assets/icons/resource-brick-v2.svg", sheep: "./assets/icons/resource-sheep-v2.svg",
+  wood: "./assets/icons/resource-wood-v3.svg", brick: "./assets/icons/resource-brick-v2.svg", sheep: "./assets/icons/resource-sheep-v2.svg",
   wheat: "./assets/icons/resource-wheat-v2.svg", ore: "./assets/icons/resource-ore-v2.svg",
 };
 const DEV_ICON = {
