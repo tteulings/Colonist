@@ -33,10 +33,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- legacy styles in a low-priority cascade layer: the themed CSS below always wins -->
-    <style>@import url("./styles.css?v=69") layer(legacy);</style>
-    <link rel="stylesheet" href="./themes/base.css?v=69" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=69" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=69" />
+    <style>@import url("./styles.css?v=70") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=70" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=70" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=70" />
   </head>
   <body>
     <div class="app" id="app">
@@ -52,6 +52,7 @@
         <div class="top-right">
           <div id="supplyOverview" class="bank" title="Bank supply"></div>
           <div class="theme-toggle" id="themeToggle" role="radiogroup" aria-label="Theme"></div>
+          <button class="btn icon-only" id="menuBtn" aria-label="Menu" title="Menu" aria-haspopup="dialog"><svg class="ic ic-menu" viewBox="-50 -50 100 100" aria-hidden="true"><path d="M-30 -22H30M-30 0H30M-30 22H30" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/></svg></button>
           <button class="btn icon-only" id="settingsBtn" aria-label="Settings" title="Settings"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-settings" x="-50" y="-50" width="100" height="100"/></svg></button>
         </div>
       </header>
@@ -66,7 +67,6 @@
             <button class="tk-cancel" id="tickerCancel" type="button" hidden>Cancel</button>
             <button class="more" id="tickerMore" aria-label="Open journal"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-chevron" x="-50" y="-50" width="100" height="100"/></svg></button>
           </div>
-          <button class="mgear" id="mSettingsBtn" aria-label="Settings"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-settings" x="-50" y="-50" width="100" height="100"/></svg></button>
         </div>
       </div>
 
@@ -89,7 +89,7 @@
 
       <!-- Game settings (moved into Settings › Game at start-up by src/themes/settings-ui.js) -->
       <details class="settings-drawer-float" id="settingsDrawer">
-        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.69</span></summary>
+        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.70</span></summary>
         <div class="settings-float-body">
           <button id="resetBtn" type="button" class="btn primary st-newgame"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-dice" x="-50" y="-50" width="100" height="100"/></svg>New game</button>
           <div class="st-h">Sound &amp; pace</div>
@@ -125,7 +125,7 @@
             <summary>Bot personalities</summary>
             <div id="aiStrategyPanel" class="ai-strategy-panel"></div>
           </details>
-          <div class="settings-version">Colonist <span class="app-version">v0.69</span></div>
+          <div class="settings-version">Colonist <span class="app-version">v0.70</span></div>
         </div>
       </details>
 
@@ -181,6 +181,7 @@
         <div class="actions">
           <!-- Dock tray: build pieces, cards, Year of Plenty / Monopoly picks, robber, discard (game.js fills it) -->
           <div class="tray" id="dockPicker" role="group" aria-label="Choices" hidden></div>
+          <button class="mbtn m-only" id="mMenuBtn" aria-label="Menu" aria-haspopup="dialog"><svg class="ic ic-menu" viewBox="-50 -50 100 100" aria-hidden="true"><path d="M-30 -22H30M-30 0H30M-30 22H30" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/></svg><span class="mlbl">Menu</span></button>
           <button class="mbtn m-only" id="mBuildBtn"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-build" x="-50" y="-50" width="100" height="100"/></svg>Build</button>
           <div class="buildgrp" id="actionPromptBuild">
             <div class="sheet-head m-only"><h3><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-build" x="-50" y="-50" width="100" height="100"/></svg>Build</h3>
@@ -265,7 +266,7 @@
     </div>
     <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=69"></script>
+    <script type="module" src="./src/game.js?v=70"></script>
     <script>
       // Updates: sw.js and its imports are never taken from the HTTP cache (updateViaCache), the
       // registration is re-checked whenever the app comes back to the foreground, and a new

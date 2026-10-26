@@ -3,7 +3,8 @@ import { SvgBoardRenderer } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
 import { TERRAIN_NAME, DEV_NAME, CARD_TEXT } from "./themes/art-util.js";
-import { Onboarding, isFirstLaunch } from "./themes/onboarding.js";
+import { Onboarding, introSeen } from "./themes/onboarding.js";
+import { Home, GameMenu } from "./themes/home.js";
 import { SoundEngine } from "./sound.js";
 
 const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
@@ -869,27 +870,101 @@ class ColonistFullGame {
     this.populateResourceSelects();
     this.bindControls();
     this._bindThemeUI();
-    this.onboarding = new Onboarding(this, {
-      costs: COSTS, labels: RESOURCE_LABEL,
-      onQuick: () => this.startNewGame({ ...DEFAULT_SETTINGS, perBot: [...DEFAULT_SETTINGS.perBot] }),
-      onSettings: () => this._showDifficultyModal(),
+    this.onboarding = new Onboarding(this, { costs: COSTS, labels: RESOURCE_LABEL });
+    this.home = new Home(this, {
+      saved: () => this._savedSummary(),
+      last: () => normalizeSettings(ColonistFullGame.loadLastSettings()),
+      introSeen,
+      onContinue: () => this.continueSavedGame(),
+      onStart: (pick) => this._quickStart(pick),
+      onMore: () => this._showDifficultyModal(),
+      onIntro: () => this.onboarding.showIntro(0, true),
+      onSettings: () => this.settingsUI.open("game"),
     });
-    if (!this.loadFromStorage()) {
-      // First launch: the board waits behind a welcome sheet (bots do not start placing yet)
-      this.onboardingHold = isFirstLaunch();
-      this.resetGame();
-    }
+    this.menu = new GameMenu(this, {
+      onHome: () => this.goHome(),
+      onNewGame: () => this._showDifficultyModal(),
+      onSettings: () => this.settingsUI.open("game"),
+      onIntro: () => this.onboarding.showIntro(0, false),
+      onAbout: () => this.settingsUI.open("about"),
+    });
+    // Every launch opens on the home screen. A saved game is restored behind it but held (no bots,
+    // no Rush clock, nothing saved) until Continue; without one a fresh board waits behind it.
+    this.onboardingHold = true;
+    this._homeSave = this._hasResumableSave() && this.loadFromStorage();
+    if (!this._homeSave) this.resetGame();
     this._buildStrategyUI();
     this.startAnimationLoop();
-    if (this.onboardingHold) this.onboarding.showWelcome();
+    this.home.show();
   }
 
-  /** Leave the first-launch hold (a game is started, or bots take over). */
+  /** Leave the home hold (a game is started, or bots take over). */
   _releaseOnboarding(resume = true) {
     if (!this.onboardingHold) return;
+    if (resume && this._homeSave) { this.continueSavedGame(); return; } // e.g. "Watch bots play" from home: the held save goes live
     this.onboardingHold = false;
+    this._homeSave = false;
+    this.uiPaused = false;
+    this.home?.close();
     this.onboarding?.close();
     if (resume && this.setupPhase && !this.setupAction) this.processSetupQueue();
+  }
+
+  /** A stored, unfinished game that Continue can resume. */
+  _hasResumableSave() {
+    try {
+      const raw = localStorage.getItem(ColonistFullGame.STORAGE_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      return data && data.winnerId == null;
+    } catch (_) { return false; }
+  }
+
+  /** What the home screen shows on its Continue button (null: nothing to continue). */
+  _savedSummary() {
+    if (!this._homeSave || this.winner || !this.players?.length) return null;
+    return {
+      mode: this.isRush() || this.settings?.mode === "rush" ? "Rush" : "Classic",
+      turn: this.turn || 1,
+      players: this.players.map((p) => ({ name: p.name, seat: p.id, vp: p.isHuman ? p.victoryPoints : (p.publicVictoryPoints ?? p.victoryPoints) })),
+    };
+  }
+
+  /** Home › Continue: the held save is loaded again, now live (bots, Rush clock, saving resume). */
+  continueSavedGame() {
+    this.onboardingHold = false;
+    this._homeSave = false;
+    this.uiPaused = false;
+    this.home.close();
+    this.onboarding?.close();
+    if (!this.loadFromStorage()) this.resetGame();
+    this._buildStrategyUI();
+  }
+
+  /** Home › Classic / Rush tile: start at once with the chosen opponents and bot level. */
+  _quickStart({ mode, numBots, preset }) {
+    const last = normalizeSettings(ColonistFullGame.loadLastSettings());
+    const s = { ...last, mode: mode === "rush" ? "rush" : "classic", numBots: clamp(Number(numBots) || 3, 1, 3) };
+    if (preset && preset !== "custom" && AI_PRESETS[preset]) {
+      s.botStyleMode = "all";
+      s.allPreset = preset;
+      s.allStrategy = { ...AI_PRESETS[preset] };
+    }
+    this.startNewGame(s);
+  }
+
+  /** Menu › Home: save and pause the game, then show the home screen (Continue picks it up again). */
+  goHome() {
+    this.menu?.close();
+    this.settingsUI?.close();
+    document.querySelector(".newgame-modal")?.remove();
+    try { this.closeTradeModal?.(); this.hideDevCardPicker?.(); this.toggleLog?.(false); this._syncScrim?.(); } catch (_) { /* nothing open */ }
+    if (!this.onboardingHold && !this.winner) this.saveToStorage();
+    this._homeSave = !this.winner && this._hasResumableSave();
+    this._cancelPendingWork();
+    this.onboardingHold = true;
+    this.uiPaused = true;
+    this.home.show();
   }
 
   /** Canvas backing-store ratio: up to 3x for the SVG-art renderer (crisp tiles when zoomed on phones). */
@@ -2186,14 +2261,32 @@ class ColonistFullGame {
     const mobile = this.isMobileLayout;
     const mx = hs * (mobile ? 1.05 : 1.75), my = hs * (mobile ? 1.12 : 1.7);
     const box = { minX: Math.min(...xs) - mx, maxX: Math.max(...xs) + mx, minY: Math.min(...ys) - my, maxY: Math.max(...ys) + my };
-    let fan = 0, top = 4;
+    let fan = 0, top = 4, side = 0;
     if (mobile && this.app) {
       const cs = getComputedStyle(this.app);
       // + the room a docked trade offer takes above the hand (only while one is up)
       fan = (parseFloat(cs.getPropertyValue("--fan-h")) || 112) + (parseFloat(cs.getPropertyValue("--offer-room")) || 0);
       top = parseFloat(cs.getPropertyValue("--board-top")) || 4;
+      side = parseFloat(cs.getPropertyValue("--board-side")) || 0;
+      if (side) {
+        // Side gutters: the beach keeps --board-side from the screen edge; the harbour boats may use
+        // that gutter; only the very tip of a boat may run off screen. Only the ports this map really has count, so a map
+        // without a harbour at the far left/right gets the full width.
+        const cx = (box.minX + box.maxX) / 2, half = (box.maxX - box.minX) / 2;
+        let reach = 0;
+        (this.ports || []).forEach((p) => {
+          const e = g.edges[p.edgeId]; if (!e) return;
+          const [a, b] = e.nodes.map((id) => g.nodes[id]); const hc = g.hexes[e.hexIds[0]].center;
+          const px = (a.x + b.x) / 2, py = (a.y + b.y) / 2, len = Math.hypot(px - hc.x, py - hc.y) || 1;
+          reach = Math.max(reach, Math.abs(px + ((px - hc.x) / len) * hs * 0.85 - cx)); // boat tip
+        });
+        const avail = this.boardWidth / 2;
+        const k = Math.min((avail - side) / half, reach ? (avail + 6) / reach : Infinity); // a boat tip may run 6px off
+        box.minX = cx - avail / k; box.maxX = cx + avail / k;
+        side = 0;
+      }
     }
-    const ins = mobile ? { t: top, r: 0, b: fan - 6, l: 0 } : { t: 10, r: 10, b: 10, l: 10 };
+    const ins = mobile ? { t: top, r: side, b: fan - 6, l: side } : { t: 10, r: 10, b: 10, l: 10 };
     const vp = { l: ins.l, t: ins.t, W: Math.max(50, this.boardWidth - ins.l - ins.r), H: Math.max(50, this.boardHeight - ins.t - ins.b) };
     if (mobile) {
       // Width-bound portrait phones: sit the island just above the hand instead of leaving an empty
@@ -2337,6 +2430,7 @@ class ColonistFullGame {
 
   handleKeyboardShortcut(event) {
     if (document.querySelector(".newgame-modal")) return; // setup screen owns the keyboard
+    if (this.home?.open || this.menu?.open) return; // home screen / menu: no game shortcuts
     const target = event.target;
     if (
       target &&
@@ -6150,6 +6244,7 @@ class ColonistFullGame {
     // Resumed games always open fitted: refit once the layout (hand fan, browser bars) has settled,
     // unless the player has already zoomed in by then.
     window.setTimeout(() => { if (!this._userZoomed && this.geometry) { this.fitCanvasToContainer(); this.fitView(); this.render(); } }, 350);
+    if (this.onboardingHold) return true; // behind the home screen: resumes on Continue
     if (this.winner) {
       this.showGameOverOverlay();
     } else if (this.setupPhase) {
@@ -8136,7 +8231,7 @@ class ColonistFullGame {
       document.removeEventListener("keydown", onKey);
       this.uiPaused = false;
       this._rushLastTs = performance.now();
-      if (!started && this.onboardingHold) this.onboarding.showWelcome(); // first launch: back to the welcome sheet
+      if (!started && this.onboardingHold) this.home.show(); // opened from home: back to it
     };
     const start = () => {
       close(true);
@@ -8561,7 +8656,8 @@ class ColonistFullGame {
     const $ = (s) => document.querySelector(s);
     this.settingsUI = new SettingsUI(this);
     $("#settingsBtn")?.addEventListener("click", () => this.settingsUI.open("look"));
-    $("#mSettingsBtn")?.addEventListener("click", () => this.settingsUI.open("game"));
+    $("#mMenuBtn")?.addEventListener("click", () => this.menu.show());
+    $("#menuBtn")?.addEventListener("click", () => this.menu.show());
     renderQuickToggle($("#themeToggle"), this);
     $("#fitBoardBtn")?.addEventListener("click", () => this.resetViewTransform());
     $("#zoomInBtn")?.addEventListener("click", () => this.zoomBy(1.2));
