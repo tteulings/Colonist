@@ -81,24 +81,26 @@ export const SixUiMixin = {
     return !!(this.sbp?.human && this.currentPlayer?.isHuman && !this.winner);
   },
 
-  /** Whose turn starts after the build window. */
-  _sbpNextName() {
+  /** Whose turn starts after the build window: { short: "Bruno next", long: "Bruno is next" }. */
+  _sbpNext() {
     const s = this.sbp;
-    if (!s) return "";
-    return this.players[(s.after + 1) % this.players.length].name;
+    if (!s) return { short: "", long: "" };
+    const p = this.players[(s.after + 1) % this.players.length];
+    return p.isHuman ? { short: "your turn next", long: "Your turn is next" } : { short: `${p.name} next`, long: `${p.name} is next` };
   },
 
   /** The ticker line while your window is open (plain text for the desktop prompt). */
   _sbpStatus() {
-    const next = this._sbpNextName();
-    return this.sbp?.human?.built ? `Build more or tap Done · ${next} is next` : `Your build window · ${next} next`;
+    const next = this._sbpNext();
+    const before = /^your/.test(next.short) ? "before your turn" : `before ${next.short.replace(/ next$/, "")}'s turn`;
+    return this.sbp?.human?.built ? `Build more or tap Done · ${next.short}` : `Build or buy ${before} · no trading or cards`;
   },
 
   _sbpTickerHtml() {
     const s = this.sbp;
-    const next = this._sbpNextName();
+    const next = this._sbpNext().short;
     const head = s?.human?.built ? "Build more or tap Done" : "Your build window";
-    return `<span class="tk-main"><b>${head}</b> <span class="sbp-sub">· ${next} next</span></span><span class="sbp-time" aria-hidden="true"></span>`;
+    return `<span class="tk-main"><b>${head}</b> <span class="sbp-sub">· ${next}</span></span><span class="sbp-time" aria-hidden="true"></span>`;
   },
 
   /** The countdown (seconds + a thin bar under the ticker); paused while you pick or place something. */
@@ -132,7 +134,7 @@ export const SixUiMixin = {
       btn.hidden = !open;
       if (open) {
         const label = this.sbp.human.built ? "Done" : "Skip";
-        const sub = `${this._sbpNextName()} is next`;
+        const sub = this._sbpNext().long;
         if (btn.__k !== label + sub) {
           btn.__k = label + sub;
           btn.querySelector(".sx-l").textContent = label;

@@ -5727,6 +5727,8 @@ class ColonistFullGame {
   _rushOfferToHuman(fromPlayer, give, want) {
     const r = this.rush;
     if (!this._offerPossible(fromPlayer, give, want)) return;
+    // 5–6 players: five bots would bury you in offers — one at a time; a new one waits until it is gone
+    if (isBigTable(this.players.length) && r.offers.length) return;
     this._offerSeq = (this._offerSeq || 0) + 1;
     r.offers = r.offers.filter((o) => o.fromId !== fromPlayer.id).slice(-2);
     r.offers.push({ id: this._offerSeq, fromId: fromPlayer.id, give: { ...give }, want: { ...want }, expiresAt: r.clockMs + RUSH_OFFER_MS });

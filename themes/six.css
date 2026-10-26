@@ -81,7 +81,7 @@
   transition: background .2s linear;
 }
 .ticker.sbp-ticker .txt { display: flex; align-items: center; min-width: 0; white-space: nowrap; overflow: hidden; }
-.ticker.sbp-ticker .tk-main { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ticker.sbp-ticker .txt .tk-main { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; -webkit-line-clamp: unset; }
 .app .sbp-skip {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
   background: var(--glass-active, var(--panel, #FDFBF6)); color: var(--bar-ink, var(--ink, #2E3A3D));
