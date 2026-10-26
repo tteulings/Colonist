@@ -1252,7 +1252,7 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
   [data-theme="A"] .app #tradeBankBtn[aria-disabled="true"] .ic { filter: var(--dis-ic); opacity: var(--dis-ic-op); }
 }
 
-/* offers: "Viktor: your 1 [Lumber] for 1 [Grain]" + what you have; docked above the hand */
+/* offers: "Groenewoud: your 1 [Lumber] for 1 [Grain]" + what you have; docked above the hand */
 .rush-offers { bottom: calc(var(--fan-h) + 2px); }
 .rush-offer { align-items: center; padding: 8px 8px 10px 10px; }
 .rush-offer .avatar { --av: 32px; }

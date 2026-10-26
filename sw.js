@@ -4,7 +4,7 @@ const CACHE = "colonist-v77";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./manifest.webmanifest", "./assets/favicon.svg",
   "./themes/base.css", "./themes/theme-sunny.css", "./themes/theme-wood.css", "./themes/theme-silhouette.css", "./themes/theme-classic.css", "./themes/six.css", "./themes/seafarers.css",
-  "./src/game.js", "./src/sound.js", "./src/six.js", "./src/six-ui.js", "./src/themes/seats.js",
+  "./src/game.js", "./src/sound.js", "./src/six.js", "./src/six-ui.js", "./src/themes/seats.js", "./src/themes/portraits.js",
   "./src/themes/manager.js", "./src/themes/art-util.js", "./src/themes/board-renderer.js",
   "./src/themes/fx.js", "./src/themes/settings-ui.js", "./src/themes/onboarding.js", "./src/themes/home.js",
   "./src/themes/sunny/art.js", "./src/themes/sunny/ui-icons.js", "./src/themes/classic/art.js",

@@ -5,6 +5,7 @@
 // units (hex radius 100); the board renderer rasterises it once per size (see board-renderer.js).
 import { f, rng, HEX, hexPath, pipCount, wrap, RES_NAME, DEV_NAME, CARD_TEXT, RESOURCE_KEYS } from "../art-util.js";
 import { UI_ICONS } from "./ui-icons.js";
+import { portrait } from "../portraits.js";
 import { shipSpec, pirateSpec, seaIcons } from "../../seafarers/art.js"; // ⚓ Seafarers pieces / icons
 
 // Two colour palettes, chosen with <html data-palette="light|vivid"> (default light). P / PC / TEXT
@@ -326,13 +327,6 @@ const face = (skin, sk2, ink, mood = 0) => `<ellipse cx="0" cy="-6" rx="17" ry="
   <circle cx="-10" cy="2" r="3.2" fill="#E8907A" opacity=".22"/><circle cx="10" cy="2" r="3.2" fill="#E8907A" opacity=".22"/>`;
 const bust = (bg, cloth, cl2, skin, sk2) => `<circle r="50" fill="${bg}"/><path d="M-38,52 Q-38,20 0,18 Q38,20 38,52Z" fill="${cloth}" stroke="${cl2}" stroke-width="1.2"/><path d="M-7,8 h14 v12 q-7,5 -14,0Z" fill="${sk2}"/>`;
 const AVP = {
-  you: () => bust("#FBE1DE", "#E0312B", "#A8201B", "#EDC7A6", "#C9997A") + `<path d="M-19,-10 Q-22,-34 0,-32 Q22,-34 19,-10 Q14,-24 0,-22 Q-12,-24 -19,-10Z" fill="#5A3E2B" stroke="#3E2A1D" stroke-width="1.2"/>` + face("#EDC7A6", "#C9997A", "#3A2A20") + `<path d="M-17,-14 Q-10,-30 6,-26" stroke="#5A3E2B" stroke-width="5" fill="none" stroke-linecap="round"/>`,
-  trader: () => bust("#DEE8F8", "#2F6FE6", "#1F50B8", "#C99372", "#A3705A") + `<path d="M-20,-16 Q-27,12 -21,30 Q-15,33 -11,26 Q-15,6 -13,-10Z M20,-16 Q27,12 21,30 Q15,33 11,26 Q15,6 13,-10Z" fill="#3A2722" stroke="#241815" stroke-width="1"/>` + face("#C99372", "#A3705A", "#2B1E1A", -1) + `<path d="M-30,-20 Q0,-30 30,-20 Q24,-16 0,-18 Q-24,-16 -30,-20Z" fill="#6B4425" stroke="#4A2E18" stroke-width="1.2"/><path d="M-15,-20 Q-14,-38 0,-38 Q14,-38 15,-20Z" fill="#7E5230" stroke="#4A2E18" stroke-width="1.2"/><path d="M-14,-24 H14" stroke="#E5B04A" stroke-width="2.4"/><circle cx="17" cy="0" r="2" fill="#E5B04A"/>`,
-  builder: () => bust("#FBE6CF", "#F7931E", "#C0680A", "#E3B08C", "#BC8466") + face("#E3B08C", "#BC8466", "#33261E") + `<path d="M-15,4 Q-15,24 0,26 Q15,24 15,4 Q8,12 0,11 Q-8,12 -15,4Z" fill="#9A5B33" stroke="#6E3E22" stroke-width="1.2"/><path d="M-19,-16 Q-19,-36 0,-36 Q19,-36 19,-16Z" fill="#E1A93C" stroke="#A9781F" stroke-width="1.2"/><rect x="-23" y="-18" width="46" height="5" rx="2" fill="#C9902A" stroke="#A9781F" stroke-width="1"/>`,
-  shark: () => bust("#DCF0E3", "#2E9E5E", "#1D7642", "#EBC9AE", "#C49A80") + `<path d="M-8,18 L0,30 L8,18" fill="#F6F0E3" stroke="#9AA3AB" stroke-width="1"/>` + face("#EBC9AE", "#C49A80", "#22282E", -1.5) + `<path d="M-10,-12 q4,-4 7,-1 M3,-13 q4,-3 7,1" stroke="#22282E" stroke-width="1.8" fill="none"/><path d="M-19,-17 Q-21,-37 0,-37 Q21,-37 19,-17Z" fill="#2A323A" stroke="#11161A" stroke-width="1.2"/><path d="M-20,-18 Q0,-13 24,-20 L23,-14 Q2,-8 -20,-13Z" fill="#11161A"/><path d="M-19,-22 Q0,-17 19,-22" stroke="#E2C27A" stroke-width="1.6" fill="none"/><circle cx="0" cy="-28" r="2.6" fill="#E2C27A"/><path d="M-4,4 Q2,7 7,5" stroke="#22282E" stroke-width="1.2" fill="none"/>`,
-  // seats 5–6 (5–6 player games): Nora (grey bob, round glasses) and Hugo (curly hair, beard)
-  nora: () => bust("#EEE7D8", "#FDFBF6", "#8C7B57", "#E8BFA0", "#C4967A") + `<path d="M-21,4 Q-26,-36 0,-34 Q26,-36 21,4 Q20,-14 12,-20 Q0,-12 -14,-20 Q-20,-14 -21,4Z" fill="#B9B4AE" stroke="#8E8984" stroke-width="1.2"/>` + face("#E8BFA0", "#C4967A", "#3A2A24", 1) + `<circle cx="-6.5" cy="-6.5" r="5.2" fill="none" stroke="#5A1E1E" stroke-width="1.5"/><circle cx="6.5" cy="-6.5" r="5.2" fill="none" stroke="#5A1E1E" stroke-width="1.5"/><path d="M-1.3,-6.5 h2.6" stroke="#5A1E1E" stroke-width="1.5"/>`,
-  hugo: () => bust("#ECDDF5", "#72309F", "#521E76", "#B9835E", "#966346") + `<path d="M-19,-10 Q-24,-24 -14,-30 Q-10,-38 0,-35 Q10,-38 14,-30 Q24,-24 19,-10 Q16,-20 8,-22 Q0,-18 -8,-22 Q-16,-20 -19,-10Z" fill="#2A1E18" stroke="#17100C" stroke-width="1.2"/>` + face("#B9835E", "#966346", "#1E1612", 1.5) + `<path d="M-12,9 Q0,17 12,9 Q10,20 0,21 Q-10,20 -12,9Z" fill="#2A1E18" opacity=".85"/>`,
   beginner: () => bust("#E9F2DA", "#8AAE58", "#6A8E42", "#F1D2B6", "#CFA588") + `<path d="M-19,-6 Q-24,-34 0,-32 Q24,-34 19,-6 Q18,-22 4,-24 Q-14,-26 -19,-6Z" fill="#C8873E" stroke="#9A6328" stroke-width="1.2"/>` + face("#F1D2B6", "#CFA588", "#3A2A20", 1) + `<path d="M0,-32 Q-3,-42 -11,-44 Q-5,-37 0,-32 Q4,-41 12,-41 Q6,-35 0,-32" fill="#5A7B34"/>`,
   intermediate: () => bust("#D8F0EE", "#3CA9B0", "#2B8C98", "#DDB08E", "#B88566") + `<path d="M-19,-8 Q-21,-34 0,-32 Q21,-34 19,-8 Q16,-20 6,-22 Q-4,-16 -19,-8Z" fill="#2C2622" stroke="#1A1614" stroke-width="1.2"/>` + face("#DDB08E", "#B88566", "#2A2420") + `<g fill="none" stroke="#5C4A3A" stroke-width="1.6"><circle cx="-6.5" cy="-6.5" r="5.4"/><circle cx="6.5" cy="-6.5" r="5.4"/><path d="M-1.2,-7 h2.4"/></g>`,
   expert: () => bust("#F5E7CC", "#8B5FA8", "#62407A", "#EED0B8", "#C8A48C") + `<path d="M-18,-8 Q-22,-32 0,-31 Q22,-32 18,-8 Q16,-18 0,-20 Q-16,-18 -18,-8Z" fill="#E6E2DA" stroke="#B8B2A6" stroke-width="1.2"/>` + face("#EED0B8", "#C8A48C", "#3A2E28") + `<path d="M-20,-22 Q-10,-30 0,-28 Q10,-30 20,-22" stroke="#C9A04A" stroke-width="3" fill="none"/>${[-16, -8, 8, 16].map((x) => `<ellipse cx="${x}" cy="${-26 - (Math.abs(x) < 10 ? 2 : 0)}" rx="3" ry="1.6" fill="#7A9B47" transform="rotate(${x * 2} ${x} -26)"/>`).join("")}`,
@@ -444,8 +438,8 @@ const sunny = {
   paletteDots: ["#3CA9B0", "#8AAE58", "#EDC25E", "#E07E5A", "#93A2B4"],
   confettiColors: ["#D9714E", "#E2C27A", "#3CA9B0", "#F4EEE1", "#7D8F55"],
   motion: { name: "Crisp & airy", k: 1, pop: "cubic-bezier(.3,1.3,.6,1)", out: "cubic-bezier(.22,1,.36,1)", inOut: "cubic-bezier(.65,0,.35,1)", fall: "cubic-bezier(.55,0,1,.45)", squash: [1.14, 0.88], bounces: 2, sway: 0 },
-  // Seat → colour key / portrait (v0.75, colonist.io order). Seat 0 is the human (always red); seats 5–6
-  // (ivory, purple) are appended by src/themes/seats.js.
+  // Seat → colour key (v0.75, colonist.io order). Seat 0 is the human (always red); seats 5–6
+  // (ivory, purple) are appended by src/themes/seats.js. Portraits: src/themes/portraits.js.
   seatKeys: ["red", "blue", "orange", "green"],
   textColors: TEXT,
   pc: PC,
@@ -480,7 +474,8 @@ const sunny = {
   // Card art keeps using ICONS directly.
   get icons() { return { ...ICONS, ...UI_ICONS }; },
   card, cardBack,
-  avatar: (preset) => (AVP[preset] || AVP.you)(),
+  // seat portraits: the shared persona drawings (src/themes/portraits.js), also used by B and Classic
+  avatar: (preset) => (AVP[preset] ? AVP[preset]() : portrait(preset)),
   die: (n) => dieFace(n, 2, 2, 0, 1.08),
   swatch: () => `<svg viewBox="0 0 36 36"><rect width="36" height="36" fill="${P.sea1}"/><path d="M0,24 Q10,16 18,20 Q26,12 36,18 V36 H0Z" fill="${P.olive[0]}"/><path d="M0,30 Q18,26 36,30 V36 H0Z" fill="${P.sand}"/><circle cx="25" cy="10" r="5" fill="#E9C46A"/></svg>`,
   uiDefs: () => boardDefs(),

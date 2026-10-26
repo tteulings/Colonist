@@ -14,8 +14,8 @@ const DEV_ICON = {
   yearOfPlenty: "./assets/icons/dev-year-of-plenty.svg", monopoly: "./assets/icons/dev-monopoly.svg",
 };
 const RES_COLOR = { wood: "#4a7c3f", brick: "#c66536", sheep: "#7ec850", wheat: "#d9bc52", ore: "#8b96a8", desert: "#d6c28e" };
-// Seats look the same in every theme (v0.75, colonist.io order): You red, Marina blue, Bruno orange, Viktor green
-// (+ Nora ivory, Hugo purple in 5–6 player games, appended by src/themes/seats.js) — the Sunny Island piece
+// Seats look the same in every theme (v0.75, colonist.io order): You red, Blaauw blue, Van Geelen orange, Groenewoud green
+// (+ De Wit ivory, Pimpel purple in 5–6 player games, appended by src/themes/seats.js) — the Sunny Island piece
 // colours and portraits, so switching themes never recolours a player.
 const SEAT_COLORS = ["#E0312B", "#2F6FE6", "#F7931E", "#2E9E5E"];
 // Classic has no per-seat piece shades (theme.pc); the build / Seafarers ship icons use this neutral ink

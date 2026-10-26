@@ -281,7 +281,7 @@ export const SbpMixin = {
     });
   },
 
-  /** Replace the bots' per-piece log lines with one line: "Build window: Nora built a road, Hugo bought a card." */
+  /** Replace the bots' per-piece log lines with one line: "Build window: De Wit built a road, Pimpel bought a card." */
   _sbpFlushLog(logLen) {
     const s = this.sbp;
     const fresh = this.logEntries.splice(logLen);
