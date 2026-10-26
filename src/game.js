@@ -1975,6 +1975,10 @@ class ColonistFullGame {
    * radius) gave every tap more than ~15% along the edge to the road, i.e. ~5 px at fit on a phone.
    * Outside that zone the nearer of the corner and the road's middle 40% wins. Such a tap is
    * marked `ambiguous`, so a direct build shows the target first instead of placing it.
+   * v0.74: a tap clearly on the road's middle (at most half as far from the middle 40% as from
+   * the corner) is not ambiguous, so it still builds in one tap with Undo. At fit on a phone an
+   * edge is ~30 px, so the corner's hit radius reaches the edge's middle and v0.73 marked every
+   * road tap ambiguous, turning one-tap road building into two taps.
    */
   _buildTargetAt(player, x, y, pa = this.pendingAction) {
     const free = this.freeRoadsRemaining > 0;
@@ -1995,7 +1999,8 @@ class ColonistFullGame {
       if (dn <= Math.max(0.36 * L, 14 / k)) edge = null;
       else {
         const t = 0.3, ax = a.x + (b.x - a.x) * t, ay = a.y + (b.y - a.y) * t, bx = b.x - (b.x - a.x) * t, by = b.y - (b.y - a.y) * t;
-        if (distancePointToSegment(x, y, ax, ay, bx, by) <= dn) node = null;
+        const ds = distancePointToSegment(x, y, ax, ay, bx, by);
+        if (ds <= dn) { node = null; if (ds <= 0.5 * dn) ambiguous = false; }
         else edge = null;
       }
     }
