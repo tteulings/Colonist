@@ -436,7 +436,8 @@ function thumb() {
 
 const tokenStyle = {
   r: 25, fill: PA, ring: "#3A3633", inner: "rgba(0,0,0,0)", ink: B, hot: K.red,
-  font: "'Kalam', cursive", weight: "700", size: 24, hotSize: 27, dy: 6, hotDy: 7, pipY: 15, pipR: 1.7, pipGap: 4.6,
+  font: "'Kalam', cursive", weight: "700", size: 24, hotSize: 27, dy: 6, hotDy: 7, pipY: 16, pipR: 2, pipGap: 5.2,
+  pipStyle: "brush", // ink dabs
   labelFont: "'Kalam', cursive",
 };
 

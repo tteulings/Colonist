@@ -6586,11 +6586,14 @@ class ColonistFullGame {
     const ctx = this.ctx;
     const s = this.geometry.hexSize / 74;
     const pips = DICE_WEIGHT[hex.number];
-    const radius = 2.1 * s;
-    const spacing = 5 * s;
+    // v0.78: pips scale with the token (smaller for 2/12) and hang a fixed gap under the digits' baseline
+    const ps = 0.75 + 0.25 * (pips / 5);
+    const radius = 2.2 * s * ps;
+    const spacing = 5.2 * s * ps;
     const startX = hex.center.x - ((pips - 1) * spacing) / 2;
-    const y = hex.center.y + 10 * s;
-    ctx.fillStyle = hex.number === 6 || hex.number === 8 ? "#af1b1b" : "#38485f";
+    const fs = Math.round(this.geometry.hexSize * 0.38 * ps);
+    const y = hex.center.y + fs * 0.22 + 5.5 * s * ps;
+    ctx.fillStyle = hex.number === 6 || hex.number === 8 ? "#be1a1a" : "#18212c";
     for (let i = 0; i < pips; i += 1) {
       ctx.beginPath();
       ctx.arc(startX + i * spacing, y, radius, 0, Math.PI * 2);
@@ -6689,8 +6692,10 @@ class ColonistFullGame {
       ctx.fillStyle = hex.number === 6 || hex.number === 8 ? "#be1a1a" : "#18212c";
       ctx.font = `bold ${Math.round(hxs * 0.38 * probScale)}px Inter, sans-serif`;
       ctx.textAlign = "center";
+      // v0.78: digits sit on their baseline so the pips (drawTokenPips) keep a steady gap below them
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(String(hex.number), hex.center.x, hex.center.y + Math.round(hxs * 0.38 * probScale) * 0.22);
       ctx.textBaseline = "middle";
-      ctx.fillText(String(hex.number), hex.center.x, hex.center.y - 2 * sc);
       this.drawTokenPips(hex);
     }
 
