@@ -13,7 +13,7 @@ const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore:
 // Glossary names (shared/glossary.md): cards are Lumber / Brick / Wool / Grain / Ore
 const RESOURCE_LABEL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
 const RESOURCE_ICON_PATH = {
-  wood: "./assets/icons/resource-wood-v2.svg",
+  wood: "./assets/icons/resource-wood-v3.svg",
   brick: "./assets/icons/resource-brick-v2.svg",
   sheep: "./assets/icons/resource-sheep-v2.svg",
   wheat: "./assets/icons/resource-wheat-v2.svg",
@@ -6502,9 +6502,21 @@ class ColonistFullGame {
       const ny = dy / len;
 
       const dockDist = 30 * s;
-      const dockX = mx + nx * dockDist;
-      const dockY = my + ny * dockDist;
+      let dockX = mx + nx * dockDist;
+      let dockY = my + ny * dockDist;
       const color = portColor[port.type] || portColor.any;
+
+      // Label size first: on a phone the outer labels ("2:1 Lumber") can stick out past the screen
+      // edge, so the label (and its ropes) shift inward until the whole box is visible.
+      const label = port.type === "any" ? "3:1" : `2:1 ${RESOURCE_LABEL[port.type]}`;
+      const portFontSize = Math.round(9.5 * s);
+      ctx.font = `700 ${portFontSize}px Inter, system-ui, sans-serif`;
+      const tw = ctx.measureText(label).width;
+      const boxW = Math.max(36 * s, tw + 12 * s);
+      const boxH = 20 * s;
+      const shift = this._keepOnScreen(dockX - boxW / 2, dockY - boxH / 2, boxW, boxH);
+      dockX += shift.x;
+      dockY += shift.y;
 
       // Rope lines to port
       ctx.save();
@@ -6525,12 +6537,6 @@ class ColonistFullGame {
       ctx.shadowColor = "rgba(44, 24, 16, 0.25)";
       ctx.shadowBlur = 4 * s;
       ctx.shadowOffsetY = 2 * s;
-      const label = port.type === "any" ? "3:1" : `2:1 ${RESOURCE_LABEL[port.type]}`;
-      const portFontSize = Math.round(9.5 * s);
-      ctx.font = `700 ${portFontSize}px Inter, system-ui, sans-serif`;
-      const tw = ctx.measureText(label).width;
-      const boxW = Math.max(36 * s, tw + 12 * s);
-      const boxH = 20 * s;
       const bx = dockX - boxW / 2;
       const by = dockY - boxH / 2;
 
@@ -6550,6 +6556,25 @@ class ColonistFullGame {
       ctx.fillText(label, dockX, dockY + 0.5);
       ctx.restore();
     });
+  }
+
+  /** World-space offset that moves a world-space box fully inside the visible part of the canvas (6px margin). */
+  _keepOnScreen(x, y, w, h) {
+    const k = this.view.scale || 1;
+    const M = 6;
+    // visible part of the canvas, in canvas units (the canvas can be wider than the screen)
+    let minX = M, maxX = this.boardWidth - M, minY = M, maxY = this.boardHeight - M;
+    const r = this.canvas.getBoundingClientRect();
+    if (r.width) {
+      const ux = this.boardWidth / r.width, uy = this.boardHeight / r.height;
+      minX = Math.max(minX, (M - r.left) * ux); maxX = Math.min(maxX, (window.innerWidth - M - r.left) * ux);
+      minY = Math.max(minY, (M - r.top) * uy); maxY = Math.min(maxY, (window.innerHeight - M - r.top) * uy);
+    }
+    const a = this.worldToScreen(x, y), bw = w * k, bh = h * k;
+    let dx = 0, dy = 0;
+    if (bw <= maxX - minX) { if (a.x < minX) dx = minX - a.x; else if (a.x + bw > maxX) dx = maxX - (a.x + bw); }
+    if (bh <= maxY - minY) { if (a.y < minY) dy = minY - a.y; else if (a.y + bh > maxY) dy = maxY - (a.y + bh); }
+    return { x: dx / k, y: dy / k };
   }
 
   drawNodeDots() {
