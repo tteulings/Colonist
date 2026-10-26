@@ -1338,6 +1338,12 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .tbtn > span:not(.card) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .tbtn .card { --cw: 24px; flex: none; }
 .tbtn .pk { position: absolute; top: 3px; right: 5px; font-style: normal; font-size: 11px; font-weight: 800; color: var(--accent); }
+/* Cards tray: Buy card shows its cost; a card bought this turn says when it can be played */
+.tbtn .tcost { display: flex; gap: 0; margin-top: 1px; max-width: 100%; overflow: hidden; }
+.tbtn .tcost .cc { display: inline-flex; width: 13px; height: 13px; justify-content: center; align-items: center; }
+.tbtn .tcost .cc .ic { font-size: 14px; }
+.tbtn .tnew { font-size: 9.5px; font-weight: 700; line-height: 1; opacity: .9; }
+.tray[data-mode="cards"] > .buy { flex: 1.4 1 0; }
 .app .tbtn:disabled, .app .tbtn.off { opacity: .42; filter: saturate(.3); cursor: default; }
 .app .tbtn.sel, .app .tbtn.focus { background: var(--btn-on); background-image: none; box-shadow: var(--btn-on-shadow); border: var(--btn-on-border); color: var(--btn-on-ink); }
 .app .tbtn.primary { background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); border: var(--primary-border); box-shadow: var(--primary-shadow); font-size: 13px; }
