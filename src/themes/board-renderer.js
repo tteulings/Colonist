@@ -71,7 +71,7 @@ function kf(t, frames) {
   return frames[frames.length - 1];
 }
 
-function drawSpec(ctx, spec, { alpha = 1, k = 1, rim = null, rimW = 6 } = {}) {
+export function drawSpec(ctx, spec, { alpha = 1, k = 1, rim = null, rimW = 6 } = {}) {
   // light rim around the silhouette first, so the piece separates from busy or dark tiles
   if (rim) {
     ctx.save();
