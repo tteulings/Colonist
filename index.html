@@ -231,35 +231,8 @@
         <div id="victimOptions" class="victim-options"></div>
       </div>
 
-      <div id="tradeModal" class="sheet trade-sheet" style="display: none" role="dialog" aria-labelledby="tradeTitle">
-        <div class="grab"></div>
-        <div class="sheet-head"><h3 id="tradeTitle"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-trade" x="-50" y="-50" width="100" height="100"/></svg>Trade</h3>
-          <button id="tradeModalClose" class="btn ghost icon-only" aria-label="Close"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-close" x="-50" y="-50" width="100" height="100"/></svg></button></div>
-        <div class="trade-tabs" role="tablist" aria-label="Trade with">
-          <button type="button" role="tab" data-trade-tab="bank" aria-selected="true"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-bank" x="-50" y="-50" width="100" height="100"/></svg>Bank</button>
-          <button type="button" role="tab" data-trade-tab="players" aria-selected="false"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-trade" x="-50" y="-50" width="100" height="100"/></svg>Players</button>
-        </div>
-        <p class="lead" id="tradeLead"></p>
-        <div class="trade-pane" id="tradeBankPane">
-          <div class="lbl">You give</div>
-          <div id="tradeOfferGrid" class="rgrid"></div>
-          <div class="lbl">You get</div>
-          <div id="tradeRequestGrid" class="rgrid"></div>
-        </div>
-        <div class="trade-pane" id="tradePlayersPane" hidden>
-          <div class="trows-head"><span>You give</span><span>You get</span></div>
-          <div id="tradeRows" class="trows"></div>
-        </div>
-        <div class="rates" id="tradeRates" hidden></div>
-        <div id="tradeProposalResult" class="trade-result" aria-live="polite"></div>
-        <p class="trade-hint" id="tradeHint"></p>
-        <div class="btnrow one">
-          <button id="tradeExecuteBtn" class="btn primary"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-bank" x="-50" y="-50" width="100" height="100"/></svg><span>Trade</span></button>
-          <button id="tradeProposalBtn" class="btn primary" hidden><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-trade" x="-50" y="-50" width="100" height="100"/></svg>Ask players</button>
-        </div>
-        <select id="giveResourceSelect" style="display: none"></select>
-        <select id="getResourceSelect" style="display: none"></select>
-      </div>
+      <!-- Trade sheet: game.js builds its contents (Bank | Players tabs, your hand, steppers, answers) -->
+      <div id="tradeModal" class="sheet trade-sheet" style="display: none" role="dialog" aria-labelledby="tradeTitle"></div>
 
       <div id="incomingTradePanel" class="sheet incoming-sheet" style="display: none" role="dialog">
         <div class="grab"></div>

@@ -26,7 +26,8 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET" || new URL(request.url).origin !== self.location.origin) return;
   event.respondWith(
-    fetch(request)
+    // The page itself is revalidated (no stale HTTP-cached index.html next to a fresh game.js)
+    fetch(request, request.mode === "navigate" ? { cache: "no-cache" } : undefined)
       .then((response) => {
         if (response.ok) {
           const copy = response.clone();

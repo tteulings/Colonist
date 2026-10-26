@@ -997,3 +997,151 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
 }
 html[data-motion="reduced"] *, html[data-motion="reduced"] *::before, html[data-motion="reduced"] *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
 html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none !important; }
+
+/* ==========================================================================
+   Trading v2 (mobile first): sheet with a fixed footer, your hand inside the sheet, readable
+   answers, offers docked above the hand (the board makes room), empty hand slots.
+   ========================================================================== */
+/* sheet: header + tabs, a scrolling body, a footer that is always on screen */
+.app .trade-sheet { --sx: 16px; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0; }
+.trade-sheet > .grab, .trade-sheet > .sheet-head, .trade-sheet > .trade-tabs { flex: none; }
+.trade-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 calc(-1 * var(--sx)); padding: 0 var(--sx) 8px; }
+.trade-foot { flex: none; margin: 0 calc(-1 * var(--sx)); padding: 2px var(--sx) calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--sep); background: var(--sheet); background-image: var(--sheet-image); }
+.trade-foot .trade-hint { margin: 6px 2px 0; }
+.app .trade-sheet .trade-foot .btnrow { display: grid; grid-template-columns: 1fr; margin: 8px 0 0; }
+.app .trade-sheet .trade-foot .btnrow .btn { width: 100%; }
+.app .trade-sheet .trade-foot .btnrow .btn:not(.primary) { font-size: 16px; }
+.trade-sheet .lead { margin: 8px 0 2px; font-size: 13px; line-height: 1.35; }
+.trade-sheet .lbl { display: flex; align-items: center; gap: 6px; }
+.trade-sheet .stepn { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; letter-spacing: 0; background: var(--ink-soft); color: var(--sheet, #fff); }
+
+/* your hand inside the sheet: big counts, empty kinds as dim outlines, "5 → 1" preview */
+.trade-hand { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 10px 0 0; padding: 6px; border-radius: 12px; background: var(--group); border: var(--group-border); }
+.th-lbl { grid-column: 1 / -1; font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); padding-left: 2px; line-height: 1.2; }
+.th-slot { display: flex; align-items: center; justify-content: center; gap: 3px; min-width: 0; height: 36px; border-radius: 9px; background: var(--panel); box-shadow: 0 1px 2px rgba(0,0,0,.08); font-family: var(--font-display); font-weight: var(--display-weight); font-size: 19px; color: var(--heading); white-space: nowrap; }
+.th-slot .ic { font-size: 24px; }
+.th-slot b { font-weight: inherit; }
+.th-slot i { font-family: var(--font-body); font-style: normal; font-size: 12.5px; font-weight: 800; }
+.th-slot.zero { background: transparent; box-shadow: inset 0 0 0 1.5px var(--sep); color: var(--ink-faint); }
+.th-slot.zero .ic { filter: grayscale(1); opacity: .4; }
+.th-slot.up { box-shadow: inset 0 0 0 2px var(--good); } .th-slot.up i { color: var(--good); }
+.th-slot.down { box-shadow: inset 0 0 0 2px var(--danger); } .th-slot.down i { color: var(--danger); }
+@media (max-width: 400px) {
+  .th-slot { gap: 2px; font-size: 17px; } .th-slot .ic { font-size: 20px; } .th-slot i { font-size: 11.5px; }
+  .th-slot.up .ic, .th-slot.down .ic { display: none; }
+}
+
+/* bank cells: only the picture fades when you can't use it; the counts stay readable */
+.bank-cell.dim { opacity: 1; }
+.bank-cell.dim .card { opacity: .35; filter: grayscale(.85); }
+.bank-cell .have { font-size: 12px; }
+.bank-cell .have.ok { color: var(--heading); font-weight: 800; }
+.bank-cell .have.short { color: var(--danger); font-weight: 700; opacity: .85; }
+.bank-cell.dim .rate-tag { opacity: .55; }
+.bank-cell .rate-tag { white-space: nowrap; }
+.bank-cell.pick .card { opacity: 1; filter: none; }
+
+/* players rows: "have N" stays visible on narrow phones (the name goes instead) */
+.tres small.short { color: var(--ink-faint); }
+.trow.none .tres .card { opacity: .45; filter: grayscale(.7); }
+@media (max-width: 370px) {
+  .tres > span:last-child { display: block; }
+  .tres b { display: none; }
+  .tres .card { --cw: 24px; }
+}
+
+/* bots' answers: one row each — accepts (Trade) / declines / counter-offer (details + Accept) */
+.trade-result .answers { display: grid; gap: 6px; margin-top: 6px; }
+.trade-result .answer { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 8px; border-radius: 12px; background: var(--chip); border: var(--chip-border); font-size: 14px; line-height: 1.3; }
+.trade-result .answer .avatar { --av: 32px; --av-ring: 2px; }
+.trade-result .answer .abody { flex: 1; min-width: 0; }
+.trade-result .answer .aname { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.trade-result .verdict { font-size: 13px; font-weight: 800; }
+.trade-result .verdict.yes { color: var(--good); }
+.trade-result .verdict.no { color: var(--ink-soft); font-weight: 700; }
+.trade-result .verdict.counter { color: var(--accent); }
+.trade-result .answer.no { background: transparent; }
+.trade-result .answer.yes { background: var(--good-bg); border-color: transparent; }
+.trade-result .adetail { font-size: 12.5px; font-weight: 650; color: var(--ink-soft); margin-top: 2px; }
+.trade-result .adetail .oc { color: var(--ink); font-weight: 800; white-space: nowrap; }
+.trade-result .adetail .ic { font-size: 18px; vertical-align: -4px; }
+.trade-result small.short { color: var(--danger); }
+.app .trade-result .answer .partner-btn { flex: none; min-height: 44px; margin: 0; padding: 0 18px; border-radius: var(--btn-radius); border: var(--primary-border); background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); font-weight: 800; font-size: 15px; box-shadow: var(--primary-shadow); }
+.trade-result .pick-lead { margin: 8px 0 0; }
+.trade-result > .ok { display: block; padding: 8px 10px; border-radius: 10px; background: var(--good-bg); }
+.trade-result > .ok.sr-only, .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.trade-hint.ok { color: var(--good); font-weight: 800; font-size: 14px; }
+
+/* Trade button while trading is closed: looks off, a tap says why */
+.app #tradeBankBtn[aria-disabled="true"] { opacity: .45; filter: saturate(.3); }
+@media (max-width: 900px), (max-height: 500px) {
+  [data-theme="A"] .app #tradeBankBtn[aria-disabled="true"] { opacity: 1; filter: none; background: var(--dis-bg); color: var(--dis-ink); border: 0; box-shadow: inset 0 0 0 1.5px var(--dis-line); }
+  [data-theme="A"] .app #tradeBankBtn[aria-disabled="true"] .ic { filter: var(--dis-ic); opacity: var(--dis-ic-op); }
+}
+
+/* offers: "Viktor: your 1 [Lumber] for 1 [Grain]" + what you have; docked above the hand */
+.rush-offers { bottom: calc(var(--fan-h) + 2px); }
+.rush-offer { align-items: center; padding: 8px 8px 10px 10px; }
+.rush-offer .avatar { --av: 32px; }
+.rush-offer-deal { display: flex; flex-wrap: wrap; align-items: center; gap: 1px 5px; font-size: 14px; font-weight: 650; line-height: 1.25; color: var(--ink); }
+.rush-offer-deal .who { font-weight: 800; }
+.rush-offer-deal .ol { font-size: 13px; color: var(--ink-soft); }
+.rush-offer-deal .oc { display: inline-flex; align-items: center; gap: 3px; font-weight: 800; white-space: nowrap; }
+.rush-offer-deal .oc b { font-size: 15px; }
+.rush-offer-deal .oc .ic { font-size: 26px; }
+.rush-offer-deal .plus { color: var(--ink-soft); }
+.rush-offer-deal .grp { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.rush-offer-have { margin-top: 3px; font-size: 12px; font-weight: 650; line-height: 1.3; color: var(--ink-soft); }
+.app .rush-offer-accept { min-height: 44px; padding: 0 14px; font-size: 15px; }
+.app .rush-offer-accept:disabled { opacity: .4; filter: grayscale(1); }
+.app .rush-offer-decline { width: 44px; height: 44px; }
+.offer-time { height: 2px; bottom: 2px; background: transparent; }
+.offer-time i { opacity: .35; }
+.rush-offers[data-more]:not([data-more=""])::before { right: 10px; top: -10px; }
+@media (max-width: 400px) {
+  .rush-offer-deal .oc .on { display: none; }
+  .app .rush-offer-accept { padding: 0 12px; }
+  .rush-offer { gap: 6px; }
+}
+
+/* your hand: 0 of a kind is an empty outlined slot; counts are big and high-contrast */
+.app .hand .card.slot {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; opacity: 1; filter: none;
+  background: rgba(255,255,255,.42); border: 2px dashed rgba(20,50,60,.28); box-sizing: border-box; color: rgba(20,45,52,.62);
+}
+.hand .card.slot .slot-ic .ic { font-size: 22px; filter: grayscale(1); opacity: .45; }
+.hand .card.slot .slot-n { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 18px; line-height: 1; }
+.hand .card.slot .slot-name { font-size: 9.5px; font-weight: 750; letter-spacing: .02em; }
+.hand .card:not(.slot) .count { min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px; font-size: 15px; font-weight: 800; top: -9px; right: -6px; background: #1E3036; color: #fff; }
+/* an offer asks for this card: a calm ring, twice */
+.hand .card.asked::after { content: ""; position: absolute; inset: -5px; border-radius: calc(var(--card-radius) + 4px); border: 3px solid var(--accent); animation: askedRing 1.25s ease-in-out 2 both; pointer-events: none; }
+@keyframes askedRing { 0%, 100% { opacity: 0; } 45% { opacity: 1; } }
+/* trade result: received slots pop, paid slots dip */
+.tr-up { animation: trUp 600ms var(--ease-pop, ease-out); }
+.tr-down { animation: trDown 600ms ease-out; }
+@keyframes trUp { 50% { transform: scale(1.14); } }
+@keyframes trDown { 40% { transform: translateY(3px); opacity: .55; } }
+
+@media (min-width: 901px) and (min-height: 501px) {
+  .app .trade-sheet { --sx: 20px; padding-bottom: 0; max-height: calc(100vh - 210px); }
+  .trade-foot { padding-bottom: 14px; }
+  .hand .card.slot .slot-name { font-size: 10.5px; }
+  .rush-offers { width: 420px; }
+  .rush-offer-have { white-space: normal; }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  /* the sheet: no title row (the tabs say it), compact tabs and footer, so 3+ rows fit */
+  .trade-sheet > .grab, .trade-sheet h3 { display: none; }
+  .trade-sheet .sheet-head { position: absolute; right: 10px; top: 8px; z-index: 1; }
+  .trade-sheet .trade-tabs { margin: 0 52px 0 0; }
+  .app .trade-tabs button { min-height: 40px; }
+  .app .trade-sheet .trade-foot .btnrow .btn { height: 46px; }
+  .trade-foot { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+  .trows-head { margin: 6px 2px 4px; }
+  .rush-offer-have { white-space: nowrap; }
+  .trade-sheet .lead { display: none; }
+  .trade-hand { margin-top: 6px; padding: 4px; } .trade-hand .th-lbl { display: none; }
+  .bank-cell .card { --cw: min(40px, 100%); }
+  .hand .card.slot .slot-name, .hand .card.slot .slot-ic { display: none; }
+  .hand .card:not(.slot) .count { min-width: 20px; height: 20px; font-size: 12px; padding: 0 5px; top: -7px; right: -7px; }
+}
