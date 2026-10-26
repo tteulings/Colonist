@@ -22,13 +22,13 @@ const PALETTES = {
     // tint of the piece's own hue (the board edges every shape in a darker tint of its colour), drawn ~1.5px
     PC: {
       red: { base: "#D8382C", dark: "#A62820", light: "#F27A6A", line: "#4A120D" },
-      blue: { base: "#2F6CD0", dark: "#1F4FA0", light: "#78A2EE", line: "#10295A" },
+      blue: { base: "#3474D4", dark: "#1F4FA0", light: "#78A2EE", line: "#10295A" },
       orange: { base: "#F7891F", dark: "#C0600C", light: "#FDB868", line: "#552805" },
       green: { base: "#1C8250", dark: "#136640", light: "#5CC08A", line: "#0A3020" },
       ivory: { base: "#F2EBDA", dark: "#CEC3A8", light: "#FFFDF6", line: "#6B6253" },
-      purple: { base: "#7A3FB0", dark: "#562A85", light: "#A97DDA", line: "#26103F" },
+      purple: { base: "#5A2C8C", dark: "#401E68", light: "#9672CC", line: "#1C0A33" },
     },
-    TEXT: { red: "#A62820", blue: "#1F4FA0", orange: "#A3510A", green: "#136640", ivory: "#5E5139", purple: "#562A85" },
+    TEXT: { red: "#A62820", blue: "#1F4FA0", orange: "#A3510A", green: "#136640", ivory: "#5E5139", purple: "#401E68" },
   },
   light: {
     P: {
@@ -42,13 +42,13 @@ const PALETTES = {
       // than the terrain so they stay the most salient thing (red deeper than the brick hex, green cooler and
       // darker than forest / pasture, orange apart from grain); the outline is a deep tint of each hue
       red: { base: "#D1453A", dark: "#A3302A", light: "#EB8070", line: "#4A1712" },
-      blue: { base: "#3A73C4", dark: "#28569A", light: "#7FA6E0", line: "#14305A" },
+      blue: { base: "#3C75C6", dark: "#28569A", light: "#7FA6E0", line: "#14305A" },
       orange: { base: "#F08A2E", dark: "#BA6018", light: "#F8B670", line: "#552A08" },
       green: { base: "#2A8556", dark: "#1D6340", light: "#66B58A", line: "#0E3020" },
       ivory: { base: "#EFE7D4", dark: "#CEC3A8", light: "#FBF7EC", line: "#6B6253" },
-      purple: { base: "#7E4AAE", dark: "#5A3282", light: "#AE88D6", line: "#2A1242" },
+      purple: { base: "#5A2C88", dark: "#43206A", light: "#9A76C6", line: "#1E0B33" },
     },
-    TEXT: { red: "#A3302A", blue: "#28569A", orange: "#AB5816", green: "#1D6340", ivory: "#5E5139", purple: "#5A3282" },
+    TEXT: { red: "#A3302A", blue: "#28569A", orange: "#AB5816", green: "#1D6340", ivory: "#5E5139", purple: "#43206A" },
   },
 };
 const P = {};

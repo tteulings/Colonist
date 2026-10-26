@@ -2,13 +2,14 @@
 // v0.75: seat order follows colonist.io / classic Catan — You red · Blaauw blue · Van Geelen orange · Groenewoud green ·
 // De Wit white (ivory) · Pimpel purple. Seats 1–4 are defined by each theme (art.js PC/seatKeys + theme CSS
 // --p0..--p3); the themes also draw their own ivory, so this module only supplies the fallback pieces and the
-// UI tokens --p4 / --p5. Ivory gets a dark outline on the board; purple is kept deep (dark against the mid blue)
-// so the two stay apart under red–green colour blindness (see the cvd test).
+// UI tokens --p4 / --p5. Ivory gets a dark outline on the board (v0.79: and on its chip ring / badge, themes/six.css);
+// purple is kept deep (v0.79: deeper and a touch bluer, the blue a touch lighter, in every theme) so the two differ
+// in lightness and stay apart under red–green colour blindness (blue/purple dE >= 15 under every CVD; see cvd6.js).
 export const EXTRA_SEATS = [
   // key: name in theme.pc; base/dark/light/line: piece colours (fallback; every theme draws its own, tuned to
   // its board — see each art.js PC). UI tokens are derived from the theme's pieces (applySeatTokens).
   { key: "ivory", base: "#EFE7D4", dark: "#CEC3A8", light: "#FBF7EC", line: "#6B6253", text: "#5E5139" },
-  { key: "purple", base: "#7E4AAE", dark: "#5A3282", light: "#AE88D6", line: "#2A1242", text: "#5A3282" },
+  { key: "purple", base: "#5A2C88", dark: "#43206A", light: "#9A76C6", line: "#1E0B33", text: "#43206A" },
 ];
 
 /** Append seats 5–6 to a theme (idempotent): pc pieces, seat keys, text colours, flat seat colours. */
