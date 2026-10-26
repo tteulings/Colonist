@@ -8,6 +8,8 @@ const PLAY_IC = `<svg class="hm-play" viewBox="0 0 24 24" aria-hidden="true"><ci
 const CLOCK_IC = `<svg class="ic hm-clock" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="26.5" r="16.5" fill="#FFD25A" stroke="#7A4B12" stroke-width="3"/><path d="M24 16v10.5l6.5 4.5" stroke="#7A4B12" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M19 5.5h10M24 5.5v4" stroke="#7A4B12" stroke-width="3.4" stroke-linecap="round"/></svg>`;
 const SLIDERS_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><circle cx="15" cy="7" r="2.3" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="9" cy="17" r="2.3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>`;
 const BOOK_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5c3-1.4 5.8-1.2 8.5.8v13c-2.7-2-5.5-2.2-8.5-.8zM20.5 5.5c-3-1.4-5.8-1.2-8.5.8v13c2.7-2 5.5-2.2 8.5-.8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/></svg>`;
+/** A theme may draw its own version of these glyphs (Silhouette does): use its sprite icon when it has one. */
+const themed = (game, k, fallback, cls = "") => (game?.theme?.icons?.[k] ? icon(k, cls) : fallback);
 const INFO_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="7.6" r="1.4" fill="currentColor"/></svg>`;
 const CHEV = `<span class="hm-chev" aria-hidden="true">›</span>`;
 
@@ -77,14 +79,14 @@ export class Home {
         <h2 class="hm-h" id="hmNewH">${s ? "Start a new game" : "Choose a game"}</h2>
         <div class="hm-tiles">
           <button type="button" class="hm-tile" data-mode="classic">${icon("dice")}<b>Classic</b><small>Take turns at your own pace</small><span class="hm-vs">${vs}</span></button>
-          <button type="button" class="hm-tile" data-mode="rush">${CLOCK_IC}<b>Rush</b><small>Everyone plays at once, dice every ${p.rushInterval}s</small><span class="hm-vs">${vs}</span></button>
+          <button type="button" class="hm-tile" data-mode="rush">${themed(this.game, "clock", CLOCK_IC, "hm-clock")}<b>Rush</b><small>Everyone plays at once, dice every ${p.rushInterval}s</small><span class="hm-vs">${vs}</span></button>
         </div>
         <div class="hm-row"><span>Opponents</span>${seg("bots", "Opponents", [[1, "1 bot"], [2, "2 bots"], [3, "3 bots"]], p.numBots)}</div>
         <div class="hm-row"><span>Bots play</span>${seg("level", "Bot level", levels, p.preset)}</div>
       </section>
       <nav class="hm-card hm-list" aria-label="More">
-        <button type="button" data-home="more">${SLIDERS_IC}<span>More settings<small>Rules, dice, map, each bot</small></span>${CHEV}</button>
-        <button type="button" data-home="intro" class="${fresh ? "fresh" : ""}">${BOOK_IC}<span>How to play${fresh ? `<small>New here? 3 short cards</small>` : ""}</span>${CHEV}</button>
+        <button type="button" data-home="more">${themed(this.game, "sliders", SLIDERS_IC)}<span>More settings<small>Rules, dice, map, each bot</small></span>${CHEV}</button>
+        <button type="button" data-home="intro" class="${fresh ? "fresh" : ""}">${themed(this.game, "book", BOOK_IC)}<span>How to play${fresh ? `<small>New here? 3 short cards</small>` : ""}</span>${CHEV}</button>
         <button type="button" data-home="settings">${icon("settings")}<span>Settings</span>${CHEV}</button>
       </nav>
     </div>`;
@@ -120,13 +122,13 @@ export class GameMenu {
     el.setAttribute("aria-label", "Menu");
     const item = (k, ic, label, sub = "") => `<button type="button" data-menu="${k}">${ic}<span>${label}${sub ? `<small>${sub}</small>` : ""}</span></button>`;
     el.innerHTML = `<div class="mn-card">
-      <div class="mn-head"><h2>${MENU_IC}Menu</h2><button type="button" class="btn ghost icon-only mn-close" aria-label="Close">${icon("close")}</button></div>
+      <div class="mn-head"><h2>${themed(this.game, "menu", MENU_IC, "ic-menu")}Menu</h2><button type="button" class="btn ghost icon-only mn-close" aria-label="Close">${icon("close")}</button></div>
       <div class="mn-list">
         ${item("home", `<svg class="ic" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>`, "Home", this.game.winner ? "" : "Your game is saved")}
         ${item("newgame", icon("dice"), "New game", "Mode, rules and opponents")}
         ${item("settings", icon("settings"), "Settings", "Sound, bot speed, look")}
-        ${item("intro", BOOK_IC, "How to play")}
-        ${item("about", INFO_IC, "About")}
+        ${item("intro", themed(this.game, "book", BOOK_IC), "How to play")}
+        ${item("about", themed(this.game, "info", INFO_IC), "About")}
       </div></div>`;
     el.addEventListener("click", (e) => { if (e.target === el) this.close(); });
     el.querySelector(".mn-close").addEventListener("click", () => this.close());

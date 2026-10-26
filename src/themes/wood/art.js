@@ -248,6 +248,7 @@ const ICONS = {
   zoomIn: `<g stroke="currentColor" stroke-width="5" stroke-linecap="round"><circle cx="-6" cy="-6" r="24" fill="none"/><path d="M12,12 L32,32" stroke-width="8" fill="none"/><path d="M-16,-6 h20 M-6,-16 v20" fill="none"/></g>`,
   zoomOut: `<g stroke="currentColor" stroke-width="5" stroke-linecap="round"><circle cx="-6" cy="-6" r="24" fill="none"/><path d="M12,12 L32,32" stroke-width="8" fill="none"/><path d="M-16,-6 h20" fill="none"/></g>`,
   logo: `<path d="${hexPath(0, 3, 44)}" fill="#3B2617"/><path d="${hexPath(0, 0, 44)}" fill="#7A5236"/><path d="${hexPath(0, 0, 44)}" fill="url(#b-grain-ui)" opacity=".6"/><path d="${hexPath(0, 0, 36)}" fill="none" stroke="${IVORY}" stroke-opacity=".7" stroke-width="2"/><path d="M-14,16 V0 L0,-14 L14,0 V16 Z" fill="${IVORY}"/><rect x="-4" y="5" width="8" height="11" fill="#7A5236"/>`,
+  undo: `<path d="M-14,-22 L-28,-8 L-14,6" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M-26,-8 H8 Q28,-8 28,12 Q28,30 8,30 H-6" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>`,
   close: `<path d="M-20,-20 L20,20 M20,-20 L-20,20" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>`,
   check: `<path d="M-24,0 L-8,16 L24,-18" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>`,
   chevron: `<path d="M-16,-6 L0,10 L16,-6" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>`,

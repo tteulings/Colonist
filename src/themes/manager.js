@@ -80,7 +80,9 @@ export const BOT_PROFILE = {
 };
 export function buildSprite(T) {
   let s = `<svg id="themeSprite" class="sprites" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>${T.uiDefs ? T.uiDefs() : ""}`;
-  for (const [k, v] of Object.entries(T.icons)) s += `<symbol id="ic-${k}" viewBox="-50 -50 100 100" overflow="visible">${v}</symbol>`;
+  // the Menu glyph: three lines unless the theme draws its own
+  const icons = { menu: `<path d="M-30 -22H30M-30 0H30M-30 22H30" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/>`, ...T.icons };
+  for (const [k, v] of Object.entries(icons)) s += `<symbol id="ic-${k}" viewBox="-50 -50 100 100" overflow="visible">${v}</symbol>`;
   for (const k of [...RESOURCE_KEYS, ...DEV_KEYS]) s += `<symbol id="card-${k}" viewBox="0 0 250 350">${T.card(k)}</symbol><symbol id="cardm-${k}" viewBox="0 0 250 350">${T.card(k, true)}</symbol>`;
   s += `<symbol id="card-back" viewBox="0 0 250 350">${T.cardBack()}</symbol>`;
   SEAT_PRESETS.forEach((p, i) => { s += `<symbol id="av-${i}" viewBox="-50 -50 100 100">${T.avatar(p)}</symbol>`; });

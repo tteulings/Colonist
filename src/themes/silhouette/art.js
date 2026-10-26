@@ -8,10 +8,11 @@
 // No characters or artworks are copied; figures are generic slender silhouettes.
 import { f, rng, pipCount, wrap, RES_NAME, DEV_NAME, CARD_TEXT, RESOURCE_KEYS } from "../art-util.js";
 import { specSvg, tp } from "../spec-util.js";
-import sunny from "../sunny/art.js";
 
 const B = "#1C1A19"; // Indian ink
-const PA = "#FFFDF6"; // paper
+const PA = "#FFF9EE"; // white-cream: only a highlight (tokens, eyes, wave curls)
+const CREAM = "#FBF1DC"; // the paper of cards, beaches and chrome
+const SEA = "#2E9FAC"; // one flat turquoise field (matches --c-sea in theme-silhouette.css)
 const K = {
   orange: "#EC6A2C", red: "#D9412B", yellow: "#F5C02E", green: "#77B347", leaf: "#4E9A3E", lime: "#B7D257",
   turq: "#3BA7B8", sky: "#8FD0DC", blue: "#2F6BB3", pink: "#EE9AA8", sand: "#F1D6A4", ochre: "#E39B33", grey: "#8FA3B4", slate: "#5D7E99",
@@ -153,9 +154,10 @@ function island(centers) {
     const dx = h.x - cx, dy = h.y - cy, L = Math.hypot(dx, dy) || 1, x = h.x + (dx / L) * 168, y = h.y + (dy / L) * 168 + 30;
     waves += `M${f(x - 12)},${f(y)} q6,-7 12,0 q6,7 12,0`;
   });
-  return `<g filter="url(#c-coast)"><path d="${u(84)}" fill="${K.sky}" stroke="${K.sky}" stroke-width="80" stroke-linejoin="round"/></g>
-    ${st(waves, 2.4, PA, 'opacity=".9"')}
-    <path d="${u(12)}" fill="${PA}" stroke="${PA}" stroke-width="10" stroke-linejoin="round"/>`;
+  // v0.71: no pale lagoon any more — the screen's flat turquoise is the sea; the island gets a cut-paper
+  // cream beach and a few white wave curls
+  return `${st(waves, 3, PA, 'opacity=".85"')}
+    <g filter="url(#c-cut)"><path d="${u(16)}" fill="${CREAM}" stroke="${CREAM}" stroke-width="12" stroke-linejoin="round"/></g>`;
 }
 const tileCache = {};
 const tile = (t) => tileCache[t] || (tileCache[t] = `${cut(`<path d="${hexD(95.5)}" fill="${TC[t][0]}"/>`)}
@@ -172,7 +174,7 @@ function port(p) {
   const ic = p.res ? ICONS[p.res] : ICONS.trade;
   const svg = `<g>${pier(p.a)}${pier(p.b)}<g transform="translate(${f(px)} ${f(py - 8)})">${st("M-34,11 q5,-4 10,0 t10,0 M14,11 q5,-4 10,0 t10,0", 1.6, PA)}
       <g transform="scale(${fx * 0.78} .78)">${barge}</g>
-      <g transform="translate(0 25)"><rect x="-31" y="-14" width="62" height="28" rx="14" fill="${PA}" stroke="${B}" stroke-width="1.4"/>
+      <g transform="translate(0 25)"><rect x="-31" y="-14" width="62" height="28" rx="14" fill="${CREAM}" stroke="${B}" stroke-width="1.4"/>
         <g transform="translate(-14.5 0) scale(.23)">${ic}</g></g></g></g>`;
   return { svg, label: { x: px + 11, y: py - 8 + 25 + 6.6, text: p.ratio, size: 19 } };
 }
@@ -216,42 +218,86 @@ const robberSpec = [
   }),
 ];
 
-/* ---------- icons: black silhouettes + one colour accent (−50..50 box) ---------- */
+/* ---------- icons (v0.71): solid Indian-ink silhouettes with a slightly irregular, flowing contour,
+   a small expressive detail where it still reads at 20 px (a bird on the bricks, a sheep's ear), and at
+   most ONE flat colour accent. Cream (PA) only as a highlight: an eye, a snow cap, a dashed line.
+   No outlines, no two-tone UI glyphs. Box: -50..50. ---------- */
 const ICONS = {};
 {
   const ic = ICONS;
-  ic.wood = fl("M-40,22 Q-42,8 -30,6 L26,-8 Q38,-10 40,4 Q40,16 28,18 L-28,32 Q-40,34 -40,22Z") + `<ellipse cx="-29" cy="19" rx="6" ry="9" fill="${K.ochre}" transform="rotate(-12 -29 19)"/>` + fl("M-30,-8 Q-32,-20 -20,-22 L30,-34 Q42,-34 42,-22 Q42,-12 32,-10 L-18,2Z") + `<ellipse cx="-21" cy="-10" rx="5.4" ry="8" fill="${K.ochre}" transform="rotate(-12 -21 -10)"/>`;
-  const brk = (x, y, c = B) => fl(`M${x},${y} h27 v13 h-27Z`, c);
-  ic.brick = brk(-42, 16) + brk(-13, 16, K.orange) + brk(16, 16) + brk(-28, 1, K.orange) + brk(1, 1) + brk(-13, -14);
-  seed(21);
-  ic.sheep = st("M-20,16 v18 M-8,18 v17 M8,18 v17 M18,16 v18", 5) + fl(blob(-4, 2, 30, 20, 11, 0), B) + fl(blob(-6, 0, 24, 15, 11, 0), PA) + fl("M18,-12 Q32,-20 40,-8 Q44,4 32,8 Q22,8 18,-2Z") + circ(32, -6, 2.2, PA);
-  ic.wheat = (() => { let s = st("M0,44 Q-2,6 -18,-24 M0,44 V-36 M0,44 Q2,6 18,-24", 3.6); for (const [x0, y0, a] of [[-18, -24, -24], [0, -36, 0], [18, -24, 24]]) for (let k = 0; k < 4; k += 1) { const t = k * 8, x = x0 + Math.sin((a * Math.PI) / 180) * t * 0.3, y = y0 + t; s += fl(`M${f(x)},${f(y)} q-8,-3 -8,-11 q8,1 8,11Z M${f(x)},${f(y)} q8,-3 8,-11 q-8,1 -8,11Z`, k === 0 && a === 0 ? K.yellow : B); } return s + fl("M-14,16 Q0,24 14,16 L12,22 Q0,28 -12,22Z", K.yellow); })();
-  ic.ore = fl("M-44,34 L-26,-4 L-12,0 L4,-30 L22,-8 L30,-14 L46,34Z") + fl("M4,-30 L22,-8 L12,-2Z", K.sky) + fl("M-26,-4 L-12,0 L-20,8Z", K.sky);
-  ic.desert = fl("M-48,24 Q-10,-14 34,10 L48,30 L-48,30Z") + circ(16, -24, 12, K.yellow);
-  ic.knight = st("M-14,-26 Q0,-44 14,-26 M0,-38 v-8", 5) + fl("M-18,-26 h36 L12,24 h-24Z") + fl("M-10,-16 h20 L8,14 h-16Z", K.yellow) + fl("M-22,24 h44 v6 h-44Z M-3,30 h6 v10 h-6Z M-14,40 h28 v5 h-28Z");
-  ic.roadBuilding = fl("M-46,44 Q-14,0 -6,-40 L6,-40 Q14,0 46,44Z") + st("M0,34 v-10 M0,12 v-8 M0,-8 v-6 M0,-24 v-4", 4, PA) + fl("M-44,-6 l11,-26 l11,26Z", K.orange);
-  seed(22);
-  ic.yearOfPlenty = fl(blob(-14, -12, 15, 12, 9, 0), K.yellow) + fl(blob(12, -16, 14, 12, 9, 0), K.green) + circ(28, -6, 9, K.red) + fl("M-40,-4 h80 Q36,38 0,38 Q-36,38 -40,-4Z");
-  ic.monopoly = st("M0,-40 V30 M-38,-26 H38", 5) + fl("M-26,30 h52 v8 h-52Z") + fl("M-38,-26 L-50,6 H-26Z M38,-26 L26,6 H50Z") + fl("M-50,6 Q-38,18 -26,6Z M26,6 Q38,18 50,6Z", K.yellow) + circ(0, -42, 5);
-  ic.victoryPoint = fl("M-18,4 L-30,46 L-14,38 L-6,50 L2,12Z M18,4 L30,46 L14,38 L6,50 L-2,12Z") + fl(smooth(Array.from({ length: 24 }, (_, i) => { const a = (i / 24) * Math.PI * 2, r = i % 2 ? 22 : 27; return [Math.cos(a) * r, -12 + Math.sin(a) * r]; })), K.red) + circ(0, -12, 12, PA) + circ(0, -12, 6, K.red);
+  // scalloped contour (tree crowns, fleece): n lobes, depth = how far the dips go in
+  const lobed = (cx, cy, rx, ry, n, depth, rot = 0) => smooth(Array.from({ length: n * 2 }, (_, i) => { const t = rot + (i / (n * 2)) * Math.PI * 2, k = i % 2 ? 1 - depth : 1 + depth * 0.6 + j(0.03); return [cx + Math.cos(t) * rx * k, cy + Math.sin(t) * ry * k]; }));
+  // rounded, hand-cut rectangle (bricks, cards, dice)
+  const rr = (x, y, w, h, r = 4, a = 0.7) => { const J = () => j(a); return `M${f(x + r)},${f(y + J())} L${f(x + w - r)},${f(y + J())} Q${f(x + w + J())},${f(y + J())} ${f(x + w + J())},${f(y + r)} L${f(x + w + J())},${f(y + h - r)} Q${f(x + w + J())},${f(y + h + J())} ${f(x + w - r)},${f(y + h + J())} L${f(x + r)},${f(y + h + J())} Q${f(x + J())},${f(y + h + J())} ${f(x + J())},${f(y + h - r)} L${f(x + J())},${f(y + r)} Q${f(x + J())},${f(y + J())} ${f(x + r)},${f(y + J())}Z`; };
+  const curl = (x, y, s = 1, c = PA, w = 3) => st(`M${f(x - 6 * s)},${f(y)} q${f(3 * s)},${f(-4 * s)} ${f(6 * s)},0 q${f(3 * s)},${f(-4 * s)} ${f(6 * s)},0`, w, c);
+  const perch = (x, y, s = 1, flip = 1) => `<g transform="translate(${f(x)} ${f(y)}) scale(${f(s * flip)} ${f(s)})">${fl("M-7,0 Q-9,-10 0,-12 Q2,-18 8,-17 Q11,-16 11,-13 L16,-12 L11,-10 Q12,-2 4,0Z M-7,-3 L-16,-8 L-8,1Z")}${circ(7, -14.4, 1.3, PA)}</g>`;
+  const helmet = (plume) => fl("M-22,38 L-22,6 Q-22,-26 4,-28 Q28,-28 28,0 L28,14 Q28,23 20,25 L18,38Z") + fl("M6,-6 Q17,-8 28,-6 L28,-1 Q17,-3 6,-1Z M6,4 Q17,3 28,4 L28,8 Q17,7 6,8Z", PA)
+    + (plume ? fl("M-2,-27 Q-6,-44 10,-46 Q28,-46 40,-32 Q28,-37 19,-33 Q32,-27 38,-14 Q25,-24 12,-25 Q4,-26 -2,-27Z", plume) : fl("M-2,-27 Q-4,-38 6,-40 Q16,-40 22,-32 Q14,-33 8,-28Z")) + fl("M-30,38 Q-4,35 26,38 L26,44 Q-4,41 -30,44Z");
+
+  seed(31);
+  ic.wood = fl("M-6,44 Q-3,22 -6,6 Q-14,0 -22,-4 Q-12,-3 -5,0 L-3,-8 L4,-8 Q2,18 6,44Z") + fl(lobed(-2, -20, 30, 25, 7, 0.13)) +
+    fl("M10,31 L41,29 Q48,29 48,36.5 Q48,44 41,44 L10,44Z") + `<ellipse cx="11" cy="37.5" rx="6" ry="7.2" fill="${B}"/><ellipse cx="11" cy="37.5" rx="4" ry="5.2" fill="${K.ochre}"/>` + curl(32, -40, 0.9, B, 2.6);
+  seed(32);
+  ic.brick = fl(rr(-44, 18, 42, 20, 5)) + fl(rr(2, 18, 42, 20, 5), K.orange) + fl(rr(-21, -4, 42, 20, 5)) + perch(2, -4, 1.15);
+  seed(33);
+  ic.sheep = st("M-24,10 L-25,33 M-13,14 L-13,35 M5,14 L6,35 M17,10 L19,33", 4) + fl(lobed(-8, -2, 32, 21, 8, 0.14)) +
+    fl("M14,-12 Q22,-24 33,-21 Q44,-17 45,-5 Q45,5 37,8 Q28,9 22,3 Q15,-3 14,-12Z") + fl("M21,-17 Q13,-27 6,-22 Q13,-17 20,-11Z") + circ(33, -9, 2.6, PA) +
+    fl("M-48,40 Q-44,29 -40,40 Q-36,25 -31,40 Q-27,32 -23,40Z M12,40 Q16,30 20,40 Q25,24 29,40 Q33,31 37,40Z", K.lime);
+  {
+    const ear = (x, y, a, s = 1) => `<g transform="translate(${x} ${y}) rotate(${a}) scale(${s})">${fl("M0,-27 Q6,-23 5,-17 Q9,-13 5,-8.5 Q9,-4.5 4.5,0 Q2.5,3.5 0,4.5 Q-2.5,3.5 -4.5,0 Q-9,-4.5 -5,-8.5 Q-9,-13 -5,-17 Q-6,-23 0,-27Z")}${st("M0,-26 L0,-36 M3,-23 L8,-32 M-3,-23 L-8,-32", 1.6)}</g>`;
+    ic.wheat = st("M0,46 Q-2,12 -17,-10 M0,46 L0,-14 M0,46 Q2,12 17,-10", 3.6) + ear(-17, -10, -30) + ear(0, -14, 0, 1.08) + ear(17, -10, 30) +
+      fl("M0,32 Q-15,25 -22,34 Q-10,37 0,32Z") + fl("M-11,16 Q0,22 11,16 L11,24 Q0,30 -11,24Z", K.yellow);
+  }
+  ic.ore = fl("M-48,42 Q-40,22 -29,10 L-21,-2 Q-16,-7 -12,-2 L-6,4 L5,-29 Q9,-37 14,-29 L27,-7 L32,-13 Q36,-17 40,-11 L48,42Z") +
+    fl("M5,-29 Q9,-37 14,-29 L20,-18 Q14,-21 10,-15 Q6,-21 1,-18Z", PA) + fl("M-31,40 L-26,28 L-15,26 L-10,36 L-18,43Z M-6,42 L-2,34 L8,33 L11,42Z", K.sky);
+  ic.desert = fl("M-48,30 Q-24,2 0,16 Q22,-2 48,22 L48,40 L-48,40Z") + circ(20, -22, 12, K.yellow) + curl(-24, -22, 0.9, B, 2.6);
+  // trade: two brush-stroke arrows, one ink, one orange
+  const swoosh = "M-44,-6 Q-18,-30 18,-22 L16,-34 L45,-14 L12,4 L15,-9 Q-14,-16 -44,-6Z";
+  ic.trade = `<g transform="translate(0 -6)">${fl(swoosh)}</g><g transform="rotate(180) translate(0 -6)">${fl(swoosh, K.orange)}</g>`;
+  ic.bank = fl("M-44,-12 Q-20,-30 0,-44 Q20,-30 44,-12Z") + fl("M-46,32 Q0,29 46,32 L46,42 Q0,39 -46,42Z") + fl("M-34,-6 h11 v34 h-11Z M-14,-6 h11 v34 h-11Z M6,-6 h11 v34 h-11Z M24,-6 h11 v34 h-11Z") + circ(0, -23, 5.5, K.yellow);
+  // build: a hammer with a wooden (orange) handle
+  ic.build = `<g transform="rotate(-38)">${fl("M-5,-14 Q-2,12 -4.5,46 Q0,50 4.5,46 Q2,12 5,-14Z", K.orange)}${fl("M-30,-30 Q-32,-15 -23,-13 L20,-13 Q33,-14 35,-25 L35,-29 Q24,-30 18,-37 L-23,-37 Q-30,-37 -30,-30Z")}</g>`;
+  // cards: two hand-cut cards, the front one with a cream bird
+  seed(34);
+  ic.cards = `<g transform="rotate(-14 -8 20)">${fl(rr(-38, -30, 40, 58, 7, 0.6), K.turq)}</g><g transform="rotate(9 10 20)">${fl(rr(-6, -32, 40, 58, 7, 0.6))}${curl(14, -2, 1.1, PA, 3.4)}</g>`;
+  ic.devcard = fl(rr(-26, -38, 52, 76, 8, 0.6)) + fl(rr(-18, -30, 36, 60, 5, 0.5), K.turq) + perch(-1, 10, 1.05);
+  ic.menu = fl("M-32,-26 Q-2,-31 30,-25 Q36,-22 31,-17 Q0,-21 -30,-16 Q-36,-20 -32,-26Z M-31,-5 Q0,-8 31,-4 Q36,0 31,4 Q2,1 -31,5 Q-36,0 -31,-5Z M-30,16 Q0,13 30,17 Q36,21 30,25 Q-2,22 -31,26 Q-36,21 -30,16Z", "currentColor");
+  // dev cards
+  ic.knight = helmet(K.red);
+  ic.roadBuilding = fl("M-46,46 Q-6,12 -9,-36 L5,-36 Q12,12 40,46Z") + st("M-3,38 L-2,29 M0,17 L0,9 M0,-3 L-1,-10 M-2,-21 L-2,-27", 3.4, PA) +
+    fl("M28,4 L35,-17 Q36,-19 37,-17 L44,4Z", K.orange) + fl("M25,3 Q36,1 47,3 L47,8 Q36,6 25,8Z") + tree(-34, -2, 32, "round");
+  ic.yearOfPlenty = st("M-30,-2 Q-31,-42 0,-44 Q31,-42 30,-2", 4.4) + fl(blob(-14, -10, 14, 13, 9, 0.04), K.yellow) + fl(blob(12, -14, 12, 14, 9, 0.04), K.yellow) +
+    fl("M12,-28 Q14,-36 22,-38 Q20,-30 12,-28Z") + fl("M-44,-4 Q0,-8 44,-4 Q41,36 0,41 Q-41,36 -44,-4Z") + st("M-32,10 Q0,16 32,10 M-25,24 Q0,30 25,24", 2.8, PA);
+  ic.monopoly = fl("M-8,-17 Q-31,-7 -35,18 Q-37,45 0,45 Q37,45 35,18 Q31,-7 8,-17 Q14,-25 10,-29 L-10,-29 Q-14,-25 -8,-17Z") + st("M-13,-19 Q0,-13 13,-19", 3, PA) +
+    fl("M-17,-33 L-21,-48 L-8,-40 L0,-53 L8,-40 L21,-48 L17,-33 Q0,-36 -17,-33Z", K.yellow);
+  const star = (r1, r2, cy) => smooth(Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 5, r = i % 2 ? r2 : r1; return [Math.cos(a) * r * (1 + j(0.04)), cy + Math.sin(a) * r * (1 + j(0.04))]; }));
+  seed(35);
+  ic.victoryPoint = fl(star(58, 22, 6)) + circ(0, 7, 8.5, K.yellow);
+  ic.vp = ic.victoryPoint;
+  // the robber: a burglar in a flat cap, cream mask, red scarf
+  ic.robber = fl("M-36,48 Q-36,20 -10,14 L12,14 Q36,18 38,48Z") + fl("M-20,-4 Q-22,-30 2,-32 Q22,-32 24,-12 Q31,-8 28,-2 Q25,1 22,2 Q20,14 2,16 Q-18,16 -20,-4Z") +
+    fl("M-25,-14 Q-23,-38 3,-38 Q24,-36 26,-22 L41,-18 Q39,-13 24,-14Z") + fl("M-21,-11 Q2,-13 25,-11 L26,-2 Q2,-4 -21,-2Z", PA) + circ(13, -6.5, 3.2) +
+    fl("M-15,13 Q2,21 19,13 L23,22 Q2,30 -19,22Z", K.red);
+  // awards: a winding road to a red pennant; two helmets, one with the red plume
+  ic.longestRoad = fl("M-46,46 Q-46,16 -14,12 Q14,10 12,-6 Q10,-19 20,-25 L30,-16 Q24,-12 26,-3 Q28,26 -4,26 Q-28,26 -30,46Z") +
+    st("M-38,40 Q-34,26 -22,21 M-6,19 Q8,17 15,10", 2.6, PA) + st("M30,-18 L31,-50", 3.6) + fl("M31,-50 Q40,-49 48,-44 Q40,-40 31,-38Z", K.red);
+  ic.largestArmy = `<g transform="translate(-18 0) scale(.64)">${helmet(null)}</g><g transform="translate(15 8) scale(.8)">${helmet(K.red)}</g>`;
+  ic.settings = (() => { const pts = []; for (let i = 0; i < 8; i += 1) { const a = (i * Math.PI) / 4 + 0.2; for (const [r, da] of [[29, -0.32], [46, -0.17], [46, 0.17], [29, 0.32]]) pts.push([Math.cos(a + da) * r, Math.sin(a + da) * r]); } return fl(smooth(pts)) + circ(0, 0, 13, PA) + circ(0, 0, 6, K.red); })();
+  seed(36);
+  const dieI = (x, y, r, pips, c) => `<g transform="translate(${x} ${y}) rotate(${r})">${fl(rr(-21, -21, 42, 42, 9, 0.8), c)}${pips.map(([a, b]) => circ(a, b, 4.6, PA)).join("")}</g>`;
+  ic.dice = dieI(-16, 9, -10, [[-9, -9], [0, 0], [9, 9]], B) + dieI(20, -11, 12, [[-8, -8], [8, -8], [-8, 8], [8, 8]], K.red);
+  ic.endTurn = fl("M-24,-44 Q0,-46 24,-44 L24,-38 Q0,-40 -24,-38Z M-24,38 Q0,36 24,38 L24,44 Q0,42 -24,44Z") + fl("M-18,-38 Q-18,-8 -3,0 Q-18,8 -18,38 H18 Q18,8 3,0 Q18,-8 18,-38Z") + fl("M-10,38 Q-6,22 0,18 Q6,22 10,38Z M-9,-24 Q0,-14 9,-24Z", K.yellow);
+  ic.hint = fl("M-16,16 Q-34,0 -28,-20 Q-20,-44 0,-44 Q20,-44 28,-20 Q34,0 16,16 V26 H-16Z", K.yellow) + fl("M-16,28 Q0,26 16,28 V34 Q0,32 -16,34Z M-10,38 H10 V44 H-10Z") + st("M-8,-24 Q-16,-20 -16,-8", 4, PA);
+  ic.log = fl("M0,-30 Q-22,-40 -46,-34 V32 Q-22,26 0,36 Q22,26 46,32 V-34 Q22,-40 0,-30Z") + st("M-36,-18 Q-22,-23 -9,-17 M-36,-5 Q-22,-10 -9,-4 M-36,8 Q-22,3 -9,9 M9,-17 Q22,-23 36,-18 M9,-4 Q22,-10 36,-5", 3.2, PA) + fl("M24,-37 h8 v26 l-4,-4 l-4,4Z", K.red);
+  ic.undo = fl("M-34,-6 L-10,-30 L-10,-17 Q32,-20 34,9 Q33,36 2,36 L-6,36 L-6,24 L2,24 Q21,24 21,9 Q20,-6 -10,-4 L-10,9Z");
+  // home / menu glyphs in the same hand
+  ic.clock = fl("M-7,-46 Q0,-48 7,-46 L7,-40 Q0,-41 -7,-40Z M-3,-41 h6 v8 h-6Z") + fl(blob(0, 6, 38, 37, 12, 0.02)) + fl(blob(0, 6, 29, 28, 12, 0.02), K.yellow) + st("M0,6 L0,-14 M0,6 L13,15", 5.4) + circ(0, 6, 4.5);
+  ic.sliders = fl("M-40,-22 Q0,-26 40,-21 Q43,-17 40,-14 Q0,-17 -40,-13 Q-44,-17 -40,-22Z M-40,15 Q0,12 40,16 Q43,20 40,23 Q0,20 -40,24 Q-44,20 -40,15Z") + circ(14, -17.5, 10) + circ(-12, 19.5, 10) + circ(14, -17.5, 4, PA) + circ(-12, 19.5, 4, K.orange);
+  ic.book = fl("M0,-30 Q-22,-40 -46,-34 V32 Q-22,26 0,36 Q22,26 46,32 V-34 Q22,-40 0,-30Z") + st("M-36,-16 Q-22,-21 -9,-15 M-36,-3 Q-22,-8 -9,-2 M9,-15 Q22,-21 36,-16 M9,-2 Q22,-8 36,-3", 3.2, PA);
+  ic.info = fl(blob(0, 0, 42, 41, 12, 0.02)) + circ(0, -19, 6, PA) + fl("M-6,-6 Q0,-8 6,-6 L6,22 Q0,24 -6,22Z", PA);
   ic.road = fl("M-42,26 L26,-36 L42,-20 L-26,42Z", PC.blue.base) + st("M-42,26 L26,-36 L42,-20 L-26,42Z", 3, PC.blue.line);
   ic.settlement = `<g transform="translate(0 2) scale(2)">${specSvg(house(PC.blue).slice(1))}</g>`;
   ic.city = `<g transform="translate(0 4) scale(1.45)">${specSvg(cityArt(PC.blue).slice(1))}</g>`;
-  ic.trade = fl("M-40,-16 H18 V-28 L40,-10 L18,8 V-4 H-40Z") + fl("M40,16 H-18 V4 L-40,22 L-18,40 V28 H40Z", K.orange);
-  ic.bank = fl("M-42,-14 L0,-42 L42,-14Z") + fl("M-42,30 H42 V40 H-42Z") + fl("M-32,-8 h10 v34 h-10Z M-12,-8 h10 v34 h-10Z M8,-8 h10 v34 h-10Z M24,-8 h10 v34 h-10Z") + circ(0, -24, 6, K.yellow);
-  const dieI = (x, y, r, pips, c) => `<g transform="translate(${x} ${y}) rotate(${r})"><rect x="-20" y="-20" width="40" height="40" rx="7" fill="${c}"/>${pips.map(([a, b]) => circ(a, b, 4.4, c === B ? PA : B)).join("")}</g>`;
-  ic.dice = dieI(-16, 8, -10, [[-9, -9], [0, 0], [9, 9]], B) + dieI(20, -10, 12, [[-8, -8], [8, -8], [-8, 8], [8, 8]], K.red);
-  ic.endTurn = fl("M-24,-44 H24 V-38 H-24Z M-24,38 H24 V44 H-24Z") + fl("M-18,-38 Q-18,-8 -3,0 Q-18,8 -18,38 H18 Q18,8 3,0 Q18,-8 18,-38Z") + fl("M-10,38 Q-6,22 0,18 Q6,22 10,38Z M-9,-24 Q0,-14 9,-24Z", K.yellow);
-  ic.hint = fl("M-16,16 Q-34,0 -28,-20 Q-20,-44 0,-44 Q20,-44 28,-20 Q34,0 16,16 V26 H-16Z", K.yellow) + fl("M-16,28 H16 V34 H-16Z M-10,38 H10 V44 H-10Z") + st("M-8,-24 Q-16,-20 -16,-8", 4, PA);
-  ic.settings = (() => { let d = ""; for (let i = 0; i < 8; i += 1) { const a = (i * Math.PI) / 4, q = (r, t) => `${f(Math.cos(t) * r)},${f(Math.sin(t) * r)}`; d += `${i ? "L" : "M"}${q(30, a - 0.4)} L${q(42, a - 0.2)} L${q(42, a + 0.2)} L${q(30, a + 0.4)} `; } return fl(d + "Z") + circ(0, 0, 13, PA) + circ(0, 0, 6, K.red); })();
-  ic.log = fl("M0,-30 Q-22,-40 -46,-34 V32 Q-22,26 0,36 Q22,26 46,32 V-34 Q22,-40 0,-30Z") + fl("M-3,-26 Q-20,-34 -40,-29 V26 Q-20,21 -3,30Z M3,-26 Q20,-34 40,-29 V26 Q20,21 3,30Z", PA) + st("M-32,-16 Q-20,-20 -10,-14 M-32,-4 Q-20,-8 -10,-2 M-32,8 Q-20,4 -10,10 M10,-14 Q20,-20 32,-16", 3) + fl("M24,-36 h8 v26 l-4,-4 l-4,4Z", K.red);
-  ic.robber = circ(0, 8, 26) + fl("M-28,-6 Q-26,-36 2,-36 Q30,-34 28,-6Z M-28,-8 L-44,-4 L-28,-2Z") + fl("M-22,2 h44 v9 h-44Z", PA) + circ(-8, 6.5, 3) + circ(10, 6.5, 3) + circ(16, 18, 5);
-  ic.longestRoad = fl("M-44,44 Q-44,10 -12,8 Q18,6 16,-14 Q14,-28 -10,-28 L-10,-42 Q30,-42 32,-14 Q34,22 -6,22 Q-28,22 -28,44Z") + st("M24,-22 V-50", 4) + fl("M24,-50 L42,-44 L24,-38Z", K.red);
-  ic.largestArmy = (() => { const lan = (x) => `<g transform="translate(${x} 0)">${st("M-10,-26 Q0,-40 10,-26", 4)}${fl("M-14,-26 h28 L10,20 h-20Z")}${fl("M-7,-18 h14 L6,12 h-12Z", K.yellow)}${fl("M-17,20 h34 v6 h-34Z")}</g>`; return lan(-20) + lan(20) + fl("M-46,34 H46 V40 H-46Z"); })();
-  ic.vp = ic.victoryPoint;
-  ic.cards = `<g transform="rotate(-14 -10 10)">${fl("M-32,-32 h36 v54 h-36Z", K.green)}</g><g transform="rotate(10 10 10)">${fl("M-8,-28 h36 v54 h-36Z")}${fl("M-2,-22 h24 v42 h-24Z", K.yellow)}</g>`;
-  ic.devcard = fl("M-24,-36 h48 v72 h-48Z") + fl("M-17,-29 h34 v58 h-34Z", K.turq) + circ(0, 0, 9, PA);
-  ic.build = fl("M-38,30 L6,-14 L14,-6 L-30,38Z") + fl("M0,-24 L22,-46 L44,-24 L22,-2Z", K.orange);
   ic.fit = `<path d="M-38,-16 V-38 H-16 M16,-38 H38 V-16 M38,16 V38 H16 M-16,38 H-38 V16" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>` + fl(hexD(17), K.green);
   const zoom = (plus) => `<g stroke="currentColor" stroke-linecap="round" fill="none"><circle cx="-6" cy="-6" r="22" stroke-width="7"/><path d="M14,14 L34,34" stroke-width="10"/><path d="M-16,-6 h20${plus ? " M-6,-16 v20" : ""}" stroke-width="5"/></g>`;
   ic.zoomIn = zoom(1); ic.zoomOut = zoom(0);
@@ -261,6 +307,25 @@ const ICONS = {};
   ic.chevron = `<path d="M-18,-8 L0,10 L18,-8" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>`;
   ic.plus = `<path d="M0,-20 V20 M-20,0 H20" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>`;
   ic.minus = `<path d="M-20,0 H20" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>`;
+}
+
+/* ---------- avatars: the same four characters as every theme, as ink silhouette portraits (three-quarter
+   profile, a cream eye) on a flat colour backdrop; clothes in the seat colour ---------- */
+const AV_BG = { you: "#BCD2F2", trader: "#F7CDA8", builder: "#F2DFA6", shark: "#C3CFDA" };
+const AV_CLOTH = { you: PC.blue.base, trader: PC.orange.base, builder: "#EFE6D2", shark: PC.slate.base };
+function avatar(preset) {
+  const p = AV_BG[preset] ? preset : "you";
+  const head = fl("M-16,-4 Q-18,-27 2,-28 Q19,-28 21,-11 Q27,-7 25,-1 Q23,2 20,3 Q19,13 4,15 Q-14,15 -16,-4Z");
+  const eye = `<ellipse cx="11" cy="-7" rx="3" ry="3.4" fill="${PA}"/>` + circ(12, -6.6, 1.5);
+  const neck = fl("M-7,8 L7,8 L8,22 L-7,22Z");
+  const body = `<path d="M-40,54 Q-40,24 -8,19 L10,19 Q40,24 40,54Z" fill="${AV_CLOTH[p]}" stroke="${B}" stroke-width="2"/>`;
+  const hair = {
+    you: fl("M-18,-6 Q-24,-32 0,-33 Q18,-34 22,-18 Q12,-23 4,-20 Q8,-26 2,-28 Q-2,-20 -10,-18 Q-14,-12 -12,-2Z"),
+    trader: fl("M-16,-14 Q-26,10 -22,32 Q-14,36 -10,26 Q-14,6 -11,-8Z") + fl("M-32,-17 Q0,-26 34,-15 Q26,-11 0,-14 Q-24,-12 -32,-17Z") + fl("M-15,-17 Q-14,-36 2,-36 Q16,-36 17,-17Z"),
+    builder: fl("M-18,-15 Q-18,-36 2,-36 Q21,-36 22,-15Z") + fl("M-23,-17 Q2,-20 28,-15 L28,-11 Q2,-15 -23,-12Z") + fl("M-12,4 Q-12,19 4,21 Q19,19 21,4 Q12,10 4,9 Q-5,10 -12,4Z") + st("M2,-36 L2,-17", 2, PA),
+    shark: fl("M-17,-16 Q-19,-36 2,-36 Q21,-36 22,-17Z") + fl("M-18,-18 Q4,-13 30,-19 L29,-13 Q6,-8 -18,-13Z") + st("M-16,-21 Q3,-17 21,-21", 1.8, "#E2C27A") + `<path d="M-6,19 L2,30 L10,19Z" fill="${PA}" stroke="${B}" stroke-width="1.6"/>`,
+  }[p];
+  return `<circle r="50" fill="${AV_BG[p]}"/>${body}${neck}${head}${hair}${eye}`;
 }
 
 /* ---------- cards: one flat colour field, a silhouette scene, hand-lettered title on paper ---------- */
@@ -323,7 +388,7 @@ function card(k, mini) {
   const res = RESOURCE_KEYS.includes(k), name = RES_NAME[k] || DEV_NAME[k], [col, art] = CS[k];
   const h = mini ? 236 : 222;
   const scene = `<clipPath id="cc-${key}"><rect x="14" y="14" width="222" height="${h}" rx="6"/></clipPath><g clip-path="url(#cc-${key})"><rect x="14" y="14" width="222" height="${h}" fill="${col}"/><g filter="url(#c-cut)"><g transform="translate(125 ${mini ? 140 : 130}) scale(${mini ? 1.02 : 0.96})">${art()}</g></g><rect x="14" y="14" width="222" height="${h}" filter="url(#c-gouache)" opacity=".3"/></g>`;
-  const base = `<rect x="1" y="1" width="248" height="348" rx="12" fill="${PA}" stroke="#D9D2C2" stroke-width="2"/>`;
+  const base = `<rect x="2" y="2" width="246" height="346" rx="12" fill="${CREAM}" stroke="${B}" stroke-width="3"/>`;
   const label = col === K.yellow ? "#9A5A10" : col === K.lime ? "#5E7A1E" : col === K.grey ? "#4A6278" : col === K.ochre ? "#9A5A10" : col === K.pink ? "#B0485A" : col === K.green ? "#3C7A2E" : col === K.turq ? "#1E7584" : col;
   const out = mini
     ? base + scene + `<text x="125" y="${name.length > 11 ? 300 : 306}" text-anchor="middle" font-family="Kalam, cursive" font-weight="700" font-size="${name.length > 11 ? 36 : name.length > 8 ? 44 : 52}" fill="${B}">${name}</text>`
@@ -345,8 +410,8 @@ const die = (n) => `<rect x="-36" y="-36" width="72" height="72" rx="14" fill="$
 function thumb() {
   const pos = [[0, 0, "desert"], [26, 0, "wheat"], [-26, 0, "wood"], [13, 22.5, "sheep"], [-13, 22.5, "ore"], [13, -22.5, "brick"], [-13, -22.5, "sheep"]];
   seed(5);
-  return `<svg viewBox="-80 -45 160 90" preserveAspectRatio="xMidYMid slice"><rect x="-80" y="-45" width="160" height="90" fill="${PA}"/>
-    <path d="${blob(0, 0, 60, 44, 12, 0.06)}" fill="${K.sky}"/>${st("M-62,-30 q3,-3 6,0 q3,3 6,0 M48,28 q3,-3 6,0 q3,3 6,0", 1.2, PA)}
+  return `<svg viewBox="-80 -45 160 90" preserveAspectRatio="xMidYMid slice"><rect x="-80" y="-45" width="160" height="90" fill="${SEA}"/>
+    <path d="${[[0, 0], [26, 0], [-26, 0], [13, 22.5], [-13, 22.5], [13, -22.5], [-13, -22.5]].map(([x, y]) => hexD(17.5, x, y)).join(" ")}" fill="${CREAM}" stroke="${CREAM}" stroke-width="3" stroke-linejoin="round"/>${st("M-62,-30 q3,-3 6,0 q3,3 6,0 M48,28 q3,-3 6,0 q3,3 6,0", 1.2, PA)}
     ${pos.map(([x, y, t]) => `<path d="${hexD(14.6, x, y)}" fill="${TC[t][0]}"/>`).join("")}
     <circle cx="0" cy="3" r="5.6" fill="${PA}"/><text x="0" y="5.6" text-anchor="middle" font-size="7.5" font-weight="700" font-family="Kalam, cursive" fill="${K.red}">8</text>
     <g transform="translate(-26 -6) scale(.62)">${tree(0, 6, 18, "pine")}</g><g transform="translate(13 -12) scale(.42)">${specSvg(house(PC.orange).slice(1))}</g><g transform="translate(-13 12) scale(.42)">${specSvg(house(PC.blue).slice(1))}</g>${bird(-48, -30, 1)}${bird(-38, -34, 0.8)}</svg>`;
@@ -361,11 +426,11 @@ const tokenStyle = {
 const silhouette = {
   id: "C",
   name: "Silhouette",
-  mood: "Flat gouache colour on white paper with black ink silhouettes.",
+  mood: "Bold flat colour fields, a turquoise sea and black ink silhouettes.",
   sample: "Aa",
   sampleFont: "'Kalam', cursive",
   fonts: { families: ["Kalam", "Alegreya Sans"] },
-  paletteDots: [K.orange, K.yellow, K.green, K.sky, B],
+  paletteDots: [SEA, K.orange, K.yellow, K.green, B],
   confettiColors: [K.orange, K.yellow, K.turq, K.green, K.pink, B],
   motion: { name: "Gentle, page-like", k: 1.05, pop: "cubic-bezier(.3,1.35,.5,1)", out: "cubic-bezier(.22,.8,.3,1)", inOut: "cubic-bezier(.65,0,.35,1)", fall: "cubic-bezier(.55,0,1,.45)", squash: [1.1, 0.9], bounces: 1, sway: 0 },
   seatKeys: ["blue", "orange", "ivory", "slate"],
@@ -383,7 +448,7 @@ const silhouette = {
   robberDx: 46, robberDy: 8, tokenDy: 24,
   icons: ICONS,
   card, cardBack,
-  avatar: (preset) => sunny.avatar(preset),
+  avatar,
   die,
   thumb,
   swatch: () => `<svg viewBox="0 0 36 36"><rect width="36" height="36" fill="${K.orange}"/><path d="M11,30 V18 L18,10 L25,18 V30Z" fill="${B}"/><rect x="16" y="23" width="4" height="7" fill="${K.yellow}"/></svg>`,
