@@ -8092,7 +8092,15 @@ class ColonistFullGame {
       mDot.textContent = String(nDev);
       mDot.classList.toggle("go", playableNow);
     }
-    document.querySelector("#mCardsBtn")?.classList.toggle("quiet", !playableNow);
+    // …or when you can buy one now: Cards then opens on "Buy card" (it used to look locked, v0.74 bug)
+    const canBuyDev = canBuildNow && hasDevCost && this.devDeck.length > 0 && !this.pendingDiscard && !this.devPick;
+    const mCards = document.querySelector("#mCardsBtn");
+    if (mCards) {
+      mCards.classList.toggle("quiet", !playableNow && !canBuyDev);
+      mCards.classList.toggle("canbuy", canBuyDev && !playableNow);
+      const lbl = playableNow ? "Cards: play a development card" : canBuyDev ? `Cards: buy a development card (${resourceString(COSTS.development)})` : "Cards: your development cards";
+      if (mCards.getAttribute("aria-label") !== lbl) { mCards.setAttribute("aria-label", lbl); mCards.title = lbl; }
+    }
     const mBuild = document.querySelector("#mBuildBtn");
     if (mBuild) mBuild.disabled = !canBuildNow;
 
@@ -9487,6 +9495,12 @@ class ColonistFullGame {
     else { this.checkForWinner(player); this.saveToStorage(); this.render(); }
   }
 
+  /** Small resource icons for a cost (tray buttons). */
+  _costChips(type) {
+    const cost = COSTS[type] || {};
+    return `<span class="tcost">${RESOURCES.filter((r) => cost[r]).flatMap((r) => Array(cost[r]).fill(`<i class="cc ${r}">${icon(r)}</i>`)).join("")}</span>`;
+  }
+
   /** What the tray shows now (null = the normal dock buttons). */
   _trayView() {
     const human = this.players.find((p) => p.isHuman);
@@ -9572,14 +9586,20 @@ class ColonistFullGame {
       const btns = types.map((t) => {
         const ok = this.canPlayDevelopmentCard(human, t) && !this.devPick;
         const n = human.devCards[t] + human.newDevCards[t];
-        return tbtn(`data-dev-play="${t}" ${ok ? "" : "aria-disabled=\"true\""} title="${DEV_NAME[t]}: ${CARD_TEXT[t]}"`, `<span class="card">${cardSvg(t)}</span><span>${SHORT_DEV[t]}</span>${n > 1 ? `<i class="pk">×${n}</i>` : ""}`, `dev${ok ? "" : " off"}${focus === t ? " focus" : ""}`);
+        const onlyNew = human.devCards[t] === 0; // bought this turn: shown, marked "next turn"
+        const when = onlyNew ? (this.isRush() ? "after roll" : "next turn") : "";
+        return tbtn(`data-dev-play="${t}" ${ok ? "" : "aria-disabled=\"true\""} title="${DEV_NAME[t]}: ${CARD_TEXT[t]}${when ? ` (playable ${when})` : ""}"`, `<span class="card">${cardSvg(t)}</span><span>${SHORT_DEV[t]}</span>${when ? `<small class="tnew">${when}</small>` : ""}${n > 1 ? `<i class="pk">×${n}</i>` : ""}`, `dev${ok ? "" : " off"}${onlyNew ? " fresh" : ""}${focus === t ? " focus" : ""}`);
       }).join("");
       const ft = focus && DEV_CARD_TYPES.includes(focus) ? focus : null;
       const fresh = ft && human.devCards[ft] === 0;
       const hint = ft ? `${DEV_NAME[ft]}: ${CARD_TEXT[ft]}${fresh ? (this.isRush() ? " · playable after the next roll" : " · playable next turn") : ""}`
-        : types.length ? "Tap a card to play it (one per turn)" : `No development cards yet · one costs ${resourceString(COSTS.development)}`;
+        : types.some((t) => this.canPlayDevelopmentCard(human, t)) ? "Tap a card to play it (one per turn)"
+        : canBuy ? `Buy a development card for ${resourceString(COSTS.development)}${types.length ? " · cards bought now play next turn" : ""}`
+        : types.length ? "Tap a card to play it (one per turn)"
+        : `No development cards yet · one costs ${resourceString(COSTS.development)}`;
+      const vp = human.devVictoryPoints ? tbtn(`aria-disabled="true" title="Victory Point cards count at once (kept secret)"`, `<span class="card">${cardSvg("victoryPoint")}</span><span>VP</span>${human.devVictoryPoints > 1 ? `<i class="pk">×${human.devVictoryPoints}</i>` : ""}`, "dev vp") : "";
       return { mode: "cards", hint,
-        html: btns + tbtn(`data-tray-buy ${canBuy ? "" : "disabled"}`, `${icon("devcard")}<span>Buy card</span>`, "buy") + close() };
+        html: btns + vp + tbtn(`data-tray-buy ${canBuy ? "" : "disabled"} aria-label="Buy a development card: ${resourceString(COSTS.development)}"`, `${icon("devcard")}<span>Buy card</span>${this._costChips("development")}`, "buy") + close() };
     }
     if (this.trayMode === "build" && this.isMobileLayout) {
       const pa = this.pendingAction;
