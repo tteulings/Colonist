@@ -1696,6 +1696,7 @@ class ColonistFullGame {
     this._dropUndo();
     this.pendingAction = this.pendingAction === action ? null : action;
     this.confirmBuild = null;
+    this._autoPick = false;
     if (!keepTray && this.trayMode === "cards") this.trayMode = null;
     this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
     this.hideTradePanel();
@@ -1908,6 +1909,7 @@ class ColonistFullGame {
       if (!target) return;
       this.pendingAction = target.type;
       this.confirmBuild = target;
+      this._autoPick = true; // picked by a mode-less tap: the next tap may still mean another kind of piece
       this.canvas.style.cursor = "crosshair";
       this.sfx.click();
       this.render();
@@ -1920,11 +1922,18 @@ class ColonistFullGame {
       return;
     }
 
-    // Build mode: the legal spot under the finger
-    const target = this._buildTargetAt(player, x, y);
-    if (!target) { this.confirmBuild = null; this.render(); return; }
+    // Build mode: the legal spot under the finger. After a mode-less pick, every kind of piece is
+    // still in play (v0.73: a road picked by mistake used to lock the next tap to roads, so a tap on
+    // the corner built that road), and only a tap on the same spot builds.
+    const auto = this._autoPick && this.confirmBuild && this.pendingAction === this.confirmBuild.type && this.pendingAction !== "robber";
+    const target = auto ? this._autoDetectTarget(player, x, y) : this._buildTargetAt(player, x, y);
+    if (!target) { this.confirmBuild = null; if (auto) { this.pendingAction = null; this._autoPick = false; } this.render(); return; }
     const same = this.confirmBuild && this.confirmBuild.type === target.type && this.confirmBuild.id === target.id;
-    if (!this.confirmPlacements || same) { this._commitBuild(player, target); return; }
+    // Direct building (Confirm placements off) still builds at once, except when the finger was
+    // between a corner and a road: then the chosen spot is shown first and a second tap builds it.
+    const direct = !this.confirmPlacements && !auto && !target.ambiguous;
+    if (direct || same) { this._commitBuild(player, target); return; }
+    if (auto) this.pendingAction = target.type;
     this.confirmBuild = target;
     this.sfx.click();
     this.render();
@@ -1936,29 +1945,40 @@ class ColonistFullGame {
     return this._buildTargetAt(player, x, y, this.freeRoadsRemaining > 0 ? "road" : "build");
   }
 
-  /** In build mode ("build" = every piece you can afford): the nearest legal spot to the tap. */
+  /**
+   * In build mode ("build" = every piece you can afford): the legal spot the finger meant.
+   * v0.73: when a corner (settlement/city) and a road are both in reach, the corner wins within
+   * 36% of an edge length (at least 14 CSS px) of it. A fingertip aimed at a corner lands a few px
+   * off it, and the old rule (the road's middle half vs. the corner, each scaled by its own hit
+   * radius) gave every tap more than ~15% along the edge to the road, i.e. ~5 px at fit on a phone.
+   * Outside that zone the nearer of the corner and the road's middle 40% wins. Such a tap is
+   * marked `ambiguous`, so a direct build shows the target first instead of placing it.
+   */
   _buildTargetAt(player, x, y, pa = this.pendingAction) {
     const free = this.freeRoadsRemaining > 0;
     const all = pa === "build";
     const wantRoad = pa === "road" || (all && !free);
     const wantSet = pa === "settlement" || (all && !free);
     const wantCity = pa === "city" || (all && !free);
-    let node = null, edge = null;
+    let node = null, edge = null, ambiguous = false;
     if (wantSet || wantCity) node = this.findNodeAt(x, y, (id) => (wantCity && this.canBuildCity(player, id, false)) || (wantSet && this.canBuildSettlement(player, id, false)));
     if (wantRoad) edge = this.findEdgeAt(x, y, (id) => this.canBuildRoad(player, id, { free }));
     if (node != null && edge != null) {
-      // both in reach: the one closer relative to its own hit radius wins
+      ambiguous = true;
+      const k = this.view.scale || 1; // world units -> CSS px
       const n = this.geometry.nodes[node];
       const [a, b] = this.geometry.edges[edge].nodes.map((id) => this.geometry.nodes[id]);
-      const nr = Math.max(22 / (this.view.scale || 1), this.geometry.hexSize * 0.28);
-      const er = Math.max(16 / (this.view.scale || 1), this.geometry.hexSize * 0.18);
-      // measure the road by its middle half: a tap near a corner means the corner
-      const t = 0.25, ax = a.x + (b.x - a.x) * t, ay = a.y + (b.y - a.y) * t, bx = b.x - (b.x - a.x) * t, by = b.y - (b.y - a.y) * t;
-      if (distancePointToSegment(x, y, ax, ay, bx, by) / er < Math.hypot(x - n.x, y - n.y) / nr) node = null;
-      else edge = null;
+      const L = Math.hypot(b.x - a.x, b.y - a.y) || this.geometry.hexSize;
+      const dn = Math.hypot(x - n.x, y - n.y);
+      if (dn <= Math.max(0.36 * L, 14 / k)) edge = null;
+      else {
+        const t = 0.3, ax = a.x + (b.x - a.x) * t, ay = a.y + (b.y - a.y) * t, bx = b.x - (b.x - a.x) * t, by = b.y - (b.y - a.y) * t;
+        if (distancePointToSegment(x, y, ax, ay, bx, by) <= dn) node = null;
+        else edge = null;
+      }
     }
-    if (node != null) return { type: this.canBuildCity(player, node, false) && wantCity ? "city" : "settlement", id: node };
-    if (edge != null) return { type: "road", id: edge };
+    if (node != null) return { type: this.canBuildCity(player, node, false) && wantCity ? "city" : "settlement", id: node, ambiguous };
+    if (edge != null) return { type: "road", id: edge, ambiguous };
     return null;
   }
 
@@ -1967,6 +1987,7 @@ class ColonistFullGame {
     const before = { pa: this.pendingAction, tray: this.trayMode, free: this.freeRoadsRemaining,
       lr: this.longestRoadHolder, la: this.largestArmyHolder, logLen: this.logEntries.length };
     this._dropUndo();
+    this._autoPick = false;
     let built = false;
     let paid = null;
     if (cb.type === "road") {
@@ -2639,10 +2660,11 @@ class ColonistFullGame {
     return null;
   }
 
-  /** Nearest node within a finger-sized radius (≥ 22 CSS px); `accept` limits it to legal spots. */
+  /** Nearest node within a finger-sized radius (≥ 22 CSS px, ≥ 38% of an edge — v0.73: was 28%, smaller
+   *  than the corner zone of _buildTargetAt when zoomed in); `accept` limits it to legal spots. */
   findNodeAt(x, y, accept = null) {
     let bestId = null;
-    const hitRadius = Math.max(22 / (this.view.scale || 1), this.geometry.hexSize * 0.28);
+    const hitRadius = Math.max(22 / (this.view.scale || 1), this.geometry.hexSize * 0.38);
     let bestDist = hitRadius;
     this.geometry.nodes.forEach((node) => {
       if (accept && !accept(node.id)) return;
@@ -7180,6 +7202,10 @@ class ColonistFullGame {
   }
 
   hitTestConfirmIcon(worldX, worldY) {
+    // v0.73: phones draw no ✓ on the board (the Place pill confirms), so a finger must never hit an
+    // invisible one: its zone sat right above the picked spot and swallowed taps on the corner above
+    // a picked road, building the road. Only Place's own synthetic tap (_confirmViaIcon) gets through.
+    if (this.isMobileLayout && !this._viaIcon) return false;
     const icon = this.getConfirmIconCenter();
     if (!icon) return false;
     // Use a generous hit radius for touch
@@ -8845,14 +8871,17 @@ class ColonistFullGame {
       this._commitRobber(this.currentPlayer, this.confirmBuild.id, this.confirmBuild.victim);
       return;
     }
-    if (this.setupPhase) {
-      this.handleSetupClick(ic.x, ic.y);
-      this.render();
-      return;
-    }
-    const s = this.worldToScreen(ic.x, ic.y);
-    const rect = this.canvas.getBoundingClientRect();
-    this.handleBoardClick({ clientX: rect.left + (s.x * rect.width) / this.boardWidth, clientY: rect.top + (s.y * rect.height) / this.boardHeight });
+    this._viaIcon = true;
+    try {
+      if (this.setupPhase) {
+        this.handleSetupClick(ic.x, ic.y);
+        this.render();
+        return;
+      }
+      const s = this.worldToScreen(ic.x, ic.y);
+      const rect = this.canvas.getBoundingClientRect();
+      this.handleBoardClick({ clientX: rect.left + (s.x * rect.width) / this.boardWidth, clientY: rect.top + (s.y * rect.height) / this.boardHeight });
+    } finally { this._viaIcon = false; }
   }
 
   // ══ Direct manipulation: Undo, dock trays, inline pickers ═══════════════
@@ -9033,6 +9062,7 @@ class ColonistFullGame {
     this.hideTradePanel();
     this.trayMode = "build";
     this.confirmBuild = null;
+    this._autoPick = false;
     if (!this.freeRoadsRemaining) this.pendingAction = this._canPlaceAnything(player) ? "build" : null;
     this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
     this.sfx.click();
