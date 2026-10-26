@@ -1471,6 +1471,14 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .app .pchip .mini span.warn { color: var(--warn-ink, #B23A1E); font-weight: 800; }
 .app .pchip .mini.dense { gap: 2px; font-size: 10.5px; letter-spacing: -.02em; }
 .app .pchip .mini.dense .ic { font-size: 12px; }
+/* v0.79: a phone chip with dev cards, knights AND road (dense) overflowed once an award pill carried "+2" (worst case
+   "2 · 4+2 · 10+2" needed 102 px of a 70 px chip at 360 wide, cutting the road off). Dense chips drop the "+2" (the
+   gold pill alone marks the award; the points and the chip's tooltip carry the +2) and tighten the glyphs */
+[data-theme] .app .pstrip .pchip .mini.dense { gap: 2px; }
+[data-theme] .app .pstrip .pchip .mini.dense span { gap: 0; }
+[data-theme] .app .pstrip .pchip .mini.dense .ic { font-size: 11px; }
+[data-theme] .app .pstrip .pchip .mini.dense span.award { padding: 0 2px 0 0; }
+.app .pstrip .pchip .mini.dense span.award .aw-plus { display: none; }
 .prow .stats span.warn { color: var(--warn-ink, #B23A1E); }
 /* hand totals bar (phones, portrait): "7 cards · 1 dev" on the left, the bank on the right */
 .hand-bar { display: none; }
