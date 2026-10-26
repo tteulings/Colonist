@@ -8,7 +8,7 @@
 // No characters or artworks are copied; figures are generic slender silhouettes.
 import { f, rng, pipCount, wrap, RES_NAME, DEV_NAME, CARD_TEXT, RESOURCE_KEYS } from "../art-util.js";
 import { specSvg, tp } from "../spec-util.js";
-import { portrait, PERSONAS } from "../portraits.js";
+import { portrait } from "../portraits.js";
 
 const B = "#1C1A19"; // Indian ink
 const FIG = "#3A3532"; // v0.77: people and the robber in a soft warm charcoal instead of pure ink (less harsh)
@@ -311,10 +311,10 @@ const ICONS = {};
   ic.minus = `<path d="M-20,0 H20" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>`;
 }
 
-/* ---------- avatars: the six seat personas (src/themes/portraits.js) as Fiep-style silhouettes:
-   hair and face in a deep seat tint with cream eyes, clothes in the seat colour, an emblem brooch ---------- */
-// v0.77: each silhouette in a deep tint of its seat colour (not pure ink), so the six read softer
-const avatar6 = (preset) => portrait(preset, { style: "ink", ink: PERSONAS[preset]?.deep || FIG, paper: PA });
+/* ---------- avatars: the six seat personas (src/themes/portraits.js) as faceless Fiep-style silhouettes
+   in one neutral soft charcoal (the board figures' FIG): no eyes or features, identity from the outline,
+   clothes in the seat colour, an emblem brooch ---------- */
+const avatar6 = (preset) => portrait(preset, { style: "ink", ink: FIG, paper: PA });
 
 /* ---------- cards: one flat colour field, a silhouette scene, hand-lettered title on paper ---------- */
 // card scenes may be busier than tiles (they are pictures, not a playing surface)

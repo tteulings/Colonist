@@ -5,16 +5,18 @@
 // A small brooch at the lower left carries the persona's emblem; it stays clear of the strip's points badge.
 //
 // Two renderings share every shape: "flat" (themes A, B, Classic: skin, hair colours, a soft face) and
-// "ink" (theme C: Fiep-style silhouettes with cream eyes, filled with the persona's deep seat tint `deep`
-// rather than pure black; the seat colour and a cream accent only).
+// "ink" (theme C: true Fiep-style silhouettes in one neutral soft charcoal for all six, with NO eyes or
+// other facial features, so no skin tone or face is implied; identity comes from the outline (hair, bun,
+// cap, moustache, beard), glasses / monocle as a thin light frame only, clothes in the seat colour, brooch).
+const FRAME = "#C9C2B6"; // ink style: thin light frame for glasses and the monocle
 
 export const PERSONAS = {
-  rosa: { name: "Roodhart", full: "Rosa Roodhart", seat: "#E63946", bg: "#FADBD6", emblem: "heart", deep: "#4A2B2B" },
-  blaauw: { name: "Blaauw", full: "Mevrouw Blaauw van Draet", seat: "#2A6FDB", bg: "#D9E5F8", emblem: "feather", deep: "#26324A" },
-  geelen: { name: "Van Geelen", short: "Geelen", full: "Kolonel Van Geelen", seat: "#F58A1F", bg: "#FDE4CB", emblem: "medal", deep: "#4A3322" },
-  groenewoud: { name: "Groenewoud", short: "Groen", full: "Dominee Groenewoud", seat: "#2DB87E", bg: "#D8F0E2", emblem: "clover", deep: "#243D32" },
-  dewit: { name: "De Wit", full: "Mevrouw De Wit", seat: "#EFE6D2", bg: "#DCD3C1", emblem: "star", deep: "#3A3532", dark: true },
-  pimpel: { name: "Pimpel", full: "Professor Pimpel", seat: "#8B5FA8", bg: "#E8DEF3", emblem: "diamond", deep: "#372B45" },
+  rosa: { name: "Roodhart", full: "Rosa Roodhart", seat: "#E63946", bg: "#FADBD6", emblem: "heart" },
+  blaauw: { name: "Blaauw", full: "Mevrouw Blaauw van Draet", seat: "#2A6FDB", bg: "#D9E5F8", emblem: "feather" },
+  geelen: { name: "Van Geelen", short: "Geelen", full: "Kolonel Van Geelen", seat: "#F58A1F", bg: "#FDE4CB", emblem: "medal" },
+  groenewoud: { name: "Groenewoud", short: "Groen", full: "Dominee Groenewoud", seat: "#2DB87E", bg: "#D8F0E2", emblem: "clover" },
+  dewit: { name: "De Wit", full: "Mevrouw De Wit", seat: "#EFE6D2", bg: "#DCD3C1", emblem: "star", dark: true },
+  pimpel: { name: "Pimpel", full: "Professor Pimpel", seat: "#8B5FA8", bg: "#E8DEF3", emblem: "diamond" },
 };
 
 const SKIN = {
@@ -126,7 +128,14 @@ export function portrait(k, { style = "flat", ink = "#2B211C", paper = "#FFF9EE"
   if (k === "rosa") s += p("M-9,22 L0,33 L9,22Z", flat ? skin : ink) ;
   s += `<ellipse cx="${HEAD.cx}" cy="${HEAD.cy}" rx="${HEAD.rx}" ry="${HEAD.ry}" fill="${skin}"${flat ? ` stroke="${sk2}" stroke-width="1.2"` : ""}/>`;
   if (flat) s += p("M7,-22 Q18,-16 18,-2 Q17,12 5,17 Q13,2 7,-22Z", sk2, ` opacity=".3"`);
-  if (S.beard) s += p(S.beard, flat ? S.beardCol : ink, flat ? ` stroke="#77716A" stroke-width="1"` : "");
+  if (S.beard && flat) s += p(S.beard, S.beardCol, ` stroke="#77716A" stroke-width="1"`);
+  if (S.beard && !flat) {
+    // ink: a short full beard breaking the jaw line, the white collar tab on top, and a wide-brimmed
+    // parson's hat, so the faceless silhouette alone tells Groenewoud apart
+    s += p("M-19.4,-2 Q-20,18 0,23 Q20,18 19.4,-2 Q12,9 0,9 Q-12,9 -19.4,-2Z", ink);
+    s += `<rect x="-3.4" y="22" width="6.8" height="6" rx="1" fill="#FFFDF8"/>`;
+    s += p("M-15,-17 Q-15,-34 0,-34 Q15,-34 15,-17Z M-29,-15 Q0,-23 29,-15 Q28,-11 0,-13 Q-28,-11 -29,-15Z", ink);
+  }
   if (S.shine && flat) s += `<ellipse cx="-6" cy="-19" rx="6" ry="3" fill="#fff" opacity=".18" transform="rotate(-18 -6 -19)"/>`;
   if (S.side) s += p(S.side, hair, line);
   if (S.front) s += p(S.front, hair, line);
@@ -143,18 +152,16 @@ export function portrait(k, { style = "flat", ink = "#2B211C", paper = "#FFF9EE"
   // face
   if (flat) {
     s += faceFlat(k, { age: k === "dewit" || k === "geelen", lips: k === "rosa" ? "#C2303A" : k === "blaauw" ? "#7A2E3A" : "", noMouth: !!S.moustache, brow: k === "geelen" || k === "dewit" ? "#9C9488" : "" });
-  } else {
-    // Fiep: cream eyes with an ink pupil, no other features
-    s += `<ellipse cx="-7" cy="-4" rx="4" ry="4.6" fill="${paper}"/><ellipse cx="7" cy="-4" rx="4" ry="4.6" fill="${paper}"/><circle cx="-6.2" cy="-3.2" r="2" fill="${ink}"/><circle cx="7.8" cy="-3.2" r="2" fill="${ink}"/>`;
-  }
+  } // ink: a faceless silhouette (no eyes, no features)
   if (S.moustache) {
     s += p(S.moustache, flat ? S.hair : ink, flat ? ` stroke="${S.hair2}" stroke-width="1"` : "");
-    if (!flat) s += `<path d="M-15,8 Q0,4 15,8" stroke="${paper}" stroke-width="1" fill="none" opacity=".5"/>`;
-    s += `<circle cx="7" cy="-4.5" r="5.6" fill="none" stroke="${flat ? "#C9A04A" : paper}" stroke-width="1.5"/><path d="M12.4,-3 Q16,8 14,18" stroke="${flat ? "#C9A04A" : paper}" stroke-width=".9" fill="none"/>`;
+    s += `<circle cx="7" cy="-4.5" r="5.6" fill="none" stroke="${flat ? "#C9A04A" : FRAME}" stroke-width="${flat ? 1.5 : 1.3}"/><path d="M12.4,-3 Q16,8 14,18" stroke="${flat ? "#C9A04A" : FRAME}" stroke-width=".9" fill="none"/>`;
   }
   if (S.glasses) {
-    const g = flat ? "#2F2433" : paper;
-    s += `<g fill="none" stroke="${g}" stroke-width="1.9"><circle cx="-7" cy="-4.5" r="6"/><circle cx="7" cy="-4.5" r="6"/><path d="M-1.6,-5.4 Q0,-6.6 1.6,-5.4 M-13,-6 L-18.5,-8 M13,-6 L18.5,-8"/></g>`;
+    // ink: a thin light frame whose arms reach past the head outline, so it reads as glasses, not eyes
+    s += flat
+      ? `<g fill="none" stroke="#2F2433" stroke-width="1.9"><circle cx="-7" cy="-4.5" r="6"/><circle cx="7" cy="-4.5" r="6"/><path d="M-1.6,-5.4 Q0,-6.6 1.6,-5.4 M-13,-6 L-18.5,-8 M13,-6 L18.5,-8"/></g>`
+      : `<g fill="none" stroke="${FRAME}" stroke-width="1.4"><circle cx="-7" cy="-4.5" r="6"/><circle cx="7" cy="-4.5" r="6"/><path d="M-1.6,-5.4 Q0,-6.6 1.6,-5.4 M-13,-6 L-22,-9 M13,-6 L22,-9"/></g>`;
   }
   if (S.earrings) s += `<circle cx="-18.6" cy="5" r="2.4" fill="#FFFDF5" stroke="${flat ? "#B8B0A0" : ink}" stroke-width=".8"/><circle cx="18.6" cy="5" r="2.4" fill="#FFFDF5" stroke="${flat ? "#B8B0A0" : ink}" stroke-width=".8"/>`;
   // Rosa in ink: a bow in the seat colour on her hair
