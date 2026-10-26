@@ -769,9 +769,11 @@ class ColonistFullGame {
     this._applyAllStrategies = true;
     // AI reasoning toggle
     this.aiReasoningToggle = document.querySelector("#aiReasoningToggle");
+    try { if (this.aiReasoningToggle) this.aiReasoningToggle.checked = localStorage.getItem("colonist.aiReasoning") === "on"; } catch (_) {}
     this.showAiReasoning = this.aiReasoningToggle?.checked || false;
     this.aiReasoningToggle?.addEventListener("change", () => {
       this.showAiReasoning = this.aiReasoningToggle.checked;
+      try { localStorage.setItem("colonist.aiReasoning", this.showAiReasoning ? "on" : "off"); } catch (_) {}
     });
 
     // Sound engine
@@ -1053,7 +1055,17 @@ class ColonistFullGame {
         this.hideDevCardPicker();
       }
     });
+    // Bot speed: 0 (slow) … 100 (fast), right = faster; remembered between visits
+    try {
+      const saved = localStorage.getItem("colonist.botSpeed");
+      if (saved != null && Number.isFinite(Number(saved))) this.speedRange.value = String(Number(saved));
+    } catch (_) {}
+    this._syncSpeedLabel();
+    this.speedRange.addEventListener("change", () => {
+      try { localStorage.setItem("colonist.botSpeed", this.speedRange.value); } catch (_) {}
+    });
     this.speedRange.addEventListener("input", () => {
+      this._syncSpeedLabel();
       if (this.autoplayInterval) {
         this.stopAutoplay();
         this.startAutoplay();
@@ -5045,11 +5057,26 @@ class ColonistFullGame {
     this.render();
   }
 
+  /** Pause between bot steps in ms: the whole slider maps linearly from 2400 ms (Slow) to 350 ms (Fast). */
+  botStepMs() {
+    const min = Number(this.speedRange?.min ?? 0), max = Number(this.speedRange?.max ?? 100);
+    const v = Number(this.speedRange?.value);
+    const t = Number.isFinite(v) && max > min ? Math.min(1, Math.max(0, (v - min) / (max - min))) : 0.75;
+    return Math.round(2400 - t * (2400 - 350));
+  }
+
+  _syncSpeedLabel() {
+    if (!this.speedRange) return;
+    const ms = this.botStepMs();
+    const word = ms >= 1900 ? "Slow" : ms >= 1300 ? "Relaxed" : ms >= 750 ? "Normal" : "Fast";
+    this.speedRange.setAttribute("aria-valuetext", `${word} (${(ms / 1000).toFixed(1)} s per bot move)`);
+  }
+
   startAutoplay() {
     if (this.winner) return;
     this._releaseOnboarding();
     this.stopAiTurnLoop();
-    const delay = Number(this.speedRange.value);
+    const delay = Math.round(this.botStepMs() * 1.4);
     this.autoplayInterval = window.setInterval(this._guard(() => {
       this.autoPlayCurrentTurn();
       this.render();
@@ -5086,7 +5113,7 @@ class ColonistFullGame {
     if (this.currentPlayer.isHuman) return;
     if (this.aiTurnTimeout) return;
 
-    const cadence = Math.max(700, Math.min(2000, Math.round(Number(this.speedRange.value) * 0.7)));
+    const cadence = this.botStepMs();
     const step = this._guard(() => {
       this.aiTurnTimeout = null;
       if (this.winner || this.autoplayInterval || this.setupPhase || this.currentPlayer.isHuman || this._aiDiceAnimating) {
