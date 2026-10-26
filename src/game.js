@@ -13,7 +13,7 @@ const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore:
 // Glossary names (shared/glossary.md): cards are Lumber / Brick / Wool / Grain / Ore
 const RESOURCE_LABEL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
 const RESOURCE_ICON_PATH = {
-  wood: "./assets/icons/resource-wood-v2.svg",
+  wood: "./assets/icons/resource-wood-v3.svg",
   brick: "./assets/icons/resource-brick-v2.svg",
   sheep: "./assets/icons/resource-sheep-v2.svg",
   wheat: "./assets/icons/resource-wheat-v2.svg",
@@ -205,6 +205,9 @@ const RUSH_INTERVALS = [10, 15, 20, 30];
 const RUSH_DISCARD_SECONDS = 20;
 const RUSH_ROBBER_SECONDS = 30;
 const RUSH_OFFER_MS = 10000;    // a bot's offer to you stays up this long (Rush game clock)
+const UNDO_MS = 4000; // a placement can be taken back for this long (Confirm placements off)
+const ROBBER_SETTLE_MS = 2800; // one victim (or none): the robber move resolves by itself after this
+const SHORT_DEV = { knight: "Knight", roadBuilding: "Roads", yearOfPlenty: "Plenty", monopoly: "Monopoly" };
 const CLASSIC_OFFER_MS = 15000; // Classic: a bot's offer is declined automatically after this
 
 const FRIENDLY_ROBBER_VP = 2;
@@ -769,9 +772,11 @@ class ColonistFullGame {
     this._applyAllStrategies = true;
     // AI reasoning toggle
     this.aiReasoningToggle = document.querySelector("#aiReasoningToggle");
+    try { if (this.aiReasoningToggle) this.aiReasoningToggle.checked = localStorage.getItem("colonist.aiReasoning") === "on"; } catch (_) {}
     this.showAiReasoning = this.aiReasoningToggle?.checked || false;
     this.aiReasoningToggle?.addEventListener("change", () => {
       this.showAiReasoning = this.aiReasoningToggle.checked;
+      try { localStorage.setItem("colonist.aiReasoning", this.showAiReasoning ? "on" : "off"); } catch (_) {}
     });
 
     // Sound engine
@@ -804,6 +809,25 @@ class ColonistFullGame {
     }
     syncVolumeUi();
     this._rushTickSec = null;
+
+    // Settings › Game: "Confirm placements". Off (default): a tap on a legal spot places at once
+    // and a short Undo appears. On: a tap only selects, Place / ✓ confirms (the v0.68 flow).
+    this.confirmPlacements = false;
+    try { this.confirmPlacements = localStorage.getItem("colonist.confirmPlacements") === "on"; } catch (_) {}
+    this.confirmToggle = document.querySelector("#confirmPlacementsToggle");
+    if (this.confirmToggle) {
+      this.confirmToggle.checked = this.confirmPlacements;
+      this.confirmToggle.addEventListener("change", () => {
+        this.confirmPlacements = this.confirmToggle.checked;
+        try { localStorage.setItem("colonist.confirmPlacements", this.confirmPlacements ? "on" : "off"); } catch (_) {}
+        this._dropUndo();
+        this._cancelRobberTimer();
+        this.render();
+      });
+    }
+    this.undoState = null; // the last placement that can still be taken back (see undoLast)
+    this.trayMode = null;  // phones: "build" | "cards" while that tray replaces the dock buttons
+    this.devPick = null;   // Year of Plenty / Monopoly picks in the dock: { type, count, picks, limits }
 
     this.maxLogEntries = 260;
     this.maxToasts = 4;
@@ -1020,7 +1044,7 @@ class ColonistFullGame {
     this.buildRoadBtn.addEventListener("click", () => this.setPendingAction("road"));
     this.buildSettlementBtn.addEventListener("click", () => this.setPendingAction("settlement"));
     this.buildCityBtn.addEventListener("click", () => this.setPendingAction("city"));
-    this.buyDevBtn.addEventListener("click", () => this.handleHumanBuyDevCard());
+    this.buyDevBtn.addEventListener("click", () => { this._buyFrom = this.buyDevBtn; this.handleHumanBuyDevCard(); });
     this.playDevBtn?.addEventListener("click", (e) => {
       e.stopPropagation();
       this.toggleDevCardPicker();
@@ -1053,7 +1077,17 @@ class ColonistFullGame {
         this.hideDevCardPicker();
       }
     });
+    // Bot speed: 0 (slow) … 100 (fast), right = faster; remembered between visits
+    try {
+      const saved = localStorage.getItem("colonist.botSpeed");
+      if (saved != null && Number.isFinite(Number(saved))) this.speedRange.value = String(Number(saved));
+    } catch (_) {}
+    this._syncSpeedLabel();
+    this.speedRange.addEventListener("change", () => {
+      try { localStorage.setItem("colonist.botSpeed", this.speedRange.value); } catch (_) {}
+    });
     this.speedRange.addEventListener("input", () => {
+      this._syncSpeedLabel();
       if (this.autoplayInterval) {
         this.stopAutoplay();
         this.startAutoplay();
@@ -1128,6 +1162,11 @@ class ColonistFullGame {
     this.pendingIncomingTrade = null;
     if (this.incomingTradePanel) this.incomingTradePanel.style.display = "none";
     document.querySelectorAll(".dice-overlay, #resourcePickerOverlay").forEach((el) => el.remove());
+    this._dropUndo?.();
+    this._cancelRobberTimer?.();
+    this.devPick = null;
+    this.devPlayed = null;
+    this.trayMode = null;
     this._botTicks = new Map();
     if (this.rush) this.rush.offers = [];
     this._lastOffersKey = null;
@@ -1380,66 +1419,58 @@ class ColonistFullGame {
     const player = this.players[this.setupQueue[this.setupStep]];
     if (!player.isHuman) return;
 
-    // Check confirm icon tap first
+    // Confirm placements on: the ✓ / Place commits the selected spot
     if (this.confirmBuild && this.hitTestConfirmIcon(x, y)) {
       const cb = this.confirmBuild;
-      if (cb.type === "settlement" && this.setupAction === "settlement") {
-        this.placeSettlement(player, cb.id, true);
-        this.sfx.buildSettlement();
-        this.lastSetupNodeId = cb.id;
-        this.setupAction = "road";
-        this.confirmBuild = null;
-        this.addLog("Now place a road from your settlement.");
-        this.render();
-        return;
-      }
-      if (cb.type === "road" && this.setupAction === "road") {
-        this.placeRoad(player, cb.id, { free: true, setupNode: this.lastSetupNodeId });
-        this.sfx.buildRoad();
-        if (this.setupStep >= this.players.length) {
-          this.geometry.nodes[this.lastSetupNodeId].adjacentHexes.forEach((hexId) => {
-            const hex = this.geometry.hexes[hexId];
-            if (hex.resource !== "desert") this.takeFromBank(player, hex.resource, 1);
-          });
-        }
-        this.setupStep++;
-        this.setupAction = null;
-        this.lastSetupNodeId = null;
-        this.confirmBuild = null;
-        this.saveToStorage();
-        this.processSetupQueue();
-        return;
-      }
+      if (cb.type === this.setupAction) { this._commitSetup(player, cb); return; }
     }
 
+    let target = null;
     if (this.setupAction === "settlement") {
       const nodeId = this.findNodeAt(x, y, (id) => this.canBuildSettlement(player, id, true));
-      if (nodeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
-      if (!this.canBuildSettlement(player, nodeId, true)) {
-        this.confirmBuild = null;
-        this.addLog("Can't place there. Pick an empty intersection.");
-        this.drawCanvasScene();
-        return;
-      }
-      this.confirmBuild = { type: "settlement", id: nodeId };
-      this.drawCanvasScene();
+      if (nodeId != null) target = { type: "settlement", id: nodeId };
+    } else if (this.setupAction === "road") {
+      const edgeId = this.findEdgeAt(x, y, (id) => { const e = this.geometry.edges[id]; return e.owner == null && e.nodes.includes(this.lastSetupNodeId); });
+      if (edgeId != null) target = { type: "road", id: edgeId };
+    }
+    if (!target) { this.confirmBuild = null; this.drawCanvasScene(); return; }
+    // Default: a tap on a legal spot places it (the settlement can be taken back until the road is down)
+    if (!this.confirmPlacements) { this._commitSetup(player, target); return; }
+    this.confirmBuild = target;
+    this.drawCanvasScene();
+  }
+
+  /** Place a setup settlement or road. */
+  _commitSetup(player, cb) {
+    this.confirmBuild = null;
+    if (cb.type === "settlement" && this.setupAction === "settlement") {
+      if (!this.placeSettlement(player, cb.id, true)) return;
+      this.sfx.buildSettlement();
+      this.lastSetupNodeId = cb.id;
+      this.setupAction = "road";
+      const logLen = this.logEntries.length;
+      this.addLog("Now place a road from your settlement.");
+      // Undo stays offered until the road is placed (no time limit)
+      this._setUndo({ kind: "setup", id: cb.id, pid: player.id, icon: "settlement", label: "Settlement placed", noun: "", logLen }, 0);
+      this.render();
       return;
     }
-
-    if (this.setupAction === "road") {
-      const edgeId = this.findEdgeAt(x, y, (id) => { const e = this.geometry.edges[id]; return e.owner == null && e.nodes.includes(this.lastSetupNodeId); });
-      if (edgeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
-      const edge = this.geometry.edges[edgeId];
-      const adjacent = edge.nodes.includes(this.lastSetupNodeId);
-      if (!adjacent || edge.owner != null) {
-        this.confirmBuild = null;
-        this.addLog("Place a road adjacent to your settlement.");
-        this.drawCanvasScene();
-        return;
+    if (cb.type === "road" && this.setupAction === "road") {
+      if (!this.placeRoad(player, cb.id, { free: true, setupNode: this.lastSetupNodeId })) return;
+      this._dropUndo();
+      this.sfx.buildRoad();
+      if (this.setupStep >= this.players.length) {
+        this.geometry.nodes[this.lastSetupNodeId].adjacentHexes.forEach((hexId) => {
+          const hex = this.geometry.hexes[hexId];
+          if (hex.resource !== "desert") this.takeFromBank(player, hex.resource, 1);
+        });
       }
-      this.confirmBuild = { type: "road", id: edgeId };
-      this.drawCanvasScene();
-      return;
+      this.setupStep++;
+      this.setupAction = null;
+      this.lastSetupNodeId = null;
+      this.saveToStorage();
+      this.processSetupQueue();
+      this.render();
     }
   }
 
@@ -1509,6 +1540,9 @@ class ColonistFullGame {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
     if (this.phase !== "pre_roll" || this._robberInProgress()) return;
+    this._dropUndo();
+    this.devPlayed = null;
+    this.trayMode = null;
     if (this.rollDiceBtn) this.rollDiceBtn.disabled = true;
     this.animateDiceRoll(() => {
       this.executeRollPhase(player);
@@ -1566,14 +1600,16 @@ class ColonistFullGame {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
     if (this.phase !== "main" || this._robberInProgress()) return;
-    if (document.getElementById("resourcePickerOverlay")) return; // finish Year of Plenty / Monopoly first
+    if (this.devPick) return; // finish Year of Plenty / Monopoly first
+    this._dropUndo();
+    this.trayMode = null;
     this.hideTradePanel();
     this.endTurn();
     this.saveToStorage();
     this.scheduleAiTurnsUntilHuman();
   }
 
-  setPendingAction(action) {
+  setPendingAction(action, { keepTray = false } = {}) {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner || this.phase !== "main") return;
     if (this._robberInProgress()) return; // Cannot override robber placement / discard
@@ -1581,20 +1617,33 @@ class ColonistFullGame {
     if (action === "road" && !this.freeRoadsRemaining && !hasResources(player.resources, COSTS.road)) return;
     if (action === "settlement" && !hasResources(player.resources, COSTS.settlement)) return;
     if (action === "city" && !hasResources(player.resources, COSTS.city)) return;
+    if (this.freeRoadsRemaining > 0 && action !== "road") return; // Road Building: place the free roads first
+    this._dropUndo();
     this.pendingAction = this.pendingAction === action ? null : action;
     this.confirmBuild = null;
+    if (!keepTray && this.trayMode === "cards") this.trayMode = null;
     this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
     this.hideTradePanel();
+    this.sfx.click();
     this.render();
   }
 
   handleHumanBuyDevCard() {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner || this.phase !== "main" || this._robberInProgress()) return;
+    if (!hasResources(player.resources, COSTS.development) || !this.devDeck.length) {
+      this._flashPrompt(this.devDeck.length ? `A card costs ${resourceString(COSTS.development)} · you need ${missingCostString(player.resources, COSTS.development)}` : "The development deck is empty");
+      return;
+    }
+    this._dropUndo();
+    // one tap: no confirm (with "Confirm placements" on this is still one tap — buying is explicit)
     this.buyDevelopmentCard(player);
+    // leave a build mode the purchase made unaffordable
+    if (this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining && !this._canPlaceAnything(player)) { this.pendingAction = null; this.confirmBuild = null; }
+    if (this.trayMode === "build" && !["road", "settlement", "city", "development"].some((t) => hasResources(player.resources, COSTS[t]))) this.trayMode = null;
     this.recomputeScores();
-    this.checkForWinner(player);
-    this.render();
+    if (this.rush) this._rushAfterAction(player);
+    else { this.checkForWinner(player); this.saveToStorage(); this.render(); }
   }
 
   // Verb suffix for log grammar: "You discard" vs "Sage AI discards"
@@ -1604,7 +1653,7 @@ class ColonistFullGame {
 
   _hexLabel(hex) {
     if (hex.resource === "desert" || !hex.number) return "the Desert";
-    return `the ${TERRAIN_NAME[hex.resource]} hex (${hex.number})`;
+    return `${TERRAIN_NAME[hex.resource]} ${hex.number}`;
   }
 
   _robberInProgress() {
@@ -1615,8 +1664,22 @@ class ColonistFullGame {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
     if (!this.canPlayDevelopmentCard(player, type)) return; // checks phase (Knight may be played before rolling)
+    if (this.devPick) return;
     this.hideDevCardPicker();
+    this._dropUndo();
+    this.trayMode = null;
+    this._trayFocus = null;
+    if (this.pendingAction && this.pendingAction !== "robber") { this.pendingAction = null; this.confirmBuild = null; }
+    // a card played by mistake can be taken back until it does something (see _cancelDevPlay)
+    const logLen = this.logEntries.length;
+    const d = { type, pid: player.id, la: this.largestArmyHolder };
     const played = this.playDevelopmentCard(player, type);
+    if (played) {
+      d.logs = this.logEntries.slice(logLen);
+      d.free = this.freeRoadsRemaining;
+      this.devPlayed = this.devPick || this.pendingAction === "robber" || this.freeRoadsRemaining ? d : null;
+    }
+    this.sfx.click();
     if (played) {
       this.recomputeScores();
       this.checkForWinner(player);
@@ -1625,6 +1688,11 @@ class ColonistFullGame {
   }
 
   toggleDevCardPicker() {
+    // Cards live in the dock tray now (phones and desktop): one tap on a card plays it
+    this.openCardsTray();
+  }
+
+  _legacyDevCardPicker() {
     if (!this.devCardPicker) return;
     if (this.devCardPicker.style.display === "none") {
       this.toggleBuildSheet?.(false);
@@ -1698,6 +1766,9 @@ class ColonistFullGame {
       this._tradeHint(`✓ ${msg}`, "ok");
       this._animateTradeCards(giveRes, getRes, src ? { getBoundingClientRect: () => src } : null);
       this.sfx.trade();
+      this._dropUndo();
+      // Done unless another bank trade is possible ("trade again" stays open)
+      if (!RESOURCES.some((r) => player.resources[r] >= this.getPlayerTradeRate(player, r))) this.closeTradeModal();
     } else {
       if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = '<span class="no">That trade is not possible right now.</span>';
       this.sfx.error();
@@ -1724,8 +1795,9 @@ class ColonistFullGame {
     const x = world.x;
     const y = world.y;
 
-    // Robber placement mode: the first tap only selects a tile (ghost robber + "Robber on … · steal
-    // from …" in the confirm pill); Place / the ✓ commits it.
+    // Robber: a tap picks the tile. One victim (or none): it resolves by itself after a short
+    // moment with Undo / Now in the dock; several: tap a portrait in the dock. With "Confirm
+    // placements" on, the dock's Place button (or a second tap on the tile) commits.
     if (robberMode) {
       const cb = this.confirmBuild?.type === "robber" ? this.confirmBuild : null;
       if (cb && !this.isMobileLayout && this.hitTestConfirmIcon(x, y)) {
@@ -1735,166 +1807,156 @@ class ColonistFullGame {
       const hexId = this.findHexAt(x, y);
       if (hexId == null) return;
       if (!this._robberHexAllowed(hexId, player)) {
-        this.confirmBuild = null;
-        this.addLog(hexId === this.robberHexId
-          ? "Cannot place robber on the same hex."
-          : "Friendly robber: that hex touches a player with 2 or fewer points.");
-        this.render();
+        this._flashPrompt(this._robberBlockedReason(hexId, player));
+        this.sfx.error?.();
         return;
       }
-      // Victim chosen right in the robber sheet; the leader (most points, then most cards) is preselected
-      this.confirmBuild = { type: "robber", id: hexId, victim: this._defaultRobberVictim(hexId, player) };
+      const victims = this._stealVictims(hexId, player);
+      if (cb && cb.id === hexId && (this.confirmPlacements || victims.length <= 1)) {
+        // second tap on the chosen tile = go
+        this._commitRobber(player, cb.id, cb.victim ?? this._defaultRobberVictim(hexId, player));
+        return;
+      }
+      this.confirmBuild = { type: "robber", id: hexId,
+        victim: victims.length === 1 ? victims[0] : this.confirmPlacements ? this._defaultRobberVictim(hexId, player) : null };
+      if (!this.confirmPlacements && victims.length <= 1) this._startRobberTimer();
+      else this._cancelRobberTimer();
       this.sfx.click();
       this.render();
       return;
     }
 
     if (!this.pendingAction) {
-      // Auto-detect: click a buildable spot to start building
-      const nodeId = this.findNodeAt(x, y);
-      if (nodeId != null) {
-        const node = this.geometry.nodes[nodeId];
-        // City upgrade
-        if (this.canBuildCity(player, nodeId, false)) {
-          this.pendingAction = "city";
-          this.confirmBuild = { type: "city", id: nodeId };
-          this.canvas.style.cursor = "crosshair";
-          this.sfx.click();
-          this.render();
-          return;
-        }
-        // Settlement
-        if (this.canBuildSettlement(player, nodeId, false) && hasResources(player.resources, COSTS.settlement)) {
-          this.pendingAction = "settlement";
-          this.confirmBuild = { type: "settlement", id: nodeId };
-          this.canvas.style.cursor = "crosshair";
-          this.sfx.click();
-          this.render();
-          return;
-        }
-      }
-      const edgeId = this.findEdgeAt(x, y);
-      if (edgeId != null && (this.freeRoadsRemaining > 0 || hasResources(player.resources, COSTS.road))) {
-        if (this.canBuildRoad(player, edgeId, { free: this.freeRoadsRemaining > 0 })) {
-          this.pendingAction = "road";
-          this.confirmBuild = { type: "road", id: edgeId };
-          this.canvas.style.cursor = "crosshair";
-          this.sfx.click();
-          this.render();
-          return;
-        }
-      }
+      // No build mode: a tap on a spot you could build selects it (Place / ✓ confirms) —
+      // a stray tap while looking around never spends cards.
+      const target = this._autoDetectTarget(player, x, y);
+      if (!target) return;
+      this.pendingAction = target.type;
+      this.confirmBuild = target;
+      this.canvas.style.cursor = "crosshair";
+      this.sfx.click();
+      this.render();
       return;
     }
 
-    // Check if tapping the confirm icon (green checkmark above selected spot)
+    // The ✓ above a selected spot (desktop) / Place (phones) commits it
     if (this.confirmBuild && this.hitTestConfirmIcon(x, y)) {
-      const cb = this.confirmBuild;
-      let built = false;
-      if (cb.type === "road") {
-        const isFreeRoad = this.freeRoadsRemaining > 0;
-        if (this.placeRoad(player, cb.id, { free: isFreeRoad })) {
-          if (!isFreeRoad) this.payToBank(player, COSTS.road);
-          else {
-            this.freeRoadsRemaining -= 1;
-            // No pieces or legal spots left — forfeit the remaining free road
-            if (this.freeRoadsRemaining > 0 && !this._hasLegalRoad(player, true)) this.freeRoadsRemaining = 0;
-            this.addLog(`${player.name} placed a free road (${this.freeRoadsRemaining} remaining).`);
-          }
-          if (!isFreeRoad) this.addLog(`${player.name} built a road.`);
-          this.sfx.buildRoad();
-          built = true;
-        }
-      } else if (cb.type === "settlement") {
-        if (this.placeSettlement(player, cb.id, false)) {
-          this.payToBank(player, COSTS.settlement);
-          this.addLog(`${player.name} built a settlement.`);
-          this.sfx.buildSettlement();
-          built = true;
-        }
-      } else if (cb.type === "city") {
-        if (this.placeCity(player, cb.id, false)) {
-          this.payToBank(player, COSTS.city);
-          this.addLog(`${player.name} upgraded to a city.`);
-          this.sfx.buildCity();
-          built = true;
-        }
-      }
-      if (!built && this.rush) {
-        // Rush: someone else built there first
-        this.addLog("Too slow — that spot was just taken.");
-        this.sfx.error();
-        this.confirmBuild = null;
-        this.render();
-        return;
-      }
-      if (built) {
-        // Trigger placement animation
-        const animPos = this.getBuildPosition(cb);
-        if (animPos) this.placementAnims.push({ ...animPos, type: cb.type, startTime: Date.now() });
-        // Stay in road mode if free roads remain from Road Building card
-        if (this.freeRoadsRemaining > 0) {
-          this.pendingAction = "road";
-          this.confirmBuild = null;
-          this.recomputeScores();
-          this.render();
-          return;
-        }
-        this.pendingAction = null;
-        this.confirmBuild = null;
-        if (this.rush) {
-          this._rushAfterAction(player);
-          return;
-        }
-        this.recomputeScores();
-        this.checkForWinner(player);
-        this.render();
-        return;
-      }
-    }
-
-    // First tap: select a build spot (show confirm icon)
-    if (this.pendingAction === "road") {
-      const isFreeRoad = this.freeRoadsRemaining > 0;
-      const edgeId = this.hoverEdgeId ?? this.findEdgeAt(x, y, (id) => this.canBuildRoad(player, id, { free: isFreeRoad }));
-      if (edgeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
-      if (this.canBuildRoad(player, edgeId, { free: isFreeRoad })) {
-        this.confirmBuild = { type: "road", id: edgeId };
-      } else {
-        this.confirmBuild = null;
-      }
-      this.drawCanvasScene();
-      return;
-    } else {
-      const legal = this.pendingAction === "city" ? (id) => this.canBuildCity(player, id, false) : (id) => this.canBuildSettlement(player, id, false);
-      const nodeId = this.hoverNodeId ?? this.findNodeAt(x, y, legal);
-      if (nodeId == null) { this.confirmBuild = null; this.drawCanvasScene(); return; }
-      if (this.pendingAction === "settlement") {
-        if (this.canBuildSettlement(player, nodeId, false)) {
-          this.confirmBuild = { type: "settlement", id: nodeId };
-        } else {
-          this.confirmBuild = null;
-        }
-      } else if (this.pendingAction === "city") {
-        if (this.canBuildCity(player, nodeId, false)) {
-          this.confirmBuild = { type: "city", id: nodeId };
-        } else {
-          this.confirmBuild = null;
-        }
-      }
-      this.drawCanvasScene();
+      this._commitBuild(player, this.confirmBuild);
       return;
     }
 
-    this.recomputeScores();
-    this.checkForWinner(player);
+    // Build mode: the legal spot under the finger
+    const target = this._buildTargetAt(player, x, y);
+    if (!target) { this.confirmBuild = null; this.render(); return; }
+    const same = this.confirmBuild && this.confirmBuild.type === target.type && this.confirmBuild.id === target.id;
+    if (!this.confirmPlacements || same) { this._commitBuild(player, target); return; }
+    this.confirmBuild = target;
+    this.sfx.click();
     this.render();
+  }
+
+  /** Mode-less tap: a city upgrade, a settlement spot or a road you can afford right now. */
+  _autoDetectTarget(player, x, y) {
+    // same picking as build mode: a tap near a corner means the corner, mid-edge means the road
+    return this._buildTargetAt(player, x, y, this.freeRoadsRemaining > 0 ? "road" : "build");
+  }
+
+  /** In build mode ("build" = every piece you can afford): the nearest legal spot to the tap. */
+  _buildTargetAt(player, x, y, pa = this.pendingAction) {
+    const free = this.freeRoadsRemaining > 0;
+    const all = pa === "build";
+    const wantRoad = pa === "road" || (all && !free);
+    const wantSet = pa === "settlement" || (all && !free);
+    const wantCity = pa === "city" || (all && !free);
+    let node = null, edge = null;
+    if (wantSet || wantCity) node = this.findNodeAt(x, y, (id) => (wantCity && this.canBuildCity(player, id, false)) || (wantSet && this.canBuildSettlement(player, id, false)));
+    if (wantRoad) edge = this.findEdgeAt(x, y, (id) => this.canBuildRoad(player, id, { free }));
+    if (node != null && edge != null) {
+      // both in reach: the one closer relative to its own hit radius wins
+      const n = this.geometry.nodes[node];
+      const [a, b] = this.geometry.edges[edge].nodes.map((id) => this.geometry.nodes[id]);
+      const nr = Math.max(22 / (this.view.scale || 1), this.geometry.hexSize * 0.28);
+      const er = Math.max(16 / (this.view.scale || 1), this.geometry.hexSize * 0.18);
+      // measure the road by its middle half: a tap near a corner means the corner
+      const t = 0.25, ax = a.x + (b.x - a.x) * t, ay = a.y + (b.y - a.y) * t, bx = b.x - (b.x - a.x) * t, by = b.y - (b.y - a.y) * t;
+      if (distancePointToSegment(x, y, ax, ay, bx, by) / er < Math.hypot(x - n.x, y - n.y) / nr) node = null;
+      else edge = null;
+    }
+    if (node != null) return { type: this.canBuildCity(player, node, false) && wantCity ? "city" : "settlement", id: node };
+    if (edge != null) return { type: "road", id: edge };
+    return null;
+  }
+
+  /** Build the piece (pay, place, score). Offers Undo for a few seconds unless the game just ended. */
+  _commitBuild(player, cb) {
+    const before = { pa: this.pendingAction, tray: this.trayMode, free: this.freeRoadsRemaining,
+      lr: this.longestRoadHolder, la: this.largestArmyHolder, logLen: this.logEntries.length };
+    this._dropUndo();
+    let built = false;
+    let paid = null;
+    if (cb.type === "road") {
+      const isFreeRoad = this.freeRoadsRemaining > 0;
+      if (this.placeRoad(player, cb.id, { free: isFreeRoad })) {
+        if (!isFreeRoad) { this.payToBank(player, COSTS.road); paid = COSTS.road; }
+        else {
+          this.freeRoadsRemaining -= 1;
+          // No pieces or legal spots left — forfeit the remaining free road
+          if (this.freeRoadsRemaining > 0 && !this._hasLegalRoad(player, true)) this.freeRoadsRemaining = 0;
+          this.addLog(`${player.name} placed a free road (${this.freeRoadsRemaining} remaining).`);
+        }
+        if (!isFreeRoad) this.addLog(`${player.name} built a road.`);
+        this.sfx.buildRoad();
+        built = true;
+      }
+    } else if (cb.type === "settlement") {
+      if (this.placeSettlement(player, cb.id, false)) {
+        this.payToBank(player, COSTS.settlement); paid = COSTS.settlement;
+        this.addLog(`${player.name} built a settlement.`);
+        this.sfx.buildSettlement();
+        built = true;
+      }
+    } else if (cb.type === "city") {
+      if (this.placeCity(player, cb.id, false)) {
+        this.payToBank(player, COSTS.city); paid = COSTS.city;
+        this.addLog(`${player.name} upgraded to a city.`);
+        this.sfx.buildCity();
+        built = true;
+      }
+    }
+    this.confirmBuild = null;
+    if (!built) {
+      if (this.rush) { this.addLog("Too slow — that spot was just taken."); this.sfx.error(); }
+      this.render();
+      return false;
+    }
+    const animPos = this.getBuildPosition(cb);
+    if (animPos) this.placementAnims.push({ ...animPos, type: cb.type, startTime: Date.now() });
+    // Road Building: stay in road mode while free roads remain; otherwise leave build mode
+    if (this.freeRoadsRemaining > 0) this.pendingAction = "road";
+    else { this.pendingAction = null; this.canvas.style.cursor = "grab"; }
+    this.trayMode = null;
+    if (this.devPlayed?.type === "roadBuilding") this.devPlayed = null; // the card took effect
+    const undo = { kind: "build", type: cb.type, id: cb.id, pid: player.id, paid, ...before,
+      icon: cb.type, noun: cb.type === "settlement" ? "" : cb.type, label: { road: before.free ? "Free road placed" : "Road built", settlement: "Settlement built", city: "City built" }[cb.type] };
+    if (this.rush) {
+      this._rushAfterAction(player);
+    } else {
+      this.recomputeScores();
+      this.checkForWinner(player);
+      this.saveToStorage();
+      this.render();
+    }
+    undo.logs = this.logEntries.slice(before.logLen);
+    if (!this.winner && !this.confirmPlacements) this._setUndo(undo);
+    return true;
   }
 
   /** Move the robber to a chosen (legal) tile and steal — the confirm step of robber mode. */
   _commitRobber(player, hexId, chosenVictim = null) {
     if (this.pendingAction !== "robber" || !this._robberHexAllowed(hexId, player)) return;
+    this._cancelRobberTimer();
     this.confirmBuild = null;
+    this.devPlayed = null; // a Knight can no longer be taken back
     this.robberHexId = hexId;
     const hex = this.geometry.hexes[hexId];
     this.addLog(`${player.name} moved robber to ${this._hexLabel(hex)}.`);
@@ -2187,7 +2249,10 @@ class ColonistFullGame {
     if (Math.hypot(vx, vy) < 0.25 || motionReduced()) { this._setViewMoving(false); return; }
     let last = performance.now();
     const step = (now) => {
-      const dt = Math.max(0, Math.min(40, now - last));
+      // A frame's timestamp can precede the touchend's performance.now(): skip such frames instead
+      // of reading "no movement" as having hit an edge (which used to kill the glide at random).
+      const dt = Math.min(40, now - last);
+      if (dt <= 0) { this._viewAnim = requestAnimationFrame(step); return; }
       last = now;
       const bx = this.view.offsetX, by = this.view.offsetY;
       this.view.offsetX += vx * dt;
@@ -2282,11 +2347,33 @@ class ColonistFullGame {
     ) {
       return;
     }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && this.undoState) {
+      this.undoLast();
+      event.preventDefault();
+      return;
+    }
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     const key = event.key.toLowerCase();
+    if (key === "enter" && this.confirmBuild && this.currentPlayer?.isHuman) {
+      // Enter confirms the selected spot / robber tile (Confirm placements on)
+      this._confirmViaIcon();
+      event.preventDefault();
+      return;
+    }
+    if (key === "u" && this.undoState) {
+      this.undoLast();
+      event.preventDefault();
+      return;
+    }
 
     if (key === "escape") {
-      if (this.confirmBuild) {
+      if (this.devPlayed && this._cancelDevPlay()) return;
+      if (this.trayMode) this.closeTray();
+      if (this.confirmBuild?.type === "robber") {
+        this._cancelRobberTimer();
+        this.confirmBuild = null;
+        this.render();
+      } else if (this.confirmBuild) {
         this.confirmBuild = null;
         this.drawCanvasScene();
       } else if (this.pendingAction && this.pendingAction !== "robber") {
@@ -2416,6 +2503,13 @@ class ColonistFullGame {
       return;
     }
 
+    if (humanMain && this.pendingAction === "build") {
+      const t = this._buildTargetAt(player, worldX, worldY);
+      if (t?.type === "road") this.hoverEdgeId = t.id;
+      else if (t) this.hoverNodeId = t.id;
+      this.canvas.style.cursor = t ? "pointer" : "crosshair";
+      return;
+    }
     if (humanMain && this.pendingAction === "road") {
       const edgeId = this.findEdgeAt(worldX, worldY, (id) => this.canBuildRoad(player, id, { free: this.freeRoadsRemaining > 0 }));
       if (edgeId != null) {
@@ -2882,6 +2976,11 @@ class ColonistFullGame {
   }
 
   showVictimPanel(currentPlayer, victimIds) {
+    // The choice is made in the dock tray (portraits); robberVictimOptions drives it
+    this.render();
+  }
+
+  _legacyVictimPanel(currentPlayer, victimIds) {
     if (!this.victimPanel || !this.victimOptionsEl) return;
     this.victimOptionsEl.innerHTML = "";
     victimIds.forEach((vid) => {
@@ -3338,6 +3437,14 @@ class ColonistFullGame {
       if (b.dataset.counter) execute(partner, counter.want, counter.give);
       else execute(partner, offer, request);
     }));
+    // Exactly one bot says yes: the trade you asked for happens right away (nothing left to choose)
+    if (acceptors.length === 1) {
+      this._dropUndo();
+      execute(acceptors[0], offer, request);
+      if (!this.tradeLocked) this.closeTradeModal();
+      this.render();
+      return;
+    }
     this.updateTradeButtons();
     // the answers sit under the rows: bring them into view
     window.requestAnimationFrame(() => res.scrollIntoView?.({ block: "end", behavior: motionReduced() ? "auto" : "smooth" }));
@@ -3649,7 +3756,9 @@ class ColonistFullGame {
       return false;
     }
     if (!hasResources(player.resources, COSTS.development)) {
-      this.addLog(`${player.name} cannot afford a development card.`);
+      // Bots probe this every turn: keep it out of the player-visible ticker/journal
+      if (player.isHuman) this.addLog(`${player.name} cannot afford a development card.`);
+      else this._aiLog(player, "Cannot afford a development card.");
       return false;
     }
     this.payToBank(player, COSTS.development);
@@ -3658,7 +3767,7 @@ class ColonistFullGame {
       player.devVictoryPoints += 1;
       if (player.isHuman) {
         this.addLog(`You drew a Victory Point card (kept secret).`);
-        this._showDevCardPopup("Victory Point", "Counts as 1 VP at game end");
+        this._devDrawn("victoryPoint");
       } else {
         this.addLog(`${player.name} bought a development card.`);
       }
@@ -3667,7 +3776,7 @@ class ColonistFullGame {
       const cardLabels = { knight: "Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly" };
       if (player.isHuman) {
         this.addLog(`You drew: ${cardLabels[card]}!`);
-        this._showDevCardPopup(cardLabels[card], this._getDevCardDescription(card));
+        this._devDrawn(card);
       } else {
         this.addLog(`${player.name} bought a development card.`);
       }
@@ -3684,6 +3793,18 @@ class ColonistFullGame {
       monopoly: "Take all of 1 resource type from all players",
     };
     return descriptions[card] || "";
+  }
+
+  /** A bought card flies from the Buy button into your hand; the ticker names it. Nothing else. */
+  _devDrawn(type) {
+    const from = this._buyFrom && this._buyFrom.isConnected ? this._buyFrom.getBoundingClientRect() : null;
+    this._buyFrom = null;
+    this._newDevPulse = type;
+    const fresh = this.isRush() ? "playable after the next roll" : "play it next turn";
+    this._flashPrompt(type === "victoryPoint" ? "You drew a Victory Point (secret, counts at once)" : `You drew ${DEV_NAME[type]} · ${fresh}`, 3200);
+    window.clearTimeout(this._newDevTimer);
+    this._newDevTimer = window.setTimeout(() => { this._newDevPulse = null; this.renderResourceCards(); }, 1800);
+    window.requestAnimationFrame(() => this.fx?.devToHand?.(type, from));
   }
 
   _showDevCardPopup(title, description) {
@@ -3709,7 +3830,7 @@ class ColonistFullGame {
     // Knight may be played before rolling; the other cards only after
     if (this.phase !== "main" && !(type === "knight" && this.phase === "pre_roll")) return false;
     // Not while a robber move, discard, steal choice, trade prompt or free-road placement is pending
-    if (this._robberInProgress() || this.pendingIncomingTrade || this.freeRoadsRemaining > 0) return false;
+    if (this._robberInProgress() || this.pendingIncomingTrade || this.freeRoadsRemaining > 0 || this.devPick) return false;
     if (type === "yearOfPlenty" && sumResources(this.bank) === 0) return false;
     if (type === "roadBuilding" && !this._hasLegalRoad(player, true)) return false;
     return true;
@@ -3744,37 +3865,19 @@ class ColonistFullGame {
       this.addLog(`${player.name} played Road Building and placed ${built} road(s).`);
     } else if (type === "yearOfPlenty") {
       if (this._isInteractive(player)) {
-        // Can only take what the bank actually has
+        // Can only take what the bank actually has: pick in the dock (no popup)
         const count = Math.min(2, sumResources(this.bank));
-        this._showResourcePicker(`Year of Plenty — pick ${count} resource${count > 1 ? "s" : ""}`, count, this._guard((picks) => {
-          const gained = picks.filter((resource) => this.takeFromBank(player, resource, 1) > 0);
-          this.addLog(`${player.name} played Year of Plenty and took ${gained.map((r) => `1 ${RESOURCE_LABEL[r]}`).join(" + ")}.`);
-          this.recomputeScores();
-          this.checkForWinner(player);
-          this.render();
-        }), this.bank);
+        this.devPick = { type: "yearOfPlenty", count, picks: [] };
+        this.render();
         return true;
       }
       const picks = this.chooseYearOfPlentyResources(player);
       const gained = picks.filter((resource) => this.takeFromBank(player, resource, 1) > 0);
-      this.addLog(`${player.name} played Year of Plenty and took ${gained.map((r) => `1 ${RESOURCE_LABEL[r]}`).join(" + ")}.`);
+      this.addLog(`${player.name} played Year of Plenty: ${this._plusList(gained)}.`);
     } else if (type === "monopoly") {
       if (this._isInteractive(player)) {
-        this._showResourcePicker("Monopoly — pick 1 resource to steal", 1, this._guard((picks) => {
-          const target = picks[0];
-          let collected = 0;
-          this.players.forEach((other) => {
-            if (other.id === player.id) return;
-            collected += other.resources[target];
-            other.resources[target] = 0;
-          });
-          player.resources[target] += collected;
-          this._aiTrkMonopoly(player, target, collected);
-          this.addLog(`${player.name} played Monopoly on ${RESOURCE_LABEL[target]} and collected ${collected}.`);
-          this.recomputeScores();
-          this.checkForWinner(player);
-          this.render();
-        }));
+        this.devPick = { type: "monopoly", count: 1, picks: [] };
+        this.render();
         return true;
       }
       const target = this.chooseBestMonopolyResource(player);
@@ -3786,7 +3889,7 @@ class ColonistFullGame {
       });
       player.resources[target] += collected;
       this._aiTrkMonopoly(player, target, collected);
-      this.addLog(`${player.name} played Monopoly on ${RESOURCE_LABEL[target]} and collected ${collected}.`);
+      this.addLog(`${player.name} played Monopoly: +${collected} ${RESOURCE_LABEL[target]}.`);
     }
 
     this.recomputeScores();
@@ -5014,6 +5117,9 @@ class ColonistFullGame {
 
     this.pendingAction = null;
     this.confirmBuild = null;
+    this._dropUndo();
+    this.devPlayed = null;
+    this.trayMode = null;
     this.currentTurnPlayedDevCard = false;
     this.freeRoadsRemaining = 0;
     this.lastRoll = null;
@@ -5043,11 +5149,31 @@ class ColonistFullGame {
     this.render();
   }
 
+  /**
+   * Pause between bot moves in ms. The whole slider maps linearly, right = faster:
+   * bot turns 2300 ms (Slow) … 280 ms (Fast); "Watch bots play" turns 3000 … 500 ms.
+   * The default (72) keeps the old pace: ~850 ms per bot move, 1200 ms per watched turn.
+   */
+  botStepMs(kind = "bot") {
+    const min = Number(this.speedRange?.min ?? 0), max = Number(this.speedRange?.max ?? 100);
+    const v = Number(this.speedRange?.value);
+    const t = Number.isFinite(v) && max > min ? Math.min(1, Math.max(0, (v - min) / (max - min))) : 0.72;
+    const [slow, fast] = kind === "autoplay" ? [3000, 500] : [2300, 280];
+    return Math.round(slow - t * (slow - fast));
+  }
+
+  _syncSpeedLabel() {
+    if (!this.speedRange) return;
+    const ms = this.botStepMs();
+    const word = ms >= 1900 ? "Slow" : ms >= 1300 ? "Relaxed" : ms >= 750 ? "Normal" : "Fast";
+    this.speedRange.setAttribute("aria-valuetext", `${word} (${(ms / 1000).toFixed(1)} s per bot move)`);
+  }
+
   startAutoplay() {
     if (this.winner) return;
     this._releaseOnboarding();
     this.stopAiTurnLoop();
-    const delay = Number(this.speedRange.value);
+    const delay = this.botStepMs("autoplay");
     this.autoplayInterval = window.setInterval(this._guard(() => {
       this.autoPlayCurrentTurn();
       this.render();
@@ -5084,7 +5210,7 @@ class ColonistFullGame {
     if (this.currentPlayer.isHuman) return;
     if (this.aiTurnTimeout) return;
 
-    const cadence = Math.max(700, Math.min(2000, Math.round(Number(this.speedRange.value) * 0.7)));
+    const cadence = this.botStepMs();
     const step = this._guard(() => {
       this.aiTurnTimeout = null;
       if (this.winner || this.autoplayInterval || this.setupPhase || this.currentPlayer.isHuman || this._aiDiceAnimating) {
@@ -5250,7 +5376,10 @@ class ColonistFullGame {
     const human = this.players.find((p) => p.isHuman);
     // Drop half-finished human build selections; finish a robber move left from a Knight
     if (this.pendingAction && this.pendingAction !== "robber") this.pendingAction = null;
-    this.confirmBuild = null;
+    if (this.confirmBuild?.type !== "robber") this.confirmBuild = null;
+    this._dropUndo();
+    this.trayMode = null;
+    if (this.devPlayed?.type === "roadBuilding") this.devPlayed = null;
     this.canvas.style.cursor = "grab";
     this.hideTradePanel();
     this.hideDevCardPicker();
@@ -5345,6 +5474,11 @@ class ColonistFullGame {
 
   // Complete a human robber move (placement and/or victim choice) automatically.
   _rushAutoFinishHumanRobber(human) {
+    // a tile is already chosen: finish that move
+    const cb = this.confirmBuild?.type === "robber" ? this.confirmBuild : null;
+    if (cb && this.pendingAction === "robber" && this._robberHexAllowed(cb.id, human)) {
+      this._commitRobber(human, cb.id, cb.victim ?? this._defaultRobberVictim(cb.id, human));
+    }
     if (this.confirmBuild?.type === "robber") this.confirmBuild = null;
     if (this.robberVictimOptions?.length) {
       const victim = this.robberVictimOptions[0];
@@ -5414,8 +5548,9 @@ class ColonistFullGame {
 
   // After any Rush action: scores, contested spots, win check for everyone, save and redraw.
   _rushAfterAction(actor = null) {
-    this.recomputeScores();
     const human = this.players.find((p) => p.isHuman);
+    if (actor !== human) this._dropUndo(); // a roll or a bot move may build on what Undo would take back
+    this.recomputeScores();
     if (this.confirmBuild && human && !this._confirmBuildStillValid(human)) {
       this.confirmBuild = null;
       this.addLog("That spot was just taken.");
@@ -5441,7 +5576,7 @@ class ColonistFullGame {
     if (this.winner || this.setupPhase || !this.rush || this.rush.paused || this.phase !== "main") return false;
     if (player.rushDevPlayed || !(player.devCards[type] > 0)) return false;
     if (this._isInteractive(player)
-      && (this._robberInProgress() || this.freeRoadsRemaining > 0 || document.getElementById("resourcePickerOverlay"))) return false;
+      && (this._robberInProgress() || this.freeRoadsRemaining > 0 || this.devPick)) return false;
     if (type === "yearOfPlenty" && sumResources(this.bank) === 0) return false;
     if (type === "roadBuilding" && !this._hasLegalRoad(player, true)) return false;
     return true;
@@ -5689,6 +5824,7 @@ class ColonistFullGame {
     const mover = this.players[seven.moverId];
     const humanPlacing = seven.stage === "robber" && this._isInteractive(mover);
     panel.classList.toggle("robber-placing", humanPlacing);
+    panel.classList.add("compact"); // a calm top banner: discards happen in the hand, the robber on the board
     const secs = Number.isFinite(seven.leftMs) ? Math.max(0, Math.ceil(seven.leftMs / 1000)) : null;
     const frozen = panel.querySelector(".rush-seven-frozen");
     if (frozen) frozen.textContent = `timer frozen at ${this.settings.rushInterval}s`;
@@ -5748,13 +5884,20 @@ class ColonistFullGame {
           const persona = p.personality ? AI_PRESET_INFO[p.personality]?.label : "";
           return `<div class="r${p === winner ? " win" : ""}"><span class="pl">${k + 1}</span>${this._av(p)}<span class="nmc"><span class="pname">${p.name}</span>${persona ? `<small>${persona}</small>` : ""}</span><span class="s">${p.victoryPoints}</span></div>`;
         }).join("")}</div>
-        <div class="btnrow"><button type="button" class="btn" data-see>${icon("fit")}See board</button><button type="button" class="btn primary game-over-btn" id="newGameBtn">${icon("dice")}Play again</button></div>
+        <button type="button" class="btn primary game-over-btn rematch-btn" id="newGameBtn" data-rematch>${icon("dice")}Rematch<small>same settings</small></button>
+        <div class="btnrow"><button type="button" class="btn" data-see>${icon("fit")}See board</button><button type="button" class="btn" data-change>${icon("settings")}Change settings</button></div>
       </div>`;
     const host = this.isMobileLayout ? this.app : document.querySelector(".board-panel");
     (host || document.body).appendChild(overlay);
     this.fx?.pop(overlay.querySelector(".over-panel"));
     if (winner.isHuman) this.fx?.confetti(overlay.querySelector(".confetti-box"));
-    overlay.querySelector("#newGameBtn").addEventListener("click", () => {
+    // Rematch: one tap, same settings (a fresh board); Change settings opens the New game screen
+    overlay.querySelector("[data-rematch]").addEventListener("click", () => {
+      overlay.remove();
+      this.stopAutoplay();
+      this.startNewGame({ ...this.settings });
+    });
+    overlay.querySelector("[data-change]").addEventListener("click", () => {
       overlay.remove();
       this.stopAutoplay();
       this._showDifficultyModal();
@@ -5830,10 +5973,23 @@ class ColonistFullGame {
   }
 
   saveToStorage() {
+    if (this._saveTimer) { window.clearTimeout(this._saveTimer); this._saveTimer = null; }
+    if (!this.geometry || !this.players?.length || this.onboardingHold) return;
     try {
-      const data = this.serializeState();
-      localStorage.setItem(ColonistFullGame.STORAGE_KEY, JSON.stringify(data));
+      const json = JSON.stringify(this.serializeState());
+      if (json === this._lastSavedJson) return;
+      localStorage.setItem(ColonistFullGame.STORAGE_KEY, json);
+      this._lastSavedJson = json;
     } catch (_) { /* quota exceeded or private mode — ignore */ }
+  }
+
+  // Every state change ends in render(), so render() queues a save: builds, bank and player
+  // trades, accepted offers and dev-card buys/plays survive a reload (no "undo by reloading").
+  // Coalesced (at most one write per 250 ms, never postponed by further renders); identical states
+  // are not rewritten; pagehide / going to the background flush it immediately.
+  _queueSave() {
+    if (this._saveTimer) return;
+    this._saveTimer = window.setTimeout(() => { this._saveTimer = null; this.saveToStorage(); }, 250);
   }
 
   // Strategy persistence — survives game resets
@@ -5860,6 +6016,8 @@ class ColonistFullGame {
   }
 
   clearStorage() {
+    if (this._saveTimer) { window.clearTimeout(this._saveTimer); this._saveTimer = null; }
+    this._lastSavedJson = null;
     try { localStorage.removeItem(ColonistFullGame.STORAGE_KEY); } catch (_) {}
   }
 
@@ -6459,9 +6617,21 @@ class ColonistFullGame {
       const ny = dy / len;
 
       const dockDist = 30 * s;
-      const dockX = mx + nx * dockDist;
-      const dockY = my + ny * dockDist;
+      let dockX = mx + nx * dockDist;
+      let dockY = my + ny * dockDist;
       const color = portColor[port.type] || portColor.any;
+
+      // Label size first: on a phone the outer labels ("2:1 Lumber") can stick out past the screen
+      // edge, so the label (and its ropes) shift inward until the whole box is visible.
+      const label = port.type === "any" ? "3:1" : `2:1 ${RESOURCE_LABEL[port.type]}`;
+      const portFontSize = Math.round(9.5 * s);
+      ctx.font = `700 ${portFontSize}px Inter, system-ui, sans-serif`;
+      const tw = ctx.measureText(label).width;
+      const boxW = Math.max(36 * s, tw + 12 * s);
+      const boxH = 20 * s;
+      const shift = this._keepOnScreen(dockX - boxW / 2, dockY - boxH / 2, boxW, boxH);
+      dockX += shift.x;
+      dockY += shift.y;
 
       // Rope lines to port
       ctx.save();
@@ -6482,12 +6652,6 @@ class ColonistFullGame {
       ctx.shadowColor = "rgba(44, 24, 16, 0.25)";
       ctx.shadowBlur = 4 * s;
       ctx.shadowOffsetY = 2 * s;
-      const label = port.type === "any" ? "3:1" : `2:1 ${RESOURCE_LABEL[port.type]}`;
-      const portFontSize = Math.round(9.5 * s);
-      ctx.font = `700 ${portFontSize}px Inter, system-ui, sans-serif`;
-      const tw = ctx.measureText(label).width;
-      const boxW = Math.max(36 * s, tw + 12 * s);
-      const boxH = 20 * s;
       const bx = dockX - boxW / 2;
       const by = dockY - boxH / 2;
 
@@ -6509,6 +6673,25 @@ class ColonistFullGame {
     });
   }
 
+  /** World-space offset that moves a world-space box fully inside the visible part of the canvas (6px margin). */
+  _keepOnScreen(x, y, w, h) {
+    const k = this.view.scale || 1;
+    const M = 6;
+    // visible part of the canvas, in canvas units (the canvas can be wider than the screen)
+    let minX = M, maxX = this.boardWidth - M, minY = M, maxY = this.boardHeight - M;
+    const r = this.canvas.getBoundingClientRect();
+    if (r.width) {
+      const ux = this.boardWidth / r.width, uy = this.boardHeight / r.height;
+      minX = Math.max(minX, (M - r.left) * ux); maxX = Math.min(maxX, (window.innerWidth - M - r.left) * ux);
+      minY = Math.max(minY, (M - r.top) * uy); maxY = Math.min(maxY, (window.innerHeight - M - r.top) * uy);
+    }
+    const a = this.worldToScreen(x, y), bw = w * k, bh = h * k;
+    let dx = 0, dy = 0;
+    if (bw <= maxX - minX) { if (a.x < minX) dx = minX - a.x; else if (a.x + bw > maxX) dx = maxX - (a.x + bw); }
+    if (bh <= maxY - minY) { if (a.y < minY) dy = minY - a.y; else if (a.y + bh > maxY) dy = maxY - (a.y + bh); }
+    return { x: dx / k, y: dy / k };
+  }
+
   drawNodeDots() {
     const ctx = this.ctx;
     const s = this.geometry.hexSize / 74;
@@ -6525,23 +6708,26 @@ class ColonistFullGame {
   }
 
   /** Legal spots while the human places something (setup or build mode), or null. Shared by both renderers. */
+  /** Legal spots for the current placement: settlement nodes, city nodes (own settlements), roads. */
   _legalPlacementSpots() {
     const player = this.currentPlayer;
     if (!player?.isHuman || this.winner) return null;
-    const nodes = [], edges = [];
+    const nodes = [], cities = [], edges = [];
     const g = this.geometry;
     if (this.setupPhase) {
       if (!this.setupAction) return null;
       if (this.setupAction === "settlement") g.nodes.forEach((n) => { if (this.canBuildSettlement(player, n.id, true)) nodes.push(n.id); });
       else if (this.setupAction === "road" && this.lastSetupNodeId != null) g.edges.forEach((e) => { if (e.owner == null && e.nodes.includes(this.lastSetupNodeId)) edges.push(e.id); });
-      return { nodes, edges, type: this.setupAction };
+      return { nodes, cities, edges, type: this.setupAction };
     }
     const type = this.pendingAction;
     if (!type || type === "robber") return null;
-    if (type === "settlement") g.nodes.forEach((n) => { if (this.canBuildSettlement(player, n.id, false)) nodes.push(n.id); });
-    else if (type === "city") g.nodes.forEach((n) => { if (this.canBuildCity(player, n.id, false)) nodes.push(n.id); });
-    else if (type === "road") g.edges.forEach((e) => { if (this.canBuildRoad(player, e.id, { free: this.freeRoadsRemaining > 0 })) edges.push(e.id); });
-    return { nodes, edges, type };
+    const free = this.freeRoadsRemaining > 0;
+    const all = type === "build" && !free;
+    if (type === "settlement" || all) g.nodes.forEach((n) => { if (this.canBuildSettlement(player, n.id, false)) nodes.push(n.id); });
+    if (type === "city" || all) g.nodes.forEach((n) => { if (this.canBuildCity(player, n.id, false)) cities.push(n.id); });
+    if (type === "road" || all || (type === "build" && free)) g.edges.forEach((e) => { if (this.canBuildRoad(player, e.id, { free })) edges.push(e.id); });
+    return { nodes, cities, edges, type };
   }
 
   /** Classic board: legal spots only, as calm white rings / dashed road ghosts (no colours that read as errors). */
@@ -6563,10 +6749,10 @@ class ColonistFullGame {
       ctx.strokeStyle = "rgba(255, 255, 255, 0.95)"; ctx.lineWidth = 3.5 * px; ctx.stroke();
     });
     ctx.setLineDash([]);
-    spots.nodes.forEach((id) => {
+    [...spots.nodes.map((id) => [id, false]), ...(spots.cities || []).map((id) => [id, true])].forEach(([id, isCity]) => {
       if (cb && cb.id === id && cb.type !== "road") return;
       const n = this.geometry.nodes[id];
-      const r = spots.type === "city" ? 15 * px : 7 * px;
+      const r = isCity ? 15 * px : 7 * px;
       ctx.beginPath(); ctx.arc(n.x, n.y, r + 1.5 * px, 0, Math.PI * 2);
       ctx.strokeStyle = "rgba(15, 35, 50, 0.35)"; ctx.lineWidth = 1.5 * px; ctx.stroke();
       ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
@@ -7099,7 +7285,9 @@ class ColonistFullGame {
     const total = sumResources(human.resources);
     const devTotal = Object.values(devCounts).reduce((a, b) => a + b, 0);
     if (this.handSummary) this.handSummary.textContent = `${total} resource card${total === 1 ? "" : "s"} · ${devTotal} development card${devTotal === 1 ? "" : "s"}`;
-    const key = JSON.stringify([human.resources, devCounts, human.newDevCards, this.theme.id, this.isMobileLayout]);
+    const pd = this.pendingDiscard?.player === human ? this.pendingDiscard : null;
+    this.handArea?.classList.toggle("discarding", !!pd);
+    const key = JSON.stringify([human.resources, devCounts, human.newDevCards, this.theme.id, this.isMobileLayout, pd?.selected || null, this._newDevPulse || null]);
     if (key === this._lastHandKey) return;
     this._lastHandKey = key;
     this._syncTradeSheet();
@@ -7111,19 +7299,25 @@ class ColonistFullGame {
       const c = human.resources[r];
       // 0 of a kind: an empty outlined slot (small icon, name, "0"), never a faded picture that reads as a card you hold
       if (!c) return `<button type="button" class="card empty slot" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: none" title="No ${RESOURCE_LABEL[r]}"><span class="slot-ic">${icon(r)}</span><span class="slot-n">0</span><span class="slot-name">${RESOURCE_LABEL[r]}</span></button>`;
+      if (pd) {
+        // discarding: the badge shows what you keep, the tag what goes back
+        const sel = pd.selected[r];
+        return `<button type="button" class="card${sel ? " marked" : ""}" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: ${c}${sel ? `, ${sel} to hand back` : ""}" title="Tap to hand back one ${RESOURCE_LABEL[r]}">${cardSvg(r)}<span class="count">${c - sel}</span>${sel ? `<span class="dsel">−${sel}</span>` : ""}</button>`;
+      }
       return `<button type="button" class="card" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: ${c}" title="${RESOURCE_LABEL[r]} — tap to trade">${cardSvg(r)}<span class="count">${c}</span></button>`;
     }).join("");
     if (devTypes.length) {
       html += '<span class="sep"></span>' + devTypes.map((t, j) => {
         const fresh = t !== "victoryPoint" && human.newDevCards[t] > 0 && human.devCards[t] === 0;
         const name = DEV_NAME[t];
-        return `<button type="button" class="card dev${fresh ? " new" : ""}" data-dev="${t}" style="${fan(RESOURCES.length + j)}" aria-label="${name}: ${devCounts[t]}" title="${name}${fresh ? " — playable next turn" : ""}">${cardSvg(t)}<span class="count">${devCounts[t]}</span></button>`;
+        return `<button type="button" class="card dev${fresh ? " new" : ""}${this._newDevPulse === t ? " drawn" : ""}" data-dev="${t}" style="${fan(RESOURCES.length + j)}" aria-label="${name}: ${devCounts[t]}" title="${name}${fresh ? " — playable next turn" : ""}">${cardSvg(t)}<span class="count">${devCounts[t]}</span></button>`;
       }).join("");
     }
     this.resourceCardStrip.innerHTML = html;
     this.resourceCardStrip.querySelectorAll(".card[data-card]").forEach((el) => {
       el.addEventListener("click", () => {
-        if (!this.currentPlayer?.isHuman || this.phase !== "main" || this.tradeLocked || this._robberInProgress()) return;
+        if (this.pendingDiscard?.player === human) { this._discardMark(el.dataset.card); return; }
+        if (!this.currentPlayer?.isHuman || this.phase !== "main" || this.tradeLocked || this._robberInProgress() || this.devPick) return;
         const res = el.dataset.card;
         if (human.resources[res] <= 0) return;
         // Open trade with this card pre-selected as "give": a full bank set when you hold one,
@@ -7144,7 +7338,8 @@ class ColonistFullGame {
     this.resourceCardStrip.querySelectorAll(".card[data-dev]").forEach((el) => {
       el.addEventListener("click", (e) => {
         e.stopPropagation();
-        if (this.devCardPicker?.style.display === "none") this.toggleDevCardPicker();
+        if (this.pendingDiscard || this.devPick) return;
+        this.openCardsTray(el.dataset.dev);
       });
     });
     const strip = this.resourceCardStrip;
@@ -7353,12 +7548,15 @@ class ColonistFullGame {
     let title = humanTurn ? "Your turn" : `${active.name}'s turn`;
     let status;
     const mobile = this.isMobileLayout;
-    const confirmHint = mobile ? "Tap Place to confirm" : "Click ✓ to confirm — or pick another spot";
+    // words follow the pointer: "tap" on touch screens, "click" with a mouse
+    const touch = mobile || window.matchMedia?.("(pointer: coarse)").matches;
+    const tapW = touch ? "Tap" : "Click", tapw = touch ? "tap" : "click";
+    const confirmHint = mobile ? "Tap Place (or the spot again) to confirm" : "Click ✓ or the spot again · Enter confirms";
     const setupRound = this.setupStep < this.players.length ? 1 : 2;
     if (this.setupPhase && this.setupAction && humanTurn) {
       title = `Setup ${setupRound} of 2`;
       status = this.confirmBuild ? confirmHint
-        : this.setupAction === "settlement" ? `Pick your ${setupRound === 1 ? "first" : "second"} settlement` : "Add a road next to it";
+        : this.setupAction === "settlement" ? `${tapW} a spot for your ${setupRound === 1 ? "first" : "second"} settlement` : `${tapW} a road next to it`;
     } else if (this.setupPhase) {
       status = "Placing a starting settlement…";
     } else if (this.winner) {
@@ -7368,7 +7566,7 @@ class ColonistFullGame {
       title = "Robber!";
       status = "Game paused — discards, then the robber";
     } else if (humanTurn && this.pendingAction === "robber") {
-      status = this.confirmBuild ? confirmHint : mobile ? "Pick a tile for the robber" : "Move the robber · click a tile";
+      status = this.confirmBuild ? "Robber: confirm below" : `${tapW} a tile for the robber`;
     } else if (rushOn && mainPhase && !this.pendingAction) {
       title = "Rush";
       status = this.autoplayInterval ? "Bots are playing for you" : "Build, trade or play a card any time";
@@ -7377,25 +7575,33 @@ class ColonistFullGame {
     } else if (humanTurn && mainPhase) {
       if (this.pendingAction) {
         if (this.confirmBuild) status = confirmHint;
-        else status = this.freeRoadsRemaining > 0 ? `Free road · ${this.freeRoadsRemaining} left · tap a glowing spot`
-          : mobile ? "Tap a glowing spot" : `Placing ${placeName[this.pendingAction] || this.pendingAction} · click a glowing spot`;
+        else status = this.freeRoadsRemaining > 0 ? `Free road · ${this.freeRoadsRemaining} left · ${tapw} a glowing spot`
+          : this.pendingAction === "build" || mobile ? `${tapW} a glowing spot to build` : `${placeName[this.pendingAction] || this.pendingAction} · ${tapw} a glowing spot`;
       } else {
         status = "Build, trade or play a card";
       }
     } else {
       status = preRoll ? "Rolling the dice…" : "Thinking…";
     }
+    // The dock tray (build, cards, picks, robber, discard) says what to do in the same line
+    const tray = this._renderTray();
+    if (tray?.hint) status = tray.hint;
+    const flash = this._flash && this._flash.until > Date.now() ? this._flash.text : null;
+    if (flash) status = flash;
     if (this.actionPromptText) this.actionPromptText.textContent = status;
     // Phones: the ticker line becomes the instruction while you have to act (place, robber, discard)
-    const mustAct = !this.winner && ((this.setupPhase && humanTurn && this.setupAction) || (humanTurn && this.pendingAction) || !!this.pendingDiscard);
-    const prompt = mustAct ? (this.pendingDiscard ? "The robber came! Hand back half of your cards" : status) : "";
-    // Build mode on phones: Cancel sits right in the instruction line
-    const canCancel = humanTurn && !this.setupPhase && !!(this.confirmBuild || (this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining));
+    const mustAct = !this.winner && (!!flash || !!tray || (this.setupPhase && humanTurn && this.setupAction) || (humanTurn && this.pendingAction) || !!this.pendingDiscard);
+    const prompt = mustAct ? status : "";
+    // Cancel sits right in the instruction line: leave build mode / a tray, or take back a card played by mistake
+    const devCancel = !!this.devPlayed && ((this.devPlayed.type === "knight" && this.pendingAction === "robber" && !this.confirmBuild)
+      || (this.devPlayed.type === "roadBuilding" && this.freeRoadsRemaining === this.devPlayed.free));
+    const canCancel = humanTurn && !this.setupPhase && !this.pendingDiscard && (devCancel || (tray && ["build", "cards"].includes(tray.mode))
+      || !!((this.confirmBuild && this.confirmBuild.type !== "robber") || (this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining)));
     const tickerCancel = document.querySelector("#tickerCancel");
     if (tickerCancel) tickerCancel.hidden = !(mustAct && canCancel);
     // the setup step chip only where the line has room (phones show it in the dock instead)
     const stepChip = this.setupPhase && humanTurn && this.setupAction && window.innerWidth > 430 ? `Setup ${setupRound} of 2` : "";
-    const promptKey = prompt + "|" + stepChip;
+    const promptKey = prompt + "|" + stepChip + "|" + (tray?.mode || "");
     if (promptKey !== (this._tickerPromptKey || "|")) {
       this._tickerPromptKey = promptKey;
       this._tickerPrompt = prompt;
@@ -7403,7 +7609,9 @@ class ColonistFullGame {
       document.querySelector("#ticker")?.classList.toggle("prompt", !!prompt);
       if (prompt && this.tickerText) {
         this.tickerText.innerHTML = `<span class="tk-main">${prompt}</span>${stepChip ? `<span class="tk-step">${stepChip}</span>` : ""}`;
-        if (this.tickerIcon) this.tickerIcon.innerHTML = icon(this.pendingDiscard || this.pendingAction === "robber" ? "robber" : this.confirmBuild?.type || this.pendingAction || this.setupAction || "build");
+        const ic = this.pendingDiscard || this.pendingAction === "robber" || tray?.mode === "victims" ? "robber"
+          : tray?.mode === "cards" || tray?.mode === "pick" ? "devcard" : this.confirmBuild?.type || (this.pendingAction !== "build" && this.pendingAction) || this.setupAction || "build";
+        if (this.tickerIcon) this.tickerIcon.innerHTML = icon(ic);
       }
       if (!prompt) this.renderLog();
     }
@@ -7417,7 +7625,7 @@ class ColonistFullGame {
       }
     }
     if (this.turnBanner) this.turnBanner.className = `turn-banner pc-${(rushOn ? human : active).id}`;
-    if (this.cancelActionBtn) this.cancelActionBtn.hidden = !(humanTurn && (this.confirmBuild || (this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining)));
+    if (this.cancelActionBtn) this.cancelActionBtn.hidden = !canCancel;
 
     // ── primary action: Roll dice ↔ End turn (Classic), Ready (Rush), waiting bar (opponent) ──
     const rollBtn = this.rollDiceBtn;
@@ -7432,15 +7640,15 @@ class ColonistFullGame {
     if (endBtn) {
       endBtn.style.display = !rushOn && humanTurn && mainPhase && !inSetup && !robberBlocking ? "inline-flex" : "none";
       // also while Road Building's free roads are still to be placed
-      endBtn.disabled = inSetup || !(humanTurn && mainPhase) || robberBlocking || !!this.pendingAction;
+      endBtn.disabled = inSetup || !(humanTurn && mainPhase) || robberBlocking || (!!this.pendingAction && this.pendingAction !== "build") || !!this.devPick;
     }
     if (this.rushReadyBtn) this.rushReadyBtn.hidden = !rushOn || !!this.winner;
     if (this.waitingBar) {
       let wait = "";
       if (this.winner) {
         wait = ""; // after "See board": one clean New game button instead (below)
-      } else if (humanTurn && this.pendingAction === "robber") {
-        wait = `${icon("robber")}<div class="wt">Place robber<small>${this.confirmBuild ? "Confirm above" : "Pick a tile"}</small></div>`;
+      } else if (humanTurn && this.pendingAction === "robber" && !rushOn) {
+        wait = `${icon("robber")}<div class="wt">Move robber<small>${tapW} a tile</small></div>`;
       } else if (inSetup && humanTurn && !rushOn) {
         wait = `${icon(this.setupAction || "settlement")}<div class="wt">Setup ${setupRound} of 2<small>${this.setupAction === "road" ? "Last step: a road" : "Then add a road"}</small></div>`;
       } else if (oppTurn) {
@@ -7535,8 +7743,8 @@ class ColonistFullGame {
     // ── mobile confirm pill: the Place button sits right above the thumb ──
     if (this.confirmPill) {
       // Robber: the pill grows into a compact sheet (desktop: a popover) with everyone on the tile
-      const robberSel = this.confirmBuild?.type === "robber" && this.pendingAction === "robber";
-      const info = (this.isMobileLayout || robberSel) && humanTurn && this.confirmBuild ? this._confirmPillInfo() : null;
+      // (the robber's choice lives in the dock tray)
+      const info = null; // v0.69: Place lives in the dock tray (mode "confirm"); the floating pill is retired
       this.confirmPill.hidden = !info;
       this.confirmPill.classList.toggle("robber", !!info?.robber);
       const vEl = document.querySelector("#confirmPillVictims");
@@ -8070,12 +8278,15 @@ class ColonistFullGame {
   _showDiscardUI(player, discardCount) {
     return new Promise((resolve) => {
       if (!this.discardPanel) { resolve(); return; }
-      this.pendingDiscard = { player, count: discardCount, selected: makeEmptyResources(), resolve };
+      // Inline: tap the cards in your hand to mark them; the dock tray counts and hands them back
+      this.pendingDiscard = { player, count: discardCount, selected: makeEmptyResources(), resolve, order: [] };
       this.toggleBuildSheet?.(false);
       this.hideDevCardPicker();
-      this.discardInfo.textContent = `You hold ${sumResources(player.resources)} cards — choose ${discardCount} to hand back to the bank.`;
-      this._renderDiscardCards();
-      this.discardPanel.style.display = "";
+      this.hideTradePanel();
+      this._dropUndo();
+      this.trayMode = null;
+      if (this.pendingAction && this.pendingAction !== "robber") { this.pendingAction = null; this.confirmBuild = null; }
+      this.render();
     });
   }
 
@@ -8114,7 +8325,8 @@ class ColonistFullGame {
     const total = sumResources(selected);
     this.addLog(`${player.name} discard${this._s(player)} ${total} cards.`);
     this.pendingDiscard = null;
-    this.discardPanel.style.display = "none";
+    if (this.discardPanel) this.discardPanel.style.display = "none";
+    this.sfx.click();
     this.render();
     resolve();
   }
@@ -8357,9 +8569,10 @@ class ColonistFullGame {
     $("#tickerMore")?.addEventListener("click", () => this.toggleLog(true));
     $("#tickerText")?.addEventListener("click", () => this.toggleLog(true));
     $("#journalClose")?.addEventListener("click", () => this.toggleLog(false));
-    $("#mBuildBtn")?.addEventListener("click", () => this.toggleBuildSheet());
+    $("#mBuildBtn")?.addEventListener("click", () => this.openBuildTray());
+    $("#dockPicker")?.addEventListener("click", (e) => this._onTrayClick(e));
     $("#buildSheetClose")?.addEventListener("click", () => this.toggleBuildSheet(false));
-    $("#mCardsBtn")?.addEventListener("click", (e) => { e.stopPropagation(); this.toggleDevCardPicker(); });
+    $("#mCardsBtn")?.addEventListener("click", (e) => { e.stopPropagation(); this.openCardsTray(); });
     $("#devPickerClose")?.addEventListener("click", () => this.hideDevCardPicker());
     this.cancelActionBtn?.addEventListener("click", () => this.cancelPlacement());
     $("#tickerCancel")?.addEventListener("click", (e) => { e.stopPropagation(); this.cancelPlacement(); });
@@ -8387,6 +8600,7 @@ class ColonistFullGame {
       if (this.tradeModal?.style.display !== "none" && !this.tradeLocked) this.closeTradeModal();
       this._syncScrim();
     });
+    this._bindSheetSwipe();
     const cards = this.resourceCardStrip;
     cards?.addEventListener("scroll", () => this.handArea?.classList.toggle("scrolled", cards.scrollLeft > 8), { passive: true });
     // Keep the scrim in sync with whichever sheet code opens or closes
@@ -8396,7 +8610,12 @@ class ColonistFullGame {
     });
     window.matchMedia(MOBILE_MQ).addEventListener?.("change", () => this.handleResize());
     window.matchMedia(LANDSCAPE_MQ).addEventListener?.("change", () => this.handleResize());
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) this.boardRenderer?.requestDraw(); });
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) this.boardRenderer?.requestDraw();
+      else this.saveToStorage(); // backgrounded on a phone: may be killed without pagehide
+    });
+    window.addEventListener("pagehide", () => this.saveToStorage());
+    window.addEventListener("resize", () => this._clampFloaters());
     // The board area changes size without a window resize (chrome bars laying out after load, the
     // hand fan, sheets): keep the canvas backing store in step with its box, or the board is drawn
     // squeezed and taps land in the wrong place.
@@ -8416,6 +8635,47 @@ class ColonistFullGame {
     new MutationObserver(() => this._applyPalette()).observe(document.documentElement, { attributes: true, attributeFilter: ["data-palette"] });
   }
 
+  /** Bottom sheets (trade, journal, settings): drag the top edge down to dismiss, like the grabber says. */
+  _bindSheetSwipe() {
+    let drag = null;
+    const SHEETS = "#tradeModal, #railLog.open, .tm-settings .st-card, #devCardPicker";
+    const dismiss = (el) => {
+      if (el.id === "tradeModal") { if (!this.tradeLocked) this.closeTradeModal(); else return false; }
+      else if (el.id === "railLog") this.toggleLog(false);
+      else if (el.id === "devCardPicker") this.hideDevCardPicker();
+      else if (el.classList.contains("st-card")) this.settingsUI?.close();
+      this._syncScrim();
+      return true;
+    };
+    document.addEventListener("touchstart", (e) => {
+      if (!this.isMobileLayout || e.touches.length !== 1) return;
+      const el = e.target.closest(SHEETS);
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const t = e.touches[0];
+      // only from the top strip (grabber + title) so lists inside still scroll
+      if (t.clientY - r.top > 64 || e.target.closest("button, input, select, [role=tab]")) return;
+      drag = { el, y0: t.clientY, dy: 0 };
+    }, { passive: true });
+    document.addEventListener("touchmove", (e) => {
+      if (!drag) return;
+      drag.dy = Math.max(0, e.touches[0].clientY - drag.y0);
+      drag.el.style.transition = "none";
+      drag.el.style.translate = `0 ${drag.dy}px`;
+    }, { passive: true });
+    const end = () => {
+      if (!drag) return;
+      const { el, dy } = drag;
+      drag = null;
+      el.style.transition = "translate 180ms ease-out";
+      el.style.translate = "";
+      if (dy > 80) dismiss(el);
+      window.setTimeout(() => { el.style.transition = ""; }, 200);
+    };
+    document.addEventListener("touchend", end, { passive: true });
+    document.addEventListener("touchcancel", end, { passive: true });
+  }
+
   _applyPalette() {
     const T = this.theme;
     if (!T?.setPalette || !T.setPalette(currentPalette())) return;
@@ -8425,6 +8685,31 @@ class ColonistFullGame {
     this.boardRenderer?.invalidateStatic();
     this.render();
   }
+
+  // Floating pills and popovers never poke out of the screen: after layout, any that crosses the
+  // left/right edge (narrow phones, an odd container width, long names) is shifted back inside.
+  _clampFloaters() {
+    if (this._clampRaf) return;
+    this._clampRaf = window.requestAnimationFrame(() => {
+      this._clampRaf = 0;
+      const vw = document.documentElement.clientWidth || window.innerWidth;
+      const M = 8;
+      document.querySelectorAll(ColonistFullGame.FLOATERS).forEach((el) => {
+        if (el.hidden || !el.offsetParent && getComputedStyle(el).position !== "fixed") return;
+        const r = el.getBoundingClientRect();
+        if (!r.width) return;
+        const cur = parseFloat(el.style.translate) || 0; // shift applied last time
+        const left = r.left - cur, right = r.right - cur;
+        let dx = 0;
+        if (right > vw - M) dx = vw - M - right;
+        if (left + dx < M) dx = M - left;
+        dx = Math.round(dx);
+        if (dx !== cur) el.style.translate = dx ? `${dx}px 0` : "";
+      });
+    });
+  }
+
+  static FLOATERS = "#confirmPill, .confirm-pill, .ai-reasoning-popup, .rush-offers, .toasts, .update-chip, .vp-tooltip";
 
   _syncScrim() {
     if (!this.scrim) return;
@@ -8444,7 +8729,10 @@ class ColonistFullGame {
   }
 
   cancelPlacement() {
-    if (this.confirmBuild) this.confirmBuild = null;
+    // a card played by mistake (Knight before a tile, Road Building before a road) goes back to the hand
+    if (this.devPlayed && this._cancelDevPlay()) return;
+    if (this.trayMode && !(this.confirmBuild && this.confirmBuild.type !== "robber")) { this.closeTray(); return; }
+    if (this.confirmBuild && this.confirmBuild.type !== "robber") this.confirmBuild = null;
     if (this.pendingAction && this.pendingAction !== "robber") {
       this.pendingAction = null;
       this.canvas.style.cursor = "grab";
@@ -8468,6 +8756,479 @@ class ColonistFullGame {
     const s = this.worldToScreen(ic.x, ic.y);
     const rect = this.canvas.getBoundingClientRect();
     this.handleBoardClick({ clientX: rect.left + (s.x * rect.width) / this.boardWidth, clientY: rect.top + (s.y * rect.height) / this.boardHeight });
+  }
+
+  // ══ Direct manipulation: Undo, dock trays, inline pickers ═══════════════
+  // Phones: Build / Cards / Year of Plenty / Monopoly / robber / discard replace the four dock
+  // buttons with a "tray" in the same 60 px row (no sheets, no scrim); the ticker line above the
+  // board says what to do. Desktop uses the same tray in its action area.
+
+  /** Offer to take back the last placement (ms = 0: until something else happens). */
+  _setUndo(u, ms = UNDO_MS) {
+    if (this._undoTimer) { window.clearTimeout(this._undoTimer); this._timers.delete(this._undoTimer); this._undoTimer = null; }
+    this.undoState = u;
+    u.ms = ms;
+    if (ms) {
+      this._undoTimer = this._later(() => { this._undoTimer = null; if (this.undoState === u) this._dropUndo(); }, ms);
+    }
+    this._renderUndo();
+  }
+
+  _dropUndo() {
+    if (this._undoTimer) { window.clearTimeout(this._undoTimer); this._timers?.delete(this._undoTimer); this._undoTimer = null; }
+    if (!this.undoState) return;
+    this.undoState = null;
+    this._renderUndo();
+  }
+
+  _renderUndo() {
+    let el = document.querySelector("#undoToast");
+    // docked in the ticker row on phones / under the turn banner on desktop: it never covers tiles
+    const home = document.querySelector(this.isMobileLayout ? "#mtop .tkrow" : "#boardWrap .lefttop");
+    if (!el) {
+      if (!home) return;
+      el = document.createElement("div");
+      el.id = "undoToast";
+      el.className = "undo-toast";
+      el.setAttribute("role", "status");
+      el.hidden = true;
+      el.addEventListener("click", (e) => { if (e.target.closest("[data-undo]")) this.undoLast(); });
+    }
+    if (home && el.parentElement !== home) home.appendChild(el);
+    const u = this.undoState;
+    if (!u) { el.hidden = true; el.innerHTML = ""; return; }
+    el.hidden = false;
+    el.classList.toggle("timed", !!u.ms);
+    el.style.setProperty("--undo-ms", `${u.ms || 0}ms`);
+    el.innerHTML = `${icon(u.icon || "check")}<span class="ut">${u.label}</span><button type="button" class="btn ut-btn" data-undo aria-label="Undo: ${u.label}">${icon("undo")}Undo${u.noun ? ` ${u.noun}` : ""}</button><span class="ut-time" aria-hidden="true"><i></i></span>`;
+  }
+
+  /** Take back the last placement (or Year of Plenty picks): pieces, cards, bonuses and the log line. */
+  undoLast() {
+    const u = this.undoState;
+    if (!u) return;
+    this._dropUndo();
+    const p = this.players[u.pid];
+    const g = this.geometry;
+    const dropLogs = (list) => { if (list?.length) this.logEntries = this.logEntries.filter((e) => !list.includes(e)); };
+    if (u.kind === "setup") {
+      const node = g.nodes[u.id];
+      if (!this.setupPhase || this.setupAction !== "road" || node.owner !== p.id) return;
+      node.owner = null; node.structure = null; p.settlements.delete(u.id);
+      this.setupAction = "settlement";
+      this.lastSetupNodeId = null;
+      this.logEntries.length = Math.min(this.logEntries.length, u.logLen);
+    } else if (u.kind === "build") {
+      if (u.paid && !hasResources(this.bank, u.paid)) return;
+      if (u.type === "road") {
+        const e = g.edges[u.id];
+        if (e.owner !== p.id) return;
+        e.owner = null; p.roads.delete(u.id);
+      } else if (u.type === "settlement") {
+        const n = g.nodes[u.id];
+        if (n.owner !== p.id || n.structure !== "settlement") return;
+        n.owner = null; n.structure = null; p.settlements.delete(u.id);
+      } else {
+        const n = g.nodes[u.id];
+        if (n.owner !== p.id || n.structure !== "city") return;
+        n.structure = "settlement"; p.cities.delete(u.id); p.settlements.add(u.id);
+      }
+      if (u.paid) {
+        RESOURCES.forEach((r) => { this.bank[r] -= u.paid[r] || 0; p.resources[r] += u.paid[r] || 0; });
+        this._aiTrkNote(p, u.paid, 1);
+      }
+      const pos = this.getBuildPosition({ type: u.type, id: u.id });
+      this.placementAnims = this.placementAnims.filter((a) => a.x !== pos.x || a.y !== pos.y);
+      this.freeRoadsRemaining = u.free;
+      this.pendingAction = u.pa;
+      this.trayMode = u.tray;
+      this.longestRoadHolder = u.lr;
+      this.largestArmyHolder = u.la;
+      dropLogs(u.logs);
+      this.recomputeScores();
+    } else if (u.kind === "yop") {
+      if (!u.picks.every((r) => p.resources[r] > 0)) return;
+      u.picks.forEach((r) => { p.resources[r] -= 1; this.bank[r] += 1; });
+      this._aiTrkNote(p, u.picks.reduce((o, r) => { o[r] = (o[r] || 0) + 1; return o; }, {}), -1);
+      dropLogs(u.logs);
+      this.devPick = { type: "yearOfPlenty", count: u.picks.length, picks: [] };
+      this.recomputeScores();
+    }
+    this.sfx.click();
+    this.saveToStorage();
+    this.render();
+  }
+
+  /** ["ore","ore"] -> "+2 Ore"; ["ore","wheat"] -> "+1 Ore +1 Grain" */
+  _plusList(list) {
+    return RESOURCES.filter((r) => list.includes(r)).map((r) => `+${list.filter((x) => x === r).length} ${RESOURCE_LABEL[r]}`).join(" ") || "nothing";
+  }
+
+  /** A short line in the ticker / turn banner (e.g. why a tile can't take the robber). */
+  _flashPrompt(text, ms = 2600) {
+    this._flash = { text, until: Date.now() + ms };
+    this.renderStatusAndControls();
+    window.clearTimeout(this._flashTimer);
+    this._flashTimer = window.setTimeout(() => { this._flash = null; this._tickerPromptKey = null; this.renderStatusAndControls(); }, ms);
+  }
+
+  _robberBlockedReason(hexId, mover) {
+    if (hexId === this.robberHexId) return "The robber is already on that tile — pick another one";
+    const prot = [...new Set(this.geometry.hexes[hexId].nodes.map((id) => this.geometry.nodes[id].owner)
+      .filter((o) => o != null && this._isRobberProtected(o, mover)))].map((o) => this.players[o].name);
+    return prot.length ? `${prot.join(" and ")} ${prot.length > 1 ? "are" : "is"} protected (${FRIENDLY_ROBBER_VP} points or fewer)` : "The robber can't go there";
+  }
+
+  _startRobberTimer() {
+    this._cancelRobberTimer();
+    const cb = this.confirmBuild;
+    this._robberTimerAt = Date.now();
+    this._robberTimer = this._later(() => {
+      this._robberTimer = null;
+      if (this.confirmBuild !== cb || this.pendingAction !== "robber" || !this.currentPlayer?.isHuman) return;
+      this._commitRobber(this.currentPlayer, cb.id, cb.victim);
+    }, ROBBER_SETTLE_MS);
+  }
+
+  _cancelRobberTimer() {
+    if (!this._robberTimer) return;
+    window.clearTimeout(this._robberTimer);
+    this._timers?.delete(this._robberTimer);
+    this._robberTimer = null;
+  }
+
+  /** Take back a development card that was played by mistake, before it did anything. */
+  _cancelDevPlay() {
+    const d = this.devPlayed;
+    if (!d) return false;
+    const p = this.players[d.pid];
+    if (d.type === "knight" && (this.pendingAction !== "robber" || this.confirmBuild)) return false;
+    if (d.type === "roadBuilding" && this.freeRoadsRemaining !== d.free) return false;
+    this.devPlayed = null;
+    p.devCards[d.type] += 1;
+    if (this.isRush()) p.rushDevPlayed = false; else this.currentTurnPlayedDevCard = false;
+    if (d.type === "knight") {
+      p.knightsPlayed -= 1;
+      this.largestArmyHolder = d.la;
+      this.pendingAction = null;
+      this.robberContext = null;
+    } else if (d.type === "roadBuilding") {
+      this.freeRoadsRemaining = 0;
+      this.pendingAction = null;
+    } else {
+      this.devPick = null;
+    }
+    this.logEntries = this.logEntries.filter((e) => !d.logs.includes(e));
+    this.canvas.style.cursor = "grab";
+    this.recomputeScores();
+    this.saveToStorage();
+    this.render();
+    return true;
+  }
+
+  /** Phones: Build opens the build tray and shows every spot you can build on right away. */
+  openBuildTray(force) {
+    const open = force ?? this.trayMode !== "build";
+    if (!open) { this.closeTray(); return; }
+    const player = this.currentPlayer;
+    if (!player?.isHuman || this.winner || this.phase !== "main" || this._robberInProgress() || this.devPick) return;
+    this._dropUndo();
+    this.hideTradePanel();
+    this.trayMode = "build";
+    this.confirmBuild = null;
+    if (!this.freeRoadsRemaining) this.pendingAction = this._canPlaceAnything(player) ? "build" : null;
+    this.canvas.style.cursor = this.pendingAction ? "crosshair" : "grab";
+    this.sfx.click();
+    this.render();
+  }
+
+  openCardsTray(focus = null) {
+    if (this.trayMode === "cards" && !focus) { this.closeTray(); return; }
+    if (this._robberInProgress() || this.devPick) return;
+    this.hideTradePanel();
+    if (this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining) { this.pendingAction = null; this.confirmBuild = null; }
+    this.trayMode = "cards";
+    this._trayFocus = focus;
+    this.sfx.click();
+    this.render();
+  }
+
+  closeTray() {
+    if (this.trayMode === "build" && this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining) {
+      this.pendingAction = null;
+      this.confirmBuild = null;
+      this.canvas.style.cursor = "grab";
+    }
+    this.trayMode = null;
+    this._trayFocus = null;
+    this.render();
+  }
+
+  _canPlaceAnything(player) {
+    const g = this.geometry;
+    return g.edges.some((e) => this.canBuildRoad(player, e.id)) || g.nodes.some((n) => this.canBuildSettlement(player, n.id, false) || this.canBuildCity(player, n.id, false));
+  }
+
+  /** Discard on a 7: tap cards in your hand to mark them (no sheet). */
+  _discardMark(res) {
+    const pd = this.pendingDiscard;
+    if (!pd) return;
+    const sel = sumResources(pd.selected);
+    if (sel >= pd.count || pd.selected[res] >= pd.player.resources[res]) { this.sfx.error?.(); return; }
+    pd.selected[res] += 1;
+    (pd.order ||= []).push(res);
+    this.sfx.click();
+    this.render();
+  }
+
+  _discardUnmark() {
+    const pd = this.pendingDiscard;
+    const r = pd?.order?.pop() || RESOURCES.find((x) => pd?.selected[x] > 0);
+    if (!r) return;
+    pd.selected[r] -= 1;
+    this.render();
+  }
+
+  /** "Suggest": hand back from your biggest piles first, keeping one of each kind where possible. */
+  _discardSuggest() {
+    const pd = this.pendingDiscard;
+    if (!pd) return;
+    const left = copyResources(pd.player.resources);
+    const sel = makeEmptyResources();
+    for (let i = 0; i < pd.count; i += 1) {
+      const r = RESOURCES.slice().sort((a, b) => left[b] - left[a])[0];
+      if (!left[r]) break;
+      left[r] -= 1; sel[r] += 1;
+    }
+    pd.selected = sel;
+    pd.order = RESOURCES.flatMap((r) => Array(sel[r]).fill(r));
+    this.sfx.click();
+    this.render();
+  }
+
+  /** Year of Plenty / Monopoly pick in the dock. */
+  _pickTap(res) {
+    const dp = this.devPick;
+    const player = this.currentPlayer;
+    if (!dp || !player?.isHuman) return;
+    if (dp.type === "monopoly") {
+      dp.picks = dp.picks[0] === res ? [] : [res];
+      this.sfx.click();
+      this.render();
+      return;
+    }
+    const n = dp.picks.filter((r) => r === res).length;
+    if (dp.picks.length >= dp.count || this.bank[res] - n <= 0) return;
+    dp.picks.push(res);
+    this.sfx.click();
+    if (dp.picks.length === dp.count) this._finishPick();
+    else this.render();
+  }
+
+  _finishPick() {
+    const dp = this.devPick;
+    const player = this.currentPlayer;
+    if (!dp || !player?.isHuman || dp.picks.length !== dp.count) return;
+    this.devPick = null;
+    this.devPlayed = null;
+    const logLen = this.logEntries.length;
+    if (dp.type === "yearOfPlenty") {
+      const gained = dp.picks.filter((resource) => this.takeFromBank(player, resource, 1) > 0);
+      this.addLog(`${player.name} played Year of Plenty: ${this._plusList(gained)}.`);
+      const gain = gained.reduce((o, r) => { o[r] = (o[r] || 0) + 1; return o; }, {});
+      this.fx?.flyResources?.(this.players.map((p) => (p === player ? gain : {})), null);
+      this.sfx.trade?.();
+      if (!this.confirmPlacements) this._setUndo({ kind: "yop", pid: player.id, picks: gained, logs: this.logEntries.slice(logLen), icon: "devcard", label: `Took ${gained.map((r) => RESOURCE_LABEL[r]).join(" + ")}` });
+    } else {
+      const target = dp.picks[0];
+      let collected = 0;
+      this.players.forEach((other) => {
+        if (other.id === player.id) return;
+        collected += other.resources[target];
+        other.resources[target] = 0;
+      });
+      player.resources[target] += collected;
+      this._aiTrkMonopoly(player, target, collected);
+      this.addLog(`${player.name} played Monopoly: +${collected} ${RESOURCE_LABEL[target]}.`);
+      this.sfx.trade?.();
+    }
+    this.recomputeScores();
+    if (this.rush) this._rushAfterAction(player);
+    else { this.checkForWinner(player); this.saveToStorage(); this.render(); }
+  }
+
+  /** What the tray shows now (null = the normal dock buttons). */
+  _trayView() {
+    const human = this.players.find((p) => p.isHuman);
+    if (!human || this.winner) return null;
+    const cur = this.currentPlayer;
+    const tbtn = (attrs, inner, cls = "") => `<button type="button" class="tbtn ${cls}" ${attrs}>${inner}</button>`;
+    const close = (attr = "data-tray-close", label = "Close") => tbtn(`${attr} aria-label="${label}"`, icon("close"), "tclose");
+    const pd = this.pendingDiscard;
+    if (pd) {
+      const sel = sumResources(pd.selected);
+      const keep = sumResources(pd.player.resources) - sel;
+      return { mode: "discard",
+        hint: sel === pd.count ? `Hand back ${pd.count} cards · you keep ${keep}` : `Robber! Tap ${pd.count - sel === pd.count ? pd.count : `${pd.count - sel} more`} card${pd.count - sel === 1 ? "" : "s"} in your hand to hand back`,
+        html: `<div class="tinfo"><b>${sel}<small>/${pd.count}</small></b><span>chosen<small>keep ${keep}</small></span></div>`
+          + tbtn("data-discard-suggest", `${icon("hint")}<span>Suggest</span>`)
+          + tbtn(`data-discard-undo ${sel ? "" : "disabled"}`, `${icon("undo")}<span>Undo</span>`)
+          + tbtn(`data-discard-ok ${sel === pd.count ? "" : "disabled"}`, `${icon("check")}<span>Hand back</span>`, "primary wide") };
+    }
+    if (!cur?.isHuman) return null;
+    const cb = this.confirmBuild;
+    if (this.robberVictimOptions?.length) {
+      return { mode: "victims", hint: "Rob whom? You take 1 random card",
+        html: this.robberVictimOptions.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
+          return tbtn(`data-steal="${id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}`); }).join("") };
+    }
+    if (this.pendingAction === "robber" && cb?.type === "robber") {
+      const info = this._robberTileInfo(cb.id, cur);
+      const hex = info.hex;
+      const where = hex.resource === "desert" || !hex.number ? "the Desert" : `${TERRAIN_NAME[hex.resource]} ${hex.number}`;
+      const blocks = info.prod ? `blocks ${RESOURCE_LABEL[info.prod.res]} on ${info.prod.num}` : "produces nothing";
+      const own = info.own ? " (yours too)" : "";
+      const vic = info.victims;
+      if (vic.length > 1 && (!cb.victim || this.confirmPlacements)) {
+        return { mode: "robber", hint: `Robber on ${where} · ${blocks}${own} · ${this.confirmPlacements ? "pick who to rob, then Place" : "rob whom?"}`,
+          html: vic.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
+            return tbtn(`data-victim="${id}" aria-pressed="${cb.victim === id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}${cb.victim === id ? " sel" : ""}`); }).join("")
+            + (this.confirmPlacements ? tbtn(`data-rob-now ${cb.victim != null ? "" : "disabled"}`, `${icon("check")}<span>Place</span>`, "primary") : "")
+            + close("data-rob-undo", "Pick another tile") };
+      }
+      const v = vic.length ? this.players[cb.victim ?? vic[0]] : null;
+      const timed = !this.confirmPlacements && !!this._robberTimer;
+      return { mode: "robber", key: `${this._robberTimerAt}`,
+        hint: `Robber on ${where} · ${blocks}${own}`,
+        html: `<div class="tinfo rob${timed ? " timed" : ""}" style="--settle-ms:${ROBBER_SETTLE_MS}ms">${v ? this._av(v) : icon("robber")}<span>${v ? `Rob <b class="who pc-${v.id}">${v.name}</b>` : "Nobody to rob"}<small>${where} · ${blocks}</small></span><i class="ttime" aria-hidden="true"></i></div>`
+          + tbtn("data-rob-undo", `${icon("undo")}<span>${this.confirmPlacements ? "Back" : "Undo"}</span>`)
+          + tbtn("data-rob-now", `${icon("check")}<span>${this.confirmPlacements ? "Place" : v ? "Rob now" : "Done"}</span>`, "primary") };
+    }
+    // a selected spot (Confirm placements on, or a tap outside build mode): Place sits in the dock,
+    // nothing floats over the tiles
+    if (cb && cb.type !== "robber" && this.isMobileLayout && (this.setupPhase ? !!this.setupAction : this.phase === "main")) {
+      const info = this._confirmPillInfo();
+      return { mode: "confirm", hint: `${info.title} ${info.sub}`,
+        html: `<div class="tinfo">${icon(info.icon)}<span>${info.title}<small>${info.sub}</small></span></div>`
+          + tbtn("data-place-cancel", `${icon("close")}<span>Cancel</span>`)
+          + tbtn("data-place", `${icon("check")}<span>Place</span>`, "primary") };
+    }
+    const dp = this.devPick;
+    if (dp) {
+      const mono = dp.type === "monopoly";
+      const res = RESOURCES.map((r) => {
+        const n = dp.picks.filter((x) => x === r).length;
+        const off = mono ? false : dp.picks.length >= dp.count || this.bank[r] - n <= 0;
+        return tbtn(`data-pick="${r}" ${off ? "disabled" : ""} aria-pressed="${n > 0}"`, `<span class="card">${cardSvg(r)}</span><span>${RESOURCE_LABEL[r]}</span>${n ? `<i class="pk">${mono ? "✓" : `×${n}`}</i>` : ""}`, `res${n ? " sel" : ""}`);
+      }).join("");
+      const last = mono && dp.picks.length ? tbtn("data-pick-ok", `${icon("check")}<span>Take</span>`, "primary")
+        : !mono && dp.picks.length ? tbtn("data-pick-undo aria-label=\"Undo pick\"", icon("undo"), "tclose")
+        : close("data-pick-cancel", "Keep the card");
+      return { mode: "pick", hint: mono
+          ? (dp.picks.length ? `Take every ${RESOURCE_LABEL[dp.picks[0]]} from all players? Tap Take` : "Monopoly: pick a resource, everyone hands you theirs")
+          : `Year of Plenty: tap ${dp.count - dp.picks.length} card${dp.count - dp.picks.length === 1 ? "" : "s"} to take from the bank`,
+        html: res + last };
+    }
+    if (this.trayMode === "cards") {
+      const types = DEV_CARD_TYPES.filter((t) => human.devCards[t] + human.newDevCards[t] > 0);
+      const canBuy = cur.isHuman && this.phase === "main" && !this._robberInProgress() && hasResources(human.resources, COSTS.development) && this.devDeck.length > 0;
+      const focus = this._trayFocus;
+      const btns = types.map((t) => {
+        const ok = this.canPlayDevelopmentCard(human, t) && !this.devPick;
+        const n = human.devCards[t] + human.newDevCards[t];
+        return tbtn(`data-dev-play="${t}" ${ok ? "" : "aria-disabled=\"true\""} title="${DEV_NAME[t]}: ${CARD_TEXT[t]}"`, `<span class="card">${cardSvg(t)}</span><span>${SHORT_DEV[t]}</span>${n > 1 ? `<i class="pk">×${n}</i>` : ""}`, `dev${ok ? "" : " off"}${focus === t ? " focus" : ""}`);
+      }).join("");
+      const ft = focus && DEV_CARD_TYPES.includes(focus) ? focus : null;
+      const fresh = ft && human.devCards[ft] === 0;
+      const hint = ft ? `${DEV_NAME[ft]}: ${CARD_TEXT[ft]}${fresh ? (this.isRush() ? " · playable after the next roll" : " · playable next turn") : ""}`
+        : types.length ? "Tap a card to play it (one per turn)" : `No development cards yet · one costs ${resourceString(COSTS.development)}`;
+      return { mode: "cards", hint,
+        html: btns + tbtn(`data-tray-buy ${canBuy ? "" : "disabled"}`, `${icon("devcard")}<span>Buy card</span>`, "buy") + close() };
+    }
+    if (this.trayMode === "build" && this.isMobileLayout) {
+      const pa = this.pendingAction;
+      const can = (t) => this.phase === "main" && (t === "development" ? hasResources(human.resources, COSTS.development) && this.devDeck.length > 0
+        : hasResources(human.resources, COSTS[t]) && this.piecesLeft(human, t) > 0);
+      const piece = (t, label) => tbtn(`data-tray-build="${t}" ${can(t) ? "" : "disabled"} aria-pressed="${pa === t}"`, `${icon(t)}<span>${label}</span>`, pa === t ? "sel" : "");
+      const any = ["road", "settlement", "city", "development"].some(can);
+      const hint = this.freeRoadsRemaining ? `Free road · ${this.freeRoadsRemaining} left · tap a glowing spot`
+        : pa && pa !== "robber" ? "Tap a glowing spot to build" : any ? "Pick what to buy" : `Not enough cards yet · road ${resourceString(COSTS.road)}`;
+      return { mode: "build", hint,
+        html: piece("road", "Road") + piece("settlement", "Settle") + piece("city", "City") + tbtn(`data-tray-buy ${can("development") ? "" : "disabled"}`, `${icon("devcard")}<span>Card</span>`) + close() };
+    }
+    return null;
+  }
+
+  _renderTray() {
+    const el = document.querySelector("#dockPicker");
+    if (!el) return null;
+    const v = this._trayView();
+    this.app?.classList.toggle("tray-open", !!v);
+    el.hidden = !v;
+    el.dataset.mode = v?.mode || "";
+    const key = v ? v.mode + "|" + (v.key || "") + "|" + v.html : "";
+    if (el.__key !== key) { el.__key = key; el.innerHTML = v ? v.html : ""; }
+    return v;
+  }
+
+  _onTrayClick(e) {
+    const b = e.target.closest("button");
+    if (!b || b.disabled) return;
+    const d = b.dataset;
+    const cur = this.currentPlayer;
+    if ("discardOk" in d) { if (this.pendingDiscard && sumResources(this.pendingDiscard.selected) === this.pendingDiscard.count) this._confirmDiscard(); return; }
+    if ("discardUndo" in d) { this._discardUnmark(); return; }
+    if ("discardSuggest" in d) { this._discardSuggest(); return; }
+    if (d.steal != null) {
+      const vid = Number(d.steal);
+      if (!this.robberVictimOptions?.includes(vid)) return;
+      this.stealFromVictim(cur, vid);
+      this.robberContext = null;
+      this.robberVictimOptions = [];
+      if (this.victimPanel) this.victimPanel.style.display = "none";
+      this.saveToStorage();
+      this.render();
+      return;
+    }
+    const cb = this.confirmBuild?.type === "robber" ? this.confirmBuild : null;
+    if (d.victim != null && cb) {
+      const id = Number(d.victim);
+      if (!this._stealVictims(cb.id, cur).includes(id)) return;
+      if (this.confirmPlacements) { cb.victim = id; this.sfx.click(); this.render(); }
+      else this._commitRobber(cur, cb.id, id);
+      return;
+    }
+    if ("robNow" in d && cb) { this._commitRobber(cur, cb.id, cb.victim ?? this._defaultRobberVictim(cb.id, cur)); return; }
+    if ("robUndo" in d) { this._cancelRobberTimer(); this.confirmBuild = null; this.sfx.click(); this.render(); return; }
+    if ("place" in d) { this._confirmViaIcon(); return; }
+    if ("placeCancel" in d) { this.confirmBuild = null; this.render(); return; }
+    if (d.pick) { this._pickTap(d.pick); return; }
+    if ("pickOk" in d) { this._finishPick(); return; }
+    if ("pickUndo" in d) { this.devPick?.picks.pop(); this.render(); return; }
+    if ("pickCancel" in d) { this._cancelDevPlay(); return; }
+    if (d.devPlay) {
+      if (b.getAttribute("aria-disabled") === "true") { this._trayFocus = d.devPlay; this._flashPrompt(this._devWhyNot(d.devPlay)); this.render(); return; }
+      this.handleHumanPlayDevCard(d.devPlay);
+      return;
+    }
+    if ("trayBuy" in d) { this._buyFrom = b; this.handleHumanBuyDevCard(); return; }
+    if (d.trayBuild) {
+      if (this.pendingAction === d.trayBuild) { this.pendingAction = "build"; this.confirmBuild = null; this.sfx.click(); this.render(); }
+      else this.setPendingAction(d.trayBuild, { keepTray: true });
+      return;
+    }
+    if ("trayClose" in d) this.closeTray();
+  }
+
+  _devWhyNot(t) {
+    const h = this.players.find((p) => p.isHuman);
+    if (!h) return "";
+    if (h.devCards[t] === 0) return this.isRush() ? `${DEV_NAME[t]} is new: playable after the next roll` : `${DEV_NAME[t]} is new: play it next turn`;
+    if (!this.currentPlayer?.isHuman) return "Cards are played on your turn";
+    if (this.isRush() ? h.rushDevPlayed : this.currentTurnPlayedDevCard) return "One development card per turn";
+    if (this.phase === "pre_roll" && t !== "knight") return "Roll the dice first (only a Knight can be played before)";
+    if (t === "roadBuilding") return "No free spot for a road";
+    return `${DEV_NAME[t]} can't be played right now`;
   }
 
   zoomBy(f) {
@@ -8709,6 +9470,7 @@ class ColonistFullGame {
   }
 
   render() {
+    this._queueSave();
     this.drawCanvasScene();
     this.renderTopPanels();
     this.renderResourceCards();
@@ -8721,6 +9483,7 @@ class ColonistFullGame {
     this._renderRushOffers();
     this._themeEffects();
     this._syncScrim();
+    this._clampFloaters();
     if (!document.body.dataset.gameReady) {
       document.body.dataset.gameReady = "true";
     }

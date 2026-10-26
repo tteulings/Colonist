@@ -11,10 +11,19 @@ const SHELL = [
   "./src/themes/spec-util.js", "./src/themes/wood/art.js", "./src/themes/silhouette/art.js",
   "./assets/fonts/PlayfairDisplay.woff2", "./assets/fonts/SourceSans3.woff2", "./assets/fonts/WoodNumerals.woff2",
   "./assets/fonts/Kalam-700.woff2", "./assets/fonts/AlegreyaSans-500.woff2", "./assets/fonts/AlegreyaSans-700.woff2", "./assets/fonts/AlegreyaSans-800.woff2",
+  "./assets/icons/resource-wood-v3.svg", "./assets/icons/resource-brick-v2.svg", "./assets/icons/resource-sheep-v2.svg",
+  "./assets/icons/resource-wheat-v2.svg", "./assets/icons/resource-ore-v2.svg",
+  "./assets/icons/dev-knight.svg", "./assets/icons/dev-monopoly.svg", "./assets/icons/dev-road-building.svg",
+  "./assets/icons/dev-year-of-plenty.svg",
+  "./assets/icons/ui-bot-turns.svg", "./assets/icons/ui-build.svg", "./assets/icons/ui-dice.svg",
+  "./assets/icons/ui-end-turn.svg", "./assets/icons/ui-logo.svg", "./assets/icons/ui-trade.svg",
+  "./assets/avatars/avatar-human.svg", "./assets/avatars/avatar-pioneer.svg", "./assets/avatars/avatar-sage.svg",
+  "./assets/avatars/avatar-vector.svg", "./assets/pwa/apple-touch-icon.png", "./assets/pwa/icon-192.png",
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+  // The shell is fetched past the HTTP cache too, or a fresh SW could precache stale files
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL.map((url) => new Request(url, { cache: "no-cache" })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -29,8 +38,11 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET" || new URL(request.url).origin !== self.location.origin) return;
   event.respondWith(
-    // The page itself is revalidated (no stale HTTP-cached index.html next to a fresh game.js)
-    fetch(request, request.mode === "navigate" ? { cache: "no-cache" } : undefined)
+    // Always revalidate with the server, never answer from the HTTP cache: GitHub Pages serves
+    // everything with max-age=600, so a plain fetch() hands out the old index.html (and old
+    // unversioned modules such as src/themes/*.js) for up to 10 minutes after a deploy.
+    // no-cache still lets the server answer 304, so an unchanged file costs almost nothing.
+    fetch(request, { cache: "no-cache" })
       .then((response) => {
         if (response.ok) {
           const copy = response.clone();

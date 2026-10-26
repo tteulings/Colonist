@@ -6,7 +6,7 @@
   --font-display: "DM Serif Display", Georgia, "Times New Roman", serif;
   --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --display-weight: 400; --display-tracking: .005em; --h2-size: 20px; --brand-size: 27px; --jturn-transform: uppercase;
-  --ink: #2E3A3D; --ink-soft: #6B7476; --ink-faint: #9AA0A0; --heading: #22302F; --brand-ink: #1F6E77;
+  --ink: #2E3A3D; --ink-soft: #5A6366; --ink-faint: #687072; --heading: #22302F; --brand-ink: #1F6E77;
   --bg: #F7F2E8; --bg-image: none;
   --chrome: #EEF7F4; --chrome-image: linear-gradient(#F3FAF7, #E8F4F1); --chrome-ink: #2E3A3D; --chrome-border: 1px solid #CFE5E0; --chrome-shadow: 0 1px 0 rgba(255,255,255,.8);
   --m-top: #EEF7F4; --m-top-image: linear-gradient(#F3FAF7, #E8F4F1); --status-ink: #22302F;
@@ -26,9 +26,9 @@
   --scrim: rgba(24,40,42,.42); --spot: rgba(18,30,32,.55); --home-ind: #22302F;
   --btn: #FFFFFF; --btn-image: none; --btn-ink: #2E3A3D; --btn-border: 1px solid #D9CEB6; --btn-shadow: 0 1px 2px rgba(60,50,30,.08); --btn-radius: 10px;
   --btn-on: #FCEBE3; --btn-on-ink: #A84E2F; --btn-on-border: 1.5px solid #D9714E; --btn-on-shadow: 0 0 0 3px rgba(217,113,78,.16);
-  --primary: #D9714E; --primary-image: linear-gradient(#E07C59, #D06844); --primary-ink: #FFF9F2; --primary-border: 1px solid #BA5A38; --primary-shadow: 0 1px 2px rgba(120,50,20,.2), 0 6px 16px rgba(160,79,47,.22); --primary-size: 21px;
-  --accent: #D9714E; --good: #4F8A33; --good-bg: #E5F1DB; --danger: #C0503A;
-  --kbd-bg: #E3F1EE; --kbd-ink: #2B8C98;
+  --primary: #B85634; --primary-image: linear-gradient(#C05D3A, #B0502F); --primary-ink: #FFF9F2; --primary-border: 1px solid #9C4426; --primary-shadow: 0 1px 2px rgba(120,50,20,.2), 0 6px 16px rgba(160,79,47,.22); --primary-size: 21px;
+  --accent: #D9714E; --good: #4F8A33; --good-bg: #E5F1DB; --danger: #A8402C;
+  --kbd-bg: #E3F1EE; --kbd-ink: #1F6E77;
   --badge: #2B8C98; --badge-ink: #FBF8F1; --badge-border: 2px solid #FBF8F1;
   --vp-bg: #FFFFFF; --vp-ink: #22302F; --vp-border: 1px solid #E0D4BA; --vp-radius: 12px;
   --active-row: #FCEEE6; --divider: 1px solid #EFE7D7; --divider-soft: 1px solid #F1EADC; --sep: #E6DDCB;
@@ -36,7 +36,7 @@
   --avatar-radius: 50%; --avatar-shadow: 0 1px 3px rgba(0,0,0,.12);
   /* seats: You (blue) · orange · ivory · charcoal */
   --p0: #4A7FD6; --p1: #F2934A; --p2: #D8CFBB; --p3: #3E4752;
-  --p0-text: #2C5BA8; --p1-text: #C7661F; --p2-text: #8C7B57; --p3-text: #3E4752;
+  --p0-text: #2C5BA8; --p1-text: #A85516; --p2-text: #8C7B57; --p3-text: #3E4752;
   --p0-ink: #fff; --p1-ink: #fff; --p2-ink: #2E3A3D; --p3-ink: #fff;
   --row-tint: 7%; --vp-tint: 22%;
   --h2-bg: linear-gradient(90deg, #FCE7DC, #FDF4EC); --h2-bg-2: linear-gradient(90deg, #E2F2EE, #F1F8F5); --h2-border: 1px solid #F1E2D3;
@@ -188,7 +188,7 @@
   --float-shadow: 0 1px 2px rgba(20,60,60,.08), 0 8px 22px rgba(20,60,60,.12);
   --glass: rgba(222,246,245,.66); --glass-line: rgba(255,255,255,.38); --glass-active: rgba(255,255,255,.9);
   --glass-shadow: 0 1px 2px rgba(20,60,70,.08), 0 6px 18px rgba(20,60,70,.10);
-  --bar-ink: #17434A; --bar-ink-soft: rgba(23,67,74,.68); --mono: #4D6A70;
+  --bar-ink: #17434A; --bar-ink-soft: rgba(23,67,74,.82); --mono: #4D6A70;
   --ring: #E8A13A; --ready: #3E9E58;
   --dis-bg: rgba(255,255,255,.22); --dis-ink: rgba(23,67,74,.50); --dis-line: rgba(23,67,74,.18); --dis-ic: grayscale(1); --dis-ic-op: .45;
   --hand-bg: linear-gradient(rgba(222,246,245,0), rgba(222,246,245,.22));
@@ -197,14 +197,14 @@
   --sea-bg: #1394C4;
   --sea-image: radial-gradient(ellipse 85% 70% at 50% 46%, #48D0D9 0%, #1AA8CF 50%, #0E80B9 100%);
   --shimmer-a: .2;
-  --primary: #F2643A; --primary-image: linear-gradient(#F57650, #E9592F); --primary-border: 1px solid #CF4A22; --accent: #F2643A;
+  --primary: #C8471E; --primary-image: linear-gradient(#D04C22, #C0421A); --primary-border: 1px solid #A8391A; --accent: #F2643A;
   --primary-shadow: 0 1px 2px rgba(120,40,10,.25), 0 6px 16px rgba(120,40,10,.22);
   --rush-ring: #F2643A;
   --p0: #3D78E0; --p1: #F6852C;
   --float: rgba(236,248,251,.95);
-  --glass: rgba(8,62,104,.34); --glass-line: rgba(255,255,255,.13); --glass-active: rgba(255,255,255,.22);
+  --glass: rgba(8,62,104,.44); --glass-line: rgba(255,255,255,.13); --glass-active: rgba(4,46,84,.58);
   --glass-shadow: 0 1px 2px rgba(0,30,60,.12), 0 6px 18px rgba(0,30,60,.16);
-  --bar-ink: #FFFFFF; --bar-ink-soft: rgba(255,255,255,.78); --mono: #0B5584;
+  --bar-ink: #FFFFFF; --bar-ink-soft: rgba(255,255,255,.9); --mono: #0B5584;
   --ring: #FFD25A; --ready: #45CC79;
   --dis-bg: rgba(255,255,255,.08); --dis-ink: rgba(255,255,255,.60); --dis-line: rgba(255,255,255,.26); --dis-ic: grayscale(1) brightness(3); --dis-ic-op: .5;
   --hand-bg: linear-gradient(rgba(8,62,104,0), rgba(8,62,104,.2));
@@ -237,6 +237,9 @@
     background: var(--pc); color: var(--pc-ink); font-size: 21px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.3);
   }
   [data-theme="A"] .pchip .vpn small { display: none; }
+  /* points on the seat colour at AA: the blue seat uses its deeper shade, the orange seat dark ink */
+  [data-theme="A"] .pchip.pc-0 .vpn { background: var(--p0-text); }
+  [data-theme="A"] .pchip.pc-1 .vpn { color: #2E1F14; }
   [data-theme="A"] .pchip .pn { grid-area: pn; text-align: left; font-size: 12.5px; font-weight: 750; color: var(--bar-ink); overflow: hidden; text-overflow: ellipsis; }
   [data-theme="A"] .pchip:has(.bdg span) .pn { padding-right: 16px; }
   [data-theme="A"] .pchip:has(.bdg span + span) .pn { padding-right: 32px; }
@@ -314,4 +317,23 @@
   [data-theme="A"] .pchip .persona-builder { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-50%20-50%20100%20100%22%3E%3Cg%20transform%3D%22rotate%28-40%29%22%3E%3Crect%20x%3D%22-6%22%20y%3D%22-12%22%20width%3D%2212%22%20height%3D%2254%22%20rx%3D%226%22%20fill%3D%22%23fff%22%2F%3E%3Crect%20x%3D%22-34%22%20y%3D%22-36%22%20width%3D%2266%22%20height%3D%2224%22%20rx%3D%228%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E"); }
   [data-theme="A"] .pchip .persona-shark { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-50%20-50%20100%20100%22%3E%3Cpath%20d%3D%22M-38%2C24%20Q-6%2C18%2012%2C-36%20Q14%2C6%2038%2C24Z%22%20fill%3D%22%23fff%22%20stroke%3D%22%23fff%22%20stroke-width%3D%224%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E"); }
   [data-theme="A"] .pchip .persona-custom { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-50%20-50%20100%20100%22%3E%3Cpath%20d%3D%22M-30%2C-18%20H30%20M-30%2C18%20H30%22%20stroke%3D%22%23fff%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%22-10%22%20cy%3D%22-18%22%20r%3D%2210%22%20fill%3D%22%23fff%22%2F%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2218%22%20r%3D%2210%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E"); }
+}
+/* Phone landscape: the base layout floats the ticker/gear on the light --float pill; keep Sunny's glass
+   so its bar ink (white in Vivid) stays readable */
+@media (max-height: 500px) and (orientation: landscape) {
+  [data-theme="A"] .app .mtop .ticker, [data-theme="A"] .app .mtop .mgear { background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--glass-shadow); }
+  [data-theme="A"] .app .mtop .ticker.prompt { background: var(--glass-active); box-shadow: 0 0 0 2px var(--ring), var(--glass-shadow); }
+}
+
+/* v0.69 WCAG AA for Sunny Island chrome text (Light + Vivid). The tokens above carry most of it
+   (deeper terracotta on the primary button, darker soft/faint ink, deeper orange seat text, darker
+   key hints and "short" red); these rules remove the extra fading that pushed small text below 4.5:1. */
+[data-theme="A"] .mainbtn small, [data-theme="A"] .btn.primary small { opacity: 1; }
+[data-theme="A"] .bank-cell .have.short { opacity: 1; }
+[data-theme="A"] .th-slot.zero { color: var(--ink-soft); }
+[data-theme="A"] .bank-cell.dim .rate-tag { opacity: 1; color: var(--ink-soft); }
+@media (max-width: 900px), (max-height: 500px) {
+  /* the dock tray's info chip sits on the glass: use the bar ink (white in Vivid) */
+  [data-theme="A"] .tinfo { color: var(--ink); }
+  [data-theme="A"][data-palette="vivid"] .tinfo .who { color: var(--bar-ink); }
 }
