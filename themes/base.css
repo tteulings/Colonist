@@ -1186,3 +1186,9 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
   .hand .card.slot .slot-name, .hand .card.slot .slot-ic { display: none; }
   .hand .card:not(.slot) .count { min-width: 20px; height: 20px; font-size: 12px; padding: 0 5px; top: -7px; right: -7px; }
 }
+
+/* "Update ready · Reload" — a new version was deployed while this tab was open (index.html) */
+.update-chip { position: fixed; z-index: 200; left: 50%; top: calc(10px + env(safe-area-inset-top)); transform: translateX(-50%); max-width: calc(100vw - 32px); display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px; border-radius: 999px; background: var(--chip, #fff); color: var(--chip-ink, #2E3A3D); border: var(--chip-border, 1px solid #D7EBE6); box-shadow: var(--float-shadow, 0 4px 14px rgba(0,0,0,.18)); font: 600 14px/1 var(--font-body, system-ui, sans-serif); white-space: nowrap; cursor: pointer; animation: update-chip-in .3s var(--ease-out, ease-out); }
+.update-chip b { color: var(--btn-on-ink, #A84E2F); font-weight: 800; }
+@keyframes update-chip-in { from { opacity: 0; transform: translate(-50%, -8px); } }
+@media (prefers-reduced-motion: reduce) { .update-chip { animation: none; } }

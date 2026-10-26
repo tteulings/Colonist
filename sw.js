@@ -11,7 +11,8 @@ const SHELL = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+  // The shell is fetched past the HTTP cache too, or a fresh SW could precache stale files
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL.map((url) => new Request(url, { cache: "no-cache" })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -26,8 +27,11 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET" || new URL(request.url).origin !== self.location.origin) return;
   event.respondWith(
-    // The page itself is revalidated (no stale HTTP-cached index.html next to a fresh game.js)
-    fetch(request, request.mode === "navigate" ? { cache: "no-cache" } : undefined)
+    // Always revalidate with the server, never answer from the HTTP cache: GitHub Pages serves
+    // everything with max-age=600, so a plain fetch() hands out the old index.html (and old
+    // unversioned modules such as src/themes/*.js) for up to 10 minutes after a deploy.
+    // no-cache still lets the server answer 304, so an unchanged file costs almost nothing.
+    fetch(request, { cache: "no-cache" })
       .then((response) => {
         if (response.ok) {
           const copy = response.clone();
