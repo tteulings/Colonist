@@ -267,7 +267,7 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 /* the dock shares its row with Menu: the main label steps down on narrower phones so it never truncates */
 .app .btn.primary.mainbtn { font-size: var(--main-fs, var(--primary-size)); }
 .app .mainbtn .ic { font-size: 28px; }
-@media (max-width: 400px) { .app { --main-fs: 19px; } .app .mainbtn .ic { font-size: 26px; } }
+@media (max-width: 400px) { .app { --main-fs: 18px; } .app .mainbtn .ic { font-size: 26px; } }
 .app .mainbtn > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .app .mbtn:disabled, .app .side-actions .btn:disabled { opacity: .45; filter: saturate(.3); }
 /* Cards: always tappable (to look), but only stands out when a card can be played now */
@@ -791,9 +791,18 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
   .hm-list button { min-height: 48px; }
 }
 @media (max-height: 500px) and (orientation: landscape) {
-  .home .hm-col { max-width: 720px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-content: center; }
-  .home .hm-col > .hm-brand, .home .hm-col > .hm-continue { grid-column: 1 / -1; }
-  .home .hm-col > .hm-new { grid-column: 1; grid-row: span 2; }
+  /* two columns: brand · Continue · links on the left, New game on the right (fits 780x360 without scrolling) */
+  .home .hm-col { max-width: 760px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "brand new" "cont new" "list new";
+    grid-template-rows: auto auto 1fr; align-content: center; column-gap: 12px; }
+  .home:not(.has-save) .hm-col { grid-template-areas: "brand new" "list new"; grid-template-rows: auto 1fr; }
+  .home .hm-col > .hm-brand { grid-area: brand; }
+  .home .hm-col > .hm-continue { grid-area: cont; }
+  .home .hm-col > .hm-new { grid-area: new; align-self: center; }
+  .home .hm-col > .hm-list { grid-area: list; align-self: start; }
+  .hm-list button { min-height: 44px; padding: 2px; }
+  .hm-list button small { display: none; }
+  .hm-score em.nm { display: none; }
+  .hm-score em.ini { display: inline; }
   .hm-brand { flex-direction: row; justify-content: center; gap: 10px; }
   .hm-brand .hm-logo { width: 40px; height: 40px; }
   .hm-brand h1 { font-size: 26px; }
