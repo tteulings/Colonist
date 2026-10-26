@@ -69,10 +69,10 @@ h1, h2, h3, .display { font-family: var(--font-display); font-weight: var(--disp
 .avatar { width: var(--av, 44px); height: var(--av, 44px); border-radius: var(--avatar-radius); position: relative; flex: none; display: inline-block;
   box-shadow: 0 0 0 var(--av-ring, 3px) var(--pc), var(--avatar-shadow); background: var(--panel); }
 .avatar svg { width: 100%; height: 100%; border-radius: inherit; display: block; }
-.pc-0 { --pc: var(--p0); --pc-text: var(--p0-text, var(--p0)); --pc-ink: var(--p0-ink); }
-.pc-1 { --pc: var(--p1); --pc-text: var(--p1-text, var(--p1)); --pc-ink: var(--p1-ink); }
-.pc-2 { --pc: var(--p2); --pc-text: var(--p2-text, var(--p2)); --pc-ink: var(--p2-ink); }
-.pc-3 { --pc: var(--p3); --pc-text: var(--p3-text, var(--p3)); --pc-ink: var(--p3-ink); }
+.pc-0 { --pc: var(--p0); --pc-text: var(--p0-text, var(--p0)); --pc-ink: var(--p0-ink); --pc-light: var(--p0-light, var(--p0)); --pc-dark: var(--p0-dark, var(--p0)); --pc-line: var(--p0-line, var(--p0-dark, var(--p0))); }
+.pc-1 { --pc: var(--p1); --pc-text: var(--p1-text, var(--p1)); --pc-ink: var(--p1-ink); --pc-light: var(--p1-light, var(--p1)); --pc-dark: var(--p1-dark, var(--p1)); --pc-line: var(--p1-line, var(--p1-dark, var(--p1))); }
+.pc-2 { --pc: var(--p2); --pc-text: var(--p2-text, var(--p2)); --pc-ink: var(--p2-ink); --pc-light: var(--p2-light, var(--p2)); --pc-dark: var(--p2-dark, var(--p2)); --pc-line: var(--p2-line, var(--p2-dark, var(--p2))); }
+.pc-3 { --pc: var(--p3); --pc-text: var(--p3-text, var(--p3)); --pc-ink: var(--p3-ink); --pc-light: var(--p3-light, var(--p3)); --pc-dark: var(--p3-dark, var(--p3)); --pc-line: var(--p3-line, var(--p3-dark, var(--p3))); }
 .who { font-weight: 750; color: var(--pc-text); }
 .pname { font-weight: 750; color: var(--ink); }
 .persona-badge {
@@ -1252,7 +1252,7 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
   [data-theme="A"] .app #tradeBankBtn[aria-disabled="true"] .ic { filter: var(--dis-ic); opacity: var(--dis-ic-op); }
 }
 
-/* offers: "Viktor: your 1 [Lumber] for 1 [Grain]" + what you have; docked above the hand */
+/* offers: "Groenewoud: your 1 [Lumber] for 1 [Grain]" + what you have; docked above the hand */
 .rush-offers { bottom: calc(var(--fan-h) + 2px); }
 .rush-offer { align-items: center; padding: 8px 8px 10px 10px; }
 .rush-offer .avatar { --av: 32px; }
@@ -1455,15 +1455,22 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 /* ==========================================================================
    v0.73 · player chip stats, hand totals bar, bank counts
    ========================================================================== */
-/* chips: cards always; dev cards, knights played and road length only once they mean something;
-   a held award is the same number on a calm gold chip (no extra badge) */
+/* chips: cards always; dev cards, knights played and road length only once they mean something.
+   v0.75: a held award (Largest Army / Longest Road) is that number on a gold pill with
+   "+2": gold with a dark rim, never a seat colour (seats: red, blue, orange, green, ivory, purple) */
 .pchip .mini { white-space: nowrap; overflow: hidden; }
 .pchip .mini span { flex: none; font-variant-numeric: tabular-nums; }
-.app .pchip .mini span.award { background: var(--award-bg, #F5D57E); color: var(--award-ink, #3A2A06); border-radius: 6px; padding: 0 3px 0 1px; }
+.app .pchip .mini span.award, .prow .stats span.award {
+  background: var(--award-bg, #FFE27A); color: var(--award-ink, #2B1F00); border-radius: 6px; padding: 0 3px 0 1px;
+  box-shadow: inset 0 0 0 1px var(--award-rim, #8A6A00); font-weight: 800;
+}
+.app .pchip span.award .aw-plus, .prow .stats span.award .aw-plus { margin-left: 2px; font-size: .86em; font-weight: 900; letter-spacing: -.02em; }
+/* knight / road glyphs in everyone's chip are drawn in your colour (red): neutral grey here so they never read as "you" */
+.app .pchip .mini :is([data-stat="knights"], [data-stat="road"]) .ic, .prow .stats :is([data-stat="knights"], [data-stat="road"]) .ic { filter: grayscale(1) contrast(1.15); }
+
 .app .pchip .mini span.warn { color: var(--warn-ink, #B23A1E); font-weight: 800; }
 .app .pchip .mini.dense { gap: 2px; font-size: 10.5px; letter-spacing: -.02em; }
 .app .pchip .mini.dense .ic { font-size: 12px; }
-.prow .stats span.award { background: var(--award-bg, #F5D57E); color: var(--award-ink, #3A2A06); border-radius: 6px; padding: 0 4px; }
 .prow .stats span.warn { color: var(--warn-ink, #B23A1E); }
 /* hand totals bar (phones, portrait): "7 cards · 1 dev" on the left, the bank on the right */
 .hand-bar { display: none; }
@@ -1506,7 +1513,7 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
    v0.76 trade: one panel (give row · get row · players with their answers),
    two routes in the footer (bank/harbour · offer). Green is only for ✓ accept.
    ========================================================================== */
-:root { --accept: #1A7F50; --accept-ink: #FFFFFF; --accept-shadow: #125C3A; --route-bank: #1F7F86; --route-bank-ink: #FFFFFF; }
+:root { --accept: #0E6B3A; --accept-ink: #FFFFFF; --accept-shadow: #084A28; /* v0.78: a deep accept green, darker than the green seat (#2E9E5E) so a ✓ never reads as Groenewoud */ --route-bank: #1F7F86; --route-bank-ink: #FFFFFF; }
 .app .trade-sheet { max-height: calc(var(--app-h, 100dvh) - var(--strip-h, 92px)); }
 .app.trade-open .pstrip { position: relative; z-index: 41; }
 .trade-sheet .sheet-head h3 { margin: 0; }

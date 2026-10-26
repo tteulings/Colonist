@@ -1,8 +1,8 @@
-import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced, SEAT_PRESETS } from "./themes/manager.js";
+import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced, SEAT_PRESETS, awardStat } from "./themes/manager.js";
 import { SvgBoardRenderer } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
-import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges } from "./themes/art-util.js";
+import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted } from "./themes/art-util.js";
 import { Onboarding, introSeen } from "./themes/onboarding.js";
 import { Home, GameMenu } from "./themes/home.js";
 import { SoundEngine } from "./sound.js";
@@ -61,13 +61,17 @@ const BANK_SIZE = 19; // cards of each resource in the game
 const PIECE_LIMITS = { road: 15, settlement: 5, city: 4, ship: 15 }; // ⚓ ship: Seafarers only
 
 const PLAYER_CONFIG = [
-  { name: "You", color: "#e63946", isHuman: true, avatar: "./assets/avatars/avatar-human.svg?v=57" },
-  { name: "Marina", color: "#2a6fdb", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg?v=57" },
-  { name: "Bruno", color: "#e8a317", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
-  { name: "Viktor", color: "#2db87e", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
+  // Names: a homage to the Dutch Cluedo cast (portraits: src/themes/portraits.js). Seat 0 is "You";
+  // its persona is Rosa Roodhart (fullName; "Roodhart" wherever the seat is named as a bot).
+  // short: the label in the phone player strip, where the full surname would not fit at 360px.
+  // v0.75 seat colours (colonist.io order): red · blue · orange · green · ivory · purple; the theme overrides these
+  { name: "You", fullName: "Rosa Roodhart", color: "#E0312B", isHuman: true, avatar: "./assets/avatars/avatar-human.svg?v=57" },
+  { name: "Blaauw", fullName: "Mevrouw Blaauw van Draet", color: "#2F6FE6", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg?v=57" },
+  { name: "Van Geelen", short: "Geelen", fullName: "Kolonel Van Geelen", color: "#F7931E", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
+  { name: "Groenewoud", short: "Groen", fullName: "Dominee Groenewoud", color: "#2E9E5E", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
   // seats 5 and 6 (5–6 player games); colours come from the theme (see src/themes/seats.js)
-  { name: "Nora", color: "#E01000", isHuman: false, avatar: "" },
-  { name: "Hugo", color: "#4CCBF5", isHuman: false, avatar: "" },
+  { name: "De Wit", fullName: "Mevrouw De Wit", color: "#EDE6D3", isHuman: false, avatar: "" },
+  { name: "Pimpel", fullName: "Professor Pimpel", color: "#72309F", isHuman: false, avatar: "" },
 ];
 
 const DEV_CARD_TYPES = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
@@ -1364,6 +1368,8 @@ class ColonistFullGame {
     this.players = PLAYER_CONFIG.slice(0, this.settings.numBots + 1).map((config, id) => ({
       id,
       name: config.name,
+      fullName: config.fullName,
+      short: config.short,
       color: config.color,
       isHuman: config.isHuman,
       avatar: config.avatar,
@@ -2343,6 +2349,7 @@ class ColonistFullGame {
     const xs = g.hexes.map((h) => h.center.x), ys = g.hexes.map((h) => h.center.y);
     // Phones: the island (tiles + beach) fills the width; only the harbours may touch the screen edge
     const mobile = this.isMobileLayout;
+    this._hScale = 0; // v0.78: re-chosen below on phones (see harbourScale)
     // ⚓ Seafarers: the whole scenario frame (outer sea hexes included, ships may sail there), no harbour boats
     const mx = hs * (this.sea ? 0.9 : mobile ? 1.05 : 1.75), my = hs * (this.sea ? 1.0 : mobile ? 1.12 : 1.7);
     const box = { minX: Math.min(...xs) - mx, maxX: Math.max(...xs) + mx, minY: Math.min(...ys) - my, maxY: Math.max(...ys) + my };
@@ -2363,16 +2370,30 @@ class ColonistFullGame {
         // that gutter; only the very tip of a boat may run off screen. Only the ports this map really has count, so a map
         // without a harbour at the far left/right gets the full width.
         const cx = (box.minX + box.maxX) / 2, half = (box.maxX - box.minX) / 2;
-        let reach = 0;
+        const avail = this.boardWidth / 2;
         // v0.76: every harbour pill (same layout as the art, world units = hexSize / 100) fully on screen
         const u = hs / 100, M = 4 * u;
-        harbourBadges(this, 1.38).forEach((q) => {
-          const bx = g.centerX + q.x * u, by = g.centerY + q.y * u;
-          reach = Math.max(reach, Math.abs(bx - cx) + (q.w / 2) * u + M);
-          // v0.73: the whole world on screen — harbours above / below the island count for the height too
-          box.minY = Math.min(box.minY, by - (q.h / 2) * u - M); box.maxY = Math.max(box.maxY, by + (q.h / 2) * u + M);
-        });
-        const avail = this.boardWidth / 2;
+        const measure = (s) => {
+          let reach = 0, y0 = box.minY, y1 = box.maxY;
+          harbourBadges(this, s).forEach((q) => {
+            const bx = g.centerX + q.x * u, by = g.centerY + q.y * u;
+            reach = Math.max(reach, Math.abs(bx - cx) + (q.w / 2) * u + M);
+            // v0.73: the whole world on screen — harbours above / below the island count for the height too
+            y0 = Math.min(y0, by - (q.h / 2) * u - M); y1 = Math.max(y1, by + (q.h / 2) * u + M);
+          });
+          return { reach, y0, y1 };
+        };
+        // v0.78: the harbour pills grow on phones (ratio >= 12 px) but never at the cost of the board: take the
+        // largest pill scale that costs the board at most 4% of the size the v0.77-size pills (scale 1.38) allowed
+        const k77 = (() => { const m = measure(1.38); return Math.min((avail - side) / half, m.reach ? (avail - 3) / m.reach : Infinity); })();
+        let hS = 1.38;
+        for (let s = harbourScaleWanted(hs); s > 1.38; s -= 0.08) {
+          const m = measure(s);
+          if (!m.reach || (avail - 3) / m.reach >= k77 * 0.96) { hS = s; break; }
+        }
+        this._hScale = hS;
+        const { reach, y0, y1 } = measure(hS);
+        box.minY = y0; box.maxY = y1;
         // v0.73: every harbour boat fully on screen (playtest: "I can't always see the whole world");
         // was: a boat tip could run 6 px off the edge
         const k = Math.min((avail - side) / half, reach ? (avail - 3) / reach : Infinity);
@@ -6396,6 +6417,8 @@ class ColonistFullGame {
       return {
         id,
         name: config.name,
+        fullName: config.fullName,
+        short: config.short,
         color: config.color,
         isHuman: config.isHuman,
         avatar: config.avatar,
@@ -6920,14 +6943,19 @@ class ColonistFullGame {
     ctx.restore();
   }
 
-  /** Classic harbours (v0.76): the same badge as the themed boards (harbourBadges) — the resource icon (or a
-   *  "?" seal for 3:1) beside the ratio in bold, two piers to the coast corners, a dot on each corner. */
+  /** Classic harbours (v0.78): the same pill as the themed boards (harbourBadges) — the resource glyph (the card
+   *  icon without its coloured tile, so a brick harbour never reads as a red player) beside the ratio in bold, or
+   *  just "3:1"; two piers to the coast corners, a dot on each corner. */
   drawPorts() {
-    const ctx = this.ctx, g = this.geometry, u = g.hexSize / 100, s = this.isMobileLayout ? 1.38 : 1;
+    const ctx = this.ctx, g = this.geometry, u = g.hexSize / 100, s = harbourScale(this);
     const portColor = { wood: "#4a7c3f", brick: "#b5532e", sheep: "#5f9a36", wheat: "#b8931f", ore: "#6a7588", any: "#3d5f72" };
     if (!this._portImgs) {
       this._portImgs = {};
-      Object.entries(RESOURCE_ICON_PATH).forEach(([r, src]) => { const im = new Image(); im.onload = () => this.render?.(); im.src = src; this._portImgs[r] = im; });
+      // the card icons sit on a coloured rounded tile: drop the tile (the first two <rect>s), keep the glyph
+      Object.entries(RESOURCE_ICON_PATH).forEach(([r, src]) => {
+        const im = new Image(); im.onload = () => this.render?.(); this._portImgs[r] = im;
+        fetch(src).then((res) => res.text()).then((svg) => { im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg.replace(/<rect x="4" y="4"[^>]*\/>/, "").replace(/<rect x="8" y="8"[^>]*\/>/, "")); }).catch(() => { im.src = src; });
+      });
     }
     const badges = harbourBadges(this, s);
     this.ports.forEach((port, pi) => {
@@ -6950,19 +6978,27 @@ class ColonistFullGame {
         ctx.strokeStyle = "#c9a874"; ctx.lineWidth = 3.4 * s * u; ctx.stroke();
       });
       [p1, p2].forEach((n) => { ctx.beginPath(); ctx.arc(n.x, n.y, 5.6 * s * u, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); ctx.lineWidth = 2 * s * u; ctx.strokeStyle = "#f5efe4"; ctx.stroke(); });
-      // badge
+      // pill: cream, the resource colour only as an outline accent
       ctx.shadowColor = "rgba(15, 23, 34, 0.35)"; ctx.shadowBlur = 5 * s * u; ctx.shadowOffsetY = 2 * s * u;
       this.drawRoundedRect(bx - W / 2, by - H / 2, W, H, (q.r) * u);
-      ctx.fillStyle = "#f5efe4"; ctx.fill();
+      ctx.fillStyle = q.icon ? "#f5efe4" : "#F7F1E3"; ctx.fill();
       ctx.shadowColor = "transparent";
-      ctx.strokeStyle = color; ctx.lineWidth = 2.4 * s * u; ctx.stroke();
-      const [ix, iy] = P(q.icon.x, q.icon.y), is = q.icon.size * u;
-      const im = this._portImgs[port.type];
-      if (im) { if (im.complete && im.naturalWidth) ctx.drawImage(im, ix - is / 2, iy - is / 2, is, is); }
-      else {
-        ctx.beginPath(); ctx.arc(ix, iy, is / 2, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
-        ctx.fillStyle = "#ffffff"; ctx.font = `800 ${is * 0.74}px Inter, system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-        ctx.fillText("?", ix, iy + is * 0.27);
+      ctx.strokeStyle = q.icon ? color : "#b9a786"; ctx.lineWidth = (q.icon ? 2.4 : 1.6) * s * u; ctx.stroke();
+      if (q.icon) {
+        const [ix, iy] = P(q.icon.x, q.icon.y), is = q.icon.size * u * 1.2;
+        const im = this._portImgs[port.type];
+        if (im && im.complete && im.naturalWidth) {
+          // the glyph as a solid silhouette in the resource colour (cached per type)
+          this._portGlyphs = this._portGlyphs || {};
+          let gc = this._portGlyphs[port.type];
+          if (!gc) {
+            gc = document.createElement("canvas"); gc.width = gc.height = 128;
+            const x2 = gc.getContext("2d"); x2.drawImage(im, 0, 0, 128, 128);
+            x2.globalCompositeOperation = "source-in"; x2.fillStyle = color; x2.fillRect(0, 0, 128, 128);
+            this._portGlyphs[port.type] = gc;
+          }
+          ctx.drawImage(gc, ix - is / 2, iy - is / 2, is, is);
+        }
       }
       const [tx, ty] = P(q.text.x, q.text.y);
       ctx.fillStyle = "#1a3a52"; ctx.font = `800 ${q.text.size * u}px Inter, system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
@@ -7673,17 +7709,17 @@ class ColonistFullGame {
       const awards = (this.longestRoadHolder === player.id ? (this.sea ? `<span title="Longest Trade Route (+2 points)">${icon("tradeRoute")}</span>` : `<span title="Longest Road (+2 points)">${icon("longestRoad")}</span>`) : "") // ⚓
         + (this.largestArmyHolder === player.id ? `<span title="Largest Army (+2 points)">${icon("largestArmy")}</span>` : "");
       const vp = this.displayVictoryPoints(player);
-      // v0.73: knights played and road length per player, only once they mean something (knights > 0,
-      // a road of 3+ or the award); the award itself is the same number on a gold chip, not an extra badge
+      // knights played and road length only once they mean something (knights > 0, a road of 3+ or the award);
+      // v0.75: the award holder's number sits on a gold pill with "+2" (gold: never a seat colour)
       const lr = this.longestRoadHolder === player.id, la = this.largestArmyHolder === player.id;
       const over = totalCards > (this.settings?.discardLimit ?? 7);
       const stats = [
         `<span data-stat="cards"${over ? ' class="warn"' : ""} title="${totalCards} resource card${totalCards === 1 ? "" : "s"}${over ? ` (more than ${this.settings?.discardLimit ?? 7}: hands back half on a 7)` : ""}">${icon("cards")}${totalCards}</span>`,
         totalDev > 0 ? `<span data-stat="dev" title="${totalDev} development card${totalDev === 1 ? "" : "s"}">${icon("devcard")}${totalDev}</span>` : "",
-        player.knightsPlayed > 0 || la ? `<span data-stat="knights"${la ? ' class="award"' : ""} title="${player.knightsPlayed} knight${player.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest Army (+2 points)" : ""}">${icon("knight")}${player.knightsPlayed}</span>` : "",
-        player.longestRoadLength >= 3 || lr ? (this.sea // ⚓ Seafarers: the trade route counts roads + ships
-          ? `<span data-stat="road"${lr ? ' class="award"' : ""} title="Trade route ${player.longestRoadLength}${lr ? " · Longest Trade Route (+2 points)" : " (5+ to win Longest Trade Route)"}">${icon("tradeRoute")}${player.longestRoadLength}</span>`
-          : `<span data-stat="road"${lr ? ' class="award"' : ""} title="Longest road ${player.longestRoadLength}${lr ? " · Longest Road (+2 points)" : " (5+ to win Longest Road)"}">${icon("road")}${player.longestRoadLength}</span>`) : "",
+        awardStat("knights", player.knightsPlayed, la, `${player.knightsPlayed} knight${player.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest Army (+2 points)" : " (3+ to win Largest Army)"}`, "knight"),
+        this.sea // ⚓ Seafarers: the trade route counts roads + ships
+          ? awardStat("road", player.longestRoadLength, lr, `Trade route ${player.longestRoadLength}${lr ? " · Longest Trade Route (+2 points)" : " (5+ to win Longest Trade Route)"}`, "tradeRoute")
+          : awardStat("road", player.longestRoadLength, lr, `Longest road ${player.longestRoadLength}${lr ? " · Longest Road (+2 points)" : " (5+ to win Longest Road)"}`, "road"),
         this.sea && this.sea.bonus[player.id]?.length ? `<span data-stat="isle" class="award" title="New islands: ${this.sea.bonus[player.id].length} (+${this.sea.bonusVP(player)} points)">${icon("island")}${this.sea.bonus[player.id].length}</span>` : "", // ⚓
       ].filter(Boolean);
       rows.push(`<div class="prow player-card-mini pc-${idx}${active ? " active" : ""}${isReady ? " rush-ready" : ""}" data-seat="${idx}">
@@ -7692,9 +7728,9 @@ class ColonistFullGame {
           <span class="tag">${player.isHuman ? "Your colony" : personaBadge}</span>
           <div class="stats">${stats.join("")}<span class="badges">${awards}</span></div></div>
         <div class="vp player-vp" title="Points — tap for details">${vp}<small>points</small></div></div>`);
-      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points">
+      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
         <div class="row">${this._av(player)}<div class="vpn">${vp}<small>PTS</small></div></div>
-        <div class="pn">${player.name}</div>${player.isHuman ? "" : personaBadge}
+        <div class="pn">${player.short || player.name}</div>${player.isHuman ? "" : personaBadge}
         <div class="pcards">${stats[0]}</div>
         <div class="mini${stats.length > 3 ? " dense" : ""}">${stats.slice(1).join("")}</div></div>`);
     });

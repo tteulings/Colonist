@@ -23,7 +23,7 @@
   --scrim: rgba(20,45,65,.6); --spot: rgba(10,25,40,.6); --home-ind: #fff;
   --btn: #faf6ef; --btn-image: linear-gradient(180deg, #faf6ef, #e8dcc8); --btn-ink: #2c1810; --btn-border: 1px solid rgba(0,0,0,.15); --btn-shadow: 0 1px 2px rgba(0,0,0,.1); --btn-radius: 10px;
   --btn-on: #e0f4f7; --btn-on-ink: #1a3a52; --btn-on-border: 2px solid #19a0b8; --btn-on-shadow: 0 0 0 3px rgba(25,160,184,.2);
-  --primary: #da7756; --primary-image: linear-gradient(135deg, #da7756, #c4623e); --primary-ink: #fff; --primary-border: 1px solid rgba(218,119,86,.3); --primary-shadow: 0 3px 10px rgba(218,119,86,.35); --primary-size: 19px;
+  --primary: #1F7480; --primary-image: linear-gradient(135deg, #227E8B, #1B6874); --primary-ink: #fff; --primary-border: 1px solid rgba(31,116,128,.3); --primary-shadow: 0 3px 10px rgba(31,116,128,.35); /* v0.75: teal, not the red "You" seat */ --primary-size: 19px;
   --accent: #da7756; --good: #22a854; --good-bg: #dff3e6; --danger: #c44;
   --kbd-bg: rgba(0,0,0,.08); --kbd-ink: #1a3a52;
   --badge: #1a3a52; --badge-ink: #fff; --badge-border: 2px solid #fff;
@@ -31,10 +31,11 @@
   --active-row: #fdeee6; --divider: 1px solid rgba(160,140,110,.25); --divider-soft: 1px solid rgba(160,140,110,.18); --sep: rgba(160,140,110,.35);
   --fab-radius: 12px; --card-radius: 10px; --card-shadow: drop-shadow(0 2px 3px rgba(0,0,0,.2));
   --avatar-radius: 50%; --avatar-shadow: 0 1px 3px rgba(0,0,0,.2);
-  /* seats match every theme: You blue · Marina orange · Bruno ivory · Viktor plum */
-  --p0: #4A7FD6; --p1: #F2934A; --p2: #D8CFBB; --p3: #A8306F;
-  --p0-text: #2C5BA8; --p1-text: #C7661F; --p2-text: #8C7B57; --p3-text: #8E2560;
-  --p0-ink: #fff; --p1-ink: #fff; --p2-ink: #2E3A3D; --p3-ink: #fff;
+  /* seats (v0.75, colonist.io order), identical in every theme: You red · Blaauw blue · Van Geelen orange · Groenewoud green
+     (+ De Wit ivory · Pimpel purple from src/themes/seats.js). -text / -ink / -light / -dark are derived from the board pieces at runtime (src/themes/seats.js) */
+  --p0: #D1453A; --p1: #3A73C4; --p2: #F08A2E; --p3: #2A8556; /* v0.78 first-paint fallback: applySeatTokens sets every --pN* from the pieces */
+  --p0-text: #A01D18; --p1-text: #1F4FAE; --p2-text: #8F4710; --p3-text: #12603A;
+  --p0-ink: #fff; --p1-ink: #fff; --p2-ink: #2E1F14; --p3-ink: #0F2418;
   --row-tint: 6%; --vp-tint: 14%;
   --h2-bg: transparent; --h2-bg-2: transparent; --h2-border: 1px solid rgba(160,140,110,.2);
   --jicon-bg: transparent; --jicon-pad: 0; --jicon-size: 22px;
@@ -48,6 +49,8 @@
   --persona-expert-bg: #e5eefb; --persona-expert-ink: #2a5fa8;
   --persona-beginner-bg: #e8f5e1; --persona-beginner-ink: #4a7d2a;
 }
+/* v0.75: the phone player strip drops the bot-level pills ("Intermediate"): noise next to the seat colours, as in the other themes */
+@media (max-width: 900px), (max-height: 500px) { [data-theme="classic"] .pstrip .pchip .persona-badge { display: none; } }
 [data-theme="classic"] .brand-name { text-transform: uppercase; letter-spacing: .08em; }
 [data-theme="classic"] .cost, [data-theme="classic"] .bank { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.12); color: #f5efe4; }
 [data-theme="classic"] .ticker, [data-theme="classic"] .pchip .pn, [data-theme="classic"] .pchip .vpn { color: #f5efe4; }

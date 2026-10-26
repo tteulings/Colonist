@@ -8,8 +8,10 @@
 // No characters or artworks are copied; figures are generic slender silhouettes.
 import { f, rng, pipCount, wrap, RES_NAME, DEV_NAME, CARD_TEXT, RESOURCE_KEYS } from "../art-util.js";
 import { specSvg, tp } from "../spec-util.js";
+import { portrait } from "../portraits.js";
 
 const B = "#1C1A19"; // Indian ink
+const FIG = "#3A3532"; // v0.77: people and the robber in a soft warm charcoal instead of pure ink (less harsh)
 const PA = "#FFF9EE"; // white-cream: only a highlight (tokens, eyes, wave curls)
 const CREAM = "#FBF1DC"; // the paper of cards, beaches and chrome
 const SEA = "#2E9FAC"; // one flat turquoise field (matches --c-sea in theme-silhouette.css)
@@ -17,15 +19,20 @@ const K = {
   orange: "#EC6A2C", red: "#D9412B", yellow: "#F5C02E", green: "#77B347", leaf: "#4E9A3E", lime: "#B7D257",
   turq: "#3BA7B8", sky: "#8FD0DC", blue: "#2F6BB3", pink: "#EE9AA8", sand: "#F1D6A4", ochre: "#E39B33", grey: "#8FA3B4", slate: "#5D7E99",
 };
-// Seats: identical to Sunny Island (light) so switching themes never recolours a player.
+// Seats (v0.78): flat ink-and-colour like C's board — the same six hues as the other themes in C's flat
+// gouache tones, outlined in the board's Indian ink.
 const PC = {
-  blue: { base: "#3A76DC", dark: "#2557B0", light: "#7AA5F0", line: "#163777" },
-  orange: { base: "#F68B3A", dark: "#BF6118", light: "#FBB57A", line: "#6E380C" },
-  ivory: { base: "#FDFBF6", dark: "#C8BFAA", light: "#FFFFFF", line: "#4A443A" },
-  plum: { base: "#A8306F", dark: "#7A1F50", light: "#D06A9E", line: "#3A0A24" },
+  red: { base: "#D2412F", dark: "#A32E20", light: "#E8806F", line: "#1C1A19" },
+  blue: { base: "#2F6BB3", dark: "#225088", light: "#7BA2D4", line: "#1C1A19" },
+  orange: { base: "#F29236", dark: "#BF6514", light: "#F8BC78", line: "#1C1A19" },
+  green: { base: "#2A8556", dark: "#1D6340", light: "#66B58A", line: "#1C1A19" },
+  ivory: { base: "#F4EBD6", dark: "#D3C7AA", light: "#FFFBF0", line: "#1C1A19" },
+  purple: { base: "#7A49A8", dark: "#57337C", light: "#A886CC", line: "#1C1A19" },
 };
-const TEXT = { blue: "#2C5BA8", orange: "#A65314", ivory: "#7D6D4C", plum: "#8E2560" }; // seat hues, darkened to AA on paper
-const TC = { wood: [K.green, K.leaf], brick: [K.orange, "#C8502A"], sheep: [K.lime, "#9FC24A"], wheat: [K.yellow, K.ochre], ore: [K.grey, K.slate], desert: [K.sand, "#E6C48A"] };
+const TEXT = { red: "#A32E20", blue: "#225088", orange: "#A25611", green: "#1D6340", ivory: "#5E5139", purple: "#57337C" }; // seat hues as text on paper (applySeatTokens darkens further where AA needs it)
+const BUILD_INK = { base: "#22313A", dark: "#16222A", light: "#4A5A64", line: "#0E161B" };
+// v0.75: brick a deeper terracotta so the orange seat stands clear of it
+const TC = { wood: [K.green, K.leaf], brick: ["#C8502A", "#A8401E"], sheep: [K.lime, "#9FC24A"], wheat: [K.yellow, K.ochre], ore: [K.grey, K.slate], desert: [K.sand, "#E6C48A"] };
 const P = { ink: B, sand: PA, forest: [K.green], terra: [K.orange], pasture: [K.lime], wheat: [K.yellow], slate: [K.grey], desert: [K.sand] };
 
 /* ---------- primitives (plain path / circle markup, Path2D-friendly) ---------- */
@@ -44,7 +51,7 @@ const hexD = (r, cx = 0, cy = 0) => "M" + Array.from({ length: 6 }, (_, i) => { 
    can be an SVG silhouette on a tile and a canvas piece (the robber). */
 function personItems(o = {}) {
   const w = 1.5, it = [];
-  const F = (d, c = B) => it.push({ d, fill: c }), S = (d, sw = w, c = B) => it.push({ d, stroke: c, sw, cap: "round" }), Cc = (cx, cy, r, c = B) => it.push({ el: "circle", cx, cy, r, fill: c });
+  const F = (d, c = FIG) => it.push({ d, fill: c }), S = (d, sw = w, c = FIG) => it.push({ d, stroke: c, sw, cap: "round" }), Cc = (cx, cy, r, c = FIG) => it.push({ el: "circle", cx, cy, r, fill: c });
   Cc(0, -21.5, 4.6);
   const hat = o.hat || "hair";
   if (hat === "cap") F("M-4.8,-22.6 Q-4.6,-27.4 .4,-27.4 Q4.6,-27.2 5,-23.4 L8.2,-22.6 L4.6,-22 Z");
@@ -53,7 +60,7 @@ function personItems(o = {}) {
   if (hat === "scarf") F("M-5.4,-21 Q-6,-28 0,-27.8 Q6,-28 5.4,-21 Q5,-25 0,-25.4 Q-5,-25 -5.4,-21Z M-5,-19 l-3,4 l3.4,-1.2Z", o.hc || K.red);
   Cc(4.6, -21, 1.3);
   if (!o.mask) Cc(2, -22.6, 0.75, PA);
-  F(o.dress ? "M-2.8,-17 Q-4.6,-10 -7,-4.6 L7,-4.6 Q4.6,-10 2.8,-17 Q0,-18 -2.8,-17Z" : "M-3,-17.2 Q-4.2,-12 -3.8,-7.6 L3.8,-7.6 Q4.2,-12 3,-17.2 Q0,-18.2 -3,-17.2Z", o.coat || B);
+  F(o.dress ? "M-2.8,-17 Q-4.6,-10 -7,-4.6 L7,-4.6 Q4.6,-10 2.8,-17 Q0,-18 -2.8,-17Z" : "M-3,-17.2 Q-4.2,-12 -3.8,-7.6 L3.8,-7.6 Q4.2,-12 3,-17.2 Q0,-18.2 -3,-17.2Z", o.coat || FIG);
   const pose = o.pose || "stand";
   const legs = { stand: "M-1.6,-7.6 L-2,0 M1.8,-7.6 L2.4,0", walk: "M-1.4,-7.6 L-4.4,0 M1.6,-7.6 L4.4,-.4", push: "M-1,-7.6 L-5.6,0 M1.6,-7.6 L1.4,0", tiptoe: "M-1.4,-7.6 L-4.6,-1.4 L-3.6,.6 M1.6,-7.6 L4.6,-2 L7.4,-1" }[pose];
   S(o.dress ? "M-2.4,-4.6 L-2.6,0 M2.4,-4.6 L2.8,0" : legs);
@@ -65,12 +72,12 @@ function personItems(o = {}) {
   return it;
 }
 const TOOLS = {
-  axe: [{ d: "M7.6,-11 L5.4,-25", stroke: B, sw: 1.3, cap: "round" }, { d: "M4.6,-25.4 L8.6,-27.6 L7.8,-22.6Z", fill: B }],
-  crook: [{ d: "M5.6,-8.8 L8,-30 Q8.6,-34 11.4,-33 Q13,-31.6 11.6,-29.6", stroke: B, sw: 1.2, cap: "round" }],
-  scythe: [{ d: "M5.6,-8.8 L8,-30 M8,-30 Q1,-33.4 -6,-29.4", stroke: B, sw: 1.2, cap: "round" }],
-  pick: [{ d: "M8,-11.4 L11,-22 M7,-23.4 Q10.6,-24.4 14,-21", stroke: B, sw: 1.3, cap: "round" }],
-  lantern: [{ d: "M5.6,-8.8 l0,1.6", stroke: B, sw: 1, cap: "round" }, { d: "M3.6,-7.4 h4 v5 h-4Z", fill: K.yellow, stroke: B, sw: 0.9 }],
-  sack: [{ d: "M6,-26 Q14,-32 16,-22 Q17,-14 9,-15 Q5,-17 6,-26Z", fill: B }],
+  axe: [{ d: "M7.6,-11 L5.4,-25", stroke: FIG, sw: 1.3, cap: "round" }, { d: "M4.6,-25.4 L8.6,-27.6 L7.8,-22.6Z", fill: FIG }],
+  crook: [{ d: "M5.6,-8.8 L8,-30 Q8.6,-34 11.4,-33 Q13,-31.6 11.6,-29.6", stroke: FIG, sw: 1.2, cap: "round" }],
+  scythe: [{ d: "M5.6,-8.8 L8,-30 M8,-30 Q1,-33.4 -6,-29.4", stroke: FIG, sw: 1.2, cap: "round" }],
+  pick: [{ d: "M8,-11.4 L11,-22 M7,-23.4 Q10.6,-24.4 14,-21", stroke: FIG, sw: 1.3, cap: "round" }],
+  lantern: [{ d: "M5.6,-8.8 l0,1.6", stroke: FIG, sw: 1, cap: "round" }, { d: "M3.6,-7.4 h4 v5 h-4Z", fill: K.yellow, stroke: FIG, sw: 0.9 }],
+  sack: [{ d: "M6,-26 Q14,-32 16,-22 Q17,-14 9,-15 Q5,-17 6,-26Z", fill: FIG }],
 };
 const person = (x, y, o = {}) => `<g transform="translate(${f(x)} ${f(y)}) scale(${f((o.s || 1) * (o.flip ? -1 : 1))} ${f(o.s || 1)})">${specSvg(personItems(o))}</g>`;
 const tree = (x, y, h, kind = "round", c = B) => {
@@ -165,26 +172,25 @@ const tile = (t) => tileCache[t] || (tileCache[t] = `${cut(`<path d="${hexD(95.5
   <g clip-path="url(#c-clip-${t})">${cut(TS[t]())}<path d="${hexD(96)}" filter="url(#c-gouache)" opacity=".3"/></g>`);
 const glow = () => `<path d="${hexD(101)}" fill="none" stroke="${K.yellow}" stroke-width="10" stroke-linejoin="round"/>`;
 
-/* ---------- ports (v0.76): a cream paper tag off the coast, the ink resource silhouette (or a black "?"
-   seal for 3:1) beside the ratio; thin ink piers to the coast corners, each ending in a small ink dot with the
-   harbour's flat colour. Geometry: harbourBadges (p.badge). ---------- */
+/* ---------- ports (v0.78): a cream paper tag off the coast — the ink resource silhouette beside the ratio
+   (3:1: just the ratio) — thin ink piers to the coast corners, each ending in a small ink dot with the harbour's
+   flat colour, and a light paper barge beside the tag wherever one fits (layout: harbourBadges, p.badge). ---------- */
 const PORT_TONE = { wood: K.green, brick: K.orange, sheep: K.lime, wheat: K.yellow, ore: K.grey };
+const barge = (sh) => { const k = sh.scale * 0.87; return `<g transform="translate(${f(sh.x)} ${f(sh.y + 14.5 * k)}) scale(${+(sh.flip * k).toFixed(3)} ${+k.toFixed(3)})">
+  ${fl("M-30,0 Q-32,-7 -26,-8 L24,-8 Q32,-8 32,-2 Q28,6 18,7 L-22,7 Q-29,6 -30,0Z", PA, `stroke="${B}" stroke-width="1.6"`)}${fl("M-20,-8 L-20,-16 L-6,-16 L-6,-8Z", CREAM, `stroke="${B}" stroke-width="1.4"`)}
+  ${st("M8,-8 L8,-36", 1.6)}${fl("M8,-35 L21,-31.5 L8,-28Z", K.red)}${st("M-24,12 q5,-4 10,0 t10,0 M6,12 q5,-4 10,0", 1.4, PA)}</g>`; };
 function port(p) {
   const q = p.badge, s = p.s || 1, ic = q.icon;
   const pier = ([c, e]) => st(`M${f(c.x)},${f(c.y)} L${f(e[0])},${f(e[1])}`, 1.6 * s);
   const dot = (c) => `<circle cx="${f(c.x)}" cy="${f(c.y)}" r="${f(5.4 * s)}" fill="${p.res ? PORT_TONE[p.res] : PA}" stroke="${B}" stroke-width="${f(1.8 * s)}"/>`;
-  const svg = `<g>${p.piers.map(pier).join("")}${dot(p.a)}${dot(p.b)}
+  const svg = `<g>${p.piers.map(pier).join("")}${dot(p.a)}${dot(p.b)}${q.ship && !p.noBoat ? barge(q.ship) : ""}
     <rect x="${f(q.x - q.w / 2)}" y="${f(q.y - q.h / 2)}" width="${f(q.w)}" height="${f(q.h)}" rx="${f(q.r)}" fill="${CREAM}" stroke="${B}" stroke-width="${f(1.6 * s)}"/>
-    <g transform="translate(${f(ic.x)} ${f(ic.y)})">${p.res
-      ? `<g transform="scale(${+(ic.size / 96).toFixed(4)})">${ICONS[p.res]}</g>`
-      : `<circle r="${f(ic.size / 2)}" fill="${B}"/>`}</g></g>`;
-  const labels = [{ x: q.text.x, y: q.text.y, text: p.ratio, size: q.text.size * 1.08, color: B, weight: 700 }];
-  if (!p.res) labels.push({ x: ic.x, y: ic.y + ic.size * 0.3, text: "?", size: ic.size * 0.8, color: PA, weight: 700 });
-  return { svg, labels };
+    ${ic ? `<g transform="translate(${f(ic.x)} ${f(ic.y)}) scale(${+(ic.size / 96).toFixed(4)})">${ICONS[p.res]}</g>` : ""}</g>`;
+  return { svg, labels: [{ x: q.text.x, y: q.text.y, text: p.ratio, size: q.text.size * 1.08, color: B, weight: 700 }] };
 }
 
 /* ---------- pieces (canvas specs): gabled canal house; tall flat + gable house; ink burglar ---------- */
-const winFor = (c) => (c === PC.plum ? K.yellow : c === PC.ivory ? c.line : PA);
+const winFor = (c) => (c === PC.purple ? K.yellow : c === PC.ivory ? c.line : PA);
 function house(c) {
   const wc = winFor(c);
   return [
@@ -192,7 +198,7 @@ function house(c) {
     { d: "M-12,16 V-4 L-10,-4 L0,-19 L10,-4 L12,-4 V16Z", fill: c.base, stroke: c.line, sw: 2.2, body: true },
     { d: "M-13.6,-3.2 L0,-21.4 L13.6,-3.2 L11.2,-2 L0,-16.6 L-11.2,-2Z", fill: c.line, stroke: c.line, sw: 1, body: true },
     { d: "M-7.5,0 h4.4 v5 h-4.4Z M3.1,0 h4.4 v5 h-4.4Z", fill: wc },
-    { d: "M-2.6,16 V10.4 Q0,7.6 2.6,10.4 V16Z", fill: c === PC.plum ? K.yellow : c.line },
+    { d: "M-2.6,16 V10.4 Q0,7.6 2.6,10.4 V16Z", fill: c === PC.purple ? K.yellow : c.line },
     { el: "circle", cx: 0, cy: -9, r: 1.8, fill: wc },
   ];
 }
@@ -208,8 +214,8 @@ function cityArt(c) {
     { d: "M-1,16 V-1 L1,-1 L10.5,-13.5 L20,-1 L22,-1 V16Z", fill: c.base, stroke: c.line, sw: 2.2, body: true },
     { d: "M-2.4,-.4 L10.5,-15.8 L23.4,-.4 L21.2,.8 L10.5,-11.4 L-.2,.8Z", fill: c.line, stroke: c.line, sw: 1, body: true },
     { d: "M5,3 h4 v4.6 h-4Z M12,3 h4 v4.6 h-4Z", fill: wc },
-    { d: "M8.4,16 v-5.6 h4.2 V16Z", fill: c === PC.plum ? K.yellow : c.line },
-    { d: "M-14.6,16 v-6 h4.2 V16Z", fill: c === PC.plum ? K.yellow : c.line },
+    { d: "M8.4,16 v-5.6 h4.2 V16Z", fill: c === PC.purple ? K.yellow : c.line },
+    { d: "M-14.6,16 v-6 h4.2 V16Z", fill: c === PC.purple ? K.yellow : c.line },
   ];
 }
 // burglar on tiptoe with a sack: the person silhouette at 2.15x, feet on the ground line (y = 32)
@@ -217,8 +223,8 @@ const RS = 2.15;
 const robberSpec = [
   { el: "ellipse", cx: 3, cy: 32, rx: 18, ry: 4.6, fill: "#14120F", op: 0.32, shadow: true },
   ...personItems({ pose: "tiptoe", hat: "cap", mask: true, tool: TOOLS.sack }).map((s) => {
-    if (s.el === "circle") return { ...s, cx: f(s.cx * RS), cy: f(s.cy * RS + 32), r: f(s.r * RS), body: s.fill === B };
-    return { ...s, d: tp(s.d, RS, 0, 32), sw: s.sw ? s.sw * RS : undefined, body: s.fill === B || s.stroke === B };
+    if (s.el === "circle") return { ...s, cx: f(s.cx * RS), cy: f(s.cy * RS + 32), r: f(s.r * RS), body: s.fill === FIG };
+    return { ...s, d: tp(s.d, RS, 0, 32), sw: s.sw ? s.sw * RS : undefined, body: s.fill === FIG || s.stroke === FIG };
   }),
 ];
 
@@ -279,8 +285,8 @@ const ICONS = {};
   ic.victoryPoint = fl(star(58, 22, 6)) + circ(0, 7, 8.5, K.yellow);
   ic.vp = ic.victoryPoint;
   // the robber: a burglar in a flat cap, cream mask, red scarf
-  ic.robber = fl("M-36,48 Q-36,20 -10,14 L12,14 Q36,18 38,48Z") + fl("M-20,-4 Q-22,-30 2,-32 Q22,-32 24,-12 Q31,-8 28,-2 Q25,1 22,2 Q20,14 2,16 Q-18,16 -20,-4Z") +
-    fl("M-25,-14 Q-23,-38 3,-38 Q24,-36 26,-22 L41,-18 Q39,-13 24,-14Z") + fl("M-21,-11 Q2,-13 25,-11 L26,-2 Q2,-4 -21,-2Z", PA) + circ(13, -6.5, 3.2) +
+  ic.robber = fl("M-36,48 Q-36,20 -10,14 L12,14 Q36,18 38,48Z", FIG) + fl("M-20,-4 Q-22,-30 2,-32 Q22,-32 24,-12 Q31,-8 28,-2 Q25,1 22,2 Q20,14 2,16 Q-18,16 -20,-4Z", FIG) +
+    fl("M-25,-14 Q-23,-38 3,-38 Q24,-36 26,-22 L41,-18 Q39,-13 24,-14Z", FIG) + fl("M-21,-11 Q2,-13 25,-11 L26,-2 Q2,-4 -21,-2Z", PA) + circ(13, -6.5, 3.2, FIG) +
     fl("M-15,13 Q2,21 19,13 L23,22 Q2,30 -19,22Z", K.red);
   // awards: a winding road to a red pennant; two helmets, one with the red plume
   ic.longestRoad = fl("M-46,46 Q-46,16 -14,12 Q14,10 12,-6 Q10,-19 20,-25 L30,-16 Q24,-12 26,-3 Q28,26 -4,26 Q-28,26 -30,46Z") +
@@ -299,9 +305,9 @@ const ICONS = {};
   ic.sliders = fl("M-40,-22 Q0,-26 40,-21 Q43,-17 40,-14 Q0,-17 -40,-13 Q-44,-17 -40,-22Z M-40,15 Q0,12 40,16 Q43,20 40,23 Q0,20 -40,24 Q-44,20 -40,15Z") + circ(14, -17.5, 10) + circ(-12, 19.5, 10) + circ(14, -17.5, 4, PA) + circ(-12, 19.5, 4, K.orange);
   ic.book = fl("M0,-30 Q-22,-40 -46,-34 V32 Q-22,26 0,36 Q22,26 46,32 V-34 Q22,-40 0,-30Z") + st("M-36,-16 Q-22,-21 -9,-15 M-36,-3 Q-22,-8 -9,-2 M9,-15 Q22,-21 36,-16 M9,-2 Q22,-8 36,-3", 3.2, PA);
   ic.info = fl(blob(0, 0, 42, 41, 12, 0.02)) + circ(0, -19, 6, PA) + fl("M-6,-6 Q0,-8 6,-6 L6,22 Q0,24 -6,22Z", PA);
-  ic.road = fl("M-42,26 L26,-36 L42,-20 L-26,42Z", PC.blue.base) + st("M-42,26 L26,-36 L42,-20 L-26,42Z", 3, PC.blue.line);
-  ic.settlement = `<g transform="translate(0 2) scale(2)">${specSvg(house(PC.blue).slice(1))}</g>`;
-  ic.city = `<g transform="translate(0 4) scale(1.45)">${specSvg(cityArt(PC.blue).slice(1))}</g>`;
+  ic.road = fl("M-42,26 L26,-36 L42,-20 L-26,42Z", BUILD_INK.base) + st("M-42,26 L26,-36 L42,-20 L-26,42Z", 3, BUILD_INK.line); // v0.75: build icons in neutral ink
+  ic.settlement = `<g transform="translate(0 2) scale(2)">${specSvg(house(BUILD_INK).slice(1))}</g>`;
+  ic.city = `<g transform="translate(0 4) scale(1.45)">${specSvg(cityArt(BUILD_INK).slice(1))}</g>`;
   ic.fit = `<path d="M-38,-16 V-38 H-16 M16,-38 H38 V-16 M38,16 V38 H16 M-16,38 H-38 V16" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>` + fl(hexD(17), K.green);
   const zoom = (plus) => `<g stroke="currentColor" stroke-linecap="round" fill="none"><circle cx="-6" cy="-6" r="22" stroke-width="7"/><path d="M14,14 L34,34" stroke-width="10"/><path d="M-16,-6 h20${plus ? " M-6,-16 v20" : ""}" stroke-width="5"/></g>`;
   ic.zoomIn = zoom(1); ic.zoomOut = zoom(0);
@@ -313,41 +319,10 @@ const ICONS = {};
   ic.minus = `<path d="M-20,0 H20" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>`;
 }
 
-/* ---------- avatars: the same four characters as every theme, as ink silhouette portraits (three-quarter
-   profile, a cream eye) on a flat colour backdrop; clothes in the seat colour ---------- */
-const AV_BG = { you: "#BCD2F2", trader: "#F7CDA8", builder: "#F2DFA6", shark: "#EBCCDC" };
-const AV_CLOTH = { you: PC.blue.base, trader: PC.orange.base, builder: "#EFE6D2", shark: PC.plum.base };
-function avatar(preset) {
-  const p = AV_BG[preset] ? preset : "you";
-  const head = fl("M-16,-4 Q-18,-27 2,-28 Q19,-28 21,-11 Q27,-7 25,-1 Q23,2 20,3 Q19,13 4,15 Q-14,15 -16,-4Z");
-  const eye = `<ellipse cx="11" cy="-7" rx="3" ry="3.4" fill="${PA}"/>` + circ(12, -6.6, 1.5);
-  const neck = fl("M-7,8 L7,8 L8,22 L-7,22Z");
-  const body = `<path d="M-40,54 Q-40,24 -8,19 L10,19 Q40,24 40,54Z" fill="${AV_CLOTH[p]}" stroke="${B}" stroke-width="2"/>`;
-  const hair = {
-    you: fl("M-18,-6 Q-24,-32 0,-33 Q18,-34 22,-18 Q12,-23 4,-20 Q8,-26 2,-28 Q-2,-20 -10,-18 Q-14,-12 -12,-2Z"),
-    trader: fl("M-16,-14 Q-26,10 -22,32 Q-14,36 -10,26 Q-14,6 -11,-8Z") + fl("M-32,-17 Q0,-26 34,-15 Q26,-11 0,-14 Q-24,-12 -32,-17Z") + fl("M-15,-17 Q-14,-36 2,-36 Q16,-36 17,-17Z"),
-    builder: fl("M-18,-15 Q-18,-36 2,-36 Q21,-36 22,-15Z") + fl("M-23,-17 Q2,-20 28,-15 L28,-11 Q2,-15 -23,-12Z") + fl("M-12,4 Q-12,19 4,21 Q19,19 21,4 Q12,10 4,9 Q-5,10 -12,4Z") + st("M2,-36 L2,-17", 2, PA),
-    shark: fl("M-17,-16 Q-19,-36 2,-36 Q21,-36 22,-17Z") + fl("M-18,-18 Q4,-13 30,-19 L29,-13 Q6,-8 -18,-13Z") + st("M-16,-21 Q3,-17 21,-21", 1.8, "#E2C27A") + `<path d="M-6,19 L2,30 L10,19Z" fill="${PA}" stroke="${B}" stroke-width="1.6"/>`,
-  }[p];
-  return `<circle r="50" fill="${AV_BG[p]}"/>${body}${neck}${head}${hair}${eye}`;
-}
-
-// seats 5–6 (5–6 player games): Nora (bob, glasses) and Hugo (curls, beard), same build as the four above
-const AV_EXTRA = {
-  nora: { bg: "#F6D0CF", cloth: "#E01000", hair: () => fl("M-20,6 Q-26,-34 2,-35 Q24,-34 24,-10 Q14,-22 2,-22 Q-10,-20 -12,6Z")
-    + `<circle cx="11" cy="-7" r="5.4" fill="none" stroke="${PA}" stroke-width="1.6"/>` },
-  hugo: { bg: "#CDEFFB", cloth: "#4CCBF5", hair: () => fl("M-18,-8 Q-26,-30 -8,-34 Q0,-40 10,-34 Q24,-30 22,-14 Q14,-24 2,-20 Q-8,-24 -12,-6Z")
-    + fl("M-4,6 Q4,18 20,4 Q18,16 6,17 Q-4,16 -4,6Z") },
-};
-function avatar6(preset) {
-  const x = AV_EXTRA[preset];
-  if (!x) return avatar(preset);
-  const head = fl("M-16,-4 Q-18,-27 2,-28 Q19,-28 21,-11 Q27,-7 25,-1 Q23,2 20,3 Q19,13 4,15 Q-14,15 -16,-4Z");
-  const eye = `<ellipse cx="11" cy="-7" rx="3" ry="3.4" fill="${PA}"/>` + circ(12, -6.6, 1.5);
-  const neck = fl("M-7,8 L7,8 L8,22 L-7,22Z");
-  const body = `<path d="M-40,54 Q-40,24 -8,19 L10,19 Q40,24 40,54Z" fill="${x.cloth}" stroke="${B}" stroke-width="2"/>`;
-  return `<circle r="50" fill="${x.bg}"/>${body}${neck}${head}${x.hair()}${eye}`;
-}
+/* ---------- avatars: the six seat personas (src/themes/portraits.js) as faceless Fiep-style silhouettes
+   in one neutral soft charcoal (the board figures' FIG): no eyes or features, identity from the outline,
+   clothes in the seat colour, an emblem brooch ---------- */
+const avatar6 = (preset) => portrait(preset, { style: "ink", ink: FIG, paper: PA });
 
 /* ---------- cards: one flat colour field, a silhouette scene, hand-lettered title on paper ---------- */
 // card scenes may be busier than tiles (they are pictures, not a playing surface)
@@ -435,7 +410,7 @@ function thumb() {
     <path d="${[[0, 0], [26, 0], [-26, 0], [13, 22.5], [-13, 22.5], [13, -22.5], [-13, -22.5]].map(([x, y]) => hexD(17.5, x, y)).join(" ")}" fill="${CREAM}" stroke="${CREAM}" stroke-width="3" stroke-linejoin="round"/>${st("M-62,-30 q3,-3 6,0 q3,3 6,0 M48,28 q3,-3 6,0 q3,3 6,0", 1.2, PA)}
     ${pos.map(([x, y, t]) => `<path d="${hexD(14.6, x, y)}" fill="${TC[t][0]}"/>`).join("")}
     <circle cx="0" cy="3" r="5.6" fill="${PA}"/><text x="0" y="5.6" text-anchor="middle" font-size="7.5" font-weight="700" font-family="Kalam, cursive" fill="${K.red}">8</text>
-    <g transform="translate(-26 -6) scale(.62)">${tree(0, 6, 18, "pine")}</g><g transform="translate(13 -12) scale(.42)">${specSvg(house(PC.orange).slice(1))}</g><g transform="translate(-13 12) scale(.42)">${specSvg(house(PC.blue).slice(1))}</g>${bird(-48, -30, 1)}${bird(-38, -34, 0.8)}</svg>`;
+    <g transform="translate(-26 -6) scale(.62)">${tree(0, 6, 18, "pine")}</g><g transform="translate(13 -12) scale(.42)">${specSvg(house(PC.blue).slice(1))}</g><g transform="translate(-13 12) scale(.42)">${specSvg(house(PC.red).slice(1))}</g>${bird(-48, -30, 1)}${bird(-38, -34, 0.8)}</svg>`;
 }
 
 const tokenStyle = {
@@ -455,7 +430,7 @@ const silhouette = {
   paletteDots: [SEA, K.orange, K.yellow, K.green, B],
   confettiColors: [K.orange, K.yellow, K.turq, K.green, K.pink, B],
   motion: { name: "Gentle, page-like", k: 1.05, pop: "cubic-bezier(.3,1.35,.5,1)", out: "cubic-bezier(.22,.8,.3,1)", inOut: "cubic-bezier(.65,0,.35,1)", fall: "cubic-bezier(.55,0,1,.45)", squash: [1.1, 0.9], bounces: 1, sway: 0 },
-  seatKeys: ["blue", "orange", "ivory", "plum"],
+  seatKeys: ["red", "blue", "orange", "green"], // v0.75 colonist.io order; seats 5–6 (ivory, purple) via src/themes/seats.js
   textColors: TEXT,
   pc: PC,
   palette: P,

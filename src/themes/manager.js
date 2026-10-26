@@ -6,7 +6,8 @@ import wood from "./wood/art.js";
 import silhouette from "./silhouette/art.js";
 import classic from "./classic/art.js";
 import { RESOURCE_KEYS, DEV_KEYS } from "./art-util.js";
-import { addExtraSeats, applyExtraSeatTokens } from "./seats.js";
+import { addExtraSeats, applyExtraSeatTokens, applySeatTokens } from "./seats.js";
+import { SEAT_PERSONAS } from "./portraits.js";
 import { seaIcons } from "../seafarers/art.js"; // ⚓ Seafarers icons (themes may draw their own)
 
 export const THEMES = { A: sunny, B: wood, C: silhouette, classic };
@@ -75,19 +76,20 @@ export async function loadFonts(theme) {
 }
 
 // ── DOM sprite: icons, cards, avatars, dice as <symbol>s ─────────────────
-export const SEAT_PRESETS = ["you", "trader", "builder", "shark", "nora", "hugo"]; // nora, hugo: seats 5–6
+// Seat → portrait (src/themes/portraits.js): Rosa Roodhart (you), Blaauw, Van Geelen, Groenewoud, De Wit, Pimpel
+export const SEAT_PRESETS = SEAT_PERSONAS;
 export const BOT_PROFILE = {
-  you: { name: "You", tag: "Your colony" },
-  trader: { name: "Marina", tag: "The Trader" },
-  builder: { name: "Bruno", tag: "The Builder" },
-  shark: { name: "Viktor", tag: "The Shark" },
-  nora: { name: "Nora", tag: "Seat 5" },
-  hugo: { name: "Hugo", tag: "Seat 6" },
+  rosa: { name: "You", botName: "Roodhart", full: "Rosa Roodhart", tag: "Your colony" },
+  blaauw: { name: "Blaauw", full: "Mevrouw Blaauw van Draet", tag: "The Trader" },
+  geelen: { name: "Van Geelen", full: "Kolonel Van Geelen", tag: "The Builder" },
+  groenewoud: { name: "Groenewoud", full: "Dominee Groenewoud", tag: "The Shark" },
+  dewit: { name: "De Wit", full: "Mevrouw De Wit", tag: "Seat 5" },
+  pimpel: { name: "Pimpel", full: "Professor Pimpel", tag: "Seat 6" },
 };
 export function buildSprite(T) {
   let s = `<svg id="themeSprite" class="sprites" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>${T.uiDefs ? T.uiDefs() : ""}`;
-  // the Menu glyph: three lines unless the theme draws its own
-  const icons = { menu: `<path d="M-30 -22H30M-30 0H30M-30 22H30" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/>`, ...seaIcons(T.pc?.blue, T.palette?.ink), ...T.icons };
+  // the Menu glyph: three lines unless the theme draws its own; the default ⚓ ship icon in neutral ink (a build icon is UI, not a seat colour)
+  const icons = { menu: `<path d="M-30 -22H30M-30 0H30M-30 22H30" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/>`, ...seaIcons(T.youPc || { base: "#22313A", dark: "#16222A", light: "#4A5A64", line: "#0E161B" }, T.palette?.ink), ...T.icons };
   for (const [k, v] of Object.entries(icons)) s += `<symbol id="ic-${k}" viewBox="-50 -50 100 100" overflow="visible">${v}</symbol>`;
   for (const k of [...RESOURCE_KEYS, ...DEV_KEYS]) s += `<symbol id="card-${k}" viewBox="0 0 250 350">${T.card(k)}</symbol><symbol id="cardm-${k}" viewBox="0 0 250 350">${T.card(k, true)}</symbol>`;
   s += `<symbol id="card-back" viewBox="0 0 250 350">${T.cardBack()}</symbol>`;
@@ -96,12 +98,20 @@ export function buildSprite(T) {
   return s + "</defs></svg>";
 }
 export function installSprite(T) {
+  applySeatTokens(T); // v0.78: UI seat colours = this theme's pieces (also re-run on a palette change)
   document.getElementById("themeSprite")?.remove();
   document.body.insertAdjacentHTML("afterbegin", buildSprite(T));
 }
 
 // ── tiny markup helpers shared by the DOM UI ─────────────────────────────
 export const icon = (n, cls = "") => `<svg class="ic ${cls}" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-${n}" x="-50" y="-50" width="100" height="100"/></svg>`;
+/** v0.75 player chip stat for knights played / road length, only once it means something (knights > 0, a road
+ *  of 3+) or for the holder of the award (Largest Army / Longest Road): then the number sits on a gold pill with
+ *  "+2" — gold is never a seat colour. Returns "" when there is nothing to show (keeps the chips calm). */
+export function awardStat(stat, n, held, title, ic) {
+  if (!held && n < (stat === "road" ? 3 : 1)) return "";
+  return `<span data-stat="${stat}"${held ? ' class="award"' : ""} title="${title}">${icon(ic)}${n}${held ? '<b class="aw-plus">+2</b>' : ""}</span>`;
+}
 export const avatarSvg = (seat, cls = "") => `<span class="avatar pc-${seat} ${cls}"><svg viewBox="-50 -50 100 100" aria-hidden="true"><use href="#av-${seat}" x="-50" y="-50" width="100" height="100"/></svg></span>`;
 export const dieSvg = (n, cls = "") => `<svg class="die ${cls}" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#die-${n}" x="-50" y="-50" width="100" height="100"/></svg>`;
 export const cardSvg = (k, big = false) => `<svg viewBox="0 0 250 350" aria-hidden="true"><use href="#${big ? "card" : "cardm"}-${k}"/></svg>`;

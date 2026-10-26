@@ -76,7 +76,7 @@ export function goldTile(flavour = "soft") {
 }
 
 /** Sprite icons (viewBox -50..50) every theme gets unless it draws its own. */
-export function seaIcons(pc = { base: "#3A76DC", dark: "#2557B0", light: "#7AA5F0", line: "#163777" }, ink = "#2E3A3D") {
+export function seaIcons(pc = { base: "#22313A", dark: "#16222A", light: "#4A5A64", line: "#0E161B" }, ink = "#2E3A3D") { // pc: neutral build ink (v0.75)
   const ship = specSvg(shipSpec(pc));
   return {
     ship: `<g transform="translate(0 6) scale(1.65)">${ship}</g>`,

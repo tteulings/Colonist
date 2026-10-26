@@ -1,7 +1,7 @@
 // 5–6 players: the six-up player strip and the Special Building Phase controls (window ticker, Skip).
 // A mixin on ColonistFullGame (installed by game.js). Styles: themes/six.css, all scoped to
 // .six-up / [data-seats] / .sbp-* so the 2–4 player chrome is untouched.
-import { icon, avatarSvg } from "./themes/manager.js";
+import { icon, avatarSvg, awardStat } from "./themes/manager.js";
 import { SBP_WINDOW_MS } from "./six.js";
 
 const RES = ["wood", "brick", "sheep", "wheat", "ore"];
@@ -35,12 +35,13 @@ export const SixUiMixin = {
   },
 
   /** One six-up chip (design option A): avatar with a points badge, full name, cards + development cards. */
-  _sixChip(player, { active, ready, vp, cards, dev, leader, building, awards, over }) {
+  _sixChip(player, { active, ready, vp, cards, dev, leader, building, awards, over, feats }) {
     const cls = `pchip six pc-${player.id}${active ? " active" : ""}${ready ? " ready" : ""}${leader ? " leader" : ""}${building ? " building" : ""}`;
-    return `<div class="${cls}" data-seat="${player.id}" role="button" tabindex="0" aria-label="${player.name}: ${vp} points, ${cards} cards, ${dev} development cards${leader ? ", in the lead" : ""}${building ? ", building" : ""}">
+    return `<div class="${cls}" data-seat="${player.id}" role="button" tabindex="0" aria-label="${player.name}: ${vp} points, ${cards} cards, ${dev} development cards${leader ? ", in the lead" : ""}${building ? ", building" : ""}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
       <div class="sx-av">${avatarSvg(player.id)}<b class="sx-vp">${vp}</b>${leader ? CROWN : ""}${building ? `<span class="sx-sbp">${icon("build")}</span>` : ""}</div>
-      <div class="pn">${player.name}</div>
-      <div class="mini"><span data-stat="cards"${over ? ` class="warn" title="more than ${this.settings?.discardLimit ?? 7}: hands back half on a 7"` : ""}>${icon("cards")}${cards}</span><span>${icon("devcard")}${dev}</span></div>
+      <div class="pn">${player.short || player.name}</div>
+      <div class="mini"><span data-stat="cards"${over ? ` class="warn" title="more than ${this.settings?.discardLimit ?? 7}: hands back half on a 7"` : ""}>${icon("cards")}${cards}</span>${dev ? `<span>${icon("devcard")}${dev}</span>` : ""}</div>
+      ${feats ? `<div class="mini feats">${feats}</div>` : ""}
       ${awards ? `<div class="bdg">${awards}</div>` : ""}</div>`;
   },
 
@@ -51,8 +52,12 @@ export const SixUiMixin = {
     const marks = this._sbpMarkedSeats();
     const leader = this._sixLeader();
     return this.players.map((p, idx) => {
-      const awards = (this.longestRoadHolder === p.id ? `<span title="Longest Road (+2 points)">${icon("longestRoad")}</span>` : "")
-        + (this.largestArmyHolder === p.id ? `<span title="Largest Army (+2 points)">${icon("largestArmy")}</span>` : "");
+      // v0.75: knights played (> 0) and road length (3+) on their own line, only when there is something to show;
+      // a held award is that number on a gold "+2" pill, so the separate monochrome award marks are no longer needed
+      const lr = this.longestRoadHolder === p.id, la = this.largestArmyHolder === p.id;
+      const feats = awardStat("knights", p.knightsPlayed, la, `${p.knightsPlayed} knight${p.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest Army (+2 points)" : ""}`, "knight")
+        + awardStat("road", p.longestRoadLength, lr, `Longest road ${p.longestRoadLength}${lr ? " · Longest Road (+2 points)" : ""}`, this.sea ? "tradeRoute" : "road");
+      const awards = "";
       return this._sixChip(p, {
         active: idx === owner && !this.winner && !(this.isRush() && !this.setupPhase),
         ready: !!readyIds?.includes(p.id),
@@ -63,6 +68,7 @@ export const SixUiMixin = {
         leader: idx === leader,
         building: marks.includes(idx),
         awards,
+        feats,
       });
     }).join("");
   },
@@ -82,7 +88,7 @@ export const SixUiMixin = {
     return !!(this.sbp?.human && this.currentPlayer?.isHuman && !this.winner);
   },
 
-  /** Whose turn starts after the build window: { short: "Bruno next", long: "Bruno is next" }. */
+  /** Whose turn starts after the build window: { short: "Van Geelen next", long: "Van Geelen is next" }. */
   _sbpNext() {
     const s = this.sbp;
     if (!s) return { short: "", long: "" };

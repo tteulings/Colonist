@@ -12,14 +12,17 @@ import sunny from "../sunny/art.js";
 
 const INK = "#2A241E", INK2 = "#5E5245", IVORY = "#F3EBDA", RED = "#A8352B", ACC = "#2E6650", BRASS = "#D9AE4E";
 
-// Seats: identical to Sunny Island (light) so switching themes never recolours a player.
+// Seats (v0.78): the Sunny hues in B's wood-stain look — a touch warmer and more muted, as painted wooden
+// pieces (You red · Blaauw blue · Van Geelen orange · Groenewoud green · De Wit ivory · Pimpel purple).
 const PC = {
-  blue: { base: "#3A76DC", dark: "#2557B0", light: "#7AA5F0", line: "#163777" },
-  orange: { base: "#F68B3A", dark: "#BF6118", light: "#FBB57A", line: "#6E380C" },
-  ivory: { base: "#FDFBF6", dark: "#C8BFAA", light: "#FFFFFF", line: "#4A443A" },
-  plum: { base: "#A8306F", dark: "#7A1F50", light: "#D06A9E", line: "#3A0A24" },
+  red: { base: "#C4463A", dark: "#963026", light: "#DE7C6C", line: "#3E1610" },
+  blue: { base: "#3B6FB5", dark: "#2A5288", light: "#7FA0D2", line: "#142B4E" },
+  orange: { base: "#E3893A", dark: "#AE5F1C", light: "#F0B479", line: "#4E2A0C" },
+  green: { base: "#2F8055", dark: "#1F6040", light: "#6AAE88", line: "#0F3020" },
+  ivory: { base: "#EEE4CC", dark: "#CBBE9F", light: "#F8F2E2", line: "#6B5D46" },
+  purple: { base: "#7A4BA6", dark: "#57337C", light: "#A886CC", line: "#26123C" },
 };
-const TEXT = { blue: "#2C5BA8", orange: "#A65314", ivory: "#7D6D4C", plum: "#8E2560" }; // seat hues, darkened to AA on paper
+const TEXT = { red: "#963026", blue: "#2A5288", orange: "#A0571A", green: "#1F6040", ivory: "#5E5139", purple: "#57337C" }; // seat hues as text on paper (applySeatTokens darkens further where AA needs it)
 
 // printed terrain tones [shade, mid, light]
 const TER = {
@@ -139,25 +142,21 @@ const glow = () => `<path d="${hexPath(0, 0, 93)}" fill="none" stroke="#FFF8E6" 
 /* ======================= harbours: printed frame discs =======================
    Ratio label is drawn by the canvas with the page font (fonts don't load inside rasterised SVG). */
 const RES_TONE = { wood: "#5F9A57", brick: "#D98260", sheep: "#9FBC6A", wheat: "#D9AE4E", ore: "#8E9AB0" };
-// v0.76: a printed badge (the token's paper disc stretched to a lozenge) off the coast: the printed resource
-// icon in a ring of its colour, or a "?" seal for 3:1, beside the ratio; dashed rope piers to the coast
+// v0.78: a printed badge (the token's paper disc stretched to a lozenge) off the coast: the printed resource
+// icon in a ring of its colour beside the ratio (3:1: just the ratio); dashed rope piers to the coast
 // corners, each marked by a small dot of the harbour's colour. Geometry: harbourBadges (p.badge).
-const PORT_ANY = "#2F6573"; // ivory "?" on it: 5.5:1
+const PORT_ANY = "#2F6573"; // 3:1 corner dots
 function port(p) {
   const q = p.badge, s = p.s || 1, tone = p.res ? RES_TONE[p.res] : PORT_ANY;
   const pier = ([c, e]) => `<path d="M${f(c.x)},${f(c.y)} L${f(e[0])},${f(e[1])}" stroke="#3F7D8C" stroke-width="${f(7 * s)}" stroke-linecap="round" opacity=".45"/><path d="M${f(c.x)},${f(c.y)} L${f(e[0])},${f(e[1])}" stroke="#E6D8B8" stroke-width="${f(3.8 * s)}" stroke-dasharray="${f(4 * s)} ${f(2.5 * s)}"/>`;
   const dot = (c) => `<circle cx="${f(c.x)}" cy="${f(c.y)}" r="${f(5.6 * s)}" fill="${tone}" stroke="${INK}" stroke-width="${f(1.6 * s)}"/>`;
-  const x0 = q.x - q.w / 2, y0 = q.y - q.h / 2, ic = q.icon, rr = ic.size / 2;
+  const x0 = q.x - q.w / 2, y0 = q.y - q.h / 2, ic = q.icon, rr = ic ? ic.size / 2 : 0;
   const rect = (dx, dy, fill, extra = "") => `<rect x="${f(x0 + dx)}" y="${f(y0 + dy)}" width="${f(q.w)}" height="${f(q.h)}" rx="${f(q.r)}" fill="${fill}" ${extra}/>`;
   const svg = `<g>${p.piers.map(pier).join("")}${dot(p.a)}${dot(p.b)}
     ${rect(2.5 * s, 4.5 * s, "#06121A", 'opacity=".45" filter="url(#b-blur3)"')}${rect(0, 2.5 * s, "#A8977A")}${rect(0, 0, "url(#b-disc)")}${rect(0, 0, "url(#b-paper)", 'opacity=".5"')}
-    ${rect(0, 0, "none", `stroke="${tone}" stroke-width="${f(2.4 * s)}"`)}
-    <g transform="translate(${f(ic.x)} ${f(ic.y)})">${p.res
-      ? `<circle r="${f(rr)}" fill="#FBF6EA" stroke="${tone}" stroke-width="${f(2.2 * s)}"/><g transform="scale(${+(ic.size / 92).toFixed(4)})">${ICON_RAW[p.res]}</g>`
-      : `<circle r="${f(rr)}" fill="${PORT_ANY}"/><circle r="${f(rr - 2.4 * s)}" fill="none" stroke="#E6D8B8" stroke-width="${f(1.2 * s)}" opacity=".7"/>`}</g></g>`;
-  const labels = [{ x: q.text.x, y: q.text.y, text: p.ratio, size: q.text.size, color: INK, weight: 800 }];
-  if (!p.res) labels.push({ x: ic.x, y: ic.y + ic.size * 0.27, text: "?", size: ic.size * 0.74, color: IVORY, weight: 800 });
-  return { svg, labels };
+    ${rect(0, 0, "none", `stroke="${p.res ? tone : "#9C8A6A"}" stroke-width="${f((p.res ? 2.4 : 1.6) * s)}"`)}
+    ${p.res ? `<g transform="translate(${f(ic.x)} ${f(ic.y)})"><circle r="${f(rr)}" fill="#FBF6EA" stroke="${tone}" stroke-width="${f(2.2 * s)}"/><g transform="scale(${+(ic.size / 92).toFixed(4)})">${ICON_RAW[p.res]}</g></g>` : ""}</g>`;
+  return { svg, labels: [{ x: q.text.x, y: q.text.y, text: p.ratio, size: q.text.size, color: INK, weight: 800 }] };
 }
 
 /* ======================= painted wooden pieces (canvas specs) =======================
@@ -225,17 +224,17 @@ const ICON_RAW = {
   desert: `<g ${st}><path d="M-40,26 Q-14,4 6,14 Q22,2 40,16 V30 H-40 Z" fill="#D9C391"/><circle cx="16" cy="-18" r="12" fill="#E8C46A"/></g>`,
 };
 const gearD = (() => { let d = ""; for (let i = 0; i < 16; i += 1) { const a = (i * Math.PI) / 8 + Math.PI / 16, r = i % 2 ? 26 : 36; d += (i ? "L" : "M") + f(r * Math.cos(a - 0.1)) + "," + f(r * Math.sin(a - 0.1)) + "L" + f(r * Math.cos(a + 0.1)) + "," + f(r * Math.sin(a + 0.1)); } return d + "Z"; })();
-const BLUE = PC.blue;
+const BUILD_INK = { base: "#22313A", dark: "#16222A", light: "#4A5A64", line: "#0E161B" }; // v0.75: build / dock icons in neutral ink (UI, not a seat colour)
 const ICONS = {
   ...ICON_RAW,
   knight: `<g ${st}><path d="M-24,-6 Q-24,-34 0,-36 Q24,-34 24,-6 V22 Q24,34 0,38 Q-24,34 -24,22 Z" fill="#9BA3AC"/><path d="M-24,0 H24" fill="none"/><path d="M-14,-6 H14 M-14,8 H-4 M4,8 H14" fill="none" stroke-width="5"/><path d="M0,-36 V-46 M-8,-46 Q0,-52 8,-46" fill="none"/></g><path d="M-18,-12 Q-16,-30 0,-31" fill="none" stroke="#DDE1E4" stroke-width="3" stroke-linecap="round"/><path d="M0,8 V34" stroke="${INK}" stroke-width="3"/>`,
-  roadBuilding: `<g ${st}><path d="M-38,18 L-6,-26 L4,-18 L-28,26 Z" fill="${BLUE.base}"/><path d="M-4,30 L28,-14 L38,-6 L6,38 Z" fill="${BLUE.base}"/></g><path d="M-30,14 L-6,-18" stroke="${BLUE.light}" stroke-width="3" stroke-linecap="round"/><path d="M2,26 L26,-6" stroke="${BLUE.light}" stroke-width="3" stroke-linecap="round"/>`,
+  roadBuilding: `<g ${st}><path d="M-38,18 L-6,-26 L4,-18 L-28,26 Z" fill="${BUILD_INK.base}"/><path d="M-4,30 L28,-14 L38,-6 L6,38 Z" fill="${BUILD_INK.base}"/></g><path d="M-30,14 L-6,-18" stroke="${BUILD_INK.light}" stroke-width="3" stroke-linecap="round"/><path d="M2,26 L26,-6" stroke="${BUILD_INK.light}" stroke-width="3" stroke-linecap="round"/>`,
   yearOfPlenty: `<g ${st}><path d="M-34,-6 H34 L26,34 H-26 Z" fill="#B88A55"/><path d="M-34,-6 Q-20,-30 -6,-12 Q0,-34 14,-14 Q26,-28 34,-6" fill="#EBC566"/></g><path d="M-30,6 H30 M-28,18 H28" stroke="${INK}" stroke-width="2.6" opacity=".7"/>`,
   monopoly: `<g ${st}><path d="M0,-38 V30 M-22,36 H22 M-34,-24 H34" fill="none"/><path d="M-34,-24 L-46,4 H-22 Z M34,-24 L22,4 H46 Z" fill="${BRASS}"/><circle cy="-38" r="5" fill="${BRASS}"/></g>`,
   victoryPoint: `<g ${st}><path d="M-20,-36 H20 V-6 Q20,16 0,18 Q-20,16 -20,-6 Z" fill="${BRASS}"/><path d="M-20,-28 Q-36,-28 -34,-14 Q-32,-2 -18,0 M20,-28 Q36,-28 34,-14 Q32,-2 18,0" fill="none"/><path d="M0,18 V28 M-16,38 H16 L12,28 H-12 Z" fill="${BRASS}"/></g><path d="M-12,-30 V-10" stroke="#EAD08F" stroke-width="4" stroke-linecap="round"/>`,
-  road: `<g ${st}><rect x="-40" y="-9" width="80" height="18" rx="3" fill="${BLUE.base}" transform="rotate(-30)"/></g><path d="M-30,10 L28,-24" stroke="#fff" stroke-opacity=".35" stroke-width="3" stroke-linecap="round"/>`,
-  settlement: `<g transform="translate(-6 2) scale(1.8)">${specSvg(house(BLUE))}</g>`,
-  city: `<g transform="translate(-2 4) scale(1.4)">${specSvg(cityArt(BLUE))}</g>`,
+  road: `<g ${st}><rect x="-40" y="-9" width="80" height="18" rx="3" fill="${BUILD_INK.base}" transform="rotate(-30)"/></g><path d="M-30,10 L28,-24" stroke="#fff" stroke-opacity=".35" stroke-width="3" stroke-linecap="round"/>`,
+  settlement: `<g transform="translate(-6 2) scale(1.8)">${specSvg(house(BUILD_INK))}</g>`,
+  city: `<g transform="translate(-2 4) scale(1.4)">${specSvg(cityArt(BUILD_INK))}</g>`,
   trade: `<g ${st}><path d="M-36,-18 H14 V-30 L36,-12 L14,6 V-6 H-36 Z" fill="#E8954A"/><path d="M36,18 H-14 V6 L-36,24 L-14,42 V30 H36 Z" fill="#62BCCB" transform="translate(0 -6)"/></g>`,
   bank: `<g ${st}><path d="M-36,-14 L0,-36 L36,-14 Z" fill="${BRASS}"/><path d="M-36,34 H36 V26 H-36 Z" fill="${BRASS}"/><path d="M-24,-8 V20 M-8,-8 V20 M8,-8 V20 M24,-8 V20" fill="none" stroke-width="6"/></g>`,
   dice: `<g ${st}><rect x="-36" y="-22" width="40" height="40" rx="7" fill="#E7D3A8" transform="rotate(-12 -16 -2)"/><rect x="0" y="-8" width="38" height="38" rx="7" fill="#F3E6C8" transform="rotate(10 19 11)"/></g><g fill="${INK}"><circle cx="-24" cy="-8" r="3.6"/><circle cx="-10" cy="4" r="3.6"/><circle cx="12" cy="4" r="3.4"/><circle cx="26" cy="20" r="3.4"/><circle cx="19" cy="12" r="3.4"/></g>`,
@@ -319,7 +318,7 @@ function thumb() {
     <path d="${hx(1.5, 3, 50)}" fill="#3A2412" opacity=".35"/><path d="${hx(0, 1.5, 50)}" fill="#7C6B52"/><path d="${hx(0, 0, 50)}" fill="#62BCCB"/><path d="${hx(0, 0, 46)}" fill="none" stroke="#F3EBDA" stroke-opacity=".6" stroke-width=".8"/>
     ${pos.map(([x, y, t]) => `<path d="${hx(x, y + 1.6, 14.5)}" fill="#5E5040"/><path d="${hx(x, y, 14.5)}" fill="${TER[t].base}"/>`).join("")}
     <circle cx="0" cy="0" r="6" fill="#FBF6EA" stroke="#B9A786" stroke-width=".8"/><text x="0" y="2.6" text-anchor="middle" font-size="7.5" font-weight="700" font-family="Georgia,serif" fill="${RED}">8</text>
-    <g transform="translate(13 -11) scale(.32)">${specSvg(house(PC.orange).slice(1))}</g><g transform="translate(-13 11) scale(.32)">${specSvg(house(PC.blue).slice(1))}</g></svg>`;
+    <g transform="translate(13 -11) scale(.32)">${specSvg(house(PC.blue).slice(1))}</g><g transform="translate(-13 11) scale(.32)">${specSvg(house(PC.red).slice(1))}</g></svg>`;
 }
 
 /** Number disc, drawn on the canvas with lining figures (WoodNumerals = Playfair Display bold digits). */
@@ -339,9 +338,9 @@ const wood = {
   // local font files (assets/fonts, declared in themes/theme-wood.css): work offline, nothing to fetch from Google
   fonts: { families: ["Playfair Display", "Source Sans 3", "Colonist Wood Numerals"] },
   paletteDots: ["#A8673A", "#62BCCB", "#5E9F58", "#F2C552", "#2E6650"],
-  confettiColors: [BRASS, "#F3EBDA", "#3A76DC", "#F68B3A", ACC, "#9FBC6A"],
+  confettiColors: [BRASS, "#F3EBDA", PC.red.base, PC.blue.base, ACC, "#9FBC6A"],
   motion: { name: "Weighty & tactile", k: 1.08, pop: "cubic-bezier(.34,1.2,.64,1)", out: "cubic-bezier(.2,.9,.3,1)", inOut: "cubic-bezier(.65,0,.35,1)", fall: "cubic-bezier(.55,0,1,.45)", squash: [1.08, 0.93], bounces: 1, sway: 0 },
-  seatKeys: ["blue", "orange", "ivory", "plum"],
+  seatKeys: ["red", "blue", "orange", "green"], // v0.75 colonist.io order; seats 5–6 (ivory, purple) via src/themes/seats.js
   textColors: TEXT,
   pc: PC,
   palette: P,
@@ -356,7 +355,7 @@ const wood = {
   robberDx: 46, robberDy: -12, tokenDy: 0,
   icons: ICONS,
   card, cardBack,
-  avatar: (preset) => sunny.avatar(preset),
+  avatar: (preset) => sunny.avatar(preset, "B"), // v0.78: the shared portraits in B's wood-stain warmth
   die,
   thumb,
   swatch: () => `<svg viewBox="0 0 36 36"><rect width="36" height="36" fill="#A8673A"/><path d="M0,8 Q18,4 36,9 M0,20 Q18,16 36,22 M0,30 Q18,27 36,32" stroke="#7E4C2A" stroke-width="1.4" fill="none"/><path d="${hexPath(18, 18, 11)}" fill="#62BCCB"/><path d="${hexPath(18, 18, 6.5)}" fill="#F3EBDA"/></svg>`,

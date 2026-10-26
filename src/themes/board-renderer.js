@@ -8,7 +8,7 @@
 //    or placement pulse is running: one drawImage of the board layer + pieces drawn as Path2D.
 //  * Pieces / robber / hints are vector specs (Path2D) — crisp at any zoom, nothing to bake.
 //  * The sea is a CSS layer behind the (transparent) canvas, so idle water costs no canvas work.
-import { hexPath, pipCount, f, harbourBadges } from "./art-util.js";
+import { hexPath, pipCount, f, harbourBadges, harbourScale } from "./art-util.js";
 import { motionReduced } from "./manager.js";
 // ⚓ Seafarers drawing (only used while game.sea is set)
 import { seaArt, portLandHex, bakeSeaMarks, drawShips, drawPirateAndChips, drawShipSpots, ghostShip, ghostPirate } from "../seafarers/render.js";
@@ -215,16 +215,16 @@ export class SvgBoardRenderer {
 
   /** v0.76: one readable pill per harbour, placed fully in the sea (shared layout, see harbourBadges). */
   portData() {
-    const badges = harbourBadges(this.game, this.tokenScale);
+    const badges = harbourBadges(this.game, harbourScale(this.game));
     return (this.game.ports || []).map((port, i) => {
       const q = badges[i];
-      return { a: q.a, b: q.b, mx: q.mx, my: q.my, nx: q.nx, ny: q.ny, res: port.type === "any" ? null : port.type, ratio: port.type === "any" ? "3:1" : "2:1", noBoat: !!this.game.sea, s: this.tokenScale, badge: q, piers: q.piers };
+      return { a: q.a, b: q.b, mx: q.mx, my: q.my, nx: q.nx, ny: q.ny, res: port.type === "any" ? null : port.type, ratio: port.type === "any" ? "3:1" : "2:1", noBoat: !!this.game.sea, s: harbourScale(this.game), badge: q, piers: q.piers };
     });
   }
 
   boardKey(k) {
     const g = this.game.geometry;
-    return [this.theme.id, this.theme.paletteId || "", k.toFixed(3), this.tokenScale, !!this.game.sea, g.hexSize.toFixed(2), g.hexes.map((h) => h.resource + h.number).join(""), (this.game.ports || []).map((p) => p.edgeId + p.type).join(",")].join("|");
+    return [this.theme.id, this.theme.paletteId || "", k.toFixed(3), this.tokenScale, harbourScale(this.game), !!this.game.sea, g.hexSize.toFixed(2), g.hexes.map((h) => h.resource + h.number).join(""), (this.game.ports || []).map((p) => p.edgeId + p.type).join(",")].join("|");
   }
 
   /**
@@ -261,9 +261,9 @@ export class SvgBoardRenderer {
     ctx.drawImage(isl, 0, 0, canvas.width, canvas.height);
     // 2. harbours, each in a box around its piers + badge
     for (let i = 0; i < ports.length; i += 1) {
-      const { a, b: bb, badge: q } = portData[i], M = 16;
-      const x0 = Math.min(a.x, bb.x, q.x - q.w / 2) - M, x1 = Math.max(a.x, bb.x, q.x + q.w / 2) + M;
-      const y0 = Math.min(a.y, bb.y, q.y - q.h / 2) - M, y1 = Math.max(a.y, bb.y, q.y + q.h / 2) + M;
+      const { a, b: bb, badge: q } = portData[i], M = 16, sh = q.ship || q;
+      const x0 = Math.min(a.x, bb.x, q.x - q.w / 2, sh.x - sh.w / 2) - M, x1 = Math.max(a.x, bb.x, q.x + q.w / 2, sh.x + sh.w / 2) + M;
+      const y0 = Math.min(a.y, bb.y, q.y - q.h / 2, sh.y - sh.h / 2) - M, y1 = Math.max(a.y, bb.y, q.y + q.h / 2, sh.y + sh.h / 2) + M;
       const pc = await rasterize(svgOf(x0, y0, x1 - x0, y1 - y0, k, ports[i].svg), (x1 - x0) * k, (y1 - y0) * k);
       if (gen !== this.bakeGen) return;
       ctx.drawImage(pc, ...at(x0, y0), (x1 - x0) * k, (y1 - y0) * k);
