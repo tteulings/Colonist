@@ -45,9 +45,9 @@
   --active-row: #EDF3EC; --divider: 1px solid #E4D9C3; --divider-soft: 1px solid #EDE4D2; --sep: #D3C5A8;
   --fab-radius: 10px; --card-radius: 7px; --card-shadow: drop-shadow(0 1px 1px rgba(40,25,10,.35)) drop-shadow(0 4px 6px rgba(40,25,10,.18));
   --avatar-radius: 50%; --avatar-shadow: 0 1px 2px rgba(0,0,0,.25);
-  /* seats: identical in every theme — You (blue) · orange · ivory · charcoal */
-  --p0: #4A7FD6; --p1: #F2934A; --p2: #D8CFBB; --p3: #3E4752;
-  --p0-text: #2C5BA8; --p1-text: #A65314; --p2-text: #7D6D4C; --p3-text: #3E4752;
+  /* seats: identical in every theme — You (blue) · orange · ivory · plum */
+  --p0: #4A7FD6; --p1: #F2934A; --p2: #D8CFBB; --p3: #A8306F;
+  --p0-text: #2C5BA8; --p1-text: #A65314; --p2-text: #7D6D4C; --p3-text: #8E2560;
   --p0-ink: #fff; --p1-ink: #2A241E; --p2-ink: #2E3A3D; --p3-ink: #fff;
   --row-tint: 7%; --vp-tint: 18%;
   --h2-bg: linear-gradient(#F7E8C4, #F3DFB0); --h2-bg-2: linear-gradient(#E6EFDB, #DCE9CD); --h2-border: 1px solid rgba(120,90,40,.15);

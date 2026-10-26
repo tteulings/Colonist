@@ -46,9 +46,9 @@
   --active-row: var(--c-ochre); --divider: 1px solid #E2CFA6; --divider-soft: 1px solid #EADBB8; --sep: #D9C69C;
   --fab-radius: 999px; --card-radius: 8px; --card-shadow: drop-shadow(0 1px 0 rgba(28,26,25,.35));
   --avatar-radius: 50%; --avatar-shadow: none;
-  /* seats: identical in every theme — You (blue) · orange · ivory · charcoal */
-  --p0: #4A7FD6; --p1: #F2934A; --p2: #D8CFBB; --p3: #3E4752;
-  --p0-text: #2C5BA8; --p1-text: #A65314; --p2-text: #74654A; --p3-text: #3E4752;
+  /* seats: identical in every theme — You (blue) · orange · ivory · plum */
+  --p0: #4A7FD6; --p1: #F2934A; --p2: #D8CFBB; --p3: #A8306F;
+  --p0-text: #2C5BA8; --p1-text: #A65314; --p2-text: #74654A; --p3-text: #8E2560;
   --p0-ink: #fff; --p1-ink: #1C1A19; --p2-ink: #2E3A3D; --p3-ink: #fff;
   --row-tint: 0%; --vp-tint: 0%;
   --h2-bg: transparent; --h2-bg-2: transparent; --h2-border: 1.5px solid #1C1A19;
