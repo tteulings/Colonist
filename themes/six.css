@@ -2,8 +2,8 @@
    Everything is scoped to .six-up / [data-seats] / .sbp-* so 2–4 player games look exactly as before.
    Seat colours --p4 / --p5 come from src/themes/seats.js (set on :root at start-up). */
 
-.pc-4 { --pc: var(--p4, #8F4B86); --pc-text: var(--p4-text, #7E3B75); --pc-ink: var(--p4-ink, #fff); }
-.pc-5 { --pc: var(--p5, #7EC4EC); --pc-text: var(--p5-text, #26719C); --pc-ink: var(--p5-ink, #12324A); }
+.pc-4 { --pc: var(--p4, #E01000); --pc-text: var(--p4-text, #B5000F); --pc-ink: var(--p4-ink, #fff); }
+.pc-5 { --pc: var(--p5, #4CCBF5); --pc-text: var(--p5-text, #0B6E96); --pc-ink: var(--p5-ink, #0B3550); }
 
 /* ── six-up strip (option A): six chips in one row ─────────────────────────────────────────────── */
 .pstrip.six-up { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }

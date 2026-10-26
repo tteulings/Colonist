@@ -35,12 +35,12 @@ export const SixUiMixin = {
   },
 
   /** One six-up chip (design option A): avatar with a points badge, full name, cards + development cards. */
-  _sixChip(player, { active, ready, vp, cards, dev, leader, building, awards }) {
+  _sixChip(player, { active, ready, vp, cards, dev, leader, building, awards, over }) {
     const cls = `pchip six pc-${player.id}${active ? " active" : ""}${ready ? " ready" : ""}${leader ? " leader" : ""}${building ? " building" : ""}`;
     return `<div class="${cls}" data-seat="${player.id}" role="button" tabindex="0" aria-label="${player.name}: ${vp} points, ${cards} cards, ${dev} development cards${leader ? ", in the lead" : ""}${building ? ", building" : ""}">
       <div class="sx-av">${avatarSvg(player.id)}<b class="sx-vp">${vp}</b>${leader ? CROWN : ""}${building ? `<span class="sx-sbp">${icon("build")}</span>` : ""}</div>
       <div class="pn">${player.name}</div>
-      <div class="mini"><span>${icon("cards")}${cards}</span><span>${icon("devcard")}${dev}</span></div>
+      <div class="mini"><span data-stat="cards"${over ? ` class="warn" title="more than ${this.settings?.discardLimit ?? 7}: hands back half on a 7"` : ""}>${icon("cards")}${cards}</span><span>${icon("devcard")}${dev}</span></div>
       ${awards ? `<div class="bdg">${awards}</div>` : ""}</div>`;
   },
 
@@ -58,6 +58,7 @@ export const SixUiMixin = {
         ready: !!readyIds?.includes(p.id),
         vp: this.displayVictoryPoints(p),
         cards: sum(p.resources),
+        over: sum(p.resources) > (this.settings?.discardLimit ?? 7),
         dev: DEV.reduce((s, t) => s + p.devCards[t] + p.newDevCards[t], 0) + (p.isHuman ? p.devVictoryPoints : 0),
         leader: idx === leader,
         building: marks.includes(idx),

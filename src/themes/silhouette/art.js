@@ -22,9 +22,9 @@ const PC = {
   blue: { base: "#3A76DC", dark: "#2557B0", light: "#7AA5F0", line: "#163777" },
   orange: { base: "#F68B3A", dark: "#BF6118", light: "#FBB57A", line: "#6E380C" },
   ivory: { base: "#FDFBF6", dark: "#C8BFAA", light: "#FFFFFF", line: "#4A443A" },
-  slate: { base: "#353D47", dark: "#1E242B", light: "#65717E", line: "#090C0F" },
+  plum: { base: "#A8306F", dark: "#7A1F50", light: "#D06A9E", line: "#3A0A24" },
 };
-const TEXT = { blue: "#2C5BA8", orange: "#A65314", ivory: "#7D6D4C", slate: "#3E4752" }; // seat hues, darkened to AA on paper
+const TEXT = { blue: "#2C5BA8", orange: "#A65314", ivory: "#7D6D4C", plum: "#8E2560" }; // seat hues, darkened to AA on paper
 const TC = { wood: [K.green, K.leaf], brick: [K.orange, "#C8502A"], sheep: [K.lime, "#9FC24A"], wheat: [K.yellow, K.ochre], ore: [K.grey, K.slate], desert: [K.sand, "#E6C48A"] };
 const P = { ink: B, sand: PA, forest: [K.green], terra: [K.orange], pasture: [K.lime], wheat: [K.yellow], slate: [K.grey], desert: [K.sand] };
 
@@ -180,7 +180,7 @@ function port(p) {
 }
 
 /* ---------- pieces (canvas specs): gabled canal house; tall flat + gable house; ink burglar ---------- */
-const winFor = (c) => (c === PC.slate ? K.yellow : c === PC.ivory ? c.line : PA);
+const winFor = (c) => (c === PC.plum ? K.yellow : c === PC.ivory ? c.line : PA);
 function house(c) {
   const wc = winFor(c);
   return [
@@ -188,7 +188,7 @@ function house(c) {
     { d: "M-12,16 V-4 L-10,-4 L0,-19 L10,-4 L12,-4 V16Z", fill: c.base, stroke: c.line, sw: 2.2, body: true },
     { d: "M-13.6,-3.2 L0,-21.4 L13.6,-3.2 L11.2,-2 L0,-16.6 L-11.2,-2Z", fill: c.line, stroke: c.line, sw: 1, body: true },
     { d: "M-7.5,0 h4.4 v5 h-4.4Z M3.1,0 h4.4 v5 h-4.4Z", fill: wc },
-    { d: "M-2.6,16 V10.4 Q0,7.6 2.6,10.4 V16Z", fill: c === PC.slate ? K.yellow : c.line },
+    { d: "M-2.6,16 V10.4 Q0,7.6 2.6,10.4 V16Z", fill: c === PC.plum ? K.yellow : c.line },
     { el: "circle", cx: 0, cy: -9, r: 1.8, fill: wc },
   ];
 }
@@ -204,8 +204,8 @@ function cityArt(c) {
     { d: "M-1,16 V-1 L1,-1 L10.5,-13.5 L20,-1 L22,-1 V16Z", fill: c.base, stroke: c.line, sw: 2.2, body: true },
     { d: "M-2.4,-.4 L10.5,-15.8 L23.4,-.4 L21.2,.8 L10.5,-11.4 L-.2,.8Z", fill: c.line, stroke: c.line, sw: 1, body: true },
     { d: "M5,3 h4 v4.6 h-4Z M12,3 h4 v4.6 h-4Z", fill: wc },
-    { d: "M8.4,16 v-5.6 h4.2 V16Z", fill: c === PC.slate ? K.yellow : c.line },
-    { d: "M-14.6,16 v-6 h4.2 V16Z", fill: c === PC.slate ? K.yellow : c.line },
+    { d: "M8.4,16 v-5.6 h4.2 V16Z", fill: c === PC.plum ? K.yellow : c.line },
+    { d: "M-14.6,16 v-6 h4.2 V16Z", fill: c === PC.plum ? K.yellow : c.line },
   ];
 }
 // burglar on tiptoe with a sack: the person silhouette at 2.15x, feet on the ground line (y = 32)
@@ -311,8 +311,8 @@ const ICONS = {};
 
 /* ---------- avatars: the same four characters as every theme, as ink silhouette portraits (three-quarter
    profile, a cream eye) on a flat colour backdrop; clothes in the seat colour ---------- */
-const AV_BG = { you: "#BCD2F2", trader: "#F7CDA8", builder: "#F2DFA6", shark: "#C3CFDA" };
-const AV_CLOTH = { you: PC.blue.base, trader: PC.orange.base, builder: "#EFE6D2", shark: PC.slate.base };
+const AV_BG = { you: "#BCD2F2", trader: "#F7CDA8", builder: "#F2DFA6", shark: "#EBCCDC" };
+const AV_CLOTH = { you: PC.blue.base, trader: PC.orange.base, builder: "#EFE6D2", shark: PC.plum.base };
 function avatar(preset) {
   const p = AV_BG[preset] ? preset : "you";
   const head = fl("M-16,-4 Q-18,-27 2,-28 Q19,-28 21,-11 Q27,-7 25,-1 Q23,2 20,3 Q19,13 4,15 Q-14,15 -16,-4Z");
@@ -330,9 +330,9 @@ function avatar(preset) {
 
 // seats 5–6 (5–6 player games): Nora (bob, glasses) and Hugo (curls, beard), same build as the four above
 const AV_EXTRA = {
-  nora: { bg: "#E6CFE2", cloth: "#8F4B86", hair: () => fl("M-20,6 Q-26,-34 2,-35 Q24,-34 24,-10 Q14,-22 2,-22 Q-10,-20 -12,6Z")
+  nora: { bg: "#F6D0CF", cloth: "#E01000", hair: () => fl("M-20,6 Q-26,-34 2,-35 Q24,-34 24,-10 Q14,-22 2,-22 Q-10,-20 -12,6Z")
     + `<circle cx="11" cy="-7" r="5.4" fill="none" stroke="${PA}" stroke-width="1.6"/>` },
-  hugo: { bg: "#CDE8F6", cloth: "#7EC4EC", hair: () => fl("M-18,-8 Q-26,-30 -8,-34 Q0,-40 10,-34 Q24,-30 22,-14 Q14,-24 2,-20 Q-8,-24 -12,-6Z")
+  hugo: { bg: "#CDEFFB", cloth: "#4CCBF5", hair: () => fl("M-18,-8 Q-26,-30 -8,-34 Q0,-40 10,-34 Q24,-30 22,-14 Q14,-24 2,-20 Q-8,-24 -12,-6Z")
     + fl("M-4,6 Q4,18 20,4 Q18,16 6,17 Q-4,16 -4,6Z") },
 };
 function avatar6(preset) {
@@ -450,7 +450,7 @@ const silhouette = {
   paletteDots: [SEA, K.orange, K.yellow, K.green, B],
   confettiColors: [K.orange, K.yellow, K.turq, K.green, K.pink, B],
   motion: { name: "Gentle, page-like", k: 1.05, pop: "cubic-bezier(.3,1.35,.5,1)", out: "cubic-bezier(.22,.8,.3,1)", inOut: "cubic-bezier(.65,0,.35,1)", fall: "cubic-bezier(.55,0,1,.45)", squash: [1.1, 0.9], bounces: 1, sway: 0 },
-  seatKeys: ["blue", "orange", "ivory", "slate"],
+  seatKeys: ["blue", "orange", "ivory", "plum"],
   textColors: TEXT,
   pc: PC,
   palette: P,

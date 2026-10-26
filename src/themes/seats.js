@@ -1,14 +1,16 @@
 // Seats 5 and 6 (5–6 player games): one palette shared by every theme.
-// plum and sky were picked for 5–6 players next to blue / orange / ivory / seat 4 (CVD-checked, see the
-// m56 colour study); sky pieces get a dark outline so they read on the sea and on pasture tiles.
+// Red and sky: with blue / orange / ivory / plum (seat 4 since v0.73) taken, a search over the sRGB cube for
+// colours that stay apart from every seat, the robber, the seas and the terrain under protanopia, deuteranopia
+// and tritanopia (Machado 2009 + CIEDE2000; black/charcoal and greys excluded) leaves only a cyan-sky and a
+// pure red (all seat pairs >= 15.8, robbers incl. the wooden pawn and seas >= 10.3; see the cvd test). Both get a dark outline on the board.
 // Seats 1–4 stay defined by each theme (art.js PC/seatKeys + theme CSS --p0..--p3); this module only
 // appends seats 5–6 to them, so a change to an existing seat colour never touches this file.
 
 export const EXTRA_SEATS = [
   // key: name in theme.pc; base/dark/light/line: piece colours; text: the seat colour as text on paper (AA);
   // ink: text on the seat colour (points badge)
-  { key: "plum", base: "#8F4B86", dark: "#6B3264", light: "#C08AB8", line: "#3A1235", text: "#7E3B75", ink: "#FFFFFF" },
-  { key: "sky", base: "#7EC4EC", dark: "#4E9CCB", light: "#B8E2F7", line: "#1D4E6E", text: "#26719C", ink: "#12324A" },
+  { key: "red", base: "#E01000", dark: "#A30B00", light: "#FF6A5C", line: "#4A0500", text: "#B5000F", ink: "#FFFFFF" },
+  { key: "sky", base: "#4CCBF5", dark: "#1E9CCB", light: "#9BE3FA", line: "#0B3550", text: "#0B6E96", ink: "#0B3550" },
 ];
 
 /** Append seats 5–6 to a theme (idempotent): pc pieces, seat keys, text colours, flat seat colours. */
