@@ -2270,7 +2270,7 @@ class ColonistFullGame {
       side = parseFloat(cs.getPropertyValue("--board-side")) || 0;
       if (side) {
         // Side gutters: the beach keeps --board-side from the screen edge; the harbour boats may use
-        // that gutter but stay on screen (4px). Only the ports this map really has count, so a map
+        // that gutter; only the very tip of a boat may run off screen. Only the ports this map really has count, so a map
         // without a harbour at the far left/right gets the full width.
         const cx = (box.minX + box.maxX) / 2, half = (box.maxX - box.minX) / 2;
         let reach = 0;
@@ -2281,7 +2281,7 @@ class ColonistFullGame {
           reach = Math.max(reach, Math.abs(px + ((px - hc.x) / len) * hs * 0.85 - cx)); // boat tip
         });
         const avail = this.boardWidth / 2;
-        const k = Math.min((avail - side) / half, reach ? (avail - 4) / reach : Infinity);
+        const k = Math.min((avail - side) / half, reach ? (avail + 6) / reach : Infinity); // a boat tip may run 6px off
         box.minX = cx - avail / k; box.maxX = cx + avail / k;
         side = 0;
       }
