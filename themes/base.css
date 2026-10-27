@@ -1345,6 +1345,13 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .tbtn .tnew { font-size: 9.5px; font-weight: 700; line-height: 1; opacity: .9; }
 .tray[data-mode="cards"] > .buy { flex: 1.4 1 0; }
 .app .tbtn:disabled, .app .tbtn.off { opacity: .42; filter: saturate(.3); cursor: default; }
+/* v0.81 build tray: what you can't build is greyed (flat, faded icon + label) with the reason in small print —
+   the cards still missing, "none left" or "no spot"; what you can build keeps its full colour */
+.app .tray[data-mode="build"] .tbtn:disabled { opacity: 1; filter: none; box-shadow: none; }
+.app .tray[data-mode="build"] .tbtn:disabled > :not(.tneed) { opacity: .34; filter: grayscale(1); }
+.tbtn .tneed { display: flex; align-items: center; justify-content: center; gap: 2px; max-width: 100%; overflow: hidden; margin-top: 1px; font-size: 9.5px; font-weight: 700; line-height: 1; color: var(--btn-ink, currentColor); }
+.tbtn .tneed i { display: inline-flex; align-items: center; font-style: normal; font-weight: 800; }
+.tbtn .tneed .ic { font-size: 12px; margin-left: -1px; }
 .app .tbtn.sel, .app .tbtn.focus { background: var(--btn-on); background-image: none; box-shadow: var(--btn-on-shadow); border: var(--btn-on-border); color: var(--btn-on-ink); }
 .app .tbtn.primary { background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); border: var(--primary-border); box-shadow: var(--primary-shadow); font-size: 13px; }
 .app .tbtn.primary:disabled { opacity: .5; }

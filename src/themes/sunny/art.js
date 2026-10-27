@@ -3,7 +3,7 @@
 // gradients; no black outlines — every shape is edged in a darker tint of its own colour.
 // One light source (upper-left). UI accent = terracotta. All art is plain SVG strings in art
 // units (hex radius 100); the board renderer rasterises it once per size (see board-renderer.js).
-import { f, rng, HEX, hexPath, pipCount, wrap, RES_NAME, DEV_NAME, CARD_TEXT, RESOURCE_KEYS } from "../art-util.js";
+import { f, rng, HEX, hexPath, pipCount, wrap, RES_NAME, DEV_NAME, CARD_TEXT, RESOURCE_KEYS, pierD } from "../art-util.js";
 import { UI_ICONS } from "./ui-icons.js";
 import { portrait } from "../portraits.js";
 import { shipSpec, pirateSpec, seaIcons } from "../../seafarers/art.js"; // ⚓ Seafarers pieces / icons
@@ -395,7 +395,8 @@ const glow = () => `<path d="${hexPath(0, 0, 97)}" fill="none" stroke="#FFE9A8" 
 /**
  * Harbour (v0.78): a cream pill in the sea off the coast — for 2:1 the painted resource icon beside the ratio
  * with an outline in the resource's colour (accent only, never a solid fill that could read as a player), for
- * 3:1 just the ratio — two plank piers to the coast corners, a small dot on each of those corners, and a small
+ * 3:1 just the ratio — two plank piers to the coast corners (v0.81: each ends in a small accent tick, drawn live by the
+ * board under the pieces, instead of a dot on the corner), and a small
  * sailing boat beside the pill wherever one fits (layout: harbourBadges, p.badge).
  * Text is returned as labels so the canvas draws it with the page font (fonts don't load in rasterised SVG).
  * p = { a, b, mx, my, nx, ny, res, ratio, s, badge, piers } in art units.
@@ -407,17 +408,16 @@ const harbourBoat = (sh, flip) => `<g transform="translate(${f(sh.x)} ${f(sh.y +
   <path d="M${f(sh.x - 20 * sh.scale)},${f(sh.y + 30 * sh.scale)} q${f(20 * sh.scale)},${f(5 * sh.scale)} ${f(40 * sh.scale)},0" stroke="#fff" stroke-opacity=".4" stroke-width="${f(2 * sh.scale)}" fill="none"/>`;
 function port(p) {
   const q = p.badge, s = p.s || 1, tone = p.res ? PORT_TONE[p.res] : PORT_ANY.dot;
-  const pier = ([c, e]) => {
-    const d = `M${f(c.x)},${f(c.y)} L${f(e[0])},${f(e[1])}`;
-    return `<path d="${d}" stroke="#7E6A50" stroke-width="${f(6.4 * s)}" stroke-linecap="round"/><path d="${d}" stroke="#C7AE88" stroke-width="${f(3.8 * s)}" stroke-linecap="round"/><path d="${d}" stroke="#9C8564" stroke-width="${f(3.8 * s)}" stroke-dasharray="1 ${f(4 * s)}"/>`;
+  const pier = (pr) => {
+    const d = pierD(pr);
+    return `<g fill="none" stroke-linejoin="round"><path d="${d}" stroke="#7E6A50" stroke-width="${f(6.4 * s)}" stroke-linecap="round"/><path d="${d}" stroke="#C7AE88" stroke-width="${f(3.8 * s)}" stroke-linecap="round"/><path d="${d}" stroke="#9C8564" stroke-width="${f(3.8 * s)}" stroke-dasharray="1 ${f(4 * s)}"/></g>`;
   };
-  const dot = (c) => `<circle cx="${f(c.x)}" cy="${f(c.y)}" r="${f(5.6 * s)}" fill="${tone}" stroke="#FBF6EA" stroke-width="${f(2 * s)}"/>`;
   const R = (fill, extra = "") => `<rect x="${f(q.x - q.w / 2)}" y="${f(q.y - q.h / 2)}" width="${f(q.w)}" height="${f(q.h)}" rx="${f(q.r)}" fill="${fill}" ${extra}/>`;
   const ic = q.icon;
-  const svg = `<g>${p.piers.map(pier).join("")}${dot(p.a)}${dot(p.b)}${q.ship && !p.noBoat ? harbourBoat(q.ship, q.ship.flip) : ""}
+  const svg = `<g>${p.piers.map(pier).join("")}${q.ship && !p.noBoat ? harbourBoat(q.ship, q.ship.flip) : ""}
     ${R(p.res ? "#FBF6EA" : PORT_ANY.fill, 'filter="url(#a-shadow)"')}${R("none", `stroke="${p.res ? tone : PORT_ANY.ring}" stroke-width="${f((p.res ? 2.2 : 1.6) * s)}"`)}
     ${ic ? `<circle cx="${f(ic.x)}" cy="${f(ic.y)}" r="${f(ic.size / 2 + 1 * s)}" fill="${tone}" opacity=".2"/><g transform="translate(${f(ic.x)} ${f(ic.y + ic.size * 0.04)}) scale(${+(ic.size / 84).toFixed(4)})">${ICONS[p.res]}</g>` : ""}</g>`;
-  return { svg, labels: [{ x: q.text.x, y: q.text.y, text: p.ratio, size: q.text.size, color: P.ink, weight: 800 }] };
+  return { svg, labels: [{ x: q.text.x, y: q.text.y, text: p.ratio, size: q.text.size, color: P.ink, weight: 800 }], tick: { fill: tone, line: "rgba(43,36,26,.62)" } };
 }
 
 /** Number token, drawn on the canvas (so the number uses the loaded display font). Pips: round dots in

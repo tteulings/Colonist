@@ -109,6 +109,37 @@ export function harbourBadges(game, s = 1) {
   const key = [s, !!game.sea, g.hexSize.toFixed(3), g.centerX.toFixed(2), g.centerY.toFixed(2), ports.map((p) => p.edgeId + p.type).join(","), land.map((h) => h.id).join(".")].join("|");
   if (layoutCache.has(key)) return layoutCache.get(key);
   const centers = land.map((h) => A(h.center));
+  // v0.81: a pier never runs along/over a coast edge (where a road lies) or a number token: when the straight
+  // line from the coast corner to the pill would, it first steps straight out to sea (a knee), then turns
+  const landSegs = g.edges.filter((e) => e.hexIds.some((id) => g.hexes[id] && g.hexes[id].resource !== "sea")).map((e) => [A(g.nodes[e.nodes[0]]), A(g.nodes[e.nodes[1]])]);
+  const tokR = game.isMobileLayout ? 42 : 32, numbered = land.filter((h) => h.number).map((h) => A(h.center));
+  const pierClear = (pts) => {
+    let walked = 0;
+    for (let i = 0; i + 1 < pts.length; i += 1) {
+      const p = pts[i], q = pts[i + 1], L = Math.hypot(q.x - p.x, q.y - p.y);
+      for (let k = 1; k <= 24; k += 1) {
+        const x = p.x + ((q.x - p.x) * k) / 24, y = p.y + ((q.y - p.y) * k) / 24, dn = walked + (L * k) / 24;
+        if (numbered.some((c) => Math.hypot(x - c.x, y - c.y) < tokR)) return false;
+        if (dn > 16 && landSegs.some(([u, v]) => segD(x, y, u.x, u.y, v.x, v.y) < 10)) return false;
+      }
+      walked += L;
+    }
+    return true;
+  };
+  const bendPier = (c, e) => {
+    const E = { x: e[0], y: e[1] };
+    if (pierClear([c, E])) return [c, e];
+    // straight out to sea from the corner: away from the land hexes that meet there
+    const own = centers.filter((h) => Math.hypot(h.x - c.x, h.y - c.y) < 110);
+    if (!own.length) return [c, e];
+    const mx = own.reduce((t, h) => t + h.x, 0) / own.length, my = own.reduce((t, h) => t + h.y, 0) / own.length;
+    const L = Math.hypot(c.x - mx, c.y - my) || 1, ox = (c.x - mx) / L, oy = (c.y - my) / L;
+    for (const d of [18, 26, 34]) {
+      const kn = [c.x + ox * d, c.y + oy * d];
+      if (pierClear([c, { x: kn[0], y: kn[1] }, E])) return [c, e, kn];
+    }
+    return [c, e];
+  };
   // clear: past the beach band (~30) and a corner piece; v0.78: no longer grows with s, so bigger (phone) pills
   // sit as close to the coast as the small ones and don't push the board fit out
   const clear = 30, gap = 5 * Math.min(s, 1.6);
@@ -118,7 +149,7 @@ export function harbourBadges(game, s = 1) {
     // 2:1: resource icon + ratio; 3:1: just the ratio (a narrower pill)
     const w = (any ? 48 : 70) * s, h = 31 * s, hw = w / 2, hh = h / 2; // v0.78: compact pill, the ratio is what grows
     const edge = g.edges[port.edgeId];
-    const a = A(g.nodes[edge.nodes[0]]), b = A(g.nodes[edge.nodes[1]]);
+    const a = { ...A(g.nodes[edge.nodes[0]]), id: edge.nodes[0] }, b = { ...A(g.nodes[edge.nodes[1]]), id: edge.nodes[1] };
     const hc = A(g.hexes[edge.hexIds.find((id) => g.hexes[id].resource !== "sea") ?? edge.hexIds[0]].center);
     const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, len = Math.hypot(mx - hc.x, my - hc.y) || 1;
     const nx = (mx - hc.x) / len, ny = (my - hc.y) / len, tx = -ny, ty = nx;
@@ -140,7 +171,7 @@ export function harbourBadges(game, s = 1) {
     // pier ends: tucked under the pill, spread along the coast, each paired with the nearer corner
     const lat = (Math.abs(tx) * hw + Math.abs(ty) * hh) * 0.45, e0 = [x - tx * lat, y - ty * lat], e1 = [x + tx * lat, y + ty * lat];
     const dd = (c, e) => Math.hypot(c.x - e[0], c.y - e[1]);
-    const piers = dd(a, e0) + dd(b, e1) <= dd(a, e1) + dd(b, e0) ? [[a, e0], [b, e1]] : [[a, e1], [b, e0]];
+    const piers = (dd(a, e0) + dd(b, e1) <= dd(a, e1) + dd(b, e0) ? [[a, e0], [b, e1]] : [[a, e1], [b, e0]]).map(([c, e]) => bendPier(c, e));
     return { x, y, w, h, r: hh, a, b, mx, my, nx, ny, piers, any,
       icon: any ? null : { x: x - 17 * s, y, size: ic },
       text: any ? { x, y: y + fs * 0.36, size: fs } : { x: x + 15 * s, y: y + fs * 0.36, size: fs } };
@@ -160,7 +191,7 @@ export function harbourBadges(game, s = 1) {
         if (x - sw / 2 < bb.x0 || x + sw / 2 > bb.x1 || y - sh / 2 < bb.y0 || y + sh / 2 > bb.y1) continue;
         if (!centers.every((c) => boxHexDist(x, y, sw / 2, sh / 2, c) >= clear)) continue;
         if (!out.every((o) => o === q ? true : boxGap(o, box) >= gap) || !ships.every((o) => boxGap(o, box) >= gap)) continue;
-        if (out.some((o) => o.piers.some(([c, e]) => segNearBox(c.x, c.y, e[0], e[1], box, 2 * s)))) continue;
+        if (out.some((o) => o.piers.some(([c, e, kn]) => (kn ? segNearBox(c.x, c.y, kn[0], kn[1], box, 2 * s) || segNearBox(kn[0], kn[1], e[0], e[1], box, 2 * s) : segNearBox(c.x, c.y, e[0], e[1], box, 2 * s))))) continue;
         q.ship = { x, y, w: sw, h: sh, flip: x > q.x ? 1 : -1, scale: 0.6 * ss };
         ships.push(box);
         break;
@@ -170,4 +201,25 @@ export function harbourBadges(game, s = 1) {
   if (layoutCache.size > 40) layoutCache.clear();
   layoutCache.set(key, out);
   return out;
+}
+
+/** v0.81: SVG path of a pier [corner, end, knee?] (corner → optional knee → under the pill). */
+export const pierD = ([c, e, kn]) => `M${f(c.x)},${f(c.y)}${kn ? ` L${f(kn[0])},${f(kn[1])}` : ""} L${f(e[0])},${f(e[1])}`;
+
+/** v0.81: the harbour-node mark that replaced the coloured corner dots. A short bar across the pier, just off the
+ *  coast corner, in the harbour's accent: small enough to hide under a settlement / city (and it is simply not
+ *  drawn on an occupied corner) and drawn under every piece and build-spot marker. Art units, like the pier. */
+export function pierTick([c, e, kn], s = 1) {
+  const tx = kn ? kn[0] : e[0], ty = kn ? kn[1] : e[1], L = Math.hypot(tx - c.x, ty - c.y) || 1, dx = (tx - c.x) / L, dy = (ty - c.y) / L;
+  const d = 4.5 * s;
+  return { id: c.id, x: c.x + dx * d, y: c.y + dy * d, ux: -dy, uy: dx, h: 6 * s, w: 3.4 * s };
+}
+/** Draw a pierTick (in the canvas's current units) on a 2D canvas: the accent bar with a thin outline. */
+export function drawPierTick(ctx, t, fill, line) {
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(t.x - t.ux * t.h, t.y - t.uy * t.h); ctx.lineTo(t.x + t.ux * t.h, t.y + t.uy * t.h);
+  ctx.strokeStyle = line; ctx.lineWidth = t.w * 1.65; ctx.stroke();
+  ctx.strokeStyle = fill; ctx.lineWidth = t.w; ctx.stroke();
+  ctx.restore();
 }
