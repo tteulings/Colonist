@@ -323,7 +323,7 @@
 [data-theme="C"] .hm-score i { box-shadow: 0 0 0 1.5px var(--c-hi); }
 [data-theme="C"] .hm-card { background: var(--c-paper); border: 1.5px solid #1C1A19; box-shadow: 0 3px 0 rgba(28,26,25,.25); }
 [data-theme="C"] .hm-list { background: var(--c-ochre); }
-[data-theme="C"] .hm-list button + button { border-top-color: var(--c-ochre-line); }
+[data-theme="C"] .hm-list :is(button, a) + :is(button, a) { border-top-color: var(--c-ochre-line); }
 [data-theme="C"] .hm-list .ic, [data-theme="C"] .hm-list .hm-chev { color: #1C1A19; }
 [data-theme="C"] .hm-tile { border: 1.5px solid #1C1A19; box-shadow: none; }
 [data-theme="C"] .hm-tile[data-mode="classic"] { background: var(--c-green); }

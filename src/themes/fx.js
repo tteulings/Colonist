@@ -119,7 +119,7 @@ export class Fx {
 
   targetFor(pid, res) {
     const g = this.game;
-    if (g.players[pid]?.isHuman) {
+    if (g.players[pid]?.isHuman && (g._seesPrivate?.(g.players[pid]) ?? true)) {
       const card = document.querySelector(`#resourceCardStrip .card[data-card="${res}"]`);
       if (card && card.offsetParent) return card;
     }
@@ -133,7 +133,7 @@ export class Fx {
     const dst = center(tr);
     const el = this.actor(cardSvg(res), src.x - cw / 2, src.y - cw * 0.7, cw, "fx-card");
     const dx = dst.x - src.x, dy = dst.y - src.y;
-    const human = this.game.players[pid]?.isHuman;
+    const human = this.game.players[pid]?.isHuman && (this.game._seesPrivate?.(this.game.players[pid]) ?? true);
     const endScale = human ? Math.min(1.2, tr.width / cw) : 0.55;
     this.A(el, [
       { transform: "translate(0,0) scale(.2) rotate(0deg)", opacity: 0, offset: 0 },

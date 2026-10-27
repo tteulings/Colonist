@@ -193,10 +193,10 @@ export const SeaGame = {
   },
 
   // ── gold (human) ─────────────────────────────────────────────────────
-  _seaGoldPending(player = this.players?.find((p) => p.isHuman)) { return !!(this.sea && player && this.sea.goldFor(player.id)); },
+  _seaGoldPending(player = this._me()) { return !!(this.sea && player && this.sea.goldFor(player.id)); },
 
   _seaGoldTap(res) {
-    const human = this.players.find((p) => p.isHuman);
+    const human = this._me();
     if (!human || !RES.includes(res) || !this.sea?.goldFor(human.id) || !(this.bank[res] > 0)) { this.sfx.error?.(); return; }
     const done = this.sea.pickGold(human, res);
     this.fx?.flyResources?.(this.players.map((p) => (p === human ? { [res]: 1 } : {})), null);

@@ -16,6 +16,9 @@
       // Theme + motion before first paint (src/themes/manager.js owns the logic afterwards)
       (function () {
         var d = document.documentElement, t = "A", m = "system", pal = "light";
+        // AI Lab engine (lab.html embeds index.html?lab=view / ?lab=sim): read your settings, never write
+        var lab = /[?&]lab=(view|sim)\b/.exec(location.search);
+        if (lab) { d.dataset.lab = lab[1]; var S = Storage.prototype; S.setItem = S.removeItem = S.clear = function () {}; }
         try { t = localStorage.getItem("colonist.theme") || "A"; m = localStorage.getItem("colonist.motion") || "system"; pal = localStorage.getItem("colonist.palette") === "vivid" ? "vivid" : "light"; } catch (e) {}
         d.dataset.palette = pal;
         if (t !== "A" && t !== "B" && t !== "C" && t !== "classic") t = "A";
@@ -61,14 +64,16 @@
       })();
     </script>
     <!-- legacy styles in a low-priority cascade layer: the themed CSS below always wins -->
-    <style>@import url("./styles.css?v=79") layer(legacy);</style>
-    <link rel="stylesheet" href="./themes/base.css?v=79" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=79" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=79" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=79" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=79" />
-    <link rel="stylesheet" href="./themes/six.css?v=79" />
-    <link rel="stylesheet" href="./themes/seafarers.css?v=79" />
+    <style>@import url("./styles.css?v=80") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=80" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=80" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=80" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=80" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=80" />
+    <link rel="stylesheet" href="./themes/six.css?v=80" />
+    <link rel="stylesheet" href="./themes/seafarers.css?v=80" />
+    <link rel="stylesheet" href="./themes/hotseat.css?v=80" />
+    <link rel="stylesheet" href="./themes/stats.css?v=80" />
   </head>
   <body>
     <div class="app" id="app">
@@ -121,7 +126,7 @@
 
       <!-- Game settings (moved into Settings › Game at start-up by src/themes/settings-ui.js) -->
       <details class="settings-drawer-float" id="settingsDrawer">
-        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.79</span></summary>
+        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.80</span></summary>
         <div class="settings-float-body">
           <button id="resetBtn" type="button" class="btn primary st-newgame"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-dice" x="-50" y="-50" width="100" height="100"/></svg>New game</button>
           <div class="st-h">Sound &amp; pace</div>
@@ -131,7 +136,8 @@
               <label for="volumeRange" class="st-range-label">Volume <output id="volumeValue" for="volumeRange">60%</output></label>
               <input id="volumeRange" type="range" min="0" max="100" step="5" value="60" aria-label="Sound volume" />
             </div>
-            <label class="settings-toggle-label"><input type="checkbox" id="aiReasoningToggle" /> Show what the bots are thinking</label>
+            <label class="settings-toggle-label" title="Shows each bot's candidate moves and scores on the board, with Pause and Step."><input type="checkbox" id="aiAnalysisToggle" /> Analysis mode <small class="st-note">see the bots' scores live, pause and step</small></label>
+            <a class="st-lab-link" href="./lab.html">Open the AI Lab <span aria-hidden="true">›</span></a>
             <label class="settings-toggle-label" title="Off: a tap on a glowing spot builds at once and Undo appears for a few seconds. On: a tap selects, then Place confirms."><input type="checkbox" id="confirmPlacementsToggle" /> Confirm placements <small class="st-note">tap, then Place (otherwise: tap builds, with Undo)</small></label>
           </div>
           <label for="speedRange" class="st-range-label">Bot speed</label>
@@ -157,7 +163,7 @@
             <summary>Bot personalities</summary>
             <div id="aiStrategyPanel" class="ai-strategy-panel"></div>
           </details>
-          <div class="settings-version">Colonist <span class="app-version">v0.79</span></div>
+          <div class="settings-version">Colonist <span class="app-version">v0.80</span></div>
         </div>
       </details>
 
@@ -300,13 +306,13 @@
     </div>
     <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=79"></script>
+    <script type="module" src="./src/game.js?v=80"></script>
     <script>
       // Updates: sw.js and its imports are never taken from the HTTP cache (updateViaCache), the
       // registration is re-checked whenever the app comes back to the foreground, and a new
       // version is offered with a calm chip instead of reloading mid-game (the game is saved
       // after every action, so the reload is safe whenever the player taps it).
-      if ("serviceWorker" in navigator) {
+      if ("serviceWorker" in navigator && !document.documentElement.dataset.lab) {
         const sw = navigator.serviceWorker;
         const hadController = !!sw.controller;
         const offerUpdate = () => {

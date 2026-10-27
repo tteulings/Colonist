@@ -11,6 +11,7 @@ const BOOK_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d=
 /** A theme may draw its own version of these glyphs (Silhouette does): use its sprite icon when it has one. */
 const themed = (game, k, fallback, cls = "") => (game?.theme?.icons?.[k] ? icon(k, cls) : fallback);
 const INFO_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="7.6" r="1.4" fill="currentColor"/></svg>`;
+const LAB_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3.5h5M10.5 3.5v5.2L5 18.2a1.6 1.6 0 0 0 1.4 2.3h11.2a1.6 1.6 0 0 0 1.4-2.3l-5.5-9.5V3.5" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" fill="none"/><circle cx="10" cy="16" r="1.3" fill="currentColor"/><circle cx="13.6" cy="14" r="1" fill="currentColor"/></svg>`;
 const CHEV = `<span class="hm-chev" aria-hidden="true">›</span>`;
 
 export const LEVELS = [["beginner", "Easy"], ["intermediate", "Medium"], ["expert", "Hard"]];
@@ -95,9 +96,10 @@ export class Home {
         ${sea ? `<p class="hm-note">Heading for New Shores · 14 points · <span class="hm-seacap">up to 4 players</span></p>` : ""}
       </section>
       <nav class="hm-card hm-list" aria-label="More">
-        <button type="button" data-home="more">${themed(this.game, "sliders", SLIDERS_IC)}<span>More settings<small>Rules, dice, map, each bot</small></span>${CHEV}</button>
+        <button type="button" data-home="more">${themed(this.game, "sliders", SLIDERS_IC)}<span>More settings<small>Rules, map, bots · play with friends</small></span>${CHEV}</button>
         <button type="button" data-home="intro" class="${fresh ? "fresh" : ""}">${themed(this.game, "book", BOOK_IC)}<span>How to play${fresh ? `<small>New here? 3 short cards</small>` : ""}</span>${CHEV}</button>
-        <button type="button" data-home="settings">${icon("settings")}<span>Settings</span>${CHEV}</button>
+        <div class="hm-pair"><button type="button" data-home="settings">${icon("settings")}<span>Settings</span>${CHEV}</button>
+        <a class="hm-lab" href="./lab.html" data-home="lab" title="See how the bots score the board">${LAB_IC}<span>AI Lab</span>${CHEV}</a></div>
       </nav>
     </div>`;
     const on = (sel, fn) => this.el.querySelectorAll(sel).forEach((b) => b.addEventListener("click", fn));

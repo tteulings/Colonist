@@ -1,0 +1,82 @@
+/* Pass & play (hot-seat): the pass-the-phone cover, hidden hands between turns, the Players rows
+   on the New game screen and the "Ask" chip for another human in the trade sheet. Theme-neutral:
+   colours come from the seat tokens (--pN, --pN-ink, --pN-light, --pN-dark) and the theme fonts. */
+
+/* ── the cover ─────────────────────────────────────────────────────────── */
+.hs-cover { position: fixed; inset: 0; z-index: 85; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: max(24px, env(safe-area-inset-top)) 24px max(28px, env(safe-area-inset-bottom));
+  background: radial-gradient(120% 80% at 50% 30%, color-mix(in srgb, var(--pc) 78%, #fff) 0%, var(--pc) 55%, color-mix(in srgb, var(--pc) 80%, #000) 100%);
+  color: var(--pc-ink, #fff); font-family: var(--font-body, system-ui, sans-serif); text-align: center;
+  animation: hsIn .28s ease-out both; -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; }
+.hs-cover[hidden] { display: none; }
+.hs-cover .avatar { --av: 132px; --av-ring: 5px; box-shadow: 0 0 0 5px color-mix(in srgb, var(--pc-ink, #fff) 85%, transparent), 0 10px 30px rgba(0,0,0,.22); background: var(--pc-light, #fff); margin-bottom: 10px; }
+.hs-cover .hs-pass { font-size: 16px; font-weight: 650; opacity: .88; letter-spacing: .01em; margin: 0; }
+.hs-cover .hs-name { font-family: var(--font-display, inherit); font-weight: var(--display-weight, 800); font-size: clamp(34px, 10vw, 52px); line-height: 1.05; margin: 0; overflow-wrap: anywhere; }
+.hs-cover .hs-why { min-height: 22px; font-size: 15px; font-weight: 600; opacity: .92; margin: 2px 0 18px; display: flex; align-items: center; gap: 6px; justify-content: center; }
+.hs-cover .hs-why .avatar { --av: 22px; --av-ring: 2px; margin: 0; box-shadow: 0 0 0 2px color-mix(in srgb, var(--pc-ink, #fff) 80%, transparent); }
+.hs-cover .hs-go { appearance: none; border: 0; border-radius: 999px; min-height: 56px; padding: 0 28px; max-width: 100%;
+  font: 750 17px/1.2 var(--font-body, system-ui, sans-serif); color: var(--pc-dark, #222); background: #FFFDF7;
+  box-shadow: 0 6px 18px rgba(0,0,0,.2), inset 0 -2px 0 rgba(0,0,0,.08); cursor: pointer; display: inline-flex; align-items: center; gap: 10px; }
+.hs-cover .hs-go:active { transform: translateY(1px) scale(.99); }
+.hs-cover .hs-go svg { width: 22px; height: 22px; flex: none; }
+.hs-cover .hs-foot { position: absolute; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom)); font-size: 12.5px; opacity: .7; margin: 0; }
+@keyframes hsIn { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .hs-cover { animation: none; } }
+:root[data-motion="reduced"] .hs-cover { animation: none; }
+
+/* ── hands hidden between turns (the board stays visible) ──────────────── */
+#app.hs-hidden #resourceCardStrip { visibility: hidden; }
+#app.hs-hidden .hb-total, #app.hs-hidden #handSummary { visibility: hidden; }
+#app.hs-hidden #mCardsDot { display: none !important; }
+#app.hs-hidden #handArea { position: relative; }
+#app.hs-hidden #handArea::after { content: "Hands hidden"; position: absolute; left: 50%; bottom: 34%; transform: translateX(-50%);
+  font: 650 13px/1 var(--font-body, system-ui, sans-serif); color: var(--ink-soft, #667); padding: 8px 14px; border-radius: 999px;
+  background: color-mix(in srgb, var(--panel, #fff) 85%, transparent); pointer-events: none; white-space: nowrap; }
+/* another human holds the phone for a moment (trade answer): the turn owner's buttons wait */
+#app.hs-away #dock .actions > .mbtn:not(#mMenuBtn), #app.hs-away #dock .side-actions button, #app.hs-away #dock .buildgrp button, #app.hs-away #dock .primary-slot button { pointer-events: none; opacity: .45; }
+
+/* the cards pill names whose hand it is: "● Ann · 3 cards" (one pill, so the bank strip keeps its room at 360px) */
+.hb-total.hb-named { white-space: nowrap; }
+.hb-who { display: inline-flex; align-items: center; gap: 3px; font-weight: 750; color: var(--pc-text, var(--ink)); max-width: 6.2em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.hb-who::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 1.5px var(--pc-line, rgba(0,0,0,.25)); flex: none; }
+.hb-sep { font-style: normal; opacity: .55; margin: 0 2px; }
+
+/* ── New game › Players ────────────────────────────────────────────────── */
+.newgame-modal .hs-seats { display: flex; flex-direction: column; gap: 8px; }
+.newgame-modal .hs-seat { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px;
+  background: color-mix(in srgb, var(--pc) 8%, var(--panel, #fff)); border: 1px solid color-mix(in srgb, var(--pc) 28%, transparent); }
+.newgame-modal .hs-seat .avatar { --av: 40px; --av-ring: 2.5px; }
+.newgame-modal .hs-seat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.newgame-modal .hs-seat-name { font-weight: 750; font-size: 15px; color: var(--pc-text, var(--ink)); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.newgame-modal .hs-seat-desc { font-size: 12px; color: var(--ink-soft, #667); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.newgame-modal .hs-name-in { font: 700 15px/1.2 var(--font-body, inherit); color: var(--pc-text, var(--ink)); width: 100%; min-width: 0; min-height: 36px;
+  padding: 6px 10px; border-radius: 10px; border: 1.5px solid color-mix(in srgb, var(--pc) 45%, #fff); background: #fff; }
+.newgame-modal .hs-name-in:focus { outline: none; border-color: var(--pc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc) 25%, transparent); }
+.newgame-modal .hs-kind { display: inline-flex; flex: none; border-radius: 999px; padding: 3px; background: color-mix(in srgb, var(--ink, #333) 8%, transparent); }
+.newgame-modal .hs-kind button { appearance: none; border: 0; background: transparent; border-radius: 999px; min-height: 36px; min-width: 52px; padding: 0 10px;
+  font: 700 13px/1 var(--font-body, inherit); color: var(--ink-soft, #667); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+.newgame-modal .hs-kind button.on { background: #fff; color: var(--ink, #222); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.newgame-modal .hs-kind .fixed { min-width: 64px; }
+.newgame-modal .hs-seat .ng-bot-select { flex: 1 1 100%; }
+.newgame-modal .hs-help { margin: 8px 2px 0; font-size: 12.5px; color: var(--ink-soft, #667); }
+.newgame-modal .ng-mode-card[disabled] { opacity: .5; cursor: not-allowed; filter: grayscale(.4); }
+.newgame-modal .ng-mode-card .hs-off { display: block; font-size: 12px; font-weight: 700; margin-top: 4px; color: var(--ink-soft, #667); }
+@media (max-width: 520px) {
+  .newgame-modal .hs-seat { flex-wrap: wrap; }
+}
+
+/* ── trade sheet: ask another human ────────────────────────────────────── */
+.tp.ask .tp-go { font-style: normal; }
+.tp.ask[aria-disabled="true"] { opacity: .55; }
+.rush-offer.no-timer .offer-time { display: none; }
+
+/* pass & play: the named cards pill + the bank strip share the row at 360px */
+@media (max-width: 900px) and (min-height: 501px) {
+  #app.hs-on .hand-bar { gap: 4px; }
+  #app.hs-on .hand-bar .hb-total.hb-named { padding: 0 6px; gap: 2px; }
+  #app.hs-on .hand-bar .hb-bank { padding: 0 5px 0 4px; }
+  #app.hs-on .hand-bar .hb-bank .bk + .bk { margin-left: 2px; }
+  #app.hs-on .hand-bar .hb-bank .bk.dv { padding-left: 3px; margin-left: 3px; }
+}
+.hs-cover .hs-why.hs-secret { margin: -12px 0 18px; min-height: 0; font-size: 14px; padding: 5px 12px; border-radius: 999px; background: color-mix(in srgb, var(--pc-ink, #fff) 16%, transparent); }
+.hb-total.hb-named .ic { font-size: 13px; margin-right: 1px; }

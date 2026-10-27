@@ -345,7 +345,7 @@ export const SbpMixin = {
   /** The window is "busy" while you pick or place something: the countdown waits. */
   _sbpBusy() {
     return !!(this.pendingAction || this.confirmBuild || this.trayMode || this.undoState || this.uiPaused
-      || this.onboardingHold || document.hidden || document.querySelector(".newgame-modal"));
+      || this.onboardingHold || this.hsCoverOn != null || document.hidden || document.querySelector(".newgame-modal"));
   },
 
   _sbpStartTimer() {

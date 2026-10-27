@@ -765,10 +765,10 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
 .home .hm-seg button { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 44px; padding: 0 2px; border: 0; border-radius: 10px; background: transparent; color: var(--ink); font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .home .hm-seg button.on { background: var(--sheet); color: var(--heading); font-weight: 800; box-shadow: 0 1px 3px rgba(0,0,0,.15), inset 0 0 0 2px var(--accent); }
 .hm-list { display: flex; flex-direction: column; padding: 2px 14px; }
-.hm-list button { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 2px; border: 0; background: none; color: var(--ink); text-align: left; font-size: 15.5px; font-weight: 700; }
-.hm-list button + button { border-top: var(--divider-soft, 1px solid rgba(0,0,0,.08)); }
-.hm-list button > span:not(.hm-chev) { flex: 1; min-width: 0; }
-.hm-list button small { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+.hm-list :is(button, a) { text-decoration: none; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 2px; border: 0; background: none; color: var(--ink); text-align: left; font-size: 15.5px; font-weight: 700; }
+.hm-list :is(button, a) + :is(button, a) { border-top: var(--divider-soft, 1px solid rgba(0,0,0,.08)); }
+.hm-list :is(button, a) > span:not(.hm-chev) { flex: 1; min-width: 0; }
+.hm-list :is(button, a) small { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
 .hm-list button.fresh small { color: var(--heading); font-weight: 750; }
 .hm-list .ic { font-size: 22px; width: 22px; height: 22px; flex: none; color: var(--ink-soft); }
 .hm-list .hm-chev { color: var(--ink-soft); font-size: 22px; }
@@ -788,7 +788,7 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
   .hm-brand .hm-logo { width: 52px; height: 52px; }
   .hm-brand h1 { font-size: 30px; }
   .hm-tile { min-height: 116px; }
-  .hm-list button { min-height: 48px; }
+  .hm-list :is(button, a) { min-height: 48px; }
 }
 @media (max-height: 500px) and (orientation: landscape) {
   /* two columns: brand · Continue · links on the left, New game on the right (fits 780x360 without scrolling) */
@@ -799,8 +799,8 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
   .home .hm-col > .hm-continue { grid-area: cont; }
   .home .hm-col > .hm-new { grid-area: new; align-self: center; }
   .home .hm-col > .hm-list { grid-area: list; align-self: start; }
-  .hm-list button { min-height: 44px; padding: 2px; }
-  .hm-list button small { display: none; }
+  .hm-list :is(button, a) { min-height: 44px; padding: 2px; }
+  .hm-list :is(button, a) small { display: none; }
   .hm-score em.nm { display: none; }
   .hm-score em.ini { display: inline; }
   .hm-brand { flex-direction: row; justify-content: center; gap: 10px; }
@@ -1688,3 +1688,55 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 [data-theme="classic"] { --rib-paper: #F5EFE4; --stack-1: #E6DCC8; --stack-2: #D2C4A6; --stack-3: #BBA984; }
 @media (min-width: 901px) and (min-height: 501px) { [data-hand-counts="stack"] .app .hand .card { --cw: clamp(54px, 4.9vw, 76px); margin-right: 0; } }
 @media (max-height: 500px) and (orientation: landscape) { [data-hand-counts="stack"] .app .hand .card .rib b { font-size: 14px; } [data-hand-counts="stack"] .app .hand .cards { padding-top: 12px; } }
+
+/* ---------- Analysis mode (src/ai-analysis.js): the bot's score panel over the bottom of the board ---------- */
+.st-lab-link { display: inline-flex; gap: 6px; margin: 2px 0 6px 26px; font-size: 13px; font-weight: 650; color: var(--brand-ink, var(--accent)); text-decoration: none; }
+.ai-panel {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 6; max-width: 420px; margin: 0 auto;
+  background: var(--float); border: var(--float-border); box-shadow: var(--float-shadow); border-radius: 14px;
+  color: var(--ink); font-family: var(--font-body); font-size: 12px; padding: 6px 8px 8px 12px; box-sizing: border-box;
+}
+.ai-panel.min { padding-bottom: 6px; }
+.ai-panel .aip-head { display: flex; align-items: center; gap: 7px; min-height: 32px; }
+.ai-panel .aip-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px rgba(255,255,255,.8); }
+.ai-panel .aip-t { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto; }
+.ai-panel .aip-sc { font-family: var(--font-display); font-weight: 750; font-size: 16px; font-variant-numeric: tabular-nums; flex: none; cursor: help; }
+.ai-panel .aip-ctl { display: flex; gap: 4px; flex: none; }
+.ai-panel button { display: inline-grid; place-items: center; width: 34px; height: 30px; border-radius: 9px; background: var(--btn); border: var(--btn-border); color: var(--ink); flex: none; }
+.ai-panel button svg { width: 16px; height: 16px; }
+.ai-panel button.on { background: var(--primary); color: var(--primary-ink); border: var(--primary-border); }
+.ai-panel .aip-min { width: 28px; background: transparent; border: 0; color: var(--ink-soft); }
+.ai-panel .aip-min svg { transition: transform .2s; }
+.ai-panel.min .aip-min svg { transform: rotate(180deg); }
+.ai-panel.held .aip-ctl button[data-ai="step"] { box-shadow: 0 0 0 2px var(--accent); }
+.ai-panel .aip-bars { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 2px; }
+.ai-panel .aip-d { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 6px; gap: 2px 2px; min-width: 0; }
+.ai-panel .aip-d.zero { opacity: .55; }
+.ai-panel .aip-l { color: var(--ink-soft); font-weight: 650; font-size: 10px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; grid-column: 1 / -1; }
+.ai-panel .aip-bar { grid-column: 1 / 2; align-self: center; height: 6px; border-radius: 3px; background: var(--sep, rgba(0,0,0,.08)); position: relative; overflow: hidden; }
+.ai-panel .aip-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; opacity: .85; }
+.ai-panel .aip-bar.neg i { background: repeating-linear-gradient(135deg, var(--ink-faint, #888) 0 3px, transparent 3px 5px); opacity: .6; }
+.ai-panel .aip-v { grid-column: 2; grid-row: 2; color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 10.5px; line-height: 6px; padding-left: 2px; }
+.ai-panel .aip-note { margin: 5px 0 0; color: var(--ink-soft); font-size: 11.5px; line-height: 1.3; }
+.ai-panel .aip-alts { display: flex; gap: 5px; margin-top: 6px; }
+.ai-panel .aip-alts span { flex: 1 1 0; min-width: 0; background: var(--chip); border: var(--chip-border); border-radius: 8px; padding: 3px 6px; color: var(--ink-soft); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-panel .aip-alts b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.ai-panel .aip-offers { margin-top: 5px; display: grid; gap: 3px; }
+.ai-panel .aip-offer { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; font-size: 11.5px; }
+.ai-panel .aip-offer > span:first-child { font-weight: 650; }
+.ai-panel .aip-gv { color: var(--ink-soft); font-variant-numeric: tabular-nums; cursor: help; }
+.ai-panel .aip-offer em { font-style: normal; font-weight: 650; font-size: 11px; }
+.ai-panel .aip-offer em.ok { color: var(--good); }
+.ai-panel .aip-offer em.no, .ai-panel .aip-offer em.mute { color: var(--ink-faint, #888); }
+@media (min-width: 901px) and (min-height: 501px) { .ai-panel { left: auto; right: 12px; bottom: 12px; width: 360px; } }
+
+/* AI Lab engine (index.html?lab=view inside lab.html): only the board */
+html[data-lab] .topbar, html[data-lab] .mtop, html[data-lab] .dock, html[data-lab] .rail, html[data-lab] .lefttop,
+html[data-lab] .board-tools, html[data-lab] #toastStack, html[data-lab] .rush-offers, html[data-lab] #rushHud,
+html[data-lab] .confirm-pill, html[data-lab] #aiPanel, html[data-lab] .update-chip, html[data-lab] .home { display: none !important; }
+html[data-lab] .app { grid-template-rows: 1fr !important; grid-template-columns: 1fr !important; }
+html[data-lab] .table { grid-template-columns: 1fr !important; }
+/* Home › More: Settings and the AI Lab share one row (the home screen must fit without scrolling) */
+.hm-list .hm-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: var(--divider-soft, 1px solid rgba(0,0,0,.08)); }
+.hm-list .hm-pair > :is(button, a) + :is(button, a) { border-top: 0; border-left: var(--divider-soft, 1px solid rgba(0,0,0,.08)); padding-left: 12px; }
+[data-theme="C"] .hm-list .hm-pair { border-top-color: var(--c-ochre-line); }
