@@ -23,13 +23,13 @@ const K = {
 // gouache tones, outlined in the board's Indian ink.
 const PC = {
   red: { base: "#D2412F", dark: "#A32E20", light: "#E8806F", line: "#1C1A19" },
-  blue: { base: "#2F6BB3", dark: "#225088", light: "#7BA2D4", line: "#1C1A19" },
+  blue: { base: "#3A78C0", dark: "#225088", light: "#7BA2D4", line: "#1C1A19" },
   orange: { base: "#F29236", dark: "#BF6514", light: "#F8BC78", line: "#1C1A19" },
   green: { base: "#2A8556", dark: "#1D6340", light: "#66B58A", line: "#1C1A19" },
   ivory: { base: "#F4EBD6", dark: "#D3C7AA", light: "#FFFBF0", line: "#1C1A19" },
-  purple: { base: "#7A49A8", dark: "#57337C", light: "#A886CC", line: "#1C1A19" },
+  purple: { base: "#5A2E88", dark: "#412066", light: "#9474C0", line: "#1C1A19" },
 };
-const TEXT = { red: "#A32E20", blue: "#225088", orange: "#A25611", green: "#1D6340", ivory: "#5E5139", purple: "#57337C" }; // seat hues as text on paper (applySeatTokens darkens further where AA needs it)
+const TEXT = { red: "#A32E20", blue: "#225088", orange: "#A25611", green: "#1D6340", ivory: "#5E5139", purple: "#412066" }; // seat hues as text on paper (applySeatTokens darkens further where AA needs it)
 const BUILD_INK = { base: "#22313A", dark: "#16222A", light: "#4A5A64", line: "#0E161B" };
 // v0.75: brick a deeper terracotta so the orange seat stands clear of it
 const TC = { wood: [K.green, K.leaf], brick: ["#C8502A", "#A8401E"], sheep: [K.lime, "#9FC24A"], wheat: [K.yellow, K.ochre], ore: [K.grey, K.slate], desert: [K.sand, "#E6C48A"] };

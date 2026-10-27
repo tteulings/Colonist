@@ -5,7 +5,7 @@
 import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, prefetchFonts, icon } from "./manager.js";
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "0.78";
+export const APP_VERSION = "0.79";
 
 /** One line of real viewport numbers for bug reports (Settings › About). */
 function viewportDebug() {

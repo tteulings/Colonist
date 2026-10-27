@@ -40,7 +40,7 @@
   --avatar-radius: 50%; --avatar-shadow: 0 1px 3px rgba(0,0,0,.12);
   /* seats (v0.75, colonist.io order), identical in every theme: You red · Blaauw blue · Van Geelen orange · Groenewoud green
      (+ De Wit ivory · Pimpel purple from src/themes/seats.js). -text / -ink / -light / -dark are derived from the board pieces at runtime (src/themes/seats.js) */
-  --p0: #D1453A; --p1: #3A73C4; --p2: #F08A2E; --p3: #2A8556; /* v0.78 first-paint fallback: applySeatTokens sets every --pN* from the pieces */
+  --p0: #D1453A; --p1: #3C75C6; --p2: #F08A2E; --p3: #2A8556; /* v0.78 first-paint fallback: applySeatTokens sets every --pN* from the pieces */
   --p0-text: #A01D18; --p1-text: #1F4FAE; --p2-text: #8F4710; --p3-text: #12603A;
   --p0-ink: #fff; --p1-ink: #fff; --p2-ink: #2E1F14; --p3-ink: #0F2418;
   --row-tint: 7%; --vp-tint: 22%;
@@ -208,7 +208,7 @@
   --primary: #0E5A66; --primary-image: linear-gradient(#106270, #0C525D); --primary-border: 1px solid #0A4650; --accent: #F2643A;
   --primary-shadow: 0 1px 2px rgba(4,40,48,.3), 0 6px 16px rgba(4,40,48,.26);
   --rush-ring: #F2643A;
-  --p0: #D8382C; --p1: #2F6CD0; --p2: #F7891F; /* the vivid pieces (src/themes/sunny/art.js); applySeatTokens overrides */
+  --p0: #D8382C; --p1: #3474D4; --p2: #F7891F; /* the vivid pieces (src/themes/sunny/art.js); applySeatTokens overrides */
   --float: rgba(236,248,251,.95);
   --glass: rgba(8,62,104,.44); --glass-line: rgba(255,255,255,.13); --glass-active: rgba(4,46,84,.58);
   --glass-shadow: 0 1px 2px rgba(0,30,60,.12), 0 6px 18px rgba(0,30,60,.16);

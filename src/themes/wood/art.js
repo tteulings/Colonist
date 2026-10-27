@@ -16,13 +16,13 @@ const INK = "#2A241E", INK2 = "#5E5245", IVORY = "#F3EBDA", RED = "#A8352B", ACC
 // pieces (You red · Blaauw blue · Van Geelen orange · Groenewoud green · De Wit ivory · Pimpel purple).
 const PC = {
   red: { base: "#C4463A", dark: "#963026", light: "#DE7C6C", line: "#3E1610" },
-  blue: { base: "#3B6FB5", dark: "#2A5288", light: "#7FA0D2", line: "#142B4E" },
+  blue: { base: "#4078BE", dark: "#2A5288", light: "#7FA0D2", line: "#142B4E" },
   orange: { base: "#E3893A", dark: "#AE5F1C", light: "#F0B479", line: "#4E2A0C" },
   green: { base: "#2F8055", dark: "#1F6040", light: "#6AAE88", line: "#0F3020" },
   ivory: { base: "#EEE4CC", dark: "#CBBE9F", light: "#F8F2E2", line: "#6B5D46" },
-  purple: { base: "#7A4BA6", dark: "#57337C", light: "#A886CC", line: "#26123C" },
+  purple: { base: "#5A2F88", dark: "#412066", light: "#9474C0", line: "#1C0C30" },
 };
-const TEXT = { red: "#963026", blue: "#2A5288", orange: "#A0571A", green: "#1F6040", ivory: "#5E5139", purple: "#57337C" }; // seat hues as text on paper (applySeatTokens darkens further where AA needs it)
+const TEXT = { red: "#963026", blue: "#2A5288", orange: "#A0571A", green: "#1F6040", ivory: "#5E5139", purple: "#412066" }; // seat hues as text on paper (applySeatTokens darkens further where AA needs it)
 
 // printed terrain tones [shade, mid, light]
 const TER = {

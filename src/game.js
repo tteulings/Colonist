@@ -1,5 +1,5 @@
 import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced, SEAT_PRESETS, awardStat } from "./themes/manager.js";
-import { SvgBoardRenderer } from "./themes/board-renderer.js";
+import { SvgBoardRenderer, drawSpec } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
 import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted } from "./themes/art-util.js";
@@ -7124,29 +7124,15 @@ class ColonistFullGame {
         return;
       }
 
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.bezierCurveTo(cp.cp1x, cp.cp1y, cp.cp2x, cp.cp2y, p2.x, p2.y);
-      ctx.strokeStyle = "rgba(13, 17, 25, 0.62)";
-      ctx.lineWidth = 9.3 * s * (this.isMobileLayout ? 1.25 : 1);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.bezierCurveTo(cp.cp1x, cp.cp1y, cp.cp2x, cp.cp2y, p2.x, p2.y);
-      ctx.strokeStyle = this.players[edge.owner].color;
-      ctx.lineWidth = 6.6 * s * (this.isMobileLayout ? 1.25 : 1);
-      ctx.stroke();
-
-      const highlight = ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
-      highlight.addColorStop(0, "rgba(255,255,255,0.33)");
-      highlight.addColorStop(1, "rgba(255,255,255,0)");
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.bezierCurveTo(cp.cp1x, cp.cp1y, cp.cp2x, cp.cp2y, p2.x, p2.y);
-      ctx.strokeStyle = highlight;
-      ctx.lineWidth = 2 * s;
-      ctx.stroke();
+      // v0.79: the themed boards' road (src/themes/board-renderer.js strokeRoad) on the hand-drawn curve: a soft
+      // shadow, a light rim, the piece's dark line, its base colour and a light top stroke, sized like the themed pieces
+      const pc = this._classicPc(edge.owner), w = (this.isMobileLayout ? 1.25 : 1.05) * 0.74 * s; // 0.74·s = one art unit
+      const curve = () => { ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.bezierCurveTo(cp.cp1x, cp.cp1y, cp.cp2x, cp.cp2y, p2.x, p2.y); };
+      ctx.save(); ctx.translate(1.5 * s, 2.6 * s); curve(); ctx.strokeStyle = "rgba(13, 17, 25, 0.35)"; ctx.lineWidth = 16 * w; ctx.stroke(); ctx.restore();
+      curve(); ctx.strokeStyle = "rgba(255, 252, 242, 0.5)"; ctx.lineWidth = 16.5 * w; ctx.stroke();
+      curve(); ctx.strokeStyle = pc.line; ctx.lineWidth = 14 * w; ctx.stroke();
+      curve(); ctx.strokeStyle = pc.base; ctx.lineWidth = 10 * w; ctx.stroke();
+      ctx.save(); ctx.translate(-0.6 * s, -1 * s); ctx.globalAlpha = 0.85; curve(); ctx.strokeStyle = pc.light; ctx.lineWidth = 2.2 * w; ctx.stroke(); ctx.restore();
     });
 
   }
@@ -7154,7 +7140,6 @@ class ColonistFullGame {
   drawStructures() {
     const ctx = this.ctx;
     const s = this.geometry.hexSize / 74;
-    const structScale = this.isMobileLayout ? 1.45 : 1.2; // bigger structures; larger still on phones
 
     // Draw blue blinking build spots FIRST (behind structures)
     if (this.setupPhase && this.setupAction) {
@@ -7232,77 +7217,19 @@ class ColonistFullGame {
     }
 
     // Draw structures ON TOP of blue blinking spots
+    // v0.79: the themed boards' pieces (Sunny Island house / city specs, drawn with the same drawSpec) in the seat's
+    // piece shades, at the themed size (one art unit = 0.74·s here; the themed renderer's piece scale 1.34 / 1.12)
+    const BP = this.theme.boardPieces;
     this.geometry.nodes.forEach((node) => {
       if (node.owner == null || node.structure == null) return;
-      const player = this.players[node.owner];
+      const pc = this._classicPc(node.owner);
+      const isCity = node.structure === "city";
+      const k = 0.74 * s * (this.isMobileLayout ? 1.34 : 1.12);
       ctx.save();
       ctx.translate(node.x, node.y);
-      ctx.scale(s * structScale, s * structScale);
-      ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
-      ctx.shadowBlur = 8;
-      ctx.shadowOffsetY = 3;
-
-      ctx.fillStyle = player.color;
-      ctx.strokeStyle = "#0f1722";
-      ctx.lineWidth = 2;
-
-      if (node.structure === "settlement") {
-        // House shape: peaked roof + rectangular body
-        ctx.beginPath();
-        ctx.moveTo(-9, 8);
-        ctx.lineTo(-9, -1);
-        ctx.lineTo(0, -10);
-        ctx.lineTo(9, -1);
-        ctx.lineTo(9, 8);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        // Door
-        ctx.fillStyle = "rgba(0,0,0,0.2)";
-        ctx.fillRect(-2, 2, 4, 6);
-        // Window
-        ctx.fillStyle = "rgba(255,255,255,0.4)";
-        ctx.fillRect(-7, -0, 3.5, 3.5);
-        ctx.fillRect(3.5, -0, 3.5, 3.5);
-      } else {
-        // Church/cathedral: tall tower with cross + lower building
-        ctx.beginPath();
-        // Main building
-        ctx.rect(-12, -4, 24, 12);
-        // Roof
-        ctx.moveTo(-13, -4);
-        ctx.lineTo(0, -12);
-        ctx.lineTo(13, -4);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        // Tower
-        ctx.fillStyle = player.color;
-        ctx.beginPath();
-        ctx.rect(-3, -18, 6, 14);
-        ctx.fill();
-        ctx.stroke();
-        // Tower roof
-        ctx.beginPath();
-        ctx.moveTo(-4, -18);
-        ctx.lineTo(0, -23);
-        ctx.lineTo(4, -18);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        // Cross on top
-        ctx.strokeStyle = "rgba(255,255,255,0.8)";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(0, -27); ctx.lineTo(0, -23);
-        ctx.moveTo(-2, -25.5); ctx.lineTo(2, -25.5);
-        ctx.stroke();
-        // Windows
-        ctx.fillStyle = "rgba(255,255,255,0.35)";
-        ctx.fillRect(-9, 0, 3.5, 3.5);
-        ctx.fillRect(5.5, 0, 3.5, 3.5);
-        ctx.fillRect(-1.5, -15, 3, 4);
-      }
+      ctx.scale(k, k);
+      ctx.translate(0, isCity ? BP.cityDy : BP.settlementDy);
+      drawSpec(ctx, isCity ? BP.city(pc) : BP.settlement(pc), { k: Math.abs(ctx.getTransform().a), rim: BP.rim, rimW: BP.rimW });
       ctx.restore();
     });
 
@@ -9780,6 +9707,13 @@ class ColonistFullGame {
     this.fitCanvasToContainer();
     this.fitView();
     this.render();
+  }
+
+  /** v0.79 Classic canvas: a seat's piece shades (base / light / dark / line) — the same values the chips use. */
+  _classicPc(seat) {
+    const T = this.theme;
+    const key = T.seatKeys?.[seat];
+    return (T.pc && key && T.pc[key]) || T.seatPc?.[seat] || { base: this.players[seat]?.color || "#888", light: "#fff", dark: "#333", line: "#0f1722" };
   }
 
   _applyThemeToPlayers() {
