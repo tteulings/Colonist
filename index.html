@@ -64,16 +64,16 @@
       })();
     </script>
     <!-- legacy styles in a low-priority cascade layer: the themed CSS below always wins -->
-    <style>@import url("./styles.css?v=81") layer(legacy);</style>
-    <link rel="stylesheet" href="./themes/base.css?v=81" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=81" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=81" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=81" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=81" />
-    <link rel="stylesheet" href="./themes/six.css?v=81" />
-    <link rel="stylesheet" href="./themes/seafarers.css?v=81" />
-    <link rel="stylesheet" href="./themes/hotseat.css?v=81" />
-    <link rel="stylesheet" href="./themes/stats.css?v=81" />
+    <style>@import url("./styles.css?v=82") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=82" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=82" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=82" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=82" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=82" />
+    <link rel="stylesheet" href="./themes/six.css?v=82" />
+    <link rel="stylesheet" href="./themes/seafarers.css?v=82" />
+    <link rel="stylesheet" href="./themes/hotseat.css?v=82" />
+    <link rel="stylesheet" href="./themes/stats.css?v=82" />
   </head>
   <body>
     <div class="app" id="app">
@@ -126,7 +126,7 @@
 
       <!-- Game settings (moved into Settings › Game at start-up by src/themes/settings-ui.js) -->
       <details class="settings-drawer-float" id="settingsDrawer">
-        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.81</span></summary>
+        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.82</span></summary>
         <div class="settings-float-body">
           <button id="resetBtn" type="button" class="btn primary st-newgame"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-dice" x="-50" y="-50" width="100" height="100"/></svg>New game</button>
           <div class="st-h">Sound &amp; pace</div>
@@ -163,7 +163,7 @@
             <summary>Bot personalities</summary>
             <div id="aiStrategyPanel" class="ai-strategy-panel"></div>
           </details>
-          <div class="settings-version">Colonist <span class="app-version">v0.81</span></div>
+          <div class="settings-version">Colonist <span class="app-version">v0.82</span></div>
         </div>
       </details>
 
@@ -306,7 +306,7 @@
     </div>
     <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=81"></script>
+    <script type="module" src="./src/game.js?v=82"></script>
     <script>
       // Updates: sw.js and its imports are never taken from the HTTP cache (updateViaCache), the
       // registration is re-checked whenever the app comes back to the foreground, and a new

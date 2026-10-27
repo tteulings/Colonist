@@ -267,6 +267,13 @@ export const SOUNDS = {
     s.knock(t + 0.004, { f: 180, decay: 0.06, g: 0.1, click: 0.2, partial: 0 });
     return 0.5;
   },
+  /** v0.81: "your move, robber" — a low knock and a soft two-note lift (the robber gets up). */
+  robberPrompt(s, t) {
+    s.knock(t, { f: 210, decay: 0.08, g: 0.22, click: 0.3, partial: 0.2 });
+    s.tone(t + 0.08, { f: 294, decay: 0.5, g: 0.07, attack: 0.012, lp: 1800, overtone: 0.08 });
+    s.tone(t + 0.2, { f: 392, decay: 0.6, g: 0.06, attack: 0.012, lp: 1800, overtone: 0.08 });
+    return 0.9;
+  },
   steal(s, t) {
     s.swish(t, { dur: 0.22, f0: 1500, f1: 650, q: 1.0, g: 0.24, rise: 0.4, lp: 2400 });
     s.swish(t + 0.1, { dur: 0.12, f0: 1100, f1: 600, q: 1.2, g: 0.07, rise: 0.3, lp: 2400 });
