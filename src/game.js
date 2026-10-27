@@ -7187,23 +7187,12 @@ class ColonistFullGame {
     return { nodes, cities, edges, ships, type };
   }
 
-  /** v0.81 Classic: while placing (setup or build mode) the land dims a touch so the lit spots pop. */
-  _dimForPlacement() {
-    const spots = this._legalPlacementSpots();
-    if (!spots?.type || spots.type === "robber") { this._dimFrom = null; return; }
-    const now = performance.now();
-    if (this._dimFrom == null) this._dimFrom = now;
-    const a = motionReduced() ? 1 : Math.min(1, (now - this._dimFrom) / 260);
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.fillStyle = `rgba(10, 25, 35, ${0.16 * a})`;
-    this.geometry.hexes.forEach((hex) => { if (hex.resource === "sea") return; this.drawHexPath(hex.corners, true); ctx.fill(); });
-    ctx.restore();
-  }
+  /** v0.82: no land dim while placing any more (kept as a no-op for the draw order). */
+  _dimForPlacement() { this._dimFrom = null; }
 
-  /** Classic board: legal spots only (v0.81: lit more strongly, like the themed boards): a white ring with a dot
-   *  of your colour, a thin dark outline and a soft halo in your colour that breathes slowly (static with reduced
-   *  motion); roads are dashed white lanes over a soft band of your colour. */
+  /** Classic board: legal spots only, kept quiet (v0.82, as on the themed boards): a thin soft white ring with a
+   *  small dot of your colour at each corner, thin faint dashes in your colour for roads; only a very slow faint
+   *  opacity drift (none with reduced motion). Tap targets are unchanged. */
   drawBuildableHighlights() {
     const spots = this._legalPlacementSpots();
     if (!spots) return;
@@ -7214,39 +7203,30 @@ class ColonistFullGame {
     const now = performance.now(), key = `${spots.type}:${spots.nodes.join(",")}:${(spots.cities || []).join(",")}:${spots.edges.join(",")}`;
     if (key !== this._spotKey) { this._spotKey = key; this._spotStart = now; }
     const reduced = motionReduced();
-    const e = reduced ? 1 : 1 - Math.pow(1 - Math.min(1, (now - this._spotStart) / 700), 3);
-    const br = reduced ? 0.5 : 0.5 - 0.5 * Math.cos(((now - this._spotStart) / 1800) * Math.PI * 2);
-    const dn = spots.nodes.length + (spots.cities || []).length > 20 ? 0.55 : 1, out = dn < 1 ? 7 + 4 * br : 11 + 6 * br; // many spots: lighter halos
+    const e = reduced ? 1 : Math.min(1, (now - this._spotStart) / 500);
+    const br = reduced ? 0.5 : 0.5 - 0.5 * Math.cos(((now - this._spotStart) / 3600) * Math.PI * 2);
+    const fade = e * (0.82 + 0.18 * br);
     ctx.save();
     ctx.lineCap = "round";
     spots.edges.forEach((id) => {
       if (cb && cb.type === "road" && cb.id === id) return;
       const [a, b] = this.geometry.edges[id].nodes.map((n) => this.geometry.nodes[n]);
       const t = 0.22, ax = a.x + (b.x - a.x) * t, ay = a.y + (b.y - a.y) * t, bx = b.x - (b.x - a.x) * t, by = b.y - (b.y - a.y) * t;
-      ctx.setLineDash([]);
+      ctx.globalAlpha = 0.75 * fade; ctx.setLineDash([4 * px, 5 * px]);
       ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
-      ctx.globalAlpha = 0.3 + 0.18 * br; ctx.strokeStyle = pc.base; ctx.lineWidth = (12 + 6 * br) * px * e; ctx.stroke(); ctx.globalAlpha = 1;
-      ctx.setLineDash([6 * px, 5 * px]);
-      ctx.strokeStyle = "rgba(15, 35, 50, 0.5)"; ctx.lineWidth = 6.4 * px; ctx.stroke();
-      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3.8 * px; ctx.stroke();
+      ctx.strokeStyle = pc.base; ctx.lineWidth = 2.5 * px; ctx.stroke();
     });
     ctx.setLineDash([]);
     [...spots.nodes.map((id) => [id, false]), ...(spots.cities || []).map((id) => [id, true])].forEach(([id, isCity]) => {
       if (cb && cb.id === id && cb.type !== "road") return;
       const n = this.geometry.nodes[id];
-      const r = isCity ? 15 * px : 8 * px;
-      ctx.fillStyle = pc.base;
-      ctx.beginPath(); ctx.arc(n.x, n.y, r + out * px * e, 0, Math.PI * 2); ctx.globalAlpha = (0.16 + 0.1 * br) * dn; ctx.fill();
-      ctx.beginPath(); ctx.arc(n.x, n.y, r + (5 + 3 * br) * px * e, 0, Math.PI * 2); ctx.globalAlpha = (0.34 + 0.16 * br) * dn; ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.beginPath(); ctx.arc(n.x, n.y, r + 2 * px, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(15, 35, 50, 0.5)"; ctx.lineWidth = 1.8 * px; ctx.stroke();
+      const r = isCity ? 15 * px : 7 * px;
+      ctx.globalAlpha = fade;
       ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.34)"; ctx.fill();
-      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3 * px; ctx.stroke();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.55)"; ctx.lineWidth = 1.5 * px; ctx.stroke();
       if (!isCity) {
-        ctx.beginPath(); ctx.arc(n.x, n.y, r * 0.42, 0, Math.PI * 2); ctx.fillStyle = pc.base; ctx.fill();
-        ctx.strokeStyle = pc.line; ctx.lineWidth = 1.2 * px; ctx.stroke();
+        ctx.beginPath(); ctx.arc(n.x, n.y, 3 * px, 0, Math.PI * 2); ctx.fillStyle = pc.base; ctx.fill();
+        ctx.strokeStyle = pc.line; ctx.lineWidth = 0.8 * px; ctx.stroke();
       }
     });
     ctx.restore();
@@ -7463,9 +7443,10 @@ class ColonistFullGame {
         return;
       }
       if (hex.id === sel || hex.id === this.hoverHexId) {
+        // v0.82: a thin soft outline on the tile under the finger / the picked one (no heavy white rim)
         this.drawHexPath(hex.corners, true);
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
-        ctx.lineWidth = 3.5 * px;
+        ctx.strokeStyle = "rgba(20, 32, 36, 0.3)";
+        ctx.lineWidth = 2 * px;
         ctx.stroke();
       }
     });
@@ -7951,14 +7932,14 @@ class ColonistFullGame {
     } else if (humanTurn && this.phase === "sbp") {
       // 5–6 players: your Special Building Phase window (src/six.js)
       title = "Your build window";
-      status = this.pendingAction ? (this.confirmBuild ? confirmHint : `${tapW} a glowing spot to build`) : this._sbpStatus();
+      status = this.pendingAction ? (this.confirmBuild ? confirmHint : `${tapW} a marked spot to build`) : this._sbpStatus();
     } else if (humanTurn && preRoll) {
       status = "Roll the dice to start your turn";
     } else if (humanTurn && mainPhase) {
       if (this.pendingAction) {
         if (this.confirmBuild) status = confirmHint;
-        else status = this.freeRoadsRemaining > 0 ? `Free road · ${this.freeRoadsRemaining} left · ${tapw} a glowing spot`
-          : this.pendingAction === "build" || mobile ? `${tapW} a glowing spot to build` : `${placeName[this.pendingAction] || this.pendingAction} · ${tapw} a glowing spot`;
+        else status = this.freeRoadsRemaining > 0 ? `Free road · ${this.freeRoadsRemaining} left · ${tapw} a marked spot`
+          : this.pendingAction === "build" || mobile ? `${tapW} a marked spot to build` : `${placeName[this.pendingAction] || this.pendingAction} · ${tapw} a marked spot`;
       } else {
         status = "Build, trade or play a card";
       }
@@ -9740,8 +9721,8 @@ class ColonistFullGame {
       const lbl = (t, label) => { const w = why(t); return `aria-label="${label}${w ? `: ${w.text}` : ""}" title="${label}${w ? ` · ${w.text}` : ""}"`; };
       const piece = (t, label) => tbtn(`data-tray-build="${t}" ${ok(t) ? "" : "disabled"} aria-pressed="${pa === t}" ${lbl(t, label)}`, `${icon(t)}<span>${label}</span>${foot(t)}`, pa === t ? "sel" : "");
       const any = ["road", "settlement", "city", "development", ...(this.sea ? ["ship"] : [])].some(can);
-      const hint = this.freeRoadsRemaining ? `Free road · ${this.freeRoadsRemaining} left · tap a glowing spot`
-        : pa && pa !== "robber" ? "Tap a glowing spot to build" : any ? "Pick what to buy" : `Not enough cards yet · road ${resourceString(COSTS.road)}`;
+      const hint = this.freeRoadsRemaining ? `Free road · ${this.freeRoadsRemaining} left · tap a marked spot`
+        : pa && pa !== "robber" ? "Tap a marked spot to build" : any ? "Pick what to buy" : `Not enough cards yet · road ${resourceString(COSTS.road)}`;
       return { mode: "build", hint,
         html: piece("road", "Road") + (this.sea ? piece("ship", "Ship") : "") + piece("settlement", "Settle") + piece("city", "City") + tbtn(`data-tray-buy ${ok("development") ? "" : "disabled"} ${lbl("development", "Card")}`, `${icon("devcard")}<span>Card</span>${foot("development")}`) + close() };
     }

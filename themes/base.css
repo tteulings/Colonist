@@ -1411,6 +1411,12 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .app .primary-slot .waiting.robber-wait .wt small { color: var(--primary-ink); opacity: .85; }
 .app .primary-slot .waiting.robber-wait > .ic { display: inline-block; font-size: 20px; margin-right: -4px; }
 .app .primary-slot .waiting.robber-wait { gap: 6px; padding: 0 8px; }
+/* v0.82: "Move robber" fits the 360 px slot in every theme (was cut to "Move rob…") */
+.app .primary-slot .waiting.robber-wait { gap: 5px; padding: 0 6px; }
+.app .primary-slot .waiting.robber-wait > .ic { font-size: 18px; margin-right: -2px; }
+.app .primary-slot .waiting.robber-wait .wt { font-size: 15px; letter-spacing: -.01em; }
+.app .primary-slot .waiting.robber-wait .wt small { font-size: 11.5px; letter-spacing: 0; }
+@media (max-width: 400px) { .app .primary-slot .waiting.robber-wait > .ic { display: none; } .app .primary-slot .waiting.robber-wait { justify-content: center; } } /* the ticker carries the robber icon */
 .tinfo { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 10px; border-radius: var(--btn-radius); background: var(--chip); border: var(--chip-border); overflow: hidden; }
 .tinfo > b { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 26px; color: var(--heading); line-height: 1; }
 .tinfo > b small { font-size: 15px; color: var(--ink-soft); }
