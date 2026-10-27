@@ -209,6 +209,26 @@ export const LiveStatsMixin = {
       this._stMapsInit(track, st);
     }
     if (first) this._lsSyncChip();
+    this._lsMore();
+  },
+
+  /** v0.82: a card taller than the sheet (big type in Wood, 6 players) fades out at the bottom and shows a thin
+   *  scrollbar, until it is scrolled to the end — so a cut-off last row reads as "scroll for more". */
+  _lsMore() {
+    const el = this._lsEl;
+    if (!el) return;
+    const track = el.querySelector(".ls-track");
+    if (!track._lsMoreOn) {
+      track._lsMoreOn = true;
+      track.addEventListener("scroll", (e) => { if (e.target !== track && e.target.classList?.contains("gs-card")) this._lsMoreMark(e.target); }, { capture: true, passive: true });
+    }
+    track.querySelectorAll(".ls-slot .gs-card").forEach((c) => this._lsMoreMark(c));
+  },
+
+  _lsMoreMark(c) {
+    const more = c.scrollHeight - c.clientHeight > 2 && c.scrollTop + c.clientHeight < c.scrollHeight - 4;
+    c.classList.toggle("ls-scroll", c.scrollHeight - c.clientHeight > 2);
+    c.classList.toggle("ls-more", more);
   },
 
   /** Dice so far vs expected: the hot number carries the accent, the cold one an accent outline. */

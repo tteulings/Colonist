@@ -263,8 +263,15 @@ html[data-motion="reduced"] .ls-sheet.in { animation: none; }
 .ls-slot .gs-card { height: 100%; box-sizing: border-box; margin: 0; overflow-y: auto; overscroll-behavior: contain; box-shadow: none; padding: 10px 12px 8px; }
 .ls-slot .gs-card h2 { font-size: 16px; }
 .ls-slot .gs-chart { max-height: calc(var(--ls-h) - 150px); }
-.ls-slot [data-card="race"] .gs-chart { max-height: calc(var(--ls-h) - 196px); }
-.ls-slot .gs-rows { gap: 5px; }
+.ls-slot [data-card="race"] .gs-chart { max-height: calc(var(--ls-h) - 212px); } /* v0.82: was −196 (Classic cut the legend) */
+.ls-slot .gs-rows { gap: 3px; margin-top: 2px; }
+/* v0.82: tighter so four players' rows + the legend fit the half sheet in every theme (Wood's type is big)… */
+.ls-slot .gs-sub { margin-bottom: 4px; }
+.ls-slot .gs-legend { margin-top: 4px; }
+.ls-slot .gs-row b { font-size: 14px; }
+/* …and when a card still runs taller (6 players), it says so: a thin scrollbar and a fade at the bottom edge */
+.ls-slot .gs-card.ls-scroll { scrollbar-width: thin; scrollbar-color: var(--gs-ink2) transparent; }
+.ls-slot .gs-card.ls-more { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), rgba(0,0,0,.25)); mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), rgba(0,0,0,.25)); }
 .ls-slot .gs-map { margin: 0 auto; }
 .ls-slot .gs-row.me b { color: var(--gs-acc); }
 .gs-dbar.cold rect { fill: color-mix(in srgb, var(--gs-acc) 12%, transparent); stroke: var(--gs-acc); stroke-width: 1.4; stroke-dasharray: 3 2; }
