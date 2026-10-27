@@ -147,7 +147,8 @@ export const StatsUiMixin = {
   _stShowOverlay(st, reduced, skipIntro = false) {
     const winner = this.winner;
     const human = this.players.find((p) => p.isHuman);
-    const ranked = [...this.players].sort((a, b) => b.victoryPoints - a.victoryPoints || (a === winner ? -1 : b === winner ? 1 : 0));
+    // the game's winner is always 1st (it won by the game's rule: reaching the target on its own turn / the turn limit); then by points
+    const ranked = [winner, ...this.players.filter((p) => p !== winner).sort((a, b) => b.victoryPoints - a.victoryPoints)];
     const rank = human ? ranked.indexOf(human) + 1 : 0;
     const overlay = document.createElement("div");
     overlay.className = "game-over-overlay tm gs-over";
