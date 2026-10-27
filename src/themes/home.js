@@ -95,7 +95,7 @@ export class Home {
         ${sea ? `<p class="hm-note">Heading for New Shores · 14 points · <span class="hm-seacap">up to 4 players</span></p>` : ""}
       </section>
       <nav class="hm-card hm-list" aria-label="More">
-        <button type="button" data-home="more">${themed(this.game, "sliders", SLIDERS_IC)}<span>More settings<small>Rules, dice, map, each bot</small></span>${CHEV}</button>
+        <button type="button" data-home="more">${themed(this.game, "sliders", SLIDERS_IC)}<span>More settings<small>Rules, map, bots · play with friends</small></span>${CHEV}</button>
         <button type="button" data-home="intro" class="${fresh ? "fresh" : ""}">${themed(this.game, "book", BOOK_IC)}<span>How to play${fresh ? `<small>New here? 3 short cards</small>` : ""}</span>${CHEV}</button>
         <button type="button" data-home="settings">${icon("settings")}<span>Settings</span>${CHEV}</button>
       </nav>

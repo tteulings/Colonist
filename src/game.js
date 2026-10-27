@@ -8,6 +8,7 @@ import { Home, GameMenu } from "./themes/home.js";
 import { SoundEngine } from "./sound.js";
 import { isBigTable, bigAxialHexes, BIG_CENTER_SHIFT, BIG_BANK_SIZE, BIG_RUSH_INTERVAL, assignBigTiles, assignBigPorts, createBigDevDeck, SbpMixin } from "./six.js";
 import { SixUiMixin } from "./six-ui.js";
+import { HotseatMixin } from "./hotseat.js";
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS, SHIP_COST } from "./seafarers/index.js";
@@ -65,7 +66,7 @@ const PLAYER_CONFIG = [
   // its persona is Rosa Roodhart (fullName; "Roodhart" wherever the seat is named as a bot).
   // short: the label in the phone player strip, where the full surname would not fit at 360px.
   // v0.75 seat colours (colonist.io order): red · blue · orange · green · ivory · purple; the theme overrides these
-  { name: "You", fullName: "Rosa Roodhart", color: "#E0312B", isHuman: true, avatar: "./assets/avatars/avatar-human.svg?v=57" },
+  { name: "You", hsName: "Roodhart", fullName: "Rosa Roodhart", color: "#E0312B", isHuman: true, avatar: "./assets/avatars/avatar-human.svg?v=57" },
   { name: "Blaauw", fullName: "Mevrouw Blaauw van Draet", color: "#2F6FE6", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg?v=57" },
   { name: "Van Geelen", short: "Geelen", fullName: "Kolonel Van Geelen", color: "#F7931E", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
   { name: "Groenewoud", short: "Groen", fullName: "Dominee Groenewoud", color: "#2E9E5E", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
@@ -216,6 +217,8 @@ const DEFAULT_SETTINGS = {
   allPreset: "intermediate",// preset applied to every bot ("custom" when hand-tuned)
   allStrategy: { ...AI_PRESETS.intermediate },
   perBot: ["builder", "trader", "shark", "builder", "trader"],
+  humans: [false, false, false, false, false], // pass & play: seats 1-5 played by a person (Classic only)
+  names: ["", "", "", "", "", ""],               // pass & play names per seat ("" = the seat's persona name)
 };
 const RUSH_INTERVALS = [10, 15, 20, 30];
 const RUSH_DISCARD_SECONDS = 20;
@@ -250,7 +253,26 @@ function normalizeSettings(raw) {
   s.allStrategy = strat;
   const per = Array.isArray(s.perBot) ? s.perBot : [];
   s.perBot = DEFAULT_SETTINGS.perBot.map((d, i) => (AI_PRESETS[per[i]] ? per[i] : d));
+  // Pass & play: which other seats a person plays (never in Rush), and their names
+  const hum = Array.isArray(s.humans) ? s.humans : [];
+  s.humans = DEFAULT_SETTINGS.humans.map((_, i) => s.mode !== "rush" && !!hum[i]);
+  const nm = Array.isArray(s.names) ? s.names : [];
+  s.names = DEFAULT_SETTINGS.names.map((_, i) => String(nm[i] ?? "").replace(/\s+/g, " ").trim().slice(0, 14));
   return s;
+}
+
+/** Pass & play: more than one person at the table with these settings. */
+function hotseatOn(s) {
+  return !!s && s.mode !== "rush" && (s.humans || []).slice(0, s.numBots).some(Boolean);
+}
+
+/** Who sits in a seat: a person or a bot, and the name shown (pass & play: the chosen name, else the persona). */
+function seatSpec(s, id) {
+  const cfg = PLAYER_CONFIG[id];
+  const isHuman = id === 0 || (s?.mode !== "rush" && !!s?.humans?.[id - 1]);
+  if (!isHuman || !hotseatOn(s)) return { isHuman, name: cfg.name, short: cfg.short };
+  const name = (s.names?.[id] || "").trim() || cfg.hsName || cfg.name;
+  return { isHuman, name, short: name === cfg.name ? cfg.short : name.length > 9 ? `${name.slice(0, 8)}…` : undefined };
 }
 
 // Which preset (if any) a strategy object matches exactly
@@ -955,7 +977,7 @@ class ColonistFullGame {
     return {
       mode: (this.isRush() || this.settings?.mode === "rush" ? "Rush" : "Classic") + (this.sea ? " · Seafarers" : ""), // ⚓
       turn: this.turn || 1,
-      players: this.players.map((p) => ({ name: p.name, seat: p.id, vp: p.isHuman ? p.victoryPoints : (p.publicVictoryPoints ?? p.victoryPoints) })),
+      players: this.players.map((p) => ({ name: p.name, seat: p.id, vp: p.isHuman && !this.hotseat ? p.victoryPoints : (p.publicVictoryPoints ?? p.victoryPoints) })),
     };
   }
 
@@ -976,6 +998,7 @@ class ColonistFullGame {
     const sea = (board || last.board) === "seafarers"; // ⚓ Seafarers: at most 3 bots
     const s = { ...last, mode: mode === "rush" ? "rush" : "classic", numBots: clamp(Number(numBots) || 3, 1, sea ? 3 : PLAYER_CONFIG.length - 1) };
     if (board) s.board = board === "seafarers" ? "seafarers" : "island"; // ⚓ Home › Map
+    s.humans = DEFAULT_SETTINGS.humans.slice(); // Home's quick start is you vs bots (pass & play: More settings › Players)
     // Rush with 5–6 players: a roll every 20 s unless a slower pace was picked
     if (s.mode === "rush" && isBigTable(s.numBots + 1) && s.rushInterval < BIG_RUSH_INTERVAL) s.rushInterval = BIG_RUSH_INTERVAL;
     if (preset && preset !== "custom" && AI_PRESETS[preset]) {
@@ -1365,15 +1388,20 @@ class ColonistFullGame {
     this.sbpRecent = null;
 
     const strategies = this._strategiesFromSettings();
-    this.players = PLAYER_CONFIG.slice(0, this.settings.numBots + 1).map((config, id) => ({
+    this.viewerId = 0; // pass & play: the human holding the phone
+    this.handHidden = false;
+    this._hsNote = null;
+    this.players = PLAYER_CONFIG.slice(0, this.settings.numBots + 1).map((config, id) => {
+      const seat = seatSpec(this.settings, id);
+      return {
       id,
-      name: config.name,
+      name: seat.name,
       fullName: config.fullName,
-      short: config.short,
+      short: seat.short,
       color: config.color,
-      isHuman: config.isHuman,
+      isHuman: seat.isHuman,
       avatar: config.avatar,
-      personality: config.isHuman ? null : strategies[id].personality,
+      personality: seat.isHuman ? null : strategies[id].personality,
       resources: makeEmptyResources(),
       roads: new Set(),
       ships: new Set(), // ⚓ Seafarers
@@ -1386,10 +1414,11 @@ class ColonistFullGame {
       longestRoadLength: 0,
       victoryPoints: 0,
       publicVictoryPoints: 0,
-      strategy: config.isHuman ? null : { ...strategies[id].strategy },
+      strategy: seat.isHuman ? null : { ...strategies[id].strategy },
       rushDevPlayed: false,   // Rush: a dev card was played this roll interval
       rushTradeTried: false,  // Rush (bots): already tried a player trade this roll interval
-    }));
+    }; });
+    this.handHidden = this.hotseat; // pass & play: the first placement starts behind the cover
 
     this.logEntries = [];
     this.rollHistory = {}; // { 2: 0, 3: 0, ... 12: 0 }
@@ -1682,6 +1711,7 @@ class ColonistFullGame {
   }
 
   handleHumanRoll() {
+    if (this.hotseat && (this.hsCoverOn != null || this._hsAway())) return; // pass & play: not this holder's move
     if (this.isRush()) { this.toggleRushReady(); return; }
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
@@ -1742,6 +1772,7 @@ class ColonistFullGame {
   }
 
   handleHumanEndTurn() {
+    if (this.hotseat && (this.hsCoverOn != null || this._hsAway())) return; // pass & play: not this holder's move
     if (this.isRush()) return; // no turns in Rush
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
@@ -1798,7 +1829,7 @@ class ColonistFullGame {
 
   // Verb suffix for log grammar: "You discard" vs "Sage AI discards"
   _s(player) {
-    return player.isHuman ? "" : "s";
+    return this._you(player) ? "" : "s";
   }
 
   _hexLabel(hex) {
@@ -1861,7 +1892,7 @@ class ColonistFullGame {
 
   renderDevCardPicker() {
     if (!this.devPickerCards) return;
-    const human = this.players.find((p) => p.isHuman);
+    const human = this._me();
     if (!human) return;
     const canPlay = this.currentPlayer.isHuman;
     const rush = this.isRush();
@@ -1889,6 +1920,7 @@ class ColonistFullGame {
   }
 
   handleBoardClick(event) {
+    if (this.hotseat && (this.hsCoverOn != null || this._hsAway())) return; // pass & play: not this holder's move
     if (this.setupPhase) {
       const { x: sx, y: sy } = this.getCanvasPoint(event);
       const world = this.screenToWorld(sx, sy);
@@ -3281,7 +3313,7 @@ class ColonistFullGame {
 
   /** Why the human can't trade right now (null = trading is open). Classic: your main phase; Rush: any time. */
   _tradeBlockedReason() {
-    const human = this.players?.find((p) => p.isHuman);
+    const human = this._me();
     if (!human || this.winner) return "The game is over.";
     if (this.setupPhase) return "Trading opens after setup.";
     if (this.pendingDiscard) return "Hand back your cards first.";
@@ -3295,6 +3327,7 @@ class ColonistFullGame {
   }
 
   openTradeModal() {
+    if (this.hotseat && (this.hsCoverOn != null || this._hsAway())) return; // pass & play: not this holder's move
     if (!this.tradeModal) return;
     // Toggle: if already open, close it
     if (this.tradeModal.style.display !== "none") {
@@ -3424,7 +3457,11 @@ class ColonistFullGame {
     if (!row) return;
     const ans = this._tradeAnswers;
     const others = this.players.filter((p) => p.id !== player.id);
+    const picked = sumResources(this.tradeOffer) > 0 && sumResources(this.tradeRequest) > 0;
     row.innerHTML = others.map((p) => {
+      // pass & play: another person is asked directly (the phone goes to them)
+      if (this.hotseat && p.isHuman) return `<button type="button" class="tp ask pc-${p.id}" data-ask="${p.id}" ${picked ? "" : "aria-disabled=\"true\""} aria-label="Ask ${p.name}">
+        <span class="tp-av">${this._av(p)}</span><span class="who pc-${p.id}">${p.name}</span><em class="tp-go">Ask</em></button>`;
       const v = this._tradeVerdict(p.id);
       const badge = v === "yes" ? icon("check") : v === "no" ? icon("close") : v === "counter" ? icon("trade") : "";
       const word = v === "yes" ? "accepts · tap to trade" : v === "no" ? "declines" : v === "counter" ? "counter-offer" : "";
@@ -3433,6 +3470,10 @@ class ColonistFullGame {
         <span class="who pc-${p.id}">${p.name}</span>${v === "yes" ? '<em class="tp-go">Trade</em>' : ""}
       </button>`;
     }).join("");
+    row.querySelectorAll("button.tp.ask").forEach((b) => b.addEventListener("click", () => {
+      if (b.getAttribute("aria-disabled") === "true") { this._tradeHint(`Pick what you give and get, then ask ${this.players[Number(b.dataset.ask)].name}.`); return; }
+      this._hsAsk(this.players[Number(b.dataset.ask)]);
+    }));
     row.querySelectorAll("button.tp.yes").forEach((b) => b.addEventListener("click", () => {
       const partner = this.players[Number(b.dataset.partner)];
       this._executePlayerTrade(partner, ans.offer, ans.request);
@@ -3440,7 +3481,7 @@ class ColonistFullGame {
     this._markStripAnswers();
     if (note) {
       const yes = ans ? ans.responses.filter((x) => x.accepts).length : 0;
-      note.textContent = !ans ? (sumResources(this.tradeOffer) && sumResources(this.tradeRequest) ? "tap Offer to ask them" : "")
+      note.textContent = !ans ? (sumResources(this.tradeOffer) && sumResources(this.tradeRequest) ? (this.hotseat ? "Offer asks the bots · Ask a person" : "tap Offer to ask them") : "")
         : yes ? "tap a ✓ to trade" : ans.counter ? "no takers · one counter-offer" : "no takers this time";
     }
   }
@@ -3544,13 +3585,15 @@ class ColonistFullGame {
     // Route 2: offer to the players
     const askKey = JSON.stringify([this.tradeOffer, this.tradeRequest]);
     const askedSame = this._tradeAsked === askKey;
-    const n = this.players.filter((p) => p.id !== player.id).length;
+    const hs = this.hotseat; // pass & play: Offer asks the bots; people are asked one by one (Ask)
+    const n = this.players.filter((p) => p.id !== player.id && !(hs && p.isHuman)).length;
+    const who = (k) => (hs ? `${k} bot${k === 1 ? "" : "s"}` : `${k} player${k === 1 ? "" : "s"}`);
     if (this.tradeProposalBtn) {
-      this.tradeProposalBtn.disabled = !(offerTotal > 0 && requestTotal > 0) || askedSame;
+      this.tradeProposalBtn.disabled = !(offerTotal > 0 && requestTotal > 0) || askedSame || n === 0;
       // sent: a calm outline button (green stays for ✓ accept only)
       this.tradeProposalBtn.classList.toggle("primary", !askedSame);
       this.tradeProposalBtn.classList.toggle("sent", askedSame);
-      const sub = askedSame ? "edit to ask again" : !offerTotal ? "pick what you give" : !requestTotal ? "pick what you get" : `to ${n === 1 ? "1 player" : `${n} players`}`;
+      const sub = askedSame ? "edit to ask again" : !offerTotal ? "pick what you give" : !requestTotal ? "pick what you get" : n === 0 ? "no bots · tap Ask" : `to ${who(n)}`;
       this.tradeProposalBtn.innerHTML = `${icon("trade")}<span class="rt"><b>${askedSame ? "Offer sent" : "Offer"}</b><small>${sub}</small></span>`;
       this.tradeProposalBtn.setAttribute("aria-label", askedSame ? "Offered to the players · change your offer to ask again" : `Offer to the players${offerTotal && requestTotal ? "" : `: ${sub}`}`);
     }
@@ -3837,7 +3880,7 @@ class ColonistFullGame {
           // Never put an offer in front of the human that they can't pay: the game checks the real hand
           if (botsOnly || !hasResources(other.resources, request)) continue;
           // Show incoming trade popup to human — handled async (during autoplay the human seat is a bot)
-          return { type: "human", fromPlayer: aiPlayer, give: offer, want: request };
+          return { type: "human", fromPlayer: aiPlayer, give: offer, want: request, toPlayer: other };
         }
         if (this._aiEstimate(other)[wanted] < 0.5) continue; // probably doesn't hold it (public estimate)
         if (this.aiEvaluateTrade(other, offer, request, aiPlayer)) {
@@ -3872,25 +3915,30 @@ class ColonistFullGame {
    * non-blocking card as in Rush — board and hand stay usable — and declined automatically
    * after 15 s (a thin bar shows the time left).
    */
-  showIncomingTrade(fromPlayer, give, want) {
+  showIncomingTrade(fromPlayer, give, want, to = this._me()) {
     return new Promise((resolve) => {
-      if (!this._offerPossible(fromPlayer, give, want)) { resolve(false); return; }
+      // pass & play, one person asks another: the cover hands over the phone even if they can't pay
+      // (the ✓ is then disabled), so the answer never gives their hand away
+      const ask = !!(fromPlayer?.isHuman && to?.isHuman);
+      if (ask ? !hasResources(fromPlayer.resources, give) : !this._offerPossible(fromPlayer, give, want, to)) { resolve(false); return; }
       this._offerSeq = (this._offerSeq || 0) + 1;
       const id = this._offerSeq;
-      this.pendingIncomingTrade = { fromPlayer, give, want, resolve, id, ms: CLASSIC_OFFER_MS };
-      this._later(() => {
+      this.pendingIncomingTrade = { fromPlayer, to, give, want, resolve, id, ask, ms: CLASSIC_OFFER_MS };
+      // pass & play: no time limit (the phone first has to reach the right person)
+      if (!this.hotseat) this._later(() => {
         if (this.pendingIncomingTrade?.id !== id) return;
         this.addLog(`${fromPlayer.name}'s offer expired.`);
         this.resolveIncomingTrade(false, true);
       }, CLASSIC_OFFER_MS);
-      this._renderRushOffers();
+      if (this.hotseat) this.render(); // pass & play: the cover hands the phone to the receiver first
+      else this._renderRushOffers();
     });
   }
 
   resolveIncomingTrade(accepted, expired = false) {
     if (!this.pendingIncomingTrade) return;
     const { fromPlayer, give, want, resolve } = this.pendingIncomingTrade;
-    const human = this.players.find(p => p.isHuman);
+    const human = this.pendingIncomingTrade.to || this._me();
     if (accepted && human && !(hasResources(human.resources, want) && hasResources(fromPlayer.resources, give))) {
       accepted = false;
       this.addLog(`Trade with ${fromPlayer.name} is no longer possible.`);
@@ -3903,10 +3951,11 @@ class ColonistFullGame {
         fromPlayer.resources[r] -= give[r];
         fromPlayer.resources[r] += want[r];
       });
-      this.addLog(`You accepted ${fromPlayer.name}'s trade: got ${resourceString(give)} for ${resourceString(want)}.`);
+      this.addLog(this._you(human) ? `You accepted ${fromPlayer.name}'s trade: got ${resourceString(give)} for ${resourceString(want)}.`
+        : `${human.name} traded with ${fromPlayer.name}: got ${resourceString(give)} for ${resourceString(want)}.`);
       this.sfx.trade();
     } else if (!expired) {
-      this.addLog(`You rejected ${fromPlayer.name}'s trade offer.`);
+      this.addLog(this._you(human) ? `You rejected ${fromPlayer.name}'s trade offer.` : `${human.name} declined ${fromPlayer.name}'s offer.`);
     }
     this.pendingIncomingTrade = null;
     if (this.incomingTradePanel) this.incomingTradePanel.style.display = "none";
@@ -4030,7 +4079,7 @@ class ColonistFullGame {
     if (card === "victoryPoint") {
       player.devVictoryPoints += 1;
       if (player.isHuman) {
-        this.addLog(`You drew a Victory Point card (kept secret).`);
+        this.addLog(this._you(player) ? `You drew a Victory Point card (kept secret).` : `${player.name} bought a development card.`);
         this._devDrawn("victoryPoint");
       } else {
         this.addLog(`${player.name} bought a development card.`);
@@ -4039,7 +4088,7 @@ class ColonistFullGame {
       player.newDevCards[card] += 1;
       const cardLabels = { knight: "Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly" };
       if (player.isHuman) {
-        this.addLog(`You drew: ${cardLabels[card]}!`);
+        this.addLog(this._you(player) ? `You drew: ${cardLabels[card]}!` : `${player.name} bought a development card.`);
         this._devDrawn(card);
       } else {
         this.addLog(`${player.name} bought a development card.`);
@@ -4270,7 +4319,7 @@ class ColonistFullGame {
       if (tradeResult && tradeResult.type === "human") {
         // Need async human response — pause AI turn, show popup
         this._pendingAiTradePlayer = player;
-        this.showIncomingTrade(tradeResult.fromPlayer, tradeResult.give, tradeResult.want).then(this._guard(() => {
+        this.showIncomingTrade(tradeResult.fromPlayer, tradeResult.give, tradeResult.want, tradeResult.toPlayer).then(this._guard(() => {
           // Resume AI turn after human responds
           if (this.winner || this.currentPlayer !== player) return;
           this.executeAiMainPhase(player, true);
@@ -5348,16 +5397,16 @@ class ColonistFullGame {
     const P = (id) => this.players[id];
     if (now != null) {
       const p = P(now);
-      this.addLog(`${p.name} ${p.isHuman ? "take" : "takes"} ${name} (${why(p)}) · +2 points${prev != null ? ` from ${P(prev).name}` : ""}.`);
+      this.addLog(`${p.name} ${this._you(p) ? "take" : "takes"} ${name} (${why(p)}) · +2 points${prev != null ? ` from ${P(prev).name}` : ""}.`);
     } else if (prev != null) {
       const p = P(prev);
-      this.addLog(`${p.name} ${p.isHuman ? "lose" : "loses"} ${name}${/^Longest (Road|Trade Route)$/.test(name) ? ` (now ${p.longestRoadLength})` : ""} · nobody holds it.`);
+      this.addLog(`${p.name} ${this._you(p) ? "lose" : "loses"} ${name}${/^Longest (Road|Trade Route)$/.test(name) ? ` (now ${p.longestRoadLength})` : ""} · nobody holds it.`);
     }
   }
 
   // VP shown to the human: full total for their own seat, public total for everyone else.
   displayVictoryPoints(player) {
-    return player.isHuman ? player.victoryPoints : player.publicVictoryPoints;
+    return this._seesPrivate(player) ? player.victoryPoints : player.publicVictoryPoints;
   }
 
   updateLongestRoadHolder() {
@@ -5493,7 +5542,7 @@ class ColonistFullGame {
     this.autoplayBtn.textContent = "Stop watching";
     // Rush: the human seat joins the bot ticks while autoplay runs
     if (this.rush && !this.setupPhase) {
-      const human = this.players.find((p) => p.isHuman);
+      const human = this._me();
       if (human) this._scheduleBotTick(human, 500);
     }
     // Setup waiting on the human's settlement: let autoplay place it (rolling waits for setup to finish)
@@ -5568,7 +5617,7 @@ class ColonistFullGame {
     };
     this.rush.offers = (this.rush.offers || []).filter((o) => this.players[o.fromId]);
     this._offerSeq = this.rush.offers.reduce((m, o) => Math.max(m, o.id), 0);
-    const human = this.players.find((p) => p.isHuman);
+    const human = this._me();
     this.currentPlayerIndex = human ? human.id : 0; // the human may act at any time
     this.turn = this.rush.rollNo;
     this.phase = this.rush.seven ? "seven" : "main";
@@ -5690,7 +5739,7 @@ class ColonistFullGame {
     const r = this.rush;
     r.paused = true;
     this.phase = "seven";
-    const human = this.players.find((p) => p.isHuman);
+    const human = this._me();
     // Drop half-finished human build selections; finish a robber move left from a Knight
     if (this.pendingAction && this.pendingAction !== "robber") this.pendingAction = null;
     if (this.confirmBuild?.type !== "robber") this.confirmBuild = null;
@@ -5865,7 +5914,7 @@ class ColonistFullGame {
 
   // After any Rush action: scores, contested spots, win check for everyone, save and redraw.
   _rushAfterAction(actor = null) {
-    const human = this.players.find((p) => p.isHuman);
+    const human = this._me();
     if (actor !== human) this._dropUndo(); // a roll or a bot move may build on what Undo would take back
     this.recomputeScores();
     if (this.confirmBuild && human && !this._confirmBuildStillValid(human)) {
@@ -5902,7 +5951,7 @@ class ColonistFullGame {
 
   toggleRushReady() {
     const r = this.rush;
-    const human = this.players.find((p) => p.isHuman);
+    const human = this._me();
     if (!r || !human || r.paused || this.winner || this.setupPhase) return;
     if (r.ready.includes(human.id)) r.ready = r.ready.filter((id) => id !== human.id);
     else r.ready.push(human.id);
@@ -5931,7 +5980,7 @@ class ColonistFullGame {
     if (!offer) return;
     r.offers = r.offers.filter((o) => o.id !== offerId);
     const from = this.players[offer.fromId];
-    const human = this.players.find((p) => p.isHuman);
+    const human = this._me();
     if (accept) {
       if (r.paused || this.winner || !hasResources(human.resources, offer.want) || !hasResources(from.resources, offer.give)) {
         this.addLog(`Trade with ${from.name} is no longer possible.`);
@@ -5951,8 +6000,7 @@ class ColonistFullGame {
   }
 
   /** Can this offer still happen: you hold what the bot wants and the bot holds what it gives? */
-  _offerPossible(fromPlayer, give, want) {
-    const human = this.players.find((p) => p.isHuman);
+  _offerPossible(fromPlayer, give, want, human = this._me()) {
     return !!(human && fromPlayer && hasResources(human.resources, want) && hasResources(fromPlayer.resources, give));
   }
 
@@ -5977,14 +6025,16 @@ class ColonistFullGame {
       const keep = this.rush.offers.filter((o) => this._offerPossible(this.players[o.fromId], o.give, o.want));
       if (keep.length !== this.rush.offers.length) this.rush.offers = keep;
     }
-    let pitOk = !!pit && this._offerPossible(pit.fromPlayer, pit.give, pit.want);
+    let pitOk = !!pit && this._offerPossible(pit.fromPlayer, pit.give, pit.want, pit.to);
+    if (pit?.ask && hasResources(pit.fromPlayer.resources, pit.give)) pitOk = true; // pass & play: the ✓ shows whether they can pay
     if (pit && !pitOk && !this.rush) {
       const id = pit.id;
       this._later(() => { if (this.pendingIncomingTrade?.id === id) this.resolveIncomingTrade(false, true); }, 0);
     }
-    const offers = this.winner ? [] : this.rush ? this.rush.offers : pitOk ? [{ id: pit.id, fromId: pit.fromPlayer.id, give: pit.give, want: pit.want, classic: true }] : [];
-    const human = this.players.find((p) => p.isHuman);
-    const key = offers.map((o) => o.id).join(",") + this.theme?.id + "|" + (human ? RESOURCES.map((r) => human.resources[r]).join(",") : "");
+    // pass & play: the offer waits behind the cover until its receiver holds the phone
+    const offers = this.winner ? [] : this.rush ? this.rush.offers : pitOk && !(this.hotseat && (this.handHidden || this.viewerId !== pit.to?.id)) ? [{ id: pit.id, fromId: pit.fromPlayer.id, give: pit.give, want: pit.want, classic: true }] : [];
+    const human = pit?.to || this._me();
+    const key = offers.map((o) => o.id).join(",") + this.theme?.id + "|" + (human ? human.id + ":" + RESOURCES.map((r) => human.resources[r]).join(",") : "");
     if (key === this._lastOffersKey) return;
     this._lastOffersKey = key;
     const n = (res) => RESOURCES.filter((r) => res[r] > 0);
@@ -5994,8 +6044,8 @@ class ColonistFullGame {
     el.dataset.more = offers.length > 1 ? `+${offers.length - 1}` : "";
     el.innerHTML = offers.map((o) => {
       const p = this.players[o.fromId];
-      const ok = this._offerPossible(p, o.give, o.want);
-      return `<div class="rush-offer${o.classic ? " classic" : ""}" data-offer="${o.id}" role="group" aria-label="${p.name} offers ${words(o.give)} for your ${words(o.want)}" style="--offer-ms:${CLASSIC_OFFER_MS}ms">
+      const ok = this._offerPossible(p, o.give, o.want, human);
+      return `<div class="rush-offer${o.classic ? " classic" : ""}${this.hotseat ? " no-timer" : ""}" data-offer="${o.id}" role="group" aria-label="${p.name} offers ${words(o.give)} for your ${words(o.want)}" style="--offer-ms:${CLASSIC_OFFER_MS}ms">
         ${this._av(p, "rush-offer-avatar")}
         <div class="rush-offer-body">
           <div class="rush-offer-deal"><span class="ol give">You give</span><span class="grp">${side(o.want)}${human && this._offerCostsBuild(human, o) ? `<span class="owarn" role="img" aria-label="You could not build ${this._offerCostsBuild(human, o)} after this" title="You could not build ${this._offerCostsBuild(human, o)} after this"><svg viewBox="0 0 20 18" aria-hidden="true"><path d="M10 1.5 19 16.5H1Z" fill="#F2B233" stroke="#8A5A00" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 6.5v5" stroke="#3A2600" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="14" r="1.2" fill="#3A2600"/></svg></span>` : ""}</span><span class="ol get">You get</span><span class="grp">${side(o.give)}</span></div>
@@ -6104,7 +6154,7 @@ class ColonistFullGame {
     if (!r.paused && secs >= 1 && secs <= 3 && !this.uiPaused) {
       if (this._rushTickSec !== secs) { this._rushTickSec = secs; this.sfx.rushTick(secs === 1); }
     } else this._rushTickSec = null;
-    const human = this.players.find((p) => p.isHuman);
+    const human = this._me();
     const n = this.players.length;
     const humanReady = r.ready.includes(human?.id);
     if (this.rushReadyBtn) {
@@ -6204,7 +6254,7 @@ class ColonistFullGame {
     overlay.innerHTML = `<div class="confetti-box"></div>
       <div class="panel over-panel" role="dialog" aria-label="Game over">
         <svg class="trophy" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-victoryPoint" x="-50" y="-50" width="100" height="100"/></svg>
-        <h3>${winner.isHuman ? "You win!" : `${winner.name} wins`}</h3>
+        <h3>${this._you(winner) ? "You win!" : `${winner.name} wins${winner.isHuman ? "!" : ""}`}</h3>
         <p class="lead">${lead}</p>
         <div class="podium">${ranked.map((p, k) => {
           const persona = p.personality ? AI_PRESET_INFO[p.personality]?.label : "";
@@ -6256,6 +6306,8 @@ class ColonistFullGame {
       sea: this.sea ? this.sea.toJSON() : null, // ⚓ Seafarers: pirate, bonuses, moves, gold picks
       shipEdges: this.sea ? this.geometry.edges.filter((e) => e.ship).map((e) => e.id) : undefined,
       players: this.players.map(p => ({
+        isHuman: !!p.isHuman, // pass & play: who is a person
+        name: p.name,
         resources: { ...p.resources },
         roads: [...p.roads],
         ...(this.sea ? { ships: [...p.ships] } : {}),
@@ -6412,15 +6464,21 @@ class ColonistFullGame {
       this.clearStorage();
       return false;
     }
+    this.viewerId = null; // pass & play: the cover asks who holds the phone
+    this.handHidden = true;
+    this._hsNote = null;
     this.players = data.players.map((saved, id) => {
       const config = PLAYER_CONFIG[id];
+      const spec = seatSpec(this.settings, id);
+      const seat = typeof saved.isHuman === "boolean" ? { ...spec, isHuman: id === 0 || saved.isHuman, name: saved.name || spec.name } : spec;
+      if (seat.name !== spec.name) seat.short = seat.name === config.name ? config.short : seat.name.length > 9 ? `${seat.name.slice(0, 8)}…` : undefined;
       return {
         id,
-        name: config.name,
+        name: seat.name,
         fullName: config.fullName,
-        short: config.short,
+        short: seat.short,
         color: config.color,
-        isHuman: config.isHuman,
+        isHuman: seat.isHuman,
         avatar: config.avatar,
         resources: { ...saved.resources },
         roads: new Set(saved.roads),
@@ -6433,8 +6491,8 @@ class ColonistFullGame {
         longestRoadLength: saved.longestRoadLength,
         victoryPoints: saved.victoryPoints,
         publicVictoryPoints: saved.victoryPoints - (saved.devVictoryPoints || 0),
-        strategy: config.isHuman ? null : (saved.strategy ? { ...saved.strategy } : { ...DEFAULT_AI_STRATEGY }),
-        personality: config.isHuman ? null : (saved.personality || presetForStrategy(saved.strategy || DEFAULT_AI_STRATEGY)),
+        strategy: seat.isHuman ? null : (saved.strategy ? { ...saved.strategy } : { ...DEFAULT_AI_STRATEGY }),
+        personality: seat.isHuman ? null : (saved.personality || presetForStrategy(saved.strategy || DEFAULT_AI_STRATEGY)),
         rushDevPlayed: !!saved.rushDevPlayed,
         rushTradeTried: !!saved.rushTradeTried,
       };
@@ -6499,7 +6557,7 @@ class ColonistFullGame {
       if (saved.seven && saved.seven.leftMs == null) saved.seven.leftMs = Infinity;
       if (Array.isArray(data.robberVictimOptions) && data.robberVictimOptions.length) {
         this.robberVictimOptions = data.robberVictimOptions;
-        this.showVictimPanel(this.players.find((p) => p.isHuman), this.robberVictimOptions);
+        this.showVictimPanel(this._me(), this.robberVictimOptions);
       }
       this._startRush(saved);
     } else {
@@ -7547,18 +7605,20 @@ class ColonistFullGame {
   }
 
   renderResourceCards() {
-    const human = this.players.find((p) => p.isHuman);
+    const human = this._me();
     if (!human || !this.resourceCardStrip) return;
     const devCounts = {};
     DEV_CARD_TYPES.forEach((t) => { devCounts[t] = human.devCards[t] + human.newDevCards[t]; });
     devCounts.victoryPoint = human.devVictoryPoints;
     const total = sumResources(human.resources);
     const devTotal = Object.values(devCounts).reduce((a, b) => a + b, 0);
+    const lbl = this.handSummary?.parentElement;
+    if (lbl?.firstChild?.nodeType === 3) lbl.firstChild.textContent = this.hotseat && !this.handHidden ? `${human.name}'s hand ` : "Your hand ";
     if (this.handSummary) this.handSummary.textContent = `${total} resource card${total === 1 ? "" : "s"} · ${devTotal} development card${devTotal === 1 ? "" : "s"}`;
     this.renderHandBar(human, total, devTotal);
     const pd = this.pendingDiscard?.player === human ? this.pendingDiscard : null;
     this.handArea?.classList.toggle("discarding", !!pd);
-    const key = JSON.stringify([human.resources, devCounts, human.newDevCards, this.theme.id, this.isMobileLayout, pd?.selected || null, this._newDevPulse || null]);
+    const key = JSON.stringify([human.id, this.handHidden, human.resources, devCounts, human.newDevCards, this.theme.id, this.isMobileLayout, pd?.selected || null, this._newDevPulse || null]);
     if (key === this._lastHandKey) return;
     this._lastHandKey = key;
     this._syncTradeSheet();
@@ -7619,7 +7679,7 @@ class ColonistFullGame {
     const readyIds = this.rush && !this.setupPhase ? this.rush.ready : null;
     const scoreKey = this.players.map((p, i) =>
       `${i}:${this.displayVictoryPoints(p)}:${sumResources(p.resources)}:${p.settlements.size}:${p.cities.size}:${p.roads.size}:${p.knightsPlayed}:${p.longestRoadLength}:${this.longestRoadHolder}:${this.largestArmyHolder}:${this.currentPlayerIndex}:${p.personality}:${readyIds ? readyIds.includes(p.id) : "-"}:${DEV_CARD_TYPES.reduce((s, t) => s + p.devCards[t] + p.newDevCards[t], 0)}`
-    ).join("|") + `:${!!this.winner}:${this.isRush()}:${this.theme.id}:${this.setupPhase}:${this._sixKey()}`;
+    ).join("|") + `:${!!this.winner}:${this.isRush()}:${this.theme.id}:${this.setupPhase}:${this._sixKey()}:${this.viewerId}:${this.handHidden}`;
     if (scoreKey === this._lastScoreKey) return;
     this._lastScoreKey = scoreKey;
     const rows = [];
@@ -7632,7 +7692,7 @@ class ColonistFullGame {
         ? `<span class="persona-badge persona-${player.personality}" title="${persona.label}: ${persona.tagline}">${persona.glyph ? `${persona.glyph} ` : ""}${persona.label}</span>`
         : "";
       const totalCards = sumResources(player.resources);
-      const totalDev = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + (player.isHuman ? player.devVictoryPoints : 0);
+      const totalDev = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + (this._seesPrivate(player) ? player.devVictoryPoints : 0);
       const awards = (this.longestRoadHolder === player.id ? (this.sea ? `<span title="Longest Trade Route (+2 points)">${icon("tradeRoute")}</span>` : `<span title="Longest Road (+2 points)">${icon("longestRoad")}</span>`) : "") // ⚓
         + (this.largestArmyHolder === player.id ? `<span title="Largest Army (+2 points)">${icon("largestArmy")}</span>` : "");
       const vp = this.displayVictoryPoints(player);
@@ -7652,7 +7712,7 @@ class ColonistFullGame {
       rows.push(`<div class="prow player-card-mini pc-${idx}${active ? " active" : ""}${isReady ? " rush-ready" : ""}" data-seat="${idx}">
         ${this._av(player, "player-avatar")}
         <div class="nm"><span class="pname">${player.name}${isReady ? '<span class="ready-pill" title="Voted to roll now">Ready</span>' : ""}</span>
-          <span class="tag">${player.isHuman ? "Your colony" : personaBadge}</span>
+          <span class="tag">${this._you(player) ? "Your colony" : player.isHuman ? "Pass &amp; play" : personaBadge}</span>
           <div class="stats">${stats.join("")}<span class="badges">${awards}</span></div></div>
         <div class="vp player-vp" title="Points — tap for details">${vp}<small>points</small></div></div>`);
       chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
@@ -7809,7 +7869,7 @@ class ColonistFullGame {
     const mainPhase = this.phase === "main";
     const preRoll = this.phase === "pre_roll";
     const noDevPlayed = rushOn ? !this.currentPlayer.rushDevPlayed : !this.currentTurnPlayedDevCard;
-    const human = this.players.find((p) => p.isHuman) || this.currentPlayer;
+    const human = this._me() || this.currentPlayer;
     const active = this.currentPlayer;
     const hasRoadCost = hasResources(human.resources, COSTS.road);
     const hasSettlementCost = hasResources(human.resources, COSTS.settlement);
@@ -8232,7 +8292,8 @@ class ColonistFullGame {
         <button type="button" class="ng-step-btn" data-step="1" aria-label="Increase" ${value >= max ? "disabled" : ""}>+</button>
       </div>`;
     const summaryText = () => {
-      const bots = PLAYER_CONFIG.slice(1, d.numBots + 1).map((_, i) => presetLabel(botPreset(i)));
+      const bots = PLAYER_CONFIG.slice(1, d.numBots + 1).map((_, i) => (d.mode !== "rush" && d.humans[i] ? null : presetLabel(botPreset(i)))).filter(Boolean);
+      const people = 1 + PLAYER_CONFIG.slice(1, d.numBots + 1).filter((_, i) => d.mode !== "rush" && d.humans[i]).length;
       const uniq = [...new Set(bots)];
       const mode = d.mode === "rush" ? `<strong>Rush · ${d.rushInterval}s rolls</strong>` : "<strong>Classic</strong>";
       const extras = [
@@ -8241,10 +8302,32 @@ class ColonistFullGame {
         d.friendlyRobber ? "friendly robber" : null,
         `${d.dice === "deck" ? "event-deck" : d.dice} dice`,
         `${d.map} map`,
-        `${d.numBots} bot${d.numBots > 1 ? "s" : ""} (${uniq.length === 1 && bots.length > 1 ? `all ${uniq[0]}` : bots.join(", ")})`,
+        [people > 1 ? `${people} players` : null,
+          bots.length ? `${bots.length} bot${bots.length > 1 ? "s" : ""} (${uniq.length === 1 && bots.length > 1 ? `all ${uniq[0]}` : bots.join(", ")})` : null].filter(Boolean).join(" + "),
       ].filter(Boolean);
       return `${mode} · ${extras.join(" · ")}`;
     };
+
+    // Players: who sits where (seat 0 is always a person; the others a bot or, pass & play, a person)
+    const botCount = () => PLAYER_CONFIG.slice(1, d.numBots + 1).filter((_, i) => !(d.mode !== "rush" && d.humans[i])).length;
+    const seatRows = () => PLAYER_CONFIG.slice(0, d.numBots + 1).map((cfg, id) => {
+      const human = id === 0 || (d.mode !== "rush" && d.humans[id - 1]);
+      const hot = hotseatOn(d);
+      const def = cfg.hsName || cfg.name;
+      const kind = id === 0 ? `<div class="hs-kind" aria-label="Person"><button type="button" class="on fixed" tabindex="-1">Human</button></div>`
+        : `<div class="hs-kind" role="radiogroup" aria-label="${esc(cfg.name)}: bot or person">
+            <button type="button" role="radio" data-kind="bot" data-seat="${id}" class="${human ? "" : "on"}" aria-checked="${!human}">Bot</button>
+            <button type="button" role="radio" data-kind="human" data-seat="${id}" class="${human ? "on" : ""}" aria-checked="${human}"${d.mode === "rush" ? ` disabled title="Pass &amp; play is Classic only"` : ""}>Human</button></div>`;
+      const main = human
+        ? (hot ? `<input class="hs-name-in" data-name="${id}" value="${esc(d.names[id] || "")}" placeholder="${esc(def)}" maxlength="14" aria-label="Name for seat ${id + 1}" autocomplete="off" spellcheck="false">`
+          : `<div class="hs-seat-name">You</div>`)
+        : `<div class="hs-seat-name">${esc(cfg.name)}${badge(botPreset(id - 1))}</div>`;
+      const sel = !human && d.botStyleMode === "each" ? `
+        <select class="ng-bot-select" data-bot="${id - 1}" aria-label="${esc(cfg.name)} personality">
+          ${Object.keys(AI_PRESETS).map((key) => `<option value="${key}"${d.perBot[id - 1] === key ? " selected" : ""}>${presetLabel(key)}</option>`).join("")}
+        </select>` : "";
+      return `<div class="hs-seat pc-${id}">${avatarSvg(id, "ng-bot-avatar")}<div class="hs-seat-main">${main}</div>${kind}${sel}</div>`;
+    }).join("");
 
     const render = () => {
       const presetKeys = [...Object.keys(AI_PRESETS), "custom"];
@@ -8266,10 +8349,11 @@ class ColonistFullGame {
                     <span class="ng-mode-name"><span class="ng-mode-icon">&#10227;</span>Classic</span>
                     <span class="ng-mode-desc">Take turns: roll, trade, build, end turn. Calm and tactical.</span>
                   </button>
-                  <button type="button" class="ng-mode-card rush${d.mode === "rush" ? " selected" : ""}" data-mode="rush" aria-pressed="${d.mode === "rush"}">
+                  <button type="button" class="ng-mode-card rush${d.mode === "rush" ? " selected" : ""}" data-mode="rush" aria-pressed="${d.mode === "rush"}"${hotseatOn(d) ? " disabled" : ""}>
                     <span class="ng-mode-tag">Fast</span>
                     <span class="ng-mode-name"><span class="ng-mode-icon">&#9889;</span>Rush</span>
                     <span class="ng-mode-desc">No turns. Everyone builds &amp; trades at once; dice roll on a timer.</span>
+                    ${hotseatOn(d) ? '<span class="hs-off">Pass &amp; play is Classic only</span>' : ""}
                   </button>
                 </div>
               </section>
@@ -8337,14 +8421,20 @@ class ColonistFullGame {
               </section>
             </div>
             <div class="ng-col">
-              <section class="ng-section">
-                <h3 class="ng-section-title">Opponents</h3>
+              <section class="ng-section ng-players">
+                <h3 class="ng-section-title">Players</h3>
                 <div class="ng-row ng-row-inline">
-                  <div class="ng-row-label">Number of bots</div>
-                  ${seg("numBots", PLAYER_CONFIG.slice(1).map((_, i) => [i + 1, String(i + 1)]), d.numBots, "ng-seg-pills ng-seg-round", d.board === "seafarers" ? [4, 5] : [])}
+                  <div class="ng-row-label">At the table</div>
+                  ${seg("numBots", PLAYER_CONFIG.slice(1).map((_, i) => [i + 1, String(i + 2)]), d.numBots, "ng-seg-pills ng-seg-round", d.board === "seafarers" ? [4, 5] : [])}
                 </div>
-                ${d.board === "seafarers" ? `<p class="ng-help ng-six-help">Seafarers is a 3–4 player scenario: up to 3 bots.</p>` : ""}
+                ${d.board === "seafarers" ? `<p class="ng-help ng-six-help">Seafarers is a 3–4 player scenario.</p>` : ""}
                 ${isBigTable(d.numBots + 1) ? `<p class="ng-help ng-six-help">${d.numBots + 1} players: the bigger island (30 tiles, 24 of each card) and a build window between turns${d.mode === "rush" ? " (Classic only)" : ""}.</p>` : ""}
+                <div class="hs-seats">${seatRows()}</div>
+                ${hotseatOn(d) ? `<p class="hs-help">${1 + d.humans.slice(0, d.numBots).filter(Boolean).length} people share this phone · pass it on when the turn changes.</p>` : `<p class="hs-help">Tap Human to play with friends on this phone.</p>`}
+              </section>
+              <section class="ng-section">
+                <h3 class="ng-section-title">Bots</h3>
+                ${botCount() ? "" : `<p class="ng-help">No bots at this table.</p>`}
                 <div class="ng-row ng-row-inline">
                   <div class="ng-row-label ng-row-label-sm">Style for</div>
                   ${seg("botStyleMode", [["all", "All bots"], ["each", "Each bot separately"]], d.botStyleMode, "ng-seg-pills")}
@@ -8375,23 +8465,6 @@ class ColonistFullGame {
                 </details>` : `
                 <p class="ng-help">Pick a personality per bot. You can fine-tune each bot later under Settings &rsaquo; Bot personalities.</p>`}
               </section>
-              <section class="ng-section">
-                <h3 class="ng-section-title">Your table</h3>
-                <div class="ng-table">
-                  ${PLAYER_CONFIG.slice(1, d.numBots + 1).map((cfg, i) => `
-                    <div class="ng-bot pc-${i + 1}">
-                      ${avatarSvg(i + 1, "ng-bot-avatar")}
-                      <div class="ng-bot-info">
-                        <div class="ng-bot-name"><span class="who pc-${i + 1}">${esc(cfg.name)}</span>${badge(botPreset(i))}</div>
-                        <div class="ng-bot-desc">${strategySummary(botStrategy(i))}</div>
-                      </div>
-                      ${d.botStyleMode === "each" ? `
-                      <select class="ng-bot-select" data-bot="${i}" aria-label="${esc(cfg.name)} personality">
-                        ${Object.keys(AI_PRESETS).map((key) => `<option value="${key}"${d.perBot[i] === key ? " selected" : ""}>${presetLabel(key)}</option>`).join("")}
-                      </select>` : ""}
-                    </div>`).join("")}
-                </div>
-              </section>
             </div>
           </div>
           <footer class="ng-footer">
@@ -8412,7 +8485,10 @@ class ColonistFullGame {
         const t = e.target.closest("button");
         if (!t || !card.contains(t)) return;
         let changed = true;
-        if (t.dataset.mode) d.mode = t.dataset.mode;
+        if (t.dataset.kind) {
+          d.humans = d.humans.map((h, i) => (i === Number(t.dataset.seat) - 1 ? t.dataset.kind === "human" : h));
+          if (hotseatOn(d)) d.mode = "classic";
+        } else if (t.dataset.mode) d.mode = t.dataset.mode;
         else if (t.dataset.map) d.map = t.dataset.map;
         else if (t.dataset.preset) {
           d.allPreset = t.dataset.preset;
@@ -8453,6 +8529,9 @@ class ColonistFullGame {
           overlay.querySelector(".ng-card").scrollTop = scroll;
         }
       });
+      card.querySelectorAll("[data-name]").forEach((inp) => inp.addEventListener("input", () => {
+        d.names = d.names.map((n, i) => (i === Number(inp.dataset.name) ? inp.value.slice(0, 14) : n));
+      }));
       card.querySelectorAll(".ng-bot-select").forEach((sel) => sel.addEventListener("change", () => {
         d.perBot = d.perBot.map((p, i) => (i === Number(sel.dataset.bot) ? sel.value : p));
         const scroll = card.scrollTop;
@@ -8520,7 +8599,7 @@ class ColonistFullGame {
 
     // Per-bot config
     const aiPlayers = this.players.filter(p => p.strategy);
-    const botsToShow = this._applyAllStrategies ? [aiPlayers[0]] : aiPlayers;
+    const botsToShow = this._applyAllStrategies ? aiPlayers.slice(0, 1) : aiPlayers; // pass & play: a table may have no bots
 
     botsToShow.forEach(bot => {
       const section = document.createElement("div");
@@ -8579,18 +8658,19 @@ class ColonistFullGame {
    * hold more than the discard limit (a 7 then costs half). Right: the bank's cards left per resource
    * and the development deck (tap to fold it to just "Bank"; remembered on this device).
    */
-  renderHandBar(human = this.players?.find((p) => p.isHuman), total = human ? sumResources(human.resources) : 0, devTotal = null) {
+  renderHandBar(human = this._me(), total = human ? sumResources(human.resources) : 0, devTotal = null) {
     const el = this.handBar;
     if (!el || !human) return;
     if (devTotal == null) devTotal = DEV_CARD_TYPES.reduce((a, t) => a + human.devCards[t] + human.newDevCards[t], 0) + human.devVictoryPoints;
     if (this._bankOpen == null) { let v = null; try { v = localStorage.getItem("colonist.bankBar"); } catch (_) {} this._bankOpen = v !== "closed"; }
     const limit = this.settings?.discardLimit ?? 7;
     const deck = this.devDeck ? this.devDeck.length : 0;
-    const key = [total, devTotal, limit, deck, this._bankOpen, this.theme?.id, ...RESOURCES.map((r) => this.bank[r])].join("|");
+    const who = this.hotseat && !this.handHidden ? human : null; // pass & play: whose hand this is
+    const key = [who?.id, who?.name, total, devTotal, limit, deck, this._bankOpen, this.theme?.id, ...RESOURCES.map((r) => this.bank[r])].join("|");
     if (key === this._lastHandBarKey) return;
     this._lastHandBarKey = key;
     const over = total > limit;
-    el.innerHTML = `<span class="hb-total${over ? " warn" : ""}" data-total="${total}" title="${total} resource card${total === 1 ? "" : "s"}${over ? ` · more than ${limit}: on a 7 you hand back half` : ""}"><b>${total}</b> card${total === 1 ? "" : "s"}${devTotal ? ` · <b>${devTotal}</b> dev` : ""}</span>`
+    el.innerHTML = (who ? `<span class="hb-who pc-${who.id}">${who.name}</span>` : "") + `<span class="hb-total${over ? " warn" : ""}" data-total="${total}" title="${total} resource card${total === 1 ? "" : "s"}${over ? ` · more than ${limit}: on a 7 you hand back half` : ""}"><b>${total}</b> card${total === 1 ? "" : "s"}${devTotal ? ` · <b>${devTotal}</b> dev` : ""}</span>`
       + `<button type="button" class="hb-bank${this._bankOpen ? " open" : ""}" aria-expanded="${this._bankOpen}" aria-label="Bank: ${RESOURCES.map((r) => `${this.bank[r]} ${RESOURCE_LABEL[r]}`).join(", ")}, ${deck} development cards left" title="Cards left in the bank (tap to ${this._bankOpen ? "fold" : "show"})">`
       + `${icon("bank")}<span class="hb-lbl">Bank</span>`
       + RESOURCES.map((r) => `<span class="bk${this.bank[r] <= 3 ? " low" : ""}" data-bank="${r}">${icon(r)}<b>${this.bank[r]}</b></span>`).join("")
@@ -8690,7 +8770,7 @@ class ColonistFullGame {
   showResourceGainToasts(gainByPlayer) {
     // Cards fly from the producing tiles to the hand (you) or to the player's portrait (bots)
     this.fx?.flyResources(gainByPlayer, this.lastRoll);
-    const human = this.players.find((p) => p.isHuman);
+    const human = this._me();
     if (gainByPlayer.some((g) => sumResources(g) > 0)) {
       const mine = human && gainByPlayer[human.id] ? RESOURCES.filter((r) => gainByPlayer[human.id][r] > 0) : [];
       window.setTimeout(() => this.sfx.resourceGain(mine), 900);
@@ -8771,7 +8851,7 @@ class ColonistFullGame {
     const settlements = player.settlements.size;
     const cities = player.cities.size;
     const roads = player.roads.size;
-    const devVP = player.isHuman ? player.devVictoryPoints : 0; // opponents' VP cards stay hidden
+    const devVP = this._seesPrivate(player) ? player.devVictoryPoints : 0; // opponents' VP cards stay hidden
     const longestRoad = this.longestRoadHolder === player.id ? 2 : 0;
     const largestArmy = this.largestArmyHolder === player.id ? 2 : 0;
     const total = settlements + cities * 2 + devVP + longestRoad + largestArmy + (this.sea ? this.sea.bonusVP(player) : 0); // ⚓
@@ -9324,6 +9404,7 @@ class ColonistFullGame {
   }
 
   openCardsTray(focus = null) {
+    if (this.hotseat && (this.hsCoverOn != null || this._hsAway() || this.handHidden)) return; // pass & play: not this holder's move
     if (this.trayMode === "cards" && !focus) { this.closeTray(); return; }
     if (this._robberInProgress() || this.devPick) return;
     this.hideTradePanel();
@@ -9446,7 +9527,7 @@ class ColonistFullGame {
 
   /** What the tray shows now (null = the normal dock buttons). */
   _trayView() {
-    const human = this.players.find((p) => p.isHuman);
+    const human = this._me();
     if (!human || this.winner) return null;
     const cur = this.currentPlayer;
     const tbtn = (attrs, inner, cls = "") => `<button type="button" class="tbtn ${cls}" ${attrs}>${inner}</button>`;
@@ -9622,7 +9703,7 @@ class ColonistFullGame {
   }
 
   _devWhyNot(t) {
-    const h = this.players.find((p) => p.isHuman);
+    const h = this._me();
     if (!h) return "";
     if (h.devCards[t] === 0) return this.isRush() ? `${DEV_NAME[t]} is new: playable after the next roll` : `${DEV_NAME[t]} is new: play it next turn`;
     if (!this.currentPlayer?.isHuman) return "Cards are played on your turn";
@@ -9887,6 +9968,7 @@ class ColonistFullGame {
   }
 
   render() {
+    this._hsSync(); // pass & play: hide hands / ask for the phone before anything private is drawn
     this._queueSave();
     this.drawCanvasScene();
     this.renderTopPanels();
@@ -9910,6 +9992,8 @@ class ColonistFullGame {
 // 5–6 players: Special Building Phase engine + bots (src/six.js) and its UI (src/six-ui.js)
 Object.assign(ColonistFullGame.prototype, SbpMixin, SixUiMixin);
 Object.assign(ColonistFullGame.prototype, SeaGame); // ⚓ Seafarers game-side methods (src/seafarers/ui.js)
+// Pass & play (src/hotseat.js): defineProperties keeps its `hotseat` getter a getter
+Object.defineProperties(ColonistFullGame.prototype, Object.getOwnPropertyDescriptors(HotseatMixin));
 
 const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle

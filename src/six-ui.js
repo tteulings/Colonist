@@ -64,7 +64,7 @@ export const SixUiMixin = {
         vp: this.displayVictoryPoints(p),
         cards: sum(p.resources),
         over: sum(p.resources) > (this.settings?.discardLimit ?? 7),
-        dev: DEV.reduce((s, t) => s + p.devCards[t] + p.newDevCards[t], 0) + (p.isHuman ? p.devVictoryPoints : 0),
+        dev: DEV.reduce((s, t) => s + p.devCards[t] + p.newDevCards[t], 0) + (this._seesPrivate(p) ? p.devVictoryPoints : 0),
         leader: idx === leader,
         building: marks.includes(idx),
         awards,
@@ -93,7 +93,7 @@ export const SixUiMixin = {
     const s = this.sbp;
     if (!s) return { short: "", long: "" };
     const p = this.players[(s.after + 1) % this.players.length];
-    return p.isHuman ? { short: "your turn next", long: "Your turn is next" } : { short: `${p.name} next`, long: `${p.name} is next` };
+    return this._you(p) ? { short: "your turn next", long: "Your turn is next" } : { short: `${p.name} next`, long: `${p.name} is next` };
   },
 
   /** The ticker line while your window is open (plain text for the desktop prompt). */
