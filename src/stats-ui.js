@@ -353,7 +353,9 @@ export const StatsUiMixin = {
       bars += `<g class="gs-dbar${k === st.diceDev.k ? " hi" : ""}" style="--i:${k - 2}"><rect x="${(xx + 3).toFixed(1)}" y="${(H - 18 - ys(c)).toFixed(1)}" width="${(bw - 6).toFixed(1)}" height="${Math.max(0.5, ys(c)).toFixed(1)}" rx="4"/><text class="gs-ax n" x="${(xx + bw / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle">${k}</text>${c ? `<text class="gs-ax c" x="${(xx + bw / 2).toFixed(1)}" y="${(H - 22 - ys(c)).toFixed(1)}" text-anchor="middle">${c}</text>` : ""}</g>`;
     }
     const pts = [];
-    for (let k = 2; k <= 12; k += 1) pts.push(`${(4 + (k - 2) * bw + bw / 2).toFixed(1)},${(H - 18 - ys(exp(k))).toFixed(1)}`);
+    // v0.82 "stepped, not a pyramid": a flat step at each number's expected count across its bar's slot,
+    // joined by vertical risers at the slot edges (no sloped segments)
+    for (let k = 2; k <= 12; k += 1) { const yk = (H - 18 - ys(exp(k))).toFixed(1); pts.push(`${(4 + (k - 2) * bw).toFixed(1)},${yk}`, `${(4 + (k - 1) * bw).toFixed(1)},${yk}`); }
     const human = this._stMe();
     const luck = human && st.expected[human.id] > 0.5 ? Math.round(st.luck[human.id] * 100) : null;
     const sub = `Rolls vs expected${luck != null ? ` <span class="gs-tag">Your luck ${luck >= 0 ? "+" : "−"}${Math.abs(luck)}%</span>` : ""}`;
