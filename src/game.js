@@ -3760,15 +3760,8 @@ class ColonistFullGame {
     // Nobody says yes: one bot may come back with a counter-offer
     const counter = acceptors.length ? null : this._generateCounterOffer(player, offer, request);
     if (!acceptors.length) this.addLog(counter ? `${counter.player.name} made a counter-offer.` : "All players rejected your trade offer.");
-    // Exactly one bot says yes: the trade you asked for happens right away (nothing left to choose)
-    if (acceptors.length === 1) {
-      this._tradeAnswers = { offer, request, responses, counter: null, turnSerial: this.turnSerial };
-      this._dropUndo();
-      this._executePlayerTrade(acceptors[0], offer, request);
-      this.closeTradeModal();
-      this.render();
-      return;
-    }
+    // v0.82: never trade on the Offer tap, also when exactly one bot says yes — its ✓ / Trade on the portrait waits
+    // for your one tap (the sheet stays open until then)
     this._tradeAnswers = { offer, request, responses, counter, turnSerial: this.turnSerial };
     this._tradeAsked = JSON.stringify([offer, request]);
     const res = this.tradeProposalResult;
