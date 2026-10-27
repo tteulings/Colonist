@@ -9643,7 +9643,7 @@ class ColonistFullGame {
     if (this.robberVictimOptions?.length) {
       return { mode: "victims", hint: "Steal from… · tap a player",
         html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>1 random card</small></div>` + this.robberVictimOptions.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
-          return tbtn(`data-steal="${id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.short || p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}`); }).join("") };
+          return tbtn(`data-steal="${id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}`); }).join("") };
     }
     if (this.pendingAction === "robber" && cb?.type === "robber") {
       const info = this._robberTileInfo(cb.id, cur);
@@ -9657,7 +9657,7 @@ class ColonistFullGame {
       if (vic.length > 1 && (!cb.victim || this.confirmPlacements)) {
         return { mode: "robber", hint: this.confirmPlacements ? "Steal from… pick a player, then Place" : "Steal from… · tap a player",
           html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>${pir ? lead : `${where} · ${blocks}${own}`}</small></div>` + vic.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
-            return tbtn(`data-victim="${id}" aria-pressed="${cb.victim === id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.short || p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}${cb.victim === id ? " sel" : ""}`); }).join("")
+            return tbtn(`data-victim="${id}" aria-pressed="${cb.victim === id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}${cb.victim === id ? " sel" : ""}`); }).join("")
             + (this.confirmPlacements ? tbtn(`data-rob-now ${cb.victim != null ? "" : "disabled"}`, `${icon("check")}<span>Place</span>`, "primary") : "")
             + close("data-rob-undo", "Pick another tile") };
       }

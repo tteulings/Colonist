@@ -831,6 +831,13 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
   .menu-sheet { align-items: center; }
   .mn-card { width: min(380px, calc(100vw - 32px)); border-radius: 20px; padding: 12px 18px 14px; max-height: calc(var(--app-h, 100dvh) - 16px); }
 }
+/* v0.82: the menu gained a Stats row — on a short landscape phone (360 px tall) the rows tighten so it still fits */
+@media (max-height: 500px) and (orientation: landscape) {
+  .mn-card { padding: 8px 18px 10px; }
+  .mn-head h2 { font-size: 19px; }
+  html .tm-modal .mn-list button, html .mn-list button { min-height: 44px; padding: 3px 4px; font-size: 15px; }
+  .mn-list button small { font-size: 11.5px; }
+}
 .ic-menu { color: currentColor; }
 
 /* ---------- how-to-play cards ---------- */
