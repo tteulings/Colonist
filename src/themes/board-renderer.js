@@ -12,6 +12,8 @@ import { hexPath, pipCount, f, harbourBadges, harbourScale, pierTick, drawPierTi
 import { motionReduced } from "./manager.js";
 // ⚓ Seafarers drawing (only used while game.sea is set)
 import { seaArt, portLandHex, bakeSeaMarks, drawShips, drawPirateAndChips, drawShipSpots, ghostShip, ghostPirate } from "../seafarers/render.js";
+/** v0.82: the free gap (art units, per road end) between a road's rounded cap and its node. */
+const ROAD_JOINT = 4;
 
 const path2d = new Map();
 const P2D = (d) => {
@@ -601,8 +603,8 @@ export class SvgBoardRenderer {
 
   pc(player) { return this.theme.pc[this.theme.seatKeys[player.id]] || this.theme.pc.blue; }
 
-  /** All built roads, node centre to node centre, layer by layer: a player's network reads as one
-   *  continuous line with rounded joints, and buildings (drawn after) sit on top of the ends. */
+  /** All built roads, layer by layer (v0.82: each segment inset from its nodes, so the pieces stay countable;
+   *  the joined paths are separate sub-paths that no longer touch), buildings drawn after sit on the nodes. */
   drawRoads(ctx, now, reduced) {
     const g = this.game;
     const segs = g.geometry.edges.filter((e) => e.owner != null && !e.ship).map((e) => this.roadSeg(e, g.players[e.owner], now, reduced)); // ⚓ ships drawn apart
@@ -616,8 +618,13 @@ export class SvgBoardRenderer {
     fading.forEach((s) => this.strokeRoad(ctx, s.a, s.b, s.c, s.alpha, true));
   }
 
+  /** v0.82 "two roads melt into one": every road is its own piece. Each segment stops short of its nodes by its
+   *  cap radius plus ROAD_JOINT art units, so its outline closes around both rounded ends and a small joint
+   *  (~2–3 px at fit on a phone, growing with zoom) shows at every node, also where two players' roads meet. */
+  roadInset() { return (this.theme.road.outer * (this.game.isMobileLayout ? 1.25 : 1.05)) / 2 + ROAD_JOINT; }
+
   roadSeg(edge, player, now, reduced) {
-    let [a, b] = this.roadEnds(edge, 0);
+    let [a, b] = this.roadEnds(edge, this.roadInset());
     const an = this.animFor("road", edge.id);
     let alpha = 1;
     if (an) {

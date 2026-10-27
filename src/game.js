@@ -7285,7 +7285,15 @@ class ColonistFullGame {
       // v0.79: the themed boards' road (src/themes/board-renderer.js strokeRoad) on the hand-drawn curve: a soft
       // shadow, a light rim, the piece's dark line, its base colour and a light top stroke, sized like the themed pieces
       const pc = this._classicPc(edge.owner), w = (this.isMobileLayout ? 1.25 : 1.05) * 0.74 * s; // 0.74·s = one art unit
-      const curve = () => { ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.bezierCurveTo(cp.cp1x, cp.cp1y, cp.cp2x, cp.cp2y, p2.x, p2.y); };
+      // v0.82: each road is its own piece — the curve stops short of both nodes (cap radius + a small joint, as on the
+      // themed boards), so neighbouring roads never melt into one stroke
+      const L = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1, t0 = Math.min(0.3, (7 * w + 4 * 0.74 * s) / L), t1 = 1 - t0;
+      const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+      const sub = (P, ta, tb) => { // de Casteljau: the part of the cubic between ta and tb
+        const split = (Q, t) => { const a = lerp(Q[0], Q[1], t), b = lerp(Q[1], Q[2], t), c = lerp(Q[2], Q[3], t), d = lerp(a, b, t), e = lerp(b, c, t), f = lerp(d, e, t); return [[Q[0], a, d, f], [f, e, c, Q[3]]]; };
+        const right = split(P, ta)[1]; return split(right, (tb - ta) / (1 - ta))[0]; };
+      const C = sub([{ x: p1.x, y: p1.y }, { x: cp.cp1x, y: cp.cp1y }, { x: cp.cp2x, y: cp.cp2y }, { x: p2.x, y: p2.y }], t0, t1);
+      const curve = () => { ctx.beginPath(); ctx.moveTo(C[0].x, C[0].y); ctx.bezierCurveTo(C[1].x, C[1].y, C[2].x, C[2].y, C[3].x, C[3].y); };
       ctx.save(); ctx.translate(1.5 * s, 2.6 * s); curve(); ctx.strokeStyle = "rgba(13, 17, 25, 0.35)"; ctx.lineWidth = 16 * w; ctx.stroke(); ctx.restore();
       curve(); ctx.strokeStyle = "rgba(255, 252, 242, 0.5)"; ctx.lineWidth = 16.5 * w; ctx.stroke();
       curve(); ctx.strokeStyle = pc.line; ctx.lineWidth = 14 * w; ctx.stroke();
