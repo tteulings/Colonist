@@ -256,7 +256,7 @@ export const SeaGame = {
       return null;
     }
     if (this.pendingAction === "robber" && !cb && sea.thief == null && !this.robberVictimOptions?.length) {
-      return { mode: "thief", hint: `${this.lastRoll === 7 ? "You rolled 7 · m" : "M"}ove the robber (land) or the pirate (sea)`,
+      return { mode: "thief", hint: "Move the robber …or the pirate", // v0.81: an instruction (the dock offers both)
         html: tbtn("data-thief=\"robber\"", `${icon("robber")}<span>Robber<small>on land</small></span>`, "wide")
           + tbtn("data-thief=\"pirate\"", `${icon("pirate")}<span>Pirate<small>on the sea</small></span>`, "wide") };
     }

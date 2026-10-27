@@ -382,7 +382,11 @@ export class SvgBoardRenderer {
     this.anims = this.anims.filter((a) => now - a.start < a.dur);
     // Placement: redraw only while the one-off pulse runs (and for the bobbing ✓ on desktop)
     const pulsing = this.placementActive() && (now - (this._placeStart || 0) < 1300 || (g.confirmBuild && !g.isMobileLayout));
-    if (!this.dirty && !this.anims.length && !pulsing) return;
+    // v0.81 robber mode: the lifted robber hovers and the legal tiles breathe until a tile is chosen
+    const robberWait = this.robberModeOn();
+    if (robberWait && this._robModeStart == null) this._robModeStart = now;
+    if (!robberWait) this._robModeStart = null;
+    if (!this.dirty && !this.anims.length && !pulsing && !(robberWait && !motionReduced())) return;
     this.dirty = false;
     const t0 = performance.now();
     this.draw(now);
@@ -390,6 +394,12 @@ export class SvgBoardRenderer {
     this.stats.frames += 1;
     this.stats.drawMs += ms;
     if (ms > this.stats.maxMs) this.stats.maxMs = ms;
+  }
+
+  /** The human must move the robber (or pirate) and has not picked a tile yet. */
+  robberModeOn() {
+    const g = this.game;
+    return !g.winner && g.pendingAction === "robber" && !!g.currentPlayer?.isHuman && g.confirmBuild?.type !== "robber" && !g.robberVictimOptions?.length;
   }
 
   placementActive() {
@@ -434,7 +444,7 @@ export class SvgBoardRenderer {
     } else this.dimHex(g.robberHexId, 1);
 
     // 4. robber-mode targets
-    if (g.pendingAction === "robber" && g.currentPlayer?.isHuman) this.drawRobberTargets(ctx);
+    if (g.pendingAction === "robber" && g.currentPlayer?.isHuman) this.drawRobberTargets(ctx, now, reduced);
 
 
     // 5. roads
@@ -509,11 +519,11 @@ export class SvgBoardRenderer {
   }
 
   /**
-   * Robber mode, calm: tiles the robber may not go to are dimmed, candidate tiles carry no marks
-   * (who you could rob is listed in the robber sheet), and the chosen (or hovered) tile gets a white
-   * outline plus a ghost robber. Nothing pulses.
+   * Robber mode: tiles the robber may not go to are dimmed, every legal tile carries a soft outline that
+   * breathes slowly (static with reduced motion) until one is chosen, and the chosen (or hovered) tile
+   * gets a solid white outline plus a ghost robber.
    */
-  drawRobberTargets(ctx) {
+  drawRobberTargets(ctx, now = performance.now(), reduced = false) {
     const g = this.game, mover = g.currentPlayer;
     const legal = new Set(g._legalRobberHexes(mover).map((h) => h.id));
     const sel = g.confirmBuild?.type === "robber" ? g.confirmBuild.id : null;
@@ -522,6 +532,16 @@ export class SvgBoardRenderer {
       // ⚓ Seafarers: the sea is never dimmed (robber mode simply ignores it; pirate mode dims the land)
       if (!legal.has(h.id)) { if (h.id !== g.robberHexId && !(g.sea && h.resource === "sea")) this.dimHex(h.id, 1); return; }
       const c = this.hexArt(h);
+      if (sel == null && h.id !== g.hoverHexId && h.id !== g.robberHexId && !(g.sea && h.id === g.sea.pirateHexId)) {
+        const t = ((now - (this._robModeStart ?? now)) / 1600) * Math.PI * 2;
+        const a = reduced ? 0.7 : 0.5 + 0.32 * Math.sin(t);
+        ctx.save(); ctx.translate(c.x, c.y);
+        ctx.lineJoin = "round";
+        ctx.lineWidth = Math.max(4.5, 3 * px); ctx.strokeStyle = `rgba(255,255,255,${(a).toFixed(3)})`;
+        ctx.stroke(HEX_P(88));
+        ctx.restore();
+        return;
+      }
       if (h.id === sel || h.id === g.hoverHexId) {
         ctx.save(); ctx.translate(c.x, c.y);
         ctx.lineWidth = Math.max(5, 3.5 * px); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.lineJoin = "round";
@@ -534,7 +554,7 @@ export class SvgBoardRenderer {
     else if (ghostAt != null) {
       const rp = this.robberPos(ghostAt);
       ctx.save(); ctx.translate(rp.x, rp.y + 32); ctx.scale(this.pieceScale, this.pieceScale); ctx.translate(0, -32);
-      drawSpec(ctx, this.theme.pieces.robber, { alpha: sel != null ? 0.75 : 0.5 });
+      drawSpec(ctx, this.theme.pieces.robber, sel != null ? { k: this.u * g.view.scale * g.pixelRatio, rim: this.theme.rim, rimW: this.theme.rimW ?? 5 } : { alpha: 0.5 });
       ctx.restore();
     }
   }
@@ -650,7 +670,11 @@ export class SvgBoardRenderer {
 
   drawRobber(ctx, rob, t, reduced, devK) {
     const g = this.game, T = this.theme, M = T.motion;
+    const now = () => performance.now();
     if (g.robberHexId == null) return;
+    // v0.81: once you picked a tile the robber is shown THERE (one robber, not a ghost plus the old one)
+    if (!rob && g.pendingAction === "robber" && g.currentPlayer?.isHuman && g.confirmBuild?.type === "robber"
+      && !(g.sea && g.geometry.hexes[g.confirmBuild.id]?.resource === "sea")) return;
     let pos = this.robberPos(g.robberHexId), s = { sx: 1, sy: 1, rot: 0 }, sh = 1;
     if (rob && !reduced) {
       const a = this.robberPos(rob.from), b = this.robberPos(rob.to);
@@ -663,6 +687,20 @@ export class SvgBoardRenderer {
       ctx.beginPath(); ctx.ellipse(pos.x + 2, pos.y + 32, 16 * sh, 5 * sh, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       s = { sx: v.sx, sy: v.sy, rot: v.rot };
       pos = { x: pos.x, y: pos.y + v.lift };
+    } else if (this.robberModeOn() && !(g.sea && g.sea.thief === "pirate")) {
+      // v0.81: the robber lifts off its tile (a short hop) and hovers until it is placed — "move me".
+      // Reduced motion: no hop, no bob; it simply stands a little raised with a shadow under it.
+      const el = now() - (this._robModeStart ?? now());
+      let lift;
+      if (reduced) lift = -12;
+      else {
+        const hop = clamp01(el / 520);
+        lift = hop < 1 ? -26 * Math.sin(hop * Math.PI) - 12 * hop : -12 - 4 * Math.sin(((el - 520) / 1400) * Math.PI * 2);
+      }
+      const shs = 1 + lift / 120;
+      ctx.save(); ctx.globalAlpha = 0.28 * shs; ctx.fillStyle = "#1B2A2A";
+      ctx.beginPath(); ctx.ellipse(pos.x + 2, pos.y + 32, 15 * shs, 4.5 * shs, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      pos = { x: pos.x, y: pos.y + lift };
     }
     const k = this.pieceScale;
     ctx.save();

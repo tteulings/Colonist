@@ -35,6 +35,7 @@
   --ripple-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='150'%3E%3Cpath d='M20,30 q7,-8 14,0 q7,8 14,0' fill='none' stroke='%23FFF9EE' stroke-width='2.4' stroke-linecap='round'/%3E%3Cpath d='M138,104 q6,-7 12,0 q6,7 12,0' fill='none' stroke='%23FFF9EE' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
   --shimmer-a: .4;
   --fan-bg: linear-gradient(rgba(46,159,172,0), rgba(46,159,172,.0));
+  --fan-solid: #2E9FAC; --slot-bg: #BFE0E3;
   --scrim: rgba(28,26,25,.45); --spot: rgba(28,26,25,.5); --home-ind: #1C1A19;
   --btn: var(--c-paper); --btn-image: none; --btn-ink: #1C1A19; --btn-border: 1.5px solid #1C1A19; --btn-shadow: none; --btn-radius: 12px;
   --btn-on: var(--c-pink); --btn-on-ink: #1C1A19; --btn-on-border: 2px solid #D9412B; --btn-on-shadow: none;

@@ -26,6 +26,7 @@
   --ripple-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='90'%3E%3Cpath d='M14,24 q12,-5 24,0' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round'/%3E%3Cpath d='M96,66 q10,-4 20,0' fill='none' stroke='%23fff' stroke-opacity='.7' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
   --shimmer-a: .16;
   --fan-bg: linear-gradient(rgba(247,242,232,0), rgba(247,242,232,.92) 58%);
+  --fan-solid: rgb(247,242,232); --slot-bg: #EEF0EA;
   --scrim: rgba(24,40,42,.42); --spot: rgba(18,30,32,.55); --home-ind: #22302F;
   --btn: #FFFFFF; --btn-image: none; --btn-ink: #2E3A3D; --btn-border: 1px solid #D9CEB6; --btn-shadow: 0 1px 2px rgba(60,50,30,.08); --btn-radius: 10px;
   --btn-on: #FCEBE3; --btn-on-ink: #A84E2F; --btn-on-border: 1.5px solid #D9714E; --btn-on-shadow: 0 0 0 3px rgba(217,113,78,.16);

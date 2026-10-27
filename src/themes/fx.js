@@ -60,8 +60,9 @@ export class Fx {
   /** Plays the dice landing on (d1, d2). Returns the time (ms) after which the result should apply. */
   diceRoll(d1, d2) {
     const br = this.boardRect();
-    const size = Math.max(46, Math.min(64, br.width * 0.07));
-    const ex = br.left + br.width / 2 - size, ey = br.top + br.height * 0.42;
+    // v0.81: smaller and shorter, landing high on the board (not over its centre for 2–3 s)
+    const size = Math.max(34, Math.min(50, br.width * 0.05));
+    const ex = br.left + br.width / 2 - size, ey = br.top + Math.min(br.height * 0.14, 90);
     const dice = [d1, d2].map((fin, i) => {
       const el = this.actor(`<div class="die3">${[1, 2, 3, 4, 5, 6].map((n) => `<div class="face" data-n="${n}">${dieSvg(n)}</div>`).join("")}</div>`, 0, 0, size, "fx-die");
       el.style.height = `${size}px`;
@@ -75,20 +76,20 @@ export class Fx {
         kf.push({ transform: `translate(${px + 10}px,${ty - hy}px) rotate(${-20 + b * 20}deg) scale(1)`, offset: p + 0.2 / M.bounces, easing: M.fall });
       }
       kf.push({ transform: `translate(${tx}px,${ty}px) rotate(${i ? 6 : -4}deg) scale(1)`, offset: 1 });
-      this.A(el, kf, { duration: 1000, delay: i * 70 });
+      this.A(el, kf, { duration: 760, delay: i * 60 });
       el.querySelectorAll(".face").forEach((fc, n) => {
         if (this.reduced) { fc.style.opacity = n + 1 === fin ? 1 : 0; return; }
-        this.A(fc, Array.from({ length: 9 }, (_, s) => ({ opacity: s === 8 ? +(n + 1 === fin) : +((n + s * (i + 2)) % 6 === 0), offset: s / 8, easing: "steps(1,end)" })), { duration: 900, delay: i * 70 });
+        this.A(fc, Array.from({ length: 9 }, (_, s) => ({ opacity: s === 8 ? +(n + 1 === fin) : +((n + s * (i + 2)) % 6 === 0), offset: s / 8, easing: "steps(1,end)" })), { duration: 680, delay: i * 60 });
       });
       return el;
     });
     const sum = this.actor(`<span>${d1 + d2}</span>`, ex + size * 2.4, ey - size * 0.15, size * 0.95, "fx-sum");
-    this.A(sum, [{ opacity: 0, transform: "scale(.3)" }, { opacity: 1, transform: "scale(1)" }], { duration: 400, delay: 1050, easing: this.M.pop });
+    this.A(sum, [{ opacity: 0, transform: "scale(.3)" }, { opacity: 1, transform: "scale(1)" }], { duration: 300, delay: 780, easing: this.M.pop });
     const all = [...dice, sum];
-    const out = 1500;
+    const out = 1150;
     window.setTimeout(() => all.forEach((e) => this.A(e, [{ opacity: 1 }, { opacity: 0 }], { duration: 260 })), out * (this.reduced ? 0.3 : this.M.k));
     this.later(all, out + 320);
-    return this.reduced ? 380 : 1150 * this.M.k;
+    return this.reduced ? 380 : 880 * this.M.k;
   }
 
   // ── resources fly tile → hand (+n) ──────────────────────────────────────
@@ -282,15 +283,8 @@ export class Fx {
   spotlight(pid) {
     const g = this.game;
     const anchor = g.playerAnchor(pid);
-    const r = rect(anchor);
-    if (r && g.isMobileLayout && !g.players[pid].isHuman) {
-      const c = center(r);
-      const el = this.actor("", 0, 0, 0, "fx-spot");
-      el.style.setProperty("--sx", `${c.x}px`);
-      el.style.setProperty("--sy", `${c.y}px`);
-      this.A(el, [{ opacity: 0 }, { opacity: 1, offset: 0.3 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { duration: 1300, easing: this.M.out });
-      this.later([el], 1350);
-    }
+    // v0.81: no full-screen dim any more ("heavy fade between turns"): the board and your hand stay
+    // fully visible while the bots play; the new player's chip pops and the banner slides in instead.
     if (anchor) this.A(anchor, [{ transform: "scale(1)" }, { transform: "scale(1.06)", offset: 0.6 }, { transform: "scale(1)" }], { duration: 600, delay: 200, easing: this.M.pop, fill: "none" });
     const banner = document.getElementById("turnBanner");
     if (banner && banner.offsetParent) this.A(banner, [{ transform: "translateY(-12px)", opacity: 0 }, { transform: "translateY(0)", opacity: 1 }], { duration: 600, easing: this.M.pop, fill: "none" });
