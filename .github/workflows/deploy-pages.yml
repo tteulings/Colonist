@@ -52,7 +52,7 @@ jobs:
         run: |
           rm -rf _site
           mkdir -p _site
-          cp index.html styles.css sw.js manifest.webmanifest _site/
+          cp index.html lab.html styles.css sw.js manifest.webmanifest _site/
           cp -R src assets themes _site/
 
       - name: Upload static artifact

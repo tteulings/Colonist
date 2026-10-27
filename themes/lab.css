@@ -1,0 +1,61 @@
+/* AI Lab (lab.html). Colours, fonts and radii come from the active theme's tokens, like the game. */
+html, body.lab { height: auto; min-height: 100%; }
+body.lab { overflow: auto; margin: 0; font-family: var(--font-body); color: var(--ink); background: var(--bg); background-image: var(--bg-image); font-size: 13px; }
+.lab button { font: inherit; color: inherit; cursor: pointer; }
+.lb-top { position: sticky; top: 0; z-index: 3; display: flex; align-items: baseline; gap: 10px; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top));
+  background: var(--chrome); background-image: var(--chrome-image); border-bottom: var(--chrome-border); }
+.lb-top h1 { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 19px; margin: 0; color: var(--heading, var(--ink)); }
+.lb-sub { color: var(--ink-soft); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.lb-back { color: var(--brand-ink, var(--accent)); font-weight: 700; text-decoration: none; white-space: nowrap; }
+.lb-main { display: grid; gap: 10px; padding: 10px 8px 24px; max-width: 1180px; margin: 0 auto; box-sizing: border-box; }
+.lb-board { position: relative; height: min(56vh, 380px); border-radius: var(--panel-radius, 14px); overflow: hidden; background: var(--sea-bg); background-image: var(--sea-image); border: var(--panel-border); }
+.lb-board iframe { width: 100%; height: 100%; border: 0; display: block; }
+.lb-busy { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--float); border: var(--float-border); border-radius: 12px; padding: 8px 14px; font-weight: 650; box-shadow: var(--float-shadow); }
+.lb-tools { display: grid; gap: 6px; margin-top: 8px; }
+.lb-seats { display: flex; gap: 5px; flex-wrap: wrap; }
+.lb-seats button { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 6px; border-radius: 999px; background: var(--chip); border: var(--chip-border); font-size: 12px; font-weight: 650; min-height: 30px; }
+.lb-seats button i { width: 12px; height: 12px; border-radius: 50%; background: var(--seat); }
+.lb-seats button.on { box-shadow: 0 0 0 2px var(--seat); }
+.lb-card { background: var(--panel); background-image: var(--panel-image); border: var(--panel-border); border-radius: var(--panel-radius, 14px); box-shadow: var(--panel-shadow); padding: 10px; display: grid; gap: 7px; }
+.lb-col { display: grid; gap: 10px; align-content: start; }
+.lb-row { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 6px; align-items: center; }
+.lb-row > span { color: var(--ink-soft); font-weight: 650; font-size: 12px; }
+.lb-seg { display: flex; flex-wrap: wrap; gap: 2px; background: var(--sep, rgba(0,0,0,.06)); border-radius: 10px; padding: 2px; }
+.lb-seg button { flex: 1 1 0; min-width: 0; border: 0; background: none; border-radius: 8px; padding: 6px 2px; min-height: 32px; font-size: 12px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-seg button.on { background: var(--btn); color: var(--ink); font-weight: 750; box-shadow: var(--btn-shadow), 0 0 0 1px rgba(0,0,0,.04); }
+.lb-seg button:disabled { opacity: .45; cursor: default; }
+#labPreset button { flex: 1 1 30%; }
+.lb-toolseg button { font-size: 11.5px; }
+.lb-dim .lb-seg button { font-size: 11.5px; }
+.lb-seedrow input { font: inherit; padding: 6px 8px; border-radius: 8px; border: var(--btn-border); background: var(--btn); color: var(--ink); width: 110px; }
+.lb-btn { border: var(--btn-border); background: var(--btn); color: var(--ink); border-radius: var(--btn-radius, 10px); min-height: 40px; font-weight: 700; }
+.lb-btn.primary { background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); border: var(--primary-border); box-shadow: var(--primary-shadow); font-family: var(--font-display); font-size: 16px; min-height: 46px; }
+.lb-result { min-height: 112px; }
+.lb-rhead { display: flex; align-items: center; gap: 7px; margin: 2px 0 4px; }
+.lb-rhead b { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.lb-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.lb-sc { font-family: var(--font-display); font-weight: 750; font-size: 18px; font-variant-numeric: tabular-nums; cursor: help; }
+.lb-bars { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.lb-d { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 6px; gap: 2px; min-width: 0; }
+.lb-d.zero { opacity: .55; }
+.lb-d .l { grid-column: 1 / -1; font-size: 10px; font-weight: 650; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-d .bar { height: 6px; border-radius: 3px; background: var(--sep, rgba(0,0,0,.08)); position: relative; overflow: hidden; align-self: center; }
+.lb-d .bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; opacity: .85; }
+.lb-d .bar.neg i { background: repeating-linear-gradient(135deg, var(--ink-faint, #888) 0 3px, transparent 3px 5px); opacity: .6; }
+.lb-d .v { font-size: 10.5px; font-weight: 700; line-height: 6px; font-variant-numeric: tabular-nums; padding-left: 2px; }
+.lb-note { margin: 6px 0 0; color: var(--ink-soft); font-size: 12px; }
+.lb-alts { display: flex; gap: 5px; margin-top: 6px; }
+.lb-alts span { flex: 1 1 0; min-width: 0; background: var(--chip); border: var(--chip-border); border-radius: 8px; padding: 3px 6px; color: var(--ink-soft); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-alts b { color: var(--ink); }
+.lb-ci { display: grid; gap: 6px; }
+.lb-cit small { color: var(--ink-soft); display: block; font-size: 11px; margin-top: 1px; }
+.lb-cibar { position: relative; height: 12px; border-radius: 6px; background: var(--sep, rgba(0,0,0,.08)); }
+.lb-cibar i { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: var(--accent); opacity: .3; width: 0; }
+.lb-cibar u { position: absolute; top: -3px; bottom: -3px; width: 1.5px; background: var(--ink-faint, #888); }
+.lb-cibar em { position: absolute; top: -3px; bottom: -3px; width: 3px; border-radius: 2px; background: var(--accent); }
+.lb-cibar:not(.on) i, .lb-cibar:not(.on) em { display: none; }
+@media (min-width: 900px) {
+  .lb-main { grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr); align-items: start; padding: 16px; }
+  .lb-boardcol { position: sticky; top: 64px; }
+  .lb-board { height: min(72vh, 640px); }
+}
