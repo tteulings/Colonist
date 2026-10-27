@@ -33,6 +33,7 @@
   --sea-image: radial-gradient(ellipse 90% 70% at 32% 26%, rgba(255,222,170,.20), rgba(255,222,170,0) 60%, rgba(24,12,4,.30) 100%), var(--oak-tex);
   --ripple-image: none; --shimmer-a: 0;
   --fan-bg: linear-gradient(rgba(40,25,14,0), rgba(40,25,14,.5) 70%);
+  --fan-solid: rgb(52,34,20); --slot-bg: #CDBFA8;
   --scrim: rgba(24,15,8,.5); --spot: rgba(24,15,8,.55); --home-ind: #F3EBDA;
   --btn: #FDF9F0; --btn-image: none; --btn-ink: #2A241E; --btn-border: 1px solid #CDBD9E; --btn-shadow: 0 1px 0 #C9B896; --btn-radius: 8px;
   --btn-on: #E8F0EA; --btn-on-ink: #1F4A39; --btn-on-border: 1.5px solid #2E6650; --btn-on-shadow: 0 0 0 3px rgba(46,102,80,.16);

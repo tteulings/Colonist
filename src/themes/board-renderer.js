@@ -8,10 +8,12 @@
 //    or placement pulse is running: one drawImage of the board layer + pieces drawn as Path2D.
 //  * Pieces / robber / hints are vector specs (Path2D) — crisp at any zoom, nothing to bake.
 //  * The sea is a CSS layer behind the (transparent) canvas, so idle water costs no canvas work.
-import { hexPath, pipCount, f, harbourBadges, harbourScale } from "./art-util.js";
+import { hexPath, pipCount, f, harbourBadges, harbourScale, pierTick, drawPierTick } from "./art-util.js";
 import { motionReduced } from "./manager.js";
 // ⚓ Seafarers drawing (only used while game.sea is set)
 import { seaArt, portLandHex, bakeSeaMarks, drawShips, drawPirateAndChips, drawShipSpots, ghostShip, ghostPirate } from "../seafarers/render.js";
+/** v0.82: the free gap (art units, per road end) between a road's rounded cap and its node. */
+const ROAD_JOINT = 4;
 
 const path2d = new Map();
 const P2D = (d) => {
@@ -262,8 +264,9 @@ export class SvgBoardRenderer {
     // 2. harbours, each in a box around its piers + badge
     for (let i = 0; i < ports.length; i += 1) {
       const { a, b: bb, badge: q } = portData[i], M = 16, sh = q.ship || q;
-      const x0 = Math.min(a.x, bb.x, q.x - q.w / 2, sh.x - sh.w / 2) - M, x1 = Math.max(a.x, bb.x, q.x + q.w / 2, sh.x + sh.w / 2) + M;
-      const y0 = Math.min(a.y, bb.y, q.y - q.h / 2, sh.y - sh.h / 2) - M, y1 = Math.max(a.y, bb.y, q.y + q.h / 2, sh.y + sh.h / 2) + M;
+      const kx = q.piers.filter((p) => p[2]).map((p) => p[2][0]), ky = q.piers.filter((p) => p[2]).map((p) => p[2][1]); // v0.81: pier knees
+      const x0 = Math.min(a.x, bb.x, q.x - q.w / 2, sh.x - sh.w / 2, ...kx) - M, x1 = Math.max(a.x, bb.x, q.x + q.w / 2, sh.x + sh.w / 2, ...kx) + M;
+      const y0 = Math.min(a.y, bb.y, q.y - q.h / 2, sh.y - sh.h / 2, ...ky) - M, y1 = Math.max(a.y, bb.y, q.y + q.h / 2, sh.y + sh.h / 2, ...ky) + M;
       const pc = await rasterize(svgOf(x0, y0, x1 - x0, y1 - y0, k, ports[i].svg), (x1 - x0) * k, (y1 - y0) * k);
       if (gen !== this.bakeGen) return;
       ctx.drawImage(pc, ...at(x0, y0), (x1 - x0) * k, (y1 - y0) * k);
@@ -296,7 +299,9 @@ export class SvgBoardRenderer {
       ctx.font = `${l.weight || 700} ${l.size}px ${l.font || T.tokenStyle.labelFont}`;
       ctx.fillText(l.text, l.x, l.y);
     }));
-    this.layer = { canvas, ...b, k, key };
+    // v0.81: harbour-corner ticks are drawn live (drawHarbourTicks), so a corner with a piece on it shows none
+    const ticks = portData.flatMap((p, i) => p.piers.map((pr) => ({ ...pierTick(pr, p.s), ...(ports[i].tick || { fill: "#7E949B", line: "rgba(0,0,0,.5)" }) })));
+    this.layer = { canvas, ...b, k, key, ticks };
     const ms = performance.now() - t0;
     this.stats.bakes += 1;
     this.stats.bakeMs += ms;
@@ -380,16 +385,29 @@ export class SvgBoardRenderer {
     }
     this.detectChanges(now);
     this.anims = this.anims.filter((a) => now - a.start < a.dur);
-    // Placement: redraw only while the one-off pulse runs (and for the bobbing ✓ on desktop)
-    const pulsing = this.placementActive() && (now - (this._placeStart || 0) < 1300 || (g.confirmBuild && !g.isMobileLayout));
-    if (!this.dirty && !this.anims.length && !pulsing) return;
+    // Placement (v0.81): the legal spots breathe slowly while you place (~30 fps is plenty for that; reduced
+    // motion: a static ring, so only the one-off entrance and the bobbing ✓ on desktop redraw)
+    const placing = this.placementActive();
+    const pulsing = placing && (now - (this._placeStart || 0) < 1300 || (g.confirmBuild && !g.isMobileLayout) || !motionReduced());
+    // v0.81 robber mode: the lifted robber hovers and the legal tiles breathe until a tile is chosen
+    const robberWait = this.robberModeOn();
+    if (robberWait && this._robModeStart == null) this._robModeStart = now;
+    if (!robberWait) this._robModeStart = null;
+    if (!this.dirty && !this.anims.length && !(pulsing && now - (this._lastPulse || 0) > 30) && !(robberWait && !motionReduced())) return;
     this.dirty = false;
+    this._lastPulse = now;
     const t0 = performance.now();
     this.draw(now);
     const ms = performance.now() - t0;
     this.stats.frames += 1;
     this.stats.drawMs += ms;
     if (ms > this.stats.maxMs) this.stats.maxMs = ms;
+  }
+
+  /** The human must move the robber (or pirate) and has not picked a tile yet. */
+  robberModeOn() {
+    const g = this.game;
+    return !g.winner && g.pendingAction === "robber" && !!g.currentPlayer?.isHuman && g.confirmBuild?.type !== "robber" && !g.robberVictimOptions?.length;
   }
 
   placementActive() {
@@ -421,6 +439,10 @@ export class SvgBoardRenderer {
       this.drawFallbackBoard(ctx, devK);
     }
 
+    // 1b. harbour corners: a small accent tick where each pier meets the coast (under every piece and marker;
+    //     none on a corner that holds a settlement / city)
+    if (L?.ticks) L.ticks.forEach((t) => { if (!g.geometry.nodes[t.id]?.structure) drawPierTick(ctx, t, t.fill, t.line); });
+
     // 2. rolled number: calm outline on the producing tiles
     const glow = this.anims.find((a) => a.kind === "glow");
     if (glow) this.drawGlow(ctx, glow, now, reduced);
@@ -434,7 +456,11 @@ export class SvgBoardRenderer {
     } else this.dimHex(g.robberHexId, 1);
 
     // 4. robber-mode targets
-    if (g.pendingAction === "robber" && g.currentPlayer?.isHuman) this.drawRobberTargets(ctx);
+    // 4b. build / setup placement: the board dims a touch so the legal spots (drawn on top, step 8) pop
+    // (v0.82: before the robber's legal-tile outlines, so those stay at full strength)
+    if (this.placementActive()) this.dimForPlacement(ctx, now, reduced);
+    else this._dimFrom = null;
+    if (g.pendingAction === "robber" && g.currentPlayer?.isHuman) this.drawRobberTargets(ctx, now, reduced);
 
 
     // 5. roads
@@ -509,11 +535,11 @@ export class SvgBoardRenderer {
   }
 
   /**
-   * Robber mode, calm: tiles the robber may not go to are dimmed, candidate tiles carry no marks
-   * (who you could rob is listed in the robber sheet), and the chosen (or hovered) tile gets a white
-   * outline plus a ghost robber. Nothing pulses.
+   * Robber mode: tiles the robber may not go to are dimmed, every legal tile carries a soft outline that
+   * breathes slowly (static with reduced motion) until one is chosen, and the chosen (or hovered) tile
+   * gets a solid white outline plus a ghost robber.
    */
-  drawRobberTargets(ctx) {
+  drawRobberTargets(ctx, now = performance.now(), reduced = false) {
     const g = this.game, mover = g.currentPlayer;
     const legal = new Set(g._legalRobberHexes(mover).map((h) => h.id));
     const sel = g.confirmBuild?.type === "robber" ? g.confirmBuild.id : null;
@@ -522,10 +548,22 @@ export class SvgBoardRenderer {
       // ⚓ Seafarers: the sea is never dimmed (robber mode simply ignores it; pirate mode dims the land)
       if (!legal.has(h.id)) { if (h.id !== g.robberHexId && !(g.sea && h.resource === "sea")) this.dimHex(h.id, 1); return; }
       const c = this.hexArt(h);
+      // v0.82: no white rim on every legal tile (nearly all of them are legal: it read as heavy borders). The
+      // illegal tiles are dimmed (above); the legal ones only brighten very slightly on a slow beat, and the tile
+      // under the finger / mouse (or the picked one) gets a thin outline in soft ink. The hovering robber and the
+      // ticker prompt stay the main cue.
+      if (sel == null && h.id !== g.hoverHexId && h.id !== g.robberHexId && !(g.sea && h.id === g.sea.pirateHexId)) {
+        const t = ((now - (this._robModeStart ?? now)) / 2400) * Math.PI * 2;
+        const a = reduced ? 0.05 : 0.045 + 0.035 * Math.sin(t);
+        ctx.save(); ctx.translate(c.x, c.y);
+        ctx.fillStyle = `rgba(255,255,255,${a.toFixed(3)})`; ctx.fill(HEX_P(97));
+        ctx.restore();
+        return;
+      }
       if (h.id === sel || h.id === g.hoverHexId) {
         ctx.save(); ctx.translate(c.x, c.y);
-        ctx.lineWidth = Math.max(5, 3.5 * px); ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.lineJoin = "round";
-        ctx.stroke(HEX_P(91));
+        ctx.lineWidth = Math.max(2, 1.5 * px); ctx.strokeStyle = "rgba(20,32,36,.3)"; ctx.lineJoin = "round";
+        ctx.stroke(HEX_P(93));
         ctx.restore();
       }
     });
@@ -534,7 +572,7 @@ export class SvgBoardRenderer {
     else if (ghostAt != null) {
       const rp = this.robberPos(ghostAt);
       ctx.save(); ctx.translate(rp.x, rp.y + 32); ctx.scale(this.pieceScale, this.pieceScale); ctx.translate(0, -32);
-      drawSpec(ctx, this.theme.pieces.robber, { alpha: sel != null ? 0.75 : 0.5 });
+      drawSpec(ctx, this.theme.pieces.robber, sel != null ? { k: this.u * g.view.scale * g.pixelRatio, rim: this.theme.rim, rimW: this.theme.rimW ?? 5 } : { alpha: 0.5 });
       ctx.restore();
     }
   }
@@ -567,8 +605,8 @@ export class SvgBoardRenderer {
 
   pc(player) { return this.theme.pc[this.theme.seatKeys[player.id]] || this.theme.pc.blue; }
 
-  /** All built roads, node centre to node centre, layer by layer: a player's network reads as one
-   *  continuous line with rounded joints, and buildings (drawn after) sit on top of the ends. */
+  /** All built roads, layer by layer (v0.82: each segment inset from its nodes, so the pieces stay countable;
+   *  the joined paths are separate sub-paths that no longer touch), buildings drawn after sit on the nodes. */
   drawRoads(ctx, now, reduced) {
     const g = this.game;
     const segs = g.geometry.edges.filter((e) => e.owner != null && !e.ship).map((e) => this.roadSeg(e, g.players[e.owner], now, reduced)); // ⚓ ships drawn apart
@@ -582,8 +620,13 @@ export class SvgBoardRenderer {
     fading.forEach((s) => this.strokeRoad(ctx, s.a, s.b, s.c, s.alpha, true));
   }
 
+  /** v0.82 "two roads melt into one": every road is its own piece. Each segment stops short of its nodes by its
+   *  cap radius plus ROAD_JOINT art units, so its outline closes around both rounded ends and a small joint
+   *  (~2–3 px at fit on a phone, growing with zoom) shows at every node, also where two players' roads meet. */
+  roadInset() { return (this.theme.road.outer * (this.game.isMobileLayout ? 1.25 : 1.05)) / 2 + ROAD_JOINT; }
+
   roadSeg(edge, player, now, reduced) {
-    let [a, b] = this.roadEnds(edge, 0);
+    let [a, b] = this.roadEnds(edge, this.roadInset());
     const an = this.animFor("road", edge.id);
     let alpha = 1;
     if (an) {
@@ -650,7 +693,11 @@ export class SvgBoardRenderer {
 
   drawRobber(ctx, rob, t, reduced, devK) {
     const g = this.game, T = this.theme, M = T.motion;
+    const now = () => performance.now();
     if (g.robberHexId == null) return;
+    // v0.81: once you picked a tile the robber is shown THERE (one robber, not a ghost plus the old one)
+    if (!rob && g.pendingAction === "robber" && g.currentPlayer?.isHuman && g.confirmBuild?.type === "robber"
+      && !(g.sea && g.geometry.hexes[g.confirmBuild.id]?.resource === "sea")) return;
     let pos = this.robberPos(g.robberHexId), s = { sx: 1, sy: 1, rot: 0 }, sh = 1;
     if (rob && !reduced) {
       const a = this.robberPos(rob.from), b = this.robberPos(rob.to);
@@ -663,6 +710,20 @@ export class SvgBoardRenderer {
       ctx.beginPath(); ctx.ellipse(pos.x + 2, pos.y + 32, 16 * sh, 5 * sh, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       s = { sx: v.sx, sy: v.sy, rot: v.rot };
       pos = { x: pos.x, y: pos.y + v.lift };
+    } else if (this.robberModeOn() && !(g.sea && g.sea.thief === "pirate")) {
+      // v0.81: the robber lifts off its tile (a short hop) and hovers until it is placed — "move me".
+      // Reduced motion: no hop, no bob; it simply stands a little raised with a shadow under it.
+      const el = now() - (this._robModeStart ?? now());
+      let lift;
+      if (reduced) lift = -12;
+      else {
+        const hop = clamp01(el / 520);
+        lift = hop < 1 ? -26 * Math.sin(hop * Math.PI) - 12 * hop : -12 - 4 * Math.sin(((el - 520) / 1400) * Math.PI * 2);
+      }
+      const shs = 1 + lift / 120;
+      ctx.save(); ctx.globalAlpha = 0.28 * shs; ctx.fillStyle = "#1B2A2A";
+      ctx.beginPath(); ctx.ellipse(pos.x + 2, pos.y + 32, 15 * shs, 4.5 * shs, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      pos = { x: pos.x, y: pos.y + lift };
     }
     const k = this.pieceScale;
     ctx.save();
@@ -678,11 +739,16 @@ export class SvgBoardRenderer {
     return this.game._legalPlacementSpots() || { nodes: [], cities: [], edges: [], type: null };
   }
 
+  /** v0.81: while placing, every land tile gets a light wash of the theme's dim colour (fades in), so the
+   *  lit spots stand out. Pieces are drawn after it and stay at full strength. */
+  /** v0.82: no land dim while placing any more (the user found the v0.81 lit spots + dim far too strong). */
+  dimForPlacement() { this._dimFrom = null; }
+
   /**
-   * Legal spots only: calm white rings (~14 px) on nodes, dashed ghost segments on edges, a dashed
-   * ring around settlements that can become cities. When the spots appear they get ONE gentle pulse
-   * in the player's colour, then stay still (no looping glow, no flashing). Sizes are in screen pixels
-   * so they read the same at every zoom.
+   * Legal spots only, kept quiet (v0.82, much more subtle than v0.81): each corner is a thin soft ring (~1.5 px,
+   * white at ~55%) with a small dot in your colour, no halo; roads are thin faint dashes in your colour, no band.
+   * The only motion is a very slow, faint opacity drift (none with reduced motion). The tap targets are unchanged
+   * (hit-testing never looked at what is drawn here). Sizes are in screen pixels so they read the same at every zoom.
    */
   drawPlacement(ctx, now, reduced, devK) {
     const g = this.game;
@@ -694,45 +760,38 @@ export class SvgBoardRenderer {
     const c = this.pc(g.currentPlayer || human);
     const key = `${type}:${nodes.join(",")}:${cities.join(",")}:${edges.join(",")}:${ships.join(",")}`;
     if (key !== this._placeKey) { this._placeKey = key; this._placeStart = now; }
-    const t = reduced ? 1 : clamp01((now - this._placeStart) / 1100);
-    const e = easing(this.theme.motion.out)(t);
-    const pulseA = t < 1 ? 0.6 * (1 - t) : 0; // fades out once; nothing afterwards
-    const ink = "rgba(20,40,44,.32)";
-    const ring = (x, y, r) => {
-      ctx.save(); ctx.translate(x, y);
-      if (pulseA > 0) {
-        ctx.beginPath(); ctx.arc(0, 0, r + 10 * e * px, 0, Math.PI * 2);
-        ctx.globalAlpha = pulseA; ctx.lineWidth = 3 * px; ctx.strokeStyle = c.base; ctx.stroke(); ctx.globalAlpha = 1;
-      }
-      ctx.beginPath(); ctx.arc(0, 0, r + 1.6 * px, 0, Math.PI * 2); ctx.lineWidth = 1.4 * px; ctx.strokeStyle = ink; ctx.stroke();
-      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,.24)"; ctx.fill();
-      ctx.lineWidth = 2.6 * px; ctx.strokeStyle = "#FFFFFF"; ctx.stroke();
+    const t = reduced ? 1 : clamp01((now - this._placeStart) / 500);
+    const e = easing(this.theme.motion.out)(t); // entrance: the spots fade in once
+    // very slow, faint drift 0..1 (reduced motion: held)
+    const br = reduced ? 0.5 : 0.5 - 0.5 * Math.cos(((now - this._placeStart) / 3600) * Math.PI * 2);
+    const fade = e * (0.82 + 0.18 * br);
+    // set-up (most corners legal): quieter dots, ~50% opacity at ~70% size, so the board doesn't turn busy
+    const busy = nodes.length + cities.length > 20 ? [0.5, 0.7] : [1, 1];
+    const ring = (x, y, r, dot) => {
+      ctx.save(); ctx.translate(x, y); ctx.globalAlpha = fade;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.lineWidth = 1.5 * px; ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.stroke();
+      if (dot) { ctx.globalAlpha = fade * busy[0]; ctx.beginPath(); ctx.arc(0, 0, 3 * busy[1] * px, 0, Math.PI * 2); ctx.fillStyle = c.base; ctx.fill(); ctx.lineWidth = 0.8 * px; ctx.strokeStyle = c.line || c.dark || "rgba(0,0,0,.4)"; ctx.stroke(); }
       ctx.restore();
     };
     edges.forEach((id) => {
       if (cb && cb.type === "road" && cb.id === id) return;
       const [a, b] = this.roadEnds(g.geometry.edges[id]);
-      ctx.save(); ctx.lineCap = "round";
-      if (pulseA > 0) {
-        ctx.globalAlpha = pulseA * 0.8; ctx.lineWidth = (5 + 8 * e) * px; ctx.strokeStyle = c.base;
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.globalAlpha = 1;
-      }
-      ctx.setLineDash([6 * px, 5 * px]);
+      ctx.save(); ctx.lineCap = "round"; ctx.globalAlpha = 0.75 * fade;
+      ctx.setLineDash([4 * px, 5 * px]);
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-      ctx.lineWidth = 6 * px; ctx.strokeStyle = ink; ctx.stroke();
-      ctx.lineWidth = 3.6 * px; ctx.strokeStyle = "rgba(255,255,255,.96)"; ctx.stroke();
+      ctx.lineWidth = 2.5 * px; ctx.strokeStyle = c.base; ctx.stroke();
       ctx.restore();
     });
-    if (ships.length) drawShipSpots(this, ctx, ships, cb, { a: pulseA, e }, c.base); // ⚓ dotted spots on the water
+    if (ships.length) drawShipSpots(this, ctx, ships, cb, { a: 0.4 * fade, e: 0.5 }, c.base); // ⚓ dotted spots on the water
     nodes.forEach((id) => {
       if (cb && cb.id === id && !["road", "ship"].includes(cb.type)) return;
       const p = this.nodeArt(id);
-      ring(p.x, p.y, 7 * px);
+      ring(p.x, p.y, 7 * px, true);
     });
     cities.forEach((id) => {
       if (cb && cb.id === id && cb.type !== "road") return;
       const p = this.nodeArt(id);
-      ring(p.x, p.y - 4, 30); // around the settlement itself
+      ring(p.x, p.y - 4, 30, false); // around the settlement itself
     });
     // hover preview (desktop) — a fainter ghost
     const hoverNode = g.hoverNodeId != null && (!cb || cb.id !== g.hoverNodeId) && (nodes.includes(g.hoverNodeId) || cities.includes(g.hoverNodeId)) ? g.hoverNodeId : null;

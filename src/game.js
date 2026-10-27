@@ -2,7 +2,7 @@ import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMoti
 import { SvgBoardRenderer, drawSpec } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
-import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted } from "./themes/art-util.js";
+import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted, pierTick, drawPierTick } from "./themes/art-util.js";
 import { Onboarding, introSeen } from "./themes/onboarding.js";
 import { Home, GameMenu } from "./themes/home.js";
 import { SoundEngine } from "./sound.js";
@@ -11,6 +11,7 @@ import { SixUiMixin } from "./six-ui.js";
 import { HotseatMixin } from "./hotseat.js";
 import { StatsMixin, installStats } from "./stats.js"; // end-of-game statistics: the recorder
 import { StatsUiMixin } from "./stats-ui.js"; // … the stats screen, heatmaps and the replay
+import { LiveStatsMixin, installLiveStats } from "./live-stats.js"; // … and the same cards during the game
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
@@ -935,6 +936,7 @@ class ColonistFullGame {
       onSettings: () => this.settingsUI.open("game"),
       onIntro: () => this.onboarding.showIntro(0, false),
       onAbout: () => this.settingsUI.open("about"),
+      onStats: () => this.liveStatsOpen(),
     });
     // Every launch opens on the home screen. A saved game is restored behind it but held (no bots,
     // no Rush clock, nothing saved) until Continue; without one a fresh board waits behind it.
@@ -1936,6 +1938,8 @@ class ColonistFullGame {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
     if (this._seaHumanBlocked()) return; // ⚓ pick your gold first
+    // v0.81: the compact trade sheet leaves the board visible (pinch / pan to look) — a tap there builds nothing
+    if (this.isMobileLayout && this.tradeModal && this.tradeModal.style.display !== "none") return;
     // Robber placement is allowed before rolling (Knight); everything else needs the main phase
     const robberMode = this.pendingAction === "robber";
     if (!this._buildPhase() && !(robberMode && (this.phase === "pre_roll" || this.phase === "seven"))) return;
@@ -2356,8 +2360,12 @@ class ColonistFullGame {
       const now = event.timeStamp;
       // While placing (setup, build/robber mode, or a ✓ is showing) a quick second tap is a
       // selection/confirmation, never a double-tap zoom
-      const placing = !!(this.setupPhase || this.pendingAction || this.confirmBuild || this.robberVictimOptions?.length > 0);
-      if (!placing && now - ts.lastTapTime < 320 && Math.hypot(p.x - ts.lastTapX, p.y - ts.lastTapY) < 36) {
+      const placing = !!(this.setupPhase || this.pendingAction || this.confirmBuild || this.robberVictimOptions?.length > 0
+        || this.pendingDiscard || this.devPick || this.pendingIncomingTrade || this.tradeModal?.style.display !== "none");
+      // v0.81: taps that fall between the hand's cards (the fan lies over the board) never zoom the board
+      const fanTop = this.isMobileLayout ? this.resourceCardStrip?.getBoundingClientRect().top : null;
+      const inFan = fanTop != null && fanTop > 0 && touch.clientY >= fanTop - 8;
+      if (!placing && !inFan && now - ts.lastTapTime < 320 && Math.hypot(p.x - ts.lastTapX, p.y - ts.lastTapY) < 36) {
         ts.lastTapTime = 0;
         this.handleDoubleTapZoom(touch.clientX, touch.clientY);
         return;
@@ -2479,6 +2487,9 @@ class ColonistFullGame {
   _viewChanged() {
     if (this.boardRenderer) this.boardRenderer.requestDraw();
     else this._classicDirty = true;
+    // zoomed in, the board runs under the hand: the fan gets a solid backdrop (nothing shows through the cards)
+    const zoomed = !!(this._fitScale && this.view.scale > this._fitScale * 1.05);
+    if (zoomed !== this._zoomedCls) { this._zoomedCls = zoomed; this.app?.classList.toggle("board-zoomed", zoomed); }
   }
 
   /** While the view moves, the SVG renderer reuses its cached layer (scaled) and re-bakes afterwards. */
@@ -3040,6 +3051,7 @@ class ColonistFullGame {
       this.pendingAction = "robber";
       if (this.sea) { this.sea.thief = null; this.sea.moveSel = null; } // ⚓ robber or pirate: chosen in the dock or by the tapped hex
       this.addLog(this.sea ? "Move the robber (land) or the pirate (sea)." : "Move the robber — tap a tile.");
+      this.sfx.robberPrompt();
       this.render();
       return;
     }
@@ -3421,7 +3433,10 @@ class ColonistFullGame {
     const mine = side === "give" ? this.tradeOffer : this.tradeRequest;
     const other = side === "give" ? this.tradeRequest : this.tradeOffer;
     const max = side === "give" ? player.resources[r] : this.bankSize || BANK_SIZE;
-    if (d > 0 && mine[r] >= max) {
+    if (d > 0 && mine[r] >= max && mine[r] > 0 && this._tradeTapToggle) {
+      // v0.81: a tap on a card that can take no more puts one back (the "−" on its chip does too)
+      d = -1;
+    } else if (d > 0 && mine[r] >= max) {
       this._tradeHint(side === "give" ? `You have ${player.resources[r]} ${RESOURCE_LABEL[r]}.` : "");
       this.sfx.error?.();
       return;
@@ -3450,18 +3465,23 @@ class ColonistFullGame {
     const picks = side === "give" ? this.tradeOffer : this.tradeRequest;
     // ratio tags only where a 2:1 harbour beats your usual rate (4:1, or 3:1 with a 3:1 harbour)
     const baseRate = Math.max(...RESOURCES.map((r) => this.getPlayerTradeRate(player, r)).filter((x) => x > 2), 3);
+    // v0.81: mini versions of the hand's own cards (same art, same tone-on-tone numeral / stack edges):
+    // give shows what you hold, get shows what the bank still has (an empty bank pile is struck through).
     container.innerHTML = RESOURCES.map((r) => {
       const n = picks[r] || 0;
       const have = player.resources[r];
       const name = RESOURCE_LABEL[r];
+      const stock = this.bank[r];
       const usable = side === "give" ? have > 0 : true;
+      const out = side === "get" && stock <= 0;
       const rate = this.getPlayerTradeRate(player, r);
+      const num = side === "give" ? have - n : stock;
       const sub = side === "give" ? (n ? `<span class="aft">${have - n} left</span>` : `have ${have}`)
-        : this.bank[r] > 0 ? name : "bank empty";
-      const label = side === "give" ? `Give one more ${name} (you have ${have}${n ? `, giving ${n}` : ""})` : `Get one more ${name}${n ? ` (asking ${n})` : ""}`;
-      return `<div class="tcell ${r}${n ? " pick" : ""}${usable ? "" : " none"}" data-hand="${side === "give" ? r : ""}" data-res="${r}">
-        <button type="button" class="tpick" data-${side}="${r}" aria-label="${label}" ${usable ? "" : "aria-disabled=\"true\""}>${side === "give" && rate < baseRate ? `<span class="rate-tag port">${rate}:1</span>` : ""}${icon(r)}${n ? `<b class="tbadge">${n}</b>` : ""}<small>${sub}</small></button>
-        <button type="button" class="tminus" data-${side}-minus="${r}" aria-label="${side === "give" ? "Give" : "Get"} one ${name} less" ${n ? "" : "tabindex=\"-1\" aria-hidden=\"true\""}>${icon("minus")}</button>
+        : stock > 0 ? `bank ${stock}` : "bank empty";
+      const label = side === "give" ? `Give one more ${name} (you have ${have}${n ? `, giving ${n}` : ""})` : `Get one more ${name}${n ? ` (asking ${n})` : ""} · bank has ${stock}`;
+      return `<div class="tcell ${r}${n ? " pick" : ""}${usable ? "" : " none"}${out ? " out" : ""}" data-hand="${side === "give" ? r : ""}" data-res="${r}">
+        <button type="button" class="tpick" data-${side}="${r}" aria-label="${label}" ${usable ? "" : "aria-disabled=\"true\""}>${side === "give" && rate < baseRate ? `<span class="rate-tag port">${rate}:1</span>` : ""}<span class="tcard card" data-card="${r}" data-n="${Math.max(1, Math.min(num, 4))}">${cardSvg(r)}<span class="tnum">${num}</span></span><small>${sub}</small></button>
+        ${n ? `<b class="tbadge">${n}</b>` : ""}<button type="button" class="tminus" data-${side}-minus="${r}" aria-label="${side === "give" ? "Give" : "Get"} one ${name} less" ${n ? "" : "tabindex=\"-1\" aria-hidden=\"true\""}>${icon("minus")}</button>
       </div>`;
     }).join("");
     container.querySelectorAll("button").forEach((b) => {
@@ -3470,7 +3490,8 @@ class ColonistFullGame {
       b.addEventListener("click", () => {
         if (k.endsWith("Minus")) { if (picks[r] > 0) this._tradePick(side, r, -1); return; }
         if (side === "give" && player.resources[r] < 1) { this._tradeHint(`You have no ${RESOURCE_LABEL[r]}.`); return; }
-        this._tradePick(side, r, 1);
+        this._tradeTapToggle = true;
+        try { this._tradePick(side, r, 1); } finally { this._tradeTapToggle = false; }
       });
     });
   }
@@ -3486,13 +3507,13 @@ class ColonistFullGame {
     row.innerHTML = others.map((p) => {
       // pass & play: another person is asked directly (the phone goes to them)
       if (this.hotseat && p.isHuman) return `<button type="button" class="tp ask pc-${p.id}" data-ask="${p.id}" ${picked ? "" : "aria-disabled=\"true\""} aria-label="Ask ${p.name}">
-        <span class="tp-av">${this._av(p)}</span><span class="who pc-${p.id}">${p.name}</span><em class="tp-go">Ask</em></button>`;
+        <span class="tp-av">${this._av(p)}</span><span class="who pc-${p.id}">${p.name}</span><span class="tp-n" title="${sumResources(p.resources)} cards in hand">${icon("cards")}${sumResources(p.resources)}</span><em class="tp-go">Ask</em></button>`;
       const v = this._tradeVerdict(p.id);
       const badge = v === "yes" ? icon("check") : v === "no" ? icon("close") : v === "counter" ? icon("trade") : "";
       const word = v === "yes" ? "accepts · tap to trade" : v === "no" ? "declines" : v === "counter" ? "counter-offer" : "";
       return `<button type="button" class="tp pc-${p.id}${v ? ` ${v}` : ""}" data-partner="${p.id}" ${v === "yes" ? "" : "aria-disabled=\"true\""} aria-label="${p.name}${word ? `: ${word}` : ""}">
         <span class="tp-av">${this._av(p)}${badge ? `<i class="tp-st ${v}">${badge}</i>` : ""}</span>
-        <span class="who pc-${p.id}">${p.name}</span>${v === "yes" ? '<em class="tp-go">Trade</em>' : ""}
+        <span class="who pc-${p.id}">${p.name}</span><span class="tp-n" title="${sumResources(p.resources)} cards in hand">${icon("cards")}${sumResources(p.resources)}</span>${v === "yes" ? '<em class="tp-go">Trade</em>' : ""}
       </button>`;
     }).join("");
     row.querySelectorAll("button.tp.ask").forEach((b) => b.addEventListener("click", () => {
@@ -3739,15 +3760,8 @@ class ColonistFullGame {
     // Nobody says yes: one bot may come back with a counter-offer
     const counter = acceptors.length ? null : this._generateCounterOffer(player, offer, request);
     if (!acceptors.length) this.addLog(counter ? `${counter.player.name} made a counter-offer.` : "All players rejected your trade offer.");
-    // Exactly one bot says yes: the trade you asked for happens right away (nothing left to choose)
-    if (acceptors.length === 1) {
-      this._tradeAnswers = { offer, request, responses, counter: null, turnSerial: this.turnSerial };
-      this._dropUndo();
-      this._executePlayerTrade(acceptors[0], offer, request);
-      this.closeTradeModal();
-      this.render();
-      return;
-    }
+    // v0.82: never trade on the Offer tap, also when exactly one bot says yes — its ✓ / Trade on the portrait waits
+    // for your one tap (the sheet stays open until then)
     this._tradeAnswers = { offer, request, responses, counter, turnSerial: this.turnSerial };
     this._tradeAsked = JSON.stringify([offer, request]);
     const res = this.tradeProposalResult;
@@ -3776,7 +3790,7 @@ class ColonistFullGame {
   /** "1 [Grain] Grain (have 1)" chips for an offer side. */
   _offerSide(cards, mine = null) {
     return RESOURCES.filter((r) => cards[r] > 0).map((r) =>
-      `<span class="oc ${r}"><b>${cards[r]}</b>${icon(r)}<span class="on">${RESOURCE_LABEL[r]}</span>${mine ? ` <small class="${mine.resources[r] >= cards[r] ? "" : "short"}">(have ${mine.resources[r]})</small>` : ""}</span>`).join('<span class="plus">+</span>');
+      `<span class="oc ${r}"><b>${cards[r]}</b><span class="ocard card" data-card="${r}">${cardSvg(r)}</span><span class="on">${RESOURCE_LABEL[r]}</span>${mine ? ` <small class="${mine.resources[r] >= cards[r] ? "" : "short"}">(have ${mine.resources[r]})</small>` : ""}</span>`).join('<span class="plus">+</span>');
   }
 
   // ── AI Trade Evaluation ─────────────────────────────────────────────
@@ -6124,7 +6138,8 @@ class ColonistFullGame {
     this._lastOffersKey = key;
     const n = (res) => RESOURCES.filter((r) => res[r] > 0);
     // "1 [Lumber] Lumber": count, a 26 px icon and the name
-    const side = (res) => n(res).map((r) => `<span class="oc ${r}"><b>${res[r]}</b>${icon(r)}<span class="on">${RESOURCE_LABEL[r]}</span></span>`).join('<span class="plus">+</span>');
+    // v0.81: the hand's own card art in miniature (not the flat square icons)
+    const side = (res) => n(res).map((r) => `<span class="oc ${r}"><b>${res[r]}</b><span class="ocard card" data-card="${r}">${cardSvg(r)}</span><span class="on">${RESOURCE_LABEL[r]}</span></span>`).join('<span class="plus">+</span>');
     const words = (res) => n(res).map((r) => `${res[r]} ${RESOURCE_LABEL[r]}`).join(" + ");
     el.dataset.more = offers.length > 1 ? `+${offers.length - 1}` : "";
     el.innerHTML = offers.map((o) => {
@@ -7044,7 +7059,8 @@ class ColonistFullGame {
 
   /** Classic harbours (v0.78): the same pill as the themed boards (harbourBadges) — the resource glyph (the card
    *  icon without its coloured tile, so a brick harbour never reads as a red player) beside the ratio in bold, or
-   *  just "3:1"; two piers to the coast corners, a dot on each corner. */
+   *  just "3:1"; two piers to the coast corners, each ending in a small accent tick (v0.81: no dots; none on a corner
+   *  that holds a piece). */
   drawPorts() {
     const ctx = this.ctx, g = this.geometry, u = g.hexSize / 100, s = harbourScale(this);
     const portColor = { wood: "#4a7c3f", brick: "#b5532e", sheep: "#5f9a36", wheat: "#b8931f", ore: "#6a7588", any: "#3d5f72" };
@@ -7067,16 +7083,19 @@ class ColonistFullGame {
       const P = (x, y) => [bx + (x - q.x) * u, by + (y - q.y) * u];
       const color = portColor[port.type] || portColor.any;
       const W2 = (p) => ({ x: g.centerX + p.x * u, y: g.centerY + p.y * u });
-      const pairs = q.piers.map(([n, e]) => [W2(n), P(e[0], e[1])]);
-      const p1 = W2(q.a), p2 = W2(q.b);
+      const pairs = q.piers.map(([n, e, kn]) => [W2(n), P(e[0], e[1]), kn && W2({ x: kn[0], y: kn[1] })]);
       ctx.save();
-      ctx.lineCap = "round";
-      pairs.forEach(([n, e]) => {
-        ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(e[0], e[1]);
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      pairs.forEach(([n, e, kn]) => {
+        ctx.beginPath(); ctx.moveTo(n.x, n.y); if (kn) ctx.lineTo(kn.x, kn.y); ctx.lineTo(e[0], e[1]);
         ctx.strokeStyle = "#6b5236"; ctx.lineWidth = 6 * s * u; ctx.stroke();
         ctx.strokeStyle = "#c9a874"; ctx.lineWidth = 3.4 * s * u; ctx.stroke();
       });
-      [p1, p2].forEach((n) => { ctx.beginPath(); ctx.arc(n.x, n.y, 5.6 * s * u, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); ctx.lineWidth = 2 * s * u; ctx.strokeStyle = "#f5efe4"; ctx.stroke(); });
+      q.piers.forEach((pr) => {
+        if (g.nodes[pr[0].id]?.structure) return;
+        const t = pierTick(pr, s), w = W2(t);
+        drawPierTick(ctx, { ...t, x: w.x, y: w.y, h: t.h * u, w: t.w * u }, color, "rgba(245, 239, 228, .95)");
+      });
       // pill: cream, the resource colour only as an outline accent
       ctx.shadowColor = "rgba(15, 23, 34, 0.35)"; ctx.shadowBlur = 5 * s * u; ctx.shadowOffsetY = 2 * s * u;
       this.drawRoundedRect(bx - W / 2, by - H / 2, W, H, (q.r) * u);
@@ -7168,34 +7187,49 @@ class ColonistFullGame {
     return { nodes, cities, edges, ships, type };
   }
 
-  /** Classic board: legal spots only, as calm white rings / dashed road ghosts (no colours that read as errors). */
+  /** v0.82: no land dim while placing any more (kept as a no-op for the draw order). */
+  _dimForPlacement() { this._dimFrom = null; }
+
+  /** Classic board: legal spots only, kept quiet (v0.82, as on the themed boards): a thin soft white ring with a
+   *  small dot of your colour at each corner, thin faint dashes in your colour for roads; only a very slow faint
+   *  opacity drift (none with reduced motion). Tap targets are unchanged. */
   drawBuildableHighlights() {
     const spots = this._legalPlacementSpots();
     if (!spots) return;
     const ctx = this.ctx;
     const px = 1 / (this.view.scale || 1); // world units per CSS pixel
     const cb = this.confirmBuild;
+    const pc = this._classicPc(this.currentPlayer.id);
+    const now = performance.now(), key = `${spots.type}:${spots.nodes.join(",")}:${(spots.cities || []).join(",")}:${spots.edges.join(",")}`;
+    if (key !== this._spotKey) { this._spotKey = key; this._spotStart = now; }
+    const reduced = motionReduced();
+    const e = reduced ? 1 : Math.min(1, (now - this._spotStart) / 500);
+    const br = reduced ? 0.5 : 0.5 - 0.5 * Math.cos(((now - this._spotStart) / 3600) * Math.PI * 2);
+    const fade = e * (0.82 + 0.18 * br);
+    const busy = spots.nodes.length + (spots.cities || []).length > 20 ? [0.5, 0.7] : [1, 1]; // set-up: quieter dots
     ctx.save();
     ctx.lineCap = "round";
     spots.edges.forEach((id) => {
       if (cb && cb.type === "road" && cb.id === id) return;
       const [a, b] = this.geometry.edges[id].nodes.map((n) => this.geometry.nodes[n]);
       const t = 0.22, ax = a.x + (b.x - a.x) * t, ay = a.y + (b.y - a.y) * t, bx = b.x - (b.x - a.x) * t, by = b.y - (b.y - a.y) * t;
-      ctx.setLineDash([6 * px, 5 * px]);
+      ctx.globalAlpha = 0.75 * fade; ctx.setLineDash([4 * px, 5 * px]);
       ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
-      ctx.strokeStyle = "rgba(15, 35, 50, 0.35)"; ctx.lineWidth = 6 * px; ctx.stroke();
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.95)"; ctx.lineWidth = 3.5 * px; ctx.stroke();
+      ctx.strokeStyle = pc.base; ctx.lineWidth = 2.5 * px; ctx.stroke();
     });
     ctx.setLineDash([]);
     [...spots.nodes.map((id) => [id, false]), ...(spots.cities || []).map((id) => [id, true])].forEach(([id, isCity]) => {
       if (cb && cb.id === id && cb.type !== "road") return;
       const n = this.geometry.nodes[id];
       const r = isCity ? 15 * px : 7 * px;
-      ctx.beginPath(); ctx.arc(n.x, n.y, r + 1.5 * px, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(15, 35, 50, 0.35)"; ctx.lineWidth = 1.5 * px; ctx.stroke();
+      ctx.globalAlpha = fade;
       ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.22)"; ctx.fill();
-      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2.5 * px; ctx.stroke();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.55)"; ctx.lineWidth = 1.5 * px; ctx.stroke();
+      if (!isCity) {
+        ctx.globalAlpha = fade * busy[0];
+        ctx.beginPath(); ctx.arc(n.x, n.y, 3 * busy[1] * px, 0, Math.PI * 2); ctx.fillStyle = pc.base; ctx.fill();
+        ctx.strokeStyle = pc.line; ctx.lineWidth = 0.8 * px; ctx.stroke();
+      }
     });
     ctx.restore();
   }
@@ -7226,7 +7260,15 @@ class ColonistFullGame {
       // v0.79: the themed boards' road (src/themes/board-renderer.js strokeRoad) on the hand-drawn curve: a soft
       // shadow, a light rim, the piece's dark line, its base colour and a light top stroke, sized like the themed pieces
       const pc = this._classicPc(edge.owner), w = (this.isMobileLayout ? 1.25 : 1.05) * 0.74 * s; // 0.74·s = one art unit
-      const curve = () => { ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.bezierCurveTo(cp.cp1x, cp.cp1y, cp.cp2x, cp.cp2y, p2.x, p2.y); };
+      // v0.82: each road is its own piece — the curve stops short of both nodes (cap radius + a small joint, as on the
+      // themed boards), so neighbouring roads never melt into one stroke
+      const L = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1, t0 = Math.min(0.3, (7 * w + 4 * 0.74 * s) / L), t1 = 1 - t0;
+      const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+      const sub = (P, ta, tb) => { // de Casteljau: the part of the cubic between ta and tb
+        const split = (Q, t) => { const a = lerp(Q[0], Q[1], t), b = lerp(Q[1], Q[2], t), c = lerp(Q[2], Q[3], t), d = lerp(a, b, t), e = lerp(b, c, t), f = lerp(d, e, t); return [[Q[0], a, d, f], [f, e, c, Q[3]]]; };
+        const right = split(P, ta)[1]; return split(right, (tb - ta) / (1 - ta))[0]; };
+      const C = sub([{ x: p1.x, y: p1.y }, { x: cp.cp1x, y: cp.cp1y }, { x: cp.cp2x, y: cp.cp2y }, { x: p2.x, y: p2.y }], t0, t1);
+      const curve = () => { ctx.beginPath(); ctx.moveTo(C[0].x, C[0].y); ctx.bezierCurveTo(C[1].x, C[1].y, C[2].x, C[2].y, C[3].x, C[3].y); };
       ctx.save(); ctx.translate(1.5 * s, 2.6 * s); curve(); ctx.strokeStyle = "rgba(13, 17, 25, 0.35)"; ctx.lineWidth = 16 * w; ctx.stroke(); ctx.restore();
       curve(); ctx.strokeStyle = "rgba(255, 252, 242, 0.5)"; ctx.lineWidth = 16.5 * w; ctx.stroke();
       curve(); ctx.strokeStyle = pc.line; ctx.lineWidth = 14 * w; ctx.stroke();
@@ -7240,82 +7282,7 @@ class ColonistFullGame {
     const ctx = this.ctx;
     const s = this.geometry.hexSize / 74;
 
-    // Draw blue blinking build spots FIRST (behind structures)
-    if (this.setupPhase && this.setupAction) {
-      const pulse = 0.4 + (Math.sin(Date.now() / 240) + 1) * 0.2;
-      if (this.setupAction === "settlement") {
-        this.geometry.nodes.forEach((node) => {
-          if (!this.canBuildSettlement(this.players[this.setupQueue[this.setupStep]], node.id, true)) return;
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, 12 * s, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(112, 214, 255, ${pulse})`;
-          ctx.fill();
-          ctx.strokeStyle = `rgba(255, 255, 255, ${pulse + 0.15})`;
-          ctx.lineWidth = 2 * s;
-          ctx.stroke();
-        });
-      } else if (this.setupAction === "road" && this.lastSetupNodeId != null) {
-        ctx.strokeStyle = `rgba(112, 214, 255, ${pulse})`;
-        ctx.lineWidth = 5 * s;
-        ctx.setLineDash([6 * s, 4 * s]);
-        this.geometry.edges.forEach((edge) => {
-          if (edge.owner != null || !edge.nodes.includes(this.lastSetupNodeId)) return;
-          const [a, b] = edge.nodes;
-          const p1 = this.geometry.nodes[a];
-          const p2 = this.geometry.nodes[b];
-          ctx.beginPath();
-          ctx.moveTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
-          ctx.stroke();
-        });
-        ctx.setLineDash([]);
-      }
-    } else if (this.currentPlayer?.isHuman && this._buildPhase()) {
-      const player = this.currentPlayer;
-      const pulse = 0.4 + (Math.sin(Date.now() / 240) + 1) * 0.2;
-      const showSettlements = this.pendingAction === "settlement";
-      const showCities = this.pendingAction === "city";
-      const showRoads = this.pendingAction === "road";
-
-      if (showSettlements || showCities) {
-        this.geometry.nodes.forEach((node) => {
-          let buildable = false;
-          if (showCities && this.canBuildCity(player, node.id, false)) {
-            ctx.fillStyle = `rgba(255, 200, 60, ${pulse + 0.1})`;
-            buildable = true;
-          } else if (showSettlements && this.canBuildSettlement(player, node.id, false)) {
-            ctx.fillStyle = `rgba(112, 214, 255, ${pulse})`;
-            buildable = true;
-          }
-          if (!buildable) return;
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, 12 * s, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = `rgba(255, 255, 255, ${pulse + 0.15})`;
-          ctx.lineWidth = 2 * s;
-          ctx.stroke();
-        });
-      }
-
-      if (showRoads) {
-        ctx.strokeStyle = `rgba(112, 214, 255, ${pulse})`;
-        ctx.lineWidth = 5 * s;
-        ctx.setLineDash([6 * s, 4 * s]);
-        this.geometry.edges.forEach((edge) => {
-          if (!this.canBuildRoad(player, edge.id, { free: false })) return;
-          const [a, b] = edge.nodes;
-          const p1 = this.geometry.nodes[a];
-          const p2 = this.geometry.nodes[b];
-          ctx.beginPath();
-          ctx.moveTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
-          ctx.stroke();
-        });
-        ctx.setLineDash([]);
-      }
-    }
-
-    // Draw structures ON TOP of blue blinking spots
+    // v0.81: the legal spots (setup and build mode) are drawn once, by drawBuildableHighlights (no blue blink here)
     // v0.79: the themed boards' pieces (Sunny Island house / city specs, drawn with the same drawSpec) in the seat's
     // piece shades, at the themed size (one art unit = 0.74·s here; the themed renderer's piece scale 1.34 / 1.12)
     const BP = this.theme.boardPieces;
@@ -7478,9 +7445,10 @@ class ColonistFullGame {
         return;
       }
       if (hex.id === sel || hex.id === this.hoverHexId) {
+        // v0.82: a thin soft outline on the tile under the finger / the picked one (no heavy white rim)
         this.drawHexPath(hex.corners, true);
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
-        ctx.lineWidth = 3.5 * px;
+        ctx.strokeStyle = "rgba(20, 32, 36, 0.3)";
+        ctx.lineWidth = 2 * px;
         ctx.stroke();
       }
     });
@@ -7673,8 +7641,10 @@ class ColonistFullGame {
       if (!c) return `<button type="button" class="card empty slot" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: none" title="No ${RESOURCE_LABEL[r]}"><span class="slot-ic">${icon(r)}</span><span class="slot-n">0</span><span class="slot-name">${RESOURCE_LABEL[r]}</span></button>`;
       if (pd) {
         // discarding: the badge shows what you keep, the tag what goes back
+        // v0.81: the card keeps its full count, big; a card you hand back from lifts, with a chip in
+        // its own tone ("−2 of 4") and a "−" that puts one back. Tapping a fully picked card puts one back too.
         const sel = pd.selected[r];
-        return `<button type="button" class="card${sel ? " marked" : ""}" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: ${c}${sel ? `, ${sel} to hand back` : ""}" title="Tap to hand back one ${RESOURCE_LABEL[r]}">${cardSvg(r)}<span class="count">${c - sel}</span>${sel ? `<span class="dsel">−${sel}</span>` : ""}</button>`;
+        return `<button type="button" class="card dcard${sel ? " marked" : ""}" data-card="${r}" style="${fan(i)}" data-n="${Math.min(c, 4)}" aria-label="${RESOURCE_LABEL[r]}: ${c}${sel ? `, ${sel} to hand back` : ""}" title="Tap to hand back one ${RESOURCE_LABEL[r]}">${cardSvg(r)}<span class="count">${c}</span><span class="rib" aria-hidden="true"><b>${c}</b><span>${RESOURCE_LABEL[r]}</span></span>${sel ? `<span class="dsel"><b>−${sel}</b><small>of ${c}</small><span class="dminus" data-unmark="${r}" role="button" aria-label="Put one ${RESOURCE_LABEL[r]} back">−</span></span>` : ""}</button>`;
       }
       return `<button type="button" class="card" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: ${c}" title="${RESOURCE_LABEL[r]} — tap to trade" data-n="${Math.min(c, 4)}">${cardSvg(r)}<span class="count">${c}</span><span class="rib" aria-hidden="true"><b>${c}</b><span>${RESOURCE_LABEL[r]}</span></span></button>`;
     }).join("");
@@ -7687,8 +7657,12 @@ class ColonistFullGame {
     }
     this.resourceCardStrip.innerHTML = html;
     this.resourceCardStrip.querySelectorAll(".card[data-card]").forEach((el) => {
-      el.addEventListener("click", () => {
-        if (this.pendingDiscard?.player === human) { this._discardMark(el.dataset.card); return; }
+      el.addEventListener("click", (e) => {
+        if (this.pendingDiscard?.player === human) {
+          if (e.target.closest("[data-unmark]")) this._discardUnmark(el.dataset.card);
+          else this._discardMark(el.dataset.card, true);
+          return;
+        }
         if (!this.currentPlayer?.isHuman || this.phase !== "main" || this.tradeLocked || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */ || this.devPick) return;
         const res = el.dataset.card;
         if (human.resources[res] <= 0) return;
@@ -7953,21 +7927,21 @@ class ColonistFullGame {
       title = "Robber!";
       status = "Game paused — discards, then the robber";
     } else if (humanTurn && this.pendingAction === "robber") {
-      status = this.confirmBuild ? "Robber: confirm below" : `${tapW} a tile for the robber`;
+      status = this.confirmBuild ? "Robber: confirm below" : this.sea?.thief === "pirate" ? `Move the pirate · ${tapw} a sea tile` : `Move the robber · ${tapw} a tile`;
     } else if (rushOn && mainPhase && !this.pendingAction) {
       title = "Rush";
       status = this.autoplayInterval ? "Bots are playing for you" : "Build, trade or play a card any time";
     } else if (humanTurn && this.phase === "sbp") {
       // 5–6 players: your Special Building Phase window (src/six.js)
       title = "Your build window";
-      status = this.pendingAction ? (this.confirmBuild ? confirmHint : `${tapW} a glowing spot to build`) : this._sbpStatus();
+      status = this.pendingAction ? (this.confirmBuild ? confirmHint : `${tapW} a marked spot to build`) : this._sbpStatus();
     } else if (humanTurn && preRoll) {
       status = "Roll the dice to start your turn";
     } else if (humanTurn && mainPhase) {
       if (this.pendingAction) {
         if (this.confirmBuild) status = confirmHint;
-        else status = this.freeRoadsRemaining > 0 ? `Free road · ${this.freeRoadsRemaining} left · ${tapw} a glowing spot`
-          : this.pendingAction === "build" || mobile ? `${tapW} a glowing spot to build` : `${placeName[this.pendingAction] || this.pendingAction} · ${tapw} a glowing spot`;
+        else status = this.freeRoadsRemaining > 0 ? `Free road · ${this.freeRoadsRemaining} left · ${tapw} a marked spot`
+          : this.pendingAction === "build" || mobile ? `${tapW} a marked spot to build` : `${placeName[this.pendingAction] || this.pendingAction} · ${tapw} a marked spot`;
       } else {
         status = "Build, trade or play a card";
       }
@@ -7991,6 +7965,9 @@ class ColonistFullGame {
       || !!((this.confirmBuild && this.confirmBuild.type !== "robber") || (this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining)));
     const tickerCancel = document.querySelector("#tickerCancel");
     if (tickerCancel) tickerCancel.hidden = !(mustAct && canCancel);
+    // v0.81: the robber (and a discard) is an instruction, not a log line: the ticker turns into an action prompt
+    const robberAct = !this.winner && !!prompt && ((humanTurn || rushOn) && this.pendingAction === "robber" && !this.confirmBuild && !this.robberVictimOptions?.length || (!!this.pendingDiscard && this.pendingDiscard.player === human));
+    document.querySelector("#ticker")?.classList.toggle("act", robberAct);
     // the setup step chip only where the line has room (phones show it in the dock instead)
     const stepChip = this.setupPhase && humanTurn && this.setupAction && window.innerWidth > 430 ? `Setup ${setupRound} of 2` : "";
     const promptKey = prompt + "|" + stepChip + "|" + (tray?.mode || "");
@@ -8001,7 +7978,7 @@ class ColonistFullGame {
       document.querySelector("#ticker")?.classList.toggle("prompt", !!prompt);
       if (prompt && this.tickerText) {
         this.tickerText.innerHTML = sbpLine || `<span class="tk-main">${prompt}</span>${stepChip ? `<span class="tk-step">${stepChip}</span>` : ""}`;
-        const ic = { gold: "gold", thief: "pirate", moveShip: "ship", moved: "ship", setupPiece: "ship", island: "island" }[tray?.mode] // ⚓
+        const ic = { gold: "gold", thief: "robber", moveShip: "ship", moved: "ship", setupPiece: "ship", island: "island" }[tray?.mode] // ⚓
           || (this.sea && this.pendingAction === "robber" && this.confirmBuild && this._seaHexKind(this.confirmBuild.id) === "pirate" ? "pirate" : null)
           || (this.pendingDiscard || this.pendingAction === "robber" || tray?.mode === "victims" ? "robber"
           : tray?.mode === "cards" || tray?.mode === "pick" ? "devcard" : this.confirmBuild?.type || (this.pendingAction !== "build" && this.pendingAction) || this.setupAction || "build");
@@ -8036,13 +8013,15 @@ class ColonistFullGame {
       // also while Road Building's free roads are still to be placed
       endBtn.disabled = inSetup || !(humanTurn && mainPhase) || robberBlocking || (!!this.pendingAction && this.pendingAction !== "build") || !!this.devPick;
     }
-    if (this.rushReadyBtn) this.rushReadyBtn.hidden = !rushOn || !!this.winner;
+    // v0.81: while you must move the robber the primary slot is a disabled "Move robber" (End turn / Ready wait)
+    const robberWait = !this.winner && this.pendingAction === "robber" && !!this.currentPlayer?.isHuman && (humanTurn || rushOn);
+    if (this.rushReadyBtn) this.rushReadyBtn.hidden = !rushOn || !!this.winner || robberWait;
     if (this.waitingBar) {
       let wait = "";
       if (this.winner) {
         wait = ""; // after "See board": one clean New game button instead (below)
-      } else if (humanTurn && this.pendingAction === "robber" && !rushOn) {
-        wait = `${icon("robber")}<div class="wt">Move robber<small>${tapW} a tile</small></div>`;
+      } else if (robberWait) {
+        wait = `${icon(this.sea?.thief === "pirate" ? "pirate" : "robber")}<div class="wt">Move ${this.sea?.thief === "pirate" ? "pirate" : "robber"}<small>${tapw} a tile</small></div>`;
       } else if (inSetup && humanTurn && !rushOn) {
         wait = `${icon(this.setupAction || "settlement")}<div class="wt">Setup ${setupRound} of 2<small>${this.setupAction === "road" ? "Last step: a road" : "Then add a road"}</small></div>`;
       } else if (oppTurn) {
@@ -8056,6 +8035,8 @@ class ColonistFullGame {
         this.waitingBar.querySelector("[data-newgame]")?.addEventListener("click", () => this._showDifficultyModal());
       }
       this.waitingBar.hidden = !wait;
+      this.waitingBar.classList.toggle("robber-wait", !!wait && robberWait);
+      this.waitingBar.setAttribute("aria-disabled", String(!!wait && robberWait));
     }
     const newGameBtn = document.querySelector("#newGameMainBtn");
     if (newGameBtn) {
@@ -8262,6 +8243,7 @@ class ColonistFullGame {
     trade: () => this.sound.play("trade"),
     tradeReject: () => this.sound.play("tradeReject"),
     robber: () => this.sound.play("robber"),
+    robberPrompt: () => this.sound.play("robberPrompt"),
     steal: () => this.sound.play("steal"),
     devCard: () => this.sound.play("devCard"),
     yourTurn: () => this.sound.play("yourTurn"),
@@ -8708,9 +8690,16 @@ class ColonistFullGame {
     const limit = this.settings?.discardLimit ?? 7;
     const deck = this.devDeck ? this.devDeck.length : 0;
     const who = this.hotseat && !this.handHidden ? human : null; // pass & play: whose hand this is
-    const key = [who?.id, who?.name, total, devTotal, limit, deck, this._bankOpen, this.theme?.id, ...RESOURCES.map((r) => this.bank[r])].join("|");
+    const pd = this.pendingDiscard?.player === human ? this.pendingDiscard : null;
+    const key = [who?.id, who?.name, total, devTotal, limit, deck, this._bankOpen, this.theme?.id, ...RESOURCES.map((r) => this.bank[r]), pd ? `${pd.count}:${sumResources(pd.selected)}` : ""].join("|");
     if (key === this._lastHandBarKey) return;
     this._lastHandBarKey = key;
+    if (pd) {
+      // v0.81 discard: one summary line over the hand ("Hand back 4 of 8 · keep 4"); the bank waits
+      const sel = sumResources(pd.selected);
+      el.innerHTML = `<span class="hb-total hb-discard${sel === pd.count ? " done" : ""}" data-total="${total}">${icon("robber")}<span>Hand back <b>${pd.count}</b> of <b>${total}</b> · keep <b>${total - pd.count}</b></span>${sel ? `<i class="hb-prog">${sel}/${pd.count}</i>` : ""}</span>`;
+      return;
+    }
     const over = total > limit;
     el.innerHTML = `<span class="hb-total${over ? " warn" : ""}${who ? " hb-named" : ""}" data-total="${total}" title="${who ? `${who.name}: ` : ""}${total} resource card${total === 1 ? "" : "s"}${devTotal ? ` · ${devTotal} development card${devTotal === 1 ? "" : "s"}` : ""}${over ? ` · more than ${limit}: on a 7 you hand back half` : ""}">${who ? `<span class="hb-who pc-${who.id}">${who.name}</span><i class="hb-sep" aria-hidden="true">·</i>` : ""}${who ? `${icon("cards")}<b>${total}</b>` : `<b>${total}</b> card${total === 1 ? "" : "s"}${devTotal ? ` · <b>${devTotal}</b> dev` : ""}`}</span>`
       + `<button type="button" class="hb-bank${this._bankOpen ? " open" : ""}" aria-expanded="${this._bankOpen}" aria-label="Bank: ${RESOURCES.map((r) => `${this.bank[r]} ${RESOURCE_LABEL[r]}`).join(", ")}, ${deck} development cards left" title="Cards left in the bank (tap to ${this._bankOpen ? "fold" : "show"})">`
@@ -9208,7 +9197,7 @@ class ColonistFullGame {
     const shown = (el) => el && el.style.display !== "none" && !el.closest(".rush-seven");
     const mobile = this.isMobileLayout;
     const any = mobile
-      ? this.app?.classList.contains("build-open") || this.railLog?.classList.contains("open") || [this.tradeModal, this.devCardPicker, this.victimPanel, this.discardPanel, this.incomingTradePanel].some(shown)
+      ? this.app?.classList.contains("build-open") || this.railLog?.classList.contains("open") || [this.devCardPicker, this.victimPanel, this.discardPanel, this.incomingTradePanel].some(shown) // v0.81: the compact trade sheet leaves the board visible
       : [this.victimPanel, this.discardPanel, this.incomingTradePanel].some(shown);
     this.scrim.hidden = !any;
     this.app?.classList.toggle("trade-open", !!(mobile && shown(this.tradeModal)));
@@ -9476,11 +9465,15 @@ class ColonistFullGame {
   }
 
   /** Discard on a 7: tap cards in your hand to mark them (no sheet). */
-  _discardMark(res) {
+  _discardMark(res, toggle = false) {
     const pd = this.pendingDiscard;
     if (!pd) return;
     const sel = sumResources(pd.selected);
-    if (sel >= pd.count || pd.selected[res] >= pd.player.resources[res]) { this.sfx.error?.(); return; }
+    if (sel >= pd.count || pd.selected[res] >= pd.player.resources[res]) {
+      // a tap on a lifted card that can take no more puts one back (easy to change your mind)
+      if (toggle && pd.selected[res] > 0) { this._discardUnmark(res); return; }
+      this.sfx.error?.(); return;
+    }
     pd.selected[res] += 1;
     pd.lastActAt = Date.now();
     (pd.order ||= []).push(res);
@@ -9488,12 +9481,20 @@ class ColonistFullGame {
     this.render();
   }
 
-  _discardUnmark() {
+  /** Put one card back: the last one picked (Undo = one step), or one of `res`. */
+  _discardUnmark(res = null) {
     const pd = this.pendingDiscard;
-    const r = pd?.order?.pop() || RESOURCES.find((x) => pd?.selected[x] > 0);
-    if (!r) return;
+    if (!pd) return;
+    let r = res;
+    if (r) {
+      if (!(pd.selected[r] > 0)) return;
+      const i = (pd.order || []).lastIndexOf(r);
+      if (i >= 0) pd.order.splice(i, 1);
+    } else r = pd.order?.pop() || RESOURCES.find((x) => pd.selected[x] > 0);
+    if (!r || !(pd.selected[r] > 0)) return;
     pd.selected[r] -= 1;
     pd.lastActAt = Date.now();
+    this.sfx.click();
     this.render();
   }
 
@@ -9608,10 +9609,11 @@ class ColonistFullGame {
     const pd = this.pendingDiscard;
     if (pd) {
       const sel = sumResources(pd.selected);
-      const keep = sumResources(pd.player.resources) - sel;
+      const total = sumResources(pd.player.resources);
+      const keep = total - pd.count; // v0.82: what you end up with (matches the summary over the hand), not hand − picked so far
       return { mode: "discard",
-        hint: sel === pd.count ? `Hand back ${pd.count} cards · you keep ${keep}` : `Robber! Tap ${pd.count - sel === pd.count ? pd.count : `${pd.count - sel} more`} card${pd.count - sel === 1 ? "" : "s"} in your hand to hand back`,
-        html: `<div class="tinfo"><b>${sel}<small>/${pd.count}</small></b><span>chosen<small>keep ${keep}</small></span></div>`
+        hint: sel === pd.count ? `Hand back ${pd.count} cards · keep ${keep}` : sel ? `Robber! Pick ${pd.count - sel} more card${pd.count - sel === 1 ? "" : "s"}` : `Robber! Hand back ${pd.count} cards`,
+        html: `<div class="tinfo dsum"><b>${sel}<small>/${pd.count}</small></b><span>chosen<small>keep ${keep}</small></span></div>`
           + tbtn("data-discard-suggest", `${icon("hint")}<span>Suggest</span>`)
           + tbtn(`data-discard-undo ${sel ? "" : "disabled"}`, `${icon("undo")}<span>Undo</span>`)
           + tbtn(`data-discard-ok ${sel === pd.count ? "" : "disabled"}`, `${icon("check")}<span>Hand back</span>`, "primary wide") };
@@ -9623,8 +9625,8 @@ class ColonistFullGame {
     const seaTray = this.sea && !this.robberVictimOptions?.length ? this._seaTray(human, cur, tbtn, close) : null; // ⚓ robber/pirate, move ship, set-up ship
     if (seaTray) return seaTray;
     if (this.robberVictimOptions?.length) {
-      return { mode: "victims", hint: "Rob whom? You take 1 random card",
-        html: this.robberVictimOptions.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
+      return { mode: "victims", hint: "Steal from… · tap a player",
+        html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>1 random card</small></div>` + this.robberVictimOptions.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
           return tbtn(`data-steal="${id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}`); }).join("") };
     }
     if (this.pendingAction === "robber" && cb?.type === "robber") {
@@ -9637,8 +9639,8 @@ class ColonistFullGame {
       const pir = this.sea && hex.resource === "sea" ? this._seaPirateText(cb.id, cur) : null; // ⚓ the pirate's own words
       const lead = pir ? pir.hint : `Robber on ${where} · ${blocks}${own}`, sub = pir ? pir.sub : `${where} · ${blocks}`;
       if (vic.length > 1 && (!cb.victim || this.confirmPlacements)) {
-        return { mode: "robber", hint: `${lead} · ${this.confirmPlacements ? "pick who to rob, then Place" : "rob whom?"}`,
-          html: vic.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
+        return { mode: "robber", hint: this.confirmPlacements ? "Steal from… pick a player, then Place" : "Steal from… · tap a player",
+          html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>${pir ? lead : `${where} · ${blocks}${own}`}</small></div>` + vic.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
             return tbtn(`data-victim="${id}" aria-pressed="${cb.victim === id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}${cb.victim === id ? " sel" : ""}`); }).join("")
             + (this.confirmPlacements ? tbtn(`data-rob-now ${cb.victim != null ? "" : "disabled"}`, `${icon("check")}<span>Place</span>`, "primary") : "")
             + close("data-rob-undo", "Pick another tile") };
@@ -9666,7 +9668,7 @@ class ColonistFullGame {
       const res = RESOURCES.map((r) => {
         const n = dp.picks.filter((x) => x === r).length;
         const off = mono ? false : dp.picks.length >= dp.count || this.bank[r] - n <= 0;
-        return tbtn(`data-pick="${r}" ${off ? "disabled" : ""} aria-pressed="${n > 0}"`, `<span class="card">${cardSvg(r)}</span><span>${RESOURCE_LABEL[r]}</span>${n ? `<i class="pk">${mono ? "✓" : `×${n}`}</i>` : ""}`, `res${n ? " sel" : ""}`);
+        return tbtn(`data-pick="${r}" ${off ? "disabled" : ""} aria-pressed="${n > 0}"`, `<span class="card">${cardSvg(r)}</span><span>${RESOURCE_LABEL[r]}</span>${n ? `<i class="pk">${mono ? "✓" : `×${n}`}</i>${mono ? "" : `<i class="pk-minus" data-unpick="${r}" role="button" aria-label="Put one ${RESOURCE_LABEL[r]} back">−</i>`}` : ""}`, `res${n ? " sel" : ""}`);
       }).join("");
       const last = mono && dp.picks.length ? tbtn("data-pick-ok", `${icon("check")}<span>Take</span>`, "primary")
         : !mono && dp.picks.length ? tbtn("data-pick-undo aria-label=\"Undo pick\"", icon("undo"), "tclose")
@@ -9702,13 +9704,29 @@ class ColonistFullGame {
       const pa = this.pendingAction;
       const can = (t) => this._buildPhase() && (t === "development" ? hasResources(human.resources, COSTS.development) && this.devDeck.length > 0
         : hasResources(human.resources, COSTS[t]) && this.piecesLeft(human, t) > 0);
+      // v0.81: what you can't build is clearly greyed with the reason in small print under it (the cards you still
+      // need, "none left" or "no spot"); what you can build stays fully lit
+      const spot = { road: () => this.geometry.edges.some((e) => this.canBuildRoad(human, e.id)), settlement: () => this.geometry.nodes.some((n) => this.canBuildSettlement(human, n.id, false)),
+        city: () => this.geometry.nodes.some((n) => this.canBuildCity(human, n.id, false)), ship: () => this.geometry.edges.some((e) => this.canBuildShip?.(human, e.id, {})) };
+      const why = (t) => {
+        if (!this._buildPhase()) return null;
+        const miss = RESOURCES.filter((r) => (COSTS[t][r] || 0) > human.resources[r]).map((r) => [r, COSTS[t][r] - human.resources[r]]);
+        // short enough for a 60 px button: "need 1 [brick]"; several kinds: just the counts + icons (a 1 is left out when 3+ kinds miss)
+        if (miss.length) return { html: `${miss.length === 1 ? "<span>need</span>" : ""}${miss.map(([r, n]) => `<i>${n > 1 || miss.length < 3 ? n : ""}${icon(r)}</i>`).join("")}`, text: `need ${missingCostString(human.resources, COSTS[t])}` };
+        if (t === "development") return this.devDeck.length ? null : { html: "<span>deck empty</span>", text: "the deck is empty" };
+        if (this.piecesLeft(human, t) <= 0) return { html: "<span>none left</span>", text: `no ${t === "city" ? "cities" : `${t}s`} left` };
+        return spot[t] && !spot[t]() ? { html: "<span>no spot</span>", text: "no free spot" } : null;
+      };
+      const ok = (t) => can(t) && !why(t);
       const chips = (t) => (this.sea ? this._seaCostChips(t) : ""); // ⚓ Seafarers: costs under each button
-      const piece = (t, label) => tbtn(`data-tray-build="${t}" ${can(t) ? "" : "disabled"} aria-pressed="${pa === t}"`, `${icon(t)}<span>${label}</span>${chips(t)}`, pa === t ? "sel" : "");
+      const foot = (t) => { const w = why(t); return w ? `<small class="tneed">${w.html}</small>` : chips(t); };
+      const lbl = (t, label) => { const w = why(t); return `aria-label="${label}${w ? `: ${w.text}` : ""}" title="${label}${w ? ` · ${w.text}` : ""}"`; };
+      const piece = (t, label) => tbtn(`data-tray-build="${t}" ${ok(t) ? "" : "disabled"} aria-pressed="${pa === t}" ${lbl(t, label)}`, `${icon(t)}<span>${label}</span>${foot(t)}`, pa === t ? "sel" : "");
       const any = ["road", "settlement", "city", "development", ...(this.sea ? ["ship"] : [])].some(can);
-      const hint = this.freeRoadsRemaining ? `Free road · ${this.freeRoadsRemaining} left · tap a glowing spot`
-        : pa && pa !== "robber" ? "Tap a glowing spot to build" : any ? "Pick what to buy" : `Not enough cards yet · road ${resourceString(COSTS.road)}`;
+      const hint = this.freeRoadsRemaining ? `Free road · ${this.freeRoadsRemaining} left · tap a marked spot`
+        : pa && pa !== "robber" ? "Tap a marked spot to build" : any ? "Pick what to buy" : `Not enough cards yet · road ${resourceString(COSTS.road)}`;
       return { mode: "build", hint,
-        html: piece("road", "Road") + (this.sea ? piece("ship", "Ship") : "") + piece("settlement", "Settle") + piece("city", "City") + tbtn(`data-tray-buy ${can("development") ? "" : "disabled"}`, `${icon("devcard")}<span>Card</span>${chips("development")}`) + close() };
+        html: piece("road", "Road") + (this.sea ? piece("ship", "Ship") : "") + piece("settlement", "Settle") + piece("city", "City") + tbtn(`data-tray-buy ${ok("development") ? "" : "disabled"} ${lbl("development", "Card")}`, `${icon("devcard")}<span>Card</span>${foot("development")}`) + close() };
     }
     return null;
   }
@@ -9726,6 +9744,12 @@ class ColonistFullGame {
   }
 
   _onTrayClick(e) {
+    const un = e.target.closest("[data-unpick]");
+    if (un && this.devPick) { // v0.81: the "−" on a picked card puts one back
+      const i = this.devPick.picks.lastIndexOf(un.dataset.unpick);
+      if (i >= 0) { this.devPick.picks.splice(i, 1); this.sfx.click(); this.render(); }
+      return;
+    }
     const b = e.target.closest("button");
     if (!b || b.disabled) return;
     const d = b.dataset;
@@ -10028,6 +10052,7 @@ class ColonistFullGame {
     this.geometry.hexes.forEach((hex) => { if (hex.resource !== "sea") this.drawHex(hex); }); // ⚓ sea hexes: open water
     this.drawRobberModeOverlay();
     this.drawRollHighlight();
+    this._dimForPlacement(); // v0.81
     this.drawNodeDots();
     this.drawPorts();
     this.drawRoads();
@@ -10074,6 +10099,8 @@ Object.defineProperties(ColonistFullGame.prototype, Object.getOwnPropertyDescrip
 // End-of-game statistics: recorder (src/stats.js) + stats screen and replay (src/stats-ui.js)
 Object.assign(ColonistFullGame.prototype, StatsMixin, StatsUiMixin);
 installStats(ColonistFullGame);
+Object.assign(ColonistFullGame.prototype, LiveStatsMixin); // live stats during the game (src/live-stats.js)
+installLiveStats(ColonistFullGame);
 
 const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle
