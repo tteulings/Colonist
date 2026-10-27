@@ -2,7 +2,7 @@ import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMoti
 import { SvgBoardRenderer, drawSpec } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
-import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted } from "./themes/art-util.js";
+import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted, pierTick, drawPierTick } from "./themes/art-util.js";
 import { Onboarding, introSeen } from "./themes/onboarding.js";
 import { Home, GameMenu } from "./themes/home.js";
 import { SoundEngine } from "./sound.js";
@@ -7052,7 +7052,8 @@ class ColonistFullGame {
 
   /** Classic harbours (v0.78): the same pill as the themed boards (harbourBadges) — the resource glyph (the card
    *  icon without its coloured tile, so a brick harbour never reads as a red player) beside the ratio in bold, or
-   *  just "3:1"; two piers to the coast corners, a dot on each corner. */
+   *  just "3:1"; two piers to the coast corners, each ending in a small accent tick (v0.81: no dots; none on a corner
+   *  that holds a piece). */
   drawPorts() {
     const ctx = this.ctx, g = this.geometry, u = g.hexSize / 100, s = harbourScale(this);
     const portColor = { wood: "#4a7c3f", brick: "#b5532e", sheep: "#5f9a36", wheat: "#b8931f", ore: "#6a7588", any: "#3d5f72" };
@@ -7075,16 +7076,19 @@ class ColonistFullGame {
       const P = (x, y) => [bx + (x - q.x) * u, by + (y - q.y) * u];
       const color = portColor[port.type] || portColor.any;
       const W2 = (p) => ({ x: g.centerX + p.x * u, y: g.centerY + p.y * u });
-      const pairs = q.piers.map(([n, e]) => [W2(n), P(e[0], e[1])]);
-      const p1 = W2(q.a), p2 = W2(q.b);
+      const pairs = q.piers.map(([n, e, kn]) => [W2(n), P(e[0], e[1]), kn && W2({ x: kn[0], y: kn[1] })]);
       ctx.save();
-      ctx.lineCap = "round";
-      pairs.forEach(([n, e]) => {
-        ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(e[0], e[1]);
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      pairs.forEach(([n, e, kn]) => {
+        ctx.beginPath(); ctx.moveTo(n.x, n.y); if (kn) ctx.lineTo(kn.x, kn.y); ctx.lineTo(e[0], e[1]);
         ctx.strokeStyle = "#6b5236"; ctx.lineWidth = 6 * s * u; ctx.stroke();
         ctx.strokeStyle = "#c9a874"; ctx.lineWidth = 3.4 * s * u; ctx.stroke();
       });
-      [p1, p2].forEach((n) => { ctx.beginPath(); ctx.arc(n.x, n.y, 5.6 * s * u, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); ctx.lineWidth = 2 * s * u; ctx.strokeStyle = "#f5efe4"; ctx.stroke(); });
+      q.piers.forEach((pr) => {
+        if (g.nodes[pr[0].id]?.structure) return;
+        const t = pierTick(pr, s), w = W2(t);
+        drawPierTick(ctx, { ...t, x: w.x, y: w.y, h: t.h * u, w: t.w * u }, color, "rgba(245, 239, 228, .95)");
+      });
       // pill: cream, the resource colour only as an outline accent
       ctx.shadowColor = "rgba(15, 23, 34, 0.35)"; ctx.shadowBlur = 5 * s * u; ctx.shadowOffsetY = 2 * s * u;
       this.drawRoundedRect(bx - W / 2, by - H / 2, W, H, (q.r) * u);
@@ -7176,34 +7180,67 @@ class ColonistFullGame {
     return { nodes, cities, edges, ships, type };
   }
 
-  /** Classic board: legal spots only, as calm white rings / dashed road ghosts (no colours that read as errors). */
+  /** v0.81 Classic: while placing (setup or build mode) the land dims a touch so the lit spots pop. */
+  _dimForPlacement() {
+    const spots = this._legalPlacementSpots();
+    if (!spots?.type || spots.type === "robber") { this._dimFrom = null; return; }
+    const now = performance.now();
+    if (this._dimFrom == null) this._dimFrom = now;
+    const a = motionReduced() ? 1 : Math.min(1, (now - this._dimFrom) / 260);
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = `rgba(10, 25, 35, ${0.16 * a})`;
+    this.geometry.hexes.forEach((hex) => { if (hex.resource === "sea") return; this.drawHexPath(hex.corners, true); ctx.fill(); });
+    ctx.restore();
+  }
+
+  /** Classic board: legal spots only (v0.81: lit more strongly, like the themed boards): a white ring with a dot
+   *  of your colour, a thin dark outline and a soft halo in your colour that breathes slowly (static with reduced
+   *  motion); roads are dashed white lanes over a soft band of your colour. */
   drawBuildableHighlights() {
     const spots = this._legalPlacementSpots();
     if (!spots) return;
     const ctx = this.ctx;
     const px = 1 / (this.view.scale || 1); // world units per CSS pixel
     const cb = this.confirmBuild;
+    const pc = this._classicPc(this.currentPlayer.id);
+    const now = performance.now(), key = `${spots.type}:${spots.nodes.join(",")}:${(spots.cities || []).join(",")}:${spots.edges.join(",")}`;
+    if (key !== this._spotKey) { this._spotKey = key; this._spotStart = now; }
+    const reduced = motionReduced();
+    const e = reduced ? 1 : 1 - Math.pow(1 - Math.min(1, (now - this._spotStart) / 700), 3);
+    const br = reduced ? 0.5 : 0.5 - 0.5 * Math.cos(((now - this._spotStart) / 1800) * Math.PI * 2);
+    const dn = spots.nodes.length + (spots.cities || []).length > 20 ? 0.55 : 1, out = dn < 1 ? 7 + 4 * br : 11 + 6 * br; // many spots: lighter halos
     ctx.save();
     ctx.lineCap = "round";
     spots.edges.forEach((id) => {
       if (cb && cb.type === "road" && cb.id === id) return;
       const [a, b] = this.geometry.edges[id].nodes.map((n) => this.geometry.nodes[n]);
       const t = 0.22, ax = a.x + (b.x - a.x) * t, ay = a.y + (b.y - a.y) * t, bx = b.x - (b.x - a.x) * t, by = b.y - (b.y - a.y) * t;
-      ctx.setLineDash([6 * px, 5 * px]);
+      ctx.setLineDash([]);
       ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
-      ctx.strokeStyle = "rgba(15, 35, 50, 0.35)"; ctx.lineWidth = 6 * px; ctx.stroke();
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.95)"; ctx.lineWidth = 3.5 * px; ctx.stroke();
+      ctx.globalAlpha = 0.3 + 0.18 * br; ctx.strokeStyle = pc.base; ctx.lineWidth = (12 + 6 * br) * px * e; ctx.stroke(); ctx.globalAlpha = 1;
+      ctx.setLineDash([6 * px, 5 * px]);
+      ctx.strokeStyle = "rgba(15, 35, 50, 0.5)"; ctx.lineWidth = 6.4 * px; ctx.stroke();
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3.8 * px; ctx.stroke();
     });
     ctx.setLineDash([]);
     [...spots.nodes.map((id) => [id, false]), ...(spots.cities || []).map((id) => [id, true])].forEach(([id, isCity]) => {
       if (cb && cb.id === id && cb.type !== "road") return;
       const n = this.geometry.nodes[id];
-      const r = isCity ? 15 * px : 7 * px;
-      ctx.beginPath(); ctx.arc(n.x, n.y, r + 1.5 * px, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(15, 35, 50, 0.35)"; ctx.lineWidth = 1.5 * px; ctx.stroke();
+      const r = isCity ? 15 * px : 8 * px;
+      ctx.fillStyle = pc.base;
+      ctx.beginPath(); ctx.arc(n.x, n.y, r + out * px * e, 0, Math.PI * 2); ctx.globalAlpha = (0.16 + 0.1 * br) * dn; ctx.fill();
+      ctx.beginPath(); ctx.arc(n.x, n.y, r + (5 + 3 * br) * px * e, 0, Math.PI * 2); ctx.globalAlpha = (0.34 + 0.16 * br) * dn; ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(n.x, n.y, r + 2 * px, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(15, 35, 50, 0.5)"; ctx.lineWidth = 1.8 * px; ctx.stroke();
       ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.22)"; ctx.fill();
-      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2.5 * px; ctx.stroke();
+      ctx.fillStyle = "rgba(255, 255, 255, 0.34)"; ctx.fill();
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3 * px; ctx.stroke();
+      if (!isCity) {
+        ctx.beginPath(); ctx.arc(n.x, n.y, r * 0.42, 0, Math.PI * 2); ctx.fillStyle = pc.base; ctx.fill();
+        ctx.strokeStyle = pc.line; ctx.lineWidth = 1.2 * px; ctx.stroke();
+      }
     });
     ctx.restore();
   }
@@ -7248,82 +7285,7 @@ class ColonistFullGame {
     const ctx = this.ctx;
     const s = this.geometry.hexSize / 74;
 
-    // Draw blue blinking build spots FIRST (behind structures)
-    if (this.setupPhase && this.setupAction) {
-      const pulse = 0.4 + (Math.sin(Date.now() / 240) + 1) * 0.2;
-      if (this.setupAction === "settlement") {
-        this.geometry.nodes.forEach((node) => {
-          if (!this.canBuildSettlement(this.players[this.setupQueue[this.setupStep]], node.id, true)) return;
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, 12 * s, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(112, 214, 255, ${pulse})`;
-          ctx.fill();
-          ctx.strokeStyle = `rgba(255, 255, 255, ${pulse + 0.15})`;
-          ctx.lineWidth = 2 * s;
-          ctx.stroke();
-        });
-      } else if (this.setupAction === "road" && this.lastSetupNodeId != null) {
-        ctx.strokeStyle = `rgba(112, 214, 255, ${pulse})`;
-        ctx.lineWidth = 5 * s;
-        ctx.setLineDash([6 * s, 4 * s]);
-        this.geometry.edges.forEach((edge) => {
-          if (edge.owner != null || !edge.nodes.includes(this.lastSetupNodeId)) return;
-          const [a, b] = edge.nodes;
-          const p1 = this.geometry.nodes[a];
-          const p2 = this.geometry.nodes[b];
-          ctx.beginPath();
-          ctx.moveTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
-          ctx.stroke();
-        });
-        ctx.setLineDash([]);
-      }
-    } else if (this.currentPlayer?.isHuman && this._buildPhase()) {
-      const player = this.currentPlayer;
-      const pulse = 0.4 + (Math.sin(Date.now() / 240) + 1) * 0.2;
-      const showSettlements = this.pendingAction === "settlement";
-      const showCities = this.pendingAction === "city";
-      const showRoads = this.pendingAction === "road";
-
-      if (showSettlements || showCities) {
-        this.geometry.nodes.forEach((node) => {
-          let buildable = false;
-          if (showCities && this.canBuildCity(player, node.id, false)) {
-            ctx.fillStyle = `rgba(255, 200, 60, ${pulse + 0.1})`;
-            buildable = true;
-          } else if (showSettlements && this.canBuildSettlement(player, node.id, false)) {
-            ctx.fillStyle = `rgba(112, 214, 255, ${pulse})`;
-            buildable = true;
-          }
-          if (!buildable) return;
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, 12 * s, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = `rgba(255, 255, 255, ${pulse + 0.15})`;
-          ctx.lineWidth = 2 * s;
-          ctx.stroke();
-        });
-      }
-
-      if (showRoads) {
-        ctx.strokeStyle = `rgba(112, 214, 255, ${pulse})`;
-        ctx.lineWidth = 5 * s;
-        ctx.setLineDash([6 * s, 4 * s]);
-        this.geometry.edges.forEach((edge) => {
-          if (!this.canBuildRoad(player, edge.id, { free: false })) return;
-          const [a, b] = edge.nodes;
-          const p1 = this.geometry.nodes[a];
-          const p2 = this.geometry.nodes[b];
-          ctx.beginPath();
-          ctx.moveTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
-          ctx.stroke();
-        });
-        ctx.setLineDash([]);
-      }
-    }
-
-    // Draw structures ON TOP of blue blinking spots
+    // v0.81: the legal spots (setup and build mode) are drawn once, by drawBuildableHighlights (no blue blink here)
     // v0.79: the themed boards' pieces (Sunny Island house / city specs, drawn with the same drawSpec) in the seat's
     // piece shades, at the themed size (one art unit = 0.74·s here; the themed renderer's piece scale 1.34 / 1.12)
     const BP = this.theme.boardPieces;
@@ -9678,13 +9640,29 @@ class ColonistFullGame {
       const pa = this.pendingAction;
       const can = (t) => this._buildPhase() && (t === "development" ? hasResources(human.resources, COSTS.development) && this.devDeck.length > 0
         : hasResources(human.resources, COSTS[t]) && this.piecesLeft(human, t) > 0);
+      // v0.81: what you can't build is clearly greyed with the reason in small print under it (the cards you still
+      // need, "none left" or "no spot"); what you can build stays fully lit
+      const spot = { road: () => this.geometry.edges.some((e) => this.canBuildRoad(human, e.id)), settlement: () => this.geometry.nodes.some((n) => this.canBuildSettlement(human, n.id, false)),
+        city: () => this.geometry.nodes.some((n) => this.canBuildCity(human, n.id, false)), ship: () => this.geometry.edges.some((e) => this.canBuildShip?.(human, e.id, {})) };
+      const why = (t) => {
+        if (!this._buildPhase()) return null;
+        const miss = RESOURCES.filter((r) => (COSTS[t][r] || 0) > human.resources[r]).map((r) => [r, COSTS[t][r] - human.resources[r]]);
+        // short enough for a 60 px button: "need 1 [brick]"; several kinds: just the counts + icons (a 1 is left out when 3+ kinds miss)
+        if (miss.length) return { html: `${miss.length === 1 ? "<span>need</span>" : ""}${miss.map(([r, n]) => `<i>${n > 1 || miss.length < 3 ? n : ""}${icon(r)}</i>`).join("")}`, text: `need ${missingCostString(human.resources, COSTS[t])}` };
+        if (t === "development") return this.devDeck.length ? null : { html: "<span>deck empty</span>", text: "the deck is empty" };
+        if (this.piecesLeft(human, t) <= 0) return { html: "<span>none left</span>", text: `no ${t === "city" ? "cities" : `${t}s`} left` };
+        return spot[t] && !spot[t]() ? { html: "<span>no spot</span>", text: "no free spot" } : null;
+      };
+      const ok = (t) => can(t) && !why(t);
       const chips = (t) => (this.sea ? this._seaCostChips(t) : ""); // ⚓ Seafarers: costs under each button
-      const piece = (t, label) => tbtn(`data-tray-build="${t}" ${can(t) ? "" : "disabled"} aria-pressed="${pa === t}"`, `${icon(t)}<span>${label}</span>${chips(t)}`, pa === t ? "sel" : "");
+      const foot = (t) => { const w = why(t); return w ? `<small class="tneed">${w.html}</small>` : chips(t); };
+      const lbl = (t, label) => { const w = why(t); return `aria-label="${label}${w ? `: ${w.text}` : ""}" title="${label}${w ? ` · ${w.text}` : ""}"`; };
+      const piece = (t, label) => tbtn(`data-tray-build="${t}" ${ok(t) ? "" : "disabled"} aria-pressed="${pa === t}" ${lbl(t, label)}`, `${icon(t)}<span>${label}</span>${foot(t)}`, pa === t ? "sel" : "");
       const any = ["road", "settlement", "city", "development", ...(this.sea ? ["ship"] : [])].some(can);
       const hint = this.freeRoadsRemaining ? `Free road · ${this.freeRoadsRemaining} left · tap a glowing spot`
         : pa && pa !== "robber" ? "Tap a glowing spot to build" : any ? "Pick what to buy" : `Not enough cards yet · road ${resourceString(COSTS.road)}`;
       return { mode: "build", hint,
-        html: piece("road", "Road") + (this.sea ? piece("ship", "Ship") : "") + piece("settlement", "Settle") + piece("city", "City") + tbtn(`data-tray-buy ${can("development") ? "" : "disabled"}`, `${icon("devcard")}<span>Card</span>${chips("development")}`) + close() };
+        html: piece("road", "Road") + (this.sea ? piece("ship", "Ship") : "") + piece("settlement", "Settle") + piece("city", "City") + tbtn(`data-tray-buy ${ok("development") ? "" : "disabled"} ${lbl("development", "Card")}`, `${icon("devcard")}<span>Card</span>${foot("development")}`) + close() };
     }
     return null;
   }
@@ -10004,6 +9982,7 @@ class ColonistFullGame {
     this.geometry.hexes.forEach((hex) => { if (hex.resource !== "sea") this.drawHex(hex); }); // ⚓ sea hexes: open water
     this.drawRobberModeOverlay();
     this.drawRollHighlight();
+    this._dimForPlacement(); // v0.81
     this.drawNodeDots();
     this.drawPorts();
     this.drawRoads();

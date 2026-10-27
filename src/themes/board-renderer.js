@@ -8,7 +8,7 @@
 //    or placement pulse is running: one drawImage of the board layer + pieces drawn as Path2D.
 //  * Pieces / robber / hints are vector specs (Path2D) — crisp at any zoom, nothing to bake.
 //  * The sea is a CSS layer behind the (transparent) canvas, so idle water costs no canvas work.
-import { hexPath, pipCount, f, harbourBadges, harbourScale } from "./art-util.js";
+import { hexPath, pipCount, f, harbourBadges, harbourScale, pierTick, drawPierTick } from "./art-util.js";
 import { motionReduced } from "./manager.js";
 // ⚓ Seafarers drawing (only used while game.sea is set)
 import { seaArt, portLandHex, bakeSeaMarks, drawShips, drawPirateAndChips, drawShipSpots, ghostShip, ghostPirate } from "../seafarers/render.js";
@@ -262,8 +262,9 @@ export class SvgBoardRenderer {
     // 2. harbours, each in a box around its piers + badge
     for (let i = 0; i < ports.length; i += 1) {
       const { a, b: bb, badge: q } = portData[i], M = 16, sh = q.ship || q;
-      const x0 = Math.min(a.x, bb.x, q.x - q.w / 2, sh.x - sh.w / 2) - M, x1 = Math.max(a.x, bb.x, q.x + q.w / 2, sh.x + sh.w / 2) + M;
-      const y0 = Math.min(a.y, bb.y, q.y - q.h / 2, sh.y - sh.h / 2) - M, y1 = Math.max(a.y, bb.y, q.y + q.h / 2, sh.y + sh.h / 2) + M;
+      const kx = q.piers.filter((p) => p[2]).map((p) => p[2][0]), ky = q.piers.filter((p) => p[2]).map((p) => p[2][1]); // v0.81: pier knees
+      const x0 = Math.min(a.x, bb.x, q.x - q.w / 2, sh.x - sh.w / 2, ...kx) - M, x1 = Math.max(a.x, bb.x, q.x + q.w / 2, sh.x + sh.w / 2, ...kx) + M;
+      const y0 = Math.min(a.y, bb.y, q.y - q.h / 2, sh.y - sh.h / 2, ...ky) - M, y1 = Math.max(a.y, bb.y, q.y + q.h / 2, sh.y + sh.h / 2, ...ky) + M;
       const pc = await rasterize(svgOf(x0, y0, x1 - x0, y1 - y0, k, ports[i].svg), (x1 - x0) * k, (y1 - y0) * k);
       if (gen !== this.bakeGen) return;
       ctx.drawImage(pc, ...at(x0, y0), (x1 - x0) * k, (y1 - y0) * k);
@@ -296,7 +297,9 @@ export class SvgBoardRenderer {
       ctx.font = `${l.weight || 700} ${l.size}px ${l.font || T.tokenStyle.labelFont}`;
       ctx.fillText(l.text, l.x, l.y);
     }));
-    this.layer = { canvas, ...b, k, key };
+    // v0.81: harbour-corner ticks are drawn live (drawHarbourTicks), so a corner with a piece on it shows none
+    const ticks = portData.flatMap((p, i) => p.piers.map((pr) => ({ ...pierTick(pr, p.s), ...(ports[i].tick || { fill: "#7E949B", line: "rgba(0,0,0,.5)" }) })));
+    this.layer = { canvas, ...b, k, key, ticks };
     const ms = performance.now() - t0;
     this.stats.bakes += 1;
     this.stats.bakeMs += ms;
@@ -380,10 +383,13 @@ export class SvgBoardRenderer {
     }
     this.detectChanges(now);
     this.anims = this.anims.filter((a) => now - a.start < a.dur);
-    // Placement: redraw only while the one-off pulse runs (and for the bobbing ✓ on desktop)
-    const pulsing = this.placementActive() && (now - (this._placeStart || 0) < 1300 || (g.confirmBuild && !g.isMobileLayout));
-    if (!this.dirty && !this.anims.length && !pulsing) return;
+    // Placement (v0.81): the legal spots breathe slowly while you place (~30 fps is plenty for that; reduced
+    // motion: a static ring, so only the one-off entrance and the bobbing ✓ on desktop redraw)
+    const placing = this.placementActive();
+    const pulsing = placing && (now - (this._placeStart || 0) < 1300 || (g.confirmBuild && !g.isMobileLayout) || !motionReduced());
+    if (!this.dirty && !this.anims.length && !(pulsing && now - (this._lastPulse || 0) > 30)) return;
     this.dirty = false;
+    this._lastPulse = now;
     const t0 = performance.now();
     this.draw(now);
     const ms = performance.now() - t0;
@@ -421,6 +427,10 @@ export class SvgBoardRenderer {
       this.drawFallbackBoard(ctx, devK);
     }
 
+    // 1b. harbour corners: a small accent tick where each pier meets the coast (under every piece and marker;
+    //     none on a corner that holds a settlement / city)
+    if (L?.ticks) L.ticks.forEach((t) => { if (!g.geometry.nodes[t.id]?.structure) drawPierTick(ctx, t, t.fill, t.line); });
+
     // 2. rolled number: calm outline on the producing tiles
     const glow = this.anims.find((a) => a.kind === "glow");
     if (glow) this.drawGlow(ctx, glow, now, reduced);
@@ -435,6 +445,9 @@ export class SvgBoardRenderer {
 
     // 4. robber-mode targets
     if (g.pendingAction === "robber" && g.currentPlayer?.isHuman) this.drawRobberTargets(ctx);
+    // 4b. build / setup placement: the board dims a touch so the legal spots (drawn on top, step 8) pop
+    if (this.placementActive()) this.dimForPlacement(ctx, now, reduced);
+    else this._dimFrom = null;
 
 
     // 5. roads
@@ -678,11 +691,31 @@ export class SvgBoardRenderer {
     return this.game._legalPlacementSpots() || { nodes: [], cities: [], edges: [], type: null };
   }
 
+  /** v0.81: while placing, every land tile gets a light wash of the theme's dim colour (fades in), so the
+   *  lit spots stand out. Pieces are drawn after it and stay at full strength. */
+  dimForPlacement(ctx, now, reduced) {
+    const { type } = this.legalSpots();
+    if (!type || type === "robber") { this._dimFrom = null; return; }
+    if (this._dimFrom == null) this._dimFrom = now; // fades in once per placement, not again after each piece
+    const a = 0.36 * (reduced ? 1 : clamp01((now - this._dimFrom) / 260));
+    if (a <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = this.theme.dimFill;
+    this.game.geometry.hexes.forEach((h) => {
+      if (h.resource === "sea") return;
+      const c = this.hexArt(h);
+      ctx.save(); ctx.translate(c.x, c.y); ctx.fill(HEX_P(97)); ctx.restore();
+    });
+    ctx.restore();
+  }
+
   /**
-   * Legal spots only: calm white rings (~14 px) on nodes, dashed ghost segments on edges, a dashed
-   * ring around settlements that can become cities. When the spots appear they get ONE gentle pulse
-   * in the player's colour, then stay still (no looping glow, no flashing). Sizes are in screen pixels
-   * so they read the same at every zoom.
+   * Legal spots only (v0.81: lit more strongly): each node spot is a white ring with a dot of your colour in it,
+   * a thin dark outline (contrast on light tiles) and a soft halo in your colour that breathes slowly
+   * (~1.8 s, no flashing); roads are dashed white lanes over a soft band of your colour; settlements that can
+   * become cities get the same ring around the house. Reduced motion: the same halo, static. Sizes are in
+   * screen pixels so they read the same at every zoom.
    */
   drawPlacement(ctx, now, reduced, devK) {
     const g = this.game;
@@ -694,45 +727,51 @@ export class SvgBoardRenderer {
     const c = this.pc(g.currentPlayer || human);
     const key = `${type}:${nodes.join(",")}:${cities.join(",")}:${edges.join(",")}:${ships.join(",")}`;
     if (key !== this._placeKey) { this._placeKey = key; this._placeStart = now; }
-    const t = reduced ? 1 : clamp01((now - this._placeStart) / 1100);
-    const e = easing(this.theme.motion.out)(t);
-    const pulseA = t < 1 ? 0.6 * (1 - t) : 0; // fades out once; nothing afterwards
-    const ink = "rgba(20,40,44,.32)";
-    const ring = (x, y, r) => {
+    const t = reduced ? 1 : clamp01((now - this._placeStart) / 700);
+    const e = easing(this.theme.motion.out)(t); // entrance: the spots grow in once
+    // slow breathing 0..1 (reduced motion: held at the middle)
+    const br = reduced ? 0.5 : 0.5 - 0.5 * Math.cos(((now - this._placeStart) / 1800) * Math.PI * 2);
+    const ink = "rgba(20,40,44,.5)";
+    // many spots at once (setup: nearly every corner): a lighter, tighter halo so the board doesn't turn into one wash
+    const dn = nodes.length + cities.length > 20 ? 0.55 : 1, out = dn < 1 ? 7 + 4 * br : 11 + 6 * br;
+    const ring = (x, y, r, dot) => {
       ctx.save(); ctx.translate(x, y);
-      if (pulseA > 0) {
-        ctx.beginPath(); ctx.arc(0, 0, r + 10 * e * px, 0, Math.PI * 2);
-        ctx.globalAlpha = pulseA; ctx.lineWidth = 3 * px; ctx.strokeStyle = c.base; ctx.stroke(); ctx.globalAlpha = 1;
+      // soft halo in your colour: an inner glow and a fainter outer one
+      ctx.fillStyle = c.base;
+      ctx.beginPath(); ctx.arc(0, 0, r + out * px * e, 0, Math.PI * 2); ctx.globalAlpha = (0.16 + 0.1 * br) * dn; ctx.fill();
+      ctx.beginPath(); ctx.arc(0, 0, r + (5 + 3 * br) * px * e, 0, Math.PI * 2); ctx.globalAlpha = (0.34 + 0.16 * br) * dn; ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(0, 0, r + 2 * px, 0, Math.PI * 2); ctx.lineWidth = 1.8 * px; ctx.strokeStyle = ink; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,.34)"; ctx.fill();
+      ctx.lineWidth = 3 * px; ctx.strokeStyle = "#FFFFFF"; ctx.stroke();
+      if (dot) {
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.42, 0, Math.PI * 2); ctx.fillStyle = c.base; ctx.fill();
+        ctx.lineWidth = 1.2 * px; ctx.strokeStyle = c.line || c.dark || ink; ctx.stroke();
       }
-      ctx.beginPath(); ctx.arc(0, 0, r + 1.6 * px, 0, Math.PI * 2); ctx.lineWidth = 1.4 * px; ctx.strokeStyle = ink; ctx.stroke();
-      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,.24)"; ctx.fill();
-      ctx.lineWidth = 2.6 * px; ctx.strokeStyle = "#FFFFFF"; ctx.stroke();
       ctx.restore();
     };
     edges.forEach((id) => {
       if (cb && cb.type === "road" && cb.id === id) return;
       const [a, b] = this.roadEnds(g.geometry.edges[id]);
       ctx.save(); ctx.lineCap = "round";
-      if (pulseA > 0) {
-        ctx.globalAlpha = pulseA * 0.8; ctx.lineWidth = (5 + 8 * e) * px; ctx.strokeStyle = c.base;
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.globalAlpha = 1;
-      }
+      ctx.globalAlpha = 0.3 + 0.18 * br; ctx.lineWidth = (12 + 6 * br) * px * e; ctx.strokeStyle = c.base;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.globalAlpha = 1;
       ctx.setLineDash([6 * px, 5 * px]);
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-      ctx.lineWidth = 6 * px; ctx.strokeStyle = ink; ctx.stroke();
-      ctx.lineWidth = 3.6 * px; ctx.strokeStyle = "rgba(255,255,255,.96)"; ctx.stroke();
+      ctx.lineWidth = 6.4 * px; ctx.strokeStyle = ink; ctx.stroke();
+      ctx.lineWidth = 3.8 * px; ctx.strokeStyle = "#FFFFFF"; ctx.stroke();
       ctx.restore();
     });
-    if (ships.length) drawShipSpots(this, ctx, ships, cb, { a: pulseA, e }, c.base); // ⚓ dotted spots on the water
+    if (ships.length) drawShipSpots(this, ctx, ships, cb, { a: (0.38 + 0.22 * br) * e, e: 0.4 + 0.4 * br }, c.base); // ⚓ dotted spots on the water
     nodes.forEach((id) => {
       if (cb && cb.id === id && !["road", "ship"].includes(cb.type)) return;
       const p = this.nodeArt(id);
-      ring(p.x, p.y, 7 * px);
+      ring(p.x, p.y, 8 * px, true);
     });
     cities.forEach((id) => {
       if (cb && cb.id === id && cb.type !== "road") return;
       const p = this.nodeArt(id);
-      ring(p.x, p.y - 4, 30); // around the settlement itself
+      ring(p.x, p.y - 4, 30, false); // around the settlement itself
     });
     // hover preview (desktop) — a fainter ghost
     const hoverNode = g.hoverNodeId != null && (!cb || cb.id !== g.hoverNodeId) && (nodes.includes(g.hoverNodeId) || cities.includes(g.hoverNodeId)) ? g.hoverNodeId : null;
