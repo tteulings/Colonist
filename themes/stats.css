@@ -2,7 +2,7 @@
    Built only from the theme tokens: sea backdrop, sheet surfaces, dock footer, primary button.
    Player colours (--pc via .pc-N) only where a player is meant; everything else the theme ink at low
    contrast (--gs-ink) with ONE accent (--gs-acc = the theme's primary); heat = one warm gold (--gs-heat). */
-.gs-over, .gs-replay, .gs-count {
+.gs-over, .gs-replay, .gs-count, .ls-sheet {
   --gs-acc: var(--primary);
   --gs-ink: color-mix(in srgb, var(--ink) 24%, transparent);
   --gs-ink2: color-mix(in srgb, var(--ink) 42%, transparent);
@@ -10,9 +10,9 @@
   --gs-grid: color-mix(in srgb, var(--ink) 11%, transparent);
   --gs-heat: #F6C34A; --gs-shade: #1A2428;
 }
-[data-theme="B"] :is(.gs-over, .gs-replay) { --gs-heat: #F0B848; --gs-shade: #2A1C10; }
-[data-theme="C"] :is(.gs-over, .gs-replay) { --gs-heat: #F5C02E; --gs-shade: #1C1A19; }
-[data-theme="classic"] :is(.gs-over, .gs-replay) { --gs-heat: #FFD45C; --gs-shade: #142430; }
+[data-theme="B"] :is(.gs-over, .gs-replay, .ls-sheet) { --gs-heat: #F0B848; --gs-shade: #2A1C10; }
+[data-theme="C"] :is(.gs-over, .gs-replay, .ls-sheet) { --gs-heat: #F5C02E; --gs-shade: #1C1A19; }
+[data-theme="classic"] :is(.gs-over, .gs-replay, .ls-sheet) { --gs-heat: #FFD45C; --gs-shade: #142430; }
 
 /* ── 1. winning-move count on the board ── */
 .gs-count { position: fixed; inset: 0; z-index: 60; pointer-events: auto; }
@@ -236,4 +236,49 @@
 /* desktop: the overlay sits in the board panel */
 @media (min-width: 901px) and (min-height: 501px) {
   .gs-foot { justify-content: center; grid-template-columns: minmax(0, 180px) minmax(0, 280px); }
+}
+
+/* ── Live stats (src/live-stats.js): a half-height sheet docked above the dock, one card at a time ── */
+.ls-sheet { --ls-h: clamp(250px, calc(var(--app-h, 100dvh) * .43), 380px);
+  position: absolute; left: 0; right: 0; bottom: 0; height: var(--ls-h); z-index: 7; display: flex; flex-direction: column;
+  background: var(--sheet); background-image: var(--sheet-image); border-top: var(--sheet-border); border-radius: 18px 18px 0 0;
+  box-shadow: 0 -6px 24px rgba(0,0,0,.16); font-family: var(--font-body); color: var(--ink); transition: transform 200ms ease; }
+.ls-sheet.in { animation: lsIn 240ms var(--ease-out, ease) both; }
+@keyframes lsIn { from { transform: translateY(40%); opacity: 0; } }
+html[data-motion="reduced"] .ls-sheet.in { animation: none; }
+.app.ls-open .rush-offers { bottom: calc(clamp(250px, calc(var(--app-h, 100dvh) * .43), 380px) + 6px); }
+.ls-head { flex: none; position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 8px 2px 14px; touch-action: none; cursor: grab; }
+.ls-grab { position: absolute; left: 50%; top: 5px; width: 38px; height: 4px; margin-left: -19px; border-radius: 3px; background: var(--ink-faint, var(--gs-ink)); opacity: .6; }
+.ls-head h3 { margin: 0; display: flex; align-items: baseline; gap: 6px; font: var(--display-weight, 700) 17px/1.2 var(--font-display); color: var(--heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ls-head h3 .ic { width: 16px; height: 16px; color: var(--gs-acc); align-self: center; flex: none; }
+.ls-when { font: 650 12px var(--font-body); color: var(--ink-soft); }
+.app .ls-head .ls-x { width: 40px; height: 40px; min-width: 40px; font-size: 17px; color: var(--ink-soft); flex: none; }
+.ls-chips { flex: none; display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; padding: 4px 12px 8px; }
+.ls-chips::-webkit-scrollbar { display: none; }
+.ls-chip { flex: none; height: 30px; padding: 0 12px; border-radius: 999px; border: var(--float-border); background: var(--float); color: var(--ink-soft); font: 750 12.5px var(--font-body); cursor: pointer; white-space: nowrap; }
+.ls-chip.on { background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); border: var(--primary-border); }
+.ls-track { flex: 1; min-height: 0; display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior: contain; scrollbar-width: none; padding: 0 12px 10px; scroll-padding: 0 12px; }
+.ls-track::-webkit-scrollbar { display: none; }
+.ls-slot { flex: 0 0 100%; min-width: 0; height: 100%; scroll-snap-align: center; scroll-snap-stop: always; }
+.ls-slot .gs-card { height: 100%; box-sizing: border-box; margin: 0; overflow-y: auto; overscroll-behavior: contain; box-shadow: none; padding: 10px 12px 8px; }
+.ls-slot .gs-card h2 { font-size: 16px; }
+.ls-slot .gs-chart { max-height: calc(var(--ls-h) - 150px); }
+.ls-slot [data-card="race"] .gs-chart { max-height: calc(var(--ls-h) - 196px); }
+.ls-slot .gs-rows { gap: 5px; }
+.ls-slot .gs-map { margin: 0 auto; }
+.ls-slot .gs-row.me b { color: var(--gs-acc); }
+.gs-dbar.cold rect { fill: color-mix(in srgb, var(--gs-acc) 12%, transparent); stroke: var(--gs-acc); stroke-width: 1.4; stroke-dasharray: 3 2; }
+.gs-dbar.cold .gs-ax.n { fill: var(--gs-acc); }
+.gs-seg.gold { fill: var(--gs-heat); }
+.ls-dash { display: inline-block; width: 14px; border-top: 1.5px dashed var(--gs-ink3); vertical-align: middle; }
+/* the dice tray opens the live stats: a small chart glyph says so */
+.dice-tray { cursor: pointer; }
+.dice-tray .stats-btn { display: flex; align-items: flex-end; justify-content: center; width: 16px; height: 22px; min-width: 0; padding: 0 0 4px; margin-left: 1px; border: 0; background: none; box-shadow: none; pointer-events: none; color: var(--ink-soft); }
+.dice-tray .stats-btn > * { display: none; }
+.dice-tray .stats-btn::before { content: ""; width: 13px; height: 12px; opacity: .8;
+  background: linear-gradient(currentColor, currentColor) 0 100% / 3px 6px no-repeat, linear-gradient(currentColor, currentColor) 5px 100% / 3px 12px no-repeat, linear-gradient(currentColor, currentColor) 10px 100% / 3px 8px no-repeat; }
+.roll-stats-panel.open { display: none; }
+@media (min-width: 901px) and (min-height: 501px) {
+  .ls-sheet { --ls-h: min(440px, calc(100% - 28px)); left: 14px; right: auto; bottom: 14px; width: 380px; border-radius: var(--panel-radius, 16px); border: var(--float-border); box-shadow: var(--float-shadow); }
+  .ls-head { cursor: default; }
 }

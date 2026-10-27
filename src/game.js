@@ -11,6 +11,7 @@ import { SixUiMixin } from "./six-ui.js";
 import { HotseatMixin } from "./hotseat.js";
 import { StatsMixin, installStats } from "./stats.js"; // end-of-game statistics: the recorder
 import { StatsUiMixin } from "./stats-ui.js"; // … the stats screen, heatmaps and the replay
+import { LiveStatsMixin, installLiveStats } from "./live-stats.js"; // … and the same cards during the game
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
@@ -935,6 +936,7 @@ class ColonistFullGame {
       onSettings: () => this.settingsUI.open("game"),
       onIntro: () => this.onboarding.showIntro(0, false),
       onAbout: () => this.settingsUI.open("about"),
+      onStats: () => this.liveStatsOpen(),
     });
     // Every launch opens on the home screen. A saved game is restored behind it but held (no bots,
     // no Rush clock, nothing saved) until Continue; without one a fresh board waits behind it.
@@ -10050,6 +10052,8 @@ Object.defineProperties(ColonistFullGame.prototype, Object.getOwnPropertyDescrip
 // End-of-game statistics: recorder (src/stats.js) + stats screen and replay (src/stats-ui.js)
 Object.assign(ColonistFullGame.prototype, StatsMixin, StatsUiMixin);
 installStats(ColonistFullGame);
+Object.assign(ColonistFullGame.prototype, LiveStatsMixin); // live stats during the game (src/live-stats.js)
+installLiveStats(ColonistFullGame);
 
 const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle

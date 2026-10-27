@@ -118,6 +118,8 @@ export class Home {
 }
 
 /** The in-game Menu (dock button on phones, top bar on desktop): Home · New game · Settings · How to play · About. */
+const STATS_IC = `<svg class="ic" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M3 11h3v6H3zM8.5 4h3v13h-3zM14 8h3v9h-3z"/></svg>`;
+
 export class GameMenu {
   /** opts: { onHome(), onNewGame(), onSettings(), onIntro(), onAbout() } */
   constructor(game, opts) {
@@ -141,6 +143,7 @@ export class GameMenu {
       <div class="mn-head"><h2>${themed(this.game, "menu", MENU_IC, "ic-menu")}Menu</h2><button type="button" class="btn ghost icon-only mn-close" aria-label="Close">${icon("close")}</button></div>
       <div class="mn-list">
         ${item("home", `<svg class="ic" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>`, "Home", this.game.winner ? "" : "Your game is saved")}
+        ${this.game.liveStatsAvailable?.() && !this.game._lsNeedsBoard?.() ? item("stats", STATS_IC, "Stats", "Dice, points and income so far") : ""}
         ${item("newgame", icon("dice"), "New game", "Mode, rules and opponents")}
         ${item("settings", icon("settings"), "Settings", "Sound, bot speed, look")}
         ${item("intro", themed(this.game, "book", BOOK_IC), "How to play")}
@@ -148,7 +151,7 @@ export class GameMenu {
       </div></div>`;
     el.addEventListener("click", (e) => { if (e.target === el) this.close(); });
     el.querySelector(".mn-close").addEventListener("click", () => this.close());
-    const go = { home: "onHome", newgame: "onNewGame", settings: "onSettings", intro: "onIntro", about: "onAbout" };
+    const go = { stats: "onStats", home: "onHome", newgame: "onNewGame", settings: "onSettings", intro: "onIntro", about: "onAbout" };
     el.querySelectorAll("[data-menu]").forEach((b) => b.addEventListener("click", () => { const fn = this.opts[go[b.dataset.menu]]; this.close(); fn?.(); }));
     document.addEventListener("keydown", this.onKey);
     document.body.appendChild(el);

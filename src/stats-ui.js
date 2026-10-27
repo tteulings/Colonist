@@ -414,7 +414,7 @@ export const StatsUiMixin = {
     const maxV = Math.max(1, ...lost, ...took);
     const rows = this.players.map((p) => `<div class="gs-row dv" data-pid="${p.id}">${this._stPortrait(p.id, "", 26)}<span class="gs-num l">${lost[p.id] || ""}</span><svg class="gs-bar" height="16"><rect class="gs-seg lost" x="${50 - (lost[p.id] / maxV) * 50}%" width="${(lost[p.id] / maxV) * 50}%" height="16" rx="3"/><rect class="gs-seg took" x="50%" width="${(took[p.id] / maxV) * 50}%" height="16" rx="3"/><line class="gs-axis" x1="50%" x2="50%" y1="0" y2="16"/></svg><span class="gs-num r">${took[p.id] || ""}</span></div>`).join("");
     const worst = lost.indexOf(Math.max(...lost));
-    const title = lost[worst] ? `${this._stName(this.players[worst])} lost the most: ${lost[worst]} cards` : "Nobody lost a card";
+    const title = lost[worst] ? `${this._stName(this.players[worst])} lost the most: ${lost[worst]} card${lost[worst] === 1 ? "" : "s"}` : "Nobody lost a card";
     return this._stCard("robbed", title, `<span class="gs-key lost"></span>stolen, discarded <span class="gs-key took"></span>taken`, `<div class="gs-rows">${rows}</div>`);
   },
 
@@ -478,7 +478,7 @@ export const StatsUiMixin = {
     if (!v[best]) return kind === "robber" ? "The robber stayed home" : kind === "income" ? `${this._stName(this.players[pid])} got nothing from the dice` : "No tile paid out";
     const tile = this._stTile(best);
     if (kind === "prod") return `${cap(tile)} paid out most: ${v[best]} cards`;
-    if (kind === "robber") return `The robber liked ${tile}: ${v[best]} ${this._stTurnWord()}s`;
+    if (kind === "robber") return !this.winner && !st.robberMoves && best === st.r0 ? `The robber hasn't moved yet` : `The robber liked ${tile}: ${v[best]} ${this._stTurnWord()}s`;
     const p = this.players[pid];
     return `${this._you(p) ? "Your" : `${p.name}'s`} best tile: ${tile} · ${v[best]} cards`;
   },
