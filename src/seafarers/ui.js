@@ -169,7 +169,7 @@ export const SeaGame = {
     this.placementAnims.push({ ...pos, type: "road", startTime: Date.now() });
     if (this.rush) this._rushAfterAction(player);
     else { this.recomputeScores(); this.checkForWinner(player); this.saveToStorage(); this.render(); }
-    if (!this.winner) this._setUndo({ kind: "moveShip", from, to, pid: player.id, lr, logs: this.logEntries.slice(logLen), icon: "ship", label: "Ship moved", noun: "", dock: true });
+    if (!this.winner) this._setUndo({ kind: "moveShip", from, to, pid: player.id, lr, logs: this.logEntries.slice(logLen), icon: "ship", label: "Ship moved", noun: "", dock: true }, 5000); // v0.81: expires after 5 s
     this.render();
   },
 

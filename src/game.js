@@ -1526,6 +1526,8 @@ class ColonistFullGame {
       this.hoverTooltip = ""; // drop a stale "Confirm" tooltip from the last setup placement
       this.sea?.onNewTurn(); // ⚓ set-up ships may move from the first turn on
       this.addLog("Initial placement complete.");
+      this.recomputeScores(); // v0.81: the chips show both set-up settlements at once
+      this._tickerPromptKey = null; this._tickerPrompt = ""; this._lastLogKey = null; // and the ticker drops "Now place a road…"
       if (this.isRush()) {
         this._startRush();
         return;
@@ -5912,17 +5914,7 @@ class ColonistFullGame {
     const seven = this.rush.seven;
     seven.leftMs = Infinity;
     if (seven.stage === "discard" && this.pendingDiscard) {
-      const { player, count } = this.pendingDiscard;
-      const picked = makeEmptyResources();
-      for (let i = 0; i < count; i += 1) {
-        const candidates = RESOURCES.filter((res) => player.resources[res] - picked[res] > 0)
-          .map((res) => ({ resource: res, weight: player.resources[res] - picked[res] }));
-        if (!candidates.length) break;
-        picked[chooseRandomWeighted(candidates).resource] += 1;
-      }
-      this.pendingDiscard.selected = picked;
-      this.addLog("Time's up — cards discarded at random.");
-      this._confirmDiscard();
+      this._discardAuto(); // v0.81: the Suggest choice, with a toast
     } else if (seven.stage === "robber") {
       const human = this.players[seven.moverId];
       this.addLog("Time's up — the robber was placed for you.");
@@ -7878,7 +7870,8 @@ class ColonistFullGame {
     if (this.tickerText && !this._tickerPrompt) {
       // trade offers are already on screen as a card (Rush) or a sheet (Classic): don't repeat them here
       const NOISE = /^(Session restored|Initial placement complete|Game (saved|loaded))|\boffers you\b/;
-      const real = [...this.logEntries].reverse().find((e) => !NOISE.test(e.text.replace(/^Turn \d+: /, "")));
+      const setupDone = !this.setupPhase && last?.text === "Initial placement complete."; // v0.81: say whose turn it is, not the last set-up step
+      const real = setupDone ? null : [...this.logEntries].reverse().find((e) => !NOISE.test(e.text.replace(/^Turn \d+: /, "")));
       const own = this._ownRollSummary();
       if (own) {
         // Right after your roll the line is about YOU, not the last bot that collected
@@ -8032,7 +8025,7 @@ class ColonistFullGame {
     const rollBtn = this.rollDiceBtn;
     const endBtn = this.endTurnBtn;
     const buildPanel = this.actionPromptBuild;
-    const oppTurn = !rushOn && !this.winner && !humanTurn;
+    const oppTurn = !rushOn && !this.winner && !humanTurn && !tray; // v0.81: a tray (discard on a bot's 7, gold) needs the dock
     this.app?.classList.toggle("opp-turn", oppTurn);
     if (rollBtn) {
       rollBtn.style.display = !rushOn && !inSetup && humanTurn && preRoll && !robberBlocking ? "inline-flex" : "none";
@@ -8763,7 +8756,8 @@ class ColonistFullGame {
     return new Promise((resolve) => {
       if (!this.discardPanel) { resolve(); return; }
       // Inline: tap the cards in your hand to mark them; the dock tray counts and hands them back
-      this.pendingDiscard = { player, count: discardCount, selected: makeEmptyResources(), resolve, order: [] };
+      this.pendingDiscard = { player, count: discardCount, selected: makeEmptyResources(), resolve, order: [], lastActAt: Date.now() };
+      this._discardWatch(this.pendingDiscard);
       this.toggleBuildSheet?.(false);
       this.hideDevCardPicker();
       this.hideTradePanel();
@@ -9272,7 +9266,8 @@ class ColonistFullGame {
     this.undoState = u;
     u.ms = ms;
     if (ms) {
-      this._undoTimer = this._later(() => { this._undoTimer = null; if (this.undoState === u) this._dropUndo(); }, ms);
+      // v0.81: a dock tray tied to the undo ("Ship moved") goes with it, and End turn comes back
+      this._undoTimer = this._later(() => { this._undoTimer = null; if (this.undoState === u) { this._dropUndo(); if (u.dock) this.render(); } }, ms);
     }
     this._renderUndo();
   }
@@ -9487,6 +9482,7 @@ class ColonistFullGame {
     const sel = sumResources(pd.selected);
     if (sel >= pd.count || pd.selected[res] >= pd.player.resources[res]) { this.sfx.error?.(); return; }
     pd.selected[res] += 1;
+    pd.lastActAt = Date.now();
     (pd.order ||= []).push(res);
     this.sfx.click();
     this.render();
@@ -9497,6 +9493,7 @@ class ColonistFullGame {
     const r = pd?.order?.pop() || RESOURCES.find((x) => pd?.selected[x] > 0);
     if (!r) return;
     pd.selected[r] -= 1;
+    pd.lastActAt = Date.now();
     this.render();
   }
 
@@ -9504,6 +9501,13 @@ class ColonistFullGame {
   _discardSuggest() {
     const pd = this.pendingDiscard;
     if (!pd) return;
+    this._discardSuggestPick(pd);
+    pd.lastActAt = Date.now();
+    this.sfx.click();
+    this.render();
+  }
+
+  _discardSuggestPick(pd) {
     const left = copyResources(pd.player.resources);
     const sel = makeEmptyResources();
     for (let i = 0; i < pd.count; i += 1) {
@@ -9513,8 +9517,28 @@ class ColonistFullGame {
     }
     pd.selected = sel;
     pd.order = RESOURCES.flatMap((r) => Array(sel[r]).fill(r));
-    this.sfx.click();
-    this.render();
+  }
+
+  /** v0.81 safety net: nobody answered the discard (60 s idle / Rush clock out): hand back the Suggest choice. */
+  _discardAuto() {
+    const pd = this.pendingDiscard;
+    if (!pd) return;
+    this._discardSuggestPick(pd);
+    const who = this._you(pd.player) ? "you" : pd.player.name;
+    this.pushToast(`Time's up · ${pd.count} cards handed back for ${who}`);
+    this.addLog(`Time's up — ${pd.count} cards handed back automatically.`);
+    this._confirmDiscard();
+  }
+
+  _discardWatch(pd) {
+    this._later(() => {
+      if (this.pendingDiscard !== pd || this.winner) return;
+      if (this.rush) return; // Rush: its own 7 clock (_rushSevenTimeout)
+      const now = Date.now();
+      if (this.hsCoverOn != null || document.hidden) pd.lastActAt = now; // the phone is being passed / app in background
+      if (now - pd.lastActAt >= (this.discardIdleMs ?? 60000)) this._discardAuto();
+      else this._discardWatch(pd);
+    }, 1000);
   }
 
   /** Year of Plenty / Monopoly pick in the dock. */
