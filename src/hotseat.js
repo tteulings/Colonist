@@ -118,7 +118,8 @@ export const HotseatMixin = {
       this._hsCoverEl = el;
     }
     const why = this._hsWhy(pid);
-    const key = `${pid}|${p.name}|${why}`;
+    const secrets = this._hsSecrets?.[pid] || []; // only for this player's eyes: which card was stolen
+    const key = `${pid}|${p.name}|${why}|${secrets.join("|")}`;
     el.hidden = false;
     this.hsCoverOn = pid;
     if (el.dataset.key === key) return;
@@ -126,7 +127,7 @@ export const HotseatMixin = {
     el.className = `hs-cover pc-${pid}`;
     el.setAttribute("aria-label", `Pass the phone to ${p.name}`);
     el.innerHTML = `${avatarSvg(pid, "hs-av")}<p class="hs-pass">Pass the phone to</p><h2 class="hs-name">${esc(p.name)}</h2>
-      <p class="hs-why">${why}</p>
+      <p class="hs-why">${why}</p>${secrets.map((h) => `<p class="hs-why hs-secret">${h}</p>`).join("")}
       <button type="button" class="hs-go" data-hs-go="${pid}">I'm ${esc(p.name)} · show my hand</button>
       <p class="hs-foot">Hands stay hidden until you tap</p>`;
     // a cover over an open sheet: put the sheets away (their contents belong to the previous holder)
@@ -146,11 +147,28 @@ export const HotseatMixin = {
     this.viewerId = this.hsCoverOn;
     this.handHidden = false;
     this._hsNote = null;
+    if (this._hsSecrets) delete this._hsSecrets[this.viewerId];
     this._hsHideCover();
     this._guardPrimaryTap?.(500);
     this.sfx?.click?.();
     this._invalidateUI?.();
     this.render();
+  },
+
+  /** A steal names the card only to the thief and the victim: a toast when they hold the phone, else a line on their next cover. */
+  _hsStealNotes(thief, victim, label) {
+    const keep = (pid, html) => {
+      this._hsSecrets = this._hsSecrets || {};
+      this._hsSecrets[pid] = [...(this._hsSecrets[pid] || []), html].slice(-3);
+    };
+    if (victim.isHuman) {
+      if (this._seesPrivate(victim)) this.pushToast(`${esc(thief.name)} stole your ${label}`);
+      else keep(victim.id, `${avatarSvg(thief.id)}${esc(thief.name)} stole your ${label}`);
+    }
+    if (thief.isHuman) {
+      if (this._seesPrivate(thief)) this.pushToast(`You stole ${esc(victim.name)}'s ${label}`);
+      else keep(thief.id, `${avatarSvg(victim.id)}You stole ${esc(victim.name)}'s ${label}`);
+    }
   },
 
   /** Trade sheet: ask another human directly. A cover hands them the phone; they accept or decline. */

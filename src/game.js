@@ -1391,6 +1391,7 @@ class ColonistFullGame {
     this.viewerId = 0; // pass & play: the human holding the phone
     this.handHidden = false;
     this._hsNote = null;
+    this._hsSecrets = null;
     this.players = PLAYER_CONFIG.slice(0, this.settings.numBots + 1).map((config, id) => {
       const seat = seatSpec(this.settings, id);
       return {
@@ -3133,7 +3134,11 @@ class ColonistFullGame {
     this._aiTrkSteal(victim, currentPlayer); // the card itself is hidden from the other players
     victim.resources[stolen] -= 1;
     currentPlayer.resources[stolen] += 1;
-    this.addLog(`${currentPlayer.name} stole 1 ${RESOURCE_LABEL[stolen]} from ${victim.name}.`);
+    if (this.hotseat) {
+      // pass & play: the table only learns that a card moved; thief and victim see which one privately
+      this.addLog(`${currentPlayer.name} stole a card from ${victim.name}.`);
+      this._hsStealNotes(currentPlayer, victim, RESOURCE_LABEL[stolen]);
+    } else this.addLog(`${currentPlayer.name} stole 1 ${RESOURCE_LABEL[stolen]} from ${victim.name}.`);
     this.sfx.steal();
     this._showStealAnimation(currentPlayer, victim, stolen);
   }
@@ -3232,7 +3237,7 @@ class ColonistFullGame {
   }
 
   _showStealAnimation(thief, victim, resource) {
-    const youInvolved = thief.isHuman || victim.isHuman;
+    const youInvolved = this.hotseat ? this._seesPrivate(thief) || this._seesPrivate(victim) : thief.isHuman || victim.isHuman;
     this.fx?.steal(thief.id, victim.id, resource, youInvolved);
   }
 
@@ -6467,6 +6472,7 @@ class ColonistFullGame {
     this.viewerId = null; // pass & play: the cover asks who holds the phone
     this.handHidden = true;
     this._hsNote = null;
+    this._hsSecrets = null;
     this.players = data.players.map((saved, id) => {
       const config = PLAYER_CONFIG[id];
       const spec = seatSpec(this.settings, id);
@@ -8670,7 +8676,7 @@ class ColonistFullGame {
     if (key === this._lastHandBarKey) return;
     this._lastHandBarKey = key;
     const over = total > limit;
-    el.innerHTML = (who ? `<span class="hb-who pc-${who.id}">${who.name}</span>` : "") + `<span class="hb-total${over ? " warn" : ""}" data-total="${total}" title="${total} resource card${total === 1 ? "" : "s"}${over ? ` · more than ${limit}: on a 7 you hand back half` : ""}"><b>${total}</b> card${total === 1 ? "" : "s"}${devTotal ? ` · <b>${devTotal}</b> dev` : ""}</span>`
+    el.innerHTML = `<span class="hb-total${over ? " warn" : ""}${who ? " hb-named" : ""}" data-total="${total}" title="${who ? `${who.name}: ` : ""}${total} resource card${total === 1 ? "" : "s"}${devTotal ? ` · ${devTotal} development card${devTotal === 1 ? "" : "s"}` : ""}${over ? ` · more than ${limit}: on a 7 you hand back half` : ""}">${who ? `<span class="hb-who pc-${who.id}">${who.name}</span><i class="hb-sep" aria-hidden="true">·</i>` : ""}${who ? `${icon("cards")}<b>${total}</b>` : `<b>${total}</b> card${total === 1 ? "" : "s"}${devTotal ? ` · <b>${devTotal}</b> dev` : ""}`}</span>`
       + `<button type="button" class="hb-bank${this._bankOpen ? " open" : ""}" aria-expanded="${this._bankOpen}" aria-label="Bank: ${RESOURCES.map((r) => `${this.bank[r]} ${RESOURCE_LABEL[r]}`).join(", ")}, ${deck} development cards left" title="Cards left in the bank (tap to ${this._bankOpen ? "fold" : "show"})">`
       + `${icon("bank")}<span class="hb-lbl">Bank</span>`
       + RESOURCES.map((r) => `<span class="bk${this.bank[r] <= 3 ? " low" : ""}" data-bank="${r}">${icon(r)}<b>${this.bank[r]}</b></span>`).join("")

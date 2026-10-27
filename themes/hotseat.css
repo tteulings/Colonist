@@ -35,9 +35,11 @@
 /* another human holds the phone for a moment (trade answer): the turn owner's buttons wait */
 #app.hs-away #dock .actions > .mbtn:not(#mMenuBtn), #app.hs-away #dock .side-actions button, #app.hs-away #dock .buildgrp button, #app.hs-away #dock .primary-slot button { pointer-events: none; opacity: .45; }
 
-/* the hand bar names whose hand it is */
-.hb-who { display: inline-flex; align-items: center; gap: 5px; font-weight: 750; color: var(--pc-text, var(--ink)); margin-right: 2px; max-width: 9.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hb-who::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 1.5px var(--pc-line, rgba(0,0,0,.25)); flex: none; }
+/* the cards pill names whose hand it is: "● Ann · 3 cards" (one pill, so the bank strip keeps its room at 360px) */
+.hb-total.hb-named { white-space: nowrap; }
+.hb-who { display: inline-flex; align-items: center; gap: 3px; font-weight: 750; color: var(--pc-text, var(--ink)); max-width: 6.2em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.hb-who::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 1.5px var(--pc-line, rgba(0,0,0,.25)); flex: none; }
+.hb-sep { font-style: normal; opacity: .55; margin: 0 2px; }
 
 /* ── New game › Players ────────────────────────────────────────────────── */
 .newgame-modal .hs-seats { display: flex; flex-direction: column; gap: 8px; }
@@ -67,3 +69,14 @@
 .tp.ask .tp-go { font-style: normal; }
 .tp.ask[aria-disabled="true"] { opacity: .55; }
 .rush-offer.no-timer .offer-time { display: none; }
+
+/* pass & play: the named cards pill + the bank strip share the row at 360px */
+@media (max-width: 900px) and (min-height: 501px) {
+  #app.hs-on .hand-bar { gap: 4px; }
+  #app.hs-on .hand-bar .hb-total.hb-named { padding: 0 6px; gap: 2px; }
+  #app.hs-on .hand-bar .hb-bank { padding: 0 5px 0 4px; }
+  #app.hs-on .hand-bar .hb-bank .bk + .bk { margin-left: 2px; }
+  #app.hs-on .hand-bar .hb-bank .bk.dv { padding-left: 3px; margin-left: 3px; }
+}
+.hs-cover .hs-why.hs-secret { margin: -12px 0 18px; min-height: 0; font-size: 14px; padding: 5px 12px; border-radius: 999px; background: color-mix(in srgb, var(--pc-ink, #fff) 16%, transparent); }
+.hb-total.hb-named .ic { font-size: 13px; margin-right: 1px; }
