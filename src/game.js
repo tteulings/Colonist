@@ -8,6 +8,8 @@ import { Home, GameMenu } from "./themes/home.js";
 import { SoundEngine } from "./sound.js";
 import { isBigTable, bigAxialHexes, BIG_CENTER_SHIFT, BIG_BANK_SIZE, BIG_RUSH_INTERVAL, assignBigTiles, assignBigPorts, createBigDevDeck, SbpMixin } from "./six.js";
 import { SixUiMixin } from "./six-ui.js";
+import { StatsMixin, installStats } from "./stats.js"; // end-of-game statistics: the recorder
+import { StatsUiMixin } from "./stats-ui.js"; // … the stats screen, heatmaps and the replay
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS, SHIP_COST } from "./seafarers/index.js";
@@ -1424,6 +1426,7 @@ class ColonistFullGame {
     this.hoverTooltip = "";
     this.canvas.style.cursor = "grab";
 
+    this._stReset(); // the end-of-game statistics log (src/stats.js)
     this.initialPlacement();
     this.recomputeScores();
     this.addLog(this.sea ? `New ${this.isRush() ? "Rush" : "Classic"} Seafarers game: Heading for New Shores, first to ${this.winPoints} points.`
@@ -2813,6 +2816,7 @@ class ColonistFullGame {
     }
     this.phase = "main";
     if (this.rollHistory[this.lastRoll] != null) this.rollHistory[this.lastRoll]++;
+    this._stRoll(player, this.lastDice.d1, this.lastDice.d2);
     this.addLog(`Turn ${this.turn}: ${player.name} rolled ${this.lastRoll}.`);
     this.sfx.diceResult();
     // Highlight matching hex tokens
@@ -3845,6 +3849,7 @@ class ColonistFullGame {
           this._aiTrkNote(aiPlayer, request, 1);
           this._aiTrkNote(other, request, -1);
           this._aiTrkNote(other, offer, 1);
+          this._stTrade(aiPlayer, other, offer, request);
           RESOURCES.forEach((r) => {
             aiPlayer.resources[r] -= offer[r];
             aiPlayer.resources[r] += request[r];
@@ -3897,6 +3902,7 @@ class ColonistFullGame {
     } else if (accepted && human) {
       this._animateTradeCards(want, give, this._offerCardEl());
       // AI gives 'give' to human, human gives 'want' to AI
+      this._stTrade(fromPlayer, human, give, want);
       RESOURCES.forEach((r) => {
         human.resources[r] -= want[r];
         human.resources[r] += give[r];
@@ -5650,6 +5656,7 @@ class ColonistFullGame {
     this.lastDice = { d1: res.d1, d2: res.d2 };
     this.lastRollPlayer = null;
     if (this.rollHistory[res.total] != null) this.rollHistory[res.total] += 1;
+    this._stRoll(null, res.d1, res.d2);
     // New roll interval: last interval's purchases become playable, one dev card each again
     this.players.forEach((p) => {
       DEV_CARD_TYPES.forEach((t) => {
@@ -5936,6 +5943,7 @@ class ColonistFullGame {
       if (r.paused || this.winner || !hasResources(human.resources, offer.want) || !hasResources(from.resources, offer.give)) {
         this.addLog(`Trade with ${from.name} is no longer possible.`);
       } else {
+        this._stTrade(from, human, offer.give, offer.want);
         RESOURCES.forEach((res) => {
           human.resources[res] += offer.give[res] - offer.want[res];
           from.resources[res] += offer.want[res] - offer.give[res];
@@ -6190,54 +6198,7 @@ class ColonistFullGame {
   }
 
   // ── Game-over overlay & restart ──────────────────────────────────────
-  showGameOverOverlay() {
-    if (document.querySelector(".game-over-overlay")) return;
-    this.sfx.victory();
-    this.hideTradePanel();
-    this.toggleBuildSheet?.(false);
-    const overlay = document.createElement("div");
-    overlay.className = "game-over-overlay tm";
-    const winner = this.winner;
-    const ranked = [...this.players].sort((a, b) => b.victoryPoints - a.victoryPoints);
-    const lead = this.rush ? `${winner.victoryPoints} points · Rush roll #${this.rush.rollNo} · ${formatClock(this.rush.clockMs)}`
-      : `${winner.victoryPoints} points on turn ${this.turn}${winner.isHuman ? " — a fine colony." : "."}`;
-    overlay.innerHTML = `<div class="confetti-box"></div>
-      <div class="panel over-panel" role="dialog" aria-label="Game over">
-        <svg class="trophy" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-victoryPoint" x="-50" y="-50" width="100" height="100"/></svg>
-        <h3>${winner.isHuman ? "You win!" : `${winner.name} wins`}</h3>
-        <p class="lead">${lead}</p>
-        <div class="podium">${ranked.map((p, k) => {
-          const persona = p.personality ? AI_PRESET_INFO[p.personality]?.label : "";
-          return `<div class="r${p === winner ? " win" : ""}"><span class="pl">${k + 1}</span>${this._av(p)}<span class="nmc"><span class="pname">${p.name}</span>${persona ? `<small>${persona}</small>` : ""}</span><span class="s">${p.victoryPoints}</span></div>`;
-        }).join("")}</div>
-        <button type="button" class="btn primary game-over-btn rematch-btn" id="newGameBtn" data-rematch>${icon("dice")}Rematch<small>same settings</small></button>
-        <div class="btnrow"><button type="button" class="btn" data-see>${icon("fit")}See board</button><button type="button" class="btn" data-change>${icon("settings")}Change settings</button></div>
-      </div>`;
-    const host = this.isMobileLayout ? this.app : document.querySelector(".board-panel");
-    (host || document.body).appendChild(overlay);
-    this.fx?.pop(overlay.querySelector(".over-panel"));
-    if (winner.isHuman) this.fx?.confetti(overlay.querySelector(".confetti-box"));
-    // Rematch: one tap, same settings (a fresh board); Change settings opens the New game screen
-    overlay.querySelector("[data-rematch]").addEventListener("click", () => {
-      overlay.remove();
-      this.stopAutoplay();
-      this.startNewGame({ ...this.settings });
-    });
-    overlay.querySelector("[data-change]").addEventListener("click", () => {
-      overlay.remove();
-      this.stopAutoplay();
-      this._showDifficultyModal();
-    });
-    overlay.querySelector("[data-see]").addEventListener("click", () => {
-      overlay.remove();
-      this.render();
-    });
-  }
-
-  removeGameOverOverlay() {
-    const overlay = document.querySelector(".game-over-overlay");
-    if (overlay) overlay.remove();
-  }
+  // showGameOverOverlay() / removeGameOverOverlay(): the end-of-game flow lives in src/stats-ui.js
 
   // ── Session persistence ──────────────────────────────────────────────
   static STORAGE_KEY = "colonist_save_v3";
@@ -6299,6 +6260,7 @@ class ColonistFullGame {
       setupAction: this.setupAction,
       lastSetupNodeId: this.lastSetupNodeId,
       sbp: this.sbp ? JSON.parse(JSON.stringify(this.sbp)) : null, // 5–6 players: mid build window
+      stats: this._stSave(), // end-of-game statistics log (src/stats.js)
     };
   }
 
@@ -6472,6 +6434,7 @@ class ColonistFullGame {
     this.setupStep = data.setupStep || 0;
     this.setupAction = data.setupAction || null;
     this.lastSetupNodeId = data.lastSetupNodeId ?? null;
+    this._stRestore(data.stats); // the statistics log travels with the save (src/stats.js)
     if (data.sbp && this.phase === "sbp" && Array.isArray(data.sbp.order)) this.sbp = data.sbp;
     else if (this.phase === "sbp") this.phase = "main"; // a damaged save: let the turn owner carry on
 
@@ -9910,6 +9873,9 @@ class ColonistFullGame {
 // 5–6 players: Special Building Phase engine + bots (src/six.js) and its UI (src/six-ui.js)
 Object.assign(ColonistFullGame.prototype, SbpMixin, SixUiMixin);
 Object.assign(ColonistFullGame.prototype, SeaGame); // ⚓ Seafarers game-side methods (src/seafarers/ui.js)
+// End-of-game statistics: recorder (src/stats.js) + stats screen and replay (src/stats-ui.js)
+Object.assign(ColonistFullGame.prototype, StatsMixin, StatsUiMixin);
+installStats(ColonistFullGame);
 
 const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle
