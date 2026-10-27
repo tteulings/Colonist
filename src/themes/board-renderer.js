@@ -765,10 +765,12 @@ export class SvgBoardRenderer {
     // very slow, faint drift 0..1 (reduced motion: held)
     const br = reduced ? 0.5 : 0.5 - 0.5 * Math.cos(((now - this._placeStart) / 3600) * Math.PI * 2);
     const fade = e * (0.82 + 0.18 * br);
+    // set-up (most corners legal): quieter dots, ~50% opacity at ~70% size, so the board doesn't turn busy
+    const busy = nodes.length + cities.length > 20 ? [0.5, 0.7] : [1, 1];
     const ring = (x, y, r, dot) => {
       ctx.save(); ctx.translate(x, y); ctx.globalAlpha = fade;
       ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.lineWidth = 1.5 * px; ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.stroke();
-      if (dot) { ctx.beginPath(); ctx.arc(0, 0, 3 * px, 0, Math.PI * 2); ctx.fillStyle = c.base; ctx.fill(); ctx.lineWidth = 0.8 * px; ctx.strokeStyle = c.line || c.dark || "rgba(0,0,0,.4)"; ctx.stroke(); }
+      if (dot) { ctx.globalAlpha = fade * busy[0]; ctx.beginPath(); ctx.arc(0, 0, 3 * busy[1] * px, 0, Math.PI * 2); ctx.fillStyle = c.base; ctx.fill(); ctx.lineWidth = 0.8 * px; ctx.strokeStyle = c.line || c.dark || "rgba(0,0,0,.4)"; ctx.stroke(); }
       ctx.restore();
     };
     edges.forEach((id) => {

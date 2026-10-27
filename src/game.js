@@ -7206,6 +7206,7 @@ class ColonistFullGame {
     const e = reduced ? 1 : Math.min(1, (now - this._spotStart) / 500);
     const br = reduced ? 0.5 : 0.5 - 0.5 * Math.cos(((now - this._spotStart) / 3600) * Math.PI * 2);
     const fade = e * (0.82 + 0.18 * br);
+    const busy = spots.nodes.length + (spots.cities || []).length > 20 ? [0.5, 0.7] : [1, 1]; // set-up: quieter dots
     ctx.save();
     ctx.lineCap = "round";
     spots.edges.forEach((id) => {
@@ -7225,7 +7226,8 @@ class ColonistFullGame {
       ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
       ctx.strokeStyle = "rgba(255, 255, 255, 0.55)"; ctx.lineWidth = 1.5 * px; ctx.stroke();
       if (!isCity) {
-        ctx.beginPath(); ctx.arc(n.x, n.y, 3 * px, 0, Math.PI * 2); ctx.fillStyle = pc.base; ctx.fill();
+        ctx.globalAlpha = fade * busy[0];
+        ctx.beginPath(); ctx.arc(n.x, n.y, 3 * busy[1] * px, 0, Math.PI * 2); ctx.fillStyle = pc.base; ctx.fill();
         ctx.strokeStyle = pc.line; ctx.lineWidth = 0.8 * px; ctx.stroke();
       }
     });
