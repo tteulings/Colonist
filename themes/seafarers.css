@@ -45,8 +45,8 @@ html:not([data-map="seafarers"]) .sea-only { display: none !important; }
   .hm-h { margin-bottom: 6px; }
   .hm-row { margin-top: 7px; }
   .hm-tile { min-height: 104px; }
-  .hm-list button { min-height: 44px; }
-  .hm-list button small { display: none; }
+  .hm-list :is(button, a) { min-height: 44px; }
+  .hm-list :is(button, a) small { display: none; }
   .home .hm-col { gap: 8px; }
   .home.has-save .hm-tile { min-height: 92px; }
   .home.has-save .hm-tile small { line-height: 1.2; }

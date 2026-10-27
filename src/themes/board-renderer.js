@@ -453,6 +453,9 @@ export class SvgBoardRenderer {
     if (this.placementActive()) this.drawPlacement(ctx, now, reduced, devK);
     if (g.pendingAction === "robber" && g.confirmBuild?.type === "robber" && !g.isMobileLayout && g.currentPlayer?.isHuman) this.drawConfirm(ctx, now, reduced, devK);
 
+    // 8b. analysis mode: the bot's candidate scores (calm glows, dashed roads, robber damage)
+    g.drawAnalysisOverlayArt?.(ctx);
+
     // 9. dust / sparks
     this.anims.forEach((a) => this.drawParticles(ctx, a, now, reduced));
     ctx.restore();

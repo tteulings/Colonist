@@ -16,6 +16,9 @@
       // Theme + motion before first paint (src/themes/manager.js owns the logic afterwards)
       (function () {
         var d = document.documentElement, t = "A", m = "system", pal = "light";
+        // AI Lab engine (lab.html embeds index.html?lab=view / ?lab=sim): read your settings, never write
+        var lab = /[?&]lab=(view|sim)\b/.exec(location.search);
+        if (lab) { d.dataset.lab = lab[1]; var S = Storage.prototype; S.setItem = S.removeItem = S.clear = function () {}; }
         try { t = localStorage.getItem("colonist.theme") || "A"; m = localStorage.getItem("colonist.motion") || "system"; pal = localStorage.getItem("colonist.palette") === "vivid" ? "vivid" : "light"; } catch (e) {}
         d.dataset.palette = pal;
         if (t !== "A" && t !== "B" && t !== "C" && t !== "classic") t = "A";
@@ -133,7 +136,8 @@
               <label for="volumeRange" class="st-range-label">Volume <output id="volumeValue" for="volumeRange">60%</output></label>
               <input id="volumeRange" type="range" min="0" max="100" step="5" value="60" aria-label="Sound volume" />
             </div>
-            <label class="settings-toggle-label"><input type="checkbox" id="aiReasoningToggle" /> Show what the bots are thinking</label>
+            <label class="settings-toggle-label" title="Shows each bot's candidate moves and scores on the board, with Pause and Step."><input type="checkbox" id="aiAnalysisToggle" /> Analysis mode <small class="st-note">see the bots' scores live, pause and step</small></label>
+            <a class="st-lab-link" href="./lab.html">Open the AI Lab <span aria-hidden="true">›</span></a>
             <label class="settings-toggle-label" title="Off: a tap on a glowing spot builds at once and Undo appears for a few seconds. On: a tap selects, then Place confirms."><input type="checkbox" id="confirmPlacementsToggle" /> Confirm placements <small class="st-note">tap, then Place (otherwise: tap builds, with Undo)</small></label>
           </div>
           <label for="speedRange" class="st-range-label">Bot speed</label>
@@ -308,7 +312,7 @@
       // registration is re-checked whenever the app comes back to the foreground, and a new
       // version is offered with a calm chip instead of reloading mid-game (the game is saved
       // after every action, so the reload is safe whenever the player taps it).
-      if ("serviceWorker" in navigator) {
+      if ("serviceWorker" in navigator && !document.documentElement.dataset.lab) {
         const sw = navigator.serviceWorker;
         const hadController = !!sw.controller;
         const offerUpdate = () => {

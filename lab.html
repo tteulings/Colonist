@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="A">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="theme-color" content="#2d6888" />
+    <title>AI Lab · Colonist</title>
+    <script>
+      // Same theme as the game (read only)
+      (function () {
+        var d = document.documentElement, t = "A";
+        try { t = localStorage.getItem("colonist.theme") || "A"; d.dataset.palette = localStorage.getItem("colonist.palette") === "vivid" ? "vivid" : "light"; } catch (e) {}
+        if (t !== "A" && t !== "B" && t !== "C" && t !== "classic") t = "A";
+        d.dataset.theme = t;
+      })();
+    </script>
+    <link rel="stylesheet" href="./themes/base.css?v=80" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=80" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=80" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=80" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=80" />
+    <link rel="stylesheet" href="./themes/lab.css?v=80" />
+  </head>
+  <body class="lab">
+    <header class="lb-top">
+      <a class="lb-back" href="./" aria-label="Back to the game"><span aria-hidden="true">‹</span> Game</a>
+      <h1>AI Lab</h1>
+      <span class="lb-sub">how a bot scores the board</span>
+    </header>
+    <main class="lb-main">
+      <section class="lb-boardcol">
+        <div class="lb-board">
+          <iframe id="labView" src="./index.html?lab=view" title="Lab board" tabindex="-1"></iframe>
+          <div class="lb-busy" id="labBusy">Loading board…</div>
+        </div>
+        <div class="lb-tools" role="toolbar" aria-label="Pieces">
+          <div class="lb-seats" id="labSeats" role="radiogroup" aria-label="Seat"></div>
+          <div class="lb-seg lb-toolseg" id="labTools" role="radiogroup" aria-label="Tool"></div>
+        </div>
+      </section>
+      <section class="lb-col">
+        <div class="lb-card lb-read">
+          <div class="lb-seg" id="labMode" role="radiogroup" aria-label="Heatmap"></div>
+          <div class="lb-result" id="labResult" aria-live="polite"></div>
+        </div>
+        <div class="lb-card">
+          <div class="lb-row"><span>Bot</span><div class="lb-seg" id="labPreset" role="radiogroup" aria-label="Preset"></div></div>
+          <div id="labDims"></div>
+        </div>
+        <div class="lb-card">
+          <div class="lb-row"><span>Board</span><div class="lb-seg" id="labMap" role="radiogroup" aria-label="Board"></div></div>
+          <div class="lb-row lb-seedrow" id="labSeedRow" hidden><span>Seed</span><input id="labSeed" type="number" inputmode="numeric" value="42" min="0" aria-label="Seed" /></div>
+          <div class="lb-row"><span>Players</span><div class="lb-seg" id="labPlayers" role="radiogroup" aria-label="Players"></div></div>
+          <div class="lb-row"><span>Pieces</span><div class="lb-seg" id="labPieces" role="radiogroup" aria-label="Pieces on the board"></div></div>
+          <div class="lb-row"><span>Hand</span><div class="lb-seg" id="labHand" role="radiogroup" aria-label="Bot's hand"></div></div>
+          <button type="button" class="lb-btn" id="labNew">New board</button>
+        </div>
+        <div class="lb-card lb-sim">
+          <button type="button" class="lb-btn primary" id="labRun">Play 20 quick games</button>
+          <div class="lb-ci" id="labCi"><span class="lb-cit">Win rate vs Intermediate bots</span><div class="lb-cibar"><i></i><u></u><em></em></div></div>
+        </div>
+      </section>
+    </main>
+    <iframe id="labSim" title="Quick games" hidden tabindex="-1"></iframe>
+    <script type="module" src="./src/lab.js?v=80"></script>
+  </body>
+</html>
