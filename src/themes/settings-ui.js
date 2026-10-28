@@ -2,10 +2,10 @@
 // "Game" hosts the game controls from index.html (#settingsDrawer body, moved here so their
 // listeners stay intact): New game first, then sound and pace. The bot-autoplay controls live in
 // About › Developer. Look & feel: theme cards, Motion, quick toggle. Applies instantly.
-import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, prefetchFonts, icon } from "./manager.js";
+import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, paletteAuto, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "0.84";
+export const APP_VERSION = "0.85";
 
 /** One line of real viewport numbers for bug reports (Settings › About). */
 function viewportDebug() {
@@ -54,6 +54,8 @@ export class SettingsUI {
       while (body.firstChild) this.gamePane.appendChild(body.firstChild);
     }
     document.querySelectorAll(".app-version, .version-label").forEach((el) => { el.textContent = `v${APP_VERSION}`; });
+    // v0.85: Follow system can flip the palette while Look & feel is open (the OS goes dark): keep the control in step
+    document.addEventListener("colonist:palette", () => { if (this.el && this.tab === "look") this.renderBody(); });
   }
 
   open(tab = this.tab) {
@@ -121,10 +123,14 @@ export class SettingsUI {
       body.innerHTML = this.head("Look &amp; feel", "Pick a world for your island. Board, cards, pieces and motion follow the theme. Applies instantly.") +
         `<div class="tcards">${THEME_ORDER.map((id) => card(THEMES[id])).join("")}</div>
         ${(() => {
-          // Light/Vivid only exists for Sunny Island: in other themes it stays visible but disabled, with the reason
-          const on = g.theme?.id === "A";
-          return `<div class="st-row${on ? "" : " st-row-off"}" style="margin-top:14px"><div><b>Colours</b><small>${on ? "Light is soft and airy · Vivid is bold and saturated." : "Only for Sunny Island."}</small></div>
-          <div class="seg pal-seg" role="radiogroup" aria-label="Colours"${on ? "" : ` aria-disabled="true"`}>${[["light", "Light"], ["vivid", "Vivid"]].map(([v, l]) => `<button type="button" data-palette="${v}" class="${palettePref() === v ? "on" : ""}" aria-checked="${palettePref() === v}" role="radio"${on ? "" : " disabled"}><i class="pal-dot pal-${v}"></i>${l}</button>`).join("")}</div></div>`;
+          // Light/Vivid/Night only exist for Sunny Island: in other themes they stay visible but disabled, with the reason.
+          // v0.85: the segment shows what is on screen (Follow system may show Night over your day pick).
+          const on = g.theme?.id === "A", cur = effectivePalette(), auto = paletteAuto();
+          const dayName = dayPalette() === "vivid" ? "Vivid" : "Light";
+          return `<div class="st-row${on ? "" : " st-row-off"}" style="margin-top:14px"><div><b>Colours</b><small>${on ? "Light is soft and airy · Vivid is bold · Night is calm and dark." : "Only for Sunny Island."}</small></div>
+          <div class="seg pal-seg" role="radiogroup" aria-label="Colours"${on ? "" : ` aria-disabled="true"`}>${[["light", "Light"], ["vivid", "Vivid"], ["night", "Night"]].map(([v, l]) => `<button type="button" data-palette="${v}" class="${cur === v ? "on" : ""}" aria-checked="${cur === v}" role="radio"${on ? "" : " disabled"}><i class="pal-dot pal-${v}"></i>${l}</button>`).join("")}</div></div>
+          <div class="st-row pal-auto${on ? "" : " st-row-off"}"><div><b id="palAutoLbl">Follow system</b><small>${on ? `Night when your device is in dark mode, otherwise ${dayName}.` : "Only for Sunny Island."}</small></div>
+          <button type="button" class="st-switch${auto ? " on" : ""}" role="switch" aria-checked="${auto}" aria-labelledby="palAutoLbl" data-pal-auto${on ? "" : " disabled"}><i></i></button></div>`;
         })()}
         <div class="st-row"><div><b>Motion</b><small>Reduced replaces travel and spin with short fades.</small></div>
           <div class="seg" role="radiogroup" aria-label="Motion">${[["full", "Full"], ["reduced", "Reduced"], ["system", "Follow system"]].map(([v, l]) => `<button type="button" data-motion="${v}" class="${m === v ? "on" : ""}" aria-checked="${m === v}" role="radio">${l}</button>`).join("")}</div></div>
@@ -134,6 +140,7 @@ export class SettingsUI {
         b.addEventListener("click", () => { g.setTheme(b.dataset.themeId); this.renderBody(); });
       });
       body.querySelectorAll("button[data-palette]").forEach((b) => b.addEventListener("click", () => { setPalette(b.dataset.palette); g.requestBoardDraw(); this.renderBody(); }));
+      body.querySelector("[data-pal-auto]")?.addEventListener("click", () => { setPaletteAuto(!paletteAuto()); g.requestBoardDraw(); this.renderBody(); });
       body.querySelectorAll("[data-motion]").forEach((b) => b.addEventListener("click", () => { setMotionPref(b.dataset.motion); g.requestBoardDraw(); this.renderBody(); }));
       renderQuickToggle(body.querySelector("[data-qt]"), g, () => this.renderBody());
     }

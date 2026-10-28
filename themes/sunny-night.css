@@ -1,0 +1,126 @@
+/* THEME A · Sunny Island — palette "Night" (html[data-palette="night"]), v0.85.
+   A calm night-time island: deep blue-teal sea, moonlit muted terrain, dark slate-teal surfaces with light ink (every
+   text token >= 4.5:1), and one warm accent — lamplight amber — for "your turn", the active seat ring, build hints and
+   selection. The primary action stays sea teal (as in Light), only lighter so it reads on the dark dock. Seat colours =
+   the board's night pieces (src/themes/sunny/art.js PALETTES.night); on dark surfaces a seat's text colour is the
+   piece's LIGHT tone (src/themes/seats.js seatTokens with the night sheet as paper). Chosen in Settings › Look & feel ›
+   Colours, or by "Follow system" (Night while the device is in dark mode). Approved mockup: scratchpad/dark83/mock. */
+[data-theme="A"][data-palette="night"] {
+  color-scheme: dark;
+  /* ink */
+  --ink: #E4ECEC; --ink-soft: #A9BABE; --ink-faint: #93A6AB; --heading: #F3F4EE; --brand-ink: #7CCFCB;
+  /* surfaces */
+  --bg: #0E1B22; --bg-image: none;
+  --chrome: #13232B; --chrome-image: none; --chrome-ink: #E4ECEC; --chrome-border: 1px solid #253841; --chrome-shadow: none;
+  --m-top: #13232B; --m-top-image: none; --status-ink: #F3F4EE;
+  --rail: #152530; --rail-image: none; --rail-border: 1px solid #253841;
+  --panel: #172630; --panel-image: none; --panel-border: 1px solid #2A3D47; --panel-shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35);
+  --dock: #13232B; --dock-image: none; --dock-border: 1px solid #253841; --dock-shadow: 0 -6px 24px rgba(0,0,0,.3);
+  --float: rgba(24,40,49,.96); --float-border: 1px solid rgba(170,215,220,.14); --float-shadow: 0 2px 6px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  --banner: rgba(23,38,48,.97); --banner-border: 1px solid rgba(170,215,220,.16); --banner-shadow: 0 2px 6px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  --sheet: #172630; --sheet-image: none; --sheet-border: 1px solid #2A3D47;
+  --chip: #1E303A; --chip-border: 1px solid #2E434D; --chip-ink: #C9D6D8;
+  --group: #101C23; --group-border: 1px solid #2A3D47;
+  /* sea: deep blue-teal, a little lighter round the island as if moonlit */
+  --sea-bg: #123E4A;
+  --sea-image: radial-gradient(ellipse 85% 70% at 50% 46%, #1E5A64 0%, #123E4A 55%, #0A2630 100%);
+  --ripple-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='90'%3E%3Cpath d='M14,24 q12,-5 24,0' fill='none' stroke='%23BFE3E6' stroke-opacity='.5' stroke-width='1.4' stroke-linecap='round'/%3E%3Cpath d='M96,66 q10,-4 20,0' fill='none' stroke='%23BFE3E6' stroke-opacity='.35' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E");
+  --shimmer-a: .08;
+  --fan-bg: linear-gradient(rgba(14,27,34,0), rgba(14,27,34,.92) 58%); --fan-solid: rgb(14,27,34); --slot-bg: #1E2C33;
+  --scrim: rgba(2,8,12,.62); --spot: rgba(0,6,10,.66); --home-ind: #E4ECEC;
+  /* buttons */
+  --btn: #20323C; --btn-image: none; --btn-ink: #E4ECEC; --btn-border: 1px solid #344B56; --btn-shadow: 0 1px 2px rgba(0,0,0,.3);
+  --btn-on: #33281F; --btn-on-ink: #F6C089; --btn-on-border: 1.5px solid #F0B45C; --btn-on-shadow: 0 0 0 3px rgba(240,180,92,.16);
+  --primary: #26706F; --primary-image: linear-gradient(#2B7978, #226766); --primary-ink: #F3FAF8; --primary-border: 1px solid #3A8E8C; --primary-shadow: 0 1px 2px rgba(0,0,0,.35), 0 6px 16px rgba(0,0,0,.3);
+  --accent: #F0B45C; --good: #6CC68E; --good-bg: #1C3527; --danger: #F2907A;
+  --kbd-bg: #1D3A3E; --kbd-ink: #8ED8D3;
+  --badge: #3E9F9E; --badge-ink: #06201F; --badge-border: 2px solid #172630;
+  --vp-bg: #1E303A; --vp-ink: #F3F4EE; --vp-border: 1px solid #34494F;
+  --active-row: rgba(240,180,92,.10); --divider: 1px solid #26363F; --divider-soft: 1px solid #22323A; --sep: #2E414B;
+  --card-shadow: drop-shadow(0 1px 1px rgba(0,0,0,.4)) drop-shadow(0 4px 8px rgba(0,0,0,.35));
+  --avatar-shadow: 0 1px 3px rgba(0,0,0,.4);
+  --row-tint: 12%; --vp-tint: 26%;
+  --h2-bg: linear-gradient(90deg, #2A2620, #1B2A31); --h2-bg-2: linear-gradient(90deg, #1C3236, #182A31); --h2-border: 1px solid #2E3E46;
+  --jicon-bg: #1E333A;
+  --dust: #2A3A40; --spark: #F0D892; --smoke: #33444A; --ray: rgba(255,214,140,.25);
+  --bank-bg: #262A1E; --bank-border: 1px solid #45412A;
+  --m-build-bg: #2E2A1C; --m-build-border: #4F4426; --m-trade-bg: #17343A; --m-trade-border: #2A5258; --m-cards-bg: #1D2A44; --m-cards-border: #34466A;
+  --rush-ring: #F0B45C; --rush-track: #2A3A42; --rush-badge-bg: #3A2C1E; --rush-badge-ink: #F6C089;
+  --persona-bg: #243640; --persona-ink: #C9D6D8;
+  --persona-trader-bg: #17393C; --persona-trader-ink: #8ED8D3;
+  --persona-builder-bg: #3A3020; --persona-builder-ink: #F0CF8A;
+  --persona-shark-bg: #3D2621; --persona-shark-ink: #F4AE98;
+  --persona-expert-bg: #1F2D4A; --persona-expert-ink: #A9C4F4;
+  --persona-beginner-bg: #24341C; --persona-beginner-ink: #B7DA8E;
+  /* mobile glass chrome on the night sea */
+  --glass: rgba(14,34,44,.76); --glass-line: rgba(170,215,220,.16); --glass-active: rgba(30,56,68,.96);
+  --glass-shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 18px rgba(0,0,0,.3);
+  --bar-ink: #EAF2F1; --bar-ink-soft: rgba(234,242,241,.84); --mono: #5C7E86;
+  --ring: #F0B45C; --ready: #4CC27A;
+  --dis-bg: rgba(255,255,255,.04); --dis-ink: rgba(228,236,236,.5); --dis-line: rgba(170,215,220,.16); --dis-ic: grayscale(1) brightness(1.6); --dis-ic-op: .45;
+  --hand-bg: linear-gradient(rgba(10,28,36,0), rgba(10,28,36,.35));
+  /* trade sheet, warn, award */
+  --pick-bg: rgba(240,180,92,.14); --pick-ring: #F0B45C;
+  --warn-bg: #4A3418; --warn-ink: #FFD7A0;
+  --route-bank: #2C8D93; --route-bank-ink: #FFFFFF;
+  /* hand cards: dark paper ribbon + stack edges */
+  --rib-paper: #1E2C33; --stack-1: #2C3D45; --stack-2: #26363E; --stack-3: #202F36;
+}
+/* hand-card counts: a light tint of the card's hue with a night halo (Light does dark-on-paper) */
+[data-theme="A"][data-palette="night"] :is(.app .hand .card, .app .tcard, .app .ocard) { --cnt-ink: #F3F4EE; --cnt-halo: #102028; }
+[data-theme="A"][data-palette="night"] :is(.app .hand .card, .app .tcard, .app .ocard)[data-card="wood"]  { --cnt-ink: #BFE6C6; --cnt-tint: #1F3A26; }
+[data-theme="A"][data-palette="night"] :is(.app .hand .card, .app .tcard, .app .ocard)[data-card="brick"] { --cnt-ink: #F7C2AE; --cnt-tint: #3E241B; }
+[data-theme="A"][data-palette="night"] :is(.app .hand .card, .app .tcard, .app .ocard)[data-card="sheep"] { --cnt-ink: #D2EBAE; --cnt-tint: #283A1A; }
+[data-theme="A"][data-palette="night"] :is(.app .hand .card, .app .tcard, .app .ocard)[data-card="wheat"] { --cnt-ink: #F8DC96; --cnt-tint: #3C3014; }
+[data-theme="A"][data-palette="night"] :is(.app .hand .card, .app .tcard, .app .ocard)[data-card="ore"]   { --cnt-ink: #D2DCEA; --cnt-tint: #232E3E; }
+[data-theme="A"][data-palette="night"] .app .hand .card.dev { --cnt-ink: #F3F4EE; --cnt-tint: rgba(16,32,40,.9); }
+[data-theme="A"][data-palette="night"] .app .hand .card .count { text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+[data-theme="A"][data-palette="night"] .hand .card:not(.slot) .count { background: none; }
+/* Sunny hard-coded light bits */
+[data-theme="A"][data-palette="night"] .cost { background: #1E303A; }
+[data-theme="A"][data-palette="night"] .app .side-actions .btn:first-child { background: #17343A; border-color: #2A5258; color: #8ED8D3; }
+[data-theme="A"][data-palette="night"] .app .side-actions .btn:last-child { background: #1D2A44; border-color: #34466A; color: #A9C4F4; }
+[data-theme="A"][data-palette="night"] .tc:not(.on) .radio { background: #172630; }
+[data-theme="A"][data-palette="night"] .tc.on .radio { background: radial-gradient(circle, var(--accent) 0 5px, #172630 6px); }
+[data-theme="A"][data-palette="night"] .hand .card .count { box-shadow: none; }
+[data-theme="A"][data-palette="night"] .tm-settings .seg button.on { background: #263A44; box-shadow: inset 0 0 0 1px #3A525C; }
+/* stats cards (themes/stats.css): the one accent is a light sea teal on the night card, not the dark primary */
+[data-theme="A"][data-palette="night"] :is(.gs-over, .gs-replay, .ls-sheet) { --gs-acc: #5BBDB9; --gs-shade: #0B151A; }
+
+/* Settings › Look & feel: Night swatch + the Follow system switch (every theme; greyed outside Sunny Island) */
+.pal-night { background: conic-gradient(#0C2A35 0 50%, #1E5A64 0 75%, #F0B45C 0); }
+.tm-settings .st-switch { flex: none; width: 46px; height: 28px; padding: 0; border: 0; border-radius: 14px; background: var(--switch-off, #C9BFAB); position: relative; cursor: pointer; transition: background-color 160ms; }
+.tm-settings .st-switch i { position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: left 160ms; }
+.tm-settings .st-switch.on { background: var(--accent); }
+.tm-settings .st-switch.on i { left: 21px; }
+.tm-settings .st-switch:focus-visible { outline: 2px solid var(--ring, var(--accent)); outline-offset: 2px; }
+.tm-settings .st-row-off .st-switch { opacity: .5; cursor: not-allowed; }
+.tm-settings .pal-auto { flex-wrap: nowrap; }
+[data-theme="A"][data-palette="night"] .tm-settings { --switch-off: #3A4C55; }
+[data-theme="A"][data-palette="night"] .tm-settings .st-switch.on i { background: #172630; }
+/* Settings › Bots: the legacy per-bot cards were translucent white */
+[data-theme="A"][data-palette="night"] .ai-strat-player { background: var(--chip); border-color: var(--sep); }
+/* New-game screen: Sunny draws it with fixed light surfaces; at night they take the sheet / chip tones */
+[data-theme="A"][data-palette="night"] .newgame-modal { background: var(--scrim); }
+[data-theme="A"][data-palette="night"] .newgame-modal .ng-section { background: var(--group); border-color: var(--sep); }
+[data-theme="A"][data-palette="night"] .newgame-modal .ng-rush-section { background: #2A231C; border-color: #4A3A28; }
+[data-theme="A"][data-palette="night"] .newgame-modal .ng-rush-section .ng-section-title { color: #F6C089; }
+[data-theme="A"][data-palette="night"] .newgame-modal :is(.ng-mode-card, .ng-seg-btn, .ng-seg-bar, .ng-stepper, .ng-map-card, .ng-preset, .ng-bot-select) { border-color: #344B56; }
+[data-theme="A"][data-palette="night"] .newgame-modal :is(.ng-mode-card, .ng-seg-btn, .ng-map-card, .ng-preset).selected { background: var(--btn-on); border-color: var(--accent); color: var(--btn-on-ink); box-shadow: 0 0 0 2px rgba(240,180,92,.16); }
+[data-theme="A"][data-palette="night"] .newgame-modal .ng-seg-bar .ng-seg-btn + .ng-seg-btn { border-left-color: #2A3D47; }
+[data-theme="A"][data-palette="night"] .newgame-modal .ng-seg-bar .ng-seg-btn.selected { background: #17393C; color: #8ED8D3; box-shadow: none; }
+[data-theme="A"][data-palette="night"] .newgame-modal .ng-mode-icon { background: #17393C; color: #8ED8D3; }
+[data-theme="A"][data-palette="night"] .newgame-modal .rush .ng-mode-icon { background: #3D2621; color: #F4AE98; }
+[data-theme="A"][data-palette="night"] .newgame-modal :is(.ng-mode-tag, .ng-new) { color: #241A0C; }
+[data-theme="A"][data-palette="night"] .newgame-modal .ng-preset .ng-new { background: #17393C; color: #8ED8D3; }
+[data-theme="A"][data-palette="night"] .newgame-modal :is(.ng-row, .ng-finetune) { border-top-color: #26363F; }
+[data-theme="A"][data-palette="night"] .newgame-modal .ng-switch { background: #3A4C55; }
+[data-theme="A"][data-palette="night"] .newgame-modal .ng-switch.on span { background: #172630; }
+[data-theme="A"][data-palette="night"] .newgame-modal .ng-bot { background: color-mix(in srgb, var(--pc) 10%, #172630); border-color: #2A3D47; }
+[data-theme="A"][data-palette="night"] .newgame-modal .ng-footer { background: linear-gradient(rgba(23,38,48,.9), var(--panel) 30%); border-top-color: #26363F; }
+/* Pass & play seats on the new-game screen: name fields and the Human / Bot switch on night surfaces
+   (seat text there is the piece's light tone, so the field must be dark) */
+[data-theme="A"][data-palette="night"] .newgame-modal .hs-name-in { background: var(--btn); border-color: color-mix(in srgb, var(--pc) 55%, #172630); }
+[data-theme="A"][data-palette="night"] .newgame-modal .hs-kind { background: rgba(255,255,255,.06); }
+[data-theme="A"][data-palette="night"] .newgame-modal .hs-kind button.on { background: #263A44; color: var(--heading); box-shadow: inset 0 0 0 1px #3A525C; }
+[data-theme="A"][data-palette="night"] .hs-cover .hs-go { background: #F3EEE2; }

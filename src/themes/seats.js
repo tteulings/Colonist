@@ -39,10 +39,14 @@ const lum = (h) => { const [r, g, b] = hex2rgb(h).map((v) => { v /= 255; return 
 export const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 const darken = (h, k) => rgb2hex(hex2rgb(h).map((v) => v * (1 - k)));
 const PAPER = "#FBF6EA";
-/** UI tokens for one seat from its piece colours. */
-export function seatTokens(c, text) {
-  let t = text || c.dark || c.base;
-  for (let i = 0; i < 12 && contrast(t, PAPER) < 4.6; i += 1) t = darken(t, 0.08);
+const lighten = (h, k) => rgb2hex(hex2rgb(h).map((v) => v + (255 - v) * k));
+/** UI tokens for one seat from its piece colours. `paper` = the surface its text sits on (default the light paper);
+ *  v0.85: on a dark surface (Sunny Night's sheet) the text is the piece's LIGHT tone, lightened further only where it
+ *  would miss AA on that surface. */
+export function seatTokens(c, text, paper = PAPER) {
+  const darkPaper = lum(paper) < 0.18;
+  let t = text || (darkPaper ? c.light : c.dark) || c.base;
+  for (let i = 0; i < 12 && contrast(t, paper) < 4.6; i += 1) t = darkPaper ? lighten(t, 0.1) : darken(t, 0.08);
   const dark = c.line && contrast(c.line, c.base) > contrast("#1F1A17", c.base) ? c.line : "#1F1A17";
   const ink = contrast("#FFFFFF", c.base) >= 4.5 ? "#FFFFFF" : contrast(dark, c.base) >= contrast("#FFFFFF", c.base) ? dark : "#FFFFFF";
   return { base: c.base, light: c.light || c.base, dark: c.dark || c.base, line: c.line || c.dark || c.base, text: t, ink };
@@ -54,7 +58,7 @@ export function applySeatTokens(T, root = typeof document !== "undefined" ? docu
     const key = T.seatKeys?.[n];
     const c = (T.pc && key && T.pc[key]) || (T.seatPc && T.seatPc[n]) || (n >= 4 ? EXTRA_SEATS[n - 4] : null);
     if (!c) continue;
-    const tk = seatTokens(c, T.textColors?.[key]);
+    const tk = seatTokens(c, T.textColors?.[key], T.seatPaper || PAPER);
     root.style.setProperty(`--p${n}`, tk.base);
     root.style.setProperty(`--p${n}-text`, tk.text);
     root.style.setProperty(`--p${n}-ink`, tk.ink);

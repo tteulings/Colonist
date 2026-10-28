@@ -44,15 +44,44 @@ export function setMotionPref(v) {
   store.set(MOTION_KEY, v);
   applyMotionAttr();
 }
-// Sunny Island colour palette: "light" (default) | "vivid". Contract: scratchpad/palette-contract.md
-const PALETTE_KEY = "colonist.palette";
-export function palettePref() { return store.get(PALETTE_KEY) === "vivid" ? "vivid" : "light"; }
-export function setPalette(v) {
-  const p = v === "vivid" ? "vivid" : "light";
-  store.set(PALETTE_KEY, p);
+// Sunny Island colour palette: "light" (default) | "vivid" | "night" (v0.85). Contract: scratchpad/palette-contract.md
+// colonist.palette = the palette you picked; colonist.paletteAuto = "on" follows the system: Night while the OS is in
+// dark mode, otherwise your day palette (colonist.dayPalette, the last Light / Vivid you picked). The head script in
+// index.html / lab.html runs the same rule before first paint, so there is no light flash.
+const PALETTE_KEY = "colonist.palette", AUTO_KEY = "colonist.paletteAuto", DAY_KEY = "colonist.dayPalette";
+const PALETTES = ["light", "vivid", "night"];
+const darkMq = typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)") : null;
+export function palettePref() { const v = store.get(PALETTE_KEY); return PALETTES.includes(v) ? v : "light"; }
+export function paletteAuto() { return store.get(AUTO_KEY) === "on"; }
+export function dayPalette() { const v = store.get(DAY_KEY); return v === "vivid" ? "vivid" : palettePref() === "vivid" ? "vivid" : "light"; }
+export function systemDark() { return !!darkMq?.matches; }
+/** The palette on screen: your pick, or (Follow system) Night when the OS is dark, else your day palette. */
+export function effectivePalette() {
+  if (!paletteAuto()) return palettePref();
+  return systemDark() ? "night" : (palettePref() === "night" ? dayPalette() : palettePref());
+}
+function applyPaletteAttr() {
+  const p = effectivePalette();
+  if (document.documentElement.dataset.palette === p) return;
   document.documentElement.dataset.palette = p;
+  const tc = document.querySelector('meta[name="theme-color"]');
+  if (tc) tc.content = p === "night" && document.documentElement.dataset.theme === "A" ? "#0E1B22" : "#2d6888";
   document.dispatchEvent(new CustomEvent("colonist:palette", { detail: { palette: p } }));
 }
+/** Pick a palette. With Follow system on, a pick the system rule would not show (Night by day, a day palette at
+ *  night) is an explicit choice: Follow system switches off. */
+export function setPalette(v) {
+  const p = PALETTES.includes(v) ? v : "light";
+  if (p !== "night") store.set(DAY_KEY, p);
+  if (paletteAuto() && (p === "night") !== systemDark()) store.set(AUTO_KEY, "off");
+  store.set(PALETTE_KEY, p);
+  applyPaletteAttr();
+}
+export function setPaletteAuto(on) {
+  store.set(AUTO_KEY, on ? "on" : "off");
+  applyPaletteAttr();
+}
+darkMq?.addEventListener?.("change", () => { if (paletteAuto()) applyPaletteAttr(); });
 export function applyMotionAttr() {
   document.documentElement.dataset.motion = motionReduced() ? "reduced" : "full";
 }
