@@ -16,12 +16,12 @@
         d.dataset.theme = t;
       })();
     </script>
-    <link rel="stylesheet" href="./themes/base.css?v=82" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=82" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=82" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=82" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=82" />
-    <link rel="stylesheet" href="./themes/lab.css?v=82" />
+    <link rel="stylesheet" href="./themes/base.css?v=83" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=83" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=83" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=83" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=83" />
+    <link rel="stylesheet" href="./themes/lab.css?v=83" />
   </head>
   <body class="lab">
     <header class="lb-top">
@@ -34,6 +34,7 @@
         <div class="lb-board">
           <iframe id="labView" src="./index.html?lab=view" title="Lab board" tabindex="-1"></iframe>
           <div class="lb-busy" id="labBusy">Loading board…</div>
+          <div class="lb-watch" id="labWatch" aria-live="off" hidden></div>
         </div>
         <div class="lb-tools" role="toolbar" aria-label="Pieces">
           <div class="lb-seats" id="labSeats" role="radiogroup" aria-label="Seat"></div>
@@ -59,11 +60,12 @@
         </div>
         <div class="lb-card lb-sim">
           <button type="button" class="lb-btn primary" id="labRun">Play 20 quick games</button>
+          <div class="lb-row"><span>Speed</span><div class="lb-seg" id="labSpeed" role="radiogroup" aria-label="Quick game speed"></div></div>
           <div class="lb-ci" id="labCi"><span class="lb-cit">Win rate vs Intermediate bots</span><div class="lb-cibar"><i></i><u></u><em></em></div></div>
         </div>
       </section>
     </main>
     <iframe id="labSim" title="Quick games" hidden tabindex="-1"></iframe>
-    <script type="module" src="./src/lab.js?v=82"></script>
+    <script type="module" src="./src/lab.js?v=83"></script>
   </body>
 </html>
