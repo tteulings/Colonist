@@ -592,6 +592,7 @@ export const AnalysisMixin = {
     }
     el.hidden = false;
     el.classList.toggle("min", a.min);
+    el.classList.toggle("stepping", !!a.stepView && !a.min); // v0.87: a short step card, the board stays visible
     el.classList.toggle("held", this._aiHeld());
     const d = a.last;
     const p = d ? this.players[d.pid] : null;
@@ -606,8 +607,7 @@ export const AnalysisMixin = {
     let body = "";
     if (a.stepView && !a.min) {
       const sv = a.stepView;
-      body += `<div class="aip-steps"><div class="aip-shead">${stepStripHtml(sv.steps, sv.cur).replace(/data-step="/g, 'data-ai="sgo" data-step="')}<button type="button" data-ai="sclose" class="aip-slink">Close</button></div>${stepCardHtml(sv.steps, sv.cur, sv.sel ?? null).replace(/data-row="/g, 'data-ai="srow" data-row="')}
-        <div class="aip-snav"><button type="button" data-ai="sprev"${sv.cur ? "" : " disabled"}>‹ Prev</button><button type="button" data-ai="snext"${sv.cur < sv.steps.length - 1 ? "" : " disabled"}>Next ›</button></div></div>`;
+      body += `<div class="aip-steps"><div class="aip-shead"><button type="button" class="aip-sarrow" data-ai="sprev" aria-label="Previous step"${sv.cur ? "" : " disabled"}>‹</button>${stepStripHtml(sv.steps, sv.cur).replace(/data-step="/g, 'data-ai="sgo" data-step="')}<button type="button" class="aip-sarrow" data-ai="snext" aria-label="Next step"${sv.cur < sv.steps.length - 1 ? "" : " disabled"}>›</button><button type="button" data-ai="sclose" class="aip-slink">Close</button></div>${stepCardHtml(sv.steps, sv.cur, sv.sel ?? null).replace(/data-row="/g, 'data-ai="srow" data-row="')}</div>`;
     } else if (d && !a.min && d.rules) {
       // v0.87 Simple bot: its rulebook as a checklist, the rule that fired lit
       body += `<ol class="aip-rules">${d.rules.map((r) => `<li class="${r.ok ? "fired" : "no"}"><b>${r.n}</b> ${esc(r.title)} <span>${r.ok ? "✓" : "✗"} ${esc(r.why)}</span></li>`).join("")}</ol>`;

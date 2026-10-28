@@ -2252,7 +2252,14 @@ button.sx-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 
 .sx-cmpr .d { font-weight: 750; }
 .sx-cmpr.tot { border-top: 1px solid var(--sep, rgba(0,0,0,.1)); padding-top: 3px; font-weight: 800; }
 .ai-panel .aip-steps { margin-top: 4px; display: grid; gap: 4px; }
-.ai-panel .aip-steps .sx-card1 { max-height: min(34vh, 260px); overflow: auto; overscroll-behavior: contain; }
+.ai-panel .aip-steps .sx-card1 { max-height: min(19vh, 148px); overflow: auto; overscroll-behavior: contain; gap: 4px; }
+.ai-panel .aip-steps .sx-text { display: none; }
+.ai-panel .aip-steps .sx-h b { font-size: 13px; }
+.ai-panel .aip-steps .sx-leg { display: none; }
+.ai-panel .aip-steps .sx-cmp { padding: 4px 6px; }
+.ai-panel .aip-steps .sx-row { min-height: 28px; }
+.ai-panel .aip-snav button { min-height: 32px; }
+.ai-panel .aip-shead .sx-strip button { width: 24px; height: 24px; min-width: 24px; font-size: 11.5px; }
 .ai-panel .sx-strip { flex: 1; justify-content: flex-start; }
 .ai-panel .sx-strip button { width: 26px; height: 26px; min-width: 26px; border: 0; border-radius: 50%; display: grid; background: var(--sep, rgba(0,0,0,.08)); color: var(--ink-soft); font-size: 12px; }
 .ai-panel .sx-strip button.done { background: color-mix(in srgb, var(--accent) 28%, var(--panel, #fff)); color: var(--ink); }
@@ -2271,3 +2278,10 @@ button.sx-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 
 .ai-panel .aip-slink { display: inline-block; width: auto; height: auto; border: 0; background: none; border-radius: 6px; }
 .ai-panel .aip-snav button { width: auto; height: auto; display: block; }
 .ai-panel .sx-body { padding-left: 34px; }
+.ai-panel.stepping .aip-head { display: none; }
+.ai-panel .aip-shead .aip-sarrow { width: 28px; height: 28px; min-width: 28px; border-radius: 50%; font-size: 18px; font-weight: 800; line-height: 1; padding: 0 0 2px; }
+.ai-panel .aip-shead .aip-sarrow:disabled { opacity: .4; }
+.ai-panel .aip-shead { gap: 3px; }
+.ai-panel .aip-shead .sx-strip { gap: 2px; justify-content: center; }
+.ai-panel .aip-steps .sx-hand .sx-card { padding: 2px; }
+.ai-panel .aip-steps .sx-builds span { padding: 2px 6px; }
