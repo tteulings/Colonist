@@ -2,7 +2,7 @@ import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMoti
 import { SvgBoardRenderer, drawSpec } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
-import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted, pierTick, drawPierTick } from "./themes/art-util.js";
+import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted, pierDot, drawPierDot } from "./themes/art-util.js";
 import { Onboarding, introSeen } from "./themes/onboarding.js";
 import { Home, GameMenu } from "./themes/home.js";
 import { SoundEngine } from "./sound.js";
@@ -85,6 +85,7 @@ const BOARD_RADIUS = 2;
 // Layout breakpoints (keep in sync with themes/base.css): phones = narrow OR short (landscape)
 const MOBILE_MQ = "(max-width: 900px), (max-height: 500px)";
 const LANDSCAPE_MQ = "(max-height: 500px) and (orientation: landscape)";
+const HARBOUR_FREE = 18; // v0.86: css px of open pier between a coast corner and its harbour pill (see _fitTarget)
 const TURN_LIMIT = 500;
 
 // ── AI Strategy Configuration ──────────────────────────────────────────
@@ -2415,7 +2416,9 @@ class ColonistFullGame {
     const mobile = this.isMobileLayout;
     this._hScale = 0; // v0.78: re-chosen below on phones (see harbourScale)
     // ⚓ Seafarers: the whole scenario frame (outer sea hexes included, ships may sail there), no harbour boats
-    const mx = hs * (this.sea ? 0.9 : mobile ? 1.05 : 1.75), my = hs * (this.sea ? 1.0 : mobile ? 1.12 : 1.7);
+    // v0.86: landscape phones keep the top / bottom coast corners' build rings on screen in Seafarers too (the land
+    // can reach the frame's edge there; the hand and the ticker no longer cover that band)
+    const mx = hs * (this.sea ? 0.9 : mobile ? 1.05 : 1.75), my = hs * (this.sea ? (this.isLandscapePhone ? 1.45 : 1.0) : mobile ? 1.12 : 1.7);
     const box = { minX: Math.min(...xs) - mx, maxX: Math.max(...xs) + mx, minY: Math.min(...ys) - my, maxY: Math.max(...ys) + my };
     let fan = 0, top = 4, side = 0;
     // v0.76: harbour pills that sit further out than the margin (bays of the 5–6 player board) widen the box
@@ -2426,7 +2429,7 @@ class ColonistFullGame {
     if (mobile && this.app) {
       const cs = getComputedStyle(this.app);
       // + the room a docked trade offer takes above the hand (only while one is up)
-      fan = (parseFloat(cs.getPropertyValue("--fan-h")) || 112) + (parseFloat(cs.getPropertyValue("--offer-room")) || 0);
+      fan = (parseFloat(cs.getPropertyValue("--fan-h")) || 112) + (this._fitNoOffer ? 0 : parseFloat(cs.getPropertyValue("--offer-room")) || 0);
       top = parseFloat(cs.getPropertyValue("--board-top")) || 4;
       side = parseFloat(cs.getPropertyValue("--board-side")) || 0;
       if (this.labMode) { fan = 6; top = 4; side = side || 8; } // AI Lab board: no hand / top bar over it; whole world in the frame
@@ -7092,8 +7095,8 @@ class ColonistFullGame {
 
   /** Classic harbours (v0.78): the same pill as the themed boards (harbourBadges) — the resource glyph (the card
    *  icon without its coloured tile, so a brick harbour never reads as a red player) beside the ratio in bold, or
-   *  just "3:1"; two piers to the coast corners, each ending in a small accent tick (v0.81: no dots; none on a corner
-   *  that holds a piece). */
+   *  just "3:1"; two piers to the coast corners, each with a small accent dot 12.5 px out (v0.86, see pierDot; none on
+   *  a corner that holds a piece). */
   drawPorts() {
     const ctx = this.ctx, g = this.geometry, u = g.hexSize / 100, s = harbourScale(this);
     const portColor = { wood: "#4a7c3f", brick: "#b5532e", sheep: "#5f9a36", wheat: "#b8931f", ore: "#6a7588", any: "#3d5f72" };
@@ -7126,8 +7129,9 @@ class ColonistFullGame {
       });
       q.piers.forEach((pr) => {
         if (g.nodes[pr[0].id]?.structure) return;
-        const t = pierTick(pr, s), w = W2(t);
-        drawPierTick(ctx, { ...t, x: w.x, y: w.y, h: t.h * u, w: t.w * u }, color, "rgba(245, 239, 228, .95)");
+        const t = pierDot(pr, u * (this._fitScale || this.view.scale || 1), q), w = W2(t);
+        if (t.hidden) return;
+        drawPierDot(ctx, { x: w.x, y: w.y, r: t.r * u, ri: t.ri * u }, color, "rgba(245, 239, 228, .95)");
       });
       // pill: cream, the resource colour only as an outline accent
       ctx.shadowColor = "rgba(15, 23, 34, 0.35)"; ctx.shadowBlur = 5 * s * u; ctx.shadowOffsetY = 2 * s * u;
@@ -7785,6 +7789,17 @@ class ColonistFullGame {
     const place = () => {
       if (this.devSel !== t || !el.isConnected) return;
       const r = el.getBoundingClientRect();
+      // v0.86 landscape phones: the hand is a grid in the side column, so the bubble sits to the card's left
+      const side = !!this.isLandscapePhone;
+      b.classList.toggle("side", side);
+      if (side) {
+        const bw = Math.min(b.offsetWidth, r.left - 16), bh = b.offsetHeight;
+        const y = Math.max(8, Math.min(window.innerHeight - 8 - bh, r.top + r.height / 2 - bh / 2));
+        b.style.left = `${Math.max(8, r.left - 10 - bw)}px`; b.style.top = `${y}px`; b.style.bottom = "auto";
+        b.style.setProperty("--ay", `${Math.round(r.top + r.height / 2 - y)}px`);
+        return;
+      }
+      b.style.top = "";
       const W = window.innerWidth, w = Math.min(b.offsetWidth, W - 16);
       const x = Math.max(8, Math.min(W - 8 - w, r.left + r.width / 2 - w / 2));
       b.style.left = `${x}px`;
@@ -7852,7 +7867,11 @@ class ColonistFullGame {
       + `<div class="hi-row">${RESOURCES.map((r) => mini(r, this.bank[r], this.bank[r] <= 3)).join("")}<i class="hi-sep" aria-hidden="true"></i>${mini("knight", deck, deck <= 3).replace("hi-c", "hi-c hi-deck")}</div>`;
     pop.hidden = false;
     const r = this.handTotalEl.getBoundingClientRect();
-    pop.style.bottom = `${window.innerHeight - r.top + 8}px`;
+    // v0.86 landscape phones: the pill heads the side column, so the popover opens below it, to its left edge
+    const below = !!this.isLandscapePhone;
+    pop.classList.toggle("below", below);
+    if (below) { pop.style.top = `${r.bottom + 8}px`; pop.style.bottom = "auto"; }
+    else { pop.style.top = ""; pop.style.bottom = `${window.innerHeight - r.top + 8}px`; }
     const pr = pop.getBoundingClientRect();
     pop.style.setProperty("--ax", `${Math.round(r.left + r.width / 2 - pr.left)}px`);
   }
@@ -9897,6 +9916,8 @@ class ColonistFullGame {
     const html = row("road", "Road") + (this.sea ? row("ship", "Ship") : "") + row("settlement", "Settle") + row("city", "City");
     if (el.__html !== html) { el.__html = html; el.innerHTML = html; }
     el.hidden = false;
+    // v0.86 landscape phones: the card takes the hand's place in the side column (CSS: column + width, here: its top)
+    if (this.isLandscapePhone) { el.style.bottom = ""; el.style.top = `${Math.round(this.handArea?.getBoundingClientRect().top || 44)}px`; return; }
     const top = this.resourceCardStrip?.getBoundingClientRect().top || 0;
     const tot = this.handTotalEl && !this.handTotalEl.hidden ? this.handTotalEl.getBoundingClientRect().top : top;
     el.style.bottom = `${window.innerHeight - Math.min(top + 14, tot) + 6}px`;
@@ -10087,6 +10108,17 @@ class ColonistFullGame {
 
   /** The fitted view (also records the fit scale = minimum zoom). */
   _fitTarget() {
+    // v0.86: the harbour pills keep enough coast clearance that each pier has HARBOUR_FREE css px of open sea (room
+    // for the harbour dot, 12.5 px out, past the 7 px build-spot ring). Chosen from the fit the default clearance
+    // gives (one step, so it never oscillates); costs the board ~5% on a 360 px phone, nothing on a big screen.
+    if (this.geometry) {
+      // (a docked trade offer is left out, so the pills don't move while one comes and goes)
+      this._hClear = 30; this._fitNoOffer = true;
+      const f0 = this._viewFrame(); this._fitNoOffer = false;
+      const s0 = Math.min(f0.vp.W / (f0.box.maxX - f0.box.minX), f0.vp.H / (f0.box.maxY - f0.box.minY));
+      const pxArt = (this.geometry.hexSize / 100) * s0;
+      this._hClear = pxArt > 0 ? Math.max(30, Math.ceil(HARBOUR_FREE / pxArt)) : 30;
+    }
     const { box, vp } = this._viewFrame();
     const scale = Math.min(vp.W / (box.maxX - box.minX), vp.H / (box.maxY - box.minY));
     this._fitScale = scale;

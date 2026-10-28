@@ -106,9 +106,13 @@ export function harbourBadges(game, s = 1) {
   if (!g || !ports.length) return [];
   const u = g.hexSize / 100, A = (p) => ({ x: (p.x - g.centerX) / u, y: (p.y - g.centerY) / u });
   const land = g.hexes.filter((h) => h.resource !== "sea");
-  const key = [s, !!game.sea, g.hexSize.toFixed(3), g.centerX.toFixed(2), g.centerY.toFixed(2), ports.map((p) => p.edgeId + p.type).join(","), land.map((h) => h.id).join(".")].join("|");
+  // v0.86: the coast clearance is chosen by the board fit (game._hClear, see _fitTarget): enough that the harbour
+  // dot on each pier sits in free sea between the build-spot ring and the pill
+  const clear = Math.max(30, game._hClear || 30);
+  const key = [s, clear, !!game.sea, g.hexSize.toFixed(3), g.centerX.toFixed(2), g.centerY.toFixed(2), ports.map((p) => p.edgeId + p.type).join(","), land.map((h) => h.id).join(".")].join("|");
   if (layoutCache.has(key)) return layoutCache.get(key);
   const centers = land.map((h) => A(h.center));
+  const coastNodes = g.nodes.filter((n) => n.adjacentHexes.some((id) => g.hexes[id] && g.hexes[id].resource !== "sea")).map((n) => ({ ...A(n), id: n.id }));
   // v0.81: a pier never runs along/over a coast edge (where a road lies) or a number token: when the straight
   // line from the coast corner to the pill would, it first steps straight out to sea (a knee), then turns
   const landSegs = g.edges.filter((e) => e.hexIds.some((id) => g.hexes[id] && g.hexes[id].resource !== "sea")).map((e) => [A(g.nodes[e.nodes[0]]), A(g.nodes[e.nodes[1]])]);
@@ -141,8 +145,8 @@ export function harbourBadges(game, s = 1) {
     return [c, e];
   };
   // clear: past the beach band (~30) and a corner piece; v0.78: no longer grows with s, so bigger (phone) pills
-  // sit as close to the coast as the small ones and don't push the board fit out
-  const clear = 30, gap = 5 * Math.min(s, 1.6);
+  // sit as close to the coast as the small ones and don't push the board fit out. v0.86: at least 30 (see above)
+  const gap = 5 * Math.min(s, 1.6);
   const placed = [];
   const out = ports.map((port) => {
     const any = port.type === "any";
@@ -154,25 +158,76 @@ export function harbourBadges(game, s = 1) {
     const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, len = Math.hypot(mx - hc.x, my - hc.y) || 1;
     const nx = (mx - hc.x) / len, ny = (my - hc.y) / len, tx = -ny, ty = nx;
     const near = centers.filter((c) => Math.hypot(c.x - mx, c.y - my) < 330 * Math.max(1, s));
-    const ok = (x, y) => near.every((c) => boxHexDist(x, y, hw, hh, c) >= clear) && placed.every((q) => boxGap(q, { x, y, w, h }) >= gap);
-    let best = null;
-    for (let d = 0; d <= 200 * s && !best; d += 3 * s) {
-      for (let k = 0; k <= 6 && !best; k += 1) { // slide along the coast up to 36·s before moving further out
-        for (const sg of k ? [1, -1] : [1]) {
-          const t = sg * k * 6 * s;
-          const x = mx + nx * d + tx * t, y = my + ny * d + ty * t;
-          if (ok(x, y)) { best = { x, y }; break; }
+    const dd = (c, e) => Math.hypot(c.x - e[0], c.y - e[1]);
+    const place = (cl, slide = 6) => {
+      const ok = (x, y) => near.every((c) => boxHexDist(x, y, hw, hh, c) >= cl) && placed.every((q) => boxGap(q, { x, y, w, h }) >= gap);
+      let best = null;
+      for (let d = 0; d <= 200 * s && !best; d += 3 * s) {
+        for (let k = 0; k <= slide && !best; k += 1) { // slide along the coast up to 36·s before moving further out
+          for (const sg of k ? [1, -1] : [1]) {
+            const t = sg * k * 6 * s;
+            const x = mx + nx * d + tx * t, y = my + ny * d + ty * t;
+            if (ok(x, y)) { best = { x, y }; break; }
+          }
         }
       }
+      if (!best) best = { x: mx + nx * (200 * s), y: my + ny * (200 * s) };
+      const { x, y } = best;
+      // pier ends: tucked under the pill, spread along the coast, each paired with the nearer corner
+      const lat = (Math.abs(tx) * hw + Math.abs(ty) * hh) * 0.45, e0 = [x - tx * lat, y - ty * lat], e1 = [x + tx * lat, y + ty * lat];
+      const piers = (dd(a, e0) + dd(b, e1) <= dd(a, e1) + dd(b, e0) ? [[a, e0], [b, e1]] : [[a, e1], [b, e0]]).map(([c, e]) => bendPier(c, e));
+      return { x, y, piers };
+    };
+    // v0.86: a bigger clearance can push the pill of a narrow strait (Seafarers) across to the next island, so its
+    // piers would cross land or pass other corners. Then try sliding it further along the coast (up to 72·s) and
+    // stepping the clearance back towards 30: the first spot whose piers are clear AND still leave the dot its room
+    // (open pier >= ~clear) wins; failing that, the clear-piered spot with the most open pier; failing that, the plain spot.
+    const P3 = ([c, e, kn]) => (kn ? [c, { x: kn[0], y: kn[1] }, { x: e[0], y: e[1] }] : [c, { x: e[0], y: e[1] }]);
+    const nearNode = (pts, own) => {
+      let walked = 0;
+      for (let i = 0; i + 1 < pts.length; i += 1) {
+        const p = pts[i], q = pts[i + 1], L = Math.hypot(q.x - p.x, q.y - p.y);
+        for (let k = 1; k <= 24; k += 1) {
+          const x = p.x + ((q.x - p.x) * k) / 24, y = p.y + ((q.y - p.y) * k) / 24;
+          if (walked + (L * k) / 24 > 18 && coastNodes.some((n) => n.id !== own && Math.hypot(x - n.x, y - n.y) < 15)) return true;
+        }
+        walked += L;
+      }
+      return false;
+    };
+    const openPier = (pts, q) => { // pier length from the corner until it reaches the pill (+ a small margin)
+      let walked = 0;
+      for (let i = 0; i + 1 < pts.length; i += 1) {
+        const p = pts[i], r = pts[i + 1], L = Math.hypot(r.x - p.x, r.y - p.y);
+        for (let k = 1; k <= 48; k += 1) {
+          const x = p.x + ((r.x - p.x) * k) / 48, y = p.y + ((r.y - p.y) * k) / 48;
+          if (Math.abs(x - q.x) <= q.w / 2 + 4 && Math.abs(y - q.y) <= q.h / 2 + 4) return walked + (L * k) / 48;
+        }
+        walked += L;
+      }
+      return walked;
+    };
+    const fine = (pl) => pl.piers.every((pr) => pierClear(P3(pr)) && !nearNode(P3(pr), pr[0].id));
+    const room = (pl) => Math.min(...pl.piers.map((pr) => openPier(P3(pr), { x: pl.x, y: pl.y, w, h })));
+    let pl = place(clear);
+    if (clear > 30 && !fine(pl)) {
+      let best = null, bestRoom = -1;
+      for (let cl = clear; ; cl = Math.max(30, cl - 6)) {
+        for (const sl of [6, 12]) {
+          const c2 = place(cl, sl);
+          if (!fine(c2)) continue;
+          const r2 = room(c2);
+          if (r2 > bestRoom) { best = c2; bestRoom = r2; }
+          if (r2 >= clear * 0.97) break;
+        }
+        if (cl <= 30 || bestRoom >= clear * 0.97) break;
+      }
+      pl = best || pl;
     }
-    if (!best) best = { x: mx + nx * (200 * s), y: my + ny * (200 * s) };
-    const { x, y } = best, ic = 24 * s, fs = 25 * s; // v0.78: a bigger ratio in a compact pill
+    const { x, y, piers } = pl, ic = 24 * s, fs = 25 * s; // v0.78: a bigger ratio in a compact pill
     placed.push({ x, y, w, h });
-    // pier ends: tucked under the pill, spread along the coast, each paired with the nearer corner
-    const lat = (Math.abs(tx) * hw + Math.abs(ty) * hh) * 0.45, e0 = [x - tx * lat, y - ty * lat], e1 = [x + tx * lat, y + ty * lat];
-    const dd = (c, e) => Math.hypot(c.x - e[0], c.y - e[1]);
-    const piers = (dd(a, e0) + dd(b, e1) <= dd(a, e1) + dd(b, e0) ? [[a, e0], [b, e1]] : [[a, e1], [b, e0]]).map(([c, e]) => bendPier(c, e));
-    return { x, y, w, h, r: hh, a, b, mx, my, nx, ny, piers, any,
+    const nearC = coastNodes.filter((n) => Math.hypot(n.x - x, n.y - y) < 120 + w); // corners a dot on these piers could meet
+    return { x, y, w, h, r: hh, a, b, mx, my, nx, ny, piers, any, near: nearC,
       icon: any ? null : { x: x - 17 * s, y, size: ic },
       text: any ? { x, y: y + fs * 0.36, size: fs } : { x: x + 15 * s, y: y + fs * 0.36, size: fs } };
   });
@@ -206,20 +261,43 @@ export function harbourBadges(game, s = 1) {
 /** v0.81: SVG path of a pier [corner, end, knee?] (corner → optional knee → under the pill). */
 export const pierD = ([c, e, kn]) => `M${f(c.x)},${f(c.y)}${kn ? ` L${f(kn[0])},${f(kn[1])}` : ""} L${f(e[0])},${f(e[1])}`;
 
-/** v0.81: the harbour-node mark that replaced the coloured corner dots. A short bar across the pier, just off the
- *  coast corner, in the harbour's accent: small enough to hide under a settlement / city (and it is simply not
- *  drawn on an occupied corner) and drawn under every piece and build-spot marker. Art units, like the pier. */
-export function pierTick([c, e, kn], s = 1) {
-  const tx = kn ? kn[0] : e[0], ty = kn ? kn[1] : e[1], L = Math.hypot(tx - c.x, ty - c.y) || 1, dx = (tx - c.x) / L, dy = (ty - c.y) / L;
-  const d = 4.5 * s;
-  return { id: c.id, x: c.x + dx * d, y: c.y + dy * d, ux: -dy, uy: dx, h: 6 * s, w: 3.4 * s };
+/** v0.86: the harbour-node mark is a small dot again (v0.81-0.85: a bar across the pier), in the harbour's accent with
+ *  a thin rim, placed DOT_OUT css px from the coast corner along the pier (round its knee if it has one) — outside the
+ *  build-spot ring (7 px + stroke), the trimmed road ends and every piece. Never inside (or within 2 px of) the pill:
+ *  if the pier is that short the dot steps back towards the corner (and is hidden if it would then touch the ring).
+ *  Not drawn on a corner holding a settlement / city. pxArt = css px per art unit at the fitted zoom (sizes are art
+ *  units, so the dot zooms with the board). Returns art units: { id, x, y, r (outer radius incl. rim), ri, hidden }. */
+export const DOT_OUT = 12.5, DOT_D = 5.6, DOT_FILL = 3.4, DOT_MIN_ART = 22, DOT_RING = 8.05; // css px (DOT_RING: build-spot ring incl. its stroke)
+export function pierDot([c, e, kn], pxArt, badge = null) {
+  const px = 1 / (pxArt || 1), pts = [[c.x, c.y], ...(kn ? [kn] : []), e];
+  const at = (d) => {
+    for (let k = 0; k + 1 < pts.length; k += 1) {
+      const [ax, ay] = pts[k], [bx, by] = pts[k + 1], l = Math.hypot(bx - ax, by - ay) || 1;
+      if (d <= l || k + 2 === pts.length) { const t = Math.min(1, d / l); return [ax + (bx - ax) * t, ay + (by - ay) * t]; }
+      d -= l;
+    }
+    return pts[0];
+  };
+  const r = (DOT_D / 2) * px;
+  const inBadge = ([x, y]) => (badge && Math.abs(x - badge.x) <= badge.w / 2 + r + 2 * px && Math.abs(y - badge.y) <= badge.h / 2 + r + 2 * px)
+    || (badge?.near || []).some((n) => n.id !== c.id && Math.hypot(x - n.x, y - n.y) < (DOT_RING + 1) * px + r); // or another corner's ring
+  // big boards (desktop): at least DOT_MIN_ART out, so the dot also clears a road on a corner whose pier leaves the
+  // coast at a shallow angle (12.5 px is only ~18 art units there)
+  let d = Math.max(DOT_OUT * px, DOT_MIN_ART);
+  // a pier that bends sharply at its knee: walk on until the dot is DOT_OUT px from the corner in a straight line too
+  const total = pts.reduce((t, p, i) => (i ? t + Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) : 0), 0);
+  while (d < total && Math.hypot(at(d)[0] - c.x, at(d)[1] - c.y) < (DOT_OUT - 0.05) * px && !inBadge(at(d + 0.5 * px))) d += 0.5 * px;
+  while (d > 0 && inBadge(at(d))) d -= 0.5 * px;
+  const [x, y] = at(d);
+  // a pier too short to hold the dot clear of both the build-spot ring and the pill (a narrow strait on a small
+  // Seafarers board): no dot there (the pier still marks the harbour)
+  const hidden = Math.hypot(x - c.x, y - c.y) < (DOT_RING + 1 + DOT_D / 2) * px;
+  return { id: c.id, x, y, r, ri: (DOT_FILL / 2) * px, hidden };
 }
-/** Draw a pierTick (in the canvas's current units) on a 2D canvas: the accent bar with a thin outline. */
-export function drawPierTick(ctx, t, fill, line) {
+/** Draw a pierDot (in the canvas's current units) on a 2D canvas: rim colour disc, accent fill on top. */
+export function drawPierDot(ctx, t, fill, line) {
   ctx.save();
-  ctx.lineCap = "round";
-  ctx.beginPath(); ctx.moveTo(t.x - t.ux * t.h, t.y - t.uy * t.h); ctx.lineTo(t.x + t.ux * t.h, t.y + t.uy * t.h);
-  ctx.strokeStyle = line; ctx.lineWidth = t.w * 1.65; ctx.stroke();
-  ctx.strokeStyle = fill; ctx.lineWidth = t.w; ctx.stroke();
+  ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2); ctx.fillStyle = line; ctx.fill();
+  ctx.beginPath(); ctx.arc(t.x, t.y, t.ri, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill();
   ctx.restore();
 }

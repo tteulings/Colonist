@@ -520,7 +520,8 @@ export const AnalysisMixin = {
     // Phones: the hand fan overlaps the bottom of the board, so the panel sits just above it
     // (v0.83: and above a docked trade offer: on phones the offer card used to cover the bars and Pause / Step)
     const wrap = el.parentElement?.getBoundingClientRect(), hand = document.getElementById("handArea")?.getBoundingClientRect();
-    let lift = wrap && hand && hand.height > 0 && hand.top < wrap.bottom && hand.bottom > wrap.top + 40 ? Math.max(0, wrap.bottom - hand.top) : 0;
+    // (v0.86: only when the hand lies over the board: on landscape phones it has its own column)
+    let lift = wrap && hand && hand.height > 0 && hand.top < wrap.bottom && hand.bottom > wrap.top + 40 && hand.left < wrap.right - 1 && hand.right > wrap.left + 1 ? Math.max(0, wrap.bottom - hand.top) : 0;
     if (wrap) document.querySelectorAll(".rush-offers .rush-offer").forEach((c) => {
       const r = c.getBoundingClientRect();
       if (r.height > 0 && r.top < wrap.bottom && r.bottom > wrap.top + 40) lift = Math.max(lift, wrap.bottom - r.top + 4);

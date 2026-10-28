@@ -1451,6 +1451,8 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
    in its own tone ("−2 of 4") with a "−" to put one back. The fan gets a solid backdrop so the board
    (harbour pills, ships) never shows through while you choose. */
 .app .hand.discarding, .app.board-zoomed .hand { background: linear-gradient(color-mix(in srgb, var(--fan-solid, #F7F2E8) 0%, transparent), color-mix(in srgb, var(--fan-solid, #F7F2E8) 94%, transparent) 30%); }
+/* v0.86: zoomed in, the backdrop under the cards is fully opaque (at 94% a harbour pill still showed through in Night) */
+.app.board-zoomed .hand { background: linear-gradient(color-mix(in srgb, var(--fan-solid, #F7F2E8) 0%, transparent), var(--fan-solid, #F7F2E8) 30%); }
 .app .hand.discarding .cards { padding-top: 22px; }
 .app .hand .card.dcard { opacity: 1; filter: var(--card-shadow); }
 .app .hand .card.dcard svg { opacity: 1; }
@@ -2012,3 +2014,124 @@ html[data-lab] .table .board-wrap { position: absolute !important; inset: 0 !imp
 .vp-tooltip-grid b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .vp-tooltip-grid small { font-size: 11px; font-weight: 650; color: var(--ink-soft); }
 .vp-tooltip-grid .warn b { color: var(--warn-ink, #B23A1E); }
+
+/* ==========================================================================
+   v0.86 PHONE LANDSCAPE: board between the top strip and a side column. The hand (a small card grid), the
+   totals/bank pill and the dock share one ~180 px column on the right; the ticker spans only the board column,
+   so no harbour, coast spot or pill is ever covered. The build card takes the hand's place in the column, the
+   trade sheet is a wide two-pane card (cards left, partners + Bank/Offer right). Portrait is unchanged.
+   ========================================================================== */
+@media (max-height: 500px) and (orientation: landscape) {
+  /* --board-side: the harbour pills count for the fit (they used to hide under the ticker and the hand) */
+  .app { --rcol: calc(180px + env(safe-area-inset-right)); --fan-h: 10px; --board-top: 44px; --board-side: 4px; --col-pad: 8px; }
+  .app .mtop .ticker { height: 34px; }
+  /* an action prompt keeps its primary pill (the themes' landscape glass ticker hid it: white text on white glass) */
+  [data-theme] .app .mtop .ticker.act.act { background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); border-color: transparent; box-shadow: var(--float-shadow); }
+  .board-tools, .lefttop { top: 46px; }
+  /* the column: pill, hand, then the dock buttons at the bottom */
+  .app .dock {
+    grid-row: 1 / -1; position: relative; z-index: 6; display: flex; flex-direction: column; justify-content: flex-start; gap: 8px; min-width: 0;
+    contain: size; /* it spans the grid's auto rows: its content must never stretch them (the column fills the height) */
+    padding: calc(6px + env(safe-area-inset-top)) calc(var(--col-pad) + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) var(--col-pad);
+    background: color-mix(in srgb, var(--fan-solid, #F7F2E8) 38%, transparent); box-shadow: -1px 0 0 rgba(255,255,255,.3);
+  }
+  .app:has(#rushHud:not([hidden])) .dock { grid-row: 2 / -1; padding-top: 6px; }
+  .app .rush-hud.rush-hud { margin: 6px calc(8px + env(safe-area-inset-right)) 0 8px; justify-content: center; }
+  .app .dock .hand {
+    position: relative; left: auto; right: auto; bottom: auto; height: auto; flex: 1 1 auto; min-height: 0;
+    display: flex; flex-direction: column; justify-content: flex-start; background: none;
+    container-type: size; /* the card size follows the room the column leaves (Rush HUD, a tall tray) */
+  }
+  .app.board-zoomed .dock .hand, .app .dock .hand.discarding { background: none; }
+  .app .dock .hand .hand-total {
+    position: relative; order: -1; top: auto; bottom: auto; left: auto; align-self: stretch; justify-content: center; gap: 6px; height: 30px; padding: 0 8px; flex: none;
+  }
+  .app .dock .hand .hand-total .ht-bank { display: inline-flex; }
+  .app .dock .hand .cards, [data-hand-counts] .app .dock .hand .cards {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 4px; justify-items: center; align-content: start;
+    padding: 10px 0 0; margin: 0; overflow: visible; scroll-snap-type: none; flex: none;
+  }
+  .app .dock .hand .cards:has(> .card:nth-child(9)) { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px 3px; }
+  /* two rows of four (or three of five): as big as the hand's height allows (pill 30 + 10 above the cards) */
+  .app .dock .hand .card { --cw: min(37px, calc((100cqh - 54px) / 2.8)); margin: 0; transform: none; }
+  .app .dock .hand .cards:has(> .card:nth-child(9)) .card { --cw: min(30px, calc((100cqh - 62px) / 4.2)); }
+  .app .dock .hand .sep { display: none; }
+  .app .dock .hand .card.dsel-on { transform: translateY(-4px) scale(1.12); }
+  .app .dock .hand .card .dplay { bottom: -12px; top: auto; font-size: 12px; padding: 6px 9px; }
+  .hand .card .dtag, .hand .card .dtag.dt-vp, .hand .card .dtag.dt-nx { top: auto; bottom: 18px; }
+  .app .dock .hand .cards:has(.dsel-on), [data-hand-counts] .app .dock .hand .cards:has(.dsel-on) { padding-top: 10px; }
+  .app .dock .hand:has(.dsel-on) { height: auto; }
+  .app .dock .hand .hand-empty { margin: 8px 0 0; align-self: center; }
+  /* dock buttons: Build · Buy card / Trade · Menu, then the main button across */
+  .app .dock .actions { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: auto; gap: 6px; height: auto; }
+  .app .dock .actions > .mbtn, .app .dock .side-actions .btn { width: auto; height: 40px; min-height: 0; margin: 0; gap: 4px; padding: 0 6px; font-size: 12px; justify-content: center; }
+  .app .dock .actions > .mbtn .ic, .app .dock .side-actions .btn .ic { font-size: 18px; }
+  .app .dock #mBuildBtn { order: 1; } .app .dock #mBuyBtn { order: 2; } .app .dock #tradeBankBtn { order: 3; } .app .dock #mMenuBtn { order: 4; }
+  .app .dock .mbtn.mbuy { display: flex; flex-direction: row; padding: 0 6px; font-size: 12px; }
+  .app .dock .mbtn.mbuy > .ic { font-size: 18px; }
+  .app .dock .mbuy .mb-cost, .app .dock .mbuy .mb-why { display: none; }
+  .app .dock .primary-slot { grid-column: 1 / -1; order: 9; height: 52px; min-height: 0; }
+  .app .dock .mainbtn { height: 52px; font-size: 19px; }
+  .app .dock .waiting { min-height: 52px; height: 52px; padding: 4px 10px; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px; font-size: 12.5px; }
+  .app .dock .waiting .avatar { --av: 30px; flex: none; }
+  .app .dock .waiting .wt { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.2; }
+  .app.opp-turn .dock .actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .app.opp-turn .dock #mMenuBtn { grid-column: 1 / -1; }
+  /* the dock tray (discard, steal, card picks): takes the dock's place, two columns of compact buttons */
+  .app.tray-open .dock .actions > .tray { display: grid !important; grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: 40px; gap: 6px; height: auto; }
+  .app.tray-open .dock .tray > .tinfo, .app.tray-open .dock .tray > .steal-h { grid-column: 1 / -1; }
+  .app.tray-open .dock .tray .tbtn, .app.tray-open .dock .tray .tinfo { height: 40px; min-height: 0; padding: 0 6px; }
+  .app.tray-open .dock .tray > .tclose { width: auto; }
+  .app.tray-open .dock .tray .tbtn { font-size: 12px; gap: 4px; padding: 0 4px; justify-content: center; }
+  .app.tray-open .dock .tray .tbtn .ic { font-size: 18px; }
+  .app.tray-open .dock .tray > [data-discard-ok] { grid-column: 1 / -1; }
+  /* steal: one target per row (name and cards readable); four or more share two columns */
+  .app.tray-open .dock .tray > .victim { grid-column: 1 / -1; justify-content: flex-start; }
+  .app.tray-open .dock .tray:has(> .victim:nth-of-type(4)) > .victim { grid-column: auto; }
+  .app.tray-open .dock .tray .victim .avatar { --av: 28px; }
+  .app.tray-open .dock .tray .victim .vn b { font-size: 12.5px; }
+  /* the build card takes the hand's place in the column */
+  .app .build-card {
+    left: auto; right: calc(var(--col-pad) + env(safe-area-inset-right)); top: calc(44px + env(safe-area-inset-top)); bottom: auto;
+    width: calc(var(--rcol) - 2 * var(--col-pad) - env(safe-area-inset-right)); box-sizing: border-box; z-index: 40;
+    display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; padding: 4px;
+  }
+  .app .build-card .bc-row { width: auto; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; align-items: center; justify-items: start;
+    gap: 1px 6px; padding: 5px 8px; text-align: left; }
+  .app .build-card .bc-top { grid-column: 1; grid-row: 1; }
+  .app .build-card .bc-cost { grid-column: 2; grid-row: 1 / span 2; }
+  .app .build-card .bc-n, .app .build-card .bc-need { grid-column: 1; grid-row: 2; }
+  .app .build-card .bc-row + .bc-row { border-top: 1px solid var(--divider, rgba(0,0,0,.08)); border-radius: 0; }
+  .app .build-card .bc-row.sel { border-radius: 10px; }
+  .app.build-card-open .dock .hand .cards, .app.build-card-open .dock .hand .hand-empty { visibility: hidden; }
+  /* the trade sheet: one wide card over board + column, cards left, partners and Bank / Offer right, no scrolling */
+  .app > .trade-sheet.sheet:not([style*="none"]) {
+    left: calc(var(--lrail) + 6px); right: calc(6px + env(safe-area-inset-right)); top: calc(6px + env(safe-area-inset-top)); bottom: calc(6px + env(safe-area-inset-bottom));
+    width: auto; max-height: none; height: auto; transform: none; border-radius: 18px; animation: fadeIn 160ms ease;
+    display: grid; grid-template-columns: minmax(0, 1fr) var(--tp-w, 230px); grid-template-rows: minmax(0, 1fr) auto; column-gap: 14px; padding: 8px 12px 0;
+  }
+  .app > .trade-sheet .trade-body {
+    grid-column: 1 / -1; grid-row: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) var(--tp-w, 230px); grid-template-rows: auto auto auto auto minmax(0, 1fr);
+    column-gap: 14px; align-content: start; overflow-y: auto; margin: 0; padding: 0 0 8px;
+  }
+  .app > .trade-sheet .trade-body > :not(#tradePlayers) { grid-column: 1; }
+  .app > .trade-sheet .trade-body > #tradePlayers { grid-column: 2; grid-row: 1 / -1; align-self: start; margin-top: 44px; }
+  .app > .trade-sheet .trade-body > #tradePlayers:has(.trade-result:not(:empty)) { margin-top: 44px; }
+  .trade-sheet .tgrid, .trade-sheet .tlbl { margin-right: 0; }
+  .app > .trade-sheet .trade-foot { grid-column: 2; grid-row: 2; align-self: end; z-index: 1; margin: 0; padding: 0 0 calc(10px + env(safe-area-inset-bottom)); border: 0; background: none; box-shadow: none; }
+  .app > .trade-sheet .trade-foot .btnrow.btnrow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin-top: 4px; }
+  .app > .trade-sheet .trade-foot .btnrow .btn { width: 100%; min-width: 0; height: 52px; }
+  .trade-sheet .sheet-head { right: 8px; top: 6px; }
+  @media (min-width: 880px) { .app { --tp-w: 260px; } }
+  /* pass & play cover: a short screen, so a smaller portrait and tighter lines (the button was under the foot line) */
+  .hs-cover.hs-cover { gap: 4px; padding: max(10px, env(safe-area-inset-top)) 24px max(10px, env(safe-area-inset-bottom)); }
+  .hs-cover.hs-cover .avatar { --av: 76px; --av-ring: 4px; margin-bottom: 4px; }
+  .hs-cover.hs-cover .hs-name { font-size: 36px; }
+  .hs-cover.hs-cover .hs-why { margin: 0 0 8px; }
+  .hs-cover.hs-cover .hs-foot { position: static; margin-top: 6px; }
+  /* bubbles: the bank popover opens below the pill, the dev-card bubble to the left of its card */
+  .hand-info.below { left: auto; right: calc(var(--col-pad) + env(safe-area-inset-right)); width: min(300px, calc(100vw - var(--lrail) - 24px)); max-width: none; }
+  .hand-info.below::after { bottom: auto; top: -6px; }
+  .dev-bubble.side { max-width: min(300px, calc(100vw - var(--rcol) - var(--lrail) - 16px)); }
+  .dev-bubble.side::after { bottom: auto; left: auto; right: -6px; top: var(--ay, 50%); transform: translateY(-50%) rotate(45deg); }
+}
