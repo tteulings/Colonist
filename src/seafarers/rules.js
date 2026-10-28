@@ -233,7 +233,7 @@ export class Seafarers {
       if (!can) { g.addLog(`The bank has no cards left for ${p.name}'s gold.`); return; }
       if (g._isInteractive(p)) {
         const cur = this.gold.find((x) => x.pid === p.id);
-        if (cur) cur.count += can; else this.gold.push({ pid: p.id, count: can });
+        if (cur) { cur.count += can; cur.total = (cur.total || cur.count) + can; } else this.gold.push({ pid: p.id, count: can, total: can });
         g.addLog(`${p.name} strike${g._s(p)} gold: pick ${can} resource${can > 1 ? "s" : ""}.`);
         return;
       }
@@ -255,12 +255,44 @@ export class Seafarers {
     item.count -= 1;
     item.got = item.got || {};
     item.got[res] = (item.got[res] || 0) + 1;
+    item.order = [...(item.order || []), res]; // v0.86: for Undo (one pick back at a time)
     if (item.count <= 0 || RES.every((r) => g.bank[r] <= 0)) {
       this.gold = this.gold.filter((x) => x !== item);
       g.addLog(`${player.name} took ${this._list(item.got)} from the gold field.`);
       return true;
     }
     return false;
+  }
+
+  /** How many cards this pick is for in all ("Pick 2 · 1/2"); old saves have no total. */
+  goldTotal(item) {
+    return item ? item.total || item.count + RES.reduce((a, r) => a + (item.got?.[r] || 0), 0) : 0;
+  }
+
+  /** v0.86: take the last gold pick back while the pick is still open. Returns the resource, or null. */
+  unpickGold(player) {
+    const g = this.g;
+    const item = this.goldFor(player.id);
+    const res = item?.order?.[item.order.length - 1];
+    if (!res || !(player.resources[res] > 0)) return null;
+    item.order = item.order.slice(0, -1);
+    item.got[res] -= 1;
+    item.count += 1;
+    player.resources[res] -= 1;
+    g.bank[res] += 1;
+    return res;
+  }
+
+  /** v0.86: Undo right after the last pick: the cards go back and the pick opens again (nothing picked). */
+  reopenGold(player, picks, total) {
+    const g = this.g;
+    if (this.goldFor(player.id) || !picks.length) return false;
+    const n = {};
+    picks.forEach((r) => { n[r] = (n[r] || 0) + 1; });
+    if (!RES.every((r) => (player.resources[r] || 0) >= (n[r] || 0))) return false;
+    RES.forEach((r) => { player.resources[r] -= n[r] || 0; g.bank[r] += n[r] || 0; });
+    this.gold.push({ pid: player.id, count: picks.length, total: total || picks.length });
+    return true;
   }
 
   /** Finish a pending pick on the player's behalf (Rush roll timeout, autoplay takes over). */

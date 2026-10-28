@@ -198,13 +198,47 @@ export const SeaGame = {
   _seaGoldTap(res) {
     const human = this._me();
     if (!human || !RES.includes(res) || !this.sea?.goldFor(human.id) || !(this.bank[res] > 0)) { this.sfx.error?.(); return; }
+    const item = this.sea.goldFor(human.id);
+    const total = this.sea.goldTotal(item);
+    const logLen = this.logEntries.length;
     const done = this.sea.pickGold(human, res);
     this.fx?.flyResources?.(this.players.map((p) => (p === human ? { [res]: 1 } : {})), null);
     this.sfx.click();
-    if (done) this.sfx.trade?.();
+    if (done) {
+      this.sfx.trade?.();
+      // v0.86: a short Undo after the last pick, like after a build
+      const picks = item.order || [];
+      if (picks.length) this._setUndo({ kind: "gold", pid: human.id, picks, total, logs: this.logEntries.slice(logLen), icon: "gold", label: `Took ${picks.map((r) => LBL[r]).join(" + ")}` });
+    }
     this.recomputeScores();
     if (this.rush) this._rushAfterAction(human);
     else { this.saveToStorage(); this.render(); }
+  },
+
+  /** v0.86: a gold pick in progress with at least one card taken: the ticker's Cancel slot says Undo. */
+  _seaGoldUndoable() {
+    const human = this._me();
+    const item = human && this.sea?.goldFor(human.id);
+    return !!item?.order?.length;
+  },
+
+  /** Undo one gold pick (the last card taken goes back to the bank). */
+  _seaGoldUndo() {
+    const human = this._me();
+    if (!human || !this.sea?.unpickGold(human)) { this.sfx.error?.(); return; }
+    this.sfx.click();
+    this.recomputeScores();
+    if (this.rush) this._rushAfterAction(human);
+    else { this.saveToStorage(); this.render(); }
+  },
+
+  /** Undo after the last gold pick: the cards go back and the pick opens again. */
+  _seaUndoGold(u) {
+    const p = this.players[u.pid];
+    if (!p || !this.sea?.reopenGold(p, u.picks, u.total)) return false;
+    if (u.logs?.length) this.logEntries = this.logEntries.filter((e) => !u.logs.includes(e));
+    this.recomputeScores();
+    return true;
   },
 
   // ── robber or pirate ─────────────────────────────────────────────────
@@ -235,7 +269,8 @@ export const SeaGame = {
     if (!item) return null;
     const got = item.got || {};
     const btns = RES.map((r) => tbtn(`data-gold="${r}" ${this.bank[r] > 0 ? "" : "disabled"}`, `<span class="card">${cardSvg(r)}</span><span>${LBL[r]}</span>${got[r] ? `<i class="pk">+${got[r]}</i>` : ""}`, `res${got[r] ? " sel" : ""}`)).join("");
-    return { mode: "gold", hint: `Gold field · pick any ${item.count} resource${item.count > 1 ? "s" : ""}`, html: btns };
+    const total = this.sea.goldTotal(item); // v0.86: "Pick 2 · 0/2" → "1/2" (Undo sits in the ticker's Cancel slot)
+    return { mode: "gold", hint: `Pick ${total} · ${total - item.count}/${total}`, html: btns };
   },
 
   /** Seafarers trays for the player whose turn it is (null: not ours). */

@@ -329,21 +329,26 @@
           const chip = document.createElement("button");
           chip.type = "button"; chip.id = "updateChip"; chip.className = "update-chip";
           chip.setAttribute("aria-live", "polite");
-          chip.innerHTML = "Update ready <span aria-hidden=\"true\">·</span> <b>Reload</b>";
+          chip.setAttribute("aria-label", "Update ready: save and reload");
+          // v0.86: one word + a reload arrow; on phones it is a flex item at the end of the ticker row
+          // (the journal line ellipsises to make room), so it never floats over the dice tray or the board
+          chip.innerHTML = "<svg class=\"uc-ic\" viewBox=\"0 0 20 20\" aria-hidden=\"true\"><path d=\"M15.5 10a5.5 5.5 0 1 1-1.8-4.1\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\"/><path d=\"M14.6 1.8v4.6H10\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><b>Update</b>";
           chip.addEventListener("click", () => {
             try { window.__colonistGame && window.__colonistGame.saveToStorage(); } catch (e) {}
             window.location.reload();
           });
-          document.body.appendChild(chip);
-          // On phones, sit just under the top bar (players + ticker) instead of covering it
           const place = () => {
-            const top = document.querySelector(".mtop");
-            const r = top && top.offsetParent !== null ? top.getBoundingClientRect() : null;
-            chip.style.top = r && r.height ? `${Math.round(r.bottom + 8)}px` : "";
+            const row = document.querySelector("#mtop .tkrow");
+            const inRow = !!row && row.offsetParent !== null;
+            const home = inRow ? row : document.body;
+            if (chip.parentElement !== home) home.appendChild(chip);
+            chip.classList.toggle("in-row", inRow);
+            if (inRow) row.style.setProperty("--uc-w", chip.offsetWidth + 6 + "px");
           };
           place();
           window.addEventListener("resize", place);
         };
+        window.__colonistOfferUpdate = offerUpdate; // tests: show the chip without a second deploy
         sw.addEventListener("controllerchange", () => { if (hadController) offerUpdate(); });
         window.addEventListener("load", () => {
           sw.register("./sw.js", { updateViaCache: "none" }).then((reg) => {

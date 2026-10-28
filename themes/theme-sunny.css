@@ -340,3 +340,8 @@
   [data-theme="A"] .tinfo { color: var(--ink); }
   [data-theme="A"][data-palette="vivid"] .tinfo .who { color: var(--bar-ink); }
 }
+/* v0.86 Vivid: the hand sits on the dock's glass where --heading is white, but a dev card's count is drawn on
+   the card's pale foot: dark ink like the resource counts. The "swipe ›" hint is a pale pill: dark ink too (AA). */
+[data-theme="A"][data-palette="vivid"] .app .hand .card.dev { --cnt-ink: #17434A; }
+[data-theme="A"][data-palette="vivid"][data-hand-counts="stack"] .app .hand .card.dev .rib b { color: #17434A; }
+[data-theme="A"][data-palette="vivid"] .hand .swipe { color: #17434A; }

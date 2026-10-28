@@ -128,6 +128,10 @@ h1, h2, h3, .display { font-family: var(--font-display); font-weight: var(--disp
 .pchip .avatar { --av: 32px; --av-ring: 2.5px; }
 .pchip .vpn { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 21px; line-height: 1; color: var(--heading); display: flex; flex-direction: column; align-items: center; }
 .pchip .vpn small { font-family: var(--font-body); font-size: 8.5px; letter-spacing: .06em; color: var(--ink-soft); font-weight: 750; }
+/* ⚓ v0.86 Seafarers: your own points badge carries the goal, "3/14" (the /14 smaller, same ink) */
+.pchip .vpn.goal { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: baseline; }
+.pchip .vpn.goal small { flex-basis: 100%; text-align: center; }
+.pchip .vpn .vgoal { font-family: var(--font-body); font-size: 11px; font-weight: 750; letter-spacing: -.01em; margin-left: 1px; opacity: .92; }
 .pchip .pn { font-size: 12px; font-weight: 750; line-height: 1.15; text-align: center; color: var(--ink); max-width: 100%; white-space: nowrap; }
 .pchip .persona-badge { font-size: 9.5px; padding: 0 5px; line-height: 1.5; max-width: 100%; }
 .pchip .mini { display: flex; gap: 6px; font-size: 11px; font-weight: 750; color: var(--ink-soft); }
@@ -1400,6 +1404,20 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
   .app .tray:is([data-mode="robber"], [data-mode="victims"]) .victim .vn small { white-space: nowrap; }
   .app .tray:is([data-mode="robber"], [data-mode="victims"]):has(.victim) > :is(.tclose, .primary) { flex: 0 0 44px; height: auto; }
 }
+/* v0.86: 3+ victims: a two-column grid of rows (portrait left, full name and "cards · VP" right); an odd
+   last victim spans the full width. Two or fewer keep the big portraits side by side. */
+.tray > .vgrid { flex: 3 1 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; min-width: 0; }
+.tray .vgrid > .victim:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.tray .vgrid > .victim { min-width: 0; height: auto; }
+.tray .vgrid .vn b, .tray .vgrid .vn small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+@media (max-width: 900px) and (min-height: 501px) {
+  .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid .victim { flex-direction: row; justify-content: flex-start; align-items: center; gap: 8px; padding: 6px 8px; min-height: 58px; text-align: left; }
+  .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid .victim .avatar { --av: 40px; --av-ring: 2.5px; }
+  .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid .victim .vn { align-items: flex-start; min-width: 0; }
+  .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid .victim .vn b { font-size: 14.5px; }
+  .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid .victim .vn small { font-size: 12.5px; }
+}
+@media (max-height: 500px) and (orientation: landscape) { .tray > .vgrid { grid-template-columns: minmax(0, 1fr); flex: none; } }
 /* v0.81 robber / discard: the ticker is an instruction in the primary accent, not a log line */
 .app .ticker.act, .app .mtop .ticker.act { background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); border-color: transparent; }
 .app .ticker.act .txt, .app .ticker.act .tk-main { color: var(--primary-ink); font-weight: 800; -webkit-line-clamp: 1; white-space: nowrap; }
@@ -1525,6 +1543,19 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .update-chip b { color: var(--btn-on-ink, #A84E2F); font-weight: 800; }
 @keyframes update-chip-in { from { opacity: 0; transform: translate(-50%, -8px); } }
 @media (prefers-reduced-motion: reduce) { .update-chip { animation: none; } }
+.update-chip .uc-ic { width: 16px; height: 16px; flex: none; color: var(--btn-on-ink, #A84E2F); }
+/* v0.86: phones (portrait and landscape): the chip is the last flex item of the ticker row, the journal line
+   ellipsises beside it; it never floats over the dice tray or the board */
+.tkrow > .update-chip.in-row { position: static; transform: none; translate: none; left: auto; top: auto; z-index: auto; flex: none; max-width: none;
+  min-height: 0; height: 34px; padding: 0 12px 0 10px; gap: 5px; font-size: 13.5px; background: var(--float); border: var(--float-border); box-shadow: var(--float-shadow);
+  animation: update-chip-row-in .3s var(--ease-out, ease-out); }
+.tkrow > .update-chip.in-row b { font-weight: 750; }
+@media (max-height: 500px) and (orientation: landscape) { .tkrow > .update-chip.in-row { height: 38px; } }
+@keyframes update-chip-row-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tkrow > .update-chip.in-row { animation: none; } }
+.tkrow:has(> .update-chip.in-row) .undo-toast { margin-right: var(--uc-w, 0px); }
+/* beside the chip the journal line is one line that ends in "…" */
+.tkrow:has(> .update-chip.in-row) .ticker .txt:not(:has(.tk-main)), .tkrow:has(> .update-chip.in-row) .ticker .tk-main { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: unset; }
 
 /* floating pills/popovers never wider than the screen (game.js _clampFloaters keeps them inside) */
 .confirm-pill, .ai-reasoning-popup, .rush-offers, .toasts { max-width: calc(100vw - 16px); box-sizing: border-box; }
@@ -1684,6 +1715,19 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .rush-offer .rush-offer-deal { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0 8px; margin-top: 2px; font-size: 14px; }
 .rush-offer-deal .ol.give, .rush-offer-deal .ol.get { font-size: 12.5px; }
 .rush-offer-deal .ol.give { color: var(--danger); }
+/* v0.86: one offer card at a time; the others wait behind it: two card edges peek out underneath and a
+   quiet "+2 more" chip with the waiting bots' faces sits on its top edge */
+.rush-offers .offer-peek { position: absolute; left: 12px; right: 12px; bottom: -5px; height: 24px; z-index: -1; border-radius: 0 0 var(--panel-radius) var(--panel-radius);
+  background: var(--float); border: var(--float-border); box-shadow: 0 2px 6px rgba(0,0,0,.12); opacity: .85; pointer-events: none; }
+.rush-offers .offer-peek.p2 { left: 24px; right: 24px; bottom: -10px; z-index: -2; opacity: .6; }
+.rush-offers .offer-more { position: absolute; right: 10px; top: -13px; z-index: 2; display: inline-flex; align-items: center; gap: 0; height: 24px; padding: 0 9px 0 3px;
+  border-radius: 999px; background: var(--float); border: var(--float-border); box-shadow: var(--float-shadow); pointer-events: none;
+  font-family: var(--font-body); font-size: 12px; font-weight: 750; color: var(--ink); white-space: nowrap; }
+.rush-offers .offer-more .avatar { --av: 18px; --av-ring: 1.5px; margin-right: -4px; }
+.rush-offers .offer-more b { margin-left: 9px; font-weight: 750; }
+.rush-offers .rush-offer.arriving { animation: offerUp 280ms var(--ease-out, ease-out); }
+@keyframes offerUp { from { opacity: 0; transform: translateY(14px); } }
+.rush-offers[data-more]::before { display: none !important; }
 .rush-offer-deal .ol.get { color: var(--good); }
 .rush-offer-have { font-size: 12px; }
 @media (max-height: 500px) and (orientation: landscape) {
