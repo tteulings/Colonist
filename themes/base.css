@@ -85,6 +85,7 @@ h1, h2, h3, .display { font-family: var(--font-display); font-weight: var(--disp
 .persona-shark { --persona-bg: var(--persona-shark-bg); --persona-ink: var(--persona-shark-ink); }
 .persona-expert { --persona-bg: var(--persona-expert-bg); --persona-ink: var(--persona-expert-ink); }
 .persona-beginner { --persona-bg: var(--persona-beginner-bg); --persona-ink: var(--persona-beginner-ink); }
+.persona-simple { --persona-bg: var(--persona-beginner-bg); --persona-ink: var(--persona-beginner-ink); } /* v0.87 Simple (rulebook) bot */
 .ready-pill { display: inline-flex; align-items: center; gap: 3px; padding: 0 7px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; background: var(--good-bg); color: var(--good); line-height: 1.7; }
 
 /* ---------- cards ---------- */
