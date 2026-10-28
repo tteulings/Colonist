@@ -1296,7 +1296,7 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 }
 .hand .card.slot .slot-ic .ic { font-size: 22px; filter: grayscale(1); opacity: .45; }
 .hand .card.slot .slot-n { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 18px; line-height: 1; }
-.hand .card.slot .slot-name { font-size: 9.5px; font-weight: 750; letter-spacing: .02em; }
+.hand .card.slot .slot-name { font-size: 11px; font-weight: 750; letter-spacing: .02em; }
 .hand .card:not(.slot) .count { min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px; font-size: 15px; font-weight: 800; top: -9px; right: -6px; background: #1E3036; color: #fff; }
 /* an offer asks for this card: a calm ring, twice */
 .hand .card.asked::after { content: ""; position: absolute; inset: -5px; border-radius: calc(var(--card-radius) + 4px); border: 3px solid var(--accent); animation: askedRing 1.25s ease-in-out 2 both; pointer-events: none; }
@@ -1310,7 +1310,7 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 @media (min-width: 901px) and (min-height: 501px) {
   .app .trade-sheet { --sx: 20px; padding-bottom: 0; max-height: calc(100vh - 210px); }
   .trade-foot { padding-bottom: 14px; }
-  .hand .card.slot .slot-name { font-size: 10.5px; }
+  .hand .card.slot .slot-name { font-size: 11px; }
   .rush-offers { width: 420px; }
   .rush-offer-have { white-space: normal; }
 }
