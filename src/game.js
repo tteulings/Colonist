@@ -13,6 +13,7 @@ import { StatsMixin, installStats } from "./stats.js"; // end-of-game statistics
 import { StatsUiMixin } from "./stats-ui.js"; // … the stats screen, heatmaps and the replay
 import { LiveStatsMixin, installLiveStats } from "./live-stats.js"; // … and the same cards during the game
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
+import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS, SHIP_COST } from "./seafarers/index.js";
@@ -3935,7 +3936,9 @@ class ColonistFullGame {
     return res;
   }
 
-  _aiTryPlayerTrade(aiPlayer, { botsOnly = false } = {}, log = null) {
+  // `dry` (AI Lab decision tree): every partner answers as a bot and nothing is exchanged; the result says
+  // who would take which offer.
+  _aiTryPlayerTrade(aiPlayer, { botsOnly = false, dry = false } = {}, log = null) {
     const strat = this._aiStrat(aiPlayer).trading;
     if (strat === "none" || strat === "conservative") return null;
     const plan = this._aiPlan(aiPlayer);
@@ -3985,7 +3988,7 @@ class ColonistFullGame {
       if (eta > goal.eta - (strat === "aggressive" ? 0.1 : 0.25)) { if (entry) entry.skip = true; continue; }
       const wanted = RESOURCES.find((r) => request[r] > 0);
       for (const other of partners) {
-        if (this._isInteractive(other)) {
+        if (!dry && this._isInteractive(other)) {
           // Never put an offer in front of the human that they can't pay: the game checks the real hand
           if (botsOnly || !hasResources(other.resources, request)) continue;
           // Show incoming trade popup to human — handled async (during autoplay the human seat is a bot)
@@ -3995,6 +3998,7 @@ class ColonistFullGame {
         if (this._aiEstimate(other)[wanted] < 0.5) continue; // probably doesn't hold it (public estimate)
         const verdict = this._aiTradeVerdict(other, offer, request, aiPlayer);
         if (entry) entry.answers.push({ pid: other.id, ok: verdict.ok, why: verdict.why, before: verdict.before, after: verdict.after });
+        if (verdict.ok && dry) return { type: "done", dry: true, partner: other, give: offer, want: request };
         if (verdict.ok) {
           this._aiTrkNote(aiPlayer, offer, -1);
           this._aiTrkNote(aiPlayer, request, 1);
@@ -5026,7 +5030,26 @@ class ColonistFullGame {
   //  2. (balanced/aggressive) one trade that brings the whole goal >= 1 turn closer.
   // Holding more cards than the discard limit lowers both bars (a 7 would cost half the hand).
   _aiBankTradeToward(player, plan, goal) {
-    if (!plan.rates) return false;
+    const t = this._aiBankTradePick(player, plan, goal);
+    if (!t.trades) return false;
+    if (t.kind === "complete") {
+      let done = 0;
+      for (const [give, get] of t.trades) {
+        this._aiLog(player, `Bank trade toward ${goal.label}: ${give} → ${get} (${plan.rates[give]}:1)`);
+        if (this.performBankTrade(player, give, get)) done += 1;
+        else break;
+      }
+      return done > 0;
+    }
+    const [[give, get]] = t.trades;
+    this._aiLog(player, `Bank trade toward ${goal.label}: ${give} → ${get} (saves ${t.gain.toFixed(1)} turns)`);
+    return this.performBankTrade(player, give, get);
+  }
+
+  // The bank/port trade(s) _aiBankTradeToward would make now, read-only (the AI Lab's decision tree shows
+  // it): { kind: "complete" | "one", trades: [[give, get], ...], gain, stepWait } or { trades: null, why }.
+  _aiBankTradePick(player, plan, goal) {
+    if (!plan.rates) return { trades: null, why: "doesn't trade" };
     const hand = copyResources(player.resources);
     const over = this._aiOverLimit(player);
     const next = plan.goals.find((g) => g !== goal)?.cost || {};
@@ -5034,20 +5057,12 @@ class ColonistFullGame {
     const stepWait = this._aiEta(step, hand, plan.incTurn, null);
     if (stepWait >= 1 || (over && stepWait > 0)) {
       const trades = this._aiTradesToComplete(hand, step, plan.rates, next);
-      if (trades && trades.length) {
-        let done = 0;
-        for (const [give, get] of trades) {
-          this._aiLog(player, `Bank trade toward ${goal.label}: ${give} → ${get} (${plan.rates[give]}:1)`);
-          if (this.performBankTrade(player, give, get)) done += 1;
-          else break;
-        }
-        return done > 0;
-      }
+      if (trades && trades.length) return { kind: "complete", trades, stepWait };
     }
-    if (plan.strat.trading === "conservative") return false;
+    if (plan.strat.trading === "conservative") return { trades: null, why: stepWait === 0 ? "not needed" : "no trade pays the next step" };
     const cost = goal.cost;
     const wait = this._aiEta(cost, hand, plan.incTurn, null);
-    if (wait === 0) return false;
+    if (wait === 0) return { trades: null, why: "not needed" };
     let best = null;
     RESOURCES.forEach((give) => {
       const rate = plan.rates[give];
@@ -5062,11 +5077,8 @@ class ColonistFullGame {
         if (!best || v > best.v) best = { give, get, gain, v };
       });
     });
-    if (best && (best.gain >= 1 || (over && best.gain > 0))) {
-      this._aiLog(player, `Bank trade toward ${goal.label}: ${best.give} → ${best.get} (saves ${best.gain.toFixed(1)} turns)`);
-      return this.performBankTrade(player, best.give, best.get);
-    }
-    return false;
+    if (best && (best.gain >= 1 || (over && best.gain > 0))) return { kind: "one", trades: [[best.give, best.get]], gain: best.gain, stepWait };
+    return { trades: null, why: best ? `best trade saves only ${best.gain.toFixed(1)} turns` : "no spare cards to trade", stepWait };
   }
 
   // Holding more cards than the discard limit: a 7 would cost half the hand
@@ -10509,7 +10521,7 @@ class ColonistFullGame {
 }
 
 // 5–6 players: Special Building Phase engine + bots (src/six.js) and its UI (src/six-ui.js)
-Object.assign(ColonistFullGame.prototype, SbpMixin, SixUiMixin, AnalysisMixin, LabMixin);
+Object.assign(ColonistFullGame.prototype, SbpMixin, SixUiMixin, AnalysisMixin, LabMixin, TreeMixin);
 // AI Lab (lab.html): settings + bot tables for its engine iframes
 ColonistFullGame.labHelpers = { normalizeSettings, DEFAULT_SETTINGS, AI_PRESETS, AI_PRESET_INFO, AI_STRATEGY_CATEGORIES, AI_LEVEL_LABEL, AI_PLAN_WEIGHTS, AI_WEIGHT_KEYS };
 Object.assign(ColonistFullGame.prototype, SeaGame); // ⚓ Seafarers game-side methods (src/seafarers/ui.js)

@@ -454,6 +454,29 @@ export const AnalysisMixin = {
         if ((chosen || numbered.has(s.id)) && Number.isFinite(s.s) && d.kind !== "setupRoad") label(n.x, n.y - (s.city ? hs * 0.3 : 0), fmt(s.s), chosen);
       });
     }
+    // v0.87 lab: the candidate tapped in the decision tree, a dashed ring in the bot's colour
+    const f = d.focus;
+    if (f) {
+      ctx.save();
+      ctx.setLineDash([4 * px, 3 * px]);
+      ctx.lineCap = "round";
+      const ring = (x, y, r) => {
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.lineWidth = 6 * px; ctx.strokeStyle = "rgba(20,32,44,.45)"; ctx.stroke();
+        ctx.lineWidth = 3.2 * px; ctx.strokeStyle = color; ctx.stroke();
+      };
+      if (f.hex != null && g.hexes[f.hex]) ring(g.hexes[f.hex].center.x, g.hexes[f.hex].center.y, hs * 0.62);
+      const nid = f.node ?? f.city;
+      if (nid != null && g.nodes[nid]) ring(g.nodes[nid].x, g.nodes[nid].y, hs * 0.3);
+      if (f.edge != null && g.edges[f.edge]) {
+        const [a, b] = g.edges[f.edge].nodes.map((n) => g.nodes[n]);
+        ctx.setLineDash([]);
+        ctx.beginPath(); ctx.moveTo(a.x + (b.x - a.x) * 0.2, a.y + (b.y - a.y) * 0.2); ctx.lineTo(b.x - (b.x - a.x) * 0.2, b.y - (b.y - a.y) * 0.2);
+        ctx.lineWidth = 8 * px; ctx.strokeStyle = "rgba(20,32,44,.45)"; ctx.stroke();
+        ctx.lineWidth = 4.5 * px; ctx.strokeStyle = color; ctx.stroke();
+      }
+      ctx.restore();
+    }
     ctx.restore();
   },
 
@@ -707,7 +730,15 @@ export const LabMixin = {
     } catch (e) { console.warn("lab explain failed", e); d = null; }
     this.analysis.lab = d || { kind: "none", pid, nodes: [] };
     this.requestBoardDraw();
-    return d && { title: d.title, score: d.score, dims: d.dims, alts: d.alts, note: d.note, count: (d.nodes?.length || 0) + (d.hexes?.length || 0) + (d.edges?.length || 0) };
+    const tree = this._aiTree(mode, P); // v0.87: the same decision as a tree (src/ai-tree.js)
+    return d && { title: d.title, score: d.score, dims: d.dims, alts: d.alts, note: d.note, count: (d.nodes?.length || 0) + (d.hexes?.length || 0) + (d.edges?.length || 0), tree };
+  },
+
+  /** v0.87: ring one candidate the decision tree points at ({ node | city | edge | hex }, null clears). */
+  _labFocus(focus) {
+    if (!this.analysis.lab) return;
+    this.analysis.lab.focus = focus || null;
+    this.requestBoardDraw();
   },
 
   // ── watching quick games: the view board mirrors the sim iframe's game ──
@@ -764,12 +795,16 @@ export const LabMixin = {
     this.addLog = (t, m) => { if (this.logEntries.length > 300) this.logEntries.splice(0, 200); return addLog(t, m); };
   },
 
-  /** Start one headless game: seat 0 plays `strategy`, the others Intermediate. */
+  /** Start one headless game. `strategy`: one per seat (v0.87 tournaments), or one for seat 0 with the
+   *  others Intermediate. `o.seed`: the game's own random stream (board, dice, deck: v0.87 common random
+   *  numbers, so two tournament runs play the same boards); this iframe only plays lab games. */
   _labSimStart(strategy, o = {}) {
+    if (o.seed != null) Math.random = mulberry32(Number(o.seed) >>> 0);
     this.settings = this._labSettings(o);
     this.onboardingHold = false;
     this.resetGame(); // set-up runs synchronously here (timers are immediate in sim mode)
-    this.players.forEach((p, i) => { p.isHuman = false; p.strategy = i === 0 ? { ...strategy } : { ...this.constructor.labHelpers.AI_PRESETS.intermediate }; });
+    const I = this.constructor.labHelpers.AI_PRESETS.intermediate;
+    this.players.forEach((p, i) => { p.isHuman = false; p.strategy = Array.isArray(strategy) ? { ...(strategy[i] || I) } : i === 0 ? { ...strategy } : { ...I }; });
     if (this.setupPhase && this.setupAction) { this.setupAction = null; this.processSetupQueue(); }
     this._labSim = { guard: 0 };
     return true;

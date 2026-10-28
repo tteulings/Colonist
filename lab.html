@@ -22,19 +22,23 @@
         d.dataset.theme = t;
       })();
     </script>
-    <link rel="stylesheet" href="./themes/base.css?v=86" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=86" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=86" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=86" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=86" />
-    <link rel="stylesheet" href="./themes/lab.css?v=86" />
-    <link rel="stylesheet" href="./themes/sunny-night.css?v=86" />
+    <link rel="stylesheet" href="./themes/base.css?v=87" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=87" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=87" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=87" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=87" />
+    <link rel="stylesheet" href="./themes/lab.css?v=87" />
+    <link rel="stylesheet" href="./themes/sunny-night.css?v=87" />
   </head>
-  <body class="lab">
+  <body class="lab" data-pane="analysis">
     <header class="lb-top">
       <a class="lb-back" href="./" aria-label="Back to the game"><span aria-hidden="true">‹</span> Game</a>
       <h1>AI Lab</h1>
-      <span class="lb-sub">how a bot scores the board</span>
+      <span class="lb-sub">how a bot decides</span>
+      <div class="lb-panes" id="labPanes" role="tablist" aria-label="Lab mode">
+        <button type="button" role="tab" id="tabAnalysis" data-pane="analysis" aria-controls="paneAnalysis" aria-selected="true" class="on"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14" stroke-linecap="round"/></svg>Analysis</button>
+        <button type="button" role="tab" id="tabTournament" data-pane="tournament" aria-controls="paneTournament" aria-selected="false"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 2h8v3a4 4 0 0 1-8 0zM8 9v3M5 14h6M4 3H2v1a2 2 0 0 0 2 2M12 3h2v1a2 2 0 0 1-2 2"/></svg>Tournament</button>
+      </div>
     </header>
     <main class="lb-main">
       <section class="lb-boardcol">
@@ -43,21 +47,33 @@
           <div class="lb-busy" id="labBusy">Loading board…</div>
           <div class="lb-watch" id="labWatch" aria-live="off" hidden></div>
         </div>
-        <div class="lb-tools" role="toolbar" aria-label="Pieces">
+        <div class="lb-tools lb-only-a" role="toolbar" aria-label="Pieces">
           <div class="lb-seats" id="labSeats" role="radiogroup" aria-label="Seat"></div>
           <div class="lb-seg lb-toolseg" id="labTools" role="radiogroup" aria-label="Tool"></div>
         </div>
       </section>
-      <section class="lb-col">
+      <section class="lb-col lb-only-a" id="paneAnalysis" role="tabpanel" aria-labelledby="tabAnalysis">
         <div class="lb-card lb-read">
           <div class="lb-seg" id="labMode" role="radiogroup" aria-label="Heatmap"></div>
           <div class="lb-result" id="labResult" aria-live="polite"></div>
         </div>
-        <div class="lb-card">
+        <div class="lb-card lb-read lb-treecard">
+          <div class="lt-head"><h2>Why this move</h2><small id="labTreeWho"></small></div>
+          <p class="lt-sum" id="labTreeSum"></p>
+          <div class="lb-tree" id="labTree" role="tree" aria-label="Decision tree"></div>
+          <p class="lt-eq" id="labTreeEq"></p>
+        </div>
+        <div class="lb-card" id="labBotCard">
+          <div class="lt-head"><h2>Your bot</h2><small>also plays in Tournament</small></div>
           <div class="lb-row"><span>Bot</span><div class="lb-seg" id="labPreset" role="radiogroup" aria-label="Preset"></div></div>
           <div id="labDims"></div>
+          <div class="lb-calc">
+            <div class="lb-calch"><button type="button" class="lb-disc" id="labCalcBtn" aria-expanded="false" aria-controls="labCalc">Calculation <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><span class="lb-calcst" id="labCalcSt"></span></div>
+            <div id="labCalc" hidden></div>
+          </div>
         </div>
         <div class="lb-card">
+          <div class="lt-head"><h2>Board</h2></div>
           <div class="lb-row"><span>Board</span><div class="lb-seg" id="labMap" role="radiogroup" aria-label="Board"></div></div>
           <div class="lb-row lb-seedrow" id="labSeedRow" hidden><span>Seed</span><input id="labSeed" type="number" inputmode="numeric" value="42" min="0" aria-label="Seed" /></div>
           <div class="lb-row"><span>Players</span><div class="lb-seg" id="labPlayers" role="radiogroup" aria-label="Players"></div></div>
@@ -65,14 +81,27 @@
           <div class="lb-row"><span>Hand</span><div class="lb-seg" id="labHand" role="radiogroup" aria-label="Bot's hand"></div></div>
           <button type="button" class="lb-btn" id="labNew">New board</button>
         </div>
-        <div class="lb-card lb-sim">
-          <button type="button" class="lb-btn primary" id="labRun">Play 20 quick games</button>
-          <div class="lb-row"><span>Speed</span><div class="lb-seg" id="labSpeed" role="radiogroup" aria-label="Quick game speed"></div></div>
-          <div class="lb-ci" id="labCi"><span class="lb-cit">Win rate vs Intermediate bots</span><div class="lb-cibar"><i></i><u></u><em></em></div></div>
+      </section>
+      <section class="lb-col lb-only-t" id="paneTournament" role="tabpanel" aria-labelledby="tabTournament" hidden>
+        <div class="lb-card lb-tsetup" id="labLineupCard">
+          <div class="lt-head"><h2>Line-up</h2><small>4 players</small></div>
+          <div class="lb-seg" id="labLineup" role="radiogroup" aria-label="Line-up"></div>
+          <div id="labSeatsT"></div>
         </div>
+        <div class="lb-card lb-tsetup">
+          <div class="lb-row"><span>Games</span><div class="lb-seg" id="labGames" role="radiogroup" aria-label="Games"></div></div>
+          <div class="lb-row"><span>Board</span><div class="lb-seg" id="labTBoard" role="radiogroup" aria-label="Tournament board"></div></div>
+          <div class="lb-row"><span>Seats</span><div class="lb-seg" id="labTSeats" role="radiogroup" aria-label="Seats"></div></div>
+          <div class="lb-row"><span>Speed</span><div class="lb-seg" id="labSpeed" role="radiogroup" aria-label="Speed"></div></div>
+          <button type="button" class="lb-btn primary" id="labRun">Start 20 games</button>
+          <p class="lb-fine" id="labRunNote"></p>
+        </div>
+        <div class="lb-card" id="labSummary" hidden></div>
+        <div class="lb-card" id="labStand" hidden></div>
+        <div class="lb-card" id="labHist" hidden></div>
       </section>
     </main>
     <iframe id="labSim" title="Quick games" hidden tabindex="-1"></iframe>
-    <script type="module" src="./src/lab.js?v=86"></script>
+    <script type="module" src="./src/lab.js?v=87"></script>
   </body>
 </html>
