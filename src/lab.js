@@ -1,6 +1,6 @@
 // AI Lab (lab.html): pick a board, drop pieces or load the current game, tune a bot with the five
 // dimensions and watch its scores as a heatmap on the board; "Play 20 quick games" pits it against
-// Intermediate bots. The game itself runs in two iframes in lab mode (index.html?lab=view draws the
+// Intermediate bots, shown live on the board (Fast) or straight to the result (Instant). The game itself runs in two iframes in lab mode (index.html?lab=view draws the
 // board, ?lab=sim plays the headless games in short chunks so the page stays responsive). Lab mode
 // never writes to storage, so your saved game is safe.
 
@@ -14,12 +14,14 @@ const MAPS = [["random", "Random"], ["balanced", "Balanced"], ["seed", "Seed"], 
 const PLAYERS = [["4", "4"], ["6", "6"], ["sea", "Seafarers"]];
 const PIECES = [["start", "Bots' start"], ["none", "Empty"]];
 const HANDS = [["keep", "As is"], ["0", "Empty"], ["1", "1 each"], ["3", "3 each"]];
+const SPEEDS = [["fast", "Fast"], ["instant", "Instant"]];
+const TURN_MS = 120; // Fast: one bot turn every ~0.12 s on the board
 const UNIT = "AI score: higher is better";
 const fmt = (v) => (v == null || !Number.isFinite(v) ? "–" : (Math.round(v * 10) / 10).toFixed(1));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 const st = {
-  mode: "setup", seat: 1, tool: "pan", preset: "intermediate", strat: null, map: "random", seed: 42, players: "4", hand: "keep", pieces: "start",
+  mode: "setup", seat: 1, tool: "pan", preset: "intermediate", strat: null, map: "random", seed: 42, players: "4", hand: "keep", pieces: "start", speed: "fast",
   ...(() => { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (_) { return {}; } })(),
 };
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ ...st, tool: "pan" })); } catch (_) { /* ignore */ } };
@@ -69,11 +71,13 @@ function renderControls() {
   const players = view?.players || [];
   $("#labSeats").innerHTML = players.map((p) => `<button type="button" role="radio" aria-checked="${p.id === st.seat}" class="${p.id === st.seat ? "on" : ""}" data-seat="${p.id}" title="${esc(p.name)}" style="--seat:${p.color}"><i></i>${esc(p.name)}</button>`).join("");
   $("#labSeats").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { st.seat = Number(b.dataset.seat); applyHand(); update(); }));
+  seg($("#labSpeed"), SPEEDS, st.speed, "speed", (v) => { st.speed = v; save(); renderControls(); });
   $("#labRun").textContent = sim.running ? `Stop (${sim.done}/${sim.n})` : `Play ${sim.n} quick games`;
+  $("#labRun").classList.toggle("stop", sim.running);
 }
 
 function applyHand() {
-  if (!view || st.hand === "keep") return;
+  if (!view || st.hand === "keep" || sim.watching) return;
   const n = Number(st.hand);
   view._labSetHand(st.seat, { wood: n, brick: n, sheep: n, wheat: n, ore: n });
 }
@@ -81,7 +85,7 @@ function applyHand() {
 function update() {
   save();
   renderControls();
-  if (!view) return;
+  if (!view || sim.watching) return; // the board shows a quick game: your board (and its scores) come back afterwards
   if (!view.players[st.seat]) st.seat = view.players.length > 1 ? 1 : 0;
   const r = view._labExplain(st.mode, st.seat, st.strat);
   const p = view.players[st.seat];
@@ -97,6 +101,7 @@ function update() {
 
 async function newBoard() {
   if (!view) return;
+  if (sim.watching) { sim.restore = false; sim.running = false; } // a new board ends the watched run
   $("#labBusy").hidden = false;
   await new Promise((r) => setTimeout(r, 20));
   if (st.map === "game") {
@@ -127,12 +132,18 @@ function bindBoardTools(frame) {
   w.addEventListener("pointerup", (e) => {
     if (st.tool === "pan" || e.target !== canvas) return;
     e.stopImmediatePropagation();
+    if (sim.watching) return;
     if (view._labTap(e.clientX, e.clientY, st.tool, st.seat)) update();
   }, { capture: true });
 }
 
 // ── quick games ──
-const sim = { n: 20, done: 0, wins: 0, running: false, game: null, errors: 0 };
+// Fast: the sim iframe plays one bot turn at a time and the lab board mirrors it, so you watch each game
+// unfold (game counter, turn and points in a caption; the win rate and its band update after every game).
+// Instant: the old headless run, chunks of 25 turns. The speed can be switched while games run; your
+// own board (pieces, hand, heatmap) comes back when the run ends.
+const sim = { n: 20, done: 0, wins: 0, running: false, game: 0, errors: 0, watching: false, restore: true };
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 function wilson(w, n) {
   if (!n) return [0, 1];
   const z = 1.96, p = w / n, d = 1 + (z * z) / n;
@@ -142,7 +153,7 @@ function wilson(w, n) {
 function renderSim(players) {
   const el = $("#labCi");
   const base = 1 / players;
-  if (!sim.done) { el.querySelector(".lb-cit").innerHTML = `Win rate vs Intermediate bots <small>(fair share ${Math.round(base * 100)}%)</small>`; return; }
+  if (!sim.done) { el.querySelector(".lb-cit").innerHTML = sim.running ? `Game ${sim.game}/${sim.n} <small>win rate appears after the first game · fair share ${Math.round(base * 100)}%</small>` : `Win rate vs Intermediate bots <small>(fair share ${Math.round(base * 100)}%)</small>`; return; }
   const [lo, hi] = wilson(sim.wins, sim.done);
   const p = sim.wins / sim.done;
   el.querySelector(".lb-cit").innerHTML = `Wins <b>${Math.round(p * 100)}%</b> <small>${sim.wins}/${sim.done} · 95% band ${Math.round(lo * 100)}–${Math.round(hi * 100)}% · fair share ${Math.round(base * 100)}%</small>`;
@@ -152,35 +163,83 @@ function renderSim(players) {
   bar.querySelector("u").style.left = `${base * 100}%`;
   bar.classList.add("on");
 }
+// Caption over the board while a game is watched: game n/N · turn · each seat's points (seat 1 = the tuned bot)
+function renderWatch(g, final = null) {
+  const el = $("#labWatch");
+  if (!g) { el.hidden = true; $(".lb-read").classList.remove("lb-faded"); $(".lb-tools").classList.remove("lb-faded"); return; }
+  const info = g._labSimInfo();
+  const col = (i) => view.players[i]?.color || info.players[i].color;
+  const seats = info.players.map((p) => `<span class="lb-ws${p.id === 0 ? " me" : ""}${final != null && p.id === final ? " won" : ""}" style="--seat:${col(p.id)}" title="${p.id === 0 ? "Your bot" : "Intermediate"}"><i></i>${p.vp}</span>`).join("");
+  const head = final === null ? `Turn ${info.turn}` : final === 0 ? "Your bot wins" : final < 0 ? "No winner" : "Intermediate wins";
+  const wins = sim.done ? `<span class="lb-wt">· wins ${sim.wins}/${sim.done}</span>` : "";
+  // the Stop button is built once (redrawing it every turn would swallow a tap that lands mid-redraw)
+  if (!el.querySelector(".lb-winfo")) el.innerHTML = `<span class="lb-winfo"></span><button type="button" class="lb-wstop" aria-label="Stop the quick games">Stop</button>`;
+  el.querySelector(".lb-winfo").innerHTML = `<b>Game ${sim.game}/${sim.n}</b><span class="lb-wt">${head}</span>${wins}<span class="lb-wseats">${seats}</span>`;
+  el.hidden = false;
+  $(".lb-read").classList.add("lb-faded"); $(".lb-tools").classList.add("lb-faded");
+}
 async function runGames(n = sim.n) {
   if (sim.running) { sim.running = false; return sim; }
   const frame = $("#labSim");
   if (!frame.src) frame.src = "./index.html?lab=sim";
-  sim.running = true; sim.n = n; sim.done = 0; sim.wins = 0; sim.errors = 0;
+  Object.assign(sim, { running: true, n, done: 0, wins: 0, errors: 0, game: 0, restore: true });
   renderControls();
   $("#labCi").querySelector(".lb-cit").textContent = "Starting…";
+  $("#labCi").querySelector(".lb-cibar").classList.remove("on");
   const g = await waitEngine(frame);
   const players = st.players === "6" ? 6 : 4;
   const opts = { players, sea: st.players === "sea", map: "random" };
   const strat = { ...st.strat };
-  for (let i = 0; i < n && sim.running; i += 1) {
-    try {
-      g._labSimStart(strat, opts);
-      let r;
-      do {
-        r = g._labSimStep(25);
-        await new Promise((res) => setTimeout(res, 0)); // let the page breathe between chunks
-      } while (!r.done && sim.running);
-      if (!r.done) break;
-      sim.done += 1;
-      if (r.winner === 0) sim.wins += 1;
-    } catch (e) { sim.errors += 1; console.error("quick game failed", e); }
-    renderSim(players);
+  let saved = null; // your board while the games are watched
+  const watchOn = () => st.speed === "fast" && !!view;
+  try {
+    for (let i = 0; i < n && sim.running; i += 1) {
+      sim.game = i + 1;
+      renderSim(players);
+      try {
+        g._labSimStart(strat, opts);
+        let r = { done: false }, shown = false;
+        do {
+          if (watchOn()) {
+            if (!saved) {
+              saved = view.serializeState(); sim.watching = true;
+              // phones: the Play button sits below the board, so bring the board into view to watch
+              const r = $(".lb-board").getBoundingClientRect();
+              if (r.top < 40 || r.bottom > innerHeight) $(".lb-board").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+            }
+            if (!shown) { view._labWatch(g, true); shown = true; }
+            else { r = g._labSimStep(1); view._labWatch(g); }
+            renderWatch(g);
+            await sleep(TURN_MS);
+          } else {
+            if (sim.watching) renderWatch(null);
+            r = g._labSimStep(25);
+            await sleep(0); // let the page breathe between chunks
+          }
+        } while (!r.done && sim.running);
+        if (!r.done) break;
+        sim.done += 1;
+        if (r.winner === 0) sim.wins += 1;
+        renderSim(players);
+        renderControls();
+        if (watchOn() && sim.running) { view._labWatch(g); renderWatch(g, r.winner ?? -1); await sleep(i + 1 < n ? 900 : 1400); }
+      } catch (e) { sim.errors += 1; console.error("quick game failed", e); }
+      renderSim(players);
+      renderControls();
+    }
+  } finally {
+    sim.running = false;
+    sim.watching = false;
+    renderWatch(null);
+    if (saved && sim.restore) {
+      view.loadFromStorage(saved);
+      view._labAfterLoad(true);
+      applyHand();
+    }
     renderControls();
+    renderSim(players);
+    update();
   }
-  sim.running = false;
-  renderControls();
-  renderSim(players);
   return { ...sim };
 }
 
@@ -195,6 +254,9 @@ async function runGames(n = sim.n) {
   $("#labSeed").value = st.seed;
   $("#labSeed").addEventListener("change", () => { st.seed = Number($("#labSeed").value) || 0; newBoard(); });
   $("#labRun").addEventListener("click", () => runGames());
+  // Stop in the board caption (the Play / Stop button is below the board on phones); the caption is redrawn
+  // every turn, so the container listens
+  $("#labWatch").addEventListener("click", (e) => { if (e.target.closest(".lb-wstop")) sim.running = false; });
   await newBoard();
   renderSim(st.players === "6" ? 6 : 4);
   window.__lab = { ready: true, st, runGames, newBoard, update, view: () => view, sim };

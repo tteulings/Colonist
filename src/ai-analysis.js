@@ -185,6 +185,17 @@ export const AnalysisMixin = {
   },
 
   _aiNoteDev(player, type, why) {
+    // v0.83: a Knight moves the robber first (noted by moveRobber): one decision, so it is folded into that
+    // robber note instead of being a second one (Step used to let the Knight through after the robber)
+    const a = this.analysis, prev = a?.capture ? a.captured : a?.last;
+    if (type === "knight" && prev && prev.kind === "robber" && prev.pid === player.id && prev.seq === a.seq && !prev.knight) {
+      prev.knight = true;
+      prev.title = `${DEV_TITLE.knight || "Knight"} · Robber`;
+      prev.note = [why, prev.note].filter(Boolean).join(" · ");
+      prev.dims = { ...prev.dims, devCards: (prev.dims?.devCards || 0) + 1 };
+      this._renderAnalysis();
+      return;
+    }
     const dims = dims0();
     dims.devCards = 1;
     this._aiNote({ kind: "dev", pid: player.id, title: DEV_TITLE[type] || "Card", score: null, dims, alts: [], note: why });
@@ -507,8 +518,13 @@ export const AnalysisMixin = {
     const html = head + body;
     if (el._html !== html) { el.innerHTML = html; el._html = html; }
     // Phones: the hand fan overlaps the bottom of the board, so the panel sits just above it
+    // (v0.83: and above a docked trade offer: on phones the offer card used to cover the bars and Pause / Step)
     const wrap = el.parentElement?.getBoundingClientRect(), hand = document.getElementById("handArea")?.getBoundingClientRect();
-    const lift = wrap && hand && hand.height > 0 && hand.top < wrap.bottom && hand.bottom > wrap.top + 40 ? Math.max(0, wrap.bottom - hand.top) : 0;
+    let lift = wrap && hand && hand.height > 0 && hand.top < wrap.bottom && hand.bottom > wrap.top + 40 ? Math.max(0, wrap.bottom - hand.top) : 0;
+    if (wrap) document.querySelectorAll(".rush-offers .rush-offer").forEach((c) => {
+      const r = c.getBoundingClientRect();
+      if (r.height > 0 && r.top < wrap.bottom && r.bottom > wrap.top + 40) lift = Math.max(lift, wrap.bottom - r.top + 4);
+    });
     el.style.bottom = `${Math.round(lift + 6)}px`;
     el.dataset.held = held ? "1" : "0";
   },
@@ -691,6 +707,48 @@ export const LabMixin = {
     this.analysis.lab = d || { kind: "none", pid, nodes: [] };
     this.requestBoardDraw();
     return d && { title: d.title, score: d.score, dims: d.dims, alts: d.alts, note: d.note, count: (d.nodes?.length || 0) + (d.hexes?.length || 0) + (d.edges?.length || 0) };
+  },
+
+  // ── watching quick games: the view board mirrors the sim iframe's game ──
+  /** Show `src` (the sim game) on this board. `fresh`: a new game (full restore); otherwise only the
+   *  pieces, robber and scores are copied, so the renderer animates what was built this turn. */
+  _labWatch(src, fresh = false) {
+    if (!src?.geometry) return false;
+    this.onboardingHold = true;
+    this.uiPaused = true;
+    const same = !fresh && !src.sea && !this.sea && this.geometry && this._labWatchGen === src.gameGen && this.geometry.hexes.length === src.geometry.hexes.length;
+    if (!same) {
+      this.loadFromStorage(src.serializeState());
+      this._labWatchGen = src.gameGen;
+      this._labAfterLoad(true);
+      this.analysis.lab = null;
+      return true;
+    }
+    const g = this.geometry, sg = src.geometry;
+    g.nodes.forEach((n, i) => { n.owner = sg.nodes[i].owner; n.structure = sg.nodes[i].structure; });
+    g.edges.forEach((e, i) => { e.owner = sg.edges[i].owner; });
+    this.robberHexId = src.robberHexId;
+    src.players.forEach((sp, i) => {
+      const p = this.players[i];
+      if (!p) return;
+      p.settlements = new Set(sp.settlements); p.cities = new Set(sp.cities); p.roads = new Set(sp.roads);
+      p.resources = { ...sp.resources }; p.devCards = { ...sp.devCards };
+      ["victoryPoints", "publicVictoryPoints", "devVictoryPoints", "knightsPlayed", "longestRoadLength"].forEach((k) => { p[k] = sp[k]; });
+    });
+    this.bank = { ...src.bank };
+    this.longestRoadHolder = src.longestRoadHolder;
+    this.largestArmyHolder = src.largestArmyHolder;
+    this.turn = src.turn;
+    this.lastRoll = src.lastRoll;
+    this.analysis.lab = null;
+    this.render();
+    return true;
+  },
+
+  /** Seat summary of the sim game for the lab's caption. */
+  _labSimInfo() {
+    return { turn: this.turn, winner: this.winner ? this.winner.id : null,
+      players: this.players.map((p) => ({ id: p.id, vp: p.victoryPoints, color: p.color })) };
   },
 
   // ── headless quick games (sim iframe) ──

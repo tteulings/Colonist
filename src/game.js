@@ -2411,6 +2411,7 @@ class ColonistFullGame {
       fan = (parseFloat(cs.getPropertyValue("--fan-h")) || 112) + (parseFloat(cs.getPropertyValue("--offer-room")) || 0);
       top = parseFloat(cs.getPropertyValue("--board-top")) || 4;
       side = parseFloat(cs.getPropertyValue("--board-side")) || 0;
+      if (this.labMode) { fan = 6; top = 4; side = side || 8; } // AI Lab board: no hand / top bar over it; whole world in the frame
       if (side) {
         // Side gutters: the beach keeps --board-side from the screen edge; the harbour boats may use
         // that gutter; only the very tip of a boat may run off screen. Only the ports this map really has count, so a map
@@ -4397,9 +4398,12 @@ class ColonistFullGame {
         stage = 2;
         // Try player-to-player trade once per turn
         if (!skipPlayerTrade) {
+          const seq0 = this.analysis?.seq;
           const tradeResult = this.aiTryPlayerTrade(player);
           if (tradeResult && tradeResult.type === "human") { humanTrade = tradeResult; return "human"; }
           if (tradeResult) return "more";
+          // v0.83 analysis mode: a trade that found no deal is a decision too: hold before the next one
+          if (this._aiHeld() && this.analysis.seq !== seq0) return "more";
         }
       }
       if (this.winner) return "end";
@@ -4417,8 +4421,18 @@ class ColonistFullGame {
     };
     let sync = true;
     let result = null;
+    const finish = () => {
+      if (this._aiRec() && !this.winner) this._aiNoteEnd(player);
+      this.recomputeScores();
+      this.checkForWinner(player);
+      if (sync) result = "done";
+      else this._aiMainPhaseDone(player);
+    };
     const drive = () => {
       for (;;) {
+        // v0.83 analysis mode: every decision waits while held — also the first one after you answered a
+        // bot's offer (the turn restarts here and used to take one decision past Pause / Step)
+        if (this._aiHeld() && !this.winner) { this._aiPark(drive); return; }
         const r = tick();
         if (r === "human") {
           // Need async human response — pause AI turn, show popup
@@ -4432,11 +4446,9 @@ class ColonistFullGame {
           return;
         }
         if (r === "end") {
-          if (this._aiRec() && !this.winner) this._aiNoteEnd(player);
-          this.recomputeScores();
-          this.checkForWinner(player);
-          if (sync) result = "done";
-          else this._aiMainPhaseDone(player);
+          // v0.83 analysis mode: "Ends turn" is a decision of its own; while held it waits for the next Step
+          if (this._aiHeld() && !this.winner) { this._aiPark(finish); return; }
+          finish();
           return;
         }
         if (this._aiHeld()) { this._aiPark(drive); return; }
@@ -6198,6 +6210,7 @@ class ColonistFullGame {
     this._offerRoom = room;
     this.app.classList.toggle("offer-open", room > 0);
     this.app.style.setProperty("--offer-room", `${room}px`);
+    this._renderAnalysis?.(); // the analysis panel moves above (or back down from) the offer card
     if (!mobile || !this.geometry) return;
     if (atFit) this._animateView(this._fitTarget(), 320);
     else { this._fitTarget(); this._clampView(); this._viewChanged(); }
@@ -6464,12 +6477,13 @@ class ColonistFullGame {
     try { localStorage.removeItem(ColonistFullGame.STORAGE_KEY); } catch (_) {}
   }
 
-  loadFromStorage() {
+  /** Restore the saved game; `state` (a serializeState() object) restores that instead (AI Lab: watching quick games). */
+  loadFromStorage(state = null) {
     let raw;
-    try { raw = localStorage.getItem(ColonistFullGame.STORAGE_KEY); } catch (_) { return false; }
-    if (!raw) return false;
-    let data;
-    try { data = JSON.parse(raw); } catch (_) { this.clearStorage(); return false; }
+    if (!state) try { raw = localStorage.getItem(ColonistFullGame.STORAGE_KEY); } catch (_) { return false; }
+    if (!state && !raw) return false;
+    let data = state;
+    if (!data) try { data = JSON.parse(raw); } catch (_) { this.clearStorage(); return false; }
     this._cancelPendingWork();
     // Older saves have no settings: Classic with the standard rules
     this.settings = normalizeSettings(data.settings || { ...DEFAULT_SETTINGS, numBots: (data.players?.length || 4) - 1 });
