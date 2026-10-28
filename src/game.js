@@ -95,7 +95,7 @@ const AI_STRATEGY_CATEGORIES = {
     levels: ["simple", "medium", "complex"],
     descriptions: {
       simple:  "Picks spots with highest dice probability only",
-      medium:  "Weighs scarcity, diversity, ports, and blocking",
+      medium:  "Weighs scarcity, diversity, ports, and spots rivals are heading for",
       complex: "Also targets missing resources, specific ports, avoids robber magnets",
     },
   },
@@ -4934,7 +4934,9 @@ class ColonistFullGame {
         if (node.neighbors.some((n) => this.geometry.nodes[n].structure != null)) return;
         if (d > 0 && reach.first[node.id] == null) return;
         let h = this.getNodeProductionScore(node.id, player, profile) - d * pen;
-        if (strat.expansion === "complex") {
+        // complex expansion values reachable ports; v0.87: only when the placement level doesn't already
+        // (medium / complex placement score ports inside getNodeProductionScore: counted once)
+        if (strat.expansion === "complex" && strat.placement === "simple") {
           node.ports.forEach((type) => { h += (type === "any" ? 0.3 : profile[type] >= 0.12 ? 0.8 : 0) * kPort; });
         }
         spots.push({ nodeId: node.id, d, h });
@@ -5216,15 +5218,19 @@ class ColonistFullGame {
       return score;
     }
 
-    // ── Medium (default): scarcity + diversity + ports + blocking ──
+    // ── Medium (default): scarcity + diversity + ports + contested spots ──
     const income = incomeProfile || this.getResourceIncomeProfile(player);
     const resourceSeen = new Set();
+    const here0 = makeEmptyResources();
     let score = 0;
     node.adjacentHexes.forEach((hexId) => {
       const hex = this.geometry.hexes[hexId];
       if (hex.resource === "desert" || !hex.number) return;
       const res = prodRes(hex, income);
-      const scarcityWeight = 1 + Math.max(0, 0.85 - income[res]) * 0.7 * kScar;
+      here0[res] += DICE_WEIGHT[hex.number] / 36;
+      // v0.87: scarcity discriminates: full bonus (x1.6) for a resource it doesn't produce yet, none from
+      // ~0.22 cards per roll up (it used to be x1.4-1.6 for almost everything: income never neared 0.85)
+      const scarcityWeight = 1 + Math.max(0, 1 - income[res] / 0.22) * 0.6 * kScar;
       score += (DICE_WEIGHT[hex.number] / 6) * scarcityWeight * kNum;
       put("placement", (DICE_WEIGHT[hex.number] / 6) * scarcityWeight * kNum);
       term("num", (DICE_WEIGHT[hex.number] / 6) * kNum);
@@ -5237,13 +5243,18 @@ class ColonistFullGame {
 
     const ports = node.ports;
     if (ports.includes("any")) { score += 0.4 * kPort; put("trading", 0.4 * kPort); term("port", 0.4 * kPort); }
-    if (ports.some((type) => type !== "any" && income[type] > 0.5)) { score += 0.4 * kPort; put("trading", 0.4 * kPort); term("port", 0.4 * kPort); }
+    // a matching 2:1 harbour: its resource is (or with this spot will be) produced at >= 0.12 cards per roll
+    // (v0.87: was > 0.5, which no income ever reaches)
+    const port2 = ports.some((type) => type !== "any" && income[type] + here0[type] >= 0.12);
+    if (port2) { score += 0.4 * kPort; put("trading", 0.4 * kPort); term("port", 0.4 * kPort); }
 
+    // v0.87 contest: an opponent's road already ends at this spot, so they are heading for it: taking it
+    // first also denies them (replaces a "blocking" term that could never fire: a spot next to a
+    // building is not buildable at all)
     let blockValue = 0;
-    node.neighbors.forEach((neighborId) => {
-      const owner = this.geometry.nodes[neighborId].owner;
-      if (owner != null && owner !== player.id) blockValue += 0.45;
-    });
+    const rivals = new Set();
+    node.edgeIds.forEach((edgeId) => { const o = this.geometry.edges[edgeId].owner; if (o != null && o !== player.id) rivals.add(o); });
+    blockValue = rivals.size * 0.3;
     score += blockValue;
     put("awareness", blockValue);
     term("contest", blockValue);
@@ -5267,12 +5278,15 @@ class ColonistFullGame {
       if (has("wood") && has("brick") && (here.wood > 0 || here.brick > 0)) { score += 0.3; put("expansion", 0.3); term("sets", 0.3); } // road set
       // 2:1 port for a resource we (will) produce well
       ports.forEach((type) => {
-        if (type !== "any" && income[type] + here[type] >= 0.12) { score += 0.8 * kPort; put("trading", 0.8 * kPort); term("port", 0.8 * kPort); }
+        // (v0.87: 0.8 in all, the medium level's 0.4 included)
+        const v = (port2 ? 0.4 : 0.8) * kPort;
+        if (type !== "any" && income[type] + here[type] >= 0.12) { score += v; put("trading", v); term("port", v); }
       });
       // Slight penalty for 6/8 hexes (robber targets)
       node.adjacentHexes.forEach((hexId) => {
         const hex = this.geometry.hexes[hexId];
-        if (hex.number === 6 || hex.number === 8) { score -= 0.05; put("awareness", -0.05); term("magnet", -0.05); }
+        // v0.87: a real (if modest) penalty: 0.1 per 6/8 tile (was 0.05, too small to change a pick)
+        if (hex.number === 6 || hex.number === 8) { const m = 0.1 * DICE_WEIGHT[hex.number] / 5; score -= m; put("awareness", -m); term("magnet", -m); }
       });
     }
 
@@ -5444,7 +5458,7 @@ class ColonistFullGame {
       if (!path || !path.length) return;
       // Complex: also consider ports we don't have
       let portBonus = 0;
-      if (strat === "complex" && node.ports.length > 0) {
+      if (strat === "complex" && node.ports.length > 0 && (player.strategy?.placement || "medium") === "simple") { // v0.87: once (see _aiPlan)
         const income = this.getResourceIncomeProfile(player);
         node.ports.forEach(type => {
           if (type !== "any" && income[type] >= 0.12) portBonus += 0.8 * (w.port ?? 1);
