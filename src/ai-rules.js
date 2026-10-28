@@ -3,7 +3,8 @@
 //   1. can build a city        → on the settlement with the most pips
 //   2. can build a settlement  → on the legal spot with the most pips
 //   3. holds a Knight and the robber is on its tile → play it
-//   4. can build a road        → toward the nearest free settlement spot (most pips among the nearest)
+//   4. can build a road        → toward the nearest free settlement spot (most pips among the nearest);
+//                                not while a free spot is already on its roads (then it saves for rule 2)
 //   5. can buy a dev card      → buy it
 //   6. one bank / harbour trade completes a city or settlement → make it
 //   7. otherwise               → end the turn
@@ -25,7 +26,7 @@ export const RULES = [
   [1, "City", "can build a city → on the settlement with the most pips"],
   [2, "Settlement", "can build a settlement → on the spot with the most pips"],
   [3, "Knight", "robber on its tile and a Knight in hand → play it"],
-  [4, "Road", "can build a road → toward the nearest free spot"],
+  [4, "Road", "can build a road and no free spot on its roads → toward the nearest"],
   [5, "Dev card", "can buy a dev card → buy it"],
   [6, "Bank trade", "one trade completes a city or settlement → trade"],
   [7, "End turn", "nothing else matched"],

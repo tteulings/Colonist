@@ -239,7 +239,7 @@ function renderTree(t, p) {
   if (!t) { $("#labTree").innerHTML = `<p class="lb-note">Nothing to decide here.</p>`; $("#labTreeSum").textContent = ""; $("#labTreeEq").textContent = ""; return; }
   const sc = t.score != null ? ` · score <b>${f2(t.score)}</b>${st.mode === "build" ? " per turn" : ""}` : "";
   const plan = st.mode === "build" && t.target && !t.action.includes(t.target) ? ` · plan <b>${esc(t.target)}</b>` : "";
-  $("#labTreeSum").innerHTML = `${t.rules && st.mode === "build" ? "Fires" : st.mode === "build" ? "Does" : "Chooses"} <b>${esc(t.action)}</b>${plan}${sc}`;
+  $("#labTreeSum").innerHTML = `${t.rules && st.mode === "build" ? "Fires" : st.mode === "build" ? "Now:" : "Chooses"} <b>${esc(t.action)}</b>${plan}${sc}`;
   $("#labTreeEq").textContent = t.eq || "";
   const rows = [];
   treeRows(t.root, 0, rows, 0);
