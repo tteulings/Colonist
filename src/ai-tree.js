@@ -463,7 +463,8 @@ export const TreeMixin = {
         if (rate >= 4) return;
         [...Pl.settlements, ...Pl.cities].forEach((id) => { const n = this.geometry.nodes[id]; if (n.ports.includes(rate === 2 ? give : "any") && !harbours.some((x) => x.id === id)) harbours.push({ id, rate }); });
       });
-      add({ key: "trade", title: "Trade check", sub: act === "bank" ? "a trade brings the plan closer" : act === "build" ? "not needed: it can pay now" : (bp?.why || "no trade"),
+      const deal = d.tradeStep?.does ? d.tradeStep.does.replace(/^trades/, "deals") : null;
+      add({ key: "trade", title: "Trade check", sub: act === "bank" ? "a trade brings the plan closer" : deal ? `no bank trade, but it ${deal} first` : act === "build" ? "not needed: it can pay now" : (bp?.why || "no trade"),
         rows: [...(bp?.trades || []).map(([give, get]) => ({ label: `${plan.rates[give]} ${RES_LABEL[give]} → 1 ${RES_LABEL[get]}`, sub: plan.rates[give] === 4 ? "bank 4:1" : `harbour ${plan.rates[give]}:1`, vt: "none", ok: act === "bank" ? true : null })),
           ...(d.tradeStep?.node ? [{ label: "Players", sub: d.tradeStep.node.sub, vt: "none", ok: d.tradeStep.does ? true : null }] : [])],
         overlay: (() => {
@@ -478,11 +479,18 @@ export const TreeMixin = {
       const wb = [];
       if (a && place(a)) wb.push({ text: "1", ...place(a) });
       if (b && place(b)) wb.push({ text: "2", tone: "alt", ...place(b) });
+      // what it does right now when that isn't the plan itself (a side build): a "now" mark on its first road / spot
+      const nowEdges = [];
+      if (act === "side" && doing) {
+        const r0 = doing.type === "settlement" && doing.dist > 0 ? doing.edge : doing.type === "road" ? doing.edge : null;
+        if (r0 != null) { wb.push({ text: "now", tone: "dim", edge: r0 }); nowEdges.push({ id: r0, s: 1 }); }
+        else if (place(doing)) wb.push({ text: "now", tone: "dim", ...place(doing) });
+      } else if (act === "build" && a?.type === "settlement" && a.dist > 0 && a.edge != null) { wb.push({ text: "now", tone: "dim", edge: a.edge }); nowEdges.push({ id: a.edge, s: 1 }); }
       const nm = (g) => (g ? `${name(g)} (${L.get(g)})` : "");
       const why = !a ? "" : act === "build" ? `It can pay for ${nm(a)} now, so it builds it.` : act === "bank" ? `It can't pay for ${nm(a)} yet; a bank / harbour trade brings it closer.`
         : act === "side" ? `It can't pay for ${nm(a)} yet; ${nm(doing)} fits in without delaying it, so that comes first.` : `It can't pay for ${nm(a)} yet and no trade helps: it keeps its cards.`;
       add({ key: "choice", title: "Choice", sub: t.action, text: why, compare: a ? compare({ label: `${L.get(a)} · ${name(a)}`, terms: gt(a), score: a.score }, b && { label: `${L.get(b)} · ${name(b)}`, terms: gt(b), score: b.score }) : null,
-        overlay: { ...goalOverlay([a, b].filter(Boolean)), badges: wb, pick: t.pick || {} } });
+        overlay: (() => { const o = goalOverlay([a, b, act === "side" ? doing : null].filter(Boolean)); o.edges = [...o.edges, ...nowEdges]; return { ...o, badges: wb, pick: t.pick || {} }; })() });
     } else {
       add({ key: "choice", title: "Choice", sub: t.action, overlay: { pick: t.pick || {}, focus: t.pick && Object.keys(t.pick).length ? t.pick : null, noLabels: true } });
     }

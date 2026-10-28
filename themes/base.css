@@ -2294,3 +2294,6 @@ button.sx-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 
 .ai-panel .aip-steps, .ai-panel .aip-shead { min-width: 0; }
 .ai-panel .aip-shead .sx-strip { flex: 1 1 auto; min-width: 0; }
 .ai-panel.stepping { overflow: hidden; }
+/* v0.87: 11 px minimum in the in-game analysis panel too; the next-best chips wrap instead of clipping */
+.ai-panel .aip-l, .ai-panel .aip-v { font-size: 11px; }
+.ai-panel .aip-alts span { white-space: normal; overflow: visible; text-overflow: clip; font-size: 11px; line-height: 1.25; }
