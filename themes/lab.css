@@ -8,9 +8,22 @@ body.lab { overflow: auto; margin: 0; font-family: var(--font-body); color: var(
 .lb-sub { color: var(--ink-soft); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .lb-back { color: var(--brand-ink, var(--accent)); font-weight: 700; text-decoration: none; white-space: nowrap; }
 .lb-main { display: grid; gap: 10px; padding: 10px 8px 24px; max-width: 1180px; margin: 0 auto; box-sizing: border-box; }
-.lb-board { position: relative; height: min(56vh, 380px); border-radius: var(--panel-radius, 14px); overflow: hidden; background: var(--sea-bg); background-image: var(--sea-image); border: var(--panel-border); }
+.lb-board { scroll-margin-top: 56px; position: relative; height: min(56vh, 380px); border-radius: var(--panel-radius, 14px); overflow: hidden; background: var(--sea-bg); background-image: var(--sea-image); border: var(--panel-border); }
 .lb-board iframe { width: 100%; height: 100%; border: 0; display: block; }
 .lb-busy { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--float); border: var(--float-border); border-radius: 12px; padding: 8px 14px; font-weight: 650; box-shadow: var(--float-shadow); }
+/* watched quick game: a calm caption over the board */
+.lb-watch { position: absolute; left: 8px; right: 8px; top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; pointer-events: none;
+  background: var(--float); border: var(--float-border); border-radius: 12px; box-shadow: var(--float-shadow); padding: 5px 10px; font-size: 12px; }
+.lb-watch b { font-family: var(--font-display); font-weight: var(--display-weight); font-variant-numeric: tabular-nums; }
+.lb-wt { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.lb-wseats { display: flex; gap: 8px; margin-left: auto; }
+.lb-ws { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.lb-ws i { width: 10px; height: 10px; border-radius: 50%; background: var(--seat); }
+.lb-ws.me i { box-shadow: 0 0 0 2px var(--float, #fff), 0 0 0 3.5px var(--seat); }
+.lb-ws.won { text-decoration: underline 2px var(--seat); text-underline-offset: 3px; }
+.lb-winfo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.lb-wstop { pointer-events: auto; border: var(--btn-border); background: var(--btn); color: var(--ink); border-radius: 999px; padding: 3px 10px; min-height: 28px; font-weight: 700; font-size: 12px; }
+.lb-faded { opacity: .55; transition: opacity .3s; }
 .lb-tools { display: grid; gap: 6px; margin-top: 8px; }
 .lb-seats { display: flex; gap: 5px; flex-wrap: wrap; }
 .lb-seats button { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 6px; border-radius: 999px; background: var(--chip); border: var(--chip-border); font-size: 12px; font-weight: 650; min-height: 30px; }

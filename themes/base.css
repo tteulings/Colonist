@@ -1808,9 +1808,15 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 /* AI Lab engine (index.html?lab=view inside lab.html): only the board */
 html[data-lab] .topbar, html[data-lab] .mtop, html[data-lab] .dock, html[data-lab] .rail, html[data-lab] .lefttop,
 html[data-lab] .board-tools, html[data-lab] #toastStack, html[data-lab] .rush-offers, html[data-lab] #rushHud,
-html[data-lab] .confirm-pill, html[data-lab] #aiPanel, html[data-lab] .update-chip, html[data-lab] .home { display: none !important; }
+html[data-lab] .confirm-pill, html[data-lab] #aiPanel, html[data-lab] #fxLayer, html[data-lab] .update-chip, html[data-lab] .home { display: none !important; }
 html[data-lab] .app { grid-template-rows: 1fr !important; grid-template-columns: 1fr !important; }
 html[data-lab] .table { grid-template-columns: 1fr !important; }
+/* v0.83: the lab board is often wider than tall (phones: 342×331) and then matched the phone-LANDSCAPE layout,
+   which puts the board in grid column 2 of a 3-column grid — with the lab's single column that is an implicit
+   0 px column, so the canvas got no size and only the sea showed. In lab mode the board always fills the frame. */
+html[data-lab] .app { display: block !important; position: relative; height: 100% !important; }
+html[data-lab] .table { position: absolute !important; inset: 0 !important; grid-column: 1 / -1 !important; grid-row: 1 / -1 !important; width: auto !important; height: auto !important; margin: 0 !important; }
+html[data-lab] .table .board-wrap { position: absolute !important; inset: 0 !important; width: auto !important; height: auto !important; }
 /* Home › More: Settings and the AI Lab share one row (the home screen must fit without scrolling) */
 .hm-list .hm-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: var(--divider-soft, 1px solid rgba(0,0,0,.08)); }
 .hm-list .hm-pair > :is(button, a) + :is(button, a) { border-top: 0; border-left: var(--divider-soft, 1px solid rgba(0,0,0,.08)); padding-left: 12px; }
