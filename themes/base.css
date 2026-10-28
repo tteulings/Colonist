@@ -2122,7 +2122,7 @@ html[data-lab] .table .board-wrap { position: absolute !important; inset: 0 !imp
   .app.opp-turn .dock .actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .app.opp-turn .dock #mMenuBtn { grid-column: 1 / -1; }
   /* the dock tray (discard, steal, card picks): takes the dock's place, two columns of compact buttons */
-  .app.tray-open .dock .actions > .tray { display: grid !important; grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: 40px; gap: 6px; height: auto; }
+  .app.tray-open .dock .actions > .tray { display: grid !important; grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: auto; gap: 6px; height: auto; }
   .app.tray-open .dock .tray > .tinfo, .app.tray-open .dock .tray > .steal-h { grid-column: 1 / -1; }
   .app.tray-open .dock .tray .tbtn, .app.tray-open .dock .tray .tinfo { height: 40px; min-height: 0; padding: 0 6px; }
   .app.tray-open .dock .tray > .tclose { width: auto; }
@@ -2130,8 +2130,16 @@ html[data-lab] .table .board-wrap { position: absolute !important; inset: 0 !imp
   .app.tray-open .dock .tray .tbtn .ic { font-size: 18px; }
   .app.tray-open .dock .tray > [data-discard-ok] { grid-column: 1 / -1; }
   /* steal: one target per row (name and cards readable); four or more share two columns */
+  /* (3+ victims come in a .vgrid: it spans the tray, one 40 px row each; four or more: two columns, short rows) */
   .app.tray-open .dock .tray > .victim { grid-column: 1 / -1; justify-content: flex-start; }
   .app.tray-open .dock .tray:has(> .victim:nth-of-type(4)) > .victim { grid-column: auto; }
+  .app.tray-open .dock .tray > .vgrid { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: 40px; gap: 6px; flex: none; }
+  .app.tray-open .dock .tray > .vgrid:has(> .victim:nth-child(4)) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .app.tray-open .dock .tray > .vgrid > .victim { grid-column: auto; height: 40px; min-height: 0; padding: 0 6px; gap: 6px; flex-direction: row; justify-content: flex-start; align-items: center; text-align: left; }
+  .app.tray-open .dock .tray > .vgrid > .victim:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .app.tray-open .dock .tray > .vgrid > .victim .vn { align-items: flex-start; min-width: 0; line-height: 1.1; }
+  .app.tray-open .dock .tray > .vgrid > .victim .vn small { font-size: 11px; }
+  .app.tray-open .dock .tray > .vgrid:has(> .victim:nth-child(4)) > .victim .avatar { --av: 24px; }
   .app.tray-open .dock .tray .victim .avatar { --av: 28px; }
   .app.tray-open .dock .tray .victim .vn b { font-size: 12.5px; }
   /* the build card takes the hand's place in the column */
