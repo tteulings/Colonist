@@ -13,6 +13,8 @@ import { StatsMixin, installStats } from "./stats.js"; // end-of-game statistics
 import { StatsUiMixin } from "./stats-ui.js"; // … the stats screen, heatmaps and the replay
 import { LiveStatsMixin, installLiveStats } from "./live-stats.js"; // … and the same cards during the game
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
+import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
+import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS, SHIP_COST } from "./seafarers/index.js";
@@ -95,7 +97,7 @@ const AI_STRATEGY_CATEGORIES = {
     levels: ["simple", "medium", "complex"],
     descriptions: {
       simple:  "Picks spots with highest dice probability only",
-      medium:  "Weighs scarcity, diversity, ports, and blocking",
+      medium:  "Weighs scarcity, diversity, ports, and spots rivals are heading for",
       complex: "Also targets missing resources, specific ports, avoids robber magnets",
     },
   },
@@ -138,8 +140,11 @@ const AI_STRATEGY_CATEGORIES = {
   },
 };
 
+// v0.87 "simple": a rulebook bot (src/ai-rules.js), not the score formula: policy "rules" (its five dials
+// are only what the new-game screen shows; changing one makes it a scoring bot again)
 const AI_PRESETS = {
   beginner:     { placement: "simple",  expansion: "simple",  trading: "conservative", devCards: "reactive",  awareness: "none" },
+  simple:       { placement: "simple",  expansion: "simple",  trading: "conservative", devCards: "reactive",  awareness: "none", policy: "rules" },
   intermediate: { placement: "medium",  expansion: "medium",  trading: "balanced",     devCards: "reactive",  awareness: "basic" },
   expert:       { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced" },
   trader:       { placement: "medium",  expansion: "medium",  trading: "aggressive",   devCards: "reactive",  awareness: "basic" },
@@ -150,6 +155,7 @@ const AI_PRESETS = {
 // Player-facing names, short taglines and badge glyphs for the presets ("custom" = hand-tuned mix)
 const AI_PRESET_INFO = {
   beginner:     { label: "Beginner",     tagline: "gentle, learns rules", glyph: "" },
+  simple:       { label: "Simple",       tagline: "plays by 7 rules",     glyph: "", isNew: true },
   intermediate: { label: "Intermediate", tagline: "solid all-rounder",    glyph: "" },
   expert:       { label: "Expert",       tagline: "plays to win",         glyph: "" },
   trader:       { label: "Trader",       tagline: "deals all game",       glyph: "\u21c4", isNew: true },
@@ -187,7 +193,7 @@ const AI_LEVEL_PLAIN = {
     advanced: "targets the leader, counts cards in the open and shifts gear near the end.",
   },
 };
-const AI_LEVEL_LABEL = { conservative: "Careful", aggressive: "Eager" };
+const AI_LEVEL_LABEL = { conservative: "Careful", aggressive: "Eager", simple: "Basic" }; // v0.87: "Basic", so the level never reads like the Simple bot
 const AI_DIMENSION_HINT = {
   placement: "where it settles", expansion: "how it grows", trading: "how deal-happy",
   devCards: "knights, monopoly…", awareness: "watches others",
@@ -206,6 +212,21 @@ const AI_PLAN_WEIGHTS = {
   devCard: 0.85, devStrategic: 0.25, prodVPPerCard: 0.12, turnsLeft: 10, etaOffset: 1, sideBuildDelay: 0.5,
   roadPenalty: { medium: 0.45, complex: 0.4 },
 };
+
+// v0.87 AI Lab "Calculation" weights: strategy.w = { num, variety, scarcity, port, margin, road, prod,
+// patience, card, leader }, each a multiplier on the term named in AI_WEIGHT_INFO (missing = 1). Only the
+// lab sets them (your bot, and the same bot in its tournament games); with none set every score is
+// computed exactly as before (multiplying by 1 is exact in floating point).
+const NO_W = Object.freeze({});
+const AI_WEIGHT_KEYS = ["num", "variety", "scarcity", "port", "margin", "road", "prod", "patience", "card", "leader"];
+const aiW = (player) => player?.strategy?.w || NO_W;
+// Planner weights with the lab multipliers applied (the shared table itself when none are set)
+function aiPlanWeights(w) {
+  if (!w || w === NO_W || !AI_WEIGHT_KEYS.some((k) => w[k] != null && w[k] !== 1)) return AI_PLAN_WEIGHTS;
+  const B = AI_PLAN_WEIGHTS, k = (x) => w[x] ?? 1;
+  return { ...B, devCard: B.devCard * k("card"), devStrategic: B.devStrategic * k("card"), prodVPPerCard: B.prodVPPerCard * k("prod"),
+    etaOffset: B.etaOffset * k("patience"), roadPenalty: { medium: B.roadPenalty.medium * k("road"), complex: B.roadPenalty.complex * k("road") } };
+}
 
 // ── Game settings (new-game screen) ──
 const DEFAULT_SETTINGS = {
@@ -288,7 +309,7 @@ function seatSpec(s, id) {
 function presetForStrategy(strategy) {
   if (!strategy) return null;
   const keys = Object.keys(AI_STRATEGY_CATEGORIES);
-  const match = Object.entries(AI_PRESETS).find(([, p]) => keys.every((k) => p[k] === strategy[k]));
+  const match = Object.entries(AI_PRESETS).find(([, p]) => keys.every((k) => p[k] === strategy[k]) && (p.policy || "score") === (strategy.policy || "score"));
   return match ? match[0] : "custom";
 }
 
@@ -2979,6 +3000,7 @@ class ColonistFullGame {
   // Bot discard: drop the cards that hurt its build plan least (keeps the cards for the build
   // closest to completion / its current goal; surplus it could trade away goes first).
   _autoDiscard(player, count) {
+    if (isRulesBot(player)) return this._rulesDiscard(player, count); // v0.87 Simple: what it has most of
     const selected = makeEmptyResources();
     const hand = copyResources(player.resources);
     let plan = null;
@@ -3092,6 +3114,7 @@ class ColonistFullGame {
   //   advanced: hunts the public VP leader (hard when near the win)
   chooseRobberHex(currentPlayer) {
     if (this.sea && !this.sea._evalRobber) return this.sea.chooseThiefHex(currentPlayer); // ⚓ robber or pirate
+    if (isRulesBot(currentPlayer)) return this._rulesRobber(currentPlayer).pick?.id ?? this.robberHexId; // v0.87 Simple: the leader's best tile
     const legal = this._legalRobberHexes(currentPlayer);
     let bestHex = legal[0]?.id ?? this.robberHexId;
     let bestScore = Number.NEGATIVE_INFINITY;
@@ -3111,7 +3134,9 @@ class ColonistFullGame {
     const others = this.players.filter((p) => p.id !== currentPlayer.id);
     const avgVP = others.reduce((a, p) => a + p.publicVictoryPoints, 0) / Math.max(1, others.length);
     const topVP = Math.max(...others.map((p) => p.publicVictoryPoints));
-    const weight = (owner) => {
+    const kLead = this._aiStrat(currentPlayer).w?.leader ?? 1;
+    const weight = (owner) => { const v = weight0(owner); return kLead === 1 ? v : 1 + (v - 1) * kLead; };
+    const weight0 = (owner) => {
       if (awareness === "none") return 1;
       const p = this.players[owner];
       if (awareness === "basic") return Math.max(0.5, 1 + 0.15 * (p.publicVictoryPoints - avgVP));
@@ -3148,6 +3173,7 @@ class ColonistFullGame {
   // Who to steal from: none = random; basic = biggest hand; advanced = leader / likeliest useful card
   // (public card-count estimates only — never the hidden hands).
   _aiChooseVictim(currentPlayer, victims) {
+    if (isRulesBot(currentPlayer) && victims.length) return this._rulesLeader(currentPlayer, victims).id; // v0.87 Simple: the leader
     const awareness = this._aiStrat(currentPlayer).awareness;
     if (victims.length <= 1 || awareness === "none") return victims[Math.floor(Math.random() * victims.length)];
     const handSize = (id) => sumResources(this.players[id].resources);
@@ -3842,6 +3868,7 @@ class ColonistFullGame {
   // The bot's verdict on a deal: { ok, why, before, after } (plan scores before / after the swap).
   _aiTradeVerdict(aiPlayer, theyGive, theyWant, proposer = this.currentPlayer) {
     const no = (why, extra = {}) => ({ ok: false, why, ...extra });
+    if (isRulesBot(aiPlayer)) return this._rulesTradeVerdict(aiPlayer, theyGive, theyWant); // v0.87 Simple
     const strat = this._aiStrat(aiPlayer);
     if (strat.trading === "none" || strat.trading === "conservative") return no("doesn't deal with players");
     if (RESOURCES.some((r) => aiPlayer.resources[r] < (theyWant[r] || 0))) return no("doesn't have the cards");
@@ -3867,7 +3894,7 @@ class ColonistFullGame {
     }
     const before = this._aiBestScore(plan, aiPlayer.resources);
     const afterScore = this._aiBestScore(plan, after);
-    const margin = strat.trading === "aggressive" ? 0.03 : 0.08;
+    const margin = (strat.trading === "aggressive" ? 0.03 : 0.08) * (strat.w?.margin ?? 1);
     const ok = afterScore > before * (1 + margin) + 1e-6;
     return { ok, why: ok ? "brings its plan closer" : "gain too small", before, after: afterScore };
   }
@@ -3918,7 +3945,10 @@ class ColonistFullGame {
     return res;
   }
 
-  _aiTryPlayerTrade(aiPlayer, { botsOnly = false } = {}, log = null) {
+  // `dry` (AI Lab decision tree): every partner answers as a bot and nothing is exchanged; the result says
+  // who would take which offer.
+  _aiTryPlayerTrade(aiPlayer, { botsOnly = false, dry = false } = {}, log = null) {
+    if (isRulesBot(aiPlayer)) return null; // v0.87 Simple: never offers
     const strat = this._aiStrat(aiPlayer).trading;
     if (strat === "none" || strat === "conservative") return null;
     const plan = this._aiPlan(aiPlayer);
@@ -3968,7 +3998,7 @@ class ColonistFullGame {
       if (eta > goal.eta - (strat === "aggressive" ? 0.1 : 0.25)) { if (entry) entry.skip = true; continue; }
       const wanted = RESOURCES.find((r) => request[r] > 0);
       for (const other of partners) {
-        if (this._isInteractive(other)) {
+        if (!dry && this._isInteractive(other)) {
           // Never put an offer in front of the human that they can't pay: the game checks the real hand
           if (botsOnly || !hasResources(other.resources, request)) continue;
           // Show incoming trade popup to human — handled async (during autoplay the human seat is a bot)
@@ -3978,6 +4008,7 @@ class ColonistFullGame {
         if (this._aiEstimate(other)[wanted] < 0.5) continue; // probably doesn't hold it (public estimate)
         const verdict = this._aiTradeVerdict(other, offer, request, aiPlayer);
         if (entry) entry.answers.push({ pid: other.id, ok: verdict.ok, why: verdict.why, before: verdict.before, after: verdict.after });
+        if (verdict.ok && dry) return { type: "done", dry: true, partner: other, give: offer, want: request };
         if (verdict.ok) {
           this._aiTrkNote(aiPlayer, offer, -1);
           this._aiTrkNote(aiPlayer, request, 1);
@@ -4503,6 +4534,7 @@ class ColonistFullGame {
   // Ordered action functions; each returns true when it did something. Rush calls them one per tick.
   // expansion "simple": fixed order (whatever it can afford first). Otherwise one planned step at a time.
   _getActionPriority(player) {
+    if (isRulesBot(player)) return [() => this._rulesStep(player)]; // v0.87 Simple: the rulebook
     const s = this._aiStrat(player);
     if (s.expansion !== "simple") return [() => this._aiPlannedStep(player)];
     const dev = () => s.devCards !== "none" && this.devDeck.length > 0
@@ -4526,6 +4558,7 @@ class ColonistFullGame {
   }
 
   maybePlayBestDevCard(player) {
+    if (isRulesBot(player)) return false; // v0.87 Simple: only rule 3 (Knight on its own tile)
     const strat = player.strategy?.devCards || "reactive";
     if (strat === "none") return false;
     if ((this.isRush() ? player.rushDevPlayed : this.currentTurnPlayedDevCard) || this.phase !== "main") return false;
@@ -4593,6 +4626,7 @@ class ColonistFullGame {
   // can combine with this roll), unless they hold a progress card to play after the roll.
   maybePlayKnightBeforeRoll(player) {
     if (player.isHuman && !this.autoplayInterval) return false;
+    if (isRulesBot(player)) return false; // v0.87 Simple: the Knight is rule 3 of its turn
     const strat = this._aiStrat(player).devCards;
     if (strat === "none") return false;
     if (!this.canPlayDevelopmentCard(player, "knight")) return false;
@@ -4864,7 +4898,8 @@ class ColonistFullGame {
 
   _aiPlan(player) {
     const strat = this._aiStrat(player);
-    const W = AI_PLAN_WEIGHTS;
+    const W = aiPlanWeights(strat.w);
+    const kPort = strat.w?.port ?? 1;
     const R = this.players.length; // rolls per round
     const inc = this._aiIncome(player);
     const incTurn = makeEmptyResources();
@@ -4916,8 +4951,10 @@ class ColonistFullGame {
         if (node.neighbors.some((n) => this.geometry.nodes[n].structure != null)) return;
         if (d > 0 && reach.first[node.id] == null) return;
         let h = this.getNodeProductionScore(node.id, player, profile) - d * pen;
-        if (strat.expansion === "complex") {
-          node.ports.forEach((type) => { h += type === "any" ? 0.3 : profile[type] >= 0.12 ? 0.8 : 0; });
+        // complex expansion values reachable ports; v0.87: only when the placement level doesn't already
+        // (medium / complex placement score ports inside getNodeProductionScore: counted once)
+        if (strat.expansion === "complex" && strat.placement === "simple") {
+          node.ports.forEach((type) => { h += (type === "any" ? 0.3 : profile[type] >= 0.12 ? 0.8 : 0) * kPort; });
         }
         spots.push({ nodeId: node.id, d, h });
       });
@@ -4928,7 +4965,7 @@ class ColonistFullGame {
         cost.wood += d;
         cost.brick += d;
         let prod = this._aiNodeProd(nodeId, inc);
-        this.geometry.nodes[nodeId].ports.forEach((type) => { prod += type === "any" ? 0.03 : inc[type] > 0.1 ? 0.05 : 0; });
+        this.geometry.nodes[nodeId].ports.forEach((type) => { prod += (type === "any" ? 0.03 : inc[type] > 0.1 ? 0.05 : 0) * kPort; });
         add({ type: "settlement", label: d ? `Settlement (+${d} road${d > 1 ? "s" : ""})` : "Settlement",
           cost, vp: 1, prod, nodeId, dist: d, edge: d ? reach.first[nodeId] : null });
       });
@@ -5006,7 +5043,26 @@ class ColonistFullGame {
   //  2. (balanced/aggressive) one trade that brings the whole goal >= 1 turn closer.
   // Holding more cards than the discard limit lowers both bars (a 7 would cost half the hand).
   _aiBankTradeToward(player, plan, goal) {
-    if (!plan.rates) return false;
+    const t = this._aiBankTradePick(player, plan, goal);
+    if (!t.trades) return false;
+    if (t.kind === "complete") {
+      let done = 0;
+      for (const [give, get] of t.trades) {
+        this._aiLog(player, `Bank trade toward ${goal.label}: ${give} → ${get} (${plan.rates[give]}:1)`);
+        if (this.performBankTrade(player, give, get)) done += 1;
+        else break;
+      }
+      return done > 0;
+    }
+    const [[give, get]] = t.trades;
+    this._aiLog(player, `Bank trade toward ${goal.label}: ${give} → ${get} (saves ${t.gain.toFixed(1)} turns)`);
+    return this.performBankTrade(player, give, get);
+  }
+
+  // The bank/port trade(s) _aiBankTradeToward would make now, read-only (the AI Lab's decision tree shows
+  // it): { kind: "complete" | "one", trades: [[give, get], ...], gain, stepWait } or { trades: null, why }.
+  _aiBankTradePick(player, plan, goal) {
+    if (!plan.rates) return { trades: null, why: "doesn't trade" };
     const hand = copyResources(player.resources);
     const over = this._aiOverLimit(player);
     const next = plan.goals.find((g) => g !== goal)?.cost || {};
@@ -5014,20 +5070,12 @@ class ColonistFullGame {
     const stepWait = this._aiEta(step, hand, plan.incTurn, null);
     if (stepWait >= 1 || (over && stepWait > 0)) {
       const trades = this._aiTradesToComplete(hand, step, plan.rates, next);
-      if (trades && trades.length) {
-        let done = 0;
-        for (const [give, get] of trades) {
-          this._aiLog(player, `Bank trade toward ${goal.label}: ${give} → ${get} (${plan.rates[give]}:1)`);
-          if (this.performBankTrade(player, give, get)) done += 1;
-          else break;
-        }
-        return done > 0;
-      }
+      if (trades && trades.length) return { kind: "complete", trades, stepWait };
     }
-    if (plan.strat.trading === "conservative") return false;
+    if (plan.strat.trading === "conservative") return { trades: null, why: stepWait === 0 ? "not needed" : "no trade pays the next step" };
     const cost = goal.cost;
     const wait = this._aiEta(cost, hand, plan.incTurn, null);
-    if (wait === 0) return false;
+    if (wait === 0) return { trades: null, why: "not needed" };
     let best = null;
     RESOURCES.forEach((give) => {
       const rate = plan.rates[give];
@@ -5042,11 +5090,8 @@ class ColonistFullGame {
         if (!best || v > best.v) best = { give, get, gain, v };
       });
     });
-    if (best && (best.gain >= 1 || (over && best.gain > 0))) {
-      this._aiLog(player, `Bank trade toward ${goal.label}: ${best.give} → ${best.get} (saves ${best.gain.toFixed(1)} turns)`);
-      return this.performBankTrade(player, best.give, best.get);
-    }
-    return false;
+    if (best && (best.gain >= 1 || (over && best.gain > 0))) return { kind: "one", trades: [[best.give, best.get]], gain: best.gain, stepWait };
+    return { trades: null, why: best ? `best trade saves only ${best.gain.toFixed(1)} turns` : "no spare cards to trade", stepWait };
   }
 
   // Holding more cards than the discard limit: a 7 would cost half the hand
@@ -5070,6 +5115,7 @@ class ColonistFullGame {
     const plan = this._aiPlan(player);
     // analysis mode: the plan as the bot sees it now, noted once the step is taken
     const snap = this._aiRec() ? this._aiPlanSnap(player, plan) : null;
+    if (snap) snap.steps = this._aiStepsNow("build", player); // v0.87 Step through (analysis on only)
     const done = (goal, act) => { if (snap) this._aiNotePlan(player, snap, goal, act); return true; };
     if (this.sea && this.sea.aiMoveStep(player, plan)) return done(null, "ship"); // ⚓ a free ship move toward a target
     const [goal, ...rest] = plan.goals;
@@ -5168,10 +5214,16 @@ class ColonistFullGame {
   }
 
   // `parts` (optional, analysis only): receives the score split by AI dimension. It never changes the score.
+  // `parts.terms` (optional, AI Lab decision tree): receives the same score split by term (num, scarcity,
+  // variety, port, sets, magnet, contest) with the lab weight that scales each one.
   getNodeProductionScore(nodeId, player, incomeProfile = null, parts = null) {
     const node = this.geometry.nodes[nodeId];
     const P = parts || {};
     const put = (k, v) => { if (parts) P[k] = (P[k] || 0) + v; };
+    const T = parts?.terms || null;
+    const term = (k, v) => { if (T) T[k] = (T[k] || 0) + v; };
+    const w = aiW(player);
+    const kNum = w.num ?? 1, kVar = w.variety ?? 1, kScar = w.scarcity ?? 1, kPort = w.port ?? 1;
     if (node.structure != null) return Number.NEGATIVE_INFINITY;
     if (node.neighbors.some((neighborId) => this.geometry.nodes[neighborId].structure != null)) {
       return Number.NEGATIVE_INFINITY;
@@ -5185,39 +5237,53 @@ class ColonistFullGame {
       node.adjacentHexes.forEach((hexId) => {
         const hex = this.geometry.hexes[hexId];
         if (hex.resource === "desert" || !hex.number) return;
-        score += DICE_WEIGHT[hex.number] / 6;
-        put("placement", DICE_WEIGHT[hex.number] / 6);
+        score += (DICE_WEIGHT[hex.number] / 6) * kNum;
+        put("placement", (DICE_WEIGHT[hex.number] / 6) * kNum);
+        term("num", (DICE_WEIGHT[hex.number] / 6) * kNum);
       });
       return score;
     }
 
-    // ── Medium (default): scarcity + diversity + ports + blocking ──
+    // ── Medium (default): scarcity + diversity + ports + contested spots ──
     const income = incomeProfile || this.getResourceIncomeProfile(player);
     const resourceSeen = new Set();
+    const here0 = makeEmptyResources();
     let score = 0;
     node.adjacentHexes.forEach((hexId) => {
       const hex = this.geometry.hexes[hexId];
       if (hex.resource === "desert" || !hex.number) return;
       const res = prodRes(hex, income);
-      const scarcityWeight = 1 + Math.max(0, 0.85 - income[res]) * 0.7;
-      score += (DICE_WEIGHT[hex.number] / 6) * scarcityWeight;
-      put("placement", (DICE_WEIGHT[hex.number] / 6) * scarcityWeight);
+      here0[res] += DICE_WEIGHT[hex.number] / 36;
+      // v0.87: scarcity discriminates: full bonus (x1.6) for a resource it doesn't produce yet, none from
+      // ~0.22 cards per roll up (it used to be x1.4-1.6 for almost everything: income never neared 0.85)
+      const scarcityWeight = 1 + Math.max(0, 1 - income[res] / 0.22) * 0.6 * kScar;
+      score += (DICE_WEIGHT[hex.number] / 6) * scarcityWeight * kNum;
+      put("placement", (DICE_WEIGHT[hex.number] / 6) * scarcityWeight * kNum);
+      term("num", (DICE_WEIGHT[hex.number] / 6) * kNum);
+      term("scarcity", (DICE_WEIGHT[hex.number] / 6) * (scarcityWeight - 1) * kNum);
       resourceSeen.add(res);
     });
-    score += resourceSeen.size * 0.42;
-    put("placement", resourceSeen.size * 0.42);
+    score += resourceSeen.size * 0.42 * kVar;
+    put("placement", resourceSeen.size * 0.42 * kVar);
+    term("variety", resourceSeen.size * 0.42 * kVar);
 
     const ports = node.ports;
-    if (ports.includes("any")) { score += 0.4; put("trading", 0.4); }
-    if (ports.some((type) => type !== "any" && income[type] > 0.5)) { score += 0.4; put("trading", 0.4); }
+    if (ports.includes("any")) { score += 0.4 * kPort; put("trading", 0.4 * kPort); term("port", 0.4 * kPort); }
+    // a matching 2:1 harbour: its resource is (or with this spot will be) produced at >= 0.12 cards per roll
+    // (v0.87: was > 0.5, which no income ever reaches)
+    const port2 = ports.some((type) => type !== "any" && income[type] + here0[type] >= 0.12);
+    if (port2) { score += 0.4 * kPort; put("trading", 0.4 * kPort); term("port", 0.4 * kPort); }
 
+    // v0.87 contest: an opponent's road already ends at this spot, so they are heading for it: taking it
+    // first also denies them (replaces a "blocking" term that could never fire: a spot next to a
+    // building is not buildable at all)
     let blockValue = 0;
-    node.neighbors.forEach((neighborId) => {
-      const owner = this.geometry.nodes[neighborId].owner;
-      if (owner != null && owner !== player.id) blockValue += 0.45;
-    });
+    const rivals = new Set();
+    node.edgeIds.forEach((edgeId) => { const o = this.geometry.edges[edgeId].owner; if (o != null && o !== player.id) rivals.add(o); });
+    blockValue = rivals.size * 0.3;
     score += blockValue;
     put("awareness", blockValue);
+    term("contest", blockValue);
 
     // ── Complex: board-wide scarcity, resource sets, matching 2:1 ports, robber magnets ──
     if (strat === "complex") {
@@ -5228,21 +5294,25 @@ class ColonistFullGame {
         if (hex.resource === "desert" || !hex.number) return;
         const res = prodRes(hex, income);
         here[res] += DICE_WEIGHT[hex.number] / 36;
-        score += (DICE_WEIGHT[hex.number] / 6) * ((boardW[res] ?? 1) - 1);
-        put("placement", (DICE_WEIGHT[hex.number] / 6) * ((boardW[res] ?? 1) - 1));
-        if (income[res] < 0.05) { score += 0.35; put("placement", 0.35); } // a resource we don't produce yet
+        score += (DICE_WEIGHT[hex.number] / 6) * ((boardW[res] ?? 1) - 1) * kScar;
+        put("placement", (DICE_WEIGHT[hex.number] / 6) * ((boardW[res] ?? 1) - 1) * kScar);
+        term("scarcity", (DICE_WEIGHT[hex.number] / 6) * ((boardW[res] ?? 1) - 1) * kScar);
+        if (income[res] < 0.05) { score += 0.35 * kScar; put("placement", 0.35 * kScar); term("scarcity", 0.35 * kScar); } // a resource we don't produce yet
       });
       const has = (r) => income[r] + here[r] > 0.02;
-      if (has("ore") && has("wheat") && (here.ore > 0 || here.wheat > 0)) { score += 0.35; put("expansion", 0.35); }  // city set
-      if (has("wood") && has("brick") && (here.wood > 0 || here.brick > 0)) { score += 0.3; put("expansion", 0.3); } // road set
+      if (has("ore") && has("wheat") && (here.ore > 0 || here.wheat > 0)) { score += 0.35; put("expansion", 0.35); term("sets", 0.35); }  // city set
+      if (has("wood") && has("brick") && (here.wood > 0 || here.brick > 0)) { score += 0.3; put("expansion", 0.3); term("sets", 0.3); } // road set
       // 2:1 port for a resource we (will) produce well
       ports.forEach((type) => {
-        if (type !== "any" && income[type] + here[type] >= 0.12) { score += 0.8; put("trading", 0.8); }
+        // (v0.87: 0.8 in all, the medium level's 0.4 included)
+        const v = (port2 ? 0.4 : 0.8) * kPort;
+        if (type !== "any" && income[type] + here[type] >= 0.12) { score += v; put("trading", v); term("port", v); }
       });
       // Slight penalty for 6/8 hexes (robber targets)
       node.adjacentHexes.forEach((hexId) => {
         const hex = this.geometry.hexes[hexId];
-        if (hex.number === 6 || hex.number === 8) { score -= 0.05; put("awareness", -0.05); }
+        // v0.87: a real (if modest) penalty: 0.1 per 6/8 tile (was 0.05, too small to change a pick)
+        if (hex.number === 6 || hex.number === 8) { const m = 0.1 * DICE_WEIGHT[hex.number] / 5; score -= m; put("awareness", -m); term("magnet", -m); }
       });
     }
 
@@ -5274,6 +5344,7 @@ class ColonistFullGame {
   }
 
   getBestInitialSettlementNode(player) {
+    if (isRulesBot(player)) return this._rulesSetupSpot(player)?.id ?? null; // v0.87 Simple: most pips
     let bestNodeId = null;
     let bestScore = Number.NEGATIVE_INFINITY;
     this._aiSetupCandidates(player).forEach(({ id, score }) => {
@@ -5286,6 +5357,7 @@ class ColonistFullGame {
   }
 
   getBestRoadFromNode(player, nodeId, out = null) {
+    if (isRulesBot(player)) return this._rulesSetupRoad(player, nodeId, out);
     const node = this.geometry.nodes[nodeId];
     let bestEdge = null;
     let bestScore = Number.NEGATIVE_INFINITY;
@@ -5403,7 +5475,8 @@ class ColonistFullGame {
   }
 
   selectRoadExpansionTarget(player, strat) {
-    const pathPenalty = strat === "complex" ? 0.3 : 0.45;
+    const w = aiW(player);
+    const pathPenalty = (strat === "complex" ? 0.3 : 0.45) * (w.road ?? 1);
     let bestNode = null;
     let bestScore = Number.NEGATIVE_INFINITY;
     this.geometry.nodes.forEach((node) => {
@@ -5413,11 +5486,11 @@ class ColonistFullGame {
       if (!path || !path.length) return;
       // Complex: also consider ports we don't have
       let portBonus = 0;
-      if (strat === "complex" && node.ports.length > 0) {
+      if (strat === "complex" && node.ports.length > 0 && (player.strategy?.placement || "medium") === "simple") { // v0.87: once (see _aiPlan)
         const income = this.getResourceIncomeProfile(player);
         node.ports.forEach(type => {
-          if (type !== "any" && income[type] >= 0.12) portBonus += 0.8;
-          else if (type === "any") portBonus += 0.3;
+          if (type !== "any" && income[type] >= 0.12) portBonus += 0.8 * (w.port ?? 1);
+          else if (type === "any") portBonus += 0.3 * (w.port ?? 1);
         });
       }
       const score = this.getNodeProductionScore(node.id, player) + portBonus - path.length * pathPenalty;
@@ -8786,6 +8859,7 @@ class ColonistFullGame {
           const raw = t.dataset.value;
           if (key.startsWith("dim:")) {
             d.allStrategy = { ...d.allStrategy, [key.slice(4)]: raw };
+            delete d.allStrategy.policy; // a dial makes it a scoring bot
             d.allPreset = presetForStrategy(d.allStrategy);
           } else {
             const prevBots = d.numBots;
@@ -8858,7 +8932,7 @@ class ColonistFullGame {
       btn.textContent = AI_PRESET_INFO[name].label;
       btn.addEventListener("click", () => {
         this.players.forEach(p => {
-          if (p.strategy) Object.assign(p.strategy, preset);
+          if (p.strategy) { delete p.strategy.policy; Object.assign(p.strategy, preset); }
         });
         this._saveStrategies();
         this._buildStrategyUI();
@@ -8919,9 +8993,10 @@ class ColonistFullGame {
         hint.textContent = cat.descriptions?.[bot.strategy[key]] || "";
         sel.addEventListener("change", () => {
           if (this._applyAllStrategies) {
-            aiPlayers.forEach(p => { p.strategy[key] = sel.value; });
+            aiPlayers.forEach(p => { p.strategy[key] = sel.value; delete p.strategy.policy; });
           } else {
             bot.strategy[key] = sel.value;
+            delete bot.strategy.policy;
           }
           hint.textContent = cat.descriptions?.[sel.value] || "";
           this._saveStrategies();
@@ -10464,9 +10539,9 @@ class ColonistFullGame {
 }
 
 // 5–6 players: Special Building Phase engine + bots (src/six.js) and its UI (src/six-ui.js)
-Object.assign(ColonistFullGame.prototype, SbpMixin, SixUiMixin, AnalysisMixin, LabMixin);
+Object.assign(ColonistFullGame.prototype, SbpMixin, SixUiMixin, AnalysisMixin, LabMixin, TreeMixin, RulesMixin);
 // AI Lab (lab.html): settings + bot tables for its engine iframes
-ColonistFullGame.labHelpers = { normalizeSettings, DEFAULT_SETTINGS, AI_PRESETS, AI_PRESET_INFO, AI_STRATEGY_CATEGORIES, AI_LEVEL_LABEL };
+ColonistFullGame.labHelpers = { normalizeSettings, DEFAULT_SETTINGS, AI_PRESETS, AI_PRESET_INFO, AI_STRATEGY_CATEGORIES, AI_LEVEL_LABEL, AI_PLAN_WEIGHTS, AI_WEIGHT_KEYS };
 Object.assign(ColonistFullGame.prototype, SeaGame); // ⚓ Seafarers game-side methods (src/seafarers/ui.js)
 // Pass & play (src/hotseat.js): defineProperties keeps its `hotseat` getter a getter
 Object.defineProperties(ColonistFullGame.prototype, Object.getOwnPropertyDescriptors(HotseatMixin));
