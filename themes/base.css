@@ -2231,3 +2231,8 @@ html[data-lab] .table .board-wrap { position: absolute !important; inset: 0 !imp
 .ai-panel .aip-snav { display: flex; gap: 6px; }
 .ai-panel .aip-snav button { flex: 1; border: var(--btn-border); background: var(--btn); color: var(--ink); border-radius: 9px; min-height: 34px; font-weight: 700; font-size: 12.5px; }
 .ai-panel .aip-snav button:disabled { opacity: .45; }
+/* the panel's square icon-button style must not reach the step list and its links */
+.ai-panel .sx-head { display: grid; width: 100%; height: auto; place-items: initial; border: 0; background: none; border-radius: 10px; color: inherit; font: inherit; text-align: left; }
+.ai-panel .aip-slink { display: inline-block; width: auto; height: auto; border: 0; background: none; border-radius: 6px; }
+.ai-panel .aip-snav button { width: auto; height: auto; display: block; }
+.ai-panel .sx-body { padding-left: 34px; }
