@@ -510,7 +510,8 @@ async function runTournament(over = {}) {
     renderTournamentSetup();
     update();
   }
-  return { ...sim, stats: sim.lu ? stats(sim.results, sim.lu) : [] };
+  const all = sim.lu ? stats(sim.results, sim.lu) : [];
+  return { ...sim, stats: all, wins: all.find((e) => e.key === "you")?.wins ?? 0 };
 }
 
 function setPane(p) {

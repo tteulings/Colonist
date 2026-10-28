@@ -177,3 +177,11 @@ body.lab[data-pane="tournament"] .lb-only-a, body.lab[data-pane="analysis"] .lb-
 .lb-hr.cur .no { color: var(--accent); }
 .lb-diff { font-size: 11.5px; color: var(--ink-soft); grid-column: 2 / -1; }
 .lb-diff b { color: var(--ink); }
+/* v0.87: the top bar has two rows now (title + mode switch) */
+.lb-board { scroll-margin-top: 116px; }
+@media (min-width: 900px) {
+  .lb-top { column-gap: 14px; }
+  .lb-panes { flex-basis: 360px; margin-left: auto; }
+  .lb-boardcol { top: 76px; }
+  .lb-board { scroll-margin-top: 76px; }
+}
