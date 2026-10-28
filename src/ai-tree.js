@@ -20,16 +20,59 @@ const has = (h, c) => Object.entries(c).every(([r, n]) => (h[r] || 0) >= n);
 const cards = (h) => R5.filter((r) => h[r] > 0).map((r) => `${h[r]} ${RES_LABEL[r]}`).join(" + ") || "nothing";
 const f1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
 const node = (o) => ({ children: [], vt: "score", ...o });
+const RULES = [[1, "City", "can build a city"], [2, "Settlement", "can build a settlement"], [3, "Knight", "robber on its tile + a Knight"], [4, "Road", "can build a road"],
+  [5, "Dev card", "can buy a dev card"], [6, "Bank trade", "one trade completes a build"], [7, "End turn", "nothing matched"]];
 const term = (id, label, v, w = null, sub = "") => node({ id, label, sub, v, vt: "signed", bar: v, w, term: true });
 
 export const TreeMixin = {
   /** The decision tree for `mode` ("setup" | "build" | "robber") of `player` with its current strategy. */
-  _aiTree(mode, player) {
+  /** `opts.planOnly`: in-game analysis, the build plan only (the card and trade steps of that turn are
+   *  decisions of their own, already noted), so nothing reads public card estimates out of turn. */
+  _aiTree(mode, player, opts = {}) {
     try {
-      if (mode === "setup") return this._treeSetup(player);
-      if (mode === "robber") return this._treeRobber(player);
-      return this._treeTurn(player);
+      const rules = player?.strategy?.policy === "rules";
+      let t;
+      if (mode === "setup") t = rules ? this._treeRulesSetup(player) : this._treeSetup(player);
+      else if (mode === "robber") t = rules && !this.sea ? this._treeRulesRobber(player) : this._treeRobber(player);
+      else t = rules ? this._treeRules(player) : this._treeTurn(player, opts);
+      if (t) { t.mode = mode; t.steps = this._treeSteps(t, player); delete t.data; }
+      return t;
     } catch (e) { console.warn("decision tree failed", e); return null; }
+  },
+
+  // ── Simple (rulebook) bot: the checklist instead of a score tree ──
+  _treeRules(P) {
+    const list = this._rulesCheck(P);
+    const fired = list[list.length - 1];
+    const kids = RULES.map(([n, title, text]) => {
+      const r = list.find((x) => x.n === n);
+      return node({ id: `rule:${n}`, label: `${n} · ${title}`, sub: r ? r.why : `not reached (${text})`, vt: "none", rule: true, ok: r ? r.ok : null,
+        chosen: r === fired, tag: r === fired ? (n === 7 ? "now" : "chosen") : null, off: !r, focus: r?.focus || null });
+    });
+    const root = node({ id: "root", label: "Rulebook", sub: "first matching rule fires", vt: "none", chosen: true, children: kids });
+    return { root, action: `Rule ${fired.n} · ${fired.why}`, score: null, rules: true, pick: fired.focus || {},
+      eq: "No scores: the rules are checked top to bottom and the first that matches is what it does.", data: { list } };
+  },
+  _treeRulesSetup(P) {
+    const ids = this._rulesSetupSpots(P);
+    const b = this._rulesSetupSpot(P);
+    if (!b) return null;
+    const sorted = ids.map((id) => ({ id, pips: this._rulesPips(id), kinds: this._rulesKinds(id) })).sort((x, y) => y.pips - x.pips || y.kinds - x.kinds || x.id - y.id);
+    const kids = sorted.slice(0, 8).map((c) => node({ id: `spot:${c.id}`, label: `Spot ${this._spotLabel(c.id)}`, sub: `${c.kinds} resource${c.kinds === 1 ? "" : "s"}`, v: c.pips, bar: c.pips, vt: "score",
+      chosen: c.id === b.id, tag: c.id === b.id ? "chosen" : null, focus: { node: c.id } }));
+    const root = node({ id: "root", label: "Start settlement", sub: "rule: most pips, tie → more resources", vt: "none", chosen: true, children: kids });
+    return { root, action: `Settlement on ${b.pips} pips (${this._spotLabel(b.id)})`, score: b.pips, rules: true, pick: { node: b.id },
+      eq: "Pips = how many of the 36 dice rolls pay this spot. No other terms.", data: { sorted, best: b } };
+  },
+  _treeRulesRobber(P) {
+    const r = this._rulesRobber(P);
+    if (!r.pick) return null;
+    const sorted = r.cands.slice().sort((a, b) => (a.own - b.own) || b.lead - a.lead || b.any - a.any);
+    const kids = sorted.slice(0, 8).map((c) => node({ id: `hex:${c.id}`, label: this._hexName(c.id), sub: c.own ? "its own tile: never" : `${r.leader?.name || "leader"}: ${c.lead} pips`, v: c.lead, bar: c.lead,
+      chosen: c.id === r.pick.id, tag: c.id === r.pick.id ? "chosen" : null, off: c.own, focus: { hex: c.id } }));
+    const root = node({ id: "root", label: "Move robber", sub: `rule: the leader's tile with the most pips`, vt: "none", chosen: true, children: kids });
+    return { root, action: `Robber on ${this._hexName(r.pick.id)}, steals from ${r.leader?.name || "the leader"}`, score: r.pick.lead, rules: true, pick: { hex: r.pick.id },
+      eq: `Leader = most public points (${r.leader ? `${r.leader.name}, ${r.leader.publicVictoryPoints}` : "–"}). Pips count double on a city.`, data: { r, sorted } };
   },
 
   _treeSpotTerms(player, nodeId, profile, idp) {
@@ -56,7 +99,7 @@ export const TreeMixin = {
     if (rest.length) kids.push(node({ id: "spot:more", label: `${rest.length} more spots`, sub: "ranked lower", vt: "none",
       children: rest.map((c) => node({ id: `spot:${c.id}`, label: `Spot ${this._spotLabel(c.id)}`, v: c.score, bar: c.score, focus: { node: c.id }, leafish: true })) }));
     const root = node({ id: "root", label: "Start settlement", sub: `${cands.length} spots`, vt: "none", chosen: true, children: kids });
-    return { root, action: `Settlement on ${this._spotLabel(best.id)}`, score: best.score, pick: { node: best.id },
+    return { root, action: `Settlement on ${this._spotLabel(best.id)}`, score: best.score, pick: { node: best.id }, data: { sorted, best, P },
       eq: "Spot score = numbers + scarcity + variety + port (+ the Complex terms). The highest spot wins." };
   },
 
@@ -82,18 +125,18 @@ export const TreeMixin = {
     const kids = sorted.slice(0, 6).map((c) => hexKid(c, true));
     if (sorted.length > 6) kids.push(node({ id: "hex:more", label: `${sorted.length - 6} more tiles`, sub: "ranked lower", vt: "none", children: sorted.slice(6).map((c) => hexKid(c, false)) }));
     const root = node({ id: "root", label: "Move robber", sub: `${cands.length} tiles`, vt: "none", chosen: true, children: kids });
-    return { root, action: `Robber on ${this._hexName(best.id)}`, score: best.score, pick: { hex: best.id },
+    return { root, action: `Robber on ${this._hexName(best.id)}`, score: best.score, pick: { hex: best.id }, data: { sorted, best, awareness: this._aiStrat(P).awareness },
       eq: "Tile score = cards blocked (× leader weighting) − own cards blocked + the steal." };
   },
 
   // ── a turn: the steps in the order the bot takes them ──
-  _treeTurn(P) {
+  _treeTurn(P, opts = {}) {
     const strat = this._aiStrat(P);
     const plan = this._aiPlan(P);
     const kids = [];
-    const cardStep = this._treeCards(P, strat);
-    const tradeStep = this._treePlayerTrade(P, strat);
-    kids.push(cardStep.node, tradeStep.node);
+    const cardStep = opts.planOnly ? { node: null } : this._treeCards(P, strat);
+    const tradeStep = opts.planOnly ? { node: null } : this._treePlayerTrade(P, strat);
+    if (!opts.planOnly) kids.push(cardStep.node, tradeStep.node);
     let act, goal0 = plan.goals[0] || null, doing = null, bankPick = null;
     if (strat.expansion === "simple") {
       const s = this._treeSimple(P, strat);
@@ -138,7 +181,8 @@ export const TreeMixin = {
     const txt = [...first, what].join(", then ");
     return { root, action: txt.charAt(0).toUpperCase() + txt.slice(1), target: goal0 ? goal0.label : null, score: goal0 ? goal0.score : null,
       eq: strat.expansion === "simple" ? "Simple expansion builds in a fixed order: the first thing it can afford."
-        : `Steps run top to bottom. Build score = (points + production) ÷ (turns to afford + ${f1(plan.W.etaOffset)}).` };
+        : `Steps run top to bottom. Build score = (points + production) ÷ (turns to afford + ${f1(plan.W.etaOffset)}).`,
+      data: { P, strat, plan, goal0, act, doing, bankPick, kids, cardStep, tradeStep, what } };
   },
 
   _treeCards(P, strat) {
@@ -266,4 +310,117 @@ export const TreeMixin = {
     });
     return { nodes, act: firstOk ? "simple" : "end", doing: firstOk ? firstOk[1] : null };
   },
+
+  // ── step through: the same decision as an ordered sequence (each step says what it looks at and what
+  // the board shows: { title, sub, text, rows: [{ label, sub, v, vt, bar, chosen, ok }], overlay, cycle }) ──
+  _treeSteps(t, P) {
+    const d = t.data || {};
+    const S = [];
+    const add = (o) => S.push({ rows: [], overlay: {}, ...o });
+    const choice = (text, overlay) => add({ title: "Choice", sub: text, text: `${text}${t.score != null && !t.rules ? ` · score ${f1(t.score)}` : ""}`, overlay: { ...overlay, pick: t.pick || {}, focus: t.pick && Object.keys(t.pick).length ? t.pick : null } });
+    if (t.mode === "setup" && t.rules) {
+      const all = d.sorted;
+      add({ title: "Free spots", sub: `${all.length} spots it may settle`, text: "Every corner with no building on it or next to it.", overlay: { nodes: all.map((c) => ({ id: c.id, s: c.pips })) } });
+      add({ title: "Count the pips", sub: "dice rolls that pay each spot", rows: all.slice(0, 6).map((c) => ({ label: `Spot ${this._spotLabel(c.id)}`, sub: `${c.kinds} resources`, v: c.pips, vt: "score", bar: c.pips, chosen: c.id === d.best.id })),
+        overlay: { nodes: all.slice(0, 6).map((c) => ({ id: c.id, s: c.pips })) }, cycle: all.slice(0, 6).map((c) => ({ node: c.id })) });
+      choice(`${d.best.pips} pips: the most${all.filter((c) => c.pips === d.best.pips).length > 1 ? `, tie → ${d.best.kinds} resources` : ""}`, { nodes: [{ id: d.best.id, s: 1 }] });
+      return S;
+    }
+    if (t.mode === "setup") {
+      const all = d.sorted, top = all.slice(0, 6);
+      add({ title: "Free spots", sub: `${all.length} spots it may settle`, text: "Every corner with no building on it or next to it, glowing by score.", overlay: { nodes: all.map((c) => ({ id: c.id, s: c.score })) } });
+      add({ title: "Score each spot", sub: "numbers + scarcity + variety + port", rows: top.map((c) => ({ label: `Spot ${this._spotLabel(c.id)}`, v: c.score, vt: "score", bar: c.score, chosen: c.id === d.best.id })),
+        overlay: { nodes: top.map((c) => ({ id: c.id, s: c.score })) }, cycle: top.map((c) => ({ node: c.id })) });
+      const bestNode = t.root.children.find((n) => n.chosen);
+      add({ title: "The best spot, term by term", sub: `Spot ${this._spotLabel(d.best.id)}`, rows: (bestNode?.children || []).map((x) => ({ label: x.label, v: x.v, vt: "signed", bar: x.v, w: x.w })), overlay: { nodes: [{ id: d.best.id, s: 1 }], focus: { node: d.best.id } } });
+      choice(`Settlement on ${this._spotLabel(d.best.id)}`, { nodes: [{ id: d.best.id, s: 1 }] });
+      return S;
+    }
+    if (t.mode === "robber" && t.rules) {
+      const { r, sorted } = d;
+      add({ title: "Find the leader", sub: r.leader ? `${r.leader.name}: ${r.leader.publicVictoryPoints} points` : "no leader", text: "The leader is the opponent with the most public points." });
+      add({ title: "Leader's pips per tile", sub: "never a tile with its own building", rows: sorted.slice(0, 6).map((c) => ({ label: this._hexName(c.id), sub: c.own ? "own tile" : "", v: c.lead, vt: "score", bar: c.lead, chosen: c.id === r.pick.id, ok: c.own ? false : null })),
+        overlay: { hexes: r.cands.filter((c) => !c.own).map((c) => ({ id: c.id, s: c.lead, dmg: null })) }, cycle: sorted.slice(0, 6).filter((c) => !c.own).map((c) => ({ hex: c.id })) });
+      choice(`Robber on ${this._hexName(r.pick.id)}`, { hexes: [{ id: r.pick.id, s: 1, dmg: null }] });
+      add({ title: "Steal", sub: `from ${r.leader?.name || "the leader"}`, text: "Rule: it always steals from the leader (most public points) when the leader is on the tile." });
+      return S;
+    }
+    if (t.mode === "robber") {
+      if (!d.sorted) { add({ title: "Robber or pirate", sub: "by expected damage" }); return S; }
+      const { sorted, best, awareness } = d;
+      add({ title: "Legal tiles", sub: `${sorted.length} tiles`, text: "Every tile the robber may move to, shaded by score.", overlay: { hexes: sorted.map((c) => ({ id: c.id, s: c.score, dmg: c.dmg })) } });
+      add({ title: "Cards blocked per tile", sub: "over the ~10 rolls the robber stays", rows: sorted.slice().sort((a, b) => b.parts.block - a.parts.block).slice(0, 6).map((c) => ({ label: this._hexName(c.id), v: c.parts.block, vt: "score", bar: c.parts.block, chosen: c.id === best.id })),
+        overlay: { hexes: sorted.slice(0, 6).map((c) => ({ id: c.id, s: c.parts.block, dmg: c.dmg })) }, cycle: sorted.slice(0, 6).map((c) => ({ hex: c.id })) });
+      const p = best.parts;
+      add({ title: "Weigh who it hurts", sub: awareness === "none" ? "everyone counts the same" : awareness === "basic" ? "more points → more weight" : "the leader counts most",
+        rows: [["Blocked cards", p.block], ["Leader weighting", p.leader, "leader"], ["Own tiles", p.own], ["Steal", p.steal, "leader"]].filter((x) => Math.abs(x[1]) > 0.005).map(([label, v, w]) => ({ label, v, vt: "signed", bar: v, w })),
+        rows2: sorted.slice(0, 5).map((c) => ({ label: this._hexName(c.id), v: c.score, vt: "score", bar: c.score, chosen: c.id === best.id })), overlay: { hexes: [{ id: best.id, s: 1, dmg: best.dmg }], focus: { hex: best.id } } });
+      choice(`Robber on ${this._hexName(best.id)}`, { hexes: [{ id: best.id, s: 1, dmg: best.dmg }] });
+      add({ title: "Steal", sub: awareness === "none" ? "a random player on the tile" : awareness === "basic" ? "the biggest hand on the tile" : "the leader, or who likely holds what it needs",
+        text: "It steals from one player with a building on the tile (public card counts only, never hidden hands)." });
+      return S;
+    }
+    if (t.rules) {
+      d.list.forEach((r) => add({ title: `Rule ${r.n} · ${r.title}`, sub: `${r.ok ? "✓" : "✗"} ${r.why}`, ok: r.ok, overlay: r.focus ? { nodes: r.focus.node != null ? [{ id: r.focus.node, s: 1 }] : [], cities: r.focus.city != null ? [{ id: r.focus.city, s: 1 }] : [], edges: r.focus.edge != null ? [{ id: r.focus.edge, s: 1 }] : [], hexes: r.focus.hex != null ? [{ id: r.focus.hex, s: 1, dmg: null }] : [], focus: r.focus, pick: r.focus } : {} }));
+      const f = d.list[d.list.length - 1];
+      add({ title: "Action", sub: f.n === 7 ? "ends the turn" : `rule ${f.n} fires`, text: f.why, overlay: S[S.length - 1].overlay });
+      return S;
+    }
+    // a scoring bot's turn
+    const { P: Pl, plan, goal0, act, bankPick } = d;
+    const h = Pl.resources;
+    const handTxt = R5.filter((r) => h[r] > 0).map((r) => `${h[r]} ${RES_LABEL[r]}`).join(" + ") || "no cards";
+    add({ title: "Hand", sub: handTxt, rows: [["Road", COST.road], ["Settlement", COST.settlement], ["City", COST.city], ["Dev card", COST.development]].map(([l, c]) => {
+      const miss = R5.filter((r) => (c[r] || 0) > h[r]).map((r) => `${c[r] - h[r]} ${RES_LABEL[r]}`).join(" + ");
+      return { label: l, sub: miss ? `needs ${miss}` : "can afford now", vt: "none", ok: !miss };
+    }) });
+    add({ title: "Options", sub: "what it weighs, in the order it acts", rows: d.kids.map((k) => ({ label: k.label, sub: k.sub || "", v: k.v, vt: k.vt === "score" ? "score" : "none", bar: k.bar, chosen: k.chosen })) });
+    if (act !== "simple" && plan.goals.length) {
+      const spots = plan.spots || [];
+      if (spots.length) {
+        const top = spots.slice(0, 8);
+        add({ title: "Option · settlement spots", sub: `${spots.length} in reach, ranked by spot score − roads`, rows: top.map((x) => ({ label: `Spot ${this._spotLabel(x.nodeId)}`, sub: x.d ? `+${x.d} road${x.d > 1 ? "s" : ""}` : "", v: x.h, vt: "score", bar: x.h, chosen: goal0 && goal0.nodeId === x.nodeId && goal0.type === "settlement" })),
+          overlay: { nodes: spots.map((x) => ({ id: x.nodeId, s: x.h })) }, cycle: top.map((x) => ({ node: x.nodeId })) });
+      }
+      const towns = [...Pl.settlements];
+      if (towns.length && plan.goals.some((g) => g.type === "city")) {
+        const rows = towns.map((id) => ({ id, prod: this._aiNodeProd(id, plan.inc) })).sort((a, b) => b.prod - a.prod);
+        add({ title: "Option · city", sub: "the town that produces most", rows: rows.map((x) => ({ label: `Town ${this._spotLabel(x.id)}`, sub: "cards per roll", v: x.prod, vt: "score", bar: x.prod, chosen: rows[0].id === x.id })),
+          overlay: { cities: rows.map((x) => ({ id: x.id, s: x.prod })) }, cycle: rows.map((x) => ({ city: x.id })) });
+      }
+      const dev = plan.goals.find((g) => g.type === "dev");
+      if (dev) add({ title: "Option · dev card", sub: `worth ${f1(dev.vp)} points to it`, rows: [{ label: "Card value", v: plan.W.devCard, vt: "signed", bar: plan.W.devCard, w: "card" }, ...(Math.abs(dev.vp - plan.W.devCard) > 0.005 ? [{ label: "Army race / last points", v: dev.vp - plan.W.devCard, vt: "signed", bar: dev.vp - plan.W.devCard }] : [])] });
+      add({ title: "Turns to afford + production", sub: "value now and later, and how soon", rows: plan.goals.map((g) => ({ label: g.label.replace("Development card", "Dev card"), sub: `${f1(g.eta)} turns · +${f1((g.parts?.prod || 0) + (g.parts?.horizon || 0))} production`, v: g.value, vt: "score", bar: g.value })) });
+      const ov = { nodes: plan.goals.filter((g) => g.type === "settlement").map((g) => ({ id: g.nodeId, s: g.score })), cities: plan.goals.filter((g) => g.type === "city").map((g) => ({ id: g.nodeId, s: g.score })), edges: plan.goals.filter((g) => g.edge != null).map((g) => ({ id: g.edge, s: g.score })) };
+      add({ title: "Ranking", sub: `value ÷ (turns + ${f1(plan.W.etaOffset)})`, rows: plan.goals.slice().sort((a, b) => b.score - a.score).map((g) => ({ label: g.label.replace("Development card", "Dev card"), v: g.score, vt: "score", bar: g.score, chosen: g === goal0 })),
+        overlay: { ...ov, pick: t.pick || {} } });
+      const bp = bankPick || (goal0 && plan.rates ? this._aiBankTradePick(Pl, plan, goal0) : null);
+      add({ title: "Trade check", sub: act === "bank" ? "a bank / harbour trade brings it closer" : act === "build" ? "not needed: it can pay now" : bp?.why || "no trade", rows: [
+        ...(bp?.trades || []).map(([give, get]) => ({ label: `${plan.rates[give]} ${RES_LABEL[give]} → 1 ${RES_LABEL[get]}`, sub: `${plan.rates[give]}:1`, vt: "none", chosen: act === "bank" })),
+        ...(d.tradeStep?.node ? [{ label: "Players", sub: d.tradeStep.node.sub, vt: "none", chosen: !!d.tradeStep.does }] : []),
+      ] });
+    } else {
+      add({ title: "Fixed order", sub: "the first thing it can afford", rows: d.kids.filter((k) => /^simple:/.test(k.id)).map((k) => ({ label: k.label, sub: k.sub, vt: "none", ok: !k.off, chosen: k.chosen })) });
+    }
+    const ov = {};
+    if (t.pick?.node != null) ov.nodes = [{ id: t.pick.node, s: 1 }];
+    if (t.pick?.city != null) ov.cities = [{ id: t.pick.city, s: 1 }];
+    if (t.pick?.edge != null) ov.edges = [{ id: t.pick.edge, s: 1 }];
+    choice(t.action, ov);
+    return S;
+  },
 };
+
+// ── shared renderer (AI Lab and the in-game analysis panel): a numbered list, the current step open ──
+const escH = (x) => String(x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const valTxt = (r) => (r.vt === "score" ? f2(r.v) : r.vt === "signed" ? (Math.abs(r.v) < 0.005 ? "0" : `${r.v > 0 ? "+" : "−"}${f2(Math.abs(r.v))}`) : "");
+function f2(v) { return v == null || !Number.isFinite(v) ? "–" : v.toFixed(2); }
+function rowsHtml(rows) {
+  if (!rows?.length) return "";
+  const mx = Math.max(0, ...rows.map((r) => (Number.isFinite(r.bar) ? Math.abs(r.bar) : 0)));
+  return `<div class="sx-rows">${rows.map((r) => `<div class="sx-row${r.chosen ? " pick" : ""}${r.ok === false ? " no" : r.ok ? " yes" : ""}"><span class="sx-l">${r.ok != null ? `<i aria-hidden="true">${r.ok ? "✓" : "✗"}</i>` : ""}<b>${escH(r.label)}</b>${r.sub ? `<small>${escH(r.sub)}</small>` : ""}</span>${Number.isFinite(r.bar) && mx > 0 ? `<span class="sx-bar${r.bar < 0 ? " neg" : ""}"><i style="width:${Math.max(3, Math.round(Math.abs(r.bar) / mx * 100))}%"></i></span>` : "<span></span>"}<span class="sx-v">${escH(valTxt(r))}</span></div>`).join("")}</div>`;
+}
+/** Steps as HTML: every step one line (number, title, what it found); the current one opened with its rows. */
+export function stepsHtml(steps, cur) {
+  return `<ol class="sx-list">${steps.map((s, i) => `<li class="sx-step${i === cur ? " cur" : i < cur ? " done" : ""}${s.ok === true ? " yes" : s.ok === false ? " no" : ""}" data-step="${i}"><button type="button" class="sx-head" data-step="${i}" aria-current="${i === cur ? "step" : "false"}"><span class="sx-n">${i + 1}</span><span class="sx-t"><b>${escH(s.title)}</b>${s.sub ? `<small>${escH(s.sub)}</small>` : ""}</span></button>${i === cur ? `<div class="sx-body">${s.text ? `<p>${escH(s.text)}</p>` : ""}${rowsHtml(s.rows)}${s.rows2 ? rowsHtml(s.rows2) : ""}</div>` : ""}</li>`).join("")}</ol>`;
+}

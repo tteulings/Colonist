@@ -9,6 +9,8 @@
 //
 // The AI Lab (lab.html) uses the same explain functions + overlay on its own board (see _lab*).
 
+import { stepsHtml } from "./ai-tree.js";
+
 export const AI_DIMS = [
   ["placement", "Placement"], ["expansion", "Expansion"], ["trading", "Trading"], ["devCards", "Dev Cards"], ["awareness", "Awareness"],
 ];
@@ -72,9 +74,9 @@ export const AnalysisMixin = {
   _aiGate(fn) { if (this._aiHeld()) this._aiPark(fn); else fn(); },
 
   aiPause() { const a = this.analysis; a.paused = true; a.budget = 0; this._renderAnalysis(); },
-  aiResume() { const a = this.analysis; a.paused = false; a.budget = 0; this._aiKick(); this._renderAnalysis(); },
+  aiResume() { const a = this.analysis; a.stepView = null; a.paused = false; a.budget = 0; this._aiKick(); this._renderAnalysis(); },
   /** One more decision, then hold again. */
-  aiStep() { const a = this.analysis; a.paused = true; a.budget = 1; this._aiKick(); this._renderAnalysis(); },
+  aiStep() { const a = this.analysis; a.stepView = null; a.paused = true; a.budget = 1; this._aiKick(); this._renderAnalysis(); },
 
   _aiKick() {
     const a = this.analysis;
@@ -96,6 +98,7 @@ export const AnalysisMixin = {
     dec.seq = a.seq;
     if (a.capture) { a.captured = dec; return; }
     a.last = dec;
+    a.stepView = null;
     if (a.on && a.paused) a.budget = Math.max(0, a.budget - 1);
     this._renderAnalysis();
     this.requestBoardDraw?.();
@@ -116,6 +119,14 @@ export const AnalysisMixin = {
   },
 
   _aiExplainSetup(player) {
+    if (player.strategy?.policy === "rules") { // v0.87 Simple: the spot with the most pips
+      const ids = this._rulesSetupSpots(player);
+      const b = this._rulesSetupSpot(player);
+      if (!b) return null;
+      const alts = ids.filter((id) => id !== b.id).map((id) => ({ id, s: this._rulesPips(id) })).sort((x, y) => y.s - x.s).slice(0, 3).map((c) => ({ label: `Spot ${this._spotLabel(c.id)}`, score: c.s }));
+      return { kind: "setup", pid: player.id, title: "Settlement · most pips", score: b.pips, dims: dims0(), alts, rules: null,
+        note: `Rule: most pips (${b.pips}), tie → more resources (${b.kinds})`, nodes: ids.map((id) => ({ id, s: this._rulesPips(id) })), pick: { node: b.id } };
+    }
     const cands = this._aiSetupCandidates(player);
     let best = null;
     cands.forEach((c) => { if (!best || c.score > best.score) best = c; });
@@ -129,7 +140,13 @@ export const AnalysisMixin = {
 
   _aiNoteSetup(player, nodeId) {
     const d = this._aiExplainSetup(player);
-    if (d) { d.pick.node = nodeId; this._aiNote(d); }
+    if (d) { d.pick.node = nodeId; d.steps = this._aiStepsNow("setup", player); this._aiNote(d); }
+  },
+
+  /** v0.87 "Step through this decision": the ordered steps, read before the move is made (analysis on only). */
+  _aiStepsNow(mode, player) {
+    if (!this.analysis?.on || this.analysis.capture) return null;
+    return this._aiTree(mode, player, { planOnly: true })?.steps || null;
   },
 
   _aiNoteSetupRoad(player, nodeId, roadId, cands) {
@@ -143,6 +160,14 @@ export const AnalysisMixin = {
   },
 
   _aiExplainRobber(player, chosen = null) {
+    if (player.strategy?.policy === "rules" && !this.sea) { // v0.87 Simple: the leader's tile with the most pips
+      const r = this._rulesRobber(player);
+      if (!r.pick) return null;
+      const pick = chosen != null ? r.cands.find((c) => c.id === chosen) || r.pick : r.pick;
+      return { kind: "robber", pid: player.id, title: "Robber · leader's best tile", score: pick.lead, dims: dims0(), alts: [],
+        note: `Rule: the leader (${r.leader?.name || "–"})'s tile with the most pips, never its own · steals from the leader`,
+        hexes: r.cands.filter((c) => !c.own).map((c) => ({ id: c.id, s: c.lead, dmg: c.lead ? c.lead / 36 * 10 : null })), pick: { hex: pick.id } };
+    }
     if (this.sea) {
       return { kind: "robber", pid: player.id, title: "Robber", score: null, dims: dims0(), alts: [], note: "Robber or pirate: by expected damage", hexes: chosen != null ? [{ id: chosen, s: 1, dmg: null }] : [], pick: { hex: chosen } };
     }
@@ -169,7 +194,11 @@ export const AnalysisMixin = {
     return `${RES_LABEL[h.resource] || h.resource} ${h.number}`;
   },
 
-  _aiNoteRobber(player, hexId) { this._aiNote(this._aiExplainRobber(player, hexId)); },
+  _aiNoteRobber(player, hexId) {
+    const d = this._aiExplainRobber(player, hexId);
+    if (d) d.steps = this._aiStepsNow("robber", player);
+    this._aiNote(d);
+  },
 
   _aiDevReason(player, type) {
     if (type === "knight") return this._aiKnightReason(player) || "Knight";
@@ -277,7 +306,7 @@ export const AnalysisMixin = {
     else if (act === "end") { title = "Ends turn"; note = goal ? `Saving for ${goal.label}${goal.eta ? ` (~${fmt(goal.eta)} turns)` : ""}` : "Nothing to build"; }
     else if (goal && goal.type === "settlement" && goal.dist > 0) title = `Road → ${goal.label.replace(/ \(.*\)/, "")}`;
     return {
-      kind: "plan", pid: player.id, title, score: goal ? goal.score : null, dims: goal ? snap.dims.get(goal) : dims0(),
+      kind: "plan", pid: player.id, title, score: goal ? goal.score : null, dims: goal ? snap.dims.get(goal) : dims0(), steps: snap.steps || null,
       alts: plan.goals.filter((g) => g !== goal).slice(0, 3).map((g) => ({ label: g.label.replace(/ \(\+(\d) roads?\)/, " +$1r").replace("Development card", "Dev card"), score: g.score })),
       note, nodes, edges, cities, pick,
     };
@@ -286,14 +315,17 @@ export const AnalysisMixin = {
   _aiNotePlan(player, snap, goal, act) { this._aiNote(this._aiPlanDecision(player, snap, goal, act)); },
 
   _aiExplainPlan(player) {
+    if (player.strategy?.policy === "rules") return this._rulesDecision(player, this._rulesCheck(player)); // v0.87 Simple
     const plan = this._aiPlan(player);
     const snap = this._aiPlanSnap(player, plan);
     return this._aiPlanDecision(player, snap, plan.goals[0] || null, "build");
   },
 
   _aiNoteEnd(player) {
+    if (player.strategy?.policy === "rules") { const d = this._rulesDecision(player, this._rulesCheck(player)); d.steps = this._aiStepsNow("build", player); this._aiNote(d); return; } // v0.87 Simple
     const plan = this._aiPlan(player);
     const snap = this._aiPlanSnap(player, plan);
+    snap.steps = this._aiStepsNow("build", player);
     this._aiNote(this._aiPlanDecision(player, snap, plan.goals[0] || null, "end"));
   },
 
@@ -351,11 +383,23 @@ export const AnalysisMixin = {
     this._aiNote(d);
   },
 
+  /** Steps for a decision noted without them (dev cards, trades, fixed-order builds): what it looked at → choice. */
+  _aiGenericSteps(d) {
+    const S = [];
+    const n = (d.nodes?.length || 0) + (d.cities?.length || 0) + (d.edges?.length || 0) + (d.hexes?.length || 0);
+    if (n) S.push({ title: "What it looked at", sub: `${n} candidate${n > 1 ? "s" : ""} on the board`, rows: [], overlay: { nodes: d.nodes, cities: d.cities, edges: d.edges, hexes: d.hexes } });
+    if (d.offers?.length) S.push({ title: "Offers", sub: `${d.offers.length} considered`, rows: d.offers.slice(0, 4).map((o) => ({ label: `${cardsText(o.give)} → ${cardsText(o.get)}`, sub: o.skip ? "not closer" : o.answers.map((x) => `${this.players[x.pid].name} ${x.ok ? "✓" : x.ok === false ? "✗" : "?"}`).join(" · ") || "no taker", vt: "none" })), overlay: {} });
+    if (d.alts?.length) S.push({ title: "Next best", sub: "what it passed on", rows: d.alts.map((x) => ({ label: x.label, v: x.score, vt: Number.isFinite(x.score) ? "score" : "none", bar: x.score })), overlay: { nodes: d.nodes, cities: d.cities, edges: d.edges, hexes: d.hexes } });
+    S.push({ title: "Choice", sub: d.title, text: d.note || "", rows: [], overlay: { nodes: d.nodes, cities: d.cities, edges: d.edges, hexes: d.hexes, pick: d.pick || {}, focus: d.pick && Object.values(d.pick).some((v) => v != null) ? d.pick : null } });
+    return S;
+  },
+
   // ── board overlay (both renderers call this in world coordinates) ─────────
   _analysisShown() {
     const a = this.analysis;
     if (!a || !this.geometry) return null;
     if (a.lab) return a.lab;
+    if (a.stepView && a.on) { const sv = a.stepView, st = sv.steps[sv.cur]; return { kind: "step", pid: sv.pid, ...(st?.overlay || {}) }; } // v0.87 Step through
     if (!a.on || !a.last || this.winner) return null;
     const cp = this.currentPlayer;
     // Your own turn (not watching bots play): your board stays clean
@@ -499,6 +543,17 @@ export const AnalysisMixin = {
         if (k === "pause") this.aiPause();
         else if (k === "resume") this.aiResume();
         else if (k === "step") this.aiStep();
+        else if (k === "steps" && a.last) { // v0.87: step through the shown decision (the bots wait meanwhile)
+          const d = a.last;
+          if (!a.paused) this.aiPause();
+          a.stepView = { steps: d.steps?.length ? d.steps : this._aiGenericSteps(d), cur: 0, pid: d.pid, title: d.title };
+          this._renderAnalysis(); this.requestBoardDraw?.();
+        } else if (k === "sprev" || k === "snext") {
+          const sv = a.stepView; if (!sv) return;
+          sv.cur = Math.max(0, Math.min(sv.steps.length - 1, sv.cur + (k === "snext" ? 1 : -1)));
+          this._renderAnalysis(); this.requestBoardDraw?.();
+        } else if (k === "sclose") { a.stepView = null; this._renderAnalysis(); this.requestBoardDraw?.(); }
+        else if (k === "sgo") { const sv = a.stepView; if (sv) { sv.cur = Number(b.dataset.step) || 0; this._renderAnalysis(); this.requestBoardDraw?.(); } }
         else if (k === "min") {
           a.min = !a.min;
           try { localStorage.setItem(MIN_KEY, a.min ? "1" : "0"); } catch (_) { /* ignore */ }
@@ -521,7 +576,14 @@ export const AnalysisMixin = {
     const score = d && d.score != null ? `<span class="aip-sc" title="${UNIT}">${fmt(d.score)}</span>` : "";
     const head = `<div class="aip-head">${who}${score}${ctl}<button type="button" class="aip-min" data-ai="min" aria-expanded="${!a.min}" aria-label="${a.min ? "Show details" : "Hide details"}">${IC.chev}</button></div>`;
     let body = "";
-    if (d && !a.min) {
+    if (a.stepView && !a.min) {
+      const sv = a.stepView;
+      body += `<div class="aip-steps"><div class="aip-shead"><b>${esc(sv.title || "Decision")}</b> · step ${sv.cur + 1} of ${sv.steps.length}<button type="button" data-ai="sclose" class="aip-slink">Close</button></div>${stepsHtml(sv.steps, sv.cur).replace(/class="sx-head" data-step="(\d+)"/g, 'class="sx-head" data-ai="sgo" data-step="$1"')}
+        <div class="aip-snav"><button type="button" data-ai="sprev"${sv.cur ? "" : " disabled"}>‹ Prev</button><button type="button" data-ai="snext"${sv.cur < sv.steps.length - 1 ? "" : " disabled"}>Next ›</button></div></div>`;
+    } else if (d && !a.min && d.rules) {
+      // v0.87 Simple bot: its rulebook as a checklist, the rule that fired lit
+      body += `<ol class="aip-rules">${d.rules.map((r) => `<li class="${r.ok ? "fired" : "no"}"><b>${r.n}</b> ${esc(r.title)} <span>${r.ok ? "✓" : "✗"} ${esc(r.why)}</span></li>`).join("")}</ol>`;
+    } else if (d && !a.min) {
       const vals = AI_DIMS.map(([k]) => d.dims?.[k] || 0);
       const max = Math.max(0.5, ...vals.map(Math.abs));
       body += `<div class="aip-bars" title="${UNIT}">${AI_DIMS.map(([k, l], i) => {
@@ -538,6 +600,7 @@ export const AnalysisMixin = {
       if (d.note) body += `<p class="aip-note">${esc(d.note)}</p>`;
       if (d.alts?.length) body += `<div class="aip-alts" title="Next best options (${UNIT})">${d.alts.map((x) => `<span><b>${fmt(x.score)}</b> ${esc(x.label)}</span>`).join("")}</div>`;
     }
+    if (d && !a.min && !a.stepView) body += `<button type="button" class="aip-slink aip-sgo" data-ai="steps">Step through this decision ›</button>`;
     const html = head + body;
     if (el._html !== html) { el.innerHTML = html; el._html = html; }
     // Phones: the hand fan overlaps the bottom of the board, so the panel sits just above it
@@ -729,9 +792,18 @@ export const LabMixin = {
       else d = this._aiExplainPlan(P);
     } catch (e) { console.warn("lab explain failed", e); d = null; }
     this.analysis.lab = d || { kind: "none", pid, nodes: [] };
+    this.analysis.labBase = null;
     this.requestBoardDraw();
     const tree = this._aiTree(mode, P); // v0.87: the same decision as a tree (src/ai-tree.js)
-    return d && { title: d.title, score: d.score, dims: d.dims, alts: d.alts, note: d.note, count: (d.nodes?.length || 0) + (d.hexes?.length || 0) + (d.edges?.length || 0), tree };
+    return d && { title: d.title, score: d.score, dims: d.dims, alts: d.alts, note: d.note, rules: d.rules || null, count: (d.nodes?.length || 0) + (d.hexes?.length || 0) + (d.edges?.length || 0), tree };
+  },
+
+  /** v0.87: the board for one step of "Step through" (null: back to the heatmap of the last explain). */
+  _labOverlay(o, pid) {
+    if (!o) { this.analysis.lab = this.analysis.labBase || this.analysis.lab; this.requestBoardDraw(); return; }
+    if (!this.analysis.labBase || this.analysis.lab?.kind !== "step") this.analysis.labBase = this.analysis.lab;
+    this.analysis.lab = { kind: "step", pid, ...o };
+    this.requestBoardDraw();
   },
 
   /** v0.87: ring one candidate the decision tree points at ({ node | city | edge | hex }, null clears). */

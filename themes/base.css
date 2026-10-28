@@ -2187,3 +2187,47 @@ html[data-lab] .table .board-wrap { position: absolute !important; inset: 0 !imp
   .dev-bubble.side { max-width: min(300px, calc(100vw - var(--rcol) - var(--lrail) - 16px)); }
   .dev-bubble.side::after { bottom: auto; left: auto; right: -6px; top: var(--ay, 50%); transform: translateY(-50%) rotate(45deg); }
 }
+/* v0.87 Simple bot: its rulebook as a checklist in the analysis panel (the rule that fired lit) */
+.ai-panel .aip-rules { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 1px; font-size: 11.5px; }
+.ai-panel .aip-rules li { display: grid; grid-template-columns: 16px auto minmax(0, 1fr); gap: 5px; align-items: baseline; padding: 2px 5px; border-radius: 6px; color: var(--ink-soft); }
+.ai-panel .aip-rules li b { font-variant-numeric: tabular-nums; }
+.ai-panel .aip-rules li span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-panel .aip-rules li.fired { color: var(--ink); font-weight: 700; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+/* v0.87 "Step through this decision": a numbered list, the current step open (AI Lab + analysis panel) */
+.sx-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.sx-step { border-radius: 10px; }
+.sx-step.cur { background: color-mix(in srgb, var(--accent) 9%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
+.sx-head { width: 100%; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; align-items: center; border: 0; background: none; padding: 5px 6px; text-align: left; color: inherit; font: inherit; cursor: pointer; min-height: 34px; border-radius: 10px; }
+.sx-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sx-n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 800; background: var(--sep, rgba(0,0,0,.08)); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.sx-step.cur .sx-n { background: var(--accent); color: #fff; }
+.sx-step.done .sx-n { background: color-mix(in srgb, var(--accent) 30%, transparent); color: var(--ink); }
+.sx-step.no:not(.cur) .sx-t b { color: var(--ink-soft); }
+.sx-t { min-width: 0; display: flex; flex-wrap: wrap; column-gap: 6px; align-items: baseline; }
+.sx-t b { font-weight: 750; font-size: 12.5px; }
+.sx-t small { color: var(--ink-soft); font-size: 11.5px; overflow-wrap: anywhere; }
+.sx-body { padding: 0 8px 8px 36px; display: grid; gap: 4px; }
+.sx-body p { margin: 0; font-size: 12px; color: var(--ink-soft); }
+.sx-rows { display: grid; gap: 1px; }
+.sx-row { display: grid; grid-template-columns: minmax(0, 1fr) 44px 38px; gap: 6px; align-items: center; min-height: 24px; font-size: 11.5px; }
+.sx-l { min-width: 0; display: flex; flex-wrap: wrap; column-gap: 5px; align-items: baseline; }
+.sx-l b { font-weight: 650; }
+.sx-l small { color: var(--ink-soft); font-size: 10.5px; }
+.sx-l i { font-style: normal; font-weight: 800; width: 12px; }
+.sx-row.yes .sx-l i { color: var(--good, #4F8A33); }
+.sx-row.no .sx-l i, .sx-row.no .sx-l b { color: var(--ink-soft); }
+.sx-row.pick .sx-l b { font-weight: 800; }
+.sx-bar { height: 5px; border-radius: 3px; background: var(--sep, rgba(0,0,0,.08)); position: relative; overflow: hidden; }
+.sx-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--seat, var(--accent)); opacity: .5; }
+.sx-row.pick .sx-bar i { opacity: 1; }
+.sx-bar.neg i { left: auto; right: 0; background: repeating-linear-gradient(135deg, var(--ink-faint, #888) 0 3px, transparent 3px 5px); }
+.sx-v { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ai-panel .aip-steps { margin-top: 4px; display: grid; gap: 4px; }
+.ai-panel .aip-steps .sx-list { max-height: min(42vh, 300px); overflow: auto; overscroll-behavior: contain; }
+.ai-panel .aip-shead { display: flex; align-items: baseline; gap: 4px; font-size: 11.5px; color: var(--ink-soft); }
+.ai-panel .aip-shead b { color: var(--ink); }
+.ai-panel .aip-slink { border: 0; background: none; color: var(--brand-ink, var(--accent)); font-weight: 750; font-size: 12px; padding: 4px 0; min-height: 30px; margin-left: auto; cursor: pointer; }
+.ai-panel .aip-sgo { display: block; margin: 2px 0 0 auto; }
+.ai-panel .aip-snav { display: flex; gap: 6px; }
+.ai-panel .aip-snav button { flex: 1; border: var(--btn-border); background: var(--btn); color: var(--ink); border-radius: 9px; min-height: 34px; font-weight: 700; font-size: 12.5px; }
+.ai-panel .aip-snav button:disabled { opacity: .45; }

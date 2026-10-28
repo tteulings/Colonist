@@ -9,12 +9,14 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
+import { stepsHtml } from "./ai-tree.js?v=87";
+
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
 const WKEY = "colonist.lab.w";      // Calculation weights: this browser session only
 const HKEY = "colonist.lab.hist";   // tournament history: this session only
 const DIMS = [["placement", "Placement"], ["expansion", "Expansion"], ["trading", "Trading"], ["devCards", "Dev Cards"], ["awareness", "Awareness"]];
-const PRESETS = ["beginner", "intermediate", "expert", "builder", "trader", "shark"];
+const PRESETS = ["beginner", "simple", "intermediate", "expert", "builder", "trader", "shark"]; // v0.87: + Simple (rulebook bot)
 const MODES = [["setup", "Start spots"], ["build", "Next build"], ["robber", "Robber"]];
 const TOOLS = [["pan", "Move"], ["settlement", "Town"], ["city", "City"], ["road", "Road"], ["robber", "Robber"], ["erase", "Erase"]];
 const MAPS = [["random", "Random"], ["balanced", "Balanced"], ["seed", "Seed"], ["game", "My game"]];
@@ -56,12 +58,12 @@ const st = {
 if (st.speed === "fast") st.speed = "watch"; // v0.83-0.86 name
 let W = store(WKEY, sessionStorage) || {}; // changed weights only ({} = defaults)
 const hist = store(HKEY, sessionStorage) || [];
-const save = () => { const { strat, ...rest } = st; put(KEY, { ...rest, strat: strat && Object.fromEntries(DIMS.map(([k]) => [k, strat[k]])), tool: "pan" }); };
+const save = () => { const { strat, ...rest } = st; put(KEY, { ...rest, strat: strat && { ...Object.fromEntries(DIMS.map(([k]) => [k, strat[k]])), ...(strat.policy ? { policy: strat.policy } : {}) }, tool: "pan" }); };
 const saveW = () => put(WKEY, W, sessionStorage);
 
 let view = null; // the board game instance (iframe)
 let H = null;    // its bot tables (presets, level names)
-const tree = { open: new Set(), closed: new Set(), sel: null, data: null, mode: null };
+const tree = { open: new Set(), closed: new Set(), sel: null, data: null, mode: null, view: "tree" };
 
 function waitEngine(frame) {
   return new Promise((resolve) => {
@@ -82,18 +84,20 @@ function seg(el, items, on, attr, fn, disabled = []) {
 const levelLabel = (lvl) => H.AI_LEVEL_LABEL[lvl] || lvl.charAt(0).toUpperCase() + lvl.slice(1);
 const presetLabel = (p) => (p === "custom" ? "Custom" : H.AI_PRESET_INFO[p]?.label || p);
 function presetOf(strat) {
-  const m = PRESETS.find((p) => DIMS.every(([k]) => H.AI_PRESETS[p][k] === strat[k]));
+  const m = PRESETS.find((p) => DIMS.every(([k]) => H.AI_PRESETS[p][k] === strat[k]) && (H.AI_PRESETS[p].policy || "score") === (strat.policy || "score"));
   return m || "custom";
 }
 const changedW = () => Object.keys(W).filter((k) => W[k] != null && W[k] !== 1);
 /** Your bot: the five dimensions plus the changed Calculation weights (none: no `w`, the exact default). */
+const isRules = () => st.strat?.policy === "rules";
 function myBot() {
   const s = Object.fromEntries(DIMS.map(([k]) => [k, st.strat[k]]));
+  if (isRules()) return { ...s, policy: "rules" }; // Simple: a rulebook, no weights
   const ch = changedW();
   if (ch.length) s.w = Object.fromEntries(ch.map((k) => [k, W[k]]));
   return s;
 }
-const myBotDesc = () => `${presetLabel(st.preset)}${changedW().length ? ` · ${changedW().length} weight${changedW().length > 1 ? "s" : ""}` : ""}`;
+const myBotDesc = () => `${presetLabel(st.preset)}${changedW().length && !isRules() ? ` · ${changedW().length} weight${changedW().length > 1 ? "s" : ""}` : ""}`;
 
 // ── Analysis ─────────────────────────────────────────────────────────────
 function renderControls() {
@@ -104,6 +108,7 @@ function renderControls() {
   $("#labDims").innerHTML = DIMS.map(([k, l]) => `<div class="lb-row lb-dim"><span title="${esc(H.AI_STRATEGY_CATEGORIES[k].descriptions[st.strat[k]])}">${l}</span><div class="lb-seg" data-dim="${k}" role="radiogroup" aria-label="${l}"></div></div>`).join("");
   DIMS.forEach(([k]) => seg($(`[data-dim="${k}"]`), H.AI_STRATEGY_CATEGORIES[k].levels.map((lv) => [lv, levelLabel(lv)]), st.strat[k], "lv", (v) => {
     st.strat = { ...st.strat, [k]: v };
+    delete st.strat.policy; // a dial makes Simple a scoring bot again
     st.preset = presetOf(st.strat);
     update();
   }));
@@ -135,7 +140,7 @@ function renderCalcHead() {
   const n = changedW().length;
   const open = !$("#labCalc").hidden;
   $("#labCalcBtn").setAttribute("aria-expanded", String(open));
-  $("#labCalcSt").innerHTML = n ? `<button type="button" class="lb-link" id="labReset">Reset</button> · ${n} changed` : "default weights";
+  $("#labCalcSt").innerHTML = isRules() ? "not used by Simple (no scores)" : n ? `<button type="button" class="lb-link" id="labReset">Reset</button> · ${n} changed` : "default weights";
   $("#labReset")?.addEventListener("click", () => { W = {}; saveW(); renderCalc(); update(); });
 }
 function renderCalc() {
@@ -171,12 +176,18 @@ function update() {
   if (!view || sim.watching) return; // the board shows a tournament game: your board (and its scores) come back afterwards
   if (!view.players[st.seat]) st.seat = view.players.length > 1 ? 1 : 0;
   if (st.pane !== "analysis") { view.analysis.lab = null; view.requestBoardDraw(); return; } // Tournament: a clean board
+  clearInterval(steps.cyc); steps.cyc = 0;
   const r = view._labExplain(st.mode, st.seat, myBot());
   const p = view.players[st.seat];
   const out = $("#labResult");
   $(".lb-treecard").style.setProperty("--seat", p.color);
   renderTree(r?.tree || null, p);
   if (!r) { out.innerHTML = `<p class="lb-note">Nothing to score here.</p>`; return; }
+  if (r.rules) { // Simple: its checklist, the rule that fired lit
+    out.innerHTML = `<div class="lb-rhead"><i class="lb-dot" style="background:${p.color}"></i><b>${esc(p.name)} · ${esc(r.title)}</b></div>
+      <p class="lb-note">${esc(r.note || "")} · the checklist below shows every rule it checked.</p>`;
+    return;
+  }
   const vals = DIMS.map(([k]) => r.dims?.[k] || 0);
   const max = Math.max(0.5, ...vals.map(Math.abs));
   out.innerHTML = `<div class="lb-rhead"><i class="lb-dot" style="background:${p.color}"></i><b>${esc(p.name)} · ${esc(r.title)}</b><span class="lb-sc" title="${UNIT}">${fmt(r.score)}</span></div>
@@ -207,7 +218,8 @@ function treeRows(n, depth, rows, siblingsMax) {
   const tag = tagTxt ? `<span class="lt-tag ${n.tag}">${tagTxt}</span>` : "";
   const cls = ["lt-row", n.chosen ? "pick" : "", n.off ? "off" : "", n.term ? "lt-term" : "", tree.sel === n.id ? "sel" : "", !kids.length && !n.focus ? "static" : ""].filter(Boolean).join(" ");
   const label = `${n.label}${n.sub ? `, ${n.sub}` : ""}${val ? `, ${val}` : ""}${tagTxt ? `, ${tagTxt}` : ""}`;
-  rows.push(`<div class="${cls}" role="treeitem" aria-level="${depth + 1}"${kids.length ? ` aria-expanded="${isOpen}"` : ""} style="--ind:${depth * 13}px"><span></span><span class="lt-chev">${CHEV}</span><span class="lt-l"><span class="lt-n">${esc(n.label)}</span>${tag}${chip}${n.sub ? `<small>${esc(n.sub)}</small>` : ""}</span>${bar}<span class="lt-v">${esc(val)}</span><button type="button" class="lt-hit" data-tid="${esc(n.id)}" aria-label="${esc(label)}"></button></div>`);
+  const chev = n.rule ? `<span class="lt-ok ${n.ok ? "y" : n.ok === false ? "n" : "q"}" aria-hidden="true">${n.ok ? "✓" : n.ok === false ? "✗" : "·"}</span>` : `<span class="lt-chev">${CHEV}</span>`;
+  rows.push(`<div class="${cls}${n.rule ? " lt-rule" : ""}" role="treeitem" aria-level="${depth + 1}"${kids.length ? ` aria-expanded="${isOpen}"` : ""} style="--ind:${depth * 13}px"><span></span>${chev}<span class="lt-l"><span class="lt-n">${esc(n.label)}</span>${tag}${chip}${n.sub ? `<small>${esc(n.sub)}</small>` : ""}</span>${bar}<span class="lt-v">${esc(val)}</span><button type="button" class="lt-hit" data-tid="${esc(n.id)}" aria-label="${esc(label)}"></button></div>`);
   if (isOpen) {
     const mx = Math.max(0, ...kids.map((c) => (Number.isFinite(c.bar) ? Math.abs(c.bar) : 0)));
     kids.forEach((c) => treeRows(c, depth + 1, rows, mx));
@@ -215,19 +227,71 @@ function treeRows(n, depth, rows, siblingsMax) {
 }
 function findNode(n, id) { if (!n) return null; if (n.id === id) return n; for (const c of n.children || []) { const x = findNode(c, id); if (x) return x; } return null; }
 function renderTree(t, p) {
-  if (tree.mode !== st.mode) { tree.open.clear(); tree.closed.clear(); tree.sel = null; tree.mode = st.mode; }
+  if (tree.mode !== st.mode) { tree.open.clear(); tree.closed.clear(); tree.sel = null; tree.mode = st.mode; steps.cur = 0; stopPlay(); }
   tree.data = t;
+  $(".lb-treecard h2").textContent = t?.rules ? (st.mode === "build" ? "Rulebook" : "Why this move (rule)") : "Why this move";
+  seg($("#labTreeView"), [["tree", t?.rules && st.mode === "build" ? "Checklist" : "Tree"], ["steps", "Step by step"]], tree.view, "tv", (v) => { tree.view = v; steps.cur = 0; stopPlay(); renderTree(tree.data, view.players[st.seat]); });
+  if (tree.view === "steps") { renderSteps(t); return; }
+  $("#labSteps").hidden = true; $("#labTree").hidden = false;
+  clearInterval(steps.cyc); steps.cyc = 0;
+  if (view?.analysis.lab?.kind === "step") view._labOverlay(null);
   $("#labTreeWho").textContent = p ? `${p.name} · tap a row` : "";
   if (!t) { $("#labTree").innerHTML = `<p class="lb-note">Nothing to decide here.</p>`; $("#labTreeSum").textContent = ""; $("#labTreeEq").textContent = ""; return; }
   const sc = t.score != null ? ` · score <b>${f2(t.score)}</b>${st.mode === "build" ? " per turn" : ""}` : "";
   const plan = st.mode === "build" && t.target && !t.action.includes(t.target) ? ` · plan <b>${esc(t.target)}</b>` : "";
-  $("#labTreeSum").innerHTML = `${st.mode === "build" ? "Does" : "Chooses"} <b>${esc(t.action)}</b>${plan}${sc}`;
+  $("#labTreeSum").innerHTML = `${t.rules && st.mode === "build" ? "Fires" : st.mode === "build" ? "Does" : "Chooses"} <b>${esc(t.action)}</b>${plan}${sc}`;
   $("#labTreeEq").textContent = t.eq || "";
   const rows = [];
   treeRows(t.root, 0, rows, 0);
   $("#labTree").innerHTML = rows.join("");
   view?._labFocus(tree.sel ? findNode(t.root, tree.sel)?.focus || null : null);
 }
+// ── step through: the same decision as an ordered sequence; the board follows the current step ──
+const steps = { cur: 0, timer: 0, cyc: 0, cycI: 0 };
+function stopPlay() { clearInterval(steps.timer); steps.timer = 0; }
+function stepOverlay(t) {
+  clearInterval(steps.cyc); steps.cyc = 0;
+  const s = t?.steps?.[steps.cur];
+  if (!s || !view) return;
+  const pid = st.seat;
+  view._labOverlay(s.overlay || {}, pid);
+  // a step that looks at several candidates rings them one by one
+  if (s.cycle?.length > 1 && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    steps.cycI = 0;
+    const tick = () => { view._labOverlay({ ...(s.overlay || {}), focus: s.cycle[steps.cycI % s.cycle.length] }, pid); steps.cycI += 1; };
+    tick();
+    steps.cyc = setInterval(tick, 900);
+  }
+}
+function renderSteps(t) {
+  $("#labTree").hidden = true;
+  const el = $("#labSteps");
+  el.hidden = false;
+  const S = t?.steps || [];
+  if (!S.length) { el.innerHTML = `<p class="lb-note">No steps for this position.</p>`; return; }
+  steps.cur = Math.min(steps.cur, S.length - 1);
+  el.innerHTML = `${stepsHtml(S, steps.cur)}<div class="lb-snav"><button type="button" class="lb-btn" data-sn="prev"${steps.cur ? "" : " disabled"}>‹ Prev</button><button type="button" class="lb-btn" data-sn="play" aria-pressed="${!!steps.timer}">${steps.timer ? "Pause" : "Play"}</button><button type="button" class="lb-btn" data-sn="next"${steps.cur < S.length - 1 ? "" : " disabled"}>Next ›</button></div>`;
+  stepOverlay(t);
+}
+function onStepsTap(e) {
+  const t = tree.data;
+  if (!t?.steps) return;
+  const go = (i) => { steps.cur = Math.max(0, Math.min(t.steps.length - 1, i)); renderSteps(t); };
+  const h = e.target.closest(".sx-head");
+  if (h) { stopPlay(); go(Number(h.dataset.step)); return; }
+  const b = e.target.closest("[data-sn]");
+  if (!b) return;
+  if (b.dataset.sn === "prev") { stopPlay(); go(steps.cur - 1); }
+  else if (b.dataset.sn === "next") { stopPlay(); go(steps.cur + 1); }
+  else if (steps.timer) { stopPlay(); renderSteps(t); }
+  else {
+    if (steps.cur >= t.steps.length - 1) steps.cur = 0;
+    steps.timer = setInterval(() => { if (steps.cur >= t.steps.length - 1) { stopPlay(); renderSteps(t); return; } go(steps.cur + 1); }, 2200);
+    renderSteps(t);
+  }
+  $(`#labSteps [data-sn="${b.dataset.sn}"]`)?.focus({ preventScroll: true });
+}
+
 function onTreeTap(e) {
   const b = e.target.closest(".lt-hit");
   if (!b || !tree.data) return;
@@ -541,6 +605,7 @@ function setPane(p) {
   $("#labRun").addEventListener("click", () => runTournament());
   $("#labWatch").addEventListener("click", (e) => { if (e.target.closest(".lb-wstop")) sim.running = false; });
   $("#labTree").addEventListener("click", onTreeTap);
+  $("#labSteps").addEventListener("click", onStepsTap);
   $("#labCalcBtn").addEventListener("click", () => { const el = $("#labCalc"); el.hidden = !el.hidden; if (!el.hidden) renderCalc(); renderCalcHead(); });
   document.querySelectorAll("#labPanes button").forEach((b) => b.addEventListener("click", () => setPane(b.dataset.pane)));
   $("#labPanes").addEventListener("keydown", (e) => {
@@ -551,5 +616,5 @@ function setPane(p) {
   setPane(st.pane === "tournament" ? "tournament" : "analysis");
   await newBoard();
   renderHist();
-  window.__lab = { ready: true, st, W: () => W, runTournament, runGames: (n) => runTournament({ n }), newBoard, update, view: () => view, sim, hist, tree, setPane, myBot };
+  window.__lab = { ready: true, steps, st, W: () => W, runTournament, runGames: (n) => runTournament({ n }), newBoard, update, view: () => view, sim, hist, tree, setPane, myBot };
 })();

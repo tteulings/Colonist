@@ -14,6 +14,7 @@ import { StatsUiMixin } from "./stats-ui.js"; // … the stats screen, heatmaps 
 import { LiveStatsMixin, installLiveStats } from "./live-stats.js"; // … and the same cards during the game
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
+import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS, SHIP_COST } from "./seafarers/index.js";
@@ -139,8 +140,11 @@ const AI_STRATEGY_CATEGORIES = {
   },
 };
 
+// v0.87 "simple": a rulebook bot (src/ai-rules.js), not the score formula: policy "rules" (its five dials
+// are only what the new-game screen shows; changing one makes it a scoring bot again)
 const AI_PRESETS = {
   beginner:     { placement: "simple",  expansion: "simple",  trading: "conservative", devCards: "reactive",  awareness: "none" },
+  simple:       { placement: "simple",  expansion: "simple",  trading: "conservative", devCards: "reactive",  awareness: "none", policy: "rules" },
   intermediate: { placement: "medium",  expansion: "medium",  trading: "balanced",     devCards: "reactive",  awareness: "basic" },
   expert:       { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced" },
   trader:       { placement: "medium",  expansion: "medium",  trading: "aggressive",   devCards: "reactive",  awareness: "basic" },
@@ -151,6 +155,7 @@ const AI_PRESETS = {
 // Player-facing names, short taglines and badge glyphs for the presets ("custom" = hand-tuned mix)
 const AI_PRESET_INFO = {
   beginner:     { label: "Beginner",     tagline: "gentle, learns rules", glyph: "" },
+  simple:       { label: "Simple",       tagline: "plays by 7 rules",     glyph: "", isNew: true },
   intermediate: { label: "Intermediate", tagline: "solid all-rounder",    glyph: "" },
   expert:       { label: "Expert",       tagline: "plays to win",         glyph: "" },
   trader:       { label: "Trader",       tagline: "deals all game",       glyph: "\u21c4", isNew: true },
@@ -304,7 +309,7 @@ function seatSpec(s, id) {
 function presetForStrategy(strategy) {
   if (!strategy) return null;
   const keys = Object.keys(AI_STRATEGY_CATEGORIES);
-  const match = Object.entries(AI_PRESETS).find(([, p]) => keys.every((k) => p[k] === strategy[k]));
+  const match = Object.entries(AI_PRESETS).find(([, p]) => keys.every((k) => p[k] === strategy[k]) && (p.policy || "score") === (strategy.policy || "score"));
   return match ? match[0] : "custom";
 }
 
@@ -2995,6 +3000,7 @@ class ColonistFullGame {
   // Bot discard: drop the cards that hurt its build plan least (keeps the cards for the build
   // closest to completion / its current goal; surplus it could trade away goes first).
   _autoDiscard(player, count) {
+    if (isRulesBot(player)) return this._rulesDiscard(player, count); // v0.87 Simple: what it has most of
     const selected = makeEmptyResources();
     const hand = copyResources(player.resources);
     let plan = null;
@@ -3108,6 +3114,7 @@ class ColonistFullGame {
   //   advanced: hunts the public VP leader (hard when near the win)
   chooseRobberHex(currentPlayer) {
     if (this.sea && !this.sea._evalRobber) return this.sea.chooseThiefHex(currentPlayer); // ⚓ robber or pirate
+    if (isRulesBot(currentPlayer)) return this._rulesRobber(currentPlayer).pick?.id ?? this.robberHexId; // v0.87 Simple: the leader's best tile
     const legal = this._legalRobberHexes(currentPlayer);
     let bestHex = legal[0]?.id ?? this.robberHexId;
     let bestScore = Number.NEGATIVE_INFINITY;
@@ -3166,6 +3173,7 @@ class ColonistFullGame {
   // Who to steal from: none = random; basic = biggest hand; advanced = leader / likeliest useful card
   // (public card-count estimates only — never the hidden hands).
   _aiChooseVictim(currentPlayer, victims) {
+    if (isRulesBot(currentPlayer) && victims.length) return this._rulesLeader(currentPlayer, victims).id; // v0.87 Simple: the leader
     const awareness = this._aiStrat(currentPlayer).awareness;
     if (victims.length <= 1 || awareness === "none") return victims[Math.floor(Math.random() * victims.length)];
     const handSize = (id) => sumResources(this.players[id].resources);
@@ -3860,6 +3868,7 @@ class ColonistFullGame {
   // The bot's verdict on a deal: { ok, why, before, after } (plan scores before / after the swap).
   _aiTradeVerdict(aiPlayer, theyGive, theyWant, proposer = this.currentPlayer) {
     const no = (why, extra = {}) => ({ ok: false, why, ...extra });
+    if (isRulesBot(aiPlayer)) return this._rulesTradeVerdict(aiPlayer, theyGive, theyWant); // v0.87 Simple
     const strat = this._aiStrat(aiPlayer);
     if (strat.trading === "none" || strat.trading === "conservative") return no("doesn't deal with players");
     if (RESOURCES.some((r) => aiPlayer.resources[r] < (theyWant[r] || 0))) return no("doesn't have the cards");
@@ -3939,6 +3948,7 @@ class ColonistFullGame {
   // `dry` (AI Lab decision tree): every partner answers as a bot and nothing is exchanged; the result says
   // who would take which offer.
   _aiTryPlayerTrade(aiPlayer, { botsOnly = false, dry = false } = {}, log = null) {
+    if (isRulesBot(aiPlayer)) return null; // v0.87 Simple: never offers
     const strat = this._aiStrat(aiPlayer).trading;
     if (strat === "none" || strat === "conservative") return null;
     const plan = this._aiPlan(aiPlayer);
@@ -4524,6 +4534,7 @@ class ColonistFullGame {
   // Ordered action functions; each returns true when it did something. Rush calls them one per tick.
   // expansion "simple": fixed order (whatever it can afford first). Otherwise one planned step at a time.
   _getActionPriority(player) {
+    if (isRulesBot(player)) return [() => this._rulesStep(player)]; // v0.87 Simple: the rulebook
     const s = this._aiStrat(player);
     if (s.expansion !== "simple") return [() => this._aiPlannedStep(player)];
     const dev = () => s.devCards !== "none" && this.devDeck.length > 0
@@ -4547,6 +4558,7 @@ class ColonistFullGame {
   }
 
   maybePlayBestDevCard(player) {
+    if (isRulesBot(player)) return false; // v0.87 Simple: only rule 3 (Knight on its own tile)
     const strat = player.strategy?.devCards || "reactive";
     if (strat === "none") return false;
     if ((this.isRush() ? player.rushDevPlayed : this.currentTurnPlayedDevCard) || this.phase !== "main") return false;
@@ -4614,6 +4626,7 @@ class ColonistFullGame {
   // can combine with this roll), unless they hold a progress card to play after the roll.
   maybePlayKnightBeforeRoll(player) {
     if (player.isHuman && !this.autoplayInterval) return false;
+    if (isRulesBot(player)) return false; // v0.87 Simple: the Knight is rule 3 of its turn
     const strat = this._aiStrat(player).devCards;
     if (strat === "none") return false;
     if (!this.canPlayDevelopmentCard(player, "knight")) return false;
@@ -5102,6 +5115,7 @@ class ColonistFullGame {
     const plan = this._aiPlan(player);
     // analysis mode: the plan as the bot sees it now, noted once the step is taken
     const snap = this._aiRec() ? this._aiPlanSnap(player, plan) : null;
+    if (snap) snap.steps = this._aiStepsNow("build", player); // v0.87 Step through (analysis on only)
     const done = (goal, act) => { if (snap) this._aiNotePlan(player, snap, goal, act); return true; };
     if (this.sea && this.sea.aiMoveStep(player, plan)) return done(null, "ship"); // ⚓ a free ship move toward a target
     const [goal, ...rest] = plan.goals;
@@ -5330,6 +5344,7 @@ class ColonistFullGame {
   }
 
   getBestInitialSettlementNode(player) {
+    if (isRulesBot(player)) return this._rulesSetupSpot(player)?.id ?? null; // v0.87 Simple: most pips
     let bestNodeId = null;
     let bestScore = Number.NEGATIVE_INFINITY;
     this._aiSetupCandidates(player).forEach(({ id, score }) => {
@@ -5342,6 +5357,7 @@ class ColonistFullGame {
   }
 
   getBestRoadFromNode(player, nodeId, out = null) {
+    if (isRulesBot(player)) return this._rulesSetupRoad(player, nodeId, out);
     const node = this.geometry.nodes[nodeId];
     let bestEdge = null;
     let bestScore = Number.NEGATIVE_INFINITY;
@@ -8843,6 +8859,7 @@ class ColonistFullGame {
           const raw = t.dataset.value;
           if (key.startsWith("dim:")) {
             d.allStrategy = { ...d.allStrategy, [key.slice(4)]: raw };
+            delete d.allStrategy.policy; // a dial makes it a scoring bot
             d.allPreset = presetForStrategy(d.allStrategy);
           } else {
             const prevBots = d.numBots;
@@ -8915,7 +8932,7 @@ class ColonistFullGame {
       btn.textContent = AI_PRESET_INFO[name].label;
       btn.addEventListener("click", () => {
         this.players.forEach(p => {
-          if (p.strategy) Object.assign(p.strategy, preset);
+          if (p.strategy) { delete p.strategy.policy; Object.assign(p.strategy, preset); }
         });
         this._saveStrategies();
         this._buildStrategyUI();
@@ -8976,9 +8993,10 @@ class ColonistFullGame {
         hint.textContent = cat.descriptions?.[bot.strategy[key]] || "";
         sel.addEventListener("change", () => {
           if (this._applyAllStrategies) {
-            aiPlayers.forEach(p => { p.strategy[key] = sel.value; });
+            aiPlayers.forEach(p => { p.strategy[key] = sel.value; delete p.strategy.policy; });
           } else {
             bot.strategy[key] = sel.value;
+            delete bot.strategy.policy;
           }
           hint.textContent = cat.descriptions?.[sel.value] || "";
           this._saveStrategies();
@@ -10521,7 +10539,7 @@ class ColonistFullGame {
 }
 
 // 5–6 players: Special Building Phase engine + bots (src/six.js) and its UI (src/six-ui.js)
-Object.assign(ColonistFullGame.prototype, SbpMixin, SixUiMixin, AnalysisMixin, LabMixin, TreeMixin);
+Object.assign(ColonistFullGame.prototype, SbpMixin, SixUiMixin, AnalysisMixin, LabMixin, TreeMixin, RulesMixin);
 // AI Lab (lab.html): settings + bot tables for its engine iframes
 ColonistFullGame.labHelpers = { normalizeSettings, DEFAULT_SETTINGS, AI_PRESETS, AI_PRESET_INFO, AI_STRATEGY_CATEGORIES, AI_LEVEL_LABEL, AI_PLAN_WEIGHTS, AI_WEIGHT_KEYS };
 Object.assign(ColonistFullGame.prototype, SeaGame); // ⚓ Seafarers game-side methods (src/seafarers/ui.js)

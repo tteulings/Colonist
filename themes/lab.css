@@ -185,3 +185,15 @@ body.lab[data-pane="tournament"] .lb-only-a, body.lab[data-pane="analysis"] .lb-
   .lb-boardcol { top: 76px; }
   .lb-board { scroll-margin-top: 76px; }
 }
+/* v0.87 Simple bot: rulebook checklist (panel + tree), step-by-step nav */
+.lt-ok { width: 18px; text-align: center; font-weight: 800; font-size: 12px; }
+.lt-ok.y { color: var(--good, #4F8A33); }
+.lt-ok.n, .lt-ok.q { color: var(--ink-soft); }
+.lb-rules { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 1px; font-size: 12px; }
+.lb-rules li { display: grid; grid-template-columns: 14px auto minmax(0, 1fr); gap: 6px; align-items: baseline; padding: 3px 6px; border-radius: 7px; color: var(--ink-soft); }
+.lb-rules li span { overflow-wrap: anywhere; }
+.lb-rules li.fired { color: var(--ink); font-weight: 700; background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.lb-stepsbox { display: grid; gap: 8px; }
+.lb-snav { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.lb-snav .lb-btn { min-height: 38px; }
+.lb-snav .lb-btn:disabled { opacity: .45; }
