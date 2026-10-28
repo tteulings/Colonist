@@ -197,3 +197,31 @@ body.lab[data-pane="tournament"] .lb-only-a, body.lab[data-pane="analysis"] .lb-
 .lb-snav { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
 .lb-snav .lb-btn { min-height: 38px; }
 .lb-snav .lb-btn:disabled { opacity: .45; }
+
+/* ── v0.87 review round 1 ── */
+/* Step by step: a smaller board pinned under the top bar, the step strip under it, one step card below */
+.lb-stepstrip { margin-top: 6px; }
+body.lb-stepping .lb-boardcol { position: sticky; top: var(--lb-top, 104px); z-index: 2; background: var(--bg); padding-bottom: 6px; margin: 0 -8px; padding-left: 8px; padding-right: 8px; box-shadow: 0 8px 10px -8px rgba(0,0,0,.18); }
+body.lb-stepping .lb-board { height: 220px; }
+body.lb-stepping .lb-tools, body.lb-stepping #labResult { display: none; }
+@media (min-width: 900px) { body.lb-stepping .lb-boardcol { top: 76px; margin: 0; padding: 0; box-shadow: none; } body.lb-stepping .lb-board { height: min(62vh, 560px); } }
+.lb-toolrow { display: flex; gap: 6px; align-items: stretch; }
+.lb-toolrow .lb-toolseg { flex: 1; min-width: 0; }
+.lb-boardbtn { min-height: 36px; padding: 0 10px; font-size: 12px; flex: none; }
+.lb-sheet { border: 0; padding: 0; background: none; width: min(560px, calc(100vw - 16px)); max-height: calc(100vh - 24px); margin: auto auto 8px; }
+.lb-sheet::backdrop { background: var(--scrim, rgba(24,40,42,.42)); }
+.lb-sheet .lb-card { box-shadow: var(--float-shadow); }
+/* light slider tracks */
+.lb-sl input[type="range"] { -webkit-appearance: none; appearance: none; background: none; }
+.lb-sl input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--sep, #E6DDCB); }
+.lb-sl input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--sep, #E6DDCB); }
+.lb-sl input[type="range"]::-moz-range-progress { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--accent) 55%, transparent); }
+.lb-sl input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--btn, #fff); border: 2px solid var(--accent); margin-top: -7px; box-shadow: var(--btn-shadow); }
+.lb-sl input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--btn, #fff); border: 2px solid var(--accent); }
+/* stacked term bars in the tree */
+.lt-bar.stk { display: flex; gap: 1px; background: var(--sep, rgba(0,0,0,.08)); }
+.lt-bar.stk i { position: static; height: 100%; border-radius: 0; opacity: .9; }
+/* minimum 11 px text */
+.lt-tag { font-size: 11px; letter-spacing: .02em; padding: 1px 5px; }
+.lt-w, .lb-tagp, .lb-kpi span, .lb-grp, .lb-sl label small, .lb-d .l, .lb-alts span, .lb-st .hd, .lt-l small, .lt-eq, .lb-hr .ds small, .lb-st .nm small, .lb-diff, .lb-fine, .lt-head small { font-size: 11px; }
+.lb-d .v { font-size: 11px; }

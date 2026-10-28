@@ -193,7 +193,7 @@ const AI_LEVEL_PLAIN = {
     advanced: "targets the leader, counts cards in the open and shifts gear near the end.",
   },
 };
-const AI_LEVEL_LABEL = { conservative: "Careful", aggressive: "Eager" };
+const AI_LEVEL_LABEL = { conservative: "Careful", aggressive: "Eager", simple: "Basic" }; // v0.87: "Basic", so the level never reads like the Simple bot
 const AI_DIMENSION_HINT = {
   placement: "where it settles", expansion: "how it grows", trading: "how deal-happy",
   devCards: "knights, monopoly…", awareness: "watches others",

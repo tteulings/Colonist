@@ -47,9 +47,10 @@
           <div class="lb-busy" id="labBusy">Loading board…</div>
           <div class="lb-watch" id="labWatch" aria-live="off" hidden></div>
         </div>
+        <div class="lb-stepstrip" id="labStepStrip" hidden></div>
         <div class="lb-tools lb-only-a" role="toolbar" aria-label="Pieces">
           <div class="lb-seats" id="labSeats" role="radiogroup" aria-label="Seat"></div>
-          <div class="lb-seg lb-toolseg" id="labTools" role="radiogroup" aria-label="Tool"></div>
+          <div class="lb-toolrow"><div class="lb-seg lb-toolseg" id="labTools" role="radiogroup" aria-label="Tool"></div><button type="button" class="lb-btn lb-boardbtn" id="labBoardBtn" aria-haspopup="dialog" aria-controls="labBoardSheet">Board…</button></div>
         </div>
       </section>
       <section class="lb-col lb-only-a" id="paneAnalysis" role="tabpanel" aria-labelledby="tabAnalysis">
@@ -74,15 +75,6 @@
             <div id="labCalc" hidden></div>
           </div>
         </div>
-        <div class="lb-card">
-          <div class="lt-head"><h2>Board</h2></div>
-          <div class="lb-row"><span>Board</span><div class="lb-seg" id="labMap" role="radiogroup" aria-label="Board"></div></div>
-          <div class="lb-row lb-seedrow" id="labSeedRow" hidden><span>Seed</span><input id="labSeed" type="number" inputmode="numeric" value="42" min="0" aria-label="Seed" /></div>
-          <div class="lb-row"><span>Players</span><div class="lb-seg" id="labPlayers" role="radiogroup" aria-label="Players"></div></div>
-          <div class="lb-row"><span>Pieces</span><div class="lb-seg" id="labPieces" role="radiogroup" aria-label="Pieces on the board"></div></div>
-          <div class="lb-row"><span>Hand</span><div class="lb-seg" id="labHand" role="radiogroup" aria-label="Bot's hand"></div></div>
-          <button type="button" class="lb-btn" id="labNew">New board</button>
-        </div>
       </section>
       <section class="lb-col lb-only-t" id="paneTournament" role="tabpanel" aria-labelledby="tabTournament" hidden>
         <div class="lb-card lb-tsetup" id="labLineupCard">
@@ -103,6 +95,17 @@
         <div class="lb-card" id="labHist" hidden></div>
       </section>
     </main>
+    <dialog class="lb-sheet" id="labBoardSheet" aria-label="Board settings">
+      <div class="lb-card">
+          <div class="lt-head"><h2>Board</h2><button type="button" class="lb-link" id="labBoardClose">Done</button></div>
+          <div class="lb-row"><span>Board</span><div class="lb-seg" id="labMap" role="radiogroup" aria-label="Board"></div></div>
+          <div class="lb-row lb-seedrow" id="labSeedRow" hidden><span>Seed</span><input id="labSeed" type="number" inputmode="numeric" value="42" min="0" aria-label="Seed" /></div>
+          <div class="lb-row"><span>Players</span><div class="lb-seg" id="labPlayers" role="radiogroup" aria-label="Players"></div></div>
+          <div class="lb-row"><span>Pieces</span><div class="lb-seg" id="labPieces" role="radiogroup" aria-label="Pieces on the board"></div></div>
+          <div class="lb-row"><span>Hand</span><div class="lb-seg" id="labHand" role="radiogroup" aria-label="Bot's hand"></div></div>
+          <button type="button" class="lb-btn" id="labNew">New board</button>
+        </div>
+    </dialog>
     <iframe id="labSim" title="Quick games" hidden tabindex="-1"></iframe>
     <script type="module" src="./src/lab.js?v=87"></script>
   </body>

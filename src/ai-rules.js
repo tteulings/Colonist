@@ -29,7 +29,7 @@ export const RULES = [
   [4, "Road", "can build a road and no free spot on its roads → toward the nearest"],
   [5, "Dev card", "can buy a dev card → buy it"],
   [6, "Bank trade", "one trade completes a city or settlement → trade"],
-  [7, "End turn", "nothing else matched"],
+  [7, "End turn", "if nothing matched"],
 ];
 
 export const RulesMixin = {
@@ -159,7 +159,7 @@ export const RulesMixin = {
       if (!t.trade) push(6, false, t.why);
       else if (push(6, true, `${t.rate} ${RES_LABEL[t.give]} → 1 ${RES_LABEL[t.get]} completes a ${t.goal}`, () => this.performBankTrade(player, t.give, t.get))) return out;
     }
-    push(7, true, "nothing else matched: ends the turn");
+    push(7, true, "nothing matched: ends the turn");
     return out;
   },
 

@@ -9,7 +9,7 @@
 //
 // The AI Lab (lab.html) uses the same explain functions + overlay on its own board (see _lab*).
 
-import { stepsHtml } from "./ai-tree.js";
+import { stepStripHtml, stepCardHtml } from "./ai-tree.js";
 
 export const AI_DIMS = [
   ["placement", "Placement"], ["expansion", "Expansion"], ["trading", "Trading"], ["devCards", "Dev Cards"], ["awareness", "Awareness"],
@@ -124,7 +124,7 @@ export const AnalysisMixin = {
       const b = this._rulesSetupSpot(player);
       if (!b) return null;
       const alts = ids.filter((id) => id !== b.id).map((id) => ({ id, s: this._rulesPips(id) })).sort((x, y) => y.s - x.s).slice(0, 3).map((c) => ({ label: `Spot ${this._spotLabel(c.id)}`, score: c.s }));
-      return { kind: "setup", pid: player.id, title: "Settlement · most pips", score: b.pips, dims: dims0(), alts, rules: null,
+      return { kind: "setup", pid: player.id, title: "Settlement · most pips", score: b.pips, dims: dims0(), alts, rules: null, fmt: "int",
         note: `Rule: most pips (${b.pips}), tie → more resources (${b.kinds})`, nodes: ids.map((id) => ({ id, s: this._rulesPips(id) })), pick: { node: b.id } };
     }
     const cands = this._aiSetupCandidates(player);
@@ -135,7 +135,7 @@ export const AnalysisMixin = {
     const alts = cands.filter((c) => c.id !== best.id).sort((x, y) => y.score - x.score).slice(0, 3)
       .map((c) => ({ label: `Spot ${this._spotLabel(c.id)}`, score: c.score }));
     return { kind: "setup", pid: player.id, title: "Settlement", score: best.score, dims, alts,
-      note: `Best of ${cands.length} spots`, nodes: cands.map((c) => ({ id: c.id, s: c.score })), pick: { node: best.id } };
+      note: `Best: Spot ${this._spotLabel(best.id)} of ${cands.length} spots`, nodes: cands.map((c) => ({ id: c.id, s: c.score })), pick: { node: best.id } };
   },
 
   _aiNoteSetup(player, nodeId) {
@@ -164,7 +164,7 @@ export const AnalysisMixin = {
       const r = this._rulesRobber(player);
       if (!r.pick) return null;
       const pick = chosen != null ? r.cands.find((c) => c.id === chosen) || r.pick : r.pick;
-      return { kind: "robber", pid: player.id, title: "Robber · leader's best tile", score: pick.lead, dims: dims0(), alts: [],
+      return { kind: "robber", pid: player.id, title: "Robber · leader's best tile", score: pick.lead, dims: dims0(), alts: [], fmt: "int",
         note: `Rule: the leader (${r.leader?.name || "–"})'s tile with the most pips, never its own · steals from the leader`,
         hexes: r.cands.filter((c) => !c.own).map((c) => ({ id: c.id, s: c.lead, dmg: c.lead ? c.lead / 36 * 10 : null })), pick: { hex: pick.id } };
     }
@@ -399,7 +399,7 @@ export const AnalysisMixin = {
     const a = this.analysis;
     if (!a || !this.geometry) return null;
     if (a.lab) return a.lab;
-    if (a.stepView && a.on) { const sv = a.stepView, st = sv.steps[sv.cur]; return { kind: "step", pid: sv.pid, ...(st?.overlay || {}) }; } // v0.87 Step through
+    if (a.stepView && a.on) { const sv = a.stepView, st = sv.steps[sv.cur], row = sv.sel != null ? st?.rows?.[sv.sel] : null; return { kind: "step", pid: sv.pid, ...(st?.overlay || {}), ...(row?.focus ? { focus: row.focus } : {}) }; } // v0.87 Step through
     if (!a.on || !a.last || this.winner) return null;
     const cp = this.currentPlayer;
     // Your own turn (not watching bots play): your board stays clean
@@ -438,6 +438,8 @@ export const AnalysisMixin = {
       ctx.fillStyle = "#fff"; ctx.fillText(text, x, y);
     };
     const pick = d.pick || {};
+    // v0.87: two decimals (0.68 and 0.65 must not both read 0.7); whole numbers for pips
+    const sval = (v) => (d.fmt === "int" ? String(Math.round(v)) : Math.abs(v) >= 10 ? fmt(v) : v.toFixed(2));
     ctx.save();
     // robber tiles: a soft shade by score, the expected damage under the number token
     if (d.hexes?.length) {
@@ -452,7 +454,7 @@ export const AnalysisMixin = {
         ctx.fillStyle = `rgba(28,24,40,${0.06 + 0.26 * k})`;
         ctx.fill();
         if (h.id === pick.hex) { ctx.lineWidth = 3 * px; ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.stroke(); }
-        if (h.dmg != null && ((top.has(h.id) && h.dmg > 0.05) || h.id === pick.hex)) label(hex.center.x, hex.center.y + hs * 0.5, `−${fmt(h.dmg)}`, h.id === pick.hex);
+        if (!d.noLabels && h.dmg != null && ((top.has(h.id) && h.dmg > 0.05) || h.id === pick.hex)) label(hex.center.x, hex.center.y + hs * 0.5, `−${fmt(h.dmg)}`, h.id === pick.hex);
       });
     }
     // road candidates: faint dashed lines, the chosen one brighter
@@ -495,7 +497,32 @@ export const AnalysisMixin = {
           ctx.lineWidth = 4.5 * px; ctx.strokeStyle = "rgba(20,32,44,.35)"; ctx.stroke();
           ctx.lineWidth = 2.5 * px; ctx.strokeStyle = "#fff"; ctx.stroke();
         }
-        if ((chosen || numbered.has(s.id)) && Number.isFinite(s.s) && d.kind !== "setupRoad") label(n.x, n.y - (s.city ? hs * 0.3 : 0), fmt(s.s), chosen);
+        if ((chosen || numbered.has(s.id)) && Number.isFinite(s.s) && d.kind !== "setupRoad" && !d.noLabels) label(n.x, n.y - (s.city ? hs * 0.3 : 0), sval(s.s), chosen);
+      });
+    }
+    // v0.87 step through: lettered / numbered badges (A, B… candidates; 1, 2 winner and runner-up; pills
+    // like "Town" or "2:1") at a node, city, edge or tile
+    if (d.badges?.length) {
+      const at = (b) => {
+        if (b.hex != null && g.hexes[b.hex]) return { x: g.hexes[b.hex].center.x, y: g.hexes[b.hex].center.y - hs * 0.42 };
+        const nid = b.node ?? b.city;
+        if (nid != null && g.nodes[nid]) return { x: g.nodes[nid].x, y: g.nodes[nid].y - hs * (b.pill ? 0.36 : 0.32) };
+        if (b.edge != null && g.edges[b.edge]) { const [a, c] = g.edges[b.edge].nodes.map((n) => g.nodes[n]); return { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 }; }
+        return null;
+      };
+      d.badges.forEach((b) => {
+        const p = at(b);
+        if (!p) return;
+        ctx.font = `800 ${11.5 * px}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        const w = Math.max(18 * px, ctx.measureText(b.text).width + 10 * px), h = 18 * px;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(p.x - w / 2, p.y - h / 2, w, h, h / 2); else ctx.arc(p.x, p.y, h / 2, 0, Math.PI * 2);
+        ctx.fillStyle = b.tone === "alt" ? "rgba(255,255,255,.96)" : b.tone === "dim" ? "rgba(40,48,56,.82)" : color;
+        ctx.shadowColor = "rgba(0,0,0,.35)"; ctx.shadowBlur = 4 * px; ctx.fill(); ctx.shadowBlur = 0;
+        ctx.lineWidth = 1.6 * px; ctx.strokeStyle = b.tone === "alt" ? color : "rgba(255,255,255,.95)"; ctx.stroke();
+        ctx.fillStyle = b.tone === "alt" ? "#22302F" : "#fff";
+        ctx.fillText(b.text, p.x, p.y + 0.5 * px);
       });
     }
     // v0.87 lab: the candidate tapped in the decision tree, a dashed ring in the bot's colour
@@ -550,10 +577,11 @@ export const AnalysisMixin = {
           this._renderAnalysis(); this.requestBoardDraw?.();
         } else if (k === "sprev" || k === "snext") {
           const sv = a.stepView; if (!sv) return;
-          sv.cur = Math.max(0, Math.min(sv.steps.length - 1, sv.cur + (k === "snext" ? 1 : -1)));
+          sv.cur = Math.max(0, Math.min(sv.steps.length - 1, sv.cur + (k === "snext" ? 1 : -1))); sv.sel = null;
           this._renderAnalysis(); this.requestBoardDraw?.();
         } else if (k === "sclose") { a.stepView = null; this._renderAnalysis(); this.requestBoardDraw?.(); }
-        else if (k === "sgo") { const sv = a.stepView; if (sv) { sv.cur = Number(b.dataset.step) || 0; this._renderAnalysis(); this.requestBoardDraw?.(); } }
+        else if (k === "sgo") { const sv = a.stepView; if (sv) { sv.cur = Number(b.dataset.step) || 0; sv.sel = null; this._renderAnalysis(); this.requestBoardDraw?.(); } }
+        else if (k === "srow") { const sv = a.stepView; if (sv) { const i = Number(b.dataset.row); sv.sel = sv.sel === i ? null : i; this._renderAnalysis(); this.requestBoardDraw?.(); } }
         else if (k === "min") {
           a.min = !a.min;
           try { localStorage.setItem(MIN_KEY, a.min ? "1" : "0"); } catch (_) { /* ignore */ }
@@ -578,7 +606,7 @@ export const AnalysisMixin = {
     let body = "";
     if (a.stepView && !a.min) {
       const sv = a.stepView;
-      body += `<div class="aip-steps"><div class="aip-shead"><b>${esc(sv.title || "Decision")}</b> · step ${sv.cur + 1} of ${sv.steps.length}<button type="button" data-ai="sclose" class="aip-slink">Close</button></div>${stepsHtml(sv.steps, sv.cur).replace(/class="sx-head" data-step="(\d+)"/g, 'class="sx-head" data-ai="sgo" data-step="$1"')}
+      body += `<div class="aip-steps"><div class="aip-shead">${stepStripHtml(sv.steps, sv.cur).replace(/data-step="/g, 'data-ai="sgo" data-step="')}<button type="button" data-ai="sclose" class="aip-slink">Close</button></div>${stepCardHtml(sv.steps, sv.cur, sv.sel ?? null).replace(/data-row="/g, 'data-ai="srow" data-row="')}
         <div class="aip-snav"><button type="button" data-ai="sprev"${sv.cur ? "" : " disabled"}>‹ Prev</button><button type="button" data-ai="snext"${sv.cur < sv.steps.length - 1 ? "" : " disabled"}>Next ›</button></div></div>`;
     } else if (d && !a.min && d.rules) {
       // v0.87 Simple bot: its rulebook as a checklist, the rule that fired lit
@@ -863,6 +891,9 @@ export const LabMixin = {
       "_animateCardDeal", "animateResourceGain", "_flashPrompt"].forEach((k) => { this[k] = noop; });
     this.sfx = new Proxy({}, { get: () => noop });
     this._later = (fn) => { fn(); return 0; };
+    // v0.87: no board art in the headless frame (it re-baked the island for every game: ~150 ms of
+    // main-thread work per tournament game, which froze the lab page)
+    this.boardRenderer = null;
     const addLog = this.addLog.bind(this);
     this.addLog = (t, m) => { if (this.logEntries.length > 300) this.logEntries.splice(0, 200); return addLog(t, m); };
   },

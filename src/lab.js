@@ -9,7 +9,7 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepsHtml } from "./ai-tree.js?v=87";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR } from "./ai-tree.js?v=87";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -31,9 +31,9 @@ const TSEATS = [["rotate", "Rotate"], ["fixed", "Fixed"]];
 // The Calculation weights (multipliers on the bot's own score terms, see AI_WEIGHT_KEYS in game.js)
 const WEIGHTS = [
   ["Placement", [["num", "Number strength", "value of 6 / 8 over 2 / 12"], ["variety", "Resource variety", "bonus per different resource"], ["scarcity", "Scarcity", "resources it lacks or the board lacks count more"]]],
-  ["Trading", [["port", "Port value", "3:1 and matching 2:1 harbours"], ["margin", "Deal margin", "gain needed to accept a player deal", true]]],
+  ["Trading", [["port", "Port value", "3:1 and matching 2:1 harbours"], ["margin", "Deal margin", "gain needed to accept a deal (8%, Eager 3%)", true]]],
   ["Expansion", [["road", "Road distance", "penalty per road to reach a spot"], ["prod", "Production vs points", "long-term income against a VP now"], ["patience", "Patience", "wait for a bigger build vs build now"]]],
-  ["Dev cards", [["card", "Card value", "what one card is worth in VP"]]],
+  ["Dev cards", [["card", "Card value", "what one card is worth (0.85 points)"]]],
   ["Awareness", [["leader", "Leader targeting", "robber and steals lean on the leader"]]],
 ];
 const WNAME = Object.fromEntries(WEIGHTS.flatMap(([, ws]) => ws.map(([k, l]) => [k, l])));
@@ -105,6 +105,7 @@ function renderControls() {
   const presetItems = PRESETS.map((p) => [p, H.AI_PRESET_INFO[p].label]);
   if (st.preset === "custom") presetItems.push(["custom", "Custom"]);
   seg($("#labPreset"), presetItems, st.preset, "preset", (v) => { if (v === "custom") return; st.preset = v; st.strat = { ...H.AI_PRESETS[v] }; update(); });
+  $("#labDims").hidden = isRules(); // Simple: a rulebook, the five dials don't apply
   $("#labDims").innerHTML = DIMS.map(([k, l]) => `<div class="lb-row lb-dim"><span title="${esc(H.AI_STRATEGY_CATEGORIES[k].descriptions[st.strat[k]])}">${l}</span><div class="lb-seg" data-dim="${k}" role="radiogroup" aria-label="${l}"></div></div>`).join("");
   DIMS.forEach(([k]) => seg($(`[data-dim="${k}"]`), H.AI_STRATEGY_CATEGORIES[k].levels.map((lv) => [lv, levelLabel(lv)]), st.strat[k], "lv", (v) => {
     st.strat = { ...st.strat, [k]: v };
@@ -128,6 +129,8 @@ function renderControls() {
 // Calculation: one slider per weight (×multiplier on the real term; Reset restores the exact defaults)
 function wValue(k) {
   const m = W[k] ?? 1;
+  return xfmt(m); // v0.87 review: every weight reads as a multiplier (the subtitle names the base value)
+  // eslint-disable-next-line no-unreachable
   if (k === "margin") {
     const t = st.strat.trading;
     if (t === "none" || t === "conservative") return `${xfmt(m)}`;
@@ -176,7 +179,6 @@ function update() {
   if (!view || sim.watching) return; // the board shows a tournament game: your board (and its scores) come back afterwards
   if (!view.players[st.seat]) st.seat = view.players.length > 1 ? 1 : 0;
   if (st.pane !== "analysis") { view.analysis.lab = null; view.requestBoardDraw(); return; } // Tournament: a clean board
-  clearInterval(steps.cyc); steps.cyc = 0;
   const r = view._labExplain(st.mode, st.seat, myBot());
   const p = view.players[st.seat];
   const out = $("#labResult");
@@ -190,7 +192,7 @@ function update() {
   }
   const vals = DIMS.map(([k]) => r.dims?.[k] || 0);
   const max = Math.max(0.5, ...vals.map(Math.abs));
-  out.innerHTML = `<div class="lb-rhead"><i class="lb-dot" style="background:${p.color}"></i><b>${esc(p.name)} · ${esc(r.title)}</b><span class="lb-sc" title="${UNIT}">${fmt(r.score)}</span></div>
+  out.innerHTML = `<div class="lb-rhead"><i class="lb-dot" style="background:${p.color}"></i><b>${esc(p.name)} · ${esc(r.title)}</b><span class="lb-sc" title="${UNIT}">${f2(r.score)}</span></div>
     <div class="lb-bars" title="${UNIT}">${DIMS.map(([, l], i) => `<span class="lb-d${Math.abs(vals[i]) < 0.05 ? " zero" : ""}"><span class="l">${l}</span><span class="bar${vals[i] < 0 ? " neg" : ""}"><i style="width:${Math.round((Math.abs(vals[i]) / max) * 100)}%;background:${vals[i] < 0 ? "" : p.color}"></i></span><span class="v">${Math.abs(vals[i]) < 0.05 ? "–" : fmt(vals[i])}</span></span>`).join("")}</div>
     ${r.note ? `<p class="lb-note">${esc(r.note)}</p>` : ""}
     ${r.alts?.length ? `<div class="lb-alts" title="Next best (${UNIT})">${r.alts.map((a) => `<span><b>${fmt(a.score)}</b> ${esc(a.label)}</span>`).join("")}</div>` : ""}`;
@@ -210,10 +212,13 @@ function treeRows(n, depth, rows, siblingsMax) {
   if (vt === "score") val = f2(v);
   else if (vt === "signed") val = Math.abs(v) < 0.005 ? "0" : `${v > 0 ? "+" : "−"}${f2(Math.abs(v))}`;
   else if (vt === "div") val = `÷${f2(v)}`;
+  else if (vt === "pips") val = `${Math.round(v)} pips`;
   else if (vt === "none") val = "";
-  const bar = Number.isFinite(n.bar) && siblingsMax > 0 ? `<span class="lt-bar${n.bar < 0 ? " neg" : ""}"><i style="width:${Math.max(3, Math.round((Math.abs(n.bar) / siblingsMax) * 100))}%"></i></span>` : `<span class="lt-bar"></span>`;
+  const col = n.term && TERM_COLOR[n.tk] ? `;background:${TERM_COLOR[n.tk]};opacity:.9` : "";
+  const bar = n.stack?.length && siblingsMax > 0 ? stackHtml(n.stack, siblingsMax).replace("sx-bar stk", "lt-bar stk")
+    : Number.isFinite(n.bar) && siblingsMax > 0 ? `<span class="lt-bar${n.bar < 0 ? " neg" : ""}"><i style="width:${Math.max(3, Math.round((Math.abs(n.bar) / siblingsMax) * 100))}%${n.bar < 0 ? "" : col}"></i></span>` : `<span class="lt-bar"></span>`;
   const wv = n.w ? (W[n.w] ?? 1) : null;
-  const chip = n.w ? `<span class="lt-w${wv !== 1 ? " chg" : ""}" title="${esc(WNAME[n.w])} slider">${esc(WSHORT[n.w])} ${n.w === "card" ? (H.AI_PLAN_WEIGHTS.devCard * wv).toFixed(2) : xfmt(wv)}</span>` : "";
+  const chip = n.w ? `<span class="lt-w${wv !== 1 ? " chg" : ""}" title="${esc(WNAME[n.w])} slider">${esc(WSHORT[n.w])} ${xfmt(wv)}</span>` : "";
   const tagTxt = { chosen: "chosen", plan: "plan", now: "does now", first: "first" }[n.tag];
   const tag = tagTxt ? `<span class="lt-tag ${n.tag}">${tagTxt}</span>` : "";
   const cls = ["lt-row", n.chosen ? "pick" : "", n.off ? "off" : "", n.term ? "lt-term" : "", tree.sel === n.id ? "sel" : "", !kids.length && !n.focus ? "static" : ""].filter(Boolean).join(" ");
@@ -227,17 +232,18 @@ function treeRows(n, depth, rows, siblingsMax) {
 }
 function findNode(n, id) { if (!n) return null; if (n.id === id) return n; for (const c of n.children || []) { const x = findNode(c, id); if (x) return x; } return null; }
 function renderTree(t, p) {
-  if (tree.mode !== st.mode) { tree.open.clear(); tree.closed.clear(); tree.sel = null; tree.mode = st.mode; steps.cur = 0; stopPlay(); }
+  if (tree.mode !== st.mode) { tree.open.clear(); tree.closed.clear(); tree.sel = null; tree.mode = st.mode; steps.cur = 0; steps.sel = null; stopPlay(); }
   tree.data = t;
   $(".lb-treecard h2").textContent = t?.rules ? (st.mode === "build" ? "Rulebook" : "Why this move (rule)") : "Why this move";
-  seg($("#labTreeView"), [["tree", t?.rules && st.mode === "build" ? "Checklist" : "Tree"], ["steps", "Step by step"]], tree.view, "tv", (v) => { tree.view = v; steps.cur = 0; stopPlay(); renderTree(tree.data, view.players[st.seat]); });
+  seg($("#labTreeView"), [["tree", t?.rules && st.mode === "build" ? "Checklist" : "Tree"], ["steps", "Step by step"]], tree.view, "tv", (v) => { tree.view = v; steps.cur = 0; steps.sel = null; stopPlay(); renderTree(tree.data, view.players[st.seat]);
+    if (v === "steps") requestAnimationFrame(keepCardInView); });
   if (tree.view === "steps") { renderSteps(t); return; }
-  $("#labSteps").hidden = true; $("#labTree").hidden = false;
-  clearInterval(steps.cyc); steps.cyc = 0;
+  $("#labSteps").hidden = true; $("#labTree").hidden = false; $("#labTreeSum").hidden = false;
+  setStepping(false);
   if (view?.analysis.lab?.kind === "step") view._labOverlay(null);
   $("#labTreeWho").textContent = p ? `${p.name} · tap a row` : "";
   if (!t) { $("#labTree").innerHTML = `<p class="lb-note">Nothing to decide here.</p>`; $("#labTreeSum").textContent = ""; $("#labTreeEq").textContent = ""; return; }
-  const sc = t.score != null ? ` · score <b>${f2(t.score)}</b>${st.mode === "build" ? " per turn" : ""}` : "";
+  const sc = t.score != null && !t.noScore ? ` · score <b>${f2(t.score)}</b>${st.mode === "build" ? " per turn" : ""}` : "";
   const plan = st.mode === "build" && t.target && !t.action.includes(t.target) ? ` · plan <b>${esc(t.target)}</b>` : "";
   $("#labTreeSum").innerHTML = `${t.rules && st.mode === "build" ? "Fires" : st.mode === "build" ? "Now:" : "Chooses"} <b>${esc(t.action)}</b>${plan}${sc}`;
   $("#labTreeEq").textContent = t.eq || "";
@@ -246,47 +252,63 @@ function renderTree(t, p) {
   $("#labTree").innerHTML = rows.join("");
   view?._labFocus(tree.sel ? findNode(t.root, tree.sel)?.focus || null : null);
 }
-// ── step through: the same decision as an ordered sequence; the board follows the current step ──
-const steps = { cur: 0, timer: 0, cyc: 0, cycI: 0 };
+// ── step through: the same decision as an ordered sequence. The board shrinks and stays on screen (sticky),
+// a numbered strip under it shows where you are, ONE step card below; the board shows that step (letters on the
+// candidates match the rows; tapping a row rings its candidate). ──
+const steps = { cur: 0, timer: 0, sel: null };
 function stopPlay() { clearInterval(steps.timer); steps.timer = 0; }
 function stepOverlay(t) {
-  clearInterval(steps.cyc); steps.cyc = 0;
   const s = t?.steps?.[steps.cur];
   if (!s || !view) return;
-  const pid = st.seat;
-  view._labOverlay(s.overlay || {}, pid);
-  // a step that looks at several candidates rings them one by one
-  if (s.cycle?.length > 1 && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    steps.cycI = 0;
-    const tick = () => { view._labOverlay({ ...(s.overlay || {}), focus: s.cycle[steps.cycI % s.cycle.length] }, pid); steps.cycI += 1; };
-    tick();
-    steps.cyc = setInterval(tick, 900);
-  }
+  const row = steps.sel != null ? s.rows?.[steps.sel] : null;
+  view._labOverlay({ ...(s.overlay || {}), ...(row?.focus ? { focus: row.focus } : {}) }, st.seat);
+}
+function setStepping(on) {
+  document.body.classList.toggle("lb-stepping", on);
+  $("#labStepStrip").hidden = !on;
 }
 function renderSteps(t) {
-  $("#labTree").hidden = true;
+  $("#labTree").hidden = true; $("#labTreeSum").hidden = true;
   const el = $("#labSteps");
   el.hidden = false;
   const S = t?.steps || [];
-  if (!S.length) { el.innerHTML = `<p class="lb-note">No steps for this position.</p>`; return; }
+  setStepping(S.length > 0 && st.pane === "analysis");
+  if (!S.length) { el.innerHTML = `<p class="lb-note">No steps for this position.</p>`; $("#labStepStrip").innerHTML = ""; return; }
   steps.cur = Math.min(steps.cur, S.length - 1);
-  el.innerHTML = `${stepsHtml(S, steps.cur)}<div class="lb-snav"><button type="button" class="lb-btn" data-sn="prev"${steps.cur ? "" : " disabled"}>‹ Prev</button><button type="button" class="lb-btn" data-sn="play" aria-pressed="${!!steps.timer}">${steps.timer ? "Pause" : "Play"}</button><button type="button" class="lb-btn" data-sn="next"${steps.cur < S.length - 1 ? "" : " disabled"}>Next ›</button></div>`;
+  $("#labStepStrip").innerHTML = stepStripHtml(S, steps.cur, "data-sg");
+  el.innerHTML = `${stepCardHtml(S, steps.cur, steps.sel)}<div class="lb-snav"><button type="button" class="lb-btn" data-sn="prev"${steps.cur ? "" : " disabled"}>‹ Prev</button><button type="button" class="lb-btn" data-sn="play" aria-pressed="${!!steps.timer}">${steps.timer ? "Pause" : "Play"}</button><button type="button" class="lb-btn" data-sn="next"${steps.cur < S.length - 1 ? "" : " disabled"}>Next ›</button></div>`;
   stepOverlay(t);
+}
+function goStep(i) {
+  const t = tree.data;
+  if (!t?.steps) return;
+  steps.cur = Math.max(0, Math.min(t.steps.length - 1, i));
+  steps.sel = null;
+  renderSteps(t);
+  keepCardInView();
+}
+/** The step card starts right under the pinned board (its height changes from step to step). */
+function keepCardInView() {
+  if (!document.body.classList.contains("lb-stepping") || matchMedia("(min-width: 900px)").matches) return;
+  const under = $(".lb-boardcol").getBoundingClientRect().bottom;
+  const top = $("#labSteps").getBoundingClientRect().top;
+  if (Math.abs(top - under - 8) > 4) scrollBy({ top: top - under - 8, behavior: "auto" });
 }
 function onStepsTap(e) {
   const t = tree.data;
   if (!t?.steps) return;
-  const go = (i) => { steps.cur = Math.max(0, Math.min(t.steps.length - 1, i)); renderSteps(t); };
-  const h = e.target.closest(".sx-head");
-  if (h) { stopPlay(); go(Number(h.dataset.step)); return; }
+  const g = e.target.closest("[data-sg]");
+  if (g) { stopPlay(); goStep(Number(g.dataset.sg)); return; }
+  const r = e.target.closest("[data-row]");
+  if (r) { const i = Number(r.dataset.row); steps.sel = steps.sel === i ? null : i; renderSteps(t); $(`#labSteps [data-row="${i}"]`)?.focus({ preventScroll: true }); return; }
   const b = e.target.closest("[data-sn]");
   if (!b) return;
-  if (b.dataset.sn === "prev") { stopPlay(); go(steps.cur - 1); }
-  else if (b.dataset.sn === "next") { stopPlay(); go(steps.cur + 1); }
+  if (b.dataset.sn === "prev") { stopPlay(); goStep(steps.cur - 1); }
+  else if (b.dataset.sn === "next") { stopPlay(); goStep(steps.cur + 1); }
   else if (steps.timer) { stopPlay(); renderSteps(t); }
   else {
     if (steps.cur >= t.steps.length - 1) steps.cur = 0;
-    steps.timer = setInterval(() => { if (steps.cur >= t.steps.length - 1) { stopPlay(); renderSteps(t); return; } go(steps.cur + 1); }, 2200);
+    steps.timer = setInterval(() => { if (steps.cur >= t.steps.length - 1) { stopPlay(); renderSteps(t); return; } goStep(steps.cur + 1); }, 2400);
     renderSteps(t);
   }
   $(`#labSteps [data-sn="${b.dataset.sn}"]`)?.focus({ preventScroll: true });
@@ -373,6 +395,12 @@ const vsText = () => {
 
 function renderTournamentSetup() {
   if (!H) return;
+  if (sim.running) { // during a run only the button changes (redrawing the choices could swallow a tap)
+    $("#labRun").textContent = `Stop (${sim.done}/${sim.n})`; $("#labRun").classList.add("stop");
+    document.querySelectorAll(".lb-tsetup .lb-seg:not(#labSpeed) button, .lb-tsetup select, #labLineup button").forEach((b) => { b.disabled = true; });
+    document.querySelectorAll("#labSpeed button").forEach((b) => { const on = b.dataset.speed === st.speed; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); });
+    return;
+  }
   seg($("#labLineup"), LINEUPS, st.lineup, "lu", (v) => { st.lineup = v; save(); renderTournamentSetup(); });
   const opt = (sel) => PRESETS.map((p) => `<option value="${p}"${p === sel ? " selected" : ""}>${esc(presetLabel(p))}</option>`).join("");
   const edit = `<button type="button" class="lb-link" data-edit>Edit</button>`;
@@ -380,9 +408,7 @@ function renderTournamentSetup() {
   if (st.lineup === "h2h") {
     html = `<div class="lb-tseat" style="--seat:${SEAT_COL(0)}"><i></i><b>Bot A<small>Your bot · ${esc(myBotDesc())}</small></b>${edit}</div>
       <div class="lb-tseat" style="--seat:${SEAT_COL(1)}"><i></i><b>Bot B</b><select data-b aria-label="Bot B">${opt(st.botB)}</select></div>
-      <div class="lb-tseat" style="--seat:${SEAT_COL(2)}"><i></i><b>Bot A</b><span class="same">same as above</span></div>
-      <div class="lb-tseat" style="--seat:${SEAT_COL(3)}"><i></i><b>Bot B</b><span class="same">same as above</span></div>
-      <p class="lb-fine">Each bot takes 2 seats; ${st.tseats === "rotate" ? "seats swap every game" : "seats stay fixed"}.</p>`;
+      <p class="lb-fine">Seats 3 and 4 are Bot A and Bot B again: each bot takes 2 seats; ${st.tseats === "rotate" ? "seats swap every game" : "seats stay fixed"}.</p>`;
   } else {
     html = `<div class="lb-tseat" style="--seat:${SEAT_COL(0)}"><i></i><b>Your bot<small>${esc(myBotDesc())} · from Analysis</small></b>${edit}</div>
       ${st.opp.map((p, i) => `<div class="lb-tseat" style="--seat:${SEAT_COL(i + 1)}"><i></i><b>Opponent</b><select data-opp="${i}" aria-label="Opponent ${i + 1}">${opt(p)}</select></div>`).join("")}`;
@@ -398,7 +424,7 @@ function renderTournamentSetup() {
   $("#labRun").textContent = sim.running ? `Stop (${sim.done}/${sim.n})` : `Start ${st.games} games`;
   $("#labRun").classList.toggle("stop", sim.running);
   $("#labRunNote").textContent = st.players !== "4" ? "Tournaments are 4-player games on the classic island for now." : "";
-  document.querySelectorAll(".lb-tsetup .lb-seg button, .lb-tsetup select, .lb-tsetup [data-edit]").forEach((b) => { if (sim.running && !b.closest("#labSpeed")) b.disabled = true; });
+
 }
 
 const sim = { n: 20, done: 0, running: false, game: 0, errors: 0, watching: false, restore: true, results: [], lu: null, cfg: null };
@@ -436,6 +462,7 @@ function renderStand(final = false) {
 }
 function verdict(s) {
   const f = pct(s.fair);
+  if (s.n && Math.abs(s.p - s.fair) < 1e-9) return "Level with fair share so far.";
   if (s.lo > s.fair) return `Clearly above its fair share (${f}): the whole band is above the line.`;
   if (s.hi < s.fair) return `Clearly below its fair share (${f}): the whole band is under the line.`;
   if (s.n < 100) return `Not clearly ${s.p >= s.fair ? "above" : "below"} fair share yet — try ${s.n < 50 ? "50 or 100" : "100"} games.`;
@@ -480,7 +507,7 @@ function renderHist() {
   const rows = hist.slice().reverse().map((h, i) => {
     const prev = hist[hist.length - 2 - i];
     let diff = "";
-    if (prev) {
+    if (prev && prev.vsKey === h.vsKey && prev.kind === h.kind) { // only runs with the same line-up are compared
       const pts = Math.round((h.p - prev.p) * 100);
       const overlap = h.lo <= prev.hi && prev.lo <= h.hi;
       diff = `<div class="lb-diff">vs #${prev.no}: <b>${pts > 0 ? "+" : pts < 0 ? "−" : "±"}${Math.abs(pts)} pts</b> · ${esc(diffText(h, prev))} · ${overlap ? "bands overlap" : "bands apart"}</div>`;
@@ -539,7 +566,7 @@ async function runTournament(over = {}) {
             await sleep(TURN_MS);
           } else {
             if (sim.watching) renderWatch(null);
-            r = g._labSimStep(25);
+            r = g._labSimStep(12);
             await sleep(0); // let the page breathe between chunks
           }
         } while (!r.done && sim.running);
@@ -578,9 +605,13 @@ async function runTournament(over = {}) {
   return { ...sim, stats: all, wins: all.find((e) => e.key === "you")?.wins ?? 0 };
 }
 
+const preloadSim = () => { const f = $("#labSim"); if (!f.src) f.src = "./index.html?lab=sim"; };
 function setPane(p) {
+  if (p === "tournament") preloadSim();
   st.pane = p;
   document.body.dataset.pane = p;
+  if (p !== "analysis") setStepping(false);
+  else if (tree.view === "steps" && tree.data?.steps?.length) setStepping(true);
   document.querySelectorAll("#labPanes button").forEach((b) => { const on = b.dataset.pane === p; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; });
   $("#paneAnalysis").hidden = p !== "analysis";
   $("#paneTournament").hidden = p !== "tournament";
@@ -605,6 +636,15 @@ function setPane(p) {
   $("#labRun").addEventListener("click", () => runTournament());
   $("#labWatch").addEventListener("click", (e) => { if (e.target.closest(".lb-wstop")) sim.running = false; });
   $("#labTree").addEventListener("click", onTreeTap);
+  $("#labStepStrip").addEventListener("click", onStepsTap);
+  // Board settings live in a sheet next to the board (keeps Analysis short)
+  const sheet = $("#labBoardSheet");
+  $("#labBoardBtn").addEventListener("click", () => { if (sheet.showModal) sheet.showModal(); else sheet.setAttribute("open", ""); });
+  $("#labBoardClose").addEventListener("click", () => sheet.close ? sheet.close() : sheet.removeAttribute("open"));
+  sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.close(); });
+  // the sticky top bar's height (the stepping board pins right under it)
+  const topH = () => document.documentElement.style.setProperty("--lb-top", `${Math.round($(".lb-top").getBoundingClientRect().height)}px`);
+  topH(); addEventListener("resize", topH);
   $("#labSteps").addEventListener("click", onStepsTap);
   $("#labCalcBtn").addEventListener("click", () => { const el = $("#labCalc"); el.hidden = !el.hidden; if (!el.hidden) renderCalc(); renderCalcHead(); });
   document.querySelectorAll("#labPanes button").forEach((b) => b.addEventListener("click", () => setPane(b.dataset.pane)));
@@ -616,5 +656,7 @@ function setPane(p) {
   setPane(st.pane === "tournament" ? "tournament" : "analysis");
   await newBoard();
   renderHist();
+  // load the tournament engine while idle, so pressing Start never waits for it (it froze the page ~1 s)
+  (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(preloadSim, { timeout: 4000 });
   window.__lab = { ready: true, steps, st, W: () => W, runTournament, runGames: (n) => runTournament({ n }), newBoard, update, view: () => view, sim, hist, tree, setPane, myBot };
 })();
