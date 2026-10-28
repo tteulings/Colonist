@@ -129,6 +129,7 @@ export const RulesMixin = {
       let why = null, target = null;
       if (!has(h, COST.road)) why = `can't afford (needs ${short(h, COST.road)})`;
       else if (this.piecesLeft(player, "road") <= 0) why = "no roads left";
+      else if (this.geometry.nodes.some((n) => this._rulesSpotOk(player, n.id))) why = "a free spot is already on its roads: no road needed";
       else {
         const reach = this._aiRoadReach(player);
         let near = Infinity, ids = [];
