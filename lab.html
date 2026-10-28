@@ -11,17 +11,24 @@
       // Same theme as the game (read only)
       (function () {
         var d = document.documentElement, t = "A";
-        try { t = localStorage.getItem("colonist.theme") || "A"; d.dataset.palette = localStorage.getItem("colonist.palette") === "vivid" ? "vivid" : "light"; } catch (e) {}
+        function palOf(ls) { // v0.85: same rule as manager.js effectivePalette() (Follow system: Night when the OS is dark)
+          var p = ls.getItem("colonist.palette"), day = ls.getItem("colonist.dayPalette") === "vivid" || p === "vivid" ? "vivid" : "light";
+          if (p !== "vivid" && p !== "night") p = "light";
+          if (ls.getItem("colonist.paletteAuto") !== "on") return p;
+          return window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "night" : (p === "night" ? day : p);
+        }
+        try { t = localStorage.getItem("colonist.theme") || "A"; d.dataset.palette = palOf(localStorage); } catch (e) { d.dataset.palette = "light"; }
         if (t !== "A" && t !== "B" && t !== "C" && t !== "classic") t = "A";
         d.dataset.theme = t;
       })();
     </script>
-    <link rel="stylesheet" href="./themes/base.css?v=84" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=84" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=84" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=84" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=84" />
-    <link rel="stylesheet" href="./themes/lab.css?v=84" />
+    <link rel="stylesheet" href="./themes/base.css?v=85" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=85" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=85" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=85" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=85" />
+    <link rel="stylesheet" href="./themes/lab.css?v=85" />
+    <link rel="stylesheet" href="./themes/sunny-night.css?v=85" />
   </head>
   <body class="lab">
     <header class="lb-top">
@@ -66,6 +73,6 @@
       </section>
     </main>
     <iframe id="labSim" title="Quick games" hidden tabindex="-1"></iframe>
-    <script type="module" src="./src/lab.js?v=84"></script>
+    <script type="module" src="./src/lab.js?v=85"></script>
   </body>
 </html>

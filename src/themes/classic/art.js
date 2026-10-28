@@ -94,7 +94,7 @@ const classic = {
   // v0.79: the legacy canvas draws the Sunny Island piece shapes (a lit 3-D house, a city with a tower) in the seat's
   // own piece shades (seatPc: base / light / dark / line) instead of its flat single-colour glyphs, so a seat looks
   // the same on the Classic board as on the themed boards and in the chips (game.js drawStructures / drawRoads).
-  boardPieces: { settlement: sunny.pieces.settlement, city: sunny.pieces.city, settlementDy: sunny.pieces.settlementDy, cityDy: sunny.pieces.cityDy, rim: "rgba(255,252,242,.6)", rimW: 2.5 },
+  boardPieces: { settlement: sunny.pieces.plainSettlement, city: sunny.pieces.plainCity, settlementDy: sunny.pieces.settlementDy, cityDy: sunny.pieces.cityDy, rim: "rgba(255,252,242,.6)", rimW: 2.5 },
   icons: ICONS,
   card, cardBack, avatar, die,
   swatch: () => `<svg viewBox="0 0 36 36"><rect width="36" height="36" fill="#2a6a88"/><path d="M8,12 L18,6 L28,12 V24 L18,30 L8,24Z" fill="#7cc844" stroke="#a08246" stroke-width="1.5"/><circle cx="18" cy="18" r="5" fill="#fffaee"/></svg>`,

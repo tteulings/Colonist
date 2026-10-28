@@ -96,6 +96,18 @@ export function drawSpec(ctx, spec, { alpha = 1, k = 1, rim = null, rimW = 6 } =
       ctx.shadowOffsetX = 2 * k;
       ctx.shadowOffsetY = 3 * k;
     }
+    if (s.glow) {
+      // v0.85: a soft elliptical pool of light ("r,g,b"): full colour at the centre fading to nothing at the rim
+      ctx.translate(s.cx, s.cy);
+      ctx.scale(1, s.ry / s.rx);
+      const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, s.rx);
+      gr.addColorStop(0, `rgba(${s.glow},1)`);
+      gr.addColorStop(1, `rgba(${s.glow},0)`);
+      ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.arc(0, 0, s.rx, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      continue;
+    }
     let p;
     if (s.el === "ellipse") { p = new Path2D(); p.ellipse(s.cx, s.cy, s.rx, s.ry, 0, 0, Math.PI * 2); }
     else if (s.el === "circle") { p = new Path2D(); p.arc(s.cx, s.cy, s.r, 0, Math.PI * 2); }

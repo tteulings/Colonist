@@ -18,8 +18,8 @@ import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS, SHIP_COST } from "./seafarers/index.js";
 
 const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
-/** Sunny Island colour palette from <html data-palette> (default light). */
-const currentPalette = () => (document.documentElement.dataset.palette === "vivid" ? "vivid" : "light");
+/** Sunny Island colour palette from <html data-palette> (default light; v0.85: + night). */
+const currentPalette = () => { const p = document.documentElement.dataset.palette; return p === "vivid" || p === "night" ? p : "light"; };
 const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore: "Or" };
 // Glossary names (shared/glossary.md): cards are Lumber / Brick / Wool / Grain / Ore
 const RESOURCE_LABEL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
