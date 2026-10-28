@@ -143,6 +143,7 @@ function renderCalcHead() {
   const n = changedW().length;
   const open = !$("#labCalc").hidden;
   $("#labCalcBtn").setAttribute("aria-expanded", String(open));
+  document.querySelector(".lb-calc").hidden = isRules(); // Simple: no weights at all
   $("#labCalcSt").innerHTML = isRules() ? "not used by Simple (no scores)" : n ? `<button type="button" class="lb-link" id="labReset">Reset</button> · ${n} changed` : "default weights";
   $("#labReset")?.addEventListener("click", () => { W = {}; saveW(); renderCalc(); update(); });
 }
@@ -192,10 +193,11 @@ function update() {
   }
   const vals = DIMS.map(([k]) => r.dims?.[k] || 0);
   const max = Math.max(0.5, ...vals.map(Math.abs));
-  out.innerHTML = `<div class="lb-rhead"><i class="lb-dot" style="background:${p.color}"></i><b>${esc(p.name)} · ${esc(r.title)}</b><span class="lb-sc" title="${UNIT}">${f2(r.score)}</span></div>
+  out.innerHTML = `<div class="lb-rhead"><i class="lb-dot" style="background:${p.color}"></i><b>${esc(p.name)} · ${esc(r.title)}</b><span class="lb-sc" title="${UNIT}">${r.fmt === "int" ? `${Math.round(r.score)} pips` : f2(r.score)}</span></div>
     <div class="lb-bars" title="${UNIT}">${DIMS.map(([, l], i) => `<span class="lb-d${Math.abs(vals[i]) < 0.05 ? " zero" : ""}"><span class="l">${l}</span><span class="bar${vals[i] < 0 ? " neg" : ""}"><i style="width:${Math.round((Math.abs(vals[i]) / max) * 100)}%;background:${vals[i] < 0 ? "" : p.color}"></i></span><span class="v">${Math.abs(vals[i]) < 0.05 ? "–" : fmt(vals[i])}</span></span>`).join("")}</div>
     ${r.note ? `<p class="lb-note">${esc(r.note)}</p>` : ""}
-    ${r.alts?.length ? `<div class="lb-alts" title="Next best (${UNIT})">${r.alts.map((a) => `<span><b>${fmt(a.score)}</b> ${esc(a.label)}</span>`).join("")}</div>` : ""}`;
+    ${r.alts?.length ? `<div class="lb-alts" title="Next best (${UNIT})">${r.alts.map((a, i, all) => { const dup = all.filter((x) => x.label === a.label).length > 1 ? ` (${all.slice(0, i + 1).filter((x) => x.label === a.label).length})` : "";
+      return `<span><b>${r.fmt === "int" ? Math.round(a.score) : f2(a.score)}</b> ${esc(a.label.replace(/ \(\+(\d) roads?\)/, " +$1r"))}${dup}</span>`; }).join("")}</div>` : ""}`;
 }
 
 // ── decision tree ──
@@ -243,7 +245,7 @@ function renderTree(t, p) {
   if (view?.analysis.lab?.kind === "step") view._labOverlay(null);
   $("#labTreeWho").textContent = p ? `${p.name} · tap a row` : "";
   if (!t) { $("#labTree").innerHTML = `<p class="lb-note">Nothing to decide here.</p>`; $("#labTreeSum").textContent = ""; $("#labTreeEq").textContent = ""; return; }
-  const sc = t.score != null && !t.noScore ? ` · score <b>${f2(t.score)}</b>${st.mode === "build" ? " per turn" : ""}` : "";
+  const sc = t.score == null || t.noScore ? "" : t.rules ? ` · <b>${Math.round(t.score)} pips</b>` : ` · score <b>${f2(t.score)}</b>${st.mode === "build" ? " per turn" : ""}`;
   const plan = st.mode === "build" && t.target && !t.action.includes(t.target) ? ` · plan <b>${esc(t.target)}</b>` : "";
   $("#labTreeSum").innerHTML = `${t.rules && st.mode === "build" ? "Fires" : st.mode === "build" ? "Now:" : "Chooses"} <b>${esc(t.action)}</b>${plan}${sc}`;
   $("#labTreeEq").textContent = t.eq || "";

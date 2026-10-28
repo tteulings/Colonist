@@ -349,7 +349,7 @@ export const TreeMixin = {
         overlay: { nodes: top.map((c) => ({ id: c.id, s: c.score })), badges: lettered(top, (c) => ({ node: c.id })), noLabels: true } });
       const a = all.find((c) => c.id === best), b = all.find((c) => c.id !== best);
       add({ key: "choice", title: "Choice", sub: t.action, text: rules ? "Most pips wins; a tie goes to more different resources." : "",
-        compare: compare({ label: `Spot ${this._spotLabel(a.id)}`, terms: termsOf(a), score: a.score }, b && { label: `Spot ${this._spotLabel(b.id)}`, terms: termsOf(b), score: b.score }, rules ? "pips" : ""),
+        compare: compare({ label: `${LETTERS[top.indexOf(a)] || ""} · Spot ${this._spotLabel(a.id)}`, terms: termsOf(a), score: a.score }, b && { label: `${LETTERS[top.indexOf(b)] || ""} · Spot ${this._spotLabel(b.id)}`, terms: termsOf(b), score: b.score }, rules ? "pips" : ""),
         overlay: { nodes: [{ id: a.id, s: 1 }, ...(b ? [{ id: b.id, s: 0.4 }] : [])], badges: winBadges({ node: a.id }, b && { node: b.id }), noLabels: true, pick: { node: a.id } } });
       return S;
     }
@@ -366,7 +366,7 @@ export const TreeMixin = {
           overlay: { hexes: top.map((c) => ({ id: c.id, s: c.lead, dmg: null })), badges: lettered(top, (c) => ({ hex: c.id })), noLabels: true } });
         const a = r.pick, b = top.find((c) => c.id !== a.id);
         const tm = (c) => [{ k: "block", label: "Leader's pips", v: c.lead }, { k: "steal", label: "All opponents' pips (tie-break)", v: c.any }];
-        add({ key: "choice", title: "Choice", sub: t.action, compare: compare({ label: this._hexName(a.id), terms: tm(a), score: a.lead }, b && { label: this._hexName(b.id), terms: tm(b), score: b.lead }, "pips"),
+        add({ key: "choice", title: "Choice", sub: t.action, compare: compare({ label: `${LETTERS[top.findIndex((c) => c.id === a.id)] || ""} · ${this._hexName(a.id)}`, terms: tm(a), score: a.lead }, b && { label: `${LETTERS[top.indexOf(b)] || ""} · ${this._hexName(b.id)}`, terms: tm(b), score: b.lead }, "pips"),
           overlay: { hexes: [{ id: a.id, s: 1, dmg: null }], badges: winBadges({ hex: a.id }, b && { hex: b.id }), noLabels: true, pick: { hex: a.id } } });
         add({ key: "steal", title: "Steal", sub: `from ${lead?.name || "the leader"}`, text: "Rule: always the leader when the leader is on the tile.", overlay: { hexes: [{ id: a.id, s: 1, dmg: null }], noLabels: true, focus: { hex: a.id } } });
         return S;
@@ -380,7 +380,7 @@ export const TreeMixin = {
         rows: top.map((c, i) => ({ letter: LETTERS[i], label: this._hexName(c.id), v: c.score, vt: "score", stack: tm(c).filter((x) => x.v > 0), chosen: c.id === best.id, focus: { hex: c.id } })),
         overlay: { hexes: top.map((c) => ({ id: c.id, s: c.score, dmg: null })), badges: lettered(top, (c) => ({ hex: c.id })), noLabels: true } });
       const b = top.find((c) => c.id !== best.id);
-      add({ key: "choice", title: "Choice", sub: t.action, compare: compare({ label: this._hexName(best.id), terms: tm(best), score: best.score }, b && { label: this._hexName(b.id), terms: tm(b), score: b.score }),
+      add({ key: "choice", title: "Choice", sub: t.action, compare: compare({ label: `${LETTERS[top.indexOf(best)] || ""} · ${this._hexName(best.id)}`, terms: tm(best), score: best.score }, b && { label: `${LETTERS[top.indexOf(b)] || ""} · ${this._hexName(b.id)}`, terms: tm(b), score: b.score }),
         overlay: { hexes: [{ id: best.id, s: 1, dmg: null }], badges: winBadges({ hex: best.id }, b && { hex: b.id }), noLabels: true, pick: { hex: best.id } } });
       add({ key: "steal", title: "Steal", sub: awareness === "none" ? "a random player on the tile" : awareness === "basic" ? "the biggest hand on the tile" : "the leader, or who likely holds what it needs",
         text: "From public card counts only, never hidden hands.", overlay: { hexes: [{ id: best.id, s: 1, dmg: null }], noLabels: true, focus: { hex: best.id } } });
@@ -390,7 +390,7 @@ export const TreeMixin = {
       d.list.forEach((r) => {
         const f = r.focus;
         add({ key: `rule${r.n}`, title: `Rule ${r.n} · ${r.title}`, sub: `${r.ok ? "✓" : "✗"} ${r.why}`, ok: r.ok,
-          overlay: f ? { nodes: f.node != null ? [{ id: f.node, s: 1 }] : [], cities: f.city != null ? [{ id: f.city, s: 1 }] : [], edges: f.edge != null ? [{ id: f.edge, s: 1 }] : [], hexes: f.hex != null ? [{ id: f.hex, s: 1, dmg: null }] : [],
+          overlay: f ? { nodes: f.node != null ? [{ id: f.node, s: 1 }] : [], cities: f.city != null ? [{ id: f.city, s: 1 }] : [], edges: f.edge != null && f.node != null ? (() => { try { return (this.pathToNode(P, f.node) || [f.edge]).map((id) => ({ id, s: id === f.edge ? 1 : 0.4 })); } catch (_) { return [{ id: f.edge, s: 1 }]; } })() : f.edge != null ? [{ id: f.edge, s: 1 }] : [], hexes: f.hex != null ? [{ id: f.hex, s: 1, dmg: null }] : [],
             badges: [{ text: String(r.n), ...(f.edge != null && f.node == null ? { edge: f.edge } : f.node != null ? { node: f.node } : f.city != null ? { city: f.city } : { hex: f.hex }) }], noLabels: true, pick: f } : { noLabels: true } });
       });
       return S;
@@ -408,10 +408,20 @@ export const TreeMixin = {
       overlay: { nodes: has(h, COST.settlement) ? legalSpots.map((id) => ({ id, s: 1 })) : [], cities: has(h, COST.city) ? [...Pl.settlements].map((id) => ({ id, s: 1 })) : [], edges: legalRoads.map((id) => ({ id, s: 1 })), noLabels: true } });
     // goals ranked: letters A, B, C … in this order on every later step
     const ranked = plan.goals.slice().sort((a, b) => b.score - a.score);
-    const L = new Map(ranked.map((g, i) => [g, LETTERS[i]]));
+    // ONE stable letter per candidate for the whole decision: the planned builds in ranking order, then the
+    // other settlement spots in reach (a settlement plan and its spot share the spot's letter)
+    const keyOf = (g) => (g.type === "settlement" ? `n${g.nodeId}` : g.type === "city" ? `c${g.nodeId}` : g.type === "road" ? `r${g.edge}` : "dev");
+    const LM = new Map();
+    const letterOf = (k) => { if (!LM.has(k)) LM.set(k, LETTERS[LM.size] || "?"); return LM.get(k); };
+    ranked.forEach((g) => letterOf(keyOf(g)));
+    (plan.spots || []).slice(0, 6).forEach((x) => letterOf(`n${x.nodeId}`));
+    const L = { get: (g) => letterOf(keyOf(g)) };
+    // the dashed route of the roads a far spot still needs
+    const route = (nodeId) => { try { return (this.pathToNode(Pl, nodeId) || []).map((id) => ({ id, s: 0.4 })); } catch (_) { return []; } };
     const place = (g) => (g.type === "settlement" ? (g.dist > 0 && g.edge != null ? { node: g.nodeId } : { node: g.nodeId }) : g.type === "city" ? { city: g.nodeId } : g.type === "road" ? { edge: g.edge } : null);
     const goalBadges = (gs, text) => gs.filter((g) => place(g)).map((g) => ({ text: text(g), ...place(g) }));
-    const goalOverlay = (gs) => ({ nodes: gs.filter((g) => g.type === "settlement").map((g) => ({ id: g.nodeId, s: g.score })), cities: gs.filter((g) => g.type === "city").map((g) => ({ id: g.nodeId, s: g.score })), edges: gs.filter((g) => g.edge != null).map((g) => ({ id: g.edge, s: g.score })), noLabels: true });
+    const goalOverlay = (gs) => ({ nodes: gs.filter((g) => g.type === "settlement").map((g) => ({ id: g.nodeId, s: g.score })), cities: gs.filter((g) => g.type === "city").map((g) => ({ id: g.nodeId, s: g.score })),
+      edges: [...gs.filter((g) => g.type === "road" && g.edge != null).map((g) => ({ id: g.edge, s: g.score })), ...gs.filter((g) => g.type === "settlement" && g.dist > 0).flatMap((g) => route(g.nodeId))], noLabels: true });
     const name = (g) => (g.type === "settlement" ? `Settlement ${this._spotLabel(g.nodeId)}${g.dist ? ` +${g.dist} road${g.dist > 1 ? "s" : ""}` : ""}` : g.type === "city" ? `City on ${this._spotLabel(g.nodeId)}` : g.type === "road" ? "Longest Road" : "Dev card");
     // 2. options in the order the bot really takes them
     const stepOk = goal0 ? has(h, this._aiStepCost(goal0)) : false;
@@ -427,13 +437,13 @@ export const TreeMixin = {
         ]),
     ];
     add({ key: "options", title: "Options, in order", sub: "the first that fits is what it does", rows: opts.map((o) => ({ label: o.label, sub: o.sub, vt: "none", ok: o.ok === true ? true : o.ok === false ? false : null })),
-      overlay: { ...goalOverlay(plan.goals), badges: goalBadges(plan.goals, (g) => (g.type === "settlement" ? "Town" : g.type === "city" ? "City" : "Road")) } });
+      overlay: { ...goalOverlay(plan.goals), badges: goalBadges(plan.goals, (g) => `${L.get(g)} ${g.type === "settlement" ? "Town" : g.type === "city" ? "City" : "Road"}`) } });
     if (strat.expansion !== "simple" && plan.goals.length) {
       const spots = (plan.spots || []).slice(0, 6);
       if (spots.length) {
         add({ key: "spots", title: "Settlement spots in reach", sub: "spot rank = spot score − road penalty; the top 3 become plans",
-          rows: spots.map((x, i) => ({ letter: LETTERS[i], label: `Spot ${this._spotLabel(x.nodeId)}`, sub: x.d ? `+${x.d} road${x.d > 1 ? "s" : ""}` : "on its roads", v: x.h, vt: "score", stack: this._stepTerms(Pl, x.nodeId, this.getResourceIncomeProfile(Pl)).filter((y) => y.v > 0), chosen: goal0?.nodeId === x.nodeId && goal0?.type === "settlement", focus: { node: x.nodeId } })),
-          overlay: { nodes: spots.map((x) => ({ id: x.nodeId, s: x.h })), badges: lettered(spots, (x) => ({ node: x.nodeId })), noLabels: true } });
+          rows: spots.map((x) => ({ letter: letterOf(`n${x.nodeId}`), label: `Spot ${this._spotLabel(x.nodeId)}`, sub: x.d ? `+${x.d} road${x.d > 1 ? "s" : ""}` : "on its roads", v: x.h, vt: "score", stack: this._stepTerms(Pl, x.nodeId, this.getResourceIncomeProfile(Pl)).filter((y) => y.v > 0), chosen: goal0?.nodeId === x.nodeId && goal0?.type === "settlement", focus: { node: x.nodeId } })),
+          overlay: { nodes: spots.map((x) => ({ id: x.nodeId, s: x.h })), edges: spots.filter((x) => x.d > 0).slice(0, 3).flatMap((x) => route(x.nodeId)), badges: spots.map((x) => ({ text: letterOf(`n${x.nodeId}`), node: x.nodeId })), noLabels: true } });
       }
       const k = plan.R * (plan.strat.awareness === "advanced" ? 1 : 1) * 1;
       const conv = (g) => (g.prod ? (((g.parts?.prod || 0) + (g.parts?.horizon || 0)) / g.prod) : 0);
@@ -468,8 +478,9 @@ export const TreeMixin = {
       const wb = [];
       if (a && place(a)) wb.push({ text: "1", ...place(a) });
       if (b && place(b)) wb.push({ text: "2", tone: "alt", ...place(b) });
-      const why = act === "build" ? "It can pay for 1 now, so it builds it." : act === "bank" ? "It can't pay for 1 yet; a bank / harbour trade brings it closer."
-        : act === "side" ? `It can't pay for 1 yet; ${doing === b ? "2" : "a smaller build"} fits in without delaying 1, so that comes first.` : "It can't pay for 1 yet and no trade helps: it keeps its cards.";
+      const nm = (g) => (g ? `${name(g)} (${L.get(g)})` : "");
+      const why = !a ? "" : act === "build" ? `It can pay for ${nm(a)} now, so it builds it.` : act === "bank" ? `It can't pay for ${nm(a)} yet; a bank / harbour trade brings it closer.`
+        : act === "side" ? `It can't pay for ${nm(a)} yet; ${nm(doing)} fits in without delaying it, so that comes first.` : `It can't pay for ${nm(a)} yet and no trade helps: it keeps its cards.`;
       add({ key: "choice", title: "Choice", sub: t.action, text: why, compare: a ? compare({ label: `${L.get(a)} · ${name(a)}`, terms: gt(a), score: a.score }, b && { label: `${L.get(b)} · ${name(b)}`, terms: gt(b), score: b.score }) : null,
         overlay: { ...goalOverlay([a, b].filter(Boolean)), badges: wb, pick: t.pick || {} } });
     } else {
@@ -482,7 +493,7 @@ export const TreeMixin = {
 // ── shared renderer (AI Lab and the in-game analysis panel): a numbered strip + ONE step card ──
 export const TERM_COLOR = { num: "#3C75C6", scarcity: "#8E5BB5", variety: "#3E9E58", port: "#1F8FA0", sets: "#C99A2E", contest: "#D9714E", magnet: "#8A8F94", dist: "#8A8F94",
   vp: "#C0548A", prod: "#6E9A2A", win: "#E0A82E", eta: "#8A8F94", block: "#5B6B8C", leader: "#D9714E", own: "#8A8F94", steal: "#C99A2E", card: "#C0548A", xport: "#1F8FA0" };
-const LETTERS = "ABCDEFGHIJ";
+const LETTERS = "ABCDEFGHIJKL";
 const escH = (x) => String(x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 function f2(v) { return v == null || !Number.isFinite(v) ? "–" : v.toFixed(2); }
 const valTxt = (r) => (r.vt === "score" ? f2(r.v) : r.vt === "int" ? String(Math.round(r.v)) : r.vt === "signed" ? (Math.abs(r.v) < 0.005 ? "0" : `${r.v > 0 ? "+" : "−"}${f2(Math.abs(r.v))}`) : "");

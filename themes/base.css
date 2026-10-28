@@ -2252,7 +2252,7 @@ button.sx-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 
 .sx-cmpr .d { font-weight: 750; }
 .sx-cmpr.tot { border-top: 1px solid var(--sep, rgba(0,0,0,.1)); padding-top: 3px; font-weight: 800; }
 .ai-panel .aip-steps { margin-top: 4px; display: grid; gap: 4px; }
-.ai-panel .aip-steps .sx-card1 { max-height: min(19vh, 148px); overflow: auto; overscroll-behavior: contain; gap: 4px; }
+.ai-panel .aip-steps .sx-card1 { max-height: calc(30vh - 60px); overflow: auto; overscroll-behavior: contain; gap: 4px; }
 .ai-panel .aip-steps .sx-text { display: none; }
 .ai-panel .aip-steps .sx-h b { font-size: 13px; }
 .ai-panel .aip-steps .sx-leg { display: none; }
@@ -2285,3 +2285,12 @@ button.sx-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 
 .ai-panel .aip-shead .sx-strip { gap: 2px; justify-content: center; }
 .ai-panel .aip-steps .sx-hand .sx-card { padding: 2px; }
 .ai-panel .aip-steps .sx-builds span { padding: 2px 6px; }
+/* v0.87 review round 2: in-game step targets >= 40 px; the strip scrolls sideways when it doesn't fit */
+.ai-panel .aip-shead .sx-strip { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; justify-content: flex-start; padding: 2px 0; }
+.ai-panel .aip-shead .sx-strip::-webkit-scrollbar { display: none; }
+.ai-panel .aip-shead .sx-strip button { width: 40px; height: 40px; min-width: 40px; font-size: 13px; }
+.ai-panel .aip-shead .aip-sarrow { width: 40px; height: 40px; min-width: 40px; }
+.ai-panel .aip-shead .aip-slink { min-height: 40px; padding: 0 4px; }
+.ai-panel .aip-steps, .ai-panel .aip-shead { min-width: 0; }
+.ai-panel .aip-shead .sx-strip { flex: 1 1 auto; min-width: 0; }
+.ai-panel.stepping { overflow: hidden; }

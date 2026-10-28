@@ -225,3 +225,8 @@ body.lb-stepping .lb-tools, body.lb-stepping #labResult { display: none; }
 .lt-tag { font-size: 11px; letter-spacing: .02em; padding: 1px 5px; }
 .lt-w, .lb-tagp, .lb-kpi span, .lb-grp, .lb-sl label small, .lb-d .l, .lb-alts span, .lb-st .hd, .lt-l small, .lt-eq, .lb-hr .ds small, .lb-st .nm small, .lb-diff, .lb-fine, .lt-head small { font-size: 11px; }
 .lb-d .v { font-size: 11px; }
+
+/* v0.87 review round 2 */
+.lb-alts span { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.25; }
+.lb-tseat b small { font-size: 11px; }
+.lb-hr .ds { white-space: normal; overflow: visible; }

@@ -74,9 +74,9 @@ export const AnalysisMixin = {
   _aiGate(fn) { if (this._aiHeld()) this._aiPark(fn); else fn(); },
 
   aiPause() { const a = this.analysis; a.paused = true; a.budget = 0; this._renderAnalysis(); },
-  aiResume() { const a = this.analysis; a.stepView = null; a.paused = false; a.budget = 0; this._aiKick(); this._renderAnalysis(); },
+  aiResume() { const a = this.analysis; if (a.stepView) this._aiStepUnframe(); a.stepView = null; a.paused = false; a.budget = 0; this._aiKick(); this._renderAnalysis(); },
   /** One more decision, then hold again. */
-  aiStep() { const a = this.analysis; a.stepView = null; a.paused = true; a.budget = 1; this._aiKick(); this._renderAnalysis(); },
+  aiStep() { const a = this.analysis; if (a.stepView) this._aiStepUnframe(); a.stepView = null; a.paused = true; a.budget = 1; this._aiKick(); this._renderAnalysis(); },
 
   _aiKick() {
     const a = this.analysis;
@@ -98,6 +98,7 @@ export const AnalysisMixin = {
     dec.seq = a.seq;
     if (a.capture) { a.captured = dec; return; }
     a.last = dec;
+    if (a.stepView) this._aiStepUnframe();
     a.stepView = null;
     if (a.on && a.paused) a.budget = Math.max(0, a.budget - 1);
     this._renderAnalysis();
@@ -383,6 +384,42 @@ export const AnalysisMixin = {
     this._aiNote(d);
   },
 
+  /** v0.87 Step through (in game): move the board so what the step marks sits in the visible part above the
+   *  step card (zooming in a little if needed); Close puts the view back. */
+  _aiStepFrame() {
+    const a = this.analysis, sv = a?.stepView;
+    const panel = document.getElementById("aiPanel");
+    if (!sv || !this.geometry || !panel || !this.canvas) return;
+    const d = this._analysisShown() || {};
+    const g = this.geometry, pts = [];
+    const nodeP = (id) => g.nodes[id] && pts.push({ x: g.nodes[id].x, y: g.nodes[id].y });
+    const hexP = (id) => g.hexes[id] && pts.push({ x: g.hexes[id].center.x, y: g.hexes[id].center.y });
+    const edgeP = (id) => { if (!g.edges[id]) return; const [p, q] = g.edges[id].nodes.map((i) => g.nodes[i]); pts.push({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }); };
+    (d.badges || []).forEach((b) => { if (b.hex != null) hexP(b.hex); else if ((b.node ?? b.city) != null) nodeP(b.node ?? b.city); else if (b.edge != null) edgeP(b.edge); });
+    if (!pts.length) { const f = d.focus || d.pick || {}; if (f.hex != null) hexP(f.hex); if ((f.node ?? f.city) != null) nodeP(f.node ?? f.city); if (f.edge != null) edgeP(f.edge); }
+    if (!pts.length) [...(d.nodes || []), ...(d.cities || [])].slice(0, 8).forEach((n) => nodeP(n.id));
+    if (!pts.length) (d.hexes || []).slice(0, 6).forEach((h) => hexP(h.id));
+    if (!pts.length) return;
+    const cr = this.canvas.getBoundingClientRect(), pr = panel.getBoundingClientRect();
+    const { vp } = this._viewFrame();
+    const top = vp.t + 8, bottom = Math.min(vp.t + vp.H, pr.top - cr.top) - 10, left = vp.l + 6, right = vp.l + vp.W - 6;
+    if (bottom - top < 60) return;
+    const M = 26;
+    const scr = pts.map((p) => this.worldToScreen(p.x, p.y));
+    if (scr.every((p) => p.x >= left + M && p.x <= right - M && p.y >= top + M && p.y <= bottom - M)) return;
+    const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+    const bw = Math.max(1, Math.max(...xs) - Math.min(...xs)), bh = Math.max(1, Math.max(...ys) - Math.min(...ys));
+    const scale = clampN(Math.min(this.view.scale, (right - left - 2 * M) / bw, (bottom - top - 2 * M) / bh), this._minScale() * 0.7, this._maxScale());
+    if (!a.stepPrevView) a.stepPrevView = { ...this.view };
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    Object.assign(this.view, { scale, offsetX: (left + right) / 2 - cx * scale, offsetY: (top + bottom) / 2 - cy * scale });
+    this._viewChanged?.();
+  },
+  _aiStepUnframe() {
+    const a = this.analysis;
+    if (a?.stepPrevView) { Object.assign(this.view, a.stepPrevView); a.stepPrevView = null; this._viewChanged?.(); }
+  },
+
   /** Steps for a decision noted without them (dev cards, trades, fixed-order builds): what it looked at → choice. */
   _aiGenericSteps(d) {
     const S = [];
@@ -439,7 +476,13 @@ export const AnalysisMixin = {
     };
     const pick = d.pick || {};
     // v0.87: two decimals (0.68 and 0.65 must not both read 0.7); whole numbers for pips
-    const sval = (v) => (d.fmt === "int" ? String(Math.round(v)) : Math.abs(v) >= 10 ? fmt(v) : v.toFixed(2));
+    // v0.87: 1 decimal on the board, 2 only when two of the numbered spots would read the same
+    let dec = 1;
+    {
+      const shown = [...(d.nodes || []), ...(d.cities || [])].map((x) => x.s).filter(Number.isFinite).sort((a, b) => b - a).slice(0, 6).map((v) => v.toFixed(1));
+      if (new Set(shown).size < shown.length) dec = 2;
+    }
+    const sval = (v) => (d.fmt === "int" ? String(Math.round(v)) : Math.abs(v) >= 10 ? fmt(v) : v.toFixed(dec));
     ctx.save();
     // robber tiles: a soft shade by score, the expected damage under the number token
     if (d.hexes?.length) {
@@ -574,13 +617,13 @@ export const AnalysisMixin = {
           const d = a.last;
           if (!a.paused) this.aiPause();
           a.stepView = { steps: d.steps?.length ? d.steps : this._aiGenericSteps(d), cur: 0, pid: d.pid, title: d.title };
-          this._renderAnalysis(); this.requestBoardDraw?.();
+          this._renderAnalysis(); this.requestBoardDraw?.(); requestAnimationFrame(() => this._aiStepFrame());
         } else if (k === "sprev" || k === "snext") {
           const sv = a.stepView; if (!sv) return;
           sv.cur = Math.max(0, Math.min(sv.steps.length - 1, sv.cur + (k === "snext" ? 1 : -1))); sv.sel = null;
-          this._renderAnalysis(); this.requestBoardDraw?.();
-        } else if (k === "sclose") { a.stepView = null; this._renderAnalysis(); this.requestBoardDraw?.(); }
-        else if (k === "sgo") { const sv = a.stepView; if (sv) { sv.cur = Number(b.dataset.step) || 0; sv.sel = null; this._renderAnalysis(); this.requestBoardDraw?.(); } }
+          this._renderAnalysis(); this.requestBoardDraw?.(); requestAnimationFrame(() => this._aiStepFrame());
+        } else if (k === "sclose") { a.stepView = null; this._aiStepUnframe(); this._renderAnalysis(); this.requestBoardDraw?.(); }
+        else if (k === "sgo") { const sv = a.stepView; if (sv) { sv.cur = Number(b.dataset.step) || 0; sv.sel = null; this._renderAnalysis(); this.requestBoardDraw?.(); requestAnimationFrame(() => this._aiStepFrame()); } }
         else if (k === "srow") { const sv = a.stepView; if (sv) { const i = Number(b.dataset.row); sv.sel = sv.sel === i ? null : i; this._renderAnalysis(); this.requestBoardDraw?.(); } }
         else if (k === "min") {
           a.min = !a.min;
@@ -630,7 +673,12 @@ export const AnalysisMixin = {
     }
     if (d && !a.min && !a.stepView) body += `<button type="button" class="aip-slink aip-sgo" data-ai="steps">Step through this decision ›</button>`;
     const html = head + body;
-    if (el._html !== html) { el.innerHTML = html; el._html = html; }
+    if (el._html !== html) {
+      el.innerHTML = html; el._html = html;
+      // the step strip scrolls sideways on narrow phones: keep the current step in view
+      const strip = el.querySelector(".aip-shead .sx-strip"), cur = strip?.querySelector(".cur");
+      if (strip && cur) strip.scrollLeft = Math.max(0, cur.offsetLeft - strip.offsetLeft - (strip.clientWidth - cur.offsetWidth) / 2);
+    }
     // Phones: the hand fan overlaps the bottom of the board, so the panel sits just above it
     // (v0.83: and above a docked trade offer: on phones the offer card used to cover the bars and Pause / Step)
     const wrap = el.parentElement?.getBoundingClientRect(), hand = document.getElementById("handArea")?.getBoundingClientRect();
@@ -646,6 +694,8 @@ export const AnalysisMixin = {
 };
 
 /** "#rrggbb" + alpha → rgba() */
+const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
 function hexA(c, a) {
   const m = /^#?([0-9a-f]{6})$/i.exec(c || "");
   if (!m) return `rgba(60,117,198,${a})`;
@@ -823,7 +873,7 @@ export const LabMixin = {
     this.analysis.labBase = null;
     this.requestBoardDraw();
     const tree = this._aiTree(mode, P); // v0.87: the same decision as a tree (src/ai-tree.js)
-    return d && { title: d.title, score: d.score, dims: d.dims, alts: d.alts, note: d.note, rules: d.rules || null, count: (d.nodes?.length || 0) + (d.hexes?.length || 0) + (d.edges?.length || 0), tree };
+    return d && { title: d.title, score: d.score, fmt: d.fmt || null, dims: d.dims, alts: d.alts, note: d.note, rules: d.rules || null, count: (d.nodes?.length || 0) + (d.hexes?.length || 0) + (d.edges?.length || 0), tree };
   },
 
   /** v0.87: the board for one step of "Step through" (null: back to the heatmap of the last explain). */
