@@ -231,6 +231,9 @@ const RUSH_OFFER_MS = 10000;    // a bot's offer to you stays up this long (Rush
 const UNDO_MS = 4000; // a placement can be taken back for this long (Confirm placements off)
 const ROBBER_SETTLE_MS = 2800; // one victim (or none): the robber move resolves by itself after this
 const SHORT_DEV = { knight: "Knight", roadBuilding: "Roads", yearOfPlenty: "Plenty", monopoly: "Monopoly" };
+// v0.84: one line per card for the bubble over a selected card in the hand
+const DEV_EFFECT = { knight: "move the robber, steal 1 card", roadBuilding: "2 free roads", yearOfPlenty: "take any 2 cards from the bank",
+  monopoly: "everyone hands you 1 kind of resource", victoryPoint: "+1 point, kept secret" };
 const CLASSIC_OFFER_MS = 15000; // Classic: a bot's offer is declined automatically after this
 
 const FRIENDLY_ROBBER_VP = 2;
@@ -1986,7 +1989,9 @@ class ColonistFullGame {
     if (this.pendingAction === "moveShip") { this._seaMoveTap(player, x, y); return; }
     if (this.sea && (!this.pendingAction || this.pendingAction === "build") && !this.freeRoadsRemaining && !this.confirmBuild) {
       const ship = this._seaShipAt(player, x, y);
-      if (ship != null && !(this.pendingAction === "build" && this._buildTargetAt(player, x, y))) { this._seaStartMove(player, ship); return; }
+      // v0.84: auto-glow is your normal main phase, so a tap on your own ship still lifts it (as before without a mode)
+      const glow = this._isAutoGlow() && this.trayMode !== "build";
+      if (ship != null && (glow || !(this.pendingAction === "build" && this._buildTargetAt(player, x, y)))) { this._seaStartMove(player, ship); return; }
     }
 
     if (!this.pendingAction) {
@@ -2013,8 +2018,21 @@ class ColonistFullGame {
     // still in play (v0.73: a road picked by mistake used to lock the next tap to roads, so a tap on
     // the corner built that road), and only a tap on the same spot builds.
     const auto = this._autoPick && this.confirmBuild && this.pendingAction === this.confirmBuild.type && this.pendingAction !== "robber";
-    const target = auto ? this._autoDetectTarget(player, x, y) : this._buildTargetAt(player, x, y);
+    // v0.84 calm auto-glow (only corners lit): the usual corner-vs-road rule; a lit corner then builds in one tap (the
+    // quiet roads around it make nothing ambiguous), an unlit road is only picked (below)
+    const calm = !auto && this._isAutoGlow() && this._legalPlacementSpots()?.calm;
+    let target = auto ? this._autoDetectTarget(player, x, y) : this._buildTargetAt(player, x, y);
+    if (calm && target && target.type !== "road" && target.type !== "ship") target = { ...target, ambiguous: false };
     if (!target) { this.confirmBuild = null; if (auto) { this.pendingAction = null; this._autoPick = false; } this.render(); return; }
+    if (!auto && this._isAutoGlow() && !this._spotLit(target)) {
+      // v0.84: auto-glow keeps roads quiet while a corner is lit; a tap on such an unlit road is a pick that waits for Place
+      this.pendingAction = target.type;
+      this.confirmBuild = { ...target, ambiguous: true };
+      this._autoPick = true;
+      this.sfx.click();
+      this.render();
+      return;
+    }
     const same = this.confirmBuild && this.confirmBuild.type === target.type && this.confirmBuild.id === target.id;
     // Direct building (Confirm placements off) still builds at once, except when the finger was
     // between a corner and a road: then the chosen spot is shown first and a second tap builds it.
@@ -2360,7 +2378,7 @@ class ColonistFullGame {
       const now = event.timeStamp;
       // While placing (setup, build/robber mode, or a ✓ is showing) a quick second tap is a
       // selection/confirmation, never a double-tap zoom
-      const placing = !!(this.setupPhase || this.pendingAction || this.confirmBuild || this.robberVictimOptions?.length > 0
+      const placing = !!(this.setupPhase || (this.pendingAction && !this._isAutoGlow()) || this.confirmBuild || this.robberVictimOptions?.length > 0
         || this.pendingDiscard || this.devPick || this.pendingIncomingTrade || this.tradeModal?.style.display !== "none");
       // v0.81: taps that fall between the hand's cards (the fan lies over the board) never zoom the board
       const fanTop = this.isMobileLayout ? this.resourceCardStrip?.getBoundingClientRect().top : null;
@@ -2627,6 +2645,7 @@ class ColonistFullGame {
     }
 
     if (key === "escape") {
+      if (this.devSel || this._handInfoOpen) { this.devSel = null; this._closeHandInfo(); this.renderResourceCards(); return; }
       if (this.devPlayed && this._cancelDevPlay()) return;
       if (this.trayMode) this.closeTray();
       if (this.confirmBuild?.type === "robber") {
@@ -6401,7 +6420,7 @@ class ColonistFullGame {
       lastRoll: this.lastRoll,
       rollHistory: { ...this.rollHistory },
       winnerId: this.winner ? this.winner.id : null,
-      pendingAction: this.pendingAction,
+      pendingAction: this.pendingAction === "build" ? null : this.pendingAction, // v0.84: build mode / auto-glow comes back by itself
       robberContext: this.robberContext,
       currentTurnPlayedDevCard: this.currentTurnPlayedDevCard,
       freeRoadsRemaining: this.freeRoadsRemaining,
@@ -7198,6 +7217,8 @@ class ColonistFullGame {
     if (type === "road" || all || (type === "build" && free)) g.edges.forEach((e) => { if (this.canBuildRoad(player, e.id, { free })) edges.push(e.id); });
     // ⚓ Seafarers: ship spots (a coast edge that also takes a road is shown as a road spot)
     if (this.sea && (type === "ship" || all || free)) g.edges.forEach((e) => { if (this.canBuildShip(player, e.id, { free }) && (type === "ship" || !edges.includes(e.id))) ships.push(e.id); });
+    // v0.84 auto-glow (phones): calm — roads / ships only light up while no settlement or city can be built
+    if (all && this.isMobileLayout && (nodes.length || cities.length)) return { nodes, cities, edges: [], ships: [], type, calm: true };
     return { nodes, cities, edges, ships, type };
   }
 
@@ -7221,15 +7242,17 @@ class ColonistFullGame {
     const br = reduced ? 0.5 : 0.5 - 0.5 * Math.cos(((now - this._spotStart) / 3600) * Math.PI * 2);
     const fade = e * (0.82 + 0.18 * br);
     const busy = spots.nodes.length + (spots.cities || []).length > 20 ? [0.5, 0.7] : [1, 1]; // set-up: quieter dots
+    // v0.84: one piece chosen on the build card: its spots a little stronger (ring, dot, dashes)
+    const k = !this.setupPhase && ["road", "settlement", "city", "ship"].includes(spots.type) ? 1.35 : 1;
     ctx.save();
     ctx.lineCap = "round";
     spots.edges.forEach((id) => {
       if (cb && cb.type === "road" && cb.id === id) return;
       const [a, b] = this.geometry.edges[id].nodes.map((n) => this.geometry.nodes[n]);
       const t = 0.22, ax = a.x + (b.x - a.x) * t, ay = a.y + (b.y - a.y) * t, bx = b.x - (b.x - a.x) * t, by = b.y - (b.y - a.y) * t;
-      ctx.globalAlpha = 0.75 * fade; ctx.setLineDash([4 * px, 5 * px]);
+      ctx.globalAlpha = Math.min(1, 0.75 * k) * fade; ctx.setLineDash([4 * px, 5 * px]);
       ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
-      ctx.strokeStyle = pc.base; ctx.lineWidth = 2.5 * px; ctx.stroke();
+      ctx.strokeStyle = pc.base; ctx.lineWidth = 2.5 * k * px; ctx.stroke();
     });
     ctx.setLineDash([]);
     [...spots.nodes.map((id) => [id, false]), ...(spots.cities || []).map((id) => [id, true])].forEach(([id, isCity]) => {
@@ -7238,10 +7261,10 @@ class ColonistFullGame {
       const r = isCity ? 15 * px : 7 * px;
       ctx.globalAlpha = fade;
       ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.55)"; ctx.lineWidth = 1.5 * px; ctx.stroke();
+      ctx.strokeStyle = k > 1 ? "rgba(255, 255, 255, 0.82)" : "rgba(255, 255, 255, 0.55)"; ctx.lineWidth = 1.5 * k * px; ctx.stroke();
       if (!isCity) {
         ctx.globalAlpha = fade * busy[0];
-        ctx.beginPath(); ctx.arc(n.x, n.y, 3 * busy[1] * px, 0, Math.PI * 2); ctx.fillStyle = pc.base; ctx.fill();
+        ctx.beginPath(); ctx.arc(n.x, n.y, 3 * busy[1] * (k > 1 ? 1.2 : 1) * px, 0, Math.PI * 2); ctx.fillStyle = pc.base; ctx.fill();
         ctx.strokeStyle = pc.line; ctx.lineWidth = 0.8 * px; ctx.stroke();
       }
     });
@@ -7641,8 +7664,13 @@ class ColonistFullGame {
     this.renderHandBar(human, total, devTotal);
     const pd = this.pendingDiscard?.player === human ? this.pendingDiscard : null;
     this.handArea?.classList.toggle("discarding", !!pd);
-    const key = JSON.stringify([human.id, this.handHidden, human.resources, devCounts, human.newDevCards, this.theme.id, this.isMobileLayout, pd?.selected || null, this._newDevPulse || null]);
-    if (key === this._lastHandKey) return;
+    // v0.84: dev cards carry their state in the hand: ready (playable now), new ("next turn"), VP; a tap selects one
+    const devState = (t) => (t === "victoryPoint" ? "vp" : human.devCards[t] === 0 ? "next" : this._devReady(human, t) ? "ready" : "held");
+    if (this.devSel && !(devCounts[this.devSel] > 0) || this.handHidden || pd) this.devSel = null;
+    const devStates = [...DEV_CARD_TYPES, "victoryPoint"].map((t) => (devCounts[t] ? devState(t) : ""));
+    this._renderHandTotal(human, total, devTotal, pd);
+    const key = JSON.stringify([human.id, this.handHidden, human.resources, devCounts, human.newDevCards, this.theme.id, this.isMobileLayout, pd?.selected || null, this._newDevPulse || null, devStates, this.devSel, this.isRush()]);
+    if (key === this._lastHandKey) { this._placeDevBubble(); return; }
     this._lastHandKey = key;
     this._syncTradeSheet();
     const devTypes = [...DEV_CARD_TYPES, "victoryPoint"].filter((t) => devCounts[t] > 0);
@@ -7663,10 +7691,15 @@ class ColonistFullGame {
       return `<button type="button" class="card" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: ${c}" title="${RESOURCE_LABEL[r]} — tap to trade" data-n="${Math.min(c, 4)}">${cardSvg(r)}<span class="count">${c}</span><span class="rib" aria-hidden="true"><b>${c}</b><span>${RESOURCE_LABEL[r]}</span></span></button>`;
     }).join("");
     if (devTypes.length) {
+      const when = this.isRush() ? "after roll" : "next turn";
       html += '<span class="sep"></span>' + devTypes.map((t, j) => {
-        const fresh = t !== "victoryPoint" && human.newDevCards[t] > 0 && human.devCards[t] === 0;
+        const st = devState(t);
+        const fresh = st === "next";
         const name = DEV_NAME[t];
-        return `<button type="button" class="card dev${fresh ? " new" : ""}${this._newDevPulse === t ? " drawn" : ""}" data-dev="${t}" style="${fan(RESOURCES.length + j)}" aria-label="${name}: ${devCounts[t]}" title="${name}${fresh ? " — playable next turn" : ""}" data-n="${Math.min(devCounts[t], 4)}">${cardSvg(t)}<span class="count">${devCounts[t]}</span><span class="rib" aria-hidden="true"><b>${devCounts[t]}</b><span>${name}</span></span></button>`;
+        const sel = this.devSel === t;
+        const tag = st === "vp" ? '<span class="dtag dt-vp" aria-hidden="true">+1 VP</span>' : fresh ? `<span class="dtag dt-nx" aria-hidden="true">${when}</span>` : "";
+        const play = sel && st === "ready" ? `<span class="dplay" data-dev-go="${t}" role="button" aria-label="Play ${name}">Play</span>` : "";
+        return `<button type="button" class="card dev ds-${st}${fresh ? " new" : ""}${sel ? " dsel-on" : ""}${this._newDevPulse === t ? " drawn" : ""}" data-dev="${t}" style="${fan(RESOURCES.length + j)}" aria-pressed="${sel}" aria-label="${name}: ${devCounts[t]}${fresh ? ` (playable ${when})` : st === "ready" ? " (tap to play)" : ""}" title="${name}: ${CARD_TEXT[t]}${fresh ? ` — playable ${when}` : ""}" data-n="${Math.min(devCounts[t], 4)}">${cardSvg(t)}<span class="count">${devCounts[t]}</span><span class="rib" aria-hidden="true"><b>${devCounts[t]}</b><span>${name}</span></span>${tag}${play}</button>`;
       }).join("");
     }
     this.resourceCardStrip.innerHTML = html;
@@ -7696,11 +7729,132 @@ class ColonistFullGame {
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         if (this.pendingDiscard || this.devPick) return;
-        this.openCardsTray(el.dataset.dev);
+        const t = el.dataset.dev;
+        if (e.target.closest("[data-dev-go]") && this.devSel === t) { this._playSelectedDev(t); return; }
+        this._selectDev(this.devSel === t ? null : t);
       });
     });
+    this._placeDevBubble();
     const strip = this.resourceCardStrip;
     window.requestAnimationFrame(() => this.handArea?.classList.toggle("fits", strip.scrollWidth <= strip.clientWidth + 2));
+  }
+
+  /** v0.84: a development card can be played from the hand right now (your turn, the holder's own move). */
+  _devReady(human, t) {
+    if (!human || t === "victoryPoint" || this.devPick || this.pendingDiscard) return false;
+    if (this.hotseat && (this.hsCoverOn != null || this._hsAway() || this.handHidden)) return false;
+    if (this._seaHumanBlocked?.()) return false;
+    return this.canPlayDevelopmentCard(human, t);
+  }
+
+  /** v0.84: tap a development card in the hand: it lifts with its effect in a bubble (and Play when it can be played). */
+  _selectDev(t) {
+    if (t && (this.pendingDiscard || this.devPick || this.handHidden)) return;
+    if (t && this.hotseat && (this.hsCoverOn != null || this._hsAway())) return;
+    this._closeHandInfo();
+    this.devSel = t || null;
+    this.sfx.click();
+    this.renderResourceCards();
+  }
+
+  _playSelectedDev(t) {
+    const human = this._me();
+    this.devSel = null;
+    if (!this._devReady(human, t)) { this._flashPrompt(this._devWhyNot(t)); this.render(); return; }
+    this.handleHumanPlayDevCard(t);
+  }
+
+  /** The one-line effect bubble over the selected card (fixed, so it never scrolls with the fan). */
+  _placeDevBubble() {
+    let b = document.getElementById("devBubble");
+    const t = this.devSel;
+    const el = t ? this.resourceCardStrip?.querySelector(`.card[data-dev="${t}"]`) : null;
+    if (!el) { if (b) b.hidden = true; return; }
+    if (!b) {
+      b = document.createElement("div");
+      b.id = "devBubble"; b.className = "dev-bubble"; b.setAttribute("role", "status");
+      (this.app || document.body).appendChild(b);
+    }
+    const human = this._me();
+    const st = t === "victoryPoint" ? "vp" : human.devCards[t] === 0 ? "next" : this._devReady(human, t) ? "ready" : "held";
+    const sub = st === "vp" ? "Counts at once" : st === "next" ? `New card · play it ${this.isRush() ? "after the next roll" : "next turn"}` : st === "held" ? this._devWhyNot(t) : "";
+    const html = `<b>${DEV_NAME[t]}</b> · ${DEV_EFFECT[t]}${sub ? `<small>${sub}</small>` : ""}`;
+    if (b.__html !== html) { b.__html = html; b.innerHTML = html; }
+    b.hidden = false;
+    b.dataset.state = st;
+    const place = () => {
+      if (this.devSel !== t || !el.isConnected) return;
+      const r = el.getBoundingClientRect();
+      const W = window.innerWidth, w = Math.min(b.offsetWidth, W - 16);
+      const x = Math.max(8, Math.min(W - 8 - w, r.left + r.width / 2 - w / 2));
+      b.style.left = `${x}px`;
+      b.style.bottom = `${window.innerHeight - r.top + 8}px`;
+      b.style.setProperty("--ax", `${Math.round(r.left + r.width / 2 - x)}px`);
+    };
+    place();
+    window.requestAnimationFrame(place);
+    window.setTimeout(place, 240); // after the lift transition
+  }
+
+  /** v0.84: your totals as a small pill over the hand (the bank + totals popover opens from it). */
+  _renderHandTotal(human, total, devTotal, pd) {
+    if (!this.handArea) return;
+    let el = this.handTotalEl;
+    if (!el) {
+      el = this.handTotalEl = document.createElement("button");
+      el.type = "button"; el.id = "handTotal"; el.className = "hand-total";
+      el.addEventListener("click", (e) => { e.stopPropagation(); this._toggleHandInfo(); });
+      this.handArea.appendChild(el);
+    }
+    const limit = this.settings?.discardLimit ?? 7;
+    const over = total > limit;
+    const who = this.hotseat && !this.handHidden ? human : null;
+    const key = [total, devTotal, over, who?.id, who?.name, !!pd, this.handHidden, this.theme?.id].join("|");
+    el.hidden = !!pd || !!this.handHidden;
+    if (el.__key === key) { if (this._handInfoOpen) this._renderHandInfo(); return; }
+    el.__key = key;
+    el.classList.toggle("warn", over);
+    el.className = `hand-total${over ? " warn" : ""}${who ? ` named pc-${who.id}` : ""}`;
+    el.setAttribute("aria-label", `${who ? `${who.name}: ` : ""}${total} resource card${total === 1 ? "" : "s"}, ${devTotal} development card${devTotal === 1 ? "" : "s"}${over ? `, more than ${limit}` : ""}. Tap for the bank`);
+    el.innerHTML = `${who ? `<i class="ht-dot" aria-hidden="true"></i><span class="ht-who">${who.name}</span>` : ""}${icon("cards")}<b>${total}</b>${devTotal ? `<span class="ht-dev">${icon("devcard")}<b>${devTotal}</b></span>` : ""}<span class="ht-bank" aria-hidden="true">${icon("bank")}</span>`;
+    if (this._handInfoOpen) this._renderHandInfo();
+  }
+
+  _toggleHandInfo(open = !this._handInfoOpen) {
+    if (open && (this.handHidden || this.pendingDiscard)) return;
+    this._handInfoOpen = open;
+    if (open) { this.devSel = null; this.renderResourceCards(); this.sfx.click(); }
+    this._renderHandInfo();
+  }
+
+  _closeHandInfo() { if (this._handInfoOpen) this._toggleHandInfo(false); }
+
+  /** The bank + totals popover: compact labels only (numbers first). */
+  _renderHandInfo() {
+    let pop = document.getElementById("handInfo");
+    const human = this._me();
+    if (!this._handInfoOpen || !human || !this.handTotalEl || this.handTotalEl.hidden) { if (pop) pop.hidden = true; this._handInfoOpen = false; return; }
+    if (!pop) {
+      pop = document.createElement("div");
+      pop.id = "handInfo"; pop.className = "hand-info"; pop.setAttribute("role", "dialog"); pop.setAttribute("aria-label", "Your cards and the bank");
+      (this.app || document.body).appendChild(pop);
+    }
+    const total = sumResources(human.resources);
+    const dev = [...DEV_CARD_TYPES.map((t) => [t, human.devCards[t] + human.newDevCards[t]]), ["victoryPoint", human.devVictoryPoints]].filter(([, n]) => n > 0);
+    const devTotal = dev.reduce((a, [, n]) => a + n, 0);
+    const limit = this.settings?.discardLimit ?? 7;
+    const deck = this.devDeck ? this.devDeck.length : 0;
+    const mini = (k, n, low) => `<span class="hi-c${low ? " low" : ""}"><svg class="hi-card" viewBox="0 0 250 350" aria-hidden="true"><use href="#cardm-${k}"/></svg><b>${n}</b></span>`;
+    const who = this.hotseat ? `${human.name}` : "You";
+    pop.innerHTML = `<div class="hi-h"><span>${who}</span><span class="hi-n${total > limit ? " warn" : ""}">${icon("cards")}<b>${total}</b>${total > limit ? `<small>max ${limit}</small>` : ""}</span><span class="hi-n">${icon("devcard")}<b>${devTotal}</b></span></div>`
+      + (dev.length ? `<div class="hi-dev">${dev.map(([t, n]) => `<span>${n > 1 ? `${n}× ` : ""}${t === "victoryPoint" ? "VP" : SHORT_DEV[t]}</span>`).join("")}</div>` : "")
+      + `<div class="hi-h hi-bank"><span>${icon("bank")}Bank</span></div>`
+      + `<div class="hi-row">${RESOURCES.map((r) => mini(r, this.bank[r], this.bank[r] <= 3)).join("")}<i class="hi-sep" aria-hidden="true"></i>${mini("knight", deck, deck <= 3).replace("hi-c", "hi-c hi-deck")}</div>`;
+    pop.hidden = false;
+    const r = this.handTotalEl.getBoundingClientRect();
+    pop.style.bottom = `${window.innerHeight - r.top + 8}px`;
+    const pr = pop.getBoundingClientRect();
+    pop.style.setProperty("--ax", `${Math.round(r.left + r.width / 2 - pr.left)}px`);
   }
 
   renderScoreboard() {
@@ -7942,7 +8096,7 @@ class ColonistFullGame {
       status = "Game paused — discards, then the robber";
     } else if (humanTurn && this.pendingAction === "robber") {
       status = this.confirmBuild ? "Robber: confirm below" : this.sea?.thief === "pirate" ? `Move the pirate · ${tapw} a sea tile` : `Move the robber · ${tapw} a tile`;
-    } else if (rushOn && mainPhase && !this.pendingAction) {
+    } else if (rushOn && mainPhase && (!this.pendingAction || (this._isAutoGlow() && this.trayMode !== "build"))) {
       title = "Rush";
       status = this.autoplayInterval ? "Bots are playing for you" : "Build, trade or play a card any time";
     } else if (humanTurn && this.phase === "sbp") {
@@ -7955,7 +8109,9 @@ class ColonistFullGame {
       if (this.pendingAction) {
         if (this.confirmBuild) status = confirmHint;
         else status = this.freeRoadsRemaining > 0 ? `Free road · ${this.freeRoadsRemaining} left · ${tapw} a marked spot`
-          : this.pendingAction === "build" || mobile ? `${tapW} a marked spot to build` : `${placeName[this.pendingAction] || this.pendingAction} · ${tapw} a marked spot`;
+          : mobile && this.pendingAction === "build" ? (this.trayMode === "build" ? "Pick a piece or tap a lit spot" : "Your turn · tap a lit spot")
+          : mobile ? ({ road: "Road · tap a lit edge", ship: "Ship · tap a lit edge", settlement: "Settlement · tap a lit corner", city: "City · tap a lit settlement" }[this.pendingAction] || `${tapW} a marked spot to build`)
+          : this.pendingAction === "build" ? `${tapW} a marked spot to build` : `${placeName[this.pendingAction] || this.pendingAction} · ${tapw} a marked spot`;
       } else {
         status = "Build, trade or play a card";
       }
@@ -7964,19 +8120,20 @@ class ColonistFullGame {
     }
     // The dock tray (build, cards, picks, robber, discard) says what to do in the same line
     const tray = this._renderTray();
+    this._renderBuildCard(tray);
     if (tray?.hint) status = tray.hint;
     const flash = (this._flash && this._flash.until > Date.now() ? this._flash.text : null) || this._seaStatus(); // ⚓ "New island! …"
     if (flash) status = flash;
     if (this.actionPromptText) this.actionPromptText.textContent = status;
     // Phones: the ticker line becomes the instruction while you have to act (place, robber, discard)
     const sbpLine = !flash && !tray && !this.pendingAction && this._sbpWindowOpen() ? this._sbpTickerHtml() : "";
-    const mustAct = !this.winner && (!!flash || !!tray || !!sbpLine || (this.setupPhase && humanTurn && this.setupAction) || (humanTurn && this.pendingAction) || !!this.pendingDiscard);
+    const mustAct = !this.winner && (!!flash || !!tray || !!sbpLine || (this.setupPhase && humanTurn && this.setupAction) || (humanTurn && this.pendingAction && !(this._isAutoGlow() && this.trayMode !== "build")) || !!this.pendingDiscard);
     const prompt = mustAct ? status : "";
     // Cancel sits right in the instruction line: leave build mode / a tray, or take back a card played by mistake
     const devCancel = !!this.devPlayed && ((this.devPlayed.type === "knight" && this.pendingAction === "robber" && !this.confirmBuild)
       || (this.devPlayed.type === "roadBuilding" && this.freeRoadsRemaining === this.devPlayed.free));
     const canCancel = humanTurn && !this.setupPhase && !this.pendingDiscard && (devCancel || (tray && ["build", "cards"].includes(tray.mode))
-      || !!((this.confirmBuild && this.confirmBuild.type !== "robber") || (this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining)));
+      || !!((this.confirmBuild && this.confirmBuild.type !== "robber") || (this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining && !(this._isAutoGlow() && this.trayMode !== "build"))));
     const tickerCancel = document.querySelector("#tickerCancel");
     if (tickerCancel) tickerCancel.hidden = !(mustAct && canCancel);
     // v0.81: the robber (and a discard) is an instruction, not a log line: the ticker turns into an action prompt
@@ -8025,7 +8182,8 @@ class ColonistFullGame {
     if (endBtn) {
       endBtn.style.display = !rushOn && humanTurn && mainPhase && !inSetup && !robberBlocking ? "inline-flex" : "none";
       // also while Road Building's free roads are still to be placed
-      endBtn.disabled = inSetup || !(humanTurn && mainPhase) || robberBlocking || (!!this.pendingAction && this.pendingAction !== "build") || !!this.devPick;
+      // v0.84: a chosen piece (build card) never blocks End turn; Road Building's free roads still do
+      endBtn.disabled = inSetup || !(humanTurn && mainPhase) || robberBlocking || (!!this.pendingAction && !["build", "road", "settlement", "city", "ship"].includes(this.pendingAction)) || this.freeRoadsRemaining > 0 || !!this.devPick;
     }
     // v0.81: while you must move the robber the primary slot is a disabled "Move robber" (End turn / Ready wait)
     const robberWait = !this.winner && this.pendingAction === "robber" && !!this.currentPlayer?.isHuman && (humanTurn || rushOn);
@@ -8141,6 +8299,7 @@ class ColonistFullGame {
     }
     const mBuild = document.querySelector("#mBuildBtn");
     if (mBuild) mBuild.disabled = !canBuildNow;
+    this._renderBuyBtn(human, canBuildNow && humanTurn && (!this.hotseat || this.currentPlayer === human));
 
     [this.buildRoadBtn, this.buildSettlementBtn, this.buildCityBtn].forEach((btn) => btn?.classList.remove("selected-action"));
     if (this.pendingAction === "road") this.buildRoadBtn?.classList.add("selected-action");
@@ -8692,34 +8851,20 @@ class ColonistFullGame {
   }
 
   /**
-   * v0.73 phones: one slim line above the hand. Left: your total ("7 cards · 1 dev"), tinted once you
-   * hold more than the discard limit (a 7 then costs half). Right: the bank's cards left per resource
-   * and the development deck (tap to fold it to just "Bank"; remembered on this device).
+   * Phones: the slim line above the hand. v0.84: only the discard summary ("Hand back 4 of 8 · keep 4") lives here;
+   * your totals are the pill over the hand (with the bank popover), the bank is also in Trade and live stats.
    */
-  renderHandBar(human = this._me(), total = human ? sumResources(human.resources) : 0, devTotal = null) {
+  renderHandBar(human = this._me(), total = human ? sumResources(human.resources) : 0) {
     const el = this.handBar;
     if (!el || !human) return;
-    if (devTotal == null) devTotal = DEV_CARD_TYPES.reduce((a, t) => a + human.devCards[t] + human.newDevCards[t], 0) + human.devVictoryPoints;
-    if (this._bankOpen == null) { let v = null; try { v = localStorage.getItem("colonist.bankBar"); } catch (_) {} this._bankOpen = v !== "closed"; }
-    const limit = this.settings?.discardLimit ?? 7;
-    const deck = this.devDeck ? this.devDeck.length : 0;
-    const who = this.hotseat && !this.handHidden ? human : null; // pass & play: whose hand this is
     const pd = this.pendingDiscard?.player === human ? this.pendingDiscard : null;
-    const key = [who?.id, who?.name, total, devTotal, limit, deck, this._bankOpen, this.theme?.id, ...RESOURCES.map((r) => this.bank[r]), pd ? `${pd.count}:${sumResources(pd.selected)}` : ""].join("|");
+    const key = [total, pd ? `${pd.count}:${sumResources(pd.selected)}` : ""].join("|");
     if (key === this._lastHandBarKey) return;
     this._lastHandBarKey = key;
-    if (pd) {
-      // v0.81 discard: one summary line over the hand ("Hand back 4 of 8 · keep 4"); the bank waits
-      const sel = sumResources(pd.selected);
-      el.innerHTML = `<span class="hb-total hb-discard${sel === pd.count ? " done" : ""}" data-total="${total}">${icon("robber")}<span>Hand back <b>${pd.count}</b> of <b>${total}</b> · keep <b>${total - pd.count}</b></span>${sel ? `<i class="hb-prog">${sel}/${pd.count}</i>` : ""}</span>`;
-      return;
-    }
-    const over = total > limit;
-    el.innerHTML = `<span class="hb-total${over ? " warn" : ""}${who ? " hb-named" : ""}" data-total="${total}" title="${who ? `${who.name}: ` : ""}${total} resource card${total === 1 ? "" : "s"}${devTotal ? ` · ${devTotal} development card${devTotal === 1 ? "" : "s"}` : ""}${over ? ` · more than ${limit}: on a 7 you hand back half` : ""}">${who ? `<span class="hb-who pc-${who.id}">${who.name}</span><i class="hb-sep" aria-hidden="true">·</i>` : ""}${who ? `${icon("cards")}<b>${total}</b>` : `<b>${total}</b> card${total === 1 ? "" : "s"}${devTotal ? ` · <b>${devTotal}</b> dev` : ""}`}</span>`
-      + `<button type="button" class="hb-bank${this._bankOpen ? " open" : ""}" aria-expanded="${this._bankOpen}" aria-label="Bank: ${RESOURCES.map((r) => `${this.bank[r]} ${RESOURCE_LABEL[r]}`).join(", ")}, ${deck} development cards left" title="Cards left in the bank (tap to ${this._bankOpen ? "fold" : "show"})">`
-      + `${icon("bank")}<span class="hb-lbl">Bank</span>`
-      + RESOURCES.map((r) => `<span class="bk${this.bank[r] <= 3 ? " low" : ""}" data-bank="${r}">${icon(r)}<b>${this.bank[r]}</b></span>`).join("")
-      + `<span class="bk dv" data-bank="dev">${icon("devcard")}<b>${deck}</b></span></button>`;
+    el.hidden = !pd;
+    if (!pd) { el.innerHTML = ""; return; }
+    const sel = sumResources(pd.selected);
+    el.innerHTML = `<span class="hb-total hb-discard${sel === pd.count ? " done" : ""}" data-total="${total}">${icon("robber")}<span>Hand back <b>${pd.count}</b> of <b>${total}</b> · keep <b>${total - pd.count}</b></span>${sel ? `<i class="hb-prog">${sel}/${pd.count}</i>` : ""}</span>`;
   }
 
   // ── Supply Overview ─────────────────────────────────────────────────
@@ -8907,7 +9052,17 @@ class ColonistFullGame {
     tip.className = "vp-tooltip";
     tip.id = "vpTooltip";
 
-    let html = '<div class="vp-tooltip-section">VP Breakdown</div>';
+    // v0.84: what matters most first — cards and development cards in hand, knights, road — then the points, then pieces
+    const row = (label, value, cls = "") => `<div class="vp-tooltip-row${cls}"><span class="vp-tooltip-label">${label}</span><span class="vp-tooltip-value">${value}</span></div>`;
+    const cardsN = sumResources(player.resources);
+    const limit = this.settings?.discardLimit ?? 7;
+    let html = `<div class="vp-tooltip-section">${this._you(player) ? "Your hand" : "In hand"}</div>`;
+    html += `<div class="vp-tooltip-grid">`
+      + `<span${cardsN > limit ? ' class="warn"' : ""}>${icon("cards")}<b>${cardsN}</b><small>cards</small></span>`
+      + `<span>${icon("devcard")}<b>${totalDevCards + devVP}</b><small>dev</small></span>`
+      + `<span>${icon("knight")}<b>${player.knightsPlayed}</b><small>knights</small></span>`
+      + `<span>${icon(this.sea ? "tradeRoute" : "road")}<b>${player.longestRoadLength}</b><small>${this.sea ? "route" : "road"}</small></span></div>`;
+    html += '<div class="vp-tooltip-section" style="margin-top:0.35rem">Points</div>';
     const vpRows = [
       { label: `Settlements (${settlements}/5)`, value: settlements },
       { label: `Cities (${cities}/4)`, value: `${cities} x 2 = ${cities * 2}` },
@@ -8917,23 +9072,10 @@ class ColonistFullGame {
     vpRows.push(...this._seaVpRows(player));
     if (largestArmy) vpRows.push({ label: "Largest Army", value: 2 });
     vpRows.push({ label: "Total", value: total, total: true });
-    html += vpRows.map(r =>
-      `<div class="vp-tooltip-row${r.total ? " vp-tooltip-total" : ""}"><span class="vp-tooltip-label">${r.label}</span><span class="vp-tooltip-value">${r.value}</span></div>`
-    ).join("");
-
-    // Building pieces remaining
-    html += '<div class="vp-tooltip-section" style="margin-top:0.3rem">Pieces</div>';
-    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Roads</span><span class="vp-tooltip-value">${roads}/15</span></div>`;
-    if (this.sea) html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Ships</span><span class="vp-tooltip-value">${player.ships.size}/15</span></div>`; // ⚓
-    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Settlements</span><span class="vp-tooltip-value">${settlements}/5</span></div>`;
-    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Cities</span><span class="vp-tooltip-value">${cities}/4</span></div>`;
-
-    // Dev card info
-    html += '<div class="vp-tooltip-section" style="margin-top:0.3rem">Dev Cards</div>';
-    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">In hand</span><span class="vp-tooltip-value">${totalDevCards}</span></div>`;
-    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">Knights played</span><span class="vp-tooltip-value">${player.knightsPlayed}</span></div>`;
-    html += `<div class="vp-tooltip-row"><span class="vp-tooltip-label">${this.sea ? "Trade route" : "Longest road"}</span><span class="vp-tooltip-value">${player.longestRoadLength}</span></div>`;
-
+    html += vpRows.map((r) => row(r.label, r.value, r.total ? " vp-tooltip-total" : "")).join("");
+    html += '<div class="vp-tooltip-section" style="margin-top:0.35rem">Pieces</div>';
+    html += row("Roads", `${roads}/15`);
+    if (this.sea) html += row("Ships", `${player.ships.size}/15`); // ⚓
     tip.innerHTML = html;
 
     const rect = anchorEl.getBoundingClientRect();
@@ -8942,6 +9084,9 @@ class ColonistFullGame {
     const tipRect = tip.getBoundingClientRect();
     let left = rect.left;
     let top = rect.bottom + 4;
+    // v0.84 phones: open under the ticker, so the next action stays readable
+    const tk = this.isMobileLayout && !this.isLandscapePhone && anchorEl.closest(".pstrip") ? document.querySelector(".tkrow, #ticker") : null;
+    if (tk) top = Math.max(top, tk.getBoundingClientRect().bottom + 4);
     // Keep within viewport
     if (left + tipRect.width > window.innerWidth - 8) left = window.innerWidth - tipRect.width - 8;
     if (left < 8) left = 8;
@@ -9024,15 +9169,6 @@ class ColonistFullGame {
     this.waitingBar = $("#waitingBar");
     this.handSummary = $("#handSummary");
     this.handBar = $("#handBar");
-    this.handBar?.addEventListener("click", (e) => {
-      const bank = e.target.closest(".hb-bank");
-      if (!bank) return;
-      e.stopPropagation();
-      this._bankOpen = !this._bankOpen;
-      try { localStorage.setItem("colonist.bankBar", this._bankOpen ? "open" : "closed"); } catch (_) {}
-      this._lastHandBarKey = null;
-      this.renderHandBar();
-    });
     this.handArea = $("#handArea");
     this.scrim = $("#scrim");
     this.mtop = $("#mtop");
@@ -9068,6 +9204,17 @@ class ColonistFullGame {
     $("#dockPicker")?.addEventListener("click", (e) => this._onTrayClick(e));
     $("#buildSheetClose")?.addEventListener("click", () => this.toggleBuildSheet(false));
     $("#mCardsBtn")?.addEventListener("click", (e) => { e.stopPropagation(); this.openCardsTray(); });
+    $("#mBuyBtn")?.addEventListener("click", (e) => this._onBuyBtn(e));
+    // v0.84: a tap anywhere else lets go of a selected card / closes the bank popover and the dock tip
+    document.addEventListener("pointerdown", (e) => {
+      const t = e.target;
+      if (!(t instanceof Element)) return;
+      if (this.devSel && !t.closest("#resourceCardStrip .card[data-dev], #devBubble")) { this.devSel = null; this.renderResourceCards(); }
+      if (this._handInfoOpen && !t.closest("#handTotal, #handInfo")) this._toggleHandInfo(false);
+      if (!t.closest("#mBuyBtn, #dockTip")) this._hideTip();
+      // a player's breakdown closes on any tap elsewhere too (a board tap never makes a click event)
+      if (document.getElementById("vpTooltip") && !t.closest("#vpTooltip, [data-seat]")) this._hideVPTooltip();
+    }, true);
     $("#devPickerClose")?.addEventListener("click", () => this.hideDevCardPicker());
     this.cancelActionBtn?.addEventListener("click", () => this.cancelPlacement());
     $("#tickerCancel")?.addEventListener("click", (e) => { e.stopPropagation(); this.cancelPlacement(); });
@@ -9450,16 +9597,17 @@ class ColonistFullGame {
     this.render();
   }
 
+  /** v0.84: there is no Cards tray any more; "P" / the old entry points select a card in the hand instead
+   *  (the first one you can play, else the first you hold). */
   openCardsTray(focus = null) {
     if (this.hotseat && (this.hsCoverOn != null || this._hsAway() || this.handHidden)) return; // pass & play: not this holder's move
-    if (this.trayMode === "cards" && !focus) { this.closeTray(); return; }
     if (this._robberInProgress() || this.devPick) return;
-    this.hideTradePanel();
-    if (this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining) { this.pendingAction = null; this.confirmBuild = null; }
-    this.trayMode = "cards";
-    this._trayFocus = focus;
-    this.sfx.click();
-    this.render();
+    const h = this._me();
+    if (!h) return;
+    const held = [...DEV_CARD_TYPES.filter((t) => h.devCards[t] + h.newDevCards[t] > 0), ...(h.devVictoryPoints ? ["victoryPoint"] : [])];
+    const t = focus && held.includes(focus) ? focus : held.find((x) => this._devReady(h, x)) || held[0];
+    if (!t) { this._flashPrompt(`No development cards · Buy card costs ${resourceString(COSTS.development)}`); this.render(); return; }
+    this._selectDev(this.devSel === t && !focus ? null : t);
   }
 
   closeTray() {
@@ -9692,58 +9840,162 @@ class ColonistFullGame {
           : `Year of Plenty: tap ${dp.count - dp.picks.length} card${dp.count - dp.picks.length === 1 ? "" : "s"} to take from the bank`,
         html: res + last };
     }
-    if (this.trayMode === "cards") {
-      const types = DEV_CARD_TYPES.filter((t) => human.devCards[t] + human.newDevCards[t] > 0);
-      const canBuy = cur.isHuman && this._buildPhase() && !this._robberInProgress() && hasResources(human.resources, COSTS.development) && this.devDeck.length > 0;
-      const focus = this._trayFocus;
-      const btns = types.map((t) => {
-        const ok = this.canPlayDevelopmentCard(human, t) && !this.devPick;
-        const n = human.devCards[t] + human.newDevCards[t];
-        const onlyNew = human.devCards[t] === 0; // bought this turn: shown, marked "next turn"
-        const when = onlyNew ? (this.isRush() ? "after roll" : "next turn") : "";
-        return tbtn(`data-dev-play="${t}" ${ok ? "" : "aria-disabled=\"true\""} title="${DEV_NAME[t]}: ${CARD_TEXT[t]}${when ? ` (playable ${when})` : ""}"`, `<span class="card">${cardSvg(t)}</span><span>${SHORT_DEV[t]}</span>${when ? `<small class="tnew">${when}</small>` : ""}${n > 1 ? `<i class="pk">×${n}</i>` : ""}`, `dev${ok ? "" : " off"}${onlyNew ? " fresh" : ""}${focus === t ? " focus" : ""}`);
-      }).join("");
-      const ft = focus && DEV_CARD_TYPES.includes(focus) ? focus : null;
-      const fresh = ft && human.devCards[ft] === 0;
-      const hint = ft ? `${DEV_NAME[ft]}: ${CARD_TEXT[ft]}${fresh ? (this.isRush() ? " · playable after the next roll" : " · playable next turn") : ""}`
-        : types.some((t) => this.canPlayDevelopmentCard(human, t)) ? "Tap a card to play it (one per turn)"
-        : canBuy ? `Buy a development card for ${resourceString(COSTS.development)}${types.length ? " · cards bought now play next turn" : ""}`
-        : types.length ? "Tap a card to play it (one per turn)"
-        : `No development cards yet · one costs ${resourceString(COSTS.development)}`;
-      const vp = human.devVictoryPoints ? tbtn(`aria-disabled="true" title="Victory Point cards count at once (kept secret)"`, `<span class="card">${cardSvg("victoryPoint")}</span><span>VP</span>${human.devVictoryPoints > 1 ? `<i class="pk">×${human.devVictoryPoints}</i>` : ""}`, "dev vp") : "";
-      return { mode: "cards", hint,
-        html: btns + vp + tbtn(`data-tray-buy ${canBuy ? "" : "disabled"} aria-label="Buy a development card: ${resourceString(COSTS.development)}"`, `${icon("devcard")}<span>Buy card</span>${this._costChips("development")}`, "buy") + close() };
-    }
-    if (this.trayMode === "build" && this.isMobileLayout) {
-      const pa = this.pendingAction;
-      const can = (t) => this._buildPhase() && (t === "development" ? hasResources(human.resources, COSTS.development) && this.devDeck.length > 0
-        : hasResources(human.resources, COSTS[t]) && this.piecesLeft(human, t) > 0);
-      // v0.81: what you can't build is clearly greyed with the reason in small print under it (the cards you still
-      // need, "none left" or "no spot"); what you can build stays fully lit
-      const spot = { road: () => this.geometry.edges.some((e) => this.canBuildRoad(human, e.id)), settlement: () => this.geometry.nodes.some((n) => this.canBuildSettlement(human, n.id, false)),
-        city: () => this.geometry.nodes.some((n) => this.canBuildCity(human, n.id, false)), ship: () => this.geometry.edges.some((e) => this.canBuildShip?.(human, e.id, {})) };
-      const why = (t) => {
-        if (!this._buildPhase()) return null;
-        const miss = RESOURCES.filter((r) => (COSTS[t][r] || 0) > human.resources[r]).map((r) => [r, COSTS[t][r] - human.resources[r]]);
-        // short enough for a 60 px button: "need 1 [brick]"; several kinds: just the counts + icons (a 1 is left out when 3+ kinds miss)
-        if (miss.length) return { html: `${miss.length === 1 ? "<span>need</span>" : ""}${miss.map(([r, n]) => `<i>${n > 1 || miss.length < 3 ? n : ""}${icon(r)}</i>`).join("")}`, text: `need ${missingCostString(human.resources, COSTS[t])}` };
-        if (t === "development") return this.devDeck.length ? null : { html: "<span>deck empty</span>", text: "the deck is empty" };
-        if (this.piecesLeft(human, t) <= 0) return { html: "<span>none left</span>", text: `no ${t === "city" ? "cities" : `${t}s`} left` };
-        return spot[t] && !spot[t]() ? { html: "<span>no spot</span>", text: "no free spot" } : null;
-      };
-      const ok = (t) => can(t) && !why(t);
-      const chips = (t) => (this.sea ? this._seaCostChips(t) : ""); // ⚓ Seafarers: costs under each button
-      const foot = (t) => { const w = why(t); return w ? `<small class="tneed">${w.html}</small>` : chips(t); };
-      const lbl = (t, label) => { const w = why(t); return `aria-label="${label}${w ? `: ${w.text}` : ""}" title="${label}${w ? ` · ${w.text}` : ""}"`; };
-      const piece = (t, label) => tbtn(`data-tray-build="${t}" ${ok(t) ? "" : "disabled"} aria-pressed="${pa === t}" ${lbl(t, label)}`, `${icon(t)}<span>${label}</span>${foot(t)}`, pa === t ? "sel" : "");
-      const any = ["road", "settlement", "city", "development", ...(this.sea ? ["ship"] : [])].some(can);
-      const hint = this.freeRoadsRemaining ? `Free road · ${this.freeRoadsRemaining} left · tap a marked spot`
-        : pa && pa !== "robber" ? "Tap a marked spot to build" : any ? "Pick what to buy" : `Not enough cards yet · road ${resourceString(COSTS.road)}`;
-      return { mode: "build", hint,
-        html: piece("road", "Road") + (this.sea ? piece("ship", "Ship") : "") + piece("settlement", "Settle") + piece("city", "City") + tbtn(`data-tray-buy ${ok("development") ? "" : "disabled"} ${lbl("development", "Card")}`, `${icon("devcard")}<span>Card</span>${foot("development")}`) + close() };
-    }
     return null;
   }
+
+  /** v0.84 phones: why a piece can't be built now (null = it can), for the build card and its taps. */
+  _buildWhy(human, t) {
+    if (!this._buildPhase()) return { short: "not now", text: "Build after rolling, on your turn" };
+    if (this.piecesLeft(human, t) <= 0) return { short: "none left", text: `No ${t === "city" ? "cities" : `${t}s`} left` };
+    const free = this.freeRoadsRemaining > 0 && (t === "road" || t === "ship");
+    const miss = free ? [] : RESOURCES.filter((r) => (COSTS[t][r] || 0) > human.resources[r]).map((r) => [r, COSTS[t][r] - human.resources[r]]);
+    if (miss.length) return { miss, short: "need", text: `${t === "settlement" ? "Settlement" : t[0].toUpperCase() + t.slice(1)} · you need ${missingCostString(human.resources, COSTS[t])} more` };
+    const spot = { road: () => this.geometry.edges.some((e) => this.canBuildRoad(human, e.id, { free })), settlement: () => this.geometry.nodes.some((n) => this.canBuildSettlement(human, n.id, false)),
+      city: () => this.geometry.nodes.some((n) => this.canBuildCity(human, n.id, false)), ship: () => this.geometry.edges.some((e) => this.canBuildShip?.(human, e.id, { free })) };
+    if (!spot[t]()) return { short: "no spot", text: `No free spot for a ${t}` };
+    if (this.freeRoadsRemaining > 0 && t !== "road" && t !== "ship") return { short: "roads first", text: "Place the free roads first" };
+    return null;
+  }
+
+  /** Mini cost cards (the hand's card art, small). `have`: grey out the ones you still lack. */
+  _miniCost(cost, have = null, only = null) {
+    const left = have ? { ...have } : null;
+    return RESOURCES.filter((r) => cost[r]).flatMap((r) => Array(cost[r]).fill(r)).map((r) => {
+      const ok = !left || left[r] > 0;
+      if (left && ok) left[r] -= 1;
+      if (only === "missing" && ok) return "";
+      return `<i class="mini-card${ok ? "" : " miss"}" data-r="${r}"><svg viewBox="0 0 250 350" aria-hidden="true"><use href="#cardm-${r}"/></svg></i>`;
+    }).join("");
+  }
+
+  /** v0.84 phones: the small build card over the hand (Build button). Road / (Ship) / Settle / City with their
+   *  costs as mini cards; a greyed row says why (the cards you lack, none left, no spot). Choosing a row lights
+   *  only those spots; choosing it again goes back to all lit spots. End turn stays available. */
+  _renderBuildCard(tray = null) {
+    let el = document.getElementById("buildCard");
+    const human = this._me();
+    const open = this.isMobileLayout && this.trayMode === "build" && !!human && this.currentPlayer === human && !tray;
+    this.app?.classList.toggle("build-card-open", open);
+    document.querySelector("#mBuildBtn")?.classList.toggle("on", open);
+    if (!open) { if (el) el.hidden = true; return; }
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "buildCard"; el.className = "build-card"; el.setAttribute("role", "group"); el.setAttribute("aria-label", "Build");
+      el.addEventListener("click", (e) => { e.stopPropagation(); this._onBuildCardClick(e); });
+      (this.app || document.body).appendChild(el);
+    }
+    const pa = this.pendingAction;
+    const row = (t, label) => {
+      const w = this._buildWhy(human, t);
+      const free = this.freeRoadsRemaining > 0 && (t === "road" || t === "ship");
+      const foot = !w ? `<span class="bc-n">${free ? "free" : `${this.piecesLeft(human, t)} left`}</span>`
+        : w.miss ? `<span class="bc-need">need ${w.miss.map(([r, n]) => `${n}<i class="mini-card"><svg viewBox="0 0 250 350" aria-hidden="true"><use href="#cardm-${r}"/></svg></i>`).join(" ")}</span>`
+        : `<span class="bc-need">${w.short}</span>`;
+      return `<button type="button" class="bc-row${pa === t ? " sel" : ""}${w ? " off" : ""}" data-bc="${t}" aria-pressed="${pa === t}" aria-disabled="${!!w}" aria-label="${label}${w ? `: ${w.text}` : ""}">`
+        + `<span class="bc-top">${icon(t)}<span class="bc-name">${label}</span></span><span class="bc-cost">${free ? "" : this._miniCost(COSTS[t], human.resources)}</span>${foot}</button>`;
+    };
+    const html = row("road", "Road") + (this.sea ? row("ship", "Ship") : "") + row("settlement", "Settle") + row("city", "City");
+    if (el.__html !== html) { el.__html = html; el.innerHTML = html; }
+    el.hidden = false;
+    const top = this.resourceCardStrip?.getBoundingClientRect().top || 0;
+    const tot = this.handTotalEl && !this.handTotalEl.hidden ? this.handTotalEl.getBoundingClientRect().top : top;
+    el.style.bottom = `${window.innerHeight - Math.min(top + 14, tot) + 6}px`;
+  }
+
+  _onBuildCardClick(e) {
+    const b = e.target.closest("[data-bc]");
+    if (!b) return;
+    const t = b.dataset.bc;
+    const human = this._me();
+    const w = human && this._buildWhy(human, t);
+    if (w) { this._flashPrompt(w.text); this.sfx.error?.(); this.render(); return; }
+    if (this.pendingAction === t && !this.freeRoadsRemaining) { this.pendingAction = "build"; this.confirmBuild = null; this.sfx.click(); this.render(); return; }
+    this.setPendingAction(t, { keepTray: true });
+  }
+
+  /** v0.84 phones: the build mode that is on by itself in your main phase ("auto-glow"): settlement corners and
+   *  city rings glow quietly; roads only while no settlement or city can be built. */
+  _autoGlowWanted() {
+    if (!this.isMobileLayout || this.winner || this.setupPhase || this.phase !== "main" || this.autoplayInterval != null) return false;
+    const cur = this.currentPlayer;
+    if (!cur?.isHuman || this._me() !== cur) return false;
+    if (this.hotseat && (this.hsCoverOn != null || this._hsAway() || this.handHidden)) return false;
+    if (this._robberInProgress() || this._seaHumanBlocked?.() || this.devPick || this.freeRoadsRemaining > 0 || this.pendingIncomingTrade) return false;
+    return this._canPlaceAnything(cur);
+  }
+
+  _syncAutoGlow() {
+    if (!this.players || !this.geometry) return;
+    const want = this._autoGlowWanted();
+    if (want && !this.pendingAction && !this.confirmBuild) { this.pendingAction = "build"; this._autoPick = false; }
+    else if (!want && this.pendingAction === "build" && this.trayMode !== "build" && !this.confirmBuild && this.isMobileLayout) this.pendingAction = null;
+  }
+
+  /** Auto-glow (or the build card with nothing chosen): every lit spot builds; roads stay quiet while a corner is lit. */
+  _isAutoGlow() {
+    return this.isMobileLayout && this.pendingAction === "build" && !this.freeRoadsRemaining && !this.setupPhase;
+  }
+
+  /** The spot a tap found is one of the lit ones (auto-glow hides roads while a corner is lit). */
+  _spotLit(t) {
+    const s = this._legalPlacementSpots();
+    if (!s || !t) return false;
+    if (t.type === "road") return s.edges.includes(t.id);
+    if (t.type === "ship") return (s.ships || []).includes(t.id);
+    if (t.type === "city") return (s.cities || []).includes(t.id);
+    return s.nodes.includes(t.id);
+  }
+
+  /** v0.84 dock: Buy card (one tap buys; greyed it shows only the cards you lack and a tap says what's missing). */
+  _renderBuyBtn(human, canBuildNow) {
+    const b = this.mBuyBtn || (this.mBuyBtn = document.querySelector("#mBuyBtn"));
+    if (!b || !human) return;
+    const deck = this.devDeck ? this.devDeck.length : 0;
+    const afford = hasResources(human.resources, COSTS.development);
+    const can = canBuildNow && afford && deck > 0 && !this.pendingDiscard && !this.devPick;
+    const cost = !deck ? '<span class="mb-why">deck empty</span>' : this._miniCost(COSTS.development, human.resources, afford ? null : "missing");
+    const key = `${can}|${cost}`;
+    b.setAttribute("aria-disabled", String(!can));
+    b.classList.toggle("off", !can);
+    if (b.__key === key) return;
+    b.__key = key;
+    b.innerHTML = `${icon("devcard")}<span class="mlbl">Buy card</span><span class="mb-cost">${cost}</span>`;
+    const lbl = can ? `Buy a development card (${resourceString(COSTS.development)})` : `Buy card: ${this._buyWhy(human)}`;
+    b.setAttribute("aria-label", lbl); b.title = lbl;
+  }
+
+  _buyWhy(human) {
+    if (!this.devDeck?.length) return "the development deck is empty";
+    if (!hasResources(human.resources, COSTS.development)) return `you need ${missingCostString(human.resources, COSTS.development)} more`;
+    if (this.phase === "pre_roll") return "roll the dice first";
+    if (!this.currentPlayer?.isHuman || this.currentPlayer !== human) return "buy on your turn";
+    return "not right now";
+  }
+
+  _onBuyBtn(e) {
+    e.stopPropagation();
+    const human = this._me();
+    if (!human) return;
+    if (this.hotseat && (this.hsCoverOn != null || this._hsAway() || this.handHidden)) return;
+    if (this.mBuyBtn?.getAttribute("aria-disabled") !== "true") { this._hideTip(); this._buyFrom = this.mBuyBtn; this.devSel = null; this.handleHumanBuyDevCard(); return; }
+    const why = this._buyWhy(human);
+    this._showTip(this.mBuyBtn, `<b>Buy card</b> · ${this._miniCost(COSTS.development)}<small>${why[0].toUpperCase()}${why.slice(1)}</small>`);
+    this.sfx.error?.();
+  }
+
+  /** A small bubble over a dock button (closes by itself or on the next tap). */
+  _showTip(anchor, html) {
+    let t = document.getElementById("dockTip");
+    if (!t) { t = document.createElement("div"); t.id = "dockTip"; t.className = "dev-bubble dock-tip"; t.setAttribute("role", "status"); (this.app || document.body).appendChild(t); }
+    t.innerHTML = html; t.hidden = false;
+    const r = anchor.getBoundingClientRect(), W = window.innerWidth, w = Math.min(t.offsetWidth, W - 16);
+    const x = Math.max(8, Math.min(W - 8 - w, r.left + r.width / 2 - w / 2));
+    t.style.left = `${x}px`; t.style.bottom = `${window.innerHeight - r.top + 8}px`; t.style.setProperty("--ax", `${Math.round(r.left + r.width / 2 - x)}px`);
+    window.clearTimeout(this._tipTimer);
+    this._tipTimer = window.setTimeout(() => this._hideTip(), 3200);
+  }
+
+  _hideTip() { const t = document.getElementById("dockTip"); if (t) t.hidden = true; }
 
   _renderTray() {
     const el = document.querySelector("#dockPicker");
@@ -9794,7 +10046,7 @@ class ColonistFullGame {
     if ("robNow" in d && cb) { this._commitRobber(cur, cb.id, cb.victim ?? this._defaultRobberVictim(cb.id, cur)); return; }
     if ("robUndo" in d) { this._cancelRobberTimer(); this.confirmBuild = null; this.sfx.click(); this.render(); return; }
     if ("place" in d) { this._confirmViaIcon(); return; }
-    if ("placeCancel" in d) { this.confirmBuild = null; this.render(); return; }
+    if ("placeCancel" in d) { this.confirmBuild = null; if (this._autoPick) { this.pendingAction = null; this._autoPick = false; } this.render(); return; }
     if (d.pick) { this._pickTap(d.pick); return; }
     if ("pickOk" in d) { this._finishPick(); return; }
     if ("pickUndo" in d) { this.devPick?.picks.pop(); this.render(); return; }
@@ -10082,6 +10334,7 @@ class ColonistFullGame {
 
   render() {
     this._hsSync(); // pass & play: hide hands / ask for the phone before anything private is drawn
+    this._syncAutoGlow(); // v0.84 phones: your main phase lights the spots you can build by itself
     this._queueSave();
     this.drawCanvasScene();
     this.renderTopPanels();

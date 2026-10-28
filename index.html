@@ -64,16 +64,16 @@
       })();
     </script>
     <!-- legacy styles in a low-priority cascade layer: the themed CSS below always wins -->
-    <style>@import url("./styles.css?v=83") layer(legacy);</style>
-    <link rel="stylesheet" href="./themes/base.css?v=83" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=83" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=83" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=83" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=83" />
-    <link rel="stylesheet" href="./themes/six.css?v=83" />
-    <link rel="stylesheet" href="./themes/seafarers.css?v=83" />
-    <link rel="stylesheet" href="./themes/hotseat.css?v=83" />
-    <link rel="stylesheet" href="./themes/stats.css?v=83" />
+    <style>@import url("./styles.css?v=84") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=84" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=84" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=84" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=84" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=84" />
+    <link rel="stylesheet" href="./themes/six.css?v=84" />
+    <link rel="stylesheet" href="./themes/seafarers.css?v=84" />
+    <link rel="stylesheet" href="./themes/hotseat.css?v=84" />
+    <link rel="stylesheet" href="./themes/stats.css?v=84" />
   </head>
   <body>
     <div class="app" id="app">
@@ -126,7 +126,7 @@
 
       <!-- Game settings (moved into Settings › Game at start-up by src/themes/settings-ui.js) -->
       <details class="settings-drawer-float" id="settingsDrawer">
-        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.83</span></summary>
+        <summary class="settings-float-trigger" aria-label="Settings">&#9881;<span class="version-label">v0.84</span></summary>
         <div class="settings-float-body">
           <button id="resetBtn" type="button" class="btn primary st-newgame"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-dice" x="-50" y="-50" width="100" height="100"/></svg>New game</button>
           <div class="st-h">Sound &amp; pace</div>
@@ -163,7 +163,7 @@
             <summary>Bot personalities</summary>
             <div id="aiStrategyPanel" class="ai-strategy-panel"></div>
           </details>
-          <div class="settings-version">Colonist <span class="app-version">v0.83</span></div>
+          <div class="settings-version">Colonist <span class="app-version">v0.84</span></div>
         </div>
       </details>
 
@@ -221,6 +221,8 @@
           <!-- Dock tray: build pieces, cards, Year of Plenty / Monopoly picks, robber, discard (game.js fills it) -->
           <div class="tray" id="dockPicker" role="group" aria-label="Choices" hidden></div>
           <button class="mbtn m-only" id="mMenuBtn" aria-label="Menu" aria-haspopup="dialog"><svg class="ic ic-menu" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-menu" x="-50" y="-50" width="100" height="100"/></svg><span class="mlbl">Menu</span></button>
+          <!-- v0.84: Buy card (one tap buys; game.js fills the icon, label and the mini cost cards) -->
+          <button class="mbtn m-only mbuy" id="mBuyBtn" type="button" aria-label="Buy card"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-devcard" x="-50" y="-50" width="100" height="100"/></svg><span class="mlbl">Buy card</span></button>
           <button class="mbtn m-only" id="mBuildBtn"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-build" x="-50" y="-50" width="100" height="100"/></svg>Build</button>
           <div class="buildgrp" id="actionPromptBuild">
             <div class="sheet-head m-only"><h3><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-build" x="-50" y="-50" width="100" height="100"/></svg>Build</h3>
@@ -235,7 +237,6 @@
             <button id="tradeBankBtn" class="btn trade-btn mbtn-able"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-trade" x="-50" y="-50" width="100" height="100"/></svg><span>Trade</span> <span class="kbd">T</span></button>
             <button id="playDevBtn" class="btn play-btn"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-knight" x="-50" y="-50" width="100" height="100"/></svg><span>Play card</span> <span class="kbd">P</span></button>
           </div>
-          <button class="mbtn m-only" id="mCardsBtn"><span class="dot" id="mCardsDot" hidden></span><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-devcard" x="-50" y="-50" width="100" height="100"/></svg>Cards</button>
           <div class="primary-slot">
             <button id="rollDiceBtn" class="btn primary mainbtn" title="Roll dice (R)"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-dice" x="-50" y="-50" width="100" height="100"/></svg><span>Roll dice</span><small>R</small></button>
             <button id="endTurnBtn" class="btn primary mainbtn" title="End turn (E)" style="display: none"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-endTurn" x="-50" y="-50" width="100" height="100"/></svg><span>End turn</span><small>E</small></button>
@@ -306,7 +307,7 @@
     </div>
     <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=83"></script>
+    <script type="module" src="./src/game.js?v=84"></script>
     <script>
       // Updates: sw.js and its imports are never taken from the HTTP cache (updateViaCache), the
       // registration is re-checked whenever the app comes back to the foreground, and a new

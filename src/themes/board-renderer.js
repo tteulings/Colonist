@@ -767,19 +767,21 @@ export class SvgBoardRenderer {
     const fade = e * (0.82 + 0.18 * br);
     // set-up (most corners legal): quieter dots, ~50% opacity at ~70% size, so the board doesn't turn busy
     const busy = nodes.length + cities.length > 20 ? [0.5, 0.7] : [1, 1];
+    // v0.84: one piece chosen on the build card: its spots a little stronger (ring, dot, dashes)
+    const k = !g.setupPhase && ["road", "settlement", "city", "ship"].includes(type) ? 1.35 : 1;
     const ring = (x, y, r, dot) => {
       ctx.save(); ctx.translate(x, y); ctx.globalAlpha = fade;
-      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.lineWidth = 1.5 * px; ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.stroke();
-      if (dot) { ctx.globalAlpha = fade * busy[0]; ctx.beginPath(); ctx.arc(0, 0, 3 * busy[1] * px, 0, Math.PI * 2); ctx.fillStyle = c.base; ctx.fill(); ctx.lineWidth = 0.8 * px; ctx.strokeStyle = c.line || c.dark || "rgba(0,0,0,.4)"; ctx.stroke(); }
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.lineWidth = 1.5 * k * px; ctx.strokeStyle = k > 1 ? "rgba(255,255,255,.82)" : "rgba(255,255,255,.55)"; ctx.stroke();
+      if (dot) { ctx.globalAlpha = fade * busy[0]; ctx.beginPath(); ctx.arc(0, 0, 3 * busy[1] * (k > 1 ? 1.2 : 1) * px, 0, Math.PI * 2); ctx.fillStyle = c.base; ctx.fill(); ctx.lineWidth = 0.8 * px; ctx.strokeStyle = c.line || c.dark || "rgba(0,0,0,.4)"; ctx.stroke(); }
       ctx.restore();
     };
     edges.forEach((id) => {
       if (cb && cb.type === "road" && cb.id === id) return;
       const [a, b] = this.roadEnds(g.geometry.edges[id]);
-      ctx.save(); ctx.lineCap = "round"; ctx.globalAlpha = 0.75 * fade;
+      ctx.save(); ctx.lineCap = "round"; ctx.globalAlpha = Math.min(1, 0.75 * k) * fade;
       ctx.setLineDash([4 * px, 5 * px]);
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-      ctx.lineWidth = 2.5 * px; ctx.strokeStyle = c.base; ctx.stroke();
+      ctx.lineWidth = 2.5 * k * px; ctx.strokeStyle = c.base; ctx.stroke();
       ctx.restore();
     });
     if (ships.length) drawShipSpots(this, ctx, ships, cb, { a: 0.4 * fade, e: 0.5 }, c.base); // ⚓ dotted spots on the water

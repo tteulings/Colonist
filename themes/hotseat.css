@@ -80,3 +80,6 @@
 }
 .hs-cover .hs-why.hs-secret { margin: -12px 0 18px; min-height: 0; font-size: 14px; padding: 5px 12px; border-radius: 999px; background: color-mix(in srgb, var(--pc-ink, #fff) 16%, transparent); }
 .hb-total.hb-named .ic { font-size: 13px; margin-right: 1px; }
+/* v0.84: the holder's name leads the totals pill over the hand */
+.hand .hand-total .ht-who { font-weight: 750; max-width: 6.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 4px; color: var(--pc-text, inherit); }
+#app.hs-hidden .hand-total { visibility: hidden; }

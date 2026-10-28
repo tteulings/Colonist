@@ -18,7 +18,7 @@ const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12:
 const W = 300;
 const nf = (x) => (Math.round(x * 10) / 10).toString();
 const CHART_IC = `<svg class="ic" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M3 11h3v6H3zM8.5 4h3v13h-3zM14 8h3v9h-3z"/></svg>`;
-const CARDS = [["dice", "Dice"], ["income", "Income"], ["race", "Race"], ["res", "Cards"], ["robbed", "Losses"], ["map-prod", "Heat map"], ["map-robber", "Robber"]];
+const CARDS = [["dice", "Dice"], ["income", "Income"], ["race", "Race"], ["bank", "Bank"], ["res", "Cards"], ["robbed", "Losses"], ["map-prod", "Heat map"], ["map-robber", "Robber"]];
 
 export const LiveStatsMixin = {
   /** Can the sheet open now? (a game on the table, not over, not behind the home screen) */
@@ -31,7 +31,9 @@ export const LiveStatsMixin = {
     const cur = this.currentPlayer;
     const inter = (p) => !!p && (this._isInteractive ? this._isInteractive(p) : p.isHuman);
     if (this.pendingDiscard?.player && inter(this.pendingDiscard.player)) return true;
-    if (this.pendingAction && (this.isRush?.() || inter(cur))) return true;
+    // v0.84: the quiet auto-glow of your main phase is not "placing" (only a chosen piece / robber / free road is)
+    const glow = this._isAutoGlow?.() && this.trayMode !== "build" && !this.confirmBuild;
+    if (this.pendingAction && !glow && (this.isRush?.() || inter(cur))) return true;
     if (inter(cur) && ((this.setupPhase && this.setupAction) || this.robberVictimOptions?.length)) return true;
     return false;
   },
@@ -187,6 +189,7 @@ export const LiveStatsMixin = {
       dice: () => this._lsCardDice(st),
       income: () => this._lsCardIncome(st),
       race: () => this._lsCardRace(st, pub),
+      bank: () => this._lsCardBank(),
       res: () => this._stCardRes(st),
       robbed: () => this._stCardRobbed(st),
     };
@@ -294,6 +297,21 @@ export const LiveStatsMixin = {
   },
 
   _lsIcon(n) { return `<svg class="ic" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-${n}" x="-50" y="-50" width="100" height="100"/></svg>`; },
+
+  /** v0.84: the bank's stock and the development deck, plus every hand's size (public: counts only). */
+  _lsCardBank() {
+    const deck = this.devDeck ? this.devDeck.length : 0;
+    const cell = (k, n, low) => `<span class="ls-bk${low ? " low" : ""}"><svg class="ls-bkc" viewBox="0 0 250 350" aria-hidden="true"><use href="#cardm-${k}"/></svg><b>${n}</b></span>`;
+    const bank = `<div class="ls-bank">${RES.map((r) => cell(r, this.bank[r], this.bank[r] <= 3)).join("")}<i class="ls-bsep" aria-hidden="true"></i>${cell("knight", deck, deck <= 3)}</div>`;
+    const me = this._lsMe();
+    const rows = this.players.map((p) => {
+      const n = Object.values(p.resources).reduce((a, b) => a + b, 0);
+      const dev = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"].reduce((a, t) => a + p.devCards[t] + p.newDevCards[t], 0) + (p === me ? p.devVictoryPoints : 0);
+      return `<div class="ls-hrow pc-${p.id}"><i></i><span class="ls-hn">${this._stName(p)}</span><span>${this._lsIcon("cards")}<b>${n}</b></span><span>${this._lsIcon("devcard")}<b>${dev}</b></span><span>${this._lsIcon("knight")}<b>${p.knightsPlayed}</b></span></div>`;
+    }).join("");
+    const total = RES.reduce((a, r) => a + this.bank[r], 0);
+    return `<article class="gs-card" data-card="bank"><h2>Bank: ${total} cards · deck ${deck}</h2><div class="gs-sub">Cards left per resource · development deck</div>${bank}<div class="ls-hands">${rows}</div></article>`;
+  },
 
   /** VP race so far (public points), titled by the current leader. */
   _lsCardRace(st, pub) {
