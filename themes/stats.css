@@ -289,3 +289,16 @@ html[data-motion="reduced"] .ls-sheet.in { animation: none; }
   .ls-sheet { --ls-h: min(440px, calc(100% - 28px)); left: 14px; right: auto; bottom: 14px; width: 380px; border-radius: var(--panel-radius, 16px); border: var(--float-border); box-shadow: var(--float-shadow); }
   .ls-head { cursor: default; }
 }
+/* v0.84 live stats: the bank card */
+.ls-bank { display: flex; align-items: flex-end; gap: 4px; margin: 8px 0 6px; }
+.ls-bk { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.ls-bkc { width: 28px; height: 39px; border-radius: 3px; box-shadow: 0 0 0 .5px rgba(0,0,0,.3); }
+.ls-bk b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ls-bk.low b { color: var(--warn-ink, #B23A1E); }
+.ls-bsep { width: 1px; align-self: stretch; background: var(--divider, rgba(0,0,0,.12)); }
+.ls-hands { display: grid; gap: 3px; margin-top: 4px; }
+.ls-hrow { display: grid; grid-template-columns: 10px minmax(0, 1fr) 46px 40px 40px; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; }
+.ls-hrow > i { width: 10px; height: 10px; border-radius: 50%; background: var(--pc); }
+.ls-hrow .ls-hn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ls-hrow > span:not(.ls-hn) { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
+.ls-hrow .ic { font-size: 14px; }
