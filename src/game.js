@@ -2,7 +2,7 @@ import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMoti
 import { SvgBoardRenderer, drawSpec } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
-import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted, pierTick, drawPierTick } from "./themes/art-util.js";
+import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted, pierDot, drawPierDot } from "./themes/art-util.js";
 import { Onboarding, introSeen } from "./themes/onboarding.js";
 import { Home, GameMenu } from "./themes/home.js";
 import { SoundEngine } from "./sound.js";
@@ -85,6 +85,7 @@ const BOARD_RADIUS = 2;
 // Layout breakpoints (keep in sync with themes/base.css): phones = narrow OR short (landscape)
 const MOBILE_MQ = "(max-width: 900px), (max-height: 500px)";
 const LANDSCAPE_MQ = "(max-height: 500px) and (orientation: landscape)";
+const HARBOUR_FREE = 18; // v0.86: css px of open pier between a coast corner and its harbour pill (see _fitTarget)
 const TURN_LIMIT = 500;
 
 // ── AI Strategy Configuration ──────────────────────────────────────────
@@ -234,7 +235,8 @@ const SHORT_DEV = { knight: "Knight", roadBuilding: "Roads", yearOfPlenty: "Plen
 // v0.84: one line per card for the bubble over a selected card in the hand
 const DEV_EFFECT = { knight: "move the robber, steal 1 card", roadBuilding: "2 free roads", yearOfPlenty: "take any 2 cards from the bank",
   monopoly: "everyone hands you 1 kind of resource", victoryPoint: "+1 point, kept secret" };
-const CLASSIC_OFFER_MS = 15000; // Classic: a bot's offer is declined automatically after this
+const CLASSIC_OFFER_MS = 8000; // Classic: a bot's offer is declined automatically after this (v0.86: 15 → 8 s, the bot's turn waits for it)
+const OFFER_QUEUE_MAX = 3;     // Rush: the open offer card + at most 2 waiting behind it
 
 const FRIENDLY_ROBBER_VP = 2;
 
@@ -1207,8 +1209,8 @@ class ColonistFullGame {
 
     this.tradeExecuteBtn?.addEventListener("click", () => this.handleHumanBankTrade());
     this.tradeProposalBtn?.addEventListener("click", () => this._onTradeProposalBtn());
-    this.acceptTradeBtn?.addEventListener("click", () => { this._guardPrimaryTap(); this.resolveIncomingTrade(true); });
-    this.rejectTradeBtn?.addEventListener("click", () => { this._guardPrimaryTap(); this.resolveIncomingTrade(false); });
+    this.acceptTradeBtn?.addEventListener("click", () => { this._guardPrimaryTap(650, this.incomingTradePanel); this.resolveIncomingTrade(true); });
+    this.rejectTradeBtn?.addEventListener("click", () => { this._guardPrimaryTap(650, this.incomingTradePanel); this.resolveIncomingTrade(false); });
     this.discardConfirmBtn?.addEventListener("click", () => this._confirmDiscard());
     this.rushReadyBtn?.addEventListener("click", (e) => { if (!this._primaryTapGuarded(e)) this.toggleRushReady(); });
     document.addEventListener("click", (e) => {
@@ -1392,6 +1394,7 @@ class ColonistFullGame {
 
     const strategies = this._strategiesFromSettings();
     this.viewerId = 0; // pass & play: the human holding the phone
+    this._hsLastAck = null; // v0.86: nobody has tapped "I'm …" in this game yet
     this.handHidden = false;
     this._hsNote = null;
     this._hsSecrets = null;
@@ -2415,7 +2418,9 @@ class ColonistFullGame {
     const mobile = this.isMobileLayout;
     this._hScale = 0; // v0.78: re-chosen below on phones (see harbourScale)
     // ⚓ Seafarers: the whole scenario frame (outer sea hexes included, ships may sail there), no harbour boats
-    const mx = hs * (this.sea ? 0.9 : mobile ? 1.05 : 1.75), my = hs * (this.sea ? 1.0 : mobile ? 1.12 : 1.7);
+    // v0.86: landscape phones keep the top / bottom coast corners' build rings on screen in Seafarers too (the land
+    // can reach the frame's edge there; the hand and the ticker no longer cover that band)
+    const mx = hs * (this.sea ? 0.9 : mobile ? 1.05 : 1.75), my = hs * (this.sea ? (this.isLandscapePhone ? 1.45 : 1.0) : mobile ? 1.12 : 1.7);
     const box = { minX: Math.min(...xs) - mx, maxX: Math.max(...xs) + mx, minY: Math.min(...ys) - my, maxY: Math.max(...ys) + my };
     let fan = 0, top = 4, side = 0;
     // v0.76: harbour pills that sit further out than the margin (bays of the 5–6 player board) widen the box
@@ -2426,7 +2431,7 @@ class ColonistFullGame {
     if (mobile && this.app) {
       const cs = getComputedStyle(this.app);
       // + the room a docked trade offer takes above the hand (only while one is up)
-      fan = (parseFloat(cs.getPropertyValue("--fan-h")) || 112) + (parseFloat(cs.getPropertyValue("--offer-room")) || 0);
+      fan = (parseFloat(cs.getPropertyValue("--fan-h")) || 112) + (this._fitNoOffer ? 0 : parseFloat(cs.getPropertyValue("--offer-room")) || 0);
       top = parseFloat(cs.getPropertyValue("--board-top")) || 4;
       side = parseFloat(cs.getPropertyValue("--board-side")) || 0;
       if (this.labMode) { fan = 6; top = 4; side = side || 8; } // AI Lab board: no hand / top bar over it; whole world in the frame
@@ -3416,7 +3421,7 @@ class ColonistFullGame {
     this._tradeAsked = null;
     this._tradeAnswers = null;
     this._markStripAnswers();
-    if (this.tradeModal.style.display !== "none") this._guardPrimaryTap();
+    if (this.tradeModal.style.display !== "none") this._guardPrimaryTap(650, this.tradeModal);
     this.tradeModal.style.display = "none";
     this._syncScrim?.();
   }
@@ -3425,14 +3430,25 @@ class ColonistFullGame {
     this.closeTradeModal();
   }
 
-  /** A sheet / offer button just closed what covered the dock: hold off the primary button briefly. */
-  _guardPrimaryTap(ms = 650) {
+  /**
+   * A sheet / offer button just closed what covered the dock: hold off the primary button briefly.
+   * v0.86: only where that sheet / offer card was (its rect, a few px of slack): a second tap of a double
+   * tap lands there; a deliberate tap on Roll / End turn / Ready elsewhere goes through. No element (or
+   * one not on screen): the whole screen is guarded, as before.
+   */
+  _guardPrimaryTap(ms = 650, el = null) {
     this._primaryGuardUntil = performance.now() + ms;
+    const r = el?.getBoundingClientRect?.();
+    const M = 8;
+    this._primaryGuardRect = r && r.width > 0 && r.height > 0 ? { l: r.left - M, t: r.top - M, r: r.right + M, b: r.bottom + M } : null;
   }
 
   /** True (and the tap is swallowed) while a tap could still be meant for the sheet that just closed. */
   _primaryTapGuarded(e) {
     if (!(performance.now() < (this._primaryGuardUntil || 0))) return false;
+    const g = this._primaryGuardRect;
+    // a pointer tap outside the closed sheet / card is meant for the button (keyboard clicks have detail 0)
+    if (g && e && e.detail > 0 && Number.isFinite(e.clientX) && !(e.clientX >= g.l && e.clientX <= g.r && e.clientY >= g.t && e.clientY <= g.b)) return false;
     e?.preventDefault?.();
     e?.stopPropagation?.();
     return true;
@@ -5748,10 +5764,14 @@ class ColonistFullGame {
       robberIdx: 0,
       paused: false,
       seven: null, // { stage: "discard"|"robber", discards: [{ playerId, count }], moverId, leftMs }
-      offers: [],  // bot trade offers to the human: { id, fromId, give, want, expiresAt }
+      offers: [],  // bot trade offers to the human, a queue (front = the open card): { id, fromId, give, want, armed, expiresAt }
+      offeredBy: [], // v0.86: bots that made you an offer this roll interval (one each)
+      declined: [],  // v0.86: deals you declined this roll interval (never offered again before the next roll)
       ...(saved || {}),
     };
     this.rush.offers = (this.rush.offers || []).filter((o) => this.players[o.fromId]);
+    this.rush.offeredBy = this.rush.offeredBy || [];
+    this.rush.declined = this.rush.declined || [];
     this._offerSeq = this.rush.offers.reduce((m, o) => Math.max(m, o.id), 0);
     const human = this._me();
     this.currentPlayerIndex = human ? human.id : 0; // the human may act at any time
@@ -5815,8 +5835,9 @@ class ColonistFullGame {
       r.seven.leftMs -= dt;
       if (r.seven.leftMs <= 0) this._rushSevenTimeout();
     }
-    if (r.offers.length && r.offers.some((o) => o.expiresAt <= r.clockMs)) {
-      r.offers = r.offers.filter((o) => o.expiresAt > r.clockMs);
+    // only the open card's clock runs (offers waiting behind it start theirs when they come up)
+    if (r.offers.some((o) => o.armed && o.expiresAt <= r.clockMs)) {
+      r.offers = r.offers.filter((o) => !(o.armed && o.expiresAt <= r.clockMs));
       this._renderRushOffers();
     }
     this._renderRushHud();
@@ -5845,6 +5866,8 @@ class ColonistFullGame {
       p.rushDevPlayed = false;
       p.rushTradeTried = false;
     });
+    r.offeredBy = []; // v0.86: a new roll interval: each bot may make you one offer again
+    r.declined = [];
     if (this.sea) { // ⚓ a new roll interval: one ship move each again; an unpicked gold choice is made for you
       if (this.pendingAction === "moveShip") { this.pendingAction = null; this.sea.moveSel = null; }
       this.sea.onNewTurn();
@@ -6093,13 +6116,29 @@ class ColonistFullGame {
   _rushOfferToHuman(fromPlayer, give, want) {
     const r = this.rush;
     if (!this._offerPossible(fromPlayer, give, want)) return;
-    // 5–6 players: five bots would bury you in offers — one at a time; a new one waits until it is gone
-    if (isBigTable(this.players.length) && r.offers.length) return;
+    // v0.86: one card at a time; offers made while it is open wait behind it ("+2 more"). At most one offer
+    // per bot per roll interval, a deal you declined is not offered again before the next roll, and a bot
+    // whose earlier offer still waits does not stack a second one
+    r.offeredBy = r.offeredBy || [];
+    r.declined = r.declined || [];
+    if (r.offeredBy.includes(fromPlayer.id) || r.declined.includes(this._offerKey(fromPlayer.id, give, want))) return;
+    if (r.offers.some((o) => o.fromId === fromPlayer.id) || r.offers.length >= OFFER_QUEUE_MAX) return;
+    r.offeredBy.push(fromPlayer.id);
     this._offerSeq = (this._offerSeq || 0) + 1;
-    r.offers = r.offers.filter((o) => o.fromId !== fromPlayer.id).slice(-2);
-    r.offers.push({ id: this._offerSeq, fromId: fromPlayer.id, give: { ...give }, want: { ...want }, expiresAt: r.clockMs + RUSH_OFFER_MS });
+    r.offers.push({ id: this._offerSeq, fromId: fromPlayer.id, give: { ...give }, want: { ...want }, armed: false, expiresAt: null });
     this.addLog(`${fromPlayer.name} offers you ${resourceString(give)} for ${resourceString(want)}.`);
     this._renderRushOffers();
+  }
+
+  /** "2|0,0,0,1,0>1,0,0,0,0": who offers what for what (the declined-deal memory). */
+  _offerKey(fromId, give, want) {
+    return `${fromId}|${RESOURCES.map((x) => give[x] || 0).join(",")}>${RESOURCES.map((x) => want[x] || 0).join(",")}`;
+  }
+
+  /** The open (front) card's time starts when it comes up. */
+  _armRushOffer() {
+    const r = this.rush, o = r?.offers?.[0];
+    if (o && !o.armed) { o.armed = true; o.expiresAt = r.clockMs + RUSH_OFFER_MS; }
   }
 
   _resolveRushOffer(offerId, accept) {
@@ -6110,6 +6149,7 @@ class ColonistFullGame {
     r.offers = r.offers.filter((o) => o.id !== offerId);
     const from = this.players[offer.fromId];
     const human = this._me();
+    if (!accept) r.declined = [...(r.declined || []), this._offerKey(offer.fromId, offer.give, offer.want)];
     if (accept) {
       if (r.paused || this.winner || !hasResources(human.resources, offer.want) || !hasResources(from.resources, offer.give)) {
         this.addLog(`Trade with ${from.name} is no longer possible.`);
@@ -6154,6 +6194,7 @@ class ColonistFullGame {
     if (this.rush?.offers?.length) {
       const keep = this.rush.offers.filter((o) => this._offerPossible(this.players[o.fromId], o.give, o.want));
       if (keep.length !== this.rush.offers.length) this.rush.offers = keep;
+      this._armRushOffer();
     }
     let pitOk = !!pit && this._offerPossible(pit.fromPlayer, pit.give, pit.want, pit.to);
     if (pit?.ask && hasResources(pit.fromPlayer.resources, pit.give)) pitOk = true; // pass & play: the ✓ shows whether they can pay
@@ -6162,9 +6203,11 @@ class ColonistFullGame {
       this._later(() => { if (this.pendingIncomingTrade?.id === id) this.resolveIncomingTrade(false, true); }, 0);
     }
     // pass & play: the offer waits behind the cover until its receiver holds the phone
-    const offers = this.winner ? [] : this.rush ? this.rush.offers : pitOk && !(this.hotseat && (this.handHidden || this.viewerId !== pit.to?.id)) ? [{ id: pit.id, fromId: pit.fromPlayer.id, give: pit.give, want: pit.want, classic: true }] : [];
+    const queue = this.winner ? [] : this.rush ? this.rush.offers : pitOk && !(this.hotseat && (this.handHidden || this.viewerId !== pit.to?.id)) ? [{ id: pit.id, fromId: pit.fromPlayer.id, give: pit.give, want: pit.want, classic: true }] : [];
+    const offers = queue.slice(0, 1); // v0.86: one card at a time, the rest wait behind it
+    const waiting = queue.slice(1);
     const human = pit?.to || this._me();
-    const key = offers.map((o) => o.id).join(",") + this.theme?.id + "|" + (human ? human.id + ":" + RESOURCES.map((r) => human.resources[r]).join(",") : "");
+    const key = queue.map((o) => o.id).join(",") + this.theme?.id + "|" + (human ? human.id + ":" + RESOURCES.map((r) => human.resources[r]).join(",") : "");
     if (key === this._lastOffersKey) return;
     this._lastOffersKey = key;
     const n = (res) => RESOURCES.filter((r) => res[r] > 0);
@@ -6172,11 +6215,20 @@ class ColonistFullGame {
     // v0.81: the hand's own card art in miniature (not the flat square icons)
     const side = (res) => n(res).map((r) => `<span class="oc ${r}"><b>${res[r]}</b><span class="ocard card" data-card="${r}">${cardSvg(r)}</span><span class="on">${RESOURCE_LABEL[r]}</span></span>`).join('<span class="plus">+</span>');
     const words = (res) => n(res).map((r) => `${res[r]} ${RESOURCE_LABEL[r]}`).join(" + ");
-    el.dataset.more = offers.length > 1 ? `+${offers.length - 1}` : "";
-    el.innerHTML = offers.map((o) => {
+    el.dataset.more = "";
+    // a new card that comes up right after you answered the previous one: its buttons wait a moment
+    // (the second tap of a double tap must not answer the next offer)
+    const front = offers[0];
+    const arriving = !!front && this._offerAnsweredAt && performance.now() - this._offerAnsweredAt < 600 && front.id !== this._offerFrontId;
+    this._offerFrontId = front?.id ?? null;
+    if (arriving) this._offerTapBlockUntil = performance.now() + 450;
+    const more = waiting.length ? `<span class="offer-peek p1" aria-hidden="true"></span>${waiting.length > 1 ? '<span class="offer-peek p2" aria-hidden="true"></span>' : ""}
+      <span class="offer-more" role="note" aria-label="${waiting.length} more offer${waiting.length === 1 ? "" : "s"} waiting">${waiting.map((o) => this._av(this.players[o.fromId], "om-av")).join("")}<b>+${waiting.length} more</b></span>` : "";
+    el.classList.toggle("has-more", waiting.length > 0);
+    el.innerHTML = more + offers.map((o) => {
       const p = this.players[o.fromId];
       const ok = this._offerPossible(p, o.give, o.want, human);
-      return `<div class="rush-offer${o.classic ? " classic" : ""}${this.hotseat ? " no-timer" : ""}" data-offer="${o.id}" role="group" aria-label="${p.name} offers ${words(o.give)} for your ${words(o.want)}" style="--offer-ms:${CLASSIC_OFFER_MS}ms">
+      return `<div class="rush-offer${o.classic ? " classic" : ""}${this.hotseat ? " no-timer" : ""}${arriving ? " arriving" : ""}" data-offer="${o.id}" role="group" aria-label="${p.name} offers ${words(o.give)} for your ${words(o.want)}" style="--offer-ms:${CLASSIC_OFFER_MS}ms">
         ${this._av(p, "rush-offer-avatar")}
         <div class="rush-offer-body">
           <div class="rush-offer-deal"><span class="ol give">You give</span><span class="grp">${side(o.want)}${human && this._offerCostsBuild(human, o) ? `<span class="owarn" role="img" aria-label="You could not build ${this._offerCostsBuild(human, o)} after this" title="You could not build ${this._offerCostsBuild(human, o)} after this"><svg viewBox="0 0 20 18" aria-hidden="true"><path d="M10 1.5 19 16.5H1Z" fill="#F2B233" stroke="#8A5A00" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 6.5v5" stroke="#3A2600" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="14" r="1.2" fill="#3A2600"/></svg></span>` : ""}</span><span class="ol get">You get</span><span class="grp">${side(o.give)}</span></div>
@@ -6186,7 +6238,12 @@ class ColonistFullGame {
         <span class="offer-time" aria-hidden="true"><i></i></span>
       </div>`;
     }).join("");
-    const resolve = (id, yes) => { this._guardPrimaryTap(); return pit && !this.rush ? this.resolveIncomingTrade(yes) : this._resolveRushOffer(id, yes); };
+    const resolve = (id, yes) => {
+      if (performance.now() < (this._offerTapBlockUntil || 0)) return; // the next card just came up
+      this._guardPrimaryTap(650, el.querySelector(".rush-offer:last-child"));
+      this._offerAnsweredAt = performance.now();
+      return pit && !this.rush ? this.resolveIncomingTrade(yes) : this._resolveRushOffer(id, yes);
+    };
     el.querySelectorAll("[data-accept]").forEach((b) => b.addEventListener("click", () => resolve(Number(b.dataset.accept), true)));
     el.querySelectorAll("[data-decline]").forEach((b) => b.addEventListener("click", () => resolve(Number(b.dataset.decline), false)));
     this._updateOfferTimers();
@@ -6552,6 +6609,7 @@ class ColonistFullGame {
       return false;
     }
     this.viewerId = null; // pass & play: the cover asks who holds the phone
+    this._hsLastAck = null; // v0.86: nobody has tapped "I'm …" in this game yet
     this.handHidden = true;
     this._hsNote = null;
     this._hsSecrets = null;
@@ -7092,8 +7150,8 @@ class ColonistFullGame {
 
   /** Classic harbours (v0.78): the same pill as the themed boards (harbourBadges) — the resource glyph (the card
    *  icon without its coloured tile, so a brick harbour never reads as a red player) beside the ratio in bold, or
-   *  just "3:1"; two piers to the coast corners, each ending in a small accent tick (v0.81: no dots; none on a corner
-   *  that holds a piece). */
+   *  just "3:1"; two piers to the coast corners, each with a small accent dot 12.5 px out (v0.86, see pierDot; none on
+   *  a corner that holds a piece). */
   drawPorts() {
     const ctx = this.ctx, g = this.geometry, u = g.hexSize / 100, s = harbourScale(this);
     const portColor = { wood: "#4a7c3f", brick: "#b5532e", sheep: "#5f9a36", wheat: "#b8931f", ore: "#6a7588", any: "#3d5f72" };
@@ -7126,8 +7184,9 @@ class ColonistFullGame {
       });
       q.piers.forEach((pr) => {
         if (g.nodes[pr[0].id]?.structure) return;
-        const t = pierTick(pr, s), w = W2(t);
-        drawPierTick(ctx, { ...t, x: w.x, y: w.y, h: t.h * u, w: t.w * u }, color, "rgba(245, 239, 228, .95)");
+        const t = pierDot(pr, u * (this._fitScale || this.view.scale || 1), q), w = W2(t);
+        if (t.hidden) return;
+        drawPierDot(ctx, { x: w.x, y: w.y, r: t.r * u, ri: t.ri * u }, color, "rgba(245, 239, 228, .95)");
       });
       // pill: cream, the resource colour only as an outline accent
       ctx.shadowColor = "rgba(15, 23, 34, 0.35)"; ctx.shadowBlur = 5 * s * u; ctx.shadowOffsetY = 2 * s * u;
@@ -7785,6 +7844,17 @@ class ColonistFullGame {
     const place = () => {
       if (this.devSel !== t || !el.isConnected) return;
       const r = el.getBoundingClientRect();
+      // v0.86 landscape phones: the hand is a grid in the side column, so the bubble sits to the card's left
+      const side = !!this.isLandscapePhone;
+      b.classList.toggle("side", side);
+      if (side) {
+        const bw = Math.min(b.offsetWidth, r.left - 16), bh = b.offsetHeight;
+        const y = Math.max(8, Math.min(window.innerHeight - 8 - bh, r.top + r.height / 2 - bh / 2));
+        b.style.left = `${Math.max(8, r.left - 10 - bw)}px`; b.style.top = `${y}px`; b.style.bottom = "auto";
+        b.style.setProperty("--ay", `${Math.round(r.top + r.height / 2 - y)}px`);
+        return;
+      }
+      b.style.top = "";
       const W = window.innerWidth, w = Math.min(b.offsetWidth, W - 16);
       const x = Math.max(8, Math.min(W - 8 - w, r.left + r.width / 2 - w / 2));
       b.style.left = `${x}px`;
@@ -7852,7 +7922,11 @@ class ColonistFullGame {
       + `<div class="hi-row">${RESOURCES.map((r) => mini(r, this.bank[r], this.bank[r] <= 3)).join("")}<i class="hi-sep" aria-hidden="true"></i>${mini("knight", deck, deck <= 3).replace("hi-c", "hi-c hi-deck")}</div>`;
     pop.hidden = false;
     const r = this.handTotalEl.getBoundingClientRect();
-    pop.style.bottom = `${window.innerHeight - r.top + 8}px`;
+    // v0.86 landscape phones: the pill heads the side column, so the popover opens below it, to its left edge
+    const below = !!this.isLandscapePhone;
+    pop.classList.toggle("below", below);
+    if (below) { pop.style.top = `${r.bottom + 8}px`; pop.style.bottom = "auto"; }
+    else { pop.style.top = ""; pop.style.bottom = `${window.innerHeight - r.top + 8}px`; }
     const pr = pop.getBoundingClientRect();
     pop.style.setProperty("--ax", `${Math.round(r.left + r.width / 2 - pr.left)}px`);
   }
@@ -7898,8 +7972,10 @@ class ColonistFullGame {
           <span class="tag">${this._you(player) ? "Your colony" : player.isHuman ? "Pass &amp; play" : personaBadge}</span>
           <div class="stats">${stats.join("")}<span class="badges">${awards}</span></div></div>
         <div class="vp player-vp" title="Points — tap for details">${vp}<small>points</small></div></div>`);
-      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
-        <div class="row">${this._av(player)}<div class="vpn">${vp}<small>PTS</small></div></div>
+      // ⚓ v0.86: at sea (first to 14) your own badge carries the goal: "3/14"; the others stay plain
+      const goal = this.sea && player === this._me() && this._seesPrivate(player) ? `<span class="vgoal">/${this.winPoints}</span>` : "";
+      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points${goal ? ` of ${this.winPoints}` : ""}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
+        <div class="row">${this._av(player)}<div class="vpn${goal ? " goal" : ""}">${vp}${goal}<small>PTS</small></div></div>
         <div class="pn">${player.short || player.name}</div>${player.isHuman ? "" : personaBadge}
         <div class="pcards">${stats[0]}</div>
         <div class="mini${stats.length > 3 ? " dense" : ""}">${stats.slice(1).join("")}</div></div>`);
@@ -8135,7 +8211,13 @@ class ColonistFullGame {
     const canCancel = humanTurn && !this.setupPhase && !this.pendingDiscard && (devCancel || (tray && ["build", "cards"].includes(tray.mode))
       || !!((this.confirmBuild && this.confirmBuild.type !== "robber") || (this.pendingAction && this.pendingAction !== "robber" && !this.freeRoadsRemaining && !(this._isAutoGlow() && this.trayMode !== "build"))));
     const tickerCancel = document.querySelector("#tickerCancel");
-    if (tickerCancel) tickerCancel.hidden = !(mustAct && canCancel);
+    // ⚓ v0.86: a gold pick with a card taken: the same slot takes the last pick back
+    const goldUndo = tray?.mode === "gold" && !!this._seaGoldUndoable?.();
+    if (tickerCancel) {
+      tickerCancel.hidden = !(mustAct && (canCancel || goldUndo));
+      const word = goldUndo ? "Undo" : "Cancel";
+      if (tickerCancel.textContent !== word) tickerCancel.textContent = word;
+    }
     // v0.81: the robber (and a discard) is an instruction, not a log line: the ticker turns into an action prompt
     const robberAct = !this.winner && !!prompt && ((humanTurn || rushOn) && this.pendingAction === "robber" && !this.confirmBuild && !this.robberVictimOptions?.length || (!!this.pendingDiscard && this.pendingDiscard.player === human));
     document.querySelector("#ticker")?.classList.toggle("act", robberAct);
@@ -8167,7 +8249,12 @@ class ColonistFullGame {
       }
     }
     if (this.turnBanner) this.turnBanner.className = `turn-banner pc-${(rushOn ? human : active).id}`;
-    if (this.cancelActionBtn) this.cancelActionBtn.hidden = !canCancel;
+    if (this.cancelActionBtn) {
+      this.cancelActionBtn.hidden = !(canCancel || goldUndo);
+      this.cancelActionBtn.dataset.goldUndo = goldUndo ? "1" : "";
+      const html = goldUndo ? "Undo" : 'Cancel <span class="kbd">Esc</span>';
+      if (this.cancelActionBtn.innerHTML !== html) this.cancelActionBtn.innerHTML = html;
+    }
 
     // ── primary action: Roll dice ↔ End turn (Classic), Ready (Rush), waiting bar (opponent) ──
     const rollBtn = this.rollDiceBtn;
@@ -9216,8 +9303,8 @@ class ColonistFullGame {
       if (document.getElementById("vpTooltip") && !t.closest("#vpTooltip, [data-seat]")) this._hideVPTooltip();
     }, true);
     $("#devPickerClose")?.addEventListener("click", () => this.hideDevCardPicker());
-    this.cancelActionBtn?.addEventListener("click", () => this.cancelPlacement());
-    $("#tickerCancel")?.addEventListener("click", (e) => { e.stopPropagation(); this.cancelPlacement(); });
+    this.cancelActionBtn?.addEventListener("click", () => { if (this.cancelActionBtn.dataset.goldUndo && this._seaGoldUndoable?.()) this._seaGoldUndo(); else this.cancelPlacement(); });
+    $("#tickerCancel")?.addEventListener("click", (e) => { e.stopPropagation(); if (this._seaGoldUndoable?.()) this._seaGoldUndo(); else this.cancelPlacement(); });
     $("#newGameMainBtn")?.addEventListener("click", () => this._showDifficultyModal());
     $("#confirmPillCancel")?.addEventListener("click", () => { this.confirmBuild = null; this.render(); });
     $("#confirmPillPlace")?.addEventListener("click", () => this._confirmViaIcon());
@@ -9410,6 +9497,11 @@ class ColonistFullGame {
   // buttons with a "tray" in the same 60 px row (no sheets, no scrim); the ticker line above the
   // board says what to do. Desktop uses the same tray in its action area.
 
+  /** v0.86 "Steal from…" with 3+ victims: a two-column grid of rows (full names, "cards · VP"); an odd last one spans both. */
+  _victimGrid(btns) {
+    return btns.length >= 3 ? `<div class="vgrid" data-n="${btns.length}">${btns.join("")}</div>` : btns.join("");
+  }
+
   /** Offer to take back the last placement (ms = 0: until something else happens). */
   _setUndo(u, ms = UNDO_MS) {
     if (this._undoTimer) { window.clearTimeout(this._undoTimer); this._timers.delete(this._undoTimer); this._undoTimer = null; }
@@ -9499,6 +9591,8 @@ class ColonistFullGame {
       this.recomputeScores();
     } else if (u.kind === "moveShip") { // ⚓
       this._seaUndoMove(u);
+    } else if (u.kind === "gold") { // ⚓ v0.86: the last gold pick, taken back as a whole
+      if (!this._seaUndoGold(u)) return;
     } else if (u.kind === "yop") {
       if (!u.picks.every((r) => p.resources[r] > 0)) return;
       u.picks.forEach((r) => { p.resources[r] -= 1; this.bank[r] += 1; });
@@ -9788,8 +9882,8 @@ class ColonistFullGame {
     if (seaTray) return seaTray;
     if (this.robberVictimOptions?.length) {
       return { mode: "victims", hint: "Steal from… · tap a player",
-        html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>1 random card</small></div>` + this.robberVictimOptions.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
-          return tbtn(`data-steal="${id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}`); }).join("") };
+        html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>1 random card</small></div>` + this._victimGrid(this.robberVictimOptions.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
+          return tbtn(`data-steal="${id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}`); })) };
     }
     if (this.pendingAction === "robber" && cb?.type === "robber") {
       const info = this._robberTileInfo(cb.id, cur);
@@ -9802,8 +9896,8 @@ class ColonistFullGame {
       const lead = pir ? pir.hint : `Robber on ${where} · ${blocks}${own}`, sub = pir ? pir.sub : `${where} · ${blocks}`;
       if (vic.length > 1 && (!cb.victim || this.confirmPlacements)) {
         return { mode: "robber", hint: this.confirmPlacements ? "Steal from… pick a player, then Place" : "Steal from… · tap a player",
-          html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>${pir ? lead : `${where} · ${blocks}${own}`}</small></div>` + vic.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
-            return tbtn(`data-victim="${id}" aria-pressed="${cb.victim === id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}${cb.victim === id ? " sel" : ""}`); }).join("")
+          html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>${pir ? lead : `${where} · ${blocks}${own}`}</small></div>` + this._victimGrid(vic.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
+            return tbtn(`data-victim="${id}" aria-pressed="${cb.victim === id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}${cb.victim === id ? " sel" : ""}`); }))
             + (this.confirmPlacements ? tbtn(`data-rob-now ${cb.victim != null ? "" : "disabled"}`, `${icon("check")}<span>Place</span>`, "primary") : "")
             + close("data-rob-undo", "Pick another tile") };
       }
@@ -9897,6 +9991,8 @@ class ColonistFullGame {
     const html = row("road", "Road") + (this.sea ? row("ship", "Ship") : "") + row("settlement", "Settle") + row("city", "City");
     if (el.__html !== html) { el.__html = html; el.innerHTML = html; }
     el.hidden = false;
+    // v0.86 landscape phones: the card takes the hand's place in the side column (CSS: column + width, here: its top)
+    if (this.isLandscapePhone) { el.style.bottom = ""; el.style.top = `${Math.round(this.handArea?.getBoundingClientRect().top || 44)}px`; return; }
     const top = this.resourceCardStrip?.getBoundingClientRect().top || 0;
     const tot = this.handTotalEl && !this.handTotalEl.hidden ? this.handTotalEl.getBoundingClientRect().top : top;
     el.style.bottom = `${window.innerHeight - Math.min(top + 14, tot) + 6}px`;
@@ -10087,6 +10183,17 @@ class ColonistFullGame {
 
   /** The fitted view (also records the fit scale = minimum zoom). */
   _fitTarget() {
+    // v0.86: the harbour pills keep enough coast clearance that each pier has HARBOUR_FREE css px of open sea (room
+    // for the harbour dot, 12.5 px out, past the 7 px build-spot ring). Chosen from the fit the default clearance
+    // gives (one step, so it never oscillates); costs the board ~5% on a 360 px phone, nothing on a big screen.
+    if (this.geometry) {
+      // (a docked trade offer is left out, so the pills don't move while one comes and goes)
+      this._hClear = 30; this._fitNoOffer = true;
+      const f0 = this._viewFrame(); this._fitNoOffer = false;
+      const s0 = Math.min(f0.vp.W / (f0.box.maxX - f0.box.minX), f0.vp.H / (f0.box.maxY - f0.box.minY));
+      const pxArt = (this.geometry.hexSize / 100) * s0;
+      this._hClear = pxArt > 0 ? Math.max(30, Math.ceil(HARBOUR_FREE / pxArt)) : 30;
+    }
     const { box, vp } = this._viewFrame();
     const scale = Math.min(vp.W / (box.maxX - box.minX), vp.H / (box.maxY - box.minY));
     this._fitScale = scale;

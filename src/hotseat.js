@@ -78,6 +78,12 @@ export const HotseatMixin = {
     if (t == null) {
       if (!this.handHidden) { this.handHidden = true; this._invalidateUI?.(); }
       this._hsHideCover();
+    } else if (t === this.viewerId && this.handHidden && this._hsLastAck === t && this.hsCoverOn == null) {
+      // v0.86: the same person who last tapped "I'm …" acts again (after bot turns / a bot's offer): the
+      // phone never left them, so no cover: their hand just opens again (notes that waited become toasts)
+      this.handHidden = false;
+      this._hsReveal(t);
+      this._invalidateUI?.();
     } else if (t !== this.viewerId || this.handHidden) {
       if (t !== this.viewerId || !this.handHidden) this._invalidateUI?.();
       this.viewerId = t;
@@ -117,6 +123,7 @@ export const HotseatMixin = {
       document.body.appendChild(el);
       this._hsCoverEl = el;
     }
+    if (this._hsLastAck !== pid) this._hsLastAck = null; // the phone may be on its way to someone else now
     const why = this._hsWhy(pid);
     const secrets = this._hsSecrets?.[pid] || []; // only for this player's eyes: which card was stolen
     const key = `${pid}|${p.name}|${why}|${secrets.join("|")}`;
@@ -145,6 +152,7 @@ export const HotseatMixin = {
   _hsAck() {
     if (this.hsCoverOn == null) return;
     this.viewerId = this.hsCoverOn;
+    this._hsLastAck = this.viewerId; // v0.86: who holds the phone now (no cover again until someone else must act)
     this.handHidden = false;
     this._hsNote = null;
     if (this._hsSecrets) delete this._hsSecrets[this.viewerId];
@@ -153,6 +161,14 @@ export const HotseatMixin = {
     this.sfx?.click?.();
     this._invalidateUI?.();
     this.render();
+  },
+
+  /** No cover for the same holder: what the cover would have said privately is shown as toasts instead. */
+  _hsReveal(pid) {
+    const lines = [...(this._hsNote?.pid === pid ? [this._hsNote.html] : []), ...(this._hsSecrets?.[pid] || [])];
+    this._hsNote = null;
+    if (this._hsSecrets) delete this._hsSecrets[pid];
+    lines.forEach((h) => this.pushToast?.(String(h).replace(/<svg[\s\S]*?<\/svg>/g, "").replace(/<[^>]+>/g, "").trim()));
   },
 
   /** A steal names the card only to the thief and the victim: a toast when they hold the phone, else a line on their next cover. */

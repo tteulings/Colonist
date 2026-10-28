@@ -8,7 +8,7 @@
 //    or placement pulse is running: one drawImage of the board layer + pieces drawn as Path2D.
 //  * Pieces / robber / hints are vector specs (Path2D) — crisp at any zoom, nothing to bake.
 //  * The sea is a CSS layer behind the (transparent) canvas, so idle water costs no canvas work.
-import { hexPath, pipCount, f, harbourBadges, harbourScale, pierTick, drawPierTick } from "./art-util.js";
+import { hexPath, pipCount, f, harbourBadges, harbourScale, pierDot, drawPierDot } from "./art-util.js";
 import { motionReduced } from "./manager.js";
 // ⚓ Seafarers drawing (only used while game.sea is set)
 import { seaArt, portLandHex, bakeSeaMarks, drawShips, drawPirateAndChips, drawShipSpots, ghostShip, ghostPirate } from "../seafarers/render.js";
@@ -227,6 +227,15 @@ export class SvgBoardRenderer {
     return Math.min(b, cap);
   }
 
+  /** v0.86: the harbour dots (art units), DOT_OUT css px out along each pier at the fitted zoom (cached per fit). */
+  harbourDots() {
+    const L = this.layer;
+    if (!L?.ticks) return [];
+    const pxArt = this.u * (this.game._fitScale || this.game.view.scale || 1);
+    if (L._dotsK !== pxArt) { L._dotsK = pxArt; L._dots = L.ticks.map((t) => ({ ...pierDot(t.pier, pxArt, t.badge), fill: t.fill, line: t.line })); }
+    return L._dots;
+  }
+
   /** v0.76: one readable pill per harbour, placed fully in the sea (shared layout, see harbourBadges). */
   portData() {
     const badges = harbourBadges(this.game, harbourScale(this.game));
@@ -238,7 +247,7 @@ export class SvgBoardRenderer {
 
   boardKey(k) {
     const g = this.game.geometry;
-    return [this.theme.id, this.theme.paletteId || "", k.toFixed(3), this.tokenScale, harbourScale(this.game), !!this.game.sea, g.hexSize.toFixed(2), g.hexes.map((h) => h.resource + h.number).join(""), (this.game.ports || []).map((p) => p.edgeId + p.type).join(",")].join("|");
+    return [this.theme.id, this.theme.paletteId || "", k.toFixed(3), this.tokenScale, harbourScale(this.game), this.game._hClear || 30, !!this.game.sea, g.hexSize.toFixed(2), g.hexes.map((h) => h.resource + h.number).join(""), (this.game.ports || []).map((p) => p.edgeId + p.type).join(",")].join("|");
   }
 
   /**
@@ -311,8 +320,8 @@ export class SvgBoardRenderer {
       ctx.font = `${l.weight || 700} ${l.size}px ${l.font || T.tokenStyle.labelFont}`;
       ctx.fillText(l.text, l.x, l.y);
     }));
-    // v0.81: harbour-corner ticks are drawn live (drawHarbourTicks), so a corner with a piece on it shows none
-    const ticks = portData.flatMap((p, i) => p.piers.map((pr) => ({ ...pierTick(pr, p.s), ...(ports[i].tick || { fill: "#7E949B", line: "rgba(0,0,0,.5)" }) })));
+    // v0.81: harbour-corner marks are drawn live, so a corner with a piece on it shows none (v0.86: dots, see harbourDots)
+    const ticks = portData.flatMap((p, i) => p.piers.map((pr) => ({ id: pr[0].id, pier: pr, badge: p.badge, ...(ports[i].tick || { fill: "#7E949B", line: "rgba(0,0,0,.5)" }) })));
     this.layer = { canvas, ...b, k, key, ticks };
     const ms = performance.now() - t0;
     this.stats.bakes += 1;
@@ -453,7 +462,7 @@ export class SvgBoardRenderer {
 
     // 1b. harbour corners: a small accent tick where each pier meets the coast (under every piece and marker;
     //     none on a corner that holds a settlement / city)
-    if (L?.ticks) L.ticks.forEach((t) => { if (!g.geometry.nodes[t.id]?.structure) drawPierTick(ctx, t, t.fill, t.line); });
+    if (L?.ticks) this.harbourDots().forEach((t) => { if (!t.hidden && !g.geometry.nodes[t.id]?.structure) drawPierDot(ctx, t, t.fill, t.line); });
 
     // 2. rolled number: calm outline on the producing tiles
     const glow = this.anims.find((a) => a.kind === "glow");

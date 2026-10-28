@@ -34,11 +34,11 @@
 }
 /* v0.78: points on the house colour itself; --pc-ink is derived for AA (src/themes/seats.js) */
 .pstrip.six-up > .pchip.six .pn {
-  grid-area: auto; max-width: 100%; padding: 0 1px !important; text-align: center; font-size: 11.5px; font-weight: 750; letter-spacing: -.01em;
+  grid-area: auto; max-width: 100%; padding: 0 1px !important; text-align: center; font-size: 12px; font-weight: 750; letter-spacing: -.01em;
   white-space: nowrap; overflow: hidden; text-overflow: clip; line-height: 1.15;
 }
 .pstrip.six-up > .pchip.six .mini {
-  grid-area: auto; display: flex; justify-content: center; gap: 4px; font-size: 11px; font-weight: 650; line-height: 1;
+  grid-area: auto; display: flex; justify-content: center; gap: 4px; font-size: 11.5px; font-weight: 650; line-height: 1;
 }
 .pstrip.six-up > .pchip.six .mini span { display: flex; align-items: center; gap: 1px; }
 .pstrip.six-up > .pchip.six .mini .ic { font-size: 12px; width: 12px; height: 12px; }
@@ -60,12 +60,12 @@
   .pstrip.six-up > .pchip.six { padding: 5px 1px 4px; gap: 1px; }
   .pstrip.six-up > .pchip.six .avatar { --av: 26px; }
   .pstrip.six-up > .pchip.six .sx-vp { min-width: 18px; height: 18px; font-size: 13.5px; }
-  .pstrip.six-up > .pchip.six .mini { display: flex; font-size: 10.5px; }
+  .pstrip.six-up > .pchip.six .mini { display: flex; font-size: 11.5px; }
 }
 @media (max-width: 370px) {
   .pstrip.six-up { gap: 3px; }
-  .pstrip.six-up > .pchip.six .pn { font-size: 11px; letter-spacing: -.02em; }
-  .pstrip.six-up > .pchip.six .mini { gap: 3px; font-size: 10.5px; }
+  .pstrip.six-up > .pchip.six .pn { font-size: 12px; letter-spacing: -.02em; } /* v0.86: 11 → 12 px, 10.5 → 11.5 px (fits at 360 px) */
+  .pstrip.six-up > .pchip.six .mini { gap: 2px; font-size: 11.5px; }
 }
 /* landscape phones: the strip is the left rail; six rows share its height */
 @media (max-height: 500px) and (orientation: landscape) {
