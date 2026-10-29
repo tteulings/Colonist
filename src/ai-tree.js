@@ -446,8 +446,15 @@ export const TreeMixin = {
         let ri = null;
         try { ri = this._aiReachInfo(Pl, plan); } catch (_) { ri = null; }
         const info = new Map((ri?.spots || []).map((x) => [x.id, x]));
+        // letters skipped in this list belong to the other plans (a city, a dev card …): say so once
+        const shown = spots.map((x) => letterOf(`n${x.nodeId}`));
+        const maxL = shown.reduce((m, l) => (l > m ? l : m), "A");
+        const skipped = ranked.filter((g) => !(g.type === "settlement" && spots.some((x) => x.nodeId === g.nodeId)) && L.get(g) < maxL);
+        const foot = [];
+        if (skipped.length) foot.push(`${skipped.map((g) => L.get(g)).join(", ")}: ${skipped.map((g) => name(g)).join(" / ")}: other plans, compared from step ${S.length + 2}.`);
+        if (spots.some((x) => info.get(x.nodeId)?.rival)) foot.push("Flag: a rival's roads are as close or closer. The bot ignores that today.");
         add({ key: "spots", title: "Settlement spots in reach", sub: "what each costs in roads and turns; the top 3 by rank become plans",
-          legend: "reach",
+          legend: "reach", foot: foot.join(" "),
           rows: spots.map((x) => { const r = info.get(x.nodeId);
             return { letter: letterOf(`n${x.nodeId}`), label: `Spot ${this._spotLabel(x.nodeId)}`, sub: r ? this._reachText(r) : x.d ? `+${x.d} road${x.d > 1 ? "s" : ""}` : "on its roads", v: x.h, vt: "score",
               warn: r?.rival ? { text: this._rivalText(r), color: this.players[r.rival.pid].color } : null,
@@ -568,7 +575,7 @@ export function stepCardHtml(steps, cur, sel = null) {
   if (!s) return "";
   return `<div class="sx-card1${s.ok === false ? " no" : ""}"><div class="sx-h"><span class="sx-n">${cur + 1}</span><b>${escH(s.title)}</b><small>${cur + 1} / ${steps.length}</small></div>
     ${s.sub ? `<p class="sx-sub">${escH(s.sub)}</p>` : ""}${s.text ? `<p class="sx-text">${escH(s.text)}</p>` : ""}${legendHtml(s.legend)}
-    ${s.hand ? handHtml(s.hand) : ""}${rowsHtml(s.rows).replace(new RegExp(`data-row="${sel}" class="sx-row`), `data-row="${sel}" class="sx-row sel`)}${compareHtml(s.compare)}</div>`;
+    ${s.hand ? handHtml(s.hand) : ""}${rowsHtml(s.rows).replace(new RegExp(`data-row="${sel}" class="sx-row`), `data-row="${sel}" class="sx-row sel`)}${s.foot ? `<p class="sx-foot">${escH(s.foot)}</p>` : ""}${compareHtml(s.compare)}</div>`;
 }
 /** Legacy list (kept for the in-game panel's compact mode). */
 export function stepsHtml(steps, cur) { return stepStripHtml(steps, cur) + stepCardHtml(steps, cur); }

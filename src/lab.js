@@ -240,6 +240,7 @@ function spotListHtml(r) {
   const rows = [...all.slice(0, 4), ...all.slice(4, 6).filter((x) => x.rival)].slice(0, 5);
   return `<div class="lb-reach"><div class="lb-reachh"><b>Spots in reach</b><small>${all.length} spot${all.length > 1 ? "s" : ""} · tap one for its roads</small></div>
     ${rows.map((x) => `<button type="button" class="lb-rrow${reach.sel === x.id ? " sel" : ""}" data-spot="${x.id}" aria-pressed="${reach.sel === x.id}"><span class="lb-rsc">${x.h.toFixed(dec)}</span><span class="lb-rw"><span class="lb-r1"><b>Spot ${esc(x.label)}</b>${x.id === r.planNode ? `<span class="lt-tag plan">plan</span>` : ""}<span class="lb-rm">${esc(x.text)}</span></span>${x.rival ? `<small class="lb-riv" style="--rc:${x.rivalColor}">${FLAG(x.rivalColor)}${esc(x.rivalText)}</small>` : ""}</span></button>`).join("")}
+    ${rows.some((x) => x.rival) ? `<p class="lb-fine lb-rfoot">Flag: a rival's roads are as close or closer. The bot ignores that today.</p>` : ""}
   </div>`;
 }
 function selectSpot(id) {

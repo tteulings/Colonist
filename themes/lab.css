@@ -253,3 +253,4 @@ body.lb-stepping .lb-tools, body.lb-stepping #labResult { display: none; }
 .lb-legend span { display: inline-flex; align-items: center; gap: 3px; }
 .lb-legend svg { width: 14px; height: 14px; flex: none; }
 .lb-legend .lb-flag { width: 10px; height: 13px; }
+.lb-rfoot { margin: 6px 2px 0; }

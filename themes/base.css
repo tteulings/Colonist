@@ -2303,3 +2303,4 @@ button.sx-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 
 .sx-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 9px; margin: 2px 0 0; font-size: 11px; color: var(--ink-soft); line-height: 1.2; }
 .sx-legend span { display: inline-flex; align-items: center; gap: 3px; }
 .sx-legend svg { width: 13px; height: 13px; flex: none; }
+.sx-foot { margin: 4px 0 0; font-size: 11px; color: var(--ink-soft); line-height: 1.3; }
