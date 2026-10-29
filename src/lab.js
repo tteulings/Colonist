@@ -1,4 +1,4 @@
-// AI Lab (lab.html), v0.87: two modes.
+// AI Lab (lab.html), v0.87: two modes. (v0.88: the heatmap opens on what fits the board: Next build once set-up is over.)
 //  Analysis   — pick a board, drop pieces or load your game, tune "Your bot" (preset, five dimensions and the
 //               Calculation weights) and see how it scores the board (heatmap) and how it decides (decision
 //               tree: options → candidates → each score split into terms, the chosen path marked).
@@ -9,7 +9,7 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR } from "./ai-tree.js?v=87";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR } from "./ai-tree.js?v=88";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -64,6 +64,18 @@ const saveW = () => put(WKEY, W, sessionStorage);
 let view = null; // the board game instance (iframe)
 let H = null;    // its bot tables (presets, level names)
 const tree = { open: new Set(), closed: new Set(), sel: null, data: null, mode: null, view: "tree" };
+// v0.88: the heatmap's default follows the board. Set-up is over when every seat has its 2 start pieces
+// (settlements or cities). The default is re-chosen when the board changes (new board, or set-up turns
+// over / back by placing or erasing); a mode the user picked stays while the board stays in that state.
+let boardGen = 0, modeSig = null, modePicked = null;
+const setupOver = () => !!view?.players?.length && view.players.every((p) => p.settlements.size + p.cities.size >= 2);
+function autoMode() {
+  if (!view || sim.watching) return;
+  const sig = `${boardGen}:${setupOver()}`;
+  if (sig === modeSig) return;
+  modeSig = sig;
+  if (modePicked !== sig) st.mode = setupOver() ? "build" : "setup";
+}
 
 function waitEngine(frame) {
   return new Promise((resolve) => {
@@ -101,7 +113,7 @@ const myBotDesc = () => `${presetLabel(st.preset)}${changedW().length && !isRule
 
 // ── Analysis ─────────────────────────────────────────────────────────────
 function renderControls() {
-  seg($("#labMode"), MODES, st.mode, "mode", (v) => { st.mode = v; tree.sel = null; update(); });
+  seg($("#labMode"), MODES, st.mode, "mode", (v) => { st.mode = v; modePicked = modeSig; tree.sel = null; update(); });
   const presetItems = PRESETS.map((p) => [p, H.AI_PRESET_INFO[p].label]);
   if (st.preset === "custom") presetItems.push(["custom", "Custom"]);
   seg($("#labPreset"), presetItems, st.preset, "preset", (v) => { if (v === "custom") return; st.preset = v; st.strat = { ...H.AI_PRESETS[v] }; update(); });
@@ -175,6 +187,7 @@ function applyHand() {
 }
 
 function update() {
+  autoMode();
   save();
   renderControls();
   if (!view || sim.watching) return; // the board shows a tournament game: your board (and its scores) come back afterwards
@@ -186,15 +199,19 @@ function update() {
   $(".lb-treecard").style.setProperty("--seat", p.color);
   renderTree(r?.tree || null, p);
   if (!r) { out.innerHTML = `<p class="lb-note">Nothing to score here.</p>`; return; }
+  // v0.88: Start spots on a board past set-up stays available, but says what it is
+  const late = st.mode === "setup" && setupOver() ? `<p class="lb-note lb-late">Set-up is over on this board. These are scores as if you could still place a start settlement.</p>` : "";
   if (r.rules) { // Simple: its checklist, the rule that fired lit
-    out.innerHTML = `<div class="lb-rhead"><i class="lb-dot" style="background:${p.color}"></i><b>${esc(p.name)} · ${esc(r.title)}</b></div>
+    out.innerHTML = `${late}<div class="lb-rhead"><i class="lb-dot" style="background:${p.color}"></i><b>${esc(p.name)} · ${esc(r.title)}</b></div>
       <p class="lb-note">${esc(r.note || "")} · the checklist below shows every rule it checked.</p>`;
     return;
   }
-  const vals = DIMS.map(([k]) => r.dims?.[k] || 0);
-  const max = Math.max(0.5, ...vals.map(Math.abs));
-  out.innerHTML = `<div class="lb-rhead"><i class="lb-dot" style="background:${p.color}"></i><b>${esc(p.name)} · ${esc(r.title)}</b><span class="lb-sc" title="${UNIT}">${r.fmt === "int" ? `${Math.round(r.score)} pips` : f2(r.score)}</span></div>
-    <div class="lb-bars" title="${UNIT}">${DIMS.map(([, l], i) => `<span class="lb-d${Math.abs(vals[i]) < 0.05 ? " zero" : ""}"><span class="l">${l}</span><span class="bar${vals[i] < 0 ? " neg" : ""}"><i style="width:${Math.round((Math.abs(vals[i]) / max) * 100)}%;background:${vals[i] < 0 ? "" : p.color}"></i></span><span class="v">${Math.abs(vals[i]) < 0.05 ? "–" : fmt(vals[i])}</span></span>`).join("")}</div>
+  // v0.88: only the dimensions that add to this score (set-up: placement + ports; robber: awareness)
+  const used = DIMS.map(([k, l]) => [l, r.dims?.[k] || 0]).filter(([, v]) => Math.abs(v) >= 0.005); // two decimals, like the score they add up to
+  const unused = DIMS.map(([, l]) => l).filter((l) => !used.some(([u]) => u === l));
+  const max = Math.max(0.5, ...used.map(([, v]) => Math.abs(v)));
+  out.innerHTML = `${late}<div class="lb-rhead"><i class="lb-dot" style="background:${p.color}"></i><b>${esc(p.name)} · ${esc(r.title)}</b><span class="lb-sc" title="${UNIT}">${r.fmt === "int" ? `${Math.round(r.score)} pips` : f2(r.score)}</span></div>
+    ${used.length ? `<div class="lb-bars" title="${UNIT}${unused.length ? ` · not part of this score: ${unused.join(", ")}` : ""}">${used.map(([l, v]) => `<span class="lb-d"><span class="l">${l}</span><span class="bar${v < 0 ? " neg" : ""}"><i style="width:${Math.round((Math.abs(v) / max) * 100)}%;background:${v < 0 ? "" : p.color}"></i></span><span class="v">${f2(v)}</span></span>`).join("")}</div>` : ""}
     ${r.note ? `<p class="lb-note">${esc(r.note)}</p>` : ""}
     ${r.alts?.length ? `<div class="lb-alts" title="Next best (${UNIT})">${r.alts.map((a, i, all) => { const dup = all.filter((x) => x.label === a.label).length > 1 ? ` (${all.slice(0, i + 1).filter((x) => x.label === a.label).length})` : "";
       return `<span><b>${r.fmt === "int" ? Math.round(a.score) : f2(a.score)}</b> ${esc(a.label.replace(/ \(\+(\d) roads?\)/, " +$1r"))}${dup}</span>`; }).join("")}</div>` : ""}`;
@@ -348,6 +365,7 @@ async function newBoard() {
     $("#labBusy").hidden = true;
   }
   if (!view.players[st.seat]) st.seat = 1;
+  boardGen += 1; // v0.88: a new board picks its own heatmap default
   tree.sel = null;
   applyHand();
   update();
