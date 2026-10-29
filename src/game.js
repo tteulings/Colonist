@@ -15,6 +15,7 @@ import { LiveStatsMixin, installLiveStats } from "./live-stats.js"; // … and t
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
+import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS, SHIP_COST } from "./seafarers/index.js";
@@ -150,6 +151,8 @@ const AI_PRESETS = {
   trader:       { placement: "medium",  expansion: "medium",  trading: "aggressive",   devCards: "reactive",  awareness: "basic" },
   builder:      { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "reactive",  awareness: "basic" },
   shark:        { placement: "medium",  expansion: "medium",  trading: "balanced",     devCards: "strategic", awareness: "advanced" },
+  // v0.90: the Expert plus a search over its options (src/master.js, src/master/); opt-in, never a default
+  master:       { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "master" },
 };
 
 // Player-facing names, short taglines and badge glyphs for the presets ("custom" = hand-tuned mix)
@@ -161,6 +164,7 @@ const AI_PRESET_INFO = {
   trader:       { label: "Trader",       tagline: "deals all game",       glyph: "\u21c4", isNew: true },
   builder:      { label: "Builder",      tagline: "roads & cities",       glyph: "\u2692", isNew: true },
   shark:        { label: "Shark",        tagline: "hunts the leader",     glyph: "\u25b2", isNew: true },
+  master:       { label: "Master",       tagline: "Expert + searches 100 futures", glyph: "\u2605", isNew: true },
   custom:       { label: "Custom",       tagline: "your mix",             glyph: "" },
 };
 
@@ -1482,6 +1486,8 @@ class ColonistFullGame {
     this.canvas.style.cursor = "grab";
 
     this._stReset(); // the end-of-game statistics log (src/stats.js)
+    this._masterBusy = null;
+    this._masterWarm(); // v0.90: load the Master's worker before its first decision
     this.initialPlacement();
     this.recomputeScores();
     this.addLog(this.sea ? `New ${this.isRush() ? "Rush" : "Classic"} Seafarers game: Heading for New Shores, first to ${this.winPoints} points.`
@@ -1582,8 +1588,13 @@ class ColonistFullGame {
     if (this.onboardingHold) { this.render(); return; } // first launch: wait for the welcome sheet
     if (this._aiHeld()) { this._aiPark(() => this.processSetupQueue()); this.render(); return; } // analysis mode: wait for Step
 
-    // AI placement with delay
-    const nodeId = this.getBestInitialSettlementNode(player);
+    // v0.90 Master: the spot is searched in the worker; the placement continues when it answers
+    if (this._masterLive(player) && this._masterSetup(player)) { this.render(); return; }
+    this._aiSetupPlace(player, this.getBestInitialSettlementNode(player));
+  }
+
+  // A bot's set-up settlement (then, after a short pause, its road)
+  _aiSetupPlace(player, nodeId) {
     if (nodeId == null) { this.setupStep++; this.processSetupQueue(); return; }
     if (this._aiRec()) this._aiNoteSetup(player, nodeId);
     this.placeSettlement(player, nodeId, true);
@@ -2984,6 +2995,7 @@ class ColonistFullGame {
     });
 
     if (!discardQueue.length) {
+      if (this._masterLive(currentPlayer)) return this._masterRobber(currentPlayer); // v0.90: searched tile
       this.moveRobber(currentPlayer);
       return Promise.resolve();
     }
@@ -3085,7 +3097,9 @@ class ColonistFullGame {
     return next().then(this._guard(() => {
       this.robberBusy = false;
       this.pendingRobberFlow = null;
-      this.moveRobber(this.players[flow.rollerId]);
+      const roller = this.players[flow.rollerId];
+      if (this._masterLive(roller)) return this._masterRobber(roller).then(this._guard(() => { this.saveToStorage(); this.render(); })); // v0.90
+      this.moveRobber(roller);
       this.saveToStorage();
       this.render();
     }));
@@ -3102,7 +3116,8 @@ class ColonistFullGame {
       this.render();
       return;
     }
-    const targetHexId = this.chooseRobberHex(currentPlayer);
+    const targetHexId = this._masterRobberPick ?? this.chooseRobberHex(currentPlayer); // v0.90: a Master's searched tile (Knight)
+    this._masterRobberPick = null;
     if (this._aiRec()) this._aiNoteRobber(currentPlayer, targetHexId);
     this.moveRobberAndSteal(currentPlayer, targetHexId);
   }
@@ -4389,6 +4404,7 @@ class ColonistFullGame {
     if (this.winner || this.setupPhase || this.isRush()) return; // Rush bots run on their own ticks
     if (this._aiDiceAnimating || this.robberBusy || this.pendingDiscard || this.pendingIncomingTrade) return;
     if (this._aiHeld() || this.analysis?.parked) return; // analysis mode: bots wait for Step / Resume
+    if (this._masterBusy) return; // v0.90: a Master bot is thinking (its turn goes on when the worker answers)
     if (this.phase === "sbp") { this._sbpRun(); return; } // build phase between turns (bots, or you while watching)
     const player = this.currentPlayer;
     if (this.phase === "pre_roll") {
@@ -4407,7 +4423,7 @@ class ColonistFullGame {
           // Longer delay on 7 so the robber move + steal are visible
           const actionDelay = this.lastRoll !== 7 ? 800 : 1800;
           // Wait for the robber flow (e.g. the human discarding) before continuing the turn
-          robberDone.then(this._guard(() => this._later(() => this._aiGate(() => {
+          robberDone.then(this._guard(() => (this._masterPrefetch(player), this._later(() => this._aiGate(() => {
             this._aiDiceAnimating = false;
             if (this.winner) return;
             if (this.phase === "main" && this.currentPlayer === player) {
@@ -4420,7 +4436,7 @@ class ColonistFullGame {
             if (!this.winner && !this.autoplayInterval && !this.currentPlayer.isHuman) {
               this.scheduleAiTurnsUntilHuman();
             }
-          }), actionDelay)));
+          }), actionDelay))));
         }, player);
         return; // Wait for animation
       }
@@ -4436,6 +4452,7 @@ class ColonistFullGame {
   }
 
   executeAiMainPhase(player, skipPlayerTrade = false) {
+    if (this._masterLive(player)) return this._masterMainPhase(player, skipPlayerTrade); // v0.90: searched steps (always "async")
     const s = player.strategy || {};
     this._aiLog(player, `Main phase — strategy: placement=${s.placement}, expansion=${s.expansion}, trading=${s.trading}, devCards=${s.devCards}, awareness=${s.awareness}`);
     this._aiLog(player, `Resources: ${resourceString(player.resources)} (${sumResources(player.resources)} total)`);
@@ -10539,7 +10556,7 @@ class ColonistFullGame {
 }
 
 // 5–6 players: Special Building Phase engine + bots (src/six.js) and its UI (src/six-ui.js)
-Object.assign(ColonistFullGame.prototype, SbpMixin, SixUiMixin, AnalysisMixin, LabMixin, TreeMixin, RulesMixin);
+Object.assign(ColonistFullGame.prototype, SbpMixin, SixUiMixin, AnalysisMixin, LabMixin, TreeMixin, RulesMixin, MasterMixin);
 // AI Lab (lab.html): settings + bot tables for its engine iframes
 ColonistFullGame.labHelpers = { normalizeSettings, DEFAULT_SETTINGS, AI_PRESETS, AI_PRESET_INFO, AI_STRATEGY_CATEGORIES, AI_LEVEL_LABEL, AI_PLAN_WEIGHTS, AI_WEIGHT_KEYS };
 Object.assign(ColonistFullGame.prototype, SeaGame); // ⚓ Seafarers game-side methods (src/seafarers/ui.js)

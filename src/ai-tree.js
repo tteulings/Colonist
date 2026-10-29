@@ -446,8 +446,15 @@ export const TreeMixin = {
         let ri = null;
         try { ri = this._aiReachInfo(Pl, plan); } catch (_) { ri = null; }
         const info = new Map((ri?.spots || []).map((x) => [x.id, x]));
+        // letters skipped in this list belong to the other plans (a city, a dev card …): say so once
+        const shown = spots.map((x) => letterOf(`n${x.nodeId}`));
+        const maxL = shown.reduce((m, l) => (l > m ? l : m), "A");
+        const skipped = ranked.filter((g) => !(g.type === "settlement" && spots.some((x) => x.nodeId === g.nodeId)) && L.get(g) < maxL);
+        const foot = [];
+        if (skipped.length) foot.push(`${skipped.map((g) => L.get(g)).join(", ")}: ${skipped.map((g) => name(g)).join(" / ")}: other plans, compared from step ${S.length + 2}.`);
+        if (spots.some((x) => info.get(x.nodeId)?.rival)) foot.push("Flag: a rival's roads are as close or closer. The bot ignores that today.");
         add({ key: "spots", title: "Settlement spots in reach", sub: "what each costs in roads and turns; the top 3 by rank become plans",
-          legend: "reach",
+          legend: "reach", foot: foot.join(" "),
           rows: spots.map((x) => { const r = info.get(x.nodeId);
             return { letter: letterOf(`n${x.nodeId}`), label: `Spot ${this._spotLabel(x.nodeId)}`, sub: r ? this._reachText(r) : x.d ? `+${x.d} road${x.d > 1 ? "s" : ""}` : "on its roads", v: x.h, vt: "score",
               warn: r?.rival ? { text: this._rivalText(r), color: this.players[r.rival.pid].color } : null,
@@ -568,7 +575,108 @@ export function stepCardHtml(steps, cur, sel = null) {
   if (!s) return "";
   return `<div class="sx-card1${s.ok === false ? " no" : ""}"><div class="sx-h"><span class="sx-n">${cur + 1}</span><b>${escH(s.title)}</b><small>${cur + 1} / ${steps.length}</small></div>
     ${s.sub ? `<p class="sx-sub">${escH(s.sub)}</p>` : ""}${s.text ? `<p class="sx-text">${escH(s.text)}</p>` : ""}${legendHtml(s.legend)}
-    ${s.hand ? handHtml(s.hand) : ""}${rowsHtml(s.rows).replace(new RegExp(`data-row="${sel}" class="sx-row`), `data-row="${sel}" class="sx-row sel`)}${compareHtml(s.compare)}</div>`;
+    ${s.hand ? handHtml(s.hand) : ""}${rowsHtml(s.rows).replace(new RegExp(`data-row="${sel}" class="sx-row`), `data-row="${sel}" class="sx-row sel`)}${s.race ? `<p class="sx-foot">${escH(s.foot)}</p>${raceHtml(s.race)}` : s.foot ? `<p class="sx-foot">${escH(s.foot)}</p>` : ""}${compareHtml(s.compare)}${s.verdict ? verdictHtml(s.verdict) : ""}</div>`;
 }
 /** Legacy list (kept for the in-game panel's compact mode). */
 export function stepsHtml(steps, cur) { return stepStripHtml(steps, cur) + stepCardHtml(steps, cur); }
+
+// ── v0.90 Master: the search as two more steps after the Expert's own (hand → options → spots → ranking =
+// "Expert's pick"): the Race (each move played into the same futures, round by round, the weaker half out
+// after each round, the paired gap to the Expert's pick with its ±1 SE) and the Verdict. Built from the
+// worker's record only: per future results, rounds, eliminations, paired gaps, and the bot's points after
+// each future. Nothing is guessed. ──
+const pc1 = (x) => `${x >= 0 ? "+" : "−"}${Math.abs(100 * x).toFixed(1)}%`;
+const pc0 = (x) => `${Math.round(100 * x)}%`;
+/** Per candidate: its letter, label, place, futures, mean, paired gap / SE vs the Expert's pick, the bar it
+ *  had to clear, the round it dropped out after, and its state. */
+export function raceStats(rec) {
+  const thr = (p) => (p.se == null ? Infinity : rec.rule.z * p.se + rec.rule.minAdv);
+  const outAt = new Map();
+  rec.rounds.forEach((r, i) => r.out.forEach((k) => outAt.set(k, i + 1)));
+  return rec.cands.map((c, k) => {
+    const v = rec.vals[k].filter((x) => x != null);
+    const mean = v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0;
+    const p = rec.paired[k];
+    const clear = k > 0 && p.m > thr(p);
+    const state = k === 0 ? "expert" : outAt.has(k) ? "out" : k === rec.pick ? "pick" : clear ? "clear" : "flat";
+    return { k, letter: LETTERS[k], label: c.label, focus: c.focus, n: v.length, mean, m: p.m, se: p.se, pn: p.n, need: thr(p), out: outAt.get(k) || null, state };
+  });
+}
+export function masterVerdict(rec, name = "the bot") {
+  const S = raceStats(rec), E = S[0], P = S[rec.pick];
+  const common = (k) => rec.vals[k].map((v, j) => (v != null && rec.vals[0][j] != null ? j : -1)).filter((j) => j >= 0);
+  if (rec.pick === 0) {
+    const alt = S.slice(1).sort((a, b) => b.m - a.m)[0];
+    const why = alt ? `No move did clearly better on the same futures. Closest: ${alt.letter} · ${alt.label}, ${pc1(alt.m)} ± ${(100 * (alt.se || 0)).toFixed(1)} over ${alt.pn} futures (it needed more than ${pc1(alt.need)}).` : "";
+    return { same: true, expert: E, master: E, gap: 0, n: E.n, why, line: `Expert: ${E.label}. Master keeps it: no move was clearly better over ${E.n} futures.` };
+  }
+  const js = common(rec.pick);
+  const mean = (k) => js.reduce((a, j) => a + rec.vals[k][j], 0) / Math.max(1, js.length);
+  const ahead = js.filter((j) => rec.vals[rec.pick][j] > rec.vals[0][j] + 1e-6).length, behind = js.filter((j) => rec.vals[rec.pick][j] < rec.vals[0][j] - 1e-6).length;
+  const dvp = js.reduce((a, j) => a + (rec.vps[rec.pick][j] - rec.vps[0][j]), 0) / Math.max(1, js.length);
+  const turns = rec.kind === "setup" ? 12 : rec.depth || 8;
+  const tie = js.length - ahead - behind;
+  const why = `On the same ${js.length} futures, ${P.letter} came out ahead of ${E.letter} in ${ahead}, behind in ${behind}${tie ? ` and level in ${tie}` : ""}${Math.abs(dvp) >= 0.05 ? `; after ${turns} turns ${name} had ${dvp >= 0 ? "+" : "−"}${Math.abs(dvp).toFixed(1)} points on average` : ""}.`;
+  return { same: false, expert: { ...E, mean: mean(0) }, master: { ...P, mean: mean(rec.pick) }, gap: P.m, se: P.se, n: js.length, why,
+    line: `Expert: ${E.label}. Master: ${P.label}, ${pc1(P.m)} win chance over ${js.length} futures.` };
+}
+const placeOf = (f) => (!f ? null : f.hex != null ? { hex: f.hex } : f.city != null ? { city: f.city } : f.node != null ? { node: f.node } : f.edge != null ? { edge: f.edge } : null);
+/** Expert's steps (the last one retitled "Expert's pick") + Race + Verdict. */
+export function masterSteps(expertSteps, rec, name = "the bot") {
+  let S = (expertSteps || []).map((s) => ({ ...s }));
+  const ci = S.findIndex((s) => s.key === "choice");
+  let after = [];
+  if (ci >= 0) { S[ci].title = "Expert's pick"; S[ci].key = "expert"; after = S.slice(ci + 1); S = S.slice(0, ci + 1); } // (robber: its steal step comes after the verdict)
+  const st = raceStats(rec), v = masterVerdict(rec, name);
+  const badges = st.map((x) => { const p = placeOf(x.focus); return p ? { text: x.letter, tone: x.state === "pick" || (rec.pick === 0 && x.k === 0) ? undefined : "alt", ...p } : null; }).filter(Boolean);
+  const total = rec.vals.reduce((a, v2) => a + v2.filter((x) => x != null).length, 0);
+  const R = rec.rounds.length;
+  S.push({ key: "race", title: "The race", sub: `${st.length} moves · ${total} futures in ${R} round${R > 1 ? "s" : ""} · ${rec.ms < 1000 ? `${rec.ms} ms` : `${(rec.ms / 1000).toFixed(1)} s`}`,
+    foot: "Every move plays the same random futures (same dice, same re-dealt hidden cards); the weaker half drops out after each round.",
+    rows: [], race: { rows: st, rec }, overlay: { badges, noLabels: true, pick: placeOf(st[rec.pick].focus) || {} } });
+  const vb = [];
+  const pe = placeOf(v.expert.focus), pm = placeOf(v.master.focus);
+  if (pe && !v.same) vb.push({ text: v.expert.letter, tone: "alt", ...pe }); // the same letters as the cards below
+  if (pm) vb.push({ text: v.master.letter, ...pm });
+  S.push({ key: "verdict", title: "Verdict", sub: v.same ? "Master keeps the Expert's pick" : "Master overrides the Expert", verdict: v, rows: [],
+    overlay: { badges: vb, noLabels: true, pick: pm || {}, focus: pm || null } });
+  return rec.pick === 0 ? [...S, ...after] : S; // (its steal step points at the Expert's tile: kept only when that is the tile)
+}
+function raceHtml(r) {
+  const { rows, rec } = r;
+  const span = Math.max(0.04, ...rows.filter((x) => x.k > 0).map((x) => Math.abs(x.m) + (x.se || 0)), ...rows.filter((x) => x.k > 0 && Number.isFinite(x.need)).map((x) => x.need));
+  const X = (v) => 50 + Math.max(-50, Math.min(50, (v / span) * 50));
+  const status = { expert: "Expert's pick: the baseline", out: "", pick: "clearly better: Master's pick", clear: "clearly better, smaller gain", flat: "not clearly better" };
+  return `<div class="mr">${rows.map((x) => {
+    const dots = rec.rounds.map((rd) => {
+      if (!rd.alive.includes(x.k)) return "";
+      let h = "";
+      for (let j = rd.j0; j < rd.j1; j++) {
+        const a = rec.vals[x.k][j], b = rec.vals[0][j];
+        if (a == null) continue;
+        const c = x.k === 0 ? "e" : a > b + 1e-6 ? "w" : a < b - 1e-6 ? "l" : "t";
+        h += `<i class="${c}"></i>`;
+      }
+      return `<span class="mr-seg">${h}</span>`;
+    }).join("");
+    const gap = x.k === 0 ? `<span class="mr-gap"><span class="mr-axis"></span><span class="mr-zero" style="left:50%"></span></span><span class="mr-v">${pc0(x.mean)}</span>`
+      : `<span class="mr-gap" title="paired gap ± 1 SE; tick = what it must clear"><span class="mr-axis"></span><span class="mr-zero" style="left:50%"></span>${x.se != null ? `<span class="mr-ci" style="left:${X(x.m - x.se)}%;width:${Math.max(1, X(x.m + x.se) - X(x.m - x.se))}%"></span>` : ""}${Number.isFinite(x.need) && x.state !== "out" ? `<span class="mr-need" style="left:${X(x.need)}%"></span>` : ""}<span class="mr-pt" style="left:${X(x.m)}%"></span></span><span class="mr-v">${pc1(x.m)}</span>`;
+    const st = x.state === "out" ? `out after round ${x.out}` : status[x.state];
+    return `<div class="mr-row ${x.state}"><div class="mr-1"><span class="sx-let">${x.letter}</span><b>${escH(x.label)}</b>${x.k === 0 ? `<span class="mr-tag">Expert</span>` : ""}${x.state === "pick" ? `<span class="mr-tag m">Master</span>` : ""}${gap}</div>
+      <div class="mr-2"><span class="mr-dots">${dots}</span><small>${escH(st)}${x.k > 0 ? ` · ${x.pn} futures` : ` · ${x.n} futures, ${pc0(x.mean)} win chance`}</small></div></div>`;
+  }).join("")}</div>
+  <p class="mr-leg"><span><i class="w"></i>ahead of A in that future</span><span><i class="l"></i>behind</span><span><i class="t"></i>same</span><span>bar = gap to A ± 1 SE · tick = needed</span></p>`;
+}
+function verdictHtml(v) {
+  const card = (who, x, cls) => `<div class="mv-card ${cls}"><small>${who}</small><div class="mv-l"><span class="sx-let">${x.letter}</span><b>${escH(x.label)}</b><span class="mv-p">${pc0(x.mean)}</span></div><span class="mv-bar"><i style="width:${Math.max(2, Math.min(100, 100 * x.mean))}%"></i></span></div>`;
+  // the gain first (it is the verdict), then the two picks with their win chance, then why
+  return `<div class="mv">${v.same ? "" : `<p class="mv-gain"><b>${pc1(v.gap)}</b> win chance over ${v.n} futures <small>(± ${(100 * (v.se || 0)).toFixed(1)})</small></p>`}
+    ${v.same ? card("Expert and Master pick", v.expert, "m") : card("Expert would", v.expert, "e") + card("Master picks", v.master, "m")}
+    ${v.why ? `<p class="mv-why">${escH(v.why)}</p>` : ""}</div>`;
+}
+/** One line for the in-game panel and the lab summary. */
+export function masterLineHtml(rec) {
+  const v = masterVerdict(rec);
+  return v.same ? `<span class="mv-line"><b>Master</b> keeps the Expert's pick · ${escH(v.expert.label)} · ${v.n} futures</span>`
+    : `<span class="mv-line"><b>Master:</b> ${escH(v.master.label)} <em>${pc1(v.gap)}</em> over ${v.n} futures · Expert: ${escH(v.expert.label)}</span>`;
+}

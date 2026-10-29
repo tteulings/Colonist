@@ -319,9 +319,14 @@ export const AnalysisMixin = {
       return { id: s.nodeId, d: s.d, h: s.h, eta, rival };
     });
     const inReach = new Set(spots.map((s) => s.id));
+    // (v0.89 polish) × only near the player: free spots within 4 plain hops of its network that the bot
+    // can't plan for (too many roads, or a rival's town / road in the way)
+    const hop = new Array(g.nodes.length).fill(Infinity), q = [];
+    this.getRoadNetworkNodes(player).forEach((n) => { hop[n] = 0; q.push(n); });
+    while (q.length) { const u = q.shift(); if (hop[u] >= 4) continue; g.nodes[u].neighbors.forEach((m) => { if (hop[m] > hop[u] + 1) { hop[m] = hop[u] + 1; q.push(m); } }); }
     const out = [];
     g.nodes.forEach((n) => {
-      if (inReach.has(n.id) || n.structure != null || n.neighbors.some((m) => g.nodes[m].structure != null)) return;
+      if (inReach.has(n.id) || !(hop[n.id] <= 4) || n.structure != null || n.neighbors.some((m) => g.nodes[m].structure != null)) return;
       if (this.sea && !n.adjacentHexes.some((h) => g.hexes[h] && g.hexes[h].resource !== "sea")) return;
       out.push(n.id);
     });
@@ -337,7 +342,7 @@ export const AnalysisMixin = {
   _rivalText(s) {
     if (!s.rival) return "";
     const p = this.players[s.rival.pid];
-    return `${p.name}: ${s.rival.d ? `${s.rival.d} road${s.rival.d > 1 ? "s" : ""} away` : "on its roads"} · the bot ignores this today`;
+    return `${p.name}: ${s.rival.d ? `${s.rival.d} road${s.rival.d > 1 ? "s" : ""} away` : "on its roads"}`;
   },
 
   _aiPlanSnap(player, plan) {
@@ -613,7 +618,7 @@ export const AnalysisMixin = {
         if ((chosen || numbered.has(s.id)) && Number.isFinite(s.s) && d.kind !== "setupRoad" && !d.noLabels) {
           const y = n.y - (s.city ? hs * 0.3 : 0);
           const w = label(n.x, y, sval(s.s), chosen);
-          if (!s.city) pills.set(s.id, { x: n.x, y, r: Math.max(13 * px, w / 2 + 5 * px) });
+          if (!s.city) pills.set(s.id, { x: n.x, y, hw: w / 2 + 4 * px, hh: 8 * px });
         }
       });
     }
@@ -663,12 +668,38 @@ export const AnalysisMixin = {
         if (b.edge != null && g.edges[b.edge]) { const [a, c] = g.edges[b.edge].nodes.map((n) => g.nodes[n]); return { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 }; }
         return null;
       };
-      d.badges.forEach((b) => {
-        const p = at(b);
-        if (!p) return;
+      // v0.89 polish: badges that would sit on top of each other (close spots on a small board) are pushed
+      // apart, each keeping a short leader line to its own spot
+      ctx.font = `800 ${11.5 * px}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+      const placed = d.badges.map((b) => { const p = at(b); return p ? { b, p: { ...p }, home: p, w: Math.max(18 * px, ctx.measureText(b.text).width + 10 * px) } : null; }).filter(Boolean);
+      for (let it = 0; it < 24; it += 1) {
+        let moved = false;
+        for (let i = 0; i < placed.length; i += 1) for (let j = i + 1; j < placed.length; j += 1) {
+          const A = placed[i], B = placed[j];
+          if (A.b.edge != null || B.b.edge != null) continue;
+          let dx = B.p.x - A.p.x, dy = B.p.y - A.p.y, dist = Math.hypot(dx, dy);
+          const need = (Math.max(A.w, 18 * px) + Math.max(B.w, 18 * px)) / 2 + 2 * px;
+          if (dist >= need) continue;
+          if (dist < 1e-6) { dx = 1; dy = 0; dist = 1; }
+          const k = (need - dist) / 2 / dist;
+          A.p.x -= dx * k; A.p.y -= dy * k; B.p.x += dx * k; B.p.y += dy * k; moved = true;
+        }
+        if (!moved) break;
+      }
+      placed.forEach(({ b, p, home }) => {
+        const nid0 = b.node ?? b.city;
+        if (Math.hypot(p.x - home.x, p.y - home.y) > 3 * px && nid0 != null && g.nodes[nid0]) {
+          const n = g.nodes[nid0];
+          ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(p.x, p.y);
+          ctx.lineWidth = 3 * px; ctx.strokeStyle = "rgba(20,32,44,.45)"; ctx.stroke();
+          ctx.lineWidth = 1.5 * px; ctx.strokeStyle = b.tone === "alt" ? "#fff" : color; ctx.stroke();
+          ctx.beginPath(); ctx.arc(n.x, n.y, 2.6 * px, 0, Math.PI * 2); ctx.fillStyle = b.tone === "alt" ? "#fff" : color; ctx.fill();
+        }
+      });
+      placed.forEach(({ b, p, w }) => {
         ctx.font = `800 ${11.5 * px}px system-ui, -apple-system, "Segoe UI", sans-serif`;
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        const w = Math.max(18 * px, ctx.measureText(b.text).width + 10 * px), h = 18 * px;
+        const h = 18 * px;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(p.x - w / 2, p.y - h / 2, w, h, h / 2); else ctx.arc(p.x, p.y, h / 2, 0, Math.PI * 2);
         ctx.fillStyle = b.tone === "alt" ? "rgba(255,255,255,.96)" : b.tone === "dim" ? "rgba(40,48,56,.82)" : color;
@@ -677,7 +708,7 @@ export const AnalysisMixin = {
         ctx.fillStyle = b.tone === "alt" ? "#22302F" : "#fff";
         ctx.fillText(b.text, p.x, p.y + 0.5 * px);
         const nid = b.node ?? b.city;
-        if (nid != null && b.hex == null) pills.set(nid, { x: p.x, y: p.y, r: Math.max(13 * px, w / 2 + 4.5 * px) });
+        if (nid != null && b.hex == null) pills.set(nid, { x: p.x, y: p.y, hw: w / 2 + 2.5 * px, hh: h / 2 + 2.5 * px });
       });
     }
     routeBadges();
@@ -690,29 +721,36 @@ export const AnalysisMixin = {
       (d.reach.out || []).forEach((id) => {
         const n = g.nodes[id];
         if (!n) return;
-        const k = 3.6 * px;
+        const k = 3 * px;
         ctx.setLineDash([]);
         ctx.beginPath(); ctx.moveTo(n.x - k, n.y - k); ctx.lineTo(n.x + k, n.y + k); ctx.moveTo(n.x + k, n.y - k); ctx.lineTo(n.x - k, n.y + k);
-        ctx.strokeStyle = "rgba(255,255,255,.25)"; ctx.lineWidth = 2.8 * px; ctx.stroke();
-        ctx.strokeStyle = "rgba(20,32,44,.38)"; ctx.lineWidth = 1.3 * px; ctx.stroke();
+        ctx.strokeStyle = "rgba(255,255,255,.22)"; ctx.lineWidth = 2.6 * px; ctx.stroke();
+        ctx.strokeStyle = "rgba(20,32,44,.32)"; ctx.lineWidth = 1.2 * px; ctx.stroke();
       });
-      (d.reach.spots || []).forEach((s) => {
-        const at = pills.get(s.id);
-        if (!at) return;
-        const dash = s.d === 0 ? [] : s.d === 1 ? [4.5 * px, 3 * px] : [0.01 * px, 3.6 * px];
+      // a capsule just outside the pill (or badge), so neighbouring spots don't collide
+      const caps = (d.reach.spots || []).map((s) => ({ s, at: pills.get(s.id) })).filter((x) => x.at);
+      caps.forEach(({ s, at }) => {
+        const gap = 1.5 * px, hw = at.hw + gap, hh = at.hh + gap;
+        const dash = s.d === 0 ? [] : s.d === 1 ? [4 * px, 2.6 * px] : [0.01 * px, 3 * px];
         ctx.setLineDash(dash);
-        ctx.beginPath(); ctx.arc(at.x, at.y, at.r, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(20,32,44,.45)"; ctx.lineWidth = (s.d >= 2 ? 3.6 : 3) * px; ctx.stroke();
-        ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.lineWidth = (s.d >= 2 ? 2.2 : 1.5) * px; ctx.stroke();
-        if (s.rival) {
-          const rc = this.players[s.rival.pid]?.color || "#888";
-          const fx = at.x + at.r * 0.7, fy = at.y - at.r * 0.7;
-          ctx.setLineDash([]);
-          ctx.beginPath(); ctx.moveTo(fx, fy + 1 * px); ctx.lineTo(fx, fy - 12 * px);
-          ctx.strokeStyle = "rgba(20,32,44,.85)"; ctx.lineWidth = 1.6 * px; ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(fx + 0.6 * px, fy - 12 * px); ctx.lineTo(fx + 9 * px, fy - 8.6 * px); ctx.lineTo(fx + 0.6 * px, fy - 5.2 * px); ctx.closePath();
-          ctx.fillStyle = rc; ctx.fill(); ctx.lineWidth = 1.1 * px; ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.stroke();
-        }
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(at.x - hw, at.y - hh, 2 * hw, 2 * hh, hh); else ctx.arc(at.x, at.y, hw, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(20,32,44,.4)"; ctx.lineWidth = (s.d >= 2 ? 2.8 : 2.4) * px; ctx.stroke();
+        ctx.strokeStyle = "rgba(255,255,255,.92)"; ctx.lineWidth = (s.d >= 2 ? 1.7 : 1.1) * px; ctx.stroke();
+      });
+      ctx.setLineDash([]);
+      caps.forEach(({ s, at }) => {
+        if (!s.rival) return;
+        // a small flag in the rival's seat colour on the capsule's top-right corner
+        const rc = this.players[s.rival.pid]?.color || "#888";
+        const fx = at.x + at.hw - 1 * px, fy = at.y - at.hh + 2 * px;
+        ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx, fy - 13 * px);
+        ctx.lineCap = "round"; ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 3 * px; ctx.stroke();
+        ctx.strokeStyle = "#1E262B"; ctx.lineWidth = 1.5 * px; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(fx + 0.8 * px, fy - 13 * px); ctx.lineTo(fx + 10.5 * px, fy - 9.2 * px); ctx.lineTo(fx + 0.8 * px, fy - 5.4 * px); ctx.closePath();
+        ctx.lineJoin = "round"; ctx.lineWidth = 2.4 * px; ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.stroke();
+        ctx.fillStyle = rc; ctx.fill();
+        ctx.lineWidth = 0.9 * px; ctx.strokeStyle = "rgba(20,32,44,.7)"; ctx.stroke();
       });
       ctx.restore();
     }
@@ -822,6 +860,7 @@ export const AnalysisMixin = {
           return `<div class="aip-offer"><span>${esc(cardsText(o.give))} → ${esc(cardsText(o.get))}</span><span class="aip-gv" title="Value to its plan (${UNIT}): cards given / cards received">${sfmt(-o.given)} / ${sfmt(o.received)}</span>${ans}</div>`;
         }).join("")}</div>`;
       }
+      if (d.masterLine) body += `<p class="aip-master">${d.masterLine}</p>`; // v0.90 Master: the verdict in one line
       if (d.note) body += `<p class="aip-note">${esc(d.note)}</p>`;
       if (d.alts?.length) body += `<div class="aip-alts" title="Next best options (${UNIT})">${d.alts.map((x) => `<span><b>${fmt(x.score)}</b> ${esc(x.label)}</span>`).join("")}</div>`;
     }
@@ -1146,11 +1185,14 @@ export const LabMixin = {
   _labSimStart(strategy, o = {}) {
     if (o.seed != null) Math.random = mulberry32(Number(o.seed) >>> 0);
     this.settings = this._labSettings(o);
-    this.onboardingHold = false;
-    this.resetGame(); // set-up runs synchronously here (timers are immediate in sim mode)
+    // v0.90: every seat gets its own bot BEFORE set-up starts (until v0.89 the seats placing ahead of seat 0
+    // made their first set-up pick as Intermediate). `o.agents`: the Master search per seat (Web Worker only).
+    this.onboardingHold = true;
+    this.resetGame(); // set-up runs synchronously below (timers are immediate in sim mode)
     const I = this.constructor.labHelpers.AI_PRESETS.intermediate;
-    this.players.forEach((p, i) => { p.isHuman = false; p.strategy = Array.isArray(strategy) ? { ...(strategy[i] || I) } : i === 0 ? { ...strategy } : { ...I }; });
-    if (this.setupPhase && this.setupAction) { this.setupAction = null; this.processSetupQueue(); }
+    this.players.forEach((p, i) => { p.isHuman = false; p.strategy = Array.isArray(strategy) ? { ...(strategy[i] || I) } : i === 0 ? { ...strategy } : { ...I }; p.agent = o.agents?.[i] || null; });
+    this.onboardingHold = false;
+    if (this.setupPhase) { this.setupAction = null; this.processSetupQueue(); }
     this._labSim = { guard: 0 };
     return true;
   },

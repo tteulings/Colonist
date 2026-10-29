@@ -253,3 +253,12 @@ body.lb-stepping .lb-tools, body.lb-stepping #labResult { display: none; }
 .lb-legend span { display: inline-flex; align-items: center; gap: 3px; }
 .lb-legend svg { width: 14px; height: 14px; flex: none; }
 .lb-legend .lb-flag { width: 10px; height: 13px; }
+.lb-rfoot { margin: 6px 2px 0; }
+/* v0.90 Master: the search's verdict under the Expert's result */
+.lb-master { margin-top: 8px; padding: 7px 9px; border-radius: 9px; background: color-mix(in srgb, var(--accent) 8%, transparent); font-size: 12px; line-height: 1.35; }
+.lb-master small { display: block; margin-top: 2px; font-size: 11px; color: var(--ink-soft); }
+/* v0.90: up to 9 steps (Master adds Race + Verdict): one scrolling row of 40px steps, the current one kept in view */
+.lb-boardcol, .lb-stepstrip { min-width: 0; }
+.lb-stepstrip .sx-strip { flex-wrap: nowrap; overflow-x: auto; justify-content: safe center; scrollbar-width: none; padding: 3px 4px; }
+.lb-stepstrip .sx-strip::-webkit-scrollbar { display: none; }
+.lb-stepstrip .sx-strip button { width: 40px; height: 40px; min-width: 40px; font-size: 13px; }
