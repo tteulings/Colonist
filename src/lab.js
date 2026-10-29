@@ -11,14 +11,15 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR } from "./ai-tree.js?v=89";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=90";
+import { masterRequest, masterAvailable, MASTER_BUDGET } from "./master.js?v=90";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
 const WKEY = "colonist.lab.w";      // Calculation weights: this browser session only
 const HKEY = "colonist.lab.hist";   // tournament history: this session only
 const DIMS = [["placement", "Placement"], ["expansion", "Expansion"], ["trading", "Trading"], ["devCards", "Dev Cards"], ["awareness", "Awareness"]];
-const PRESETS = ["beginner", "simple", "intermediate", "expert", "builder", "trader", "shark"]; // v0.87: + Simple (rulebook bot)
+const PRESETS = ["beginner", "simple", "intermediate", "expert", "builder", "trader", "shark", "master"]; // v0.87: + Simple (rulebook bot); v0.90: + Master (search)
 const MODES = [["setup", "Start spots"], ["build", "Next build"], ["robber", "Robber"]];
 const TOOLS = [["pan", "Move"], ["settlement", "Town"], ["city", "City"], ["road", "Road"], ["robber", "Robber"], ["erase", "Erase"]];
 const MAPS = [["random", "Random"], ["balanced", "Balanced"], ["seed", "Seed"], ["game", "My game"]];
@@ -226,6 +227,49 @@ function update() {
   if (reach.sel != null && !(r.spots || []).some((x) => x.id === reach.sel)) reach.sel = null;
   if (reach.sel != null) view._labRoute(reach.sel, st.seat);
   renderLegend();
+  masterUpdate(p);
+}
+
+// ── v0.90 Master: the Expert's decision above, then the worker's search on the same position: a one-line
+// verdict here, and the Race + Verdict steps appended to Step by step ──
+const isMaster = () => st.strat?.policy === "master";
+const ms = { token: 0, sig: null, rec: null, none: false, timer: 0 };
+function masterSig() {
+  const s = view.serializeState();
+  return JSON.stringify([st.mode, st.seat, s.nodes, s.edges, s.robberHexId, s.players.map((q) => [q.resources, q.devCards]), myBot()]);
+}
+function masterBlock() {
+  const el = $("#labResult");
+  el.querySelector(".lb-master")?.remove();
+  if (!isMaster()) return;
+  const html = ms.rec ? `${masterLineHtml(ms.rec)}<small>Step by step shows the race and the verdict.</small>`
+    : ms.none ? `<span class="mv-line"><b>Master</b>: only one sensible move here, so it plays the Expert's step (no search).</span>`
+      : masterAvailable() ? `<span class="mv-line"><b>Master</b> is searching (about ${MASTER_BUDGET.timeMs / 1000} s)…</span>` : `<span class="mv-line"><b>Master</b> needs Web Workers: here it plays as the Expert.</span>`;
+  el.insertAdjacentHTML("beforeend", `<div class="lb-master" aria-live="polite">${html}</div>`);
+}
+function masterApply(p) {
+  if (!ms.rec || !tree.data?.steps || tree.data.masterDone) return;
+  tree.data.steps = masterSteps(tree.data.steps, ms.rec, p.name);
+  tree.data.masterDone = true;
+  if (tree.view === "steps") renderSteps(tree.data);
+}
+function masterUpdate(p) {
+  if (!isMaster() || st.pane !== "analysis" || !view || sim.watching) { ms.sig = null; return; }
+  const sig = masterSig();
+  if (sig === ms.sig) { masterBlock(); masterApply(p); return; }
+  ms.sig = sig; ms.rec = null; ms.none = false;
+  masterBlock();
+  clearTimeout(ms.timer);
+  const token = ++ms.token;
+  ms.timer = setTimeout(() => {
+    masterRequest({ type: "decide", kind: st.mode === "build" ? "main" : st.mode, state: view.serializeState(), trk: null, turnSerial: view.turnSerial || 0, seat: st.seat, opts: { ...MASTER_BUDGET }, lab: true })
+      .then((m) => {
+        if (token !== ms.token) return;
+        if (m && m.record) ms.rec = m.record; else ms.none = true;
+        masterBlock();
+        masterApply(view.players[st.seat]);
+      });
+  }, 150);
 }
 
 // ── v0.89 reach: the spots in reach as a list (same scores as the board's pills, + roads and turns); a tap on
@@ -339,6 +383,7 @@ function renderSteps(t) {
   if (!S.length) { el.innerHTML = `<p class="lb-note">No steps for this position.</p>`; $("#labStepStrip").innerHTML = ""; return; }
   steps.cur = Math.min(steps.cur, S.length - 1);
   $("#labStepStrip").innerHTML = stepStripHtml(S, steps.cur, "data-sg");
+  { const strip = $("#labStepStrip .sx-strip"), c = strip?.querySelector(".cur"); if (strip && c && strip.scrollWidth > strip.clientWidth) strip.scrollLeft = Math.max(0, c.offsetLeft - strip.offsetLeft - (strip.clientWidth - c.offsetWidth) / 2); }
   renderLegend();
   el.innerHTML = `${stepCardHtml(S, steps.cur, steps.sel)}<div class="lb-snav"><button type="button" class="lb-btn" data-sn="prev"${steps.cur ? "" : " disabled"}>‹ Prev</button><button type="button" class="lb-btn" data-sn="play" aria-pressed="${!!steps.timer}">${steps.timer ? "Pause" : "Play"}</button><button type="button" class="lb-btn" data-sn="next"${steps.cur < S.length - 1 ? "" : " disabled"}>Next ›</button></div>`;
   stepOverlay(t);
@@ -471,6 +516,10 @@ function renderTournamentSetup() {
   if (!H) return;
   if (sim.running) { // during a run only the button changes (redrawing the choices could swallow a tap)
     $("#labRun").textContent = `Stop (${sim.done}/${sim.n})`; $("#labRun").classList.add("stop");
+    if (sim.viaWorker) { // v0.90: Master games run in the background: how long is left
+      const left = sim.done ? Math.round((sim.msTotal / sim.done) * (sim.n - sim.done) / 1000) : null;
+      $("#labRunNote").textContent = `Master games run in the background (no Watch). ${left == null ? "Timing the first game…" : `About ${left < 90 ? `${left} s` : `${Math.round(left / 60)} min`} left · ${(sim.msTotal / sim.done / 1000).toFixed(0)} s per game.`}`;
+    }
     document.querySelectorAll(".lb-tsetup .lb-seg:not(#labSpeed) button, .lb-tsetup select, #labLineup button").forEach((b) => { b.disabled = true; });
     document.querySelectorAll("#labSpeed button").forEach((b) => { const on = b.dataset.speed === st.speed; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); });
     return;
@@ -497,7 +546,9 @@ function renderTournamentSetup() {
   seg($("#labSpeed"), SPEEDS, st.speed, "speed", (v) => { st.speed = v; save(); renderTournamentSetup(); });
   $("#labRun").textContent = sim.running ? `Stop (${sim.done}/${sim.n})` : `Start ${st.games} games`;
   $("#labRun").classList.toggle("stop", sim.running);
-  $("#labRunNote").textContent = st.players !== "4" ? "Tournaments are 4-player games on the classic island for now." : "";
+  const mastered = [...(st.lineup === "h2h" ? [st.botB] : st.opp), isMaster() ? "master" : null].includes("master");
+  $("#labRunNote").textContent = [st.players !== "4" ? "Tournaments are 4-player games on the classic island for now." : "",
+    mastered ? (masterAvailable() ? `Master searches every decision: its games run in the background (no Watch), roughly 10–30 s each${st.games >= 50 ? `, so ${st.games} games take a while` : ""}.` : "Master needs Web Workers: here it plays as the Expert.") : ""].filter(Boolean).join(" ");
 
 }
 
@@ -613,7 +664,10 @@ async function runTournament(over = {}) {
   if (!frame.src) frame.src = "./index.html?lab=sim";
   const cfg = { n: st.games, tboard: st.tboard, tseats: st.tseats, ...over };
   const lu = lineupNow();
-  Object.assign(sim, { running: true, n: cfg.n, done: 0, errors: 0, game: 0, restore: true, results: [], lu, cfg, curMap: null });
+  // v0.90: a line-up with a Master plays its games whole in the Master's Web Worker (same boards, same
+  // dice stream as here), in the background: no Watch, an estimate of the time left instead
+  const viaWorker = lu.seats.some((x) => x.strat.policy === "master") && masterAvailable();
+  Object.assign(sim, { running: true, n: cfg.n, done: 0, errors: 0, game: 0, restore: true, results: [], lu, cfg, curMap: null, viaWorker, msTotal: 0 });
   $("#labSummary").hidden = true;
   renderTournamentSetup();
   renderStand();
@@ -625,6 +679,18 @@ async function runTournament(over = {}) {
       sim.game = i + 1;
       const map = seatMap(i, cfg);
       sim.curMap = map;
+      if (viaWorker) {
+        const t0 = performance.now();
+        const m = await masterRequest({ type: "game", seed: SEED0 + i * 7919, strategies: map.map((li) => lu.seats[li].strat), map: cfg.tboard, opts: { ...MASTER_BUDGET } }, 0);
+        if (!sim.running) break;
+        if (!m || m.type !== "game") { sim.errors += 1; continue; }
+        sim.msTotal += performance.now() - t0;
+        sim.results.push({ map, winner: m.winner, turns: m.turns, vp: m.vp });
+        sim.done += 1;
+        renderStand();
+        renderTournamentSetup();
+        continue;
+      }
       try {
         g._labSimStart(map.map((li) => lu.seats[li].strat), { players: 4, map: cfg.tboard, seed: SEED0 + i * 7919 });
         let r = { done: false }, shown = false;

@@ -860,6 +860,7 @@ export const AnalysisMixin = {
           return `<div class="aip-offer"><span>${esc(cardsText(o.give))} → ${esc(cardsText(o.get))}</span><span class="aip-gv" title="Value to its plan (${UNIT}): cards given / cards received">${sfmt(-o.given)} / ${sfmt(o.received)}</span>${ans}</div>`;
         }).join("")}</div>`;
       }
+      if (d.masterLine) body += `<p class="aip-master">${d.masterLine}</p>`; // v0.90 Master: the verdict in one line
       if (d.note) body += `<p class="aip-note">${esc(d.note)}</p>`;
       if (d.alts?.length) body += `<div class="aip-alts" title="Next best options (${UNIT})">${d.alts.map((x) => `<span><b>${fmt(x.score)}</b> ${esc(x.label)}</span>`).join("")}</div>`;
     }
@@ -1184,11 +1185,14 @@ export const LabMixin = {
   _labSimStart(strategy, o = {}) {
     if (o.seed != null) Math.random = mulberry32(Number(o.seed) >>> 0);
     this.settings = this._labSettings(o);
-    this.onboardingHold = false;
-    this.resetGame(); // set-up runs synchronously here (timers are immediate in sim mode)
+    // v0.90: every seat gets its own bot BEFORE set-up starts (until v0.89 the seats placing ahead of seat 0
+    // made their first set-up pick as Intermediate). `o.agents`: the Master search per seat (Web Worker only).
+    this.onboardingHold = true;
+    this.resetGame(); // set-up runs synchronously below (timers are immediate in sim mode)
     const I = this.constructor.labHelpers.AI_PRESETS.intermediate;
-    this.players.forEach((p, i) => { p.isHuman = false; p.strategy = Array.isArray(strategy) ? { ...(strategy[i] || I) } : i === 0 ? { ...strategy } : { ...I }; });
-    if (this.setupPhase && this.setupAction) { this.setupAction = null; this.processSetupQueue(); }
+    this.players.forEach((p, i) => { p.isHuman = false; p.strategy = Array.isArray(strategy) ? { ...(strategy[i] || I) } : i === 0 ? { ...strategy } : { ...I }; p.agent = o.agents?.[i] || null; });
+    this.onboardingHold = false;
+    if (this.setupPhase) { this.setupAction = null; this.processSetupQueue(); }
     this._labSim = { guard: 0 };
     return true;
   },
