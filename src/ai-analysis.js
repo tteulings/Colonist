@@ -268,6 +268,78 @@ export const AnalysisMixin = {
     return dims;
   },
 
+  /** v0.89 display only: the whole road route behind `_aiRoadReach`'s distance to `nodeId`. The same 0-1 BFS
+   *  (same order, own roads free) with a parent link per node, so the route has dist[nodeId] new roads and
+   *  starts with reach.first[nodeId]. New roads in build order; [] on its own roads; null out of reach.
+   *  Never called by a bot move: `_aiRoadReach` itself is unchanged. */
+  _aiReachPath(player, nodeId) {
+    const nodes = this.geometry.nodes;
+    const dist = new Array(nodes.length).fill(Infinity);
+    const par = new Array(nodes.length).fill(null);
+    const queue = [];
+    this.getRoadNetworkNodes(player).forEach((n) => { dist[n] = 0; queue.push(n); });
+    while (queue.length) {
+      const u = queue.shift();
+      const node = nodes[u];
+      if (node.owner != null && node.owner !== player.id) continue;
+      for (const edgeId of node.edgeIds) {
+        const edge = this.geometry.edges[edgeId];
+        if (edge.owner != null && edge.owner !== player.id) continue;
+        if (this.sea && (edge.ship || this.sea.edgeKind(edgeId) === "sea")) continue;
+        const v = edge.nodes[0] === u ? edge.nodes[1] : edge.nodes[0];
+        const w = edge.owner === player.id ? 0 : 1;
+        if (dist[u] + w >= dist[v]) continue;
+        dist[v] = dist[u] + w;
+        par[v] = { u, e: edgeId, w };
+        if (w) queue.push(v);
+        else queue.unshift(v);
+      }
+    }
+    if (!Number.isFinite(dist[nodeId])) return null;
+    const out = [];
+    for (let v = nodeId, guard = 0; par[v] && guard < nodes.length; guard += 1) { if (par[v].w) out.push(par[v].e); v = par[v].u; }
+    return out.reverse();
+  },
+
+  /** v0.89 display only: reach as an extra layer on a plan. Every settlement spot in reach (plan.spots, same
+   *  order and rank) with its roads, turns to afford (the real _aiEta, the plan's own value for planned spots)
+   *  and the closest rival that is as close or closer (one _aiRoadReach per opponent); `out`: free spots that
+   *  are out of reach or blocked. */
+  _aiReachInfo(player, plan) {
+    const g = this.geometry;
+    if (!plan || !plan.spots || this.piecesLeft(player, "settlement") <= 0) return null;
+    const rivals = this.players.filter((p) => p.id !== player.id).map((p) => ({ p, r: this._aiRoadReach(p) }));
+    const goalEta = new Map(plan.goals.filter((x) => x.type === "settlement" && x.via !== "ship").map((x) => [x.nodeId, x.eta]));
+    const spots = plan.spots.map((s) => {
+      const cost = { ...COST.settlement };
+      cost.wood += s.d; cost.brick += s.d;
+      const eta = goalEta.has(s.nodeId) ? goalEta.get(s.nodeId) : this._aiEta(cost, player.resources, plan.incTurn, plan.rates);
+      let rival = null;
+      rivals.forEach(({ p, r }) => { const d = r.dist[s.nodeId]; if (d <= s.d && (!rival || d < rival.d)) rival = { pid: p.id, d }; });
+      return { id: s.nodeId, d: s.d, h: s.h, eta, rival };
+    });
+    const inReach = new Set(spots.map((s) => s.id));
+    const out = [];
+    g.nodes.forEach((n) => {
+      if (inReach.has(n.id) || n.structure != null || n.neighbors.some((m) => g.nodes[m].structure != null)) return;
+      if (this.sea && !n.adjacentHexes.some((h) => g.hexes[h] && g.hexes[h].resource !== "sea")) return;
+      out.push(n.id);
+    });
+    return { spots, out };
+  },
+
+  /** v0.89: "+2 roads · ~4 turns" (the same words in the lab list, the steps and the in-game card). */
+  _reachText(s) {
+    const roads = s.d ? `+${s.d} road${s.d > 1 ? "s" : ""}` : "on its roads";
+    const t = s.eta < 0.05 ? "can build now" : `~${Math.max(1, Math.round(s.eta))} turn${Math.round(s.eta) > 1 ? "s" : ""}`;
+    return `${roads} · ${t}`;
+  },
+  _rivalText(s) {
+    if (!s.rival) return "";
+    const p = this.players[s.rival.pid];
+    return `${p.name}: ${s.rival.d ? `${s.rival.d} road${s.rival.d > 1 ? "s" : ""} away` : "on its roads"} · the bot ignores this today`;
+  },
+
   _aiPlanSnap(player, plan) {
     const hand = { ...player.resources };
     return {
@@ -473,15 +545,13 @@ export const AnalysisMixin = {
       ctx.lineJoin = "round";
       ctx.lineWidth = 3.2 * px; ctx.strokeStyle = "rgba(20,32,44,.82)"; ctx.strokeText(text, x, y);
       ctx.fillStyle = "#fff"; ctx.fillText(text, x, y);
+      return ctx.measureText(text).width;
     };
+    const pills = new Map(); // v0.89: where each spot's score / letter sits (the reach ring goes around it)
     const pick = d.pick || {};
     // v0.87: two decimals (0.68 and 0.65 must not both read 0.7); whole numbers for pips
     // v0.87: 1 decimal on the board, 2 only when two of the numbered spots would read the same
-    let dec = 1;
-    {
-      const shown = [...(d.nodes || []), ...(d.cities || [])].map((x) => x.s).filter(Number.isFinite).sort((a, b) => b - a).slice(0, 6).map((v) => v.toFixed(1));
-      if (new Set(shown).size < shown.length) dec = 2;
-    }
+    const dec = labelDecimals(d);
     const sval = (v) => (d.fmt === "int" ? String(Math.round(v)) : Math.abs(v) >= 10 ? fmt(v) : v.toFixed(dec));
     ctx.save();
     // robber tiles: a soft shade by score, the expected damage under the number token
@@ -540,9 +610,49 @@ export const AnalysisMixin = {
           ctx.lineWidth = 4.5 * px; ctx.strokeStyle = "rgba(20,32,44,.35)"; ctx.stroke();
           ctx.lineWidth = 2.5 * px; ctx.strokeStyle = "#fff"; ctx.stroke();
         }
-        if ((chosen || numbered.has(s.id)) && Number.isFinite(s.s) && d.kind !== "setupRoad" && !d.noLabels) label(n.x, n.y - (s.city ? hs * 0.3 : 0), sval(s.s), chosen);
+        if ((chosen || numbered.has(s.id)) && Number.isFinite(s.s) && d.kind !== "setupRoad" && !d.noLabels) {
+          const y = n.y - (s.city ? hs * 0.3 : 0);
+          const w = label(n.x, y, sval(s.s), chosen);
+          if (!s.city) pills.set(s.id, { x: n.x, y, r: Math.max(13 * px, w / 2 + 5 * px) });
+        }
       });
     }
+    // v0.89: the road route to a tapped spot (or the chosen far spot): dashed roads in the bot's colour,
+    // numbered in build order (1 = the road it builds first)
+    const route = d.route?.edges?.length ? d.route.edges.filter((id) => g.edges[id]) : [];
+    if (route.length) {
+      ctx.save();
+      ctx.lineCap = "round";
+      route.forEach((id) => {
+        const [a, b] = g.edges[id].nodes.map((n) => g.nodes[n]);
+        const sx = a.x + (b.x - a.x) * 0.14, sy = a.y + (b.y - a.y) * 0.14, ex = b.x - (b.x - a.x) * 0.14, ey = b.y - (b.y - a.y) * 0.14;
+        ctx.setLineDash([]);
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey);
+        ctx.strokeStyle = "rgba(20,32,44,.5)"; ctx.lineWidth = 8 * px; ctx.stroke();
+        ctx.setLineDash([7 * px, 5 * px]);
+        ctx.strokeStyle = color; ctx.lineWidth = 4.5 * px; ctx.stroke();
+      });
+      ctx.restore();
+    }
+    const routeBadges = () => {
+      if (!route.length) return;
+      ctx.save();
+      const tn = g.nodes[d.route.node];
+      route.forEach((id, i) => {
+        // a little toward the road's start (away from the spot), so a number never hides under the spot's own badge
+        let [a, b] = g.edges[id].nodes.map((n) => g.nodes[n]);
+        if (tn && Math.hypot(a.x - tn.x, a.y - tn.y) < Math.hypot(b.x - tn.x, b.y - tn.y)) [a, b] = [b, a];
+        const x = a.x + (b.x - a.x) * 0.34, y = a.y + (b.y - a.y) * 0.34, r = 8.5 * px;
+        ctx.beginPath(); // a rounded square: a road number, not the round 1 / 2 winner marks
+        if (ctx.roundRect) ctx.roundRect(x - r, y - r, 2 * r, 2 * r, 4 * px); else ctx.rect(x - r, y - r, 2 * r, 2 * r);
+        ctx.fillStyle = "#fff"; ctx.shadowColor = "rgba(0,0,0,.35)"; ctx.shadowBlur = 3 * px; ctx.fill(); ctx.shadowBlur = 0;
+        ctx.lineWidth = 2 * px; ctx.strokeStyle = color; ctx.stroke();
+        ctx.font = `800 ${11 * px}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+        ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#22302F";
+        ctx.fillText(String(i + 1), x, y + 0.5 * px);
+      });
+      ctx.restore();
+    };
     // v0.87 step through: lettered / numbered badges (A, B… candidates; 1, 2 winner and runner-up; pills
     // like "Town" or "2:1") at a node, city, edge or tile
     if (d.badges?.length) {
@@ -566,7 +676,51 @@ export const AnalysisMixin = {
         ctx.lineWidth = 1.6 * px; ctx.strokeStyle = b.tone === "alt" ? color : "rgba(255,255,255,.95)"; ctx.stroke();
         ctx.fillStyle = b.tone === "alt" ? "#22302F" : "#fff";
         ctx.fillText(b.text, p.x, p.y + 0.5 * px);
+        const nid = b.node ?? b.city;
+        if (nid != null && b.hex == null) pills.set(nid, { x: p.x, y: p.y, r: Math.max(13 * px, w / 2 + 4.5 * px) });
       });
+    }
+    routeBadges();
+    // v0.89 reach, a quiet extra layer: a thin ring around each spot's score (solid = on its roads, dashed =
+    // 1 road, dotted = 2 or more), a faint × on free spots out of reach or blocked, and a small flag in a
+    // rival's colour where that rival's roads are as close or closer
+    if (d.reach) {
+      ctx.save();
+      ctx.lineCap = "round";
+      (d.reach.out || []).forEach((id) => {
+        const n = g.nodes[id];
+        if (!n) return;
+        const k = 3.6 * px;
+        ctx.setLineDash([]);
+        ctx.beginPath(); ctx.moveTo(n.x - k, n.y - k); ctx.lineTo(n.x + k, n.y + k); ctx.moveTo(n.x + k, n.y - k); ctx.lineTo(n.x - k, n.y + k);
+        ctx.strokeStyle = "rgba(255,255,255,.25)"; ctx.lineWidth = 2.8 * px; ctx.stroke();
+        ctx.strokeStyle = "rgba(20,32,44,.38)"; ctx.lineWidth = 1.3 * px; ctx.stroke();
+      });
+      (d.reach.spots || []).forEach((s) => {
+        const at = pills.get(s.id);
+        if (!at) return;
+        const dash = s.d === 0 ? [] : s.d === 1 ? [4.5 * px, 3 * px] : [0.01 * px, 3.6 * px];
+        ctx.setLineDash(dash);
+        ctx.beginPath(); ctx.arc(at.x, at.y, at.r, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(20,32,44,.45)"; ctx.lineWidth = (s.d >= 2 ? 3.6 : 3) * px; ctx.stroke();
+        ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.lineWidth = (s.d >= 2 ? 2.2 : 1.5) * px; ctx.stroke();
+        if (s.rival) {
+          const rc = this.players[s.rival.pid]?.color || "#888";
+          const fx = at.x + at.r * 0.7, fy = at.y - at.r * 0.7;
+          ctx.setLineDash([]);
+          ctx.beginPath(); ctx.moveTo(fx, fy + 1 * px); ctx.lineTo(fx, fy - 12 * px);
+          ctx.strokeStyle = "rgba(20,32,44,.85)"; ctx.lineWidth = 1.6 * px; ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(fx + 0.6 * px, fy - 12 * px); ctx.lineTo(fx + 9 * px, fy - 8.6 * px); ctx.lineTo(fx + 0.6 * px, fy - 5.2 * px); ctx.closePath();
+          ctx.fillStyle = rc; ctx.fill(); ctx.lineWidth = 1.1 * px; ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.stroke();
+        }
+      });
+      ctx.restore();
+    }
+    if (d.route?.node != null && g.nodes[d.route.node] && !pills.has(d.route.node)) {
+      const n = g.nodes[d.route.node];
+      ctx.beginPath(); ctx.arc(n.x, n.y, hs * 0.2, 0, Math.PI * 2);
+      ctx.lineWidth = 4.5 * px; ctx.strokeStyle = "rgba(20,32,44,.35)"; ctx.stroke();
+      ctx.lineWidth = 2.5 * px; ctx.strokeStyle = color; ctx.stroke();
     }
     // v0.87 lab: the candidate tapped in the decision tree, a dashed ring in the bot's colour
     const f = d.focus;
@@ -692,6 +846,13 @@ export const AnalysisMixin = {
     el.dataset.held = held ? "1" : "0";
   },
 };
+
+/** v0.87: 1 decimal on the board, 2 only when two of the numbered spots would read the same (v0.89: shared
+ *  with the lab's spot list, so a row reads exactly like its pill). */
+export function labelDecimals(d) {
+  const shown = [...(d?.nodes || []), ...(d?.cities || [])].map((x) => x.s).filter(Number.isFinite).sort((a, b) => b - a).slice(0, 6).map((v) => v.toFixed(1));
+  return new Set(shown).size < shown.length ? 2 : 1;
+}
 
 /** "#rrggbb" + alpha → rgba() */
 const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -869,11 +1030,42 @@ export const LabMixin = {
       else if (mode === "robber") d = this._aiExplainRobber(P);
       else d = this._aiExplainPlan(P);
     } catch (e) { console.warn("lab explain failed", e); d = null; }
+    // v0.89: Next build gets reach as an extra layer (rings, ×, rival flags; the list rows' roads and turns)
+    let reach = null;
+    if (d && mode === "build" && d.kind === "plan") {
+      try { reach = this._aiReachInfo(P, this._aiPlan(P)); } catch (e) { console.warn("reach failed", e); reach = null; }
+      if (reach) d.reach = reach;
+    }
     this.analysis.lab = d || { kind: "none", pid, nodes: [] };
     this.analysis.labBase = null;
     this.requestBoardDraw();
     const tree = this._aiTree(mode, P); // v0.87: the same decision as a tree (src/ai-tree.js)
-    return d && { title: d.title, score: d.score, fmt: d.fmt || null, dims: d.dims, alts: d.alts, note: d.note, rules: d.rules || null, count: (d.nodes?.length || 0) + (d.hexes?.length || 0) + (d.edges?.length || 0), tree };
+    const spots = reach ? reach.spots.map((s) => ({ ...s, label: this._spotLabel(s.id), text: this._reachText(s), rivalText: this._rivalText(s), rivalColor: s.rival ? this.players[s.rival.pid].color : null })) : null;
+    return d && { title: d.title, score: d.score, fmt: d.fmt || null, dims: d.dims, alts: d.alts, note: d.note, rules: d.rules || null, count: (d.nodes?.length || 0) + (d.hexes?.length || 0) + (d.edges?.length || 0), tree,
+      spots, dec: labelDecimals(d), planNode: d.pick?.node ?? null };
+  },
+
+  /** v0.89: show the full road route to one spot of the Next build layer (null clears). Display only. */
+  _labRoute(nodeId, pid) {
+    const a = this.analysis, d = a.lab?.kind === "step" ? a.labBase : a.lab; // Step by step: the heatmap underneath keeps it
+    if (!d) return null;
+    if (nodeId == null) { d.route = null; this.requestBoardDraw(); return null; }
+    const P = this.players[pid ?? d.pid];
+    const edges = P ? this._aiReachPath(P, nodeId) : null;
+    d.route = edges ? { node: nodeId, edges } : null;
+    this.requestBoardDraw();
+    return d.route;
+  },
+
+  /** v0.89: the reach spot nearest a tap on the board (client coordinates), or null. */
+  _labHitSpot(clientX, clientY) {
+    const d = this.analysis.lab;
+    const ids = new Set((d?.reach?.spots || []).map((s) => s.id));
+    if (!ids.size) return null;
+    const pt = this.getCanvasPoint({ clientX, clientY });
+    const w = this.screenToWorld(pt.x, pt.y);
+    const id = this.findNodeAt(w.x, w.y, (n) => ids.has(n));
+    return id == null ? null : id;
   },
 
   /** v0.87: the board for one step of "Step through" (null: back to the heatmap of the last explain). */

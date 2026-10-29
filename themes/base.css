@@ -2297,3 +2297,9 @@ button.sx-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 
 /* v0.87: 11 px minimum in the in-game analysis panel too; the next-best chips wrap instead of clipping */
 .ai-panel .aip-l, .ai-panel .aip-v { font-size: 11px; }
 .ai-panel .aip-alts span { white-space: normal; overflow: visible; text-overflow: clip; font-size: 11px; line-height: 1.25; }
+/* v0.89: a rival as close to a spot (step rows) */
+.sx-l .sx-riv { flex-basis: 100%; display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; line-height: 1.25; color: color-mix(in srgb, var(--rc) 70%, var(--ink)); }
+.sx-riv svg { width: 10px; height: 13px; flex: none; color: var(--ink-soft); }
+.sx-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 9px; margin: 2px 0 0; font-size: 11px; color: var(--ink-soft); line-height: 1.2; }
+.sx-legend span { display: inline-flex; align-items: center; gap: 3px; }
+.sx-legend svg { width: 13px; height: 13px; flex: none; }
