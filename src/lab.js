@@ -1,4 +1,6 @@
 // AI Lab (lab.html), v0.87: two modes. (v0.88: the heatmap opens on what fits the board: Next build once set-up is over.)
+// v0.89: Next build shows reach as a quiet extra layer (rings = roads needed, × = out of reach, a flag where a
+// rival is as close) with a "Spots in reach" list (+roads · ~turns); a tap on a row or spot shows its road route.
 //  Analysis   — pick a board, drop pieces or load your game, tune "Your bot" (preset, five dimensions and the
 //               Calculation weights) and see how it scores the board (heatmap) and how it decides (decision
 //               tree: options → candidates → each score split into terms, the chosen path marked).
@@ -9,7 +11,7 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR } from "./ai-tree.js?v=88";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR } from "./ai-tree.js?v=89";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -190,6 +192,7 @@ function update() {
   autoMode();
   save();
   renderControls();
+  renderLegend();
   if (!view || sim.watching) return; // the board shows a tournament game: your board (and its scores) come back afterwards
   if (!view.players[st.seat]) st.seat = view.players.length > 1 ? 1 : 0;
   if (st.pane !== "analysis") { view.analysis.lab = null; view.requestBoardDraw(); return; } // Tournament: a clean board
@@ -197,13 +200,16 @@ function update() {
   const p = view.players[st.seat];
   const out = $("#labResult");
   $(".lb-treecard").style.setProperty("--seat", p.color);
+  out.style.setProperty("--seat", p.color);
   renderTree(r?.tree || null, p);
-  if (!r) { out.innerHTML = `<p class="lb-note">Nothing to score here.</p>`; return; }
+  reach.spots = null;
+  if (!r) { out.innerHTML = `<p class="lb-note">Nothing to score here.</p>`; renderLegend(); return; }
   // v0.88: Start spots on a board past set-up stays available, but says what it is
   const late = st.mode === "setup" && setupOver() ? `<p class="lb-note lb-late">Set-up is over on this board. These are scores as if you could still place a start settlement.</p>` : "";
   if (r.rules) { // Simple: its checklist, the rule that fired lit
     out.innerHTML = `${late}<div class="lb-rhead"><i class="lb-dot" style="background:${p.color}"></i><b>${esc(p.name)} · ${esc(r.title)}</b></div>
       <p class="lb-note">${esc(r.note || "")} · the checklist below shows every rule it checked.</p>`;
+    renderLegend();
     return;
   }
   // v0.88: only the dimensions that add to this score (set-up: placement + ports; robber: awareness)
@@ -214,7 +220,43 @@ function update() {
     ${used.length ? `<div class="lb-bars" title="${UNIT}${unused.length ? ` · not part of this score: ${unused.join(", ")}` : ""}">${used.map(([l, v]) => `<span class="lb-d"><span class="l">${l}</span><span class="bar${v < 0 ? " neg" : ""}"><i style="width:${Math.round((Math.abs(v) / max) * 100)}%;background:${v < 0 ? "" : p.color}"></i></span><span class="v">${f2(v)}</span></span>`).join("")}</div>` : ""}
     ${r.note ? `<p class="lb-note">${esc(r.note)}</p>` : ""}
     ${r.alts?.length ? `<div class="lb-alts" title="Next best (${UNIT})">${r.alts.map((a, i, all) => { const dup = all.filter((x) => x.label === a.label).length > 1 ? ` (${all.slice(0, i + 1).filter((x) => x.label === a.label).length})` : "";
-      return `<span><b>${r.fmt === "int" ? Math.round(a.score) : f2(a.score)}</b> ${esc(a.label.replace(/ \(\+(\d) roads?\)/, " +$1r"))}${dup}</span>`; }).join("")}</div>` : ""}`;
+      return `<span><b>${r.fmt === "int" ? Math.round(a.score) : f2(a.score)}</b> ${esc(a.label.replace(/ \(\+(\d) roads?\)/, " +$1r"))}${dup}</span>`; }).join("")}</div>` : ""}
+    ${spotListHtml(r)}`;
+  reach.spots = r.spots || null;
+  if (reach.sel != null && !(r.spots || []).some((x) => x.id === reach.sel)) reach.sel = null;
+  if (reach.sel != null) view._labRoute(reach.sel, st.seat);
+  renderLegend();
+}
+
+// ── v0.89 reach: the spots in reach as a list (same scores as the board's pills, + roads and turns); a tap on
+// a row or on the spot on the board shows its whole road route, numbered in build order ──
+const reach = { spots: null, sel: null };
+const FLAG = (c) => `<svg class="lb-flag" viewBox="0 0 11 14" aria-hidden="true"><path d="M2 13V2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M2.6 2 10.5 5 2.6 8Z" fill="${c}"/></svg>`;
+function spotListHtml(r) {
+  const all = r.spots || [];
+  if (!all.length) return "";
+  const dec = r.dec || 1;
+  // the best four by rank, plus a flagged spot among the top six (a race the bot doesn't see)
+  const rows = [...all.slice(0, 4), ...all.slice(4, 6).filter((x) => x.rival)].slice(0, 5);
+  return `<div class="lb-reach"><div class="lb-reachh"><b>Spots in reach</b><small>${all.length} spot${all.length > 1 ? "s" : ""} · tap one for its roads</small></div>
+    ${rows.map((x) => `<button type="button" class="lb-rrow${reach.sel === x.id ? " sel" : ""}" data-spot="${x.id}" aria-pressed="${reach.sel === x.id}"><span class="lb-rsc">${x.h.toFixed(dec)}</span><span class="lb-rw"><span class="lb-r1"><b>Spot ${esc(x.label)}</b>${x.id === r.planNode ? `<span class="lt-tag plan">plan</span>` : ""}<span class="lb-rm">${esc(x.text)}</span></span>${x.rival ? `<small class="lb-riv" style="--rc:${x.rivalColor}">${FLAG(x.rivalColor)}${esc(x.rivalText)}</small>` : ""}</span></button>`).join("")}
+  </div>`;
+}
+function selectSpot(id) {
+  reach.sel = reach.sel === id ? null : id;
+  view._labRoute(reach.sel, st.seat);
+  document.querySelectorAll("#labResult .lb-rrow").forEach((b) => { const on = Number(b.dataset.spot) === reach.sel; b.classList.toggle("sel", on); b.setAttribute("aria-pressed", String(on)); });
+}
+/** One line under the board: what the rings, × and flags mean (only while they are on the board). */
+function renderLegend() {
+  const el = $("#labLegend");
+  // (Step by step: the pinned board keeps one height; the "spots in reach" step card says what the marks mean)
+  const stepping = tree.view === "steps" && document.body.classList.contains("lb-stepping");
+  const on = st.pane === "analysis" && st.mode === "build" && !sim.watching && !stepping && !!reach.spots?.length;
+  el.hidden = !on;
+  if (!on) return;
+  const ring = (dash, w = 1.6) => `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}" stroke-linecap="round"` : ""}/></svg>`;
+  el.innerHTML = `<span>Ring:</span><span>${ring("")}0</span><span>${ring("3 2")}1</span><span>${ring("0.01 3.2", 2)}2+ roads</span><span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 5l6 6M11 5l-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>out of reach</span><span>${FLAG("var(--lb-flag, #E8873A)")}rival as close</span>`;
 }
 
 // ── decision tree ──
@@ -259,6 +301,7 @@ function renderTree(t, p) {
   if (tree.view === "steps") { renderSteps(t); return; }
   $("#labSteps").hidden = true; $("#labTree").hidden = false; $("#labTreeSum").hidden = false;
   setStepping(false);
+  renderLegend();
   if (view?.analysis.lab?.kind === "step") view._labOverlay(null);
   $("#labTreeWho").textContent = p ? `${p.name} · tap a row` : "";
   if (!t) { $("#labTree").innerHTML = `<p class="lb-note">Nothing to decide here.</p>`; $("#labTreeSum").textContent = ""; $("#labTreeEq").textContent = ""; return; }
@@ -295,6 +338,7 @@ function renderSteps(t) {
   if (!S.length) { el.innerHTML = `<p class="lb-note">No steps for this position.</p>`; $("#labStepStrip").innerHTML = ""; return; }
   steps.cur = Math.min(steps.cur, S.length - 1);
   $("#labStepStrip").innerHTML = stepStripHtml(S, steps.cur, "data-sg");
+  renderLegend();
   el.innerHTML = `${stepCardHtml(S, steps.cur, steps.sel)}<div class="lb-snav"><button type="button" class="lb-btn" data-sn="prev"${steps.cur ? "" : " disabled"}>‹ Prev</button><button type="button" class="lb-btn" data-sn="play" aria-pressed="${!!steps.timer}">${steps.timer ? "Pause" : "Play"}</button><button type="button" class="lb-btn" data-sn="next"${steps.cur < S.length - 1 ? "" : " disabled"}>Next ›</button></div>`;
   stepOverlay(t);
 }
@@ -382,6 +426,15 @@ function bindBoardTools(frame) {
     if (e.cancelable) e.preventDefault();
   };
   ["pointerdown", "mousedown", "mouseup", "touchstart", "touchmove", "touchend", "click", "dblclick", "wheel"].forEach((t) => w.addEventListener(t, block, { capture: true, passive: false }));
+  // v0.89: with "Move", a tap (not a drag) on a spot in reach shows its road route (the game still pans)
+  let down = null;
+  w.addEventListener("pointerdown", (e) => { down = e.target === canvas ? { x: e.clientX, y: e.clientY } : null; }, { capture: true });
+  w.addEventListener("pointerup", (e) => {
+    if (st.tool !== "pan" || !down || st.pane !== "analysis" || st.mode !== "build" || sim.watching || e.target !== canvas) return;
+    if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8 || document.body.classList.contains("lb-stepping")) return;
+    const id = view._labHitSpot(e.clientX, e.clientY);
+    if (id != null) selectSpot(id);
+  });
   w.addEventListener("pointerup", (e) => {
     if (st.tool === "pan" || st.pane !== "analysis" || e.target !== canvas) return;
     e.stopImmediatePropagation();
@@ -540,6 +593,7 @@ function renderHist() {
 // Caption over the board while a game is watched: game n/N · turn · each seat's points (your bot's seats ringed)
 function renderWatch(g, final = null) {
   const el = $("#labWatch");
+  renderLegend();
   if (!g) { el.hidden = true; document.querySelectorAll(".lb-read, .lb-tools").forEach((x) => x.classList.remove("lb-faded")); return; }
   const info = g._labSimInfo();
   const map = sim.curMap || [0, 1, 2, 3];
@@ -635,6 +689,7 @@ function setPane(p) {
   document.querySelectorAll("#labPanes button").forEach((b) => { const on = b.dataset.pane === p; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; });
   $("#paneAnalysis").hidden = p !== "analysis";
   $("#paneTournament").hidden = p !== "tournament";
+  renderLegend();
   if (view && !sim.watching) { view.analysis.lab = p === "analysis" ? view.analysis.lab : null; if (p === "analysis") update(); else view.requestBoardDraw(); }
   save();
 }
@@ -656,6 +711,7 @@ function setPane(p) {
   $("#labRun").addEventListener("click", () => runTournament());
   $("#labWatch").addEventListener("click", (e) => { if (e.target.closest(".lb-wstop")) sim.running = false; });
   $("#labTree").addEventListener("click", onTreeTap);
+  $("#labResult").addEventListener("click", (e) => { const b = e.target.closest("[data-spot]"); if (b) selectSpot(Number(b.dataset.spot)); });
   $("#labStepStrip").addEventListener("click", onStepsTap);
   // Board settings live in a sheet next to the board (keeps Analysis short)
   const sheet = $("#labBoardSheet");
@@ -678,5 +734,5 @@ function setPane(p) {
   renderHist();
   // load the tournament engine while idle, so pressing Start never waits for it (it froze the page ~1 s)
   (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(preloadSim, { timeout: 4000 });
-  window.__lab = { ready: true, steps, st, W: () => W, runTournament, runGames: (n) => runTournament({ n }), newBoard, update, view: () => view, sim, hist, tree, setPane, myBot };
+  window.__lab = { ready: true, steps, st, reach, selectSpot, W: () => W, runTournament, runGames: (n) => runTournament({ n }), newBoard, update, view: () => view, sim, hist, tree, setPane, myBot };
 })();

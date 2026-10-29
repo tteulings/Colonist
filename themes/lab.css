@@ -231,3 +231,25 @@ body.lb-stepping .lb-tools, body.lb-stepping #labResult { display: none; }
 .lb-alts span { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.25; }
 .lb-tseat b small { font-size: 11px; }
 .lb-hr .ds { white-space: normal; overflow: visible; }
+
+/* v0.89 reach: spots in reach (score pill as on the board · roads · turns; a rival's flag), the board legend */
+.lb-reach { margin-top: 10px; border-top: 1px solid var(--sep, rgba(0,0,0,.08)); padding-top: 8px; }
+.lb-reachh { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.lb-reachh b { font-size: 13px; }
+.lb-reachh small { margin-left: auto; color: var(--ink-soft); font-size: 11px; }
+.lb-rrow { display: grid; grid-template-columns: 50px minmax(0, 1fr); gap: 8px; align-items: center; width: 100%; min-height: 44px; padding: 5px 6px; border: 0; border-radius: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.lb-rrow + .lb-rrow { border-top: 1px solid var(--sep, rgba(0,0,0,.06)); }
+.lb-rrow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.lb-rrow.sel { border-radius: 10px; box-shadow: inset 0 0 0 2px var(--seat, var(--accent)); background: color-mix(in srgb, var(--seat, var(--accent)) 8%, transparent); }
+.lb-rsc { box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); justify-self: start; box-sizing: border-box; width: 50px; text-align: center; border-radius: 999px; background: #283034; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 7px; font-variant-numeric: tabular-nums; }
+.lb-rw { min-width: 0; display: grid; gap: 1px; }
+.lb-r1 { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.lb-r1 b { font-size: 13px; font-weight: 700; white-space: nowrap; }
+.lb-r1 .lt-tag { align-self: center; }
+.lb-riv { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: color-mix(in srgb, var(--rc) 70%, var(--ink)); line-height: 1.25; }
+.lb-rm { margin-left: auto; font-size: 12px; color: var(--ink-soft); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lb-flag { width: 11px; height: 14px; flex: none; color: var(--ink-soft); }
+.lb-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 6px 2px 0; font-size: 11px; color: var(--ink-soft); line-height: 1.2; }
+.lb-legend span { display: inline-flex; align-items: center; gap: 3px; }
+.lb-legend svg { width: 14px; height: 14px; flex: none; }
+.lb-legend .lb-flag { width: 10px; height: 13px; }

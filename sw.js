@@ -1,10 +1,10 @@
 // Network-first service worker: always try fresh files (the app updates often),
 // fall back to the cache so the game still starts offline.
-const CACHE = "colonist-v88";
+const CACHE = "colonist-v89";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./manifest.webmanifest", "./assets/favicon.svg",
   "./themes/base.css", "./themes/theme-sunny.css", "./themes/theme-wood.css", "./themes/theme-silhouette.css", "./themes/theme-classic.css", "./themes/six.css", "./themes/seafarers.css", "./themes/hotseat.css", "./themes/stats.css", "./themes/sunny-night.css",
-  "./lab.html", "./themes/lab.css", "./src/lab.js", "./src/ai-analysis.js", "./src/ai-tree.js",
+  "./lab.html", "./themes/lab.css", "./src/lab.js", "./src/ai-analysis.js", "./src/ai-tree.js", "./src/ai-rules.js",
   "./src/game.js", "./src/sound.js", "./src/six.js", "./src/six-ui.js", "./src/hotseat.js", "./src/stats.js", "./src/stats-ui.js", "./src/live-stats.js", "./src/themes/seats.js", "./src/themes/portraits.js",
   "./src/themes/manager.js", "./src/themes/art-util.js", "./src/themes/board-renderer.js",
   "./src/themes/fx.js", "./src/themes/settings-ui.js", "./src/themes/onboarding.js", "./src/themes/home.js",

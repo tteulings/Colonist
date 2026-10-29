@@ -417,7 +417,8 @@ export const TreeMixin = {
     (plan.spots || []).slice(0, 6).forEach((x) => letterOf(`n${x.nodeId}`));
     const L = { get: (g) => letterOf(keyOf(g)) };
     // the dashed route of the roads a far spot still needs
-    const route = (nodeId) => { try { return (this.pathToNode(Pl, nodeId) || []).map((id) => ({ id, s: 0.4 })); } catch (_) { return []; } };
+    // (v0.89: the route behind the bot's own road distance, not a fewest-hops path)
+    const route = (nodeId) => { try { return (this._aiReachPath(Pl, nodeId) || []).map((id) => ({ id, s: 0.4 })); } catch (_) { return []; } };
     const place = (g) => (g.type === "settlement" ? (g.dist > 0 && g.edge != null ? { node: g.nodeId } : { node: g.nodeId }) : g.type === "city" ? { city: g.nodeId } : g.type === "road" ? { edge: g.edge } : null);
     const goalBadges = (gs, text) => gs.filter((g) => place(g)).map((g) => ({ text: text(g), ...place(g) }));
     const goalOverlay = (gs) => ({ nodes: gs.filter((g) => g.type === "settlement").map((g) => ({ id: g.nodeId, s: g.score })), cities: gs.filter((g) => g.type === "city").map((g) => ({ id: g.nodeId, s: g.score })),
@@ -441,9 +442,18 @@ export const TreeMixin = {
     if (strat.expansion !== "simple" && plan.goals.length) {
       const spots = (plan.spots || []).slice(0, 6);
       if (spots.length) {
-        add({ key: "spots", title: "Settlement spots in reach", sub: "spot rank = spot score − road penalty; the top 3 become plans",
-          rows: spots.map((x) => ({ letter: letterOf(`n${x.nodeId}`), label: `Spot ${this._spotLabel(x.nodeId)}`, sub: x.d ? `+${x.d} road${x.d > 1 ? "s" : ""}` : "on its roads", v: x.h, vt: "score", stack: this._stepTerms(Pl, x.nodeId, this.getResourceIncomeProfile(Pl)).filter((y) => y.v > 0), chosen: goal0?.nodeId === x.nodeId && goal0?.type === "settlement", focus: { node: x.nodeId } })),
-          overlay: { nodes: spots.map((x) => ({ id: x.nodeId, s: x.h })), edges: spots.filter((x) => x.d > 0).slice(0, 3).flatMap((x) => route(x.nodeId)), badges: spots.map((x) => ({ text: letterOf(`n${x.nodeId}`), node: x.nodeId })), noLabels: true } });
+        // v0.89: each spot's cost in roads and turns (rings on the board), and where a rival is as close (flags)
+        let ri = null;
+        try { ri = this._aiReachInfo(Pl, plan); } catch (_) { ri = null; }
+        const info = new Map((ri?.spots || []).map((x) => [x.id, x]));
+        add({ key: "spots", title: "Settlement spots in reach", sub: "what each costs in roads and turns; the top 3 by rank become plans",
+          legend: "reach",
+          rows: spots.map((x) => { const r = info.get(x.nodeId);
+            return { letter: letterOf(`n${x.nodeId}`), label: `Spot ${this._spotLabel(x.nodeId)}`, sub: r ? this._reachText(r) : x.d ? `+${x.d} road${x.d > 1 ? "s" : ""}` : "on its roads", v: x.h, vt: "score",
+              warn: r?.rival ? { text: this._rivalText(r), color: this.players[r.rival.pid].color } : null,
+              stack: this._stepTerms(Pl, x.nodeId, this.getResourceIncomeProfile(Pl)).filter((y) => y.v > 0), chosen: goal0?.nodeId === x.nodeId && goal0?.type === "settlement", focus: { node: x.nodeId } }; }),
+          overlay: { nodes: spots.map((x) => ({ id: x.nodeId, s: x.h })), badges: spots.map((x) => ({ text: letterOf(`n${x.nodeId}`), node: x.nodeId })), noLabels: true,
+            reach: ri ? { spots: ri.spots.filter((x) => spots.some((y) => y.nodeId === x.id)), out: ri.out } : null } });
       }
       const k = plan.R * (plan.strat.awareness === "advanced" ? 1 : 1) * 1;
       const conv = (g) => (g.prod ? (((g.parts?.prod || 0) + (g.parts?.horizon || 0)) / g.prod) : 0);
@@ -485,12 +495,17 @@ export const TreeMixin = {
         const r0 = doing.type === "settlement" && doing.dist > 0 ? doing.edge : doing.type === "road" ? doing.edge : null;
         if (r0 != null) { wb.push({ text: "now", tone: "dim", edge: r0 }); nowEdges.push({ id: r0, s: 1 }); }
         else if (place(doing)) wb.push({ text: "now", tone: "dim", ...place(doing) });
-      } else if (act === "build" && a?.type === "settlement" && a.dist > 0 && a.edge != null) { wb.push({ text: "now", tone: "dim", edge: a.edge }); nowEdges.push({ id: a.edge, s: 1 }); }
+      }
+      // v0.89: the whole road route of a far planned spot, numbered in build order (road 1 is built first)
+      const rt = a?.type === "settlement" && a.dist > 0 && a.via !== "ship" ? (() => { try { return this._aiReachPath(Pl, a.nodeId); } catch (_) { return null; } })() : null;
+      if (!rt?.length && act === "build" && a?.type === "settlement" && a.dist > 0 && a.edge != null) { wb.push({ text: "now", tone: "dim", edge: a.edge }); nowEdges.push({ id: a.edge, s: 1 }); }
       const nm = (g) => (g ? `${name(g)} (${L.get(g)})` : "");
-      const why = !a ? "" : act === "build" ? `It can pay for ${nm(a)} now, so it builds it.` : act === "bank" ? `It can't pay for ${nm(a)} yet; a bank / harbour trade brings it closer.`
+      const why = !a ? "" : act === "build" && a.type === "settlement" && a.dist > 0 ? `It can pay for the first road toward ${nm(a)} now, so it builds it.` : act === "build" ? `It can pay for ${nm(a)} now, so it builds it.` : act === "bank" ? `It can't pay for ${nm(a)} yet; a bank / harbour trade brings it closer.`
         : act === "side" ? `It can't pay for ${nm(a)} yet; ${nm(doing)} fits in without delaying it, so that comes first.` : `It can't pay for ${nm(a)} yet and no trade helps: it keeps its cards.`;
-      add({ key: "choice", title: "Choice", sub: t.action, text: why, compare: a ? compare({ label: `${L.get(a)} · ${name(a)}`, terms: gt(a), score: a.score }, b && { label: `${L.get(b)} · ${name(b)}`, terms: gt(b), score: b.score }) : null,
-        overlay: (() => { const o = goalOverlay([a, b, act === "side" ? doing : null].filter(Boolean)); o.edges = [...o.edges, ...nowEdges]; return { ...o, badges: wb, pick: t.pick || {} }; })() });
+      const rtxt = rt?.length ? ` Its way there: ${rt.length} road${rt.length > 1 ? "s" : ""}, numbered on the board${act === "build" ? "; road 1 is the one it builds now" : ""}.` : "";
+      add({ key: "choice", title: "Choice", sub: t.action, text: why + rtxt, compare: a ? compare({ label: `${L.get(a)} · ${name(a)}`, terms: gt(a), score: a.score }, b && { label: `${L.get(b)} · ${name(b)}`, terms: gt(b), score: b.score }) : null,
+        overlay: (() => { const o = goalOverlay([a, b, act === "side" ? doing : null].filter(Boolean)); const mine = new Set(rt || []); o.edges = [...o.edges.filter((e) => !mine.has(e.id)), ...nowEdges];
+          return { ...o, badges: wb, pick: t.pick || {}, route: rt?.length ? { node: a.nodeId, edges: rt } : null }; })(), legend: rt?.length ? "route" : null });
     } else {
       add({ key: "choice", title: "Choice", sub: t.action, overlay: { pick: t.pick || {}, focus: t.pick && Object.keys(t.pick).length ? t.pick : null, noLabels: true } });
     }
@@ -517,7 +532,8 @@ function rowsHtml(rows) {
     const mark = r.letter ? `<span class="sx-let">${r.letter}</span>` : r.ok != null ? `<i class="sx-ok" aria-hidden="true">${r.ok ? "✓" : "✗"}</i>` : `<i class="sx-ok" aria-hidden="true">·</i>`;
     const bar = r.stack ? stackHtml(r.stack, mx) : Number.isFinite(r.v) && mx > 0 && r.vt !== "none" ? `<span class="sx-bar"><i style="width:${Math.max(3, Math.round(Math.abs(r.v) / mx * 100))}%"></i></span>` : `<span></span>`;
     const tag = r.focus ? "button" : "div";
-    return `<${tag}${tag === "button" ? ` type="button" data-row="${i}"` : ""} class="sx-row${r.chosen ? " pick" : ""}${r.ok === false ? " no" : r.ok ? " yes" : ""}">${mark}<span class="sx-l"><b>${escH(r.label)}</b>${r.sub ? `<small>${escH(r.sub)}</small>` : ""}</span>${bar}<span class="sx-v">${escH(valTxt(r))}</span></${tag}>`;
+    const warn = r.warn ? `<small class="sx-riv" style="--rc:${escH(r.warn.color)}"><svg viewBox="0 0 11 14" aria-hidden="true"><path d="M2 13V2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M2.6 2 10.5 5 2.6 8Z" fill="${escH(r.warn.color)}"/></svg>${escH(r.warn.text)}</small>` : "";
+    return `<${tag}${tag === "button" ? ` type="button" data-row="${i}"` : ""} class="sx-row${r.chosen ? " pick" : ""}${r.ok === false ? " no" : r.ok ? " yes" : ""}">${mark}<span class="sx-l"><b>${escH(r.label)}</b>${r.sub ? `<small>${escH(r.sub)}</small>` : ""}${warn}</span>${bar}<span class="sx-v">${escH(valTxt(r))}</span></${tag}>`;
   }).join("")}</div>`;
 }
 function handHtml(hand) {
@@ -538,12 +554,20 @@ function compareHtml(c) {
 export function stepStripHtml(steps, cur, attr = "data-step") {
   return `<div class="sx-strip" role="tablist" aria-label="Steps">${steps.map((s, i) => `<button type="button" role="tab" ${attr}="${i}" aria-selected="${i === cur}" class="${i === cur ? "cur" : i < cur ? "done" : ""}${s.ok === false ? " no" : s.ok === true ? " yes" : ""}" title="${escH(s.title)}">${i + 1}</button>`).join("")}</div>`;
 }
+/** v0.89: what the board's marks mean on this step (one line; shown in the lab and in game). */
+function legendHtml(k) {
+  if (!k) return "";
+  const ring = (dash, w = 1.6) => `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}" stroke-linecap="round"` : ""}/></svg>`;
+  if (k === "reach") return `<p class="sx-legend"><span>Ring = roads:</span><span>${ring("")}0</span><span>${ring("3 2")}1</span><span>${ring("0.01 3.2", 2)}2+</span><span><svg viewBox="0 0 11 14" aria-hidden="true"><path d="M2 13V2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M2.6 2 10.5 5 2.6 8Z" fill="#E8873A"/></svg>rival as close</span></p>`;
+  if (k === "route") return `<p class="sx-legend"><span><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="3" fill="#fff" stroke="currentColor" stroke-width="1.6"/><text x="8" y="11.5" font-size="9" font-weight="800" text-anchor="middle" fill="#22302F">1</text></svg>roads to the spot, in build order</span></p>`;
+  return "";
+}
 /** One step as a card: number + title, what it found, its rows / hand / winner-vs-runner-up comparison. */
 export function stepCardHtml(steps, cur, sel = null) {
   const s = steps[cur];
   if (!s) return "";
   return `<div class="sx-card1${s.ok === false ? " no" : ""}"><div class="sx-h"><span class="sx-n">${cur + 1}</span><b>${escH(s.title)}</b><small>${cur + 1} / ${steps.length}</small></div>
-    ${s.sub ? `<p class="sx-sub">${escH(s.sub)}</p>` : ""}${s.text ? `<p class="sx-text">${escH(s.text)}</p>` : ""}
+    ${s.sub ? `<p class="sx-sub">${escH(s.sub)}</p>` : ""}${s.text ? `<p class="sx-text">${escH(s.text)}</p>` : ""}${legendHtml(s.legend)}
     ${s.hand ? handHtml(s.hand) : ""}${rowsHtml(s.rows).replace(new RegExp(`data-row="${sel}" class="sx-row`), `data-row="${sel}" class="sx-row sel`)}${compareHtml(s.compare)}</div>`;
 }
 /** Legacy list (kept for the in-game panel's compact mode). */
