@@ -2075,6 +2075,7 @@ class ColonistFullGame {
       // a stray tap while looking around never spends cards.
       const target = this._autoDetectTarget(player, x, y);
       if (!target) return;
+      if (target.both) { this._seaChoosePiece(player, target, x, y, true); return; } // ⚓ v0.98: Road or Ship?
       this.pendingAction = target.type;
       this.confirmBuild = target;
       this._autoPick = true; // picked by a mode-less tap: the next tap may still mean another kind of piece
@@ -2100,6 +2101,10 @@ class ColonistFullGame {
     let target = auto ? this._autoDetectTarget(player, x, y) : this._buildTargetAt(player, x, y);
     if (calm && target && target.type !== "road" && target.type !== "ship") target = { ...target, ambiguous: false };
     if (!target) { this.confirmBuild = null; if (auto) { this.pendingAction = null; this._autoPick = false; } this.render(); return; }
+    if (target.both) { // ⚓ v0.98: a coast edge that takes a road or a ship: a tiny Road / Ship chooser (a 2nd tap keeps the pick)
+      if (this.confirmBuild && this.confirmBuild.id === target.id && (this.confirmBuild.type === "road" || this.confirmBuild.type === "ship")) target = this.confirmBuild;
+      else { this._seaChoosePiece(player, target, x, y, auto); return; }
+    }
     if (!auto && this._isAutoGlow() && !this._spotLit(target)) {
       // v0.84: auto-glow keeps roads quiet while a corner is lit; a tap on such an unlit road is a pick that waits for Place
       this.pendingAction = target.type;
@@ -2167,7 +2172,10 @@ class ColonistFullGame {
       }
     }
     if (node != null) return { type: this.canBuildCity(player, node, false) && wantCity ? "city" : "settlement", id: node, ambiguous };
-    if (edge != null) return { type: edgeType(edge), id: edge, ambiguous };
+    if (edge != null) {
+      const both = !!sea && this._seaBoth(player, edge, pa === "build" ? null : pa, free); // ⚓ v0.98: Road / Ship chooser
+      return both ? { type: edgeType(edge), id: edge, ambiguous, both } : { type: edgeType(edge), id: edge, ambiguous };
+    }
     return null;
   }
 
