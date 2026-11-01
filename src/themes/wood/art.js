@@ -9,20 +9,14 @@
 import { f, rng, hexPath, pipCount, wrap, RES_NAME, DEV_NAME, CARD_TEXT, RESOURCE_KEYS, pierD } from "../art-util.js";
 import { specSvg, poly, tp, mix } from "../spec-util.js";
 import sunny from "../sunny/art.js";
+import { SEAT_PC_DAY, SEAT_TEXT_DAY, seatSet } from "../seats.js";
 
 const INK = "#2A241E", INK2 = "#5E5245", IVORY = "#F3EBDA", RED = "#A8352B", ACC = "#2E6650", BRASS = "#D9AE4E";
 
 // Seats (v0.78): the Sunny hues in B's wood-stain look — a touch warmer and more muted, as painted wooden
 // pieces (You red · Blaauw blue · Van Geelen orange · Groenewoud green · De Wit ivory · Pimpel purple).
-const PC = {
-  red: { base: "#C4463A", dark: "#963026", light: "#DE7C6C", line: "#3E1610" },
-  blue: { base: "#4078BE", dark: "#2A5288", light: "#7FA0D2", line: "#142B4E" },
-  orange: { base: "#E3893A", dark: "#AE5F1C", light: "#F0B479", line: "#4E2A0C" },
-  green: { base: "#2F8055", dark: "#1F6040", light: "#6AAE88", line: "#0F3020" },
-  ivory: { base: "#EEE4CC", dark: "#CBBE9F", light: "#F8F2E2", line: "#6B5D46" },
-  purple: { base: "#5A2F88", dark: "#412066", light: "#9474C0", line: "#1C0C30" },
-};
-const TEXT = { red: "#963026", blue: "#2A5288", orange: "#A0571A", green: "#1F6040", ivory: "#5E5139", purple: "#412066" }; // seat hues as text on paper (applySeatTokens darkens further where AA needs it)
+const PC = seatSet(SEAT_PC_DAY); // v0.96: the shared stronger seat colours (themes/seats.js)
+const TEXT = { ...SEAT_TEXT_DAY };
 
 // printed terrain tones [shade, mid, light]
 const TER = {

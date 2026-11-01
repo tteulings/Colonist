@@ -7,6 +7,7 @@
 // the seat colours with a dark same-hue outline, continuous roads, robber beside the number.
 // No characters or artworks are copied; figures are generic slender silhouettes.
 import { f, rng, pipCount, wrap, RES_NAME, DEV_NAME, CARD_TEXT, RESOURCE_KEYS, pierD } from "../art-util.js";
+import { SEAT_PC_DAY, SEAT_TEXT_DAY, seatSet } from "../seats.js";
 import { specSvg, tp } from "../spec-util.js";
 import { portrait } from "../portraits.js";
 
@@ -21,15 +22,8 @@ const K = {
 };
 // Seats (v0.78): flat ink-and-colour like C's board — the same six hues as the other themes in C's flat
 // gouache tones, outlined in the board's Indian ink.
-const PC = {
-  red: { base: "#D2412F", dark: "#A32E20", light: "#E8806F", line: "#1C1A19" },
-  blue: { base: "#3A78C0", dark: "#225088", light: "#7BA2D4", line: "#1C1A19" },
-  orange: { base: "#F29236", dark: "#BF6514", light: "#F8BC78", line: "#1C1A19" },
-  green: { base: "#2A8556", dark: "#1D6340", light: "#66B58A", line: "#1C1A19" },
-  ivory: { base: "#F4EBD6", dark: "#D3C7AA", light: "#FFFBF0", line: "#1C1A19" },
-  purple: { base: "#5A2E88", dark: "#412066", light: "#9474C0", line: "#1C1A19" },
-};
-const TEXT = { red: "#A32E20", blue: "#225088", orange: "#A25611", green: "#1D6340", ivory: "#5E5139", purple: "#412066" }; // seat hues as text on paper (applySeatTokens darkens further where AA needs it)
+const PC = seatSet(SEAT_PC_DAY, { line: "#1C1A19" }); // v0.96: the shared stronger seat colours, in C's Indian ink outline
+const TEXT = { ...SEAT_TEXT_DAY };
 const BUILD_INK = { base: "#22313A", dark: "#16222A", light: "#4A5A64", line: "#0E161B" };
 // v0.75: brick a deeper terracotta so the orange seat stands clear of it
 const TC = { wood: [K.green, K.leaf], brick: ["#C8502A", "#A8401E"], sheep: [K.lime, "#9FC24A"], wheat: [K.yellow, K.ochre], ore: [K.grey, K.slate], desert: [K.sand, "#E6C48A"] };

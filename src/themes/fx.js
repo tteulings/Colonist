@@ -56,18 +56,38 @@ export class Fx {
 
   boardRect() { return rect(this.game.canvas) || { left: 0, top: 0, width: innerWidth, height: innerHeight }; }
 
+  /** v0.96: where the dice come to rest — the dice chip's two die slots (or the room it takes before the first roll):
+   *  { x, y (first die, top left), d (die size), step (die pitch / d), sx, sy (sum) }, or null (no chip). */
+  diceTarget() {
+    const chip = document.getElementById("lastDiceDisplay");
+    let r = chip && chip.style.display !== "none" ? rect(chip) : null;
+    const dies = r ? chip.querySelectorAll(".die-svg") : [];
+    if (r && dies.length === 2) {
+      const a = rect(dies[0]), b = rect(dies[1]), sm = chip.querySelector(".sum"), sr = sm ? rect(sm) : null;
+      return { x: a.left, y: a.top, d: a.width, step: (b.left - a.left) / a.width, sx: sr ? sr.left : b.right + 6, sy: sr ? sr.top + (sr.height - a.width) / 2 : a.top };
+    }
+    const lt = document.querySelector("#boardWrap .lefttop");
+    r = r || (lt ? rect(lt) : null);
+    if (!r || (!r.width && !r.right)) return null; // (an empty .lefttop has no width: its right edge is where the chip goes)
+    const h = 44, d = 30, atLeft = lt && getComputedStyle(lt).alignItems === "flex-start", left = atLeft ? r.left : r.right - 132, top = r.top + (h - d) / 2;
+    return { x: left + 8, y: top, d, step: 1.2, sx: left + 8 + d * 2.5, sy: top };
+  }
+
   // ── dice tumble + bounce ────────────────────────────────────────────────
   /** Plays the dice landing on (d1, d2). Returns the time (ms) after which the result should apply. */
   diceRoll(d1, d2) {
     const br = this.boardRect();
     // v0.81: smaller and shorter, landing high on the board (not over its centre for 2–3 s)
-    const size = Math.max(34, Math.min(50, br.width * 0.05));
-    const ex = br.left + br.width / 2 - size, ey = br.top + Math.min(br.height * 0.14, 90);
+    // v0.96: the dice land IN the dice chip (top right of the board: its two dice slots, the sum beside them), never on
+    // the ticker; before the first roll, where the chip will appear
+    const chip = this.diceTarget();
+    const size = chip ? chip.d : Math.max(34, Math.min(50, br.width * 0.05));
+    const ex = chip ? chip.x : br.left + br.width / 2 - size, ey = chip ? chip.y : br.top + Math.min(br.height * 0.14, 90);
     const dice = [d1, d2].map((fin, i) => {
       const el = this.actor(`<div class="die3">${[1, 2, 3, 4, 5, 6].map((n) => `<div class="face" data-n="${n}">${dieSvg(n)}</div>`).join("")}</div>`, 0, 0, size, "fx-die");
       el.style.height = `${size}px`;
-      const tx = ex + i * size * 1.15, ty = ey + i * 6;
-      const sx = br.left + br.width * 0.18, sy = br.top - size;
+      const tx = ex + i * size * (chip ? chip.step : 1.15), ty = ey + (chip ? 0 : i * 6);
+      const sx = br.left + br.width * 0.18, sy = chip ? br.top + size * 0.5 : br.top - size;
       const M = this.M;
       const kf = [{ transform: `translate(${sx}px,${sy - i * 20}px) rotate(${-200 + i * 40}deg) scale(.9)`, offset: 0, easing: M.fall }];
       for (let b = 0; b < M.bounces; b += 1) {
@@ -75,7 +95,7 @@ export class Fx {
         kf.push({ transform: `translate(${px}px,${ty}px) rotate(${-60 + b * 50}deg) scale(${M.squash[0]},${M.squash[1]})`, offset: p, easing: M.out });
         kf.push({ transform: `translate(${px + 10}px,${ty - hy}px) rotate(${-20 + b * 20}deg) scale(1)`, offset: p + 0.2 / M.bounces, easing: M.fall });
       }
-      kf.push({ transform: `translate(${tx}px,${ty}px) rotate(${i ? 6 : -4}deg) scale(1)`, offset: 1 });
+      kf.push({ transform: `translate(${tx}px,${ty}px) rotate(${chip ? 0 : i ? 6 : -4}deg) scale(1)`, offset: 1 });
       this.A(el, kf, { duration: 760, delay: i * 60 });
       el.querySelectorAll(".face").forEach((fc, n) => {
         if (this.reduced) { fc.style.opacity = n + 1 === fin ? 1 : 0; return; }
@@ -83,7 +103,7 @@ export class Fx {
       });
       return el;
     });
-    const sum = this.actor(`<span>${d1 + d2}</span>`, ex + size * 2.4, ey - size * 0.15, size * 0.95, "fx-sum");
+    const sum = this.actor(`<span>${d1 + d2}</span>`, chip ? chip.sx : ex + size * 2.4, chip ? chip.sy : ey - size * 0.15, size * 0.95, "fx-sum");
     this.A(sum, [{ opacity: 0, transform: "scale(.3)" }, { opacity: 1, transform: "scale(1)" }], { duration: 300, delay: 780, easing: this.M.pop });
     const all = [...dice, sum];
     const out = 1150;

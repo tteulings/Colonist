@@ -5,11 +5,38 @@
 // UI tokens --p4 / --p5. Ivory gets a dark outline on the board (v0.79: and on its chip ring / badge, themes/six.css);
 // purple is kept deep (v0.79: deeper and a touch bluer, the blue a touch lighter, in every theme) so the two differ
 // in lightness and stay apart under red–green colour blindness (blue/purple dE >= 15 under every CVD; see cvd6.js).
+// v0.96 ownership readability: one set of stronger seat colours for every day board (Sunny Light / Vivid, Wood,
+// Silhouette, Classic) and one for Night, chosen to sit apart from every terrain colour (who95 mockup variant A;
+// measured in scratchpad/rel96/tools/colors.js). Purple is a light lilac by day and a deep violet at Night, so it
+// differs from blue in lightness and stays apart under red–green colour blindness (CIEDE2000 >= 18 to every seat
+// under protan / deutan simulation). The pieces carry a dark outline in a white / cream halo (board-renderer.js).
+export const SEAT_PC_DAY = {
+  red: { base: "#B81E2E", dark: "#8A1220", light: "#E25A66", line: "#33060B" },
+  blue: { base: "#1F55B8", dark: "#163F8A", light: "#6A94E4", line: "#0A1D48" },
+  orange: { base: "#FF8C1A", dark: "#C76200", light: "#FFBA6A", line: "#4A2100" },
+  green: { base: "#0B5E44", dark: "#074632", light: "#45A07E", line: "#022016" },
+  ivory: { base: "#FFFFFF", dark: "#D8D0BE", light: "#FFFFFF", line: "#4A4234" },
+  purple: { base: "#D077E8", dark: "#A04CBE", light: "#EBB0F6", line: "#3A0F4A" },
+};
+export const SEAT_PC_NIGHT = {
+  red: { base: "#FF4F5E", dark: "#C22E3C", light: "#FF9AA2", line: "#3E0A10" },
+  blue: { base: "#6AB0FF", dark: "#3A78C8", light: "#B4D8FF", line: "#0D2552" },
+  orange: { base: "#FF8A10", dark: "#C9650A", light: "#FFBE72", line: "#4A2406" },
+  green: { base: "#45DC95", dark: "#22A066", light: "#9CEFC6", line: "#0A2E1D" },
+  ivory: { base: "#FFFFFF", dark: "#D8D0BE", light: "#FFFFFF", line: "#4A4234" },
+  purple: { base: "#6A3AA8", dark: "#4E2482", light: "#A07AD8", line: "#1C0A33" },
+};
+/** Seat hues as text: on paper (day; applySeatTokens darkens further where AA needs it) and on the Night sheet. */
+export const SEAT_TEXT_DAY = { red: "#8A1220", blue: "#163F8A", orange: "#A3510A", green: "#074632", ivory: "#5E5139", purple: "#8A3AA6" };
+export const SEAT_TEXT_NIGHT = { red: "#FF9AA2", blue: "#B4D8FF", orange: "#FFBE72", green: "#9CEFC6", ivory: "#F2EBDA", purple: "#C4A6F0" };
+/** A fresh copy of a seat set (themes mutate their own piece objects). */
+export const seatSet = (set, over = {}) => Object.fromEntries(Object.entries(set).map(([k, v]) => [k, { ...v, ...over }]));
+
 export const EXTRA_SEATS = [
   // key: name in theme.pc; base/dark/light/line: piece colours (fallback; every theme draws its own, tuned to
   // its board — see each art.js PC). UI tokens are derived from the theme's pieces (applySeatTokens).
-  { key: "ivory", base: "#EFE7D4", dark: "#CEC3A8", light: "#FBF7EC", line: "#6B6253", text: "#5E5139" },
-  { key: "purple", base: "#5A2C88", dark: "#43206A", light: "#9A76C6", line: "#1E0B33", text: "#43206A" },
+  { key: "ivory", ...SEAT_PC_DAY.ivory, text: SEAT_TEXT_DAY.ivory },
+  { key: "purple", ...SEAT_PC_DAY.purple, text: SEAT_TEXT_DAY.purple },
 ];
 
 /** Append seats 5–6 to a theme (idempotent): pc pieces, seat keys, text colours, flat seat colours. */

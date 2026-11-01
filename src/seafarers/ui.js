@@ -291,7 +291,7 @@ export const SeaGame = {
       return null;
     }
     if (this.pendingAction === "robber" && !cb && sea.thief == null && !this.robberVictimOptions?.length) {
-      return { mode: "thief", hint: "Move the robber …or the pirate", // v0.81: an instruction (the dock offers both)
+      return { mode: "thief", hint: "7: choose the Robber or the Pirate", // v0.96: step 1 of 3 (choose, tap a hex, steal)
         html: tbtn("data-thief=\"robber\"", `${icon("robber")}<span>Robber<small>on land</small></span>`, "wide")
           + tbtn("data-thief=\"pirate\"", `${icon("pirate")}<span>Pirate<small>on the sea</small></span>`, "wide") };
     }

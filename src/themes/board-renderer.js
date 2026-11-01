@@ -14,6 +14,14 @@ import { motionReduced } from "./manager.js";
 import { seaArt, portLandHex, bakeSeaMarks, drawShips, drawPirateAndChips, drawShipSpots, ghostShip, ghostPirate } from "../seafarers/render.js";
 /** v0.82: the free gap (art units, per road end) between a road's rounded cap and its node. */
 const ROAD_JOINT = 4;
+// v0.96 ownership readability (who95 mockup variant A): pieces 15% larger, every settlement / city / road edged in a
+// dark outline inside a soft white halo (cream at Night), so a piece reads on any tile whatever its colour.
+// Sizes in css px, the same at every zoom.
+// (owner review: lighter) 1 px outline, a 1.5 px soft halo each side; the base disc was dropped (it added the least).
+export const PIECE_GROW = 1.15, PIECE_OUTLINE_PX = 1, PIECE_HALO_PX = 3;
+export const pieceHalo = (night) => (night ? "rgba(255,240,205,.72)" : "rgba(255,255,255,.78)");
+/** A piece spec with its body outlines at least `minSw` (art units) wide. */
+export const outlined = (spec, minSw) => spec.map((p) => (p.body ? { ...p, sw: Math.max(p.sw || 1, minSw) } : p));
 
 const path2d = new Map();
 const P2D = (d) => {
@@ -334,7 +342,13 @@ export class SvgBoardRenderer {
   get pieceScale() { return this.game.isMobileLayout ? 1.34 : 1.12; }
 
   /** Number tokens grow on phones so the digits stay readable (≈14 px at 390 wide). */
-  get tokenScale() { return this.game.isMobileLayout ? 1.38 : 1; }
+  get tokenScale() {
+    if (!this.game.isMobileLayout) return 1;
+    // v0.96: where the fitted hex is small (a landscape phone, the 6-player board on a short phone) the tokens grow up
+    // to 15% more, so their numbers stay readable; chosen from the fit, so zooming never resizes them
+    const fx = (this.game._fitScale || 0) * (this.game.geometry?.hexSize || 0);
+    return fx > 0 && fx < 24 ? 1.38 * Math.min(1.15, 24 / fx) : 1.38;
+  }
 
   drawToken(ctx, x, y, n, k) {
     const s = this.theme.tokenStyle;
@@ -512,12 +526,12 @@ export class SvgBoardRenderer {
   }
 
   /** ⚓ v0.94 Seafarers: ships sail right past the harbours (a coastal chain ran over a pill), so each pill is copied
-   *  from the baked layer again above the ships and the pirate, and gets a dark rim (2.4 css px): a cream pill on the
+   *  from the baked layer again above the ships and the pirate, and gets a dark rim (v0.96: 2 css px dark teal #0F3034): a cream pill on the
    *  bright Seafarers sea was ~1.5:1, the rim makes its edge >= 3:1 on any sea. Piers and dots stay under the pieces. */
   drawSeaPills(ctx) {
     const L = this.layer, g = this.game;
     if (!L?.pills) return;
-    const px = 1 / (this.u * g.view.scale), rw = 2.4 * px;
+    const px = 1 / (this.u * g.view.scale), rw = 2 * px; // v0.96: a thinner dark-teal rim (was 2.4 px near-black: read as a sticker); >= 3:1 on every sea
     const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); };
     L.pills.forEach((q) => {
       const x0 = q.x - q.w / 2, y0 = q.y - q.h / 2;
@@ -527,7 +541,7 @@ export class SvgBoardRenderer {
       ctx.drawImage(L.canvas, sx, sy, q.w * L.k, q.h * L.k, x0, y0, q.w, q.h);
       ctx.restore();
       rr(x0 - rw / 2, y0 - rw / 2, q.w + rw, q.h + rw, q.r + rw / 2);
-      ctx.lineWidth = rw; ctx.strokeStyle = this.theme.seaPillRim || "#123238"; ctx.stroke();
+      ctx.lineWidth = rw; ctx.strokeStyle = this.theme.seaPillRim || "#0F3034"; ctx.stroke();
     });
   }
 
@@ -640,8 +654,10 @@ export class SvgBoardRenderer {
     const list = Array.isArray(a) ? a : [[a, b]];
     const line = () => { ctx.beginPath(); list.forEach(([p, q]) => { ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); }); };
     if (on(0)) { ctx.save(); ctx.translate(2, 3.5); line(); ctx.strokeStyle = R.shadow; ctx.lineWidth = R.outer * w + 2; ctx.stroke(); ctx.restore(); }
-    if (on(1) && rim && R.rim) { line(); ctx.strokeStyle = R.rim; ctx.lineWidth = R.outer * w + (R.rimW ?? 5); ctx.stroke(); }
-    if (on(2)) { line(); ctx.strokeStyle = c.line || c.dark; ctx.lineWidth = R.outer * w; ctx.stroke(); }
+    // v0.96: the outline at least 1 css px each side of the body, in a soft 1.5 css px white (Night: cream) halo
+    const px = 1 / (this.u * this.game.view.scale), outer = Math.max(R.outer * w, R.inner * w + 2 * PIECE_OUTLINE_PX * px);
+    if (on(1) && rim) { line(); ctx.strokeStyle = pieceHalo(this.night); ctx.lineWidth = outer + PIECE_HALO_PX * px; ctx.stroke(); }
+    if (on(2)) { line(); ctx.strokeStyle = c.line || c.dark; ctx.lineWidth = outer; ctx.stroke(); }
     if (on(3)) { line(); ctx.strokeStyle = c.base; ctx.lineWidth = R.inner * w; ctx.stroke(); }
     if (on(4)) { ctx.save(); ctx.translate(-0.8, -1.4); ctx.globalAlpha = alpha * 0.85; line(); ctx.strokeStyle = c.light; ctx.lineWidth = R.hi * w; ctx.stroke(); ctx.restore(); }
     ctx.restore();
@@ -716,16 +732,20 @@ export class SvgBoardRenderer {
     this.stamp(ctx, spec, p.x, p.y + dy, { sx: 1, sy: 1, y: 0, a: fade }, devK);
   }
 
-  /** Draw a piece spec (scaled for the device) with squash/stretch around its base (y≈+16). */
+  get night() { return this.theme.paletteId === "night"; }
+
+  /** Draw a piece spec (scaled for the device) with squash/stretch around its base (y≈+16). v0.96: 15% larger, a
+   *  1 css px dark outline in a soft white (Night: cream) halo. */
   stamp(ctx, spec, x, y, s, devK) {
-    const a = s.a ?? 1;
+    const a = s.a ?? 1, k = this.pieceScale * PIECE_GROW;
     ctx.save();
     ctx.translate(x, y + (s.y || 0));
-    ctx.scale(this.pieceScale, this.pieceScale);
+    ctx.scale(k, k);
     ctx.translate(0, 16);
     ctx.scale(s.sx ?? 1, s.sy ?? 1);
     ctx.translate(0, -16);
-    drawSpec(ctx, spec, { alpha: a, k: devK, rim: this.theme.rim, rimW: this.theme.rimW ?? 6 });
+    const ap = 1 / (this.u * this.game.view.scale * k); // art units per css px at this size
+    drawSpec(ctx, outlined(spec, PIECE_OUTLINE_PX * ap), { alpha: a, k: devK, rim: pieceHalo(this.night), rimW: PIECE_HALO_PX * ap });
     ctx.restore();
   }
 
@@ -865,7 +885,7 @@ export class SvgBoardRenderer {
     ctx.beginPath(); ctx.arc(0, 0, 27, 0, Math.PI * 2); ctx.fillStyle = "rgba(251,246,234,.3)"; ctx.fill();
     ctx.setLineDash([5, 4]); ctx.lineWidth = 2; ctx.strokeStyle = "#FBF6EA"; ctx.stroke(); ctx.setLineDash([]);
     ctx.translate(0, type === "city" ? -4 : -3);
-    ctx.scale(this.pieceScale, this.pieceScale);
+    ctx.scale(this.pieceScale * PIECE_GROW, this.pieceScale * PIECE_GROW);
     drawSpec(ctx, type === "city" ? T.pieces.city(c) : T.pieces.settlement(c), { alpha: 0.75 * alpha, k: devK });
     ctx.restore();
   }
