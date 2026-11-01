@@ -1900,7 +1900,7 @@ class ColonistFullGame {
     if (this.pendingAction && this.pendingAction !== "robber") { this.pendingAction = null; this.confirmBuild = null; }
     // a card played by mistake can be taken back until it does something (see _cancelDevPlay)
     const logLen = this.logEntries.length;
-    const d = { type, pid: player.id, la: this.largestArmyHolder };
+    const d = { type, pid: player.id, la: this.largestArmyHolder, ev: this.stats?.ev?.length };
     const played = this.playDevelopmentCard(player, type);
     if (played) {
       d.logs = this.logEntries.slice(logLen);
@@ -8005,12 +8005,12 @@ class ColonistFullGame {
     const devTotal = dev.reduce((a, [, n]) => a + n, 0);
     const limit = this.settings?.discardLimit ?? 7;
     const deck = this.devDeck ? this.devDeck.length : 0;
-    const mini = (k, n, low) => `<span class="hi-c${low ? " low" : ""}"><svg class="hi-card" viewBox="0 0 250 350" aria-hidden="true"><use href="#cardm-${k}"/></svg><b>${n}</b></span>`;
+    const mini = (k, n, low, sym = `cardm-${k}`, tip = "") => `<span class="hi-c${low ? " low" : ""}"${tip ? ` title="${tip}"` : ""}><svg class="hi-card" viewBox="0 0 250 350" aria-hidden="true"><use href="#${sym}"/></svg><b>${n}</b></span>`;
     const who = this.hotseat ? `${human.name}` : "You";
     pop.innerHTML = `<div class="hi-h"><span>${who}</span><span class="hi-n${total > limit ? " warn" : ""}">${icon("cards")}<b>${total}</b>${total > limit ? `<small>max ${limit}</small>` : ""}</span><span class="hi-n">${icon("devcard")}<b>${devTotal}</b></span></div>`
       + (dev.length ? `<div class="hi-dev">${dev.map(([t, n]) => `<span>${n > 1 ? `${n}× ` : ""}${t === "victoryPoint" ? "VP" : SHORT_DEV[t]}</span>`).join("")}</div>` : "")
       + `<div class="hi-h hi-bank"><span>${icon("bank")}Bank</span></div>`
-      + `<div class="hi-row">${RESOURCES.map((r) => mini(r, this.bank[r], this.bank[r] <= 3)).join("")}<i class="hi-sep" aria-hidden="true"></i>${mini("knight", deck, deck <= 3).replace("hi-c", "hi-c hi-deck")}</div>`;
+      + `<div class="hi-row">${RESOURCES.map((r) => mini(r, this.bank[r], this.bank[r] <= 3)).join("")}<i class="hi-sep" aria-hidden="true"></i>${mini("deck", deck, deck <= 3, "card-back", `${deck} development card${deck === 1 ? "" : "s"} left in the deck`).replace("hi-c", "hi-c hi-deck")}</div>`;
     pop.hidden = false;
     const r = this.handTotalEl.getBoundingClientRect();
     // v0.86 landscape phones: the pill heads the side column, so the popover opens below it, to its left edge
@@ -8026,7 +8026,7 @@ class ColonistFullGame {
     // Build a key from all visible data — skip re-render if unchanged (preserves tooltip)
     const readyIds = this.rush && !this.setupPhase ? this.rush.ready : null;
     const scoreKey = this.players.map((p, i) =>
-      `${i}:${this.displayVictoryPoints(p)}:${sumResources(p.resources)}:${p.settlements.size}:${p.cities.size}:${p.roads.size}:${p.knightsPlayed}:${p.longestRoadLength}:${this.longestRoadHolder}:${this.largestArmyHolder}:${this.currentPlayerIndex}:${p.personality}:${readyIds ? readyIds.includes(p.id) : "-"}:${DEV_CARD_TYPES.reduce((s, t) => s + p.devCards[t] + p.newDevCards[t], 0)}`
+      `${i}:${this.displayVictoryPoints(p)}:${sumResources(p.resources)}:${p.settlements.size}:${p.cities.size}:${p.roads.size}:${p.knightsPlayed}:${p.longestRoadLength}:${this.longestRoadHolder}:${this.largestArmyHolder}:${this.currentPlayerIndex}:${p.personality}:${readyIds ? readyIds.includes(p.id) : "-"}:${DEV_CARD_TYPES.reduce((s, t) => s + p.devCards[t] + p.newDevCards[t], 0) + p.devVictoryPoints}`
     ).join("|") + `:${!!this.winner}:${this.isRush()}:${this.theme.id}:${this.setupPhase}:${this._sixKey()}:${this.viewerId}:${this.handHidden}`;
     if (scoreKey === this._lastScoreKey) return;
     this._lastScoreKey = scoreKey;
@@ -8040,7 +8040,7 @@ class ColonistFullGame {
         ? `<span class="persona-badge persona-${player.personality}" title="${persona.label}: ${persona.tagline}">${persona.glyph ? `${persona.glyph} ` : ""}${persona.label}</span>`
         : "";
       const totalCards = sumResources(player.resources);
-      const totalDev = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + (this._seesPrivate(player) ? player.devVictoryPoints : 0);
+      const totalDev = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + player.devVictoryPoints; // how many is public (VP cards included), only the kind is secret
       const awards = (this.longestRoadHolder === player.id ? (this.sea ? `<span title="Longest Trade Route (+2 points)">${icon("tradeRoute")}</span>` : `<span title="Longest Road (+2 points)">${icon("longestRoad")}</span>`) : "") // ⚓
         + (this.largestArmyHolder === player.id ? `<span title="Largest Army (+2 points)">${icon("largestArmy")}</span>` : "");
       const vp = this.displayVictoryPoints(player);
@@ -8051,7 +8051,7 @@ class ColonistFullGame {
       const stats = [
         `<span data-stat="cards"${over ? ' class="warn"' : ""} title="${totalCards} resource card${totalCards === 1 ? "" : "s"}${over ? ` (more than ${this.settings?.discardLimit ?? 7}: hands back half on a 7)` : ""}">${icon("cards")}${totalCards}</span>`,
         totalDev > 0 ? `<span data-stat="dev" title="${totalDev} development card${totalDev === 1 ? "" : "s"}">${icon("devcard")}${totalDev}</span>` : "",
-        awardStat("knights", player.knightsPlayed, la, `${player.knightsPlayed} knight${player.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest Army (+2 points)" : " (3+ to win Largest Army)"}`, "knight"),
+        awardStat("knights", player.knightsPlayed, la, `${player.knightsPlayed} knight${player.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest Army (+2 points)" : ` (${this.largestArmyHolder != null ? this.players[this.largestArmyHolder].knightsPlayed + 1 : 3}+ to take Largest Army)`}`, "knight"),
         this.sea // ⚓ Seafarers: the trade route counts roads + ships
           ? awardStat("road", player.longestRoadLength, lr, `Trade route ${player.longestRoadLength}${lr ? " · Longest Trade Route (+2 points)" : " (5+ to win Longest Trade Route)"}`, "tradeRoute")
           : awardStat("road", player.longestRoadLength, lr, `Longest road ${player.longestRoadLength}${lr ? " · Longest Road (+2 points)" : " (5+ to win Longest Road)"}`, "road"),
@@ -9226,7 +9226,7 @@ class ColonistFullGame {
     const longestRoad = this.longestRoadHolder === player.id ? 2 : 0;
     const largestArmy = this.largestArmyHolder === player.id ? 2 : 0;
     const total = settlements + cities * 2 + devVP + longestRoad + largestArmy + (this.sea ? this.sea.bonusVP(player) : 0); // ⚓
-    const totalDevCards = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0);
+    const totalDevCards = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + player.devVictoryPoints; // public count, VP cards included
 
     const tip = document.createElement("div");
     tip.className = "vp-tooltip";
@@ -9239,7 +9239,7 @@ class ColonistFullGame {
     let html = `<div class="vp-tooltip-section">${this._you(player) ? "Your hand" : "In hand"}</div>`;
     html += `<div class="vp-tooltip-grid">`
       + `<span${cardsN > limit ? ' class="warn"' : ""}>${icon("cards")}<b>${cardsN}</b><small>cards</small></span>`
-      + `<span>${icon("devcard")}<b>${totalDevCards + devVP}</b><small>dev</small></span>`
+      + `<span>${icon("devcard")}<b>${totalDevCards}</b><small>dev</small></span>`
       + `<span>${icon("knight")}<b>${player.knightsPlayed}</b><small>knights</small></span>`
       + `<span>${icon(this.sea ? "tradeRoute" : "road")}<b>${player.longestRoadLength}</b><small>${this.sea ? "route" : "road"}</small></span></div>`;
     html += '<div class="vp-tooltip-section" style="margin-top:0.35rem">Points</div>';
@@ -9760,6 +9760,7 @@ class ColonistFullGame {
       this.devPick = null;
     }
     this.logEntries = this.logEntries.filter((e) => !d.logs.includes(e));
+    if (d.ev != null && this.stats?.ev?.length > d.ev) this.stats.ev.length = d.ev; // and its stats events (the Knight, a Largest Army award)
     this.canvas.style.cursor = "grab";
     this.recomputeScores();
     this.saveToStorage();
@@ -10445,7 +10446,7 @@ class ColonistFullGame {
     const rows = [...touch.keys()].filter((pid) => pid !== mover.id).sort((a, b) => a - b).map((pid) => {
       const p = this.players[pid];
       return { id: pid, name: p.name, vp: this.displayVictoryPoints(p), cards: sumResources(p.resources),
-        dev: DEV_CARD_TYPES.reduce((n, t) => n + p.devCards[t] + p.newDevCards[t], 0),
+        dev: DEV_CARD_TYPES.reduce((n, t) => n + p.devCards[t] + p.newDevCards[t], 0) + p.devVictoryPoints,
         s: touch.get(pid).s, c: touch.get(pid).c, canRob: victims.includes(pid), leader: pid === leaderId };
     });
     return { hex, prod, rows, victims, own: touch.get(mover.id) || null };

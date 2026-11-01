@@ -301,12 +301,11 @@ export const LiveStatsMixin = {
   /** v0.84: the bank's stock and the development deck, plus every hand's size (public: counts only). */
   _lsCardBank() {
     const deck = this.devDeck ? this.devDeck.length : 0;
-    const cell = (k, n, low) => `<span class="ls-bk${low ? " low" : ""}"><svg class="ls-bkc" viewBox="0 0 250 350" aria-hidden="true"><use href="#cardm-${k}"/></svg><b>${n}</b></span>`;
-    const bank = `<div class="ls-bank">${RES.map((r) => cell(r, this.bank[r], this.bank[r] <= 3)).join("")}<i class="ls-bsep" aria-hidden="true"></i>${cell("knight", deck, deck <= 3)}</div>`;
-    const me = this._lsMe();
+    const cell = (k, n, low, sym = `cardm-${k}`, tip = "") => `<span class="ls-bk${low ? " low" : ""}"${tip ? ` title="${tip}"` : ""}><svg class="ls-bkc" viewBox="0 0 250 350" aria-hidden="true"><use href="#${sym}"/></svg><b>${n}</b></span>`;
+    const bank = `<div class="ls-bank">${RES.map((r) => cell(r, this.bank[r], this.bank[r] <= 3)).join("")}<i class="ls-bsep" aria-hidden="true"></i>${cell("deck", deck, deck <= 3, "card-back", `${deck} development card${deck === 1 ? "" : "s"} left in the deck`)}</div>`;
     const rows = this.players.map((p) => {
       const n = Object.values(p.resources).reduce((a, b) => a + b, 0);
-      const dev = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"].reduce((a, t) => a + p.devCards[t] + p.newDevCards[t], 0) + (p === me ? p.devVictoryPoints : 0);
+      const dev = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"].reduce((a, t) => a + p.devCards[t] + p.newDevCards[t], 0) + p.devVictoryPoints; // public count, VP cards included
       return `<div class="ls-hrow pc-${p.id}"><i></i><span class="ls-hn">${this._stName(p)}</span><span>${this._lsIcon("cards")}<b>${n}</b></span><span>${this._lsIcon("devcard")}<b>${dev}</b></span><span>${this._lsIcon("knight")}<b>${p.knightsPlayed}</b></span></div>`;
     }).join("");
     const total = RES.reduce((a, r) => a + this.bank[r], 0);

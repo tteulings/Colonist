@@ -64,7 +64,7 @@ export const SixUiMixin = {
         vp: this.displayVictoryPoints(p),
         cards: sum(p.resources),
         over: sum(p.resources) > (this.settings?.discardLimit ?? 7),
-        dev: DEV.reduce((s, t) => s + p.devCards[t] + p.newDevCards[t], 0) + (this._seesPrivate(p) ? p.devVictoryPoints : 0),
+        dev: DEV.reduce((s, t) => s + p.devCards[t] + p.newDevCards[t], 0) + p.devVictoryPoints, // public count, VP cards included
         leader: idx === leader,
         building: marks.includes(idx),
         awards,
