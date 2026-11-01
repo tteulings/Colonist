@@ -66,6 +66,9 @@ export const AnalysisMixin = {
   },
 
   /** Recording candidate lists (analysis on, or the lab capturing a decision). */
+  /** v0.91: your own turn in a classic game (not watching autoplay, not stepping through a decision). */
+  _aiHumanTurn() { return !!(this.players?.length && !this.winner && !this.isRush?.() && this.currentPlayer?.isHuman && !this.autoplayInterval); },
+  _aiAutoMin() { const a = this.analysis; return !!(a && !a.stepView && this._aiHumanTurn() && a.openTurn !== this.turnSerial); },
   _aiRec() { const a = this.analysis; return !!(a && (a.on || a.capture)); },
   /** Bots must wait: paused with no Step left. */
   _aiHeld() { const a = this.analysis; return !!(a && a.on && a.paused && a.budget <= 0); },
@@ -310,7 +313,7 @@ export const AnalysisMixin = {
 
   /** v0.89 display only: reach as an extra layer on a plan. Every settlement spot in reach (plan.spots, same
    *  order and rank) with its roads, turns to afford (the real _aiEta, the plan's own value for planned spots)
-   *  and the closest rival that is as close or closer (one _aiRoadReach per opponent); `out`: free spots that
+   *  and the closest rival that needs fewer roads (one _aiRoadReach per opponent); `out`: free spots that
    *  are out of reach or blocked. */
   _aiReachInfo(player, plan) {
     const g = this.geometry;
@@ -322,7 +325,8 @@ export const AnalysisMixin = {
       cost.wood += s.d; cost.brick += s.d;
       const eta = goalEta.has(s.nodeId) ? goalEta.get(s.nodeId) : this._aiEta(cost, player.resources, plan.incTurn, plan.rates);
       let rival = null;
-      rivals.forEach(({ p, r }) => { const d = r.dist[s.nodeId]; if (d <= s.d && (!rival || d < rival.d)) rival = { pid: p.id, d }; });
+      // v0.92: a real race only: the rival needs strictly fewer roads (on a tie this bot builds first: it is deciding now)
+      rivals.forEach(({ p, r }) => { const d = r.dist[s.nodeId]; if (d < s.d && (!rival || d < rival.d)) rival = { pid: p.id, d }; });
       return { id: s.nodeId, d: s.d, h: s.h, eta, rival };
     });
     const inReach = new Set(spots.map((s) => s.id));
@@ -721,7 +725,7 @@ export const AnalysisMixin = {
     routeBadges();
     // v0.89 reach, a quiet extra layer: a thin ring around each spot's score (solid = on its roads, dashed =
     // 1 road, dotted = 2 or more), a faint × on free spots out of reach or blocked, and a small flag in a
-    // rival's colour where that rival's roads are as close or closer
+    // rival's colour where that rival needs fewer roads
     if (d.reach) {
       ctx.save();
       ctx.lineCap = "round";
@@ -748,13 +752,17 @@ export const AnalysisMixin = {
       ctx.setLineDash([]);
       caps.forEach(({ s, at }) => {
         if (!s.rival) return;
-        // a small flag in the rival's seat colour on the capsule's top-right corner
+        // a small flag in the rival's seat colour beside the capsule (v0.92: on the side away from the number
+        // tokens, flying outward, so it never covers a token)
         const rc = this.players[s.rival.pid]?.color || "#888";
-        const fx = at.x + at.hw - 1 * px, fy = at.y - at.hh + 2 * px;
+        const tok = (g.nodes[s.id]?.adjacentHexes || []).map((h) => g.hexes[h]?.center).filter(Boolean);
+        const room = (x, y) => Math.min(Infinity, ...tok.map((c) => Math.hypot(c.x - x, c.y - y)));
+        const side = room(at.x + at.hw + 8 * px, at.y) >= room(at.x - at.hw - 8 * px, at.y) ? 1 : -1;
+        const fx = at.x + side * (at.hw + 3.5 * px), fy = at.y + 6 * px, dir = side;
         ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx, fy - 13 * px);
         ctx.lineCap = "round"; ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 3 * px; ctx.stroke();
         ctx.strokeStyle = "#1E262B"; ctx.lineWidth = 1.5 * px; ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(fx + 0.8 * px, fy - 13 * px); ctx.lineTo(fx + 10.5 * px, fy - 9.2 * px); ctx.lineTo(fx + 0.8 * px, fy - 5.4 * px); ctx.closePath();
+        ctx.beginPath(); ctx.moveTo(fx + dir * 0.8 * px, fy - 13 * px); ctx.lineTo(fx + dir * 10.5 * px, fy - 9.2 * px); ctx.lineTo(fx + dir * 0.8 * px, fy - 5.4 * px); ctx.closePath();
         ctx.lineJoin = "round"; ctx.lineWidth = 2.4 * px; ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.stroke();
         ctx.fillStyle = rc; ctx.fill();
         ctx.lineWidth = 0.9 * px; ctx.strokeStyle = "rgba(20,32,44,.7)"; ctx.stroke();
@@ -825,6 +833,9 @@ export const AnalysisMixin = {
         else if (k === "sgo") { const sv = a.stepView; if (sv) { sv.cur = Number(b.dataset.step) || 0; sv.sel = null; this._renderAnalysis(); this.requestBoardDraw?.(); requestAnimationFrame(() => this._aiStepFrame()); } }
         else if (k === "srow") { const sv = a.stepView; if (sv) { const i = Number(b.dataset.row); sv.sel = sv.sel === i ? null : i; this._renderAnalysis(); this.requestBoardDraw?.(); } }
         else if (k === "min") {
+          // v0.91: on your own turn the panel folds by itself; the chevron opens it for this turn only
+          if (this._aiAutoMin()) { a.openTurn = this.turnSerial; this._renderAnalysis(); return; }
+          if (a.openTurn === this.turnSerial && this._aiHumanTurn()) { a.openTurn = null; this._renderAnalysis(); return; }
           a.min = !a.min;
           try { localStorage.setItem(MIN_KEY, a.min ? "1" : "0"); } catch (_) { /* ignore */ }
           this._renderAnalysis();
@@ -833,8 +844,9 @@ export const AnalysisMixin = {
       (document.getElementById("boardWrap") || document.body).appendChild(el);
     }
     el.hidden = false;
-    el.classList.toggle("min", a.min);
-    el.classList.toggle("stepping", !!a.stepView && !a.min); // v0.87: a short step card, the board stays visible
+    const min = a.min || this._aiAutoMin(); // v0.91: folded on your turn (it showed the last bot's decision over a third of the board)
+    el.classList.toggle("min", min);
+    el.classList.toggle("stepping", !!a.stepView && !min); // v0.87: a short step card, the board stays visible
     el.classList.toggle("held", this._aiHeld());
     const d = a.last;
     const p = d ? this.players[d.pid] : null;
@@ -845,15 +857,15 @@ export const AnalysisMixin = {
       <button type="button" data-ai="step" aria-label="Step: next decision" title="Step (next decision)">${IC.step}</button></span>`;
     const who = p ? `<i class="aip-dot" style="background:${p.color}"></i><b class="aip-t"><span class="aip-n">${esc(p.name)}</span> · ${esc(d.title)}</b>` : `<b class="aip-t">${a.paused ? "Paused" : "Waiting for a bot move…"}</b>`;
     const score = d && d.score != null ? `<span class="aip-sc" title="${UNIT}">${fmt(d.score)}</span>` : "";
-    const head = `<div class="aip-head">${who}${score}${ctl}<button type="button" class="aip-min" data-ai="min" aria-expanded="${!a.min}" aria-label="${a.min ? "Show details" : "Hide details"}">${IC.chev}</button></div>`;
+    const head = `<div class="aip-head">${who}${score}${ctl}<button type="button" class="aip-min" data-ai="min" aria-expanded="${!min}" aria-label="${min ? "Show details" : "Hide details"}">${IC.chev}</button></div>`;
     let body = "";
-    if (a.stepView && !a.min) {
+    if (a.stepView && !min) {
       const sv = a.stepView;
       body += `<div class="aip-steps"><div class="aip-shead"><button type="button" class="aip-sarrow" data-ai="sprev" aria-label="Previous step"${sv.cur ? "" : " disabled"}>‹</button>${stepStripHtml(sv.steps, sv.cur).replace(/data-step="/g, 'data-ai="sgo" data-step="')}<button type="button" class="aip-sarrow" data-ai="snext" aria-label="Next step"${sv.cur < sv.steps.length - 1 ? "" : " disabled"}>›</button><button type="button" data-ai="sclose" class="aip-slink">Close</button></div>${stepCardHtml(sv.steps, sv.cur, sv.sel ?? null).replace(/data-row="/g, 'data-ai="srow" data-row="')}</div>`;
-    } else if (d && !a.min && d.rules) {
+    } else if (d && !min && d.rules) {
       // v0.87 Simple bot: its rulebook as a checklist, the rule that fired lit
       body += `<ol class="aip-rules">${d.rules.map((r) => `<li class="${r.ok ? "fired" : "no"}"><b>${r.n}</b> ${esc(r.title)} <span>${r.ok ? "✓" : "✗"} ${esc(r.why)}</span></li>`).join("")}</ol>`;
-    } else if (d && !a.min) {
+    } else if (d && !min) {
       const vals = AI_DIMS.map(([k]) => d.dims?.[k] || 0);
       const max = Math.max(0.5, ...vals.map(Math.abs));
       body += `<div class="aip-bars" title="${UNIT}">${AI_DIMS.map(([k, l], i) => {
@@ -871,13 +883,18 @@ export const AnalysisMixin = {
       if (d.note) body += `<p class="aip-note">${esc(d.note)}</p>`;
       if (d.alts?.length) body += `<div class="aip-alts" title="Next best options (${UNIT})">${d.alts.map((x) => `<span><b>${fmt(x.score)}</b> ${esc(x.label)}</span>`).join("")}</div>`;
     }
-    if (d && !a.min && !a.stepView) body += `<button type="button" class="aip-slink aip-sgo" data-ai="steps">Step through this decision ›</button>`;
+    if (d && !min && !a.stepView) body += `<button type="button" class="aip-slink aip-sgo" data-ai="steps">Step through this decision ›</button>`;
     const html = head + body;
     if (el._html !== html) {
       el.innerHTML = html; el._html = html;
       // the step strip scrolls sideways on narrow phones: keep the current step in view
       const strip = el.querySelector(".aip-shead .sx-strip"), cur = strip?.querySelector(".cur");
-      if (strip && cur) strip.scrollLeft = Math.max(0, cur.offsetLeft - strip.offsetLeft - (strip.clientWidth - cur.offsetWidth) / 2);
+      if (strip && cur) { // v0.92: scroll by whole steps (never a half-cut step at the left), the current one fully in view
+        const bs = [...strip.querySelectorAll("button")], c = bs.indexOf(cur), left = (b) => b.offsetLeft - bs[0].offsetLeft;
+        let k = 0;
+        while (k < c && left(cur) + cur.offsetWidth - left(bs[k]) > strip.clientWidth) k++;
+        strip.scrollLeft = strip.scrollWidth > strip.clientWidth + 1 ? left(bs[k]) : 0;
+      }
     }
     // Phones: the hand fan overlaps the bottom of the board, so the panel sits just above it
     // (v0.83: and above a docked trade offer: on phones the offer card used to cover the bars and Pause / Step)

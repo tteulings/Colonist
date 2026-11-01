@@ -262,3 +262,17 @@ body.lb-stepping .lb-tools, body.lb-stepping #labResult { display: none; }
 .lb-stepstrip .sx-strip { flex-wrap: nowrap; overflow-x: auto; justify-content: safe center; scrollbar-width: none; padding: 3px 4px; }
 .lb-stepstrip .sx-strip::-webkit-scrollbar { display: none; }
 .lb-stepstrip .sx-strip button { width: 40px; height: 40px; min-width: 40px; font-size: 13px; }
+.lb-contest { display: block; width: 100%; margin-top: 6px; min-height: 40px; }
+/* v0.92: 40px tap targets (segmented controls, the back link) */
+.lb-seg button { min-height: 40px; }
+.lb-back { display: inline-flex; align-items: center; min-height: 40px; padding: 0 4px; }
+/* v0.92: 9 steps fit a 360px phone: 40px tap areas edge to edge (the full width), each a 32px dot inside */
+@media (max-width: 899px) {
+  .lb-stepstrip .sx-strip { margin: 0 -8px; padding: 2px 0; gap: 0; }
+  .lb-stepstrip .sx-strip button { background: none; box-shadow: none; z-index: 0; }
+  .lb-stepstrip .sx-strip button::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--sep, rgba(0,0,0,.08)); z-index: -1; }
+  .lb-stepstrip .sx-strip button.done::after { background: color-mix(in srgb, var(--accent) 28%, var(--panel, #fff)); }
+  .lb-stepstrip .sx-strip button.cur { background: none; box-shadow: none; color: #fff; }
+  .lb-stepstrip .sx-strip button.cur::after { background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+  .lb-stepstrip .sx-strip button + button::before { right: calc(100% - 4px); width: 8px; z-index: -2; }
+}

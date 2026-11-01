@@ -124,3 +124,6 @@
 [data-theme="A"][data-palette="night"] .newgame-modal .hs-kind { background: rgba(255,255,255,.06); }
 [data-theme="A"][data-palette="night"] .newgame-modal .hs-kind button.on { background: #263A44; color: var(--heading); box-shadow: inset 0 0 0 1px #3A525C; }
 [data-theme="A"][data-palette="night"] .hs-cover .hs-go { background: #F3EEE2; }
+/* v0.92: empty hand slots ("0 Brick") were dark ink on the dark slot */
+[data-palette="night"] .app .hand .card.slot { color: rgba(222,234,238,.82); border-color: rgba(222,234,238,.3); }
+[data-palette="night"] .hand .card.slot .slot-ic .ic { opacity: .6; }

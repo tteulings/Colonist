@@ -335,7 +335,8 @@ export const TreeMixin = {
       const rows = keys.map((k) => { const src = (a.terms || []).find((x) => x.k === k) || (b?.terms || []).find((x) => x.k === k); return { k, label: src.label, a: val(a, k), b: b ? val(b, k) : null, div: !!src.div }; });
       return { a: a.label, b: b?.label || null, rows, sa: a.score, sb: b?.score ?? null, unit };
     };
-    const winBadges = (pa, pb) => [{ text: "1", ...pa }, ...(pb ? [{ text: "2", tone: "alt", ...pb }] : [])];
+    // v0.91: the winner and runner-up keep their own letters on the board (no separate 1 / 2)
+    const winBadges = (pa, pb, la = "1", lb = "2") => [{ text: la, ...pa }, ...(pb ? [{ text: lb, tone: "alt", ...pb }] : [])];
 
     if (t.mode === "setup") {
       const rules = !!t.rules;
@@ -350,7 +351,7 @@ export const TreeMixin = {
       const a = all.find((c) => c.id === best), b = all.find((c) => c.id !== best);
       add({ key: "choice", title: "Choice", sub: t.action, text: rules ? "Most pips wins; a tie goes to more different resources." : "",
         compare: compare({ label: `${LETTERS[top.indexOf(a)] || ""} · Spot ${this._spotLabel(a.id)}`, terms: termsOf(a), score: a.score }, b && { label: `${LETTERS[top.indexOf(b)] || ""} · Spot ${this._spotLabel(b.id)}`, terms: termsOf(b), score: b.score }, rules ? "pips" : ""),
-        overlay: { nodes: [{ id: a.id, s: 1 }, ...(b ? [{ id: b.id, s: 0.4 }] : [])], badges: winBadges({ node: a.id }, b && { node: b.id }), noLabels: true, pick: { node: a.id } } });
+        overlay: { nodes: [{ id: a.id, s: 1 }, ...(b ? [{ id: b.id, s: 0.4 }] : [])], badges: winBadges({ node: a.id }, b && { node: b.id }, LETTERS[top.indexOf(a)] || "1", LETTERS[top.indexOf(b)] || "2"), noLabels: true, pick: { node: a.id } } });
       return S;
     }
     if (t.mode === "robber") {
@@ -367,7 +368,7 @@ export const TreeMixin = {
         const a = r.pick, b = top.find((c) => c.id !== a.id);
         const tm = (c) => [{ k: "block", label: "Leader's pips", v: c.lead }, { k: "steal", label: "All opponents' pips (tie-break)", v: c.any }];
         add({ key: "choice", title: "Choice", sub: t.action, compare: compare({ label: `${LETTERS[top.findIndex((c) => c.id === a.id)] || ""} · ${this._hexName(a.id)}`, terms: tm(a), score: a.lead }, b && { label: `${LETTERS[top.indexOf(b)] || ""} · ${this._hexName(b.id)}`, terms: tm(b), score: b.lead }, "pips"),
-          overlay: { hexes: [{ id: a.id, s: 1, dmg: null }], badges: winBadges({ hex: a.id }, b && { hex: b.id }), noLabels: true, pick: { hex: a.id } } });
+          overlay: { hexes: [{ id: a.id, s: 1, dmg: null }], badges: winBadges({ hex: a.id }, b && { hex: b.id }, LETTERS[top.findIndex((c) => c.id === a.id)] || "1", LETTERS[top.indexOf(b)] || "2"), noLabels: true, pick: { hex: a.id } } });
         add({ key: "steal", title: "Steal", sub: `from ${lead?.name || "the leader"}`, text: "Rule: always the leader when the leader is on the tile.", overlay: { hexes: [{ id: a.id, s: 1, dmg: null }], noLabels: true, focus: { hex: a.id } } });
         return S;
       }
@@ -381,7 +382,7 @@ export const TreeMixin = {
         overlay: { hexes: top.map((c) => ({ id: c.id, s: c.score, dmg: null })), badges: lettered(top, (c) => ({ hex: c.id })), noLabels: true } });
       const b = top.find((c) => c.id !== best.id);
       add({ key: "choice", title: "Choice", sub: t.action, compare: compare({ label: `${LETTERS[top.indexOf(best)] || ""} · ${this._hexName(best.id)}`, terms: tm(best), score: best.score }, b && { label: `${LETTERS[top.indexOf(b)] || ""} · ${this._hexName(b.id)}`, terms: tm(b), score: b.score }),
-        overlay: { hexes: [{ id: best.id, s: 1, dmg: null }], badges: winBadges({ hex: best.id }, b && { hex: b.id }), noLabels: true, pick: { hex: best.id } } });
+        overlay: { hexes: [{ id: best.id, s: 1, dmg: null }], badges: winBadges({ hex: best.id }, b && { hex: b.id }, LETTERS[top.indexOf(best)] || "1", LETTERS[top.indexOf(b)] || "2"), noLabels: true, pick: { hex: best.id } } });
       add({ key: "steal", title: "Steal", sub: awareness === "none" ? "a random player on the tile" : awareness === "basic" ? "the biggest hand on the tile" : "the leader, or who likely holds what it needs",
         text: "From public card counts only, never hidden hands.", overlay: { hexes: [{ id: best.id, s: 1, dmg: null }], noLabels: true, focus: { hex: best.id } } });
       return S;
@@ -452,7 +453,7 @@ export const TreeMixin = {
         const skipped = ranked.filter((g) => !(g.type === "settlement" && spots.some((x) => x.nodeId === g.nodeId)) && L.get(g) < maxL);
         const foot = [];
         if (skipped.length) foot.push(`${skipped.map((g) => L.get(g)).join(", ")}: ${skipped.map((g) => name(g)).join(" / ")}: other plans, compared from step ${S.length + 2}.`);
-        if (spots.some((x) => info.get(x.nodeId)?.rival)) foot.push("Flag: a rival's roads are as close or closer. The bot ignores that today.");
+        if (spots.some((x) => info.get(x.nodeId)?.rival)) foot.push("Flag: a rival needs fewer roads to this spot (on a tie this bot builds first, as it is the one deciding now). Expert doesn't account for this.");
         add({ key: "spots", title: "Settlement spots in reach", sub: "what each costs in roads and turns; the top 3 by rank become plans",
           legend: "reach", foot: foot.join(" "),
           rows: spots.map((x) => { const r = info.get(x.nodeId);
@@ -494,8 +495,8 @@ export const TreeMixin = {
       const gt = (g) => [{ k: "vp", label: g.type === "dev" ? "Card value" : "Points", v: g.parts?.vp ?? g.vp }, { k: "prod", label: "Production", v: (g.parts?.prod || 0) + (g.parts?.horizon || 0) },
         ...(g.parts?.win ? [{ k: "win", label: "Wins the game", v: g.parts.win }] : []), { k: "eta", label: "÷ (turns + 1)", v: g.eta + plan.W.etaOffset, div: true }];
       const wb = [];
-      if (a && place(a)) wb.push({ text: "1", ...place(a) });
-      if (b && place(b)) wb.push({ text: "2", tone: "alt", ...place(b) });
+      if (a && place(a)) wb.push({ text: L.get(a), ...place(a) });
+      if (b && place(b)) wb.push({ text: L.get(b), tone: "alt", ...place(b) });
       // what it does right now when that isn't the plan itself (a side build): a "now" mark on its first road / spot
       const nowEdges = [];
       if (act === "side" && doing) {
@@ -552,8 +553,12 @@ function compareHtml(c) {
   if (!c) return "";
   const fv = (v, div) => (v == null ? "–" : div ? `÷${f2(v)}` : f2(v));
   const diff = (r) => (r.b == null ? "" : r.div ? (r.a < r.b ? "sooner" : r.a > r.b ? "slower" : "=") : `${r.a - r.b >= 0 ? "+" : "−"}${f2(Math.abs(r.a - r.b))}`);
-  return `<div class="sx-cmp"><div class="sx-leg"><span><span class="sx-win">1</span>${escH(c.a)}</span>${c.b ? `<span><span class="sx-win alt">2</span>${escH(c.b)}</span>` : ""}</div>
-    <div class="sx-cmph"><span></span><b><span class="sx-win">1</span></b>${c.b ? `<b><span class="sx-win alt">2</span></b><span>1 − 2</span>` : ""}</div>
+  // v0.91: the two candidates by their own letters only ("A · City on …" → a letter badge + the name)
+  const split = (t) => { const m = /^([A-L?]) · (.*)$/.exec(t || ""); return m ? { l: m[1], t: m[2] } : { l: "", t: t || "" }; };
+  const A = split(c.a), B = split(c.b);
+  const let_ = (x, alt) => (x.l ? `<span class="sx-win${alt ? " alt" : ""}">${x.l}</span>` : `<span class="sx-win${alt ? " alt" : ""}">${alt ? 2 : 1}</span>`);
+  return `<div class="sx-cmp"><div class="sx-leg"><span>${let_(A)}${escH(A.t)}</span>${c.b ? `<span>${let_(B, true)}${escH(B.t)}</span>` : ""}</div>
+    <div class="sx-cmph"><span></span><b>${let_(A)}</b>${c.b ? `<b>${let_(B, true)}</b><span>${escH(A.l || "1")} − ${escH(B.l || "2")}</span>` : ""}</div>
     ${c.rows.map((r) => `<div class="sx-cmpr"><span><i style="background:${TERM_COLOR[r.k] || "var(--accent)"}"></i>${escH(r.label)}</span><span>${fv(r.a, r.div)}</span>${c.b ? `<span>${fv(r.b, r.div)}</span><span class="d">${diff(r)}</span>` : ""}</div>`).join("")}
     <div class="sx-cmpr tot"><span>${c.unit === "pips" ? "Pips" : "Score"}</span><span>${c.unit === "pips" ? Math.round(c.sa) : f2(c.sa)}</span>${c.b ? `<span>${c.unit === "pips" ? Math.round(c.sb) : f2(c.sb)}</span><span class="d">${c.unit === "pips" ? `+${Math.round(c.sa - c.sb)}` : `+${f2(c.sa - c.sb)}`}</span>` : ""}</div></div>`;
 }
@@ -565,8 +570,8 @@ export function stepStripHtml(steps, cur, attr = "data-step") {
 function legendHtml(k) {
   if (!k) return "";
   const ring = (dash, w = 1.6) => `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}" stroke-linecap="round"` : ""}/></svg>`;
-  if (k === "reach") return `<p class="sx-legend"><span>Ring = roads:</span><span>${ring("")}0</span><span>${ring("3 2")}1</span><span>${ring("0.01 3.2", 2)}2+</span><span><svg viewBox="0 0 11 14" aria-hidden="true"><path d="M2 13V2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M2.6 2 10.5 5 2.6 8Z" fill="#E8873A"/></svg>rival as close</span></p>`;
-  if (k === "route") return `<p class="sx-legend"><span><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="3" fill="#fff" stroke="currentColor" stroke-width="1.6"/><text x="8" y="11.5" font-size="9" font-weight="800" text-anchor="middle" fill="#22302F">1</text></svg>roads to the spot, in build order</span></p>`;
+  if (k === "reach") return `<p class="sx-legend"><span>Ring = roads:</span><span>${ring("")}0</span><span>${ring("3 2")}1</span><span>${ring("0.01 3.2", 2)}2+</span><span><svg viewBox="0 0 11 14" aria-hidden="true"><path d="M2 13V2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M2.6 2 10.5 5 2.6 8Z" fill="#E8873A"/></svg>rival closer</span></p>`;
+  if (k === "route") return `<p class="sx-legend"><span><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="3" fill="#fff" stroke="currentColor" stroke-width="1.6"/><text x="8" y="11.5" font-size="9" font-weight="800" text-anchor="middle" fill="#22302F">1</text></svg></span><span>the roads to the spot, numbered in build order</span></p>`;
   return "";
 }
 /** One step as a card: number + title, what it found, its rows / hand / winner-vs-runner-up comparison. */
@@ -606,8 +611,9 @@ export function masterVerdict(rec, name = "the bot") {
   const S = raceStats(rec), E = S[0], P = S[rec.pick];
   const common = (k) => rec.vals[k].map((v, j) => (v != null && rec.vals[0][j] != null ? j : -1)).filter((j) => j >= 0);
   if (rec.pick === 0) {
-    const alt = S.slice(1).sort((a, b) => b.m - a.m)[0];
-    const why = alt ? `No move did clearly better on the same futures. Closest: ${alt.letter} · ${alt.label}, ${pc1(alt.m)} ± ${(100 * (alt.se || 0)).toFixed(1)} over ${alt.pn} futures (it needed more than ${pc1(alt.need)}).` : "";
+    const fin = S.filter((x) => x.k && x.state !== "out");
+    const alt = fin.sort((a, b) => b.m - a.m)[0];
+    const why = alt ? `No move did clearly better on the same futures. Closest: ${alt.letter} · ${alt.label}, ${pc1(alt.m)} (give or take ${(100 * (alt.se || 0)).toFixed(0)}%) over ${alt.pn} futures; it needed more than ${pc1(alt.need)}.` : "No other move lasted to the end of the race.";
     return { same: true, expert: E, master: E, gap: 0, n: E.n, why, line: `Expert: ${E.label}. Master keeps it: no move was clearly better over ${E.n} futures.` };
   }
   const js = common(rec.pick);
@@ -680,15 +686,17 @@ function raceHtml(r) {
     const gap = x.k === 0 ? `<span class="mr-gap"><span class="mr-axis"></span><span class="mr-zero" style="left:50%"></span></span><span class="mr-v">${pc0(x.mean)}</span>`
       : `<span class="mr-gap" title="paired gap ± 1 SE; tick = what it must clear"><span class="mr-axis"></span><span class="mr-zero" style="left:50%"></span>${x.se != null ? `<span class="mr-ci" style="left:${X(x.m - x.se)}%;width:${Math.max(1, X(x.m + x.se) - X(x.m - x.se))}%"></span>` : ""}${Number.isFinite(x.need) && x.state !== "out" ? `<span class="mr-need" style="left:${X(x.need)}%"></span>` : ""}<span class="mr-pt" style="left:${X(x.m)}%"></span></span><span class="mr-v">${pc1(x.m)}</span>`;
     const st = x.state === "out" ? `out after round ${x.out}` : status[x.state];
-    return `<div class="mr-row ${x.state}"><div class="mr-1"><span class="sx-let">${x.letter}</span><b>${escH(x.label)}</b>${x.k === 0 ? `<span class="mr-tag">Expert</span>` : ""}${x.state === "pick" ? `<span class="mr-tag m">Master</span>` : ""}${gap}</div>
-      <div class="mr-2"><span class="mr-dots">${dots}</span><small>${escH(st)}${x.k > 0 ? ` · ${x.pn} futures` : ` · ${x.n} futures, ${pc0(x.mean)} win chance`}</small></div></div>`;
+    // v0.92: name on its own line (it wraps, the tags never get cut), then the futures and the gap, then why
+    return `<div class="mr-row ${x.state}"><div class="mr-1"><span class="sx-let">${x.letter}</span><b>${escH(x.label)}</b>${x.k === 0 ? `<span class="mr-tag">Expert</span>` : ""}${x.state === "pick" ? `<span class="mr-tag m">Master</span>` : ""}</div>
+      <div class="mr-2"><span class="mr-dots">${dots}</span><span class="mr-gw">${gap}</span></div>
+      <small class="mr-3">${escH(st)}${x.k > 0 ? ` · ${x.pn} futures` : ` · ${x.n} futures, ${pc0(x.mean)} win chance`}</small></div>`;
   }).join("")}</div>
-  <p class="mr-leg"><span><i class="w"></i>ahead of A in that future</span><span><i class="l"></i>behind</span><span><i class="t"></i>same</span><span>bar = gap to A ± 1 SE · tick = needed</span></p>`;
+  <p class="mr-leg"><span><i class="w"></i>ahead of ${escH(rows[0].letter)} in that future</span><span><i class="l"></i>behind</span><span><i class="t"></i>same</span><span>the bar must pass the tick for Master to switch</span></p>`;
 }
 function verdictHtml(v) {
   const card = (who, x, cls) => `<div class="mv-card ${cls}"><small>${who}</small><div class="mv-l"><span class="sx-let">${x.letter}</span><b>${escH(x.label)}</b><span class="mv-p">${pc0(x.mean)}</span></div><span class="mv-bar"><i style="width:${Math.max(2, Math.min(100, 100 * x.mean))}%"></i></span></div>`;
   // the gain first (it is the verdict), then the two picks with their win chance, then why
-  return `<div class="mv">${v.same ? "" : `<p class="mv-gain"><b>${pc1(v.gap)}</b> win chance over ${v.n} futures <small>(± ${(100 * (v.se || 0)).toFixed(1)})</small></p>`}
+  return `<div class="mv">${v.same ? "" : `<p class="mv-gain"><b>${pc1(v.gap)}</b> win chance over ${v.n} futures <small>(give or take ${(100 * (v.se || 0)).toFixed(0)}%)</small></p>`}
     ${v.same ? card("Expert and Master pick", v.expert, "m") : card("Expert would", v.expert, "e") + card("Master picks", v.master, "m")}
     ${v.why ? `<p class="mv-why">${escH(v.why)}</p>` : ""}</div>`;
 }

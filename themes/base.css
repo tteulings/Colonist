@@ -2354,3 +2354,17 @@ button.sx-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 
 .ai-panel .mv-l { margin: 1px 0 3px; }
 .ai-panel .mv-bar { height: 5px; }
 .ai-panel .mv-gain b { font-size: 17px; }
+/* v0.92: the analysis panel's Pause / Step and the fold chevron are 40px tap targets */
+.ai-panel .aip-ctl button { min-width: 40px; min-height: 40px; }
+.ai-panel .aip-min { width: 40px; min-width: 40px; min-height: 40px; }
+/* v0.92 race row: name (wraps) · futures + gap · status */
+.mr-1 b { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.25; }
+.mr-gw { margin-left: auto; display: flex; align-items: center; gap: 6px; flex: none; }
+.mr-2 { flex-wrap: nowrap; justify-content: space-between; }
+.mr-dots { min-width: 0; }
+.mr-3 { display: block; padding-left: 26px; margin-top: 2px; font-size: 11px; color: var(--ink-soft); }
+/* v0.92: discarding on a phone: the chips of neighbouring cards overlapped ("−1 of 1" "−1 of 1").
+   The card already shows how many you hold, so the chip shows only what goes back; Undo puts one back. */
+@media (max-width: 480px) {
+  .app .hand .card .dsel small, .app .hand .card .dsel .dminus { display: none; }
+}

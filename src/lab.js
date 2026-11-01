@@ -11,8 +11,8 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=91";
-import { masterRequest, masterAvailable, MASTER_BUDGET } from "./master.js?v=91";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=92";
+import { masterRequest, masterAvailable, MASTER_BUDGET } from "./master.js?v=92";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -234,7 +234,7 @@ function update() {
 // ── v0.90 Master: the Expert's decision above, then the worker's search on the same position: a one-line
 // verdict here, and the Race + Verdict steps appended to Step by step ──
 const isMaster = () => st.strat?.policy === "master";
-const ms = { token: 0, sig: null, rec: null, none: false, timer: 0 };
+const ms = { token: 0, sig: null, rec: null, none: false, timer: 0, looking: false };
 function masterSig() {
   const s = view.serializeState();
   return JSON.stringify([st.mode, st.seat, s.nodes, s.edges, s.robberHexId, s.players.map((q) => [q.resources, q.devCards]), myBot()]);
@@ -244,9 +244,32 @@ function masterBlock() {
   el.querySelector(".lb-master")?.remove();
   if (!isMaster()) return;
   const html = ms.rec ? `${masterLineHtml(ms.rec)}<small>Step by step shows the race and the verdict.</small>`
-    : ms.none ? `<span class="mv-line"><b>Master</b>: only one sensible move here, so it plays the Expert's step (no search).</span>`
+    : ms.none ? `<span class="mv-line"><b>Master</b>: only one sensible move here, so it plays the Expert's step (no search).</span><button type="button" class="lb-btn lb-contest" data-contest>${ms.looking ? "Looking for one…" : "Find a contested move"}</button>`
       : masterAvailable() ? `<span class="mv-line"><b>Master</b> is searching (about ${MASTER_BUDGET.timeMs / 1000} s)…</span>` : `<span class="mv-line"><b>Master</b> needs Web Workers: here it plays as the Expert.</span>`;
   el.insertAdjacentHTML("beforeend", `<div class="lb-master" aria-live="polite">${html}</div>`);
+}
+/** v0.91: look for a position where the race really runs: every seat of this board, then new boards (with
+ *  "1 each" in hand after a few, so there is more to choose between). */
+async function findContested() {
+  if (ms.looking) return;
+  ms.looking = true; masterBlock();
+  const kind = st.mode === "build" ? "main" : st.mode;
+  const startHand = st.hand;
+  try {
+    for (let b = 0; b < 10; b++) {
+      if (b) { if (b === 3 && st.hand === "keep") st.hand = "1"; await newBoard(); }
+      const seats = view.players.map((p) => p.id);
+      for (const seat of seats) {
+        st.seat = seat; applyHand();
+        view.players[seat].strategy = myBot();
+        const m = await masterRequest({ type: "decide", kind, state: view.serializeState(), trk: null, turnSerial: view.turnSerial || 0, seat, opts: { ...MASTER_BUDGET }, lab: true });
+        if (m?.record && m.record.K >= (b < 6 ? 3 : 2)) { ms.looking = false; ms.sig = null; tree.sel = null; update(); return true; }
+      }
+    }
+  } finally { ms.looking = false; }
+  if (st.hand !== startHand) { st.hand = startHand; applyHand(); }
+  update();
+  return false;
 }
 function masterApply(p) {
   if (!ms.rec || !tree.data?.steps || tree.data.masterDone) return;
@@ -284,8 +307,9 @@ function spotListHtml(r) {
   // the best four by rank, plus a flagged spot among the top six (a race the bot doesn't see)
   const rows = [...all.slice(0, 4), ...all.slice(4, 6).filter((x) => x.rival)].slice(0, 5);
   return `<div class="lb-reach"><div class="lb-reachh"><b>Spots in reach</b><small>${all.length} spot${all.length > 1 ? "s" : ""} · tap one for its roads</small></div>
+    <p class="lb-fine lb-rscale">Pill = spot rank: how good the corner is (numbers, resources, harbour) minus a cost per road. It picks which spots get planned; the plan score above (${r.score != null ? f2(r.score) : "–"}) is a build's value per turn, a different scale.</p>
     ${rows.map((x) => `<button type="button" class="lb-rrow${reach.sel === x.id ? " sel" : ""}" data-spot="${x.id}" aria-pressed="${reach.sel === x.id}"><span class="lb-rsc">${x.h.toFixed(dec)}</span><span class="lb-rw"><span class="lb-r1"><b>Spot ${esc(x.label)}</b>${x.id === r.planNode ? `<span class="lt-tag plan">plan</span>` : ""}<span class="lb-rm">${esc(x.text)}</span></span>${x.rival ? `<small class="lb-riv" style="--rc:${x.rivalColor}">${FLAG(x.rivalColor)}${esc(x.rivalText)}</small>` : ""}</span></button>`).join("")}
-    ${rows.some((x) => x.rival) ? `<p class="lb-fine lb-rfoot">Flag: a rival's roads are as close or closer. The bot ignores that today.</p>` : ""}
+    ${rows.some((x) => x.rival) ? `<p class="lb-fine lb-rfoot">Flag: a rival needs fewer roads to this spot (on a tie this bot builds first, as it is the one deciding now). Expert doesn't account for this.</p>` : ""}
   </div>`;
 }
 function selectSpot(id) {
@@ -302,7 +326,7 @@ function renderLegend() {
   el.hidden = !on;
   if (!on) return;
   const ring = (dash, w = 1.6) => `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}" stroke-linecap="round"` : ""}/></svg>`;
-  el.innerHTML = `<span>Ring:</span><span>${ring("")}0</span><span>${ring("3 2")}1</span><span>${ring("0.01 3.2", 2)}2+ roads</span><span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 5l6 6M11 5l-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>out of reach</span><span>${FLAG("var(--lb-flag, #E8873A)")}rival as close</span>`;
+  el.innerHTML = `<span>Ring:</span><span>${ring("")}0</span><span>${ring("3 2")}1</span><span>${ring("0.01 3.2", 2)}2+ roads</span><span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 5l6 6M11 5l-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>out of reach</span><span>${FLAG("var(--lb-flag, #E8873A)")}rival closer</span>`;
 }
 
 // ── decision tree ──
@@ -345,7 +369,7 @@ function renderTree(t, p) {
   seg($("#labTreeView"), [["tree", t?.rules && st.mode === "build" ? "Checklist" : "Tree"], ["steps", "Step by step"]], tree.view, "tv", (v) => { tree.view = v; steps.cur = 0; steps.sel = null; stopPlay(); renderTree(tree.data, view.players[st.seat]);
     if (v === "steps") requestAnimationFrame(keepCardInView); });
   if (tree.view === "steps") { renderSteps(t); return; }
-  $("#labSteps").hidden = true; $("#labTree").hidden = false; $("#labTreeSum").hidden = false;
+  $("#labSteps").hidden = true; $("#labTree").hidden = false; $("#labTreeSum").hidden = false; $("#labTreeEq").hidden = false;
   setStepping(false);
   renderLegend();
   if (view?.analysis.lab?.kind === "step") view._labOverlay(null);
@@ -383,11 +407,23 @@ function renderSteps(t) {
   setStepping(S.length > 0 && st.pane === "analysis");
   if (!S.length) { el.innerHTML = `<p class="lb-note">No steps for this position.</p>`; $("#labStepStrip").innerHTML = ""; return; }
   steps.cur = Math.min(steps.cur, S.length - 1);
+  $("#labTreeEq").hidden = ["race", "verdict"].includes(S[steps.cur].key); // v0.91: the score formula isn't what the search used
   $("#labStepStrip").innerHTML = stepStripHtml(S, steps.cur, "data-sg");
-  { const strip = $("#labStepStrip .sx-strip"), c = strip?.querySelector(".cur"); if (strip && c && strip.scrollWidth > strip.clientWidth) strip.scrollLeft = Math.max(0, c.offsetLeft - strip.offsetLeft - (strip.clientWidth - c.offsetWidth) / 2); }
+  alignStrip($("#labStepStrip .sx-strip"));
   renderLegend();
   el.innerHTML = `${stepCardHtml(S, steps.cur, steps.sel)}<div class="lb-snav"><button type="button" class="lb-btn" data-sn="prev"${steps.cur ? "" : " disabled"}>‹ Prev</button><button type="button" class="lb-btn" data-sn="play" aria-pressed="${!!steps.timer}">${steps.timer ? "Pause" : "Play"}</button><button type="button" class="lb-btn" data-sn="next"${steps.cur < S.length - 1 ? "" : " disabled"}>Next ›</button></div>`;
   stepOverlay(t);
+}
+/** v0.92: a strip wider than the screen scrolls by whole steps: the left edge always starts at a full step
+ *  (no half-cut "1"), and the current one is fully visible. */
+function alignStrip(strip) {
+  const bs = strip ? [...strip.querySelectorAll("button")] : [];
+  const c = bs.findIndex((b) => b.classList.contains("cur"));
+  if (c < 0 || strip.scrollWidth <= strip.clientWidth + 1) { if (strip) strip.scrollLeft = 0; return; }
+  const left = (b) => b.offsetLeft - bs[0].offsetLeft;
+  let k = 0;
+  while (k < c && left(bs[c]) + bs[c].offsetWidth - left(bs[k]) > strip.clientWidth) k++;
+  strip.scrollLeft = left(bs[k]);
 }
 function goStep(i) {
   const t = tree.data;
@@ -513,6 +549,14 @@ const vsText = () => {
   return s.size === 1 ? `vs 3× ${presetLabel(st.opp[0])}` : `vs ${st.opp.map((p) => presetLabel(p).slice(0, 3)).join("/")}`;
 };
 
+/** v0.92: the time a Master game takes, as measured on this device (the last run), else measured on the first game. */
+const MKEY = "colonist.lab.masterMs";
+function masterEta() {
+  const ms = store(MKEY, sessionStorage);
+  if (!ms) return "Master searches every decision, so its games run in the background (no Watch). The first game is timed, then the time left is shown.";
+  const total = (ms * st.games) / 1000;
+  return `Master searches every decision, so its games run in the background (no Watch): about ${Math.round(ms / 1000)} s per game here, so ${st.games} games take about ${total < 90 ? `${Math.round(total)} s` : `${Math.round(total / 60)} min`}.`;
+}
 function renderTournamentSetup() {
   if (!H) return;
   if (sim.running) { // during a run only the button changes (redrawing the choices could swallow a tap)
@@ -549,7 +593,7 @@ function renderTournamentSetup() {
   $("#labRun").classList.toggle("stop", sim.running);
   const mastered = [...(st.lineup === "h2h" ? [st.botB] : st.opp), isMaster() ? "master" : null].includes("master");
   $("#labRunNote").textContent = [st.players !== "4" ? "Tournaments are 4-player games on the classic island for now." : "",
-    mastered ? (masterAvailable() ? `Master searches every decision: its games run in the background (no Watch), roughly 10–30 s each${st.games >= 50 ? `, so ${st.games} games take a while` : ""}.` : "Master needs Web Workers: here it plays as the Expert.") : ""].filter(Boolean).join(" ");
+    mastered ? (masterAvailable() ? masterEta() : "Master needs Web Workers: here it plays as the Expert.") : ""].filter(Boolean).join(" ");
 
 }
 
@@ -686,6 +730,7 @@ async function runTournament(over = {}) {
         if (!sim.running) break;
         if (!m || m.type !== "game") { sim.errors += 1; continue; }
         sim.msTotal += performance.now() - t0;
+        put(MKEY, Math.round(sim.msTotal / (sim.done + 1)), sessionStorage);
         sim.results.push({ map, winner: m.winner, turns: m.turns, vp: m.vp });
         sim.done += 1;
         renderStand();
@@ -779,7 +824,7 @@ function setPane(p) {
   $("#labRun").addEventListener("click", () => runTournament());
   $("#labWatch").addEventListener("click", (e) => { if (e.target.closest(".lb-wstop")) sim.running = false; });
   $("#labTree").addEventListener("click", onTreeTap);
-  $("#labResult").addEventListener("click", (e) => { const b = e.target.closest("[data-spot]"); if (b) selectSpot(Number(b.dataset.spot)); });
+  $("#labResult").addEventListener("click", (e) => { if (e.target.closest("[data-contest]")) { findContested(); return; } const b = e.target.closest("[data-spot]"); if (b) selectSpot(Number(b.dataset.spot)); });
   $("#labStepStrip").addEventListener("click", onStepsTap);
   // Board settings live in a sheet next to the board (keeps Analysis short)
   const sheet = $("#labBoardSheet");
@@ -802,5 +847,5 @@ function setPane(p) {
   renderHist();
   // load the tournament engine while idle, so pressing Start never waits for it (it froze the page ~1 s)
   (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(preloadSim, { timeout: 4000 });
-  window.__lab = { ready: true, steps, st, reach, selectSpot, W: () => W, runTournament, runGames: (n) => runTournament({ n }), newBoard, update, view: () => view, sim, hist, tree, setPane, myBot };
+  window.__lab = { ready: true, steps, st, reach, selectSpot, findContested, ms, W: () => W, runTournament, runGames: (n) => runTournament({ n }), newBoard, update, view: () => view, sim, hist, tree, setPane, myBot };
 })();
