@@ -11,8 +11,8 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=90";
-import { masterRequest, masterAvailable, MASTER_BUDGET } from "./master.js?v=90";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=91";
+import { masterRequest, masterAvailable, MASTER_BUDGET } from "./master.js?v=91";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -108,6 +108,7 @@ const isRules = () => st.strat?.policy === "rules";
 function myBot() {
   const s = Object.fromEntries(DIMS.map(([k]) => [k, st.strat[k]]));
   if (isRules()) return { ...s, policy: "rules" }; // Simple: a rulebook, no weights
+  if (st.strat.policy) s.policy = st.strat.policy; // v0.91: keep "master" (Your bot as Master used to play as the Expert)
   const ch = changedW();
   if (ch.length) s.w = Object.fromEntries(ch.map((k) => [k, W[k]]));
   return s;

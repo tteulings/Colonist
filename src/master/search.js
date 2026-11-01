@@ -78,7 +78,9 @@ export function makeMaster(opts = {}) {
       }
     } finally { restore(g, root); Math.random = orig; agent.busy = false; }
     stats.rollouts += used;
-    // paired comparison against the Expert's pick on the futures both played
+    // paired comparison against the Expert's pick on the futures both played. v0.91: only a move that is
+    // still in the race at the end may be picked (one dropped after round 1 has a few, noisy futures)
+    const finalists = rounds.length ? rounds[rounds.length - 1].alive.filter((k) => !rounds[rounds.length - 1].out.includes(k)) : [0];
     let pick = 0, bestAdv = 0;
     const paired = cands.map((_, k) => {
       if (k === 0) return { m: 0, se: 0, n: vals[0].filter((v) => v != null).length };
@@ -86,13 +88,13 @@ export function makeMaster(opts = {}) {
       if (d.length < 2) return { m: d[0] || 0, se: Infinity, n: d.length };
       const m = d.reduce((a, b) => a + b, 0) / d.length;
       const se = Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / (d.length - 1) / d.length);
-      if (m > o.z * se + o.minAdv && m > bestAdv) { bestAdv = m; pick = k; }
+      if (finalists.includes(k) && m > o.z * se + o.minAdv && m > bestAdv) { bestAdv = m; pick = k; }
       return { m, se, n: d.length };
     });
     const ms = now() - t0;
     stats.ms.push(ms);
     return { K, vals: vals.map((v) => v.map((x) => (x == null ? null : r4(x)))), vps: vps.map((v) => v.slice()), rounds, pick, paired: paired.map((p) => ({ m: r4(p.m), se: Number.isFinite(p.se) ? r4(p.se) : null, n: p.n })),
-      rule: { z: o.z, minAdv: o.minAdv }, ms: Math.round(ms), rollouts: used, budget: { n: o.n, timeMs: o.timeMs }, stop, depth };
+      rule: { z: o.z, minAdv: o.minAdv }, finalists, ms: Math.round(ms), rollouts: used, budget: { n: o.n, timeMs: o.timeMs }, stop, depth };
   }
 
   // ── what a candidate does, in words, and where it is on the board ──

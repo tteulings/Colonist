@@ -599,7 +599,7 @@ export function raceStats(rec) {
     const p = rec.paired[k];
     const clear = k > 0 && p.m > thr(p);
     const state = k === 0 ? "expert" : outAt.has(k) ? "out" : k === rec.pick ? "pick" : clear ? "clear" : "flat";
-    return { k, letter: LETTERS[k], label: c.label, focus: c.focus, n: v.length, mean, m: p.m, se: p.se, pn: p.n, need: thr(p), out: outAt.get(k) || null, state };
+    return { k, letter: rec.letters?.[k] || LETTERS[k], label: c.label, focus: c.focus, n: v.length, mean, m: p.m, se: p.se, pn: p.n, need: thr(p), out: outAt.get(k) || null, state };
   });
 }
 export function masterVerdict(rec, name = "the bot") {
@@ -621,8 +621,26 @@ export function masterVerdict(rec, name = "the bot") {
     line: `Expert: ${E.label}. Master: ${P.label}, ${pc1(P.m)} win chance over ${js.length} futures.` };
 }
 const placeOf = (f) => (!f ? null : f.hex != null ? { hex: f.hex } : f.city != null ? { city: f.city } : f.node != null ? { node: f.node } : f.edge != null ? { edge: f.edge } : null);
-/** Expert's steps (the last one retitled "Expert's pick") + Race + Verdict. */
+/** v0.91: one letter per move for the whole decision. A move the Expert's steps already lettered (the same
+ *  spot, town, road or the dev card) keeps that letter in the Race and the Verdict; the others (end turn,
+ *  play a card, a bank trade) get the next free letters. */
+const moveKey = (f, label) => (f?.hex != null ? `h${f.hex}` : f?.city != null ? `c${f.city}` : f?.node != null ? `n${f.node}` : f?.edge != null ? `r${f.edge}` : /^(Dev card|Development card)$/.test(label || "") ? "dev" : null);
+export function masterLetters(expertSteps, rec) {
+  const known = new Map();
+  (expertSteps || []).forEach((s) => (s.rows || []).forEach((r) => { if (!r.letter) return; const k = moveKey(r.focus, r.label); if (k && !known.has(k)) known.set(k, r.letter); }));
+  const used = new Set(known.values()), taken = new Set();
+  const next = () => { for (const l of LETTERS) if (!used.has(l) && !taken.has(l)) return l; return "?"; };
+  return rec.cands.map((c) => {
+    const k = moveKey(c.focus, c.label);
+    let l = k ? known.get(k) : null;
+    if (!l || taken.has(l)) l = next();
+    taken.add(l);
+    return l;
+  });
+}
+/** Expert's steps (its choice retitled "Expert's pick") + Race + Verdict. */
 export function masterSteps(expertSteps, rec, name = "the bot") {
+  rec.letters = masterLetters(expertSteps, rec);
   let S = (expertSteps || []).map((s) => ({ ...s }));
   const ci = S.findIndex((s) => s.key === "choice");
   let after = [];
