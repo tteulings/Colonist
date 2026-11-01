@@ -162,8 +162,8 @@
 .gs-over.intro .gs-scroll, .gs-over.intro .gs-foot { visibility: hidden; }
 .gs-intro { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; cursor: pointer;
   background: var(--sea-bg); background-image: var(--sea-image); }
-.gs-intro.out { opacity: 0; transition: opacity 360ms ease; pointer-events: none; }
-.gs-intro.reduced.out { transition-duration: 240ms; }
+.gs-intro.out { opacity: 0; visibility: hidden; transition: opacity 360ms ease, visibility 0s linear 360ms; pointer-events: none; } /* v0.96: never left behind half-faded */
+.gs-intro.reduced.out { transition-duration: 240ms, 0s; transition-delay: 0s, 240ms; }
 .gs-tl-bg { position: absolute; inset: 0; width: 100%; height: 100%; filter: blur(2.5px) saturate(.9); opacity: .9; }
 .gs-intro-dim { position: absolute; inset: 0; background: var(--scrim); }
 .gs-intro.win .gs-intro-dim { opacity: .55; }

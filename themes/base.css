@@ -2499,3 +2499,10 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
   .app .pstrip .pchip .mini span.award .ic { font-size: 11px; }
   .app .pstrip .pchip .mini span.award .aw-plus { font-size: 9px; margin-left: 1px; }
 }
+/* v0.96 Home › Continue: each seat's avatar instead of an initial ("Y2 B2 V2 G2") */
+.hm-score .hm-av { --av: 24px; --av-ring: 1.5px; width: 24px; height: 24px; flex: none; }
+@media (max-width: 400px) { .hm-score em.nm { display: none; } .hm-score > span { gap: 5px; } }
+/* v0.96 trade sheet: the rate tag sits top right of every give card (clear of its count); what the bank holds is small and grey */
+.tcell .rate-tag { left: auto; right: 3px; z-index: 2; }
+@media (max-width: 900px), (max-height: 500px) { .tcell .rate-tag { top: 2px; right: 2px; left: auto; font-size: 10.5px; line-height: 14px; } }
+.app .tcell small.stock { font-size: 11px; font-weight: 600; color: var(--ink-soft); opacity: .85; }
