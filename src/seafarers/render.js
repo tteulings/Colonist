@@ -61,7 +61,7 @@ function lane(R, ctx, p, color, alpha = 1, white = "rgba(255,255,255,.9)") {
   ctx.restore();
 }
 
-/** v0.93: phones: a ship is at least ~20 css px wide at the fitted zoom (the Seafarers map is fitted small, so at
+/** v0.94: phones: a ship is at least ~20 css px wide at the fitted zoom (the Seafarers map is fitted small, so at
  *  the piece scale alone a ship read at 17 px on a 360 px phone and ~13 px in landscape). Desktop: 1. */
 const SHIP_ART_W = 44, SHIP_MIN_PX = 20; // hull + sail width in art units at scale 1 (measured)
 export function shipScale(R) {

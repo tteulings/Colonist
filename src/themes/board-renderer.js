@@ -322,7 +322,7 @@ export class SvgBoardRenderer {
     }));
     // v0.81: harbour-corner marks are drawn live, so a corner with a piece on it shows none (v0.86: dots, see harbourDots)
     const ticks = portData.flatMap((p, i) => p.piers.map((pr) => ({ id: pr[0].id, pier: pr, badge: p.badge, ...(ports[i].tick || { fill: "#7E949B", line: "rgba(0,0,0,.5)" }) })));
-    // ⚓ v0.93: Seafarers pills are re-drawn live above the ships and the pirate (see drawSeaPills)
+    // ⚓ v0.94: Seafarers pills are re-drawn live above the ships and the pirate (see drawSeaPills)
     this.layer = { canvas, ...b, k, key, ticks, pills: sea ? portData.map((p) => p.badge) : null };
     const ms = performance.now() - t0;
     this.stats.bakes += 1;
@@ -497,7 +497,7 @@ export class SvgBoardRenderer {
     this.drawRobber(ctx, rob, robT, reduced, devK);
     if (g.sea) drawPirateAndChips(this, ctx, now, reduced, devK, drawSpec); // ⚓ pirate, +2 island chips
 
-    if (g.sea) this.drawSeaPills(ctx); // ⚓ harbour pills on top of ships (v0.93)
+    if (g.sea) this.drawSeaPills(ctx); // ⚓ harbour pills on top of ships (v0.94)
 
     // 8. placement hints + ghost + confirm
     if (this.placementActive()) this.drawPlacement(ctx, now, reduced, devK);
@@ -511,7 +511,7 @@ export class SvgBoardRenderer {
     ctx.restore();
   }
 
-  /** ⚓ v0.93 Seafarers: ships sail right past the harbours (a coastal chain ran over a pill), so each pill is copied
+  /** ⚓ v0.94 Seafarers: ships sail right past the harbours (a coastal chain ran over a pill), so each pill is copied
    *  from the baked layer again above the ships and the pirate, and gets a dark rim (2.4 css px): a cream pill on the
    *  bright Seafarers sea was ~1.5:1, the rim makes its edge >= 3:1 on any sea. Piers and dots stay under the pieces. */
   drawSeaPills(ctx) {

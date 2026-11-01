@@ -58,7 +58,7 @@ html:not([data-map="seafarers"]) .sea-only { display: none !important; }
 }
 
 /* player chips: island badge (+2 per new island) next to the awards */
-/* v0.93 strip chips: the new-island count sits on the avatar's lower left (the stats row has no room for a 4th stat at 360 px) */
+/* v0.94 strip chips: the new-island count sits on the avatar's lower left (the stats row has no room for a 4th stat at 360 px) */
 .pchip .isle-chip { position: absolute; left: 1px; top: 20px; z-index: 2; display: inline-flex; align-items: center; gap: 0; height: 14px; padding: 0 3px 0 1px; border-radius: 7px;
   background: var(--award-bg, #FFE27A); color: var(--award-ink, #2B1F00); box-shadow: inset 0 0 0 1px var(--award-rim, #8A6A00); font-size: 10px; font-weight: 800; line-height: 1; pointer-events: none; }
 .pchip .isle-chip .ic { font-size: 13px; }

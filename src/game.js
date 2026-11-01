@@ -2478,7 +2478,7 @@ class ColonistFullGame {
     const box = { minX: Math.min(...xs) - mx, maxX: Math.max(...xs) + mx, minY: Math.min(...ys) - my, maxY: Math.max(...ys) + my };
     let fan = 0, top = 4, side = 0;
     // v0.76: harbour pills that sit further out than the margin (bays of the 5–6 player board) widen the box
-    // v0.93 ⚓ Seafarers: its (bigger, see harbourScale) pills always count, on phones too, so a pill off the top coast
+    // v0.94 ⚓ Seafarers: its (bigger, see harbourScale) pills always count, on phones too, so a pill off the top coast
     // never sits under the ticker (landscape) nor one off the bottom under the hand
     const seaM = this.sea && this._hPx ? (10 * hs) / this._hPx : 0; // ⚓ + ~10 css px: clear of the chrome's shadow
     if (!mobile || this.sea) harbourBadges(this, harbourScale(this)).forEach((q) => {
@@ -2489,7 +2489,7 @@ class ColonistFullGame {
       const cs = getComputedStyle(this.app);
       // + the room a docked trade offer takes above the hand (only while one is up)
       fan = (parseFloat(cs.getPropertyValue("--fan-h")) || 112) + (this._fitNoOffer ? 0 : parseFloat(cs.getPropertyValue("--offer-room")) || 0);
-      top = (parseFloat(cs.getPropertyValue("--board-top")) || 4) + (this.sea ? this._seaTopPad || 0 : 0); // ⚓ v0.93 (see _seaChromePad)
+      top = (parseFloat(cs.getPropertyValue("--board-top")) || 4) + (this.sea ? this._seaTopPad || 0 : 0); // ⚓ v0.94 (see _seaChromePad)
       side = parseFloat(cs.getPropertyValue("--board-side")) || 0;
       if (this.labMode) { fan = 6; top = 4; side = side || 8; } // AI Lab board: no hand / top bar over it; whole world in the frame
       if (side) {
@@ -2528,7 +2528,7 @@ class ColonistFullGame {
         side = 0;
       }
     }
-    // (⚓ v0.93 Seafarers, portrait: its southern islands reach the frame's bottom row, so they stop above the hand's fade
+    // (⚓ v0.94 Seafarers, portrait: its southern islands reach the frame's bottom row, so they stop above the hand's fade
     // instead of 6 px into it)
     const ins = mobile ? { t: top, r: side, b: this.sea && !this.isLandscapePhone ? fan + 2 : fan - 6, l: side } : { t: 10, r: 10, b: 10, l: 10 };
     const vp = { l: ins.l, t: ins.t, W: Math.max(50, this.boardWidth - ins.l - ins.r), H: Math.max(50, this.boardHeight - ins.t - ins.b) };
@@ -7383,7 +7383,7 @@ class ColonistFullGame {
       ctx.fillStyle = q.icon ? "#f5efe4" : "#F7F1E3"; ctx.fill();
       ctx.shadowColor = "transparent";
       ctx.strokeStyle = q.icon ? color : "#b9a786"; ctx.lineWidth = (q.icon ? 2.4 : 1.6) * s * u; ctx.stroke();
-      if (this.sea) { // ⚓ v0.93: a dark rim so the pill's edge reads >= 3:1 on the bright sea (as on the themed boards)
+      if (this.sea) { // ⚓ v0.94: a dark rim so the pill's edge reads >= 3:1 on the bright sea (as on the themed boards)
         const rw = 2.4 / (this.view.scale || 1);
         this.drawRoundedRect(bx - W / 2 - rw / 2, by - H / 2 - rw / 2, W + rw, H + rw, q.r * u + rw / 2);
         ctx.strokeStyle = "#123238"; ctx.lineWidth = rw; ctx.stroke();
@@ -8166,7 +8166,7 @@ class ColonistFullGame {
           <span class="tag">${this._you(player) ? "Your colony" : player.isHuman ? "Pass &amp; play" : personaBadge}</span>
           <div class="stats">${stats.join("")}<span class="badges">${awards}</span></div></div>
         <div class="vp player-vp" title="Points — tap for details">${vp}<small>points</small></div></div>`);
-      // ⚓ v0.93: on the strip chip the new-island count rides on the avatar (a 4th stat overflowed the 360 px chip and
+      // ⚓ v0.94: on the strip chip the new-island count rides on the avatar (a 4th stat overflowed the 360 px chip and
       // was cut off, with the player's name squeezed); the scoreboard row keeps it in its stats line
       const isles = this.sea ? this.sea.bonus[player.id]?.length || 0 : 0;
       const miniStats = stats.slice(1).filter((x) => !x.includes('data-stat="isle"'));
@@ -10436,7 +10436,7 @@ class ColonistFullGame {
       return { scale, offsetX: vp.l + vp.W / 2 - ((box.minX + box.maxX) / 2) * scale, offsetY: vp.t + vp.H / 2 - ((box.minY + box.maxY) / 2) * scale };
     };
     let t = fit();
-    // ⚓ v0.93: the Seafarers map is tall and reaches the top of the board area: push it down until no harbour pill or
+    // ⚓ v0.94: the Seafarers map is tall and reaches the top of the board area: push it down until no harbour pill or
     // land hex sits under the Fit button or the dice chip (a few passes: the fit shrinks a little each time)
     if (this.sea && this.isMobileLayout && this.geometry) {
       for (let i = 0; i < 4; i += 1) {
@@ -10703,7 +10703,7 @@ class ColonistFullGame {
     this.drawNodeDots();
     if (!this.sea) this.drawPorts();
     this.drawRoads();
-    if (this.sea) { drawClassicSea(this, this.ctx); this.drawPorts(); } // ⚓ ships, pirate, +2 chips, ship spots; v0.93: harbours above the ships
+    if (this.sea) { drawClassicSea(this, this.ctx); this.drawPorts(); } // ⚓ ships, pirate, +2 chips, ship spots; v0.94: harbours above the ships
     this.drawStructures();
     this.drawBuildableHighlights();
     this.drawAnalysisOverlay(this.ctx); // analysis mode: the bot's candidate scores
