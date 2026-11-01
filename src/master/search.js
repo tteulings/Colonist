@@ -104,7 +104,8 @@ export function makeMaster(opts = {}) {
     const cities = [...p.cities].filter((n) => !pl.cities.includes(n));
     const roads = [...p.roads].filter((e) => !pl.roads.includes(e));
     const devBought = Object.values(p.devCards).reduce((a, b) => a + b, 0) + Object.values(p.newDevCards).reduce((a, b) => a + b, 0)
-      - Object.values(pl.dev).reduce((a, b) => a + b, 0) - Object.values(pl.nd).reduce((a, b) => a + b, 0);
+      - Object.values(pl.dev).reduce((a, b) => a + b, 0) - Object.values(pl.nd).reduce((a, b) => a + b, 0)
+      + p.devVictoryPoints - pl.num[0]; // a VP card is a bought card too (else the label would give the top card away); num[0] = devVictoryPoints
     const res = {};
     Object.keys(RES).forEach((r) => { res[r] = p.resources[r] - pl.res[r]; });
     return { sett, cities, roads, devBought, res };

@@ -59,7 +59,7 @@ export class Onboarding {
       },
       {
         ic: "robber", title: "The 7 and the robber",
-        body: "A 7 pays nobody. Anyone holding more than 7 cards hands back half. Then the robber moves: that tile stops paying, and the mover steals one card from a neighbour.",
+        body: "A 7 pays nobody. Anyone holding more than 7 cards (9 in Rush) hands back half. Then the robber moves: that tile stops paying, and the mover steals one card from a neighbour.",
         extra: `<div class="wl-note">${icon("knight")}<span>A Knight card moves the robber too.</span></div>`,
       },
       {

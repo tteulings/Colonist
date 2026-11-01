@@ -242,7 +242,7 @@ const DEFAULT_SETTINGS = {
   map: "random",            // "random" | "balanced" | "beginner"
   board: "island",          // ⚓ "island" (basic) | "seafarers" (Heading for New Shores)
   numBots: 3,               // 1-5 (4-5 bots: the 5–6 player island + Special Building Phase; Seafarers: 1-3)
-  rushInterval: 15,         // seconds between automatic rolls (Rush)
+  rushInterval: 8,          // seconds between automatic rolls (Rush; v0.93: 15 → 8 s, options 5 / 8 / 15)
   botStyleMode: "all",      // "all" | "each"
   allPreset: "intermediate",// preset applied to every bot ("custom" when hand-tuned)
   allStrategy: { ...AI_PRESETS.intermediate },
@@ -250,10 +250,25 @@ const DEFAULT_SETTINGS = {
   humans: [false, false, false, false, false], // pass & play: seats 1-5 played by a person (Classic only)
   names: ["", "", "", "", "", ""],               // pass & play names per seat ("" = the seat's persona name)
 };
-const RUSH_INTERVALS = [10, 15, 20, 30];
+const RUSH_INTERVALS = [5, 8, 15];
 const RUSH_DISCARD_SECONDS = 20;
 const RUSH_ROBBER_SECONDS = 30;
-const RUSH_OFFER_MS = 10000;    // a bot's offer to you stays up this long (Rush game clock)
+const RUSH_OFFER_MS = 6000;     // a bot's offer to you stays up this long (Rush game clock; v0.93: 10 → 6 s)
+const RUSH_OFFER_FADE_MS = 700; // v0.93: the last stretch of an offer: the card fades out before it is auto-declined
+const RUSH_READY_CAP_MS = 1000; // v0.93: once you are Ready the next roll comes within this (wall clock; bots never hold the table)
+const RUSH_HURRY_TICK_MS = 300; // v0.93: bot tick while you are Ready (their last moves, back to back)
+const RUSH_TICK_MS = [1000, 2000]; // v0.93: bot tick range otherwise (was 1.5–3.5 s; an 8 s roll leaves room for a few moves)
+const RUSH_TRADE_NOTICE_MS = 3000;
+const RUSH_TICKER_DWELL_MS = 1600; // v0.93: a Rush ticker line stays at least this long (readable before the next one) // v0.93: a bot↔bot trade stays in the ticker at most this long
+const TRADE_LINE = /\btraded\b/; // "Blaauw traded 1 Wool with Groenewoud for 1 Ore." / "Blaauw traded 2 Lumber for 1 Ore." / "You traded with …"
+const RUSH_OFFER_ROOM = 66;     // v0.93 phones: the board keeps this room above the hand for the whole Rush game (offers never resize it)
+const RUSH_DISCARD_LIMIT = 9;   // v0.93: Rush discards only above 9 cards on a 7 (Classic: settings.discardLimit, 7 by default)
+
+/** Cards you may hold on a 7 without discarding: the setting, at least 9 in Rush. */
+function discardLimitFor(s) {
+  const lim = Number(s?.discardLimit) || 7;
+  return s?.mode === "rush" ? Math.max(RUSH_DISCARD_LIMIT, lim) : lim;
+}
 const UNDO_MS = 4000; // a placement can be taken back for this long (Confirm placements off)
 const ROBBER_SETTLE_MS = 2800; // one victim (or none): the robber move resolves by itself after this
 const SHORT_DEV = { knight: "Knight", roadBuilding: "Roads", yearOfPlenty: "Plenty", monopoly: "Monopoly" };
@@ -276,8 +291,12 @@ function normalizeSettings(raw) {
   s.board = s.board === "seafarers" ? "seafarers" : "island"; // ⚓
   // Seafarers (Heading for New Shores) is a 3-4 player scenario: at most 3 bots there
   s.numBots = clamp(Math.round(Number(s.numBots)) || 3, 1, s.board === "seafarers" ? 3 : PLAYER_CONFIG.length - 1);
-  if (!RUSH_INTERVALS.includes(Number(s.rushInterval))) s.rushInterval = 15;
+  // v0.93: 5 / 8 / 15 s (older 10 → 8, 20 / 30 → 15); the old 15 s default moves to the new 8 s default once
+  const ri = Number(s.rushInterval);
+  if (!(Number(s.rushPace) >= 93) && ri === 15) s.rushInterval = DEFAULT_SETTINGS.rushInterval;
+  else if (!RUSH_INTERVALS.includes(ri)) s.rushInterval = Number.isFinite(ri) && ri > 0 ? RUSH_INTERVALS.reduce((a, b) => (Math.abs(b - ri) < Math.abs(a - ri) ? b : a)) : DEFAULT_SETTINGS.rushInterval;
   s.rushInterval = Number(s.rushInterval);
+  s.rushPace = 93;
   s.botStyleMode = s.botStyleMode === "each" ? "each" : "all";
   if (!AI_PRESET_INFO[s.allPreset]) s.allPreset = "intermediate";
   const strat = { ...DEFAULT_AI_STRATEGY, ...(s.allStrategy || {}) };
@@ -1028,7 +1047,7 @@ class ColonistFullGame {
     const s = { ...last, mode: mode === "rush" ? "rush" : "classic", numBots: clamp(Number(numBots) || 3, 1, sea ? 3 : PLAYER_CONFIG.length - 1) };
     if (board) s.board = board === "seafarers" ? "seafarers" : "island"; // ⚓ Home › Map
     s.humans = DEFAULT_SETTINGS.humans.slice(); // Home's quick start is you vs bots (pass & play: More settings › Players)
-    // Rush with 5–6 players: a roll every 20 s unless a slower pace was picked
+    // Rush with 5–6 players: a roll every 15 s unless a slower pace was picked
     if (s.mode === "rush" && isBigTable(s.numBots + 1) && s.rushInterval < BIG_RUSH_INTERVAL) s.rushInterval = BIG_RUSH_INTERVAL;
     if (preset && preset !== "custom" && AI_PRESETS[preset]) {
       s.botStyleMode = "all";
@@ -1495,6 +1514,9 @@ class ColonistFullGame {
     this.render();
   }
 
+  /** v0.93: the discard limit in play (Rush: at least 9). */
+  _discardLimit() { return discardLimitFor(this.settings); }
+
   isRush() {
     return this.settings?.mode === "rush";
   }
@@ -1900,7 +1922,7 @@ class ColonistFullGame {
     if (this.pendingAction && this.pendingAction !== "robber") { this.pendingAction = null; this.confirmBuild = null; }
     // a card played by mistake can be taken back until it does something (see _cancelDevPlay)
     const logLen = this.logEntries.length;
-    const d = { type, pid: player.id, la: this.largestArmyHolder };
+    const d = { type, pid: player.id, la: this.largestArmyHolder, ev: this.stats?.ev?.length };
     const played = this.playDevelopmentCard(player, type);
     if (played) {
       d.logs = this.logEntries.slice(logLen);
@@ -2976,7 +2998,7 @@ class ColonistFullGame {
     return player.isHuman && !this.autoplayInterval;
   }
 
-  // Rolled 7: everyone with more than 7 cards discards half, then the robber moves.
+  // Rolled 7: everyone with more than the discard limit (7; Rush 9) discards half, then the robber moves.
   // Returns a promise that resolves once discards are done and the robber has been handled
   // (for an interactive human roller: once robber placement mode has been entered).
   resolveRobber(currentPlayer, reason) {
@@ -2984,7 +3006,7 @@ class ColonistFullGame {
     const discardQueue = [];
     this.players.forEach((player) => {
       const total = sumResources(player.resources);
-      if (total <= this.settings.discardLimit) return;
+      if (total <= this._discardLimit()) return;
       const discardCount = Math.floor(total / 2);
       if (this._isInteractive(player)) {
         discardQueue.push({ player, count: discardCount });
@@ -3643,6 +3665,11 @@ class ColonistFullGame {
     if (!hint) return;
     hint.textContent = text;
     hint.className = `trade-hint${cls ? ` ${cls}` : ""}`;
+    // v0.93 Rush: "✓ Traded …" is a short confirmation (there is no turn end to clear it)
+    if (cls === "ok" && this.rush) {
+      window.clearTimeout(this._tradeHintTimer);
+      this._tradeHintTimer = this._later(() => { if (hint.textContent === text) this._tradeHint("", ""); }, RUSH_TRADE_NOTICE_MS);
+    }
   }
 
   _refreshTradeGrids() {
@@ -5113,7 +5140,7 @@ class ColonistFullGame {
 
   // Holding more cards than the discard limit: a 7 would cost half the hand
   _aiOverLimit(player) {
-    return sumResources(player.resources) > this.settings.discardLimit;
+    return sumResources(player.resources) > this._discardLimit();
   }
 
   _aiTryGoal(player, goal) {
@@ -5870,6 +5897,7 @@ class ColonistFullGame {
     this.phase = this.rush.seven ? "seven" : "main";
     this.rush.paused = !!this.rush.seven;
     this._botTicks = new Map();
+    this._readyAtWall = human && this.rush.ready.includes(human.id) ? performance.now() : null; // resumed while Ready: roll soon
     if (!saved) this.addLog(`Rush! Build any time — dice roll every ${this.settings.rushInterval}s.`);
     // The live feed is part of the Rush HUD on wide screens
     if (window.innerWidth > 1080 && this.railLog && !this.railLog.classList.contains("open")) this.toggleLog();
@@ -5918,7 +5946,9 @@ class ColonistFullGame {
       r.clockMs += dt;
       r.remainingMs -= dt;
       const allReady = this.players.every((p) => r.ready.includes(p.id));
-      if (r.remainingMs <= 0 || allReady) {
+      // v0.93: once you are Ready the bots get RUSH_READY_CAP_MS to finish (they tick fast meanwhile), then the dice roll
+      const capped = this._rushHumanReady() && this._readyAtWall != null && now - this._readyAtWall >= RUSH_READY_CAP_MS;
+      if (r.remainingMs <= 0 || allReady || capped) {
         this._rushRoll();
         return;
       }
@@ -5926,6 +5956,8 @@ class ColonistFullGame {
       r.seven.leftMs -= dt;
       if (r.seven.leftMs <= 0) this._rushSevenTimeout();
     }
+    // v0.93: a finger on the open card holds its clock (reading it never runs it out)
+    if (this._offerHeld && r.offers[0]?.armed && !r.paused) r.offers[0].expiresAt += dt;
     // only the open card's clock runs (offers waiting behind it start theirs when they come up)
     if (r.offers.some((o) => o.armed && o.expiresAt <= r.clockMs)) {
       r.offers = r.offers.filter((o) => !(o.armed && o.expiresAt <= r.clockMs));
@@ -5942,6 +5974,8 @@ class ColonistFullGame {
     this.turn = r.rollNo;
     r.remainingMs = this.settings.rushInterval * 1000;
     r.ready = [];
+    r.readyAt = null;
+    this._readyAtWall = null;
     const res = this.rollDice();
     this.lastRoll = res.total;
     this.lastDice = { d1: res.d1, d2: res.d2 };
@@ -6006,7 +6040,7 @@ class ColonistFullGame {
     const discards = [];
     this.players.forEach((p) => {
       const total = sumResources(p.resources);
-      if (total <= this.settings.discardLimit) return;
+      if (total <= this._discardLimit()) return;
       const count = Math.floor(total / 2);
       if (this._isInteractive(p)) {
         discards.push({ playerId: p.id, count });
@@ -6134,7 +6168,25 @@ class ColonistFullGame {
       this._lastScoreKey = null;
       this.renderScoreboard();
     }
-    if (!this.winner) this._scheduleBotTick(player, 1500 + Math.random() * 2000);
+    // v0.93: 1–2 s between a bot's moves (was 1.5–3.5 s); while you are Ready its last moves come back to back
+    if (!this.winner) this._scheduleBotTick(player, this._rushHumanReady() ? RUSH_HURRY_TICK_MS : RUSH_TICK_MS[0] + Math.random() * (RUSH_TICK_MS[1] - RUSH_TICK_MS[0]));
+  }
+
+  /** v0.93: the human has voted Ready for this roll (bots hurry, the roll comes within RUSH_READY_CAP_MS). */
+  _rushHumanReady() {
+    const me = this._me();
+    return !!(this.rush && me && !this.autoplayInterval && this.rush.ready.includes(me.id));
+  }
+
+  /** v0.93: you are Ready: every bot's next tick comes now (decisions unchanged, only sooner). */
+  _rushHurryBots() {
+    if (!this._botTicks) return;
+    this.players.forEach((p, i) => {
+      if (!this._rushIsBot(p)) return;
+      const id = this._botTicks.get(p.id);
+      if (id != null) { window.clearTimeout(id); this._timers.delete(id); this._botTicks.delete(p.id); }
+      this._scheduleBotTick(p, 80 + i * 260); // staggered: each bot's piece lands on its own beat
+    });
   }
 
   // One bot action per tick, using the Classic AI decision functions.
@@ -6147,10 +6199,7 @@ class ColonistFullGame {
       player.rushTradeTried = true;
       const result = this.aiTryPlayerTrade(player);
       if (result?.type === "done") return true;
-      if (result?.type === "human") {
-        this._rushOfferToHuman(result.fromPlayer, result.give, result.want);
-        return true;
-      }
+      if (result?.type === "human") return this._rushOfferToHuman(result.fromPlayer, result.give, result.want);
     }
     return false;
   }
@@ -6192,12 +6241,22 @@ class ColonistFullGame {
     return true;
   }
 
+  /**
+   * v0.93: Ready is one tap and final for this roll (no toggling back): open offers to you are dropped,
+   * the bots finish their moves quickly and the dice roll within RUSH_READY_CAP_MS.
+   */
   toggleRushReady() {
     const r = this.rush;
     const human = this._me();
-    if (!r || !human || r.paused || this.winner || this.setupPhase) return;
-    if (r.ready.includes(human.id)) r.ready = r.ready.filter((id) => id !== human.id);
-    else r.ready.push(human.id);
+    if (!r || !human || r.paused || this.winner || this.setupPhase || this.autoplayInterval) return;
+    if (r.ready.includes(human.id)) return;
+    r.ready.push(human.id);
+    r.readyAt = r.clockMs;
+    this._readyAtWall = performance.now();
+    const rollNo = r.rollNo; // the cap runs on its own timer too (the 200 ms loop may come late on a busy phone)
+    this._later(() => { if (this.rush === r && r.rollNo === rollNo && !r.paused && !this.winner && this._rushHumanReady()) this._rushRoll(); }, RUSH_READY_CAP_MS);
+    if (r.offers.length) { r.offers = []; this._renderRushOffers(); }
+    this._rushHurryBots();
     this.sfx.click();
     this._lastScoreKey = null;
     this.render();
@@ -6206,19 +6265,21 @@ class ColonistFullGame {
   // ── Bot trade offers to the human: non-blocking cards in the feed corner ──
   _rushOfferToHuman(fromPlayer, give, want) {
     const r = this.rush;
-    if (!this._offerPossible(fromPlayer, give, want)) return;
+    if (!this._offerPossible(fromPlayer, give, want)) return false;
+    if (this._rushHumanReady()) return false; // v0.93: you are Ready: no new offers before the roll
     // v0.86: one card at a time; offers made while it is open wait behind it ("+2 more"). At most one offer
     // per bot per roll interval, a deal you declined is not offered again before the next roll, and a bot
     // whose earlier offer still waits does not stack a second one
     r.offeredBy = r.offeredBy || [];
     r.declined = r.declined || [];
-    if (r.offeredBy.includes(fromPlayer.id) || r.declined.includes(this._offerKey(fromPlayer.id, give, want))) return;
-    if (r.offers.some((o) => o.fromId === fromPlayer.id) || r.offers.length >= OFFER_QUEUE_MAX) return;
+    if (r.offeredBy.includes(fromPlayer.id) || r.declined.includes(this._offerKey(fromPlayer.id, give, want))) return false;
+    if (r.offers.some((o) => o.fromId === fromPlayer.id) || r.offers.length >= OFFER_QUEUE_MAX) return false;
     r.offeredBy.push(fromPlayer.id);
     this._offerSeq = (this._offerSeq || 0) + 1;
     r.offers.push({ id: this._offerSeq, fromId: fromPlayer.id, give: { ...give }, want: { ...want }, armed: false, expiresAt: null });
     this.addLog(`${fromPlayer.name} offers you ${resourceString(give)} for ${resourceString(want)}.`);
     this._renderRushOffers();
+    return true;
   }
 
   /** "2|0,0,0,1,0>1,0,0,0,0": who offers what for what (the declined-deal memory). */
@@ -6237,6 +6298,7 @@ class ColonistFullGame {
     if (!r) return;
     const offer = r.offers.find((o) => o.id === offerId);
     if (!offer) return;
+    this._offerHeld = false;
     r.offers = r.offers.filter((o) => o.id !== offerId);
     const from = this.players[offer.fromId];
     const human = this._me();
@@ -6281,6 +6343,13 @@ class ColonistFullGame {
   _renderRushOffers() {
     const el = this.rushOffersEl;
     if (!el) return;
+    if (!el.__hold) { // v0.93: touching / holding the card pauses its countdown
+      el.__hold = true;
+      const on = (e) => { if (e.target.closest?.(".rush-offer")) this._offerHeld = true; };
+      const off = () => { this._offerHeld = false; };
+      el.addEventListener("pointerdown", on);
+      ["pointerup", "pointercancel", "pointerleave"].forEach((t) => el.addEventListener(t, off));
+    }
     const pit = this.pendingIncomingTrade;
     if (this.rush?.offers?.length) {
       const keep = this.rush.offers.filter((o) => this._offerPossible(this.players[o.fromId], o.give, o.want));
@@ -6298,7 +6367,8 @@ class ColonistFullGame {
     const offers = queue.slice(0, 1); // v0.86: one card at a time, the rest wait behind it
     const waiting = queue.slice(1);
     const human = pit?.to || this._me();
-    const key = queue.map((o) => o.id).join(",") + this.theme?.id + "|" + (human ? human.id + ":" + RESOURCES.map((r) => human.resources[r]).join(",") : "");
+    const collapsed = !!this.rush && !!this._offersCollapsed && queue.length > 0; // v0.93: folded into a small "offers" pill
+    const key = queue.map((o) => o.id).join(",") + this.theme?.id + "|" + collapsed + "|" + (human ? human.id + ":" + RESOURCES.map((r) => human.resources[r]).join(",") : "");
     if (key === this._lastOffersKey) return;
     this._lastOffersKey = key;
     const n = (res) => RESOURCES.filter((r) => res[r] > 0);
@@ -6315,14 +6385,27 @@ class ColonistFullGame {
     if (arriving) this._offerTapBlockUntil = performance.now() + 450;
     const more = waiting.length ? `<span class="offer-peek p1" aria-hidden="true"></span>${waiting.length > 1 ? '<span class="offer-peek p2" aria-hidden="true"></span>' : ""}
       <span class="offer-more" role="note" aria-label="${waiting.length} more offer${waiting.length === 1 ? "" : "s"} waiting">${waiting.map((o) => this._av(this.players[o.fromId], "om-av")).join("")}<b>+${waiting.length} more</b></span>` : "";
-    el.classList.toggle("has-more", waiting.length > 0);
+    el.classList.toggle("has-more", waiting.length > 0 && !collapsed);
+    el.classList.toggle("collapsed", collapsed);
+    if (collapsed) {
+      el.innerHTML = `<button type="button" class="offers-pill" data-expand aria-label="Show ${queue.length} trade offer${queue.length === 1 ? "" : "s"}">${queue.map((o) => this._av(this.players[o.fromId], "om-av")).join("")}<b>${queue.length} offer${queue.length === 1 ? "" : "s"}</b><span class="chev" aria-hidden="true">▴</span></button>`;
+      el.querySelector("[data-expand]").addEventListener("click", () => { this._offersCollapsed = false; this._lastOffersKey = null; this._renderRushOffers(); });
+      this._updateOfferTimers();
+      this._setOfferRoom();
+      return;
+    }
     el.innerHTML = more + offers.map((o) => {
       const p = this.players[o.fromId];
       const ok = this._offerPossible(p, o.give, o.want, human);
-      return `<div class="rush-offer${o.classic ? " classic" : ""}${this.hotseat ? " no-timer" : ""}${arriving ? " arriving" : ""}" data-offer="${o.id}" role="group" aria-label="${p.name} offers ${words(o.give)} for your ${words(o.want)}" style="--offer-ms:${CLASSIC_OFFER_MS}ms">
-        ${this._av(p, "rush-offer-avatar")}
+      return `<div class="rush-offer${o.classic ? " classic" : " rush"}${this.hotseat ? " no-timer" : ""}${arriving ? " arriving" : ""}" data-offer="${o.id}" role="group" aria-label="${p.name} offers ${words(o.give)} for your ${words(o.want)}" style="--offer-ms:${CLASSIC_OFFER_MS}ms">
+        ${o.classic ? this._av(p, "rush-offer-avatar") : `<button type="button" class="rush-offer-hide" data-hide aria-label="Hide offers${waiting.length ? ` (${waiting.length} more waiting)` : ""}" title="Hide offers">${this._av(p, "rush-offer-avatar")}<span class="chev" aria-hidden="true">▾</span>${waiting.length ? `<span class="om-n" aria-hidden="true">+${waiting.length}</span>` : ""}</button>`}
         <div class="rush-offer-body">
-          <div class="rush-offer-deal"><span class="ol give">You give</span><span class="grp">${side(o.want)}${human && this._offerCostsBuild(human, o) ? `<span class="owarn" role="img" aria-label="You could not build ${this._offerCostsBuild(human, o)} after this" title="You could not build ${this._offerCostsBuild(human, o)} after this"><svg viewBox="0 0 20 18" aria-hidden="true"><path d="M10 1.5 19 16.5H1Z" fill="#F2B233" stroke="#8A5A00" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 6.5v5" stroke="#3A2600" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="14" r="1.2" fill="#3A2600"/></svg></span>` : ""}</span><span class="ol get">You get</span><span class="grp">${side(o.give)}</span></div>
+          ${(() => {
+            const warn = human && this._offerCostsBuild(human, o) ? `<span class="owarn" role="img" aria-label="You could not build ${this._offerCostsBuild(human, o)} after this" title="You could not build ${this._offerCostsBuild(human, o)} after this"><svg viewBox="0 0 20 18" aria-hidden="true"><path d="M10 1.5 19 16.5H1Z" fill="#F2B233" stroke="#8A5A00" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 6.5v5" stroke="#3A2600" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="14" r="1.2" fill="#3A2600"/></svg></span>` : "";
+            // v0.93 Rush: one compact row, "Give … → Get …" (each half stays together when it wraps)
+            return o.classic ? `<div class="rush-offer-deal"><span class="ol give">You give</span><span class="grp">${side(o.want)}${warn}</span><span class="ol get">You get</span><span class="grp">${side(o.give)}</span></div>`
+              : `<div class="rush-offer-deal"><span class="pr"><span class="ol give">Give</span><span class="grp">${side(o.want)}${warn ? warn.replace("</svg></span>", `</svg><em>no ${this._offerCostsBuild(human, o).replace(/^an? /, "").replace("development card", "card")} after</em></span>`) : ""}</span></span><span class="pr"><span class="ol get">Get</span><span class="grp">${side(o.give)}</span></span></div>`;
+          })()}
         </div>
         <button type="button" class="rush-offer-decline" data-decline="${o.id}" aria-label="Decline">${icon("close")}</button>
         <button type="button" class="rush-offer-accept" data-accept="${o.id}" aria-label="Accept: give ${words(o.want)}, get ${words(o.give)}" ${ok ? "" : "disabled"}>${icon("check")}</button>
@@ -6337,6 +6420,7 @@ class ColonistFullGame {
     };
     el.querySelectorAll("[data-accept]").forEach((b) => b.addEventListener("click", () => resolve(Number(b.dataset.accept), true)));
     el.querySelectorAll("[data-decline]").forEach((b) => b.addEventListener("click", () => resolve(Number(b.dataset.decline), false)));
+    el.querySelector("[data-hide]")?.addEventListener("click", () => { this._offersCollapsed = true; this._lastOffersKey = null; this._renderRushOffers(); });
     this._updateOfferTimers();
     this._setOfferRoom();
     // A new offer on top: briefly mark the cards it asks for in your hand
@@ -6364,7 +6448,9 @@ class ColonistFullGame {
     if (!this.app) return;
     const card = this.rushOffersEl?.querySelector(".rush-offer:last-child");
     const mobile = this.isMobileLayout;
-    const room = mobile && card ? Math.ceil(card.getBoundingClientRect().height) + 6 : 0;
+    // v0.93 Rush: a fixed room for the whole game, so offers coming and going never zoom the board in and out
+    const rushRoom = mobile && this.rush && !this.winner && !this.setupPhase;
+    const room = rushRoom ? RUSH_OFFER_ROOM : mobile && card ? Math.ceil(card.getBoundingClientRect().height) + 6 : 0;
     if (room === (this._offerRoom || 0)) return;
     const atFit = mobile && this._fitScale && Math.abs(this.view.scale - this._fitScale) < this._fitScale * 0.02;
     this._offerRoom = room;
@@ -6382,7 +6468,9 @@ class ColonistFullGame {
     if (!r || !this.rushOffersEl) return;
     this.rushOffersEl.querySelectorAll("[data-offer]").forEach((card) => {
       const o = r.offers.find((x) => x.id === Number(card.dataset.offer));
-      if (o) card.style.setProperty("--left", String(clamp((o.expiresAt - r.clockMs) / RUSH_OFFER_MS, 0, 1)));
+      if (!o) return;
+      card.style.setProperty("--left", String(clamp((o.expiresAt - r.clockMs) / RUSH_OFFER_MS, 0, 1)));
+      card.classList.toggle("expiring", o.armed && o.expiresAt - r.clockMs <= RUSH_OFFER_FADE_MS); // v0.93: fades out before the auto-decline
     });
   }
 
@@ -6397,6 +6485,7 @@ class ColonistFullGame {
     if (live !== wasLive) {
       window.requestAnimationFrame(() => {
         this._alignScoreboardToHeader();
+        this._setOfferRoom(); // v0.93: the fixed Rush room for offers (phones)
         this.handleResize();
       });
     }
@@ -6438,11 +6527,14 @@ class ColonistFullGame {
     const n = this.players.length;
     const humanReady = r.ready.includes(human?.id);
     if (this.rushReadyBtn) {
-      this.rushReadyBtn.innerHTML = humanReady
-        ? `${icon("check")}<span class="rr">Ready<small>waiting · ${r.ready.length}/${n}</small></span>`
-        : `${icon("dice")}<span class="rr">Ready<small>roll now · ${r.ready.length}/${n}</small></span>`;
+      // v0.93: one tap, final for this roll: "Roll now" → "Rolling…" (the dice come within RUSH_READY_CAP_MS)
+      const html = humanReady
+        ? `${icon("check")}<span class="rr">Rolling…<small>you're done</small></span>`
+        : `${icon("dice")}<span class="rr">Roll now<small>I'm done · ${r.ready.length}/${n} ready</small></span>`;
+      if (this.rushReadyBtn.__html !== html) { this.rushReadyBtn.__html = html; this.rushReadyBtn.innerHTML = html; }
       this.rushReadyBtn.classList.toggle("is-ready", humanReady);
-      this.rushReadyBtn.disabled = r.paused || !!this.autoplayInterval;
+      this.rushReadyBtn.disabled = r.paused || !!this.autoplayInterval || humanReady;
+      this.rushReadyBtn.setAttribute("aria-label", humanReady ? "Rolling the dice" : `Roll now: you're done (${r.ready.length} of ${n} ready)`);
     }
     const votersKey = `${r.ready.join(",")}|${n}`;
     const voters = this.rushHud.querySelector("#rushVoters");
@@ -6496,7 +6588,7 @@ class ColonistFullGame {
         return `<span class="rush-seven-chip ${cls}">${this._av(p)}${p.isHuman ? "You" : p.name} · ${cards}<em>${state}</em></span>`;
       }).join("");
       discardStep.querySelector(".rush-seven-step-title").innerHTML =
-        `<span class="rush-step-num">1</span>Discard half if you hold more than ${this.settings.discardLimit}${timerHtml}`;
+        `<span class="rush-step-num">1</span>Discard half if you hold more than ${this._discardLimit()}${timerHtml}`;
       discardStep.querySelector(".rush-seven-chips").innerHTML = status;
       discardStep.classList.toggle("done", seven.stage !== "discard");
     }
@@ -6646,7 +6738,8 @@ class ColonistFullGame {
     if (!data) try { data = JSON.parse(raw); } catch (_) { this.clearStorage(); return false; }
     this._cancelPendingWork();
     // Older saves have no settings: Classic with the standard rules
-    this.settings = normalizeSettings(data.settings || { ...DEFAULT_SETTINGS, numBots: (data.players?.length || 4) - 1 });
+    // a saved game keeps its own roll pace (the v0.93 move of the 15 s default to 8 s is for new games only)
+    this.settings = normalizeSettings(data.settings ? { rushPace: 93, ...data.settings } : { ...DEFAULT_SETTINGS, numBots: (data.players?.length || 4) - 1 });
     this.diceDeck = Array.isArray(data.diceDeck) ? data.diceDeck : [];
     this.lastDiceTotal = data.lastDiceTotal ?? null;
     this.rush = null;
@@ -7967,7 +8060,7 @@ class ColonistFullGame {
       el.addEventListener("click", (e) => { e.stopPropagation(); this._toggleHandInfo(); });
       this.handArea.appendChild(el);
     }
-    const limit = this.settings?.discardLimit ?? 7;
+    const limit = this._discardLimit();
     const over = total > limit;
     const who = this.hotseat && !this.handHidden ? human : null;
     const key = [total, devTotal, over, who?.id, who?.name, !!pd, this.handHidden, this.theme?.id].join("|");
@@ -8003,14 +8096,14 @@ class ColonistFullGame {
     const total = sumResources(human.resources);
     const dev = [...DEV_CARD_TYPES.map((t) => [t, human.devCards[t] + human.newDevCards[t]]), ["victoryPoint", human.devVictoryPoints]].filter(([, n]) => n > 0);
     const devTotal = dev.reduce((a, [, n]) => a + n, 0);
-    const limit = this.settings?.discardLimit ?? 7;
+    const limit = this._discardLimit();
     const deck = this.devDeck ? this.devDeck.length : 0;
-    const mini = (k, n, low) => `<span class="hi-c${low ? " low" : ""}"><svg class="hi-card" viewBox="0 0 250 350" aria-hidden="true"><use href="#cardm-${k}"/></svg><b>${n}</b></span>`;
+    const mini = (k, n, low, sym = `cardm-${k}`, tip = "") => `<span class="hi-c${low ? " low" : ""}"${tip ? ` title="${tip}"` : ""}><svg class="hi-card" viewBox="0 0 250 350" aria-hidden="true"><use href="#${sym}"/></svg><b>${n}</b></span>`;
     const who = this.hotseat ? `${human.name}` : "You";
     pop.innerHTML = `<div class="hi-h"><span>${who}</span><span class="hi-n${total > limit ? " warn" : ""}">${icon("cards")}<b>${total}</b>${total > limit ? `<small>max ${limit}</small>` : ""}</span><span class="hi-n">${icon("devcard")}<b>${devTotal}</b></span></div>`
       + (dev.length ? `<div class="hi-dev">${dev.map(([t, n]) => `<span>${n > 1 ? `${n}× ` : ""}${t === "victoryPoint" ? "VP" : SHORT_DEV[t]}</span>`).join("")}</div>` : "")
       + `<div class="hi-h hi-bank"><span>${icon("bank")}Bank</span></div>`
-      + `<div class="hi-row">${RESOURCES.map((r) => mini(r, this.bank[r], this.bank[r] <= 3)).join("")}<i class="hi-sep" aria-hidden="true"></i>${mini("knight", deck, deck <= 3).replace("hi-c", "hi-c hi-deck")}</div>`;
+      + `<div class="hi-row">${RESOURCES.map((r) => mini(r, this.bank[r], this.bank[r] <= 3)).join("")}<i class="hi-sep" aria-hidden="true"></i>${mini("deck", deck, deck <= 3, "card-back", `${deck} development card${deck === 1 ? "" : "s"} left in the deck`).replace("hi-c", "hi-c hi-deck")}</div>`;
     pop.hidden = false;
     const r = this.handTotalEl.getBoundingClientRect();
     // v0.86 landscape phones: the pill heads the side column, so the popover opens below it, to its left edge
@@ -8026,7 +8119,7 @@ class ColonistFullGame {
     // Build a key from all visible data — skip re-render if unchanged (preserves tooltip)
     const readyIds = this.rush && !this.setupPhase ? this.rush.ready : null;
     const scoreKey = this.players.map((p, i) =>
-      `${i}:${this.displayVictoryPoints(p)}:${sumResources(p.resources)}:${p.settlements.size}:${p.cities.size}:${p.roads.size}:${p.knightsPlayed}:${p.longestRoadLength}:${this.longestRoadHolder}:${this.largestArmyHolder}:${this.currentPlayerIndex}:${p.personality}:${readyIds ? readyIds.includes(p.id) : "-"}:${DEV_CARD_TYPES.reduce((s, t) => s + p.devCards[t] + p.newDevCards[t], 0)}`
+      `${i}:${this.displayVictoryPoints(p)}:${sumResources(p.resources)}:${p.settlements.size}:${p.cities.size}:${p.roads.size}:${p.knightsPlayed}:${p.longestRoadLength}:${this.longestRoadHolder}:${this.largestArmyHolder}:${this.currentPlayerIndex}:${p.personality}:${readyIds ? readyIds.includes(p.id) : "-"}:${DEV_CARD_TYPES.reduce((s, t) => s + p.devCards[t] + p.newDevCards[t], 0) + p.devVictoryPoints}`
     ).join("|") + `:${!!this.winner}:${this.isRush()}:${this.theme.id}:${this.setupPhase}:${this._sixKey()}:${this.viewerId}:${this.handHidden}`;
     if (scoreKey === this._lastScoreKey) return;
     this._lastScoreKey = scoreKey;
@@ -8040,18 +8133,18 @@ class ColonistFullGame {
         ? `<span class="persona-badge persona-${player.personality}" title="${persona.label}: ${persona.tagline}">${persona.glyph ? `${persona.glyph} ` : ""}${persona.label}</span>`
         : "";
       const totalCards = sumResources(player.resources);
-      const totalDev = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + (this._seesPrivate(player) ? player.devVictoryPoints : 0);
+      const totalDev = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + player.devVictoryPoints; // how many is public (VP cards included), only the kind is secret
       const awards = (this.longestRoadHolder === player.id ? (this.sea ? `<span title="Longest Trade Route (+2 points)">${icon("tradeRoute")}</span>` : `<span title="Longest Road (+2 points)">${icon("longestRoad")}</span>`) : "") // ⚓
         + (this.largestArmyHolder === player.id ? `<span title="Largest Army (+2 points)">${icon("largestArmy")}</span>` : "");
       const vp = this.displayVictoryPoints(player);
       // knights played and road length only once they mean something (knights > 0, a road of 3+ or the award);
       // v0.75: the award holder's number sits on a gold pill with "+2" (gold: never a seat colour)
       const lr = this.longestRoadHolder === player.id, la = this.largestArmyHolder === player.id;
-      const over = totalCards > (this.settings?.discardLimit ?? 7);
+      const over = totalCards > this._discardLimit();
       const stats = [
-        `<span data-stat="cards"${over ? ' class="warn"' : ""} title="${totalCards} resource card${totalCards === 1 ? "" : "s"}${over ? ` (more than ${this.settings?.discardLimit ?? 7}: hands back half on a 7)` : ""}">${icon("cards")}${totalCards}</span>`,
+        `<span data-stat="cards"${over ? ' class="warn"' : ""} title="${totalCards} resource card${totalCards === 1 ? "" : "s"}${over ? ` (more than ${this._discardLimit()}: hands back half on a 7)` : ""}">${icon("cards")}${totalCards}</span>`,
         totalDev > 0 ? `<span data-stat="dev" title="${totalDev} development card${totalDev === 1 ? "" : "s"}">${icon("devcard")}${totalDev}</span>` : "",
-        awardStat("knights", player.knightsPlayed, la, `${player.knightsPlayed} knight${player.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest Army (+2 points)" : " (3+ to win Largest Army)"}`, "knight"),
+        awardStat("knights", player.knightsPlayed, la, `${player.knightsPlayed} knight${player.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest Army (+2 points)" : ` (${this.largestArmyHolder != null ? this.players[this.largestArmyHolder].knightsPlayed + 1 : 3}+ to take Largest Army)`}`, "knight"),
         this.sea // ⚓ Seafarers: the trade route counts roads + ships
           ? awardStat("road", player.longestRoadLength, lr, `Trade route ${player.longestRoadLength}${lr ? " · Longest Trade Route (+2 points)" : " (5+ to win Longest Trade Route)"}`, "tradeRoute")
           : awardStat("road", player.longestRoadLength, lr, `Longest road ${player.longestRoadLength}${lr ? " · Longest Road (+2 points)" : " (5+ to win Longest Road)"}`, "road"),
@@ -8180,25 +8273,54 @@ class ColonistFullGame {
       // trade offers are already on screen as a card (Rush) or a sheet (Classic): don't repeat them here
       const NOISE = /^(Session restored|Initial placement complete|Game (saved|loaded))|\boffers you\b/;
       const setupDone = !this.setupPhase && last?.text === "Initial placement complete."; // v0.81: say whose turn it is, not the last set-up step
-      const real = setupDone ? null : [...this.logEntries].reverse().find((e) => !NOISE.test(e.text.replace(/^Turn \d+: /, "")));
+      // v0.93 Rush: a trade line ("… traded …") is a short notice: after RUSH_TRADE_NOTICE_MS the line falls back
+      const now = Date.now();
+      const stale = (e) => rush && TRADE_LINE.test(e.text) && now - e.time >= RUSH_TRADE_NOTICE_MS;
+      // v0.93 Rush: the payout lines of a roll ("… collects …") stay in the feed; the ticker keeps "Dice rolled N"
+      // (your own gain flies into your hand) instead of flicking through every collector
+      const payout = (e) => rush && /\bcollects?\b|^Bank is short/.test(e.text);
+      const real = setupDone ? null : [...this.logEntries].reverse().find((e) => !NOISE.test(e.text.replace(/^Turn \d+: /, "")) && !stale(e) && !payout(e));
+      if (rush && real && TRADE_LINE.test(real.text)) {
+        window.clearTimeout(this._tradeNoticeTimer);
+        this._tradeNoticeTimer = this._later(() => { this._lastLogKey = null; this.renderLog(); }, RUSH_TRADE_NOTICE_MS - (now - real.time) + 20);
+      }
       const own = this._ownRollSummary();
+      let line = null;
       if (own) {
         // Right after your roll the line is about YOU, not the last bot that collected
-        this.tickerText.innerHTML = this._enrichLogText(own);
-        if (this.tickerIcon) this.tickerIcon.innerHTML = icon("dice");
+        line = [this._enrichLogText(own), "dice"];
       } else if (real) {
         const t = real.text.replace(/^Turn \d+: /, "").replace(/^Roll #\d+: rolled/, "Dice rolled");
-        this.tickerText.innerHTML = this._enrichLogText(t);
-        if (this.tickerIcon) this.tickerIcon.innerHTML = icon(this._logIcon(real.text));
+        line = [this._enrichLogText(t), this._logIcon(real.text)];
       } else if (this.currentPlayer && !this.winner) {
         const cp = this.currentPlayer;
         const t = rush && !this.setupPhase ? "Rush · build and trade until the next roll"
           : cp.isHuman ? (this.phase === "pre_roll" ? "Your turn · roll the dice" : "Your turn · build, trade or play a card")
           : `${cp.name} is ${this._masterBusy?.pid === cp.id ? "thinking…" : "playing"}`;
-        this.tickerText.innerHTML = this._enrichLogText(t);
-        if (this.tickerIcon) this.tickerIcon.innerHTML = icon(cp.isHuman && this.phase === "pre_roll" ? "dice" : "log");
+        line = [this._enrichLogText(t), cp.isHuman && this.phase === "pre_roll" ? "dice" : "log"];
       }
+      if (line) this._setTickerLine(line[0], line[1], rush && !this.setupPhase && !this.winner);
     }
+  }
+
+  /**
+   * One ticker line. v0.93 Rush: a line stays at least RUSH_TICKER_DWELL_MS before the next one replaces it
+   * (the newest waiting line comes up then; the feed keeps them all).
+   */
+  _setTickerLine(html, ic, dwell = false) {
+    window.clearTimeout(this._tickerDwellTimer);
+    if (this._tickerPrompt) return;
+    if (html === this._tickerShown) return;
+    const now = performance.now();
+    const wait = dwell && this._tickerShownAt ? RUSH_TICKER_DWELL_MS - (now - this._tickerShownAt) : 0;
+    if (wait > 0) {
+      this._tickerDwellTimer = this._later(() => this._setTickerLine(html, ic, false), wait);
+      return;
+    }
+    this._tickerShown = html;
+    this._tickerShownAt = now;
+    this.tickerText.innerHTML = html;
+    if (this.tickerIcon) this.tickerIcon.innerHTML = icon(ic);
   }
 
   /** "You rolled 8 · +1 Lumber" while nothing but the payout has happened since your roll. */
@@ -8320,6 +8442,7 @@ class ColonistFullGame {
       this._tickerPrompt = prompt;
       this._lastLogKey = null;
       document.querySelector("#ticker")?.classList.toggle("prompt", !!prompt);
+      window.clearTimeout(this._tickerDwellTimer); this._tickerShown = null; // a prompt takes the line (the log line comes back after it)
       if (prompt && this.tickerText) {
         this.tickerText.innerHTML = sbpLine || `<span class="tk-main">${prompt}</span>${stepChip ? `<span class="tk-step">${stepChip}</span>` : ""}`;
         const ic = { gold: "gold", thief: "robber", moveShip: "ship", moved: "ship", setupPiece: "ship", island: "island" }[tray?.mode] // ⚓
@@ -8673,7 +8796,7 @@ class ColonistFullGame {
       const mode = d.mode === "rush" ? `<strong>Rush · ${d.rushInterval}s rolls</strong>` : "<strong>Classic</strong>";
       const extras = [
         d.board === "seafarers" ? "Seafarers · 14 VP" : `${d.winPoints} VP`, // ⚓
-        d.discardLimit !== 7 ? `discard over ${d.discardLimit}` : null,
+        discardLimitFor(d) !== 7 ? `discard over ${discardLimitFor(d)}` : null,
         d.friendlyRobber ? "friendly robber" : null,
         `${d.dice === "deck" ? "event-deck" : d.dice} dice`,
         `${d.map} map`,
@@ -8739,7 +8862,7 @@ class ColonistFullGame {
                   <div class="ng-row-label">Roll every</div>
                   <div class="ng-row-control">
                     ${seg("rushInterval", RUSH_INTERVALS.map((s) => [s, `${s}s`]), d.rushInterval, "ng-seg-pills")}
-                    <p class="ng-help">Everyone can vote &ldquo;Ready&rdquo; to roll early once all players agree.</p>
+                    <p class="ng-help">Done before the timer? Tap &ldquo;Roll now&rdquo;: the bots finish their moves and the dice roll within a second.</p>
                   </div>
                 </div>
                 <div class="ng-row">
@@ -8765,8 +8888,8 @@ class ColonistFullGame {
                 <div class="ng-row">
                   <div class="ng-row-label">Discard limit</div>
                   <div class="ng-row-control">
-                    ${stepper("discardLimit", d.discardLimit, 7, 12)}
-                    <p class="ng-help">On a 7, anyone holding more than ${d.discardLimit} cards discards half.</p>
+                    ${stepper("discardLimit", discardLimitFor(d), d.mode === "rush" ? RUSH_DISCARD_LIMIT : 7, 12)}
+                    <p class="ng-help">On a 7, anyone holding more than ${discardLimitFor(d)} cards discards half.${d.mode === "rush" ? ` Rush: at least ${RUSH_DISCARD_LIMIT}.` : ""}</p>
                   </div>
                 </div>
                 <div class="ng-row">
@@ -8871,6 +8994,7 @@ class ColonistFullGame {
         } else if (t.dataset.step) {
           const box = t.closest("[data-stepper]");
           const key = box.dataset.stepper;
+          if (key === "discardLimit") d[key] = discardLimitFor(d); // Rush shows (and steps from) at least 9
           d[key] = clamp(d[key] + Number(t.dataset.step), Number(box.dataset.min), Number(box.dataset.max));
         } else if (t.classList.contains("ng-seg-btn")) {
           const key = t.closest("[data-seg]").dataset.seg;
@@ -8887,7 +9011,7 @@ class ColonistFullGame {
               if (d.board === "seafarers" && d.numBots > 3) { this._ngBotsIsland = d.numBots; d.numBots = 3; }
               else if (d.board !== "seafarers" && this._ngBotsIsland) { d.numBots = this._ngBotsIsland; this._ngBotsIsland = 0; }
             }
-            // 5–6 players: Rush rolls every 20 s by default (back to 15 s for a smaller table)
+            // 5–6 players: Rush rolls every 15 s by default (back to the 8 s default for a smaller table)
             if (["numBots", "board"].includes(key) && isBigTable(d.numBots + 1) !== isBigTable(prevBots + 1)) {
               if (isBigTable(d.numBots + 1) && d.rushInterval < BIG_RUSH_INTERVAL) d.rushInterval = BIG_RUSH_INTERVAL;
               else if (!isBigTable(d.numBots + 1) && d.rushInterval === BIG_RUSH_INTERVAL) d.rushInterval = DEFAULT_SETTINGS.rushInterval;
@@ -9226,7 +9350,7 @@ class ColonistFullGame {
     const longestRoad = this.longestRoadHolder === player.id ? 2 : 0;
     const largestArmy = this.largestArmyHolder === player.id ? 2 : 0;
     const total = settlements + cities * 2 + devVP + longestRoad + largestArmy + (this.sea ? this.sea.bonusVP(player) : 0); // ⚓
-    const totalDevCards = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0);
+    const totalDevCards = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + player.devVictoryPoints; // public count, VP cards included
 
     const tip = document.createElement("div");
     tip.className = "vp-tooltip";
@@ -9235,11 +9359,11 @@ class ColonistFullGame {
     // v0.84: what matters most first — cards and development cards in hand, knights, road — then the points, then pieces
     const row = (label, value, cls = "") => `<div class="vp-tooltip-row${cls}"><span class="vp-tooltip-label">${label}</span><span class="vp-tooltip-value">${value}</span></div>`;
     const cardsN = sumResources(player.resources);
-    const limit = this.settings?.discardLimit ?? 7;
+    const limit = this._discardLimit();
     let html = `<div class="vp-tooltip-section">${this._you(player) ? "Your hand" : "In hand"}</div>`;
     html += `<div class="vp-tooltip-grid">`
       + `<span${cardsN > limit ? ' class="warn"' : ""}>${icon("cards")}<b>${cardsN}</b><small>cards</small></span>`
-      + `<span>${icon("devcard")}<b>${totalDevCards + devVP}</b><small>dev</small></span>`
+      + `<span>${icon("devcard")}<b>${totalDevCards}</b><small>dev</small></span>`
       + `<span>${icon("knight")}<b>${player.knightsPlayed}</b><small>knights</small></span>`
       + `<span>${icon(this.sea ? "tradeRoute" : "road")}<b>${player.longestRoadLength}</b><small>${this.sea ? "route" : "road"}</small></span></div>`;
     html += '<div class="vp-tooltip-section" style="margin-top:0.35rem">Points</div>';
@@ -9760,6 +9884,7 @@ class ColonistFullGame {
       this.devPick = null;
     }
     this.logEntries = this.logEntries.filter((e) => !d.logs.includes(e));
+    if (d.ev != null && this.stats?.ev?.length > d.ev) this.stats.ev.length = d.ev; // and its stats events (the Knight, a Largest Army award)
     this.canvas.style.cursor = "grab";
     this.recomputeScores();
     this.saveToStorage();
@@ -10445,7 +10570,7 @@ class ColonistFullGame {
     const rows = [...touch.keys()].filter((pid) => pid !== mover.id).sort((a, b) => a - b).map((pid) => {
       const p = this.players[pid];
       return { id: pid, name: p.name, vp: this.displayVictoryPoints(p), cards: sumResources(p.resources),
-        dev: DEV_CARD_TYPES.reduce((n, t) => n + p.devCards[t] + p.newDevCards[t], 0),
+        dev: DEV_CARD_TYPES.reduce((n, t) => n + p.devCards[t] + p.newDevCards[t], 0) + p.devVictoryPoints,
         s: touch.get(pid).s, c: touch.get(pid).c, canRob: victims.includes(pid), leader: pid === leaderId };
     });
     return { hex, prod, rows, victims, own: touch.get(mover.id) || null };
@@ -10559,7 +10684,7 @@ class ColonistFullGame {
 // 5–6 players: Special Building Phase engine + bots (src/six.js) and its UI (src/six-ui.js)
 Object.assign(ColonistFullGame.prototype, SbpMixin, SixUiMixin, AnalysisMixin, LabMixin, TreeMixin, RulesMixin, MasterMixin);
 // AI Lab (lab.html): settings + bot tables for its engine iframes
-ColonistFullGame.labHelpers = { normalizeSettings, DEFAULT_SETTINGS, AI_PRESETS, AI_PRESET_INFO, AI_STRATEGY_CATEGORIES, AI_LEVEL_LABEL, AI_PLAN_WEIGHTS, AI_WEIGHT_KEYS };
+ColonistFullGame.labHelpers = { normalizeSettings, discardLimitFor, DEFAULT_SETTINGS, AI_PRESETS, AI_PRESET_INFO, AI_STRATEGY_CATEGORIES, AI_LEVEL_LABEL, AI_PLAN_WEIGHTS, AI_WEIGHT_KEYS };
 Object.assign(ColonistFullGame.prototype, SeaGame); // ⚓ Seafarers game-side methods (src/seafarers/ui.js)
 // Pass & play (src/hotseat.js): defineProperties keeps its `hotseat` getter a getter
 Object.defineProperties(ColonistFullGame.prototype, Object.getOwnPropertyDescriptors(HotseatMixin));
