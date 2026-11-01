@@ -89,12 +89,19 @@ const layoutCache = new Map();
 /** v0.78: harbour pill scale. Phones: sized so the ratio reads at ~12-14 css px whatever the board (the 5–6
  *  player board has smaller hexes, so its pills scale up more); desktop: 1. Shared by every renderer and the fit. */
 export function harbourScale(game) {
-  if (!game.isMobileLayout) return 1;
+  // v0.94 ⚓ Seafarers: its 9-row frame is fitted at well under 1x (0.56 on a landscape phone, 0.6 on desktop), so a
+  // pill sized from the world hex size read at 8-11 css px there; it is sized from the fitted on-screen hex instead
+  const sea = game.sea && game._hPx ? game._hPx : 0;
+  if (!game.isMobileLayout) return sea ? seaHarbourScale(sea, false) : 1;
   if (game._hScale) return game._hScale; // set by the board fit (largest scale that keeps the v0.77 board size)
+  if (sea) return seaHarbourScale(sea, true);
   const hs = game.geometry?.hexSize || 32;
   return harbourScaleWanted(hs);
 }
 export const harbourScaleWanted = (hs) => Math.max(1.38, Math.min(2.4, 55 / hs));
+/** ⚓ pill scale from the fitted css px per hex (radius): the ratio reads at ~13-14 px on phones (as on the basic
+ *  island), ~14 px on desktop (never smaller than the basic desktop pill). */
+export const seaHarbourScale = (hexPx, mobile) => (mobile ? Math.max(1.38, Math.min(2.7, 55 / hexPx)) : Math.max(1, Math.min(1.6, 56 / hexPx)));
 const boxGap = (p, q) => Math.max(Math.abs(p.x - q.x) - (p.w + q.w) / 2, Math.abs(p.y - q.y) - (p.h + q.h) / 2);
 /** Does segment a→b come within m of box q? (sampled; boxes and piers are small) */
 const segNearBox = (ax, ay, bx, by, q, m) => {
