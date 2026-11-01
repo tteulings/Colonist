@@ -6499,6 +6499,7 @@ class ColonistFullGame {
     }
     if (!this.rushHud) return;
     this.rushHud.hidden = !rushOn || !!this.winner;
+    this._placeRushTicker(live);
     this._renderSevenPanel();
     if (!rushOn) return;
     const r = this.rush;
@@ -6553,6 +6554,24 @@ class ColonistFullGame {
         next7.innerHTML = `<span class="rush-next7-label">Next 7</span>
           <span class="rush-next7-player" title="Next 7: the robber is moved by ${np.isHuman ? "you" : np.name}">${this._av(np)}<span class="nm who pc-${np.id}">${np.isHuman ? "You" : np.name}</span></span>`;
       }
+    }
+  }
+
+  /**
+   * v0.94 phones (portrait): in a live Rush game the journal line moves into the Rush HUD, one row with the
+   * clock ring, the Ready dots and the next-7 badge; the board gets the ticker's row back. Back in place otherwise.
+   */
+  _placeRushTicker(live) {
+    const tk = this.tickerEl || (this.tickerEl = document.querySelector("#ticker"));
+    const mid = this.rushHud?.querySelector(".rush-mid");
+    const row = document.querySelector("#mtop .tkrow");
+    if (!tk || !mid || !row) return;
+    const want = !!live && window.matchMedia("(max-width: 900px) and (min-height: 501px)").matches;
+    const home = want ? mid : row;
+    if (tk.parentElement !== home) {
+      home.prepend(tk);
+      document.body.classList.toggle("rush-merged", want);
+      window.requestAnimationFrame(() => this.handleResize()); // the board takes the freed row
     }
   }
 

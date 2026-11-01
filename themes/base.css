@@ -2400,3 +2400,41 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
 .app .rush-ready-btn.is-ready:disabled { opacity: 1; }
 .app .rush-offer.rush .rush-offer-deal .pr { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .app .rush-offer.rush .owarn svg { width: 16px; height: 14px; }
+
+/* ── v0.94 Rush on phones (portrait): one HUD row = ring · journal line + Ready dots · next 7; a slimmer player
+   strip. Everything here hangs off body.rush-merged (set by _placeRushTicker), so Classic and wide screens are untouched. ── */
+@media (max-width: 900px) and (min-height: 501px) {
+  body.rush-merged .tkrow:not(:has(> *)) { display: none; }
+  body.rush-merged .app .rush-hud { gap: 8px; padding: 4px 6px 4px 8px; min-height: 0; }
+  body.rush-merged .app .rush-hud .rush-ring { width: 40px; height: 40px; }
+  body.rush-merged .app .rush-hud .rush-ring-center span { font-size: 17px; }
+  body.rush-merged .app .rush-hud .rush-card-title { display: none; }
+  body.rush-merged .app .rush-hud .rush-mid { gap: 1px; justify-content: center; }
+  body.rush-merged .app .rush-hud .ticker { height: 26px; margin: 0; padding: 0; border: 0; border-radius: 8px; background: none; box-shadow: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none; font-size: 13px; font-weight: 650; gap: 4px; }
+  body.rush-merged .app .rush-hud .ticker.prompt { background: none; box-shadow: none; }
+  body.rush-merged .app .rush-hud .ticker.act { padding: 0 2px 0 4px; }
+  body.rush-merged .app .rush-hud .ticker .ticker-ic .ic { font-size: 16px; }
+  body.rush-merged .app .rush-hud .ticker.act .ticker-ic { width: 22px; height: 22px; }
+  body.rush-merged .app .rush-hud .ticker .more { width: 30px; height: 26px; flex: none; }
+  body.rush-merged .app .rush-hud .ticker .tk-cancel { height: 24px; padding: 0 8px; font-size: 12px; }
+  body.rush-merged .app .rush-hud .rush-voters { padding-top: 0; }
+  body.rush-merged .app .rush-hud .rush-next7 { gap: 0; }
+  body.rush-merged .app .rush-hud .rush-next7-label { font-size: 8.5px; }
+  body.rush-merged .app .rush-hud .rush-next7 .avatar { --av: 26px; }
+  /* the player strip: avatar + points, then the cards; the name stays in the chip's label (the avatar carries the colour) */
+  body.rush-merged .pstrip .pchip .pn { display: none; }
+  body.rush-merged .pstrip .pchip { padding-top: 4px; padding-bottom: 3px; }
+  body.rush-merged .pstrip .pchip .bdg { top: auto; bottom: 2px; }
+}
+@media (max-width: 900px) and (min-height: 501px) {
+  body.rush-merged .app .rush-hud .ticker .txt { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: unset; }
+  body.rush-merged .app .rush-hud .ticker .txt .tk-main { white-space: nowrap; }
+  body.rush-merged .pstrip .pchip { grid-template-areas: "av vp" "pcards mini"; grid-template-rows: auto auto; }
+  body.rush-merged .pstrip .pchip .mini { justify-content: flex-end; }
+}
+@media (max-width: 900px) and (min-height: 501px) {
+  /* your action (robber / discard) keeps its accent pill inside the HUD row */
+  body.rush-merged .app .rush-hud .ticker.act { background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); border-radius: 999px; padding: 0 2px 0 3px; }
+  body.rush-merged .app .rush-hud .ticker.act .more { color: var(--primary-ink); }
+}
