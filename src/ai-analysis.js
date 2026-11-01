@@ -192,7 +192,14 @@ export const AnalysisMixin = {
   _hexName(hexId) {
     const h = this.geometry.hexes[hexId];
     if (!h.number) return h.resource === "desert" ? "Desert" : "Tile";
-    return `${RES_LABEL[h.resource] || h.resource} ${h.number}`;
+    const base = `${RES_LABEL[h.resource] || h.resource} ${h.number}`;
+    // v0.91: two tiles can share a name ("Ore 8"): add where it lies on the board
+    const twin = this.geometry.hexes.some((o) => o !== h && o.number === h.number && o.resource === h.resource);
+    if (!twin) return base;
+    const g = this.geometry, cx = g.hexes.reduce((a, o) => a + o.center.x, 0) / g.hexes.length, cy = g.hexes.reduce((a, o) => a + o.center.y, 0) / g.hexes.length;
+    const dx = h.center.x - cx, dy = h.center.y - cy, r = g.hexSize * 0.5;
+    const v = dy < -r ? "top" : dy > r ? "bottom" : "", hz = dx < -r ? "left" : dx > r ? "right" : "";
+    return `${base}, ${v && hz ? `${v} ${hz}` : v || hz || "centre"}`;
   },
 
   _aiNoteRobber(player, hexId) {
