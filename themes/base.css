@@ -2368,3 +2368,35 @@ button.sx-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 
 @media (max-width: 480px) {
   .app .hand .card .dsel small, .app .hand .card .dsel .dminus { display: none; }
 }
+
+/* ── v0.93 Rush: a compact one-row offer card, a fold-away "offers" pill, a fade before the auto-decline ── */
+.app .rush-offer.rush { padding: 5px 6px 6px 4px; gap: 6px; min-height: 0; }
+.app .rush-offer.rush .rush-offer-deal { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; margin: 0; font-size: 13px; line-height: 1.2; }
+.app .rush-offer.rush .rush-offer-deal .ol { display: inline-block; min-width: 30px; }
+.app .rush-offer.rush .owarn { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; }
+.app .rush-offer.rush .owarn em { font-style: normal; font-size: 11.5px; font-weight: 750; color: #8A5A00; }
+/* the "+n more" count sits on the avatar inside the card (no chip over the card's edge) */
+.rush-offers .rush-offer.rush ~ .offer-more, .rush-offers:has(.rush-offer.rush) .offer-more { display: none; }
+.app .rush-offer-hide .om-n { position: absolute; left: -2px; top: -1px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--badge, #234); color: var(--badge-ink, #fff); font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; box-sizing: border-box; }
+.app .rush-offer.rush .rush-offer-deal .ol { font-size: 12px; }
+.app .rush-offer.rush .rush-offer-deal .ol.give::after, .app .rush-offer.rush .rush-offer-deal .ol.get::after { content: ""; }
+.app .rush-offer.rush .rush-offer-deal .oc .ocard { --cw: 18px; }
+.app .rush-offer.rush .rush-offer-deal .oc .on { display: none; }
+.app .rush-offer.rush .rush-offer-deal .oc b { font-size: 14px; }
+.app .rush-offer.rush .rush-offer-accept { width: 44px; height: 44px; }
+.app .rush-offer.rush .rush-offer-accept .ic { font-size: 22px; }
+.app .rush-offer.rush .rush-offer-decline { width: 40px; height: 40px; }
+.app .rush-offer-hide { position: relative; flex: none; width: 40px; height: 44px; padding: 0; border: 0; background: none; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.app .rush-offer-hide .avatar { --av: 30px; --av-ring: 2px; }
+.app .rush-offer-hide .chev { position: absolute; right: 0; bottom: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--btn, #fff); border: var(--btn-border, 1px solid rgba(0,0,0,.15)); color: var(--ink-soft); font-size: 10px; line-height: 14px; text-align: center; }
+.rush-offer.rush { transition: opacity 600ms ease, transform 600ms ease; }
+.rush-offer.rush.expiring { opacity: 0; transform: translateY(8px) scale(.97); }
+html[data-motion="reduced"] .rush-offer.rush { transition: none; }
+.rush-offers.collapsed { align-items: flex-end; }
+.app .offers-pill { pointer-events: auto; display: inline-flex; align-items: center; gap: 0; height: 36px; padding: 0 10px 0 4px; border-radius: 999px; border: var(--float-border); background: var(--float); box-shadow: var(--float-shadow); color: var(--ink); font-size: 13px; font-weight: 750; cursor: pointer; }
+.app .offers-pill .avatar { --av: 24px; --av-ring: 1.5px; margin-right: -6px; }
+.app .offers-pill b { margin-left: 12px; }
+.app .offers-pill .chev { margin-left: 6px; font-size: 11px; color: var(--ink-soft); }
+.app .rush-ready-btn.is-ready:disabled { opacity: 1; }
+.app .rush-offer.rush .rush-offer-deal .pr { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.app .rush-offer.rush .owarn svg { width: 16px; height: 14px; }
