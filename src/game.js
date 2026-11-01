@@ -263,6 +263,7 @@ const RUSH_TICKER_DWELL_MS = 1600; // v0.93: a Rush ticker line stays at least t
 const TRADE_LINE = /\btraded\b/; // "Blaauw traded 1 Wool with Groenewoud for 1 Ore." / "Blaauw traded 2 Lumber for 1 Ore." / "You traded with …"
 const RUSH_OFFER_ROOM = 66;     // v0.93 phones: the board keeps this room above the hand for the whole Rush game (offers never resize it)
 // v0.96 phone board fit (see _phoneFrame)
+const LIVE_KEY = "colonist.live"; // v0.96 (sessionStorage): this tab is in a live game, so a reload resumes it
 const HEX_HOLD_MS = 450;        // v0.96: press and hold a hex this long for its "who it pays" callout
 const BOARD_MARGIN = 12;        // css px of breathing room between the land (with its harbour pills) and the HUD, the hand, the screen edges
 const HAND_LIP = 16;            // the hand's cards start this far below the top of its fan (--fan-h)
@@ -1002,8 +1003,15 @@ class ColonistFullGame {
     if (!this._homeSave) this.resetGame();
     this._buildStrategyUI();
     this.startAnimationLoop();
+    // v0.96: a RELOAD of a running game (the tab was in a live game: colonist.live in this tab's session storage) goes
+    // straight back into it; a fresh launch still opens on Home (Continue)
+    if (this._homeSave && this._wasLive()) { this.continueSavedGame(); return; }
     this.home.show();
   }
+
+  /** This tab was in a live game when it was reloaded (set while a game runs, cleared on Home). */
+  _wasLive() { try { return sessionStorage.getItem(LIVE_KEY) === "1"; } catch (_) { return false; } }
+  _markLive(on) { try { if (on) sessionStorage.setItem(LIVE_KEY, "1"); else sessionStorage.removeItem(LIVE_KEY); } catch (_) { /* private mode */ } }
 
   /** Leave the home hold (a game is started, or bots take over). */
   _releaseOnboarding(resume = true) {
@@ -1039,6 +1047,7 @@ class ColonistFullGame {
 
   /** Home › Continue: the held save is loaded again, now live (bots, Rush clock, saving resume). */
   continueSavedGame() {
+    this._markLive(true);
     this.onboardingHold = false;
     this._homeSave = false;
     this.uiPaused = false;
@@ -1073,6 +1082,7 @@ class ColonistFullGame {
     try { this.closeTradeModal?.(); this.hideDevCardPicker?.(); this.toggleLog?.(false); this._syncScrim?.(); } catch (_) { /* nothing open */ }
     if (!this.onboardingHold && !this.winner) this.saveToStorage();
     this._homeSave = !this.winner && this._hasResumableSave();
+    this._markLive(false);
     this._cancelPendingWork();
     this.onboardingHold = true;
     this.uiPaused = true;
@@ -1564,6 +1574,7 @@ class ColonistFullGame {
   // Start a fresh game with the given settings
   startNewGame(settings) {
     this._releaseOnboarding(false);
+    this._markLive(true);
     this.settings = normalizeSettings(settings);
     ColonistFullGame.saveLastSettings(this.settings);
     this.resetGame();
@@ -3645,10 +3656,11 @@ class ColonistFullGame {
   _renderTradePicks(container, side, player) {
     if (!container) return;
     const picks = side === "give" ? this.tradeOffer : this.tradeRequest;
-    // ratio tags only where a 2:1 harbour beats your usual rate (4:1, or 3:1 with a 3:1 harbour)
+    // v0.96: every give card carries its bank rate (4:1 / 3:1 / 2:1); a harbour that beats your usual rate is accented
     const baseRate = Math.max(...RESOURCES.map((r) => this.getPlayerTradeRate(player, r)).filter((x) => x > 2), 3);
     // v0.81: mini versions of the hand's own cards (same art, same tone-on-tone numeral / stack edges):
-    // give shows what you hold, get shows what the bank still has (an empty bank pile is struck through).
+    // give shows what you hold; get shows what the bank still has, small and grey (v0.96: no big number on the card, it
+    // read as "you get 18"; an empty bank pile is struck through).
     container.innerHTML = RESOURCES.map((r) => {
       const n = picks[r] || 0;
       const have = player.resources[r];
@@ -3662,7 +3674,7 @@ class ColonistFullGame {
         : stock > 0 ? `bank ${stock}` : "bank empty";
       const label = side === "give" ? `Give one more ${name} (you have ${have}${n ? `, giving ${n}` : ""})` : `Get one more ${name}${n ? ` (asking ${n})` : ""} · bank has ${stock}`;
       return `<div class="tcell ${r}${n ? " pick" : ""}${usable ? "" : " none"}${out ? " out" : ""}" data-hand="${side === "give" ? r : ""}" data-res="${r}">
-        <button type="button" class="tpick" data-${side}="${r}" aria-label="${label}" ${usable ? "" : "aria-disabled=\"true\""}>${side === "give" && rate < baseRate ? `<span class="rate-tag port">${rate}:1</span>` : ""}<span class="tcard card" data-card="${r}" data-n="${Math.max(1, Math.min(num, 4))}">${cardSvg(r)}<span class="tnum">${num}</span></span><small>${sub}</small></button>
+        <button type="button" class="tpick" data-${side}="${r}" aria-label="${label}" ${usable ? "" : "aria-disabled=\"true\""}>${side === "give" ? `<span class="rate-tag${rate < baseRate ? " port" : ""}" title="${rate} ${name} for 1 card from the bank">${rate}:1</span>` : ""}<span class="tcard card" data-card="${r}" data-n="${Math.max(1, Math.min(num, 4))}">${cardSvg(r)}${side === "give" ? `<span class="tnum">${num}</span>` : ""}</span><small${side === "get" ? ' class="stock"' : ""}>${sub}</small></button>
         ${n ? `<b class="tbadge">${n}</b>` : ""}<button type="button" class="tminus" data-${side}-minus="${r}" aria-label="${side === "give" ? "Give" : "Get"} one ${name} less" ${n ? "" : "tabindex=\"-1\" aria-hidden=\"true\""}>${icon("minus")}</button>
       </div>`;
     }).join("");

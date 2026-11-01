@@ -1,7 +1,7 @@
 // Home screen (shown on every launch and via Menu › Home) and the in-game Menu sheet.
 // Home: Continue (when a game is saved) · New game: Classic / Rush tiles that start at once with the
 // chosen opponents and bot level · More settings (full New game screen) · How to play · Settings.
-import { icon } from "./manager.js";
+import { icon, avatarSvg } from "./manager.js";
 
 const MENU_IC = `<svg class="ic ic-menu" viewBox="-50 -50 100 100" aria-hidden="true"><path d="M-30 -22H30M-30 0H30M-30 22H30" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/></svg>`;
 const PLAY_IC = `<svg class="hm-play" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="currentColor" opacity=".2"/><path d="M9.6 7.4v9.2l7.4-4.6z" fill="currentColor"/></svg>`;
@@ -82,7 +82,7 @@ export class Home {
       <header class="hm-brand"><svg class="hm-logo" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>
         <h1>Colonist</h1>${s ? "" : `<p>Settle the island, trade with friendly bots, reach 10 points first.</p>`}</header>
       ${s ? `<button type="button" class="hm-continue" data-home="continue">${PLAY_IC}<span class="hm-ct"><b>Continue game</b><small>${s.mode} · ${s.mode.startsWith("Rush") ? "roll" : "turn"} ${s.turn}</small></span>${CHEV}
-        <span class="hm-score">${s.players.map((q) => `<span class="pc-${q.seat}" title="${q.name}: ${q.vp} points"><i></i><em class="nm">${q.name}</em><em class="ini" aria-hidden="true">${q.name.slice(0, 1)}</em> <b>${q.vp}</b></span>`).join("")}</span></button>` : ""}
+        <span class="hm-score">${s.players.map((q) => `<span class="pc-${q.seat}" title="${q.name}: ${q.vp} points">${avatarSvg(q.seat, "hm-av")}<em class="nm">${q.name}</em> <b>${q.vp}</b></span>`).join("")}</span></button>` : ""}
       <section class="hm-card hm-new" aria-labelledby="hmNewH">
         <h2 class="hm-h" id="hmNewH">${s ? "Start a new game" : "Choose a game"}</h2>
         <div class="hm-tiles">

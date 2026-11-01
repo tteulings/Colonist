@@ -251,6 +251,8 @@ export const StatsUiMixin = {
       tl?.stop();
       intro.classList.add("out");
       overlay.classList.remove("intro");
+      // v0.96: the intro layer (the "X wins" card) is removed as soon as it has faded, never left half-faded behind the recap
+      intro.addEventListener("transitionend", () => intro.remove(), { once: true });
       window.setTimeout(() => intro.remove(), reduced ? 250 : 380);
       this._stAnimateIn(overlay.querySelector(".gs-pane"));
     };
