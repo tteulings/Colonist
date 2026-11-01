@@ -2438,3 +2438,8 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
   body.rush-merged .app .rush-hud .ticker.act { background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); border-radius: 999px; padding: 0 2px 0 3px; }
   body.rush-merged .app .rush-hud .ticker.act .more { color: var(--primary-ink); }
 }
+@media (max-width: 900px) and (min-height: 501px) {
+  /* 5–6 players: the knights / road line of a chip appears mid-game; Rush keeps its room from the start, so the strip
+     never changes height (a refit of the big board stalls the game ~1 s on a phone) */
+  body.rush-merged .pstrip.six-up > .pchip.six:not(:has(.mini.feats))::after { content: ""; display: block; flex: none; height: 14px; }
+}
