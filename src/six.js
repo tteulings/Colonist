@@ -14,7 +14,7 @@
 export const BIG_MIN_PLAYERS = 5;
 export const BIG_BANK_SIZE = 24;
 export const BIG_HEX_COUNT = 30;
-export const BIG_RUSH_INTERVAL = 20; // Rush with 5–6: a roll every 20 s by default
+export const BIG_RUSH_INTERVAL = 15; // Rush with 5–6: a roll every 15 s by default (v0.93: 20 → 15, the slowest option)
 export const SBP_WINDOW_MS = 8000;   // the human's build window closes by itself after this (paused while busy)
 
 const BIG_RESOURCE_POOL = [

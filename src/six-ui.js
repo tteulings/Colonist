@@ -40,7 +40,7 @@ export const SixUiMixin = {
     return `<div class="${cls}" data-seat="${player.id}" role="button" tabindex="0" aria-label="${player.name}: ${vp} points, ${cards} cards, ${dev} development cards${leader ? ", in the lead" : ""}${building ? ", building" : ""}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
       <div class="sx-av">${avatarSvg(player.id)}<b class="sx-vp">${vp}</b>${leader ? CROWN : ""}${building ? `<span class="sx-sbp">${icon("build")}</span>` : ""}</div>
       <div class="pn">${player.short || player.name}</div>
-      <div class="mini"><span data-stat="cards"${over ? ` class="warn" title="more than ${this.settings?.discardLimit ?? 7}: hands back half on a 7"` : ""}>${icon("cards")}${cards}</span>${dev ? `<span>${icon("devcard")}${dev}</span>` : ""}</div>
+      <div class="mini"><span data-stat="cards"${over ? ` class="warn" title="more than ${this._discardLimit()}: hands back half on a 7"` : ""}>${icon("cards")}${cards}</span>${dev ? `<span>${icon("devcard")}${dev}</span>` : ""}</div>
       ${feats ? `<div class="mini feats">${feats}</div>` : ""}
       ${awards ? `<div class="bdg">${awards}</div>` : ""}</div>`;
   },
@@ -63,7 +63,7 @@ export const SixUiMixin = {
         ready: !!readyIds?.includes(p.id),
         vp: this.displayVictoryPoints(p),
         cards: sum(p.resources),
-        over: sum(p.resources) > (this.settings?.discardLimit ?? 7),
+        over: sum(p.resources) > this._discardLimit(),
         dev: DEV.reduce((s, t) => s + p.devCards[t] + p.newDevCards[t], 0) + p.devVictoryPoints, // public count, VP cards included
         leader: idx === leader,
         building: marks.includes(idx),

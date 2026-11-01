@@ -25,7 +25,7 @@ const MAX_BOTS = 5;
 const BIG_FROM_BOTS = 4;
 // ⚓ Seafarers (Heading for New Shores) is a 3–4 player scenario: at most 3 bots on that map
 const SEA_MAX_BOTS = 3;
-const BIG_RUSH_SECONDS = 20;
+const BIG_RUSH_SECONDS = 15; // v0.93: matches BIG_RUSH_INTERVAL in six.js
 
 export class Home {
   /**
@@ -47,7 +47,7 @@ export class Home {
   show() {
     const last = this.opts.last();
     const custom = last.botStyleMode === "each" || !LEVELS.some(([k]) => k === last.allPreset);
-    this.pick = { numBots: Math.min(last.numBots || 3, last.board === "seafarers" ? SEA_MAX_BOTS : MAX_BOTS), preset: custom ? "custom" : last.allPreset, rushInterval: last.rushInterval || 15, board: last.board === "seafarers" ? "seafarers" : "island" }; // ⚓ board
+    this.pick = { numBots: Math.min(last.numBots || 3, last.board === "seafarers" ? SEA_MAX_BOTS : MAX_BOTS), preset: custom ? "custom" : last.allPreset, rushInterval: last.rushInterval || 8, board: last.board === "seafarers" ? "seafarers" : "island" }; // ⚓ board
     if (!this.el) {
       this.el = document.createElement("div");
       this.el.className = "home";
