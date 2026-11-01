@@ -2,7 +2,7 @@ import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMoti
 import { SvgBoardRenderer, drawSpec } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
-import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted, pierDot, drawPierDot } from "./themes/art-util.js";
+import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted, seaHarbourScale, pierDot, drawPierDot } from "./themes/art-util.js";
 import { Onboarding, introSeen } from "./themes/onboarding.js";
 import { Home, GameMenu } from "./themes/home.js";
 import { SoundEngine } from "./sound.js";
@@ -2456,15 +2456,18 @@ class ColonistFullGame {
     const box = { minX: Math.min(...xs) - mx, maxX: Math.max(...xs) + mx, minY: Math.min(...ys) - my, maxY: Math.max(...ys) + my };
     let fan = 0, top = 4, side = 0;
     // v0.76: harbour pills that sit further out than the margin (bays of the 5–6 player board) widen the box
-    if (!mobile) harbourBadges(this, 1).forEach((q) => {
-      const u = hs / 100, bx = g.centerX + q.x * u, by = g.centerY + q.y * u, hw = (q.w / 2 + 6) * u, hh = (q.h / 2 + 6) * u;
+    // v0.93 ⚓ Seafarers: its (bigger, see harbourScale) pills always count, on phones too, so a pill off the top coast
+    // never sits under the ticker (landscape) nor one off the bottom under the hand
+    const seaM = this.sea && this._hPx ? (10 * hs) / this._hPx : 0; // ⚓ + ~10 css px: clear of the chrome's shadow
+    if (!mobile || this.sea) harbourBadges(this, harbourScale(this)).forEach((q) => {
+      const u = hs / 100, bx = g.centerX + q.x * u, by = g.centerY + q.y * u, hw = (q.w / 2 + 6) * u + seaM, hh = (q.h / 2 + 6) * u + seaM;
       box.minX = Math.min(box.minX, bx - hw); box.maxX = Math.max(box.maxX, bx + hw); box.minY = Math.min(box.minY, by - hh); box.maxY = Math.max(box.maxY, by + hh);
     });
     if (mobile && this.app) {
       const cs = getComputedStyle(this.app);
       // + the room a docked trade offer takes above the hand (only while one is up)
       fan = (parseFloat(cs.getPropertyValue("--fan-h")) || 112) + (this._fitNoOffer ? 0 : parseFloat(cs.getPropertyValue("--offer-room")) || 0);
-      top = parseFloat(cs.getPropertyValue("--board-top")) || 4;
+      top = (parseFloat(cs.getPropertyValue("--board-top")) || 4) + (this.sea ? this._seaTopPad || 0 : 0); // ⚓ v0.93 (see _seaChromePad)
       side = parseFloat(cs.getPropertyValue("--board-side")) || 0;
       if (this.labMode) { fan = 6; top = 4; side = side || 8; } // AI Lab board: no hand / top bar over it; whole world in the frame
       if (side) {
@@ -2489,7 +2492,7 @@ class ColonistFullGame {
         // largest pill scale that costs the board at most 4% of the size the v0.77-size pills (scale 1.38) allowed
         const k77 = (() => { const m = measure(1.38); return Math.min((avail - side) / half, m.reach ? (avail - 3) / m.reach : Infinity); })();
         let hS = 1.38;
-        for (let s = harbourScaleWanted(hs); s > 1.38; s -= 0.08) {
+        for (let s = this.sea && this._hPx ? seaHarbourScale(this._hPx, true) : harbourScaleWanted(hs); s > 1.38; s -= 0.08) {
           const m = measure(s);
           if (!m.reach || (avail - 3) / m.reach >= k77 * 0.96) { hS = s; break; }
         }
@@ -2503,7 +2506,9 @@ class ColonistFullGame {
         side = 0;
       }
     }
-    const ins = mobile ? { t: top, r: side, b: fan - 6, l: side } : { t: 10, r: 10, b: 10, l: 10 };
+    // (⚓ v0.93 Seafarers, portrait: its southern islands reach the frame's bottom row, so they stop above the hand's fade
+    // instead of 6 px into it)
+    const ins = mobile ? { t: top, r: side, b: this.sea && !this.isLandscapePhone ? fan + 2 : fan - 6, l: side } : { t: 10, r: 10, b: 10, l: 10 };
     const vp = { l: ins.l, t: ins.t, W: Math.max(50, this.boardWidth - ins.l - ins.r), H: Math.max(50, this.boardHeight - ins.t - ins.b) };
     if (mobile) {
       // Width-bound portrait phones: balance the spare sea above and below the island — 60% above (where
@@ -7285,6 +7290,11 @@ class ColonistFullGame {
       ctx.fillStyle = q.icon ? "#f5efe4" : "#F7F1E3"; ctx.fill();
       ctx.shadowColor = "transparent";
       ctx.strokeStyle = q.icon ? color : "#b9a786"; ctx.lineWidth = (q.icon ? 2.4 : 1.6) * s * u; ctx.stroke();
+      if (this.sea) { // ⚓ v0.93: a dark rim so the pill's edge reads >= 3:1 on the bright sea (as on the themed boards)
+        const rw = 2.4 / (this.view.scale || 1);
+        this.drawRoundedRect(bx - W / 2 - rw / 2, by - H / 2 - rw / 2, W + rw, H + rw, q.r * u + rw / 2);
+        ctx.strokeStyle = "#123238"; ctx.lineWidth = rw; ctx.stroke();
+      }
       if (q.icon) {
         const [ix, iy] = P(q.icon.x, q.icon.y), is = q.icon.size * u * 1.2;
         const im = this._portImgs[port.type];
@@ -8063,13 +8073,18 @@ class ColonistFullGame {
           <span class="tag">${this._you(player) ? "Your colony" : player.isHuman ? "Pass &amp; play" : personaBadge}</span>
           <div class="stats">${stats.join("")}<span class="badges">${awards}</span></div></div>
         <div class="vp player-vp" title="Points — tap for details">${vp}<small>points</small></div></div>`);
+      // ⚓ v0.93: on the strip chip the new-island count rides on the avatar (a 4th stat overflowed the 360 px chip and
+      // was cut off, with the player's name squeezed); the scoreboard row keeps it in its stats line
+      const isles = this.sea ? this.sea.bonus[player.id]?.length || 0 : 0;
+      const miniStats = stats.slice(1).filter((x) => !x.includes('data-stat="isle"'));
+      const isleChip = isles ? `<span class="isle-chip" title="New islands: ${isles} (+${this.sea.bonusVP(player)} points)">${icon("island")}<b>${isles}</b></span>` : "";
       // ⚓ v0.86: at sea (first to 14) your own badge carries the goal: "3/14"; the others stay plain
       const goal = this.sea && player === this._me() && this._seesPrivate(player) ? `<span class="vgoal">/${this.winPoints}</span>` : "";
       chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points${goal ? ` of ${this.winPoints}` : ""}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
         <div class="row">${this._av(player)}<div class="vpn${goal ? " goal" : ""}">${vp}${goal}<small>PTS</small></div></div>
         <div class="pn">${player.short || player.name}</div>${player.isHuman ? "" : personaBadge}
         <div class="pcards">${stats[0]}</div>
-        <div class="mini${stats.length > 3 ? " dense" : ""}">${stats.slice(1).join("")}</div></div>`);
+        <div class="mini${miniStats.length > 2 ? " dense" : ""}">${miniStats.join("")}</div>${isleChip}</div>`);
     });
     this.scoreboard.innerHTML = rows.join("");
     const goal = this.scoreboard.parentElement?.querySelector("h2 .sub");
@@ -10279,18 +10294,59 @@ class ColonistFullGame {
     // v0.86: the harbour pills keep enough coast clearance that each pier has HARBOUR_FREE css px of open sea (room
     // for the harbour dot, 12.5 px out, past the 7 px build-spot ring). Chosen from the fit the default clearance
     // gives (one step, so it never oscillates); costs the board ~5% on a 360 px phone, nothing on a big screen.
+    this._seaTopPad = 0;
     if (this.geometry) {
       // (a docked trade offer is left out, so the pills don't move while one comes and goes)
       this._hClear = 30; this._fitNoOffer = true;
+      this._hPx = 0; // ⚓ Seafarers: the pill size follows the fitted hex size (see harbourScale), chosen from this first fit
       const f0 = this._viewFrame(); this._fitNoOffer = false;
       const s0 = Math.min(f0.vp.W / (f0.box.maxX - f0.box.minX), f0.vp.H / (f0.box.maxY - f0.box.minY));
+      if (this.sea) this._hPx = this.geometry.hexSize * s0;
       const pxArt = (this.geometry.hexSize / 100) * s0;
       this._hClear = pxArt > 0 ? Math.max(30, Math.ceil(HARBOUR_FREE / pxArt)) : 30;
     }
-    const { box, vp } = this._viewFrame();
-    const scale = Math.min(vp.W / (box.maxX - box.minX), vp.H / (box.maxY - box.minY));
-    this._fitScale = scale;
-    return { scale, offsetX: vp.l + vp.W / 2 - ((box.minX + box.maxX) / 2) * scale, offsetY: vp.t + vp.H / 2 - ((box.minY + box.maxY) / 2) * scale };
+    const fit = () => {
+      const { box, vp } = this._viewFrame();
+      const scale = Math.min(vp.W / (box.maxX - box.minX), vp.H / (box.maxY - box.minY));
+      return { scale, offsetX: vp.l + vp.W / 2 - ((box.minX + box.maxX) / 2) * scale, offsetY: vp.t + vp.H / 2 - ((box.minY + box.maxY) / 2) * scale };
+    };
+    let t = fit();
+    // ⚓ v0.93: the Seafarers map is tall and reaches the top of the board area: push it down until no harbour pill or
+    // land hex sits under the Fit button or the dice chip (a few passes: the fit shrinks a little each time)
+    if (this.sea && this.isMobileLayout && this.geometry) {
+      for (let i = 0; i < 4; i += 1) {
+        const pad = this._seaChromePad(t);
+        if (pad <= 0.5) break;
+        this._seaTopPad += pad;
+        t = fit();
+      }
+    }
+    this._fitScale = t.scale;
+    return t;
+  }
+
+  /** ⚓ How far (css px) the fitted view `t` must move down so that no harbour pill / land hex is under the floating
+   *  board tools: the Fit button (top left) and the dice chip (top right; before the first roll: the room it will
+   *  take, so the board does not jump when it appears). 0 when clear. */
+  _seaChromePad(t) {
+    const cv = this.canvas?.getBoundingClientRect?.();
+    if (!cv || !cv.width) return 0;
+    const rel = (r) => ({ l: r.left - cv.left, r: r.right - cv.left, t: r.top - cv.top, b: r.bottom - cv.top });
+    const rects = [];
+    const fitBtn = document.getElementById("fitBoardBtn")?.getBoundingClientRect();
+    if (fitBtn?.width) rects.push(rel(fitBtn));
+    const lt = document.querySelector("#boardWrap .lefttop")?.getBoundingClientRect(), dice = this.lastDiceDisplay?.getBoundingClientRect();
+    if (dice?.width) rects.push(rel(dice));
+    else if (lt) rects.push({ l: lt.right - cv.left - 132, r: lt.right - cv.left, t: lt.top - cv.top, b: lt.top - cv.top + 44 });
+    if (!rects.length) return 0;
+    const g = this.geometry, u = g.hexSize / 100, M = 4;
+    const S = (wx, wy) => ({ x: t.offsetX + wx * t.scale, y: t.offsetY + wy * t.scale });
+    const items = [];
+    harbourBadges(this, harbourScale(this)).forEach((q) => { const a = S(g.centerX + (q.x - q.w / 2) * u, g.centerY + (q.y - q.h / 2) * u), b = S(g.centerX + (q.x + q.w / 2) * u, g.centerY + (q.y + q.h / 2) * u); items.push({ l: a.x, r: b.x, t: a.y, b: b.y }); });
+    g.hexes.forEach((h) => { if (h.resource === "sea") return; const a = S(h.center.x - 0.7 * g.hexSize, h.center.y - 0.75 * g.hexSize), b = S(h.center.x + 0.7 * g.hexSize, h.center.y + 0.75 * g.hexSize); items.push({ l: a.x, r: b.x, t: a.y, b: b.y }); });
+    let pad = 0;
+    rects.forEach((c) => items.forEach((it) => { if (it.l < c.r + M && it.r > c.l - M && it.t < c.b + M && it.b > c.t - M) pad = Math.max(pad, c.b + M - it.t); }));
+    return pad;
   }
 
   /** Fit the island (with harbours) into the visible board area. */
@@ -10520,9 +10576,9 @@ class ColonistFullGame {
     this.drawRollHighlight();
     this._dimForPlacement(); // v0.81
     this.drawNodeDots();
-    this.drawPorts();
+    if (!this.sea) this.drawPorts();
     this.drawRoads();
-    if (this.sea) drawClassicSea(this, this.ctx); // ⚓ ships, pirate, +2 chips, ship spots
+    if (this.sea) { drawClassicSea(this, this.ctx); this.drawPorts(); } // ⚓ ships, pirate, +2 chips, ship spots; v0.93: harbours above the ships
     this.drawStructures();
     this.drawBuildableHighlights();
     this.drawAnalysisOverlay(this.ctx); // analysis mode: the bot's candidate scores

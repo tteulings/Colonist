@@ -61,6 +61,16 @@ function lane(R, ctx, p, color, alpha = 1, white = "rgba(255,255,255,.9)") {
   ctx.restore();
 }
 
+/** v0.93: phones: a ship is at least ~20 css px wide at the fitted zoom (the Seafarers map is fitted small, so at
+ *  the piece scale alone a ship read at 17 px on a 360 px phone and ~13 px in landscape). Desktop: 1. */
+const SHIP_ART_W = 44, SHIP_MIN_PX = 20; // hull + sail width in art units at scale 1 (measured)
+export function shipScale(R) {
+  const g = R.game;
+  if (!g.isMobileLayout) return 1;
+  const pxArt = R.u * (g._fitScale || g.view.scale || 1);
+  return Math.max(1, Math.min(1.75, SHIP_MIN_PX / (SHIP_ART_W * R.pieceScale * pxArt)));
+}
+
 function piece(R, ctx, spec, x, y, alpha, devK, s = 1, drawSpec) {
   ctx.save(); ctx.translate(x, y); ctx.scale(R.pieceScale * s, R.pieceScale * s); ctx.translate(0, -4);
   drawSpec(ctx, spec, { alpha, k: devK, rim: R.theme.rim, rimW: R.theme.rimW ?? 5 });
@@ -71,7 +81,7 @@ function piece(R, ctx, spec, x, y, alpha, devK, s = 1, drawSpec) {
 export function drawShips(R, ctx, now, reduced, devK, drawSpec) {
   const g = R.game, S = seaArt(R.theme);
   const sel = g.pendingAction === "moveShip" ? g.sea.moveSel?.from : null;
-  const ships = g.geometry.edges.filter((e) => e.owner != null && e.ship);
+  const ships = g.geometry.edges.filter((e) => e.owner != null && e.ship), sk = shipScale(R);
   ships.forEach((e) => lane(R, ctx, shipAt(R, e), R.pc(g.players[e.owner]).base, e.id === sel ? 0.35 : 1, S.lane));
   ships.map((e) => ({ e, p: shipAt(R, e) })).sort((a, b) => a.p.y - b.p.y).forEach(({ e, p }) => {
     const c = R.pc(g.players[e.owner]);
@@ -80,7 +90,7 @@ export function drawShips(R, ctx, now, reduced, devK, drawSpec) {
       const px = 1 / (R.u * g.view.scale);
       ctx.save(); ctx.beginPath(); ctx.arc(p.x, p.y - 6, 30, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,.28)"; ctx.fill();
       ctx.setLineDash([6 * px, 4 * px]); ctx.lineWidth = 2.6 * px; ctx.strokeStyle = "#fff"; ctx.stroke(); ctx.restore();
-      piece(R, ctx, spec, p.x, p.y - 8, 0.6, devK, 1, drawSpec);
+      piece(R, ctx, spec, p.x, p.y - 8, 0.6, devK, sk, drawSpec);
       return;
     }
     const an = R.animFor("road", e.id);
@@ -90,7 +100,7 @@ export function drawShips(R, ctx, now, reduced, devK, drawSpec) {
       if (reduced) a = clamp01(t / 0.3);
       else { s = 0.6 + 0.4 * Math.min(1, t * 1.6) + Math.sin(Math.min(1, t * 1.6) * Math.PI) * 0.12; dy = -14 * (1 - Math.min(1, t * 1.4)); a = clamp01(t * 3); }
     }
-    piece(R, ctx, spec, p.x, p.y + dy, a, devK, s, drawSpec);
+    piece(R, ctx, spec, p.x, p.y + dy, a, devK, s * sk, drawSpec);
   });
 }
 
@@ -162,7 +172,7 @@ export function ghostShip(R, ctx, id, c, alpha, devK, drawSpec) {
   const g = R.game, S = seaArt(R.theme);
   const p = shipAt(R, g.geometry.edges[id]);
   lane(R, ctx, p, c.base, 0.7 * alpha, S.lane);
-  piece(R, ctx, S.ship(c, g.currentPlayer?.id || 0), p.x, p.y, 0.85 * alpha, devK, 1, drawSpec);
+  piece(R, ctx, S.ship(c, g.currentPlayer?.id || 0), p.x, p.y, 0.85 * alpha, devK, shipScale(R), drawSpec);
 }
 
 export function ghostPirate(R, ctx, hexId, alpha, drawSpec) {

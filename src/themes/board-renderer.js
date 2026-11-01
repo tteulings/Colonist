@@ -322,7 +322,8 @@ export class SvgBoardRenderer {
     }));
     // v0.81: harbour-corner marks are drawn live, so a corner with a piece on it shows none (v0.86: dots, see harbourDots)
     const ticks = portData.flatMap((p, i) => p.piers.map((pr) => ({ id: pr[0].id, pier: pr, badge: p.badge, ...(ports[i].tick || { fill: "#7E949B", line: "rgba(0,0,0,.5)" }) })));
-    this.layer = { canvas, ...b, k, key, ticks };
+    // ⚓ v0.93: Seafarers pills are re-drawn live above the ships and the pirate (see drawSeaPills)
+    this.layer = { canvas, ...b, k, key, ticks, pills: sea ? portData.map((p) => p.badge) : null };
     const ms = performance.now() - t0;
     this.stats.bakes += 1;
     this.stats.bakeMs += ms;
@@ -496,6 +497,8 @@ export class SvgBoardRenderer {
     this.drawRobber(ctx, rob, robT, reduced, devK);
     if (g.sea) drawPirateAndChips(this, ctx, now, reduced, devK, drawSpec); // ⚓ pirate, +2 island chips
 
+    if (g.sea) this.drawSeaPills(ctx); // ⚓ harbour pills on top of ships (v0.93)
+
     // 8. placement hints + ghost + confirm
     if (this.placementActive()) this.drawPlacement(ctx, now, reduced, devK);
     if (g.pendingAction === "robber" && g.confirmBuild?.type === "robber" && !g.isMobileLayout && g.currentPlayer?.isHuman) this.drawConfirm(ctx, now, reduced, devK);
@@ -506,6 +509,26 @@ export class SvgBoardRenderer {
     // 9. dust / sparks
     this.anims.forEach((a) => this.drawParticles(ctx, a, now, reduced));
     ctx.restore();
+  }
+
+  /** ⚓ v0.93 Seafarers: ships sail right past the harbours (a coastal chain ran over a pill), so each pill is copied
+   *  from the baked layer again above the ships and the pirate, and gets a dark rim (2.4 css px): a cream pill on the
+   *  bright Seafarers sea was ~1.5:1, the rim makes its edge >= 3:1 on any sea. Piers and dots stay under the pieces. */
+  drawSeaPills(ctx) {
+    const L = this.layer, g = this.game;
+    if (!L?.pills) return;
+    const px = 1 / (this.u * g.view.scale), rw = 2.4 * px;
+    const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); };
+    L.pills.forEach((q) => {
+      const x0 = q.x - q.w / 2, y0 = q.y - q.h / 2;
+      ctx.save();
+      rr(x0, y0, q.w, q.h, q.r); ctx.clip();
+      const sx = (x0 - L.minX) * L.k, sy = (y0 - L.minY) * L.k;
+      ctx.drawImage(L.canvas, sx, sy, q.w * L.k, q.h * L.k, x0, y0, q.w, q.h);
+      ctx.restore();
+      rr(x0 - rw / 2, y0 - rw / 2, q.w + rw, q.h + rw, q.r + rw / 2);
+      ctx.lineWidth = rw; ctx.strokeStyle = this.theme.seaPillRim || "#123238"; ctx.stroke();
+    });
   }
 
   drawFallbackBoard(ctx) {
