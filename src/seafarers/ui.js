@@ -89,6 +89,55 @@ export const SeaGame = {
     return road ? "road" : ship ? "ship" : null;
   },
 
+  /** v0.98: a coast edge where a road and a ship both fit and the mode leaves the choice open (build / Road Building). */
+  _seaBoth(player, edgeId, pa, free) {
+    if (pa === "ship" || (pa === "road" && !free)) return false;
+    return this.canBuildRoad(player, edgeId, { free }) && this.canBuildShip(player, edgeId, { free });
+  },
+
+  /** v0.98: the tiny "Road / Ship" chooser by the tapped coast edge (44 px buttons). A pick builds at once when building
+   *  is direct, else it becomes the chosen spot (Place / a 2nd tap builds it); a mode-less pick only selects. */
+  _seaChoosePiece(player, target, x, y, auto) {
+    this._seaCloseChooser();
+    const cr = this.canvas.getBoundingClientRect(), v = this.view;
+    const sx = cr.left + v.offsetX + v.scale * x, sy = cr.top + v.offsetY + v.scale * y;
+    const el = document.createElement("div");
+    el.className = "sea-chooser"; el.setAttribute("role", "group"); el.setAttribute("aria-label", "Build a road or a ship here");
+    el.style.cssText = "position:fixed;z-index:60;display:flex;gap:6px;padding:5px;border-radius:14px;background:var(--float,#FBF6EA);border:var(--float-border,1px solid rgba(0,0,0,.12));box-shadow:var(--float-shadow,0 6px 18px rgba(0,0,0,.25));font:700 14px/1 var(--font-ui,system-ui);color:var(--ink,#1F1A17)";
+    const modeless = !this.pendingAction;
+    const pick = (type) => {
+      this._seaCloseChooser();
+      const free = this.freeRoadsRemaining > 0, t = { type, id: target.id, ambiguous: false };
+      if (this.winner || this.currentPlayer !== player) return;
+      if (!(type === "ship" ? this.canBuildShip(player, t.id, { free }) : this.canBuildRoad(player, t.id, { free }))) return;
+      if (modeless) { this.pendingAction = type; this.confirmBuild = t; this._autoPick = true; this.canvas.style.cursor = "crosshair"; this.render(); return; }
+      if (!this.confirmPlacements && !auto) { this._commitBuild(player, t); return; }
+      if (auto) this.pendingAction = type;
+      this.confirmBuild = t;
+      this.render();
+    };
+    [["road", "Road"], ["ship", "Ship"]].forEach(([type, label]) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = label; b.dataset.piece = type;
+      b.style.cssText = "min-width:58px;min-height:44px;padding:0 12px;border-radius:10px;border:0;background:var(--chip,rgba(0,0,0,.06));color:inherit;font:inherit;cursor:pointer";
+      b.addEventListener("click", (ev) => { ev.stopPropagation(); pick(type); });
+      el.appendChild(b);
+    });
+    document.body.appendChild(el);
+    const w = el.offsetWidth, h = el.offsetHeight;
+    el.style.left = `${Math.round(Math.max(8, Math.min(innerWidth - w - 8, sx - w / 2)))}px`;
+    el.style.top = `${Math.round(sy - h - 20 < 8 ? sy + 20 : sy - h - 20)}px`;
+    this._seaChooser = el;
+    this._seaChooserOff = (ev) => { if (ev.type === "keydown" ? ev.key === "Escape" : !el.contains(ev.target)) this._seaCloseChooser(); };
+    setTimeout(() => { if (this._seaChooser !== el) return; document.addEventListener("pointerdown", this._seaChooserOff, true); document.addEventListener("keydown", this._seaChooserOff, true); }, 0);
+    this.sfx.click();
+  },
+  _seaCloseChooser() {
+    if (!this._seaChooser) return;
+    this._seaChooser.remove(); this._seaChooser = null;
+    document.removeEventListener("pointerdown", this._seaChooserOff, true); document.removeEventListener("keydown", this._seaChooserOff, true);
+  },
+
   /** A coast edge where both fit: continue whatever network reaches it (ships win at sea-only ends). */
   _seaPrefer(player, edgeId) {
     const e = this.geometry.edges[edgeId];

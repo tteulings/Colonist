@@ -11,7 +11,7 @@
 import { hexPath, pipCount, f, harbourBadges, harbourScale, pierDot, drawPierDot } from "./art-util.js";
 import { motionReduced } from "./manager.js";
 // ⚓ Seafarers drawing (only used while game.sea is set)
-import { seaArt, portLandHex, bakeSeaMarks, drawShips, drawPirateAndChips, drawShipSpots, ghostShip, ghostPirate } from "../seafarers/render.js";
+import { seaArt, portLandHex, bakeSeaMarks, bakeSeaGrid, drawShips, drawPirateAndChips, drawShipSpots, ghostShip, ghostPirate } from "../seafarers/render.js";
 /** v0.82: the free gap (art units, per road end) between a road's rounded cap and its node. */
 const ROAD_JOINT = 4;
 // v0.96 ownership readability (who95 mockup variant A): pieces 15% larger, every settlement / city / road edged in a
@@ -290,6 +290,7 @@ export class SvgBoardRenderer {
     const isl = await rasterize(svgOf(b.minX, b.minY, b.W, b.H, ki, T.island(centers)), b.W * ki, b.H * ki);
     if (gen !== this.bakeGen) return;
     ctx.drawImage(isl, 0, 0, canvas.width, canvas.height);
+    if (sea) bakeSeaGrid(this, ctx, b, k); // ⚓ v0.98: the faint sea grid, above the shallows, under the harbours
     // 2. harbours, each in a box around its piers + badge
     for (let i = 0; i < ports.length; i += 1) {
       const { a, b: bb, badge: q } = portData[i], M = 16, sh = q.ship || q;
@@ -848,7 +849,7 @@ export class SvgBoardRenderer {
       ctx.lineWidth = 2.5 * k * px; ctx.strokeStyle = c.base; ctx.stroke();
       ctx.restore();
     });
-    if (ships.length) drawShipSpots(this, ctx, ships, cb, { a: 0.4 * fade, e: 0.5 }, c.base); // ⚓ dotted spots on the water
+    if (ships.length) drawShipSpots(this, ctx, ships, cb, { a: 0.4 * fade, e: 0.5 }, c); // ⚓ ghost hulls on the legal edges (v0.98)
     nodes.forEach((id) => {
       if (cb && cb.id === id && !["road", "ship"].includes(cb.type)) return;
       const p = this.nodeArt(id);
