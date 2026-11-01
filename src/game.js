@@ -5721,6 +5721,7 @@ class ColonistFullGame {
     this.sea?.onNewTurn(); // ⚓ ship move + "built this turn" reset
     // Invalidate any trade confirm/accept buttons left over from this turn
     this.turnSerial += 1;
+    { const h = typeof document !== "undefined" && document.querySelector?.("#tradeHint"); if (h && h.classList?.contains("ok")) this._tradeHint("", ""); } // v0.92: "✓ Traded …" belongs to the turn it happened in
     this.tradeLocked = false;
     if (this.tradeProposalResult) this.tradeProposalResult.innerHTML = "";
 
@@ -8193,7 +8194,7 @@ class ColonistFullGame {
         const cp = this.currentPlayer;
         const t = rush && !this.setupPhase ? "Rush · build and trade until the next roll"
           : cp.isHuman ? (this.phase === "pre_roll" ? "Your turn · roll the dice" : "Your turn · build, trade or play a card")
-          : `${cp.name} is playing`;
+          : `${cp.name} is ${this._masterBusy?.pid === cp.id ? "thinking…" : "playing"}`;
         this.tickerText.innerHTML = this._enrichLogText(t);
         if (this.tickerIcon) this.tickerIcon.innerHTML = icon(cp.isHuman && this.phase === "pre_roll" ? "dice" : "log");
       }
@@ -8374,7 +8375,7 @@ class ColonistFullGame {
       } else if (inSetup && humanTurn && !rushOn) {
         wait = `${icon(this.setupAction || "settlement")}<div class="wt">Setup ${setupRound} of 2<small>${this.setupAction === "road" ? "Last step: a road" : "Then add a road"}</small></div>`;
       } else if (oppTurn) {
-        wait = `${this._av(active)}<div class="wt">${active.name} is playing</div><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>`; // v0.76: no sub-line (a Trade tap says when trading opens)
+        wait = `${this._av(active)}<div class="wt">${active.name} is ${this._masterBusy?.pid === active.id && this._masterBusy.kind !== "trade" ? "thinking…" : "playing"}</div><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>`; // v0.76: no sub-line (a Trade tap says when trading opens)
       }
       const wkey = `${wait.length}:${active.id}:${preRoll}:${inSetup}:${!!this.winner}:${this.pendingAction}:${this.setupAction}:${setupRound}:${this.confirmBuild?.type}`;
 

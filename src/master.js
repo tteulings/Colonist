@@ -22,7 +22,7 @@ export function masterWorker() {
   if (shared.broken || typeof Worker === "undefined") return null;
   if (shared.worker) return shared.ready;
   try {
-    shared.worker = new Worker(new URL("./master/worker.js?v=91", import.meta.url), { type: "module" });
+    shared.worker = new Worker(new URL("./master/worker.js?v=92", import.meta.url), { type: "module" });
   } catch (_) { shared.broken = true; return null; }
   shared.ready = new Promise((resolve) => {
     const t = setTimeout(() => { shared.broken = true; resolve(null); }, READY_TIMEOUT_MS);
@@ -81,12 +81,14 @@ export const MasterMixin = {
     const gen = this.gameGen;
     this._masterBusy = { pid: player.id, kind, t0: performance.now() };
     const r = this._masterReq(kind, player);
+    try { this.renderLog(); this.renderStatusAndControls(); } catch (_) { /* headless */ } // the dock says "… is thinking…"
     const pre = this._masterPre?.key === r.key ? this._masterPre.promise : null;
     this._masterPre = null;
     return (pre || r.send())
       .then((m) => {
         if (gen !== this.gameGen) return { stale: true };
         this._masterBusy = null;
+        try { this.renderLog(); this.renderStatusAndControls(); } catch (_) { /* headless */ }
         if (!m || !m.record) return null;
         return { choice: m.choice, record: m.record };
       });
