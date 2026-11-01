@@ -3,6 +3,7 @@
 // The board itself is still drawn by the legacy canvas code in game.js (canvasArt: false).
 import { RES_NAME, DEV_NAME, RESOURCE_KEYS } from "../art-util.js";
 import sunny from "../sunny/art.js";
+import { SEAT_PC_DAY } from "../seats.js";
 
 const img = (href, s = 80) => `<image href="${href}" x="${-s / 2}" y="${-s / 2}" width="${s}" height="${s}"/>`;
 const RES_ICON = {
@@ -17,9 +18,9 @@ const RES_COLOR = { wood: "#4a7c3f", brick: "#c66536", sheep: "#7ec850", wheat: 
 // Seats look the same in every theme (v0.75, colonist.io order): You red, Blaauw blue, Van Geelen orange, Groenewoud green
 // (+ De Wit ivory, Pimpel purple in 5–6 player games, appended by src/themes/seats.js) — the Sunny Island piece
 // colours and portraits, so switching themes never recolours a player.
-const SEAT_COLORS = ["#D1453A", "#3C75C6", "#F08A2E", "#2A8556"]; // v0.78: the Sunny (light) piece colours
+const SEAT_COLORS = ["red", "blue", "orange", "green"].map((k) => SEAT_PC_DAY[k].base); // v0.96: the shared day piece colours
 // the full piece shades per seat: the UI seat tokens are derived from these (src/themes/seats.js applySeatTokens)
-const SEAT_PC = [{ base: "#D1453A", dark: "#A3302A", light: "#EB8070", line: "#4A1712" }, { base: "#3C75C6", dark: "#28569A", light: "#7FA6E0", line: "#14305A" }, { base: "#F08A2E", dark: "#BA6018", light: "#F8B670", line: "#552A08" }, { base: "#2A8556", dark: "#1D6340", light: "#66B58A", line: "#0E3020" }, { base: "#EFE7D4", dark: "#CEC3A8", light: "#FBF7EC", line: "#6B6253" }, { base: "#5A2C88", dark: "#43206A", light: "#9A76C6", line: "#1E0B33" }];
+const SEAT_PC = ["red", "blue", "orange", "green", "ivory", "purple"].map((k) => ({ ...SEAT_PC_DAY[k] }));
 // Classic has no per-seat piece shades (theme.pc); the build / Seafarers ship icons use this neutral ink
 const YOU_PC = { base: "#22313A", dark: "#16222A", light: "#4A5A64", line: "#0E161B" }; // v0.75: build icons in neutral ink (UI, not a seat colour)
 const ink = "#1a3a52";

@@ -2422,15 +2422,13 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
   body.rush-merged .app .rush-hud .rush-next7 { gap: 0; }
   body.rush-merged .app .rush-hud .rush-next7-label { font-size: 8.5px; }
   body.rush-merged .app .rush-hud .rush-next7 .avatar { --av: 26px; }
-  /* the player strip: avatar + points, then the cards; the name stays in the chip's label (the avatar carries the colour) */
-  body.rush-merged .pstrip .pchip .pn { display: none; }
+  /* the player strip: avatar + points, then the (short) name and the cards (v0.96: the names are back) */
   body.rush-merged .pstrip .pchip { padding-top: 4px; padding-bottom: 3px; }
   body.rush-merged .pstrip .pchip .bdg { top: auto; bottom: 2px; }
 }
 @media (max-width: 900px) and (min-height: 501px) {
   body.rush-merged .app .rush-hud .ticker .txt { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: unset; }
   body.rush-merged .app .rush-hud .ticker .txt .tk-main { white-space: nowrap; }
-  body.rush-merged .pstrip .pchip { grid-template-areas: "av vp" "pcards mini"; grid-template-rows: auto auto; }
   body.rush-merged .pstrip .pchip .mini { justify-content: flex-end; }
 }
 @media (max-width: 900px) and (min-height: 501px) {
@@ -2442,4 +2440,62 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
   /* 5–6 players: the knights / road line of a chip appears mid-game; Rush keeps its room from the start, so the strip
      never changes height (a refit of the big board stalls the game ~1 s on a phone) */
   body.rush-merged .pstrip.six-up > .pchip.six:not(:has(.mini.feats))::after { content: ""; display: block; flex: none; height: 14px; }
+}
+
+/* v0.96: press and hold a hex (right-click on desktop): who it pays, and the robber / pirate on it */
+.hex-callout { position: absolute; z-index: 8; max-width: min(320px, calc(100% - 16px)); padding: 7px 10px 8px; border-radius: 12px;
+  background: var(--float); border: var(--float-border); box-shadow: var(--float-shadow); color: var(--ink);
+  font: 500 13px/1.3 var(--font-ui, system-ui); pointer-events: none; animation: hcIn .14s ease-out; }
+.hex-callout[hidden] { display: none; }
+.hex-callout .hc-title { font-weight: 700; font-size: 13px; margin-bottom: 3px; }
+.hex-callout .hc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; }
+.hex-callout .hc-lbl { font-weight: 600; opacity: .75; margin-right: 2px; }
+.hex-callout .hc-who { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.hex-callout .hc-who i { font-style: normal; opacity: .75; font-size: 12px; }
+.hex-callout .hc-av { width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 0 2px var(--seat); flex: none; }
+.hex-callout .hc-dot { opacity: .5; margin: 0 2px; }
+.hex-callout .hc-none { opacity: .75; }
+.hex-callout .hc-block { margin-top: 3px; font-weight: 600; color: var(--danger, #A3302A); }
+[data-palette="night"] .hex-callout .hc-block { color: #FF9AA2; }
+@keyframes hcIn { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .hex-callout { animation: none; } }
+.hex-callout .hc-av svg { width: 100%; height: 100%; display: block; }
+
+/* v0.96 Rush 7 on phones: an opaque, compact banner UNDER the player strip (the scores stay visible), one step at a time */
+@media (max-width: 900px) and (orientation: portrait) {
+  .rush-seven.compact { top: var(--seven-top, 0px); }
+  .app .rush-seven.compact .rush-seven-card { padding: 6px 12px 8px; border-radius: 0 0 16px 16px; background-color: var(--sheet); box-shadow: 0 8px 20px rgba(0,0,0,.18); max-height: 34vh; }
+  .rush-seven.compact .rush-seven-head { margin-bottom: 2px; gap: 8px; }
+  .rush-seven.compact .rush-seven-badge { width: 26px; height: 26px; font-size: 17px; border-radius: 8px; }
+  .rush-seven.compact .rush-seven-head h3 { font-size: 15px; }
+  .rush-seven.compact .rush-seven-step { padding: 5px 8px; margin: 0; }
+  .rush-seven.compact .rush-seven-step-title { font-size: 13px; }
+  .rush-seven.compact .rush-seven-chips { margin-top: 4px; gap: 4px; }
+  .rush-seven.compact .rush-seven-chip { font-size: 11.5px; padding: 2px 7px 2px 2px; }
+  .rush-seven.compact .rush-seven-chip .avatar { --av: 18px; }
+}
+.rush-seven.compact .rush-seven-step.later { display: none; }
+
+/* v0.96 Rush header on phones: the journal line wraps to a second line instead of being cut off (the "Next 7" column
+   gives its room to it; the next mover wears a small 7 on their strip chip), Ready dots 12 px, the journal button 40 px */
+@media (max-width: 900px) and (min-height: 501px) {
+  body.rush-merged .app .rush-hud .rush-next7 { display: none; }
+  body.rush-merged .app .rush-hud .ticker { height: 33px; min-height: 33px; } /* always room for two lines: the HUD never changes height */
+  body.rush-merged .app .rush-hud .ticker .txt { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow: hidden; line-height: 1.22; }
+  body.rush-merged .app .rush-hud .ticker .txt .tk-main { white-space: normal; }
+  body.rush-merged .app .rush-hud .ticker .more { width: 40px; height: 40px; margin: -7px -4px -7px 0; }
+  body.rush-merged .app .rush-hud .rush-voter-dot { width: 12px; height: 12px; }
+}
+/* v0.96 strip chips, less loaded: nothing rides on the avatar's face. The next 7's mover: a small "7" in the chip's free
+   bottom-left corner (6 players: centred at the foot of the chip); the new-islands count stays in the scoreboard / player sheet (the points already include it);
+   the award pill ("11 +2") a size smaller */
+@media (max-width: 900px), (max-height: 500px) {
+  .app .pstrip .pchip { position: relative; }
+  .app .pstrip .pchip.next7::before { content: "7"; position: absolute; left: 4px; bottom: 3px; z-index: 1; display: grid; place-items: center; width: 14px; height: 14px;
+    border-radius: 4px; font: 800 10.5px/1 var(--font-display, system-ui); background: var(--danger, #A3302A); color: #fff; pointer-events: none; }
+  .app .pstrip.six-up > .pchip.six.next7::before { left: 50%; bottom: 3px; transform: translateX(-50%); }
+  .app .pstrip .pchip .isle-chip { display: none; }
+  .app .pstrip .pchip .mini span.award { font-size: 10.5px; line-height: 13px; padding: 0 2px 0 1px; border-radius: 5px; }
+  .app .pstrip .pchip .mini span.award .ic { font-size: 11px; }
+  .app .pstrip .pchip .mini span.award .aw-plus { font-size: 9px; margin-left: 1px; }
 }

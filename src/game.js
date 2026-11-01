@@ -1,5 +1,5 @@
 import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced, SEAT_PRESETS, awardStat } from "./themes/manager.js";
-import { SvgBoardRenderer, drawSpec } from "./themes/board-renderer.js";
+import { SvgBoardRenderer, drawSpec, PIECE_GROW, PIECE_OUTLINE_PX, PIECE_HALO_PX, pieceHalo, outlined } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
 import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted, seaHarbourScale, pierDot, drawPierDot } from "./themes/art-util.js";
@@ -262,6 +262,14 @@ const RUSH_TRADE_NOTICE_MS = 3000;
 const RUSH_TICKER_DWELL_MS = 1600; // v0.93: a Rush ticker line stays at least this long (readable before the next one) // v0.93: a bot↔bot trade stays in the ticker at most this long
 const TRADE_LINE = /\btraded\b/; // "Blaauw traded 1 Wool with Groenewoud for 1 Ore." / "Blaauw traded 2 Lumber for 1 Ore." / "You traded with …"
 const RUSH_OFFER_ROOM = 66;     // v0.93 phones: the board keeps this room above the hand for the whole Rush game (offers never resize it)
+// v0.96 phone board fit (see _phoneFrame)
+const HEX_HOLD_MS = 450;        // v0.96: press and hold a hex this long for its "who it pays" callout
+const BOARD_MARGIN = 12;        // css px of breathing room between the land (with its harbour pills) and the HUD, the hand, the screen edges
+const HAND_LIP = 16;            // the hand's cards start this far below the top of its fan (--fan-h)
+const OFFER_ROOM = 74, OFFER_MAX_COST = 0.06;
+const PILL_MIN_FONT = 12.3;     // css px: a harbour pill's ratio ("2:1") never reads smaller than 12 px on a phone           // Rush: kept free of land above the hand's margin, where a trade offer card docks
+const LANDSCAPE_HEX_PX = 25, LANDSCAPE_MAX_ZOOM = 1.45, LANDSCAPE_ZOOM_BELOW = 20; // landscape phones: a land fitted under 20 css px per hex (Seafarers) opens zoomed in to about 25
+const LAND_BEACH_X = 0.98, LAND_BEACH_Y = 1.08; // a land hex with its beach, in hex radii from its centre
 const RUSH_DISCARD_LIMIT = 9;   // v0.93: Rush discards only above 9 cards on a 7 (Classic: settings.discardLimit, 7 by default)
 
 /** Cards you may hold on a 7 without discarding: the setting, at least 9 in Rush. */
@@ -1413,7 +1421,7 @@ class ColonistFullGame {
   resetViewTransform() {
     if (!this.geometry) return;
     this._userZoomed = false;
-    this._animateView(this._fitTarget(), 300);
+    this._animateView(this._fitTarget(true), 300); // v0.96: the Fit button always shows the whole land
   }
 
   resetGame() {
@@ -2374,7 +2382,16 @@ class ColonistFullGame {
         ts.startY = ts.lastY = p.y;
         ts.startTime = event.timeStamp; // event time: a busy main thread must not turn a tap into a long press
         ts.samples = [{ t: ts.startTime, x: p.x, y: p.y }];
+        // v0.96: hold a hex still for HEX_HOLD_MS: who it pays (a tap, a drag or a pinch cancels the hold)
+        clearTimeout(ts.holdTimer);
+        ts.holdTimer = window.setTimeout(() => {
+          if (ts.mode !== "tap" || !this.showHexCallout(ts.startX, ts.startY)) return;
+          ts.mode = "hold";
+          try { navigator.vibrate?.(12); } catch (_) { /* no haptics */ }
+        }, HEX_HOLD_MS);
       }
+      if (event.touches.length >= 2) clearTimeout(ts.holdTimer);
+      if (ts.mode !== "hold") this.hideHexCallout();
     }, { passive: false });
 
     this.canvas.addEventListener("touchmove", (event) => {
@@ -2421,6 +2438,8 @@ class ColonistFullGame {
       }
       const mode = ts.mode;
       ts.mode = null;
+      clearTimeout(ts.holdTimer);
+      if (mode === "hold") { ts.lastTapTime = 0; return; } // the callout stays up until the next touch
       if (mode === "pan" && !cancelled) {
         const s0 = ts.samples[0], s1 = ts.samples[ts.samples.length - 1];
         const dt = s1.t - s0.t;
@@ -2458,6 +2477,65 @@ class ColonistFullGame {
     };
     this.canvas.addEventListener("touchend", (event) => end(event, false), { passive: false });
     this.canvas.addEventListener("touchcancel", (event) => end(event, true), { passive: false });
+    // v0.96: desktop — right-click a hex for the same callout; any other press closes it
+    this.canvas.addEventListener("contextmenu", (event) => { event.preventDefault(); const p = this.getCanvasPoint(event); this.showHexCallout(p.x, p.y); });
+    document.addEventListener("pointerdown", (event) => { if (event.button === 0 && event.pointerType === "mouse") this.hideHexCallout(); }, true);
+  }
+
+  /** v0.96 long-press (phones) / right-click (desktop) on a hex: a small callout above it — what the hex is, who it
+   *  pays on its number ("Pays: Blaauw ×1 · You ×2 (city)", with avatars) and whether the robber / pirate blocks it.
+   *  (x, y) in canvas css px. Returns false where there is no hex (the press then does nothing). */
+  showHexCallout(x, y) {
+    const g = this.geometry;
+    if (!g || !this.players?.length) return false;
+    const w = this.screenToWorld(x, y);
+    let hex = null, best = g.hexSize * 0.95;
+    g.hexes.forEach((h) => { const d = Math.hypot(h.center.x - w.x, h.center.y - w.y); if (d < best) { best = d; hex = h; } });
+    if (!hex) return false;
+    const robber = this.robberHexId === hex.id, pirate = this.sea?.pirateHexId === hex.id;
+    if (hex.resource === "sea" && !pirate) return false;
+    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const name = (p) => (p.isHuman && this.players.filter((q) => q.isHuman).length === 1 ? "You" : p.short || p.name);
+    const by = new Map();
+    g.nodes.forEach((n) => {
+      if (!n.structure || n.owner == null || !(n.adjacentHexes || []).includes(hex.id)) return;
+      const e = by.get(n.owner) || { n: 0, city: false };
+      e.n += n.structure === "city" ? 2 : 1; e.city = e.city || n.structure === "city";
+      by.set(n.owner, e);
+    });
+    const title = hex.resource === "sea" ? "Sea" : `${TERRAIN_NAME[hex.resource] || hex.resource}${hex.number ? ` · ${hex.number}` : ""}`;
+    let pays;
+    if (hex.resource === "sea") pays = "";
+    else if (hex.resource === "desert" || !hex.number) pays = `<div class="hc-row hc-none">Pays nobody</div>`;
+    else if (!by.size) pays = `<div class="hc-row hc-none">No one builds here yet</div>`;
+    else pays = `<div class="hc-row"><span class="hc-lbl">${robber ? "Would pay" : "Pays"}</span>${[...by.entries()].sort((a, b) => b[1].n - a[1].n || a[0] - b[0]).map(([pid, e]) => {
+      const p = this.players[pid];
+      return `<span class="hc-who" style="--seat:var(--p${pid})">${this._av(p, "hc-av")}<b style="color:var(--p${pid}-text)">${esc(name(p))}</b>&nbsp;×${e.n}${e.city ? " <i>(city)</i>" : ""}</span>`;
+    }).join('<span class="hc-dot">·</span>')}</div>`;
+    const block = robber ? `<div class="hc-row hc-block">Robber here: pays nothing until it moves</div>`
+      : pirate ? `<div class="hc-row hc-block">Pirate here: no ships may pass next to it</div>` : "";
+    let el = this._hexCallout;
+    if (!el) {
+      el = this._hexCallout = document.createElement("div");
+      el.className = "hex-callout"; el.setAttribute("role", "status");
+      (this.canvas.parentElement || document.body).appendChild(el);
+    }
+    el.innerHTML = `<div class="hc-title">${esc(title)}</div>${pays}${block}`;
+    el.hidden = false;
+    // above the hex (below it when there is no room), kept inside the board with a 8 px margin
+    const c = this.worldToScreen(hex.center.x, hex.center.y), r = g.hexSize * this.view.scale;
+    const bw = this.boardWidth, cw = el.offsetWidth, ch = el.offsetHeight;
+    const top = c.y - r - ch - 6 >= 8 ? c.y - r - ch - 6 : Math.min(this.boardHeight - ch - 8, c.y + r + 6);
+    el.style.left = `${Math.round(clamp(c.x - cw / 2, 8, Math.max(8, bw - cw - 8)))}px`;
+    el.style.top = `${Math.round(Math.max(8, top))}px`;
+    clearTimeout(this._hexCalloutTimer);
+    this._hexCalloutTimer = window.setTimeout(() => this.hideHexCallout(), 5000);
+    return true;
+  }
+
+  hideHexCallout() {
+    clearTimeout(this._hexCalloutTimer);
+    if (this._hexCallout && !this._hexCallout.hidden) this._hexCallout.hidden = true;
   }
 
   // ── View: limits, clamping, motion ──────────────────────────────────────
@@ -2467,78 +2545,78 @@ class ColonistFullGame {
   /** Island bounds (world) and the visible board area (screen), shared by fit and clamping. */
   _viewFrame() {
     const g = this.geometry, hs = g.hexSize;
-    const xs = g.hexes.map((h) => h.center.x), ys = g.hexes.map((h) => h.center.y);
-    // Phones: the island (tiles + beach) fills the width; only the harbours may touch the screen edge
     const mobile = this.isMobileLayout;
     this._hScale = 0; // v0.78: re-chosen below on phones (see harbourScale)
-    // ⚓ Seafarers: the whole scenario frame (outer sea hexes included, ships may sail there), no harbour boats
-    // v0.86: landscape phones keep the top / bottom coast corners' build rings on screen in Seafarers too (the land
-    // can reach the frame's edge there; the hand and the ticker no longer cover that band)
-    const mx = hs * (this.sea ? 0.9 : mobile ? 1.05 : 1.75), my = hs * (this.sea ? (this.isLandscapePhone ? 1.45 : 1.0) : mobile ? 1.12 : 1.7);
+    if (mobile && this.app) return this._phoneFrame();
+    const xs = g.hexes.map((h) => h.center.x), ys = g.hexes.map((h) => h.center.y);
+    // ⚓ Seafarers: the whole scenario frame (outer sea hexes included, ships may sail there)
+    const mx = hs * (this.sea ? 0.9 : 1.75), my = hs * (this.sea ? 1.0 : 1.7);
     const box = { minX: Math.min(...xs) - mx, maxX: Math.max(...xs) + mx, minY: Math.min(...ys) - my, maxY: Math.max(...ys) + my };
-    let fan = 0, top = 4, side = 0;
     // v0.76: harbour pills that sit further out than the margin (bays of the 5–6 player board) widen the box
-    // v0.94 ⚓ Seafarers: its (bigger, see harbourScale) pills always count, on phones too, so a pill off the top coast
-    // never sits under the ticker (landscape) nor one off the bottom under the hand
-    const seaM = this.sea && this._hPx ? (10 * hs) / this._hPx : 0; // ⚓ + ~10 css px: clear of the chrome's shadow
-    if (!mobile || this.sea) harbourBadges(this, harbourScale(this)).forEach((q) => {
-      const u = hs / 100, bx = g.centerX + q.x * u, by = g.centerY + q.y * u, hw = (q.w / 2 + 6) * u + seaM, hh = (q.h / 2 + 6) * u + seaM;
+    harbourBadges(this, harbourScale(this)).forEach((q) => {
+      const u = hs / 100, bx = g.centerX + q.x * u, by = g.centerY + q.y * u, hw = (q.w / 2 + 6) * u, hh = (q.h / 2 + 6) * u;
       box.minX = Math.min(box.minX, bx - hw); box.maxX = Math.max(box.maxX, bx + hw); box.minY = Math.min(box.minY, by - hh); box.maxY = Math.max(box.maxY, by + hh);
     });
-    if (mobile && this.app) {
-      const cs = getComputedStyle(this.app);
-      // + the room a docked trade offer takes above the hand (only while one is up)
-      fan = (parseFloat(cs.getPropertyValue("--fan-h")) || 112) + (this._fitNoOffer ? 0 : parseFloat(cs.getPropertyValue("--offer-room")) || 0);
-      top = (parseFloat(cs.getPropertyValue("--board-top")) || 4) + (this.sea ? this._seaTopPad || 0 : 0); // ⚓ v0.94 (see _seaChromePad)
-      side = parseFloat(cs.getPropertyValue("--board-side")) || 0;
-      if (this.labMode) { fan = 6; top = 4; side = side || 8; } // AI Lab board: no hand / top bar over it; whole world in the frame
-      if (side) {
-        // Side gutters: the beach keeps --board-side from the screen edge; the harbour boats may use
-        // that gutter; only the very tip of a boat may run off screen. Only the ports this map really has count, so a map
-        // without a harbour at the far left/right gets the full width.
-        const cx = (box.minX + box.maxX) / 2, half = (box.maxX - box.minX) / 2;
-        const avail = this.boardWidth / 2;
-        // v0.76: every harbour pill (same layout as the art, world units = hexSize / 100) fully on screen
-        const u = hs / 100, M = 4 * u;
-        const measure = (s) => {
-          let reach = 0, y0 = box.minY, y1 = box.maxY;
-          harbourBadges(this, s).forEach((q) => {
-            const bx = g.centerX + q.x * u, by = g.centerY + q.y * u;
-            reach = Math.max(reach, Math.abs(bx - cx) + (q.w / 2) * u + M);
-            // v0.73: the whole world on screen — harbours above / below the island count for the height too
-            y0 = Math.min(y0, by - (q.h / 2) * u - M); y1 = Math.max(y1, by + (q.h / 2) * u + M);
-          });
-          return { reach, y0, y1 };
-        };
-        // v0.78: the harbour pills grow on phones (ratio >= 12 px) but never at the cost of the board: take the
-        // largest pill scale that costs the board at most 4% of the size the v0.77-size pills (scale 1.38) allowed
-        const k77 = (() => { const m = measure(1.38); return Math.min((avail - side) / half, m.reach ? (avail - 3) / m.reach : Infinity); })();
-        let hS = 1.38;
-        for (let s = this.sea && this._hPx ? seaHarbourScale(this._hPx, true) : harbourScaleWanted(hs); s > 1.38; s -= 0.08) {
-          const m = measure(s);
-          if (!m.reach || (avail - 3) / m.reach >= k77 * 0.96) { hS = s; break; }
-        }
-        this._hScale = hS;
-        const { reach, y0, y1 } = measure(hS);
-        box.minY = y0; box.maxY = y1;
-        // v0.73: every harbour boat fully on screen (playtest: "I can't always see the whole world");
-        // was: a boat tip could run 6 px off the edge
-        const k = Math.min((avail - side) / half, reach ? (avail - 3) / reach : Infinity);
-        box.minX = cx - avail / k; box.maxX = cx + avail / k;
-        side = 0;
-      }
-    }
-    // (⚓ v0.94 Seafarers, portrait: its southern islands reach the frame's bottom row, so they stop above the hand's fade
-    // instead of 6 px into it)
-    const ins = mobile ? { t: top, r: side, b: this.sea && !this.isLandscapePhone ? fan + 2 : fan - 6, l: side } : { t: 10, r: 10, b: 10, l: 10 };
+    const vp = { l: 10, t: 10, W: Math.max(50, this.boardWidth - 20), H: Math.max(50, this.boardHeight - 20) };
+    return { box, vp };
+  }
+
+  /** v0.96 phones: the LAND (land hexes with their beach, plus every harbour pill) is fitted into the free area between
+   *  the HUD and the hand, with the same breathing room (BOARD_MARGIN css px) to the HUD, the hand and both screen
+   *  edges. Seafarers fits its islands, not its sea frame (ships may sail past the fit; pan or zoom out to see them).
+   *  The trade-offer room above the hand is kept free only where the board has height to spare (it never shrinks the
+   *  board, and offers coming and going never move it). */
+  _phoneFrame() {
+    const g = this.geometry, hs = g.hexSize, u = hs / 100;
+    const land = g.hexes.filter((h) => h.resource !== "sea");
+    const hexes = land.length ? land : g.hexes;
+    const xs = hexes.map((h) => h.center.x), ys = hexes.map((h) => h.center.y);
+    const box0 = { minX: Math.min(...xs) - LAND_BEACH_X * hs, maxX: Math.max(...xs) + LAND_BEACH_X * hs, minY: Math.min(...ys) - LAND_BEACH_Y * hs, maxY: Math.max(...ys) + LAND_BEACH_Y * hs };
+    const cs = getComputedStyle(this.app), M = BOARD_MARGIN;
+    const fan = parseFloat(cs.getPropertyValue("--fan-h")) || 112;
+    const boardTop = parseFloat(cs.getPropertyValue("--board-top")) || 0;
+    let ins;
+    if (this.labMode) ins = { t: 8, r: 8, b: 8, l: 8 }; // AI Lab board: its own frame, nothing over it
+    // portrait: the hand's cards start HAND_LIP px below the top of its fan; landscape: the hand sits in the right column
+    else if (this.isLandscapePhone) ins = { t: boardTop + M - 6 + (this._chromeTopPad || 0), r: M, b: M, l: M };
+    else ins = { t: boardTop + M + (this._chromeTopPad || 0), r: M, b: fan - HAND_LIP + M, l: M };
     const vp = { l: ins.l, t: ins.t, W: Math.max(50, this.boardWidth - ins.l - ins.r), H: Math.max(50, this.boardHeight - ins.t - ins.b) };
-    if (mobile) {
-      // Width-bound portrait phones: balance the spare sea above and below the island — 60% above (where
-      // the fit button floats), 40% above the hand. v0.72: was 90% on top (shift 0.8), which left a big empty
-      // band of sea under the ticker on tall phones. (The island is centred in what is left after the shift.)
-      const scale = Math.min(vp.W / (box.maxX - box.minX), vp.H / (box.maxY - box.minY));
-      const slack = vp.H - (box.maxY - box.minY) * scale;
-      if (slack > 8) { const shift = slack * 0.2; vp.t += shift; vp.H -= shift; }
+    const withPills = (s) => {
+      const b = { ...box0 };
+      harbourBadges(this, s).forEach((q) => {
+        const bx = g.centerX + q.x * u, by = g.centerY + q.y * u, hw = (q.w / 2) * u, hh = (q.h / 2) * u;
+        b.minX = Math.min(b.minX, bx - hw); b.maxX = Math.max(b.maxX, bx + hw); b.minY = Math.min(b.minY, by - hh); b.maxY = Math.max(b.maxY, by + hh);
+      });
+      return b;
+    };
+    const fitOf = (b) => Math.min(vp.W / (b.maxX - b.minX), vp.H / (b.maxY - b.minY));
+    // v0.78: the harbour pills grow on phones (ratio >= 12 px) but never at the cost of the board: the largest pill scale
+    // that costs the board at most 4% of the size the v0.77-size pills (scale 1.38) allow
+    let box = withPills(1.38), hS = 1.38;
+    const k0 = fitOf(box);
+    for (let s = this.sea && this._hPx ? seaHarbourScale(this._hPx, true) : harbourScaleWanted(hs); s > 1.38; s -= 0.08) {
+      const b = withPills(s);
+      if (fitOf(b) >= k0 * 0.96) { box = b; hS = s; break; }
+    }
+    // the ratio text (25·s art units, see harbourBadges) never under PILL_MIN_FONT css px at the fitted size
+    // (portrait: landscape phones open Seafarers zoomed in, where the pills read larger)
+    for (let i = 0; i < 2 && !this.isLandscapePhone; i += 1) {
+      const need = Math.min(2.7, (PILL_MIN_FONT * 100) / (25 * hs * fitOf(box)));
+      if (need <= hS + 0.005) break;
+      hS = need; box = withPills(hS);
+    }
+    this._hScale = hS;
+    if (!this.labMode && !this.isLandscapePhone && this.isRush() && !this.winner) {
+      // Rush (bots offer you trades all game): the docked offer card's room above the hand is kept free of land, so an
+      // offer never covers a tile and offers coming and going never move the board (v0.93). Where the land has height to
+      // spare (the island is width-bound on a phone) that room comes out of the spare height and costs the board nothing.
+      const slack = vp.H - (box.maxY - box.minY) * fitOf(box);
+      // (centred, the bottom gap is half the slack: take d off the bottom so that d + (slack - d) / 2 = OFFER_ROOM)
+      // On a height-bound board (Seafarers, 5–6 players) the room may cost the land at most OFFER_MAX_COST of its size;
+      // beyond that a docked offer overlaps the lowest coast for its few seconds rather than the board staying small.
+      const R = OFFER_ROOM, d = slack >= 2 * R ? 0 : slack >= R ? 2 * R - slack : R;
+      const landH = (box.maxY - box.minY) * fitOf(box);
+      vp.H -= Math.min(d, Math.max(0, slack) + OFFER_MAX_COST * landH);
     }
     return { box, vp };
   }
@@ -6554,6 +6632,12 @@ class ColonistFullGame {
       const nextId = r.robberOrder[r.robberIdx % r.robberOrder.length];
       const np = this.players[nextId];
       const key = `${nextId}`;
+      // v0.96 phones: the next mover's strip chip wears a small "7" (the HUD's Next 7 column gave its room to the journal line)
+      this.playerStrip?.querySelectorAll(".pchip[data-seat]").forEach((c) => {
+        const on = Number(c.dataset.seat) === nextId && !this.winner;
+        c.classList.toggle("next7", on);
+        if (on) c.title = `${np?.isHuman ? "You move" : `${np?.name} moves`} the robber on the next 7`; else if (c.title.endsWith("on the next 7")) c.removeAttribute("title");
+      });
       if (np && key !== this._lastNext7Key) {
         this._lastNext7Key = key;
         next7.innerHTML = `<span class="rush-next7-label">Next 7</span>
@@ -6580,6 +6664,17 @@ class ColonistFullGame {
     }
   }
 
+  /** v0.96: the ONE instruction for the step you are on while you move the robber (⚓ or the pirate): choose which,
+   *  then tap a hex, then steal. */
+  _thiefStep(mover = this.currentPlayer) {
+    const cb = this.confirmBuild?.type === "robber" ? this.confirmBuild : null;
+    if (this.robberVictimOptions?.length || (cb && this._stealVictims?.(cb.id, mover)?.length)) return "steal: pick a player below";
+    if (cb) return "confirm the hex below";
+    if (this.sea && this.sea.thief == null) return "choose Robber or Pirate below";
+    if (this.sea && this.sea.thief === "pirate") return "tap a sea hex for the pirate";
+    return "tap a hex on the board";
+  }
+
   _renderSevenPanel() {
     const panel = this.rushSevenPanel;
     if (!panel) return;
@@ -6597,6 +6692,9 @@ class ColonistFullGame {
     const humanPlacing = seven.stage === "robber" && this._isInteractive(mover);
     panel.classList.toggle("robber-placing", humanPlacing);
     panel.classList.add("compact"); // a calm top banner: discards happen in the hand, the robber on the board
+    // v0.96 phones: the banner starts under the player strip, so the scores stay in view through the whole 7
+    const strip = this.isMobileLayout && !this.isLandscapePhone ? document.getElementById("playerStrip")?.getBoundingClientRect() : null;
+    panel.style.setProperty("--seven-top", strip?.height ? `${Math.round(strip.bottom)}px` : "0px");
     const secs = Number.isFinite(seven.leftMs) ? Math.max(0, Math.ceil(seven.leftMs / 1000)) : null;
     const frozen = panel.querySelector(".rush-seven-frozen");
     if (frozen) frozen.textContent = `timer frozen at ${this.settings.rushInterval}s`;
@@ -6625,9 +6723,10 @@ class ColonistFullGame {
       let state = "waiting for discards";
       if (seven.stage === "robber") {
         state = humanPlacing
-          ? `tap a hex on the board${secs != null ? ` · 0:${String(secs).padStart(2, "0")}` : ""}`
+          ? `${this._thiefStep(mover)}${secs != null ? ` · 0:${String(secs).padStart(2, "0")}` : ""}`
           : "choosing a hex…";
       }
+      robberStep.classList.toggle("later", seven.stage === "discard"); // v0.96: one step at a time (the next one waits)
       robberStep.innerHTML = `<div class="rush-seven-step-title"><span class="rush-step-num">2</span>Robber moved by
           ${this._av(mover, "rush-seven-avatar")}<span class="who pc-${mover.id}">${mover.isHuman ? "You" : mover.name}</span>
           <span class="rush-seven-state">${state}</span></div>
@@ -7579,8 +7678,10 @@ class ColonistFullGame {
       const C = sub([{ x: p1.x, y: p1.y }, { x: cp.cp1x, y: cp.cp1y }, { x: cp.cp2x, y: cp.cp2y }, { x: p2.x, y: p2.y }], t0, t1);
       const curve = () => { ctx.beginPath(); ctx.moveTo(C[0].x, C[0].y); ctx.bezierCurveTo(C[1].x, C[1].y, C[2].x, C[2].y, C[3].x, C[3].y); };
       ctx.save(); ctx.translate(1.5 * s, 2.6 * s); curve(); ctx.strokeStyle = "rgba(13, 17, 25, 0.35)"; ctx.lineWidth = 16 * w; ctx.stroke(); ctx.restore();
-      curve(); ctx.strokeStyle = "rgba(255, 252, 242, 0.5)"; ctx.lineWidth = 16.5 * w; ctx.stroke();
-      curve(); ctx.strokeStyle = pc.line; ctx.lineWidth = 14 * w; ctx.stroke();
+      // v0.96: a dark outline >= 1.5 css px each side in a white halo, as on the themed boards
+      const cpx = (this.pixelRatio || 1) / Math.abs(ctx.getTransform().a), outer = Math.max(14 * w, 10 * w + 2 * PIECE_OUTLINE_PX * cpx);
+      curve(); ctx.strokeStyle = pieceHalo(false); ctx.lineWidth = outer + PIECE_HALO_PX * cpx; ctx.stroke();
+      curve(); ctx.strokeStyle = pc.line; ctx.lineWidth = outer; ctx.stroke();
       curve(); ctx.strokeStyle = pc.base; ctx.lineWidth = 10 * w; ctx.stroke();
       ctx.save(); ctx.translate(-0.6 * s, -1 * s); ctx.globalAlpha = 0.85; curve(); ctx.strokeStyle = pc.light; ctx.lineWidth = 2.2 * w; ctx.stroke(); ctx.restore();
     });
@@ -7599,12 +7700,13 @@ class ColonistFullGame {
       if (node.owner == null || node.structure == null) return;
       const pc = this._classicPc(node.owner);
       const isCity = node.structure === "city";
-      const k = 0.74 * s * (this.isMobileLayout ? 1.34 : 1.12);
+      const k = 0.74 * s * (this.isMobileLayout ? 1.34 : 1.12) * PIECE_GROW; // v0.96: as the themed boards (larger, outlined, haloed)
       ctx.save();
       ctx.translate(node.x, node.y);
       ctx.scale(k, k);
       ctx.translate(0, isCity ? BP.cityDy : BP.settlementDy);
-      drawSpec(ctx, isCity ? BP.city(pc) : BP.settlement(pc), { k: Math.abs(ctx.getTransform().a), rim: BP.rim, rimW: BP.rimW });
+      const dk = Math.abs(ctx.getTransform().a), ap = (this.pixelRatio || 1) / dk; // art units per css px
+      drawSpec(ctx, outlined(isCity ? BP.city(pc) : BP.settlement(pc), PIECE_OUTLINE_PX * ap), { k: dk, rim: pieceHalo(false), rimW: PIECE_HALO_PX * ap });
       ctx.restore();
     });
 
@@ -8313,7 +8415,10 @@ class ColonistFullGame {
       // v0.93 Rush: the payout lines of a roll ("… collects …") stay in the feed; the ticker keeps "Dice rolled N"
       // (your own gain flies into your hand) instead of flicking through every collector
       const payout = (e) => rush && /\bcollects?\b|^Bank is short/.test(e.text);
-      const real = setupDone ? null : [...this.logEntries].reverse().find((e) => !NOISE.test(e.text.replace(/^Turn \d+: /, "")) && !stale(e) && !payout(e));
+      // v0.96: once the newest line has expired (a Rush trade notice) the ticker shows what happens next, never an
+      // older line again (a stale "Dice rolled 8." used to come back 2–4 s after the trade line replaced it)
+      const top = setupDone ? null : [...this.logEntries].reverse().find((e) => !NOISE.test(e.text.replace(/^Turn \d+: /, "")) && !payout(e));
+      const real = top && !stale(top) ? top : null;
       if (rush && real && TRADE_LINE.test(real.text)) {
         window.clearTimeout(this._tradeNoticeTimer);
         this._tradeNoticeTimer = this._later(() => { this._lastLogKey = null; this.renderLog(); }, RUSH_TRADE_NOTICE_MS - (now - real.time) + 20);
@@ -10434,11 +10539,11 @@ class ColonistFullGame {
   }
 
   /** The fitted view (also records the fit scale = minimum zoom). */
-  _fitTarget() {
+  _fitTarget(whole = false) {
     // v0.86: the harbour pills keep enough coast clearance that each pier has HARBOUR_FREE css px of open sea (room
     // for the harbour dot, 12.5 px out, past the 7 px build-spot ring). Chosen from the fit the default clearance
     // gives (one step, so it never oscillates); costs the board ~5% on a 360 px phone, nothing on a big screen.
-    this._seaTopPad = 0;
+    this._chromeTopPad = 0;
     if (this.geometry) {
       // (a docked trade offer is left out, so the pills don't move while one comes and goes)
       this._hClear = 30; this._fitNoOffer = true;
@@ -10455,24 +10560,36 @@ class ColonistFullGame {
       return { scale, offsetX: vp.l + vp.W / 2 - ((box.minX + box.maxX) / 2) * scale, offsetY: vp.t + vp.H / 2 - ((box.minY + box.maxY) / 2) * scale };
     };
     let t = fit();
-    // ⚓ v0.94: the Seafarers map is tall and reaches the top of the board area: push it down until no harbour pill or
-    // land hex sits under the Fit button or the dice chip (a few passes: the fit shrinks a little each time)
-    if (this.sea && this.isMobileLayout && this.geometry) {
-      for (let i = 0; i < 4; i += 1) {
-        const pad = this._seaChromePad(t);
+    // ⚓ v0.94 (v0.96: every board): push the land down until no harbour pill or land hex (so no road or harbour) sits
+    // under the Fit button or the dice chip (a few passes: the fit may shrink a little each time)
+    if (this.isMobileLayout && this.geometry && !this.labMode) {
+      for (let i = 0; i < 8; i += 1) {
+        const pad = this._chromePad(t);
         if (pad <= 0.5) break;
-        this._seaTopPad += pad;
+        this._chromeTopPad += pad;
         t = fit();
       }
     }
     this._fitScale = t.scale;
+    // v0.96 landscape phones: the land is height-bound there (the Seafarers hexes were ~19 px, their numbers unreadable).
+    // The board opens zoomed in to a comfortable hex size, on your pieces, and pans; Fit (whole) shows all of it.
+    if (!whole && this.isLandscapePhone && !this.labMode && this.geometry) {
+      const hexPx = this.geometry.hexSize * t.scale, z = clamp(LANDSCAPE_HEX_PX / hexPx, 1, LANDSCAPE_MAX_ZOOM);
+      if (hexPx < LANDSCAPE_ZOOM_BELOW && z > 1.02) {
+        const { box, vp } = this._viewFrame(), me = this._me?.();
+        const mine = me ? this.geometry.nodes.filter((n) => n.structure && n.owner === me.id) : [];
+        const c = mine.length ? { x: mine.reduce((a, n) => a + n.x, 0) / mine.length, y: mine.reduce((a, n) => a + n.y, 0) / mine.length } : { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 };
+        const s = t.scale * z;
+        t = this._clampView({ scale: s, offsetX: vp.l + vp.W / 2 - c.x * s, offsetY: vp.t + vp.H / 2 - c.y * s });
+      }
+    }
     return t;
   }
 
   /** ⚓ How far (css px) the fitted view `t` must move down so that no harbour pill / land hex is under the floating
    *  board tools: the Fit button (top left) and the dice chip (top right; before the first roll: the room it will
    *  take, so the board does not jump when it appears). 0 when clear. */
-  _seaChromePad(t) {
+  _chromePad(t) {
     const cv = this.canvas?.getBoundingClientRect?.();
     if (!cv || !cv.width) return 0;
     const rel = (r) => ({ l: r.left - cv.left, r: r.right - cv.left, t: r.top - cv.top, b: r.bottom - cv.top });
@@ -10483,11 +10600,12 @@ class ColonistFullGame {
     if (dice?.width) rects.push(rel(dice));
     else if (lt) rects.push({ l: lt.right - cv.left - 132, r: lt.right - cv.left, t: lt.top - cv.top, b: lt.top - cv.top + 44 });
     if (!rects.length) return 0;
-    const g = this.geometry, u = g.hexSize / 100, M = 4;
+    const g = this.geometry, u = g.hexSize / 100, M = 6;
     const S = (wx, wy) => ({ x: t.offsetX + wx * t.scale, y: t.offsetY + wy * t.scale });
     const items = [];
     harbourBadges(this, harbourScale(this)).forEach((q) => { const a = S(g.centerX + (q.x - q.w / 2) * u, g.centerY + (q.y - q.h / 2) * u), b = S(g.centerX + (q.x + q.w / 2) * u, g.centerY + (q.y + q.h / 2) * u); items.push({ l: a.x, r: b.x, t: a.y, b: b.y }); });
-    g.hexes.forEach((h) => { if (h.resource === "sea") return; const a = S(h.center.x - 0.7 * g.hexSize, h.center.y - 0.75 * g.hexSize), b = S(h.center.x + 0.7 * g.hexSize, h.center.y + 0.75 * g.hexSize); items.push({ l: a.x, r: b.x, t: a.y, b: b.y }); });
+    // (v0.96: the whole hex, so no road on its edges either)
+    g.hexes.forEach((h) => { if (h.resource === "sea") return; const a = S(h.center.x - 0.87 * g.hexSize, h.center.y - g.hexSize), b = S(h.center.x + 0.87 * g.hexSize, h.center.y + g.hexSize); items.push({ l: a.x, r: b.x, t: a.y, b: b.y }); });
     let pad = 0;
     rects.forEach((c) => items.forEach((it) => { if (it.l < c.r + M && it.r > c.l - M && it.t < c.b + M && it.b > c.t - M) pad = Math.max(pad, c.b + M - it.t); }));
     return pad;

@@ -7,6 +7,7 @@ import { f, rng, HEX, hexPath, pipCount, wrap, RES_NAME, DEV_NAME, CARD_TEXT, RE
 import { UI_ICONS } from "./ui-icons.js";
 import { portrait } from "../portraits.js";
 import { shipSpec, pirateSpec, seaIcons } from "../../seafarers/art.js"; // ⚓ Seafarers pieces / icons
+import { SEAT_PC_DAY, SEAT_PC_NIGHT, SEAT_TEXT_DAY, SEAT_TEXT_NIGHT } from "../seats.js";
 
 // Three colour palettes, chosen with <html data-palette="light|vivid|night"> (default light). P / PC / TEXT
 // are mutated in place by setPalette(), so every art function reads the active palette at bake time.
@@ -23,15 +24,8 @@ const PALETTES = {
     },
     // Pieces (v0.78): red / blue / orange / green / ivory / purple tuned to the vivid board's saturation; `line` = a deep
     // tint of the piece's own hue (the board edges every shape in a darker tint of its colour), drawn ~1.5px
-    PC: {
-      red: { base: "#D8382C", dark: "#A62820", light: "#F27A6A", line: "#4A120D" },
-      blue: { base: "#3474D4", dark: "#1F4FA0", light: "#78A2EE", line: "#10295A" },
-      orange: { base: "#F7891F", dark: "#C0600C", light: "#FDB868", line: "#552805" },
-      green: { base: "#1C8250", dark: "#136640", light: "#5CC08A", line: "#0A3020" },
-      ivory: { base: "#F2EBDA", dark: "#CEC3A8", light: "#FFFDF6", line: "#6B6253" },
-      purple: { base: "#5A2C8C", dark: "#401E68", light: "#9672CC", line: "#1C0A33" },
-    },
-    TEXT: { red: "#A62820", blue: "#1F4FA0", orange: "#A3510A", green: "#136640", ivory: "#5E5139", purple: "#401E68" },
+    PC: SEAT_PC_DAY, // v0.96: the shared stronger seat colours (themes/seats.js)
+    TEXT: SEAT_TEXT_DAY,
   },
   light: {
     P: {
@@ -40,18 +34,8 @@ const PALETTES = {
       pasture: ["#B8D57A", "#97B95C", "#D6EAA2"], wheat: ["#EDC25E", "#D3A341", "#F8DA8E"], terra: ["#E07E5A", "#C0623F", "#F0A584"],
       slate: ["#93A2B4", "#728399", "#C3CEDB"], desert: ["#F0DAA8", "#DCBF85", "#F8EBCB"], wall: "#F7F2E6", roof: "#D9714E", ink: "#2E3A3D",
     },
-    PC: {
-      // v0.78 pieces in the board's own palette family: the warm, sun-lit tones of the hex art, a touch deeper
-      // than the terrain so they stay the most salient thing (red deeper than the brick hex, green cooler and
-      // darker than forest / pasture, orange apart from grain); the outline is a deep tint of each hue
-      red: { base: "#D1453A", dark: "#A3302A", light: "#EB8070", line: "#4A1712" },
-      blue: { base: "#3C75C6", dark: "#28569A", light: "#7FA6E0", line: "#14305A" },
-      orange: { base: "#F08A2E", dark: "#BA6018", light: "#F8B670", line: "#552A08" },
-      green: { base: "#2A8556", dark: "#1D6340", light: "#66B58A", line: "#0E3020" },
-      ivory: { base: "#EFE7D4", dark: "#CEC3A8", light: "#FBF7EC", line: "#6B6253" },
-      purple: { base: "#5A2C88", dark: "#43206A", light: "#9A76C6", line: "#1E0B33" },
-    },
-    TEXT: { red: "#A3302A", blue: "#28569A", orange: "#AB5816", green: "#1D6340", ivory: "#5E5139", purple: "#43206A" },
+    PC: SEAT_PC_DAY, // v0.96: the shared stronger seat colours (themes/seats.js)
+    TEXT: SEAT_TEXT_DAY,
   },
   night: {
     P: {
@@ -63,16 +47,9 @@ const PALETTES = {
     },
     // pieces one step brighter / more luminous than Light so they "glow" against the night board; the line is still a
     // deep tint of the hue. Chips + badges derive from these (applySeatTokens).
-    PC: {
-      red: { base: "#E8584A", dark: "#B63A2F", light: "#F79A8B", line: "#3E0F0A" },
-      blue: { base: "#4F8DEB", dark: "#2E63B8", light: "#97BCF6", line: "#0D2552" },
-      orange: { base: "#F79B3A", dark: "#C66E1C", light: "#FCC57F", line: "#4A2406" },
-      green: { base: "#35A86C", dark: "#227C4F", light: "#7DD3A4", line: "#0A2E1D" },
-      ivory: { base: "#F2EBDA", dark: "#CFC4AA", light: "#FFFDF6", line: "#5E5646" },
-      purple: { base: "#8255C4", dark: "#5E389A", light: "#B99AE6", line: "#1C0A33" },
-    },
+    PC: SEAT_PC_NIGHT, // v0.96: the shared stronger seat colours (themes/seats.js)
     // on the dark sheet a seat's text is the piece's LIGHT tone (seats.js lightens further only where it would miss AA)
-    TEXT: { red: "#F79A8B", blue: "#97BCF6", orange: "#FCC57F", green: "#7DD3A4", ivory: "#F2EBDA", purple: "#C2A6EC" },
+    TEXT: SEAT_TEXT_NIGHT,
   },
 };
 const NIGHT_SHEET = "#172630"; // the night --sheet: seat text is checked against it
