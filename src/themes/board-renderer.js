@@ -249,13 +249,13 @@ export class SvgBoardRenderer {
     const badges = harbourBadges(this.game, harbourScale(this.game));
     return (this.game.ports || []).map((port, i) => {
       const q = badges[i];
-      return { a: q.a, b: q.b, mx: q.mx, my: q.my, nx: q.nx, ny: q.ny, res: port.type === "any" ? null : port.type, ratio: port.type === "any" ? "3:1" : "2:1", noBoat: !!this.game.sea, s: harbourScale(this.game), badge: q, piers: q.piers };
+      return { a: q.a, b: q.b, mx: q.mx, my: q.my, nx: q.nx, ny: q.ny, res: port.type === "any" ? null : port.type, ratio: port.type === "any" ? "3:1" : "2:1", noBoat: !!this.game.sea, s: q.k || harbourScale(this.game), badge: q, piers: q.piers };
     });
   }
 
   boardKey(k) {
     const g = this.game.geometry;
-    return [this.theme.id, this.theme.paletteId || "", k.toFixed(3), this.tokenScale, harbourScale(this.game), this.game._hClear || 30, !!this.game.sea, g.hexSize.toFixed(2), g.hexes.map((h) => h.resource + h.number).join(""), (this.game.ports || []).map((p) => p.edgeId + p.type).join(",")].join("|");
+    return [this.theme.id, this.theme.paletteId || "", k.toFixed(3), this.tokenScale, harbourScale(this.game), this.game._hClear || 30, (this.game._hMinFontArt || 0).toFixed(2), !!this.game.sea, g.hexSize.toFixed(2), g.hexes.map((h) => h.resource + h.number).join(""), (this.game.ports || []).map((p) => p.edgeId + p.type).join(",")].join("|");
   }
 
   /**
@@ -534,6 +534,7 @@ export class SvgBoardRenderer {
     if (!L?.pills) return;
     const px = 1 / (this.u * g.view.scale), rw = 2 * px; // v0.96: a thinner dark-teal rim (was 2.4 px near-black: read as a sticker); >= 3:1 on every sea
     const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); };
+    const T = ctx.getTransform();
     L.pills.forEach((q) => {
       const x0 = q.x - q.w / 2, y0 = q.y - q.h / 2;
       ctx.save();
@@ -541,8 +542,14 @@ export class SvgBoardRenderer {
       const sx = (x0 - L.minX) * L.k, sy = (y0 - L.minY) * L.k;
       ctx.drawImage(L.canvas, sx, sy, q.w * L.k, q.h * L.k, x0, y0, q.w, q.h);
       ctx.restore();
-      rr(x0 - rw / 2, y0 - rw / 2, q.w + rw, q.h + rw, q.r + rw / 2);
-      ctx.lineWidth = rw; ctx.strokeStyle = this.theme.seaPillRim || "#0F3034"; ctx.stroke();
+      // v1.00: the rim filled out to whole device pixels (outer edge rounded outward, inner edge onto the pill's own edge
+      // pixel), so it never lands as two half-strength rows: a crisp 2 px dark-teal ring at any sub-pixel position
+      const fl = (v, a, e, up) => (a ? ((up ? Math.ceil : Math.floor)(a * v + e - (up ? 1e-3 : -1e-3)) - e) / a : v);
+      const ox0 = fl(x0 - rw, T.a, T.e, false), oy0 = fl(y0 - rw, T.d, T.f, false), ox1 = fl(x0 + q.w + rw, T.a, T.e, true), oy1 = fl(y0 + q.h + rw, T.d, T.f, true);
+      const ix0 = fl(x0, T.a, T.e, true), iy0 = fl(y0, T.d, T.f, true), ix1 = fl(x0 + q.w, T.a, T.e, false), iy1 = fl(y0 + q.h, T.d, T.f, false);
+      ctx.beginPath();
+      if (ctx.roundRect) { ctx.roundRect(ox0, oy0, ox1 - ox0, oy1 - oy0, q.r + rw); ctx.roundRect(ix0, iy0, ix1 - ix0, iy1 - iy0, Math.max(0, q.r - (iy0 - y0))); } else { ctx.rect(ox0, oy0, ox1 - ox0, oy1 - oy0); ctx.rect(ix0, iy0, ix1 - ix0, iy1 - iy0); }
+      ctx.fillStyle = this.theme.seaPillRim || "#0F3034"; ctx.fill("evenodd");
     });
   }
 

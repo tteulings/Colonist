@@ -22,7 +22,7 @@ export function masterWorker() {
   if (shared.broken || typeof Worker === "undefined") return null;
   if (shared.worker) return shared.ready;
   try {
-    shared.worker = new Worker(new URL("./master/worker.js?v=99", import.meta.url), { type: "module" });
+    shared.worker = new Worker(new URL("./master/worker.js?v=100", import.meta.url), { type: "module" });
   } catch (_) { shared.broken = true; return null; }
   shared.ready = new Promise((resolve) => {
     const t = setTimeout(() => { shared.broken = true; resolve(null); }, READY_TIMEOUT_MS);
