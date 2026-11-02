@@ -2618,8 +2618,10 @@ class ColonistFullGame {
       if (fitOf(b) >= k0 * 0.96) { box = b; hS = s; break; }
     }
     // the ratio text (25·s art units, see harbourBadges) never under PILL_MIN_FONT css px at the fitted size
-    // (portrait: landscape phones open Seafarers zoomed in, where the pills read larger)
-    for (let i = 0; i < 2 && !this.isLandscapePhone; i += 1) {
+    // (v0.99: landscape too, where the Classic boards do not open zoomed and were left at 10-11.5 px. Seafarers landscape
+    // keeps its own sizing: its pills follow the fitted hex (seaHarbourScale) and read >= 12.7 px at Fit; growing them in
+    // the first sizing pass shrinks that hex and widens the coast clearance until a strait's pill no longer finds sea)
+    for (let i = 0; i < 2 && !(this.isLandscapePhone && this.sea); i += 1) {
       const need = Math.min(2.7, (PILL_MIN_FONT * 100) / (25 * hs * fitOf(box)));
       if (need <= hS + 0.005) break;
       hS = need; box = withPills(hS);
@@ -10600,7 +10602,19 @@ class ColonistFullGame {
         const mine = me ? this.geometry.nodes.filter((n) => n.structure && n.owner === me.id) : [];
         const c = mine.length ? { x: mine.reduce((a, n) => a + n.x, 0) / mine.length, y: mine.reduce((a, n) => a + n.y, 0) / mine.length } : { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 };
         const s = t.scale * z;
-        t = this._clampView({ scale: s, offsetX: vp.l + vp.W / 2 - c.x * s, offsetY: vp.t + vp.H / 2 - c.y * s });
+        // v0.99: the crop never hides the top coast under the ticker. With no pieces yet (setup) the view starts at the
+        // top of the land (its pills included) and crops the bottom, off the screen's edge; on your pieces, a harbour pill
+        // the frame's top edge would cut moves into view (the view moves; the pill stays on its harbour)
+        let oy = mine.length ? vp.t + vp.H / 2 - c.y * s : vp.t - box.minY * s;
+        if (mine.length) {
+          const u = this.geometry.hexSize / 100, g = this.geometry;
+          harbourBadges(this, harbourScale(this)).forEach((q) => {
+            const top = oy + (g.centerY + (q.y - q.h / 2) * u) * s, bot = oy + (g.centerY + (q.y + q.h / 2) * u) * s;
+            if (top < vp.t && bot > vp.t - 8) oy += vp.t - top;
+          });
+          oy = Math.min(oy, vp.t - box.minY * s); // never past the land's own top
+        }
+        t = this._clampView({ scale: s, offsetX: vp.l + vp.W / 2 - c.x * s, offsetY: oy });
       }
     }
     return t;
