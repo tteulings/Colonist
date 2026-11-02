@@ -2621,8 +2621,10 @@ class ColonistFullGame {
     // (v0.99: landscape too, where the Classic boards do not open zoomed and were left at 10-11.5 px. Seafarers landscape
     // keeps its own sizing: its pills follow the fitted hex (seaHarbourScale) and read >= 12.7 px at Fit; growing them in
     // the first sizing pass shrinks that hex and widens the coast clearance until a strait's pill no longer finds sea)
-    for (let i = 0; i < 2 && !(this.isLandscapePhone && this.sea); i += 1) {
-      const need = Math.min(2.7, (PILL_MIN_FONT * 100) / (25 * hs * fitOf(box)));
+    // (v1.00: Seafarers landscape too: a pill that slides out along its normal can cost the board a little height, and a
+    // strait too narrow for the grown pill now gets the compact one, see harbourBadges)
+    for (let i = 0; i < 3; i += 1) {
+      const need = Math.min(3, (PILL_MIN_FONT * 100) / (25 * hs * fitOf(box)));
       if (need <= hS + 0.005) break;
       hS = need; box = withPills(hS);
     }
@@ -10581,16 +10583,30 @@ class ColonistFullGame {
       const scale = Math.min(vp.W / (box.maxX - box.minX), vp.H / (box.maxY - box.minY));
       return { scale, offsetX: vp.l + vp.W / 2 - ((box.minX + box.maxX) / 2) * scale, offsetY: vp.t + vp.H / 2 - ((box.minY + box.maxY) / 2) * scale };
     };
-    let t = fit();
-    // ⚓ v0.94 (v0.96: every board): push the land down until no harbour pill or land hex (so no road or harbour) sits
-    // under the Fit button or the dice chip (a few passes: the fit may shrink a little each time)
-    if (this.isMobileLayout && this.geometry && !this.labMode) {
-      for (let i = 0; i < 8; i += 1) {
-        const pad = this._chromePad(t);
-        if (pad <= 0.5) break;
-        this._chromeTopPad += pad;
-        t = fit();
+    const fitClear = () => {
+      this._chromeTopPad = 0;
+      let t2 = fit();
+      // ⚓ v0.94 (v0.96: every board): push the land down until no harbour pill or land hex (so no road or harbour) sits
+      // under the Fit button or the dice chip (a few passes: the fit may shrink a little each time)
+      if (this.isMobileLayout && this.geometry && !this.labMode) {
+        for (let i = 0; i < 8; i += 1) {
+          const pad = this._chromePad(t2);
+          if (pad <= 0.5) break;
+          this._chromeTopPad += pad;
+          t2 = fit();
+        }
       }
+      return t2;
+    };
+    // v1.00: a harbour pill that collides may shrink a little (see harbourBadges), but its ratio never reads under
+    // PILL_MIN_FONT css px at this fit: the floor (art units) is taken from the fit and re-checked once it settles
+    this._hMinFontArt = 0;
+    let t = fitClear();
+    for (let i = 0; i < 3 && this.geometry; i += 1) {
+      const m = (PILL_MIN_FONT * 1.01) / ((this.geometry.hexSize / 100) * t.scale);
+      if (this._hMinFontArt && m <= this._hMinFontArt + 1e-3) break;
+      this._hMinFontArt = Math.max(this._hMinFontArt, m);
+      t = fitClear();
     }
     this._fitScale = t.scale;
     // v0.96 landscape phones: the land is height-bound there (the Seafarers hexes were ~19 px, their numbers unreadable).

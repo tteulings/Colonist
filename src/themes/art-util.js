@@ -86,6 +86,7 @@ function boxHexDist(x, y, hw, hh, c) {
   return d;
 }
 const layoutCache = new Map();
+const PILL_FONT_PX = 12.3; // css px: the ratio floor the fit uses (game.js PILL_MIN_FONT)
 /** v0.78: harbour pill scale. Phones: sized so the ratio reads at ~12-14 css px whatever the board (the 5–6
  *  player board has smaller hexes, so its pills scale up more); desktop: 1. Shared by every renderer and the fit. */
 export function harbourScale(game) {
@@ -116,7 +117,7 @@ export function harbourBadges(game, s = 1) {
   // v0.86: the coast clearance is chosen by the board fit (game._hClear, see _fitTarget): enough that the harbour
   // dot on each pier sits in free sea between the build-spot ring and the pill
   const clear = Math.max(30, game._hClear || 30);
-  const key = [s, clear, !!game.sea, g.hexSize.toFixed(3), g.centerX.toFixed(2), g.centerY.toFixed(2), ports.map((p) => p.edgeId + p.type).join(","), land.map((h) => h.id).join(".")].join("|");
+  const key = [s, clear, (game._hMinFontArt || 0).toFixed(2), !!game.sea, g.hexSize.toFixed(3), g.centerX.toFixed(2), g.centerY.toFixed(2), ports.map((p) => p.edgeId + p.type).join(","), land.map((h) => h.id).join(".")].join("|");
   if (layoutCache.has(key)) return layoutCache.get(key);
   const centers = land.map((h) => A(h.center));
   const coastNodes = g.nodes.filter((n) => n.adjacentHexes.some((id) => g.hexes[id] && g.hexes[id].resource !== "sea")).map((n) => ({ ...A(n), id: n.id }));
@@ -137,107 +138,124 @@ export function harbourBadges(game, s = 1) {
     }
     return true;
   };
-  const bendPier = (c, e) => {
-    const E = { x: e[0], y: e[1] };
-    if (pierClear([c, E])) return [c, e];
-    // straight out to sea from the corner: away from the land hexes that meet there
-    const own = centers.filter((h) => Math.hypot(h.x - c.x, h.y - c.y) < 110);
-    if (!own.length) return [c, e];
-    const mx = own.reduce((t, h) => t + h.x, 0) / own.length, my = own.reduce((t, h) => t + h.y, 0) / own.length;
-    const L = Math.hypot(c.x - mx, c.y - my) || 1, ox = (c.x - mx) / L, oy = (c.y - my) / L;
-    for (const d of [18, 26, 34]) {
-      const kn = [c.x + ox * d, c.y + oy * d];
-      if (pierClear([c, { x: kn[0], y: kn[1] }, E])) return [c, e, kn];
-    }
-    return [c, e];
-  };
-  // clear: past the beach band (~30) and a corner piece; v0.78: no longer grows with s, so bigger (phone) pills
-  // sit as close to the coast as the small ones and don't push the board fit out. v0.86: at least 30 (see above)
+  // v1.00 (Option C): a harbour sits centred in front of its own coast edge, as in the boxed game. Its pill lies on
+  // the perpendicular through the edge's midpoint at ONE coast gap (`clear`, the same for every harbour of the board)
+  // and its two piers run symmetrically, equally long, from the pill to the edge's two corners. Where that spot
+  // collides (another pill, land of a bay, a pier that would cross a road / token / corner / land), the pill first
+  // shrinks a little (its ratio never under the fit's 12 px floor, game._hMinFontArt) and only then slides OUTWARD
+  // along the same perpendicular, never sideways. A narrow strait where nothing on the perpendicular fits gets the
+  // compact pill (the floor-size ratio in a tighter pill) closer to the coast, still on the perpendicular; a pier
+  // never crosses land.
   const gap = 5 * Math.min(s, 1.6);
-  const placed = [];
-  const out = ports.map((port) => {
-    const any = port.type === "any";
-    // 2:1: resource icon + ratio; 3:1: just the ratio (a narrower pill)
-    const w = (any ? 48 : 70) * s, h = 31 * s, hw = w / 2, hh = h / 2; // v0.78: compact pill, the ratio is what grows
-    const edge = g.edges[port.edgeId];
-    const a = { ...A(g.nodes[edge.nodes[0]]), id: edge.nodes[0] }, b = { ...A(g.nodes[edge.nodes[1]]), id: edge.nodes[1] };
-    const hc = A(g.hexes[edge.hexIds.find((id) => g.hexes[id].resource !== "sea") ?? edge.hexIds[0]].center);
-    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, len = Math.hypot(mx - hc.x, my - hc.y) || 1;
-    const nx = (mx - hc.x) / len, ny = (my - hc.y) / len, tx = -ny, ty = nx;
-    const near = centers.filter((c) => Math.hypot(c.x - mx, c.y - my) < 330 * Math.max(1, s));
-    const dd = (c, e) => Math.hypot(c.x - e[0], c.y - e[1]);
-    const place = (cl, slide = 6) => {
-      const ok = (x, y) => near.every((c) => boxHexDist(x, y, hw, hh, c) >= cl) && placed.every((q) => boxGap(q, { x, y, w, h }) >= gap);
-      let best = null;
-      for (let d = 0; d <= 200 * s && !best; d += 3 * s) {
-        for (let k = 0; k <= slide && !best; k += 1) { // slide along the coast up to 36·s before moving further out
-          for (const sg of k ? [1, -1] : [1]) {
-            const t = sg * k * 6 * s;
-            const x = mx + nx * d + tx * t, y = my + ny * d + ty * t;
-            if (ok(x, y)) { best = { x, y }; break; }
-          }
-        }
+  const minFont = game._hMinFontArt > 0 ? game._hMinFontArt : 25 * s; // art units of ratio text that read 12.3 css px at Fit
+  const fMin = Math.min(1, Math.max(0.84, minFont / (25 * s))), fC = Math.min(1, minFont / (25 * s));
+  const FS = [1]; for (let f2 = 0.96; f2 > fMin + 0.005; f2 -= 0.04) FS.push(f2); if (fMin < 1) FS.push(fMin);
+  const nearAny = (pts) => { // does a pier (corner → [knee →] end) cross a land hex (past its own beach) or pass another corner?
+    let walked = 0;
+    for (let i = 0; i + 1 < pts.length; i += 1) {
+      const p = pts[i], q = pts[i + 1], L = Math.hypot(q.x - p.x, q.y - p.y);
+      for (let k = 1; k <= 24; k += 1) {
+        const x = p.x + ((q.x - p.x) * k) / 24, y = p.y + ((q.y - p.y) * k) / 24, dn = walked + (L * k) / 24;
+        if (dn > 12 && centers.some((c) => [0, 60, 120].every((deg) => { const a2 = (deg * Math.PI) / 180; return Math.abs((x - c.x) * Math.cos(a2) + (y - c.y) * Math.sin(a2)) <= 82; }))) return "land";
+        if (dn > 18 && coastNodes.some((n) => n.id !== pts[0].id && Math.hypot(x - n.x, y - n.y) < 15)) return "node";
       }
-      if (!best) best = { x: mx + nx * (200 * s), y: my + ny * (200 * s) };
-      const { x, y } = best;
-      // pier ends: tucked under the pill, spread along the coast, each paired with the nearer corner
-      const lat = (Math.abs(tx) * hw + Math.abs(ty) * hh) * 0.45, e0 = [x - tx * lat, y - ty * lat], e1 = [x + tx * lat, y + ty * lat];
-      const piers = (dd(a, e0) + dd(b, e1) <= dd(a, e1) + dd(b, e0) ? [[a, e0], [b, e1]] : [[a, e1], [b, e0]]).map(([c, e]) => bendPier(c, e));
-      return { x, y, piers };
-    };
-    // v0.86: a bigger clearance can push the pill of a narrow strait (Seafarers) across to the next island, so its
-    // piers would cross land or pass other corners. Then try sliding it further along the coast (up to 72·s) and
-    // stepping the clearance back towards 30: the first spot whose piers are clear AND still leave the dot its room
-    // (open pier >= ~clear) wins; failing that, the clear-piered spot with the most open pier; failing that, the plain spot.
-    const P3 = ([c, e, kn]) => (kn ? [c, { x: kn[0], y: kn[1] }, { x: e[0], y: e[1] }] : [c, { x: e[0], y: e[1] }]);
-    const nearNode = (pts, own) => {
-      let walked = 0;
-      for (let i = 0; i + 1 < pts.length; i += 1) {
-        const p = pts[i], q = pts[i + 1], L = Math.hypot(q.x - p.x, q.y - p.y);
-        for (let k = 1; k <= 24; k += 1) {
-          const x = p.x + ((q.x - p.x) * k) / 24, y = p.y + ((q.y - p.y) * k) / 24;
-          if (walked + (L * k) / 24 > 18 && coastNodes.some((n) => n.id !== own && Math.hypot(x - n.x, y - n.y) < 15)) return true;
-        }
-        walked += L;
-      }
-      return false;
-    };
-    const openPier = (pts, q) => { // pier length from the corner until it reaches the pill (+ a small margin)
-      let walked = 0;
-      for (let i = 0; i + 1 < pts.length; i += 1) {
-        const p = pts[i], r = pts[i + 1], L = Math.hypot(r.x - p.x, r.y - p.y);
-        for (let k = 1; k <= 48; k += 1) {
-          const x = p.x + ((r.x - p.x) * k) / 48, y = p.y + ((r.y - p.y) * k) / 48;
-          if (Math.abs(x - q.x) <= q.w / 2 + 4 && Math.abs(y - q.y) <= q.h / 2 + 4) return walked + (L * k) / 48;
-        }
-        walked += L;
-      }
-      return walked;
-    };
-    const fine = (pl) => pl.piers.every((pr) => pierClear(P3(pr)) && !nearNode(P3(pr), pr[0].id));
-    const room = (pl) => Math.min(...pl.piers.map((pr) => openPier(P3(pr), { x: pl.x, y: pl.y, w, h })));
-    let pl = place(clear);
-    if (clear > 30 && !fine(pl)) {
-      let best = null, bestRoom = -1;
-      for (let cl = clear; ; cl = Math.max(30, cl - 6)) {
-        for (const sl of [6, 12]) {
-          const c2 = place(cl, sl);
-          if (!fine(c2)) continue;
-          const r2 = room(c2);
-          if (r2 > bestRoom) { best = c2; bestRoom = r2; }
-          if (r2 >= clear * 0.97) break;
-        }
-        if (cl <= 30 || bestRoom >= clear * 0.97) break;
-      }
-      pl = best || pl;
+      walked += L;
     }
-    const { x, y, piers } = pl, ic = 24 * s, fs = 25 * s; // v0.78: a bigger ratio in a compact pill
-    placed.push({ x, y, w, h });
-    const nearC = coastNodes.filter((n) => Math.hypot(n.x - x, n.y - y) < 120 + w); // corners a dot on these piers could meet
-    return { x, y, w, h, r: hh, a, b, mx, my, nx, ny, piers, any, near: nearC,
-      icon: any ? null : { x: x - 17 * s, y, size: ic },
-      text: any ? { x, y: y + fs * 0.36, size: fs } : { x: x + 15 * s, y: y + fs * 0.36, size: fs } };
-  });
+    return "";
+  };
+  const layoutAt = (clear) => {
+    const hs = ports.map((port) => {
+      const any = port.type === "any";
+      const edge = g.edges[port.edgeId];
+      const a = { ...A(g.nodes[edge.nodes[0]]), id: edge.nodes[0] }, b = { ...A(g.nodes[edge.nodes[1]]), id: edge.nodes[1] };
+      const hc = A(g.hexes[edge.hexIds.find((id) => g.hexes[id].resource !== "sea") ?? edge.hexIds[0]].center);
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, len = Math.hypot(mx - hc.x, my - hc.y) || 1;
+      const nx = (mx - hc.x) / len, ny = (my - hc.y) / len, tx = -ny, ty = nx;
+      const near = centers.filter((c) => Math.hypot(c.x - mx, c.y - my) < 330 * Math.max(1, s));
+      // corner a sits on the -t side of the midpoint or the +t side: its pier ends on that side of the pill
+      const sa = (a.x - mx) * tx + (a.y - my) * ty < 0 ? -1 : 1;
+      // a pill of size factor fz (compact: the floor-size ratio in a tighter pill), its centre `d` out along the normal
+      const dims = (fz, compact) => { const k = s * fz, cw = compact ? 0.92 : 1; return { k, cw, w: (any ? 48 : 70) * k * cw, h: 31 * k }; };
+      const pillAt = (D, d) => {
+        const x = mx + nx * d, y = my + ny * d, hw = D.w / 2, hh = D.h / 2;
+        // pier ends: under the pill, mirrored about the normal, so both piers are equally long
+        const lat = (Math.abs(tx) * hw + Math.abs(ty) * hh) * 0.45;
+        const end = (sg) => [x + sg * tx * lat, y + sg * ty * lat];
+        const straight = [[a, end(sa)], [b, end(-sa)]];
+        const P3 = ([c, e, kn]) => (kn ? [c, { x: kn[0], y: kn[1] }, { x: e[0], y: e[1] }] : [c, { x: e[0], y: e[1] }]);
+        const pierOk = (prs) => prs.every((pr) => pierClear(P3(pr)) && !nearAny(P3(pr)));
+        let piers = straight, pOk = pierOk(straight);
+        // a straight pier that would run along a road or over a token: both piers first step straight out (the same
+        // distance along the edge normal, so they stay mirrored), then turn to the pill
+        for (const dk of [18, 26, 34]) {
+          if (pOk) break;
+          const kn = straight.map(([c, e]) => [c, e, [c.x + nx * dk, c.y + ny * dk]]);
+          if (pierOk(kn)) { piers = kn; pOk = true; }
+        }
+        const landX = piers.some((pr) => nearAny(P3(pr)) === "land");
+        return { x, y, hw, hh, piers, pOk, landX };
+      };
+      // the centre distance that leaves exactly `cl` between the pill and its own land hex (the coast gap)
+      const d0 = (D, cl) => { let d = 0; while (d < 400 && boxHexDist(mx + nx * d, my + ny * d, D.w / 2, D.h / 2, hc) < cl) d += 1; return d; };
+      // the coast gap `cl` is kept to the harbour's OWN land hex (the room its piers need for the dot); the neighbouring land
+      // (the next hex of a convex coast, the far side of a bay) only needs the beach band and a corner piece clear (30, as
+      // up to v0.85), so a harbour on an ordinary coast is never pushed out by the hex next door
+      const other = (cl) => Math.min(cl, Math.max(30, clear * 0.5));
+      const landOk = (p, cl) => near.every((c) => boxHexDist(p.x, p.y, p.hw, p.hh, c) >= (c.x === hc.x && c.y === hc.y ? cl : other(cl)) - 0.01);
+      // (an outward slide is kept short: at most ~16 css px at the fit, past that the compact pill closer in reads better)
+      const SLIDE = Math.min(72 * s, game._hMinFontArt > 0 ? (16 * game._hMinFontArt) / (PILL_FONT_PX * 1.01) : 72 * s), step = Math.min(3 * s, SLIDE / 8);
+      // every spot this harbour may take, best first, each clear of the land and with clean piers (other pills are
+      // resolved below): 1. the default gap at full size, then a little smaller; 2. only then outward along the normal
+      // (largest size that fits at each step); 3. a narrow strait: the compact pill closer to the coast, still on the normal;
+      // 4. nothing fits cleanly: the compact pill along the normal by most room, piers never over land
+      function* spots() {
+        for (let dd = 0; dd <= SLIDE; dd += step) {
+          for (const fz of FS) { const D = dims(fz, false), p = pillAt(D, d0(D, clear) + dd); if (p.pOk && landOk(p, clear)) yield { D, p, st: dd ? "slide" : fz < 1 ? "shrink" : "default" }; }
+        }
+        const D = dims(fC, true);
+        for (const cl of [...new Set([clear * 0.75, clear * 0.55, 30].map((c) => Math.round(Math.min(clear, Math.max(30, c)))))].sort((p2, q2) => q2 - p2)) {
+          for (let dd = 0; dd <= SLIDE; dd += step) { const p = pillAt(D, d0(D, cl) + dd); if (p.pOk && landOk(p, cl)) yield { D, p, st: "compact" }; }
+        }
+        const rest = [];
+        for (let d = d0(D, 8); d <= d0(D, 8) + SLIDE; d += step) { const p = pillAt(D, d); if (!p.landX) rest.push({ p, room: Math.min(...near.map((c) => boxHexDist(p.x, p.y, p.hw, p.hh, c))) }); }
+        rest.sort((u2, v2) => v2.room - u2.room);
+        for (const r2 of rest) yield { D, p: r2.p, st: "squeeze" };
+        if (!rest.length) yield { D, p: pillAt(D, d0(D, clear)), st: "squeeze" };
+      }
+      const gen = spots(), first = gen.next().value;
+      return { gen, cur: first, rank: 0, any, a, b, mx, my, nx, ny };
+    });
+    // pills that collide: the one that has moved less so far takes its next spot (so two neighbours share the way out
+    // rather than one being pushed far), until no two pills touch
+    const pbox = (H) => ({ x: H.cur.p.x, y: H.cur.p.y, w: H.cur.D.w, h: H.cur.D.h });
+    const stuck = new Set();
+    for (let it = 0; it < 3000; it += 1) {
+      let pair = null;
+      for (let i = 0; i < hs.length && !pair; i += 1) for (let j = i + 1; j < hs.length; j += 1) if (!stuck.has(`${i},${j}`) && boxGap(pbox(hs[i]), pbox(hs[j])) < gap) { pair = [i, j]; break; }
+      if (!pair) break;
+      const [i, j] = pair, order = hs[i].rank < hs[j].rank ? [i, j] : [j, i];
+      let moved = false;
+      for (const m of order) { const n = hs[m].gen.next(); if (!n.done) { hs[m].cur = n.value; hs[m].rank += 1; moved = true; break; } }
+      if (!moved) stuck.add(`${i},${j}`);
+    }
+    const out = hs.map((H) => {
+      const { any, a, b, mx, my, nx, ny } = H, { D, p, st } = H.cur, { x, y, piers } = p, { k, cw, w, h } = D, hh = h / 2, ic = 24 * k * (cw < 1 ? 0.88 : 1), fs = 25 * k;
+      const nearC = coastNodes.filter((n) => Math.hypot(n.x - x, n.y - y) < 120 + w); // corners a dot on these piers could meet
+      return { x, y, w, h, r: hh, a, b, mx, my, nx, ny, piers, any, near: nearC, k, compact: cw < 1, fit: st,
+        icon: any ? null : { x: x - 17 * k * cw, y, size: ic },
+        text: any ? { x, y: y + fs * 0.36, size: fs } : { x: x + 15 * k * cw, y: y + fs * 0.36, size: fs } };
+    });
+    return out;
+  };
+  // v1.00: ONE coast gap for the whole board. On a cramped board (Seafarers at the landscape Fit, ~17 px hexes) the full
+  // dot-room gap pushes many pills out or into their compact form; there the board's gap steps down (never under 30,
+  // the beach band and a corner piece) until at most two harbours leave the common default, so they all still match.
+  const offDefault = (o) => o.filter((q) => q.fit !== "default" && q.fit !== "shrink").length;
+  let out = layoutAt(clear);
+  for (let G = clear - 6; offDefault(out) > 2 && G >= Math.max(30, clear * 0.6) - 0.01; G -= 6) {
+    const o2 = layoutAt(G);
+    if (offDefault(o2) < offDefault(out)) out = o2;
+  }
   // Optional decoration (themes that want it): a small ship beside each pill, only where it fits fully in the
   // sea, clear of every pill, pier and other ship, and inside the box the pills already span (so it never
   // shrinks the board). None in Seafarers, where a ship reads as a player's ship.
