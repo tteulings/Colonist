@@ -266,6 +266,7 @@ const RUSH_OFFER_ROOM = 66;     // v0.93 phones: the board keeps this room above
 const LIVE_KEY = "colonist.live"; // v0.96 (sessionStorage): this tab is in a live game, so a reload resumes it
 const HEX_HOLD_MS = 450;        // v0.96: press and hold a hex this long for its "who it pays" callout
 const BOARD_MARGIN = 12;        // css px of breathing room between the land (with its harbour pills) and the HUD, the hand, the screen edges
+const BANK_LOW = 5;             // v1.01: a hand card's bank label turns amber at this stock or less (red at 0)
 const HAND_LIP = 16;            // the hand's cards start this far below the top of its fan (--fan-h)
 const OFFER_ROOM = 74, OFFER_MAX_COST = 0.06;
 const PILL_MIN_FONT = 12.3;     // css px: a harbour pill's ratio ("2:1") never reads smaller than 12 px on a phone           // Rush: kept free of land above the hand's margin, where a trade offer card docks
@@ -8067,6 +8068,7 @@ class ColonistFullGame {
     if (this.devSel && !(devCounts[this.devSel] > 0) || this.handHidden || pd) this.devSel = null;
     const devStates = [...DEV_CARD_TYPES, "victoryPoint"].map((t) => (devCounts[t] ? devState(t) : ""));
     this._renderHandTotal(human, total, devTotal, pd);
+    this._syncBankLabels();
     const key = JSON.stringify([human.id, this.handHidden, human.resources, devCounts, human.newDevCards, this.theme.id, this.isMobileLayout, pd?.selected || null, this._newDevPulse || null, devStates, this.devSel, this.isRush()]);
     if (key === this._lastHandKey) { this._placeDevBubble(); return; }
     this._lastHandKey = key;
@@ -8075,18 +8077,20 @@ class ColonistFullGame {
     const n = RESOURCES.length + devTypes.length;
     // Mobile: a gentle fan (±3°); desktop ignores the rotation
     const fan = (i) => `--rot:${((i - (n - 1) / 2) * 2.6).toFixed(1)}deg;--dy:${(Math.abs(i - (n - 1) / 2) * 1.6).toFixed(1)}px`;
+    // v1.01: the bank's stock of each kind, small and muted under its card (not while the hand is hidden)
+    const bk = (r) => (this.handHidden ? "" : this._bankLabelHtml(r));
     let html = RESOURCES.map((r, i) => {
       const c = human.resources[r];
       // 0 of a kind: an empty outlined slot (small icon, name, "0"), never a faded picture that reads as a card you hold
-      if (!c) return `<button type="button" class="card empty slot" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: none" title="No ${RESOURCE_LABEL[r]}"><span class="slot-ic">${icon(r)}</span><span class="slot-n">0</span><span class="slot-name">${RESOURCE_LABEL[r]}</span></button>`;
+      if (!c) return `<button type="button" class="card empty slot" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: none" title="No ${RESOURCE_LABEL[r]}"><span class="slot-ic">${icon(r)}</span><span class="slot-n">0</span><span class="slot-name">${RESOURCE_LABEL[r]}</span>${bk(r)}</button>`;
       if (pd) {
         // discarding: the badge shows what you keep, the tag what goes back
         // v0.81: the card keeps its full count, big; a card you hand back from lifts, with a chip in
         // its own tone ("−2 of 4") and a "−" that puts one back. Tapping a fully picked card puts one back too.
         const sel = pd.selected[r];
-        return `<button type="button" class="card dcard${sel ? " marked" : ""}" data-card="${r}" style="${fan(i)}" data-n="${Math.min(c, 4)}" aria-label="${RESOURCE_LABEL[r]}: ${c}${sel ? `, ${sel} to hand back` : ""}" title="Tap to hand back one ${RESOURCE_LABEL[r]}">${cardSvg(r)}<span class="count">${c}</span><span class="rib" aria-hidden="true"><b>${c}</b><span>${RESOURCE_LABEL[r]}</span></span>${sel ? `<span class="dsel"><b>−${sel}</b><small>of ${c}</small><span class="dminus" data-unmark="${r}" role="button" aria-label="Put one ${RESOURCE_LABEL[r]} back">−</span></span>` : ""}</button>`;
+        return `<button type="button" class="card dcard${sel ? " marked" : ""}" data-card="${r}" style="${fan(i)}" data-n="${Math.min(c, 4)}" aria-label="${RESOURCE_LABEL[r]}: ${c}${sel ? `, ${sel} to hand back` : ""}" title="Tap to hand back one ${RESOURCE_LABEL[r]}">${cardSvg(r)}<span class="count">${c}</span><span class="rib" aria-hidden="true"><b>${c}</b><span>${RESOURCE_LABEL[r]}</span></span>${sel ? `<span class="dsel"><b>−${sel}</b><small>of ${c}</small><span class="dminus" data-unmark="${r}" role="button" aria-label="Put one ${RESOURCE_LABEL[r]} back">−</span></span>` : ""}${bk(r)}</button>`;
       }
-      return `<button type="button" class="card" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: ${c}" title="${RESOURCE_LABEL[r]} — tap to trade" data-n="${Math.min(c, 4)}">${cardSvg(r)}<span class="count">${c}</span><span class="rib" aria-hidden="true"><b>${c}</b><span>${RESOURCE_LABEL[r]}</span></span></button>`;
+      return `<button type="button" class="card" data-card="${r}" style="${fan(i)}" aria-label="${RESOURCE_LABEL[r]}: ${c}" title="${RESOURCE_LABEL[r]} — tap to trade" data-n="${Math.min(c, 4)}">${cardSvg(r)}<span class="count">${c}</span><span class="rib" aria-hidden="true"><b>${c}</b><span>${RESOURCE_LABEL[r]}</span></span>${bk(r)}</button>`;
     }).join("");
     if (devTypes.length) {
       const when = this.isRush() ? "after roll" : "next turn";
@@ -8135,6 +8139,26 @@ class ColonistFullGame {
     this._placeDevBubble();
     const strip = this.resourceCardStrip;
     window.requestAnimationFrame(() => this.handArea?.classList.toggle("fits", strip.scrollWidth <= strip.clientWidth + 2));
+  }
+
+  /** v1.01: the bank's stock of one resource, under its card in the hand: "[bank] 17", muted; 5 or fewer amber, 0 red. */
+  _bankLabelHtml(r) {
+    const n = this.bank[r];
+    return `<span class="bk-lbl${this._bankLow(n)}" data-bk="${r}" aria-hidden="true">${icon("bank")}<b>${n}</b></span>`;
+  }
+
+  _bankLow(n) { return n <= 0 ? " out" : n <= BANK_LOW ? " low" : ""; }
+
+  /** v1.01: keep the labels in step with the bank between hand re-renders (rolls, builds, trades, discards, monopoly…). */
+  _syncBankLabels() {
+    this.resourceCardStrip?.querySelectorAll(".bk-lbl[data-bk]").forEach((el) => {
+      const n = this.bank[el.dataset.bk];
+      if (el.__n === n) return;
+      el.__n = n;
+      const b = el.querySelector("b");
+      if (b && b.textContent !== String(n)) b.textContent = n;
+      el.className = `bk-lbl${this._bankLow(n)}`;
+    });
   }
 
   /** v0.84: a development card can be played from the hand right now (your turn, the holder's own move). */
