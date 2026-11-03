@@ -637,12 +637,14 @@ export const StatsUiMixin = {
     this._rpSeek(0);
   },
 
-  /** Board state after the events of step s. */
-  _rpSeek(s) {
+  /** Board state after the events of step s (v1.02: `upto`: only the events logged before that count, i.e.
+   *  the board at a moment inside step s; the review shows the board just before a move). */
+  _rpSeek(s, upto = null) {
     const st = this._st, g = this.geometry;
     if (!st || !this._rpSaved) return;
     s = Math.max(0, Math.min(st.N, s));
-    if (s < this._rpCur || this._rpCur < 0) {
+    if (upto != null && !st.evIx) st.evIx = new Map(this.stats.ev.map((e, i) => [e, i]));
+    if (s < this._rpCur || this._rpCur < 0 || upto != null || this._rpPart) {
       g.nodes.forEach((n) => { n.owner = null; n.structure = null; });
       g.edges.forEach((e) => { e.owner = null; if (e.ship) e.ship = false; });
       this.players.forEach((p) => { p.roads.clear(); p.ships.clear(); p.settlements.clear(); p.cities.clear(); });
@@ -652,6 +654,7 @@ export const StatsUiMixin = {
     }
     for (let k = this._rpCur + 1; k <= s; k += 1) {
       st.stepEvents[k].forEach((e) => {
+        if (upto != null && k === s && !((st.evIx.get(e) ?? Infinity) < upto)) return;
         const [, c, a, b, x] = e;
         const p = this.players[a];
         if (c === "b" || c === "u") {
@@ -670,6 +673,7 @@ export const StatsUiMixin = {
       });
     }
     this._rpCur = s;
+    this._rpPart = upto != null; // a partial step: the next seek starts over
     this.boardRenderer?.requestDraw();
     this._classicDirty = true;
   },
