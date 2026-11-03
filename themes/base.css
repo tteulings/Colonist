@@ -1998,6 +1998,34 @@ html[data-lab] .table .board-wrap { position: absolute !important; inset: 0 !imp
 .hand .hand-total.warn { background: var(--warn-bg, #FBE2B8); color: var(--warn-ink, #8A3A0E); border-color: rgba(176,90,20,.45); }
 .hand .hand-total .ht-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 1.5px var(--pc-line, rgba(0,0,0,.25)); margin-right: 2px; }
 .hand.discarding .hand-total { display: none; }
+/* v1.01 the bank's stock under each resource card: a small muted "[bank] 17" (your own count stays the big number on
+   the card). It hangs just below the card, overlapping its bottom edge by 2 px, in room taken from the dock's top padding
+   (the strip reaches 8 px into it), so the board keeps its size. It moves with the card (fan, lift) and never takes a tap.
+   5 or fewer: amber; 0: red. */
+.app { --bk-ink: #59656A; --bk-bg: rgba(253,251,246,.94); --bk-line: rgba(46,58,61,.22);
+  --bk-low-ink: #8A3A0E; --bk-low-bg: #FBE2B8; --bk-low-line: rgba(176,90,20,.5);
+  --bk-out-ink: #FFFFFF; --bk-out-bg: #B3261E; --bk-out-line: rgba(120,20,14,.6); }
+[data-palette="night"] .app { --bk-ink: #B8C6CA; --bk-bg: rgba(16,32,40,.82); --bk-line: rgba(222,234,238,.18);
+  --bk-low-ink: #FFD99A; --bk-low-bg: #4E3412; --bk-low-line: rgba(255,200,120,.45);
+  --bk-out-ink: #FFFFFF; --bk-out-bg: #C0392B; --bk-out-line: rgba(255,170,150,.5); }
+.hand .card .bk-lbl { position: absolute; left: 50%; top: calc(100% - 2px); z-index: 2; transform: translateX(-50%); pointer-events: none;
+  display: inline-flex; align-items: center; gap: 1px; width: max-content; height: 13px; padding: 0 4px 0 3px; border-radius: 7px; box-sizing: border-box; white-space: nowrap;
+  font: 700 11px/1 var(--font-body); letter-spacing: 0; font-variant-numeric: tabular-nums lining-nums; -webkit-text-stroke: 0; text-shadow: none;
+  color: var(--bk-ink); background: var(--bk-bg); box-shadow: 0 0 0 .5px var(--bk-line); }
+.hand .card.slot .bk-lbl { top: 100%; } /* inside the slot's 2 px dashed border: the same 2 px overlap */
+.hand .card .bk-lbl .ic { width: 10px; height: 10px; font-size: 10px; display: block; opacity: .85; } /* not the card art's 100% svg */
+.hand .card .bk-lbl b { font-weight: 750; }
+.hand .card .bk-lbl.low { color: var(--bk-low-ink); background: var(--bk-low-bg); box-shadow: 0 0 0 .5px var(--bk-low-line); }
+.hand .card .bk-lbl.out { color: var(--bk-out-ink); background: var(--bk-out-bg); box-shadow: 0 0 0 .5px var(--bk-out-line); }
+.hand .card .bk-lbl:is(.low, .out) .ic { opacity: 1; }
+.hand .card .bk-lbl.out .ic { filter: brightness(0) invert(1); }
+/* phones (portrait): the cards sit 3 px higher and the strip's padding reaches 8 px into the dock's top padding */
+@media (max-width: 900px) and (min-height: 501px) {
+  .app .hand .cards, [data-hand-counts] .app .hand .cards { padding-bottom: 17px; margin-bottom: -8px; }
+  [data-hand-counts="stack"] .app .hand .cards { padding-top: 13px; }
+  [data-hand-counts="stack"] .app .hand.discarding .cards { padding-top: 16px; } /* a lifted card keeps its v1.00 headroom */
+}
+}
 /* bank + totals popover */
 .hand-info { position: fixed; z-index: 60; left: 8px; right: 8px; max-width: 360px; background: var(--sheet, #FFFDF6); color: var(--ink, #1F3440);
   border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.3); padding: 9px 12px 10px; font: 650 12px/1.25 var(--font-body); }
@@ -2506,3 +2534,15 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
 .tcell .rate-tag { left: auto; right: 3px; z-index: 2; }
 @media (max-width: 900px), (max-height: 500px) { .tcell .rate-tag { top: 2px; right: 2px; left: auto; font-size: 10.5px; line-height: 14px; } }
 .app .tcell small.stock { font-size: 11px; font-weight: 600; color: var(--ink-soft); opacity: .85; }
+
+/* v1.01 bank labels, landscape phones (after the v0.86 column rules it adjusts): the hand is a grid in the side column.
+   The rows part 2 px further; the next row's stack edges tuck behind the labels (cards with a label sit one layer up),
+   and the last row's labels hang into the 8 px gap above the dock buttons. The cards give up at most 2 px of width. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .app .dock .hand .cards, [data-hand-counts] .app .dock .hand .cards { row-gap: 14px; }
+  .app .dock .hand .card { --cw: min(37px, calc((100cqh - 58px) / 2.8)); }
+  .app .dock .hand .cards:has(> .card:nth-child(9)) { row-gap: 12px; }
+  .app .dock .hand .cards:has(> .card:nth-child(9)) .card { --cw: min(30px, calc((100cqh - 66px) / 4.2)); }
+  .app .dock .hand .card[data-card] { z-index: 1; }
+  .hand .card .bk-lbl { height: 12px; padding: 0 3px 0 2px; gap: 0; }
+}
