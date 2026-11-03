@@ -1,0 +1,54 @@
+/* v1.02 Post-game review (src/review-ui.js): missed chances in the recap, the Show card in the replay and
+   (v1.03) the Game review screen. Theme tokens only; one warm coral marks a missed chance, gold "could be
+   sharper", green "strong". Text ≥ 11 px, tap targets ≥ 40 px. */
+.gs-over, .gs-replay, .rv { --rv-good: #4F8A33; --rv-inacc: #D99A1E; --rv-miss: #D9714E; --rv-sep: color-mix(in srgb, var(--ink) 10%, transparent); }
+[data-palette="night"] :is(.gs-over, .gs-replay, .rv) { --rv-good: #7DBA5C; --rv-inacc: #F0B45C; --rv-miss: #F2907A; }
+.rv-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--rv-miss); flex: none; display: inline-block; }
+
+/* ── missed chances: one line each, inside the recap ── */
+.rv1 { margin: 0 0 10px; border-radius: 12px; background: var(--chip); border: var(--chip-border); overflow: hidden; }
+.rv1-h { display: flex; align-items: center; gap: 6px; padding: 8px 10px 6px; font: 800 13px/1.2 var(--font-body); color: var(--heading); }
+.rv1-h small { margin-left: auto; flex: none; font-size: 11px; color: var(--ink-soft); font-weight: 650; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.rv1-tt { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv1-h .rv-who { color: var(--pc, var(--heading)); }
+.rv1 button { width: 100%; min-height: 44px; display: grid; grid-template-columns: 50px minmax(0, 1fr) auto 14px; align-items: center; gap: 8px; padding: 2px 10px; border: 0; border-top: 1px solid var(--rv-sep);
+  background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.rv1 button:active { background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.rv1 .t { font-size: 11.5px; font-weight: 800; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rv1 .x { font-size: 13px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv1 .g { font-size: 11.5px; font-weight: 750; color: var(--ink-soft); white-space: nowrap; }
+.rv-chev { width: 14px; height: 14px; color: var(--ink-soft); }
+.rv1 .rvb { grid-template-columns: 50px minmax(0, 1fr) auto 14px; color: var(--primary); }
+.rv1 .rvb .x { font-weight: 800; }
+.rv1 .rvb svg:not(.rv-chev) { width: 20px; height: 20px; }
+.rv1-note { margin: -4px 4px 10px; font-size: 11px; line-height: 1.35; color: var(--ink-soft); font-weight: 600; }
+.rv-wait .rv1-h { padding-bottom: 8px; }
+.rv-spin { width: 11px; height: 11px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--ink) 20%, transparent); border-top-color: var(--primary); animation: rvSpin 800ms linear infinite; }
+@keyframes rvSpin { to { transform: rotate(360deg); } }
+
+/* ── Show: the coaching card in the replay's panel ── */
+.gs-replay.rv-show .gs-rp-ctl { padding: 10px 12px 12px; }
+.rvs { display: grid; gap: 8px; }
+.rvs-top { display: flex; align-items: center; gap: 8px; }
+.rvs-top b { display: block; font: 800 15px/1.2 var(--font-body); color: var(--heading); }
+.rvs-top small { display: block; font-size: 12px; color: var(--ink-soft); font-weight: 650; }
+.rvs-vs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.rvs-vs > div { border-radius: 12px; padding: 7px 9px; background: var(--chip); border: var(--chip-border); display: grid; grid-template-columns: 22px 1fr; gap: 1px 7px; align-items: center; }
+.rvs-vs small { grid-column: 2; font-size: 11px; color: var(--ink-soft); font-weight: 700; }
+.rvs-vs b { grid-column: 2; font-size: 13px; font-weight: 800; line-height: 1.2; color: var(--ink); }
+.rvs-vs .sx-win { grid-row: 1 / span 2; width: 22px; height: 22px; font-size: 12px; }
+.rvs-vs .better { box-shadow: inset 0 0 0 2px var(--primary); }
+.rvs-why { margin: 0; font-size: 13px; line-height: 1.35; color: var(--ink); }
+.rvs, .rv-cmp { --seat: var(--primary); } /* A = the better move, in the same teal as its ring on the board */
+.rv-cmp { font-size: 12px; }
+.rv-cmp :is(.sx-cmph, .sx-cmpr) { grid-template-columns: minmax(0, 1.7fr) minmax(0, .8fr) minmax(0, .8fr) 50px; }
+.rv-cmp .sx-cmph > span:last-child { font-size: 11px; }
+.rvs-nav { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 6px; }
+.rv-btn { min-height: 42px; min-width: 40px; padding: 0 12px; border-radius: 999px; border: var(--btn-border); background: var(--btn); color: var(--btn-ink); font: 750 13px var(--font-body);
+  box-shadow: var(--btn-shadow); display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
+.rv-btn svg { width: 16px; height: 16px; flex: none; }
+.rv-btn.pri { background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink, #fff); border: var(--primary-border, 0); }
+.rv-btn[disabled] { opacity: .45; cursor: default; }
+.rv-hand .sx-card { font-size: 11px; }
+@media (max-height: 700px) { .rvs { gap: 6px; } .rv-hand .sx-card { padding: 2px; } .rvs-why { font-size: 12.5px; } }
+[data-motion="reduced"] .rv-spin { animation: none; }
