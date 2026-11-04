@@ -1319,11 +1319,28 @@ class ColonistFullGame {
     this._bindTouchGestures();
     window.addEventListener("keydown", (event) => this.handleKeyboardShortcut(event));
     this.logToggle.addEventListener("click", () => this.toggleLog());
-    let resizeTimer;
-    window.addEventListener("resize", () => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => this.handleResize(), 200);
-    });
+    window.addEventListener("resize", () => this._queueResize(true));
+  }
+
+  /**
+   * v1.04: one coalesced re-layout for every resize source (window resize, media-query flips, the board's
+   * ResizeObserver). Coming back from another app Android resizes the window two or three times (bars, then
+   * full screen); each used to rebuild + redraw the whole board, so the app froze for a moment. Now the
+   * burst settles first (and nothing runs while hidden), then a single pass runs, and only if the board's
+   * box really changed (`force`: a layout mode may have flipped, so always run).
+   */
+  _queueResize(force = false) {
+    this._rzForce = this._rzForce || force;
+    if (document.hidden) { this._rzPending = true; return; }
+    clearTimeout(this._rzTimer);
+    this._rzTimer = setTimeout(() => {
+      this._rzTimer = 0;
+      const f = this._rzForce; this._rzForce = false; this._rzPending = false;
+      if (document.hidden) { this._rzPending = true; this._rzForce = f; return; }
+      const box = this.canvas.parentElement, r = box?.getBoundingClientRect();
+      if (!f && r && Math.round(r.width) === this.boardWidth && Math.round(r.height) === this.boardHeight && this._targetPixelRatio() === this.pixelRatio) return;
+      this.handleResize();
+    }, 200);
   }
 
   toggleLog(force) {
@@ -9744,10 +9761,10 @@ class ColonistFullGame {
     [this.tradeModal, this.devCardPicker, this.victimPanel, this.discardPanel, this.incomingTradePanel, this.railLog, this.app].forEach((el) => {
       if (el) mo.observe(el, { attributes: true, attributeFilter: ["style", "class"] });
     });
-    window.matchMedia(MOBILE_MQ).addEventListener?.("change", () => this.handleResize());
-    window.matchMedia(LANDSCAPE_MQ).addEventListener?.("change", () => this.handleResize());
+    window.matchMedia(MOBILE_MQ).addEventListener?.("change", () => this._queueResize(true));
+    window.matchMedia(LANDSCAPE_MQ).addEventListener?.("change", () => this._queueResize(true));
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) this.boardRenderer?.requestDraw();
+      if (!document.hidden) { if (this._rzPending) this._queueResize(); else this.boardRenderer?.requestDraw(); }
       else this.saveToStorage(); // backgrounded on a phone: may be killed without pagehide
     });
     window.addEventListener("pagehide", () => this.saveToStorage());
@@ -9757,14 +9774,7 @@ class ColonistFullGame {
     // squeezed and taps land in the wrong place.
     const box = this.canvas.parentElement;
     if (box && window.ResizeObserver) {
-      let raf = 0;
-      new ResizeObserver(() => {
-        cancelAnimationFrame(raf);
-        raf = requestAnimationFrame(() => {
-          const r = box.getBoundingClientRect();
-          if (r.width > 0 && r.height > 0 && (Math.round(r.width) !== this.boardWidth || Math.round(r.height) !== this.boardHeight)) this.handleResize();
-        });
-      }).observe(box);
+      new ResizeObserver(() => this._queueResize(false)).observe(box);
     }
     // Sunny Island colour palette (<html data-palette="light|vivid">): re-bake the board in place
     document.addEventListener("colonist:palette", () => this._applyPalette());
