@@ -23,9 +23,9 @@ export const REVIEW_ENGINES = {
   // SD is 4–17, highest for the weak bots): Simple 78.3 ± 4.3, Beginner 82.1 ± 3.1, Intermediate 87.5 ± 1.9,
   // Expert 88.1 ± 1.4, Master-100 90.6 ± 1.0. In order with every decision kind scored, dev cards included
   // (the 14-turn look-ahead sees them; with the 8-turn m100 engine they had to be left out).
-  full: { budget: { n: 1000, timeMs: 12000, depth: 14, setupDepth: 18 }, sec: 5, k: 0.15, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end"],
-    // v1.05 k 0.08 -> 0.15 (a stricter curve): the calibration recordings (16 games a level, Master 40) re-scored, mean per game ± SE
-    bands: [["Simple", 69.3], ["Beginner", 73.8], ["Intermediate", 82.0], ["Expert", 82.4], ["Master", 84.8]] },
+  full: { budget: { n: 1000, timeMs: 12000, depth: 14, setupDepth: 18 }, sec: 5, k: 0.1, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end"],
+    // v1.08 formula v2 (raw gap, stake-weighted mean + harmonic mean, k 0.1): the calibration recordings (16 games a level, Master 40) re-scored, mean per game ± SE
+    bands: [["Simple", 59.5], ["Beginner", 62.4], ["Intermediate", 70.5], ["Expert", 68.3], ["Master", 73.7]] },
   b: { budget: { n: 300, timeMs: 6000, depth: 12, setupDepth: 16 }, sec: 2, bands: null },
   m100: { budget: { n: 160, timeMs: 700 }, sec: 0.5, k: 0.08, trivial: 0.02, scored: ["setup", "build", "bank", "robber", "end"], bands: [["Simple", 85], ["Beginner", 86], ["Intermediate", 88], ["Expert", 89]] },
 };
@@ -36,7 +36,9 @@ export const REVIEW_BUDGET = REVIEW.budget;
 // accuracy = a·e^(−k·loss%) − b: chess.com's win%-based curve, steeper (k 0.08 instead of 0.0435) because
 // these win chances come from an 8-turn look-ahead and move less than a chess engine's. Calibrated on the
 // bots' own decisions (2 × 24 games per level, see BANDS in src/review-game.js).
-export const ACC = { a: 103.1668, k: REVIEW.k ?? 0.08, b: 3.1669 };
+// v1.08 formula version 2: per move on the raw gap A−B (what the screen shows), the game's accuracy = (weighted mean +
+// harmonic mean) / 2 over the real choices, weighted by the stake (spread of the options). ACC.id tags stored scores.
+export const ACC = { a: 103.1668, k: REVIEW.k ?? 0.08, b: 3.1669, ver: 2, get id() { return `k${this.k}v${this.ver}`; } };
 // Development cards (buy / play) are checked and marked but not scored: their value lies mostly beyond the
 // 8-turn look-ahead (a hidden deck, Largest Army later), and scoring them put the bot levels out of order.
 export const SCORED_KINDS = REVIEW.scored || ["setup", "build", "bank", "robber", "end"];
@@ -65,10 +67,12 @@ export const CLASSES = ["best", "great", "good", "could", "mistake", "blunder", 
 export function clsOf(x) {
   if (!x || x.skip === "forced" || x.skip === "n/a" || x.skip === "error" || x.loss == null) return null;
   if (x.trivial || x.skip === "trivial") return null;
-  const loss = x.loss || 0, lead = x.lead ?? x.spread ?? 0;
+  // the class uses the same gap the screen shows: A minus B in whole points (no statistical correction)
+  const gp = x.best && x.win != null ? Math.max(0, Math.round((x.win + x.best.gain) * 100) - Math.round(x.win * 100)) : 0;
+  const loss = gp / 100, lead = x.lead ?? x.spread ?? 0;
   const c = LIMITS.find(([m]) => loss < m)[1];
   if (c !== "best" && c !== "good" && ["end", "bank"].includes(x.k) && /^(City|Settlement|Road|Development)/.test(x.best?.label || "")) return "missed";
-  if (c === "best") return lead >= GREAT && x.k !== "setup" && x.k !== "end" ? "great" : lead >= BEST_LEAD ? "best" : "good";
+  if (c === "best") return lead >= GREAT && (x.cands?.length ?? 0) >= 3 && x.k !== "setup" && x.k !== "end" ? "great" : lead >= BEST_LEAD ? "best" : "good";
   return c;
 }
 export function markOf(loss) { return loss >= MARKS.miss ? "miss" : loss >= MARKS.inacc ? "inacc" : "good"; }
@@ -156,14 +160,23 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   const lead = alts.length ? Math.max(0, -Math.max(...alts.map((c) => c.m))) : spread; // how far the nearest other option is behind the played one
   const trivial = spread < TRIVIAL;
   return { ...base, label: played.label, focus: played.focus || null, win: winP == null ? null : r4(winP), best: best ? { label: b.label, focus: b.focus, gain: r4(b.m), se: b.se, seats: r.seats?.[best] || null } : null, seats: r.seats?.[0] || null,
-    loss: r4(loss), lossRaw: r4(lossRaw), spread: r4(spread), lead: r4(lead), trivial, skip: trivial ? "trivial" : null, acc: trivial || !scored.includes(rec.k) ? null : Math.round(accuracyOf(loss) * 10) / 10,
+    loss: r4(loss), lossRaw: r4(lossRaw), spread: r4(spread), lead: r4(lead), trivial, skip: trivial ? "trivial" : null, acc: trivial || !scored.includes(rec.k) ? null : Math.round(accuracyOf(lossRaw) * 10) / 10,
     mark: trivial ? "good" : markOf(loss), cands, futures: r.vals[0].filter((v) => v != null).length, rollouts: r.rollouts, ms };
 }
 
 /** The game's numbers from the per-decision results. */
+/** Game accuracy (v1.08): the per-move accuracies on the raw gap, weighted by the stake of the position (the spread of
+ *  the options, 3–25 points), as (weighted mean + harmonic mean) / 2: a few big mistakes cannot hide among many easy moves. */
+export function gameAccuracy(results) {
+  const real = results.filter((x) => x.acc != null);
+  if (!real.length) return null;
+  const a = real.map((x) => Math.max(3, accuracyOf(x.lossRaw ?? x.loss ?? 0))), w = real.map((x) => Math.min(25, Math.max(3, (x.spread ?? 0.1) * 100)));
+  const wm = a.reduce((p, v, i) => p + v * w[i], 0) / w.reduce((p, v) => p + v, 0), hm = a.length / a.reduce((p, v) => p + 1 / v, 0);
+  return (wm + hm) / 2;
+}
 export function summarize(results) {
   const real = results.filter((x) => x.acc != null);
-  const acc = real.length ? real.reduce((a, x) => a + x.acc, 0) / real.length : null;
+  const acc = gameAccuracy(results);
   const count = { good: 0, inacc: 0, miss: 0 };
   results.filter((x) => x.mark).forEach((x) => { count[x.mark] += 1; });
   const cls = Object.fromEntries(CLASSES.map((c) => [c, 0]));

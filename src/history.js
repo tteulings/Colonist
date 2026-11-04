@@ -168,7 +168,7 @@ export const HistoryMixin = {
     PROBLEM.forEach((c) => { cls[c] = 0; });
     rv.results.forEach((x) => { const c = clsOf(x); if (PROBLEM.includes(c)) { cls[c] += 1; const k = mistKey(x); mist[k] = (mist[k] || 0) + 1; } });
     const deep = rv.results.filter((x) => !this._rvNeedsFull(x)).length;
-    return { acc: sum.acc, rn: sum.n, cls, mist, prov: !this._rvReviewComplete(pid), mid: !!rv.midCheck, rk: ACC.k, rp: [deep, rv.total || rv.results.length] };
+    return { acc: sum.acc, rn: sum.n, cls, mist, prov: !this._rvReviewComplete(pid), mid: !!rv.midCheck, rk: ACC.id, rp: [deep, rv.total || rv.results.length] };
   },
   /** The review moved on (a round step, stop, done): keep the entry up to date, at most once a second. */
   _histSoon() {

@@ -158,12 +158,12 @@ export const ReviewGameMixin = {
     const rv = this._rv?.review;
     if (!rv || rv.pid !== pid || !this.winner || !this._rvReviewComplete(pid)) return this._rvHistory();
     const sum = summarize(rv.results);
-    return this._rvHistory(sum.acc != null ? { id: this._rv.id, acc: sum.acc, n: sum.n, at: Date.now(), eng: REVIEW_ENGINE, midCheck: !!rv.midCheck, k: ACC.k } : null);
+    return this._rvHistory(sum.acc != null ? { id: this._rv.id, acc: sum.acc, n: sum.n, at: Date.now(), eng: REVIEW_ENGINE, midCheck: !!rv.midCheck, k: ACC.id } : null);
   },
   /** The comparison with the bots: only over 5+ games (one game spreads about ±8, the bands only 4). */
   _rvCompare(hist) {
     // accuracies of one engine only, and only games nobody checked during play (v1.04: a check mid-game helps)
-    const last = hist.filter((x) => (x.eng || "m100") === REVIEW_ENGINE && !x.midCheck && (x.k ?? 0.08) === ACC.k).slice(-10).map((x) => x.acc);
+    const last = hist.filter((x) => (x.eng || "m100") === REVIEW_ENGINE && !x.midCheck && (x.k ?? "k0.08v1") === ACC.id).slice(-10).map((x) => x.acc);
     if (!BANDS.length) return { n: last.length, text: "" };
     if (last.length < 5) return { n: last.length, text: `Average vs the bots after 5 games (${last.length} of 5).` };
     const m = last.reduce((a, b) => a + b, 0) / last.length;
@@ -274,10 +274,10 @@ export const ReviewGameMixin = {
     d.setAttribute("aria-label", "About this review");
     d.innerHTML = `<div class="rv-card"><div class="rv-ih"><b>About this review</b><button type="button" class="rv-btn" data-rvinfo-x aria-label="Close">✕</button></div>
       <p><b>Win chance</b>: how often each player won when the Master bot played the position on in 1000 random futures. The bar beside the board stacks all players (yours at the bottom).</p>
-      <p><b>A and B</b>: A is the move with the highest win chance, B is what you played. The numbers shown are A minus B, in points. The class uses that gap less its statistical error, so a small gap is not over-called: ${LIMITS.map(([m, c], k) => `${CLS[c][0]} ${k ? (Number.isFinite(m) ? `${Math.round(LIMITS[k - 1][0] * 100)}–${Math.round(m * 100)}` : `${Math.round(LIMITS[k - 1][0] * 100)}+`) : `under ${Math.round(m * 100)} (and the next option ${Math.round(BEST_LEAD * 100)}+ behind, else Good)`}`).join(", ")} points.</p>
-      <p><b>Missed chance</b>: you ended the turn or traded while a build or development card was worth 2.5+ points. <b>Great</b>: outside the set-up, the best move with the next one ${Math.round(GREAT * 100)}+ points behind. <b>No real choice</b>: every option within 2 points; not counted and not in the accuracy.</p>
+      <p><b>A and B</b>: A is the move with the highest win chance, B is what you played. The numbers shown are A minus B, in points. The class uses that same gap: ${LIMITS.map(([m, c], k) => `${CLS[c][0]} ${k ? (Number.isFinite(m) ? `${Math.round(LIMITS[k - 1][0] * 100)}–${Math.round(m * 100)}` : `${Math.round(LIMITS[k - 1][0] * 100)}+`) : `under ${Math.round(m * 100)} (and the next option ${Math.round(BEST_LEAD * 100)}+ behind, else Good)`}`).join(", ")} points.</p>
+      <p><b>Missed chance</b>: you ended the turn or traded while a build or development card was worth 2.5+ points. <b>Great</b>: outside the set-up, the best move among at least 3 options with the next one ${Math.round(GREAT * 100)}+ points behind. <b>No real choice</b>: every option within 2 points; not counted and not in the accuracy.</p>
       <p><b>Your moves and Luck</b>: your moves is the win chance they gave away, added up. Luck is what moved your win chance between two of your decisions: dice, robber, steals and what the others did. They add up to the change in your win chance, so a win with a bad move still shows.</p>
-      <p><b>Accuracy</b> is how much win chance your moves kept against the best move the Master bot found (100 = always the best). The bar starts at 50; a lower score is pinned to the left edge and labelled. One game is a rough measure (about ± 8).</p>
+      <p><b>Accuracy</b> is how much win chance your moves kept against the best move the Master bot found (100 = always the best), scored on the same gap A minus B. Decisions with more at stake count more, and the game score is the average of the weighted mean and the harmonic mean, so a few big mistakes pull it down. The bar starts at 50; a lower score is pinned to the left edge and labelled. One game is a rough measure (about ± 8).</p>
       <p><b>The bots</b>: the band is how accurate the bots are on their own decisions with this same check${bands}. Your average over 5+ games is compared with it. Checking the bots in your game needs their moves recorded, which is not done yet.</p>
       <p><b>A check during the game</b> keeps its moves for the review at the end, but that game stays out of your average. The board is shown after the game.</p>
       <p><b>Provisional</b> is the quick look (about half a second a move). The deep check (about ${REVIEW.sec} s a move) follows, biggest differences first, and the numbers shift as it goes.</p></div>`;
@@ -296,7 +296,7 @@ export const ReviewGameMixin = {
     const norm = (a, w) => (Array.isArray(a) && a.length === n ? a : Array.from({ length: n }, (_, q) => (q === me ? w : (1 - w) / Math.max(1, n - 1))));
     const ds = res.filter((x) => x.win != null).map((x) => {
       const vb = x.best ? x.win + x.best.gain : x.win, cls = clsOf(x) || (x.trivial || x.skip === "trivial" ? "triv" : "best");
-      return { i: x.i, x, t: x.t, k: x.k, cls, loss: x.loss || 0, win: x.win, vBest: vb, seats: norm(x.seats, x.win), bseats: norm(x.best?.seats, vb), gap: x.best && !x.trivial && (x.loss || 0) >= LIMITS[0][0] ? Math.max(0, Math.round(vb * 100) - Math.round(x.win * 100)) / 100 : 0, same: cls === "triv" || !x.best || (x.loss || 0) < LIMITS[0][0] || x.trivial, chance: 0 };
+      return { i: x.i, x, t: x.t, k: x.k, cls, loss: x.loss || 0, win: x.win, vBest: vb, seats: norm(x.seats, x.win), bseats: norm(x.best?.seats, vb), gap: x.best && !x.trivial ? Math.max(0, Math.round(vb * 100) - Math.round(x.win * 100)) / 100 : 0, same: cls === "triv" || !x.best || Math.round(vb * 100) - Math.round(x.win * 100) < 1, chance: 0 };
     });
     // the chance term: what moved the win chance between two of your decisions (dice, robber, steals, the other players)
     ds.forEach((d, k) => { d.chance = k ? d.vBest - ds[k - 1].win : 0; });
@@ -315,9 +315,31 @@ export const ReviewGameMixin = {
   },
   /** One short line for the key moments: "Ended turn · road 2·11·10". */
   _rvTerse(d) {
-    const t = (l) => String(l || "").replace(/^Road toward /, "road ").replace(/^City on /, "city ").replace(/^Settlement on /, "settlement ").replace(/^Robber on /, "robber ").replace(/^Bank trade /, "trade ").replace(/ \(.*\)$/, "");
+    const tail = (l) => String(l).replace(/ \+\d+ roads?/, "");
+    const t = (l) => {
+      l = String(l || "");
+      if (/^Trade .*, then /.test(l)) { const n = (l.match(/Trade /g) || []).length; return `${n > 1 ? `${n}× ` : ""}trade → ${t(tail(l.replace(/^.*, then /, "")))}`; }
+      return tail(l).replace(/^Road toward /, "road ").replace(/^City on /, "city ").replace(/^Settlement on /, "settlement ").replace(/^Robber on /, "robber ").replace(/^Bank trade /, "trade ").replace(/ \(.*\)$/, "").replace(/^Settlement /, "settlement ");
+    };
     const w = d.cls === "missed" ? (d.k === "end" ? "Ended turn" : "Traded") : t(d.x.label), up = (q) => q.charAt(0).toUpperCase() + q.slice(1);
     return d.x.best && !d.same ? `${up(w)} → ${t(d.x.best.label)}` : up(w);
+  },
+  /** Why the chance term moved between two decisions: the rolls that paid you, the robber, a steal. From the game's log. */
+  _rvCause(ds, k) {
+    const st = this._st, me = this._rvPid, d = ds[k], p = ds[k - 1];
+    if (!st || !p || !d) return "Dice and the table";
+    let cards = 0, best = null, robbed = 0, shift = false;
+    for (let s = (p.x.s ?? 0) + 1; s <= (d.x.s ?? 0) && s <= st.N; s++) {
+      let c = 0;
+      (st.stepEvents[s] || []).forEach((e) => { if (e[1] === "P" && e[2] === me) c += e[5] || 1; else if (e[1] === "t" && e[3] === me) robbed += 1; });
+      cards += c;
+      const step = st.steps[s - 1];
+      if (step && c && (!best || c > best.c)) best = { c, roll: step[2] + step[3] };
+      if (step && step[2] + step[3] === 7) shift = true;
+    }
+    if (d.chance >= 0) return best ? `${best.roll} rolled · +${cards} ${cards === 1 ? "card" : "cards"}` : "The others' moves";
+    if (robbed) return `Robbed · ${robbed} stolen`;
+    return cards ? `Others pulled ahead · +${cards} for you` : shift ? "A 7 and no cards" : "No cards from your numbers";
   },
   _rvKind(d) { return { setup: "Setup", build: "Build", bank: "Bank", buy: "Dev card", play: "Dev card", robber: "Robber", end: "Turn end" }[d.k] || ""; },
   _rvShort(d) { const l = d.x.label || ""; return d.k === "end" ? "End turn" : l.replace(/ toward .*/, "").replace(/ on .*/, "").replace(/^Bank trade.*/, "Bank trade"); },
@@ -375,7 +397,7 @@ export const ReviewGameMixin = {
     const imp = this._rvImp(ds);
     const better = imp.slice(0, 5).map((d) => `<button type="button" class="rs-key rs-imp" data-rvj="${d.i}" data-rvq="imp">${badge(d.cls)}<span class="t">${this._rvWhen(d)}</span><span class="x">${esc(this._rvTerse(d))}</span><b class="neg">${sg(-d.gap)}%</b>${ico}</button>`).join("");
     const lk = ds.slice().sort((a, b) => Math.abs(b.chance) - Math.abs(a.chance))[0];
-    const key = (lk && Math.abs(lk.chance) >= 0.03 ? `<button type="button" class="rs-key" data-rvj="${lk.i}"><i class="rs-b c-luck sm" aria-hidden="true">⚄</i><span class="t">${this._rvWhen(lk)}</span><span class="x">Luck swing</span><b class="${lk.chance >= 0 ? "pos" : "neg"}">${sg(lk.chance)}%</b>${ico}</button>` : "");
+    const key = (lk && Math.abs(lk.chance) >= 0.03 ? `<button type="button" class="rs-key" data-rvj="${lk.i}"><i class="rs-b c-luck sm" aria-hidden="true">⚄</i><span class="t">${this._rvWhen(lk)}</span><span class="x">${esc(this._rvCause(ds, ds.indexOf(lk)))}</span><b class="${lk.chance >= 0 ? "pos" : "neg"}">${sg(lk.chance)}%</b>${ico}</button>` : "");
     const groups = [];
     ds.forEach((d) => { const key2 = d.k === "setup" ? "Setup" : `Turn ${d.t}`; let g = groups[groups.length - 1]; if (!g || g.key !== key2) groups.push((g = { key: key2, items: [] })); g.items.push(d); });
     const rows = groups.map((g) => `<div class="rs-trow"><span class="t">${g.key === "Setup" ? "Setup" : g.key.replace("Turn ", "T")}</span><div>${g.items.map((d) => `<button type="button" class="rs-mv c-${d.cls}" data-rvj="${d.i}" data-rvq="all"${d.cls === "triv" ? ' aria-label="No real choice"' : ""}>${badge(d.cls, "sm")}<span>${esc(this._rvShort(d))}</span>${d.gap >= 0.01 ? `<small>${sg(-d.gap)}</small>` : ""}</button>`).join("")}</div></div>`).join("");
