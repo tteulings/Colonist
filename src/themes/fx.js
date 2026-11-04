@@ -5,6 +5,7 @@
 // Effects never block input: game flow is driven by the game's own timers, not by these animations.
 import { motionReduced, dieSvg, cardSvg, cardBackSvg, icon } from "./manager.js";
 import { DEV_NAME } from "./art-util.js";
+const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 
 const rect = (el) => el?.getBoundingClientRect?.();
 const center = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
@@ -308,5 +309,69 @@ export class Fx {
     if (anchor) this.A(anchor, [{ transform: "scale(1)" }, { transform: "scale(1.06)", offset: 0.6 }, { transform: "scale(1)" }], { duration: 600, delay: 200, easing: this.M.pop, fill: "none" });
     const banner = document.getElementById("turnBanner");
     if (banner && banner.offsetParent) this.A(banner, [{ transform: "translateY(-12px)", opacity: 0 }, { transform: "translateY(0)", opacity: 1 }], { duration: 600, easing: this.M.pop, fill: "none" });
+  }
+  // ── Year of Plenty / Monopoly: public cards fly bank → player / opponents → player ──
+  /** Where the bank cards leave from: that resource's chip in the supply bar, else the bank bar, else board top. */
+  bankSource(res) {
+    const bar = document.getElementById("supplyOverview");
+    const lbl = document.querySelector(`#resourceCardStrip .bk-lbl[data-bk="${res}"]`);
+    const chip = bar?.querySelectorAll(".r")[RESOURCES.indexOf(res)];
+    const r = rect([lbl, chip, bar].find((e) => e && e.offsetParent));
+    if (r) return center(r);
+    const br = this.boardRect();
+    return { x: br.left + br.width / 2, y: br.top + 20 };
+  }
+
+  /** A short, staggered flight of one public (face-up) card; ~650 ms. Purely visual. */
+  flyPublic(res, src, pid, delay, plusN) {
+    const k = this.reduced ? 0.2 : this.M.k;
+    window.setTimeout(() => {
+      const target = this.targetFor(pid, res);
+      const tr = rect(target);
+      if (!tr) return;
+      const cw = Math.max(30, Math.min(46, this.boardRect().width * 0.04));
+      const dst = center(tr), dx = dst.x - src.x, dy = dst.y - src.y;
+      const human = this.game.players[pid]?.isHuman && (this.game._seesPrivate?.(this.game.players[pid]) ?? true);
+      const endScale = human ? Math.min(1.2, tr.width / cw) : 0.55;
+      const el = this.actor(cardSvg(res), src.x - cw / 2, src.y - cw * 0.7, cw, "fx-card");
+      this.A(el, [
+        { transform: "translate(0,0) scale(.3) rotate(-6deg)", opacity: 0, offset: 0 },
+        { transform: `translate(${dx * 0.1}px,${dy * 0.1}px) scale(1.1) rotate(-6deg)`, opacity: 1, offset: 0.2, easing: this.M.inOut },
+        { transform: `translate(${dx * 0.6}px,${dy * 0.6 - cw * 0.6}px) scale(1) rotate(6deg)`, offset: 0.6, easing: this.M.inOut },
+        { transform: `translate(${dx}px,${dy}px) scale(${endScale}) rotate(0deg)`, opacity: 1, offset: 0.92 },
+        { transform: `translate(${dx}px,${dy}px) scale(${endScale}) rotate(0deg)`, opacity: 0, offset: 1 },
+      ], { duration: 650 });
+      this.later([el], 700);
+      window.setTimeout(() => {
+        const t = this.targetFor(pid, res);
+        if (!t) return;
+        this.A(t, [{ transform: "scale(1)" }, { transform: "scale(1.16) rotate(-4deg)", offset: 0.5 }, { transform: "scale(1)" }], { duration: 300, easing: this.M.pop, fill: "none" });
+        if (plusN) this.plus(t, plusN);
+      }, 600 * k);
+    }, delay * k);
+  }
+
+  /** gained: ["wood","ore"] taken from the bank by player pid. */
+  yearOfPlenty(pid, gained) {
+    if (!gained?.length) return;
+    const tally = {};
+    gained.forEach((r) => { tally[r] = (tally[r] || 0) + 1; });
+    const seen = {};
+    gained.forEach((res, i) => {
+      seen[res] = (seen[res] || 0) + 1;
+      this.flyPublic(res, this.bankSource(res), pid, 120 + i * 170, seen[res] === tally[res] ? tally[res] : 0);
+    });
+  }
+
+  /** collected cards of `res` go to pid; sources cycle over all opponents (so no per-player hand info leaks). */
+  monopoly(pid, res, collected) {
+    if (!(collected > 0)) return;
+    const others = this.game.players.filter((p) => p.id !== pid);
+    const n = Math.min(collected, 6);
+    for (let i = 0; i < n; i += 1) {
+      const a = rect(this.game.playerAnchor(others[i % others.length].id));
+      if (!a) continue;
+      this.flyPublic(res, center(a), pid, 120 + i * 110, i === n - 1 ? collected : 0);
+    }
   }
 }
