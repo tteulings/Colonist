@@ -2,6 +2,7 @@
 // Home: Continue (when a game is saved) · New game: Classic / Rush tiles that start at once with the
 // chosen opponents and bot level · More settings (full New game screen) · How to play · Settings.
 import { icon, avatarSvg } from "./manager.js";
+import { HISTORY_ICON } from "../history.js";
 
 const MENU_IC = `<svg class="ic ic-menu" viewBox="-50 -50 100 100" aria-hidden="true"><path d="M-30 -22H30M-30 0H30M-30 22H30" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/></svg>`;
 const PLAY_IC = `<svg class="hm-play" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="currentColor" opacity=".2"/><path d="M9.6 7.4v9.2l7.4-4.6z" fill="currentColor"/></svg>`;
@@ -96,6 +97,7 @@ export class Home {
         ${sea ? `<p class="hm-note">Heading for New Shores · 14 points · <span class="hm-seacap">up to 4 players</span></p>` : ""}
       </section>
       <nav class="hm-card hm-list" aria-label="More">
+        <button type="button" data-home="history">${HISTORY_ICON}<span>Past games<small>${(() => { const n = this.opts.historyCount?.(); return n ? `${n} finished game${n > 1 ? "s" : ""} · replay, stats, review` : "Replay and review your finished games"; })()}</small></span>${CHEV}</button>
         <button type="button" data-home="more">${themed(this.game, "sliders", SLIDERS_IC)}<span>More settings<small>Rules, map, bots · play with friends</small></span>${CHEV}</button>
         <button type="button" data-home="intro" class="${fresh ? "fresh" : ""}">${themed(this.game, "book", BOOK_IC)}<span>How to play${fresh ? `<small>New here? 3 short cards</small>` : ""}</span>${CHEV}</button>
         <div class="hm-pair"><button type="button" data-home="settings">${icon("settings")}<span>Settings</span>${CHEV}</button>
@@ -112,6 +114,7 @@ export class Home {
     on("[data-bots]", (e) => { p.numBots = Number(e.currentTarget.dataset.bots); this.render(); this.el.querySelector(`[data-bots="${p.numBots}"]`)?.focus(); });
     on("[data-level]", (e) => { p.preset = e.currentTarget.dataset.level; this.render(); this.el.querySelector(`[data-level="${p.preset}"]`)?.focus(); });
     on("[data-home='more']", () => this.opts.onMore());
+    on("[data-home='history']", () => this.opts.onHistory?.());
     on("[data-home='intro']", () => this.opts.onIntro());
     on("[data-home='settings']", () => this.opts.onSettings());
   }
@@ -147,13 +150,14 @@ export class GameMenu {
         ${this.game.liveStatsAvailable?.() && !this.game._lsNeedsBoard?.() ? item("stats", STATS_IC, "Stats", "Dice, points and income so far") : ""}
         ${this.game._rvMidPid?.() != null ? item("check", CHECK_IC, "Check my moves so far", this.game._rvMidSub()) : ""}
         ${item("newgame", icon("dice"), "New game", "Mode, rules and opponents")}
+        ${item("history", HISTORY_ICON, "Past games", (() => { const n = this.opts.historyCount?.(); return n ? `${n} finished game${n > 1 ? "s" : ""}` : "Replay and review"; })())}
         ${item("settings", icon("settings"), "Settings", "Sound, bot speed, look")}
         ${item("intro", themed(this.game, "book", BOOK_IC), "How to play")}
         ${item("about", themed(this.game, "info", INFO_IC), "About")}
       </div></div>`;
     el.addEventListener("click", (e) => { if (e.target === el) this.close(); });
     el.querySelector(".mn-close").addEventListener("click", () => this.close());
-    const go = { stats: "onStats", check: "onCheck", home: "onHome", newgame: "onNewGame", settings: "onSettings", intro: "onIntro", about: "onAbout" };
+    const go = { stats: "onStats", check: "onCheck", history: "onHistory", home: "onHome", newgame: "onNewGame", settings: "onSettings", intro: "onIntro", about: "onAbout" };
     el.querySelectorAll("[data-menu]").forEach((b) => b.addEventListener("click", () => { const fn = this.opts[go[b.dataset.menu]]; this.close(); fn?.(); }));
     document.addEventListener("keydown", this.onKey);
     document.body.appendChild(el);
