@@ -184,6 +184,7 @@ export const LiveStatsMixin = {
     this._lsSt = st;
     const N = st.N;
     el.querySelector(".ls-when").textContent = this.isRush() ? `· ${N} roll${N === 1 ? "" : "s"}` : `· turn ${this.turn} · ${N} roll${N === 1 ? "" : "s"}`;
+    if (this._rv?.review?.midCheck) el.querySelector(".ls-when").textContent += " · moves checked"; // v1.04: a mid-game review was made
     const pub = this._lsPublicVp(st);
     const html = {
       dice: () => this._lsCardDice(st),

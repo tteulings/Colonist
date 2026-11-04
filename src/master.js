@@ -17,39 +17,47 @@ const READY_TIMEOUT_MS = 8000;
 const STEP_GAP_MS = 120; // the worker loads the whole game code once (~0.4 s on a laptop)
 const shared = { worker: null, ready: null, broken: false, seq: 0, waiting: new Map() };
 
-/** The worker, created once per page (null when workers are unavailable). */
-export function masterWorker() {
-  if (shared.broken || typeof Worker === "undefined") return null;
-  if (shared.worker) return shared.ready;
+/** A worker of src/master/worker.js with its request queue (`pool`: the bots' own, or the review's). */
+function poolWorker(pool) {
+  if (pool.broken || typeof Worker === "undefined") return null;
+  if (pool.worker) return pool.ready;
   try {
-    shared.worker = new Worker(new URL("./master/worker.js?v=103", import.meta.url), { type: "module" });
-  } catch (_) { shared.broken = true; return null; }
-  shared.ready = new Promise((resolve) => {
-    const t = setTimeout(() => { shared.broken = true; resolve(null); }, READY_TIMEOUT_MS);
-    shared.worker.addEventListener("message", (e) => {
+    pool.worker = new Worker(new URL("./master/worker.js?v=104", import.meta.url), { type: "module" });
+  } catch (_) { pool.broken = true; return null; }
+  pool.ready = new Promise((resolve) => {
+    const t = setTimeout(() => { pool.broken = true; resolve(null); }, READY_TIMEOUT_MS);
+    pool.worker.addEventListener("message", (e) => {
       const m = e.data;
-      if (m.type === "ready") { clearTimeout(t); resolve(shared.worker); return; }
-      const w = shared.waiting.get(m.id);
+      if (m.type === "ready") { clearTimeout(t); resolve(pool.worker); return; }
+      const w = pool.waiting.get(m.id);
       if (!w) return;
-      shared.waiting.delete(m.id);
+      pool.waiting.delete(m.id);
       w(m);
     });
-    shared.worker.addEventListener("error", (e) => { console.warn("Master worker failed", e.message || e); shared.broken = true; clearTimeout(t); resolve(null); shared.waiting.forEach((w) => w({ type: "error" })); shared.waiting.clear(); });
+    pool.worker.addEventListener("error", (e) => { console.warn("Master worker failed", e.message || e); pool.broken = true; clearTimeout(t); resolve(null); pool.waiting.forEach((w) => w({ type: "error" })); pool.waiting.clear(); });
   });
-  return shared.ready;
+  return pool.ready;
 }
-/** Send one request; resolves with the reply, or null (no worker, error, timeout). */
-export function masterRequest(msg, timeoutMs = ASK_TIMEOUT_MS) {
-  const ready = masterWorker();
+function poolRequest(pool, msg, timeoutMs) {
+  const ready = poolWorker(pool);
   if (!ready) return Promise.resolve(null);
   return ready.then((w) => new Promise((resolve) => {
     if (!w) { resolve(null); return; }
-    const id = ++shared.seq;
-    const t = timeoutMs ? setTimeout(() => { shared.waiting.delete(id); resolve(null); }, timeoutMs) : 0;
-    shared.waiting.set(id, (m) => { clearTimeout(t); resolve(m.type === "error" ? (console.warn("Master search failed", m.message), null) : m); });
+    const id = ++pool.seq;
+    const t = timeoutMs ? setTimeout(() => { pool.waiting.delete(id); resolve(null); }, timeoutMs) : 0;
+    pool.waiting.set(id, (m) => { clearTimeout(t); resolve(m.type === "error" ? (console.warn("Master search failed", m.message), null) : m); });
     w.postMessage({ ...msg, id });
   }));
 }
+/** The worker, created once per page (null when workers are unavailable). */
+export function masterWorker() { return poolWorker(shared); }
+/** Send one request; resolves with the reply, or null (no worker, error, timeout). */
+export function masterRequest(msg, timeoutMs = ASK_TIMEOUT_MS) { return poolRequest(shared, msg, timeoutMs); }
+// v1.04 the Game review has a worker of its own: a check during the game never makes a Master bot wait
+// (one shared worker queued the bots' searches behind ~5 s review steps: 4.4 s mean think time, timeouts).
+const review = { worker: null, ready: null, broken: false, seq: 0, waiting: new Map() };
+export function reviewRequest(msg, timeoutMs) { return poolRequest(review, msg, timeoutMs); }
+export const reviewAvailable = () => !review.broken && typeof Worker !== "undefined";
 export const masterAvailable = () => !shared.broken && typeof Worker !== "undefined";
 
 export const MasterMixin = {

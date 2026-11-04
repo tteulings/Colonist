@@ -13,10 +13,13 @@
 //
 // After the game the records go to the Master Web Worker (src/master/worker.js), which runs the detectors
 // in src/review/detect.js on its private headless engine; the end screen never waits for them.
-import { masterRequest, masterAvailable } from "./master.js";
+import { masterRequest, masterAvailable, reviewRequest } from "./master.js";
+import { REVIEW_ENGINE } from "./review/evaluate.js";
 
 const KEY = "colonist_review_v1";
 const RES5 = ["wood", "brick", "sheep", "wheat", "ore"];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const hiddenTab = () => typeof document !== "undefined" && (document.hidden || document.visibilityState === "hidden");
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 export const ReviewMixin = {
@@ -28,7 +31,7 @@ export const ReviewMixin = {
   /** The review covers this kind of game at all (the end screen shows nothing otherwise). */
   _rvCovered() { return !this.sea && !this.isRush?.(); },
 
-  _rvReset(id = this.stats?.id) { this._rv = { id: id || null, base: null, recs: [], res: null, busy: false, ms: 0 }; },
+  _rvReset(id = this.stats?.id) { if (this._rv?.run) this._rv.run.stop = true; this._rvListener = null; this._rv = { id: id || null, base: null, recs: [], res: null, busy: false, ms: 0 }; },
 
   /** The position before a decision. */
   _rvPre(player) {
@@ -66,7 +69,7 @@ export const ReviewMixin = {
     const R = this._rv;
     if (!R || !R.id || !R.recs.length) return 0;
     try {
-      const json = JSON.stringify({ v: 1, id: R.id, base: R.base, recs: R.recs, review: R.review?.done ? R.review : null });
+      const json = JSON.stringify({ v: 1, id: R.id, base: R.base, recs: R.recs, review: R.review?.results?.length ? R.review : null }); // v1.04: a check made during the game is kept too
       localStorage.setItem(KEY, json);
       R.bytes = json.length;
       return json.length;
@@ -76,30 +79,116 @@ export const ReviewMixin = {
   /** Records grouped for the worker (the layout merged back in there). */
   _rvPayload(recs = this._rv?.recs || []) { return { base: this._rv?.base, recs }; },
 
-  /** v1.03 Game review: check every real decision of one person with the Master (one worker request each,
-   *  so the page shows progress and can stop). onStep(review) after each; resolves the review. */
-  _rvReviewRun(pid, onStep) {
+  /** The decisions of one person the review checks (record index i). */
+  _rvTodo(pid) {
+    const KINDS = ["setup", "build", "bank", "buy", "play", "robber", "end"];
+    return (this._rv?.recs || []).map((r, i) => [r, i]).filter(([r]) => r.pid === pid && KINDS.includes(r.k) && !(r.k === "build" && r.a?.free));
+  },
+  /** A result that still needs the deep (full) engine: it comes from the quick round (m100) and is a real choice. */
+  _rvNeedsFull(x) { return (x.eng || "full") === "m100" && !["forced", "n/a"].includes(x.skip); },
+  /** Every decision of this person so far has a quick or deep result. */
+  _rvCovered1(pid) {
+    const rv = this._rv?.review;
+    return !!rv && rv.pid === pid && this._rvTodo(pid).every(([, i]) => rv.results.some((x) => x.i === i));
+  },
+  /** Every decision has its deep (full) result: nothing provisional is left. */
+  _rvReviewComplete(pid) {
+    const rv = this._rv?.review;
+    return !!rv && rv.pid === pid && this._rvTodo(pid).every(([, i]) => { const x = rv.results.find((y) => y.i === i); return !!x && !this._rvNeedsFull(x); });
+  },
+  /** Order of the deep round: where the quick round found the largest loss, then the smallest gap between the two best moves. */
+  _rvDeepOrder(rv, items) {
+    const key = (i) => {
+      const x = rv.results.find((y) => y.i === i);
+      if (!x || x.skip === "error") return [0, 0];
+      const w = (x.cands || []).map((c) => c.win).filter((v) => v != null).sort((p, q) => q - p);
+      const gap = w.length > 1 ? w[0] - w[1] : 1;
+      return (x.loss || 0) >= 0.025 ? [1, -(x.loss || 0)] : [2, x.trivial ? 1 + gap : gap];
+    };
+    return items.map((it) => ({ it, k: key(it[1]) })).sort((p, q) => p.k[0] - q.k[0] || p.k[1] - q.k[1] || p.it[1] - q.it[1]).map((o) => o.it);
+  },
+  _rvStop() {
+    const R = this._rv, run = R?.run;
+    if (!run) return;
+    run.stop = true; R.run = null;
+    if (R.review) R.review.stopped = true;
+    this._rvSave(); this._rvTick();
+  },
+
+  /** v1.04 Game review in rounds. After a game (auto, or the button): round 1 is quick (m100 engine, ~0.5 s a
+   *  decision) so a provisional review is on screen at once; round 2 deepens every real choice with the full
+   *  engine, the biggest losses / closest calls first. `mid` (Check my moves so far): one full round over the
+   *  moves so far. Runs in the review's own worker (src/master.js reviewRequest). Already-full results (from a
+   *  check during the game) are kept; quick results are replaced one by one. A hidden tab pauses it; on a
+   *  machine with ≤ 4 cores a mid-game check also waits while a Master bot is searching. Results are saved. */
+  _rvReviewRun(pid, onStep, { mid = false } = {}) {
     const R = this._rv;
     if (!R) return Promise.resolve(null);
-    const KINDS = ["setup", "build", "bank", "buy", "play", "robber", "end"];
-    const todo = R.recs.map((r, i) => [r, i]).filter(([r]) => r.pid === pid && KINDS.includes(r.k) && !(r.k === "build" && r.a?.free));
-    const rv = R.review?.pid === pid ? R.review : { pid, results: [], total: todo.length, done: false, cancelled: false };
+    if (onStep) this._rvListener = onStep;
+    if (R.run && R.run.pid === pid) return R.run.promise;
+    const todo = this._rvTodo(pid);
+    const rv = R.review?.pid === pid ? R.review : { pid, results: [] };
     R.review = rv;
-    if (rv.done) return Promise.resolve(rv);
-    rv.cancelled = false;
-    const id = R.id;
-    const step = (j) => {
-      if (this._rv !== R || R.id !== id || rv.cancelled) return Promise.resolve(rv);
-      if (j >= todo.length) { rv.done = true; this._rvSave(); return Promise.resolve(rv); }
-      const [rec, i] = todo[j];
-      if (rv.results.some((x) => x.i === i)) return step(j + 1);
-      return masterRequest({ type: "evaluate", base: R.base, rec, opts: {} }, 40000).then((m) => {
-        rv.results.push(m?.result ? { ...m.result, i } : { k: rec.k, pid, t: rec.t, s: rec.s, e: rec.e, i, skip: "error" });
-        onStep?.(rv, j + 1, todo.length);
-        return step(j + 1);
-      });
+    rv.total = todo.length;
+    rv.stopped = false;
+    if (mid) { rv.midCheck = true; rv.upto = this.turn; }
+    if (this._rvReviewComplete(pid)) { rv.done = true; return Promise.resolve(rv); }
+    rv.done = false;
+    const id = R.id, run = { pid, mid, stop: false, round: null, times: [], paused: false };
+    R.run = run;
+    const few = (typeof navigator !== "undefined" ? navigator.hardwareConcurrency || 4 : 4) <= 4;
+    const live = () => this._rv === R && R.id === id;
+    const gate = async () => {
+      for (;;) {
+        const hid = hiddenTab(), wait = hid || (mid && few && this._masterBusy && !this.winner);
+        if (run.paused !== hid) { run.paused = hid; this._rvTick(); }
+        if (!wait || run.stop || !live()) return;
+        await sleep(hid ? 400 : 150);
+      }
     };
-    return step(0);
+    const onVis = () => { const hid = hiddenTab(); if (run.paused !== hid) { run.paused = hid; this._rvTick(); } };
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVis);
+    const round = async (eng, items) => {
+      run.round = { eng, j: 0, n: items.length };
+      run.times = [];
+      this._rvTick();
+      for (const [rec, i] of items) {
+        if (run.stop || !live()) return;
+        await gate();
+        if (run.stop || !live()) return;
+        const t0 = now();
+        const m = await reviewRequest({ type: "evaluate", base: R.base, rec, opts: eng === REVIEW_ENGINE ? {} : { engine: eng } }, 40000);
+        if (!live()) return;
+        const k = rv.results.findIndex((x) => x.i === i);
+        let r = m?.result ? { ...m.result, i } : null;
+        if (!r) r = k >= 0 ? { ...rv.results[k], eng: REVIEW_ENGINE, err: true } : { k: rec.k, pid, t: rec.t, s: rec.s, e: rec.e, i, skip: "error", eng };
+        if (k >= 0) rv.results[k] = r; else rv.results.push(r);
+        run.times.push(now() - t0);
+        run.round.j += 1;
+        if (run.round.j % 6 === 0) this._rvSave(); // a reload keeps what is checked
+        this._rvTick();
+      }
+    };
+    run.promise = (async () => {
+      try {
+        const has = (i) => rv.results.some((x) => x.i === i);
+        if (mid) {
+          await round(REVIEW_ENGINE, todo.filter(([, i]) => { const x = rv.results.find((y) => y.i === i); return !x || this._rvNeedsFull(x); }));
+        } else {
+          const quick = todo.filter(([, i]) => !has(i));
+          if (quick.length) await round("m100", quick);
+          if (!run.stop && live()) await round(REVIEW_ENGINE, this._rvDeepOrder(rv, todo.filter(([, i]) => { const x = rv.results.find((y) => y.i === i); return x && this._rvNeedsFull(x); })));
+        }
+      } catch (e) { console.warn("review run", e); }
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVis);
+      if (live()) { rv.done = !run.stop && this._rvReviewComplete(pid); if (R.run === run) R.run = null; this._rvSave(); if (rv.done) this._rvLogGame?.(pid); this._rvTick(); }
+      return rv;
+    })();
+    return run.promise;
+  },
+  /** Something changed in the running review: the open screen and the end screen's button follow. */
+  _rvTick() {
+    try { this._rvListener?.(this._rv?.review); this._rvPatchRows?.(); } catch (e) { console.warn("review tick", e); }
   },
 
   /** Game over: save, then run the detectors in the worker (once per game). */
@@ -107,6 +196,9 @@ export const ReviewMixin = {
     const R = this._rv;
     if (!R || !R.recs.length || R.res || R.busy) return;
     this._rvSave();
+    if (this._rvEl && this._rvMid) this._rvCloseReview(); // the game ended under a check: the end screen takes over
+    // v1.04: the review starts by itself (a tick later: the winning move is recorded right after this hook)
+    setTimeout(() => { if (this._rv !== R) return; const apid = this._rvAutoPid?.(); if (apid != null) this._rvReviewRun(apid, null).then((rv) => { if (rv?.done && this._rv === R) this._rvRender?.(); }); }, 0);
     if (!masterAvailable()) { R.res = { findings: [], none: true }; return; }
     R.busy = true;
     const id = R.id;
