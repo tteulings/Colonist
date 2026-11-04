@@ -169,8 +169,11 @@ export const ReviewGameMixin = {
     const m = last.reduce((a, b) => a + b, 0) / last.length;
     const sd = Math.sqrt(last.reduce((a, b) => a + (b - m) ** 2, 0) / (last.length - 1));
     const se = sd / Math.sqrt(last.length);
-    const near = BANDS.slice().sort((x, y) => Math.abs(x[1] - m) - Math.abs(y[1] - m))[0];
-    const where = m < BANDS[0][1] - se ? `below the bots’ range` : m > BANDS[BANDS.length - 1][1] + se ? `above the ${BANDS[BANDS.length - 1][0]} bot` : `around ${near[0]}`;
+    // "around X" only when the average overlaps one level's band alone; two or more: "between A and B" (bands are ± one SE)
+    const sorted = BANDS.slice().sort((x, y) => x[1] - y[1]);
+    const hit = sorted.filter(([, v, bs = 3]) => m + se >= v - bs && m - se <= v + bs);
+    const where = hit.length === 1 ? `around ${hit[0][0]}` : hit.length > 1 ? `between ${hit[0][0]} and ${hit[hit.length - 1][0]}`
+      : m < sorted[0][1] ? `below the bots’ range` : m > sorted[sorted.length - 1][1] ? `above the ${sorted[sorted.length - 1][0]} bot` : `between ${sorted.filter((b) => b[1] < m).pop()[0]} and ${sorted.find((b) => b[1] > m)[0]}`;
     return { n: last.length, m, se, text: `Your last ${last.length} games: ${Math.round(m)} ± ${Math.max(1, Math.round(se))}, ${where}.` };
   },
   /** v1.04 the accuracy strip at the top: the number, a 70–100 bar with the bots' narrow band (a score
@@ -179,7 +182,7 @@ export const ReviewGameMixin = {
   _rvStrip(acc, cmp, mid, prov = false) {
     const lo = 50, hi = 100, pc = (v) => Math.max(0, Math.min(100, (100 * (v - lo)) / (hi - lo)));
     // the bands are measured with the full engine: a provisional (quick) accuracy has none
-    const B = BANDS.length && !(prov && !mid) ? [BANDS[0], BANDS[BANDS.length - 1]] : null;
+    const bv = BANDS.map((b) => b[1]), B = BANDS.length && !(prov && !mid) ? [["", Math.min(...bv)], ["", Math.max(...bv)]] : null;
     const out = acc != null && (acc < lo || acc > hi);
     const when = mid ? "so far" : prov ? "" : "this game";
     const bar = `<div class="rv-abar" aria-hidden="true">${B ? `<i class="b" style="left:${pc(B[0][1])}%;width:${pc(B[1][1]) - pc(B[0][1])}%"></i>` : ""}${cmp?.m != null ? `<i class="avg" style="left:${pc(cmp.m - cmp.se)}%;width:${Math.max(1, pc(cmp.m + cmp.se) - pc(cmp.m - cmp.se))}%"></i><i class="avgd" style="left:${pc(cmp.m)}%"></i>` : ""}${acc != null ? `<i class="me" style="left:${pc(acc)}%"></i>` : ""}</div>`;
@@ -267,13 +270,13 @@ export const ReviewGameMixin = {
     const el = this._rvEl;
     if (!el) return;
     el.querySelector(".rv-info")?.remove();
-    const bands = BANDS.length ? ` (${BANDS.map(([n, v]) => `${n} ${Math.round(v)}`).join(", ")})` : "";
+    const bands = BANDS.length ? ` (${BANDS.map(([n, v]) => `${n} ${Math.round(v)}`).join(", ")}, each ± ${BANDS[0][2] ?? 3})` : "";
     const d = document.createElement("div");
     d.className = "rv-info";
     d.setAttribute("role", "dialog");
     d.setAttribute("aria-label", "About this review");
     d.innerHTML = `<div class="rv-card"><div class="rv-ih"><b>About this review</b><button type="button" class="rv-btn" data-rvinfo-x aria-label="Close">✕</button></div>
-      <p><b>Win chance</b>: how often each player won when the Master bot played the position on in 1000 random futures. The bar beside the board stacks all players (yours at the bottom).</p>
+      <p><b>Win chance</b>: the Master bot plays the position on for 14 turns in about 1000 random futures and scores each end position with a score function fitted on 4500 bot games (it predicts the winner better than the old hand-made one). The bar beside the board stacks all players (yours at the bottom).</p>
       <p><b>A and B</b>: A is the move with the highest win chance, B is what you played. The numbers shown are A minus B, in points. The class uses that same gap: ${LIMITS.map(([m, c], k) => `${CLS[c][0]} ${k ? (Number.isFinite(m) ? `${Math.round(LIMITS[k - 1][0] * 100)}–${Math.round(m * 100)}` : `${Math.round(LIMITS[k - 1][0] * 100)}+`) : `under ${Math.round(m * 100)} (and the next option ${Math.round(BEST_LEAD * 100)}+ behind, else Good)`}`).join(", ")} points.</p>
       <p><b>Missed chance</b>: you ended the turn or traded while a build or development card was worth 2.5+ points. <b>Great</b>: outside the set-up, the best move among at least 3 options with the next one ${Math.round(GREAT * 100)}+ points behind. <b>No real choice</b>: every option within 2 points; not counted and not in the accuracy.</p>
       <p><b>Your moves and Luck</b>: your moves is the win chance they gave away, added up. Luck is what moved your win chance between two of your decisions: dice, robber, steals and what the others did. They add up to the change in your win chance, so a win with a bad move still shows.</p>

@@ -14,7 +14,7 @@
 // After the game the records go to the Master Web Worker (src/master/worker.js), which runs the detectors
 // in src/review/detect.js on its private headless engine; the end screen never waits for them.
 import { masterRequest, masterAvailable, reviewRequest } from "./master.js";
-import { REVIEW_ENGINE } from "./review/evaluate.js";
+import { REVIEW_ENGINE, REVIEW } from "./review/evaluate.js";
 
 const KEY = "colonist_review_v1";
 const RES5 = ["wood", "brick", "sheep", "wheat", "ore"];
@@ -85,7 +85,7 @@ export const ReviewMixin = {
     return (this._rv?.recs || []).map((r, i) => [r, i]).filter(([r]) => r.pid === pid && KINDS.includes(r.k) && !(r.k === "build" && r.a?.free));
   },
   /** A result that still needs the deep (full) engine: it comes from the quick round (m100) and is a real choice. */
-  _rvNeedsFull(x) { return (x.eng || "full") === "m100" && !["forced", "n/a"].includes(x.skip); },
+  _rvNeedsFull(x) { return !["forced", "n/a"].includes(x.skip) && ((x.eng || "full") === "m100" || (x.leaf || "v1") !== (REVIEW.budget.leaf || "v1")); }, // v1.10: a result from the old score function counts as provisional
   /** Every decision of this person so far has a quick or deep result. */
   _rvCovered1(pid) {
     const rv = this._rv?.review;

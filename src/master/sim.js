@@ -2,6 +2,7 @@
 // determinization of what the searching seat cannot see, a static evaluation, and policy rollouts.
 // Ported from the research branch (research/sim.mjs, measured there). Runs on a private headless copy of
 // the game (the Web Worker in src/master/worker.js, or the Node harness), never on the game you play.
+import { FIT_W } from "./leaf-fit.js";
 export const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 export const DEV_CARD_TYPES = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
 export const hasResources = (res, cost) => Object.entries(cost).every(([t, a]) => res[t] >= a);
@@ -135,4 +136,62 @@ export function withoutAgents(g, fn) {
   const keep = g.players.map((p) => p.agent);
   g.players.forEach((p) => { p.agent = null; });
   try { return fn(); } finally { g.players.forEach((p, i) => { p.agent = keep[i]; }); }
+}
+
+// ── v1.10 leaf function 'fit': per-seat features and a conditional-logit (generalised softmax) over the seats ──
+// seatFeatures(g) → one vector per seat; fitValues(g, W) → seat scores w·f; the win chance is the softmax (T = 1) of those.
+// W is fitted offline on bot games (scratchpad/step105/tests/fit.py) and shipped as FIT_W in src/master/leaf-fit.js.
+export const FEATURE_NAMES = ["vp", "vp2", "incTot", "incTot*tLeft", "wood", "brick", "sheep", "wheat", "ore", "hand", "over7", "devHand", "knightsHand", "roadYop", "monoHand",
+  "devVP", "knightsPlayed", "hasArmy", "armyGap", "roadLen", "hasRoad", "roadGap", "ports2", "port2match", "port3", "spots0", "spots1", "spots2", "diversity", "zeroRes", "robberLoss", "cities", "settlements", "roads"];
+const hexNum = (n) => ({ 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 }[n] || 0) / 36;
+export function seatFeatures(g) {
+  const G = g.geometry, wp = g.winPoints, lead = Math.max(...g.players.map((p) => p.victoryPoints));
+  const tLeft = Math.max(2, Math.min(16, (wp - lead) * 2.2));
+  const lim = (g.settings && g.settings.discardLimit) || 7;
+  const maxKn = (id) => Math.max(0, ...g.players.filter((q) => q.id !== id).map((q) => q.knightsPlayed));
+  const maxRd = (id) => Math.max(4, ...g.players.filter((q) => q.id !== id).map((q) => q.longestRoadLength));
+  return g.players.map((p) => {
+    const inc = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 }, full = { ...inc };
+    const add = (n, amt) => G.nodes[n].adjacentHexes.forEach((hid) => {
+      const h = G.hexes[hid]; if (!h.number || h.resource === "desert") return;
+      const v = hexNum(h.number) * amt; full[h.resource] += v; if (hid !== g.robberHexId) inc[h.resource] += v;
+    });
+    p.settlements.forEach((n) => add(n, 1)); p.cities.forEach((n) => add(n, 2));
+    const incTot = RESOURCES.reduce((a, r) => a + inc[r], 0), fullTot = RESOURCES.reduce((a, r) => a + full[r], 0);
+    const hand = sumResources(p.resources);
+    const dv = (t) => p.devCards[t] + p.newDevCards[t];
+    let ports2 = 0, p2m = 0, p3 = 0;
+    RESOURCES.forEach((r) => { const rt = g.getPlayerTradeRate(p, r); if (rt === 2) { ports2++; p2m += inc[r]; } else if (rt === 3) p3 = 1; });
+    // free building spots: 0 / 1 / 2 roads away from the network (distance rule: no building next to it)
+    const net = new Set([...p.settlements, ...p.cities]);
+    p.roads.forEach((e) => G.edges[e].nodes.forEach((n) => net.add(n)));
+    const spot = (n) => G.nodes[n].owner == null && G.nodes[n].neighbors.every((m) => G.nodes[m].owner == null);
+    const seen = new Map(); net.forEach((n) => seen.set(n, 0));
+    let fr = [...net];
+    for (let d = 1; d <= 2; d++) {
+      const nx = [];
+      fr.forEach((n) => G.nodes[n].edgeIds.forEach((e) => {
+        const ed = G.edges[e]; if (ed.owner != null && ed.owner !== p.id) return;
+        const m = ed.nodes[0] === n ? ed.nodes[1] : ed.nodes[0];
+        if (seen.has(m) || (G.nodes[m].owner != null && G.nodes[m].owner !== p.id)) return;
+        seen.set(m, d); nx.push(m);
+      }));
+      fr = nx;
+    }
+    const cnt = [0, 0, 0]; seen.forEach((d, n) => { if (spot(n)) cnt[d] += 1; });
+    const kn = p.knightsPlayed;
+    return [p.victoryPoints, (p.victoryPoints * p.victoryPoints) / 10, incTot, (incTot * tLeft) / 4, ...RESOURCES.map((r) => inc[r]), Math.min(hand, 9) / 4, hand > lim ? 1 : 0,
+      dv("knight") + dv("roadBuilding") + dv("yearOfPlenty") + dv("monopoly"), dv("knight"), dv("roadBuilding") + dv("yearOfPlenty"), dv("monopoly"), p.devVictoryPoints,
+      kn, g.largestArmyHolder === p.id ? 1 : 0, Math.max(-3, Math.min(3, kn - maxKn(p.id))), p.longestRoadLength / 2, g.longestRoadHolder === p.id ? 1 : 0, Math.max(-4, Math.min(4, p.longestRoadLength - maxRd(p.id))),
+      ports2, p2m, p3, Math.min(cnt[0], 4), Math.min(cnt[1], 4), Math.min(cnt[2], 4), RESOURCES.filter((r) => inc[r] > 0.02).length, RESOURCES.filter((r) => inc[r] <= 0.02).length,
+      fullTot - incTot, p.cities.size, p.settlements.size, p.roads.size];
+  });
+}
+
+/** Win chances from the fitted score function (softmax of w·features over the seats). */
+export function fitProbs(g, W = FIT_W) {
+  if (g.winner) return g.players.map((p) => (p.id === g.winner.id ? 1 : 0));
+  const sc = seatFeatures(g).map((f) => { let t = 0; for (let i = 0; i < W.length; i++) t += W[i] * f[i]; return t; });
+  const mx = Math.max(...sc), e = sc.map((x) => Math.exp(x - mx)), z = e.reduce((a, b) => a + b, 0);
+  return e.map((x) => x / z);
 }
