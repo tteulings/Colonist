@@ -65,7 +65,7 @@
 .rv-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 10px max(14px, env(safe-area-inset-bottom)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-content: start; overscroll-behavior: contain; }
 .rv-scroll > * { width: 100%; max-width: 460px; margin: 0 auto; box-sizing: border-box; }
 .rv-card { padding: 12px; background: var(--sheet); background-image: var(--sheet-image); border: var(--sheet-border); border-radius: 18px; box-shadow: var(--float-shadow); color: var(--ink); }
-.rv-prog { display: grid; gap: 8px; justify-items: start; }
+.rv-prog { display: grid; }
 .rv-prog b { font: 800 16px var(--font-body); color: var(--heading); }
 .rv-prog p { margin: 0; font-size: 13px; line-height: 1.35; }
 .rv-prog small { font-size: 12px; color: var(--ink-soft); font-weight: 700; }
@@ -111,16 +111,49 @@
 .rv-list button.on { background: color-mix(in srgb, var(--primary) 9%, transparent); border-radius: 8px; }
 .rv-list .t { font-size: 12px; font-weight: 800; color: var(--ink-soft); }
 .rv-list .x { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rv-scale { width: 100%; height: auto; display: block; }
-.rv-scale .s-axis { stroke: color-mix(in srgb, var(--ink) 18%, transparent); stroke-width: 2; }
-.rv-scale .s-band { fill: color-mix(in srgb, var(--primary) 30%, transparent); }
-.rv-scale .s-lab { font-size: 11px; fill: var(--ink-soft); font-weight: 650; }
-.rv-scale .s-me { fill: var(--rv-miss); }
-.rv-scale .s-out { fill: var(--rv-miss); font-weight: 800; }
-.rv-scale .s-avg { stroke: var(--heading); stroke-width: 3; stroke-linecap: round; }
-.rv-scale .s-avgd { fill: var(--heading); }
+/* v1.04 accuracy strip: the number, a 70–100 bar with the bots' band, this game, your average */
+.rv-astrip { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: center; margin-bottom: 10px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--primary) 10%, var(--chip)); border: var(--chip-border); }
+.rv-astrip > .n { grid-row: span 2; font: var(--display-weight, 700) 40px/1 var(--font-display); color: var(--heading); min-width: 1.2em; text-align: center; }
+.rv-astrip .l { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; font-weight: 700; color: var(--ink-soft); }
+.rv-astrip .l b { color: var(--heading); font-size: 13.5px; }
+.rv-arow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; position: relative; }
+.rv-arow small { font-size: 11px; font-weight: 700; color: var(--ink-soft); }
+.rv-abar { position: relative; height: 8px; border-radius: 5px; background: color-mix(in srgb, var(--ink) 12%, transparent); }
+.rv-abar i { position: absolute; display: block; }
+.rv-abar .b { top: 0; bottom: 0; border-radius: 5px; background: color-mix(in srgb, var(--primary) 45%, transparent); }
+.rv-abar .me { top: -4px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: var(--rv-miss); }
+.rv-abar .avg { top: 3px; height: 2px; background: var(--heading); }
+.rv-abar .avgd { top: 0; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--heading); }
+.rv-arow .o { position: absolute; top: 13px; font-size: 11px; font-weight: 800; color: var(--rv-miss); }
+.rv-arow .o.lo { left: 0; }
+.rv-arow .o.hi { right: 0; }
+.rv-astrip .s { grid-column: 1 / -1; font-size: 11px; color: var(--ink-soft); font-weight: 600; }
+.rv-astrip:has(.o) .s { margin-top: 8px; }
+.rv-midnote { display: grid; gap: 8px; }
+.rv-midnote p { margin: 0; font-size: 13px; line-height: 1.35; font-weight: 650; }
+.rv-midnote .rv-btn { width: 100%; justify-content: center; }
 .rv-cmpline { margin: 0; font-size: 12.5px; line-height: 1.35; font-weight: 650; color: var(--ink); }
 .rv-cmpline .rv-hide { display: none; }
 .rv-keyme, .rv-keyavg { white-space: nowrap; font-size: 11px; color: var(--ink-soft); }
 .rv-keyme { color: var(--rv-miss); }
 
+
+/* v1.04 progress card, ring, provisional label, info sheet */
+.rv-prog { gap: 8px; justify-items: stretch; }
+.rv-prog .pr { display: flex; align-items: center; gap: 10px; }
+.rv-prog .pr b { font-size: 15px; }
+.rv-prog .pr small { flex: 1; font-size: 13px; }
+.rv-prog .rv-btn { margin-left: auto; }
+.rv-pbar { height: 6px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 12%, transparent); overflow: hidden; }
+.rv-pbar i { display: block; height: 100%; background: var(--primary); transition: width .3s; }
+.rv-bar > div:nth-child(2) { flex: 1; min-width: 0; }
+.rv-bar .rv-i { margin-left: auto; }
+.rv-astrip .pv { font-style: normal; font-size: 11px; font-weight: 800; margin-left: 6px; color: var(--rv-inacc); text-transform: uppercase; letter-spacing: .03em; }
+.rv-ring { display: inline-block; width: 18px; height: 18px; border-radius: 50%; background: conic-gradient(var(--primary) var(--p, 0%), color-mix(in srgb, var(--ink) 15%, transparent) 0); -webkit-mask: radial-gradient(circle, transparent 5px, #000 6px); mask: radial-gradient(circle, transparent 5px, #000 6px); }
+.rv-astrip:has(.o) .rv-arow { margin-bottom: 12px; }
+.rv-info { position: absolute; inset: 0; z-index: 5; display: flex; align-items: flex-end; background: rgba(0,0,0,.4); }
+.rv-info .rv-card { width: 100%; max-height: 82%; overflow: auto; border-radius: 18px 18px 0 0; display: grid; gap: 8px; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+.rv-info p { margin: 0; font-size: 13px; line-height: 1.4; }
+.rv-ih { display: flex; align-items: center; justify-content: space-between; }
+.rv-ih b { font: 800 16px var(--font-body); color: var(--heading); }
+.rv-midnote p b { font: 800 15px var(--font-body); color: var(--heading); }

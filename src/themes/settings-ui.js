@@ -5,7 +5,7 @@
 import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, paletteAuto, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "1.03";
+export const APP_VERSION = "1.04";
 
 /** One line of real viewport numbers for bug reports (Settings › About). */
 function viewportDebug() {
@@ -102,6 +102,13 @@ export class SettingsUI {
     if (this.tab === "game") {
       body.innerHTML = this.head("Game", "");
       body.appendChild(this.gamePane);
+      // v1.04 the Game review starts by itself after a game (a device preference)
+      let auto = true; try { auto = localStorage.getItem("colonist_review_auto") !== "off"; } catch (_) {}
+      const row = document.createElement("div");
+      row.className = "st-row";
+      row.innerHTML = `<div><b id="rvAutoLbl">Review automatically after a game</b><small>Checks your moves in the background.</small></div><button type="button" class="st-switch${auto ? " on" : ""}" role="switch" aria-checked="${auto}" aria-labelledby="rvAutoLbl" data-rv-auto><i></i></button>`;
+      row.querySelector("button").addEventListener("click", (e) => { const b = e.currentTarget, on = b.getAttribute("aria-checked") !== "true"; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); try { localStorage.setItem("colonist_review_auto", on ? "on" : "off"); } catch (_) {} });
+      body.appendChild(row);
     } else if (this.tab === "bots") {
       body.innerHTML = this.head("Bot personalities", "How each bot plays. New games use the choices from the New game screen.");
       body.appendChild(this.botPane);

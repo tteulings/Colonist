@@ -23,7 +23,7 @@ export const REVIEW_ENGINES = {
   // SD is 4–17, highest for the weak bots): Simple 78.3 ± 4.3, Beginner 82.1 ± 3.1, Intermediate 87.5 ± 1.9,
   // Expert 88.1 ± 1.4, Master-100 90.6 ± 1.0. In order with every decision kind scored, dev cards included
   // (the 14-turn look-ahead sees them; with the 8-turn m100 engine they had to be left out).
-  full: { budget: { n: 1000, timeMs: 12000, depth: 14, setupDepth: 18 }, sec: 7, k: 0.08, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end"],
+  full: { budget: { n: 1000, timeMs: 12000, depth: 14, setupDepth: 18 }, sec: 5, k: 0.08, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end"],
     bands: [["Simple", 78.3], ["Beginner", 82.1], ["Intermediate", 87.5], ["Expert", 88.1], ["Master", 90.6]] },
   b: { budget: { n: 300, timeMs: 6000, depth: 12, setupDepth: 16 }, sec: 2, bands: null },
   m100: { budget: { n: 160, timeMs: 700 }, sec: 0.5, k: 0.08, trivial: 0.02, scored: ["setup", "build", "bank", "robber", "end"], bands: [["Simple", 85], ["Beginner", 86], ["Intermediate", 88], ["Expert", 89]] },
@@ -103,7 +103,11 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   if (rec.k === "robber") { g.pendingAction = null; g.robberContext = null; }
   const played = playedMove(g, p, rec);
   if (!played) return { ...base, skip: "n/a" };
-  const agent = makeMaster({ ...REVIEW_BUDGET, ...(opts.budget || {}) });
+  // v1.04 opts.engine: "m100" is the quick first round after a game (the deep round is "full", the default)
+  const eng = opts.engine && REVIEW_ENGINES[opts.engine] ? opts.engine : REVIEW_ENGINE, E = REVIEW_ENGINES[eng];
+  const agent = makeMaster({ ...(eng === REVIEW_ENGINE ? REVIEW_BUDGET : E.budget), ...(opts.budget || {}) });
+  base.eng = eng;
+  const scored = eng === REVIEW_ENGINE ? SCORED_KINDS : E.scored; // the 8-turn look-ahead can't judge development cards
   const kind = rec.k === "setup" ? "setup" : rec.k === "robber" ? "robber" : "main";
   const r = agent.evaluate(g, p, kind, played);
   const ms = Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0);
@@ -121,7 +125,7 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   const spread = Math.max(0, ...cands.filter((c, k) => k && c.n >= 2).map((c) => Math.abs(c.m)));
   const trivial = spread < TRIVIAL;
   return { ...base, label: played.label, focus: played.focus || null, win: winP == null ? null : r4(winP), best: best ? { label: b.label, focus: b.focus, gain: r4(b.m), se: b.se } : null,
-    loss: r4(loss), lossRaw: r4(lossRaw), spread: r4(spread), trivial, skip: trivial ? "trivial" : null, acc: trivial || !SCORED_KINDS.includes(rec.k) ? null : Math.round(accuracyOf(loss) * 10) / 10,
+    loss: r4(loss), lossRaw: r4(lossRaw), spread: r4(spread), trivial, skip: trivial ? "trivial" : null, acc: trivial || !scored.includes(rec.k) ? null : Math.round(accuracyOf(loss) * 10) / 10,
     mark: trivial ? "good" : markOf(loss), cands, futures: r.vals[0].filter((v) => v != null).length, rollouts: r.rollouts, ms };
 }
 

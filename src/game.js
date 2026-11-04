@@ -999,6 +999,7 @@ class ColonistFullGame {
       onIntro: () => this.onboarding.showIntro(0, false),
       onAbout: () => this.settingsUI.open("about"),
       onStats: () => this.liveStatsOpen(),
+      onCheck: () => this._rvOpenMid(),
     });
     // Every launch opens on the home screen. A saved game is restored behind it but held (no bots,
     // no Rush clock, nothing saved) until Continue; without one a fresh board waits behind it.
