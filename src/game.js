@@ -13,7 +13,8 @@ import { StatsMixin, installStats } from "./stats.js"; // end-of-game statistics
 import { StatsUiMixin } from "./stats-ui.js"; // … the stats screen, heatmaps and the replay
 import { LiveStatsMixin, installLiveStats } from "./live-stats.js"; // … and the same cards during the game
 import { ReviewMixin, installReview } from "./review.js"; // v1.02 post-game review: the decision recorder
-import { ReviewUiMixin, installReviewUi } from "./review-ui.js"; // … missed chances, Show (and the Game review)
+import { ReviewUiMixin, installReviewUi } from "./review-ui.js"; // … missed chances and Show
+import { ReviewGameMixin, installReviewGame } from "./review-game.js"; // v1.03 … the Game review (Monte Carlo accuracy)
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
@@ -10962,9 +10963,10 @@ Object.assign(ColonistFullGame.prototype, StatsMixin, StatsUiMixin);
 installStats(ColonistFullGame);
 Object.assign(ColonistFullGame.prototype, LiveStatsMixin); // live stats during the game (src/live-stats.js)
 installLiveStats(ColonistFullGame);
-Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin); // v1.02 post-game review (src/review*.js)
+Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin); // v1.02/1.03 post-game review (src/review*.js)
 installReview(ColonistFullGame);
 installReviewUi(ColonistFullGame);
+installReviewGame(ColonistFullGame);
 
 const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle

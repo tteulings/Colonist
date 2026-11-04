@@ -8,12 +8,15 @@
 //   ← { type: "game", id, winner, turns, vp, ms, stats }
 //   → { type: "detect", id, base, recs }                        (v1.02 review: the person's missed chances)
 //   ← { type: "detect", id, findings, ms }
+//   → { type: "evaluate", id, base, rec, opts }                 (v1.03 Game review: one decision, Monte Carlo)
+//   ← { type: "evaluate", id, result }
 //   ← { type: "ready" } once loaded, { type: "error", id, message } on failure
 import "./dom.js";
 await import("../game.js"); // constructs a stub game as self.__colonistGame (no page, no saving)
 const { makeMaster, prepareEngine } = await import("./search.js");
 const { detectMissed } = await import("../review/detect.js");
 const { loadPosition, loadRecord } = await import("../review/engine.js");
+const { evaluateRecord } = await import("../review/evaluate.js");
 const g = prepareEngine(self.__colonistGame);
 g._rvOff = true; // v1.02: this copy never records a review
 const H = g.constructor.labHelpers;
@@ -58,6 +61,7 @@ self.onmessage = (e) => {
     if (m.type === "decide") self.postMessage({ type: "decision", id: m.id, kind: m.kind, ...decide(m) });
     else if (m.type === "game") self.postMessage({ type: "game", id: m.id, ...playGame(m) });
     else if (m.type === "detect") self.postMessage({ type: "detect", id: m.id, ...detect(m) });
+    else if (m.type === "evaluate") self.postMessage({ type: "evaluate", id: m.id, result: evaluateRecord(g, m.rec, (rec) => loadRecord(g, m.base, rec), m.opts || {}) });
   } catch (err) {
     self.postMessage({ type: "error", id: m.id, message: String(err && err.stack || err) });
   }
