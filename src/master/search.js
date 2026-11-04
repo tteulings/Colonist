@@ -11,7 +11,7 @@
 //
 // Decisions searched: the set-up spot, main-phase build / trade-then-build / dev-card play / end turn, and
 // the robber tile. Player-to-player trades, discards and the pre-roll Knight stay with the Expert.
-import { DEV_CARD_TYPES, hasResources, mulberry32, snapshot, restore, determinize, rollout, winProb, winProbs, withoutAgents } from "./sim.js";
+import { DEV_CARD_TYPES, hasResources, mulberry32, snapshot, restore, determinize, rollout, winProb, winProbs, fitProbs, withoutAgents } from "./sim.js";
 
 export const MASTER_OPTS = { n: 100, timeMs: 0, depth: 8, setupDepth: 12, z: 1.0, minAdv: 0.002, jitter: 0.15, T: 1.2, topSetup: 6, topRobber: 4, maxCands: 7 };
 const RES = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
@@ -76,7 +76,8 @@ export function makeMaster(opts = {}) {
       let v = 0;
       if (a !== false) {
         if (!g.winner) rollout(g, a === "ended" ? depth - 1 : depth, r, { jitter: o.jitter });
-        if (seatW) { const ws = winProbs(g, o.T); v = ws[me]; seatW[k][j] = ws; } else v = winProb(g, me, o.T);
+        if (o.leaf === "fit") { const ws = fitProbs(g); v = ws[me]; if (seatW) seatW[k][j] = ws; } // v1.10 o.leaf 'fit': the fitted score function
+        else if (seatW) { const ws = winProbs(g, o.T); v = ws[me]; seatW[k][j] = ws; } else v = winProb(g, me, o.T);
       }
       vals[k][j] = v;
       vps[k][j] = g.players[me].victoryPoints;
@@ -85,7 +86,7 @@ export function makeMaster(opts = {}) {
     let used = 0, stop = "n";
     try {
       let alive = cands.map((_, i) => i);
-      const R = Math.max(1, Math.ceil(Math.log2(K)));
+      const R = o.noHalve ? 1 : Math.max(1, Math.ceil(Math.log2(K))); // o.noHalve: every candidate on every future (paired calibration)
       let j0 = 0;
       for (let r = 0; r < R && alive.length; r++) {
         const per = Math.max(1, Math.floor((o.n / R) / alive.length));
@@ -348,6 +349,56 @@ export function makeMaster(opts = {}) {
     rec.kind = kind;
     rec.cands = named;
     return rec;
+  };
+
+  // ── v1.09 paired calibration: several policies' proposals for ONE position raced together on the same futures
+  // (no halving), plus the engine's own top candidates. moves: [{ c, label }], c = { kind: "fn", fn(gg, seat) } | { kind: "spot", node }
+  // | { kind: "hex", hex } | a main-phase candidate. Returns { rec, named, idx: the race index of each move (-1: illegal) }. ──
+  agent.race = (g, p, kind, moves, base = null) => {
+    const root = snapshot(g), orig = Math.random, keepStrat = p.strategy;
+    // every candidate fixes the seat's follow-up strategy: the proposing policy's own (c.follow), else `base` (the engine's Expert)
+    const named = [], seen = new Map();
+    const applyC = (gg, c) => {
+      const q = gg.players[p.id];
+      if (c.follow || base) q.strategy = { ...(c.follow || base) };
+      if (c.kind === "fn") return c.fn(gg, q);
+      if (c.kind === "spot") {
+        const save = Object.prototype.hasOwnProperty.call(gg, "getBestInitialSettlementNode") ? gg.getBestInitialSettlementNode : null;
+        const base = gg._masterBaseInit || ((x) => gg.constructor.prototype.getBestInitialSettlementNode.call(gg, x));
+        let used = false;
+        gg.getBestInitialSettlementNode = (x) => { if (!used && x.id === q.id) { used = true; return c.node; } return base(x); };
+        try { gg.setupAction = null; gg.processSetupQueue(); } finally { if (save) gg.getBestInitialSettlementNode = save; else delete gg.getBestInitialSettlementNode; }
+        return true;
+      }
+      if (c.kind === "hex") { gg.moveRobberAndSteal(q, c.hex); return true; }
+      if (c.kind === "end") { gg.endTurn(); return "ended"; }
+      const r = applyMain(gg, q, c);
+      if (r === "noop") { gg.endTurn(); return "ended"; }
+      return r;
+    };
+    const keyFor0 = (c) => {
+      if (c.kind === "spot") return `n${c.node}`;
+      if (c.kind === "hex") return `h${c.hex}`;
+      if (c.kind === "dev") return `dev${c.t}`;
+      restore(g, root); Math.random = mulberry32(12345);
+      const r = withoutAgents(g, () => applyC(g, c));
+      return r === false ? null : r === "ended" || r === "noop" || c.kind === "end" ? "end" : sig(g, p);
+    };
+    const keyFor = (c) => { const k = keyFor0(c); return k == null ? null : `${k}#${c.fid || ""}`; };
+    const add = (m) => { const k = keyFor(m.c); if (k == null) return -1; if (!seen.has(k)) { seen.set(k, named.length); named.push({ c: m.c, label: m.label || k, focus: m.focus || null }); } return seen.get(k); };
+    let idx;
+    try {
+      idx = moves.map(add);
+      if (kind === "setup") g._aiSetupCandidates(p).sort((a, b) => b.score - a.score).slice(0, o.topSetup).forEach((x) => add({ c: { kind: "spot", node: x.id }, label: `Settlement on ${g._spotLabel(x.id)}` }));
+      else if (kind === "robber") g._aiRobberCandidates(p).sort((a, b) => b.score - a.score).slice(0, o.topRobber).forEach((x) => add({ c: { kind: "hex", hex: x.id }, label: `Robber on ${g._hexName(x.id)}` }));
+      else { const { plan, cands } = withoutAgents(g, () => mainCands(g, p)); labelMain(g, p, plan, cands).forEach((x) => add(x)); }
+    } finally { restore(g, root); Math.random = orig; p.strategy = keepStrat; }
+    if (named.length < 1) return null;
+    seedRng(g, p);
+    let rec;
+    try { rec = search(g, p.id, named.map((x) => x.c), applyC, kind === "setup" ? o.setupDepth : o.depth); } finally { p.strategy = keepStrat; }
+    rec.kind = kind;
+    return { rec, named, idx };
   };
 
   // ── whole-game play (Web Worker tournaments, Node harness): synchronous hooks ──
