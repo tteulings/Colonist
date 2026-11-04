@@ -2546,3 +2546,9 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
   .app .dock .hand .card[data-card] { z-index: 1; }
   .hand .card .bk-lbl { height: 12px; padding: 0 3px 0 2px; gap: 0; }
 }
+
+/* v1.04 proposal (dusk-104): one copy of the roll result: the ticker says "Roll: +1 Ore", the dice chip owns the total. While the tumbling dice are in the air the chip's dice + total stay hidden (.fx-hold); on landing
+   the dice are swapped for the chip's own in one frame and the total pops in (.land). */
+.dice-tray.fx-hold :is(.die-svg, .sum, .dl) { visibility: hidden; }
+.dice-tray.land .sum { animation: sumPop 320ms var(--ease-pop, cubic-bezier(.3,1.3,.6,1)); }
+@keyframes sumPop { from { transform: scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }

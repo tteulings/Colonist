@@ -3,7 +3,7 @@
 const CACHE = "colonist-v104";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./manifest.webmanifest", "./assets/favicon.svg",
-  "./themes/base.css", "./themes/theme-sunny.css", "./themes/theme-wood.css", "./themes/theme-silhouette.css", "./themes/theme-classic.css", "./themes/six.css", "./themes/seafarers.css", "./themes/hotseat.css", "./themes/stats.css", "./themes/review.css", "./themes/sunny-night.css",
+  "./themes/base.css", "./themes/theme-sunny.css", "./themes/theme-wood.css", "./themes/theme-silhouette.css", "./themes/theme-classic.css", "./themes/six.css", "./themes/seafarers.css", "./themes/hotseat.css", "./themes/stats.css", "./themes/review.css", "./themes/sunny-night.css", "./themes/sunny-dusk.css",
   "./lab.html", "./themes/lab.css", "./src/lab.js", "./src/ai-analysis.js", "./src/ai-tree.js", "./src/ai-rules.js", "./src/master.js", "./src/master/sim.js", "./src/master/search.js", "./src/master/worker.js", "./src/master/dom.js",
   "./src/game.js", "./src/sound.js", "./src/six.js", "./src/six-ui.js", "./src/hotseat.js", "./src/stats.js", "./src/stats-ui.js", "./src/live-stats.js", "./src/review.js", "./src/review-ui.js", "./src/review/detect.js", "./src/review/engine.js", "./src/review/evaluate.js", "./src/review-game.js", "./src/themes/seats.js", "./src/themes/portraits.js",
   "./src/themes/manager.js", "./src/themes/art-util.js", "./src/themes/board-renderer.js",

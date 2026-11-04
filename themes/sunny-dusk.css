@@ -1,0 +1,115 @@
+/* THEME A · Sunny Island — palette "Dusk" (html[data-palette="dusk"]), v1.04 PROPOSAL (branch dusk-104, not released).
+   Golden hour: a deep indigo sea glowing peach/rose towards the top of the screen (the sky's reflection), terrain in low
+   warm sun (src/themes/sunny/art.js PALETTES.dusk), lights coming on in the houses. Surfaces are dark plum with warm light
+   ink (every text token >= 4.5:1, see the dusk-104 report), one accent: sunset orange. Primary stays sea teal.
+   Shares the night art family (lit houses, cream tokens, luminous pieces with a warm rim); seat text = the light tone. */
+[data-theme="A"][data-palette="dusk"] {
+  color-scheme: dark;
+  --ink: #F2E8E4; --ink-soft: #CDBAC4; --ink-faint: #B7A3B0; --heading: #FFF4EA; --brand-ink: #F7B68A;
+  --bg: #1D1828; --bg-image: none;
+  --chrome: #241D30; --chrome-image: none; --chrome-ink: #F2E8E4; --chrome-border: 1px solid #3A2F48; --chrome-shadow: none;
+  --m-top: #241D30; --m-top-image: none; --status-ink: #FFF4EA;
+  --rail: #261F33; --rail-image: none; --rail-border: 1px solid #3A2F48;
+  --panel: #2A2236; --panel-image: none; --panel-border: 1px solid #3D3150; --panel-shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(10,0,20,.38);
+  --dock: #241D30; --dock-image: none; --dock-border: 1px solid #3A2F48; --dock-shadow: 0 -6px 24px rgba(10,0,20,.3);
+  --float: rgba(42,34,54,.95); --float-border: 1px solid rgba(255,200,170,.16); --float-shadow: 0 2px 6px rgba(0,0,0,.3), 0 10px 30px rgba(10,0,20,.35);
+  --banner: rgba(42,34,54,.96); --banner-border: 1px solid rgba(255,200,170,.18); --banner-shadow: 0 1px 4px rgba(0,0,0,.28), 0 4px 12px rgba(10,0,20,.22);
+  --sheet: #2A2236; --sheet-image: none; --sheet-border: 1px solid #3D3150;
+  --chip: #33293F; --chip-border: 1px solid #45385A; --chip-ink: #E0D2D8;
+  --group: #211A2B; --group-border: 1px solid #3D3150;
+  /* sea: indigo, the sunset sky reflected towards the top of the screen, a little lighter round the island */
+  --sea-bg: #3A4374;
+  --sea-image: linear-gradient(180deg, rgba(255,152,96,.58) 0%, rgba(226,110,128,.30) 22%, rgba(58,67,116,0) 46%), radial-gradient(ellipse 85% 70% at 50% 46%, #5F5E92 0%, #3A4374 55%, #232849 100%);
+  --ripple-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='90'%3E%3Cpath d='M14,24 q12,-5 24,0' fill='none' stroke='%23FFD2B0' stroke-opacity='.55' stroke-width='1.4' stroke-linecap='round'/%3E%3Cpath d='M96,66 q10,-4 20,0' fill='none' stroke='%23FFD2B0' stroke-opacity='.38' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E");
+  --shimmer-a: .12;
+  --fan-bg: linear-gradient(rgba(29,24,40,0), rgba(29,24,40,.92) 58%); --fan-solid: rgb(29,24,40); --slot-bg: #2E2638;
+  --scrim: rgba(12,6,18,.62); --spot: rgba(8,2,14,.66); --home-ind: #F2E8E4;
+  --btn: #33293F; --btn-image: none; --btn-ink: #F2E8E4; --btn-border: 1px solid #4E3F60; --btn-shadow: 0 1px 2px rgba(0,0,0,.3);
+  --btn-on: #3E2A26; --btn-on-ink: #FFC08F; --btn-on-border: 1.5px solid #FF9E5E; --btn-on-shadow: 0 0 0 3px rgba(255,158,94,.18);
+  --primary: #26706F; --primary-image: linear-gradient(#2B7978, #226766); --primary-ink: #F3FAF8; --primary-border: 1px solid #3A8E8C; --primary-shadow: 0 1px 2px rgba(0,0,0,.35), 0 6px 16px rgba(0,0,0,.3);
+  --accent: #FF9E5E; --good: #7CD39A; --good-bg: #213526; --danger: #FF9C86;
+  --kbd-bg: #3A2F48; --kbd-ink: #FFC08F;
+  --badge: #E0864E; --badge-ink: #241306; --badge-border: 2px solid #2A2236;
+  --vp-bg: #33293F; --vp-ink: #FFF4EA; --vp-border: 1px solid #4E3F60;
+  --active-row: rgba(255,158,94,.10); --divider: 1px solid #382D46; --divider-soft: 1px solid #33293F; --sep: #45385A;
+  --card-shadow: drop-shadow(0 1px 1px rgba(0,0,0,.4)) drop-shadow(0 4px 8px rgba(10,0,20,.35));
+  --avatar-shadow: 0 1px 3px rgba(0,0,0,.4);
+  --row-tint: 12%; --vp-tint: 26%;
+  --h2-bg: linear-gradient(90deg, #3E2A26, #2A2236); --h2-bg-2: linear-gradient(90deg, #2B2F4E, #2A2236); --h2-border: 1px solid #45385A;
+  --jicon-bg: #33293F;
+  --dust: #3A3040; --spark: #FFD892; --smoke: #45384E; --ray: rgba(255,190,140,.28);
+  --bank-bg: #3A2C22; --bank-border: 1px solid #5C4430;
+  --m-build-bg: #3E3020; --m-build-border: #5E4A2C; --m-trade-bg: #2B2F4E; --m-trade-border: #434A78; --m-cards-bg: #3A2C48; --m-cards-border: #5A4570;
+  --rush-ring: #FF9E5E; --rush-track: #3D3150; --rush-badge-bg: #45291E; --rush-badge-ink: #FFC08F;
+  --persona-bg: #33293F; --persona-ink: #E0D2D8;
+  --persona-trader-bg: #2B2F4E; --persona-trader-ink: #B9C2F2;
+  --persona-builder-bg: #3E3020; --persona-builder-ink: #F6D38E;
+  --persona-shark-bg: #45252A; --persona-shark-ink: #FFB4A0;
+  --persona-expert-bg: #2D2C52; --persona-expert-ink: #C2C4F8;
+  --persona-beginner-bg: #283520; --persona-beginner-ink: #C2DE98;
+  --glass: rgba(36,28,50,.74); --glass-line: rgba(255,200,170,.18); --glass-active: rgba(56,44,74,.96);
+  --glass-shadow: 0 1px 2px rgba(0,0,0,.3), 0 3px 8px rgba(10,0,20,.18);
+  --bar-ink: #F6ECE6; --bar-ink-soft: rgba(246,236,230,.84); --mono: #7A6A86;
+  --ring: #FF9E5E; --ready: #5CCB86;
+  --dis-bg: rgba(255,255,255,.05); --dis-ink: rgba(242,232,228,.5); --dis-line: rgba(255,200,170,.16); --dis-ic: grayscale(1) brightness(1.6); --dis-ic-op: .45;
+  --hand-bg: linear-gradient(rgba(29,24,40,0), rgba(29,24,40,.35));
+  --pick-bg: rgba(255,158,94,.14); --pick-ring: #FF9E5E;
+  --warn-bg: #4E3018; --warn-ink: #FFD7A0;
+  --route-bank: #2C8D93; --route-bank-ink: #FFFFFF;
+  --rib-paper: #2E2438; --stack-1: #403450; --stack-2: #392E47; --stack-3: #32283F;
+}
+[data-theme="A"][data-palette="dusk"] :is(.app .hand .card, .app .tcard, .app .ocard) { --cnt-ink: #F3F4EE; --cnt-halo: #1F1828; }
+[data-theme="A"][data-palette="dusk"] :is(.app .hand .card, .app .tcard, .app .ocard)[data-card="wood"]  { --cnt-ink: #BFE6C6; --cnt-tint: #1F3A26; }
+[data-theme="A"][data-palette="dusk"] :is(.app .hand .card, .app .tcard, .app .ocard)[data-card="brick"] { --cnt-ink: #F7C2AE; --cnt-tint: #3E241B; }
+[data-theme="A"][data-palette="dusk"] :is(.app .hand .card, .app .tcard, .app .ocard)[data-card="sheep"] { --cnt-ink: #D2EBAE; --cnt-tint: #283A1A; }
+[data-theme="A"][data-palette="dusk"] :is(.app .hand .card, .app .tcard, .app .ocard)[data-card="wheat"] { --cnt-ink: #F8DC96; --cnt-tint: #3C3014; }
+[data-theme="A"][data-palette="dusk"] :is(.app .hand .card, .app .tcard, .app .ocard)[data-card="ore"]   { --cnt-ink: #D2DCEA; --cnt-tint: #232E3E; }
+[data-theme="A"][data-palette="dusk"] .app .hand .card.dev { --cnt-ink: #F3F4EE; --cnt-tint: rgba(31,24,40,.9); }
+[data-theme="A"][data-palette="dusk"] .app .hand .card .count { text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+[data-theme="A"][data-palette="dusk"] .hand .card:not(.slot) .count { background: none; }
+[data-theme="A"][data-palette="dusk"] .cost { background: #33293F; }
+[data-theme="A"][data-palette="dusk"] .app .side-actions .btn:first-child { background: #2B2F4E; border-color: #434A78; color: #B9C2F2; }
+[data-theme="A"][data-palette="dusk"] .app .side-actions .btn:last-child { background: #3A2C48; border-color: #5A4570; color: #E2B8EE; }
+[data-theme="A"][data-palette="dusk"] .tc:not(.on) .radio { background: #2A2236; }
+[data-theme="A"][data-palette="dusk"] .tc.on .radio { background: radial-gradient(circle, var(--accent) 0 5px, #2A2236 6px); }
+[data-theme="A"][data-palette="dusk"] .hand .card .count { box-shadow: none; }
+[data-theme="A"][data-palette="dusk"] .tm-settings .seg button.on { background: #3B2F4A; box-shadow: inset 0 0 0 1px #56456A; }
+[data-theme="A"][data-palette="dusk"] :is(.gs-over, .gs-replay, .ls-sheet) { --gs-acc: #F2A56E; --gs-shade: #18121F; }
+[data-theme="A"][data-palette="dusk"] .tm-settings { --switch-off: #4A3D58; }
+[data-theme="A"][data-palette="dusk"] .tm-settings .st-switch.on i { background: #2A2236; }
+[data-theme="A"][data-palette="dusk"] .ai-strat-player { background: var(--chip); border-color: var(--sep); }
+[data-theme="A"][data-palette="dusk"] .newgame-modal { background: var(--scrim); }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .ng-section { background: var(--group); border-color: var(--sep); }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .ng-rush-section { background: #3A2620; border-color: #5C3F2C; }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .ng-rush-section .ng-section-title { color: #FFC08F; }
+[data-theme="A"][data-palette="dusk"] .newgame-modal :is(.ng-mode-card, .ng-seg-btn, .ng-seg-bar, .ng-stepper, .ng-map-card, .ng-preset, .ng-bot-select) { border-color: #4E3F60; }
+[data-theme="A"][data-palette="dusk"] .newgame-modal :is(.ng-mode-card, .ng-seg-btn, .ng-map-card, .ng-preset).selected { background: var(--btn-on); border-color: var(--accent); color: var(--btn-on-ink); box-shadow: 0 0 0 2px rgba(255,158,94,.18); }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .ng-seg-bar .ng-seg-btn + .ng-seg-btn { border-left-color: #3D3150; }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .ng-seg-bar .ng-seg-btn.selected { background: #2B2F4E; color: #B9C2F2; box-shadow: none; }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .ng-mode-icon { background: #2B2F4E; color: #B9C2F2; }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .rush .ng-mode-icon { background: #45252A; color: #FFB4A0; }
+[data-theme="A"][data-palette="dusk"] .newgame-modal :is(.ng-mode-tag, .ng-new) { color: #241A0C; }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .ng-preset .ng-new { background: #2B2F4E; color: #B9C2F2; }
+[data-theme="A"][data-palette="dusk"] .newgame-modal :is(.ng-row, .ng-finetune) { border-top-color: #382D46; }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .ng-switch { background: #4A3D58; }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .ng-switch.on span { background: #2A2236; }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .ng-bot { background: color-mix(in srgb, var(--pc) 10%, #2A2236); border-color: #3D3150; }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .ng-footer { background: linear-gradient(rgba(42,34,54,.9), var(--panel) 30%); border-top-color: #382D46; }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .hs-name-in { background: var(--btn); border-color: color-mix(in srgb, var(--pc) 55%, #2A2236); }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .hs-kind { background: rgba(255,255,255,.06); }
+[data-theme="A"][data-palette="dusk"] .newgame-modal .hs-kind button.on { background: #3B2F4A; color: var(--heading); box-shadow: inset 0 0 0 1px #56456A; }
+[data-theme="A"][data-palette="dusk"] .hs-cover .hs-go { background: #F6EBDF; }
+[data-palette="dusk"] .app .hand .card.slot { color: rgba(222,234,238,.82); border-color: rgba(222,234,238,.3); }
+[data-palette="dusk"] .hand .card.slot .slot-ic .ic { opacity: .6; }
+
+/* bank labels under the hand cards, empty slots, hex callout (base.css has the night versions) */
+[data-palette="dusk"] .app { --bk-ink: #D9C6CE; --bk-bg: rgba(36,28,48,.84); --bk-line: rgba(255,210,190,.2);
+  --bk-low-ink: #FFD99A; --bk-low-bg: #55361A; --bk-low-line: rgba(255,200,120,.45);
+  --bk-out-ink: #FFFFFF; --bk-out-bg: #C0392B; --bk-out-line: rgba(255,170,150,.5); }
+[data-palette="dusk"] .app .hand .card.slot { color: rgba(246,234,228,.84); border-color: rgba(246,234,228,.3); }
+[data-palette="dusk"] .hand .card.slot .slot-ic .ic { opacity: .6; }
+[data-palette="dusk"] .hex-callout .hc-block { color: #FFA4A8; }
+[data-theme="A"][data-palette="dusk"] .tm-settings { --switch-off: #4A3D58; }
+
+/* Auto · time of day: a slow cross-fade instead of a jump (manager.js adds html.pal-fade for ~2 s) */
+html.pal-fade, html.pal-fade body, html.pal-fade :is(.app, .board-wrap, #boardWrap, .dock, .hand, .card, .btn, .mbtn, .float, .dice-tray, .pchip, .ticker, #ticker, .seat, .board-tools .btn) { transition: background-color 1.2s ease, color 1.2s ease, border-color 1.2s ease, box-shadow 1.2s ease !important; }

@@ -740,7 +740,7 @@ export class SvgBoardRenderer {
     this.stamp(ctx, spec, p.x, p.y + dy, { sx: 1, sy: 1, y: 0, a: fade }, devK);
   }
 
-  get night() { return this.theme.paletteId === "night"; }
+  get night() { return this.theme.paletteId === "night" || this.theme.paletteId === "dusk"; } // v1.04 proposal: dusk = lights on
 
   /** Draw a piece spec (scaled for the device) with squash/stretch around its base (y≈+16). v0.96: 15% larger, a
    *  1 css px dark outline in a soft white (Night: cream) halo. */

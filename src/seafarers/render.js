@@ -78,7 +78,7 @@ const SAIL_K = 0.74; // sail scale: the mast stands ~10 dp, below a settlement's
 const COAST = { A: 0.22, B: 0.16, C: 0.12, classic: 0.05 }; // beach / rim reach beyond the land hex, in hex radii
 const SEAWARD = 0.6; // a coast edge's line sits a little out to sea (on the beach's outer rim, still on its edge)
 const FILLET = 4; // corner fillet radius, dp
-const isNight = () => typeof document !== "undefined" && document.documentElement.dataset.palette === "night";
+const isNight = () => typeof document !== "undefined" && ["night", "dusk"].includes(document.documentElement.dataset.palette);
 const unit = (v) => { const L = Math.hypot(v.x, v.y) || 1; return { x: v.x / L, y: v.y / L }; };
 
 /** Geometry of every ship route. env: { g, P(nodeId), C(hexId), R (hex radius), dp, coast, pills, avoid }. Cached. */

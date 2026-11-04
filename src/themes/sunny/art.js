@@ -37,6 +37,21 @@ const PALETTES = {
     PC: SEAT_PC_DAY, // v0.96: the shared stronger seat colours (themes/seats.js)
     TEXT: SEAT_TEXT_DAY,
   },
+  // v1.04 proposal (dusk-104) "dusk": golden hour — a deep indigo sea with mauve shallows and peach foam, terrain in warm
+  // low sunlight (a step darker and warmer than Light, much brighter than Night), sand lit orange. Built on the night
+  // family: lit houses, harbour lanterns, cream tokens, luminous pieces with a warm rim, dark plum UI (sunny-dusk.css).
+  dusk: {
+    P: {
+      sea0: "#262B54", sea1: "#3A4374", sea2: "#5B5B8C", shallow: "#84688E", foam: "#F4C9A8", sand: "#D9A778", sand2: "#B07F57",
+      olive: ["#8C9A55", "#6A7A3E", "#B5BC78"], forest: ["#4D7B4D", "#38603B", "#7AA268"], cypress: ["#426A47", "#2E4F34", "#68905F"],
+      pasture: ["#A6B661", "#84954A", "#CACB88"], wheat: ["#E5A848", "#C0842E", "#F3C97A"], terra: ["#D26C4C", "#A64D35", "#EC9675"],
+      slate: ["#8A87A8", "#69678A", "#B2ADCA"], desert: ["#E2B888", "#C39664", "#F0D2A8"], wall: "#EBDCCB", roof: "#C9614A", ink: "#2A2433",
+    },
+    // Night's seat colours, but a lighter violet for purple and a darker outline: on Night's deep violet the piece fill /
+    // outline ratio is only 2.4:1; here 3.4:1 (fill #7A4CC0 vs outline #12061F), still apart from blue (#6AB0FF)
+    PC: { ...SEAT_PC_NIGHT, purple: { base: "#7A4CC0", dark: "#5A2E98", light: "#A98AE0", line: "#12061F" } },
+    TEXT: SEAT_TEXT_NIGHT,
+  },
   night: {
     P: {
       // deep blue-teal sea, moonlit sand; terrain muted + cooled but each keeps its own hue family
@@ -53,8 +68,10 @@ const PALETTES = {
   },
 };
 const NIGHT_SHEET = "#172630"; // the night --sheet: seat text is checked against it
+const DUSK_SHEET = "#2A2236"; // v1.04 proposal: the dusk --sheet (plum)
 const LAMP = "#FFD27A", LAMP_CORE = "#FFE7B0"; // lamplight (lit windows, harbour lanterns)
-const night = () => paletteId === "night";
+const dusk = () => paletteId === "dusk";
+const night = () => paletteId === "night" || paletteId === "dusk"; // v1.04 proposal: dusk shares the night art (lights on)
 const P = {};
 const PC = { red: {}, blue: {}, orange: {}, green: {}, ivory: {}, purple: {} };
 // v0.75: Road / Settlement / City / Ship icons (build sheet, dock, costs) are UI, so neutral ink rather than a seat colour
@@ -71,7 +88,7 @@ function applyPalette(id) {
   Object.assign(P, src.P);
   for (const s of Object.keys(PC)) Object.assign(PC[s], src.PC[s]);
   Object.assign(TEXT, src.TEXT);
-  if (tokenRef) Object.assign(tokenRef, k === "night" ? TOKEN.night : { ...TOKEN.day, ink: P.ink });
+  if (tokenRef) Object.assign(tokenRef, k === "night" || k === "dusk" ? TOKEN[k] : { ...TOKEN.day, ink: P.ink });
   return true;
 }
 const docPalette = () => (typeof document !== "undefined" && document.documentElement?.dataset?.palette) || "light";
@@ -374,12 +391,12 @@ function card(k, mini) {
   const ty = mini ? 312 : 262, nt = night();
   // night: a dark paper frame, the illustration under a soft dusk veil (dimmed, never inverted; v0.85 13% — the mockup's
   // 24% read too dark in the hand), light card names
-  const paper = nt ? 'fill="#1E2C33" stroke="#34474F"' : 'fill="#FBF6EA" stroke="#D8CCB0"', nameInk = nt ? "#EEE8DA" : P.ink;
+  const paper = dusk() ? 'fill="#2E2438" stroke="#4A3B57"' : nt ? 'fill="#1E2C33" stroke="#34474F"' : 'fill="#FBF6EA" stroke="#D8CCB0"', nameInk = nt ? "#F3E8DE" : P.ink;
   return `<defs><clipPath id="${id}-w"><rect x="${W.x}" y="${W.y}" width="${W.w}" height="${W.h}" rx="10"/></clipPath><linearGradient id="${id}-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c.sky ? c.sky[0] : "#fff"}"/><stop offset="1" stop-color="${c.sky ? c.sky[1] : "#fff"}"/></linearGradient>
     <linearGradient id="${id}-veil" x1="0" y1="0" x2="0" y2="1"><stop offset=".6" stop-color="#FBF6EA" stop-opacity="0"/><stop offset="1" stop-color="#1E2A2E" stop-opacity=".18"/></linearGradient></defs>
     <rect x="1" y="1" width="248" height="348" rx="16" ${paper} stroke-width="1.4"/>
     <rect x="7" y="7" width="236" height="336" rx="12" fill="none" stroke="${c.acc}" stroke-opacity=".55" stroke-width="1"/>
-    <g clip-path="url(#${id}-w)">${scene}${hero}<rect x="${W.x}" y="${W.y}" width="${W.w}" height="${W.h}" fill="url(#${id}-veil)"/>${nt ? `<rect x="0" y="0" width="250" height="350" fill="#0B1D27" opacity=".13"/>` : ""}</g>
+    <g clip-path="url(#${id}-w)">${scene}${hero}<rect x="${W.x}" y="${W.y}" width="${W.w}" height="${W.h}" fill="url(#${id}-veil)"/>${nt ? `<rect x="0" y="0" width="250" height="350" fill="${dusk() ? "#3A1A3A" : "#0B1D27"}" opacity="${dusk() ? ".10" : ".13"}"/>` : ""}</g>
     <rect x="${W.x}" y="${W.y}" width="${W.w}" height="${W.h}" rx="10" fill="none" stroke="#5C5440" stroke-opacity=".25" stroke-width="1"/>
     ${mini ? `<text x="125" y="${ty}" text-anchor="middle" font-family="Outfit, system-ui, sans-serif" font-weight="650" font-size="${name.length > 11 ? 27 : 34}" fill="${nameInk}">${name}</text>`
       : `<text x="125" y="240" text-anchor="middle" font-family="Figtree, system-ui, sans-serif" font-weight="700" font-size="10" letter-spacing="2.6" fill="${c.acc}">${res ? "RESOURCE" : "DEVELOPMENT"}</text>
@@ -393,7 +410,9 @@ const cardBack = () => `<rect x="1" y="1" width="248" height="348" rx="16" fill=
 
 /* ------------------------------------------------------------------ board layers (baked once per size) */
 const boardDefs = () => `${Object.entries(SCN).map(([k, fn]) => `<symbol id="ta-${k}" viewBox="-87 -100 174 200" overflow="visible">${fn()}</symbol>`).join("")}
-  ${night() // moonlight: a cool highlight from the upper left, deeper shade lower right
+  ${dusk() // low sun: a warm peach highlight from the upper left, a violet shade lower right
+    ? `<linearGradient id="a-light" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#FFB27A" stop-opacity=".26"/><stop offset=".5" stop-color="#FF9A6A" stop-opacity=".04"/><stop offset="1" stop-color="#2A1640" stop-opacity=".30"/></linearGradient>`
+    : night() // moonlight: a cool highlight from the upper left, deeper shade lower right
     ? `<linearGradient id="a-light" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#CFE4FF" stop-opacity=".16"/><stop offset=".5" stop-color="#0A1A26" stop-opacity=".06"/><stop offset="1" stop-color="#05121A" stop-opacity=".30"/></linearGradient>`
     : `<linearGradient id="a-light" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#FFF6DE" stop-opacity=".22"/><stop offset=".5" stop-color="#FFF6DE" stop-opacity="0"/><stop offset="1" stop-color="#14262A" stop-opacity=".16"/></linearGradient>`}
   <filter id="a-coast" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency=".011" numOctaves="3" seed="7"/><feDisplacementMap in="SourceGraphic" scale="30"/></filter>
@@ -449,7 +468,7 @@ function port(p) {
   const R = (fill, extra = "") => `<rect x="${f(q.x - q.w / 2)}" y="${f(q.y - q.h / 2)}" width="${f(q.w)}" height="${f(q.h)}" rx="${f(q.r)}" fill="${fill}" ${extra}/>`;
   const ic = q.icon;
   const svg = `<g>${p.piers.map(pier).join("")}${q.ship && !p.noBoat ? harbourBoat(q.ship, q.ship.flip) : ""}
-    ${R(night() ? (p.res ? PORT_NIGHT.pill : PORT_NIGHT.any) : p.res ? "#FBF6EA" : PORT_ANY.fill, 'filter="url(#a-shadow)"')}${R("none", `stroke="${p.res ? tone : night() ? PORT_NIGHT.ring : PORT_ANY.ring}" stroke-width="${f((p.res ? 2.2 : 1.6) * s)}"`)}
+    ${R(dusk() ? (p.res ? "#FBF5E6" : "#FAF3E2") : night() ? (p.res ? PORT_NIGHT.pill : PORT_NIGHT.any) : p.res ? "#FBF6EA" : PORT_ANY.fill, 'filter="url(#a-shadow)"')}${R("none", `stroke="${p.res ? tone : night() ? PORT_NIGHT.ring : PORT_ANY.ring}" stroke-width="${f((p.res ? 2.2 : 1.6) * s)}"`)}
     ${ic ? `<circle cx="${f(ic.x)}" cy="${f(ic.y)}" r="${f(ic.size / 2 + 1 * s)}" fill="${tone}" opacity=".2"/><g transform="translate(${f(ic.x)} ${f(ic.y + ic.size * 0.04)}) scale(${+(ic.size / 84).toFixed(4)})">${ICONS[p.res]}</g>` : ""}</g>`;
   return { svg, labels: [{ x: q.text.x, y: q.text.y, text: p.ratio, size: q.text.size, color: P.ink, weight: 800 }], tick: { fill: tone, line: "rgba(43,36,26,.62)" } };
 }
@@ -460,9 +479,10 @@ function port(p) {
 const TOKEN = {
   day: { fill: "#FBF6EA", ring: "#CDBB94", inner: "#E7DCC2", ink: P.ink, hot: "#B5452A" },
   night: { fill: "#EFE6CF", ring: "#B7A47C", inner: "#DCCFAF", ink: "#26303A", hot: "#B03A22" },
+  dusk: { fill: "#F6EAD8", ring: "#C9A27A", inner: "#E6D2B8", ink: "#2A2433", hot: "#AE3420" },
 };
 const tokenStyle = {
-  r: 27, ...TOKEN[paletteId === "night" ? "night" : "day"],
+  r: 27, ...TOKEN[paletteId === "night" || paletteId === "dusk" ? paletteId : "day"],
   font: "'Outfit', system-ui, sans-serif", weight: "650", size: 24, hotSize: 28, dy: 7.5, hotDy: 8.5, pipY: 16, pipR: 2, pipGap: 5.2,
   labelFont: "'Figtree', system-ui, sans-serif",
 };
@@ -499,7 +519,7 @@ const sunny = {
   boardDefs, island, tile, glow, port, tokenStyle,
   get dimFill() { return night() ? "rgba(4,12,18,.5)" : "rgba(30,42,46,.38)"; },
   /** v0.85: seat text is checked against this surface (the night sheet is dark: text = the piece's light tone). */
-  get seatPaper() { return night() ? NIGHT_SHEET : null; },
+  get seatPaper() { return dusk() ? DUSK_SHEET : night() ? NIGHT_SHEET : null; },
   get seaColors() { return [P.sea2, P.sea1, P.sea0]; },
   // night: lit houses (the robber stays dark); plainSettlement / plainCity = the unlit shapes (Classic borrows them)
   pieces: { settlement: (c) => (night() ? litHome(c) : home(c)), city: (c) => (night() ? litCity(c) : cityArt(c)), plainSettlement: home, plainCity: cityArt, robber: robberSpec, settlementDy: -2, cityDy: -4 },

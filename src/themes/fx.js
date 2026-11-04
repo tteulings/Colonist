@@ -59,7 +59,23 @@ export class Fx {
   /** v0.96: where the dice come to rest — the dice chip's two die slots (or the room it takes before the first roll):
    *  { x, y (first die, top left), d (die size), step (die pitch / d), sx, sy (sum) }, or null (no chip). */
   diceTarget() {
-    const chip = document.getElementById("lastDiceDisplay");
+    let chip = document.getElementById("lastDiceDisplay");
+    // v1.04: the chip is hidden before the first roll of a turn; measure an invisible stand-in in its place
+    // (same markup) instead of guessing its size, so the dice land exactly where the chip will show them
+    if (chip && chip.style.display === "none") {
+      const ghost = chip.cloneNode(false);
+      ghost.removeAttribute("id");
+      ghost.style.cssText = "display:flex;visibility:hidden";
+      ghost.innerHTML = `${dieSvg(1, "die-svg")}${dieSvg(1, "die-svg")}<span class="sum">8</span><span class="dl"></span><button class="stats-btn" type="button"></button>`;
+      chip.after(ghost);
+      const t = this.diceTargetOf(ghost);
+      ghost.remove();
+      return t;
+    }
+    return this.diceTargetOf(chip);
+  }
+
+  diceTargetOf(chip) {
     let r = chip && chip.style.display !== "none" ? rect(chip) : null;
     const dies = r ? chip.querySelectorAll(".die-svg") : [];
     if (r && dies.length === 2) {
@@ -76,26 +92,33 @@ export class Fx {
   // ── dice tumble + bounce ────────────────────────────────────────────────
   /** Plays the dice landing on (d1, d2). Returns the time (ms) after which the result should apply. */
   diceRoll(d1, d2) {
+    // v1.04: one copy of the result. The tumbling dice land exactly
+    // on the chip's dice slots and are swapped for them in the same frame; there is no separate floating sum badge
+    // (it used to land 2–4 px off the chip's own sum, so "66" / "88" showed for ~0.5 s). The chip's contents stay
+    // hidden (.fx-hold) until the dice land — also in Rush, where the chip is re-rendered at the moment of the roll.
     const br = this.boardRect();
-    // v0.81: smaller and shorter, landing high on the board (not over its centre for 2–3 s)
-    // v0.96: the dice land IN the dice chip (top right of the board: its two dice slots, the sum beside them), never on
-    // the ticker; before the first roll, where the chip will appear
+    const chipEl = document.getElementById("lastDiceDisplay");
+    chipEl?.classList.add("fx-hold");
+    chipEl?.classList.remove("land");
     const chip = this.diceTarget();
-    const size = chip ? chip.d : Math.max(34, Math.min(50, br.width * 0.05));
+    const tumble = chip ? Math.max(chip.d, 28) : Math.max(34, Math.min(50, br.width * 0.05));
+    const size = chip ? chip.d : tumble, k = size / tumble;
     const ex = chip ? chip.x : br.left + br.width / 2 - size, ey = chip ? chip.y : br.top + Math.min(br.height * 0.14, 90);
     const dice = [d1, d2].map((fin, i) => {
-      const el = this.actor(`<div class="die3">${[1, 2, 3, 4, 5, 6].map((n) => `<div class="face" data-n="${n}">${dieSvg(n)}</div>`).join("")}</div>`, 0, 0, size, "fx-die");
-      el.style.height = `${size}px`;
-      const tx = ex + i * size * (chip ? chip.step : 1.15), ty = ey + (chip ? 0 : i * 6);
-      const sx = br.left + br.width * 0.18, sy = chip ? br.top + size * 0.5 : br.top - size;
+      const el = this.actor(`<div class="die3">${[1, 2, 3, 4, 5, 6].map((n) => `<div class="face" data-n="${n}">${dieSvg(n)}</div>`).join("")}</div>`, 0, 0, tumble, "fx-die");
+      el.style.height = `${tumble}px`;
+      // the actor is `tumble` wide and scales about its centre: shift so its scaled box lands on the slot
+      const off = (tumble - size) / 2;
+      const tx = ex + i * size * (chip ? chip.step : 1.15) - off, ty = ey + (chip ? 0 : i * 6) - off;
+      const sx = br.left + br.width * 0.18, sy = chip ? br.top + tumble * 0.5 : br.top - tumble;
       const M = this.M;
       const kf = [{ transform: `translate(${sx}px,${sy - i * 20}px) rotate(${-200 + i * 40}deg) scale(.9)`, offset: 0, easing: M.fall }];
       for (let b = 0; b < M.bounces; b += 1) {
-        const p = 0.45 + b * (0.4 / M.bounces), px = sx + (tx - sx) * (0.7 + (b * 0.3) / M.bounces), hy = size * 0.55 / (b + 1);
+        const p = 0.45 + b * (0.4 / M.bounces), px = sx + (tx - sx) * (0.7 + (b * 0.3) / M.bounces), hy = tumble * 0.55 / (b + 1);
         kf.push({ transform: `translate(${px}px,${ty}px) rotate(${-60 + b * 50}deg) scale(${M.squash[0]},${M.squash[1]})`, offset: p, easing: M.out });
         kf.push({ transform: `translate(${px + 10}px,${ty - hy}px) rotate(${-20 + b * 20}deg) scale(1)`, offset: p + 0.2 / M.bounces, easing: M.fall });
       }
-      kf.push({ transform: `translate(${tx}px,${ty}px) rotate(${chip ? 0 : i ? 6 : -4}deg) scale(1)`, offset: 1 });
+      kf.push({ transform: `translate(${tx}px,${ty}px) rotate(0deg) scale(${k})`, offset: 1 });
       this.A(el, kf, { duration: 760, delay: i * 60 });
       el.querySelectorAll(".face").forEach((fc, n) => {
         if (this.reduced) { fc.style.opacity = n + 1 === fin ? 1 : 0; return; }
@@ -103,13 +126,16 @@ export class Fx {
       });
       return el;
     });
-    const sum = this.actor(`<span>${d1 + d2}</span>`, chip ? chip.sx : ex + size * 2.4, chip ? chip.sy : ey - size * 0.15, size * 0.95, "fx-sum");
-    this.A(sum, [{ opacity: 0, transform: "scale(.3)" }, { opacity: 1, transform: "scale(1)" }], { duration: 300, delay: 780, easing: this.M.pop });
-    const all = [...dice, sum];
-    const out = 1150;
-    window.setTimeout(() => all.forEach((e) => this.A(e, [{ opacity: 1 }, { opacity: 0 }], { duration: 260 })), out * (this.reduced ? 0.3 : this.M.k));
-    this.later(all, out + 320);
-    return this.reduced ? 380 : 880 * this.M.k;
+    // hand-over: one frame after the game has rendered the chip (it does so at the returned time), swap the tumbling
+    // dice for the chip's own — same place, same size, so nothing moves — and pop the total in
+    const land = this.reduced ? 380 : 880 * this.M.k;
+    window.setTimeout(() => requestAnimationFrame(() => {
+      dice.forEach((e) => e.remove());
+      const c = document.getElementById("lastDiceDisplay");
+      if (c) { c.classList.remove("fx-hold"); void c.offsetWidth; c.classList.add("land"); }
+    }), land + 20);
+    this.later(dice, 1500);
+    return land;
   }
 
   // ── resources fly tile → hand (+n) ──────────────────────────────────────
