@@ -11,10 +11,10 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=112";
-import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor } from "./master.js?v=112";
-import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=112";
-import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=112";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=113";
+import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor } from "./master.js?v=113";
+import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=113";
+import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=113";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -601,7 +601,7 @@ function renderTournamentSetup() {
   $("#labRun").textContent = `Start ${st.games} games`; $("#labRun").classList.remove("stop");
   const ms = store(MKEY, sessionStorage);
   const tot = ms ? (ms * st.games) / 1000 : 0;
-  $("#labRunNote").textContent = [mayBeSlow && !masterAvailable() ? "Master needs Web Workers: here it plays as the Expert." : "",
+  $("#labRunNote").textContent = [mayBeSlow ? (masterAvailable() ? "Master and Super Expert seats are slower (Super about 3 s per move), so such games add minutes." : "Master and Super Expert need Web Workers: here they play as the Expert.") : "",
     ms ? `About ${tot < 90 ? `${Math.max(1, Math.round(tot))} s` : `${Math.round(tot / 60)} min`} (from your last run).` : ""].filter(Boolean).join(" ");
 }
 
