@@ -137,3 +137,11 @@
 .pstrip .pchip.thinking { position: relative; }
 .pstrip .pchip.thinking::after { content: ""; position: absolute; left: 6px; bottom: 2px; height: 3px; border-radius: 2px; width: calc((100% - 12px) * var(--think, 0)); background: var(--lf-gold, #D9A21B); transition: width .25s linear; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .pstrip .pchip.thinking::after { transition: none; } }
+
+/* v1.12 Settings › Bots: the Super Expert card greyed out where it is not searched */
+.tm-settings .ai-strategy-panel .bs-card.off, .tm-settings .ai-strategy-panel .bs-card:disabled { opacity: .55; cursor: not-allowed; }
+.bs-card.off .bs-tag { font-weight: 700; color: #B3472A; }
+:root[data-palette="night"] .bs-card.off .bs-tag { color: #F0A58A; }
+.bs-warn { flex-basis: 100%; font-size: 12px; font-weight: 650; color: #B3472A; }
+:root[data-palette="night"] .bs-warn { color: #F0A58A; }
+.bp-dots.bs-dots i.star { width: 10px; height: 10px; }

@@ -20,7 +20,7 @@ import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
 import { presetHighlight, BOT_PROFILES } from "./bot-profiles.js"; // v1.04 Settings › Bots: which preset chip is lit
-import { framedAvatar, profileLabel, profileOf, openProfileSheet, pickerExtras, tableList, presetCards, dots } from "./bot-profile-ui.js"; // v1.04 bot profile frames + sheet
+import { framedAvatar, profileLabel, profileOf, openProfileSheet, pickerExtras, tableList, presetCards, dots, superOff } from "./bot-profile-ui.js"; // v1.04 bot profile frames + sheet
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
@@ -9374,7 +9374,7 @@ class ColonistFullGame {
       const key = hl.active && hl.active !== "custom" ? hl.active : hl.closest;
       const lvl = BOT_PROFILES[key]?.level;
       pv.innerHTML = hl.mixed ? `<b>${who}</b> differ. Pick a card to match them.`
-        : `<b>${who}</b> ${all && aiPlayers.length > 1 ? "play" : "plays"} ${hl.active === "custom" ? `a custom mix, closest to ${AI_PRESET_INFO[key]?.label}` : `like ${AI_PRESET_INFO[key]?.label}`}${lvl ? ` ${dots(lvl)}` : ""}`;
+        : `<b>${who}</b> ${all && aiPlayers.length > 1 ? "play" : "plays"} ${hl.active === "custom" ? `a custom mix, closest to ${AI_PRESET_INFO[key]?.label}` : `like ${AI_PRESET_INFO[key]?.label}`}${lvl ? ` ${dots(lvl, "bp-dots", BOT_PROFILES[key].beyond)}` : ""}${key === "super" && superOff(this) ? ` <small class="bs-warn">Not searched in ${superOff(this) === "5\u20136 players" ? "5\u20136 player games" : superOff(this)}: it plays as an Expert here.</small>` : ""}`;
       panel.appendChild(pv);
     }
 

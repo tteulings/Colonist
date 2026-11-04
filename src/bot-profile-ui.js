@@ -42,7 +42,7 @@ export function profileLabel(game, player) {
 }
 
 /** The Super Expert is searched only in Classic games of up to 4 players. With `why`: the sentence for this table when it isn't. */
-function superHere(game, why = false) {
+export function superHere(game, why = false) {
   const ok = !game || !game.players || (!game.sea && !game.isRush?.() && game.players.length <= 4);
   if (!why) return ok;
   return `Not searched at this table (${game.sea ? "Seafarers" : game.isRush?.() ? "Rush" : "5–6 players"}): here a Super Expert plays exactly like an Expert.`;
@@ -164,7 +164,7 @@ export function tableList(game, { sel = null, onSelect = null } = {}) {
     const on = sel === b.id;
     return `<div class="bt-row${on ? " sel" : ""}"><button type="button" class="bt-bot pc-${b.id}" data-seat="${b.id}" aria-pressed="${on}" aria-label="${esc(b.name)}: ${pr.custom ? "custom mix" : p.label}. Pick this bot">
       <span class="bt-av">${framedAvatar(game, b)}</span>
-      <span class="bt-txt"><span class="nm">${esc(b.name)}</span><span class="pf"><span class="bt-em">${profileMini(pr.key, 18)}</span><b>${pr.custom ? "Custom" : p.label}</b>${pr.custom ? `<small>like ${p.label}</small>` : ""}${dots(p.level, "bp-dots bs-dots")}</span></span></button>
+      <span class="bt-txt"><span class="nm">${esc(b.name)}</span><span class="pf"><span class="bt-em">${profileMini(pr.key, 18)}</span><b>${pr.custom ? "Custom" : p.label}</b>${pr.custom ? `<small>like ${p.label}</small>` : ""}${dots(p.level, "bp-dots bs-dots", p.beyond)}</span></span></button>
       <button type="button" class="bt-info" data-info-seat="${b.id}" aria-label="${esc(b.name)}: profile"><span aria-hidden="true">i</span></button></div>`;
   }).join("");
   box.addEventListener("click", (e) => {
@@ -180,17 +180,21 @@ export function tableList(game, { sel = null, onSelect = null } = {}) {
  * Settings › Bots: the preset cards (2 columns). `hl` is presetHighlight() of the bots being edited;
  * the lit card is hl.active, a hand-tuned mix outlines its closest preset. onPick(key) applies, (i) opens the sheet.
  */
+/** "Seafarers" / "Rush" / "5–6 players" when the Super Expert is not searched in this game, else "". */
+export const superOff = (game) => (superHere(game) ? "" : game.sea ? "Seafarers" : game.isRush?.() ? "Rush" : "5–6 players");
+
 export function presetCards(game, keys, hl, onPick) {
   const box = document.createElement("div");
   box.className = "bs-grid";
   box.innerHTML = keys.map((k) => {
     const p = P[k];
     const on = hl.active === k, near = hl.active === "custom" && hl.closest === k;
-    return `<div class="bs-cell"><button type="button" class="bs-card${on ? " on" : ""}${near ? " near" : ""}" data-preset="${k}" aria-pressed="${on}" aria-label="${p.label}, strength ${p.level} of 5, ${p.tagline}">
+    const off = k === "super" ? superOff(game) : "";
+    return `<div class="bs-cell"><button type="button" class="bs-card${on ? " on" : ""}${near ? " near" : ""}${off ? " off" : ""}" data-preset="${k}" aria-pressed="${on}"${off ? ` disabled aria-disabled="true"` : ""} aria-label="${p.label}, strength ${p.level} of 5${p.beyond ? " plus a star" : ""}, ${off ? `not in ${off}` : p.tagline}">
       <span class="bs-art">${profileArt(k, 56)}</span>
       <span class="bs-nm">${p.label}${on ? `<span class="bs-ck" aria-hidden="true">✓</span>` : ""}</span>
-      ${dots(p.level, "bp-dots bs-dots")}
-      <span class="bs-tag">${p.tagline}</span></button>
+      ${dots(p.level, "bp-dots bs-dots", p.beyond)}
+      <span class="bs-tag">${off ? `Not in ${off}` : p.tagline}</span></button>
       <button type="button" class="bs-i" data-info="${k}" aria-label="About the ${p.label} profile"><span aria-hidden="true">i</span></button></div>`;
   }).join("");
   box.addEventListener("click", (e) => {
