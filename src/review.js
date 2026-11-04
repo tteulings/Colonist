@@ -66,7 +66,7 @@ export const ReviewMixin = {
     const R = this._rv;
     if (!R || !R.id || !R.recs.length) return 0;
     try {
-      const json = JSON.stringify({ v: 1, id: R.id, base: R.base, recs: R.recs });
+      const json = JSON.stringify({ v: 1, id: R.id, base: R.base, recs: R.recs, review: R.review?.done ? R.review : null });
       localStorage.setItem(KEY, json);
       R.bytes = json.length;
       return json.length;
@@ -75,6 +75,32 @@ export const ReviewMixin = {
 
   /** Records grouped for the worker (the layout merged back in there). */
   _rvPayload(recs = this._rv?.recs || []) { return { base: this._rv?.base, recs }; },
+
+  /** v1.03 Game review: check every real decision of one person with the Master (one worker request each,
+   *  so the page shows progress and can stop). onStep(review) after each; resolves the review. */
+  _rvReviewRun(pid, onStep) {
+    const R = this._rv;
+    if (!R) return Promise.resolve(null);
+    const KINDS = ["setup", "build", "bank", "buy", "play", "robber", "end"];
+    const todo = R.recs.map((r, i) => [r, i]).filter(([r]) => r.pid === pid && KINDS.includes(r.k) && !(r.k === "build" && r.a?.free));
+    const rv = R.review?.pid === pid ? R.review : { pid, results: [], total: todo.length, done: false, cancelled: false };
+    R.review = rv;
+    if (rv.done) return Promise.resolve(rv);
+    rv.cancelled = false;
+    const id = R.id;
+    const step = (j) => {
+      if (this._rv !== R || R.id !== id || rv.cancelled) return Promise.resolve(rv);
+      if (j >= todo.length) { rv.done = true; this._rvSave(); return Promise.resolve(rv); }
+      const [rec, i] = todo[j];
+      if (rv.results.some((x) => x.i === i)) return step(j + 1);
+      return masterRequest({ type: "evaluate", base: R.base, rec, opts: {} }, 40000).then((m) => {
+        rv.results.push(m?.result ? { ...m.result, i } : { k: rec.k, pid, t: rec.t, s: rec.s, e: rec.e, i, skip: "error" });
+        onStep?.(rv, j + 1, todo.length);
+        return step(j + 1);
+      });
+    };
+    return step(0);
+  },
 
   /** Game over: save, then run the detectors in the worker (once per game). */
   _rvFinish() {
@@ -111,7 +137,7 @@ export function installReview(Cls) {
     const r = orig.apply(this, a);
     const id = this.stats?.id || null;
     this._rvReset(id);
-    if (id) { const d = this._rvLoad(); if (d && d.id === id) { this._rv.base = d.base; this._rv.recs = d.recs; } }
+    if (id) { const d = this._rvLoad(); if (d && d.id === id) { this._rv.base = d.base; this._rv.recs = d.recs; this._rv.review = d.review || null; } }
     return r;
   });
 

@@ -28,7 +28,36 @@ export function makeMaster(opts = {}) {
 
   /** The race: every candidate into the same futures; successive halving; a budget of o.n rollouts or
    *  o.timeMs (whichever ends first, at least 2 futures each). Candidate 0 is the Expert's pick. */
-  function search(g, me, cands, apply, depth) { return withoutAgents(g, () => search0(g, me, cands, apply, depth)); }
+  function search(g, me, cands, apply, depth) {
+    const rec = withoutAgents(g, () => search0(g, me, cands, apply, depth));
+    // v1.03 ADAPTIVE (review / "Super Expert" tests): a close call between the two best moves (paired gap
+    // within adaptZ standard errors) is searched again with the deep budget (o.deep: { n, depth, setupDepth })
+    if (!o.deep || !closeCall(rec, o.adaptZ ?? 2)) return rec;
+    const keep = { n: o.n, timeMs: o.timeMs };
+    o.n = o.deep.n; o.timeMs = o.deep.timeMs || 0;
+    try {
+      const d2 = depth === o.setupDepth ? (o.deep.setupDepth ?? o.deep.depth + 4) : (o.deep.depth ?? depth);
+      const rec2 = withoutAgents(g, () => search0(g, me, cands, apply, d2));
+      rec2.escalated = { ms: rec.ms, rollouts: rec.rollouts };
+      rec2.ms += rec.ms; rec2.rollouts += rec.rollouts;
+      stats.escalated = (stats.escalated || 0) + 1;
+      return rec2;
+    } finally { o.n = keep.n; o.timeMs = keep.timeMs; }
+  }
+  /** The two best moves of the last round are within z standard errors of each other (paired). */
+  function closeCall(rec, z) {
+    const last = rec.rounds[rec.rounds.length - 1];
+    if (!last) return false;
+    const alive = last.alive;
+    if (alive.length < 2) return false;
+    const mean = (k) => { const v = rec.vals[k].filter((x) => x != null); return v.reduce((a, b) => a + b, 0) / Math.max(1, v.length); };
+    const [a, b] = alive.slice().sort((x, y) => mean(y) - mean(x));
+    const d = []; rec.vals[a].forEach((v, j) => { const w = rec.vals[b][j]; if (v != null && w != null) d.push(v - w); });
+    if (d.length < 2) return true;
+    const m = d.reduce((x, y) => x + y, 0) / d.length;
+    const se = Math.sqrt(d.reduce((x, y) => x + (y - m) ** 2, 0) / (d.length - 1) / d.length);
+    return Math.abs(m) < z * se + 1e-9;
+  }
   function search0(g, me, cands, apply, depth) {
     const t0 = now();
     const deadline = o.timeMs ? t0 + o.timeMs : Infinity;
@@ -257,6 +286,64 @@ export function makeMaster(opts = {}) {
     stats.chose[best.kind] = (stats.chose[best.kind] || 0) + 1;
     if (rec.pick !== 0) stats.deviations++;
     return { choice: best, record: rec };
+  };
+
+  // ── v1.03 Game review: how good was a move someone actually made? The played move is candidate 0 (it is
+  // never dropped by the halving, like the Expert's pick in a decision), raced against the moves the Master
+  // would consider here, on the same futures. `played`: { apply(g, seat) → true | "ended" | false, label }.
+  // Returns the race record (rec.paired[k].m = candidate k's win-chance gain over the played move) or null
+  // when there is nothing to compare (the played move is the only one). ──
+  agent.evaluate = (g, p, kind, played) => {
+    let named;
+    const playedC = { kind: "played" };
+    if (kind === "setup") {
+      const ids = g._aiSetupCandidates(p).sort((a, b) => b.score - a.score).map((c) => c.id).filter((id) => id !== played.node).slice(0, o.topSetup - 1);
+      named = [{ c: playedC, label: played.label, focus: { node: played.node } }, ...ids.map((id) => ({ c: { kind: "spot", node: id }, label: `Settlement on ${g._spotLabel(id)}`, focus: { node: id } }))];
+    } else if (kind === "robber") {
+      const ids = g._aiRobberCandidates(p).sort((a, b) => b.score - a.score).map((c) => c.id).filter((id) => id !== played.hex).slice(0, o.topRobber - 1);
+      named = [{ c: playedC, label: played.label, focus: { hex: played.hex } }, ...ids.map((id) => ({ c: { kind: "hex", hex: id }, label: `Robber on ${g._hexName(id)}`, focus: { hex: id } }))];
+    } else {
+      const { plan, cands } = withoutAgents(g, () => mainCands(g, p));
+      const others = labelMain(g, p, plan, cands);
+      // the played move's outcome; a candidate with the same outcome IS the played move
+      const root = snapshot(g), orig = Math.random;
+      let ps = null;
+      try {
+        Math.random = mulberry32(12345);
+        const r = withoutAgents(g, () => played.apply(g, p));
+        ps = r === false ? null : r === "ended" ? "end" : sig(g, p);
+        const outs = others.map((x) => {
+          if (x.c.kind === "dev") return null;
+          restore(g, root); Math.random = mulberry32(12345);
+          const rr = withoutAgents(g, () => applyMain(g, p, x.c));
+          return rr === "noop" || x.c.kind === "end" ? "end" : rr === false ? null : sig(g, p);
+        });
+        named = [{ c: playedC, label: played.label, focus: played.focus || null }, ...others.filter((x, i) => !(ps && outs[i] === ps) && !(x.c.kind === "dev" && played.dev === x.c.t))];
+      } finally { restore(g, root); Math.random = orig; }
+      if (ps == null) return null;
+    }
+    if (named.length <= 1) return null;
+    seedRng(g, p);
+    const rec = search(g, p.id, named.map((x) => x.c), (gg, c) => {
+      const q = gg.players[p.id];
+      if (c.kind === "played") return played.apply(gg, q);
+      if (c.kind === "spot") {
+        const save = Object.prototype.hasOwnProperty.call(gg, "getBestInitialSettlementNode") ? gg.getBestInitialSettlementNode : null;
+        const base = gg._masterBaseInit || ((x) => gg.constructor.prototype.getBestInitialSettlementNode.call(gg, x));
+        let used = false;
+        gg.getBestInitialSettlementNode = (x) => { if (!used && x.id === q.id) { used = true; return c.node; } return base(x); };
+        try { gg.setupAction = null; gg.processSetupQueue(); } finally { if (save) gg.getBestInitialSettlementNode = save; else delete gg.getBestInitialSettlementNode; }
+        return true;
+      }
+      if (c.kind === "hex") { gg.moveRobberAndSteal(q, c.hex); return true; }
+      if (c.kind === "end") { gg.endTurn(); return "ended"; }
+      const r = applyMain(gg, q, c);
+      if (r === "noop") { gg.endTurn(); return "ended"; }
+      return r;
+    }, kind === "setup" ? o.setupDepth : o.depth);
+    rec.kind = kind;
+    rec.cands = named;
+    return rec;
   };
 
   // ── whole-game play (Web Worker tournaments, Node harness): synchronous hooks ──

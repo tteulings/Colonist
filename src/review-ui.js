@@ -33,9 +33,10 @@ export const ReviewUiMixin = {
   /** Missed chances per person (pass & play: everyone who played; solo: you). */
   _rvGroups() {
     const res = this._rv?.res;
-    if (!res?.findings?.length) return [];
+    if (!res?.findings) return [];
     const humans = this.players.filter((p) => p.isHuman);
-    return humans.map((p) => ({ p, list: res.findings.filter((f) => f.pid === p.id).sort((a, b) => b.size - a.size).slice(0, 3) })).filter((x) => x.list.length);
+    // v1.03: once the Master bot has checked a person's game, their lines are its verified misses
+    return humans.map((p) => ({ p, list: this._rvVerified?.(p.id) || res.findings.filter((f) => f.pid === p.id).sort((a, b) => b.size - a.size).slice(0, 3) })).filter((x) => x.list.length || this._rvReviewable?.());
   },
 
   /** The recap block (empty when there is nothing to say). */
@@ -46,9 +47,10 @@ export const ReviewUiMixin = {
     const groups = this._rvGroups();
     if (!groups.length) return "";
     const solo = !this.hotseat;
-    return groups.map(({ p, list }) => `<div class="rv1" data-rvp="${p.id}"><div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Missed chances" : `<span class="pc-${p.id} rv-who">${esc(p.name)}</span> · missed chances`}</span><small>tap to see the moment</small></div>
+    return groups.map(({ p, list }) => `<div class="rv1" data-rvp="${p.id}"><div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Missed chances" : `<span class="pc-${p.id} rv-who">${esc(p.name)}</span> · missed chances`}</span><small>${list.length ? (list[0].verified ? "checked by the Master bot" : "tap to see the moment") : ""}</small></div>
+      ${list.length ? "" : `<p class="rv1-none">${this._rv.review?.pid === p.id && this._rv.review.done ? "The Master bot found no clear missed chance." : "No clear missed chance this game."}</p>`}
       ${list.map((f, k) => `<button type="button" class="rv1-row" data-rvshow="${p.id}:${k}" aria-label="Turn ${f.t}: ${esc(f.line)}, ${esc(f.gain)}. Show"><span class="t">Turn ${f.t}</span><span class="x">${esc(f.line)}</span><span class="g">${esc(f.gain)}</span>${IC.chev}</button>`).join("")}
-      ${this._rvReviewRowHtml?.(p) || ""}</div>`).join("") + `<p class="rv1-note">Moments where another move was clearly better, as the Expert bot sees it. Everyone has a few.</p>`;
+      ${this._rvReviewRowHtml?.(p) || ""}</div>`).join("") + (groups.some((x) => x.list.length) ? `<p class="rv1-note">${groups.some((x) => x.list[0]?.verified) ? "Moves where another one kept clearly more win chance, played out by the Master bot." : "Moments where another move was clearly better, as the Expert bot sees it."} Everyone has a few.</p>` : "");
   },
 
   /** Fill (or refresh) the block in the open recap. */
@@ -63,11 +65,10 @@ export const ReviewUiMixin = {
   },
 
   // ── Show: the replay at that moment, with the coaching card ──
-  _rvShow(pid, k) {
-    const list = this._rvGroups().find((x) => x.p.id === pid)?.list || this._rvList || [];
+  _rvShow(pid, k) { this._rvShowList(this._rvGroups().find((x) => x.p.id === pid)?.list || [], k, pid); },
+  _rvShowList(list, k, pid) {
     const f = list[k];
     if (!f || !this._st) return;
-    this._rvList = list;
     if (!this._rpUi) this._rpStart("replay");
     const ui = this._rpUi;
     if (!ui) return;
@@ -79,15 +80,15 @@ export const ReviewUiMixin = {
     const solo = !this.hotseat;
     const when = { seven: "end of your turn", robber: "your robber", knight: "start of your turn" }[f.kind] || "your turn";
     ctl.innerHTML = `<div class="rvs">
-      <div class="rvs-top"><i class="rv-dot"></i><div><b>Turn ${f.t} · ${solo ? when : esc(who.name)}</b><small>Missed chance ${k + 1} of ${list.length}${f.gainLong ? ` · ${esc(f.gainLong)}` : ""}</small></div></div>
+      <div class="rvs-top"><i class="rv-dot"></i><div><b>Turn ${f.t} · ${solo ? when : esc(who.name)}</b><small>${f.verified ? "Checked by the Master bot · " : ""}${f.markLabel || "Missed chance"} ${k + 1} of ${list.length}${f.gainLong ? ` · ${esc(f.gainLong)}` : ""}</small></div></div>
       ${handHtml(f.hand)}
       <div class="rvs-vs"><div class="better"><span class="sx-win">A</span><small>Better</small><b>${esc(f.better)}</b></div><div><span class="sx-win alt">B</span><small>${solo ? "You did" : `${esc(who.name)} did`}</small><b>${esc(f.did)}</b></div></div>
       <p class="rvs-why">${esc(f.why)}</p>
       ${cmpHtml(f.cmp)}
-      <div class="rvs-nav"><button type="button" class="rv-btn" data-rvnav="-1"${k ? "" : " disabled"}>‹ Prev</button><button type="button" class="rv-btn pri" data-rvback>Back to results</button><button type="button" class="rv-btn" data-rvnav="1"${k < list.length - 1 ? "" : " disabled"}>Next ›</button></div>
+      <div class="rvs-nav"><button type="button" class="rv-btn" data-rvnav="-1"${k ? "" : " disabled"}>‹ Prev</button><button type="button" class="rv-btn pri" data-rvback>${this._rvBackToReview ? "Back to review" : "Back to results"}</button><button type="button" class="rv-btn" data-rvnav="1"${k < list.length - 1 ? "" : " disabled"}>Next ›</button></div>
     </div>`;
     ctl.querySelector("[data-rvback]").addEventListener("click", () => this._rpExit());
-    ctl.querySelectorAll("[data-rvnav]").forEach((b) => b.addEventListener("click", () => this._rvShow(pid, k + Number(b.dataset.rvnav))));
+    ctl.querySelectorAll("[data-rvnav]").forEach((b) => b.addEventListener("click", () => this._rvShowList(list, k + Number(b.dataset.rvnav), pid)));
     // the board fits the room the card leaves, at the moment just before the move
     const cv = ui.querySelector(".gs-rp-board canvas"), br = cv.parentElement.getBoundingClientRect();
     this._rpOpen(cv, Math.round(br.width), Math.round(br.height));
