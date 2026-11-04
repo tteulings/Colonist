@@ -19,6 +19,7 @@ import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
 import { presetHighlight } from "./bot-profiles.js"; // v1.04 Settings › Bots: which preset chip is lit
+import { framedAvatar, profileLabel, profileOf, openProfileSheet, pickerExtras, tableList } from "./bot-profile-ui.js"; // v1.04 bot profile frames + sheet
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
@@ -8298,6 +8299,11 @@ class ColonistFullGame {
     pop.style.setProperty("--ax", `${Math.round(r.left + r.width / 2 - pr.left)}px`);
   }
 
+  /** The preset a hand-tuned bot is closest to (profile sheet, "Custom · like X"). */
+  _closestPreset(strategy) {
+    return presetHighlight([strategy], AI_PRESETS, Object.keys(AI_STRATEGY_CATEGORIES)).closest;
+  }
+
   renderScoreboard() {
     // Build a key from all visible data — skip re-render if unchanged (preserves tooltip)
     const readyIds = this.rush && !this.setupPhase ? this.rush.ready : null;
@@ -8346,9 +8352,9 @@ class ColonistFullGame {
       const isleChip = isles ? `<span class="isle-chip" title="New islands: ${isles} (+${this.sea.bonusVP(player)} points)">${icon("island")}<b>${isles}</b></span>` : "";
       // ⚓ v0.86: at sea (first to 14) your own badge carries the goal: "3/14"; the others stay plain
       const goal = this.sea && player === this._me() && this._seesPrivate(player) ? `<span class="vgoal">/${this.winPoints}</span>` : "";
-      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points${goal ? ` of ${this.winPoints}` : ""}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
-        <div class="row">${this._av(player)}<div class="vpn${goal ? " goal" : ""}">${vp}${goal}<small>PTS</small></div></div>
-        <div class="pn">${player.short || player.name}</div>${player.isHuman ? "" : personaBadge}
+      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points${goal ? ` of ${this.winPoints}` : ""}${profileLabel(this, player)}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
+        <div class="row">${framedAvatar(this, player)}<div class="vpn${goal ? " goal" : ""}">${vp}${goal}<small>PTS</small></div></div>
+        <div class="pn">${player.short || player.name}</div>
         <div class="pcards">${stats[0]}</div>
         <div class="mini${miniStats.length > 2 ? " dense" : ""}">${miniStats.join("")}</div>${isleChip}</div>`);
     });
@@ -8371,6 +8377,12 @@ class ColonistFullGame {
       }
       el.addEventListener("click", (e) => {
         e.stopPropagation();
+        // v1.04: a tap on a bot's chip opens its profile sheet (the points number still shows the VP breakdown)
+        if (el.classList.contains("pchip") && profileOf(this, player) && !e.target.closest(".vpn, .sx-vp")) {
+          this._hideVPTooltip();
+          openProfileSheet(this, { player });
+          return;
+        }
         if (document.getElementById("vpTooltip")) { this._hideVPTooltip(); return; }
         this._showVPTooltip(player, el);
         const dismiss = () => { this._hideVPTooltip(); document.removeEventListener("click", dismiss); };
@@ -9014,7 +9026,7 @@ class ColonistFullGame {
       const sel = !human && d.botStyleMode === "each" ? `
         <select class="ng-bot-select" data-bot="${id - 1}" aria-label="${esc(cfg.name)} personality">
           ${Object.keys(AI_PRESETS).map((key) => `<option value="${key}"${d.perBot[id - 1] === key ? " selected" : ""}>${presetLabel(key)}</option>`).join("")}
-        </select>` : "";
+        </select><button type="button" class="bp-info" data-info="${d.perBot[id - 1]}" aria-label="About the ${presetLabel(d.perBot[id - 1])} profile">i</button>` : "";
       return `<div class="hs-seat pc-${id}">${avatarSvg(id, "ng-bot-avatar")}<div class="hs-seat-main">${main}</div>${kind}${sel}</div>`;
     }).join("");
 
@@ -9135,7 +9147,7 @@ class ColonistFullGame {
                     return `<button type="button" class="ng-preset${d.allPreset === key ? " selected" : ""}" data-preset="${key}" aria-pressed="${d.allPreset === key}">
                       <span class="ng-preset-name">${info.label}</span>
                       <span class="ng-preset-tag">${info.tagline}</span>
-                      ${info.isNew ? '<span class="ng-new">New</span>' : ""}
+                      ${pickerExtras(key)}
                     </button>`;
                   }).join("")}
                 </div>
@@ -9170,7 +9182,10 @@ class ColonistFullGame {
     const wire = () => {
       const card = overlay.querySelector(".ng-card");
       overlay.querySelector(".ng-finetune")?.addEventListener("toggle", (e) => { fineTuneOpen = e.target.open; });
+      const info = (e) => { const i = e.target.closest("[data-info]"); if (!i) return false; e.preventDefault(); e.stopPropagation(); openProfileSheet(this, { key: i.dataset.info }); return true; };
+      card.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && info(e)) e.stopImmediatePropagation(); });
       card.addEventListener("click", (e) => {
+        if (info(e)) return;
         const t = e.target.closest("button");
         if (!t || !card.contains(t)) return;
         let changed = true;
@@ -9288,6 +9303,15 @@ class ColonistFullGame {
       return row;
     };
     const allBots = this.players.filter((p) => p.strategy);
+    // v1.04: who is at the table and how each one plays, before the editor
+    const table = tableList(this);
+    if (table) {
+      panel.appendChild(table);
+      const h = document.createElement("h4");
+      h.className = "bt-edit-h";
+      h.textContent = "Change how they play";
+      panel.appendChild(h);
+    }
     if (this._applyAllStrategies) panel.appendChild(presetRow(allBots));
 
     // Apply-all toggle

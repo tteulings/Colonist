@@ -42,4 +42,21 @@ t("a profile, an illustration (< 3 KB), a mini and a frame for every preset", ()
     assert.ok(profileMini(k).length < 1200 && levelFrame(k).includes("<svg"), k);
   }
 });
+t("Master shows no win figure against Intermediate (only +8.4 pp vs Expert, n=500)", () => {
+  assert.equal(BOT_PROFILES.master.win, null);
+  assert.match(BOT_PROFILES.master.good, /8\.4 percentage points/);
+});
+t("frames: every tier looks different (silver is a double band, shark has a fin, master a star)", () => {
+  const f = (k) => levelFrame(k, 40);
+  const set = new Set(Object.keys(AI_PRESETS).map(f));
+  assert.ok(set.size >= 7); // beginner and simple share the plain ring on purpose
+  assert.ok(f("shark").includes("M56,12") && f("master").includes("L"));
+  assert.ok(f("intermediate").length > f("beginner").length * 2);
+});
+for (const file of ["bot-profile-ui.js", "game.js", "six-ui.js"]) {
+  const text = fs.readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
+  t(`${file} imports only files that exist`, () => {
+    for (const m of text.matchAll(/from "\.\/([\w\/.-]+)"/g)) assert.ok(fs.existsSync(new URL(`../src/${m[1]}`, import.meta.url)), m[1]);
+  });
+}
 console.log(`${n} passed`);

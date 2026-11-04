@@ -205,7 +205,8 @@ export function levelFrame(key, d = 40) {
   const at = (body) => `<g transform="translate(81 19) rotate(45)">${body}</g>`;
   let g = "";
   if (k === "plain") g = ring("var(--lf-plain,rgba(43,33,28,.32))", 4);
-  if (k === "silver") g = ring(edge, 11) + ring(silver, 8) + ring("#fff", 1.6, ` stroke-opacity=".75"`);
+  // silver: a wide bright band split by a dark groove (two lanes) + a white shine: clearly more than the thin plain ring
+  if (k === "silver") g = ring(edge, 14) + ring(silver, 11) + ring(edge, 2.6) + `<path d="M24,22 A40,40 0 0 1 50,10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-opacity=".9"/>`;
   if (k === "gold" || k === "star") {
     g = ring(edge, 12) + ring(gold, 9);
     g += [135, 225, 315].map((a) => `<circle cx="${(c + R * Math.cos(a * Math.PI / 180)).toFixed(1)}" cy="${(c + R * Math.sin(a * Math.PI / 180)).toFixed(1)}" r="5.4" fill="#FFF3C4" stroke="${edge}" stroke-width="1.8"/>`).join("");
@@ -214,7 +215,10 @@ export function levelFrame(key, d = 40) {
   if (k === "star") g += `<path d="M81,1 L86,13 L99,13.6 L89,22 L92.4,35 L81,27.8 L69.6,35 L73,22 L63,13.6 L76,13Z" fill="${gold}" stroke="${edge}" stroke-width="2.6" stroke-linejoin="round"/>`;
   if (k === "dash") g = ring(edge, 11, ` stroke-dasharray="15 9"`) + ring("var(--lf-trader,#2FA39A)", 8, ` stroke-dasharray="15 9"`);
   if (k === "brick") g = ring(edge, 12) + ring("var(--lf-builder,#C9653F)", 9, ` stroke-dasharray="13 3.5"`);
-  if (k === "fin") g = ring(edge, 10) + ring("var(--lf-shark,#5D7C8E)", 7) + at(`<path d="M-12,4 Q-6,-20 12,-22 Q4,-10 10,4Z" fill="var(--lf-shark,#5D7C8E)" stroke="${edge}" stroke-width="2.6" stroke-linejoin="round"/>`);
+  // shark: a tall, sharp dorsal fin that breaks out of the ring (plus a small second fin and a wave line)
+  if (k === "fin") g = ring(edge, 11) + ring("var(--lf-shark,#5D7C8E)", 8)
+    + `<path d="M56,12 Q60,-12 82,-28 Q80,8 96,36 Q92,34 56,12Z" fill="var(--lf-shark,#5D7C8E)" stroke="${edge}" stroke-width="3" stroke-linejoin="round"/>`
+    + `<path d="M66,2 Q71,-9 79,-17" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2.6" stroke-linecap="round"/>`;
   return `<svg class="lf lf-${k}" width="${d}" height="${d}" viewBox="-10 -10 120 120" aria-hidden="true">${g}</svg>`;
 }
 
