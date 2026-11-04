@@ -11,7 +11,7 @@
 //
 // Decisions searched: the set-up spot, main-phase build / trade-then-build / dev-card play / end turn, and
 // the robber tile. Player-to-player trades, discards and the pre-roll Knight stay with the Expert.
-import { DEV_CARD_TYPES, hasResources, mulberry32, snapshot, restore, determinize, rollout, winProb, withoutAgents } from "./sim.js";
+import { DEV_CARD_TYPES, hasResources, mulberry32, snapshot, restore, determinize, rollout, winProb, winProbs, withoutAgents } from "./sim.js";
 
 export const MASTER_OPTS = { n: 100, timeMs: 0, depth: 8, setupDepth: 12, z: 1.0, minAdv: 0.002, jitter: 0.15, T: 1.2, topSetup: 6, topRobber: 4, maxCands: 7 };
 const RES = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
@@ -63,7 +63,7 @@ export function makeMaster(opts = {}) {
     const deadline = o.timeMs ? t0 + o.timeMs : Infinity;
     const root = snapshot(g);
     const K = cands.length;
-    const vals = cands.map(() => []), vps = cands.map(() => []);
+    const vals = cands.map(() => []), vps = cands.map(() => []), seatW = o.seats ? cands.map(() => []) : null; // v1.05 o.seats: every seat's win chance per future (review only)
     const orig = Math.random;
     agent.busy = true;
     const base = Math.floor(rng() * 2 ** 31);
@@ -74,7 +74,10 @@ export function makeMaster(opts = {}) {
       determinize(g, me, r);
       const a = apply(g, cands[k]);
       let v = 0;
-      if (a !== false) { if (!g.winner) rollout(g, a === "ended" ? depth - 1 : depth, r, { jitter: o.jitter }); v = winProb(g, me, o.T); }
+      if (a !== false) {
+        if (!g.winner) rollout(g, a === "ended" ? depth - 1 : depth, r, { jitter: o.jitter });
+        if (seatW) { const ws = winProbs(g, o.T); v = ws[me]; seatW[k][j] = ws; } else v = winProb(g, me, o.T);
+      }
       vals[k][j] = v;
       vps[k][j] = g.players[me].victoryPoints;
     };
@@ -122,7 +125,8 @@ export function makeMaster(opts = {}) {
     });
     const ms = now() - t0;
     stats.ms.push(ms);
-    return { K, vals: vals.map((v) => v.map((x) => (x == null ? null : r4(x)))), vps: vps.map((v) => v.slice()), rounds, pick, paired: paired.map((p) => ({ m: r4(p.m), se: Number.isFinite(p.se) ? r4(p.se) : null, n: p.n })),
+    const seats = seatW ? seatW.map((arr) => { const a = arr.filter(Boolean); return a.length ? a[0].map((_, q) => r4(a.reduce((x, w) => x + w[q], 0) / a.length)) : null; }) : null;
+    return { K, seats, vals: vals.map((v) => v.map((x) => (x == null ? null : r4(x)))), vps: vps.map((v) => v.slice()), rounds, pick, paired: paired.map((p) => ({ m: r4(p.m), se: Number.isFinite(p.se) ? r4(p.se) : null, n: p.n })),
       rule: { z: o.z, minAdv: o.minAdv }, finalists, ms: Math.round(ms), rollouts: used, budget: { n: o.n, timeMs: o.timeMs }, stop, depth };
   }
 

@@ -95,6 +95,16 @@ export function winProb(g, me, T = 1.2) {
   return Math.exp((v[me] - mx) / T) / z;
 }
 
+/** v1.05: the same softmax for every seat at once (the review's stacked win-chance bar); same numbers as winProb. */
+export function winProbs(g, T = 1.2) {
+  if (g.winner) return g.players.map((p) => (p.id === g.winner.id ? 1 : 0));
+  const v = seatValues(g);
+  const mx = Math.max(...v);
+  const e = v.map((x) => Math.exp((x - mx) / T));
+  const z = e.reduce((a, b) => a + b, 0);
+  return e.map((x) => x / z);
+}
+
 /** Play `turns` turn ends with every seat's normal policy (lab weights jittered ±jitter for variety). */
 export function rollout(g, turns, rng, { jitter = 0.15, maxRounds = 250 } = {}) {
   const orig = Math.random; Math.random = rng;
