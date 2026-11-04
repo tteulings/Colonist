@@ -302,3 +302,21 @@ html[data-motion="reduced"] .ls-sheet.in { animation: none; }
 .ls-hrow .ls-hn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ls-hrow > span:not(.ls-hn) { display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
 .ls-hrow .ic { font-size: 14px; }
+/* v1.09 the dice card marks the viewer's numbers: the bar in their seat colour with a dark edge (--ink, so it holds
+   3:1 against the panel for a white or yellow seat too) and a diagonal hatch, so colour is never the only cue; a small
+   Ø under the number while the robber sits on one of their tiles of it (not an outline: dashed already means "cold") */
+.gs-dbar.mine rect:first-child { fill: var(--pc); stroke: var(--ink); stroke-width: 1.5; }
+.gs-dbar.mine .ls-hatch { fill: url(#ls-hatch); stroke: none; pointer-events: none; }
+.ls-hs { fill: #000; opacity: .38; } /* the bar hatch; the key swatch repeats it */
+.gs-dbar.mine.cold rect:first-child { stroke-dasharray: 3 2; }
+.gs-dbar.mine .gs-ax.n { fill: var(--ink); font-weight: 850; }
+.gs-dbar.mine.hi .gs-ax.c { fill: var(--ink); }
+.ls-rob circle, .ls-k.rob circle { fill: none; stroke: var(--ink); stroke-width: 1.3; }
+.ls-rob path, .ls-k.rob path { stroke: var(--ink); stroke-width: 1.3; fill: none; }
+.ls-hc { flex-basis: 100%; }
+.ls-mkey { display: flex; flex-wrap: wrap; gap: 3px 12px; margin-top: 2px; font: 650 11.5px var(--font-body); color: var(--ink-soft); }
+.ls-mkey span { display: inline-flex; align-items: center; gap: 5px; }
+.ls-k { display: inline-block; width: 12px; height: 12px; border-radius: 2px; background: var(--pc); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.ls-k.rob { background: none; box-shadow: none; width: 11px; height: 11px; overflow: visible; }
+.ls-slot [data-card="dice"][data-mine] .gs-chart { max-height: calc(var(--ls-h) - 214px); } /* room for the headline's subline and the key */
+.ls-k:not(.rob) { background-image: repeating-linear-gradient(45deg, transparent 0 2px, rgba(0,0,0,.34) 2px 3.5px); background-color: var(--pc); }
