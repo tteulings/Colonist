@@ -72,15 +72,37 @@
 .bt-table { margin: 4px 0 6px; display: grid; gap: 8px; }
 .bt-table h4, .bt-edit-h { margin: 0 0 2px; font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-soft, #5A6366); font-weight: 700; }
 .bt-edit-h { margin: 14px 0 6px; }
-.bt-bot { display: grid; grid-template-columns: 46px 1fr auto; gap: 12px; align-items: center; min-height: 60px; padding: 8px 12px 8px 10px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--ink, #2E3A3D) 14%, transparent); background: color-mix(in srgb, var(--ink, #2E3A3D) 4%, transparent); text-align: left; font: inherit; color: var(--ink, #2E3A3D); width: 100%; cursor: pointer; }
+.bt-row { position: relative; }
+.bt-bot { display: grid; grid-template-columns: 46px 1fr; padding-right: 52px !important; gap: 12px; align-items: center; min-height: 60px; padding: 8px 12px 8px 10px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--ink, #2E3A3D) 14%, transparent); background: color-mix(in srgb, var(--ink, #2E3A3D) 4%, transparent); text-align: left; font: inherit; color: var(--ink, #2E3A3D); width: 100%; cursor: pointer; }
 .bt-av { display: grid; place-items: center; width: 46px; height: 46px; }
 .bt-av .avatar { --av: 34px; --av-ring: 2.5px; }
 .bt-txt { display: grid; min-width: 0; }
 .bt-bot .nm { font-weight: 800; font-size: 15px; }
 .bt-bot .pf { font-size: 13px; color: var(--ink-soft, #5A6366); line-height: 1.3; }
 .bt-bot .pf b { color: var(--ink, #2E3A3D); }
-.bt-bot .chev { font-size: 22px; color: var(--ink-soft, #5A6366); }
+.bt-row.sel .bt-bot { border: 2px solid var(--brand-ink, #1F6E77); background: color-mix(in srgb, var(--brand-ink, #1F6E77) 12%, transparent); }
+.tm-settings .ai-strategy-panel .bt-info, .bs-i { position: absolute; right: 2px; width: 44px; height: 44px; padding: 0; margin: 0; display: grid; place-items: center; border: 0 !important; background: transparent !important; box-shadow: none !important; color: var(--ink-soft, #5A6366); cursor: pointer; }
+.tm-settings .ai-strategy-panel .bt-info { top: 50%; transform: translateY(-50%); }
+.bt-info > span, .bs-i > span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1.6px solid currentColor; font: italic 800 13px/1 Georgia, serif; }
+
+/* ── Settings > Bots: preset cards, 2 columns ── */
+.bs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 4px 0 8px; }
+.bs-cell { position: relative; }
+.tm-settings .ai-strategy-panel .bs-card { width: 100%; height: 100%; box-sizing: border-box; margin: 0; padding: 8px 10px 10px; min-height: 132px; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; border-radius: 14px; border: 1.5px solid color-mix(in srgb, var(--ink, #2E3A3D) 16%, transparent); background: color-mix(in srgb, var(--ink, #2E3A3D) 4%, transparent); color: var(--ink, #2E3A3D); font: inherit; cursor: pointer; }
+.tm-settings .ai-strategy-panel .bs-card.on { border: 2.5px solid var(--brand-ink, #1F6E77); padding: 7px 9px 9px; background: color-mix(in srgb, var(--brand-ink, #1F6E77) 14%, transparent); }
+.tm-settings .ai-strategy-panel .bs-card.near { border-style: dashed; border-color: var(--brand-ink, #1F6E77); }
+.bs-art { display: block; width: 56px; height: 56px; }
+.bs-nm { display: flex; align-items: center; gap: 5px; font-weight: 800; font-size: 15px; line-height: 1.2; }
+.bs-ck { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--brand-ink, #1F6E77); color: #fff; font-size: 12px; font-weight: 900; }
+.bs-dots i { width: 8px; height: 8px; }
+.bs-tag { font-size: 12px; line-height: 1.3; color: var(--ink-soft, #5A6366); }
+.bs-i { top: 0; right: 0; }
+.bs-tune { margin-top: 8px; }
+.bs-tune > summary { display: flex !important; align-items: center; min-height: 44px; padding: 0 4px; font-weight: 750; font-size: 14px; color: var(--brand-ink, #1F6E77); cursor: pointer; }
+.tm-settings .bs-tune .ai-strat-hint { font-size: 12px; }
 
 /* ── six-up strip: the points badge sits on the avatar's corner; the frame passes behind it, the number stays on top ── */
 .pchip.six .avatar > .lf { z-index: 1; }
 .pchip.six .sx-vp { z-index: 3; }
+.tm-settings .ai-strat-apply-all { min-height: 44px; font-size: 14px; gap: 10px; color: var(--ink, #2E3A3D); }
+.tm-settings .ai-strat-apply-all input { width: 22px; height: 22px; }

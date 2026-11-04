@@ -20,7 +20,7 @@ import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
 import { presetHighlight } from "./bot-profiles.js"; // v1.04 Settings › Bots: which preset chip is lit
-import { framedAvatar, profileLabel, profileOf, openProfileSheet, pickerExtras, tableList } from "./bot-profile-ui.js"; // v1.04 bot profile frames + sheet
+import { framedAvatar, profileLabel, profileOf, openProfileSheet, pickerExtras, tableList, presetCards } from "./bot-profile-ui.js"; // v1.04 bot profile frames + sheet
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
@@ -9308,48 +9308,21 @@ class ColonistFullGame {
 
     panel.innerHTML = "";
 
-    // Presets row: one for all bots (Apply to all) or one per bot. v1.04: the chip of the preset the bots match
-    // is lit (it never was: the .active style existed but nothing set it); a hand-tuned mix reads "Custom ·
-    // closest to X", and bots that differ say so instead of lighting a chip.
+    // v1.10 Settings › Bots: preset cards (art, name, strength, tagline, check) for the bots being edited: all of
+    // them (Apply to all) or the one picked in "At this table". A hand-tuned mix outlines its closest card.
     const axes = Object.keys(AI_STRATEGY_CATEGORIES);
-    const presetRow = (bots) => {
-      const row = document.createElement("div");
-      row.className = "ai-strat-presets";
-      const hl = presetHighlight(bots.map((p) => p.strategy), AI_PRESETS, axes);
-      Object.entries(AI_PRESETS).forEach(([name, preset]) => {
-        const btn = document.createElement("button");
-        const on = hl.active === name;
-        btn.className = `ai-strat-preset-btn btn-neutral${on ? " active" : ""}`;
-        btn.setAttribute("aria-pressed", String(on));
-        btn.dataset.preset = name;
-        btn.textContent = AI_PRESET_INFO[name].label;
-        btn.addEventListener("click", () => {
-          bots.forEach((p) => { delete p.strategy.policy; Object.assign(p.strategy, preset); });
-          this._saveStrategies();
-          this._buildStrategyUI();
-        });
-        row.appendChild(btn);
-      });
-      if (hl.active === "custom" || hl.mixed) {
-        const note = document.createElement("p");
-        note.className = "ai-strat-hint ai-strat-custom";
-        note.textContent = hl.mixed ? "These bots play differently: untick Apply to all bots to see each one."
-          : `Custom mix · closest to ${AI_PRESET_INFO[hl.closest]?.label || "a preset"}`;
-        row.appendChild(note);
-      }
-      return row;
-    };
-    const allBots = this.players.filter((p) => p.strategy);
-    // v1.04: who is at the table and how each one plays, before the editor
-    const table = tableList(this);
-    if (table) {
-      panel.appendChild(table);
-      const h = document.createElement("h4");
-      h.className = "bt-edit-h";
-      h.textContent = "Change how they play";
-      panel.appendChild(h);
-    }
-    if (this._applyAllStrategies) panel.appendChild(presetRow(allBots));
+    const aiPlayers = this.players.filter((p) => p.strategy);
+    const sel = aiPlayers.find((p) => p.id === this._botSel) || aiPlayers[0] || null;
+    const targets = this._applyAllStrategies ? aiPlayers : sel ? [sel] : [];
+    const table = tableList(this, {
+      sel: this._applyAllStrategies ? null : sel?.id,
+      onSelect: (id) => { this._botSel = id; this._applyAllStrategies = false; this._buildStrategyUI(); },
+    });
+    if (table) panel.appendChild(table);
+    const h = document.createElement("h4");
+    h.className = "bt-edit-h";
+    h.textContent = this._applyAllStrategies || !sel ? "Play style · all bots" : `Play style · ${sel.name}`;
+    panel.appendChild(h);
 
     // Apply-all toggle
     const applyRow = document.createElement("label");
@@ -9365,21 +9338,38 @@ class ColonistFullGame {
     applyRow.appendChild(document.createTextNode("Apply to all bots"));
     panel.appendChild(applyRow);
 
+    if (targets.length) {
+      const hl = presetHighlight(targets.map((p) => p.strategy), AI_PRESETS, axes);
+      panel.appendChild(presetCards(this, Object.keys(AI_PRESETS), hl, (name) => {
+        targets.forEach((p) => { delete p.strategy.policy; Object.assign(p.strategy, AI_PRESETS[name]); });
+        this._saveStrategies();
+        this._buildStrategyUI();
+      }));
+      if (hl.active === "custom" || hl.mixed) {
+        const note = document.createElement("p");
+        note.className = "ai-strat-hint ai-strat-custom";
+        note.textContent = hl.mixed ? "These bots play differently."
+          : `Custom mix · closest to ${AI_PRESET_INFO[hl.closest]?.label || "a preset"}`;
+        panel.appendChild(note);
+      }
+    }
+
+    // Fine-tune: the dials, collapsed
+    const tune = document.createElement("details");
+    tune.className = "bs-tune";
+    tune.open = !!this._tuneOpen;
+    tune.addEventListener("toggle", () => { this._tuneOpen = tune.open; });
+    const sum = document.createElement("summary");
+    sum.textContent = "Fine-tune";
+    tune.appendChild(sum);
+    panel.appendChild(tune);
+
     // Per-bot config
-    const aiPlayers = this.players.filter(p => p.strategy);
-    const botsToShow = this._applyAllStrategies ? aiPlayers.slice(0, 1) : aiPlayers; // pass & play: a table may have no bots
+    const botsToShow = sel ? [sel] : []; // pass & play: a table may have no bots
 
     botsToShow.forEach(bot => {
       const section = document.createElement("div");
       section.className = "ai-strat-player";
-
-      if (!this._applyAllStrategies) {
-        const header = document.createElement("div");
-        header.className = "ai-strat-player-header";
-        header.innerHTML = `${this._av(bot)}<span class="who pc-${bot.id}">${bot.name}</span>`;
-        section.appendChild(header);
-        section.appendChild(presetRow([bot]));
-      }
 
       Object.entries(AI_STRATEGY_CATEGORIES).forEach(([key, cat]) => {
         const wrapper = document.createElement("div");
@@ -9420,7 +9410,7 @@ class ColonistFullGame {
         section.appendChild(wrapper);
       });
 
-      panel.appendChild(section);
+      tune.appendChild(section);
     });
   }
 
