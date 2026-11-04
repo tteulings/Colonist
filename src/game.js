@@ -1,4 +1,4 @@
-import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced, SEAT_PRESETS, awardStat } from "./themes/manager.js";
+import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced, SEAT_PRESETS, awardStat, paletteTick } from "./themes/manager.js";
 import { SvgBoardRenderer, drawSpec, PIECE_GROW, PIECE_OUTLINE_PX, PIECE_HALO_PX, pieceHalo, outlined } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
@@ -25,7 +25,7 @@ import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS, SHIP_
 
 const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 /** Sunny Island colour palette from <html data-palette> (default light; v0.85: + night). */
-const currentPalette = () => { const p = document.documentElement.dataset.palette; return p === "vivid" || p === "night" ? p : "light"; };
+const currentPalette = () => { const p = document.documentElement.dataset.palette; return p === "vivid" || p === "night" || p === "dusk" ? p : "light"; };
 const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore: "Or" };
 // Glossary names (shared/glossary.md): cards are Lumber / Brick / Wool / Grain / Ore
 const RESOURCE_LABEL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
@@ -5841,6 +5841,7 @@ class ColonistFullGame {
   }
 
   endTurn() {
+    window.setTimeout(() => this._palCalmTick(), 0); // v1.04 proposal: Auto · time of day switches between turns
     if (this.winner) return;
     const player = this.currentPlayer;
     DEV_CARD_TYPES.forEach((type) => {
@@ -6109,6 +6110,7 @@ class ColonistFullGame {
       this.sea.onNewTurn();
       this.players.forEach((p) => { if (this.sea.goldFor(p.id)) this.sea.autoGold(p); });
     }
+    this._palCalmTick(); // v1.04 proposal: in Rush, Auto · time of day switches on a roll
     this.addLog(`Roll #${r.rollNo}: rolled ${res.total}.`);
     this.fx?.diceRoll(res.d1, res.d2);
     this.sfx.diceRoll();
@@ -8480,7 +8482,13 @@ class ColonistFullGame {
         // Right after your roll the line is about YOU, not the last bot that collected
         line = [this._enrichLogText(own), "dice"];
       } else if (real) {
-        const t = real.text.replace(/^Turn \d+: /, "").replace(/^Roll #\d+: rolled/, "Dice rolled");
+        // v1.04: the dice chip owns the total. Rush: "Roll: +1 Brick" / "Roll: nothing for you", Classic bot: "Blaauw rolled."
+        let t = real.text.replace(/^Turn \d+: /, "").replace(/ rolled \d+\./, " rolled.");
+        const rm = /^Roll #(\d+): rolled \d+\.?$/.exec(real.text);
+        if (rm) {
+          const at = this.logEntries.indexOf(real), mine = this.logEntries.slice(at + 1).map((e) => /^You collect (.+)\.$/.exec(e.text)).find(Boolean);
+          t = `Roll: ${mine ? mine[1].split(", ").map((x) => `+${x}`).join(" · ") : "nothing for you"}`;
+        }
         line = [this._enrichLogText(t), this._logIcon(real.text)];
       } else if (this.currentPlayer && !this.winner) {
         const cp = this.currentPlayer;
@@ -8513,7 +8521,7 @@ class ColonistFullGame {
     if (this.tickerIcon) this.tickerIcon.innerHTML = icon(ic);
   }
 
-  /** "You rolled 8 · +1 Lumber" while nothing but the payout has happened since your roll. */
+  /** "Roll: +1 Lumber" (the dice chip shows the total) while nothing but the payout has happened since your roll. */
   _ownRollSummary() {
     const L = this.logEntries;
     let i = L.length - 1;
@@ -8522,8 +8530,8 @@ class ColonistFullGame {
     const m = i >= 0 ? /^Turn \d+: You rolled (\d+)\.$/.exec(L[i].text) : null;
     if (!m || m[1] === "7") return "";
     const mine = L.slice(i + 1).map((e) => /^You collect (.+)\.$/.exec(e.text)).find(Boolean);
-    const gain = mine ? mine[1].split(", ").map((p) => `+${p}`).join(" · ") : "nothing for you this time";
-    return `You rolled ${m[1]} · ${gain}`;
+    const gain = mine ? mine[1].split(", ").map((p) => `+${p}`).join(" · ") : "nothing for you";
+    return `Roll: ${gain}`;
   }
 
   renderStatusAndControls() {
@@ -9769,7 +9777,13 @@ class ColonistFullGame {
     // Sunny Island colour palette (<html data-palette="light|vivid">): re-bake the board in place
     document.addEventListener("colonist:palette", () => this._applyPalette());
     new MutationObserver(() => this._applyPalette()).observe(document.documentElement, { attributes: true, attributeFilter: ["data-palette"] });
+    // v1.04 proposal (dusk-104): Auto · time of day never switches while you are mid-move — not during your own build /
+    // trade phase, a placement, the robber, or in Rush (there it waits for the next roll). Turn changes and Rush rolls
+    // call _palCalmTick(); the minute timer covers the home screen and bot turns.
+    window.__colonistPaletteGate = () => this._palForce || (!this.isRush?.() && !this.pendingAction && !this.confirmBuild && !this.setupPhase && !(this.currentPlayer?.isHuman && this.phase === "main") && !this._robberInProgress?.());
   }
+
+  _palCalmTick() { this._palForce = true; try { paletteTick(); } finally { this._palForce = false; } }
 
   /** Bottom sheets (trade, journal, settings): drag the top edge down to dismiss, like the grabber says. */
   _bindSheetSwipe() {
@@ -9814,7 +9828,23 @@ class ColonistFullGame {
 
   _applyPalette() {
     const T = this.theme;
+    // v1.04 proposal: a soft (Auto) switch fades a snapshot of the old board out over the re-baked one
+    const soft = document.documentElement.classList.contains("pal-fade") && this.canvas?.width && !motionReduced();
+    let snap = null;
+    if (soft && T?.paletteId !== currentPalette()) {
+      try {
+        snap = document.createElement("canvas");
+        snap.width = this.canvas.width; snap.height = this.canvas.height;
+        snap.getContext("2d").drawImage(this.canvas, 0, 0);
+        const r = this.canvas.getBoundingClientRect(), pr = this.canvas.offsetParent?.getBoundingClientRect() || { left: 0, top: 0 };
+        snap.style.cssText = `position:absolute;left:${r.left - pr.left}px;top:${r.top - pr.top}px;width:${r.width}px;height:${r.height}px;pointer-events:none;z-index:1`;
+      } catch (e) { snap = null; }
+    }
     if (!T?.setPalette || !T.setPalette(currentPalette())) return;
+    if (snap && this.canvas.offsetParent) {
+      this.canvas.offsetParent.appendChild(snap);
+      snap.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 1400, easing: "ease-in-out", fill: "forwards" }).onfinish = () => snap.remove();
+    }
     installSprite(T);
     this._applyThemeToPlayers();
     this._invalidateUI();

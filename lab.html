@@ -13,9 +13,12 @@
         var d = document.documentElement, t = "A";
         function palOf(ls) { // v0.85: same rule as manager.js effectivePalette() (Follow system: Night when the OS is dark)
           var p = ls.getItem("colonist.palette"), day = ls.getItem("colonist.dayPalette") === "vivid" || p === "vivid" ? "vivid" : "light";
-          if (p !== "vivid" && p !== "night") p = "light";
-          if (ls.getItem("colonist.paletteAuto") !== "on") return p;
-          return window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "night" : (p === "night" ? day : p);
+          if (p !== "vivid" && p !== "night" && p !== "dusk") p = "light";
+          var auto = ls.getItem("colonist.paletteAuto"), last = ls.getItem("colonist.autoPalette");
+          // v1.04 proposal: Auto · time of day paints the palette manager.js last computed (it corrects it at once if stale)
+          if (auto === "time") return last === "light" || last === "vivid" || last === "dusk" || last === "night" ? last : day;
+          if (auto !== "on") return p;
+          return window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "night" : day;
         }
         try { t = localStorage.getItem("colonist.theme") || "A"; d.dataset.palette = palOf(localStorage); } catch (e) { d.dataset.palette = "light"; }
         if (t !== "A" && t !== "B" && t !== "C" && t !== "classic") t = "A";
@@ -29,6 +32,7 @@
     <link rel="stylesheet" href="./themes/theme-classic.css?v=103" />
     <link rel="stylesheet" href="./themes/lab.css?v=103" />
     <link rel="stylesheet" href="./themes/sunny-night.css?v=103" />
+    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=104" />
   </head>
   <body class="lab" data-pane="analysis">
     <header class="lb-top">

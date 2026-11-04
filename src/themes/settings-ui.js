@@ -2,7 +2,7 @@
 // "Game" hosts the game controls from index.html (#settingsDrawer body, moved here so their
 // listeners stay intact): New game first, then sound and pace. The bot-autoplay controls live in
 // About › Developer. Look & feel: theme cards, Motion, quick toggle. Applies instantly.
-import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, paletteAuto, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
+import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, paletteAuto, paletteAutoMode, autoTimeInfo, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
 export const APP_VERSION = "1.03";
@@ -123,14 +123,23 @@ export class SettingsUI {
       body.innerHTML = this.head("Look &amp; feel", "Pick a world for your island. Board, cards, pieces and motion follow the theme. Applies instantly.") +
         `<div class="tcards">${THEME_ORDER.map((id) => card(THEMES[id])).join("")}</div>
         ${(() => {
-          // Light/Vivid/Night only exist for Sunny Island: in other themes they stay visible but disabled, with the reason.
-          // v0.85: the segment shows what is on screen (Follow system may show Night over your day pick).
-          const on = g.theme?.id === "A", cur = effectivePalette(), auto = paletteAuto();
-          const dayName = dayPalette() === "vivid" ? "Vivid" : "Light";
-          return `<div class="st-row${on ? "" : " st-row-off"}" style="margin-top:14px"><div><b>Colours</b><small>${on ? "Light is soft and airy · Vivid is bold · Night is calm and dark." : "Only for Sunny Island."}</small></div>
-          <div class="seg pal-seg" role="radiogroup" aria-label="Colours"${on ? "" : ` aria-disabled="true"`}>${[["light", "Light"], ["vivid", "Vivid"], ["night", "Night"]].map(([v, l]) => `<button type="button" data-palette="${v}" class="${cur === v ? "on" : ""}" aria-checked="${cur === v}" role="radio"${on ? "" : " disabled"}><i class="pal-dot pal-${v}"></i>${l}</button>`).join("")}</div></div>
-          <div class="st-row pal-auto${on ? "" : " st-row-off"}"><div><b id="palAutoLbl">Follow system</b><small>${on ? `Night when your device is in dark mode, otherwise ${dayName}.` : "Only for Sunny Island."}</small></div>
-          <button type="button" class="st-switch${auto ? " on" : ""}" role="switch" aria-checked="${auto}" aria-labelledby="palAutoLbl" data-pal-auto${on ? "" : " disabled"}><i></i></button></div>`;
+          // Palettes only exist for Sunny Island: in other themes they stay visible but disabled, with the reason.
+          // v1.04 proposal (dusk-104): Light · Vivid · Dusk · Night · Auto. Auto follows the time of day (default) or
+          // the device's dark mode; the line under it says what is on screen now and when it changes next.
+          const on = g.theme?.id === "A", mode = paletteAutoMode(), cur = mode ? "auto" : palettePref();
+          const shown = effectivePalette(), NAME = { light: "Light", vivid: "Vivid", dusk: "Dusk", night: "Night" };
+          const hm = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          let autoLine = "", autoMore = "";
+          if (mode === "time") {
+            const t = autoTimeInfo(), place = t.place.how === "zone" ? t.place.tz.split("/").pop().replace(/_/g, " ") : "your time zone";
+            const ne = t.edges?.find((e) => e[0] === t.next), nxt = ne ? ` · ${NAME[ne[1] === "day" ? dayPalette() : ne[1]]} from ${hm(ne[0])}` : "";
+            autoLine = `Now ${NAME[shown]}${nxt}`;
+            autoMore = `Sunrise ${t.sun.rise ? hm(t.sun.rise) : "–"}, sunset ${t.sun.set ? hm(t.sun.set) : "–"}, estimated for ${place} from your time zone; no location is used. The switch waits for the end of a turn and fades slowly.`;
+          } else if (mode === "system") { autoLine = `Now ${NAME[shown]}`; autoMore = `Night while your device is in dark mode, otherwise ${NAME[dayPalette()]}.`; }
+          return `<div class="st-row st-row-pal${on ? "" : " st-row-off"}" style="margin-top:14px"><div><b>Colours</b><small>${on ? "Light is soft · Vivid is bold · Dusk is golden hour · Night is calm and dark." : "Only for Sunny Island."}</small></div>
+          <div class="seg pal-seg pal-seg5" role="radiogroup" aria-label="Colours"${on ? "" : ` aria-disabled="true"`}>${[["light", "Light"], ["vivid", "Vivid"], ["dusk", "Dusk"], ["night", "Night"], ["auto", "Auto"]].map(([v, l]) => `<button type="button" data-palette="${v}" class="${cur === v ? "on" : ""}${mode && v === shown ? " shown" : ""}" aria-checked="${cur === v}" role="radio"${on ? "" : " disabled"}><i class="pal-dot pal-${v === "auto" ? "autodot" : v}"></i>${l}</button>`).join("")}</div></div>
+          ${mode && on ? `<div class="st-row st-row-pal pal-auto"><div><b>Auto follows<button type="button" class="pal-info" data-pal-info aria-label="More about Auto" aria-expanded="false">i</button></b><small>${autoLine}</small><small class="pal-more" hidden>${autoMore}</small></div>
+          <div class="seg" role="radiogroup" aria-label="Auto follows">${[["time", "Time of day"], ["system", "Device dark mode"]].map(([v, l]) => `<button type="button" data-pal-auto="${v}" class="${mode === v ? "on" : ""}" aria-checked="${mode === v}" role="radio">${l}</button>`).join("")}</div></div>` : ""}`;
         })()}
         <div class="st-row"><div><b>Motion</b><small>Reduced replaces travel and spin with short fades.</small></div>
           <div class="seg" role="radiogroup" aria-label="Motion">${[["full", "Full"], ["reduced", "Reduced"], ["system", "Follow system"]].map(([v, l]) => `<button type="button" data-motion="${v}" class="${m === v ? "on" : ""}" aria-checked="${m === v}" role="radio">${l}</button>`).join("")}</div></div>
@@ -139,8 +148,9 @@ export class SettingsUI {
         b.addEventListener("pointerenter", () => prefetchFonts(THEMES[b.dataset.themeId]));
         b.addEventListener("click", () => { g.setTheme(b.dataset.themeId); this.renderBody(); });
       });
-      body.querySelectorAll("button[data-palette]").forEach((b) => b.addEventListener("click", () => { setPalette(b.dataset.palette); g.requestBoardDraw(); this.renderBody(); }));
-      body.querySelector("[data-pal-auto]")?.addEventListener("click", () => { setPaletteAuto(!paletteAuto()); g.requestBoardDraw(); this.renderBody(); });
+      body.querySelectorAll("button[data-palette]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.palette === "auto") setPaletteAuto(paletteAutoMode() || "time"); else setPalette(b.dataset.palette); g.requestBoardDraw(); this.renderBody(); }));
+      body.querySelector("[data-pal-info]")?.addEventListener("click", (e) => { const m = body.querySelector(".pal-more"); m.hidden = !m.hidden; e.currentTarget.setAttribute("aria-expanded", String(!m.hidden)); });
+      body.querySelectorAll("[data-pal-auto]").forEach((b) => b.addEventListener("click", () => { setPaletteAuto(b.dataset.palAuto); g.requestBoardDraw(); this.renderBody(); }));
       body.querySelectorAll("[data-motion]").forEach((b) => b.addEventListener("click", () => { setMotionPref(b.dataset.motion); g.requestBoardDraw(); this.renderBody(); }));
       renderQuickToggle(body.querySelector("[data-qt]"), g, () => this.renderBody());
     }
