@@ -19,6 +19,22 @@ const DEV = { knight: "Knight", roadBuilding: "Road Building", yearOfPlenty: "Ye
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 const r4 = (v) => Math.round(v * 1e4) / 1e4;
 
+/** The best live move (mean) leads each other live move by more than z paired standard errors on >= nMin shared futures. */
+function earlyLead(alive, vals, z, nMin) {
+  const mean = (k) => { const v = vals[k].filter((x) => x != null); return v.reduce((a, b) => a + b, 0) / Math.max(1, v.length); };
+  let best = alive[0], bm = mean(best);
+  for (const k of alive) { const m = mean(k); if (m > bm) { best = k; bm = m; } }
+  for (const k of alive) {
+    if (k === best) continue;
+    const d = []; vals[best].forEach((v, j) => { const w = vals[k][j]; if (v != null && w != null) d.push(v - w); });
+    if (d.length < nMin) return false;
+    const m = d.reduce((a, b) => a + b, 0) / d.length;
+    const se = Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / (d.length - 1) / d.length);
+    if (!(m > z * se + 1e-9)) return false;
+  }
+  return true;
+}
+
 export function makeMaster(opts = {}) {
   const o = { ...MASTER_OPTS, ...opts };
   const stats = { decisions: 0, deviations: 0, ms: [], setupMs: [], robMs: [], mainMs: [], rollouts: 0, chose: {} };
@@ -89,16 +105,23 @@ export function makeMaster(opts = {}) {
       const R = o.noHalve ? 1 : Math.max(1, Math.ceil(Math.log2(K))); // o.noHalve: every candidate on every future (paired calibration)
       let j0 = 0;
       for (let r = 0; r < R && alive.length; r++) {
-        const per = Math.max(1, Math.floor((o.n / R) / alive.length));
+        const per = o.timeSlice ? 1e9 : Math.max(1, Math.floor((o.n / R) / alive.length));
         let j = j0;
+        // v1.09 experiment o.timeSlice: anytime search, the time budget split evenly over the halving rounds (a round ends at
+        // its slice, the next one starts; n is then only an upper bound)
+        const sliceEnd = o.timeSlice && o.timeMs ? t0 + o.timeMs * (r + 1) / R : Infinity;
         for (; j < j0 + per && used < o.n * 1.05; j++) {
           if (j >= 2 && now() > deadline) { stop = "time"; break; }
+          if (j >= j0 + 2 && now() > sliceEnd) break;
           for (const k of alive) { evalOne(k, j); used++; }
+          // v1.10 o.earlyZ ("Super Expert"): one move leads every other live move by more than earlyZ standard errors (paired,
+          // futures shared) after at least o.earlyMin futures: the rest of the time budget is not needed
+          if (o.earlyZ && (j + 1) >= (o.earlyMin || 40) && (j + 1) % 4 === 0 && alive.length >= 2 && earlyLead(alive, vals, o.earlyZ, o.earlyMin || 40)) { j += 1; stop = "early"; break; }
         }
         const rec = { j0, j1: j, alive: alive.slice(), out: [] };
         rounds.push(rec);
         j0 = j;
-        if (stop === "time") break;
+        if (stop === "time" || stop === "early") break;
         if (r < R - 1) {
           const mean = (k) => vals[k].reduce((a, b) => a + b, 0) / vals[k].length;
           const keep = Math.max(2, Math.ceil(alive.length / 2));
