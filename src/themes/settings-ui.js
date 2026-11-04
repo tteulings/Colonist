@@ -5,7 +5,7 @@
 import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, paletteAuto, paletteAutoMode, autoTimeInfo, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "1.10";
+export const APP_VERSION = "1.11";
 
 /** One line of real viewport numbers for bug reports (Settings › About). */
 function viewportDebug() {
@@ -110,7 +110,7 @@ export class SettingsUI {
       row.querySelector("button").addEventListener("click", (e) => { const b = e.currentTarget, on = b.getAttribute("aria-checked") !== "true"; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); try { localStorage.setItem("colonist_review_auto", on ? "on" : "off"); } catch (_) {} });
       body.appendChild(row);
     } else if (this.tab === "bots") {
-      body.innerHTML = this.head("Bot personalities", "How each bot plays. New games use the choices from the New game screen.");
+      body.innerHTML = this.head("Bot personalities", "");
       body.appendChild(this.botPane);
     } else if (this.tab === "about") {
       body.innerHTML = this.head("About", "") + `<p class="sub">Colonist ${"v" + APP_VERSION} — a settle-and-trade island game against friendly bots.</p>

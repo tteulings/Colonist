@@ -53,6 +53,21 @@ t("frames: every tier looks different (silver is a double band, shark has a fin,
   assert.ok(f("shark").includes("M56,12") && f("master").includes("L"));
   assert.ok(f("intermediate").length > f("beginner").length * 2);
 });
+t("preset cards: one lit card per bot (its own preset), a mix outlines the closest, all-bots differing lights none", () => {
+  const bots = [{ ...AI_PRESETS.intermediate }, { ...AI_PRESETS.shark }];
+  assert.equal(presetHighlight([bots[0]], AI_PRESETS, AXES).active, "intermediate");
+  assert.equal(presetHighlight([bots[1]], AI_PRESETS, AXES).active, "shark");
+  assert.equal(presetHighlight(bots, AI_PRESETS, AXES).mixed, true);
+  const picked = { ...bots[1] }; delete picked.policy; Object.assign(picked, AI_PRESETS.builder); // tapping a card
+  assert.equal(presetHighlight([picked], AI_PRESETS, AXES).active, "builder");
+});
+t("Settings › Bots wires one card per preset, a picked bot and the (i) sheet", () => {
+  const ui = fs.readFileSync(new URL("../src/bot-profile-ui.js", import.meta.url), "utf8");
+  const game = fs.readFileSync(new URL("../src/game.js", import.meta.url), "utf8");
+  assert.ok(ui.includes("export function presetCards") && ui.includes('openProfileSheet(game, { key: i.dataset.info })'));
+  assert.ok(game.includes("presetCards(this, Object.keys(AI_PRESETS)") && game.includes("this._botSel") && game.includes("DIAL_WORDS"));
+  for (const k of Object.keys(AI_PRESETS)) assert.ok(BOT_PROFILES[k].tagline && BOT_PROFILES[k].level >= 1, k);
+});
 for (const file of ["bot-profile-ui.js", "game.js", "six-ui.js"]) {
   const text = fs.readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   t(`${file} imports only files that exist`, () => {

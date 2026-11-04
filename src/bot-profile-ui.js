@@ -141,23 +141,54 @@ export function pickerExtras(key) {
   return `<span class="bp-pmini" aria-hidden="true">${profileMini(key, 20)}</span>${dots(p.level, "bp-pdots")}<span class="bp-pi" role="button" tabindex="0" data-info="${key}" aria-label="About the ${p.label} profile"><span aria-hidden="true">i</span></span>`;
 }
 
-/** Settings › Bots: "At this table", one row per bot. */
-export function tableList(game) {
+/** Settings › Bots: "At this table", one row per bot. Tap the row = pick that bot; (i) = its profile sheet. */
+export function tableList(game, { sel = null, onSelect = null } = {}) {
   const bots = game.players.filter((b) => b.strategy && !b.isHuman);
   if (!bots.length) return null;
   const box = document.createElement("div");
   box.className = "bt-table";
-  box.innerHTML = `<h4>At this table</h4>` + bots.map((b) => {
-    const pr = profileOf(game, b);
+  const prs = bots.map((b) => profileOf(game, b));
+  const same = prs.every((x) => !x.custom && x.key === prs[0].key);
+  box.innerHTML = `<h4>${same && bots.length > 1 ? `${bots.length} × ${P[prs[0].key].label}` : "At this table"}</h4>` + bots.map((b, n) => {
+    const pr = prs[n];
     const p = P[pr.key];
-    return `<button type="button" class="bt-bot pc-${b.id}" data-seat="${b.id}" aria-label="${esc(b.name)}: ${pr.custom ? "custom mix" : p.label}. Show profile">
+    const on = sel === b.id;
+    return `<div class="bt-row${on ? " sel" : ""}"><button type="button" class="bt-bot pc-${b.id}" data-seat="${b.id}" aria-pressed="${on}" aria-label="${esc(b.name)}: ${pr.custom ? "custom mix" : p.label}. Pick this bot">
       <span class="bt-av">${framedAvatar(game, b)}</span>
-      <span class="bt-txt"><span class="nm">${esc(b.name)}</span><span class="pf"><b>${pr.custom ? "Custom" : p.label}</b> · ${pr.custom ? `like ${p.label}` : p.tagline}</span></span>
-      <span class="chev" aria-hidden="true">›</span></button>`;
+      <span class="bt-txt"><span class="nm">${esc(b.name)}</span><span class="pf"><span class="bt-em">${profileMini(pr.key, 18)}</span><b>${pr.custom ? "Custom" : p.label}</b>${pr.custom ? `<small>like ${p.label}</small>` : ""}${dots(p.level, "bp-dots bs-dots")}</span></span></button>
+      <button type="button" class="bt-info" data-info-seat="${b.id}" aria-label="${esc(b.name)}: profile"><span aria-hidden="true">i</span></button></div>`;
   }).join("");
   box.addEventListener("click", (e) => {
+    const i = e.target.closest(".bt-info");
+    if (i) return openProfileSheet(game, { player: game.players[Number(i.dataset.infoSeat)] });
     const t = e.target.closest(".bt-bot");
-    if (t) openProfileSheet(game, { player: game.players[Number(t.dataset.seat)] });
+    if (t) { if (onSelect) onSelect(Number(t.dataset.seat)); else openProfileSheet(game, { player: game.players[Number(t.dataset.seat)] }); }
+  });
+  return box;
+}
+
+/**
+ * Settings › Bots: the preset cards (2 columns). `hl` is presetHighlight() of the bots being edited;
+ * the lit card is hl.active, a hand-tuned mix outlines its closest preset. onPick(key) applies, (i) opens the sheet.
+ */
+export function presetCards(game, keys, hl, onPick) {
+  const box = document.createElement("div");
+  box.className = "bs-grid";
+  box.innerHTML = keys.map((k) => {
+    const p = P[k];
+    const on = hl.active === k, near = hl.active === "custom" && hl.closest === k;
+    return `<div class="bs-cell"><button type="button" class="bs-card${on ? " on" : ""}${near ? " near" : ""}" data-preset="${k}" aria-pressed="${on}" aria-label="${p.label}, strength ${p.level} of 5, ${p.tagline}">
+      <span class="bs-art">${profileArt(k, 56)}</span>
+      <span class="bs-nm">${p.label}${on ? `<span class="bs-ck" aria-hidden="true">✓</span>` : ""}</span>
+      ${dots(p.level, "bp-dots bs-dots")}
+      <span class="bs-tag">${p.tagline}</span></button>
+      <button type="button" class="bs-i" data-info="${k}" aria-label="About the ${p.label} profile"><span aria-hidden="true">i</span></button></div>`;
+  }).join("");
+  box.addEventListener("click", (e) => {
+    const i = e.target.closest(".bs-i");
+    if (i) return openProfileSheet(game, { key: i.dataset.info });
+    const c = e.target.closest(".bs-card");
+    if (c) onPick(c.dataset.preset);
   });
   return box;
 }

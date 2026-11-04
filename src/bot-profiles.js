@@ -87,7 +87,7 @@ export const BOT_PROFILES = {
     cards: "Strategic: builds toward Largest Army, saves Monopoly for a big haul.",
   },
   master: {
-    label: "Master", tagline: "Expert + searches 100 futures", level: 5, win: null, acc: 91,
+    label: "Master", tagline: "Expert + looks ahead", level: 5, win: null, acc: 91,
     style: "Plays like the Expert, but before each set-up spot, build step and robber move it plays out about 100 possible futures (up to half a second) and picks what wins most.",
     good: "Strongest bot: in the same seat it wins 8.4 percentage points more often than an Expert (±5.4, 500 games against 3 Experts).",
     weak: "Player trades are the Expert's own. In Seafarers, Rush and 5–6 player games it plays exactly like the Expert.",
