@@ -875,6 +875,13 @@ main.table-layout {
 .ai-strat-preset-btn.active {
   box-shadow: 0 0 0 2px rgba(25, 160, 184, 0.5) inset;
 }
+/* v1.04: the lit preset must read at a glance in every theme (the old inset ring was lost under the theme buttons) */
+.ai-strategy-panel .ai-strat-presets .ai-strat-preset-btn.active {
+  background: var(--brand-ink, #1F6E77); border-color: var(--brand-ink, #1F6E77); color: var(--sheet, #fff); box-shadow: none;
+}
+[data-theme="classic"] .ai-strategy-panel .ai-strat-presets .ai-strat-preset-btn.active { background: var(--heading, #1a3a52); border-color: var(--heading, #1a3a52); color: #fff; }
+.ai-strategy-panel .ai-strat-presets .ai-strat-preset-btn.active::before { content: "\2713\00a0"; font-weight: 900; }
+.ai-strat-presets .ai-strat-custom { flex-basis: 100%; margin: 2px 0 0; padding: 0; font-size: 12.5px; }
 
 .ai-strat-apply-all {
   display: flex;

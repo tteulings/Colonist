@@ -345,3 +345,17 @@
 [data-theme="A"][data-palette="vivid"] .app .hand .card.dev { --cnt-ink: #17434A; }
 [data-theme="A"][data-palette="vivid"][data-hand-counts="stack"] .app .hand .card.dev .rib b { color: #17434A; }
 [data-theme="A"][data-palette="vivid"] .hand .swipe { color: #17434A; }
+/* v1.04 proposal (dusk-104): Dusk + Auto swatches; a five-way Colours segment that fits a 360 px phone */
+.pal-dusk { background: conic-gradient(#3A4374 0 50%, #9A7E9C 0 75%, #FF9E5E 0); }
+.pal-autodot { background: conic-gradient(from -90deg, #6ACBC3 0 33%, #FF9E5E 0 66%, #123E4A 0); }
+.tm-settings .st-row-pal { flex-wrap: wrap; }
+.tm-settings .pal-seg5 { display: grid; grid-template-columns: repeat(5, 1fr); width: 100%; }
+.tm-settings .pal-seg5 button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 2px 6px; font-size: 12.5px; min-width: 0; }
+.tm-settings .pal-seg5 .pal-dot { margin: 0; width: 16px; height: 16px; }
+.tm-settings .pal-seg5 button.shown:not(.on) .pal-dot { box-shadow: 0 0 0 2px var(--accent); }
+.tm-settings .st-row-pal > div:first-child { flex: 1 1 100%; }
+.tm-settings .pal-auto .seg { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+.tm-settings .pal-info { margin-left: 6px; width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 1.5px solid var(--ink-soft); background: none; color: var(--ink-soft); font: italic 700 12px/1 var(--font-body); vertical-align: 1px; cursor: pointer; }
+.tm-settings .pal-info[aria-expanded="true"] { background: var(--ink-soft); color: var(--panel); }
+.tm-settings .pal-more { margin-top: 6px; }
+.tm-settings .pal-more[hidden] { display: none; }

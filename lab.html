@@ -13,22 +13,26 @@
         var d = document.documentElement, t = "A";
         function palOf(ls) { // v0.85: same rule as manager.js effectivePalette() (Follow system: Night when the OS is dark)
           var p = ls.getItem("colonist.palette"), day = ls.getItem("colonist.dayPalette") === "vivid" || p === "vivid" ? "vivid" : "light";
-          if (p !== "vivid" && p !== "night") p = "light";
-          if (ls.getItem("colonist.paletteAuto") !== "on") return p;
-          return window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "night" : (p === "night" ? day : p);
+          if (p !== "vivid" && p !== "night" && p !== "dusk") p = "light";
+          var auto = ls.getItem("colonist.paletteAuto"), last = ls.getItem("colonist.autoPalette");
+          // v1.04 proposal: Auto · time of day paints the palette manager.js last computed (it corrects it at once if stale)
+          if (auto === "time") return last === "light" || last === "vivid" || last === "dusk" || last === "night" ? last : day;
+          if (auto !== "on") return p;
+          return window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "night" : day;
         }
         try { t = localStorage.getItem("colonist.theme") || "A"; d.dataset.palette = palOf(localStorage); } catch (e) { d.dataset.palette = "light"; }
         if (t !== "A" && t !== "B" && t !== "C" && t !== "classic") t = "A";
         d.dataset.theme = t;
       })();
     </script>
-    <link rel="stylesheet" href="./themes/base.css?v=104" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=104" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=104" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=104" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=104" />
-    <link rel="stylesheet" href="./themes/lab.css?v=104" />
-    <link rel="stylesheet" href="./themes/sunny-night.css?v=104" />
+    <link rel="stylesheet" href="./themes/base.css?v=105" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=105" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=105" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=105" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=105" />
+    <link rel="stylesheet" href="./themes/lab.css?v=105" />
+    <link rel="stylesheet" href="./themes/sunny-night.css?v=105" />
+    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=105" />
   </head>
   <body class="lab" data-pane="analysis">
     <header class="lb-top">
@@ -108,6 +112,6 @@
         </div>
     </dialog>
     <iframe id="labSim" title="Quick games" hidden tabindex="-1"></iframe>
-    <script type="module" src="./src/lab.js?v=104"></script>
+    <script type="module" src="./src/lab.js?v=105"></script>
   </body>
 </html>

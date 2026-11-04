@@ -1,4 +1,4 @@
-import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced, SEAT_PRESETS, awardStat } from "./themes/manager.js";
+import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced, SEAT_PRESETS, awardStat, paletteTick } from "./themes/manager.js";
 import { SvgBoardRenderer, drawSpec, PIECE_GROW, PIECE_OUTLINE_PX, PIECE_HALO_PX, pieceHalo, outlined } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
@@ -18,6 +18,8 @@ import { ReviewGameMixin, installReviewGame } from "./review-game.js"; // v1.03 
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
+import { presetHighlight } from "./bot-profiles.js"; // v1.04 Settings › Bots: which preset chip is lit
+import { framedAvatar, profileLabel, profileOf, openProfileSheet, pickerExtras, tableList } from "./bot-profile-ui.js"; // v1.04 bot profile frames + sheet
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
@@ -25,7 +27,7 @@ import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS, SHIP_
 
 const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 /** Sunny Island colour palette from <html data-palette> (default light; v0.85: + night). */
-const currentPalette = () => { const p = document.documentElement.dataset.palette; return p === "vivid" || p === "night" ? p : "light"; };
+const currentPalette = () => { const p = document.documentElement.dataset.palette; return p === "vivid" || p === "night" || p === "dusk" ? p : "light"; };
 const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore: "Or" };
 // Glossary names (shared/glossary.md): cards are Lumber / Brick / Wool / Grain / Ore
 const RESOURCE_LABEL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
@@ -4492,6 +4494,7 @@ class ColonistFullGame {
       const picks = this.chooseYearOfPlentyResources(player);
       const gained = picks.filter((resource) => this.takeFromBank(player, resource, 1) > 0);
       this.addLog(`${player.name} played Year of Plenty: ${this._plusList(gained)}.`);
+      this.fx?.yearOfPlenty?.(player.id, gained);
     } else if (type === "monopoly") {
       if (this._isInteractive(player)) {
         this.devPick = { type: "monopoly", count: 1, picks: [] };
@@ -4508,6 +4511,7 @@ class ColonistFullGame {
       player.resources[target] += collected;
       this._aiTrkMonopoly(player, target, collected);
       this.addLog(`${player.name} played Monopoly: +${collected} ${RESOURCE_LABEL[target]}.`);
+      this.fx?.monopoly?.(player.id, target, collected);
     }
 
     this.recomputeScores();
@@ -5859,6 +5863,7 @@ class ColonistFullGame {
   }
 
   endTurn() {
+    window.setTimeout(() => this._palCalmTick(), 0); // v1.04 proposal: Auto · time of day switches between turns
     if (this.winner) return;
     const player = this.currentPlayer;
     DEV_CARD_TYPES.forEach((type) => {
@@ -6127,6 +6132,7 @@ class ColonistFullGame {
       this.sea.onNewTurn();
       this.players.forEach((p) => { if (this.sea.goldFor(p.id)) this.sea.autoGold(p); });
     }
+    this._palCalmTick(); // v1.04 proposal: in Rush, Auto · time of day switches on a roll
     this.addLog(`Roll #${r.rollNo}: rolled ${res.total}.`);
     this.fx?.diceRoll(res.d1, res.d2);
     this.sfx.diceRoll();
@@ -8315,6 +8321,11 @@ class ColonistFullGame {
     pop.style.setProperty("--ax", `${Math.round(r.left + r.width / 2 - pr.left)}px`);
   }
 
+  /** The preset a hand-tuned bot is closest to (profile sheet, "Custom · like X"). */
+  _closestPreset(strategy) {
+    return presetHighlight([strategy], AI_PRESETS, Object.keys(AI_STRATEGY_CATEGORIES)).closest;
+  }
+
   renderScoreboard() {
     // Build a key from all visible data — skip re-render if unchanged (preserves tooltip)
     const readyIds = this.rush && !this.setupPhase ? this.rush.ready : null;
@@ -8363,9 +8374,9 @@ class ColonistFullGame {
       const isleChip = isles ? `<span class="isle-chip" title="New islands: ${isles} (+${this.sea.bonusVP(player)} points)">${icon("island")}<b>${isles}</b></span>` : "";
       // ⚓ v0.86: at sea (first to 14) your own badge carries the goal: "3/14"; the others stay plain
       const goal = this.sea && player === this._me() && this._seesPrivate(player) ? `<span class="vgoal">/${this.winPoints}</span>` : "";
-      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points${goal ? ` of ${this.winPoints}` : ""}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
-        <div class="row">${this._av(player)}<div class="vpn${goal ? " goal" : ""}">${vp}${goal}<small>PTS</small></div></div>
-        <div class="pn">${player.short || player.name}</div>${player.isHuman ? "" : personaBadge}
+      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points${goal ? ` of ${this.winPoints}` : ""}${profileLabel(this, player)}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
+        <div class="row">${framedAvatar(this, player)}<div class="vpn${goal ? " goal" : ""}">${vp}${goal}<small>PTS</small></div></div>
+        <div class="pn">${player.short || player.name}</div>
         <div class="pcards">${stats[0]}</div>
         <div class="mini${miniStats.length > 2 ? " dense" : ""}">${miniStats.join("")}</div>${isleChip}</div>`);
     });
@@ -8388,6 +8399,12 @@ class ColonistFullGame {
       }
       el.addEventListener("click", (e) => {
         e.stopPropagation();
+        // v1.04: a tap on a bot's chip opens its profile sheet (the points number still shows the VP breakdown)
+        if (el.classList.contains("pchip") && profileOf(this, player) && !e.target.closest(".vpn, .sx-vp")) {
+          this._hideVPTooltip();
+          openProfileSheet(this, { player });
+          return;
+        }
         if (document.getElementById("vpTooltip")) { this._hideVPTooltip(); return; }
         this._showVPTooltip(player, el);
         const dismiss = () => { this._hideVPTooltip(); document.removeEventListener("click", dismiss); };
@@ -8498,7 +8515,13 @@ class ColonistFullGame {
         // Right after your roll the line is about YOU, not the last bot that collected
         line = [this._enrichLogText(own), "dice"];
       } else if (real) {
-        const t = real.text.replace(/^Turn \d+: /, "").replace(/^Roll #\d+: rolled/, "Dice rolled");
+        // v1.04: the dice chip owns the total. Rush: "Roll: +1 Brick" / "Roll: nothing for you", Classic bot: "Blaauw rolled."
+        let t = real.text.replace(/^Turn \d+: /, "").replace(/ rolled \d+\./, " rolled.");
+        const rm = /^Roll #(\d+): rolled \d+\.?$/.exec(real.text);
+        if (rm) {
+          const at = this.logEntries.indexOf(real), mine = this.logEntries.slice(at + 1).map((e) => /^You collect (.+)\.$/.exec(e.text)).find(Boolean);
+          t = `Roll: ${mine ? mine[1].split(", ").map((x) => `+${x}`).join(" · ") : "nothing for you"}`;
+        }
         line = [this._enrichLogText(t), this._logIcon(real.text)];
       } else if (this.currentPlayer && !this.winner) {
         const cp = this.currentPlayer;
@@ -8531,7 +8554,7 @@ class ColonistFullGame {
     if (this.tickerIcon) this.tickerIcon.innerHTML = icon(ic);
   }
 
-  /** "You rolled 8 · +1 Lumber" while nothing but the payout has happened since your roll. */
+  /** "Roll: +1 Lumber" (the dice chip shows the total) while nothing but the payout has happened since your roll. */
   _ownRollSummary() {
     const L = this.logEntries;
     let i = L.length - 1;
@@ -8540,8 +8563,8 @@ class ColonistFullGame {
     const m = i >= 0 ? /^Turn \d+: You rolled (\d+)\.$/.exec(L[i].text) : null;
     if (!m || m[1] === "7") return "";
     const mine = L.slice(i + 1).map((e) => /^You collect (.+)\.$/.exec(e.text)).find(Boolean);
-    const gain = mine ? mine[1].split(", ").map((p) => `+${p}`).join(" · ") : "nothing for you this time";
-    return `You rolled ${m[1]} · ${gain}`;
+    const gain = mine ? mine[1].split(", ").map((p) => `+${p}`).join(" · ") : "nothing for you";
+    return `Roll: ${gain}`;
   }
 
   renderStatusAndControls() {
@@ -9031,7 +9054,7 @@ class ColonistFullGame {
       const sel = !human && d.botStyleMode === "each" ? `
         <select class="ng-bot-select" data-bot="${id - 1}" aria-label="${esc(cfg.name)} personality">
           ${Object.keys(AI_PRESETS).map((key) => `<option value="${key}"${d.perBot[id - 1] === key ? " selected" : ""}>${presetLabel(key)}</option>`).join("")}
-        </select>` : "";
+        </select><button type="button" class="bp-info" data-info="${d.perBot[id - 1]}" aria-label="About the ${presetLabel(d.perBot[id - 1])} profile">i</button>` : "";
       return `<div class="hs-seat pc-${id}">${avatarSvg(id, "ng-bot-avatar")}<div class="hs-seat-main">${main}</div>${kind}${sel}</div>`;
     }).join("");
 
@@ -9152,7 +9175,7 @@ class ColonistFullGame {
                     return `<button type="button" class="ng-preset${d.allPreset === key ? " selected" : ""}" data-preset="${key}" aria-pressed="${d.allPreset === key}">
                       <span class="ng-preset-name">${info.label}</span>
                       <span class="ng-preset-tag">${info.tagline}</span>
-                      ${info.isNew ? '<span class="ng-new">New</span>' : ""}
+                      ${pickerExtras(key)}
                     </button>`;
                   }).join("")}
                 </div>
@@ -9187,7 +9210,10 @@ class ColonistFullGame {
     const wire = () => {
       const card = overlay.querySelector(".ng-card");
       overlay.querySelector(".ng-finetune")?.addEventListener("toggle", (e) => { fineTuneOpen = e.target.open; });
+      const info = (e) => { const i = e.target.closest("[data-info]"); if (!i) return false; e.preventDefault(); e.stopPropagation(); openProfileSheet(this, { key: i.dataset.info }); return true; };
+      card.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && info(e)) e.stopImmediatePropagation(); });
       card.addEventListener("click", (e) => {
+        if (info(e)) return;
         const t = e.target.closest("button");
         if (!t || !card.contains(t)) return;
         let changed = true;
@@ -9273,23 +9299,48 @@ class ColonistFullGame {
 
     panel.innerHTML = "";
 
-    // Presets row
-    const presetRow = document.createElement("div");
-    presetRow.className = "ai-strat-presets";
-    Object.entries(AI_PRESETS).forEach(([name, preset]) => {
-      const btn = document.createElement("button");
-      btn.className = "ai-strat-preset-btn btn-neutral";
-      btn.textContent = AI_PRESET_INFO[name].label;
-      btn.addEventListener("click", () => {
-        this.players.forEach(p => {
-          if (p.strategy) { delete p.strategy.policy; Object.assign(p.strategy, preset); }
+    // Presets row: one for all bots (Apply to all) or one per bot. v1.04: the chip of the preset the bots match
+    // is lit (it never was: the .active style existed but nothing set it); a hand-tuned mix reads "Custom ·
+    // closest to X", and bots that differ say so instead of lighting a chip.
+    const axes = Object.keys(AI_STRATEGY_CATEGORIES);
+    const presetRow = (bots) => {
+      const row = document.createElement("div");
+      row.className = "ai-strat-presets";
+      const hl = presetHighlight(bots.map((p) => p.strategy), AI_PRESETS, axes);
+      Object.entries(AI_PRESETS).forEach(([name, preset]) => {
+        const btn = document.createElement("button");
+        const on = hl.active === name;
+        btn.className = `ai-strat-preset-btn btn-neutral${on ? " active" : ""}`;
+        btn.setAttribute("aria-pressed", String(on));
+        btn.dataset.preset = name;
+        btn.textContent = AI_PRESET_INFO[name].label;
+        btn.addEventListener("click", () => {
+          bots.forEach((p) => { delete p.strategy.policy; Object.assign(p.strategy, preset); });
+          this._saveStrategies();
+          this._buildStrategyUI();
         });
-        this._saveStrategies();
-        this._buildStrategyUI();
+        row.appendChild(btn);
       });
-      presetRow.appendChild(btn);
-    });
-    panel.appendChild(presetRow);
+      if (hl.active === "custom" || hl.mixed) {
+        const note = document.createElement("p");
+        note.className = "ai-strat-hint ai-strat-custom";
+        note.textContent = hl.mixed ? "These bots play differently: untick Apply to all bots to see each one."
+          : `Custom mix · closest to ${AI_PRESET_INFO[hl.closest]?.label || "a preset"}`;
+        row.appendChild(note);
+      }
+      return row;
+    };
+    const allBots = this.players.filter((p) => p.strategy);
+    // v1.04: who is at the table and how each one plays, before the editor
+    const table = tableList(this);
+    if (table) {
+      panel.appendChild(table);
+      const h = document.createElement("h4");
+      h.className = "bt-edit-h";
+      h.textContent = "Change how they play";
+      panel.appendChild(h);
+    }
+    if (this._applyAllStrategies) panel.appendChild(presetRow(allBots));
 
     // Apply-all toggle
     const applyRow = document.createElement("label");
@@ -9318,6 +9369,7 @@ class ColonistFullGame {
         header.className = "ai-strat-player-header";
         header.innerHTML = `${this._av(bot)}<span class="who pc-${bot.id}">${bot.name}</span>`;
         section.appendChild(header);
+        section.appendChild(presetRow([bot]));
       }
 
       Object.entries(AI_STRATEGY_CATEGORIES).forEach(([key, cat]) => {
@@ -9350,6 +9402,7 @@ class ColonistFullGame {
           }
           hint.textContent = cat.descriptions?.[sel.value] || "";
           this._saveStrategies();
+          this._buildStrategyUI(); // the lit preset chip follows the dials
         });
         row.appendChild(label);
         row.appendChild(sel);
@@ -9780,7 +9833,13 @@ class ColonistFullGame {
     // Sunny Island colour palette (<html data-palette="light|vivid">): re-bake the board in place
     document.addEventListener("colonist:palette", () => this._applyPalette());
     new MutationObserver(() => this._applyPalette()).observe(document.documentElement, { attributes: true, attributeFilter: ["data-palette"] });
+    // v1.04 proposal (dusk-104): Auto · time of day never switches while you are mid-move — not during your own build /
+    // trade phase, a placement, the robber, or in Rush (there it waits for the next roll). Turn changes and Rush rolls
+    // call _palCalmTick(); the minute timer covers the home screen and bot turns.
+    window.__colonistPaletteGate = () => this._palForce || (!this.isRush?.() && !this.pendingAction && !this.confirmBuild && !this.setupPhase && !(this.currentPlayer?.isHuman && this.phase === "main") && !this._robberInProgress?.());
   }
+
+  _palCalmTick() { this._palForce = true; try { paletteTick(); } finally { this._palForce = false; } }
 
   /** Bottom sheets (trade, journal, settings): drag the top edge down to dismiss, like the grabber says. */
   _bindSheetSwipe() {
@@ -9825,7 +9884,23 @@ class ColonistFullGame {
 
   _applyPalette() {
     const T = this.theme;
+    // v1.04 proposal: a soft (Auto) switch fades a snapshot of the old board out over the re-baked one
+    const soft = document.documentElement.classList.contains("pal-fade") && this.canvas?.width && !motionReduced();
+    let snap = null;
+    if (soft && T?.paletteId !== currentPalette()) {
+      try {
+        snap = document.createElement("canvas");
+        snap.width = this.canvas.width; snap.height = this.canvas.height;
+        snap.getContext("2d").drawImage(this.canvas, 0, 0);
+        const r = this.canvas.getBoundingClientRect(), pr = this.canvas.offsetParent?.getBoundingClientRect() || { left: 0, top: 0 };
+        snap.style.cssText = `position:absolute;left:${r.left - pr.left}px;top:${r.top - pr.top}px;width:${r.width}px;height:${r.height}px;pointer-events:none;z-index:1`;
+      } catch (e) { snap = null; }
+    }
     if (!T?.setPalette || !T.setPalette(currentPalette())) return;
+    if (snap && this.canvas.offsetParent) {
+      this.canvas.offsetParent.appendChild(snap);
+      snap.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 1400, easing: "ease-in-out", fill: "forwards" }).onfinish = () => snap.remove();
+    }
     installSprite(T);
     this._applyThemeToPlayers();
     this._invalidateUI();
@@ -10246,8 +10321,7 @@ class ColonistFullGame {
     if (dp.type === "yearOfPlenty") {
       const gained = dp.picks.filter((resource) => this.takeFromBank(player, resource, 1) > 0);
       this.addLog(`${player.name} played Year of Plenty: ${this._plusList(gained)}.`);
-      const gain = gained.reduce((o, r) => { o[r] = (o[r] || 0) + 1; return o; }, {});
-      this.fx?.flyResources?.(this.players.map((p) => (p === player ? gain : {})), null);
+      this.fx?.yearOfPlenty?.(player.id, gained);
       this.sfx.trade?.();
       if (!this.confirmPlacements) this._setUndo({ kind: "yop", pid: player.id, picks: gained, logs: this.logEntries.slice(logLen), icon: "devcard", label: `Took ${gained.map((r) => RESOURCE_LABEL[r]).join(" + ")}` });
     } else {
@@ -10261,6 +10335,7 @@ class ColonistFullGame {
       player.resources[target] += collected;
       this._aiTrkMonopoly(player, target, collected);
       this.addLog(`${player.name} played Monopoly: +${collected} ${RESOURCE_LABEL[target]}.`);
+      this.fx?.monopoly?.(player.id, target, collected);
       this.sfx.trade?.();
     }
     this.recomputeScores();
