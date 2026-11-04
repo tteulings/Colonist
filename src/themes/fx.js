@@ -400,4 +400,53 @@ export class Fx {
       this.flyPublic(res, center(a), pid, 120 + i * 110, i === n - 1 ? collected : 0);
     }
   }
+  // ── Road Building: each free road / ship draws on along its edge with a small "free" tag ──
+  /** pid placed a free road (or ship) on edge `edgeId`; `idx` staggers the 2nd piece of a bot's play. ~520 ms, purely visual. */
+  freeRoad(pid, edgeId, idx = 0, ship = false) {
+    const g = this.game, e = g.geometry?.edges?.[edgeId], br = rect(g.canvas);
+    if (!e || !br || !br.width || !g.view) return;
+    const [a, b] = e.nodes.map((n) => g.worldToScreen(g.geometry.nodes[n].x, g.geometry.nodes[n].y));
+    const kx = br.width / (g.boardWidth || br.width), ky = br.height / (g.boardHeight || br.height);
+    const x1 = br.left + a.x * kx, y1 = br.top + a.y * ky, x2 = br.left + b.x * kx, y2 = br.top + b.y * ky;
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    if (mx < br.left || mx > br.right || my < br.top || my > br.bottom) return;
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+    const col = g.players[pid]?.color || "#5ab8d8";
+    const lw = Math.max(4, g.geometry.hexSize * g.view.scale * kx * 0.17);
+    const delay = idx * 280, red = this.reduced;
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("class", "fx-actor fx-freeroad");
+    svg.setAttribute("width", innerWidth); svg.setAttribute("height", innerHeight);
+    svg.style.cssText = "position:fixed;left:0;top:0;pointer-events:none;overflow:visible";
+    const mk = (stroke, w, op) => {
+      const l = document.createElementNS(NS, "line");
+      l.setAttribute("x1", x1); l.setAttribute("y1", y1); l.setAttribute("x2", x2); l.setAttribute("y2", y2);
+      l.setAttribute("stroke", stroke); l.setAttribute("stroke-width", w); l.setAttribute("stroke-linecap", "round");
+      l.setAttribute("opacity", op); svg.appendChild(l); return l;
+    };
+    const glow = mk("#fff6d8", lw * 2.1, 0), line = mk(col, lw * 1.25, 0);
+    line.setAttribute("stroke-dasharray", `${len} ${len}`);
+    this.layer.appendChild(svg);
+    const tag = this.actor(`<span style="display:block;font:800 ${ship ? 10 : 11}px/1 system-ui,sans-serif;letter-spacing:.08em;padding:3px 7px;border-radius:99px;background:#fff6d8;color:#5a4410;border:1.5px solid ${col};box-shadow:0 2px 6px rgba(0,0,0,.3);white-space:nowrap">FREE</span>`, mx, my - lw * 2.2 - 10, 0, "fx-freetag");
+    tag.style.transform = "translate(-50%,-50%)"; tag.style.pointerEvents = "none"; tag.style.opacity = 0;
+    const o = (d) => ({ fill: "both", delay: delay * (red ? 0.2 : this.M.k), duration: d });
+    if (red) {
+      line.animate([{ opacity: 0 }, { opacity: 1 }], o(220));
+      tag.animate([{ opacity: 0 }, { opacity: 1, offset: 0.3 }, { opacity: 1 }], { ...o(900), fill: "both" });
+      window.setTimeout(() => { svg.remove(); tag.remove(); }, delay * 0.2 + 1000);
+      return;
+    }
+    const k = this.M.k;
+    line.animate([{ strokeDashoffset: len, opacity: 1 }, { strokeDashoffset: 0, opacity: 1 }], { ...o(460 * k), easing: this.M.inOut });
+    line.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { ...o(1500 * k), delay: (delay + 0) * k });
+    glow.animate([{ opacity: 0 }, { opacity: 0.85, offset: 0.55 }, { opacity: 0 }], o(700 * k));
+    svg.animate([{ transform: "scale(1)", transformOrigin: `${mx}px ${my}px` }, { transform: "scale(1.06)", transformOrigin: `${mx}px ${my}px`, offset: 0.7 }, { transform: "scale(1)", transformOrigin: `${mx}px ${my}px` }], { ...o(520 * k), easing: this.M.pop });
+    tag.animate([
+      { opacity: 0, transform: "translate(-50%,-30%) scale(.5)" },
+      { opacity: 1, transform: "translate(-50%,-50%) scale(1.1)", offset: 0.25 },
+      { opacity: 1, transform: "translate(-50%,-70%) scale(1)", offset: 0.7 },
+      { opacity: 0, transform: "translate(-50%,-110%) scale(1)" }], { ...o(1100 * k), delay: (delay + 180) * k });
+    window.setTimeout(() => { svg.remove(); tag.remove(); }, (delay + 1400) * k + 100);
+  }
 }

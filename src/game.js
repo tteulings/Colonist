@@ -2227,6 +2227,7 @@ class ColonistFullGame {
           this.freeRoadsRemaining -= 1;
           if (this.freeRoadsRemaining > 0 && !this._hasLegalRoad(player, true)) this.freeRoadsRemaining = 0;
           this.addLog(`${player.name} placed a free ship (${this.freeRoadsRemaining} remaining).`);
+          this.fx?.freeRoad?.(player.id, cb.id, 0, true);
         }
         this.sfx.buildRoad();
         built = true;
@@ -2240,6 +2241,7 @@ class ColonistFullGame {
           // No pieces or legal spots left — forfeit the remaining free road
           if (this.freeRoadsRemaining > 0 && !this._hasLegalRoad(player, true)) this.freeRoadsRemaining = 0;
           this.addLog(`${player.name} placed a free road (${this.freeRoadsRemaining} remaining).`);
+          this.fx?.freeRoad?.(player.id, cb.id, 0, false);
         }
         if (!isFreeRoad) this.addLog(`${player.name} built a road.`);
         this.sfx.buildRoad();
@@ -4482,12 +4484,12 @@ class ColonistFullGame {
         if (this.sea) { // ⚓ Seafarers: 2 roads, 2 ships or one of each (rulebook p. 5 §8)
           const pc = this.sea.aiFreePiece(player);
           if (!pc) break;
-          if (pc.type === "ship" ? this.sea.placeShip(player, pc.id, { free: true }) : this.placeRoad(player, pc.id, { free: true })) built += 1;
+          if (pc.type === "ship" ? this.sea.placeShip(player, pc.id, { free: true }) : this.placeRoad(player, pc.id, { free: true })) { built += 1; this.fx?.freeRoad?.(player.id, pc.id, i, pc.type === "ship"); }
           continue;
         }
         const edgeId = this.chooseStrategicRoadEdge(player, true);
         if (edgeId == null) break;
-        if (this.placeRoad(player, edgeId, { free: true })) built += 1;
+        if (this.placeRoad(player, edgeId, { free: true })) { built += 1; this.fx?.freeRoad?.(player.id, edgeId, i, false); }
       }
       this.addLog(`${player.name} played Road Building and placed ${built} ${this.sea ? "piece" : "road"}(s).`);
     } else if (type === "yearOfPlenty") {
