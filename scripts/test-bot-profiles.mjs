@@ -68,6 +68,22 @@ t("Settings › Bots wires one card per preset, a picked bot and the (i) sheet",
   assert.ok(game.includes("presetCards(this, Object.keys(AI_PRESETS)") && game.includes("this._botSel") && game.includes("DIAL_WORDS"));
   for (const k of Object.keys(AI_PRESETS)) assert.ok(BOT_PROFILES[k].tagline && BOT_PROFILES[k].level >= 1, k);
 });
+t("Super Expert: own policy, own chip, a 6th mark, no win figure, two-star frame, art < 3 KB", () => {
+  assert.equal(AI_PRESETS.super.policy, "super");
+  assert.equal(presetHighlight([{ ...AI_PRESETS.super }], AI_PRESETS, AXES).active, "super");
+  assert.equal(presetHighlight([{ ...AI_PRESETS.master }], AI_PRESETS, AXES).active, "master"); // same dials, other policy
+  const p = BOT_PROFILES.super;
+  assert.equal(p.win, null); assert.equal(p.level, 5); assert.ok(p.beyond);
+  assert.match(p.weak, /Seafarers, Rush and 5.6 player/); assert.match(p.weak, /3 seconds/);
+  assert.ok(profileArt("super", 132).length < 3072);
+  assert.notEqual(levelFrame("super"), levelFrame("master"));
+  assert.ok((levelFrame("super").match(/<path/g) || []).length > (levelFrame("master").match(/<path/g) || []).length);
+});
+t("the search budgets: Master 100 / 0.5 s, Super 1000 / 3 s / 14 deep / 18 in set-up, early stop", async () => {
+  const m = fs.readFileSync(new URL("../src/master.js", import.meta.url), "utf8");
+  assert.match(m, /SUPER_BUDGET = \{ n: 1000, timeMs: 3000, timeSlice: true, depth: 14, setupDepth: 18/);
+  assert.match(m, /MASTER_BUDGET = \{ n: 100, timeMs: 500 \}/);
+});
 for (const file of ["bot-profile-ui.js", "game.js", "six-ui.js"]) {
   const text = fs.readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   t(`${file} imports only files that exist`, () => {

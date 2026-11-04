@@ -97,6 +97,18 @@ export const BOT_PROFILES = {
     cards: "Strategic, like the Expert; whether to play a card is part of the search.",
     note: "Measured vs 3 Experts: +8.4 ±5.4 pp win chance against an Expert in the same seat (n=500).",
   },
+  // v1.10: the Master's search with ten times the thinking. win stays null until the final figure is measured.
+  super: {
+    label: "Super Expert", tagline: "Master with 10x more thinking", level: 5, beyond: true, win: null, acc: null,
+    style: "The Master's search with ten times the thinking: before each set-up spot, build step and robber move it plays out up to 1000 possible futures, looking 14 turns ahead (18 in set-up), and picks what wins most. It stops early when one move is clearly ahead.",
+    good: "The strongest bot: it sees further than the Master and spots slow plans (a city race, Longest Road) that a short look misses.",
+    weak: "Slow: about 3 seconds for a move, so your phone waits for it. Only in Classic games of up to 4 players: in Seafarers, Rush and 5–6 player games it plays exactly like the Expert. Player trades are the Expert's own.",
+    beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
+    trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
+    robber: "Searched: it tries the tiles and keeps the one that pays off best in many playouts.",
+    cards: "Strategic, like the Expert; whether to play a card is part of the search.",
+    note: "Early test, not final: about +8 pp win chance over the Master in the same seat (400 games against 3 Experts, ±3). To be measured again.",
+  },
 };
 
 // ── illustrations: 100x100, a soft disc (--pa-bg) and flat pieces with a soft ink outline (--pa-ink) ──
@@ -168,6 +180,19 @@ const ART = {
     <circle cx="44.5" cy="64.5" r="2.4" fill="${INK}"/><circle cx="50" cy="70" r="2.4" fill="#D1453A"/><circle cx="55.5" cy="75.5" r="2.4" fill="${INK}"/>`,
 };
 
+ART.super = (() => {
+  // the Master's fan with many more branches (11, three of them bright) and two stars
+  const ends = [[8, 40], [14, 26], [24, 15], [36, 9], [46, 6], [54, 6], [64, 9], [76, 15], [86, 26], [92, 40], [50, 22]];
+  const hot = [4, 6, 10];
+  const paths = ends.map(([x, y], i) => `<path d="M50,64 Q${((50 + x) / 2 + (x < 50 ? -4 : 4)).toFixed(0)},${((64 + y) / 2).toFixed(0)} ${x},${y}" stroke="${hot.includes(i) ? "#E9B949" : "#8D9AA8"}"/>`).join("");
+  const dotsEnd = ends.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="${hot.includes(i) ? 2.8 : 2.1}" fill="${hot.includes(i) ? "#E9B949" : "#8D9AA8"}"/>`).join("");
+  return `<g fill="none" stroke-width="1.9" stroke-linecap="round" stroke-dasharray="2.2 3">${paths}</g>${dotsEnd}
+    <path d="M36,31 L38.6,37.4 L45.4,37.8 L40.2,42.2 L42,48.8 L36,45.2 L30,48.8 L31.8,42.2 L26.6,37.8 L33.4,37.4Z" fill="#F2C94C"${o(1.8)}/>
+    <path d="M64,22 L67.4,30.4 L76.4,30.9 L69.5,36.6 L71.8,45.4 L64,40.5 L56.2,45.4 L58.5,36.6 L51.6,30.9 L60.6,30.4Z" fill="#F2C94C"${o(2)}/>
+    <rect x="38" y="58" width="24" height="24" rx="5" fill="#FFFDF8"${o(2.6)}/>
+    <circle cx="44.5" cy="64.5" r="2.4" fill="${INK}"/><circle cx="50" cy="70" r="2.4" fill="#D1453A"/><circle cx="55.5" cy="75.5" r="2.4" fill="${INK}"/>`;
+})();
+
 /** The full illustration (profile card / sheet), `size` in px. */
 export function profileArt(key, size = 72) {
   const body = ART[key] || ART.intermediate;
@@ -184,6 +209,8 @@ const MINI = {
   builder: `<g transform="rotate(38 50 50)"><rect x="44" y="34" width="12" height="54" rx="4" fill="#C98F55"${o(6)}/><path d="M26,18 H74 V38 H26 Q20,28 26,18Z" fill="#8D9AA8"${o(6)}/></g>`,
   shark: `<path d="M14,70 Q32,60 50,70 T86,70" fill="none" stroke="#3C8DB5" stroke-width="8" stroke-linecap="round"/><path d="M24,66 Q32,30 66,16 Q54,42 60,66Z" fill="#6E8796"${o(7)}/>`,
   master: `<path d="M50,10 L61,36 L89,37 L67,55 L75,83 L50,67 L25,83 L33,55 L11,37 L39,36Z" fill="#F2C94C"${o(7)}/>`,
+  // two stars, one behind the other
+  super: `<path d="M38,6 L47,28 L70,29 L52,43 L58,66 L38,53 L18,66 L24,43 L6,29 L29,28Z" fill="#F2C94C"${o(6)}/><path d="M66,34 L75,56 L98,57 L80,71 L86,94 L66,81 L46,94 L52,71 L34,57 L57,56Z" fill="#F2C94C"${o(6)}/>`,
 };
 export function profileMini(key, size = 18) {
   return `<svg class="pa-mini" width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true">${MINI[key] || MINI.intermediate}</svg>`;
@@ -193,7 +220,7 @@ export function profileMini(key, size = 18) {
 // tier: plain (Beginner, Simple) · silver (Intermediate) · gold (Expert) · gold + star (Master);
 // style bots: Trader dashed ring (deals) · Builder brick segments · Shark a fin on top.
 export const FRAME_KIND = {
-  beginner: "plain", simple: "plain", intermediate: "silver", expert: "gold", master: "star",
+  beginner: "plain", simple: "plain", intermediate: "silver", expert: "gold", master: "star", super: "star2",
   trader: "dash", builder: "brick", shark: "fin",
 };
 /** Frame SVG drawn around an avatar; `d` = SVG size in px (the ring sits at 44/60 of it: d ≈ 1.5 × avatar). */
@@ -207,12 +234,15 @@ export function levelFrame(key, d = 40) {
   if (k === "plain") g = ring("var(--lf-plain,rgba(43,33,28,.32))", 4);
   // silver: a wide bright band split by a dark groove (two lanes) + a white shine: clearly more than the thin plain ring
   if (k === "silver") g = ring(edge, 14) + ring(silver, 11) + ring(edge, 2.6) + `<path d="M24,22 A40,40 0 0 1 50,10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-opacity=".9"/>`;
-  if (k === "gold" || k === "star") {
+  if (k === "gold" || k === "star" || k === "star2") {
     g = ring(edge, 12) + ring(gold, 9);
     g += [135, 225, 315].map((a) => `<circle cx="${(c + R * Math.cos(a * Math.PI / 180)).toFixed(1)}" cy="${(c + R * Math.sin(a * Math.PI / 180)).toFixed(1)}" r="5.4" fill="#FFF3C4" stroke="${edge}" stroke-width="1.8"/>`).join("");
   }
   if (k === "gold") g += `<circle cx="81" cy="19" r="5.4" fill="#FFF3C4" stroke="${edge}" stroke-width="1.8"/>`;
   if (k === "star") g += `<path d="M81,1 L86,13 L99,13.6 L89,22 L92.4,35 L81,27.8 L69.6,35 L73,22 L63,13.6 L76,13Z" fill="${gold}" stroke="${edge}" stroke-width="2.6" stroke-linejoin="round"/>`;
+  // Super Expert: the Master's ring with a second star
+  if (k === "star2") g += `<path d="M81,1 L86,13 L99,13.6 L89,22 L92.4,35 L81,27.8 L69.6,35 L73,22 L63,13.6 L76,13Z" fill="${gold}" stroke="${edge}" stroke-width="2.6" stroke-linejoin="round"/>`
+    + `<path d="M58,-6 L61,2 L69.5,2.5 L63,7.8 L65.2,16 L58,11.4 L50.8,16 L53,7.8 L46.5,2.5 L55,2Z" fill="${gold}" stroke="${edge}" stroke-width="2.2" stroke-linejoin="round"/>`;
   if (k === "dash") g = ring(edge, 11, ` stroke-dasharray="15 9"`) + ring("var(--lf-trader,#2FA39A)", 8, ` stroke-dasharray="15 9"`);
   if (k === "brick") g = ring(edge, 12) + ring("var(--lf-builder,#C9653F)", 9, ` stroke-dasharray="13 3.5"`);
   // shark: a tall, sharp dorsal fin that breaks out of the ring (plus a small second fin and a wave line)

@@ -16,11 +16,12 @@ export function profileOf(game, player) {
 }
 
 /** Strength dots (1–5). */
-export const dots = (n, cls = "bp-dots") => `<span class="${cls}" aria-hidden="true">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`;
+export const dots = (n, cls = "bp-dots", beyond = false) => `<span class="${cls}" aria-hidden="true">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}${beyond ? `<i class="star"></i>` : ""}</span>`; // v1.10: "beyond" = the Super Expert's sixth mark, a star
 
 /** "Wins 29% vs 3 Intermediate bots" or, for the Master (never measured against them), "+8 pp vs Expert". */
 export function strengthLine(key) {
   const p = P[key];
+  if (key === "super") return `<span class="bp-win">Win figure <b>not measured yet</b></span>`;
   if (key === "master") return `<span class="bp-win"><b>+8 pp</b> win chance vs an Expert</span>`;
   return p.win ? `<span class="bp-win">Wins <b>${Math.round(p.win.p)}%</b> vs 3 Intermediate bots <span class="bp-fair">(fair share 25%)</span></span>` : "";
 }
@@ -38,6 +39,13 @@ export function framedAvatar(game, player, cls = "") {
 export function profileLabel(game, player) {
   const pr = profileOf(game, player);
   return pr ? `, ${pr.custom ? "custom" : P[pr.key].label} bot` : "";
+}
+
+/** The Super Expert is searched only in Classic games of up to 4 players. With `why`: the sentence for this table when it isn't. */
+function superHere(game, why = false) {
+  const ok = !game || !game.players || (!game.sea && !game.isRush?.() && game.players.length <= 4);
+  if (!why) return ok;
+  return `Not searched at this table (${game.sea ? "Seafarers" : game.isRush?.() ? "Rush" : "5–6 players"}): here a Super Expert plays exactly like an Expert.`;
 }
 
 const row = (cls, glyph, title, text) => `<div class="bp-row"><span class="ic2 ${cls}" aria-hidden="true">${glyph}</span><div><b>${title}</b>${text}</div></div>`;
@@ -71,7 +79,7 @@ function soFar(game, pid) {
 /** The long part, behind the (i): style, good at, weak spot, trading, robber, dev cards and where the figures come from. */
 function details(key) {
   const p = P[key];
-  const src = p.win ? `Measured: 2000 games against 3 Intermediate bots (±${p.win.ci} pts).` : key === "master" ? "Measured: 500 games against 3 Experts (±5.4 pts)." : "";
+  const src = p.win ? `Measured: 2000 games against 3 Intermediate bots (±${p.win.ci} pts).` : key === "master" ? "Measured: 500 games against 3 Experts (±5.4 pts)." : key === "super" ? p.note : "";
   return `<p class="bp-style">${p.style}</p>
     <div class="bp-rows">${row("good", "+", "Good at", p.good)}${row("weak", "−", "Weak spot", p.weak)}
     ${row("trade", "⇄", "Trading", p.trades)}${row("rob", "♟", "Robber", p.robber)}${row("card", "★", "Dev cards", p.cards)}</div>
@@ -105,7 +113,8 @@ export function openProfileSheet(game, opts = {}) {
       <div class="bp-grab"></div>
       <div class="bp-who">${who}<button type="button" class="bp-x" data-bp-close aria-label="Close">✕</button></div>
       <div class="bp-hero">${profileArt(key, 132)}</div>
-      <div class="bp-meter">${dots(p.level)}<span>Strength ${p.level}/5</span></div>
+      <div class="bp-meter">${dots(p.level, "bp-dots", p.beyond)}<span>${p.beyond ? `Strength ${p.level}/5 + star` : `Strength ${p.level}/5`}</span></div>
+      ${key === "super" && player && !superHere(game) ? `<p class="bp-warn" role="status">${superHere(game, true)}</p>` : ""}
       <div class="bp-strength">${strengthLine(key)}</div>
       ${player ? soFar(game, player.id) : ""}
       <div class="bp-rows bp-beat">${row("beat", "✓", "How to beat it", p.beat)}</div>
@@ -138,7 +147,7 @@ export function openProfileSheet(game, opts = {}) {
 export function pickerExtras(key) {
   const p = P[key];
   if (!p) return "";
-  return `<span class="bp-pmini" aria-hidden="true">${profileMini(key, 20)}</span>${dots(p.level, "bp-pdots")}<span class="bp-pi" role="button" tabindex="0" data-info="${key}" aria-label="About the ${p.label} profile"><span aria-hidden="true">i</span></span>`;
+  return `<span class="bp-pmini" aria-hidden="true">${profileMini(key, 20)}</span>${dots(p.level, "bp-pdots", p.beyond)}<span class="bp-pi" role="button" tabindex="0" data-info="${key}" aria-label="About the ${p.label} profile"><span aria-hidden="true">i</span></span>`;
 }
 
 /** Settings › Bots: "At this table", one row per bot. Tap the row = pick that bot; (i) = its profile sheet. */

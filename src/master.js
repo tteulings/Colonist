@@ -10,7 +10,14 @@
 import { masterSteps, masterLineHtml } from "./ai-tree.js";
 
 export const MASTER_BUDGET = { n: 100, timeMs: 500 };
-const ASK_TIMEOUT_MS = 6000;   // a decision that takes longer falls back to the Expert
+// v1.10 "Super Expert": the same search, up to 1000 rollouts in an anytime, time-sliced search (about 3 s cap per decision),
+// 14 turns deep (18 in set-up). `leaf` is the one place that picks the position evaluator at the end of a rollout (v1 now).
+// earlyZ/earlyMin: stop once one move leads all others by 3 standard errors after 40 futures (saves time in clear spots).
+export const SUPER_BUDGET = { n: 1000, timeMs: 3000, timeSlice: true, depth: 14, setupDepth: 18, earlyZ: 3, earlyMin: 40 };
+/** The search budget of a policy ("master" | "super"). */
+export const budgetFor = (policy) => ({ ...(policy === "super" ? SUPER_BUDGET : MASTER_BUDGET) });
+export const isSearchPolicy = (policy) => policy === "master" || policy === "super";
+const ASK_TIMEOUT_MS = 6000;   // a decision that takes longer falls back to the Expert (the cap + 3 s: Super Expert 3 s + 3 s)
 const READY_TIMEOUT_MS = 8000;
 // Pacing: the Expert makes all its builds of a turn at once; a Master shows each searched step, a short
 // beat apart (the search itself takes ~0.2–0.5 s), so its turn takes only a little longer
@@ -63,9 +70,11 @@ export const masterAvailable = () => !shared.broken && typeof Worker !== "undefi
 export const MasterMixin = {
   /** This seat's decisions are searched (live game, worker available, a game the search covers). */
   _masterLive(p) {
-    return !!p && !p.isHuman && p.strategy?.policy === "master" && !this.labMode && masterAvailable()
-      && !this.sea && !this.isRush() && this.players.length <= 4;
+    return !!p && !p.isHuman && isSearchPolicy(p.strategy?.policy) && !this.labMode && masterAvailable()
+      && this._searchGame();
   },
+  /** A game the search covers: Classic, at most 4 players (also the only games a Super Expert seat is searched in). */
+  _searchGame() { return !this.sea && !this.isRush() && this.players.length <= 4; },
   /** Load the worker early when the table has a Master (the first decision then doesn't wait for it). */
   _masterWarm() { if (this.players?.some((p) => this._masterLive(p))) masterWorker(); },
 
@@ -75,7 +84,8 @@ export const MasterMixin = {
     const state = this.serializeState();
     const { logEntries, stats, ...pos } = state; // (the log and the stats don't change a decision)
     const key = JSON.stringify([kind, player.id, pos, trk, this.turnSerial]);
-    return { key, send: () => masterRequest({ type: "decide", kind, state, trk, turnSerial: this.turnSerial, seat: player.id, opts: { ...MASTER_BUDGET } }) };
+    const opts = budgetFor(player.strategy?.policy);
+    return { key, cap: opts.timeMs, send: () => masterRequest({ type: "decide", kind, state, trk, turnSerial: this.turnSerial, seat: player.id, opts }, Math.max(ASK_TIMEOUT_MS, opts.timeMs + 3000)) };
   },
   /** Right after a Master's roll: start its first main-phase search during the usual pause before a bot
    *  acts (the answer is used only if nothing changed in between). */
@@ -83,23 +93,56 @@ export const MasterMixin = {
     this._masterPre = null;
     if (!this._masterLive(player) || this.phase !== "main" || this.currentPlayer !== player || this.winner) return;
     const r = this._masterReq("main", player);
-    this._masterPre = { key: r.key, promise: r.send() };
+    this._masterPre = { key: r.key, promise: r.send(), t0: performance.now() };
   },
   _masterAsk(kind, player) {
     const gen = this.gameGen;
-    this._masterBusy = { pid: player.id, kind, t0: performance.now() };
     const r = this._masterReq(kind, player);
-    try { this.renderLog(); this.renderStatusAndControls(); } catch (_) { /* headless */ } // the dock says "… is thinking…"
     const pre = this._masterPre?.key === r.key ? this._masterPre.promise : null;
+    this._masterBusy = { pid: player.id, kind, t0: pre ? this._masterPre.t0 : performance.now(), cap: r.cap, super: player.strategy?.policy === "super" };
+    try { this.renderLog(); this.renderStatusAndControls(); } catch (_) { /* headless */ } // the dock says "… is thinking…"
+    this._thinkTick(true);
     this._masterPre = null;
     return (pre || r.send())
       .then((m) => {
         if (gen !== this.gameGen) return { stale: true };
         this._masterBusy = null;
+        this._thinkTick(false);
         try { this.renderLog(); this.renderStatusAndControls(); } catch (_) { /* headless */ }
         if (!m || !m.record) return null;
         return { choice: m.choice, record: m.record };
       });
+  },
+
+  /** v1.10 the seconds counter ("thinking… 2s") on the dock, the ticker and the bot's chip, and a fill over the cap time on the
+   *  chip. Pure DOM (no render): on = start the 250 ms clock; it stops itself when nobody is thinking any more. */
+  _thinkTick(on) {
+    if (typeof document === "undefined") return;
+    const paint = () => {
+      const b = this._masterBusy;
+      const live = !!b && b.kind !== "trade" && b.t0 != null;
+      const sec = live ? Math.floor((performance.now() - b.t0) / 1000) : 0;
+      const txt = live && sec >= 1 ? `${sec}s` : "";
+      document.querySelectorAll("[data-think]").forEach((el) => { if (el.textContent !== txt) el.textContent = txt; });
+      document.querySelectorAll(".pchip.thinking, .pstrip .pchip .th-s").forEach((el) => {
+        if (el.classList.contains("th-s")) { if (!live || b.pid !== Number(el.closest(".pchip")?.dataset.seat)) el.remove(); }
+        else if (!live || b.pid !== Number(el.dataset.seat)) { el.classList.remove("thinking"); el.style.removeProperty("--think"); }
+      });
+      if (live) {
+        const chip = document.querySelector(`.pstrip .pchip[data-seat="${b.pid}"]`);
+        if (chip) {
+          chip.classList.add("thinking");
+          if (b.cap) chip.style.setProperty("--think", Math.min(1, (performance.now() - b.t0) / b.cap).toFixed(3));
+          let t = chip.querySelector(".th-s");
+          if (!t) { t = document.createElement("span"); t.className = "th-s"; t.setAttribute("aria-hidden", "true"); chip.querySelector(".pn")?.appendChild(t); }
+          if (t.textContent !== txt) t.textContent = txt;
+        }
+      }
+      return live;
+    };
+    if (!on) { paint(); clearInterval(this._thinkTimer); this._thinkTimer = 0; return; }
+    paint();
+    if (!this._thinkTimer) this._thinkTimer = setInterval(() => { if (!paint()) { clearInterval(this._thinkTimer); this._thinkTimer = 0; } }, 250);
   },
 
   /** Analysis: the Expert's note for this decision, upgraded to the Master's: its title, the Race and

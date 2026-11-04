@@ -159,6 +159,8 @@ const AI_PRESETS = {
   shark:        { placement: "medium",  expansion: "medium",  trading: "balanced",     devCards: "strategic", awareness: "advanced" },
   // v0.90: the Expert plus a search over its options (src/master.js, src/master/); opt-in, never a default
   master:       { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "master" },
+  // v1.10: the Master's search with ten times the thinking (up to 1000 rollouts, 14 turns deep, ~3 s a move); Classic, up to 4 players
+  super:        { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "super" },
 };
 
 // Player-facing names, short taglines and badge glyphs for the presets ("custom" = hand-tuned mix)
@@ -171,6 +173,7 @@ const AI_PRESET_INFO = {
   builder:      { label: "Builder",      tagline: "roads & cities",       glyph: "\u2692", isNew: true },
   shark:        { label: "Shark",        tagline: "hunts the leader",     glyph: "\u25b2", isNew: true },
   master:       { label: "Master",       tagline: "Expert + looks ahead", glyph: "\u2605", isNew: true },
+  super:        { label: "Super Expert", tagline: "Master with 10x more thinking", glyph: "\u2605\u2605", isNew: true },
   custom:       { label: "Custom",       tagline: "your mix",             glyph: "" },
 };
 
@@ -8546,7 +8549,7 @@ class ColonistFullGame {
         const t = rush && !this.setupPhase ? "Rush · build and trade until the next roll"
           : cp.isHuman ? (this.phase === "pre_roll" ? "Your turn · roll the dice" : "Your turn · build, trade or play a card")
           : `${cp.name} is ${this._masterBusy?.pid === cp.id ? "thinking…" : "playing"}`;
-        line = [this._enrichLogText(t), cp.isHuman && this.phase === "pre_roll" ? "dice" : "log"];
+        line = [this._enrichLogText(t) + (!cp.isHuman && this._masterBusy?.pid === cp.id ? ' <span class="th-s" data-think></span>' : ""), cp.isHuman && this.phase === "pre_roll" ? "dice" : "log"];
       }
       if (line) this._setTickerLine(line[0], line[1], rush && !this.setupPhase && !this.winner);
     }
@@ -8747,7 +8750,7 @@ class ColonistFullGame {
       } else if (inSetup && humanTurn && !rushOn) {
         wait = `${icon(this.setupAction || "settlement")}<div class="wt">Setup ${setupRound} of 2<small>${this.setupAction === "road" ? "Last step: a road" : "Then add a road"}</small></div>`;
       } else if (oppTurn) {
-        wait = `${this._av(active)}<div class="wt">${active.name} is ${this._masterBusy?.pid === active.id && this._masterBusy.kind !== "trade" ? "thinking…" : "playing"}</div><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>`; // v0.76: no sub-line (a Trade tap says when trading opens)
+        wait = `${this._av(active)}<div class="wt">${active.name} is ${this._masterBusy?.pid === active.id && this._masterBusy.kind !== "trade" ? 'thinking… <span class="th-s" data-think></span>' : "playing"}</div><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>`; // v0.76: no sub-line (a Trade tap says when trading opens)
       }
       const wkey = `${wait.length}:${active.id}:${preRoll}:${inSetup}:${!!this.winner}:${this.pendingAction}:${this.setupAction}:${setupRound}:${this.confirmBuild?.type}`;
 
@@ -9008,6 +9011,8 @@ class ColonistFullGame {
       const info = AI_PRESET_INFO[key] || AI_PRESET_INFO.custom;
       return `<span class="persona-badge persona-${key}">${info.glyph ? `${info.glyph} ` : ""}${info.label}</span>`;
     };
+    // v1.10 Super Expert is searched only in Classic games of up to 4 players: elsewhere it is greyed out, with the reason
+    const superOff = () => (d.board === "seafarers" ? "Seafarers" : d.mode === "rush" ? "Rush" : d.numBots + 1 > 4 ? "5\u20136 players" : "");
     const botPreset = (i) => (d.botStyleMode === "each" ? d.perBot[i] : d.allPreset);
     const botStrategy = (i) => (d.botStyleMode === "each" ? AI_PRESETS[d.perBot[i]] : d.allStrategy);
     const diceHelp = {
@@ -9071,13 +9076,20 @@ class ColonistFullGame {
         : `<div class="hs-seat-name">${esc(cfg.name)}${badge(botPreset(id - 1))}</div>`;
       const sel = !human && d.botStyleMode === "each" ? `
         <select class="ng-bot-select" data-bot="${id - 1}" aria-label="${esc(cfg.name)} personality">
-          ${Object.keys(AI_PRESETS).map((key) => `<option value="${key}"${d.perBot[id - 1] === key ? " selected" : ""}>${presetLabel(key)}</option>`).join("")}
+          ${Object.keys(AI_PRESETS).map((key) => `<option value="${key}"${d.perBot[id - 1] === key ? " selected" : ""}${key === "super" && superOff() ? " disabled" : ""}>${presetLabel(key)}${key === "super" && superOff() ? ` (not in ${superOff()})` : ""}</option>`).join("")}
         </select><button type="button" class="bp-info" data-info="${d.perBot[id - 1]}" aria-label="About the ${presetLabel(d.perBot[id - 1])} profile">i</button>` : "";
       return `<div class="hs-seat pc-${id}">${avatarSvg(id, "ng-bot-avatar")}<div class="hs-seat-main">${main}</div>${kind}${sel}</div>`;
     }).join("");
 
     const render = () => {
       const presetKeys = [...Object.keys(AI_PRESETS), "custom"];
+      if (superOff() && (d.allPreset === "super" || d.perBot.includes("super"))) { // not a silent fallback: say it
+        d._superNote = `Super Expert is not available in ${superOff() === "5\u20136 players" ? "games of 5\u20136 players" : superOff()}: switched to Master.`;
+        if (d.allPreset === "super") { d.allPreset = "master"; d.allStrategy = { ...AI_PRESETS.master }; }
+        d.perBot = d.perBot.map((k) => (k === "super" ? "master" : k));
+      }
+      const superPicked = !superOff() && (d.botStyleMode === "each" ? d.perBot.slice(0, d.numBots).some((k, i) => k === "super" && !(d.mode !== "rush" && d.humans[i])) : d.allPreset === "super");
+      const superHelp = d._superNote ? `<p class="ng-help ng-super-help warn" role="status">${d._superNote}</p>` : superPicked ? `<p class="ng-help ng-super-help">~3 s per move. Not in Seafarers, Rush or 5\u20136 players.</p>` : "";
       overlay.innerHTML = `
         <div class="ng-card">
           <header class="ng-header">
@@ -9190,13 +9202,15 @@ class ColonistFullGame {
                 <div class="ng-presets">
                   ${presetKeys.map((key) => {
                     const info = AI_PRESET_INFO[key];
-                    return `<button type="button" class="ng-preset${d.allPreset === key ? " selected" : ""}" data-preset="${key}" aria-pressed="${d.allPreset === key}">
+                    const off = key === "super" && superOff();
+                    return `<button type="button" class="ng-preset${d.allPreset === key ? " selected" : ""}${off ? " off" : ""}" data-preset="${key}" aria-pressed="${d.allPreset === key}"${off ? ` disabled aria-disabled="true"` : ""}>
                       <span class="ng-preset-name">${info.label}</span>
-                      <span class="ng-preset-tag">${info.tagline}</span>
+                      <span class="ng-preset-tag">${off ? `Not in ${off}` : info.tagline}</span>
                       ${pickerExtras(key)}
                     </button>`;
                   }).join("")}
                 </div>
+                ${superHelp}
                 <details class="ng-finetune"${fineTuneOpen ? " open" : ""}>
                   <summary>Fine-tune <span class="ng-finetune-hint">5 strategy dials</span></summary>
                   <div class="ng-dims">
@@ -9210,7 +9224,7 @@ class ColonistFullGame {
                       </div>`).join("")}
                   </div>
                 </details>` : `
-                <p class="ng-help">Pick a personality per bot. You can fine-tune each bot later under Settings &rsaquo; Bot personalities.</p>`}
+                <p class="ng-help">Pick a personality per bot. You can fine-tune each bot later under Settings &rsaquo; Bot personalities.</p>${superHelp}`}
               </section>
             </div>
           </div>
@@ -9241,6 +9255,7 @@ class ColonistFullGame {
         } else if (t.dataset.mode) d.mode = t.dataset.mode;
         else if (t.dataset.map) d.map = t.dataset.map;
         else if (t.dataset.preset) {
+          d._superNote = "";
           d.allPreset = t.dataset.preset;
           if (AI_PRESETS[d.allPreset]) d.allStrategy = { ...AI_PRESETS[d.allPreset] };
         } else if (t.dataset.step) {
@@ -9285,6 +9300,7 @@ class ColonistFullGame {
         d.names = d.names.map((n, i) => (i === Number(inp.dataset.name) ? inp.value.slice(0, 14) : n));
       }));
       card.querySelectorAll(".ng-bot-select").forEach((sel) => sel.addEventListener("change", () => {
+        d._superNote = "";
         d.perBot = d.perBot.map((p, i) => (i === Number(sel.dataset.bot) ? sel.value : p));
         const scroll = card.scrollTop;
         render();

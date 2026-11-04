@@ -119,3 +119,21 @@
 .bs-dial { margin: 0 0 12px; }
 .bs-dial-l { font-size: 12px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-soft, #5A6366); margin: 0 0 4px; }
 .bs-dial-h { font-size: 12px; line-height: 1.35; color: var(--ink-soft, #5A6366); margin-top: 4px; }
+
+/* ── v1.10 Super Expert: the sixth mark (a star), "Not in …" on the greyed picker button, the thinking counter ── */
+.bp-dots i.star, .bp-pdots i.star { background: var(--lf-gold, #D9A21B) !important; transform: none !important; width: 13px; height: 13px; border-radius: 0; margin-left: 2px; clip-path: polygon(50% 0, 62% 36%, 100% 38%, 70% 60%, 80% 100%, 50% 76%, 20% 100%, 30% 60%, 0 38%, 38% 36%); }
+.bp-pdots i.star { width: 10px; height: 10px; margin-top: -1.5px; }
+.bp-warn { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.35; background: color-mix(in srgb, #C0532F 14%, transparent); color: var(--ink, #2E3A3D); text-align: center; }
+.newgame-modal .ng-preset.off, .newgame-modal .ng-preset:disabled { opacity: .55; cursor: not-allowed; }
+.newgame-modal .ng-preset.off .ng-preset-tag { font-weight: 700; color: #B3472A; }
+:root[data-palette="night"] .newgame-modal .ng-preset.off .ng-preset-tag { color: #F0A58A; }
+.ng-super-help { margin: 6px 0 2px; }
+.ng-super-help.warn { color: #B3472A; font-weight: 650; }
+:root[data-palette="night"] .ng-super-help.warn { color: #F0A58A; }
+.th-s { font-variant-numeric: tabular-nums; font-weight: 800; }
+.th-s:empty { display: none; }
+.pchip .pn .th-s { margin-left: 4px; padding: 0 4px; border-radius: 6px; font-size: 10.5px; line-height: 14px; background: var(--lf-gold, #D9A21B); color: #2B211C; }
+/* a fill over the cap time along the chip's lower edge */
+.pstrip .pchip.thinking { position: relative; }
+.pstrip .pchip.thinking::after { content: ""; position: absolute; left: 6px; bottom: 2px; height: 3px; border-radius: 2px; width: calc((100% - 12px) * var(--think, 0)); background: var(--lf-gold, #D9A21B); transition: width .25s linear; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .pstrip .pchip.thinking::after { transition: none; } }
