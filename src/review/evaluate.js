@@ -9,6 +9,7 @@
 // Forced (nothing else to compare) and trivial (every move within TRIVIAL of the played one) decisions
 // are left out. Player trades, discards and turn starts are not searched (the Master doesn't either).
 import { makeMaster } from "../master/search.js";
+import { explain } from "./why.js";
 
 // v1.03 review engines: the ONE place where the depth of the Game review is chosen. After the game there is
 // time, so each decision gets a deeper search than a Master move. `sec`: seconds per decision in a desktop
@@ -161,7 +162,9 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   const alts = cands.filter((c, k) => k && c.n >= 2);
   const lead = alts.length ? Math.max(0, -Math.max(...alts.map((c) => c.m))) : spread; // how far the nearest other option is behind the played one
   const trivial = spread < TRIVIAL;
-  return { ...base, label: played.label, focus: played.focus || null, win: winP == null ? null : r4(winP), best: best ? { label: b.label, focus: b.focus, gain: r4(b.m), se: b.se, seats: r.seats?.[best] || null } : null, seats: r.seats?.[0] || null,
+  // v1.11 the likely reason A was stronger, read from the position (src/review/why.js); null when nothing clear separates them
+  const why = best && !trivial && b.m >= 0.01 ? explain(g, p, rec, { label: b.label, focus: b.focus }, { label: played.label, focus: played.focus || null }) : null;
+  return { ...base, why, label: played.label, focus: played.focus || null, win: winP == null ? null : r4(winP), best: best ? { label: b.label, focus: b.focus, gain: r4(b.m), se: b.se, seats: r.seats?.[best] || null } : null, seats: r.seats?.[0] || null,
     loss: r4(loss), lossRaw: r4(lossRaw), spread: r4(spread), lead: r4(lead), trivial, skip: trivial ? "trivial" : null, acc: trivial || !scored.includes(rec.k) ? null : Math.round(accuracyOf(lossRaw) * 10) / 10,
     mark: trivial ? "good" : markOf(loss), cands, futures: r.vals[0].filter((v) => v != null).length, rollouts: r.rollouts, ms };
 }

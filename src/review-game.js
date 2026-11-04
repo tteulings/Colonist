@@ -7,7 +7,7 @@
 //   · your win chance after each decision, marked strong / could be sharper / missed chance
 //   · a tappable turn strip and a list of your turns; Show on board for a marked decision
 //   · the missed-chance lines on the end screen then come from the Master's check (verified)
-import { esc, IC, cmpHtml } from "./review-ui.js";
+import { esc, IC, cmpHtml, whyHtml } from "./review-ui.js";
 import { summarize, REVIEW, REVIEW_ENGINE, REVIEW_ENGINES, ACC, clsOf, LIMITS, CLASSES, BEST_LEAD, GREAT } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
 
@@ -43,7 +43,14 @@ function rvMarks(game, d, Af, Bf) {
     if (L > A.r + B.r + 14) arrow = `<g class="mk-arrow"><line x1="${e1[0]}" y1="${e1[1]}" x2="${e2[0]}" y2="${e2[1]}" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".9"/><line x1="${e1[0]}" y1="${e1[1]}" x2="${e2[0]}" y2="${e2[1]}" stroke="var(--primary)" stroke-width="3" stroke-dasharray="1 7" stroke-linecap="round"/><path d="M${e2[0]},${e2[1]} l${-ux * 11 - uy * 7},${-uy * 11 + ux * 7} M${e2[0]},${e2[1]} l${-ux * 11 + uy * 7},${-uy * 11 - ux * 7}" stroke="var(--primary)" stroke-width="3.4" stroke-linecap="round" fill="none"/></g>`;
   }
   const cls = B ? `<g transform="translate(${(B.c[0] - B.r * 0.78).toFixed(1)} ${(B.c[1] - B.r * 0.78).toFixed(1)})"><circle r="10" class="rs-cb c-${d.cls}"/><text y="4.5" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">${CLS[d.cls][1]}</text></g>` : "";
-  return `<g class="mk-b">${ring(B, true)}${cls}</g>${arrow}<g class="mk-a">${ring(A, false)}</g>`;
+  // v1.11 the plan behind A: the road route to the target, and the rival spots it takes away
+  const W = d.x.why?.mark, wp = (f) => { const p = rvPos(g, f); return xy(p); };
+  let why = "";
+  if (W && !d.same) {
+    (W.edges || []).forEach((e) => { const [a, b] = g.edges[e].nodes.map((n) => xy(g.nodes[n])); why += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#fff" stroke-width="9" stroke-linecap="round" opacity=".85"/><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="var(--primary)" stroke-width="5" stroke-linecap="round" stroke-dasharray="${e === W.edges[0] ? "0" : "1 9"}"/>`; });
+    (W.rivals || []).forEach((n) => { const [x, y] = wp({ node: n }); why += `<circle cx="${x}" cy="${y}" r="11" fill="none" stroke="#fff" stroke-width="5"/><circle cx="${x}" cy="${y}" r="11" fill="none" stroke="#D9714E" stroke-width="2.6" stroke-dasharray="3 3"/><path d="M${x - 4},${y - 4} l8,8 M${x + 4},${y - 4} l-8,8" stroke="#D9714E" stroke-width="2.6" stroke-linecap="round"/>`; });
+  }
+  return `<g class="mk-b">${ring(B, true)}${cls}</g>${arrow}<g class="mk-why">${why}</g><g class="mk-a">${ring(A, false)}</g>`;
 }
 
 export const ReviewGameMixin = {
@@ -278,6 +285,7 @@ export const ReviewGameMixin = {
     d.innerHTML = `<div class="rv-card"><div class="rv-ih"><b>About this review</b><button type="button" class="rv-btn" data-rvinfo-x aria-label="Close">✕</button></div>
       <p><b>Win chance</b>: the Master bot plays the position on for 14 turns in about 1000 random futures and scores each end position with a score function fitted on 4500 bot games (it predicts the winner better than the old hand-made one). The bar beside the board stacks all players (yours at the bottom).</p>
       <p><b>A and B</b>: A is the move with the highest win chance, B is what you played. The numbers shown are A minus B, in points. The class uses that same gap: ${LIMITS.map(([m, c], k) => `${CLS[c][0]} ${k ? (Number.isFinite(m) ? `${Math.round(LIMITS[k - 1][0] * 100)}–${Math.round(m * 100)}` : `${Math.round(LIMITS[k - 1][0] * 100)}+`) : `under ${Math.round(m * 100)} (and the next option ${Math.round(BEST_LEAD * 100)}+ behind, else Good)`}`).join(", ")} points.</p>
+      <p><b>Plan</b>: the Monte Carlo only tells that A won more futures, not why. The Plan line is a likely reason, worked out from the position itself: where a road leads (the spot's pips, new resources, harbour, roads away), Longest Road counts, rival spots a move takes away, what the robber would hit, what a trade or a saved hand makes affordable. When nothing clear separates A from B, no Plan is shown.</p>
       <p><b>Missed chance</b>: you ended the turn or traded while a build or development card was worth 2.5+ points. <b>Great</b>: outside the set-up, the best move among at least 3 options with the next one ${Math.round(GREAT * 100)}+ points behind. <b>No real choice</b>: every option within 2 points; not counted and not in the accuracy.</p>
       <p><b>Your moves and Luck</b>: your moves is the win chance they gave away, added up. Luck is what moved your win chance between two of your decisions: dice, robber, steals and what the others did. They add up to the change in your win chance, so a win with a bad move still shows.</p>
       <p><b>Accuracy</b> is how much win chance your moves kept against the best move the Master bot found (100 = always the best), scored on the same gap A minus B. Decisions with more at stake count more, and the game score is the average of the weighted mean and the harmonic mean, so a few big mistakes pull it down. The bar starts at 50; a lower score is pinned to the left edge and labelled. One game is a rough measure (about ± 8).</p>
@@ -398,7 +406,7 @@ export const ReviewGameMixin = {
     const chips = CLASSES.map((c) => `<span class="rs-cnt${sum.cls[c] ? "" : " zero"}">${badge(c, "sm")}<b>${sum.cls[c]}</b><small>${c === "missed" ? "Missed" : CLS[c][0]}</small></span>`).join("");
     const ico = IC.next.replace("<svg", '<svg class="chev"');
     const imp = this._rvImp(ds);
-    const better = imp.slice(0, 5).map((d) => `<button type="button" class="rs-key rs-imp" data-rvj="${d.i}" data-rvq="imp">${badge(d.cls)}<span class="t">${this._rvWhen(d)}</span><span class="x">${esc(this._rvTerse(d))}</span><b class="neg">${sg(-d.gap)}%</b>${ico}</button>`).join("");
+    const better = imp.slice(0, 5).map((d) => `<button type="button" class="rs-key rs-imp" data-rvj="${d.i}" data-rvq="imp">${badge(d.cls)}<span class="t">${this._rvWhen(d)}</span><span class="x">${esc(this._rvTerse(d))}${d.x.why?.head ? `<small class="w">${esc(d.x.why.head)}</small>` : ""}</span><b class="neg">${sg(-d.gap)}%</b>${ico}</button>`).join("");
     const lk = ds.slice().sort((a, b) => Math.abs(b.chance) - Math.abs(a.chance))[0];
     const key = (lk && Math.abs(lk.chance) >= 0.03 ? `<button type="button" class="rs-key" data-rvj="${lk.i}"><i class="rs-b c-luck sm" aria-hidden="true">⚄</i><span class="t">${this._rvWhen(lk)}</span><span class="x">${esc(this._rvCause(ds, ds.indexOf(lk)))}</span><b class="${lk.chance >= 0 ? "pos" : "neg"}">${sg(lk.chance)}%</b>${ico}</button>` : "");
     const groups = [];
@@ -449,6 +457,7 @@ export const ReviewGameMixin = {
     const B = `<div class="b${show === "A" && !noA ? " dim" : ""}" data-rvab="B"><s class="alt">B</s><small>${this.hotseat ? `${esc(this.players[me].name)} did` : "You did"}</small><b>${esc(x.label).replace(/^Bank trade /, "Gave ")}</b><i>${pct(d.win)}</i></div>`;
     const cardHtml = `<div class="rs-h">${badge(d.cls, "lg")}<b>${CLS[d.cls][0]}</b><span>${this._rvKind(d)}</span><em class="${d.gap > 0.004 ? "neg" : "pos"}">${d.gap > 0.004 ? sg(-d.gap) : "±0"}</em></div>
         <p class="rs-s">${this._rvLine(d)}</p>
+        ${noA ? "" : whyHtml(x.why)}
         <div class="rs-ab${noA ? " one" : ""}">${A}${B}</div>
         <div class="rs-lk"><span>Since your last move</span><b class="${d.chance >= 0 ? "pos" : "neg"}">Luck ${sg(d.chance)}</b><b class="${d.gap > 0.004 ? "neg" : "pos"}">Your move ${d.gap > 0.004 ? sg(-d.gap) : "±0"}</b></div>
         <div class="rs-strip" role="tablist" aria-label="Your decisions">${strip}</div>
@@ -456,6 +465,7 @@ export const ReviewGameMixin = {
     const evalHtml = `<b>${pct(shown[me] / (shown.reduce((a, c) => a + c, 0) || 1))}</b>${this._rvStack(shown)}`;
     const bindCard = (root) => {
       root.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = "all"; this._rvDrawReview(+b.dataset.rvj); }));
+      root.querySelectorAll("[data-rvwhy]").forEach((b) => b.addEventListener("click", () => { this._rvInfoOpen = true; this._rvShowInfo(); }));
       root.querySelectorAll("[data-rvnav]").forEach((b) => b.addEventListener("click", () => { const n = list[k + +b.dataset.rvnav]; if (n) this._rvDrawReview(n.i); }));
       root.querySelectorAll("[data-rvab]").forEach((b) => b.addEventListener("click", () => { const v = b.dataset.rvab; this._rvAB = v === this._rvAB && v !== "both" ? "both" : v; this._rvDrawReview(); }));
     };
@@ -496,7 +506,7 @@ export const ReviewGameMixin = {
     if (!st.evIx) st.evIx = new Map(this.stats.ev.map((e, i) => [e, i]));
     this._rpSeek(rec.s, rec.e);
     const A = d.same ? null : d.x.best?.focus, B = d.x.focus;
-    const g = this.geometry, pts = [A, B].filter(Boolean).map((f) => rvPos(g, f));
+    const g = this.geometry, W = !d.same && d.x.why?.mark, pts = [A, B, ...(W ? [...(W.nodes || []).map((node) => ({ node })), ...(W.edges || []).map((edge) => ({ edge }))] : [])].filter(Boolean).map((f) => rvPos(g, f));
     const fit = this._rpFitView(w, h, 8);
     if (pts.length) {
       const m = g.hexSize * 1.7, xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
