@@ -74,7 +74,7 @@ t("Super Expert: own policy, own chip, a 6th mark, no win figure, two-star frame
   assert.equal(presetHighlight([{ ...AI_PRESETS.master }], AI_PRESETS, AXES).active, "master"); // same dials, other policy
   const p = BOT_PROFILES.super;
   assert.equal(p.win, null); assert.equal(p.level, 5); assert.ok(p.beyond);
-  assert.match(p.weak, /Seafarers, Rush and 5.6 player/); assert.match(p.weak, /3 seconds/);
+  assert.match(p.weak, /Rush it has a quarter of a second/); assert.match(p.weak, /Seafarers it plays exactly like the Expert|in Seafarers it plays exactly like the Expert/); assert.match(p.weak, /3 seconds/);
   assert.ok(profileArt("super", 132).length < 3072);
   assert.notEqual(levelFrame("super"), levelFrame("master"));
   assert.ok((levelFrame("super").match(/<path/g) || []).length > (levelFrame("master").match(/<path/g) || []).length);

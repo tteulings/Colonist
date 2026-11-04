@@ -15,13 +15,18 @@ export const MASTER_BUDGET = { n: 100, timeMs: 500 };
 // earlyZ/earlyMin: stop once one move leads all others by 3 standard errors after 40 futures (saves time in clear spots).
 export const SUPER_BUDGET = { n: 1000, timeMs: 3000, timeSlice: true, depth: 14, setupDepth: 18, earlyZ: 3, earlyMin: 40 };
 /** The search budget of a policy ("master" | "super"). */
-export const budgetFor = (policy) => ({ ...(policy === "super" ? SUPER_BUDGET : MASTER_BUDGET) });
+export const budgetFor = (policy, rush = false) => (rush ? { ...RUSH_BUDGET } : { ...(policy === "super" ? SUPER_BUDGET : MASTER_BUDGET) });
+// v1.17 Rush: a bot moves every 1-2 s while the dice clock runs, so its search gets a small cap (the 7's robber too; set-up has no clock
+// and keeps the full budget). Master and Super Expert search alike there (a Super Expert's longer look-ahead needs the time it doesn't get).
+export const RUSH_BUDGET = { n: 100, timeMs: 250, depth: 8, setupDepth: 12 };
 export const isSearchPolicy = (policy) => policy === "master" || policy === "super";
 const ASK_TIMEOUT_MS = 6000;   // a decision that takes longer falls back to the Expert (the cap + 3 s: Super Expert 3 s + 3 s)
 const READY_TIMEOUT_MS = 8000;
 // Pacing: the Expert makes all its builds of a turn at once; a Master shows each searched step, a short
 // beat apart (the search itself takes ~0.2–0.5 s), so its turn takes only a little longer
 const STEP_GAP_MS = 120; // the worker loads the whole game code once (~0.4 s on a laptop)
+const RES5 = ["wood", "brick", "sheep", "wheat", "ore"], DEV5 = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
+const RUSH_TICK = [1000, 2000], RUSH_HURRY_MS = 300; // as RUSH_TICK_MS / RUSH_HURRY_TICK_MS in game.js
 const shared = { worker: null, ready: null, broken: false, seq: 0, waiting: new Map() };
 
 /** A worker of src/master/worker.js with its request queue (`pool`: the bots' own, or the review's). */
@@ -73,8 +78,9 @@ export const MasterMixin = {
     return !!p && !p.isHuman && isSearchPolicy(p.strategy?.policy) && !this.labMode && masterAvailable()
       && this._searchGame();
   },
-  /** A game the search covers: Classic, at most 4 players (also the only games a Super Expert seat is searched in). */
-  _searchGame() { return !this.sea && !this.isRush() && this.players.length <= 4; },
+  /** A game the search covers: the island board, 2–6 players, Classic or Rush (Rush is searched as turn-based play, see rushToTurns
+   *  in src/review/engine.js). Seafarers is not covered yet. */
+  _searchGame() { return !this.sea; },
   /** Load the worker early when the table has a Master (the first decision then doesn't wait for it). */
   _masterWarm() { if (this.players?.some((p) => this._masterLive(p))) masterWorker(); },
 
@@ -84,7 +90,7 @@ export const MasterMixin = {
     const state = this.serializeState();
     const { logEntries, stats, ...pos } = state; // (the log and the stats don't change a decision)
     const key = JSON.stringify([kind, player.id, pos, trk, this.turnSerial]);
-    const opts = budgetFor(player.strategy?.policy);
+    const opts = budgetFor(player.strategy?.policy, this.isRush() && !this.setupPhase);
     return { key, cap: opts.timeMs, send: () => masterRequest({ type: "decide", kind, state, trk, turnSerial: this.turnSerial, seat: player.id, opts }, Math.max(ASK_TIMEOUT_MS, opts.timeMs + 3000)) };
   },
   /** Right after a Master's roll: start its first main-phase search during the usual pause before a bot
@@ -159,6 +165,54 @@ export const MasterMixin = {
     a.last = d;
     this._renderAnalysis();
     this.requestBoardDraw?.();
+  },
+
+  // ── Rush (v1.17): the bot's tick asks the worker, one search at a time, and applies the answer if the roll interval is still the same ──
+  /** A tick of a Master / Super Expert seat in Rush. True: this call took the tick over (it schedules the next one itself). */
+  _rushMasterTick(player) {
+    const hasCards = RES5.reduce((a, k) => a + player.resources[k], 0);
+    const hasDev = DEV5.some((t) => player.devCards[t] > 0);
+    if (hasCards < 2 && !hasDev) return false; // nothing to choose between: the Expert's tick (it votes Ready)
+    const next = (ms) => { if (!this.winner) this._scheduleBotTick(player, ms); };
+    if (this._rushMasterBusy) { next(120 + Math.random() * 120); return true; } // the worker takes one search at a time
+    this._rushMasterBusy = player.id;
+    const r = this.rush, roll = r.rollNo, gen = this.gameGen;
+    const stale = () => gen !== this.gameGen || this.rush !== r || r.rollNo !== roll || r.paused || this.winner;
+    const finish = (acted) => {
+      if (acted) { r.ready = r.ready.filter((id) => id !== player.id); this._rushAfterAction(player); }
+      else if (!r.ready.includes(player.id)) { r.ready.push(player.id); this._renderRushHud(); this._lastScoreKey = null; this.renderScoreboard(); }
+      next(this._rushHumanReady() ? RUSH_HURRY_MS : RUSH_TICK[0] + Math.random() * (RUSH_TICK[1] - RUSH_TICK[0]));
+    };
+    this._masterReq("main", player).send().then((m) => {
+      if (gen !== this.gameGen) return;
+      if (stale()) { this._rushMasterBusy = null; next(250); return; } // the roll came in between: ask again for the new position
+      const choice = m && m.record ? m.choice : null;
+      const go = (hexPick) => {
+        this._rushMasterBusy = null;
+        if (stale()) { next(250); return; }
+        let acted;
+        if (!choice) acted = this._rushBotAct(player);
+        else if (choice.kind === "end") acted = this._rushBotAct(player, true); // "do nothing now": only the Expert's player trade, then Ready
+        else {
+          if (hexPick != null) this._masterRobberPick = hexPick;
+          let res;
+          try { res = this._masterApply(player, choice); } finally { this._masterRobberPick = null; }
+          acted = res === "noop" ? this._rushBotAct(player, true) : !!res;
+        }
+        finish(acted);
+      };
+      if (choice && choice.kind === "dev" && choice.t === "knight") { // the Knight's tile is searched too
+        this._masterReq("robber", player).send().then((rr) => { if (gen !== this.gameGen) return; go(rr && rr.choice != null && this._robberHexAllowed(rr.choice, player) && rr.choice !== this.robberHexId ? rr.choice : null); });
+      } else go(null);
+    });
+    return true;
+  },
+  /** The 7 in Rush: the robber tile of a Master seat (null: the Expert's own pick). */
+  _rushMasterHex(player) {
+    return this._masterReq("robber", player).send().then((m) => {
+      const c = m && m.record ? m.choice : null;
+      return c != null && this._robberHexAllowed(c, player) && c !== this.robberHexId ? c : null;
+    });
   },
 
   // ── set-up ──

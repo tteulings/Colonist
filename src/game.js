@@ -159,7 +159,7 @@ const AI_PRESETS = {
   shark:        { placement: "medium",  expansion: "medium",  trading: "balanced",     devCards: "strategic", awareness: "advanced" },
   // v0.90: the Expert plus a search over its options (src/master.js, src/master/); opt-in, never a default
   master:       { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "master" },
-  // v1.10: the Master's search with ten times the thinking (up to 1000 rollouts, 14 turns deep, ~3 s a move); Classic, up to 4 players
+  // v1.10: the Master's search with ten times the thinking (up to 1000 rollouts, 14 turns deep, ~3 s a move); Island board, Classic and Rush, 2–6 players
   super:        { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "super" },
 };
 
@@ -1568,7 +1568,7 @@ class ColonistFullGame {
     this.canvas.style.cursor = "grab";
 
     this._stReset(); // the end-of-game statistics log (src/stats.js)
-    this._masterBusy = null;
+    this._masterBusy = null; this._rushMasterBusy = null;
     this._masterWarm(); // v0.90: load the Master's worker before its first decision
     this.initialPlacement();
     this.recomputeScores();
@@ -6236,13 +6236,16 @@ class ColonistFullGame {
         this._rushWaitHumanRobber(seven);
       } else {
         seven.leftMs = Infinity;
-        this._later(() => {
+        const place = (pick) => {
           if (this.rush?.seven !== seven) return;
-          const hexId = this.chooseRobberHex(mover);
+          const hexId = pick ?? this.chooseRobberHex(mover);
           if (this._aiRec()) this._aiNoteRobber(mover, hexId);
           this.moveRobberAndSteal(mover, hexId);
           this._rushEndSeven();
-        }, 1400);
+        };
+        // v1.17 a Master / Super Expert seat searches its tile (about 0.25 s, inside the usual pause)
+        if (this._masterLive(mover)) this._later(() => { if (this.rush?.seven === seven) this._rushMasterHex(mover).then(this._guard(place)); }, 1100);
+        else this._later(() => place(null), 1400);
       }
     }
     this.saveToStorage();
@@ -6316,6 +6319,7 @@ class ColonistFullGame {
       this._scheduleBotTick(player, 600);
       return;
     }
+    if (this._masterLive(player) && !this.setupPhase && this._rushMasterTick(player)) return; // v1.17 Master / Super Expert in Rush: a searched step
     const acted = this._rushBotAct(player);
     if (acted) {
       r.ready = r.ready.filter((id) => id !== player.id);
@@ -6348,10 +6352,12 @@ class ColonistFullGame {
   }
 
   // One bot action per tick, using the Classic AI decision functions.
-  _rushBotAct(player) {
-    if (this.maybePlayBestDevCard(player)) return true;
-    for (const fn of this._getActionPriority(player)) {
-      if (fn()) return true;
+  _rushBotAct(player, tradeOnly = false) {
+    if (!tradeOnly) {
+      if (this.maybePlayBestDevCard(player)) return true;
+      for (const fn of this._getActionPriority(player)) {
+        if (fn()) return true;
+      }
     }
     if (!player.rushTradeTried) {
       player.rushTradeTried = true;
@@ -9019,8 +9025,8 @@ class ColonistFullGame {
       const info = AI_PRESET_INFO[key] || AI_PRESET_INFO.custom;
       return `<span class="persona-badge persona-${key}">${info.glyph ? `${info.glyph} ` : ""}${info.label}</span>`;
     };
-    // v1.10 Super Expert is searched only in Classic games of up to 4 players: elsewhere it is greyed out, with the reason
-    const superOff = () => (d.board === "seafarers" ? "Seafarers" : d.mode === "rush" ? "Rush" : d.numBots + 1 > 4 ? "5\u20136 players" : "");
+    // v1.10 Super Expert / v1.17: searched on the island board (Classic and Rush, 2\u20136 players); Seafarers: greyed out, with the reason
+    const superOff = () => (d.board === "seafarers" ? "Seafarers" : "");
     const botPreset = (i) => (d.botStyleMode === "each" ? d.perBot[i] : d.allPreset);
     const botStrategy = (i) => (d.botStyleMode === "each" ? AI_PRESETS[d.perBot[i]] : d.allStrategy);
     const diceHelp = {
@@ -9092,12 +9098,12 @@ class ColonistFullGame {
     const render = () => {
       const presetKeys = [...Object.keys(AI_PRESETS), "custom"];
       if (superOff() && (d.allPreset === "super" || d.perBot.includes("super"))) { // not a silent fallback: say it
-        d._superNote = `Super Expert is not available in ${superOff() === "5\u20136 players" ? "games of 5\u20136 players" : superOff()}: switched to Master.`;
+        d._superNote = `Super Expert is not available in ${superOff()}: switched to Master.`;
         if (d.allPreset === "super") { d.allPreset = "master"; d.allStrategy = { ...AI_PRESETS.master }; }
         d.perBot = d.perBot.map((k) => (k === "super" ? "master" : k));
       }
       const superPicked = !superOff() && (d.botStyleMode === "each" ? d.perBot.slice(0, d.numBots).some((k, i) => k === "super" && !(d.mode !== "rush" && d.humans[i])) : d.allPreset === "super");
-      const superHelp = d._superNote ? `<p class="ng-help ng-super-help warn" role="status">${d._superNote}</p>` : superPicked ? `<p class="ng-help ng-super-help">~3 s per move. Not in Seafarers, Rush or 5\u20136 players.</p>` : "";
+      const superHelp = d._superNote ? `<p class="ng-help ng-super-help warn" role="status">${d._superNote}</p>` : superPicked ? `<p class="ng-help ng-super-help">${d.mode === "rush" ? "Rush: a quarter of a second per move, so about a Master there." : "~3 s per move."} Not in Seafarers.</p>` : "";
       overlay.innerHTML = `
         <div class="ng-card">
           <header class="ng-header">

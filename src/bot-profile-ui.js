@@ -41,11 +41,11 @@ export function profileLabel(game, player) {
   return pr ? `, ${pr.custom ? "custom" : P[pr.key].label} bot` : "";
 }
 
-/** The Super Expert is searched only in Classic games of up to 4 players. With `why`: the sentence for this table when it isn't. */
+/** The Super Expert is searched on the island board (v1.17: Rush and 5–6 players too), not in Seafarers. With `why`: the sentence for this table when it isn't. */
 export function superHere(game, why = false) {
-  const ok = !game || !game.players || (!game.sea && !game.isRush?.() && game.players.length <= 4);
+  const ok = !game || !game.players || !game.sea;
   if (!why) return ok;
-  return `Not searched at this table (${game.sea ? "Seafarers" : game.isRush?.() ? "Rush" : "5–6 players"}): here a Super Expert plays exactly like an Expert.`;
+  return "Not searched at this table (Seafarers): here a Super Expert plays exactly like an Expert.";
 }
 
 const row = (cls, glyph, title, text) => `<div class="bp-row"><span class="ic2 ${cls}" aria-hidden="true">${glyph}</span><div><b>${title}</b>${text}</div></div>`;
@@ -115,6 +115,7 @@ export function openProfileSheet(game, opts = {}) {
       <div class="bp-hero">${profileArt(key, 132)}</div>
       <div class="bp-meter">${dots(p.level, "bp-dots", p.beyond)}<span>${p.beyond ? `Strength ${p.level}/5 + star` : `Strength ${p.level}/5`}</span></div>
       ${key === "super" && player && !superHere(game) ? `<p class="bp-warn" role="status">${superHere(game, true)}</p>` : ""}
+      ${(key === "master" || key === "super") && player && game?.players && !game.sea && (game.isRush?.() || game.players.length >= 5) ? `<p class="bp-warn" role="status">${game.isRush?.() ? "Rush: this bot's search is capped at a quarter of a second a move, and Rush is searched as turn-by-turn play (approximate). " : ""}${game.players.length >= 5 ? `${game.players.length} players: fewer playouts fit in the same time, so its edge is smaller (not measured).` : ""}</p>` : ""}
       <div class="bp-strength">${strengthLine(key)}</div>
       ${player ? soFar(game, player.id) : ""}
       <div class="bp-rows bp-beat">${row("beat", "✓", "How to beat it", p.beat)}</div>
@@ -181,7 +182,7 @@ export function tableList(game, { sel = null, onSelect = null } = {}) {
  * the lit card is hl.active, a hand-tuned mix outlines its closest preset. onPick(key) applies, (i) opens the sheet.
  */
 /** "Seafarers" / "Rush" / "5–6 players" when the Super Expert is not searched in this game, else "". */
-export const superOff = (game) => (superHere(game) ? "" : game.sea ? "Seafarers" : game.isRush?.() ? "Rush" : "5–6 players");
+export const superOff = (game) => (superHere(game) ? "" : "Seafarers");
 
 export function presetCards(game, keys, hl, onPick) {
   const box = document.createElement("div");

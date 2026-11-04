@@ -152,7 +152,8 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   const last = r.rounds[r.rounds.length - 1];
   const finalists = last ? last.alive.filter((k) => !last.out.includes(k)) : [0];
   const winP = mean(r.vals[0]);
-  const cands = r.cands.map((x, k) => ({ label: x.label, focus: x.focus || null, m: r.paired[k].m, se: r.paired[k].se, n: r.paired[k].n, fin: finalists.includes(k), win: winP == null ? null : r4(winP + r.paired[k].m) }));
+  const wl = (l) => (g._rushPos ? String(l).replace(/^End turn/, "Wait") : l); // Rush has no turn to end: "do nothing now"
+  const cands = r.cands.map((x, k) => ({ label: wl(x.label), focus: x.focus || null, m: r.paired[k].m, se: r.paired[k].se, n: r.paired[k].n, fin: finalists.includes(k), win: winP == null ? null : r4(winP + r.paired[k].m) }));
   let best = 0;
   cands.forEach((c, k) => { if (k && c.fin && c.n >= 2 && c.m > (best ? cands[best].m : 0)) best = k; });
   const b = cands[best];
@@ -164,7 +165,7 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   const trivial = spread < TRIVIAL;
   // v1.11 the likely reason A was stronger, read from the position (src/review/why.js); null when nothing clear separates them
   const why = best && !trivial && b.m >= 0.01 ? explain(g, p, rec, { label: b.label, focus: b.focus }, { label: played.label, focus: played.focus || null }) : null;
-  return { ...base, why, label: played.label, focus: played.focus || null, win: winP == null ? null : r4(winP), best: best ? { label: b.label, focus: b.focus, gain: r4(b.m), se: b.se, seats: r.seats?.[best] || null } : null, seats: r.seats?.[0] || null,
+  return { ...base, rush: g._rushPos || undefined, why, label: played.label, focus: played.focus || null, win: winP == null ? null : r4(winP), best: best ? { label: b.label, focus: b.focus, gain: r4(b.m), se: b.se, seats: r.seats?.[best] || null } : null, seats: r.seats?.[0] || null,
     loss: r4(loss), lossRaw: r4(lossRaw), spread: r4(spread), lead: r4(lead), trivial, skip: trivial ? "trivial" : null, acc: trivial || !scored.includes(rec.k) ? null : Math.round(accuracyOf(lossRaw) * 10) / 10,
     mark: trivial ? "good" : markOf(loss), cands, futures: r.vals[0].filter((v) => v != null).length, rollouts: r.rollouts, ms };
 }
