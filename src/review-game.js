@@ -476,7 +476,7 @@ export const ReviewGameMixin = {
       bindCard(el.querySelector(".rs-card")); el.querySelector(".rs-strip .on")?.scrollIntoView?.({ inline: "center", block: "nearest" });
       return;
     }
-    el.className = `rv rs step tm${mid ? " noboard" : ""}`; el.dataset.show = show;
+    el.className = `rv rs step tm${mid ? " noboard" : ""}${x.why && !noA ? " hw" : ""}`; el.dataset.show = show;
     el.innerHTML = `<div class="rv-bar rs-bar"><button type="button" class="rv-btn" data-rvclose-step aria-label="Back to the overview">${IC.back}</button><div><h3>${this._rvWhen(d)}</h3><small>${k + 1} of ${list.length}${this._rvQ === "imp" ? " · could be better" : ""}${prov ? " · provisional" : ""}</small></div><button type="button" class="rv-btn pri rs-ov" data-rvclose-step>Overview</button><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review">${IC.info}</button></div>
       ${this._rvProgHtml(this._rvPid)}
       <div class="rs-stage"><div class="rs-eval">${evalHtml}</div>

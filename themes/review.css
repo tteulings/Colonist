@@ -236,8 +236,10 @@
 .rs-why { display: grid; gap: 3px; padding: 6px 9px 7px; border-radius: 12px; background: color-mix(in srgb, var(--primary) 8%, var(--chip)); border: var(--chip-border); }
 .rs-why .w-h { display: flex; align-items: center; gap: 6px; line-height: 1; } .rs-why .w-h b { font: 800 12px var(--font-body); color: var(--heading); text-transform: uppercase; letter-spacing: .04em; } .rs-why .w-h small { font-size: 11px; font-weight: 650; color: var(--ink-soft); }
 .rs-why .w-i { margin-left: auto; width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 0; background: none; color: var(--ink-soft); cursor: pointer; } .rs-why .w-i svg { width: 16px; height: 16px; }
-.rs-why p { margin: 0; display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; line-height: 1.28; font-weight: 650; } .rs-why p s { flex: none; margin-top: 1px; width: 16px; height: 16px; font-size: 10px; }
+.rs-why p { margin: 0; display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; line-height: 1.28; font-weight: 650; } .rs-why p s { flex: none; margin-top: 1px; width: 16px; height: 16px; font-size: 11px; }
 .rs-why .w2 { color: var(--ink-soft); font-weight: 600; }
 .w-chips { display: flex; flex-wrap: wrap; gap: 4px; } .w-chips span { font: 750 11.5px/1 var(--font-body); padding: 4px 8px; border-radius: 999px; background: var(--chip); border: var(--chip-border); color: var(--ink); }
 .rs-key .x small.w { display: block; margin-top: 1px; font-size: 11.5px; font-weight: 600; color: var(--ink-soft); line-height: 1.2; }
 .mk-why { pointer-events: none; } [data-show="B"] .mk-why { display: none; }
+.rs-why s { text-decoration: none; display: inline-grid; place-items: center; border-radius: 50%; font: 800 11px var(--font-body); background: var(--primary); color: #fff; border: 1.5px solid #fff; } .rs-why s.alt { background: #fff; color: var(--primary); border-color: var(--primary); }
+.rs.hw { --stage: 36%; } .rs.hw .rs-lk { display: none; } .rs.hw .rs-ab > div { padding: 4px 8px; } .rs.hw .rs-s { font-size: 13px; }

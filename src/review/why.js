@@ -70,6 +70,7 @@ export function parseMove(label, focus, kind) {
   let m = null;
   if (kind === "setup" || /^Spot /.test(l)) m = { type: "setup", node: focus?.node };
   else if (/^Road/.test(l) || /^Longest Road/.test(l)) m = { type: "road", edge: focus?.edge, target: focus?.node, lr: /Longest Road/.test(l) };
+  else if (/^Settlement .* \+\d+ roads?$/.test(l)) m = { type: "road", edge: focus?.edge, target: focus?.node }; // a settlement goal still roads away: the move is the road
   else if (/^Settlement/.test(l)) m = { type: "settlement", node: focus?.node };
   else if (/^City/.test(l)) m = { type: "city", node: focus?.city ?? focus?.node };
   else if (/^Robber/.test(l)) m = { type: "robber", hex: focus?.hex };
@@ -286,7 +287,7 @@ function explain1(g, p, rec, A, B) {
     if (ca.kinds.length > cb.kinds.length || (!ca.first && ca.newRes.length > cb.newRes.length)) { adv.push("variety"); }
     if (ca.newRes.some((r) => !cb.newRes.includes(r)) && !ca.first) { items.push(`adds ${list(ca.newRes)} you lack`); chips.push(`+${list(ca.newRes)}`); adv.push("new"); }
     if (ca.port && !cb.port) { items.push(ca.port); chips.push(ca.port); adv.push("port"); }
-    if (ca.room >= cb.room + 5) { items.push(`room for ${ca.room} more spots`); chips.push(`${ca.room} spots to grow`); adv.push("room"); }
+    if (ca.room >= cb.room + 5 && adv.length) { items.push(`room for ${ca.room} more spots`); chips.push(`${ca.room} spots to grow`); } // room alone is too vague to be a reason
     if (ca.kinds.length > cb.kinds.length) chips.unshift(`${ca.kinds.length} resources vs ${cb.kinds.length}`);
     if (ca.pips >= cb.pips + 2) chips.unshift(`${ca.pips} pips vs ${cb.pips}`);
     if (!adv.length) return null;
