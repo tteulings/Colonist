@@ -72,9 +72,10 @@
           <p class="lt-eq" id="labTreeEq"></p>
         </div>
         <div class="lb-card" id="labBotCard">
-          <div class="lt-head"><h2>Your bot</h2><small>also plays in Tournament</small></div>
+          <div class="lt-head"><h2>Your bot</h2><small id="labMixSt"></small></div>
           <div class="lb-row"><span>Bot</span><div class="lb-seg" id="labPreset" role="radiogroup" aria-label="Preset"></div></div>
           <div id="labDims"></div>
+          <div class="lb-row lb-mixrow" id="labMixRow" hidden><span>Mix</span><div><button type="button" class="lb-btn" id="labMixBtn">Save as Custom mix</button></div></div>
           <div class="lb-calc">
             <div class="lb-calch"><button type="button" class="lb-disc" id="labCalcBtn" aria-expanded="false" aria-controls="labCalc">Calculation <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><span class="lb-calcst" id="labCalcSt"></span></div>
             <div id="labCalc" hidden></div>
@@ -83,23 +84,31 @@
       </section>
       <section class="lb-col lb-only-t" id="paneTournament" role="tabpanel" aria-labelledby="tabTournament" hidden>
         <div class="lb-card lb-tsetup" id="labLineupCard">
-          <div class="lt-head"><h2>Line-up</h2><small>4 players</small></div>
-          <div class="lb-seg" id="labLineup" role="radiogroup" aria-label="Line-up"></div>
+          <div class="lt-head"><h2>Line-up</h2><div class="lb-seg lb-nseg" id="labNSeats" role="radiogroup" aria-label="Seats at the table"></div></div>
+          <div class="lb-tpl" id="labTpl" role="group" aria-label="Templates"></div>
           <div id="labSeatsT"></div>
+          <div class="lb-tog" id="labDistinctRow" hidden><span>Different bots only<button type="button" class="lb-ii" data-info="infoDistinct" aria-label="About different bots only">i</button></span><button type="button" class="lb-sw" id="labDistinct" role="switch" aria-checked="false" aria-label="Different bots only"></button></div>
+          <p class="lb-itext" id="infoDistinct" hidden>Each game draws random bots, no bot twice in a game.</p>
         </div>
         <div class="lb-card lb-tsetup">
           <div class="lb-row"><span>Games</span><div class="lb-seg" id="labGames" role="radiogroup" aria-label="Games"></div></div>
           <div class="lb-row"><span>Board</span><div class="lb-seg" id="labTBoard" role="radiogroup" aria-label="Tournament board"></div></div>
-          <div class="lb-row"><span>Seats</span><div class="lb-seg" id="labTSeats" role="radiogroup" aria-label="Seats"></div></div>
+          <div class="lb-tog"><span>Every bot plays every seat<button type="button" class="lb-ii" data-info="infoRot" aria-label="About seats">i</button></span><button type="button" class="lb-sw" id="labTSeats" role="switch" aria-checked="true" aria-label="Every bot plays every seat"></button></div>
+          <p class="lb-itext" id="infoRot" hidden>The line-up shifts one seat every game, so no bot gains from seat 1 or seat 4.</p>
+          <div class="lb-tog"><span>Same dice for all<button type="button" class="lb-ii" data-info="infoDice" aria-label="About same dice">i</button></span><span class="lb-always">always on</span></div>
+          <p class="lb-itext" id="infoDice" hidden>Game 1 is the same board and dice in every run, and in every seat. Runs stay comparable.</p>
           <div class="lb-row"><span>Speed</span><div class="lb-seg" id="labSpeed" role="radiogroup" aria-label="Speed"></div></div>
-          <button type="button" class="lb-btn primary" id="labRun">Start 20 games</button>
+          <div class="lb-tog" id="labWatchNote" hidden><span>Master games run in the background<button type="button" class="lb-ii" data-info="infoSlow" aria-label="About Master games">i</button></span></div>
+          <p class="lb-itext" id="infoSlow" hidden>Master and Super Expert search every move, so their games run in the background (no Watch). Other games can be watched.</p>
+          <button type="button" class="lb-btn primary" id="labRun">Start 100 games</button>
           <p class="lb-fine" id="labRunNote"></p>
         </div>
-        <div class="lb-card" id="labSummary" hidden></div>
         <div class="lb-card" id="labStand" hidden></div>
+        <div class="lb-card" id="labSummary" hidden></div>
         <div class="lb-card" id="labHist" hidden></div>
       </section>
     </main>
+    <dialog class="lb-sheet" id="labPick" aria-label="Pick a bot"><div class="lb-card"><div class="lt-head"><h2 id="labPickT">Pick a bot</h2><button type="button" class="lb-link" id="labPickClose">Close</button></div><div id="labPickList" class="lb-pick"></div></div></dialog>
     <dialog class="lb-sheet" id="labBoardSheet" aria-label="Board settings">
       <div class="lb-card">
           <div class="lt-head"><h2>Board</h2><button type="button" class="lb-link" id="labBoardClose">Done</button></div>

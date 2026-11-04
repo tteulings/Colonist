@@ -45,9 +45,10 @@ function detect(m) {
 function playGame(m) {
   const t0 = performance.now();
   const orig = Math.random;
-  const agents = m.strategies.map((s) => (s.policy === "master" ? makeMaster(m.opts || {}) : null));
+  // v1.13: a Super Expert seat searches with its own (bigger) budget (m.budgets[i]); a Master with m.opts
+  const agents = m.strategies.map((s, i) => (s.policy === "master" || s.policy === "super" ? makeMaster(m.budgets?.[i] || m.opts || {}) : null));
   try {
-    g._labSimStart(m.strategies, { players: 4, map: m.map || "random", seed: m.seed, agents });
+    g._labSimStart(m.strategies, { players: m.strategies.length, map: m.map || "random", seed: m.seed, agents });
     let r = { done: false };
     while (!r.done) r = g._labSimStep(40);
     return { winner: r.winner, turns: r.turns, vp: g.players.map((p) => p.victoryPoints), ms: Math.round(performance.now() - t0),

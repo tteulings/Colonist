@@ -1,0 +1,15 @@
+PASS seed 101: game played (225 moves, turn 17, winner 1)
+PASS seed 101: analysis ON gives identical moves  (225 moves, last decision plan)
+PASS seed 101: Pause + Step every decision gives identical moves  (207 steps)
+PASS bots made no move while held  (207/207)
+PASS step run: no page errors
+PASS seed 101: no page errors
+PASS seed 202: game played (194 moves, turn 15, winner 1)
+PASS seed 202: analysis ON gives identical moves  (194 moves, last decision plan)
+PASS seed 202: no page errors
+PASS seed 303: game played (203 moves, turn 16, winner 2)
+PASS seed 303: analysis ON gives identical moves  (203 moves, last decision plan)
+PASS seed 303: no page errors
+PASS seed 404: game played (177 moves, turn 17, winner 0)
+PASS seed 404: analysis ON gives identical moves  (177 moves, last decision plan)
+PASS seed 404: no page errors
