@@ -11,8 +11,8 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=106";
-import { masterRequest, masterAvailable, MASTER_BUDGET } from "./master.js?v=106";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=107";
+import { masterRequest, masterAvailable, MASTER_BUDGET } from "./master.js?v=107";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";

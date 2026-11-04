@@ -14,6 +14,7 @@ import { StatsUiMixin } from "./stats-ui.js"; // … the stats screen, heatmaps 
 import { LiveStatsMixin, installLiveStats } from "./live-stats.js"; // … and the same cards during the game
 import { ReviewMixin, installReview } from "./review.js"; // v1.02 post-game review: the decision recorder
 import { ReviewUiMixin, installReviewUi } from "./review-ui.js"; // … missed chances and Show
+import { HistoryMixin, installHistory } from "./history.js"; // v1.07 Past games (IndexedDB)
 import { ReviewGameMixin, installReviewGame } from "./review-game.js"; // v1.03 … the Game review (Monte Carlo accuracy)
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
@@ -993,6 +994,8 @@ class ColonistFullGame {
       onMore: () => this._showDifficultyModal(),
       onIntro: () => this.onboarding.showIntro(0, true),
       onSettings: () => this.settingsUI.open("game"),
+      onHistory: () => this.histOpen(),
+      historyCount: () => this._hist?.count ?? null,
     });
     this.menu = new GameMenu(this, {
       onHome: () => this.goHome(),
@@ -1002,7 +1005,11 @@ class ColonistFullGame {
       onAbout: () => this.settingsUI.open("about"),
       onStats: () => this.liveStatsOpen(),
       onCheck: () => this._rvOpenMid(),
+      onHistory: () => this.histOpen(),
+      historyCount: () => this._hist?.count ?? null,
     });
+    const oldSlot = this.histOldSlot(); // read now: the resetGame() below clears a finished game
+    this.hist.open().then(() => this.histMigrate(oldSlot)).then(() => { if (this.home?.open) this.home.render(); }); // the last game of the old storage becomes the first past game
     // Every launch opens on the home screen. A saved game is restored behind it but held (no bots,
     // no Rush clock, nothing saved) until Continue; without one a fresh board waits behind it.
     this.onboardingHold = true;
@@ -11053,6 +11060,8 @@ Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGame
 installReview(ColonistFullGame);
 installReviewUi(ColonistFullGame);
 installReviewGame(ColonistFullGame);
+Object.defineProperties(ColonistFullGame.prototype, Object.getOwnPropertyDescriptors(HistoryMixin)); // v1.07 (keeps the `hist` getter a getter)
+installHistory(ColonistFullGame);
 
 const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle
