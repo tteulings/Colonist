@@ -2,6 +2,7 @@
 // A mixin on ColonistFullGame (installed by game.js). Styles: themes/six.css, all scoped to
 // .six-up / [data-seats] / .sbp-* so the 2–4 player chrome is untouched.
 import { icon, avatarSvg, awardStat } from "./themes/manager.js";
+import { framedAvatar, profileLabel } from "./bot-profile-ui.js"; // v1.04 bot profile frame
 import { SBP_WINDOW_MS } from "./six.js";
 
 const RES = ["wood", "brick", "sheep", "wheat", "ore"];
@@ -37,8 +38,8 @@ export const SixUiMixin = {
   /** One six-up chip (design option A): avatar with a points badge, full name, cards + development cards. */
   _sixChip(player, { active, ready, vp, cards, dev, leader, building, awards, over, feats }) {
     const cls = `pchip six pc-${player.id}${active ? " active" : ""}${ready ? " ready" : ""}${leader ? " leader" : ""}${building ? " building" : ""}`;
-    return `<div class="${cls}" data-seat="${player.id}" role="button" tabindex="0" aria-label="${player.name}: ${vp} points, ${cards} cards, ${dev} development cards${leader ? ", in the lead" : ""}${building ? ", building" : ""}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
-      <div class="sx-av">${avatarSvg(player.id)}<b class="sx-vp">${vp}</b>${leader ? CROWN : ""}${building ? `<span class="sx-sbp">${icon("build")}</span>` : ""}</div>
+    return `<div class="${cls}" data-seat="${player.id}" role="button" tabindex="0" aria-label="${player.name}: ${vp} points, ${cards} cards, ${dev} development cards${leader ? ", in the lead" : ""}${building ? ", building" : ""}${profileLabel(this, player)}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
+      <div class="sx-av">${framedAvatar(this, player)}<b class="sx-vp">${vp}</b>${leader ? CROWN : ""}${building ? `<span class="sx-sbp">${icon("build")}</span>` : ""}</div>
       <div class="pn">${player.short || player.name}</div>
       <div class="mini"><span data-stat="cards"${over ? ` class="warn" title="more than ${this._discardLimit()}: hands back half on a 7"` : ""}>${icon("cards")}${cards}</span>${dev ? `<span>${icon("devcard")}${dev}</span>` : ""}</div>
       ${feats ? `<div class="mini feats">${feats}</div>` : ""}

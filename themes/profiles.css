@@ -1,0 +1,86 @@
+/* v1.04 bot profiles: level frames on the avatars, the profile sheet, picker extras, Settings > Bots table.
+   Own file so the theme files stay untouched; every colour has a Night variant. */
+:root { --pa-bg: #FDF1D8; --pa-ground: #EADCBE; --pa-ink: #2B211C; --lf-gold: #D9A21B; --lf-silver: #D2D9E1; --lf-edge: rgba(43,33,28,.62); --lf-plain: rgba(43,33,28,.34); }
+:root[data-palette="night"] { --pa-bg: #EBDFC6; --pa-ground: #D8CAAC; --lf-edge: rgba(0,0,0,.78); --lf-silver: #E4EAF0; --lf-gold: #EDBA2E; --lf-plain: rgba(255,255,255,.4); }
+:root[data-theme="C"] { --pa-bg: #F1E8D6; --pa-ground: #E2D5BC; }
+
+/* ── frame around a bot's avatar: 150% of the avatar, centred, never catching taps ── */
+.avatar > .lf { position: absolute; left: 50%; top: 50%; width: 150% !important; height: 150% !important; border-radius: 0 !important; transform: translate(-50%, -50%); pointer-events: none; overflow: visible; z-index: 2; }
+.pchip .persona-badge { display: none !important; } /* the frame replaces the tiny persona icon on the strip chips */
+
+/* ── (i) and strength dots ── */
+.bp-dots, .bp-pdots { display: inline-flex; gap: 3px; }
+.bp-dots i { width: 10px; height: 10px; border-radius: 3px; background: color-mix(in srgb, var(--ink, #2E3A3D) 22%, transparent); transform: rotate(45deg); }
+.bp-dots i.on { background: var(--brand-ink, #1F6E77); }
+.bp-i { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1.6px solid currentColor; font: italic 800 13px/1 Georgia, serif; }
+
+/* ── profile sheet ── */
+.bp-scrim { position: fixed; inset: 0; background: rgba(8, 20, 24, .45); z-index: 400; }
+.bp-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 401; max-height: 88vh; max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; max-width: 560px; margin: 0 auto;
+  background: var(--sheet, #FDFBF6); color: var(--ink, #2E3A3D); border-top: var(--sheet-border, 1px solid rgba(128,128,128,.25)); border-radius: 22px 22px 0 0; padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -10px 30px rgba(0,0,0,.28); font-size: 14px; line-height: 1.4; }
+.bp-grab { width: 40px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--ink, #2E3A3D) 22%, transparent); margin: 0 auto 8px; }
+.bp-who { display: flex; align-items: center; gap: 12px; }
+.bp-av { flex: none; display: grid; place-items: center; width: 52px; height: 52px; }
+.bp-av .avatar { --av: 36px; --av-ring: 2.5px; }
+.bp-av-mini { border-radius: 50%; background: var(--pa-bg); box-shadow: 0 0 0 1.5px rgba(43,33,28,.25); width: 44px; height: 44px; margin: 4px; }
+.bp-id { min-width: 0; }
+.bp-id .nm { font-weight: 800; font-size: 17px; line-height: 1.2; color: var(--heading, var(--ink)); }
+.bp-id .nm small { font-weight: 600; font-size: 13px; opacity: .75; }
+.bp-id .sub { font-size: 13px; color: var(--ink-soft, #5A6366); }
+.bp-x { margin-left: auto; flex: none; width: 44px; height: 44px; border-radius: 12px; border: 0; background: color-mix(in srgb, var(--ink, #2E3A3D) 8%, transparent); color: var(--ink, #2E3A3D); font-size: 18px; }
+.bp-hero { display: grid; place-items: center; margin: 4px 0 2px; }
+.bp-meter { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 650; color: var(--ink-soft, #5A6366); }
+.bp-strength { text-align: center; font-size: 13.5px; margin-top: 2px; }
+.bp-win b { color: var(--ink, #2E3A3D); }
+.bp-fair { opacity: .8; }
+.bp-game { margin: 10px 0 2px; padding: 10px 12px; border-radius: 14px; background: color-mix(in srgb, var(--ink, #2E3A3D) 6%, transparent); }
+.bp-game h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft, #5A6366); }
+.bp-game ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13.5px; }
+.bp-game li { display: flex; justify-content: space-between; gap: 10px; }
+.bp-game li span:last-child { font-weight: 700; text-align: right; }
+.bp-rows { display: grid; gap: 9px; margin: 0; }
+.bp-beat { margin-top: 12px; }
+.bp-row { display: grid; grid-template-columns: 24px 1fr; gap: 8px; align-items: start; }
+.bp-row .ic2 { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; font-size: 13px; font-weight: 900; color: #fff; }
+.bp-row b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft, #5A6366); line-height: 1.3; margin-bottom: 1px; }
+.ic2.good { background: #2A8556; } .ic2.weak { background: #C0532F; } .ic2.beat { background: #3C75C6; } .ic2.trade { background: #2FA39A; } .ic2.rob { background: #5A5764; } .ic2.card { background: #7A4FB0; }
+.bp-more-btn { margin-top: 10px; width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 12px; border: 1.5px solid color-mix(in srgb, var(--ink, #2E3A3D) 16%, transparent); background: transparent; color: var(--brand-ink, #1F6E77); font: inherit; font-weight: 750; font-size: 14px; text-align: left; }
+.bp-more-btn .bp-chev { margin-left: auto; transition: transform .15s; }
+.bp-more-btn[aria-expanded="true"] .bp-chev { transform: rotate(180deg); }
+.bp-details { margin-top: 10px; }
+.bp-details[hidden] { display: none; }
+.bp-style { margin: 0 0 9px; }
+.bp-src { margin: 9px 0 0; font-size: 12px; color: var(--ink-soft, #5A6366); }
+.bp-actions { display: flex; gap: 8px; margin-top: 12px; }
+.bp-actions button { flex: 1; min-height: 44px; border-radius: 12px; font: inherit; font-weight: 750; font-size: 14px; border: 1.5px solid color-mix(in srgb, var(--ink, #2E3A3D) 18%, transparent); background: transparent; color: var(--ink, #2E3A3D); }
+.bp-actions button.pri { background: var(--brand-ink, #1F6E77); color: #fff; border: 0; }
+.bp-sheet .pa-art { display: block; }
+
+/* ── new-game picker: emblem, strength dots, (i) ── */
+.newgame-modal .ng-preset { position: relative; min-height: 64px; }
+.newgame-modal .ng-preset .bp-pmini { position: absolute; right: 6px; top: 6px; width: 28px; height: 28px; border-radius: 50%; background: var(--pa-bg); display: grid; place-items: center; box-shadow: 0 0 0 1.5px rgba(43,33,28,.25); }
+.newgame-modal .ng-preset .bp-pdots { display: flex; gap: 3px; margin-top: 5px; }
+.newgame-modal .ng-preset .bp-pdots i { width: 7px; height: 7px; border-radius: 2px; transform: rotate(45deg); background: color-mix(in srgb, var(--ink, #2E3A3D) 22%, transparent); }
+.newgame-modal .ng-preset .bp-pdots i.on { background: var(--accent, var(--brand-ink, #1F6E77)); }
+.newgame-modal .ng-preset .bp-pi { position: absolute; right: 0; bottom: 0; width: 44px; height: 40px; display: grid; place-items: center; color: var(--ink-soft, #5A6366); }
+.newgame-modal .ng-preset .bp-pi > span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1.6px solid currentColor; font: italic 800 13px/1 Georgia, serif; }
+.newgame-modal .ng-preset-tag { font-size: 12px; padding-right: 30px; }
+.newgame-modal .hs-seat .ng-bot-select { flex: 1 1 calc(100% - 56px); min-width: 0; }
+.newgame-modal .hs-seat .bp-info { flex: none; width: 44px; height: 44px; padding: 0 !important; display: grid !important; place-items: center; border-radius: 12px; border: 1.5px solid color-mix(in srgb, var(--ink, #2E3A3D) 22%, transparent) !important; background: transparent !important; box-shadow: none !important; color: var(--brand-ink, #1F6E77); font: italic 800 18px/1 Georgia, serif; }
+
+/* ── Settings > Bots: "At this table" ── */
+.bt-table { margin: 4px 0 6px; display: grid; gap: 8px; }
+.bt-table h4, .bt-edit-h { margin: 0 0 2px; font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-soft, #5A6366); font-weight: 700; }
+.bt-edit-h { margin: 14px 0 6px; }
+.bt-bot { display: grid; grid-template-columns: 46px 1fr auto; gap: 12px; align-items: center; min-height: 60px; padding: 8px 12px 8px 10px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--ink, #2E3A3D) 14%, transparent); background: color-mix(in srgb, var(--ink, #2E3A3D) 4%, transparent); text-align: left; font: inherit; color: var(--ink, #2E3A3D); width: 100%; cursor: pointer; }
+.bt-av { display: grid; place-items: center; width: 46px; height: 46px; }
+.bt-av .avatar { --av: 34px; --av-ring: 2.5px; }
+.bt-txt { display: grid; min-width: 0; }
+.bt-bot .nm { font-weight: 800; font-size: 15px; }
+.bt-bot .pf { font-size: 13px; color: var(--ink-soft, #5A6366); line-height: 1.3; }
+.bt-bot .pf b { color: var(--ink, #2E3A3D); }
+.bt-bot .chev { font-size: 22px; color: var(--ink-soft, #5A6366); }
+
+/* ── six-up strip: the points badge sits on the avatar's corner; the frame passes behind it, the number stays on top ── */
+.pchip.six .avatar > .lf { z-index: 1; }
+.pchip.six .sx-vp { z-index: 3; }
