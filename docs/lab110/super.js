@@ -1,0 +1,17 @@
+const { chromium } = require('playwright');
+(async()=>{const b=await chromium.launch();const p=await (await b.newContext({viewport:{width:360,height:780},hasTouch:true,isMobile:true})).newPage();
+p.on('pageerror',e=>console.log('PAGEERR',e.message));
+await p.goto('http://localhost:8110/lab.html');await p.waitForFunction(()=>window.__lab&&window.__lab.ready,null,{timeout:90000});
+await p.tap('#tabTournament');
+const info=await p.evaluate(()=>({opts:[...document.querySelectorAll('#labPickList')].length}));
+await p.tap('#labSeatsT [data-seat="1"]');
+const opts=await p.evaluate(()=>[...document.querySelectorAll('#labPickList .lb-opt')].map(b=>b.dataset.k+(b.disabled?'(off)':'')));
+console.log('picker',opts.join(','));
+await p.tap('#labPickList [data-k=super]');
+console.log('note',await p.evaluate(()=>document.querySelector('#labRunNote').textContent));
+await p.tap('#labTpl [data-tpl=rand]');
+console.log('note random',await p.evaluate(()=>document.querySelector('#labRunNote').textContent));
+const t0=Date.now();
+const r=await p.evaluate(async()=>{const L=window.__lab;L.st.speed='instant';const a=await L.runGames(1,{spec:['super','simple']});return {rows:a.rows.map(x=>[x.key,x.n,x.wins]),slow:a.slowGames,errs:a.errors}});
+console.log(JSON.stringify(r),Date.now()-t0);
+await b.close();})();
