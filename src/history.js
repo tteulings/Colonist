@@ -245,6 +245,7 @@ export const HistoryMixin = {
       this.onboardingHold = false; this.uiPaused = false;
       this.loadFromStorage(rec.state); // (this resets the recorder: the saved recording goes back in after it)
       this._rv = rec.rv ? { id, base: rec.rv.base, recs: rec.rv.recs, res: null, busy: false, ms: 0, review: rec.rv.review || undefined } : null;
+      this._rv?.recs?.length && this._rvFinish?.(false); // v1.11: the missed-chance detectors run for a past game too (no auto review): without this the end screen said "checking…" for ever
     } else if (!document.querySelector(".game-over-overlay")) this.showGameOverOverlay();
     const ready = () => {
       const ov = document.querySelector(".game-over-overlay");
@@ -533,12 +534,17 @@ export function installHistory(Cls) {
   wrap("_stShowOverlay", function (orig, ...a) {
     const r = orig.apply(this, a);
     const ov = this._stOverlay;
-    if (this._histView && ov) { // a past game: the way back to the list leads the chip row
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "gs-chip hs-backchip"; b.innerHTML = `${CHEV_L}Past games`;
-      b.addEventListener("click", () => this.histExit());
-      ov.querySelector(".gs-rbtns")?.prepend(b);
-    } else this._histEndLine(ov?.querySelector(".gs-recap"));
+    if (this._histView && ov) { // a past game: the "Past games" tile is the way back to the list; a label says whose game this is
+      const t = ov.querySelector("[data-pastgames]");
+      if (t) { t.classList.add("hs-backchip"); const sm = t.querySelector("small"); if (sm) sm.textContent = "back to the list"; }
+      const m = this.hist.metas.find((x) => x.id === this._histView.id);
+      const lab = document.createElement("p");
+      lab.className = "gs-pastlab";
+      lab.textContent = `Past game${m ? ` · ${when(m.end, true)}` : ""}`;
+      ov.querySelector(".gs-scroll")?.prepend(lab);
+      const rs = ov.querySelector("[data-rematch] small");
+      if (rs) rs.textContent = "same settings as this game";
+    } else this._histEndLine(ov?.querySelector(".gs-look"));
     return r;
   });
   // the review saves itself every few results, at Stop and when done: the entry follows (provisional -> deep).

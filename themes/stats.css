@@ -67,7 +67,8 @@
 /* ── More stats: tabs + cards ── */
 .gs-more { margin: 14px 2px 8px; }
 .gs-more span { display: inline-block; padding: 4px 14px; border-radius: 999px; background: var(--float); border: var(--float-border); font: var(--display-weight, 700) 16px var(--font-display); color: var(--heading); }
-.gs-tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-bottom: 8px; }
+.gs-tabs { display: flex; gap: 6px; margin: 0 -10px 8px; padding: 0 10px 2px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.gs-tabs::-webkit-scrollbar { display: none; }
 .gs-tab { display: flex; align-items: center; justify-content: center; text-align: center; height: 34px; padding: 0 2px; border-radius: 999px; border: var(--float-border); background: var(--float); color: var(--ink-soft); font: 750 12.5px var(--font-body); cursor: pointer; white-space: nowrap; min-width: 0; }
 .gs-tab.on { background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); border: var(--primary-border); }
 .gs-card { background: var(--sheet); background-image: var(--sheet-image); border: var(--sheet-border); border-radius: 16px; box-shadow: var(--float-shadow); padding: 12px 12px 10px; margin-bottom: 10px; }
@@ -320,3 +321,38 @@ html[data-motion="reduced"] .ls-sheet.in { animation: none; }
 .ls-k.rob { background: none; box-shadow: none; width: 11px; height: 11px; overflow: visible; }
 .ls-slot [data-card="dice"][data-mine] .gs-chart { max-height: calc(var(--ls-h) - 214px); } /* room for the headline's subline and the key */
 .ls-k:not(.rob) { background-image: repeating-linear-gradient(45deg, transparent 0 2px, rgba(0,0,0,.34) 2px 3.5px); background-color: var(--pc); }
+
+/* ── v1.11 end screen: result card → review card → look back → highlights → game stats ── */
+.gs-scroll > .gs-recap, .gs-scroll > .rv1, .gs-scroll > .gs-card { margin-bottom: 10px; }
+.gs-tab { flex: none; padding: 0 14px; white-space: nowrap; }
+.gs-pastlab { margin: 2px 6px 8px; font: 800 12px var(--font-body); letter-spacing: .04em; text-transform: uppercase; color: var(--float-ink, var(--heading)); opacity: .85; }
+.gs-ov { margin-bottom: 0; }
+.gs-lh { font: var(--display-weight, 700) 17px/1.2 var(--font-display); color: var(--heading); margin: 0 2px 8px; }
+.gs-look.gs-card { padding: 12px; }
+.gs-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+.gs-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px 9px; border-radius: 14px; border: var(--btn-border); background: var(--btn); background-image: var(--btn-image, none); color: var(--btn-ink); box-shadow: var(--btn-shadow); font: 800 14px/1.2 var(--font-body); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.gs-tile { justify-content: center; min-height: 88px; }
+.gs-tile .ic { flex: none; width: 22px; height: 22px; font-size: 22px; color: var(--primary); margin-bottom: 2px; }
+.gs-tile b { font-weight: 800; }
+.gs-tile small { font: 650 11px/1.2 var(--font-body); color: var(--ink-soft); text-align: center; }
+.gs-tile:active { transform: scale(.97); }
+.gs-link { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 44px; margin-top: 2px; border: 0; background: none; color: var(--ink-soft); font: 750 13px var(--font-body); cursor: pointer; }
+.gs-link .ic { width: 16px; height: 16px; }
+.gs-hlc h2 { margin-bottom: 8px; }
+.gs-hlc .gs-hl { margin: 0; }
+/* the review card: the one primary card below the result */
+.gs-revcard { background: var(--sheet); background-image: var(--sheet-image); border: 2px solid var(--primary); border-radius: 18px; box-shadow: var(--float-shadow); margin: 0 0 10px; overflow: hidden; }
+.gs-revcard .rv1-h .rv-dot { display: none; }
+.gs-revcard .rv1-h { padding: 12px 12px 4px; font: var(--display-weight, 700) 17px/1.2 var(--font-display); }
+.gs-revcard .rv1-h small { font-size: 12px; }
+.gs-revcard .rv1-lead { margin: 0; padding: 2px 12px 10px; font-size: 13px; line-height: 1.35; color: var(--ink-soft); font-weight: 650; }
+.rv1.gs-revcard .rvb .t { color: var(--primary-ink); }
+.rv1.gs-revcard .rvb { width: calc(100% - 24px); margin: 2px 12px 10px; min-height: 48px; border: var(--primary-border); border-radius: 14px; background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); box-shadow: var(--primary-shadow); grid-template-columns: 24px minmax(0, 1fr) auto 14px; padding: 2px 12px; }
+.rv1.gs-revcard .rvb .x { white-space: normal; font-weight: 800; font-size: 14px; line-height: 1.2; }
+.rv1.gs-revcard .rvb .g, .rv1.gs-revcard .rvb .rv-chev { color: var(--primary-ink); opacity: .9; }
+.rv1.gs-revcard .rvb .rv-ring { background: conic-gradient(var(--primary-ink) var(--p, 0%), color-mix(in srgb, var(--primary-ink) 30%, transparent) 0); }
+.gs-revcard .rv1-row:last-child { border-bottom: 0; }
+.gs-revcard.rv-wait { padding-bottom: 0; }
+/* Final board: the way back to the results */
+.gs-seeback { position: absolute; z-index: 26; top: 131px; left: 64px; height: 40px; padding: 0 14px 0 8px; display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; border: var(--primary-border); background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); font: 800 14px var(--font-body); box-shadow: var(--primary-shadow); cursor: pointer; }
+.gs-seeback .ic { width: 18px; height: 18px; }

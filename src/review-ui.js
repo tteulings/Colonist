@@ -51,18 +51,27 @@ export const ReviewUiMixin = {
     return humans.map((p) => ({ p, list: this._rvVerified?.(p.id) || res.findings.filter((f) => f.pid === p.id).sort((a, b) => b.size - a.size).slice(0, 3) })).filter((x) => x.list.length || this._rvReviewable?.());
   },
 
-  /** The recap block (empty when there is nothing to say). */
+  /** The recap block (empty when there is nothing to say). v1.11: solo = ONE card, "Your game review": the button
+   *  that opens the review first (with its progress ring), then the biggest chances missed; pass & play keeps the
+   *  per-person "missed chances" lines. */
   _rvBlockHtml() {
     const R = this._rv;
     if (!R || !R.recs?.length || !this._rvCovered()) return "";
-    if (R.busy || (!R.res && R.recs.length)) return `<div class="rv1 rv-wait" role="status"><div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">Missed chances</span><small><span class="rv-spin" aria-hidden="true"></span>checking…</small></div></div>`;
+    const solo = !this.hotseat, me = solo ? this.players.find((p) => p.isHuman) : null;
+    const head = (sm) => `<div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Your game review" : "Missed chances"}</span>${sm ? `<small>${sm}</small>` : ""}</div>`;
+    if (R.busy || (!R.res && R.recs.length)) {
+      return `<div class="rv1 gs-revcard rv-wait" role="status">${head(`<span class="rv-spin" aria-hidden="true"></span>checking…`)}<p class="rv1-lead">Looking for moves where another choice was clearly better. This takes a few seconds.</p>${me ? this._rvReviewRowHtml?.(me) || "" : ""}</div>`;
+    }
     const groups = this._rvGroups();
     if (!groups.length) return "";
-    const solo = !this.hotseat;
-    return groups.map(({ p, list }) => `<div class="rv1" data-rvp="${p.id}"><div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Missed chances" : `<span class="pc-${p.id} rv-who">${esc(p.name)}</span> · missed chances`}</span><small>${list.length ? (list[0].verified ? "checked by the Master bot" : "tap to see the moment") : ""}</small></div>
-      ${list.length ? "" : `<p class="rv1-none">${this._rv.review?.pid === p.id && this._rv.review.done ? "The Master bot found no clear missed chance." : "No clear missed chance this game."}</p>`}
+    return groups.map(({ p, list }) => {
+      const lead = list.length ? (solo ? "Biggest chances missed, where another move kept clearly more win chance. Tap one to see it on the board." : "") : "No clear missed chance found in this game.";
+      return `<div class="rv1${solo ? " gs-revcard" : ""}" data-rvp="${p.id}"><div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Your game review" : `<span class="pc-${p.id} rv-who">${esc(p.name)}</span> · missed chances`}</span><small>${list.length ? (list[0].verified ? "checked by the Master bot" : "") : ""}</small></div>
+      ${lead ? `<p class="rv1-lead">${lead}</p>` : ""}
+      ${solo ? this._rvReviewRowHtml?.(p) || "" : ""}
       ${list.map((f, k) => `<button type="button" class="rv1-row" data-rvshow="${p.id}:${k}" aria-label="Turn ${f.t}: ${esc(f.line)}, ${esc(f.gain)}. Show"><span class="t">Turn ${f.t}</span><span class="x">${esc(f.line)}</span><span class="g">${esc(f.gain)}</span>${IC.chev}</button>`).join("")}
-      ${this._rvReviewRowHtml?.(p) || ""}</div>`).join("") + (groups.some((x) => x.list.length) ? `<p class="rv1-note">${groups.some((x) => x.list[0]?.verified) ? "Moves where another one kept clearly more win chance, played out by the Master bot." : "Moments where another move was clearly better, as the Expert bot sees it."} Everyone has a few.</p>` : "");
+      ${solo ? "" : this._rvReviewRowHtml?.(p) || ""}</div>`;
+    }).join("");
   },
 
   /** Fill (or refresh) the block in the open recap. */
@@ -146,7 +155,7 @@ export function installReviewUi(Cls) {
     const r = orig.apply(this, a);
     try {
       const ov = this._stOverlay;
-      const anchor = ov?.querySelector(".gs-hl") || ov?.querySelector(".gs-ov");
+      const anchor = ov?.querySelector(".gs-recap") || ov?.querySelector(".gs-ov"); // v1.11: its own card under the result
       if (anchor && this._rv?.recs?.length && this._rvCovered()) {
         const box = document.createElement("div");
         box.dataset.rvbox = "";
