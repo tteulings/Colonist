@@ -23,8 +23,9 @@ export const REVIEW_ENGINES = {
   // SD is 4–17, highest for the weak bots): Simple 78.3 ± 4.3, Beginner 82.1 ± 3.1, Intermediate 87.5 ± 1.9,
   // Expert 88.1 ± 1.4, Master-100 90.6 ± 1.0. In order with every decision kind scored, dev cards included
   // (the 14-turn look-ahead sees them; with the 8-turn m100 engine they had to be left out).
-  full: { budget: { n: 1000, timeMs: 12000, depth: 14, setupDepth: 18 }, sec: 5, k: 0.08, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end"],
-    bands: [["Simple", 78.3], ["Beginner", 82.1], ["Intermediate", 87.5], ["Expert", 88.1], ["Master", 90.6]] },
+  full: { budget: { n: 1000, timeMs: 12000, depth: 14, setupDepth: 18 }, sec: 5, k: 0.15, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end"],
+    // v1.05 k 0.08 -> 0.15 (a stricter curve): the calibration recordings (16 games a level, Master 40) re-scored, mean per game ± SE
+    bands: [["Simple", 69.3], ["Beginner", 73.8], ["Intermediate", 82.0], ["Expert", 82.4], ["Master", 84.8]] },
   b: { budget: { n: 300, timeMs: 6000, depth: 12, setupDepth: 16 }, sec: 2, bands: null },
   m100: { budget: { n: 160, timeMs: 700 }, sec: 0.5, k: 0.08, trivial: 0.02, scored: ["setup", "build", "bank", "robber", "end"], bands: [["Simple", 85], ["Beginner", 86], ["Intermediate", 88], ["Expert", 89]] },
 };
@@ -52,7 +53,35 @@ const r4 = (x) => Math.round(x * 1e4) / 1e4;
 export function accuracyOf(loss, k = ACC.k) {
   return Math.max(0, Math.min(100, ACC.a * Math.exp(-k * loss * 100) - ACC.b));
 }
+// v1.05 classes on the win chance a move gave away (points of win chance, 0–1 here). LIMITS: upper bounds, tuned on
+// the full-engine loss distribution (see the v1.05 notes). Best: under 1 point AND the next-best option at least
+// BEST_LEAD behind (else Good). Could be better 2.5–6. Missed chance: you ended the turn or bank-traded while a build or
+// development card was worth 2.5+. Great: outside the set-up, the best move with the next one at least GREAT behind (rare).
+// A decision where every option was within TRIVIAL of the others has no class (no real choice): not counted, not scored.
+export const LIMITS = [[0.01, "best"], [0.025, "good"], [0.06, "could"], [0.12, "mistake"], [Infinity, "blunder"]];
+export const BEST_LEAD = 0.02;
+export const GREAT = 0.08;
+export const CLASSES = ["best", "great", "good", "could", "mistake", "blunder", "missed"];
+export function clsOf(x) {
+  if (!x || x.skip === "forced" || x.skip === "n/a" || x.skip === "error" || x.loss == null) return null;
+  if (x.trivial || x.skip === "trivial") return null;
+  const loss = x.loss || 0, lead = x.lead ?? x.spread ?? 0;
+  const c = LIMITS.find(([m]) => loss < m)[1];
+  if (c !== "best" && c !== "good" && ["end", "bank"].includes(x.k) && /^(City|Settlement|Road|Development)/.test(x.best?.label || "")) return "missed";
+  if (c === "best") return lead >= GREAT && x.k !== "setup" && x.k !== "end" ? "great" : lead >= BEST_LEAD ? "best" : "good";
+  return c;
+}
 export function markOf(loss) { return loss >= MARKS.miss ? "miss" : loss >= MARKS.inacc ? "inacc" : "good"; }
+
+/** "Road toward 10·12·5": the end of the new road that is not already part of the player's network. */
+function roadLabel(g, p, edgeId) {
+  try {
+    const G = g.geometry, ed = G.edges[edgeId];
+    const mine = (n) => G.nodes[n].owner === p.id || G.nodes[n].edgeIds.some((e) => e !== edgeId && G.edges[e].owner === p.id);
+    const far = ed.nodes.find((n) => !mine(n));
+    return far != null ? `Road toward ${g._spotLabel(far)}` : "Road";
+  } catch (_) { return "Road"; }
+}
 
 /** The recorded move as something the search can play again in any future (null: not searchable). */
 export function playedMove(g, p, rec) {
@@ -70,7 +99,7 @@ export function playedMove(g, p, rec) {
       } };
     case "build": {
       const t = a.type;
-      if (t === "road") return { label: "Road", focus: { edge: a.id },
+      if (t === "road") return { label: roadLabel(g, p, a.id), focus: { edge: a.id },
         apply(gg, q) { const free = gg.freeRoadsRemaining > 0; if (!gg.placeRoad(q, a.id, { free })) return false; if (free) gg.freeRoadsRemaining -= 1; else gg.payToBank(q, COST.road); return done(gg, q); } };
       if (t === "settlement") return { label: `Settlement on ${g._spotLabel(a.id)}`, focus: { node: a.id },
         apply(gg, q) { if (!gg.placeSettlement(q, a.id, false)) return false; gg.payToBank(q, COST.settlement); return done(gg, q); } };
@@ -81,7 +110,7 @@ export function playedMove(g, p, rec) {
     case "bank": {
       const give = {}, get = {};
       (a.tr || []).forEach(([x, y]) => { give[x] = (give[x] || 0) + 1; get[y] = (get[y] || 0) + 1; });
-      return { label: `Bank trade ${Object.keys(give).map((r) => RL[r]).join(" + ")} → ${Object.entries(get).map(([r, n]) => `${n} ${RL[r]}`).join(" + ")}`, focus: null,
+      return { label: `Bank trade ${Object.entries(give).map(([r, n]) => `${n} ${RL[r]}`).join(" + ")} → ${Object.entries(get).map(([r, n]) => `${n} ${RL[r]}`).join(" + ")}`, focus: null,
         apply(gg, q) { for (const [x, y] of a.tr || []) if (!gg.performBankTrade(q, x, y)) return false; return true; } };
     }
     case "buy": return { label: "Development card", focus: null, apply(gg, q) { return gg.buyDevelopmentCard(q) ? done(gg, q) : false; } };
@@ -105,7 +134,7 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   if (!played) return { ...base, skip: "n/a" };
   // v1.04 opts.engine: "m100" is the quick first round after a game (the deep round is "full", the default)
   const eng = opts.engine && REVIEW_ENGINES[opts.engine] ? opts.engine : REVIEW_ENGINE, E = REVIEW_ENGINES[eng];
-  const agent = makeMaster({ ...(eng === REVIEW_ENGINE ? REVIEW_BUDGET : E.budget), ...(opts.budget || {}) });
+  const agent = makeMaster({ ...(eng === REVIEW_ENGINE ? REVIEW_BUDGET : E.budget), seats: true, ...(opts.budget || {}) }); // seats: every seat's win chance, no extra rollouts
   base.eng = eng;
   const scored = eng === REVIEW_ENGINE ? SCORED_KINDS : E.scored; // the 8-turn look-ahead can't judge development cards
   const kind = rec.k === "setup" ? "setup" : rec.k === "robber" ? "robber" : "main";
@@ -123,9 +152,11 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   const lossRaw = best ? Math.max(0, b.m) : 0;
   const loss = best ? Math.max(0, b.m - SE_SHRINK * (b.se || 0)) : 0;
   const spread = Math.max(0, ...cands.filter((c, k) => k && c.n >= 2).map((c) => Math.abs(c.m)));
+  const alts = cands.filter((c, k) => k && c.n >= 2);
+  const lead = alts.length ? Math.max(0, -Math.max(...alts.map((c) => c.m))) : spread; // how far the nearest other option is behind the played one
   const trivial = spread < TRIVIAL;
-  return { ...base, label: played.label, focus: played.focus || null, win: winP == null ? null : r4(winP), best: best ? { label: b.label, focus: b.focus, gain: r4(b.m), se: b.se } : null,
-    loss: r4(loss), lossRaw: r4(lossRaw), spread: r4(spread), trivial, skip: trivial ? "trivial" : null, acc: trivial || !scored.includes(rec.k) ? null : Math.round(accuracyOf(loss) * 10) / 10,
+  return { ...base, label: played.label, focus: played.focus || null, win: winP == null ? null : r4(winP), best: best ? { label: b.label, focus: b.focus, gain: r4(b.m), se: b.se, seats: r.seats?.[best] || null } : null, seats: r.seats?.[0] || null,
+    loss: r4(loss), lossRaw: r4(lossRaw), spread: r4(spread), lead: r4(lead), trivial, skip: trivial ? "trivial" : null, acc: trivial || !scored.includes(rec.k) ? null : Math.round(accuracyOf(loss) * 10) / 10,
     mark: trivial ? "good" : markOf(loss), cands, futures: r.vals[0].filter((v) => v != null).length, rollouts: r.rollouts, ms };
 }
 
@@ -135,5 +166,7 @@ export function summarize(results) {
   const acc = real.length ? real.reduce((a, x) => a + x.acc, 0) / real.length : null;
   const count = { good: 0, inacc: 0, miss: 0 };
   results.filter((x) => x.mark).forEach((x) => { count[x.mark] += 1; });
-  return { acc: acc == null ? null : Math.round(acc), n: real.length, checked: results.length, count };
+  const cls = Object.fromEntries(CLASSES.map((c) => [c, 0]));
+  results.forEach((x) => { const c = clsOf(x); if (c) cls[c] += 1; });
+  return { acc: acc == null ? null : Math.round(acc), n: real.length, checked: results.length, count, cls };
 }
