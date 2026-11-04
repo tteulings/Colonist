@@ -89,10 +89,14 @@ export function makeMaster(opts = {}) {
       const R = o.noHalve ? 1 : Math.max(1, Math.ceil(Math.log2(K))); // o.noHalve: every candidate on every future (paired calibration)
       let j0 = 0;
       for (let r = 0; r < R && alive.length; r++) {
-        const per = Math.max(1, Math.floor((o.n / R) / alive.length));
+        const per = o.timeSlice ? 1e9 : Math.max(1, Math.floor((o.n / R) / alive.length));
         let j = j0;
+        // v1.09 experiment o.timeSlice: anytime search, the time budget split evenly over the halving rounds (a round ends at
+        // its slice, the next one starts; n is then only an upper bound)
+        const sliceEnd = o.timeSlice && o.timeMs ? t0 + o.timeMs * (r + 1) / R : Infinity;
         for (; j < j0 + per && used < o.n * 1.05; j++) {
           if (j >= 2 && now() > deadline) { stop = "time"; break; }
+          if (j >= j0 + 2 && now() > sliceEnd) break;
           for (const k of alive) { evalOne(k, j); used++; }
         }
         const rec = { j0, j1: j, alive: alive.slice(), out: [] };
