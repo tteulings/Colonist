@@ -4494,6 +4494,7 @@ class ColonistFullGame {
       const picks = this.chooseYearOfPlentyResources(player);
       const gained = picks.filter((resource) => this.takeFromBank(player, resource, 1) > 0);
       this.addLog(`${player.name} played Year of Plenty: ${this._plusList(gained)}.`);
+      this.fx?.yearOfPlenty?.(player.id, gained);
     } else if (type === "monopoly") {
       if (this._isInteractive(player)) {
         this.devPick = { type: "monopoly", count: 1, picks: [] };
@@ -4510,6 +4511,7 @@ class ColonistFullGame {
       player.resources[target] += collected;
       this._aiTrkMonopoly(player, target, collected);
       this.addLog(`${player.name} played Monopoly: +${collected} ${RESOURCE_LABEL[target]}.`);
+      this.fx?.monopoly?.(player.id, target, collected);
     }
 
     this.recomputeScores();
@@ -10319,8 +10321,7 @@ class ColonistFullGame {
     if (dp.type === "yearOfPlenty") {
       const gained = dp.picks.filter((resource) => this.takeFromBank(player, resource, 1) > 0);
       this.addLog(`${player.name} played Year of Plenty: ${this._plusList(gained)}.`);
-      const gain = gained.reduce((o, r) => { o[r] = (o[r] || 0) + 1; return o; }, {});
-      this.fx?.flyResources?.(this.players.map((p) => (p === player ? gain : {})), null);
+      this.fx?.yearOfPlenty?.(player.id, gained);
       this.sfx.trade?.();
       if (!this.confirmPlacements) this._setUndo({ kind: "yop", pid: player.id, picks: gained, logs: this.logEntries.slice(logLen), icon: "devcard", label: `Took ${gained.map((r) => RESOURCE_LABEL[r]).join(" + ")}` });
     } else {
@@ -10334,6 +10335,7 @@ class ColonistFullGame {
       player.resources[target] += collected;
       this._aiTrkMonopoly(player, target, collected);
       this.addLog(`${player.name} played Monopoly: +${collected} ${RESOURCE_LABEL[target]}.`);
+      this.fx?.monopoly?.(player.id, target, collected);
       this.sfx.trade?.();
     }
     this.recomputeScores();
