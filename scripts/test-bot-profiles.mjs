@@ -65,7 +65,7 @@ t("Settings › Bots wires one card per preset, a picked bot and the (i) sheet",
   const ui = fs.readFileSync(new URL("../src/bot-profile-ui.js", import.meta.url), "utf8");
   const game = fs.readFileSync(new URL("../src/game.js", import.meta.url), "utf8");
   assert.ok(ui.includes("export function presetCards") && ui.includes('openProfileSheet(game, { key: i.dataset.info })'));
-  assert.ok(game.includes("presetCards(this, Object.keys(AI_PRESETS)") && game.includes("this._botSel"));
+  assert.ok(game.includes("presetCards(this, Object.keys(AI_PRESETS)") && game.includes("this._botSel") && game.includes("DIAL_WORDS"));
   for (const k of Object.keys(AI_PRESETS)) assert.ok(BOT_PROFILES[k].tagline && BOT_PROFILES[k].level >= 1, k);
 });
 for (const file of ["bot-profile-ui.js", "game.js", "six-ui.js"]) {

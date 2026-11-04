@@ -104,5 +104,18 @@
 /* ── six-up strip: the points badge sits on the avatar's corner; the frame passes behind it, the number stays on top ── */
 .pchip.six .avatar > .lf { z-index: 1; }
 .pchip.six .sx-vp { z-index: 3; }
-.tm-settings .ai-strat-apply-all { min-height: 44px; font-size: 14px; gap: 10px; color: var(--ink, #2E3A3D); }
-.tm-settings .ai-strat-apply-all input { width: 22px; height: 22px; }
+
+/* ── v1.11: pick bots, preview line, dials as step selectors ── */
+.bt-bot .pf { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.bt-bot .pf small { font-size: 12px; opacity: .8; }
+.bt-em { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--pa-bg); box-shadow: 0 0 0 1.5px rgba(43,33,28,.25); }
+.bs-seg { display: flex; gap: 0; border-radius: 12px; border: 1.5px solid color-mix(in srgb, var(--ink, #2E3A3D) 18%, transparent); overflow: hidden; }
+.tm-settings .ai-strategy-panel .bs-seg button { flex: 1 1 0; min-width: 0; margin: 0; min-height: 44px; padding: 4px 6px; border: 0; border-radius: 0; background: transparent; color: var(--ink, #2E3A3D); font: inherit; font-weight: 700; font-size: 13px; line-height: 1.2; display: flex; align-items: center; justify-content: center; text-align: center !important; box-shadow: none; cursor: pointer; }
+.tm-settings .ai-strategy-panel .bs-seg button + button { border-left: 1px solid color-mix(in srgb, var(--ink, #2E3A3D) 14%, transparent); }
+.tm-settings .ai-strategy-panel .bs-seg button[aria-pressed="true"] { background: var(--brand-ink, #1F6E77); color: #fff; }
+.bs-mode { margin: 2px 0 6px; }
+.bs-preview { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: 2px 0 6px; font-size: 14px; }
+.bs-tune-what { margin: 0 0 6px; font-size: 12px; color: var(--ink-soft, #5A6366); }
+.bs-dial { margin: 0 0 12px; }
+.bs-dial-l { font-size: 12px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-soft, #5A6366); margin: 0 0 4px; }
+.bs-dial-h { font-size: 12px; line-height: 1.35; color: var(--ink-soft, #5A6366); margin-top: 4px; }

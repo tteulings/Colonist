@@ -147,13 +147,15 @@ export function tableList(game, { sel = null, onSelect = null } = {}) {
   if (!bots.length) return null;
   const box = document.createElement("div");
   box.className = "bt-table";
-  box.innerHTML = `<h4>At this table</h4>` + bots.map((b) => {
-    const pr = profileOf(game, b);
+  const prs = bots.map((b) => profileOf(game, b));
+  const same = prs.every((x) => !x.custom && x.key === prs[0].key);
+  box.innerHTML = `<h4>${same && bots.length > 1 ? `${bots.length} × ${P[prs[0].key].label}` : "At this table"}</h4>` + bots.map((b, n) => {
+    const pr = prs[n];
     const p = P[pr.key];
     const on = sel === b.id;
     return `<div class="bt-row${on ? " sel" : ""}"><button type="button" class="bt-bot pc-${b.id}" data-seat="${b.id}" aria-pressed="${on}" aria-label="${esc(b.name)}: ${pr.custom ? "custom mix" : p.label}. Pick this bot">
       <span class="bt-av">${framedAvatar(game, b)}</span>
-      <span class="bt-txt"><span class="nm">${esc(b.name)}</span><span class="pf"><b>${pr.custom ? "Custom" : p.label}</b> · ${pr.custom ? `like ${p.label}` : p.tagline}</span></span></button>
+      <span class="bt-txt"><span class="nm">${esc(b.name)}</span><span class="pf"><span class="bt-em">${profileMini(pr.key, 18)}</span><b>${pr.custom ? "Custom" : p.label}</b>${pr.custom ? `<small>like ${p.label}</small>` : ""}${dots(p.level, "bp-dots bs-dots")}</span></span></button>
       <button type="button" class="bt-info" data-info-seat="${b.id}" aria-label="${esc(b.name)}: profile"><span aria-hidden="true">i</span></button></div>`;
   }).join("");
   box.addEventListener("click", (e) => {
