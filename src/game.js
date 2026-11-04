@@ -18,6 +18,7 @@ import { ReviewGameMixin, installReviewGame } from "./review-game.js"; // v1.03 
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
+import { presetHighlight } from "./bot-profiles.js"; // v1.04 Settings › Bots: which preset chip is lit
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
@@ -9255,23 +9256,39 @@ class ColonistFullGame {
 
     panel.innerHTML = "";
 
-    // Presets row
-    const presetRow = document.createElement("div");
-    presetRow.className = "ai-strat-presets";
-    Object.entries(AI_PRESETS).forEach(([name, preset]) => {
-      const btn = document.createElement("button");
-      btn.className = "ai-strat-preset-btn btn-neutral";
-      btn.textContent = AI_PRESET_INFO[name].label;
-      btn.addEventListener("click", () => {
-        this.players.forEach(p => {
-          if (p.strategy) { delete p.strategy.policy; Object.assign(p.strategy, preset); }
+    // Presets row: one for all bots (Apply to all) or one per bot. v1.04: the chip of the preset the bots match
+    // is lit (it never was: the .active style existed but nothing set it); a hand-tuned mix reads "Custom ·
+    // closest to X", and bots that differ say so instead of lighting a chip.
+    const axes = Object.keys(AI_STRATEGY_CATEGORIES);
+    const presetRow = (bots) => {
+      const row = document.createElement("div");
+      row.className = "ai-strat-presets";
+      const hl = presetHighlight(bots.map((p) => p.strategy), AI_PRESETS, axes);
+      Object.entries(AI_PRESETS).forEach(([name, preset]) => {
+        const btn = document.createElement("button");
+        const on = hl.active === name;
+        btn.className = `ai-strat-preset-btn btn-neutral${on ? " active" : ""}`;
+        btn.setAttribute("aria-pressed", String(on));
+        btn.dataset.preset = name;
+        btn.textContent = AI_PRESET_INFO[name].label;
+        btn.addEventListener("click", () => {
+          bots.forEach((p) => { delete p.strategy.policy; Object.assign(p.strategy, preset); });
+          this._saveStrategies();
+          this._buildStrategyUI();
         });
-        this._saveStrategies();
-        this._buildStrategyUI();
+        row.appendChild(btn);
       });
-      presetRow.appendChild(btn);
-    });
-    panel.appendChild(presetRow);
+      if (hl.active === "custom" || hl.mixed) {
+        const note = document.createElement("p");
+        note.className = "ai-strat-hint ai-strat-custom";
+        note.textContent = hl.mixed ? "These bots play differently: untick Apply to all bots to see each one."
+          : `Custom mix · closest to ${AI_PRESET_INFO[hl.closest]?.label || "a preset"}`;
+        row.appendChild(note);
+      }
+      return row;
+    };
+    const allBots = this.players.filter((p) => p.strategy);
+    if (this._applyAllStrategies) panel.appendChild(presetRow(allBots));
 
     // Apply-all toggle
     const applyRow = document.createElement("label");
@@ -9300,6 +9317,7 @@ class ColonistFullGame {
         header.className = "ai-strat-player-header";
         header.innerHTML = `${this._av(bot)}<span class="who pc-${bot.id}">${bot.name}</span>`;
         section.appendChild(header);
+        section.appendChild(presetRow([bot]));
       }
 
       Object.entries(AI_STRATEGY_CATEGORIES).forEach(([key, cat]) => {
@@ -9332,6 +9350,7 @@ class ColonistFullGame {
           }
           hint.textContent = cat.descriptions?.[sel.value] || "";
           this._saveStrategies();
+          this._buildStrategyUI(); // the lit preset chip follows the dials
         });
         row.appendChild(label);
         row.appendChild(sel);
