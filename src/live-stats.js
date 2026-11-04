@@ -235,9 +235,30 @@ export const LiveStatsMixin = {
     c.classList.toggle("ls-more", more);
   },
 
-  /** Dice so far vs expected: the hot number carries the accent, the cold one an accent outline. */
+  /** v1.09 "which boxes are mine": the numbers the viewer (the phone holder in pass & play) produces on, from the
+   *  public board only. { [number]: { robbed: the robber sits on one of those tiles, got: cards received so far } } */
+  _lsMyNums(me, st) {
+    const out = {};
+    if (!me) return out;
+    const g = this.geometry;
+    g.hexes.forEach((h, i) => {
+      if (!h.number || h.resource === "sea" || h.resource === "desert") return;
+      if (!h.nodes.some((nid) => { const n = g.nodes[nid]; return n.owner === me.id && n.structure; })) return;
+      const o = (out[h.number] ||= { robbed: false, got: 0 });
+      if (h.id === this.robberHexId) o.robbed = true;
+      o.got += st.pHex?.[me.id]?.[i] || 0; // the production log is public
+    });
+    return out;
+  },
+
+  /** Dice so far vs expected: the hot number carries the accent, the cold one an accent outline. The viewer's own
+   *  numbers are bars in their seat colour with a dark edge and a hatch (never colour alone), a small Ø under the
+   *  number while the robber sits on one of their tiles of it, and a personal headline. */
   _lsCardDice(st) {
-    const H = 122, n = st.N, bw = (W - 8) / 11;
+    const me = this._lsMe(), mine = this._lsMyNums(me, st), has = (k) => !!mine[k];
+    const hasMine = Object.keys(mine).length > 0;
+    const extra = hasMine ? 12 : 0; // a row under the axis numbers for the robber marker
+    const H = 122 + extra, n = st.N, bw = (W - 8) / 11, base = H - 18 - extra;
     const exp = (k) => (n * PIPS[k]) / 36;
     let hot = null, cold = null;
     for (let k = 2; k <= 12; k += 1) {
@@ -246,17 +267,24 @@ export const LiveStatsMixin = {
       if ([4, 5, 6, 8, 9, 10].includes(k) && d <= -1.5 && (!cold || d < cold.d)) cold = { k, c, d, e: exp(k) };
     }
     const maxC = Math.max(1, ...Object.values(st.dice), exp(7));
-    const ys = (v) => (v * (H - 34)) / maxC;
-    let bars = "";
+    const ys = (v) => (v * (base - 16)) / maxC;
+    let bars = "", anyRobbed = false;
     for (let k = 2; k <= 12; k += 1) {
-      const xx = 4 + (k - 2) * bw, c = st.dice[k] || 0;
-      const cls = hot?.k === k ? " hi" : cold?.k === k ? " cold" : "";
-      bars += `<g class="gs-dbar${cls}" data-k="${k}" data-c="${c}"><rect x="${(xx + 3).toFixed(1)}" y="${(H - 18 - ys(c)).toFixed(1)}" width="${(bw - 6).toFixed(1)}" height="${Math.max(0.5, ys(c)).toFixed(1)}" rx="4"/><text class="gs-ax n" x="${(xx + bw / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle">${k}</text>${c ? `<text class="gs-ax c" x="${(xx + bw / 2).toFixed(1)}" y="${(H - 22 - ys(c)).toFixed(1)}" text-anchor="middle">${c}</text>` : ""}</g>`;
+      const xx = 4 + (k - 2) * bw, c = st.dice[k] || 0, cx = xx + bw / 2, m = has(k) ? mine[k] : null;
+      const cls = (hot?.k === k ? " hi" : cold?.k === k ? " cold" : "") + (m ? ` mine pc-${me.id}` : "");
+      const bx = (xx + 3).toFixed(1), by = (base - ys(c)).toFixed(1), bwid = (bw - 6).toFixed(1), bh = Math.max(0.5, ys(c)).toFixed(1);
+      let under = "";
+      if (m?.robbed) {
+        anyRobbed = true;
+        const y = H - 5.5;
+        under = `<g class="ls-rob"><circle cx="${cx.toFixed(1)}" cy="${y}" r="3.3"/><path d="M${(cx - 4.4).toFixed(1)} ${y + 4.4}L${(cx + 4.4).toFixed(1)} ${y - 4.4}"/></g>`;
+      }
+      bars += `<g class="gs-dbar${cls}" data-k="${k}" data-c="${c}"${m ? ` data-mine="1"${m.robbed ? ` data-robber="1"` : ""}` : ""}><rect x="${bx}" y="${by}" width="${bwid}" height="${bh}" rx="4"/>${m && c ? `<rect class="ls-hatch" x="${bx}" y="${by}" width="${bwid}" height="${bh}" rx="4"/>` : ""}<text class="gs-ax n" x="${cx.toFixed(1)}" y="${base + 14}" text-anchor="middle">${k}</text>${c ? `<text class="gs-ax c" x="${cx.toFixed(1)}" y="${(base - 4 - ys(c)).toFixed(1)}" text-anchor="middle">${c}</text>` : ""}${under}</g>`;
     }
     const pts = [];
     // v0.82 "stepped, not a pyramid": a flat step at each number's expected count across its bar's slot,
     // joined by vertical risers at the slot edges (no sloped segments)
-    for (let k = 2; k <= 12; k += 1) { const yk = (H - 18 - ys(exp(k))).toFixed(1); pts.push(`${(4 + (k - 2) * bw).toFixed(1)},${yk}`, `${(4 + (k - 1) * bw).toFixed(1)},${yk}`); }
+    for (let k = 2; k <= 12; k += 1) { const yk = (base - ys(exp(k))).toFixed(1); pts.push(`${(4 + (k - 2) * bw).toFixed(1)},${yk}`, `${(4 + (k - 1) * bw).toFixed(1)},${yk}`); }
     const xe = (o) => `${o.c}×, expected ${nf(o.e)}`;
     let title;
     if (!n) title = "No rolls yet";
@@ -264,9 +292,22 @@ export const LiveStatsMixin = {
     else if (hot) title = `${hot.k} is hot: ${xe(hot)}`;
     else if (cold) title = `${cold.k} is cold: ${xe(cold)}`;
     else title = "The dice follow the odds so far";
-    const sub = `<span>${n} roll${n === 1 ? "" : "s"} so far</span><span><span class="ls-dash"></span> expected${hot && cold ? `: ${hot.k} ${nf(hot.e)} · ${cold.k} ${nf(cold.e)}` : ""}</span>`;
-    const body = `<svg class="gs-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Dice rolls so far">${bars}<polyline class="gs-exp" points="${pts.join(" ")}"/></svg>`;
-    return this._stCard("dice", title, sub, body, ` data-rolls="${n}" data-hot="${hot?.k ?? ""}" data-cold="${cold?.k ?? ""}"`);
+    let sub = `<span>${n} roll${n === 1 ? "" : "s"} so far</span><span><span class="ls-dash"></span> expected${hot && cold ? `: ${hot.k} ${nf(hot.e)} · ${cold.k} ${nf(cold.e)}` : ""}</span>`;
+    // the personal headline: your numbers and the cards they paid you; the hot / cold line moves to the subline
+    if (hasMine && n) {
+      const ks = Object.keys(mine).map(Number).sort((x, y) => x - y);
+      const got = ks.reduce((s, k) => s + mine[k].got, 0);
+      sub = `<span class="ls-hc">${title}</span>${sub}`;
+      title = `${this._you(me) ? "Your" : `${me.name}'s`} numbers: ${ks.join(", ")}${got ? ` · +${got} card${got === 1 ? "" : "s"}` : ""}`;
+    }
+    const defs = `<defs><pattern id="ls-hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="5" class="ls-hs"/></pattern></defs>`;
+    const body = `<svg class="gs-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Dice rolls so far">${defs}${bars}<polyline class="gs-exp" points="${pts.join(" ")}"/></svg>`;
+    let key = "";
+    if (hasMine) {
+      const who = this._you(me) ? "your" : `${me.name}'s`;
+      key = `<div class="ls-mkey pc-${me.id}"><span><i class="ls-k"></i>${who} numbers</span>${anyRobbed ? `<span><svg class="ls-k rob" viewBox="-5 -5 10 10" aria-hidden="true"><circle r="3.3"/><path d="M-4.4 4.4L4.4 -4.4"/></svg>robber on ${this._you(me) ? "your" : "their"} tile</span>` : ""}</div>`;
+    }
+    return this._stCard("dice", title, sub, body + key, ` data-rolls="${n}" data-hot="${hot?.k ?? ""}" data-cold="${cold?.k ?? ""}"${hasMine ? ` data-mine="${Object.keys(mine).join(",")}"` : ""}`);
   },
 
   /** Expected cards per roll from everyone's settlements and cities (the board is public). */
