@@ -356,3 +356,6 @@ html[data-motion="reduced"] .ls-sheet.in { animation: none; }
 /* Final board: the way back to the results */
 .gs-seeback { position: absolute; z-index: 26; top: 131px; left: 64px; height: 40px; padding: 0 14px 0 8px; display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; border: var(--primary-border); background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); font: 800 14px var(--font-body); box-shadow: var(--primary-shadow); cursor: pointer; }
 .gs-seeback .ic { width: 18px; height: 18px; }
+.rv1.gs-revcard .rvb .x { white-space: nowrap; }
+.rv1.gs-revcard .rvb .g { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--primary-ink) 20%, transparent); font-weight: 800; font-size: 12px; opacity: 1; }
+.rv1.gs-revcard .rvb .rv-ring { flex: none; }

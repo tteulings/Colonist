@@ -1,0 +1,50 @@
+// Seeded Past-games tour (the user's actual path). node audit2.js <root> <port> <shotDir> <light|night>
+const { chromium } = require("playwright");
+const path = require("path"), fs = require("fs");
+const { serve, sleep } = require("./tlib");
+const ROOT = path.resolve(process.argv[2]), PORT = Number(process.argv[3]), SHOTS = process.argv[4], PAL = process.argv[5] || "light";
+const seed = JSON.parse(fs.readFileSync(path.join(__dirname, "seed.json")));
+const log = []; const say = (...a) => { console.log(...a); log.push(a.join(" ")); };
+(async () => {
+  const server = await serve(ROOT, PORT);
+  const browser = await chromium.launch();
+  const ctx = await browser.newContext({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, serviceWorkers: "block", deviceScaleFactor: 2 });
+  const page = await ctx.newPage(); page.setDefaultTimeout(8000);
+  page.on("pageerror", (e) => say("PAGEERR", e.message));
+  await page.addInitScript((pal) => { if (sessionStorage.getItem("__init")) return; sessionStorage.setItem("__init", "1"); localStorage.clear();
+    localStorage.setItem("colonist.welcomed", "1"); localStorage.setItem("colonist_sound", "off"); localStorage.setItem("colonist.theme", "A"); localStorage.setItem("colonist.palette", pal); }, PAL);
+  const G = (fn, a) => page.evaluate(fn, a);
+  let n = 0;
+  const shot = async (name, wait = 400) => { await sleep(wait); const f = path.join(SHOTS, `${process.env.PREFIX || "audit"}-${PAL}-p${String(++n).padStart(2, "0")}-${name}.png`); await page.screenshot({ path: f }); say("shot", path.basename(f)); };
+  const step = async (name, fn) => { try { await fn(); } catch (e) { say("STEP FAIL", name, String(e.message).split("\n")[0]); } };
+  const tap = async (sel, i = 0) => { await page.locator(sel).nth(i).tap(); await sleep(350); };
+  const texts = (sel) => G((s) => [...document.querySelectorAll(s)].filter((b) => b.offsetParent).map((b) => b.textContent.trim().replace(/\s+/g, " ")).slice(0, 30), sel);
+  await page.goto(`http://localhost:${PORT}/`);
+  await page.waitForFunction(() => window.__colonistGame && document.querySelector(".home"));
+  await G(async (seed) => { const g = window.__colonistGame; await g.hist.open(); for (const s of seed) await g.hist.put(s.meta, s.payload); g.home.render(); }, seed);
+  await shot("home");
+  await step("list", async () => { await tap('[data-home="history"]'); await shot("list"); });
+  const open = async (id) => { await G((id) => { document.querySelector(`[data-hrow="${id}"]`)?.scrollIntoView({ block: "center" }); }, id); await tap(`[data-hrow="${id}"]`); };
+  const REV = "mw2ci2vhi0m0", UNREV = "mw2cebqthp43", WON = "mw2cfqorfqwc";
+  await step("sheet reviewed", async () => { await open(REV); await shot("sheet-reviewed"); });
+  await step("stats", async () => { await tap('[data-sact="stats"]'); await sleep(800);
+    await page.waitForSelector(".gs-recap", { timeout: 6000 }); await sleep(2500); // the intro of a past game?
+    await shot("end-pastgame-top", 0);
+    say("rvbox 1s:", JSON.stringify(await G(() => document.querySelector("[data-rvbox]")?.innerText)));
+    await sleep(6000); say("rvbox 8s:", JSON.stringify(await G(() => document.querySelector("[data-rvbox]")?.innerText)));
+    await shot("end-pastgame-top-8s", 0); await G(() => { document.querySelector(".gs-scroll").scrollTop = 520; }); await shot("end-pastgame-mid", 0); await G(() => { document.querySelector(".gs-scroll").scrollTop = 0; });
+    say("buttons:", JSON.stringify(await texts(".gs-over button"))); });
+  await step("missed show", async () => { const c = await page.locator("[data-rvshow]").count(); say("missed rows", c); if (c) { await tap("[data-rvshow]"); await sleep(1200); await shot("missed-show"); await tap("[data-rvback]"); await sleep(600); await shot("after-show-back"); } });
+  await step("review btn", async () => { const c = await page.locator("[data-rvreview]").count(); say("review button", c); if (c) { await G(() => document.querySelector("[data-rvreview]").scrollIntoView({ block: "center" })); await shot("review-button", 300); await tap("[data-rvreview]"); await sleep(1500); await shot("review-screen"); say("rv buttons", JSON.stringify(await texts(".rv button"))); await G(() => { const s = document.querySelector(".rv"); [...s.querySelectorAll("*")].filter((e) => e.scrollHeight > e.clientHeight + 40 && getComputedStyle(e).overflowY !== "visible").forEach((e) => { e.scrollTop = 500; }); }); await shot("review-scrolled"); await tap("[data-rvclose]"); await sleep(400); } });
+  await step("tabs", async () => { for (const t of ["race", "dice", "cards", "maps", "moments"]) { await G(() => document.querySelector(".gs-more")?.scrollIntoView({ block: "start" })); await tap(`[data-tab="${t}"]`); await sleep(700); await shot("tab-" + t); } });
+  await step("timelapse", async () => { await G(() => { document.querySelector(".gs-scroll").scrollTop = 0; }); await tap("[data-timelapse]"); await sleep(1300); await shot("timelapse", 0); await sleep(3000); });
+  await step("replay", async () => { await tap("[data-replay]"); await sleep(1500); await shot("replay", 0); await tap(".gs-rp-x"); await sleep(400); });
+  await step("see board", async () => { await tap("[data-see]"); await sleep(1000); await shot("see-board-pastgame"); say("board btns", JSON.stringify(await texts("button"))); if (await page.locator(".gs-seeback").count()) { await tap(".gs-seeback"); await sleep(600); await shot("back-from-board"); } });
+  await step("back to list", async () => { await G(() => window.__colonistGame.histExit?.()); await sleep(800); await shot("after-histExit"); });
+  // chip Past games back + rematch
+  await step("reopen + chip back", async () => { await G(() => { document.querySelector('[data-hrow="mw2cfqorfqwc"]')?.scrollIntoView({ block: "center" }); }); await tap(`[data-hrow="${WON}"]`); await shot("sheet-won"); await tap('[data-sact="stats"]'); await sleep(3500); await shot("end-won-top", 0); await tap(".hs-backchip"); await sleep(800); await shot("after-chip-back"); });
+  await step("unreviewed", async () => { await open(UNREV); await shot("sheet-unreviewed"); await tap('[data-sact="stats"]'); await sleep(3500); await shot("end-unreviewed-top", 0); say("rvbox unrev:", JSON.stringify(await G(() => document.querySelector("[data-rvbox]")?.innerText))); await G(() => { document.querySelector(".gs-scroll").scrollTop = 300; }); await shot("end-unreviewed-mid", 0); });
+  await step("rematch from past", async () => { await tap("[data-rematch]"); await sleep(1500); await shot("after-rematch-pastgame"); });
+  await browser.close(); server.close();
+  fs.writeFileSync(path.join(SHOTS, `${process.env.PREFIX || "audit"}-log2-${PAL}.txt`), log.join("\n"));
+})().catch((e) => { console.error("FATAL", e); process.exit(1); });

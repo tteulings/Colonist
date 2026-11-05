@@ -380,7 +380,7 @@ export const StatsUiMixin = {
     for (let k = 2; k <= 12; k += 1) { const yk = (H - 18 - ys(exp(k))).toFixed(1); pts.push(`${(4 + (k - 2) * bw).toFixed(1)},${yk}`, `${(4 + (k - 1) * bw).toFixed(1)},${yk}`); }
     const human = this._stMe();
     const luck = human && st.expected[human.id] > 0.5 ? Math.round(st.luck[human.id] * 100) : null;
-    const sub = `Rolls vs expected${luck != null ? ` <span class="gs-tag">Your luck ${luck >= 0 ? "+" : "−"}${Math.abs(luck)}%</span>` : ""}`;
+    const sub = `Rolls vs expected (dashed line)${luck != null ? ` <span class="gs-tag">Your luck ${luck >= 0 ? "+" : "−"}${Math.abs(luck)}%</span>` : ""}`;
     const body = `<svg class="gs-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Dice rolls">${bars}<polyline class="gs-exp" points="${pts.join(" ")}"/></svg>`;
     return this._stCard("dice", this._stDiceText(st), sub, body, ` data-rolls="${n}"`);
   },

@@ -80,20 +80,25 @@ export const ReviewGameMixin = {
   },
   _rvOpenMid() { const pid = this._rvMidPid(); if (pid != null) this._rvOpenReview(pid, { mid: true }); },
 
-  /** The inside of the end screen's review button: the accuracy, a ring while it runs, "provisional" in between. */
+  /** v1.11 A saved full result judged by an older score function (the leaf tag): its number is not comparable. */
+  _rvStale(pid) {
+    const rv = this._rv?.review;
+    return !!rv && rv.pid === pid && rv.results.some((r) => r.eng === REVIEW_ENGINE && (r.leaf || "v1") !== (REVIEW.budget.leaf || "v1"));
+  },
+  /** The inside of the end screen's review button, one line: "Game review" + a status chip (checking 12/24 ·
+   *  provisional · accuracy 92 · Re-check for an old formula); never started: "Review this game" + the time. */
   _rvRowInner(p) {
     const rv = this._rv.review, mine = rv?.pid === p.id, run = this._rv.run;
     const sum = mine && rv.results.length && this._rvCovered1(p.id) ? summarize(rv.results) : null;
     const done = mine && this._rvReviewComplete(p.id);
     const n = this._rv.recs.filter((r) => r.pid === p.id && ["setup", "build", "bank", "buy", "play", "robber", "end"].includes(r.k)).length;
-    let x, g = "";
-    if (done) x = `Game review · accuracy ${sum?.acc ?? "–"}${rv.midCheck ? " · checked during the game" : ""}`;
-    else if (run?.pid === p.id && run.round) {
+    let x = "Game review", g = "";
+    if (run?.pid === p.id && run.round) {
       const r = run.round, f = r.n ? r.j / r.n : 0;
-      x = sum ? `Game review · ${run.paused ? "paused" : r.eng === "m100" ? "quick look" : "deepening"}${sum.acc != null ? ` · ${sum.acc} so far` : ""}` : `Game review · checking`;
-      g = `<i class="rv-ring" style="--p:${Math.round(f * 100)}%" role="img" aria-label="${r.j} of ${r.n}"></i>`;
-    } else if (sum) { x = `Game review · provisional${sum.acc != null ? ` ${sum.acc}` : ""}`; g = "Continue"; }
-    else { x = "Full game review"; g = `≈${Math.max(1, Math.round((n * REVIEW.sec) / 60))} min`; }
+      g = `<i class="rv-ring" style="--p:${Math.round(f * 100)}%" role="img" aria-label="${r.j} of ${r.n}"></i>${run.paused ? "paused" : `checking ${r.j}/${r.n}`}`;
+    } else if (done) g = this._rvStale(p.id) ? "Re-check" : `accuracy ${sum?.acc ?? "–"}`;
+    else if (sum) g = this._rvStale(p.id) ? "Re-check" : "provisional";
+    else { x = "Review this game"; g = `≈${Math.max(1, Math.round((n * REVIEW.sec) / 60))} min`; }
     return `<span class="t">${IC.review}</span><span class="x">${x}</span><span class="g">${g}</span>${IC.chev}`;
   },
   _rvReviewRowHtml(p) {

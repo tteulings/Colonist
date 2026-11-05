@@ -65,7 +65,9 @@ export const ReviewUiMixin = {
     const groups = this._rvGroups();
     if (!groups.length) return "";
     return groups.map(({ p, list }) => {
-      const lead = list.length ? (solo ? "Biggest chances missed, where another move kept clearly more win chance. Tap one to see it on the board." : "") : "No clear missed chance found in this game.";
+      const full = this._rv.review?.pid === p.id && this._rvReviewComplete?.(p.id) && !this._rvStale?.(p.id);
+      const lead = list.length ? (solo ? "Biggest chances missed, where another move kept clearly more win chance. Tap one to see it on the board." : "")
+        : full || this.hotseat ? "No clear missed chance found in this game." : "The full review checks every move of yours with the Master bot.";
       return `<div class="rv1${solo ? " gs-revcard" : ""}" data-rvp="${p.id}"><div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Your game review" : `<span class="pc-${p.id} rv-who">${esc(p.name)}</span> · missed chances`}</span><small>${list.length ? (list[0].verified ? "checked by the Master bot" : "") : ""}</small></div>
       ${lead ? `<p class="rv1-lead">${lead}</p>` : ""}
       ${solo ? this._rvReviewRowHtml?.(p) || "" : ""}
