@@ -32,6 +32,13 @@ export function cmpHtml(c) {
     ${c.rows.map((r) => `<div class="sx-cmpr"><span><i style="background:${TERM_COLOR[r.k] || "var(--accent)"}"></i>${esc(r.label)}</span><span>${fv(r, r.a)}</span><span>${fv(r, r.b)}</span><span class="d">${diff(r)}</span></div>`).join("")}
     <div class="sx-cmpr tot"><span>${esc(c.total || "Score")}</span><span>${c.int ? Math.round(c.sa) : f2(c.sa)}</span><span>${c.int ? Math.round(c.sb) : f2(c.sb)}</span><span class="d">${dTot}</span></div></div>`;
 }
+/** v1.11 the Plan under the step card: why A was stronger, from the position (src/review/why.js). Nothing when there is none. */
+export function whyHtml(w) {
+  if (!w?.plan) return "";
+  return `<div class="rs-why"><div class="w-h"><b>Plan</b><small>likely reason, based on the position</small><button type="button" class="w-i" data-rvwhy aria-label="About the plan">${IC.info}</button></div>
+    <p class="w1"><s>A</s><span>${esc(w.plan)}</span></p>${w.vs ? `<p class="w2"><s class="alt">B</s><span>${esc(w.vs)}</span></p>` : ""}
+    ${w.chips?.length ? `<div class="w-chips">${w.chips.map((c) => `<span>${esc(c)}</span>`).join("")}</div>` : ""}</div>`;
+}
 const handHtml = (h) => `<div class="sx-hand rv-hand">${R5.map(([r, l]) => `<span class="sx-card r-${r}${h?.[r] ? "" : " zero"}"><b>${h?.[r] || 0}</b>${l}</span>`).join("")}</div>`;
 
 export const ReviewUiMixin = {
