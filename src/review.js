@@ -192,13 +192,13 @@ export const ReviewMixin = {
   },
 
   /** Game over: save, then run the detectors in the worker (once per game). */
-  _rvFinish() {
+  _rvFinish(auto = true) {
     const R = this._rv;
     if (!R || !R.recs.length || R.res || R.busy) return;
-    this._rvSave();
+    if (auto) this._rvSave();
     if (this._rvEl && this._rvMid) this._rvCloseReview(); // the game ended under a check: the end screen takes over
     // v1.04: the review starts by itself (a tick later: the winning move is recorded right after this hook)
-    setTimeout(() => { if (this._rv !== R) return; const apid = this._rvAutoPid?.(); if (apid != null) this._rvReviewRun(apid, null).then((rv) => { if (rv?.done && this._rv === R) this._rvRender?.(); }); }, 0);
+    if (auto) setTimeout(() => { if (this._rv !== R) return; const apid = this._rvAutoPid?.(); if (apid != null) this._rvReviewRun(apid, null).then((rv) => { if (rv?.done && this._rv === R) this._rvRender?.(); }); }, 0);
     if (!masterAvailable()) { R.res = { findings: [], none: true }; return; }
     R.busy = true;
     const id = R.id;

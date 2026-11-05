@@ -22,7 +22,10 @@ const NUM1 = { 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven",
 const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const ord = (n) => `${n}${n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th"}`;
-const TABS = [["race", "Race"], ["dice", "Dice"], ["cards", "Cards"], ["maps", "Maps"], ["moments", "Moments"]];
+// v1.11 plain names (the keys stay): Points race · Dice · Cards · Where it paid (the heat maps) · Key moments
+const TABS = [["race", "Points race"], ["dice", "Dice"], ["cards", "Cards"], ["maps", "Where it paid"], ["moments", "Key moments"]];
+const HIST_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9M4 4.5V8h3.5M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const FF_IC = `<svg class="ic" viewBox="0 0 20 16" aria-hidden="true"><path fill="currentColor" d="M1 2v12l8-6zM10 2v12l8-6z"/></svg>`;
 const W = 300; // chart viewBox width
 const fmtDur = (ms) => { const m = Math.round(ms / 60000); return m < 1 ? "<1 min" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; };
 const nf = (x) => (Math.round(x * 10) / 10).toString();
@@ -90,7 +93,7 @@ export const StatsUiMixin = {
   removeGameOverOverlay() {
     this._stCountDone?.();
     this._rpExit?.(true);
-    document.querySelectorAll(".game-over-overlay, .gs-count, .gs-replay").forEach((el) => el.remove());
+    document.querySelectorAll(".game-over-overlay, .gs-count, .gs-replay, .gs-seeback").forEach((el) => el.remove());
   },
 
   _stHost() { return (this.isMobileLayout ? this.app : document.querySelector(".board-panel")) || document.body; },
@@ -167,10 +170,14 @@ export const StatsUiMixin = {
             <p class="lead">${winner.isHuman || !human ? `${winner.victoryPoints} points${this.isRush() ? "" : ` on turn ${this.turn}`}` : `You finished ${ord(rank)}`}</p></div></div>
           <div class="podium gs-rank">${ranked.map((p, k) => `<div class="r${p === winner ? " win" : ""}" data-pid="${p.id}"><span class="pl">${k + 1}</span>${this._stPortrait(p.id, p === winner ? "gs-emb" : "", 30)}<span class="nmc"><span class="pname">${this._stName(p)}</span></span><span class="s">${p.victoryPoints}</span></div>`).join("")}</div>
           <div class="gs-ov"><span><b>${turns}</b>${this.isRush() ? "rolls" : "turns"}</span><span><b>${fmtDur(st?.ms || 0)}</b>played</span>${human ? `<span><b>${rank ? ord(rank) : "—"}</b>your rank</span>` : `<span><b>${this.players.length}</b>players</span>`}</div>
-          ${hl.length ? `<ul class="gs-hl">${hl.map((h) => `<li>${icon(h.ic)}<span>${h.text}</span></li>`).join("")}</ul>` : ""}
-          <div class="gs-rbtns">${st && st.N > 2 && !reduced ? `<button type="button" class="gs-chip" data-timelapse><svg class="ic" viewBox="0 0 20 16" aria-hidden="true"><path fill="currentColor" d="M1 2v12l8-6zM10 2v12l8-6z"/></svg>Timelapse</button>` : ""}<button type="button" class="gs-chip" data-see>${icon("fit")}See board</button><button type="button" class="gs-chip" data-change>${icon("settings")}Change settings</button></div>
         </section>
-        ${st ? `<h4 class="gs-more"><span>More stats</span></h4>
+        <section class="gs-look gs-card" aria-label="Look back">
+          <div class="gs-lh">Look back</div>
+          <div class="gs-rbtns gs-tiles">${st && st.N > 2 && !reduced ? `<button type="button" class="gs-tile" data-timelapse>${FF_IC}<b>Timelapse</b><small>a fast-forward</small></button>` : ""}<button type="button" class="gs-tile" data-see>${icon("fit")}<b>Final board</b><small>see the map</small></button><button type="button" class="gs-tile" data-pastgames>${HIST_IC}<b>Past games</b><small>all saved games</small></button></div>
+          <button type="button" class="gs-link" data-change>${icon("settings")}Change settings for a new game</button>
+        </section>
+        ${hl.length ? `<section class="gs-card gs-hlc" aria-label="Highlights"><h2>Highlights</h2><ul class="gs-hl">${hl.map((h) => `<li>${icon(h.ic)}<span>${h.text}</span></li>`).join("")}</ul></section>` : ""}
+        ${st ? `<h4 class="gs-more"><span>Game stats</span></h4>
         <div class="gs-tabs" role="tablist">${TABS.map(([k, l], i) => `<button type="button" role="tab" class="gs-tab${i ? "" : " on"}" data-tab="${k}" aria-selected="${i ? "false" : "true"}">${l}</button>`).join("")}</div>
         <div class="gs-pane" role="tabpanel"></div>` : ""}
       </div>
@@ -182,13 +189,26 @@ export const StatsUiMixin = {
     this._stOverlay = overlay;
     overlay.querySelector("[data-rematch]").addEventListener("click", () => { this.removeGameOverOverlay(); this.stopAutoplay(); this.startNewGame({ ...this.settings }); });
     overlay.querySelector("[data-change]").addEventListener("click", () => { this.removeGameOverOverlay(); this.stopAutoplay(); this._showDifficultyModal(); });
-    overlay.querySelector("[data-see]").addEventListener("click", () => { this.removeGameOverOverlay(); this.render(); });
+    overlay.querySelector("[data-see]").addEventListener("click", () => this._stSeeBoard(overlay));
+    overlay.querySelector("[data-pastgames]").addEventListener("click", () => { if (this._histView) this.histExit?.(); else { this._histEndOpen = true; this.histOpen?.(); } });
     overlay.querySelector("[data-replay]")?.addEventListener("click", () => this._rpStart("replay"));
     overlay.querySelector("[data-timelapse]")?.addEventListener("click", () => this._rpStart("timelapse"));
     overlay.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => this._stTab(b.dataset.tab)));
     if (st) this._stTab("race", true);
     if (skipIntro) this._stAnimateIn(overlay.querySelector(".gs-pane"));
     else this._stIntro(overlay, st, reduced, rank);
+  },
+
+  /** v1.11 Final board: the results hide (they are not thrown away) and a "Results" pill brings them back. */
+  _stSeeBoard(overlay) {
+    overlay.hidden = true;
+    this.render();
+    document.querySelector(".gs-seeback")?.remove();
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "gs-seeback"; b.setAttribute("aria-label", "Back to the results");
+    b.innerHTML = `<svg class="ic" viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Results`;
+    b.addEventListener("click", () => { b.remove(); if (overlay.isConnected) { overlay.hidden = false; this.render(); } });
+    this._stHost().appendChild(b);
   },
 
   _stHighlights(st) {
@@ -360,7 +380,7 @@ export const StatsUiMixin = {
     for (let k = 2; k <= 12; k += 1) { const yk = (H - 18 - ys(exp(k))).toFixed(1); pts.push(`${(4 + (k - 2) * bw).toFixed(1)},${yk}`, `${(4 + (k - 1) * bw).toFixed(1)},${yk}`); }
     const human = this._stMe();
     const luck = human && st.expected[human.id] > 0.5 ? Math.round(st.luck[human.id] * 100) : null;
-    const sub = `Rolls vs expected${luck != null ? ` <span class="gs-tag">Your luck ${luck >= 0 ? "+" : "−"}${Math.abs(luck)}%</span>` : ""}`;
+    const sub = `Rolls vs expected (dashed line)${luck != null ? ` <span class="gs-tag">Your luck ${luck >= 0 ? "+" : "−"}${Math.abs(luck)}%</span>` : ""}`;
     const body = `<svg class="gs-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Dice rolls">${bars}<polyline class="gs-exp" points="${pts.join(" ")}"/></svg>`;
     return this._stCard("dice", this._stDiceText(st), sub, body, ` data-rolls="${n}"`);
   },
@@ -436,8 +456,8 @@ export const StatsUiMixin = {
     const P = (i) => this.players[i];
     const rows = [];
     const sw = st.swing;
-    if (sw.d > 0) rows.push({ ic: "vp", text: `${this._stName(P(sw.pid))} +${sw.d} points in ${tw} ${st.turnOf[sw.s]}` });
-    rows.push({ ic: "dice", text: st.leadChanges ? `The lead changed hands ${st.leadChanges}×` : "One leader all game" });
+    if (sw.d > 0) rows.push({ ic: "vp", text: `${this._stName(P(sw.pid))} +${sw.d} point${sw.d > 1 ? "s" : ""} in ${tw} ${st.turnOf[sw.s]}` });
+    if (sw.d >= 2 || !st.leadChanges) rows.push({ ic: "dice", text: st.leadChanges ? `The lead changed hands ${st.leadChanges}×` : "One leader all game" }); // (otherwise it is the card title)
     const lr = st.awards.filter((a) => a.kind === "L");
     if (lr.length) { const last = lr[lr.length - 1]; rows.push({ ic: "longestRoad", text: `${this.sea ? "Longest Trade Route" : "Longest Road"}: ${lr.length > 1 ? `${lr.length} changes, ` : ""}${last.pid >= 0 ? `${this._stName(P(last.pid))} from ${tw} ${st.turnOf[last.s]}` : "nobody at the end"}` }); }
     const la = st.awards.filter((a) => a.kind === "A");
