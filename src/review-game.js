@@ -290,10 +290,10 @@ export const ReviewGameMixin = {
     d.setAttribute("aria-label", "About this review");
     d.innerHTML = `<div class="rv-card"><div class="rv-ih"><b>About this review</b><button type="button" class="rv-btn" data-rvinfo-x aria-label="Close">✕</button></div>
       <p><b>Win chance</b>: the Master bot plays the position on for 14 turns in about 1000 random futures and scores each end position with a score function fitted on 4500 bot games (it predicts the winner better than the old hand-made one). The bar beside the board stacks all players (yours at the bottom).</p>
-      <p><b>A and B</b>: A is the move with the highest win chance, B is what you played. The numbers shown are A minus B, in points. The class uses that same gap: ${LIMITS.map(([m, c], k) => `${CLS[c][0]} ${k ? (Number.isFinite(m) ? `${Math.round(LIMITS[k - 1][0] * 100)}–${Math.round(m * 100)}` : `${Math.round(LIMITS[k - 1][0] * 100)}+`) : `under ${Math.round(m * 100)} (and the next option ${Math.round(BEST_LEAD * 100)}+ behind, else Good)`}`).join(", ")} points.</p>
+      <p><b>A and B</b>: A is the move with the highest win chance, B is what you played. The numbers shown are A minus B, in points. The class uses that same gap: ${LIMITS.map(([m, c], k) => `${CLS[c][0]} ${k ? (Number.isFinite(m) ? `${Math.round(LIMITS[k - 1][0] * 100)}–${Math.round(m * 100)}` : `${Math.round(LIMITS[k - 1][0] * 100)}+`) : `under ${Math.round(m * 100)}${BEST_LEAD > 0 ? ` (and the next option ${Math.round(BEST_LEAD * 100)}+ behind, else Good)` : ""}`}`).join(", ")} points.</p>
       <p><b>Plan</b>: the Monte Carlo only tells that A won more futures, not why. The Plan line is a likely reason, worked out from the position itself: where a road leads (the spot's pips, new resources, harbour, roads away), Longest Road counts, rival spots a move takes away, what the robber would hit, what a trade or a saved hand makes affordable. When nothing clear separates A from B, no Plan is shown.</p>
       <p><b>Missed chance</b>: you ended the turn or traded while a build or development card was worth 2.5+ points. <b>Great</b>: outside the set-up, the best move among at least 3 options with the next one ${Math.round(GREAT * 100)}+ points behind. <b>No real choice</b>: every option within 2 points; not counted and not in the accuracy.</p>
-      <p><b>Your moves and Luck</b>: your moves is the win chance they gave away, added up. Luck is what moved your win chance between two of your decisions: dice, robber, steals and what the others did. They add up to the change in your win chance, so a win with a bad move still shows.</p>
+      <p><b>Your moves and Table</b>: your moves is the win chance they gave away, added up. Table is everything else that moved your win chance between two of your decisions: dice, robber, steals and what the other players did, so it is not only luck. They add up to the change in your win chance, so a win with a bad move still shows.</p>
       <p><b>Accuracy</b> is how much win chance your moves kept against the best move the Master bot found (100 = always the best), scored on the same gap A minus B. Decisions with more at stake count more, and the game score is the average of the weighted mean and the harmonic mean, so a few big mistakes pull it down. The bar starts at 50; a lower score is pinned to the left edge and labelled. One game is a rough measure (about ± 8).</p>
       <p><b>The bots</b>: the band is how accurate the bots are on their own decisions with this same check${bands}. Your average over 5+ games is compared with it. Checking the bots in your game needs their moves recorded, which is not done yet.</p>
       <p><b>A check during the game</b> keeps its moves for the review at the end, but that game stays out of your average. The board is shown after the game.</p>
@@ -374,7 +374,7 @@ export const ReviewGameMixin = {
     const curL = cur >= 0 && ds[cur] ? `<line x1="${X(cur)}" x2="${X(cur)}" y1="${top - 2}" y2="${h - (axis ? 12 : 2)}" class="g-sel"/><circle cx="${X(cur)}" cy="${Y(ds[cur].win)}" r="6" class="g-cur"/>` : "";
     const hit = ds.map((d, k) => `<rect data-rvj="${d.i}" x="${(X(k) - (X1 - X0) / Math.max(1, n) / 2).toFixed(1)}" y="0" width="${((X1 - X0) / Math.max(1, n)).toFixed(1)}" height="${h}" fill="transparent"/>`).join("");
     const lab = (d) => (d.k === "setup" ? "setup" : `turn ${d.t}`);
-    return `<svg class="rs-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Win chance of every player after each of your decisions; bars: luck and your moves">${grid}${others}<path d="${line((d) => d.win)} L${X(n - 1)},${Y(0)} L${X(0)},${Y(0)}Z" class="g-area"/><path d="${line((d) => d.win)}" class="g-line"/>${barSvg}${dots}${curL}${hit}${axis ? `<text x="${X0}" y="${h - 1}" class="g-ax">${lab(ds[0])}</text><text x="${X1}" y="${h - 1}" text-anchor="end" class="g-ax">${lab(ds[n - 1])}</text>` : ""}</svg>`;
+    return `<svg class="rs-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Win chance of every player after each of your decisions; bars: table and your moves">${grid}${others}<path d="${line((d) => d.win)} L${X(n - 1)},${Y(0)} L${X(0)},${Y(0)}Z" class="g-area"/><path d="${line((d) => d.win)}" class="g-line"/>${barSvg}${dots}${curL}${hit}${axis ? `<text x="${X0}" y="${h - 1}" class="g-ax">${lab(ds[0])}</text><text x="${X1}" y="${h - 1}" text-anchor="end" class="g-ax">${lab(ds[n - 1])}</text>` : ""}</svg>`;
   },
   /** The stacked bar: one segment per player in their colour (sum 100 %), yours at the bottom, outlined, with your % beside it. */
   _rvStack(seats) {
@@ -427,14 +427,14 @@ export const ReviewGameMixin = {
         ${mid ? `<section class="rv-card rv-midnote"><p><b>Up to turn ${rv.upto ?? this.turn}</b></p><button type="button" class="rv-btn pri" data-rvback-game>Back to the game</button></section>` : ""}
         <section class="rv-card rs-sum">
           ${this._rvStrip(sum.acc, cmp, mid, prov)}
-          <div class="rs-sl"><div><small>Your moves</small><b class="${T.moves < -0.004 ? "neg" : ""}">${sg(T.moves)} pts</b></div><div><small>Luck</small><b class="${T.luck >= 0 ? "pos" : "neg"}">${sg(T.luck)} pts</b></div></div>
+          <div class="rs-sl"><div><small>Your moves</small><b class="${T.moves < -0.004 ? "neg" : ""}">${sg(T.moves)} pts</b></div><div><small>Table</small><b class="${T.luck >= 0 ? "pos" : "neg"}">${sg(T.luck)} pts</b></div></div>
           <div class="rs-cnts">${chips}</div>
           ${cmpText ? `<p class="rv-cmpline">${esc(cmpText)}${cmp.m != null ? ` <span class="rv-keyme">▮ this game</span> <span class="rv-keyavg">● your average</span>` : ""}</p>` : ""}
         </section>
         ${better ? `<section class="rv-card rs-keys rs-better"><div class="rv-gt"><b>Could be better</b><small>${imp.length} to look at</small></div>${better}</section>` : ""}
         ${ds.length ? `<button type="button" class="rv-btn pri rs-go" data-rvj="${first}" data-rvq="${imp.length ? "imp" : "all"}" data-rvfirst>${IC.step}Step through your moves</button>` : ""}
-        ${ds.length ? `<section class="rv-card"><div class="rv-gt"><b>Win chance</b><small>you thick · bars: luck <i class="kl"></i> your moves <i class="ks"></i></small></div>${this._rvChart(ds)}</section>` : ""}
-        ${key ? `<section class="rv-card rs-keys"><div class="rv-gt"><b>Biggest luck swing</b></div>${key}</section>` : ""}
+        ${ds.length ? `<section class="rv-card"><div class="rv-gt"><b>Win chance</b><small>you thick · bars: table <i class="kl"></i> your moves <i class="ks"></i></small></div>${this._rvChart(ds)}</section>` : ""}
+        ${key ? `<section class="rv-card rs-keys"><div class="rv-gt"><b>Biggest swing at the table</b></div>${key}</section>` : ""}
         <section class="rv-card"><div class="rv-gt"><b>All your moves</b><small>tap to step</small></div>${rows}</section>
         ${luck ? `<section class="rv-card rs-luckd"><div class="rv-gt"><b>Dice and robber</b></div><p>${luck.got} cards from your numbers, ${luck.exp} expected (${sg(luck.dice)}%) · robber blocked ${luck.blocked} (table ${Math.round(luck.blockedAvg)})${luck.stolen ? ` · stolen ${luck.stolen} (table ${Math.round(luck.stolenAvg)})` : ""}</p></section>` : ""}
       </div>`;
@@ -465,7 +465,7 @@ export const ReviewGameMixin = {
         <p class="rs-s">${this._rvLine(d)}</p>
         ${noA ? "" : whyHtml(x.why)}
         <div class="rs-ab${noA ? " one" : ""}">${A}${B}</div>
-        <div class="rs-lk"><span>Since your last move</span><b class="${d.chance >= 0 ? "pos" : "neg"}">Luck ${sg(d.chance)}</b><b class="${d.gap > 0.004 ? "neg" : "pos"}">Your move ${d.gap > 0.004 ? sg(-d.gap) : "±0"}</b></div>
+        <div class="rs-lk"><span>Since your last move</span><b class="${d.chance >= 0 ? "pos" : "neg"}">Table ${sg(d.chance)}</b><b class="${d.gap > 0.004 ? "neg" : "pos"}">Your move ${d.gap > 0.004 ? sg(-d.gap) : "±0"}</b></div>
         <div class="rs-strip" role="tablist" aria-label="Your decisions">${strip}</div>
         <div class="rs-nav"><button type="button" class="rv-btn" data-rvnav="-1" ${k ? "" : "disabled"} aria-label="Previous decision">${IC.prev}Previous</button><button type="button" class="rv-btn pri" data-rvnav="1" ${k < list.length - 1 ? "" : "disabled"} aria-label="Next decision">Next${IC.next}</button></div>`;
     const evalHtml = `<b>${pct(shown[me] / (shown.reduce((a, c) => a + c, 0) || 1))}</b>${this._rvStack(shown)}`;

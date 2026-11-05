@@ -24,10 +24,10 @@ export const REVIEW_ENGINES = {
   // SD is 4–17, highest for the weak bots): Simple 78.3 ± 4.3, Beginner 82.1 ± 3.1, Intermediate 87.5 ± 1.9,
   // Expert 88.1 ± 1.4, Master-100 90.6 ± 1.0. In order with every decision kind scored, dev cards included
   // (the 14-turn look-ahead sees them; with the 8-turn m100 engine they had to be left out).
-  full: { budget: { n: 1000, timeMs: 12000, depth: 14, setupDepth: 18, leaf: "fit" }, sec: 5, k: 0.06, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end"],
-    // v1.10 leaf "fit" (a score function fitted on bot games), formula v3 = v2 with k 0.06. Bands: every preset's own moves scored
+  full: { budget: { n: 1000, timeMs: 12000, depth: 14, setupDepth: 18, leaf: "fit" }, sec: 5, k: 0.10, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end"],
+    // v1.16: k 0.10 (stricter curve, was 0.06) and Best = any move under 1 point. Bands re-scored the same way. v1.10 leaf "fit" (a score function fitted on bot games), formula v3 = v2 with k 0.06. Bands: every preset's own moves scored
     // like a human's (the seat plays on as Expert), 300 positions, bootstrap SE (scratchpad step105/tests/an4.py). [name, accuracy, SE]
-    bands: [["Simple", 74, 3], ["Beginner", 71, 3], ["Intermediate", 76, 3], ["Shark", 77, 3], ["Trader", 76, 3], ["Builder", 79, 3], ["Expert", 80, 3], ["Master", 84, 3]] },
+    bands: [["Simple", 58, 5], ["Beginner", 54, 4], ["Intermediate", 61, 5], ["Shark", 61, 5], ["Trader", 61, 5], ["Builder", 66, 4], ["Expert", 67, 4], ["Master", 73, 4]] },
   b: { budget: { n: 300, timeMs: 6000, depth: 12, setupDepth: 16 }, sec: 2, bands: null },
   m100: { budget: { n: 160, timeMs: 700, leaf: "fit" }, sec: 0.5, k: 0.08, trivial: 0.02, scored: ["setup", "build", "bank", "robber", "end"], bands: [["Simple", 85], ["Beginner", 86], ["Intermediate", 88], ["Expert", 89]] },
 };
@@ -40,7 +40,7 @@ export const REVIEW_BUDGET = REVIEW.budget;
 // bots' own decisions (2 × 24 games per level, see BANDS in src/review-game.js).
 // v1.08 formula version 2: per move on the raw gap A−B (what the screen shows), the game's accuracy = (weighted mean +
 // harmonic mean) / 2 over the real choices, weighted by the stake (spread of the options). ACC.id tags stored scores.
-export const ACC = { a: 103.1668, k: REVIEW.k ?? 0.08, b: 3.1669, ver: 3, get id() { return `k${this.k}v${this.ver}`; } };
+export const ACC = { a: 103.1668, k: REVIEW.k ?? 0.08, b: 3.1669, ver: 4, get id() { return `k${this.k}v${this.ver}`; } };
 // Development cards (buy / play) are checked and marked but not scored: their value lies mostly beyond the
 // 8-turn look-ahead (a hidden deck, Largest Army later), and scoring them put the bot levels out of order.
 export const SCORED_KINDS = REVIEW.scored || ["setup", "build", "bank", "robber", "end"];
@@ -63,7 +63,7 @@ export function accuracyOf(loss, k = ACC.k) {
 // development card was worth 2.5+. Great: outside the set-up, the best move with the next one at least GREAT behind (rare).
 // A decision where every option was within TRIVIAL of the others has no class (no real choice): not counted, not scored.
 export const LIMITS = [[0.01, "best"], [0.025, "good"], [0.06, "could"], [0.12, "mistake"], [Infinity, "blunder"]];
-export const BEST_LEAD = 0.02;
+export const BEST_LEAD = 0; // v1.16: Best is every move under 1 point of loss (it used to need a clear lead over the next option, which made zero-loss moves "Good")
 export const GREAT = 0.08;
 export const CLASSES = ["best", "great", "good", "could", "mistake", "blunder", "missed"];
 export function clsOf(x) {
