@@ -1275,6 +1275,8 @@ class ColonistFullGame {
     this.buildCityBtn.addEventListener("click", () => this.setPendingAction("city"));
     this.buildShipBtn = document.querySelector("#buildShipBtn"); // ⚓ Seafarers (hidden on the basic island)
     this.buildShipBtn?.addEventListener("click", () => this.setPendingAction("ship"));
+    this.moveShipBtn = document.querySelector("#moveShipBtn"); // ⚓ v1.18 Move ship in the build sheet
+    this.moveShipBtn?.addEventListener("click", () => this._seaMoveButton());
     this.buyDevBtn.addEventListener("click", () => { this._buyFrom = this.buyDevBtn; this.handleHumanBuyDevCard(); });
     this.playDevBtn?.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -8793,6 +8795,12 @@ class ColonistFullGame {
       const need = this.buildShipBtn.querySelector(".need");
       if (need) { const have = { ...human.resources }; need.querySelectorAll("[data-r]").forEach((ic) => { const r = ic.dataset.r; const ok = have[r] > 0; if (ok) have[r] -= 1; ic.classList.toggle("miss", !ok); }); }
       this.buildShipBtn.classList.toggle("selected-action", this.pendingAction === "ship");
+    }
+    if (this.moveShipBtn) { // ⚓ v1.18: always listed, with the reason when no ship can move
+      const mover = this.sea ? this._seaMover?.() : null, n = mover ? this._seaMovable(mover).length : 0;
+      setButtonState(this.moveShipBtn, n > 0 && this.pendingAction !== "moveShip", this.sea?.moved?.has(mover?.id) ? "Moved this turn" : "No ship can move now", "Move a ship (once a turn)");
+      const left = this.moveShipBtn.querySelector(".left");
+      if (left) left.textContent = !this.sea ? "" : n > 0 ? `${n} can move` : this.sea.moved?.has(mover?.id) ? "moved" : "none can";
     }
     setButtonState(this.buyDevBtn, canBuildNow && hasDevCost && this.devDeck.length > 0,
       this.devDeck.length <= 0 ? "Deck empty" : devMissing ? `Need ${devMissing}` : "Not available now", "Buy a development card (B)");

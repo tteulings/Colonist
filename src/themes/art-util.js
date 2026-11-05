@@ -102,7 +102,7 @@ export function harbourScale(game) {
 export const harbourScaleWanted = (hs) => Math.max(1.38, Math.min(2.4, 55 / hs));
 /** ⚓ pill scale from the fitted css px per hex (radius): the ratio reads at ~13-14 px on phones (as on the basic
  *  island), ~14 px on desktop (never smaller than the basic desktop pill). */
-export const seaHarbourScale = (hexPx, mobile) => (mobile ? Math.max(1.38, Math.min(2.7, 55 / hexPx)) : Math.max(1, Math.min(1.6, 56 / hexPx)));
+export const seaHarbourScale = (hexPx, mobile) => (mobile ? Math.max(1.38, Math.min(2.7, 50 / hexPx)) : Math.max(1, Math.min(1.6, 52 / hexPx)));
 const boxGap = (p, q) => Math.max(Math.abs(p.x - q.x) - (p.w + q.w) / 2, Math.abs(p.y - q.y) - (p.h + q.h) / 2);
 /** Does segment a→b come within m of box q? (sampled; boxes and piers are small) */
 const segNearBox = (ax, ay, bx, by, q, m) => {
@@ -110,6 +110,7 @@ const segNearBox = (ax, ay, bx, by, q, m) => {
   return false;
 };
 export function harbourBadges(game, s = 1) {
+  const SEA = !!game.sea; // v1.18 Seafarers: a tighter pill (same text size): the harbours were too big against its small hexes
   const g = game.geometry, ports = game.ports || [];
   if (!g || !ports.length) return [];
   const u = g.hexSize / 100, A = (p) => ({ x: (p.x - g.centerX) / u, y: (p.y - g.centerY) / u });
@@ -175,7 +176,7 @@ export function harbourBadges(game, s = 1) {
       // corner a sits on the -t side of the midpoint or the +t side: its pier ends on that side of the pill
       const sa = (a.x - mx) * tx + (a.y - my) * ty < 0 ? -1 : 1;
       // a pill of size factor fz (compact: the floor-size ratio in a tighter pill), its centre `d` out along the normal
-      const dims = (fz, compact) => { const k = s * fz, cw = compact ? 0.92 : 1; return { k, cw, w: (any ? 48 : 70) * k * cw, h: 31 * k }; };
+      const dims = (fz, compact) => { const k = s * fz, cw = compact ? 0.92 : 1; return { k, cw, w: (any ? (SEA ? 42 : 48) : (SEA ? 59 : 70)) * k * cw, h: (SEA ? 27 : 31) * k }; };
       const pillAt = (D, d) => {
         const x = mx + nx * d, y = my + ny * d, hw = D.w / 2, hh = D.h / 2;
         // pier ends: under the pill, mirrored about the normal, so both piers are equally long
@@ -239,11 +240,11 @@ export function harbourBadges(game, s = 1) {
       if (!moved) stuck.add(`${i},${j}`);
     }
     const out = hs.map((H) => {
-      const { any, a, b, mx, my, nx, ny } = H, { D, p, st } = H.cur, { x, y, piers } = p, { k, cw, w, h } = D, hh = h / 2, ic = 24 * k * (cw < 1 ? 0.88 : 1), fs = 25 * k;
+      const { any, a, b, mx, my, nx, ny } = H, { D, p, st } = H.cur, { x, y, piers } = p, { k, cw, w, h } = D, hh = h / 2, ic = (SEA ? 21 : 24) * k * (cw < 1 ? 0.88 : 1), fs = 25 * k;
       const nearC = coastNodes.filter((n) => Math.hypot(n.x - x, n.y - y) < 120 + w); // corners a dot on these piers could meet
       return { x, y, w, h, r: hh, a, b, mx, my, nx, ny, piers, any, near: nearC, k, compact: cw < 1, fit: st,
-        icon: any ? null : { x: x - 17 * k * cw, y, size: ic },
-        text: any ? { x, y: y + fs * 0.36, size: fs } : { x: x + 15 * k * cw, y: y + fs * 0.36, size: fs } };
+        icon: any ? null : { x: x - (SEA ? 15 : 17) * k * cw, y, size: ic },
+        text: any ? { x, y: y + fs * 0.36, size: fs } : { x: x + (SEA ? 13 : 15) * k * cw, y: y + fs * 0.36, size: fs } };
     });
     return out;
   };

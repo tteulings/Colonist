@@ -176,6 +176,31 @@ export const SeaGame = {
     return this.findEdgeAt(x, y, (id) => sea.isShipMovable(player, id) && sea.moveTargets(player, id).length > 0);
   },
 
+  /** v1.18 The ships you may move now (cached: moveTargets is not free and the board draws every frame). */
+  _seaMovable(player) {
+    const sea = this.sea;
+    if (!sea || !player?.isHuman) return [];
+    const key = [this.turn, this.phase, player.id, player.ships.size, sea.builtThisTurn?.size ?? 0, sea.moved?.has(player.id) ? 1 : 0, sea.pirateHexId ?? "-", this.winner ? 1 : 0, this.setupPhase ? 1 : 0].join(":");
+    if (this._seaMovKey !== key) { this._seaMovKey = key; this._seaMovList = sea.movableShips(player); }
+    return this._seaMovList;
+  },
+  /** The human whose ships can move right now (Rush: any time; otherwise on your own turn). */
+  _seaMover() {
+    const h = this.players.find((p) => p.isHuman);
+    if (!h) return null;
+    if (this.hotseat) return this.currentPlayer?.isHuman ? this.currentPlayer : null;
+    return this.isRush() || this.currentPlayer === h ? h : null;
+  },
+  /** The "Move ship" entry of the build sheet: one movable ship starts the move, several: they light up. */
+  _seaMoveButton() {
+    const p = this._seaMover(), list = p ? this._seaMovable(p) : [];
+    if (!list.length) { this._flashPrompt?.(this.sea?.moved?.has(p?.id) ? "You moved a ship this turn · next move next turn" : "No ship can move now: a ship moves from the open end of a route, not on the turn it was built", 3600); return; }
+    if (list.length === 1) { this._seaStartMove(p, list[0]); return; }
+    this.sea.movePulse = performance.now();
+    this._flashPrompt?.(`Tap one of your ${list.length} ringed ships to move it`, 3600);
+    this.render();
+  },
+
   _seaStartMove(player, edgeId) {
     this._dropUndo();
     this.trayMode = null;
@@ -345,8 +370,8 @@ export const SeaGame = {
           + tbtn("data-thief=\"pirate\"", `${icon("pirate")}<span>Pirate<small>on the sea</small></span>`, "wide") };
     }
     if (this.pendingAction === "moveShip" && sea.moveSel) {
-      return { mode: "moveShip", hint: "Move ship: tap a dotted spot · one move per turn",
-        html: `<div class="tinfo">${icon("ship")}<span>Move this ship<small>Open end of your route</small></span></div>`
+      return { mode: "moveShip", hint: "Move ship: tap a dotted spot",
+        html: `<div class="tinfo">${icon("ship")}<span>Move this ship<small>Tap a dotted spot · once a turn</small></span></div>`
           + tbtn("data-move-cancel", `${icon("close")}<span>Cancel</span>`) };
     }
     const u = this.undoState;
