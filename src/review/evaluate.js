@@ -85,7 +85,7 @@ function roadLabel(g, p, edgeId) {
     const G = g.geometry, ed = G.edges[edgeId];
     const mine = (n) => G.nodes[n].owner === p.id || G.nodes[n].edgeIds.some((e) => e !== edgeId && G.edges[e].owner === p.id);
     const far = ed.nodes.find((n) => !mine(n));
-    return far != null ? `Road toward ${g._spotLabel(far)}` : "Road";
+    return far != null ? `Road toward ${g._spotLabel(far)}` : `Road ${g._spotLabel(ed.nodes[0])} – ${g._spotLabel(ed.nodes[1])}`; // v1.17 a road between two spots of your own network says where it is
   } catch (_) { return "Road"; }
 }
 

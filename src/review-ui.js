@@ -66,8 +66,9 @@ export const ReviewUiMixin = {
     if (!groups.length) return "";
     return groups.map(({ p, list }) => {
       const full = this._rv.review?.pid === p.id && this._rvReviewComplete?.(p.id) && !this._rvStale?.(p.id);
-      const lead = list.length ? (solo ? "Biggest chances missed, where another move kept clearly more win chance. Tap one to see it on the board." : "")
-        : full || this.hotseat ? "No clear missed chance found in this game." : "The full review checks every move of yours with the Master bot.";
+      const lead = list.length ? (solo ? (full ? "Biggest chances missed, where another move kept clearly more win chance. Tap one to see it on the board." : "Quick check while the full review runs: where another move looked clearly better. Tap one to see it on the board.") : "")
+        : full && this._rvBadCount?.(p.id) ? `${this._rvBadCount(p.id)} of your moves could be better. Open the review to step through ${this._rvBadCount(p.id) > 1 ? "them" : "it"}.`
+        : full || this.hotseat ? "No clear mistake found in this game." : "The full review checks every move of yours with the Master bot.";
       return `<div class="rv1${solo ? " gs-revcard" : ""}" data-rvp="${p.id}"><div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Your game review" : `<span class="pc-${p.id} rv-who">${esc(p.name)}</span> · missed chances`}</span><small>${list.length ? (list[0].verified ? "checked by the Master bot" : "") : ""}</small></div>
       ${lead ? `<p class="rv1-lead">${lead}</p>` : ""}
       ${solo ? this._rvReviewRowHtml?.(p) || "" : ""}
