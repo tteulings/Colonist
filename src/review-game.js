@@ -85,6 +85,13 @@ export const ReviewGameMixin = {
     const rv = this._rv?.review;
     return !!rv && rv.pid === pid && rv.results.some((r) => r.eng === REVIEW_ENGINE && (r.leaf || "v1") !== (REVIEW.budget.leaf || "v1"));
   },
+  /** v1.17 How many of this person's moves the finished review marks could be better / mistake / blunder / missed (what the review screen counts). */
+  _rvBadCount(pid) {
+    const rv = this._rv?.review;
+    if (!rv || rv.pid !== pid || !rv.results.length) return 0;
+    const c = summarize(rv.results).cls;
+    return (c.could || 0) + (c.mistake || 0) + (c.blunder || 0) + (c.missed || 0);
+  },
   /** The inside of the end screen's review button, one line: "Game review" + a status chip (checking 12/24 ·
    *  provisional · accuracy 92 · Re-check for an old formula); never started: "Review this game" + the time. */
   _rvRowInner(p) {
