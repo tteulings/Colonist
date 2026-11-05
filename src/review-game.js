@@ -99,7 +99,8 @@ export const ReviewGameMixin = {
     } else if (done) g = this._rvStale(p.id) ? "Re-check" : `accuracy ${sum?.acc ?? "–"}`;
     else if (sum) g = this._rvStale(p.id) ? "Re-check" : "provisional";
     else { x = "Review this game"; g = `≈${Math.max(1, Math.round((n * REVIEW.sec) / 60))} min`; }
-    return `<span class="t">${IC.review}</span><span class="x">${x}</span><span class="g">${g}</span>${IC.chev}`;
+    const mc = done && rv.midCheck ? `<small class="mc">checked during the game</small>` : ""; // v1.04: such a game stays out of the bot average
+    return `<span class="t">${IC.review}</span><span class="x">${x}${mc}</span><span class="g">${g}</span>${IC.chev}`;
   },
   _rvReviewRowHtml(p) {
     if (!this._rvReviewable()) return "";

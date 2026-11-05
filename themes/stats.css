@@ -359,3 +359,5 @@ html[data-motion="reduced"] .ls-sheet.in { animation: none; }
 .rv1.gs-revcard .rvb .x { white-space: nowrap; }
 .rv1.gs-revcard .rvb .g { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--primary-ink) 20%, transparent); font-weight: 800; font-size: 12px; opacity: 1; }
 .rv1.gs-revcard .rvb .rv-ring { flex: none; }
+
+.rv1.gs-revcard .rvb .mc { display: block; margin-top: 1px; font-size: 11px; font-weight: 600; line-height: 1.15; white-space: normal; opacity: .9; }
