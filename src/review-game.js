@@ -298,7 +298,7 @@ export const ReviewGameMixin = {
     const el = this._rvEl;
     if (!el) return;
     el.querySelector(".rv-info")?.remove();
-    const lim = (L) => `${L.map(([m, c], k) => `${CLS[c][0]} ${k ? (Number.isFinite(m) ? `${L[k - 1][0]}–${m - 1}` : `${L[k - 1][0]}+`) : `under ${m}`}`).join(", ")} %.`, ds0 = Math.round(100 / (this.players.length || 4));
+    const lim = (L) => `${L.map(([m, c], k) => `${CLS[c][0]} ${k ? (Number.isFinite(m) ? `${L[k - 1][0]}–${m - 1}` : `${L[k - 1][0]}+`) : `under ${m}`}`).join(", ")} %`, ds0 = Math.round(100 / (this.players.length || 4));
     const bands = BANDS.length ? ` (${BANDS.map(([n, v]) => `${n} ${Math.round(v)}`).join(", ")}, each ± ${BANDS[0][2] ?? 3})` : "";
     const d = document.createElement("div");
     d.className = "rv-info";
@@ -306,7 +306,7 @@ export const ReviewGameMixin = {
     d.setAttribute("aria-label", "About this review");
     d.innerHTML = `<div class="rv-card"><div class="rv-ih"><b>About this review</b><button type="button" class="rv-btn" data-rvinfo-x aria-label="Close">✕</button></div>
       <p><b>Win chance</b>: every number is a win chance in % (points of win chance). It comes from ${MC}: the position is played on for 14 turns in about 1000 random futures, and each end position is scored with a function fitted on 4500 bot games. The bar beside the board stacks all players (yours at the bottom).</p>
-      <p><b>A and B</b>: A is the move with the most win chance, B is what you played. The gap A − B is what the class uses and what every screen shows. The best of several noisy estimates is too rosy, so A is shown after taking off one margin of error (typically 1–2 %). ${lim(LIMITS)} Set-up spots get wider limits (${lim(SETUP_LIMITS)}): the options there are far apart, so the same gap means less.</p>
+      <p><b>A and B</b>: A is the move with the most win chance, B is what you played. The gap A − B is what the class uses and what every screen shows. The best of several noisy estimates is too rosy, so A is shown after taking off one margin of error (typically 1–2 %). Classes: ${lim(LIMITS)}. Set-up spots get wider limits (${lim(SETUP_LIMITS)}): the options there are far apart, so the same gap means less.</p>
       <p><b>Plan</b>: the Monte Carlo only tells that A won more futures, not why. The Plan line is a likely reason, worked out from the position itself: where a road leads (the spot's pips, new resources, harbour, roads away), Longest Road counts, rival spots a move takes away, what the robber would hit, what a trade or a saved hand makes affordable. When nothing clear separates A from B, no Plan is shown.</p>
       <p><b>Missed chance</b>: you ended the turn or traded while a build or development card was worth 3+ %. <b>Great</b>: outside the set-up, the best move among at least 3 options with the next one ${GREAT}+ % behind. <b>No real choice</b>: every option within 2 %; not counted and not in the accuracy.</p>
       <p><b>Your moves and Luck</b>: Your moves adds up the win chance your moves gave away (the gaps, each less its margin of error). Luck is everything else that moved your win chance: dice, robber, steals and also what the other players did, so it is not only luck. Together they are exactly the change in your win chance from an even share (${ds0}%) to after your last move, so a win with bad moves still shows. Your moves cannot be more than the most win chance you had; if it is capped, the screen says so.</p>
