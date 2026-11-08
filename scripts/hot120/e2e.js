@@ -92,6 +92,51 @@ async function humanTurn(page, fn, label) {
   await sleep(300);
   await fn();
 }
+
+// v1.19 "Confirm builds": When unsure builds a clear tap at once; Always shows the spot first, Confirm builds it. In pass & play.
+async function pickRoad(page) {
+  const row = page.locator(".bc-row", { hasText: "Road" }).first();
+  if (!(await row.isVisible())) { await page.locator("#mBuildBtn").tap(); await sleep(400); }
+  await row.tap(); await sleep(300);
+}
+async function buildCheck(page) {
+  const legalEdge = () => G(page, (g) => { const p = g.currentPlayer; const e = g.geometry.edges.find((e) => e.owner == null && g.canBuildRoad(p, e.id)); return e ? e.id : null; });
+  const owner = (id) => G(page, (g, id) => g.geometry.edges[id].owner, id);
+  const mode = await G(page, (g) => g._confirmLevel());
+  ok(mode === "unsure", "Confirm builds defaults to When unsure", mode);
+  const me = await G(page, (g) => g.currentPlayer.id);
+  const res = await G(page, (g) => ({ ...g.currentPlayer.resources }));
+  await give(page, { wood: 2, brick: 2 });
+  let e1 = await legalEdge();
+  await pickRoad(page);
+  await tapAt(page, "e", e1); await sleep(600);
+  ok((await owner(e1)) === me, "When unsure: a clear road tap builds at once (pass & play, for the person holding the phone)", { e1, me });
+  ok(await G(page, (g) => !g.confirmBuild), "nothing left waiting for Confirm");
+  await shot(page, "build-unsure-built");
+  await G(page, (g) => { g.confirmMode = "always"; g.render(); });
+  await give(page, { wood: 2, brick: 2 });
+  const e2 = await legalEdge();
+  await pickRoad(page);
+  await tapAt(page, "e", e2); await sleep(600);
+  const st = await G(page, (g, id) => ({ owner: g.geometry.edges[id].owner, cb: g.confirmBuild ? `${g.confirmBuild.type}:${g.confirmBuild.id}` : null }), e2);
+  ok(st.owner == null && st.cb === `road:${e2}`, "Always: the tap only shows the spot", st);
+  await shot(page, "build-always-confirm");
+  const btn = page.locator("button:visible", { hasText: /^\s*(Confirm|Place|Build)\b/i }).first();
+  ok((await btn.count()) > 0, "a Confirm button is shown", await btn.innerText().catch(() => ""));
+  await btn.tap(); await sleep(600);
+  ok((await owner(e2)) === me, "Confirm builds it for the same person");
+  await G(page, (g) => { g.confirmMode = null; g.render(); });
+  // a pick waiting for Confirm must not survive the hand-over
+  await give(page, { wood: 2, brick: 2 });
+  await G(page, (g) => { g.confirmMode = "always"; });
+  const e3 = await legalEdge();
+  if (e3 != null) { await pickRoad(page); await tapAt(page, "e", e3); await sleep(500); }
+  window_pending = await G(page, (g) => !!g.confirmBuild);
+  await G(page, (g) => { g.confirmMode = null; });
+  if (await page.locator("#tickerCancel").isVisible()) { await page.locator("#tickerCancel").tap(); await sleep(300); }
+  ok(await page.locator("#endTurnBtn").isVisible(), "Cancel drops the pick; End turn is available again");
+}
+let window_pending = false;
 let offerShot = false;
 const give = (page, h) => G(page, (g, h) => { const me = g.currentPlayer; Object.keys(me.resources).forEach((r) => { g.bank[r] += me.resources[r]; me.resources[r] = 0; }); Object.entries(h).forEach(([r, n]) => { g.bank[r] -= n; me.resources[r] = n; }); g.render(); }, h);
 
@@ -211,7 +256,8 @@ async function REST(page, ctx, browser, ev, first, viewer) {
   // plan: Tim holds a city and ends (missed), Rosa the same, Tim plain, Rosa builds the winning city
   await humanTurn(page, async () => { await give(page, { wheat: 2, ore: 3 }); await page.locator("#endTurnBtn").tap(); }, "T1");
   await humanTurn(page, async () => { await give(page, { wheat: 2, ore: 3 }); await page.locator("#endTurnBtn").tap(); }, "T2");
-  await humanTurn(page, async () => { await page.locator("#endTurnBtn").tap(); }, "T3");
+  await humanTurn(page, async () => { await buildCheck(page); await page.locator("#endTurnBtn").tap(); }, "T3");
+  ok(await G(page, (g) => !g.confirmBuild), `a spot picked for Confirm is gone after the hand-over (was pending: ${window_pending})`);
   await humanTurn(page, async () => {
     await give(page, { wheat: 2, ore: 3 });
     const node = await G(page, (g) => { const me = g.currentPlayer; g.settings.winPoints = me.victoryPoints + 1; g.render(); return [...me.settlements][0]; });
