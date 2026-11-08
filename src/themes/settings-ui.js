@@ -5,7 +5,7 @@
 import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, paletteAuto, paletteAutoMode, autoTimeInfo, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "1.22";
+export const APP_VERSION = "1.23";
 
 /** One line of real viewport numbers for bug reports (Settings › About). */
 function viewportDebug() {
@@ -112,6 +112,11 @@ export class SettingsUI {
       body.appendChild(row);
     } else if (this.tab === "bots") {
       body.innerHTML = this.head("Bot personalities", "");
+      const lb = document.createElement("button"); // v1.23 the leaderboard lives on its own page
+      lb.type = "button"; lb.className = "st-botsrow";
+      lb.innerHTML = `<span><b>Leaderboard and profiles</b><small>Who is strongest, and how you do against each bot</small></span><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      lb.addEventListener("click", () => g.botsOpen());
+      body.appendChild(lb);
       body.appendChild(this.botPane);
     } else if (this.tab === "about") {
       body.innerHTML = this.head("About", "") + `<p class="sub">Katan: Handelaren en Bouwers ${"v" + APP_VERSION} — a settle-and-trade island game against friendly bots.</p>
