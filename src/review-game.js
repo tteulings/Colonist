@@ -74,7 +74,7 @@ export const ReviewGameMixin = {
   _rvMidSub() {
     const pid = this._rvMidPid();
     if (pid == null) return "";
-    const rv = this._rv.review, left = this._rvTodo(pid).filter(([, i]) => !(rv?.pid === pid && rv.results.some((x) => x.i === i))).length;
+    const rv = this._rvOf(pid), left = this._rvTodo(pid).filter(([, i]) => !rv?.results.some((x) => x.i === i)).length;
     const when = left ? `about ${Math.max(1, Math.round((left * REVIEW.sec) / 60))} min` : "already checked";
     return `Up to turn ${this.turn} · ${when}`;
   },
@@ -82,12 +82,12 @@ export const ReviewGameMixin = {
 
   /** v1.11 A saved full result judged by an older score function (the leaf tag): its number is not comparable. */
   _rvStale(pid) {
-    const rv = this._rv?.review;
+    const rv = this._rvOf(pid);
     return !!rv && rv.pid === pid && rv.results.some((r) => r.eng === REVIEW_ENGINE && (r.leaf || "v1") !== (REVIEW.budget.leaf || "v1"));
   },
   /** v1.17 How many of this person's moves the finished review marks could be better / mistake / blunder / missed (what the review screen counts). */
   _rvBadCount(pid) {
-    const rv = this._rv?.review;
+    const rv = this._rvOf(pid);
     if (!rv || rv.pid !== pid || !rv.results.length) return 0;
     const c = summarize(rv.results).cls;
     return (c.could || 0) + (c.mistake || 0) + (c.blunder || 0) + (c.missed || 0);
@@ -95,7 +95,7 @@ export const ReviewGameMixin = {
   /** The inside of the end screen's review button, one line: "Game review" + a status chip (checking 12/24 ·
    *  provisional · accuracy 92 · Re-check for an old formula); never started: "Review this game" + the time. */
   _rvRowInner(p) {
-    const rv = this._rv.review, mine = rv?.pid === p.id, run = this._rv.run;
+    const rv = this._rvOf(p.id), mine = !!rv, run = this._rv.run;
     const sum = mine && rv.results.length && this._rvCovered1(p.id) ? summarize(rv.results) : null;
     const done = mine && this._rvReviewComplete(p.id);
     const n = this._rv.recs.filter((r) => r.pid === p.id && ["setup", "build", "bank", "buy", "play", "robber", "end"].includes(r.k)).length;
@@ -123,8 +123,8 @@ export const ReviewGameMixin = {
   /** Missed chances once the Master has checked the game: its own misses, biggest first (a detector line
    *  stays when the Master agrees with it; the gain is then in win chance). */
   _rvVerified(pid) {
-    const rv = this._rv?.review;
-    if (!rv || rv.pid !== pid || !this._rvReviewComplete(pid)) return null;
+    const rv = this._rvOf(pid);
+    if (!rv || !this._rvReviewComplete(pid)) return null;
     const recs = this._rv.recs;
     return rv.results.filter((x) => x.mark === "miss" && x.best).sort((a, b) => b.loss - a.loss).slice(0, 3).map((x) => {
       const det = this._rv.res?.findings?.find((f) => f.pid === pid && f.i === x.i);
@@ -175,15 +175,16 @@ export const ReviewGameMixin = {
   },
   /** The finished review goes into the history once (also when it ran in the background). */
   _rvLogGame(pid) {
-    const rv = this._rv?.review;
-    if (!rv || rv.pid !== pid || !this.winner || !this._rvReviewComplete(pid)) return this._rvHistory();
+    const rv = this._rvOf(pid);
+    if (!rv || !this.winner || !this._rvReviewComplete(pid)) return this._rvHistory();
     const sum = summarize(rv.results);
-    return this._rvHistory(sum.acc != null ? { id: this._rv.id, acc: sum.acc, n: sum.n, at: Date.now(), eng: REVIEW_ENGINE, midCheck: !!rv.midCheck, k: ACC.id } : null);
+    const w = this.hotseat ? this.players[pid]?.name : undefined; // pass & play: one entry per person
+    return this._rvHistory(sum.acc != null ? { id: w ? `${this._rv.id}:${pid}` : this._rv.id, ...(w ? { w } : {}), acc: sum.acc, n: sum.n, at: Date.now(), eng: REVIEW_ENGINE, midCheck: !!rv.midCheck, k: ACC.id } : null);
   },
   /** The comparison with the bots: only over 5+ games (one game spreads about ±8, the bands only 4). */
   _rvCompare(hist) {
     // accuracies of one engine only, and only games nobody checked during play (v1.04: a check mid-game helps)
-    const last = hist.filter((x) => (x.eng || "m100") === REVIEW_ENGINE && !x.midCheck && (x.k ?? "k0.08v1") === ACC.id).slice(-10).map((x) => x.acc);
+    const last = hist.filter((x) => (!this.hotseat ? !x.w : x.w === this.players[this._rvPid]?.name) && (x.eng || "m100") === REVIEW_ENGINE && !x.midCheck && (x.k ?? "k0.08v1") === ACC.id).slice(-10).map((x) => x.acc);
     if (!BANDS.length) return { n: last.length, text: "" };
     if (last.length < 5) return { n: last.length, text: `Average vs the bots after 5 games (${last.length} of 5).` };
     const m = last.reduce((a, b) => a + b, 0) / last.length;
@@ -213,7 +214,7 @@ export const ReviewGameMixin = {
 
   /** The running (or stopped) check as a card above the review: what is done, the time left from the pace so far, Stop. */
   _rvProgHtml(pid) {
-    const R = this._rv, run = R.run, rv = R.review, mid = !!this._rvMid;
+    const R = this._rv, run = R.run, rv = R.revs[pid], mid = !!this._rvMid;
     if (run && run.pid === pid && run.round) {
       const r = run.round, n = Math.max(1, r.n), j = Math.min(r.j, n);
       const per = run.times.length >= 2 ? run.times.reduce((a, b) => a + b, 0) / run.times.length : (REVIEW_ENGINES[r.eng]?.sec || REVIEW.sec) * 1000;
@@ -222,6 +223,9 @@ export const ReviewGameMixin = {
       const title = mid ? "Checking your moves" : r.eng === "m100" ? "Quick look" : "Deepening";
       return `<section class="rv-card rv-prog" role="status"><div class="pr"><b>${title}</b><small>${run.paused ? "paused" : `${j} of ${r.n}${j < r.n && (run.times.length >= 2 || j === 0) ? ` · ~${t}` : ""}`}</small><button type="button" class="rv-btn" data-rvstop>Stop</button></div>
         <div class="rv-pbar"><i style="width:${Math.round((100 * j) / n)}%"></i></div></section>`;
+    }
+    if (run && run.pid !== pid && !this._rvReviewComplete(pid) && this.hotseat) {
+      return `<section class="rv-card rv-prog" role="status"><div class="pr"><b>Waiting</b><small>${esc(this.players[run.pid]?.name || "the other check")} is being checked first</small></div></section>`;
     }
     if (rv?.pid === pid && rv.stopped && !this._rvReviewComplete(pid)) {
       const todo = this._rvTodo(pid), left = todo.filter(([, i]) => { const x = rv.results.find((y) => y.i === i); return !x || this._rvNeedsFull(x); }).length;
@@ -244,6 +248,7 @@ export const ReviewGameMixin = {
   // ── the screen ──
   _rvOpenReview(pid, { mid = false } = {}) {
     if (!this._rvReviewable()) return;
+    if (!this._rvGateOk(pid)) { this._hsGate?.(pid, "Your game review", () => this._rvOpenReview(pid, { mid })); return; } // pass & play: hand the phone over first
     this._rvMid = mid;
     if (mid) this._st = this._stCompute(); // the stats so far (luck, the board for Show)
     this._rvCloseReview();
@@ -278,6 +283,7 @@ export const ReviewGameMixin = {
     el.querySelector("[data-rvclose]")?.addEventListener("click", () => this._rvCloseReview(true));
     el.querySelector("[data-rvback-game]")?.addEventListener("click", () => this._rvCloseReview(true));
     el.querySelector("[data-rvinfo]")?.addEventListener("click", () => { this._rvInfoOpen = true; this._rvShowInfo(); });
+    el.querySelectorAll("[data-rvfor]").forEach((b) => b.addEventListener("click", () => { const pid = +b.dataset.rvfor; if (pid !== this._rvPid) this._rvOpenReview(pid); }));
     if (this._rvInfoOpen) this._rvShowInfo();
     this._rvBindProg(el);
   },
@@ -313,7 +319,34 @@ export const ReviewGameMixin = {
     el.appendChild(d);
   },
   _rvBar(sub) {
-    return `<div class="rv-bar"><button type="button" class="rv-btn" data-rvclose aria-label="${this._rvMid ? "Back to the game" : "Back to results"}">‹</button><div><h3>Game review</h3><small>${sub}</small></div><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>`;
+    return `<div class="rv-bar"><button type="button" class="rv-btn" data-rvclose aria-label="${this._rvMid ? "Back to the game" : "Back to results"}">‹</button><div><h3>Game review${this.hotseat && this._rvPid != null ? ` · <span class="pc-${this._rvPid} rv-who">${esc(this.players[this._rvPid].name)}</span>` : ""}</h3><small>${sub}</small></div><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>${this._rvForSeg()}`;
+  },
+
+  /** Pass & play: "Review for [Rosa] [You]": one person's moves at a time, with where each check stands. */
+  _rvStatusWord(pid) {
+    const R = this._rv, run = R.run, rv = R.revs[pid];
+    if (this._rvReviewComplete(pid)) { const a = summarize(rv.results).acc; return a != null ? `accuracy ${a}` : "checked"; }
+    if (run?.pid === pid && run.round) return run.paused ? "paused" : `checking ${run.round.j} of ${run.round.n}`;
+    if (rv?.stopped) return "stopped";
+    if (run || R.queue?.includes(pid)) return "queued";
+    return this._rvTodo(pid).length ? "tap to start" : "no moves";
+  },
+  _rvForSeg(sel = this._rvPid) {
+    if (!this.hotseat || this._rvMid) return "";
+    const hs = this.players.filter((p) => p.isHuman && this._rvTodo(p.id).length);
+    if (hs.length < 2) return "";
+    return `<div class="rv-for" role="radiogroup" aria-label="Review for"><span class="rv-for-l">Review for</span><div class="rv-seg">${hs.map((p) => `<button type="button" role="radio" aria-checked="${p.id === sel}" class="pc-${p.id}${p.id === sel ? " on" : ""}" data-rvfor="${p.id}">${this._av(p, "rv-for-av")}<span><b>${esc(p.name)}</b><small>${this._rvStatusWord(p.id)}</small></span></button>`).join("")}</div></div>`;
+  },
+  /** Who gets a review without asking: the person holding the phone. Anyone else's goes through a hand-over cover. */
+  _rvGateOk(pid) { return !this.hotseat || pid === this.viewerId; },
+
+  /** After a game: the people whose checks start by themselves, in seat order (one person: just them). */
+  _rvAutoQueue() {
+    let on = true;
+    try { on = localStorage.getItem("colonist_review_auto") !== "off"; } catch (_) { on = true; }
+    if (!on || !this.winner || !reviewAvailable() || !this._rvReviewable() || this._replay) return [];
+    if (!this.hotseat) { const p = this._rvSoloPid(); return p == null ? [] : [p]; }
+    return this.players.filter((p) => p.isHuman && this._rvTodo(p.id).length).map((p) => p.id);
   },
   // ── v1.05 the review: overview + step mode (board first) ──
   /** The decisions with a win chance, in play order: class, losses, the chance term between two of them, every seat's win chance. */
@@ -392,7 +425,7 @@ export const ReviewGameMixin = {
     return `<div class="rs-stack" role="img" aria-label="Win chance: ${this.players.map((p) => `${p.id === me ? "you" : esc(p.name)} ${Math.round((seats[p.id] / sum) * 100)}%`).join(", ")}">${order.slice().reverse().map((q) => `<i class="pc-${q}${q === me ? " me" : ""}" data-pid="${q}" data-pct="${Math.round((seats[q] / sum) * 100)}" style="flex:${(seats[q] / sum).toFixed(4)} 1 0">${seats[q] / sum >= 0.06 ? `<b>${Math.round((seats[q] / sum) * 100)}</b>` : ""}</i>`).join("")}</div>`;
   },
   _rvDrawReview(selI = null) {
-    const el = this._rvEl, R = this._rv, rv = R.review, pid = this._rvPid;
+    const el = this._rvEl, R = this._rv, pid = this._rvPid, rv = R.revs[pid];
     if (!el) return;
     if (!rv || !rv.results.length) { // nothing checked yet: the progress card alone
       el.className = "rv rs tm";

@@ -101,15 +101,30 @@ export const HotseatMixin = {
   _hsWhy(pid) {
     if (this._hsNote && this._hsNote.pid === pid) return this._hsNote.html;
     const pd = this.pendingDiscard;
-    if (pd?.player?.id === pid) return `Rolled 7 · hand back ${pd.count} cards`;
+    if (pd?.player?.id === pid) return `${esc(this.currentPlayer?.name || "Someone")} rolled a 7 · hand back ${pd.count} cards`;
     const pit = this.pendingIncomingTrade;
     if (pit?.to?.id === pid) return `${avatarSvg(pit.fromPlayer.id)}${esc(pit.fromPlayer.name)} offers you a trade`;
     if (this.sea?.goldFor?.(pid)) return "Pick your gold";
     if (this.pendingAction === "robber" || this.robberBusy || this.robberVictimOptions?.length) return "Move the robber";
-    if (this.setupPhase) return this.setupAction === "road" ? "Place your road" : "Place your settlement";
+    if (this.setupPhase) {
+      const first = this.setupStep === 0 ? "Starts the game · " : "";
+      return `${first}${this.setupAction === "road" ? "Place your road" : "Place your settlement"}`;
+    }
     if (this.phase === "sbp") return "Build window";
     return "Your turn";
   },
+
+  /** A second line on the cover: how set-up works (first placements only). Terse; the rest is behind the journal. */
+  _hsSub(pid) {
+    if (!this.setupPhase) return "";
+    const n = this.players.length;
+    if (this.setupStep === 0) return "2 settlements each · the order reverses in round 2";
+    if (this.setupStep === n) return "Round 2 · order reversed";
+    return "";
+  },
+
+  /** The seat the phone belongs to right now (null: only bots act): its chip is the lit one, whatever the turn owner is. */
+  _hsActiveSeat() { return this.hotseat ? this._hsTarget() : null; },
 
   _hsShowCover(pid) {
     const p = this.players[pid];
@@ -133,10 +148,14 @@ export const HotseatMixin = {
     el.dataset.key = key;
     el.className = `hs-cover pc-${pid}`;
     el.setAttribute("aria-label", `Pass the phone to ${p.name}`);
+    const sub = this._hsSub(pid);
     el.innerHTML = `${avatarSvg(pid, "hs-av")}<p class="hs-pass">Pass the phone to</p><h2 class="hs-name">${esc(p.name)}</h2>
-      <p class="hs-why">${why}</p>${secrets.map((h) => `<p class="hs-why hs-secret">${h}</p>`).join("")}
-      <button type="button" class="hs-go" data-hs-go="${pid}">I'm ${esc(p.name)} · show my hand</button>
-      <p class="hs-foot">Hands stay hidden until you tap</p>`;
+      <p class="hs-why">${why}</p>${sub ? `<p class="hs-task">${sub}</p>` : ""}${secrets.map((h) => `<p class="hs-why hs-secret">${h}</p>`).join("")}
+      <button type="button" class="hs-go" data-hs-go="${pid}">I'm ${esc(p.name)}</button>
+      <p class="hp-foot">Hands stay hidden until you tap</p>`;
+    // the previous holder's one-line notes ("You drew a Knight") and toasts must not survive the hand-over
+    window.clearTimeout(this._flashTimer); this._flash = null; this._tickerPromptKey = null;
+    document.getElementById("toastStack")?.replaceChildren();
     // a cover over an open sheet: put the sheets away (their contents belong to the previous holder)
     this.hideTradePanel?.();
     this.hideDevCardPicker?.();
@@ -146,6 +165,27 @@ export const HotseatMixin = {
   _hsHideCover() {
     this.hsCoverOn = null;
     if (this._hsCoverEl && !this._hsCoverEl.hidden) { this._hsCoverEl.hidden = true; this._hsCoverEl.dataset.key = ""; }
+  },
+
+  /** Post-game: another person's review or missed chances needs the phone in their hands first (their hand shows there). */
+  _hsGate(pid, task, go) {
+    const p = this.players[pid];
+    document.getElementById("hsGate")?.remove();
+    const el = document.createElement("div");
+    el.id = "hsGate";
+    el.className = `hs-cover pc-${pid}`;
+    el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", `Hand the phone to ${p.name}`);
+    el.innerHTML = `${avatarSvg(pid, "hs-av")}<p class="hs-pass">Hand the phone to</p><h2 class="hs-name">${esc(p.name)}</h2>
+      <p class="hs-why">${esc(task)}</p><button type="button" class="hs-go" data-gate-go>I'm ${esc(p.name)}</button>
+      <button type="button" class="hs-skip" data-gate-no>Not now</button>`;
+    el.addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (!b) return;
+      el.remove();
+      if (b.hasAttribute("data-gate-go")) { this.viewerId = pid; this._hsLastAck = pid; this.sfx?.click?.(); go(); }
+    });
+    document.body.appendChild(el);
+    el.querySelector(".hs-go")?.focus({ preventScroll: true });
   },
 
   /** "I'm Blaauw": show that player's hand. */

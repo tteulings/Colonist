@@ -243,3 +243,16 @@
 .mk-why { pointer-events: none; } [data-show="B"] .mk-why { display: none; }
 .rs-why s { text-decoration: none; display: inline-grid; place-items: center; border-radius: 50%; font: 800 11px var(--font-body); background: var(--primary); color: #fff; border: 1.5px solid #fff; } .rs-why s.alt { background: #fff; color: var(--primary); border-color: var(--primary); }
 .rs.hw { --stage: 37.5%; } .rs.hw .rs-lk { display: none; } .rs.hw .rs-ab > div { padding: 4px 8px; } .rs.hw .rs-s { font-size: 13px; }
+/* v1.12 pass & play: "Review for [name] [name]" */
+.rv-for { margin: 8px 14px 4px; }
+.rv-for-l { display: block; font: 700 11.5px/1 var(--font-body, system-ui); letter-spacing: .06em; text-transform: uppercase; opacity: .75; margin: 0 2px 6px; }
+.rv-seg { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: color-mix(in srgb, var(--ink, #222) 10%, transparent); }
+.rv-seg button { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 4px 8px; border: 0; border-radius: 999px; background: transparent; color: var(--ink, #222); font: 700 14px/1.1 var(--font-body, system-ui); text-align: left; }
+.rv-seg button span { min-width: 0; overflow: hidden; }
+.rv-seg button b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-seg button small { display: block; font-weight: 500; font-size: 11px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-seg button.on { background: var(--sheet, #fff); box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+.rv-seg .rv-for-av { --av: 26px; flex: none; }
+.rv > .rv-bar + .rv-for { color: var(--bar-ink, #fff); }
+.rv > .rv-bar + .rv-for .rv-seg button { color: var(--ink, #222); }
+.gs-recap .rv-for { margin: 10px 0 6px; }

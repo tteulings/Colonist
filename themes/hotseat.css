@@ -19,7 +19,7 @@
   box-shadow: 0 6px 18px rgba(0,0,0,.2), inset 0 -2px 0 rgba(0,0,0,.08); cursor: pointer; display: inline-flex; align-items: center; gap: 10px; }
 .hs-cover .hs-go:active { transform: translateY(1px) scale(.99); }
 .hs-cover .hs-go svg { width: 22px; height: 22px; flex: none; }
-.hs-cover .hs-foot { position: absolute; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom)); font-size: 12.5px; opacity: .7; margin: 0; }
+.hs-cover .hp-foot { position: absolute; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom)); font-size: 12.5px; opacity: .7; margin: 0; }
 @keyframes hsIn { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .hs-cover { animation: none; } }
 :root[data-motion="reduced"] .hs-cover { animation: none; }
@@ -83,3 +83,48 @@
 /* v0.84: the holder's name leads the totals pill over the hand */
 .hand .hand-total .ht-who { font-weight: 750; max-width: 6.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 4px; color: var(--pc-text, inherit); }
 #app.hs-hidden .hand-total { visibility: hidden; }
+
+/* ── remembered names: chips under the name field, the Names sheet ───────── */
+.newgame-modal .hp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.newgame-modal .hp-chip { appearance: none; min-height: 32px; padding: 0 12px; border-radius: 999px; font: 700 13px/1 var(--font-body, inherit);
+  border: 1.5px solid color-mix(in srgb, var(--pc) 40%, transparent); background: var(--panel, #fff); color: var(--ink, #222); cursor: pointer; }
+.newgame-modal .hp-chip:active { background: color-mix(in srgb, var(--pc) 16%, var(--panel, #fff)); }
+.newgame-modal .hp-link { appearance: none; border: 0; background: none; padding: 6px 2px; font: 750 12.5px/1 var(--font-body, inherit); color: var(--ink, #222); text-decoration: underline; cursor: pointer; min-height: 32px; }
+.nm-sheet { position: fixed; inset: 0; z-index: 95; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,.45); }
+.nm-card { width: min(100%, 460px); max-height: 80vh; overflow: auto; padding: 14px 16px max(16px, env(safe-area-inset-bottom)); border-radius: 20px 20px 0 0;
+  background: var(--sheet, var(--panel, #fff)); color: var(--ink, #222); font-family: var(--font-body, system-ui, sans-serif); }
+.nm-h { display: flex; align-items: center; justify-content: space-between; }
+.nm-h h3 { margin: 0; font: var(--display-weight, 750) 18px/1.2 var(--font-display, inherit); color: var(--heading, inherit); }
+.nm-x { appearance: none; border: 0; background: none; font-size: 18px; min-width: 44px; min-height: 44px; color: inherit; }
+.nm-list { list-style: none; margin: 6px 0; padding: 0; }
+.nm-list li { display: flex; align-items: center; gap: 8px; min-height: 48px; border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
+.nm-list li b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nm-list li small { opacity: .7; }
+.nm-in { flex: 1; min-width: 0; min-height: 40px; padding: 0 10px; border-radius: 10px; border: 1.5px solid color-mix(in srgb, currentColor 35%, transparent); background: var(--panel, #fff); color: inherit; font: 700 15px var(--font-body, inherit); }
+.nm-b { appearance: none; min-height: 40px; padding: 0 12px; border-radius: 999px; border: 1.5px solid color-mix(in srgb, currentColor 30%, transparent); background: none; color: inherit; font: 700 13px var(--font-body, inherit); }
+.nm-b.pri { background: var(--primary, #1d6b66); border-color: transparent; color: #fff; }
+.nm-note { font-size: 12.5px; opacity: .8; margin: 6px 0; }
+.nm-done { appearance: none; width: 100%; min-height: 48px; border-radius: 14px; border: 0; margin-top: 6px; background: var(--primary, #1d6b66); color: #fff; font: 750 16px var(--font-body, inherit); }
+
+/* ── cover: task line, centred footer, calmer at night ───────────────────── */
+.hs-cover .hp-foot { text-align: center; font-size: 14px; opacity: .8; padding: 0 24px; }
+.hs-cover .hs-task { font-size: 15px; font-weight: 650; opacity: .95; margin: 2px 0 18px; max-width: 28ch; }
+:root[data-palette="night"] .hs-cover, :root[data-palette="dusk"] .hs-cover {
+  --pc-ink: #F7F9FC; color: #F7F9FC; /* the cover is darkened here: light text whatever the seat's own ink is */
+  background: radial-gradient(120% 80% at 50% 30%, color-mix(in srgb, var(--pc) 55%, #000) 0%, color-mix(in srgb, var(--pc) 38%, #000) 60%, color-mix(in srgb, var(--pc) 24%, #000) 100%); }
+:root[data-palette="night"] .hs-cover .hs-go, :root[data-palette="dusk"] .hs-cover .hs-go { background: color-mix(in srgb, #FFFDF7 88%, var(--pc)); box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+
+/* ── an offer from another person: who offers, labelled Accept / Decline ─── */
+.rush-offer.hs-offer { flex-wrap: wrap; row-gap: 6px; }
+.rush-offer.hs-offer .rush-offer-body { flex: 1 1 0; }
+.rush-offer.hs-offer .ro-from { font-size: 13px; color: var(--ink-soft); margin-bottom: 2px; }
+.rush-offer.hs-offer .ro-from b { color: var(--pc-text, var(--ink)); font-weight: 800; }
+.app .rush-offer.hs-offer .rush-offer-decline, .app .rush-offer.hs-offer .rush-offer-accept { width: auto; min-width: 0; padding: 0 12px; gap: 5px; font: 750 14px var(--font-body, inherit); flex: none; }
+.app .rush-offer.hs-offer .rush-offer-accept { flex: none; }
+@media (max-width: 400px) {
+  .rush-offer.hs-offer .rush-offer-body { flex-basis: 100%; order: 2; }
+  .rush-offer.hs-offer .rush-offer-hide, .rush-offer.hs-offer > .avatar { order: 1; }
+  .app .rush-offer.hs-offer .rush-offer-decline, .app .rush-offer.hs-offer .rush-offer-accept { order: 3; flex: 1; justify-content: center; }
+}
+#hsGate { z-index: 140; }
+.hs-cover .hs-skip { appearance: none; border: 0; background: none; color: inherit; opacity: .85; font: 650 15px var(--font-body, system-ui); text-decoration: underline; min-height: 44px; margin-top: 8px; }

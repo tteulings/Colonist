@@ -9,6 +9,7 @@ import { SoundEngine } from "./sound.js";
 import { isBigTable, bigAxialHexes, BIG_CENTER_SHIFT, BIG_BANK_SIZE, BIG_RUSH_INTERVAL, assignBigTiles, assignBigPorts, createBigDevDeck, SbpMixin } from "./six.js";
 import { SixUiMixin } from "./six-ui.js";
 import { HotseatMixin } from "./hotseat.js";
+import { Names, cleanName, sameName, openNamesSheet } from "./names.js";
 import { StatsMixin, installStats } from "./stats.js"; // end-of-game statistics: the recorder
 import { StatsUiMixin } from "./stats-ui.js"; // … the stats screen, heatmaps and the replay
 import { LiveStatsMixin, installLiveStats } from "./live-stats.js"; // … and the same cards during the game
@@ -354,7 +355,7 @@ function seatSpec(s, id) {
   const cfg = PLAYER_CONFIG[id];
   const isHuman = id === 0 || (s?.mode !== "rush" && !!s?.humans?.[id - 1]);
   if (!isHuman || !hotseatOn(s)) return { isHuman, name: cfg.name, short: cfg.short };
-  const name = (s.names?.[id] || "").trim() || cfg.hsName || cfg.name;
+  const name = (s.names?.[id] || "").trim() || `Player ${id + 1}`; // pass & play: chosen name, else "Player 2" (never a bot's name)
   return { isHuman, name, short: name === cfg.name ? cfg.short : name.length > 9 ? `${name.slice(0, 8)}…` : undefined };
 }
 
@@ -1000,6 +1001,7 @@ class ColonistFullGame {
       onContinue: () => this.continueSavedGame(),
       onStart: (pick) => this._quickStart(pick),
       onMore: () => this._showDifficultyModal(),
+      onFriend: () => this._showDifficultyModal({ friend: true }),
       onIntro: () => this.onboarding.showIntro(0, true),
       onSettings: () => this.settingsUI.open("game"),
       onHistory: () => this.histOpen(),
@@ -3808,7 +3810,7 @@ class ColonistFullGame {
     this._markStripAnswers();
     if (note) {
       const yes = ans ? ans.responses.filter((x) => x.accepts).length : 0;
-      note.textContent = !ans ? (sumResources(this.tradeOffer) && sumResources(this.tradeRequest) ? (this.hotseat ? "Offer asks the bots · Ask a person" : "tap Offer to ask them") : "")
+      note.textContent = !ans ? (sumResources(this.tradeOffer) && sumResources(this.tradeRequest) ? (this.hotseat ? "Tap a person to ask, or ask the bots" : "tap Offer to ask them") : "")
         : yes ? "tap a ✓ to trade" : ans.counter ? "no takers · one counter-offer" : "no takers this time";
     }
   }
@@ -3925,8 +3927,8 @@ class ColonistFullGame {
       // sent: a calm outline button (green stays for ✓ accept only)
       this.tradeProposalBtn.classList.toggle("primary", !askedSame);
       this.tradeProposalBtn.classList.toggle("sent", askedSame);
-      const sub = askedSame ? "edit to ask again" : !offerTotal ? "pick what you give" : !requestTotal ? "pick what you get" : n === 0 ? "no bots · tap Ask" : `to ${who(n)}`;
-      this.tradeProposalBtn.innerHTML = `${icon("trade")}<span class="rt"><b>${askedSame ? "Offer sent" : "Offer"}</b><small>${sub}</small></span>`;
+      const sub = askedSame ? "edit to ask again" : !offerTotal ? "pick what you give" : !requestTotal ? "pick what you get" : n === 0 ? "no bots at the table" : `to ${who(n)}`;
+      this.tradeProposalBtn.innerHTML = `${icon("trade")}<span class="rt"><b>${askedSame ? "Offer sent" : hs ? "Ask the bots" : "Offer"}</b><small>${sub}</small></span>`;
       this.tradeProposalBtn.setAttribute("aria-label", askedSame ? "Offered to the players · change your offer to ask again" : `Offer to the players${offerTotal && requestTotal ? "" : `: ${sub}`}`);
     }
     const hint = document.querySelector("#tradeHint");
@@ -6589,18 +6591,18 @@ class ColonistFullGame {
     el.innerHTML = more + offers.map((o) => {
       const p = this.players[o.fromId];
       const ok = this._offerPossible(p, o.give, o.want, human);
-      return `<div class="rush-offer${o.classic ? " classic" : " rush"}${this.hotseat ? " no-timer" : ""}${arriving ? " arriving" : ""}" data-offer="${o.id}" role="group" aria-label="${p.name} offers ${words(o.give)} for your ${words(o.want)}" style="--offer-ms:${CLASSIC_OFFER_MS}ms">
+      return `<div class="rush-offer${o.classic ? " classic" : " rush"}${this.hotseat ? " no-timer" : ""}${o.classic && this.hotseat ? " hs-offer" : ""}${arriving ? " arriving" : ""}" data-offer="${o.id}" role="group" aria-label="${p.name} offers ${words(o.give)} for your ${words(o.want)}" style="--offer-ms:${CLASSIC_OFFER_MS}ms">
         ${o.classic ? this._av(p, "rush-offer-avatar") : `<button type="button" class="rush-offer-hide" data-hide aria-label="Hide offers${waiting.length ? ` (${waiting.length} more waiting)` : ""}" title="Hide offers">${this._av(p, "rush-offer-avatar")}<span class="chev" aria-hidden="true">▾</span>${waiting.length ? `<span class="om-n" aria-hidden="true">+${waiting.length}</span>` : ""}</button>`}
         <div class="rush-offer-body">
           ${(() => {
             const warn = human && this._offerCostsBuild(human, o) ? `<span class="owarn" role="img" aria-label="You could not build ${this._offerCostsBuild(human, o)} after this" title="You could not build ${this._offerCostsBuild(human, o)} after this"><svg viewBox="0 0 20 18" aria-hidden="true"><path d="M10 1.5 19 16.5H1Z" fill="#F2B233" stroke="#8A5A00" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 6.5v5" stroke="#3A2600" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="14" r="1.2" fill="#3A2600"/></svg></span>` : "";
             // v0.93 Rush: one compact row, "Give … → Get …" (each half stays together when it wraps)
-            return o.classic ? `<div class="rush-offer-deal"><span class="ol give">You give</span><span class="grp">${side(o.want)}${warn}</span><span class="ol get">You get</span><span class="grp">${side(o.give)}</span></div>`
+            return o.classic ? `${this.hotseat ? `<div class="ro-from"><b>${p.name}</b> offers</div>` : ""}<div class="rush-offer-deal"><span class="ol give">You give</span><span class="grp">${side(o.want)}${warn}</span><span class="ol get">You get</span><span class="grp">${side(o.give)}</span></div>`
               : `<div class="rush-offer-deal"><span class="pr"><span class="ol give">Give</span><span class="grp">${side(o.want)}${warn ? warn.replace("</svg></span>", `</svg><em>no ${this._offerCostsBuild(human, o).replace(/^an? /, "").replace("development card", "card")} after</em></span>`) : ""}</span></span><span class="pr"><span class="ol get">Get</span><span class="grp">${side(o.give)}</span></span></div>`;
           })()}
         </div>
-        <button type="button" class="rush-offer-decline" data-decline="${o.id}" aria-label="Decline">${icon("close")}</button>
-        <button type="button" class="rush-offer-accept" data-accept="${o.id}" aria-label="Accept: give ${words(o.want)}, get ${words(o.give)}" ${ok ? "" : "disabled"}>${icon("check")}</button>
+        <button type="button" class="rush-offer-decline" data-decline="${o.id}" aria-label="Decline">${icon("close")}${o.classic && this.hotseat ? "<span>Decline</span>" : ""}</button>
+        <button type="button" class="rush-offer-accept" data-accept="${o.id}" aria-label="Accept: give ${words(o.want)}, get ${words(o.give)}" ${ok ? "" : "disabled"}>${icon("check")}${o.classic && this.hotseat ? "<span>Accept</span>" : ""}</button>
         <span class="offer-time" aria-hidden="true"><i></i></span>
       </div>`;
     }).join("");
@@ -8415,7 +8417,7 @@ class ColonistFullGame {
     const rows = [];
     const chips = [];
     this.players.forEach((player, idx) => {
-      const active = idx === this._turnOwnerIndex() && !this.winner && !(this.isRush() && !this.setupPhase);
+      const active = idx === (this._hsActiveSeat?.() ?? this._turnOwnerIndex()) && !this.winner && !(this.isRush() && !this.setupPhase);
       const isReady = !!readyIds?.includes(player.id);
       const persona = player.personality ? AI_PRESET_INFO[player.personality] : null;
       const personaBadge = persona
@@ -9046,12 +9048,17 @@ class ColonistFullGame {
 
   // ── New-game setup screen ─────────────────────────────────────────────
   // Mode (Classic / Rush), rules, dice, map and opponents. The last choice is remembered.
-  _showDifficultyModal() {
+  _showDifficultyModal({ friend = false } = {}) {
     document.querySelector(".newgame-modal")?.remove();
     this.onboarding?.close();
     this.settingsUI?.close();
     const last = normalizeSettings(ColonistFullGame.loadLastSettings());
     let d = normalizeSettings(JSON.parse(JSON.stringify(last)));
+    if (friend) { // Home › Play with a friend: Classic, you + one person (+ the bots of the last game), your remembered name filled in
+      d.mode = "classic"; d.board = "island"; d.numBots = Math.max(1, d.numBots);
+      d.humans = d.humans.map((h, i) => (i === 0 ? true : h));
+      if (!d.names[0] && Names.me()) d.names = d.names.map((n, i) => (i === 0 ? Names.me() : n));
+    }
     const overlay = document.createElement("div");
     overlay.className = "newgame-modal";
     overlay.setAttribute("role", "dialog");
@@ -9117,7 +9124,7 @@ class ColonistFullGame {
         d.friendlyRobber ? "friendly robber" : null,
         `${d.dice === "deck" ? "event-deck" : d.dice} dice`,
         `${d.map} map`,
-        [people > 1 ? `${people} players` : null,
+        [people > 1 ? `${people} people` : null,
           bots.length ? `${bots.length} bot${bots.length > 1 ? "s" : ""} (${uniq.length === 1 && bots.length > 1 ? `all ${uniq[0]}` : bots.join(", ")})` : null].filter(Boolean).join(" + "),
       ].filter(Boolean);
       return `${mode} · ${extras.join(" · ")}`;
@@ -9128,13 +9135,15 @@ class ColonistFullGame {
     const seatRows = () => PLAYER_CONFIG.slice(0, d.numBots + 1).map((cfg, id) => {
       const human = id === 0 || (d.mode !== "rush" && d.humans[id - 1]);
       const hot = hotseatOn(d);
-      const def = cfg.hsName || cfg.name;
+      const def = id === 0 ? "Your name" : "Name";
       const kind = id === 0 ? `<div class="hs-kind" aria-label="Person"><button type="button" class="on fixed" tabindex="-1">Human</button></div>`
         : `<div class="hs-kind" role="radiogroup" aria-label="${esc(cfg.name)}: bot or person">
             <button type="button" role="radio" data-kind="bot" data-seat="${id}" class="${human ? "" : "on"}" aria-checked="${!human}">Bot</button>
             <button type="button" role="radio" data-kind="human" data-seat="${id}" class="${human ? "on" : ""}" aria-checked="${human}"${d.mode === "rush" ? ` disabled title="Pass &amp; play is Classic only"` : ""}>Human</button></div>`;
+      const taken = d.names.filter((n, i) => i !== id && i <= d.numBots && (i === 0 || (d.mode !== "rush" && d.humans[i - 1])));
+      const chips = hot && human ? Names.suggest([...taken, d.names[id]], 4) : [];
       const main = human
-        ? (hot ? `<input class="hs-name-in" data-name="${id}" value="${esc(d.names[id] || "")}" placeholder="${esc(def)}" maxlength="14" aria-label="Name for seat ${id + 1}" autocomplete="off" spellcheck="false">`
+        ? (hot ? `<input class="hs-name-in" data-name="${id}" value="${esc(d.names[id] || "")}" placeholder="${esc(def)}" maxlength="14" aria-label="Name for seat ${id + 1}" autocomplete="off" spellcheck="false">${chips.length ? `<div class="hp-chips" role="group" aria-label="Remembered names">${chips.map((n) => `<button type="button" class="hp-chip" data-chip="${id}" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div>` : ""}`
           : `<div class="hs-seat-name">You</div>`)
         : `<div class="hs-seat-name">${esc(cfg.name)}${badge(botPreset(id - 1))}</div>`;
       const sel = !human && d.botStyleMode === "each" ? `
@@ -9252,7 +9261,7 @@ class ColonistFullGame {
                 ${d.board === "seafarers" ? `<p class="ng-help ng-six-help">Seafarers is a 3–4 player scenario.</p>` : ""}
                 ${isBigTable(d.numBots + 1) ? `<p class="ng-help ng-six-help">${d.numBots + 1} players: the bigger island (30 tiles, 24 of each card) and a build window between turns${d.mode === "rush" ? " (Classic only)" : ""}.</p>` : ""}
                 <div class="hs-seats">${seatRows()}</div>
-                ${hotseatOn(d) ? `<p class="hs-help">${1 + d.humans.slice(0, d.numBots).filter(Boolean).length} people share this phone · pass it on when the turn changes.</p>` : `<p class="hs-help">Tap Human to play with friends on this phone.</p>`}
+                ${hotseatOn(d) ? `<p class="hs-help">${1 + d.humans.slice(0, d.numBots).filter(Boolean).length} people share this phone${Names.list().length ? ` · <button type="button" class="hp-link" data-action="names">Names</button>` : ""}</p>` : `<p class="hs-help">Tap Human to play with a friend on this phone.</p>`}
               </section>
               <section class="ng-section">
                 <h3 class="ng-section-title">Bots</h3>
@@ -9312,9 +9321,11 @@ class ColonistFullGame {
         const t = e.target.closest("button");
         if (!t || !card.contains(t)) return;
         let changed = true;
-        if (t.dataset.kind) {
+        if (t.dataset.chip) d.names = d.names.map((n, i) => (i === Number(t.dataset.chip) ? t.dataset.n : n));
+        else if (t.dataset.action === "names") { openNamesSheet({ onRename: (a, b) => { d.names = d.names.map((n) => (sameName(n, a) ? b : n)); this.histRenameName?.(a, b); }, onChange: () => render() }); changed = false; }
+        else if (t.dataset.kind) {
           d.humans = d.humans.map((h, i) => (i === Number(t.dataset.seat) - 1 ? t.dataset.kind === "human" : h));
-          if (hotseatOn(d)) d.mode = "classic";
+          if (hotseatOn(d)) { d.mode = "classic"; if (!d.names[0] && Names.me()) d.names = d.names.map((n, i) => (i === 0 ? Names.me() : n)); }
         } else if (t.dataset.mode) d.mode = t.dataset.mode;
         else if (t.dataset.map) d.map = t.dataset.map;
         else if (t.dataset.preset) {
@@ -9380,6 +9391,17 @@ class ColonistFullGame {
       if (!started && this.onboardingHold) this.home.show(); // opened from home: back to it
     };
     const start = () => {
+      if (hotseatOn(d)) { // names: empty -> "Player 2", clashes get a number, remembered for next time
+        const seen = [];
+        d.names = d.names.map((n, i) => {
+          if (i > d.numBots || !(i === 0 || d.humans[i - 1])) return n;
+          let v = cleanName(n) || `Player ${i + 1}`;
+          if (seen.some((x) => sameName(x, v))) v = `${v.slice(0, 12)} ${i + 1}`;
+          seen.push(v);
+          return v;
+        });
+        Names.remember(seen);
+      }
       close(true);
       this.startNewGame(d);
     };
@@ -10474,7 +10496,7 @@ class ColonistFullGame {
       const total = sumResources(pd.player.resources);
       const keep = total - pd.count; // v0.82: what you end up with (matches the summary over the hand), not hand − picked so far
       return { mode: "discard",
-        hint: sel === pd.count ? `Hand back ${pd.count} cards · keep ${keep}` : sel ? `Robber! Pick ${pd.count - sel} more card${pd.count - sel === 1 ? "" : "s"}` : `Robber! Hand back ${pd.count} cards`,
+        hint: sel === pd.count ? `Hand back ${pd.count} cards · keep ${keep}` : sel ? `${this.hotseat ? "" : "Robber! "}Pick ${pd.count - sel} more card${pd.count - sel === 1 ? "" : "s"}` : this.hotseat ? `${pd.player.name} discards · ${cur.name} rolled 7` : `Robber! Hand back ${pd.count} cards`,
         html: `<div class="tinfo dsum"><b>${sel}<small>/${pd.count}</small></b><span>chosen<small>keep ${keep}</small></span></div>`
           + tbtn("data-discard-suggest", `${icon("hint")}<span>Suggest</span>`)
           + tbtn(`data-discard-undo ${sel ? "" : "disabled"}`, `${icon("undo")}<span>Undo</span>`)
