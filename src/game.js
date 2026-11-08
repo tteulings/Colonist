@@ -297,7 +297,9 @@ function discardLimitFor(s) {
   const lim = Number(s?.discardLimit) || 7;
   return s?.mode === "rush" ? Math.max(RUSH_DISCARD_LIMIT, lim) : lim;
 }
-const UNDO_MS = 4000; // a placement can be taken back for this long (Confirm placements off)
+const UNDO_MS = 8000; // a placement can be taken back for this long (builds that were not confirmed first)
+const CONFIRM_MODES = ["always", "unsure", "never"];
+const CONFIRM_TAP_GUARD_MS = 380; // a 2nd tap this soon on a picked spot is a double tap, never a confirm
 const ROBBER_SETTLE_MS = 2800; // one victim (or none): the robber move resolves by itself after this
 const SHORT_DEV = { knight: "Knight", roadBuilding: "Roads", yearOfPlenty: "Plenty", monopoly: "Monopoly" };
 // v0.84: one line per card for the bubble over a selected card in the hand
@@ -937,21 +939,15 @@ class ColonistFullGame {
     syncVolumeUi();
     this._rushTickSec = null;
 
-    // Settings › Game: "Confirm placements". Off (default): a tap on a legal spot places at once
-    // and a short Undo appears. On: a tap only selects, Place / ✓ confirms (the v0.68 flow).
-    this.confirmPlacements = false;
-    try { this.confirmPlacements = localStorage.getItem("colonist.confirmPlacements") === "on"; } catch (_) {}
-    this.confirmToggle = document.querySelector("#confirmPlacementsToggle");
-    if (this.confirmToggle) {
-      this.confirmToggle.checked = this.confirmPlacements;
-      this.confirmToggle.addEventListener("change", () => {
-        this.confirmPlacements = this.confirmToggle.checked;
-        try { localStorage.setItem("colonist.confirmPlacements", this.confirmPlacements ? "on" : "off"); } catch (_) {}
-        this._dropUndo();
-        this._cancelRobberTimer();
-        this.render();
-      });
-    }
+    // Settings › Game: "Confirm builds" Always / When unsure / Never (v1.20). Nothing stored = When unsure.
+    // The v1.0x checkbox maps on: on = Always, off = When unsure.
+    this.confirmMode = null;
+    try {
+      const m = localStorage.getItem("colonist.confirmMode"), old = localStorage.getItem("colonist.confirmPlacements");
+      this.confirmMode = CONFIRM_MODES.includes(m) ? m : old === "on" ? "always" : old === "off" ? "unsure" : null;
+    } catch (_) {}
+    this._cbAt = 0;
+    this._renderConfirmSetting();
     this.undoState = null; // the last placement that can still be taken back (see undoLast)
     this.trayMode = null;  // phones: "build" | "cards" while that tray replaces the dock buttons
     this.devPick = null;   // Year of Plenty / Monopoly picks in the dock: { type, count, picks, limits }
@@ -1738,14 +1734,16 @@ class ColonistFullGame {
     }
     if (!target) { this.confirmBuild = null; this.drawCanvasScene(); return; }
     // Default: a tap on a legal spot places it (the settlement can be taken back until the road is down)
-    if (!this.confirmPlacements) { this._commitSetup(player, target); return; }
+    if (this._confirmLevel() !== "always") { this._commitSetup(player, target); return; }
     this.confirmBuild = target;
+    this._cbAt = performance.now();
     this.drawCanvasScene();
   }
 
   /** Place a setup settlement or road. */
   _commitSetup(player, cb) {
     this.confirmBuild = null;
+    { const p = this.getBuildPosition(cb); if (p) this._lastBuild = { t: performance.now(), x: p.x, y: p.y }; }
     if (cb.type === "settlement" && this.setupAction === "settlement") {
       if (!this.placeSettlement(player, cb.id, true)) return;
       this.sfx.buildSettlement();
@@ -2051,8 +2049,18 @@ class ColonistFullGame {
     });
   }
 
+  /** v1.20 a second tap of a double tap lands right where a piece was just placed: it must not pick or build the next one. */
+  _isEchoTap(event) {
+    const lb = this._lastBuild;
+    if (!lb || performance.now() - lb.t > CONFIRM_TAP_GUARD_MS) return false;
+    const { x: sx, y: sy } = this.getCanvasPoint(event);
+    const w = this.screenToWorld(sx, sy), k = this.view.scale || 1;
+    return Math.hypot(w.x - lb.x, w.y - lb.y) * k < 48;
+  }
+
   handleBoardClick(event) {
     if (this.hotseat && (this.hsCoverOn != null || this._hsAway())) return; // pass & play: not this holder's move
+    if (!this._viaIcon && this._isEchoTap(event)) return;
     if (this.setupPhase) {
       const { x: sx, y: sy } = this.getCanvasPoint(event);
       const world = this.screenToWorld(sx, sy);
@@ -2112,7 +2120,9 @@ class ColonistFullGame {
       const ship = this._seaShipAt(player, x, y);
       // v0.84: auto-glow is your normal main phase, so a tap on your own ship still lifts it (as before without a mode)
       const glow = this._isAutoGlow() && this.trayMode !== "build";
-      if (ship != null && (glow || !(this.pendingAction === "build" && this._buildTargetAt(player, x, y)))) { this._seaStartMove(player, ship); return; }
+      // v1.20 a tap that also reaches a corner you can settle (the ship's open end often is one) picks the corner, never lifts the ship
+      const corner = glow && (() => { const t = this._buildTargetAt(player, x, y); return !!t && (t.type === "settlement" || t.type === "city"); })();
+      if (ship != null && !corner && (glow || !(this.pendingAction === "build" && this._buildTargetAt(player, x, y)))) { this._seaStartMove(player, ship); return; }
     }
 
     if (!this.pendingAction) {
@@ -2123,6 +2133,7 @@ class ColonistFullGame {
       if (target.both) { this._seaChoosePiece(player, target, x, y, true); return; } // ⚓ v0.98: Road or Ship?
       this.pendingAction = target.type;
       this.confirmBuild = target;
+      this._cbAt = performance.now();
       this._autoPick = true; // picked by a mode-less tap: the next tap may still mean another kind of piece
       this.canvas.style.cursor = "crosshair";
       this.sfx.click();
@@ -2144,7 +2155,7 @@ class ColonistFullGame {
     // quiet roads around it make nothing ambiguous), an unlit road is only picked (below)
     const calm = !auto && this._isAutoGlow() && this._legalPlacementSpots()?.calm;
     let target = auto ? this._autoDetectTarget(player, x, y) : this._buildTargetAt(player, x, y);
-    if (calm && target && target.type !== "road" && target.type !== "ship") target = { ...target, ambiguous: false };
+    if (calm && target && target.type !== "road" && target.type !== "ship" && !target.multi) target = { ...target, ambiguous: false };
     if (!target) { this.confirmBuild = null; if (auto) { this.pendingAction = null; this._autoPick = false; } this.render(); return; }
     if (target.both) { // ⚓ v0.98: a coast edge that takes a road or a ship: a tiny Road / Ship chooser (a 2nd tap keeps the pick)
       if (this.confirmBuild && this.confirmBuild.id === target.id && (this.confirmBuild.type === "road" || this.confirmBuild.type === "ship")) target = this.confirmBuild;
@@ -2154,18 +2165,24 @@ class ColonistFullGame {
       // v0.84: auto-glow keeps roads quiet while a corner is lit; a tap on such an unlit road is a pick that waits for Place
       this.pendingAction = target.type;
       this.confirmBuild = { ...target, ambiguous: true };
+      this._cbAt = performance.now();
       this._autoPick = true;
       this.sfx.click();
       this.render();
       return;
     }
+    const lvl = this._confirmLevel();
     const same = this.confirmBuild && this.confirmBuild.type === target.type && this.confirmBuild.id === target.id;
-    // Direct building (Confirm placements off) still builds at once, except when the finger was
-    // between a corner and a road: then the chosen spot is shown first and a second tap builds it.
-    const direct = !this.confirmPlacements && !auto && !target.ambiguous;
-    if (direct || same) { this._commitBuild(player, target); return; }
+    // Direct building (Never, or When unsure with a clear tap) builds at once; in between a corner and a road, or at a
+    // Seafarers corner that also takes ships / roads, the chosen spot is shown first. Always: the spot is shown first.
+    // A second tap on the shown spot builds it, but not when it follows within CONFIRM_TAP_GUARD_MS (a double tap).
+    const direct = !auto && (lvl === "never" || (lvl === "unsure" && !target.ambiguous));
+    const quick = same && performance.now() - this._cbAt >= CONFIRM_TAP_GUARD_MS;
+    if (direct || quick) { this._commitBuild(player, target); return; }
+    if (same) { this.render(); return; }
     if (auto) this.pendingAction = target.type;
     this.confirmBuild = target;
+    this._cbAt = performance.now();
     this.sfx.click();
     this.render();
   }
@@ -2216,7 +2233,12 @@ class ColonistFullGame {
         else edge = null;
       }
     }
-    if (node != null) return { type: this.canBuildCity(player, node, false) && wantCity ? "city" : "settlement", id: node, ambiguous };
+    if (node != null) {
+      // ⚓ v1.20 a Seafarers corner that also takes a road or a ship (coast, harbour, ship end) always asks: a tap near it
+      // may mean the piece beside it. `multi` survives the calm auto-glow rule.
+      const multi = !!sea && !free && (all || pa === "settlement" || pa === "city") && this.geometry.nodes[node].edgeIds.some((e) => this._seaEdgeType(player, e, null, false) != null);
+      return { type: this.canBuildCity(player, node, false) && wantCity ? "city" : "settlement", id: node, ambiguous: ambiguous || (multi && all), ...(multi ? { multi: true } : {}) };
+    }
     if (edge != null) {
       const both = !!sea && this._seaBoth(player, edge, pa === "build" ? null : pa, free); // ⚓ v0.98: Road / Ship chooser
       return both ? { type: edgeType(edge), id: edge, ambiguous, both } : { type: edgeType(edge), id: edge, ambiguous };
@@ -2284,6 +2306,7 @@ class ColonistFullGame {
       return false;
     }
     const animPos = this.getBuildPosition(cb);
+    if (animPos) this._lastBuild = { t: performance.now(), x: animPos.x, y: animPos.y };
     if (animPos) this.placementAnims.push({ ...animPos, type: cb.type, startTime: Date.now() });
     // Road Building: stay in road mode while free roads remain; otherwise leave build mode
     if (this.freeRoadsRemaining > 0) this.pendingAction = "road";
@@ -2302,7 +2325,7 @@ class ColonistFullGame {
       this.render();
     }
     undo.logs = this.logEntries.slice(before.logLen);
-    if (!this.winner && !this.confirmPlacements) this._setUndo(undo);
+    if (!this.winner && this._confirmLevel() !== "always") this._setUndo(undo);
     return true;
   }
 
@@ -2433,6 +2456,7 @@ class ColonistFullGame {
     };
     this.canvas.addEventListener("touchstart", (event) => {
       event.preventDefault();
+      const wasMoving = !!this._coasting; // v1.20 a finger that stops a coasting (flung) board is not a tap
       this._stopViewMotion();
       this.dragState.pending = false;
       this.dragState.active = false;
@@ -2444,6 +2468,7 @@ class ColonistFullGame {
       } else if (event.touches.length === 1) {
         const p = pt(event.touches[0]);
         ts.mode = "tap";
+        ts.stopTap = wasMoving && event.touches.length === 1;
         ts.startX = ts.lastX = p.x;
         ts.startY = ts.lastY = p.y;
         ts.startTime = event.timeStamp; // event time: a busy main thread must not turn a tap into a long press
@@ -2515,6 +2540,7 @@ class ColonistFullGame {
       }
       if (mode === "pan" || mode === "pinch") { this._setViewMoving(false); return; }
       if (mode !== "tap" || cancelled || event.timeStamp - ts.startTime > 600) return;
+      if (ts.stopTap) { ts.stopTap = false; ts.lastTapTime = 0; return; } // it only stopped the board moving
       const touch = event.changedTouches[0];
       const p = pt(touch);
       const now = event.timeStamp;
@@ -2731,12 +2757,14 @@ class ColonistFullGame {
 
   _stopViewMotion() {
     if (this._viewAnim) { cancelAnimationFrame(this._viewAnim); this._viewAnim = null; }
+    this._coasting = false;
     this._setViewMoving(false);
   }
 
   _startMomentum(vx, vy) {
     if (Math.hypot(vx, vy) < 0.25 || motionReduced()) { this._setViewMoving(false); return; }
     let last = performance.now();
+    this._coasting = true;
     const step = (now) => {
       // A frame's timestamp can precede the touchend's performance.now(): skip such frames instead
       // of reading "no movement" as having hit an edge (which used to kill the glide at random).
@@ -2753,7 +2781,7 @@ class ColonistFullGame {
       vx *= decay;
       vy *= decay;
       this._viewChanged();
-      if (Math.hypot(vx, vy) < 0.02) { this._viewAnim = null; this._setViewMoving(false); return; }
+      if (Math.hypot(vx, vy) < 0.02) { this._viewAnim = null; this._coasting = false; this._setViewMoving(false); return; }
       this._viewAnim = requestAnimationFrame(step);
     };
     this._setViewMoving(true);
@@ -7793,6 +7821,27 @@ class ColonistFullGame {
 
     // Draw confirm-build icon above selected spot
     this.drawBuildConfirmIcon();
+    this.drawUndoHighlight();
+  }
+
+  /** v1.20 the piece that Undo would take back wears a ring while the Undo pill is up. */
+  drawUndoHighlight() {
+    const u = this.undoState;
+    if (!u || u.kind !== "build" || u.dock) return;
+    const pos = this.getBuildPosition({ type: u.type, id: u.id });
+    if (!pos) return;
+    const ctx = this.ctx, s = this.geometry.hexSize / 74;
+    const pc = this.players[u.pid]?.color || "#fff";
+    ctx.save();
+    ctx.translate(pos.x, pos.y);
+    ctx.lineWidth = 4 * s;
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
+    ctx.beginPath(); ctx.arc(0, 0, 21 * s, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = 2.5 * s;
+    ctx.strokeStyle = pc;
+    ctx.setLineDash([5 * s, 4 * s]);
+    ctx.beginPath(); ctx.arc(0, 0, 21 * s, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
   }
 
   drawBuildConfirmIcon() {
@@ -10021,11 +10070,47 @@ class ColonistFullGame {
     return btns.length >= 3 ? `<div class="vgrid" data-n="${btns.length}">${btns.join("")}</div>` : btns.join("");
   }
 
+  // ── Confirm builds (v1.20) ──────────────────────────────────────────
+  /** "always" (tap picks the spot, Confirm builds) | "unsure" (picks only close calls) | "never" (builds at once, Undo). */
+  _confirmLevel() {
+    return this.confirmMode || "unsure"; // nothing stored: When unsure (also on touch)
+  }
+
+  /** The old boolean: true only when "Always" was chosen on purpose (robber / Year of Plenty keep their own quick flow otherwise). */
+  get confirmPlacements() { return this.confirmMode === "always"; }
+  set confirmPlacements(on) { this.confirmMode = on ? "always" : "unsure"; }
+
+  _setConfirmMode(mode) {
+    if (!CONFIRM_MODES.includes(mode)) return;
+    this.confirmMode = mode;
+    try { localStorage.setItem("colonist.confirmMode", mode); localStorage.removeItem("colonist.confirmPlacements"); } catch (_) {}
+    this._dropUndo();
+    this._cancelRobberTimer();
+    this.confirmBuild = null;
+    this._renderConfirmSetting();
+    this.render();
+  }
+
+  /** Settings › Game: the 3-way "Confirm builds" row (one short line each; details behind ⓘ). */
+  _renderConfirmSetting() {
+    const host = document.querySelector("#confirmModeRow");
+    if (!host) return;
+    const cur = this._confirmLevel();
+    const LINES = { always: "Tap a spot, then Confirm.", unsure: "Asks only when a tap is unclear.", never: "Builds at once. Undo for 8 s." };
+    host.innerHTML = `<div class="cm-h"><b id="cmLbl">Confirm builds</b><button type="button" class="cm-info" data-cm-info aria-label="More about Confirm builds" aria-expanded="false">i</button></div>
+      <div class="seg cm-seg" role="radiogroup" aria-labelledby="cmLbl">${CONFIRM_MODES.map((m) => `<button type="button" role="radio" data-cm="${m}" aria-checked="${cur === m}" class="${cur === m ? "on" : ""}">${{ always: "Always", unsure: "When unsure", never: "Never" }[m]}</button>`).join("")}</div>
+      <small class="st-note cm-line">${LINES[cur]}</small>
+      <small class="st-note cm-more" hidden>Always: a tap shows the spot, Confirm builds it. When unsure: builds at once, but asks when a tap could mean two things (corner or road, road or ship; Seafarers coast corners). Never: every tap builds; Undo for 8 s.</small>`;
+    host.querySelectorAll("[data-cm]").forEach((b) => b.addEventListener("click", () => this._setConfirmMode(b.dataset.cm)));
+    host.querySelector("[data-cm-info]").addEventListener("click", (e) => { const m = host.querySelector(".cm-more"); m.hidden = !m.hidden; e.currentTarget.setAttribute("aria-expanded", String(!m.hidden)); });
+  }
+
   /** Offer to take back the last placement (ms = 0: until something else happens). */
   _setUndo(u, ms = UNDO_MS) {
     if (this._undoTimer) { window.clearTimeout(this._undoTimer); this._timers.delete(this._undoTimer); this._undoTimer = null; }
     this.undoState = u;
     u.ms = ms;
+    this.requestBoardDraw?.(); // the ring on the built piece
     if (ms) {
       // v0.81: a dock tray tied to the undo ("Ship moved") goes with it, and End turn comes back
       this._undoTimer = this._later(() => { this._undoTimer = null; if (this.undoState === u) { this._dropUndo(); if (u.dock) this.render(); } }, ms);
@@ -10038,6 +10123,7 @@ class ColonistFullGame {
     if (!this.undoState) return;
     this.undoState = null;
     this._renderUndo();
+    this.requestBoardDraw?.();
   }
 
   _renderUndo() {
@@ -10059,7 +10145,7 @@ class ColonistFullGame {
     el.hidden = false;
     el.classList.toggle("timed", !!u.ms);
     el.style.setProperty("--undo-ms", `${u.ms || 0}ms`);
-    el.innerHTML = `${icon(u.icon || "check")}<span class="ut">${u.label}</span><button type="button" class="btn ut-btn" data-undo aria-label="Undo: ${u.label}">${icon("undo")}Undo${u.noun ? ` ${u.noun}` : ""}</button><span class="ut-time" aria-hidden="true"><i></i></span>`;
+    el.innerHTML = `${icon(u.icon || "check")}<span class="ut">${u.label}</span><button type="button" class="btn primary ut-btn" data-undo aria-label="Undo: ${u.label}">${icon("undo")}Undo${u.noun ? ` ${u.noun}` : ""}</button><span class="ut-time" aria-hidden="true"><i></i></span>`;
   }
 
   /** Take back the last placement (or Year of Plenty picks): pieces, cards, bonuses and the log line. */
@@ -10436,7 +10522,7 @@ class ColonistFullGame {
       return { mode: "confirm", hint: `${info.title} ${info.sub}`,
         html: `<div class="tinfo">${icon(info.icon)}<span>${info.title}<small>${info.sub}</small></span></div>`
           + tbtn("data-place-cancel", `${icon("close")}<span>Cancel</span>`)
-          + tbtn("data-place", `${icon("check")}<span>Place</span>`, "primary") };
+          + tbtn("data-place", `${icon("check")}<span>Confirm</span>`, "primary") };
     }
     const dp = this.devPick;
     if (dp) {

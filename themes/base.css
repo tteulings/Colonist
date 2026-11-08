@@ -1455,14 +1455,14 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .undo-toast[hidden] { display: none; }
 .undo-toast > .ic { font-size: 20px; flex: none; }
 .undo-toast .ut { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.app .undo-toast .ut-btn { height: 32px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 800; gap: 4px; display: inline-flex; align-items: center; flex: none; }
+.app .undo-toast .ut-btn { height: 36px; min-width: 44px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 800; gap: 4px; display: inline-flex; align-items: center; flex: none; }
 .undo-toast .ut-btn .ic { font-size: 16px; }
 .undo-toast .ut-time { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; }
 .undo-toast .ut-time i { display: block; height: 100%; background: var(--accent); opacity: .7; transform-origin: 0 50%; }
-.undo-toast.timed .ut-time i { animation: settle var(--undo-ms, 4000ms) linear forwards; }
+.undo-toast.timed .ut-time i { animation: settle var(--undo-ms, 8000ms) linear forwards; }
 .tkrow { position: relative; }
 .tkrow .undo-toast .ut, .tkrow .undo-toast > .ic { display: none; }
-.tkrow .undo-toast { padding: 0 4px; position: absolute; right: 52px; top: 50%; transform: translateY(-50%); max-width: calc(100% - 64px); z-index: 2; }
+.tkrow .undo-toast { padding: 4px; height: 44px; position: absolute; right: 52px; top: 50%; transform: translateY(-50%); max-width: calc(100% - 64px); z-index: 2; }
 .lefttop .undo-toast { margin-top: 8px; width: max-content; max-width: 100%; }
 
 /* discard: marked cards in the hand */
@@ -1510,6 +1510,17 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .mtop .ticker { font-size: 12.5px; }
 .st-note { display: block; font-size: 11.5px; font-weight: 600; color: var(--ink-soft); margin-left: 26px; }
 
+/* v1.20 Settings › Game: Confirm builds (Always / When unsure / Never) */
+.cm-row { display: block !important; }
+.cm-h { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
+.cm-info { width: 28px; height: 28px; margin: -4px 0 -4px 2px; padding: 0; border-radius: 50%; border: 1.5px solid var(--ink-soft); background: none; color: var(--ink-soft); font: italic 700 13px/1 var(--font-body, serif); cursor: pointer; }
+.cm-info[aria-expanded="true"] { background: var(--ink-soft); color: var(--panel); }
+.cm-seg { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; }
+.cm-seg button { min-height: 44px; padding: 8px 4px; border-radius: 8px; font-size: 13.5px; font-weight: 650; color: var(--ink-soft); }
+.cm-seg button.on { background: var(--panel); color: var(--heading); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.st-note.cm-line, .st-note.cm-more { margin: 8px 0 0; }
+.st-note.cm-more[hidden] { display: none; }
+
 @media (min-width: 901px) and (min-height: 501px) {
   .tray { height: 112px; gap: 8px; max-width: 760px; grid-column: auto; }
   .app.tray-open .actions { flex: 1; justify-content: flex-end; }
@@ -1532,7 +1543,7 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
   .tray .tbtn .ic { font-size: 20px; }
   .tray .victim .avatar, .tinfo .avatar { --av: 24px; }
   .tinfo > b { font-size: 20px; }
-  .tkrow .undo-toast { right: 46px; height: 34px; }
+  .tkrow .undo-toast { right: 46px; height: 44px; }
 }
 @media (min-width: 901px) and (min-height: 501px) {
   /* the instruction may need two lines: wrap instead of cutting it off */
