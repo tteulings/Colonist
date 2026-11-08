@@ -176,7 +176,7 @@ export const StatsUiMixin = {
           <div class="gs-rbtns gs-tiles">${st && st.N > 2 && !reduced ? `<button type="button" class="gs-tile" data-timelapse>${FF_IC}<b>Timelapse</b><small>a fast-forward</small></button>` : ""}<button type="button" class="gs-tile" data-see>${icon("fit")}<b>Final board</b><small>see the map</small></button><button type="button" class="gs-tile" data-pastgames>${HIST_IC}<b>Past games</b><small>all saved games</small></button></div>
           <button type="button" class="gs-link" data-change>${icon("settings")}Change settings for a new game</button>
         </section>
-        ${hl.length ? `<section class="gs-card gs-hlc" aria-label="Highlights"><h2>Highlights</h2><ul class="gs-hl">${hl.map((h) => `<li>${icon(h.ic)}<span>${h.text}</span></li>`).join("")}</ul></section>` : ""}
+        ${hl.length ? `<details class="gs-card gs-hlc" aria-label="Highlights"><summary><h2>Highlights</h2><small>${hl.length}</small></summary><ul class="gs-hl">${hl.map((h) => `<li>${icon(h.ic)}<span>${h.text}</span></li>`).join("")}</ul></details>` : ""}
         ${st ? `<h4 class="gs-more"><span>Game stats</span></h4>
         <div class="gs-tabs" role="tablist">${TABS.map(([k, l], i) => `<button type="button" role="tab" class="gs-tab${i ? "" : " on"}" data-tab="${k}" aria-selected="${i ? "false" : "true"}">${l}</button>`).join("")}</div>
         <div class="gs-pane" role="tabpanel"></div>` : ""}
