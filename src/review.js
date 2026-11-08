@@ -14,7 +14,7 @@
 // After the game the records go to the Master Web Worker (src/master/worker.js), which runs the detectors
 // in src/review/detect.js on its private headless engine; the end screen never waits for them.
 import { masterRequest, masterAvailable, reviewRequest } from "./master.js";
-import { REVIEW_ENGINE, REVIEW } from "./review/evaluate.js";
+import { REVIEW_ENGINE, REVIEW, FMT, needsFull, rescoreReview } from "./review/evaluate.js";
 
 const KEY = "colonist_review_v1";
 const RES5 = ["wood", "brick", "sheep", "wheat", "ore"];
@@ -71,8 +71,11 @@ export const ReviewMixin = {
       if (!raw) return null;
       const d = JSON.parse(raw);
       if (!d || !Array.isArray(d.recs)) return null;
-      if (d.v === 1) return { ...d, reviews: d.review?.results?.length ? { [d.review.pid]: d.review } : {} }; // v1.02-1.11 saves: one review
-      return d.v === 2 ? { ...d, reviews: d.reviews || {} } : null;
+      let out = null;
+      if (d.v === 1) out = { ...d, reviews: d.review?.results?.length ? { [d.review.pid]: d.review } : {} }; // v1.02-1.11 saves: one review
+      else if (d.v === 2) out = { ...d, reviews: d.reviews || {} };
+      if (out) Object.values(out.reviews).forEach((rv) => rescoreReview(rv)); // v1.21 a saved review gets today's numbers, classes and labels (from its own candidates, no engine)
+      return out;
     } catch (_) { return null; }
   },
   _rvSave() {
@@ -95,7 +98,7 @@ export const ReviewMixin = {
     return (this._rv?.recs || []).map((r, i) => [r, i]).filter(([r]) => r.pid === pid && KINDS.includes(r.k) && !(r.k === "build" && r.a?.free));
   },
   /** A result that still needs the deep (full) engine: it comes from the quick round (m100) and is a real choice. */
-  _rvNeedsFull(x) { return !["forced", "n/a"].includes(x.skip) && ((x.eng || "full") === "m100" || (x.leaf || "v1") !== (REVIEW.budget.leaf || "v1")); }, // v1.10: a result from the old score function counts as provisional
+  _rvNeedsFull(x) { return needsFull(x); }, // v1.10: a result from the old score function counts as provisional
   /** Every decision of this person so far has a quick or deep result. */
   _rvCovered1(pid) {
     const rv = this._rvOf(pid);
@@ -140,6 +143,7 @@ export const ReviewMixin = {
     if (R.run) { R.queue = [pid, ...(R.queue || []).filter((x) => x !== pid)]; return R.run.promise.then(() => this._rvReviewRun(pid, onStep, { mid })); }
     const todo = this._rvTodo(pid);
     const rv = R.revs[pid] || { pid, results: [] };
+    if (!rv.results.length) rv.fmt = FMT; // v1.21 numbers of this format (a saved older review was re-scored when it was loaded)
     R.revs[pid] = rv;
     R.review = rv; // the one last touched (history of a one-person game reads it)
     rv.total = todo.length;
@@ -294,8 +298,9 @@ export function installReview(Cls) {
     }
   });
   wrap("performBankTrade", function (orig, player, give, get) {
+    const rate = this._rvTr ? this.getPlayerTradeRate(player, give) : 0; // v1.21 the rate of this trade (4:1, 3:1, 2:1) is kept: the review names the real cards
     const ok = orig.call(this, player, give, get);
-    if (ok && this._rvTr) this._rvTr.push([give, get]);
+    if (ok && this._rvTr) this._rvTr.push([give, get, rate]);
     return ok;
   });
   wrap("_executePlayerTrade", function (orig, partner, gave, got) {
