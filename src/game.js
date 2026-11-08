@@ -16,6 +16,7 @@ import { LiveStatsMixin, installLiveStats } from "./live-stats.js"; // … and t
 import { ReviewMixin, installReview } from "./review.js"; // v1.02 post-game review: the decision recorder
 import { ReviewUiMixin, installReviewUi } from "./review-ui.js"; // … missed chances and Show
 import { HistoryMixin, installHistory } from "./history.js"; // v1.07 Past games (IndexedDB)
+import { BotsPageMixin } from "./bots-page.js"; // v1.23 the Bots page (leaderboard, strength ladder, strength vs accuracy)
 import { ReviewGameMixin, installReviewGame } from "./review-game.js"; // v1.03 … the Game review (Monte Carlo accuracy)
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
@@ -1005,6 +1006,7 @@ class ColonistFullGame {
       onIntro: () => this.onboarding.showIntro(0, true),
       onSettings: () => this.settingsUI.open("game"),
       onHistory: () => this.histOpen(),
+      onBots: () => this.botsOpen(),
       historyCount: () => this._hist?.count ?? null,
     });
     this.menu = new GameMenu(this, {
@@ -11188,6 +11190,7 @@ installReview(ColonistFullGame);
 installReviewUi(ColonistFullGame);
 installReviewGame(ColonistFullGame);
 Object.defineProperties(ColonistFullGame.prototype, Object.getOwnPropertyDescriptors(HistoryMixin)); // v1.07 (keeps the `hist` getter a getter)
+Object.assign(ColonistFullGame.prototype, BotsPageMixin); // v1.23
 installHistory(ColonistFullGame);
 
 const game = new ColonistFullGame();

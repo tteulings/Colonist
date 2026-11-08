@@ -8,6 +8,7 @@ const MENU_IC = `<svg class="ic ic-menu" viewBox="-50 -50 100 100" aria-hidden="
 const PLAY_IC = `<svg class="hm-play" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="currentColor" opacity=".2"/><path d="M9.6 7.4v9.2l7.4-4.6z" fill="currentColor"/></svg>`;
 const CLOCK_IC = `<svg class="ic hm-clock" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="26.5" r="16.5" fill="#FFD25A" stroke="#7A4B12" stroke-width="3"/><path d="M24 16v10.5l6.5 4.5" stroke="#7A4B12" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M19 5.5h10M24 5.5v4" stroke="#7A4B12" stroke-width="3.4" stroke-linecap="round"/></svg>`;
 const SLIDERS_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><circle cx="15" cy="7" r="2.3" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="9" cy="17" r="2.3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>`;
+const BOTS_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M12 20V4M19 20v-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>`;
 const BOOK_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5c3-1.4 5.8-1.2 8.5.8v13c-2.7-2-5.5-2.2-8.5-.8zM20.5 5.5c-3-1.4-5.8-1.2-8.5.8v13c2.7-2 5.5-2.2 8.5-.8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/></svg>`;
 /** A theme may draw its own version of these glyphs (Silhouette does): use its sprite icon when it has one. */
 const themed = (game, k, fallback, cls = "") => (game?.theme?.icons?.[k] ? icon(k, cls) : fallback);
@@ -99,6 +100,7 @@ export class Home {
       <nav class="hm-card hm-list" aria-label="More">
         <button type="button" data-home="history">${HISTORY_ICON}<span>Past games<small>${(() => { const n = this.opts.historyCount?.(); return n ? `${n} finished game${n > 1 ? "s" : ""} · replay, stats, review` : "Replay and review your finished games"; })()}</small></span>${CHEV}</button>
         <button type="button" data-home="friend">${icon("trade")}<span>Play with a friend<small>Share this phone · pass it on</small></span>${CHEV}</button>
+        <button type="button" data-home="bots">${BOTS_IC}<span>Bots<small>Leaderboard, strength and your results</small></span>${CHEV}</button>
         <button type="button" data-home="more">${themed(this.game, "sliders", SLIDERS_IC)}<span>More settings<small>Rules, map, bots</small></span>${CHEV}</button>
         <button type="button" data-home="intro" class="${fresh ? "fresh" : ""}">${themed(this.game, "book", BOOK_IC)}<span>How to play${fresh ? `<small>New here? 3 short cards</small>` : ""}</span>${CHEV}</button>
         <div class="hm-pair"><button type="button" data-home="settings">${icon("settings")}<span>Settings</span>${CHEV}</button>
@@ -116,6 +118,7 @@ export class Home {
     on("[data-level]", (e) => { p.preset = e.currentTarget.dataset.level; this.render(); this.el.querySelector(`[data-level="${p.preset}"]`)?.focus(); });
     on("[data-home='more']", () => this.opts.onMore());
     on("[data-home='friend']", () => this.opts.onFriend?.());
+    on("[data-home='bots']", () => this.opts.onBots?.());
     on("[data-home='history']", () => this.opts.onHistory?.());
     on("[data-home='intro']", () => this.opts.onIntro());
     on("[data-home='settings']", () => this.opts.onSettings());
