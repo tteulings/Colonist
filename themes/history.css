@@ -182,3 +182,10 @@
 .pg-info { margin-top: 8px; padding: 8px 10px; border-radius: 12px; background: var(--chip); border: var(--chip-border); }
 .pg-info p { margin: 0 0 5px; font-size: 12.5px; line-height: 1.35; font-weight: 600; }
 .pg-info p:last-child { margin: 0; }
+
+/* v1.12 progress per name */
+.pg-who { display: flex; gap: 4px; padding: 3px; margin: 6px 0 8px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 9%, transparent); overflow-x: auto; scrollbar-width: none; }
+.pg-who button { flex: 1 0 auto; min-height: 44px; padding: 2px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--ink); font: 750 14px/1.1 var(--font-body); }
+.pg-who button small { display: block; font-weight: 500; font-size: 11px; opacity: .7; }
+.pg-who button.on { background: var(--sheet); box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+.hs-acc small { max-width: 5.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }

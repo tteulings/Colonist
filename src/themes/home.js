@@ -98,7 +98,8 @@ export class Home {
       </section>
       <nav class="hm-card hm-list" aria-label="More">
         <button type="button" data-home="history">${HISTORY_ICON}<span>Past games<small>${(() => { const n = this.opts.historyCount?.(); return n ? `${n} finished game${n > 1 ? "s" : ""} · replay, stats, review` : "Replay and review your finished games"; })()}</small></span>${CHEV}</button>
-        <button type="button" data-home="more">${themed(this.game, "sliders", SLIDERS_IC)}<span>More settings<small>Rules, map, bots · play with friends</small></span>${CHEV}</button>
+        <button type="button" data-home="friend">${icon("trade")}<span>Play with a friend<small>Share this phone · pass it on</small></span>${CHEV}</button>
+        <button type="button" data-home="more">${themed(this.game, "sliders", SLIDERS_IC)}<span>More settings<small>Rules, map, bots</small></span>${CHEV}</button>
         <button type="button" data-home="intro" class="${fresh ? "fresh" : ""}">${themed(this.game, "book", BOOK_IC)}<span>How to play${fresh ? `<small>New here? 3 short cards</small>` : ""}</span>${CHEV}</button>
         <div class="hm-pair"><button type="button" data-home="settings">${icon("settings")}<span>Settings</span>${CHEV}</button>
         <a class="hm-lab" href="./lab.html" data-home="lab" title="See how the bots score the board">${LAB_IC}<span>AI Lab</span>${CHEV}</a></div>
@@ -114,6 +115,7 @@ export class Home {
     on("[data-bots]", (e) => { p.numBots = Number(e.currentTarget.dataset.bots); this.render(); this.el.querySelector(`[data-bots="${p.numBots}"]`)?.focus(); });
     on("[data-level]", (e) => { p.preset = e.currentTarget.dataset.level; this.render(); this.el.querySelector(`[data-level="${p.preset}"]`)?.focus(); });
     on("[data-home='more']", () => this.opts.onMore());
+    on("[data-home='friend']", () => this.opts.onFriend?.());
     on("[data-home='history']", () => this.opts.onHistory?.());
     on("[data-home='intro']", () => this.opts.onIntro());
     on("[data-home='settings']", () => this.opts.onSettings());

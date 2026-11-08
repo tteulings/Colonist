@@ -33,7 +33,11 @@ export const ReviewMixin = {
   /** "Turn", or "Roll" in Rush (a Rush record's t is the roll number). */
   _rvTW() { return this.isRush?.() ? "Roll" : "Turn"; },
 
-  _rvReset(id = this.stats?.id) { if (this._rv?.run) this._rv.run.stop = true; this._rvListener = null; this._rv = { id: id || null, base: null, recs: [], res: null, busy: false, ms: 0 }; },
+  _rvReset(id = this.stats?.id) { if (this._rv?.run) this._rv.run.stop = true; this._rvListener = null; this._rvFor = null; this._rv = { id: id || null, base: null, recs: [], res: null, busy: false, ms: 0, revs: {}, queue: [] }; },
+  /** v1.12: one review per person (pass & play: each human has their own; solo: just the one). */
+  _rvOf(pid) { return this._rv?.revs?.[pid] || null; },
+  /** Every person's review with results (what gets saved). */
+  _rvAll(R = this._rv) { const r = R?.revs || {}; return Object.fromEntries(Object.entries(r).filter(([, v]) => v?.results?.length)); },
 
   /** The position before a decision. */
   _rvPre(player) {
@@ -66,14 +70,16 @@ export const ReviewMixin = {
       const raw = localStorage.getItem(KEY);
       if (!raw) return null;
       const d = JSON.parse(raw);
-      return d && d.v === 1 && Array.isArray(d.recs) ? d : null;
+      if (!d || !Array.isArray(d.recs)) return null;
+      if (d.v === 1) return { ...d, reviews: d.review?.results?.length ? { [d.review.pid]: d.review } : {} }; // v1.02-1.11 saves: one review
+      return d.v === 2 ? { ...d, reviews: d.reviews || {} } : null;
     } catch (_) { return null; }
   },
   _rvSave() {
     const R = this._rv;
     if (!R || !R.id || !R.recs.length) return 0;
     try {
-      const json = JSON.stringify({ v: 1, id: R.id, base: R.base, recs: R.recs, review: R.review?.results?.length ? R.review : null }); // v1.04: a check made during the game is kept too
+      const json = JSON.stringify({ v: 2, id: R.id, base: R.base, recs: R.recs, reviews: this._rvAll() }); // v1.04: a check made during the game is kept too; v1.12: one review per person
       localStorage.setItem(KEY, json);
       R.bytes = json.length;
       return json.length;
@@ -92,13 +98,13 @@ export const ReviewMixin = {
   _rvNeedsFull(x) { return !["forced", "n/a"].includes(x.skip) && ((x.eng || "full") === "m100" || (x.leaf || "v1") !== (REVIEW.budget.leaf || "v1")); }, // v1.10: a result from the old score function counts as provisional
   /** Every decision of this person so far has a quick or deep result. */
   _rvCovered1(pid) {
-    const rv = this._rv?.review;
-    return !!rv && rv.pid === pid && this._rvTodo(pid).every(([, i]) => rv.results.some((x) => x.i === i));
+    const rv = this._rvOf(pid);
+    return !!rv && this._rvTodo(pid).every(([, i]) => rv.results.some((x) => x.i === i));
   },
   /** Every decision has its deep (full) result: nothing provisional is left. */
   _rvReviewComplete(pid) {
-    const rv = this._rv?.review;
-    return !!rv && rv.pid === pid && this._rvTodo(pid).every(([, i]) => { const x = rv.results.find((y) => y.i === i); return !!x && !this._rvNeedsFull(x); });
+    const rv = this._rvOf(pid);
+    return !!rv && this._rvTodo(pid).every(([, i]) => { const x = rv.results.find((y) => y.i === i); return !!x && !this._rvNeedsFull(x); });
   },
   /** Order of the deep round: where the quick round found the largest loss, then the smallest gap between the two best moves. */
   _rvDeepOrder(rv, items) {
@@ -115,7 +121,7 @@ export const ReviewMixin = {
     const R = this._rv, run = R?.run;
     if (!run) return;
     run.stop = true; R.run = null;
-    if (R.review) R.review.stopped = true;
+    if (R.revs[run.pid]) R.revs[run.pid].stopped = true;
     this._rvSave(); this._rvTick();
   },
 
@@ -130,9 +136,12 @@ export const ReviewMixin = {
     if (!R) return Promise.resolve(null);
     if (onStep) this._rvListener = onStep;
     if (R.run && R.run.pid === pid) return R.run.promise;
+    // one check at a time (it is heavy): another person's check waits its turn
+    if (R.run) { R.queue = [pid, ...(R.queue || []).filter((x) => x !== pid)]; return R.run.promise.then(() => this._rvReviewRun(pid, onStep, { mid })); }
     const todo = this._rvTodo(pid);
-    const rv = R.review?.pid === pid ? R.review : { pid, results: [] };
-    R.review = rv;
+    const rv = R.revs[pid] || { pid, results: [] };
+    R.revs[pid] = rv;
+    R.review = rv; // the one last touched (history of a one-person game reads it)
     rv.total = todo.length;
     rv.stopped = false;
     if (mid) { rv.midCheck = true; rv.upto = this.turn; }
@@ -185,14 +194,25 @@ export const ReviewMixin = {
         }
       } catch (e) { console.warn("review run", e); }
       if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVis);
-      if (live()) { rv.done = !run.stop && this._rvReviewComplete(pid); if (R.run === run) R.run = null; this._rvSave(); if (rv.done) this._rvLogGame?.(pid); this._rvTick(); }
+      if (live()) { rv.done = !run.stop && this._rvReviewComplete(pid); if (R.run === run) R.run = null; this._rvSave(); if (rv.done) this._rvLogGame?.(pid); this._rvTick(); if (live() && !run.stop && !mid) this._rvQueueNext(); }
       return rv;
     })();
     return run.promise;
   },
+  /** Pass & play: when one person's check is done the next person's starts by itself (seat order). */
+  _rvQueueNext() {
+    const R = this._rv;
+    if (!R || R.run || !this.winner) return;
+    while (R.queue?.length) {
+      const pid = R.queue.shift();
+      if (this._rvReviewComplete(pid) || !this._rvTodo(pid).length || R.revs[pid]?.stopped) continue;
+      this._rvReviewRun(pid, this._rvListener).then((rv) => { if (rv?.done && this._rv === R) this._rvRender?.(); });
+      return;
+    }
+  },
   /** Something changed in the running review: the open screen and the end screen's button follow. */
   _rvTick() {
-    try { this._rvListener?.(this._rv?.review); this._rvPatchRows?.(); } catch (e) { console.warn("review tick", e); }
+    try { this._rvListener?.(this._rv?.revs?.[this._rvPid] ?? this._rv?.review); this._rvPatchRows?.(); } catch (e) { console.warn("review tick", e); }
   },
 
   /** Game over: save, then run the detectors in the worker (once per game). */
@@ -202,7 +222,13 @@ export const ReviewMixin = {
     if (auto) this._rvSave();
     if (this._rvEl && this._rvMid) this._rvCloseReview(); // the game ended under a check: the end screen takes over
     // v1.04: the review starts by itself (a tick later: the winning move is recorded right after this hook)
-    if (auto) setTimeout(() => { if (this._rv !== R) return; const apid = this._rvAutoPid?.(); if (apid != null) this._rvReviewRun(apid, null).then((rv) => { if (rv?.done && this._rv === R) this._rvRender?.(); }); }, 0);
+    if (auto) setTimeout(() => {
+      if (this._rv !== R) return;
+      const q = this._rvAutoQueue?.() || [];
+      if (!q.length) return;
+      R.queue = q.slice(1); // pass & play: the first person now, the others one after another
+      this._rvReviewRun(q[0], null).then((rv) => { if (rv?.done && this._rv === R) this._rvRender?.(); });
+    }, 0);
     if (!masterAvailable()) { R.res = { findings: [], none: true }; return; }
     R.busy = true;
     const id = R.id;
@@ -233,7 +259,7 @@ export function installReview(Cls) {
     const r = orig.apply(this, a);
     const id = this.stats?.id || null;
     this._rvReset(id);
-    if (id) { const d = this._rvLoad(); if (d && d.id === id) { this._rv.base = d.base; this._rv.recs = d.recs; this._rv.review = d.review || null; } }
+    if (id) { const d = this._rvLoad(); if (d && d.id === id) { this._rv.base = d.base; this._rv.recs = d.recs; this._rv.revs = d.reviews || {}; this._rv.review = Object.values(this._rv.revs)[0] || null; } }
     return r;
   });
 

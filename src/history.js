@@ -21,6 +21,7 @@ import { BOT_PROFILES, profileMini } from "./bot-profiles.js";
 import { profileOf } from "./bot-profile-ui.js";
 import { summarize, clsOf, ACC, REVIEW as RVCFG } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
+import { Names } from "./names.js";
 
 const DB_NAME = "colonist_history";
 export const LIMITS = { games: 50, bytes: 10 * 1024 * 1024, nearFull: 0.8 };
@@ -158,8 +159,31 @@ export const HistoryMixin = {
       turns: rush ? (this.rush?.rollNo ?? S.steps.length) : this.turn, ms: S.ms || 0,
       star: prev?.star || false,
       rec: !!this._rv && this._rv.id === S.id && this._rv.recs.length > 0,
-      ...(me && this._rv?.id === S.id ? { rd: this._rvTodo?.(me.id).length || 0, ...this._histRev(this._rv.review, me.id, prev) } : { acc: prev?.acc ?? null }),
+      ...(me && this._rv?.id === S.id ? { rd: this._rvTodo?.(me.id).length || 0, ...this._histRev(this._rvOf(me.id), me.id, prev) } : { acc: prev?.acc ?? null }),
+      // pass & play (v1.12): each person has their own accuracy / marked moves, under their name
+      ...(this.hotseat ? { hn: this._histHn(this._rv?.id === S.id ? this._rv : null, prev?.hn) } : {}),
     };
+  },
+  /** A name was renamed (or merged into another) in the Names sheet: the entries follow. */
+  async histRenameName(from, to) {
+    try {
+      const H = this.hist; await H.open();
+      for (const m of H.metas.filter((x) => x.hn?.some((h) => h.name.toLowerCase() === from.toLowerCase()))) {
+        const hn = m.hn.map((h) => (h.name.toLowerCase() === from.toLowerCase() ? { ...h, name: to } : h));
+        const seats = m.seats.map((s, i) => (hn.some((h) => h.pid === i && h.name === to) ? { ...s, name: to } : s));
+        await H.patch(m.id, { hn, seats });
+      }
+      this._histChanged?.();
+    } catch (_) { /* best effort */ }
+  },
+  /** Pass & play: one entry per person: { pid, name, rd, acc, rn, cls, mist, prov, mid, rk }. */
+  _histHn(R, prevHn = null) {
+    return this.players.filter((p) => p.isHuman).map((p) => {
+      const prev = (prevHn || []).find((h) => h.pid === p.id) || null;
+      const rv = R?.revs?.[p.id] || null;
+      const rd = R && this._rv === R ? this._rvTodo?.(p.id).length || 0 : prev?.rd || 0;
+      return { pid: p.id, name: p.name, rd, ...this._histRev(rv, p.id, prev) };
+    });
   },
   /** What the review has so far (quick round: provisional; deep round done: final): accuracy, class counts, kinds of mistake. */
   _histRev(rv, pid, prev = null) {
@@ -180,9 +204,9 @@ export const HistoryMixin = {
     const v = this._histView, R = this._rv;
     if (!v || !R || R.id !== v.id) return;
     const m = this.hist.metas.find((x) => x.id === v.id);
-    if (!m || m.me == null) return;
-    await this.hist.put({ ...m, ...this._histRev(R.review, m.me, m), rec: true },
-      { state: v.state, rv: { base: R.base, recs: R.recs, review: R.review?.results?.length ? R.review : null } });
+    if (!m || (m.me == null && !m.hn)) return;
+    await this.hist.put({ ...m, ...(m.hn ? { hn: this._histHn(R, m.hn) } : this._histRev(R.revs?.[m.me], m.me, m)), rec: true },
+      { state: v.state, rv: { base: R.base, recs: R.recs, reviews: this._rvAll(R) } });
   },
 
   /** Game over (and again when the review finishes): keep this game. Never throws, never waits. */
@@ -194,7 +218,7 @@ export const HistoryMixin = {
       const rv = this._rv && this._rv.id === id && this._rv.recs.length ? this._rv : null;
       const state = this.serializeState();
       state.logEntries = [];
-      const payload = { state, rv: rv ? { base: rv.base, recs: rv.recs, review: rv.review?.results?.length ? rv.review : null } : null };
+      const payload = { state, rv: rv ? { base: rv.base, recs: rv.recs, reviews: this._rvAll(rv) } : null };
       return H.put(this._histMeta(undefined, prev), payload);
     }).catch(() => false);
   },
@@ -222,7 +246,7 @@ export const HistoryMixin = {
           pts: st.settings?.winPoints || 10, hot: false, seats, me: me >= 0 ? me : null, winner,
           result: me < 0 ? "table" : winner === me ? "won" : "lost", turns: st.turn, ms: st.stats.ms || 0, acc: a?.acc ?? null, mid: !!a?.midCheck, star: false, rec: !!same, rd: same ? rv.recs.filter((r) => r.pid === me).length : 0 };
         st.logEntries = [];
-        if (!(await this.hist.put(meta, { state: st, rv: same ? { base: rv.base, recs: rv.recs, review: rv.review || null } : null }))) return; // no room: try again next start
+        if (!(await this.hist.put(meta, { state: st, rv: same ? { base: rv.base, recs: rv.recs, reviews: rv.review?.results?.length ? { [rv.review.pid]: rv.review } : {} } : null }))) return; // no room: try again next start
       }
       localStorage.setItem("colonist_hist_migrated", "1");
     } catch (_) { /* nothing to migrate / private mode */ }
@@ -244,14 +268,15 @@ export const HistoryMixin = {
       this._histView = { id, state: rec.state, fromEnd };
       this.onboardingHold = false; this.uiPaused = false;
       this.loadFromStorage(rec.state); // (this resets the recorder: the saved recording goes back in after it)
-      this._rv = rec.rv ? { id, base: rec.rv.base, recs: rec.rv.recs, res: null, busy: false, ms: 0, review: rec.rv.review || undefined } : null;
+      const revs = rec.rv ? (rec.rv.reviews || (rec.rv.review?.results?.length ? { [rec.rv.review.pid]: rec.rv.review } : {})) : {}; // (older entries: one review)
+      this._rv = rec.rv ? { id, base: rec.rv.base, recs: rec.rv.recs, res: null, busy: false, ms: 0, revs, queue: [], review: Object.values(revs)[0] || undefined } : null;
       this._rv?.recs?.length && this._rvFinish?.(false); // v1.11: the missed-chance detectors run for a past game too (no auto review): without this the end screen said "checking…" for ever
     } else if (!document.querySelector(".game-over-overlay")) this.showGameOverOverlay();
     const ready = () => {
       const ov = document.querySelector(".game-over-overlay");
       if (!ov) return false;
       if (what === "replay") ov.querySelector("[data-replay]")?.click();
-      else if (what === "review" && meta.me != null) this._rvOpenReview?.(meta.me);
+      else if (what === "review" && (meta.me != null || meta.hn?.length)) this._rvOpenReview?.(meta.me ?? meta.hn[0].pid);
       return true;
     };
     let tries = 0;
@@ -318,6 +343,7 @@ export const HistoryMixin = {
     el.querySelector(".hs-scroll").scrollTop = scroll;
     el.querySelector("[data-hclose]").addEventListener("click", () => this.histClose());
     el.querySelector("[data-hinfo]")?.addEventListener("click", () => { this._histInfo = !this._histInfo; this._histDraw(); });
+    el.querySelectorAll("[data-hwho]").forEach((b) => b.addEventListener("click", () => { this._histWho = b.dataset.hwho; this._histDraw(); }));
     el.querySelectorAll("[data-hres]").forEach((b) => b.addEventListener("click", () => { F.res = b.dataset.hres; this._histDraw(); }));
     el.querySelectorAll("[data-hmode]").forEach((b) => b.addEventListener("click", () => { const k = b.dataset.hmode; F.mode.has(k) ? F.mode.delete(k) : F.mode.add(k); this._histDraw(); }));
     el.querySelector("[data-hrev]")?.addEventListener("click", () => { F.rev = !F.rev; this._histDraw(); });
@@ -338,11 +364,27 @@ export const HistoryMixin = {
   },
 
   /** "Your progress": accuracy over time, win rate, marked moves per game, the most frequent kind of mistake. */
+  /** One row per person per game: pass & play games count under each name; one-person games under "You". */
+  _histEntries(all) {
+    const out = [];
+    all.forEach((m) => {
+      if (m.hot && m.hn?.length) m.hn.forEach((h) => out.push({ ...h, end: m.end, result: m.winner === h.pid ? "won" : "lost", who: h.name }));
+      else if (m.me != null) out.push({ ...m, who: "You" });
+    });
+    return out;
+  },
   _histProgress(all) {
-    const old = all.slice().sort((a, b) => a.end - b.end);
+    const ents = this._histEntries(all);
+    const cnt = {};
+    ents.forEach((e) => { cnt[e.who] = (cnt[e.who] || 0) + 1; });
+    const names = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]);
+    const me = Names.me();
+    let who = names.includes(this._histWho) ? this._histWho : names.find((n) => me && n.toLowerCase() === me.toLowerCase()) || names[0];
+    this._histWho = who;
+    const old = ents.filter((e) => e.who === who).sort((a, b) => a.end - b.end);
     const fin = old.filter((m) => m.result === "won" || m.result === "lost");
     const rev = old.filter((m) => m.acc != null && !m.prov && m.rn && m.cls);
-    if (fin.length < 2 && rev.length < 2) return "";
+    if (fin.length < 2 && rev.length < 2 && names.length < 2) return "";
     const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
     const trend = (v, dec = 0, good = 1) => { const f = 10 ** dec, d = Math.round(v * f) / f; return !d ? "" : `<i class="pg-d ${d * good > 0 ? "up" : "down"}">${d > 0 ? "▲" : "▼"}${Math.abs(d)}</i>`; };
     // accuracy: only games checked after play, with the review settings of the latest one
@@ -377,7 +419,8 @@ export const HistoryMixin = {
     const top = Object.entries(mist).sort((a, b) => b[1] - a[1])[0];
     const topHtml = top && all2 >= 3 ? `<p class="pg-top"><b>Most missed:</b> ${MIST_TEXT[top[0]] || top[0]} <small>${top[1]} of ${all2} marked moves</small></p>` : "";
     const need = rev.length < 2 ? `<p class="pg-top dim">Review ${2 - rev.length} more game${rev.length === 1 ? "" : "s"} to see your accuracy trend.</p>` : "";
-    return `<section class="hs-prog" aria-label="Your progress"><div class="pg-h"><h4>Your progress</h4><button type="button" class="pg-i" data-hinfo aria-expanded="${!!this._histInfo}" aria-label="What do these numbers mean?"></button></div>
+    return `<section class="hs-prog" aria-label="${names.length > 1 ? esc(who) + "’s progress" : "Your progress"}"><div class="pg-h"><h4>${names.length > 1 ? "Progress" : "Your progress"}</h4><button type="button" class="pg-i" data-hinfo aria-expanded="${!!this._histInfo}" aria-label="What do these numbers mean?"></button></div>
+      ${names.length > 1 ? `<div class="pg-who" role="radiogroup" aria-label="Progress of">${names.slice(0, 6).map((n) => `<button type="button" role="radio" aria-checked="${n === who}" class="${n === who ? "on" : ""}" data-hwho="${esc(n)}">${esc(n)}<small>${cnt[n]} game${cnt[n] === 1 ? "" : "s"}</small></button>`).join("")}</div>` : ""}
       <div class="pg-tiles">${accHtml}${winHtml}${markHtml}</div>${spark}${bars}${topHtml}${need}
       ${this._histInfo ? `<div class="pg-info" role="note"><p><b>Accuracy</b> averages the games the Master bot reviewed after play, with the same review settings; games you had checked during play are left out, and so is a review that is still provisional.</p><p><b>Marked moves</b> are the could be better, mistake and blunder moves of each reviewed game (missed chances count as could be better).</p><p><b>Most missed</b> is the kind of move behind most of them.</p><p>Trends compare your last 5 reviewed games with the 5 before.</p></div>` : ""}</section>`;
   },
@@ -404,9 +447,9 @@ export const HistoryMixin = {
     m.seats.forEach((s) => { if (s.prof) { const k = `${s.prof}${s.custom ? "~" : ""}`; g.set(k, (g.get(k) || 0) + 1); } });
     return [...g].map(([k, n]) => { const c = k.endsWith("~"), key = c ? k.slice(0, -1) : k; return `<span class="hs-bot">${profileMini(key, 16)}${n > 1 ? `${n}×` : ""} ${c ? "Custom" : esc(BOT_PROFILES[key]?.label || key)}</span>`; }).join("");
   },
-  _histAcc(m) {
+  _histAcc(m, name = "") {
     if (m.acc == null) return "";
-    return `<span class="hs-acc${m.prov ? " prov" : ""}" title="Game review accuracy${m.prov ? ", provisional" : ""}${m.mid ? " (checked during the game)" : ""}">${m.mid ? `<i class="mid" title="Checked during the game" aria-hidden="true"></i>` : ""}<small>Acc</small>${m.prov ? "~" : ""}${m.acc}</span>`;
+    return `<span class="hs-acc${m.prov ? " prov" : ""}" title="Game review accuracy${m.prov ? ", provisional" : ""}${m.mid ? " (checked during the game)" : ""}">${m.mid ? `<i class="mid" title="Checked during the game" aria-hidden="true"></i>` : ""}<small>${name ? esc(name) : "Acc"}</small>${m.prov ? "~" : ""}${m.acc}</span>`;
   },
   _histRow(m) {
     const w = m.seats[m.winner];
@@ -418,7 +461,7 @@ export const HistoryMixin = {
       <div class="hs-main"><b>${t}</b><small>${when(m.end)} · ${kind}</small></div>
       <button type="button" class="hs-star${m.star ? " on" : ""}" data-hrstar="${m.id}" aria-pressed="${!!m.star}" aria-label="${m.star ? "Unstar" : "Keep with a star"}">${STAR(m.star)}</button>
       <div class="hs-foot"><span class="hs-sc">${m.seats.map((s, i) => `<span class="${i === m.winner ? "win" : ""}" title="${esc(s.name)}">${avatarSvg(i, "hs-av")}<b>${s.vp}</b></span>`).join("")}</span><span class="hs-dur">${dur(m.ms)}</span></div>
-      <div class="hs-foot2"><span class="hs-bots">${this._histBots(m)}</span>${this._histAcc(m)}</div></div></li>`;
+      <div class="hs-foot2"><span class="hs-bots">${this._histBots(m)}</span>${m.hot && m.hn?.length ? m.hn.map((h) => this._histAcc(h, h.name)).join("") : this._histAcc(m)}</div></div></li>`;
   },
 
   _histSheet(id, again = false) {

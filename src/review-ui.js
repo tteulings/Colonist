@@ -64,8 +64,16 @@ export const ReviewUiMixin = {
     }
     const groups = this._rvGroups();
     if (!groups.length) return "";
-    return groups.map(({ p, list }) => {
-      const full = this._rv.review?.pid === p.id && this._rvReviewComplete?.(p.id) && !this._rvStale?.(p.id);
+    // pass & play: "Review for [Rosa] [You]": one person at a time (the phone holder first)
+    let shown = groups, seg = "";
+    if (this.hotseat && groups.length > 1) {
+      const sel = groups.some((g) => g.p.id === this._rvFor) ? this._rvFor : (groups.find((g) => g.p.id === this.viewerId) || groups[0]).p.id;
+      this._rvFor = sel;
+      shown = groups.filter((g) => g.p.id === sel);
+      seg = this._rvForSeg(sel);
+    }
+    return seg + shown.map(({ p, list }) => {
+      const full = this._rvReviewComplete?.(p.id) && !this._rvStale?.(p.id);
       const lead = list.length ? (solo ? (full ? "Biggest chances missed, where another move kept clearly more win chance. Tap one to see it on the board." : "Quick check while the full review runs: where another move looked clearly better. Tap one to see it on the board.") : "")
         : full && this._rvBadCount?.(p.id) ? `${this._rvBadCount(p.id)} of your moves could be better. Open the review to step through ${this._rvBadCount(p.id) > 1 ? "them" : "it"}.`
         : full || this.hotseat ? "No clear mistake found in this game." : "The full review checks every move of yours with the Master bot.";
@@ -86,6 +94,12 @@ export const ReviewUiMixin = {
     box.innerHTML = this._rvBlockHtml();
     box.querySelectorAll("[data-rvshow]").forEach((b) => b.addEventListener("click", () => { const [pid, k] = b.dataset.rvshow.split(":").map(Number); this._rvShow(pid, k); }));
     this._rvBindReview?.(box);
+    box.querySelectorAll("[data-rvfor]").forEach((b) => b.addEventListener("click", () => {
+      const pid = +b.dataset.rvfor;
+      if (pid === this._rvFor) return;
+      const go = () => { this._rvFor = pid; this._rvRender(); };
+      if (this._rvGateOk(pid)) go(); else this._hsGate?.(pid, "Missed chances", go);
+    }));
   },
 
   // ── Show: the replay at that moment, with the coaching card ──
