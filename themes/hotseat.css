@@ -110,6 +110,7 @@
 .hs-cover .hp-foot { text-align: center; font-size: 14px; opacity: .8; padding: 0 24px; }
 .hs-cover .hs-task { font-size: 15px; font-weight: 650; opacity: .95; margin: 2px 0 18px; max-width: 28ch; }
 :root[data-palette="night"] .hs-cover, :root[data-palette="dusk"] .hs-cover {
+  --pc-ink: #F7F9FC; color: #F7F9FC; /* the cover is darkened here: light text whatever the seat's own ink is */
   background: radial-gradient(120% 80% at 50% 30%, color-mix(in srgb, var(--pc) 55%, #000) 0%, color-mix(in srgb, var(--pc) 38%, #000) 60%, color-mix(in srgb, var(--pc) 24%, #000) 100%); }
 :root[data-palette="night"] .hs-cover .hs-go, :root[data-palette="dusk"] .hs-cover .hs-go { background: color-mix(in srgb, #FFFDF7 88%, var(--pc)); box-shadow: 0 6px 18px rgba(0,0,0,.4); }
 

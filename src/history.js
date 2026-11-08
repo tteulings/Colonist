@@ -253,7 +253,7 @@ export const HistoryMixin = {
   },
 
   // ── opening a past game on the real screens ──
-  async histView(id, what = "stats") {
+  async histView(id, what = "stats", pid = null) {
     const meta = this.hist.metas.find((m) => m.id === id);
     const same = !!meta && this.winner && this.stats?.id === id && !this._histView; // the game on the end screen: use it as it is
     const rec = same ? null : await this.hist.get(id);
@@ -276,7 +276,7 @@ export const HistoryMixin = {
       const ov = document.querySelector(".game-over-overlay");
       if (!ov) return false;
       if (what === "replay") ov.querySelector("[data-replay]")?.click();
-      else if (what === "review" && (meta.me != null || meta.hn?.length)) this._rvOpenReview?.(meta.me ?? meta.hn[0].pid);
+      else if (what === "review" && (meta.me != null || meta.hn?.length)) this._rvOpenReview?.(pid != null ? pid : meta.me ?? meta.hn[0].pid);
       return true;
     };
     let tries = 0;
@@ -476,7 +476,7 @@ export const HistoryMixin = {
     const t = m.result === "won" ? "You won" : m.result === "lost" ? `${esc(w?.name)} won` : `${esc(w?.name)} won`;
     const kind = m.board === "seafarers" ? "Seafarers" : m.mode === "rush" ? "Rush" : "Classic";
     const unit = m.mode === "rush" ? "rolls" : "turns";
-    const why = m.board === "seafarers" ? "Seafarers games can’t be reviewed yet" : m.hot || m.me == null ? "Pass & play games can’t be reviewed" : !m.rec ? "This game has no recording to review" : !reviewAvailable() ? "This browser can’t run the review in the background" : "";
+    const why = m.board === "seafarers" ? "Seafarers games can’t be reviewed yet" : m.me == null && !(m.hot && m.hn?.length) ? "Pass & play games can’t be reviewed" : !m.rec ? "This game has no recording to review" : !reviewAvailable() ? "This browser can’t run the review in the background" : "";
     const reviewable = !why;
     const revLabel = m.acc != null && !m.prov ? ["Game review", `accuracy ${m.acc}${m.mid ? " · checked during the game" : ""} · tap to open`]
       : m.acc != null ? ["Game review · provisional", `${m.rp ? `${m.rp[0]} of ${m.rp[1]} moves checked deeply · ` : ""}tap to continue`]
@@ -493,7 +493,8 @@ export const HistoryMixin = {
       <div class="hs-acts">
         <button type="button" class="hs-btn pri" data-sact="replay">${PLAY}Replay</button>
         <button type="button" class="hs-btn" data-sact="stats">${BARS}Stats</button>
-        ${reviewable ? `<button type="button" class="hs-btn wide" data-sact="review">${REVIEW}<span>${revLabel[0]}<small>${revLabel[1]}</small></span></button>` : `<button type="button" class="hs-btn wide" disabled>${REVIEW}<span>Game review<small>${why}</small></span></button>`}
+        ${reviewable && m.hot && m.hn?.length ? m.hn.map((h) => `<button type="button" class="hs-btn wide" data-sact="review" data-spid="${h.pid}">${REVIEW}<span>Game review · ${esc(h.name)}<small>${h.acc != null ? `accuracy ${h.acc}${h.prov ? " · provisional" : ""} · tap to open` : "not checked yet · tap to start"}</small></span></button>`).join("")
+          : reviewable ? `<button type="button" class="hs-btn wide" data-sact="review">${REVIEW}<span>${revLabel[0]}<small>${revLabel[1]}</small></span></button>` : `<button type="button" class="hs-btn wide" disabled>${REVIEW}<span>Game review<small>${why}</small></span></button>`}
       </div>
       <div class="hs-more"><button type="button" class="hs-link" data-sexport>${DOWN}Export file</button><span class="hs-size">${kb(m.kb)}</span><button type="button" class="hs-link del" data-sdel>${TRASH}Delete</button></div>
     </div>`;
@@ -503,7 +504,7 @@ export const HistoryMixin = {
     sh.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
     sh.querySelector("[data-sclose]").addEventListener("click", close);
     sh.querySelector("[data-sstar]").addEventListener("click", () => this._histStar(m.id));
-    sh.querySelectorAll("[data-sact]").forEach((b) => b.addEventListener("click", () => { close(); this.histView(m.id, b.dataset.sact); }));
+    sh.querySelectorAll("[data-sact]").forEach((b) => b.addEventListener("click", () => { close(); this.histView(m.id, b.dataset.sact, b.dataset.spid != null ? +b.dataset.spid : null); }));
     sh.querySelector("[data-sexport]").addEventListener("click", () => this.histExport(m.id));
     const del = sh.querySelector("[data-sdel]");
     del.addEventListener("click", () => {

@@ -2,7 +2,7 @@ const { chromium } = require("playwright");
 const path = require("path");
 const SHOTS = path.join(__dirname, "..", "shots");
 exports.SHOTS = SHOTS;
-exports.open = async (palette = "light", url = "http://localhost:8771/index.html") => {
+exports.open = async (palette = "light", url = "http://localhost:8781/index.html") => {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 360, height: 780 }, deviceScaleFactor: 1, hasTouch: true, isMobile: true, serviceWorkers: "block" });
   await ctx.addInitScript((p) => { try { localStorage.setItem("colonist.palette", p); localStorage.setItem("colonist.motion", "reduced"); } catch (_) {} }, palette);
