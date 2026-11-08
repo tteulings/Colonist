@@ -102,6 +102,7 @@ export class SettingsUI {
     if (this.tab === "game") {
       body.innerHTML = this.head("Game", "");
       body.appendChild(this.gamePane);
+      g._renderConfirmSetting?.();
       // v1.04 the Game review starts by itself after a game (a device preference)
       let auto = true; try { auto = localStorage.getItem("colonist_review_auto") !== "off"; } catch (_) {}
       const row = document.createElement("div");

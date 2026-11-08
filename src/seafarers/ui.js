@@ -110,10 +110,11 @@ export const SeaGame = {
       const free = this.freeRoadsRemaining > 0, t = { type, id: target.id, ambiguous: false };
       if (this.winner || this.currentPlayer !== player) return;
       if (!(type === "ship" ? this.canBuildShip(player, t.id, { free }) : this.canBuildRoad(player, t.id, { free }))) return;
-      if (modeless) { this.pendingAction = type; this.confirmBuild = t; this._autoPick = true; this.canvas.style.cursor = "crosshair"; this.render(); return; }
-      if (!this.confirmPlacements && !auto) { this._commitBuild(player, t); return; }
+      if (modeless) { this.pendingAction = type; this.confirmBuild = t; this._cbAt = performance.now(); this._autoPick = true; this.canvas.style.cursor = "crosshair"; this.render(); return; }
+      if (this._confirmLevel() !== "always" && !auto) { this._commitBuild(player, t); return; }
       if (auto) this.pendingAction = type;
       this.confirmBuild = t;
+      this._cbAt = performance.now();
       this.render();
     };
     [["road", "Road"], ["ship", "Ship"]].forEach(([type, label]) => {
