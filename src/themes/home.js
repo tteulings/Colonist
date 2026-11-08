@@ -54,7 +54,7 @@ export class Home {
       this.el.className = "home";
       this.el.setAttribute("role", "dialog");
       this.el.setAttribute("aria-modal", "true");
-      this.el.setAttribute("aria-label", "Colonist home");
+      this.el.setAttribute("aria-label", "Katan: Handelaren en Bouwers home");
       document.addEventListener("keydown", this.onKey);
       document.body.appendChild(this.el);
       document.body.classList.add("home-open");
@@ -81,7 +81,7 @@ export class Home {
     this.el.classList.toggle("has-save", !!s);
     this.el.innerHTML = `<div class="hm-col">
       <header class="hm-brand"><svg class="hm-logo" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>
-        <h1>Colonist</h1>${s ? "" : `<p>Settle the island, trade with friendly bots, reach 10 points first.</p>`}</header>
+        <h1>Katan<small class="hm-sub">Handelaren en Bouwers</small></h1>${s ? "" : `<p>Settle the island, trade with friendly bots, reach 10 points first.</p>`}</header>
       ${s ? `<button type="button" class="hm-continue" data-home="continue">${PLAY_IC}<span class="hm-ct"><b>Continue game</b><small>${s.mode} · ${s.mode.startsWith("Rush") ? "roll" : "turn"} ${s.turn}</small></span>${CHEV}
         <span class="hm-score">${s.players.map((q) => `<span class="pc-${q.seat}" title="${q.name}: ${q.vp} points">${avatarSvg(q.seat, "hm-av")}<em class="nm">${q.name}</em> <b>${q.vp}</b></span>`).join("")}</span></button>` : ""}
       <section class="hm-card hm-new" aria-labelledby="hmNewH">
