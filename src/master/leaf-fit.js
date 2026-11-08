@@ -6,4 +6,4 @@ export const FIT_W = [0.13485, 0.38146, 0.35286, 0.24827, -0.015523, 0.28164, -0
 // v1.19 leaf function "fit2" = "fit" plus a stage-scaled score offset per Longest Road / Largest Army held at the horizon (src/master/sim.js
 // fitProbs). Measured on the game played out from the same futures (scratchpad mot120/an*.py): two moves that differ in who holds the road
 // at the horizon were judged 10.5 points apart by "fit", the played-out games say 4.6 (paired SE 1.0).
-export const FIT2_ADJ = { lr: -0.6, la: 0 };
+export const FIT2_ADJ = { lr: -0.6, la: -0.3 };
