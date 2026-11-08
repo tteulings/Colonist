@@ -19,7 +19,7 @@
 import { icon, avatarSvg } from "./themes/manager.js";
 import { BOT_PROFILES, profileMini } from "./bot-profiles.js";
 import { profileOf } from "./bot-profile-ui.js";
-import { summarize, clsOf, ACC, REVIEW as RVCFG } from "./review/evaluate.js";
+import { summarize, clsOf, ACC, REVIEW as RVCFG, FMT, rescoreReview, reviewStatus } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
 import { Names } from "./names.js";
 
@@ -69,7 +69,7 @@ export class HistoryStore {
   get count() { return this.metas.length; }
   get bytes() { return this.metas.reduce((a, m) => a + (m.kb || 0), 0); }
 
-  async put(meta, payload) {
+  async put(meta, payload, { quiet = false } = {}) {
     await this.open();
     const p = await pack(payload);
     meta.kb = p.bytes;
@@ -90,7 +90,7 @@ export class HistoryStore {
     if (i >= 0) this.metas[i] = meta; else this.metas.push(meta);
     this._sort();
     await this._prune(meta.id, 0);
-    this.onChange?.();
+    if (!quiet) this.onChange?.();
     return true;
   }
   /** Keep to the limits; `extra` more games are removed first (a failed write). The just-saved game stays. */
@@ -138,6 +138,15 @@ const PROBLEM = ["could", "mistake", "blunder", "missed"];
 /** The kind of a marked decision, for "your most frequent mistake" (what the review says the better move was). */
 const mistKey = (x) => (x.k === "end" && /^(City|Settlement|Road|Development|Ship)/.test(x.best?.label || "") ? "end>build" : x.k);
 export const MIST_TEXT = { "end>build": "ended your turn while a build was possible", build: "built something weaker", bank: "a weaker bank trade", robber: "a weaker robber tile", setup: "a weaker set-up spot", end: "ended your turn with a better move left", buy: "a development card at the wrong time", play: "a development card played too early or late" };
+/** The history fields of one person's review (accuracy, counts, kinds of mistake, provisional?), from the review and its records alone. */
+export function revMeta(recs, rv, pid, prev = null) {
+  if (!rv || rv.pid !== pid || !rv.results?.length) return { acc: prev?.acc ?? null, mid: prev?.mid || false };
+  const sum = summarize(rv.results), cls = {}, mist = {};
+  PROBLEM.forEach((c) => { cls[c] = 0; });
+  rv.results.forEach((x) => { const c = clsOf(x); if (PROBLEM.includes(c)) { cls[c] += 1; const k = mistKey(x); mist[k] = (mist[k] || 0) + 1; } });
+  const st = reviewStatus(recs, rv);
+  return { acc: sum.acc, rn: sum.n, lost: sum.lost, cls, mist, prov: !st.complete, mid: !!rv.midCheck, rk: ACC.id, fmt: FMT, rp: [st.deep, rv.total || rv.results.length] };
+}
 const seatProf = (p, game) => { if (p.isHuman) return {}; const pr = game ? profileOf(game, game.players[p.id] || p) : null; const k = pr?.key || (BOT_PROFILES[p.personality] ? p.personality : "intermediate"); return { prof: k, custom: pr ? pr.custom : !BOT_PROFILES[p.personality] }; };
 
 export const HistoryMixin = {
@@ -182,18 +191,11 @@ export const HistoryMixin = {
       const prev = (prevHn || []).find((h) => h.pid === p.id) || null;
       const rv = R?.revs?.[p.id] || null;
       const rd = R && this._rv === R ? this._rvTodo?.(p.id).length || 0 : prev?.rd || 0;
-      return { pid: p.id, name: p.name, rd, ...this._histRev(rv, p.id, prev) };
+      return { pid: p.id, name: p.name, rd, ...this._histRev(rv, p.id, prev, R?.recs) };
     });
   },
   /** What the review has so far (quick round: provisional; deep round done: final): accuracy, class counts, kinds of mistake. */
-  _histRev(rv, pid, prev = null) {
-    if (!rv || rv.pid !== pid || !rv.results?.length) return { acc: prev?.acc ?? null, mid: prev?.mid || false };
-    const sum = summarize(rv.results), cls = {}, mist = {};
-    PROBLEM.forEach((c) => { cls[c] = 0; });
-    rv.results.forEach((x) => { const c = clsOf(x); if (PROBLEM.includes(c)) { cls[c] += 1; const k = mistKey(x); mist[k] = (mist[k] || 0) + 1; } });
-    const deep = rv.results.filter((x) => !this._rvNeedsFull(x)).length;
-    return { acc: sum.acc, rn: sum.n, cls, mist, prov: !this._rvReviewComplete(pid), mid: !!rv.midCheck, rk: ACC.id, rp: [deep, rv.total || rv.results.length] };
-  },
+  _histRev(rv, pid, prev = null, recs = this._rv?.recs) { return revMeta(recs, rv, pid, prev); },
   /** The review moved on (a round step, stop, done): keep the entry up to date, at most once a second. */
   _histSoon() {
     if (!this.winner || this._replay || this.labMode) return;
@@ -246,7 +248,7 @@ export const HistoryMixin = {
           pts: st.settings?.winPoints || 10, hot: false, seats, me: me >= 0 ? me : null, winner,
           result: me < 0 ? "table" : winner === me ? "won" : "lost", turns: st.turn, ms: st.stats.ms || 0, acc: a?.acc ?? null, mid: !!a?.midCheck, star: false, rec: !!same, rd: same ? rv.recs.filter((r) => r.pid === me).length : 0 };
         st.logEntries = [];
-        if (!(await this.hist.put(meta, { state: st, rv: same ? { base: rv.base, recs: rv.recs, reviews: rv.review?.results?.length ? { [rv.review.pid]: rv.review } : {} } : null }))) return; // no room: try again next start
+        if (!(await this.hist.put(meta, { state: st, rv: same ? { base: rv.base, recs: rv.recs, reviews: rv.review?.results?.length ? { [rv.review.pid]: (rescoreReview(rv.review), rv.review) } : {} } : null }))) return; // no room: try again next start
       }
       localStorage.setItem("colonist_hist_migrated", "1");
     } catch (_) { /* nothing to migrate / private mode */ }
@@ -269,6 +271,7 @@ export const HistoryMixin = {
       this.onboardingHold = false; this.uiPaused = false;
       this.loadFromStorage(rec.state); // (this resets the recorder: the saved recording goes back in after it)
       const revs = rec.rv ? (rec.rv.reviews || (rec.rv.review?.results?.length ? { [rec.rv.review.pid]: rec.rv.review } : {})) : {}; // (older entries: one review)
+      Object.values(revs).forEach((r) => rescoreReview(r)); // v1.21 today's numbers, classes and labels from the saved candidates
       this._rv = rec.rv ? { id, base: rec.rv.base, recs: rec.rv.recs, res: null, busy: false, ms: 0, revs, queue: [], review: Object.values(revs)[0] || undefined } : null;
       this._rv?.recs?.length && this._rvFinish?.(false); // v1.11: the missed-chance detectors run for a past game too (no auto review): without this the end screen said "checking…" for ever
     } else if (!document.querySelector(".game-over-overlay")) this.showGameOverOverlay();
@@ -313,6 +316,29 @@ export const HistoryMixin = {
     el.addEventListener("keydown", (e) => { if (e.key === "Escape") this.histClose(); });
     await this.hist.open();
     this._histDraw();
+    this.histRescoreAll();
+  },
+  /** v1.21 Saved reviews get today's numbers: each reviewed game that is not in the current format is re-scored from its own
+   *  candidates (no engine), its list entry (accuracy, counts, kinds of mistake) is rebuilt from the result, one game at a time, quietly. */
+  async histRescoreAll() {
+    if (this._histRescoring) return;
+    this._histRescoring = true;
+    try {
+      const H = this.hist; await H.open();
+      const live = !this._histView && this._rv?.run ? this.stats?.id : null; // a running check writes its own entry
+      const todo = H.metas.filter((m) => m.rec && m.id !== live && (m.hn?.length ? m.hn.some((h) => h.acc != null && h.fmt !== FMT) : m.acc != null && m.fmt !== FMT));
+      let n = 0;
+      for (const m of todo) {
+        const rec = await H.get(m.id);
+        if (!rec?.rv) continue;
+        const reviews = rec.rv.reviews || (rec.rv.review?.results?.length ? { [rec.rv.review.pid]: rec.rv.review } : {});
+        Object.values(reviews).forEach((r) => rescoreReview(r));
+        const meta = m.hn?.length ? { ...m, hn: m.hn.map((h) => ({ ...h, ...revMeta(rec.rv.recs, reviews[h.pid], h.pid, h) })), fmt: FMT } : { ...m, ...revMeta(rec.rv.recs, reviews[m.me], m.me, m), fmt: FMT };
+        if (await H.put(meta, { state: rec.state, rv: { base: rec.rv.base, recs: rec.rv.recs, reviews } }, { quiet: true })) n += 1;
+      }
+      if (n) H.onChange?.();
+    } catch (_) { /* best effort: the next open tries again */ }
+    this._histRescoring = false;
   },
   histClose() {
     this._histEl?.remove(); this._histEl = null; this._histSel = null; this._histChanged = null;
@@ -422,7 +448,7 @@ export const HistoryMixin = {
     return `<section class="hs-prog" aria-label="${names.length > 1 ? esc(who) + "’s progress" : "Your progress"}"><div class="pg-h"><h4>${names.length > 1 ? "Progress" : "Your progress"}</h4><button type="button" class="pg-i" data-hinfo aria-expanded="${!!this._histInfo}" aria-label="What do these numbers mean?"></button></div>
       ${names.length > 1 ? `<div class="pg-who" role="radiogroup" aria-label="Progress of">${names.slice(0, 6).map((n) => `<button type="button" role="radio" aria-checked="${n === who}" class="${n === who ? "on" : ""}" data-hwho="${esc(n)}">${esc(n)}<small>${cnt[n]} game${cnt[n] === 1 ? "" : "s"}</small></button>`).join("")}</div>` : ""}
       <div class="pg-tiles">${accHtml}${winHtml}${markHtml}</div>${spark}${bars}${topHtml}${need}
-      ${this._histInfo ? `<div class="pg-info" role="note"><p><b>Accuracy</b> averages the games the Master bot reviewed after play, with the same review settings; games you had checked during play are left out, and so is a review that is still provisional.</p><p><b>Marked moves</b> are the could be better, mistake and blunder moves of each reviewed game (missed chances count as could be better).</p><p><b>Most missed</b> is the kind of move behind most of them.</p><p>Trends compare your last 5 reviewed games with the 5 before.</p></div>` : ""}</section>`;
+      ${this._histInfo ? `<div class="pg-info" role="note"><p><b>Accuracy</b> averages the games reviewed after play (deep Monte Carlo, 1000 futures), with the same review settings; games you had checked during play are left out, and so is a review that is still provisional.</p><p><b>Marked moves</b> are the could be better, mistake and blunder moves of each reviewed game (missed chances count as could be better).</p><p><b>Most missed</b> is the kind of move behind most of them.</p><p>Trends compare your last 5 reviewed games with the 5 before.</p></div>` : ""}</section>`;
   },
 
   _histBanner(u) {
@@ -480,7 +506,7 @@ export const HistoryMixin = {
     const reviewable = !why;
     const revLabel = m.acc != null && !m.prov ? ["Game review", `accuracy ${m.acc}${m.mid ? " · checked during the game" : ""} · tap to open`]
       : m.acc != null ? ["Game review · provisional", `${m.rp ? `${m.rp[0]} of ${m.rp[1]} moves checked deeply · ` : ""}tap to continue`]
-      : ["Review this game", `the Master bot checks your moves · about ${Math.max(1, Math.round(((m.rd || 20) * RVCFG.sec) / 60))} min`];
+      : ["Review this game", `deep Monte Carlo checks your moves · about ${Math.max(1, Math.round(((m.rd || 20) * RVCFG.sec) / 60))} min`];
     const order = [...m.seats.keys()].sort((a, b) => (b === m.winner) - (a === m.winner) || m.seats[b].vp - m.seats[a].vp);
     sh.innerHTML = `<div class="hs-card${again ? " again" : ""}"><div class="hs-grab"></div>
       <div class="hs-head"><span class="hs-badge big ${m.result === "won" ? "won" : m.result === "lost" ? "lost" : "table"}">${m.result === "won" ? "W" : m.result === "lost" ? "L" : "•"}</span><div><h4>${t}</h4><small>${when(m.end, true)}</small></div>

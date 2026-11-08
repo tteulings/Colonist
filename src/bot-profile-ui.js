@@ -83,7 +83,7 @@ function details(key) {
   return `<p class="bp-style">${p.style}</p>
     <div class="bp-rows">${row("good", "+", "Good at", p.good)}${row("weak", "−", "Weak spot", p.weak)}
     ${row("trade", "⇄", "Trading", p.trades)}${row("rob", "♟", "Robber", p.robber)}${row("card", "★", "Dev cards", p.cards)}</div>
-    <p class="bp-src">${src}${p.acc ? ` Game-review accuracy ${p.acc}%.` : ""}</p>`;
+    <p class="bp-src">${src}${p.acc ? ` Review accuracy ${p.acc[0]} ± ${p.acc[1]}: its own moves checked by deep Monte Carlo (1000 futures), the same scale as the review screen.` : ""}</p>`;
 }
 
 let openEl = null;

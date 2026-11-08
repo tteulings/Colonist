@@ -47,7 +47,7 @@ export const ReviewUiMixin = {
     const res = this._rv?.res;
     if (!res?.findings) return [];
     const humans = this.players.filter((p) => p.isHuman);
-    // v1.03: once the Master bot has checked a person's game, their lines are its verified misses
+    // v1.03: once the deep check is done, a person's lines are its biggest mistakes (v1.21: by the class the review shows)
     return humans.map((p) => ({ p, list: this._rvVerified?.(p.id) || res.findings.filter((f) => f.pid === p.id).sort((a, b) => b.size - a.size).slice(0, 3) })).filter((x) => x.list.length || this._rvReviewable?.());
   },
 
@@ -74,10 +74,10 @@ export const ReviewUiMixin = {
     }
     return seg + shown.map(({ p, list }) => {
       const full = this._rvReviewComplete?.(p.id) && !this._rvStale?.(p.id);
-      const lead = list.length ? (solo ? (full ? "Biggest chances missed, where another move kept clearly more win chance. Tap one to see it on the board." : "Quick check while the full review runs: where another move looked clearly better. Tap one to see it on the board.") : "")
+      const lead = list.length ? (solo ? (full ? "Your biggest mistakes: another move kept clearly more win chance. Tap one to see it on the board." : "Quick check while the full review runs: where another move looked clearly better. Tap one to see it on the board.") : "")
         : full && this._rvBadCount?.(p.id) ? `${this._rvBadCount(p.id)} of your moves could be better. Open the review to step through ${this._rvBadCount(p.id) > 1 ? "them" : "it"}.`
-        : full || this.hotseat ? "No clear mistake found in this game." : "The full review checks every move of yours with the Master bot.";
-      return `<div class="rv1${solo ? " gs-revcard" : ""}" data-rvp="${p.id}"><div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Your game review" : `<span class="pc-${p.id} rv-who">${esc(p.name)}</span> · missed chances`}</span><small>${list.length ? (list[0].verified ? "checked by the Master bot" : "") : ""}</small></div>
+        : full || this.hotseat ? "No clear mistake found in this game." : "The full review checks every move of yours with a deep Monte Carlo (1000 futures).";
+      return `<div class="rv1${solo ? " gs-revcard" : ""}" data-rvp="${p.id}"><div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Your game review" : `<span class="pc-${p.id} rv-who">${esc(p.name)}</span> · missed chances`}</span><small>${list.length ? (list[0].verified ? "deep Monte Carlo check" : "") : ""}</small></div>
       ${lead ? `<p class="rv1-lead">${lead}</p>` : ""}
       ${solo ? this._rvReviewRowHtml?.(p) || "" : ""}
       ${list.map((f, k) => `<button type="button" class="rv1-row" data-rvshow="${p.id}:${k}" aria-label="${this._rvTW()} ${f.t}: ${esc(f.line)}, ${esc(f.gain)}. Show"><span class="t">${this._rvTW()} ${f.t}</span><span class="x">${esc(f.line)}</span><span class="g">${esc(f.gain)}</span>${IC.chev}</button>`).join("")}
@@ -118,7 +118,7 @@ export const ReviewUiMixin = {
     const solo = !this.hotseat;
     const when = { seven: "end of your turn", robber: "your robber", knight: "start of your turn" }[f.kind] || "your turn";
     ctl.innerHTML = `<div class="rvs">
-      <div class="rvs-top"><i class="rv-dot"></i><div><b>${this._rvTW()} ${f.t} · ${solo ? when : esc(who.name)}</b><small>${f.verified ? "Checked by the Master bot · " : ""}${f.markLabel || "Missed chance"} ${k + 1} of ${list.length}${f.gainLong ? ` · ${esc(f.gainLong)}` : ""}</small></div></div>
+      <div class="rvs-top"><i class="rv-dot"></i><div><b>${this._rvTW()} ${f.t} · ${solo ? when : esc(who.name)}</b><small>${f.verified ? "Deep Monte Carlo check · " : ""}${f.markLabel || "Missed chance"} ${k + 1} of ${list.length}${f.gainLong ? ` · ${esc(f.gainLong)}` : ""}</small></div></div>
       ${handHtml(f.hand)}
       <div class="rvs-vs"><div class="better"><span class="sx-win">A</span><small>Better</small><b>${esc(f.better)}</b></div><div><span class="sx-win alt">B</span><small>${solo ? "You did" : `${esc(who.name)} did`}</small><b>${esc(f.did)}</b></div></div>
       <p class="rvs-why">${esc(f.why)}</p>
