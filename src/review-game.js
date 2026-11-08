@@ -482,6 +482,8 @@ export const ReviewGameMixin = {
   _rvImp(ds) { return ds.filter((d) => IMP.includes(d.cls)).sort((a, b) => b.gap - a.gap || a.i - b.i); },
   _rvStepDraw(ds) {
     const el = this._rvEl, d = ds.find((q) => q.i === this._rvStep), x = d.x, mid = !!this._rvMid;
+    if (this._rvPbp && this._rvPbp.i !== d.i) this._rvPbp = null;
+    if (this._rvPbp && this._rvLiveFlag) return; // the play-by-play stays as it is while a check runs
     const imp = this._rvImp(ds);
     if (this._rvQ === "imp" && !imp.some((q) => q.i === d.i)) this._rvQ = "all";
     const list = this._rvQ === "imp" ? imp : ds, k = list.findIndex((q) => q.i === d.i);
@@ -505,6 +507,7 @@ export const ReviewGameMixin = {
         <div class="rs-strip" role="tablist" aria-label="Your decisions">${strip}</div>
         <div class="rs-nav"><button type="button" class="rv-btn" data-rvnav="-1" ${k ? "" : "disabled"} aria-label="Previous decision">${IC.prev}Previous</button><button type="button" class="rv-btn pri" data-rvnav="1" ${k < list.length - 1 ? "" : "disabled"} aria-label="Next decision">Next${IC.next}</button></div>`;
     const evalHtml = `<b>${pct(shown[me] / (shown.reduce((a, c) => a + c, 0) || 1))}</b>${this._rvStack(shown)}`;
+    const wcHtml = this._rvLegend(shown);
     const bindCard = (root) => {
       root.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = "all"; this._rvDrawReview(+b.dataset.rvj); }));
       root.querySelectorAll("[data-rvwhy]").forEach((b) => b.addEventListener("click", () => { this._rvInfoOpen = true; this._rvShowInfo(); }));
@@ -512,7 +515,7 @@ export const ReviewGameMixin = {
       root.querySelectorAll("[data-rvab]").forEach((b) => b.addEventListener("click", () => { const v = b.dataset.rvab; this._rvAB = v === this._rvAB && v !== "both" ? "both" : v; this._rvDrawReview(); }));
     };
     if (this._rvLiveFlag && sameBoard) { // a running check refreshed a number: the board stays as it is
-      el.querySelector(".rs-card").innerHTML = cardHtml; el.querySelector(".rs-eval").innerHTML = evalHtml;
+      el.querySelector(".rs-card").innerHTML = cardHtml; el.querySelector(".rs-eval").innerHTML = evalHtml; const wcEl = el.querySelector(".rs-wc"); if (wcEl) wcEl.innerHTML = wcHtml;
       const pr = el.querySelector(".rv-prog"), nh = this._rvProgHtml(this._rvPid);
       if (pr || nh) { const tmp = document.createElement("div"); tmp.innerHTML = nh; if (pr && tmp.firstElementChild) pr.replaceWith(tmp.firstElementChild); else if (pr) pr.remove(); else if (tmp.firstElementChild) el.querySelector(".rs-stage").before(tmp.firstElementChild); this._rvBindProg(el); }
       bindCard(el.querySelector(".rs-card")); el.querySelector(".rs-strip .on")?.scrollIntoView?.({ inline: "center", block: "nearest" });
@@ -522,15 +525,98 @@ export const ReviewGameMixin = {
     el.innerHTML = `<div class="rv-bar rs-bar"><button type="button" class="rv-btn" data-rvclose-step aria-label="Back to the overview">${IC.back}</button><div><h3>${this._rvWhen(d)}</h3><small>${k + 1} of ${list.length}${this._rvQ === "imp" ? " · could be better" : ""}${prov ? " · provisional" : ""}</small></div><button type="button" class="rv-btn pri rs-ov" data-rvclose-step>Overview</button><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review">${IC.info}</button></div>
       ${this._rvProgHtml(this._rvPid)}
       <div class="rs-stage"><div class="rs-eval">${evalHtml}</div>
-        ${mid ? "" : `<div class="rs-board"><canvas></canvas><svg class="rs-marks" aria-hidden="true"></svg>${noA ? "" : `<div class="rs-tog" role="group" aria-label="Show on the board"><button type="button" data-rvab="A" class="${show === "A" ? "on" : ""}" aria-label="Better move"><s>A</s></button><button type="button" data-rvab="both" class="${show === "both" ? "on" : ""}">A + B</button><button type="button" data-rvab="B" class="${show === "B" ? "on" : ""}" aria-label="What you did"><s class="alt">B</s></button></div>`}</div>`}</div>
+        ${mid ? "" : `<div class="rs-board"><canvas></canvas><svg class="rs-marks" aria-hidden="true"></svg><div class="rs-wc" aria-hidden="true">${wcHtml}</div><button type="button" class="rs-pbp" data-rvpbp aria-label="Play by play: every move since your last decision">${IC.step}<span>Play</span></button>${noA ? "" : `<div class="rs-tog" role="group" aria-label="Show on the board"><button type="button" data-rvab="A" class="${show === "A" ? "on" : ""}" aria-label="Better move"><s>A</s></button><button type="button" data-rvab="both" class="${show === "both" ? "on" : ""}">A + B</button><button type="button" data-rvab="B" class="${show === "B" ? "on" : ""}" aria-label="What you did"><s class="alt">B</s></button></div>`}</div>`}</div>
       <div class="rs-card">${cardHtml}</div>`;
     const sc = el.querySelector(".rs-strip"); if (sc) { sc.scrollLeft = scrub; el.querySelector(".rs-chip.on")?.scrollIntoView?.({ inline: "center", block: "nearest" }); }
     this._rvBindTop(el);
     el.querySelectorAll("[data-rvclose-step]").forEach((b) => b.addEventListener("click", () => { this._rvStep = null; this._rvDrawReview(); }));
     bindCard(el);
+    el.querySelector("[data-rvpbp]")?.addEventListener("click", () => this._rvPbpOpen(d, ds));
     let x0 = null;
-    [el.querySelector(".rs-stage"), el.querySelector(".rs-card")].forEach((n) => { if (!n) return; n.addEventListener("touchstart", (e) => { x0 = e.touches[0].clientX; }, { passive: true }); n.addEventListener("touchend", (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; const nx = list[k + (dx < 0 ? 1 : -1)]; if (Math.abs(dx) > 50 && nx) this._rvDrawReview(nx.i); }, { passive: true }); });
+    [el.querySelector(".rs-stage"), el.querySelector(".rs-card")].forEach((n) => { if (!n) return; n.addEventListener("touchstart", (e) => { x0 = e.touches[0].clientX; }, { passive: true }); n.addEventListener("touchend", (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; const nx = list[k + (dx < 0 ? 1 : -1)]; if (!this._rvPbp && Math.abs(dx) > 50 && nx) this._rvDrawReview(nx.i); }, { passive: true }); });
     if (!mid) this._rvBoard(d, show);
+    if (this._rvPbp && !mid) this._rvPbpGo(d, ds, this._rvPbp.j); // back from A/B toggle etc. while playing by play
+  },
+  /** Named win chances for the board corner: you first, then the others by chance, one short line each. */
+  _rvLegend(seats) {
+    const me = this._rvPid, sum = seats.reduce((a, b) => a + b, 0) || 1;
+    const order = [me, ...this.players.map((p) => p.id).filter((q) => q !== me).sort((a, b) => seats[b] - seats[a])];
+    return order.map((q) => `<span class="pc-${q}${q === me ? " me" : ""}"><i></i>${q === me && !this.hotseat ? "You" : esc(this.players[q].name)}<b>${Math.round((seats[q] / sum) * 100)}%</b></span>`).join("");
+  },
+  _rvPName(pid) { const p = this.players[pid]; return !p ? "Someone" : p.isHuman && !this.hotseat ? "You" : esc(p.name); },
+  /** Every move between your previous decision and this one, as beats: a roll (with who got what), a build, a trade, the robber, a steal, a card. */
+  _rvBeats(d, ds) {
+    const st = this._st, ev = this.stats.ev, k = ds.indexOf(d), from = k ? ds[k - 1].x.e : 0, to = d.x.e;
+    const s0 = k ? ds[k - 1].x.s : 0, RN = ["Lumber", "Brick", "Wool", "Grain", "Ore"], me = this._rvPid;
+    const beats = [], nm = (q) => this._rvPName(q);
+    const roll = (s, cursor) => {
+      const step = st.steps[s - 1]; if (!step) return;
+      const got = new Map();
+      (st.stepEvents[s] || []).forEach((e) => { const g = st.evIx.get(e); if (e[1] === "P" && g >= from && g < to) { const o = got.get(e[2]) || { n: 0, r: {} }; o.n += e[5] || 1; o.r[e[4]] = (o.r[e[4]] || 0) + (e[5] || 1); got.set(e[2], o); } });
+      const sum = step[2] + step[3];
+      const parts = [...got].sort((a, b) => (a[0] === me ? -1 : b[0] === me ? 1 : 0)).map(([q, o]) => (q === me ? `${nm(q)} +${Object.entries(o.r).map(([r, n]) => `${n} ${RN[r]}`).join(" +")}` : `${nm(q)} +${o.n} ${o.n === 1 ? "card" : "cards"}`));
+      beats.push({ s, upto: cursor, who: step[1], chip: String(sum), head: `${nm(step[1])} rolled ${sum}`, sub: sum === 7 ? "The robber moves and big hands are halved." : parts.length ? parts.join(" · ") : "Nobody got cards.", sev: sum === 7 });
+    };
+    let last = s0;
+    for (let g = from; g < to; g += 1) {
+      const e = ev[g]; if (!e) continue;
+      while (last < e[0]) { last += 1; roll(last, g); }
+      const [, c, a, b, x, y] = e;
+      if (c === "P") continue;
+      const nmA = nm(a), obj = { s: e[0], upto: g + 1, who: a };
+      if (c === "b" && b === "r") beats.push({ ...obj, chip: "road", head: `${nmA} built a road`, focus: { edge: x } });
+      else if (c === "b" && b === "h") beats.push({ ...obj, chip: "ship", head: `${nmA} built a ship` });
+      else if (c === "b" && b === "s") beats.push({ ...obj, chip: "settl.", head: `${nmA} built a settlement`, focus: { node: x } });
+      else if (c === "b" && b === "c") beats.push({ ...obj, chip: "city", head: `${nmA} built a city`, focus: { city: x } });
+      else if (c === "R") beats.push({ ...obj, chip: "robber", head: `${nmA} moved the robber`, sub: `To ${this._hexName?.(b) ?? "another tile"}.`, focus: { hex: b } });
+      else if (c === "t") beats.push({ ...obj, chip: "steal", head: `${nmA} stole a card`, sub: `From ${nm(b)}.` });
+      else if (c === "x") beats.push({ ...obj, chip: "trade", head: `${nmA} traded with ${nm(b)}`, sub: `${x} for ${y} cards.` });
+      else if (c === "k") beats.push({ ...obj, chip: "bank", head: `${nmA} traded with the bank`, sub: `Gave ${x} ${RN[b]} for 1 ${RN[y]}.` });
+      else if (c === "d") beats.push({ ...obj, chip: "7", head: `${nmA} handed back ${b} cards` });
+      else if (c === "v") beats.push({ ...obj, chip: "card", head: `${nmA} bought a development card` });
+      else if (c === "y") beats.push({ ...obj, chip: "card", head: `${nmA} played a development card` });
+    }
+    while (last < d.x.s && last < st.N) { last += 1; roll(last, to); }
+    return beats;
+  },
+  /** Open the play-by-play of the moves leading to this decision: the board steps through them, the card says what happened. */
+  _rvPbpOpen(d, ds) {
+    if (!this._st) return;
+    if (!this._st.evIx) this._st.evIx = new Map(this.stats.ev.map((e, i) => [e, i]));
+    this._rvPbp = { i: d.i, j: 0, beats: this._rvBeats(d, ds) };
+    this._rvPbpGo(d, ds, 0);
+  },
+  _rvPbpGo(d, ds, j) {
+    const el = this._rvEl, P = this._rvPbp;
+    if (!el || !P || P.i !== d.i) return;
+    const B = P.beats, n = B.length;
+    if (!n) { this._rvPbp = null; return; }
+    j = Math.max(0, Math.min(n - 1, j)); P.j = j;
+    const b = B[j], me = this._rvPid;
+    const strip = B.map((q, i) => `<button type="button" data-rvbeat="${i}" class="rs-chip pb${i === j ? " on" : ""}${q.who === me ? " mine" : ""}" aria-label="${esc(q.head)}"><span class="pc-${q.who >= 0 ? q.who : me}"><i></i></span><small>${q.chip}</small></button>`).join("");
+    const card = el.querySelector(".rs-card");
+    card.innerHTML = `<div class="rs-h pb-h"><span class="pc-${b.who >= 0 ? b.who : me} pb-dot"><i></i></span><b>${b.head}</b><em>${j + 1} of ${n}</em></div>
+      <p class="rs-s">${b.sub || "&nbsp;"}</p>
+      <div class="rs-strip" role="tablist" aria-label="Moves">${strip}</div>
+      <div class="rs-nav pb-nav"><button type="button" class="rv-btn" data-rvbeatnav="-1" ${j ? "" : "disabled"} aria-label="Previous move">${IC.prev}</button><button type="button" class="rv-btn pri" data-rvbeatnav="1" ${j < n - 1 ? "" : "disabled"} aria-label="Next move">Next${IC.next}</button><button type="button" class="rv-btn" data-rvpbpx>Your decision</button></div>`;
+    card.querySelectorAll("[data-rvbeat]").forEach((x) => x.addEventListener("click", () => this._rvPbpGo(d, ds, +x.dataset.rvbeat)));
+    card.querySelectorAll("[data-rvbeatnav]").forEach((x) => x.addEventListener("click", () => this._rvPbpGo(d, ds, j + +x.dataset.rvbeatnav)));
+    card.querySelector("[data-rvpbpx]").addEventListener("click", () => { this._rvPbp = null; this._rvDrawReview(); });
+    card.querySelector(".rs-strip .on")?.scrollIntoView?.({ inline: "center", block: "nearest" });
+    el.classList.add("pbp");
+    // the board at the moment after this move; a ring on what was just built or moved
+    this._rpSeek(b.s, b.upto);
+    this.boardRenderer?.requestDraw?.();
+    const svg = el.querySelector(".rs-marks"), box = el.querySelector(".rs-board");
+    if (svg && box) {
+      const w = Math.round(box.getBoundingClientRect().width), h = Math.round(box.getBoundingClientRect().height);
+      svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+      const g = this.geometry, V = this.view;
+      let ring = "";
+      if (b.focus) { const p = rvPos(g, b.focus), x = p.x * V.scale + V.offsetX, y = p.y * V.scale + V.offsetY, r = p.hex ? g.hexSize * V.scale * 0.6 : p.edge ? 15 : 18; ring = `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#fff" stroke-width="7"/><circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="var(--accent, #F0B45C)" stroke-width="3.6"/>`; }
+      svg.innerHTML = ring;
+    }
+    el.querySelector(".rs-tog")?.setAttribute("hidden", "");
   },
   _rvBindProg(el) {
     el.querySelector("[data-rvstop]")?.addEventListener("click", () => { this._rvStop(); this._rvLive(true); });

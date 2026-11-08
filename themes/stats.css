@@ -338,7 +338,7 @@ html[data-motion="reduced"] .ls-sheet.in { animation: none; }
 .gs-tile:active { transform: scale(.97); }
 .gs-link { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 44px; margin-top: 2px; border: 0; background: none; color: var(--ink-soft); font: 750 13px var(--font-body); cursor: pointer; }
 .gs-link .ic { width: 16px; height: 16px; }
-.gs-hlc h2 { margin-bottom: 8px; }
+.gs-hlc h2 { margin-bottom: 0; }
 .gs-hlc .gs-hl { margin: 0; }
 /* the review card: the one primary card below the result */
 .gs-revcard { background: var(--sheet); background-image: var(--sheet-image); border: 2px solid var(--primary); border-radius: 18px; box-shadow: var(--float-shadow); margin: 0 0 10px; overflow: hidden; }
@@ -361,3 +361,7 @@ html[data-motion="reduced"] .ls-sheet.in { animation: none; }
 .rv1.gs-revcard .rvb .rv-ring { flex: none; }
 
 .rv1.gs-revcard .rvb .mc { display: block; margin-top: 1px; font-size: 11px; font-weight: 600; line-height: 1.15; white-space: normal; opacity: .9; }
+/* v1.22 Highlights fold away on the end screen */
+.gs-hlc > summary { list-style: none; display: flex; align-items: center; gap: 8px; cursor: pointer; min-height: 32px; } .gs-hlc > summary::-webkit-details-marker { display: none; }
+.gs-hlc > summary h2 { margin: 0; } .gs-hlc > summary small { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--ink-soft); }
+.gs-hlc > summary::after { content: "›"; font-size: 20px; color: var(--ink-soft); transition: transform .15s; } .gs-hlc[open] > summary::after { transform: rotate(90deg); } .gs-hlc[open] > summary { margin-bottom: 8px; }
