@@ -5,11 +5,14 @@
 // still in the race at the end, less one standard error of its paired gap (the best of several noisy
 // estimates is otherwise biased upward). Accuracy per decision is chess.com-style on that loss in
 // percentage points, and the game's accuracy is the mean over the decisions that were a real choice
-// (development-card buys and plays are marked but not scored, see SCORED_KINDS).
+// (development-card buys and plays are scored since the 14-turn look-ahead sees them, see SCORED_KINDS).
 // Forced (nothing else to compare) and trivial (every move within TRIVIAL of the played one) decisions
 // are left out. Player trades, discards and turn starts are not searched (the Master doesn't either).
 import { makeMaster } from "../master/search.js";
 import { explain } from "./why.js";
+import { BOT_BANDS } from "./bands.js";
+import { FMT, LIMITS, SETUP_LIMITS, GREAT, BEST_LEAD, CLASSES, TRIVIAL as TRIV, SE_SHRINK as SHRINK, clsOf, markOfCls, derive, gpOf, avgLost, rescoreResult, unknownRateLabel } from "./score.js";
+export { FMT, LIMITS, SETUP_LIMITS, GREAT, BEST_LEAD, CLASSES, clsOf, markOfCls, gpOf, tradeShow, decide, totals } from "./score.js";
 
 // v1.03 review engines: the ONE place where the depth of the Game review is chosen. After the game there is
 // time, so each decision gets a deeper search than a Master move. `sec`: seconds per decision in a desktop
@@ -27,7 +30,7 @@ export const REVIEW_ENGINES = {
   full: { budget: { n: 1000, timeMs: 12000, depth: 14, setupDepth: 18, leaf: "fit" }, sec: 5, k: 0.10, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end"],
     // v1.16: k 0.10 (stricter curve, was 0.06) and Best = any move under 1 point. Bands re-scored the same way. v1.10 leaf "fit" (a score function fitted on bot games), formula v3 = v2 with k 0.06. Bands: every preset's own moves scored
     // like a human's (the seat plays on as Expert), 300 positions, bootstrap SE (scratchpad step105/tests/an4.py). [name, accuracy, SE]
-    bands: [["Simple", 58, 5], ["Beginner", 54, 4], ["Intermediate", 61, 5], ["Shark", 61, 5], ["Trader", 61, 5], ["Builder", 66, 4], ["Expert", 67, 4], ["Master", 73, 4]] },
+    bands: BOT_BANDS },
   b: { budget: { n: 300, timeMs: 6000, depth: 12, setupDepth: 16 }, sec: 2, bands: null },
   m100: { budget: { n: 160, timeMs: 700, leaf: "fit" }, sec: 0.5, k: 0.08, trivial: 0.02, scored: ["setup", "build", "bank", "robber", "end"], bands: [["Simple", 85], ["Beginner", 86], ["Intermediate", 88], ["Expert", 89]] },
 };
@@ -44,9 +47,8 @@ export const ACC = { a: 103.1668, k: REVIEW.k ?? 0.08, b: 3.1669, ver: 4, get id
 // Development cards (buy / play) are checked and marked but not scored: their value lies mostly beyond the
 // 8-turn look-ahead (a hidden deck, Largest Army later), and scoring them put the bot levels out of order.
 export const SCORED_KINDS = REVIEW.scored || ["setup", "build", "bank", "robber", "end"];
-export const TRIVIAL = REVIEW.trivial ?? 0.02; // every alternative within 2 points of win chance: not a real choice (calibrated)
-export const SE_SHRINK = 1;  // the loss is the best gap less this many standard errors (winner's curse)
-export const MARKS = { inacc: 0.025, miss: 0.06 }; // loss ≥ 2.5 points: could be sharper; ≥ 6: missed chance
+export const TRIVIAL = REVIEW.trivial ?? TRIV; // every alternative within 2 points of win chance: not a real choice (calibrated)
+export const SE_SHRINK = SHRINK;  // the loss is the best gap less this many standard errors (winner's curse)
 export const EVAL_KINDS = ["setup", "build", "bank", "buy", "play", "robber", "end"];
 
 const RL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
@@ -57,27 +59,7 @@ const r4 = (x) => Math.round(x * 1e4) / 1e4;
 export function accuracyOf(loss, k = ACC.k) {
   return Math.max(0, Math.min(100, ACC.a * Math.exp(-k * loss * 100) - ACC.b));
 }
-// v1.05 classes on the win chance a move gave away (points of win chance, 0–1 here). LIMITS: upper bounds, tuned on
-// the full-engine loss distribution (see the v1.05 notes). Best: under 1 point AND the next-best option at least
-// BEST_LEAD behind (else Good). Could be better 2.5–6. Missed chance: you ended the turn or bank-traded while a build or
-// development card was worth 2.5+. Great: outside the set-up, the best move with the next one at least GREAT behind (rare).
-// A decision where every option was within TRIVIAL of the others has no class (no real choice): not counted, not scored.
-export const LIMITS = [[0.01, "best"], [0.025, "good"], [0.06, "could"], [0.12, "mistake"], [Infinity, "blunder"]];
-export const BEST_LEAD = 0; // v1.16: Best is every move under 1 point of loss (it used to need a clear lead over the next option, which made zero-loss moves "Good")
-export const GREAT = 0.08;
-export const CLASSES = ["best", "great", "good", "could", "mistake", "blunder", "missed"];
-export function clsOf(x) {
-  if (!x || x.skip === "forced" || x.skip === "n/a" || x.skip === "error" || x.loss == null) return null;
-  if (x.trivial || x.skip === "trivial") return null;
-  // the class uses the same gap the screen shows: A minus B in whole points (no statistical correction)
-  const gp = x.best && x.win != null ? Math.max(0, Math.round((x.win + x.best.gain) * 100) - Math.round(x.win * 100)) : 0;
-  const loss = gp / 100, lead = x.lead ?? x.spread ?? 0;
-  const c = LIMITS.find(([m]) => loss < m)[1];
-  if (c !== "best" && c !== "good" && ["end", "bank"].includes(x.k) && /^(City|Settlement|Road|Development)/.test(x.best?.label || "")) return "missed";
-  if (c === "best") return lead >= GREAT && (x.cands?.length ?? 0) >= 3 && x.k !== "setup" && x.k !== "end" ? "great" : lead >= BEST_LEAD ? "best" : "good";
-  return c;
-}
-export function markOf(loss) { return loss >= MARKS.miss ? "miss" : loss >= MARKS.inacc ? "inacc" : "good"; }
+// v1.21 classes, the gap in whole percent and the totals live in ./score.js (one definition for every screen).
 
 /** "Road toward 10·12·5": the end of the new road that is not already part of the player's network. */
 function roadLabel(g, p, edgeId) {
@@ -114,8 +96,9 @@ export function playedMove(g, p, rec) {
       return null;
     }
     case "bank": {
+      // v1.21 the label counts CARDS: a 4:1 trade gives 4 (the rate was noted with the trade, or comes from the harbours at that moment)
       const give = {}, get = {};
-      (a.tr || []).forEach(([x, y]) => { give[x] = (give[x] || 0) + 1; get[y] = (get[y] || 0) + 1; });
+      (a.tr || []).forEach(([x, y, rt]) => { give[x] = (give[x] || 0) + (rt || (g.getPlayerTradeRate ? g.getPlayerTradeRate(p, x) : 4)); get[y] = (get[y] || 0) + 1; });
       return { label: `Bank trade ${Object.entries(give).map(([r, n]) => `${n} ${RL[r]}`).join(" + ")} → ${Object.entries(get).map(([r, n]) => `${n} ${RL[r]}`).join(" + ")}`, focus: null,
         apply(gg, q) { for (const [x, y] of a.tr || []) if (!gg.performBankTrade(q, x, y)) return false; return true; } };
     }
@@ -154,20 +137,15 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   const winP = mean(r.vals[0]);
   const wl = (l) => (g._rushPos ? String(l).replace(/^End turn/, "Wait") : l); // Rush has no turn to end: "do nothing now"
   const cands = r.cands.map((x, k) => ({ label: wl(x.label), focus: x.focus || null, m: r.paired[k].m, se: r.paired[k].se, n: r.paired[k].n, fin: finalists.includes(k), win: winP == null ? null : r4(winP + r.paired[k].m) }));
-  let best = 0;
-  cands.forEach((c, k) => { if (k && c.fin && c.n >= 2 && c.m > (best ? cands[best].m : 0)) best = k; });
-  const b = cands[best];
-  const lossRaw = best ? Math.max(0, b.m) : 0;
-  const loss = best ? Math.max(0, b.m - SE_SHRINK * (b.se || 0)) : 0;
-  const spread = Math.max(0, ...cands.filter((c, k) => k && c.n >= 2).map((c) => Math.abs(c.m)));
-  const alts = cands.filter((c, k) => k && c.n >= 2);
-  const lead = alts.length ? Math.max(0, -Math.max(...alts.map((c) => c.m))) : spread; // how far the nearest other option is behind the played one
-  const trivial = spread < TRIVIAL;
+  const d = derive(cands, REVIEW.trivial ?? TRIV);
+  const { best, b, lossRaw, loss, spread, lead, trivial } = d;
   // v1.11 the likely reason A was stronger, read from the position (src/review/why.js); null when nothing clear separates them
   const why = best && !trivial && b.m >= 0.01 ? explain(g, p, rec, { label: b.label, focus: b.focus }, { label: played.label, focus: played.focus || null }) : null;
-  return { ...base, rush: g._rushPos || undefined, why, label: played.label, focus: played.focus || null, win: winP == null ? null : r4(winP), best: best ? { label: b.label, focus: b.focus, gain: r4(b.m), se: b.se, seats: r.seats?.[best] || null } : null, seats: r.seats?.[0] || null,
-    loss: r4(loss), lossRaw: r4(lossRaw), spread: r4(spread), lead: r4(lead), trivial, skip: trivial ? "trivial" : null, acc: trivial || !scored.includes(rec.k) ? null : Math.round(accuracyOf(lossRaw) * 10) / 10,
-    mark: trivial ? "good" : markOf(loss), cands, futures: r.vals[0].filter((v) => v != null).length, rollouts: r.rollouts, ms };
+  const res = { ...base, rush: g._rushPos || undefined, why, label: played.label, focus: played.focus || null, move: { k: rec.k, a: rec.a || {} }, win: winP == null ? null : r4(winP), best: best ? { label: b.label, focus: b.focus, gain: r4(b.m), se: b.se, seats: r.seats?.[best] || null } : null, seats: r.seats?.[0] || null,
+    loss, lossRaw, spread, lead, trivial, skip: trivial ? "trivial" : null, acc: trivial || !scored.includes(rec.k) ? null : Math.round(accuracyOf(lossRaw) * 10) / 10,
+    cands, futures: r.vals[0].filter((v) => v != null).length, rollouts: r.rollouts, ms };
+  res.mark = trivial ? "good" : markOfCls(clsOf(res)); // the old three-way mark, now from the same class as everywhere
+  return res;
 }
 
 /** The game's numbers from the per-decision results. */
@@ -183,9 +161,35 @@ export function gameAccuracy(results) {
 export function summarize(results) {
   const real = results.filter((x) => x.acc != null);
   const acc = gameAccuracy(results);
-  const count = { good: 0, inacc: 0, miss: 0 };
-  results.filter((x) => x.mark).forEach((x) => { count[x.mark] += 1; });
   const cls = Object.fromEntries(CLASSES.map((c) => [c, 0]));
   results.forEach((x) => { const c = clsOf(x); if (c) cls[c] += 1; });
-  return { acc: acc == null ? null : Math.round(acc), n: real.length, checked: results.length, count, cls };
+  const count = { good: 0, inacc: 0, miss: 0 };
+  results.forEach((x) => { const c = clsOf(x); if (c) count[markOfCls(c)] += 1; });
+  return { acc: acc == null ? null : Math.round(acc), n: real.length, checked: results.length, count, cls, lost: avgLost(results) };
+}
+
+// ── v1.21 saved reviews: the same numbers and words for every review, old or new ──
+/** A result that still needs the deep (full) engine: it comes from the quick round (m100) and is a real choice, or the score function (leaf) it was judged by is not the current one. */
+export const needsFull = (x) => !["forced", "n/a"].includes(x.skip) && ((x.eng || "full") === "m100" || (x.leaf || "v1") !== (REVIEW.budget.leaf || "v1"));
+const TODO_KINDS = ["setup", "build", "bank", "buy", "play", "robber", "end"];
+/** The recorded decisions of one person that the review checks (record index i). */
+export const todoOf = (recs, pid) => (recs || []).map((r, i) => [r, i]).filter(([r]) => r.pid === pid && TODO_KINDS.includes(r.k) && !(r.k === "build" && r.a?.free));
+/** Where a review stands: complete (every decision has its deep result), stale (judged by an old score function), checked/total, deep/total. */
+export function reviewStatus(recs, rv) {
+  const todo = todoOf(recs, rv?.pid), res = rv?.results || [];
+  const at = (i) => res.find((y) => y.i === i);
+  const complete = !!rv && todo.length > 0 && todo.every(([, i]) => { const x = at(i); return !!x && !needsFull(x); });
+  const stale = res.some((r) => r.eng === REVIEW_ENGINE && (r.leaf || "v1") !== (REVIEW.budget.leaf || "v1"));
+  return { complete, stale, todo: todo.length, deep: res.filter((x) => !needsFull(x)).length, any: res.length > 0 };
+}
+/** Bring a saved review to the current format from its own candidates (no engine): the gap, class inputs, accuracy and bank-trade labels.
+ *  Stamps rv.fmt. Returns true when it changed something. */
+export function rescoreReview(rv) {
+  if (!rv?.results || rv.fmt === FMT) return false;
+  rv.results = rv.results.map((x) => {
+    const E = REVIEW_ENGINES[x.eng || REVIEW_ENGINE] || REVIEW;
+    return rescoreResult(x, { trivial: E.trivial ?? TRIV, scored: x.eng && x.eng !== REVIEW_ENGINE ? E.scored || SCORED_KINDS : SCORED_KINDS, acc: (l) => accuracyOf(l) });
+  });
+  rv.fmt = FMT;
+  return true;
 }

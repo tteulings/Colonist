@@ -172,6 +172,7 @@
 .rs-sum { display: grid; gap: 8px; }
 .rs-acc { text-align: center; } .rs-acc .n { font: var(--display-weight, 700) 44px/1 var(--font-display); color: var(--heading); } .rs-acc .l { font-size: 11.5px; font-weight: 750; color: var(--ink-soft); }
 .rs-sl { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } .rs-sl > div { background: var(--chip); border: var(--chip-border); border-radius: 12px; padding: 6px 10px; } .rs-sl small { display: block; font-size: 11px; font-weight: 700; color: var(--ink-soft); } .rs-sl b { font: var(--display-weight, 700) 22px/1.1 var(--font-display); }
+.rs-lost { margin: 0; font-size: 12px; line-height: 1.35; font-weight: 650; color: var(--ink-soft); }
 .rs-cnts { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .rs-cnt { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 0 5px; align-items: center; padding: 4px 6px; border-radius: 10px; background: var(--chip); border: var(--chip-border); } .rs-cnt.zero { opacity: .45; }
 .rs-cnt b { font: 800 15px/1 var(--font-body); color: var(--heading); } .rs-cnt small { grid-column: 1 / -1; font-size: 11px; line-height: 1.1; font-weight: 700; color: var(--ink-soft); white-space: normal; }

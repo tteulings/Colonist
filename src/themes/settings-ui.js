@@ -5,7 +5,7 @@
 import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, paletteAuto, paletteAutoMode, autoTimeInfo, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "1.20";
+export const APP_VERSION = "1.21";
 
 /** One line of real viewport numbers for bug reports (Settings › About). */
 function viewportDebug() {
@@ -114,7 +114,7 @@ export class SettingsUI {
       body.innerHTML = this.head("Bot personalities", "");
       body.appendChild(this.botPane);
     } else if (this.tab === "about") {
-      body.innerHTML = this.head("About", "") + `<p class="sub">Colonist ${"v" + APP_VERSION} — a settle-and-trade island game against friendly bots.</p>
+      body.innerHTML = this.head("About", "") + `<p class="sub">Katan: Handelaren en Bouwers ${"v" + APP_VERSION} — a settle-and-trade island game against friendly bots.</p>
         <button type="button" class="st-howto">${icon("hint")}How to play</button>
         <p class="sub">Keyboard: R roll dice · E end turn · 1–3 build · B buy card · T trade · V fit board · Esc cancel.</p>
         <p class="sub st-screen">Screen: ${innerWidth}×${innerHeight} @${+(window.devicePixelRatio || 1).toFixed(2)}x${matchMedia("(display-mode: standalone)").matches ? " · installed app" : ""}</p>

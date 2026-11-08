@@ -9,15 +9,17 @@
 //         With 4 equal bots every seat wins 25%.
 //   Master +8.4 ±5.4 pp win chance vs the Expert in the same seat against 3 Experts (n=500, CRN harness,
 //         v0.91); its own seat wins 33.4% ±4.1 there.
-//   review accuracy (FULL review engine, 16 games each): Simple 78, Beginner 82, Intermediate 88, Expert 88,
-//         Master 91.
+//   review accuracy: src/review/bands.js (one source with the review screen's bot band; the bots' own moves scored by the
+//         deep Monte Carlo check, k 0.10, [accuracy, SE]). v1.21: the old 78-91 figures were from the first calibration.
+
+import { botBand } from "./review/bands.js";
 
 export const BOT_STRENGTH_SOURCE = "One bot vs 3 Intermediate bots, 4 players, 10 VP, 2000 games (500 seeds x 4 seats), v1.03 code. Equal bots win 25% each.";
 
-/** level: 1–5 dots (from the measured win rate), win: { p, ci } vs 3 Intermediate, acc: review accuracy % */
+/** level: 1–5 dots (from the measured win rate), win: { p, ci } vs 3 Intermediate, acc: [review accuracy, SE] from src/review/bands.js */
 export const BOT_PROFILES = {
   beginner: {
-    label: "Beginner", tagline: "gentle, learns rules", level: 2, win: { p: 11.2, ci: 1.4 }, acc: 82,
+    label: "Beginner", tagline: "gentle, learns rules", level: 2, win: { p: 11.2, ci: 1.4 }, acc: botBand("Beginner"),
     style: "Settles on the biggest numbers and builds whatever it can afford, in a fixed order: settlement, city, road, card.",
     good: "Never sits on a full hand: it builds as soon as it can.",
     weak: "No plan: it doesn't save up for cities and spends on roads. It ignores the score, so it never slows down a leader.",
@@ -27,7 +29,7 @@ export const BOT_PROFILES = {
     cards: "Buys cards with spare cards; plays a Knight when the robber is on its own tile or it takes Largest Army.",
   },
   simple: {
-    label: "Simple", tagline: "plays by 7 rules", level: 1, win: { p: 4.7, ci: 0.9 }, acc: 78,
+    label: "Simple", tagline: "plays by 7 rules", level: 1, win: { p: 4.7, ci: 0.9 }, acc: botBand("Simple"),
     style: "A checklist bot: each turn it walks 7 rules top to bottom (city, settlement, Knight, road, card, one bank trade, end turn) and does the first that fits.",
     good: "Completely predictable: perfect to learn the game against, and the AI panel shows which rule fired.",
     weak: "Weakest bot. It buys development cards but only ever plays a Knight (when the robber sits on its tile); Monopoly, Year of Plenty and Road Building stay in its hand.",
@@ -37,7 +39,7 @@ export const BOT_PROFILES = {
     cards: "Buys a card whenever it can; plays only Knights.",
   },
   intermediate: {
-    label: "Intermediate", tagline: "solid all-rounder", level: 3, win: { p: 25.0, ci: 1.9 }, acc: 88,
+    label: "Intermediate", tagline: "solid all-rounder", level: 3, win: { p: 25.0, ci: 1.9 }, acc: botBand("Intermediate"),
     style: "Plans its next build (settlement, city or card) by what pays off soonest and saves its cards for it.",
     good: "Mixes resources and ports when it settles, and makes fair deals that help its plan.",
     weak: "No race for Longest Road or Largest Army, and it plays cards only when the use is obvious.",
@@ -47,7 +49,7 @@ export const BOT_PROFILES = {
     cards: "Buys with spare cards; plays one when the use is obvious (robber on its tile, Largest Army in reach, Monopoly for a big haul).",
   },
   expert: {
-    label: "Expert", tagline: "plays to win", level: 4, win: { p: 41.1, ci: 2.2 }, acc: 88,
+    label: "Expert", tagline: "plays to win", level: 4, win: { p: 41.1, ci: 2.2 }, acc: botBand("Expert"),
     style: "The Intermediate's planner, plus it races for Longest Road, aims for 2:1 harbours and avoids tiles the robber likes.",
     good: "Chases Largest Army, saves Monopoly for the biggest haul, and plays a Knight before rolling when that pays.",
     weak: "Won't deal with anyone 2 points ahead of it, so it can get stuck on one resource. It guesses your hand only from what everyone can see.",
@@ -57,7 +59,7 @@ export const BOT_PROFILES = {
     cards: "Strategic: builds toward Largest Army, holds Road Building for roads its plan needs.",
   },
   trader: {
-    label: "Trader", tagline: "deals all game", level: 3, win: { p: 29.1, ci: 2.0 }, acc: null,
+    label: "Trader", tagline: "deals all game", level: 3, win: { p: 29.1, ci: 2.0 }, acc: botBand("Trader"),
     style: "An Intermediate that lives at the market: it makes offers every turn, to everyone, and keeps dealing after it has built.",
     good: "Finishes builds early: it pays 2-for-1 when that completes a build right now.",
     weak: "Spends cards on deals, and every deal it makes also helps someone else.",
@@ -67,7 +69,7 @@ export const BOT_PROFILES = {
     cards: "Reactive: buys with spare cards, plays them when the use is obvious.",
   },
   builder: {
-    label: "Builder", tagline: "roads & cities", level: 4, win: { p: 36.7, ci: 2.1 }, acc: null,
+    label: "Builder", tagline: "roads & cities", level: 4, win: { p: 36.7, ci: 2.1 }, acc: botBand("Builder"),
     style: "The Expert's eye for the board (placement, harbours, Longest Road race) with only reactive cards and basic awareness.",
     good: "Expands fast and well: roads up to 4 steps toward its next spot, and it goes for Longest Road.",
     weak: "Doesn't chase Largest Army and only watches the score roughly, so it is late to stop a runaway leader.",
@@ -77,7 +79,7 @@ export const BOT_PROFILES = {
     cards: "Reactive: buys with spare cards, plays them when the use is obvious.",
   },
   shark: {
-    label: "Shark", tagline: "hunts the leader", level: 3, win: { p: 28.8, ci: 2.0 }, acc: null,
+    label: "Shark", tagline: "hunts the leader", level: 3, win: { p: 28.8, ci: 2.0 }, acc: botBand("Shark"),
     style: "An Intermediate builder with the Expert's sharp eyes: it tracks the score and the public card counts and goes after whoever leads.",
     good: "Robber and Knights hit the leader, it chases Largest Army, and it won't deal with anyone 2+ points ahead of it.",
     weak: "Plainer settling and planning than the Expert, and no race for Longest Road.",
@@ -87,7 +89,7 @@ export const BOT_PROFILES = {
     cards: "Strategic: builds toward Largest Army, saves Monopoly for a big haul.",
   },
   master: {
-    label: "Master", tagline: "Expert + looks ahead", level: 5, win: null, acc: 91,
+    label: "Master", tagline: "Expert + looks ahead", level: 5, win: null, acc: botBand("Master"),
     style: "Plays like the Expert, but before each set-up spot, build step and robber move it plays out about 100 possible futures (up to half a second) and picks what wins most.",
     good: "Strongest bot: in the same seat it wins 8.4 percentage points more often than an Expert (±5.4, 500 games against 3 Experts).",
     weak: "Player trades are the Expert's own. In Seafarers it plays exactly like the Expert. In Rush its search is capped at a quarter of a second a move, and with 5–6 players it gets fewer playouts in its half second, so its edge there is smaller and not measured.",

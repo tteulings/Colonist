@@ -1,6 +1,6 @@
 {
-  "name": "Colonist",
-  "short_name": "Colonist",
+  "name": "Katan: Handelaren en Bouwers",
+  "short_name": "Katan",
   "description": "Catan-style board game against AI opponents.",
   "start_url": "./",
   "scope": "./",
