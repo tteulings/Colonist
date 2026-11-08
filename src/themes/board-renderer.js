@@ -890,11 +890,13 @@ export class SvgBoardRenderer {
     const p = this.nodeArt(id);
     ctx.save(); ctx.translate(p.x, p.y);
     ctx.globalAlpha = alpha;
-    ctx.beginPath(); ctx.arc(0, 0, 27, 0, Math.PI * 2); ctx.fillStyle = "rgba(251,246,234,.3)"; ctx.fill();
-    ctx.setLineDash([5, 4]); ctx.lineWidth = 2; ctx.strokeStyle = "#FBF6EA"; ctx.stroke(); ctx.setLineDash([]);
+    const picked = alpha >= 1; // v1.20 the chosen spot: a bolder dashed ring on a dark under-ring and a see-through piece, so it never reads as built
+    ctx.beginPath(); ctx.arc(0, 0, 27, 0, Math.PI * 2); ctx.fillStyle = picked ? "rgba(251,246,234,.42)" : "rgba(251,246,234,.3)"; ctx.fill();
+    if (picked) { ctx.lineWidth = 5; ctx.strokeStyle = "rgba(20,30,40,.4)"; ctx.stroke(); }
+    ctx.setLineDash([5, 4]); ctx.lineWidth = picked ? 3 : 2; ctx.strokeStyle = "#FBF6EA"; ctx.stroke(); ctx.setLineDash([]);
     ctx.translate(0, type === "city" ? -4 : -3);
     ctx.scale(this.pieceScale * PIECE_GROW, this.pieceScale * PIECE_GROW);
-    drawSpec(ctx, type === "city" ? T.pieces.city(c) : T.pieces.settlement(c), { alpha: 0.75 * alpha, k: devK });
+    drawSpec(ctx, type === "city" ? T.pieces.city(c) : T.pieces.settlement(c), { alpha: (picked ? 0.62 : 0.75) * alpha, k: devK });
     ctx.restore();
   }
 
