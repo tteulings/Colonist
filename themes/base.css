@@ -2563,3 +2563,4 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
 .dice-tray.fx-hold :is(.die-svg, .sum, .dl) { visibility: hidden; }
 .dice-tray.land .sum { animation: sumPop 320ms var(--ease-pop, cubic-bezier(.3,1.3,.6,1)); }
 @keyframes sumPop { from { transform: scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }
+.hm-brand h1 .hm-sub { display: block; font-size: .42em; font-weight: 600; letter-spacing: .04em; opacity: .9; margin-top: 2px; }
