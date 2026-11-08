@@ -171,7 +171,7 @@ export function makeMaster(opts = {}) {
     Object.keys(RES).forEach((r) => { res[r] = p.resources[r] - pl.res[r]; });
     return { sett, cities, roads, devBought, res };
   };
-  const sig = (g, p) => `${[...p.settlements].sort()}|${[...p.cities].sort()}|${[...p.roads].sort()}|${JSON.stringify(p.resources)}|${JSON.stringify(p.devCards)}|${JSON.stringify(p.newDevCards)}`;
+  const sig = (g, p) => `${[...p.settlements].sort()}|${[...p.cities].sort()}|${[...p.roads].sort()}|${p.ships ? [...p.ships].sort() : ""}|${JSON.stringify(p.resources)}|${JSON.stringify(p.devCards)}|${JSON.stringify(p.newDevCards)}`;
   const tradeText = (tr) => {
     const give = {}, get = {};
     tr.forEach(([a, b]) => { give[a] = (give[a] || 0) + 1; get[b] = (get[b] || 0) + 1; });
@@ -220,7 +220,8 @@ export function makeMaster(opts = {}) {
   agent.decideRobber = (g, p) => {
     const all = g._aiRobberCandidates(p).sort((a, b) => b.score - a.score);
     const def = g.chooseRobberHex(p);
-    const ids = [def, ...all.map((c) => c.id).filter((id) => id !== def)].slice(0, o.topRobber);
+    const pir = g.sea ? g.sea.legalThiefHexes(p, "pirate").filter((h) => h.resource === "sea" && g.sea.shipVictims(h.id, p).length).map((h) => h.id) : []; // v1.19 Seafarers: pirate hexes that rob someone
+    const ids = [def, ...all.map((c) => c.id).filter((id) => id !== def), ...pir.slice(0, 2).filter((id) => id !== def)].slice(0, o.topRobber + (pir.length ? 2 : 0));
     if (ids.length <= 1) return null;
     seedRng(g, p);
     stats.decisions++;
@@ -249,7 +250,26 @@ export function makeMaster(opts = {}) {
         if (tr && tr.length) out.push({ kind: "tradebuild", i, tr, g: keyOf(goal) });
       }
     });
+    if (g.sea) seaMoves(g, p, plan).forEach((m) => out.push({ kind: "shipmove", from: m.from, to: m.to }));
     return { plan, cands: out };
+  };
+  /** v1.19 Seafarers: the free ship move (once per turn) is a candidate too: the few moves that raise the sea potential
+   *  (the Expert's own measure, src/seafarers/ai.js) most, or free a dead-end ship. Not a ship built this turn, never the pirate's. */
+  const seaMoves = (g, p, plan) => {
+    const sea = g.sea;
+    if (!sea.canMoveNow(p) || !p.ships?.size) return [];
+    const spots = sea._seaSpotList(p);
+    if (!spots.length) return [];
+    const base = sea._seaPotential(p, spots).v, out = [];
+    for (const from of sea.movableShips(p)) {
+      for (const to of sea.moveTargets(p, from)) {
+        const e = g.geometry.edges[from], t = g.geometry.edges[to];
+        e.owner = null; e.ship = false; p.ships.delete(from); t.owner = p.id; t.ship = true; p.ships.add(to);
+        let v; try { v = sea._seaPotential(p, spots).v; } finally { t.owner = null; t.ship = false; p.ships.delete(to); e.owner = p.id; e.ship = true; p.ships.add(from); }
+        if (v > base + 0.5) out.push({ from, to, v });
+      }
+    }
+    return out.sort((a, b) => b.v - a.v).slice(0, 3);
   };
   /** Apply a main-phase candidate. true: done; false: illegal; "noop": the Expert's step does nothing
    *  (it would end its turn). */
@@ -257,6 +277,7 @@ export function makeMaster(opts = {}) {
     if (c.kind === "end") return true;
     if (c.kind === "policy") return g._aiPlannedStep(p) ? true : "noop";
     if (c.kind === "dev") return g.playDevelopmentCard(p, c.t) !== false;
+    if (c.kind === "shipmove") return !!g.sea && g.sea.moveShip(p, c.from, c.to);
     const goal = findGoal(g._aiPlan(p), c.g);
     if (!goal) return false;
     if (c.kind === "tradebuild") for (const [give, get] of c.tr) if (!g.performBankTrade(p, give, get)) return false;
@@ -282,6 +303,7 @@ export function makeMaster(opts = {}) {
           label = d ? d.label : "End turn (saves its cards)"; focus = d?.focus || null;
         } else if (c.kind === "end") { label = "End turn"; }
         else if (c.kind === "dev") { label = `Play ${DEV[c.t]}`; }
+        else if (c.kind === "shipmove") { label = "Move a ship"; focus = { edge: c.to }; }
         else {
           const goal = findGoal(plan, c.g);
           const gn = goal ? goalName(g, goal) : "Build";

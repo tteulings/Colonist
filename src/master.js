@@ -83,8 +83,9 @@ export const MasterMixin = {
       && this._searchGame();
   },
   /** A game the search covers: the island board, 2–6 players, Classic or Rush (Rush is searched as turn-based play, see rushToTurns
-   *  in src/review/engine.js). Seafarers is not covered yet. */
-  _searchGame() { return !this.sea; },
+   *  in src/review/engine.js). v1.19 Seafarers (Heading for New Shores) is searched too, phase 1: set-up spot, builds, ships and the free
+   *  ship move, robber / pirate; the set-up ship and gold picks stay with the Expert. */
+  _searchGame() { return true; },
   /** Load the worker early when the table has a Master (the first decision then doesn't wait for it). */
   _masterWarm() { if (this.players?.some((p) => this._masterLive(p))) masterWorker(); },
 
