@@ -74,21 +74,21 @@
       })();
     </script>
     <!-- legacy styles in a low-priority cascade layer: the themed CSS below always wins -->
-    <style>@import url("./styles.css?v=117") layer(legacy);</style>
-    <link rel="stylesheet" href="./themes/base.css?v=117" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=117" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=117" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=117" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=117" />
-    <link rel="stylesheet" href="./themes/six.css?v=117" />
-    <link rel="stylesheet" href="./themes/seafarers.css?v=117" />
-    <link rel="stylesheet" href="./themes/hotseat.css?v=117" />
-    <link rel="stylesheet" href="./themes/stats.css?v=117" />
-    <link rel="stylesheet" href="./themes/review.css?v=117" />
-    <link rel="stylesheet" href="./themes/sunny-night.css?v=117" />
-    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=117" />
-    <link rel="stylesheet" href="./themes/profiles.css?v=117" />
-    <link rel="stylesheet" href="./themes/history.css?v=117" />
+    <style>@import url("./styles.css?v=118") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=118" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=118" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=118" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=118" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=118" />
+    <link rel="stylesheet" href="./themes/six.css?v=118" />
+    <link rel="stylesheet" href="./themes/seafarers.css?v=118" />
+    <link rel="stylesheet" href="./themes/hotseat.css?v=118" />
+    <link rel="stylesheet" href="./themes/stats.css?v=118" />
+    <link rel="stylesheet" href="./themes/review.css?v=118" />
+    <link rel="stylesheet" href="./themes/sunny-night.css?v=118" />
+    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=118" />
+    <link rel="stylesheet" href="./themes/profiles.css?v=118" />
+    <link rel="stylesheet" href="./themes/history.css?v=118" />
   </head>
   <body>
     <div class="app" id="app">
@@ -244,6 +244,7 @@
               <button class="btn ghost icon-only" id="buildSheetClose" aria-label="Close"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-close" x="-50" y="-50" width="100" height="100"/></svg></button></div>
             <button id="buildRoadBtn" class="bbtn" data-build="road"><span class="kbd">1</span><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-road" x="-50" y="-50" width="100" height="100"/></svg><span class="bl">Road</span><span class="need" data-cost="road"></span><span class="left"></span></button>
             <button id="buildShipBtn" class="bbtn sea-only" data-build="ship"><span class="kbd">4</span><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-ship" x="-50" y="-50" width="100" height="100"/></svg><span class="bl">Ship</span><span class="need" data-cost="ship"></span><span class="left"></span></button>
+            <button id="moveShipBtn" class="bbtn sea-only" type="button"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-ship" x="-50" y="-50" width="100" height="100"/></svg><span class="bl">Move ship</span><span class="left"></span></button>
             <button id="buildSettlementBtn" class="bbtn" data-build="settlement"><span class="kbd">2</span><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-settlement" x="-50" y="-50" width="100" height="100"/></svg><span class="bl">Settlement</span><span class="need" data-cost="settlement"></span><span class="left"></span></button>
             <button id="buildCityBtn" class="bbtn" data-build="city"><span class="kbd">3</span><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-city" x="-50" y="-50" width="100" height="100"/></svg><span class="bl">City</span><span class="need" data-cost="city"></span><span class="left"></span></button>
             <button id="buyDevBtn" class="bbtn" data-build="development"><span class="kbd">B</span><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-devcard" x="-50" y="-50" width="100" height="100"/></svg><span class="bl">Buy card</span><span class="need" data-cost="development"></span><span class="left"></span></button>
@@ -322,7 +323,7 @@
     </div>
     <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=117"></script>
+    <script type="module" src="./src/game.js?v=118"></script>
     <script>
       // Updates: sw.js and its imports are never taken from the HTTP cache (updateViaCache), the
       // registration is re-checked whenever the app comes back to the foreground, and a new

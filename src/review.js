@@ -25,17 +25,20 @@ const now = () => (typeof performance !== "undefined" ? performance.now() : Date
 export const ReviewMixin = {
   /** Is anything recorded in this game? (a person plays, Classic island, not the lab / a replay) */
   _rvOn() {
-    return !this._rvOff && !this.labMode && !this._replay && !!this.stats && !this.sea && !this.isRush?.()
+    return !this._rvOff && !this.labMode && !this._replay && !!this.stats && !this.sea
       && !!this.players?.some((p) => p.isHuman) && !this.winner;
   },
-  /** The review covers this kind of game at all (the end screen shows nothing otherwise). */
-  _rvCovered() { return !this.sea && !this.isRush?.(); },
+  /** The review covers this kind of game at all (the end screen shows nothing otherwise). v1.17: Classic and Rush, 2–6 players. */
+  _rvCovered() { return !this.sea; },
+  /** "Turn", or "Roll" in Rush (a Rush record's t is the roll number). */
+  _rvTW() { return this.isRush?.() ? "Roll" : "Turn"; },
 
   _rvReset(id = this.stats?.id) { if (this._rv?.run) this._rv.run.stop = true; this._rvListener = null; this._rv = { id: id || null, base: null, recs: [], res: null, busy: false, ms: 0 }; },
 
   /** The position before a decision. */
   _rvPre(player) {
     if (!this._rvOn() || !player?.isHuman) return null;
+    if (this.phase === "sbp") return null; // 5–6 players: moves in the build window between turns are not checked (it is nobody's turn there)
     if (!this._rv || this._rv.id !== this.stats.id) this._rvReset();
     const t0 = now();
     try {
@@ -43,8 +46,9 @@ export const ReviewMixin = {
       const s = this.serializeState();
       if (!this._rv.base) this._rv.base = { hexes: s.hexes, ports: s.ports, settings: s.settings };
       s.hexes = s.ports = s.settings = s.stats = s.logEntries = undefined;
+      if (s.rush) s.rush = null; // Rush: the clock, offers and Ready votes are not part of a position (the search plays it turn by turn)
       const trk = this._aiCardTrack?.players === this.players ? this._aiCardTrack.est.map((e) => ({ ...e })) : null;
-      const pre = { pid: player.id, t: this.turn, s: this.stats.steps.length, e: this.stats.ev.length, ts: this.turnSerial, st: JSON.stringify(s), trk };
+      const pre = { pid: player.id, t: this.turn, s: this.stats.steps.length, e: this.stats.ev.length, ts: this.rush ? this.rush.rollNo : this.turnSerial, st: JSON.stringify(s), trk };
       this._rv.ms += now() - t0;
       return pre;
     } catch (_) { return null; }

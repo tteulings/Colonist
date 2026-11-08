@@ -54,8 +54,8 @@ function rvMarks(game, d, Af, Bf) {
 }
 
 export const ReviewGameMixin = {
-  /** The review is offered for a Classic game of up to 4 players (what the Master's search covers). */
-  _rvReviewable() { return !!this._rv?.recs?.length && this._rvCovered() && this.players.length <= 4; },
+  /** The review is offered for every island game with a person at the table (v1.17: Rush and 5–6 players too; Seafarers not yet). */
+  _rvReviewable() { return !!this._rv?.recs?.length && this._rvCovered(); },
 
   /** The one person a review can start for by itself: Classic, one human, not Rush, not pass & play. */
   _rvSoloPid() {
@@ -70,7 +70,7 @@ export const ReviewGameMixin = {
     return on && this.winner && reviewAvailable() ? this._rvSoloPid() : null;
   },
   /** v1.04 Menu › Check my moves so far: one person, Classic, not Rush, not pass & play, something to check. */
-  _rvMidPid() { return this.winner || this.home?.open ? null : this._rvSoloPid(); },
+  _rvMidPid() { return this.winner || this.home?.open || this.isRush?.() ? null : this._rvSoloPid(); }, // not in Rush: the clock keeps running
   _rvMidSub() {
     const pid = this._rvMidPid();
     if (pid == null) return "";
@@ -304,7 +304,9 @@ export const ReviewGameMixin = {
       <p><b>Accuracy</b> is how much win chance your moves kept against the best move the Master bot found (100 = always the best), scored on the same gap A minus B. Decisions with more at stake count more, and the game score is the average of the weighted mean and the harmonic mean, so a few big mistakes pull it down. The bar starts at 50; a lower score is pinned to the left edge and labelled. One game is a rough measure (about ± 8).</p>
       <p><b>The bots</b>: the band is how accurate the bots are on their own decisions with this same check${bands}. Your average over 5+ games is compared with it. Checking the bots in your game needs their moves recorded, which is not done yet.</p>
       <p><b>A check during the game</b> keeps its moves for the review at the end, but that game stays out of your average. The board is shown after the game.</p>
-      <p><b>Provisional</b> is the quick look (about half a second a move). The deep check (about ${REVIEW.sec} s a move) follows, biggest differences first, and the numbers shift as it goes.</p></div>`;
+      <p><b>Provisional</b> is the quick look (about half a second a move). The deep check (about ${REVIEW.sec} s a move) follows, biggest differences first, and the numbers shift as it goes.</p>${this.isRush?.() ? `
+      <p><b>Approximate in Rush</b>: Rush has no turns, so each move you made is checked as if it were your turn in a Classic game: the same position, then the table plays on turn by turn with one dice roll per turn. A roll in the list is the roll interval you moved in. “Wait” means building nothing right then. Not modelled: the clock, several players moving within one interval, and a spot lost to a faster bot. In a test of 17 positions the Rush-shaped and the turn-by-turn futures ranked the moves no differently than two runs of the same method do, but treat the numbers as a guide, not a verdict. Turn starts and End turn do not exist here, so they are not checked.</p>` : ""}${this.players.length >= 5 ? `
+      <p><b>5–6 players</b>: moves in the build window between turns are not checked (it is nobody's turn there). The check looks 14 turns ahead, which is ${(14 / this.players.length).toFixed(1)} rounds at this table (3.5 with four players), and with more players fewer futures fit in the time.</p>` : ""}</div>`;
     const close = () => { this._rvInfoOpen = false; d.remove(); };
     d.addEventListener("click", (e) => { if (e.target === d) close(); });
     d.querySelector("[data-rvinfo-x]").addEventListener("click", close);
@@ -327,7 +329,7 @@ export const ReviewGameMixin = {
     return ds;
   },
   _rvTotals(ds) { return { moves: -ds.reduce((a, d) => a + d.gap, 0), luck: ds.reduce((a, d) => a + d.chance, 0) }; },
-  _rvWhen(d) { return d.k === "setup" ? "Setup" : `Turn ${d.t}`; },
+  _rvWhen(d) { return d.k === "setup" ? "Setup" : `${this._rvTW()} ${d.t}`; },
   _rvLine(d) {
     const x = d.x, who = this.hotseat ? esc(this.players[this._rvPid].name) : "You", lc = (t) => t.charAt(0).toLowerCase() + t.slice(1), gain = `+${Math.round(d.gap * 100)}%`;
     if (d.cls === "triv") return "No real choice: every option was about as good.";
@@ -380,7 +382,7 @@ export const ReviewGameMixin = {
     const dots = ds.map((d, k) => `<circle cx="${X(k).toFixed(1)}" cy="${Y(d.win).toFixed(1)}" r="${["best", "great", "good", "triv"].includes(d.cls) ? 2.4 : 4}" class="gd c-${d.cls}"/>`).join("");
     const curL = cur >= 0 && ds[cur] ? `<line x1="${X(cur)}" x2="${X(cur)}" y1="${top - 2}" y2="${h - (axis ? 12 : 2)}" class="g-sel"/><circle cx="${X(cur)}" cy="${Y(ds[cur].win)}" r="6" class="g-cur"/>` : "";
     const hit = ds.map((d, k) => `<rect data-rvj="${d.i}" x="${(X(k) - (X1 - X0) / Math.max(1, n) / 2).toFixed(1)}" y="0" width="${((X1 - X0) / Math.max(1, n)).toFixed(1)}" height="${h}" fill="transparent"/>`).join("");
-    const lab = (d) => (d.k === "setup" ? "setup" : `turn ${d.t}`);
+    const lab = (d) => (d.k === "setup" ? "setup" : `${this._rvTW().toLowerCase()} ${d.t}`);
     return `<svg class="rs-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Win chance of every player after each of your decisions; bars: table and your moves">${grid}${others}<path d="${line((d) => d.win)} L${X(n - 1)},${Y(0)} L${X(0)},${Y(0)}Z" class="g-area"/><path d="${line((d) => d.win)}" class="g-line"/>${barSvg}${dots}${curL}${hit}${axis ? `<text x="${X0}" y="${h - 1}" class="g-ax">${lab(ds[0])}</text><text x="${X1}" y="${h - 1}" text-anchor="end" class="g-ax">${lab(ds[n - 1])}</text>` : ""}</svg>`;
   },
   /** The stacked bar: one segment per player in their colour (sum 100 %), yours at the bottom, outlined, with your % beside it. */
@@ -423,8 +425,8 @@ export const ReviewGameMixin = {
     const lk = ds.slice().sort((a, b) => Math.abs(b.chance) - Math.abs(a.chance))[0];
     const key = (lk && Math.abs(lk.chance) >= 0.03 ? `<button type="button" class="rs-key" data-rvj="${lk.i}"><i class="rs-b c-luck sm" aria-hidden="true">⚄</i><span class="t">${this._rvWhen(lk)}</span><span class="x">${esc(this._rvCause(ds, ds.indexOf(lk)))}</span><b class="${lk.chance >= 0 ? "pos" : "neg"}">${sg(lk.chance)}%</b>${ico}</button>` : "");
     const groups = [];
-    ds.forEach((d) => { const key2 = d.k === "setup" ? "Setup" : `Turn ${d.t}`; let g = groups[groups.length - 1]; if (!g || g.key !== key2) groups.push((g = { key: key2, items: [] })); g.items.push(d); });
-    const rows = groups.map((g) => `<div class="rs-trow"><span class="t">${g.key === "Setup" ? "Setup" : g.key.replace("Turn ", "T")}</span><div>${g.items.map((d) => `<button type="button" class="rs-mv c-${d.cls}" data-rvj="${d.i}" data-rvq="all"${d.cls === "triv" ? ' aria-label="No real choice"' : ""}>${badge(d.cls, "sm")}<span>${esc(this._rvShort(d))}</span>${d.gap >= 0.01 ? `<small>${sg(-d.gap)}</small>` : ""}</button>`).join("")}</div></div>`).join("");
+    ds.forEach((d) => { const key2 = d.k === "setup" ? "Setup" : `${this._rvTW()} ${d.t}`; let g = groups[groups.length - 1]; if (!g || g.key !== key2) groups.push((g = { key: key2, items: [] })); g.items.push(d); });
+    const rows = groups.map((g) => `<div class="rs-trow"><span class="t">${g.key === "Setup" ? "Setup" : g.key.replace(/^(Turn|Roll) /, this.isRush() ? "R" : "T")}</span><div>${g.items.map((d) => `<button type="button" class="rs-mv c-${d.cls}" data-rvj="${d.i}" data-rvq="all"${d.cls === "triv" ? ' aria-label="No real choice"' : ""}>${badge(d.cls, "sm")}<span>${esc(this._rvShort(d))}</span>${d.gap >= 0.01 ? `<small>${sg(-d.gap)}</small>` : ""}</button>`).join("")}</div></div>`).join("");
     const first = imp.length ? imp[0].i : ds[0]?.i;
     const scroll = el.querySelector(".rv-scroll")?.scrollTop || 0;
     el.className = "rv rs tm";
@@ -461,7 +463,7 @@ export const ReviewGameMixin = {
     const shown = show === "A" && !noA ? d.bseats : d.seats, sg = (v) => `${v > 0.004 ? "+" : v < -0.004 ? "−" : ""}${Math.abs(Math.round(v * 100))}%`;
     const who = this.hotseat ? esc(this.players[me].name) : "You";
     const groups = [];
-    ds.forEach((q) => { const key = q.k === "setup" ? "Setup" : `Turn ${q.t}`; let g = groups[groups.length - 1]; if (!g || g.key !== key) groups.push((g = { key, items: [] })); g.items.push(q); });
+    ds.forEach((q) => { const key = q.k === "setup" ? "Setup" : `${this._rvTW()} ${q.t}`; let g = groups[groups.length - 1]; if (!g || g.key !== key) groups.push((g = { key, items: [] })); g.items.push(q); });
     const strip = groups.map((g) => `<div class="rs-g"><small>${g.key}</small><div>${g.items.map((q) => `<button type="button" data-rvj="${q.i}" class="rs-chip${q.i === d.i ? " on" : ""}" aria-label="${g.key}: ${CLS[q.cls][0]}">${q.cls === "triv" ? '<i class="rs-dot" title="No real choice"></i>' : badge(q.cls, "sm")}</button>`).join("")}</div></div>`).join("");
     const sameBoard = el.classList.contains("step") && this._rvBoardKey === `${d.i}|${show}` && el.querySelector(".rs-board canvas");
     const scrub = el.querySelector(".rs-strip")?.scrollLeft || 0;

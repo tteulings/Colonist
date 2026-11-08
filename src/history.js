@@ -433,7 +433,7 @@ export const HistoryMixin = {
     const t = m.result === "won" ? "You won" : m.result === "lost" ? `${esc(w?.name)} won` : `${esc(w?.name)} won`;
     const kind = m.board === "seafarers" ? "Seafarers" : m.mode === "rush" ? "Rush" : "Classic";
     const unit = m.mode === "rush" ? "rolls" : "turns";
-    const why = m.mode === "rush" ? "Rush games can’t be reviewed" : m.board === "seafarers" ? "Seafarers games can’t be reviewed yet" : m.n > 4 ? "Reviews cover up to 4 players (this game had " + m.n + ")" : m.hot || m.me == null ? "Pass & play games can’t be reviewed" : !m.rec ? "This game has no recording to review" : !reviewAvailable() ? "This browser can’t run the review in the background" : "";
+    const why = m.board === "seafarers" ? "Seafarers games can’t be reviewed yet" : m.hot || m.me == null ? "Pass & play games can’t be reviewed" : !m.rec ? "This game has no recording to review" : !reviewAvailable() ? "This browser can’t run the review in the background" : "";
     const reviewable = !why;
     const revLabel = m.acc != null && !m.prov ? ["Game review", `accuracy ${m.acc}${m.mid ? " · checked during the game" : ""} · tap to open`]
       : m.acc != null ? ["Game review · provisional", `${m.rp ? `${m.rp[0]} of ${m.rp[1]} moves checked deeply · ` : ""}tap to continue`]

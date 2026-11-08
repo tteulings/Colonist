@@ -285,6 +285,9 @@ export function drawShips(R, ctx, now, reduced) {
   if (legal.length) seaGridNear(ctx, g, legal, geo, (n) => R.nodeArt(n), g.currentPlayer?.id ?? 0, R.theme);
   strokeRoutes(ctx, geo.routes.map((r) => ({ r, c: R.pc(g.players[r.owner]) })), dp, R.theme, geo.rf);
   let hulls = 0, sails = 0;
+  // v1.18 the ships you may move now carry a ring (stronger for a moment after "Move ship" in the build sheet)
+  const mover = g._seaMover?.(), mov = mover && (!g.pendingAction || g.pendingAction === "build") && !g.winner ? new Set(g._seaMovable(mover)) : null;
+  const pulse = g.sea?.movePulse ? Math.max(0, 1 - (now - g.sea.movePulse) / 3600) : 0;
   geo.hulls.slice().sort((a, b) => a.y - b.y).forEach((h) => {
     const c = R.pc(g.players[h.owner]);
     hulls += 1; if (h.lead) sails += 1;
@@ -307,6 +310,13 @@ export function drawShips(R, ctx, now, reduced) {
       }
     }
     drawHull(ctx, h, c, dp, { sail: h.lead, alpha: a, s, dy });
+    if (mov?.has(h.edge.id) && !an) { // a thin white ring with a dark outline reads on any sea; it breathes while the hint is on
+      const px = 1 / (R.u * g.view.scale), br = pulse ? 0.5 + 0.5 * Math.sin(now / 160) : 0, rr = (12 + 2.5 * pulse * br) * dp;
+      ctx.save(); ctx.beginPath(); ctx.arc(h.x, h.y - 2 * dp, rr, 0, Math.PI * 2);
+      ctx.lineWidth = 3.6 * px; ctx.strokeStyle = "rgba(20,40,50,.55)"; ctx.stroke();
+      ctx.lineWidth = 1.9 * px; ctx.strokeStyle = "#FFFFFF"; ctx.globalAlpha = 0.75 + 0.25 * pulse; ctx.stroke(); ctx.restore();
+      if (pulse) R.requestDraw();
+    }
   });
   ctx.restore();
   R.shipStats = { ships: geo.hulls.length, hulls, sails, routes: geo.routes.length };

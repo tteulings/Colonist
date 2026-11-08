@@ -19,7 +19,7 @@ export function snapshot(g) {
   const no = new Int8Array(nodes.length), ns = new Int8Array(nodes.length), eo = new Int8Array(edges.length);
   for (let i = 0; i < nodes.length; i++) { no[i] = nodes[i].owner ?? -1; ns[i] = nodes[i].structure === "city" ? 2 : nodes[i].structure === "settlement" ? 1 : 0; }
   for (let i = 0; i < edges.length; i++) eo[i] = edges[i].owner ?? -1;
-  return { no, ns, eo, bank: { ...g.bank }, devDeck: g.devDeck.slice(), winner: g.winner ? g.winner.id : -1, sc: SCAL.map((k) => g[k]),
+  return { sbp: g.sbp ? JSON.parse(JSON.stringify(g.sbp)) : null, no, ns, eo, bank: { ...g.bank }, devDeck: g.devDeck.slice(), winner: g.winner ? g.winner.id : -1, sc: SCAL.map((k) => g[k]),
     trk: g._aiCardTrack?.players === g.players ? g._aiCardTrack.est.map((e) => ({ ...e })) : null,
     pl: g.players.map((p) => ({ res: { ...p.resources }, roads: [...p.roads], sett: [...p.settlements], cities: [...p.cities], dev: { ...p.devCards }, nd: { ...p.newDevCards }, num: PNUM.map((k) => p[k]), strategy: p.strategy, agent: p.agent })) };
 }
@@ -28,6 +28,7 @@ export function restore(g, s) {
   const nodes = g.geometry.nodes, edges = g.geometry.edges;
   for (let i = 0; i < nodes.length; i++) { const o = s.no[i]; nodes[i].owner = o < 0 ? null : o; nodes[i].structure = s.ns[i] === 2 ? "city" : s.ns[i] === 1 ? "settlement" : null; }
   for (let i = 0; i < edges.length; i++) edges[i].owner = s.eo[i] < 0 ? null : s.eo[i];
+  g.sbp = s.sbp ? JSON.parse(JSON.stringify(s.sbp)) : null; // 5–6 players: a build window is never open at a decision, but a cut-off rollout must not leave one behind
   g.bank = { ...s.bank }; g.devDeck = s.devDeck.slice(); g.winner = s.winner < 0 ? null : g.players[s.winner];
   SCAL.forEach((k, i) => { g[k] = s.sc[i]; });
   if (s.trk) g._aiCardTrack = { players: g.players, est: s.trk.map((e) => ({ ...e })) }; else g._aiCardTrack = null;

@@ -72,7 +72,7 @@ export const ReviewUiMixin = {
       return `<div class="rv1${solo ? " gs-revcard" : ""}" data-rvp="${p.id}"><div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Your game review" : `<span class="pc-${p.id} rv-who">${esc(p.name)}</span> · missed chances`}</span><small>${list.length ? (list[0].verified ? "checked by the Master bot" : "") : ""}</small></div>
       ${lead ? `<p class="rv1-lead">${lead}</p>` : ""}
       ${solo ? this._rvReviewRowHtml?.(p) || "" : ""}
-      ${list.map((f, k) => `<button type="button" class="rv1-row" data-rvshow="${p.id}:${k}" aria-label="Turn ${f.t}: ${esc(f.line)}, ${esc(f.gain)}. Show"><span class="t">Turn ${f.t}</span><span class="x">${esc(f.line)}</span><span class="g">${esc(f.gain)}</span>${IC.chev}</button>`).join("")}
+      ${list.map((f, k) => `<button type="button" class="rv1-row" data-rvshow="${p.id}:${k}" aria-label="${this._rvTW()} ${f.t}: ${esc(f.line)}, ${esc(f.gain)}. Show"><span class="t">${this._rvTW()} ${f.t}</span><span class="x">${esc(f.line)}</span><span class="g">${esc(f.gain)}</span>${IC.chev}</button>`).join("")}
       ${solo ? "" : this._rvReviewRowHtml?.(p) || ""}</div>`;
     }).join("");
   },
@@ -104,7 +104,7 @@ export const ReviewUiMixin = {
     const solo = !this.hotseat;
     const when = { seven: "end of your turn", robber: "your robber", knight: "start of your turn" }[f.kind] || "your turn";
     ctl.innerHTML = `<div class="rvs">
-      <div class="rvs-top"><i class="rv-dot"></i><div><b>Turn ${f.t} · ${solo ? when : esc(who.name)}</b><small>${f.verified ? "Checked by the Master bot · " : ""}${f.markLabel || "Missed chance"} ${k + 1} of ${list.length}${f.gainLong ? ` · ${esc(f.gainLong)}` : ""}</small></div></div>
+      <div class="rvs-top"><i class="rv-dot"></i><div><b>${this._rvTW()} ${f.t} · ${solo ? when : esc(who.name)}</b><small>${f.verified ? "Checked by the Master bot · " : ""}${f.markLabel || "Missed chance"} ${k + 1} of ${list.length}${f.gainLong ? ` · ${esc(f.gainLong)}` : ""}</small></div></div>
       ${handHtml(f.hand)}
       <div class="rvs-vs"><div class="better"><span class="sx-win">A</span><small>Better</small><b>${esc(f.better)}</b></div><div><span class="sx-win alt">B</span><small>${solo ? "You did" : `${esc(who.name)} did`}</small><b>${esc(f.did)}</b></div></div>
       <p class="rvs-why">${esc(f.why)}</p>
