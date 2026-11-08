@@ -5,7 +5,7 @@
 //   expected cards per roll  e = Σ p(n) c(n)          variance per roll  v = Σ p(n) c(n)² − e²
 // Over a game the rolls are independent, so the expected cards and the variances ADD UP (with the board as it stood at each roll).
 // The cards collected are then close to normal: P(cards ≥ got) ≈ 1 − Φ((got − ½ − E) / √V), the "top x %". Measured against a
-// simulation of dice in score121/../luck124 (tests/luck-unit.mjs): the simulated shares agree with this within about 1 point.
+// simulation of dice in score121/../luck124 (tests/luck-unit.mjs): the simulated tails agree with this within about 2 points.
 // "balanced" and "deck" dice are not independent (the deck evens the rolls out), so they get the cards over or under but no percentile.
 export const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
 
