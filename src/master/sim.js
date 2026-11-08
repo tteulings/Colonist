@@ -154,6 +154,7 @@ export function withoutAgents(g, fn) {
 export const FEATURE_NAMES = ["vp", "vp2", "incTot", "incTot*tLeft", "wood", "brick", "sheep", "wheat", "ore", "hand", "over7", "devHand", "knightsHand", "roadYop", "monoHand",
   "devVP", "knightsPlayed", "hasArmy", "armyGap", "roadLen", "hasRoad", "roadGap", "ports2", "port2match", "port3", "spots0", "spots1", "spots2", "diversity", "zeroRes", "robberLoss", "cities", "settlements", "roads"];
 const hexNum = (n) => ({ 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 }[n] || 0) / 36;
+const IDX_HAS_ROAD = FEATURE_NAMES.indexOf("hasRoad"), IDX_HAS_ARMY = FEATURE_NAMES.indexOf("hasArmy");
 export function seatFeatures(g) {
   const G = g.geometry, wp = g.winPoints, lead = Math.max(...g.players.map((p) => p.victoryPoints));
   const tLeft = Math.max(2, Math.min(16, (wp - lead) * 2.2));
@@ -198,10 +199,19 @@ export function seatFeatures(g) {
   });
 }
 
-/** Win chances from the fitted score function (softmax of w·features over the seats). */
-export function fitProbs(g, W = FIT_W) {
+/** Win chances from the fitted score function (softmax of w·features over the seats).
+ *  v1.19 `adj` (leaf 'fit2', see FIT2_ADJ in leaf-fit.js): a stage-scaled score offset for holding Longest Road / Largest Army.
+ *  The fit weights are fitted on whole games, where a holder is also the stronger player; two moves compared in the same future
+ *  differ only in who holds the award at the horizon, and there the fit over-credits it (measured against the game played out). */
+export function fitProbs(g, W = FIT_W, adj = null) {
   if (g.winner) return g.players.map((p) => (p.id === g.winner.id ? 1 : 0));
-  const sc = seatFeatures(g).map((f) => { let t = 0; for (let i = 0; i < W.length; i++) t += W[i] * f[i]; return t; });
+  const F = seatFeatures(g);
+  const sc = F.map((f) => { let t = 0; for (let i = 0; i < W.length; i++) t += W[i] * f[i]; return t; });
+  if (adj) {
+    const lead = Math.max(...g.players.map((p) => p.victoryPoints));
+    const stage = (Math.max(2, Math.min(16, (g.winPoints - lead) * 2.2)) - 2) / 14; // 0 near the end, 1 far from it (as tLeft in seatFeatures)
+    F.forEach((f, i) => { sc[i] += stage * (adj.lr * f[IDX_HAS_ROAD] + (adj.la || 0) * f[IDX_HAS_ARMY]); });
+  }
   const mx = Math.max(...sc), e = sc.map((x) => Math.exp(x - mx)), z = e.reduce((a, b) => a + b, 0);
   return e.map((x) => x / z);
 }

@@ -13,6 +13,7 @@
 // the robber tile. Player-to-player trades, discards and the pre-roll Knight stay with the Expert.
 import { DEV_CARD_TYPES, hasResources, mulberry32, snapshot, restore, determinize, rollout, winProb, winProbs, fitProbs, withoutAgents } from "./sim.js";
 import { gbmProbs } from "./leaf-gbm.js";
+import { FIT2_ADJ } from "./leaf-fit.js";
 
 export const MASTER_OPTS = { n: 100, timeMs: 0, depth: 8, setupDepth: 12, z: 1.0, minAdv: 0.002, jitter: 0.15, T: 1.2, topSetup: 6, topRobber: 4, maxCands: 7 };
 const RES = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
@@ -95,7 +96,7 @@ export function makeMaster(opts = {}) {
       if (a !== false) {
         if (!g.winner) rollout(g, a === "ended" ? depth - 1 : depth, r, { jitter: o.jitter });
         if (o.leaf === "gbm") { const ws = gbmProbs(g); v = ws[me]; if (seatW) seatW[k][j] = ws; } // eng-124 o.leaf 'gbm': boosted trees (src/master/leaf-gbm.js; the review's leaf)
-        else if (o.leaf === "fit") { const ws = fitProbs(g); v = ws[me]; if (seatW) seatW[k][j] = ws; } // v1.10 o.leaf 'fit': the fitted score function
+        else if (o.leaf === "fit" || o.leaf === "fit2") { const ws = fitProbs(g, undefined, o.leaf === "fit2" ? FIT2_ADJ : null); v = ws[me]; if (seatW) seatW[k][j] = ws; } // v1.10 o.leaf 'fit': the fitted score function; v1.19 'fit2': plus the Longest Road / Largest Army offset
         else if (seatW) { const ws = winProbs(g, o.T); v = ws[me]; seatW[k][j] = ws; } else v = winProb(g, me, o.T);
       }
       vals[k][j] = v;

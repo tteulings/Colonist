@@ -3,3 +3,7 @@
 // step105/tests/fit.py). Raw-feature weights: seat score = sum w[i] * feature[i]; win chance = softmax over the seats.
 export const FIT_NAMES = ["vp", "vp2", "incTot", "incTot*tLeft", "wood", "brick", "sheep", "wheat", "ore", "hand", "over7", "devHand", "knightsHand", "roadYop", "monoHand", "devVP", "knightsPlayed", "hasArmy", "armyGap", "roadLen", "hasRoad", "roadGap", "ports2", "port2match", "port3", "spots0", "spots1", "spots2", "diversity", "zeroRes", "robberLoss", "cities", "settlements", "roads"];
 export const FIT_W = [0.13485, 0.38146, 0.35286, 0.24827, -0.015523, 0.28164, -0.25055, 0.98379, 1.1203, 0.35325, -0.11294, 0.12926, 0.098112, 0.0015836, 0.59141, 0.2617, 0.15257, -0.79551, 0.08126, -0.063941, -0.5179, 0.16783, 0.1508, 0.56355, 0.30739, 0.10037, 0.095549, 0.053497, 0.28396, -0.28396, 1.7379, 0.32015, 0.11663, -0.020929];
+// v1.19 leaf function "fit2" = "fit" plus a stage-scaled score offset per Longest Road / Largest Army held at the horizon (src/master/sim.js
+// fitProbs). Measured on the game played out from the same futures (scratchpad mot120/an*.py): two moves that differ in who holds the road
+// at the horizon were judged 10.5 points apart by "fit", the played-out games say 4.6 (paired SE 1.0).
+export const FIT2_ADJ = { lr: -0.6, la: 0 };

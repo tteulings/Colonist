@@ -281,7 +281,7 @@ function explain1(g, p, rec, A, B) {
   // ── set-up ──
   if (a.type === "setup" && b.type === "setup" && a.node != null && b.node != null) {
     const ca = setupCard(g, p, a.node), cb = setupCard(g, p, b.node);
-    const items = [`${ca.label}: ${ca.pips} pips, ${plural(ca.kinds.length, "resource")}`], chips = [];
+    const items = [`${ca.label}: ${ca.pips} pips${ca.pips < cb.pips ? ` (${cb.pips - ca.pips} fewer)` : ""}, ${plural(ca.kinds.length, "resource")}`], chips = []; // v1.19 says so when the better spot has fewer pips (29 of 80 audited set-up picks did)
     const adv = [];
     if (ca.pips >= cb.pips + 2) adv.push(`${ca.pips} pips`);
     if (ca.kinds.length > cb.kinds.length || (!ca.first && ca.newRes.length > cb.newRes.length)) { adv.push("variety"); }
