@@ -311,7 +311,7 @@ export const ReviewGameMixin = {
       <p><b>Plan</b>: the likely reason A is better, read from the position. No clear reason, no Plan.</p>
       <p><b>Missed chance</b>: you ended the turn or traded while a build was worth 3+ %. <b>Great</b>: the best move, the next one ${GREAT}+ % behind. <b>No real choice</b>: every option within 2 %.</p>
       <p><b>Your moves</b> adds up what your moves cost. <b>Luck</b> is the rest: dice, robber and what the others did. Together they are your change in win chance since an even share (${ds0}%). Your moves never count more than your best win chance.</p>
-      <p><b>Accuracy</b> runs 0–100; 100 is always the best move. It averages your real choices, so a few slips in a long game still score high. Big mistakes weigh more. The line under it gives the plain number: % given away per choice.</p>
+      <p><b>Accuracy</b> runs 0–100; 100 is always the best move. It averages your real choices, so a few slips in a long game still score high. Big mistakes weigh more. One game spreads about ± 8. The line under it gives the plain number: % given away per choice.</p>
       <p><b>The bots</b>: scored on their own moves with this same check${bands}. Compare over 5+ games.</p>
       <p><b>A check during the game</b> keeps its moves for the review at the end, but that game stays out of your average. The board is shown after the game.</p>
       <p><b>Provisional</b> is the quick look (about half a second a move). The deep check (about ${REVIEW.sec} s a move) follows, biggest differences first, and the numbers shift as it goes.</p>${this.isRush?.() ? `
