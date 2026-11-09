@@ -21,6 +21,46 @@ export const SeaAI = {
   /** Ship distances (0-1 BFS: own ships free) from the bot's coastal buildings / ship network to every
    *  node, and the first new ship on the way. Ships may not run past a rival's building or the pirate. */
   shipReach(player) {
+    // eng-130 speed (same result, same order): the board's static edge / coast classes cached per board (checked against the hex
+    // resources), a typed deque in place of Array shift / unshift (the search's rollouts spent ~40 % of their time here)
+    const g = this.g, nodes = g.geometry.nodes, edges = g.geometry.edges;
+    const K = this._seaStatic();
+    const N = nodes.length;
+    const dist = new Array(N).fill(Infinity);
+    const first = new Array(N).fill(null);
+    const cap = K.dqCap, buf = K.dq;
+    let head = cap >> 1, tail = head;
+    const seed = (n) => { if (dist[n] !== 0) { dist[n] = 0; buf[tail++] = n; } };
+    for (const n of player.settlements) if (K.coast[n]) seed(n);
+    for (const n of player.cities) if (K.coast[n]) seed(n);
+    const pid = player.id;
+    if (player.ships) for (const id of player.ships) { const en = edges[id].nodes; for (let q = 0; q < en.length; q++) { const n = en[q], o = nodes[n].owner; if (!(o != null && o !== pid)) seed(n); } }
+    const pir = this.pirateHexId;
+    while (head < tail) {
+      const u = buf[head++];
+      const ou = nodes[u].owner;
+      if (ou != null && ou !== pid) continue;
+      const eids = nodes[u].edgeIds, du = dist[u];
+      for (let q = 0; q < eids.length; q++) {
+        const id = eids[q], e = edges[id];
+        const own = e.owner === pid && e.ship;
+        if (!own) {
+          if (e.owner != null || K.land[id]) continue;
+          if (pir != null) { const hx = e.hexIds; let t = false; for (let z = 0; z < hx.length; z++) if (hx[z] === pir) { t = true; break; } if (t) continue; }
+        }
+        const v = e.nodes[0] === u ? e.nodes[1] : e.nodes[0];
+        const w = own ? 0 : 1;
+        if (du + w >= dist[v]) continue;
+        dist[v] = du + w;
+        first[v] = w ? (first[u] ?? id) : first[u];
+        if (w) buf[tail++] = v; else buf[--head] = v;
+        if (head <= 0 || tail >= cap) return this._shipReachArr(player); // never seen; the plain version below, same result
+      }
+    }
+    return { dist, first };
+  },
+  /** The original shipReach (Array deque), kept as the overflow fallback of the fast one. */
+  _shipReachArr(player) {
     const g = this.g, nodes = g.geometry.nodes, edges = g.geometry.edges;
     const dist = new Array(nodes.length).fill(Infinity);
     const first = new Array(nodes.length).fill(null);
@@ -44,6 +84,21 @@ export const SeaAI = {
       }
     }
     return { dist, first };
+  },
+  /** eng-130: per-board constants for shipReach: land[edge] (edgeKind "land"), coast[node] (nodeIsCoast), a deque buffer. Rebuilt
+   *  when the board or any hex's resource changes (new game, load, lab edit). */
+  _seaStatic() {
+    const geo = this.g.geometry, H = geo.hexes;
+    let K = geo._seaK;
+    if (K && K.res.length === H.length) { let same = true; for (let i = 0; i < H.length; i++) if (K.res[i] !== H[i].resource) { same = false; break; } if (same) return K; }
+    const E = geo.edges.length, N = geo.nodes.length;
+    const land = new Uint8Array(E), coast = new Uint8Array(N);
+    for (let i = 0; i < E; i++) land[i] = this.edgeKind(i) === "land" ? 1 : 0;
+    for (let i = 0; i < N; i++) coast[i] = this.nodeIsCoast(i) ? 1 : 0;
+    const dqCap = 16 * (E + N) + 64;
+    K = { res: H.map((h) => h.resource), land, coast, dq: new Int32Array(dqCap), dqCap };
+    Object.defineProperty(geo, "_seaK", { value: K, writable: true, configurable: true, enumerable: false });
+    return K;
   },
 
   /** Settlement spots worth sailing to, added to the bot's plan (called from game._aiPlan). */
