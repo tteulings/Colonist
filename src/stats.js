@@ -162,6 +162,8 @@ export function installStats(Cls) {
       const got = RES.map((r) => Math.max(0, p.resources[r] - before[pid][r]));
       // regular tiles first (bank shortages scale them down), the rest came from gold fields
       const reg = got.map((n, ri) => Math.min(n, owedTot[pid][ri]));
+      const short = owedTot[pid].reduce((a, n, ri) => a + Math.max(0, n - got[ri]), 0); // v1.29 owed by the dice, not paid: the bank ran short
+      if (short > 0) this._stEv("S", pid, short);
       const left = reg.slice();
       owedHex.filter((o) => o[0] === pid && o[2] >= 0).forEach(([, hex, ri, k]) => {
         const n = Math.min(k, left[ri]);
@@ -339,6 +341,7 @@ export function computeStats(game) {
       const [, c, a, b, x, y] = e;
       switch (c) {
         case "P": if (b >= 0) { out.hexProd[b] += y; out.pHex[a][b] += y; } out.prod[a][x] += y; out.prodTot[a] += y; break;
+        case "S": dl[a].short = (dl[a].short || 0) + b; break; // v1.29 the bank ran short
         case "X": out.hexBlocked[a] += b; { const hit = new Set(); g.hexes[a]?.nodes.forEach((nid) => { const o = owner.get(nid); if (o) { hit.add(o[0]); dl[o[0]].blockedCards += o[1]; } }); hit.forEach((q) => { dl[q].blockedN += 1; }); } break;
         case "b": out.built[a][KINDS[b]] += 1;
           if (b === "s") owner.set(x, [a, 1]); else if (b === "c") owner.set(x, [a, 2]);

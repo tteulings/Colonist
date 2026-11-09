@@ -4,7 +4,7 @@
 // settlement and 2 per city next to a tile numbered n that the robber does not sit on. With p(n) = pips(n) / 36:
 //   expected cards per roll  e = Σ p(n) c(n)          variance per roll  v = Σ p(n) c(n)² − e²
 // Over a game the rolls are independent, so the expected cards and the variances ADD UP (with the board as it stood at each roll).
-// The cards collected are then close to normal: P(cards ≥ got) ≈ 1 − Φ((got − ½ − E) / √V), the "top x %". Measured against a
+// The cards collected are then close to normal; the percentile is the mid-p 1 − Φ((got − E) / √V) (v1.29; was P(cards ≥ got)). Measured against a
 // simulation of dice in score121/../luck124 (tests/luck-unit.mjs): the simulated tails agree with this within about 2 points.
 // "balanced" and "deck" dice are not independent (the deck evens the rolls out), so they get the cards over or under but no percentile.
 export const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
@@ -25,16 +25,19 @@ export function phi(z) {
 /** Chance that independent rolls pay at least `got` cards when E are expected with variance V (continuity corrected); null without variance. */
 export function topShare(got, E, V) {
   if (!(V > 1e-9)) return null;
-  return 1 - phi((got - 0.5 - E) / Math.sqrt(V));
+  // v1.29 mid-p: the mean of P(X >= got) and P(X > got), i.e. 1 − Φ((got − E) / √V). With P(X >= got) alone an exactly average
+  // game read as slightly unlucky (half the point mass at `got` counted against it; audit over 1800 player values, luckaudit).
+  return 1 - phi((got - E) / Math.sqrt(V));
 }
 
 /** Summary of one player. E1: expected with the robber where it stood, E0: without any robber, V: variance (robber as it stood). */
-export function summary({ got, E1, E0, V, blockedN = 0, blockedCards = 0 }, independent = true) {
-  const luck = got - E1, top = independent ? topShare(got, E1, V) : null;
-  return { got, exp: E1, expFree: E0, luck, top, blockedN, blockedCards, sd: V > 0 ? Math.sqrt(V) : 0 };
+export function summary({ got, E1, E0, V, blockedN = 0, blockedCards = 0, short = 0 }, independent = true) {
+  // v1.29 cards the dice paid but the bank could not hand out (it ran short) count for the dice, not against them: `short`, said apart
+  const dice = got + short, luck = dice - E1, top = independent ? topShare(dice, E1, V) : null;
+  return { got, short, exp: E1, expFree: E0, luck, top, blockedN, blockedCards, sd: V > 0 ? Math.sqrt(V) : 0 };
 }
-/** "+7 cards" / "−3 cards" / "0 cards". */
-export const cardsText = (x) => { const r = Math.round(x), n = Math.abs(r); return `${r > 0 ? "+" : r < 0 ? "−" : ""}${n} ${n === 1 ? "card" : "cards"}`; };
+/** "+7 cards" / "−3 cards" / "±0 cards" (v1.29: a difference of nothing reads ±0, not as "got nothing"; the tile says "as expected"). */
+export const cardsText = (x) => { const r = Math.round(x), n = Math.abs(r); return `${r > 0 ? "+" : r < 0 ? "−" : "±"}${n} ${n === 1 ? "card" : "cards"}`; };
 /** "luckier than 75% of games" / "unluckier than 80% of games" / "about average"; nothing without a percentile. */
 export function topText(top) {
   if (top == null) return "";

@@ -61,11 +61,12 @@ export const ReviewUiMixin = {
     if (!R || !R.recs?.length || !this._rvCovered()) return "";
     const solo = !this.hotseat, me = solo ? this.players.find((p) => p.isHuman) : null;
     const head = (sm) => `<div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Your game review" : "Missed chances"}</span>${sm ? `<small>${sm}</small>` : ""}</div>`;
+    const table = this._rvTableHtml?.() || ""; // v1.29 everyone at the table first: right under the result, visible without scrolling
     if (R.busy || (!R.res && R.recs.length)) {
-      return `<div class="rv1 gs-revcard rv-wait" role="status">${head(`<span class="rv-spin" aria-hidden="true"></span>checking…`)}<p class="rv1-lead">Looking for moves where another choice was clearly better. This takes a few seconds.</p>${me ? this._rvReviewRowHtml?.(me) || "" : ""}</div>`;
+      return `${table}<div class="rv1 gs-revcard rv-wait" role="status">${head(`<span class="rv-spin" aria-hidden="true"></span>checking…`)}<p class="rv1-lead">Looking for moves where another choice was clearly better. This takes a few seconds.</p>${me ? this._rvReviewRowHtml?.(me) || "" : ""}</div>`;
     }
     const groups = this._rvGroups();
-    if (!groups.length) return "";
+    if (!groups.length) return table;
     // pass & play: "Review for [Rosa] [You]": one person at a time (the phone holder first)
     let shown = groups, seg = "";
     if (this.hotseat && groups.length > 1) {
@@ -74,7 +75,7 @@ export const ReviewUiMixin = {
       shown = groups.filter((g) => g.p.id === sel);
       seg = this._rvForSeg(sel);
     }
-    return seg + shown.map(({ p, list }) => {
+    return table + seg + shown.map(({ p, list }) => {
       const full = this._rvReviewComplete?.(p.id) && !this._rvStale?.(p.id);
       const lead = list.length ? (solo ? (full ? "Your biggest mistakes. Tap one to see it on the board." : "Quick look while the full review runs. Tap one to see it on the board.") : "")
         : full && this._rvBadCount?.(p.id) ? `${this._rvBadCount(p.id)} of your moves could be better. Open the review to step through ${this._rvBadCount(p.id) > 1 ? "them" : "it"}.`
@@ -102,6 +103,7 @@ export const ReviewUiMixin = {
     box.innerHTML = this._rvBlockHtml();
     box.querySelectorAll("[data-rvshow]").forEach((b) => b.addEventListener("click", () => { const [pid, k] = b.dataset.rvshow.split(":").map(Number); this._rvShow(pid, k); }));
     this._rvBindReview?.(box);
+    this._rvBindTable?.(box);
     box.querySelectorAll("[data-rvfor]").forEach((b) => b.addEventListener("click", () => {
       const pid = +b.dataset.rvfor;
       if (pid === this._rvFor) return;
