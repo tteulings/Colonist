@@ -2131,7 +2131,7 @@ class ColonistFullGame {
       if (ship != null) {
         const intent = this._seaShipTapIntent(player, ship, x, y);
         if (intent.act === "move") { this._seaStartMove(player, ship); return; }
-        if (intent.act === "ask") { this._seaChooseShipOrBuild(player, ship, intent.target, x, y); return; }
+        if (intent.act === "ask") { this._seaChooseShipOrBuild(player, ship, intent.targets, x, y); return; }
       }
     }
 
@@ -2210,9 +2210,8 @@ class ColonistFullGame {
     const cb = this.confirmBuild;
     if (cb && this.hitTestConfirmIcon(x, y)) return { act: "build" };
     const t = this.pendingAction ? this._buildTargetAt(player, x, y) : this._autoDetectTarget(player, x, y);
-    if (!t) return { act: "move" };
-    if (cb && cb.type === t.type && cb.id === t.id) return { act: "build" }; // a 2nd tap on the shown spot
-    if (this.trayMode === "build") return { act: "build" };
+    if (t && cb && cb.type === t.type && cb.id === t.id) return { act: "build" }; // a 2nd tap on the shown spot
+    if (t && this.trayMode === "build") return { act: "build" };
     const geo = this.geometry, k = this.view.scale || 1;
     const mid = (id, f) => {
       const [a, b] = geo.edges[id].nodes.map((n) => geo.nodes[n]);
@@ -2221,17 +2220,33 @@ class ColonistFullGame {
     const [sa, sb] = geo.edges[ship].nodes.map((n) => geo.nodes[n]);
     const L = Math.hypot(sb.x - sa.x, sb.y - sa.y) * k || geo.hexSize * k;
     const dShip = mid(ship, 0.35);
-    if (t.type === "settlement" || t.type === "city") {
-      const n = geo.nodes[t.id], dB = Math.hypot(x - n.x, y - n.y) * k;
-      if (dB <= Math.max(0.36 * L, 12) || dB * 2 <= dShip) return { act: "build" };
-      if (dShip * 2 <= dB && dB >= Math.max(0.45 * L, 18)) return { act: "move" };
-      return { act: "ask", target: t };
+    const isCorner = (x) => !!x && (x.type === "settlement" || x.type === "city");
+    // the corner the finger may have meant: the build target, else a buildable corner a little further out (the ship's
+    // open end often is one, and the usual corner radius left only a ~2 px band where the tap could ask)
+    let corner = isCorner(t) ? t : null;
+    if (!corner && !this.freeRoadsRemaining && (!this.pendingAction || this.pendingAction === "build")) {
+      const r = Math.max(0.5 * L, 26) / k;
+      let best = null, bd = r;
+      geo.nodes.forEach((n) => {
+        const d = Math.hypot(x - n.x, y - n.y);
+        if (d < bd && (this.canBuildCity(player, n.id, false) || this.canBuildSettlement(player, n.id, false))) { bd = d; best = n.id; }
+      });
+      if (best != null) corner = { type: this.canBuildCity(player, best, false) ? "city" : "settlement", id: best, ambiguous: true };
     }
-    const dB = mid(t.id, 0.25), dS = mid(ship, 0.25);
+    const edgeT = t && !isCorner(t) ? t : null;
+    if (corner) {
+      const n = geo.nodes[corner.id], dB = Math.hypot(x - n.x, y - n.y) * k;
+      if (corner === t && (dB <= Math.max(0.36 * L, 12) || dB * 2 <= dShip)) return { act: "build" };
+      if (dShip * 2 <= dB && dB >= Math.max(0.45 * L, 18)) return { act: "move" };
+      return { act: "ask", targets: edgeT ? [corner, edgeT] : [corner] };
+    }
+    if (!edgeT) return { act: "move" };
+    const dB = mid(edgeT.id, 0.25), dS = mid(ship, 0.25);
     if (dB * 2 <= dS) return { act: "build" };
     if (dS * 2 <= dB) return { act: "move" };
-    return { act: "ask", target: t };
+    return { act: "ask", targets: [edgeT] };
   }
+
 
   /** Mode-less tap: a city upgrade, a settlement spot or a road you can afford right now. */
   _autoDetectTarget(player, x, y) {

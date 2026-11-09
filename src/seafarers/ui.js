@@ -120,13 +120,13 @@ export const SeaGame = {
   },
 
   /** v1.31 A tap that could mean building here or moving your ship: "Settlement · Move ship" (or Road / Ship · Move ship). */
-  _seaChooseShipOrBuild(player, ship, target, x, y) {
+  _seaChooseShipOrBuild(player, ship, targets, x, y) {
     const modeless = !this.pendingAction;
     const NAME = { settlement: "Settlement", city: "City", road: "Road", ship: "New ship" };
-    const builds = target.both ? ["road", "ship"] : [target.type];
-    const opts = builds.map((type) => ({ piece: type, label: NAME[type], run: () => this._seaPickBuild(player, { type, id: target.id }, modeless) }));
+    const builds = targets.flatMap((t) => (t.both ? [{ type: "road", id: t.id }, { type: "ship", id: t.id }] : [{ type: t.type, id: t.id }]));
+    const opts = builds.map((t) => ({ piece: t.type, label: NAME[t.type], run: () => this._seaPickBuild(player, t, modeless) }));
     opts.push({ piece: "move", label: "Move ship", run: () => { if (!this.winner && this.currentPlayer === player && this.sea.isShipMovable(player, ship)) this._seaStartMove(player, ship); } });
-    this._seaOpenChooser(x, y, `${builds.map((b) => NAME[b]).join(" or ")}, or move your ship`, opts);
+    this._seaOpenChooser(x, y, `${builds.map((b) => NAME[b.type]).join(" or ")}, or move your ship`, opts);
   },
 
   /** The tiny chooser by the tapped spot (44 px buttons), shared by Road / Ship and Build / Move ship. */
