@@ -14,7 +14,7 @@
 // After the game the records go to the Master Web Worker (src/master/worker.js), which runs the detectors
 // in src/review/detect.js on its private headless engine; the end screen never waits for them.
 import { masterRequest, masterAvailable, reviewRequest } from "./master.js";
-import { REVIEW_ENGINE, REVIEW, FMT, needsFull, rescoreReview } from "./review/evaluate.js";
+import { REVIEW_ENGINE, REVIEW, FMT, needsFull, rescoreReview, liftReview } from "./review/evaluate.js";
 import { packRecs, unpackRecs } from "./review/pack.js";
 
 const KEY = "colonist_review_v1";
@@ -232,6 +232,7 @@ export const ReviewMixin = {
         let r = m?.result ? { ...m.result, i } : null;
         if (!r) r = k >= 0 ? { ...rv.results[k], eng: REVIEW_ENGINE, err: true } : { k: rec.k, pid, t: rec.t, s: rec.s, e: rec.e, i, skip: "error", eng };
         if (k >= 0) rv.results[k] = r; else rv.results.push(r);
+        liftReview(rv); // v1.29 the same-step lift: one class per decision on every screen (score.js liftSameStep)
         run.times.push(now() - t0);
         run.round.j += 1;
         if (run.round.j % (this.players[pid]?.isHuman ? 6 : 12) === 0) this._rvSave(); // a reload keeps what is checked (a bot's: every 12)

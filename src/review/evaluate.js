@@ -11,7 +11,7 @@
 import { makeMaster } from "../master/search.js";
 import { explain } from "./why.js";
 import { BOT_BANDS } from "./bands.js";
-import { FMT, LIMITS, SETUP_LIMITS, GREAT, BEST_LEAD, CLASSES, TRIVIAL as TRIV, SE_SHRINK as SHRINK, clsOf, markOfCls, derive, gpOf, avgLost, rescoreResult, unknownRateLabel } from "./score.js";
+import { FMT, LIMITS, SETUP_LIMITS, GREAT, BEST_LEAD, CLASSES, TRIVIAL as TRIV, SE_SHRINK as SHRINK, clsOf, markOfCls, derive, gpOf, avgLost, rescoreResult, unknownRateLabel, liftSameStep } from "./score.js";
 export { FMT, LIMITS, SETUP_LIMITS, GREAT, BEST_LEAD, CLASSES, clsOf, markOfCls, gpOf, tradeShow, decide, totals } from "./score.js";
 
 // v1.03 review engines: the ONE place where the depth of the Game review is chosen. After the game there is
@@ -194,8 +194,12 @@ export function rescoreReview(rv) {
   if (!rv?.results || rv.fmt === FMT) return false;
   rv.results = rv.results.map((x) => {
     const E = REVIEW_ENGINES[x.eng || REVIEW_ENGINE] || REVIEW;
-    return rescoreResult(x, { trivial: E.trivial ?? TRIV, scored: x.eng && x.eng !== REVIEW_ENGINE ? E.scored || SCORED_KINDS : SCORED_KINDS, acc: (l) => accuracyOf(l) });
+    const { lift0, lifted, ...y } = x; // re-derived from the candidates: the lift is applied afresh below
+    return rescoreResult(y, { trivial: E.trivial ?? TRIV, scored: x.eng && x.eng !== REVIEW_ENGINE ? E.scored || SCORED_KINDS : SCORED_KINDS, acc: (l) => accuracyOf(l) });
   });
+  liftReview(rv);
   rv.fmt = FMT;
   return true;
 }
+/** v1.29 the same-step lift (score.js liftSameStep) on a review's results, with the accuracy curve. */
+export function liftReview(rv) { if (rv?.results) liftSameStep(rv.results, (l) => accuracyOf(l)); return rv; }
