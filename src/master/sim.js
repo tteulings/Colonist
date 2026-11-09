@@ -124,6 +124,7 @@ export function rollout(g, turns, rng, { jitter = 0.15, maxRounds = 250 } = {}) 
   g.rollDice = function () { const d1 = 1 + Math.floor(rng() * 6), d2 = 1 + Math.floor(rng() * 6); this.lastDiceTotal = d1 + d2; return { total: d1 + d2, d1, d2 }; };
   const keep = g.players.map((p) => [p.strategy, p.agent]);
   g.players.forEach((p) => { p.agent = null; if (jitter) { const w = { ...(p.strategy.w || {}) }; ["num", "variety", "scarcity", "port", "road", "prod", "patience", "card", "leader"].forEach((k) => { w[k] = (w[k] ?? 1) * Math.exp((rng() * 2 - 1) * jitter); }); p.strategy = { ...p.strategy, w }; } });
+  g._planMemo = []; // eng-130: the plan memo (game.js _aiPlan), fresh for this rollout
   try {
     let ended = 0;
     while (!g.winner && g.turn <= maxRounds) {
@@ -136,6 +137,7 @@ export function rollout(g, turns, rng, { jitter = 0.15, maxRounds = 250 } = {}) 
       if (++ended >= turns) break;
     }
   } finally {
+    g._planMemo = null;
     Math.random = orig;
     if (ownDice) g.rollDice = saveDice; else delete g.rollDice;
     g.players.forEach((p, i) => { p.strategy = keep[i][0]; p.agent = keep[i][1]; });

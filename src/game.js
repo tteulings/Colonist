@@ -5169,6 +5169,31 @@ class ColonistFullGame {
   }
 
   _aiPlan(player) {
+    // eng-130 speed, only inside a search's rollout (src/master/sim.js sets _planMemo, a fresh one per rollout): the plan is asked
+    // again on an unchanged position about one call in three (a partner's verdict on each offer, the next step after a trade that
+    // fell through). Within one rollout pieces only grow, so piece counts + hands + robber / pirate / ships + awards + deck size
+    // + the strategy object pin the position the plan reads.
+    const M = this._planMemo;
+    if (!M) return this._aiPlan0(player);
+    const k = this._planKey(player), m = M[player.id];
+    if (m && m.k === k && m.s === player.strategy) return m.plan;
+    const plan = this._aiPlan0(player);
+    M[player.id] = { k, s: player.strategy, plan };
+    return plan;
+  }
+
+  _planKey(player) {
+    const r = player.resources, d = player.devCards, n = player.newDevCards;
+    let k = `${r.wood},${r.brick},${r.sheep},${r.wheat},${r.ore}|${d.knight},${d.roadBuilding},${d.yearOfPlenty},${d.monopoly},${n.knight}|${this.robberHexId}|${this.devDeck.length}|${this.longestRoadHolder}|${this.largestArmyHolder}`;
+    for (const q of this.players) {
+      k += `|${q.settlements.size},${q.cities.size},${q.roads.size},${q.publicVictoryPoints},${q.victoryPoints},${q.knightsPlayed},${q.longestRoadLength}`;
+      if (q.ships) { k += ":"; for (const e of q.ships) k += e + ","; }
+    }
+    if (this.sea) k += `|${this.sea.pirateHexId}`;
+    return k;
+  }
+
+  _aiPlan0(player) {
     const strat = this._aiStrat(player);
     const W = aiPlanWeights(strat.w);
     const kPort = strat.w?.port ?? 1;
