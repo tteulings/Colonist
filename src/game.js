@@ -11199,3 +11199,4 @@ const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle
 game._navInstall(); // v1.26 Back closes the top screen / sheet (src/nav.js)
 if (document.documentElement.dataset.lab) game._labBoot(document.documentElement.dataset.lab); // AI Lab engine (lab.html)
+window.__colonistSplashDone?.(); // v1.27 Home or the resumed game is built: the launch splash (index.html) fades out after this frame
