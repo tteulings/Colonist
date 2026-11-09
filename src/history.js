@@ -561,8 +561,10 @@ export const HistoryMixin = {
     ov.querySelector(".gs-rbtns")?.before(row);
     const draw = () => {
       const m = this.hist.metas.find((x) => x.id === this.stats?.id);
-      row.innerHTML = m ? `<span>${CHECK}Saved to Past games</span><button type="button" class="hs-star${m.star ? " on" : ""}" data-estar aria-pressed="${!!m.star}">${STAR(m.star)}<em>${m.star ? "Kept" : "Keep"}</em></button><button type="button" class="hs-link" data-elist>All games ›</button>`
+      const h = m ? `<span>${CHECK}Saved to Past games</span><button type="button" class="hs-star${m.star ? " on" : ""}" data-estar aria-pressed="${!!m.star}">${STAR(m.star)}<em>${m.star ? "Kept" : "Keep"}</em></button><button type="button" class="hs-link" data-elist>All games ›</button>`
         : this.hist.mode === "memory" || this.hist.full ? `<span>${WARN}Not saved: no room on this device</span><button type="button" class="hs-link" data-elist>Past games ›</button>` : `<span class="dim">Saving…</span>`;
+      if (row.__h === h) return; // v1.29 the review saves often while the others are checked: redraw only when it says something new
+      row.__h = h; row.innerHTML = h;
       row.querySelector("[data-estar]")?.addEventListener("click", () => this._histStar(m.id));
       row.querySelector("[data-elist]")?.addEventListener("click", () => { this._histEndOpen = true; this.histOpen(); });
     };

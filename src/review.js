@@ -234,7 +234,7 @@ export const ReviewMixin = {
         if (k >= 0) rv.results[k] = r; else rv.results.push(r);
         run.times.push(now() - t0);
         run.round.j += 1;
-        if (run.round.j % 6 === 0) this._rvSave(); // a reload keeps what is checked
+        if (run.round.j % (this.players[pid]?.isHuman ? 6 : 12) === 0) this._rvSave(); // a reload keeps what is checked (a bot's: every 12)
         this._rvTick();
       }
     };
