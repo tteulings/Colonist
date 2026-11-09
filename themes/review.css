@@ -267,6 +267,7 @@
 /* v1.22 step mode: named win chances in the board corner, and the play-by-play */
 .rs-wc { position: absolute; left: 6px; top: 6px; display: grid; gap: 2px; padding: 5px 8px; border-radius: 12px; background: rgba(10,30,36,.66); backdrop-filter: blur(4px); color: #fff; font: 700 11.5px/1.2 var(--font-body); pointer-events: none; max-width: 56%; }
 .rs-wc span { display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; } .rs-wc span.me { font-weight: 850; }
+.rs-wc.est b { font-weight: 650; opacity: .85; }
 .rs-wc i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--pc, #fff); } .rs-wc b { margin-left: auto; padding-left: 6px; font-weight: 800; }
 .rs-pbp { position: absolute; right: 6px; top: 6px; min-height: 40px; min-width: 40px; padding: 0 12px 0 8px; display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: 999px; background: #fff; color: var(--primary); font: 800 12.5px var(--font-body); box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: pointer; } .rs-pbp svg { width: 18px; height: 18px; }
 .rs.pbp .rs-pbp { display: none; }
