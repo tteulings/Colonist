@@ -37,12 +37,12 @@ export const BOT_STATS = {
     vsExpert: { v: 8.4, ci: 5.4, n: 500, setup: "vsExpert", code: "v0.91", date: "2026-11-04", label: "measured", own: { v: 33.4, ci: 4.1 } },
   },
   super: {
-    win: { v: 71.0, ci: 4.5, n: 393, setup: "vs3intFixed", code: "v1.28 engine (bot-125)", date: "2026-11-09", label: "measured",
-      src: "No time limit (fixed budget); in the app it stops at 3 s. Paired with the Expert on the same boards: +32.6 pp (±6.0)." },
+    win: { v: 71.0, ci: 4.4, n: 400, setup: "vs3intFixed", code: "v1.28 engine (bot-125)", date: "2026-11-09", label: "measured",
+      src: "No time limit (fixed budget); in the app it stops at 3 s. Paired with the Expert on the same boards: +32.5 pp (±5.9)." },
   },
   superplus: {
-    win: { v: 71.9, ci: 4.4, n: 395, setup: "vs3intFixed", code: "v1.28 engine (bot-125)", date: "2026-11-09", label: "measured",
-      src: "No time limit (fixed budget); in the app it stops at 3 s. Against 3 Intermediates it ties the Super Expert: +0.8 pp (±5.4, same boards and seats). Head to head (Super Expert, Super Expert+ and 2 Experts at one table, every seat order with the two Supers swapped, 104 games, no time limit): Super Expert+ won 41.3% (±9.5), Super Expert 28.8% (±8.7), the Experts 29.8%. Super Expert+ finished above Super Expert in 59.1% of the games (±9.4; 50% = equal). A lean toward Super Expert+, not yet conclusive: both intervals still touch 'equal'." },
+    win: { v: 71.5, ci: 4.4, n: 400, setup: "vs3intFixed", code: "v1.28 engine (bot-125)", date: "2026-11-09", label: "measured",
+      src: "No time limit (fixed budget); in the app it stops at 3 s. Against 3 Intermediates it ties the Super Expert: +0.5 pp (±5.4, same boards and seats). Head to head (Super Expert, Super Expert+ and 2 Experts at one table, every seat order with the two Supers swapped, 104 games, no time limit): Super Expert+ won 41.3% (±9.5), Super Expert 28.8% (±8.7), the Experts 29.8%. Super Expert+ finished above Super Expert in 59.1% of the games (±9.4; 50% = equal). Per seat-swapped pair: +12.5 pp (±15.0). A slight lean toward Super Expert+, not significant." },
     h2h: { n: 104, sg: 41.3, sgci: 9.5, se: 28.8, seci: 8.7, higher: 59.1, higherci: 9.4, diff: 12.5, diffci: 15.0, setup: "h2h", code: "v1.28 engine (bot-125)", date: "2026-11-09", label: "measured" },
   },
 };

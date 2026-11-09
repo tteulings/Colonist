@@ -101,9 +101,9 @@ export const BOT_PROFILES = {
   },
   // v1.10: the Master's search with ten times the thinking. bot-125: measured (vs 3 Intermediates, no time limit).
   super: {
-    label: "Super Expert", tagline: "Master with 10x more thinking", level: 5, beyond: true, win: { p: 71.0, ci: 4.5 }, acc: null,
+    label: "Super Expert", tagline: "Master with 10x more thinking", level: 5, beyond: true, win: { p: 71.0, ci: 4.4 }, acc: null,
     style: "The Master's search with ten times the thinking: before each set-up spot, build step and robber move it plays out up to 1000 possible futures, looking 14 turns ahead (18 in set-up), and picks what wins most. It stops early when one move is clearly ahead.",
-    good: "Much stronger than the Master: 71.0% against 3 Intermediate bots (±4.5, 393 games), 32.6 points above the Expert. It sees further and spots slow plans (a city race, Longest Road) that a short look misses.",
+    good: "Much stronger than the Master: 71.0% against 3 Intermediate bots (±4.4, 400 games), 32.5 points above the Expert. It sees further and spots slow plans (a city race, Longest Road) that a short look misses.",
     weak: "Slow: about 3 seconds for a move, so your phone waits for it. In Rush it has a quarter of a second a move (about a Master there); in Seafarers it plays exactly like the Expert. With 5–6 players the same 3 seconds buy fewer playouts. Player trades are the Expert's own.",
     beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
     trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
@@ -113,9 +113,9 @@ export const BOT_PROFILES = {
   },
   // bot-125 (working name): the Super Expert's search with the boosted value model as its position score. Measured like the Super Expert.
   superplus: {
-    label: "Super Expert+", tagline: "Super Expert with a learned eye", level: 5, beyond: true, win: { p: 71.9, ci: 4.4 }, acc: null,
+    label: "Super Expert+", tagline: "Super Expert with a learned eye", level: 5, beyond: true, win: { p: 71.5, ci: 4.4 }, acc: null,
     style: "The Super Expert's search (up to 1000 possible futures, 14 turns ahead, 18 in set-up, about 3 s a move), but where each future stops it judges the position with a model learned from thousands of bot games (the same scorer as the game review), not the hand-made score.",
-    good: "As strong as the Super Expert against 3 Intermediate bots (71.9% ±4.4, 395 games; +0.8 pp on the same boards, ±5.4). Head to head at one table it finished above the Super Expert in 59.1% of 104 games (±9.4): a lean, not yet conclusive.",
+    good: "As strong as the Super Expert against 3 Intermediate bots (71.5% ±4.4, 400 games; +0.5 pp on the same boards, ±5.4). Head to head at one table it finished above the Super Expert in 59.1% of 104 games (±9.4): a slight lean, not significant.",
     weak: "Slow, like the Super Expert: about 3 seconds a move, so your phone waits for it. In Rush it has a quarter of a second a move; in Seafarers it plays exactly like the Expert. With 5–6 players the same 3 seconds buy fewer playouts. Player trades are the Expert's own. In the app it searches for at most 3 s a move (the measurement had no time limit).",
     beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
     trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",

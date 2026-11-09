@@ -20,6 +20,7 @@ const CHEV_R = `<svg viewBox="0 0 20 20" class="ic bpg-chev" aria-hidden="true">
 
 /** The rows: every bot with its win and accuracy entries. */
 const rows = () => KEYS.map((key) => ({ key, p: P[key], win: winOf(key), acc: accOf(key, P[key].label) }));
+const hasEst = () => rows().some((r) => r.win.label === "estimate"); // bot-125: the legend shows "estimate" only while one is left
 const plain = (r) => r.win.v != null && r.win.label !== "early test"; // has a number to place (measured or estimate)
 
 // ── "You" from Past games ────────────────────────────────────────────────────────────────────────
@@ -135,7 +136,7 @@ function ladderSvg(W) {
 }
 const ladderCard = (W) => `<section class="bpg-card bpg-hero" aria-labelledby="bpgLadH"><h2 id="bpgLadH">Strength ladder</h2>
   <p class="bpg-lede">Win chance of one bot against 3 Intermediates. A fair share is 25%.</p>${ladderSvg(W)}
-  <ul class="bpg-leg"><li><i class="k-ring"></i>measured</li><li><i class="k-ring est"></i>estimate, not a measurement</li><li><i class="k-cap"></i>95% interval</li><li><span class="bpg-dots" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>level 1 to 5</li></ul>
+  <ul class="bpg-leg"><li><i class="k-ring"></i>measured</li>${hasEst() ? `<li><i class="k-ring est"></i>estimate, not a measurement</li>` : ""}<li><i class="k-cap"></i>95% interval</li><li><span class="bpg-dots" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>level 1 to 5</li></ul>
   ${ladderFoot()}
   ${numbersHtml("ladder")}</section>`;
 
@@ -214,7 +215,7 @@ function selPanel(sel) {
 }
 const scatterCard = (W, sel) => `<section class="bpg-card bpg-hero" aria-labelledby="bpgScH"><h2 id="bpgScH">Strength against accuracy</h2>
   <p class="bpg-lede">Do the strong bots also play clean? Tap a bot.</p>${scatterSvg(W, sel)}
-  <ul class="bpg-leg"><li><i class="k-cross"></i>interval (95% win, ±1 SE accuracy)</li><li><i class="k-ring est"></i>estimate (Master)</li><li><i class="k-grp">n</i>group of bots</li></ul>
+  <ul class="bpg-leg"><li><i class="k-cross"></i>interval (95% win, ±1 SE accuracy)</li>${hasEst() ? `<li><i class="k-ring est"></i>estimate</li>` : ""}<li><i class="k-grp">n</i>group of bots</li></ul>
   <div data-selpanel>${selPanel(sel)}</div>
   <p class="bpg-foot">${esc(accNote())}</p>${scatterFoot()}
   ${numbersHtml("scatter")}</section>`;
