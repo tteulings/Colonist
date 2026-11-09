@@ -12,7 +12,7 @@
 // say (which cards were discarded, given in a player trade, taken with Year of Plenty) is guessed (the biggest
 // piles go first, Year of Plenty fills the smallest). Where the review recorded a decision, every hand, the dev
 // cards and the deck are set to the recorded position, so a person's game drifts only between two decisions.
-// Seafarers: n/a (the model was not trained on Seafarers). Older saves without a full log: n/a.
+// Seafarers (eng-130): the island model on the rebuilt position, rougher. Older saves without a full log: n/a.
 //
 // The work runs in a small module worker (src/replay-odds-worker.js) one step at a time, posting each result;
 // without workers it runs on the page in slices of ~6 ms. Results are kept in memory per game (not saved).
@@ -26,7 +26,8 @@ const now = () => (typeof performance !== "undefined" ? performance.now() : Date
 
 /** Why there is no win chance for this game (null: it can be computed). */
 export function oddsNa(game, st = game._st) {
-  if (game.sea) return "sea";
+  // eng-130 Seafarers: estimated too, with the island model (the Seafarers model needs the ships and the sea potential, which the
+  // log rebuild does not keep; ships count as roads, gold as nothing): rougher than on the island board (log-loss 1.17 vs 1.32 uniform)
   if (!st || st.partial || !game.stats?.ev || !game.geometry) return "log";
   if ((game.players?.length || 0) < 2) return "log";
   return null;
