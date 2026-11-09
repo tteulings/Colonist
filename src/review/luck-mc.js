@@ -18,6 +18,10 @@
 // Dev card: each card type still in the deck (count / deck). Rush positions are played turn by turn (src/review/engine.js).
 import { snapshot, restore, mulberry32, withoutAgents } from "../master/sim.js";
 import { gbmProbs } from "../master/leaf-gbm.js";
+import { GBM_MODEL } from "../master/leaf-gbm-model.js";
+import { fitProbs } from "../master/sim.js";
+/** The leaf the review's search uses (opts.leaf: "gbm" picks the Seafarers model on a Seafarers board, src/master.js SEA_LEAF; "gbm0" the island model). */
+const leafOf = (leaf) => (leaf === "gbm0" ? (g) => gbmProbs(g, GBM_MODEL) : leaf === "fit" || leaf === "fit2" ? (g) => fitProbs(g) : (g) => gbmProbs(g));
 import { loadPosition } from "./engine.js";
 
 // futures: the first batch; an event whose luck is still noisy (a seat's standard error above seMax) gets more, in batches, up to maxFutures
@@ -54,6 +58,7 @@ function play(g, turns, rng, dice, jitter = 0.15) {
   try {
     let ended = 0;
     while (!g.winner && g.turn <= 250 && ended < turns) {
+      if (g.phase === "sbp") { g._sbpRun(); continue; } // 5–6 players: the build window between turns (a card drawn there) runs on
       const p = g.currentPlayer;
       if (g.phase === "pre_roll") { g.maybePlayKnightBeforeRoll(p); g.executeRollPhase(p); }
       if (g.winner) break;
@@ -136,12 +141,12 @@ function outcomes(g, ev) {
 }
 
 /** A key for "the same position" after a non-random outcome: every hand, the bank and the pieces' counts. */
-const posKey = (g) => JSON.stringify([g.players.map((p) => RES.map((r) => p.resources[r])), RES.map((r) => g.bank?.[r]), g.phase, g.pendingAction ?? null, g.winner ? g.winner.id : -1]);
+const posKey = (g) => JSON.stringify([g.players.map((p) => RES.map((r) => p.resources[r])), RES.map((r) => g.bank?.[r]), g.phase, g.pendingAction ?? null, g.winner ? g.winner.id : -1, g.sea ? [g.sea.gold, g.sea.pirateHexId] : null]);
 
 /** Luck of one event: { kind, s, n, groups: [{ o: [outcomes], p, fast, v }], act, luck, se, fast, F, depth, ms } or { skip }. */
 export function luckEvent(g, base, ev, opts = {}) {
   const o = { ...LUCK_MC, ...opts };
-  const t0 = now();
+  const t0 = now(), leaf = leafOf(o.leaf);
   const keepR = Math.random;
   try {
     load(g, base, ev);
@@ -163,7 +168,7 @@ export function luckEvent(g, base, ev, opts = {}) {
     // the model straight on each outcome's position (a random outcome: the mean over a few flows)
     const fast = groups.map((gr) => {
       const m = gr.b.random ? o.flows7 : 1, acc = Array(n).fill(0);
-      for (let f = 0; f < m; f += 1) { back(g, S0); gr.b.make(mulberry32(evSeed + 7919 * (f + 1))); const w = gbmProbs(g); for (let q = 0; q < n; q += 1) acc[q] += w[q] / m; }
+      for (let f = 0; f < m; f += 1) { back(g, S0); gr.b.make(mulberry32(evSeed + 7919 * (f + 1))); const w = leaf(g); for (let q = 0; q < n; q += 1) acc[q] += w[q] / m; }
       return acc;
     });
     const luckOf = (V) => Array.from({ length: n }, (_, q) => V[act][q] - groups.reduce((a, gr, i) => a + gr.p * V[i][q], 0));
@@ -187,7 +192,7 @@ export function luckEvent(g, base, ev, opts = {}) {
             const orig = Math.random; Math.random = rng; try { shuffle(g.devDeck, rng); } finally { Math.random = orig; }
             if (!g.winner) play(g, o.depth, rng, dice);
           });
-          W[i].push(gbmProbs(g));
+          W[i].push(leaf(g));
         });
       }
       F = target;
@@ -229,12 +234,12 @@ export function luckEvents(recs, stats, { rush = false } = {}) {
   recs.forEach((r, i) => {
     if (!r || typeof r.st !== "string") return;
     const nextE = recs.slice(i + 1).find((q) => q && q.e != null)?.e ?? ev.length;
-    if (r.k === "robber") {
+    if (r.k === "robber" || r.k === "pirate") {
       for (let j = r.e; j < Math.min(ev.length, Math.max(nextE, r.e + 1) + 4); j += 1) {
         const e = ev[j]; if (!e || e[0] !== r.s) break;
         if (e[1] === "t" && e[2] === r.pid) { out.push({ kind: "steal", s: r.s, i, rec: r, thief: e[2], victim: e[3], res: e[4], hex: r.a?.hex, e: j }); break; }
       }
-    } else if (r.k === "buy") {
+    } else if (r.k === "buy" || r.k === "sbpbuy") {
       for (let j = r.e; j < ev.length; j += 1) {
         const e = ev[j]; if (!e || e[0] !== r.s) break;
         if (e[1] === "v" && e[2] === r.pid) { out.push({ kind: "dev", s: r.s, i, rec: r, pid: r.pid, card: e[3], e: j }); break; }

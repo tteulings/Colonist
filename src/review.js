@@ -64,9 +64,9 @@ export const ReviewMixin = {
     return true;
   },
   /** The position before a decision. */
-  _rvPre(player, bot = false) {
+  _rvPre(player, bot = false, sbp = false) {
     if (!this._rvOn() || !player || (player.isHuman ? bot : !bot || !this._rvBotOn(player))) return null;
-    if (this.phase === "sbp") return null; // 5–6 players: moves in the build window between turns are not checked (it is nobody's turn there)
+    if (this.phase === "sbp" && !sbp) return null; // 5–6 players: moves in the build window between turns are not checked (it is nobody's turn there; v1.31: a card drawn there is kept for the luck, `sbp`)
     if (!this._rv || this._rv.id !== this.stats.id) this._rvReset();
     const t0 = now();
     try {
@@ -482,6 +482,14 @@ export function installReview(Cls) {
   botWrap("placeCity", "build", (g, p, n) => ({ type: "city", id: n }), (r, g, p, n, free) => r && !free);
   botWrap("placeRoad", "build", (g, p, e) => ({ type: "road", id: e }), (r, g, p, e, o) => r && !o?.free && !g.setupPhase);
   botWrap("buyDevelopmentCard", "buy");
+  // v1.31 5–6 players: a card bought in the build window is not a checked decision, but its draw is a chance event (src/review/luck-mc.js)
+  wrap("buyDevelopmentCard", function (orig, player, ...a) {
+    if (this.phase !== "sbp" || this._rvBusy || !player) return orig.call(this, player, ...a);
+    const pre = this._rvPre(player, !player.isHuman, true), n0 = this.devDeck?.length;
+    const r = orig.call(this, player, ...a);
+    if (pre && this.devDeck?.length < n0) botPush(this, pre, "sbpbuy", {});
+    return r;
+  });
   // …except the robber that a Knight moves: that one is recorded inside the play, right after it
   wrap("playDevelopmentCard", function (orig, player, type, ...a) {
     if (this._rvBusy || !this._rvBotOn(player)) return orig.call(this, player, type, ...a);
@@ -494,10 +502,11 @@ export function installReview(Cls) {
   wrap("moveRobberAndSteal", function (orig, player, hex, ...a) {
     if (this._rvBusy || !this._rvBotOn(player)) return orig.call(this, player, hex, ...a);
     const pre = this._rvPre(player, true);
-    const h0 = this.robberHexId;
+    const h0 = this.robberHexId, q0 = this.sea?.pirateHexId;
     let r;
     try { this._rvBusy = "robber"; r = orig.call(this, player, hex, ...a); } finally { this._rvBusy = null; }
     if (pre && this.robberHexId !== h0) botPush(this, pre, "robber", { hex });
+    else if (pre && this.sea && this.sea.pirateHexId !== q0) botPush(this, pre, "pirate", { hex }); // v1.31 the pirate: not a checked decision, but its steal is a chance event (luck)
     return r;
   });
   // set-up settlement (Master seats too: they place through the same call)
