@@ -77,7 +77,9 @@ export const StatsUiMixin = {
   },
 
   // ── the flow ─────────────────────────────────────────────────────────────────────────────────
-  showGameOverOverlay() {
+  /** opts.quiet (v1.28): a finished game that is opened again (Past games, a reload): the end screen at once, no count,
+   *  no intro and no timelapse (it raced through the whole game, ~30 rolls a second, before the recap appeared). */
+  showGameOverOverlay(opts = {}) {
     if (document.querySelector(".game-over-overlay")) return;
     this.hideTradePanel();
     this.toggleBuildSheet?.(false);
@@ -86,6 +88,7 @@ export const StatsUiMixin = {
     const reduced = motionReduced();
     // a tap during the count means "get on with it": straight to the recap, no transition
     const go = (skip = false) => { if (this.winner && !document.querySelector(".game-over-overlay")) this._stShowOverlay(st, reduced, skip); };
+    if (opts?.quiet || this._histView) { go(true); return; }
     if (reduced || !st) { go(); return; }
     this._stCountOnBoard(go);
   },
