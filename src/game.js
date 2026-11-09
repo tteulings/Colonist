@@ -22,7 +22,7 @@ import { ReviewGameMixin, installReviewGame } from "./review-game.js"; // v1.03 
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
-import { presetHighlight, BOT_PROFILES } from "./bot-profiles.js"; // v1.04 Settings › Bots: which preset chip is lit
+import { presetHighlight, BOT_PROFILES, gmFlag } from "./bot-profiles.js"; // v1.04 Settings › Bots: which preset chip is lit
 import { framedAvatar, profileLabel, profileOf, openProfileSheet, pickerExtras, tableList, presetCards, dots, superOff } from "./bot-profile-ui.js"; // v1.04 bot profile frames + sheet
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
@@ -167,6 +167,10 @@ const AI_PRESETS = {
   // bot-125 (working name "Super Expert+"): the Super Expert's search, scored at the end of every playout by the boosted value model (leaf "gbm")
   superplus:    { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "superplus" },
 };
+// eng-130 "Grandmaster": the Super Expert+ search on several cores at once (src/master/parallel.js). Not released yet: a preset only
+// behind the flag (bot-profiles.js gmFlag: ?gm=1 or localStorage colonist.gm = "1")
+const GM_PRESET = { placement: "complex", expansion: "complex", trading: "balanced", devCards: "strategic", awareness: "advanced", policy: "grandmaster" };
+if (gmFlag()) AI_PRESETS.grandmaster = { ...GM_PRESET };
 
 // Player-facing names, short taglines and badge glyphs for the presets ("custom" = hand-tuned mix)
 const AI_PRESET_INFO = {
@@ -180,6 +184,7 @@ const AI_PRESET_INFO = {
   master:       { label: "Master",       tagline: "Expert + looks ahead", glyph: "\u2605", isNew: true },
   super:        { label: "Super Expert", tagline: "Master with 10x more thinking", glyph: "\u2605\u2605", isNew: true },
   superplus:    { label: "Super Expert+", tagline: "Super Expert with a learned eye", glyph: "\u2605\u2605+", isNew: true },
+  grandmaster:  { label: "Grandmaster",  tagline: "Super Expert+ on every core", glyph: "\u2605\u2605\u2605", isNew: true },
   custom:       { label: "Custom",       tagline: "your mix",             glyph: "" },
 };
 
@@ -5039,6 +5044,8 @@ class ColonistFullGame {
       if (spare > 0) capNow += Math.floor(spare / rates[r]);
     }
     if (capNow >= def) return 0.3 * def;
+    // eng-130 speed: gap(t) without a [d, c] array per call (same arithmetic in the same order)
+    let gd = 0, gc = 0;
     const gap = (t) => {
       let d = 0;
       let c = 0;
@@ -5047,19 +5054,20 @@ class ColonistFullGame {
         if (x > 0) d += x;
         else c -= x / rates[r];
       }
-      return [d, c];
+      gd = d; gc = c;
     };
-    let [d, c] = gap(tNo);
-    if (d > c) return tNo;
+    gap(tNo);
+    if (gd > gc) return tNo;
     let lo = 0;
     let hi = tNo;
     for (let i = 0; i < 10; i += 1) {
       const mid = (lo + hi) / 2;
-      [d, c] = gap(mid);
-      if (d <= c) hi = mid;
+      gap(mid);
+      if (gd <= gc) hi = mid;
       else lo = mid;
     }
-    [d] = gap(hi);
+    gap(hi);
+    const d = gd;
     return Math.min(tNo, hi + 0.3 * d);
   }
 
@@ -5076,16 +5084,49 @@ class ColonistFullGame {
     const nodes = this.geometry.nodes;
     const dist = new Array(nodes.length).fill(Infinity);
     const first = new Array(nodes.length).fill(null);
-    const queue = [];
-    this.getRoadNetworkNodes(player).forEach((n) => { dist[n] = 0; queue.push(n); });
-    while (queue.length) {
-      const u = queue.shift();
+    // eng-130 speed: a typed deque in place of Array shift / unshift (same order, same result); the plain array if it ever overflows
+    const net = this.getRoadNetworkNodes(player);
+    const cap = 16 * (nodes.length + this.geometry.edges.length) + 64;
+    const queue = this._rrBuf && this._rrBuf.length === cap ? this._rrBuf : (this._rrBuf = new Int32Array(cap));
+    let head = cap >> 1, tail = head;
+    net.forEach((n) => { dist[n] = 0; queue[tail++] = n; });
+    const seaK = this.sea ? this.sea._seaStatic() : null;
+    while (head < tail) {
+      if (head <= 0 || tail >= cap) return this._aiRoadReachArr(player);
+      const u = queue[head++];
       const node = nodes[u];
       if (node.owner != null && node.owner !== player.id) continue; // can't build past an opponent's town
       for (const edgeId of node.edgeIds) {
         const edge = this.geometry.edges[edgeId];
         if (edge.owner != null && edge.owner !== player.id) continue;
-        if (this.sea && (edge.ship || this.sea.edgeKind(edgeId) === "sea")) continue; // ⚓ roads: land and coast only
+        if (seaK && (edge.ship || seaK.seaE[edgeId])) continue; // ⚓ roads: land and coast only
+        const v = edge.nodes[0] === u ? edge.nodes[1] : edge.nodes[0];
+        const w = edge.owner === player.id ? 0 : 1;
+        if (dist[u] + w >= dist[v]) continue;
+        dist[v] = dist[u] + w;
+        first[v] = w ? (first[u] ?? edgeId) : first[u];
+        if (w) queue[tail++] = v;
+        else queue[--head] = v;
+      }
+    }
+    return { dist, first };
+  }
+
+  /** The original _aiRoadReach (Array deque): the overflow fallback of the fast one. */
+  _aiRoadReachArr(player) {
+    const nodes = this.geometry.nodes;
+    const dist = new Array(nodes.length).fill(Infinity);
+    const first = new Array(nodes.length).fill(null);
+    const queue = [];
+    this.getRoadNetworkNodes(player).forEach((n) => { dist[n] = 0; queue.push(n); });
+    while (queue.length) {
+      const u = queue.shift();
+      const node = nodes[u];
+      if (node.owner != null && node.owner !== player.id) continue;
+      for (const edgeId of node.edgeIds) {
+        const edge = this.geometry.edges[edgeId];
+        if (edge.owner != null && edge.owner !== player.id) continue;
+        if (this.sea && (edge.ship || this.sea.edgeKind(edgeId) === "sea")) continue;
         const v = edge.nodes[0] === u ? edge.nodes[1] : edge.nodes[0];
         const w = edge.owner === player.id ? 0 : 1;
         if (dist[u] + w >= dist[v]) continue;
@@ -5133,6 +5174,31 @@ class ColonistFullGame {
   }
 
   _aiPlan(player) {
+    // eng-130 speed, only inside a search's rollout (src/master/sim.js sets _planMemo, a fresh one per rollout): the plan is asked
+    // again on an unchanged position about one call in three (a partner's verdict on each offer, the next step after a trade that
+    // fell through). Within one rollout pieces only grow, so piece counts + hands + robber / pirate / ships + awards + deck size
+    // + the strategy object pin the position the plan reads.
+    const M = this._planMemo;
+    if (!M) return this._aiPlan0(player);
+    const k = this._planKey(player), m = M[player.id];
+    if (m && m.k === k && m.s === player.strategy) return m.plan;
+    const plan = this._aiPlan0(player);
+    M[player.id] = { k, s: player.strategy, plan };
+    return plan;
+  }
+
+  _planKey(player) {
+    const r = player.resources, d = player.devCards, n = player.newDevCards;
+    let k = `${r.wood},${r.brick},${r.sheep},${r.wheat},${r.ore}|${d.knight},${d.roadBuilding},${d.yearOfPlenty},${d.monopoly},${n.knight}|${this.robberHexId}|${this.devDeck.length}|${this.longestRoadHolder}|${this.largestArmyHolder}`;
+    for (const q of this.players) {
+      k += `|${q.settlements.size},${q.cities.size},${q.roads.size},${q.publicVictoryPoints},${q.victoryPoints},${q.knightsPlayed},${q.longestRoadLength}`;
+      if (q.ships) { k += ":"; for (const e of q.ships) k += e + ","; }
+    }
+    if (this.sea) k += `|${this.sea.pirateHexId}`;
+    return k;
+  }
+
+  _aiPlan0(player) {
     const strat = this._aiStrat(player);
     const W = aiPlanWeights(strat.w);
     const kPort = strat.w?.port ?? 1;
@@ -5793,6 +5859,25 @@ class ColonistFullGame {
   computeLongestRoadLength(player) {
     if (this.sea) return this.sea.tradeRouteLength(player); // ⚓ Longest Trade Route: roads + ships
     if (!player.roads.size) return 0;
+    // eng-130 speed: the answer depends only on the road edges and on which of their end nodes a rival holds; memoised on exactly
+    // that (the bots' searches recompute every player's road after every build, ~20 % of their time)
+    const E = this.geometry.edges, N = this.geometry.nodes, pid = player.id;
+    let key = "";
+    for (const id of player.roads) {
+      const en = E[id].nodes, o0 = N[en[0]].owner, o1 = N[en[1]].owner;
+      key += id + (o0 != null && o0 !== pid ? "a" : "") + (o1 != null && o1 !== pid ? "b" : "") + ",";
+    }
+    if (this._lrGeo !== this.geometry) { this._lrMemo = new Map(); this._lrGeo = this.geometry; } // a new board: new node / edge layout
+    const memo = this._lrMemo;
+    const hit = memo.get(key);
+    if (hit !== undefined) return hit;
+    const len = this._longestRoadDfs(player);
+    if (memo.size > 50000) memo.clear();
+    memo.set(key, len);
+    return len;
+  }
+
+  _longestRoadDfs(player) {
     const playerEdgeIds = [...player.roads];
     const incident = new Map();
     playerEdgeIds.forEach((edgeId) => {
@@ -9087,9 +9172,9 @@ class ColonistFullGame {
       const info = AI_PRESET_INFO[key] || AI_PRESET_INFO.custom;
       return `<span class="persona-badge persona-${key}">${info.glyph ? `${info.glyph} ` : ""}${info.label}</span>`;
     };
-    // v1.10 Super Expert / v1.17: searched on the island board (Classic and Rush, 2\u20136 players); Seafarers: greyed out, with the reason
-    const superOff = () => (d.board === "seafarers" ? "Seafarers" : "");
-    const isSup = (k) => k === "super" || k === "superplus"; // bot-125: Super Expert+ has the same reach (not in Seafarers)
+    // v1.10 Super Expert / v1.17: searched on the island board (Classic and Rush, 2\u20136 players); eng-130: Seafarers too, so never greyed out
+    const superOff = () => "";
+    const isSup = (k) => k === "super" || k === "superplus" || k === "grandmaster";
     const botPreset = (i) => (d.botStyleMode === "each" ? d.perBot[i] : d.allPreset);
     const botStrategy = (i) => (d.botStyleMode === "each" ? AI_PRESETS[d.perBot[i]] : d.allStrategy);
     const diceHelp = {
@@ -9169,7 +9254,7 @@ class ColonistFullGame {
         d.perBot = d.perBot.map((k) => (isSup(k) ? "master" : k));
       }
       const superPicked = !superOff() && (d.botStyleMode === "each" ? d.perBot.slice(0, d.numBots).some((k, i) => isSup(k) && !(d.mode !== "rush" && d.humans[i])) : isSup(d.allPreset));
-      const superHelp = d._superNote ? `<p class="ng-help ng-super-help warn" role="status">${d._superNote}</p>` : superPicked ? `<p class="ng-help ng-super-help">${d.mode === "rush" ? "Rush: a quarter of a second per move, so about a Master there." : "~3 s per move."} Not in Seafarers.</p>` : "";
+      const superHelp = d._superNote ? `<p class="ng-help ng-super-help warn" role="status">${d._superNote}</p>` : superPicked ? `<p class="ng-help ng-super-help">${d.mode === "rush" ? "Rush: a quarter of a second per move, so about a Master there." : "~3 s per move."}</p>` : "";
       overlay.innerHTML = `
         <div class="ng-card">
           <header class="ng-header">

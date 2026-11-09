@@ -83,7 +83,7 @@ t("Super Expert: own policy, own chip, a 6th mark, a measured win figure, two-st
   assert.equal(presetHighlight([{ ...AI_PRESETS.master }], AI_PRESETS, AXES).active, "master"); // same dials, other policy
   const p = BOT_PROFILES.super;
   assert.ok(p.win); assert.equal(p.level, 5); assert.ok(p.beyond);
-  assert.match(p.weak, /Rush it has a quarter of a second/); assert.match(p.weak, /Seafarers it plays exactly like the Expert|in Seafarers it plays exactly like the Expert/); assert.match(p.weak, /3 seconds/);
+  assert.match(p.weak, /Rush it has a quarter of a second/); assert.match(p.weak, /In Seafarers it searches too/); assert.match(p.weak, /3 seconds/);
   assert.ok(profileArt("super", 132).length < 3072);
   assert.notEqual(levelFrame("super"), levelFrame("master"));
   assert.ok((levelFrame("super").match(/<path/g) || []).length > (levelFrame("master").match(/<path/g) || []).length);
@@ -99,7 +99,7 @@ t("Super Expert+ (bot-125): own policy and chip, the Super Expert's budget with 
   assert.equal(presetHighlight([{ ...AI_PRESETS.super }], AI_PRESETS, AXES).active, "super");
   const p = BOT_PROFILES.superplus;
   assert.ok(p.win); assert.equal(p.level, 5); assert.ok(p.beyond);
-  assert.match(p.weak, /at most 3 s/); assert.match(p.note, /not measured what that does/); assert.match(p.weak, /Seafarers it plays exactly like the Expert/); assert.match(p.weak, /3 seconds/);
+  assert.match(p.weak, /at most 3 s/); assert.match(p.note, /not measured what that does/); assert.match(p.weak, /In Seafarers it searches too/); assert.match(p.weak, /3 seconds/);
   assert.ok(profileArt("superplus", 132).length < 3072);
   assert.notEqual(levelFrame("superplus"), levelFrame("super"));
   assert.notEqual(profileMini("superplus"), profileMini("super"));
@@ -111,6 +111,22 @@ t("budgetFor: Super Expert+ = Super Expert + leaf gbm; Rush = RUSH_BUDGET + leaf
   assert.deepEqual(M.budgetFor("super"), M.SUPER_BUDGET); assert.equal(M.budgetFor("super").leaf, undefined);
   assert.deepEqual(M.budgetFor("master"), M.MASTER_BUDGET); assert.deepEqual(M.budgetFor("master", true), M.RUSH_BUDGET);
   assert.ok(M.isSearchPolicy("superplus") && M.isSearchPolicy("super") && M.isSearchPolicy("master") && !M.isSearchPolicy("score"));
+});
+t("Grandmaster (eng-130): own policy and chip, the Super Expert+ budget with a higher rollout cap, several workers, Seafarers leaf, own frame and mini", () => {
+  assert.equal(AI_PRESETS.grandmaster, undefined); // not released: only behind the flag
+  assert.match(src, /if \(gmFlag\(\)\) AI_PRESETS\.grandmaster = \{ \.\.\.GM_PRESET \}/);
+  const GP = { ...AI_PRESETS, grandmaster: { placement: "complex", expansion: "complex", trading: "balanced", devCards: "strategic", awareness: "advanced", policy: "grandmaster" } };
+  assert.equal(presetHighlight([{ ...GP.grandmaster }], GP, AXES).active, "grandmaster");
+  const p = BOT_PROFILES.grandmaster;
+  assert.equal(p.level, 5); assert.ok(p.beyond); assert.match(p.style, /several cores/);
+  assert.ok(profileArt("grandmaster", 132).length < 4096);
+  assert.notEqual(levelFrame("grandmaster"), levelFrame("superplus"));
+  assert.notEqual(profileMini("grandmaster"), profileMini("superplus"));
+  assert.deepEqual(M.budgetFor("grandmaster"), { ...M.SUPER_BUDGET, leaf: "gbm", n: 3000 });
+  assert.deepEqual(M.budgetFor("grandmaster", true), { ...M.RUSH_BUDGET, leaf: "gbm" });
+  assert.equal(M.budgetFor("master", false, true).leaf, M.SEA_LEAF); assert.equal(M.budgetFor("super", false, true).leaf, M.SEA_LEAF);
+  assert.ok(M.isSearchPolicy("grandmaster") && M.isSuperPolicy("grandmaster") && !M.isSuperPolicy("master"));
+  assert.ok(M.GM_WORKERS() >= 1 && M.GM_WORKERS() <= 3);
 });
 for (const file of ["bot-profile-ui.js", "game.js", "six-ui.js"]) {
   const text = fs.readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");

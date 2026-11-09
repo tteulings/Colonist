@@ -5,12 +5,12 @@
 // Only Classic (4 players) is measured; the other tabs say "Not measured yet" and have no ranking.
 // "You": nothing new is stored. It is counted from the Past games entries (history.js: seats, winner, board, mode, n, hot,
 // hn), per person (pass & play: by name), per bot level and per mode. A number shows from 5 games (YOU_MIN), else "few".
-import { BOT_PROFILES as P, profileMini } from "./bot-profiles.js";
+import { BOT_PROFILES as P, profileMini, gmFlag } from "./bot-profiles.js";
 import { openProfileSheet } from "./bot-profile-ui.js";
 import { BOT_STATS, SETUPS, accOf, winOf, rangesOverlap, tabOf, MEASURED_TABS } from "./bot-stats.js";
 
 export const YOU_MIN = 5;
-const KEYS = ["superplus", "super", "master", "expert", "builder", "trader", "shark", "intermediate", "beginner", "simple"];
+const KEYS = [...(gmFlag() ? ["grandmaster"] : []), "superplus", "super", "master", "expert", "builder", "trader", "shark", "intermediate", "beginner", "simple"];
 const TABS = [["classic", "Classic"], ["rush", "Rush"], ["six", "5–6 players"], ["sea", "Seafarers"]];
 const SORTS = [["win", "Win chance"], ["acc", "Accuracy"], ["you", "You vs him"]];
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -241,7 +241,7 @@ function numbersHtml(kind) {
     ${rows().filter((r) => r.win.src || (r.key === "master" && vsE)).map((r) => `<p class="bpg-foot"><b>${r.p.label}:</b> ${esc([r.win.src, r.key === "master" && vsE ? `Measured on its own: +${f1(vsE.v)} pp (±${f1(vsE.ci)}) over an Expert in the same seat, ${vsE.n} games against 3 Experts; its own seat wins ${f1(vsE.own.v)}% (±${f1(vsE.own.ci)}) there.` : ""].filter(Boolean).join(" "))}</p>`).join("")}</details>`;
 }
 
-const NOT = { rush: "Win chances were only measured in Classic. In Rush the Master and both Super Experts search for less time, so their numbers can differ.", six: "With 5–6 players a fair share is 17–20%, not 25%, and the Master gets fewer playouts. Nobody measured it yet.", sea: "In Seafarers the Master and both Super Experts play exactly like the Expert. Nobody measured it yet." };
+const NOT = { rush: "Win chances were only measured in Classic. In Rush the Master and both Super Experts search for less time, so their numbers can differ.", six: "With 5–6 players a fair share is 17–20%, not 25%, and the Master gets fewer playouts. Nobody measured it yet.", sea: "In Seafarers the Master and both Super Experts search too, with a model learned from Seafarers games. Nobody measured their win chances there yet." };
 
 // ── the screen ────────────────────────────────────────────────────────────────────────────────────
 export const BotsPageMixin = {

@@ -106,7 +106,7 @@ export const ReviewGameMixin = {
     const rv = this._rvOf(p.id), mine = !!rv, run = this._rv.run;
     const sum = mine && rv.results.length && this._rvCovered1(p.id) ? summarize(rv.results) : null;
     const done = mine && this._rvReviewComplete(p.id);
-    const n = this._rv.recs.filter((r) => r.pid === p.id && ["setup", "build", "bank", "buy", "play", "robber", "end"].includes(r.k)).length;
+    const n = this._rv.recs.filter((r) => r.pid === p.id && ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"].includes(r.k)).length;
     let x = "Game review", g = "";
     if (run?.pid === p.id && run.round) {
       const r = run.round, f = r.n ? r.j / r.n : 0;
@@ -271,7 +271,6 @@ export const ReviewGameMixin = {
   /** Dice luck (src/review/luck.js, from the game's event log): cards collected against cards expected, for every player. { na } when it cannot be told. */
   _rvLuck(pid) {
     const st = this._st;
-    if (this.sea || st?.sea) return { na: "not for Seafarers" };
     if (!st || st.partial || !st.dl) return { na: "not available" };
     return { me: st.dl[pid], all: st.dl, mode: st.diceMode };
   },
