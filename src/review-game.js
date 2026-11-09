@@ -11,6 +11,7 @@ import { esc, IC, cmpHtml, whyHtml } from "./review-ui.js";
 import { summarize, REVIEW, REVIEW_ENGINE, REVIEW_ENGINES, ACC, clsOf, LIMITS, SETUP_LIMITS, CLASSES, GREAT, gpOf, decide, totals, tradeShow, needsFull } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
 import { cardsText, topText, tileOf, sentence } from "./review/luck.js";
+import { gameOdds } from "./replay-odds.js";
 
 // The bots' accuracy with the review engine in use (src/review/evaluate.js REVIEW_ENGINES), if measured.
 export const BANDS = REVIEW.bands || [];
@@ -541,14 +542,14 @@ export const ReviewGameMixin = {
     el.querySelector("[data-rvpbp]")?.addEventListener("click", () => this._rvPbpOpen(d, ds));
     let x0 = null;
     [el.querySelector(".rs-stage"), el.querySelector(".rs-card")].forEach((n) => { if (!n) return; n.addEventListener("touchstart", (e) => { x0 = e.touches[0].clientX; }, { passive: true }); n.addEventListener("touchend", (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; const nx = list[k + (dx < 0 ? 1 : -1)]; if (!this._rvPbp && Math.abs(dx) > 50 && nx) this._rvDrawReview(nx.i); }, { passive: true }); });
-    if (!mid) this._rvBoard(d, show);
+    if (!mid) { this._rvBoard(d, show); try { gameOdds(this); } catch (_) { /* the play-by-play's win chance warms up (worker, cached per game) */ } }
     if (this._rvPbp && !mid) this._rvPbpGo(d, ds, this._rvPbp.j); // back from A/B toggle etc. while playing by play
   },
   /** Named win chances for the board corner: you first, then the others by chance, one short line each. */
-  _rvLegend(seats) {
+  _rvLegend(seats, est = false) {
     const me = this._rvPid, sum = seats.reduce((a, b) => a + b, 0) || 1;
     const order = [me, ...this.players.map((p) => p.id).filter((q) => q !== me).sort((a, b) => seats[b] - seats[a])];
-    return order.map((q) => `<span class="pc-${q}${q === me ? " me" : ""}"><i></i>${q === me && !this.hotseat ? "You" : esc(this.players[q].name)}<b>${Math.round((seats[q] / sum) * 100)}%</b></span>`).join("");
+    return order.map((q) => `<span class="pc-${q}${q === me ? " me" : ""}"><i></i>${q === me && !this.hotseat ? "You" : esc(this.players[q].name)}<b>${est ? "≈" : ""}${Math.round((seats[q] / sum) * 100)}%</b></span>`).join("");
   },
   _rvPName(pid) { const p = this.players[pid]; return !p ? "Someone" : p.isHuman && !this.hotseat ? "You" : esc(p.name); },
   /** Every move between your previous decision and this one, as beats: a roll (with who got what), a build, a trade, the robber, a steal, a card. */
@@ -613,6 +614,15 @@ export const ReviewGameMixin = {
     el.classList.add("pbp");
     // the board at the moment after this move; a ring on what was just built or moved
     this._rpSeek(b.s, b.upto);
+    // v1.28 the running win chance at this move: the Replay's estimate (≈, src/replay-odds.js); the decision itself keeps the review's numbers
+    const wc = el.querySelector(".rs-wc");
+    if (wc) {
+      const O = gameOdds(this), key = (this._rvPbpSeq = (this._rvPbpSeq || 0) + 1);
+      if (!wc.classList.contains("est")) wc.innerHTML = "<span>Win chance ≈ …</span>"; // (not the decision's numbers while it computes)
+      wc.classList.add("est");
+      if (!O.na) O.at(b.s, b.upto).then((p) => { if (p && this._rvPbpSeq === key && this._rvPbp?.i === d.i && wc.isConnected) wc.innerHTML = this._rvLegend(p, true); });
+      else wc.innerHTML = `<span>Win chance n/a</span>`;
+    }
     this.boardRenderer?.requestDraw?.();
     const svg = el.querySelector(".rs-marks"), box = el.querySelector(".rs-board");
     if (svg && box) {

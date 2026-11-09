@@ -7117,7 +7117,7 @@ class ColonistFullGame {
     window.setTimeout(() => { if (!this._userZoomed && this.geometry) { this.fitCanvasToContainer(); this.fitView(); this.render(); } }, 350);
     if (this.onboardingHold) return true; // behind the home screen: resumes on Continue
     if (this.winner) {
-      this.showGameOverOverlay();
+      this.showGameOverOverlay({ quiet: true }); // v1.28 opened again: straight to the end screen, no replayed intro
     } else if (this.setupPhase) {
       this.processSetupQueue();
     } else if (this.isRush()) {
