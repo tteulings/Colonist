@@ -12,9 +12,10 @@
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
 import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=130";
-import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor } from "./master.js?v=130";
+import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=130";
 import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=130";
 import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=130";
+import { byStrength } from "./bot-stats.js?v=130";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -535,8 +536,10 @@ const SEAT_COL = (i) => view?.players?.[i]?.color || ["#D1453A", "#3C75C6", "#F0
 const P = BOT_PROFILES;
 const DICE = `<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="9" cy="9" r="1.3" fill="currentColor"/><circle cx="15" cy="15" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1.3" fill="currentColor"/><circle cx="9" cy="15" r="1.3" fill="currentColor"/></svg>`;
 const PEN = `<svg viewBox="0 0 16 16" width="100%" height="100%" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M2 11l7-7 3 3-7 7H2zM8 5l3 3"/></svg>`;
-/** Presets a seat can pick, strongest first (a preset without a profile, e.g. a new one, comes first). */
-function poolKeys() {
+/** Presets a seat can pick, strongest first by the measured win chance (bot-stats.js; a preset without a figure, e.g. a new one, comes first). */
+const poolKeys = () => byStrength(Object.keys(H.AI_PRESETS));
+/** The pool Random draws from, in its v1.13 order (by level), so a Random seat draws the same bots as in earlier runs. */
+function drawPool() {
   const all = Object.keys(H.AI_PRESETS);
   return all.slice().sort((a, b) => (P[b]?.level ?? 6) - (P[a]?.level ?? 6) || all.indexOf(a) - all.indexOf(b));
 }
@@ -551,8 +554,8 @@ function emblem(k, d = 40) {
   const inner = k === "random" ? DICE : k === "mix" ? PEN : profileMini(key, Math.round(d * 0.55));
   return `<span class="lb-av" style="--d:${d}px">${levelFrame(key, d)}<span class="lb-em">${inner}</span></span>`;
 }
-const dotsHtml = (n) => `<span class="lb-dots" aria-hidden="true">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`;
-const subOf = (k) => (k === "random" ? "draws a different bot every game" : k === "mix" ? "your mix from Analysis" : P[k] ? `${dotsHtml(P[k].level)} ${esc(P[k].tagline)}` : "");
+const dotsHtml = (k) => `<span class="lb-dots" aria-hidden="true">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= P[k].level ? "on" : ""}"></i>`).join("")}${P[k].beyond ? `<i class="star"></i>` : ""}</span>`; // lab-131: + the Supers' star
+const subOf = (k) => (k === "random" ? "draws a different bot every game" : k === "mix" ? "your mix from Analysis" : P[k] ? `${dotsHtml(k)} ${esc(P[k].tagline)}` : "");
 const TPLS = [
   ["1v3", (n) => `1 vs ${n - 1}`, (n) => ["expert", ...Array(n - 1).fill("intermediate")], false],
   ["rr", () => "Round robin", (n) => ["expert", "builder", "trader", "shark"].slice(0, n), false],
@@ -613,7 +616,7 @@ function openPick(i) {
   const opt = (k, name, sub, right) => `<button type="button" class="lb-opt${k === cur ? " on" : ""}" data-k="${k}" role="radio" aria-checked="${k === cur}">${emblem(k, 34)}<span><b>${esc(name)}</b><small>${sub}</small></span>${right || ""}</button>`;
   $("#labPickT").textContent = `Seat ${i + 1}: pick a bot`;
   $("#labPickList").innerHTML = opt("random", "Random", "draws a different bot every game")
-    + poolKeys().map((k) => opt(k, presetLabel(k), esc(P[k]?.tagline || ""), P[k] ? dotsHtml(P[k].level) : "")).join("")
+    + poolKeys().map((k) => opt(k, presetLabel(k), esc(P[k]?.tagline || ""), P[k] ? dotsHtml(k) : "")).join("")
     + (st.mix ? opt("mix", "Custom mix", "saved in Analysis") : "");
   $("#labPickList").querySelectorAll(".lb-opt").forEach((b) => b.addEventListener("click", () => {
     st.seats[pickSeat] = b.dataset.k; save(); closePick(); renderTournamentSetup();
@@ -641,7 +644,8 @@ function renderStand(final = false) {
   if (final) return;
   const left = sim.done ? ((sim.msTotal / sim.done) * (sim.n - sim.done)) / 1000 : null;
   const rows = aggRows();
-  el.innerHTML = `<div class="lt-head"><h2>Running</h2><small>${sim.done} of ${sim.n} · ${left == null ? "timing the first game…" : `about ${timeText(left)} left`}</small></div>
+  const now = sim.live?.turn != null ? `game ${sim.game}, ${sim.live.setup ? "set-up" : `turn ${sim.live.turn}`}` : `game ${sim.game}`;
+  el.innerHTML = `<div class="lt-head"><h2>Running</h2><small>${sim.done} of ${sim.n} done · ${left == null ? `${now} · ${mmss(performance.now() - (sim.gameT0 || performance.now()))}` : `about ${timeText(left)} left`}</small></div>
     <div class="lb-prog" aria-hidden="true"><i style="width:${(sim.done / sim.n) * 100}%"></i></div>
     ${rows.length ? tableHtml(rows) : ""}`;
 }
@@ -707,28 +711,48 @@ function renderHist() {
   $("#labDelRuns").addEventListener("click", () => { runs = runs.filter((r) => !picked.has(r.id)); picked.clear(); put(RKEY, runs); renderHist(); });
 }
 
-// Caption over the board while a game is watched: game n/N · turn · each seat's points
+// Caption over the board. lab-131: during a run it is THE progress line (game k/N, done, turn, who is thinking, a bar,
+// Stop), whatever the speed, so board and progress are on screen together; the board follows the game only in Watch
+// (in Instant it is dimmed). Before a run, on the Tournament pane, it says what the board is (your Analysis board).
+const mmss = (ms) => { const t = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
 function renderWatch(g, final = null) {
-  const el = $("#labWatch");
+  const el = $("#labWatch"), board = $(".lb-board");
   renderLegend();
-  if (!g) { el.hidden = true; document.querySelectorAll(".lb-read, .lb-tools").forEach((x) => x.classList.remove("lb-faded")); return; }
-  const info = g._labSimInfo();
+  const fade = (on) => document.querySelectorAll(".lb-read, .lb-tools").forEach((x) => x.classList.toggle("lb-faded", on));
+  if (!sim.running && final === null) {
+    board.classList.remove("lb-blind");
+    fade(false);
+    const idle = st.pane === "tournament";
+    el.hidden = !idle;
+    el.classList.toggle("lb-widle", idle);
+    if (idle) el.innerHTML = `<span class="lb-winfo"><b>Your Analysis board</b><span class="lb-wt">Start a run: with Watch, the games play here.</span></span>`;
+    return;
+  }
+  el.classList.remove("lb-widle");
+  const live = sim.live || {};
   const keys = sim.curKeys || [];
-  const seats = info.players.map((p) => `<span class="lb-ws${final != null && p.id === final ? " won" : ""}" style="--seat:${view.players[p.id]?.color || p.color}" title="${esc(labelOf(keys[p.id] || ""))}"><i></i>${p.vp}</span>`).join("");
-  const head = final === null ? `Turn ${info.turn}` : final < 0 ? "No winner" : `${labelOf(keys[final] || "?")} wins`;
-  if (!el.querySelector(".lb-winfo")) el.innerHTML = `<span class="lb-winfo"></span><button type="button" class="lb-wstop" aria-label="Stop the tournament">Stop</button>`;
-  el.querySelector(".lb-winfo").innerHTML = `<b>Game ${sim.game}/${sim.n}</b><span class="lb-wt">${esc(head)}</span><span class="lb-wseats">${seats}</span>`;
+  const vps = g ? g._labSimInfo().players.map((p) => p.vp) : live.vp || [];
+  const turn = g ? g.turn : live.turn;
+  const setup = g ? !!g.setupPhase : !!live.setup;
+  const seats = vps.map((vp, id) => `<span class="lb-ws${final != null && id === final ? " won" : ""}" style="--seat:${view.players[id]?.color || SEAT_COL(id)}" title="${esc(labelOf(keys[id] || ""))}"><i></i>${vp}</span>`).join("");
+  const think = live.think != null && sim.slow ? `${labelOf(keys[live.think] || "")} thinking` : "";
+  const head = final !== null ? (final < 0 ? "No winner" : `${labelOf(keys[final] || "?")} wins`)
+    : turn == null ? "starting…" : setup ? "set-up" : `turn ${turn}`;
+  if (!el.querySelector(".lb-winfo") || el.querySelector(".lb-wbar") == null) el.innerHTML = `<span class="lb-winfo"></span><button type="button" class="lb-wstop" aria-label="Stop the tournament">Stop</button><span class="lb-wbar" aria-hidden="true"><i></i></span>`;
+  el.querySelector(".lb-winfo").innerHTML = `<b>Game ${sim.game}/${sim.n}</b><span class="lb-wt">${sim.done} done · ${esc(head)}${think ? ` · <span class="lb-wthink">${esc(think)}</span>` : ""}${sim.gameT0 && final === null ? ` · ${mmss(performance.now() - sim.gameT0)}` : ""}</span><span class="lb-wseats">${seats}</span>`;
+  el.querySelector(".lb-wbar i").style.width = `${(sim.done / sim.n) * 100}%`;
   el.hidden = false;
-  document.querySelectorAll(".lb-read, .lb-tools").forEach((x) => x.classList.add("lb-faded"));
+  board.classList.toggle("lb-blind", !sim.watching);
+  fade(true);
 }
 
 async function runTournament(over = {}) {
-  if (sim.running) { sim.running = false; return sim; }
+  if (sim.running) { sim.running = false; labGameCancel(); return sim; }
   const frame = $("#labSim");
   if (!frame.src) frame.src = "./index.html?lab=sim";
   const spec = over.spec || seatSpec();
   const cfg = { n: st.games, tboard: st.tboard, rotate: st.tseats === "rotate", distinct: !!st.distinct, ...over, spec, nSeats: spec.length };
-  const pool = poolKeys();
+  const pool = drawPool();
   Object.assign(sim, { running: true, n: cfg.n, done: 0, errors: 0, game: 0, restore: true, results: [], cfg, curKeys: null, msTotal: 0, saved: false });
   $("#labSummary").hidden = true;
   renderTournamentSetup();
@@ -736,6 +760,11 @@ async function runTournament(over = {}) {
   const g = await waitEngine(frame);
   let saved = null; // your board while games are watched
   const watchOn = () => st.speed === "watch" && !!view;
+  const hold = () => { if (!saved) { saved = view.serializeState(); sim.watching = true; } }; // keep your Analysis board to put back
+  // lab-131: the board (with the progress caption over it) comes into view at Start, whatever the speed
+  const br = $(".lb-board").getBoundingClientRect();
+  if (br.top < 100 || br.bottom > innerHeight) $(".lb-board").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  renderWatch(null);
   let slowGames = 0;
   try {
     for (let i = 0; i < cfg.n && sim.running; i += 1) {
@@ -744,16 +773,31 @@ async function runTournament(over = {}) {
       const keys = seatKeys(drawSeats(cfg.spec, i, pool, cfg.distinct), i, cfg.rotate);
       const strategies = keys.map(stratOf);
       sim.curKeys = keys;
+      sim.gameT0 = t0; sim.live = { turn: null }; sim.slow = false;
       const seed = SEED0 + i * 7919;
-      // a game with a Master / Super seat is played whole in the Web Worker (same boards and dice), in the background: no Watch
+      // a game with a Master / Super seat is played whole in the lab's Web Worker (same boards and dice). lab-131: it reports
+      // its turn, points and the searching seat as it goes (and the position, so Watch follows it); Stop ends it at once
       if (strategies.some(isSlow) && masterAvailable()) {
-        const m = await masterRequest({ type: "game", seed, strategies, map: cfg.tboard, opts: { ...MASTER_BUDGET }, budgets: strategies.map((x) => (isSlow(x) ? budgetFor(x.policy) : null)) }, 0);
+        sim.slow = true;
+        let first = true, lastDraw = 0;
+        renderWatch(null); renderStand();
+        const m = await labGameRequest({ type: "game", seed, strategies, map: cfg.tboard, opts: { ...MASTER_BUDGET }, watch: true, budgets: strategies.map((x) => (isSlow(x) ? budgetFor(x.policy) : null)) }, (p) => {
+          if (!sim.running) return;
+          sim.live = p;
+          if (watchOn() && p.state && performance.now() - lastDraw > 250) {
+            lastDraw = performance.now();
+            try { hold(); g.loadFromStorage(p.state); g.gameGen = 1e6 + i; view._labWatch(g, first); first = false; } catch (e) { console.warn("lab watch", e); }
+          } else if (!watchOn() && sim.watching) { sim.watching = false; }
+          renderWatch(null); renderStand();
+        });
         if (!sim.running) break;
         if (!m || m.type !== "game") { sim.errors += 1; continue; }
         slowGames += 1;
-        sim.results.push({ keys, winner: m.winner, turns: m.turns, vp: m.vp });
+        sim.results.push({ keys, winner: m.winner, turns: m.turns, vp: m.vp, ms: m.ms });
         sim.done += 1; sim.msTotal += performance.now() - t0;
+        sim.live = { turn: m.turns, vp: m.vp };
         renderStand(); renderTournamentSetup();
+        if (watchOn() && sim.running && !first) { renderWatch(null, m.winner ?? -1); await sleep(i + 1 < cfg.n ? 900 : 1400); }
         continue;
       }
       try {
@@ -761,18 +805,15 @@ async function runTournament(over = {}) {
         let r = { done: false }, shown = false;
         do {
           if (watchOn()) {
-            if (!saved) {
-              saved = view.serializeState(); sim.watching = true;
-              const br = $(".lb-board").getBoundingClientRect();
-              if (br.top < 100 || br.bottom > innerHeight) $(".lb-board").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-            }
+            hold();
             if (!shown) { view._labWatch(g, true); shown = true; }
             else { r = g._labSimStep(1); view._labWatch(g); }
             renderWatch(g);
             await sleep(TURN_MS);
           } else {
-            if (sim.watching) renderWatch(null);
+            sim.watching = false;
             r = g._labSimStep(12);
+            renderWatch(g);
             await sleep(0); // let the page breathe between chunks
           }
         } while (!r.done && sim.running);
@@ -787,6 +828,8 @@ async function runTournament(over = {}) {
   } finally {
     sim.running = false;
     sim.watching = false;
+    sim.live = null; sim.gameT0 = 0;
+    labGameCancel(); // a Stop in the middle of a Master / Super game: end it in the worker too
     renderWatch(null);
     if (saved && sim.restore) {
       view.loadFromStorage(saved);
@@ -814,7 +857,7 @@ function setPane(p) {
   document.querySelectorAll("#labPanes button").forEach((b) => { const on = b.dataset.pane === p; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; });
   $("#paneAnalysis").hidden = p !== "analysis";
   $("#paneTournament").hidden = p !== "tournament";
-  renderLegend();
+  if (!sim.running) renderWatch(null); else renderLegend();
   if (view && !sim.watching) { view.analysis.lab = p === "analysis" ? view.analysis.lab : null; if (p === "analysis") update(); else view.requestBoardDraw(); }
   save();
 }
@@ -843,7 +886,7 @@ function setPane(p) {
   $("#labPick").addEventListener("click", (e) => { if (e.target === $("#labPick")) closePick(); });
   $("#paneTournament").addEventListener("click", (e) => { const b = e.target.closest(".lb-ii"); if (b) { const t = document.getElementById(b.dataset.info); if (t) t.hidden = !t.hidden; } });
   $("#labMixBtn").addEventListener("click", () => { st.mix = mixable() ? myBot() : null; update(); });
-  $("#labWatch").addEventListener("click", (e) => { if (e.target.closest(".lb-wstop")) sim.running = false; });
+  $("#labWatch").addEventListener("click", (e) => { if (e.target.closest(".lb-wstop")) { sim.running = false; labGameCancel(); } });
   $("#labTree").addEventListener("click", onTreeTap);
   $("#labResult").addEventListener("click", (e) => { if (e.target.closest("[data-contest]")) { findContested(); return; } const b = e.target.closest("[data-spot]"); if (b) selectSpot(Number(b.dataset.spot)); });
   $("#labStepStrip").addEventListener("click", onStepsTap);

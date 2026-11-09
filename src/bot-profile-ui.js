@@ -4,6 +4,7 @@
 import { BOT_PROFILES as P, profileArt, profileMini, levelFrame } from "./bot-profiles.js";
 import { avatarSvg } from "./themes/manager.js";
 import { winOf } from "./bot-stats.js";
+export { byStrength } from "./bot-stats.js"; // lab-131: picker order
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 

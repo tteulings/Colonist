@@ -74,7 +74,7 @@ t("Settings › Bots wires one card per preset, a picked bot and the (i) sheet",
   const ui = fs.readFileSync(new URL("../src/bot-profile-ui.js", import.meta.url), "utf8");
   const game = fs.readFileSync(new URL("../src/game.js", import.meta.url), "utf8");
   assert.ok(ui.includes("export function presetCards") && ui.includes('openProfileSheet(game, { key: i.dataset.info })'));
-  assert.ok(game.includes("presetCards(this, Object.keys(AI_PRESETS)") && game.includes("this._botSel") && game.includes("DIAL_WORDS"));
+  assert.ok(game.includes("presetCards(this, byStrength(Object.keys(AI_PRESETS))") && game.includes("this._botSel") && game.includes("DIAL_WORDS")); // lab-131: strongest first
   for (const k of Object.keys(AI_PRESETS)) assert.ok(BOT_PROFILES[k].tagline && BOT_PROFILES[k].level >= 1, k);
 });
 t("Super Expert: own policy, own chip, a 6th mark, a measured win figure, two-star frame, art < 3 KB", () => {
@@ -103,6 +103,20 @@ t("Super Expert+ (bot-125): own policy and chip, the Super Expert's budget with 
   assert.ok(profileArt("superplus", 132).length < 3072);
   assert.notEqual(levelFrame("superplus"), levelFrame("super"));
   assert.notEqual(profileMini("superplus"), profileMini("super"));
+});
+t("lab-131 pickers: strongest first by the measured win chance (bot-stats.js); dots follow that order, the Supers carry the star", async () => {
+  const { byStrength, winOf } = await import("../src/bot-stats.js");
+  const order = byStrength(Object.keys(AI_PRESETS));
+  assert.deepEqual(order, ["superplus", "super", "master", "expert", "builder", "trader", "shark", "intermediate", "beginner", "simple"]);
+  assert.deepEqual(byStrength(["simple", "newbot", "expert"]), ["newbot", "expert", "simple"]); // no figure yet: first
+  for (let i = 1; i < order.length; i += 1) {
+    const a = BOT_PROFILES[order[i - 1]], b = BOT_PROFILES[order[i]];
+    assert.ok(a.level + (a.beyond ? 0.5 : 0) >= b.level + (b.beyond ? 0.5 : 0), `${order[i - 1]} >= ${order[i]}`);
+    assert.ok(winOf(order[i - 1]).v >= winOf(order[i]).v);
+  }
+  assert.ok(BOT_PROFILES.super.beyond && BOT_PROFILES.superplus.beyond && !BOT_PROFILES.master.beyond);
+  const lab = fs.readFileSync(new URL("../src/lab.js", import.meta.url), "utf8");
+  assert.ok(lab.includes("byStrength(Object.keys(H.AI_PRESETS))") && lab.includes('<i class="star"></i>'));
 });
 const M = await import("../src/master.js");
 t("budgetFor: Super Expert+ = Super Expert + leaf gbm; Rush = RUSH_BUDGET + leaf gbm; Master and Super Expert unchanged (leaf v1)", () => {

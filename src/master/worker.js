@@ -5,6 +5,7 @@
 //   → { type: "decide", id, kind: "setup" | "main" | "robber", state, trk, turnSerial, seat, opts, lab }
 //   ← { type: "decision", id, kind, choice, record }          (choice null: nothing to choose between)
 //   → { type: "game", id, seed, strategies: [4], opts }        (lab tournament: one whole game)
+//   ← { type: "progress", id, turn, setup, vp, think, d, state? }  (lab-131: while that game runs; `state` only with m.watch)
 //   ← { type: "game", id, winner, turns, vp, ms, stats }
 //   → { type: "detect", id, base, recs }                        (v1.02 review: the person's missed chances)
 //   ← { type: "detect", id, findings, ms }
@@ -47,10 +48,24 @@ function playGame(m) {
   const orig = Math.random;
   // v1.13: a Super Expert seat searches with its own (bigger) budget (m.budgets[i]); a Master with m.opts
   const agents = m.strategies.map((s, i) => (s.policy === "master" || s.policy === "super" || s.policy === "superplus" ? makeMaster(m.budgets?.[i] || m.opts || {}) : null));
+  // lab-131: the page hears how the game goes (turn, points, which seat is searching; with m.watch the position too, so
+  // Watch can follow a Master / Super game): before every searched decision and after every turn, at most every 300 ms
+  let last = 0, decisions = 0;
+  const tell = (think, force = false) => {
+    const now = performance.now();
+    if (!force && now - last < 300) return;
+    last = now;
+    self.postMessage({ type: "progress", id: m.id, turn: g.turn, setup: !!g.setupPhase, vp: g.players.map((p) => p.victoryPoints), think, d: decisions, state: m.watch ? g.serializeState() : undefined });
+  };
+  agents.forEach((a, i) => {
+    if (!a) return;
+    ["decideSetup", "decideMain", "decideRobber"].forEach((f) => { const o = a[f]; a[f] = (...x) => { decisions += 1; tell(i); return o(...x); }; });
+  });
   try {
     g._labSimStart(m.strategies, { players: m.strategies.length, map: m.map || "random", seed: m.seed, agents });
     let r = { done: false };
-    while (!r.done) r = g._labSimStep(40);
+    tell(null, true);
+    while (!r.done) { r = g._labSimStep(1); if (!r.done) tell(null); }
     return { winner: r.winner, turns: r.turns, vp: g.players.map((p) => p.victoryPoints), ms: Math.round(performance.now() - t0),
       stats: agents.map((a) => (a ? { d: a.stats.decisions, dev: a.stats.deviations, ms: a.stats.ms } : null)) };
   } finally { Math.random = orig; g.players.forEach((p) => { p.agent = null; }); }

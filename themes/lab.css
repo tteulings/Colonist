@@ -24,6 +24,13 @@ body.lab { overflow: auto; margin: 0; font-family: var(--font-body); color: var(
 .lb-winfo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0; }
 .lb-wstop { pointer-events: auto; border: var(--btn-border); background: var(--btn); color: var(--ink); border-radius: 999px; padding: 3px 10px; min-height: 28px; font-weight: 700; font-size: 12px; }
 .lb-faded { opacity: .55; transition: opacity .3s; }
+/* lab-131: the run's progress lives in the caption (bar along its foot); Instant dims the board; idle: a quiet label */
+.lb-watch { overflow: hidden; }
+.lb-wbar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.lb-wbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+.lb-wthink { color: var(--ink); font-weight: 650; }
+.lb-board.lb-blind iframe { opacity: .35; filter: saturate(.4); transition: opacity .3s; }
+.lb-watch.lb-widle { right: auto; box-shadow: none; opacity: .92; }
 .lb-tools { display: grid; gap: 6px; margin-top: 8px; }
 .lb-seats { display: flex; gap: 5px; flex-wrap: wrap; }
 .lb-seats button { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 6px; border-radius: 999px; background: var(--chip); border: var(--chip-border); font-size: 12px; font-weight: 650; min-height: 30px; }
@@ -294,6 +301,7 @@ body.lb-stepping .lb-tools, body.lb-stepping #labResult { display: none; }
 .lb-dots { display: inline-flex; gap: 2px; }
 .lb-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--sep, rgba(0,0,0,.2)); }
 .lb-dots i.on { background: var(--accent); }
+.lb-dots i.star { width: 10px; height: 10px; margin: -2px 0 0 1px; border-radius: 0; background: var(--lf-gold, #D9A21B); clip-path: polygon(50% 0, 62% 36%, 100% 38%, 70% 60%, 80% 100%, 50% 76%, 20% 100%, 30% 60%, 0 38%, 38% 36%); } /* lab-131: the Supers' sixth mark */
 .lb-tog { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 40px; font-size: 13px; color: var(--ink); }
 .lb-ii { width: 24px; height: 24px; margin-left: 6px; border-radius: 50%; border: 1.5px solid var(--ink-soft); background: none; color: var(--ink-soft); font: 700 12px/1 Georgia, serif; vertical-align: middle; padding: 0; }
 .lb-itext { margin: -2px 0 2px; color: var(--ink-soft); font-size: 12px; }

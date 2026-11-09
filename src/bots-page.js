@@ -126,6 +126,7 @@ function ladderSvg(W) {
     s += `<rect x="0" y="${y - rh / 2}" width="${W}" height="${rh}" fill="transparent"/>`;
     s += `<text class="b" x="0" y="${y - 2}">${i + 1}</text><text class="b" x="16" y="${y - 2}">${b.p.label}</text>`;
     for (let k = 0; k < 5; k++) s += `<rect class="dia${k < b.p.level ? " on" : ""}" x="${17 + k * 11}" y="${y + 6}" width="6.5" height="6.5" rx="1.5" transform="rotate(45 ${20.2 + k * 11} ${y + 9.2})"/>`;
+    if (b.p.beyond) s += `<path class="dia star" transform="translate(${17 + 5 * 11 - 1},${y + 4.5})" d="M5 0l1.2 3.6H10L7 5.8 8.1 9.5 5 7.3 1.9 9.5 3 5.8 0 3.6h3.8z"/>`; // lab-131: the Supers' star, as in the list
     s += `<line class="stem" x1="${X(0)}" x2="${X(w.v)}" y1="${y}" y2="${y}"/>`;
     if (!est) s += `<g class="iv"><line x1="${X(w.v - w.ci)}" x2="${X(w.v + w.ci)}" y1="${y}" y2="${y}"/><line x1="${X(w.v - w.ci)}" x2="${X(w.v - w.ci)}" y1="${y - 14}" y2="${y + 14}"/><line x1="${X(w.v + w.ci)}" x2="${X(w.v + w.ci)}" y1="${y - 14}" y2="${y + 14}"/></g>`;
     s += `<g transform="translate(${X(w.v)},${y})"><circle r="${r}" class="disc"/><g transform="translate(${-r + 1.5},${-r + 1.5}) scale(${(2 * r - 3) / 100})">${inner(b.key)}</g><circle r="${r}" class="ring${est ? " est" : ""}" style="stroke-opacity:${0.4 + b.p.level * 0.12}"/></g>`;
