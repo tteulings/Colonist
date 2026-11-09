@@ -159,8 +159,8 @@
 .rv-midnote p b { font: 800 15px var(--font-body); color: var(--heading); }
 
 /* v1.05 Step mode for the Game review. Theme tokens only; classes get one hue each, text >= 11 px, targets >= 40 px. */
-.rs { --c-best: #1F8F7A; --c-great: #2F6FD0; --c-excellent: #4F8A33; --c-good: #86A94A; --c-inacc: #D99A1E; --c-could: #D99A1E; --c-triv: #9AA3AB; --c-mistake: #E27B2F; --c-blunder: #C8402E; --c-missed: #8C5AC8; --c-luck: #6B7280; --neg: #C0432F; --pos: #2E7D4F; }
-[data-palette="night"] .rs { --c-best: #4CC9B0; --c-great: #7FA8F5; --c-excellent: #7DBA5C; --c-good: #A8C86C; --c-inacc: #F0B45C; --c-could: #F0B45C; --c-triv: #7C858F; --c-mistake: #F29A58; --c-blunder: #F2705E; --c-missed: #B58BE8; --c-luck: #9AA3B2; --neg: #F2907A; --pos: #7DBA5C; }
+.rs, .rt { --c-best: #1F8F7A; --c-great: #2F6FD0; --c-excellent: #4F8A33; --c-good: #86A94A; --c-inacc: #D99A1E; --c-could: #D99A1E; --c-triv: #9AA3AB; --c-mistake: #E27B2F; --c-blunder: #C8402E; --c-missed: #8C5AC8; --c-luck: #6B7280; --neg: #C0432F; --pos: #2E7D4F; }
+[data-palette="night"] :is(.rs, .rt) { --c-best: #4CC9B0; --c-great: #7FA8F5; --c-excellent: #7DBA5C; --c-good: #A8C86C; --c-inacc: #F0B45C; --c-could: #F0B45C; --c-triv: #7C858F; --c-mistake: #F29A58; --c-blunder: #F2705E; --c-missed: #B58BE8; --c-luck: #9AA3B2; --neg: #F2907A; --pos: #7DBA5C; }
 .rs .neg { color: var(--neg); } .rs .pos { color: var(--pos); }
 .rs-b { width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center; flex: none; font: 800 12px/1 var(--font-body); font-style: normal; color: #fff; background: var(--cc, var(--c-luck)); }
 .rs-b.sm { width: 17px; height: 17px; font-size: 11px; } .rs-b.lg { width: 26px; height: 26px; font-size: 15px; }
@@ -178,7 +178,7 @@
 .rs-cnt b { font: 800 15px/1 var(--font-body); color: var(--heading); } .rs-cnt small { grid-column: 1 / -1; font-size: 11px; line-height: 1.1; font-weight: 700; color: var(--ink-soft); white-space: normal; }
 .rs-pl { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; font-size: 11px; color: var(--ink-soft); font-weight: 650; border-top: 1px solid var(--rv-sep); padding-top: 6px; } .rs-pl span { display: grid; font: 800 16px/1.1 var(--font-body); color: var(--heading); } .rs-pl b { font-size: 11px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .rs-pl .you b { color: var(--primary); }
 .rs-go { min-height: 48px; font-size: 15px; width: 100%; } .rs-go svg { width: 18px; height: 18px; }
-.rs-chart { width: 100%; height: auto; display: block; color: var(--ink); } .rs-chart .g-grid { stroke: color-mix(in srgb, var(--ink) 11%, transparent); } .rs-chart .g-ax { font-size: 11px; fill: var(--ink-soft); } .rs-chart .g-area { fill: var(--primary); opacity: .10; } .rs-chart .g-line { fill: none; stroke: var(--primary); stroke-width: 2.4; stroke-linejoin: round; }
+.rs-chart { width: 100%; height: auto; display: block; color: var(--ink); } .rs-chart .g-grid { stroke: color-mix(in srgb, var(--ink) 11%, transparent); } .rs-chart .g-ax { font-size: 11px; fill: var(--ink-soft); } .rs-chart .g-area { fill: var(--pc, var(--primary)); opacity: .10; } .rs-chart .g-halo { fill: none; stroke: var(--sheet-solid, #fff); stroke-width: 5; stroke-linejoin: round; opacity: .9; } .rs-chart .g-line { fill: none; stroke: var(--pc, var(--primary)); stroke-width: 3; stroke-linejoin: round; }
 .rs-chart .gd { fill: var(--cc); stroke: var(--sheet-solid, #fff); stroke-width: 1.2; } .rs-chart .g-sel { stroke: var(--primary); stroke-width: 1.5; stroke-dasharray: 3 3; } .rs-chart .g-cur { fill: var(--primary); stroke: #fff; stroke-width: 2.4; }
 .b-luck { fill: var(--c-luck); opacity: .75; } .b-skill { fill: var(--neg); } .rs-chart .g-oth { fill: none; stroke: var(--pc); stroke-width: 1.3; opacity: .85; }
 .kl, .ks { display: inline-block; width: 9px; height: 9px; border-radius: 2px; vertical-align: -1px; background: var(--c-luck); } .ks { background: var(--neg); }
@@ -287,3 +287,49 @@
 .rs-dice .rs-lost { margin: 6px 2px 0; } .rs-dice { scroll-margin-top: 8px; }
 .rs-sl > button.rs-lt { display: block; width: 100%; box-sizing: border-box; text-align: left; } .rs-sl > button.rs-lt b { display: block; font-size: 20px; white-space: nowrap; }
 .rv1-sum > div:last-child b { font-size: 17px; white-space: nowrap; }
+
+/* ── v1.29 At this table (src/review-game.js _rvTableHtml): one row per player, on the end screen and the review overview ── */
+.rt { display: grid; padding: 10px 10px 8px; }
+[data-rvbox] > .rt { margin: 0 0 10px; border-radius: 12px; background: var(--chip); background-image: none; border: var(--chip-border); box-shadow: none; }
+.rt-prog { display: flex; align-items: center; gap: 8px; padding: 2px 2px 8px; font-size: 13px; font-weight: 750; color: var(--ink); }
+.rt-prog span { flex: 1; min-width: 0; } .rt-prog small { display: block; font-size: 11px; color: var(--ink-soft); font-weight: 650; }
+.rt-prog .rv-btn { min-height: 44px; flex: none; }
+.rt-row { width: 100%; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.rt-row:active { background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.rt-row.cur { background: color-mix(in srgb, var(--primary) 7%, transparent); border-radius: 10px; }
+.rt-st { font-weight: 700; color: var(--ink-soft); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.rt-foot { margin: 8px 2px 0; font-size: 11px; line-height: 1.35; color: var(--ink-soft); font-weight: 600; }
+/* v1.29 design A: a table with fixed columns. Bold: the name and the three numbers; light: what explains them. */
+.rt .rt-hd, .rt .rt-row { display: grid; grid-template-columns: minmax(0, 1fr) 52px 40px 68px; column-gap: 6px; align-items: center; }
+.rt .rt-hd { padding: 2px 4px 5px; font: 650 11px/1.2 var(--font-body); color: var(--ink-soft); } .rt .rt-hd span:nth-child(n+2) { text-align: right; }
+.rt .rt-row { min-height: 52px; padding: 5px 4px; border-top: 1px solid var(--rv-sep); }
+.rt .rt-who { display: flex; align-items: center; gap: 7px; min-width: 0; } .rt .rt-who > span { min-width: 0; }
+.rt .rt-who .rt-av { --av: 28px; margin: 0; flex: none; }
+.rt .rt-nm { display: block; font: 800 14.5px/1.15 var(--font-body); color: var(--heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt .rt-who small { display: block; margin-top: 2px; font: 600 11.5px/1.15 var(--font-body); color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt .rt-c { display: grid; justify-items: end; text-align: right; gap: 3px; min-width: 0; }
+.rt .rt-c > b { font: 800 16px/1 var(--font-body); font-variant-numeric: tabular-nums; color: var(--heading); white-space: nowrap; }
+.rt .rt-c > small { font: 600 11px/1.15 var(--font-body); color: var(--ink-soft); white-space: nowrap; }
+.rt .rt-ac .rt-acc { font: 850 21px/1 var(--font-body); min-width: 0; text-align: right; color: var(--heading); } .rt .rt-ac .rt-acc.prov { color: var(--ink-soft); }
+.rt .rt-meter { position: relative; display: block; width: 50px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 12%, transparent); }
+.rt .rt-meter .bd { position: absolute; top: -2px; bottom: -2px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 26%, transparent); }
+.rt .rt-meter .dot { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--pc, var(--primary)); box-shadow: 0 0 0 2px var(--sheet-solid, var(--chip, #fff)); }
+.rt .rt-l > b.pos { color: var(--pos); } .rt .rt-l > b.neg { color: var(--neg); }
+.rt .rt-sl > b { color: var(--neg); font-size: 15px; }
+.rt .rt-st { font-size: 11.5px; justify-content: flex-end; }
+
+/* v1.29 step mode: whose moves */
+.rs-who { padding: 0 !important; min-width: 52px !important; min-height: 44px !important; gap: 2px; display: inline-flex; align-items: center; justify-content: center; }
+.rs-who .rt-av { --av: 28px; }
+.rs-who .cv { width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg) translateY(-2px); margin-left: 3px; }
+.rs-whopop { position: absolute; top: calc(max(8px, env(safe-area-inset-top)) + 54px); right: 10px; z-index: 40; width: min(300px, calc(100% - 20px)); max-height: 70%; overflow: auto;
+  background: var(--sheet); background-image: var(--sheet-image); border: var(--sheet-border); border-radius: 16px; box-shadow: var(--float-shadow); padding: 6px; display: grid; gap: 2px; color: var(--ink); }
+.rs-whopop .h { font-size: 11px; font-weight: 750; color: var(--ink-soft); padding: 4px 8px 2px; text-transform: uppercase; letter-spacing: .05em; }
+.rs-whopop button { min-height: 50px; display: flex; align-items: center; gap: 10px; padding: 4px 8px; border: 0; border-radius: 10px; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.rs-whopop button > span { min-width: 0; }
+.rs-whopop button.on { background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.rs-whopop b { display: block; font-size: 14px; font-weight: 800; color: var(--heading); } .rs-whopop small { display: block; font-size: 11.5px; color: var(--ink-soft); font-weight: 650; }
+.rs-bar.w { gap: 6px; } .rs-bar.w .rs-ov { padding: 0 12px !important; font-size: 14px; min-width: 0; }
+.rs-bar.w > div { min-width: 0; } .rs-bar.w h3, .rs-bar.w small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* v1.29 the swings' cause line wraps like the Could-be-better lines (a long cause was cut off at 360 px) */
+.rs-swings .rs-key .x { white-space: normal; line-height: 1.2; }

@@ -8,7 +8,7 @@
 //   A − B is always the gap that the class uses, on every screen.
 // Everything below is derived from the stored candidates (`cands`), so a saved review can be re-scored without the engine.
 
-export const FMT = 3; // stamp on a review (`rv.fmt`) and on its history entry: numbers, classes and labels of this file
+export const FMT = 4; // stamp on a review (`rv.fmt`) and on its history entry: numbers, classes and labels of this file (v1.29: 4, liftSameStep)
 
 // Classes on the gap in whole percent. The upper bound of each class (the gap must be under it). Best: under 1 (0).
 export const LIMITS = [[1, "best"], [3, "good"], [6, "could"], [12, "mistake"], [Infinity, "blunder"]];
@@ -81,6 +81,34 @@ export function decide(results, n, me) {
       seats: fitSeats(norm(x.seats, x.win), me, B / 100), bseats: fitSeats(norm(x.best?.seats, x.win + (x.best?.gain || 0)), me, A / 100),
       same: cls === "triv" || !x.best || gp < 1 };
   });
+}
+
+/** v1.29 The same-step lift, applied to the stored results themselves (one source for every screen, the counts, the history and the
+ *  accuracy). A build or bank trade followed, in the same roll step and turn, by another decision whose best line was still open did
+ *  not give that away: it is worth at least that next decision's A. Without this the evaluator's pessimistic estimate right after a
+ *  build counts twice: as a mistake (A − B), then given back as "luck" at the next move (a road before the winning city read −78,
+ *  then +78). The lifted result keeps its originals in `lift0` and gets: win = the floor (B up), loss and lossRaw down by as much
+ *  (A stays), accuracy and mark from the new loss. Idempotent; run it whenever results change. `acc(lossRaw)` is the accuracy curve. */
+export const LIFT_KINDS = ["build", "bank"];
+export function liftSameStep(results, acc = null) {
+  const sorted = (results || []).filter((x) => x && x.win != null).sort((a, b) => a.i - b.i);
+  sorted.forEach((x) => { if (x.lift0) { Object.assign(x, x.lift0); delete x.lift0; delete x.lifted; } });
+  const floor = sorted.map(() => null);
+  for (let k = sorted.length - 2; k >= 0; k -= 1) {
+    const x = sorted[k], y = sorted[k + 1];
+    const yB = Math.max(Math.round(y.win * 100), floor[k + 1] ?? -1), yA = Math.max(yB, Math.round(y.win * 100) + gpOf(y));
+    if (LIFT_KINDS.includes(x.k) && x.s != null && x.s === y.s && x.t === y.t) floor[k] = yA;
+  }
+  sorted.forEach((x, k) => {
+    const gp = gpOf(x), B = Math.round(x.win * 100), A = B + gp;
+    if (!gp || floor[k] == null || floor[k] <= B) return;
+    const up = Math.min(A, floor[k]) - B, d = up / 100;
+    x.lift0 = { win: x.win, loss: x.loss, lossRaw: x.lossRaw, acc: x.acc, mark: x.mark };
+    x.win = r4(x.win + d); x.loss = r4(Math.max(0, x.loss - d)); x.lossRaw = r4(Math.max(0, (x.lossRaw ?? x.loss) - d)); x.lifted = up;
+    if (x.acc != null && acc) x.acc = Math.round(acc(x.lossRaw) * 10) / 10;
+    x.mark = x.trivial ? "good" : markOfCls(clsOf(x));
+  });
+  return results;
 }
 
 /** Your moves and Luck for the whole game, in whole percent. Always: Luck + Your moves = (win chance after your last move) − (an even share).
