@@ -350,3 +350,5 @@
 .rt-row > .rt-l { grid-area: l; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .rt-row > .rt-m { grid-area: m; margin: 0; }
 .rt-l s { margin-right: 4px; } .rt-l b { white-space: nowrap; }
+/* v1.29 the swings' cause line wraps like the Could-be-better lines (a long cause, e.g. "Others pulled ahead · +2 for you", was cut off at 360 px) */
+.rs-swings .rs-key .x { white-space: normal; line-height: 1.2; }
