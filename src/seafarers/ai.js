@@ -92,11 +92,11 @@ export const SeaAI = {
     let K = geo._seaK;
     if (K && K.res.length === H.length) { let same = true; for (let i = 0; i < H.length; i++) if (K.res[i] !== H[i].resource) { same = false; break; } if (same) return K; }
     const E = geo.edges.length, N = geo.nodes.length;
-    const land = new Uint8Array(E), coast = new Uint8Array(N);
-    for (let i = 0; i < E; i++) land[i] = this.edgeKind(i) === "land" ? 1 : 0;
+    const land = new Uint8Array(E), coast = new Uint8Array(N), seaE = new Uint8Array(E);
+    for (let i = 0; i < E; i++) { const k = this.edgeKind(i); land[i] = k === "land" ? 1 : 0; seaE[i] = k === "sea" ? 1 : 0; }
     for (let i = 0; i < N; i++) coast[i] = this.nodeIsCoast(i) ? 1 : 0;
     const dqCap = 16 * (E + N) + 64;
-    K = { res: H.map((h) => h.resource), land, coast, dq: new Int32Array(dqCap), dqCap };
+    K = { res: H.map((h) => h.resource), land, coast, seaE, dq: new Int32Array(dqCap), dqCap };
     Object.defineProperty(geo, "_seaK", { value: K, writable: true, configurable: true, enumerable: false });
     return K;
   },

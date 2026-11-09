@@ -317,6 +317,23 @@ export class Seafarers {
     const ids = [...player.roads, ...(player.ships || [])];
     if (!ids.length) return 0;
     const E = this.geo.edges, N = this.geo.nodes;
+    // eng-130 speed: memoised on exactly what the answer reads: each edge, road or ship, and per end node rival-held / own building
+    const pid = player.id;
+    const st = (n) => { const o = N[n].owner; return o != null && o !== pid ? "b" : o === pid && N[n].structure != null ? "o" : ""; };
+    let key = "";
+    for (const id of ids) { const e = E[id]; key += id + (e.ship ? "s" : "r") + st(e.nodes[0]) + "/" + st(e.nodes[1]) + ","; }
+    if (this._trGeo !== this.geo) { this._trMemo = new Map(); this._trGeo = this.geo; } // a new board: new node / edge layout
+    const memo = this._trMemo;
+    const hit = memo.get(key);
+    if (hit !== undefined) return hit;
+    const len = this._tradeRouteDfs(player, ids);
+    if (memo.size > 50000) memo.clear();
+    memo.set(key, len);
+    return len;
+  }
+
+  _tradeRouteDfs(player, ids) {
+    const E = this.geo.edges, N = this.geo.nodes;
     const inc = new Map();
     ids.forEach((id) => E[id].nodes.forEach((n) => { if (!inc.has(n)) inc.set(n, []); inc.get(n).push(id); }));
     const blocked = (n) => N[n].owner != null && N[n].owner !== player.id;

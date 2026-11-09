@@ -5039,6 +5039,8 @@ class ColonistFullGame {
       if (spare > 0) capNow += Math.floor(spare / rates[r]);
     }
     if (capNow >= def) return 0.3 * def;
+    // eng-130 speed: gap(t) without a [d, c] array per call (same arithmetic in the same order)
+    let gd = 0, gc = 0;
     const gap = (t) => {
       let d = 0;
       let c = 0;
@@ -5047,19 +5049,20 @@ class ColonistFullGame {
         if (x > 0) d += x;
         else c -= x / rates[r];
       }
-      return [d, c];
+      gd = d; gc = c;
     };
-    let [d, c] = gap(tNo);
-    if (d > c) return tNo;
+    gap(tNo);
+    if (gd > gc) return tNo;
     let lo = 0;
     let hi = tNo;
     for (let i = 0; i < 10; i += 1) {
       const mid = (lo + hi) / 2;
-      [d, c] = gap(mid);
-      if (d <= c) hi = mid;
+      gap(mid);
+      if (gd <= gc) hi = mid;
       else lo = mid;
     }
-    [d] = gap(hi);
+    gap(hi);
+    const d = gd;
     return Math.min(tNo, hi + 0.3 * d);
   }
 
@@ -5076,16 +5079,49 @@ class ColonistFullGame {
     const nodes = this.geometry.nodes;
     const dist = new Array(nodes.length).fill(Infinity);
     const first = new Array(nodes.length).fill(null);
-    const queue = [];
-    this.getRoadNetworkNodes(player).forEach((n) => { dist[n] = 0; queue.push(n); });
-    while (queue.length) {
-      const u = queue.shift();
+    // eng-130 speed: a typed deque in place of Array shift / unshift (same order, same result); the plain array if it ever overflows
+    const net = this.getRoadNetworkNodes(player);
+    const cap = 16 * (nodes.length + this.geometry.edges.length) + 64;
+    const queue = this._rrBuf && this._rrBuf.length === cap ? this._rrBuf : (this._rrBuf = new Int32Array(cap));
+    let head = cap >> 1, tail = head;
+    net.forEach((n) => { dist[n] = 0; queue[tail++] = n; });
+    const seaK = this.sea ? this.sea._seaStatic() : null;
+    while (head < tail) {
+      if (head <= 0 || tail >= cap) return this._aiRoadReachArr(player);
+      const u = queue[head++];
       const node = nodes[u];
       if (node.owner != null && node.owner !== player.id) continue; // can't build past an opponent's town
       for (const edgeId of node.edgeIds) {
         const edge = this.geometry.edges[edgeId];
         if (edge.owner != null && edge.owner !== player.id) continue;
-        if (this.sea && (edge.ship || this.sea.edgeKind(edgeId) === "sea")) continue; // ⚓ roads: land and coast only
+        if (seaK && (edge.ship || seaK.seaE[edgeId])) continue; // ⚓ roads: land and coast only
+        const v = edge.nodes[0] === u ? edge.nodes[1] : edge.nodes[0];
+        const w = edge.owner === player.id ? 0 : 1;
+        if (dist[u] + w >= dist[v]) continue;
+        dist[v] = dist[u] + w;
+        first[v] = w ? (first[u] ?? edgeId) : first[u];
+        if (w) queue[tail++] = v;
+        else queue[--head] = v;
+      }
+    }
+    return { dist, first };
+  }
+
+  /** The original _aiRoadReach (Array deque): the overflow fallback of the fast one. */
+  _aiRoadReachArr(player) {
+    const nodes = this.geometry.nodes;
+    const dist = new Array(nodes.length).fill(Infinity);
+    const first = new Array(nodes.length).fill(null);
+    const queue = [];
+    this.getRoadNetworkNodes(player).forEach((n) => { dist[n] = 0; queue.push(n); });
+    while (queue.length) {
+      const u = queue.shift();
+      const node = nodes[u];
+      if (node.owner != null && node.owner !== player.id) continue;
+      for (const edgeId of node.edgeIds) {
+        const edge = this.geometry.edges[edgeId];
+        if (edge.owner != null && edge.owner !== player.id) continue;
+        if (this.sea && (edge.ship || this.sea.edgeKind(edgeId) === "sea")) continue;
         const v = edge.nodes[0] === u ? edge.nodes[1] : edge.nodes[0];
         const w = edge.owner === player.id ? 0 : 1;
         if (dist[u] + w >= dist[v]) continue;
@@ -5793,6 +5829,25 @@ class ColonistFullGame {
   computeLongestRoadLength(player) {
     if (this.sea) return this.sea.tradeRouteLength(player); // ⚓ Longest Trade Route: roads + ships
     if (!player.roads.size) return 0;
+    // eng-130 speed: the answer depends only on the road edges and on which of their end nodes a rival holds; memoised on exactly
+    // that (the bots' searches recompute every player's road after every build, ~20 % of their time)
+    const E = this.geometry.edges, N = this.geometry.nodes, pid = player.id;
+    let key = "";
+    for (const id of player.roads) {
+      const en = E[id].nodes, o0 = N[en[0]].owner, o1 = N[en[1]].owner;
+      key += id + (o0 != null && o0 !== pid ? "a" : "") + (o1 != null && o1 !== pid ? "b" : "") + ",";
+    }
+    if (this._lrGeo !== this.geometry) { this._lrMemo = new Map(); this._lrGeo = this.geometry; } // a new board: new node / edge layout
+    const memo = this._lrMemo;
+    const hit = memo.get(key);
+    if (hit !== undefined) return hit;
+    const len = this._longestRoadDfs(player);
+    if (memo.size > 50000) memo.clear();
+    memo.set(key, len);
+    return len;
+  }
+
+  _longestRoadDfs(player) {
     const playerEdgeIds = [...player.roads];
     const incident = new Map();
     playerEdgeIds.forEach((edgeId) => {
