@@ -3641,9 +3641,9 @@ class ColonistFullGame {
       <div class="sheet-head"><h3 id="tradeTitle">${icon("trade")}Trade</h3>
         <button type="button" id="tradeModalClose" class="btn ghost icon-only" aria-label="Close">${icon("close")}</button></div>
       <div class="trade-body" id="tradeBody">
-        <div class="tlbl"><span>You give</span></div>
+        <div class="tlbl"><span>You give</span><small class="tlbl-na">you have → after</small></div>
         <div id="tradeOfferGrid" class="tgrid give" role="group" aria-label="You give"></div>
-        <div class="tlbl"><span>You get</span></div>
+        <div class="tlbl"><span>You get</span><small class="tlbl-na">you have → after</small></div>
         <div id="tradeRequestGrid" class="tgrid get" role="group" aria-label="You get"></div>
         <div class="tplayers" id="tradePlayers">
           <div class="tp-head"><span>Players</span><small id="tradePlayersNote"></small></div>
@@ -3802,12 +3802,15 @@ class ColonistFullGame {
       const usable = side === "give" ? have > 0 : true;
       const out = side === "get" && stock <= 0;
       const rate = this.getPlayerTradeRate(player, r);
-      const num = side === "give" ? have - n : stock;
-      const sub = side === "give" ? (n ? `<span class="aft">${have - n} left</span>` : `have ${have}`)
-        : stock > 0 ? `bank ${stock}` : "bank empty";
-      const label = side === "give" ? `Give one more ${name} (you have ${have}${n ? `, giving ${n}` : ""})` : `Get one more ${name}${n ? ` (asking ${n})` : ""} · bank has ${stock}`;
+      // v1.31 (ux-132): one meaning per number. The card's numeral is what you hold NOW; under every card (give and get)
+      // "4 → 2": now → after this trade, so nobody has to count. The bank route's own result is on its button.
+      const after = have - (this.tradeOffer[r] || 0) + (this.tradeRequest[r] || 0);
+      const num = side === "give" ? have : stock;
+      const sub = out ? "bank empty" : after !== have ? `<span class="na">${have} → <b class="${after < have ? "dn" : "up"}">${after}</b></span>` : `<span class="na">${have}</span>`;
+      const low = side === "get" && stock > 0 && stock <= 3 ? `<span class="rate-tag low" title="The bank has ${stock} ${name} left">bank ${stock}</span>` : "";
+      const label = side === "give" ? `Give one more ${name} (you have ${have}${n ? `, giving ${n}, ${after} after` : ""})` : `Get one more ${name} (you have ${have}${n ? `, asking ${n}, ${after} after` : ""}) · bank has ${stock}`;
       return `<div class="tcell ${r}${n ? " pick" : ""}${usable ? "" : " none"}${out ? " out" : ""}" data-hand="${side === "give" ? r : ""}" data-res="${r}">
-        <button type="button" class="tpick" data-${side}="${r}" aria-label="${label}" ${usable ? "" : "aria-disabled=\"true\""}>${side === "give" ? `<span class="rate-tag${rate < baseRate ? " port" : ""}" title="${rate} ${name} for 1 card from the bank">${rate}:1</span>` : ""}<span class="tcard card" data-card="${r}" data-n="${Math.max(1, Math.min(num, 4))}">${cardSvg(r)}${side === "give" ? `<span class="tnum">${num}</span>` : ""}</span><small${side === "get" ? ' class="stock"' : ""}>${sub}</small></button>
+        <button type="button" class="tpick" data-${side}="${r}" aria-label="${label}" ${usable ? "" : "aria-disabled=\"true\""}>${side === "give" ? `<span class="rate-tag${rate < baseRate ? " port" : ""}" title="${rate} ${name} for 1 card from the bank">${rate}:1</span>` : low}<span class="tcard card" data-card="${r}" data-n="${Math.max(1, Math.min(num, 4))}">${cardSvg(r)}${side === "give" ? `<span class="tnum">${num}</span>` : ""}</span><small${side === "get" ? ' class="stock"' : ""}>${sub}</small></button>
         ${n ? `<b class="tbadge">${n}</b>` : ""}<button type="button" class="tminus" data-${side}-minus="${r}" aria-label="${side === "give" ? "Give" : "Get"} one ${name} less" ${n ? "" : "tabindex=\"-1\" aria-hidden=\"true\""}>${icon("minus")}</button>
       </div>`;
     }).join("");
@@ -3949,7 +3952,8 @@ class ColonistFullGame {
     if (this.tradeExecuteBtn) {
       const ok = !!plan.k;
       this.tradeExecuteBtn.disabled = !ok;
-      const where = plan.rate < 4 ? `Harbour ${plan.rate}:1` : "Trade with bank";
+      // v1.31 (ux-132): the bank takes rate × cards, which may differ from the picks: its own "Lumber 4 → 0" is shown here
+      const where = !ok ? "" : `${plan.rate < 4 ? `${plan.rate}:1 · ` : ""}${RESOURCE_LABEL[plan.give]} ${player.resources[plan.give]} → ${player.resources[plan.give] - plan.n}`;
       this.tradeExecuteBtn.classList.toggle("ready", ok);
       const giveRes = makeEmptyResources();
       if (plan.give) giveRes[plan.give] = plan.n;
@@ -3957,7 +3961,7 @@ class ColonistFullGame {
       const sub = ok ? where : plan.why;
       this.tradeExecuteBtn.innerHTML = `${icon("bank")}<span class="rt"><b>${top}</b><small>${sub}</small></span>`;
       this.tradeExecuteBtn.setAttribute("aria-label", ok
-        ? `Trade ${plan.n} ${RESOURCE_LABEL[plan.give]} → ${RESOURCES.filter((r) => this.tradeRequest[r] > 0).map((r) => `${this.tradeRequest[r]} ${RESOURCE_LABEL[r]}`).join(" + ")} with the ${plan.rate < 4 ? "harbour" : "bank"}`
+        ? `Trade ${plan.n} ${RESOURCE_LABEL[plan.give]} → ${RESOURCES.filter((r) => this.tradeRequest[r] > 0).map((r) => `${this.tradeRequest[r]} ${RESOURCE_LABEL[r]}`).join(" + ")} with the ${plan.rate < 4 ? `harbour (${plan.rate}:1)` : "bank"}; you keep ${player.resources[plan.give] - plan.n} ${RESOURCE_LABEL[plan.give]}`
         : `Bank: ${plan.why}`);
     }
     // Route 2: offer to the players
