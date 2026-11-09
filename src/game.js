@@ -23,7 +23,7 @@ import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
 import { presetHighlight, BOT_PROFILES, gmFlag } from "./bot-profiles.js"; // v1.04 Settings › Bots: which preset chip is lit
-import { framedAvatar, profileLabel, profileOf, openProfileSheet, pickerExtras, tableList, presetCards, dots, superOff } from "./bot-profile-ui.js"; // v1.04 bot profile frames + sheet
+import { framedAvatar, profileLabel, profileOf, openProfileSheet, pickerExtras, tableList, presetCards, dots, superOff, byStrength } from "./bot-profile-ui.js"; // v1.04 bot profile frames + sheet
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
@@ -9240,13 +9240,13 @@ class ColonistFullGame {
         : `<div class="hs-seat-name">${esc(cfg.name)}${badge(botPreset(id - 1))}</div>`;
       const sel = !human && d.botStyleMode === "each" ? `
         <select class="ng-bot-select" data-bot="${id - 1}" aria-label="${esc(cfg.name)} personality">
-          ${Object.keys(AI_PRESETS).map((key) => `<option value="${key}"${d.perBot[id - 1] === key ? " selected" : ""}${isSup(key) && superOff() ? " disabled" : ""}>${presetLabel(key)}${isSup(key) && superOff() ? ` (not in ${superOff()})` : ""}</option>`).join("")}
+          ${byStrength(Object.keys(AI_PRESETS)).map((key) => `<option value="${key}"${d.perBot[id - 1] === key ? " selected" : ""}${isSup(key) && superOff() ? " disabled" : ""}>${presetLabel(key)}${isSup(key) && superOff() ? ` (not in ${superOff()})` : ""}</option>`).join("")}
         </select><button type="button" class="bp-info" data-info="${d.perBot[id - 1]}" aria-label="About the ${presetLabel(d.perBot[id - 1])} profile">i</button>` : "";
       return `<div class="hs-seat pc-${id}">${avatarSvg(id, "ng-bot-avatar")}<div class="hs-seat-main">${main}</div>${kind}${sel}</div>`;
     }).join("");
 
     const render = () => {
-      const presetKeys = [...Object.keys(AI_PRESETS), "custom"];
+      const presetKeys = [...byStrength(Object.keys(AI_PRESETS)), "custom"];
       if (superOff() && (isSup(d.allPreset) || d.perBot.some(isSup))) { // not a silent fallback: say it
         const nm = AI_PRESET_INFO[isSup(d.allPreset) ? d.allPreset : d.perBot.find(isSup)].label;
         d._superNote = `${nm} is not available in ${superOff()}: switched to Master.`;
@@ -9541,7 +9541,7 @@ class ColonistFullGame {
 
     if (targets.length) {
       const hl = presetHighlight(targets.map((p) => p.strategy), AI_PRESETS, axes);
-      panel.appendChild(presetCards(this, Object.keys(AI_PRESETS), hl, (name) => {
+      panel.appendChild(presetCards(this, byStrength(Object.keys(AI_PRESETS)), hl, (name) => {
         targets.forEach((p) => { delete p.strategy.policy; Object.assign(p.strategy, AI_PRESETS[name]); });
         this._saveStrategies();
         this._buildStrategyUI();
@@ -11289,4 +11289,8 @@ const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle
 game._navInstall(); // v1.26 Back closes the top screen / sheet (src/nav.js)
 if (document.documentElement.dataset.lab) game._labBoot(document.documentElement.dataset.lab); // AI Lab engine (lab.html)
+else { // lab-131 a game of the AI Lab's last run, opened from the lab (index.html?labgame=ID&what=replay|review&pid=N)
+  const q = new URLSearchParams(location.search), lg = q.get("labgame");
+  if (lg) { let n = 0; const go = () => { if (document.body.dataset.gameReady || n++ > 100) game.histOpenLab(lg, q.get("what") || "stats", q.get("pid") != null ? Number(q.get("pid")) : null); else setTimeout(go, 100); }; go(); }
+}
 window.__colonistSplashDone?.(); // v1.27 Home or the resumed game is built: the launch splash (index.html) fades out after this frame

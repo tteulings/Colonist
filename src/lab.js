@@ -12,9 +12,11 @@
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
 import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=131";
-import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor } from "./master.js?v=131";
+import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=131";
 import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=131";
 import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=131";
+import { byStrength } from "./bot-stats.js?v=131";
+import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=131";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -53,7 +55,7 @@ const CHEV = `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4"
 
 const st = {
   pane: "analysis", mode: "setup", seat: 1, tool: "pan", preset: "intermediate", strat: null, map: "random", seed: 42, players: "4", hand: "keep", pieces: "start", speed: "watch",
-  tseatN: 4, seats: ["expert", "intermediate", "intermediate", "intermediate"], distinct: false, mix: null, games: 100, tboard: "random", tseats: "rotate",
+  tseatN: 4, seats: ["expert", "intermediate", "intermediate", "intermediate"], distinct: false, mix: null, games: 100, tboard: "random", tseats: "rotate", revN: 0,
   ...(store(KEY) || {}),
 };
 if (st.speed === "fast") st.speed = "watch"; // v0.83-0.86 name
@@ -535,8 +537,10 @@ const SEAT_COL = (i) => view?.players?.[i]?.color || ["#D1453A", "#3C75C6", "#F0
 const P = BOT_PROFILES;
 const DICE = `<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="9" cy="9" r="1.3" fill="currentColor"/><circle cx="15" cy="15" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1.3" fill="currentColor"/><circle cx="9" cy="15" r="1.3" fill="currentColor"/></svg>`;
 const PEN = `<svg viewBox="0 0 16 16" width="100%" height="100%" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M2 11l7-7 3 3-7 7H2zM8 5l3 3"/></svg>`;
-/** Presets a seat can pick, strongest first (a preset without a profile, e.g. a new one, comes first). */
-function poolKeys() {
+/** Presets a seat can pick, strongest first by the measured win chance (bot-stats.js; a preset without a figure, e.g. a new one, comes first). */
+const poolKeys = () => byStrength(Object.keys(H.AI_PRESETS));
+/** The pool Random draws from, in its v1.13 order (by level), so a Random seat draws the same bots as in earlier runs. */
+function drawPool() {
   const all = Object.keys(H.AI_PRESETS);
   return all.slice().sort((a, b) => (P[b]?.level ?? 6) - (P[a]?.level ?? 6) || all.indexOf(a) - all.indexOf(b));
 }
@@ -551,8 +555,8 @@ function emblem(k, d = 40) {
   const inner = k === "random" ? DICE : k === "mix" ? PEN : profileMini(key, Math.round(d * 0.55));
   return `<span class="lb-av" style="--d:${d}px">${levelFrame(key, d)}<span class="lb-em">${inner}</span></span>`;
 }
-const dotsHtml = (n) => `<span class="lb-dots" aria-hidden="true">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`;
-const subOf = (k) => (k === "random" ? "draws a different bot every game" : k === "mix" ? "your mix from Analysis" : P[k] ? `${dotsHtml(P[k].level)} ${esc(P[k].tagline)}` : "");
+const dotsHtml = (k) => `<span class="lb-dots" aria-hidden="true">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= P[k].level ? "on" : ""}"></i>`).join("")}${P[k].beyond ? `<i class="star"></i>` : ""}</span>`; // lab-131: + the Supers' star
+const subOf = (k) => (k === "random" ? "draws a different bot every game" : k === "mix" ? "your mix from Analysis" : P[k] ? `${dotsHtml(k)} ${esc(P[k].tagline)}` : "");
 const TPLS = [
   ["1v3", (n) => `1 vs ${n - 1}`, (n) => ["expert", ...Array(n - 1).fill("intermediate")], false],
   ["rr", () => "Round robin", (n) => ["expert", "builder", "trader", "shark"].slice(0, n), false],
@@ -570,6 +574,18 @@ function specTitle(spec, distinct) {
   return g.map((x) => `${x.c > 1 ? `${x.c}× ` : ""}${labelOf(x.k)}`).join(" vs ");
 }
 const MKEY = "colonist.lab.masterMs";
+// lab-131 Review (Off / 5 / 10 / All games): what it costs. MEASURED per bot seat on this device after a reviewed game (RVKEY); before that an
+// ESTIMATE for a phone: about 1.5 min per bot seat (others129 budget measurement: ~34 real choices per seat, quick 0.34 s and
+// deep 2.8 s each on a laptop core, so ~66 s a seat; a phone ~1.4x slower).
+const RVKEY = "colonist.lab.revSeatMs", RV_SEAT_PHONE_MS = 90000;
+const REVNS = [["0", "Off"], ["5", "5"], ["10", "10"], ["all", "All"]];
+/** How many games of a run are reviewed (the first ones). */
+const revCount = (revN, games) => (revN === "all" ? games : Math.min(Number(revN) || 0, games));
+function revCostText(seats, games) {
+  const ms = store(RVKEY), per = (ms || RV_SEAT_PHONE_MS) * seats, tot = (per * games) / 1000;
+  const t = (x) => (x < 5400 ? `${Math.max(1, Math.round(x / 60))} min` : `${Math.round(x / 360) / 10} h`);
+  return `Reviewing ${games} game${games > 1 ? "s" : ""}: about ${t(tot)} (${t(per / 1000)} a game, ${ms ? "measured on this device" : "estimate for a phone"}), beside the games.`;
+}
 function renderTournamentSetup() {
   if (!H) return;
   const n = st.tseatN, spec = seatSpec();
@@ -596,6 +612,9 @@ function renderTournamentSetup() {
   const rot = st.tseats === "rotate";
   $("#labTSeats").setAttribute("aria-checked", String(rot)); $("#labTSeats").classList.toggle("on", rot);
   seg($("#labSpeed"), SPEEDS, st.speed, "speed", (v) => { st.speed = v; save(); renderTournamentSetup(); });
+  seg($("#labRevN"), REVNS, String(st.revN), "rn", (v) => { st.revN = v === "all" ? "all" : Number(v); save(); renderTournamentSetup(); });
+  $("#labRevCost").hidden = !st.revN;
+  if (st.revN) $("#labRevCost").textContent = revCostText(n, revCount(st.revN, st.games));
   const mayBeSlow = spec.some((k) => k === "random" ? poolKeys().some(slowKey) : slowKey(k));
   $("#labWatchNote").hidden = !mayBeSlow;
   $("#labRun").textContent = `Start ${st.games} games`; $("#labRun").classList.remove("stop");
@@ -613,7 +632,7 @@ function openPick(i) {
   const opt = (k, name, sub, right) => `<button type="button" class="lb-opt${k === cur ? " on" : ""}" data-k="${k}" role="radio" aria-checked="${k === cur}">${emblem(k, 34)}<span><b>${esc(name)}</b><small>${sub}</small></span>${right || ""}</button>`;
   $("#labPickT").textContent = `Seat ${i + 1}: pick a bot`;
   $("#labPickList").innerHTML = opt("random", "Random", "draws a different bot every game")
-    + poolKeys().map((k) => opt(k, presetLabel(k), esc(P[k]?.tagline || ""), P[k] ? dotsHtml(P[k].level) : "")).join("")
+    + poolKeys().map((k) => opt(k, presetLabel(k), esc(P[k]?.tagline || ""), P[k] ? dotsHtml(k) : "")).join("")
     + (st.mix ? opt("mix", "Custom mix", "saved in Analysis") : "");
   $("#labPickList").querySelectorAll(".lb-opt").forEach((b) => b.addEventListener("click", () => {
     st.seats[pickSeat] = b.dataset.k; save(); closePick(); renderTournamentSetup();
@@ -629,9 +648,12 @@ const band = (lo, hi, p, fair) => `<div class="lb-band bar" aria-hidden="true"><
 const aggRows = () => aggregate(sim.results, labelOf);
 const half = (r) => Math.round(((r.hi - r.lo) / 2) * 100);
 function tableHtml(rows) {
-  return `<div class="lb-rt"><span class="hd"></span><span class="hd">bot · n = seats played</span><span class="hd r">wins ±95%</span><span class="hd r">VP</span><span class="hd r">turns</span>`
-    + rows.map((r, i) => `<b class="rk">${i + 1}</b><span class="who">${emblem(r.key, 26)}<span>${esc(r.label)}<small class="ci">n = ${r.n}</small></span></span><span class="num">${pct(r.p)}<small class="ci">±${half(r)}</small></span><span class="num">${r.avgVp.toFixed(1)}</span><span class="num">${Math.round(r.avgTurns)}</span>${band(r.lo, r.hi, r.p, r.fair)}`).join("")
-    + `</div><p class="lb-fine">Line = even share (${pct(rows[0]?.fair ?? 0.25)}). Ranked by wins.</p>`;
+  // lab-131: with reviewed games, accuracy (the review's, mean over the games ± spread between games · moves checked) replaces turns
+  const acc = rows.some((r) => r.accN);
+  const accCell = (r) => (r.accN ? `<span class="num">${r.acc.toFixed(1)}<small class="ci">${r.accSd != null ? `±${r.accSd.toFixed(1)} · ` : ""}n ${r.accN}</small></span>` : `<span class="num">–</span>`);
+  return `<div class="lb-rt${acc ? " lb-rt-acc" : ""}"><span class="hd"></span><span class="hd">bot · n = seats played</span><span class="hd r">wins ±95%</span>${acc ? `<span class="hd r">accuracy ±sd · games</span>` : ""}<span class="hd r">VP</span>${acc ? "" : `<span class="hd r">turns</span>`}`
+    + rows.map((r, i) => `<b class="rk">${i + 1}</b><span class="who">${emblem(r.key, 26)}<span>${esc(r.label)}<small class="ci">n = ${r.n}</small></span></span><span class="num">${pct(r.p)}<small class="ci">±${half(r)}</small></span>${acc ? accCell(r) : ""}<span class="num">${r.avgVp.toFixed(1)}</span>${acc ? "" : `<span class="num">${Math.round(r.avgTurns)}</span>`}${band(r.lo, r.hi, r.p, r.fair)}`).join("")
+    + `</div><p class="lb-fine">Line = even share (${pct(rows[0]?.fair ?? 0.25)}). Ranked by wins.${acc ? ` Accuracy: the Game review's check of each bot's own moves, mean over ${Math.max(...rows.map((r) => r.accN))} reviewed games (± spread between games), deep round only, the scale of the Bots page.` : ""}</p>`;
 }
 const timeText = (s) => (s < 90 ? `${Math.max(1, Math.round(s))} s` : `${Math.round(s / 60)} min`);
 function renderStand(final = false) {
@@ -641,7 +663,8 @@ function renderStand(final = false) {
   if (final) return;
   const left = sim.done ? ((sim.msTotal / sim.done) * (sim.n - sim.done)) / 1000 : null;
   const rows = aggRows();
-  el.innerHTML = `<div class="lt-head"><h2>Running</h2><small>${sim.done} of ${sim.n} · ${left == null ? "timing the first game…" : `about ${timeText(left)} left`}</small></div>
+  const now = sim.live?.turn != null ? `game ${sim.game}, ${sim.live.setup ? "set-up" : `turn ${sim.live.turn}`}` : `game ${sim.game}`;
+  el.innerHTML = `<div class="lt-head"><h2>Running</h2><small>${sim.done} of ${sim.n} done · ${left == null ? `${now} · ${mmss(performance.now() - (sim.gameT0 || performance.now()))}` : `about ${timeText(left)} left`}</small></div>
     <div class="lb-prog" aria-hidden="true"><i style="width:${(sim.done / sim.n) * 100}%"></i></div>
     ${rows.length ? tableHtml(rows) : ""}`;
 }
@@ -659,6 +682,7 @@ function renderSummary() {
     <p class="lb-verdict v-${v.kind}">${esc(v.line)}</p>
     ${clear ? `<p class="lb-fine">Clear gaps: ${esc(clear)}</p>` : ""}
     ${tableHtml(rows)}
+    ${cfg.revN ? `<p class="lb-fine">Review: ${sim.results.filter((r) => r.acc).length} of ${Math.min(cfg.revN, sim.results.length)} games checked${rev.busy ? ", going on (Games of this run)" : ""}. Accuracy counts finished reviews only (deep round).</p>` : ""}
     <div class="lb-btnrow"><button type="button" class="lb-btn primary" id="labSave"${sim.saved ? " disabled" : ""}>${sim.saved ? "Saved" : "Save run"}</button><button type="button" class="lb-btn" id="labAgain">Run again</button></div>
     <button type="button" class="lb-link" id="labCopy">Copy result as text</button>`;
   $("#labSave").addEventListener("click", () => { saveRun(); renderSummary(); renderHist(); });
@@ -707,35 +731,142 @@ function renderHist() {
   $("#labDelRuns").addEventListener("click", () => { runs = runs.filter((r) => !picked.has(r.id)); picked.clear(); put(RKEY, runs); renderHist(); });
 }
 
-// Caption over the board while a game is watched: game n/N · turn · each seat's points
+// Caption over the board. lab-131: during a run it is THE progress line (game k/N, done, turn, who is thinking, a bar,
+// Stop), whatever the speed, so board and progress are on screen together; the board follows the game only in Watch
+// (in Instant it is dimmed). Before a run, on the Tournament pane, it says what the board is (your Analysis board).
+const mmss = (ms) => { const t = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
 function renderWatch(g, final = null) {
-  const el = $("#labWatch");
+  const el = $("#labWatch"), board = $(".lb-board");
   renderLegend();
-  if (!g) { el.hidden = true; document.querySelectorAll(".lb-read, .lb-tools").forEach((x) => x.classList.remove("lb-faded")); return; }
-  const info = g._labSimInfo();
+  const fade = (on) => document.querySelectorAll(".lb-read, .lb-tools").forEach((x) => x.classList.toggle("lb-faded", on));
+  if (!sim.running && final === null) {
+    board.classList.remove("lb-blind");
+    fade(false);
+    const idle = st.pane === "tournament";
+    el.hidden = !idle;
+    el.classList.toggle("lb-widle", idle);
+    if (idle) el.innerHTML = `<span class="lb-winfo"><b>Your Analysis board</b><span class="lb-wt">Start a run: with Watch, the games play here.</span></span>`;
+    return;
+  }
+  el.classList.remove("lb-widle");
+  const live = sim.live || {};
   const keys = sim.curKeys || [];
-  const seats = info.players.map((p) => `<span class="lb-ws${final != null && p.id === final ? " won" : ""}" style="--seat:${view.players[p.id]?.color || p.color}" title="${esc(labelOf(keys[p.id] || ""))}"><i></i>${p.vp}</span>`).join("");
-  const head = final === null ? `Turn ${info.turn}` : final < 0 ? "No winner" : `${labelOf(keys[final] || "?")} wins`;
-  if (!el.querySelector(".lb-winfo")) el.innerHTML = `<span class="lb-winfo"></span><button type="button" class="lb-wstop" aria-label="Stop the tournament">Stop</button>`;
-  el.querySelector(".lb-winfo").innerHTML = `<b>Game ${sim.game}/${sim.n}</b><span class="lb-wt">${esc(head)}</span><span class="lb-wseats">${seats}</span>`;
+  const vps = g ? g._labSimInfo().players.map((p) => p.vp) : live.vp || [];
+  const turn = g ? g.turn : live.turn;
+  const setup = g ? !!g.setupPhase : !!live.setup;
+  const seats = vps.map((vp, id) => `<span class="lb-ws${final != null && id === final ? " won" : ""}" style="--seat:${view.players[id]?.color || SEAT_COL(id)}" title="${esc(labelOf(keys[id] || ""))}"><i></i>${vp}</span>`).join("");
+  const think = live.think != null && sim.slow ? `${labelOf(keys[live.think] || "")} thinking` : "";
+  const head = final !== null ? (final < 0 ? "No winner" : `${labelOf(keys[final] || "?")} wins`)
+    : turn == null ? "starting…" : setup ? "set-up" : `turn ${turn}`;
+  if (!el.querySelector(".lb-winfo") || el.querySelector(".lb-wbar") == null) el.innerHTML = `<span class="lb-winfo"></span><button type="button" class="lb-wstop" aria-label="Stop the tournament">Stop</button><span class="lb-wbar" aria-hidden="true"><i></i></span>`;
+  el.querySelector(".lb-winfo").innerHTML = `<b>Game ${sim.game}/${sim.n}</b><span class="lb-wt">${sim.done} done · ${esc(head)}${think ? ` · <span class="lb-wthink">${esc(think)}</span>` : ""}${sim.gameT0 && final === null ? ` · ${mmss(performance.now() - sim.gameT0)}` : ""}</span><span class="lb-wseats">${seats}</span>`;
+  el.querySelector(".lb-wbar i").style.width = `${(sim.done / sim.n) * 100}%`;
   el.hidden = false;
-  document.querySelectorAll(".lb-read, .lb-tools").forEach((x) => x.classList.add("lb-faded"));
+  board.classList.toggle("lb-blind", !sim.watching);
+  fade(true);
+}
+
+// ── lab-131 the games of the last run: kept (src/lab-games.js), opened on the real Replay / review, and reviewed one by one ──
+const LKEY = "colonist.lab.last"; // the last run's results (small), so the Result and its games are back after a Replay
+function saveLast() {
+  if (!sim.cfg) return;
+  put(LKEY, { run: sim.run, cfg: sim.cfg, n: sim.n, results: sim.results.map(({ game, keys, winner, turns, vp, id, acc }) => ({ game, keys, winner, turns, vp, id, acc })) });
+}
+/** Keep the sim frame's finished game (result index idx); a recorded one (among the first revN) is queued for the review. */
+async function keep(idx) {
+  const g = $("#labSim").contentWindow.__colonistGame, r = sim.results[idx];
+  const { meta, payload } = entryOf(g, { keys: r.keys, labels: r.keys.map(labelOf), i: r.game, run: sim.run });
+  if (!(await labStore.put(meta, payload, { quiet: true }))) { sim.unkept += 1; return; }
+  r.id = meta.id;
+  const ids = new Set(labStore.metas.map((m) => m.id));
+  sim.results.forEach((x) => { if (x.id && !ids.has(x.id)) { x.id = null; sim.unkept += 1; } }); // over the limit: the oldest went
+  saveLast();
+  if (payload.rv && r.id) enqueueReview(idx);
+  renderGames();
+}
+const rev = { q: [], busy: false, ctl: null, cur: null, done: 0 };
+function enqueueReview(idx) { if (!rev.q.includes(idx)) rev.q.push(idx); if (!rev.busy) reviewLoop(); }
+function stopReviews() { rev.q = []; if (rev.ctl) rev.ctl.stopped = true; }
+async function reviewLoop() {
+  rev.busy = true;
+  renderGames();
+  const f = $("#labRevFrame");
+  if (!f.src) f.src = "./index.html?lab=sim";
+  const rg = await waitEngine(f);
+  while (rev.q.length) {
+    const idx = rev.q.shift(), r = sim.results[idx];
+    if (!r?.id || r.acc) continue;
+    const ctl = { stopped: false, onTick: (t) => { rev.cur.tick = t; renderGames(); } };
+    rev.ctl = ctl; rev.cur = { idx, tick: null };
+    renderGames();
+    const t0 = performance.now();
+    const out = await reviewGame(rg, r.id, ctl);
+    if (ctl.stopped) continue; // (Stop reviewing / a new run emptied the queue; a new run's games may be queued already)
+    if (out) {
+      r.acc = r.keys.map((k, s2) => out[s2] || null); rev.done += 1;
+      put(RVKEY, Math.round((performance.now() - t0) / r.keys.length)); // MEASURED here: ms per bot seat (the cost line reads it)
+    } else r.revFail = true;
+    saveLast(); renderSummary(); renderGames();
+  }
+  rev.busy = false; rev.cur = null; rev.ctl = null;
+  renderSummary(); renderGames(); renderTournamentSetup();
+}
+const kbText = (b) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1048576).toFixed(1)} MB`);
+const accText = (a) => (a && a.acc != null && a.done !== false ? String(Math.round(a.acc)) : "–");
+function openGame(id, what, pid = null) {
+  if ((sim.running || rev.busy) && !confirm("Leaving the lab stops the run and the reviewing. Open the game?")) return;
+  location.href = `./index.html?labgame=${encodeURIComponent(id)}&what=${what}${pid != null ? `&pid=${pid}` : ""}`;
+}
+function renderGames() {
+  const el = $("#labGamesCard");
+  const list = sim.results.filter((r) => r.id || r.game);
+  if (!list.length) { el.hidden = true; return; }
+  el.hidden = false;
+  const kept = list.filter((r) => r.id).length;
+  const status = (r, idx) => {
+    if (!r.id) return "not kept";
+    if (r.acc) return "reviewed";
+    if (rev.cur?.idx === idx) { const t = rev.cur.tick; return t ? `reviewing: ${labelOf(r.keys[t.pid])}, ${t.stage} round ${t.j} of ${t.n} moves` : "reviewing…"; }
+    if (r.revFail) return "review failed";
+    if (rev.q.includes(idx)) return "waiting for the review";
+    return "";
+  };
+  const rows = sim.results.map((r, idx) => {
+    const win = r.winner == null || r.winner < 0 ? "No winner" : `${labelOf(r.keys[r.winner])} wins`;
+    const st2 = status(r, idx);
+    const seats = r.acc ? `<span class="lb-gseats">${r.keys.map((k, s2) => `<button type="button" class="lb-gseat" data-open="${esc(r.id)}" data-what="review" data-pid="${s2}" aria-label="Review of ${esc(labelOf(k))} in game ${r.game}: accuracy ${accText(r.acc[s2])}">${emblem(k, 22)}<b>${accText(r.acc[s2])}</b></button>`).join("")}</span>` : "";
+    return `<div class="lb-grow"><div><span class="tt">Game ${r.game} · ${esc(win)}</span><small>${r.turns} turns${st2 ? ` · ${esc(st2)}` : ""}</small>${seats}</div>${r.id ? `<button type="button" class="lb-btn" data-open="${esc(r.id)}" data-what="replay">Replay</button>` : ""}</div>`;
+  }).join("");
+  el.innerHTML = `<div class="lt-head"><h2>Games of this run</h2><small>${kept} kept on this phone · ${kbText(labStore.bytes)} of ${kbText(labStore.budget)}</small></div>
+    <div class="lb-glist">${rows}</div>
+    ${sim.unkept ? `<p class="lb-fine">${sim.unkept} game${sim.unkept > 1 ? "s" : ""} not kept.</p>` : ""}
+    <div class="lb-btnrow">${rev.busy ? `<button type="button" class="lb-btn" id="labRevStop">Stop reviewing</button>` : ""}</div>
+    <p class="lb-fine">Replay plays the game again with the running win chance; a bot's accuracy opens its review. Only the last run is kept (at most ${labStore.lim.games} games); a new run replaces it.</p>`;
 }
 
 async function runTournament(over = {}) {
-  if (sim.running) { sim.running = false; return sim; }
+  if (sim.running) { sim.running = false; labGameCancel(); return sim; }
   const frame = $("#labSim");
   if (!frame.src) frame.src = "./index.html?lab=sim";
   const spec = over.spec || seatSpec();
   const cfg = { n: st.games, tboard: st.tboard, rotate: st.tseats === "rotate", distinct: !!st.distinct, ...over, spec, nSeats: spec.length };
-  const pool = poolKeys();
-  Object.assign(sim, { running: true, n: cfg.n, done: 0, errors: 0, game: 0, restore: true, results: [], cfg, curKeys: null, msTotal: 0, saved: false });
+  const pool = drawPool();
+  cfg.revN = revCount(over.review === true ? "all" : over.review ?? st.revN, cfg.n); // lab-131: the first revN games are reviewed
+  Object.assign(sim, { running: true, n: cfg.n, done: 0, errors: 0, game: 0, restore: true, results: [], cfg, curKeys: null, msTotal: 0, saved: false, run: Date.now(), unkept: 0 });
+  stopReviews(); rev.done = 0;
+  await clearStore(); // the games of the last run make way (lab-131: kept for Replay / the review)
+  saveLast();
   $("#labSummary").hidden = true;
   renderTournamentSetup();
   renderStand();
   const g = await waitEngine(frame);
   let saved = null; // your board while games are watched
   const watchOn = () => st.speed === "watch" && !!view;
+  const hold = () => { if (!saved) { saved = view.serializeState(); sim.watching = true; } }; // keep your Analysis board to put back
+  // lab-131: the board (with the progress caption over it) comes into view at Start, whatever the speed
+  const br = $(".lb-board").getBoundingClientRect();
+  if (br.top < 100 || br.bottom > innerHeight) $(".lb-board").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  renderWatch(null);
   let slowGames = 0;
   try {
     for (let i = 0; i < cfg.n && sim.running; i += 1) {
@@ -744,49 +875,69 @@ async function runTournament(over = {}) {
       const keys = seatKeys(drawSeats(cfg.spec, i, pool, cfg.distinct), i, cfg.rotate);
       const strategies = keys.map(stratOf);
       sim.curKeys = keys;
+      sim.gameT0 = t0; sim.live = { turn: null }; sim.slow = false;
       const seed = SEED0 + i * 7919;
-      // a game with a Master / Super seat is played whole in the Web Worker (same boards and dice), in the background: no Watch
+      // a game with a Master / Super seat is played whole in the lab's Web Worker (same boards and dice). lab-131: it reports
+      // its turn, points and the searching seat as it goes (and the position, so Watch follows it); Stop ends it at once
       if (strategies.some(isSlow) && masterAvailable()) {
-        const m = await masterRequest({ type: "game", seed, strategies, map: cfg.tboard, opts: { ...MASTER_BUDGET }, budgets: strategies.map((x) => (isSlow(x) ? budgetFor(x.policy) : null)) }, 0);
+        sim.slow = true;
+        let first = true, lastDraw = 0;
+        renderWatch(null); renderStand();
+        const m = await labGameRequest({ type: "game", seed, strategies, map: cfg.tboard, opts: { ...MASTER_BUDGET }, watch: true, budgets: strategies.map((x) => (isSlow(x) ? budgetFor(x.policy) : null)) }, (p) => {
+          if (!sim.running) return;
+          sim.live = p;
+          if (watchOn() && p.state && performance.now() - lastDraw > 250) {
+            lastDraw = performance.now();
+            try { hold(); g.loadFromStorage(p.state); g.gameGen = 1e6 + i; view._labWatch(g, first); first = false; } catch (e) { console.warn("lab watch", e); }
+          } else if (!watchOn() && sim.watching) { sim.watching = false; }
+          renderWatch(null); renderStand();
+        });
         if (!sim.running) break;
         if (!m || m.type !== "game") { sim.errors += 1; continue; }
         slowGames += 1;
-        sim.results.push({ keys, winner: m.winner, turns: m.turns, vp: m.vp });
+        sim.results.push({ game: i + 1, keys, winner: m.winner, turns: m.turns, vp: m.vp, ms: m.ms });
         sim.done += 1; sim.msTotal += performance.now() - t0;
+        // the same game again in the sim frame from the worker's decisions, recorded (Replay; the review with the switch on)
+        try { if (await replayScript(g, { strategies, seed, map: cfg.tboard, script: m.script || [], result: m }, i < cfg.revN)) await keep(sim.results.length - 1); else sim.unkept += 1; }
+        catch (e) { sim.unkept += 1; console.warn("lab keep", e); }
+        sim.live = { turn: m.turns, vp: m.vp };
         renderStand(); renderTournamentSetup();
+        if (watchOn() && sim.running && !first) { renderWatch(null, m.winner ?? -1); await sleep(i + 1 < cfg.n ? 900 : 1400); }
         continue;
       }
       try {
+        recordOn(g, i < cfg.revN); // lab-131: a game to review records every seat's real choices
         g._labSimStart(strategies, { players: keys.length, map: cfg.tboard, seed });
         let r = { done: false }, shown = false;
         do {
           if (watchOn()) {
-            if (!saved) {
-              saved = view.serializeState(); sim.watching = true;
-              const br = $(".lb-board").getBoundingClientRect();
-              if (br.top < 100 || br.bottom > innerHeight) $(".lb-board").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-            }
+            hold();
             if (!shown) { view._labWatch(g, true); shown = true; }
             else { r = g._labSimStep(1); view._labWatch(g); }
             renderWatch(g);
             await sleep(TURN_MS);
           } else {
-            if (sim.watching) renderWatch(null);
+            sim.watching = false;
             r = g._labSimStep(12);
+            renderWatch(g);
             await sleep(0); // let the page breathe between chunks
           }
         } while (!r.done && sim.running);
         if (!r.done) break;
+        recordOn(g, false);
         const info = g._labSimInfo();
-        sim.results.push({ keys, winner: r.winner, turns: r.turns, vp: info.players.map((p) => p.vp) });
+        sim.results.push({ game: i + 1, keys, winner: r.winner, turns: r.turns, vp: info.players.map((p) => p.vp) });
         sim.done += 1; sim.msTotal += performance.now() - t0;
+        await keep(sim.results.length - 1).catch((e) => { sim.unkept += 1; console.warn("lab keep", e); });
         renderStand(); renderTournamentSetup();
         if (watchOn() && sim.running) { view._labWatch(g); renderWatch(g, r.winner ?? -1); await sleep(i + 1 < cfg.n ? 900 : 1400); }
-      } catch (e) { sim.errors += 1; console.error("tournament game failed", e); }
+      } catch (e) { sim.errors += 1; recordOn(g, false); console.error("tournament game failed", e); }
     }
   } finally {
     sim.running = false;
     sim.watching = false;
+    sim.live = null; sim.gameT0 = 0;
+    labGameCancel(); // a Stop in the middle of a Master / Super game: end it in the worker too
     renderWatch(null);
     if (saved && sim.restore) {
       view.loadFromStorage(saved);
@@ -794,8 +945,10 @@ async function runTournament(over = {}) {
       applyHand();
     }
     if (sim.done && !watchOn()) put(MKEY, Math.round(sim.msTotal / sim.done), sessionStorage);
+    saveLast();
     renderStand(true);
     renderSummary();
+    renderGames();
     renderHist();
     renderTournamentSetup();
     update();
@@ -814,7 +967,7 @@ function setPane(p) {
   document.querySelectorAll("#labPanes button").forEach((b) => { const on = b.dataset.pane === p; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; });
   $("#paneAnalysis").hidden = p !== "analysis";
   $("#paneTournament").hidden = p !== "tournament";
-  renderLegend();
+  if (!sim.running) renderWatch(null); else renderLegend();
   if (view && !sim.watching) { view.analysis.lab = p === "analysis" ? view.analysis.lab : null; if (p === "analysis") update(); else view.requestBoardDraw(); }
   save();
 }
@@ -843,7 +996,7 @@ function setPane(p) {
   $("#labPick").addEventListener("click", (e) => { if (e.target === $("#labPick")) closePick(); });
   $("#paneTournament").addEventListener("click", (e) => { const b = e.target.closest(".lb-ii"); if (b) { const t = document.getElementById(b.dataset.info); if (t) t.hidden = !t.hidden; } });
   $("#labMixBtn").addEventListener("click", () => { st.mix = mixable() ? myBot() : null; update(); });
-  $("#labWatch").addEventListener("click", (e) => { if (e.target.closest(".lb-wstop")) sim.running = false; });
+  $("#labWatch").addEventListener("click", (e) => { if (e.target.closest(".lb-wstop")) { sim.running = false; labGameCancel(); } });
   $("#labTree").addEventListener("click", onTreeTap);
   $("#labResult").addEventListener("click", (e) => { if (e.target.closest("[data-contest]")) { findContested(); return; } const b = e.target.closest("[data-spot]"); if (b) selectSpot(Number(b.dataset.spot)); });
   $("#labStepStrip").addEventListener("click", onStepsTap);
@@ -866,7 +1019,22 @@ function setPane(p) {
   setPane(st.pane === "tournament" ? "tournament" : "analysis");
   await newBoard();
   renderHist();
+  // lab-131: the last run (its Result and its kept games) is back, e.g. after a Replay
+  $("#labGamesCard").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-open]");
+    if (b) { openGame(b.dataset.open, b.dataset.what, b.dataset.pid != null ? Number(b.dataset.pid) : null); return; }
+    if (e.target.closest("#labRevStop")) { stopReviews(); renderGames(); return; }
+  });
+  try {
+    const last = store(LKEY);
+    await labStore.open();
+    if (last?.results?.length && !sim.running && labStore.metas.some((m) => m.lab?.run === last.run)) {
+      const ids = new Set(labStore.metas.map((m) => m.id));
+      Object.assign(sim, { run: last.run, cfg: last.cfg, n: last.n, results: last.results.map((r) => ({ ...r, id: ids.has(r.id) ? r.id : null })), done: last.results.length });
+      renderSummary(); renderGames();
+    }
+  } catch (e) { console.warn("lab last run", e); }
   // load the tournament engine while idle, so pressing Start never waits for it (it froze the page ~1 s)
   (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(preloadSim, { timeout: 4000 });
-  window.__lab = { ready: true, steps, st, reach, selectSpot, findContested, ms, W: () => W, runTournament, runGames: (n, o = {}) => runTournament({ n, ...o }), newBoard, update, view: () => view, sim, runs: () => runs, tree, setPane, myBot, aggRows };
+  window.__lab = { ready: true, labStore, rev, steps, st, reach, selectSpot, findContested, ms, W: () => W, runTournament, runGames: (n, o = {}) => runTournament({ n, ...o }), newBoard, update, view: () => view, sim, runs: () => runs, tree, setPane, myBot, aggRows };
 })();

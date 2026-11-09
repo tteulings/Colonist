@@ -50,7 +50,7 @@
 .bpg-svg .stem { stroke: var(--bp-wheat); stroke-width: 3; stroke-linecap: round; }
 .bpg-svg .iv line { stroke: var(--bp-ink); stroke-width: 2; stroke-linecap: round; }
 .bpg-svg .disc { fill: var(--pa-bg, #FDF1D8); } .bpg-svg .ring { fill: none; stroke: var(--brand-ink, #1F6E77); stroke-width: 2.5; } .bpg-svg .ring.est { stroke-dasharray: 3.5 2.5; stroke-opacity: 1 !important; }
-.bpg-svg .dia { fill: color-mix(in srgb, var(--ink) 22%, transparent); } .bpg-svg .dia.on { fill: var(--brand-ink, #1F6E77); }
+.bpg-svg .dia { fill: color-mix(in srgb, var(--ink) 22%, transparent); } .bpg-svg .dia.on { fill: var(--brand-ink, #1F6E77); } .bpg-svg .dia.star { fill: var(--bp-wheat, #D9A21B); }
 .bpg-svg .cross { stroke: var(--bp-ink); stroke-width: 1.5; opacity: .5; }
 .bpg-svg .grp { fill: var(--sheet); stroke: var(--bp-ink); stroke-width: 2; } .bpg-svg .gn { font: 800 12px var(--font-body, system-ui); fill: var(--heading, var(--bp-ink)); }
 .bpg-svg .selr { fill: none; stroke: var(--accent, #D9714E); stroke-width: 3; }

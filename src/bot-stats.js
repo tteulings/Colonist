@@ -57,6 +57,12 @@ export function accOf(key, label) {
     : { v: null, se: null, n: null, setup: null, code: null, date: null, label: "unknown" };
 }
 export const winOf = (key) => BOT_STATS[key]?.win || { v: null, ci: null, label: "unknown" };
+/** lab-131: preset keys strongest first, by the measured win chance above (one source for every bot picker, so the order
+ *  follows the numbers). A key without a measured figure (a new preset) leads, in the given order; ties keep the given order. */
+export function byStrength(keys) {
+  const w = (k) => { const x = winOf(k); return x.label === "measured" && x.v != null ? x.v : Infinity; };
+  return keys.slice().sort((a, b) => w(b) - w(a) || keys.indexOf(a) - keys.indexOf(b));
+}
 
 /** Do two ± ranges overlap? (value ± half-width) */
 export const rangesOverlap = (a, ah, b, bh) => a - ah <= b + bh && b - bh <= a + ah;

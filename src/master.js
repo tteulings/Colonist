@@ -66,6 +66,7 @@ function poolWorker(pool) {
       if (m.type === "ready") { clearTimeout(t); resolve(pool.worker); return; }
       const w = pool.waiting.get(m.id);
       if (!w) return;
+      if (m.type === "progress") { w.progress?.(m); return; } // lab-131: a lab game's live progress (the request stays open)
       pool.waiting.delete(m.id);
       w(m);
     });
@@ -73,14 +74,16 @@ function poolWorker(pool) {
   });
   return pool.ready;
 }
-function poolRequest(pool, msg, timeoutMs) {
+function poolRequest(pool, msg, timeoutMs, onProgress = null) {
   const ready = poolWorker(pool);
   if (!ready) return Promise.resolve(null);
   return ready.then((w) => new Promise((resolve) => {
     if (!w) { resolve(null); return; }
     const id = ++pool.seq;
     const t = timeoutMs ? setTimeout(() => { pool.waiting.delete(id); resolve(null); }, timeoutMs) : 0;
-    pool.waiting.set(id, (m) => { clearTimeout(t); resolve(m.type === "error" ? (console.warn("Master search failed", m.message), null) : m); });
+    const done = (m) => { clearTimeout(t); resolve(m.type === "error" ? (console.warn("Master search failed", m.message), null) : m); };
+    done.progress = onProgress;
+    pool.waiting.set(id, done);
     w.postMessage({ ...msg, id });
   }));
 }
@@ -109,6 +112,20 @@ const review = { worker: null, ready: null, broken: false, seq: 0, waiting: new 
 export function reviewRequest(msg, timeoutMs) { return poolRequest(review, msg, timeoutMs); }
 export const reviewAvailable = () => !review.broken && typeof Worker !== "undefined";
 export const masterAvailable = () => !shared.broken && typeof Worker !== "undefined";
+// lab-131 the AI Lab's tournament games with a Master / Super seat have a worker of their own, so Stop can end a game at once
+// (the worker is terminated; a whole game is one long synchronous call there) without touching the Analysis searches.
+const labPool = { worker: null, ready: null, broken: false, seq: 0, waiting: new Map() };
+/** One whole lab game in the lab worker; onProgress(m) hears { turn, setup, vp, think, d, state? } while it runs. Resolves null when stopped. */
+export function labGameRequest(msg, onProgress) { return poolRequest(labPool, msg, 0, onProgress); }
+/** Stop the lab worker's game now: its request resolves with null; the next request starts a fresh worker. */
+export function labGameCancel() {
+  if (!labPool.worker) return;
+  try { labPool.worker.terminate(); } catch (_) { /* gone already */ }
+  const w = [...labPool.waiting.values()];
+  Object.assign(labPool, { worker: null, ready: null, broken: false });
+  labPool.waiting.clear();
+  w.forEach((f) => f({ type: "stopped" }));
+}
 
 export const MasterMixin = {
   /** This seat's decisions are searched (live game, worker available, a game the search covers). */
