@@ -21,6 +21,7 @@ import { BOT_PROFILES, profileMini } from "./bot-profiles.js";
 import { profileOf } from "./bot-profile-ui.js";
 import { summarize, clsOf, ACC, REVIEW as RVCFG, FMT, rescoreReview, reviewStatus } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
+import { packRecs, unpackRecs } from "./review/pack.js";
 import { Names } from "./names.js";
 
 const DB_NAME = "colonist_history";
@@ -208,7 +209,7 @@ export const HistoryMixin = {
     const m = this.hist.metas.find((x) => x.id === v.id);
     if (!m || (m.me == null && !m.hn)) return;
     await this.hist.put({ ...m, ...(m.hn ? { hn: this._histHn(R, m.hn) } : this._histRev(R.revs?.[m.me], m.me, m)), rec: true },
-      { state: v.state, rv: { base: R.base, recs: R.recs, reviews: this._rvAll(R) } });
+      { state: v.state, rv: { base: R.base, recs: packRecs(R.recs), reviews: this._rvAll(R), bots: R.bots ? 1 : 0 } });
   },
 
   /** Game over (and again when the review finishes): keep this game. Never throws, never waits. */
@@ -220,7 +221,7 @@ export const HistoryMixin = {
       const rv = this._rv && this._rv.id === id && this._rv.recs.length ? this._rv : null;
       const state = this.serializeState();
       state.logEntries = [];
-      const payload = { state, rv: rv ? { base: rv.base, recs: rv.recs, reviews: this._rvAll(rv) } : null };
+      const payload = { state, rv: rv ? { base: rv.base, recs: packRecs(rv.recs), reviews: this._rvAll(rv), bots: rv.bots ? 1 : 0 } : null }; // v1.29 packed records (src/review/pack.js), the bots' decisions too
       return H.put(this._histMeta(undefined, prev), payload);
     }).catch(() => false);
   },
@@ -272,7 +273,7 @@ export const HistoryMixin = {
       this.loadFromStorage(rec.state); // (this resets the recorder: the saved recording goes back in after it)
       const revs = rec.rv ? (rec.rv.reviews || (rec.rv.review?.results?.length ? { [rec.rv.review.pid]: rec.rv.review } : {})) : {}; // (older entries: one review)
       Object.values(revs).forEach((r) => rescoreReview(r)); // v1.21 today's numbers, classes and labels from the saved candidates
-      this._rv = rec.rv ? { id, base: rec.rv.base, recs: rec.rv.recs, res: null, busy: false, ms: 0, revs, queue: [], review: Object.values(revs)[0] || undefined } : null;
+      this._rv = rec.rv ? { id, base: rec.rv.base, recs: unpackRecs(rec.rv.recs), res: null, busy: false, ms: 0, revs, queue: [], bots: !!rec.rv.bots, review: this._rvMine?.(revs) || undefined } : null;
       this._rv?.recs?.length && this._rvFinish?.(false); // v1.11: the missed-chance detectors run for a past game too (no auto review): without this the end screen said "checking…" for ever
     } else if (!document.querySelector(".game-over-overlay")) this.showGameOverOverlay();
     const ready = () => {
@@ -334,7 +335,7 @@ export const HistoryMixin = {
         const reviews = rec.rv.reviews || (rec.rv.review?.results?.length ? { [rec.rv.review.pid]: rec.rv.review } : {});
         Object.values(reviews).forEach((r) => rescoreReview(r));
         const meta = m.hn?.length ? { ...m, hn: m.hn.map((h) => ({ ...h, ...revMeta(rec.rv.recs, reviews[h.pid], h.pid, h) })), fmt: FMT } : { ...m, ...revMeta(rec.rv.recs, reviews[m.me], m.me, m), fmt: FMT };
-        if (await H.put(meta, { state: rec.state, rv: { base: rec.rv.base, recs: rec.rv.recs, reviews } }, { quiet: true })) n += 1;
+        if (await H.put(meta, { state: rec.state, rv: { base: rec.rv.base, recs: rec.rv.recs, reviews, ...(rec.rv.bots ? { bots: 1 } : {}) } }, { quiet: true })) n += 1;
       }
       if (n) H.onChange?.();
     } catch (_) { /* best effort: the next open tries again */ }

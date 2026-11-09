@@ -11,6 +11,9 @@ import { esc, IC, cmpHtml, whyHtml } from "./review-ui.js";
 import { summarize, REVIEW, REVIEW_ENGINE, REVIEW_ENGINES, ACC, clsOf, LIMITS, SETUP_LIMITS, CLASSES, GREAT, gpOf, decide, totals, tradeShow, needsFull } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
 import { cardsText, topText, tileOf, sentence } from "./review/luck.js";
+import { BOT_PROFILES } from "./bot-profiles.js";
+import { profileOf } from "./bot-profile-ui.js";
+import { botBand } from "./review/bands.js";
 
 // The bots' accuracy with the review engine in use (src/review/evaluate.js REVIEW_ENGINES), if measured.
 export const BANDS = REVIEW.bands || [];
@@ -117,6 +120,9 @@ export const ReviewGameMixin = {
   },
   _rvPatchRows() {
     document.querySelectorAll("[data-rvreview]").forEach((b) => { const p = this.players[+b.dataset.rvreview]; if (p) b.innerHTML = this._rvRowInner(p); });
+    // v1.29 the table on the end screen follows the others' checks (the review screen redraws itself)
+    const t = this._stOverlay?.isConnected ? this._stOverlay.querySelector("[data-rvbox] [data-rvtable]") : null;
+    if (t && this._rv) { const tmp = document.createElement("div"); tmp.innerHTML = this._rvTableHtml(); const n = tmp.firstElementChild; if (n) { t.replaceWith(n); this._rvBindTable(n); } }
   },
   _rvBindReview(box) {
     box.querySelectorAll("[data-rvreview]").forEach((b) => b.addEventListener("click", () => this._rvOpenReview(+b.dataset.rvreview)));
@@ -147,6 +153,94 @@ export const ReviewGameMixin = {
       focus: { a: x.best.focus || det?.focus?.a || null, b: x.focus || det?.focus?.b || null } };
   },
 
+  // ── v1.29 everyone at the table ──
+  /** "You" is the one person in a solo game; anyone else (a bot, each person in pass & play) goes by name. */
+  _rvIsYou(pid) { return !this.hotseat && !!this.players[pid]?.isHuman; },
+  _rvNm(pid) { return this._rvIsYou(pid) ? "You" : esc(this.players[pid]?.name || "Someone"); },
+  _rvWhose(pid) { return this._rvIsYou(pid) ? "Your" : `${esc(this.players[pid]?.name || "Their")}’s`; },
+  /** A bot's level and its accuracy band (src/review/bands.js): { label, band: [acc, SE] | null }. */
+  _rvLevel(p) {
+    const pr = profileOf(this, p);
+    if (!pr) return null;
+    const P = BOT_PROFILES[pr.key], label = P?.label || pr.key;
+    return { label: pr.custom ? `custom, like ${label}` : label, band: P?.acc || botBand(label) || null };
+  },
+  /** Where one seat's review stands, for the table: st = run | done | prov | queued | stopped | idle | norec | none. */
+  _rvSeat(pid) {
+    const R = this._rv, p = this.players[pid], rv = R.revs[pid], run = R.run;
+    if (!p.isHuman && !R.bots) return { st: "norec" };
+    const todo = this._rvTodo(pid).length;
+    if (!todo) return { st: "none" };
+    const cov = !!rv?.results?.length && this._rvCovered1(pid);
+    const done = this._rvReviewComplete(pid);
+    // a bot's accuracy only from the deep round (the quick round's numbers are on another scale than its band); yours as on your review
+    const sum = cov && (p.isHuman || done) ? summarize(rv.results) : null;
+    // the biggest mistake: from deep results (a bot's: once its biggest moments are checked deeply)
+    const deep = (rv?.results || []).filter((x) => !this._rvNeedsFull(x) && (!x.skip || x.skip === "trivial"));
+    const deepTodo = (rv?.results || []).filter((x) => !["forced", "n/a"].includes(x.skip)).length;
+    let worst = null;
+    if (cov && (p.isHuman || done || deep.length >= Math.min(6, deepTodo))) worst = this._rvImp(decide(p.isHuman ? rv.results.filter((x) => !x.skip || x.skip === "trivial") : deep, this.players.length, pid))[0] || null;
+    const running = run?.pid === pid && run.round ? { j: run.round.j, n: run.round.n, quick: run.round.eng === "m100", paused: run.paused } : null;
+    const st = running ? "run" : done ? "done" : cov && p.isHuman ? "prov" : rv?.stopped || (!p.isHuman && R.othersOff) ? "stopped" : cov ? "quick" : this._rvQueued(pid) || (!p.isHuman && !R.othersPlanned) ? "queued" : "idle";
+    return { st, sum, running, worst, todo, done, cov, deepN: deep.length };
+  },
+  /** v1.29 "At this table": everyone's accuracy, level and biggest mistake (tap: that move in step mode), the bots against their band. */
+  _rvTableHtml(cur = null) {
+    const R = this._rv;
+    if (!R?.recs?.length || this._rvMid || !this.players.some((p) => !p.isHuman)) return "";
+    const rows = this.players.map((p) => ({ p, s: this._rvSeat(p.id), lv: p.isHuman ? null : this._rvLevel(p) }));
+    rows.sort((a, b) => (b.s.sum?.acc ?? -1) - (a.s.sum?.acc ?? -1) || a.p.id - b.p.id); // a ranking: checked players by accuracy, the rest after them
+    const run = R.run, runBot = run && !this.players[run.pid]?.isHuman && run.round;
+    const left = this._rvOthers().filter((p) => !this._rvReviewComplete(p.id) && !(R.revs[p.id]?.top && this._rvCovered1(p.id)));
+    let prog = "";
+    if (runBot) prog = `<div class="rt-prog" role="status"><i class="rv-ring" style="--p:${Math.round((100 * run.round.j) / Math.max(1, run.round.n))}%" aria-hidden="true"></i><span>${run.paused ? "Paused" : `Checking ${esc(this.players[run.pid].name)} ${run.round.j}/${run.round.n}`}<small>${run.round.eng === "m100" ? "quick look" : "deep check"}</small></span><button type="button" class="rv-btn" data-rvostop>Stop</button></div>`;
+    else if (R.othersOff && left.length) prog = `<div class="rt-prog" role="status"><span>Stopped<small>${left.length} ${left.length === 1 ? "player" : "players"} not checked</small></span><button type="button" class="rv-btn pri" data-rvogo>Continue</button></div>`;
+    const cell = ({ p, s }) => {
+      if (s.sum?.acc != null) return `<b class="rt-acc${s.done ? "" : " prov"}">${s.done ? "" : "~"}${s.sum.acc}</b>`;
+      if (s.st === "run") return `<span class="rt-st"><i class="rv-ring" style="--p:${Math.round((100 * s.running.j) / Math.max(1, s.running.n))}%" aria-hidden="true"></i>checking…</span>`;
+      return `<span class="rt-st">${{ queued: p.isHuman ? "queued" : "checking…", stopped: "stopped", idle: p.isHuman ? "not checked" : "checking…", norec: "not available", none: "no choices", prov: "–", done: "–", quick: "checking…" }[s.st]}</span>`;
+    };
+    const items = rows.map(({ p, s, lv }) => {
+      const nm = this._rvNm(p.id), n = s.sum?.n ?? null;
+      const sub = [lv?.label, s.st === "norec" ? "moves not recorded" : n != null ? `${n} real ${n === 1 ? "choice" : "choices"}` : s.todo ? `${s.todo} decisions` : "", lv?.band && s.st !== "norec" ? `expected ${Math.round(lv.band[0])} ± ${Math.round(lv.band[1])}` : ""].filter(Boolean).join(" · ");
+      const bar = s.sum?.acc != null ? `<i class="rt-bar" aria-hidden="true"><i style="width:${Math.max(2, Math.min(100, s.sum.acc))}%"></i>${lv?.band ? `<i class="bd" style="left:${Math.max(0, lv.band[0] - lv.band[1])}%;width:${2 * lv.band[1]}%"></i>` : ""}</i>` : "";
+      const w = s.worst, ico = IC.next.replace("<svg", '<svg class="chev"');
+      const worst = w ? `<button type="button" class="rt-w" data-rvworst="${p.id}:${w.i}" aria-label="Biggest mistake of ${nm}: ${this._rvWhen(w)}, ${esc(this._rvTerse(w))}, minus ${w.gp}%. Show the move">${badge(w.cls, "sm")}<span class="t">${this._rvWhen(w).replace(/^(Turn|Roll) /, this.isRush?.() ? "R" : "T")}</span><span class="x">${esc(this._rvTerse(w))}</span><b class="neg">−${w.gp}%</b>${ico}</button>`
+        : s.cov && (p.isHuman || s.done || s.deepN) ? `<p class="rt-none">No mistake found${s.done ? "" : " so far"}.</p>` : "";
+      return `<div class="rt-p pc-${p.id}${p.id === cur ? " cur" : ""}"><button type="button" class="rt-row" data-rvtab="${p.id}" aria-label="${nm}${lv ? `, ${esc(lv.label)}` : ""}: ${s.sum?.acc != null ? `accuracy ${s.sum.acc}${s.done ? "" : ", provisional"}` : esc(s.st)}. Open the review">${this._av(p, "rt-av")}<span class="rt-n"><b>${nm}</b><small>${sub}</small>${bar}</span>${cell({ p, s })}</button>${worst}</div>`;
+    }).join("");
+    const old = !R.bots ? `<p class="rt-foot">This game was played before the bots’ moves were recorded: their accuracy is not available.</p>` : "";
+    const wait = rows.some(({ p, s }) => !p.isHuman && !s.done && s.st !== "none") ? " A bot’s accuracy appears when the deep check of its moves is done (one bot at a time, biggest moments first; tap a bot to check it next)." : "";
+    return `<section class="rv-card rt" data-rvtable aria-label="At this table"><div class="rv-gt"><b>At this table</b><small>accuracy · biggest mistake</small></div>${prog}${items}${old || (R.bots ? `<p class="rt-foot">Expected: a bot’s usual accuracy at its level, measured on its own moves with the same deep check (± 1 SE).${wait}</p>` : "")}</section>`;
+  },
+  _rvBindTable(root) {
+    root.querySelectorAll("[data-rvtab]").forEach((b) => b.addEventListener("click", () => { const pid = +b.dataset.rvtab; if (this._rvEl && pid === this._rvPid && this._rvStep == null) { this._rvEl.querySelector(".rv-scroll")?.scrollTo?.({ top: 0, behavior: "smooth" }); return; } this._rvOpenReview(pid); }));
+    root.querySelectorAll("[data-rvworst]").forEach((b) => b.addEventListener("click", () => { const [pid, i] = b.dataset.rvworst.split(":").map(Number); this._rvOpenReview(pid, { at: i }); }));
+    root.querySelector("[data-rvostop]")?.addEventListener("click", () => { this._rvStop(); this._rvLive(true); this._rvPatchRows(); });
+    root.querySelector("[data-rvogo]")?.addEventListener("click", () => { this._rvOthersGo(); this._rvLive(true); this._rvPatchRows(); });
+  },
+  /** The decision of this seat at or after record i (the last one before it when none follows). */
+  _rvNearI(pid, i) {
+    const res = (this._rvOf(pid)?.results || []).filter((x) => x.win != null && (!x.skip || x.skip === "trivial")).map((x) => x.i).sort((a, b) => a - b);
+    if (!res.length) return null;
+    return res.find((k) => k >= i) ?? res[res.length - 1];
+  },
+  /** Step mode: whose moves (everyone with a review or recorded choices). */
+  _rvWhoPop() {
+    const el = this._rvEl;
+    if (!el) return;
+    const had = el.querySelector(".rs-whopop");
+    if (had) { had.remove(); return; }
+    const d = document.createElement("div");
+    d.className = "rs-whopop";
+    d.setAttribute("role", "menu");
+    d.setAttribute("aria-label", "Whose moves");
+    d.innerHTML = `<small class="h">Whose moves</small>${this.players.filter((p) => this._rvTodo(p.id).length && (p.isHuman || this._rv.bots)).map((p) => { const s = this._rvSeat(p.id), lv = p.isHuman ? null : this._rvLevel(p); return `<button type="button" role="menuitemradio" aria-checked="${p.id === this._rvPid}" class="pc-${p.id}${p.id === this._rvPid ? " on" : ""}" data-rvwhopick="${p.id}">${this._av(p, "rt-av")}<span><b>${this._rvNm(p.id)}</b><small>${[lv?.label, s.sum?.acc != null ? `accuracy ${s.done ? "" : "~"}${s.sum.acc}` : s.st === "run" ? "checking…" : "not checked yet"].filter(Boolean).join(" · ")}</small></span></button>`; }).join("")}`;
+    el.appendChild(d);
+    d.querySelectorAll("[data-rvwhopick]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); const pid = +b.dataset.rvwhopick; d.remove(); if (pid !== this._rvPid) this._rvOpenReview(pid, { near: this._rvStep ?? 0 }); }));
+    setTimeout(() => { const off = (e) => { if (!d.contains(e.target)) { d.remove(); document.removeEventListener("click", off, true); } }; document.addEventListener("click", off, true); }, 0);
+  },
+
   /** Dice luck (src/review/luck.js, from the game's event log): cards collected against cards expected, for every player. { na } when it cannot be told. */
   _rvLuck(pid) {
     const st = this._st;
@@ -169,7 +263,7 @@ export const ReviewGameMixin = {
   /** The finished review goes into the history once (also when it ran in the background). */
   _rvLogGame(pid) {
     const rv = this._rvOf(pid);
-    if (!rv || !this.winner || !this._rvReviewComplete(pid)) return this._rvHistory();
+    if (!rv || !this.winner || !this.players[pid]?.isHuman || !this._rvReviewComplete(pid)) return this._rvHistory(); // (a bot's review never goes into your record)
     const sum = summarize(rv.results);
     const w = this.hotseat ? this.players[pid]?.name : undefined; // pass & play: one entry per person
     return this._rvHistory(sum.acc != null ? { id: w ? `${this._rv.id}:${pid}` : this._rv.id, ...(w ? { w } : {}), acc: sum.acc, n: sum.n, at: Date.now(), eng: REVIEW_ENGINE, midCheck: !!rv.midCheck, k: ACC.id } : null);
@@ -217,7 +311,7 @@ export const ReviewGameMixin = {
       return `<section class="rv-card rv-prog" role="status"><div class="pr"><b>${title}</b><small>${run.paused ? "paused" : `${j} of ${r.n}${j < r.n && (run.times.length >= 2 || j === 0) ? ` · ~${t}` : ""}`}</small><button type="button" class="rv-btn" data-rvstop>Stop</button></div>
         <div class="rv-pbar"><i style="width:${Math.round((100 * j) / n)}%"></i></div></section>`;
     }
-    if (run && run.pid !== pid && !this._rvReviewComplete(pid) && this.hotseat) {
+    if (run && run.pid !== pid && !this._rvReviewComplete(pid) && (this.hotseat || !this.players[pid]?.isHuman)) {
       return `<section class="rv-card rv-prog" role="status"><div class="pr"><b>Waiting</b><small>${esc(this.players[run.pid]?.name || "the other check")} is being checked first</small></div></section>`;
     }
     if (rv?.pid === pid && rv.stopped && !this._rvReviewComplete(pid)) {
@@ -239,9 +333,9 @@ export const ReviewGameMixin = {
   },
 
   // ── the screen ──
-  _rvOpenReview(pid, { mid = false } = {}) {
+  _rvOpenReview(pid, { mid = false, at = null, near = null } = {}) {
     if (!this._rvReviewable()) return;
-    if (!this._rvGateOk(pid)) { this._hsGate?.(pid, "Your game review", () => this._rvOpenReview(pid, { mid })); return; } // pass & play: hand the phone over first
+    if (!this._rvGateOk(pid)) { this._hsGate?.(pid, "Your game review", () => this._rvOpenReview(pid, { mid, at, near })); return; } // pass & play: hand the phone over first
     this._rvMid = mid;
     if (mid) this._st = this._stCompute(); // the stats so far (luck, the board for Show)
     this._rvCloseReview();
@@ -257,8 +351,11 @@ export const ReviewGameMixin = {
     this._rvStep = null;
     const live = () => { if (this._rvEl === el) this._rvLive(); };
     this._rvListener = live;
-    if (this._rvReviewComplete(pid)) { this._rvDrawReview(); return; }
-    this._rvDrawReview();
+    // v1.29 straight to a move (the table's biggest mistake), or the same moment for another player (step mode's Whose moves)
+    const step = at != null ? at : near != null ? this._rvNearI(pid, near) : null;
+    if (step != null) this._rvQ = "all";
+    if (this._rvReviewComplete(pid)) { this._rvDrawReview(step); return; }
+    this._rvDrawReview(step);
     this._rvReviewRun(pid, live, { mid }).then((rv) => { if (this._rvEl !== el) return; this._rvLive(true); if (rv?.done) this._rvRender(); });
   },
   _rvCloseReview(back = false) {
@@ -315,7 +412,7 @@ export const ReviewGameMixin = {
     el.appendChild(d);
   },
   _rvBar(sub) {
-    return `<div class="rv-bar"><button type="button" class="rv-btn" data-rvclose aria-label="${this._rvMid ? "Back to the game" : "Back to results"}">‹</button><div><h3>Game review${this.hotseat && this._rvPid != null ? ` · <span class="pc-${this._rvPid} rv-who">${esc(this.players[this._rvPid].name)}</span>` : ""}</h3><small>${sub}</small></div><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>${this._rvForSeg()}`;
+    return `<div class="rv-bar"><button type="button" class="rv-btn" data-rvclose aria-label="${this._rvMid ? "Back to the game" : "Back to results"}">‹</button><div><h3>Game review${this._rvPid != null && !this._rvIsYou(this._rvPid) ? ` · <span class="pc-${this._rvPid} rv-who">${esc(this.players[this._rvPid].name)}</span>` : ""}</h3><small>${sub}</small></div><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>${this._rvForSeg()}`;
   },
 
   /** Pass & play: "Review for [Rosa] [You]": one person's moves at a time, with where each check stands. */
@@ -334,7 +431,7 @@ export const ReviewGameMixin = {
     return `<div class="rv-for" role="radiogroup" aria-label="Review for"><span class="rv-for-l">Review for</span><div class="rv-seg">${hs.map((p) => `<button type="button" role="radio" aria-checked="${p.id === sel}" class="pc-${p.id}${p.id === sel ? " on" : ""}" data-rvfor="${p.id}">${this._av(p, "rv-for-av")}<span><b>${esc(p.name)}</b><small>${this._rvStatusWord(p.id)}</small></span></button>`).join("")}</div></div>`;
   },
   /** Who gets a review without asking: the person holding the phone. Anyone else's goes through a hand-over cover. */
-  _rvGateOk(pid) { return !this.hotseat || pid === this.viewerId; },
+  _rvGateOk(pid) { return !this.hotseat || pid === this.viewerId || !this.players[pid]?.isHuman; }, // (a bot's moves need no hand-over)
 
   /** After a game: the people whose checks start by themselves, in seat order (one person: just them). */
   _rvAutoQueue() {
@@ -350,7 +447,7 @@ export const ReviewGameMixin = {
   _rvTotals(ds) { return totals(ds); },
   _rvWhen(d) { return d.k === "setup" ? "Setup" : `${this._rvTW()} ${d.t}`; },
   _rvLine(d) {
-    const x = d.x, who = this.hotseat ? esc(this.players[this._rvPid].name) : "You", lc = (t) => t.charAt(0).toLowerCase() + t.slice(1), gain = `+${d.gp}%`;
+    const x = d.x, who = this._rvNm(this._rvPid), lc = (t) => t.charAt(0).toLowerCase() + t.slice(1), gain = `+${d.gp}%`;
     if (d.cls === "triv") return "No real choice: every option was about as good.";
     if (d.cls === "missed") return `${who} ${x.k === "end" ? "ended the turn" : "traded"}; ${esc(lc(x.best.label))} was worth ${gain}.`;
     if (d.cls === "best") return `${esc(x.label)}: the best move.`;
@@ -384,7 +481,7 @@ export const ReviewGameMixin = {
     }
     if (d.chance >= 0) return best ? `${best.roll} rolled · +${cards} ${cards === 1 ? "card" : "cards"}` : "The others' moves";
     if (robbed) return `Robbed · ${robbed} stolen`;
-    return cards ? `Others pulled ahead · +${cards} for you` : shift ? "A 7 and no cards" : "No cards from your numbers";
+    return cards ? `Others pulled ahead · +${cards} for ${this._rvIsYou(me) ? "you" : "them"}` : shift ? "A 7 and no cards" : "No cards from your numbers";
   },
   _rvKind(d) { return { setup: "Setup", build: "Build", bank: "Bank", buy: "Dev card", play: "Dev card", robber: "Robber", end: "Turn end" }[d.k] || ""; },
   _rvShort(d) { const l = d.x.label || ""; return d.k === "end" ? "End turn" : l.replace(/ toward .*/, "").replace(/ on .*/, "").replace(/^Bank trade.*/, "Bank trade"); },
@@ -415,8 +512,9 @@ export const ReviewGameMixin = {
     if (!el) return;
     if (!rv || !rv.results.length) { // nothing checked yet: the progress card alone
       el.className = "rv rs tm";
-      el.innerHTML = `${this._rvBar(`${this.hotseat ? esc(this.players[pid].name) + "’s" : "Your"} moves${this._rvMid ? " so far" : ""}`)}
-        <div class="rv-scroll">${this._rvProgHtml(pid) || `<section class="rv-card rv-prog" role="status"><b>Starting the check…</b></section>`}</div>`;
+      el.innerHTML = `${this._rvBar(`${this._rvWhose(pid)} moves${this._rvMid ? " so far" : ""}`)}
+        <div class="rv-scroll">${this._rvProgHtml(pid) || `<section class="rv-card rv-prog" role="status"><b>Starting the check…</b></section>`}${this._rvTableHtml(pid)}</div>`;
+      this._rvBindTable(el);
       this._rvBindTop(el);
       return;
     }
@@ -433,8 +531,10 @@ export const ReviewGameMixin = {
     const el = this._rvEl, pid = this._rvPid, sum = summarize(rv.results);
     const mid = !!this._rvMid, prov = !this._rvReviewComplete(pid);
     const hist = !mid && !prov ? this._rvLogGame(pid) : this._rvHistory();
-    const cmp = mid || prov ? { text: "" } : this._rvCompare(hist);
-    const cmpText = mid ? "" : prov ? "" : rv.midCheck ? `Checked during the game · not in your average. ${cmp.text}` : cmp.text;
+    const lv = this.players[pid]?.isHuman ? null : this._rvLevel(this.players[pid]), you = this._rvIsYou(pid), nm = esc(this.players[pid]?.name || "");
+    const cmp = mid || prov || lv ? { text: "" } : this._rvCompare(hist);
+    // v1.29 a bot is compared with its own level's band (bands.js), not with your games
+    const cmpText = lv ? (lv.band ? `${lv.label} bots usually score ${Math.round(lv.band[0])} ± ${Math.round(lv.band[1])} on their own moves${prov ? " (the deep check)" : ""}.` : "") : mid ? "" : prov ? "" : rv.midCheck ? `Checked during the game · not in your average. ${cmp.text}` : cmp.text;
     const T = this._rvTotals(ds), luck = this._rvLuck(pid);
     const sg = (v) => sgn(v * 100); // v: a fraction of win chance (gp / 100): whole percent, real minus sign
     const chips = CLASSES.map((c) => `<span class="rs-cnt${sum.cls[c] ? "" : " zero"}">${badge(c, "sm")}<b>${sum.cls[c]}</b><small>${c === "missed" ? "Missed" : CLS[c][0]}</small></span>`).join("");
@@ -457,32 +557,35 @@ export const ReviewGameMixin = {
         ${mid ? `<section class="rv-card rv-midnote"><p><b>Up to turn ${rv.upto ?? this.turn}</b></p><button type="button" class="rv-btn pri" data-rvback-game>Back to the game</button></section>` : ""}
         <section class="rv-card rs-sum">
           ${this._rvStrip(sum.acc, cmp, mid, prov)}
-          <div class="rs-sl"><div><small>Your moves</small><b class="${T.moves < 0 ? "neg" : ""}">${sgn(T.moves)}%</b></div><button type="button" class="rs-lt" data-rvluckgo aria-label="Dice luck: ${tile.n}, ${esc(tile.sub)}. Show the table"><small>Dice luck</small><b class="${tile.cls}">${tile.n}</b><em>${esc(tile.sub)}</em></button></div>
-          ${sum.lost != null ? `<p class="rs-lost">${sum.n} real choices · on average ${sum.lost}% win chance given away per choice${T.capped ? ` · your moves are capped at the ${T.cap}% you could have had` : ""}</p>` : ""}
+          <div class="rs-sl"><div><small>${you ? "Your moves" : "Moves"}</small><b class="${T.moves < 0 ? "neg" : ""}">${sgn(T.moves)}%</b></div><button type="button" class="rs-lt" data-rvluckgo aria-label="Dice luck: ${tile.n}, ${esc(tile.sub)}. Show the table"><small>Dice luck</small><b class="${tile.cls}">${tile.n}</b><em>${esc(tile.sub)}</em></button></div>
+          ${sum.lost != null ? `<p class="rs-lost">${sum.n} real choices · on average ${sum.lost}% win chance given away per choice${T.capped ? ` · ${you ? "your" : "the"} moves are capped at the ${T.cap}% you could have had` : ""}</p>` : ""}
           <div class="rs-cnts">${chips}</div>
           ${cmpText ? `<p class="rv-cmpline">${esc(cmpText)}${cmp.m != null ? ` <span class="rv-keyme">▮ this game</span> <span class="rv-keyavg">● your average</span>` : ""}</p>` : ""}
         </section>
         ${better ? `<section class="rv-card rs-keys rs-better"><div class="rv-gt"><b>Could be better</b><small>${imp.length} to look at</small></div>${better}</section>` : ""}
-        ${ds.length ? `<button type="button" class="rv-btn pri rs-go" data-rvj="${first}" data-rvq="${imp.length ? "imp" : "all"}" data-rvfirst>${IC.step}Step through your moves</button>` : ""}
+        ${ds.length ? `<button type="button" class="rv-btn pri rs-go" data-rvj="${first}" data-rvq="${imp.length ? "imp" : "all"}" data-rvfirst>${IC.step}Step through ${you ? "your" : `${nm}’s`} moves</button>` : ""}
+        ${this._rvTableHtml(pid)}
         ${this._rvLuckCard(luck, pid)}
         ${key ? `<section class="rv-card rs-keys rs-swings"><div class="rv-gt"><b>${swings.length} biggest swings</b><small>win chance, from dice and the others</small></div>${key}</section>` : ""}
-        ${ds.length ? `<section class="rv-card"><div class="rv-gt"><b>Win chance</b><small>you thick · bars: dice and others <i class="kl"></i> your moves <i class="ks"></i></small></div>${this._rvChart(ds)}</section>` : ""}
-        <section class="rv-card"><div class="rv-gt"><b>All your moves</b><small>tap to step</small></div>${rows}</section>
+        ${ds.length ? `<section class="rv-card"><div class="rv-gt"><b>Win chance</b><small>${you ? "you" : nm} thick · bars: dice and others <i class="kl"></i> ${you ? "your" : "their"} moves <i class="ks"></i></small></div>${this._rvChart(ds)}</section>` : ""}
+        <section class="rv-card"><div class="rv-gt"><b>All ${you ? "your" : `${nm}’s`} moves</b><small>tap to step</small></div>${rows}</section>
 
       </div>`;
     el.querySelector(".rv-scroll").scrollTop = scroll;
     el.querySelector("[data-rvluckgo]")?.addEventListener("click", () => el.querySelector(".rs-dice")?.scrollIntoView({ block: "start", behavior: "smooth" }));
     this._rvBindTop(el);
+    this._rvBindTable(el);
     el.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = b.dataset.rvq || "all"; this._rvDrawReview(+b.dataset.rvj); }));
   },
   /** The dice luck of everyone at the table, yours first with the numbers behind it, and the one honest sentence. */
   _rvLuckCard(L, pid) {
     if (!L || L.na) return `<section class="rv-card rs-dice"><div class="rv-gt"><b>Dice luck</b></div><p class="rs-lost">${esc(L?.na || "not available")}. It needs the game's event log.</p></section>`;
     const me = L.me, order = [pid, ...this.players.map((p) => p.id).filter((q) => q !== pid)];
-    const rows = order.map((q) => { const d = L.all[q], t = tileOf({ me: d }), mine = q === pid; return `<div class="rs-lrow pc-${q}${mine ? " me" : ""}"><i></i><span class="n">${mine && !this.hotseat ? "You" : esc(this.players[q].name)}</span><span class="c">${d.got} of ${Math.round(d.exp)}</span><b class="${t.cls}">${t.n}</b><small>${esc(topText(d.top))}</small></div>`; }).join("");
-    const hits = me.blockedN ? `The robber sat on your tiles ${me.blockedN} ${me.blockedN === 1 ? "time" : "times"} and cost you ${me.blockedCards} ${me.blockedCards === 1 ? "card" : "cards"}.` : "The robber never cost you a card.";
+    const rows = order.map((q) => { const d = L.all[q], t = tileOf({ me: d }), mine = q === pid; return `<div class="rs-lrow pc-${q}${mine ? " me" : ""}"><i></i><span class="n">${this._rvNm(q)}</span><span class="c">${d.got} of ${Math.round(d.exp)}</span><b class="${t.cls}">${t.n}</b><small>${esc(topText(d.top))}</small></div>`; }).join("");
+    const you = this._rvIsYou(pid), nm = this.players[pid]?.name || "";
+    const hits = me.blockedN ? `The robber sat on ${you ? "your" : "their"} tiles ${me.blockedN} ${me.blockedN === 1 ? "time" : "times"} and cost ${you ? "you" : "them"} ${me.blockedCards} ${me.blockedCards === 1 ? "card" : "cards"}.` : `The robber never cost ${you ? "you" : "them"} a card.`;
     return `<section class="rv-card rs-dice" id="rvdice"><div class="rv-gt"><b>Dice luck</b><small>cards collected · expected</small></div>${rows}
-      <p class="rs-lost">${esc(sentence(me) ? `You were ${sentence(me)}. ` : "")}Expected ${Math.round(me.exp)} cards with the robber where it stood, ${Math.round(me.expFree)} without it; you got ${me.got}. ${hits}</p>
+      <p class="rs-lost">${esc(sentence(me) ? `${you ? "You were" : `${nm} was`} ${sentence(me)}. ` : "")}Expected ${Math.round(me.exp)} cards with the robber where it stood, ${Math.round(me.expFree)} without it; ${you ? "you" : esc(nm)} got ${me.got}. ${hits}</p>
       <p class="rs-lost">This says how good the rolls were, not how much win chance they cost.</p></section>`;
   },
   /** What could be better, largest gap first: could be better, mistakes, blunders and missed chances. */
@@ -497,7 +600,7 @@ export const ReviewGameMixin = {
     const show = this._rvAB = this._rvAB || "both", me = this._rvPid;
     const noA = d.same;
     const shown = show === "A" && !noA ? d.bseats : d.seats, sg = (v) => `${sgn(v * 100)}%`;
-    const who = this.hotseat ? esc(this.players[me].name) : "You";
+    const who = this._rvNm(me);
     const groups = [];
     ds.forEach((q) => { const key = q.k === "setup" ? "Setup" : `${this._rvTW()} ${q.t}`; let g = groups[groups.length - 1]; if (!g || g.key !== key) groups.push((g = { key, items: [] })); g.items.push(q); });
     const strip = groups.map((g) => `<div class="rs-g"><small>${g.key}</small><div>${g.items.map((q) => `<button type="button" data-rvj="${q.i}" class="rs-chip${q.i === d.i ? " on" : ""}" aria-label="${g.key}: ${CLS[q.cls][0]}">${q.cls === "triv" ? '<i class="rs-dot" title="No real choice"></i>' : badge(q.cls, "sm")}</button>`).join("")}</div></div>`).join("");
@@ -505,12 +608,12 @@ export const ReviewGameMixin = {
     const scrub = el.querySelector(".rs-strip")?.scrollLeft || 0;
     const prov = !this._rvReviewComplete(this._rvPid);
     const A = noA ? "" : `<div class="a${show === "B" ? " dim" : ""}" data-rvab="A"><s>A</s><small>Better</small><b>${esc(tradeShow(x.best.label))}</b><i>${d.A}%</i></div>`;
-    const B = `<div class="b${show === "A" && !noA ? " dim" : ""}" data-rvab="B"><s class="alt">B</s><small>${this.hotseat ? `${esc(this.players[me].name)} did` : "You did"}</small><b>${esc(tradeShow(x.label))}</b><i>${d.B}%</i></div>`;
+    const B = `<div class="b${show === "A" && !noA ? " dim" : ""}" data-rvab="B"><s class="alt">B</s><small>${who} did</small><b>${esc(tradeShow(x.label))}</b><i>${d.B}%</i></div>`;
     const cardHtml = `<div class="rs-h">${badge(d.cls, "lg")}<b>${CLS[d.cls][0]}</b><span>${this._rvKind(d)}</span><em class="${d.gp ? "neg" : "pos"}">${d.gp ? sg(-d.gap) : "±0"}</em></div>
         <p class="rs-s">${this._rvLine(d)}</p>
         ${noA ? "" : whyHtml(x.why)}
         <div class="rs-ab${noA ? " one" : ""}">${A}${B}</div>
-        <div class="rs-lk"><span>${d === ds[0] ? "From an even share" : "Since your last move"}</span><b class="${d.cp >= 0 ? "pos" : "neg"}">Dice &amp; others ${sg(d.chance)}</b><b class="${d.gp ? "neg" : "pos"}">Your move ${d.gp ? sg(-d.gap) : "±0"}</b></div>
+        <div class="rs-lk"><span>${d === ds[0] ? "From an even share" : `Since ${this._rvIsYou(me) ? "your" : "their"} last move`}</span><b class="${d.cp >= 0 ? "pos" : "neg"}">Dice &amp; others ${sg(d.chance)}</b><b class="${d.gp ? "neg" : "pos"}">${this._rvIsYou(me) ? "Your move" : "Move"} ${d.gp ? sg(-d.gap) : "±0"}</b></div>
         <div class="rs-strip" role="tablist" aria-label="Your decisions">${strip}</div>
         <div class="rs-nav"><button type="button" class="rv-btn" data-rvnav="-1" ${k ? "" : "disabled"} aria-label="Previous decision">${IC.prev}Previous</button><button type="button" class="rv-btn pri" data-rvnav="1" ${k < list.length - 1 ? "" : "disabled"} aria-label="Next decision">Next${IC.next}</button></div>`;
     const evalHtml = `<b>${pct(shown[me] / (shown.reduce((a, c) => a + c, 0) || 1))}</b>${this._rvStack(shown)}`;
@@ -528,8 +631,11 @@ export const ReviewGameMixin = {
       bindCard(el.querySelector(".rs-card")); el.querySelector(".rs-strip .on")?.scrollIntoView?.({ inline: "center", block: "nearest" });
       return;
     }
+    // v1.29 whose moves: everyone at the table with recorded choices (you, the bots, each person in pass & play)
+    const many = !mid && this.players.filter((p) => this._rvTodo(p.id).length && (p.isHuman || this._rv.bots)).length > 1;
+    const whoBtn = many ? `<button type="button" class="rv-btn rs-who" data-rvwho aria-haspopup="menu" aria-label="Whose moves: ${who}. Change">${this._av(this.players[me], "rt-av")}<i class="cv" aria-hidden="true"></i></button>` : "";
     el.className = `rv rs step tm${mid ? " noboard" : ""}${x.why && !noA ? " hw" : ""}`; el.dataset.show = show;
-    el.innerHTML = `<div class="rv-bar rs-bar"><button type="button" class="rv-btn" data-rvclose-step aria-label="Back to the overview">${IC.back}</button><div><h3>${this._rvWhen(d)}</h3><small>${k + 1} of ${list.length}${this._rvQ === "imp" ? " · could be better" : ""}${prov ? " · provisional" : ""}</small></div><button type="button" class="rv-btn pri rs-ov" data-rvclose-step>Overview</button><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review">${IC.info}</button></div>
+    el.innerHTML = `<div class="rv-bar rs-bar"><button type="button" class="rv-btn" data-rvclose-step aria-label="Back to the overview">${IC.back}</button><div><h3>${this._rvWhen(d)}</h3><small>${k + 1} of ${list.length}${this._rvQ === "imp" ? " · could be better" : ""}${prov ? " · provisional" : ""}</small></div>${whoBtn}<button type="button" class="rv-btn pri rs-ov" data-rvclose-step>Overview</button><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review">${IC.info}</button></div>
       ${this._rvProgHtml(this._rvPid)}
       <div class="rs-stage"><div class="rs-eval">${evalHtml}</div>
         ${mid ? "" : `<div class="rs-board"><canvas></canvas><svg class="rs-marks" aria-hidden="true"></svg><div class="rs-wc" aria-hidden="true">${wcHtml}</div><button type="button" class="rs-pbp" data-rvpbp aria-label="Play by play: every move since your last decision">${IC.step}<span>Play</span></button>${noA ? "" : `<div class="rs-tog" role="group" aria-label="Show on the board"><button type="button" data-rvab="A" class="${show === "A" ? "on" : ""}" aria-label="Better move"><s>A</s></button><button type="button" data-rvab="both" class="${show === "both" ? "on" : ""}">A + B</button><button type="button" data-rvab="B" class="${show === "B" ? "on" : ""}" aria-label="What you did"><s class="alt">B</s></button></div>`}</div>`}</div>
@@ -537,6 +643,7 @@ export const ReviewGameMixin = {
     const sc = el.querySelector(".rs-strip"); if (sc) { sc.scrollLeft = scrub; el.querySelector(".rs-chip.on")?.scrollIntoView?.({ inline: "center", block: "nearest" }); }
     this._rvBindTop(el);
     el.querySelectorAll("[data-rvclose-step]").forEach((b) => b.addEventListener("click", () => { this._rvStep = null; this._rvDrawReview(); }));
+    el.querySelector("[data-rvwho]")?.addEventListener("click", (e) => { e.stopPropagation(); this._rvWhoPop(); });
     bindCard(el);
     el.querySelector("[data-rvpbp]")?.addEventListener("click", () => this._rvPbpOpen(d, ds));
     let x0 = null;
@@ -548,7 +655,7 @@ export const ReviewGameMixin = {
   _rvLegend(seats) {
     const me = this._rvPid, sum = seats.reduce((a, b) => a + b, 0) || 1;
     const order = [me, ...this.players.map((p) => p.id).filter((q) => q !== me).sort((a, b) => seats[b] - seats[a])];
-    return order.map((q) => `<span class="pc-${q}${q === me ? " me" : ""}"><i></i>${q === me && !this.hotseat ? "You" : esc(this.players[q].name)}<b>${Math.round((seats[q] / sum) * 100)}%</b></span>`).join("");
+    return order.map((q) => `<span class="pc-${q}${q === me ? " me" : ""}"><i></i>${this._rvNm(q)}<b>${Math.round((seats[q] / sum) * 100)}%</b></span>`).join("");
   },
   _rvPName(pid) { const p = this.players[pid]; return !p ? "Someone" : p.isHuman && !this.hotseat ? "You" : esc(p.name); },
   /** Every move between your previous decision and this one, as beats: a roll (with who got what), a build, a trade, the robber, a steal, a card. */
@@ -605,7 +712,7 @@ export const ReviewGameMixin = {
     card.innerHTML = `<div class="rs-h pb-h"><span class="pc-${b.who >= 0 ? b.who : me} pb-dot"><i></i></span><b>${b.head}</b><em>${j + 1} of ${n}</em></div>
       <p class="rs-s">${b.sub || "&nbsp;"}</p>
       <div class="rs-strip" role="tablist" aria-label="Moves">${strip}</div>
-      <div class="rs-nav pb-nav"><button type="button" class="rv-btn" data-rvbeatnav="-1" ${j ? "" : "disabled"} aria-label="Previous move">${IC.prev}</button><button type="button" class="rv-btn pri" data-rvbeatnav="1" ${j < n - 1 ? "" : "disabled"} aria-label="Next move">Next${IC.next}</button><button type="button" class="rv-btn" data-rvpbpx>Your decision</button></div>`;
+      <div class="rs-nav pb-nav"><button type="button" class="rv-btn" data-rvbeatnav="-1" ${j ? "" : "disabled"} aria-label="Previous move">${IC.prev}</button><button type="button" class="rv-btn pri" data-rvbeatnav="1" ${j < n - 1 ? "" : "disabled"} aria-label="Next move">Next${IC.next}</button><button type="button" class="rv-btn" data-rvpbpx>${this._rvIsYou(me) ? "Your" : "Their"} decision</button></div>`;
     card.querySelectorAll("[data-rvbeat]").forEach((x) => x.addEventListener("click", () => this._rvPbpGo(d, ds, +x.dataset.rvbeat)));
     card.querySelectorAll("[data-rvbeatnav]").forEach((x) => x.addEventListener("click", () => this._rvPbpGo(d, ds, j + +x.dataset.rvbeatnav)));
     card.querySelector("[data-rvpbpx]").addEventListener("click", () => { this._rvPbp = null; this._rvDrawReview(); });

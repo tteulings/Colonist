@@ -65,7 +65,8 @@ export const ReviewUiMixin = {
       return `<div class="rv1 gs-revcard rv-wait" role="status">${head(`<span class="rv-spin" aria-hidden="true"></span>checking…`)}<p class="rv1-lead">Looking for moves where another choice was clearly better. This takes a few seconds.</p>${me ? this._rvReviewRowHtml?.(me) || "" : ""}</div>`;
     }
     const groups = this._rvGroups();
-    if (!groups.length) return "";
+    const table = this._rvTableHtml?.() || ""; // v1.29 everyone at the table, under your own review
+    if (!groups.length) return table;
     // pass & play: "Review for [Rosa] [You]": one person at a time (the phone holder first)
     let shown = groups, seg = "";
     if (this.hotseat && groups.length > 1) {
@@ -90,7 +91,7 @@ export const ReviewUiMixin = {
       ${solo ? this._rvReviewRowHtml?.(p) || "" : ""}
       ${list.map((f, k) => `<button type="button" class="rv1-row" data-rvshow="${p.id}:${k}" aria-label="${this._rvTW()} ${f.t}: ${esc(f.line)}, ${esc(f.gain)}. Show"><span class="t">${this._rvTW()} ${f.t}</span><span class="x">${esc(f.line)}</span><span class="g">${esc(f.gain)}</span>${IC.chev}</button>`).join("")}
       ${solo ? "" : this._rvReviewRowHtml?.(p) || ""}</div>`;
-    }).join("");
+    }).join("") + table;
   },
 
   /** Fill (or refresh) the block in the open recap. */
@@ -102,6 +103,7 @@ export const ReviewUiMixin = {
     box.innerHTML = this._rvBlockHtml();
     box.querySelectorAll("[data-rvshow]").forEach((b) => b.addEventListener("click", () => { const [pid, k] = b.dataset.rvshow.split(":").map(Number); this._rvShow(pid, k); }));
     this._rvBindReview?.(box);
+    this._rvBindTable?.(box);
     box.querySelectorAll("[data-rvfor]").forEach((b) => b.addEventListener("click", () => {
       const pid = +b.dataset.rvfor;
       if (pid === this._rvFor) return;
