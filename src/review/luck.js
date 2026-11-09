@@ -35,19 +35,20 @@ export function summary({ got, E1, E0, V, blockedN = 0, blockedCards = 0 }, inde
 }
 /** "+7 cards" / "−3 cards" / "0 cards". */
 export const cardsText = (x) => { const r = Math.round(x), n = Math.abs(r); return `${r > 0 ? "+" : r < 0 ? "−" : ""}${n} ${n === 1 ? "card" : "cards"}`; };
-/** "top 12%" (lucky side) or "bottom 9%" (unlucky side); nothing when it is within the middle 30% or has no percentile. */
+/** "luckier than 75% of games" / "unluckier than 80% of games" / "about average"; nothing without a percentile. */
 export function topText(top) {
   if (top == null) return "";
   const t = Math.round(top * 100);
   if (t >= 35 && t <= 65) return "about average";
-  return top < 0.5 ? `top ${Math.max(1, t)}%` : `bottom ${Math.max(1, 100 - t)}%`;
+  return top < 0.5 ? `luckier than ${Math.min(99, 100 - t)}% of games` : `unluckier than ${Math.min(99, t)}% of games`;
 }
 
 /** What a tile says: { n: "+7 cards" | "n/a", cls: "pos" | "neg" | "", sub: "top 12%" | "balanced dice: no percentile" | reason }. L = { me } or { na: reason }. */
 export function tileOf(L) {
   if (!L || L.na) return { n: "n/a", cls: "", sub: L?.na || "not available" };
   const me = L.me, lucky = Math.round(me.luck) > 0, unlucky = Math.round(me.luck) < 0;
-  return { n: cardsText(me.luck), cls: lucky ? "pos" : unlucky ? "neg" : "", sub: me.top == null ? "no percentile with this dice rule" : topText(me.top) };
+  const side = lucky ? "above expected" : unlucky ? "below expected" : "as expected";
+  return { n: cardsText(me.luck), cls: lucky ? "pos" : unlucky ? "neg" : "", side, sub: me.top == null ? `${side} · no percentile with this dice rule` : `${side} · ${topText(me.top)}` };
 }
 /** The percentile as a sentence for the table: "luckier than 88% of games". */
 export function sentence(me) {
