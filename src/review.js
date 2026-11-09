@@ -275,7 +275,7 @@ export const ReviewMixin = {
       const q = R.queue.shift(), pid = q?.pid ?? q, stage = q?.stage ?? null;
       if (this._rvReviewComplete(pid) || !this._rvTodo(pid).length || R.revs[pid]?.stopped) continue;
       if (q?.pid != null && (R.othersOff || (stage === "quick" && this._rvCovered1(pid)) || (stage === "top" && R.revs[pid]?.top))) continue;
-      this._rvReviewRun(pid, this._rvListener, { stage }).then((rv) => { if (this._rv === R) this._rvRender?.(); });
+      this._rvReviewRun(pid, this._rvListener, { stage }).then((rv) => { if (this._rv === R && rv?.done && this.players[pid]?.isHuman) this._rvRender?.(); }); // (a bot's progress patches the table only: the end screen is not redrawn under your finger)
       return;
     }
     this._rvTick();

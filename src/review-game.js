@@ -124,8 +124,15 @@ export const ReviewGameMixin = {
   _rvPatchRows() {
     document.querySelectorAll("[data-rvreview]").forEach((b) => { const p = this.players[+b.dataset.rvreview]; if (p) b.innerHTML = this._rvRowInner(p); });
     // v1.29 the table on the end screen follows the others' checks (the review screen redraws itself)
-    const t = this._stOverlay?.isConnected ? this._stOverlay.querySelector("[data-rvbox] [data-rvtable]") : null;
-    if (t && this._rv) { const tmp = document.createElement("div"); tmp.innerHTML = this._rvTableHtml(); const n = tmp.firstElementChild; if (n) { t.replaceWith(n); this._rvBindTable(n); } }
+    this._rvPatchTable(this._stOverlay?.isConnected ? this._stOverlay.querySelector("[data-rvbox] [data-rvtable]") : null);
+  },
+  /** Replace one table in place (only when it changed): the screen around it is not redrawn. */
+  _rvPatchTable(t, cur = null, luckFor = null) {
+    if (!t || !this._rv) return;
+    const h = this._rvTableHtml(cur, luckFor);
+    if (t.__h === h) return;
+    const tmp = document.createElement("div"); tmp.innerHTML = h; const n = tmp.firstElementChild;
+    if (n) { n.__h = h; t.replaceWith(n); this._rvBindTable(n); }
   },
   _rvBindReview(box) {
     box.querySelectorAll("[data-rvreview]").forEach((b) => b.addEventListener("click", () => this._rvOpenReview(+b.dataset.rvreview)));
@@ -224,7 +231,7 @@ export const ReviewGameMixin = {
     if (luckFor != null && L && !L.na && L.all?.[luckFor]) {
       const me = L.all[luckFor], you = this._rvIsYou(luckFor), nm = this.players[luckFor]?.name || "";
       const hits = me.blockedN ? `The robber sat on ${you ? "your" : "their"} tiles ${me.blockedN} ${me.blockedN === 1 ? "time" : "times"} and cost ${you ? "you" : "them"} ${me.blockedCards} ${me.blockedCards === 1 ? "card" : "cards"}.` : `The robber never cost ${you ? "you" : "them"} a card.`;
-      note = `<p class="rs-lost">${esc(sentence(me) ? `${you ? "You were" : `${nm} was`} ${sentence(me)}. ` : "")}Dice luck: ${you ? "you" : esc(nm)} got ${me.got} cards; expected ${Math.round(me.exp)} with the robber where it stood, ${Math.round(me.expFree)} without it. ${hits} It says how good the rolls were, not how much win chance they cost.</p>`;
+      note = `<p class="rs-lost">${esc(sentence(me) ? `${you ? "You were" : `${nm} was`} ${sentence(me)}. ` : "")}Dice luck: ${you ? "you" : esc(nm)} got ${me.got} cards${me.short ? ` (and ${me.short} more the bank ran out of: counted for the dice)` : ""}; expected ${Math.round(me.exp)} with the robber where it stood, ${Math.round(me.expFree)} without it. ${hits} It says how good the rolls were, not how much win chance they cost.</p>`;
     }
     return `<section class="rv-card rt${luckFor != null ? " rs-dice" : ""}" data-rvtable${luckFor != null ? ' id="rvdice"' : ""} aria-label="At this table"><div class="rv-gt"><b>At this table</b><small>accuracy · luck · biggest mistake</small></div>${prog}${items}${note}${foot}</section>`;
   },
@@ -339,6 +346,9 @@ export const ReviewGameMixin = {
   _rvLive(force = false) {
     const el = this._rvEl;
     if (!el) return;
+    // v1.29 someone else is being checked (the others after your review): only the table follows, the screen you read stays still
+    const run = this._rv?.run;
+    if (!force && run && run.pid !== this._rvPid && this._rvOf(this._rvPid)?.results?.length) { if (this._rvStep == null) this._rvPatchTable(el.querySelector(".rv-scroll [data-rvtable]"), this._rvPid, this._rvPid); return; }
     const t = Date.now();
     if (!force && this._rvLastDraw && t - this._rvLastDraw < 1000) { if (!this._rvDrawT) this._rvDrawT = setTimeout(() => { this._rvDrawT = 0; this._rvLive(true); }, 1000); return; }
     clearTimeout(this._rvDrawT); this._rvDrawT = 0;
@@ -495,6 +505,7 @@ export const ReviewGameMixin = {
       if (step && c && (!best || c > best.c)) best = { c, roll: step[2] + step[3] };
       if (step && step[2] + step[3] === 7) shift = true;
     }
+    if ((p.x.s ?? 0) === (d.x.s ?? 0)) return "Same turn · re-estimate, no dice"; // proef: nothing rolled and nobody else moved in between
     if (d.chance >= 0) return best ? `${best.roll} rolled · +${cards} ${cards === 1 ? "card" : "cards"}` : "The others' moves";
     if (robbed) return `Robbed · ${robbed} stolen`;
     return cards ? `Others pulled ahead · +${cards} for ${this._rvIsYou(me) ? "you" : "them"}` : shift ? "A 7 and no cards" : "No cards from your numbers";
@@ -515,7 +526,7 @@ export const ReviewGameMixin = {
     const curL = cur >= 0 && ds[cur] ? `<line x1="${X(cur)}" x2="${X(cur)}" y1="${top - 2}" y2="${h - (axis ? 12 : 2)}" class="g-sel"/><circle cx="${X(cur)}" cy="${Y(ds[cur].win)}" r="6" class="g-cur"/>` : "";
     const hit = ds.map((d, k) => `<rect data-rvj="${d.i}" x="${(X(k) - (X1 - X0) / Math.max(1, n) / 2).toFixed(1)}" y="0" width="${((X1 - X0) / Math.max(1, n)).toFixed(1)}" height="${h}" fill="transparent"/>`).join("");
     const lab = (d) => (d.k === "setup" ? "setup" : `${this._rvTW().toLowerCase()} ${d.t}`);
-    return `<svg class="rs-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Win chance of every player after each of your decisions; bars: dice and others, and your moves">${grid}${others}<path d="${line((d) => d.win)} L${X(n - 1)},${Y(0)} L${X(0)},${Y(0)}Z" class="g-area"/><path d="${line((d) => d.win)}" class="g-line"/>${barSvg}${dots}${curL}${hit}${axis ? `<text x="${X0}" y="${h - 1}" class="g-ax">${lab(ds[0])}</text><text x="${X1}" y="${h - 1}" text-anchor="end" class="g-ax">${lab(ds[n - 1])}</text>` : ""}</svg>`;
+    return `<svg class="rs-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Win chance of every player after each of your decisions; bars: dice and others, and your moves">${grid}${others}<g class="pc-${me} g-me"><path d="${line((d) => d.win)} L${X(n - 1)},${Y(0)} L${X(0)},${Y(0)}Z" class="g-area"/><path d="${line((d) => d.win)}" class="g-halo"/><path d="${line((d) => d.win)}" class="g-line"/></g>${barSvg}${dots}${curL}${hit}${axis ? `<text x="${X0}" y="${h - 1}" class="g-ax">${lab(ds[0])}</text><text x="${X1}" y="${h - 1}" text-anchor="end" class="g-ax">${lab(ds[n - 1])}</text>` : ""}</svg>`;
   },
   /** The stacked bar: one segment per player in their colour (sum 100 %), yours at the bottom, outlined, with your % beside it. */
   _rvStack(seats) {
@@ -558,7 +569,7 @@ export const ReviewGameMixin = {
     const imp = this._rvImp(ds);
     const better = imp.slice(0, 5).map((d) => `<button type="button" class="rs-key rs-imp" data-rvj="${d.i}" data-rvq="imp">${badge(d.cls)}<span class="t">${this._rvWhen(d)}</span><span class="x">${esc(this._rvTerse(d))}${d.x.why?.head ? `<small class="w">${esc(d.x.why.head)}</small>` : ""}</span><b class="neg">${sg(-d.gap)}%</b>${ico}</button>`).join("");
     this._rvT = T; // the win chance bookkeeping for the (i)
-    const swings = ds.filter((d) => Math.abs(d.cp) >= 3).sort((a, b) => Math.abs(b.cp) - Math.abs(a.cp)).slice(0, 3);
+    const swings = ds.filter((d, k) => Math.abs(d.cp) >= 3 && !(k && (ds[k - 1].x.s ?? 0) === (d.x.s ?? 0))).sort((a, b) => Math.abs(b.cp) - Math.abs(a.cp)).slice(0, 3);
     const key = swings.map((lk) => `<button type="button" class="rs-key" data-rvj="${lk.i}"><i class="rs-b c-luck sm" aria-hidden="true">⚄</i><span class="t">${this._rvWhen(lk)}</span><span class="x">${esc(this._rvCause(ds, ds.indexOf(lk)))}</span><b class="${lk.cp >= 0 ? "pos" : "neg"}">${sg(lk.chance)}%</b>${ico}</button>`).join("");
     const tile = tileOf(luck);
     const groups = [];
@@ -600,7 +611,7 @@ export const ReviewGameMixin = {
     const you = this._rvIsYou(pid), nm = this.players[pid]?.name || "";
     const hits = me.blockedN ? `The robber sat on ${you ? "your" : "their"} tiles ${me.blockedN} ${me.blockedN === 1 ? "time" : "times"} and cost ${you ? "you" : "them"} ${me.blockedCards} ${me.blockedCards === 1 ? "card" : "cards"}.` : `The robber never cost ${you ? "you" : "them"} a card.`;
     return `<section class="rv-card rs-dice" id="rvdice"><div class="rv-gt"><b>Dice luck</b><small>cards collected · expected</small></div>${rows}
-      <p class="rs-lost">${esc(sentence(me) ? `${you ? "You were" : `${nm} was`} ${sentence(me)}. ` : "")}Expected ${Math.round(me.exp)} cards with the robber where it stood, ${Math.round(me.expFree)} without it; ${you ? "you" : esc(nm)} got ${me.got}. ${hits}</p>
+      <p class="rs-lost">${esc(sentence(me) ? `${you ? "You were" : `${nm} was`} ${sentence(me)}. ` : "")}Expected ${Math.round(me.exp)} cards with the robber where it stood, ${Math.round(me.expFree)} without it; ${you ? "you" : esc(nm)} got ${me.got}${me.short ? ` (and ${me.short} more the bank ran out of: counted for the dice)` : ""}. ${hits}</p>
       <p class="rs-lost">This says how good the rolls were, not how much win chance they cost.</p></section>`;
   },
   /** What could be better, largest gap first: could be better, mistakes, blunders and missed chances. */

@@ -70,10 +70,19 @@ export function decide(results, n, me) {
   const base = Math.round(100 / n);
   const norm = (a, w) => (Array.isArray(a) && a.length === n ? a : Array.from({ length: n }, (_, q) => (q === me ? w : (1 - w) / Math.max(1, n - 1))));
   const sorted = results.filter((x) => x.win != null).sort((a, b) => a.i - b.i);
+  // proef: within one roll step and turn, after a move without chance (build / bank trade) the next move's best line was still open,
+  // so the played move is worth at least that (B >= next A); otherwise the evaluator's miss shows up twice (gap, then "luck" back).
+  const SAFE = ["build", "bank"], floor = sorted.map(() => null);
+  for (let k = sorted.length - 2; k >= 0; k -= 1) {
+    const x = sorted[k], y = sorted[k + 1];
+    const yB = Math.max(Math.round(y.win * 100), floor[k + 1] ?? -1), yA = Math.max(yB, Math.round(y.win * 100) + gpOf(y));
+    if (SAFE.includes(x.k) && x.s != null && x.s === y.s && x.t === y.t) floor[k] = yA;
+  }
   let prev = null;
-  return sorted.map((x) => {
-    const cls = clsOf(x) || (x.trivial || x.skip === "trivial" ? "triv" : "best");
-    const gp = cls === "triv" ? 0 : gpOf(x), B = Math.round(x.win * 100), A = B + gp;
+  return sorted.map((x, k) => {
+    let cls = clsOf(x) || (x.trivial || x.skip === "trivial" ? "triv" : "best");
+    let gp = cls === "triv" ? 0 : gpOf(x), B = Math.round(x.win * 100), A = B + gp;
+    if (floor[k] != null && floor[k] > B) { B = Math.min(A, floor[k]); gp = A - B; if (gp < 1 && cls !== "triv") cls = "best"; }
     const cp = A - (prev == null ? base : prev);
     prev = B;
     return { i: x.i, x, t: x.t, k: x.k, cls, gp, B, A, cp, base, loss: x.loss || 0,
