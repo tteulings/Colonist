@@ -99,7 +99,12 @@ export function makeMaster(opts = {}) {
   }
   function search0(g, me, cands, apply, depth) {
     const t0 = now();
-    const deadline = o.timeMs ? t0 + o.timeMs : Infinity;
+    // eng-130 o.rollClock (measurements only): the time budget counted in rollouts instead of ms (timeMs = rollouts), so a "3 s
+    // on this device" search can be replayed exactly and machine-independently in the Node harness
+    let used = 0;
+    const clk = o.rollClock ? () => used : now;
+    const c0 = o.rollClock ? 0 : t0;
+    const deadline = o.timeMs ? c0 + o.timeMs : Infinity;
     const root = snapshot(g);
     const K = cands.length;
     const NB = o.nPer ? o.nPer * K : o.n; // eng-124 o.nPer (the review): the budget scales with the number of moves (o.nPer futures per move on average)
@@ -124,7 +129,7 @@ export function makeMaster(opts = {}) {
       vps[k][j] = g.players[me].victoryPoints;
     };
     const rounds = [];
-    let used = 0, stop = "n";
+    let stop = "n";
     try {
       let alive = cands.map((_, i) => i);
       const R = o.noHalve ? 1 : Math.max(1, Math.ceil(Math.log2(K))); // o.noHalve: every candidate on every future (paired calibration)
@@ -134,10 +139,10 @@ export function makeMaster(opts = {}) {
         let j = j0;
         // v1.09 experiment o.timeSlice: anytime search, the time budget split evenly over the halving rounds (a round ends at
         // its slice, the next one starts; n is then only an upper bound)
-        const sliceEnd = o.timeSlice && o.timeMs ? t0 + o.timeMs * (r + 1) / R : Infinity;
+        const sliceEnd = o.timeSlice && o.timeMs ? c0 + o.timeMs * (r + 1) / R : Infinity;
         for (; j < j0 + per && used < NB * 1.05; j++) {
-          if (j >= 2 && now() > deadline) { stop = "time"; break; }
-          if (j >= j0 + 2 && now() > sliceEnd) break;
+          if (j >= 2 && clk() > deadline) { stop = "time"; break; }
+          if (j >= j0 + 2 && clk() > sliceEnd) break;
           for (const k of alive) { evalOne(k, j); used++; }
           // v1.10 o.earlyZ ("Super Expert"): one move leads every other live move by more than earlyZ standard errors (paired,
           // futures shared) after at least o.earlyMin futures: the rest of the time budget is not needed
