@@ -11,7 +11,8 @@ export const mulberry32 = (a) => () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t
 
 const SCAL = ["turn", "currentPlayerIndex", "phase", "longestRoadHolder", "largestArmyHolder", "currentTurnPlayedDevCard",
   "freeRoadsRemaining", "lastRoll", "lastDiceTotal", "turnSerial", "robberHexId", "pendingAction", "devPlayed", "tradeLocked", "robberContext", "pendingRobberFlow",
-  "setupStep", "setupPhase", "setupAction", "lastSetupNodeId"];
+  "setupStep", "setupPhase", "setupAction", "lastSetupNodeId",
+  "lastDice", "lastRollPlayer", "highlightRoll", "_stMover"]; // eng-124: the roll's display / stats fields too (kept by reference: the engine replaces them, never edits them)
 const PNUM = ["devVictoryPoints", "knightsPlayed", "longestRoadLength", "victoryPoints", "publicVictoryPoints"];
 
 export function snapshot(g) {
@@ -20,6 +21,7 @@ export function snapshot(g) {
   for (let i = 0; i < nodes.length; i++) { no[i] = nodes[i].owner ?? -1; ns[i] = nodes[i].structure === "city" ? 2 : nodes[i].structure === "settlement" ? 1 : 0; }
   for (let i = 0; i < edges.length; i++) eo[i] = edges[i].owner ?? -1;
   return { sbp: g.sbp ? JSON.parse(JSON.stringify(g.sbp)) : null, no, ns, eo, bank: { ...g.bank }, devDeck: g.devDeck.slice(), winner: g.winner ? g.winner.id : -1, sc: SCAL.map((k) => g[k]),
+    rh: g.rollHistory ? { ...g.rollHistory } : null, // eng-124: edited in place by every roll (and saved with the game)
     trk: g._aiCardTrack?.players === g.players ? g._aiCardTrack.est.map((e) => ({ ...e })) : null,
     pl: g.players.map((p) => ({ res: { ...p.resources }, roads: [...p.roads], sett: [...p.settlements], cities: [...p.cities], dev: { ...p.devCards }, nd: { ...p.newDevCards }, num: PNUM.map((k) => p[k]), strategy: p.strategy, agent: p.agent })) };
 }
@@ -31,6 +33,7 @@ export function restore(g, s) {
   g.sbp = s.sbp ? JSON.parse(JSON.stringify(s.sbp)) : null; // 5–6 players: a build window is never open at a decision, but a cut-off rollout must not leave one behind
   g.bank = { ...s.bank }; g.devDeck = s.devDeck.slice(); g.winner = s.winner < 0 ? null : g.players[s.winner];
   SCAL.forEach((k, i) => { g[k] = s.sc[i]; });
+  if (s.rh) g.rollHistory = { ...s.rh };
   if (s.trk) g._aiCardTrack = { players: g.players, est: s.trk.map((e) => ({ ...e })) }; else g._aiCardTrack = null;
   g.players.forEach((p, i) => { const q = s.pl[i]; p.resources = { ...q.res }; p.roads = new Set(q.roads); p.settlements = new Set(q.sett); p.cities = new Set(q.cities);
     p.devCards = { ...q.dev }; p.newDevCards = { ...q.nd }; PNUM.forEach((k, j) => { p[k] = q.num[j]; }); p.strategy = q.strategy; p.agent = q.agent; });
@@ -132,11 +135,17 @@ export function rollout(g, turns, rng, { jitter = 0.15, maxRounds = 250 } = {}) 
   }
 }
 
-/** Run fn with every seat's agent off (searches simulate the plain bots and never nest a search). */
+/** Run fn with every seat's agent off (searches simulate the plain bots and never nest a search).
+ *  eng-124: and with the timers muted (unless g._searchTimers): endTurn() and friends schedule window.setTimeout every turn
+ *  (UI ticks); in a synchronous search they cannot fire before the search ends, then fire on a restored position, and they pile
+ *  up (~80 per playout, ~33 KB of heap each playout in a long headless run). Nothing in the game rules waits on them. */
+const NO_TIMER = () => 0;
 export function withoutAgents(g, fn) {
   const keep = g.players.map((p) => p.agent);
+  const T = globalThis, st = T.setTimeout, si = T.setInterval, quiet = !g._searchTimers;
   g.players.forEach((p) => { p.agent = null; });
-  try { return fn(); } finally { g.players.forEach((p, i) => { p.agent = keep[i]; }); }
+  if (quiet) { T.setTimeout = NO_TIMER; T.setInterval = NO_TIMER; }
+  try { return fn(); } finally { if (quiet) { T.setTimeout = st; T.setInterval = si; } g.players.forEach((p, i) => { p.agent = keep[i]; }); }
 }
 
 // ── v1.10 leaf function 'fit': per-seat features and a conditional-logit (generalised softmax) over the seats ──
