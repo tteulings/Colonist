@@ -89,39 +89,39 @@ export const BOT_PROFILES = {
     cards: "Strategic: builds toward Largest Army, saves Monopoly for a big haul.",
   },
   master: {
-    label: "Master", tagline: "Expert + looks ahead", level: 5, win: null, acc: botBand("Master"),
+    label: "Master", tagline: "Expert + looks ahead", level: 5, win: { p: 55.6, ci: 3.4 }, acc: botBand("Master"),
     style: "Plays like the Expert, but before each set-up spot, build step and robber move it plays out about 100 possible futures (up to half a second) and picks what wins most.",
-    good: "Strongest bot: in the same seat it wins 8.4 percentage points more often than an Expert (±5.4, 500 games against 3 Experts).",
+    good: "Wins 55.6% against 3 Intermediate bots (±3.4, 800 games), 14.8 percentage points more than the Expert on the same boards.",
     weak: "Player trades are the Expert's own. In Seafarers it plays exactly like the Expert. In Rush its search is capped at a quarter of a second a move, and with 5–6 players it gets fewer playouts in its half second, so its edge there is smaller and not measured.",
     beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
     trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
     robber: "Searched: it tries the tiles and keeps the one that pays off best in its playouts.",
     cards: "Strategic, like the Expert; whether to play a card is part of the search.",
-    note: "Measured vs 3 Experts: +8.4 ±5.4 pp win chance against an Expert in the same seat (n=500).",
+    note: "Measured: on the same 800 boards as the Expert +14.8 pp (±4.3). Earlier, against 3 Experts: +8.4 ±5.4 pp over an Expert in the same seat (n=500).",
   },
-  // v1.10: the Master's search with ten times the thinking. win stays null until the final figure is measured.
+  // v1.10: the Master's search with ten times the thinking. bot-125: measured (vs 3 Intermediates, no time limit).
   super: {
-    label: "Super Expert", tagline: "Master with 10x more thinking", level: 5, beyond: true, win: null, acc: null,
+    label: "Super Expert", tagline: "Master with 10x more thinking", level: 5, beyond: true, win: { p: 71.0, ci: 4.5 }, acc: null,
     style: "The Master's search with ten times the thinking: before each set-up spot, build step and robber move it plays out up to 1000 possible futures, looking 14 turns ahead (18 in set-up), and picks what wins most. It stops early when one move is clearly ahead.",
-    good: "The strongest bot: it sees further than the Master and spots slow plans (a city race, Longest Road) that a short look misses.",
+    good: "Much stronger than the Master: 71.0% against 3 Intermediate bots (±4.5, 393 games), 32.6 points above the Expert. It sees further and spots slow plans (a city race, Longest Road) that a short look misses.",
     weak: "Slow: about 3 seconds for a move, so your phone waits for it. In Rush it has a quarter of a second a move (about a Master there); in Seafarers it plays exactly like the Expert. With 5–6 players the same 3 seconds buy fewer playouts. Player trades are the Expert's own.",
     beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
     trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
     robber: "Searched: it tries the tiles and keeps the one that pays off best in many playouts.",
     cards: "Strategic, like the Expert; whether to play a card is part of the search.",
-    note: "Early test, not final: about +8 pp win chance over the Master in the same seat (400 games against 3 Experts, ±3). To be measured again.",
+    note: "Measured without a time limit (1000 futures every move); in the app it stops at 3 s, which on a phone buys fewer futures: not measured how much that costs.",
   },
-  // bot-125 (working name): the Super Expert's search with the boosted value model as its position score. win stays null until measured.
+  // bot-125 (working name): the Super Expert's search with the boosted value model as its position score. Measured like the Super Expert.
   superplus: {
-    label: "Super Expert+", tagline: "Super Expert with a learned eye", level: 5, beyond: true, win: null, acc: null,
+    label: "Super Expert+", tagline: "Super Expert with a learned eye", level: 5, beyond: true, win: { p: 71.9, ci: 4.4 }, acc: null,
     style: "The Super Expert's search (up to 1000 possible futures, 14 turns ahead, 18 in set-up, about 3 s a move), but where each future stops it judges the position with a model learned from thousands of bot games (the same scorer as the game review), not the hand-made score.",
-    good: "Reads a position better at the end of each future: with the Master's smaller search the same learned scorer won about 11 percentage points more often (300 games against 3 Experts, ±6.8). For this bot itself: not measured yet.",
-    weak: "Slow, like the Super Expert: about 3 seconds a move, so your phone waits for it. In Rush it has a quarter of a second a move; in Seafarers it plays exactly like the Expert. With 5–6 players the same 3 seconds buy fewer playouts. Player trades are the Expert's own. New, so its strength is not measured yet.",
+    good: "As strong as the Super Expert against 3 Intermediate bots (71.9% ±4.4, 395 games; +0.8 pp on the same boards, ±5.4). Head to head at one table it finished above the Super Expert in 59.1% of 104 games (±9.4): a lean, not yet conclusive.",
+    weak: "Slow, like the Super Expert: about 3 seconds a move, so your phone waits for it. In Rush it has a quarter of a second a move; in Seafarers it plays exactly like the Expert. With 5–6 players the same 3 seconds buy fewer playouts. Player trades are the Expert's own. In the app it searches for at most 3 s a move (the measurement had no time limit).",
     beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
     trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
     robber: "Searched: it tries the tiles and keeps the one that pays off best in many playouts.",
     cards: "Strategic, like the Expert; whether to play a card is part of the search.",
-    note: "Not measured yet. The same learned scorer in the Master's search: +11.3 ±6.8 pp over the Master's own score (300 games against 3 Experts).",
+    note: "Measured without a time limit (1000 futures every move). In the app it stops at 3 s; its learned score costs a little more per future, so it may get fewer futures there than the Super Expert: not measured what that does to its strength.",
   },
 };
 

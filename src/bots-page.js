@@ -112,11 +112,13 @@ function listHtml(tab, sort, you, who) {
 // ── 1. the strength ladder (dot plot) ───────────────────────────────────────────────────────────
 function ladderSvg(W) {
   const R = rows().filter(plain).sort((a, b) => b.win.v - a.win.v);
-  const x0 = 96, x1 = W - 54, S = (x1 - x0) / 55, X = (v) => x0 + v * S, top = 30, rh = 44, H = top + R.length * rh + 22, r = 9;
+  // bot-125: the scale grows with the strongest bot's interval (the search bots reach past 70%), at least 0–55
+  const D = Math.max(55, Math.ceil((Math.max(0, ...R.map((b) => b.win.v + (b.win.ci || 0))) + 2) / 5) * 5);
+  const x0 = 104, x1 = W - 54, S = (x1 - x0) / D, X = (v) => x0 + v * S, top = 30, rh = 44, H = top + R.length * rh + 22, r = 9;
   let s = `<svg class="bpg-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="group" aria-label="Strength ladder: win chance of each bot with its 95 percent interval. Dashed line is the 25 percent fair share. Tap a bot to open its profile.">`;
-  [0, 10, 20, 30, 40, 50].forEach((v) => (s += `<line class="g" x1="${X(v)}" x2="${X(v)}" y1="${top - 8}" y2="${H - 22}"/>`));
+  [0, 10, 20, 30, 40, 50, 60, 70, 80, 90].filter((v) => v <= D).forEach((v) => (s += `<line class="g" x1="${X(v)}" x2="${X(v)}" y1="${top - 8}" y2="${H - 22}"/>`));
   s += `<line class="ref" x1="${X(25)}" x2="${X(25)}" y1="${top - 8}" y2="${H - 22}"/>`;
-  [[0, "0"], [25, "25 fair share"], [50, "50"]].forEach(([v, t]) => (s += `<text x="${X(v)}" y="14" text-anchor="middle"${v === 25 ? ' class="b"' : ""}>${t}</text>`));
+  [[0, "0"], [25, "25 fair share"], [50, "50"], [75, "75"]].filter(([v]) => v <= D).forEach(([v, t]) => (s += `<text x="${X(v)}" y="14" text-anchor="middle"${v === 25 ? ' class="b"' : ""}>${t}</text>`));
   R.forEach((b, i) => {
     const y = top + i * rh + rh / 2, w = b.win, est = w.label === "estimate";
     s += `<g class="hit" data-open="${b.key}" tabindex="0" role="button" aria-label="${esc(`${b.p.label}, ${lvText(b)}. Win chance ${est ? `about ${Math.round(w.v)} percent, an estimate` : `${f1(w.v)} percent, plus or minus ${f1(w.ci)}, measured`}. Open profile`)}">`;
@@ -128,7 +130,7 @@ function ladderSvg(W) {
     s += `<g transform="translate(${X(w.v)},${y})"><circle r="${r}" class="disc"/><g transform="translate(${-r + 1.5},${-r + 1.5}) scale(${(2 * r - 3) / 100})">${inner(b.key)}</g><circle r="${r}" class="ring${est ? " est" : ""}" style="stroke-opacity:${0.4 + b.p.level * 0.12}"/></g>`;
     s += `<text class="v" x="${W}" y="${y - 1}" text-anchor="end">${est ? "~" + Math.round(w.v) : f1(w.v)}</text><text x="${W}" y="${y + 13}" text-anchor="end">${est ? "estimate" : "±" + f1(w.ci)}</text></g>`;
   });
-  s += `<text x="${X(27.5)}" y="${H - 3}" text-anchor="middle">win chance, %</text></svg>`;
+  s += `<text x="${X(D / 2)}" y="${H - 3}" text-anchor="middle">win chance, %</text></svg>`;
   return s;
 }
 const ladderCard = (W) => `<section class="bpg-card bpg-hero" aria-labelledby="bpgLadH"><h2 id="bpgLadH">Strength ladder</h2>
@@ -147,7 +149,8 @@ function ladderFoot() {
 
 // ── 2. strength against accuracy (scatter) ──────────────────────────────────────────────────────
 function scatterPts(W, H) {
-  const l = 40, rgt = 14, t = 12, b = 36, XS = (v) => l + (v / 60) * (W - l - rgt), YS = (v) => H - b - ((v - 50) / 30) * (H - t - b);
+  const D = Math.max(60, Math.ceil(Math.max(0, ...rows().filter((r) => plain(r) && r.acc.v != null).map((r) => r.win.v + (r.win.ci || 0))) / 20) * 20);
+  const l = 40, rgt = 14, t = 12, b = 36, XS = (v) => l + (v / D) * (W - l - rgt), YS = (v) => H - b - ((v - 50) / 30) * (H - t - b);
   const pts = rows().filter((r) => plain(r) && r.acc.v != null).map((r) => ({ r, x: XS(r.win.v), y: YS(r.acc.v), est: r.win.label === "estimate" }));
   // pixel clusters: markers closer than 20 px (touching) become one "n bots" marker (tap = a list), never moved apart
   const grp = pts.map((_, i) => i);
@@ -155,13 +158,13 @@ function scatterPts(W, H) {
   pts.forEach((a, i) => pts.forEach((c, j) => { if (j > i && Math.hypot(a.x - c.x, a.y - c.y) < 20) grp[find(j)] = find(i); }));
   const cl = {};
   pts.forEach((p, i) => (cl[find(i)] ||= []).push(p));
-  return { l, rgt, t, b, XS, YS, groups: Object.values(cl) };
+  return { l, rgt, t, b, XS, YS, D, groups: Object.values(cl) };
 }
 function scatterSvg(W, sel) {
   const H = 320, g = scatterPts(W, H), { l, rgt, t, b, XS, YS } = g;
   let s = `<svg class="bpg-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="group" aria-label="Win chance against review accuracy for each bot. Tap a bot, or a group of bots, for its numbers.">`;
   [50, 60, 70, 80].forEach((v) => (s += `<line class="g" x1="${l}" x2="${W - rgt}" y1="${YS(v)}" y2="${YS(v)}"/><text x="${l - 6}" y="${YS(v) + 4}" text-anchor="end">${v}</text>`));
-  [0, 20, 40, 60].forEach((v) => (s += `<line class="g" x1="${XS(v)}" x2="${XS(v)}" y1="${t}" y2="${H - b}"/><text x="${XS(v)}" y="${H - b + 16}" text-anchor="middle">${v}</text>`));
+  [0, 20, 40, 60, 80].filter((v) => v <= g.D).forEach((v) => (s += `<line class="g" x1="${XS(v)}" x2="${XS(v)}" y1="${t}" y2="${H - b}"/><text x="${XS(v)}" y="${H - b + 16}" text-anchor="middle">${v}</text>`));
   s += `<line class="ref" x1="${XS(25)}" x2="${XS(25)}" y1="${t}" y2="${H - b}"/><text class="b" x="${XS(25) + 4}" y="${t + 11}">25 fair share</text>`;
   s += `<text x="${(l + W - rgt) / 2}" y="${H - 4}" text-anchor="middle">win chance, %</text><text transform="translate(11,${(t + H - b) / 2}) rotate(-90)" text-anchor="middle">review accuracy</text>`;
   const taken = []; // label boxes and markers, to keep labels apart

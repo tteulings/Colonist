@@ -42,9 +42,18 @@ t("a profile, an illustration (< 3 KB), a mini and a frame for every preset", ()
     assert.ok(profileMini(k).length < 1200 && levelFrame(k).includes("<svg"), k);
   }
 });
-t("Master shows no win figure against Intermediate (only +8.4 pp vs Expert, n=500)", () => {
-  assert.equal(BOT_PROFILES.master.win, null);
-  assert.match(BOT_PROFILES.master.good, /8\.4 percentage points/);
+// bot-125: Master, Super Expert and Super Expert+ are measured against 3 Intermediates; the profile's figure is bot-stats.js's
+const STATS = (await import("../src/bot-stats.js")).BOT_STATS;
+t("Master, Super Expert, Super Expert+: measured vs 3 Intermediates, the profile figure equals bot-stats.js, no estimate or early test left", () => {
+  for (const k of ["master", "super", "superplus"]) {
+    const w = STATS[k].win;
+    assert.equal(w.label, "measured", k); assert.ok(w.n >= 300 && w.ci > 0 && w.code && w.date && w.setup, k);
+    assert.deepEqual(BOT_PROFILES[k].win, { p: w.v, ci: w.ci }, k);
+  }
+  assert.ok(!Object.values(STATS).some((x) => ["estimate", "early test"].includes(x.win.label)));
+  assert.match(STATS.super.win.src + STATS.superplus.win.src, /No time limit/);
+  assert.match(STATS.superplus.win.src, /Head to head/); assert.ok(STATS.superplus.h2h.n > 0);
+  assert.match(BOT_PROFILES.master.good, /percentage points more than the Expert/);
 });
 t("frames: every tier looks different (silver is a double band, shark has a fin, master a star)", () => {
   const f = (k) => levelFrame(k, 40);
@@ -68,12 +77,12 @@ t("Settings › Bots wires one card per preset, a picked bot and the (i) sheet",
   assert.ok(game.includes("presetCards(this, Object.keys(AI_PRESETS)") && game.includes("this._botSel") && game.includes("DIAL_WORDS"));
   for (const k of Object.keys(AI_PRESETS)) assert.ok(BOT_PROFILES[k].tagline && BOT_PROFILES[k].level >= 1, k);
 });
-t("Super Expert: own policy, own chip, a 6th mark, no win figure, two-star frame, art < 3 KB", () => {
+t("Super Expert: own policy, own chip, a 6th mark, a measured win figure, two-star frame, art < 3 KB", () => {
   assert.equal(AI_PRESETS.super.policy, "super");
   assert.equal(presetHighlight([{ ...AI_PRESETS.super }], AI_PRESETS, AXES).active, "super");
   assert.equal(presetHighlight([{ ...AI_PRESETS.master }], AI_PRESETS, AXES).active, "master"); // same dials, other policy
   const p = BOT_PROFILES.super;
-  assert.equal(p.win, null); assert.equal(p.level, 5); assert.ok(p.beyond);
+  assert.ok(p.win); assert.equal(p.level, 5); assert.ok(p.beyond);
   assert.match(p.weak, /Rush it has a quarter of a second/); assert.match(p.weak, /Seafarers it plays exactly like the Expert|in Seafarers it plays exactly like the Expert/); assert.match(p.weak, /3 seconds/);
   assert.ok(profileArt("super", 132).length < 3072);
   assert.notEqual(levelFrame("super"), levelFrame("master"));
@@ -89,8 +98,8 @@ t("Super Expert+ (bot-125): own policy and chip, the Super Expert's budget with 
   assert.equal(presetHighlight([{ ...AI_PRESETS.superplus }], AI_PRESETS, AXES).active, "superplus");
   assert.equal(presetHighlight([{ ...AI_PRESETS.super }], AI_PRESETS, AXES).active, "super");
   const p = BOT_PROFILES.superplus;
-  assert.equal(p.win, null); assert.equal(p.level, 5); assert.ok(p.beyond);
-  assert.match(p.weak, /not measured yet/); assert.match(p.weak, /Seafarers it plays exactly like the Expert/); assert.match(p.weak, /3 seconds/);
+  assert.ok(p.win); assert.equal(p.level, 5); assert.ok(p.beyond);
+  assert.match(p.weak, /at most 3 s/); assert.match(p.note, /not measured what that does/); assert.match(p.weak, /Seafarers it plays exactly like the Expert/); assert.match(p.weak, /3 seconds/);
   assert.ok(profileArt("superplus", 132).length < 3072);
   assert.notEqual(levelFrame("superplus"), levelFrame("super"));
   assert.notEqual(profileMini("superplus"), profileMini("super"));
