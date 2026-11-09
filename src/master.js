@@ -8,6 +8,7 @@
 // Analysis mode: a Master decision is noted with the Expert's own steps plus the Race and the Verdict
 // (src/ai-tree.js masterSteps), and the panel shows a one-line verdict.
 import { masterSteps, masterLineHtml } from "./ai-tree.js";
+import { parallelDecide } from "./master/parallel.js";
 
 export const MASTER_BUDGET = { n: 100, timeMs: 500 };
 // v1.10 "Super Expert": the same search, up to 1000 rollouts in an anytime, time-sliced search (about 3 s cap per decision),
@@ -17,13 +18,28 @@ export const SUPER_BUDGET = { n: 1000, timeMs: 3000, timeSlice: true, depth: 14,
 // bot-125 "Super Expert+" (working name): the Super Expert's budget, but every playout ends in the boosted value model
 // (src/master/leaf-gbm.js, the review's leaf) instead of the v1 score. Rush: the same small Rush cap, with the gbm leaf too.
 export const SUPER_PLUS_BUDGET = { ...SUPER_BUDGET, leaf: "gbm" };
-/** The search budget of a policy ("master" | "super" | "superplus"). */
-export const budgetFor = (policy, rush = false) => (rush ? { ...RUSH_BUDGET, ...(policy === "superplus" ? { leaf: "gbm" } : {}) }
-  : { ...(policy === "superplus" ? SUPER_PLUS_BUDGET : policy === "super" ? SUPER_BUDGET : MASTER_BUDGET) });
+// eng-130 "Grandmaster": the Super Expert+ search (gbm leaf, 3 s, 14 turns, 18 in set-up) run by several Web Workers at once
+// (src/master/parallel.js; GM_WORKERS), each on its own share of the futures, plus the speed work of eng-130: about 3x the
+// futures of a Super Expert+ in the same 3 s. n is only the upper bound for fast machines.
+export const GRANDMASTER_BUDGET = { ...SUPER_PLUS_BUDGET, n: 3000 };
+/** Workers for one Grandmaster decision: the cores past the page's own, at most 3 (a Galaxy S24 has 8). */
+export const GM_WORKERS = () => Math.max(1, Math.min(3, ((typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 2) - 1));
+// eng-130 Seafarers: the leaf every search bot uses there. The hand-made v1 score is worse than a uniform guess on Seafarers
+// positions (log-loss 1.404 vs 1.318, 300 played-out games); "gbm" there is the Seafarers model (src/master/leaf-gbm-sea-model.js, 1.043).
+export const SEA_LEAF = "gbm";
+/** The search budget of a policy ("master" | "super" | "superplus" | "grandmaster"); sea: a Seafarers game (eng-130). */
+export const budgetFor = (policy, rush = false, sea = false) => {
+  const b = rush ? { ...RUSH_BUDGET, ...(policy === "superplus" || policy === "grandmaster" ? { leaf: "gbm" } : {}) }
+    : { ...(policy === "grandmaster" ? GRANDMASTER_BUDGET : policy === "superplus" ? SUPER_PLUS_BUDGET : policy === "super" ? SUPER_BUDGET : MASTER_BUDGET) };
+  if (sea) b.leaf = SEA_LEAF;
+  return b;
+};
 // v1.17 Rush: a bot moves every 1-2 s while the dice clock runs, so its search gets a small cap (the 7's robber too; set-up has no clock
 // and keeps the full budget). Master and Super Expert search alike there (a Super Expert's longer look-ahead needs the time it doesn't get).
 export const RUSH_BUDGET = { n: 100, timeMs: 250, depth: 8, setupDepth: 12 };
-export const isSearchPolicy = (policy) => policy === "master" || policy === "super" || policy === "superplus";
+export const isSearchPolicy = (policy) => policy === "master" || policy === "super" || policy === "superplus" || policy === "grandmaster";
+/** The policies with the Super Expert's long search (3 s, 14 turns). */
+export const isSuperPolicy = (policy) => policy === "super" || policy === "superplus" || policy === "grandmaster";
 const ASK_TIMEOUT_MS = 6000;   // a decision that takes longer falls back to the Expert (the cap + 3 s: Super Expert 3 s + 3 s)
 const READY_TIMEOUT_MS = 8000;
 // Pacing: the Expert makes all its builds of a turn at once; a Master shows each searched step, a short
@@ -69,6 +85,21 @@ function poolRequest(pool, msg, timeoutMs) {
 export function masterWorker() { return poolWorker(shared); }
 /** Send one request; resolves with the reply, or null (no worker, error, timeout). */
 export function masterRequest(msg, timeoutMs = ASK_TIMEOUT_MS) { return poolRequest(shared, msg, timeoutMs); }
+// eng-130 Grandmaster: helper workers next to the shared one (created on first use; each loads the game code once)
+const helpers = [];
+const gmPool = (w) => (w === 0 ? shared : (helpers[w - 1] = helpers[w - 1] || { worker: null, ready: null, broken: false, seq: 0, waiting: new Map() }));
+/** Warm the helper workers (a Grandmaster at the table). */
+export function grandmasterWarm() { for (let w = 0; w < GM_WORKERS(); w++) poolWorker(gmPool(w)); }
+/** One Grandmaster decision over GM_WORKERS() workers; resolves like masterRequest ({ choice, record } or null). Falls back to the
+ *  shared worker alone when a helper cannot start. */
+export async function grandmasterRequest(msg, timeoutMs = ASK_TIMEOUT_MS) {
+  let W = GM_WORKERS();
+  const ok = await Promise.all(Array.from({ length: W }, (_, w) => poolWorker(gmPool(w))));
+  while (W > 1 && !ok[W - 1]) W--;
+  if (!ok[0]) return null;
+  const r = await parallelDecide((w, m) => poolRequest(gmPool(w), m, timeoutMs), W, msg);
+  return r ? { type: "decision", kind: msg.kind, choice: r.choice, record: r.record } : null;
+}
 // v1.04 the Game review has a worker of its own: a check during the game never makes a Master bot wait
 // (one shared worker queued the bots' searches behind ~5 s review steps: 4.4 s mean think time, timeouts).
 const review = { worker: null, ready: null, broken: false, seq: 0, waiting: new Map() };
@@ -83,10 +114,11 @@ export const MasterMixin = {
       && this._searchGame();
   },
   /** A game the search covers: the island board, 2–6 players, Classic or Rush (Rush is searched as turn-based play, see rushToTurns
-   *  in src/review/engine.js). Seafarers is not covered yet. */
-  _searchGame() { return !this.sea; },
+   *  in src/review/engine.js). v1.19 Seafarers (Heading for New Shores) is searched too, phase 1: set-up spot, builds, ships and the free
+   *  ship move, robber / pirate; the set-up ship and gold picks stay with the Expert. */
+  _searchGame() { return true; },
   /** Load the worker early when the table has a Master (the first decision then doesn't wait for it). */
-  _masterWarm() { if (this.players?.some((p) => this._masterLive(p))) masterWorker(); },
+  _masterWarm() { if (this.players?.some((p) => this._masterLive(p))) masterWorker(); if (this.players?.some((p) => this._masterLive(p) && p.strategy?.policy === "grandmaster")) grandmasterWarm(); },
 
   /** Ask the worker; resolves { choice, record } or null (then the Expert decides). */
   _masterReq(kind, player) {
@@ -94,8 +126,11 @@ export const MasterMixin = {
     const state = this.serializeState();
     const { logEntries, stats, ...pos } = state; // (the log and the stats don't change a decision)
     const key = JSON.stringify([kind, player.id, pos, trk, this.turnSerial]);
-    const opts = budgetFor(player.strategy?.policy, this.isRush() && !this.setupPhase);
-    return { key, cap: opts.timeMs, send: () => masterRequest({ type: "decide", kind, state, trk, turnSerial: this.turnSerial, seat: player.id, opts }, Math.max(ASK_TIMEOUT_MS, opts.timeMs + 3000)) };
+    const opts = budgetFor(player.strategy?.policy, this.isRush() && !this.setupPhase, !!this.sea);
+    const msg = { type: "decide", kind, state, trk, turnSerial: this.turnSerial, seat: player.id, opts };
+    const cap = kind === "setup" && opts.setupTimeMs ? opts.setupTimeMs : opts.timeMs; // eng-130: a set-up spot may have its own budget
+    if (player.strategy?.policy === "grandmaster") return { key, cap, send: () => grandmasterRequest(msg, Math.max(ASK_TIMEOUT_MS, cap + 3000)) };
+    return { key, cap, send: () => masterRequest(msg, Math.max(ASK_TIMEOUT_MS, cap + 3000)) };
   },
   /** Right after a Master's roll: start its first main-phase search during the usual pause before a bot
    *  acts (the answer is used only if nothing changed in between). */
@@ -109,7 +144,7 @@ export const MasterMixin = {
     const gen = this.gameGen;
     const r = this._masterReq(kind, player);
     const pre = this._masterPre?.key === r.key ? this._masterPre.promise : null;
-    this._masterBusy = { pid: player.id, kind, t0: pre ? this._masterPre.t0 : performance.now(), cap: r.cap, super: player.strategy?.policy === "super" || player.strategy?.policy === "superplus" };
+    this._masterBusy = { pid: player.id, kind, t0: pre ? this._masterPre.t0 : performance.now(), cap: r.cap, super: isSuperPolicy(player.strategy?.policy) };
     try { this.renderLog(); this.renderStatusAndControls(); } catch (_) { /* headless */ } // the dock says "… is thinking…"
     this._thinkTick(true);
     this._masterPre = null;

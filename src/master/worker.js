@@ -10,6 +10,7 @@
 //   ← { type: "detect", id, findings, ms }
 //   → { type: "evaluate", id, base, rec, opts }                 (v1.03 Game review: one decision, Monte Carlo)
 //   ← { type: "evaluate", id, result }
+//   → { type: "sprep" | "srun" | "send", sid, ... }               (eng-130 Grandmaster: a share of one parallel search, src/master/parallel.js)
 //   ← { type: "ready" } once loaded, { type: "error", id, message } on failure
 import "./dom.js";
 await import("../game.js"); // constructs a stub game as self.__colonistGame (no page, no saving)
@@ -35,6 +36,28 @@ function decide(m) {
   return { choice: d ? d.choice : null, record: d ? d.record : null };
 }
 
+// eng-130 Grandmaster: a share of one decision's futures (src/master/parallel.js coordinates; see agent.session in search.js)
+const sessions = new Map();
+let loadedSid = null;
+function sprep(m) {
+  const P = load(m);
+  loadedSid = null;
+  const agent = makeMaster(m.opts || {});
+  const S = agent.session(g, P, m.kind, g._masterBaseInit);
+  if (!S) return { K: 0 };
+  sessions.set(m.sid, { m, agent, S });
+  while (sessions.size > 6) sessions.delete(sessions.keys().next().value);
+  loadedSid = m.sid;
+  const named = S.P.named();
+  return { K: S.K, depth: S.depth, kind: S.P.kind, named, choices: S.P.cands.map((_, k) => S.P.choiceOf(k)), sig: JSON.stringify(named.map((x) => x.label)) };
+}
+function srun(m) {
+  const x = sessions.get(m.sid);
+  if (!x) throw new Error("no such search session");
+  if (loadedSid !== m.sid) { load(x.m); loadedSid = m.sid; } // another request used this copy in between: the same position again
+  return x.agent.sessionRun(g, x.S, m.alive, m.js, m.budgetMs ?? Infinity, !!m.force);
+}
+
 function detect(m) {
   const t0 = performance.now();
   const findings = detectMissed(g, m.recs, (rec) => loadRecord(g, m.base, rec), m.opts || {});
@@ -46,7 +69,7 @@ function playGame(m) {
   const t0 = performance.now();
   const orig = Math.random;
   // v1.13: a Super Expert seat searches with its own (bigger) budget (m.budgets[i]); a Master with m.opts
-  const agents = m.strategies.map((s, i) => (s.policy === "master" || s.policy === "super" || s.policy === "superplus" ? makeMaster(m.budgets?.[i] || m.opts || {}) : null));
+  const agents = m.strategies.map((s, i) => (s.policy === "master" || s.policy === "super" || s.policy === "superplus" || s.policy === "grandmaster" ? makeMaster(m.budgets?.[i] || m.opts || {}) : null));
   try {
     g._labSimStart(m.strategies, { players: m.strategies.length, map: m.map || "random", seed: m.seed, agents });
     let r = { done: false };
@@ -59,10 +82,13 @@ function playGame(m) {
 self.onmessage = (e) => {
   const m = e.data;
   try {
-    if (m.type === "decide") self.postMessage({ type: "decision", id: m.id, kind: m.kind, ...decide(m) });
-    else if (m.type === "game") self.postMessage({ type: "game", id: m.id, ...playGame(m) });
-    else if (m.type === "detect") self.postMessage({ type: "detect", id: m.id, ...detect(m) });
-    else if (m.type === "evaluate") self.postMessage({ type: "evaluate", id: m.id, result: evaluateRecord(g, m.rec, (rec) => loadRecord(g, m.base, rec), m.opts || {}) });
+    if (m.type === "decide") { loadedSid = null; self.postMessage({ type: "decision", id: m.id, kind: m.kind, ...decide(m) }); }
+    else if (m.type === "sprep") self.postMessage({ type: "sprep", id: m.id, ...sprep(m) });
+    else if (m.type === "srun") self.postMessage({ type: "srun", id: m.id, ...srun(m) });
+    else if (m.type === "send") { sessions.delete(m.sid); if (loadedSid === m.sid) loadedSid = null; if (m.id != null) self.postMessage({ type: "send", id: m.id }); }
+    else if (m.type === "game") { loadedSid = null; self.postMessage({ type: "game", id: m.id, ...playGame(m) }); }
+    else if (m.type === "detect") { loadedSid = null; self.postMessage({ type: "detect", id: m.id, ...detect(m) }); }
+    else if (m.type === "evaluate") { loadedSid = null; self.postMessage({ type: "evaluate", id: m.id, result: evaluateRecord(g, m.rec, (rec) => loadRecord(g, m.base, rec), m.opts || {}) }); }
   } catch (err) {
     self.postMessage({ type: "error", id: m.id, message: String(err && err.stack || err) });
   }

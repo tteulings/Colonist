@@ -40,6 +40,9 @@ export const BOT_STATS = {
     win: { v: 71.0, ci: 4.4, n: 400, setup: "vs3intFixed", code: "v1.28 engine (bot-125)", date: "2026-11-09", label: "measured",
       src: "No time limit (fixed budget); in the app it stops at 3 s. Paired with the Expert on the same boards: +32.5 pp (±5.9)." },
   },
+  grandmaster: {
+    win: { v: null, ci: null, label: "unknown" },
+  },
   superplus: {
     win: { v: 71.5, ci: 4.4, n: 400, setup: "vs3intFixed", code: "v1.28 engine (bot-125)", date: "2026-11-09", label: "measured",
       src: "No time limit (fixed budget); in the app it stops at 3 s. Against 3 Intermediates it ties the Super Expert: +0.5 pp (±5.4, same boards and seats). Head to head (Super Expert, Super Expert+ and 2 Experts at one table, every seat order with the two Supers swapped, 112 games, no time limit): Super Expert+ won 41.1% (±9.1), Super Expert 28.6% (±8.4), the Experts 30.4%. Super Expert+ finished above Super Expert in 58.0% of the games (±9.0; 50% = equal). Per seat-swapped pair: +12.5 pp (±14.0). A slight lean toward Super Expert+, not significant." },

@@ -13,6 +13,8 @@
 // the robber tile. Player-to-player trades, discards and the pre-roll Knight stay with the Expert.
 import { DEV_CARD_TYPES, hasResources, mulberry32, snapshot, restore, determinize, rollout, winProb, winProbs, fitProbs, withoutAgents } from "./sim.js";
 import { gbmProbs } from "./leaf-gbm.js";
+import { GBM_MODEL } from "./leaf-gbm-model.js";
+import { FIT2_ADJ } from "./leaf-fit.js";
 
 export const MASTER_OPTS = { n: 100, timeMs: 0, depth: 8, setupDepth: 12, z: 1.0, minAdv: 0.002, jitter: 0.15, T: 1.2, topSetup: 6, topRobber: 4, maxCands: 7 };
 const RES = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
@@ -34,6 +36,27 @@ function earlyLead(alive, vals, z, nMin) {
     if (!(m > z * se + 1e-9)) return false;
   }
   return true;
+}
+
+/** eng-130 Seafarers: pirate hexes that rob someone (legal for the mover, a rival's ship next to it). */
+function pirateHexes(g, p) {
+  if (!g.sea) return [];
+  return g.sea.legalThiefHexes(p, "pirate").filter((h) => h.resource === "sea" && g.sea.shipVictims(h.id, p).length).map((h) => h.id);
+}
+/** eng-130 Seafarers: "Move a ship toward 6·9" (the land end of the edge it moves to, else just "Move a ship"). */
+export function shipBuildLabel(g, p, to) {
+  try {
+    const e = g.geometry.edges[to];
+    const land = e.nodes.find((n) => g.sea?.nodeIsLand(n) && g.geometry.nodes[n].owner !== p.id);
+    return land != null ? `Ship toward ${g._spotLabel(land)}` : "Ship";
+  } catch (_) { return "Ship"; }
+}
+export function shipMoveLabel(g, p, to) {
+  try {
+    const e = g.geometry.edges[to];
+    const land = e.nodes.find((n) => g.sea?.nodeIsLand(n) && g.geometry.nodes[n].owner !== p.id);
+    return land != null ? `Move a ship toward ${g._spotLabel(land)}` : "Move a ship";
+  } catch (_) { return "Move a ship"; }
 }
 
 export function makeMaster(opts = {}) {
@@ -77,7 +100,12 @@ export function makeMaster(opts = {}) {
   }
   function search0(g, me, cands, apply, depth) {
     const t0 = now();
-    const deadline = o.timeMs ? t0 + o.timeMs : Infinity;
+    // eng-130 o.rollClock (measurements only): the time budget counted in rollouts instead of ms (timeMs = rollouts), so a "3 s
+    // on this device" search can be replayed exactly and machine-independently in the Node harness
+    let used = 0;
+    const clk = o.rollClock ? () => used : now;
+    const c0 = o.rollClock ? 0 : t0;
+    const deadline = o.timeMs ? c0 + o.timeMs : Infinity;
     const root = snapshot(g);
     const K = cands.length;
     const NB = o.nPer ? o.nPer * K : o.n; // eng-124 o.nPer (the review): the budget scales with the number of moves (o.nPer futures per move on average)
@@ -94,15 +122,15 @@ export function makeMaster(opts = {}) {
       let v = 0;
       if (a !== false) {
         if (!g.winner) rollout(g, a === "ended" ? depth - 1 : depth, r, { jitter: o.jitter });
-        if (o.leaf === "gbm") { const ws = gbmProbs(g); v = ws[me]; if (seatW) seatW[k][j] = ws; } // eng-124 o.leaf 'gbm': boosted trees (src/master/leaf-gbm.js; the review's leaf)
-        else if (o.leaf === "fit") { const ws = fitProbs(g); v = ws[me]; if (seatW) seatW[k][j] = ws; } // v1.10 o.leaf 'fit': the fitted score function
+        if (o.leaf === "gbm" || o.leaf === "gbm0") { const ws = gbmProbs(g, o.leaf === "gbm0" ? GBM_MODEL : null); v = ws[me]; if (seatW) seatW[k][j] = ws; } // eng-124 o.leaf 'gbm': boosted trees (src/master/leaf-gbm.js; the review's leaf); eng-130: the Seafarers model on a Seafarers board ('gbm0': always the island model, for measurements)
+        else if (o.leaf === "fit" || o.leaf === "fit2") { const ws = fitProbs(g, undefined, o.leaf === "fit2" ? FIT2_ADJ : null); v = ws[me]; if (seatW) seatW[k][j] = ws; } // v1.10 o.leaf 'fit': the fitted score function; v1.19 'fit2': plus the Longest Road / Largest Army offset
         else if (seatW) { const ws = winProbs(g, o.T); v = ws[me]; seatW[k][j] = ws; } else v = winProb(g, me, o.T);
       }
       vals[k][j] = v;
       vps[k][j] = g.players[me].victoryPoints;
     };
     const rounds = [];
-    let used = 0, stop = "n";
+    let stop = "n";
     try {
       let alive = cands.map((_, i) => i);
       const R = o.noHalve ? 1 : Math.max(1, Math.ceil(Math.log2(K))); // o.noHalve: every candidate on every future (paired calibration)
@@ -112,10 +140,10 @@ export function makeMaster(opts = {}) {
         let j = j0;
         // v1.09 experiment o.timeSlice: anytime search, the time budget split evenly over the halving rounds (a round ends at
         // its slice, the next one starts; n is then only an upper bound)
-        const sliceEnd = o.timeSlice && o.timeMs ? t0 + o.timeMs * (r + 1) / R : Infinity;
+        const sliceEnd = o.timeSlice && o.timeMs ? c0 + o.timeMs * (r + 1) / R : Infinity;
         for (; j < j0 + per && used < NB * 1.05; j++) {
-          if (j >= 2 && now() > deadline) { stop = "time"; break; }
-          if (j >= j0 + 2 && now() > sliceEnd) break;
+          if (j >= 2 && clk() > deadline) { stop = "time"; break; }
+          if (j >= j0 + 2 && clk() > sliceEnd) break;
           for (const k of alive) { evalOne(k, j); used++; }
           // v1.10 o.earlyZ ("Super Expert"): one move leads every other live move by more than earlyZ standard errors (paired,
           // futures shared) after at least o.earlyMin futures: the rest of the time budget is not needed
@@ -163,14 +191,15 @@ export function makeMaster(opts = {}) {
     const sett = [...p.settlements].filter((n) => !pl.sett.includes(n));
     const cities = [...p.cities].filter((n) => !pl.cities.includes(n));
     const roads = [...p.roads].filter((e) => !pl.roads.includes(e));
+    const ships = p.ships && pl.ships ? [...p.ships].filter((e) => !pl.ships.includes(e)) : []; // eng-130 Seafarers
     const devBought = Object.values(p.devCards).reduce((a, b) => a + b, 0) + Object.values(p.newDevCards).reduce((a, b) => a + b, 0)
       - Object.values(pl.dev).reduce((a, b) => a + b, 0) - Object.values(pl.nd).reduce((a, b) => a + b, 0)
       + p.devVictoryPoints - pl.num[0]; // a VP card is a bought card too (else the label would give the top card away); num[0] = devVictoryPoints
     const res = {};
     Object.keys(RES).forEach((r) => { res[r] = p.resources[r] - pl.res[r]; });
-    return { sett, cities, roads, devBought, res };
+    return { sett, cities, roads, ships, shipMoved: !!(p.ships && pl.ships && p.ships.size === pl.ships.length), devBought, res };
   };
-  const sig = (g, p) => `${[...p.settlements].sort()}|${[...p.cities].sort()}|${[...p.roads].sort()}|${JSON.stringify(p.resources)}|${JSON.stringify(p.devCards)}|${JSON.stringify(p.newDevCards)}`;
+  const sig = (g, p) => `${[...p.settlements].sort()}|${[...p.cities].sort()}|${[...p.roads].sort()}|${p.ships ? [...p.ships].sort() : ""}|${JSON.stringify(p.resources)}|${JSON.stringify(p.devCards)}|${JSON.stringify(p.newDevCards)}`;
   const tradeText = (tr) => {
     const give = {}, get = {};
     tr.forEach(([a, b]) => { give[a] = (give[a] || 0) + 1; get[b] = (get[b] || 0) + 1; });
@@ -182,6 +211,7 @@ export function makeMaster(opts = {}) {
   const describeDiff = (g, p, dif, plan) => {
     if (dif.cities.length) return { label: `City on ${g._spotLabel(dif.cities[0])}`, focus: { city: dif.cities[0] } };
     if (dif.sett.length) return { label: `Settlement ${g._spotLabel(dif.sett[0])}`, focus: { node: dif.sett[0] } };
+    if (dif.ships?.length) { const to = dif.ships[0]; const moved = dif.shipMoved; return { label: moved ? shipMoveLabel(g, p, to) : shipBuildLabel(g, p, to), focus: { edge: to } }; }
     if (dif.roads.length) {
       const g0 = plan.goals[0];
       if (g0?.type === "settlement" && g0.dist > 0) return { label: `Road toward ${g._spotLabel(g0.nodeId)}`, focus: { edge: dif.roads[0], node: g0.nodeId } };
@@ -193,44 +223,124 @@ export function makeMaster(opts = {}) {
     return null;
   };
 
-  // ── set-up: the Expert's top spots ──
-  agent.decideSetup = (g, p, base) => {
-    const def = base(p);
-    const ids = [def, ...g._aiSetupCandidates(p).sort((a, b) => b.score - a.score).map((c) => c.id).filter((id) => id !== def)].slice(0, o.topSetup);
-    if (ids.length <= 1 || def == null) return null;
+  // ── eng-130 parallel search (Grandmaster): one decision raced by several workers, each on its own share of the futures. A session
+  // holds the position and the moves; sessionRun plays the given futures for the given moves exactly as search0's evalOne does
+  // (future j: the same re-deal and dice in every worker), so splitting the futures over workers changes nothing but the time.
+  // The race itself (rounds, halving, early stop, the pick) runs in src/master/parallel.js. ──
+  agent.session = (g, p, kind, base = null) => {
+    const P = withoutAgents(g, () => agent.prepare(g, p, kind, base));
+    if (!P) return null;
     seedRng(g, p);
-    stats.decisions++;
-    const rec = search(g, p.id, ids, (gg, node) => {
-      const once = { used: false };
-      const save = Object.prototype.hasOwnProperty.call(gg, "getBestInitialSettlementNode") ? gg.getBestInitialSettlementNode : null;
-      gg.getBestInitialSettlementNode = (q) => { if (!once.used && q.id === p.id) { once.used = true; return node; } return base(q); };
-      try { gg.processSetupQueue(); } finally { if (save) gg.getBestInitialSettlementNode = save; else delete gg.getBestInitialSettlementNode; }
-      return true;
-    }, o.setupDepth);
-    stats.setupMs.push(rec.ms);
-    if (rec.pick !== 0) stats.deviations++;
-    rec.kind = "setup";
-    rec.cands = ids.map((id) => ({ c: { kind: "spot", node: id }, label: `Spot ${g._spotLabel(id)}`, focus: { node: id } }));
-    agent.last = rec;
-    return { choice: ids[rec.pick], record: rec };
+    const seed = Math.floor(rng() * 2 ** 31);
+    return { P, me: p.id, root: snapshot(g), seed, K: P.cands.length, depth: P.depth };
+  };
+  /** Play futures js (in order) for moves `alive` until `budgetMs` (this worker's clock; at least one future when `force`).
+   *  Returns { done, vals: per alive move the values of js[0..done), vps, seats (o.seats) }. */
+  agent.sessionRun = (g, S, alive, js, budgetMs = Infinity, force = false) => withoutAgents(g, () => {
+    const t0 = now(), end = t0 + budgetMs;
+    const vals = alive.map(() => []), vps = alive.map(() => []), seatW = o.seats ? alive.map(() => []) : null;
+    const orig = Math.random;
+    agent.busy = true;
+    let done = 0;
+    try {
+      for (let q = 0; q < js.length; q++) {
+        if ((q > 0 || !force) && now() > end) break;
+        const j = js[q];
+        alive.forEach((k, ai) => {
+          const r = mulberry32(S.seed + j * 7919);
+          Math.random = r;
+          restore(g, S.root);
+          determinize(g, S.me, r);
+          const a = S.P.apply(g, S.P.cands[k]);
+          let v = 0;
+          if (a !== false) {
+            if (!g.winner) rollout(g, a === "ended" ? S.depth - 1 : S.depth, r, { jitter: o.jitter });
+            const lv = leafValue(g, S.me, !!seatW);
+            v = lv.v; if (seatW) seatW[ai][q] = lv.ws;
+          }
+          vals[ai][q] = v;
+          vps[ai][q] = g.players[S.me].victoryPoints;
+        });
+        done++;
+      }
+    } finally { restore(g, S.root); Math.random = orig; agent.busy = false; }
+    stats.rollouts += done * alive.length;
+    return { done, vals, vps, seats: seatW };
+  });
+  /** The leaf: the searching seat's win chance at the end of a playout (and every seat's when asked), as in search0. */
+  const leafValue = (g, me, all) => {
+    if (o.leaf === "gbm" || o.leaf === "gbm0") { const ws = gbmProbs(g, o.leaf === "gbm0" ? GBM_MODEL : null); return { v: ws[me], ws }; }
+    if (o.leaf === "fit" || o.leaf === "fit2") { const ws = fitProbs(g, undefined, o.leaf === "fit2" ? FIT2_ADJ : null); return { v: ws[me], ws }; }
+    if (all) { const ws = winProbs(g, o.T); return { v: ws[me], ws }; }
+    return { v: winProb(g, me, o.T), ws: null };
   };
 
-  // ── robber: the Expert's top tiles ──
-  agent.decideRobber = (g, p) => {
-    const all = g._aiRobberCandidates(p).sort((a, b) => b.score - a.score);
-    const def = g.chooseRobberHex(p);
-    const ids = [def, ...all.map((c) => c.id).filter((id) => id !== def)].slice(0, o.topRobber);
-    if (ids.length <= 1) return null;
+  // ── set-up: the Expert's top spots ──
+  /** eng-130: the candidates of one decision, how to play each, the look-ahead and the labels; null: nothing to choose between.
+   *  kind "setup" | "robber" | "main"; base: the set-up spot of a plain bot (setup only). Shared by the decisions below and by
+   *  the parallel search sessions (agent.session), so both race exactly the same moves. */
+  agent.prepare = (g, p, kind, base = null) => {
+    if (kind === "setup") {
+      const def = base(p);
+      const ids = [def, ...g._aiSetupCandidates(p).sort((a, b) => b.score - a.score).map((c) => c.id).filter((id) => id !== def)].slice(0, o.topSetup);
+      if (ids.length <= 1 || def == null) return null;
+      return { kind, cands: ids, depth: o.setupDepth, choiceOf: (k) => ids[k],
+        named: () => ids.map((id) => ({ c: { kind: "spot", node: id }, label: `Spot ${g._spotLabel(id)}`, focus: { node: id } })),
+        apply: (gg, node) => {
+          const once = { used: false };
+          const save = Object.prototype.hasOwnProperty.call(gg, "getBestInitialSettlementNode") ? gg.getBestInitialSettlementNode : null;
+          gg.getBestInitialSettlementNode = (q) => { if (!once.used && q.id === p.id) { once.used = true; return node; } return base(q); };
+          try { gg.processSetupQueue(); } finally { if (save) gg.getBestInitialSettlementNode = save; else delete gg.getBestInitialSettlementNode; }
+          return true;
+        } };
+    }
+    if (kind === "robber") {
+      const all = g._aiRobberCandidates(p).sort((a, b) => b.score - a.score);
+      const def = g.chooseRobberHex(p);
+      const pir = pirateHexes(g, p); // v1.19 Seafarers: pirate hexes that rob someone
+      const ids = [def, ...all.map((c) => c.id).filter((id) => id !== def), ...pir.slice(0, 2).filter((id) => id !== def)].slice(0, o.topRobber + (pir.length ? 2 : 0));
+      if (ids.length <= 1) return null;
+      return { kind, cands: ids, depth: o.depth, choiceOf: (k) => ids[k],
+        named: () => ids.map((id) => ({ c: { kind: "hex", hex: id }, label: g._thiefLabel(id), focus: { hex: id } })),
+        apply: (gg, hex) => { gg.moveRobberAndSteal(gg.players[p.id], hex); return true; } };
+    }
+    const { plan, cands } = withoutAgents(g, () => mainCands(g, p));
+    const named = labelMain(g, p, plan, cands);
+    if (named.length <= 1) return null;
+    return { kind: "main", cands: named.map((x) => x.c), depth: o.depth, choiceOf: (k) => named[k].c, named: () => named,
+      apply: (gg, c) => {
+        const q = gg.players[p.id];
+        if (c.kind === "end") { gg.endTurn(); return "ended"; }
+        const r = applyMain(gg, q, c);
+        if (r === "noop") { gg.endTurn(); return "ended"; }
+        return r;
+      } };
+  };
+  const decide = (g, p, kind, base) => {
+    const P = agent.prepare(g, p, kind, base);
+    if (!P) return null;
     seedRng(g, p);
     stats.decisions++;
-    const rec = search(g, p.id, ids, (gg, hex) => { gg.moveRobberAndSteal(gg.players[p.id], hex); return true; }, o.depth);
-    stats.robMs.push(rec.ms);
-    if (rec.pick !== 0) stats.deviations++;
-    rec.kind = "robber";
-    rec.cands = ids.map((id) => ({ c: { kind: "hex", hex: id }, label: `Robber on ${g._hexName(id)}`, focus: { hex: id } }));
+    // eng-130 o.setupTimeMs: a set-up spot gets its own (longer) time budget (it shapes the whole game; only 2 per player)
+    const keepT = o.timeMs;
+    if (kind === "setup" && o.setupTimeMs) o.timeMs = o.setupTimeMs;
+    let rec;
+    try { rec = search(g, p.id, P.cands, P.apply, P.depth); } finally { o.timeMs = keepT; }
+    (kind === "setup" ? stats.setupMs : kind === "robber" ? stats.robMs : stats.mainMs).push(rec.ms);
+    rec.kind = P.kind;
+    rec.cands = P.named();
     agent.last = rec;
-    return { choice: ids[rec.pick], record: rec };
+    const choice = P.choiceOf(rec.pick);
+    if (kind === "main") stats.chose[choice.kind] = (stats.chose[choice.kind] || 0) + 1;
+    if (rec.pick !== 0) stats.deviations++;
+    return { choice, record: rec };
   };
+
+  // ── set-up: the Expert's top spots ──
+  agent.decideSetup = (g, p, base) => decide(g, p, "setup", base);
+
+  // ── robber: the Expert's top tiles ──
+  agent.decideRobber = (g, p) => decide(g, p, "robber");
 
   // ── main phase: the Expert's next step, end turn, each affordable build, trade-then-build, dev cards ──
   const findGoal = (plan, key) => plan.goals.find((x) => x.type === key.type && (x.nodeId ?? null) === (key.nodeId ?? null) && (x.edge ?? null) === (key.edge ?? null) && (x.via ?? null) === (key.via ?? null));
@@ -248,7 +358,26 @@ export function makeMaster(opts = {}) {
         if (tr && tr.length) out.push({ kind: "tradebuild", i, tr, g: keyOf(goal) });
       }
     });
+    if (g.sea) seaMoves(g, p, plan).forEach((m) => out.push({ kind: "shipmove", from: m.from, to: m.to }));
     return { plan, cands: out };
+  };
+  /** v1.19 Seafarers: the free ship move (once per turn) is a candidate too: the few moves that raise the sea potential
+   *  (the Expert's own measure, src/seafarers/ai.js) most, or free a dead-end ship. Not a ship built this turn, never the pirate's. */
+  const seaMoves = (g, p, plan) => {
+    const sea = g.sea;
+    if (!sea.canMoveNow(p) || !p.ships?.size) return [];
+    const spots = sea._seaSpotList(p);
+    if (!spots.length) return [];
+    const base = sea._seaPotential(p, spots).v, out = [];
+    for (const from of sea.movableShips(p)) {
+      for (const to of sea.moveTargets(p, from)) {
+        const e = g.geometry.edges[from], t = g.geometry.edges[to];
+        e.owner = null; e.ship = false; p.ships.delete(from); t.owner = p.id; t.ship = true; p.ships.add(to);
+        let v; try { v = sea._seaPotential(p, spots).v; } finally { t.owner = null; t.ship = false; p.ships.delete(to); e.owner = p.id; e.ship = true; p.ships.add(from); }
+        if (v > base + 0.5) out.push({ from, to, v });
+      }
+    }
+    return out.sort((a, b) => b.v - a.v).slice(0, 3);
   };
   /** Apply a main-phase candidate. true: done; false: illegal; "noop": the Expert's step does nothing
    *  (it would end its turn). */
@@ -256,6 +385,7 @@ export function makeMaster(opts = {}) {
     if (c.kind === "end") return true;
     if (c.kind === "policy") return g._aiPlannedStep(p) ? true : "noop";
     if (c.kind === "dev") return g.playDevelopmentCard(p, c.t) !== false;
+    if (c.kind === "shipmove") return !!g.sea && g.sea.moveShip(p, c.from, c.to);
     const goal = findGoal(g._aiPlan(p), c.g);
     if (!goal) return false;
     if (c.kind === "tradebuild") for (const [give, get] of c.tr) if (!g.performBankTrade(p, give, get)) return false;
@@ -281,6 +411,7 @@ export function makeMaster(opts = {}) {
           label = d ? d.label : "End turn (saves its cards)"; focus = d?.focus || null;
         } else if (c.kind === "end") { label = "End turn"; }
         else if (c.kind === "dev") { label = `Play ${DEV[c.t]}`; }
+        else if (c.kind === "shipmove") { label = shipMoveLabel(g, p, c.to); focus = { edge: c.to }; }
         else {
           const goal = findGoal(plan, c.g);
           const gn = goal ? goalName(g, goal) : "Build";
@@ -296,28 +427,7 @@ export function makeMaster(opts = {}) {
     return out.slice(0, o.maxCands);
   };
   /** One searched main-phase decision (not applied). null: nothing to choose between. */
-  agent.decideMain = (g, p) => {
-    const { plan, cands } = withoutAgents(g, () => mainCands(g, p));
-    const named = labelMain(g, p, plan, cands);
-    if (named.length <= 1) return null;
-    seedRng(g, p);
-    stats.decisions++;
-    const rec = search(g, p.id, named.map((x) => x.c), (gg, c) => {
-      const q = gg.players[p.id];
-      if (c.kind === "end") { gg.endTurn(); return "ended"; }
-      const r = applyMain(gg, q, c);
-      if (r === "noop") { gg.endTurn(); return "ended"; }
-      return r;
-    }, o.depth);
-    stats.mainMs.push(rec.ms);
-    rec.kind = "main";
-    rec.cands = named;
-    agent.last = rec;
-    const best = named[rec.pick].c;
-    stats.chose[best.kind] = (stats.chose[best.kind] || 0) + 1;
-    if (rec.pick !== 0) stats.deviations++;
-    return { choice: best, record: rec };
-  };
+  agent.decideMain = (g, p) => decide(g, p, "main");
 
   // ── v1.03 Game review: how good was a move someone actually made? The played move is candidate 0 (it is
   // never dropped by the halving, like the Expert's pick in a decision), raced against the moves the Master
@@ -332,7 +442,8 @@ export function makeMaster(opts = {}) {
       named = [{ c: playedC, label: played.label, focus: { node: played.node } }, ...ids.map((id) => ({ c: { kind: "spot", node: id }, label: `Settlement on ${g._spotLabel(id)}`, focus: { node: id } }))];
     } else if (kind === "robber") {
       const ids = g._aiRobberCandidates(p).sort((a, b) => b.score - a.score).map((c) => c.id).filter((id) => id !== played.hex).slice(0, o.topRobber - 1);
-      named = [{ c: playedC, label: played.label, focus: { hex: played.hex } }, ...ids.map((id) => ({ c: { kind: "hex", hex: id }, label: `Robber on ${g._hexName(id)}`, focus: { hex: id } }))];
+      const pir = pirateHexes(g, p).filter((id) => id !== played.hex && !ids.includes(id)).slice(0, 2); // eng-130 Seafarers: the pirate too
+      named = [{ c: playedC, label: played.label, focus: { hex: played.hex } }, ...[...ids, ...pir].map((id) => ({ c: { kind: "hex", hex: id }, label: g._thiefLabel(id), focus: { hex: id } }))];
     } else {
       const { plan, cands } = withoutAgents(g, () => mainCands(g, p));
       const others = labelMain(g, p, plan, cands);

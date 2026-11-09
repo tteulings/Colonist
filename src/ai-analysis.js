@@ -111,6 +111,19 @@ export const AnalysisMixin = {
   // ── explain: decision objects ────────────────────────────────────────────
   // { kind, pid, title, score, dims, parts, alts:[{label, score}], note, nodes:[{id, s}], cities, edges, hexes:[{id, s, dmg}],
   //   pick:{ node, edge, hex, city }, offers }
+  /** eng-130: where a hex lies on the board ("top left", "centre"). */
+  _hexWhere(hexId) {
+    const g = this.geometry, h = g.hexes[hexId];
+    const cx = g.hexes.reduce((a, o) => a + o.center.x, 0) / g.hexes.length, cy = g.hexes.reduce((a, o) => a + o.center.y, 0) / g.hexes.length;
+    const dx = h.center.x - cx, dy = h.center.y - cy, r = g.hexSize * 0.5;
+    const v = dy < -r ? "top" : dy > r ? "bottom" : "", hz = dx < -r ? "left" : dx > r ? "right" : "";
+    return v && hz ? `${v} ${hz}` : v || hz || "centre";
+  },
+  /** eng-130: "Robber on Ore 8" / "Pirate on the sea, top left". */
+  _thiefLabel(hexId) {
+    const sea = this.sea && this.geometry.hexes[hexId]?.resource === "sea";
+    return `${sea ? "Pirate" : "Robber"} on ${this._hexName(hexId)}`;
+  },
   _spotLabel(nodeId) {
     const nums = this.geometry.nodes[nodeId].adjacentHexes.map((h) => this.geometry.hexes[h]).filter((h) => h.number).map((h) => h.number);
     return nums.length ? nums.join("·") : "coast";
@@ -194,6 +207,7 @@ export const AnalysisMixin = {
 
   _hexName(hexId) {
     const h = this.geometry.hexes[hexId];
+    if (h.resource === "sea") return `the sea, ${this._hexWhere(hexId)}`; // eng-130 Seafarers: the pirate's hexes
     if (!h.number) return h.resource === "desert" ? "Desert" : "Tile";
     const base = `${RES_LABEL[h.resource] || h.resource} ${h.number}`;
     // v0.91: two tiles can share a name ("Ore 8"): add where it lies on the board

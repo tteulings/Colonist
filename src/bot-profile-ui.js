@@ -23,7 +23,7 @@ export const dots = (n, cls = "bp-dots", beyond = false) => `<span class="${cls}
 export function strengthLine(key) {
   const p = P[key];
   const w = winOf(key); // bot-125: the search bots read their measured figure from bot-stats.js
-  if (key === "master" || key === "super" || key === "superplus") return w.label === "measured" ? `<span class="bp-win">Wins <b>${Math.round(w.v)}%</b> vs 3 Intermediate bots <span class="bp-fair">(fair share 25%)</span></span>` : `<span class="bp-win">Win figure <b>not measured yet</b></span>`;
+  if (key === "master" || isSuperKey(key)) return w.label === "measured" ? `<span class="bp-win">Wins <b>${Math.round(w.v)}%</b> vs 3 Intermediate bots <span class="bp-fair">(fair share 25%)</span></span>` : `<span class="bp-win">Win figure <b>not measured yet</b></span>`;
   return p.win ? `<span class="bp-win">Wins <b>${Math.round(p.win.p)}%</b> vs 3 Intermediate bots <span class="bp-fair">(fair share 25%)</span></span>` : "";
 }
 
@@ -44,10 +44,11 @@ export function profileLabel(game, player) {
 
 /** The Super Expert is searched on the island board (v1.17: Rush and 5–6 players too), not in Seafarers. With `why`: the sentence for this table when it isn't. */
 export function superHere(game, why = false) {
-  const ok = !game || !game.players || !game.sea;
+  const ok = true; // eng-130: Seafarers is searched too (ships, the ship move, the pirate)
   if (!why) return ok;
-  return "Not searched at this table (Seafarers): here a Super Expert plays exactly like an Expert.";
+  return "";
 }
+const isSuperKey = (k) => k === "super" || k === "superplus" || k === "grandmaster";
 
 const row = (cls, glyph, title, text) => `<div class="bp-row"><span class="ic2 ${cls}" aria-hidden="true">${glyph}</span><div><b>${title}</b>${text}</div></div>`;
 
@@ -116,8 +117,8 @@ export function openProfileSheet(game, opts = {}) {
       <div class="bp-who">${who}<button type="button" class="bp-x" data-bp-close aria-label="Close">✕</button></div>
       <div class="bp-hero">${profileArt(key, 132)}</div>
       <div class="bp-meter">${dots(p.level, "bp-dots", p.beyond)}<span>${p.beyond ? `Strength ${p.level}/5 + star` : `Strength ${p.level}/5`}</span></div>
-      ${(key === "super" || key === "superplus") && player && !superHere(game) ? `<p class="bp-warn" role="status">${superHere(game, true).replace("a Super Expert", `a ${p.label}`)}</p>` : ""}
-      ${(key === "master" || key === "super" || key === "superplus") && player && game?.players && !game.sea && (game.isRush?.() || game.players.length >= 5) ? `<p class="bp-warn" role="status">${game.isRush?.() ? "Rush: this bot's search is capped at a quarter of a second a move, and Rush is searched as turn-by-turn play (approximate). " : ""}${game.players.length >= 5 ? `${game.players.length} players: fewer playouts fit in the same time, so its edge is smaller (not measured).` : ""}</p>` : ""}
+      ${isSuperKey(key) && player && !superHere(game) ? `<p class="bp-warn" role="status">${superHere(game, true).replace("a Super Expert", `a ${p.label}`)}</p>` : ""}
+      ${(key === "master" || isSuperKey(key)) && player && game?.players && (game.isRush?.() || game.players.length >= 5) ? `<p class="bp-warn" role="status">${game.isRush?.() ? "Rush: this bot's search is capped at a quarter of a second a move, and Rush is searched as turn-by-turn play (approximate). " : ""}${game.players.length >= 5 ? `${game.players.length} players: fewer playouts fit in the same time, so its edge is smaller (not measured).` : ""}</p>` : ""}
       <div class="bp-strength">${strengthLine(key)}</div>
       ${player ? soFar(game, player.id) : ""}
       <div class="bp-rows bp-beat">${row("beat", "✓", "How to beat it", p.beat)}</div>
@@ -192,7 +193,7 @@ export function presetCards(game, keys, hl, onPick) {
   box.innerHTML = keys.map((k) => {
     const p = P[k];
     const on = hl.active === k, near = hl.active === "custom" && hl.closest === k;
-    const off = k === "super" || k === "superplus" ? superOff(game) : "";
+    const off = isSuperKey(k) ? superOff(game) : "";
     return `<div class="bs-cell"><button type="button" class="bs-card${on ? " on" : ""}${near ? " near" : ""}${off ? " off" : ""}" data-preset="${k}" aria-pressed="${on}"${off ? ` disabled aria-disabled="true"` : ""} aria-label="${p.label}, strength ${p.level} of 5${p.beyond ? " plus a star" : ""}, ${off ? `not in ${off}` : p.tagline}">
       <span class="bs-art">${profileArt(k, 56)}</span>
       <span class="bs-nm">${p.label}${on ? `<span class="bs-ck" aria-hidden="true">✓</span>` : ""}</span>

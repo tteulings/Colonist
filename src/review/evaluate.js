@@ -8,7 +8,7 @@
 // (development-card buys and plays are scored since the 14-turn look-ahead sees them, see SCORED_KINDS).
 // Forced (nothing else to compare) and trivial (every move within TRIVIAL of the played one) decisions
 // are left out. Player trades, discards and turn starts are not searched (the Master doesn't either).
-import { makeMaster } from "../master/search.js";
+import { makeMaster, shipMoveLabel } from "../master/search.js";
 import { explain } from "./why.js";
 import { BOT_BANDS } from "./bands.js";
 import { FMT, LIMITS, SETUP_LIMITS, GREAT, BEST_LEAD, CLASSES, TRIVIAL as TRIV, SE_SHRINK as SHRINK, clsOf, markOfCls, derive, gpOf, avgLost, rescoreResult, unknownRateLabel, liftSameStep } from "./score.js";
@@ -32,7 +32,7 @@ export const REVIEW_ENGINES = {
   // 1000 x 14: 5.9, 63 %; the old full engine is close to fit 250-1000 x 14). nPer: futures per move on average (budget = nPer x
   // number of moves, successive halving as before), so a decision with many moves gets more. Formula v5 (ACC.ver): a result
   // judged by the old leaf ("fit") is provisional and gets Re-check (needsFull / reviewStatus.stale).
-  full: { budget: { nPer: 100, timeMs: 12000, depth: 14, setupDepth: 18, leaf: "gbm" }, sec: 3, k: 0.10, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end"],
+  full: { budget: { nPer: 100, timeMs: 12000, depth: 14, setupDepth: 18, leaf: "gbm" }, sec: 3, k: 0.10, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"], // eng-130 shipmove: Seafarers
     // v1.16: k 0.10 (stricter curve, was 0.06) and Best = any move under 1 point. Bands: every preset's own moves scored like a
     // human's (the seat plays on as Expert), the same 300 positions as v1.21, now with the gbm leaf (eng-124). [name, accuracy, SE]
     bands: BOT_BANDS },
@@ -55,11 +55,11 @@ export const ACC = { a: 103.1668, k: REVIEW.k ?? 0.08, b: 3.1669, ver: 5, // eng
 export const SCORED_KINDS = REVIEW.scored || ["setup", "build", "bank", "robber", "end"];
 export const TRIVIAL = REVIEW.trivial ?? TRIV; // every alternative within 2 points of win chance: not a real choice (calibrated)
 export const SE_SHRINK = SHRINK;  // the loss is the best gap less this many standard errors (winner's curse)
-export const EVAL_KINDS = ["setup", "build", "bank", "buy", "play", "robber", "end"];
+export const EVAL_KINDS = ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"]; // eng-130 shipmove: Seafarers
 
 const RL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
 const DEV = { knight: "Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly" };
-const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 } };
+const COST = { ship: { wood: 1, sheep: 1 }, road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 } };
 const r4 = (x) => Math.round(x * 1e4) / 1e4;
 
 export function accuracyOf(loss, k = ACC.k) {
@@ -67,6 +67,15 @@ export function accuracyOf(loss, k = ACC.k) {
 }
 // v1.21 classes, the gap in whole percent and the totals live in ./score.js (one definition for every screen).
 
+/** eng-130 Seafarers: "Ship toward 6·9" (the end of the new ship away from the player's network). */
+function shipLabel(g, p, edgeId) {
+  try {
+    const ed = g.geometry.edges[edgeId];
+    const mine = (n) => g.geometry.nodes[n].owner === p.id || g.geometry.nodes[n].edgeIds.some((e) => e !== edgeId && g.geometry.edges[e].owner === p.id);
+    const far = ed.nodes.find((n) => !mine(n));
+    return far != null ? `Ship toward ${g._spotLabel(far)}` : "Ship";
+  } catch (_) { return "Ship"; }
+}
 /** "Road toward 10·12·5": the end of the new road that is not already part of the player's network. */
 function roadLabel(g, p, edgeId) {
   try {
@@ -97,6 +106,8 @@ export function playedMove(g, p, rec) {
         apply(gg, q) { const free = gg.freeRoadsRemaining > 0; if (!gg.placeRoad(q, a.id, { free })) return false; if (free) gg.freeRoadsRemaining -= 1; else gg.payToBank(q, COST.road); return done(gg, q); } };
       if (t === "settlement") return { label: `Settlement on ${g._spotLabel(a.id)}`, focus: { node: a.id },
         apply(gg, q) { if (!gg.placeSettlement(q, a.id, false)) return false; gg.payToBank(q, COST.settlement); return done(gg, q); } };
+      if (t === "ship") return { label: shipLabel(g, p, a.id), focus: { edge: a.id }, // eng-130 Seafarers
+        apply(gg, q) { if (!gg.sea || !gg.sea.placeShip(q, a.id, {})) return false; gg.payToBank(q, COST.ship); return done(gg, q); } };
       if (t === "city") return { label: `City on ${g._spotLabel(a.id)}`, focus: { city: a.id },
         apply(gg, q) { if (!gg.placeCity(q, a.id, false)) return false; gg.payToBank(q, COST.city); return done(gg, q); } };
       return null;
@@ -111,7 +122,9 @@ export function playedMove(g, p, rec) {
     case "buy": return { label: "Development card", focus: null, apply(gg, q) { return gg.buyDevelopmentCard(q) ? done(gg, q) : false; } };
     case "play": return { label: `Play ${DEV[a.t] || a.t}`, dev: a.t, focus: null, apply(gg, q) { return gg.playDevelopmentCard(q, a.t) !== false ? done(gg, q) : false; } };
     case "end": return { label: "End turn", focus: null, apply(gg) { gg.endTurn(); return "ended"; } };
-    case "robber": return { hex: a.hex, label: `Robber on ${g._hexName(a.hex)}`, focus: { hex: a.hex },
+    case "shipmove": return { label: shipMoveLabel(g, p, a.to), focus: { edge: a.to }, // eng-130 Seafarers: the free ship move
+      apply(gg, q) { return gg.sea && gg.sea.moveShip(q, a.from, a.to) ? done(gg, q) : false; } };
+    case "robber": return { hex: a.hex, label: g._thiefLabel ? g._thiefLabel(a.hex) : `Robber on ${g._hexName(a.hex)}`, focus: { hex: a.hex },
       apply(gg, q) { gg.moveRobberAndSteal(q, a.hex); return true; } };
     default: return null;
   }

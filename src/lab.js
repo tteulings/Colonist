@@ -540,7 +540,7 @@ function poolKeys() {
   const all = Object.keys(H.AI_PRESETS);
   return all.slice().sort((a, b) => (P[b]?.level ?? 6) - (P[a]?.level ?? 6) || all.indexOf(a) - all.indexOf(b));
 }
-const isSlow = (s) => s.policy === "master" || s.policy === "super" || s.policy === "superplus"; // Master / Super Expert: they search, so the games run in the worker
+const isSlow = (s) => s.policy === "master" || s.policy === "super" || s.policy === "superplus" || s.policy === "grandmaster"; // Master / Super Expert: they search, so the games run in the worker
 const stratOf = (k) => (k === "mix" ? { ...st.mix } : { ...H.AI_PRESETS[k] });
 const labelOf = (k) => (k === "mix" ? "Custom mix" : k === "random" ? "Random" : presetLabel(k));
 const slowKey = (k) => (k === "mix" ? !!st.mix && isSlow(st.mix) : k !== "random" && !!H.AI_PRESETS[k] && isSlow(H.AI_PRESETS[k]));

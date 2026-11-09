@@ -20,22 +20,29 @@ export function snapshot(g) {
   const no = new Int8Array(nodes.length), ns = new Int8Array(nodes.length), eo = new Int8Array(edges.length);
   for (let i = 0; i < nodes.length; i++) { no[i] = nodes[i].owner ?? -1; ns[i] = nodes[i].structure === "city" ? 2 : nodes[i].structure === "settlement" ? 1 : 0; }
   for (let i = 0; i < edges.length; i++) eo[i] = edges[i].owner ?? -1;
-  return { sbp: g.sbp ? JSON.parse(JSON.stringify(g.sbp)) : null, no, ns, eo, bank: { ...g.bank }, devDeck: g.devDeck.slice(), winner: g.winner ? g.winner.id : -1, sc: SCAL.map((k) => g[k]),
+  // v1.19 Seafarers: ships (edge flag + player set), pirate, this turn's ship moves, island bonuses, pending gold picks
+  const sea = g.sea ? { es: Uint8Array.from(edges, (e) => (e.ship ? 1 : 0)), pirate: g.sea.pirateHexId, built: [...g.sea.builtThisTurn], moved: [...g.sea.moved], bonus: JSON.parse(JSON.stringify(g.sea.bonus)), bonusNode: { ...g.sea.bonusNode }, gold: JSON.parse(JSON.stringify(g.sea.gold)), thief: g.sea.thief } : null;
+  return { sea, sbp: g.sbp ? JSON.parse(JSON.stringify(g.sbp)) : null, no, ns, eo, bank: { ...g.bank }, devDeck: g.devDeck.slice(), winner: g.winner ? g.winner.id : -1, sc: SCAL.map((k) => g[k]),
     rh: g.rollHistory ? { ...g.rollHistory } : null, // eng-124: edited in place by every roll (and saved with the game)
     trk: g._aiCardTrack?.players === g.players ? g._aiCardTrack.est.map((e) => ({ ...e })) : null,
-    pl: g.players.map((p) => ({ res: { ...p.resources }, roads: [...p.roads], sett: [...p.settlements], cities: [...p.cities], dev: { ...p.devCards }, nd: { ...p.newDevCards }, num: PNUM.map((k) => p[k]), strategy: p.strategy, agent: p.agent })) };
+    pl: g.players.map((p) => ({ res: { ...p.resources }, roads: [...p.roads], sett: [...p.settlements], cities: [...p.cities], ships: p.ships ? [...p.ships] : null, dev: { ...p.devCards }, nd: { ...p.newDevCards }, num: PNUM.map((k) => p[k]), strategy: p.strategy, agent: p.agent })) };
 }
 
 export function restore(g, s) {
   const nodes = g.geometry.nodes, edges = g.geometry.edges;
   for (let i = 0; i < nodes.length; i++) { const o = s.no[i]; nodes[i].owner = o < 0 ? null : o; nodes[i].structure = s.ns[i] === 2 ? "city" : s.ns[i] === 1 ? "settlement" : null; }
   for (let i = 0; i < edges.length; i++) edges[i].owner = s.eo[i] < 0 ? null : s.eo[i];
+  if (s.sea && g.sea) {
+    for (let i = 0; i < edges.length; i++) edges[i].ship = !!s.sea.es[i];
+    const q = g.sea; q.pirateHexId = s.sea.pirate; q.builtThisTurn = new Set(s.sea.built); q.moved = new Set(s.sea.moved);
+    q.bonus = JSON.parse(JSON.stringify(s.sea.bonus)); q.bonusNode = { ...s.sea.bonusNode }; q.gold = JSON.parse(JSON.stringify(s.sea.gold)); q.thief = s.sea.thief;
+  }
   g.sbp = s.sbp ? JSON.parse(JSON.stringify(s.sbp)) : null; // 5–6 players: a build window is never open at a decision, but a cut-off rollout must not leave one behind
   g.bank = { ...s.bank }; g.devDeck = s.devDeck.slice(); g.winner = s.winner < 0 ? null : g.players[s.winner];
   SCAL.forEach((k, i) => { g[k] = s.sc[i]; });
   if (s.rh) g.rollHistory = { ...s.rh };
   if (s.trk) g._aiCardTrack = { players: g.players, est: s.trk.map((e) => ({ ...e })) }; else g._aiCardTrack = null;
-  g.players.forEach((p, i) => { const q = s.pl[i]; p.resources = { ...q.res }; p.roads = new Set(q.roads); p.settlements = new Set(q.sett); p.cities = new Set(q.cities);
+  g.players.forEach((p, i) => { const q = s.pl[i]; p.resources = { ...q.res }; p.roads = new Set(q.roads); p.settlements = new Set(q.sett); p.cities = new Set(q.cities); if (q.ships) p.ships = new Set(q.ships);
     p.devCards = { ...q.dev }; p.newDevCards = { ...q.nd }; PNUM.forEach((k, j) => { p[k] = q.num[j]; }); p.strategy = q.strategy; p.agent = q.agent; });
   if (g.placementAnims) g.placementAnims.length = 0;
 }
@@ -117,6 +124,7 @@ export function rollout(g, turns, rng, { jitter = 0.15, maxRounds = 250 } = {}) 
   g.rollDice = function () { const d1 = 1 + Math.floor(rng() * 6), d2 = 1 + Math.floor(rng() * 6); this.lastDiceTotal = d1 + d2; return { total: d1 + d2, d1, d2 }; };
   const keep = g.players.map((p) => [p.strategy, p.agent]);
   g.players.forEach((p) => { p.agent = null; if (jitter) { const w = { ...(p.strategy.w || {}) }; ["num", "variety", "scarcity", "port", "road", "prod", "patience", "card", "leader"].forEach((k) => { w[k] = (w[k] ?? 1) * Math.exp((rng() * 2 - 1) * jitter); }); p.strategy = { ...p.strategy, w }; } });
+  g._planMemo = []; // eng-130: the plan memo (game.js _aiPlan), fresh for this rollout
   try {
     let ended = 0;
     while (!g.winner && g.turn <= maxRounds) {
@@ -129,6 +137,7 @@ export function rollout(g, turns, rng, { jitter = 0.15, maxRounds = 250 } = {}) 
       if (++ended >= turns) break;
     }
   } finally {
+    g._planMemo = null;
     Math.random = orig;
     if (ownDice) g.rollDice = saveDice; else delete g.rollDice;
     g.players.forEach((p, i) => { p.strategy = keep[i][0]; p.agent = keep[i][1]; });
@@ -154,6 +163,7 @@ export function withoutAgents(g, fn) {
 export const FEATURE_NAMES = ["vp", "vp2", "incTot", "incTot*tLeft", "wood", "brick", "sheep", "wheat", "ore", "hand", "over7", "devHand", "knightsHand", "roadYop", "monoHand",
   "devVP", "knightsPlayed", "hasArmy", "armyGap", "roadLen", "hasRoad", "roadGap", "ports2", "port2match", "port3", "spots0", "spots1", "spots2", "diversity", "zeroRes", "robberLoss", "cities", "settlements", "roads"];
 const hexNum = (n) => ({ 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 }[n] || 0) / 36;
+const IDX_HAS_ROAD = FEATURE_NAMES.indexOf("hasRoad"), IDX_HAS_ARMY = FEATURE_NAMES.indexOf("hasArmy");
 export function seatFeatures(g) {
   const G = g.geometry, wp = g.winPoints, lead = Math.max(...g.players.map((p) => p.victoryPoints));
   const tLeft = Math.max(2, Math.min(16, (wp - lead) * 2.2));
@@ -198,10 +208,19 @@ export function seatFeatures(g) {
   });
 }
 
-/** Win chances from the fitted score function (softmax of w·features over the seats). */
-export function fitProbs(g, W = FIT_W) {
+/** Win chances from the fitted score function (softmax of w·features over the seats).
+ *  v1.19 `adj` (leaf 'fit2', see FIT2_ADJ in leaf-fit.js): a stage-scaled score offset for holding Longest Road / Largest Army.
+ *  The fit weights are fitted on whole games, where a holder is also the stronger player; two moves compared in the same future
+ *  differ only in who holds the award at the horizon, and there the fit over-credits it (measured against the game played out). */
+export function fitProbs(g, W = FIT_W, adj = null) {
   if (g.winner) return g.players.map((p) => (p.id === g.winner.id ? 1 : 0));
-  const sc = seatFeatures(g).map((f) => { let t = 0; for (let i = 0; i < W.length; i++) t += W[i] * f[i]; return t; });
+  const F = seatFeatures(g);
+  const sc = F.map((f) => { let t = 0; for (let i = 0; i < W.length; i++) t += W[i] * f[i]; return t; });
+  if (adj) {
+    const lead = Math.max(...g.players.map((p) => p.victoryPoints));
+    const stage = (Math.max(2, Math.min(16, (g.winPoints - lead) * 2.2)) - 2) / 14; // 0 near the end, 1 far from it (as tLeft in seatFeatures)
+    F.forEach((f, i) => { sc[i] += stage * (adj.lr * f[IDX_HAS_ROAD] + (adj.la || 0) * f[IDX_HAS_ARMY]); });
+  }
   const mx = Math.max(...sc), e = sc.map((x) => Math.exp(x - mx)), z = e.reduce((a, b) => a + b, 0);
   return e.map((x) => x / z);
 }

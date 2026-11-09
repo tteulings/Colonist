@@ -112,6 +112,20 @@ t("budgetFor: Super Expert+ = Super Expert + leaf gbm; Rush = RUSH_BUDGET + leaf
   assert.deepEqual(M.budgetFor("master"), M.MASTER_BUDGET); assert.deepEqual(M.budgetFor("master", true), M.RUSH_BUDGET);
   assert.ok(M.isSearchPolicy("superplus") && M.isSearchPolicy("super") && M.isSearchPolicy("master") && !M.isSearchPolicy("score"));
 });
+t("Grandmaster (eng-130): own policy and chip, the Super Expert+ budget with a higher rollout cap, several workers, Seafarers leaf, own frame and mini", () => {
+  assert.equal(AI_PRESETS.grandmaster.policy, "grandmaster");
+  assert.equal(presetHighlight([{ ...AI_PRESETS.grandmaster }], AI_PRESETS, AXES).active, "grandmaster");
+  const p = BOT_PROFILES.grandmaster;
+  assert.equal(p.level, 5); assert.ok(p.beyond); assert.match(p.style, /several cores/);
+  assert.ok(profileArt("grandmaster", 132).length < 4096);
+  assert.notEqual(levelFrame("grandmaster"), levelFrame("superplus"));
+  assert.notEqual(profileMini("grandmaster"), profileMini("superplus"));
+  assert.deepEqual(M.budgetFor("grandmaster"), { ...M.SUPER_BUDGET, leaf: "gbm", n: 3000 });
+  assert.deepEqual(M.budgetFor("grandmaster", true), { ...M.RUSH_BUDGET, leaf: "gbm" });
+  assert.equal(M.budgetFor("master", false, true).leaf, M.SEA_LEAF); assert.equal(M.budgetFor("super", false, true).leaf, M.SEA_LEAF);
+  assert.ok(M.isSearchPolicy("grandmaster") && M.isSuperPolicy("grandmaster") && !M.isSuperPolicy("master"));
+  assert.ok(M.GM_WORKERS() >= 1 && M.GM_WORKERS() <= 3);
+});
 for (const file of ["bot-profile-ui.js", "game.js", "six-ui.js"]) {
   const text = fs.readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   t(`${file} imports only files that exist`, () => {

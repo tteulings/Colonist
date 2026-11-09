@@ -10,7 +10,7 @@ import { openProfileSheet } from "./bot-profile-ui.js";
 import { BOT_STATS, SETUPS, accOf, winOf, rangesOverlap, tabOf, MEASURED_TABS } from "./bot-stats.js";
 
 export const YOU_MIN = 5;
-const KEYS = ["superplus", "super", "master", "expert", "builder", "trader", "shark", "intermediate", "beginner", "simple"];
+const KEYS = ["grandmaster", "superplus", "super", "master", "expert", "builder", "trader", "shark", "intermediate", "beginner", "simple"];
 const TABS = [["classic", "Classic"], ["rush", "Rush"], ["six", "5–6 players"], ["sea", "Seafarers"]];
 const SORTS = [["win", "Win chance"], ["acc", "Accuracy"], ["you", "You vs him"]];
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

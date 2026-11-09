@@ -37,11 +37,12 @@ const now = () => (typeof performance !== "undefined" ? performance.now() : Date
 export const ReviewMixin = {
   /** Is anything recorded in this game? (a person plays, Classic island, not the lab / a replay) */
   _rvOn() {
-    return !this._rvOff && !this.labMode && !this._replay && !!this.stats && !this.sea
+    return !this._rvOff && !this.labMode && !this._replay && !!this.stats
       && !!this.players?.some((p) => p.isHuman) && !this.winner;
   },
-  /** The review covers this kind of game at all (the end screen shows nothing otherwise). v1.17: Classic and Rush, 2–6 players. */
-  _rvCovered() { return !this.sea; },
+  /** The review covers this kind of game at all (the end screen shows nothing otherwise). v1.17: Classic and Rush, 2–6 players.
+   *  eng-130: Seafarers too (ships, the free ship move, the pirate; gold picks stay with the Expert's choice). */
+  _rvCovered() { return true; },
   /** "Turn", or "Roll" in Rush (a Rush record's t is the roll number). */
   _rvTW() { return this.isRush?.() ? "Roll" : "Turn"; },
 
@@ -362,6 +363,13 @@ export function installReview(Cls) {
     if (pre && r) this._rvPush(pre, "build", { type: cb.type, id: cb.id, free });
     return r;
   });
+  // eng-130 Seafarers: the free ship move
+  wrap("_seaCommitMove", function (orig, player, from, to) {
+    const pre = this._rvPre(player);
+    const r = orig.call(this, player, from, to);
+    if (pre && player.ships?.has(to) && !player.ships.has(from)) this._rvPush(pre, "shipmove", { from, to });
+    return r;
+  });
   wrap("handleHumanBankTrade", function (orig, ...a) {
     const p = this.currentPlayer;
     const pre = this._rvPre(p);
@@ -437,7 +445,10 @@ export function installReview(Cls) {
     const u = this.undoState, R = this._rv;
     const r = orig.apply(this, a);
     try {
-      if (u && R?.recs.length && (u.kind === "build" || u.kind === "setup")) {
+      if (u && R?.recs.length && u.kind === "moveShip") { // eng-130 Seafarers: the ship move taken back
+        const last = R.recs[R.recs.length - 1];
+        if (last.k === "shipmove" && last.a.from === u.from && last.a.to === u.to && this.players[u.pid]?.ships?.has(u.from)) { R.recs.pop(); R.res = null; }
+      } else if (u && R?.recs.length && (u.kind === "build" || u.kind === "setup")) {
         const last = R.recs[R.recs.length - 1];
         const g = this.geometry;
         const gone = u.kind === "setup" || u.type === "settlement" ? g.nodes[u.id]?.owner == null

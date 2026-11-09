@@ -790,7 +790,7 @@ export const StatsUiMixin = {
           <button type="button" class="gs-rp-wi" data-rpinfo aria-expanded="false" aria-label="About the win chance"><span>${seaNa ? "Win % n/a" : "≈ Win %"}</span><i>i</i></button></div>
         <p class="gs-rp-note" hidden>${seaNa ? "No win chance on Seafarers: the model behind it was not trained on Seafarers boards."
           : odds.na ? "No win chance for this game: it was saved without its full move log."
-          : `<b>≈</b> is a quick estimate of each player's win chance after every ${this._stTurnWord()}: good for the trend, often about 9 points off. <b class="dot"></b> Dots are your decisions checked by the Game review with deep Monte Carlo: those numbers are exact.`}</p>
+          : `<b>≈</b> is a quick estimate of each player's win chance after every ${this._stTurnWord()}: good for the trend, often about 9 points off${this.sea ? " (on Seafarers rougher still: the estimate does not see the ships' reach or the gold fields)" : ""}. <b class="dot"></b> Dots are your decisions checked by the Game review with deep Monte Carlo: those numbers are exact.`}</p>
       </div>`
       : `<div class="gs-rp-board"><canvas></canvas></div><div class="gs-skip">tap to close</div>`;
     this._stHost().appendChild(ui);

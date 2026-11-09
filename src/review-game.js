@@ -271,7 +271,6 @@ export const ReviewGameMixin = {
   /** Dice luck (src/review/luck.js, from the game's event log): cards collected against cards expected, for every player. { na } when it cannot be told. */
   _rvLuck(pid) {
     const st = this._st;
-    if (this.sea || st?.sea) return { na: "not for Seafarers" };
     if (!st || st.partial || !st.dl) return { na: "not available" };
     return { me: st.dl[pid], all: st.dl, mode: st.diceMode };
   },
