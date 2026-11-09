@@ -175,7 +175,8 @@ export function makeMaster(opts = {}) {
       if (d.length < 2) return { m: d[0] || 0, se: Infinity, n: d.length };
       const m = d.reduce((a, b) => a + b, 0) / d.length;
       const se = Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / (d.length - 1) / d.length);
-      if (finalists.includes(k) && m > o.z * se + o.minAdv && m > bestAdv) { bestAdv = m; pick = k; }
+      // eng-130 o.minFut: never leave the Expert's move on fewer shared futures than this (Rush in Seafarers: a few futures are noise)
+      if (finalists.includes(k) && d.length >= (o.minFut || 0) && m > o.z * se + o.minAdv && m > bestAdv) { bestAdv = m; pick = k; }
       return { m, se, n: d.length };
     });
     const ms = now() - t0;

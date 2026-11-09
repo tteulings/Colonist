@@ -32,6 +32,9 @@ export const budgetFor = (policy, rush = false, sea = false) => {
   const b = rush ? { ...RUSH_BUDGET, ...(policy === "superplus" || policy === "grandmaster" ? { leaf: "gbm" } : {}) }
     : { ...(policy === "grandmaster" ? GRANDMASTER_BUDGET : policy === "superplus" ? SUPER_PLUS_BUDGET : policy === "super" ? SUPER_BUDGET : MASTER_BUDGET) };
   if (sea) b.leaf = SEA_LEAF;
+  // Rush in Seafarers: a Seafarers future costs ~3x an island one, so 250 ms buys only a handful on a phone (measured 9 on a busy
+  // desktop): the search may only overrule the Expert with at least 8 shared futures
+  if (sea && rush) b.minFut = 8;
   return b;
 };
 // v1.17 Rush: a bot moves every 1-2 s while the dice clock runs, so its search gets a small cap (the 7's robber too; set-up has no clock

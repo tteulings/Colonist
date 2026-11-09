@@ -110,7 +110,7 @@ export async function parallelDecide(send, W, msg) {
   const paired = vals.map((v, k) => {
     if (k === 0) return { m: 0, se: 0, n: v.filter((x) => x != null).length };
     const p = pairedGap(v, vals[0]);
-    if (finalists.includes(k) && p.m > o.z * p.se + o.minAdv && p.m > bestAdv) { bestAdv = p.m; pick = k; }
+    if (finalists.includes(k) && p.n >= (o.minFut || 0) && p.m > o.z * p.se + o.minAdv && p.m > bestAdv) { bestAdv = p.m; pick = k; }
     return p;
   });
   const ms = now() - t0;
