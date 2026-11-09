@@ -3,7 +3,7 @@
 // dice the same way in every worker, so the futures can be split over the workers freely. This coordinator runs the race of
 // src/master/search.js search0 (rounds, successive halving, the time slices, the early stop, the paired pick against the Expert's
 // move) on the merged results. With a fixed budget and no early stop the result is the same as one worker's search0; with the
-// early stop it is checked after each batch (search0: every 4 futures). Pure logic: `send(w, msg)` talks to worker w.
+// early stop it is checked after each answer of a worker (search0: every 4 futures). Pure logic: `send(w, msg)` talks to worker w.
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 const r4 = (v) => Math.round(v * 1e4) / 1e4;
 const DEF = { n: 100, timeMs: 0, z: 1.0, minAdv: 0.002 };
@@ -51,41 +51,44 @@ export async function parallelDecide(send, W, msg) {
   const rounds = [];
   let used = 0, stop = "n", first = true;
   const R = o.noHalve ? 1 : Math.max(1, Math.ceil(Math.log2(K)));
-  const B = Math.max(1, o.batch || 4); // futures per worker per message
   let alive = Array.from({ length: K }, (_, i) => i), j0 = 0;
   try {
     for (let r = 0; r < R && alive.length; r++) {
       const per = o.timeSlice ? 1e9 : Math.max(1, Math.floor((NB / R) / alive.length));
       const sliceEnd = o.timeSlice && o.timeMs ? t0 + o.timeMs * (r + 1) / R : Infinity;
-      let j = j0, roundStop = null;
-      while (j < j0 + per && used < NB * 1.05) {
-        const end = Math.min(deadline, sliceEnd);
-        if (j >= j0 + 2 && now() > end) { roundStop = now() > deadline ? "time" : "slice"; break; }
-        // the next batch: futures j.. (as many as the budget allows), dealt round-robin over the workers
-        const left = Math.min(j0 + per - j, Math.ceil((NB * 1.05 - used) / alive.length));
-        const nb = Math.max(1, Math.min(left, B * W));
-        const js = Array.from({ length: nb }, (_, q) => j + q);
-        const share = Array.from({ length: W }, (_, w) => js.filter((_, q) => q % W === w));
-        const budgetMs = Number.isFinite(end) ? Math.max(0, end - now()) : Infinity;
-        const res = await Promise.all(share.map((sj, w) => (sj.length ? send(w, { type: "srun", sid, alive, js: sj, budgetMs, force: first || j < j0 + 2 }) : null)));
-        if (res.some((x, w) => share[w].length && (!x || x.type === "error"))) { done(); return null; }
-        first = false;
-        let got = 0, short = false;
-        res.forEach((x, w) => {
-          if (!x) return;
-          const sj = share[w];
-          for (let q = 0; q < x.done; q++) {
-            const jj = sj[q];
-            alive.forEach((k, ai) => { vals[k][jj] = x.vals[ai][q]; vps[k][jj] = x.vps[ai][q]; if (seatW && x.seats) seatW[k][jj] = x.seats[ai][q]; });
+      // work queue (no barrier inside a round): every worker takes the next C futures as soon as it is free, so a slow or busy
+      // core never holds the others up; the round ends when the futures, the budget or the time run out (or the early stop)
+      let j = j0, roundStop = null, failed = false, doneF = 0;
+      const end = Math.min(deadline, sliceEnd);
+      const C = Math.max(1, o.chunk || 2);
+      const A = alive.slice();
+      const take = () => {
+        if (roundStop || failed || j >= j0 + per) return null;
+        if (used + (j - j0 - doneF) * A.length >= NB * 1.05) return null; // budget (counting what is out at the workers)
+        if (j >= j0 + 2 && now() > end) { roundStop = now() > deadline ? "time" : "slice"; return null; }
+        const left = Math.min(j0 + per - j, Math.ceil((NB * 1.05 - used) / A.length) - (j - j0 - doneF));
+        const n = Math.max(1, Math.min(C, left));
+        const js = Array.from({ length: n }, (_, q) => j + q);
+        j += n;
+        return js;
+      };
+      const worker = async (w) => {
+        for (let js = take(); js; js = take()) {
+          const budgetMs = Number.isFinite(end) ? Math.max(0, end - now()) : Infinity;
+          const x = await send(w, { type: "srun", sid, alive: A, js, budgetMs, force: first || js[0] < j0 + 2 });
+          if (!x || x.type === "error") { failed = true; return; }
+          first = false;
+          for (let q = 0; q < x.done; q++) { const jj = js[q]; A.forEach((k, ai) => { vals[k][jj] = x.vals[ai][q]; vps[k][jj] = x.vps[ai][q]; if (seatW && x.seats) seatW[k][jj] = x.seats[ai][q]; }); }
+          doneF += js.length; used += x.done * A.length;
+          if (x.done < js.length && !roundStop) roundStop = now() > deadline ? "time" : "slice";
+          if (!roundStop && o.earlyZ && A.length >= 2) {
+            let c = 0; for (const v of vals[A[0]]) if (v != null) c++;
+            if (c >= (o.earlyMin || 40) && earlyLead(A, vals, o.earlyZ, o.earlyMin || 40)) roundStop = "early";
           }
-          got += x.done;
-          if (x.done < sj.length) short = true;
-        });
-        used += got * alive.length;
-        j += nb;
-        if (short) { roundStop = now() > deadline ? "time" : "slice"; break; }
-        if (o.earlyZ && j >= (o.earlyMin || 40) && alive.length >= 2 && earlyLead(alive, vals, o.earlyZ, o.earlyMin || 40)) { roundStop = "early"; break; }
-      }
+        }
+      };
+      await Promise.all(Array.from({ length: W }, (_, w) => worker(w)));
+      if (failed) { done(); return null; }
       const rec = { j0, j1: j, alive: alive.slice(), out: [] };
       rounds.push(rec);
       j0 = j;
