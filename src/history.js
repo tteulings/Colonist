@@ -274,7 +274,7 @@ export const HistoryMixin = {
       Object.values(revs).forEach((r) => rescoreReview(r)); // v1.21 today's numbers, classes and labels from the saved candidates
       this._rv = rec.rv ? { id, base: rec.rv.base, recs: rec.rv.recs, res: null, busy: false, ms: 0, revs, queue: [], review: Object.values(revs)[0] || undefined } : null;
       this._rv?.recs?.length && this._rvFinish?.(false); // v1.11: the missed-chance detectors run for a past game too (no auto review): without this the end screen said "checking…" for ever
-    } else if (!document.querySelector(".game-over-overlay")) this.showGameOverOverlay();
+    } else if (!document.querySelector(".game-over-overlay")) this.showGameOverOverlay({ quiet: true });
     const ready = () => {
       const ov = document.querySelector(".game-over-overlay");
       if (!ov) return false;
@@ -608,10 +608,14 @@ export function installHistory(Cls) {
       const t = ov.querySelector("[data-pastgames]");
       if (t) { t.classList.add("hs-backchip"); const sm = t.querySelector("small"); if (sm) sm.textContent = "back to the list"; }
       const m = this.hist.metas.find((x) => x.id === this._histView.id);
-      const lab = document.createElement("p");
-      lab.className = "gs-pastlab";
-      lab.textContent = `Past game${m ? ` · ${when(m.end, true)}` : ""}`;
-      ov.querySelector(".gs-scroll")?.prepend(lab);
+      const b = ov.querySelector("[data-gsback]"); // v1.26 the top-left button goes back to the list (Back does the same)
+      if (b) {
+        b.className = "hs-x gs-backbtn"; b.setAttribute("aria-label", "Back to Past games"); b.innerHTML = CHEV_L;
+        const lab = document.createElement("div");
+        lab.className = "gs-toplab";
+        lab.innerHTML = `<h3>Past game</h3>${m ? `<small>${esc(when(m.end, true))}</small>` : ""}`;
+        b.after(lab);
+      }
       const rs = ov.querySelector("[data-rematch] small");
       if (rs) rs.textContent = "same settings as this game";
     } else this._histEndLine(ov?.querySelector(".gs-look"));

@@ -73,25 +73,172 @@
         if (window.visualViewport) window.visualViewport.addEventListener("resize", apply);
       })();
     </script>
-    <!-- legacy styles in a low-priority cascade layer: the themed CSS below always wins -->
-    <style>@import url("./styles.css?v=123") layer(legacy);</style>
-    <link rel="stylesheet" href="./themes/base.css?v=123" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=123" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=123" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=123" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=123" />
-    <link rel="stylesheet" href="./themes/six.css?v=123" />
-    <link rel="stylesheet" href="./themes/seafarers.css?v=123" />
-    <link rel="stylesheet" href="./themes/hotseat.css?v=123" />
-    <link rel="stylesheet" href="./themes/stats.css?v=123" />
-    <link rel="stylesheet" href="./themes/review.css?v=123" />
-    <link rel="stylesheet" href="./themes/sunny-night.css?v=123" />
-    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=123" />
-    <link rel="stylesheet" href="./themes/profiles.css?v=123" />
-    <link rel="stylesheet" href="./themes/history.css?v=123" />
-    <link rel="stylesheet" href="./themes/bots.css?v=123" />
+    <!-- v1.27: fetch the start-up modules in parallel (without these the browser only finds each import after parsing its parent: one round trip per level).
+         Same URLs as the imports (game.js keeps its ?v=); a stale entry costs one extra fetch, a missing one only its head start. -->
+    <link rel="modulepreload" href="./src/game.js?v=128" />
+    <link rel="modulepreload" href="./src/themes/manager.js" />
+    <link rel="modulepreload" href="./src/themes/board-renderer.js" />
+    <link rel="modulepreload" href="./src/themes/fx.js" />
+    <link rel="modulepreload" href="./src/themes/settings-ui.js" />
+    <link rel="modulepreload" href="./src/themes/art-util.js" />
+    <link rel="modulepreload" href="./src/themes/onboarding.js" />
+    <link rel="modulepreload" href="./src/themes/home.js" />
+    <link rel="modulepreload" href="./src/sound.js" />
+    <link rel="modulepreload" href="./src/six.js" />
+    <link rel="modulepreload" href="./src/six-ui.js" />
+    <link rel="modulepreload" href="./src/hotseat.js" />
+    <link rel="modulepreload" href="./src/names.js" />
+    <link rel="modulepreload" href="./src/stats.js" />
+    <link rel="modulepreload" href="./src/stats-ui.js" />
+    <link rel="modulepreload" href="./src/live-stats.js" />
+    <link rel="modulepreload" href="./src/review.js" />
+    <link rel="modulepreload" href="./src/review-ui.js" />
+    <link rel="modulepreload" href="./src/history.js" />
+    <link rel="modulepreload" href="./src/bots-page.js" />
+    <link rel="modulepreload" href="./src/nav.js" />
+    <link rel="modulepreload" href="./src/review-game.js" />
+    <link rel="modulepreload" href="./src/ai-analysis.js" />
+    <link rel="modulepreload" href="./src/ai-tree.js" />
+    <link rel="modulepreload" href="./src/ai-rules.js" />
+    <link rel="modulepreload" href="./src/bot-profiles.js" />
+    <link rel="modulepreload" href="./src/bot-profile-ui.js" />
+    <link rel="modulepreload" href="./src/master.js" />
+    <link rel="modulepreload" href="./src/seafarers/index.js" />
+    <link rel="modulepreload" href="./src/themes/daylight.js" />
+    <link rel="modulepreload" href="./src/themes/sunny/art.js" />
+    <link rel="modulepreload" href="./src/themes/wood/art.js" />
+    <link rel="modulepreload" href="./src/themes/silhouette/art.js" />
+    <link rel="modulepreload" href="./src/themes/classic/art.js" />
+    <link rel="modulepreload" href="./src/themes/seats.js" />
+    <link rel="modulepreload" href="./src/themes/portraits.js" />
+    <link rel="modulepreload" href="./src/seafarers/art.js" />
+    <link rel="modulepreload" href="./src/seafarers/render.js" />
+    <link rel="modulepreload" href="./src/review/luck.js" />
+    <link rel="modulepreload" href="./src/review/evaluate.js" />
+    <link rel="modulepreload" href="./src/bot-stats.js" />
+    <link rel="modulepreload" href="./src/review/bands.js" />
+    <link rel="modulepreload" href="./src/themes/sunny/ui-icons.js" />
+    <link rel="modulepreload" href="./src/themes/spec-util.js" />
+    <link rel="modulepreload" href="./src/seafarers/rules.js" />
+    <link rel="modulepreload" href="./src/seafarers/ai.js" />
+    <link rel="modulepreload" href="./src/seafarers/scenario.js" />
+    <link rel="modulepreload" href="./src/seafarers/ui.js" />
+    <link rel="modulepreload" href="./src/master/search.js" />
+    <link rel="modulepreload" href="./src/review/why.js" />
+    <link rel="modulepreload" href="./src/review/score.js" />
+    <link rel="modulepreload" href="./src/master/sim.js" />
+    <link rel="modulepreload" href="./src/master/leaf-gbm.js" />
+    <link rel="modulepreload" href="./src/master/leaf-gbm-model.js" />
+    <link rel="modulepreload" href="./src/master/leaf-fit.js" />
+    <style id="splashCss">
+      /* v1.27 launch splash: painted from the first frame, before any stylesheet or module (game.js removes it once Home or the resumed game is drawn) */
+      @font-face { font-family: "Outfit"; src: url("./assets/fonts/Outfit.woff2") format("woff2"); font-weight: 500 800; font-display: swap; }
+      @font-face { font-family: "Figtree"; src: url("./assets/fonts/Figtree.woff2") format("woff2"); font-weight: 400 800; font-display: swap; }
+      #splash { position: fixed; inset: 0; z-index: 2147483000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; margin: 0;
+        padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom); box-sizing: border-box; pointer-events: none; opacity: 1;
+        color: #fff; text-align: center; text-shadow: 0 1px 6px rgba(0,25,50,.45); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 85% 70% at 50% 46%, #6ACBC3 0%, #3CA9B0 52%, #2B8C98 100%), #3CA9B0;
+        transition: opacity 240ms ease; -webkit-user-select: none; user-select: none; }
+      #splash.gone { opacity: 0; }
+      #splash .sp-logo { display: block; width: 92px; height: 92px; margin: -6vh 0 14px; filter: drop-shadow(0 3px 8px rgba(0,30,60,.3)); }
+      #splash .sp-name { margin: 0; font-size: 40px; font-weight: 650; line-height: 1; letter-spacing: 0; }
+      #splash .sp-sub { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px auto 0; font-size: 12px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; opacity: .92; line-height: 1.2; }
+      #splash .sp-sub::before, #splash .sp-sub::after { content: ""; flex: 0 0 26px; height: 1.5px; background: currentColor; opacity: .55; border-radius: 1px; }
+      #splash .sp-dots { display: flex; gap: 9px; height: 8px; margin-top: 34px; animation: sp-in 300ms ease 350ms both; }
+      #splash .sp-dots i { width: 8px; height: 8px; border-radius: 50%; background: #fff; opacity: .35; box-shadow: 0 1px 4px rgba(0,25,50,.25); animation: sp-dot 1.2s ease-in-out infinite; }
+      #splash .sp-dots i:nth-child(2) { animation-delay: .2s; }
+      #splash .sp-dots i:nth-child(3) { animation-delay: .4s; }
+      #splash .sp-fail { display: none; margin-top: 26px; max-width: 28ch; font-size: 15px; font-weight: 600; line-height: 1.4; }
+      #splash .sp-fail p { margin: 0 0 12px; }
+      #splash .sp-fail button { pointer-events: auto; min-height: 44px; padding: 0 26px; border: 0; border-radius: 999px; background: #fff; color: #145160; font: inherit; font-size: 16px; font-weight: 750; text-shadow: none; box-shadow: 0 2px 10px rgba(0,25,50,.3); cursor: pointer; }
+      #splash .sp-fail button:focus-visible { outline: 3px solid #FFD25A; outline-offset: 2px; }
+      #splash.slow .sp-fail { display: block; }
+      #splash.slow .sp-dots { margin-top: 30px; }
+      #splash.failed .sp-dots { display: none; }
+      @keyframes sp-dot { 0%, 100% { opacity: .35; transform: scale(.85); } 40% { opacity: 1; transform: scale(1); } }
+      @keyframes sp-in { from { opacity: 0; } }
+      html[data-theme="A"] #splash { font-family: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      html[data-theme="A"] #splash .sp-name { font-family: "Outfit", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      /* the home screen's sea for each look (the theme stylesheets are not loaded yet) */
+      html[data-theme="A"][data-palette="vivid"] #splash { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 85% 70% at 50% 46%, #48D0D9 0%, #1AA8CF 50%, #0E80B9 100%), #1394C4; }
+      html[data-theme="A"][data-palette="night"] #splash { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 85% 70% at 50% 46%, #1E5A64 0%, #123E4A 55%, #0A2630 100%), #123E4A; }
+      html[data-theme="A"][data-palette="dusk"] #splash { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), linear-gradient(180deg, rgba(255,152,96,.58) 0%, rgba(226,110,128,.30) 22%, rgba(58,67,116,0) 46%), radial-gradient(ellipse 85% 70% at 50% 46%, #5F5E92 0%, #3A4374 55%, #232849 100%), #3A4374; }
+      html[data-theme="B"] #splash { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 90% 70% at 32% 26%, rgba(255,222,170,.20), rgba(255,222,170,0) 60%, rgba(24,12,4,.30) 100%), #956541; }
+      html[data-theme="C"] #splash { background: #2E9FAC; }
+      html[data-theme="classic"] #splash { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse at 47% 48%, #5aadcc, #4090b0 40%, #2a6a88), #4090b0; }
+      @media (prefers-color-scheme: dark) { /* no stored look readable (the head script did not run): follow the system */
+        html:not([data-palette]) #splash { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 85% 70% at 50% 46%, #1E5A64 0%, #123E4A 55%, #0A2630 100%), #123E4A; }
+      }
+      html[data-motion="reduced"] #splash { transition: none; }
+      html[data-motion="reduced"] #splash .sp-dots, html[data-motion="reduced"] #splash .sp-dots i { animation: none; }
+      html[data-motion="reduced"] #splash .sp-dots i:nth-child(2) { opacity: .7; }
+      @media (prefers-reduced-motion: reduce) {
+        html:not([data-motion="full"]) #splash { transition: none; }
+        html:not([data-motion="full"]) #splash .sp-dots, html:not([data-motion="full"]) #splash .sp-dots i { animation: none; }
+        html:not([data-motion="full"]) #splash .sp-dots i:nth-child(2) { opacity: .7; }
+      }
+      html[data-lab] #splash { display: none; }
+    </style>
   </head>
   <body>
+    <!-- v1.27 launch splash (no JS needed to show it): the app logo and name on Home's sea until Home or the resumed game is drawn -->
+    <div id="splash" role="status" aria-live="polite" aria-label="Loading Katan">
+      <svg class="sp-logo" viewBox="-50 -50 100 100" aria-hidden="true"><g transform="scale(0.28) translate(-250 -250)"><path d="M230.95,102 Q250,91 269.05,102 L316.68,129.5 Q335.74,140.5 335.74,162.5 L335.74,217.5 Q335.74,239.5 316.68,250.5 L269.05,278 Q250,289 230.95,278 L183.32,250.5 Q164.26,239.5 164.26,217.5 L164.26,162.5 Q164.26,140.5 183.32,129.5 Z" fill="#F7E1AC"/><path d="M301.96,225 Q321.01,214 340.07,225 L387.7,252.5 Q406.75,263.5 406.75,285.5 L406.75,340.5 Q406.75,362.5 387.7,373.5 L340.07,401 Q321.01,412 301.96,401 L254.33,373.5 Q235.28,362.5 235.28,340.5 L235.28,285.5 Q235.28,263.5 254.33,252.5 Z" fill="#F7E1AC"/><path d="M159.93,225 Q178.99,214 198.04,225 L245.67,252.5 Q264.72,263.5 264.72,285.5 L264.72,340.5 Q264.72,362.5 245.67,373.5 L198.04,401 Q178.99,412 159.93,401 L112.3,373.5 Q93.25,362.5 93.25,340.5 L93.25,285.5 Q93.25,263.5 112.3,252.5 Z" fill="#F7E1AC"/><path d="M239.61,119 Q250,113 260.39,119 L306.29,145.5 Q316.68,151.5 316.68,163.5 L316.68,216.5 Q316.68,228.5 306.29,234.5 L260.39,261 Q250,267 239.61,261 L193.71,234.5 Q183.32,228.5 183.32,216.5 L183.32,163.5 Q183.32,151.5 193.71,145.5 Z" fill="#3FA05A"/><path d="M310.62,242 Q321.01,236 331.41,242 L377.31,268.5 Q387.7,274.5 387.7,286.5 L387.7,339.5 Q387.7,351.5 377.31,357.5 L331.41,384 Q321.01,390 310.62,384 L264.72,357.5 Q254.33,351.5 254.33,339.5 L254.33,286.5 Q254.33,274.5 264.72,268.5 Z" fill="#E36C43"/><path d="M168.59,242 Q178.99,236 189.38,242 L235.28,268.5 Q245.67,274.5 245.67,286.5 L245.67,339.5 Q245.67,351.5 235.28,357.5 L189.38,384 Q178.99,390 168.59,384 L122.69,357.5 Q112.3,351.5 112.3,339.5 L112.3,286.5 Q112.3,274.5 122.69,268.5 Z" fill="#F5BC3C"/><path d="M194,312.32 V245.12 L250,191.36 L306,245.12 V312.32 Z" fill="#FFFFFF"/><path d="M179.44,249.49 L250,183.35 L320.56,249.49" fill="none" stroke="#2F62D6" stroke-width="23.52" stroke-linejoin="round" stroke-linecap="round"/><rect x="238.8" y="274.69" width="22.4" height="37.63" rx="6.72" fill="#E8643C"/></g></svg>
+      <div class="sp-name">Katan<span class="sp-sub">Handelaren en Bouwers</span></div>
+      <div class="sp-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="sp-fail"><p id="splashMsg">Katan is taking longer than usual to start.</p><button type="button" id="splashReload">Reload</button></div>
+    </div>
+    <script>
+      // Splash: game.js calls __colonistSplashDone() once Home (or the resumed game) is built; it fades out after that frame
+      // is painted. It never hangs: a running game also clears it, and after 8 s (or a start-up error) it offers Reload.
+      (function () {
+        var s = document.getElementById("splash"), d = document.documentElement, done = false, iv, slowT;
+        if (!s) return;
+        if (d.dataset.lab) { s.remove(); return; }
+        function hide() {
+          if (done) return;
+          done = true; clearInterval(iv); clearTimeout(slowT);
+          var raf = window.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
+          raf(function () { raf(function () {
+            if (d.dataset.motion === "reduced") { s.remove(); return; }
+            s.classList.add("gone");
+            setTimeout(function () { s.remove(); }, 300);
+          }); });
+        }
+        function slow(failed) {
+          if (done || window.__colonistGame) return;
+          if (failed) { document.getElementById("splashMsg").textContent = "Katan could not start."; s.classList.add("failed"); }
+          s.classList.add("slow");
+        }
+        window.__colonistSplashDone = hide;
+        document.getElementById("splashReload").addEventListener("click", function () { location.reload(); });
+        iv = setInterval(function () { if (window.__colonistGame) hide(); }, 400);
+        slowT = setTimeout(function () { slow(false); }, 8000);
+        window.addEventListener("error", function (e) {
+          var t = e && e.target;
+          if (done || !(e instanceof ErrorEvent || (t && t.tagName === "SCRIPT"))) return; // a missing image or font is not fatal
+          setTimeout(function () { slow(true); }, 1500);
+        }, true);
+      })();
+    </script>
+    <!-- v1.27: the stylesheets follow the splash, so the splash paints while they load (the app below still waits for them).
+         Legacy styles sit in a low-priority cascade layer: the themed CSS below always wins -->
+    <style>@import url("./styles.css?v=128") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=128" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=128" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=128" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=128" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=128" />
+    <link rel="stylesheet" href="./themes/six.css?v=128" />
+    <link rel="stylesheet" href="./themes/seafarers.css?v=128" />
+    <link rel="stylesheet" href="./themes/hotseat.css?v=128" />
+    <link rel="stylesheet" href="./themes/stats.css?v=128" />
+    <link rel="stylesheet" href="./themes/review.css?v=128" />
+    <link rel="stylesheet" href="./themes/sunny-night.css?v=128" />
+    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=128" />
+    <link rel="stylesheet" href="./themes/profiles.css?v=128" />
+    <link rel="stylesheet" href="./themes/history.css?v=128" />
+    <link rel="stylesheet" href="./themes/bots.css?v=128" />
     <div class="app" id="app">
       <header class="topbar" id="topbar">
         <div class="brand">
@@ -324,7 +471,7 @@
     </div>
     <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=123"></script>
+    <script type="module" src="./src/game.js?v=128"></script>
     <script>
       // Updates: sw.js and its imports are never taken from the HTTP cache (updateViaCache), the
       // registration is re-checked whenever the app comes back to the foreground, and a new

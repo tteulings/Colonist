@@ -7,7 +7,8 @@
 //   3. the recap (always on top): final scores, three one-line highlights, turns / time / your rank, and
 //      below it "More stats": tabs Race · Dice · Cards · Maps · Moments, one chart per card, each card
 //      titled with its takeaway; heat maps drawn on the real themed board (with a ▶ to watch them build up)
-//   4. Replay (the whole game on the real board, play/pause, 1×/4×, scrubber) and Timelapse (2.5 s)
+//   4. Replay (the whole game on the real board, calm beats, play/pause, prev/next turn, ½×–4×, a timeline with the
+//      running win chance; v1.28) and Timelapse (2.5 s, the fast-forward)
 // Sticky footer: Replay + Rematch (one tap). Reduced motion: no count, no timelapse, a plain fade.
 // Colours: player colours only where a player is meant (house colours, --pN); everything else the theme ink
 // at low contrast with ONE accent (the theme's primary teal); heat = one warm gold ramp (--gs-heat).
@@ -16,6 +17,7 @@ import { icon, dieSvg, motionReduced } from "./themes/manager.js";
 import { SEAT_PERSONAS } from "./themes/portraits.js";
 import { TERRAIN_NAME } from "./themes/art-util.js";
 import { RES, computeStats } from "./stats.js";
+import { gameOdds } from "./replay-odds.js";
 
 const NUMW = { 2: "twos", 3: "threes", 4: "fours", 5: "fives", 6: "sixes", 7: "sevens", 8: "eights", 9: "nines", 10: "tens", 11: "elevens", 12: "twelves" };
 const NUM1 = { 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve" };
@@ -27,6 +29,11 @@ const TABS = [["race", "Points race"], ["dice", "Dice"], ["cards", "Cards"], ["m
 const HIST_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9M4 4.5V8h3.5M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const FF_IC = `<svg class="ic" viewBox="0 0 20 16" aria-hidden="true"><path fill="currentColor" d="M1 2v12l8-6zM10 2v12l8-6z"/></svg>`;
 const W = 300; // chart viewBox width
+// v1.28 Replay pace: ms per beat at 1x (a roll; a build or robber move; a set-up settlement + road), the speeds, the remembered one
+const RP_BEAT = { roll: 1100, move: 800, setup: 650 };
+const RP_SPEEDS = [0.5, 1, 2, 4];
+const RP_SPEED_KEY = "colonist.replaySpeed";
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const fmtDur = (ms) => { const m = Math.round(ms / 60000); return m < 1 ? "<1 min" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; };
 const nf = (x) => (Math.round(x * 10) / 10).toString();
 
@@ -77,7 +84,9 @@ export const StatsUiMixin = {
   },
 
   // ── the flow ─────────────────────────────────────────────────────────────────────────────────
-  showGameOverOverlay() {
+  /** opts.quiet (v1.28): a finished game that is opened again (Past games, a reload): the end screen at once, no count,
+   *  no intro and no timelapse (it raced through the whole game, ~30 rolls a second, before the recap appeared). */
+  showGameOverOverlay(opts = {}) {
     if (document.querySelector(".game-over-overlay")) return;
     this.hideTradePanel();
     this.toggleBuildSheet?.(false);
@@ -86,7 +95,10 @@ export const StatsUiMixin = {
     const reduced = motionReduced();
     // a tap during the count means "get on with it": straight to the recap, no transition
     const go = (skip = false) => { if (this.winner && !document.querySelector(".game-over-overlay")) this._stShowOverlay(st, reduced, skip); };
-    if (reduced || !st) { go(); return; }
+    // without the count the overlay comes straight away: a beat later (a microtask), so the caller can put the
+    // review recording in place first (a past game sets _rv right after loading; the review card reads it)
+    if (opts?.quiet || this._histView) { Promise.resolve().then(() => go(true)); return; }
+    if (reduced || !st) { Promise.resolve().then(() => go()); return; }
     this._stCountOnBoard(go);
   },
 
@@ -164,6 +176,7 @@ export const StatsUiMixin = {
     const turns = this.isRush() ? `${this.rush?.rollNo ?? st?.N ?? 0}` : `${this.turn}`;
     const hl = st ? this._stHighlights(st) : [];
     overlay.innerHTML = `
+      <div class="gs-top"><button type="button" class="gs-homebtn" data-gsback aria-label="Home"><svg class="ic" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg><span>Home</span></button></div>
       <div class="gs-scroll">
         <section class="gs-recap over-panel" aria-label="Recap">
           <div class="gs-rhead">${this._stPortrait(winner.id, "gs-win-por", 52)}<div><h3>${this._stWinsText(winner)}</h3>
@@ -189,6 +202,7 @@ export const StatsUiMixin = {
     this._stOverlay = overlay;
     overlay.querySelector("[data-rematch]").addEventListener("click", () => { this.removeGameOverOverlay(); this.stopAutoplay(); this.startNewGame({ ...this.settings }); });
     overlay.querySelector("[data-change]").addEventListener("click", () => { this.removeGameOverOverlay(); this.stopAutoplay(); this._showDifficultyModal(); });
+    overlay.querySelector("[data-gsback]").addEventListener("click", () => this._stLeave()); // v1.26 the way out, top left
     overlay.querySelector("[data-see]").addEventListener("click", () => this._stSeeBoard(overlay));
     overlay.querySelector("[data-pastgames]").addEventListener("click", () => { if (this._histView) this.histExit?.(); else { this._histEndOpen = true; this.histOpen?.(); } });
     overlay.querySelector("[data-replay]")?.addEventListener("click", () => this._rpStart("replay"));
@@ -197,6 +211,14 @@ export const StatsUiMixin = {
     if (st) this._stTab("race", true);
     if (skipIntro) this._stAnimateIn(overlay.querySelector(".gs-pane"));
     else this._stIntro(overlay, st, reduced, rank);
+  },
+
+  /** v1.26 Leave the end screen (top-left button, Back): a past game goes back to the list, a game just played to Home. */
+  _stLeave() {
+    if (this._histView) { this.histExit?.(); return; }
+    this.removeGameOverOverlay();
+    this.stopAutoplay?.();
+    this.goHome();
   },
 
   /** v1.11 Final board: the results hide (they are not thrown away) and a "Results" pill brings them back. */
@@ -736,7 +758,11 @@ export const StatsUiMixin = {
     return { stop };
   },
 
-  /** Replay (slow, controllable) or Timelapse (2.5 s, full screen). */
+  /** Replay (calm, controllable: v1.28) or Timelapse (2.5 s, full screen, the fast-forward).
+   *  Replay: a turn plays as beats, the roll (dice, producing tiles) and then each build or robber move on its own
+   *  (set-up: one beat per settlement + road); at 1x a roll beat is 1.1 s and a move 0.8 s (the old replay showed a
+   *  whole turn every 0.7 s). Prev / next and the timeline go per turn; 0.5x-4x is remembered; a tap on the board
+   *  pauses (and plays again). The running win chance (src/replay-odds.js) is in the top rows and on the timeline. */
   _rpStart(mode = "replay") {
     const st = this._st;
     if (!st || this._rpUi) return;
@@ -745,15 +771,26 @@ export const StatsUiMixin = {
     const ui = document.createElement("div");
     ui.className = `gs-replay tm ${mode}`;
     const maxV = Math.max(this.winPoints, ...st.vp[st.N]);
+    const odds = mode === "replay" ? gameOdds(this) : null;
+    const seaNa = odds?.na === "sea";
+    const IC = (d) => `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${d}"/></svg>`;
     ui.innerHTML = mode === "replay" ? `
-      <div class="gs-rp-top">${this.players.map((p) => `<div class="gs-vpr pc-${p.id}" data-pid="${p.id}">${this._stPortrait(p.id, "", 24)}<span class="gs-vpt"><b style="width:0%"></b></span><span class="gs-vpv">0</span></div>`).join("")}</div>
-      <div class="gs-rp-board"><canvas></canvas><svg class="gs-rp-glow" aria-hidden="true"></svg><div class="gs-rp-dice"></div></div>
+      <div class="gs-rp-top">${this.players.map((p) => `<div class="gs-vpr pc-${p.id}" data-pid="${p.id}">${this._stPortrait(p.id, "", 24)}<span class="gs-vpn">${esc(this._stName(p))}</span><span class="gs-vpt"><b style="width:0%"></b></span><span class="gs-vpv">0</span><span class="gs-vpw${odds.na ? " na" : ""}">${odds.na ? "n/a" : "…"}</span></div>`).join("")}</div>
+      <div class="gs-rp-board"><canvas></canvas><svg class="gs-rp-glow" aria-hidden="true"></svg><div class="gs-rp-dice"></div><div class="gs-rp-tapfx" aria-hidden="true"></div></div>
       <div class="gs-rp-ctl">
-        <div class="gs-rp-row"><button type="button" class="gs-rp-play" aria-label="Pause"><svg viewBox="0 0 20 20" aria-hidden="true"><path class="pz" d="M5 3h3.4v14H5zM11.6 3H15v14h-3.4z"/><path class="pl" d="M6 3.2v13.6c0 .8.9 1.3 1.6.8l9.4-6.8c.6-.4.6-1.2 0-1.6L7.6 2.4C6.9 1.9 6 2.4 6 3.2z"/></svg></button>
-          <div class="gs-rp-cap"><b></b><span></span></div>
-          <div class="gs-rp-speed" role="group" aria-label="Speed"><button type="button" data-speed="1" class="on">1×</button><button type="button" data-speed="4">4×</button></div>
+        <div class="gs-rp-row">
+          <button type="button" class="gs-rp-step" data-rpstep="-1" aria-label="Previous turn">${IC("M4 3h2.6v14H4zM16.4 3.6v12.8c0 .8-.9 1.3-1.6.8L7.5 11.2c-.7-.5-.7-1.6 0-2.1l7.3-6.3c.7-.5 1.6 0 1.6.8z")}</button>
+          <button type="button" class="gs-rp-play" aria-label="Pause"><svg viewBox="0 0 20 20" aria-hidden="true"><path class="pz" d="M5 3h3.4v14H5zM11.6 3H15v14h-3.4z"/><path class="pl" d="M6 3.2v13.6c0 .8.9 1.3 1.6.8l9.4-6.8c.6-.4.6-1.2 0-1.6L7.6 2.4C6.9 1.9 6 2.4 6 3.2z"/></svg></button>
+          <button type="button" class="gs-rp-step" data-rpstep="1" aria-label="Next turn">${IC("M16 3h-2.6v14H16zM3.6 3.6v12.8c0 .8.9 1.3 1.6.8l7.3-6c.7-.5.7-1.6 0-2.1L5.2 2.8c-.7-.5-1.6 0-1.6.8z")}</button>
+          <div class="gs-rp-cap" aria-live="polite"><b></b><span></span></div>
           <button type="button" class="gs-rp-x" aria-label="Close replay">✕</button></div>
-        <input type="range" class="gs-rp-scrub" min="0" max="${st.N}" value="0" aria-label="Turn">
+        <div class="gs-rp-tl"><svg class="gs-rp-chart" viewBox="0 0 ${Math.max(1, st.N)} 100" preserveAspectRatio="none" aria-hidden="true"></svg><div class="gs-rp-dots" aria-hidden="true"></div><i class="gs-rp-cur" aria-hidden="true"></i>
+          <input type="range" class="gs-rp-scrub" min="0" max="${st.N}" value="0" step="1" aria-label="${this.isRush() ? "Roll" : "Turn"}"></div>
+        <div class="gs-rp-row2"><div class="gs-rp-speed" role="group" aria-label="Speed">${RP_SPEEDS.map((x) => `<button type="button" data-speed="${x}" aria-pressed="false">${x === 0.5 ? "½" : x}×</button>`).join("")}</div>
+          <button type="button" class="gs-rp-wi" data-rpinfo aria-expanded="false" aria-label="About the win chance"><span>${seaNa ? "Win % n/a" : "≈ Win %"}</span><i>i</i></button></div>
+        <p class="gs-rp-note" hidden>${seaNa ? "No win chance on Seafarers: the model behind it was not trained on Seafarers boards."
+          : odds.na ? "No win chance for this game: it was saved without its full move log."
+          : `<b>≈</b> is a quick estimate of each player's win chance after every ${this._stTurnWord()}: good for the trend, often about 9 points off. <b class="dot"></b> Dots are your decisions checked by the Game review with deep Monte Carlo: those numbers are exact.`}</p>
       </div>`
       : `<div class="gs-rp-board"><canvas></canvas></div><div class="gs-skip">tap to close</div>`;
     this._stHost().appendChild(ui);
@@ -771,58 +808,142 @@ export const StatsUiMixin = {
     const glow = ui.querySelector(".gs-rp-glow");
     glow.setAttribute("viewBox", `0 0 ${Math.round(br.width)} ${Math.round(br.height)}`);
     const reduced = motionReduced();
-    const R = { s: 0, playing: true, speed: 1, timer: 0 };
+    if (!st.evIx) st.evIx = new Map(this.stats.ev.map((e, i) => [e, i]));
+    let speed = 1;
+    try { const v = +localStorage.getItem(RP_SPEED_KEY); if (RP_SPEEDS.includes(v)) speed = v; } catch (_) { /* private mode */ }
+    const R = { s: 0, b: 0, playing: true, speed, timer: 0, beats: null, odds };
     this._rp = R;
     const playBtn = ui.querySelector(".gs-rp-play"), scrub = ui.querySelector(".gs-rp-scrub");
     const cap1 = ui.querySelector(".gs-rp-cap b"), cap2 = ui.querySelector(".gs-rp-cap span"), dice = ui.querySelector(".gs-rp-dice");
-    const show = (s, animate) => {
-      this._rpSeek(s);
-      R.s = s;
+    const rows = [...ui.querySelectorAll(".gs-vpr")];
+    const KN = { r: "a road", s: "a settlement", c: "a city", h: "a ship" };
+    /** The beats of step s: [{ upto (global event index; null = the whole step), e (the event shown) }]. */
+    const beatsOf = (s) => {
+      const evs = st.stepEvents[s] || [];
+      const vis = evs.filter((e) => (s === 0 ? e[1] === "b" && e[3] === "s" : (e[1] === "b" || e[1] === "R")));
+      const cut = vis.map((e) => st.evIx.get(e));
+      if (s === 0) return vis.map((e, j) => ({ upto: j + 1 < cut.length ? cut[j + 1] : null, e }));
+      return [{ upto: cut.length ? cut[0] : null, e: null }, ...vis.map((e, j) => ({ upto: j + 1 < cut.length ? cut[j + 1] : null, e }))];
+    };
+    /** The caption's second line: who (own line, cut short if long) and what, short enough for a phone. */
+    const capTxt = (pid, what) => { const p = this.players[pid]; return `<i>${p ? esc(this._stName(p)) : "Someone"}</i><em>${what}</em>`; };
+    const beatText = (e) => capTxt(e[2], e[1] === "R" ? "moved the robber" : `built ${KN[e[3]] || "a piece"}`);
+    const fmt = (v) => `${Math.round(v * 100)}%`;
+    const paintOdds = (s) => {
+      if (!odds || odds.na || ui.classList.contains("rv-show")) return;
+      const ex = odds.exact(s), est = odds.get(s);
+      rows.forEach((row) => {
+        const el = row.querySelector(".gs-vpw"), q = +row.dataset.pid;
+        const v = ex ? ex.p[q] : est ? est[q] : null;
+        el.className = `gs-vpw${ex ? " exact" : est ? " est" : " wait"}`;
+        el.textContent = v == null ? "…" : `${ex ? "" : "≈"}${fmt(v)}`;
+        el.title = ex ? "From the Game review (deep Monte Carlo)" : "Estimate";
+      });
+    };
+    const chartEl = ui.querySelector(".gs-rp-chart"), dotsEl = ui.querySelector(".gs-rp-dots"), curEl = ui.querySelector(".gs-rp-cur");
+    const drawChart = () => {
+      if (!odds || odds.na) return;
+      const N = Math.max(1, st.N);
+      chartEl.innerHTML = this.players.map((p) => {
+        const pts = []; for (let s = 0; s <= st.N; s += 1) { const v = odds.get(s); if (v) pts.push(`${s},${(100 - v[p.id] * 96 - 2).toFixed(1)}`); }
+        return pts.length > 1 ? `<polyline class="pc-${p.id}" points="${pts.join(" ")}" vector-effect="non-scaling-stroke"/>` : "";
+      }).join("");
+      let dots = "";
+      odds.marks?.forEach((m, s) => { const v = m.p[m.pid]; if (v == null || s > st.N) return; dots += `<i class="pc-${m.pid}" style="left:${(s / N) * 100}%;top:${100 - v * 96 - 2}%"></i>`; });
+      dotsEl.innerHTML = dots;
+    };
+    let chartT = 0;
+    const offOdds = odds && !odds.na ? odds.on((s) => {
+      if (s === R.s || s < 0) paintOdds(R.s);
+      if (!chartT) chartT = window.setTimeout(() => { chartT = 0; if (this._rpUi === ui) drawChart(); }, s < 0 ? 0 : 120);
+    }) : null;
+    R.off = () => { offOdds?.(); window.clearTimeout(chartT); };
+    /** Put the board on step s, beat b (b null: the whole step). */
+    const show = (s, b = null, animate = false) => {
+      s = Math.max(0, Math.min(st.N, s));
+      const beats = beatsOf(s), last = b == null || b >= beats.length - 1;
+      const bt = last ? null : beats[b];
+      if (last) this._rpSeek(s); else this._rpSeek(s, bt.upto ?? undefined);
+      R.s = s; R.b = last ? beats.length - 1 : b; R.beats = beats;
       scrub.value = String(s);
+      scrub.setAttribute("aria-valuetext", s === 0 ? "Set-up" : `${this.isRush() ? "Roll" : "Turn"} ${st.turnOf[s]}`);
+      curEl.style.left = `calc(10px + (100% - 20px) * ${(s / Math.max(1, st.N)).toFixed(4)})`; // over the thumb (it travels 10 px in from each end)
       const step = st.steps?.[s - 1] || this.stats.steps[s - 1];
       cap1.textContent = s === 0 ? "Set-up" : this.isRush() ? `Roll ${s}` : `Turn ${step[0]}`;
       const roller = step && step[1] >= 0 ? this.players[step[1]] : null;
-      cap2.textContent = s === 0 ? "first settlements" : `${roller ? `${this._stName(roller)} rolled` : "rolled"} ${step[2] + step[3]}`;
+      const be = b == null ? null : beats[R.b]?.e; // a whole turn (prev / next / timeline): its roll
+      cap2.innerHTML = s === 0 ? (be ? capTxt(be[2], "placed a settlement") : "<em>first settlements</em>")
+        : be ? beatText(be) : roller ? capTxt(roller.id, `rolled ${step[2] + step[3]}`) : `<em>rolled ${step[2] + step[3]}</em>`;
       dice.innerHTML = step ? dieSvg(step[2]) + dieSvg(step[3]) : "";
-      // VP bars
-      ui.querySelectorAll(".gs-vpr").forEach((row) => { const v = st.vp[s][+row.dataset.pid]; row.querySelector("b").style.width = `${(v / maxV) * 100}%`; row.querySelector(".gs-vpv").textContent = v; });
-      // producing tiles glow (a calm warm outline), the robber's tile excluded
+      // VP bars: the points after the step (before its moves while they are still coming)
+      const vrow = st.vp[last ? s : Math.max(0, s - 1)];
+      rows.forEach((row) => { const v = vrow[+row.dataset.pid]; row.querySelector("b").style.width = `${(v / maxV) * 100}%`; row.querySelector(".gs-vpv").textContent = v; });
+      // producing tiles glow on the roll beat (a calm warm outline), the robber's tile excluded
       glow.innerHTML = "";
-      if (step && step[2] + step[3] !== 7) {
+      if (step && R.b === 0 && step[2] + step[3] !== 7) {
         const roll = step[2] + step[3], robber = st.robberAt[s];
         const V = this.view;
         glow.innerHTML = this.geometry.hexes.filter((h) => h.number === roll && h.id !== robber).map((h) => `<polygon class="${animate && !reduced ? "fade" : ""}" points="${(h.corners || []).map((c) => `${(c.x * V.scale + V.offsetX).toFixed(1)},${(c.y * V.scale + V.offsetY).toFixed(1)}`).join(" ")}"/>`).join("");
       }
-      // awards fly to their new holder
-      if (animate && !reduced) st.stepEvents[s].filter((e) => e[1] === "a" && e[3] >= 0).forEach((e) => this._rpFlyAward(ui, e[2], e[3]));
+      // awards fly to their new holder (at the end of the step)
+      if (last && animate && !reduced) st.stepEvents[s].filter((e) => e[1] === "a" && e[3] >= 0).forEach((e) => this._rpFlyAward(ui, e[2], e[3]));
+      paintOdds(last ? s : Math.max(0, s - 1));
     };
-    const stepMs = () => (R.s === 0 ? 1100 : 700) / R.speed;
+    const beatMs = () => { const be = R.beats?.[R.b]; return (R.s === 0 ? RP_BEAT.setup : be?.e ? RP_BEAT.move : RP_BEAT.roll) / R.speed; };
+    const setPlaying = (on) => {
+      R.playing = on;
+      playBtn.classList.toggle("paused", !on);
+      playBtn.setAttribute("aria-label", on ? "Pause" : "Play");
+      ui.classList.toggle("is-paused", !on);
+    };
     const loop = () => {
       window.clearTimeout(R.timer);
       if (!R.playing) return;
       R.timer = window.setTimeout(() => {
         if (!this._rpUi || !R.playing) return;
-        if (R.s >= st.N) { R.playing = false; playBtn.classList.add("paused"); playBtn.setAttribute("aria-label", "Play"); return; }
-        show(R.s + 1, true);
+        if (R.b < R.beats.length - 1) show(R.s, R.b + 1, true);
+        else if (R.s >= st.N) { setPlaying(false); return; }
+        else show(R.s + 1, 0, true);
         loop();
-      }, stepMs());
+      }, beatMs());
     };
-    playBtn.addEventListener("click", () => {
-      R.playing = !R.playing;
-      if (R.playing && R.s >= st.N) show(0, false);
-      playBtn.classList.toggle("paused", !R.playing);
-      playBtn.setAttribute("aria-label", R.playing ? "Pause" : "Play");
+    const toggle = () => {
+      setPlaying(!R.playing);
+      if (R.playing && R.s >= st.N && R.b >= R.beats.length - 1) show(0, 0, false);
       loop();
-    });
-    ui.querySelectorAll("[data-speed]").forEach((b) => b.addEventListener("click", () => {
-      R.speed = +b.dataset.speed;
-      ui.querySelectorAll("[data-speed]").forEach((x) => x.classList.toggle("on", x === b));
+    };
+    const stepBy = (d) => {
+      const mid = R.b < R.beats.length - 1;
+      show(d < 0 && mid ? R.s - 1 : R.s + d, null, false);
       loop();
-    }));
-    scrub.addEventListener("input", () => { show(+scrub.value, false); loop(); });
+    };
+    const setSpeed = (x) => {
+      R.speed = x;
+      ui.querySelectorAll("[data-speed]").forEach((b) => { const on = +b.dataset.speed === x; b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); });
+      try { localStorage.setItem(RP_SPEED_KEY, String(x)); } catch (_) { /* private mode */ }
+    };
+    setSpeed(R.speed);
+    playBtn.addEventListener("click", toggle);
+    ui.querySelectorAll("[data-rpstep]").forEach((b) => b.addEventListener("click", () => stepBy(+b.dataset.rpstep)));
+    ui.querySelectorAll("[data-speed]").forEach((b) => b.addEventListener("click", () => { setSpeed(+b.dataset.speed); loop(); }));
+    scrub.addEventListener("input", () => { show(+scrub.value, null, false); loop(); });
     ui.querySelector(".gs-rp-x").addEventListener("click", exit);
-    ui.querySelector(".gs-rp-board").addEventListener("click", exit);
-    show(0, true);
+    const note = ui.querySelector(".gs-rp-note"), wi = ui.querySelector("[data-rpinfo]");
+    wi.addEventListener("click", () => { note.hidden = !note.hidden; wi.setAttribute("aria-expanded", String(!note.hidden)); });
+    const fx = ui.querySelector(".gs-rp-tapfx");
+    ui.querySelector(".gs-rp-board").addEventListener("click", () => {
+      if (ui.classList.contains("rv-show")) return; // the review's Show: the card has the controls
+      toggle();
+      if (!reduced) { fx.className = `gs-rp-tapfx ${R.playing ? "pl" : "pz"}`; void fx.offsetWidth; fx.classList.add("go"); }
+    });
+    ui.addEventListener("keydown", (e) => {
+      if (e.target === scrub) return;
+      if (e.key === " " || e.key === "k") { e.preventDefault(); toggle(); }
+      else if (e.key === "ArrowLeft") stepBy(-1);
+      else if (e.key === "ArrowRight") stepBy(1);
+    });
+    show(0, 0, true);
+    drawChart();
     loop();
   },
 
@@ -842,7 +963,7 @@ export const StatsUiMixin = {
 
   _rpExit(silent = false) {
     const ui = this._rpUi;
-    if (this._rp) { window.clearTimeout(this._rp.timer); this._rp = null; }
+    if (this._rp) { window.clearTimeout(this._rp.timer); this._rp.off?.(); this._rp = null; }
     this._rpStopTl?.(); this._rpStopTl = null;
     if (this._rpSaved) this._rpClose();
     if (!ui) return;

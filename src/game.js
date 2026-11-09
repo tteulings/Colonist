@@ -16,7 +16,8 @@ import { LiveStatsMixin, installLiveStats } from "./live-stats.js"; // … and t
 import { ReviewMixin, installReview } from "./review.js"; // v1.02 post-game review: the decision recorder
 import { ReviewUiMixin, installReviewUi } from "./review-ui.js"; // … missed chances and Show
 import { HistoryMixin, installHistory } from "./history.js"; // v1.07 Past games (IndexedDB)
-import { BotsPageMixin } from "./bots-page.js"; // v1.23 the Bots page (leaderboard, strength ladder, strength vs accuracy)
+import { BotsPageMixin } from "./bots-page.js";
+import { NavMixin } from "./nav.js"; // v1.26 Back gesture: history entries follow the open screens and sheets // v1.23 the Bots page (leaderboard, strength ladder, strength vs accuracy)
 import { ReviewGameMixin, installReviewGame } from "./review-game.js"; // v1.03 … the Game review (Monte Carlo accuracy)
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
@@ -7119,7 +7120,7 @@ class ColonistFullGame {
     window.setTimeout(() => { if (!this._userZoomed && this.geometry) { this.fitCanvasToContainer(); this.fitView(); this.render(); } }, 350);
     if (this.onboardingHold) return true; // behind the home screen: resumes on Continue
     if (this.winner) {
-      this.showGameOverOverlay();
+      this.showGameOverOverlay({ quiet: true }); // v1.28 opened again: straight to the end screen, no replayed intro
     } else if (this.setupPhase) {
       this.processSetupQueue();
     } else if (this.isRush()) {
@@ -11197,7 +11198,10 @@ installReviewGame(ColonistFullGame);
 Object.defineProperties(ColonistFullGame.prototype, Object.getOwnPropertyDescriptors(HistoryMixin)); // v1.07 (keeps the `hist` getter a getter)
 Object.assign(ColonistFullGame.prototype, BotsPageMixin); // v1.23
 installHistory(ColonistFullGame);
+Object.assign(ColonistFullGame.prototype, NavMixin); // v1.26
 
 const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle
+game._navInstall(); // v1.26 Back closes the top screen / sheet (src/nav.js)
 if (document.documentElement.dataset.lab) game._labBoot(document.documentElement.dataset.lab); // AI Lab engine (lab.html)
+window.__colonistSplashDone?.(); // v1.27 Home or the resumed game is built: the launch splash (index.html) fades out after this frame

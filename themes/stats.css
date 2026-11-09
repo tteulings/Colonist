@@ -160,7 +160,7 @@
 @keyframes stEmbSmall { 0% { transform: scale(1); } 40% { transform: scale(1.7) rotate(180deg); } 100% { transform: scale(1) rotate(360deg); } }
 
 /* ── 2. the transition ── */
-.gs-over.intro .gs-scroll, .gs-over.intro .gs-foot { visibility: hidden; }
+.gs-over.intro .gs-scroll, .gs-over.intro .gs-foot, .gs-over.intro .gs-top { visibility: hidden; }
 .gs-intro { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; cursor: pointer;
   background: var(--sea-bg); background-image: var(--sea-image); }
 .gs-intro.out { opacity: 0; visibility: hidden; transition: opacity 360ms ease, visibility 0s linear 360ms; pointer-events: none; } /* v0.96: never left behind half-faded */
@@ -201,6 +201,14 @@
 .gs-replay { position: absolute; inset: 0; z-index: 31; display: flex; flex-direction: column; background: var(--sea-bg); background-image: var(--sea-image); }
 .gs-rp-top { margin: max(10px, env(safe-area-inset-top)) 10px 0; padding: 8px 12px; border-radius: 16px; background: var(--float); border: var(--float-border); box-shadow: var(--float-shadow); display: flex; flex-direction: column; gap: 4px; }
 .gs-vpr { display: grid; grid-template-columns: 24px 1fr 24px; gap: 8px; align-items: center; }
+/* v1.28 rows: portrait · name · points bar · points · win chance (≈ estimate in a lighter style, exact review points solid) */
+.gs-replay.replay .gs-vpr { grid-template-columns: 24px minmax(0, 76px) 1fr 22px 50px; gap: 7px; min-height: 24px; }
+.gs-vpn { font: 700 13px var(--font-body); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gs-vpw { font: 700 14px var(--font-display); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gs-vpw.est { color: var(--ink-soft); font-weight: 600; }
+.gs-vpw.exact { color: var(--heading); font-weight: 800; }
+.gs-vpw.exact::before { content: ""; display: inline-block; width: 7px; height: 7px; margin: 0 4px 1px 0; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 1.5px var(--float, #fff), 0 0 0 2.5px var(--heading); vertical-align: middle; }
+.gs-vpw.wait, .gs-vpw.na { color: var(--ink-faint, var(--ink-soft)); font-weight: 600; font-size: 13px; }
 .gs-vpr .avatar { --av-ring: 2px; }
 .gs-vpt { height: 9px; border-radius: 6px; background: var(--gs-grid); overflow: hidden; }
 .gs-vpt b { display: block; height: 100%; border-radius: 6px; background: var(--pc); transition: width 380ms var(--ease-out, ease); }
@@ -214,19 +222,52 @@
 .gs-rp-dice { position: absolute; right: 12px; top: 10px; display: flex; gap: 6px; }
 .gs-rp-dice .die { width: 34px; height: 34px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.25)); }
 .gs-rp-ctl { margin: 0 10px max(12px, env(safe-area-inset-bottom)); padding: 10px 12px 12px; border-radius: 16px; background: var(--float); border: var(--float-border); box-shadow: var(--float-shadow); }
-.gs-rp-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.gs-rp-play { flex: none; width: 46px; height: 46px; border-radius: 50%; border: var(--primary-border); background: var(--primary); background-image: var(--primary-image); position: relative; cursor: pointer; }
+.gs-rp-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.gs-rp-step { flex: none; width: 44px; height: 44px; border-radius: 12px; border: var(--btn-border); background: var(--btn); color: var(--btn-ink); cursor: pointer; display: grid; place-items: center; padding: 0; }
+.gs-rp-step svg { width: 18px; height: 18px; fill: currentColor; }
+.gs-rp-play { flex: none; width: 48px; height: 48px; border-radius: 50%; border: var(--primary-border); background: var(--primary); background-image: var(--primary-image); position: relative; cursor: pointer; }
 .gs-rp-play svg { width: 20px; height: 20px; display: block; margin: auto; fill: var(--primary-ink); }
 .gs-rp-play .pl, .gs-rp-play.paused .pz { display: none; }
 .gs-rp-play.paused .pl { display: inline; }
 .gs-rp-cap { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .gs-rp-cap b { font: var(--display-weight, 700) 17px var(--font-display); color: var(--heading); }
 .gs-rp-cap span { font-size: 12.5px; font-weight: 650; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gs-rp-speed { display: flex; border: var(--btn-border); border-radius: 10px; overflow: hidden; background: var(--btn); }
-.gs-rp-speed button { border: 0; background: none; padding: 8px 10px; font: 800 13px var(--font-body); color: var(--btn-ink); cursor: pointer; }
+.gs-replay.replay .gs-rp-cap span { font-size: 13px; line-height: 1.25; }
+.gs-rp-cap span i, .gs-rp-cap span em { display: block; font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gs-rp-cap span i { font-weight: 750; color: var(--ink); }
+.gs-rp-speed { display: flex; border: var(--btn-border); border-radius: 12px; overflow: hidden; background: var(--btn); }
+.gs-rp-speed button { border: 0; background: none; min-width: 46px; height: 44px; padding: 0 6px; font: 800 14px var(--font-body); color: var(--btn-ink); cursor: pointer; }
 .gs-rp-speed button.on { background: var(--btn-on); color: var(--btn-on-ink); }
-.gs-rp-x { flex: none; width: 40px; height: 40px; border-radius: 10px; border: var(--btn-border); background: var(--btn); color: var(--btn-ink); font: 700 16px var(--font-body); cursor: pointer; }
+.gs-rp-x { flex: none; width: 44px; height: 44px; border-radius: 10px; border: var(--btn-border); background: var(--btn); color: var(--btn-ink); font: 700 16px var(--font-body); cursor: pointer; }
 .gs-rp-scrub { width: 100%; accent-color: var(--primary); margin: 0; }
+/* the timeline: the win-chance lines behind the scrubber (44 px to touch), dots = the review's exact points */
+.gs-rp-tl { position: relative; height: 48px; border-radius: 10px; background: var(--gs-grid, rgba(0,0,0,.05)); }
+.gs-rp-chart { position: absolute; inset: 4px 10px; width: calc(100% - 20px); height: calc(100% - 8px); overflow: visible; pointer-events: none; }
+.gs-rp-chart polyline { fill: none; stroke: var(--pc); stroke-width: 1.8; stroke-linejoin: round; opacity: .7; }
+.gs-rp-dots { position: absolute; inset: 4px 10px; pointer-events: none; }
+.gs-rp-dots i { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 1.5px var(--float, #fff), 0 0 0 2.6px var(--heading); }
+.gs-rp-cur { position: absolute; top: 2px; bottom: 2px; width: 2px; margin-left: -1px; background: var(--heading); opacity: .45; border-radius: 1px; pointer-events: none; left: 0; }
+.gs-rp-tl .gs-rp-scrub { position: absolute; inset: 0; width: 100%; height: 100%; background: none; -webkit-appearance: none; appearance: none; cursor: pointer; }
+.gs-rp-tl .gs-rp-scrub::-webkit-slider-runnable-track { height: 100%; background: none; }
+.gs-rp-tl .gs-rp-scrub::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 44px; margin-top: 2px; border-radius: 8px; background: var(--primary); opacity: .32; border: 2px solid var(--primary); }
+.gs-rp-tl .gs-rp-scrub::-moz-range-thumb { width: 18px; height: 40px; border-radius: 8px; background: transparent; border: 2px solid var(--primary); }
+.gs-rp-tl .gs-rp-scrub::-moz-range-track { background: none; }
+.gs-rp-tl .gs-rp-scrub:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 10px; }
+.gs-rp-row2 { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.gs-rp-wi { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 10px; border-radius: 12px; border: var(--btn-border); background: var(--btn); color: var(--btn-ink); font: 750 13.5px var(--font-body); cursor: pointer; white-space: nowrap; }
+.gs-rp-wi i { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1.6px solid currentColor; font: italic 800 12px/1 Georgia, serif; }
+.gs-rp-wi[aria-expanded="true"] { background: var(--btn-on); color: var(--btn-on-ink); }
+.gs-rp-note { margin: 8px 2px 0; font-size: 13.5px; line-height: 1.4; color: var(--ink); }
+.gs-rp-note b.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 1.5px var(--float, #fff), 0 0 0 2.6px var(--heading); vertical-align: middle; margin: 0 2px; }
+/* a tap on the board: a short pause / play sign in the middle */
+.gs-rp-tapfx { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; background: rgba(0,0,0,.42); opacity: 0; pointer-events: none; }
+.gs-rp-tapfx::before, .gs-rp-tapfx::after { content: ""; position: absolute; top: 20px; height: 24px; background: #fff; }
+.gs-rp-tapfx.pz::before { left: 22px; width: 7px; } .gs-rp-tapfx.pz::after { left: 35px; width: 7px; }
+.gs-rp-tapfx.pl::before { left: 26px; width: 0; height: 0; background: none; border-left: 18px solid #fff; border-top: 12px solid transparent; border-bottom: 12px solid transparent; } .gs-rp-tapfx.pl::after { display: none; }
+.gs-rp-tapfx.go { animation: rpTap 650ms ease-out both; }
+@keyframes rpTap { 0% { opacity: .95; transform: scale(.85); } 100% { opacity: 0; transform: scale(1.15); } }
+.gs-replay.is-paused .gs-rp-board::after { content: "Paused"; position: absolute; left: 12px; top: 10px; padding: 3px 10px; border-radius: 999px; background: rgba(0,0,0,.4); color: #fff; font: 700 12.5px var(--font-body); pointer-events: none; }
+.gs-replay.rv-show.is-paused .gs-rp-board::after { display: none; }
 .gs-fly { position: absolute; z-index: 3; display: inline-flex; align-items: center; gap: 2px; padding: 3px 8px; border-radius: 999px; background: var(--pc); color: var(--pc-ink); font: 800 14px var(--font-display); box-shadow: 0 0 0 2px #fff, 0 4px 12px rgba(0,0,0,.25); pointer-events: none; }
 .gs-fly .ic { font-size: 15px; }
 .gs-replay.timelapse { cursor: pointer; }
@@ -325,7 +366,18 @@ html[data-motion="reduced"] .ls-sheet.in { animation: none; }
 /* ── v1.11 end screen: result card → review card → look back → highlights → game stats ── */
 .gs-scroll > .gs-recap, .gs-scroll > .rv1, .gs-scroll > .gs-card { margin-bottom: 10px; }
 .gs-tab { flex: none; padding: 0 14px; white-space: nowrap; }
-.gs-pastlab { margin: 2px 6px 8px; font: 800 12px var(--font-body); letter-spacing: .04em; text-transform: uppercase; color: var(--float-ink, var(--heading)); opacity: .85; }
+/* v1.26 the end screen's top bar: Home (a game just played) or Back to Past games (a past game), as on the Past games / Bots pages */
+.gs-top { flex: none; display: flex; align-items: center; gap: 10px; padding: max(8px, env(safe-area-inset-top)) 12px 2px; color: #fff; }
+.gs-top + .gs-scroll { padding-top: 6px; }
+.gs-homebtn { flex: none; display: inline-flex; align-items: center; gap: 7px; height: 44px; padding: 0 16px 0 12px; border-radius: 999px; border: var(--btn-border); background: var(--btn); color: var(--btn-ink); box-shadow: var(--btn-shadow); font: 750 14.5px var(--font-body); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.gs-homebtn .ic { width: 22px; height: 22px; }
+.gs-top button:focus-visible { outline: 3px solid #FFD25A; outline-offset: 2px; }
+.gs-toplab { min-width: 0; }
+.gs-toplab h3 { margin: 0; font: var(--display-weight, 700) 20px/1.1 var(--font-display); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.gs-toplab small { display: block; font-size: 12px; font-weight: 650; opacity: .95; text-shadow: 0 1px 2px rgba(0,0,0,.3); }
+/* Back gesture with nothing open in a running game (src/nav.js) */
+.nav-toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 200; max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 999px;
+  background: rgba(20,28,34,.92); color: #fff; font: 700 13.5px/1.25 var(--font-body); text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.25); pointer-events: none; animation: fadeIn 160ms ease; }
 .gs-ov { margin-bottom: 0; }
 .gs-lh { font: var(--display-weight, 700) 17px/1.2 var(--font-display); color: var(--heading); margin: 0 2px 8px; }
 .gs-look.gs-card { padding: 12px; }
