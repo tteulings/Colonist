@@ -163,6 +163,8 @@ const AI_PRESETS = {
   master:       { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "master" },
   // v1.10: the Master's search with ten times the thinking (up to 1000 rollouts, 14 turns deep, ~3 s a move); Island board, Classic and Rush, 2–6 players
   super:        { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "super" },
+  // bot-125 (working name "Super Expert+"): the Super Expert's search, scored at the end of every playout by the boosted value model (leaf "gbm")
+  superplus:    { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "superplus" },
 };
 
 // Player-facing names, short taglines and badge glyphs for the presets ("custom" = hand-tuned mix)
@@ -176,6 +178,7 @@ const AI_PRESET_INFO = {
   shark:        { label: "Shark",        tagline: "hunts the leader",     glyph: "\u25b2", isNew: true },
   master:       { label: "Master",       tagline: "Expert + looks ahead", glyph: "\u2605", isNew: true },
   super:        { label: "Super Expert", tagline: "Master with 10x more thinking", glyph: "\u2605\u2605", isNew: true },
+  superplus:    { label: "Super Expert+", tagline: "Super Expert with a learned eye", glyph: "\u2605\u2605+", isNew: true },
   custom:       { label: "Custom",       tagline: "your mix",             glyph: "" },
 };
 
@@ -9085,6 +9088,7 @@ class ColonistFullGame {
     };
     // v1.10 Super Expert / v1.17: searched on the island board (Classic and Rush, 2\u20136 players); Seafarers: greyed out, with the reason
     const superOff = () => (d.board === "seafarers" ? "Seafarers" : "");
+    const isSup = (k) => k === "super" || k === "superplus"; // bot-125: Super Expert+ has the same reach (not in Seafarers)
     const botPreset = (i) => (d.botStyleMode === "each" ? d.perBot[i] : d.allPreset);
     const botStrategy = (i) => (d.botStyleMode === "each" ? AI_PRESETS[d.perBot[i]] : d.allStrategy);
     const diceHelp = {
@@ -9150,19 +9154,20 @@ class ColonistFullGame {
         : `<div class="hs-seat-name">${esc(cfg.name)}${badge(botPreset(id - 1))}</div>`;
       const sel = !human && d.botStyleMode === "each" ? `
         <select class="ng-bot-select" data-bot="${id - 1}" aria-label="${esc(cfg.name)} personality">
-          ${Object.keys(AI_PRESETS).map((key) => `<option value="${key}"${d.perBot[id - 1] === key ? " selected" : ""}${key === "super" && superOff() ? " disabled" : ""}>${presetLabel(key)}${key === "super" && superOff() ? ` (not in ${superOff()})` : ""}</option>`).join("")}
+          ${Object.keys(AI_PRESETS).map((key) => `<option value="${key}"${d.perBot[id - 1] === key ? " selected" : ""}${isSup(key) && superOff() ? " disabled" : ""}>${presetLabel(key)}${isSup(key) && superOff() ? ` (not in ${superOff()})` : ""}</option>`).join("")}
         </select><button type="button" class="bp-info" data-info="${d.perBot[id - 1]}" aria-label="About the ${presetLabel(d.perBot[id - 1])} profile">i</button>` : "";
       return `<div class="hs-seat pc-${id}">${avatarSvg(id, "ng-bot-avatar")}<div class="hs-seat-main">${main}</div>${kind}${sel}</div>`;
     }).join("");
 
     const render = () => {
       const presetKeys = [...Object.keys(AI_PRESETS), "custom"];
-      if (superOff() && (d.allPreset === "super" || d.perBot.includes("super"))) { // not a silent fallback: say it
-        d._superNote = `Super Expert is not available in ${superOff()}: switched to Master.`;
-        if (d.allPreset === "super") { d.allPreset = "master"; d.allStrategy = { ...AI_PRESETS.master }; }
-        d.perBot = d.perBot.map((k) => (k === "super" ? "master" : k));
+      if (superOff() && (isSup(d.allPreset) || d.perBot.some(isSup))) { // not a silent fallback: say it
+        const nm = AI_PRESET_INFO[isSup(d.allPreset) ? d.allPreset : d.perBot.find(isSup)].label;
+        d._superNote = `${nm} is not available in ${superOff()}: switched to Master.`;
+        if (isSup(d.allPreset)) { d.allPreset = "master"; d.allStrategy = { ...AI_PRESETS.master }; }
+        d.perBot = d.perBot.map((k) => (isSup(k) ? "master" : k));
       }
-      const superPicked = !superOff() && (d.botStyleMode === "each" ? d.perBot.slice(0, d.numBots).some((k, i) => k === "super" && !(d.mode !== "rush" && d.humans[i])) : d.allPreset === "super");
+      const superPicked = !superOff() && (d.botStyleMode === "each" ? d.perBot.slice(0, d.numBots).some((k, i) => isSup(k) && !(d.mode !== "rush" && d.humans[i])) : isSup(d.allPreset));
       const superHelp = d._superNote ? `<p class="ng-help ng-super-help warn" role="status">${d._superNote}</p>` : superPicked ? `<p class="ng-help ng-super-help">${d.mode === "rush" ? "Rush: a quarter of a second per move, so about a Master there." : "~3 s per move."} Not in Seafarers.</p>` : "";
       overlay.innerHTML = `
         <div class="ng-card">
@@ -9276,7 +9281,7 @@ class ColonistFullGame {
                 <div class="ng-presets">
                   ${presetKeys.map((key) => {
                     const info = AI_PRESET_INFO[key];
-                    const off = key === "super" && superOff();
+                    const off = isSup(key) && superOff();
                     return `<button type="button" class="ng-preset${d.allPreset === key ? " selected" : ""}${off ? " off" : ""}" data-preset="${key}" aria-pressed="${d.allPreset === key}"${off ? ` disabled aria-disabled="true"` : ""}>
                       <span class="ng-preset-name">${info.label}</span>
                       <span class="ng-preset-tag">${off ? `Not in ${off}` : info.tagline}</span>
@@ -9461,7 +9466,7 @@ class ColonistFullGame {
       const key = hl.active && hl.active !== "custom" ? hl.active : hl.closest;
       const lvl = BOT_PROFILES[key]?.level;
       pv.innerHTML = hl.mixed ? `<b>${who}</b> differ. Pick a card to match them.`
-        : `<b>${who}</b> ${all && aiPlayers.length > 1 ? "play" : "plays"} ${hl.active === "custom" ? `a custom mix, closest to ${AI_PRESET_INFO[key]?.label}` : `like ${AI_PRESET_INFO[key]?.label}`}${lvl ? ` ${dots(lvl, "bp-dots", BOT_PROFILES[key].beyond)}` : ""}${key === "super" && superOff(this) ? ` <small class="bs-warn">Not searched in ${superOff(this) === "5\u20136 players" ? "5\u20136 player games" : superOff(this)}: it plays as an Expert here.</small>` : ""}`;
+        : `<b>${who}</b> ${all && aiPlayers.length > 1 ? "play" : "plays"} ${hl.active === "custom" ? `a custom mix, closest to ${AI_PRESET_INFO[key]?.label}` : `like ${AI_PRESET_INFO[key]?.label}`}${lvl ? ` ${dots(lvl, "bp-dots", BOT_PROFILES[key].beyond)}` : ""}${(key === "super" || key === "superplus") && superOff(this) ? ` <small class="bs-warn">Not searched in ${superOff(this) === "5\u20136 players" ? "5\u20136 player games" : superOff(this)}: it plays as an Expert here.</small>` : ""}`;
       panel.appendChild(pv);
     }
 

@@ -36,6 +36,11 @@ export const BOT_STATS = {
     win: { v: null, ci: null, n: 400, setup: null, code: "v1.10", date: "2026-11-04", label: "early test",
       text: "+8 pp vs Master", src: "Early test, not final: about +8 pp over the Master in the same seat (400 games against 3 Experts, ±3). To be measured again." },
   },
+  // bot-125 Super Expert+ (working name): the Super Expert's search with the gbm leaf. No number until the paired runs are in.
+  superplus: {
+    win: { v: null, ci: null, n: null, setup: null, code: "bot-125", date: "2026-11-09", label: "early test",
+      text: "not measured", src: "New: the Super Expert's search with the learned position score (gbm). Not measured yet; the paired runs are under way." },
+  },
 };
 
 /** Review accuracy of a bot level: { v, se, n, setup, code, date, label } (from review/bands.js) or an "unknown" entry. */

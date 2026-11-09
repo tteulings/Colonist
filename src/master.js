@@ -14,12 +14,16 @@ export const MASTER_BUDGET = { n: 100, timeMs: 500 };
 // 14 turns deep (18 in set-up). `leaf` is the one place that picks the position evaluator at the end of a rollout (v1 now).
 // earlyZ/earlyMin: stop once one move leads all others by 3 standard errors after 40 futures (saves time in clear spots).
 export const SUPER_BUDGET = { n: 1000, timeMs: 3000, timeSlice: true, depth: 14, setupDepth: 18, earlyZ: 3, earlyMin: 40 };
-/** The search budget of a policy ("master" | "super"). */
-export const budgetFor = (policy, rush = false) => (rush ? { ...RUSH_BUDGET } : { ...(policy === "super" ? SUPER_BUDGET : MASTER_BUDGET) });
+// bot-125 "Super Expert+" (working name): the Super Expert's budget, but every playout ends in the boosted value model
+// (src/master/leaf-gbm.js, the review's leaf) instead of the v1 score. Rush: the same small Rush cap, with the gbm leaf too.
+export const SUPER_PLUS_BUDGET = { ...SUPER_BUDGET, leaf: "gbm" };
+/** The search budget of a policy ("master" | "super" | "superplus"). */
+export const budgetFor = (policy, rush = false) => (rush ? { ...RUSH_BUDGET, ...(policy === "superplus" ? { leaf: "gbm" } : {}) }
+  : { ...(policy === "superplus" ? SUPER_PLUS_BUDGET : policy === "super" ? SUPER_BUDGET : MASTER_BUDGET) });
 // v1.17 Rush: a bot moves every 1-2 s while the dice clock runs, so its search gets a small cap (the 7's robber too; set-up has no clock
 // and keeps the full budget). Master and Super Expert search alike there (a Super Expert's longer look-ahead needs the time it doesn't get).
 export const RUSH_BUDGET = { n: 100, timeMs: 250, depth: 8, setupDepth: 12 };
-export const isSearchPolicy = (policy) => policy === "master" || policy === "super";
+export const isSearchPolicy = (policy) => policy === "master" || policy === "super" || policy === "superplus";
 const ASK_TIMEOUT_MS = 6000;   // a decision that takes longer falls back to the Expert (the cap + 3 s: Super Expert 3 s + 3 s)
 const READY_TIMEOUT_MS = 8000;
 // Pacing: the Expert makes all its builds of a turn at once; a Master shows each searched step, a short
@@ -105,7 +109,7 @@ export const MasterMixin = {
     const gen = this.gameGen;
     const r = this._masterReq(kind, player);
     const pre = this._masterPre?.key === r.key ? this._masterPre.promise : null;
-    this._masterBusy = { pid: player.id, kind, t0: pre ? this._masterPre.t0 : performance.now(), cap: r.cap, super: player.strategy?.policy === "super" };
+    this._masterBusy = { pid: player.id, kind, t0: pre ? this._masterPre.t0 : performance.now(), cap: r.cap, super: player.strategy?.policy === "super" || player.strategy?.policy === "superplus" };
     try { this.renderLog(); this.renderStatusAndControls(); } catch (_) { /* headless */ } // the dock says "… is thinking…"
     this._thinkTick(true);
     this._masterPre = null;
