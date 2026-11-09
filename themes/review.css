@@ -284,3 +284,5 @@
 .rs-lrow .c { color: var(--ink-soft); font-size: 12px; font-variant-numeric: tabular-nums; } .rs-lrow b { font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; min-width: 64px; }
 .rs-lrow small { grid-column: 2 / -1; margin-top: -3px; font-size: 11.5px; font-weight: 650; color: var(--ink-soft); } .rs-lrow small:empty { display: none; }
 .rs-dice .rs-lost { margin: 6px 2px 0; } .rs-dice { scroll-margin-top: 8px; }
+.rs-sl > button.rs-lt { display: block; width: 100%; box-sizing: border-box; text-align: left; } .rs-sl > button.rs-lt b { display: block; font-size: 20px; white-space: nowrap; }
+.rv1-sum > div:last-child b { font-size: 17px; white-space: nowrap; }
