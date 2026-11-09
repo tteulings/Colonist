@@ -35,6 +35,7 @@ function earlyLead(alive, vals, z, nMin) {
  */
 export async function parallelDecide(send, W, msg) {
   const o = { ...DEF, ...(msg.opts || {}) };
+  if (msg.kind === "setup" && o.setupTimeMs) o.timeMs = o.setupTimeMs; // a set-up spot's own (longer) budget, as in search.js decide
   const sid = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
   const t0 = now();
   const preps = await Promise.all(Array.from({ length: W }, (_, w) => send(w, { ...msg, type: "sprep", sid })));

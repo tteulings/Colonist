@@ -121,8 +121,9 @@ export const MasterMixin = {
     const key = JSON.stringify([kind, player.id, pos, trk, this.turnSerial]);
     const opts = budgetFor(player.strategy?.policy, this.isRush() && !this.setupPhase);
     const msg = { type: "decide", kind, state, trk, turnSerial: this.turnSerial, seat: player.id, opts };
-    if (player.strategy?.policy === "grandmaster") return { key, cap: opts.timeMs, send: () => grandmasterRequest(msg, Math.max(ASK_TIMEOUT_MS, opts.timeMs + 3000)) };
-    return { key, cap: opts.timeMs, send: () => masterRequest(msg, Math.max(ASK_TIMEOUT_MS, opts.timeMs + 3000)) };
+    const cap = kind === "setup" && opts.setupTimeMs ? opts.setupTimeMs : opts.timeMs; // eng-130: a set-up spot may have its own budget
+    if (player.strategy?.policy === "grandmaster") return { key, cap, send: () => grandmasterRequest(msg, Math.max(ASK_TIMEOUT_MS, cap + 3000)) };
+    return { key, cap, send: () => masterRequest(msg, Math.max(ASK_TIMEOUT_MS, cap + 3000)) };
   },
   /** Right after a Master's roll: start its first main-phase search during the usual pause before a bot
    *  acts (the answer is used only if nothing changed in between). */

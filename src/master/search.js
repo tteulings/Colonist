@@ -320,7 +320,11 @@ export function makeMaster(opts = {}) {
     if (!P) return null;
     seedRng(g, p);
     stats.decisions++;
-    const rec = search(g, p.id, P.cands, P.apply, P.depth);
+    // eng-130 o.setupTimeMs: a set-up spot gets its own (longer) time budget (it shapes the whole game; only 2 per player)
+    const keepT = o.timeMs;
+    if (kind === "setup" && o.setupTimeMs) o.timeMs = o.setupTimeMs;
+    let rec;
+    try { rec = search(g, p.id, P.cands, P.apply, P.depth); } finally { o.timeMs = keepT; }
     (kind === "setup" ? stats.setupMs : kind === "robber" ? stats.robMs : stats.mainMs).push(rec.ms);
     rec.kind = P.kind;
     rec.cands = P.named();
