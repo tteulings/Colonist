@@ -317,7 +317,7 @@
 .rt-foot { margin: 8px 2px 0; font-size: 11px; line-height: 1.35; color: var(--ink-soft); font-weight: 600; }
 [data-rvbox] > .rt { margin: 0 0 10px; border-radius: 12px; background: var(--chip); background-image: none; border: var(--chip-border); box-shadow: none; }
 /* step mode: whose moves */
-.rs-who { padding: 0 !important; min-width: 52px !important; gap: 2px; display: inline-flex; align-items: center; justify-content: center; }
+.rs-who { padding: 0 !important; min-width: 52px !important; min-height: 44px !important; gap: 2px; display: inline-flex; align-items: center; justify-content: center; }
 .rs-who .rt-av { --av: 28px; }
 .rs-who .cv { width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg) translateY(-2px); margin-left: 3px; }
 .rs-whopop { position: absolute; top: calc(max(8px, env(safe-area-inset-top)) + 54px); right: 10px; z-index: 40; width: min(300px, calc(100% - 20px)); max-height: 70%; overflow: auto;
@@ -327,3 +327,5 @@
 .rs-whopop button > span { min-width: 0; }
 .rs-whopop button.on { background: color-mix(in srgb, var(--primary) 12%, transparent); }
 .rs-whopop b { display: block; font-size: 14px; font-weight: 800; color: var(--heading); } .rs-whopop small { display: block; font-size: 11.5px; color: var(--ink-soft); font-weight: 650; }
+.rs-bar.w { gap: 6px; } .rs-bar.w .rs-ov { padding: 0 12px !important; font-size: 14px; min-width: 0; }
+.rs-bar.w > div { min-width: 0; } .rs-bar.w h3, .rs-bar.w small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -155,6 +155,7 @@ export const ReviewMixin = {
   /** The plan for the others: everyone's quick round first (a ranking at once), then the deep round per OTHERS.deep. */
   _rvOthersPlan() {
     const bots = this._rvOthers(), out = [];
+    bots.forEach((p) => { if (this._rv.revs[p.id]) this._rv.revs[p.id].stopped = false; }); // a Stop holds for this sitting; opened again, they go on where they were
     bots.forEach((p) => { if (!this._rvCovered1(p.id)) out.push({ pid: p.id, stage: "quick" }); });
     bots.forEach((p) => { if (!this._rvReviewComplete(p.id) && !(OTHERS.deep === "top" && this._rv.revs[p.id]?.top)) out.push({ pid: p.id, stage: OTHERS.deep === "top" ? "top" : "deep" }); });
     return out;
@@ -291,7 +292,9 @@ export const ReviewMixin = {
       this._rvReviewRun(q[0], null).then((rv) => { if (rv?.done && this._rv === R) this._rvRender?.(); });
     }, 0);
     // v1.29 a past game opened again: the others' check goes on where it stopped (once every person's own review is done)
-    if (!auto) setTimeout(() => { if (this._rv === R && !R.run && R.bots && this.players.filter((p) => p.isHuman && this._rvTodo(p.id).length).every((p) => this._rvReviewComplete(p.id))) this._rvQueueNext(); }, 0);
+    let autoOn = true;
+    try { autoOn = localStorage.getItem("colonist_review_auto") !== "off"; } catch (_) { autoOn = true; }
+    if (!auto && autoOn) setTimeout(() => { if (this._rv === R && !R.run && R.bots && this.players.filter((p) => p.isHuman && this._rvTodo(p.id).length).every((p) => this._rvReviewComplete(p.id))) this._rvQueueNext(); }, 0);
     if (!masterAvailable()) { R.res = { findings: [], none: true }; return; }
     R.busy = true;
     const id = R.id;

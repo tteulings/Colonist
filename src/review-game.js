@@ -203,7 +203,8 @@ export const ReviewGameMixin = {
     };
     const items = rows.map(({ p, s, lv }) => {
       const nm = this._rvNm(p.id), n = s.sum?.n ?? null;
-      const sub = [lv?.label, s.st === "norec" ? "moves not recorded" : n != null ? `${n} real ${n === 1 ? "choice" : "choices"}` : s.todo ? `${s.todo} decisions` : "", lv?.band && s.st !== "norec" ? `expected ${Math.round(lv.band[0])} ± ${Math.round(lv.band[1])}` : ""].filter(Boolean).join(" · ");
+      const sub = [lv?.label, s.st === "norec" ? "moves not recorded" : n != null ? `${n} real ${n === 1 ? "choice" : "choices"}` : s.todo ? `${s.todo} decisions` : ""].filter(Boolean).join(" · ")
+        + (lv?.band && s.st !== "norec" ? `<br>expected ${Math.round(lv.band[0])} ± ${Math.round(lv.band[1])}` : "");
       const bar = s.sum?.acc != null ? `<i class="rt-bar" aria-hidden="true"><i style="width:${Math.max(2, Math.min(100, s.sum.acc))}%"></i>${lv?.band ? `<i class="bd" style="left:${Math.max(0, lv.band[0] - lv.band[1])}%;width:${2 * lv.band[1]}%"></i>` : ""}</i>` : "";
       const w = s.worst, ico = IC.next.replace("<svg", '<svg class="chev"');
       const worst = w ? `<button type="button" class="rt-w" data-rvworst="${p.id}:${w.i}" aria-label="Biggest mistake of ${nm}: ${this._rvWhen(w)}, ${esc(this._rvTerse(w))}, minus ${w.gp}%. Show the move">${badge(w.cls, "sm")}<span class="t">${this._rvWhen(w).replace(/^(Turn|Roll) /, this.isRush?.() ? "R" : "T")}</span><span class="x">${esc(this._rvTerse(w))}</span><b class="neg">−${w.gp}%</b>${ico}</button>`
@@ -355,7 +356,7 @@ export const ReviewGameMixin = {
     // v1.29 straight to a move (the table's biggest mistake), or the same moment for another player (step mode's Whose moves)
     const step = at != null ? at : near != null ? this._rvNearI(pid, near) : null;
     if (step != null) this._rvQ = "all";
-    if (this._rvReviewComplete(pid)) { this._rvDrawReview(step); return; }
+    if (this._rvReviewComplete(pid)) { this._rvDrawReview(step); if (!mid) setTimeout(() => this._rvQueueNext?.(), 0); return; } // (your review done: the others follow)
     this._rvDrawReview(step);
     this._rvReviewRun(pid, live, { mid }).then((rv) => { if (this._rvEl !== el) return; this._rvLive(true); if (rv?.done) this._rvRender(); });
   },
@@ -636,7 +637,7 @@ export const ReviewGameMixin = {
     const many = !mid && this.players.filter((p) => this._rvTodo(p.id).length && (p.isHuman || this._rv.bots)).length > 1;
     const whoBtn = many ? `<button type="button" class="rv-btn rs-who" data-rvwho aria-haspopup="menu" aria-label="Whose moves: ${who}. Change">${this._av(this.players[me], "rt-av")}<i class="cv" aria-hidden="true"></i></button>` : "";
     el.className = `rv rs step tm${mid ? " noboard" : ""}${x.why && !noA ? " hw" : ""}`; el.dataset.show = show;
-    el.innerHTML = `<div class="rv-bar rs-bar"><button type="button" class="rv-btn" data-rvclose-step aria-label="Back to the overview">${IC.back}</button><div><h3>${this._rvWhen(d)}</h3><small>${k + 1} of ${list.length}${this._rvQ === "imp" ? " · could be better" : ""}${prov ? " · provisional" : ""}</small></div>${whoBtn}<button type="button" class="rv-btn pri rs-ov" data-rvclose-step>Overview</button><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review">${IC.info}</button></div>
+    el.innerHTML = `<div class="rv-bar rs-bar${whoBtn ? " w" : ""}"><button type="button" class="rv-btn" data-rvclose-step aria-label="Back to the overview">${IC.back}</button><div><h3>${this._rvWhen(d)}</h3><small>${k + 1} of ${list.length}${this._rvQ === "imp" ? " · could be better" : ""}${prov ? " · provisional" : ""}</small></div>${whoBtn}<button type="button" class="rv-btn pri rs-ov" data-rvclose-step>Overview</button><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review">${IC.info}</button></div>
       ${this._rvProgHtml(this._rvPid)}
       <div class="rs-stage"><div class="rs-eval">${evalHtml}</div>
         ${mid ? "" : `<div class="rs-board"><canvas></canvas><svg class="rs-marks" aria-hidden="true"></svg><div class="rs-wc" aria-hidden="true">${wcHtml}</div><button type="button" class="rs-pbp" data-rvpbp aria-label="Play by play: every move since your last decision">${IC.step}<span>Play</span></button>${noA ? "" : `<div class="rs-tog" role="group" aria-label="Show on the board"><button type="button" data-rvab="A" class="${show === "A" ? "on" : ""}" aria-label="Better move"><s>A</s></button><button type="button" data-rvab="both" class="${show === "both" ? "on" : ""}">A + B</button><button type="button" data-rvab="B" class="${show === "B" ? "on" : ""}" aria-label="What you did"><s class="alt">B</s></button></div>`}</div>`}</div>
