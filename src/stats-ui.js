@@ -164,6 +164,7 @@ export const StatsUiMixin = {
     const turns = this.isRush() ? `${this.rush?.rollNo ?? st?.N ?? 0}` : `${this.turn}`;
     const hl = st ? this._stHighlights(st) : [];
     overlay.innerHTML = `
+      <div class="gs-top"><button type="button" class="gs-homebtn" data-gsback aria-label="Home"><svg class="ic" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg><span>Home</span></button></div>
       <div class="gs-scroll">
         <section class="gs-recap over-panel" aria-label="Recap">
           <div class="gs-rhead">${this._stPortrait(winner.id, "gs-win-por", 52)}<div><h3>${this._stWinsText(winner)}</h3>
@@ -189,6 +190,7 @@ export const StatsUiMixin = {
     this._stOverlay = overlay;
     overlay.querySelector("[data-rematch]").addEventListener("click", () => { this.removeGameOverOverlay(); this.stopAutoplay(); this.startNewGame({ ...this.settings }); });
     overlay.querySelector("[data-change]").addEventListener("click", () => { this.removeGameOverOverlay(); this.stopAutoplay(); this._showDifficultyModal(); });
+    overlay.querySelector("[data-gsback]").addEventListener("click", () => this._stLeave()); // v1.26 the way out, top left
     overlay.querySelector("[data-see]").addEventListener("click", () => this._stSeeBoard(overlay));
     overlay.querySelector("[data-pastgames]").addEventListener("click", () => { if (this._histView) this.histExit?.(); else { this._histEndOpen = true; this.histOpen?.(); } });
     overlay.querySelector("[data-replay]")?.addEventListener("click", () => this._rpStart("replay"));
@@ -197,6 +199,14 @@ export const StatsUiMixin = {
     if (st) this._stTab("race", true);
     if (skipIntro) this._stAnimateIn(overlay.querySelector(".gs-pane"));
     else this._stIntro(overlay, st, reduced, rank);
+  },
+
+  /** v1.26 Leave the end screen (top-left button, Back): a past game goes back to the list, a game just played to Home. */
+  _stLeave() {
+    if (this._histView) { this.histExit?.(); return; }
+    this.removeGameOverOverlay();
+    this.stopAutoplay?.();
+    this.goHome();
   },
 
   /** v1.11 Final board: the results hide (they are not thrown away) and a "Results" pill brings them back. */
