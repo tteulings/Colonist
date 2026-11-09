@@ -7,6 +7,7 @@
 //     the AI Lab's own table (same terms, colours and letters as its Choice step).
 // Pass & play: each person gets their own lines under their name. Styles: themes/review.css.
 import { summarize, decide, totals } from "./review/evaluate.js";
+import { tileOf } from "./review/luck.js";
 const R5 = [["wood", "Lumber"], ["brick", "Brick"], ["sheep", "Wool"], ["wheat", "Grain"], ["ore", "Ore"]];
 const TERM_COLOR = { vp: "#C0548A", prod: "#6E9A2A", win: "#E0A82E", eta: "#8A8F94", block: "#5B6B8C", leader: "#D9714E", own: "#8A8F94", steal: "#C99A2E", sets: "#C99A2E", build: "#3C75C6" };
 export const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -78,11 +79,11 @@ export const ReviewUiMixin = {
       const lead = list.length ? (solo ? (full ? "Your biggest mistakes. Tap one to see it on the board." : "Quick look while the full review runs. Tap one to see it on the board.") : "")
         : full && this._rvBadCount?.(p.id) ? `${this._rvBadCount(p.id)} of your moves could be better. Open the review to step through ${this._rvBadCount(p.id) > 1 ? "them" : "it"}.`
         : full || this.hotseat ? "No clear mistake found in this game." : "The full review checks every move of yours with a deep Monte Carlo (1000 futures).";
-      // v1.22 the finished review in three numbers: accuracy, Your moves, Luck (whole %)
+      // v1.22 the finished review in three numbers: accuracy, Your moves (whole %), Dice luck (cards)
       let sumHtml = "";
       if (solo && full) {
-        const rv = this._rvOf(p.id), sm = summarize(rv.results), T = totals(this._rvDecisions(rv.results.filter((x) => !x.skip || x.skip === "trivial"))), sg = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v)}%`;
-        sumHtml = `<div class="rv1-sum"><div class="acc"><b>${sm.acc ?? "–"}</b><small>accuracy</small></div><div><b class="${T.moves < 0 ? "neg" : ""}">${sg(T.moves)}</b><small>Your moves</small></div><div><b class="${T.luck >= 0 ? "pos" : "neg"}">${sg(T.luck)}</b><small>Luck</small></div></div>`;
+        const rv = this._rvOf(p.id), sm = summarize(rv.results), T = totals(this._rvDecisions(rv.results.filter((x) => !x.skip || x.skip === "trivial"))), sg = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v)}%`, tile = tileOf(this._rvLuck(p.id));
+        sumHtml = `<div class="rv1-sum"><div class="acc"><b>${sm.acc ?? "–"}</b><small>accuracy</small></div><div><b class="${T.moves < 0 ? "neg" : ""}">${sg(T.moves)}</b><small>Your moves</small></div><div><b class="${tile.cls}">${tile.n}</b><small>Dice luck${tile.n === "n/a" ? "" : ` · ${esc(tile.sub)}`}</small></div></div>`;
       }
       return `<div class="rv1${solo ? " gs-revcard" : ""}" data-rvp="${p.id}"><div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Your game review" : `<span class="pc-${p.id} rv-who">${esc(p.name)}</span> · missed chances`}</span><small>${list.length ? (list[0].verified ? "deep Monte Carlo check" : "") : ""}</small></div>
       ${sumHtml}${lead ? `<p class="rv1-lead">${lead}</p>` : ""}
