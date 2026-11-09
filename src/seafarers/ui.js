@@ -98,30 +98,50 @@ export const SeaGame = {
   /** v0.98: the tiny "Road / Ship" chooser by the tapped coast edge (44 px buttons). A pick builds at once when building
    *  is direct, else it becomes the chosen spot (Place / a 2nd tap builds it); a mode-less pick only selects. */
   _seaChoosePiece(player, target, x, y, auto) {
+    const modeless = !this.pendingAction;
+    this._seaOpenChooser(x, y, "Build a road or a ship here", [["road", "Road"], ["ship", "Ship"]].map(([type, label]) => ({
+      piece: type, label, run: () => this._seaPickBuild(player, { type, id: target.id }, modeless, auto) })));
+  },
+
+  /** v1.31 Build the piece picked in a chooser: a mode-less pick only selects; otherwise it builds at once when building
+   *  is direct, else it becomes the chosen spot (Confirm / a 2nd tap builds it). */
+  _seaPickBuild(player, target, modeless, auto = false) {
+    const free = this.freeRoadsRemaining > 0, t = { type: target.type, id: target.id, ambiguous: false };
+    if (this.winner || this.currentPlayer !== player) return;
+    const ok = t.type === "ship" ? this.canBuildShip(player, t.id, { free }) : t.type === "road" ? this.canBuildRoad(player, t.id, { free })
+      : t.type === "city" ? this.canBuildCity(player, t.id, false) : this.canBuildSettlement(player, t.id, false);
+    if (!ok) return;
+    if (modeless) { this.pendingAction = t.type; this.confirmBuild = t; this._cbAt = performance.now(); this._autoPick = true; this.canvas.style.cursor = "crosshair"; this.render(); return; }
+    if (this._confirmLevel() !== "always" && !auto) { this._commitBuild(player, t); return; }
+    if (auto) this.pendingAction = t.type;
+    this.confirmBuild = t;
+    this._cbAt = performance.now();
+    this.render();
+  },
+
+  /** v1.31 A tap that could mean building here or moving your ship: "Settlement · Move ship" (or Road / Ship · Move ship). */
+  _seaChooseShipOrBuild(player, ship, target, x, y) {
+    const modeless = !this.pendingAction;
+    const NAME = { settlement: "Settlement", city: "City", road: "Road", ship: "New ship" };
+    const builds = target.both ? ["road", "ship"] : [target.type];
+    const opts = builds.map((type) => ({ piece: type, label: NAME[type], run: () => this._seaPickBuild(player, { type, id: target.id }, modeless) }));
+    opts.push({ piece: "move", label: "Move ship", run: () => { if (!this.winner && this.currentPlayer === player && this.sea.isShipMovable(player, ship)) this._seaStartMove(player, ship); } });
+    this._seaOpenChooser(x, y, `${builds.map((b) => NAME[b]).join(" or ")}, or move your ship`, opts);
+  },
+
+  /** The tiny chooser by the tapped spot (44 px buttons), shared by Road / Ship and Build / Move ship. */
+  _seaOpenChooser(x, y, aria, opts) {
     this._seaCloseChooser();
     const cr = this.canvas.getBoundingClientRect(), v = this.view;
     const sx = cr.left + v.offsetX + v.scale * x, sy = cr.top + v.offsetY + v.scale * y;
     const el = document.createElement("div");
-    el.className = "sea-chooser"; el.setAttribute("role", "group"); el.setAttribute("aria-label", "Build a road or a ship here");
+    el.className = "sea-chooser"; el.setAttribute("role", "group"); el.setAttribute("aria-label", aria);
     el.style.cssText = "position:fixed;z-index:60;display:flex;gap:6px;padding:5px;border-radius:14px;background:var(--float,#FBF6EA);border:var(--float-border,1px solid rgba(0,0,0,.12));box-shadow:var(--float-shadow,0 6px 18px rgba(0,0,0,.25));font:700 14px/1 var(--font-ui,system-ui);color:var(--ink,#1F1A17)";
-    const modeless = !this.pendingAction;
-    const pick = (type) => {
-      this._seaCloseChooser();
-      const free = this.freeRoadsRemaining > 0, t = { type, id: target.id, ambiguous: false };
-      if (this.winner || this.currentPlayer !== player) return;
-      if (!(type === "ship" ? this.canBuildShip(player, t.id, { free }) : this.canBuildRoad(player, t.id, { free }))) return;
-      if (modeless) { this.pendingAction = type; this.confirmBuild = t; this._cbAt = performance.now(); this._autoPick = true; this.canvas.style.cursor = "crosshair"; this.render(); return; }
-      if (this._confirmLevel() !== "always" && !auto) { this._commitBuild(player, t); return; }
-      if (auto) this.pendingAction = type;
-      this.confirmBuild = t;
-      this._cbAt = performance.now();
-      this.render();
-    };
-    [["road", "Road"], ["ship", "Ship"]].forEach(([type, label]) => {
+    opts.forEach(({ piece, label, run }) => {
       const b = document.createElement("button");
-      b.type = "button"; b.textContent = label; b.dataset.piece = type;
-      b.style.cssText = "min-width:58px;min-height:44px;padding:0 12px;border-radius:10px;border:0;background:var(--chip,rgba(0,0,0,.06));color:inherit;font:inherit;cursor:pointer";
-      b.addEventListener("click", (ev) => { ev.stopPropagation(); pick(type); });
+      b.type = "button"; b.textContent = label; b.dataset.piece = piece;
+      b.style.cssText = "min-width:58px;min-height:44px;padding:0 12px;border-radius:10px;border:0;background:var(--chip,rgba(0,0,0,.06));color:inherit;font:inherit;cursor:pointer;white-space:nowrap";
+      b.addEventListener("click", (ev) => { ev.stopPropagation(); this._seaCloseChooser(); run(); });
       el.appendChild(b);
     });
     document.body.appendChild(el);

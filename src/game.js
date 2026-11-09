@@ -2124,13 +2124,15 @@ class ColonistFullGame {
 
     // ⚓ Seafarers: a lifted ship goes to the tapped dotted spot; a tap on an open-end ship lifts it
     if (this.pendingAction === "moveShip") { this._seaMoveTap(player, x, y); return; }
-    if (this.sea && (!this.pendingAction || this.pendingAction === "build") && !this.freeRoadsRemaining && !this.confirmBuild) {
+    if (this.sea && (!this.pendingAction || this.pendingAction === "build") && !this.freeRoadsRemaining) {
+      // v1.31 a tap that reaches one of your movable ships: the nearer meaning wins (the corner / build spot or the ship);
+      // when it could be either, a small chooser asks (Settlement · Move ship), like the Road / Ship chooser
       const ship = this._seaShipAt(player, x, y);
-      // v0.84: auto-glow is your normal main phase, so a tap on your own ship still lifts it (as before without a mode)
-      const glow = this._isAutoGlow() && this.trayMode !== "build";
-      // v1.20 a tap that also reaches a corner you can settle (the ship's open end often is one) picks the corner, never lifts the ship
-      const corner = glow && (() => { const t = this._buildTargetAt(player, x, y); return !!t && (t.type === "settlement" || t.type === "city"); })();
-      if (ship != null && !corner && (glow || !(this.pendingAction === "build" && this._buildTargetAt(player, x, y)))) { this._seaStartMove(player, ship); return; }
+      if (ship != null) {
+        const intent = this._seaShipTapIntent(player, ship, x, y);
+        if (intent.act === "move") { this._seaStartMove(player, ship); return; }
+        if (intent.act === "ask") { this._seaChooseShipOrBuild(player, ship, intent.target, x, y); return; }
+      }
     }
 
     if (!this.pendingAction) {
@@ -2193,6 +2195,42 @@ class ColonistFullGame {
     this._cbAt = performance.now();
     this.sfx.click();
     this.render();
+  }
+
+  /**
+   * ⚓ v1.31 A tap within reach of your own movable ship: { act: "build" } (go on with the normal build tap),
+   * { act: "move" } or { act: "ask", target }. Distances in CSS px, so the rule is the same at every zoom:
+   *  - a build spot clearly nearer than the ship (a corner within max(36% of an edge, 12 px), or a spot at most
+   *    half as far as the ship's middle) builds; the build card being open also keeps building first (as before);
+   *  - a tap clearly on the ship's middle (at most half as far as the build spot, and at least max(45% of an edge,
+   *    18 px) from the corner) lifts the ship;
+   *  - anything in between asks.
+   */
+  _seaShipTapIntent(player, ship, x, y) {
+    const cb = this.confirmBuild;
+    if (cb && this.hitTestConfirmIcon(x, y)) return { act: "build" };
+    const t = this.pendingAction ? this._buildTargetAt(player, x, y) : this._autoDetectTarget(player, x, y);
+    if (!t) return { act: "move" };
+    if (cb && cb.type === t.type && cb.id === t.id) return { act: "build" }; // a 2nd tap on the shown spot
+    if (this.trayMode === "build") return { act: "build" };
+    const geo = this.geometry, k = this.view.scale || 1;
+    const mid = (id, f) => {
+      const [a, b] = geo.edges[id].nodes.map((n) => geo.nodes[n]);
+      return distancePointToSegment(x, y, a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f, b.x - (b.x - a.x) * f, b.y - (b.y - a.y) * f) * k;
+    };
+    const [sa, sb] = geo.edges[ship].nodes.map((n) => geo.nodes[n]);
+    const L = Math.hypot(sb.x - sa.x, sb.y - sa.y) * k || geo.hexSize * k;
+    const dShip = mid(ship, 0.35);
+    if (t.type === "settlement" || t.type === "city") {
+      const n = geo.nodes[t.id], dB = Math.hypot(x - n.x, y - n.y) * k;
+      if (dB <= Math.max(0.36 * L, 12) || dB * 2 <= dShip) return { act: "build" };
+      if (dShip * 2 <= dB && dB >= Math.max(0.45 * L, 18)) return { act: "move" };
+      return { act: "ask", target: t };
+    }
+    const dB = mid(t.id, 0.25), dS = mid(ship, 0.25);
+    if (dB * 2 <= dS) return { act: "build" };
+    if (dS * 2 <= dB) return { act: "move" };
+    return { act: "ask", target: t };
   }
 
   /** Mode-less tap: a city upgrade, a settlement spot or a road you can afford right now. */
