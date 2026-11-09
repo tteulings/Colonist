@@ -37,7 +37,7 @@ export const REVIEW_ENGINES = {
     // human's (the seat plays on as Expert), the same 300 positions as v1.21, now with the gbm leaf (eng-124). [name, accuracy, SE]
     bands: BOT_BANDS },
   b: { budget: { n: 300, timeMs: 6000, depth: 12, setupDepth: 16 }, sec: 2, bands: null },
-  m100: { budget: { n: 160, timeMs: 700, leaf: "fit" }, sec: 0.5, k: 0.08, trivial: 0.02, scored: ["setup", "build", "bank", "robber", "end"], bands: [["Simple", 85], ["Beginner", 86], ["Intermediate", 88], ["Expert", 89]] },
+  m100: { budget: { n: 160, timeMs: 700, leaf: "fit" }, sec: 0.5, k: 0.08, trivial: 0.02, scored: ["setup", "build", "bank", "robber", "end", "shipmove"], bands: [["Simple", 85], ["Beginner", 86], ["Intermediate", 88], ["Expert", 89]] },
 };
 export const REVIEW_ENGINE = "full";
 export const REVIEW = REVIEW_ENGINES[REVIEW_ENGINE];
@@ -190,7 +190,7 @@ export function summarize(results) {
 // ── v1.21 saved reviews: the same numbers and words for every review, old or new ──
 /** A result that still needs the deep (full) engine: it comes from the quick round (m100) and is a real choice, or the score function (leaf) it was judged by is not the current one. */
 export const needsFull = (x) => !["forced", "n/a"].includes(x.skip) && ((x.eng || "full") === "m100" || (x.leaf || "v1") !== (REVIEW.budget.leaf || "v1"));
-const TODO_KINDS = ["setup", "build", "bank", "buy", "play", "robber", "end"];
+const TODO_KINDS = ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"]; // eng-130 shipmove: Seafarers
 /** The recorded decisions of one person that the review checks (record index i). */
 export const todoOf = (recs, pid) => (recs || []).map((r, i) => [r, i]).filter(([r]) => r.pid === pid && TODO_KINDS.includes(r.k) && !(r.k === "build" && r.a?.free));
 /** Where a review stands: complete (every decision has its deep result), stale (judged by an old score function), checked/total, deep/total. */

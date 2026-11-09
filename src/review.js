@@ -121,7 +121,7 @@ export const ReviewMixin = {
 
   /** The decisions of one person the review checks (record index i). */
   _rvTodo(pid) {
-    const KINDS = ["setup", "build", "bank", "buy", "play", "robber", "end"];
+    const KINDS = ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"]; // eng-130 shipmove: Seafarers
     return (this._rv?.recs || []).map((r, i) => [r, i]).filter(([r]) => r.pid === pid && KINDS.includes(r.k) && !(r.k === "build" && r.a?.free));
   },
   /** A result that still needs the deep (full) engine: it comes from the quick round (m100) and is a real choice. */
