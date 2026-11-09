@@ -37,6 +37,27 @@ function earlyLead(alive, vals, z, nMin) {
   return true;
 }
 
+/** eng-130 Seafarers: pirate hexes that rob someone (legal for the mover, a rival's ship next to it). */
+function pirateHexes(g, p) {
+  if (!g.sea) return [];
+  return g.sea.legalThiefHexes(p, "pirate").filter((h) => h.resource === "sea" && g.sea.shipVictims(h.id, p).length).map((h) => h.id);
+}
+/** eng-130 Seafarers: "Move a ship toward 6·9" (the land end of the edge it moves to, else just "Move a ship"). */
+export function shipBuildLabel(g, p, to) {
+  try {
+    const e = g.geometry.edges[to];
+    const land = e.nodes.find((n) => g.sea?.nodeIsLand(n) && g.geometry.nodes[n].owner !== p.id);
+    return land != null ? `Ship toward ${g._spotLabel(land)}` : "Ship";
+  } catch (_) { return "Ship"; }
+}
+export function shipMoveLabel(g, p, to) {
+  try {
+    const e = g.geometry.edges[to];
+    const land = e.nodes.find((n) => g.sea?.nodeIsLand(n) && g.geometry.nodes[n].owner !== p.id);
+    return land != null ? `Move a ship toward ${g._spotLabel(land)}` : "Move a ship";
+  } catch (_) { return "Move a ship"; }
+}
+
 export function makeMaster(opts = {}) {
   const o = { ...MASTER_OPTS, ...opts };
   const stats = { decisions: 0, deviations: 0, ms: [], setupMs: [], robMs: [], mainMs: [], rollouts: 0, chose: {} };
@@ -164,12 +185,13 @@ export function makeMaster(opts = {}) {
     const sett = [...p.settlements].filter((n) => !pl.sett.includes(n));
     const cities = [...p.cities].filter((n) => !pl.cities.includes(n));
     const roads = [...p.roads].filter((e) => !pl.roads.includes(e));
+    const ships = p.ships && pl.ships ? [...p.ships].filter((e) => !pl.ships.includes(e)) : []; // eng-130 Seafarers
     const devBought = Object.values(p.devCards).reduce((a, b) => a + b, 0) + Object.values(p.newDevCards).reduce((a, b) => a + b, 0)
       - Object.values(pl.dev).reduce((a, b) => a + b, 0) - Object.values(pl.nd).reduce((a, b) => a + b, 0)
       + p.devVictoryPoints - pl.num[0]; // a VP card is a bought card too (else the label would give the top card away); num[0] = devVictoryPoints
     const res = {};
     Object.keys(RES).forEach((r) => { res[r] = p.resources[r] - pl.res[r]; });
-    return { sett, cities, roads, devBought, res };
+    return { sett, cities, roads, ships, shipMoved: !!(p.ships && pl.ships && p.ships.size === pl.ships.length), devBought, res };
   };
   const sig = (g, p) => `${[...p.settlements].sort()}|${[...p.cities].sort()}|${[...p.roads].sort()}|${p.ships ? [...p.ships].sort() : ""}|${JSON.stringify(p.resources)}|${JSON.stringify(p.devCards)}|${JSON.stringify(p.newDevCards)}`;
   const tradeText = (tr) => {
@@ -183,6 +205,7 @@ export function makeMaster(opts = {}) {
   const describeDiff = (g, p, dif, plan) => {
     if (dif.cities.length) return { label: `City on ${g._spotLabel(dif.cities[0])}`, focus: { city: dif.cities[0] } };
     if (dif.sett.length) return { label: `Settlement ${g._spotLabel(dif.sett[0])}`, focus: { node: dif.sett[0] } };
+    if (dif.ships?.length) { const to = dif.ships[0]; const moved = dif.shipMoved; return { label: moved ? shipMoveLabel(g, p, to) : shipBuildLabel(g, p, to), focus: { edge: to } }; }
     if (dif.roads.length) {
       const g0 = plan.goals[0];
       if (g0?.type === "settlement" && g0.dist > 0) return { label: `Road toward ${g._spotLabel(g0.nodeId)}`, focus: { edge: dif.roads[0], node: g0.nodeId } };
@@ -220,7 +243,7 @@ export function makeMaster(opts = {}) {
   agent.decideRobber = (g, p) => {
     const all = g._aiRobberCandidates(p).sort((a, b) => b.score - a.score);
     const def = g.chooseRobberHex(p);
-    const pir = g.sea ? g.sea.legalThiefHexes(p, "pirate").filter((h) => h.resource === "sea" && g.sea.shipVictims(h.id, p).length).map((h) => h.id) : []; // v1.19 Seafarers: pirate hexes that rob someone
+    const pir = pirateHexes(g, p); // v1.19 Seafarers: pirate hexes that rob someone
     const ids = [def, ...all.map((c) => c.id).filter((id) => id !== def), ...pir.slice(0, 2).filter((id) => id !== def)].slice(0, o.topRobber + (pir.length ? 2 : 0));
     if (ids.length <= 1) return null;
     seedRng(g, p);
@@ -229,7 +252,7 @@ export function makeMaster(opts = {}) {
     stats.robMs.push(rec.ms);
     if (rec.pick !== 0) stats.deviations++;
     rec.kind = "robber";
-    rec.cands = ids.map((id) => ({ c: { kind: "hex", hex: id }, label: `Robber on ${g._hexName(id)}`, focus: { hex: id } }));
+    rec.cands = ids.map((id) => ({ c: { kind: "hex", hex: id }, label: g._thiefLabel(id), focus: { hex: id } }));
     agent.last = rec;
     return { choice: ids[rec.pick], record: rec };
   };
@@ -303,7 +326,7 @@ export function makeMaster(opts = {}) {
           label = d ? d.label : "End turn (saves its cards)"; focus = d?.focus || null;
         } else if (c.kind === "end") { label = "End turn"; }
         else if (c.kind === "dev") { label = `Play ${DEV[c.t]}`; }
-        else if (c.kind === "shipmove") { label = "Move a ship"; focus = { edge: c.to }; }
+        else if (c.kind === "shipmove") { label = shipMoveLabel(g, p, c.to); focus = { edge: c.to }; }
         else {
           const goal = findGoal(plan, c.g);
           const gn = goal ? goalName(g, goal) : "Build";
@@ -355,7 +378,8 @@ export function makeMaster(opts = {}) {
       named = [{ c: playedC, label: played.label, focus: { node: played.node } }, ...ids.map((id) => ({ c: { kind: "spot", node: id }, label: `Settlement on ${g._spotLabel(id)}`, focus: { node: id } }))];
     } else if (kind === "robber") {
       const ids = g._aiRobberCandidates(p).sort((a, b) => b.score - a.score).map((c) => c.id).filter((id) => id !== played.hex).slice(0, o.topRobber - 1);
-      named = [{ c: playedC, label: played.label, focus: { hex: played.hex } }, ...ids.map((id) => ({ c: { kind: "hex", hex: id }, label: `Robber on ${g._hexName(id)}`, focus: { hex: id } }))];
+      const pir = pirateHexes(g, p).filter((id) => id !== played.hex && !ids.includes(id)).slice(0, 2); // eng-130 Seafarers: the pirate too
+      named = [{ c: playedC, label: played.label, focus: { hex: played.hex } }, ...[...ids, ...pir].map((id) => ({ c: { kind: "hex", hex: id }, label: g._thiefLabel(id), focus: { hex: id } }))];
     } else {
       const { plan, cands } = withoutAgents(g, () => mainCands(g, p));
       const others = labelMain(g, p, plan, cands);
