@@ -11,10 +11,10 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=129";
-import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor } from "./master.js?v=129";
-import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=129";
-import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=129";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=130";
+import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor } from "./master.js?v=130";
+import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=130";
+import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=130";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -540,7 +540,7 @@ function poolKeys() {
   const all = Object.keys(H.AI_PRESETS);
   return all.slice().sort((a, b) => (P[b]?.level ?? 6) - (P[a]?.level ?? 6) || all.indexOf(a) - all.indexOf(b));
 }
-const isSlow = (s) => s.policy === "master" || s.policy === "super"; // Master / Super Expert: they search, so the games run in the worker
+const isSlow = (s) => s.policy === "master" || s.policy === "super" || s.policy === "superplus"; // Master / Super Expert: they search, so the games run in the worker
 const stratOf = (k) => (k === "mix" ? { ...st.mix } : { ...H.AI_PRESETS[k] });
 const labelOf = (k) => (k === "mix" ? "Custom mix" : k === "random" ? "Random" : presetLabel(k));
 const slowKey = (k) => (k === "mix" ? !!st.mix && isSlow(st.mix) : k !== "random" && !!H.AI_PRESETS[k] && isSlow(H.AI_PRESETS[k]));

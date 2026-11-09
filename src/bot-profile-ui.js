@@ -3,6 +3,7 @@
 // Texts and illustrations live in bot-profiles.js; this file only builds DOM strings and wires the sheet.
 import { BOT_PROFILES as P, profileArt, profileMini, levelFrame } from "./bot-profiles.js";
 import { avatarSvg } from "./themes/manager.js";
+import { winOf } from "./bot-stats.js";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -21,8 +22,8 @@ export const dots = (n, cls = "bp-dots", beyond = false) => `<span class="${cls}
 /** "Wins 29% vs 3 Intermediate bots" or, for the Master (never measured against them), "+8 pp vs Expert". */
 export function strengthLine(key) {
   const p = P[key];
-  if (key === "super") return `<span class="bp-win">Win figure <b>not measured yet</b></span>`;
-  if (key === "master") return `<span class="bp-win"><b>+8 pp</b> win chance vs an Expert</span>`;
+  const w = winOf(key); // bot-125: the search bots read their measured figure from bot-stats.js
+  if (key === "master" || key === "super" || key === "superplus") return w.label === "measured" ? `<span class="bp-win">Wins <b>${Math.round(w.v)}%</b> vs 3 Intermediate bots <span class="bp-fair">(fair share 25%)</span></span>` : `<span class="bp-win">Win figure <b>not measured yet</b></span>`;
   return p.win ? `<span class="bp-win">Wins <b>${Math.round(p.win.p)}%</b> vs 3 Intermediate bots <span class="bp-fair">(fair share 25%)</span></span>` : "";
 }
 
@@ -79,7 +80,8 @@ function soFar(game, pid) {
 /** The long part, behind the (i): style, good at, weak spot, trading, robber, dev cards and where the figures come from. */
 function details(key) {
   const p = P[key];
-  const src = p.win ? `Measured: 2000 games against 3 Intermediate bots (±${p.win.ci} pts).` : key === "master" ? "Measured: 500 games against 3 Experts (±5.4 pts)." : key === "super" ? p.note : "";
+  const w = winOf(key);
+  const src = w.label === "measured" ? `Measured: ${w.n} games against 3 Intermediate bots (±${w.ci} pts).${p.note ? ` ${p.note}` : ""}` : p.note || "";
   return `<p class="bp-style">${p.style}</p>
     <div class="bp-rows">${row("good", "+", "Good at", p.good)}${row("weak", "−", "Weak spot", p.weak)}
     ${row("trade", "⇄", "Trading", p.trades)}${row("rob", "♟", "Robber", p.robber)}${row("card", "★", "Dev cards", p.cards)}</div>
@@ -114,8 +116,8 @@ export function openProfileSheet(game, opts = {}) {
       <div class="bp-who">${who}<button type="button" class="bp-x" data-bp-close aria-label="Close">✕</button></div>
       <div class="bp-hero">${profileArt(key, 132)}</div>
       <div class="bp-meter">${dots(p.level, "bp-dots", p.beyond)}<span>${p.beyond ? `Strength ${p.level}/5 + star` : `Strength ${p.level}/5`}</span></div>
-      ${key === "super" && player && !superHere(game) ? `<p class="bp-warn" role="status">${superHere(game, true)}</p>` : ""}
-      ${(key === "master" || key === "super") && player && game?.players && !game.sea && (game.isRush?.() || game.players.length >= 5) ? `<p class="bp-warn" role="status">${game.isRush?.() ? "Rush: this bot's search is capped at a quarter of a second a move, and Rush is searched as turn-by-turn play (approximate). " : ""}${game.players.length >= 5 ? `${game.players.length} players: fewer playouts fit in the same time, so its edge is smaller (not measured).` : ""}</p>` : ""}
+      ${(key === "super" || key === "superplus") && player && !superHere(game) ? `<p class="bp-warn" role="status">${superHere(game, true).replace("a Super Expert", `a ${p.label}`)}</p>` : ""}
+      ${(key === "master" || key === "super" || key === "superplus") && player && game?.players && !game.sea && (game.isRush?.() || game.players.length >= 5) ? `<p class="bp-warn" role="status">${game.isRush?.() ? "Rush: this bot's search is capped at a quarter of a second a move, and Rush is searched as turn-by-turn play (approximate). " : ""}${game.players.length >= 5 ? `${game.players.length} players: fewer playouts fit in the same time, so its edge is smaller (not measured).` : ""}</p>` : ""}
       <div class="bp-strength">${strengthLine(key)}</div>
       ${player ? soFar(game, player.id) : ""}
       <div class="bp-rows bp-beat">${row("beat", "✓", "How to beat it", p.beat)}</div>
@@ -190,7 +192,7 @@ export function presetCards(game, keys, hl, onPick) {
   box.innerHTML = keys.map((k) => {
     const p = P[k];
     const on = hl.active === k, near = hl.active === "custom" && hl.closest === k;
-    const off = k === "super" ? superOff(game) : "";
+    const off = k === "super" || k === "superplus" ? superOff(game) : "";
     return `<div class="bs-cell"><button type="button" class="bs-card${on ? " on" : ""}${near ? " near" : ""}${off ? " off" : ""}" data-preset="${k}" aria-pressed="${on}"${off ? ` disabled aria-disabled="true"` : ""} aria-label="${p.label}, strength ${p.level} of 5${p.beyond ? " plus a star" : ""}, ${off ? `not in ${off}` : p.tagline}">
       <span class="bs-art">${profileArt(k, 56)}</span>
       <span class="bs-nm">${p.label}${on ? `<span class="bs-ck" aria-hidden="true">✓</span>` : ""}</span>

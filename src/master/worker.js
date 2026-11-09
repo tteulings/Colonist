@@ -46,7 +46,7 @@ function playGame(m) {
   const t0 = performance.now();
   const orig = Math.random;
   // v1.13: a Super Expert seat searches with its own (bigger) budget (m.budgets[i]); a Master with m.opts
-  const agents = m.strategies.map((s, i) => (s.policy === "master" || s.policy === "super" ? makeMaster(m.budgets?.[i] || m.opts || {}) : null));
+  const agents = m.strategies.map((s, i) => (s.policy === "master" || s.policy === "super" || s.policy === "superplus" ? makeMaster(m.budgets?.[i] || m.opts || {}) : null));
   try {
     g._labSimStart(m.strategies, { players: m.strategies.length, map: m.map || "random", seed: m.seed, agents });
     let r = { done: false };
