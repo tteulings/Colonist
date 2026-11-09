@@ -12,6 +12,7 @@
 // Decisions searched: the set-up spot, main-phase build / trade-then-build / dev-card play / end turn, and
 // the robber tile. Player-to-player trades, discards and the pre-roll Knight stay with the Expert.
 import { DEV_CARD_TYPES, hasResources, mulberry32, snapshot, restore, determinize, rollout, winProb, winProbs, fitProbs, withoutAgents } from "./sim.js";
+import { gbmProbs } from "./leaf-gbm.js";
 
 export const MASTER_OPTS = { n: 100, timeMs: 0, depth: 8, setupDepth: 12, z: 1.0, minAdv: 0.002, jitter: 0.15, T: 1.2, topSetup: 6, topRobber: 4, maxCands: 7 };
 const RES = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
@@ -79,6 +80,7 @@ export function makeMaster(opts = {}) {
     const deadline = o.timeMs ? t0 + o.timeMs : Infinity;
     const root = snapshot(g);
     const K = cands.length;
+    const NB = o.nPer ? o.nPer * K : o.n; // eng-124 o.nPer (the review): the budget scales with the number of moves (o.nPer futures per move on average)
     const vals = cands.map(() => []), vps = cands.map(() => []), seatW = o.seats ? cands.map(() => []) : null; // v1.05 o.seats: every seat's win chance per future (review only)
     const orig = Math.random;
     agent.busy = true;
@@ -92,7 +94,8 @@ export function makeMaster(opts = {}) {
       let v = 0;
       if (a !== false) {
         if (!g.winner) rollout(g, a === "ended" ? depth - 1 : depth, r, { jitter: o.jitter });
-        if (o.leaf === "fit") { const ws = fitProbs(g); v = ws[me]; if (seatW) seatW[k][j] = ws; } // v1.10 o.leaf 'fit': the fitted score function
+        if (o.leaf === "gbm") { const ws = gbmProbs(g); v = ws[me]; if (seatW) seatW[k][j] = ws; } // eng-124 o.leaf 'gbm': boosted trees (src/master/leaf-gbm.js; the review's leaf)
+        else if (o.leaf === "fit") { const ws = fitProbs(g); v = ws[me]; if (seatW) seatW[k][j] = ws; } // v1.10 o.leaf 'fit': the fitted score function
         else if (seatW) { const ws = winProbs(g, o.T); v = ws[me]; seatW[k][j] = ws; } else v = winProb(g, me, o.T);
       }
       vals[k][j] = v;
@@ -105,12 +108,12 @@ export function makeMaster(opts = {}) {
       const R = o.noHalve ? 1 : Math.max(1, Math.ceil(Math.log2(K))); // o.noHalve: every candidate on every future (paired calibration)
       let j0 = 0;
       for (let r = 0; r < R && alive.length; r++) {
-        const per = o.timeSlice ? 1e9 : Math.max(1, Math.floor((o.n / R) / alive.length));
+        const per = o.timeSlice ? 1e9 : Math.max(1, Math.floor((NB / R) / alive.length));
         let j = j0;
         // v1.09 experiment o.timeSlice: anytime search, the time budget split evenly over the halving rounds (a round ends at
         // its slice, the next one starts; n is then only an upper bound)
         const sliceEnd = o.timeSlice && o.timeMs ? t0 + o.timeMs * (r + 1) / R : Infinity;
-        for (; j < j0 + per && used < o.n * 1.05; j++) {
+        for (; j < j0 + per && used < NB * 1.05; j++) {
           if (j >= 2 && now() > deadline) { stop = "time"; break; }
           if (j >= j0 + 2 && now() > sliceEnd) break;
           for (const k of alive) { evalOne(k, j); used++; }
@@ -151,7 +154,7 @@ export function makeMaster(opts = {}) {
     stats.ms.push(ms);
     const seats = seatW ? seatW.map((arr) => { const a = arr.filter(Boolean); return a.length ? a[0].map((_, q) => r4(a.reduce((x, w) => x + w[q], 0) / a.length)) : null; }) : null;
     return { K, seats, vals: vals.map((v) => v.map((x) => (x == null ? null : r4(x)))), vps: vps.map((v) => v.slice()), rounds, pick, paired: paired.map((p) => ({ m: r4(p.m), se: Number.isFinite(p.se) ? r4(p.se) : null, n: p.n })),
-      rule: { z: o.z, minAdv: o.minAdv }, finalists, ms: Math.round(ms), rollouts: used, budget: { n: o.n, timeMs: o.timeMs }, stop, depth };
+      rule: { z: o.z, minAdv: o.minAdv }, finalists, ms: Math.round(ms), rollouts: used, budget: { n: NB, timeMs: o.timeMs }, stop, depth };
   }
 
   // ── what a candidate does, in words, and where it is on the board ──
