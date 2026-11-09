@@ -273,3 +273,14 @@
 .pb-h { align-items: center; } .pb-h b { font-size: 15px; line-height: 1.15; } .pb-dot { display: inline-grid; flex: none; } .pb-dot i, .rs-chip.pb span i { display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--pc, var(--primary)); box-shadow: 0 0 0 2px var(--sheet); }
 .rs-chip.pb { width: 46px; gap: 3px; padding: 4px 2px; } .rs-chip.pb small { font-size: 10px; font-weight: 750; line-height: 1; color: var(--ink-soft); white-space: nowrap; } .rs-chip.pb.on { border-color: var(--primary); box-shadow: inset 0 0 0 2px var(--primary); } .rs-chip.pb.mine { background: color-mix(in srgb, var(--primary) 12%, var(--chip)); }
 .pb-nav { grid-template-columns: 56px 1.3fr 1fr; }
+
+/* v1.24 dice luck: the tile, the table and the swings */
+.rs-sl { grid-template-columns: 1fr 1fr; }
+.rs-sl > .rs-lt { text-align: left; font: inherit; color: inherit; cursor: pointer; background: var(--chip); border: var(--chip-border); border-radius: 12px; padding: 6px 10px; min-height: 44px; }
+.rs-sl > .rs-lt small { display: block; font-size: 11px; font-weight: 700; color: var(--ink-soft); } .rs-sl > .rs-lt b { font: var(--display-weight, 700) 22px/1.1 var(--font-display); } .rs-sl > .rs-lt em { display: block; font-style: normal; font-size: 11.5px; font-weight: 700; color: var(--ink-soft); line-height: 1.2; }
+.rs-lt .pos, .rs-lrow .pos { color: var(--good, #2E7D4F); } .rs-lt .neg, .rs-lrow .neg { color: var(--danger, #C4452F); }
+.rs-lrow { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto; align-items: center; gap: 4px 8px; padding: 6px 2px; border-top: var(--divider-soft, 1px solid rgba(0,0,0,.08)); font-size: 13px; }
+.rs-lrow:first-of-type { border-top: 0; } .rs-lrow i { width: 10px; height: 10px; border-radius: 50%; background: var(--pc, var(--primary)); } .rs-lrow .n { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .rs-lrow.me .n { font-weight: 850; }
+.rs-lrow .c { color: var(--ink-soft); font-size: 12px; font-variant-numeric: tabular-nums; } .rs-lrow b { font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; min-width: 64px; }
+.rs-lrow small { grid-column: 2 / -1; margin-top: -3px; font-size: 11.5px; font-weight: 650; color: var(--ink-soft); } .rs-lrow small:empty { display: none; }
+.rs-dice .rs-lost { margin: 6px 2px 0; } .rs-dice { scroll-margin-top: 8px; }

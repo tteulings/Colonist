@@ -42,3 +42,16 @@ export function topText(top) {
   if (t >= 35 && t <= 65) return "about average";
   return top < 0.5 ? `top ${Math.max(1, t)}%` : `bottom ${Math.max(1, 100 - t)}%`;
 }
+
+/** What a tile says: { n: "+7 cards" | "n/a", cls: "pos" | "neg" | "", sub: "top 12%" | "balanced dice: no percentile" | reason }. L = { me } or { na: reason }. */
+export function tileOf(L) {
+  if (!L || L.na) return { n: "n/a", cls: "", sub: L?.na || "not available" };
+  const me = L.me, lucky = Math.round(me.luck) > 0, unlucky = Math.round(me.luck) < 0;
+  return { n: cardsText(me.luck), cls: lucky ? "pos" : unlucky ? "neg" : "", sub: me.top == null ? "no percentile with this dice rule" : topText(me.top) };
+}
+/** The percentile as a sentence for the table: "luckier than 88% of games". */
+export function sentence(me) {
+  if (me.top == null) return "";
+  const t = Math.round(me.top * 100);
+  return t >= 35 && t <= 65 ? "about average" : me.top < 0.5 ? `luckier than ${100 - t}% of games` : `unluckier than ${t}% of games`;
+}
