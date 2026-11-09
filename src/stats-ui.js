@@ -95,8 +95,10 @@ export const StatsUiMixin = {
     const reduced = motionReduced();
     // a tap during the count means "get on with it": straight to the recap, no transition
     const go = (skip = false) => { if (this.winner && !document.querySelector(".game-over-overlay")) this._stShowOverlay(st, reduced, skip); };
-    if (opts?.quiet || this._histView) { go(true); return; }
-    if (reduced || !st) { go(); return; }
+    // without the count the overlay comes straight away: a beat later (a microtask), so the caller can put the
+    // review recording in place first (a past game sets _rv right after loading; the review card reads it)
+    if (opts?.quiet || this._histView) { Promise.resolve().then(() => go(true)); return; }
+    if (reduced || !st) { Promise.resolve().then(() => go()); return; }
     this._stCountOnBoard(go);
   },
 
@@ -865,7 +867,7 @@ export const StatsUiMixin = {
       R.s = s; R.b = last ? beats.length - 1 : b; R.beats = beats;
       scrub.value = String(s);
       scrub.setAttribute("aria-valuetext", s === 0 ? "Set-up" : `${this.isRush() ? "Roll" : "Turn"} ${st.turnOf[s]}`);
-      curEl.style.left = `${(s / Math.max(1, st.N)) * 100}%`;
+      curEl.style.left = `calc(10px + (100% - 20px) * ${(s / Math.max(1, st.N)).toFixed(4)})`; // over the thumb (it travels 10 px in from each end)
       const step = st.steps?.[s - 1] || this.stats.steps[s - 1];
       cap1.textContent = s === 0 ? "Set-up" : this.isRush() ? `Roll ${s}` : `Turn ${step[0]}`;
       const roller = step && step[1] >= 0 ? this.players[step[1]] : null;
