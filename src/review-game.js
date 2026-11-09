@@ -22,6 +22,8 @@ const mk = (m, cls = "") => `<i class="rv-mk mk-${m} ${cls}" aria-hidden="true">
 const pct = (x) => `${Math.round(x * 100)}%`;
 const sgn = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v))}`; // whole percent with a real minus sign
 export const MC = "deep Monte Carlo (1000 futures)"; // what runs the check, named once
+// v1.29 the bots' lighter deep check against checking all their moves with the full engine (scratchpad others129 budget-an.mjs)
+const OTHERS_NOTE = "1.1 points of accuracy apart on average, 5 at most, in about 60% of the time";
 // v1.05 chess-style classes: name, glyph (own icons, one hue each in review.css)
 export const CLS = { best: ["Best", "★"], great: ["Great", "⇈"], good: ["Good", "●"], could: ["Could be better", "↗"], mistake: ["Mistake", "▲"], blunder: ["Blunder", "✕"], missed: ["Missed chance", "◎"], triv: ["No real choice", "·"] };
 const IMP = ["could", "mistake", "blunder", "missed"];
@@ -178,17 +180,20 @@ export const ReviewGameMixin = {
     const sum = cov && (p.isHuman || done) ? summarize(rv.results) : null;
     // the biggest mistake: from deep results (a bot's: once its biggest moments are checked deeply)
     const deep = (rv?.results || []).filter((x) => !this._rvNeedsFull(x) && (!x.skip || x.skip === "trivial"));
-    const deepTodo = (rv?.results || []).filter((x) => !["forced", "n/a"].includes(x.skip)).length;
+    const deepTodo = (rv?.results || []).filter((x) => !["forced", "n/a"].includes(x.skip) && !(this._rvBotSeat(pid) && this._rvQuickDone(x))).length;
     let worst = null;
     if (cov && (p.isHuman || done || deep.length >= Math.min(6, deepTodo))) worst = this._rvImp(decide(p.isHuman ? rv.results.filter((x) => !x.skip || x.skip === "trivial") : deep, this.players.length, pid))[0] || null;
     const running = run?.pid === pid && run.round ? { j: run.round.j, n: run.round.n, quick: run.round.eng === "m100", paused: run.paused } : null;
     const st = running ? "run" : done ? "done" : cov && p.isHuman ? "prov" : rv?.stopped || (!p.isHuman && R.othersOff) ? "stopped" : cov ? "quick" : this._rvQueued(pid) || (!p.isHuman && !R.othersPlanned) ? "queued" : "idle";
     return { st, sum, running, worst, todo, done, cov, deepN: deep.length };
   },
-  /** v1.29 "At this table": everyone's accuracy, level and biggest mistake (tap: that move in step mode), the bots against their band. */
-  _rvTableHtml(cur = null) {
+  /** v1.29 "At this table": one row per player: name and level, accuracy (or checking…), dice luck and the biggest mistake.
+   *  Tap a row: that player's moves in step mode (at the biggest mistake). On the end screen right under the result; in the
+   *  review overview it is the dice-luck card too (`luckFor`: whose luck the notes under it explain). */
+  _rvTableHtml(cur = null, luckFor = null) {
     const R = this._rv;
     if (!R?.recs?.length || this._rvMid || !this.players.some((p) => !p.isHuman)) return "";
+    const L = this._rvLuck(this._rvPid ?? this.players.find((p) => p.isHuman)?.id ?? 0);
     const rows = this.players.map((p) => ({ p, s: this._rvSeat(p.id), lv: p.isHuman ? null : this._rvLevel(p) }));
     rows.sort((a, b) => (b.s.sum?.acc ?? -1) - (a.s.sum?.acc ?? -1) || a.p.id - b.p.id); // a ranking: checked players by accuracy, the rest after them
     const run = R.run, runBot = run && !this.players[run.pid]?.isHuman && run.round;
@@ -202,22 +207,30 @@ export const ReviewGameMixin = {
       return `<span class="rt-st">${{ queued: p.isHuman ? "queued" : "checking…", stopped: "stopped", idle: p.isHuman ? "not checked" : "checking…", norec: "not available", none: "no choices", prov: "–", done: "–", quick: "checking…" }[s.st]}</span>`;
     };
     const items = rows.map(({ p, s, lv }) => {
-      const nm = this._rvNm(p.id), n = s.sum?.n ?? null;
-      const sub = [lv?.label, s.st === "norec" ? "moves not recorded" : n != null ? `${n} real ${n === 1 ? "choice" : "choices"}` : s.todo ? `${s.todo} decisions` : ""].filter(Boolean).join(" · ")
-        + (lv?.band && s.st !== "norec" ? `<br>expected ${Math.round(lv.band[0])} ± ${Math.round(lv.band[1])}` : "");
-      const bar = s.sum?.acc != null ? `<i class="rt-bar" aria-hidden="true"><i style="width:${Math.max(2, Math.min(100, s.sum.acc))}%"></i>${lv?.band ? `<i class="bd" style="left:${Math.max(0, lv.band[0] - lv.band[1])}%;width:${2 * lv.band[1]}%"></i>` : ""}</i>` : "";
-      const w = s.worst, ico = IC.next.replace("<svg", '<svg class="chev"');
-      const worst = w ? `<button type="button" class="rt-w" data-rvworst="${p.id}:${w.i}" aria-label="Biggest mistake of ${nm}: ${this._rvWhen(w)}, ${esc(this._rvTerse(w))}, minus ${w.gp}%. Show the move">${badge(w.cls, "sm")}<span class="t">${this._rvWhen(w).replace(/^(Turn|Roll) /, this.isRush?.() ? "R" : "T")}</span><span class="x">${esc(this._rvTerse(w))}</span><b class="neg">−${w.gp}%</b>${ico}</button>`
-        : s.cov && (p.isHuman || s.done || s.deepN) ? `<p class="rt-none">No mistake found${s.done ? "" : " so far"}.</p>` : "";
-      return `<div class="rt-p pc-${p.id}${p.id === cur ? " cur" : ""}"><button type="button" class="rt-row" data-rvtab="${p.id}" aria-label="${nm}${lv ? `, ${esc(lv.label)}` : ""}: ${s.sum?.acc != null ? `accuracy ${s.sum.acc}${s.done ? "" : ", provisional"}` : esc(s.st)}. Open the review">${this._av(p, "rt-av")}<span class="rt-n"><b>${nm}</b><small>${sub}</small>${bar}</span>${cell({ p, s })}</button>${worst}</div>`;
+      const nm = this._rvNm(p.id), w = s.worst;
+      const exp = lv?.band && s.st !== "norec" ? `<small class="rt-x" title="expected for ${esc(lv.label)}">exp. ${Math.round(lv.band[0])} ± ${Math.round(lv.band[1])}</small>` : "";
+      const d = !L || L.na ? null : L.all?.[p.id], t = d ? tileOf({ me: d }) : null, top = d ? topText(d.top) : "";
+      const luck = `<span class="rt-l"><s>Luck</s>${t ? `<b class="${t.cls}">${esc(t.n)}</b>${top ? ` · ${esc(top)}` : ""}` : "not available"}</span>`;
+      const mis = w ? `<span class="rt-m">${badge(w.cls, "sm")}<span class="x">${this._rvWhen(w).replace(/^(Turn|Roll) /, this.isRush?.() ? "R" : "T")} ${esc(this._rvTerse(w))}</span><b>−${w.gp}%</b></span>`
+        : s.cov && (p.isHuman || s.done || s.deepN) ? `<span class="rt-m none">No mistake found${s.done ? "" : " so far"}</span>` : "";
+      const at = w ? w.i : this._rvNearI(p.id, 0);
+      const lab = `${nm}${lv ? `, ${esc(lv.label)}` : ""}: ${s.sum?.acc != null ? `accuracy ${s.sum.acc}${s.done ? "" : ", provisional"}` : esc(s.st === "norec" ? "accuracy not available" : "checking")}${t ? `, dice luck ${esc(t.n)}` : ""}${w ? `, biggest mistake ${esc(this._rvTerse(w))} minus ${w.gp}%` : ""}. ${at != null ? "Step through the moves" : "Open the review"}`;
+      return `<button type="button" class="rt-row pc-${p.id}${p.id === cur ? " cur" : ""}" data-rvtab="${p.id}"${at != null ? ` data-rvat="${at}"` : ""} aria-label="${lab}">${this._av(p, "rt-av")}<b class="rt-nm">${nm}${lv ? `<small> · ${esc(lv.label)}</small>` : ""}</b><span class="rt-a">${cell({ p, s })}${exp}</span>${luck}${mis}</button>`;
     }).join("");
-    const old = !R.bots ? `<p class="rt-foot">This game was played before the bots’ moves were recorded: their accuracy is not available.</p>` : "";
-    const wait = rows.some(({ p, s }) => !p.isHuman && !s.done && s.st !== "none") ? " A bot’s accuracy appears when the deep check of its moves is done (one bot at a time, biggest moments first; tap a bot to check it next)." : "";
-    return `<section class="rv-card rt" data-rvtable aria-label="At this table"><div class="rv-gt"><b>At this table</b><small>accuracy · biggest mistake</small></div>${prog}${items}${old || (R.bots ? `<p class="rt-foot">Expected: a bot’s usual accuracy at its level, measured on its own moves with the same deep check (± 1 SE).${wait}</p>` : "")}</section>`;
+    const old = !R.bots ? `<p class="rt-foot">Played before the bots’ moves were recorded: their accuracy is not available.</p>` : "";
+    const wait = rows.some(({ p, s }) => !p.isHuman && !s.done && s.st !== "none") ? " A bot’s accuracy appears when the deep check of its moves is done, one bot at a time." : "";
+    const foot = old || (R.bots ? `<p class="rt-foot">exp.: a bot level’s usual accuracy with the same deep check.${wait} Tap a player to step through their moves.</p>` : "");
+    let note = "";
+    if (luckFor != null && L && !L.na && L.all?.[luckFor]) {
+      const me = L.all[luckFor], you = this._rvIsYou(luckFor), nm = this.players[luckFor]?.name || "";
+      const hits = me.blockedN ? `The robber sat on ${you ? "your" : "their"} tiles ${me.blockedN} ${me.blockedN === 1 ? "time" : "times"} and cost ${you ? "you" : "them"} ${me.blockedCards} ${me.blockedCards === 1 ? "card" : "cards"}.` : `The robber never cost ${you ? "you" : "them"} a card.`;
+      note = `<p class="rs-lost">${esc(sentence(me) ? `${you ? "You were" : `${nm} was`} ${sentence(me)}. ` : "")}Dice luck: ${you ? "you" : esc(nm)} got ${me.got} cards; expected ${Math.round(me.exp)} with the robber where it stood, ${Math.round(me.expFree)} without it. ${hits} It says how good the rolls were, not how much win chance they cost.</p>`;
+    }
+    return `<section class="rv-card rt${luckFor != null ? " rs-dice" : ""}" data-rvtable${luckFor != null ? ' id="rvdice"' : ""} aria-label="At this table"><div class="rv-gt"><b>At this table</b><small>accuracy · luck · biggest mistake</small></div>${prog}${items}${note}${foot}</section>`;
   },
   _rvBindTable(root) {
-    root.querySelectorAll("[data-rvtab]").forEach((b) => b.addEventListener("click", () => { const pid = +b.dataset.rvtab; if (this._rvEl && pid === this._rvPid && this._rvStep == null) { this._rvEl.querySelector(".rv-scroll")?.scrollTo?.({ top: 0, behavior: "smooth" }); return; } this._rvOpenReview(pid); }));
-    root.querySelectorAll("[data-rvworst]").forEach((b) => b.addEventListener("click", () => { const [pid, i] = b.dataset.rvworst.split(":").map(Number); this._rvOpenReview(pid, { at: i }); }));
+    // a row: that player's moves in step mode, at the biggest mistake (no checked move yet: the review with its progress)
+    root.querySelectorAll("[data-rvtab]").forEach((b) => b.addEventListener("click", () => { const pid = +b.dataset.rvtab, at = b.dataset.rvat != null ? +b.dataset.rvat : null; this._rvOpenReview(pid, at != null ? { at } : {}); }));
     root.querySelector("[data-rvostop]")?.addEventListener("click", () => { this._rvStop(); this._rvLive(true); this._rvPatchRows(); });
     root.querySelector("[data-rvogo]")?.addEventListener("click", () => { this._rvOthersGo(); this._rvLive(true); this._rvPatchRows(); });
   },
@@ -404,6 +417,7 @@ export const ReviewGameMixin = {
       <p><b>Your moves</b> adds up what your moves cost in win chance. Win chance bookkeeping: ${this._rvT ? `${this._rvT.from}% at the start, ${this._rvT.to}% after your last move: Your moves ${sgn(this._rvT.moves)}%, dice and the others ${sgn(this._rvT.luck)}%. Your moves never count more than your best win chance.` : "your win chance at the start plus Your moves plus what dice and the others did equals your win chance after your last move."}</p>
       <p><b>Accuracy</b> runs 0–100; 100 is always the best move. It averages your real choices, so a few slips in a long game still score high. Big mistakes weigh more. One game spreads about ± 8. The line under it gives the plain number: % given away per choice.</p>
       <p><b>The bots</b>: scored on their own moves with this same check${bands}. Compare over 5+ games.</p>
+      <p><b>The others at the table</b>: after your review each bot is checked too, one at a time, in the background (Stop holds it; it goes on when you come back). First the quick look, then the deep check of the moves the quick look found to be a real choice (the others have no accuracy anyway). Measured on 16 bots against checking every move deeply: ${OTHERS_NOTE}. A bot's accuracy appears when its check is done; dice luck is there at once.</p>
       <p><b>A check during the game</b> keeps its moves for the review at the end, but that game stays out of your average. The board is shown after the game.</p>
       <p><b>Provisional</b> is the quick look (about half a second a move). The deep check (about ${REVIEW.sec} s a move) follows, biggest differences first, and the numbers shift as it goes.</p>${this.isRush?.() ? `
       <p><b>Approximate in Rush</b>: Rush has no turns, so each move you made is checked as if it were your turn in a Classic game: the same position, then the table plays on turn by turn with one dice roll per turn. A roll in the list is the roll interval you moved in. “Wait” means building nothing right then. Not modelled: the clock, several players moving within one interval, and a spot lost to a faster bot. In a test of 17 positions the Rush-shaped and the turn-by-turn futures ranked the moves no differently than two runs of the same method do, but treat the numbers as a guide, not a verdict. Turn starts and End turn do not exist here, so they are not checked.</p>` : ""}${this.players.length >= 5 ? `
@@ -566,8 +580,7 @@ export const ReviewGameMixin = {
         </section>
         ${better ? `<section class="rv-card rs-keys rs-better"><div class="rv-gt"><b>Could be better</b><small>${imp.length} to look at</small></div>${better}</section>` : ""}
         ${ds.length ? `<button type="button" class="rv-btn pri rs-go" data-rvj="${first}" data-rvq="${imp.length ? "imp" : "all"}" data-rvfirst>${IC.step}Step through ${you ? "your" : `${nm}’s`} moves</button>` : ""}
-        ${this._rvTableHtml(pid)}
-        ${this._rvLuckCard(luck, pid)}
+        ${this._rvTableHtml(pid, pid) || this._rvLuckCard(luck, pid)}
         ${key ? `<section class="rv-card rs-keys rs-swings"><div class="rv-gt"><b>${swings.length} biggest swings</b><small>win chance, from dice and the others</small></div>${key}</section>` : ""}
         ${ds.length ? `<section class="rv-card"><div class="rv-gt"><b>Win chance</b><small>${you ? "you" : nm} thick · bars: dice and others <i class="kl"></i> ${you ? "your" : "their"} moves <i class="ks"></i></small></div>${this._rvChart(ds)}</section>` : ""}
         <section class="rv-card"><div class="rv-gt"><b>All ${you ? "your" : `${nm}’s`} moves</b><small>tap to step</small></div>${rows}</section>

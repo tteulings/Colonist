@@ -24,7 +24,11 @@ const KEY = "colonist_review_v1";
 // v1.29 default "all": after everyone's quick round, each bot's deep round in turn (biggest moments first). A bot's accuracy is shown
 // only from the deep round: the quick round's numbers are on another scale (8-turn look-ahead, older score function) and the bots'
 // bands (bands.js) were measured with the deep check. "top" (quick + the deep check of each bot's `top` biggest moments) is the lighter option.
-export const OTHERS = { deep: "all", top: 6, minLoss: 0.02 };
+// v1.29 policy "real" (the default): a bot's deep round covers only the moves its quick round found to be a real choice (not every option
+// within 2 points); the rest keep their quick result, which has no accuracy anyway. Measured on 16 bots (409 decisions, scratchpad
+// others129/tests budget-an.mjs) against every move deep: accuracy 1.1 points apart on average, 5 at most, in 57% of the time.
+// Fewer futures a move were tried too (40 a move on the real choices: 3.2 apart, at most 11.7; 40 on all: 4.5, at most 18.6).
+export const OTHERS = { deep: "all", top: 6, minLoss: 0.02, policy: "real", engine: REVIEW_ENGINE };
 const RES5 = ["wood", "brick", "sheep", "wheat", "ore"];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hiddenTab = () => typeof document !== "undefined" && (document.hidden || document.visibilityState === "hidden");
@@ -128,9 +132,12 @@ export const ReviewMixin = {
   },
   /** Every decision has its deep (full) result: nothing provisional is left. */
   _rvReviewComplete(pid) {
-    const rv = this._rvOf(pid);
-    return !!rv && this._rvTodo(pid).every(([, i]) => { const x = rv.results.find((y) => y.i === i); return !!x && !this._rvNeedsFull(x); });
+    const rv = this._rvOf(pid), bot = this._rvBotSeat(pid);
+    return !!rv && this._rvTodo(pid).every(([, i]) => { const x = rv.results.find((y) => y.i === i); return !!x && (!this._rvNeedsFull(x) || (bot && this._rvQuickDone(x))); });
   },
+  /** v1.29 A bot's seat is checked by OTHERS' policy: what the quick round found to be no real choice stays a quick result. */
+  _rvBotSeat(pid) { return OTHERS.policy === "real" && !!this.players?.[pid] && !this.players[pid].isHuman; },
+  _rvQuickDone(x) { return x.eng === "m100" && !x.err && (x.trivial || x.skip === "trivial"); },
   /** Order of the deep round: where the quick round found the largest loss, then the smallest gap between the two best moves. */
   _rvDeepOrder(rv, items) {
     const key = (i) => {
@@ -242,10 +249,11 @@ export const ReviewMixin = {
           // the deep round; a bot's (stage "top"): only its biggest moments of the quick round, unless you opened its review meanwhile (run.full)
           for (let pass = 0; pass < 2 && !run.stop && live(); pass += 1) {
             if (run.stage === "quick" && !run.full) break; // ("deep": everything, like yours)
-            let deep = this._rvDeepOrder(rv, todo.filter(([, i]) => { const x = rv.results.find((y) => y.i === i); return x && this._rvNeedsFull(x); }));
+            const bot = this._rvBotSeat(pid);
+            let deep = this._rvDeepOrder(rv, todo.filter(([, i]) => { const x = rv.results.find((y) => y.i === i); return x && this._rvNeedsFull(x) && !(bot && this._rvQuickDone(x)); }));
             const top = run.stage === "top" && !run.full;
             if (top) deep = deep.filter(([, i]) => (rv.results.find((y) => y.i === i)?.loss || 0) >= OTHERS.minLoss).slice(0, Math.max(0, OTHERS.top - (rv.topN || 0)));
-            if (deep.length) await round(REVIEW_ENGINE, deep);
+            if (deep.length) await round(bot ? OTHERS.engine : REVIEW_ENGINE, deep); // a bot: the lighter deep engine (OTHERS)
             if (top && !run.stop && live()) { rv.top = true; rv.topN = (rv.topN || 0) + deep.length; }
             if (!run.full || this._rvReviewComplete(pid)) break;
           }

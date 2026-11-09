@@ -329,3 +329,24 @@
 .rs-whopop b { display: block; font-size: 14px; font-weight: 800; color: var(--heading); } .rs-whopop small { display: block; font-size: 11.5px; color: var(--ink-soft); font-weight: 650; }
 .rs-bar.w { gap: 6px; } .rs-bar.w .rs-ov { padding: 0 12px !important; font-size: 14px; min-width: 0; }
 .rs-bar.w > div { min-width: 0; } .rs-bar.w h3, .rs-bar.w small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* v1.29 one row per player: name · level, dice luck, biggest mistake; accuracy on the right; the whole row opens step mode */
+.rt-row { border-top: 1px solid var(--rv-sep); align-items: start; min-height: 56px; padding: 8px 4px; grid-template-columns: 30px minmax(0, 1fr) auto; }
+.rt-row.cur { background: color-mix(in srgb, var(--primary) 7%, transparent); border-radius: 10px; }
+.rt-row .rt-av { margin-top: 2px; }
+.rt-n b { white-space: normal; line-height: 1.2; } .rt-n b small { display: inline; font-size: 11.5px; font-weight: 650; color: var(--ink-soft); }
+.rt-l, .rt-m { display: flex; align-items: center; gap: 5px; margin-top: 3px; font-size: 12px; font-weight: 600; color: var(--ink-soft); line-height: 1.25; min-width: 0; }
+.rt-l s { text-decoration: none; font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .04em; }
+.rt-l b { font-weight: 800; color: var(--ink); } .rt .pos { color: var(--pos); } .rt .neg { color: var(--neg); }
+.rt-m .x { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+.rt-m b { flex: none; font-weight: 800; color: var(--rv-miss); } .rt-m.none { font-style: italic; }
+.rt-acc { align-self: center; } .rt-row > .rt-st { align-self: center; }
+/* v1.29 compact: name and accuracy on top, luck and the biggest mistake each on one full-width line below */
+.rt-row { grid-template-columns: 28px minmax(0, 1fr) auto; grid-template-areas: "av n a" "av l l" "av m m"; column-gap: 9px; row-gap: 2px; padding: 6px 4px; min-height: 50px; align-items: center; }
+.rt-row > .rt-av { grid-area: av; align-self: start; margin-top: 1px; --av: 28px; }
+.rt-nm { grid-area: n; min-width: 0; font-size: 14.5px; font-weight: 800; color: var(--heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+.rt-nm small { font-size: 11.5px; font-weight: 650; color: var(--ink-soft); }
+.rt-a { grid-area: a; grid-row: 1 / span 1; display: flex; align-items: baseline; gap: 6px; justify-self: end; }
+.rt-a .rt-acc { font-size: 22px; min-width: 0; } .rt-x { font-size: 11px; font-weight: 650; color: var(--ink-soft); white-space: nowrap; }
+.rt-row > .rt-l { grid-area: l; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.rt-row > .rt-m { grid-area: m; margin: 0; }
+.rt-l s { margin-right: 4px; } .rt-l b { white-space: nowrap; }
