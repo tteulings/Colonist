@@ -208,32 +208,37 @@ export const ReviewGameMixin = {
     let prog = "";
     if (runBot) prog = `<div class="rt-prog" role="status"><i class="rv-ring" style="--p:${Math.round((100 * run.round.j) / Math.max(1, run.round.n))}%" aria-hidden="true"></i><span>${run.paused ? "Paused" : `Checking ${esc(this.players[run.pid].name)} ${run.round.j}/${run.round.n}`}<small>${run.round.eng === "m100" ? "quick look" : "deep check"}</small></span><button type="button" class="rv-btn" data-rvostop>Stop</button></div>`;
     else if (R.othersOff && left.length) prog = `<div class="rt-prog" role="status"><span>Stopped<small>${left.length} ${left.length === 1 ? "player" : "players"} not checked</small></span><button type="button" class="rv-btn pri" data-rvogo>Continue</button></div>`;
-    const cell = ({ p, s }) => {
-      if (s.sum?.acc != null) return `<b class="rt-acc${s.done ? "" : " prov"}">${s.done ? "" : "~"}${s.sum.acc}</b>`;
-      if (s.st === "run") return `<span class="rt-st"><i class="rv-ring" style="--p:${Math.round((100 * s.running.j) / Math.max(1, s.running.n))}%" aria-hidden="true"></i>checking…</span>`;
-      return `<span class="rt-st">${{ queued: p.isHuman ? "queued" : "checking…", stopped: "stopped", idle: p.isHuman ? "not checked" : "checking…", norec: "not available", none: "no choices", prov: "–", done: "–", quick: "checking…" }[s.st]}</span>`;
+    // v1.29 design A (user's choice): fixed columns Player | Accuracy | Luck | Biggest slip; the numbers and names bold, what explains them light
+    const pct = (v) => Math.max(0, Math.min(100, v));
+    const accCell = ({ p, s, lv }) => {
+      const meter = s.sum?.acc != null ? `<i class="rt-meter" aria-hidden="true">${lv?.band ? `<i class="bd" style="left:${pct(lv.band[0] - lv.band[1])}%;width:${2 * lv.band[1]}%"></i>` : ""}<i class="dot" style="left:${pct(s.sum.acc)}%"></i></i>` : "";
+      if (s.sum?.acc != null) return `<span class="rt-c rt-ac"><b class="rt-acc${s.done ? "" : " prov"}">${s.done ? "" : "~"}${s.sum.acc}</b>${meter}</span>`;
+      if (s.st === "run") return `<span class="rt-c rt-ac"><span class="rt-st"><i class="rv-ring" style="--p:${Math.round((100 * s.running.j) / Math.max(1, s.running.n))}%" aria-hidden="true"></i>checking…</span></span>`;
+      return `<span class="rt-c rt-ac"><span class="rt-st">${{ queued: p.isHuman ? "queued" : "checking…", stopped: "stopped", idle: p.isHuman ? "not checked" : "checking…", norec: "n/a", none: "no choices", prov: "–", done: "–", quick: "checking…" }[s.st]}</span></span>`;
     };
+    const slipWord = (d) => (d.cls === "missed" ? (d.k === "end" ? "ended" : "traded") : { setup: "set-up", build: "build", bank: "trade", buy: "card", play: "card", robber: "robber", end: "ended" }[d.k] || "move");
     const items = rows.map(({ p, s, lv }) => {
       const nm = this._rvNm(p.id), w = s.worst;
-      const exp = lv?.band && s.st !== "norec" ? `<small class="rt-x" title="expected for ${esc(lv.label)}">exp. ${Math.round(lv.band[0])} ± ${Math.round(lv.band[1])}</small>` : "";
       const d = !L || L.na ? null : L.all?.[p.id], t = d ? tileOf({ me: d }) : null, top = d ? topText(d.top) : "";
-      const luck = `<span class="rt-l"><s>Luck</s>${t ? `<b class="${t.cls}">${esc(t.n)}</b>${top ? ` · ${esc(top)}` : ""}` : "not available"}</span>`;
-      const mis = w ? `<span class="rt-m">${badge(w.cls, "sm")}<span class="x">${this._rvWhen(w).replace(/^(Turn|Roll) /, this.isRush?.() ? "R" : "T")} ${esc(this._rvTerse(w))}</span><b>−${w.gp}%</b></span>`
-        : s.cov && (p.isHuman || s.done || s.deepN) ? `<span class="rt-m none">No mistake found${s.done ? "" : " so far"}</span>` : "";
+      const n = t ? t.n.replace(/ cards?$/, "") : "–";
+      const luck = `<span class="rt-c rt-l"${top ? ` title="${esc(top)}"` : ""}><b class="${t?.cls || ""}">${esc(n)}</b><small>${t ? (Math.abs(parseInt(n.replace(/[^\d]/g, ""), 10)) === 1 ? "card" : "cards") : "n/a"}</small></span>`;
+      const when = w ? this._rvWhen(w).replace(/^(Turn|Roll) /, this.isRush?.() ? "R" : "T").replace("Setup", "set-up") : "";
+      const slip = w ? `<span class="rt-c rt-sl"><b>−${w.gp}%</b><small>${when === "set-up" ? "set-up" : `${when} · ${slipWord(w)}`}</small></span>`
+        : `<span class="rt-c rt-sl"><small>${s.cov && (p.isHuman || s.done || s.deepN) ? "none" : "–"}</small></span>`;
       const at = w ? w.i : this._rvNearI(p.id, 0);
-      const lab = `${nm}${lv ? `, ${esc(lv.label)}` : ""}: ${s.sum?.acc != null ? `accuracy ${s.sum.acc}${s.done ? "" : ", provisional"}` : esc(s.st === "norec" ? "accuracy not available" : "checking")}${t ? `, dice luck ${esc(t.n)}` : ""}${w ? `, biggest mistake ${esc(this._rvTerse(w))} minus ${w.gp}%` : ""}. ${at != null ? "Step through the moves" : "Open the review"}`;
-      return `<button type="button" class="rt-row pc-${p.id}${p.id === cur ? " cur" : ""}" data-rvtab="${p.id}"${at != null ? ` data-rvat="${at}"` : ""} aria-label="${lab}">${this._av(p, "rt-av")}<b class="rt-nm">${nm}${lv ? `<small> · ${esc(lv.label)}</small>` : ""}</b><span class="rt-a">${cell({ p, s })}${exp}</span>${luck}${mis}</button>`;
+      const band = lv?.band ? `, usual for ${esc(lv.label)} ${Math.round(lv.band[0] - lv.band[1])} to ${Math.round(lv.band[0] + lv.band[1])}` : "";
+      const lab = `${nm}${lv ? `, ${esc(lv.label)}` : ""}: ${s.sum?.acc != null ? `accuracy ${s.sum.acc}${s.done ? "" : ", provisional"}${band}` : esc(s.st === "norec" ? "accuracy not available" : "accuracy: checking")}${t ? `, dice luck ${esc(t.n)}${top ? `, ${esc(top)}` : ""}` : ""}${w ? `, biggest slip ${esc(this._rvTerse(w))} minus ${w.gp}%` : ""}. ${at != null ? "Step through the moves" : "Open the review"}`;
+      return `<button type="button" class="rt-row pc-${p.id}${p.id === cur ? " cur" : ""}" data-rvtab="${p.id}"${at != null ? ` data-rvat="${at}"` : ""} aria-label="${lab}"><span class="rt-who">${this._av(p, "rt-av")}<span><b class="rt-nm">${nm}</b>${lv ? `<small>${esc(lv.label)}</small>` : ""}</span></span>${accCell({ p, s, lv })}${luck}${slip}</button>`;
     }).join("");
-    const old = !R.bots ? `<p class="rt-foot">Played before the bots’ moves were recorded: their accuracy is not available.</p>` : "";
-    const wait = rows.some(({ p, s }) => !p.isHuman && !s.done && s.st !== "none") ? " A bot’s accuracy appears when the deep check of its moves is done, one bot at a time." : "";
-    const foot = old || (R.bots ? `<p class="rt-foot">exp.: a bot level’s usual accuracy with the same deep check.${wait} Tap a player to step through their moves.</p>` : "");
+    const head = `<div class="rt-hd" aria-hidden="true"><span>Player</span><span>Accuracy</span><span>Luck</span><span>Biggest slip</span></div>`;
+    const foot = !R.bots ? `<p class="rt-foot">Played before the bots’ moves were recorded: their accuracy is not available.</p>` : "";
     let note = "";
     if (luckFor != null && L && !L.na && L.all?.[luckFor]) {
       const me = L.all[luckFor], you = this._rvIsYou(luckFor), nm = this.players[luckFor]?.name || "";
       const hits = me.blockedN ? `The robber sat on ${you ? "your" : "their"} tiles ${me.blockedN} ${me.blockedN === 1 ? "time" : "times"} and cost ${you ? "you" : "them"} ${me.blockedCards} ${me.blockedCards === 1 ? "card" : "cards"}.` : `The robber never cost ${you ? "you" : "them"} a card.`;
       note = `<p class="rs-lost">${esc(sentence(me) ? `${you ? "You were" : `${nm} was`} ${sentence(me)}. ` : "")}Dice luck: ${you ? "you" : esc(nm)} got ${me.got} cards${me.short ? ` (and ${me.short} more the bank ran out of: counted for the dice)` : ""}; expected ${Math.round(me.exp)} with the robber where it stood, ${Math.round(me.expFree)} without it. ${hits} It says how good the rolls were, not how much win chance they cost.</p>`;
     }
-    return `<section class="rv-card rt${luckFor != null ? " rs-dice" : ""}" data-rvtable${luckFor != null ? ' id="rvdice"' : ""} aria-label="At this table"><div class="rv-gt"><b>At this table</b><small>accuracy · luck · biggest mistake</small></div>${prog}${items}${note}${foot}</section>`;
+    return `<section class="rv-card rt${luckFor != null ? " rs-dice" : ""}" data-rvtable${luckFor != null ? ' id="rvdice"' : ""} aria-label="At this table"><div class="rv-gt"><b>At this table</b><small>tap a player for their moves</small></div>${prog}${head}${items}${note}${foot}</section>`;
   },
   _rvBindTable(root) {
     // a row: that player's moves in step mode, at the biggest mistake (no checked move yet: the review with its progress)
