@@ -320,6 +320,7 @@ export function computeStats(game) {
   let robber = S.r0, pirate = S.p0;
   // v1.24 dice luck: per player the expected cards with the board as it stood at each roll (E1: robber where it sat, E0: no robber), the variance, and the robber's hits
   const dl = game.players.map(() => ({ E1: 0, E0: 0, V: 0, blockedN: 0, blockedCards: 0 }));
+  out.rollExp = [null]; // v1.31 per step: each player's expected cards from that roll (the board as it stood, the robber where it sat)
   for (let s = 0; s <= N; s += 1) {
     if (s > 0) {
       // expected over the whole game = for each roll the probability-weighted yield (independent of the roll)
@@ -332,7 +333,9 @@ export function computeStats(game) {
         if (!h.number || h.resource === "sea" || h.resource === "desert") return;
         h.nodes.forEach((nid) => { const o = owner.get(nid); if (!o) return; cF[o[0]][h.number] = (cF[o[0]][h.number] || 0) + o[1]; if (h.id !== robber) cB[o[0]][h.number] = (cB[o[0]][h.number] || 0) + o[1]; });
       });
-      game.players.forEach((_, i) => { const a = rollMoments(cF[i]), b = rollMoments(cB[i]); dl[i].E0 += a.e; dl[i].E1 += b.e; dl[i].V += b.v; });
+      const ex = [];
+      game.players.forEach((_, i) => { const a = rollMoments(cF[i]), b = rollMoments(cB[i]); dl[i].E0 += a.e; dl[i].E1 += b.e; dl[i].V += b.v; ex.push(b.e); });
+      out.rollExp[s] = ex;
       out.robberAt[s] = robber; out.pirateAt[s] = pirate;
       if (robber != null) out.robberTurns[robber] += 1;
       if (pirate != null) out.robberTurns[pirate] += 1;

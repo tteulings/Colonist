@@ -15,6 +15,8 @@ import { BOT_PROFILES } from "./bot-profiles.js";
 import { profileOf } from "./bot-profile-ui.js";
 import { botBand } from "./review/bands.js";
 import { gameOdds } from "./replay-odds.js";
+import { wpText } from "./review-luck.js";
+import { LUCK_MC } from "./review/luck-mc.js";
 
 // The bots' accuracy with the review engine in use (src/review/evaluate.js REVIEW_ENGINES), if measured.
 export const BANDS = REVIEW.bands || [];
@@ -201,12 +203,15 @@ export const ReviewGameMixin = {
     const R = this._rv;
     if (!R?.recs?.length || this._rvMid || !this.players.some((p) => !p.isHuman)) return "";
     const L = this._rvLuck(this._rvPid ?? this.players.find((p) => p.isHuman)?.id ?? 0);
+    const LK = this._lkState(); // v1.31 luck in win chance (src/review-luck.js)
     const rows = this.players.map((p) => ({ p, s: this._rvSeat(p.id), lv: p.isHuman ? null : this._rvLevel(p) }));
     rows.sort((a, b) => (b.s.sum?.acc ?? -1) - (a.s.sum?.acc ?? -1) || a.p.id - b.p.id); // a ranking: checked players by accuracy, the rest after them
     const run = R.run, runBot = run && !this.players[run.pid]?.isHuman && run.round;
     const left = this._rvOthers().filter((p) => !this._rvReviewComplete(p.id) && !(R.revs[p.id]?.top && this._rvCovered1(p.id)));
     let prog = "";
     if (runBot) prog = `<div class="rt-prog" role="status"><i class="rv-ring" style="--p:${Math.round((100 * run.round.j) / Math.max(1, run.round.n))}%" aria-hidden="true"></i><span>${run.paused ? "Paused" : `Checking ${esc(this.players[run.pid].name)} ${run.round.j}/${run.round.n}`}<small>${run.round.eng === "m100" ? "quick look" : "deep check"}</small></span><button type="button" class="rv-btn" data-rvostop>Stop</button></div>`;
+    else if (!LK.na && (LK.run || (LK.stopped && !LK.done))) prog = LK.run ? `<div class="rt-prog" role="status"><i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i><span>${LK.paused ? "Paused" : `Luck: replaying every roll ${LK.j}/${LK.n}`}<small>with every other outcome</small></span><button type="button" class="rv-btn" data-rvlkstop>Stop</button></div>`
+      : `<div class="rt-prog" role="status"><span>Luck stopped<small>${LK.j} of ${LK.n} chance events</small></span><button type="button" class="rv-btn pri" data-rvlkgo>Continue</button></div>`;
     else if (R.othersOff && left.length) prog = `<div class="rt-prog" role="status"><span>Stopped<small>${left.length} ${left.length === 1 ? "player" : "players"} not checked</small></span><button type="button" class="rv-btn pri" data-rvogo>Continue</button></div>`;
     // v1.29 design A (user's choice): fixed columns Player | Accuracy | Luck | Biggest slip; the numbers and names bold, what explains them light
     const pct = (v) => Math.max(0, Math.min(100, v));
@@ -221,13 +226,17 @@ export const ReviewGameMixin = {
       const nm = this._rvNm(p.id), w = s.worst;
       const d = !L || L.na ? null : L.all?.[p.id], t = d ? tileOf({ me: d }) : null, top = d ? topText(d.top) : "";
       const n = t ? t.n.replace(/ cards?$/, "") : "–";
-      const luck = `<span class="rt-c rt-l"${top ? ` title="${esc(top)}"` : ""}><b class="${t?.cls || ""}">${esc(n)}</b><small>${t ? (Math.abs(parseInt(n.replace(/[^\d]/g, ""), 10)) === 1 ? "card" : "cards") : "n/a"}</small></span>`;
+      // v1.31 design B (user's choice): luck in win chance as the number, the cards from the dice small under it
+      const cardsSm = t ? `${esc(n)} ${Math.abs(parseInt(n.replace(/[^\d]/g, ""), 10)) === 1 ? "card" : "cards"}` : "";
+      const wv = LK.na ? null : LK.done && LK.cover >= 0.9 ? LK.tot[p.id] : null, wc = wv == null ? "" : Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : "";
+      const luck = LK.na ? `<span class="rt-c rt-l"${top ? ` title="${esc(top)}"` : ""}><b class="${t?.cls || ""}">${esc(n)}</b><small>${t ? (Math.abs(parseInt(n.replace(/[^\d]/g, ""), 10)) === 1 ? "card" : "cards") : "n/a"}</small></span>`
+        : `<span class="rt-c rt-l rt-lw"${top ? ` title="${esc(top)}"` : ""}>${wv != null ? `<b class="${wc}">${wpText(wv)}</b>` : `<span class="rt-st">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}${LK.done ? "n/a" : "…"}</span>`}<small>${cardsSm || "–"}</small></span>`;
       const when = w ? this._rvWhen(w).replace(/^(Turn|Roll) /, this.isRush?.() ? "R" : "T").replace("Setup", "set-up") : "";
       const slip = w ? `<span class="rt-c rt-sl"><b>−${w.gp}%</b><small>${when === "set-up" ? "set-up" : `${when} · ${slipWord(w)}`}</small></span>`
         : `<span class="rt-c rt-sl"><small>${s.cov && (p.isHuman || s.done || s.deepN) ? "none" : "–"}</small></span>`;
       const at = w ? w.i : this._rvNearI(p.id, 0);
       const band = lv?.band ? `, usual for ${esc(lv.label)} ${Math.round(lv.band[0] - lv.band[1])} to ${Math.round(lv.band[0] + lv.band[1])}` : "";
-      const lab = `${nm}${lv ? `, ${esc(lv.label)}` : ""}: ${s.sum?.acc != null ? `accuracy ${s.sum.acc}${s.done ? "" : ", provisional"}${band}` : esc(s.st === "norec" ? "accuracy not available" : "accuracy: checking")}${t ? `, dice luck ${esc(t.n)}${top ? `, ${esc(top)}` : ""}` : ""}${w ? `, biggest slip ${esc(this._rvTerse(w))} minus ${w.gp}%` : ""}. ${at != null ? "Step through the moves" : "Open the review"}`;
+      const lab = `${nm}${lv ? `, ${esc(lv.label)}` : ""}: ${s.sum?.acc != null ? `accuracy ${s.sum.acc}${s.done ? "" : ", provisional"}${band}` : esc(s.st === "norec" ? "accuracy not available" : "accuracy: checking")}${!LK.na && LK.done && LK.cover >= 0.9 ? `, luck ${wpText(LK.tot[p.id])} win chance` : ""}${t ? `, dice luck ${esc(t.n)}${top ? `, ${esc(top)}` : ""}` : ""}${w ? `, biggest slip ${esc(this._rvTerse(w))} minus ${w.gp}%` : ""}. ${at != null ? "Step through the moves" : "Open the review"}`;
       return `<button type="button" class="rt-row pc-${p.id}${p.id === cur ? " cur" : ""}" data-rvtab="${p.id}"${at != null ? ` data-rvat="${at}"` : ""} aria-label="${lab}"><span class="rt-who">${this._av(p, "rt-av")}<span><b class="rt-nm">${nm}</b>${lv ? `<small>${esc(lv.label)}</small>` : ""}</span></span>${accCell({ p, s, lv })}${luck}${slip}</button>`;
     }).join("");
     const head = `<div class="rt-hd" aria-hidden="true"><span>Player</span><span>Accuracy</span><span>Luck</span><span>Biggest slip</span></div>`;
@@ -238,13 +247,17 @@ export const ReviewGameMixin = {
       const hits = me.blockedN ? `The robber sat on ${you ? "your" : "their"} tiles ${me.blockedN} ${me.blockedN === 1 ? "time" : "times"} and cost ${you ? "you" : "them"} ${me.blockedCards} ${me.blockedCards === 1 ? "card" : "cards"}.` : `The robber never cost ${you ? "you" : "them"} a card.`;
       note = `<p class="rs-lost">${esc(sentence(me) ? `${you ? "You were" : `${nm} was`} ${sentence(me)}. ` : "")}Dice luck: ${you ? "you" : esc(nm)} got ${me.got} cards${me.short ? ` (and ${me.short} more the bank ran out of: counted for the dice)` : ""}; expected ${Math.round(me.exp)} with the robber where it stood, ${Math.round(me.expFree)} without it. ${hits} It says how good the rolls were, not how much win chance they cost.</p>`;
     }
-    return `<section class="rv-card rt${luckFor != null ? " rs-dice" : ""}" data-rvtable${luckFor != null ? ' id="rvdice"' : ""} aria-label="At this table"><div class="rv-gt"><b>At this table</b><small>tap a player for their moves</small></div>${prog}${head}${items}${note}${foot}</section>`;
+    const lkd = this._lkDetailsHtml(LK);
+    return `<section class="rv-card rt${luckFor != null ? " rs-dice" : ""}" data-rvtable${luckFor != null ? ' id="rvdice"' : ""} aria-label="At this table"><div class="rv-gt"><b>At this table</b><small>tap a player for their moves</small></div>${prog}${head}${items}${lkd}${note}${foot}</section>`;
   },
   _rvBindTable(root) {
     // a row: that player's moves in step mode, at the biggest mistake (no checked move yet: the review with its progress)
     root.querySelectorAll("[data-rvtab]").forEach((b) => b.addEventListener("click", () => { const pid = +b.dataset.rvtab, at = b.dataset.rvat != null ? +b.dataset.rvat : null; this._rvOpenReview(pid, at != null ? { at } : {}); }));
     root.querySelector("[data-rvostop]")?.addEventListener("click", () => { this._rvStop(); this._rvLive(true); this._rvPatchRows(); });
     root.querySelector("[data-rvogo]")?.addEventListener("click", () => { this._rvOthersGo(); this._rvLive(true); this._rvPatchRows(); });
+    root.querySelector("[data-rvlkstop]")?.addEventListener("click", () => { this._lkStop(); this._rvPatchRows(); });
+    root.querySelector("[data-rvlkgo]")?.addEventListener("click", () => { this._lkGo(); this._rvPatchRows(); });
+    this._lkBindDetails(root);
   },
   /** The decision of this seat at or after record i (the last one before it when none follows). */
   _rvNearI(pid, i) {
@@ -429,6 +442,7 @@ export const ReviewGameMixin = {
       <p><b>Plan</b>: the likely reason A is better, read from the position. No clear reason, no Plan.</p>
       <p><b>Missed chance</b>: you ended the turn or traded while a build was worth 3+ %. <b>Great</b>: the best move, the next one ${GREAT}+ % behind. <b>No real choice</b>: every option within 2 %.</p>
       <p><b>Dice luck</b>: the cards your tiles paid, against the cards they were expected to pay: every roll, with the board as it stood then (cities count double, the robber where it sat). "Top 12%" means 12 in 100 games pay that much or more. Rolls are independent, so this is sound (tested against simulated dice). Balanced and deck dice even rolls out: no percentile. Year of Plenty, Monopoly and steals do not count. It says how good the rolls were, not how much win chance they cost.</p>
+      <p><b>Luck</b> (in win chance): after the review, every roll, steal and development card drawn is replayed with every other outcome it could have had (each as likely as it was), ${LUCK_MC.futures} futures of ${LUCK_MC.depth} turns each. Luck is the win chance right after what happened minus the average over all outcomes; added up over the game per player. ±0 is as expected; for everyone at the table one event adds up to 0. Tap Luck details under the table for every event. In step mode, Dice &amp; others splits into Luck and Others (the others' moves). Not for Seafarers yet.</p>
       <p><b>Your moves</b> adds up what your moves cost in win chance. Win chance bookkeeping: ${this._rvT ? `${this._rvT.from}% at the start, ${this._rvT.to}% after your last move: Your moves ${sgn(this._rvT.moves)}%, dice and the others ${sgn(this._rvT.luck)}%. Your moves never count more than your best win chance.` : "your win chance at the start plus Your moves plus what dice and the others did equals your win chance after your last move."}</p>
       <p><b>Accuracy</b> runs 0–100; 100 is always the best move. It averages your real choices, so a few slips in a long game still score high. Big mistakes weigh more. One game spreads about ± 8. The line under it gives the plain number: % given away per choice.</p>
       <p><b>The bots</b>: scored on their own moves with this same check${bands}. Compare over 5+ games.</p>
@@ -589,7 +603,10 @@ export const ReviewGameMixin = {
         ${mid ? `<section class="rv-card rv-midnote"><p><b>Up to turn ${rv.upto ?? this.turn}</b></p><button type="button" class="rv-btn pri" data-rvback-game>Back to the game</button></section>` : ""}
         <section class="rv-card rs-sum">
           ${this._rvStrip(sum.acc, cmp, mid, prov)}
-          <div class="rs-sl"><div><small>${you ? "Your moves" : "Moves"}</small><b class="${T.moves < 0 ? "neg" : ""}">${sgn(T.moves)}%</b></div><button type="button" class="rs-lt" data-rvluckgo aria-label="Dice luck: ${tile.n}, ${esc(tile.sub)}. Show the table"><small>Dice luck</small><b class="${tile.cls}">${tile.n}</b><em>${esc(tile.sub)}</em></button></div>
+          <div class="rs-sl"><div><small>${you ? "Your moves" : "Moves"}</small><b class="${T.moves < 0 ? "neg" : ""}">${sgn(T.moves)}%</b></div>${(() => { const LK = this._lkState(), w = !LK.na && LK.done && LK.cover >= 0.9 ? LK.tot[pid] : null; // v1.31 design B: luck in win chance first, the cards under it
+            if (w == null) return `<button type="button" class="rs-lt" data-rvluckgo aria-label="Dice luck: ${tile.n}, ${esc(tile.sub)}. Show the table"><small>Dice luck</small><b class="${tile.cls}">${tile.n}</b><em>${esc(tile.sub)}</em></button>`;
+            const c = Math.round(w * 100) > 0 ? "pos" : Math.round(w * 100) < 0 ? "neg" : "";
+            return `<button type="button" class="rs-lt" data-rvluckgo aria-label="Luck: ${wpText(w)} win chance; dice ${tile.n}, ${esc(tile.side || tile.sub)}. Show the table"><small>Luck</small><b class="${c}">${wpText(w)}</b><em>${esc(tile.n)} from the dice · ${esc(tile.side || "")}</em></button>`; })()}</div>
           ${sum.lost != null ? `<p class="rs-lost">${sum.n} real choices · on average ${sum.lost}% win chance given away per choice${T.capped ? ` · ${you ? "your" : "the"} moves are capped at the ${T.cap}% you could have had` : ""}</p>` : ""}
           <div class="rs-cnts">${chips}</div>
           ${cmpText ? `<p class="rv-cmpline">${esc(cmpText)}${cmp.m != null ? ` <span class="rv-keyme">▮ this game</span> <span class="rv-keyavg">● your average</span>` : ""}</p>` : ""}
@@ -644,7 +661,7 @@ export const ReviewGameMixin = {
         <p class="rs-s">${this._rvLine(d)}</p>
         ${noA ? "" : whyHtml(x.why)}
         <div class="rs-ab${noA ? " one" : ""}">${A}${B}</div>
-        <div class="rs-lk"><span>${d === ds[0] ? "From an even share" : `Since ${this._rvIsYou(me) ? "your" : "their"} last move`}</span><b class="${d.cp >= 0 ? "pos" : "neg"}">Dice &amp; others ${sg(d.chance)}</b><b class="${d.gp ? "neg" : "pos"}">${this._rvIsYou(me) ? "Your move" : "Move"} ${d.gp ? sg(-d.gap) : "±0"}</b></div>
+        ${this._lkSplitHtml(d, ds, sg)}
         <div class="rs-strip" role="tablist" aria-label="Your decisions">${strip}</div>
         <div class="rs-nav"><button type="button" class="rv-btn" data-rvnav="-1" ${k ? "" : "disabled"} aria-label="Previous decision">${IC.prev}Previous</button><button type="button" class="rv-btn pri" data-rvnav="1" ${k < list.length - 1 ? "" : "disabled"} aria-label="Next decision">Next${IC.next}</button></div>`;
     const evalHtml = `<b>${pct(shown[me] / (shown.reduce((a, c) => a + c, 0) || 1))}</b>${this._rvStack(shown)}`;
@@ -654,6 +671,7 @@ export const ReviewGameMixin = {
       root.querySelectorAll("[data-rvwhy]").forEach((b) => b.addEventListener("click", () => { this._rvInfoOpen = true; this._rvShowInfo(); }));
       root.querySelectorAll("[data-rvnav]").forEach((b) => b.addEventListener("click", () => { const n = list[k + +b.dataset.rvnav]; if (n) this._rvDrawReview(n.i); }));
       root.querySelectorAll("[data-rvab]").forEach((b) => b.addEventListener("click", () => { const v = b.dataset.rvab; this._rvAB = v === this._rvAB && v !== "both" ? "both" : v; this._rvDrawReview(); }));
+      root.querySelectorAll("[data-rvlx]").forEach((b) => b.addEventListener("click", () => { const v = b.dataset.rvlx; this._lkOpen = this._lkOpen === v ? null : v; const c = el.querySelector(".rs-card .rs-lkw"); if (c) { const n = document.createElement("div"); n.innerHTML = this._lkSplitHtml(d, ds, sg); c.replaceWith(n.firstElementChild); bindCard(el.querySelector(".rs-card .rs-lkw")); } }));
     };
     if (this._rvLiveFlag && sameBoard) { // a running check refreshed a number: the board stays as it is
       el.querySelector(".rs-card").innerHTML = cardHtml; el.querySelector(".rs-eval").innerHTML = evalHtml; const wcEl = el.querySelector(".rs-wc"); if (wcEl) wcEl.innerHTML = wcHtml;
@@ -682,6 +700,31 @@ export const ReviewGameMixin = {
     if (!mid) { this._rvBoard(d, show); try { gameOdds(this); } catch (_) { /* the play-by-play's win chance warms up (worker, cached per game) */ } }
     if (this._rvPbp && !mid) this._rvPbpGo(d, ds, this._rvPbp.j); // back from A/B toggle etc. while playing by play
   },
+  /** v1.31 design B: "Since your last move: Luck +2% · Others +1% · Your move ±0". Luck = the chance events in between (src/review-luck.js),
+   *  Others = the rest of "Dice & others" (the others' moves, and the estimate moving between two moments). Each folds open: Luck to every
+   *  roll / steal / card draw with its effect, Others to the others' checked moves in between. Without luck numbers: "Dice & others" as before. */
+  _lkSplitHtml(d, ds, sg) {
+    const me = this._rvPid, k = ds.indexOf(d), from = k > 0 ? ds[k - 1].x.e ?? 0 : 0, to = d.x.e ?? 0;
+    const lead = `<span>${d === ds[0] ? "From an even share" : `Since ${this._rvIsYou(me) ? "your" : "their"} last move`}</span>`, lead2 = `<span>${d === ds[0] ? "From the start" : "Since last move"}</span>`;
+    const mv = `<b class="${d.gp ? "neg" : "pos"}">${this._rvIsYou(me) ? "Your move" : "Move"} ${d.gp ? sg(-d.gap) : "±0"}</b>`;
+    const LK = this._lkState(), lk = !LK.na && LK.cover >= 0.9 ? this._lkBetween(me, from, to) : null;
+    if (!lk || lk.missing) return `<div class="rs-lkw"><div class="rs-lk">${lead}<b class="${d.cp >= 0 ? "pos" : "neg"}">Dice &amp; others ${sg(d.chance)}</b>${mv}</div></div>`;
+    const oth = d.chance - lk.sum, c = (v) => (Math.round(v * 100) > 0 ? "pos" : Math.round(v * 100) < 0 ? "neg" : "");
+    const open = this._lkOpen;
+    const btn = (key, label, v) => `<button type="button" class="lk" data-rvlx="${key}" aria-expanded="${open === key}"><b class="${c(v)}">${label} ${sg(v)}</b></button>`;
+    let panel = "";
+    if (open === "luck") {
+      const chip = (x) => { const w = x.w, t = Math.abs(w) < 0.01 ? wpText(w, 1) : wpText(w), lab = x.ev.kind === "dice" ? String(x.ev.roll) : x.ev.kind === "steal" ? "steal" : "card"; return `<i class="${c(w * 10)}" title="${esc(this._lkWhat(x.ev, me))}"><b>${lab}</b>${t}</i>`; };
+      panel = `<div class="rs-lx" role="region" aria-label="Luck since the last move">${lk.list.length ? `<div class="chips">${lk.list.map(chip).join("")}</div><p>Each roll, steal and card draw in between: ${this._rvIsYou(me) ? "your" : "their"} win chance after it, against the average over what could have happened.</p>` : "<p>No roll, steal or card draw in between.</p>"}</div>`;
+    } else if (open === "oth") {
+      const R = this._rv, moves = [];
+      Object.values(R?.revs || {}).forEach((rv) => (rv?.results || []).forEach((x) => { if (rv.pid !== me && x.e != null && x.e >= from && x.e < to && (!x.skip || x.skip === "trivial") && x.win != null) moves.push({ x, pid: rv.pid }); }));
+      moves.sort((a, b) => a.x.e - b.x.e);
+      const li = moves.slice(0, 12).map(({ x, pid }) => { const gp = gpOf(x); return `<li><span>${this._rvNm(pid)}: ${esc(this._rvTerse({ x, cls: clsOf(x), k: x.k, same: !x.best }).replace(/ → .*/, ""))}</span><b class="${gp >= 1 ? "neg" : ""}">${gp >= 1 ? `their slip −${gp}%` : "fine"}</b></li>`; }).join("");
+      panel = `<div class="rs-lx" role="region" aria-label="The others since the last move">${moves.length ? `<ol>${li}</ol>` : ""}<p>${moves.length ? "Their moves in between, as their own check judged them. " : "The others' moves in between are not checked (yet). "}Others = Dice &amp; others minus luck: what the others did, and the estimate moving between two moments.</p></div>`;
+    }
+    return `<div class="rs-lkw"><div class="rs-lk lk2">${lead2}${btn("luck", "Luck", lk.sum)}${btn("oth", "Others", oth)}${mv}</div>${panel}</div>`;
+  },
   /** Named win chances for the board corner: you first, then the others by chance, one short line each. */
   _rvLegend(seats, est = false) {
     const me = this._rvPid, sum = seats.reduce((a, b) => a + b, 0) || 1;
@@ -694,13 +737,16 @@ export const ReviewGameMixin = {
     const st = this._st, ev = this.stats.ev, k = ds.indexOf(d), from = k ? ds[k - 1].x.e : 0, to = d.x.e;
     const s0 = k ? ds[k - 1].x.s : 0, RN = ["Lumber", "Brick", "Wool", "Grain", "Ore"], me = this._rvPid;
     const beats = [], nm = (q) => this._rvPName(q);
+    // v1.31 the luck of each roll / steal / card draw for this seat (src/review-luck.js), when computed
+    const LKm = new Map(); try { if (!this._lkNa()) this._lkList(me).forEach((x) => LKm.set(x.ev.kind === "dice" ? `d${x.ev.s}` : `e${x.ev.e}`, x.w)); } catch (_) { /* no luck numbers */ }
+    const lkTxt = (w) => (w == null ? "" : ` · luck ${this._rvIsYou(me) ? "you" : esc(this.players[me]?.name || "")} ${Math.abs(w) < 0.01 ? wpText(w, 1) : wpText(w)}`);
     const roll = (s, cursor) => {
       const step = st.steps[s - 1]; if (!step) return;
       const got = new Map();
       (st.stepEvents[s] || []).forEach((e) => { const g = st.evIx.get(e); if (e[1] === "P" && g >= from && g < to) { const o = got.get(e[2]) || { n: 0, r: {} }; o.n += e[5] || 1; o.r[e[4]] = (o.r[e[4]] || 0) + (e[5] || 1); got.set(e[2], o); } });
       const sum = step[2] + step[3];
       const parts = [...got].sort((a, b) => (a[0] === me ? -1 : b[0] === me ? 1 : 0)).map(([q, o]) => (q === me ? `${nm(q)} +${Object.entries(o.r).map(([r, n]) => `${n} ${RN[r]}`).join(" +")}` : `${nm(q)} +${o.n} ${o.n === 1 ? "card" : "cards"}`));
-      beats.push({ s, upto: cursor, who: step[1], chip: String(sum), head: `${nm(step[1])} rolled ${sum}`, sub: sum === 7 ? "The robber moves and big hands are halved." : parts.length ? parts.join(" · ") : "Nobody got cards.", sev: sum === 7 });
+      beats.push({ s, upto: cursor, who: step[1], chip: String(sum), head: `${nm(step[1])} rolled ${sum}`, sub: (sum === 7 ? "The robber moves and big hands are halved." : parts.length ? parts.join(" · ") : "Nobody got cards.") + lkTxt(LKm.get(`d${s - 1}`)), sev: sum === 7 });
     };
     let last = s0;
     for (let g = from; g < to; g += 1) {
@@ -714,11 +760,11 @@ export const ReviewGameMixin = {
       else if (c === "b" && b === "s") beats.push({ ...obj, chip: "settl.", head: `${nmA} built a settlement`, focus: { node: x } });
       else if (c === "b" && b === "c") beats.push({ ...obj, chip: "city", head: `${nmA} built a city`, focus: { city: x } });
       else if (c === "R") beats.push({ ...obj, chip: "robber", head: `${nmA} moved the robber`, sub: `To ${this._hexName?.(b) ?? "another tile"}.`, focus: { hex: b } });
-      else if (c === "t") beats.push({ ...obj, chip: "steal", head: `${nmA} stole a card`, sub: `From ${nm(b)}.` });
+      else if (c === "t") beats.push({ ...obj, chip: "steal", head: `${nmA} stole a card`, sub: `From ${nm(b)}.${lkTxt(LKm.get(`e${g}`))}` });
       else if (c === "x") beats.push({ ...obj, chip: "trade", head: `${nmA} traded with ${nm(b)}`, sub: `${x} for ${y} cards.` });
       else if (c === "k") beats.push({ ...obj, chip: "bank", head: `${nmA} traded with the bank`, sub: `Gave ${x} ${RN[b]} for 1 ${RN[y]}.` });
       else if (c === "d") beats.push({ ...obj, chip: "7", head: `${nmA} handed back ${b} cards` });
-      else if (c === "v") beats.push({ ...obj, chip: "card", head: `${nmA} bought a development card` });
+      else if (c === "v") beats.push({ ...obj, chip: "card", head: `${nmA} bought a development card`, ...(LKm.has(`e${g}`) ? { sub: lkTxt(LKm.get(`e${g}`)).replace(/^ · l/, "L") } : {}) });
       else if (c === "y") beats.push({ ...obj, chip: "card", head: `${nmA} played a development card` });
     }
     while (last < d.x.s && last < st.N) { last += 1; roll(last, to); }

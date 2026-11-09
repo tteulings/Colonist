@@ -243,7 +243,7 @@
 .rs-key .x small.w { display: block; margin-top: 1px; font-size: 11.5px; font-weight: 600; color: var(--ink-soft); line-height: 1.2; }
 .mk-why { pointer-events: none; } [data-show="B"] .mk-why { display: none; }
 .rs-why s { text-decoration: none; display: inline-grid; place-items: center; border-radius: 50%; font: 800 11px var(--font-body); background: var(--primary); color: #fff; border: 1.5px solid #fff; } .rs-why s.alt { background: #fff; color: var(--primary); border-color: var(--primary); }
-.rs.hw { --stage: 37.5%; } .rs.hw .rs-lk { display: none; } .rs.hw .rs-ab > div { padding: 4px 8px; } .rs.hw .rs-s { font-size: 13px; }
+.rs.hw { --stage: 37.5%; } .rs.hw .rs-lk:not(.lk2) { display: none; } .rs.hw .rs-ab > div { padding: 4px 8px; } .rs.hw .rs-s { font-size: 13px; }
 /* v1.12 pass & play: "Review for [name] [name]" */
 .rv-for { margin: 8px 14px 4px; }
 .rv-for-l { display: block; font: 700 11.5px/1 var(--font-body, system-ui); letter-spacing: .06em; text-transform: uppercase; opacity: .75; margin: 0 2px 6px; }
@@ -333,3 +333,54 @@
 .rs-bar.w > div { min-width: 0; } .rs-bar.w h3, .rs-bar.w small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* v1.29 the swings' cause line wraps like the Could-be-better lines (a long cause was cut off at 360 px) */
 .rs-swings .rs-key .x { white-space: normal; line-height: 1.2; }
+/* v1.31 luck in win chance (design B): the % is the number, the cards from the dice small under it; details folded under the table */
+.rt .rt-hd, .rt .rt-row { grid-template-columns: minmax(0, 1fr) 52px 54px 64px; }
+.rt .rt-lw > b.pos { color: var(--pos); } .rt .rt-lw > b.neg { color: var(--neg); }
+.rt .rt-lw .rt-st { font-size: 13px; }
+.rt-lkd { margin: 8px 0 0; border-top: 1px solid var(--rv-sep); padding-top: 6px; }
+.rt-lkd > summary { display: flex; align-items: baseline; gap: 8px; cursor: pointer; list-style: none; padding: 6px 4px; font: 750 13.5px/1.2 var(--font-body); color: var(--heading); -webkit-tap-highlight-color: transparent; }
+.rt-lkd > summary::-webkit-details-marker { display: none; }
+.rt-lkd > summary::after { content: ""; margin-left: auto; width: 8px; height: 8px; border: solid var(--ink-soft); border-width: 0 2px 2px 0; transform: rotate(45deg); align-self: center; transition: transform .15s; }
+.rt-lkd[open] > summary::after { transform: rotate(-135deg); }
+.rt-lkd > summary small { font: 600 11px/1.2 var(--font-body); color: var(--ink-soft); }
+.lkd-seg { display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 6px; scrollbar-width: none; }
+.lkd-seg button { flex: none; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--rv-sep); background: none; color: var(--ink); border-radius: 16px; padding: 3px 9px 3px 3px; font: 700 12px/1 var(--font-body); }
+.lkd-seg button .rt-av { --av: 20px; margin: 0; }
+.lkd-seg button.on { border-color: var(--pc, var(--primary)); background: color-mix(in srgb, var(--pc, var(--primary)) 12%, transparent); }
+.lkd-sort { display: flex; gap: 4px; margin: 0 2px 4px; }
+.lkd-sort button { border: 0; background: none; color: var(--ink-soft); font: 700 11.5px/1 var(--font-body); padding: 5px 8px; border-radius: 10px; }
+.lkd-sort button.on { background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink); }
+.lkd-list { list-style: none; margin: 0; padding: 0; }
+.lkd-list li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 6px; align-items: baseline; padding: 6px 4px; border-top: 1px solid var(--rv-sep); }
+.lkd-list .t { font: 700 11.5px/1.2 var(--font-body); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.lkd-list .x { font: 650 13px/1.25 var(--font-body); color: var(--ink); min-width: 0; }
+.lkd-list .x small { display: block; font: 600 11px/1.3 var(--font-body); color: var(--ink-soft); }
+.lkd-list b, .lkd-tot b { font: 800 13.5px/1.2 var(--font-body); font-variant-numeric: tabular-nums; color: var(--heading); white-space: nowrap; }
+.lkd-list b.pos, .lkd-tot b.pos { color: var(--pos); } .lkd-list b.neg, .lkd-tot b.neg { color: var(--neg); }
+.lkd-all { margin: 6px 0 2px; width: 100%; }
+.lkd-tot { display: flex; align-items: baseline; gap: 8px; margin: 4px 0 0; padding: 7px 4px 0; border-top: 2px solid var(--rv-sep); font: 700 12px/1.3 var(--font-body); color: var(--ink-soft); }
+.lkd-tot b { margin-left: auto; font-size: 15px; }
+.lkd-note { margin: 6px 4px 2px; font: 600 11px/1.4 var(--font-body); color: var(--ink-soft); }
+/* step mode: "Dice & others" as Luck + Others, each folded open on tap */
+.rs-lk b.pos { color: var(--pos); } .rs-lk b.neg { color: var(--neg); }
+.rs-lk button.lk { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; align-items: baseline; gap: 3px; -webkit-tap-highlight-color: transparent; }
+.rs-lk button.lk b { text-decoration: underline dotted; text-underline-offset: 3px; }
+.rs-lk button.lk::after { content: ""; width: 6px; height: 6px; border: solid currentColor; border-width: 0 1.6px 1.6px 0; transform: rotate(45deg) translateY(-2px); opacity: .55; }
+.rs-lk button.lk[aria-expanded="true"]::after { transform: rotate(-135deg); }
+.rs-lx { margin: 4px 0 2px; padding: 6px 8px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 5%, transparent); font: 650 12px/1.3 var(--font-body); color: var(--ink-soft); }
+.rs-lx .chips { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.rs-lx .chips i { font-style: normal; padding: 2px 7px; border-radius: 9px; background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); font-weight: 750; white-space: nowrap; }
+.rs-lx .chips i b { font-weight: 800; margin-right: 4px; color: var(--ink); }
+.rs-lx .chips i.pos { color: var(--pos); } .rs-lx .chips i.neg { color: var(--neg); }
+.rs-lx ol { list-style: none; margin: 0; padding: 0; } .rs-lx li { display: flex; gap: 8px; padding: 3px 0; } .rs-lx li span { margin-right: auto; color: var(--ink); }
+.rs-lx li b.pos { color: var(--pos); } .rs-lx li b.neg { color: var(--neg); }
+.rs-lx p { margin: 4px 0 0; font-size: 11px; }
+.rt-lkd { display: block; min-width: 0; max-width: 100%; overflow: hidden; }
+.rs.hw .rs-lk.lk2 { font-size: 12px; margin-top: 2px; }
+@media (max-height: 700px) { .rs-lx { display: none; } }
+.rt .rt-ac .rt-st { flex-direction: column; align-items: flex-end; gap: 2px; font-size: 11px; }
+.rs.step .rs-card { overflow-y: auto; }
+.lkd-book { margin: 6px 4px 0; font: 600 11.5px/1.4 var(--font-body); color: var(--ink-soft); } .lkd-book b { color: var(--ink); }
+.rs-lk.lk2 { gap: 8px; } .rs-lk.lk2 > span { min-width: 0; }
+.rs-lk.lk2 button.lk, .rs-lk.lk2 > b { white-space: nowrap; flex: none; }
+.rs-lk.lk2 button.lk { flex-direction: row; }
