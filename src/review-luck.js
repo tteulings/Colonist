@@ -182,6 +182,7 @@ export const ReviewLuckMixin = {
     const U = (this._lkUi ||= { open: false, pid: null, sort: "size", all: false });
     const redraw = () => { const n = document.createElement("div"); n.innerHTML = this._lkDetailsHtml(); const x = n.firstElementChild; if (x) { d.replaceWith(x); this._lkBindDetails(root); } };
     d.addEventListener("toggle", () => { U.open = d.open; });
+    d.querySelector("summary")?.addEventListener("click", () => { U.open = !d.open; }); // (a table refresh between the tap and the toggle keeps it open)
     d.querySelectorAll("[data-rvlkp]").forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); U.pid = +b.dataset.rvlkp; U.all = false; redraw(); }));
     d.querySelectorAll("[data-rvlks]").forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); U.sort = b.dataset.rvlks; redraw(); }));
     d.querySelector("[data-rvlka]")?.addEventListener("click", (e) => { e.preventDefault(); U.all = true; redraw(); });
