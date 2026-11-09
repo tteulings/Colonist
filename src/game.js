@@ -11204,4 +11204,8 @@ const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle
 game._navInstall(); // v1.26 Back closes the top screen / sheet (src/nav.js)
 if (document.documentElement.dataset.lab) game._labBoot(document.documentElement.dataset.lab); // AI Lab engine (lab.html)
+else { // lab-131 a game of the AI Lab's last run, opened from the lab (index.html?labgame=ID&what=replay|review&pid=N)
+  const q = new URLSearchParams(location.search), lg = q.get("labgame");
+  if (lg) { let n = 0; const go = () => { if (document.body.dataset.gameReady || n++ > 100) game.histOpenLab(lg, q.get("what") || "stats", q.get("pid") != null ? Number(q.get("pid")) : null); else setTimeout(go, 100); }; go(); }
+}
 window.__colonistSplashDone?.(); // v1.27 Home or the resumed game is built: the launch splash (index.html) fades out after this frame

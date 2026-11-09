@@ -321,6 +321,17 @@ body.lb-stepping .lb-tools, body.lb-stepping #labResult { display: none; }
 .lb-rt .r, .lb-rt .num { text-align: right; font-variant-numeric: tabular-nums; }
 .lb-rt .num { font-weight: 750; }
 .lb-rt .rk { color: var(--ink-soft); font-size: 12px; }
+.lb-rt.lb-rt-acc { grid-template-columns: 16px minmax(0, 1fr) 46px 62px 30px; } /* lab-131: wins · accuracy · VP */
+/* lab-131: the games of the last run */
+.lb-glist { display: grid; }
+.lb-grow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--sep, rgba(0,0,0,.08)); font-size: 12.5px; }
+.lb-grow:first-child { border-top: 0; }
+.lb-grow .tt { font-weight: 700; display: block; }
+.lb-grow small { display: block; color: var(--ink-soft); font-size: 11px; }
+.lb-grow > .lb-btn { min-height: 40px; padding: 0 12px; }
+.lb-gseats { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.lb-gseat { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; min-width: 40px; padding: 2px 8px 2px 4px; border-radius: 999px; border: var(--chip-border); background: var(--chip); color: var(--ink); font: inherit; font-size: 12px; }
+.lb-gseat b { font-variant-numeric: tabular-nums; }
 .lb-rt .who { display: flex; gap: 9px; align-items: center; min-width: 0; font-weight: 700; }
 .lb-rt .ci { display: block; color: var(--ink-soft); font-size: 11px; font-weight: 500; }
 .lb-rt .bar { grid-column: 2 / -1; margin: -2px 0 4px; --seat: var(--accent); }

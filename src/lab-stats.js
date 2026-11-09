@@ -52,15 +52,19 @@ export function aggregate(results, labelOf = (k) => k) {
   results.forEach((r) => {
     seats = r.keys.length;
     r.keys.forEach((k, s) => {
-      const row = rows.get(k) || { key: k, label: labelOf(k), n: 0, wins: 0, vp: 0, turns: 0 };
+      const row = rows.get(k) || { key: k, label: labelOf(k), n: 0, wins: 0, vp: 0, turns: 0, accs: [], moves: 0 };
       row.n += 1; row.vp += r.vp[s] || 0; row.turns += r.turns;
+      const a = r.acc?.[s]; // lab-131: the review's accuracy of this seat in this game (when the game was checked)
+      if (a && a.acc != null && a.done !== false) { row.accs.push(a.acc); row.moves += a.rn || 0; } // only a finished review (deep round on every real choice)
       if (r.winner === s) row.wins += 1;
       rows.set(k, row);
     });
   });
   return [...rows.values()].map((r) => {
     const [lo, hi] = wilson(r.wins, r.n);
-    return { ...r, p: r.n ? r.wins / r.n : 0, lo, hi, fair: seats ? 1 / seats : 0.25, avgVp: r.n ? r.vp / r.n : 0, avgTurns: r.n ? r.turns / r.n : 0 };
+    const m = r.accs.length ? r.accs.reduce((x, y) => x + y, 0) / r.accs.length : null;
+    const sd = r.accs.length > 1 ? Math.sqrt(r.accs.reduce((x, y) => x + (y - m) ** 2, 0) / (r.accs.length - 1)) : null;
+    return { ...r, p: r.n ? r.wins / r.n : 0, lo, hi, fair: seats ? 1 / seats : 0.25, avgVp: r.n ? r.vp / r.n : 0, avgTurns: r.n ? r.turns / r.n : 0, acc: m, accSd: sd, accN: r.accs.length };
   }).sort((a, b) => b.p - a.p || b.n - a.n);
 }
 

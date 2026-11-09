@@ -51,6 +51,7 @@ function playGame(m) {
   // lab-131: the page hears how the game goes (turn, points, which seat is searching; with m.watch the position too, so
   // Watch can follow a Master / Super game): before every searched decision and after every turn, at most every 300 ms
   let last = 0, decisions = 0;
+  const script = []; // lab-131: every searched decision's outcome in order [seat, 0 setup | 1 main | 2 robber, choice], so the page can play the same game again (recorded, for Replay and the review)
   const tell = (think, force = false) => {
     const now = performance.now();
     if (!force && now - last < 300) return;
@@ -59,14 +60,14 @@ function playGame(m) {
   };
   agents.forEach((a, i) => {
     if (!a) return;
-    ["decideSetup", "decideMain", "decideRobber"].forEach((f) => { const o = a[f]; a[f] = (...x) => { decisions += 1; tell(i); return o(...x); }; });
+    ["decideSetup", "decideMain", "decideRobber"].forEach((f, fi) => { const o = a[f]; a[f] = (...x) => { decisions += 1; tell(i); const d = o(...x); script.push([i, fi, d ? d.choice : null]); return d; }; });
   });
   try {
     g._labSimStart(m.strategies, { players: m.strategies.length, map: m.map || "random", seed: m.seed, agents });
     let r = { done: false };
     tell(null, true);
     while (!r.done) { r = g._labSimStep(1); if (!r.done) tell(null); }
-    return { winner: r.winner, turns: r.turns, vp: g.players.map((p) => p.victoryPoints), ms: Math.round(performance.now() - t0),
+    return { winner: r.winner, turns: r.turns, vp: g.players.map((p) => p.victoryPoints), ms: Math.round(performance.now() - t0), script,
       stats: agents.map((a) => (a ? { d: a.stats.decisions, dev: a.stats.deviations, ms: a.stats.ms } : null)) };
   } finally { Math.random = orig; g.players.forEach((p) => { p.agent = null; }); }
 }

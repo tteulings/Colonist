@@ -16,6 +16,7 @@ import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameReques
 import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=130";
 import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=130";
 import { byStrength } from "./bot-stats.js?v=130";
+import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=130";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -54,7 +55,7 @@ const CHEV = `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4"
 
 const st = {
   pane: "analysis", mode: "setup", seat: 1, tool: "pan", preset: "intermediate", strat: null, map: "random", seed: 42, players: "4", hand: "keep", pieces: "start", speed: "watch",
-  tseatN: 4, seats: ["expert", "intermediate", "intermediate", "intermediate"], distinct: false, mix: null, games: 100, tboard: "random", tseats: "rotate",
+  tseatN: 4, seats: ["expert", "intermediate", "intermediate", "intermediate"], distinct: false, mix: null, games: 100, tboard: "random", tseats: "rotate", revN: 0,
   ...(store(KEY) || {}),
 };
 if (st.speed === "fast") st.speed = "watch"; // v0.83-0.86 name
@@ -573,6 +574,18 @@ function specTitle(spec, distinct) {
   return g.map((x) => `${x.c > 1 ? `${x.c}× ` : ""}${labelOf(x.k)}`).join(" vs ");
 }
 const MKEY = "colonist.lab.masterMs";
+// lab-131 Review (Off / 5 / 10 / All games): what it costs. MEASURED per bot seat on this device after a reviewed game (RVKEY); before that an
+// ESTIMATE for a phone: about 1.5 min per bot seat (others129 budget measurement: ~34 real choices per seat, quick 0.34 s and
+// deep 2.8 s each on a laptop core, so ~66 s a seat; a phone ~1.4x slower).
+const RVKEY = "colonist.lab.revSeatMs", RV_SEAT_PHONE_MS = 90000;
+const REVNS = [["0", "Off"], ["5", "5"], ["10", "10"], ["all", "All"]];
+/** How many games of a run are reviewed (the first ones). */
+const revCount = (revN, games) => (revN === "all" ? games : Math.min(Number(revN) || 0, games));
+function revCostText(seats, games) {
+  const ms = store(RVKEY), per = (ms || RV_SEAT_PHONE_MS) * seats, tot = (per * games) / 1000;
+  const t = (x) => (x < 5400 ? `${Math.max(1, Math.round(x / 60))} min` : `${Math.round(x / 360) / 10} h`);
+  return `Reviewing ${games} game${games > 1 ? "s" : ""}: about ${t(tot)} (${t(per / 1000)} a game, ${ms ? "measured on this device" : "estimate for a phone"}), beside the games.`;
+}
 function renderTournamentSetup() {
   if (!H) return;
   const n = st.tseatN, spec = seatSpec();
@@ -599,6 +612,9 @@ function renderTournamentSetup() {
   const rot = st.tseats === "rotate";
   $("#labTSeats").setAttribute("aria-checked", String(rot)); $("#labTSeats").classList.toggle("on", rot);
   seg($("#labSpeed"), SPEEDS, st.speed, "speed", (v) => { st.speed = v; save(); renderTournamentSetup(); });
+  seg($("#labRevN"), REVNS, String(st.revN), "rn", (v) => { st.revN = v === "all" ? "all" : Number(v); save(); renderTournamentSetup(); });
+  $("#labRevCost").hidden = !st.revN;
+  if (st.revN) $("#labRevCost").textContent = revCostText(n, revCount(st.revN, st.games));
   const mayBeSlow = spec.some((k) => k === "random" ? poolKeys().some(slowKey) : slowKey(k));
   $("#labWatchNote").hidden = !mayBeSlow;
   $("#labRun").textContent = `Start ${st.games} games`; $("#labRun").classList.remove("stop");
@@ -632,9 +648,12 @@ const band = (lo, hi, p, fair) => `<div class="lb-band bar" aria-hidden="true"><
 const aggRows = () => aggregate(sim.results, labelOf);
 const half = (r) => Math.round(((r.hi - r.lo) / 2) * 100);
 function tableHtml(rows) {
-  return `<div class="lb-rt"><span class="hd"></span><span class="hd">bot · n = seats played</span><span class="hd r">wins ±95%</span><span class="hd r">VP</span><span class="hd r">turns</span>`
-    + rows.map((r, i) => `<b class="rk">${i + 1}</b><span class="who">${emblem(r.key, 26)}<span>${esc(r.label)}<small class="ci">n = ${r.n}</small></span></span><span class="num">${pct(r.p)}<small class="ci">±${half(r)}</small></span><span class="num">${r.avgVp.toFixed(1)}</span><span class="num">${Math.round(r.avgTurns)}</span>${band(r.lo, r.hi, r.p, r.fair)}`).join("")
-    + `</div><p class="lb-fine">Line = even share (${pct(rows[0]?.fair ?? 0.25)}). Ranked by wins.</p>`;
+  // lab-131: with reviewed games, accuracy (the review's, mean over the games ± spread between games · moves checked) replaces turns
+  const acc = rows.some((r) => r.accN);
+  const accCell = (r) => (r.accN ? `<span class="num">${r.acc.toFixed(1)}<small class="ci">${r.accSd != null ? `±${r.accSd.toFixed(1)} · ` : ""}n ${r.accN}</small></span>` : `<span class="num">–</span>`);
+  return `<div class="lb-rt${acc ? " lb-rt-acc" : ""}"><span class="hd"></span><span class="hd">bot · n = seats played</span><span class="hd r">wins ±95%</span>${acc ? `<span class="hd r">accuracy ±sd · games</span>` : ""}<span class="hd r">VP</span>${acc ? "" : `<span class="hd r">turns</span>`}`
+    + rows.map((r, i) => `<b class="rk">${i + 1}</b><span class="who">${emblem(r.key, 26)}<span>${esc(r.label)}<small class="ci">n = ${r.n}</small></span></span><span class="num">${pct(r.p)}<small class="ci">±${half(r)}</small></span>${acc ? accCell(r) : ""}<span class="num">${r.avgVp.toFixed(1)}</span>${acc ? "" : `<span class="num">${Math.round(r.avgTurns)}</span>`}${band(r.lo, r.hi, r.p, r.fair)}`).join("")
+    + `</div><p class="lb-fine">Line = even share (${pct(rows[0]?.fair ?? 0.25)}). Ranked by wins.${acc ? ` Accuracy: the Game review's check of each bot's own moves, mean over ${Math.max(...rows.map((r) => r.accN))} reviewed games (± spread between games), deep round only, the scale of the Bots page.` : ""}</p>`;
 }
 const timeText = (s) => (s < 90 ? `${Math.max(1, Math.round(s))} s` : `${Math.round(s / 60)} min`);
 function renderStand(final = false) {
@@ -663,6 +682,7 @@ function renderSummary() {
     <p class="lb-verdict v-${v.kind}">${esc(v.line)}</p>
     ${clear ? `<p class="lb-fine">Clear gaps: ${esc(clear)}</p>` : ""}
     ${tableHtml(rows)}
+    ${cfg.revN ? `<p class="lb-fine">Review: ${sim.results.filter((r) => r.acc).length} of ${Math.min(cfg.revN, sim.results.length)} games checked${rev.busy ? ", going on (Games of this run)" : ""}. Accuracy counts finished reviews only (deep round).</p>` : ""}
     <div class="lb-btnrow"><button type="button" class="lb-btn primary" id="labSave"${sim.saved ? " disabled" : ""}>${sim.saved ? "Saved" : "Save run"}</button><button type="button" class="lb-btn" id="labAgain">Run again</button></div>
     <button type="button" class="lb-link" id="labCopy">Copy result as text</button>`;
   $("#labSave").addEventListener("click", () => { saveRun(); renderSummary(); renderHist(); });
@@ -746,6 +766,84 @@ function renderWatch(g, final = null) {
   fade(true);
 }
 
+// ── lab-131 the games of the last run: kept (src/lab-games.js), opened on the real Replay / review, and reviewed one by one ──
+const LKEY = "colonist.lab.last"; // the last run's results (small), so the Result and its games are back after a Replay
+function saveLast() {
+  if (!sim.cfg) return;
+  put(LKEY, { run: sim.run, cfg: sim.cfg, n: sim.n, results: sim.results.map(({ game, keys, winner, turns, vp, id, acc }) => ({ game, keys, winner, turns, vp, id, acc })) });
+}
+/** Keep the sim frame's finished game (result index idx); a recorded one (among the first revN) is queued for the review. */
+async function keep(idx) {
+  const g = $("#labSim").contentWindow.__colonistGame, r = sim.results[idx];
+  const { meta, payload } = entryOf(g, { keys: r.keys, labels: r.keys.map(labelOf), i: r.game, run: sim.run });
+  if (!(await labStore.put(meta, payload, { quiet: true }))) { sim.unkept += 1; return; }
+  r.id = meta.id;
+  const ids = new Set(labStore.metas.map((m) => m.id));
+  sim.results.forEach((x) => { if (x.id && !ids.has(x.id)) { x.id = null; sim.unkept += 1; } }); // over the limit: the oldest went
+  saveLast();
+  if (payload.rv && r.id) enqueueReview(idx);
+  renderGames();
+}
+const rev = { q: [], busy: false, ctl: null, cur: null, done: 0 };
+function enqueueReview(idx) { if (!rev.q.includes(idx)) rev.q.push(idx); if (!rev.busy) reviewLoop(); }
+function stopReviews() { rev.q = []; if (rev.ctl) rev.ctl.stopped = true; }
+async function reviewLoop() {
+  rev.busy = true;
+  renderGames();
+  const f = $("#labRevFrame");
+  if (!f.src) f.src = "./index.html?lab=sim";
+  const rg = await waitEngine(f);
+  while (rev.q.length) {
+    const idx = rev.q.shift(), r = sim.results[idx];
+    if (!r?.id || r.acc) continue;
+    const ctl = { stopped: false, onTick: (t) => { rev.cur.tick = t; renderGames(); } };
+    rev.ctl = ctl; rev.cur = { idx, tick: null };
+    renderGames();
+    const t0 = performance.now();
+    const out = await reviewGame(rg, r.id, ctl);
+    if (ctl.stopped) continue; // (Stop reviewing / a new run emptied the queue; a new run's games may be queued already)
+    if (out) {
+      r.acc = r.keys.map((k, s2) => out[s2] || null); rev.done += 1;
+      put(RVKEY, Math.round((performance.now() - t0) / r.keys.length)); // MEASURED here: ms per bot seat (the cost line reads it)
+    } else r.revFail = true;
+    saveLast(); renderSummary(); renderGames();
+  }
+  rev.busy = false; rev.cur = null; rev.ctl = null;
+  renderSummary(); renderGames(); renderTournamentSetup();
+}
+const kbText = (b) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1048576).toFixed(1)} MB`);
+const accText = (a) => (a && a.acc != null && a.done !== false ? String(Math.round(a.acc)) : "–");
+function openGame(id, what, pid = null) {
+  if ((sim.running || rev.busy) && !confirm("Leaving the lab stops the run and the reviewing. Open the game?")) return;
+  location.href = `./index.html?labgame=${encodeURIComponent(id)}&what=${what}${pid != null ? `&pid=${pid}` : ""}`;
+}
+function renderGames() {
+  const el = $("#labGamesCard");
+  const list = sim.results.filter((r) => r.id || r.game);
+  if (!list.length) { el.hidden = true; return; }
+  el.hidden = false;
+  const kept = list.filter((r) => r.id).length;
+  const status = (r, idx) => {
+    if (!r.id) return "not kept";
+    if (r.acc) return "reviewed";
+    if (rev.cur?.idx === idx) { const t = rev.cur.tick; return t ? `reviewing: ${labelOf(r.keys[t.pid])}, ${t.stage} round ${t.j} of ${t.n} moves` : "reviewing…"; }
+    if (r.revFail) return "review failed";
+    if (rev.q.includes(idx)) return "waiting for the review";
+    return "";
+  };
+  const rows = sim.results.map((r, idx) => {
+    const win = r.winner == null || r.winner < 0 ? "No winner" : `${labelOf(r.keys[r.winner])} wins`;
+    const st2 = status(r, idx);
+    const seats = r.acc ? `<span class="lb-gseats">${r.keys.map((k, s2) => `<button type="button" class="lb-gseat" data-open="${esc(r.id)}" data-what="review" data-pid="${s2}" aria-label="Review of ${esc(labelOf(k))} in game ${r.game}: accuracy ${accText(r.acc[s2])}">${emblem(k, 22)}<b>${accText(r.acc[s2])}</b></button>`).join("")}</span>` : "";
+    return `<div class="lb-grow"><div><span class="tt">Game ${r.game} · ${esc(win)}</span><small>${r.turns} turns${st2 ? ` · ${esc(st2)}` : ""}</small>${seats}</div>${r.id ? `<button type="button" class="lb-btn" data-open="${esc(r.id)}" data-what="replay">Replay</button>` : ""}</div>`;
+  }).join("");
+  el.innerHTML = `<div class="lt-head"><h2>Games of this run</h2><small>${kept} kept on this phone · ${kbText(labStore.bytes)} of ${kbText(labStore.budget)}</small></div>
+    <div class="lb-glist">${rows}</div>
+    ${sim.unkept ? `<p class="lb-fine">${sim.unkept} game${sim.unkept > 1 ? "s" : ""} not kept.</p>` : ""}
+    <div class="lb-btnrow">${rev.busy ? `<button type="button" class="lb-btn" id="labRevStop">Stop reviewing</button>` : ""}</div>
+    <p class="lb-fine">Replay plays the game again with the running win chance; a bot's accuracy opens its review. Only the last run is kept (at most ${labStore.lim.games} games); a new run replaces it.</p>`;
+}
+
 async function runTournament(over = {}) {
   if (sim.running) { sim.running = false; labGameCancel(); return sim; }
   const frame = $("#labSim");
@@ -753,7 +851,11 @@ async function runTournament(over = {}) {
   const spec = over.spec || seatSpec();
   const cfg = { n: st.games, tboard: st.tboard, rotate: st.tseats === "rotate", distinct: !!st.distinct, ...over, spec, nSeats: spec.length };
   const pool = drawPool();
-  Object.assign(sim, { running: true, n: cfg.n, done: 0, errors: 0, game: 0, restore: true, results: [], cfg, curKeys: null, msTotal: 0, saved: false });
+  cfg.revN = revCount(over.review === true ? "all" : over.review ?? st.revN, cfg.n); // lab-131: the first revN games are reviewed
+  Object.assign(sim, { running: true, n: cfg.n, done: 0, errors: 0, game: 0, restore: true, results: [], cfg, curKeys: null, msTotal: 0, saved: false, run: Date.now(), unkept: 0 });
+  stopReviews(); rev.done = 0;
+  await clearStore(); // the games of the last run make way (lab-131: kept for Replay / the review)
+  saveLast();
   $("#labSummary").hidden = true;
   renderTournamentSetup();
   renderStand();
@@ -793,14 +895,18 @@ async function runTournament(over = {}) {
         if (!sim.running) break;
         if (!m || m.type !== "game") { sim.errors += 1; continue; }
         slowGames += 1;
-        sim.results.push({ keys, winner: m.winner, turns: m.turns, vp: m.vp, ms: m.ms });
+        sim.results.push({ game: i + 1, keys, winner: m.winner, turns: m.turns, vp: m.vp, ms: m.ms });
         sim.done += 1; sim.msTotal += performance.now() - t0;
+        // the same game again in the sim frame from the worker's decisions, recorded (Replay; the review with the switch on)
+        try { if (await replayScript(g, { strategies, seed, map: cfg.tboard, script: m.script || [], result: m }, i < cfg.revN)) await keep(sim.results.length - 1); else sim.unkept += 1; }
+        catch (e) { sim.unkept += 1; console.warn("lab keep", e); }
         sim.live = { turn: m.turns, vp: m.vp };
         renderStand(); renderTournamentSetup();
         if (watchOn() && sim.running && !first) { renderWatch(null, m.winner ?? -1); await sleep(i + 1 < cfg.n ? 900 : 1400); }
         continue;
       }
       try {
+        recordOn(g, i < cfg.revN); // lab-131: a game to review records every seat's real choices
         g._labSimStart(strategies, { players: keys.length, map: cfg.tboard, seed });
         let r = { done: false }, shown = false;
         do {
@@ -818,12 +924,14 @@ async function runTournament(over = {}) {
           }
         } while (!r.done && sim.running);
         if (!r.done) break;
+        recordOn(g, false);
         const info = g._labSimInfo();
-        sim.results.push({ keys, winner: r.winner, turns: r.turns, vp: info.players.map((p) => p.vp) });
+        sim.results.push({ game: i + 1, keys, winner: r.winner, turns: r.turns, vp: info.players.map((p) => p.vp) });
         sim.done += 1; sim.msTotal += performance.now() - t0;
+        await keep(sim.results.length - 1).catch((e) => { sim.unkept += 1; console.warn("lab keep", e); });
         renderStand(); renderTournamentSetup();
         if (watchOn() && sim.running) { view._labWatch(g); renderWatch(g, r.winner ?? -1); await sleep(i + 1 < cfg.n ? 900 : 1400); }
-      } catch (e) { sim.errors += 1; console.error("tournament game failed", e); }
+      } catch (e) { sim.errors += 1; recordOn(g, false); console.error("tournament game failed", e); }
     }
   } finally {
     sim.running = false;
@@ -837,8 +945,10 @@ async function runTournament(over = {}) {
       applyHand();
     }
     if (sim.done && !watchOn()) put(MKEY, Math.round(sim.msTotal / sim.done), sessionStorage);
+    saveLast();
     renderStand(true);
     renderSummary();
+    renderGames();
     renderHist();
     renderTournamentSetup();
     update();
@@ -909,7 +1019,22 @@ function setPane(p) {
   setPane(st.pane === "tournament" ? "tournament" : "analysis");
   await newBoard();
   renderHist();
+  // lab-131: the last run (its Result and its kept games) is back, e.g. after a Replay
+  $("#labGamesCard").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-open]");
+    if (b) { openGame(b.dataset.open, b.dataset.what, b.dataset.pid != null ? Number(b.dataset.pid) : null); return; }
+    if (e.target.closest("#labRevStop")) { stopReviews(); renderGames(); return; }
+  });
+  try {
+    const last = store(LKEY);
+    await labStore.open();
+    if (last?.results?.length && !sim.running && labStore.metas.some((m) => m.lab?.run === last.run)) {
+      const ids = new Set(labStore.metas.map((m) => m.id));
+      Object.assign(sim, { run: last.run, cfg: last.cfg, n: last.n, results: last.results.map((r) => ({ ...r, id: ids.has(r.id) ? r.id : null })), done: last.results.length });
+      renderSummary(); renderGames();
+    }
+  } catch (e) { console.warn("lab last run", e); }
   // load the tournament engine while idle, so pressing Start never waits for it (it froze the page ~1 s)
   (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(preloadSim, { timeout: 4000 });
-  window.__lab = { ready: true, steps, st, reach, selectSpot, findContested, ms, W: () => W, runTournament, runGames: (n, o = {}) => runTournament({ n, ...o }), newBoard, update, view: () => view, sim, runs: () => runs, tree, setPane, myBot, aggRows };
+  window.__lab = { ready: true, labStore, rev, steps, st, reach, selectSpot, findContested, ms, W: () => W, runTournament, runGames: (n, o = {}) => runTournament({ n, ...o }), newBoard, update, view: () => view, sim, runs: () => runs, tree, setPane, myBot, aggRows };
 })();
