@@ -84,6 +84,25 @@ t("the search budgets: Master 100 / 0.5 s, Super 1000 / 3 s / 14 deep / 18 in se
   assert.match(m, /SUPER_BUDGET = \{ n: 1000, timeMs: 3000, timeSlice: true, depth: 14, setupDepth: 18/);
   assert.match(m, /MASTER_BUDGET = \{ n: 100, timeMs: 500 \}/);
 });
+t("Super Expert+ (bot-125): own policy and chip, the Super Expert's budget with the gbm leaf (Rush too), searched, own frame and mini", () => {
+  assert.equal(AI_PRESETS.superplus.policy, "superplus");
+  assert.equal(presetHighlight([{ ...AI_PRESETS.superplus }], AI_PRESETS, AXES).active, "superplus");
+  assert.equal(presetHighlight([{ ...AI_PRESETS.super }], AI_PRESETS, AXES).active, "super");
+  const p = BOT_PROFILES.superplus;
+  assert.equal(p.win, null); assert.equal(p.level, 5); assert.ok(p.beyond);
+  assert.match(p.weak, /not measured yet/); assert.match(p.weak, /Seafarers it plays exactly like the Expert/); assert.match(p.weak, /3 seconds/);
+  assert.ok(profileArt("superplus", 132).length < 3072);
+  assert.notEqual(levelFrame("superplus"), levelFrame("super"));
+  assert.notEqual(profileMini("superplus"), profileMini("super"));
+});
+const M = await import("../src/master.js");
+t("budgetFor: Super Expert+ = Super Expert + leaf gbm; Rush = RUSH_BUDGET + leaf gbm; Master and Super Expert unchanged (leaf v1)", () => {
+  assert.deepEqual(M.budgetFor("superplus"), { ...M.SUPER_BUDGET, leaf: "gbm" });
+  assert.deepEqual(M.budgetFor("superplus", true), { ...M.RUSH_BUDGET, leaf: "gbm" });
+  assert.deepEqual(M.budgetFor("super"), M.SUPER_BUDGET); assert.equal(M.budgetFor("super").leaf, undefined);
+  assert.deepEqual(M.budgetFor("master"), M.MASTER_BUDGET); assert.deepEqual(M.budgetFor("master", true), M.RUSH_BUDGET);
+  assert.ok(M.isSearchPolicy("superplus") && M.isSearchPolicy("super") && M.isSearchPolicy("master") && !M.isSearchPolicy("score"));
+});
 for (const file of ["bot-profile-ui.js", "game.js", "six-ui.js"]) {
   const text = fs.readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
   t(`${file} imports only files that exist`, () => {
