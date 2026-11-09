@@ -166,6 +166,8 @@ const AI_PRESETS = {
   super:        { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "super" },
   // bot-125 (working name "Super Expert+"): the Super Expert's search, scored at the end of every playout by the boosted value model (leaf "gbm")
   superplus:    { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "superplus" },
+  // eng-130 "Grandmaster": the Super Expert+ search on several cores at once (src/master/parallel.js), about 3x the futures in the same 3 s
+  grandmaster:  { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "grandmaster" },
 };
 
 // Player-facing names, short taglines and badge glyphs for the presets ("custom" = hand-tuned mix)
@@ -180,6 +182,7 @@ const AI_PRESET_INFO = {
   master:       { label: "Master",       tagline: "Expert + looks ahead", glyph: "\u2605", isNew: true },
   super:        { label: "Super Expert", tagline: "Master with 10x more thinking", glyph: "\u2605\u2605", isNew: true },
   superplus:    { label: "Super Expert+", tagline: "Super Expert with a learned eye", glyph: "\u2605\u2605+", isNew: true },
+  grandmaster:  { label: "Grandmaster",  tagline: "Super Expert+ on every core", glyph: "\u2605\u2605\u2605", isNew: true },
   custom:       { label: "Custom",       tagline: "your mix",             glyph: "" },
 };
 
@@ -9167,9 +9170,9 @@ class ColonistFullGame {
       const info = AI_PRESET_INFO[key] || AI_PRESET_INFO.custom;
       return `<span class="persona-badge persona-${key}">${info.glyph ? `${info.glyph} ` : ""}${info.label}</span>`;
     };
-    // v1.10 Super Expert / v1.17: searched on the island board (Classic and Rush, 2\u20136 players); Seafarers: greyed out, with the reason
-    const superOff = () => (d.board === "seafarers" ? "Seafarers" : "");
-    const isSup = (k) => k === "super" || k === "superplus"; // bot-125: Super Expert+ has the same reach (not in Seafarers)
+    // v1.10 Super Expert / v1.17: searched on the island board (Classic and Rush, 2\u20136 players); eng-130: Seafarers too, so never greyed out
+    const superOff = () => "";
+    const isSup = (k) => k === "super" || k === "superplus" || k === "grandmaster";
     const botPreset = (i) => (d.botStyleMode === "each" ? d.perBot[i] : d.allPreset);
     const botStrategy = (i) => (d.botStyleMode === "each" ? AI_PRESETS[d.perBot[i]] : d.allStrategy);
     const diceHelp = {
@@ -9249,7 +9252,7 @@ class ColonistFullGame {
         d.perBot = d.perBot.map((k) => (isSup(k) ? "master" : k));
       }
       const superPicked = !superOff() && (d.botStyleMode === "each" ? d.perBot.slice(0, d.numBots).some((k, i) => isSup(k) && !(d.mode !== "rush" && d.humans[i])) : isSup(d.allPreset));
-      const superHelp = d._superNote ? `<p class="ng-help ng-super-help warn" role="status">${d._superNote}</p>` : superPicked ? `<p class="ng-help ng-super-help">${d.mode === "rush" ? "Rush: a quarter of a second per move, so about a Master there." : "~3 s per move."} Not in Seafarers.</p>` : "";
+      const superHelp = d._superNote ? `<p class="ng-help ng-super-help warn" role="status">${d._superNote}</p>` : superPicked ? `<p class="ng-help ng-super-help">${d.mode === "rush" ? "Rush: a quarter of a second per move, so about a Master there." : "~3 s per move."}</p>` : "";
       overlay.innerHTML = `
         <div class="ng-card">
           <header class="ng-header">
