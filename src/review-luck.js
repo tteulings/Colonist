@@ -15,6 +15,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hiddenTab = () => typeof document !== "undefined" && (document.hidden || document.visibilityState === "hidden");
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 /** "+6%", "−3%", "±0%" from a fraction (one decimal: dec 1). */
+/** v1.31 design B (user's choice): a player's OWN luck is every roll (its whole effect), a steal by or from them, and their own card
+ *  draws (Seafarers later: gold and the pirate's steal the same way). Another player's card draw, or a steal between two others, is
+ *  that player's gamble: it counts with "Others" (step mode) and apart in the bookkeeping, not as your luck. */
+export const ownOf = (ev, q) => ev.kind === "dice" || (ev.kind === "steal" && (ev.thief === q || ev.victim === q)) || (ev.kind === "dev" && ev.pid === q);
 export const wpText = (v, dec = 0) => { const f = 10 ** dec, r = Math.round(v * 100 * f) / f; return `${r > 0 ? "+" : r < 0 ? "−" : "±"}${Math.abs(r).toFixed(dec)}%`; };
 
 export const ReviewLuckMixin = {
@@ -23,7 +27,8 @@ export const ReviewLuckMixin = {
     const R = this._rv;
     if (this.sea || this._st?.sea) return "not for Seafarers yet";
     if (!R?.recs?.length || !this.stats?.steps?.length) return "not recorded";
-    if (!this._lkEvents().length) return "not recorded";
+    // a game recorded before the bots' moves (v1.29) has positions before your own rolls only: not enough to add up
+    if (this._lkEvents().filter((e) => e.kind === "dice").length < 0.9 * this.stats.steps.length) return "not recorded";
     return null;
   },
   /** The game's chance events (cached per record count). */
@@ -55,7 +60,7 @@ export const ReviewLuckMixin = {
       if (ev.kind === "dice") dice += 1;
       if (!r) return;
       j += 1;
-      if (r.l) { r.l.forEach((x, q) => { tot[q] += x; }); if (ev.kind === "dice") diceOk += 1; }
+      if (r.l) { r.l.forEach((x, q) => { if (ownOf(ev, q)) tot[q] += x; }); if (ev.kind === "dice") diceOk += 1; }
     });
     const rolls = this.stats.steps.length;
     return { n: evs.length, j, done: j >= evs.length, run: !!this._rv.lrun, stopped: !!L.stopped, tot, cover: rolls ? diceOk / rolls : 0, paused: !!this._rv.lrun?.paused };
@@ -117,7 +122,7 @@ export const ReviewLuckMixin = {
         (st.stepEvents?.[s] || []).forEach((e) => { if (e[1] === "P") { if (e[2] === pid) cards += e[5] || 1; else others += e[5] || 1; } });
         exp = st.rollExp?.[s]?.[pid] ?? null;
       }
-      out.push({ ev, w: r.l[pid] || 0, se: r.se?.[pid] ?? null, cards, exp, others });
+      out.push({ ev, w: r.l[pid] || 0, se: r.se?.[pid] ?? null, cards, exp, others, own: ownOf(ev, pid) });
     });
     return out;
   },
@@ -143,8 +148,8 @@ export const ReviewLuckMixin = {
     if (!ev) return null;
     const start = L.res[keyOf(ev)].b[pid], end = this.winner ? (this.winner.id === pid ? 1 : 0) : null;
     if (end == null) return null;
-    const luck = this._lkList(pid).reduce((a, x) => a + x.w, 0);
-    return { start, end, luck, rest: end - start - luck };
+    const all = this._lkList(pid), luck = all.reduce((a, x) => a + (x.own ? x.w : 0), 0), theirs = all.reduce((a, x) => a + (x.own ? 0 : x.w), 0);
+    return { start, end, luck, theirs, rest: end - start - luck - theirs };
   },
   /** "Luck details" under the table: every chance event of one player, biggest first (or in play order), the total = the table's number. Folded by default. */
   _lkDetailsHtml(LK = this._lkState()) {
@@ -152,7 +157,7 @@ export const ReviewLuckMixin = {
     const U = (this._lkUi ||= { open: false, pid: null, sort: "size", all: false });
     const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
     if (U.pid == null || !this.players[U.pid]) U.pid = this._rvPid ?? this.players.find((p) => p.isHuman)?.id ?? 0;
-    const pid = U.pid, list = this._lkList(pid);
+    const pid = U.pid, list = this._lkList(pid).filter((x) => x.own);
     const rows = U.sort === "size" ? list.slice().sort((a, b) => Math.abs(b.w) - Math.abs(a.w) || a.ev.e - b.ev.e) : list;
     const shown = U.all ? rows : rows.slice(0, 12);
     const tot = list.reduce((a, x) => a + x.w, 0), se = Math.sqrt(list.reduce((a, x) => a + (x.se || 0) ** 2, 0));
@@ -168,8 +173,8 @@ export const ReviewLuckMixin = {
       ${rows.length > shown.length ? `<button type="button" class="rv-btn lkd-all" data-rvlka>Show all ${rows.length}</button>` : ""}
       <p class="lkd-tot"><span>Total · ${kinds.dice} rolls, ${kinds.steal} steals, ${kinds.dev} card draws</span><b class="${cls(tot)}">${wpText(tot, 1)}</b></p>
       ${(() => { const B = this._lkBook(pid); if (!B) return ""; const pc = (v) => `${Math.round(v * 100)}%`;
-        return `<p class="lkd-book"><b>${you ? "Your" : `${esc(this.players[pid].name)}’s`} win chance</b>: ${pc(B.start)} at the first roll, ${B.end ? "won" : "lost"} at the end (${wpText(B.end - B.start)}) = luck ${wpText(B.luck)} + moves ${wpText(B.rest)}. Moves: everyone’s choices, ${you ? "yours" : "theirs"} and the others’ (a card someone buys is a risk they take: its draw is luck). Luck can be bigger than the whole change when the others keep taking such chances and miss.</p>`; })()}
-      <p class="lkd-note">Each line: ${you ? "your" : "their"} win chance right after what happened, against the average over everything that could have happened (each outcome as likely as it was). ±0 is as expected. For everyone at the table the lines of one event add up to 0. Measured by replaying the game ${LUCK_MC.futures} times ${LUCK_MC.depth} turns ahead after every outcome: the total is good to about ±${Math.max(0.1, Math.round(se * 1000) / 10)} points.</p></details>`;
+        return `<p class="lkd-book"><b>${you ? "Your" : `${esc(this.players[pid].name)}’s`} win chance</b>: ${pc(B.start)} at the first roll, ${B.end ? "won" : "lost"} at the end (${wpText(B.end - B.start)}) = own luck ${wpText(B.luck)} + the others’ gambles ${wpText(B.theirs)} + moves ${wpText(B.rest)}. Own luck: every roll, steals by or from ${you ? "you" : "them"}, ${you ? "your" : "their"} own card draws. The others’ gambles: what their card draws (and steals between two others) did to ${you ? "you" : "them"}: a card someone buys could be the winning Victory Point. Moves: everyone’s choices.</p>`; })()}
+      <p class="lkd-note">Each line: ${you ? "your" : "their"} win chance right after what happened, against the average over everything that could have happened (each outcome as likely as it was). ±0 is as expected. Measured by replaying the game ${LUCK_MC.futures} times ${LUCK_MC.depth} turns ahead after every outcome: the total is good to about ±${Math.max(0.1, Math.round(se * 1000) / 10)} points.</p></details>`;
   },
   _lkBindDetails(root) {
     const d = root.querySelector("[data-rvlkd]");
@@ -183,7 +188,7 @@ export const ReviewLuckMixin = {
   },
   /** The luck terms between two decisions of a seat (event index from ≤ e < to): { sum, list } for seat pid. */
   _lkBetween(pid, from, to) {
-    const L = this._lkStore(), list = [];
+    const L = this._lkStore(), list = [], theirs = [];
     let sum = 0, missing = 0;
     if (!L || this._lkNa()) return null;
     this._lkEvents().forEach((ev) => {
@@ -191,8 +196,8 @@ export const ReviewLuckMixin = {
       const r = L.res[keyOf(ev)];
       if (!r) { missing += 1; return; }
       if (!r.l) return;
-      sum += r.l[pid] || 0; list.push({ ev, w: r.l[pid] || 0 });
+      if (ownOf(ev, pid)) { sum += r.l[pid] || 0; list.push({ ev, w: r.l[pid] || 0 }); } else theirs.push({ ev, w: r.l[pid] || 0 });
     });
-    return { sum, list, missing };
+    return { sum, list, theirs, missing };
   },
 };
