@@ -3,6 +3,8 @@
 import { Seafarers } from "./rules.js";
 import { layoutHexes, mainCenter, ISLAND_TILES, PIRATE_START, SHIP_COST } from "./scenario.js";
 import { icon, cardSvg } from "../themes/manager.js";
+import { drawSpec } from "../themes/board-renderer.js";
+import { drawChoiceIcon } from "./render.js";
 
 const RES = ["wood", "brick", "sheep", "wheat", "ore"];
 const LBL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
@@ -100,7 +102,7 @@ export const SeaGame = {
   _seaChoosePiece(player, target, x, y, auto) {
     const modeless = !this.pendingAction;
     this._seaOpenChooser(x, y, "Build a road or a ship here", [["road", "Road"], ["ship", "Ship"]].map(([type, label]) => ({
-      piece: type, label, run: () => this._seaPickBuild(player, { type, id: target.id }, modeless, auto) })));
+      piece: type, id: target.id, label, run: () => this._seaPickBuild(player, { type, id: target.id }, modeless, auto) })));
   },
 
   /** v1.31 Build the piece picked in a chooser: a mode-less pick only selects; otherwise it builds at once when building
@@ -124,38 +126,59 @@ export const SeaGame = {
     const modeless = !this.pendingAction;
     const NAME = { settlement: "Settlement", city: "City", road: "Road", ship: "New ship" };
     const builds = targets.flatMap((t) => (t.both ? [{ type: "road", id: t.id }, { type: "ship", id: t.id }] : [{ type: t.type, id: t.id }]));
-    const opts = builds.map((t) => ({ piece: t.type, label: NAME[t.type], run: () => this._seaPickBuild(player, t, modeless) }));
-    opts.push({ piece: "move", label: "Move ship", run: () => { if (!this.winner && this.currentPlayer === player && this.sea.isShipMovable(player, ship)) this._seaStartMove(player, ship); } });
+    const opts = builds.map((t) => ({ piece: t.type, id: t.id, label: NAME[t.type], run: () => this._seaPickBuild(player, t, modeless) }));
+    opts.push({ piece: "move", id: ship, label: "Move ship", run: () => { if (!this.winner && this.currentPlayer === player && this.sea.isShipMovable(player, ship)) this._seaStartMove(player, ship); } });
     this._seaOpenChooser(x, y, `${builds.map((b) => NAME[b.type]).join(" or ")}, or move your ship`, opts);
   },
 
-  /** The tiny chooser by the tapped spot (44 px buttons), shared by Road / Ship and Build / Move ship. */
+  /**
+   * The chooser by the tapped spot, shared by Road / Ship and Build / Move ship. v1.31 (ux-132): big tiles side by side,
+   * each with its piece in your seat colour (as on the board) and a short word under it; the board previews what each
+   * option means (`_seaPreview`): "numbered" shows every option at once with its tile's number, "focus" only the
+   * option under the finger / keyboard focus (the first by default).
+   */
   _seaOpenChooser(x, y, aria, opts) {
     this._seaCloseChooser();
     const cr = this.canvas.getBoundingClientRect(), v = this.view;
     const sx = cr.left + v.offsetX + v.scale * x, sy = cr.top + v.offsetY + v.scale * y;
+    const numbered = (this._seaChooserStyle || "numbered") === "numbered" && opts.length > 1;
+    const R = this.boardRenderer, pl = this.currentPlayer, c = R && pl ? R.pc(pl) : null;
     const el = document.createElement("div");
     el.className = "sea-chooser"; el.setAttribute("role", "group"); el.setAttribute("aria-label", aria);
-    el.style.cssText = "position:fixed;z-index:60;display:flex;gap:6px;padding:5px;border-radius:14px;background:var(--float,#FBF6EA);border:var(--float-border,1px solid rgba(0,0,0,.12));box-shadow:var(--float-shadow,0 6px 18px rgba(0,0,0,.25));font:700 14px/1 var(--font-ui,system-ui);color:var(--ink,#1F1A17)";
-    opts.forEach(({ piece, label, run }) => {
+    el.style.cssText = "position:fixed;z-index:60;display:flex;gap:6px;padding:6px;border-radius:16px;background:var(--float,#FBF6EA);border:var(--float-border,1px solid rgba(0,0,0,.12));box-shadow:var(--float-shadow,0 6px 18px rgba(0,0,0,.25));font:700 12px/1.1 var(--font-ui,system-ui);color:var(--ink,#1F1A17)";
+    this._seaPreview = { items: opts.map((o, i) => ({ type: o.piece, id: o.id, n: i + 1 })), focus: 0, numbered };
+    opts.forEach(({ piece, label, run }, i) => {
       const b = document.createElement("button");
-      b.type = "button"; b.textContent = label; b.dataset.piece = piece;
-      b.style.cssText = "min-width:58px;min-height:44px;padding:0 12px;border-radius:10px;border:0;background:var(--chip,rgba(0,0,0,.06));color:inherit;font:inherit;cursor:pointer;white-space:nowrap";
+      b.type = "button"; b.dataset.piece = piece; b.setAttribute("aria-label", label);
+      b.style.cssText = "position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:68px;min-height:68px;padding:6px 6px 7px;border-radius:12px;border:0;background:var(--chip,rgba(0,0,0,.06));color:inherit;font:inherit;cursor:pointer;white-space:nowrap";
+      if (c) { const cv = document.createElement("canvas"); cv.setAttribute("aria-hidden", "true"); try { drawChoiceIcon(R, cv, piece, c, drawSpec); } catch { /* icon only */ } b.appendChild(cv); }
+      else b.insertAdjacentHTML("beforeend", icon(piece === "move" ? "ship" : piece).replace('class="ic ', 'style="font-size:32px" class="ic '));
+      const t = document.createElement("span"); t.textContent = label; b.appendChild(t);
+      if (numbered) b.insertAdjacentHTML("beforeend", `<i aria-hidden="true" style="position:absolute;top:3px;left:4px;width:16px;height:16px;border-radius:8px;background:#FBF6EA;border:1.5px solid #22313A;font:800 10px/14px system-ui,sans-serif;font-style:normal;color:#22313A;text-align:center;box-sizing:border-box">${i + 1}</i>`);
+      const ring = (on) => { b.style.boxShadow = on ? "inset 0 0 0 2.5px var(--pick-ring,#22313A)" : "none"; };
+      if (!numbered) ring(i === 0);
+      const focusMe = () => {
+        if (!this._seaPreview || numbered || this._seaPreview.focus === i) return;
+        this._seaPreview.focus = i; el.querySelectorAll("button").forEach((x, j) => { x.style.boxShadow = j === i ? "inset 0 0 0 2.5px var(--pick-ring,#22313A)" : "none"; }); this.render();
+      };
+      b.addEventListener("pointerenter", focusMe); b.addEventListener("focus", focusMe);
       b.addEventListener("click", (ev) => { ev.stopPropagation(); this._seaCloseChooser(); run(); });
       el.appendChild(b);
     });
     document.body.appendChild(el);
     const w = el.offsetWidth, h = el.offsetHeight;
     el.style.left = `${Math.round(Math.max(8, Math.min(innerWidth - w - 8, sx - w / 2)))}px`;
-    el.style.top = `${Math.round(sy - h - 20 < 8 ? sy + 20 : sy - h - 20)}px`;
+    el.style.top = `${Math.round(sy - h - 28 < 8 ? sy + 28 : sy - h - 28)}px`;
     this._seaChooser = el;
     this._seaChooserOff = (ev) => { if (ev.type === "keydown" ? ev.key === "Escape" : !el.contains(ev.target)) this._seaCloseChooser(); };
     setTimeout(() => { if (this._seaChooser !== el) return; document.addEventListener("pointerdown", this._seaChooserOff, true); document.addEventListener("keydown", this._seaChooserOff, true); }, 0);
     this.sfx.click();
+    this.render();
   },
   _seaCloseChooser() {
     if (!this._seaChooser) return;
     this._seaChooser.remove(); this._seaChooser = null;
+    if (this._seaPreview) { this._seaPreview = null; this.render?.(); }
     document.removeEventListener("pointerdown", this._seaChooserOff, true); document.removeEventListener("keydown", this._seaChooserOff, true);
   },
 
