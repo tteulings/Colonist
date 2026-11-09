@@ -22,7 +22,7 @@ import { ReviewGameMixin, installReviewGame } from "./review-game.js"; // v1.03 
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
-import { presetHighlight, BOT_PROFILES } from "./bot-profiles.js"; // v1.04 Settings › Bots: which preset chip is lit
+import { presetHighlight, BOT_PROFILES, gmFlag } from "./bot-profiles.js"; // v1.04 Settings › Bots: which preset chip is lit
 import { framedAvatar, profileLabel, profileOf, openProfileSheet, pickerExtras, tableList, presetCards, dots, superOff } from "./bot-profile-ui.js"; // v1.04 bot profile frames + sheet
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
@@ -166,9 +166,11 @@ const AI_PRESETS = {
   super:        { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "super" },
   // bot-125 (working name "Super Expert+"): the Super Expert's search, scored at the end of every playout by the boosted value model (leaf "gbm")
   superplus:    { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "superplus" },
-  // eng-130 "Grandmaster": the Super Expert+ search on several cores at once (src/master/parallel.js), about 3x the futures in the same 3 s
-  grandmaster:  { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "grandmaster" },
 };
+// eng-130 "Grandmaster": the Super Expert+ search on several cores at once (src/master/parallel.js). Not released yet: a preset only
+// behind the flag (bot-profiles.js gmFlag: ?gm=1 or localStorage colonist.gm = "1")
+const GM_PRESET = { placement: "complex", expansion: "complex", trading: "balanced", devCards: "strategic", awareness: "advanced", policy: "grandmaster" };
+if (gmFlag()) AI_PRESETS.grandmaster = { ...GM_PRESET };
 
 // Player-facing names, short taglines and badge glyphs for the presets ("custom" = hand-tuned mix)
 const AI_PRESET_INFO = {

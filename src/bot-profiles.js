@@ -17,6 +17,11 @@ import { botBand } from "./review/bands.js";
 export const BOT_STRENGTH_SOURCE = "One bot vs 3 Intermediate bots, 4 players, 10 VP, 2000 games (500 seeds x 4 seats), v1.03 code. Equal bots win 25% each.";
 
 /** level: 1–5 dots (from the measured win rate), win: { p, ci } vs 3 Intermediate, acc: [review accuracy, SE] from src/review/bands.js */
+/** eng-130 Grandmaster is not released yet: it shows in the picker and on the Bots page only with ?gm=1 (or localStorage
+ *  colonist.gm = "1"). */
+export function gmFlag() {
+  try { return (typeof location !== "undefined" && /[?&]gm=1\b/.test(location.search || "")) || (typeof localStorage !== "undefined" && localStorage.getItem("colonist.gm") === "1"); } catch (_) { return false; }
+}
 export const BOT_PROFILES = {
   beginner: {
     label: "Beginner", tagline: "gentle, learns rules", level: 2, win: { p: 11.2, ci: 1.4 }, acc: botBand("Beginner"),
