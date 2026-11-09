@@ -2,7 +2,11 @@
 // Features: the 'fit2' seat features (46) + game context + each seat relative to the other seats. Model: leaf-gbm-model.js.
 // Trained offline (exp/vm-120/train.py); inference is one feature pass plus a few hundred tree walks per seat.
 import { GBM_MODEL } from "./leaf-gbm-model.js";
-let SEA_MODEL = null; // eng-130: set by setSeaModel (src/master/leaf-gbm-sea-model.js), null: the island model everywhere
+import { GBM_SEA_MODEL } from "./leaf-gbm-sea-model.js";
+// eng-130: the Seafarers model (its own features, SEA_NAMES), used on a Seafarers board. Played-out Seafarers games (300, fresh seeds),
+// log-loss of the eventual winner: this model 1.043, the island model 1.173, fit 1.199, v1 1.404 (uniform 1.318).
+let SEA_MODEL = GBM_SEA_MODEL;
+/** Tests: swap the Seafarers model (null: the island model everywhere). */
 export function setSeaModel(M) { SEA_MODEL = M && M.sea ? M : null; }
 const RES = ["wood", "brick", "sheep", "wheat", "ore"];
 const BUILD = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, dev: { sheep: 1, wheat: 1, ore: 1 } };

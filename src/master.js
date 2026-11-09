@@ -24,9 +24,16 @@ export const SUPER_PLUS_BUDGET = { ...SUPER_BUDGET, leaf: "gbm" };
 export const GRANDMASTER_BUDGET = { ...SUPER_PLUS_BUDGET, n: 3000 };
 /** Workers for one Grandmaster decision: the cores past the page's own, at most 3 (a Galaxy S24 has 8). */
 export const GM_WORKERS = () => Math.max(1, Math.min(3, ((typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 2) - 1));
-/** The search budget of a policy ("master" | "super" | "superplus" | "grandmaster"). */
-export const budgetFor = (policy, rush = false) => (rush ? { ...RUSH_BUDGET, ...(policy === "superplus" || policy === "grandmaster" ? { leaf: "gbm" } : {}) }
-  : { ...(policy === "grandmaster" ? GRANDMASTER_BUDGET : policy === "superplus" ? SUPER_PLUS_BUDGET : policy === "super" ? SUPER_BUDGET : MASTER_BUDGET) });
+// eng-130 Seafarers: the leaf every search bot uses there. The hand-made v1 score is worse than a uniform guess on Seafarers
+// positions (log-loss 1.404 vs 1.318, 300 played-out games); "gbm" there is the Seafarers model (src/master/leaf-gbm-sea-model.js, 1.043).
+export const SEA_LEAF = "gbm";
+/** The search budget of a policy ("master" | "super" | "superplus" | "grandmaster"); sea: a Seafarers game (eng-130). */
+export const budgetFor = (policy, rush = false, sea = false) => {
+  const b = rush ? { ...RUSH_BUDGET, ...(policy === "superplus" || policy === "grandmaster" ? { leaf: "gbm" } : {}) }
+    : { ...(policy === "grandmaster" ? GRANDMASTER_BUDGET : policy === "superplus" ? SUPER_PLUS_BUDGET : policy === "super" ? SUPER_BUDGET : MASTER_BUDGET) };
+  if (sea) b.leaf = SEA_LEAF;
+  return b;
+};
 // v1.17 Rush: a bot moves every 1-2 s while the dice clock runs, so its search gets a small cap (the 7's robber too; set-up has no clock
 // and keeps the full budget). Master and Super Expert search alike there (a Super Expert's longer look-ahead needs the time it doesn't get).
 export const RUSH_BUDGET = { n: 100, timeMs: 250, depth: 8, setupDepth: 12 };
@@ -119,7 +126,7 @@ export const MasterMixin = {
     const state = this.serializeState();
     const { logEntries, stats, ...pos } = state; // (the log and the stats don't change a decision)
     const key = JSON.stringify([kind, player.id, pos, trk, this.turnSerial]);
-    const opts = budgetFor(player.strategy?.policy, this.isRush() && !this.setupPhase);
+    const opts = budgetFor(player.strategy?.policy, this.isRush() && !this.setupPhase, !!this.sea);
     const msg = { type: "decide", kind, state, trk, turnSerial: this.turnSerial, seat: player.id, opts };
     const cap = kind === "setup" && opts.setupTimeMs ? opts.setupTimeMs : opts.timeMs; // eng-130: a set-up spot may have its own budget
     if (player.strategy?.policy === "grandmaster") return { key, cap, send: () => grandmasterRequest(msg, Math.max(ASK_TIMEOUT_MS, cap + 3000)) };

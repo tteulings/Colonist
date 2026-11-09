@@ -13,6 +13,7 @@
 // the robber tile. Player-to-player trades, discards and the pre-roll Knight stay with the Expert.
 import { DEV_CARD_TYPES, hasResources, mulberry32, snapshot, restore, determinize, rollout, winProb, winProbs, fitProbs, withoutAgents } from "./sim.js";
 import { gbmProbs } from "./leaf-gbm.js";
+import { GBM_MODEL } from "./leaf-gbm-model.js";
 import { FIT2_ADJ } from "./leaf-fit.js";
 
 export const MASTER_OPTS = { n: 100, timeMs: 0, depth: 8, setupDepth: 12, z: 1.0, minAdv: 0.002, jitter: 0.15, T: 1.2, topSetup: 6, topRobber: 4, maxCands: 7 };
@@ -121,7 +122,7 @@ export function makeMaster(opts = {}) {
       let v = 0;
       if (a !== false) {
         if (!g.winner) rollout(g, a === "ended" ? depth - 1 : depth, r, { jitter: o.jitter });
-        if (o.leaf === "gbm") { const ws = gbmProbs(g); v = ws[me]; if (seatW) seatW[k][j] = ws; } // eng-124 o.leaf 'gbm': boosted trees (src/master/leaf-gbm.js; the review's leaf)
+        if (o.leaf === "gbm" || o.leaf === "gbm0") { const ws = gbmProbs(g, o.leaf === "gbm0" ? GBM_MODEL : null); v = ws[me]; if (seatW) seatW[k][j] = ws; } // eng-124 o.leaf 'gbm': boosted trees (src/master/leaf-gbm.js; the review's leaf); eng-130: the Seafarers model on a Seafarers board ('gbm0': always the island model, for measurements)
         else if (o.leaf === "fit" || o.leaf === "fit2") { const ws = fitProbs(g, undefined, o.leaf === "fit2" ? FIT2_ADJ : null); v = ws[me]; if (seatW) seatW[k][j] = ws; } // v1.10 o.leaf 'fit': the fitted score function; v1.19 'fit2': plus the Longest Road / Largest Army offset
         else if (seatW) { const ws = winProbs(g, o.T); v = ws[me]; seatW[k][j] = ws; } else v = winProb(g, me, o.T);
       }
@@ -268,7 +269,7 @@ export function makeMaster(opts = {}) {
   });
   /** The leaf: the searching seat's win chance at the end of a playout (and every seat's when asked), as in search0. */
   const leafValue = (g, me, all) => {
-    if (o.leaf === "gbm") { const ws = gbmProbs(g); return { v: ws[me], ws }; }
+    if (o.leaf === "gbm" || o.leaf === "gbm0") { const ws = gbmProbs(g, o.leaf === "gbm0" ? GBM_MODEL : null); return { v: ws[me], ws }; }
     if (o.leaf === "fit" || o.leaf === "fit2") { const ws = fitProbs(g, undefined, o.leaf === "fit2" ? FIT2_ADJ : null); return { v: ws[me], ws }; }
     if (all) { const ws = winProbs(g, o.T); return { v: ws[me], ws }; }
     return { v: winProb(g, me, o.T), ws: null };
