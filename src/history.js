@@ -275,7 +275,7 @@ export const HistoryMixin = {
       Object.values(revs).forEach((r) => rescoreReview(r)); // v1.21 today's numbers, classes and labels from the saved candidates
       this._rv = rec.rv ? { id, base: rec.rv.base, recs: unpackRecs(rec.rv.recs), res: null, busy: false, ms: 0, revs, queue: [], bots: !!rec.rv.bots, review: this._rvMine?.(revs) || undefined } : null;
       this._rv?.recs?.length && this._rvFinish?.(false); // v1.11: the missed-chance detectors run for a past game too (no auto review): without this the end screen said "checking…" for ever
-    } else if (!document.querySelector(".game-over-overlay")) this.showGameOverOverlay();
+    } else if (!document.querySelector(".game-over-overlay")) this.showGameOverOverlay({ quiet: true });
     const ready = () => {
       const ov = document.querySelector(".game-over-overlay");
       if (!ov) return false;

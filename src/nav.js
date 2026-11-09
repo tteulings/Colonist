@@ -38,6 +38,7 @@ const LAYERS = [
   ["log", (g) => !g.home?.open && g.isMobileLayout && g.railLog?.classList.contains("open"), (g) => g.toggleLog(false)],
   ["tray", (g) => !g.home?.open && !g.winner && g.trayMode, (g) => g.closeTray()],
   ["playbyplay", (g) => g._rvEl && g._rvPbp && q("[data-rvpbpx]"), () => tap("[data-rvpbpx]")],
+  ["rpinfo", (g) => g._rpUi && q(".gs-rp-note:not([hidden])"), () => tap("[data-rpinfo]")],
   ["replay", (g) => g._rpUi, (g) => g._rpExit()],
   ["step", (g) => g._rvEl && g._rvStep != null, () => tap("[data-rvclose-step]")],
   ["review", (g) => g._rvEl, (g) => tap("[data-rvclose]") || g._rvCloseReview(true)],
