@@ -711,7 +711,7 @@ export const ReviewGameMixin = {
     if (!lk || lk.missing) return `<div class="rs-lkw"><div class="rs-lk">${lead}<b class="${d.cp >= 0 ? "pos" : "neg"}">Dice &amp; others ${sg(d.chance)}</b>${mv}</div></div>`;
     const oth = d.chance - lk.sum, c = (v) => (Math.round(v * 100) > 0 ? "pos" : Math.round(v * 100) < 0 ? "neg" : "");
     const open = this._lkOpen;
-    const btn = (key, label, v) => `<button type="button" class="lk" data-rvlx="${key}" aria-expanded="${open === key}"><b class="${c(v)}">${label} ${sg(v)}</b></button>`;
+    const btn = (key, label, v) => `<button type="button" class="lk" data-rvlx="${key}" aria-expanded="${open === key}"><b class="${c(v)}">${label} ${sg(v)}</b><i aria-hidden="true">${open === key ? "▲" : "▼"}</i></button>`;
     let panel = "";
     if (open === "luck") {
       const chip = (x) => { const w = x.w, t = Math.abs(w) < 0.01 ? wpText(w, 1) : wpText(w), lab = x.ev.kind === "dice" ? String(x.ev.roll) : x.ev.kind === "steal" ? "steal" : "card"; return `<i class="${c(w * 10)}" title="${esc(this._lkWhat(x.ev, me))}"><b>${lab}</b>${t}</i>`; };
