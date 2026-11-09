@@ -2,6 +2,8 @@
 // Features: the 'fit2' seat features (46) + game context + each seat relative to the other seats. Model: leaf-gbm-model.js.
 // Trained offline (exp/vm-120/train.py); inference is one feature pass plus a few hundred tree walks per seat.
 import { GBM_MODEL } from "./leaf-gbm-model.js";
+let SEA_MODEL = null; // eng-130: set by setSeaModel (src/master/leaf-gbm-sea-model.js), null: the island model everywhere
+export function setSeaModel(M) { SEA_MODEL = M && M.sea ? M : null; }
 const RES = ["wood", "brick", "sheep", "wheat", "ore"];
 const BUILD = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, dev: { sheep: 1, wheat: 1, ore: 1 } };
 const HEX = [0, 0, 1, 2, 3, 4, 5, 0, 5, 4, 3, 2, 1]; // index = dice number, value /36
@@ -15,6 +17,33 @@ export const REL_BASE = ["vp", "incTot", "hand", "roadLen", "knightsPlayed", "sp
 const REL_IDX = REL_BASE.map((n) => BASE_NAMES.indexOf(n));
 export const REL_NAMES = [].concat(...REL_BASE.map((n) => [n + "-mean", n + "-max"]));
 export const GBM_NAMES = [...BASE_NAMES, ...CTX_NAMES, ...REL_NAMES];
+// eng-130 Seafarers features (appended for the Seafarers model only): gold income, ships on the board / left, small islands
+// settled (+2 each), sea potential (the Expert's own measure: the best coastal spot's worth less 2 cards a ship) and the ships
+// it still needs, the pirate next to an own ship; and the seat's sea potential relative to the others (mean, max).
+export const SEA_NAMES = ["goldInc", "ships", "shipsLeft", "islands", "seaPot", "seaD", "pirateOn", "seaPot-mean", "seaPot-max"];
+const PIPS36 = HEX;
+function seaExtras(g) {
+  const sea = g.sea, G = g.geometry, P = g.players, n = P.length;
+  const rows = P.map((p) => {
+    let gold = 0;
+    const add = (nd, amt) => G.nodes[nd].adjacentHexes.forEach((hid) => { const h = G.hexes[hid]; if (h.resource === "gold" && h.number && hid !== g.robberHexId) gold += (PIPS36[h.number] / 36) * amt; });
+    p.settlements.forEach((nd) => add(nd, 1)); p.cities.forEach((nd) => add(nd, 2));
+    const ships = p.ships ? p.ships.size : 0, left = sea.shipsLeft(p);
+    let pot = 0, d = 7;
+    if (left > 0) { const r = sea._seaPotential(p, sea._seaSpotList(p)); pot = r.v; d = Number.isFinite(r.d) ? Math.min(7, r.d) : 7; }
+    let pir = 0;
+    if (sea.pirateHexId != null && p.ships) for (const e of p.ships) if (G.edges[e].hexIds.includes(sea.pirateHexId)) { pir = 1; break; }
+    return [gold, ships, left, (sea.bonus[p.id] || []).length, pot / 10, d, pir];
+  });
+  return rows.map((r, i) => { let sum = 0, mx = -1e9; for (let j = 0; j < n; j++) if (j !== i) { sum += rows[j][4]; if (rows[j][4] > mx) mx = rows[j][4]; } return [...r, r[4] - sum / (n - 1), r[4] - mx]; });
+}
+/** gbmFeatures plus the Seafarers columns (SEA_NAMES) on a Seafarers board. */
+export function gbmFeaturesSea(g) {
+  const base = gbmFeatures(g);
+  if (!g.sea) return base;
+  const x = seaExtras(g);
+  return base.map((r, i) => r.concat(x[i]));
+}
 
 /** Per-seat feature vectors (length GBM_NAMES.length). */
 export function gbmFeatures(g) {
@@ -98,9 +127,10 @@ export function gbmScore(row, M = GBM_MODEL) {
 }
 
 /** Win chances: softmax of the seat scores. */
-export function gbmProbs(g, M = GBM_MODEL) {
+export function gbmProbs(g, M = null) {
   if (g.winner) return g.players.map((p) => (p.id === g.winner.id ? 1 : 0));
-  const rows = gbmFeatures(g), sc = rows.map((r) => gbmScore(r, M));
+  if (!M) M = g.sea && SEA_MODEL ? SEA_MODEL : GBM_MODEL; // eng-130: the Seafarers model on a Seafarers board (when installed)
+  const rows = M.sea ? gbmFeaturesSea(g) : gbmFeatures(g), sc = rows.map((r) => gbmScore(r, M));
   let mx = -1e9; for (const x of sc) if (x > mx) mx = x;
   const e = sc.map((x) => Math.exp(x - mx)); let z = 0; for (const x of e) z += x;
   return e.map((x) => x / z);
