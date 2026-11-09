@@ -163,7 +163,7 @@ export const ReviewLuckMixin = {
     const tot = list.reduce((a, x) => a + x.w, 0), se = Math.sqrt(list.reduce((a, x) => a + (x.se || 0) ** 2, 0));
     const cls = (v) => (Math.round(v * 1000) > 0 ? "pos" : Math.round(v * 1000) < 0 ? "neg" : "");
     const you = this._rvIsYou ? this._rvIsYou(pid) : false;
-    const sub = (x) => (x.cards != null ? `${you ? "you" : esc(this.players[pid].name)}: ${x.cards} ${x.cards === 1 ? "card" : "cards"}${x.exp != null ? ` (${x.exp.toFixed(1)} expected)` : ""} · the others: ${x.others}${x.ev.roll === 7 ? " · robber" : ""}` : { steal: "a random card from the hand", dev: "a random card from the deck" }[x.ev.kind] || "");
+    const sub = (x) => (x.cards != null ? (x.ev.roll === 7 ? "the robber moves, big hands are halved" : `${x.cards} ${x.cards === 1 ? "card" : "cards"}${x.exp != null ? `, ${x.exp.toFixed(1)} expected` : ""} · others ${x.others}`) : { steal: "a random card from the hand", dev: "a random card from the deck" }[x.ev.kind] || "");
     const seg = this.players.map((p) => `<button type="button" class="pc-${p.id}${p.id === pid ? " on" : ""}" data-rvlkp="${p.id}" aria-pressed="${p.id === pid}">${this._av ? this._av(p, "rt-av") : ""}<span>${this._rvNm ? this._rvNm(p.id) : esc(p.name)}</span></button>`).join("");
     const kinds = { dice: 0, steal: 0, dev: 0 }; list.forEach((x) => { kinds[x.ev.kind] += 1; });
     return `<details class="rt-lkd" data-rvlkd${U.open ? " open" : ""}><summary><span>Luck details</span><small>every roll, steal and card draw</small></summary>
