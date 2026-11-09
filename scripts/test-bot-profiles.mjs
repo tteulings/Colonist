@@ -83,7 +83,7 @@ t("Super Expert: own policy, own chip, a 6th mark, a measured win figure, two-st
   assert.equal(presetHighlight([{ ...AI_PRESETS.master }], AI_PRESETS, AXES).active, "master"); // same dials, other policy
   const p = BOT_PROFILES.super;
   assert.ok(p.win); assert.equal(p.level, 5); assert.ok(p.beyond);
-  assert.match(p.weak, /Rush it has a quarter of a second/); assert.match(p.weak, /Seafarers it plays exactly like the Expert|in Seafarers it plays exactly like the Expert/); assert.match(p.weak, /3 seconds/);
+  assert.match(p.weak, /Rush it has a quarter of a second/); assert.match(p.weak, /In Seafarers it searches too/); assert.match(p.weak, /3 seconds/);
   assert.ok(profileArt("super", 132).length < 3072);
   assert.notEqual(levelFrame("super"), levelFrame("master"));
   assert.ok((levelFrame("super").match(/<path/g) || []).length > (levelFrame("master").match(/<path/g) || []).length);
@@ -99,7 +99,7 @@ t("Super Expert+ (bot-125): own policy and chip, the Super Expert's budget with 
   assert.equal(presetHighlight([{ ...AI_PRESETS.super }], AI_PRESETS, AXES).active, "super");
   const p = BOT_PROFILES.superplus;
   assert.ok(p.win); assert.equal(p.level, 5); assert.ok(p.beyond);
-  assert.match(p.weak, /at most 3 s/); assert.match(p.note, /not measured what that does/); assert.match(p.weak, /Seafarers it plays exactly like the Expert/); assert.match(p.weak, /3 seconds/);
+  assert.match(p.weak, /at most 3 s/); assert.match(p.note, /not measured what that does/); assert.match(p.weak, /In Seafarers it searches too/); assert.match(p.weak, /3 seconds/);
   assert.ok(profileArt("superplus", 132).length < 3072);
   assert.notEqual(levelFrame("superplus"), levelFrame("super"));
   assert.notEqual(profileMini("superplus"), profileMini("super"));

@@ -42,7 +42,7 @@ export function profileLabel(game, player) {
   return pr ? `, ${pr.custom ? "custom" : P[pr.key].label} bot` : "";
 }
 
-/** The Super Expert is searched on the island board (v1.17: Rush and 5–6 players too), not in Seafarers. With `why`: the sentence for this table when it isn't. */
+/** The Super Expert is searched in every game (v1.17: Rush and 5–6 players; eng-130: Seafarers too). Kept for the callers: always true. */
 export function superHere(game, why = false) {
   const ok = true; // eng-130: Seafarers is searched too (ships, the ship move, the pirate)
   if (!why) return ok;
