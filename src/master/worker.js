@@ -11,6 +11,8 @@
 //   → { type: "evaluate", id, base, rec, opts }                 (v1.03 Game review: one decision, Monte Carlo)
 //   ← { type: "evaluate", id, result }
 //   → { type: "sprep" | "srun" | "send", sid, ... }               (eng-130 Grandmaster: a share of one parallel search, src/master/parallel.js)
+//   → { type: "luck", id, base, ev, opts }                      (v1.31 luck in win chance: one chance event, src/review/luck-mc.js)
+//   ← { type: "luck", id, result }
 //   ← { type: "ready" } once loaded, { type: "error", id, message } on failure
 import "./dom.js";
 await import("../game.js"); // constructs a stub game as self.__colonistGame (no page, no saving)
@@ -18,6 +20,7 @@ const { makeMaster, prepareEngine } = await import("./search.js");
 const { detectMissed } = await import("../review/detect.js");
 const { loadPosition, loadRecord } = await import("../review/engine.js");
 const { evaluateRecord } = await import("../review/evaluate.js");
+const { luckEvent } = await import("../review/luck-mc.js");
 const g = prepareEngine(self.__colonistGame);
 g._rvOff = true; // v1.02: this copy never records a review
 const H = g.constructor.labHelpers;
@@ -88,6 +91,7 @@ self.onmessage = (e) => {
     else if (m.type === "send") { sessions.delete(m.sid); if (loadedSid === m.sid) loadedSid = null; if (m.id != null) self.postMessage({ type: "send", id: m.id }); }
     else if (m.type === "game") { loadedSid = null; self.postMessage({ type: "game", id: m.id, ...playGame(m) }); }
     else if (m.type === "detect") { loadedSid = null; self.postMessage({ type: "detect", id: m.id, ...detect(m) }); }
+    else if (m.type === "luck") { loadedSid = null; self.postMessage({ type: "luck", id: m.id, result: luckEvent(g, m.base, m.ev, m.opts || {}) }); }
     else if (m.type === "evaluate") { loadedSid = null; self.postMessage({ type: "evaluate", id: m.id, result: evaluateRecord(g, m.rec, (rec) => loadRecord(g, m.base, rec), m.opts || {}) }); }
   } catch (err) {
     self.postMessage({ type: "error", id: m.id, message: String(err && err.stack || err) });

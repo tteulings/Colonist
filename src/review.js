@@ -46,7 +46,7 @@ export const ReviewMixin = {
   /** "Turn", or "Roll" in Rush (a Rush record's t is the roll number). */
   _rvTW() { return this.isRush?.() ? "Roll" : "Turn"; },
 
-  _rvReset(id = this.stats?.id) { if (this._rv?.run) this._rv.run.stop = true; this._rvListener = null; this._rvFor = null; this._rv = { id: id || null, base: null, recs: [], res: null, busy: false, ms: 0, revs: {}, queue: [], bots: !this._rvNoBots }; },
+  _rvReset(id = this.stats?.id) { if (this._rv?.run) this._rv.run.stop = true; if (this._rv?.lrun) this._rv.lrun.stop = true; this._rvListener = null; this._rvFor = null; this._rv = { id: id || null, base: null, recs: [], res: null, busy: false, ms: 0, revs: {}, queue: [], bots: !this._rvNoBots }; },
   /** v1.12: one review per person (pass & play: each human has their own; solo: just the one). */
   _rvOf(pid) { return this._rv?.revs?.[pid] || null; },
   /** The review a one-person view reads first: a person's (the bots' reviews come after). */
@@ -109,7 +109,7 @@ export const ReviewMixin = {
     const R = this._rv;
     if (!R || !R.id || !R.recs.length) return 0;
     try {
-      const json = JSON.stringify({ v: 3, id: R.id, base: R.base, recs: packRecs(R.recs), reviews: this._rvAll(), bots: R.bots ? 1 : 0 }); // v1.04: a check made during the game is kept too; v1.12: one review per person; v1.29 packed, with the bots
+      const json = JSON.stringify({ v: 3, id: R.id, base: R.base, recs: packRecs(R.recs), reviews: this._rvAll(), bots: R.bots ? 1 : 0, ...(R.luck ? { luck: R.luck } : {}) }); // v1.31 luck in win chance: an extra field (older versions ignore it) // v1.04: a check made during the game is kept too; v1.12: one review per person; v1.29 packed, with the bots
       localStorage.setItem(KEY, json);
       R.bytes = json.length;
       return json.length;
@@ -270,7 +270,9 @@ export const ReviewMixin = {
   /** Pass & play: when one person's check is done the next person's starts by itself (seat order). */
   _rvQueueNext() {
     const R = this._rv;
-    if (!R || R.run || !this.winner) return;
+    if (!R || R.run || R.lrun || !this.winner) return;
+    // v1.31 luck in win chance: after every person's own review, before the others' check (src/review-luck.js)
+    if (!(R.queue || []).some((q) => q?.pid == null && this.players[q]?.isHuman) && this._lkWant?.()) { this._lkRun().then(() => { if (this._rv === R) this._rvQueueNext(); }); return; }
     // v1.29 when every person is done (or waits): the others, one at a time
     if (!R.queue?.length && !R.othersPlanned && !R.othersOff) { R.othersPlanned = true; R.queue = this._rvOthersPlan(); }
     while (R.queue?.length) {
@@ -338,7 +340,7 @@ export function installReview(Cls) {
     const r = orig.apply(this, a);
     const id = this.stats?.id || null;
     this._rvReset(id);
-    if (id) { const d = this._rvLoad(); if (d && d.id === id) { this._rv.base = d.base; this._rv.recs = d.recs; this._rv.revs = d.reviews || {}; this._rv.bots = !!d.bots; this._rv.review = this._rvMine(this._rv.revs); } }
+    if (id) { const d = this._rvLoad(); if (d && d.id === id) { this._rv.base = d.base; this._rv.recs = d.recs; this._rv.revs = d.reviews || {}; this._rv.bots = !!d.bots; this._rv.review = this._rvMine(this._rv.revs); if (d.luck) this._rv.luck = d.luck; } }
     return r;
   });
 
@@ -525,6 +527,25 @@ export function installReview(Cls) {
     const ts = this.turnSerial;
     const r = orig.apply(this, a);
     if (pre && this.turnSerial !== ts) botPush(this, pre, "end", {});
+    return r;
+  });
+
+  // v1.31 luck in win chance (src/review/luck-mc.js): the position just before every roll, so each roll can be replayed with
+  // every other sum. A person's roll already has its "turn" record; a bot's gets a "roll" record here (no decision: never checked
+  // as a move). Rush: the timer's roll, recorded under the person at the table (pid of no meaning there: a.rush).
+  wrap("executeRollPhase", function (orig, player, ...a) {
+    const pre = !this._rvBusy && this.phase === "pre_roll" && !this.setupPhase && player && !player.isHuman && this._rvBotOn(player) ? this._rvPre(player, true) : null;
+    const n0 = this.stats?.steps?.length;
+    const r = orig.call(this, player, ...a);
+    if (pre && this.stats?.steps?.length > n0) botPush(this, pre, "roll", {});
+    return r;
+  });
+  wrap("_rushRoll", function (orig, ...a) {
+    const who = this.rush && !this.winner && !this.rush.paused ? this.players?.find((p) => p.isHuman) : null;
+    const pre = who && this._rvOn() ? this._rvPre(who) : null;
+    const n0 = this.stats?.steps?.length;
+    const r = orig.apply(this, a);
+    if (pre && this.stats?.steps?.length > n0) botPush(this, pre, "roll", { rush: 1 });
     return r;
   });
 
