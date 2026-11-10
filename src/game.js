@@ -19,11 +19,12 @@ import { HistoryMixin, installHistory } from "./history.js"; // v1.07 Past games
 import { BotsPageMixin } from "./bots-page.js";
 import { NavMixin } from "./nav.js"; // v1.26 Back gesture: history entries follow the open screens and sheets // v1.23 the Bots page (leaderboard, strength ladder, strength vs accuracy)
 import { ReviewGameMixin, installReviewGame } from "./review-game.js"; // v1.03 … the Game review (Monte Carlo accuracy)
+import { ReviewLuckMixin } from "./review-luck.js"; // v1.31 … luck in win chance (every roll, steal and card draw replayed)
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
 import { presetHighlight, BOT_PROFILES, gmFlag } from "./bot-profiles.js"; // v1.04 Settings › Bots: which preset chip is lit
-import { framedAvatar, profileLabel, profileOf, openProfileSheet, pickerExtras, tableList, presetCards, dots, superOff } from "./bot-profile-ui.js"; // v1.04 bot profile frames + sheet
+import { framedAvatar, profileLabel, profileOf, openProfileSheet, pickerExtras, tableList, presetCards, dots, superOff, byStrength } from "./bot-profile-ui.js"; // v1.04 bot profile frames + sheet
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
@@ -2136,13 +2137,15 @@ class ColonistFullGame {
 
     // ⚓ Seafarers: a lifted ship goes to the tapped dotted spot; a tap on an open-end ship lifts it
     if (this.pendingAction === "moveShip") { this._seaMoveTap(player, x, y); return; }
-    if (this.sea && (!this.pendingAction || this.pendingAction === "build") && !this.freeRoadsRemaining && !this.confirmBuild) {
+    if (this.sea && (!this.pendingAction || this.pendingAction === "build") && !this.freeRoadsRemaining) {
+      // v1.31 a tap that reaches one of your movable ships: the nearer meaning wins (the corner / build spot or the ship);
+      // when it could be either, a small chooser asks (Settlement · Move ship), like the Road / Ship chooser
       const ship = this._seaShipAt(player, x, y);
-      // v0.84: auto-glow is your normal main phase, so a tap on your own ship still lifts it (as before without a mode)
-      const glow = this._isAutoGlow() && this.trayMode !== "build";
-      // v1.20 a tap that also reaches a corner you can settle (the ship's open end often is one) picks the corner, never lifts the ship
-      const corner = glow && (() => { const t = this._buildTargetAt(player, x, y); return !!t && (t.type === "settlement" || t.type === "city"); })();
-      if (ship != null && !corner && (glow || !(this.pendingAction === "build" && this._buildTargetAt(player, x, y)))) { this._seaStartMove(player, ship); return; }
+      if (ship != null) {
+        const intent = this._seaShipTapIntent(player, ship, x, y);
+        if (intent.act === "move") { this._seaStartMove(player, ship); return; }
+        if (intent.act === "ask") { this._seaChooseShipOrBuild(player, ship, intent.targets, x, y); return; }
+      }
     }
 
     if (!this.pendingAction) {
@@ -2206,6 +2209,57 @@ class ColonistFullGame {
     this.sfx.click();
     this.render();
   }
+
+  /**
+   * ⚓ v1.31 A tap within reach of your own movable ship: { act: "build" } (go on with the normal build tap),
+   * { act: "move" } or { act: "ask", target }. Distances in CSS px, so the rule is the same at every zoom:
+   *  - a build spot clearly nearer than the ship (a corner within max(36% of an edge, 12 px), or a spot at most
+   *    half as far as the ship's middle) builds; the build card being open also keeps building first (as before);
+   *  - a tap clearly on the ship's middle (at most half as far as the build spot, and at least max(45% of an edge,
+   *    18 px) from the corner) lifts the ship;
+   *  - anything in between asks.
+   */
+  _seaShipTapIntent(player, ship, x, y) {
+    const cb = this.confirmBuild;
+    if (cb && this.hitTestConfirmIcon(x, y)) return { act: "build" };
+    const t = this.pendingAction ? this._buildTargetAt(player, x, y) : this._autoDetectTarget(player, x, y);
+    if (t && cb && cb.type === t.type && cb.id === t.id) return { act: "build" }; // a 2nd tap on the shown spot
+    if (t && this.trayMode === "build") return { act: "build" };
+    const geo = this.geometry, k = this.view.scale || 1;
+    const mid = (id, f) => {
+      const [a, b] = geo.edges[id].nodes.map((n) => geo.nodes[n]);
+      return distancePointToSegment(x, y, a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f, b.x - (b.x - a.x) * f, b.y - (b.y - a.y) * f) * k;
+    };
+    const [sa, sb] = geo.edges[ship].nodes.map((n) => geo.nodes[n]);
+    const L = Math.hypot(sb.x - sa.x, sb.y - sa.y) * k || geo.hexSize * k;
+    const dShip = mid(ship, 0.35);
+    const isCorner = (x) => !!x && (x.type === "settlement" || x.type === "city");
+    // the corner the finger may have meant: the build target, else a buildable corner a little further out (the ship's
+    // open end often is one, and the usual corner radius left only a ~2 px band where the tap could ask)
+    let corner = isCorner(t) ? t : null;
+    if (!corner && !this.freeRoadsRemaining && (!this.pendingAction || this.pendingAction === "build")) {
+      const r = Math.max(0.5 * L, 26) / k;
+      let best = null, bd = r;
+      geo.nodes.forEach((n) => {
+        const d = Math.hypot(x - n.x, y - n.y);
+        if (d < bd && (this.canBuildCity(player, n.id, false) || this.canBuildSettlement(player, n.id, false))) { bd = d; best = n.id; }
+      });
+      if (best != null) corner = { type: this.canBuildCity(player, best, false) ? "city" : "settlement", id: best, ambiguous: true };
+    }
+    const edgeT = t && !isCorner(t) ? t : null;
+    if (corner) {
+      const n = geo.nodes[corner.id], dB = Math.hypot(x - n.x, y - n.y) * k;
+      if (corner === t && (dB <= Math.max(0.36 * L, 12) || dB * 2 <= dShip)) return { act: "build" };
+      if (dShip * 2 <= dB && dB >= Math.max(0.45 * L, 18)) return { act: "move" };
+      return { act: "ask", targets: edgeT ? [corner, edgeT] : [corner] };
+    }
+    if (!edgeT) return { act: "move" };
+    const dB = mid(edgeT.id, 0.25), dS = mid(ship, 0.25);
+    if (dB * 2 <= dS) return { act: "build" };
+    if (dS * 2 <= dB) return { act: "move" };
+    return { act: "ask", targets: [edgeT] };
+  }
+
 
   /** Mode-less tap: a city upgrade, a settlement spot or a road you can afford right now. */
   _autoDetectTarget(player, x, y) {
@@ -3615,9 +3669,9 @@ class ColonistFullGame {
       <div class="sheet-head"><h3 id="tradeTitle">${icon("trade")}Trade</h3>
         <button type="button" id="tradeModalClose" class="btn ghost icon-only" aria-label="Close">${icon("close")}</button></div>
       <div class="trade-body" id="tradeBody">
-        <div class="tlbl"><span>You give</span></div>
+        <div class="tlbl"><span>You give</span><small class="tlbl-na">you have → after</small></div>
         <div id="tradeOfferGrid" class="tgrid give" role="group" aria-label="You give"></div>
-        <div class="tlbl"><span>You get</span></div>
+        <div class="tlbl"><span>You get</span><small class="tlbl-na">you have → after</small></div>
         <div id="tradeRequestGrid" class="tgrid get" role="group" aria-label="You get"></div>
         <div class="tplayers" id="tradePlayers">
           <div class="tp-head"><span>Players</span><small id="tradePlayersNote"></small></div>
@@ -3776,12 +3830,15 @@ class ColonistFullGame {
       const usable = side === "give" ? have > 0 : true;
       const out = side === "get" && stock <= 0;
       const rate = this.getPlayerTradeRate(player, r);
-      const num = side === "give" ? have - n : stock;
-      const sub = side === "give" ? (n ? `<span class="aft">${have - n} left</span>` : `have ${have}`)
-        : stock > 0 ? `bank ${stock}` : "bank empty";
-      const label = side === "give" ? `Give one more ${name} (you have ${have}${n ? `, giving ${n}` : ""})` : `Get one more ${name}${n ? ` (asking ${n})` : ""} · bank has ${stock}`;
+      // v1.31 (ux-132): one meaning per number. The card's numeral is what you hold NOW; under every card (give and get)
+      // "4 → 2": now → after this trade, so nobody has to count. The bank route's own result is on its button.
+      const after = have - (this.tradeOffer[r] || 0) + (this.tradeRequest[r] || 0);
+      const num = side === "give" ? have : stock;
+      const sub = out ? "bank empty" : after !== have ? `<span class="na">${have} → <b class="${after < have ? "dn" : "up"}">${after}</b></span>` : `<span class="na">${have}</span>`;
+      const low = side === "get" && stock > 0 && stock <= 3 ? `<span class="rate-tag low" title="The bank has ${stock} ${name} left">bank ${stock}</span>` : "";
+      const label = side === "give" ? `Give one more ${name} (you have ${have}${n ? `, giving ${n}, ${after} after` : ""})` : `Get one more ${name} (you have ${have}${n ? `, asking ${n}, ${after} after` : ""}) · bank has ${stock}`;
       return `<div class="tcell ${r}${n ? " pick" : ""}${usable ? "" : " none"}${out ? " out" : ""}" data-hand="${side === "give" ? r : ""}" data-res="${r}">
-        <button type="button" class="tpick" data-${side}="${r}" aria-label="${label}" ${usable ? "" : "aria-disabled=\"true\""}>${side === "give" ? `<span class="rate-tag${rate < baseRate ? " port" : ""}" title="${rate} ${name} for 1 card from the bank">${rate}:1</span>` : ""}<span class="tcard card" data-card="${r}" data-n="${Math.max(1, Math.min(num, 4))}">${cardSvg(r)}${side === "give" ? `<span class="tnum">${num}</span>` : ""}</span><small${side === "get" ? ' class="stock"' : ""}>${sub}</small></button>
+        <button type="button" class="tpick" data-${side}="${r}" aria-label="${label}" ${usable ? "" : "aria-disabled=\"true\""}>${side === "give" ? `<span class="rate-tag${rate < baseRate ? " port" : ""}" title="${rate} ${name} for 1 card from the bank">${rate}:1</span>` : low}<span class="tcard card" data-card="${r}" data-n="${Math.max(1, Math.min(num, 4))}">${cardSvg(r)}${side === "give" ? `<span class="tnum">${num}</span>` : ""}</span><small${side === "get" ? ' class="stock"' : ""}>${sub}</small></button>
         ${n ? `<b class="tbadge">${n}</b>` : ""}<button type="button" class="tminus" data-${side}-minus="${r}" aria-label="${side === "give" ? "Give" : "Get"} one ${name} less" ${n ? "" : "tabindex=\"-1\" aria-hidden=\"true\""}>${icon("minus")}</button>
       </div>`;
     }).join("");
@@ -3923,7 +3980,8 @@ class ColonistFullGame {
     if (this.tradeExecuteBtn) {
       const ok = !!plan.k;
       this.tradeExecuteBtn.disabled = !ok;
-      const where = plan.rate < 4 ? `Harbour ${plan.rate}:1` : "Trade with bank";
+      // v1.31 (ux-132): the bank takes rate × cards, which may differ from the picks: its own "Lumber 4 → 0" is shown here
+      const where = !ok ? "" : `${plan.rate < 4 ? `${plan.rate}:1 · ` : ""}${RESOURCE_LABEL[plan.give]} ${player.resources[plan.give]} → ${player.resources[plan.give] - plan.n}`;
       this.tradeExecuteBtn.classList.toggle("ready", ok);
       const giveRes = makeEmptyResources();
       if (plan.give) giveRes[plan.give] = plan.n;
@@ -3931,7 +3989,7 @@ class ColonistFullGame {
       const sub = ok ? where : plan.why;
       this.tradeExecuteBtn.innerHTML = `${icon("bank")}<span class="rt"><b>${top}</b><small>${sub}</small></span>`;
       this.tradeExecuteBtn.setAttribute("aria-label", ok
-        ? `Trade ${plan.n} ${RESOURCE_LABEL[plan.give]} → ${RESOURCES.filter((r) => this.tradeRequest[r] > 0).map((r) => `${this.tradeRequest[r]} ${RESOURCE_LABEL[r]}`).join(" + ")} with the ${plan.rate < 4 ? "harbour" : "bank"}`
+        ? `Trade ${plan.n} ${RESOURCE_LABEL[plan.give]} → ${RESOURCES.filter((r) => this.tradeRequest[r] > 0).map((r) => `${this.tradeRequest[r]} ${RESOURCE_LABEL[r]}`).join(" + ")} with the ${plan.rate < 4 ? `harbour (${plan.rate}:1)` : "bank"}; you keep ${player.resources[plan.give] - plan.n} ${RESOURCE_LABEL[plan.give]}`
         : `Bank: ${plan.why}`);
     }
     // Route 2: offer to the players
@@ -9247,13 +9305,13 @@ class ColonistFullGame {
         : `<div class="hs-seat-name">${esc(cfg.name)}${badge(botPreset(id - 1))}</div>`;
       const sel = !human && d.botStyleMode === "each" ? `
         <select class="ng-bot-select" data-bot="${id - 1}" aria-label="${esc(cfg.name)} personality">
-          ${Object.keys(AI_PRESETS).map((key) => `<option value="${key}"${d.perBot[id - 1] === key ? " selected" : ""}${isSup(key) && superOff() ? " disabled" : ""}>${presetLabel(key)}${isSup(key) && superOff() ? ` (not in ${superOff()})` : ""}</option>`).join("")}
+          ${byStrength(Object.keys(AI_PRESETS)).map((key) => `<option value="${key}"${d.perBot[id - 1] === key ? " selected" : ""}${isSup(key) && superOff() ? " disabled" : ""}>${presetLabel(key)}${isSup(key) && superOff() ? ` (not in ${superOff()})` : ""}</option>`).join("")}
         </select><button type="button" class="bp-info" data-info="${d.perBot[id - 1]}" aria-label="About the ${presetLabel(d.perBot[id - 1])} profile">i</button>` : "";
       return `<div class="hs-seat pc-${id}">${avatarSvg(id, "ng-bot-avatar")}<div class="hs-seat-main">${main}</div>${kind}${sel}</div>`;
     }).join("");
 
     const render = () => {
-      const presetKeys = [...Object.keys(AI_PRESETS), "custom"];
+      const presetKeys = [...byStrength(Object.keys(AI_PRESETS)), "custom"];
       if (superOff() && (isSup(d.allPreset) || d.perBot.some(isSup))) { // not a silent fallback: say it
         const nm = AI_PRESET_INFO[isSup(d.allPreset) ? d.allPreset : d.perBot.find(isSup)].label;
         d._superNote = `${nm} is not available in ${superOff()}: switched to Master.`;
@@ -9548,7 +9606,7 @@ class ColonistFullGame {
 
     if (targets.length) {
       const hl = presetHighlight(targets.map((p) => p.strategy), AI_PRESETS, axes);
-      panel.appendChild(presetCards(this, Object.keys(AI_PRESETS), hl, (name) => {
+      panel.appendChild(presetCards(this, byStrength(Object.keys(AI_PRESETS)), hl, (name) => {
         targets.forEach((p) => { delete p.strategy.policy; Object.assign(p.strategy, AI_PRESETS[name]); });
         this._saveStrategies();
         this._buildStrategyUI();
@@ -11283,7 +11341,7 @@ Object.assign(ColonistFullGame.prototype, StatsMixin, StatsUiMixin);
 installStats(ColonistFullGame);
 Object.assign(ColonistFullGame.prototype, LiveStatsMixin); // live stats during the game (src/live-stats.js)
 installLiveStats(ColonistFullGame);
-Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin); // v1.02/1.03 post-game review (src/review*.js)
+Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin, ReviewLuckMixin); // v1.02/1.03 post-game review (src/review*.js)
 installReview(ColonistFullGame);
 installReviewUi(ColonistFullGame);
 installReviewGame(ColonistFullGame);
@@ -11296,4 +11354,8 @@ const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle
 game._navInstall(); // v1.26 Back closes the top screen / sheet (src/nav.js)
 if (document.documentElement.dataset.lab) game._labBoot(document.documentElement.dataset.lab); // AI Lab engine (lab.html)
+else { // lab-131 a game of the AI Lab's last run, opened from the lab (index.html?labgame=ID&what=replay|review&pid=N)
+  const q = new URLSearchParams(location.search), lg = q.get("labgame");
+  if (lg) { let n = 0; const go = () => { if (document.body.dataset.gameReady || n++ > 100) game.histOpenLab(lg, q.get("what") || "stats", q.get("pid") != null ? Number(q.get("pid")) : null); else setTimeout(go, 100); }; go(); }
+}
 window.__colonistSplashDone?.(); // v1.27 Home or the resumed game is built: the launch splash (index.html) fades out after this frame

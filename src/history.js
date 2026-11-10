@@ -26,6 +26,8 @@ import { Names } from "./names.js";
 
 const DB_NAME = "colonist_history";
 export const LIMITS = { games: 50, bytes: 10 * 1024 * 1024, nearFull: 0.8 };
+// lab-131 the AI Lab keeps the games of its last run in a store of its own (same format), so Past games and its limits are untouched
+export const LAB_DB = "colonist_lab", LAB_LIMITS = { games: 50, bytes: 5 * 1024 * 1024, nearFull: 0.8 };
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 // ── storage ─────────────────────────────────────────────────────────────────────────────────────
@@ -48,14 +50,14 @@ async function unpack(b) {
 }
 
 export class HistoryStore {
-  constructor() { this.db = null; this.mem = new Map(); this.mode = "idb"; this.metas = []; this.ready = null; this.full = false; this.pruned = 0; this.budget = LIMITS.bytes; this.onChange = null; }
+  constructor(name = DB_NAME, limits = LIMITS) { this.name = name; this.lim = limits; this.db = null; this.mem = new Map(); this.mode = "idb"; this.metas = []; this.ready = null; this.full = false; this.pruned = 0; this.budget = limits.bytes; this.onChange = null; }
 
   open() {
     if (this.ready) return this.ready;
     this.ready = (async () => {
       try {
         if (typeof indexedDB === "undefined") throw new Error("no IndexedDB");
-        const r = indexedDB.open(DB_NAME, 1);
+        const r = indexedDB.open(this.name, 1);
         r.onupgradeneeded = () => { r.result.createObjectStore("games", { keyPath: "id" }); r.result.createObjectStore("blobs", { keyPath: "id" }); };
         this.db = await req(r);
         this.metas = await req(this.db.transaction("games").objectStore("games").getAll());
@@ -98,7 +100,7 @@ export class HistoryStore {
   async _prune(keep, extra) {
     let n = 0;
     const cand = () => this.metas.filter((m) => !m.star && m.id !== keep).sort((a, b) => a.end - b.end);
-    while (cand().length && (extra > n || this.metas.filter((m) => !m.star).length > LIMITS.games || this.bytes > this.budget)) { await this.remove(cand()[0].id, true); n += 1; }
+    while (cand().length && (extra > n || this.metas.filter((m) => !m.star).length > this.lim.games || this.bytes > this.budget)) { await this.remove(cand()[0].id, true); n += 1; }
     if (n) this.pruned += n;
   }
   async get(id) {
@@ -127,9 +129,9 @@ export class HistoryStore {
   async usage() {
     let est = null;
     try { est = await navigator.storage?.estimate?.(); } catch (_) { est = null; }
-    const share = Math.max(this.bytes / this.budget, this.metas.filter((m) => !m.star).length / LIMITS.games);
+    const share = Math.max(this.bytes / this.budget, this.metas.filter((m) => !m.star).length / this.lim.games);
     const free = est?.quota ? 1 - (est.usage || 0) / est.quota : null;
-    return { share, free, count: this.count, bytes: this.bytes, near: this.full || share >= LIMITS.nearFull || this.metas.filter((m) => !m.star).length >= LIMITS.games - 4 || (free != null && free < 0.05), mode: this.mode };
+    return { share, free, count: this.count, bytes: this.bytes, near: this.full || share >= this.lim.nearFull || this.metas.filter((m) => !m.star).length >= this.lim.games - 4 || (free != null && free < 0.05), mode: this.mode };
   }
 }
 
@@ -209,7 +211,7 @@ export const HistoryMixin = {
     const m = this.hist.metas.find((x) => x.id === v.id);
     if (!m || (m.me == null && !m.hn)) return;
     await this.hist.put({ ...m, ...(m.hn ? { hn: this._histHn(R, m.hn) } : this._histRev(R.revs?.[m.me], m.me, m)), rec: true },
-      { state: v.state, rv: { base: R.base, recs: packRecs(R.recs), reviews: this._rvAll(R), bots: R.bots ? 1 : 0 } });
+      { state: v.state, rv: { base: R.base, recs: packRecs(R.recs), reviews: this._rvAll(R), bots: R.bots ? 1 : 0, ...(R.luck ? { luck: R.luck } : {}) } });
   },
 
   /** Game over (and again when the review finishes): keep this game. Never throws, never waits. */
@@ -221,7 +223,7 @@ export const HistoryMixin = {
       const rv = this._rv && this._rv.id === id && this._rv.recs.length ? this._rv : null;
       const state = this.serializeState();
       state.logEntries = [];
-      const payload = { state, rv: rv ? { base: rv.base, recs: packRecs(rv.recs), reviews: this._rvAll(rv), bots: rv.bots ? 1 : 0 } : null }; // v1.29 packed records (src/review/pack.js), the bots' decisions too
+      const payload = { state, rv: rv ? { base: rv.base, recs: packRecs(rv.recs), reviews: this._rvAll(rv), bots: rv.bots ? 1 : 0, ...(rv.luck ? { luck: rv.luck } : {}) } : null }; // v1.29 packed records (src/review/pack.js), the bots' decisions too
       return H.put(this._histMeta(undefined, prev), payload);
     }).catch(() => false);
   },
@@ -271,16 +273,18 @@ export const HistoryMixin = {
       this._histView = { id, state: rec.state, fromEnd };
       this.onboardingHold = false; this.uiPaused = false;
       this.loadFromStorage(rec.state); // (this resets the recorder: the saved recording goes back in after it)
+      // lab-131 a lab game has no person: seat 0 (a person after every load) is the bot it was
+      if (this._labBack) this.players.forEach((p, i) => { const sp = rec.state.players?.[i]; if (p.isHuman && sp?.strategy) Object.assign(p, { isHuman: false, strategy: { ...sp.strategy }, personality: sp.personality || p.personality }); });
       const revs = rec.rv ? (rec.rv.reviews || (rec.rv.review?.results?.length ? { [rec.rv.review.pid]: rec.rv.review } : {})) : {}; // (older entries: one review)
       Object.values(revs).forEach((r) => rescoreReview(r)); // v1.21 today's numbers, classes and labels from the saved candidates
-      this._rv = rec.rv ? { id, base: rec.rv.base, recs: unpackRecs(rec.rv.recs), res: null, busy: false, ms: 0, revs, queue: [], bots: !!rec.rv.bots, review: this._rvMine?.(revs) || undefined } : null;
+      this._rv = rec.rv ? { id, base: rec.rv.base, recs: unpackRecs(rec.rv.recs), res: null, busy: false, ms: 0, revs, queue: [], bots: !!rec.rv.bots, review: this._rvMine?.(revs) || undefined, ...(rec.rv.luck ? { luck: rec.rv.luck } : {}) } : null;
       this._rv?.recs?.length && this._rvFinish?.(false); // v1.11: the missed-chance detectors run for a past game too (no auto review): without this the end screen said "checking…" for ever
     } else if (!document.querySelector(".game-over-overlay")) this.showGameOverOverlay({ quiet: true });
     const ready = () => {
       const ov = document.querySelector(".game-over-overlay");
       if (!ov) return false;
       if (what === "replay") ov.querySelector("[data-replay]")?.click();
-      else if (what === "review" && (meta.me != null || meta.hn?.length)) this._rvOpenReview?.(pid != null ? pid : meta.me ?? meta.hn[0].pid);
+      else if (what === "review" && (pid != null || meta.me != null || meta.hn?.length)) this._rvOpenReview?.(pid != null ? pid : meta.me ?? meta.hn[0].pid); // lab-131: a bot's review (pid) in a game without people
       return true;
     };
     let tries = 0;
@@ -289,6 +293,7 @@ export const HistoryMixin = {
   },
   /** Back to the list: the game you came from (a running game, or the end screen of the one just played) returns as it was. */
   async histExit() {
+    if (this._labBack) { location.href = "./lab.html"; return; } // lab-131: a lab game opened from the AI Lab goes back there
     const from = this._histView?.fromEnd;
     this._rpExit?.(true);
     this._rvCloseReview?.();
@@ -300,6 +305,15 @@ export const HistoryMixin = {
     if (!this._homeSave) this.resetGame();
     this.goHome();
     this.histOpen();
+  },
+  /** lab-131 index.html?labgame=ID[&what=replay|review][&pid=N]: open a game of the AI Lab's last run (its own store) on the
+   *  real screens (end screen, Replay with the running win chance, a bot's review); leaving goes back to the lab. */
+  async histOpenLab(id, what = "stats", pid = null) {
+    this._hist = Object.assign(new HistoryStore(LAB_DB, LAB_LIMITS), { onChange: () => { this._histChanged?.(); } });
+    this._labBack = true;
+    await this.hist.open();
+    if (!this.hist.metas.some((m) => m.id === id)) { location.href = "./lab.html"; return; }
+    return this.histView(id, what, pid);
   },
   _savedFinished() { try { return JSON.parse(localStorage.getItem(this.constructor.STORAGE_KEY) || "null")?.winnerId != null; } catch (_) { return false; } },
   _histToast(t) { const el = this._histEl?.querySelector(".hs-note"); if (el) { el.textContent = t; el.hidden = false; } },
@@ -335,7 +349,7 @@ export const HistoryMixin = {
         const reviews = rec.rv.reviews || (rec.rv.review?.results?.length ? { [rec.rv.review.pid]: rec.rv.review } : {});
         Object.values(reviews).forEach((r) => rescoreReview(r));
         const meta = m.hn?.length ? { ...m, hn: m.hn.map((h) => ({ ...h, ...revMeta(rec.rv.recs, reviews[h.pid], h.pid, h) })), fmt: FMT } : { ...m, ...revMeta(rec.rv.recs, reviews[m.me], m.me, m), fmt: FMT };
-        if (await H.put(meta, { state: rec.state, rv: { base: rec.rv.base, recs: rec.rv.recs, reviews, ...(rec.rv.bots ? { bots: 1 } : {}) } }, { quiet: true })) n += 1;
+        if (await H.put(meta, { state: rec.state, rv: { base: rec.rv.base, recs: rec.rv.recs, reviews, ...(rec.rv.bots ? { bots: 1 } : {}), ...(rec.rv.luck ? { luck: rec.rv.luck } : {}) } }, { quiet: true })) n += 1;
       }
       if (n) H.onChange?.();
     } catch (_) { /* best effort: the next open tries again */ }

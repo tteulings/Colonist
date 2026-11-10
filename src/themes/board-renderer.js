@@ -11,7 +11,7 @@
 import { hexPath, pipCount, f, harbourBadges, harbourScale, pierDot, drawPierDot } from "./art-util.js";
 import { motionReduced } from "./manager.js";
 // ⚓ Seafarers drawing (only used while game.sea is set)
-import { seaArt, portLandHex, bakeSeaMarks, bakeSeaGrid, drawShips, drawPirateAndChips, drawShipSpots, ghostShip, ghostPirate } from "../seafarers/render.js";
+import { seaArt, portLandHex, bakeSeaMarks, bakeSeaGrid, drawShips, drawPirateAndChips, drawShipSpots, ghostShip, ghostPirate, drawSeaPreview } from "../seafarers/render.js";
 /** v0.82: the free gap (art units, per road end) between a road's rounded cap and its node. */
 const ROAD_JOINT = 4;
 // v0.96 ownership readability (who95 mockup variant A): pieces 15% larger, every settlement / city / road edged in a
@@ -516,6 +516,7 @@ export class SvgBoardRenderer {
 
     // 8. placement hints + ghost + confirm
     if (this.placementActive()) this.drawPlacement(ctx, now, reduced, devK);
+    if (g.sea && g._seaPreview) drawSeaPreview(this, ctx, devK); // ⚓ v1.31 what each option of the Build / Move ship chooser means
     if (g.pendingAction === "robber" && g.confirmBuild?.type === "robber" && !g.isMobileLayout && g.currentPlayer?.isHuman) this.drawConfirm(ctx, now, reduced, devK);
 
     // 8b. analysis mode: the bot's candidate scores (calm glows, dashed roads, robber damage)

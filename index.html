@@ -75,7 +75,7 @@
     </script>
     <!-- v1.27: fetch the start-up modules in parallel (without these the browser only finds each import after parsing its parent: one round trip per level).
          Same URLs as the imports (game.js keeps its ?v=); a stale entry costs one extra fetch, a missing one only its head start. -->
-    <link rel="modulepreload" href="./src/game.js?v=132" />
+    <link rel="modulepreload" href="./src/game.js?v=133" />
     <link rel="modulepreload" href="./src/themes/manager.js" />
     <link rel="modulepreload" href="./src/themes/board-renderer.js" />
     <link rel="modulepreload" href="./src/themes/fx.js" />
@@ -224,22 +224,22 @@
     </script>
     <!-- v1.27: the stylesheets follow the splash, so the splash paints while they load (the app below still waits for them).
          Legacy styles sit in a low-priority cascade layer: the themed CSS below always wins -->
-    <style>@import url("./styles.css?v=132") layer(legacy);</style>
-    <link rel="stylesheet" href="./themes/base.css?v=132" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=132" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=132" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=132" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=132" />
-    <link rel="stylesheet" href="./themes/six.css?v=132" />
-    <link rel="stylesheet" href="./themes/seafarers.css?v=132" />
-    <link rel="stylesheet" href="./themes/hotseat.css?v=132" />
-    <link rel="stylesheet" href="./themes/stats.css?v=132" />
-    <link rel="stylesheet" href="./themes/review.css?v=132" />
-    <link rel="stylesheet" href="./themes/sunny-night.css?v=132" />
-    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=132" />
-    <link rel="stylesheet" href="./themes/profiles.css?v=132" />
-    <link rel="stylesheet" href="./themes/history.css?v=132" />
-    <link rel="stylesheet" href="./themes/bots.css?v=132" />
+    <style>@import url("./styles.css?v=133") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=133" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=133" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=133" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=133" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=133" />
+    <link rel="stylesheet" href="./themes/six.css?v=133" />
+    <link rel="stylesheet" href="./themes/seafarers.css?v=133" />
+    <link rel="stylesheet" href="./themes/hotseat.css?v=133" />
+    <link rel="stylesheet" href="./themes/stats.css?v=133" />
+    <link rel="stylesheet" href="./themes/review.css?v=133" />
+    <link rel="stylesheet" href="./themes/sunny-night.css?v=133" />
+    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=133" />
+    <link rel="stylesheet" href="./themes/profiles.css?v=133" />
+    <link rel="stylesheet" href="./themes/history.css?v=133" />
+    <link rel="stylesheet" href="./themes/bots.css?v=133" />
     <div class="app" id="app">
       <header class="topbar" id="topbar">
         <div class="brand">
@@ -472,7 +472,7 @@
     </div>
     <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=132"></script>
+    <script type="module" src="./src/game.js?v=133"></script>
     <script>
       // Updates: sw.js and its imports are never taken from the HTTP cache (updateViaCache), the
       // registration is re-checked whenever the app comes back to the foreground, and a new

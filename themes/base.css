@@ -1653,6 +1653,14 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .tcell .tpick .ic { font-size: 36px; }
 .tcell .tpick small { font-size: 12px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; line-height: 1.1; }
 .tcell .tpick small .aft { color: var(--heading); font-weight: 800; }
+/* v1.31 (ux-132): now → after under every trade card; the bank route's result may need two lines */
+.tcell .tpick small .na { color: var(--ink); font-weight: 800; }
+.tcell .tpick small .na b { font-weight: 900; }
+.tcell .tpick small .na b.dn { color: var(--danger, #B23A1E); }
+.tcell .tpick small .na b.up { color: var(--good, #2E7D32); }
+.tcell .rate-tag.low { left: auto; right: 3px; font-size: 9.5px; font-weight: 700; }
+.tlbl .tlbl-na { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: none; opacity: .8; }
+.btn.route.bank .rt small { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.1; }
 .tcell .tbadge { position: absolute; top: -8px; right: -6px; min-width: 24px; height: 24px; padding: 0 6px; box-sizing: border-box; border-radius: 12px; background: var(--heading); color: var(--sheet, #fff); font-size: 14px; font-weight: 800; display: flex; align-items: center; justify-content: center; border: 2px solid var(--sheet, #fff); z-index: 1; }
 .tcell .rate-tag { position: absolute; top: 3px; left: 3px; font-size: 11px; font-weight: 800; line-height: 15px; padding: 0 4px; border-radius: 5px; color: var(--kbd-ink); background: var(--kbd-bg); }
 .tcell .rate-tag.port { background: var(--good-bg); color: var(--good); }

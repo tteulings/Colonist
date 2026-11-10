@@ -462,3 +462,75 @@ export function drawClassicSea(g, ctx) {
   // legal ship spots / move targets: ghost hulls in the current player's colour (the grid near them is drawn above)
   if (spots?.ships?.length) ghostHulls(ctx, g, spots.ships, routes, env.P, colOf(g.currentPlayer?.id ?? 0), { a: 0.4 });
 }
+
+// ── v1.31 (ux-132) the Build / Move ship chooser: piece icons for its tiles and the preview on the board ──
+/** Draw one chooser tile's piece (seat colour, as on the board) into a small canvas (CSS size w × h). */
+export function drawChoiceIcon(R, canvas, type, c, drawSpec, w = 44, h = 36) {
+  const dpr = typeof devicePixelRatio === "number" ? devicePixelRatio : 1;
+  canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+  canvas.style.width = `${w}px`; canvas.style.height = `${h}px`;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr); ctx.translate(w / 2, h / 2);
+  if (type === "settlement" || type === "city") {
+    const k = h / (type === "city" ? 58 : 50);
+    ctx.translate(0, type === "city" ? 2 : 3); ctx.scale(k, k);
+    drawSpec(ctx, type === "city" ? R.theme.pieces.city(c) : R.theme.pieces.settlement(c), { k: k * dpr });
+    return;
+  }
+  if (type === "road") {
+    const a = { x: -w * 0.36, y: h * 0.22 }, b = { x: w * 0.36, y: -h * 0.22 };
+    ctx.lineCap = "round";
+    const seg = (col, lw) => { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.stroke(); };
+    seg("rgba(255,255,255,.95)", 10); seg(c.line || c.dark, 8); seg(c.base, 5.2);
+    ctx.save(); ctx.translate(-0.5, -0.9); seg(c.light || "#fff", 1.4); ctx.restore();
+    return;
+  }
+  // ship / move: a hull with its sail; "move" adds a curved arrow
+  const move = type === "move", dp = h / (move ? 22 : 19);
+  drawHull(ctx, { x: move ? -w * 0.12 : 0, y: h * 0.18, dir: { x: 1, y: 0 } }, c, dp, { sail: true });
+  if (move) {
+    ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+    const arrow = (col, lw) => {
+      ctx.beginPath(); ctx.moveTo(w * 0.08, -h * 0.28); ctx.quadraticCurveTo(w * 0.42, -h * 0.3, w * 0.4, h * 0.12); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(w * 0.29, h * 0.02); ctx.lineTo(w * 0.4, h * 0.16); ctx.lineTo(w * 0.49, h * 0.0); ctx.stroke();
+    };
+    arrow("rgba(255,255,255,.95)", 5.5); arrow(c.line || c.dark || "#22313A", 2.6);
+    ctx.restore();
+  }
+}
+
+/**
+ * The chooser's preview on the board (`g._seaPreview = { items: [{ type, id, n }], focus, numbered }`): a ghost of each
+ * piece where it would go and a ring round the ship that would move. `numbered`: every option at once, each with the
+ * number of its tile; otherwise only the focused option (the first by default).
+ */
+export function drawSeaPreview(R, ctx, devK) {
+  const g = R.game, pv = g._seaPreview;
+  if (!pv?.items?.length || !g.currentPlayer) return;
+  const c = R.pc(g.currentPlayer), px = 1 / (R.u * g.view.scale);
+  const items = pv.numbered ? pv.items : [pv.items[pv.focus ?? 0]];
+  const env = svgEnv(R), geo = shipRoutes(env, R), dp = geo.dp;
+  const at = (it) => {
+    if (it.type === "settlement" || it.type === "city") { const p = R.nodeArt(it.id); return { x: p.x, y: p.y - 4 }; }
+    if (it.type === "move") { const h = geo.hulls.find((x) => x.edge.id === it.id); if (h) return { x: h.x, y: h.y - 2 * dp }; }
+    const e = g.geometry.edges[it.id], a = R.nodeArt(e.nodes[0]), b = R.nodeArt(e.nodes[1]);
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  };
+  items.forEach((it) => {
+    if (it.type === "move") {
+      const p = at(it);
+      ctx.save(); ctx.beginPath(); ctx.arc(p.x, p.y, 14 * dp, 0, Math.PI * 2);
+      ctx.lineWidth = 5 * px; ctx.strokeStyle = "rgba(20,40,50,.6)"; ctx.stroke();
+      ctx.setLineDash([6 * px, 4 * px]); ctx.lineWidth = 2.6 * px; ctx.strokeStyle = "#FFFFFF"; ctx.stroke(); ctx.restore();
+    } else R.ghost(ctx, it.type, it.id, c, 0.9, devK);
+  });
+  if (!pv.numbered) return;
+  items.forEach((it) => { // the tile's number by its spot: a cream disc, dark rim and number (readable on land and sea)
+    // a ship's number sits up-left of its ring, a piece's down-right of it: side by side they never cover each other
+    const p = at(it), r = 9 * px, mv = it.type === "move" || it.type === "ship", x = p.x + (mv ? -20 : 18) * px, y = p.y + (mv ? -18 : 14) * px;
+    ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = "#FBF6EA"; ctx.fill();
+    ctx.lineWidth = 2 * px; ctx.strokeStyle = "#22313A"; ctx.stroke();
+    ctx.fillStyle = "#22313A"; ctx.font = `800 ${12 * px}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(String(it.n), x, y + 0.5 * px); ctx.restore();
+  });
+}

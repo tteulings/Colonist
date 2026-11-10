@@ -84,7 +84,10 @@ export const ReviewUiMixin = {
       let sumHtml = "";
       if (solo && full) {
         const rv = this._rvOf(p.id), sm = summarize(rv.results), T = totals(this._rvDecisions(rv.results.filter((x) => !x.skip || x.skip === "trivial"))), sg = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v)}%`, tile = tileOf(this._rvLuck(p.id));
-        sumHtml = `<div class="rv1-sum"><div class="acc"><b>${sm.acc ?? "–"}</b><small>accuracy</small></div><div><b class="${T.moves < 0 ? "neg" : ""}">${sg(T.moves)}</b><small>Your moves</small></div><div><b class="${tile.cls}">${tile.n}</b><small>Dice luck${tile.n === "n/a" ? "" : ` · ${esc(tile.side || tile.sub)}`}</small></div></div>`;
+        sumHtml = `<div class="rv1-sum"><div class="acc"><b>${sm.acc ?? "–"}</b><small>accuracy</small></div><div><b class="${T.moves < 0 ? "neg" : ""}">${sg(T.moves)}</b><small>Your moves</small></div>${(() => { const LK = this._lkState?.(), w = LK && !LK.na && LK.done && LK.cover >= 0.9 ? LK.tot[p.id] : null; // v1.31 design B
+          if (w == null) return `<div><b class="${tile.cls}">${tile.n}</b><small>Dice luck${tile.n === "n/a" ? "" : ` · ${esc(tile.side || tile.sub)}`}</small></div>`;
+          const r = Math.round(w * 100), c = r > 0 ? "pos" : r < 0 ? "neg" : "";
+          return `<div><b class="${c}">${r > 0 ? "+" : r < 0 ? "−" : "±"}${Math.abs(r)}%</b><small>Luck · ${esc(tile.n)}</small></div>`; })()}</div>`;
       }
       return `<div class="rv1${solo ? " gs-revcard" : ""}" data-rvp="${p.id}"><div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Your game review" : `<span class="pc-${p.id} rv-who">${esc(p.name)}</span> · missed chances`}</span><small>${list.length ? (list[0].verified ? "deep Monte Carlo check" : "") : ""}</small></div>
       ${sumHtml}${lead ? `<p class="rv1-lead">${lead}</p>` : ""}

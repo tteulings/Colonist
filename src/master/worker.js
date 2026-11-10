@@ -5,12 +5,15 @@
 //   → { type: "decide", id, kind: "setup" | "main" | "robber", state, trk, turnSerial, seat, opts, lab }
 //   ← { type: "decision", id, kind, choice, record }          (choice null: nothing to choose between)
 //   → { type: "game", id, seed, strategies: [4], opts }        (lab tournament: one whole game)
+//   ← { type: "progress", id, turn, setup, vp, think, d, state? }  (lab-131: while that game runs; `state` only with m.watch)
 //   ← { type: "game", id, winner, turns, vp, ms, stats }
 //   → { type: "detect", id, base, recs }                        (v1.02 review: the person's missed chances)
 //   ← { type: "detect", id, findings, ms }
 //   → { type: "evaluate", id, base, rec, opts }                 (v1.03 Game review: one decision, Monte Carlo)
 //   ← { type: "evaluate", id, result }
 //   → { type: "sprep" | "srun" | "send", sid, ... }               (eng-130 Grandmaster: a share of one parallel search, src/master/parallel.js)
+//   → { type: "luck", id, base, ev, opts }                      (v1.31 luck in win chance: one chance event, src/review/luck-mc.js)
+//   ← { type: "luck", id, result }
 //   ← { type: "ready" } once loaded, { type: "error", id, message } on failure
 import "./dom.js";
 await import("../game.js"); // constructs a stub game as self.__colonistGame (no page, no saving)
@@ -18,6 +21,7 @@ const { makeMaster, prepareEngine } = await import("./search.js");
 const { detectMissed } = await import("../review/detect.js");
 const { loadPosition, loadRecord } = await import("../review/engine.js");
 const { evaluateRecord } = await import("../review/evaluate.js");
+const { luckEvent } = await import("../review/luck-mc.js");
 const g = prepareEngine(self.__colonistGame);
 g._rvOff = true; // v1.02: this copy never records a review
 const H = g.constructor.labHelpers;
@@ -70,11 +74,26 @@ function playGame(m) {
   const orig = Math.random;
   // v1.13: a Super Expert seat searches with its own (bigger) budget (m.budgets[i]); a Master with m.opts
   const agents = m.strategies.map((s, i) => (s.policy === "master" || s.policy === "super" || s.policy === "superplus" || s.policy === "grandmaster" ? makeMaster(m.budgets?.[i] || m.opts || {}) : null));
+  // lab-131: the page hears how the game goes (turn, points, which seat is searching; with m.watch the position too, so
+  // Watch can follow a Master / Super game): before every searched decision and after every turn, at most every 300 ms
+  let last = 0, decisions = 0;
+  const script = []; // lab-131: every searched decision's outcome in order [seat, 0 setup | 1 main | 2 robber, choice], so the page can play the same game again (recorded, for Replay and the review)
+  const tell = (think, force = false) => {
+    const now = performance.now();
+    if (!force && now - last < 300) return;
+    last = now;
+    self.postMessage({ type: "progress", id: m.id, turn: g.turn, setup: !!g.setupPhase, vp: g.players.map((p) => p.victoryPoints), think, d: decisions, state: m.watch ? g.serializeState() : undefined });
+  };
+  agents.forEach((a, i) => {
+    if (!a) return;
+    ["decideSetup", "decideMain", "decideRobber"].forEach((f, fi) => { const o = a[f]; a[f] = (...x) => { decisions += 1; tell(i); const d = o(...x); script.push([i, fi, d ? d.choice : null]); return d; }; });
+  });
   try {
     g._labSimStart(m.strategies, { players: m.strategies.length, map: m.map || "random", seed: m.seed, agents });
     let r = { done: false };
-    while (!r.done) r = g._labSimStep(40);
-    return { winner: r.winner, turns: r.turns, vp: g.players.map((p) => p.victoryPoints), ms: Math.round(performance.now() - t0),
+    tell(null, true);
+    while (!r.done) { r = g._labSimStep(1); if (!r.done) tell(null); }
+    return { winner: r.winner, turns: r.turns, vp: g.players.map((p) => p.victoryPoints), ms: Math.round(performance.now() - t0), script,
       stats: agents.map((a) => (a ? { d: a.stats.decisions, dev: a.stats.deviations, ms: a.stats.ms } : null)) };
   } finally { Math.random = orig; g.players.forEach((p) => { p.agent = null; }); }
 }
@@ -88,6 +107,7 @@ self.onmessage = (e) => {
     else if (m.type === "send") { sessions.delete(m.sid); if (loadedSid === m.sid) loadedSid = null; if (m.id != null) self.postMessage({ type: "send", id: m.id }); }
     else if (m.type === "game") { loadedSid = null; self.postMessage({ type: "game", id: m.id, ...playGame(m) }); }
     else if (m.type === "detect") { loadedSid = null; self.postMessage({ type: "detect", id: m.id, ...detect(m) }); }
+    else if (m.type === "luck") { loadedSid = null; self.postMessage({ type: "luck", id: m.id, result: luckEvent(g, m.base, m.ev, m.opts || {}) }); }
     else if (m.type === "evaluate") { loadedSid = null; self.postMessage({ type: "evaluate", id: m.id, result: evaluateRecord(g, m.rec, (rec) => loadRecord(g, m.base, rec), m.opts || {}) }); }
   } catch (err) {
     self.postMessage({ type: "error", id: m.id, message: String(err && err.stack || err) });
