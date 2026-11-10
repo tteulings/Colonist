@@ -42,6 +42,18 @@ export const REVIEW_ENGINES = {
 export const REVIEW_ENGINE = "full";
 export const REVIEW = REVIEW_ENGINES[REVIEW_ENGINE];
 export const REVIEW_BUDGET = REVIEW.budget;
+// v1.40 several review lanes (src/review.js round): part of the extra cores buys speed, part buys precision. ANALYSIS_BOOST: what an
+// engine's search gets on top of its budget when it runs on more than one lane (measured, see the note at the value). One lane: as before.
+// Measured (scratchpad eng130/tests/rv-var.mjs, 75 recorded decisions, truth = 300 futures a move played to the end): for ~1.3x the work
+// a longer look-ahead (20 turns, 24 in set-up) beats more futures (143 a move): the played move's loss MAE 3.06 vs 3.27 pp (bootstrap
+// -0.21 [-0.41, -0.01]), its win chance MAE 7.7 vs 8.4 pp; 143 futures: -0.00 pp (no gain); 120 x 17: -0.10. The quick round: speed only.
+export const ANALYSIS_BOOST = { full: { depth: 20, setupDepth: 24 }, m100: null };
+/** The evaluate options of one decision: the engine, plus its boost on several lanes. */
+export function analysisOpts(eng, lanes = 1) {
+  const o = eng === REVIEW_ENGINE ? {} : { engine: eng };
+  const b = lanes > 1 ? ANALYSIS_BOOST[eng] : null;
+  return b ? { ...o, budget: { ...(eng === REVIEW_ENGINE ? REVIEW_BUDGET : REVIEW_ENGINES[eng]?.budget), ...b } } : o;
+}
 
 // accuracy = a·e^(−k·loss%) − b: chess.com's win%-based curve, steeper (k 0.08 instead of 0.0435) because
 // these win chances come from an 8-turn look-ahead and move less than a chess engine's. Calibrated on the

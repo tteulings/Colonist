@@ -57,7 +57,7 @@ function poolWorker(pool) {
   if (pool.broken || typeof Worker === "undefined") return null;
   if (pool.worker) return pool.ready;
   try {
-    pool.worker = new Worker(new URL("./master/worker.js?v=139", import.meta.url), { type: "module" });
+    pool.worker = new Worker(new URL("./master/worker.js?v=140", import.meta.url), { type: "module" });
   } catch (_) { pool.broken = true; return null; }
   pool.ready = new Promise((resolve) => {
     const t = setTimeout(() => { pool.broken = true; resolve(null); }, READY_TIMEOUT_MS);
@@ -109,8 +109,20 @@ export async function grandmasterRequest(msg, timeoutMs = ASK_TIMEOUT_MS) {
 // v1.04 the Game review has a worker of its own: a check during the game never makes a Master bot wait
 // (one shared worker queued the bots' searches behind ~5 s review steps: 4.4 s mean think time, timeouts).
 const review = { worker: null, ready: null, broken: false, seq: 0, waiting: new Map() };
-export function reviewRequest(msg, timeoutMs) { return poolRequest(review, msg, timeoutMs); }
+// v1.40 the analysis (Game review, luck in win chance, the others' and the AI Lab's reviews) spreads its decisions / events over
+// several review workers, like the Grandmaster's search: lane 0 is the review worker above, lanes 1.. are extra ones. Every decision
+// and every event is computed on its own (its own seeds), so which lane runs it changes nothing in the result.
+const reviewLanes = [review];
+const reviewPool = (w) => (reviewLanes[w] = reviewLanes[w] || { worker: null, ready: null, broken: false, seq: 0, waiting: new Map() });
+export function reviewRequest(msg, timeoutMs, lane = 0) { return poolRequest(reviewPool(lane), msg, timeoutMs); }
 export const reviewAvailable = () => !review.broken && typeof Worker !== "undefined";
+/** How many review lanes may run now (the cores past the page's own, at most 3; GM_WORKERS), each one started and ready. 1: as before. */
+export async function reviewLaneCount(max = GM_WORKERS()) {
+  if (max <= 1 || typeof Worker === "undefined") return 1;
+  const ok = await Promise.all(Array.from({ length: max }, (_, w) => poolWorker(reviewPool(w))));
+  let n = 0; while (n < max && ok[n]) n += 1;
+  return Math.max(1, n);
+}
 export const masterAvailable = () => !shared.broken && typeof Worker !== "undefined";
 // lab-131 the AI Lab's tournament games with a Master / Super seat have a worker of their own, so Stop can end a game at once
 // (the worker is terminated; a whole game is one long synchronous call there) without touching the Analysis searches.
