@@ -23,6 +23,13 @@ const SHELL = [
   "./assets/avatars/avatar-vector.svg", "./assets/pwa/apple-touch-icon.png", "./assets/pwa/icon-192.png",
 ];
 
+// v1.34: the page asks a new worker which version it brings (index.html), so a cold launch that already runs
+// the new files offers no update; colonist-v134 → "1.34" (CACHE is bumped with APP_VERSION every release)
+const VERSION = CACHE.replace(/^colonist-v(\d)(\d+)$/, "$1.$2");
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "version" && event.ports[0]) event.ports[0].postMessage({ version: VERSION });
+});
+
 self.addEventListener("install", (event) => {
   // The shell is fetched past the HTTP cache too, or a fresh SW could precache stale files
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL.map((url) => new Request(url, { cache: "no-cache" })))).then(() => self.skipWaiting()));

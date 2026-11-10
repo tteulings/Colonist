@@ -7,6 +7,31 @@ import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette
 /** Shown in Settings › About and on the settings button; bumped with every release. */
 export const APP_VERSION = "1.33";
 
+/** v1.34 Settings: the running version and "Check for updates" (index.html: reg.update() + a version compare). */
+function versionRow() {
+  const row = document.createElement("div");
+  row.className = "st-row st-version";
+  row.innerHTML = `<div><b>Version v${APP_VERSION}</b><small data-upd-msg>Updates install by themselves; a reload starts them.</small></div><button type="button" class="btn" data-upd-check>Check for updates</button>`;
+  const msg = row.querySelector("[data-upd-msg]"), btn = row.querySelector("[data-upd-check]");
+  const ready = (v) => {
+    msg.textContent = v ? `v${v} is ready. Your game is saved.` : "A new version is ready. Your game is saved.";
+    btn.textContent = v ? `Update to v${v}` : "Update now"; btn.classList.add("primary"); btn.disabled = false;
+    btn.onclick = () => { btn.disabled = true; btn.textContent = "Starting…"; if (window.__colonistReload) window.__colonistReload(btn); else window.location.reload(); };
+  };
+  const known = window.__colonistUpdate;
+  if (known && known.version !== APP_VERSION) { ready(known.version); return row; }
+  btn.onclick = async () => {
+    if (!window.__colonistCheckUpdate) { msg.textContent = "Updates are checked in the installed app."; return; }
+    btn.disabled = true; btn.textContent = "Checking…"; msg.textContent = "Looking for a new version…";
+    let r = null;
+    try { r = await window.__colonistCheckUpdate(); } catch (_) { /* offline */ }
+    if (r?.ready) { ready(r.latest); return; }
+    btn.disabled = false; btn.textContent = "Check for updates";
+    msg.textContent = r?.latest ? `Up to date (v${r.current || APP_VERSION})` : "Couldn't check. Are you offline?";
+  };
+  return row;
+}
+
 /** One line of real viewport numbers for bug reports (Settings › About). */
 function viewportDebug() {
   const vv = window.visualViewport, d = document.documentElement;
@@ -53,7 +78,8 @@ export class SettingsUI {
       if (dev) this.devPane.appendChild(dev);
       while (body.firstChild) this.gamePane.appendChild(body.firstChild);
     }
-    document.querySelectorAll(".app-version, .version-label").forEach((el) => { el.textContent = `v${APP_VERSION}`; });
+    // v1.34: the Game pane is already out of the document here, so its "Katan … v1.03" line is set through it
+    [document, this.gamePane].forEach((root) => root.querySelectorAll(".app-version, .version-label").forEach((el) => { el.textContent = `v${APP_VERSION}`; }));
     // v0.85: Follow system can flip the palette while Look & feel is open (the OS goes dark): keep the control in step
     document.addEventListener("colonist:palette", () => { if (this.el && this.tab === "look") this.renderBody(); });
   }
@@ -110,6 +136,7 @@ export class SettingsUI {
       row.innerHTML = `<div><b id="rvAutoLbl">Review automatically after a game</b><small>Checks your moves in the background.</small></div><button type="button" class="st-switch${auto ? " on" : ""}" role="switch" aria-checked="${auto}" aria-labelledby="rvAutoLbl" data-rv-auto><i></i></button>`;
       row.querySelector("button").addEventListener("click", (e) => { const b = e.currentTarget, on = b.getAttribute("aria-checked") !== "true"; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); try { localStorage.setItem("colonist_review_auto", on ? "on" : "off"); } catch (_) {} });
       body.appendChild(row);
+      body.appendChild(versionRow());
     } else if (this.tab === "bots") {
       body.innerHTML = this.head("Bot personalities", "");
       const lb = document.createElement("button"); // v1.23 the leaderboard lives on its own page
@@ -125,6 +152,7 @@ export class SettingsUI {
         <p class="sub st-screen">Screen: ${innerWidth}×${innerHeight} @${+(window.devicePixelRatio || 1).toFixed(2)}x${matchMedia("(display-mode: standalone)").matches ? " · installed app" : ""}</p>
         <p class="sub st-viewport">${viewportDebug()}</p>`;
       body.querySelector(".st-howto").addEventListener("click", () => { this.close(); g.onboarding?.showIntro(0, false); });
+      body.querySelector(".st-howto").after(versionRow());
       body.appendChild(this.devPane);
     } else {
       const cur = g.theme.id;
