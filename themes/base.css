@@ -742,6 +742,19 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
   border-radius: 20px; background: var(--primary); background-image: linear-gradient(rgba(0,0,0,.2), rgba(0,0,0,.2)), var(--primary-image, linear-gradient(transparent, transparent)); border: var(--primary-border); box-shadow: var(--primary-shadow), 0 8px 24px rgba(0,30,60,.2); color: var(--primary-ink);
 }
 .hm-continue .hm-play { width: 36px; height: 36px; }
+/* v1.34: a new version is ready (index.html): one clear row at the top of Home, tap = reload (nothing live runs on Home) */
+.hm-update { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 14px; text-align: left;
+  border-radius: 18px; background: var(--sheet); background-image: var(--sheet-image); border: var(--sheet-border); box-shadow: inset 0 0 0 2px var(--accent), 0 8px 24px rgba(0,30,60,.2); color: var(--ink); animation: fadeIn 220ms ease; }
+.hm-update:active { transform: scale(.98); }
+.hm-update.is-busy .hm-upd-ic { animation: hm-upd-spin 1s linear infinite; }
+@keyframes hm-upd-spin { to { transform: rotate(360deg); } }
+.hm-update .hm-upd-ic { width: 34px; height: 34px; padding: 7px; box-sizing: border-box; border-radius: 50%; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--heading); }
+.hm-update b { display: block; font-size: 17px; font-weight: 800; line-height: 1.2; color: var(--heading); }
+.hm-update small { display: block; font-size: 12.5px; font-weight: 650; color: var(--ink-soft); }
+.hm-update .hm-chev { color: var(--ink-soft); }
+@media (prefers-reduced-motion: reduce) { .hm-update, .hm-update.is-busy .hm-upd-ic { animation: none; } }
+/* Home has its own update row: the fixed chip (desktop) waits behind it until a game is on screen */
+body.home-open > .update-chip:not(.in-row) { display: none; }
 .hm-continue .hm-ct b { display: block; font-size: 21px; font-weight: 800; line-height: 1.15; }
 .hm-continue .hm-ct small { display: block; font-size: 13.5px; font-weight: 650; }
 .hm-chev { font-size: 26px; line-height: 1; opacity: .85; }
@@ -801,6 +814,10 @@ body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the 
   .home .hm-col { max-width: 760px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "brand new" "cont new" "list new";
     grid-template-rows: auto auto 1fr; align-content: center; column-gap: 12px; }
   .home:not(.has-save) .hm-col { grid-template-areas: "brand new" "list new"; grid-template-rows: auto 1fr; }
+  .home .hm-col:has(> .hm-update) { grid-template-areas: "brand new" "upd new" "cont new" "list new"; grid-template-rows: auto auto auto 1fr; }
+  .home:not(.has-save) .hm-col:has(> .hm-update) { grid-template-areas: "brand new" "upd new" "list new"; grid-template-rows: auto auto 1fr; }
+  .home .hm-col > .hm-update { grid-area: upd; min-height: 44px; padding: 4px 12px; }
+  .hm-update small { display: none; }
   .home .hm-col > .hm-brand { grid-area: brand; }
   .home .hm-col > .hm-continue { grid-area: cont; }
   .home .hm-col > .hm-new { grid-area: new; align-self: center; }
