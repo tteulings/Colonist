@@ -378,6 +378,7 @@ export const ReviewGameMixin = {
     if (!this._rvReviewable()) return;
     if (!this._rvGateOk(pid)) { this._hsGate?.(pid, "Your game review", () => this._rvOpenReview(pid, { mid, at, near })); return; } // pass & play: hand the phone over first
     this._rvMid = mid;
+    this._rvPbp = null; // v1.36 a review opened anew starts at the decision, never inside an old play-by-play
     if (mid) this._st = this._stCompute(); // the stats so far (luck, the board for Show)
     this._rvCloseReview();
     const host = this._stHost();
@@ -687,7 +688,7 @@ export const ReviewGameMixin = {
       <div class="rs-card">${cardHtml}</div>`;
     const sc = el.querySelector(".rs-strip"); if (sc) { sc.scrollLeft = scrub; el.querySelector(".rs-chip.on")?.scrollIntoView?.({ inline: "center", block: "nearest" }); }
     this._rvBindTop(el);
-    el.querySelectorAll("[data-rvclose-step]").forEach((b) => b.addEventListener("click", () => { this._rvStep = null; this._rvDrawReview(); }));
+    el.querySelectorAll("[data-rvclose-step]").forEach((b) => b.addEventListener("click", () => { this._rvStep = null; this._rvPbp = null; this._rvDrawReview(); })); // v1.36 leaving the decision ends its play-by-play (else coming back resumed it: the ≈ estimates in the legend instead of the decision's numbers)
     el.querySelector("[data-rvwho]")?.addEventListener("click", (e) => { e.stopPropagation(); this._rvWhoPop(); });
     bindCard(el);
     el.querySelector("[data-rvpbp]")?.addEventListener("click", () => this._rvPbpOpen(d, ds));
