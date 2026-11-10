@@ -38,6 +38,9 @@ export const budgetFor = (policy, rush = false, sea = false) => {
   const b = rush ? { ...RUSH_BUDGET, ...(policy === "superplus" || policy === "grandmaster" ? { leaf: "gbm" } : {}), ...(policy === "grandmaster" ? { timeMs: 40 } : {}) }
     : { ...(policy === "grandmaster" ? GRANDMASTER_BUDGET : policy === "superplus" ? SUPER_PLUS_BUDGET : policy === "super" ? SUPER_BUDGET : MASTER_BUDGET) };
   if (sea) b.leaf = SEA_LEAF;
+  // v1.42 a Seafarers future costs ~3x an island one (ships, the sea reach): a third of the futures keeps the think time of the island
+  // board (measured: 545 Seafarers futures took 6-9 s a move on a busy desktop, the emergency brake): Super Expert(+) 182, Grandmaster 363
+  if (sea && !rush && b.rollClock) b.timeMs = Math.round(b.timeMs / 3);
   // Rush in Seafarers: a Seafarers future costs ~3x an island one, so 250 ms buys only a handful on a phone (measured 9 on a busy
   // desktop): the search may only overrule the Expert with at least 8 shared futures
   if (sea && rush) b.minFut = 8;
