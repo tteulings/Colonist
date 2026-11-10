@@ -136,6 +136,13 @@ export class SettingsUI {
       row.innerHTML = `<div><b id="rvAutoLbl">Review automatically after a game</b><small>Checks your moves in the background.</small></div><button type="button" class="st-switch${auto ? " on" : ""}" role="switch" aria-checked="${auto}" aria-labelledby="rvAutoLbl" data-rv-auto><i></i></button>`;
       row.querySelector("button").addEventListener("click", (e) => { const b = e.currentTarget, on = b.getAttribute("aria-checked") !== "true"; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); try { localStorage.setItem("colonist_review_auto", on ? "on" : "off"); } catch (_) {} });
       body.appendChild(row);
+      // v1.42 the review model (src/review/evaluate.js REVIEW_MODELS): Quick (the model alone, seconds), Standard, Deep (about twice the time)
+      let mdl = "standard"; try { mdl = localStorage.getItem("colonist_review_model") || "standard"; } catch (_) {}
+      const mrow = document.createElement("div");
+      mrow.className = "st-row";
+      mrow.innerHTML = `<div><b id="rvModelLbl">Review model</b><small>Quick is rough; Deep takes about twice as long.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="rvModelLbl">${[["quick", "Quick"], ["standard", "Standard"], ["deep", "Deep"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${mdl === k}" class="${mdl === k ? "on" : ""}" data-rv-model="${k}">${l}</button>`).join("")}</div>`;
+      mrow.querySelectorAll("[data-rv-model]").forEach((b) => b.addEventListener("click", () => { mrow.querySelectorAll("[data-rv-model]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); try { localStorage.setItem("colonist_review_model", b.dataset.rvModel); } catch (_) {} }));
+      body.appendChild(mrow);
       body.appendChild(versionRow());
     } else if (this.tab === "bots") {
       body.innerHTML = this.head("Bot personalities", "");

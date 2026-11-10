@@ -8,6 +8,7 @@
 //   · a tappable turn strip and a list of your turns; Show on board for a marked decision
 //   · the missed-chance lines on the end screen then come from the Master's check (verified)
 import { esc, IC, cmpHtml, whyHtml } from "./review-ui.js";
+import { reviewModel, REVIEW_MODELS, modelOfId } from "./review/evaluate.js";
 import { summarize, REVIEW, REVIEW_ENGINE, REVIEW_ENGINES, ACC, clsOf, LIMITS, SETUP_LIMITS, CLASSES, GREAT, gpOf, decide, totals, tradeShow, needsFull } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
 import { cardsText, topText, tileOf, sentence } from "./review/luck.js";
@@ -312,11 +313,13 @@ export const ReviewGameMixin = {
   _rvCompare(hist) {
     // accuracies of one engine only, and only games nobody checked during play (v1.04: a check mid-game helps)
     // v1.41 only reviews of today's engine (its id includes the look-ahead): an older one counts again once it is reviewed again
-    const mine = hist.filter((x) => (!this.hotseat ? !x.w : x.w === this.players[this._rvPid]?.name) && !x.midCheck), eid = currentEngineId();
+    // v1.42 within one review model: the one of the review on screen (else the chosen one), named in the line
+    const model = modelOfId(this._rvOf?.(this._rvPid)?.engId) || reviewModel(), mlab = REVIEW_MODELS[model].label;
+    const mine = hist.filter((x) => (!this.hotseat ? !x.w : x.w === this.players[this._rvPid]?.name) && !x.midCheck), eid = currentEngineId(model);
     const last = mine.filter((x) => (x.eng || "m100") === REVIEW_ENGINE && (x.k ?? "k0.08v1") === ACC.id && x.eid === eid).slice(-10).map((x) => x.acc);
-    const older = mine.filter((x) => x.eid !== eid).length, olderTxt = older ? ` ${older} older ${older === 1 ? "review" : "reviews"} not counted · Review again.` : "";
+    const older = mine.filter((x) => x.eid !== eid).length, olderTxt = older ? ` ${older} ${older === 1 ? "review" : "reviews"} of another engine or model not counted · Review again.` : "";
     if (!BANDS.length) return { n: last.length, text: "" };
-    if (last.length < 5) return { n: last.length, text: `Average vs the bots after 5 games (${last.length} of 5).${olderTxt}` };
+    if (last.length < 5) return { n: last.length, text: `${mlab} model: average vs the bots after 5 games (${last.length} of 5).${olderTxt}` };
     const m = last.reduce((a, b) => a + b, 0) / last.length;
     const sd = Math.sqrt(last.reduce((a, b) => a + (b - m) ** 2, 0) / (last.length - 1));
     const se = sd / Math.sqrt(last.length);
@@ -325,7 +328,7 @@ export const ReviewGameMixin = {
     const hit = sorted.filter(([, v, bs = 3]) => m + se >= v - bs && m - se <= v + bs);
     const where = hit.length === 1 ? `around ${hit[0][0]}` : hit.length > 1 ? `between ${hit[0][0]} and ${hit[hit.length - 1][0]}`
       : m < sorted[0][1] ? `below the bots’ range` : m > sorted[sorted.length - 1][1] ? `above the ${sorted[sorted.length - 1][0]} bot` : `between ${sorted.filter((b) => b[1] < m).pop()[0]} and ${sorted.find((b) => b[1] > m)[0]}`;
-    return { n: last.length, m, se, text: `Your last ${last.length} games: ${Math.round(m)} ± ${Math.max(1, Math.round(se))}, ${where}.${olderTxt}` };
+    return { n: last.length, m, se, text: `Your last ${last.length} games (${mlab} model): ${Math.round(m)} ± ${Math.max(1, Math.round(se))}, ${where}.${olderTxt}` };
   },
   /** v1.04 the accuracy strip at the top: the number, a 70–100 bar with the bots' narrow band (a score
    *  outside is pinned to the end and says so), your 5+ game average on it, and "one game is a rough
@@ -601,7 +604,7 @@ export const ReviewGameMixin = {
     const first = imp.length ? imp[0].i : ds[0]?.i;
     const scroll = el.querySelector(".rv-scroll")?.scrollTop || 0;
     el.className = "rv rs tm";
-    el.innerHTML = `${this._rvBar(mid ? "Your moves so far" : `${ds.length} decisions · ${prov ? "provisional" : "deep Monte Carlo"}`)}
+    el.innerHTML = `${this._rvBar(mid ? "Your moves so far" : `${ds.length} decisions · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`)}
       <div class="rv-scroll">
         ${this._rvProgHtml(pid)}
         ${mid ? `<section class="rv-card rv-midnote"><p><b>Up to turn ${rv.upto ?? this.turn}</b></p><button type="button" class="rv-btn pri" data-rvback-game>Back to the game</button></section>` : ""}

@@ -14,7 +14,7 @@
 // After the game the records go to the Master Web Worker (src/master/worker.js), which runs the detectors
 // in src/review/detect.js on its private headless engine; the end screen never waits for them.
 import { masterRequest, masterAvailable, reviewRequest, reviewLaneCount } from "./master.js";
-import { REVIEW_ENGINE, REVIEW, FMT, needsFull, rescoreReview, liftReview, analysisOpts, engineId } from "./review/evaluate.js";
+import { REVIEW_ENGINE, REVIEW, FMT, needsFull, rescoreReview, liftReview, analysisOpts, engineId, reviewModel, REVIEW_MODELS } from "./review/evaluate.js";
 import { packRecs, unpackRecs } from "./review/pack.js";
 
 const KEY = "colonist_review_v1";
@@ -204,7 +204,8 @@ export const ReviewMixin = {
     if (mid) { rv.midCheck = true; rv.upto = this.turn; }
     if (this._rvReviewComplete(pid)) { rv.done = true; if (!mid) setTimeout(() => { if (this._rv === R) this._rvQueueNext(); }, 0); return Promise.resolve(rv); }
     rv.done = false;
-    const id = R.id, run = { pid, mid, stage, stop: false, round: null, times: [], paused: false };
+    const model = mid ? "standard" : reviewModel(), final = REVIEW_MODELS[model].eng; // v1.42 the review model (Settings): Quick, Standard or Deep
+    const id = R.id, run = { pid, mid, stage, stop: false, round: null, times: [], paused: false, model, final };
     R.run = run;
     const few = (typeof navigator !== "undefined" ? navigator.hardwareConcurrency || 4 : 4) <= 4;
     const live = () => this._rv === R && R.id === id;
@@ -228,7 +229,7 @@ export const ReviewMixin = {
       const lanes = mid && !this.winner ? 1 : await reviewLaneCount();
       run.lanes = lanes;
       const opts = analysisOpts(eng, lanes);
-      if (eng === REVIEW_ENGINE) run.eid = engineId(lanes); // v1.41 the deep round's engine (its look-ahead depends on the lanes)
+      if (eng === run.final) run.eid = engineId(lanes, run.model); // v1.41 the final round's engine (its look-ahead depends on the lanes); v1.42 and the model
       let next = 0, last = now();
       const lane = async (w) => {
         while (next < items.length) {
@@ -257,6 +258,11 @@ export const ReviewMixin = {
         if (mid) {
           await round(REVIEW_ENGINE, todo.filter(([, i]) => { const x = rv.results.find((y) => y.i === i); return !x || this._rvNeedsFull(x); }));
         } else {
+          if (model === "quick") { // v1.42 Quick: the model straight on every decision, one round, nothing deeper
+            const q = todo.filter(([, i]) => { const x = rv.results.find((y) => y.i === i); return !x || this._rvNeedsFull(x); });
+            if (q.length) await round("direct", q);
+            throw { quickDone: true };
+          }
           const quick = todo.filter(([, i]) => !has(i));
           if (quick.length) await round("m100", quick);
           // the deep round; a bot's (stage "top"): only its biggest moments of the quick round, unless you opened its review meanwhile (run.full)
@@ -266,12 +272,12 @@ export const ReviewMixin = {
             let deep = this._rvDeepOrder(rv, todo.filter(([, i]) => { const x = rv.results.find((y) => y.i === i); return x && this._rvNeedsFull(x) && !(bot && this._rvQuickDone(x)); }));
             const top = run.stage === "top" && !run.full;
             if (top) deep = deep.filter(([, i]) => (rv.results.find((y) => y.i === i)?.loss || 0) >= OTHERS.minLoss).slice(0, Math.max(0, OTHERS.top - (rv.topN || 0)));
-            if (deep.length) await round(bot ? OTHERS.engine : REVIEW_ENGINE, deep); // a bot: the lighter deep engine (OTHERS)
+            if (deep.length) await round(final !== REVIEW_ENGINE ? final : bot ? OTHERS.engine : REVIEW_ENGINE, deep); // a bot: the lighter deep engine (OTHERS); v1.42 Deep: its own engine
             if (top && !run.stop && live()) { rv.top = true; rv.topN = (rv.topN || 0) + deep.length; }
             if (!run.full || this._rvReviewComplete(pid)) break;
           }
         }
-      } catch (e) { console.warn("review run", e); }
+      } catch (e) { if (!e?.quickDone) console.warn("review run", e); }
       if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVis);
       if (live()) { rv.done = !run.stop && this._rvReviewComplete(pid); if (rv.done && !mid) Object.assign(rv, this._raStamp?.(run.eid || rv.engId) || {}); /* v1.41 what made it (Review again) */ if (R.run === run) R.run = null; this._rvSave(); if (rv.done && this.players[pid]?.isHuman) this._rvLogGame?.(pid); this._rvTick(); if (live() && !run.stop && !mid) this._rvQueueNext(); }
       return rv;

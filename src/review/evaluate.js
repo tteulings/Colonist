@@ -37,6 +37,11 @@ export const REVIEW_ENGINES = {
     // human's (the seat plays on as Expert), the same 300 positions as v1.21, now with the gbm leaf (eng-124). [name, accuracy, SE]
     bands: BOT_BANDS },
   b: { budget: { n: 300, timeMs: 6000, depth: 12, setupDepth: 16 }, sec: 2, bands: null },
+  // v1.42 the review models the person picks (REVIEW_MODELS): "direct" (Quick) is the gbm model straight on the position after each move,
+  // no futures played (2 per move only for the hidden cards); "deep" (Deep) is more futures and a longer look-ahead than "full"
+  // (Standard). Measured against played-out truth: see REVIEW_MODELS.
+  direct: { budget: { nPer: 2, timeMs: 0, depth: 0, setupDepth: 0, leaf: "gbm" }, sec: 0.05, k: 0.10, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"], bands: null },
+  deep: { budget: { nPer: 250, timeMs: 40000, depth: 24, setupDepth: 28, leaf: "gbm" }, sec: 8, k: 0.10, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"], bands: null },
   m100: { budget: { n: 160, timeMs: 700, leaf: "fit" }, sec: 0.5, k: 0.08, trivial: 0.02, scored: ["setup", "build", "bank", "robber", "end", "shipmove"], bands: [["Simple", 85], ["Beginner", 86], ["Intermediate", 88], ["Expert", 89]] },
 };
 export const REVIEW_ENGINE = "full";
@@ -50,10 +55,21 @@ export const REVIEW_BUDGET = REVIEW.budget;
 export const ANALYSIS_BOOST = { full: { depth: 20, setupDepth: 24 }, m100: null };
 /** v1.41 what judged a review: the accuracy curve, the leaf and the deep round's look-ahead (20 on several lanes, 14 on one). Reviews of
  *  another id are from another engine: your average counts only today's (Review again brings an older one up to date). */
-export function engineId(lanes = 1) {
+export function engineId(lanes = 1, model = "standard") {
+  if (model === "quick") return `${ACC.id}-${REVIEW_BUDGET.leaf || "v1"}-direct`;
+  if (model === "deep") { const b = REVIEW_ENGINES.deep.budget; return `${ACC.id}-${b.leaf}-deep-n${b.nPer}d${b.depth}`; }
   const d = lanes > 1 && ANALYSIS_BOOST.full?.depth ? ANALYSIS_BOOST.full.depth : REVIEW_BUDGET.depth;
   return `${ACC.id}-${REVIEW_BUDGET.leaf || "v1"}-d${d}`;
 }
+/** v1.42 the review models: the engine of the final round (Quick: the only round). A review's model is read back from its engId. */
+export const REVIEW_MODELS = {
+  quick: { eng: "direct", label: "Quick" },
+  standard: { eng: "full", label: "Standard" },
+  deep: { eng: "deep", label: "Deep" },
+};
+/** The model the person chose (Settings, a device preference); Standard by default. */
+export function reviewModel() { try { const m = localStorage.getItem("colonist_review_model"); return REVIEW_MODELS[m] ? m : "standard"; } catch (_) { return "standard"; } }
+export const modelOfId = (id) => (!id ? null : /-direct$/.test(id) ? "quick" : /-deep-/.test(id) ? "deep" : "standard");
 /** The evaluate options of one decision: the engine, plus its boost on several lanes. */
 export function analysisOpts(eng, lanes = 1) {
   const o = eng === REVIEW_ENGINE ? {} : { engine: eng };

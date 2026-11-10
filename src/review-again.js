@@ -5,20 +5,20 @@
 // Each review and the luck carry a stamp (the app version and an id of the engine): "reviewed with v1.40", and the button gets more
 // weight when the engine has changed since.
 import { reviewRequest, reviewLaneCount, GM_WORKERS, SEA_LEAF } from "./master.js";
-import { REVIEW, REVIEW_ENGINE, REVIEW_ENGINES, FMT, needsFull, liftReview, analysisOpts, engineId } from "./review/evaluate.js";
+import { REVIEW, REVIEW_ENGINE, REVIEW_ENGINES, FMT, needsFull, liftReview, analysisOpts, engineId, REVIEW_MODELS, reviewModel, modelOfId } from "./review/evaluate.js";
 import { OTHERS } from "./review.js";
 import { LUCK_ID, luckKey, luckRecord } from "./review-luck.js";
 import { APP_VERSION } from "./themes/settings-ui.js";
 
 /** Today's engine on this device (src/review/evaluate.js engineId: one lane looks 14 turns ahead, several 20). */
-export const currentEngineId = () => engineId(Math.max(1, Math.min(3, GM_WORKERS())));
+export const currentEngineId = (model = reviewModel()) => engineId(Math.max(1, Math.min(3, GM_WORKERS())), model);
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hiddenTab = () => typeof document !== "undefined" && (document.hidden || document.visibilityState === "hidden");
 // seconds of one desktop core: a decision in the quick round, in the deep round, a luck event (measured: 4 players, 87 events in ~35 s)
 // CAL: measured on this machine (4 cores, 3 lanes): the sum below divided by the lanes came out 0.6x (12 decisions, 17 s) to 4.3x
 // (124 decisions and 87 events, 417 s) too low; 2.5 keeps both within a factor 2
-const SEC = { quick: REVIEW_ENGINES.m100?.sec ?? 0.5, deep: REVIEW.sec ?? 3, luck: 0.45, phone: 2.5, cal: 2.5 };
+const SEC = { quick: REVIEW_ENGINES.m100?.sec ?? 0.5, deep: REVIEW.sec ?? 3, luck: 0.45, phone: 2.5, cal: 2.5, direct: 0.01, deepX: 2.2 }; // v1.42 direct: ~7 ms a decision; Deep: ~2.2x Standard's deep round (measured, rv-model)
 
 export const ReviewAgainMixin = {
   /** The stamp a finished block gets. */
@@ -28,7 +28,8 @@ export const ReviewAgainMixin = {
     const R = this._rv, me = this._rvPid ?? this.players?.find((p) => p.isHuman)?.id;
     const rv = R?.revs?.[me] || Object.values(R?.revs || {}).find((x) => this.players[x?.pid]?.isHuman);
     if (!rv) return null;
-    return { app: rv.app || null, old: rv.engId !== currentEngineId() || (!!R.luck && R.luck.id !== LUCK_ID) };
+    const model = modelOfId(rv.engId);
+    return { app: rv.app || null, model, old: !model || rv.engId !== currentEngineId(model) || (!!R.luck && R.luck.id !== LUCK_ID) };
   },
   /** Can this game be reviewed again now (a finished game with records, nothing else running)? */
   _raCan() {
@@ -37,19 +38,20 @@ export const ReviewAgainMixin = {
       && this.players.some((p) => p.isHuman && this._rvTodo(p.id).length && this._rvReviewComplete(p.id));
   },
   /** The work and an estimate of its time, in seconds on this device (lanes: the review's parallel workers). */
-  _raEstimate() {
+  _raEstimate(model = "standard") {
     const lanes = Math.max(1, Math.min(3, GM_WORKERS())), phone = typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent || "") ? SEC.phone : 1;
     let s = 0, n = 0;
     this.players.forEach((p) => {
       if (!p.isHuman && !this._rv.bots) return;
       const k = this._rvTodo(p.id).length; n += k;
-      s += k * (SEC.quick + (p.isHuman ? 1 : 0.4) * SEC.deep); // a bot's deep round covers its real choices (about 40 %)
+      if (model === "quick") s += k * SEC.direct;
+      else s += k * (SEC.quick + (p.isHuman ? 1 : 0.4) * SEC.deep * (model === "deep" ? SEC.deepX : 1)); // a bot's deep round covers its real choices (about 40 %)
     });
-    const ev = this._lkNa?.() ? 0 : this._lkEvents?.().length || 0;
+    const ev = model === "quick" && this._rv.luck ? 0 : this._lkNa?.() ? 0 : this._lkEvents?.().length || 0; // (Quick keeps the luck there is)
     s += ev * SEC.luck;
     return { decisions: n, events: ev, sec: Math.round((s * phone * SEC.cal) / lanes) };
   },
-  _raTime(sec) { return sec >= 90 ? `about ${Math.round(sec / 60)} min` : `about ${Math.max(10, Math.round(sec / 10) * 10)} s`; },
+  _raTime(sec) { return sec >= 90 ? `about ${Math.round(sec / 60)} min` : sec < 10 ? "a few seconds" : `about ${Math.round(sec / 10) * 10} s`; },
 
   /** The row under the review button: what made the review, and Review again (with weight when the engine changed). While it runs:
    *  its progress and Stop. */
@@ -63,12 +65,20 @@ export const ReviewAgainMixin = {
     }
     const M = this._raMadeWith();
     if (!M || !this._raCan()) return "";
-    const conf = this._raAsk ? (() => { const E = this._raEstimate(); return `<div class="ra-ask" role="dialog" aria-label="Review again"><p>Review this game again with v${APP_VERSION}? ${this._raTime(E.sec)}.</p><div><button type="button" class="rv-btn" data-raa="no">Cancel</button><button type="button" class="rv-btn pri" data-raa="go">Review again</button></div></div>`; })() : "";
-    return `<div class="ra-row${M.old ? " old" : ""}"><small>${M.app ? `reviewed with v${M.app}` : "reviewed with an older version"}</small><button type="button" class="rv-btn${M.old ? " pri" : ""}" data-raagain aria-expanded="${!!this._raAsk}">Review again</button></div>${conf}`;
+    const pick = (this._raPick ||= reviewModel()), info = !!this._raInfo;
+    const opt = (m) => `<label class="ra-m${pick === m ? " on" : ""}"><input type="radio" name="ramodel" value="${m}"${pick === m ? " checked" : ""} data-ram="${m}"><b>${REVIEW_MODELS[m].label}</b><small>${this._raTime(this._raEstimate(m).sec)}${m === "quick" ? " · rough" : ""}</small></label>`;
+    const conf = this._raAsk ? `<div class="ra-ask" role="dialog" aria-label="Review again"><div class="ra-hd"><p>Review this game again with v${APP_VERSION}?</p><button type="button" class="lk-ib" data-rainfo aria-expanded="${info}" aria-label="About the models"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button></div>
+      ${info ? `<p class="lk-it">Quick: the model alone, no futures played; it picks the best move about half as often as the deep check. Standard: futures played 20 turns ahead (14 on one core). Deep: 2.5x the futures and 24 turns; about twice the time. Each model keeps its own average.</p>` : ""}
+      <div class="ra-ms" role="radiogroup" aria-label="Model">${["quick", "standard", "deep"].map(opt).join("")}</div>
+      <div class="ra-go"><button type="button" class="rv-btn" data-raa="no">Cancel</button><button type="button" class="rv-btn pri" data-raa="go">Review again</button></div></div>` : "";
+    const ml = M.model ? ` · ${REVIEW_MODELS[M.model].label}` : "";
+    return `<div class="ra-row${M.old ? " old" : ""}"><small>${M.app ? `reviewed with v${M.app}${ml}` : "reviewed with an older version"}</small><button type="button" class="rv-btn${M.old ? " pri" : ""}" data-raagain aria-expanded="${!!this._raAsk}">Review again</button></div>${conf}`;
   },
   _raBind(root) {
     root.querySelectorAll("[data-raagain]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); this._raAsk = !this._raAsk; this._raRedraw(); }));
-    root.querySelectorAll("[data-raa]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); const go = b.dataset.raa === "go"; this._raAsk = false; if (go) this._raStart(); else this._raRedraw(); }));
+    root.querySelectorAll("[data-raa]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); const go = b.dataset.raa === "go"; this._raAsk = false; if (go) this._raStart(this._raPick || reviewModel()); else this._raRedraw(); }));
+    root.querySelectorAll("[data-ram]").forEach((b) => b.addEventListener("change", (e) => { e.stopPropagation(); this._raPick = b.dataset.ram; this._raRedraw(); }));
+    root.querySelectorAll("[data-rainfo]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); this._raInfo = !this._raInfo; this._raRedraw(); }));
     root.querySelectorAll("[data-rastop]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); this._raStop(); }));
   },
   /** Redraw the rows (end screen and the open review), the rest stays. */
@@ -82,14 +92,14 @@ export const ReviewAgainMixin = {
   _raStop() { const A = this._rv?.again; if (!A) return; A.stop = true; this._rv.again = null; this._raRedraw(); this._rvTick?.(); },
 
   /** Review again: the people first, then the luck, then the bots; each block replaces the old one when it is complete. */
-  async _raStart() {
+  async _raStart(model = reviewModel()) {
     const R = this._rv;
     if (!R || R.again || !this._raCan()) return;
     // what runs now stops (the others' check, the luck); it is all done again below
     if (R.run) { R.run.stop = true; R.run = null; }
     if (R.lrun) { R.lrun.stop = true; R.lrun = null; }
     R.queue = [];
-    const A = { stop: false, j: 0, n: 0, what: "", paused: false };
+    const A = { stop: false, j: 0, n: 0, what: "", paused: false, model, final: REVIEW_MODELS[model]?.eng || REVIEW_ENGINE };
     R.again = A;
     const id = R.id, live = () => this._rv === R && R.id === id && R.again === A && !A.stop;
     const people = this.players.filter((p) => p.isHuman && this._rvTodo(p.id).length).map((p) => p.id);
@@ -104,7 +114,7 @@ export const ReviewAgainMixin = {
         R.revs[pid] = rv; if (this.players[pid]?.isHuman) R.review = rv;
         this._rvSave(); this._rvLogGame?.(pid, true); this._rvTick?.(); this._rvRender?.();
       }
-      if (live() && !R.noLuck && !this._lkNa?.()) {
+      if (live() && !R.noLuck && !this._lkNa?.() && !(model === "quick" && R.luck)) { // (Quick keeps the luck there is)
         const L = await this._raLuck(A, live, tick);
         if (L && live()) { R.luck = L; this._rvSave(); this._rvTick?.(); this._rvRender?.(); }
       }
@@ -122,7 +132,7 @@ export const ReviewAgainMixin = {
   /** Run items on the review lanes (results by record index). */
   async _raItems(items, eng, A, live, tick, into) {
     const lanes = await reviewLaneCount(), opts = analysisOpts(eng, lanes), R = this._rv;
-    if (eng === REVIEW_ENGINE) A.eid = engineId(lanes);
+    if (eng === A.final) A.eid = engineId(lanes, A.model);
     let next = 0;
     const lane = async (w) => {
       while (next < items.length) {
@@ -145,13 +155,21 @@ export const ReviewAgainMixin = {
   async _raSeat(pid, bot, A, live, tick) {
     const todo = this._rvTodo(pid), results = [];
     A.what = bot ? `${this.players[pid].name}’s moves` : this._rvIsYou?.(pid) ? "your moves" : `${this.players[pid].name}’s moves`;
-    A.j = 0; A.n = todo.length * 2; tick();
+    A.j = 0; A.n = A.model === "quick" ? todo.length : todo.length * 2; tick();
+    if (A.model === "quick") { // v1.42 Quick: the model straight on every decision, one round
+      await this._raItems(todo, "direct", A, live, tick, results);
+      if (!live()) return null;
+      results.sort((a, b) => a.i - b.i);
+      const rq = { pid, results, fmt: FMT, total: todo.length, done: true, ...this._raStamp(A.eid) };
+      liftReview(rq);
+      return rq;
+    }
     await this._raItems(todo, "m100", A, live, tick, results);
     if (!live()) return null;
     const quickDone = (x) => x.eng === "m100" && !x.err && (x.trivial || x.skip === "trivial");
     const deep = todo.filter(([, i]) => { const x = results.find((y) => y.i === i); return x && needsFull(x) && !(bot && OTHERS.policy === "real" && quickDone(x)); });
     A.n = todo.length + deep.length; tick();
-    await this._raItems(deep, bot ? OTHERS.engine : REVIEW_ENGINE, A, live, tick, results);
+    await this._raItems(deep, A.final !== REVIEW_ENGINE ? A.final : bot ? OTHERS.engine : REVIEW_ENGINE, A, live, tick, results);
     if (!live()) return null;
     results.sort((a, b) => a.i - b.i);
     const rv = { pid, results, fmt: FMT, total: todo.length, done: true, ...this._raStamp(A.eid) };
