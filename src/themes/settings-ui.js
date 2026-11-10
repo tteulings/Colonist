@@ -5,7 +5,7 @@
 import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, paletteAuto, paletteAutoMode, autoTimeInfo, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "1.40";
+export const APP_VERSION = "1.41";
 
 /** v1.34 Settings: the running version and "Check for updates" (index.html: reg.update() + a version compare). */
 function versionRow() {

@@ -20,6 +20,7 @@ import { BotsPageMixin } from "./bots-page.js";
 import { NavMixin } from "./nav.js"; // v1.26 Back gesture: history entries follow the open screens and sheets // v1.23 the Bots page (leaderboard, strength ladder, strength vs accuracy)
 import { ReviewGameMixin, installReviewGame } from "./review-game.js"; // v1.03 … the Game review (Monte Carlo accuracy)
 import { ReviewLuckMixin } from "./review-luck.js"; // v1.31 … luck in win chance (every roll, steal and card draw replayed)
+import { ReviewAgainMixin } from "./review-again.js"; // v1.41 … Review again (a saved game with today's engine)
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
@@ -8685,10 +8686,12 @@ class ColonistFullGame {
       const regex = new RegExp(`\\b(\\d+)\\s+${RESOURCE_LABEL[r]}\\b`, "g");
       html = html.replace(regex, `$1 ${icon(r)} ${RESOURCE_LABEL[r]}`);
     });
-    // Player names in their colour
-    this.players.forEach((p) => {
-      html = html.replace(new RegExp(`\\b${p.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g"), `<span class="who pc-${p.id}">${p.name}</span>`);
-    });
+    // Player names in their colour: one pass over whole names, the longest first (v1.41: "Super Expert" no longer showed "Expert" inside it as another player)
+    const byName = new Map(this.players.filter((p) => p.name).map((p) => [p.name, p]));
+    if (byName.size) {
+      const alt = [...byName.keys()].sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+      html = html.replace(new RegExp(`(?<![\\w-])(${alt})(?![\\w-])`, "g"), (m) => { const p = byName.get(m); return p ? `<span class="who pc-${p.id}">${m}</span>` : m; });
+    }
     return html;
   }
 
@@ -11341,7 +11344,7 @@ Object.assign(ColonistFullGame.prototype, StatsMixin, StatsUiMixin);
 installStats(ColonistFullGame);
 Object.assign(ColonistFullGame.prototype, LiveStatsMixin); // live stats during the game (src/live-stats.js)
 installLiveStats(ColonistFullGame);
-Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin, ReviewLuckMixin); // v1.02/1.03 post-game review (src/review*.js)
+Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin, ReviewLuckMixin, ReviewAgainMixin); // v1.02/1.03 post-game review (src/review*.js)
 installReview(ColonistFullGame);
 installReviewUi(ColonistFullGame);
 installReviewGame(ColonistFullGame);
