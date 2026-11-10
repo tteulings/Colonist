@@ -39,7 +39,9 @@ export const REVIEW_ENGINES = {
   b: { budget: { n: 300, timeMs: 6000, depth: 12, setupDepth: 16 }, sec: 2, bands: null },
   // v1.42 the review models the person picks (REVIEW_MODELS): "direct" (Quick) is the gbm model straight on the position after each move,
   // no futures played (2 per move only for the hidden cards); "deep" (Deep) is more futures and a longer look-ahead than "full"
-  // (Standard). Measured against played-out truth: see REVIEW_MODELS.
+  // (Standard). Measured against played-out truth (scratchpad rerev142/tests/rv-model.mjs on eng130's rv-var truth, 75 decisions, 300
+  // futures a move to the end): best move found (truth gap > 2 pp) Quick 46 %, Standard 57 %, Deep 59 %; loss MAE 3.36 / 3.06 / 3.00 pp
+  // (Deep - Standard -0.06 [-0.25, +0.15]); r(loss) 0.68 / 0.73 / 0.78; time 6 ms / 5.9 s / 15.8 s a decision (Deep 2.7x).
   direct: { budget: { nPer: 2, timeMs: 0, depth: 0, setupDepth: 0, leaf: "gbm" }, sec: 0.05, k: 0.10, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"], bands: null },
   deep: { budget: { nPer: 250, timeMs: 40000, depth: 24, setupDepth: 28, leaf: "gbm" }, sec: 8, k: 0.10, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"], bands: null },
   m100: { budget: { n: 160, timeMs: 700, leaf: "fit" }, sec: 0.5, k: 0.08, trivial: 0.02, scored: ["setup", "build", "bank", "robber", "end", "shipmove"], bands: [["Simple", 85], ["Beginner", 86], ["Intermediate", 88], ["Expert", 89]] },

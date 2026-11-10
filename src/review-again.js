@@ -18,7 +18,7 @@ const hiddenTab = () => typeof document !== "undefined" && (document.hidden || d
 // seconds of one desktop core: a decision in the quick round, in the deep round, a luck event (measured: 4 players, 87 events in ~35 s)
 // CAL: measured on this machine (4 cores, 3 lanes): the sum below divided by the lanes came out 0.6x (12 decisions, 17 s) to 4.3x
 // (124 decisions and 87 events, 417 s) too low; 2.5 keeps both within a factor 2
-const SEC = { quick: REVIEW_ENGINES.m100?.sec ?? 0.5, deep: REVIEW.sec ?? 3, luck: 0.45, phone: 2.5, cal: 2.5, direct: 0.01, deepX: 2.2 }; // v1.42 direct: ~7 ms a decision; Deep: ~2.2x Standard's deep round (measured, rv-model)
+const SEC = { quick: REVIEW_ENGINES.m100?.sec ?? 0.5, deep: REVIEW.sec ?? 3, luck: 0.45, phone: 2.5, cal: 2.5, direct: 0.01, deepX: 2.7 }; // v1.42 direct: ~6 ms a decision; Deep: 2.7x Standard's deep round (measured, rv-model, 75 decisions)
 
 export const ReviewAgainMixin = {
   /** The stamp a finished block gets. */
@@ -68,7 +68,7 @@ export const ReviewAgainMixin = {
     const pick = (this._raPick ||= reviewModel()), info = !!this._raInfo;
     const opt = (m) => `<label class="ra-m${pick === m ? " on" : ""}"><input type="radio" name="ramodel" value="${m}"${pick === m ? " checked" : ""} data-ram="${m}"><b>${REVIEW_MODELS[m].label}</b><small>${this._raTime(this._raEstimate(m).sec)}${m === "quick" ? " · rough" : ""}</small></label>`;
     const conf = this._raAsk ? `<div class="ra-ask" role="dialog" aria-label="Review again"><div class="ra-hd"><p>Review this game again with v${APP_VERSION}?</p><button type="button" class="lk-ib" data-rainfo aria-expanded="${info}" aria-label="About the models"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button></div>
-      ${info ? `<p class="lk-it">Quick: the model alone, no futures played; it picks the best move about half as often as the deep check. Standard: futures played 20 turns ahead (14 on one core). Deep: 2.5x the futures and 24 turns; about twice the time. Each model keeps its own average.</p>` : ""}
+      ${info ? `<p class="lk-it">Measured on 75 decisions against games played out: the best move found in 46% (Quick, the model alone), 57% (Standard), 59% (Deep, 2.7x the time). Each model keeps its own average.</p>` : ""}
       <div class="ra-ms" role="radiogroup" aria-label="Model">${["quick", "standard", "deep"].map(opt).join("")}</div>
       <div class="ra-go"><button type="button" class="rv-btn" data-raa="no">Cancel</button><button type="button" class="rv-btn pri" data-raa="go">Review again</button></div></div>` : "";
     const ml = M.model ? ` · ${REVIEW_MODELS[M.model].label}` : "";

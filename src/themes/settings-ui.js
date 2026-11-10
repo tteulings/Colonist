@@ -140,7 +140,7 @@ export class SettingsUI {
       let mdl = "standard"; try { mdl = localStorage.getItem("colonist_review_model") || "standard"; } catch (_) {}
       const mrow = document.createElement("div");
       mrow.className = "st-row";
-      mrow.innerHTML = `<div><b id="rvModelLbl">Review model</b><small>Quick is rough; Deep takes about twice as long.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="rvModelLbl">${[["quick", "Quick"], ["standard", "Standard"], ["deep", "Deep"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${mdl === k}" class="${mdl === k ? "on" : ""}" data-rv-model="${k}">${l}</button>`).join("")}</div>`;
+      mrow.innerHTML = `<div><b id="rvModelLbl">Review model</b><small>Quick is rough; Deep takes almost 3x as long.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="rvModelLbl">${[["quick", "Quick"], ["standard", "Standard"], ["deep", "Deep"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${mdl === k}" class="${mdl === k ? "on" : ""}" data-rv-model="${k}">${l}</button>`).join("")}</div>`;
       mrow.querySelectorAll("[data-rv-model]").forEach((b) => b.addEventListener("click", () => { mrow.querySelectorAll("[data-rv-model]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); try { localStorage.setItem("colonist_review_model", b.dataset.rvModel); } catch (_) {} }));
       body.appendChild(mrow);
       body.appendChild(versionRow());
