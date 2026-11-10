@@ -17,6 +17,8 @@ export const SETUPS = {
   vs3intFixed: "One bot against 3 Intermediate bots, Classic island, 4 players, 10 VP. 400 games (100 boards x 4 seats, paired seeds, seat rotated). Searched WITHOUT a time limit, with a fixed budget (1000 futures, 14 turns deep, 18 in set-up, early stop), so the machine's speed does not change the result; in the app the search stops at 3 s. 95% interval.",
   h2h: "Super Expert, Super Expert+ and 2 Experts at one table, Classic island, 4 players, 10 VP; per board 8 games (4 seat orders, the two Supers swapped). Both without a time limit. 95% interval.",
   review: "The bot's own moves scored by the deep review check (k 0.10), 300 positions, the seat plays on as Expert. Bootstrap standard error (SE).",
+  vsExperts: "One bot against 3 Experts (the best bot without a search), Classic island, 4 players, 10 VP: 50 boards x 4 seats, seat rotated, the same boards as against the Intermediates; the search bots with the app's budgets (Master 100 futures a move, Super Expert and Super Expert+ 545, Grandmaster 1090). A fair share is 25%; the Expert itself is 25 by construction. 95% interval.",
+  rating: "One number from every table measured in Classic (against 3 Intermediates, against 3 Experts, the head to heads Super Expert / Super Expert+ and Grandmaster / Super Expert+): the chance to win a game is the softmax of the players' ratings (Plackett-Luce, Bradley-Terry for one winner), Elo scale (+400 = 10x the odds), Intermediate = 1000, ± 95% bootstrap over the games. The search bots at the app's budgets.",
   // v1.34 the other game types (scratchpad eng130/h/rate: gm.mjs runs, one jsonl line per game). Expert, Master and Super Expert+ played the
   // same boards and seats, so each is also compared with the Expert in the same seat (paired).
   modeRush: "One bot against 3 Intermediate bots, island, 4 players, 10 VP, Rush searched as turn-by-turn play (the way the bots see Rush): 50 boards x 4 seats, seat rotated. The search gets what a phone does in a quarter of a second (about 20 futures, an estimate), the set-up its full budget. Not modelled: the clock itself. 95% interval.",
@@ -84,6 +86,19 @@ export const MODE_STATS = {
     superplus: { v: 70.0, ci: 9.0, n: 100, setup: "modeSea", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 46.0, "ci": 11.6, "n": 100}, src: "25 boards x 4 seats (100 games, a run of half the size: a Seafarers game with its full search takes ~4 min). Measured at 1000 futures a move (no time limit); since v1.42 the app plays 182 a move in Seafarers (a re-measurement is running). Same boards and seats as the Expert: +46.0 pp (±11.6)." },
   },
 };
+
+/** v1.43 Classic, two more measures. VS_EXPERTS: one bot against 3 Experts (the best bot without a search), the same boards and
+ *  seats as the runs against Intermediates (50 boards x 4 seats), the app's budgets; a fair share is 25%, the Expert itself is 25 by
+ *  construction. RATING: one number from every table measured (Plackett-Luce: the chance to win a game is the softmax of the seats'
+ *  ratings; Elo scale, Intermediate = 1000; ± 95% bootstrap over the games). Generated from the runs (scratchpad eng130/h/bt.py). */
+export const VS_EXPERTS = {"expert": {"v": 25.0, "ci": 0.0, "n": 0, "note": "fair share by construction"}};
+export const RATING = {"grandmaster": {"v": 1346, "ci": 42, "games": 263}, "super": {"v": 1280, "ci": 89, "games": 115}, "superplus": {"v": 1235, "ci": 58, "games": 104}, "master": {"v": 1230, "ci": 14, "games": 800}, "expert": {"v": 1132, "ci": 21, "games": 1227}, "builder": {"v": 1096, "ci": 17, "games": 2000}, "trader": {"v": 1036, "ci": 13, "games": 2000}, "shark": {"v": 1034, "ci": 19, "games": 2000}, "intermediate": {"v": 1000, "ci": 0, "games": 12874}, "beginner": {"v": 831, "ci": 26, "games": 2000}, "simple": {"v": 668, "ci": 28, "games": 2000}};
+/** The Classic figure a list shows for a bot: "win" (vs 3 Intermediates), "vse" (vs 3 Experts) or "rating". */
+export function metricOf(key, metric = "win") {
+  if (metric === "vse") { const x = VS_EXPERTS[key]; return x ? { ...x, label: "measured" } : { v: null, ci: null, label: "unknown" }; }
+  if (metric === "rating") { const x = RATING[key]; return x ? { ...x, label: "measured", rating: true } : { v: null, ci: null, label: "unknown" }; }
+  return winOf(key);
+}
 
 /** Review accuracy of a bot level: { v, se, n, setup, code, date, label } (from review/bands.js) or an "unknown" entry. */
 export function accOf(key, label) {
