@@ -4,7 +4,8 @@
 //   "estimate"    worked out from other experiments, NOT a measurement (the source says how)
 //   "early test"  a first run, not final
 //   "unknown"     no number yet
-// Only the Classic island with 4 players (10 VP) is measured. Rush, 5–6 players and Seafarers have no numbers: "not measured yet".
+// Classic island, 4 players (10 VP): every bot. v1.34 Rush, 5 players, 6 players and Seafarers: the Expert, the Master and the
+// Super Expert+ (MODE_STATS); every other bot there is "not measured".
 // To re-measure (the scoring bots' figures are from the v1.03 code; Master and the Super Experts from bot-125): replace the entry, keep the set-up text honest, change code/date.
 // Review accuracy lives in review/bands.js (one source with the review screen); its SE and n are read from there.
 import { botBand } from "./review/bands.js";
@@ -16,6 +17,12 @@ export const SETUPS = {
   vs3intFixed: "One bot against 3 Intermediate bots, Classic island, 4 players, 10 VP. 400 games (100 boards x 4 seats, paired seeds, seat rotated). Searched WITHOUT a time limit, with a fixed budget (1000 futures, 14 turns deep, 18 in set-up, early stop), so the machine's speed does not change the result; in the app the search stops at 3 s. 95% interval.",
   h2h: "Super Expert, Super Expert+ and 2 Experts at one table, Classic island, 4 players, 10 VP; per board 8 games (4 seat orders, the two Supers swapped). Both without a time limit. 95% interval.",
   review: "The bot's own moves scored by the deep review check (k 0.10), 300 positions, the seat plays on as Expert. Bootstrap standard error (SE).",
+  // v1.34 the other game types (scratchpad eng130/h/rate: gm.mjs runs, one jsonl line per game). Expert, Master and Super Expert+ played the
+  // same boards and seats, so each is also compared with the Expert in the same seat (paired).
+  modeRush: "One bot against 3 Intermediate bots, island, 4 players, 10 VP, Rush searched as turn-by-turn play (the way the bots see Rush): 50 boards x 4 seats, seat rotated. The search gets what a phone does in a quarter of a second (about 20 futures, an estimate), the set-up its full budget. Not modelled: the clock itself. 95% interval.",
+  modeFive: "One bot against 4 Intermediate bots, island, 5 players, 10 VP: 40 boards x 5 seats, seat rotated. The Master with 100 futures, the Super Expert+ with its full budget (1000 futures, 14 turns, 18 in set-up), no time limit. 95% interval.",
+  modeSix: "One bot against 5 Intermediate bots, island, 6 players, 10 VP: 34 boards x 6 seats, seat rotated. The Master with 100 futures, the Super Expert+ with its full budget, no time limit. 95% interval.",
+  modeSea: "One bot against 3 Intermediate bots, Seafarers (Heading for New Shores), 4 players, 14 VP: 50 boards x 4 seats, seat rotated. The Master with 100 futures, the Super Expert+ with its full budget, both scoring futures with the Seafarers model, no time limit. 95% interval.",
 };
 const WIN = (p, ci) => ({ v: p, ci, n: 2000, setup: "vs3int", code: "v1.03", date: "2026-11-04", label: "measured" });
 
@@ -50,13 +57,38 @@ export const BOT_STATS = {
   },
 };
 
+/** v1.34 the other game types: one bot vs Intermediates (SETUPS.modeRush / modeFive / modeSix / modeSea), with n and ± 95%. vsE: the same
+ *  boards and seats with the Expert there, paired difference in points. A bot not listed here is "not measured" in that tab. */
+export const MODE_STATS = {
+  rush: {
+    expert: { v: 41.0, ci: 6.8, n: 200, setup: "modeRush", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured" },
+    master: { v: 46.5, ci: 6.9, n: 200, setup: "modeRush", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 5.5, "ci": 8.2, "n": 200}, src: "Same boards and seats as the Expert: +5.5 pp (±8.2)." },
+    superplus: { v: 63.5, ci: 6.7, n: 200, setup: "modeRush", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 22.5, "ci": 9.4, "n": 200}, src: "Same boards and seats as the Expert: +22.5 pp (±9.4)." },
+  },
+  five: {
+    expert: { v: 27.5, ci: 6.2, n: 200, setup: "modeFive", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured" },
+    master: { v: 39.0, ci: 6.8, n: 200, setup: "modeFive", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 11.5, "ci": 8.6, "n": 200}, src: "Same boards and seats as the Expert: +11.5 pp (±8.6)." },
+    superplus: { v: 54.2, ci: 9.4, n: 107, setup: "modeFive", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 29.0, "ci": 12.2, "n": 107}, src: "Same boards and seats as the Expert: +29.0 pp (±12.2)." },
+  },
+  six: {
+    expert: { v: 26.0, ci: 6.0, n: 204, setup: "modeSix", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured" },
+    master: { v: 37.7, ci: 6.7, n: 204, setup: "modeSix", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 11.8, "ci": 7.8, "n": 204}, src: "Same boards and seats as the Expert: +11.8 pp (±7.8)." },
+    superplus: { v: 56.7, ci: 9.5, n: 104, setup: "modeSix", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 35.6, "ci": 12.0, "n": 104}, src: "Same boards and seats as the Expert: +35.6 pp (±12.0)." },
+  },
+  sea: {
+    expert: { v: 30.5, ci: 6.4, n: 200, setup: "modeSea", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured" },
+    master: { v: 52.5, ci: 6.9, n: 200, setup: "modeSea", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 22.0, "ci": 9.0, "n": 200}, src: "Same boards and seats as the Expert: +22.0 pp (±9.0)." },
+  },
+};
+
 /** Review accuracy of a bot level: { v, se, n, setup, code, date, label } (from review/bands.js) or an "unknown" entry. */
 export function accOf(key, label) {
   const b = botBand(label);
   return b ? { v: b[0], se: b[1], n: 300, setup: "review", code: "v1.21", date: "2026-11-08", label: "measured" }
     : { v: null, se: null, n: null, setup: null, code: null, date: null, label: "unknown" };
 }
-export const winOf = (key) => BOT_STATS[key]?.win || { v: null, ci: null, label: "unknown" };
+/** Win chance of a bot in a tab ("classic" by default; v1.34 also rush / five / six / sea for the bots in MODE_STATS). */
+export const winOf = (key, tab = "classic") => (tab === "classic" ? BOT_STATS[key]?.win : MODE_STATS[tab]?.[key]) || { v: null, ci: null, label: "unknown" };
 /** lab-131: preset keys strongest first, by the measured win chance above (one source for every bot picker, so the order
  *  follows the numbers). A key without a measured figure (a new preset) leads, in the given order; ties keep the given order. */
 export function byStrength(keys) {
@@ -67,9 +99,10 @@ export function byStrength(keys) {
 /** Do two ± ranges overlap? (value ± half-width) */
 export const rangesOverlap = (a, ah, b, bh) => a - ah <= b + bh && b - bh <= a + ah;
 
-/** Fair share of one seat by table size: 25% at 4 players, 17–20% at 5–6. */
-export const FAIR = { classic: "25%", six: "17–20%" };
+/** Fair share of one seat by table size: 25% at 4 players, 20% at 5, 17% at 6. */
+export const FAIR = { classic: 25, rush: 25, five: 20, six: 16.7, sea: 25 };
 
-/** Which tab a finished game belongs to. */
-export const tabOf = (m) => (m.board === "seafarers" ? "sea" : m.n >= 5 ? "six" : m.mode === "rush" ? "rush" : "classic");
+/** Which tab a finished game belongs to. v1.34: 5 and 6 players are two tabs. */
+export const tabOf = (m) => (m.board === "seafarers" ? "sea" : m.n >= 6 ? "six" : m.n === 5 ? "five" : m.mode === "rush" ? "rush" : "classic");
+/** Tabs with the full measurement (every bot, accuracy, charts). The others have MODE_STATS for a few bots. */
 export const MEASURED_TABS = new Set(["classic"]);
