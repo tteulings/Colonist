@@ -297,7 +297,7 @@ export const ReviewMixin = {
   },
   /** Something changed in the running review: the open screen and the end screen's button follow. */
   _rvTick() {
-    try { this._rvListener?.(this._rv?.revs?.[this._rvPid] ?? this._rv?.review); this._rvPatchRows?.(); } catch (e) { console.warn("review tick", e); }
+    try { this._rvListener?.(this._rv?.revs?.[this._rvPid] ?? this._rv?.review); this._rvPatchRows?.(); this._raRedraw?.(); } catch (e) { console.warn("review tick", e); }
   },
 
   /** Game over: save, then run the detectors in the worker (once per game). */
