@@ -15,6 +15,7 @@ const themed = (game, k, fallback, cls = "") => (game?.theme?.icons?.[k] ? icon(
 const INFO_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="7.6" r="1.4" fill="currentColor"/></svg>`;
 const LAB_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3.5h5M10.5 3.5v5.2L5 18.2a1.6 1.6 0 0 0 1.4 2.3h11.2a1.6 1.6 0 0 0 1.4-2.3l-5.5-9.5V3.5" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" fill="none"/><circle cx="10" cy="16" r="1.3" fill="currentColor"/><circle cx="13.6" cy="14" r="1" fill="currentColor"/></svg>`;
 const CHEV = `<span class="hm-chev" aria-hidden="true">›</span>`;
+const UPDATE_IC = `<svg class="hm-upd-ic" viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 10a5.5 5.5 0 1 1-1.8-4.1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M14.6 1.8v4.6H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 export const LEVELS = [["beginner", "Easy"], ["intermediate", "Medium"], ["expert", "Hard"]];
 
@@ -42,6 +43,8 @@ export class Home {
     this.onKey = (e) => {
       if (e.key === "Enter" && e.target === document.body && this.opts.saved()) this.opts.onContinue();
     };
+    // v1.34: a new version is ready (index.html announces it): Home shows "Update to vX.YY" at the top
+    this.onUpdate = () => { if (this.el) this.render(); };
   }
 
   get open() { return !!this.el; }
@@ -57,6 +60,7 @@ export class Home {
       this.el.setAttribute("aria-modal", "true");
       this.el.setAttribute("aria-label", "Katan: Handelaren en Bouwers home");
       document.addEventListener("keydown", this.onKey);
+      document.addEventListener("colonist:update", this.onUpdate);
       document.body.appendChild(this.el);
       document.body.classList.add("home-open");
     }
@@ -69,6 +73,7 @@ export class Home {
     this.el = null;
     document.body.classList.remove("home-open");
     document.removeEventListener("keydown", this.onKey);
+    document.removeEventListener("colonist:update", this.onUpdate);
   }
 
   render() {
@@ -79,10 +84,12 @@ export class Home {
     const vs = `vs ${p.numBots} bot${p.numBots > 1 ? "s" : ""} · ${lvl}${p.board === "seafarers" ? " · Seafarers" : ""}`;
     const levels = p.preset === "custom" ? [...LEVELS, ["custom", "Custom"]] : LEVELS;
     const fresh = !this.opts.introSeen();
+    const upd = window.__colonistUpdate;
     this.el.classList.toggle("has-save", !!s);
     this.el.innerHTML = `<div class="hm-col">
       <header class="hm-brand"><svg class="hm-logo" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>
         <h1>Katan<small class="hm-sub">Handelaren en Bouwers</small></h1>${s ? "" : `<p>Settle the island, trade with friendly bots, reach 10 points first.</p>`}</header>
+      ${upd ? `<button type="button" class="hm-update" data-home="update" aria-live="polite">${UPDATE_IC}<span><b>${upd.version ? `Update to v${upd.version}` : "Update ready"}</b><small>New version ready · tap to reload${s ? " · your game is saved" : ""}</small></span>${CHEV}</button>` : ""}
       ${s ? `<button type="button" class="hm-continue" data-home="continue">${PLAY_IC}<span class="hm-ct"><b>Continue game</b><small>${s.mode} · ${s.mode.startsWith("Rush") ? "roll" : "turn"} ${s.turn}</small></span>${CHEV}
         <span class="hm-score">${s.players.map((q) => `<span class="pc-${q.seat}" title="${q.name}: ${q.vp} points">${avatarSvg(q.seat, "hm-av")}<em class="nm">${q.name}</em> <b>${q.vp}</b></span>`).join("")}</span></button>` : ""}
       <section class="hm-card hm-new" aria-labelledby="hmNewH">
@@ -109,6 +116,9 @@ export class Home {
     </div>`;
     const on = (sel, fn) => this.el.querySelectorAll(sel).forEach((b) => b.addEventListener("click", fn));
     on("[data-home='continue']", () => this.opts.onContinue());
+    // Home holds no live game (a saved one waits behind Continue), so the reload can happen at once
+    on("[data-home='update']", (e) => { const b = e.currentTarget, sm = b.querySelector("small"); if (sm) sm.textContent = "Starting the new version…";
+      if (window.__colonistReload) window.__colonistReload(b); else window.location.reload(); });
     on(".hm-tile", (e) => this.opts.onStart({ mode: e.currentTarget.dataset.mode, numBots: p.numBots, preset: p.preset, board: p.board }));
     on("[data-board]", (e) => { p.board = e.currentTarget.dataset.board === "seafarers" ? "seafarers" : "island";
       // ⚓ 4–5 bots → 3 on Seafarers; back on the island the earlier count returns

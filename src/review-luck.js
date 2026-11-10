@@ -7,15 +7,15 @@
 // is a steal; the leaf is the search's Seafarers leaf (src/master.js SEA_LEAF). A game recorded before v1.31 has no position before a bot's roll: its rolls start from
 // that bot's End turn the turn before (played again), which is close but not exact (a pre-roll Knight is missed).
 import { reviewRequest, reviewAvailable, SEA_LEAF } from "./master.js";
-import { REVIEW } from "./review/evaluate.js";
+import { REVIEW, decide, totals } from "./review/evaluate.js";
 import { luckEvents, LUCK_MC } from "./review/luck-mc.js";
 
 /** Version of the numbers: results of another version or budget are computed again. */
 /** v1.31 time limit: when the run would take longer than LITE_AFTER_S (measured over its first events, late events cost ~1.5x the
  *  early ones), the rest of the game gets the light budget (10 futures, at most 30). Measured against played-out truth: r 0.78 per
  *  event instead of 0.82, at about a third of the time. */
-export const LITE = { futures: 10, maxFutures: 30 }, LITE_AFTER_S = 300;
-export const LUCK_ID = `v1f${LUCK_MC.futures}-${LUCK_MC.maxFutures}e${LUCK_MC.seMax}d${LUCK_MC.depth}s${LUCK_MC.seed}`;
+export const LITE = { futures: 15, maxFutures: 45 }, LITE_AFTER_S = 300; // v1.34 own luck (C) against played-out truth: 10 futures r 0.64, 25 r 0.76, 50 r 0.80
+export const LUCK_ID = `v2c-f${LUCK_MC.futures}-${LUCK_MC.maxFutures}e${LUCK_MC.seMax}d${LUCK_MC.depth}s${LUCK_MC.seed}`;
 const keyOf = (ev) => `${ev.kind}:${ev.s}:${ev.e}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hiddenTab = () => typeof document !== "undefined" && (document.hidden || document.visibilityState === "hidden");
@@ -26,6 +26,11 @@ const now = () => (typeof performance !== "undefined" ? performance.now() : Date
  *  that player's gamble: it counts with "Others" (step mode) and apart in the bookkeeping, not as your luck. */
 export const ownOf = (ev, q) => ev.kind === "dice" || (ev.kind === "steal" && (ev.thief === q || ev.victim === q)) || (ev.kind === "dev" && ev.pid === q);
 export const wpText = (v, dec = 0) => { const f = 10 ** dec, r = Math.round(v * 100 * f) / f; return `${r > 0 ? "+" : r < 0 ? "−" : "±"}${Math.abs(r).toFixed(dec)}%`; };
+
+const INFO_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`;
+/** v1.34 a small (i) per block: the definition and the caveats, 2-3 short sentences, folded (the visible text says what happened). */
+const infoBtn = (key, open) => `<button type="button" class="lk-ib" data-lki="${key}" aria-expanded="${!!open}" aria-label="About this">${INFO_SVG}</button>`;
+const infoTxt = (key, open, txt) => `<p class="lk-it" data-lkit="${key}"${open ? "" : " hidden"}>${txt}</p>`;
 
 export const ReviewLuckMixin = {
   /** Why there is no luck in win chance for this game (null: there is). */
@@ -101,7 +106,8 @@ export const ReviewLuckMixin = {
         const x = m?.result;
         // l: luck per seat; b: the win chance before the event (the average over its outcomes), for the accounting start → end = luck + the rest
         const r4 = (v) => Math.round(v * 1e4) / 1e4;
-        L.res[keyOf(ev)] = x && !x.skip && x.luck ? { k: ev.kind, s: ev.s, e: ev.e, l: x.luck, se: x.se, b: x.luck.map((_, q) => r4(x.groups.reduce((a, gr) => a + gr.p * (gr.v?.[q] ?? 0), 0))), F: x.F, g: x.groups.length } : { k: ev.kind, s: ev.s, e: ev.e, skip: x?.skip || "error" };
+        if (ev.kind === "seat") L.res[keyOf(ev)] = x && !x.skip && x.v ? { k: "seat", s: 0, e: ev.e, v: x.v, se: x.se } : { k: "seat", s: 0, e: ev.e, skip: x?.skip || "error" };
+        else L.res[keyOf(ev)] = x && !x.skip && x.luck ? { k: ev.kind, s: ev.s, e: ev.e, l: x.luck, se: x.se, ...(x.cs ? { cs: x.cs, bt: x.bt, ox: x.ox } : {}), b: x.b || x.luck.map((_, q) => r4(x.groups.reduce((a, gr) => a + gr.p * (gr.v?.[q] ?? 0), 0))), F: x.F, g: x.groups.length } : { k: ev.kind, s: ev.s, e: ev.e, skip: x?.skip || "error" };
         run.j += 1; run.times.push(now() - t0);
         if (!L.lite && run.times.length >= 6) {
           const left = todo.length - run.j, per = run.times.reduce((a, b) => a + b, 0) / run.times.length;
@@ -133,7 +139,7 @@ export const ReviewLuckMixin = {
         (st.stepEvents?.[s] || []).forEach((e) => { if (e[1] === "P") { if (e[2] === pid) { cards += e[5] || 1; if (this.geometry?.hexes?.[e[3]]?.resource === "gold") gold += e[5] || 1; } else others += e[5] || 1; } });
         exp = st.rollExp?.[s]?.[pid] ?? null;
       }
-      out.push({ ev, w: r.l[pid] || 0, se: r.se?.[pid] ?? null, cards, exp, others, gold, own: ownOf(ev, pid) });
+      out.push({ ev, w: r.l[pid] || 0, se: r.se?.[pid] ?? null, cards, exp, others, gold, own: ownOf(ev, pid), cs: r.cs?.[pid] ?? null, bt: r.bt?.[pid] ?? null, ox: r.ox?.[pid] ?? 0 });
     });
     return out;
   },
@@ -159,8 +165,20 @@ export const ReviewLuckMixin = {
     if (!ev) return null;
     const start = L.res[keyOf(ev)].b[pid], end = this.winner ? (this.winner.id === pid ? 1 : 0) : null;
     if (end == null) return null;
-    const all = this._lkList(pid), luck = all.reduce((a, x) => a + (x.own ? x.w : 0), 0), theirs = all.reduce((a, x) => a + (x.own ? 0 : x.w), 0);
-    return { start, end, luck, theirs, rest: end - start - luck - theirs };
+    const all = this._lkList(pid), luck = all.reduce((a, x) => a + (x.own ? x.w : 0), 0);
+    // v1.34 the user's split of own luck: the number of cards (above / below expected, at the mean win chance a card was worth to this
+    // player this game) and the rest (which cards, and when: the same cards are worth more at one moment than at another)
+    const dice = all.filter((x) => x.ev.kind === "dice" && x.cs != null), bts = dice.filter((x) => x.bt != null).map((x) => x.bt);
+    const extra = dice.reduce((a, x) => a + x.cs, 0), perCard = bts.length ? bts.reduce((a, b) => a + b, 0) / bts.length : 0;
+    const cards = extra * perCard, kind = luck - cards;
+    // the others' luck on this player: their own cards from each roll (ox), their card draws and steals between two others
+    const theirs = all.reduce((a, x) => a + (x.own ? 0 : x.w) + (x.ev.kind === "dice" ? x.ox : 0), 0);
+    // this player's own moves, from their finished review (Your moves: what the choices gave away against the best ones)
+    let moves = null;
+    try { if (this._rvReviewComplete?.(pid)) { const rv = this._rvOf(pid); moves = totals(decide(rv.results.filter((x) => !x.skip || x.skip === "trivial"), this.players.length, pid)).moves / 100; } } catch (_) { moves = null; }
+    const rest = end - start - luck - theirs - (moves || 0);
+    const se = Math.sqrt(all.reduce((a, x) => a + (x.own ? (x.se || 0) ** 2 : 0), 0));
+    return { start, end, luck, cards, kind, extra, perCard, theirs, moves, rest, se };
   },
   /** "Luck details" under the table: every chance event of one player, biggest first (or in play order), the total = the table's number. Folded by default. */
   _lkDetailsHtml(LK = this._lkState()) {
@@ -179,13 +197,54 @@ export const ReviewLuckMixin = {
     const kinds = { dice: 0, steal: 0, dev: 0 }; list.forEach((x) => { kinds[x.ev.kind] += 1; });
     return `<details class="rt-lkd" data-rvlkd${U.open ? " open" : ""}><summary><span>Luck details</span><small>every roll, steal and card draw</small></summary>
       <div class="lkd-seg" role="group" aria-label="Whose luck">${seg}</div>
+      ${this._lkWaterHtml(pid, you)}
+      <div class="lk-hd"><b>Every roll, steal and draw</b>${infoBtn("list", U.info?.list)}</div>
       <div class="lkd-sort" role="group" aria-label="Order"><button type="button" data-rvlks="size" class="${U.sort === "size" ? "on" : ""}">Biggest first</button><button type="button" data-rvlks="time" class="${U.sort === "time" ? "on" : ""}">In order</button></div>
+      ${infoTxt("list", U.info?.list, "Each line: the win chance right after it, against the average over everything that could have happened. ±0 is as expected. Only this player's own rolls, steals and card draws count.")}
       <ol class="lkd-list">${shown.map((x) => `<li><span class="t">${esc(this._lkWhen(x.ev))}</span><span class="x">${esc(this._lkWhat(x.ev, pid))}<small>${sub(x)}</small></span><b class="${cls(x.w)}">${wpText(x.w, 1)}</b></li>`).join("")}</ol>
       ${rows.length > shown.length ? `<button type="button" class="rv-btn lkd-all" data-rvlka>Show all ${rows.length}</button>` : ""}
-      <p class="lkd-tot"><span>Total · ${kinds.dice} rolls, ${kinds.steal} steals, ${kinds.dev} card draws</span><b class="${cls(tot)}">${wpText(tot, 1)}</b></p>
-      ${(() => { const B = this._lkBook(pid); if (!B) return ""; const pc = (v) => `${Math.round(v * 100)}%`;
-        return `<p class="lkd-book"><b>${you ? "Your" : `${esc(this.players[pid].name)}’s`} win chance</b>: ${pc(B.start)} at the first roll, ${B.end ? "won" : "lost"} at the end (${wpText(B.end - B.start)}) = own luck ${wpText(B.luck)} + the others’ gambles ${wpText(B.theirs)} + moves ${wpText(B.rest)}. Own luck: every roll, steals by or from ${you ? "you" : "them"}, ${you ? "your" : "their"} own card draws. The others’ gambles: what their card draws (and steals between two others) did to ${you ? "you" : "them"}: a card someone buys could be the winning Victory Point. Moves: everyone’s choices.</p>`; })()}
-      <p class="lkd-note">Each line: ${you ? "your" : "their"} win chance right after what happened, against the average over everything that could have happened (each outcome as likely as it was). ±0 is as expected. Measured by replaying the game ${this._rv?.luck?.lite ? `${LITE.futures} to ${LITE.maxFutures}` : `${LUCK_MC.futures} to ${LUCK_MC.maxFutures}`} times ${LUCK_MC.depth} turns ahead after every outcome: the total is good to about ±${Math.max(0.1, Math.round(se * 1000) / 10)} points.</p></details>`;
+      <p class="lkd-tot"><span>Total · ${kinds.dice} rolls, ${kinds.steal} steals, ${kinds.dev} card draws</span><b class="${cls(tot)}">${wpText(tot, 1)}</b></p></details>`;
+  },
+  /** The two sides of own luck in a sentence, then the whole story of the win chance as a small waterfall: start → own luck (cards,
+   *  which/when) → the others' luck → own moves → the rest (the others' moves, and what the estimates cannot tell apart) → end. */
+  _lkWaterHtml(pid, you) {
+    const B = this._lkBook(pid);
+    if (!B) return "";
+    const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const nm = you ? "You" : esc(this.players[pid].name), n = Math.round(B.extra), m = Math.abs(n);
+    const cardsTxt = n ? `${nm} got ${m} ${m === 1 ? "card" : "cards"} ${n > 0 ? "more" : "fewer"} than expected (${wpText(B.cards)})` : `${nm} got about the cards expected (${wpText(B.cards)})`;
+    const k = Math.round(B.kind * 100), kindTxt = k > 0 ? "the right ones at the right moment" : k < 0 ? "the wrong ones or at the wrong moment" : "neither the right nor the wrong ones";
+    const join = (Math.round(B.cards * 100) >= 0) === (k >= 0) || !k ? "and" : "but";
+    const U = this._lkUi || {}, own = this._lkList(pid).filter((x) => x.own).sort((a, b) => a.w - b.w);
+    const ev = (x) => `${esc(this._lkWhat(x.ev, pid))} in ${esc(this._lkWhen(x.ev).replace(/^T/, "turn ").replace(/^R/, "roll "))} (${wpText(x.w)})`;
+    const lo = own[0], hi = own[own.length - 1];
+    const most = [lo && Math.round(lo.w * 100) < 0 ? `Worst: ${ev(lo)}.` : "", hi && Math.round(hi.w * 100) > 0 ? `Best: ${ev(hi)}.` : ""].filter(Boolean).join(" ");
+    const say = `<div class="lk-hd"><b>${you ? "Your" : `${nm}’s`} luck</b>${infoBtn("split", U.info?.split)}</div>
+      <p class="lkd-say">${cardsTxt}, ${join} ${kindTxt} (${wpText(B.kind)}). ${most}</p>
+      ${infoTxt("split", U.info?.split, `Number of cards: cards above or below expected, at what a card was worth to ${you ? "you" : "them"} on average this game. The rest is which cards, and when. Each part is an estimate, good to about ±${Math.max(1, Math.round(B.se * 100))} points.`)}`;
+    // v1.34 from the even share: the seat order (measured, small) and the set-up (own and the others' placements, the board)
+    const np = this.players.length, first = this.stats?.steps?.[0]?.[1], place = first != null && first >= 0 ? (pid - first + np) % np : null;
+    const L = this._lkStore(), sv = Object.values(L?.res || {}).find((r) => r?.k === "seat" && r.v);
+    const seat = sv ? sv.v[pid] - 1 / np : 0, setup = B.start - 1 / np - seat;
+    const steps = [
+      ["Seat order", seat], ["Set-up", setup],
+      ["Number of cards", B.cards], ["Which cards, when", B.kind], ["Others' luck", B.theirs],
+      [you ? "Your moves" : "Own moves", B.moves], ["Others' moves, rest", B.rest],
+    ];
+    // the scale runs over the lowest and highest running total (never cut off), with a line at 0 % when the total dips below it
+    const run = [1 / np]; steps.forEach(([, v]) => { if (v != null) run.push(run[run.length - 1] + v); }); run.push(B.end);
+    const lo0 = Math.min(0, ...run), hi0 = Math.max(...run, 1 / np), span = Math.max(0.05, hi0 - lo0);
+    const X = (v) => ((v - lo0) / span) * 100, zero = X(0);
+    let at = 1 / np;
+    const row = (label, v) => {
+      if (v == null) return `<div class="lkw-r na"><span>${label}</span><i class="tr"></i><b>not checked</b></div>`;
+      const a = at, b = at + v; at = b;
+      const l = X(Math.min(a, b)), w = X(Math.max(a, b)) - l, c = Math.round(v * 100) > 0 ? "pos" : Math.round(v * 100) < 0 ? "neg" : "";
+      return `<div class="lkw-r"><span>${label}</span><i class="tr">${lo0 < 0 ? `<i class="z" style="left:${zero.toFixed(1)}%"></i>` : ""}<i class="${c}" style="left:${l.toFixed(1)}%;width:${Math.max(0.8, w).toFixed(1)}%"></i></i><b class="${c}">${wpText(v)}</b></div>`;
+    };
+    const ends = (label, v, cls) => { const l = Math.min(zero, X(v)), w = Math.abs(X(v) - zero); return `<div class="lkw-r end ${cls}"><span>${label}</span><i class="tr"><i style="left:${l.toFixed(1)}%;width:${Math.max(0.8, w).toFixed(1)}%"></i></i><b>${Math.round(v * 100)}%</b></div>`; };
+    return `${say}<div class="lk-hd"><b>Win chance, start to end</b>${infoBtn("water", U.info?.water)}</div>${infoTxt("water", U.info?.water, `Seat order: ${place != null ? `place ${place + 1} of ${np} in the turn order` : "this seat"} on this board, as equal bots win from it from the empty board. Set-up: everyone's first settlements and the board. Others' luck and moves: what the others' cards, draws and choices did to ${you ? "you" : "them"}, with what the estimates cannot tell apart.${B.moves == null ? ` ${you ? "Your" : "Their"} own moves count there until the review is done.` : ""}`)}
+      <div class="lkw" role="img" aria-label="${esc(`${nm} win chance: ${Math.round(B.start * 100)}% at the first roll, ${B.end ? "won" : "lost"} at the end`)}">${ends("Even share", 1 / np, "st")}${steps.map(([l, v]) => row(l, v)).join("")}${ends(B.end ? "Won" : "Lost", B.end, "en")}</div>`;
   },
   _lkBindDetails(root) {
     const d = root.querySelector("[data-rvlkd]");
@@ -193,6 +252,7 @@ export const ReviewLuckMixin = {
     const U = (this._lkUi ||= { open: false, pid: null, sort: "size", all: false });
     const redraw = () => { const n = document.createElement("div"); n.innerHTML = this._lkDetailsHtml(); const x = n.firstElementChild; if (x) { d.replaceWith(x); this._lkBindDetails(root); } };
     d.addEventListener("toggle", () => { U.open = d.open; });
+    d.querySelectorAll("[data-lki]").forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); const k = b.dataset.lki; U.info = { ...(U.info || {}), [k]: !U.info?.[k] }; const t = d.querySelector(`[data-lkit="${k}"]`); if (t) t.hidden = !U.info[k]; b.setAttribute("aria-expanded", String(!!U.info[k])); }));
     d.querySelector("summary")?.addEventListener("click", () => { U.open = !d.open; }); // (a table refresh between the tap and the toggle keeps it open)
     d.querySelectorAll("[data-rvlkp]").forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); U.pid = +b.dataset.rvlkp; U.all = false; redraw(); }));
     d.querySelectorAll("[data-rvlks]").forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); U.sort = b.dataset.rvlks; redraw(); }));
