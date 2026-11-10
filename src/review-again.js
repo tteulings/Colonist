@@ -10,15 +10,15 @@ import { OTHERS } from "./review.js";
 import { LUCK_ID, luckKey, luckRecord } from "./review-luck.js";
 import { APP_VERSION } from "./themes/settings-ui.js";
 
-/** Today's engine on this device (src/review/evaluate.js engineId: one lane looks 14 turns ahead, several 20). */
-export const currentEngineId = (model = reviewModel()) => engineId(Math.max(1, Math.min(3, GM_WORKERS())), model);
+/** Today's engine for a model (src/review/evaluate.js engineId: the model and its fixed budget, the same on every device). */
+export const currentEngineId = (model = reviewModel()) => engineId(1, model); // v1.42 the same on every device
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hiddenTab = () => typeof document !== "undefined" && (document.hidden || document.visibilityState === "hidden");
 // seconds of one desktop core: a decision in the quick round, in the deep round, a luck event (measured: 4 players, 87 events in ~35 s)
 // CAL: measured on this machine (4 cores, 3 lanes): the sum below divided by the lanes came out 0.6x (12 decisions, 17 s) to 4.3x
 // (124 decisions and 87 events, 417 s) too low; 2.5 keeps both within a factor 2
-const SEC = { quick: REVIEW_ENGINES.m100?.sec ?? 0.5, deep: REVIEW.sec ?? 3, luck: 0.45, phone: 2.5, cal: 2.5, direct: 0.01, deepX: 2.7 }; // v1.42 direct: ~6 ms a decision; Deep: 2.7x Standard's deep round (measured, rv-model, 75 decisions)
+const SEC = { quick: REVIEW_ENGINES.m100?.sec ?? 0.5, deep: REVIEW.sec ?? 3, luck: 0.45, phone: 2.5, cal: 1.25, direct: 0.01, deepX: 2.7 }; // v1.42 direct: ~6 ms a decision; Deep: 2.7x Standard's deep round (measured, rv-model, 75 decisions)
 
 export const ReviewAgainMixin = {
   /** The stamp a finished block gets. */

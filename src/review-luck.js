@@ -17,8 +17,8 @@ import { luckEvents, LUCK_MC } from "./review/luck-mc.js";
 // v1.40 on several review lanes an event gets this on top of its budget (measured, see the note at the value); null: the same budget
 // Measured (eng130/tests/luck-var.mjs, the 34 dice events of luck134 with a played-out truth, 3 seeds): 7 turns instead of 5 r 0.834 vs
 // 0.785 (every seed better), MAE 1.43 vs 1.52 pp, for 1.44x the work; 35 futures instead of 25: r 0.788 (no gain) for 1.32x.
-export const LUCK_BOOST = { depth: 7 };
-export const LITE = { futures: 15, maxFutures: 45 }, LITE_AFTER_S = 300; // v1.34 own luck (C) against played-out truth: 10 futures r 0.64, 25 r 0.76, 50 r 0.80
+export const LUCK_BOOST = null; // v1.42 the 7 turns are the fixed budget now (LUCK_MC.depth)
+export const LITE = { futures: 15, maxFutures: 45 }, LITE_AFTER_S = Infinity; // v1.42 no switch on time any more (the user's rule: a fixed budget); kept for saved runs that used it
 export const LUCK_ID = `v2c-f${LUCK_MC.futures}-${LUCK_MC.maxFutures}e${LUCK_MC.seMax}d${LUCK_MC.depth}s${LUCK_MC.seed}`;
 const keyOf = (ev) => `${ev.kind}:${ev.s}:${ev.e}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -124,10 +124,7 @@ export const ReviewLuckMixin = {
         const x = m?.result;
         L.res[keyOf(ev)] = luckRecord(ev, x);
         run.j += 1; { const t = now(); run.times.push(t - last); last = t; }
-        if (!L.lite && run.times.length >= 6) {
-          const left = todo.length - run.j, per = run.times.reduce((a, b) => a + b, 0) / run.times.length;
-          if ((per * left * 1.5) / 1000 + (now() - run.t0) / 1000 > LITE_AFTER_S) L.lite = true;
-        }
+
         if (run.j % 10 === 0) this._rvSave?.();
         this._rvTick?.();
         if (run.stop) break;
@@ -138,7 +135,7 @@ export const ReviewLuckMixin = {
     return run.promise;
   },
   /** The budget of the next event: the light one once the run chose it (L.lite, kept with the results). */
-  _lkBudget(lanes = 1) { return this._rv?.luck?.lite ? { ...LITE } : lanes > 1 && LUCK_BOOST ? { ...LUCK_BOOST } : {}; }, // v1.40 several lanes: part of the extra cores buys precision (LUCK_BOOST)
+  _lkBudget(lanes = 1) { return this._rv?.luck?.lite ? { ...LITE } : {}; }, // v1.42 one fixed budget (a run saved with the old time switch finishes as it began)
   _lkStop() { const R = this._rv; if (!R?.lrun) return; R.lrun.stop = true; this._lkStore().stopped = true; R.lrun = null; this._rvSave?.(); this._rvTick?.(); },
   _lkGo() { const R = this._rv; if (!R) return; this._lkStore().stopped = false; if (!R.lrun && !R.run) this._rvQueueNext?.(); else if (!R.lrun) this._lkRun(); this._rvTick?.(); },
 

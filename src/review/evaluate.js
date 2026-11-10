@@ -32,7 +32,9 @@ export const REVIEW_ENGINES = {
   // 1000 x 14: 5.9, 63 %; the old full engine is close to fit 250-1000 x 14). nPer: futures per move on average (budget = nPer x
   // number of moves, successive halving as before), so a decision with many moves gets more. Formula v5 (ACC.ver): a result
   // judged by the old leaf ("fit") is provisional and gets Re-check (needsFull / reviewStatus.stale).
-  full: { budget: { nPer: 100, timeMs: 12000, depth: 14, setupDepth: 18, leaf: "gbm" }, sec: 3, k: 0.10, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"], // eng-130 shipmove: Seafarers
+  // v1.42 a fixed budget on every device (the user's rule: depth, never a time cap; the lanes only make it faster): 100 futures a move,
+  // 20 turns (24 in set-up), the look-ahead v1.40 measured best for its cost (ANALYSIS_BOOST had it on several lanes only)
+  full: { budget: { nPer: 100, timeMs: 0, depth: 20, setupDepth: 24, leaf: "gbm" }, sec: 6, k: 0.10, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"], // eng-130 shipmove: Seafarers
     // v1.16: k 0.10 (stricter curve, was 0.06) and Best = any move under 1 point. Bands: every preset's own moves scored like a
     // human's (the seat plays on as Expert), the same 300 positions as v1.21, now with the gbm leaf (eng-124). [name, accuracy, SE]
     bands: BOT_BANDS },
@@ -43,8 +45,8 @@ export const REVIEW_ENGINES = {
   // futures a move to the end): best move found (truth gap > 2 pp) Quick 46 %, Standard 57 %, Deep 59 %; loss MAE 3.36 / 3.06 / 3.00 pp
   // (Deep - Standard -0.06 [-0.25, +0.15]); r(loss) 0.68 / 0.73 / 0.78; time 6 ms / 5.9 s / 15.8 s a decision (Deep 2.7x).
   direct: { budget: { nPer: 2, timeMs: 0, depth: 0, setupDepth: 0, leaf: "gbm" }, sec: 0.05, k: 0.10, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"], bands: null },
-  deep: { budget: { nPer: 250, timeMs: 40000, depth: 24, setupDepth: 28, leaf: "gbm" }, sec: 8, k: 0.10, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"], bands: null },
-  m100: { budget: { n: 160, timeMs: 700, leaf: "fit" }, sec: 0.5, k: 0.08, trivial: 0.02, scored: ["setup", "build", "bank", "robber", "end", "shipmove"], bands: [["Simple", 85], ["Beginner", 86], ["Intermediate", 88], ["Expert", 89]] },
+  deep: { budget: { nPer: 250, timeMs: 0, depth: 24, setupDepth: 28, leaf: "gbm" }, sec: 16, k: 0.10, trivial: 0.02, scored: ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"], bands: null },
+  m100: { budget: { n: 160, timeMs: 0, leaf: "fit" }, sec: 0.5, k: 0.08, trivial: 0.02, scored: ["setup", "build", "bank", "robber", "end", "shipmove"], bands: [["Simple", 85], ["Beginner", 86], ["Intermediate", 88], ["Expert", 89]] },
 };
 export const REVIEW_ENGINE = "full";
 export const REVIEW = REVIEW_ENGINES[REVIEW_ENGINE];
@@ -54,14 +56,13 @@ export const REVIEW_BUDGET = REVIEW.budget;
 // Measured (scratchpad eng130/tests/rv-var.mjs, 75 recorded decisions, truth = 300 futures a move played to the end): for ~1.3x the work
 // a longer look-ahead (20 turns, 24 in set-up) beats more futures (143 a move): the played move's loss MAE 3.06 vs 3.27 pp (bootstrap
 // -0.21 [-0.41, -0.01]), its win chance MAE 7.7 vs 8.4 pp; 143 futures: -0.00 pp (no gain); 120 x 17: -0.10. The quick round: speed only.
-export const ANALYSIS_BOOST = { full: { depth: 20, setupDepth: 24 }, m100: null };
+export const ANALYSIS_BOOST = { full: null, m100: null }; // v1.42 none: every budget is fixed (the lanes only make it faster)
 /** v1.41 what judged a review: the accuracy curve, the leaf and the deep round's look-ahead (20 on several lanes, 14 on one). Reviews of
  *  another id are from another engine: your average counts only today's (Review again brings an older one up to date). */
-export function engineId(lanes = 1, model = "standard") {
+export function engineId(lanes = 1, model = "standard") { // v1.42 the model and its budget only (lanes: speed, never the result)
   if (model === "quick") return `${ACC.id}-${REVIEW_BUDGET.leaf || "v1"}-direct`;
   if (model === "deep") { const b = REVIEW_ENGINES.deep.budget; return `${ACC.id}-${b.leaf}-deep-n${b.nPer}d${b.depth}`; }
-  const d = lanes > 1 && ANALYSIS_BOOST.full?.depth ? ANALYSIS_BOOST.full.depth : REVIEW_BUDGET.depth;
-  return `${ACC.id}-${REVIEW_BUDGET.leaf || "v1"}-d${d}`;
+  return `${ACC.id}-${REVIEW_BUDGET.leaf || "v1"}-n${REVIEW_BUDGET.nPer}d${REVIEW_BUDGET.depth}`;
 }
 /** v1.42 the review models: the engine of the final round (Quick: the only round). A review's model is read back from its engId. */
 export const REVIEW_MODELS = {

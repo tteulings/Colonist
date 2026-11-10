@@ -25,7 +25,7 @@ export const BANDS = REVIEW.bands || [];
 const mk = (m, cls = "") => `<i class="rv-mk mk-${m} ${cls}" aria-hidden="true"></i>`;
 const pct = (x) => `${Math.round(x * 100)}%`;
 const sgn = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v))}`; // whole percent with a real minus sign
-export const MC = "deep Monte Carlo (1000 futures)"; // what runs the check, named once
+export const MC = "deep Monte Carlo (100 futures a move)"; // what runs the check, named once
 // v1.29 the bots' lighter deep check against checking all their moves with the full engine (scratchpad others129 budget-an.mjs)
 const OTHERS_NOTE = "1.1 points of accuracy apart on average, 5 at most, in about 60% of the time";
 // v1.05 chess-style classes: name, glyph (own icons, one hue each in review.css)
@@ -443,7 +443,7 @@ export const ReviewGameMixin = {
     d.setAttribute("role", "dialog");
     d.setAttribute("aria-label", "About this review");
     d.innerHTML = `<div class="rv-card"><div class="rv-ih"><b>About this review</b><button type="button" class="rv-btn" data-rvinfo-x aria-label="Close">✕</button></div>
-      <p><b>Win chance</b>: your chance to win, in %. It comes from ${MC}: the position is played on for 14 turns, 1000 times.</p>
+      <p><b>Win chance</b>: your chance to win, in %. It comes from ${MC}: the position is played on for 20 turns, 100 times for every move (Standard model).</p>
       <p><b>A and B</b>: A is the best move, B is what you played. A − B is what that move cost. Classes: ${lim(LIMITS)}. Set-up spots use wider limits (${lim(SETUP_LIMITS)}).</p>
       <p><b>Play</b>: shows every move since your last decision: rolls, builds, trades, the robber. Win chances exist at your decisions only.</p>
       <p><b>Plan</b>: the likely reason A is better, read from the position. No clear reason, no Plan.</p>
@@ -457,7 +457,7 @@ export const ReviewGameMixin = {
       <p><b>A check during the game</b> keeps its moves for the review at the end, but that game stays out of your average. The board is shown after the game.</p>
       <p><b>Provisional</b> is the quick look (about half a second a move). The deep check (about ${REVIEW.sec} s a move) follows, biggest differences first, and the numbers shift as it goes.</p>${this.isRush?.() ? `
       <p><b>Approximate in Rush</b>: Rush has no turns, so each move you made is checked as if it were your turn in a Classic game: the same position, then the table plays on turn by turn with one dice roll per turn. A roll in the list is the roll interval you moved in. “Wait” means building nothing right then. Not modelled: the clock, several players moving within one interval, and a spot lost to a faster bot. In a test of 17 positions the Rush-shaped and the turn-by-turn futures ranked the moves no differently than two runs of the same method do, but treat the numbers as a guide, not a verdict. Turn starts and End turn do not exist here, so they are not checked.</p>` : ""}${this.players.length >= 5 ? `
-      <p><b>5–6 players</b>: moves in the build window between turns are not checked (it is nobody's turn there). The check looks 14 turns ahead, which is ${(14 / this.players.length).toFixed(1)} rounds at this table (3.5 with four players), and with more players fewer futures fit in the time.</p>` : ""}</div>`;
+      <p><b>5–6 players</b>: moves in the build window between turns are not checked (it is nobody's turn there). The check looks 20 turns ahead, which is ${(20 / this.players.length).toFixed(1)} rounds at this table (3.5 with four players); with more players the check takes longer (the budget is the same).</p>` : ""}</div>`;
     const close = () => { this._rvInfoOpen = false; d.remove(); };
     d.addEventListener("click", (e) => { if (e.target === d) close(); });
     d.querySelector("[data-rvinfo-x]").addEventListener("click", close);
