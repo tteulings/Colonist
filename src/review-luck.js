@@ -6,7 +6,7 @@
 // Seafarers (v1.31 with eng-130's recording): gold is part of a roll's outcome (the bots pick, as in the search), the pirate's steal
 // is a steal; the leaf is the search's Seafarers leaf (src/master.js SEA_LEAF). A game recorded before v1.31 has no position before a bot's roll: its rolls start from
 // that bot's End turn the turn before (played again), which is close but not exact (a pre-roll Knight is missed).
-import { reviewRequest, reviewAvailable, SEA_LEAF } from "./master.js";
+import { reviewRequest, reviewAvailable, reviewLaneCount, SEA_LEAF } from "./master.js";
 import { REVIEW, decide, totals } from "./review/evaluate.js";
 import { luckEvents, LUCK_MC } from "./review/luck-mc.js";
 
@@ -14,6 +14,8 @@ import { luckEvents, LUCK_MC } from "./review/luck-mc.js";
 /** v1.31 time limit: when the run would take longer than LITE_AFTER_S (measured over its first events, late events cost ~1.5x the
  *  early ones), the rest of the game gets the light budget (10 futures, at most 30). Measured against played-out truth: r 0.78 per
  *  event instead of 0.82, at about a third of the time. */
+// v1.40 on several review lanes an event gets this on top of its budget (measured, see the note at the value); null: the same budget
+export const LUCK_BOOST = null;
 export const LITE = { futures: 15, maxFutures: 45 }, LITE_AFTER_S = 300; // v1.34 own luck (C) against played-out truth: 10 futures r 0.64, 25 r 0.76, 50 r 0.80
 export const LUCK_ID = `v2c-f${LUCK_MC.futures}-${LUCK_MC.maxFutures}e${LUCK_MC.seMax}d${LUCK_MC.depth}s${LUCK_MC.seed}`;
 const keyOf = (ev) => `${ev.kind}:${ev.s}:${ev.e}`;
@@ -95,20 +97,25 @@ export const ReviewLuckMixin = {
     run.promise = (async () => {
       const todo = this._lkEvents().filter((ev) => !L.res[keyOf(ev)]);
       this._rvTick?.();
-      for (const ev of todo) {
+      // v1.40 the events on several review lanes at once (src/master.js reviewLaneCount); each event is computed on its own (own seeds),
+      // so the results are the same as one after the other. run.times: the time between two finished events.
+      const lanes = await reviewLaneCount();
+      run.lanes = lanes;
+      let next = 0, last = now();
+      const lane = async (w) => { while (next < todo.length) {
         while (live() && hiddenTab()) { if (!run.paused) { run.paused = true; this._rvTick?.(); } await sleep(400); }
         if (run.paused) { run.paused = false; this._rvTick?.(); }
-        if (!live()) break;
-        const t0 = now();
+        if (!live() || next >= todo.length) break;
+        const ev = todo[next++];
         const { i, ...plain } = ev; // the record goes along whole (its position)
-        const m = await reviewRequest({ type: "luck", base: R.base, ev: plain, opts: { leaf: this.sea ? SEA_LEAF : REVIEW.budget.leaf || "gbm", ...this._lkBudget() } }, 120000);
+        const m = await reviewRequest({ type: "luck", base: R.base, ev: plain, opts: { leaf: this.sea ? SEA_LEAF : REVIEW.budget.leaf || "gbm", ...this._lkBudget(lanes) } }, 120000, w);
         if (!live() && this._rv !== R) break;
         const x = m?.result;
         // l: luck per seat; b: the win chance before the event (the average over its outcomes), for the accounting start → end = luck + the rest
         const r4 = (v) => Math.round(v * 1e4) / 1e4;
         if (ev.kind === "seat") L.res[keyOf(ev)] = x && !x.skip && x.v ? { k: "seat", s: 0, e: ev.e, v: x.v, se: x.se } : { k: "seat", s: 0, e: ev.e, skip: x?.skip || "error" };
         else L.res[keyOf(ev)] = x && !x.skip && x.luck ? { k: ev.kind, s: ev.s, e: ev.e, l: x.luck, se: x.se, ...(x.cs ? { cs: x.cs, bt: x.bt, ox: x.ox } : {}), b: x.b || x.luck.map((_, q) => r4(x.groups.reduce((a, gr) => a + gr.p * (gr.v?.[q] ?? 0), 0))), F: x.F, g: x.groups.length } : { k: ev.kind, s: ev.s, e: ev.e, skip: x?.skip || "error" };
-        run.j += 1; run.times.push(now() - t0);
+        run.j += 1; { const t = now(); run.times.push(t - last); last = t; }
         if (!L.lite && run.times.length >= 6) {
           const left = todo.length - run.j, per = run.times.reduce((a, b) => a + b, 0) / run.times.length;
           if ((per * left * 1.5) / 1000 + (now() - run.t0) / 1000 > LITE_AFTER_S) L.lite = true;
@@ -116,13 +123,14 @@ export const ReviewLuckMixin = {
         if (run.j % 10 === 0) this._rvSave?.();
         this._rvTick?.();
         if (run.stop) break;
-      }
+      } };
+      await Promise.all(Array.from({ length: lanes }, (_, w) => lane(w)));
       if (this._rv === R) { R.lrun = null; this._rvSave?.(); this._rvTick?.(); }
     })();
     return run.promise;
   },
   /** The budget of the next event: the light one once the run chose it (L.lite, kept with the results). */
-  _lkBudget() { return this._rv?.luck?.lite ? { ...LITE } : {}; },
+  _lkBudget(lanes = 1) { return this._rv?.luck?.lite ? { ...LITE } : lanes > 1 && LUCK_BOOST ? { ...LUCK_BOOST } : {}; }, // v1.40 several lanes: part of the extra cores buys precision (LUCK_BOOST)
   _lkStop() { const R = this._rv; if (!R?.lrun) return; R.lrun.stop = true; this._lkStore().stopped = true; R.lrun = null; this._rvSave?.(); this._rvTick?.(); },
   _lkGo() { const R = this._rv; if (!R) return; this._lkStore().stopped = false; if (!R.lrun && !R.run) this._rvQueueNext?.(); else if (!R.lrun) this._lkRun(); this._rvTick?.(); },
 

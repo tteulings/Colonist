@@ -13,8 +13,8 @@
 //
 // After the game the records go to the Master Web Worker (src/master/worker.js), which runs the detectors
 // in src/review/detect.js on its private headless engine; the end screen never waits for them.
-import { masterRequest, masterAvailable, reviewRequest } from "./master.js";
-import { REVIEW_ENGINE, REVIEW, FMT, needsFull, rescoreReview, liftReview } from "./review/evaluate.js";
+import { masterRequest, masterAvailable, reviewRequest, reviewLaneCount } from "./master.js";
+import { REVIEW_ENGINE, REVIEW, FMT, needsFull, rescoreReview, liftReview, analysisOpts } from "./review/evaluate.js";
 import { packRecs, unpackRecs } from "./review/pack.js";
 
 const KEY = "colonist_review_v1";
@@ -218,27 +218,37 @@ export const ReviewMixin = {
     };
     const onVis = () => { const hid = hiddenTab(); if (run.paused !== hid) { run.paused = hid; this._rvTick(); } };
     if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVis);
+    // v1.40 a round runs on several review lanes at once (src/master.js reviewLaneCount: the cores past the page's own, at most 3; a check
+    // during the game keeps to one). Each decision is computed on its own, so the results are the same as one after the other; they are
+    // kept in record order. run.times holds the time between two finished decisions (the screen's time left stays right).
     const round = async (eng, items) => {
       run.round = { eng, j: 0, n: items.length };
       run.times = [];
       this._rvTick();
-      for (const [rec, i] of items) {
-        if (run.stop || !live()) return;
-        await gate();
-        if (run.stop || !live()) return;
-        const t0 = now();
-        const m = await reviewRequest({ type: "evaluate", base: R.base, rec, opts: eng === REVIEW_ENGINE ? {} : { engine: eng } }, 40000);
-        if (!live()) return;
-        const k = rv.results.findIndex((x) => x.i === i);
-        let r = m?.result ? { ...m.result, i } : null;
-        if (!r) r = k >= 0 ? { ...rv.results[k], eng: REVIEW_ENGINE, err: true } : { k: rec.k, pid, t: rec.t, s: rec.s, e: rec.e, i, skip: "error", eng };
-        if (k >= 0) rv.results[k] = r; else rv.results.push(r);
-        liftReview(rv); // v1.29 the same-step lift: one class per decision on every screen (score.js liftSameStep)
-        run.times.push(now() - t0);
-        run.round.j += 1;
-        if (run.round.j % (this.players[pid]?.isHuman ? 6 : 12) === 0) this._rvSave(); // a reload keeps what is checked (a bot's: every 12)
-        this._rvTick();
-      }
+      const lanes = mid && !this.winner ? 1 : await reviewLaneCount();
+      run.lanes = lanes;
+      const opts = analysisOpts(eng, lanes);
+      let next = 0, last = now();
+      const lane = async (w) => {
+        while (next < items.length) {
+          if (run.stop || !live()) return;
+          await gate();
+          if (run.stop || !live() || next >= items.length) return;
+          const [rec, i] = items[next++];
+          const m = await reviewRequest({ type: "evaluate", base: R.base, rec, opts }, 40000, w);
+          if (!live()) return;
+          const k = rv.results.findIndex((x) => x.i === i);
+          let r = m?.result ? { ...m.result, i } : null;
+          if (!r) r = k >= 0 ? { ...rv.results[k], eng: REVIEW_ENGINE, err: true } : { k: rec.k, pid, t: rec.t, s: rec.s, e: rec.e, i, skip: "error", eng };
+          if (k >= 0) rv.results[k] = r; else { rv.results.push(r); rv.results.sort((a, b) => a.i - b.i); }
+          liftReview(rv); // v1.29 the same-step lift: one class per decision on every screen (score.js liftSameStep)
+          const t = now(); run.times.push(t - last); last = t;
+          run.round.j += 1;
+          if (run.round.j % (this.players[pid]?.isHuman ? 6 : 12) === 0) this._rvSave(); // a reload keeps what is checked (a bot's: every 12)
+          this._rvTick();
+        }
+      };
+      await Promise.all(Array.from({ length: lanes }, (_, w) => lane(w)));
     };
     run.promise = (async () => {
       try {

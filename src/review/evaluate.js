@@ -42,6 +42,15 @@ export const REVIEW_ENGINES = {
 export const REVIEW_ENGINE = "full";
 export const REVIEW = REVIEW_ENGINES[REVIEW_ENGINE];
 export const REVIEW_BUDGET = REVIEW.budget;
+// v1.40 several review lanes (src/review.js round): part of the extra cores buys speed, part buys precision. ANALYSIS_BOOST: what an
+// engine's search gets on top of its budget when it runs on more than one lane (measured, see the note at the value). One lane: as before.
+export const ANALYSIS_BOOST = { full: null, m100: null };
+/** The evaluate options of one decision: the engine, plus its boost on several lanes. */
+export function analysisOpts(eng, lanes = 1) {
+  const o = eng === REVIEW_ENGINE ? {} : { engine: eng };
+  const b = lanes > 1 ? ANALYSIS_BOOST[eng] : null;
+  return b ? { ...o, budget: { ...(eng === REVIEW_ENGINE ? REVIEW_BUDGET : REVIEW_ENGINES[eng]?.budget), ...b } } : o;
+}
 
 // accuracy = a·e^(−k·loss%) − b: chess.com's win%-based curve, steeper (k 0.08 instead of 0.0435) because
 // these win chances come from an 8-turn look-ahead and move less than a chess engine's. Calibrated on the
