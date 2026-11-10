@@ -383,3 +383,16 @@
 .rs-lk.lk2 { gap: 8px; } .rs-lk.lk2 > span { min-width: 0; }
 .rs-lk.lk2 button.lk, .rs-lk.lk2 > b { white-space: nowrap; flex: none; }
 .rs-lk.lk2 button.lk { flex-direction: row; }
+/* v1.34 own luck in two parts, and the win chance step by step (a small waterfall) */
+.lkd-say { margin: 8px 4px 4px; font: 650 12.5px/1.4 var(--font-body); color: var(--ink); }
+.lkw { margin: 4px 2px 0; display: grid; gap: 3px; }
+.lkw-r { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 44px; gap: 6px; align-items: center; font: 600 11.5px/1.2 var(--font-body); color: var(--ink-soft); }
+.lkw-r > span { min-width: 0; }
+.lkw-r .tr { position: relative; display: block; height: 10px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.lkw-r .tr > i { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: color-mix(in srgb, var(--ink) 35%, transparent); }
+.lkw-r .tr > i.pos { background: var(--pos); } .lkw-r .tr > i.neg { background: var(--neg); }
+.lkw-r.end .tr > i { background: var(--pc, var(--primary)); opacity: .55; }
+.lkw-r > b { text-align: right; font: 800 12px/1 var(--font-body); font-variant-numeric: tabular-nums; color: var(--heading); white-space: nowrap; }
+.lkw-r > b.pos { color: var(--pos); } .lkw-r > b.neg { color: var(--neg); }
+.lkw-r.end > span, .lkw-r.end > b { color: var(--ink); font-weight: 800; }
+.lkw-r.na > b { font-weight: 600; color: var(--ink-soft); }

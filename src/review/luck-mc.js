@@ -143,6 +143,96 @@ function outcomes(g, ev) {
 /** A key for "the same position" after a non-random outcome: every hand, the bank and the pieces' counts. */
 const posKey = (g) => JSON.stringify([g.players.map((p) => RES.map((r) => p.resources[r])), RES.map((r) => g.bank?.[r]), g.phase, g.pendingAction ?? null, g.winner ? g.winner.id : -1, g.sea ? [g.sea.gold, g.sea.pirateHexId] : null]);
 
+/** v1.34 definition C (the user's): a roll is luck for a player only through what THAT player got. Seat q's luck is
+ *    V_q(what happened) − Σ_o p(o) · V_q(what happened, but q's own cards from the roll as with sum o)
+ *  the others' cards stay as they were. So a roll that pays someone else is their luck, not your bad luck. The position "as with o"
+ *  is the real one after the roll with q's hand changed by (q's cards on o − q's cards on the real sum); a 7 pays nobody (its discards,
+ *  robber and steal stay as they happened in every variant: the steal is its own event). Per future, the real outcome is played once
+ *  and each seat's variants from it (common random numbers). The seats' values need not sum to 0. Returns the same shape as luckEvent
+ *  with b: each seat's win chance before (the average over its variants). */
+function diceOwn(g, ev, B, S0, o, leaf, evSeed, n, t0) {
+  const hand0 = g.players.map((p) => RES.map((r) => p.resources[r]));
+  // each seat's cards on each sum (from the position before the roll; a 7: none)
+  const prod = B.branches.map((b) => {
+    if (b.random) return g.players.map(() => [0, 0, 0, 0, 0]);
+    back(g, S0); b.make(mulberry32(evSeed));
+    return g.players.map((p, q) => RES.map((r, k) => p.resources[r] - hand0[q][k]));
+  });
+  const dA = prod[B.act];
+  // per seat: its variants (sums with the same cards for that seat are one), the real one first
+  const seats = Array.from({ length: n }, (_, q) => {
+    const vs = [];
+    B.branches.forEach((b, k) => {
+      const d = prod[k][q].map((x, r) => x - dA[q][r]), key = d.join(",");
+      let v = vs.find((x) => x.key === key);
+      if (!v) { v = { key, d, p: 0, o: [], real: d.every((x) => x === 0) }; vs.push(v); }
+      v.p += b.p; v.o.push(b.o);
+    });
+    vs.sort((a, b2) => (b2.real ? 1 : 0) - (a.real ? 1 : 0));
+    return vs;
+  });
+  const W = []; // W[j] = { A: seats' values after the real outcome, H: [q][variant] seat q's value }
+  const one = (j) => {
+    const ps = (evSeed + Math.imul(j + 1, 0x9e3779b1)) | 0, ds = (evSeed ^ Math.imul(j + 1, 0x85ebca6b)) | 0, qs = (evSeed ^ Math.imul(j + 7, 0x27d4eb2f)) | 0;
+    back(g, S0);
+    withoutAgents(g, () => B.branches[B.act].make(mulberry32(ps)));
+    const SA = snap(g);
+    const run = (adj) => {
+      back(g, SA);
+      if (adj) { const P = g.players[adj.q]; RES.forEach((r, k) => { if (!adj.d[k]) return; P.resources[r] = Math.max(0, P.resources[r] + adj.d[k]); if (g.bank) g.bank[r] = Math.max(0, (g.bank[r] || 0) - adj.d[k]); }); }
+      const rng = mulberry32(qs), dice = mulberry32(ds);
+      withoutAgents(g, () => {
+        const orig = Math.random; Math.random = rng; try { shuffle(g.devDeck, rng); } finally { Math.random = orig; }
+        if (!g.winner) play(g, o.depth, rng, dice);
+      });
+      return leaf(g);
+    };
+    const A = run(null);
+    const full = seats.map((vs, q) => vs.map((v) => (v.real ? A : run({ q, d: v.d })))); // every seat's win chance in each variant
+    W.push({ A, H: full.map((vs, q) => vs.map((w) => w[q])), full });
+  };
+  const stats = (F) => {
+    const L = [], se = [], b = [];
+    for (let q = 0; q < n; q += 1) {
+      const lj = W.map((w) => w.A[q] - seats[q].reduce((a, v, i) => a + v.p * w.H[q][i], 0));
+      const m = lj.reduce((a, x) => a + x, 0) / F;
+      L.push(m); se.push(F > 1 ? Math.sqrt(lj.reduce((a, x) => a + (x - m) ** 2, 0) / (F - 1) / F) : 0);
+      b.push(W.reduce((a, w) => a + seats[q].reduce((c, v, i) => c + v.p * w.H[q][i], 0), 0) / F);
+    }
+    return { L, se, b };
+  };
+  let F = 0, target = o.futures;
+  if (target > 0) {
+    for (;;) {
+      for (let j = F; j < target; j += 1) one(j);
+      F = target;
+      if (F >= (o.maxFutures || F) || Math.max(...stats(F).se) <= (o.seMax ?? 1)) break;
+      target = Math.min(o.maxFutures, F + o.futures);
+    }
+  }
+  const out = { kind: ev.kind, s: ev.s, n, own: 1, act: 0, groups: seats.map((vs) => vs.map((v) => ({ o: v.o, p: r4(v.p) }))), F, depth: o.depth };
+  if (F) {
+    const st = stats(F);
+    // v1.34 the split the user asked for: cards (how many) and the rest (which ones, when). Per seat: cs = cards from this roll minus
+    // the expected number; bt = win chance per card at this moment: the p-weighted slope of the variants' win chance on their card
+    // count (null when every variant pays the same number). Page side: cards part = cards above expected × the mean bt, rest = luck − that.
+    const cs = [], bt = [];
+    for (let q = 0; q < n; q += 1) {
+      const vs = seats[q], cA = dA[q].reduce((a, x) => a + x, 0);
+      const c = vs.map((v) => cA + v.d.reduce((a, x) => a + x, 0)), V = vs.map((_, i) => W.reduce((a, w) => a + w.H[q][i], 0) / F);
+      const mc = vs.reduce((a, v, i) => a + v.p * c[i], 0), mv = vs.reduce((a, v, i) => a + v.p * V[i], 0);
+      const sxx = vs.reduce((a, v, i) => a + v.p * (c[i] - mc) ** 2, 0), sxy = vs.reduce((a, v, i) => a + v.p * (c[i] - mc) * (V[i] - mv), 0);
+      cs.push(r4(cA - mc)); bt.push(sxx > 1e-9 ? r4(sxy / sxx) : null);
+    }
+    // ox: what the OTHERS' cards from this roll did to seat q (each other seat's own outcome against its expectation, read off q's win
+    // chance in that seat's variants; summed over the other seats, without their interactions)
+    const ox = Array.from({ length: n }, (_, q) => r4(W.reduce((a, w) => a + seats.reduce((t, vs, r) => (r === q ? t : t + w.A[q] - vs.reduce((u, v, i) => u + v.p * w.full[r][i][q], 0)), 0), 0) / F));
+    Object.assign(out, { luck: st.L.map(r4), se: st.se.map(r4), b: st.b.map(r4), cs, bt, ox, runs: 1 + seats.reduce((a, vs) => a + vs.length - 1, 0) });
+  }
+  out.ms = Math.round(now() - t0);
+  return out;
+}
+
 /** Luck of one event: { kind, s, n, groups: [{ o: [outcomes], p, fast, v }], act, luck, se, fast, F, depth, ms } or { skip }. */
 export function luckEvent(g, base, ev, opts = {}) {
   const o = { ...LUCK_MC, ...opts };
@@ -155,6 +245,7 @@ export function luckEvent(g, base, ev, opts = {}) {
     if (B.skip) return { kind: ev.kind, s: ev.s, skip: B.skip };
     const n = g.players.length, S0 = snap(g);
     const evSeed = hash(`${o.seed}|${ev.kind}|${ev.s}|${ev.rec.e}|${ev.rec.pid}`);
+    if (ev.kind === "dice" && o.own !== false) return diceOwn(g, ev, B, S0, o, leaf, evSeed, n, t0);
     // groups: outcomes that leave the same position (dice only; random ones stay apart)
     const groups = [];
     B.branches.forEach((b, k) => {
