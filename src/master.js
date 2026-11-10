@@ -10,18 +10,24 @@
 import { masterSteps, masterLineHtml } from "./ai-tree.js";
 import { parallelDecide } from "./master/parallel.js";
 
-export const MASTER_BUDGET = { n: 100, timeMs: 500 };
+// v1.42 every budget is a fixed amount of work a move ("depth, not time"): so a bot is as strong on every device as it was measured.
+// Time is only the emergency brake (wallCapMs, a very slow device). capMs: the expected think time on a phone, for the "thinking" ring.
+export const WALL_CAP_MS = 6000;
+export const MASTER_BUDGET = { n: 100, timeMs: 0, wallCapMs: WALL_CAP_MS, capMs: 500 };
 // v1.10 "Super Expert": the same search, up to 1000 rollouts in an anytime, time-sliced search (about 3 s cap per decision),
 // 14 turns deep (18 in set-up). `leaf` is the one place that picks the position evaluator at the end of a rollout (v1 now).
 // earlyZ/earlyMin: stop once one move leads all others by 3 standard errors after 40 futures (saves time in clear spots).
-export const SUPER_BUDGET = { n: 1000, timeMs: 3000, timeSlice: true, depth: 14, setupDepth: 18, earlyZ: 3, earlyMin: 40 };
+// v1.42 545 futures a move (counted, rollClock; the time slices of the halving are slices of that work): what a phone did in the old 3 s
+// (estimate, speed125 / speed130), the Super Expert+ of the measured head to head with the Grandmaster.
+export const SUPER_BUDGET = { n: 1000, timeMs: 545, rollClock: true, timeSlice: true, depth: 14, setupDepth: 18, earlyZ: 3, earlyMin: 40, wallCapMs: WALL_CAP_MS, capMs: 3000 };
 // bot-125 "Super Expert+" (working name): the Super Expert's budget, but every playout ends in the boosted value model
 // (src/master/leaf-gbm.js, the review's leaf) instead of the v1 score. Rush: the same small Rush cap, with the gbm leaf too.
 export const SUPER_PLUS_BUDGET = { ...SUPER_BUDGET, leaf: "gbm" };
 // eng-130 "Grandmaster": the Super Expert+ search (gbm leaf, 3 s, 14 turns, 18 in set-up) run by several Web Workers at once
 // (src/master/parallel.js; GM_WORKERS), each on its own share of the futures, plus the speed work of eng-130: about 3x the
 // futures of a Super Expert+ in the same 3 s. n is only the upper bound for fast machines.
-export const GRANDMASTER_BUDGET = { ...SUPER_PLUS_BUDGET, n: 3000 };
+// v1.42 1090 futures a move, twice the Super Expert+ (as measured: +23 pp head to head); spread over GM_WORKERS workers.
+export const GRANDMASTER_BUDGET = { ...SUPER_PLUS_BUDGET, n: 3000, timeMs: 1090 };
 /** Workers for one Grandmaster decision: the cores past the page's own, at most 3 (a Galaxy S24 has 8). */
 export const GM_WORKERS = () => Math.max(1, Math.min(3, ((typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 2) - 1));
 // eng-130 Seafarers: the leaf every search bot uses there. The hand-made v1 score is worse than a uniform guess on Seafarers
@@ -29,7 +35,7 @@ export const GM_WORKERS = () => Math.max(1, Math.min(3, ((typeof navigator !== "
 export const SEA_LEAF = "gbm";
 /** The search budget of a policy ("master" | "super" | "superplus" | "grandmaster"); sea: a Seafarers game (eng-130). */
 export const budgetFor = (policy, rush = false, sea = false) => {
-  const b = rush ? { ...RUSH_BUDGET, ...(policy === "superplus" || policy === "grandmaster" ? { leaf: "gbm" } : {}) }
+  const b = rush ? { ...RUSH_BUDGET, ...(policy === "superplus" || policy === "grandmaster" ? { leaf: "gbm" } : {}), ...(policy === "grandmaster" ? { timeMs: 40 } : {}) }
     : { ...(policy === "grandmaster" ? GRANDMASTER_BUDGET : policy === "superplus" ? SUPER_PLUS_BUDGET : policy === "super" ? SUPER_BUDGET : MASTER_BUDGET) };
   if (sea) b.leaf = SEA_LEAF;
   // Rush in Seafarers: a Seafarers future costs ~3x an island one, so 250 ms buys only a handful on a phone (measured 9 on a busy
@@ -39,7 +45,9 @@ export const budgetFor = (policy, rush = false, sea = false) => {
 };
 // v1.17 Rush: a bot moves every 1-2 s while the dice clock runs, so its search gets a small cap (the 7's robber too; set-up has no clock
 // and keeps the full budget). Master and Super Expert search alike there (a Super Expert's longer look-ahead needs the time it doesn't get).
-export const RUSH_BUDGET = { n: 100, timeMs: 250, depth: 8, setupDepth: 12 };
+// v1.42 a fixed 20 futures a move (the Grandmaster 40), what a phone did in the old quarter second (estimate), as in the Rush ratings;
+// the emergency brake 1.5 s (the dice clock runs).
+export const RUSH_BUDGET = { n: 100, timeMs: 20, rollClock: true, depth: 8, setupDepth: 12, wallCapMs: 1500, capMs: 250 };
 export const isSearchPolicy = (policy) => policy === "master" || policy === "super" || policy === "superplus" || policy === "grandmaster";
 /** The policies with the Super Expert's long search (3 s, 14 turns). */
 export const isSuperPolicy = (policy) => policy === "super" || policy === "superplus" || policy === "grandmaster";
@@ -160,9 +168,10 @@ export const MasterMixin = {
     const key = JSON.stringify([kind, player.id, pos, trk, this.turnSerial]);
     const opts = budgetFor(player.strategy?.policy, this.isRush() && !this.setupPhase, !!this.sea);
     const msg = { type: "decide", kind, state, trk, turnSerial: this.turnSerial, seat: player.id, opts };
-    const cap = kind === "setup" && opts.setupTimeMs ? opts.setupTimeMs : opts.timeMs; // eng-130: a set-up spot may have its own budget
-    if (player.strategy?.policy === "grandmaster") return { key, cap, send: () => grandmasterRequest(msg, Math.max(ASK_TIMEOUT_MS, cap + 3000)) };
-    return { key, cap, send: () => masterRequest(msg, Math.max(ASK_TIMEOUT_MS, cap + 3000)) };
+    const cap = opts.capMs ?? opts.timeMs; // v1.42 the expected think time (the "thinking" ring); the budget itself is work, not time
+    const wait = Math.max(ASK_TIMEOUT_MS, (opts.wallCapMs || cap) + 3000); // the emergency brake plus the worker's own overhead
+    if (player.strategy?.policy === "grandmaster") return { key, cap, send: () => grandmasterRequest(msg, wait) };
+    return { key, cap, send: () => masterRequest(msg, wait) };
   },
   /** Right after a Master's roll: start its first main-phase search during the usual pause before a bot
    *  acts (the answer is used only if nothing changed in between). */

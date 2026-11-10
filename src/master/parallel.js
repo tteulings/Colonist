@@ -46,26 +46,32 @@ export async function parallelDecide(send, W, msg) {
   if (preps.some((x) => x.K !== P0.K || x.sig !== P0.sig)) { done(); return null; } // the workers disagree on the moves: never mix
   const K = P0.K;
   const NB = o.nPer ? o.nPer * K : o.n;
-  const deadline = o.timeMs ? t0 + o.timeMs : Infinity;
+  // v1.42 o.rollClock: timeMs counts rollouts (a fixed amount of work, as in search0); o.wallCapMs: the real-time emergency brake
+  let used = 0;
+  const RC = !!o.rollClock;
+  const c0 = RC ? 0 : t0;
+  const deadline = o.timeMs ? c0 + o.timeMs : Infinity, wallEnd = o.wallCapMs ? t0 + o.wallCapMs : Infinity;
   const vals = Array.from({ length: K }, () => []), vps = Array.from({ length: K }, () => []), seatW = o.seats ? Array.from({ length: K }, () => []) : null;
   const rounds = [];
-  let used = 0, stop = "n", first = true;
+  let stop = "n", first = true;
   const R = o.noHalve ? 1 : Math.max(1, Math.ceil(Math.log2(K)));
   let alive = Array.from({ length: K }, (_, i) => i), j0 = 0;
   try {
     for (let r = 0; r < R && alive.length; r++) {
       const per = o.timeSlice ? 1e9 : Math.max(1, Math.floor((NB / R) / alive.length));
-      const sliceEnd = o.timeSlice && o.timeMs ? t0 + o.timeMs * (r + 1) / R : Infinity;
+      const sliceEnd = o.timeSlice && o.timeMs ? c0 + o.timeMs * (r + 1) / R : Infinity;
       // work queue (no barrier inside a round): every worker takes the next C futures as soon as it is free, so a slow or busy
       // core never holds the others up; the round ends when the futures, the budget or the time run out (or the early stop)
       let j = j0, roundStop = null, failed = false, doneF = 0;
-      const end = Math.min(deadline, sliceEnd);
+      const end = Math.min(deadline, sliceEnd); // (rollouts with rollClock, else ms)
+      const msEnd = RC ? wallEnd : Math.min(end, wallEnd); // what a worker may spend in real time
       const C = Math.max(1, o.chunk || 2);
       const A = alive.slice();
       const take = () => {
         if (roundStop || failed || j >= j0 + per) return null;
         if (used + (j - j0 - doneF) * A.length >= NB * 1.05) return null; // budget (counting what is out at the workers)
-        if (j >= j0 + 2 && now() > end) { roundStop = now() > deadline ? "time" : "slice"; return null; }
+        const cnow = RC ? used + (j - j0 - doneF) * A.length : now(); // rollClock: the work out at the workers counts already
+        if (j >= j0 + 2 && (cnow >= end || now() > wallEnd)) { roundStop = cnow >= deadline || now() > wallEnd ? "time" : "slice"; return null; }
         const left = Math.min(j0 + per - j, Math.ceil((NB * 1.05 - used) / A.length) - (j - j0 - doneF));
         const n = Math.max(1, Math.min(C, left));
         const js = Array.from({ length: n }, (_, q) => j + q);
@@ -74,13 +80,13 @@ export async function parallelDecide(send, W, msg) {
       };
       const worker = async (w) => {
         for (let js = take(); js; js = take()) {
-          const budgetMs = Number.isFinite(end) ? Math.max(0, end - now()) : Infinity;
+          const budgetMs = Number.isFinite(msEnd) ? Math.max(0, msEnd - now()) : Infinity;
           const x = await send(w, { type: "srun", sid, alive: A, js, budgetMs, force: first || js[0] < j0 + 2 });
           if (!x || x.type === "error") { failed = true; return; }
           first = false;
           for (let q = 0; q < x.done; q++) { const jj = js[q]; A.forEach((k, ai) => { vals[k][jj] = x.vals[ai][q]; vps[k][jj] = x.vps[ai][q]; if (seatW && x.seats) seatW[k][jj] = x.seats[ai][q]; }); }
           doneF += js.length; used += x.done * A.length;
-          if (x.done < js.length && !roundStop) roundStop = now() > deadline ? "time" : "slice";
+          if (x.done < js.length && !roundStop) roundStop = now() > wallEnd || (!RC && now() > deadline) ? "time" : "slice";
           if (!roundStop && o.earlyZ && A.length >= 2) {
             let c = 0; for (const v of vals[A[0]]) if (v != null) c++;
             if (c >= (o.earlyMin || 40) && earlyLead(A, vals, o.earlyZ, o.earlyMin || 40)) roundStop = "early";
