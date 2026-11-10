@@ -168,8 +168,8 @@ const AI_PRESETS = {
   // bot-125 (working name "Super Expert+"): the Super Expert's search, scored at the end of every playout by the boosted value model (leaf "gbm")
   superplus:    { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "superplus" },
 };
-// eng-130 "Grandmaster": the Super Expert+ search on several cores at once (src/master/parallel.js). Not released yet: a preset only
-// behind the flag (bot-profiles.js gmFlag: ?gm=1 or localStorage colonist.gm = "1")
+// eng-130 "Grandmaster": the Super Expert+ search on several cores at once (src/master/parallel.js). v1.39 released (bot-profiles.js
+// gmFlag: on unless ?gm=0 or localStorage colonist.gm = "0")
 const GM_PRESET = { placement: "complex", expansion: "complex", trading: "balanced", devCards: "strategic", awareness: "advanced", policy: "grandmaster" };
 if (gmFlag()) AI_PRESETS.grandmaster = { ...GM_PRESET };
 

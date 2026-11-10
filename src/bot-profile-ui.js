@@ -3,7 +3,7 @@
 // Texts and illustrations live in bot-profiles.js; this file only builds DOM strings and wires the sheet.
 import { BOT_PROFILES as P, profileArt, profileMini, levelFrame } from "./bot-profiles.js";
 import { avatarSvg } from "./themes/manager.js";
-import { winOf } from "./bot-stats.js";
+import { winOf, BOT_STATS } from "./bot-stats.js";
 export { byStrength } from "./bot-stats.js"; // lab-131: picker order
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -24,6 +24,8 @@ export const dots = (n, cls = "bp-dots", beyond = false) => `<span class="${cls}
 export function strengthLine(key) {
   const p = P[key];
   const w = winOf(key); // bot-125: the search bots read their measured figure from bot-stats.js
+  const h = BOT_STATS[key]?.h2h; // v1.39 Grandmaster: measured head to head with the Super Expert+
+  if (key === "grandmaster" && w.label !== "measured" && h?.gm != null) return `<span class="bp-win">Wins <b>${Math.round(h.gm)}%</b> head to head vs the Super Expert+ (${Math.round(h.sp)}%) <span class="bp-fair">(+${Math.round(h.diff)} pts ±${Math.round(h.diffci)})</span></span>`;
   if (key === "master" || isSuperKey(key)) return w.label === "measured" ? `<span class="bp-win">Wins <b>${Math.round(w.v)}%</b> vs 3 Intermediate bots <span class="bp-fair">(fair share 25%)</span></span>` : `<span class="bp-win">Win figure <b>not measured yet</b></span>`;
   return p.win ? `<span class="bp-win">Wins <b>${Math.round(p.win.p)}%</b> vs 3 Intermediate bots <span class="bp-fair">(fair share 25%)</span></span>` : "";
 }

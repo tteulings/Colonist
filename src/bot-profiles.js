@@ -17,10 +17,10 @@ import { botBand } from "./review/bands.js";
 export const BOT_STRENGTH_SOURCE = "One bot vs 3 Intermediate bots, 4 players, 10 VP, 2000 games (500 seeds x 4 seats), v1.03 code. Equal bots win 25% each.";
 
 /** level: 1–5 dots (from the measured win rate), win: { p, ci } vs 3 Intermediate, acc: [review accuracy, SE] from src/review/bands.js */
-/** eng-130 Grandmaster is not released yet: it shows in the picker and on the Bots page only with ?gm=1 (or localStorage
- *  colonist.gm = "1"). */
+/** v1.39 Grandmaster is released: in the picker, the AI Lab and on the Bots page. Kill switch for support: ?gm=0 or localStorage
+ *  colonist.gm = "0" hides it again. */
 export function gmFlag() {
-  try { return (typeof location !== "undefined" && /[?&]gm=1\b/.test(location.search || "")) || (typeof localStorage !== "undefined" && localStorage.getItem("colonist.gm") === "1"); } catch (_) { return false; }
+  try { return !((typeof location !== "undefined" && /[?&]gm=0\b/.test(location.search || "")) || (typeof localStorage !== "undefined" && localStorage.getItem("colonist.gm") === "0")); } catch (_) { return true; }
 }
 export const BOT_PROFILES = {
   beginner: {
@@ -120,13 +120,13 @@ export const BOT_PROFILES = {
   grandmaster: {
     label: "Grandmaster", tagline: "Super Expert+ on every core", level: 5, beyond: true, win: null, acc: null,
     style: "The Super Expert+ search (the learned position score at the end of every future, 14 turns ahead, 18 in set-up, about 3 s a move), run on several cores of your phone at once, each playing its own share of the futures. In the same 3 seconds it plays about three times as many futures as the Super Expert+.",
-    good: "More futures per move than any other bot in the same time, so its choices rest on more evidence, mostly in close calls.",
-    weak: "Slow, like the Super Expert: about 3 seconds a move, and it keeps several cores busy meanwhile (more battery). In Rush it has a quarter of a second a move. With 5–6 players the same time buys fewer futures. Player trades are the Expert's own.",
+    good: "The strongest bot: head to head with the Super Expert+ (and 2 Experts) at the app's 3 s a move, it won 48.0% of the games against 25.0% for the Super Expert+ (+23 points, ±15, 100 games with every seat order). It plays about twice as many futures per move in the same time, so its choices rest on more evidence, mostly in close calls.",
+    weak: "Slow, like the Super Expert: about 3 seconds a move, and it keeps up to 3 cores busy meanwhile: more battery, and a long game can warm the phone. On a phone with few cores it searches on one, like the Super Expert+. In Rush it has a quarter of a second a move. With 5–6 players the same time buys fewer futures. Player trades are the Expert's own.",
     beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
     trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
     robber: "Searched: it tries the tiles (and in Seafarers the pirate's sea hexes) and keeps the one that pays off best in many playouts.",
     cards: "Strategic, like the Expert; whether to play a card is part of the search.",
-    note: "Its strength in the app comes from the number of futures it gets in 3 s; measured as the Super Expert+ search with that many futures.",
+    note: "Measured head to head with the Super Expert+ at the app setting: the 3 s on a phone counted in futures (Super Expert+ 545, Grandmaster 1090, the futures each got in 1 s on an idle 4-core desktop, a phone taken as 3x slower: an estimate). Against 3 Intermediates it is not measured. Battery and heat: while it thinks it uses up to 3 cores for 3 s a move; set a weaker bot for long sessions on battery.",
   },
   // bot-125 (working name): the Super Expert's search with the boosted value model as its position score. Measured like the Super Expert.
   superplus: {
