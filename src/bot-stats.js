@@ -48,7 +48,10 @@ export const BOT_STATS = {
       src: "No time limit (fixed budget); in the app it stops at 3 s. Paired with the Expert on the same boards: +32.5 pp (±5.9)." },
   },
   grandmaster: {
-    win: { v: null, ci: null, label: "unknown" },
+    // v1.39 not measured against 3 Intermediates; measured head to head with the Super Expert+ (eng-130 E1 v2, scratchpad eng130/h/gm-app2)
+    win: { v: null, ci: null, label: "unknown",
+      src: "Not measured against 3 Intermediates. Head to head with the Super Expert+ and 2 Experts at one table, Classic island, 4 players, 10 VP, every seat order with the two swapped (100 games), both at the app setting counted in futures (Grandmaster 1090, Super Expert+ 545 a move): Grandmaster won 48.0% (±9.8), Super Expert+ 25.0% (±8.5), the Experts 13.5% a seat; Grandmaster minus Super Expert+ +23.0 pp (±14.9 over 50 seat-swapped pairs); it finished above the Super Expert+ in 59.0% (±9.6)." },
+    h2h: { n: 100, gm: 48.0, gmci: 9.8, sp: 25.0, spci: 8.5, diff: 23.0, diffci: 14.9, higher: 59.0, higherci: 9.6, setup: "h2hGM", code: "v1.31 engine (eng-130)", date: "2026-11-10", label: "measured" },
   },
   superplus: {
     win: { v: 71.5, ci: 4.4, n: 400, setup: "vs3intFixed", code: "v1.28 engine (bot-125)", date: "2026-11-09", label: "measured",

@@ -127,7 +127,7 @@ t("budgetFor: Super Expert+ = Super Expert + leaf gbm; Rush = RUSH_BUDGET + leaf
   assert.ok(M.isSearchPolicy("superplus") && M.isSearchPolicy("super") && M.isSearchPolicy("master") && !M.isSearchPolicy("score"));
 });
 t("Grandmaster (eng-130): own policy and chip, the Super Expert+ budget with a higher rollout cap, several workers, Seafarers leaf, own frame and mini", () => {
-  assert.equal(AI_PRESETS.grandmaster, undefined); // not released: only behind the flag
+  assert.equal(AI_PRESETS.grandmaster, undefined); // added after the literal, behind gmFlag (on by default since v1.39)
   assert.match(src, /if \(gmFlag\(\)\) AI_PRESETS\.grandmaster = \{ \.\.\.GM_PRESET \}/);
   const GP = { ...AI_PRESETS, grandmaster: { placement: "complex", expansion: "complex", trading: "balanced", devCards: "strategic", awareness: "advanced", policy: "grandmaster" } };
   assert.equal(presetHighlight([{ ...GP.grandmaster }], GP, AXES).active, "grandmaster");
