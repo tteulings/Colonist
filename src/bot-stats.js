@@ -78,6 +78,7 @@ export const MODE_STATS = {
   sea: {
     expert: { v: 30.5, ci: 6.4, n: 200, setup: "modeSea", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured" },
     master: { v: 52.5, ci: 6.9, n: 200, setup: "modeSea", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 22.0, "ci": 9.0, "n": 200}, src: "Same boards and seats as the Expert: +22.0 pp (±9.0)." },
+    superplus: { v: 70.0, ci: 9.0, n: 100, setup: "modeSea", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 46.0, "ci": 11.6, "n": 100}, src: "25 boards x 4 seats (100 games, a run of half the size: a Seafarers game with its full search takes ~4 min). Same boards and seats as the Expert: +46.0 pp (±11.6)." },
   },
 };
 
