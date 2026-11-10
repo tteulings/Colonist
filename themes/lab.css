@@ -11,9 +11,9 @@ body.lab { overflow: auto; margin: 0; font-family: var(--font-body); color: var(
 .lb-board { scroll-margin-top: 56px; position: relative; height: min(56vh, 380px); border-radius: var(--panel-radius, 14px); overflow: hidden; background: var(--sea-bg); background-image: var(--sea-image); border: var(--panel-border); }
 .lb-board iframe { width: 100%; height: 100%; border: 0; display: block; }
 .lb-busy { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--float); border: var(--float-border); border-radius: 12px; padding: 8px 14px; font-weight: 650; box-shadow: var(--float-shadow); }
-/* watched quick game: a calm caption over the board */
-.lb-watch { position: absolute; left: 8px; right: 8px; top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; pointer-events: none;
-  background: var(--float); border: var(--float-border); border-radius: 12px; box-shadow: var(--float-shadow); padding: 5px 10px; font-size: 12px; }
+/* lab-137 the run's progress: a compact bar ABOVE the board (never over it) */
+.lb-watch { position: relative; display: flex; align-items: center; gap: 6px; min-height: 40px; max-height: 52px; box-sizing: border-box; scroll-margin-top: 120px;
+  background: var(--float); border: var(--float-border); border-radius: 12px; padding: 4px 6px 4px 10px; font-size: 12px; margin-bottom: 6px; }
 .lb-watch b { font-family: var(--font-display); font-weight: var(--display-weight); font-variant-numeric: tabular-nums; }
 .lb-wt { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .lb-wseats { display: flex; gap: 8px; margin-left: auto; }
@@ -21,8 +21,28 @@ body.lab { overflow: auto; margin: 0; font-family: var(--font-body); color: var(
 .lb-ws i { width: 10px; height: 10px; border-radius: 50%; background: var(--seat); }
 .lb-ws.me i { box-shadow: 0 0 0 2px var(--float, #fff), 0 0 0 3.5px var(--seat); }
 .lb-ws.won { text-decoration: underline 2px var(--seat); text-underline-offset: 3px; }
-.lb-winfo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0; }
-.lb-wstop { pointer-events: auto; border: var(--btn-border); background: var(--btn); color: var(--ink); border-radius: 999px; padding: 3px 10px; min-height: 28px; font-weight: 700; font-size: 12px; }
+.lb-winfo { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.25; }
+.lb-winfo .lb-wt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-wstop { pointer-events: auto; border: var(--btn-border); background: var(--btn); color: var(--ink); border-radius: 999px; padding: 3px 10px; min-height: 36px; min-width: 40px; font-weight: 700; font-size: 12px; white-space: nowrap; }
+/* lab-137 under the board: each seat's bot and points in its colour (the leader outlined), then the last move */
+.lb-score { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 4px; margin-top: 6px; }
+.lb-ss { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 4px 7px; border-radius: 10px; background: var(--float); border: 2px solid transparent; font-size: 12px; }
+.lb-ss i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--seat); }
+.lb-ss .lb-scn { flex: 1; font-weight: 600; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.lb-ss b { font-variant-numeric: tabular-nums; font-size: 13px; }
+.lb-ss.lead { border-color: var(--seat); }
+.lb-ss.won { border-color: var(--seat); background: color-mix(in srgb, var(--seat) 14%, var(--float)); }
+.lb-last { margin: 4px 2px 0; color: var(--ink-soft); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* lab-137 full screen: the normal game screen (index.html?lab=watch) under a thin lab bar */
+.lb-full { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: var(--bg); }
+.lb-full[hidden] { display: none; }
+.lb-fbar { position: relative; flex: none; height: 48px; display: flex; align-items: center; gap: 6px; padding: 0 8px; padding-top: env(safe-area-inset-top); background: var(--float); border-bottom: var(--float-border); font-size: 12px; box-sizing: content-box; }
+.lb-finfo { flex: 1; min-width: 0; line-height: 1.2; }
+.lb-finfo span { display: block; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-fspeed { flex: none; }
+.lb-fbar .lb-fspeed { flex: none; display: inline-flex; width: auto; }
+.lb-fbar .lb-fspeed button { flex: none; min-height: 36px; min-width: 36px; padding: 0 5px; font-size: 12px; overflow: visible; text-overflow: clip; }
+.lb-full iframe { flex: 1; width: 100%; border: 0; display: block; }
 .lb-faded { opacity: .55; transition: opacity .3s; }
 /* lab-131: the run's progress lives in the caption (bar along its foot); Instant dims the board; idle: a quiet label */
 .lb-watch { overflow: hidden; }
@@ -30,7 +50,7 @@ body.lab { overflow: auto; margin: 0; font-family: var(--font-body); color: var(
 .lb-wbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s; }
 .lb-wthink { color: var(--ink); font-weight: 650; }
 .lb-board.lb-blind iframe { opacity: .35; filter: saturate(.4); transition: opacity .3s; }
-.lb-watch.lb-widle { right: auto; box-shadow: none; opacity: .92; }
+.lb-watch.lb-widle { min-height: 0; opacity: .92; }
 .lb-tools { display: grid; gap: 6px; margin-top: 8px; }
 .lb-seats { display: flex; gap: 5px; flex-wrap: wrap; }
 .lb-seats button { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 6px; border-radius: 999px; background: var(--chip); border: var(--chip-border); font-size: 12px; font-weight: 650; min-height: 30px; }
