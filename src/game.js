@@ -1860,11 +1860,18 @@ class ColonistFullGame {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner) return;
     if (this.phase !== "pre_roll" || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return;
+    // v1.32: one roll per turn. A second Roll while the dice still turn (the R key, a direct call) started a second animation whose
+    // roll could land after End turn, in the next player's turn ("You rolled" twice, a robber left pending: the game hung)
+    if (this._humanRolling === this.gameGen) return;
+    this._humanRolling = this.gameGen;
+    const turnSerial = this.turnSerial;
     this._dropUndo();
     this.devPlayed = null;
     this.trayMode = null;
     if (this.rollDiceBtn) this.rollDiceBtn.disabled = true;
     this.animateDiceRoll(() => {
+      this._humanRolling = null;
+      if (this.currentPlayer !== player || this.turnSerial !== turnSerial) return; // the turn moved on meanwhile: this roll is void
       this.executeRollPhase(player);
       this.saveToStorage();
       this.render();
@@ -8938,7 +8945,7 @@ class ColonistFullGame {
     this.app?.classList.toggle("opp-turn", oppTurn);
     if (rollBtn) {
       rollBtn.style.display = !rushOn && !inSetup && humanTurn && preRoll && !robberBlocking ? "inline-flex" : "none";
-      rollBtn.disabled = inSetup || !(humanTurn && preRoll) || robberBlocking;
+      rollBtn.disabled = inSetup || !(humanTurn && preRoll) || robberBlocking || this._humanRolling === this.gameGen; // v1.32: not while the dice turn
     }
     if (endBtn) {
       endBtn.style.display = !rushOn && humanTurn && mainPhase && !inSetup && !robberBlocking ? "inline-flex" : "none";
