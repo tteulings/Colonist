@@ -1196,6 +1196,27 @@ export const LabMixin = {
     return true;
   },
 
+  // ── lab-137 watching a lab game full screen: index.html?lab=watch is the normal game screen as a spectator. The lab
+  //    page hands it the game's position every turn (_watchShow); nothing is played or saved here, no hand, no menu. ──
+  _watchBoot() {
+    this.home?.close();
+    this.onboarding?.close();
+    this._cancelPendingWork();
+    this.onboardingHold = true; // no bot moves of its own
+    this._spectate = true;
+  },
+  /** Show a lab game's position (serializeState(), every seat a bot, the bots' names already in it). */
+  _watchShow(state) {
+    this.onboardingHold = true;
+    this.loadFromStorage(state);
+    this.players.forEach((p) => { p.isHuman = false; });
+    this._cancelPendingWork();
+    this.onboardingHold = true;
+    this.uiPaused = false;
+    this.render();
+    return true;
+  },
+
   /** Seat summary of the sim game for the lab's caption. */
   _labSimInfo() {
     return { turn: this.turn, winner: this.winner ? this.winner.id : null,

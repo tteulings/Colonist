@@ -96,7 +96,7 @@ export const NavMixin = {
     this._navSoon();
   },
   _navInstall() {
-    if (this._nav || typeof history?.pushState !== "function" || document.documentElement.dataset.lab) return;
+    if (this._nav || typeof history?.pushState !== "function" || document.documentElement.dataset.lab || document.documentElement.dataset.labwatch) return;
     const N = (this._nav = { at: history.state?.nav ?? 0, busy: false, t: 0, guardOff: 0 });
     if (history.state?.nav == null) history.replaceState({ ...(history.state || {}), nav: 0 }, "");
     addEventListener("popstate", (e) => this._navPop(e));

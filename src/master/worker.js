@@ -86,8 +86,12 @@ function playGame(m) {
   };
   agents.forEach((a, i) => {
     if (!a) return;
-    ["decideSetup", "decideMain", "decideRobber"].forEach((f, fi) => { const o = a[f]; a[f] = (...x) => { decisions += 1; tell(i); const d = o(...x); script.push([i, fi, d ? d.choice : null]); return d; }; });
+    ["decideSetup", "decideMain", "decideRobber"].forEach((f, fi) => { const o = a[f]; a[f] = (...x) => { decisions += 1; tell(i); quiet += 1; let d; try { d = o(...x); } finally { quiet -= 1; } script.push([i, fi, d ? d.choice : null]); return d; }; });
   });
+  // lab-137: the game log of the real moves (not the searches' imagined futures), so a watched game has its ticker
+  const noLog = g.addLog;
+  let quiet = 0;
+  if (m.watch) g.addLog = (text, meta = null) => { if (!quiet) { g.logEntries.push({ text, meta, time: Date.now() }); if (g.logEntries.length > 80) g.logEntries.splice(0, 30); } return 0; };
   try {
     g._labSimStart(m.strategies, { players: m.strategies.length, map: m.map || "random", seed: m.seed, agents });
     let r = { done: false };
@@ -95,7 +99,7 @@ function playGame(m) {
     while (!r.done) { r = g._labSimStep(1); if (!r.done) tell(null); }
     return { winner: r.winner, turns: r.turns, vp: g.players.map((p) => p.victoryPoints), ms: Math.round(performance.now() - t0), script,
       stats: agents.map((a) => (a ? { d: a.stats.decisions, dev: a.stats.deviations, ms: a.stats.ms } : null)) };
-  } finally { Math.random = orig; g.players.forEach((p) => { p.agent = null; }); }
+  } finally { Math.random = orig; g.players.forEach((p) => { p.agent = null; }); g.addLog = noLog; }
 }
 
 self.onmessage = (e) => {

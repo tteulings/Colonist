@@ -11,12 +11,12 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=136";
-import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=136";
-import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=136";
-import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=136";
-import { byStrength } from "./bot-stats.js?v=136";
-import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=136";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=137";
+import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=137";
+import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=137";
+import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=137";
+import { byStrength } from "./bot-stats.js?v=137";
+import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=137";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -731,21 +731,66 @@ function renderHist() {
   $("#labDelRuns").addEventListener("click", () => { runs = runs.filter((r) => !picked.has(r.id)); picked.clear(); put(RKEY, runs); renderHist(); });
 }
 
-// Caption over the board. lab-131: during a run it is THE progress line (game k/N, done, turn, who is thinking, a bar,
-// Stop), whatever the speed, so board and progress are on screen together; the board follows the game only in Watch
-// (in Instant it is dimmed). Before a run, on the Tournament pane, it says what the board is (your Analysis board).
+// lab-137 The run's progress is a compact bar ABOVE the board (game k/N, done, turn, who is thinking, time, Full screen,
+// Stop); under the board each seat's bot and points in its colour (the leader outlined) and the last move. Before a run,
+// on the Tournament pane, the bar says what the board is (your Analysis board). Watch full screen shows the same game on
+// the normal game screen (index.html?lab=watch, a spectator) under a thin lab bar.
 const mmss = (ms) => { const t = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+const shortOf = (k) => ({ superplus: "Super+", super: "Super", grandmaster: "Grandm.", mix: "Mix", intermediate: "Interm." }[k] || labelOf(k));
+/** The bots' names for a seat list (the same bot twice: "Expert", "Expert 2"). */
+function seatNames(keys, short = false) {
+  const seen = {};
+  return keys.map((k) => { const l = short ? shortOf(k) : labelOf(k); seen[l] = (seen[l] || 0) + 1; return seen[l] > 1 ? `${l} ${seen[l]}` : l; });
+}
+const LOG_NOISE = /^(Session restored|Initial placement complete|Game (saved|loaded))/; // (the lab's own loads, not moves)
+/** A log line with the sim seats' names replaced by the bots' names. */
+const renameText = (t, old, names) => old.reduce((x, o, i) => (o && o !== names[i] ? x.split(o).join(names[i]) : x), String(t || ""));
+/** The watched game's position for the full-screen page: bots' names (panels and ticker), every seat a bot, no end screen. */
+function watchState(state, keys) {
+  const names = seatNames(keys), old = (state.players || []).map((p) => p.name);
+  (state.players || []).forEach((p, i) => { p.name = names[i] || p.name; p.isHuman = false; });
+  state.logEntries = (state.logEntries || []).filter((e) => !LOG_NOISE.test(e?.text || "")).map((e) => ({ ...e, text: renameText(e.text, old, names) }));
+  state.winnerId = null;
+  return state;
+}
+const full = { open: false, g: null, pending: null };
+const FULL_MS = { 1: 900, 2: 400, 4: 150 };
+const FULL_SPEEDS = [["1", "1×"], ["2", "2×"], ["4", "4×"]];
+/** Hand the full-screen page the game's position (stateOf: a function, called only when it is open). */
+function feedFull(stateOf) {
+  if (!full.open) return;
+  full.pending = stateOf;
+  if (!full.g) return;
+  try { full.g._watchShow(watchState(stateOf(), sim.curKeys || [])); } catch (e) { console.warn("lab full", e); }
+}
+async function openFull() {
+  const el = $("#labFull"), f = $("#labFullFrame");
+  if (!f.src) f.src = "./index.html?lab=watch";
+  if (st.speed !== "watch") { st.speed = "watch"; save(); renderTournamentSetup(); } // full screen is for watching: the games are paced
+  full.open = true; el.hidden = false;
+  document.body.classList.add("lb-fullon");
+  renderFullBar();
+  if (!full.g) { full.g = await waitEngine(f); if (full.pending) feedFull(full.pending); }
+}
+function closeFull() { full.open = false; $("#labFull").hidden = true; document.body.classList.remove("lb-fullon"); }
+function renderFullBar(head = "") {
+  if (!full.open) return;
+  seg($("#labFullSpeed"), FULL_SPEEDS, String(st.fullSpeed || 1), "fs", (v) => { st.fullSpeed = Number(v); save(); renderFullBar(head); });
+  $("#labFullInfo").innerHTML = sim.running || head ? `<b>Game ${sim.game}/${sim.n}</b> · ${sim.done} done<span>${esc(head)}</span>` : `<b>Run over</b><span>${sim.done} games played</span>`;
+  $("#labFull .lb-wbar i").style.width = `${(sim.done / Math.max(1, sim.n)) * 100}%`;
+}
 function renderWatch(g, final = null) {
-  const el = $("#labWatch"), board = $(".lb-board");
+  const el = $("#labWatch"), board = $(".lb-board"), score = $("#labScore"), lastEl = $("#labLast");
   renderLegend();
   const fade = (on) => document.querySelectorAll(".lb-read, .lb-tools").forEach((x) => x.classList.toggle("lb-faded", on));
   if (!sim.running && final === null) {
     board.classList.remove("lb-blind");
     fade(false);
     const idle = st.pane === "tournament";
-    el.hidden = !idle;
+    el.hidden = !idle; score.hidden = true; lastEl.hidden = true;
     el.classList.toggle("lb-widle", idle);
     if (idle) el.innerHTML = `<span class="lb-winfo"><b>Your Analysis board</b><span class="lb-wt">Start a run: with Watch, the games play here.</span></span>`;
+    renderFullBar();
     return;
   }
   el.classList.remove("lb-widle");
@@ -754,16 +799,30 @@ function renderWatch(g, final = null) {
   const vps = g ? g._labSimInfo().players.map((p) => p.vp) : live.vp || [];
   const turn = g ? g.turn : live.turn;
   const setup = g ? !!g.setupPhase : !!live.setup;
-  const seats = vps.map((vp, id) => `<span class="lb-ws${final != null && id === final ? " won" : ""}" style="--seat:${view.players[id]?.color || SEAT_COL(id)}" title="${esc(labelOf(keys[id] || ""))}"><i></i>${vp}</span>`).join("");
   const think = live.think != null && sim.slow ? `${labelOf(keys[live.think] || "")} thinking` : "";
   const head = final !== null ? (final < 0 ? "No winner" : `${labelOf(keys[final] || "?")} wins`)
     : turn == null ? "starting…" : setup ? "set-up" : `turn ${turn}`;
-  if (!el.querySelector(".lb-winfo") || el.querySelector(".lb-wbar") == null) el.innerHTML = `<span class="lb-winfo"></span><button type="button" class="lb-wstop" aria-label="Stop the tournament">Stop</button><span class="lb-wbar" aria-hidden="true"><i></i></span>`;
-  el.querySelector(".lb-winfo").innerHTML = `<b>Game ${sim.game}/${sim.n}</b><span class="lb-wt">${sim.done} done · ${esc(head)}${think ? ` · <span class="lb-wthink">${esc(think)}</span>` : ""}${sim.gameT0 && final === null ? ` · ${mmss(performance.now() - sim.gameT0)}` : ""}</span><span class="lb-wseats">${seats}</span>`;
+  const time = sim.gameT0 && final === null ? mmss(performance.now() - sim.gameT0) : "";
+  const line = [head, think, time].filter(Boolean).join(" · ");
+  if (!el.querySelector(".lb-wbar")) el.innerHTML = `<span class="lb-winfo"></span><button type="button" class="lb-wstop" data-full aria-label="Watch the game full screen">Full screen</button><button type="button" class="lb-wstop" data-stop aria-label="Stop the tournament">Stop</button><span class="lb-wbar" aria-hidden="true"><i></i></span>`;
+  el.querySelector(".lb-winfo").innerHTML = `<b>Game ${sim.game}/${sim.n} <small class="lb-wt">· ${sim.done} done</small></b><span class="lb-wt">${esc(line)}</span>`;
   el.querySelector(".lb-wbar i").style.width = `${(sim.done / sim.n) * 100}%`;
   el.hidden = false;
+  // the score row: bot, points, the leader (or the winner) outlined
+  const names = seatNames(keys, true), top = Math.max(0, ...vps);
+  score.style.setProperty("--n", String(vps.length || 4));
+  score.innerHTML = vps.map((vp, id) => `<span class="lb-ss${final != null && id === final ? " won" : final == null && vp === top && vps.filter((x) => x === top).length === 1 ? " lead" : ""}" style="--seat:${view.players[id]?.color || SEAT_COL(id)}" title="${esc(labelOf(keys[id] || ""))}"><i></i><span class="lb-scn">${esc(names[id] || "")}</span><b>${vp}</b></span>`).join("");
+  score.hidden = !vps.length;
+  // the last move, in the bots' names
+  const logs = g ? g.logEntries : live.state?.logEntries;
+  const oldNames = g ? g.players.map((p) => p.name) : (live.state?.players || []).map((p) => p.name);
+  const lastLog = (logs || []).slice().reverse().find((x) => x && x.text && !LOG_NOISE.test(x.text));
+  const lastText = lastLog ? renameText(lastLog.text, oldNames, seatNames(keys)) : "";
+  lastEl.textContent = final !== null ? head : lastText;
+  lastEl.hidden = !lastEl.textContent;
   board.classList.toggle("lb-blind", !sim.watching);
   fade(true);
+  renderFullBar([final !== null ? head : turn == null ? "starting…" : setup ? "set-up" : `turn ${turn}`, think, time].filter(Boolean).join(" · "));
 }
 
 // ── lab-131 the games of the last run: kept (src/lab-games.js), opened on the real Replay / review, and reviewed one by one ──
@@ -863,10 +922,10 @@ async function runTournament(over = {}) {
   let saved = null; // your board while games are watched
   const watchOn = () => st.speed === "watch" && !!view;
   const hold = () => { if (!saved) { saved = view.serializeState(); sim.watching = true; } }; // keep your Analysis board to put back
-  // lab-131: the board (with the progress caption over it) comes into view at Start, whatever the speed
-  const br = $(".lb-board").getBoundingClientRect();
-  if (br.top < 100 || br.bottom > innerHeight) $(".lb-board").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  // lab-137: the progress bar, the board and the scores come into view at Start, whatever the speed
   renderWatch(null);
+  const br = $("#labWatch").getBoundingClientRect();
+  if (br.top < 100 || $("#labLast").getBoundingClientRect().bottom > innerHeight) $("#labWatch").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   let slowGames = 0;
   try {
     for (let i = 0; i < cfg.n && sim.running; i += 1) {
@@ -889,6 +948,7 @@ async function runTournament(over = {}) {
           if (watchOn() && p.state && performance.now() - lastDraw > 250) {
             lastDraw = performance.now();
             try { hold(); g.loadFromStorage(p.state); g.gameGen = 1e6 + i; view._labWatch(g, first); first = false; } catch (e) { console.warn("lab watch", e); }
+            feedFull(() => p.state);
           } else if (!watchOn() && sim.watching) { sim.watching = false; }
           renderWatch(null); renderStand();
         });
@@ -914,8 +974,9 @@ async function runTournament(over = {}) {
             hold();
             if (!shown) { view._labWatch(g, true); shown = true; }
             else { r = g._labSimStep(1); view._labWatch(g); }
+            feedFull(() => g.serializeState());
             renderWatch(g);
-            await sleep(TURN_MS);
+            await sleep(full.open ? FULL_MS[st.fullSpeed || 1] || 900 : TURN_MS);
           } else {
             sim.watching = false;
             r = g._labSimStep(12);
@@ -930,7 +991,7 @@ async function runTournament(over = {}) {
         sim.done += 1; sim.msTotal += performance.now() - t0;
         await keep(sim.results.length - 1).catch((e) => { sim.unkept += 1; console.warn("lab keep", e); });
         renderStand(); renderTournamentSetup();
-        if (watchOn() && sim.running) { view._labWatch(g); renderWatch(g, r.winner ?? -1); await sleep(i + 1 < cfg.n ? 900 : 1400); }
+        if (watchOn() && sim.running) { view._labWatch(g); feedFull(() => g.serializeState()); renderWatch(g, r.winner ?? -1); await sleep(i + 1 < cfg.n ? 900 : 1400); }
       } catch (e) { sim.errors += 1; recordOn(g, false); console.error("tournament game failed", e); }
     }
   } finally {
@@ -996,7 +1057,12 @@ function setPane(p) {
   $("#labPick").addEventListener("click", (e) => { if (e.target === $("#labPick")) closePick(); });
   $("#paneTournament").addEventListener("click", (e) => { const b = e.target.closest(".lb-ii"); if (b) { const t = document.getElementById(b.dataset.info); if (t) t.hidden = !t.hidden; } });
   $("#labMixBtn").addEventListener("click", () => { st.mix = mixable() ? myBot() : null; update(); });
-  $("#labWatch").addEventListener("click", (e) => { if (e.target.closest(".lb-wstop")) { sim.running = false; labGameCancel(); } });
+  $("#labWatch").addEventListener("click", (e) => {
+    if (e.target.closest("[data-full]")) { openFull(); return; }
+    if (e.target.closest("[data-stop]")) { sim.running = false; labGameCancel(); }
+  });
+  $("#labFullBack").addEventListener("click", closeFull);
+  $("#labFullStop").addEventListener("click", () => { if (sim.running) { sim.running = false; labGameCancel(); } else closeFull(); });
   $("#labTree").addEventListener("click", onTreeTap);
   $("#labResult").addEventListener("click", (e) => { if (e.target.closest("[data-contest]")) { findContested(); return; } const b = e.target.closest("[data-spot]"); if (b) selectSpot(Number(b.dataset.spot)); });
   $("#labStepStrip").addEventListener("click", onStepsTap);
@@ -1036,5 +1102,5 @@ function setPane(p) {
   } catch (e) { console.warn("lab last run", e); }
   // load the tournament engine while idle, so pressing Start never waits for it (it froze the page ~1 s)
   (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(preloadSim, { timeout: 4000 });
-  window.__lab = { ready: true, labStore, rev, steps, st, reach, selectSpot, findContested, ms, W: () => W, runTournament, runGames: (n, o = {}) => runTournament({ n, ...o }), newBoard, update, view: () => view, sim, runs: () => runs, tree, setPane, myBot, aggRows };
+  window.__lab = { ready: true, full, openFull, closeFull, labStore, rev, steps, st, reach, selectSpot, findContested, ms, W: () => W, runTournament, runGames: (n, o = {}) => runTournament({ n, ...o }), newBoard, update, view: () => view, sim, runs: () => runs, tree, setPane, myBot, aggRows };
 })();

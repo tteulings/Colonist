@@ -2931,3 +2931,6 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   .ng-actions button { flex: 1 1 0; }
   .ng-bot-desc { white-space: normal; }
 }
+
+/* lab-137 an AI Lab game watched full screen (index.html?lab=watch): a spectator, so no hand and no menu */
+html[data-labwatch] #handArea, html[data-labwatch] #menuBtn, html[data-labwatch] #mMenuBtn, html[data-labwatch] #toastStack { display: none !important; }

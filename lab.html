@@ -25,14 +25,14 @@
         d.dataset.theme = t;
       })();
     </script>
-    <link rel="stylesheet" href="./themes/base.css?v=136" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=136" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=136" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=136" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=136" />
-    <link rel="stylesheet" href="./themes/lab.css?v=136" />
-    <link rel="stylesheet" href="./themes/sunny-night.css?v=136" />
-    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=136" />
+    <link rel="stylesheet" href="./themes/base.css?v=137" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=137" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=137" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=137" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=137" />
+    <link rel="stylesheet" href="./themes/lab.css?v=137" />
+    <link rel="stylesheet" href="./themes/sunny-night.css?v=137" />
+    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=137" />
   </head>
   <body class="lab" data-pane="analysis">
     <header class="lb-top">
@@ -46,11 +46,13 @@
     </header>
     <main class="lb-main">
       <section class="lb-boardcol">
+        <div class="lb-watch" id="labWatch" aria-live="off" hidden></div>
         <div class="lb-board">
           <iframe id="labView" src="./index.html?lab=view" title="Lab board" tabindex="-1"></iframe>
           <div class="lb-busy" id="labBusy">Loading board…</div>
-          <div class="lb-watch" id="labWatch" aria-live="off" hidden></div>
         </div>
+        <div class="lb-score" id="labScore" hidden></div>
+        <p class="lb-last" id="labLast" aria-live="off" hidden></p>
         <p class="lb-legend" id="labLegend" hidden></p>
         <div class="lb-stepstrip" id="labStepStrip" hidden></div>
         <div class="lb-tools lb-only-a" role="toolbar" aria-label="Pieces">
@@ -126,6 +128,10 @@
     </dialog>
     <iframe id="labSim" title="Quick games" hidden tabindex="-1"></iframe>
     <iframe id="labRevFrame" title="Game review" hidden tabindex="-1"></iframe>
-    <script type="module" src="./src/lab.js?v=136"></script>
+    <div class="lb-full" id="labFull" role="dialog" aria-label="Watch the game full screen" hidden>
+      <div class="lb-fbar"><button type="button" class="lb-wstop" id="labFullBack" aria-label="Back to the lab">‹ Lab</button><span class="lb-finfo" id="labFullInfo"></span><div class="lb-seg lb-fspeed" id="labFullSpeed" role="radiogroup" aria-label="Speed"></div><button type="button" class="lb-wstop" id="labFullStop">Stop</button><span class="lb-wbar" aria-hidden="true"><i></i></span></div>
+      <iframe id="labFullFrame" title="The game, full screen" tabindex="-1"></iframe>
+    </div>
+    <script type="module" src="./src/lab.js?v=137"></script>
   </body>
 </html>
