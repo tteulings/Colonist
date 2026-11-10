@@ -73,7 +73,7 @@ export const ReviewLuckMixin = {
   /** Should the luck run now (after the people's own reviews, before the others' check)? */
   _lkWant() {
     const R = this._rv;
-    if (!R || R.lrun || !reviewAvailable() || this._lkNa()) return false;
+    if (!R || R.lrun || R.noLuck || !reviewAvailable() || this._lkNa()) return false; // (noLuck: the AI Lab's review of its own games)
     const L = this._lkStore();
     if (L.stopped) return false;
     return this._lkEvents().some((ev) => !L.res[keyOf(ev)]);
