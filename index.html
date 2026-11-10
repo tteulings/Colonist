@@ -75,7 +75,7 @@
     </script>
     <!-- v1.27: fetch the start-up modules in parallel (without these the browser only finds each import after parsing its parent: one round trip per level).
          Same URLs as the imports (game.js keeps its ?v=); a stale entry costs one extra fetch, a missing one only its head start. -->
-    <link rel="modulepreload" href="./src/game.js?v=133" />
+    <link rel="modulepreload" href="./src/game.js?v=134" />
     <link rel="modulepreload" href="./src/themes/manager.js" />
     <link rel="modulepreload" href="./src/themes/board-renderer.js" />
     <link rel="modulepreload" href="./src/themes/fx.js" />
@@ -224,22 +224,22 @@
     </script>
     <!-- v1.27: the stylesheets follow the splash, so the splash paints while they load (the app below still waits for them).
          Legacy styles sit in a low-priority cascade layer: the themed CSS below always wins -->
-    <style>@import url("./styles.css?v=133") layer(legacy);</style>
-    <link rel="stylesheet" href="./themes/base.css?v=133" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=133" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=133" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=133" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=133" />
-    <link rel="stylesheet" href="./themes/six.css?v=133" />
-    <link rel="stylesheet" href="./themes/seafarers.css?v=133" />
-    <link rel="stylesheet" href="./themes/hotseat.css?v=133" />
-    <link rel="stylesheet" href="./themes/stats.css?v=133" />
-    <link rel="stylesheet" href="./themes/review.css?v=133" />
-    <link rel="stylesheet" href="./themes/sunny-night.css?v=133" />
-    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=133" />
-    <link rel="stylesheet" href="./themes/profiles.css?v=133" />
-    <link rel="stylesheet" href="./themes/history.css?v=133" />
-    <link rel="stylesheet" href="./themes/bots.css?v=133" />
+    <style>@import url("./styles.css?v=134") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=134" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=134" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=134" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=134" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=134" />
+    <link rel="stylesheet" href="./themes/six.css?v=134" />
+    <link rel="stylesheet" href="./themes/seafarers.css?v=134" />
+    <link rel="stylesheet" href="./themes/hotseat.css?v=134" />
+    <link rel="stylesheet" href="./themes/stats.css?v=134" />
+    <link rel="stylesheet" href="./themes/review.css?v=134" />
+    <link rel="stylesheet" href="./themes/sunny-night.css?v=134" />
+    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=134" />
+    <link rel="stylesheet" href="./themes/profiles.css?v=134" />
+    <link rel="stylesheet" href="./themes/history.css?v=134" />
+    <link rel="stylesheet" href="./themes/bots.css?v=134" />
     <div class="app" id="app">
       <header class="topbar" id="topbar">
         <div class="brand">
@@ -472,7 +472,7 @@
     </div>
     <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=133"></script>
+    <script type="module" src="./src/game.js?v=134"></script>
     <script>
       // Updates: sw.js and its imports are never taken from the HTTP cache (updateViaCache), the
       // registration is re-checked whenever the app comes back to the foreground, and a new
@@ -481,7 +481,43 @@
       if ("serviceWorker" in navigator && !document.documentElement.dataset.lab) {
         const sw = navigator.serviceWorker;
         const hadController = !!sw.controller;
-        const offerUpdate = () => {
+        let regP = null; // the registration, once register() has run
+        // v1.34: the running version (settings-ui.js, already loaded) against the one a service worker brings
+        // (sw.js answers a "version" message from its CACHE name). A new worker after a cold launch that already
+        // ran the new files (sw.js is network-first) is no update. The question goes to the worker by message,
+        // never as a fetch: a fetch through the old worker while the new one waits to activate held the
+        // activation (and the next reload) back for ~25 s in Chromium (measured, upd134/tests/exp.js).
+        const runningV = () => import("./src/themes/settings-ui.js").then((m) => m.APP_VERSION).catch(() => null);
+        const askV = (w) => (!w ? Promise.resolve(null) : new Promise((done) => {
+          const ch = new MessageChannel();
+          const t = window.setTimeout(() => done(null), 3000);
+          ch.port1.onmessage = (e) => { window.clearTimeout(t); done((e.data && e.data.version) || null); };
+          try { w.postMessage({ type: "version" }, [ch.port2]); } catch (e) { window.clearTimeout(t); done(null); }
+        }));
+        const announce = (version) => {
+          window.__colonistUpdate = { version: version || null };
+          document.dispatchEvent(new CustomEvent("colonist:update", { detail: window.__colonistUpdate }));
+        };
+        // A reload while the new sw.js is still installing or activating can stall the navigation (measured:
+        // a blank page until the next reload): wait until the new worker is active (at most 8 s), then reload.
+        const swSettled = () => (regP ? regP.then((reg) => new Promise((done) => {
+          const w = reg.installing || reg.waiting || (reg.active && reg.active.state !== "activated" ? reg.active : null);
+          if (!w) return done();
+          const t = window.setTimeout(done, 8000);
+          const on = () => { if (w.state === "activated" || w.state === "redundant") { window.clearTimeout(t); done(); } };
+          w.addEventListener("statechange", on); on();
+        })).catch(() => {}) : Promise.resolve());
+        let reloading = false;
+        const reloadNow = (el) => {
+          if (reloading) return;
+          reloading = true;
+          if (el && el.classList) { el.classList.add("is-busy"); el.setAttribute("aria-busy", "true"); }
+          try { window.__colonistGame && window.__colonistGame.saveToStorage(); } catch (e) {}
+          swSettled().then(() => window.location.reload());
+        };
+        window.__colonistReload = reloadNow;
+        const offerUpdate = (version) => {
+          if (!window.__colonistUpdate || (version && !window.__colonistUpdate.version)) announce(version); // Home: "Update to vX.YY"
           if (document.getElementById("updateChip")) return;
           const chip = document.createElement("button");
           chip.type = "button"; chip.id = "updateChip"; chip.className = "update-chip";
@@ -490,10 +526,7 @@
           // v0.86: one word + a reload arrow; on phones it is a flex item at the end of the ticker row
           // (the journal line ellipsises to make room), so it never floats over the dice tray or the board
           chip.innerHTML = "<svg class=\"uc-ic\" viewBox=\"0 0 20 20\" aria-hidden=\"true\"><path d=\"M15.5 10a5.5 5.5 0 1 1-1.8-4.1\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\"/><path d=\"M14.6 1.8v4.6H10\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><b>Update</b>";
-          chip.addEventListener("click", () => {
-            try { window.__colonistGame && window.__colonistGame.saveToStorage(); } catch (e) {}
-            window.location.reload();
-          });
+          chip.addEventListener("click", () => reloadNow(chip));
           const place = () => {
             const row = document.querySelector("#mtop .tkrow");
             const inRow = !!row && row.offsetParent !== null;
@@ -505,14 +538,35 @@
           place();
           window.addEventListener("resize", place);
         };
+        // a service-worker signal: offer the update unless the new worker brings the version that already runs
+        const verify = (w) => Promise.all([runningV(), askV(w)]).then(([cur, dep]) => {
+          if (!dep || !cur) offerUpdate(dep && dep !== cur ? dep : null);
+          else if (dep !== cur) offerUpdate(dep);
+        });
         window.__colonistOfferUpdate = offerUpdate; // tests: show the chip without a second deploy
-        sw.addEventListener("controllerchange", () => { if (hadController) offerUpdate(); });
+        // Settings › Check for updates: ask for a new sw.js, then compare versions
+        window.__colonistCheckUpdate = async () => {
+          const reg = regP && await regP.catch(() => null);
+          const cur = await runningV();
+          if (!reg) return { current: cur, latest: null, ready: false };
+          let ok = true;
+          await reg.update().catch(() => { ok = false; });
+          const fresh = reg.installing || reg.waiting;
+          const dep = await askV(fresh || reg.active);
+          // a new worker is an update unless it says it brings this version; the active one only when it is newer
+          const ready = fresh ? !(dep && dep === cur) : !!(dep && cur && dep !== cur);
+          if (ready) offerUpdate(dep);
+          else if (window.__colonistUpdate) return { current: cur, latest: window.__colonistUpdate.version, ready: true };
+          return { current: cur, latest: ready ? dep : ok ? cur : null, ready };
+        };
+        sw.addEventListener("controllerchange", () => { if (hadController) verify(sw.controller); });
         window.addEventListener("load", () => {
-          sw.register("./sw.js", { updateViaCache: "none" }).then((reg) => {
+          regP = sw.register("./sw.js", { updateViaCache: "none" });
+          regP.then((reg) => {
             const watch = (worker) => worker && worker.addEventListener("statechange", () => {
-              if (worker.state === "installed" && sw.controller) offerUpdate();
+              if (worker.state === "installed" && sw.controller) verify(worker);
             });
-            if (reg.waiting && sw.controller) offerUpdate();
+            if (reg.waiting && sw.controller) verify(reg.waiting);
             watch(reg.installing);
             reg.addEventListener("updatefound", () => watch(reg.installing));
             const check = () => { reg.update().catch(() => {}); };
