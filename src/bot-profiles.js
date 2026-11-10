@@ -97,7 +97,7 @@ export const BOT_PROFILES = {
     label: "Master", tagline: "Expert + looks ahead", level: 5, win: { p: 55.6, ci: 3.4 }, acc: botBand("Master"),
     style: "Plays like the Expert, but before each set-up spot, build step and robber move it plays out about 100 possible futures (up to half a second) and picks what wins most.",
     good: "Wins 55.6% against 3 Intermediate bots (±3.4, 800 games), 14.8 percentage points more than the Expert on the same boards.",
-    weak: "Player trades are the Expert's own. In Seafarers it searches too (ships, the free ship move and the pirate included) and scores its futures with a model learned from Seafarers games; its strength there is not measured yet. In Rush its search is capped at a quarter of a second a move, and with 5–6 players it gets fewer playouts in its half second, so its edge there is smaller and not measured.",
+    weak: "Player trades are the Expert's own. In Seafarers it searches too (ships, the free ship move and the pirate included) and scores its futures with a model learned from Seafarers games: 52.5% against 3 Intermediates there (±6.9, 200 games; the Expert 30.5%). In Rush its search is capped at a quarter of a second a move, and with 5–6 players it gets fewer playouts in its half second, so its edge there is smaller and not measured.",
     beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
     trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
     robber: "Searched: it tries the tiles and keeps the one that pays off best in its playouts.",

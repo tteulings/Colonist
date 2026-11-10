@@ -13,7 +13,7 @@
 .bpg-sort { display: flex; gap: 6px; align-items: center; color: #fff; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .bpg-sort button { padding: 0 11px; }
 .bpg-sort button:disabled { opacity: .45; }
-.bpg-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; padding: 3px; border-radius: 14px; background: rgba(0,0,0,.22); }
+.bpg-tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; padding: 3px; border-radius: 14px; background: rgba(0,0,0,.22); }
 .bpg-tabs button { min-height: 44px; border: 0; border-radius: 11px; background: transparent; color: #fff; font-size: 12.5px; font-weight: 750; padding: 0 2px; }
 .bpg-tabs button.on { background: var(--sheet); color: var(--heading); box-shadow: 0 1px 3px rgba(0,0,0,.18), inset 0 0 0 2px var(--accent, var(--primary)); }
 .bpg button:focus-visible, .bpg .hit:focus-visible { outline: 3px solid #FFD25A; outline-offset: 2px; }

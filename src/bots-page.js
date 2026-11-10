@@ -7,11 +7,11 @@
 // hn), per person (pass & play: by name), per bot level and per mode. A number shows from 5 games (YOU_MIN), else "few".
 import { BOT_PROFILES as P, profileMini, gmFlag } from "./bot-profiles.js";
 import { openProfileSheet } from "./bot-profile-ui.js";
-import { BOT_STATS, SETUPS, accOf, winOf, rangesOverlap, tabOf, MEASURED_TABS } from "./bot-stats.js";
+import { BOT_STATS, SETUPS, accOf, winOf, rangesOverlap, tabOf, MEASURED_TABS, MODE_STATS, FAIR } from "./bot-stats.js";
 
 export const YOU_MIN = 5;
 const KEYS = [...(gmFlag() ? ["grandmaster"] : []), "superplus", "super", "master", "expert", "builder", "trader", "shark", "intermediate", "beginner", "simple"];
-const TABS = [["classic", "Classic"], ["rush", "Rush"], ["six", "5–6 players"], ["sea", "Seafarers"]];
+const TABS = [["classic", "Classic"], ["rush", "Rush"], ["five", "5 players"], ["six", "6 players"], ["sea", "Seafarers"]]; // v1.34: 5 and 6 players apart (other fair share)
 const SORTS = [["win", "Win chance"], ["acc", "Accuracy"], ["you", "You vs him"]];
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const f1 = (x) => x.toFixed(1);
@@ -19,7 +19,7 @@ const CHEV_L = `<svg viewBox="0 0 20 20" class="ic" aria-hidden="true"><path d="
 const CHEV_R = `<svg viewBox="0 0 20 20" class="ic bpg-chev" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 /** The rows: every bot with its win and accuracy entries. */
-const rows = () => KEYS.map((key) => ({ key, p: P[key], win: winOf(key), acc: accOf(key, P[key].label) }));
+const rows = (tab = "classic") => KEYS.map((key) => ({ key, p: P[key], win: winOf(key, tab), acc: accOf(key, P[key].label) }));
 const hasEst = () => rows().some((r) => r.win.label === "estimate"); // bot-125: the legend shows "estimate" only while one is left
 const plain = (r) => r.win.v != null && r.win.label !== "early test"; // has a number to place (measured or estimate)
 
@@ -64,8 +64,7 @@ function youCell(g) { // g: { g, w } for one bot (or undefined)
   return { html: `<b class="bpg-num">${pc}%</b><span class="bpg-sub">${g.w} of ${g.g}</span>`, aria: `${pc} percent, ${g.w} of ${g.g} games` };
 }
 const winCell = (r, tab) => {
-  if (tab !== "classic") return { html: `<span class="bpg-dash" aria-hidden="true">–</span>`, aria: "not measured yet" };
-  const w = r.win;
+  const w = r.win; // v1.34: the other tabs carry figures for a few bots (MODE_STATS); the rest says "not measured"
   if (w.label === "measured") return { html: `<b class="bpg-num">${f1(w.v)}</b><span class="bpg-sub">±${f1(w.ci)}</span>`, aria: `${f1(w.v)} percent, plus or minus ${f1(w.ci)}, measured` };
   if (w.label === "estimate") return { html: `<b class="bpg-num">~${Math.round(w.v)}</b><span class="bpg-sub bpg-est">estimate</span>`, aria: `about ${Math.round(w.v)} percent, an estimate, not a measurement` };
   if (w.label === "early test") return { html: `<b class="bpg-num">${esc(w.text.replace(" vs Master", ""))}</b><span class="bpg-sub bpg-est">early test</span>`, aria: `${w.text}, early test` };
@@ -79,9 +78,13 @@ const accCell = (r, tab) => {
 
 /** Order of the rows for a tab and sort. A bot without a number (early test / unknown) has no rank; it leads the win sort and trails the others. */
 function order(tab, sort, you, who) {
-  const R = rows();
+  const R = rows(tab);
   const sy = (r) => { const g = you.by(who, tab).bots[r.key]; return g && g.g >= YOU_MIN ? g.w / g.g : g && g.g ? -0.5 + g.g / 100 : -1; };
-  if (tab !== "classic") return { list: R.sort((a, b) => sy(b) - sy(a) || KEYS.indexOf(a.key) - KEYS.indexOf(b.key)), ranked: false, sort: "you" };
+  if (tab !== "classic") { // v1.34: the measured bots first, strongest first (ranked); then the rest by your games
+    if (sort === "acc") sort = "win";
+    if (sort === "win") return { list: R.sort((a, b) => (plain(b) ? b.win.v : -1e3 + sy(b)) - (plain(a) ? a.win.v : -1e3 + sy(a)) || KEYS.indexOf(a.key) - KEYS.indexOf(b.key)), ranked: true, sort };
+    return { list: R.sort((a, b) => sy(b) - sy(a) || KEYS.indexOf(a.key) - KEYS.indexOf(b.key)), ranked: false, sort: "you" };
+  }
   const key = { win: (r) => (plain(r) ? r.win.v : 1e3 - KEYS.indexOf(r.key)), acc: (r) => (r.acc.v == null ? -1 : r.acc.v), you: sy }[sort];
   return { list: R.sort((a, b) => key(b) - key(a) || KEYS.indexOf(a.key) - KEYS.indexOf(b.key)), ranked: true, sort };
 }
@@ -105,8 +108,8 @@ function listHtml(tab, sort, you, who) {
       <span class="bpg-nm"><b>${r.p.label}</b>${dotsHtml(r.p.level, r.p.beyond)}</span>
       <span class="bpg-c">${w.html}</span><span class="bpg-c">${a.html}</span><span class="bpg-c">${y.html}</span></button>`;
   }).join("");
-  const dis = tab !== "classic";
-  const sorts = `<div class="bpg-sort" role="radiogroup" aria-label="Sort by"><span>Sort by</span>${SORTS.map(([k, l]) => `<button type="button" role="radio" aria-checked="${o.sort === k}" data-sort="${k}" class="${o.sort === k ? "on" : ""}"${dis && k !== "you" ? " disabled" : ""}>${l}</button>`).join("")}</div>`;
+  const dis = tab !== "classic"; // accuracy is only measured in Classic
+  const sorts = `<div class="bpg-sort" role="radiogroup" aria-label="Sort by"><span>Sort by</span>${SORTS.map(([k, l]) => `<button type="button" role="radio" aria-checked="${o.sort === k}" data-sort="${k}" class="${o.sort === k ? "on" : ""}"${dis && k === "acc" ? " disabled" : ""}>${l}</button>`).join("")}</div>`;
   return `${sorts}<div class="bpg-card bpg-list" role="table" aria-label="Bot leaderboard"><div class="bpg-hd" role="row"><span></span><span></span><span>Bot</span><span class="${o.sort === "win" ? "on" : ""}">Win %</span><span class="${o.sort === "acc" ? "on" : ""}">Acc</span><span class="${o.sort === "you" ? "on" : ""}">You</span></div>${youRow}${body}</div>`;
 }
 
@@ -242,7 +245,21 @@ function numbersHtml(kind) {
     ${rows().filter((r) => r.win.src || (r.key === "master" && vsE)).map((r) => `<p class="bpg-foot"><b>${r.p.label}:</b> ${esc([r.win.src, r.key === "master" && vsE ? `Measured on its own: +${f1(vsE.v)} pp (±${f1(vsE.ci)}) over an Expert in the same seat, ${vsE.n} games against 3 Experts; its own seat wins ${f1(vsE.own.v)}% (±${f1(vsE.own.ci)}) there.` : ""].filter(Boolean).join(" "))}</p>`).join("")}</details>`;
 }
 
-const NOT = { rush: "Win chances were only measured in Classic. In Rush the Master and both Super Experts search for less time, so their numbers can differ.", six: "With 5–6 players a fair share is 17–20%, not 25%, and the Master gets fewer playouts. Nobody measured it yet.", sea: "In Seafarers the Master and both Super Experts search too, with a model learned from Seafarers games. Nobody measured their win chances there yet." };
+/** v1.34 a tab with figures for a few bots: what was measured, the fair share, the paired gaps, and the set-up (behind "Show the numbers"). */
+function modeCard(tab) {
+  const M = MODE_STATS[tab] || {}, keys = Object.keys(M);
+  if (!keys.length) return "";
+  const name = (k) => P[k]?.label || k;
+  const rowsH = keys.map((k) => { const w = M[k]; return `<tr><th scope="row">${name(k)}</th><td>${f1(w.v)}</td><td>±${f1(w.ci)}</td><td>${w.n}</td><td>${w.vsE ? `${w.vsE.v > 0 ? "+" : ""}${f1(w.vsE.v)} ±${f1(w.vsE.ci)}` : "–"}</td></tr>`; }).join("");
+  const setup = SETUPS[M[keys[0]].setup] || "";
+  const code = M[keys[0]].code;
+  return `<section class="bpg-card bpg-hero" aria-labelledby="bpgModeH"><h2 id="bpgModeH">Measured here</h2><p class="bpg-lede">${keys.map(name).join(", ")}: one bot against Intermediates; a fair share is ${FAIR[tab]}%. The other bots are not measured here yet.</p>
+    <details class="bpg-nums"><summary>Show the numbers</summary><div class="bpg-tw" tabindex="0"><table><caption class="sr">Win chance per measured bot</caption>
+    <thead><tr><th scope="col">Bot</th><th scope="col">Win %</th><th scope="col">±95%</th><th scope="col">n</th><th scope="col">vs Expert (pp)</th></tr></thead><tbody>${rowsH}</tbody></table></div>
+    <p class="bpg-foot"><b>Win chance:</b> ${esc(setup)} Code ${esc(code)}.</p><p class="bpg-foot"><b>vs Expert:</b> the same boards and seats played by the Expert; the difference in win chance, in percentage points, ± 95%.</p></details></section>`;
+}
+
+const NOT = { rush: "Win chances were only measured in Classic. In Rush the Master and both Super Experts search for less time, so their numbers can differ.", five: "With 5 players a fair share is 20%.", six: "With 6 players a fair share is about 17%.", sea: "In Seafarers the Master and both Super Experts search too, with a model learned from Seafarers games. Nobody measured their win chances there yet." };
 
 // ── the screen ────────────────────────────────────────────────────────────────────────────────────
 export const BotsPageMixin = {
@@ -294,9 +311,9 @@ export const BotsPageMixin = {
       <div class="hs-scroll">
         ${people.length > 1 ? `<div class="bpg-who" role="radiogroup" aria-label="Results for"><span>Results for</span>${people.map((n) => `<button type="button" role="radio" aria-checked="${n === S.who}" data-who="${esc(n)}" class="${n === S.who ? "on" : ""}">${esc(n)}</button>`).join("")}</div>` : ""}
         <div class="bpg-tabs" role="tablist" aria-label="Game type">${TABS.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === S.tab}" data-btab="${k}" class="${k === S.tab ? "on" : ""}">${l}</button>`).join("")}</div>
-        ${measured ? ladderCard(W) : `<div class="bpg-notice" role="status"><b>Not measured yet</b>${NOT[S.tab]} There is no ranking here; “You” still counts your own games.</div>`}
+        ${measured ? ladderCard(W) : MODE_STATS[S.tab] ? modeCard(S.tab) : `<div class="bpg-notice" role="status"><b>Not measured yet</b>${NOT[S.tab] || ""} There is no ranking here; “You” still counts your own games.</div>`}
         ${listHtml(S.tab, S.sort, you, S.who)}
-        <p class="bpg-foot">${measured ? `<b>Win %</b> = one bot against 3 Intermediates, 4 players, 10 VP, ± 95% interval (2000 games a bot; fewer for the search bots, see the numbers); a fair share is 25%. <b>Acc</b> = how often its moves match the best move (game review), ±1 SE. <b>You</b> = your wins in games where that bot sat at the table, from ${YOU_MIN} games (fewer: “few”).` : `A dash means not measured yet, or no games of yours. Fair share: 25% at 4 players, 17–20% at 5–6. <b>You</b> = your wins in games where that bot sat at the table, from ${YOU_MIN} games.`}</p>
+        <p class="bpg-foot">${measured ? `<b>Win %</b> = one bot against 3 Intermediates, 4 players, 10 VP, ± 95% interval (2000 games a bot; fewer for the search bots, see the numbers); a fair share is 25%. <b>Acc</b> = how often its moves match the best move (game review), ±1 SE. <b>You</b> = your wins in games where that bot sat at the table, from ${YOU_MIN} games (fewer: “few”).` : `<b>Win %</b> = one bot against Intermediates at this kind of table, ± 95% interval (see the numbers above); “not measured”: no figure for that bot here yet. Fair share: ${FAIR[S.tab]}%. Accuracy is only measured in Classic. <b>You</b> = your wins in games where that bot sat at the table, from ${YOU_MIN} games.`}</p>
         ${measured ? scatterCard(W, S.sel) : ""}
       </div>`;
     el.querySelectorAll("details").forEach((d, i) => { d.dataset.k = i; if (open.includes(String(i))) d.open = true; });
