@@ -68,12 +68,12 @@ export const MODE_STATS = {
   five: {
     expert: { v: 27.5, ci: 6.2, n: 200, setup: "modeFive", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured" },
     master: { v: 39.0, ci: 6.8, n: 200, setup: "modeFive", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 11.5, "ci": 8.6, "n": 200}, src: "Same boards and seats as the Expert: +11.5 pp (±8.6)." },
-    superplus: { v: 54.2, ci: 9.4, n: 107, setup: "modeFive", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 29.0, "ci": 12.2, "n": 107}, src: "Same boards and seats as the Expert: +29.0 pp (±12.2)." },
+    superplus: { v: 51.0, ci: 6.9, n: 200, setup: "modeFive", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 23.5, "ci": 9.3, "n": 200}, src: "Same boards and seats as the Expert: +23.5 pp (±9.3)." },
   },
   six: {
     expert: { v: 26.0, ci: 6.0, n: 204, setup: "modeSix", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured" },
     master: { v: 37.7, ci: 6.7, n: 204, setup: "modeSix", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 11.8, "ci": 7.8, "n": 204}, src: "Same boards and seats as the Expert: +11.8 pp (±7.8)." },
-    superplus: { v: 56.7, ci: 9.5, n: 104, setup: "modeSix", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 35.6, "ci": 12.0, "n": 104}, src: "Same boards and seats as the Expert: +35.6 pp (±12.0)." },
+    superplus: { v: 51.5, ci: 6.9, n: 204, setup: "modeSix", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured", vsE: {"v": 25.5, "ci": 8.8, "n": 204}, src: "Same boards and seats as the Expert: +25.5 pp (±8.8)." },
   },
   sea: {
     expert: { v: 30.5, ci: 6.4, n: 200, setup: "modeSea", code: "v1.31 engine (eng-131)", date: "2026-11-10", label: "measured" },
