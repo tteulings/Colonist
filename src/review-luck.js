@@ -197,12 +197,13 @@ export const ReviewLuckMixin = {
     const kinds = { dice: 0, steal: 0, dev: 0 }; list.forEach((x) => { kinds[x.ev.kind] += 1; });
     return `<details class="rt-lkd" data-rvlkd${U.open ? " open" : ""}><summary><span>Luck details</span><small>every roll, steal and card draw</small></summary>
       <div class="lkd-seg" role="group" aria-label="Whose luck">${seg}</div>
-      <div class="lkd-sort" role="group" aria-label="Order">${infoBtn("list", U.info?.list)}<button type="button" data-rvlks="size" class="${U.sort === "size" ? "on" : ""}">Biggest first</button><button type="button" data-rvlks="time" class="${U.sort === "time" ? "on" : ""}">In order</button></div>
+      ${this._lkWaterHtml(pid, you)}
+      <div class="lk-hd"><b>Every roll, steal and draw</b>${infoBtn("list", U.info?.list)}</div>
+      <div class="lkd-sort" role="group" aria-label="Order"><button type="button" data-rvlks="size" class="${U.sort === "size" ? "on" : ""}">Biggest first</button><button type="button" data-rvlks="time" class="${U.sort === "time" ? "on" : ""}">In order</button></div>
       ${infoTxt("list", U.info?.list, "Each line: the win chance right after it, against the average over everything that could have happened. ±0 is as expected. Only this player's own rolls, steals and card draws count.")}
       <ol class="lkd-list">${shown.map((x) => `<li><span class="t">${esc(this._lkWhen(x.ev))}</span><span class="x">${esc(this._lkWhat(x.ev, pid))}<small>${sub(x)}</small></span><b class="${cls(x.w)}">${wpText(x.w, 1)}</b></li>`).join("")}</ol>
       ${rows.length > shown.length ? `<button type="button" class="rv-btn lkd-all" data-rvlka>Show all ${rows.length}</button>` : ""}
-      <p class="lkd-tot"><span>Total · ${kinds.dice} rolls, ${kinds.steal} steals, ${kinds.dev} card draws</span><b class="${cls(tot)}">${wpText(tot, 1)}</b></p>
-      ${this._lkWaterHtml(pid, you)}</details>`;
+      <p class="lkd-tot"><span>Total · ${kinds.dice} rolls, ${kinds.steal} steals, ${kinds.dev} card draws</span><b class="${cls(tot)}">${wpText(tot, 1)}</b></p></details>`;
   },
   /** The two sides of own luck in a sentence, then the whole story of the win chance as a small waterfall: start → own luck (cards,
    *  which/when) → the others' luck → own moves → the rest (the others' moves, and what the estimates cannot tell apart) → end. */
@@ -218,7 +219,8 @@ export const ReviewLuckMixin = {
     const ev = (x) => `${esc(this._lkWhat(x.ev, pid))} in ${esc(this._lkWhen(x.ev).replace(/^T/, "turn ").replace(/^R/, "roll "))} (${wpText(x.w)})`;
     const lo = own[0], hi = own[own.length - 1];
     const most = [lo && Math.round(lo.w * 100) < 0 ? `Worst: ${ev(lo)}.` : "", hi && Math.round(hi.w * 100) > 0 ? `Best: ${ev(hi)}.` : ""].filter(Boolean).join(" ");
-    const say = `<p class="lkd-say">${cardsTxt}, ${join} ${kindTxt} (${wpText(B.kind)}). ${most}${infoBtn("split", U.info?.split)}</p>
+    const say = `<div class="lk-hd"><b>${you ? "Your" : `${nm}’s`} luck</b>${infoBtn("split", U.info?.split)}</div>
+      <p class="lkd-say">${cardsTxt}, ${join} ${kindTxt} (${wpText(B.kind)}). ${most}</p>
       ${infoTxt("split", U.info?.split, `Number of cards: cards above or below expected, at what a card was worth to ${you ? "you" : "them"} on average this game. The rest is which cards, and when. Each part is an estimate, good to about ±${Math.max(1, Math.round(B.se * 100))} points.`)}`;
     // v1.34 from the even share: the seat order (measured, small) and the set-up (own and the others' placements, the board)
     const np = this.players.length, first = this.stats?.steps?.[0]?.[1], place = first != null && first >= 0 ? (pid - first + np) % np : null;
@@ -229,17 +231,20 @@ export const ReviewLuckMixin = {
       ["Number of cards", B.cards], ["Which cards, when", B.kind], ["Others' luck", B.theirs],
       [you ? "Your moves" : "Own moves", B.moves], ["Others' moves, rest", B.rest],
     ];
-    const X = (v) => Math.max(0, Math.min(100, v * 100));
+    // the scale runs over the lowest and highest running total (never cut off), with a line at 0 % when the total dips below it
+    const run = [1 / np]; steps.forEach(([, v]) => { if (v != null) run.push(run[run.length - 1] + v); }); run.push(B.end);
+    const lo0 = Math.min(0, ...run), hi0 = Math.max(...run, 1 / np), span = Math.max(0.05, hi0 - lo0);
+    const X = (v) => ((v - lo0) / span) * 100, zero = X(0);
     let at = 1 / np;
     const row = (label, v) => {
       if (v == null) return `<div class="lkw-r na"><span>${label}</span><i class="tr"></i><b>not checked</b></div>`;
       const a = at, b = at + v; at = b;
-      const lo = X(Math.min(a, b)), hi = X(Math.max(a, b)), c = Math.round(v * 100) > 0 ? "pos" : Math.round(v * 100) < 0 ? "neg" : "";
-      return `<div class="lkw-r"><span>${label}</span><i class="tr"><i class="${c}" style="left:${lo.toFixed(1)}%;width:${Math.max(0.8, hi - lo).toFixed(1)}%"></i></i><b class="${c}">${wpText(v)}</b></div>`;
+      const l = X(Math.min(a, b)), w = X(Math.max(a, b)) - l, c = Math.round(v * 100) > 0 ? "pos" : Math.round(v * 100) < 0 ? "neg" : "";
+      return `<div class="lkw-r"><span>${label}</span><i class="tr">${lo0 < 0 ? `<i class="z" style="left:${zero.toFixed(1)}%"></i>` : ""}<i class="${c}" style="left:${l.toFixed(1)}%;width:${Math.max(0.8, w).toFixed(1)}%"></i></i><b class="${c}">${wpText(v)}</b></div>`;
     };
-    const ends = (label, v, cls) => `<div class="lkw-r end ${cls}"><span>${label}</span><i class="tr"><i style="left:0;width:${X(v).toFixed(1)}%"></i></i><b>${Math.round(v * 100)}%</b></div>`;
-    return `${say}<div class="lkw" role="img" aria-label="${esc(`${nm} win chance: ${Math.round(B.start * 100)}% at the first roll, ${B.end ? "won" : "lost"} at the end`)}">${ends("Even share", 1 / np, "st")}${steps.map(([l, v]) => row(l, v)).join("")}${ends(B.end ? "Won" : "Lost", B.end, "en")}</div>
-      <p class="lkw-h">${infoBtn("water", U.info?.water)}</p>${infoTxt("water", U.info?.water, `Seat order: ${place != null ? `place ${place + 1} of ${np} in the turn order` : "this seat"} on this board, as equal bots win from it from the empty board. Set-up: everyone's first settlements and the board. Others' luck and moves: what the others' cards, draws and choices did to ${you ? "you" : "them"}, with what the estimates cannot tell apart.${B.moves == null ? ` ${you ? "Your" : "Their"} own moves count there until the review is done.` : ""}`)}`;
+    const ends = (label, v, cls) => { const l = Math.min(zero, X(v)), w = Math.abs(X(v) - zero); return `<div class="lkw-r end ${cls}"><span>${label}</span><i class="tr"><i style="left:${l.toFixed(1)}%;width:${Math.max(0.8, w).toFixed(1)}%"></i></i><b>${Math.round(v * 100)}%</b></div>`; };
+    return `${say}<div class="lk-hd"><b>Win chance, start to end</b>${infoBtn("water", U.info?.water)}</div>${infoTxt("water", U.info?.water, `Seat order: ${place != null ? `place ${place + 1} of ${np} in the turn order` : "this seat"} on this board, as equal bots win from it from the empty board. Set-up: everyone's first settlements and the board. Others' luck and moves: what the others' cards, draws and choices did to ${you ? "you" : "them"}, with what the estimates cannot tell apart.${B.moves == null ? ` ${you ? "Your" : "Their"} own moves count there until the review is done.` : ""}`)}
+      <div class="lkw" role="img" aria-label="${esc(`${nm} win chance: ${Math.round(B.start * 100)}% at the first roll, ${B.end ? "won" : "lost"} at the end`)}">${ends("Even share", 1 / np, "st")}${steps.map(([l, v]) => row(l, v)).join("")}${ends(B.end ? "Won" : "Lost", B.end, "en")}</div>`;
   },
   _lkBindDetails(root) {
     const d = root.querySelector("[data-rvlkd]");
