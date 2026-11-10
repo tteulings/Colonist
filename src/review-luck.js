@@ -15,7 +15,9 @@ import { luckEvents, LUCK_MC } from "./review/luck-mc.js";
  *  early ones), the rest of the game gets the light budget (10 futures, at most 30). Measured against played-out truth: r 0.78 per
  *  event instead of 0.82, at about a third of the time. */
 // v1.40 on several review lanes an event gets this on top of its budget (measured, see the note at the value); null: the same budget
-export const LUCK_BOOST = null;
+// Measured (eng130/tests/luck-var.mjs, the 34 dice events of luck134 with a played-out truth, 3 seeds): 7 turns instead of 5 r 0.834 vs
+// 0.785 (every seed better), MAE 1.43 vs 1.52 pp, for 1.44x the work; 35 futures instead of 25: r 0.788 (no gain) for 1.32x.
+export const LUCK_BOOST = { depth: 7 };
 export const LITE = { futures: 15, maxFutures: 45 }, LITE_AFTER_S = 300; // v1.34 own luck (C) against played-out truth: 10 futures r 0.64, 25 r 0.76, 50 r 0.80
 export const LUCK_ID = `v2c-f${LUCK_MC.futures}-${LUCK_MC.maxFutures}e${LUCK_MC.seMax}d${LUCK_MC.depth}s${LUCK_MC.seed}`;
 const keyOf = (ev) => `${ev.kind}:${ev.s}:${ev.e}`;
