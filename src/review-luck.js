@@ -195,8 +195,7 @@ export const ReviewLuckMixin = {
       <ol class="lkd-list">${shown.map((x) => `<li><span class="t">${esc(this._lkWhen(x.ev))}</span><span class="x">${esc(this._lkWhat(x.ev, pid))}<small>${sub(x)}</small></span><b class="${cls(x.w)}">${wpText(x.w, 1)}</b></li>`).join("")}</ol>
       ${rows.length > shown.length ? `<button type="button" class="rv-btn lkd-all" data-rvlka>Show all ${rows.length}</button>` : ""}
       <p class="lkd-tot"><span>Total · ${kinds.dice} rolls, ${kinds.steal} steals, ${kinds.dev} card draws</span><b class="${cls(tot)}">${wpText(tot, 1)}</b></p>
-      ${this._lkWaterHtml(pid, you)}
-      <p class="lkd-note">Each line: ${you ? "your" : "their"} win chance right after what happened, against the average over everything that could have happened (each outcome as likely as it was). ±0 is as expected. Measured by replaying the game ${this._rv?.luck?.lite ? `${LITE.futures} to ${LITE.maxFutures}` : `${LUCK_MC.futures} to ${LUCK_MC.maxFutures}`} times ${LUCK_MC.depth} turns ahead after every outcome: the total is good to about ±${Math.max(0.1, Math.round(se * 1000) / 10)} points.</p></details>`;
+      ${this._lkWaterHtml(pid, you)}</details>`;
   },
   /** The two sides of own luck in a sentence, then the whole story of the win chance as a small waterfall: start → own luck (cards,
    *  which/when) → the others' luck → own moves → the rest (the others' moves, and what the estimates cannot tell apart) → end. */
@@ -208,10 +207,10 @@ export const ReviewLuckMixin = {
     const cardsTxt = n ? `${nm} got ${m} ${m === 1 ? "card" : "cards"} ${n > 0 ? "more" : "fewer"} than expected (${wpText(B.cards)})` : `${nm} got about the cards expected (${wpText(B.cards)})`;
     const k = Math.round(B.kind * 100), kindTxt = k > 0 ? "the right ones at the right moment" : k < 0 ? "the wrong ones or at the wrong moment" : "neither the right nor the wrong ones";
     const join = (Math.round(B.cards * 100) >= 0) === (k >= 0) || !k ? "and" : "but";
-    const say = `<p class="lkd-say">${cardsTxt}, ${join} ${kindTxt} (${wpText(B.kind)}). Own luck ${wpText(B.luck)}, good to about ±${Math.max(1, Math.round(B.se * 100))}.</p>`;
+    const say = `<p class="lkd-say">${cardsTxt}, ${join} ${kindTxt} (${wpText(B.kind)}).</p>`;
     const steps = [
-      ["Own luck: number of cards", B.cards], ["Own luck: which cards, when", B.kind], ["The others' luck", B.theirs],
-      [you ? "Your moves" : "Their moves", B.moves], ["The others' moves, and the rest", B.rest],
+      ["Number of cards", B.cards], ["Which cards, when", B.kind], ["Others' luck", B.theirs],
+      [you ? "Your moves" : "Own moves", B.moves], ["Others' moves, rest", B.rest],
     ];
     const X = (v) => Math.max(0, Math.min(100, v * 100));
     let at = B.start;
@@ -222,8 +221,7 @@ export const ReviewLuckMixin = {
       return `<div class="lkw-r"><span>${label}</span><i class="tr"><i class="${c}" style="left:${lo.toFixed(1)}%;width:${Math.max(0.8, hi - lo).toFixed(1)}%"></i></i><b class="${c}">${wpText(v)}</b></div>`;
     };
     const ends = (label, v, cls) => `<div class="lkw-r end ${cls}"><span>${label}</span><i class="tr"><i style="left:0;width:${X(v).toFixed(1)}%"></i></i><b>${Math.round(v * 100)}%</b></div>`;
-    return `${say}<div class="lkw" role="img" aria-label="${esc(`${nm} win chance: ${Math.round(B.start * 100)}% at the first roll, ${B.end ? "won" : "lost"} at the end`)}">${ends("At the first roll", B.start, "st")}${steps.map(([l, v]) => row(l, v)).join("")}${ends(B.end ? "Won" : "Lost", B.end, "en")}</div>
-      <p class="lkd-book">Win chance from the first roll to the end, step by step. Own luck: what ${you ? "your" : "their"} own rolls, steals and card draws did. The others' luck: what their cards, draws and steals did to ${you ? "you" : "them"}. ${B.moves == null ? `${you ? "Your" : "Their"} moves are not checked yet: they are in the rest. ` : ""}The rest: the others' moves, and what the estimates cannot tell apart.</p>`;
+    return `${say}<div class="lkw" role="img" aria-label="${esc(`${nm} win chance: ${Math.round(B.start * 100)}% at the first roll, ${B.end ? "won" : "lost"} at the end`)}">${ends("First roll", B.start, "st")}${steps.map(([l, v]) => row(l, v)).join("")}${ends(B.end ? "Won" : "Lost", B.end, "en")}</div>`;
   },
   _lkBindDetails(root) {
     const d = root.querySelector("[data-rvlkd]");
