@@ -51,7 +51,7 @@ t("Master, Super Expert, Super Expert+: measured vs 3 Intermediates, the profile
     assert.deepEqual(BOT_PROFILES[k].win, { p: w.v, ci: w.ci }, k);
   }
   assert.ok(!Object.values(STATS).some((x) => ["estimate", "early test"].includes(x.win.label)));
-  assert.match(STATS.super.win.src + STATS.superplus.win.src, /No time limit/);
+  assert.match(STATS.super.win.src + STATS.superplus.win.src, /no time limit/); assert.match(STATS.superplus.win.src, /1000 futures a move/); // v1.42 marked: measured at 1000, the app plays 545
   assert.match(STATS.superplus.win.src, /Head to head/); assert.ok(STATS.superplus.h2h.n > 0);
   assert.match(BOT_PROFILES.master.good, /percentage points more than the Expert/);
 });
@@ -83,15 +83,15 @@ t("Super Expert: own policy, own chip, a 6th mark, a measured win figure, two-st
   assert.equal(presetHighlight([{ ...AI_PRESETS.master }], AI_PRESETS, AXES).active, "master"); // same dials, other policy
   const p = BOT_PROFILES.super;
   assert.ok(p.win); assert.equal(p.level, 5); assert.ok(p.beyond);
-  assert.match(p.weak, /Rush it has a quarter of a second/); assert.match(p.weak, /In Seafarers it searches too/); assert.match(p.weak, /3 seconds/);
+  assert.match(p.weak, /In Rush it gets 20 futures a move/); assert.match(p.weak, /In Seafarers it searches too/); assert.match(p.weak, /3 seconds/);
   assert.ok(profileArt("super", 132).length < 3072);
   assert.notEqual(levelFrame("super"), levelFrame("master"));
   assert.ok((levelFrame("super").match(/<path/g) || []).length > (levelFrame("master").match(/<path/g) || []).length);
 });
 t("the search budgets: Master 100 / 0.5 s, Super 1000 / 3 s / 14 deep / 18 in set-up, early stop", async () => {
   const m = fs.readFileSync(new URL("../src/master.js", import.meta.url), "utf8");
-  assert.match(m, /SUPER_BUDGET = \{ n: 1000, timeMs: 3000, timeSlice: true, depth: 14, setupDepth: 18/);
-  assert.match(m, /MASTER_BUDGET = \{ n: 100, timeMs: 500 \}/);
+  assert.match(m, /SUPER_BUDGET = \{ n: 1000, timeMs: 545, rollClock: true, timeSlice: true, depth: 14, setupDepth: 18/); // v1.42 545 futures a move (work, not time)
+  assert.match(m, /MASTER_BUDGET = \{ n: 100, timeMs: 0, wallCapMs: WALL_CAP_MS/); // v1.42 100 futures, 6 s emergency brake
 });
 t("Super Expert+ (bot-125): own policy and chip, the Super Expert's budget with the gbm leaf (Rush too), searched, own frame and mini", () => {
   assert.equal(AI_PRESETS.superplus.policy, "superplus");
@@ -99,7 +99,7 @@ t("Super Expert+ (bot-125): own policy and chip, the Super Expert's budget with 
   assert.equal(presetHighlight([{ ...AI_PRESETS.super }], AI_PRESETS, AXES).active, "super");
   const p = BOT_PROFILES.superplus;
   assert.ok(p.win); assert.equal(p.level, 5); assert.ok(p.beyond);
-  assert.match(p.weak, /at most 3 s/); assert.match(p.note, /not measured what that does/); assert.match(p.weak, /In Seafarers it searches too/); assert.match(p.weak, /3 seconds/);
+  assert.match(p.weak, /545 futures a move/); assert.match(p.note, /re-measurement at 545/); assert.match(p.weak, /In Seafarers it searches too/); assert.match(p.weak, /3 seconds/);
   assert.ok(profileArt("superplus", 132).length < 3072);
   assert.notEqual(levelFrame("superplus"), levelFrame("super"));
   assert.notEqual(profileMini("superplus"), profileMini("super"));
@@ -136,8 +136,8 @@ t("Grandmaster (eng-130): own policy and chip, the Super Expert+ budget with a h
   assert.ok(profileArt("grandmaster", 132).length < 4096);
   assert.notEqual(levelFrame("grandmaster"), levelFrame("superplus"));
   assert.notEqual(profileMini("grandmaster"), profileMini("superplus"));
-  assert.deepEqual(M.budgetFor("grandmaster"), { ...M.SUPER_BUDGET, leaf: "gbm", n: 3000 });
-  assert.deepEqual(M.budgetFor("grandmaster", true), { ...M.RUSH_BUDGET, leaf: "gbm" });
+  assert.deepEqual(M.budgetFor("grandmaster"), { ...M.SUPER_BUDGET, leaf: "gbm", n: 3000, timeMs: 1090 });
+  assert.deepEqual(M.budgetFor("grandmaster", true), { ...M.RUSH_BUDGET, leaf: "gbm", timeMs: 40 });
   assert.equal(M.budgetFor("master", false, true).leaf, M.SEA_LEAF); assert.equal(M.budgetFor("super", false, true).leaf, M.SEA_LEAF);
   assert.ok(M.isSearchPolicy("grandmaster") && M.isSuperPolicy("grandmaster") && !M.isSuperPolicy("master"));
   assert.ok(M.GM_WORKERS() >= 1 && M.GM_WORKERS() <= 3);

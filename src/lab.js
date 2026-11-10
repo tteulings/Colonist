@@ -11,12 +11,12 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=141";
-import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=141";
-import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=141";
-import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=141";
-import { byStrength } from "./bot-stats.js?v=141";
-import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=141";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=142";
+import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=142";
+import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=142";
+import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=142";
+import { byStrength } from "./bot-stats.js?v=142";
+import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=142";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -248,7 +248,7 @@ function masterBlock() {
   if (!isMaster()) return;
   const html = ms.rec ? `${masterLineHtml(ms.rec)}<small>Step by step shows the race and the verdict.</small>`
     : ms.none ? `<span class="mv-line"><b>Master</b>: only one sensible move here, so it plays the Expert's step (no search).</span><button type="button" class="lb-btn lb-contest" data-contest>${ms.looking ? "Looking for one…" : "Find a contested move"}</button>`
-      : masterAvailable() ? `<span class="mv-line"><b>Master</b> is searching (about ${MASTER_BUDGET.timeMs / 1000} s)…</span>` : `<span class="mv-line"><b>Master</b> needs Web Workers: here it plays as the Expert.</span>`;
+      : masterAvailable() ? `<span class="mv-line"><b>Master</b> is searching (about ${MASTER_BUDGET.capMs / 1000} s)…</span>` : `<span class="mv-line"><b>Master</b> needs Web Workers: here it plays as the Expert.</span>`;
   el.insertAdjacentHTML("beforeend", `<div class="lb-master" aria-live="polite">${html}</div>`);
 }
 /** v0.91: look for a position where the race really runs: every seat of this board, then new boards (with

@@ -26,7 +26,7 @@ import { loadPosition } from "./engine.js";
 
 // futures: the first batch; an event whose luck is still noisy (a seat's standard error above seMax) gets more, in batches, up to maxFutures
 // (late in a game a single roll can decide it: those few events need more futures, the rest do not).
-export const LUCK_MC = { futures: 25, maxFutures: 75, seMax: 0.015, depth: 5, flows7: 4, seed: 131 };
+export const LUCK_MC = { futures: 25, maxFutures: 75, seMax: 0.015, depth: 7, flows7: 4, seed: 131 }; // v1.42 depth 7 everywhere (was 5, 7 on several lanes: measured better, eng130 luck-var)
 const RES = ["wood", "brick", "sheep", "wheat", "ore"];
 const DEV = ["knight", "roadBuilding", "yearOfPlenty", "monopoly", "victoryPoint"];
 const PIPS = [0, 0, 1, 2, 3, 4, 5, 6, 5, 4, 3, 2, 1];

@@ -79,7 +79,7 @@ export const ReviewUiMixin = {
       const full = this._rvReviewComplete?.(p.id) && !this._rvStale?.(p.id);
       const lead = list.length ? (solo ? (full ? "Your biggest mistakes. Tap one to see it on the board." : "Quick look while the full review runs. Tap one to see it on the board.") : "")
         : full && this._rvBadCount?.(p.id) ? `${this._rvBadCount(p.id)} of your moves could be better. Open the review to step through ${this._rvBadCount(p.id) > 1 ? "them" : "it"}.`
-        : full || this.hotseat ? "No clear mistake found in this game." : "The full review checks every move of yours with a deep Monte Carlo (1000 futures).";
+        : full || this.hotseat ? "No clear mistake found in this game." : "The full review checks every move of yours with a deep Monte Carlo (100 futures a move, 20 turns ahead).";
       // v1.22 the finished review in three numbers: accuracy, Your moves (whole %), Dice luck (cards)
       let sumHtml = "";
       if (solo && full) {

@@ -8,6 +8,7 @@
 //   · a tappable turn strip and a list of your turns; Show on board for a marked decision
 //   · the missed-chance lines on the end screen then come from the Master's check (verified)
 import { esc, IC, cmpHtml, whyHtml } from "./review-ui.js";
+import { reviewModel, REVIEW_MODELS, modelOfId } from "./review/evaluate.js";
 import { summarize, REVIEW, REVIEW_ENGINE, REVIEW_ENGINES, ACC, clsOf, LIMITS, SETUP_LIMITS, CLASSES, GREAT, gpOf, decide, totals, tradeShow, needsFull } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
 import { cardsText, topText, tileOf, sentence } from "./review/luck.js";
@@ -24,7 +25,7 @@ export const BANDS = REVIEW.bands || [];
 const mk = (m, cls = "") => `<i class="rv-mk mk-${m} ${cls}" aria-hidden="true"></i>`;
 const pct = (x) => `${Math.round(x * 100)}%`;
 const sgn = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v))}`; // whole percent with a real minus sign
-export const MC = "deep Monte Carlo (1000 futures)"; // what runs the check, named once
+export const MC = "deep Monte Carlo (100 futures a move)"; // what runs the check, named once
 // v1.29 the bots' lighter deep check against checking all their moves with the full engine (scratchpad others129 budget-an.mjs)
 const OTHERS_NOTE = "1.1 points of accuracy apart on average, 5 at most, in about 60% of the time";
 // v1.05 chess-style classes: name, glyph (own icons, one hue each in review.css)
@@ -312,11 +313,13 @@ export const ReviewGameMixin = {
   _rvCompare(hist) {
     // accuracies of one engine only, and only games nobody checked during play (v1.04: a check mid-game helps)
     // v1.41 only reviews of today's engine (its id includes the look-ahead): an older one counts again once it is reviewed again
-    const mine = hist.filter((x) => (!this.hotseat ? !x.w : x.w === this.players[this._rvPid]?.name) && !x.midCheck), eid = currentEngineId();
+    // v1.42 within one review model: the one of the review on screen (else the chosen one), named in the line
+    const model = modelOfId(this._rvOf?.(this._rvPid)?.engId) || reviewModel(), mlab = REVIEW_MODELS[model].label;
+    const mine = hist.filter((x) => (!this.hotseat ? !x.w : x.w === this.players[this._rvPid]?.name) && !x.midCheck), eid = currentEngineId(model);
     const last = mine.filter((x) => (x.eng || "m100") === REVIEW_ENGINE && (x.k ?? "k0.08v1") === ACC.id && x.eid === eid).slice(-10).map((x) => x.acc);
-    const older = mine.filter((x) => x.eid !== eid).length, olderTxt = older ? ` ${older} older ${older === 1 ? "review" : "reviews"} not counted · Review again.` : "";
+    const older = mine.filter((x) => x.eid !== eid).length, olderTxt = older ? ` ${older} ${older === 1 ? "review" : "reviews"} of another engine or model not counted · Review again.` : "";
     if (!BANDS.length) return { n: last.length, text: "" };
-    if (last.length < 5) return { n: last.length, text: `Average vs the bots after 5 games (${last.length} of 5).${olderTxt}` };
+    if (last.length < 5) return { n: last.length, text: `Average vs the bots after 5 games (${last.length} of 5), ${mlab} model.${olderTxt}` };
     const m = last.reduce((a, b) => a + b, 0) / last.length;
     const sd = Math.sqrt(last.reduce((a, b) => a + (b - m) ** 2, 0) / (last.length - 1));
     const se = sd / Math.sqrt(last.length);
@@ -325,7 +328,7 @@ export const ReviewGameMixin = {
     const hit = sorted.filter(([, v, bs = 3]) => m + se >= v - bs && m - se <= v + bs);
     const where = hit.length === 1 ? `around ${hit[0][0]}` : hit.length > 1 ? `between ${hit[0][0]} and ${hit[hit.length - 1][0]}`
       : m < sorted[0][1] ? `below the bots’ range` : m > sorted[sorted.length - 1][1] ? `above the ${sorted[sorted.length - 1][0]} bot` : `between ${sorted.filter((b) => b[1] < m).pop()[0]} and ${sorted.find((b) => b[1] > m)[0]}`;
-    return { n: last.length, m, se, text: `Your last ${last.length} games: ${Math.round(m)} ± ${Math.max(1, Math.round(se))}, ${where}.${olderTxt}` };
+    return { n: last.length, m, se, text: `Your last ${last.length} games (${mlab} model): ${Math.round(m)} ± ${Math.max(1, Math.round(se))}, ${where}.${olderTxt}` };
   },
   /** v1.04 the accuracy strip at the top: the number, a 70–100 bar with the bots' narrow band (a score
    *  outside is pinned to the end and says so), your 5+ game average on it, and "one game is a rough
@@ -440,7 +443,7 @@ export const ReviewGameMixin = {
     d.setAttribute("role", "dialog");
     d.setAttribute("aria-label", "About this review");
     d.innerHTML = `<div class="rv-card"><div class="rv-ih"><b>About this review</b><button type="button" class="rv-btn" data-rvinfo-x aria-label="Close">✕</button></div>
-      <p><b>Win chance</b>: your chance to win, in %. It comes from ${MC}: the position is played on for 14 turns, 1000 times.</p>
+      <p><b>Win chance</b>: your chance to win, in %. It comes from ${MC}: the position is played on for 20 turns, 100 times for every move (Standard model).</p>
       <p><b>A and B</b>: A is the best move, B is what you played. A − B is what that move cost. Classes: ${lim(LIMITS)}. Set-up spots use wider limits (${lim(SETUP_LIMITS)}).</p>
       <p><b>Play</b>: shows every move since your last decision: rolls, builds, trades, the robber. Win chances exist at your decisions only.</p>
       <p><b>Plan</b>: the likely reason A is better, read from the position. No clear reason, no Plan.</p>
@@ -454,7 +457,7 @@ export const ReviewGameMixin = {
       <p><b>A check during the game</b> keeps its moves for the review at the end, but that game stays out of your average. The board is shown after the game.</p>
       <p><b>Provisional</b> is the quick look (about half a second a move). The deep check (about ${REVIEW.sec} s a move) follows, biggest differences first, and the numbers shift as it goes.</p>${this.isRush?.() ? `
       <p><b>Approximate in Rush</b>: Rush has no turns, so each move you made is checked as if it were your turn in a Classic game: the same position, then the table plays on turn by turn with one dice roll per turn. A roll in the list is the roll interval you moved in. “Wait” means building nothing right then. Not modelled: the clock, several players moving within one interval, and a spot lost to a faster bot. In a test of 17 positions the Rush-shaped and the turn-by-turn futures ranked the moves no differently than two runs of the same method do, but treat the numbers as a guide, not a verdict. Turn starts and End turn do not exist here, so they are not checked.</p>` : ""}${this.players.length >= 5 ? `
-      <p><b>5–6 players</b>: moves in the build window between turns are not checked (it is nobody's turn there). The check looks 14 turns ahead, which is ${(14 / this.players.length).toFixed(1)} rounds at this table (3.5 with four players), and with more players fewer futures fit in the time.</p>` : ""}</div>`;
+      <p><b>5–6 players</b>: moves in the build window between turns are not checked (it is nobody's turn there). The check looks 20 turns ahead, which is ${(20 / this.players.length).toFixed(1)} rounds at this table (3.5 with four players); with more players the check takes longer (the budget is the same).</p>` : ""}</div>`;
     const close = () => { this._rvInfoOpen = false; d.remove(); };
     d.addEventListener("click", (e) => { if (e.target === d) close(); });
     d.querySelector("[data-rvinfo-x]").addEventListener("click", close);
@@ -601,7 +604,7 @@ export const ReviewGameMixin = {
     const first = imp.length ? imp[0].i : ds[0]?.i;
     const scroll = el.querySelector(".rv-scroll")?.scrollTop || 0;
     el.className = "rv rs tm";
-    el.innerHTML = `${this._rvBar(mid ? "Your moves so far" : `${ds.length} decisions · ${prov ? "provisional" : "deep Monte Carlo"}`)}
+    el.innerHTML = `${this._rvBar(mid ? "Your moves so far" : `${ds.length} decisions · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`)}
       <div class="rv-scroll">
         ${this._rvProgHtml(pid)}
         ${mid ? `<section class="rv-card rv-midnote"><p><b>Up to turn ${rv.upto ?? this.turn}</b></p><button type="button" class="rv-btn pri" data-rvback-game>Back to the game</button></section>` : ""}

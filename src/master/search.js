@@ -100,12 +100,14 @@ export function makeMaster(opts = {}) {
   }
   function search0(g, me, cands, apply, depth) {
     const t0 = now();
-    // eng-130 o.rollClock (measurements only): the time budget counted in rollouts instead of ms (timeMs = rollouts), so a "3 s
-    // on this device" search can be replayed exactly and machine-independently in the Node harness
+    // eng-130 o.rollClock: the time budget counted in rollouts instead of ms (timeMs = rollouts). v1.42 the bots' own budgets use it:
+    // a fixed amount of work a move, so a bot is as strong on every device as it was measured. o.wallCapMs: the real-time emergency
+    // brake on top (a very slow device), checked like the time cap.
     let used = 0;
     const clk = o.rollClock ? () => used : now;
     const c0 = o.rollClock ? 0 : t0;
     const deadline = o.timeMs ? c0 + o.timeMs : Infinity;
+    const wallEnd = o.wallCapMs ? t0 + o.wallCapMs : Infinity;
     const root = snapshot(g);
     const K = cands.length;
     const NB = o.nPer ? o.nPer * K : o.n; // eng-124 o.nPer (the review): the budget scales with the number of moves (o.nPer futures per move on average)
@@ -121,7 +123,7 @@ export function makeMaster(opts = {}) {
       const a = apply(g, cands[k]);
       let v = 0;
       if (a !== false) {
-        if (!g.winner) rollout(g, a === "ended" ? depth - 1 : depth, r, { jitter: o.jitter });
+        if (!g.winner && depth > 0) rollout(g, a === "ended" ? depth - 1 : depth, r, { jitter: o.jitter }); // (v1.42 depth 0: the leaf straight on the position, the review's Quick model)
         if (o.leaf === "gbm" || o.leaf === "gbm0") { const ws = gbmProbs(g, o.leaf === "gbm0" ? GBM_MODEL : null); v = ws[me]; if (seatW) seatW[k][j] = ws; } // eng-124 o.leaf 'gbm': boosted trees (src/master/leaf-gbm.js; the review's leaf); eng-130: the Seafarers model on a Seafarers board ('gbm0': always the island model, for measurements)
         else if (o.leaf === "fit" || o.leaf === "fit2") { const ws = fitProbs(g, undefined, o.leaf === "fit2" ? FIT2_ADJ : null); v = ws[me]; if (seatW) seatW[k][j] = ws; } // v1.10 o.leaf 'fit': the fitted score function; v1.19 'fit2': plus the Longest Road / Largest Army offset
         else if (seatW) { const ws = winProbs(g, o.T); v = ws[me]; seatW[k][j] = ws; } else v = winProb(g, me, o.T);
@@ -142,7 +144,7 @@ export function makeMaster(opts = {}) {
         // its slice, the next one starts; n is then only an upper bound)
         const sliceEnd = o.timeSlice && o.timeMs ? c0 + o.timeMs * (r + 1) / R : Infinity;
         for (; j < j0 + per && used < NB * 1.05; j++) {
-          if (j >= 2 && clk() > deadline) { stop = "time"; break; }
+          if (j >= 2 && (clk() > deadline || now() > wallEnd)) { stop = "time"; break; }
           if (j >= j0 + 2 && clk() > sliceEnd) break;
           for (const k of alive) { evalOne(k, j); used++; }
           // v1.10 o.earlyZ ("Super Expert"): one move leads every other live move by more than earlyZ standard errors (paired,

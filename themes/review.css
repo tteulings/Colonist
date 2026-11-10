@@ -419,3 +419,19 @@
 .rv-scroll .ra-row, .rv-scroll .ra-ask { margin-left: 4px; margin-right: 4px; }
 .ra-row button.rv-btn, .ra-ask button.rv-btn { font: 750 13px/1.1 var(--font-body); padding: 0 14px; min-height: 40px; height: auto; width: auto; flex: none; white-space: nowrap; border-radius: 20px; }
 .ra-ask p { white-space: normal; }
+/* v1.42 the review model: Settings (a segmented choice) and Review again (radio cards with the time each takes) */
+.st-seg { display: inline-flex; flex: none; border: 1px solid var(--rv-sep, rgba(0,0,0,.15)); border-radius: 18px; overflow: hidden; }
+.st-seg button { border: 0; background: none; color: inherit; font: 700 12.5px/1 var(--font-body); padding: 0 11px; min-height: 36px; cursor: pointer; }
+.st-seg button.on { background: var(--primary); color: #fff; }
+.ra-hd { display: flex; align-items: center; justify-content: space-between; gap: 6px; } .ra-hd p { margin: 0; }
+.ra-hd .lk-ib { width: 44px; height: 44px; margin: -8px -10px -8px 0; display: grid; place-items: center; border: 0; background: none; color: var(--ink-soft); }
+.ra-hd .lk-ib svg { width: 20px; height: 20px; }
+.ra-ask .lk-it { margin: 4px 0 6px; }
+.ra-ms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0 8px; }
+.ra-m { display: grid; gap: 2px; padding: 8px 8px; border-radius: 10px; border: 1.5px solid var(--rv-sep, rgba(0,0,0,.15)); background: var(--sheet-solid, #fff); cursor: pointer; min-height: 44px; }
+.ra-m input { position: absolute; opacity: 0; pointer-events: none; }
+.ra-m b { font: 750 13px/1.1 var(--font-body); color: var(--heading); } .ra-m small { font: 600 11px/1.2 var(--font-body); color: var(--ink-soft); }
+.ra-m.on { border-color: var(--primary); box-shadow: 0 0 0 1.5px var(--primary) inset; }
+.ra-go { display: flex; gap: 8px; justify-content: flex-end; }
+.ra-ask .ra-ms { display: grid; grid-template-columns: repeat(3, 1fr); justify-content: stretch; }
+.ra-ask .ra-hd { justify-content: space-between; }
