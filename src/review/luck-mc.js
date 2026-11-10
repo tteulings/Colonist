@@ -235,6 +235,7 @@ function diceOwn(g, ev, B, S0, o, leaf, evSeed, n, t0) {
 
 /** Luck of one event: { kind, s, n, groups: [{ o: [outcomes], p, fast, v }], act, luck, se, fast, F, depth, ms } or { skip }. */
 export function luckEvent(g, base, ev, opts = {}) {
+  if (ev.kind === "seat") { const r = luckSeats(g, base, ev.rec, { leaf: opts.leaf, seed: opts.seed ?? LUCK_MC.seed }); return { kind: "seat", s: 0, ...r }; }
   const o = { ...LUCK_MC, ...opts };
   const t0 = now(), leaf = leafOf(o.leaf);
   const keepR = Math.random;
@@ -301,6 +302,35 @@ export function luckEvent(g, base, ev, opts = {}) {
   } finally { Math.random = keepR; }
 }
 
+/** v1.34 the seat order on THIS board: every seat's win chance from the empty board (the first set-up record), the set-up and then
+ *  `depth` turns played by equal bots (every seat the Expert), in `futures` futures, scored by the leaf. { v: [seats], se, F, ms }.
+ *  Measured: 200 futures ~1 s (5-10 ms a future), standard error per seat about 0.6 points. */
+export function luckSeats(g, base, rec, opts = {}) {
+  const o = { ...LUCK_MC, futures: 200, depth: 5, ...opts };
+  const t0 = now(), leaf = leafOf(o.leaf), keepR = Math.random;
+  try {
+    load(g, base, { kind: "seat", rec });
+    if (!g.setupPhase) return { skip: "no set-up" };
+    const E = g.constructor.labHelpers.AI_PRESETS.expert;
+    g.players.forEach((p) => { p.strategy = { ...E }; }); // equal players: only the seat (the turn order on this board) differs
+    const n = g.players.length, S0 = snap(g), seed = hash(`${o.seed}|seat|${rec.e}`);
+    const W = [];
+    for (let j = 0; j < o.futures; j += 1) {
+      back(g, S0);
+      const rng = mulberry32((seed + Math.imul(j + 1, 0x9e3779b1)) | 0), dice = mulberry32((seed ^ Math.imul(j + 1, 0x85ebca6b)) | 0);
+      withoutAgents(g, () => {
+        const orig = Math.random; Math.random = rng;
+        try { let k = 0; while (g.setupPhase && k++ < 40) { g.setupAction = null; g.processSetupQueue(); } shuffle(g.devDeck, rng); } finally { Math.random = orig; }
+        if (!g.setupPhase && !g.winner) play(g, o.depth, rng, dice);
+      });
+      W.push(leaf(g));
+    }
+    const F = W.length, v = Array.from({ length: n }, (_, q) => W.reduce((a, w) => a + w[q], 0) / F);
+    const se = v.map((m, q) => Math.sqrt(W.reduce((a, w) => a + (w[q] - m) ** 2, 0) / Math.max(1, F - 1) / F));
+    return { v: v.map(r4), se: se.map(r4), F, ms: Math.round(now() - t0) };
+  } finally { Math.random = keepR; }
+}
+
 /** The chance events of a recorded game, in play order, from the review's records and the statistics log (page side: plain data).
  *  recs: the review records (whole, `st` as JSON); stats: { steps, ev } of game.stats. Each event carries the record it starts from. */
 export function luckEvents(recs, stats, { rush = false } = {}) {
@@ -337,5 +367,8 @@ export function luckEvents(recs, stats, { rush = false } = {}) {
       }
     }
   });
+  // v1.34 the seat order on this board: from the first set-up record (the empty board)
+  const i0 = recs.findIndex((r) => r && r.k === "setup" && r.s === 0 && typeof r.st === "string");
+  if (i0 >= 0) out.push({ kind: "seat", s: 0, i: i0, rec: recs[i0], e: -1 });
   return out.sort((a, b) => a.e - b.e || (a.kind === "dice" ? -1 : 1));
 }

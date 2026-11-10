@@ -106,7 +106,8 @@ export const ReviewLuckMixin = {
         const x = m?.result;
         // l: luck per seat; b: the win chance before the event (the average over its outcomes), for the accounting start → end = luck + the rest
         const r4 = (v) => Math.round(v * 1e4) / 1e4;
-        L.res[keyOf(ev)] = x && !x.skip && x.luck ? { k: ev.kind, s: ev.s, e: ev.e, l: x.luck, se: x.se, ...(x.cs ? { cs: x.cs, bt: x.bt, ox: x.ox } : {}), b: x.b || x.luck.map((_, q) => r4(x.groups.reduce((a, gr) => a + gr.p * (gr.v?.[q] ?? 0), 0))), F: x.F, g: x.groups.length } : { k: ev.kind, s: ev.s, e: ev.e, skip: x?.skip || "error" };
+        if (ev.kind === "seat") L.res[keyOf(ev)] = x && !x.skip && x.v ? { k: "seat", s: 0, e: ev.e, v: x.v, se: x.se } : { k: "seat", s: 0, e: ev.e, skip: x?.skip || "error" };
+        else L.res[keyOf(ev)] = x && !x.skip && x.luck ? { k: ev.kind, s: ev.s, e: ev.e, l: x.luck, se: x.se, ...(x.cs ? { cs: x.cs, bt: x.bt, ox: x.ox } : {}), b: x.b || x.luck.map((_, q) => r4(x.groups.reduce((a, gr) => a + gr.p * (gr.v?.[q] ?? 0), 0))), F: x.F, g: x.groups.length } : { k: ev.kind, s: ev.s, e: ev.e, skip: x?.skip || "error" };
         run.j += 1; run.times.push(now() - t0);
         if (!L.lite && run.times.length >= 6) {
           const left = todo.length - run.j, per = run.times.reduce((a, b) => a + b, 0) / run.times.length;
@@ -219,12 +220,17 @@ export const ReviewLuckMixin = {
     const most = [lo && Math.round(lo.w * 100) < 0 ? `Worst: ${ev(lo)}.` : "", hi && Math.round(hi.w * 100) > 0 ? `Best: ${ev(hi)}.` : ""].filter(Boolean).join(" ");
     const say = `<p class="lkd-say">${cardsTxt}, ${join} ${kindTxt} (${wpText(B.kind)}). ${most}${infoBtn("split", U.info?.split)}</p>
       ${infoTxt("split", U.info?.split, `Number of cards: cards above or below expected, at what a card was worth to ${you ? "you" : "them"} on average this game. The rest is which cards, and when. Each part is an estimate, good to about ±${Math.max(1, Math.round(B.se * 100))} points.`)}`;
+    // v1.34 from the even share: the seat order (measured, small) and the set-up (own and the others' placements, the board)
+    const np = this.players.length, first = this.stats?.steps?.[0]?.[1], place = first != null && first >= 0 ? (pid - first + np) % np : null;
+    const L = this._lkStore(), sv = Object.values(L?.res || {}).find((r) => r?.k === "seat" && r.v);
+    const seat = sv ? sv.v[pid] - 1 / np : 0, setup = B.start - 1 / np - seat;
     const steps = [
+      ["Seat order", seat], ["Set-up", setup],
       ["Number of cards", B.cards], ["Which cards, when", B.kind], ["Others' luck", B.theirs],
       [you ? "Your moves" : "Own moves", B.moves], ["Others' moves, rest", B.rest],
     ];
     const X = (v) => Math.max(0, Math.min(100, v * 100));
-    let at = B.start;
+    let at = 1 / np;
     const row = (label, v) => {
       if (v == null) return `<div class="lkw-r na"><span>${label}</span><i class="tr"></i><b>not checked</b></div>`;
       const a = at, b = at + v; at = b;
@@ -232,8 +238,8 @@ export const ReviewLuckMixin = {
       return `<div class="lkw-r"><span>${label}</span><i class="tr"><i class="${c}" style="left:${lo.toFixed(1)}%;width:${Math.max(0.8, hi - lo).toFixed(1)}%"></i></i><b class="${c}">${wpText(v)}</b></div>`;
     };
     const ends = (label, v, cls) => `<div class="lkw-r end ${cls}"><span>${label}</span><i class="tr"><i style="left:0;width:${X(v).toFixed(1)}%"></i></i><b>${Math.round(v * 100)}%</b></div>`;
-    return `${say}<div class="lkw" role="img" aria-label="${esc(`${nm} win chance: ${Math.round(B.start * 100)}% at the first roll, ${B.end ? "won" : "lost"} at the end`)}">${ends("First roll", B.start, "st")}${steps.map(([l, v]) => row(l, v)).join("")}${ends(B.end ? "Won" : "Lost", B.end, "en")}</div>
-      <p class="lkw-h">${infoBtn("water", U.info?.water)}</p>${infoTxt("water", U.info?.water, `Others' luck: what the others' cards, draws and steals did to ${you ? "you" : "them"}. Others' moves, rest: their choices, and what the estimates cannot tell apart.${B.moves == null ? ` ${you ? "Your" : "Their"} moves are in the rest until ${you ? "your" : "their"} review is done.` : ""}`)}`;
+    return `${say}<div class="lkw" role="img" aria-label="${esc(`${nm} win chance: ${Math.round(B.start * 100)}% at the first roll, ${B.end ? "won" : "lost"} at the end`)}">${ends("Even share", 1 / np, "st")}${steps.map(([l, v]) => row(l, v)).join("")}${ends(B.end ? "Won" : "Lost", B.end, "en")}</div>
+      <p class="lkw-h">${infoBtn("water", U.info?.water)}</p>${infoTxt("water", U.info?.water, `Seat order: ${place != null ? `place ${place + 1} of ${np} in the turn order` : "this seat"} on this board, as equal bots win from it from the empty board. Set-up: everyone's first settlements and the board. Others' luck and moves: what the others' cards, draws and choices did to ${you ? "you" : "them"}, with what the estimates cannot tell apart.${B.moves == null ? ` ${you ? "Your" : "Their"} own moves count there until the review is done.` : ""}`)}`;
   },
   _lkBindDetails(root) {
     const d = root.querySelector("[data-rvlkd]");
