@@ -57,7 +57,7 @@ function poolWorker(pool) {
   if (pool.broken || typeof Worker === "undefined") return null;
   if (pool.worker) return pool.ready;
   try {
-    pool.worker = new Worker(new URL("./master/worker.js?v=139", import.meta.url), { type: "module" });
+    pool.worker = new Worker(new URL("./master/worker.js?v=140", import.meta.url), { type: "module" });
   } catch (_) { pool.broken = true; return null; }
   pool.ready = new Promise((resolve) => {
     const t = setTimeout(() => { pool.broken = true; resolve(null); }, READY_TIMEOUT_MS);
