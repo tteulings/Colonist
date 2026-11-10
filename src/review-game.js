@@ -319,7 +319,7 @@ export const ReviewGameMixin = {
     const last = mine.filter((x) => (x.eng || "m100") === REVIEW_ENGINE && (x.k ?? "k0.08v1") === ACC.id && x.eid === eid).slice(-10).map((x) => x.acc);
     const older = mine.filter((x) => x.eid !== eid).length, olderTxt = older ? ` ${older} ${older === 1 ? "review" : "reviews"} of another engine or model not counted · Review again.` : "";
     if (!BANDS.length) return { n: last.length, text: "" };
-    if (last.length < 5) return { n: last.length, text: `${mlab} model: average vs the bots after 5 games (${last.length} of 5).${olderTxt}` };
+    if (last.length < 5) return { n: last.length, text: `Average vs the bots after 5 games (${last.length} of 5), ${mlab} model.${olderTxt}` };
     const m = last.reduce((a, b) => a + b, 0) / last.length;
     const sd = Math.sqrt(last.reduce((a, b) => a + (b - m) ** 2, 0) / (last.length - 1));
     const se = sd / Math.sqrt(last.length);
