@@ -107,21 +107,21 @@ export const BOT_PROFILES = {
   // v1.10: the Master's search with ten times the thinking. bot-125: measured (vs 3 Intermediates, no time limit).
   super: {
     label: "Super Expert", tagline: "Master with 10x more thinking", level: 5, beyond: true, win: { p: 71.0, ci: 4.4 }, acc: null,
-    style: "The Master's search with ten times the thinking: before each set-up spot, build step and robber move it plays out up to 1000 possible futures, looking 14 turns ahead (18 in set-up), and picks what wins most. It stops early when one move is clearly ahead.",
+    style: "The Master's search with ten times the thinking: before each set-up spot, build step and robber move it plays out 545 possible futures, looking 14 turns ahead (18 in set-up), and picks what wins most. It stops early when one move is clearly ahead.",
     good: "Much stronger than the Master: 71.0% against 3 Intermediate bots (±4.4, 400 games), 32.5 points above the Expert. It sees further and spots slow plans (a city race, Longest Road) that a short look misses.",
-    weak: "Slow: about 3 seconds for a move, so your phone waits for it. In Rush it has a quarter of a second a move (about a Master there). In Seafarers it searches too (ships, the free ship move and the pirate included) and scores its futures with a model learned from Seafarers games; its strength there is not measured yet. With 5–6 players the same 3 seconds buy fewer playouts. Player trades are the Expert's own.",
+    weak: "Slow: 545 futures a move, about 3 seconds on a phone, so your phone waits for it (a fixed amount of thinking: as strong on every phone, just faster or slower). In Rush it gets 20 futures a move (about a Master there). In Seafarers it searches too (ships, the free ship move and the pirate included) and scores its futures with a model learned from Seafarers games; its strength there is not measured yet. With 5–6 players the same 3 seconds buy fewer playouts. Player trades are the Expert's own.",
     beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
     trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
     robber: "Searched: it tries the tiles and keeps the one that pays off best in many playouts.",
     cards: "Strategic, like the Expert; whether to play a card is part of the search.",
-    note: "Measured without a time limit (1000 futures every move); in the app it stops at 3 s, which on a phone buys fewer futures: not measured how much that costs.",
+    note: "Its win figure was measured with 1000 futures a move; in the app it plays 545 a move (about 3 s on a phone): a re-measurement at 545 is running.",
   },
   // eng-130: the Super Expert+ search spread over several cores. Numbers: src/bot-stats.js (filled in from the eng-130 runs).
   grandmaster: {
     label: "Grandmaster", tagline: "Super Expert+ on every core", level: 5, beyond: true, win: null, acc: null,
-    style: "The Super Expert+ search (the learned position score at the end of every future, 14 turns ahead, 18 in set-up, about 3 s a move), run on several cores of your phone at once, each playing its own share of the futures. In the same 3 seconds it plays about three times as many futures as the Super Expert+.",
+    style: "The Super Expert+ search (the learned position score at the end of every future, 14 turns ahead, 18 in set-up, 1090 futures a move, twice the Super Expert+), run on several cores of your phone at once, each playing its own share of the futures. In the same 3 seconds it plays about three times as many futures as the Super Expert+.",
     good: "The strongest bot: head to head with the Super Expert+ (and 2 Experts) at the app's 3 s a move, it won 48.0% of the games against 25.0% for the Super Expert+ (+23 points, ±15, 100 games with every seat order). It plays about twice as many futures per move in the same time, so its choices rest on more evidence, mostly in close calls.",
-    weak: "Slow, like the Super Expert: about 3 seconds a move, and it keeps up to 3 cores busy meanwhile: more battery, and a long game can warm the phone. On a phone with few cores it searches on one, like the Super Expert+. In Rush it has a quarter of a second a move. With 5–6 players the same time buys fewer futures. Player trades are the Expert's own.",
+    weak: "About 3 seconds a move on a phone with several cores (1090 futures), and it keeps up to 3 cores busy meanwhile: more battery, and a long game can warm the phone. On a phone with few cores it does the same work on one, so it thinks longer there (up to 6 s; then it stops). In Rush it has a quarter of a second a move. With 5–6 players the same time buys fewer futures. Player trades are the Expert's own.",
     beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
     trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
     robber: "Searched: it tries the tiles (and in Seafarers the pirate's sea hexes) and keeps the one that pays off best in many playouts.",
@@ -131,14 +131,14 @@ export const BOT_PROFILES = {
   // bot-125 (working name): the Super Expert's search with the boosted value model as its position score. Measured like the Super Expert.
   superplus: {
     label: "Super Expert+", tagline: "Super Expert with a learned eye", level: 5, beyond: true, win: { p: 71.5, ci: 4.4 }, acc: null,
-    style: "The Super Expert's search (up to 1000 possible futures, 14 turns ahead, 18 in set-up, about 3 s a move), but where each future stops it judges the position with a model learned from thousands of bot games (the same scorer as the game review), not the hand-made score.",
+    style: "The Super Expert's search (545 futures a move, 14 turns ahead, 18 in set-up, about 3 s on a phone), but where each future stops it judges the position with a model learned from thousands of bot games (the same scorer as the game review), not the hand-made score.",
     good: "As strong as the Super Expert against 3 Intermediate bots (71.5% ±4.4, 400 games; +0.5 pp on the same boards, ±5.4). Head to head at one table it finished above the Super Expert in 58.0% of 112 games (±9.0): a slight lean, not significant.",
-    weak: "Slow, like the Super Expert: about 3 seconds a move, so your phone waits for it. In Rush it has a quarter of a second a move. In Seafarers it searches too (ships, the free ship move and the pirate included) and scores its futures with a model learned from Seafarers games: 70.0% against 3 Intermediates there (±9.0, 100 games, no time limit; the Expert 30.5%). With 5–6 players the same 3 seconds buy fewer playouts. Player trades are the Expert's own. In the app it searches for at most 3 s a move (the measurement had no time limit).",
+    weak: "Slow, like the Super Expert: 545 futures a move, about 3 seconds on a phone, so your phone waits for it. In Rush it gets 20 futures a move. In Seafarers it searches too (ships, the free ship move and the pirate included) and scores its futures with a model learned from Seafarers games: 70.0% against 3 Intermediates there (±9.0, 100 games, no time limit; the Expert 30.5%). With 5–6 players the same 3 seconds buy fewer playouts. Player trades are the Expert's own.",
     beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
     trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
     robber: "Searched: it tries the tiles and keeps the one that pays off best in many playouts.",
     cards: "Strategic, like the Expert; whether to play a card is part of the search.",
-    note: "Measured without a time limit (1000 futures every move). In the app it stops at 3 s; its learned score costs a little more per future, so it may get fewer futures there than the Super Expert: not measured what that does to its strength.",
+    note: "Its win figure was measured with 1000 futures a move; in the app it plays 545 a move (about 3 s on a phone), the setting of its head to head with the Grandmaster: a re-measurement at 545 is running.",
   },
 };
 

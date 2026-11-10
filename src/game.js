@@ -9322,7 +9322,7 @@ class ColonistFullGame {
         d.perBot = d.perBot.map((k) => (isSup(k) ? "master" : k));
       }
       const superPicked = !superOff() && (d.botStyleMode === "each" ? d.perBot.slice(0, d.numBots).some((k, i) => isSup(k) && !(d.mode !== "rush" && d.humans[i])) : isSup(d.allPreset));
-      const superHelp = d._superNote ? `<p class="ng-help ng-super-help warn" role="status">${d._superNote}</p>` : superPicked ? `<p class="ng-help ng-super-help">${d.mode === "rush" ? "Rush: a quarter of a second per move, so about a Master there." : "~3 s per move."}</p>` : "";
+      const superHelp = d._superNote ? `<p class="ng-help ng-super-help warn" role="status">${d._superNote}</p>` : superPicked ? `<p class="ng-help ng-super-help">${d.mode === "rush" ? "Rush: a small fixed search per move (20 futures), so about a Master there." : "~3 s per move."}</p>` : "";
       overlay.innerHTML = `
         <div class="ng-card">
           <header class="ng-header">

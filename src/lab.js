@@ -248,7 +248,7 @@ function masterBlock() {
   if (!isMaster()) return;
   const html = ms.rec ? `${masterLineHtml(ms.rec)}<small>Step by step shows the race and the verdict.</small>`
     : ms.none ? `<span class="mv-line"><b>Master</b>: only one sensible move here, so it plays the Expert's step (no search).</span><button type="button" class="lb-btn lb-contest" data-contest>${ms.looking ? "Looking for one…" : "Find a contested move"}</button>`
-      : masterAvailable() ? `<span class="mv-line"><b>Master</b> is searching (about ${MASTER_BUDGET.timeMs / 1000} s)…</span>` : `<span class="mv-line"><b>Master</b> needs Web Workers: here it plays as the Expert.</span>`;
+      : masterAvailable() ? `<span class="mv-line"><b>Master</b> is searching (about ${MASTER_BUDGET.capMs / 1000} s)…</span>` : `<span class="mv-line"><b>Master</b> needs Web Workers: here it plays as the Expert.</span>`;
   el.insertAdjacentHTML("beforeend", `<div class="lb-master" aria-live="polite">${html}</div>`);
 }
 /** v0.91: look for a position where the race really runs: every seat of this board, then new boards (with

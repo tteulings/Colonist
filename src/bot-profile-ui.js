@@ -121,7 +121,7 @@ export function openProfileSheet(game, opts = {}) {
       <div class="bp-hero">${profileArt(key, 132)}</div>
       <div class="bp-meter">${dots(p.level, "bp-dots", p.beyond)}<span>${p.beyond ? `Strength ${p.level}/5 + star` : `Strength ${p.level}/5`}</span></div>
       ${isSuperKey(key) && player && !superHere(game) ? `<p class="bp-warn" role="status">${superHere(game, true).replace("a Super Expert", `a ${p.label}`)}</p>` : ""}
-      ${(key === "master" || isSuperKey(key)) && player && game?.players && (game.isRush?.() || game.players.length >= 5) ? `<p class="bp-warn" role="status">${game.isRush?.() ? "Rush: this bot's search is capped at a quarter of a second a move, and Rush is searched as turn-by-turn play (approximate). " : ""}${game.players.length >= 5 ? `${game.players.length} players: fewer playouts fit in the same time, so its edge is smaller (not measured).` : ""}</p>` : ""}
+      ${(key === "master" || isSuperKey(key)) && player && game?.players && (game.isRush?.() || game.players.length >= 5) ? `<p class="bp-warn" role="status">${game.isRush?.() ? "Rush: this bot searches 20 futures a move, and Rush is searched as turn-by-turn play (approximate). " : ""}${game.players.length >= 5 ? `${game.players.length} players: fewer playouts fit in the same time, so its edge is smaller (not measured).` : ""}</p>` : ""}
       <div class="bp-strength">${strengthLine(key)}</div>
       ${player ? soFar(game, player.id) : ""}
       <div class="bp-rows bp-beat">${row("beat", "✓", "How to beat it", p.beat)}</div>
