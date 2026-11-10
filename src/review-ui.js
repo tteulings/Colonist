@@ -91,7 +91,7 @@ export const ReviewUiMixin = {
       }
       return `<div class="rv1${solo ? " gs-revcard" : ""}" data-rvp="${p.id}"><div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Your game review" : `<span class="pc-${p.id} rv-who">${esc(p.name)}</span> · missed chances`}</span><small>${list.length ? (list[0].verified ? "deep Monte Carlo check" : "") : ""}</small></div>
       ${sumHtml}${lead ? `<p class="rv1-lead">${lead}</p>` : ""}
-      ${solo ? this._rvReviewRowHtml?.(p) || "" : ""}
+      ${solo ? (this._rvReviewRowHtml?.(p) || "") + (this._raBox?.() || "") : ""}
       ${list.map((f, k) => `<button type="button" class="rv1-row" data-rvshow="${p.id}:${k}" aria-label="${this._rvTW()} ${f.t}: ${esc(f.line)}, ${esc(f.gain)}. Show"><span class="t">${this._rvTW()} ${f.t}</span><span class="x">${esc(f.line)}</span><span class="g">${esc(f.gain)}</span>${IC.chev}</button>`).join("")}
       ${solo ? "" : this._rvReviewRowHtml?.(p) || ""}</div>`;
     }).join("");
@@ -106,6 +106,7 @@ export const ReviewUiMixin = {
     box.innerHTML = this._rvBlockHtml();
     box.querySelectorAll("[data-rvshow]").forEach((b) => b.addEventListener("click", () => { const [pid, k] = b.dataset.rvshow.split(":").map(Number); this._rvShow(pid, k); }));
     this._rvBindReview?.(box);
+    this._raBind?.(box);
     this._rvBindTable?.(box);
     box.querySelectorAll("[data-rvfor]").forEach((b) => b.addEventListener("click", () => {
       const pid = +b.dataset.rvfor;

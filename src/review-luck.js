@@ -36,6 +36,15 @@ const INFO_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy
 const infoBtn = (key, open) => `<button type="button" class="lk-ib" data-lki="${key}" aria-expanded="${!!open}" aria-label="About this">${INFO_SVG}</button>`;
 const infoTxt = (key, open, txt) => `<p class="lk-it" data-lkit="${key}"${open ? "" : " hidden"}>${txt}</p>`;
 
+export const luckKey = keyOf;
+/** What is kept of one event's result. l: luck per seat; b: the win chance before the event (the average over its outcomes), for the
+ *  accounting start → end = luck + the rest; a seat event: v, every seat's win chance from the empty board. */
+export function luckRecord(ev, x) {
+  const r4 = (v) => Math.round(v * 1e4) / 1e4;
+  if (ev.kind === "seat") return x && !x.skip && x.v ? { k: "seat", s: 0, e: ev.e, v: x.v, se: x.se } : { k: "seat", s: 0, e: ev.e, skip: x?.skip || "error" };
+  return x && !x.skip && x.luck ? { k: ev.kind, s: ev.s, e: ev.e, l: x.luck, se: x.se, ...(x.cs ? { cs: x.cs, bt: x.bt, ox: x.ox } : {}), b: x.b || x.luck.map((_, q) => r4(x.groups.reduce((a, gr) => a + gr.p * (gr.v?.[q] ?? 0), 0))), F: x.F, g: x.groups.length } : { k: ev.kind, s: ev.s, e: ev.e, skip: x?.skip || "error" };
+}
+
 export const ReviewLuckMixin = {
   /** Why there is no luck in win chance for this game (null: there is). */
   _lkNa() {
@@ -113,10 +122,7 @@ export const ReviewLuckMixin = {
         const m = await reviewRequest({ type: "luck", base: R.base, ev: plain, opts: { leaf: this.sea ? SEA_LEAF : REVIEW.budget.leaf || "gbm", ...this._lkBudget(lanes) } }, 120000, w);
         if (!live() && this._rv !== R) break;
         const x = m?.result;
-        // l: luck per seat; b: the win chance before the event (the average over its outcomes), for the accounting start → end = luck + the rest
-        const r4 = (v) => Math.round(v * 1e4) / 1e4;
-        if (ev.kind === "seat") L.res[keyOf(ev)] = x && !x.skip && x.v ? { k: "seat", s: 0, e: ev.e, v: x.v, se: x.se } : { k: "seat", s: 0, e: ev.e, skip: x?.skip || "error" };
-        else L.res[keyOf(ev)] = x && !x.skip && x.luck ? { k: ev.kind, s: ev.s, e: ev.e, l: x.luck, se: x.se, ...(x.cs ? { cs: x.cs, bt: x.bt, ox: x.ox } : {}), b: x.b || x.luck.map((_, q) => r4(x.groups.reduce((a, gr) => a + gr.p * (gr.v?.[q] ?? 0), 0))), F: x.F, g: x.groups.length } : { k: ev.kind, s: ev.s, e: ev.e, skip: x?.skip || "error" };
+        L.res[keyOf(ev)] = luckRecord(ev, x);
         run.j += 1; { const t = now(); run.times.push(t - last); last = t; }
         if (!L.lite && run.times.length >= 6) {
           const left = todo.length - run.j, per = run.times.reduce((a, b) => a + b, 0) / run.times.length;
@@ -127,7 +133,7 @@ export const ReviewLuckMixin = {
         if (run.stop) break;
       } };
       await Promise.all(Array.from({ length: lanes }, (_, w) => lane(w)));
-      if (this._rv === R) { R.lrun = null; this._rvSave?.(); this._rvTick?.(); }
+      if (this._rv === R) { R.lrun = null; if (this._lkEvents().every((ev) => L.res[keyOf(ev)])) Object.assign(L, this._raStamp?.() || {}); this._rvSave?.(); this._rvTick?.(); }
     })();
     return run.promise;
   },

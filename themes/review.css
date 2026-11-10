@@ -408,3 +408,14 @@
 .lk-hd .lk-ib svg { width: 20px; height: 20px; }
 .lkd-seg + .lk-hd { border-top: 0; }
 .lkw-r .tr > i.z { width: 1.5px; background: var(--ink-soft); opacity: .7; z-index: 1; border-radius: 0; }
+/* v1.41 Review again: what made the review, the button (weight when the engine changed), a short confirmation, its progress */
+.ra-row { display: flex; align-items: center; gap: 8px; margin: 8px 12px 4px; min-height: 44px; }
+.ra-row > small { margin-right: auto; font: 600 11.5px/1.3 var(--font-body); color: var(--ink-soft); }
+.ra-row > span { margin-right: auto; font: 700 12.5px/1.3 var(--font-body); color: var(--ink); display: grid; } .ra-row > span small { font: 600 11px/1.3 var(--font-body); color: var(--ink-soft); }
+.ra-row .rv-btn { min-height: 40px; }
+.ra-ask { margin: 0 12px 8px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.ra-ask p { margin: 0 0 6px; font: 650 12.5px/1.35 var(--font-body); color: var(--ink); }
+.ra-ask div { display: flex; gap: 8px; justify-content: flex-end; }
+.rv-scroll .ra-row, .rv-scroll .ra-ask { margin-left: 4px; margin-right: 4px; }
+.ra-row button.rv-btn, .ra-ask button.rv-btn { font: 750 13px/1.1 var(--font-body); padding: 0 14px; min-height: 40px; height: auto; width: auto; flex: none; white-space: nowrap; border-radius: 20px; }
+.ra-ask p { white-space: normal; }

@@ -14,7 +14,7 @@
 // After the game the records go to the Master Web Worker (src/master/worker.js), which runs the detectors
 // in src/review/detect.js on its private headless engine; the end screen never waits for them.
 import { masterRequest, masterAvailable, reviewRequest, reviewLaneCount } from "./master.js";
-import { REVIEW_ENGINE, REVIEW, FMT, needsFull, rescoreReview, liftReview, analysisOpts } from "./review/evaluate.js";
+import { REVIEW_ENGINE, REVIEW, FMT, needsFull, rescoreReview, liftReview, analysisOpts, engineId } from "./review/evaluate.js";
 import { packRecs, unpackRecs } from "./review/pack.js";
 
 const KEY = "colonist_review_v1";
@@ -228,6 +228,7 @@ export const ReviewMixin = {
       const lanes = mid && !this.winner ? 1 : await reviewLaneCount();
       run.lanes = lanes;
       const opts = analysisOpts(eng, lanes);
+      if (eng === REVIEW_ENGINE) run.eid = engineId(lanes); // v1.41 the deep round's engine (its look-ahead depends on the lanes)
       let next = 0, last = now();
       const lane = async (w) => {
         while (next < items.length) {
@@ -272,7 +273,7 @@ export const ReviewMixin = {
         }
       } catch (e) { console.warn("review run", e); }
       if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVis);
-      if (live()) { rv.done = !run.stop && this._rvReviewComplete(pid); if (R.run === run) R.run = null; this._rvSave(); if (rv.done && this.players[pid]?.isHuman) this._rvLogGame?.(pid); this._rvTick(); if (live() && !run.stop && !mid) this._rvQueueNext(); }
+      if (live()) { rv.done = !run.stop && this._rvReviewComplete(pid); if (rv.done && !mid) Object.assign(rv, this._raStamp?.(run.eid || rv.engId) || {}); /* v1.41 what made it (Review again) */ if (R.run === run) R.run = null; this._rvSave(); if (rv.done && this.players[pid]?.isHuman) this._rvLogGame?.(pid); this._rvTick(); if (live() && !run.stop && !mid) this._rvQueueNext(); }
       return rv;
     })();
     return run.promise;
@@ -280,7 +281,7 @@ export const ReviewMixin = {
   /** Pass & play: when one person's check is done the next person's starts by itself (seat order). */
   _rvQueueNext() {
     const R = this._rv;
-    if (!R || R.run || R.lrun || !this.winner) return;
+    if (!R || R.run || R.lrun || R.again || !this.winner) return; // (v1.41 Review again runs everything itself)
     // v1.31 luck in win chance: after every person's own review, before the others' check (src/review-luck.js)
     if (!(R.queue || []).some((q) => q?.pid == null && this.players[q]?.isHuman) && this._lkWant?.()) { this._lkRun().then(() => { if (this._rv === R) this._rvQueueNext(); }); return; }
     // v1.29 when every person is done (or waits): the others, one at a time

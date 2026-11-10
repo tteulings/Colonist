@@ -48,6 +48,12 @@ export const REVIEW_BUDGET = REVIEW.budget;
 // a longer look-ahead (20 turns, 24 in set-up) beats more futures (143 a move): the played move's loss MAE 3.06 vs 3.27 pp (bootstrap
 // -0.21 [-0.41, -0.01]), its win chance MAE 7.7 vs 8.4 pp; 143 futures: -0.00 pp (no gain); 120 x 17: -0.10. The quick round: speed only.
 export const ANALYSIS_BOOST = { full: { depth: 20, setupDepth: 24 }, m100: null };
+/** v1.41 what judged a review: the accuracy curve, the leaf and the deep round's look-ahead (20 on several lanes, 14 on one). Reviews of
+ *  another id are from another engine: your average counts only today's (Review again brings an older one up to date). */
+export function engineId(lanes = 1) {
+  const d = lanes > 1 && ANALYSIS_BOOST.full?.depth ? ANALYSIS_BOOST.full.depth : REVIEW_BUDGET.depth;
+  return `${ACC.id}-${REVIEW_BUDGET.leaf || "v1"}-d${d}`;
+}
 /** The evaluate options of one decision: the engine, plus its boost on several lanes. */
 export function analysisOpts(eng, lanes = 1) {
   const o = eng === REVIEW_ENGINE ? {} : { engine: eng };

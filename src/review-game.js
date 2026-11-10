@@ -16,6 +16,7 @@ import { profileOf } from "./bot-profile-ui.js";
 import { botBand } from "./review/bands.js";
 import { gameOdds } from "./replay-odds.js";
 import { wpText } from "./review-luck.js";
+import { currentEngineId } from "./review-again.js";
 import { LUCK_MC } from "./review/luck-mc.js";
 
 // The bots' accuracy with the review engine in use (src/review/evaluate.js REVIEW_ENGINES), if measured.
@@ -291,8 +292,9 @@ export const ReviewGameMixin = {
     const KEY = "colonist_review_hist_v1";
     let h = [];
     try { h = JSON.parse(localStorage.getItem(KEY) || "[]"); if (!Array.isArray(h)) h = []; } catch (_) { h = []; }
-    if (add && add.acc != null && !h.some((x) => x.id === add.id)) {
-      h.push(add);
+    if (add && add.acc != null) { // v1.41 a game reviewed again replaces its entry (the average counts the new accuracy)
+      const k = h.findIndex((x) => x.id === add.id);
+      if (k >= 0) { if (JSON.stringify(h[k]) === JSON.stringify({ ...add, at: h[k].at })) return h; h[k] = { ...add, at: h[k].at }; } else h.push(add);
       h = h.slice(-30);
       try { localStorage.setItem(KEY, JSON.stringify(h)); } catch (_) { /* private mode: this game only */ }
     }
@@ -304,14 +306,17 @@ export const ReviewGameMixin = {
     if (!rv || !this.winner || !this.players[pid]?.isHuman || !this._rvReviewComplete(pid)) return this._rvHistory(); // (a bot's review never goes into your record)
     const sum = summarize(rv.results);
     const w = this.hotseat ? this.players[pid]?.name : undefined; // pass & play: one entry per person
-    return this._rvHistory(sum.acc != null ? { id: w ? `${this._rv.id}:${pid}` : this._rv.id, ...(w ? { w } : {}), acc: sum.acc, n: sum.n, at: Date.now(), eng: REVIEW_ENGINE, midCheck: !!rv.midCheck, k: ACC.id } : null);
+    return this._rvHistory(sum.acc != null ? { id: w ? `${this._rv.id}:${pid}` : this._rv.id, ...(w ? { w } : {}), acc: sum.acc, n: sum.n, at: Date.now(), eng: REVIEW_ENGINE, midCheck: !!rv.midCheck, k: ACC.id, eid: rv.engId || null } : null);
   },
   /** The comparison with the bots: only over 5+ games (one game spreads about ±8, the bands only 4). */
   _rvCompare(hist) {
     // accuracies of one engine only, and only games nobody checked during play (v1.04: a check mid-game helps)
-    const last = hist.filter((x) => (!this.hotseat ? !x.w : x.w === this.players[this._rvPid]?.name) && (x.eng || "m100") === REVIEW_ENGINE && !x.midCheck && (x.k ?? "k0.08v1") === ACC.id).slice(-10).map((x) => x.acc);
+    // v1.41 only reviews of today's engine (its id includes the look-ahead): an older one counts again once it is reviewed again
+    const mine = hist.filter((x) => (!this.hotseat ? !x.w : x.w === this.players[this._rvPid]?.name) && !x.midCheck), eid = currentEngineId();
+    const last = mine.filter((x) => (x.eng || "m100") === REVIEW_ENGINE && (x.k ?? "k0.08v1") === ACC.id && x.eid === eid).slice(-10).map((x) => x.acc);
+    const older = mine.filter((x) => x.eid !== eid).length, olderTxt = older ? ` ${older} older ${older === 1 ? "review" : "reviews"} not counted · Review again.` : "";
     if (!BANDS.length) return { n: last.length, text: "" };
-    if (last.length < 5) return { n: last.length, text: `Average vs the bots after 5 games (${last.length} of 5).` };
+    if (last.length < 5) return { n: last.length, text: `Average vs the bots after 5 games (${last.length} of 5).${olderTxt}` };
     const m = last.reduce((a, b) => a + b, 0) / last.length;
     const sd = Math.sqrt(last.reduce((a, b) => a + (b - m) ** 2, 0) / (last.length - 1));
     const se = sd / Math.sqrt(last.length);
@@ -320,7 +325,7 @@ export const ReviewGameMixin = {
     const hit = sorted.filter(([, v, bs = 3]) => m + se >= v - bs && m - se <= v + bs);
     const where = hit.length === 1 ? `around ${hit[0][0]}` : hit.length > 1 ? `between ${hit[0][0]} and ${hit[hit.length - 1][0]}`
       : m < sorted[0][1] ? `below the bots’ range` : m > sorted[sorted.length - 1][1] ? `above the ${sorted[sorted.length - 1][0]} bot` : `between ${sorted.filter((b) => b[1] < m).pop()[0]} and ${sorted.find((b) => b[1] > m)[0]}`;
-    return { n: last.length, m, se, text: `Your last ${last.length} games: ${Math.round(m)} ± ${Math.max(1, Math.round(se))}, ${where}.` };
+    return { n: last.length, m, se, text: `Your last ${last.length} games: ${Math.round(m)} ± ${Math.max(1, Math.round(se))}, ${where}.${olderTxt}` };
   },
   /** v1.04 the accuracy strip at the top: the number, a 70–100 bar with the bots' narrow band (a score
    *  outside is pinned to the end and says so), your 5+ game average on it, and "one game is a rough
@@ -616,11 +621,13 @@ export const ReviewGameMixin = {
         ${key ? `<section class="rv-card rs-keys rs-swings"><div class="rv-gt"><b>${swings.length} biggest swings</b><small>win chance, from dice and the others</small></div>${key}</section>` : ""}
         ${ds.length ? `<section class="rv-card"><div class="rv-gt"><b>Win chance</b><small>${you ? "you" : nm} thick · bars: dice and others <i class="kl"></i> ${you ? "your" : "their"} moves <i class="ks"></i></small></div>${this._rvChart(ds)}</section>` : ""}
         <section class="rv-card"><div class="rv-gt"><b>All ${you ? "your" : `${nm}’s`} moves</b><small>tap to step</small></div>${rows}</section>
+        ${mid ? "" : this._raBox?.() || ""}
 
       </div>`;
     el.querySelector(".rv-scroll").scrollTop = scroll;
     el.querySelector("[data-rvluckgo]")?.addEventListener("click", () => el.querySelector(".rs-dice")?.scrollIntoView({ block: "start", behavior: "smooth" }));
     this._rvBindTop(el);
+    this._raBind?.(el);
     this._rvBindTable(el);
     el.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = b.dataset.rvq || "all"; this._rvDrawReview(+b.dataset.rvj); }));
   },
