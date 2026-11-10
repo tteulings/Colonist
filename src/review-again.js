@@ -16,7 +16,9 @@ const now = () => (typeof performance !== "undefined" ? performance.now() : Date
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hiddenTab = () => typeof document !== "undefined" && (document.hidden || document.visibilityState === "hidden");
 // seconds of one desktop core: a decision in the quick round, in the deep round, a luck event (measured: 4 players, 87 events in ~35 s)
-const SEC = { quick: REVIEW_ENGINES.m100?.sec ?? 0.5, deep: REVIEW.sec ?? 3, luck: 0.45, phone: 2.5 };
+// CAL: measured on this machine (4 cores, 3 lanes): the sum below divided by the lanes came out 0.6x (12 decisions, 17 s) to 4.3x
+// (124 decisions and 87 events, 417 s) too low; 2.5 keeps both within a factor 2
+const SEC = { quick: REVIEW_ENGINES.m100?.sec ?? 0.5, deep: REVIEW.sec ?? 3, luck: 0.45, phone: 2.5, cal: 2.5 };
 
 export const ReviewAgainMixin = {
   /** The stamp a finished block gets. */
@@ -45,7 +47,7 @@ export const ReviewAgainMixin = {
     });
     const ev = this._lkNa?.() ? 0 : this._lkEvents?.().length || 0;
     s += ev * SEC.luck;
-    return { decisions: n, events: ev, sec: Math.round((s * phone) / lanes) };
+    return { decisions: n, events: ev, sec: Math.round((s * phone * SEC.cal) / lanes) };
   },
   _raTime(sec) { return sec >= 90 ? `about ${Math.round(sec / 60)} min` : `about ${Math.max(10, Math.round(sec / 10) * 10)} s`; },
 
