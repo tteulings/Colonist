@@ -365,7 +365,7 @@
 .rs-lk b.pos { color: var(--pos); } .rs-lk b.neg { color: var(--neg); }
 .rs-lk button.lk { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; align-items: baseline; gap: 3px; -webkit-tap-highlight-color: transparent; }
 .rs-lk button.lk b { text-decoration: underline dotted; text-underline-offset: 3px; }
-.rs-lk button.lk i { font-style: normal; font-size: 10px; opacity: .6; margin-left: 1px; }
+.rs-lk button.lk i { font-style: normal; font-size: 11px; opacity: .6; margin-left: 1px; } /* v1.40 11 px: the luck split now shows sooner (faster runs), the screens keep text >= 11 px */
 .rs-lx { margin: 4px 0 2px; padding: 6px 8px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 5%, transparent); font: 650 12px/1.3 var(--font-body); color: var(--ink-soft); }
 .rs-lx .chips { display: flex; flex-wrap: wrap; gap: 4px 6px; }
 .rs-lx .chips i { font-style: normal; padding: 2px 7px; border-radius: 9px; background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); font-weight: 750; white-space: nowrap; }
