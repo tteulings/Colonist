@@ -396,3 +396,8 @@
 .lkw-r > b.pos { color: var(--pos); } .lkw-r > b.neg { color: var(--neg); }
 .lkw-r.end > span, .lkw-r.end > b { color: var(--ink); font-weight: 800; }
 .lkw-r.na > b { font-weight: 600; color: var(--ink-soft); }
+.lk-ib { display: inline-grid; place-items: center; width: 26px; height: 26px; margin: -4px 0 -6px 4px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ink-soft); vertical-align: middle; cursor: pointer; }
+.lk-ib svg { width: 17px; height: 17px; } .lk-ib[aria-expanded="true"] { color: var(--primary); }
+.lkd-sort .lk-ib { margin: 0 0 0 auto; order: 9; } .lkd-sort { align-items: center; }
+.lk-it { margin: 2px 4px 6px; padding: 6px 8px; border-radius: 8px; background: color-mix(in srgb, var(--ink) 5%, transparent); font: 600 11.5px/1.4 var(--font-body); color: var(--ink-soft); }
+.lkw-h { margin: 2px 2px 0; text-align: right; }
