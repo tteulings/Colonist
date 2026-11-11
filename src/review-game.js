@@ -777,6 +777,8 @@ export const ReviewGameMixin = {
       else if (c === "y") beats.push({ ...obj, chip: "card", head: `${nmA} played a development card` });
     }
     while (last < d.x.s && last < st.N) { last += 1; roll(last, to); }
+    // eng-147 from the first decision of the game, the play-by-play starts at the empty board (the seat order)
+    if (!from && this.players.length > 1) beats.unshift({ s: 0, upto: 0, who: -1, start: true, chip: "start", head: "Empty board", sub: "Before the first placement: the seat order on this board, equal players." });
     return beats;
   },
   /** Open the play-by-play of the moves leading to this decision: the board steps through them, the card says what happened. */
@@ -812,7 +814,8 @@ export const ReviewGameMixin = {
       const O = gameOdds(this), key = (this._rvPbpSeq = (this._rvPbpSeq || 0) + 1);
       if (!wc.classList.contains("est")) wc.innerHTML = "<span>Win chance ≈ …</span>"; // (not the decision's numbers while it computes)
       wc.classList.add("est");
-      if (!O.na) O.at(b.s, b.upto).then((p) => { if (p && this._rvPbpSeq === key && this._rvPbp?.i === d.i && wc.isConnected) wc.innerHTML = this._rvLegend(p, true); });
+      if (!O.na && b.start && O.seat) { wc.classList.remove("est"); wc.innerHTML = this._rvLegend(O.seat); }
+      else if (!O.na) O.at(b.s, b.upto).then((p) => { if (p && this._rvPbpSeq === key && this._rvPbp?.i === d.i && wc.isConnected) wc.innerHTML = this._rvLegend(p, true); });
       else wc.innerHTML = `<span>Win chance n/a</span>`;
     }
     this.boardRenderer?.requestDraw?.();

@@ -12,7 +12,7 @@ self.onmessage = (e) => {
       const pump = () => {
         const t0 = performance.now();
         let r;
-        while ((r = R.next())) { self.postMessage({ type: "step", s: r.s, p: r.p, ms: r.ms }); if (performance.now() - t0 > 30) break; }
+        while ((r = R.next())) { self.postMessage({ type: "step", s: r.s, p: r.p, ms: r.ms, su: r.su }); if (performance.now() - t0 > 30) break; }
         if (r) setTimeout(pump, 0); else self.postMessage({ type: "done" });
       };
       pump();

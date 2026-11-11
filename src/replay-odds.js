@@ -79,6 +79,25 @@ export function oddsMarks(game) {
   return out;
 }
 
+/** eng-147 Exact set-up points: the reviewed set-up decisions (their seats' win chances), keyed by the event index they were taken at. */
+export function setupMarks(game) {
+  if (!sameRv(game)) return [];
+  const out = [];
+  Object.values(game._rv.revs || {}).forEach((rv) => (rv?.results || []).forEach((x) => {
+    if (!x || x.k !== "setup" || x.s !== 0 || x.e == null || !Array.isArray(x.seats) || x.seats.length !== game.players.length) return;
+    const z = x.seats.reduce((a, b) => a + b, 0) || 1;
+    out.push({ e: x.e, p: x.seats.map((v) => v / z), pid: x.pid });
+  }));
+  return out;
+}
+/** eng-147 The seat order's win chances from the empty board (equal bots), when the luck run measured them. */
+export function seatOdds(game) {
+  const sv = Object.values(game._rv?.luck?.res || {}).find((r) => r?.k === "seat" && r.v);
+  if (!sameRv(game) || !sv || sv.v.length !== game.players.length) return null;
+  const z = sv.v.reduce((a, b) => a + b, 0) || 1;
+  return sv.v.map((v) => v / z);
+}
+
 /** The position rebuilt from the log, one event at a time (pure data: it runs in the worker or on the page). */
 export class OddsSim {
   constructor(D) {
@@ -183,10 +202,11 @@ export class OddsSim {
     return L;
   }
   /** Win chances for the position now (step s: VP from the log, the mover is the step's roller). */
-  probs(s, final = false) {
+  probs(s, final = false, mid = false) {
     const D = this.D, P = this.players;
     if (this.dirty) { P.forEach((p) => { p.longestRoadLength = this._roadLen(p); }); this.dirty = false; }
-    const vp = D.vp[Math.min(s, D.vp.length - 1)] || [];
+    // mid: inside the set-up, the points are what stands on the board (the log's per-step points are after the whole set-up)
+    const vp = mid ? P.map((p) => p.settlements.size + 2 * p.cities.size) : D.vp[Math.min(s, D.vp.length - 1)] || [];
     P.forEach((p, i) => { p.victoryPoints = vp[i] | 0; });
     const step = D.steps[s - 1] || D.steps[0];
     const sim = this, self = {
@@ -222,9 +242,19 @@ export function oddsRunner(D) {
     next() {
       if (s > N) return null;
       const t0 = now();
+      // eng-147 the set-up: the empty board, then the position after every placement (settlement, road, ship) of step 0
+      let su = null;
+      if (s === 0) {
+        su = [{ g: 0, p: sim.probs(0, false, true) }];
+        for (let i = 0; i < ends[0]; i += 1) {
+          const e = D.ev[i];
+          if (e[0] === 0 && e[1] === "b" && (e[3] === "s" || e[3] === "r" || e[3] === "h")) { sim.run(i + 1); su.push({ g: i + 1, a: e[2], b: e[3], p: sim.probs(0, false, true) }); }
+        }
+      }
       sim.run(ends[s]);
       const p = sim.probs(s, s === N);
       const out = { s, p, ms: now() - t0 };
+      if (su) out.su = su;
       s += 1;
       return out;
     },
@@ -249,7 +279,7 @@ function startWorker(job, D) {
   job.worker = w; job.seq = 0; job.wait = new Map();
   w.onmessage = (e) => {
     const m = e.data;
-    if (m.type === "step") { job.p[m.s] = m.p; job.ms[m.s] = m.ms; job.subs.forEach((f) => f(m.s)); }
+    if (m.type === "step") { job.p[m.s] = m.p; job.ms[m.s] = m.ms; if (m.su) job.su = m.su; job.subs.forEach((f) => f(m.s)); }
     else if (m.type === "done") { job.done = true; job.subs.forEach((f) => f(-1)); }
     else if (m.type === "at") { const f = job.wait.get(m.id); job.wait.delete(m.id); f?.(m.p); }
     else if (m.type === "error") { console.warn("replay odds failed", m.message); job.failed = true; job.subs.forEach((f) => f(-1)); }
@@ -266,7 +296,7 @@ function startPage(job, D, from = 0) {
     if (job.stopped) return;
     const t0 = now();
     let r;
-    while ((r = R.next())) { job.p[r.s] = r.p; job.ms[r.s] = r.ms; job.subs.forEach((f) => f(r.s)); if (now() - t0 > 6) break; }
+    while ((r = R.next())) { job.p[r.s] = r.p; job.ms[r.s] = r.ms; if (r.su) job.su = r.su; job.subs.forEach((f) => f(r.s)); if (now() - t0 > 6) break; }
     if (r) setTimeout(slice, 16); else { job.done = true; job.subs.forEach((f) => f(-1)); }
   };
   setTimeout(slice, 0);
@@ -275,7 +305,7 @@ function startPage(job, D, from = 0) {
 /** The running win chances of this game: { na, get(s), exact(s), done, on(fn) -> off, at(s, upto) -> Promise }. */
 export function gameOdds(game) {
   const na = oddsNa(game);
-  if (na) return { na, get: () => null, exact: () => null, on: () => () => {}, at: async () => null, done: true, N: game._st?.N || 0 };
+  if (na) return { na, get: () => null, exact: () => null, on: () => () => {}, at: async () => null, setup: () => [], seat: null, done: true, N: game._st?.N || 0 };
   const id = game.stats.id || "cur";
   const marks = oddsMarks(game);
   let job = CACHE.get(id);
@@ -292,6 +322,17 @@ export function gameOdds(game) {
     na: null, N: job.D.steps.length, marks,
     get done() { return job.done; },
     get: (s) => job.p[s] || null,
+    seat: seatOdds(game),
+    /** eng-147 the set-up points: [{ g (events applied), a, b, p (estimate), x (exact, from a reviewed set-up decision), pid }], the first is the empty board (the seat value when measured, else the even share). */
+    setup() {
+      const su = job.su; if (!su) return [];
+      const ms = setupMarks(game), seat = seatOdds(game);
+      return su.map((q, i) => {
+        // a reviewed decision belongs to the first point after it (its placement), if that comes right behind it
+        const m = i ? ms.filter((z) => z.e < q.g && q.g - z.e <= 3 && !(su[i - 1].g > z.e)).sort((a, b) => b.e - a.e)[0] : null;
+        return { ...q, est: i ? q.p : (seat || q.p.map(() => 1 / q.p.length)), p: i ? q.p : (seat || q.p.map(() => 1 / q.p.length)), x: i ? (m || null) : (seat ? { p: seat } : null) };
+      });
+    },
     exact: (s) => marks.get(s) || null,
     ms: () => job.ms.filter((x) => x != null),
     on(fn) { job.subs.add(fn); return () => job.subs.delete(fn); },

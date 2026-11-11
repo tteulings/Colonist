@@ -241,6 +241,19 @@
 .gs-rp-x { flex: none; width: 44px; height: 44px; border-radius: 10px; border: var(--btn-border); background: var(--btn); color: var(--btn-ink); font: 700 16px var(--font-body); cursor: pointer; }
 .gs-rp-scrub { width: 100%; accent-color: var(--primary); margin: 0; }
 /* the timeline: the win-chance lines behind the scrubber (44 px to touch), dots = the review's exact points */
+.gs-rp-tlw { display: flex; gap: 10px; }
+.gs-rp-tlw > .gs-rp-tl { flex: 1 1 0; min-width: 0; }
+.gs-rp-su { position: relative; flex: 0 0 31%; height: 48px; border-radius: 10px; background: var(--gs-grid, rgba(0,0,0,.05)); touch-action: none; cursor: pointer; }
+.gs-rp-su[hidden], .gs-rp-tcap[hidden] { display: none; }
+.gs-rp-suc { position: absolute; inset: 4px 10px; width: calc(100% - 20px); height: calc(100% - 8px); overflow: visible; pointer-events: none; }
+.gs-rp-suc polyline { fill: none; stroke: var(--pc); stroke-width: 1.8; stroke-linejoin: round; opacity: .7; }
+.gs-rp-sud { position: absolute; inset: 4px 10px; pointer-events: none; }
+.gs-rp-sud i { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 1.5px var(--float, #fff), 0 0 0 2.6px var(--heading); }
+.gs-rp-suk { position: absolute; top: 2px; bottom: 2px; width: 2px; margin-left: -1px; background: var(--heading); opacity: .22; border-radius: 1px; pointer-events: none; left: 0; }
+.gs-rp-su.on .gs-rp-suk { opacity: .6; }
+.gs-rp-su::after { content: ""; position: absolute; top: 6px; bottom: 6px; right: -6px; border-right: 2px dashed var(--ink-faint, var(--ink-soft)); opacity: .55; pointer-events: none; }
+.gs-rp-tcap { display: flex; gap: 10px; margin-top: -4px; font: 600 12px var(--font-body, inherit); color: var(--ink-faint, var(--ink-soft)); letter-spacing: .02em; }
+.gs-rp-tcap span:first-child { flex: 0 0 31%; padding-left: 2px; }
 .gs-rp-tl { position: relative; height: 48px; border-radius: 10px; background: var(--gs-grid, rgba(0,0,0,.05)); }
 .gs-rp-chart { position: absolute; inset: 4px 10px; width: calc(100% - 20px); height: calc(100% - 8px); overflow: visible; pointer-events: none; }
 .gs-rp-chart polyline { fill: none; stroke: var(--pc); stroke-width: 1.8; stroke-linejoin: round; opacity: .7; }
