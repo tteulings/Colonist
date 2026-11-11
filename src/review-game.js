@@ -348,7 +348,7 @@ export const ReviewGameMixin = {
     const pid = this._rvSoloPid?.();
     return `<section class="rv-card rsw" data-rvwin${pid != null ? ` role="button" tabindex="0" data-rvwpid="${pid}"` : ""} aria-label="Win chance through the game${pid != null ? ", open in the review" : ""}"><div class="rv-gt"><b>Win chance through the game</b><small>${pid != null ? "tap to open" : "set-up and every turn"}</small></div><div class="rsw-c"></div><div class="rsw-leg">${this.players.map((p) => `<span class="pc-${p.id}"><i></i>${this._rvNm(p.id)}</span>`).join("")}</div></section>`;
   },
-  _rvWinDraw(card) {
+  _rvWinDraw(card, who = null) {
     const st = this._st, c = card.querySelector(".rsw-c");
     if (!st || !c) return;
     let O; try { O = gameOdds(this); } catch (_) { return; }
@@ -356,7 +356,7 @@ export const ReviewGameMixin = {
     const W = 304, H = 112, x0 = 24, x1 = W - 4, top = 6, bot = H - 14, N = Math.max(1, st.N);
     const su = O.setup(), M = su.length - 1, f = M >= 1 ? 0.14 : 0, gap = M >= 1 ? 6 : 0, w = x1 - x0 - gap;
     const Xs = (i) => x0 + (i / Math.max(1, M)) * f * w, Xt = (s) => x0 + f * w + gap + (s / N) * (1 - f) * w, Y = (p) => top + (1 - p) * (bot - top);
-    const me = this._rvSoloPid?.();
+    const me = who ?? this._rvSoloPid?.();
     const lines = this.players.map((p) => {
       const pts = [];
       if (M >= 1) su.forEach((q, i) => { const v = (q.x ? q.x.p : q.p)?.[p.id]; if (v != null) pts.push([Xs(i), Y(v)]); });
@@ -373,10 +373,10 @@ export const ReviewGameMixin = {
     const card = root.querySelector("[data-rvwin]");
     this._rvWinOff?.(); this._rvWinOff = null;
     if (!card) return;
-    this._rvWinDraw(card);
+    this._rvWinDraw(card, card.dataset.rvwho != null ? +card.dataset.rvwho : null);
     let O; try { O = gameOdds(this); } catch (_) { return; }
     let t = 0;
-    const off = O.on?.(() => { if (!card.isConnected) { off?.(); return; } if (!t) t = setTimeout(() => { t = 0; if (card.isConnected) this._rvWinDraw(card); }, 150); });
+    const off = O.on?.(() => { if (!card.isConnected) { off?.(); return; } if (!t) t = setTimeout(() => { t = 0; if (card.isConnected) this._rvWinDraw(card, card.dataset.rvwho != null ? +card.dataset.rvwho : null); }, 150); });
     this._rvWinOff = () => { off?.(); clearTimeout(t); };
     const go = () => { const pid = +card.dataset.rvwpid; if (card.dataset.rvwpid == null || Number.isNaN(pid)) return; this._rvOpenReview(pid, { tab: "win" }); };
     card.addEventListener("click", go);
@@ -519,7 +519,7 @@ export const ReviewGameMixin = {
     if (!this._rvReviewable()) return;
     if (!this._rvGateOk(pid)) { this._hsGate?.(pid, "Your game review", () => this._rvOpenReview(pid, { mid, at, near })); return; } // pass & play: hand the phone over first
     this._rvMid = mid;
-    this._rvTab = tab || "overview"; this._rvKm = null; this._rvWc = null; if (this._lkUi) this._lkUi.pid = null; // v1.49 a review opened anew starts on its Overview (or the tab asked for)
+    this._rvTab = tab || "overview"; this._rvKm = null; this._rvWc = null; this._rvWhyP = null; if (this._lkUi) this._lkUi.pid = null; // v1.49 a review opened anew starts on its Overview (or the tab asked for)
     this._rvPbp = null; // v1.36 a review opened anew starts at the decision, never inside an old play-by-play
     if (mid) this._st = this._stCompute(); // the stats so far (luck, the board for Show)
     this._rvCloseReview();
@@ -724,25 +724,70 @@ export const ReviewGameMixin = {
   _rvOverview(ds, res, rv) {
     if (this._rvMid) return this._rvOverviewMid(ds, res, rv);
     const el = this._rvEl, pid = this._rvPid, prov = !this._rvReviewComplete(pid);
-    const tab = (this._rvTab = ["overview", "win", "luck", "moves"].includes(this._rvTab) ? this._rvTab : "overview");
+    const tab = (this._rvTab = ["overview", "win", "luck", "moves", "player"].includes(this._rvTab) ? this._rvTab : "overview");
     this._rvWinOff2?.(); this._rvWinOff2 = null;
     this._rvT = this._rvTotals(ds);
-    const part = { overview: () => this._rvTabOverview(ds, rv, prov), win: () => this._rvTabWin(ds), luck: () => this._rvTabLuck(ds), moves: () => this._rvTabMoves(ds, res, rv) }[tab]();
+    const part = { overview: () => this._rvTabOverview(ds, rv, prov), win: () => this._rvTabWin(ds), luck: () => this._rvTabLuck(ds), moves: () => this._rvTabMoves(ds, res, rv), player: () => this._rvTabPlayer(ds, rv, prov) }[tab]();
     const scroll = this._rvTabDrawn === `${pid}|${tab}` ? el.querySelector(".rv-scroll")?.scrollTop || 0 : 0;
     this._rvTabDrawn = `${pid}|${tab}`;
     el.className = "rv rs tm";
-    el.innerHTML = `${this._rvBar(`${ds.length} decisions · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`)}${this._rvTabsBar(tab)}
+    el.innerHTML = `${tab === "player" ? part.bar : this._rvBar(`${ds.length} decisions · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`)}${tab === "player" ? "" : this._rvTabsBar(tab)}
       <div class="rv-scroll">${this._rvProgHtml(pid)}${part.html}${tab === "overview" ? this._raBox?.() || "" : ""}</div>`;
     el.querySelector(".rv-scroll").scrollTop = scroll;
     this._rvBindTop(el);
     this._raBind?.(el);
     this._rvBindTable(el);
-    el.querySelectorAll("[data-rvt]").forEach((b) => b.addEventListener("click", () => { if (this._rvTab !== b.dataset.rvt) { this._rvTab = b.dataset.rvt; this._rvDrawReview(); } }));
+    el.querySelectorAll("[data-rvt]").forEach((b) => b.addEventListener("click", () => { if (this._rvTab !== b.dataset.rvt || b.dataset.rvpp) { this._rvTab = b.dataset.rvt; this._rvDrawReview(); } }));
     el.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = b.dataset.rvq || "all"; this._rvDrawReview(+b.dataset.rvj); }));
     this._rvBindSbs(el);
     part.bind?.(el);
   },
 
+  // ── v1.50 a player's page: why, points, accuracy with its band, key moments with a line each, the win chance line ──
+  _rvTabPlayer(ds, rv, prov) {
+    const pid = this._rvPid, p = this.players[pid], you = this._rvIsYou(pid), nm = esc(p.name), s = this._rvSeat(pid), lv = p.isHuman ? null : this._rvLevel(p);
+    const w = this.winner, ranked = w ? [w, ...this.players.filter((q) => q !== w).sort((a, b) => b.victoryPoints - a.victoryPoints)] : [...this.players];
+    const rank = ranked.indexOf(p) + 1, n = this.players.length, ordN = (k) => `${k}${["th", "st", "nd", "rd"][k % 100 > 10 && k % 100 < 14 ? 0 : Math.min(k % 10, 4) % 4] || "th"}`;
+    const hist = !prov ? this._rvLogGame(pid) : this._rvHistory();
+    const cmp = prov || lv ? { text: "" } : this._rvCompare(hist);
+    const cmpText = lv ? (lv.band ? `${lv.label} bots usually score ${Math.round(lv.band[0])} ± ${Math.round(lv.band[1])} on their own moves${prov ? " (the deep check)" : ""}.` : "") : prov ? "" : cmp.text;
+    const sum = summarize(rv.results), T = this._rvT || this._rvTotals(ds);
+    const bar = `<div class="rv-bar pp-bar"><button type="button" class="rv-btn" data-rvt="overview" data-rvpp="1" aria-label="Back to the overview">${IC.back}</button>${this._av(p, "rt-av")}<div><h3>${you ? "You" : nm}</h3><small>${[lv?.label, w === p ? "winner" : `${ordN(rank)} of ${n}`, `${p.victoryPoints} points`].filter(Boolean).join(" · ")}</small></div><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review">${IC.info}</button></div>`;
+    // why
+    const W = this._rvWhyBars(pid), wd = s.worst;
+    const head = !W ? "Why" : W.end === 1 ? "Why won" : rank === n ? "Why last" : "Why lost";
+    const why = `<section class="rv-card rvx pp-why"><div class="rv-gt"><b>${head}</b>${W ? `<small>win chance ${Math.round(W.even * 100)}% → ${Math.round(W.end * 100)}%</small>` : ""}</div>${W ? `<p class="rsc-v">${this._rvWhyVerdict(pid, W, wd)}</p><p class="rsc-n">The four bars are on the Overview.</p>` : `<p class="rsc-n">${this._lkState().na ? "Not available for this game." : "The luck check has not finished, so the reasons are not there yet."}</p>`}</section>`;
+    // points
+    const st = this._st, src = st?.sources?.[pid];
+    const parts = [["settlements", "Settlements", 1], ["cities", "Cities", 2], ["road", this.sea ? "Longest trade route" : "Longest road", 0], ["army", "Largest army", 0], ["cards", "VP cards", 0], ["islands", "Islands", 0]];
+    const usedAll = st?.sources ? parts.filter(([k]) => st.sources.some((x) => x?.[k] > 0)) : [];
+    const rows = src ? usedAll.map(([k, l, per], i) => (src[k] > 0 ? `<div class="pp-pr"><i class="s${i}"></i><span>${l}${per ? ` × ${src[k] / per}` : ""}</span><b>${src[k]}</b></div>` : "")).join("") : "";
+    const bar2 = src ? `<div class="rsc-src"><div class="trk" style="--w:100">${usedAll.map(([k], i) => (src[k] > 0 ? `<i class="s${i}" style="flex:${src[k]} 1 0">${src[k]}</i>` : "")).join("")}</div></div>` : "";
+    const pts = src ? `<section class="rv-card rsc pp-pts"><div class="rv-gt"><b>Points</b><small>${p.victoryPoints} points · ${this.winPoints || 10} to win</small></div>${bar2}<div class="pp-prs">${rows}</div></section>` : "";
+    // accuracy
+    const acc = `<section class="rv-card rs-sum">${this._rvStrip(sum.acc, cmp, false, prov)}${cmpText ? `<p class="rv-cmpline rvt-cmp">${esc(cmpText)}</p>` : ""}${sum.lost != null ? `<p class="rs-lost">${sum.n} real choices · on average ${sum.lost}% win chance given away per choice${T.capped ? ` · ${you ? "your" : "their"} moves are capped at the ${T.cap}% ${you ? "you" : "they"} could have had` : ""}</p>` : ""}</section>`;
+    // key moments: each move with a line of why
+    const ico = IC.next.replace("<svg", '<svg class="chev"'), sg = (v) => sgn(v * 100);
+    const imp = this._rvImp(ds).slice(0, 5);
+    const km = imp.map((d) => `<button type="button" class="rs-key rs-imp pp-km" data-rvj="${d.i}" data-rvq="imp">${badge(d.cls)}<span class="t">${this._rvWhen(d)}</span><span class="x">${esc(this._rvTerse(d))}<small class="w">${esc(d.x.why?.head || this._rvLine(d).replace(/<[^>]+>/g, ""))}</small></span><b class="neg">${sg(-d.gap)}%</b>${ico}</button>`).join("");
+    const kmc = `<section class="rv-card rs-keys rs-better"><div class="rv-gt"><b>Key moments</b><small>${imp.length ? "tap one to see it on the board" : ""}</small></div>${km || `<p class="rs-lost">No clear mistake in ${you ? "your" : "their"} moves.</p>`}</section>`;
+    // the line
+    let win = "";
+    try { const O = gameOdds(this); if (!O.na && st) win = `<section class="rv-card rsw pp-win" data-rvwin data-rvwho="${pid}" role="button" tabindex="0" aria-label="Win chance, open the Win chance tab"><div class="rv-gt"><b>Win chance</b><small>${you ? "you" : nm} thick · tap for the details</small></div><div class="rsw-c"></div></section>`; } catch (_) { win = ""; }
+    const first = imp.length ? imp[0].i : ds[0]?.i;
+    const go = ds.length ? `<button type="button" class="rv-btn pri rs-go" data-rvj="${first}" data-rvq="${imp.length ? "imp" : "all"}" data-rvfirst>${IC.step}Step through ${you ? "your" : `${nm}’s`} moves</button>` : "";
+    return { bar, html: `${why}${pts}${acc}${kmc}${win}${go}`, bind: (el) => {
+      const c = el.querySelector("[data-rvwin]");
+      if (!c) return;
+      this._rvWinDraw(c, pid);
+      let O; try { O = gameOdds(this); } catch (_) { return; }
+      let t = 0;
+      const off = O.on?.(() => { if (!c.isConnected) { off?.(); return; } if (!t) t = setTimeout(() => { t = 0; if (c.isConnected) this._rvWinDraw(c, pid); }, 150); });
+      this._rvWinOff2 = () => { off?.(); clearTimeout(t); };
+      const open = () => { this._rvTab = "win"; this._rvDrawReview(); };
+      c.addEventListener("click", open); c.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+    } };
+  },
   // Overview
   /** Everyone at the table in columns: points, accuracy, what the moves cost, luck, the class counts. */
   _rvSbsHtml() {
@@ -765,10 +810,22 @@ export const ReviewGameMixin = {
     const body = [row("Points", (c) => `<b class="big">${c.p.victoryPoints}</b>`), row("Accuracy", accOf),
       row("Moves cost", (c) => (c.moves != null ? `<b class="${c.moves < 0 ? "neg" : ""}">${sgn(c.moves)}%</b>` : `<span class="rt-st">–</span>`)), row("Luck", lkOf),
       ...cls.map((k) => row(`${badge(k, "sm")}${k === "missed" ? "Missed" : CLS[k][0]}`, (c) => { const v = c.s.sum?.cls?.[k]; return v == null ? `<span class="rt-st">–</span>` : `<b class="${v ? "" : "zero"}">${v}</b>`; }))].join("");
-    return `<section class="rv-card sbs-card" data-rvsbs-card><div class="rv-gt"><b>Players side by side</b><small>${n > 4 ? "swipe, " : ""}tap a player for their moves</small></div>${this._rvTableProg(R, LK)}<div class="sbs-w"><div class="sbs" data-rvsbs style="--n:${n}">${head}${body}</div></div>${prov ? `<p class="rt-foot">* first look: the deep check is still running.</p>` : ""}</section>`;
+    return `<section class="rv-card sbs-card" data-rvsbs-card><div class="rv-gt"><b>Players side by side</b><small>${n > 4 ? "swipe, " : ""}tap a player for their page</small></div>${this._rvTableProg(R, LK)}<div class="sbs-w"><div class="sbs" data-rvsbs style="--n:${n}">${head}${body}</div></div>${prov ? `<p class="rt-foot">* first look: the deep check is still running.</p>` : ""}</section>`;
+  },
+  /** Overview: "Why won / lost" for a chosen player (chips), under the side-by-side table. */
+  _rvWhyCard() {
+    const LK = this._lkState();
+    if (LK.na) return "";
+    const pid = this._rvWhyP != null && this.players[this._rvWhyP] ? this._rvWhyP : this._rvPid;
+    const chips = this.players.map((p) => `<button type="button" class="pc-${p.id}${p.id === pid ? " on" : ""}" data-rvwhy2="${p.id}" aria-pressed="${p.id === pid}">${this._av(p, "rt-av")}<span>${this._rvNm(p.id)}</span></button>`).join("");
+    const info = `<button type="button" class="lk-ib" data-rvwhy-i aria-expanded="false" aria-label="What do these bars mean?">${IC.info}</button>`;
+    const txt = `<p class="lk-it" data-rvwhy-t hidden><b>Start</b>: seat order and set-up. <b>Dice luck</b>: their rolls, steals and card draws against what was expected. <b>Own moves</b>: what their choices cost against the best move each time (the Moves cost row above). <b>The others</b>: what the other players' luck and moves did to them, plus what the estimates cannot tell apart.</p>`;
+    return `<section class="rv-card rvx why-card" data-rvwhy><div class="rv-gt"><b>Why ${this._rvWhyBars(pid)?.end === 1 ? "won" : "lost"}</b><span>${info}</span></div>${txt}<div class="lkd-seg" role="group" aria-label="Whose">${chips}</div>${this._rvWhyHtml(pid)}</section>`;
   },
   _rvBindSbs(root) {
-    root.querySelectorAll("[data-rvcol]").forEach((b) => b.addEventListener("click", () => { const pid = +b.dataset.rvcol; if (pid !== this._rvPid) { const t = this._rvTab; this._rvOpenReview(pid, { tab: t }); } }));
+    root.querySelectorAll("[data-rvwhy2]").forEach((b) => b.addEventListener("click", () => { this._rvWhyP = +b.dataset.rvwhy2; this._rvDrawReview(); }));
+    root.querySelector("[data-rvwhy-i]")?.addEventListener("click", (e) => { const t = root.querySelector("[data-rvwhy-t]"); t.hidden = !t.hidden; e.currentTarget.setAttribute("aria-expanded", String(!t.hidden)); });
+    root.querySelectorAll("[data-rvcol]").forEach((b) => b.addEventListener("click", () => { const pid = +b.dataset.rvcol; this._rvOpenReview(pid, { tab: "player" }); }));
   },
   /** The others' background check moved: only the table follows. */
   _rvPatchSbs(el) {
@@ -796,7 +853,7 @@ export const ReviewGameMixin = {
     const list = f === "you" ? mine : f === "oth" ? oth : [...mine, ...oth].sort((a, b) => b.m - a.m).slice(0, 5);
     const seg = [["all", "All"], ["you", you ? "You" : nm], ["oth", "Others"]].map(([k, l]) => `<button type="button" class="${k === f ? "on" : ""}" aria-pressed="${k === f}" data-rvkm="${k}">${l}</button>`).join("");
     const sum = summarize(rv.results);
-    const html = `<section class="rv-card rs-sum">${this._rvStrip(sum.acc, cmp, false, prov)}${cmpText ? `<p class="rv-cmpline rvt-cmp">${esc(cmpText)}${cmp.m != null ? ` <span class="rv-keyme">▮ this game</span> <span class="rv-keyavg">● your average</span>` : ""}</p>` : ""}</section>${this._rvSbsHtml()}
+    const html = `<section class="rv-card rs-sum">${this._rvStrip(sum.acc, cmp, false, prov)}${cmpText ? `<p class="rv-cmpline rvt-cmp">${esc(cmpText)}${cmp.m != null ? ` <span class="rv-keyme">▮ this game</span> <span class="rv-keyavg">● your average</span>` : ""}</p>` : ""}</section>${this._rvSbsHtml()}${this._rvWhyCard()}
       <section class="rv-card rs-keys rs-better"><div class="rv-gt"><b>Key moments</b><div class="km-seg" role="group" aria-label="Whose moments">${seg}</div></div><p class="km-cap">${f === "you" ? `${you ? "Your" : `${nm}’s`} own moves, biggest gap first` : f === "oth" ? `Dice and the others, biggest swing in ${you ? "your" : "their"} win chance` : "The biggest moments, moves and swings together"}</p>${list.length ? list.map((x) => x.h).join("") : `<p class="rs-lost">${f === "oth" ? "No big swing from the dice or the others." : `No clear mistake in ${you ? "your" : "their"} moves.`}</p>`}</section>`;
     return { html, bind: (el) => el.querySelectorAll("[data-rvkm]").forEach((b) => b.addEventListener("click", () => { this._rvKm = b.dataset.rvkm; this._rvDrawReview(); })) };
   },
