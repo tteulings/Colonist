@@ -2592,3 +2592,8 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
 .hm-brand h1 .hm-sub { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 12px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; opacity: .92; margin: 8px auto 0; font-family: var(--font-body, inherit); }
 .hm-brand h1 .hm-sub::before, .hm-brand h1 .hm-sub::after { content: ""; flex: 0 0 26px; height: 1.5px; background: currentColor; opacity: .55; border-radius: 1px; }
 .hm-brand h1 + p { font-size: 14px; opacity: .8; margin-top: 12px; }
+
+/* v1.45 trade: the bank stock under a "get" card: the bank icon + number (as under the hand), no word */
+.tgrid .tbk { display: inline-flex; align-items: center; gap: 3px; }
+.tgrid .tbk .ic { width: 12px; height: 12px; font-size: 12px; display: block; opacity: .85; }
+.tgrid .tbk.low { color: var(--bk-low-ink); }
