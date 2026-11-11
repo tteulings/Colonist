@@ -275,7 +275,7 @@ let workerBroken = false;
 function startWorker(job, D) {
   if (workerBroken || typeof Worker === "undefined") return false;
   let w;
-  try { w = new Worker(new URL("./replay-odds-worker.js?v=148", import.meta.url), { type: "module" }); } catch (_) { workerBroken = true; return false; }
+  try { w = new Worker(new URL("./replay-odds-worker.js?v=149", import.meta.url), { type: "module" }); } catch (_) { workerBroken = true; return false; }
   job.worker = w; job.seq = 0; job.wait = new Map();
   w.onmessage = (e) => {
     const m = e.data;
