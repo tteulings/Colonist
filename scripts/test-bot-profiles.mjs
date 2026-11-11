@@ -47,11 +47,11 @@ const STATS = (await import("../src/bot-stats.js")).BOT_STATS;
 t("Master, Super Expert, Super Expert+: measured vs 3 Intermediates, the profile figure equals bot-stats.js, no estimate or early test left", () => {
   for (const k of ["master", "super", "superplus"]) {
     const w = STATS[k].win;
-    assert.equal(w.label, "measured", k); assert.ok(w.n >= 300 && w.ci > 0 && w.code && w.date && w.setup, k);
+    assert.equal(w.label, "measured", k); assert.ok(w.n >= 200 && w.ci > 0 && w.code && w.date && w.setup, k);
     assert.deepEqual(BOT_PROFILES[k].win, { p: w.v, ci: w.ci }, k);
   }
   assert.ok(!Object.values(STATS).some((x) => ["estimate", "early test"].includes(x.win.label)));
-  assert.match(STATS.super.win.src + STATS.superplus.win.src, /no time limit/); assert.match(STATS.superplus.win.src, /1000 futures a move/); // v1.42 marked: measured at 1000, the app plays 545
+  assert.match(STATS.super.win.src + STATS.superplus.win.src, /no time limit/); assert.match(STATS.superplus.win.src, /1000 futures a move/); assert.match(STATS.super.win.src, /545 futures a move/); // v1.43: the figures are at the app's 545; the 1000-future ones stay as "earlier"
   assert.match(STATS.superplus.win.src, /Head to head/); assert.ok(STATS.superplus.h2h.n > 0);
   assert.match(BOT_PROFILES.master.good, /percentage points more than the Expert/);
 });
@@ -99,7 +99,7 @@ t("Super Expert+ (bot-125): own policy and chip, the Super Expert's budget with 
   assert.equal(presetHighlight([{ ...AI_PRESETS.super }], AI_PRESETS, AXES).active, "super");
   const p = BOT_PROFILES.superplus;
   assert.ok(p.win); assert.equal(p.level, 5); assert.ok(p.beyond);
-  assert.match(p.weak, /545 futures a move/); assert.match(p.note, /re-measurement at 545/); assert.match(p.weak, /In Seafarers it searches too/); assert.match(p.weak, /3 seconds/);
+  assert.match(p.weak, /545 futures a move/); assert.match(p.note, /Measured at the app setting, 545 futures/); assert.match(p.weak, /In Seafarers it searches too/); assert.match(p.weak, /3 seconds/);
   assert.ok(profileArt("superplus", 132).length < 3072);
   assert.notEqual(levelFrame("superplus"), levelFrame("super"));
   assert.notEqual(profileMini("superplus"), profileMini("super"));

@@ -68,6 +68,8 @@ function youCell(g) { // g: { g, w } for one bot (or undefined)
 const winCell = (r, tab) => {
   const w = r.win; // v1.34: the other tabs carry figures for a few bots (MODE_STATS); the rest says "not measured"
   if (w.label === "measured" && w.rating) return { html: `<b class="bpg-num">${Math.round(w.v)}</b><span class="bpg-sub">±${Math.round(w.ci)}</span>`, aria: `rating ${Math.round(w.v)}, plus or minus ${Math.round(w.ci)}` };
+  if (w.label === "measured" && w.note) return { html: `<b class="bpg-num">${f1(w.v)}</b><span class="bpg-sub bpg-est">fair share</span>`, aria: `${f1(w.v)} percent, the fair share by construction` };
+  if (w.label === "measured" && w.prov) return { html: `<b class="bpg-num">${f1(w.v)}</b><span class="bpg-sub bpg-est">±${f1(w.ci)} n=${w.n}</span>`, aria: `${f1(w.v)} percent, plus or minus ${f1(w.ci)}, provisional, ${w.n} games so far` };
   if (w.label === "measured") return { html: `<b class="bpg-num">${f1(w.v)}</b><span class="bpg-sub">±${f1(w.ci)}</span>`, aria: `${f1(w.v)} percent, plus or minus ${f1(w.ci)}, measured` };
   if (w.label === "estimate") return { html: `<b class="bpg-num">~${Math.round(w.v)}</b><span class="bpg-sub bpg-est">estimate</span>`, aria: `about ${Math.round(w.v)} percent, an estimate, not a measurement` };
   if (w.label === "early test") return { html: `<b class="bpg-num">${esc(w.text.replace(" vs Master", ""))}</b><span class="bpg-sub bpg-est">early test</span>`, aria: `${w.text}, early test` };
@@ -88,7 +90,7 @@ function order(tab, sort, you, who, metric = "win") {
     if (sort === "win") return { list: R.sort((a, b) => (plain(b) ? b.win.v : -1e3 + sy(b)) - (plain(a) ? a.win.v : -1e3 + sy(a)) || KEYS.indexOf(a.key) - KEYS.indexOf(b.key)), ranked: true, sort };
     return { list: R.sort((a, b) => sy(b) - sy(a) || KEYS.indexOf(a.key) - KEYS.indexOf(b.key)), ranked: false, sort: "you" };
   }
-  const key = { win: (r) => (plain(r) ? r.win.v : 1e3 - KEYS.indexOf(r.key)), acc: (r) => (r.acc.v == null ? -1 : r.acc.v), you: sy }[sort];
+  const key = { win: (r) => (plain(r) ? r.win.v : metric === "win" ? 1e3 - KEYS.indexOf(r.key) : -1e3 - KEYS.indexOf(r.key)), acc: (r) => (r.acc.v == null ? -1 : r.acc.v), you: sy }[sort];
   return { list: R.sort((a, b) => key(b) - key(a) || KEYS.indexOf(a.key) - KEYS.indexOf(b.key)), ranked: true, sort };
 }
 
@@ -107,7 +109,7 @@ function listHtml(tab, sort, you, who, metric = "win") {
   const body = o.list.map((r) => {
     const rank = o.ranked && plain(r) ? ++n : null;
     const w = winCell(r, tab), a = accCell(r, tab), y = youCell(yt.bots[r.key]);
-    return `<button type="button" class="bpg-row" role="row" data-open="${r.key}" aria-label="${esc(`${rank ? `Rank ${rank}. ` : ""}${r.p.label}, ${lvText(r)}. Win chance ${w.aria}. Review accuracy ${a.aria}. You: ${y.aria}. Open profile`)}">
+    return `<button type="button" class="bpg-row" role="row" data-open="${r.key}" aria-label="${esc(`${rank ? `Rank ${rank}. ` : ""}${r.p.label}, ${lvText(r)}. ${metric === "vse" ? "Win chance against 3 Experts" : metric === "rating" ? "Classic" : "Win chance"} ${w.aria}. Review accuracy ${a.aria}. You: ${y.aria}. Open profile`)}">
       <span class="bpg-rk" aria-hidden="true">${rank ?? "·"}</span>${emb(r.key, 20)}
       <span class="bpg-nm"><b>${r.p.label}</b>${dotsHtml(r.p.level, r.p.beyond)}</span>
       <span class="bpg-c">${w.html}</span><span class="bpg-c">${a.html}</span><span class="bpg-c">${y.html}</span></button>`;
@@ -257,13 +259,13 @@ function modeCard(tab) {
   const M = MODE_STATS[tab] || {}, keys = Object.keys(M);
   if (!keys.length) return "";
   const name = (k) => P[k]?.label || k;
-  const rowsH = keys.map((k) => { const w = M[k]; return `<tr><th scope="row">${name(k)}</th><td>${f1(w.v)}</td><td>±${f1(w.ci)}</td><td>${w.n}</td><td>${w.vsE ? `${w.vsE.v > 0 ? "+" : ""}${f1(w.vsE.v)} ±${f1(w.vsE.ci)}` : "–"}</td></tr>`; }).join("");
+  const rowsH = keys.map((k) => { const w = M[k]; return `<tr><th scope="row">${name(k)}</th><td>${f1(w.v)}</td><td>±${f1(w.ci)}</td><td>${w.n}${w.prov ? " (provisional)" : ""}</td><td>${w.vsE ? `${w.vsE.v > 0 ? "+" : ""}${f1(w.vsE.v)} ±${f1(w.vsE.ci)}` : "–"}</td><td>${esc(w.fut || "–")}</td></tr>`; }).join("");
   const setup = SETUPS[M[keys[0]].setup] || "";
   const code = M[keys[0]].code;
-  return `<section class="bpg-card bpg-hero" aria-labelledby="bpgModeH"><h2 id="bpgModeH">Measured here</h2><p class="bpg-lede">${keys.map(name).join(", ")}: one bot against Intermediates; a fair share is ${FAIR[tab]}%. The other bots are not measured here yet.</p>
+  return `<section class="bpg-card bpg-hero" aria-labelledby="bpgModeH"><h2 id="bpgModeH">Measured here</h2><p class="bpg-lede">One bot against Intermediates; a fair share is ${FAIR[tab]}%. ${(() => { const miss = Object.keys(P).filter((k) => !keys.includes(k)).map(name); return miss.length ? `Not measured here: ${miss.join(", ")}.` : "Every bot is measured here."; })()}${keys.some((k) => M[k].prov) ? " Provisional: from a run that was stopped early." : ""}</p>
     <details class="bpg-nums"><summary>Show the numbers</summary><div class="bpg-tw" tabindex="0"><table><caption class="sr">Win chance per measured bot</caption>
-    <thead><tr><th scope="col">Bot</th><th scope="col">Win %</th><th scope="col">±95%</th><th scope="col">n</th><th scope="col">vs Expert (pp)</th></tr></thead><tbody>${rowsH}</tbody></table></div>
-    <p class="bpg-foot"><b>Win chance:</b> ${esc(setup)} Code ${esc(code)}.</p><p class="bpg-foot"><b>vs Expert:</b> the same boards and seats played by the Expert; the difference in win chance, in percentage points, ± 95%.</p></details></section>`;
+    <thead><tr><th scope="col">Bot</th><th scope="col">Win %</th><th scope="col">±95%</th><th scope="col">n</th><th scope="col">vs Expert (pp)</th><th scope="col">Search</th></tr></thead><tbody>${rowsH}</tbody></table></div>
+    <p class="bpg-foot"><b>Win chance:</b> ${esc(setup)} Code ${esc(code)}.</p><p class="bpg-foot"><b>vs Expert:</b> the same boards and seats played by the Expert; the difference in win chance, in percentage points, ± 95%.</p>${keys.filter((k) => M[k].src && /^(Measured|Provisional)/.test(M[k].src)).map((k) => `<p class="bpg-foot"><b>${esc(name(k))}:</b> ${esc(M[k].src.replace(/ Same boards and seats.*$/, ""))}</p>`).join("")}</details></section>`;
 }
 
 const NOT = { rush: "Win chances were only measured in Classic. In Rush the Master and both Super Experts search for less time, so their numbers can differ.", five: "With 5 players a fair share is 20%.", six: "With 6 players a fair share is about 17%.", sea: "In Seafarers the Master and both Super Experts search too, with a model learned from Seafarers games. Nobody measured their win chances there yet." };
