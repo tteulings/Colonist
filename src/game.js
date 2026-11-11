@@ -3672,7 +3672,7 @@ class ColonistFullGame {
       <div class="trade-body" id="tradeBody">
         <div class="tlbl"><span>You give</span><small class="tlbl-na">you have → after</small></div>
         <div id="tradeOfferGrid" class="tgrid give" role="group" aria-label="You give"></div>
-        <div class="tlbl"><span>You get</span><small class="tlbl-na">you have → after</small></div>
+        <div class="tlbl"><span>You get</span><small class="tlbl-na">from the bank or a player</small></div>
         <div id="tradeRequestGrid" class="tgrid get" role="group" aria-label="You get"></div>
         <div class="tplayers" id="tradePlayers">
           <div class="tp-head"><span>Players</span><small id="tradePlayersNote"></small></div>
@@ -3835,8 +3835,12 @@ class ColonistFullGame {
       // "4 → 2": now → after this trade, so nobody has to count. The bank route's own result is on its button.
       const after = have - (this.tradeOffer[r] || 0) + (this.tradeRequest[r] || 0);
       const num = side === "give" ? have : stock;
-      const sub = out ? "bank empty" : after !== have ? `<span class="na">${have} → <b class="${after < have ? "dn" : "up"}">${after}</b></span>` : `<span class="na">${have}</span>`;
-      const low = side === "get" && stock > 0 && stock <= 3 ? `<span class="rate-tag low" title="The bank has ${stock} ${name} left">bank ${stock}</span>` : "";
+      const arrow = `<span class="na">${have} → <b class="${after < have ? "dn" : "up"}">${after}</b></span>`;
+      // v1.43: the get row is about what you can GET: the bank's stock is always on the card (tag); your own count only once
+      // you ask for that card ("you 2 → 3"), so it no longer reads as what the other players hold
+      const sub = side === "give" ? (n ? arrow : `<span class="na">${have}</span>`)
+        : out ? "bank empty" : n ? `<span class="na">you ${have} → <b class="up">${after}</b></span>` : `<span class="na">bank ${stock}</span>`;
+      const low = side === "get" && stock > 0 && stock <= 3 ? `<span class="rate-tag low" title="The bank has ${stock} ${name} left">${stock} left</span>` : "";
       const label = side === "give" ? `Give one more ${name} (you have ${have}${n ? `, giving ${n}, ${after} after` : ""})` : `Get one more ${name} (you have ${have}${n ? `, asking ${n}, ${after} after` : ""}) · bank has ${stock}`;
       return `<div class="tcell ${r}${n ? " pick" : ""}${usable ? "" : " none"}${out ? " out" : ""}" data-hand="${side === "give" ? r : ""}" data-res="${r}">
         <button type="button" class="tpick" data-${side}="${r}" aria-label="${label}" ${usable ? "" : "aria-disabled=\"true\""}>${side === "give" ? `<span class="rate-tag${rate < baseRate ? " port" : ""}" title="${rate} ${name} for 1 card from the bank">${rate}:1</span>` : low}<span class="tcard card" data-card="${r}" data-n="${Math.max(1, Math.min(num, 4))}">${cardSvg(r)}${side === "give" ? `<span class="tnum">${num}</span>` : ""}</span><small${side === "get" ? ' class="stock"' : ""}>${sub}</small></button>
