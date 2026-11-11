@@ -188,7 +188,8 @@ export const ReviewGameMixin = {
     const cov = !!rv?.results?.length && this._rvCovered1(pid);
     const done = this._rvReviewComplete(pid);
     // a bot's accuracy only from the deep round (the quick round's numbers are on another scale than its band); yours as on your review
-    const sum = cov && (p.isHuman || done) ? summarize(rv.results) : null;
+    // v1.44 (user: "no first estimate for the bots"): a bot's quick look gives a provisional "~NN" too, replaced by the deep check
+    const sum = cov ? summarize(rv.results) : null;
     // the biggest mistake: from deep results (a bot's: once its biggest moments are checked deeply)
     const deep = (rv?.results || []).filter((x) => !this._rvNeedsFull(x) && (!x.skip || x.skip === "trivial"));
     const deepTodo = (rv?.results || []).filter((x) => !["forced", "n/a"].includes(x.skip) && !(this._rvBotSeat(pid) && this._rvQuickDone(x))).length;
@@ -211,7 +212,7 @@ export const ReviewGameMixin = {
     const run = R.run, runBot = run && !this.players[run.pid]?.isHuman && run.round;
     const left = this._rvOthers().filter((p) => !this._rvReviewComplete(p.id) && !(R.revs[p.id]?.top && this._rvCovered1(p.id)));
     let prog = "";
-    if (runBot) prog = `<div class="rt-prog" role="status"><i class="rv-ring" style="--p:${Math.round((100 * run.round.j) / Math.max(1, run.round.n))}%" aria-hidden="true"></i><span>${run.paused ? "Paused" : `Checking ${esc(this.players[run.pid].name)} ${run.round.j}/${run.round.n}`}<small>${run.round.eng === "m100" ? "quick look" : "deep check"}</small></span><button type="button" class="rv-btn" data-rvostop>Stop</button></div>`;
+    if (runBot) prog = `<div class="rt-prog" role="status"><i class="rv-ring" style="--p:${Math.round((100 * run.round.j) / Math.max(1, run.round.n))}%" aria-hidden="true"></i><span>${run.paused ? "Paused" : `Checking the bots: ${esc(this.players[run.pid].name)}`}<small>${run.round.eng === "m100" ? "first look" : "deep check"} ${run.round.j}/${run.round.n}${left.length > 1 ? ` · ${left.length} to go` : ""}</small></span><button type="button" class="rv-btn" data-rvostop>Stop</button></div>`;
     else if (!LK.na && (LK.run || (LK.stopped && !LK.done && !(R.othersOff && left.length)))) prog = LK.run ? `<div class="rt-prog" role="status"><i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i><span>${LK.paused ? "Paused" : `Luck: replaying every roll ${LK.j}/${LK.n}`}<small>with every other outcome</small></span><button type="button" class="rv-btn" data-rvlkstop>Stop</button></div>`
       : `<div class="rt-prog" role="status"><span>Luck stopped<small>${LK.j} of ${LK.n} chance events</small></span><button type="button" class="rv-btn pri" data-rvlkgo>Continue</button></div>`;
     else if (R.othersOff && left.length) prog = `<div class="rt-prog" role="status"><span>Stopped<small>${left.length} ${left.length === 1 ? "player" : "players"} not checked</small></span><button type="button" class="rv-btn pri" data-rvogo>Continue</button></div>`;
@@ -220,8 +221,8 @@ export const ReviewGameMixin = {
     const accCell = ({ p, s, lv }) => {
       const meter = s.sum?.acc != null ? `<i class="rt-meter" aria-hidden="true">${lv?.band ? `<i class="bd" style="left:${pct(lv.band[0] - lv.band[1])}%;width:${2 * lv.band[1]}%"></i>` : ""}<i class="dot" style="left:${pct(s.sum.acc)}%"></i></i>` : "";
       if (s.sum?.acc != null) return `<span class="rt-c rt-ac"><b class="rt-acc${s.done ? "" : " prov"}">${s.done ? "" : "~"}${s.sum.acc}</b>${meter}</span>`;
-      if (s.st === "run") return `<span class="rt-c rt-ac"><span class="rt-st"><i class="rv-ring" style="--p:${Math.round((100 * s.running.j) / Math.max(1, s.running.n))}%" aria-hidden="true"></i>checking…</span></span>`;
-      return `<span class="rt-c rt-ac"><span class="rt-st">${{ queued: p.isHuman ? "queued" : "checking…", stopped: "stopped", idle: p.isHuman ? "not checked" : "checking…", norec: "n/a", none: "no choices", prov: "–", done: "–", quick: "checking…" }[s.st]}</span></span>`;
+      if (s.st === "run") return `<span class="rt-c rt-ac"><span class="rt-st rt-now"><i class="rv-ring" style="--p:${Math.round((100 * s.running.j) / Math.max(1, s.running.n))}%" aria-hidden="true"></i>${s.running.j}/${s.running.n}</span></span>`;
+      return `<span class="rt-c rt-ac"><span class="rt-st">${{ queued: p.isHuman ? "queued" : "waiting", stopped: "stopped", idle: p.isHuman ? "not checked" : "waiting", norec: "n/a", none: "no choices", prov: "–", done: "–", quick: "waiting" }[s.st]}</span></span>`;
     };
     const slipWord = (d) => (d.cls === "missed" ? (d.k === "end" ? "ended" : "traded") : { setup: "set-up", build: "build", bank: "trade", buy: "card", play: "card", robber: "robber", end: "ended" }[d.k] || "move");
     const items = rows.map(({ p, s, lv }) => {
