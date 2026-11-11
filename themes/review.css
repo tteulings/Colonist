@@ -525,3 +525,12 @@
 .rvx .lk-tab .lkd-seg { flex-wrap: wrap; overflow: visible; }
 .rvt-cmp { margin: 8px 2px 0; }
 .why-card .lkd-seg { flex-wrap: wrap; overflow: visible; margin-bottom: 4px; } .why-card .rv-gt { align-items: center; } .why-card .lk-ib { margin-left: auto; } .why-card .lk-it { margin: 0 0 8px; } .why-card .rsc-wy { justify-content: flex-start; } .why-card .rsc-wy b { display: none; }
+/* v1.50 a player's page */
+.rv-bar.pp-bar > div { flex: 1; min-width: 0; } .pp-bar .rt-av { --av: 36px; margin: 0; flex: none; } .pp-bar h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-pts .rsc-src { padding: 0; } .pp-pts .rsc-src .trk { height: 22px; }
+.pp-prs { margin-top: 8px; } .pp-pr { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 0; border-top: 1px solid var(--rv-sep); font: 650 13px/1.2 var(--font-body); } .pp-pr:first-child { border-top: 0; }
+.pp-pr i { width: 10px; height: 10px; border-radius: 3px; background: var(--sc); font-style: normal; } .pp-pr b { font: 800 14px/1 var(--font-body); color: var(--heading); font-variant-numeric: tabular-nums; }
+.pp-pts .s0 { --sc: var(--s0); } .pp-pts .s1 { --sc: var(--s1); } .pp-pts .s2 { --sc: var(--s2); } .pp-pts .s3 { --sc: var(--s3); } .pp-pts .s4 { --sc: var(--s4); } .pp-pts .s5 { --sc: var(--s5); }
+.pp-why .rsc-v { margin-top: 2px; }
+.pp-km .x small.w { white-space: normal; }
+.pp-win .rsw-c svg { cursor: pointer; }
