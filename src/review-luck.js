@@ -226,8 +226,7 @@ export const ReviewLuckMixin = {
       ${rows.length > shown.length ? `<button type="button" class="rv-btn lkd-all" data-rvlka>Show all ${rows.length}</button>` : ""}
       <p class="lkd-tot"><span>Total · ${seatW ? "seat order, " : ""}${kinds.dice} rolls, ${kinds.steal} steals, ${kinds.dev} card draws</span><b class="${cls(tot)}">${wpText(tot, 1)}</b></p>${o2}`;
   },
-  /** The two sides of own luck in a sentence (the cards, and which cards when), then the whole story of the win chance in four bars
-   *  (Start, Dice luck, Own moves, The others) with one sentence: the same block as the end screen's "Why won / lost". */
+  /** The two sides of own luck in a sentence (the cards, and which cards when), (the whole story of the win chance in four bars is the Overview tab's "Why won / lost"). */
   _lkWaterHtml(pid, you) {
     const B = this._lkBook(pid);
     if (!B) return "";
@@ -243,7 +242,7 @@ export const ReviewLuckMixin = {
     const say = `<div class="lk-hd"><b>${you ? "Your" : `${nm}’s`} luck</b>${infoBtn("split", U.info?.split)}</div>
       <p class="lkd-say">${(() => { const sw = this._lkSeat(pid); return Math.round(sw * 100) ? `Seat order on this board: ${wpText(sw)}. ` : ""; })()}${cardsTxt}, ${join} ${kindTxt} (${wpText(B.kind)}). ${most}</p>
       ${infoTxt("split", U.info?.split, `Number of cards: cards above or below expected, at what a card was worth to ${you ? "you" : "them"} on average this game. The rest is which cards, and when. Each part is an estimate, good to about ±${Math.max(1, Math.round(B.se * 100))} points.`)}`;
-    return `${say}<div class="rvx">${this._rvWhyHtml?.(pid) || ""}</div>`;
+    return say; // (the four bars "Why won / lost" are on the Overview tab)
   },
   _lkBindDetails(root) {
     const d = root.querySelector("[data-rvlkd]");

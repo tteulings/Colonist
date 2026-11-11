@@ -519,7 +519,7 @@ export const ReviewGameMixin = {
     if (!this._rvReviewable()) return;
     if (!this._rvGateOk(pid)) { this._hsGate?.(pid, "Your game review", () => this._rvOpenReview(pid, { mid, at, near })); return; } // pass & play: hand the phone over first
     this._rvMid = mid;
-    this._rvTab = tab || "overview"; this._rvKm = null; this._rvWc = null; if (this._lkUi) this._lkUi.pid = null; // v1.49 a review opened anew starts on its Overview (or the tab asked for)
+    this._rvTab = tab || "overview"; this._rvKm = null; this._rvWc = null; this._rvWhyP = null; if (this._lkUi) this._lkUi.pid = null; // v1.49 a review opened anew starts on its Overview (or the tab asked for)
     this._rvPbp = null; // v1.36 a review opened anew starts at the decision, never inside an old play-by-play
     if (mid) this._st = this._stCompute(); // the stats so far (luck, the board for Show)
     this._rvCloseReview();
@@ -767,7 +767,19 @@ export const ReviewGameMixin = {
       ...cls.map((k) => row(`${badge(k, "sm")}${k === "missed" ? "Missed" : CLS[k][0]}`, (c) => { const v = c.s.sum?.cls?.[k]; return v == null ? `<span class="rt-st">–</span>` : `<b class="${v ? "" : "zero"}">${v}</b>`; }))].join("");
     return `<section class="rv-card sbs-card" data-rvsbs-card><div class="rv-gt"><b>Players side by side</b><small>${n > 4 ? "swipe, " : ""}tap a player for their moves</small></div>${this._rvTableProg(R, LK)}<div class="sbs-w"><div class="sbs" data-rvsbs style="--n:${n}">${head}${body}</div></div>${prov ? `<p class="rt-foot">* first look: the deep check is still running.</p>` : ""}</section>`;
   },
+  /** Overview: "Why won / lost" for a chosen player (chips), under the side-by-side table. */
+  _rvWhyCard() {
+    const LK = this._lkState();
+    if (LK.na) return "";
+    const pid = this._rvWhyP != null && this.players[this._rvWhyP] ? this._rvWhyP : this._rvPid;
+    const chips = this.players.map((p) => `<button type="button" class="pc-${p.id}${p.id === pid ? " on" : ""}" data-rvwhy2="${p.id}" aria-pressed="${p.id === pid}">${this._av(p, "rt-av")}<span>${this._rvNm(p.id)}</span></button>`).join("");
+    const info = `<button type="button" class="lk-ib" data-rvwhy-i aria-expanded="false" aria-label="What do these bars mean?">${IC.info}</button>`;
+    const txt = `<p class="lk-it" data-rvwhy-t hidden><b>Start</b>: seat order and set-up. <b>Dice luck</b>: their rolls, steals and card draws against what was expected. <b>Own moves</b>: what their choices cost against the best move each time (the Moves cost row above). <b>The others</b>: what the other players' luck and moves did to them, plus what the estimates cannot tell apart.</p>`;
+    return `<section class="rv-card rvx why-card" data-rvwhy><div class="rv-gt"><b>Why ${this._rvWhyBars(pid)?.end === 1 ? "won" : "lost"}</b><span>${info}</span></div>${txt}<div class="lkd-seg" role="group" aria-label="Whose">${chips}</div>${this._rvWhyHtml(pid)}</section>`;
+  },
   _rvBindSbs(root) {
+    root.querySelectorAll("[data-rvwhy2]").forEach((b) => b.addEventListener("click", () => { this._rvWhyP = +b.dataset.rvwhy2; this._rvDrawReview(); }));
+    root.querySelector("[data-rvwhy-i]")?.addEventListener("click", (e) => { const t = root.querySelector("[data-rvwhy-t]"); t.hidden = !t.hidden; e.currentTarget.setAttribute("aria-expanded", String(!t.hidden)); });
     root.querySelectorAll("[data-rvcol]").forEach((b) => b.addEventListener("click", () => { const pid = +b.dataset.rvcol; if (pid !== this._rvPid) { const t = this._rvTab; this._rvOpenReview(pid, { tab: t }); } }));
   },
   /** The others' background check moved: only the table follows. */
@@ -796,7 +808,7 @@ export const ReviewGameMixin = {
     const list = f === "you" ? mine : f === "oth" ? oth : [...mine, ...oth].sort((a, b) => b.m - a.m).slice(0, 5);
     const seg = [["all", "All"], ["you", you ? "You" : nm], ["oth", "Others"]].map(([k, l]) => `<button type="button" class="${k === f ? "on" : ""}" aria-pressed="${k === f}" data-rvkm="${k}">${l}</button>`).join("");
     const sum = summarize(rv.results);
-    const html = `<section class="rv-card rs-sum">${this._rvStrip(sum.acc, cmp, false, prov)}${cmpText ? `<p class="rv-cmpline rvt-cmp">${esc(cmpText)}${cmp.m != null ? ` <span class="rv-keyme">▮ this game</span> <span class="rv-keyavg">● your average</span>` : ""}</p>` : ""}</section>${this._rvSbsHtml()}
+    const html = `<section class="rv-card rs-sum">${this._rvStrip(sum.acc, cmp, false, prov)}${cmpText ? `<p class="rv-cmpline rvt-cmp">${esc(cmpText)}${cmp.m != null ? ` <span class="rv-keyme">▮ this game</span> <span class="rv-keyavg">● your average</span>` : ""}</p>` : ""}</section>${this._rvSbsHtml()}${this._rvWhyCard()}
       <section class="rv-card rs-keys rs-better"><div class="rv-gt"><b>Key moments</b><div class="km-seg" role="group" aria-label="Whose moments">${seg}</div></div><p class="km-cap">${f === "you" ? `${you ? "Your" : `${nm}’s`} own moves, biggest gap first` : f === "oth" ? `Dice and the others, biggest swing in ${you ? "your" : "their"} win chance` : "The biggest moments, moves and swings together"}</p>${list.length ? list.map((x) => x.h).join("") : `<p class="rs-lost">${f === "oth" ? "No big swing from the dice or the others." : `No clear mistake in ${you ? "your" : "their"} moves.`}</p>`}</section>`;
     return { html, bind: (el) => el.querySelectorAll("[data-rvkm]").forEach((b) => b.addEventListener("click", () => { this._rvKm = b.dataset.rvkm; this._rvDrawReview(); })) };
   },
