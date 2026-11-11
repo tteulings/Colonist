@@ -784,13 +784,15 @@ export const StatsUiMixin = {
           <button type="button" class="gs-rp-step" data-rpstep="1" aria-label="Next turn">${IC("M16 3h-2.6v14H16zM3.6 3.6v12.8c0 .8.9 1.3 1.6.8l7.3-6c.7-.5.7-1.6 0-2.1L5.2 2.8c-.7-.5-1.6 0-1.6.8z")}</button>
           <div class="gs-rp-cap" aria-live="polite"><b></b><span></span></div>
           <button type="button" class="gs-rp-x" aria-label="Close replay">✕</button></div>
+        <div class="gs-rp-tlw"><div class="gs-rp-su" hidden role="img" aria-label="Win chance through the set-up, tap or drag to place the board"><svg class="gs-rp-suc" viewBox="0 0 1 100" preserveAspectRatio="none" aria-hidden="true"></svg><div class="gs-rp-sud" aria-hidden="true"></div><i class="gs-rp-suk" aria-hidden="true"></i></div>
         <div class="gs-rp-tl"><svg class="gs-rp-chart" viewBox="0 0 ${Math.max(1, st.N)} 100" preserveAspectRatio="none" aria-hidden="true"></svg><div class="gs-rp-dots" aria-hidden="true"></div><i class="gs-rp-cur" aria-hidden="true"></i>
-          <input type="range" class="gs-rp-scrub" min="0" max="${st.N}" value="0" step="1" aria-label="${this.isRush() ? "Roll" : "Turn"}"></div>
+          <input type="range" class="gs-rp-scrub" min="0" max="${st.N}" value="0" step="1" aria-label="${this.isRush() ? "Roll" : "Turn"}"></div></div>
+        <div class="gs-rp-tcap" hidden><span>Set-up</span><span>From ${this.isRush() ? "roll" : "turn"} 1</span></div>
         <div class="gs-rp-row2"><div class="gs-rp-speed" role="group" aria-label="Speed">${RP_SPEEDS.map((x) => `<button type="button" data-speed="${x}" aria-pressed="false">${x === 0.5 ? "½" : x}×</button>`).join("")}</div>
           <button type="button" class="gs-rp-wi" data-rpinfo aria-expanded="false" aria-label="About the win chance"><span>${seaNa ? "Win % n/a" : "≈ Win %"}</span><i>i</i></button></div>
         <p class="gs-rp-note" hidden>${seaNa ? "No win chance on Seafarers: the model behind it was not trained on Seafarers boards."
           : odds.na ? "No win chance for this game: it was saved without its full move log."
-          : `<b>≈</b> is a quick estimate of each player's win chance after every ${this._stTurnWord()}: good for the trend, often about 9 points off${this.sea ? " (on Seafarers rougher still: the estimate does not see the ships' reach or the gold fields)" : ""}. <b class="dot"></b> Dots are your decisions checked by the Game review with deep Monte Carlo: those numbers are exact.`}</p>
+          : `<b>≈</b> is a quick estimate of each player's win chance after every ${this._stTurnWord()}: good for the trend, often about 9 points off${this.sea ? " (on Seafarers rougher still: the estimate does not see the ships' reach or the gold fields)" : ""}. The line starts at the empty board (the seat order) and moves with every set-up placement, left of the divider. <b class="dot"></b> Dots are your decisions checked by the Game review with deep Monte Carlo: those numbers are exact.`}</p>
       </div>`
       : `<div class="gs-rp-board"><canvas></canvas></div><div class="gs-skip">tap to close</div>`;
     this._stHost().appendChild(ui);
@@ -811,7 +813,7 @@ export const StatsUiMixin = {
     if (!st.evIx) st.evIx = new Map(this.stats.ev.map((e, i) => [e, i]));
     let speed = 1;
     try { const v = +localStorage.getItem(RP_SPEED_KEY); if (RP_SPEEDS.includes(v)) speed = v; } catch (_) { /* private mode */ }
-    const R = { s: 0, b: 0, playing: true, speed, timer: 0, beats: null, odds };
+    const R = { s: 0, b: 0, pt: null, playing: true, speed, timer: 0, beats: null, odds };
     this._rp = R;
     const playBtn = ui.querySelector(".gs-rp-play"), scrub = ui.querySelector(".gs-rp-scrub");
     const cap1 = ui.querySelector(".gs-rp-cap b"), cap2 = ui.querySelector(".gs-rp-cap span"), dice = ui.querySelector(".gs-rp-dice");
@@ -829,15 +831,17 @@ export const StatsUiMixin = {
     const capTxt = (pid, what) => { const p = this.players[pid]; return `<i>${p ? esc(this._stName(p)) : "Someone"}</i><em>${what}</em>`; };
     const beatText = (e) => capTxt(e[2], e[1] === "R" ? "moved the robber" : `built ${KN[e[3]] || "a piece"}`);
     const fmt = (v) => `${Math.round(v * 100)}%`;
-    const paintOdds = (s) => {
+    const SU = () => (odds && !odds.na ? odds.setup() : []);
+    const paintOdds = (s, pt = null) => {
       if (!odds || odds.na || ui.classList.contains("rv-show")) return;
-      const ex = odds.exact(s), est = odds.get(s);
+      const q0 = pt != null && s === 0 ? SU()[pt] : null; // inside the set-up: the position after that placement
+      const ex = q0 ? q0.x : odds.exact(s), est = q0 ? q0.est || q0.p : odds.get(s);
       rows.forEach((row) => {
         const el = row.querySelector(".gs-vpw"), q = +row.dataset.pid;
         const v = ex ? ex.p[q] : est ? est[q] : null;
         el.className = `gs-vpw${ex ? " exact" : est ? " est" : " wait"}`;
         el.textContent = v == null ? "…" : `${ex ? "" : "≈"}${fmt(v)}`;
-        el.title = ex ? "From the Game review (deep Monte Carlo)" : "Estimate";
+        el.title = ex ? (q0 && pt === 0 ? "Seat order on this board, equal players" : "From the Game review (deep Monte Carlo)") : "Estimate";
       });
     };
     const chartEl = ui.querySelector(".gs-rp-chart"), dotsEl = ui.querySelector(".gs-rp-dots"), curEl = ui.querySelector(".gs-rp-cur");
@@ -851,19 +855,56 @@ export const StatsUiMixin = {
       let dots = "";
       odds.marks?.forEach((m, s) => { const v = m.p[m.pid]; if (v == null || s > st.N) return; dots += `<i class="pc-${m.pid}" style="left:${(s / N) * 100}%;top:${100 - v * 96 - 2}%"></i>`; });
       dotsEl.innerHTML = dots;
+      drawSetup();
     };
+    // eng-147 the set-up: the empty board, then every placement, in its own pane left of the turns
+    const suEl = ui.querySelector(".gs-rp-su"), sucEl = ui.querySelector(".gs-rp-suc"), sudEl = ui.querySelector(".gs-rp-sud"), sukEl = ui.querySelector(".gs-rp-suk"), tcapEl = ui.querySelector(".gs-rp-tcap");
+    const drawSetup = () => {
+      if (!suEl) return;
+      const A = SU(), M = A.length - 1;
+      suEl.hidden = tcapEl.hidden = M < 1;
+      if (M < 1) return;
+      sucEl.setAttribute("viewBox", `0 0 ${M} 100`);
+      sucEl.innerHTML = this.players.map((p) => `<polyline class="pc-${p.id}" points="${A.map((q, i) => `${i},${(100 - (q.x ? q.x.p : q.p)[p.id] * 96 - 2).toFixed(1)}`).join(" ")}" vector-effect="non-scaling-stroke"/>`).join("");
+      sudEl.innerHTML = A.map((q, i) => { if (!q.x) return ""; const pid = q.x.pid ?? q.a ?? 0, v = q.x.p[pid]; return v == null ? "" : `<i class="pc-${pid}" style="left:${(i / M) * 100}%;top:${100 - v * 96 - 2}%"></i>`; }).join("");
+      moveSuCur();
+    };
+    const moveSuCur = () => {
+      const A = SU(), M = A.length - 1; if (M < 1) return;
+      const pt = R.pt != null ? R.pt : M;
+      sukEl.style.left = `calc(10px + (100% - 20px) * ${(pt / M).toFixed(4)})`;
+      suEl.classList.toggle("on", R.s === 0 && R.pt != null);
+    };
+    const suGo = (ev) => {
+      const A = SU(), M = A.length - 1; if (M < 1) return;
+      const r = suEl.getBoundingClientRect(), f = Math.max(0, Math.min(1, (ev.clientX - r.left - 10) / Math.max(1, r.width - 20)));
+      const i = Math.round(f * M);
+      if (R.s === 0 && R.pt === i) return;
+      show(0, null, false, A[i].g); loop();
+    };
+    if (suEl) {
+      suEl.addEventListener("pointerdown", (ev) => { try { suEl.setPointerCapture(ev.pointerId); } catch (_) { /* none */ } suEl._drag = true; suGo(ev); });
+      suEl.addEventListener("pointermove", (ev) => { if (suEl._drag) suGo(ev); });
+      ["pointerup", "pointercancel"].forEach((n) => suEl.addEventListener(n, () => { suEl._drag = false; }));
+    }
     let chartT = 0;
     const offOdds = odds && !odds.na ? odds.on((s) => {
-      if (s === R.s || s < 0) paintOdds(R.s);
+      if (s === R.s || s < 0 || s === 0) paintOdds(R.s, R.pt);
       if (!chartT) chartT = window.setTimeout(() => { chartT = 0; if (this._rpUi === ui) drawChart(); }, s < 0 ? 0 : 120);
     }) : null;
     R.off = () => { offOdds?.(); window.clearTimeout(chartT); };
     /** Put the board on step s, beat b (b null: the whole step). */
-    const show = (s, b = null, animate = false) => {
+    const show = (s, b = null, animate = false, g = null) => {
       s = Math.max(0, Math.min(st.N, s));
-      const beats = beatsOf(s), last = b == null || b >= beats.length - 1;
-      const bt = last ? null : beats[b];
+      const beats = beatsOf(s), A = s === 0 ? SU() : [];
+      if (g != null && s === 0 && A.length > 1) b = g <= 0 ? -1 : Math.max(0, beats.findIndex((q) => (q.upto ?? Infinity) >= g)); else g = null; // g: a set-up placement picked on the set-up pane
+      const last = g == null && (b == null || b >= beats.length - 1);
+      const bt = last ? null : g != null ? { upto: g } : beats[b];
       if (last) this._rpSeek(s); else this._rpSeek(s, bt.upto ?? undefined);
+      // the set-up point on show: the position after the placement (not for a whole step: that is the step's own point)
+      let pt = null;
+      if (A.length > 1 && !last) { const gg = bt.upto ?? A[A.length - 1].g; A.forEach((q, i) => { if (q.g <= gg) pt = i; }); }
+      R.pt = pt;
       R.s = s; R.b = last ? beats.length - 1 : b; R.beats = beats;
       scrub.value = String(s);
       scrub.setAttribute("aria-valuetext", s === 0 ? "Set-up" : `${this.isRush() ? "Roll" : "Turn"} ${st.turnOf[s]}`);
@@ -872,7 +913,7 @@ export const StatsUiMixin = {
       cap1.textContent = s === 0 ? "Set-up" : this.isRush() ? `Roll ${s}` : `Turn ${step[0]}`;
       const roller = step && step[1] >= 0 ? this.players[step[1]] : null;
       const be = b == null ? null : beats[R.b]?.e; // a whole turn (prev / next / timeline): its roll
-      cap2.innerHTML = s === 0 ? (be ? capTxt(be[2], "placed a settlement") : "<em>first settlements</em>")
+      cap2.innerHTML = s === 0 ? (pt === 0 ? "<em>empty board</em>" : be ? capTxt(be[2], "placed a settlement") : "<em>first settlements</em>")
         : be ? beatText(be) : roller ? capTxt(roller.id, `rolled ${step[2] + step[3]}`) : `<em>rolled ${step[2] + step[3]}</em>`;
       dice.innerHTML = step ? dieSvg(step[2]) + dieSvg(step[3]) : "";
       // VP bars: the points after the step (before its moves while they are still coming)
@@ -887,7 +928,8 @@ export const StatsUiMixin = {
       }
       // awards fly to their new holder (at the end of the step)
       if (last && animate && !reduced) st.stepEvents[s].filter((e) => e[1] === "a" && e[3] >= 0).forEach((e) => this._rpFlyAward(ui, e[2], e[3]));
-      paintOdds(last ? s : Math.max(0, s - 1));
+      paintOdds(last ? s : Math.max(0, s - 1), pt);
+      moveSuCur();
     };
     const beatMs = () => { const be = R.beats?.[R.b]; return (R.s === 0 ? RP_BEAT.setup : be?.e ? RP_BEAT.move : RP_BEAT.roll) / R.speed; };
     const setPlaying = (on) => {
