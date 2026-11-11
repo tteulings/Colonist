@@ -200,7 +200,7 @@ export const ReviewLuckMixin = {
     return { start, end, luck, cards, kind, extra, perCard, theirs, moves, rest, se };
   },
   /** "Luck details" under the table: every chance event of one player, biggest first (or in play order), the total = the table's number. Folded by default. */
-  _lkDetailsHtml(LK = this._lkState()) {
+  _lkDetailsHtml(LK = this._lkState(), tab = false) {
     if (LK.na || !LK.done || LK.cover < 0.9) return "";
     const U = (this._lkUi ||= { open: false, pid: null, sort: "size", all: false });
     const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -215,7 +215,8 @@ export const ReviewLuckMixin = {
     const sub = (x) => (x.cards != null ? (x.ev.roll === 7 ? "the robber moves, big hands are halved" : `${x.cards} ${x.cards === 1 ? "card" : "cards"}${x.gold ? ` (${x.gold} gold)` : ""}${x.exp != null ? `, ${x.exp.toFixed(1)} expected` : ""} · others ${x.others}`) : { steal: "a random card from the hand", dev: "a random card from the deck" }[x.ev.kind] || "");
     const seg = this.players.map((p) => `<button type="button" class="pc-${p.id}${p.id === pid ? " on" : ""}" data-rvlkp="${p.id}" aria-pressed="${p.id === pid}">${this._av ? this._av(p, "rt-av") : ""}<span>${this._rvNm ? this._rvNm(p.id) : esc(p.name)}</span></button>`).join("");
     const kinds = { dice: 0, steal: 0, dev: 0 }; list.forEach((x) => { kinds[x.ev.kind] += 1; });
-    return `<details class="rt-lkd" data-rvlkd${U.open ? " open" : ""}><summary><span>Luck details</span><small>every roll, steal and card draw</small></summary>
+    const [o1, o2] = tab ? [`<div class="rt-lkd lk-tab" data-rvlkd>`, `</div>`] : [`<details class="rt-lkd" data-rvlkd${U.open ? " open" : ""}><summary><span>Luck details</span><small>every roll, steal and card draw</small></summary>`, `</details>`];
+    return `${o1}
       <div class="lkd-seg" role="group" aria-label="Whose luck">${seg}</div>
       ${this._lkWaterHtml(pid, you)}
       <div class="lk-hd"><b>Every roll, steal and draw</b>${infoBtn("list", U.info?.list)}</div>
@@ -223,10 +224,10 @@ export const ReviewLuckMixin = {
       ${infoTxt("list", U.info?.list, "Each line: the win chance right after it, against the average over everything that could have happened. ±0 is as expected. This player's seat order on this board, and their own rolls, steals and card draws count.")}
       <ol class="lkd-list">${seatW ? `<li><span class="t">start</span><span class="x">Seat order${place0 != null ? `: place ${place0 + 1} of ${np0}` : ""}<small>how this seat does on this board, equal players</small></span><b class="${cls(seatW)}">${wpText(seatW, 1)}</b></li>` : ""}${shown.map((x) => `<li><span class="t">${esc(this._lkWhen(x.ev))}</span><span class="x">${esc(this._lkWhat(x.ev, pid))}<small>${sub(x)}</small></span><b class="${cls(x.w)}">${wpText(x.w, 1)}</b></li>`).join("")}</ol>
       ${rows.length > shown.length ? `<button type="button" class="rv-btn lkd-all" data-rvlka>Show all ${rows.length}</button>` : ""}
-      <p class="lkd-tot"><span>Total · ${seatW ? "seat order, " : ""}${kinds.dice} rolls, ${kinds.steal} steals, ${kinds.dev} card draws</span><b class="${cls(tot)}">${wpText(tot, 1)}</b></p></details>`;
+      <p class="lkd-tot"><span>Total · ${seatW ? "seat order, " : ""}${kinds.dice} rolls, ${kinds.steal} steals, ${kinds.dev} card draws</span><b class="${cls(tot)}">${wpText(tot, 1)}</b></p>${o2}`;
   },
-  /** The two sides of own luck in a sentence, then the whole story of the win chance as a small waterfall: start → own luck (cards,
-   *  which/when) → the others' luck → own moves → the rest (the others' moves, and what the estimates cannot tell apart) → end. */
+  /** The two sides of own luck in a sentence (the cards, and which cards when), then the whole story of the win chance in four bars
+   *  (Start, Dice luck, Own moves, The others) with one sentence: the same block as the end screen's "Why won / lost". */
   _lkWaterHtml(pid, you) {
     const B = this._lkBook(pid);
     if (!B) return "";
@@ -242,35 +243,13 @@ export const ReviewLuckMixin = {
     const say = `<div class="lk-hd"><b>${you ? "Your" : `${nm}’s`} luck</b>${infoBtn("split", U.info?.split)}</div>
       <p class="lkd-say">${(() => { const sw = this._lkSeat(pid); return Math.round(sw * 100) ? `Seat order on this board: ${wpText(sw)}. ` : ""; })()}${cardsTxt}, ${join} ${kindTxt} (${wpText(B.kind)}). ${most}</p>
       ${infoTxt("split", U.info?.split, `Number of cards: cards above or below expected, at what a card was worth to ${you ? "you" : "them"} on average this game. The rest is which cards, and when. Each part is an estimate, good to about ±${Math.max(1, Math.round(B.se * 100))} points.`)}`;
-    // v1.34 from the even share: the seat order (measured, small) and the set-up (own and the others' placements, the board)
-    const np = this.players.length, first = this.stats?.steps?.[0]?.[1], place = first != null && first >= 0 ? (pid - first + np) % np : null;
-    const L = this._lkStore(), sv = Object.values(L?.res || {}).find((r) => r?.k === "seat" && r.v);
-    const seat = sv ? sv.v[pid] - 1 / np : 0, setup = B.start - 1 / np - seat;
-    const steps = [
-      ["Seat order", seat], ["Set-up", setup],
-      ["Number of cards", B.cards], ["Which cards, when", B.kind], ["Others' luck", B.theirs],
-      [you ? "Your moves" : "Own moves", B.moves], ["Others' moves, rest", B.rest],
-    ];
-    // the scale runs over the lowest and highest running total (never cut off), with a line at 0 % when the total dips below it
-    const run = [1 / np]; steps.forEach(([, v]) => { if (v != null) run.push(run[run.length - 1] + v); }); run.push(B.end);
-    const lo0 = Math.min(0, ...run), hi0 = Math.max(...run, 1 / np), span = Math.max(0.05, hi0 - lo0);
-    const X = (v) => ((v - lo0) / span) * 100, zero = X(0);
-    let at = 1 / np;
-    const row = (label, v) => {
-      if (v == null) return `<div class="lkw-r na"><span>${label}</span><i class="tr"></i><b>not checked</b></div>`;
-      const a = at, b = at + v; at = b;
-      const l = X(Math.min(a, b)), w = X(Math.max(a, b)) - l, c = Math.round(v * 100) > 0 ? "pos" : Math.round(v * 100) < 0 ? "neg" : "";
-      return `<div class="lkw-r"><span>${label}</span><i class="tr">${lo0 < 0 ? `<i class="z" style="left:${zero.toFixed(1)}%"></i>` : ""}<i class="${c}" style="left:${l.toFixed(1)}%;width:${Math.max(0.8, w).toFixed(1)}%"></i></i><b class="${c}">${wpText(v)}</b></div>`;
-    };
-    const ends = (label, v, cls) => { const l = Math.min(zero, X(v)), w = Math.abs(X(v) - zero); return `<div class="lkw-r end ${cls}"><span>${label}</span><i class="tr"><i style="left:${l.toFixed(1)}%;width:${Math.max(0.8, w).toFixed(1)}%"></i></i><b>${Math.round(v * 100)}%</b></div>`; };
-    return `${say}<div class="lk-hd"><b>Win chance, start to end</b>${infoBtn("water", U.info?.water)}</div>${infoTxt("water", U.info?.water, `Seat order: ${place != null ? `place ${place + 1} of ${np} in the turn order` : "this seat"} on this board, as equal bots win from it from the empty board. Set-up: everyone's first settlements and the board. Others' luck and moves: what the others' cards, draws and choices did to ${you ? "you" : "them"}, with what the estimates cannot tell apart.${B.moves == null ? ` ${you ? "Your" : "Their"} own moves count there until the review is done.` : ""}`)}
-      <div class="lkw" role="img" aria-label="${esc(`${nm} win chance: ${Math.round(B.start * 100)}% at the first roll, ${B.end ? "won" : "lost"} at the end`)}">${ends("Even share", 1 / np, "st")}${steps.map(([l, v]) => row(l, v)).join("")}${ends(B.end ? "Won" : "Lost", B.end, "en")}</div>`;
+    return `${say}<div class="rvx">${this._rvWhyHtml?.(pid) || ""}</div>`;
   },
   _lkBindDetails(root) {
     const d = root.querySelector("[data-rvlkd]");
     if (!d) return;
     const U = (this._lkUi ||= { open: false, pid: null, sort: "size", all: false });
-    const redraw = () => { const n = document.createElement("div"); n.innerHTML = this._lkDetailsHtml(); const x = n.firstElementChild; if (x) { d.replaceWith(x); this._lkBindDetails(root); } };
+    const tabMode = d.classList.contains("lk-tab"), redraw = () => { const n = document.createElement("div"); n.innerHTML = this._lkDetailsHtml(this._lkState(), tabMode); const x = n.firstElementChild; if (x) { d.replaceWith(x); this._lkBindDetails(root); } };
     d.addEventListener("toggle", () => { U.open = d.open; });
     d.querySelectorAll("[data-lki]").forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); const k = b.dataset.lki; U.info = { ...(U.info || {}), [k]: !U.info?.[k] }; const t = d.querySelector(`[data-lkit="${k}"]`); if (t) t.hidden = !U.info[k]; b.setAttribute("aria-expanded", String(!!U.info[k])); }));
     d.querySelector("summary")?.addEventListener("click", () => { U.open = !d.open; }); // (a table refresh between the tap and the toggle keeps it open)
