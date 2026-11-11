@@ -85,6 +85,7 @@ export const ReviewLuckMixin = {
       j += 1;
       if (r.l) { r.l.forEach((x, q) => { if (ownOf(ev, q)) tot[q] += x; }); if (ev.kind === "dice") diceOk += 1; }
     });
+    for (let q = 0; q < n; q++) tot[q] += this._lkSeat(q); // v1.46 (user): the seat order on this board is luck too
     const rolls = this.stats.steps.length;
     return { n: evs.length, j, done: j >= evs.length, run: !!this._rv.lrun, stopped: !!L.stopped, tot, cover: rolls ? diceOk / rolls : 0, paused: !!this._rv.lrun?.paused };
   },
@@ -173,6 +174,11 @@ export const ReviewLuckMixin = {
   },
   /** The bookkeeping of one seat: its win chance before the first chance event, the end (1 won, 0 lost), the luck, and the rest
    *  (everybody's moves: a card bought by someone else is a risk taken by them, its draw is luck). start + luck + rest = end. */
+  /** v1.46 the seat order's luck: this seat's win chance from the empty board (equal bots) minus the even share; 0 when not measured. */
+  _lkSeat(pid) {
+    const L = this._lkStore(), sv = Object.values(L?.res || {}).find((r) => r?.k === "seat" && r.v);
+    return sv && sv.v[pid] != null ? sv.v[pid] - 1 / this.players.length : 0;
+  },
   _lkBook(pid) {
     const L = this._lkStore(), ev = this._lkEvents().find((e) => L.res[keyOf(e)]?.b);
     if (!ev) return null;
@@ -202,7 +208,8 @@ export const ReviewLuckMixin = {
     const pid = U.pid, list = this._lkList(pid).filter((x) => x.own);
     const rows = U.sort === "size" ? list.slice().sort((a, b) => Math.abs(b.w) - Math.abs(a.w) || a.ev.e - b.ev.e) : list;
     const shown = U.all ? rows : rows.slice(0, 12);
-    const tot = list.reduce((a, x) => a + x.w, 0), se = Math.sqrt(list.reduce((a, x) => a + (x.se || 0) ** 2, 0));
+    const seatW = this._lkSeat(pid), np0 = this.players.length, first0 = this.stats?.steps?.[0]?.[1], place0 = first0 != null && first0 >= 0 ? (pid - first0 + np0) % np0 : null;
+    const tot = seatW + list.reduce((a, x) => a + x.w, 0), se = Math.sqrt(list.reduce((a, x) => a + (x.se || 0) ** 2, 0));
     const cls = (v) => (Math.round(v * 1000) > 0 ? "pos" : Math.round(v * 1000) < 0 ? "neg" : "");
     const you = this._rvIsYou ? this._rvIsYou(pid) : false;
     const sub = (x) => (x.cards != null ? (x.ev.roll === 7 ? "the robber moves, big hands are halved" : `${x.cards} ${x.cards === 1 ? "card" : "cards"}${x.gold ? ` (${x.gold} gold)` : ""}${x.exp != null ? `, ${x.exp.toFixed(1)} expected` : ""} · others ${x.others}`) : { steal: "a random card from the hand", dev: "a random card from the deck" }[x.ev.kind] || "");
@@ -213,10 +220,10 @@ export const ReviewLuckMixin = {
       ${this._lkWaterHtml(pid, you)}
       <div class="lk-hd"><b>Every roll, steal and draw</b>${infoBtn("list", U.info?.list)}</div>
       <div class="lkd-sort" role="group" aria-label="Order"><button type="button" data-rvlks="size" class="${U.sort === "size" ? "on" : ""}">Biggest first</button><button type="button" data-rvlks="time" class="${U.sort === "time" ? "on" : ""}">In order</button></div>
-      ${infoTxt("list", U.info?.list, "Each line: the win chance right after it, against the average over everything that could have happened. ±0 is as expected. Only this player's own rolls, steals and card draws count.")}
-      <ol class="lkd-list">${shown.map((x) => `<li><span class="t">${esc(this._lkWhen(x.ev))}</span><span class="x">${esc(this._lkWhat(x.ev, pid))}<small>${sub(x)}</small></span><b class="${cls(x.w)}">${wpText(x.w, 1)}</b></li>`).join("")}</ol>
+      ${infoTxt("list", U.info?.list, "Each line: the win chance right after it, against the average over everything that could have happened. ±0 is as expected. This player's seat order on this board, and their own rolls, steals and card draws count.")}
+      <ol class="lkd-list">${seatW ? `<li><span class="t">start</span><span class="x">Seat order${place0 != null ? `: place ${place0 + 1} of ${np0}` : ""}<small>how this seat does on this board, equal players</small></span><b class="${cls(seatW)}">${wpText(seatW, 1)}</b></li>` : ""}${shown.map((x) => `<li><span class="t">${esc(this._lkWhen(x.ev))}</span><span class="x">${esc(this._lkWhat(x.ev, pid))}<small>${sub(x)}</small></span><b class="${cls(x.w)}">${wpText(x.w, 1)}</b></li>`).join("")}</ol>
       ${rows.length > shown.length ? `<button type="button" class="rv-btn lkd-all" data-rvlka>Show all ${rows.length}</button>` : ""}
-      <p class="lkd-tot"><span>Total · ${kinds.dice} rolls, ${kinds.steal} steals, ${kinds.dev} card draws</span><b class="${cls(tot)}">${wpText(tot, 1)}</b></p></details>`;
+      <p class="lkd-tot"><span>Total · ${seatW ? "seat order, " : ""}${kinds.dice} rolls, ${kinds.steal} steals, ${kinds.dev} card draws</span><b class="${cls(tot)}">${wpText(tot, 1)}</b></p></details>`;
   },
   /** The two sides of own luck in a sentence, then the whole story of the win chance as a small waterfall: start → own luck (cards,
    *  which/when) → the others' luck → own moves → the rest (the others' moves, and what the estimates cannot tell apart) → end. */
@@ -233,7 +240,7 @@ export const ReviewLuckMixin = {
     const lo = own[0], hi = own[own.length - 1];
     const most = [lo && Math.round(lo.w * 100) < 0 ? `Worst: ${ev(lo)}.` : "", hi && Math.round(hi.w * 100) > 0 ? `Best: ${ev(hi)}.` : ""].filter(Boolean).join(" ");
     const say = `<div class="lk-hd"><b>${you ? "Your" : `${nm}’s`} luck</b>${infoBtn("split", U.info?.split)}</div>
-      <p class="lkd-say">${cardsTxt}, ${join} ${kindTxt} (${wpText(B.kind)}). ${most}</p>
+      <p class="lkd-say">${(() => { const sw = this._lkSeat(pid); return Math.round(sw * 100) ? `Seat order on this board: ${wpText(sw)}. ` : ""; })()}${cardsTxt}, ${join} ${kindTxt} (${wpText(B.kind)}). ${most}</p>
       ${infoTxt("split", U.info?.split, `Number of cards: cards above or below expected, at what a card was worth to ${you ? "you" : "them"} on average this game. The rest is which cards, and when. Each part is an estimate, good to about ±${Math.max(1, Math.round(B.se * 100))} points.`)}`;
     // v1.34 from the even share: the seat order (measured, small) and the set-up (own and the others' placements, the board)
     const np = this.players.length, first = this.stats?.steps?.[0]?.[1], place = first != null && first >= 0 ? (pid - first + np) % np : null;
