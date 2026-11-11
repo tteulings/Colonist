@@ -3839,7 +3839,7 @@ class ColonistFullGame {
       // v1.43: the get row is about what you can GET: the bank's stock is always on the card (tag); your own count only once
       // you ask for that card ("you 2 → 3"), so it no longer reads as what the other players hold
       const sub = side === "give" ? (n ? arrow : `<span class="na">${have}</span>`)
-        : out ? "bank empty" : n ? `<span class="na">you ${have} → <b class="up">${after}</b></span>` : `<span class="na">bank ${stock}</span>`;
+        : out ? "bank empty" : n ? `<span class="na">you ${have} → <b class="up">${after}</b></span>` : `<span class="na tbk${this._bankLow(stock)}" title="The bank has ${stock} ${name}">${icon("bank")}${stock}</span>`;
       const low = side === "get" && stock > 0 && stock <= 3 ? `<span class="rate-tag low" title="The bank has ${stock} ${name} left">${stock} left</span>` : "";
       const label = side === "give" ? `Give one more ${name} (you have ${have}${n ? `, giving ${n}, ${after} after` : ""})` : `Get one more ${name} (you have ${have}${n ? `, asking ${n}, ${after} after` : ""}) · bank has ${stock}`;
       return `<div class="tcell ${r}${n ? " pick" : ""}${usable ? "" : " none"}${out ? " out" : ""}" data-hand="${side === "give" ? r : ""}" data-res="${r}">
