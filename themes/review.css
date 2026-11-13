@@ -428,7 +428,7 @@
 .ra-hd .lk-ib svg { width: 20px; height: 20px; }
 .ra-ask .lk-it { margin: 4px 0 6px; }
 .ra-ms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0 8px; }
-.ra-m { display: grid; gap: 2px; padding: 8px 8px; border-radius: 10px; border: 1.5px solid var(--rv-sep, rgba(0,0,0,.15)); background: var(--sheet-solid, #fff); cursor: pointer; min-height: 44px; }
+.ra-m { display: grid; gap: 2px; padding: 8px 8px; border-radius: 10px; border: 1.5px solid var(--rv-sep, rgba(0,0,0,.15)); background: var(--chip, color-mix(in srgb, var(--ink) 6%, transparent)); cursor: pointer; min-height: 44px; }
 .ra-m input { position: absolute; opacity: 0; pointer-events: none; }
 .ra-m b { font: 750 13px/1.1 var(--font-body); color: var(--heading); } .ra-m small { font: 600 11px/1.2 var(--font-body); color: var(--ink-soft); }
 .ra-m.on { border-color: var(--primary); box-shadow: 0 0 0 1.5px var(--primary) inset; }
@@ -484,7 +484,7 @@
 
 /* v1.49 the review in tabs */
 .rv-tabs { display: flex; gap: 2px; margin: 0 10px 8px; padding: 3px; border-radius: 12px; background: color-mix(in srgb, var(--ink) 8%, var(--chip)); flex: none; }
-.rv-tabs button { flex: 1 1 0; min-width: 0; min-height: 40px; border: 0; border-radius: 10px; background: none; color: var(--ink-soft); font: 750 12.5px/1 var(--font-body); letter-spacing: -.1px; cursor: pointer; -webkit-tap-highlight-color: transparent; padding: 0 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-tabs button { flex: 1 1 0; min-width: 0; min-height: 40px; border: 0; border-radius: 10px; background: none; color: var(--ink-soft); font: 750 12.5px/1 var(--font-body); letter-spacing: -.1px; cursor: pointer; -webkit-tap-highlight-color: transparent; padding: 0 1px; white-space: nowrap; overflow: hidden; display: flex; align-items: center; justify-content: center; text-align: center; box-sizing: border-box; }
 .rv-tabs button.on { background: var(--chip); color: var(--heading); box-shadow: 0 1px 3px rgba(0,0,0,.14); }
 .sbs-card { padding-bottom: 8px; } .sbs-w { overflow-x: auto; margin: 0 -4px; padding: 0 4px; -webkit-overflow-scrolling: touch; }
 .sbs { display: grid; grid-template-columns: 96px repeat(var(--n), minmax(56px, 1fr)); align-items: stretch; min-width: min-content; }
@@ -502,7 +502,7 @@
 .km-seg button.on { background: var(--chip); color: var(--heading); box-shadow: 0 1px 2px rgba(0,0,0,.14); }
 .km-cap { margin: 0 2px 4px; font: 600 11px/1.3 var(--font-body); color: var(--ink-soft); }
 .rvw .rv-gt { align-items: center; } .rvw .lk-ib { margin-left: auto; } .rvw .lk-it, .rvw ~ .rvw-i .lk-it { margin: 0 0 6px; }
-.rvw-c { position: relative; touch-action: none; } .rvw-c svg { display: block; width: 100%; height: auto; overflow: visible; cursor: crosshair; }
+.rvw-c { position: relative; touch-action: pan-y; user-select: none; -webkit-user-select: none; } .rvw-c svg { display: block; width: 100%; height: auto; overflow: visible; cursor: crosshair; }
 .rvw-c svg path { fill: none; stroke: var(--pc); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; opacity: .75; } .rvw-c svg path.me { stroke-width: 3.2; opacity: 1; }
 .rvw-c svg .g { stroke: var(--rv-sep); } .rvw-c svg .sep { stroke: var(--ink-soft); stroke-width: 1; stroke-dasharray: 2 3; opacity: .6; } .rvw-c svg .cur { stroke: var(--heading); stroke-width: 1.5; }
 .rvw-c svg text { font: 600 9.5px var(--font-body); fill: var(--ink-soft); } .rvw-c svg .pt { fill: var(--pc); stroke: #fff; stroke-width: 1.5; }
@@ -569,3 +569,10 @@
 .rv-chip { font-size: 12.5px; gap: 6px; padding: 0 12px 0 9px; max-width: calc(100% - 128px); }
 .rv-bar:has(.rv-chip) { gap: 6px; } .rv-bar:has(.rv-chip) h3.ht { font-size: 16px; letter-spacing: -.1px; } .rv-bar:has(.rv-chip) > div:nth-child(2) { min-width: 0; } .rv-bar:has(.rv-chip) small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rv-chip.sm { min-height: 40px; min-width: 40px; padding: 0; } .rv-chip.sm i { width: 18px; height: 18px; }
+
+/* v1.55 step mode: the turn for everyone, folded */
+.rv-turn { margin: 8px 0 4px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 6%, transparent); padding: 0 10px; }
+.rv-turn summary { min-height: 40px; display: flex; align-items: center; font: 700 12.5px/1.2 var(--font-body); color: var(--ink); cursor: pointer; }
+.rv-turn ul { list-style: none; margin: 0; padding: 0 0 8px; display: grid; gap: 5px; }
+.rv-turn li { display: grid; grid-template-columns: 56px 1fr auto; gap: 6px; align-items: baseline; font: 600 12px/1.3 var(--font-body); color: var(--ink-soft); }
+.rv-turn li b { color: var(--ink); font-weight: 750; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .rv-turn li em { font-style: normal; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }

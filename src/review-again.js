@@ -64,10 +64,7 @@ export const ReviewAgainMixin = {
     const R = this._rv;
     if (!R?.recs?.length || !this.winner || this._rvMid || this.hotseat) return "";
     const A = R.again;
-    if (A) {
-      const pct = A.n ? Math.round((100 * A.j) / A.n) : 0;
-      return `<div class="ra-row run" role="status"><i class="rv-ring" style="--p:${pct}%" aria-hidden="true"></i><span>Reviewing again · ${A.what}<small>${A.j} of ${A.n}${A.paused ? " · paused" : ""} · the old review stays until each part is done</small></span><button type="button" class="rv-btn" data-rastop>Stop</button></div>`;
-    }
+    if (A) return ""; // v1.55 the progress is the chip in the header (the same popover as the normal review)
     const M = this._raMadeWith();
     if (!M || !this._raCan()) return "";
     const pick = (this._raPick ||= reviewModel()), info = !!this._raInfo;
@@ -93,8 +90,17 @@ export const ReviewAgainMixin = {
   },
   _raBox() { return `<div data-rabox>${this._raRowHtml()}</div>`; },
 
+  /** v1.55 Review again as a flow for the header chip: Your moves, Luck, Bots (the same steps as the normal check). */
+  _raFlow(A) {
+    const ph = { mine: 0, luck: 1, bots: 2 }[A.phase] ?? 0, st = (k) => (ph > k ? "done" : ph === k ? "run" : "wait"), steps = [];
+    const left = Math.max(0, A.n - A.j) * (A.phase === "luck" ? this._raUnit().luck : this._raUnit().deep * 0.6);
+    if (A.people) steps.push({ k: "quick", label: "Your moves", st: st(0), j: ph === 0 ? A.j : null, n: ph === 0 ? A.n : null });
+    if (A.hasLuck) steps.push({ k: "luck", label: "Luck", st: st(1), j: ph === 1 ? A.j : null, n: ph === 1 ? A.n : null, paused: !!A.paused });
+    if (A.bots) steps.push({ k: "bots", label: `Bots (${A.bots})`, st: st(2), j: ph === 2 ? A.j : null, n: ph === 2 ? A.n : null, name: ph === 2 ? A.what.replace(/’s moves$/, "") : "", eng: "deep", left: A.bots - (ph === 2 ? A.bi - 1 : 0), tot: A.bots });
+    return { steps, cur: steps.find((x) => x.st !== "done") || null, again: true, etaMine: A.phase === "bots" ? 0 : left, etaLuck: 0, etaBots: A.phase === "bots" ? left : 0, running: true, stopped: false, started: true };
+  },
   /** Stop: what is not finished keeps its old results. */
-  _raStop() { const A = this._rv?.again; if (!A) return; A.stop = true; this._rv.again = null; this._raRedraw(); this._rvTick?.(); },
+  _raStop() { const A = this._rv?.again; if (!A) return; A.stop = true; this._rv.again = null; this._raRedraw(); this._rvChipSync?.(); this._rvTick?.(); },
 
   /** Review again: the people first, then the luck, then the bots; each block replaces the old one when it is complete. */
   async _raStart(model = reviewModel()) {
@@ -109,7 +115,8 @@ export const ReviewAgainMixin = {
     const id = R.id, live = () => this._rv === R && R.id === id && R.again === A && !A.stop;
     const people = this.players.filter((p) => p.isHuman && this._rvTodo(p.id).length).map((p) => p.id);
     const bots = R.bots ? this.players.filter((p) => !p.isHuman && this._rvTodo(p.id).length).map((p) => p.id) : [];
-    const tick = () => { this._raRedraw(); };
+    const tick = () => { this._raRedraw(); this._rvChipSync?.(); };
+    A.people = people.length; A.hasLuck = !R.noLuck && !this._lkNa?.() && !(model === "quick" && R.luck); A.bots = bots.length; A.phase = "mine"; A.bi = 0;
     this._raRedraw();
     try {
       for (const pid of people) {
@@ -119,18 +126,22 @@ export const ReviewAgainMixin = {
         R.revs[pid] = rv; if (this.players[pid]?.isHuman) R.review = rv;
         this._rvSave(); this._rvLogGame?.(pid, true); this._rvTick?.(); this._rvRender?.();
       }
+      A.phase = "luck";
       if (live() && !R.noLuck && !this._lkNa?.() && !(model === "quick" && R.luck)) { // (Quick keeps the luck there is)
         const L = await this._raLuck(A, live, tick);
         if (L && live()) { R.luck = L; this._rvSave(); this._rvTick?.(); this._rvRender?.(); }
       }
+      A.phase = "bots";
       for (const pid of bots) {
         if (!live()) break;
+        A.bi++;
         const rv = await this._raSeat(pid, true, A, live, tick);
         if (!rv || !live()) break;
         R.revs[pid] = rv; this._rvSave(); this._rvTick?.();
       }
     } catch (e) { console.warn("review again", e); }
     if (R.again === A) R.again = null;
+    this._rvChipSync?.();
     if (this._rv === R) { this._rvSave(); this._histSoon?.(); this._raRedraw(); this._rvTick?.(); this._rvRender?.(); if (this._rvEl) this._rvDrawReview?.(); }
   },
 
@@ -160,7 +171,7 @@ export const ReviewAgainMixin = {
   async _raSeat(pid, bot, A, live, tick) {
     const todo = this._rvTodo(pid), results = [];
     A.what = bot ? `${this.players[pid].name}’s moves` : this._rvIsYou?.(pid) ? "your moves" : `${this.players[pid].name}’s moves`;
-    A.j = 0; A.n = A.model === "quick" ? todo.length : todo.length * 2; tick();
+    A.j = 0; A.n = todo.length; A.round = "quick"; tick(); // v1.55 n is this round's work (the deep round gets its own count below)
     if (A.model === "quick") { // v1.42 Quick: the model straight on every decision, one round
       await this._raItems(todo, "direct", A, live, tick, results);
       if (!live()) return null;
@@ -173,7 +184,7 @@ export const ReviewAgainMixin = {
     if (!live()) return null;
     const quickDone = (x) => x.eng === "m100" && !x.err && (x.trivial || x.skip === "trivial");
     const deep = todo.filter(([, i]) => { const x = results.find((y) => y.i === i); return x && needsFull(x) && !(bot && OTHERS.policy === "real" && quickDone(x)); });
-    A.n = todo.length + deep.length; tick();
+    A.j = 0; A.n = deep.length; A.round = "deep"; tick();
     await this._raItems(deep, A.final !== REVIEW_ENGINE ? A.final : bot ? OTHERS.engine : REVIEW_ENGINE, A, live, tick, results);
     if (!live()) return null;
     results.sort((a, b) => a.i - b.i);
