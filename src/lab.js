@@ -11,12 +11,12 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=151";
-import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=151";
-import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=151";
-import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=151";
-import { byStrength } from "./bot-stats.js?v=151";
-import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=151";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=152";
+import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=152";
+import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=152";
+import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=152";
+import { byStrength } from "./bot-stats.js?v=152";
+import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=152";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
