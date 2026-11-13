@@ -154,7 +154,7 @@ export const ReviewGameMixin = {
     }
     const botsLeft = bots.filter((p) => !this._rvReviewComplete(p.id) && !(R.revs[p.id]?.top && this._rvCovered1(p.id)));
     if (bots.length) {
-      steps.push({ k: "bots", label: `Bots (${bots.length})`, st: !botsLeft.length ? "done" : brun ? "run" : R.othersOff ? "stop" : "wait", j: brun ? Math.min(brun.round.j, brun.round.n) : null, n: brun ? brun.round.n : null, name: brun ? this.players[brun.pid].name : "", eng: brun?.round.eng, left: botsLeft.length });
+      steps.push({ k: "bots", label: `Bots (${bots.length})`, st: !botsLeft.length ? "done" : brun ? "run" : R.othersOff ? "stop" : "wait", j: brun ? Math.min(brun.round.j, brun.round.n) : null, n: brun ? brun.round.n : null, name: brun ? this.players[brun.pid].name : "", eng: brun?.round.eng, left: botsLeft.length, tot: bots.length });
     }
     if (steps.every((x) => x.st === "done")) return null;
     // time left: the person's part (quick look, luck, deep), the bots apart
@@ -200,17 +200,64 @@ export const ReviewGameMixin = {
     this._rvQueueNext();
     this._rvTick?.();
   },
-  /** The end screen's progress card follows the check (and goes away when everything is done). */
-  _rvPatchFlow() {
-    const box = this._stOverlay?.isConnected ? this._stOverlay.querySelector("[data-rvbox]") : null;
-    if (!box || !this._rv) return;
-    const f = box.querySelector("[data-rvflow]"), h = this._rvFlowHtml();
-    if (!h) { f?.remove(); return; }
-    if (f && f.__h === h) return;
-    const tmp = document.createElement("div"); tmp.innerHTML = h; const n = tmp.firstElementChild; n.__h = h;
-    if (f) f.replaceWith(n); else (box.querySelector("[data-rvtable]") || box.firstElementChild)?.before(n);
-    this._rvBindTable(n);
+  // ── v1.53 the progress as a small chip next to the back button (end screen and review bar); a tap opens the card (Your moves · Luck · Bots, Stop / Continue) ──
+  /** The chip's words: what runs now, in the order of priority, and the time left. null: everything is done. */
+  _rvChipInfo() {
+    const F = this._rvFlow();
+    if (!F) return null;
+    const run = F.steps.find((x) => x.st === "run"), stop = F.steps.find((x) => x.st === "stop");
+    const lab = (x) => (x.k === "quick" ? `Quick ${x.j}/${x.n}` : x.k === "deep" ? `Moves ${x.j}/${x.n}` : x.k === "luck" ? `Luck ${x.j}/${x.n}` : `Bots ${Math.max(1, (x.tot || 1) - (x.left || 1) + 1)}/${x.tot || 1}`);
+    const eta = F.etaMine + F.etaBots > 3 ? ` · ~${this._rvEtaText(F.etaMine + F.etaBots).replace("about ", "")}` : "";
+    const cur = run || F.steps.find((x) => x.st !== "done");
+    const pct = run && run.n ? Math.round((100 * run.j) / Math.max(1, run.n)) : 0;
+    return { F, st: run ? "run" : stop ? "stop" : "wait", txt: run ? `${lab(run)}${eta}` : stop ? "Stopped" : F.started ? "Waiting" : "Review not started", short: run ? lab(run) : stop ? "Stopped" : "Waiting", pct, cur };
   },
+  _rvChipHtml(info, compact) {
+    const ring = info.st === "run" ? `<i class="rv-ring" style="--p:${info.pct}%" aria-hidden="true"></i>` : info.st === "stop" ? `<i class="pz" aria-hidden="true">II</i>` : `<i class="wt" aria-hidden="true"></i>`;
+    return `<button type="button" class="rv-chip ${info.st}${compact ? " sm" : ""}" data-rvchip aria-haspopup="dialog" aria-expanded="false" aria-label="Review progress: ${esc(info.txt)}. Show details" title="${esc(info.txt)}">${ring}${compact ? "" : `<span>${esc(info.txt)}</span>`}</button>`;
+  },
+  /** Make the chip in each open screen (the end screen, the review's bar) match the check; its card follows when open. */
+  _rvChipSync() {
+    const R = this._rv;
+    if (!R) return;
+    const ov = this._stOverlay?.isConnected ? this._stOverlay : null, rv = this._rvEl?.isConnected ? this._rvEl : null;
+    const spots = [];
+    if (ov && !ov.hidden && !rv) spots.push([ov, ov.querySelector(".gs-top"), false]);
+    if (rv && !this._rvMid) spots.push([rv, rv.querySelector(".rv-bar:not(.rs-bar)"), true]);
+    const info = this._rvChipInfo();
+    spots.forEach(([root, host, compact]) => {
+      if (!host) return;
+      let chip = host.querySelector("[data-rvchip]"), pop = root.querySelector(".rv-pop");
+      if (!info) { // done: a short "checked", then gone
+        if (pop) pop.remove();
+        if (chip && !chip.dataset.done) { chip.dataset.done = "1"; chip.className = "rv-chip ok" + (compact ? " sm" : ""); chip.innerHTML = `<i class="okk" aria-hidden="true">✓</i>${compact ? "" : "<span>Checked</span>"}`; chip.setAttribute("aria-label", "Review finished"); setTimeout(() => chip.remove(), 3500); }
+        return;
+      }
+      const h = this._rvChipHtml(info, compact);
+      if (!chip || chip.dataset.done) { chip?.remove(); const t = document.createElement("div"); t.innerHTML = h; chip = t.firstElementChild; (compact ? host.querySelector(".rv-i") : null) ? host.insertBefore(chip, host.querySelector(".rv-i")) : host.appendChild(chip); chip.addEventListener("click", (e) => { e.stopPropagation(); this._rvChipToggle(root, host); }); chip.__h = h; }
+      else if (chip.__h !== h) { const t = document.createElement("div"); t.innerHTML = h; const n = t.firstElementChild; chip.className = n.className; chip.innerHTML = n.innerHTML; chip.setAttribute("aria-label", n.getAttribute("aria-label")); chip.title = n.title; chip.__h = h; }
+      if (pop) { chip.setAttribute("aria-expanded", "true"); this._rvChipPop(root, pop); }
+    });
+  },
+  _rvChipPop(root, pop) {
+    const h = this._rvFlowHtml();
+    if (!h) { pop.remove(); return; }
+    if (pop.__h === h) return;
+    pop.__h = h; pop.innerHTML = h;
+    this._rvBindTable(pop);
+  },
+  _rvChipToggle(root, host) {
+    const had = root.querySelector(".rv-pop");
+    if (had) { had.remove(); host.querySelector("[data-rvchip]")?.setAttribute("aria-expanded", "false"); return; }
+    const pop = document.createElement("div");
+    pop.className = "rv-pop"; pop.setAttribute("role", "dialog"); pop.setAttribute("aria-label", "Review progress");
+    root.appendChild(pop);
+    this._rvChipPop(root, pop);
+    host.querySelector("[data-rvchip]")?.setAttribute("aria-expanded", "true");
+    const off = (e) => { if (!pop.isConnected) { document.removeEventListener("click", off, true); return; } if (pop.contains(e.target) || e.target.closest?.("[data-rvchip]")) return; pop.remove(); host.querySelector("[data-rvchip]")?.setAttribute("aria-expanded", "false"); document.removeEventListener("click", off, true); };
+    setTimeout(() => document.addEventListener("click", off, true), 0);
+  },
+  _rvPatchFlow() { this._rvChipSync(); },
   _rvPatchRows() {
     document.querySelectorAll("[data-rvreview]").forEach((b) => { const p = this.players[+b.dataset.rvreview]; if (p) b.innerHTML = this._rvRowInner(p); });
     // v1.29 the table on the end screen follows the others' checks (the review screen redraws itself)
@@ -855,9 +902,11 @@ export const ReviewGameMixin = {
     const scroll = this._rvTabDrawn === `${pid}|${tab}` ? el.querySelector(".rv-scroll")?.scrollTop || 0 : 0;
     this._rvTabDrawn = `${pid}|${tab}`;
     el.className = "rv rs tm";
+    const pop0 = el.querySelector(".rv-pop"); // an open progress card stays open through the redraw
     el.innerHTML = `${tab === "player" ? part.bar : this._rvBar(`${ds.length} decisions · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`, { overview: "Overview", win: "Win chance", luck: "Luck", moves: "Moves" }[tab])}${tab === "player" ? "" : this._rvTabsBar(tab)}
-      <div class="rv-scroll">${this._rvProgHtml(pid)}${part.html}${tab === "overview" ? this._raBox?.() || "" : ""}</div>`;
+      <div class="rv-scroll">${part.html}${tab === "overview" ? this._raBox?.() || "" : ""}</div>`;
     el.querySelector(".rv-scroll").scrollTop = scroll;
+    if (pop0) el.appendChild(pop0);
     this._rvBindTop(el);
     this._raBind?.(el);
     this._rvBindTable(el);
@@ -865,6 +914,7 @@ export const ReviewGameMixin = {
     el.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = b.dataset.rvq || "all"; this._rvEnterStep(+b.dataset.rvj); }));
     this._rvBindSbs(el);
     part.bind?.(el);
+    this._rvChipSync();
   },
 
   // ── v1.50 a player's page: why, points, accuracy with its band, key moments with a line each, the win chance line ──
@@ -934,7 +984,7 @@ export const ReviewGameMixin = {
     const body = [row("Points", (c) => `<b class="big">${c.p.victoryPoints}</b>`), row("Accuracy", accOf),
       row("Moves cost", (c) => (c.moves != null ? `<b class="${c.moves < 0 ? "neg" : ""}">${sgn(c.moves)}%</b>` : `<span class="rt-st">–</span>`)), row("Luck", lkOf),
       ...cls.map((k) => row(`${badge(k, "sm")}${k === "missed" ? "Missed" : CLS[k][0]}`, (c) => { const v = c.s.sum?.cls?.[k]; return v == null ? `<span class="rt-st">–</span>` : `<b class="${v ? "" : "zero"}">${v}</b>`; }))].join("");
-    return `<section class="rv-card sbs-card" data-rvsbs-card><div class="rv-gt"><b>Players side by side</b><small>${n > 4 ? "swipe, " : ""}tap a player for their page</small></div>${this._rvTableProg(R, LK)}<div class="sbs-w"><div class="sbs" data-rvsbs style="--n:${n}">${head}${body}</div></div>${prov ? `<p class="rt-foot">* first look: the deep check is still running.</p>` : ""}</section>`;
+    return `<section class="rv-card sbs-card" data-rvsbs-card><div class="rv-gt"><b>Players side by side</b><small>${n > 4 ? "swipe, " : ""}tap a player for their page</small></div><div class="sbs-w"><div class="sbs" data-rvsbs style="--n:${n}">${head}${body}</div></div>${prov ? `<p class="rt-foot">* first look: the deep check is still running.</p>` : ""}</section>`;
   },
   /** Overview: "Why won / lost" for a chosen player (chips), under the side-by-side table. */
   _rvWhyCard() {

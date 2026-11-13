@@ -555,3 +555,17 @@
 .rs-bar h3 { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .rs-bar > div:nth-child(2) { min-width: 0; } .rs-bar .rs-ov { padding: 0 10px; font-size: 13px; min-width: 0; } .rs-bar { gap: 6px; }
 .rs-bar small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rs-nav .rs-ov { padding: 0 12px; font-size: 13.5px; } .rs-nav.pb-nav { grid-template-columns: 1fr 1.3fr 1fr; }
+
+/* v1.53 the progress as a chip next to the back button, its card as a popover */
+.rv-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; max-width: calc(100% - 140px); padding: 0 14px 0 11px; border: 1px solid var(--chip-border-c, #E6DDCB); border-radius: 20px; background: var(--chip, #fff); color: var(--ink); font: 750 13px/1 var(--font-body); cursor: pointer; -webkit-tap-highlight-color: transparent; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,.14); }
+.rv-chip span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.rv-chip i { flex: none; width: 16px; height: 16px; border-radius: 50%; display: inline-grid; place-items: center; font: 800 9px/1 var(--font-body); font-style: normal; }
+.rv-chip i.wt { border: 1.5px solid color-mix(in srgb, var(--ink) 40%, transparent); } .rv-chip i.pz { background: var(--ink-soft); color: #fff; } .rv-chip i.okk { background: var(--pos); color: #fff; } .rv-chip.ok { color: var(--pos); }
+.rv-chip.sm { min-height: 44px; min-width: 44px; max-width: none; padding: 0; justify-content: center; border-radius: 50%; } .rv-chip.sm i { width: 20px; height: 20px; }
+.rv-bar .rv-chip.sm { margin-left: auto; } .rv-bar .rv-chip.sm + .rv-i { margin-left: 0; }
+.rv-pop { position: absolute; z-index: 30; top: 62px; left: 10px; right: 10px; max-width: 440px; margin: 0 auto; filter: drop-shadow(0 8px 24px rgba(0,0,0,.28)); }
+.rv-pop .rsp { margin: 0; border-radius: 14px; background: var(--chip, #fff); border: 1px solid var(--rv-sep); padding: 12px; }
+.gs-over .rv-pop { top: 56px; }
+.rv-chip { font-size: 12.5px; gap: 6px; padding: 0 12px 0 9px; max-width: calc(100% - 128px); }
+.rv-bar:has(.rv-chip) { gap: 6px; } .rv-bar:has(.rv-chip) h3.ht { font-size: 16px; letter-spacing: -.1px; } .rv-bar:has(.rv-chip) > div:nth-child(2) { min-width: 0; } .rv-bar:has(.rv-chip) small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-chip.sm { min-height: 40px; min-width: 40px; padding: 0; } .rv-chip.sm i { width: 18px; height: 18px; }
