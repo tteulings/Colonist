@@ -131,14 +131,18 @@ export const ReviewLuckMixin = {
         if (run.stop) break;
       } };
       const nl = R.share && R.run && lanes >= 2 ? Math.ceil(lanes / 2) : lanes; // v1.52 beside a review round: the first lanes (the round keeps the rest)
-      await Promise.all(Array.from({ length: nl }, (_, w) => lane(w)));
-      if (this._rv === R) { R.lrun = null; R.share = false; if (this._lkEvents().every((ev) => L.res[keyOf(ev)])) Object.assign(L, this._raStamp?.() || {}); this._rvSave?.(); this._rvTick?.(); }
+      const loops = Array.from({ length: nl }, (_, w) => lane(w));
+      // v1.53 the round beside it is done and nothing else waits: the luck takes the lanes the round had (they idled until the luck ended)
+      run.grow = () => { run.grow = null; if (live()) for (let w = nl; w < lanes; w += 1) loops.push(lane(w)); };
+      while (loops.length) { const l = loops.splice(0); await Promise.all(l); }
+      run.grow = null;
+      if (this._rv === R) { R.lrun = null; R.share = false; R.lkEnd?.(); if (this._lkEvents().every((ev) => L.res[keyOf(ev)])) Object.assign(L, this._raStamp?.() || {}); this._rvSave?.(); this._rvTick?.(); }
     })();
     return run.promise;
   },
   /** The budget of the next event: the light one once the run chose it (L.lite, kept with the results). */
   _lkBudget(lanes = 1) { return this._rv?.luck?.lite ? { ...LITE } : {}; }, // v1.42 one fixed budget (a run saved with the old time switch finishes as it began)
-  _lkStop() { const R = this._rv; if (!R?.lrun) return; R.lrun.stop = true; this._lkStore().stopped = true; R.lrun = null; this._rvSave?.(); this._rvTick?.(); },
+  _lkStop() { const R = this._rv; if (!R?.lrun) return; R.lrun.stop = true; this._lkStore().stopped = true; R.lrun = null; R.lkEnd?.(); this._rvSave?.(); this._rvTick?.(); },
   _lkGo() { const R = this._rv; if (!R) return; this._lkStore().stopped = false; if (!R.lrun && !R.run) this._rvQueueNext?.(); else if (!R.lrun) this._lkRun(); this._rvTick?.(); },
 
   /** One player's events with their effect (fraction) and the cards from that roll: [{ ev, x, w, cards, exp }], play order. */

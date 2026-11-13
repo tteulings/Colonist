@@ -68,7 +68,7 @@ function poolWorker(pool) {
   if (pool.broken || typeof Worker === "undefined") return null;
   if (pool.worker) return pool.ready;
   try {
-    pool.worker = new Worker(new URL("./master/worker.js?v=153", import.meta.url), { type: "module" });
+    pool.worker = new Worker(new URL("./master/worker.js?v=154", import.meta.url), { type: "module" });
   } catch (_) { pool.broken = true; return null; }
   pool.ready = new Promise((resolve) => {
     const t = setTimeout(() => { pool.broken = true; resolve(null); }, READY_TIMEOUT_MS);
@@ -125,7 +125,21 @@ const review = { worker: null, ready: null, broken: false, seq: 0, waiting: new 
 // and every event is computed on its own (its own seeds), so which lane runs it changes nothing in the result.
 const reviewLanes = [review];
 const reviewPool = (w) => (reviewLanes[w] = reviewLanes[w] || { worker: null, ready: null, broken: false, seq: 0, waiting: new Map() });
-export function reviewRequest(msg, timeoutMs, lane = 0) { return poolRequest(reviewPool(lane), msg, timeoutMs); }
+// v1.53 one analysis request twice in a page session (Review again with the same model; the quick round of another model) is answered from
+// memory: the position, the move or event and the options decide the result (own seeds, any lane gives the same; measured identical), so a
+// second run would only repeat it. The first run of a game never hits it (no two positions of a game are the same). Not saved, bounded.
+const memo = new Map(), MEMO_MAX = 1500;
+const hash53 = (str) => { let a = 0xdeadbeef, b = 0x41c6ce57; for (let i = 0; i < str.length; i += 1) { const c = str.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); } a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909); b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909); return `${(b >>> 0).toString(36)}${(a >>> 0).toString(36)}${str.length}`; };
+const copy = (x) => { try { return structuredClone(x); } catch (_) { return JSON.parse(JSON.stringify(x)); } };
+export function reviewRequest(msg, timeoutMs, lane = 0) {
+  const key = msg && (msg.type === "evaluate" || msg.type === "luck") ? hash53(JSON.stringify([msg.type, msg.base, msg.rec || msg.ev, msg.opts || null])) : null;
+  if (key != null && memo.has(key)) return Promise.resolve({ type: msg.type, result: copy(memo.get(key)) });
+  const p = poolRequest(reviewPool(lane), msg, timeoutMs);
+  if (key == null) return p;
+  return p.then((m) => { if (m?.result) { memo.set(key, copy(m.result)); if (memo.size > MEMO_MAX) memo.delete(memo.keys().next().value); } return m; });
+}
+/** Forget the remembered analysis results (tests). */
+export function reviewMemoClear() { memo.clear(); }
 export const reviewAvailable = () => !review.broken && typeof Worker !== "undefined";
 /** How many review lanes may run now (the cores past the page's own, at most 3; GM_WORKERS), each one started and ready. 1: as before. */
 export async function reviewLaneCount(max = GM_WORKERS()) {
