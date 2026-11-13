@@ -13,14 +13,14 @@
 // Reviewing. One game at a time in a third frame of its own (so games keep being played meanwhile), with the review as it is:
 // review.js _rvQueueNext plans the others' quick round, then the deep round on their real choices (OTHERS). Nothing of the
 // scoring is changed here; the lab only reads the result (history.js revMeta via the frame's _histRev).
-import { HistoryStore, LAB_DB, LAB_LIMITS } from "./history.js?v=155";
-import { packRecs } from "./review/pack.js?v=155";
+import { HistoryStore, LAB_DB, LAB_LIMITS } from "./history.js?v=156";
+import { packRecs } from "./review/pack.js?v=156";
 
 export const labStore = new HistoryStore(LAB_DB, LAB_LIMITS);
 
 let applyMainFn = null;
 async function applyMain() {
-  if (!applyMainFn) { const { makeMaster } = await import("./master/search.js?v=155"); applyMainFn = makeMaster({}).applyMain; }
+  if (!applyMainFn) { const { makeMaster } = await import("./master/search.js?v=156"); applyMainFn = makeMaster({}).applyMain; }
   return applyMainFn;
 }
 
@@ -119,7 +119,7 @@ export function reviewGame(rg, id, ctl) {
     rg._cancelPendingWork?.();
     rg.loadFromStorage(rec.state);
     rg.players.forEach((p, i) => { const sp = rec.state.players?.[i]; if (p.isHuman && sp?.strategy) Object.assign(p, { strategy: { ...sp.strategy }, personality: sp.personality || null }); p.isHuman = false; }); // every seat is a bot (the review checks "the others")
-    const { unpackRecs } = await import("./review/pack.js?v=155");
+    const { unpackRecs } = await import("./review/pack.js?v=156");
     const R = { id: rg.stats?.id ?? id, base: rec.rv.base, recs: unpackRecs(rec.rv.recs), res: null, busy: false, ms: 0, revs: {}, queue: [], bots: true, noLuck: true }; // v1.32: the lab checks accuracy only (no luck in win chance: src/review-luck.js)
     rg._rv = R;
     if (rg.stats) rg.stats.id = R.id;
