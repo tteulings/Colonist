@@ -233,6 +233,8 @@ export const ReviewMixin = {
       this._rvTick();
       const lanes = mid && !this.winner ? 1 : await reviewLaneCount();
       run.lanes = lanes;
+      // v1.52 the luck runs beside it: it keeps the first lanes, this round the rest (no queue behind a long luck event: a request would time out)
+      const split = !mid && lanes >= 2 && !!R.share && !!R.lrun, nl = split ? lanes - Math.ceil(lanes / 2) : lanes, off = split ? Math.ceil(lanes / 2) : 0;
       const opts = analysisOpts(eng, lanes);
       if (eng === run.final) run.eid = engineId(lanes, run.model); // v1.41 the final round's engine (its look-ahead depends on the lanes); v1.42 and the model
       let next = 0, last = now();
@@ -242,7 +244,7 @@ export const ReviewMixin = {
           await gate();
           if (run.stop || !live() || next >= items.length) return;
           const [rec, i] = items[next++];
-          const m = await reviewRequest({ type: "evaluate", base: R.base, rec, opts }, 40000, w);
+          const m = await reviewRequest({ type: "evaluate", base: R.base, rec, opts }, 40000, w + off);
           if (!live()) return;
           const k = rv.results.findIndex((x) => x.i === i);
           let r = m?.result ? { ...m.result, i } : null;
@@ -255,7 +257,7 @@ export const ReviewMixin = {
           this._rvTick();
         }
       };
-      await Promise.all(Array.from({ length: lanes }, (_, w) => lane(w)));
+      await Promise.all(Array.from({ length: nl }, (_, w) => lane(w)));
     };
     run.promise = (async () => {
       try {
@@ -298,7 +300,7 @@ export const ReviewMixin = {
     const par = !this.hotseat && (this._rvLaneN || 1) >= 2;
     if (R.lrun && !par) return;
     // v1.31 luck in win chance: after every person's own review, before the others' check (src/review-luck.js)
-    if (!R.lrun && !(R.queue || []).some((q) => q?.pid == null && this.players[q]?.isHuman) && this._lkWant?.()) { this._lkRun().then(() => { if (this._rv === R) this._rvQueueNext(); }); if (!par) return; }
+    if (!R.lrun && !(R.queue || []).some((q) => q?.pid == null && this.players[q]?.isHuman) && this._lkWant?.()) { R.share = par && !!R.queue?.length; this._lkRun().then(() => { if (this._rv === R) this._rvQueueNext(); }); if (!par) return; }
     // v1.29 when every person is done (or waits): the others, one at a time
     if (!R.queue?.length && !R.othersPlanned && !R.othersOff) { R.othersPlanned = true; R.queue = this._rvOthersPlan(); }
     while (R.queue?.length) {
