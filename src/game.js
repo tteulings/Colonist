@@ -2586,6 +2586,7 @@ class ColonistFullGame {
       if (ts.mode !== "pan") return;
       this.view.offsetX += p.x - ts.lastX;
       this.view.offsetY += p.y - ts.lastY;
+      if (this.sea && this._fitScale && this.view.scale > this._fitScale * 1.01) this._userZoomed = true; // 🌊 a manual pan also parks the auto camera
       ts.lastX = p.x;
       ts.lastY = p.y;
       const now = event.timeStamp;
@@ -10975,6 +10976,37 @@ class ColonistFullGame {
     this._animateView({ scale, offsetX: cx - w.x * scale, offsetY: cy - w.y * scale }, 220);
   }
 
+  /** 🌊 Seafarers camera: the main island (largest land cluster) plus every piece on the board, with one hex of margin. */
+  _seaFocusBox() {
+    const g = this.geometry, hs = g.hexSize, land = g.hexes.filter((h) => h.resource !== "sea");
+    if (!land.length) return null;
+    const seen = new Set(); let best = [];
+    land.forEach((h) => {
+      if (seen.has(h)) return;
+      const comp = [h]; seen.add(h);
+      for (let i = 0; i < comp.length; i += 1) land.forEach((o) => { if (!seen.has(o) && Math.hypot(o.center.x - comp[i].center.x, o.center.y - comp[i].center.y) < hs * 1.9) { seen.add(o); comp.push(o); } });
+      if (comp.length > best.length) best = comp;
+    });
+    const pts = best.map((h) => h.center);
+    g.nodes.forEach((n) => { if (n.owner != null || n.structure) pts.push({ x: n.x, y: n.y }); });
+    g.edges.forEach((e) => { if (e.owner != null) e.nodes.forEach((id) => pts.push({ x: g.nodes[id].x, y: g.nodes[id].y })); });
+    const m = hs * 1.45; // margin around the outermost centres: the hex itself plus a little sea (pieces and harbours stay in view)
+    const mx = hs * 1.15; // sideways a phone has no room to spare: the hex plus a sliver of sea
+    return { minX: Math.min(...pts.map((q) => q.x)) - mx, maxX: Math.max(...pts.map((q) => q.x)) + mx, minY: Math.min(...pts.map((q) => q.y)) - m, maxY: Math.max(...pts.map((q) => q.y)) + m };
+  }
+
+  /** 🌊 A piece outside the zoomed area (new island): glide out so everything stays in view. Never zooms in by itself. */
+  _seaCamera() {
+    if (!this.sea || !this.geometry || this._userZoomed || this._viewAnim || this.labMode || !this._fitScale) return;
+    const g = this.geometry; let k = 0;
+    g.nodes.forEach((n) => { if (n.owner != null || n.structure) k += 1; });
+    g.edges.forEach((e) => { if (e.owner != null) k += 1; });
+    if (k === this._seaCamKey) return;
+    this._seaCamKey = k;
+    const t = this._fitTarget();
+    if (t.scale < this.view.scale * 0.97) this._animateView(t, 350);
+  }
+
   /** The fitted view (also records the fit scale = minimum zoom). */
   _fitTarget(whole = false) {
     // v0.86: the harbour pills keep enough coast clearance that each pier has HARBOUR_FREE css px of open sea (room
@@ -11022,9 +11054,21 @@ class ColonistFullGame {
       t = fitClear();
     }
     this._fitScale = t.scale;
+    let seaFocused = false;
+    if (!whole && this.sea && !this.labMode && this.geometry) {
+      const f = this._seaFocusBox();
+      if (f) {
+        const { vp } = this._viewFrame();
+        const s = clamp(Math.min(vp.W / (f.maxX - f.minX), vp.H / (f.maxY - f.minY)), t.scale, this._maxScale());
+        if (s > t.scale * 1.08) {
+          seaFocused = true;
+          t = this._clampView({ scale: s, offsetX: vp.l + vp.W / 2 - ((f.minX + f.maxX) / 2) * s, offsetY: vp.t + vp.H / 2 - ((f.minY + f.maxY) / 2) * s });
+        }
+      }
+    }
     // v0.96 landscape phones: the land is height-bound there (the Seafarers hexes were ~19 px, their numbers unreadable).
     // The board opens zoomed in to a comfortable hex size, on your pieces, and pans; Fit (whole) shows all of it.
-    if (!whole && this.isLandscapePhone && !this.labMode && this.geometry) {
+    if (!whole && !seaFocused && this.isLandscapePhone && !this.labMode && this.geometry) {
       const hexPx = this.geometry.hexSize * t.scale, z = clamp(LANDSCAPE_HEX_PX / hexPx, 1, LANDSCAPE_MAX_ZOOM);
       if (hexPx < LANDSCAPE_ZOOM_BELOW && z > 1.02) {
         const { box, vp } = this._viewFrame(), me = this._me?.();
@@ -11078,6 +11122,7 @@ class ColonistFullGame {
   fitView() {
     if (!this.geometry) return;
     this._stopViewMotion();
+    this._seaCamKey = null;
     this._userZoomed = false;
     Object.assign(this.view, this._fitTarget());
     this._viewChanged();
@@ -11314,6 +11359,7 @@ class ColonistFullGame {
   }
 
   render() {
+    this._seaCamera(); // 🌊 Seafarers: glide out when a piece lands outside the zoomed area
     this._hsSync(); // pass & play: hide hands / ask for the phone before anything private is drawn
     this._syncAutoGlow(); // v0.84 phones: your main phase lights the spots you can build by itself
     this._queueSave();
