@@ -131,6 +131,7 @@ export const ReviewGameMixin = {
     if (!R?.recs?.length || this._rvMid || !this.winner) return null;
     const hum = this.players.filter((p) => p.isHuman && this._rvTodo(p.id).length), bots = this._rvOthers();
     if (!hum.length && !bots.length) return null;
+    if (R.again) return this._raFlow(R.again);
     const LK = this._lkState(), run = R.run, lrun = R.lrun, U = this._raUnit ? this._raUnit() : { quick: 0.5, deep: 3, luck: 0.45 };
     const quickModel = reviewModel() === "quick", hrun = run?.round && this.players[run.pid]?.isHuman ? run : null, brun = run?.round && !this.players[run.pid]?.isHuman ? run : null;
     const per = (r, d) => (r?.times?.length >= 2 ? r.times.reduce((a, b) => a + b, 0) / r.times.length / 1000 : d);
@@ -179,12 +180,12 @@ export const ReviewGameMixin = {
     if (bt) rows.push({ label: `Bots (${bt.left || 0} to check)`.replace(/ \(0 to check\)/, ""), st: bt.st, j: bt.j, n: bt.n, txt: bt.st === "done" ? "done" : bt.st === "run" ? `${esc(bt.name)} ${bt.eng === "m100" ? "first look" : "deep"} ${bt.j}/${bt.n}` : bt.st === "stop" ? "stopped" : "waiting" });
     const ico = { done: `<i class="ok" aria-hidden="true">✓</i>`, run: `<i class="rv-ring" aria-hidden="true"></i>`, stop: `<i class="pz" aria-hidden="true">II</i>`, wait: `<i class="wt" aria-hidden="true"></i>` };
     const eta = (F.etaMine + F.etaBots) > 3 ? `${this._rvEtaText(F.etaMine + F.etaBots)} left` : "";
-    const head = !F.running ? (F.stopped ? "Stopped" : F.started ? "Waiting" : "Not started") : "Checking this game";
+    const head = !F.running ? (F.stopped ? "Stopped" : F.started ? "Waiting" : "Not started") : F.again ? "Checking this game again" : "Checking this game";
     const btn = F.running ? `<button type="button" class="rv-btn" data-rvfs="stop">Stop</button>` : `<button type="button" class="rv-btn pri" data-rvfs="go">${F.started ? "Continue" : "Start"}</button>`;
     return `<section class="rv-card rsp" data-rvflow role="status" aria-label="Review progress"><div class="rsp-rows">${rows.map((r) => `<div class="rsp-r ${r.st}"><span class="ic">${ico[r.st]}</span><b>${r.label}</b><span class="tx">${r.txt}</span><i class="bar"><i style="width:${r.st === "done" ? 100 : r.n ? Math.round((100 * r.j) / Math.max(1, r.n)) : 0}%"></i></i></div>`).join("")}</div>
       <div class="rsp-f"><span><b>${head}</b>${eta ? `<small>${eta}</small>` : ""}</span>${btn}</div></section>`;
   },
-  _rvFlowStop() { const R = this._rv; if (R?.run) this._rvStop(); if (R?.lrun) this._lkStop(); this._rvTick?.(); },
+  _rvFlowStop() { const R = this._rv; if (R?.again) { this._raStop(); return; } if (R?.run) this._rvStop(); if (R?.lrun) this._lkStop(); this._rvTick?.(); },
   _rvFlowGo() {
     const R = this._rv;
     if (!R) return;
@@ -206,7 +207,8 @@ export const ReviewGameMixin = {
     const F = this._rvFlow();
     if (!F) return null;
     const run = F.steps.find((x) => x.st === "run"), stop = F.steps.find((x) => x.st === "stop");
-    const lab = (x) => (x.k === "quick" ? `Quick ${x.j}/${x.n}` : x.k === "deep" ? `Moves ${x.j}/${x.n}` : x.k === "luck" ? `Luck ${x.j}/${x.n}` : `Bots ${Math.max(1, (x.tot || 1) - (x.left || 1) + 1)}/${x.tot || 1}`);
+    const ag = F.again ? "Again · " : "", lab0 = (x) => (x.k === "quick" ? `${F.again ? "Moves" : "Quick"} ${x.j}/${x.n}` : x.k === "deep" ? `Moves ${x.j}/${x.n}` : x.k === "luck" ? `Luck ${x.j}/${x.n}` : `Bots ${Math.max(1, (x.tot || 1) - (x.left || 1) + 1)}/${x.tot || 1}`);
+    const lab = (x) => ag + lab0(x);
     const eta = F.etaMine + F.etaBots > 3 ? ` · ~${this._rvEtaText(F.etaMine + F.etaBots).replace("about ", "")}` : "";
     const cur = run || F.steps.find((x) => x.st !== "done");
     const pct = run && run.n ? Math.round((100 * run.j) / Math.max(1, run.n)) : 0;
@@ -828,19 +830,19 @@ export const ReviewGameMixin = {
   _rvCause(ds, k) {
     const st = this._st, me = this._rvPid, d = ds[k], p = ds[k - 1];
     if (!st || !p || !d) return "Dice and the table";
-    let cards = 0, best = null, robbed = 0, shift = false;
+    let cards = 0, best = null, robbed = 0, shift = false, paid = 0;
     for (let s = (p.x.s ?? 0) + 1; s <= (d.x.s ?? 0) && s <= st.N; s++) {
       let c = 0;
       (st.stepEvents[s] || []).forEach((e) => { if (e[1] === "P" && e[2] === me) c += e[5] || 1; else if (e[1] === "t" && e[3] === me) robbed += 1; });
-      cards += c;
+      cards += c; if (c) paid++;
       const step = st.steps[s - 1];
       if (step && c && (!best || c > best.c)) best = { c, roll: step[2] + step[3] };
       if (step && step[2] + step[3] === 7) shift = true;
     }
     if ((p.x.s ?? 0) === (d.x.s ?? 0)) return "Same turn · re-estimate, no dice"; // proef: nothing rolled and nobody else moved in between
-    if (d.chance >= 0) return best ? `${best.roll} rolled · +${cards} ${cards === 1 ? "card" : "cards"}` : "The others' moves";
+    if (d.chance >= 0) return best ? `${best.roll} rolled · +${best.c} ${best.c === 1 ? "card" : "cards"}` : "The others' moves";
     if (robbed) return `Robbed · ${robbed} stolen`;
-    return cards ? `Others pulled ahead · +${cards} for ${this._rvIsYou(me) ? "you" : "them"}` : shift ? "A 7 and no cards" : "No cards from your numbers";
+    return cards ? `Others pulled ahead · +${cards} for ${this._rvIsYou(me) ? "you" : "them"}${paid > 1 ? ` over ${paid} rolls` : ""}` : shift ? "A 7 and no cards" : "No cards from your numbers";
   },
   _rvKind(d) { return { setup: "Setup", build: "Build", bank: "Bank", buy: "Dev card", play: "Dev card", robber: "Robber", end: "Turn end" }[d.k] || ""; },
   _rvShort(d) { const l = d.x.label || ""; return d.k === "end" ? "End turn" : l.replace(/ toward .*/, "").replace(/ on .*/, "").replace(/^Bank trade.*/, "Bank trade"); },
@@ -1042,11 +1044,12 @@ export const ReviewGameMixin = {
   /** What happened in one roll or turn: { head, lines, top } (who rolled what, the cards, the robber, the builds; Seafarers: an island bonus is named). */
   _rvStepWhat(s, dl = null) {
     const st = this._st;
-    if (!st || s <= 0) return { head: "Set-up", lines: ["Everyone's first two settlements and roads."], builds: [] };
+    if (!st || s <= 0) return { head: "Set-up", lines: ["Everyone's first two settlements and roads."], builds: [], acts: [], roads: {}, lostTxt: () => "" };
     const stp = st.steps[s - 1], nmOf = (q) => this._rvNm(q);
     const roll = stp ? stp[2] + stp[3] : null, who = stp && stp[1] >= 0 ? nmOf(stp[1]) : null;
     const evs = st.stepEvents?.[s] || [], cards = {}, builds = [];
     let robber = null;
+    const acts = [], roads = {}, RESN = ["wood", "brick", "sheep", "wheat", "ore"];
     evs.forEach((e) => {
       if (e[1] === "P") cards[e[2]] = (cards[e[2]] || 0) + (e[5] || 1);
       else if (e[1] === "b" && e[3] !== "r" && e[3] !== "h") {
@@ -1054,13 +1057,31 @@ export const ReviewGameMixin = {
         try { if (this.sea && e[3] === "s") { const isl = this.sea.islandOfNode(e[4]); bonus = !!isl && this.sea.bonusNode?.[`${e[2]}:${isl}`] === e[4]; } } catch (_) { bonus = false; }
         builds.push({ pid: e[2], kind: e[3], bonus, vp: e[3] === "c" ? 1 : bonus ? 3 : 1 });
       } else if (e[1] === "R") robber = e[2];
+      else if (e[1] === "b" && e[3] === "r") roads[e[2]] = (roads[e[2]] || 0) + 1;
+      else if (e[1] === "y") acts.push({ k: "dev", p: e[2], type: e[3] });
+      else if (e[1] === "m") acts.push({ k: "mono", p: e[2], res: RESN[e[3]] || "cards", n: e[4] || 0, lost: e.slice(5) });
+      else if (e[1] === "o") acts.push({ k: "plenty", p: e[2], n: e[3] || 0 });
+      else if (e[1] === "k") acts.push({ k: "bank", p: e[2], give: RESN[e[3]], rate: e[4], get: RESN[e[5]] });
+      else if (e[1] === "x") acts.push({ k: "trade", p: e[2], q: e[3], a: e[4], b: e[5] });
+      else if (e[1] === "t") acts.push({ k: "steal", p: e[2], q: e[3], res: RESN[e[4]] });
     });
     const lines = [];
     const pay = Object.entries(cards).map(([q, c]) => `${nmOf(+q)} +${c}`);
     lines.push(pay.length ? `Cards from the roll: ${pay.join(", ")}.` : roll ? "Nobody collected a card." : "");
     if (roll === 7 || robber != null) lines.push(robber != null ? `${nmOf(robber)} moved the robber.` : "The robber moved.");
     builds.forEach((b) => lines.push(`${nmOf(b.pid)} built ${b.kind === "c" ? "a city (+1 VP)" : b.bonus ? "a settlement on a new island (+1 VP and +2 VP island bonus)" : "a settlement (+1 VP)"}.`));
-    return { head: `${this._rvTW()} ${st.turnOf[s]}${roll ? ` · ${who ? `${who} rolled` : "rolled"} ${roll}` : ""}`, lines: lines.filter(Boolean), builds, roll, robber, cards };
+    const DEV = { knight: "a Knight", monopoly: "Monopoly", yearOfPlenty: "Year of Plenty", roadBuilding: "Road Building", victoryPoint: "a Victory Point" };
+    const lostTxt = (m) => { const l = (m.lost || []).map((n, q) => [q, n]).filter(([q, n]) => n > 0 && q !== m.p).sort((a, b) => b[1] - a[1]); return l.length ? (l.length === 1 ? ` from ${nmOf(l[0][0])}` : `, mostly from ${nmOf(l[0][0])}`) : ""; };
+    acts.forEach((a) => {
+      if (a.k === "mono") lines.push(`${nmOf(a.p)} played Monopoly: took ${a.n} ${a.res}${lostTxt(a)}.`);
+      else if (a.k === "dev" && a.type !== "monopoly") lines.push(`${nmOf(a.p)} played ${DEV[a.type] || "a development card"}.`);
+      else if (a.k === "plenty") lines.push(`${nmOf(a.p)} took ${a.n} ${a.n === 1 ? "card" : "cards"} from the bank (Year of Plenty).`);
+      else if (a.k === "bank") lines.push(`${nmOf(a.p)} traded ${a.rate} ${a.give} for 1 ${a.get} with the bank.`);
+      else if (a.k === "trade") lines.push(`${nmOf(a.p)} traded ${a.a} for ${a.b} ${a.b === 1 ? "card" : "cards"} with ${nmOf(a.q)}.`);
+      else if (a.k === "steal") lines.push(`${nmOf(a.p)} stole a card from ${nmOf(a.q)}.`);
+    });
+    Object.entries(roads).forEach(([q, n]) => lines.push(`${nmOf(+q)} built ${n === 1 ? "a road" : n + " roads"}.`));
+    return { acts, roads, lostTxt, actor: stp && stp[1] >= 0 ? stp[1] : null, head: `${this._rvTW()} ${st.turnOf[s]}${roll ? ` · ${who ? `${who} rolled` : "rolled"} ${roll}` : ""}`, lines: lines.filter(Boolean), builds, roll, robber, cards };
   },
   _rvTabWin(ds) {
     let O = null; try { O = gameOdds(this); } catch (_) { O = null; }
@@ -1087,12 +1108,18 @@ export const ReviewGameMixin = {
     };
     return { html, bind };
   },
-  _rvWinTabPaint(el, O, ds) {
+  _rvWinTabPaint(el, O, ds, keep = false) {
     const c = el.querySelector("[data-rvwc]"), wi = el.querySelector("[data-rvwi]"), ws = el.querySelector("[data-rvws]");
     if (!c || !wi) return;
     const st = this._st, g = this._rvWinGeom(O, 304, 190), me = this._rvPid, look = this._rvLook();
     if (this._rvWcAuto) { let best = null; for (let s = 1; s <= g.N; s++) { const a = O.get(s - 1), b = O.get(s); if (a && b && (!best || Math.abs(b[me] - a[me]) > best.d)) best = { s, d: Math.abs(b[me] - a[me]) }; } if (best) this._rvWc = best.s; }
     const cur = Math.max(0, Math.min(g.N, this._rvWc ?? 1));
+    if (keep === "cursor" && c.querySelector("svg")) { // v1.55 dragging: only the cursor line and the dots move, nothing else is worked out
+      const sv = c.querySelector("svg"), cx0 = g.Xt(cur), ent0 = look?.steps.find((x) => x.S === cur), h0 = ent0 ? ent0.e : O.get(cur), cl = sv.querySelector(".cur");
+      cl?.setAttribute("x1", cx0.toFixed(1)); cl?.setAttribute("x2", cx0.toFixed(1));
+      const pts = sv.querySelectorAll(".pt"); if (h0) this.players.forEach((p, k) => { const e = pts[k]; if (e) { e.setAttribute("cx", cx0.toFixed(1)); e.setAttribute("cy", g.Y(h0[p.id]).toFixed(1)); } });
+      return;
+    }
     const lines = this.players.map((p) => {
       const pts = [];
       if (g.M >= 1) g.su.forEach((q, i) => { const v = (q.x ? q.x.p : q.p)?.[p.id]; if (v != null) pts.push([g.Xs(i), g.Y(v)]); });
@@ -1103,12 +1130,30 @@ export const ReviewGameMixin = {
     const sx = g.M >= 1 ? (g.x0 + g.f * g.w + g.gap / 2).toFixed(1) : null;
     const cx = g.Xt(cur), ent = look?.steps.find((x) => x.S === cur), here = ent ? ent.e : O.get(cur);
     const dec = ds.map((d) => { const s = Math.min(g.N, d.x.s ?? 0), v = d.seats ? d.seats[me] / (d.seats.reduce((a, b) => a + b, 0) || 1) : null; return v == null ? "" : `<circle cx="${g.Xt(s).toFixed(1)}" cy="${g.Y(v).toFixed(1)}" r="${["best", "great", "good", "triv"].includes(d.cls) ? 0 : 3.6}" class="dec c-${d.cls}"/>`; }).join("");
+    const old = keep ? c.querySelector("svg") : null;
+    if (old) { // v1.55 dragging: only the cursor line and the dots move; the chart is not drawn again
+      const cl = old.querySelector(".cur"); cl?.setAttribute("x1", cx.toFixed(1)); cl?.setAttribute("x2", cx.toFixed(1));
+      const pts = old.querySelectorAll(".pt"); if (here) this.players.forEach((p, k) => { const e = pts[k]; if (e) { e.setAttribute("cx", cx.toFixed(1)); e.setAttribute("cy", g.Y(here[p.id]).toFixed(1)); } });
+    } else {
     c.innerHTML = `<svg viewBox="0 0 304 190" role="img" aria-label="Win chance of every player, set-up and every ${this._stTurnWord?.() || "turn"}. Tap or drag to pick a moment">${grid}${lines.filter((l) => l.id !== me).map((l) => (l.d ? `<path class="pc-${l.id}" d="${l.d}"/>` : "")).join("")}${lines.filter((l) => l.id === me).map((l) => (l.d ? `<path class="pc-${l.id} me" d="${l.d}"/>` : "")).join("")}${dec}${sx ? `<line x1="${sx}" x2="${sx}" y1="${g.top}" y2="${g.bot}" class="sep"/>` : ""}<line x1="${cx.toFixed(1)}" x2="${cx.toFixed(1)}" y1="${g.top - 2}" y2="${g.bot}" class="cur"/>${here ? this.players.map((p) => `<circle cx="${cx.toFixed(1)}" cy="${g.Y(here[p.id]).toFixed(1)}" r="${p.id === me ? 5 : 3.6}" class="pc-${p.id} pt"/>`).join("") : ""}<text x="${g.x0}" y="186">${g.M >= 1 ? "set-up" : "start"}</text><text x="${g.x1}" y="186" text-anchor="end">${this.isRush?.() ? "roll" : "turn"} ${this.isRush?.() ? g.N : this.turn}</text></svg>${lines.some((l) => l.d) ? "" : `<p class="rsw-wait" role="status">Working out the win chance…</p>`}`;
-    const svg = c.querySelector("svg");
-    const pick = (ev) => { const r = svg.getBoundingClientRect(), x = ((ev.clientX - r.left) / r.width) * 304; this._rvWc = g.inv(x); this._rvWcAuto = false; this._rvWinTabPaint(el, O, ds); };
-    svg.addEventListener("pointerdown", (ev) => { try { svg.setPointerCapture(ev.pointerId); } catch (_) { /* none */ } svg._drag = true; pick(ev); });
-    svg.addEventListener("pointermove", (ev) => { if (svg._drag) pick(ev); });
-    ["pointerup", "pointercancel"].forEach((n) => svg.addEventListener(n, () => { svg._drag = false; }));
+    }
+    if (!c.__pd) { // one set of handlers on the container, so the drag survives a redraw of the svg
+      c.__pd = true;
+      let raf = 0;
+      const pick = (ev) => {
+        const sv = c.querySelector("svg"); if (!sv) return;
+        const r = sv.getBoundingClientRect(), w = c.__geo.inv(((ev.clientX - r.left) / r.width) * 304);
+        if (w === this._rvWc && !this._rvWcAuto) return;
+        this._rvWc = w; this._rvWcAuto = false;
+        this._rvWinTabPaint(c.__el, c.__O, c.__ds, "cursor"); // the cursor now, the moment card at most once a frame
+        clearTimeout(raf); raf = setTimeout(() => { raf = 0; this._rvWinTabPaint(c.__el, c.__O, c.__ds, true); }, 90); // the card follows when the finger rests
+      };
+      c.addEventListener("pointerdown", (ev) => { try { c.setPointerCapture(ev.pointerId); } catch (_) { /* none */ } c._drag = true; pick(ev); });
+      c.addEventListener("pointermove", (ev) => { if (c._drag) pick(ev); });
+      ["pointerup", "pointercancel"].forEach((n) => c.addEventListener(n, () => { c._drag = false; if (raf) { clearTimeout(raf); raf = 0; this._rvWinTabPaint(c.__el, c.__O, c.__ds, true); } }));
+    }
+    c.__geo = g; c.__el = el; c.__O = O; c.__ds = ds;
+    if (keep === "cursor") return;
     // before and after the picked step: with the luck check's numbers (looking ahead): before the roll, after the roll, end of the turn; else the model's estimate
     const su = g.su;
     const bar = (v) => { if (!v) return `<div class="rvw-bar na">…</div>`; const sum = v.reduce((a, b) => a + b, 0) || 1; return `<div class="rvw-bar" role="img" aria-label="${this.players.map((p) => `${this._rvNm(p.id)} ${Math.round((v[p.id] / sum) * 100)}%`).join(", ")}">${this.players.map((p) => `<i class="pc-${p.id}" style="flex:${(v[p.id] / sum).toFixed(4)} 1 0">${v[p.id] / sum >= 0.08 ? Math.round((v[p.id] / sum) * 100) : ""}</i>`).join("")}</div>`; };
@@ -1123,7 +1168,9 @@ export const ReviewGameMixin = {
       this.players.forEach((p) => { [["roll", ent.a[p.id] - ent.b[p.id]], ["moves", ent.e[p.id] - ent.a[p.id]]].forEach(([k, x]) => { if (!top || Math.abs(x) > Math.abs(top.x)) top = { p: p.id, k, x }; }); });
       if (top && Math.abs(top.x) >= 0.01) {
         const b2 = what.builds.filter((q) => q.pid === top.p).sort((a1, a2) => a2.vp - a1.vp)[0], got = what.cards?.[top.p] || 0;
-        const cause = top.k === "roll" ? (got ? `the roll paid ${got} ${got === 1 ? "card" : "cards"}` : what.robber != null && top.x < 0 ? "the roll moved the robber" : "the roll (luck)") : b2 ? (b2.bonus ? "built a settlement on a new island (+3 VP with the island bonus)" : b2.kind === "c" ? "built a city" : "built a settlement") : what.robber === top.p ? "moved the robber" : "the moves of this turn";
+        const parts = [...(what.builds.some((q) => q.kind === "c") ? ["city"] : []), ...(what.builds.some((q) => q.kind === "s") ? ["settlement"] : []), ...what.acts.filter((q) => q.k === "mono").map((q) => `Monopoly +${q.n} ${q.res}`), ...(Object.values(what.roads).some((n) => n) ? ["road"] : []), ...(what.acts.some((q) => q.k === "bank" || q.k === "trade") ? [`${what.acts.filter((q) => q.k === "bank" || q.k === "trade").length} trades`] : []), ...what.acts.filter((q) => q.k === "dev" && q.type !== "monopoly").map(() => "dev card")];
+        const mo = what.acts.find((a) => a.k === "mono" && a.p === top.p), ml = what.acts.find((a) => a.k === "mono" && a.p !== top.p && (a.lost[top.p] || 0) > 0), st2 = what.acts.find((a) => a.k === "steal" && (a.p === top.p || a.q === top.p));
+        const cause = top.k !== "roll" && parts.length > 1 && what.actor != null ? `${what.actor === top.p ? "" : this._rvIsYou(what.actor) ? "Your " : `${this._rvNm(what.actor)}’s `}${what.actor === top.p ? "turn" : "turn"}: ${parts.join(", ")}` : top.k !== "roll" && mo ? `Monopoly: took ${mo.n} ${mo.res}${what.lostTxt(mo)}` : top.k !== "roll" && ml ? `${this._rvNm(ml.p)} played Monopoly and took ${ml.lost[top.p]} ${ml.res} from ${this._rvNm(top.p)}` : top.k !== "roll" && st2 && !b2 ? "a card stolen" : top.k === "roll" ? (got ? `the roll paid ${got} ${got === 1 ? "card" : "cards"}` : what.robber != null && top.x < 0 ? "the roll moved the robber" : "the roll (luck)") : b2 ? (b2.bonus ? "built a settlement on a new island (+3 VP with the island bonus)" : b2.kind === "c" ? "built a city" : "built a settlement") : what.robber === top.p ? "moved the robber" : "the moves of this turn";
         topTxt = `<b>Biggest effect:</b> ${this._rvNm(top.p)} <span class="${top.x > 0 ? "pos" : "neg"}">${sgp(top.x)}</span>, ${esc(cause)}.`;
       }
       rows = `<div class="rvw-l">Before the roll</div>${bar(ent.b)}<div class="rvw-l">After the roll <em>luck: ${this._rvNm(me)} ${sgp(ent.a[me] - ent.b[me])}</em></div>${bar(ent.a)}<div class="rvw-l">End of the turn <em>moves: ${this._rvNm(me)} ${sgp(ent.e[me] - ent.a[me])}</em></div>${bar(ent.e)}${exact ? `<div class="rvw-l">Your checked move <em>deeper, step mode</em></div>${bar(exact)}` : ""}`;
@@ -1243,6 +1290,35 @@ export const ReviewGameMixin = {
   },
   /** What could be better, largest gap first: could be better, mistakes, blunders and missed chances. */
   _rvImp(ds) { return ds.filter((d) => IMP.includes(d.cls)).sort((a, b) => b.gap - a.gap || a.i - b.i); },
+  /** v1.55 step mode: the whole turn for every player in one line each (what they got or did, win chance before → after); folded, closed by default. */
+  _rvTurnHtml(d) {
+    const st = this._st, s = d.x?.s ?? 0;
+    if (!st || s <= 0 || d.k === "setup") return "";
+    let O = null; try { O = gameOdds(this); } catch (_) { O = null; }
+    const T = st.turnOf[s], a = [], N = Math.min(st.N, st.turnOf.length - 1);
+    for (let q = 1; q <= N; q++) if (st.turnOf[q] === T) a.push(q);
+    if (!a.length) return "";
+    const lo = a[0], hi = a[a.length - 1], rows = this.players.map((p) => ({ id: p.id, cards: 0, tk: [], built: [], roads: 0, did: [] }));
+    a.forEach((q) => {
+      const w = this._rvStepWhat(q);
+      rows.forEach((r) => {
+        r.cards += w.cards?.[r.id] || 0;
+        (w.builds || []).filter((b) => b.pid === r.id).forEach((b) => r.built.push(b.kind === "c" ? "city" : "settlement"));
+        r.roads += w.roads?.[r.id] || 0;
+        (w.acts || []).forEach((x) => {
+          if (x.k === "mono") { if (x.p === r.id) r.did.push(`Monopoly +${x.n} ${x.res}`); else if ((x.lost[r.id] || 0) > 0) r.did.push(`Monopoly −${x.lost[r.id]} ${x.res}`); }
+          else if (x.p === r.id) r.did.push(x.k === "dev" ? (x.type === "monopoly" ? "" : x.type === "knight" ? "Knight" : x.type === "roadBuilding" ? "Road Building" : "dev card") : x.k === "plenty" ? `Plenty +${x.n}` : x.k === "bank" ? "bank trade" : x.k === "trade" ? "trade" : x.k === "steal" ? "steal" : "");
+          else if (x.k === "steal" && x.q === r.id) r.did.push("robbed");
+        });
+      });
+    });
+    const pc = (v) => `${Math.round(v * 100)}%`, bef = O?.get(lo - 1), aft = O?.get(hi);
+    const body = rows.map((r) => {
+      const bits = [r.cards ? `+${r.cards} cards` : "", ...r.built, r.roads ? `${r.roads} ${r.roads === 1 ? "road" : "roads"}` : "", ...[...r.did.filter(Boolean).reduce((m, x) => m.set(x, (m.get(x) || 0) + 1), new Map())].map(([x, n]) => (n > 1 ? `${n}× ${x}` : x))].filter(Boolean);
+      return `<li><b class="pc-${r.id}">${this._rvNm(r.id)}</b><span>${bits.length ? bits.join(" · ") : "nothing"}</span><em>${bef && aft ? `${pc(bef[r.id])} → ${pc(aft[r.id])}` : ""}</em></li>`;
+    }).join("");
+    return `<details class="rv-turn"${this._rvTurnOpen ? " open" : ""}><summary>This ${this._rvTW().toLowerCase()} for everyone</summary><ul>${body}</ul></details>`;
+  },
   _rvStepDraw(ds) {
     const el = this._rvEl, d = ds.find((q) => q.i === this._rvStep), x = d.x, mid = !!this._rvMid;
     if (this._rvPbp && this._rvPbp.i !== d.i) this._rvPbp = null;
@@ -1267,11 +1343,13 @@ export const ReviewGameMixin = {
         ${noA ? "" : whyHtml(x.why)}
         <div class="rs-ab${noA ? " one" : ""}">${A}${B}</div>
         ${this._lkSplitHtml(d, ds, sg)}
+        ${this._rvTurnHtml(d)}
         <div class="rs-strip" role="tablist" aria-label="Your decisions">${strip}</div>
         <div class="rs-nav"><button type="button" class="rv-btn" data-rvnav="-1" ${k ? "" : "disabled"} aria-label="Previous decision">${IC.prev}Previous</button><button type="button" class="rv-btn rs-ov" data-rvallmoves>${mid ? "Overview" : "All moves"}</button><button type="button" class="rv-btn pri" data-rvnav="1" ${k < list.length - 1 ? "" : "disabled"} aria-label="Next decision">Next${IC.next}</button></div>`;
     const evalHtml = `<b>${pct(shown[me] / (shown.reduce((a, c) => a + c, 0) || 1))}</b>${this._rvStack(shown)}`;
     const wcHtml = this._rvLegend(shown);
     const bindCard = (root) => {
+      root.querySelector(".rv-turn")?.addEventListener("toggle", (e) => { this._rvTurnOpen = e.currentTarget.open; });
       root.querySelectorAll("[data-rvallmoves]").forEach((b) => b.addEventListener("click", () => { this._rvStep = null; this._rvPbp = null; this._rvStepFrom = null; if (!this._rvMid) this._rvTab = "moves"; this._rvDrawReview(); })); // (the card is redrawn while a check runs: bound here too)
       root.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = "all"; this._rvDrawReview(+b.dataset.rvj); }));
       root.querySelectorAll("[data-rvwhy]").forEach((b) => b.addEventListener("click", () => { this._rvInfoOpen = true; this._rvShowInfo(); }));

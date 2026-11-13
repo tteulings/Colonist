@@ -1,0 +1,32 @@
+const { open: openApp, sleep, S } = require("/tmp/claude-0/-home-user-Colonist/d9ceb834-54a4-5da3-a5eb-477cce8e55d6/scratchpad/redesign/lib.js");
+const port = +process.argv[2]; let bad = 0;
+const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m} ${typeof x === "string" ? x : JSON.stringify(x)}`); if (!c) bad++; };
+(async () => {
+  const { b, page, errors } = await openApp(port); const G = (f, a) => page.evaluate(f, a);
+  await G(() => window.__colonistGame.histOpen()); await sleep(1500);
+  const hid = await G(() => document.querySelector("[data-hrow]").dataset.hrow); await page.locator("[data-hrow]").first().tap(); await sleep(900);
+  ok(await G(() => document.documentElement.dataset.palette || document.body.dataset.palette || localStorage.getItem("colonist.palette")), "palette", "");
+  await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 15000 }); await sleep(2500);
+  const km = await G(() => document.querySelector(".rv").innerText.split("\n").filter((t) => /Turn \d+ ·|rolled|pulled ahead/.test(t)));
+  await page.screenshot({ path: S + "/../fix155/rv-" + port + ".png" });
+  console.log("keymoments", JSON.stringify(km));
+  ok(km.every((t) => { const m = t.match(/\+(\d+)/); return !m || +m[1] <= 6 || /over \d+ rolls/.test(t); }), "key moments plausible");
+  const tb = await G(() => [...document.querySelectorAll(".rv-tabs button")].map((x) => { const r = x.getBoundingClientRect(), cs = getComputedStyle(x); const g = document.createRange(); g.selectNodeContents(x); const t = g.getBoundingClientRect(); return { w: Math.round(r.width), l: Math.round(r.left), off: Math.round(t.left + t.width / 2 - (r.left + r.width / 2)) }; }));
+  console.log("tabs", JSON.stringify(tb)); ok(tb.every((x) => Math.abs(x.off) <= 1 && x.w === tb[0].w), "tabs: equal, label centered");
+  const ag = await G(() => document.querySelector(".rv [data-raagain]") ? 1 : 0);
+  if (ag) { await G(() => document.querySelector(".rv [data-raagain]").scrollIntoView({block:"center"})); await page.locator(".rv [data-raagain]").first().tap(); await sleep(400);
+    const c = await G(() => { const lum = (s) => { const m = s.match(/[\d.]+/g).map(Number); return m[0] * .3 + m[1] * .59 + m[2] * .11; }; return [...document.querySelectorAll(".ra-m")].map((l) => { const bb = getComputedStyle(l.querySelector("b")); return Math.round(Math.abs(lum(bb.color) - lum(getComputedStyle(l).backgroundColor))); }); });
+    ok(c.length === 3 && c.every((d) => d > 60), "model cards contrast", c);
+    const sc = await G(() => { let s = document.querySelector(".rv .ra-ask"); while (s && !/rv-scroll|gs-scroll/.test(s.className)) s = s.parentElement; if (!s) return null; s.scrollTop = 1e6; const r = s.getBoundingClientRect(), kids = [...s.children], last = kids[kids.length - 1].getBoundingClientRect(); return { cls: s.className, sh: s.scrollHeight, ch: s.clientHeight, below: Math.round(r.bottom - last.bottom), pad: getComputedStyle(s).paddingBottom, mh: getComputedStyle(s).minHeight }; });
+    console.log("scroll", JSON.stringify(sc)); ok(!sc || sc.below < 780, "space after last card < 1 screen");
+    await page.screenshot({ path: S + "/../fix155/ask-" + port + ".png" });
+    await page.locator('.rv [data-raa="go"]').tap(); await sleep(2500);
+    const ch = await G(() => ({ chip: document.querySelector("[data-rvchip]")?.title || null, row: !!document.querySelector(".ra-row.run"), A: window.__colonistGame._rv.again && [window.__colonistGame._rv.again.j, window.__colonistGame._rv.again.n] }));
+    ok(ch.chip && /Again/.test(ch.chip) && !ch.row, "again: chip, no bar", ch);
+    await page.screenshot({ path: S + "/../fix155/chip-" + port + ".png" });
+    await page.locator("[data-rvchip]").tap(); await sleep(400); console.log("pop", await G(() => document.querySelector(".rv-pop, .gs-over .rsp")?.innerText.replace(/\s+/g, " ")));
+    await page.locator("[data-rvfs=stop]").tap(); await sleep(600); ok(await G(() => !window.__colonistGame._rv.again), "stop via popover");
+  } 
+  ok(!errors.length, "no page errors", errors.join("|"));
+  await b.close(); process.exit(bad ? 1 : 0);
+})();
