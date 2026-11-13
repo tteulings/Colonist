@@ -16,7 +16,7 @@ import { BOT_PROFILES } from "./bot-profiles.js";
 import { profileOf } from "./bot-profile-ui.js";
 import { botBand } from "./review/bands.js";
 import { gameOdds } from "./replay-odds.js";
-import { wpText } from "./review-luck.js";
+import { wpText, luckKey } from "./review-luck.js";
 import { currentEngineId } from "./review-again.js";
 import { LUCK_MC } from "./review/luck-mc.js";
 
@@ -112,10 +112,8 @@ export const ReviewGameMixin = {
     const done = mine && this._rvReviewComplete(p.id);
     const n = this._rv.recs.filter((r) => r.pid === p.id && ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"].includes(r.k)).length;
     let x = "Game review", g = "";
-    if (run?.pid === p.id && run.round) {
-      const r = run.round, f = r.n ? r.j / r.n : 0;
-      g = `<i class="rv-ring" style="--p:${Math.round(f * 100)}%" role="img" aria-label="${r.j} of ${r.n}"></i>${run.paused ? "paused" : `checking ${r.j}/${r.n}`}`;
-    } else if (done) g = this._rvStale(p.id) ? "Re-check" : `accuracy ${sum?.acc ?? "–"}`;
+    if (run?.pid === p.id && run.round) g = run.paused ? "paused" : "checking"; // v1.52 the numbers are in the progress card above
+    else if (done) g = this._rvStale(p.id) ? "Re-check" : `accuracy ${sum?.acc ?? "–"}`;
     else if (sum) g = this._rvStale(p.id) ? "Re-check" : "provisional";
     else { x = "Review this game"; g = `≈${Math.max(1, Math.round((n * REVIEW.sec) / 60))} min`; }
     const mc = done && rv.midCheck ? `<small class="mc">checked during the game</small>` : ""; // v1.04: such a game stays out of the bot average
@@ -125,10 +123,99 @@ export const ReviewGameMixin = {
     if (!this._rvReviewable()) return "";
     return `<button type="button" class="rvb" data-rvreview="${p.id}">${this._rvRowInner(p)}</button>`;
   },
+  // ── v1.52 one progress for the whole review on the end screen: Quick look → Luck → Your moves → Bots ──
+  _rvEtaText(sec) { return sec >= 90 ? `about ${Math.round(sec / 60)} min` : sec < 10 ? "a few seconds" : `about ${Math.round(sec / 10) * 10} s`; },
+  /** Where the whole check stands: { steps: [{ k, label, st: done|run|wait|stop, j, n }], cur, etaMine, etaLuck, etaBots, running, stopped } or null when everything is done. */
+  _rvFlow() {
+    const R = this._rv;
+    if (!R?.recs?.length || this._rvMid || !this.winner) return null;
+    const hum = this.players.filter((p) => p.isHuman && this._rvTodo(p.id).length), bots = this._rvOthers();
+    if (!hum.length && !bots.length) return null;
+    const LK = this._lkState(), run = R.run, lrun = R.lrun, U = this._raUnit ? this._raUnit() : { quick: 0.5, deep: 3, luck: 0.45 };
+    const quickModel = reviewModel() === "quick", hrun = run?.round && this.players[run.pid]?.isHuman ? run : null, brun = run?.round && !this.players[run.pid]?.isHuman ? run : null;
+    const per = (r, d) => (r?.times?.length >= 2 ? r.times.reduce((a, b) => a + b, 0) / r.times.length / 1000 : d);
+    const left = (p, quick) => this._rvTodo(p.id).filter(([, i]) => { const x = R.revs[p.id]?.results.find((y) => y.i === i); return quick ? !x : !x || this._rvNeedsFull(x); }).length;
+    const qDone = hum.every((p) => this._rvCovered1(p.id)), dDone = hum.every((p) => this._rvReviewComplete(p.id)), hStop = hum.some((p) => R.revs[p.id]?.stopped && !this._rvReviewComplete(p.id));
+    const steps = [];
+    const qLeft = hum.reduce((a, p) => a + left(p, true), 0), dLeft = hum.reduce((a, p) => a + left(p, false), 0);
+    if (hum.length) {
+      const q = hrun && (quickModel || hrun.round.eng === "m100");
+      steps.push({ k: "quick", label: quickModel ? "Your moves" : "Quick look", st: qDone ? "done" : q ? "run" : hStop && !qDone ? "stop" : "wait", j: q ? Math.min(hrun.round.j, hrun.round.n) : null, n: q ? hrun.round.n : null });
+    }
+    let luckSec = 0;
+    if (!LK.na) {
+      const lj = LK.j, ln = LK.n, perL = per(lrun, U.luck);
+      luckSec = LK.done ? 0 : Math.max(0, ln - lj) * perL;
+      steps.push({ k: "luck", label: "Luck", st: LK.done ? "done" : LK.run ? "run" : LK.stopped ? "stop" : "wait", j: LK.run ? lj : null, n: LK.run ? ln : null, paused: !!LK.paused });
+    }
+    if (hum.length && !quickModel) {
+      const d = hrun && hrun.round.eng !== "m100";
+      steps.push({ k: "deep", label: "Your moves", st: dDone ? "done" : d ? "run" : hStop && qDone ? "stop" : "wait", j: d ? Math.min(hrun.round.j, hrun.round.n) : null, n: d ? hrun.round.n : null });
+    }
+    const botsLeft = bots.filter((p) => !this._rvReviewComplete(p.id) && !(R.revs[p.id]?.top && this._rvCovered1(p.id)));
+    if (bots.length) {
+      steps.push({ k: "bots", label: `Bots (${bots.length})`, st: !botsLeft.length ? "done" : brun ? "run" : R.othersOff ? "stop" : "wait", j: brun ? Math.min(brun.round.j, brun.round.n) : null, n: brun ? brun.round.n : null, name: brun ? this.players[brun.pid].name : "", eng: brun?.round.eng, left: botsLeft.length });
+    }
+    if (steps.every((x) => x.st === "done")) return null;
+    // time left: the person's part (quick look, luck, deep), the bots apart
+    const qSec = hrun && (quickModel || hrun.round.eng === "m100") ? Math.max(0, hrun.round.n - hrun.round.j) * per(hrun, U.quick) : qLeft * U.quick;
+    const dRun = hrun && hrun.round.eng !== "m100" && !quickModel;
+    const dSec = quickModel ? 0 : dRun ? Math.max(0, hrun.round.n - hrun.round.j) * per(hrun, U.deep) + Math.max(0, dLeft - hrun.round.n) * U.deep : dLeft * U.deep;
+    const bSec = botsLeft.reduce((a, p) => a + left(p, true) * U.quick + 0.4 * (this._rvTodo(p.id).length) * U.deep, 0);
+    const cur = steps.find((x) => x.st !== "done") || null;
+    return { steps, cur, etaLuck: luckSec + (qDone ? 0 : qSec), etaMine: qSec + luckSec + dSec, etaBots: bSec, running: steps.some((x) => x.st === "run"), stopped: steps.some((x) => x.st === "stop"), started: steps.some((x) => x.st === "done" || x.st === "run" || (x.j || 0) > 0) };
+  },
+  _rvFlowHtml() {
+    const F = this._rvFlow();
+    if (!F) return "";
+    const by = (k) => F.steps.find((x) => x.k === k), q = by("quick"), d = by("deep"), lk = by("luck"), bt = by("bots");
+    const rows = [];
+    if (q) { // your moves: the quick look (first), then the deep check (after the luck and the bots' quick look)
+      const cur = d && q.st === "done" ? d : q, st = d ? (d.st === "done" ? "done" : q.st === "done" ? d.st : q.st) : q.st;
+      const phase = d && q.st === "done" ? "deep check" : d ? "quick look" : "";
+      rows.push({ label: "Your moves", st, j: cur.j, n: cur.n, txt: st === "done" ? "done" : st === "run" ? `${phase ? phase + " " : ""}${cur.j}/${cur.n}` : st === "stop" ? "stopped" : phase ? `${phase} waiting` : "waiting" });
+    }
+    if (lk) rows.push({ label: "Luck", st: lk.st, j: lk.j, n: lk.n, txt: lk.st === "done" ? "done" : lk.st === "run" ? `${lk.paused ? "paused " : ""}${lk.j}/${lk.n}` : lk.st === "stop" ? "stopped" : "waiting" });
+    if (bt) rows.push({ label: `Bots (${bt.left || 0} to check)`.replace(/ \(0 to check\)/, ""), st: bt.st, j: bt.j, n: bt.n, txt: bt.st === "done" ? "done" : bt.st === "run" ? `${esc(bt.name)} ${bt.eng === "m100" ? "first look" : "deep"} ${bt.j}/${bt.n}` : bt.st === "stop" ? "stopped" : "waiting" });
+    const ico = { done: `<i class="ok" aria-hidden="true">✓</i>`, run: `<i class="rv-ring" aria-hidden="true"></i>`, stop: `<i class="pz" aria-hidden="true">II</i>`, wait: `<i class="wt" aria-hidden="true"></i>` };
+    const eta = (F.etaMine + F.etaBots) > 3 ? `${this._rvEtaText(F.etaMine + F.etaBots)} left` : "";
+    const head = !F.running ? (F.stopped ? "Stopped" : F.started ? "Waiting" : "Not started") : "Checking this game";
+    const btn = F.running ? `<button type="button" class="rv-btn" data-rvfs="stop">Stop</button>` : `<button type="button" class="rv-btn pri" data-rvfs="go">${F.started ? "Continue" : "Start"}</button>`;
+    return `<section class="rv-card rsp" data-rvflow role="status" aria-label="Review progress"><div class="rsp-rows">${rows.map((r) => `<div class="rsp-r ${r.st}"><span class="ic">${ico[r.st]}</span><b>${r.label}</b><span class="tx">${r.txt}</span><i class="bar"><i style="width:${r.st === "done" ? 100 : r.n ? Math.round((100 * r.j) / Math.max(1, r.n)) : 0}%"></i></i></div>`).join("")}</div>
+      <div class="rsp-f"><span><b>${head}</b>${eta ? `<small>${eta}</small>` : ""}</span>${btn}</div></section>`;
+  },
+  _rvFlowStop() { const R = this._rv; if (R?.run) this._rvStop(); if (R?.lrun) this._lkStop(); this._rvTick?.(); },
+  _rvFlowGo() {
+    const R = this._rv;
+    if (!R) return;
+    const hum = this.players.filter((p) => p.isHuman && this._rvTodo(p.id).length && !this._rvReviewComplete(p.id));
+    hum.forEach((p) => { if (R.revs[p.id]) R.revs[p.id].stopped = false; });
+    this._lkStore().stopped = false;
+    R.othersOff = false; R.othersPlanned = false;
+    this._rvOthers().forEach((p) => { if (R.revs[p.id]) R.revs[p.id].stopped = false; });
+    R.queue = !this.hotseat && hum.length === 1 ? this._rvSoloQueue(hum[0].id) : hum.map((p) => ({ pid: p.id, stage: "deep" }));
+    R.othersPlanned = !this.hotseat && hum.length === 1;
+    const need = hum.find((p) => !this._rvCovered1(p.id));
+    if (need && !R.run) { this._rvReviewRun(need.id, null, { stage: "quick" }).then((rv) => { if (rv?.done && this._rv === R) this._rvRender?.(); }); this._rvTick?.(); return; }
+    this._rvQueueNext();
+    this._rvTick?.();
+  },
+  /** The end screen's progress card follows the check (and goes away when everything is done). */
+  _rvPatchFlow() {
+    const box = this._stOverlay?.isConnected ? this._stOverlay.querySelector("[data-rvbox]") : null;
+    if (!box || !this._rv) return;
+    const f = box.querySelector("[data-rvflow]"), h = this._rvFlowHtml();
+    if (!h) { f?.remove(); return; }
+    if (f && f.__h === h) return;
+    const tmp = document.createElement("div"); tmp.innerHTML = h; const n = tmp.firstElementChild; n.__h = h;
+    if (f) f.replaceWith(n); else (box.querySelector("[data-rvtable]") || box.firstElementChild)?.before(n);
+    this._rvBindTable(n);
+  },
   _rvPatchRows() {
     document.querySelectorAll("[data-rvreview]").forEach((b) => { const p = this.players[+b.dataset.rvreview]; if (p) b.innerHTML = this._rvRowInner(p); });
     // v1.29 the table on the end screen follows the others' checks (the review screen redraws itself)
     this._rvPatchTable(this._stOverlay?.isConnected ? this._stOverlay.querySelector("[data-rvbox] [data-rvtable]") : null);
+    this._rvPatchFlow();
   },
   /** Replace one table in place (only when it changed): the screen around it is not redrawn. */
   _rvPatchTable(t, cur = null, luckFor = null) {
@@ -299,7 +386,10 @@ export const ReviewGameMixin = {
         <p class="rsc-v">${this._rvWhyVerdict(pid, W, wd)}</p>
         <p class="rsc-n">Start = seat order and set-up${Math.round(W.seat * 100) ? ` (seat order ${wpText(W.seat)})` : ""}. ${W.moves == null ? "" : `The others = what their luck and moves did${big ? ", and what the estimates cannot tell apart. It is large here, so read it as a rough share" : ""}.`}</p>`;
     }
-    return LK.na ? "" : `<p class="rsc-n">${LK.run || this._rv.run ? "The luck check is still running; the reasons follow." : !LK.done ? "Luck was not checked in this game yet, so the reasons are missing." : "No reasons available for this game."}</p>`;
+    if (LK.na) return "";
+    if (LK.done) return `<p class="rsc-n">No reasons available for this game.</p>`;
+    const F = this._rvFlow?.(), t = F?.etaLuck != null ? ` in ${this._rvEtaText(F.etaLuck)}` : "";
+    return `<p class="rsc-n">Luck in win chance ${LK.run ? `is being worked out (${LK.j}/${LK.n})` : "follows your review"}${t}; the reasons come with it.</p>`;
   },
   _rvScoreHtml() {
     const R = this._rv, st = this._st;
@@ -320,7 +410,8 @@ export const ReviewGameMixin = {
         : `<span class="rt-st">${{ queued: p.isHuman ? "queued" : "waiting", stopped: "stopped", idle: p.isHuman ? "not checked" : "waiting", norec: "n/a", none: "–", prov: "–", done: "–", quick: "waiting" }[s.st] || "–"}</span>`;
       const d = !L || L.na ? null : L.all?.[p.id], t = d ? tileOf({ me: d }) : null, top = d ? topText(d.top) : "";
       const wv = LK.na ? null : LK.done && LK.cover >= 0.9 ? LK.tot[p.id] : null, wc = wv == null ? "" : Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : "";
-      const luck = wv != null ? `<b class="${wc}">${wpText(wv)}</b>` : t ? `<b class="${t.cls || ""}">${esc(t.n.replace(/ cards?$/, ""))}</b><small>cards</small>` : `<span class="rt-st">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}${LK.na || LK.done ? "–" : "…"}</span>`;
+      const pend = wv == null && !LK.na && !LK.done && t; // v1.52 the win chance impact is coming: say so, cards underneath
+      const luck = wv != null ? `<b class="${wc}">${wpText(wv)}</b>` : pend ? `<b class="pend" title="Luck in win chance follows">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}…%</b><small>${esc(t.n)}</small>` : t ? `<b class="${t.cls || ""}">${esc(t.n.replace(/ cards?$/, ""))}</b><small>cards</small>` : `<span class="rt-st">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}${LK.na || LK.done ? "–" : "…"}</span>`;
       const sc = src?.[p.id];
       const bar = sc ? `<div class="rsc-src" role="img" aria-label="${esc(nm)}: ${used.filter(([q]) => sc[q] > 0).map(([q, l]) => `${l} ${sc[q]}`).join(", ")}"><div class="trk" style="--w:${Math.max(8, Math.min(100, Math.round((p.victoryPoints / maxV) * 100)))}">${used.map(([q], i) => (sc[q] > 0 ? `<i class="s${i}" style="flex:${sc[q]} 1 0">${sc[q]}</i>` : "")).join("")}</div></div>` : "";
       const isOpen = open === p.id;
@@ -336,8 +427,7 @@ export const ReviewGameMixin = {
         <span class="rk">${k + 1}</span>${this._av(p, "rt-av")}<span class="nm"><b class="rt-nm">${nm}</b>${lv ? `<small>${esc(lv.label)}</small>` : ""}</span><span class="rt-c rt-ac">${acc}</span><span class="rt-c rt-l"${top ? ` title="${esc(top)}"` : ""}>${luck}</span><span class="pts">${p.victoryPoints}</span>${IC.chev}</button>${bar}${det}</div>`;
     }).join("");
     const leg = used.length ? `<div class="rsc-leg">${used.map(([q, l], i) => `<span><i class="s${i}"></i>${l}</span>`).join("")}</div>` : "";
-    const prog = this._rvTableProg(R, LK);
-    return `<section class="rv-card rt rsc" data-rvtable aria-label="Result"><div class="rv-gt"><b>Result</b><small>tap a player: why they won or lost</small></div>${prog}<div class="rsc-hd" aria-hidden="true"><span>Accuracy</span><span>Luck</span><span>Points</span></div>${rows}${leg}${!R.bots ? `<p class="rt-foot">Played before the bots’ moves were recorded: their accuracy is not available.</p>` : ""}</section>`;
+    return `<section class="rv-card rt rsc" data-rvtable aria-label="Result"><div class="rv-gt"><b>Result</b><small>tap a player: why they won or lost</small></div><div class="rsc-hd" aria-hidden="true"><span>Accuracy</span><span>Luck</span><span>Points</span></div>${rows}${leg}${!R.bots ? `<p class="rt-foot">Played before the bots’ moves were recorded: their accuracy is not available.</p>` : ""}</section>`;
   },
   /** The win chance of every player through the game (set-up first), under the scorecard; tap: the review's Win chance. "" when there is none (Seafarers, no move log). */
   _rvWinCardHtml() {
@@ -348,6 +438,25 @@ export const ReviewGameMixin = {
     const pid = this._rvSoloPid?.();
     return `<section class="rv-card rsw" data-rvwin${pid != null ? ` role="button" tabindex="0" data-rvwpid="${pid}"` : ""} aria-label="Win chance through the game${pid != null ? ", open in the review" : ""}"><div class="rv-gt"><b>Win chance through the game</b><small>${pid != null ? "tap to open" : "set-up and every turn"}</small></div><div class="rsw-c"></div><div class="rsw-leg">${this.players.map((p) => `<span class="pc-${p.id}"><i></i>${this._rvNm(p.id)}</span>`).join("")}</div></section>`;
   },
+  /** v1.52 the win chance line from the luck check's own numbers: for every roll the table's win chance before it (the expectation over its outcomes, looking ahead
+   *  with the Monte Carlo), right after it (the roll that came), and at the end of the turn (= the next roll's "before": the moves are in). A predictable build
+   *  is already in "after the roll", so it no longer jumps. null until the luck check has covered the rolls (then the line is the model's ≈ estimate). */
+  _rvLook() {
+    const LK = this._lkState?.();
+    if (!LK || LK.na || !LK.done || LK.cover < 0.9 || !this._st || !this.winner) return null;
+    const L = this._lkStore(), by = new Map();
+    this._lkEvents().forEach((e) => { if (e.kind !== "dice") return; const r = L.res[luckKey(e)]; if (r?.b && r.l) by.set(e.s + 1, { b: r.b, a: r.b.map((v, q) => v + (r.l[q] || 0)), roll: e.roll }); });
+    if (by.size < 3) return null;
+    const keys = [...by.keys()].sort((x, y) => x - y), res = this.players.map((p) => (p.id === this.winner.id ? 1 : 0));
+    return { steps: keys.map((S, i) => { const nx = by.get(keys[i + 1]); return { S, b: by.get(S).b, a: by.get(S).a, e: nx ? nx.b : res, roll: by.get(S).roll }; }) };
+  },
+  /** One player's line as [[step (fractional), value]]: from the look (before the first roll, then after each roll and at each turn's end) or the model's estimate. */
+  _rvLinePts(O, pid, look) {
+    const pts = [];
+    if (look) { pts.push([0, look.steps[0].b[pid]]); look.steps.forEach((x) => { pts.push([x.S - 0.45, x.a[pid]]); pts.push([x.S, x.e[pid]]); }); return { pts, look: true }; }
+    for (let s = 0; s <= this._st.N; s += 1) { const v = O.get(s); if (v) pts.push([s, v[pid]]); }
+    return { pts, look: false };
+  },
   _rvWinDraw(card, who = null) {
     const st = this._st, c = card.querySelector(".rsw-c");
     if (!st || !c) return;
@@ -357,10 +466,11 @@ export const ReviewGameMixin = {
     const su = O.setup(), M = su.length - 1, f = M >= 1 ? 0.14 : 0, gap = M >= 1 ? 6 : 0, w = x1 - x0 - gap;
     const Xs = (i) => x0 + (i / Math.max(1, M)) * f * w, Xt = (s) => x0 + f * w + gap + (s / N) * (1 - f) * w, Y = (p) => top + (1 - p) * (bot - top);
     const me = who ?? this._rvSoloPid?.();
+    const look = this._rvLook();
     const lines = this.players.map((p) => {
       const pts = [];
       if (M >= 1) su.forEach((q, i) => { const v = (q.x ? q.x.p : q.p)?.[p.id]; if (v != null) pts.push([Xs(i), Y(v)]); });
-      for (let s = 0; s <= st.N; s += 1) { const v = O.get(s); if (v) pts.push([Xt(s), Y(v[p.id])]); }
+      this._rvLinePts(O, p.id, look).pts.forEach(([s, v]) => pts.push([Xt(s), Y(v)]));
       return pts.length > 1 ? `<path class="pc-${p.id}${p.id === me ? " me" : ""}" d="${pts.map((q, i) => `${i ? "L" : "M"}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join("")}"/>` : "";
     });
     const have = lines.some(Boolean);
@@ -384,6 +494,7 @@ export const ReviewGameMixin = {
   },
   _rvBindTable(root) {
     // a row: that player's moves in step mode, at the biggest mistake (no checked move yet: the review with its progress)
+    root.querySelectorAll("[data-rvfs]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.rvfs === "stop") this._rvFlowStop(); else this._rvFlowGo(); this._rvLive?.(true); this._rvPatchRows(); }));
     // v1.48 the scorecard's rows fold open (Why won / lost) in place
     root.querySelectorAll("[data-rsx]").forEach((b) => b.addEventListener("click", () => { const pid = +b.dataset.rsx; this._rsOpen = this._rsOpen === pid ? null : pid; this._rvPatchTable(b.closest("[data-rvtable]")); }));
     root.querySelectorAll("[data-rvtab]").forEach((b) => b.addEventListener("click", () => { const pid = +b.dataset.rvtab, at = b.dataset.rvat != null ? +b.dataset.rvat : null; this._rvOpenReview(pid, at != null ? { at } : {}); }));
@@ -515,9 +626,22 @@ export const ReviewGameMixin = {
   },
 
   // ── the screen ──
+  /** Step mode from a review screen: remember which player and tab it came from, so Back returns exactly there. */
+  _rvEnterStep(i) { if (this._rvStep == null && !this._rvMid) this._rvStepFrom = { pid: this._rvPid, tab: this._rvTab }; this._rvDrawReview(i); },
+  /** Back from step mode: one level up, to where you came from (a review tab or a player's page, or the end screen when you came from there). */
+  _rvStepBack() {
+    this._rvStep = null; this._rvPbp = null;
+    const f = this._rvStepFrom;
+    if (this._rvMid) { this._rvDrawReview(); return; }
+    if (f) { this._rvStepFrom = null; if (f.pid !== this._rvPid) this._rvOpenReview(f.pid, { tab: f.tab }); else { this._rvTab = f.tab; this._rvDrawReview(); } return; }
+    if (this._rvOrigin === "end") { this._rvCloseReview(true); return; }
+    this._rvDrawReview();
+  },
   _rvOpenReview(pid, { mid = false, at = null, near = null, tab = null } = {}) {
     if (!this._rvReviewable()) return;
     if (!this._rvGateOk(pid)) { this._hsGate?.(pid, "Your game review", () => this._rvOpenReview(pid, { mid, at, near })); return; } // pass & play: hand the phone over first
+    const inReview = !!this._rvEl; // v1.52 opened from inside the review (a column, Whose moves): the way back stays where you came from
+    if (!inReview) { this._rvOrigin = mid ? "game" : "end"; this._rvStepFrom = null; }
     this._rvMid = mid;
     this._rvTab = tab || "overview"; this._rvKm = null; this._rvWc = null; this._rvWhyP = null; if (this._lkUi) this._lkUi.pid = null; // v1.49 a review opened anew starts on its Overview (or the tab asked for)
     this._rvPbp = null; // v1.36 a review opened anew starts at the decision, never inside an old play-by-play
@@ -598,8 +722,8 @@ export const ReviewGameMixin = {
     d.querySelector("[data-rvinfo-x]").addEventListener("click", close);
     el.appendChild(d);
   },
-  _rvBar(sub) {
-    return `<div class="rv-bar"><button type="button" class="rv-btn" data-rvclose aria-label="${this._rvMid ? "Back to the game" : "Back to results"}">‹</button><div><h3>Game review${this._rvPid != null && !this._rvIsYou(this._rvPid) ? ` · <span class="pc-${this._rvPid} rv-who">${esc(this.players[this._rvPid].name)}</span>` : ""}</h3><small>${sub}</small></div><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>${this._rvForSeg()}`;
+  _rvBar(sub, tab = "") {
+    return `<div class="rv-bar"><button type="button" class="rv-btn" data-rvclose aria-label="${this._rvMid ? "Back to the game" : "Back to results"}">‹</button><div><h3${tab ? ' class="ht"' : ""}>Game review${tab ? ` · ${tab}` : this._rvPid != null && !this._rvIsYou(this._rvPid) ? ` · <span class="pc-${this._rvPid} rv-who">${esc(this.players[this._rvPid].name)}</span>` : ""}</h3><small>${tab && this._rvPid != null && !this._rvIsYou(this._rvPid) ? `${esc(this.players[this._rvPid].name)}’s review · ` : ""}${sub}</small></div><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>${this._rvForSeg()}`;
   },
 
   /** Pass & play: "Review for [Rosa] [You]": one person's moves at a time, with where each check stands. */
@@ -731,14 +855,14 @@ export const ReviewGameMixin = {
     const scroll = this._rvTabDrawn === `${pid}|${tab}` ? el.querySelector(".rv-scroll")?.scrollTop || 0 : 0;
     this._rvTabDrawn = `${pid}|${tab}`;
     el.className = "rv rs tm";
-    el.innerHTML = `${tab === "player" ? part.bar : this._rvBar(`${ds.length} decisions · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`)}${tab === "player" ? "" : this._rvTabsBar(tab)}
+    el.innerHTML = `${tab === "player" ? part.bar : this._rvBar(`${ds.length} decisions · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`, { overview: "Overview", win: "Win chance", luck: "Luck", moves: "Moves" }[tab])}${tab === "player" ? "" : this._rvTabsBar(tab)}
       <div class="rv-scroll">${this._rvProgHtml(pid)}${part.html}${tab === "overview" ? this._raBox?.() || "" : ""}</div>`;
     el.querySelector(".rv-scroll").scrollTop = scroll;
     this._rvBindTop(el);
     this._raBind?.(el);
     this._rvBindTable(el);
     el.querySelectorAll("[data-rvt]").forEach((b) => b.addEventListener("click", () => { if (this._rvTab !== b.dataset.rvt || b.dataset.rvpp) { this._rvTab = b.dataset.rvt; this._rvDrawReview(); } }));
-    el.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = b.dataset.rvq || "all"; this._rvDrawReview(+b.dataset.rvj); }));
+    el.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = b.dataset.rvq || "all"; this._rvEnterStep(+b.dataset.rvj); }));
     this._rvBindSbs(el);
     part.bind?.(el);
   },
@@ -865,17 +989,28 @@ export const ReviewGameMixin = {
     return { W, H, x0, x1, top, bot, N, su, M, f, gap, w, Xs: (i) => x0 + (i / Math.max(1, M)) * f * w, Xt: (s) => x0 + f * w + gap + (s / N) * (1 - f) * w, Y: (p) => top + (1 - p) * (bot - top),
       inv: (x) => (x < x0 + f * w + gap / 2 ? 0 : Math.max(0, Math.min(N, Math.round(((x - (x0 + f * w + gap)) / ((1 - f) * w)) * N)))) };
   },
-  /** One roll or move in a few words: "T8 · Blaauw rolled 6" and what it paid. */
-  _rvStepWhat(s) {
+  /** What happened in one roll or turn: { head, lines, top } (who rolled what, the cards, the robber, the builds; Seafarers: an island bonus is named). */
+  _rvStepWhat(s, dl = null) {
     const st = this._st;
-    if (!st || s <= 0) return { head: "Set-up", sub: "everyone's first two settlements and roads" };
+    if (!st || s <= 0) return { head: "Set-up", lines: ["Everyone's first two settlements and roads."], builds: [] };
     const stp = st.steps[s - 1], nmOf = (q) => this._rvNm(q);
     const roll = stp ? stp[2] + stp[3] : null, who = stp && stp[1] >= 0 ? nmOf(stp[1]) : null;
     const evs = st.stepEvents?.[s] || [], cards = {}, builds = [];
-    let robber = false;
-    evs.forEach((e) => { if (e[1] === "P") cards[e[2]] = (cards[e[2]] || 0) + (e[5] || 1); else if (e[1] === "b" && e[3] !== "r") builds.push(`${nmOf(e[2])} ${e[3] === "c" ? "built a city" : "built a settlement"}`); else if (e[1] === "R") robber = true; });
-    const pay = Object.entries(cards).map(([q, c]) => `${nmOf(+q)} +${c}`).slice(0, 4).join(", ");
-    return { head: `${this._rvTW()} ${st.turnOf[s]}${roll ? ` · ${who ? `${who} rolled` : "rolled"} ${roll}` : ""}`, sub: [pay ? `cards: ${pay}` : "", robber ? "robber moved" : "", ...builds.slice(0, 2)].filter(Boolean).join(" · ") };
+    let robber = null;
+    evs.forEach((e) => {
+      if (e[1] === "P") cards[e[2]] = (cards[e[2]] || 0) + (e[5] || 1);
+      else if (e[1] === "b" && e[3] !== "r" && e[3] !== "h") {
+        let bonus = false;
+        try { if (this.sea && e[3] === "s") { const isl = this.sea.islandOfNode(e[4]); bonus = !!isl && this.sea.bonusNode?.[`${e[2]}:${isl}`] === e[4]; } } catch (_) { bonus = false; }
+        builds.push({ pid: e[2], kind: e[3], bonus, vp: e[3] === "c" ? 1 : bonus ? 3 : 1 });
+      } else if (e[1] === "R") robber = e[2];
+    });
+    const lines = [];
+    const pay = Object.entries(cards).map(([q, c]) => `${nmOf(+q)} +${c}`);
+    lines.push(pay.length ? `Cards from the roll: ${pay.join(", ")}.` : roll ? "Nobody collected a card." : "");
+    if (roll === 7 || robber != null) lines.push(robber != null ? `${nmOf(robber)} moved the robber.` : "The robber moved.");
+    builds.forEach((b) => lines.push(`${nmOf(b.pid)} built ${b.kind === "c" ? "a city (+1 VP)" : b.bonus ? "a settlement on a new island (+1 VP and +2 VP island bonus)" : "a settlement (+1 VP)"}.`));
+    return { head: `${this._rvTW()} ${st.turnOf[s]}${roll ? ` · ${who ? `${who} rolled` : "rolled"} ${roll}` : ""}`, lines: lines.filter(Boolean), builds, roll, robber, cards };
   },
   _rvTabWin(ds) {
     let O = null; try { O = gameOdds(this); } catch (_) { O = null; }
@@ -905,18 +1040,18 @@ export const ReviewGameMixin = {
   _rvWinTabPaint(el, O, ds) {
     const c = el.querySelector("[data-rvwc]"), wi = el.querySelector("[data-rvwi]"), ws = el.querySelector("[data-rvws]");
     if (!c || !wi) return;
-    const st = this._st, g = this._rvWinGeom(O, 304, 190), me = this._rvPid;
+    const st = this._st, g = this._rvWinGeom(O, 304, 190), me = this._rvPid, look = this._rvLook();
     if (this._rvWcAuto) { let best = null; for (let s = 1; s <= g.N; s++) { const a = O.get(s - 1), b = O.get(s); if (a && b && (!best || Math.abs(b[me] - a[me]) > best.d)) best = { s, d: Math.abs(b[me] - a[me]) }; } if (best) this._rvWc = best.s; }
     const cur = Math.max(0, Math.min(g.N, this._rvWc ?? 1));
     const lines = this.players.map((p) => {
       const pts = [];
       if (g.M >= 1) g.su.forEach((q, i) => { const v = (q.x ? q.x.p : q.p)?.[p.id]; if (v != null) pts.push([g.Xs(i), g.Y(v)]); });
-      for (let s = 0; s <= g.N; s += 1) { const v = O.get(s); if (v) pts.push([g.Xt(s), g.Y(v[p.id])]); }
+      this._rvLinePts(O, p.id, look).pts.forEach(([s, v]) => pts.push([g.Xt(s), g.Y(v)]));
       return { id: p.id, d: pts.length > 1 ? pts.map((q, i) => `${i ? "L" : "M"}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join("") : "" };
     });
     const grid = [0, 0.5, 1].map((p) => `<line x1="${g.x0}" x2="${g.x1}" y1="${g.Y(p).toFixed(1)}" y2="${g.Y(p).toFixed(1)}" class="g"/><text x="${g.x0 - 4}" y="${(g.Y(p) + 3).toFixed(1)}" text-anchor="end">${p * 100}</text>`).join("");
     const sx = g.M >= 1 ? (g.x0 + g.f * g.w + g.gap / 2).toFixed(1) : null;
-    const cx = g.Xt(cur), here = O.get(cur);
+    const cx = g.Xt(cur), ent = look?.steps.find((x) => x.S === cur), here = ent ? ent.e : O.get(cur);
     const dec = ds.map((d) => { const s = Math.min(g.N, d.x.s ?? 0), v = d.seats ? d.seats[me] / (d.seats.reduce((a, b) => a + b, 0) || 1) : null; return v == null ? "" : `<circle cx="${g.Xt(s).toFixed(1)}" cy="${g.Y(v).toFixed(1)}" r="${["best", "great", "good", "triv"].includes(d.cls) ? 0 : 3.6}" class="dec c-${d.cls}"/>`; }).join("");
     c.innerHTML = `<svg viewBox="0 0 304 190" role="img" aria-label="Win chance of every player, set-up and every ${this._stTurnWord?.() || "turn"}. Tap or drag to pick a moment">${grid}${lines.filter((l) => l.id !== me).map((l) => (l.d ? `<path class="pc-${l.id}" d="${l.d}"/>` : "")).join("")}${lines.filter((l) => l.id === me).map((l) => (l.d ? `<path class="pc-${l.id} me" d="${l.d}"/>` : "")).join("")}${dec}${sx ? `<line x1="${sx}" x2="${sx}" y1="${g.top}" y2="${g.bot}" class="sep"/>` : ""}<line x1="${cx.toFixed(1)}" x2="${cx.toFixed(1)}" y1="${g.top - 2}" y2="${g.bot}" class="cur"/>${here ? this.players.map((p) => `<circle cx="${cx.toFixed(1)}" cy="${g.Y(here[p.id]).toFixed(1)}" r="${p.id === me ? 5 : 3.6}" class="pc-${p.id} pt"/>`).join("") : ""}<text x="${g.x0}" y="186">${g.M >= 1 ? "set-up" : "start"}</text><text x="${g.x1}" y="186" text-anchor="end">${this.isRush?.() ? "roll" : "turn"} ${this.isRush?.() ? g.N : this.turn}</text></svg>${lines.some((l) => l.d) ? "" : `<p class="rsw-wait" role="status">Working out the win chance…</p>`}`;
     const svg = c.querySelector("svg");
@@ -924,21 +1059,46 @@ export const ReviewGameMixin = {
     svg.addEventListener("pointerdown", (ev) => { try { svg.setPointerCapture(ev.pointerId); } catch (_) { /* none */ } svg._drag = true; pick(ev); });
     svg.addEventListener("pointermove", (ev) => { if (svg._drag) pick(ev); });
     ["pointerup", "pointercancel"].forEach((n) => svg.addEventListener(n, () => { svg._drag = false; }));
-    // before and after the picked step
-    const su = g.su, bef = cur === 0 ? (su.length ? su[0].p : null) : O.get(cur - 1), aft = cur === 0 && su.length ? (su[su.length - 1].x ? su[su.length - 1].x.p : su[su.length - 1].p) : O.get(cur);
+    // before and after the picked step: with the luck check's numbers (looking ahead): before the roll, after the roll, end of the turn; else the model's estimate
+    const su = g.su;
     const bar = (v) => { if (!v) return `<div class="rvw-bar na">…</div>`; const sum = v.reduce((a, b) => a + b, 0) || 1; return `<div class="rvw-bar" role="img" aria-label="${this.players.map((p) => `${this._rvNm(p.id)} ${Math.round((v[p.id] / sum) * 100)}%`).join(", ")}">${this.players.map((p) => `<i class="pc-${p.id}" style="flex:${(v[p.id] / sum).toFixed(4)} 1 0">${v[p.id] / sum >= 0.08 ? Math.round((v[p.id] / sum) * 100) : ""}</i>`).join("")}</div>`; };
-    const what = this._rvStepWhat(cur), d = bef && aft ? Math.round((aft[me] - bef[me]) * 100) : null;
+    const what = this._rvStepWhat(cur);
     const near = ds.filter((q) => (q.x.s ?? 0) <= cur).pop() || ds[0];
-    wi.innerHTML = `<div class="rv-gt"><b>${esc(what.head)}</b>${d != null ? `<small class="${d > 0 ? "pos" : d < 0 ? "neg" : ""}">${this._rvNm(me)} ${Math.round(bef[me] * 100)}% → ${Math.round(aft[me] * 100)}%</small>` : ""}</div>
-      <div class="rvw-l">Before</div>${bar(bef)}<div class="rvw-l">After</div>${bar(aft)}
-      ${what.sub ? `<p class="rvw-sub">${esc(what.sub)}</p>` : ""}${near ? `<button type="button" class="rv-btn rvw-go" data-rvj="${near.i}" data-rvq="all">Step mode: ${esc(this._rvWhen(near))}${IC.chev}</button>` : ""}`;
-    wi.querySelector("[data-rvj]")?.addEventListener("click", (e) => { this._rvQ = "all"; this._rvDrawReview(+e.currentTarget.dataset.rvj); });
+    const chk = cur > 0 ? ds.filter((q) => (q.x.s ?? 0) === cur && q.seats).pop() : null, cs = chk ? chk.seats.reduce((a, b2) => a + b2, 0) || 1 : 1, exact = chk ? chk.seats.map((v) => v / cs) : null;
+    const pc = (v) => `${Math.round(v * 100)}%`, sgp = (v) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(Math.round(v * 100))}%`;
+    let rows = "", topTxt = "";
+    if (ent) {
+      // the roll's effect (luck) and the turn's effect (the moves) per player; the largest one is named
+      let top = null;
+      this.players.forEach((p) => { [["roll", ent.a[p.id] - ent.b[p.id]], ["moves", ent.e[p.id] - ent.a[p.id]]].forEach(([k, x]) => { if (!top || Math.abs(x) > Math.abs(top.x)) top = { p: p.id, k, x }; }); });
+      if (top && Math.abs(top.x) >= 0.01) {
+        const b2 = what.builds.filter((q) => q.pid === top.p).sort((a1, a2) => a2.vp - a1.vp)[0], got = what.cards?.[top.p] || 0;
+        const cause = top.k === "roll" ? (got ? `the roll paid ${got} ${got === 1 ? "card" : "cards"}` : what.robber != null && top.x < 0 ? "the roll moved the robber" : "the roll (luck)") : b2 ? (b2.bonus ? "built a settlement on a new island (+3 VP with the island bonus)" : b2.kind === "c" ? "built a city" : "built a settlement") : what.robber === top.p ? "moved the robber" : "the moves of this turn";
+        topTxt = `<b>Biggest effect:</b> ${this._rvNm(top.p)} <span class="${top.x > 0 ? "pos" : "neg"}">${sgp(top.x)}</span>, ${esc(cause)}.`;
+      }
+      rows = `<div class="rvw-l">Before the roll</div>${bar(ent.b)}<div class="rvw-l">After the roll <em>luck: ${this._rvNm(me)} ${sgp(ent.a[me] - ent.b[me])}</em></div>${bar(ent.a)}<div class="rvw-l">End of the turn <em>moves: ${this._rvNm(me)} ${sgp(ent.e[me] - ent.a[me])}</em></div>${bar(ent.e)}${exact ? `<div class="rvw-l">Your checked move <em>deeper, step mode</em></div>${bar(exact)}` : ""}`;
+    } else {
+      const bef = cur === 0 ? (su.length ? su[0].p : null) : O.get(cur - 1), aft = cur === 0 && su.length ? (su[su.length - 1].x ? su[su.length - 1].x.p : su[su.length - 1].p) : O.get(cur);
+      let top = null;
+      if (bef && aft) this.players.forEach((p) => { const x = aft[p.id] - bef[p.id]; if (!top || Math.abs(x) > Math.abs(top.x)) top = { p: p.id, x }; });
+      if (top && Math.abs(top.x) >= 0.01) topTxt = `<b>Biggest effect:</b> ${this._rvNm(top.p)} <span class="${top.x > 0 ? "pos" : "neg"}">${sgp(top.x)}</span> (≈ estimate).`;
+      rows = `<div class="rvw-l">Before <em>≈ estimate</em></div>${bar(bef)}<div class="rvw-l">After <em>≈ estimate</em></div>${bar(aft)}${exact ? `<div class="rvw-l">Your checked move <em>exact</em></div>${bar(exact)}` : ""}`;
+    }
+    wi.innerHTML = `<div class="rv-gt"><b>Selected moment</b><span class="rvw-tip">tap the chart to pick another</span><button type="button" class="lk-ib" data-rvwm-b aria-expanded="false" aria-label="Where do these numbers come from?">${IC.info}</button></div>
+      <p class="lk-it" data-rvwm-t hidden>${look ? "The line and these bars come from the luck check: the win chance looking ahead (Monte Carlo), before the roll, right after it and at the end of the turn, so a build you could see coming is already in. " : "The luck check has not finished: the line is the model's quick ≈ estimate for now, without looking ahead. "}<b>Your checked move</b> is the deeper review of your own decision in that turn (step mode); it can differ a little.</p>
+      <p class="rvw-h"><b>${esc(what.head)}</b></p>
+      ${what.lines.length ? `<ul class="rvw-ev">${what.lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
+      ${topTxt ? `<p class="rvw-top">${topTxt}</p>` : ""}${rows}${near ? `<button type="button" class="rv-btn rvw-go" data-rvj="${near.i}" data-rvq="all">Step mode: ${esc(this._rvWhen(near))}${IC.chev}</button>` : ""}`;
+    wi.querySelector("[data-rvwm-b]")?.addEventListener("click", (e) => { const t = wi.querySelector("[data-rvwm-t]"); t.hidden = !t.hidden; e.currentTarget.setAttribute("aria-expanded", String(!t.hidden)); });
+    wi.querySelector("[data-rvj]")?.addEventListener("click", (e) => { this._rvQ = "all"; this._rvEnterStep(+e.currentTarget.dataset.rvj); });
     // the biggest swings of anyone, step by step
     if (ws) {
       const sw = [];
-      for (let s = 1; s <= g.N; s++) { const a = O.get(s - 1), b = O.get(s); if (!a || !b) continue; let best = null; this.players.forEach((p) => { const x = b[p.id] - a[p.id]; if (!best || Math.abs(x) > Math.abs(best.x)) best = { p: p.id, x }; }); if (best) sw.push({ s, ...best }); }
+      if (look) look.steps.forEach((x) => { let best = null; this.players.forEach((p) => { [["roll", x.a[p.id] - x.b[p.id]], ["moves", x.e[p.id] - x.a[p.id]]].forEach(([k, v]) => { if (!best || Math.abs(v) > Math.abs(best.x)) best = { p: p.id, k, x: v }; }); }); if (best) sw.push({ s: x.S, ...best }); });
+      else for (let s = 1; s <= g.N; s++) { const a = O.get(s - 1), b = O.get(s); if (!a || !b) continue; let best = null; this.players.forEach((p) => { const v = b[p.id] - a[p.id]; if (!best || Math.abs(v) > Math.abs(best.x)) best = { p: p.id, k: "est", x: v }; }); if (best) sw.push({ s, ...best }); }
       sw.sort((a, b) => Math.abs(b.x) - Math.abs(a.x));
-      ws.innerHTML = sw.slice(0, 4).map((x) => { const w = this._rvStepWhat(x.s), v = Math.round(x.x * 100); return `<button type="button" class="rs-key" data-rvws="${x.s}"><i class="pc-${x.p} rvw-dot" aria-hidden="true"></i><span class="t">${esc(w.head.split(" · ")[0])}</span><span class="x">${esc(w.head.split(" · ")[1] || "")}<small class="w">${esc(this._rvNm(x.p))}’s win chance</small></span><b class="${v >= 0 ? "pos" : "neg"}">${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v)}%</b></button>`; }).join("") || `<p class="rs-lost">The numbers are still coming in.</p>`;
+      const tag = { roll: "from the roll (luck)", moves: "from the turn’s moves", est: "≈ estimate" };
+      ws.innerHTML = sw.slice(0, 4).map((x) => { const w = this._rvStepWhat(x.s), v = Math.round(x.x * 100); return `<button type="button" class="rs-key" data-rvws="${x.s}"><i class="pc-${x.p} rvw-dot" aria-hidden="true"></i><span class="t">${esc(w.head.split(" · ")[0])}</span><span class="x">${esc(w.head.split(" · ")[1] || "")}<small class="w">${esc(this._rvNm(x.p))}: ${tag[x.k]}</small></span><b class="${v >= 0 ? "pos" : "neg"}">${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v)}%</b></button>`; }).join("") || `<p class="rs-lost">The numbers are still coming in.</p>`;
       ws.querySelectorAll("[data-rvws]").forEach((b) => b.addEventListener("click", () => { this._rvWc = +b.dataset.rvws; this._rvWcAuto = false; this._rvWinTabPaint(el, O, ds); el.querySelector(".rv-scroll").scrollTop = 0; }));
     }
   },
@@ -1058,10 +1218,11 @@ export const ReviewGameMixin = {
         <div class="rs-ab${noA ? " one" : ""}">${A}${B}</div>
         ${this._lkSplitHtml(d, ds, sg)}
         <div class="rs-strip" role="tablist" aria-label="Your decisions">${strip}</div>
-        <div class="rs-nav"><button type="button" class="rv-btn" data-rvnav="-1" ${k ? "" : "disabled"} aria-label="Previous decision">${IC.prev}Previous</button><button type="button" class="rv-btn pri" data-rvnav="1" ${k < list.length - 1 ? "" : "disabled"} aria-label="Next decision">Next${IC.next}</button></div>`;
+        <div class="rs-nav"><button type="button" class="rv-btn" data-rvnav="-1" ${k ? "" : "disabled"} aria-label="Previous decision">${IC.prev}Previous</button><button type="button" class="rv-btn rs-ov" data-rvallmoves>${mid ? "Overview" : "All moves"}</button><button type="button" class="rv-btn pri" data-rvnav="1" ${k < list.length - 1 ? "" : "disabled"} aria-label="Next decision">Next${IC.next}</button></div>`;
     const evalHtml = `<b>${pct(shown[me] / (shown.reduce((a, c) => a + c, 0) || 1))}</b>${this._rvStack(shown)}`;
     const wcHtml = this._rvLegend(shown);
     const bindCard = (root) => {
+      root.querySelectorAll("[data-rvallmoves]").forEach((b) => b.addEventListener("click", () => { this._rvStep = null; this._rvPbp = null; this._rvStepFrom = null; if (!this._rvMid) this._rvTab = "moves"; this._rvDrawReview(); })); // (the card is redrawn while a check runs: bound here too)
       root.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = "all"; this._rvDrawReview(+b.dataset.rvj); }));
       root.querySelectorAll("[data-rvwhy]").forEach((b) => b.addEventListener("click", () => { this._rvInfoOpen = true; this._rvShowInfo(); }));
       root.querySelectorAll("[data-rvnav]").forEach((b) => b.addEventListener("click", () => { const n = list[k + +b.dataset.rvnav]; if (n) this._rvDrawReview(n.i); }));
@@ -1079,14 +1240,14 @@ export const ReviewGameMixin = {
     const many = !mid && this.players.filter((p) => this._rvTodo(p.id).length && (p.isHuman || this._rv.bots)).length > 1;
     const whoBtn = many ? `<button type="button" class="rv-btn rs-who" data-rvwho aria-haspopup="menu" aria-label="Whose moves: ${who}. Change">${this._av(this.players[me], "rt-av")}<i class="cv" aria-hidden="true"></i></button>` : "";
     el.className = `rv rs step tm${mid ? " noboard" : ""}${x.why && !noA ? " hw" : ""}`; el.dataset.show = show;
-    el.innerHTML = `<div class="rv-bar rs-bar${whoBtn ? " w" : ""}"><button type="button" class="rv-btn" data-rvclose-step aria-label="Back to the overview">${IC.back}</button><div><h3>${this._rvWhen(d)}</h3><small>${k + 1} of ${list.length}${this._rvQ === "imp" ? " · could be better" : ""}${prov ? " · provisional" : ""}</small></div>${whoBtn}<button type="button" class="rv-btn pri rs-ov" data-rvclose-step>Overview</button><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review">${IC.info}</button></div>
+    el.innerHTML = `<div class="rv-bar rs-bar${whoBtn ? " w" : ""}"><button type="button" class="rv-btn" data-rvclose-step aria-label="${mid ? "Back to the overview" : this._rvStepFrom ? "Back to the review" : "Back to the results"}">${IC.back}</button><div><h3>${this._rvIsYou(me) ? "You" : esc(this.players[me].name)} · moves</h3><small>${this._rvWhen(d)} · ${k + 1} of ${list.length}${this._rvQ === "imp" ? " · could be better" : ""}${prov ? " · provisional" : ""}</small></div>${whoBtn}<button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review">${IC.info}</button></div>
       ${this._rvProgHtml(this._rvPid)}
       <div class="rs-stage"><div class="rs-eval">${evalHtml}</div>
         ${mid ? "" : `<div class="rs-board"><canvas></canvas><svg class="rs-marks" aria-hidden="true"></svg><div class="rs-wc" aria-hidden="true">${wcHtml}</div><button type="button" class="rs-pbp" data-rvpbp aria-label="Play by play: every move since your last decision">${IC.step}<span>Play</span></button>${noA ? "" : `<div class="rs-tog" role="group" aria-label="Show on the board"><button type="button" data-rvab="A" class="${show === "A" ? "on" : ""}" aria-label="Better move"><s>A</s></button><button type="button" data-rvab="both" class="${show === "both" ? "on" : ""}">A + B</button><button type="button" data-rvab="B" class="${show === "B" ? "on" : ""}" aria-label="What you did"><s class="alt">B</s></button></div>`}</div>`}</div>
       <div class="rs-card">${cardHtml}</div>`;
     const sc = el.querySelector(".rs-strip"); if (sc) { sc.scrollLeft = scrub; el.querySelector(".rs-chip.on")?.scrollIntoView?.({ inline: "center", block: "nearest" }); }
     this._rvBindTop(el);
-    el.querySelectorAll("[data-rvclose-step]").forEach((b) => b.addEventListener("click", () => { this._rvStep = null; this._rvPbp = null; this._rvDrawReview(); })); // v1.36 leaving the decision ends its play-by-play (else coming back resumed it: the ≈ estimates in the legend instead of the decision's numbers)
+    el.querySelectorAll("[data-rvclose-step]").forEach((b) => b.addEventListener("click", () => this._rvStepBack()));
     el.querySelector("[data-rvwho]")?.addEventListener("click", (e) => { e.stopPropagation(); this._rvWhoPop(); });
     bindCard(el);
     el.querySelector("[data-rvpbp]")?.addEventListener("click", () => this._rvPbpOpen(d, ds));

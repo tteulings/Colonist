@@ -130,8 +130,9 @@ export const ReviewLuckMixin = {
         this._rvTick?.();
         if (run.stop) break;
       } };
-      await Promise.all(Array.from({ length: lanes }, (_, w) => lane(w)));
-      if (this._rv === R) { R.lrun = null; if (this._lkEvents().every((ev) => L.res[keyOf(ev)])) Object.assign(L, this._raStamp?.() || {}); this._rvSave?.(); this._rvTick?.(); }
+      const nl = R.share && R.run && lanes >= 2 ? Math.ceil(lanes / 2) : lanes; // v1.52 beside a review round: the first lanes (the round keeps the rest)
+      await Promise.all(Array.from({ length: nl }, (_, w) => lane(w)));
+      if (this._rv === R) { R.lrun = null; R.share = false; if (this._lkEvents().every((ev) => L.res[keyOf(ev)])) Object.assign(L, this._raStamp?.() || {}); this._rvSave?.(); this._rvTick?.(); }
     })();
     return run.promise;
   },

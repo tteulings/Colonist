@@ -61,7 +61,7 @@ export const ReviewUiMixin = {
     if (!R || !R.recs?.length || !this._rvCovered()) return "";
     const solo = !this.hotseat, me = solo ? this.players.find((p) => p.isHuman) : null;
     const head = (sm) => `<div class="rv1-h"><i class="rv-dot"></i><span class="rv1-tt">${solo ? "Your game review" : "Missed chances"}</span>${sm ? `<small>${sm}</small>` : ""}</div>`;
-    const table = (this._rvScoreHtml?.() || "") + (this._rvWinCardHtml?.() || ""); // v1.48 the scorecard (points, accuracy, luck, why) and the win chance line: right under the result
+    const table = (this._rvScoreHtml?.() ? (this._rvFlowHtml?.() || "") : "") + (this._rvScoreHtml?.() || "") + (this._rvWinCardHtml?.() || ""); // v1.48 the scorecard (points, accuracy, luck, why) and the win chance line: right under the result
     if (R.busy || (!R.res && R.recs.length)) {
       return `${table}<div class="rv1 gs-revcard rv-wait" role="status">${head(`<span class="rv-spin" aria-hidden="true"></span>checking…`)}<p class="rv1-lead">Looking for moves where another choice was clearly better. This takes a few seconds.</p>${me ? this._rvReviewRowHtml?.(me) || "" : ""}</div>`;
     }
