@@ -13,7 +13,7 @@ const port = +process.argv[2]; let bad = 0; const ok = (c, m, x = "") => { conso
   console.log("card", (await G(() => document.querySelector("[data-rvwi]")?.innerText.replace(/\s+/g, " ").slice(0, 700))));
   await G(() => { const g = window.__colonistGame; g._rvTab = "moves"; g._rvDrawReview(); }); await sleep(500);
   const first = await G(() => [...document.querySelectorAll("[data-rvj]")].pop()?.dataset.rvj); await G((i) => window.__colonistGame._rvEnterStep(+i), first); await sleep(800);
-  const t = await G(() => { const d = document.querySelector(".rv-turn"); if (!d) return null; d.open = true; return d.innerText.replace(/\s+/g, " "); }); ok(t, "turn summary present", t || "");
+  const t = await G(() => { const d = document.querySelector(".tv"); return d ? d.innerText.replace(/\s+/g, " ") : null; }); ok(t, "turn block (v1.56 rows per player) present", t || "");
   await page.screenshot({ path: S + "/../fix155/step-" + port + ".png" });
   ok(!errors.length, "no page errors", errors.join("|")); await b.close(); process.exit(bad ? 1 : 0);
 })();
