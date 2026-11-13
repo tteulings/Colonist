@@ -155,7 +155,7 @@ export const ReviewMixin = {
     if (!run) return;
     run.stop = true; R.run = null;
     if (R.revs[run.pid]) R.revs[run.pid].stopped = true;
-    if (!this.players[run.pid]?.isHuman) { R.othersOff = true; R.queue = (R.queue || []).filter((q) => q?.pid == null && this.players[q]?.isHuman); } // Stop on a bot: the others wait for Continue
+    if (!this.players[run.pid]?.isHuman) { R.othersOff = true; R.queue = (R.queue || []).filter((q) => this.players[q?.pid ?? q]?.isHuman); } // Stop on a bot: the others wait for Continue
     this._rvSave(); this._rvTick();
   },
   /** v1.29 The bots with recorded decisions (a game recorded before v1.29 has none: "not recorded"). */
@@ -168,13 +168,18 @@ export const ReviewMixin = {
     bots.forEach((p) => { if (!this._rvReviewComplete(p.id) && !(OTHERS.deep === "top" && this._rv.revs[p.id]?.top)) out.push({ pid: p.id, stage: OTHERS.deep === "top" ? "top" : "deep" }); });
     return out;
   },
+  /** v1.52 the queue behind a person's quick look: the bots' quick look, the person's deep check, the bots' deep check. */
+  _rvSoloQueue(pid) {
+    const plan = this._rvOthersPlan(), i = plan.findIndex((x) => x.stage !== "quick"), at = i < 0 ? plan.length : i;
+    return [...plan.slice(0, at), { pid, stage: "deep" }, ...plan.slice(at)];
+  },
   /** Continue the others after a Stop. */
   _rvOthersGo() {
     const R = this._rv;
     if (!R) return;
     R.othersOff = false; R.othersPlanned = false;
     this._rvOthers().forEach((p) => { if (R.revs[p.id]) R.revs[p.id].stopped = false; });
-    R.queue = (R.queue || []).filter((q) => q?.pid == null);
+    R.queue = (R.queue || []).filter((q) => q?.pid == null || this.players[q.pid]?.isHuman);
     if (R.run) { R.othersPlanned = true; R.queue.push(...this._rvOthersPlan()); this._rvTick(); return; }
     this._rvQueueNext();
   },
@@ -287,15 +292,19 @@ export const ReviewMixin = {
   /** Pass & play: when one person's check is done the next person's starts by itself (seat order). */
   _rvQueueNext() {
     const R = this._rv;
-    if (!R || R.run || R.lrun || R.again || !this.winner) return; // (v1.41 Review again runs everything itself)
+    if (!R || R.run || R.again || !this.winner) return; // (v1.41 Review again runs everything itself)
+    // v1.52 one person, a device with 2+ review lanes: the luck and the others' quick look share the lanes (order of priority: your quick look, luck,
+    // the bots' quick look, your deep check, the bots' deep check); one lane, or pass & play: one after the other as before
+    const par = !this.hotseat && (this._rvLaneN || 1) >= 2;
+    if (R.lrun && !par) return;
     // v1.31 luck in win chance: after every person's own review, before the others' check (src/review-luck.js)
-    if (!(R.queue || []).some((q) => q?.pid == null && this.players[q]?.isHuman) && this._lkWant?.()) { this._lkRun().then(() => { if (this._rv === R) this._rvQueueNext(); }); return; }
+    if (!R.lrun && !(R.queue || []).some((q) => q?.pid == null && this.players[q]?.isHuman) && this._lkWant?.()) { this._lkRun().then(() => { if (this._rv === R) this._rvQueueNext(); }); if (!par) return; }
     // v1.29 when every person is done (or waits): the others, one at a time
     if (!R.queue?.length && !R.othersPlanned && !R.othersOff) { R.othersPlanned = true; R.queue = this._rvOthersPlan(); }
     while (R.queue?.length) {
       const q = R.queue.shift(), pid = q?.pid ?? q, stage = q?.stage ?? null;
       if (this._rvReviewComplete(pid) || !this._rvTodo(pid).length || R.revs[pid]?.stopped) continue;
-      if (q?.pid != null && (R.othersOff || (stage === "quick" && this._rvCovered1(pid)) || (stage === "top" && R.revs[pid]?.top))) continue;
+      if (q?.pid != null && !this.players[pid]?.isHuman && (R.othersOff || (stage === "quick" && this._rvCovered1(pid)) || (stage === "top" && R.revs[pid]?.top))) continue;
       this._rvReviewRun(pid, this._rvListener, { stage }).then((rv) => { if (this._rv === R && rv?.done && this.players[pid]?.isHuman) this._rvRender?.(); }); // (a bot's progress patches the table only: the end screen is not redrawn under your finger)
       return;
     }
@@ -309,6 +318,7 @@ export const ReviewMixin = {
   /** Game over: save, then run the detectors in the worker (once per game). */
   _rvFinish(auto = true) {
     const R = this._rv;
+    try { reviewLaneCount().then((n) => { this._rvLaneN = n; }); } catch (_) { /* one lane */ }
     if (!R || !R.recs.length || R.res || R.busy) return;
     if (auto) this._rvSave();
     if (this._rvEl && this._rvMid) this._rvCloseReview(); // the game ended under a check: the end screen takes over
@@ -317,6 +327,8 @@ export const ReviewMixin = {
       if (this._rv !== R) return;
       const q = this._rvAutoQueue?.() || [];
       if (!q.length) return;
+      // v1.52 one person: the quick look first, then the luck (the win chance impact comes early), then the deep check of the moves, then the others
+      if (!this.hotseat && q.length === 1) { R.queue = this._rvSoloQueue(q[0]); R.othersPlanned = true; this._rvReviewRun(q[0], null, { stage: "quick" }).then((rv) => { if (rv?.done && this._rv === R) this._rvRender?.(); }); return; }
       R.queue = q.slice(1); // pass & play: the first person now, the others one after another
       this._rvReviewRun(q[0], null).then((rv) => { if (rv?.done && this._rv === R) this._rvRender?.(); });
     }, 0);

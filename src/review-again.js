@@ -51,6 +51,11 @@ export const ReviewAgainMixin = {
     s += ev * SEC.luck;
     return { decisions: n, events: ev, sec: Math.round((s * phone * SEC.cal) / lanes) };
   },
+  /** Seconds per unit of work on this device: a quick decision, a deep decision, a luck event (the same numbers as the estimate above). */
+  _raUnit() {
+    const lanes = Math.max(1, Math.min(3, GM_WORKERS())), phone = typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent || "") ? SEC.phone : 1, f = (phone * SEC.cal) / lanes;
+    return { quick: SEC.quick * f, deep: SEC.deep * f, luck: SEC.luck * f };
+  },
   _raTime(sec) { return sec >= 90 ? `about ${Math.round(sec / 60)} min` : sec < 10 ? "a few seconds" : `about ${Math.round(sec / 10) * 10} s`; },
 
   /** The row under the review button: what made the review, and Review again (with weight when the engine changed). While it runs:

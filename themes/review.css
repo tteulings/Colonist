@@ -204,7 +204,7 @@
 .rs-lk { display: flex; align-items: baseline; gap: 10px; font-size: 12.5px; } .rs-lk span { color: var(--ink-soft); font-weight: 650; margin-right: auto; } .rs-lk b { font-weight: 800; }
 .rs-scrub { margin: 0 -2px; } .rs-scrub .rs-chart { height: 46px; }
 .rs-strip { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; } .rs-chip { flex: none; width: 36px; height: 40px; border-radius: 10px; border: var(--chip-border); background: var(--chip); color: var(--ink); font: 800 12px var(--font-body); display: grid; place-items: center; gap: 1px; padding: 3px 0; cursor: pointer; } .rs-chip.on { background: var(--primary); color: var(--primary-ink, #fff); border-color: transparent; }
-.rs-nav { display: grid; grid-template-columns: 1fr 1.3fr; gap: 8px; margin-top: auto; } .rs-nav .rv-btn { min-height: 46px; font-size: 14.5px; } .rs-nav svg { width: 20px; height: 20px; }
+.rs-nav { display: grid; grid-template-columns: 1fr auto 1.2fr; gap: 8px; margin-top: auto; } .rs-nav .rv-btn { min-height: 46px; font-size: 14.5px; } .rs-nav svg { width: 20px; height: 20px; }
 @media (max-height: 700px) { .rs.step { --stage: 40%; } .rs-lk { display: none; } }
 /* info sheet */
 .rs-sheet { position: absolute; inset: 0; z-index: 5; background: rgba(6,20,24,.5); display: flex; align-items: flex-end; } .rs-sheet-in { width: 100%; max-height: 80%; overflow: auto; background: var(--sheet); background-image: var(--sheet-image); color: var(--ink); border-radius: 20px 20px 0 0; padding: 12px 14px max(16px, env(safe-area-inset-bottom)); display: grid; gap: 8px; }
@@ -484,7 +484,7 @@
 
 /* v1.49 the review in tabs */
 .rv-tabs { display: flex; gap: 2px; margin: 0 10px 8px; padding: 3px; border-radius: 12px; background: color-mix(in srgb, var(--ink) 8%, var(--chip)); flex: none; }
-.rv-tabs button { flex: 1; min-height: 40px; border: 0; border-radius: 10px; background: none; color: var(--ink-soft); font: 750 13.5px/1 var(--font-body); cursor: pointer; -webkit-tap-highlight-color: transparent; padding: 0 2px; }
+.rv-tabs button { flex: 1 1 0; min-width: 0; min-height: 40px; border: 0; border-radius: 10px; background: none; color: var(--ink-soft); font: 750 12.5px/1 var(--font-body); letter-spacing: -.1px; cursor: pointer; -webkit-tap-highlight-color: transparent; padding: 0 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rv-tabs button.on { background: var(--chip); color: var(--heading); box-shadow: 0 1px 3px rgba(0,0,0,.14); }
 .sbs-card { padding-bottom: 8px; } .sbs-w { overflow-x: auto; margin: 0 -4px; padding: 0 4px; -webkit-overflow-scrolling: touch; }
 .sbs { display: grid; grid-template-columns: 96px repeat(var(--n), minmax(56px, 1fr)); align-items: stretch; min-width: min-content; }
@@ -534,3 +534,24 @@
 .pp-why .rsc-v { margin-top: 2px; }
 .pp-km .x small.w { white-space: normal; }
 .pp-win .rsw-c svg { cursor: pointer; }
+
+/* v1.52 the whole check in one progress card (end screen), the luck still to come, the selected moment */
+[data-rvbox] > .rsp { margin: 0 0 10px; border-radius: 12px; background: var(--chip); background-image: none; border: var(--chip-border); box-shadow: none; padding: 10px 12px 10px; }
+.rsp .rsp-rows { display: grid; gap: 7px; margin-bottom: 9px; }
+.rsp .rsp-r { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; column-gap: 8px; row-gap: 3px; align-items: center; font: 650 12.5px/1.2 var(--font-body); color: var(--ink-soft); }
+.rsp .rsp-r b { font: 800 13px/1.2 var(--font-body); color: var(--heading); } .rsp .rsp-r .tx { text-align: right; font: 650 12px/1.2 var(--font-body); white-space: nowrap; } .rsp .rsp-r.done .tx { color: var(--pos); font-weight: 800; } .rsp .rsp-r.run .tx { color: var(--ink); }
+.rsp .rsp-r .bar { grid-column: 2 / -1; display: block; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; } .rsp .rsp-r .bar i { display: block; height: 100%; background: var(--primary); border-radius: 2px; } .rsp .rsp-r.done .bar i { background: var(--pos); }
+.rsp .rsp-r .ic { display: inline-grid; place-items: center; }
+.rsp .rsp-r .ic i { width: 14px; height: 14px; border-radius: 50%; display: inline-grid; place-items: center; font: 800 9px/1 var(--font-body); font-style: normal; }
+.rsp .ic i.ok { background: var(--pos); color: #fff; } .rsp .ic i.wt { border: 1.5px solid color-mix(in srgb, var(--ink) 35%, transparent); } .rsp .ic i.pz { background: var(--ink-soft); color: #fff; } .rsp .ic i.rv-ring { --p: 60%; }
+.rsp .rsp-f { display: flex; align-items: center; gap: 10px; } .rsp .rsp-f > span { flex: 1; min-width: 0; font: 750 13px/1.25 var(--font-body); color: var(--ink); } .rsp .rsp-f small { display: block; font: 600 11.5px/1.2 var(--font-body); color: var(--ink-soft); } .rsp .rv-btn { min-height: 44px; flex: none; }
+.rsc .rt-c b.pend { color: var(--ink-soft); display: inline-flex; align-items: center; gap: 3px; justify-content: flex-end; } .rsc .rt-c b.pend .rv-ring { width: 11px; height: 11px; }
+.rvw-i .rv-gt { align-items: center; gap: 6px; } .rvw-i .rv-gt b { flex: none; } .rvw-i .rvw-tip { flex: 1; text-align: right; font: 650 11px/1.2 var(--font-body); color: var(--ink-soft); } .rvw-i .lk-ib { flex: none; }
+.rvw-i .rvw-h { margin: 4px 0 4px; font: 800 15px/1.25 var(--font-body); color: var(--heading); }
+.rvw-ev { margin: 0 0 6px; padding: 0 0 0 18px; font: 600 13px/1.4 var(--font-body); color: var(--ink); }
+.rvw-top { margin: 4px 0 8px; padding: 7px 10px; border-left: 3px solid var(--accent, #D9714E); border-radius: 0 8px 8px 0; background: color-mix(in srgb, var(--accent, #D9714E) 10%, transparent); font: 600 13px/1.35 var(--font-body); } .rvw-top .pos { color: var(--pos); font-weight: 800; } .rvw-top .neg { color: var(--neg); font-weight: 800; }
+.rvw-i .rvw-l em { font-style: normal; font-weight: 600; opacity: .8; margin-left: 4px; }
+.rv-bar h3.ht { font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rs-bar h3 { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .rs-bar > div:nth-child(2) { min-width: 0; } .rs-bar .rs-ov { padding: 0 10px; font-size: 13px; min-width: 0; } .rs-bar { gap: 6px; }
+.rs-bar small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rs-nav .rs-ov { padding: 0 12px; font-size: 13.5px; } .rs-nav.pb-nav { grid-template-columns: 1fr 1.3fr 1fr; }

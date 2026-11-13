@@ -41,6 +41,7 @@ const LAYERS = [
   ["rpinfo", (g) => g._rpUi && q(".gs-rp-note:not([hidden])"), () => tap("[data-rpinfo]")],
   ["replay", (g) => g._rpUi, (g) => g._rpExit()],
   ["step", (g) => g._rvEl && g._rvStep != null, () => tap("[data-rvclose-step]")],
+  ["player", (g) => g._rvEl && !g._rvMid && g._rvTab === "player" && (g._rvStep == null || g._rvStepFrom?.tab === "player"), () => tap(".pp-bar [data-rvt]")], // v1.52 a player's page is a level above the Overview
   ["review", (g) => g._rvEl, (g) => tap("[data-rvclose]") || g._rvCloseReview(true)],
   ["bots", (g) => g._bpgEl, (g) => g.botsClose()],
   ["pastgames", (g) => g._histEl, (g) => g.histClose()],
