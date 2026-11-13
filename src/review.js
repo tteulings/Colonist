@@ -238,13 +238,13 @@ export const ReviewMixin = {
       const opts = analysisOpts(eng, lanes);
       if (eng === run.final) run.eid = engineId(lanes, run.model); // v1.41 the final round's engine (its look-ahead depends on the lanes); v1.42 and the model
       let next = 0, last = now();
-      const lane = async (w) => {
+      const lane = async (w) => { // w: the review worker's number (0 = the first lane)
         while (next < items.length) {
           if (run.stop || !live()) return;
           await gate();
           if (run.stop || !live() || next >= items.length) return;
           const [rec, i] = items[next++];
-          const m = await reviewRequest({ type: "evaluate", base: R.base, rec, opts }, 40000, w + off);
+          const m = await reviewRequest({ type: "evaluate", base: R.base, rec, opts }, 40000, w);
           if (!live()) return;
           const k = rv.results.findIndex((x) => x.i === i);
           let r = m?.result ? { ...m.result, i } : null;
@@ -257,7 +257,11 @@ export const ReviewMixin = {
           this._rvTick();
         }
       };
-      await Promise.all(Array.from({ length: nl }, (_, w) => lane(w)));
+      // v1.53 the lanes the luck keeps (0 .. off - 1) join this round the moment the luck is done (before: they idled until the round ended);
+      // each decision is computed on its own, so which lane runs it changes nothing in the result
+      const loops = Array.from({ length: nl }, (_, w) => lane(w + off));
+      if (off && !run.stop) { R.lkEnd = () => { R.lkEnd = null; if (!run.stop && live() && next < items.length) for (let w = 0; w < off; w += 1) loops.push(lane(w)); }; }
+      try { while (loops.length) { const l = loops.splice(0); await Promise.all(l); } } finally { R.lkEnd = null; }
     };
     run.promise = (async () => {
       try {
@@ -286,7 +290,7 @@ export const ReviewMixin = {
         }
       } catch (e) { if (!e?.quickDone) console.warn("review run", e); }
       if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVis);
-      if (live()) { rv.done = !run.stop && this._rvReviewComplete(pid); if (rv.done && !mid) Object.assign(rv, this._raStamp?.(run.eid || rv.engId) || {}); /* v1.41 what made it (Review again) */ if (R.run === run) R.run = null; this._rvSave(); if (rv.done && this.players[pid]?.isHuman) this._rvLogGame?.(pid); this._rvTick(); if (live() && !run.stop && !mid) this._rvQueueNext(); }
+      if (live()) { rv.done = !run.stop && this._rvReviewComplete(pid); if (rv.done && !mid) Object.assign(rv, this._raStamp?.(run.eid || rv.engId) || {}); /* v1.41 what made it (Review again) */ if (R.run === run) R.run = null; this._rvSave(); if (rv.done && this.players[pid]?.isHuman) this._rvLogGame?.(pid); this._rvTick(); if (live() && !run.stop && !mid) { this._rvQueueNext(); if (!R.run) R.lrun?.grow?.(); } }
       return rv;
     })();
     return run.promise;
