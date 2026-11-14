@@ -109,7 +109,7 @@ export const ReviewMixin = {
     const R = this._rv;
     if (!R || !R.id || !R.recs.length) return 0;
     try {
-      const json = JSON.stringify({ v: 3, id: R.id, base: R.base, recs: packRecs(R.recs), reviews: this._rvAll(), bots: R.bots ? 1 : 0, ...(R.luck ? { luck: R.luck } : {}) }); // v1.31 luck in win chance: an extra field (older versions ignore it) // v1.04: a check made during the game is kept too; v1.12: one review per person; v1.29 packed, with the bots
+      const json = JSON.stringify({ v: 3, id: R.id, base: R.base, recs: packRecs(R.recs), reviews: this._rvAll(), bots: R.bots ? 1 : 0, ...(R.luck ? { luck: R.luck } : {}), ...(R.recap ? { recap: R.recap } : {}) }); // v1.31 luck in win chance: an extra field (older versions ignore it) // v1.04: a check made during the game is kept too; v1.12: one review per person; v1.29 packed, with the bots
       localStorage.setItem(KEY, json);
       R.bytes = json.length;
       return json.length;
@@ -375,7 +375,7 @@ export function installReview(Cls) {
     const r = orig.apply(this, a);
     const id = this.stats?.id || null;
     this._rvReset(id);
-    if (id) { const d = this._rvLoad(); if (d && d.id === id) { this._rv.base = d.base; this._rv.recs = d.recs; this._rv.revs = d.reviews || {}; this._rv.bots = !!d.bots; this._rv.review = this._rvMine(this._rv.revs); if (d.luck) this._rv.luck = d.luck; } }
+    if (id) { const d = this._rvLoad(); if (d && d.id === id) { this._rv.base = d.base; this._rv.recs = d.recs; this._rv.revs = d.reviews || {}; this._rv.bots = !!d.bots; this._rv.review = this._rvMine(this._rv.revs); if (d.luck) this._rv.luck = d.luck; if (d.recap) this._rv.recap = d.recap; } }
     return r;
   });
 
