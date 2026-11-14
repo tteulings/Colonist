@@ -6,8 +6,8 @@ import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
 import { liveWinOn, setLiveWin, liveRefineOn, setLiveRefine } from "../live-bar.js";
-import { recapLang, setRecapLang } from "../review-recap.js";
-export const APP_VERSION = "1.62";
+import { recapLang, setRecapLang, recapPoints, setRecapPoints } from "../review-recap.js";
+export const APP_VERSION = "1.64";
 
 /** v1.34 Settings: the running version and "Check for updates" (index.html: reg.update() + a version compare). */
 function versionRow() {
@@ -151,6 +151,11 @@ export class SettingsUI {
       crow.innerHTML = `<div><b id="rcLangLbl">Recap language</b><small>The AI recap of a finished game.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="rcLangLbl">${[["en", "English"], ["nl", "Nederlands"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${recapLang() === k}" class="${recapLang() === k ? "on" : ""}" data-rc-lang="${k}">${l}</button>`).join("")}</div>`;
       crow.querySelectorAll("[data-rc-lang]").forEach((b) => b.addEventListener("click", () => { crow.querySelectorAll("[data-rc-lang]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); setRecapLang(b.dataset.rcLang); }));
       body.appendChild(crow);
+      const prow = document.createElement("div");
+      prow.className = "st-row";
+      prow.innerHTML = `<div><b id="rcPtsLbl">Recap turning points</b><small>How many moments the AI recap tells about.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="rcPtsLbl">${[2, 3, 4].map((k) => `<button type="button" role="radio" aria-checked="${recapPoints() === k}" class="${recapPoints() === k ? "on" : ""}" data-rc-pts="${k}">${k}</button>`).join("")}</div>`;
+      prow.querySelectorAll("[data-rc-pts]").forEach((b) => b.addEventListener("click", () => { prow.querySelectorAll("[data-rc-pts]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); setRecapPoints(b.dataset.rcPts); }));
+      body.appendChild(prow);
       // v1.59 the live win-chance bar (src/live-bar.js): off by default
       const lrow = document.createElement("div");
       lrow.className = "st-row";

@@ -70,7 +70,7 @@ export const LiveBarMixin = {
     if (key !== this._lbKey || !this._lbCanDeep()) return;
     if (!this._lbWorker) {
       try {
-        const w = new Worker(new URL("./master/worker.js?v=162", import.meta.url), { type: "module" });
+        const w = new Worker(new URL("./master/worker.js?v=164", import.meta.url), { type: "module" });
         w.addEventListener("message", (e) => {
           const m = e.data;
           if (m.type === "live" && m.job === this._lbJob) { this._lbN = m.n; this._lbDraw(m.p, m.n); const s = (window.__lbStats ||= { n: 0, ms: 0, max: 0, last: null }); s.deep = { n: m.n, p: m.p }; }

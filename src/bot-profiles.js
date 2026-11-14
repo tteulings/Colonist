@@ -40,7 +40,7 @@ export const BOT_PROFILES = {
     weak: "Weakest bot. It buys development cards but only ever plays a Knight (when the robber sits on its tile); Monopoly, Year of Plenty and Road Building stay in its hand.",
     beat: "Stay off the top of the score: its robber always goes to the leader's best tile.",
     trades: "Never offers. Says yes only to a deal that lets it build something right away; at most one bank or harbour trade, to finish a city or settlement.",
-    robber: "Always the leader's tile with the most pips, and it steals from the leader. On a 7 it discards what it has most of.",
+    robber: "Always the leader's tile with the most dice dots, and it steals from the leader. On a 7 it discards what it has most of.",
     cards: "Buys a card whenever it can; plays only Knights.",
   },
   intermediate: {

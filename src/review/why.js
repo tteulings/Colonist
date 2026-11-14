@@ -17,7 +17,7 @@ const BUILD_NAME = { road: "Road", settlement: "Settlement", city: "City", dev: 
 const pipsOf = (n) => (n ? 6 - Math.abs(7 - n) : 0);
 const sum = (o) => R5.reduce((a, r) => a + (o?.[r] || 0), 0);
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
-const pp = (n) => `${n} pip${n === 1 ? "" : "s"}`;
+const pp = (n) => `${n} dice dot${n === 1 ? "" : "s"}`;
 const lc = (s) => s.charAt(0).toLowerCase() + s.slice(1);
 const list = (a) => a.map((r) => RN[r]).join(", ");
 
@@ -228,8 +228,8 @@ export function hexCard(g, p, hexId) {
 }
 const hexText = (g, c) => {
   if (!c.victims.length) return c.own ? `${c.name}: hits only you (−${c.own} dice dots)` : `${c.name}: nobody on it`;
-  const v = c.victims.slice(0, 2).map((x) => `${nm(g, x.pid)} (${x.vp} VP${x.leader ? ", leader" : ""}) −${x.pips}`).join(", ");
-  return `${c.name}: ${v} pips${c.own ? `, you −${c.own}` : ""}`;
+  const v = c.victims.slice(0, 2).map((x) => `${nm(g, x.pid)} (${x.vp} points${x.leader ? ", leader" : ""}) −${x.pips}`).join(", ");
+  return `${c.name}: ${v} dice dots${c.own ? `, you −${c.own}` : ""}`;
 };
 
 // ── setup ──
@@ -281,15 +281,15 @@ function explain1(g, p, rec, A, B) {
   // ── set-up ──
   if (a.type === "setup" && b.type === "setup" && a.node != null && b.node != null) {
     const ca = setupCard(g, p, a.node), cb = setupCard(g, p, b.node);
-    const items = [`${ca.label}: ${ca.pips} pips${ca.pips < cb.pips ? ` (${cb.pips - ca.pips} fewer)` : ""}, ${plural(ca.kinds.length, "resource")}`], chips = []; // v1.19 says so when the better spot has fewer pips (29 of 80 audited set-up picks did)
+    const items = [`${ca.label}: ${ca.pips} dice dots${ca.pips < cb.pips ? ` (${cb.pips - ca.pips} fewer)` : ""}, ${plural(ca.kinds.length, "resource")}`], chips = []; // v1.19 says so when the better spot has fewer pips (29 of 80 audited set-up picks did)
     const adv = [];
-    if (ca.pips >= cb.pips + 2) adv.push(`${ca.pips} pips`);
+    if (ca.pips >= cb.pips + 2) adv.push(`${ca.pips} dice dots`);
     if (ca.kinds.length > cb.kinds.length || (!ca.first && ca.newRes.length > cb.newRes.length)) { adv.push("variety"); }
     if (ca.newRes.some((r) => !cb.newRes.includes(r)) && !ca.first) { items.push(`adds ${list(ca.newRes)} you lack`); chips.push(`+${list(ca.newRes)}`); adv.push("new"); }
     if (ca.port && !cb.port) { items.push(ca.port); chips.push(ca.port); adv.push("port"); }
     if (ca.room >= cb.room + 5 && adv.length) { items.push(`room for ${ca.room} more spots`); chips.push(`${ca.room} spots to grow`); } // room alone is too vague to be a reason
     if (ca.kinds.length > cb.kinds.length) chips.unshift(`${ca.kinds.length} resources vs ${cb.kinds.length}`);
-    if (ca.pips >= cb.pips + 2) chips.unshift(`${ca.pips} pips vs ${cb.pips}`);
+    if (ca.pips >= cb.pips + 2) chips.unshift(`${ca.pips} dice dots vs ${cb.pips}`);
     if (!adv.length) return null;
     const vs = `${cb.label}: ${pp(cb.pips)}, ${plural(cb.kinds.length, "resource")}${cb.port ? `, ${cb.port}` : ""}, room ${cb.room}`;
     return done("setup", items, vs, chips, { nodes: [] });
@@ -302,7 +302,7 @@ function explain1(g, p, rec, A, B) {
     if (!(advOpp || advLead || advOwn || advNone)) return null;
     items.push(hexText(g, ca));
     if (ca.leaderHit) chips.push("hits the leader");
-    if (ca.pips) chips.push(`−${ca.pips} pips`);
+    if (ca.pips) chips.push(`−${ca.pips} dice dots`);
     if (ca.victims.length) chips.push(`steal ${nm(g, ca.victims[0].pid)}`);
     return done("robber", items, hexText(g, cb), chips);
   }
@@ -330,13 +330,13 @@ function explain1(g, p, rec, A, B) {
           || (ca.blocks.length && !cb.blocks.length) || (lrRelevant(ca) && !lrRelevant(cb));
         if (!adv) return null;
         vs = cap(roadVs(g, cb));
-        return done("road", items, vs, chips.length ? chips : (ta ? [`${ta.pips} pips`] : []), mark);
+        return done("road", items, vs, chips.length ? chips : (ta ? [`${ta.pips} dice dots`] : []), mark);
       }
-      vs = bt === "road" ? `road ${roadVs(g, pb.c)}` : bt === "settlement" ? `settlement ${pb.c.label}: +${pb.c.pips} pips${pb.c.newRes.length ? `, new ${list(pb.c.newRes)}` : ", nothing new"}` : `city ${pb.c.label}: doubles ${pb.c.pips} pips`;
+      vs = bt === "road" ? `road ${roadVs(g, pb.c)}` : bt === "settlement" ? `settlement ${pb.c.label}: +${pb.c.pips} dice dots${pb.c.newRes.length ? `, new ${list(pb.c.newRes)}` : ", nothing new"}` : `city ${pb.c.label}: doubles ${pb.c.pips} dice dots`;
       const ga = pa.c.gain ?? 0, gb = pb.c.gain ?? 0;
       const better = a.type === "road" ? (pa.c.target && (pa.c.target.pips >= 8 || pa.c.target.newRes.length || pa.c.target.port || pa.c.blocks.length || lrRelevant(pa.c))) : (ga >= gb + 2 || (pa.c.newRes?.length || 0) > (pb.c.newRes?.length || 0) || (pa.c.port && !pb.c.port));
       if (!better && !ok) return null;
-      return done(a.type, items, vs, chips.length ? chips : [`+${pa.c.pips ?? pa.c.target?.pips} pips`], mark);
+      return done(a.type, items, vs, chips.length ? chips : [`+${pa.c.pips ?? pa.c.target?.pips} dice dots`], mark);
     }
     if (b.type === "end") {
       const n = sum(hand);
@@ -405,9 +405,19 @@ function explain1(g, p, rec, A, B) {
     if (holder !== p.id && mine + 1 >= 3 && mine + 1 > Math.max(hk, 2)) { items.push(`takes Largest Army (${mine + 1} vs ${hk})`); chips.push("Largest Army"); }
     else if (holder !== p.id && mine + 1 >= 2 && rival - (mine + 1) <= 1) { items.push(`Largest Army race: ${mine + 1} knights vs ${rival}`); chips.push("Army race"); }
     const rh = g.geometry.hexes[g.robberHexId], blocked = rh ? pipsOfOwn(g, p, rh.id) : 0;
-    if (blocked >= 3) { items.push(`frees your ${g._hexName(g.robberHexId)} (−${blocked} pips)`); chips.push(`+${blocked} pips`); }
+    if (blocked >= 3) { items.push(`frees your ${g._hexName(g.robberHexId)} (−${blocked} dice dots)`); chips.push(`+${blocked} dice dots`); }
     return items.length ? done("dev", items, b.type === "end" ? "kept the Knight" : null, chips) : null;
   }
   return null;
 }
 const pipsOfOwn = (g, p, hexId) => hexCard(g, p, hexId).own;
+
+/** Reviews saved before v1.64 hold "VP" and "pips" in their why texts: shown as "points" and "dice dots" (strings only, nothing else changes). */
+export const niceWords = (t) => String(t).replace(/\b(\d+) VP\b/g, "$1 points").replace(/\bVP\b/g, "points").replace(/\bpips\b/g, "dice dots").replace(/\bpip\b/g, "dice dot");
+export function niceWhy(w) {
+  if (!w || w._n) return w;
+  const fix = (o) => { for (const k of Object.keys(o)) { const v = o[k]; if (typeof v === "string") o[k] = niceWords(v); else if (Array.isArray(v)) v.forEach((e, i) => { if (typeof e === "string") v[i] = niceWords(e); else if (e && typeof e === "object") fix(e); }); } };
+  if (k_ok(w)) fix(w);
+  return w;
+}
+const k_ok = (w) => { try { Object.defineProperty(w, "_n", { value: 1, enumerable: false }); return true; } catch (_) { return false; } };
