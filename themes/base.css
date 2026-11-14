@@ -2613,3 +2613,18 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
 .mn-speed { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px 12px; margin: 0 2px 8px; padding: 8px 12px; border-radius: 12px; background: var(--sep, rgba(0,0,0,.06)); font-size: 14px; font-weight: 750; color: var(--heading); }
 .mn-speed input { width: 100%; min-width: 0; }
 .mn-speed em { grid-column: 2; justify-self: end; font-style: normal; font-size: 11px; font-weight: 650; color: var(--ink-soft); }
+
+/* v1.59 live win-chance bar (src/live-bar.js) */
+.livebar { flex: none; position: relative; z-index: 6; padding: 1px 10px 2px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.livebar[hidden] { display: none; }
+.lb-track { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: rgba(0,0,0,.12); }
+.lb-seg { display: block; flex: 1 1 0; flex-basis: 0; min-width: 0; transition: flex-grow .6s ease; position: relative; text-align: center; font: 700 8px/10px system-ui, sans-serif; color: #fff; text-shadow: 0 0 2px rgba(0,0,0,.7); font-style: normal; overflow: hidden; white-space: nowrap; }
+.lb-seg b { font-weight: 700; }
+.lb-seg.me { box-shadow: inset 0 -2px 0 #fff; }
+.lb-note { position: absolute; left: 10px; right: 10px; top: 100%; z-index: 20; padding: 4px 8px; border-radius: 8px; background: rgba(20,20,20,.92); color: #fff; font-size: 11px; line-height: 1.3; }
+.lb-note[hidden] { display: none; }
+@media (min-width: 901px) and (min-height: 501px) {
+  .livebar { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); width: min(380px, 36vw); padding: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .lb-seg { transition: none; } }
+.mn-live input { width: 22px; height: 22px; justify-self: end; }
