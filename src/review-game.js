@@ -7,7 +7,7 @@
 //   · your win chance after each decision, marked strong / could be sharper / missed chance
 //   · a tappable turn strip and a list of your turns; Show on board for a marked decision
 //   · the missed-chance lines on the end screen then come from the Master's check (verified)
-import { esc, IC, cmpHtml, whyHtml } from "./review-ui.js";
+import { esc, IC, cmpHtml, whyHtml, aimHtml } from "./review-ui.js";
 import { reviewModel, REVIEW_MODELS, modelOfId } from "./review/evaluate.js";
 import { summarize, REVIEW, REVIEW_ENGINE, REVIEW_ENGINES, ACC, clsOf, LIMITS, SETUP_LIMITS, CLASSES, GREAT, gpOf, decide, totals, tradeShow, needsFull } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
@@ -1319,6 +1319,7 @@ export const ReviewGameMixin = {
         <p class="rs-s">${this._rvLine(d)}</p>
         ${noA ? "" : whyHtml(x.why)}
         <div class="rs-ab${noA ? " one" : ""}">${A}${B}</div>
+        ${noA ? "" : aimHtml(x, who, (v) => `${Math.round(v * 100)}%`)}
         ${this._lkSplitHtml(d, ds, sg)}`}
         ${d.k === "setup" ? "" : this._tvHtml(d, ds, this._tvKeep)}
         ${d.k === "setup" ? `<div class="rs-strip" role="tablist" aria-label="Your decisions">${strip}</div><div class="rs-nav"><button type="button" class="rv-btn" data-rvnav="-1" ${k ? "" : "disabled"} aria-label="Previous decision">${IC.prev}Previous</button><button type="button" class="rv-btn rs-ov" data-rvallmoves>${mid ? "Overview" : "All moves"}</button><button type="button" class="rv-btn pri" data-rvnav="1" ${k < list.length - 1 ? "" : "disabled"} aria-label="Next decision">Next${IC.next}</button></div>` : `${this._tvCardsHtml(d, ds)}<button type="button" class="rv-btn tv-all" data-rvallmoves>${mid ? "Overview" : "All moves"}</button>`}`;

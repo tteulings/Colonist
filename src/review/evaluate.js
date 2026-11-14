@@ -10,6 +10,7 @@
 // are left out. Player trades, discards and turn starts are not searched (the Master doesn't either).
 import { makeMaster, shipMoveLabel } from "../master/search.js";
 import { explain } from "./why.js";
+import { aimPack } from "./aims.js";
 import { BOT_BANDS } from "./bands.js";
 import { FMT, LIMITS, SETUP_LIMITS, GREAT, BEST_LEAD, CLASSES, TRIVIAL as TRIV, SE_SHRINK as SHRINK, clsOf, markOfCls, derive, gpOf, avgLost, rescoreResult, unknownRateLabel, liftSameStep } from "./score.js";
 export { FMT, LIMITS, SETUP_LIMITS, GREAT, BEST_LEAD, CLASSES, clsOf, markOfCls, gpOf, tradeShow, decide, totals } from "./score.js";
@@ -167,6 +168,8 @@ export function playedMove(g, p, rec) {
   }
 }
 
+const kindMain = (rec) => rec.k !== "robber" && rec.k !== "setup"; // v1.61 Aims at: the main phase (a set-up spot or a robber move has no build plan)
+
 /** Evaluate one record. `load(rec)` puts the engine on its position (the seat playing like the Expert). */
 export function evaluateRecord(g, rec, load, opts = {}) {
   const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -179,7 +182,7 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   if (!played) return { ...base, skip: "n/a" };
   // v1.04 opts.engine: "m100" is the quick first round after a game (the deep round is "full", the default)
   const eng = opts.engine && REVIEW_ENGINES[opts.engine] ? opts.engine : REVIEW_ENGINE, E = REVIEW_ENGINES[eng];
-  const agent = makeMaster({ ...(eng === REVIEW_ENGINE ? REVIEW_BUDGET : E.budget), seats: true, ...(opts.budget || {}) }); // seats: every seat's win chance, no extra rollouts
+  const agent = makeMaster({ ...(eng === REVIEW_ENGINE ? REVIEW_BUDGET : E.budget), seats: true, aims: kindMain(rec), ...(opts.budget || {}) }); // seats: every seat's win chance, no extra rollouts
   base.eng = eng;
   base.leaf = (eng === REVIEW_ENGINE ? REVIEW_BUDGET : E.budget).leaf || "v1"; // which score function judged it
   const scored = eng === REVIEW_ENGINE ? SCORED_KINDS : E.scored; // the 8-turn look-ahead can't judge development cards
@@ -197,7 +200,18 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   const { best, b, lossRaw, loss, spread, lead, trivial } = d;
   // v1.11 the likely reason A was stronger, read from the position (src/review/why.js); null when nothing clear separates them
   const why = best && !trivial && b.m >= 0.01 ? explain(g, p, rec, { label: b.label, focus: b.focus }, { label: played.label, focus: played.focus || null }) : null;
-  const res = { ...base, rush: g._rushPos || undefined, why, label: played.label, focus: played.focus || null, move: { k: rec.k, a: rec.a || {} }, win: winP == null ? null : r4(winP), best: best ? { label: b.label, focus: b.focus, gain: r4(b.m), se: b.se, seats: r.seats?.[best] || null } : null, seats: r.seats?.[0] || null,
+  // v1.61 Aims at / Simple choice: where A's and B's futures take the points, the usual next build, and the Expert bot's own pick
+  let aim, simple;
+  try {
+    if (r.aims && best) {
+      const ex = r.cands.findIndex((x) => x.c?.kind === "policy");
+      const A = aimPack(g, p, r.aims[best], b.label), B = aimPack(g, p, r.aims[0], played.label);
+      if (A || B) aim = { A, B };
+      const si = ex >= 0 ? ex : 0;
+      simple = si === best ? { is: "A" } : si === 0 ? { is: "B" } : { label: wl(r.cands[si].label), win: cands[si].win, fin: cands[si].fin };
+    }
+  } catch (_) { /* labels only */ }
+  const res = { ...base, aim, simple, rush: g._rushPos || undefined, why, label: played.label, focus: played.focus || null, move: { k: rec.k, a: rec.a || {} }, win: winP == null ? null : r4(winP), best: best ? { label: b.label, focus: b.focus, gain: r4(b.m), se: b.se, seats: r.seats?.[best] || null } : null, seats: r.seats?.[0] || null,
     loss, lossRaw, spread, lead, trivial, skip: trivial ? "trivial" : null, acc: trivial || !scored.includes(rec.k) ? null : Math.round(accuracyOf(lossRaw) * 10) / 10,
     cands, futures: r.vals[0].filter((v) => v != null).length, rollouts: r.rollouts, ms };
   res.mark = trivial ? "good" : markOfCls(clsOf(res)); // the old three-way mark, now from the same class as everywhere
