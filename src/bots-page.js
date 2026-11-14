@@ -126,7 +126,7 @@ function ladderSvg(W) {
   const R = rows().filter(plain).sort((a, b) => b.win.v - a.win.v);
   // bot-125: the scale grows with the strongest bot's interval (the search bots reach past 70%), at least 0–55
   const D = Math.max(55, Math.ceil((Math.max(0, ...R.map((b) => b.win.v + (b.win.ci || 0))) + 2) / 5) * 5);
-  const x0 = 104, x1 = W - 54, S = (x1 - x0) / D, X = (v) => x0 + v * S, top = 30, rh = 44, H = top + R.length * rh + 22, r = 9;
+  const x0 = 104, x1 = W - 66, S = (x1 - x0) / D, X = (v) => x0 + v * S, top = 30, rh = 44, H = top + R.length * rh + 22, r = 9;
   let s = `<svg class="bpg-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="group" aria-label="Strength ladder: win chance of each bot with its likely range. Dashed line is 25 wins out of 100, an even share. Tap a bot to open its profile.">`;
   [0, 10, 20, 30, 40, 50, 60, 70, 80, 90].filter((v) => v <= D).forEach((v) => (s += `<line class="g" x1="${X(v)}" x2="${X(v)}" y1="${top - 8}" y2="${H - 22}"/>`));
   s += `<line class="ref" x1="${X(25)}" x2="${X(25)}" y1="${top - 8}" y2="${H - 22}"/>`;
@@ -141,7 +141,7 @@ function ladderSvg(W) {
     s += `<line class="stem" x1="${X(0)}" x2="${X(w.v)}" y1="${y}" y2="${y}"/>`;
     if (!est) s += `<g class="iv"><line x1="${X(w.v - w.ci)}" x2="${X(w.v + w.ci)}" y1="${y}" y2="${y}"/><line x1="${X(w.v - w.ci)}" x2="${X(w.v - w.ci)}" y1="${y - 14}" y2="${y + 14}"/><line x1="${X(w.v + w.ci)}" x2="${X(w.v + w.ci)}" y1="${y - 14}" y2="${y + 14}"/></g>`;
     s += `<g transform="translate(${X(w.v)},${y})"><circle r="${r}" class="disc"/><g transform="translate(${-r + 1.5},${-r + 1.5}) scale(${(2 * r - 3) / 100})">${inner(b.key)}</g><circle r="${r}" class="ring${est ? " est" : ""}" style="stroke-opacity:${0.4 + b.p.level * 0.12}"/></g>`;
-    s += `<text class="v" x="${W}" y="${y - 1}" text-anchor="end">${est ? "~" + Math.round(w.v) : f1(w.v)}</text><text x="${W}" y="${y + 13}" text-anchor="end">${est ? "estimate" : `likely ${f1(Math.max(0, w.v - w.ci))}–${f1(w.v + w.ci)}`}</text></g>`;
+    s += `<text class="v" x="${W}" y="${y - 1}" text-anchor="end">${est ? "~" + Math.round(w.v) : f1(w.v)}</text><text x="${W}" y="${y + 13}" text-anchor="end">${est ? "estimate" : `${f1(Math.max(0, w.v - w.ci))}–${f1(w.v + w.ci)}`}</text></g>`;
   });
   s += `<text x="${X(D / 2)}" y="${H - 3}" text-anchor="middle">win chance, %</text></svg>`;
   return s;
@@ -188,6 +188,11 @@ function scatterSvg(W, sel) {
     if (w.ci) s += `<line class="cross" x1="${XS(w.v - w.ci)}" x2="${XS(w.v + w.ci)}" y1="${p.y}" y2="${p.y}"/>`;
     s += `<line class="cross" x1="${p.x}" x2="${p.x}" y1="${YS(a.v - a.se)}" y2="${YS(a.v + a.se)}"/>`;
   }));
+  g.groups.forEach((G) => G.forEach((p) => { // the error crosses are obstacles for labels too
+    const w = p.r.win, a = p.r.acc;
+    if (w.ci) taken.push([XS(w.v - w.ci), p.y - 2, XS(w.v + w.ci), p.y + 2]);
+    taken.push([p.x - 2, YS(a.v + a.se), p.x + 2, YS(a.v - a.se)]);
+  }));
   const marks = g.groups.map((G) => ({ x: G.reduce((a, p) => a + p.x, 0) / G.length, y: G.reduce((a, p) => a + p.y, 0) / G.length }));
   // tap area: 22 px round each marker, but never reaching into a neighbour's marker (so a tap on a marker is always that marker's)
   const tapR = (i) => Math.max(10, Math.min(22, ...marks.map((m, j) => (j === i ? 99 : Math.hypot(m.x - marks[i].x, m.y - marks[i].y) / 2))));
@@ -198,8 +203,8 @@ function scatterSvg(W, sel) {
       const p = G[0], b = p.r;
       s += `<g class="hit" data-pt="${b.key}" tabindex="0" role="button" aria-label="${esc(`${b.p.label}: win chance ${p.est ? `about ${Math.round(b.win.v)}, an estimate` : f1(b.win.v)}, review accuracy ${b.acc.v}. Show numbers`)}"><circle cx="${p.x}" cy="${p.y}" r="${tapR(gi)}" fill="transparent"/>
         <circle cx="${p.x}" cy="${p.y}" r="10" class="disc"/><g transform="translate(${p.x - 8.5},${p.y - 8.5}) scale(.17)">${inner(b.key)}</g><circle cx="${p.x}" cy="${p.y}" r="10" class="ring${p.est ? " est" : ""}" style="stroke-opacity:${0.4 + b.p.level * 0.12}"/>${on ? `<circle cx="${p.x}" cy="${p.y}" r="14" class="selr"/>` : ""}</g>`;
-      const wd = b.p.label.length * 6.4 + 4, spots = [[14, 4, "start", [p.x + 12, p.y - 8, p.x + 14 + wd, p.y + 8]], [-14, 4, "end", [p.x - 14 - wd, p.y - 8, p.x - 12, p.y + 8]], [0, -17, "middle", [p.x - wd / 2, p.y - 25, p.x + wd / 2, p.y - 12]], [0, 24, "middle", [p.x - wd / 2, p.y + 13, p.x + wd / 2, p.y + 28]]];
-      const sp = spots.find((q) => q[3][0] > l - 4 && q[3][2] < W && !taken.some((tk) => hit(q[3], tk))) || spots[0];
+      const wd = b.p.label.length * 6.4 + 4, spots = [[12, -14, "start", [p.x + 12, p.y - 25, p.x + 12 + wd, p.y - 12]], [12, 23, "start", [p.x + 12, p.y + 12, p.x + 12 + wd, p.y + 25]], [-12, -14, "end", [p.x - 12 - wd, p.y - 25, p.x - 12, p.y - 12]], [-12, 23, "end", [p.x - 12 - wd, p.y + 12, p.x - 12, p.y + 25]], [14, 4, "start", [p.x + 12, p.y - 8, p.x + 14 + wd, p.y + 8]], [-14, 4, "end", [p.x - 14 - wd, p.y - 8, p.x - 12, p.y + 8]], [0, -17, "middle", [p.x - wd / 2, p.y - 25, p.x + wd / 2, p.y - 12]], [0, 24, "middle", [p.x - wd / 2, p.y + 13, p.x + wd / 2, p.y + 28]]];
+      const sp = spots.find((q) => q[3][0] > l - 4 && q[3][2] < W - 2 && q[3][1] > t - 6 && q[3][3] < H - g.b + 2 && !taken.some((tk) => hit(q[3], tk))) || spots.find((q) => q[3][0] > l - 4 && q[3][2] < W - 2 && q[3][3] < H - g.b + 2) || spots[0];
       taken.push(sp[3]);
       s += `<text class="b" x="${p.x + sp[0]}" y="${p.y + sp[1]}" text-anchor="${sp[2]}">${b.p.label}</text>`;
     } else {

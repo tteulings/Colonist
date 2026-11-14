@@ -10332,7 +10332,7 @@ class ColonistFullGame {
     if (!host) return;
     const cur = this._confirmLevel();
     const LINES = { always: "Tap a spot, then Confirm.", unsure: "Asks only when a tap is unclear.", never: "Builds at once. Undo for 8 s." };
-    host.innerHTML = `<div class="cm-h"><b id="cmLbl">Confirm builds</b><button type="button" class="cm-info" data-cm-info aria-label="More about Confirm builds" aria-expanded="false">i</button></div>
+    host.innerHTML = `<div class="cm-h"><b id="cmLbl">Confirm builds</b><button type="button" class="cm-info" data-cm-info aria-label="More about Confirm builds" aria-expanded="false" title="What the three options do">How it works</button></div>
       <div class="seg cm-seg" role="radiogroup" aria-labelledby="cmLbl">${CONFIRM_MODES.map((m) => `<button type="button" role="radio" data-cm="${m}" aria-checked="${cur === m}" class="${cur === m ? "on" : ""}">${{ always: "Always", unsure: "When unsure", never: "Never" }[m]}</button>`).join("")}</div>
       <small class="st-note cm-line">${LINES[cur]}</small>
       <small class="st-note cm-more" hidden>Always: a tap shows the spot, Confirm builds it. When unsure: builds at once, but asks when a tap could mean two things (corner or road, road or ship; Seafarers coast corners). Never: every tap builds; Undo for 8 s.</small>`;

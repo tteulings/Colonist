@@ -75,3 +75,35 @@
 .bpg .hs-scroll { display: flex; flex-direction: column; gap: 10px; }
 .bpg .hs-scroll > * { flex: none; }
 .bpg-tabs button { display: flex; align-items: center; justify-content: center; text-align: center; }
+
+/* ---------- design system light: one card, one sheet, one switch / segmented control / slider ----------
+   Loaded last on purpose: it unifies the look across Settings, Menu, Home, Review, Past games and Bots. */
+.rv-card, .bpg-card, .hs-prog, .gs-card, .hm-card { background: var(--card-bg); background-image: var(--card-bg-image); border: var(--card-border); border-radius: var(--r-card); box-shadow: var(--card-shadow); }
+.tm-settings .st-card, .mn-card { background: var(--card-bg); background-image: var(--card-bg-image); box-shadow: 0 -10px 40px rgba(0,0,0,.22); }
+.tm-settings h2, .mn-head h2 { font-size: var(--fs-xl); }
+.tm-settings .st-h, .hm-card .hm-h { font-size: var(--fs-xs); letter-spacing: .08em; }
+.tm-settings .st-newgame { display: none; } /* New game lives on Home and in the Menu */
+/* segmented control */
+.tm-settings .seg, .tm-settings .cm-seg { background: var(--seg-bg); border: var(--seg-border); border-radius: var(--r-m); }
+.tm-settings .seg button, .tm-settings .cm-seg button { border-radius: var(--r-s); font-size: var(--fs-m); }
+html .tm-settings .seg button.on, html .tm-settings .cm-seg button.on { background: var(--card-bg); color: var(--heading); box-shadow: 0 1px 3px rgba(0,0,0,.14), inset 0 0 0 2px var(--accent); }
+/* switch (checkboxes in Settings and the Menu look like the st-switch) */
+.tm-settings input[type="checkbox"], .mn-live input[type="checkbox"] { -webkit-appearance: none; appearance: none; flex: none; position: relative; width: var(--switch-w); height: var(--switch-h); margin: 0; border-radius: var(--switch-h); background: var(--switch-off, color-mix(in srgb, var(--ink) 22%, transparent)); cursor: pointer; transition: background-color 160ms; }
+.tm-settings input[type="checkbox"]::after, .mn-live input[type="checkbox"]::after { content: ""; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: left 160ms; }
+.tm-settings input[type="checkbox"]:checked, .mn-live input[type="checkbox"]:checked { background: var(--accent); }
+.tm-settings input[type="checkbox"]:checked::after, .mn-live input[type="checkbox"]:checked::after { left: 21px; }
+.tm-settings input[type="checkbox"]:focus-visible, .mn-live input[type="checkbox"]:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.tm-settings .st-game input[type="checkbox"] { width: var(--switch-w); height: var(--switch-h); }
+.mn-live input[type="checkbox"] { width: var(--switch-w); height: var(--switch-h); }
+.tm-settings .settings-toggle-label:not(:has(small)) { flex-direction: row-reverse; justify-content: space-between; }
+/* slider */
+.tm-settings input[type="range"], .mn-speed input[type="range"] { -webkit-appearance: none; appearance: none; background: none; height: 28px; margin: 0; accent-color: var(--accent); }
+.tm-settings input[type="range"]::-webkit-slider-runnable-track, .mn-speed input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 18%, transparent); }
+.tm-settings input[type="range"]::-moz-range-track, .mn-speed input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 18%, transparent); }
+.tm-settings input[type="range"]::-moz-range-progress, .mn-speed input[type="range"]::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--accent); }
+.tm-settings input[type="range"]::-webkit-slider-thumb, .mn-speed input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -8px; border-radius: 50%; background: #fff; border: 2px solid var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.tm-settings input[type="range"]::-moz-range-thumb, .mn-speed input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--accent); }
+/* the (i) next to Confirm builds / Auto: a labelled pill, not a bare italic i */
+.tm-settings .cm-info, .tm-settings .pal-info { width: auto; height: auto; min-height: 24px; margin: 0 0 0 8px; padding: 2px 10px; border-radius: var(--r-pill); font: 600 var(--fs-s)/1.2 var(--font-body); font-style: normal; border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); color: var(--ink-soft); }
+/* chart labels keep a halo in the card colour, so a line or marker behind them never makes them unreadable */
+.bpg-svg text.b, .bpg-svg text.v { paint-order: stroke; stroke: var(--sheet); stroke-width: 3px; stroke-linejoin: round; }
