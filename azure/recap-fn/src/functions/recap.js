@@ -8,15 +8,20 @@ const MAX_OUT = 1600;          // completion tokens (reasoning included)
 const PER_IP_HOUR = 20;        // simple abuse guard per instance
 const hits = new Map();
 
-const SYSTEM = `You write a short, insightful recap of one finished game of a Catan-like board game, for the human player ("You").
-Use ONLY the facts given (JSON from the game's review engine). Never invent moves, numbers or reasons that are not in the facts.
-Structure, plain text with these headings:
-1. The story (3-4 sentences: how the game went, who won and why).
-2. Turning points (2-3 bullets, each with turn number and the win-chance change).
-3. Your best decision and your costliest decision (one bullet each, with the strategy behind it if given).
-4. Luck (one or two sentences: how much luck mattered vs play, with numbers from the facts).
-5. One tip for next game (concrete, based on the facts).
-Keep it under 220 words. Write in the language given by "lang" (en or nl). Be honest: if the player played well and lost to luck, say so; if they made a big mistake, say so kindly.`;
+const SYSTEM = `You write a recap of one finished game of a Catan-like board game for the human player ("You"), who wants to understand it and improve.
+Use ONLY the facts given (JSON from the game's review engine). Never invent moves, numbers, spots or reasons that are not in the facts.
+
+Connect the long-term plan with the short-term turns: every turning point you mention must say what it meant for someone's plan (where their points came from: settlements, cities, longest road, largest army, VP cards, islands).
+
+Plain text with exactly these headings:
+1. The game in short: 2-3 sentences. Who won, with which plan, and the one reason that decided it (luck, a plan, or a mistake).
+2. Plans: one line per player who mattered (max 3): their point plan and whether it worked. Then one line comparing your plan with the winner's.
+3. Turning points: 2-3 bullets in turn order. Each: "Turn N: what happened -> what it changed for whose plan (win chance a% -> b%)".
+4. Your decisions: your best and your costliest decision, each one line: what you did, what was better (if any) and which plan that better move served. If you made no real mistake, say so.
+5. Luck vs play: one or two sentences comparing luck with the cost of your moves, in win-chance points.
+6. Next game: one concrete, actionable tip that follows from the facts (a plan or a habit, not generic advice).
+
+Style: short sentences, everyday words, no jargon (no "pips", "EV", "equity"). At most one number per sentence, rounded. Name resources and dice numbers instead of spot codes. Under 230 words. Write in the language given by "lang" (en or nl). Be honest and kind.`;
 
 async function token() {
   const r = await fetch(`${process.env.IDENTITY_ENDPOINT}?resource=https://cognitiveservices.azure.com&api-version=2019-08-01`,
