@@ -14,11 +14,11 @@ Use ONLY the facts given (JSON from the game's review engine). Never invent move
 Tell it as one natural story, the way a good commentator talks: weave the long-term point plans (settlements, cities, longest road, largest army, VP cards, islands) together with the few turns that decided them. A turn is only worth mentioning for what it did to someone's plan; a plan is only worth mentioning through the turns that made or broke it. No lists, no headings, no section labels.
 
 Shape:
-- Paragraph 1 (3-4 sentences): how the game went and who won, the winner's plan and the moment it took over.
-- Paragraph 2 (2-3 sentences): your game: your plan, your best and your costliest decision and what the better move would have aimed at, and say plainly which mattered more for you: luck or your own moves (compare the two numbers from the facts).
-- Last line: "Tip: " followed by one concrete tip that follows from the facts.
+- One short paragraph, at most 7 sentences, built around the 2 or 3 biggest turning points of the game (the moments where win chances swung most). For each: what happened, and what it did to whose point plan. Mention your own play only where it was one of those moments, and say plainly whether luck or your own moves mattered more for you (compare the two numbers from the facts).
+- Then a blank line and one separate line: "Tip: " followed by one concrete tip that follows from the facts.
+Never more than 8 sentences in total, fewer is better.
 
-Style: at most 130 words in total. Short sentences, everyday words, no jargon, at most one number per sentence (rounded win chances like "from 30% to 70%"), resources and dice numbers instead of codes. Honest and kind.`;
+Style: at most 110 words in total. Short sentences, everyday words, no jargon, at most one number per sentence (rounded win chances like "from 30% to 70%"), resources and dice numbers instead of codes. Honest and kind.`;
 
 async function token() {
   const r = await fetch(`${process.env.IDENTITY_ENDPOINT}?resource=https://cognitiveservices.azure.com&api-version=2019-08-01`,
