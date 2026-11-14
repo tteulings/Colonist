@@ -1079,11 +1079,11 @@ export const ReviewGameMixin = {
       let res = "";
       if (w) {
         const oth = this.players.filter((q) => q !== w).map((q) => q.victoryPoints), mg = w === me ? me.victoryPoints - Math.max(0, ...oth) : w.victoryPoints - me.victoryPoints;
-        const pts = `${mg} ${mg === 1 ? "point" : "points"}`;
-        res = w === me ? `${nm} won${mg > 0 ? ` by ${pts}` : ""}` : `${nm} lost${mg > 0 ? ` by ${pts}` : ` on a tiebreak`}`;
+        // v1.69 score-style verdict ("Blaauw won 10–9"), not "lost by 1 point"
+        res = w === me ? `${nm} won ${me.victoryPoints}–${Math.max(0, ...oth)}` : `${w.name} won ${w.victoryPoints}–${me.victoryPoints}${mg > 0 ? "" : " on a tiebreak"}`;
       } else res = `${nm} finished with ${me?.victoryPoints ?? 0} points`;
       const won = w === me, t = [...sw].sort((p, q) => (won ? q.d - p.d : p.d - q.d))[0];
-      line = `${res}${t ? `: ${t.say} on ${this._rvTW().toLowerCase()} ${t.T} (${you ? "your" : "their"} win chance ${Math.round(t.b * 100)}% → ${Math.round(t.e * 100)}%)` : ""}.`;
+      line = `${res}${t ? `. ${won ? "Turning point" : "Decided"} on ${this._rvTW().toLowerCase()} ${t.T}: ${t.say} (${you ? "your" : "their"} win chance ${Math.round(t.b * 100)}% → ${Math.round(t.e * 100)}%)` : ""}.`;
     }
     let sub = "";
     if (W) sub = `Luck ${wpText(W.luck)}${W.moves != null ? ` · ${you ? "your" : "their"} moves ${wpText(W.moves)}` : ""} (win chance)`;
