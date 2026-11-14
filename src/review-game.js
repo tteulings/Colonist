@@ -931,6 +931,7 @@ export const ReviewGameMixin = {
     this._raBind?.(el);
     this._rcBind?.(el);
     this._rvBindTable(el);
+    this._rvBindMoves(el);
     el.querySelectorAll("[data-rvt]").forEach((b) => b.addEventListener("click", () => { if (this._rvTab !== b.dataset.rvt || b.dataset.rvpp) { this._rvTab = b.dataset.rvt; this._rvDrawReview(); } }));
     el.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = b.dataset.rvq || "all"; this._rvEnterStep(+b.dataset.rvj); }));
     this._rvBindSbs(el);
@@ -1002,22 +1003,26 @@ export const ReviewGameMixin = {
     const prov = cols.some((c) => c.s.sum?.acc != null && !c.s.done);
     const row = (label, f) => `<span class="sbs-l">${label}</span>${cols.map((c) => cell(c, f(c))).join("")}`;
     const head = `<span class="sbs-l"></span>${cols.map((c) => `<button type="button" class="sbs-c sbs-h pc-${c.p.id}${c.p.id === this._rvPid ? " cur" : ""}" data-rvcol="${c.p.id}" aria-label="${esc(this._rvNm(c.p.id))}: ${this._rvTodo(c.p.id).length ? "show" : "no"} review" aria-pressed="${c.p.id === this._rvPid}">${this._av(c.p, "rt-av")}<small>${this._rvIsYou(c.p.id) ? "You" : esc(c.p.name)}</small></button>`).join("")}`;
-    const body = [row("Points", (c) => `<b class="big">${c.p.victoryPoints}</b>`), row("Accuracy", accOf),
-      row("Win chance lost by moves", (c) => (c.moves != null ? `<b class="${c.moves < 0 ? "neg" : ""}">${sgn(c.moves)}%</b>` : `<span class="rt-st">–</span>`)), row("Luck (dice, steals, cards)", lkOf),
-      ...cls.map((k) => row(`${badge(k, "sm")}${k === "missed" ? "Missed" : CLS[k][0]}`, (c) => { const v = c.s.sum?.cls?.[k]; return v == null ? `<span class="rt-st">–</span>` : `<b class="${v ? "" : "zero"}">${v}</b>`; }))].join("");
-    return `<section class="rv-card sbs-card" data-rvsbs-card><div class="rv-gt"><b>Players side by side</b><small>${n > 4 ? "swipe, " : ""}tap a player for their page</small></div><div class="sbs-w"><div class="sbs" data-rvsbs style="--n:${n}">${head}${body}</div></div>${prov ? `<p class="rt-foot">* first look: the deep check is still running.</p>` : ""}</section>`;
+    const all = !!this._rvSbsAll;
+    const core = [row("Points", (c) => `<b class="big">${c.p.victoryPoints}</b>`), row("Accuracy", accOf), row("Luck (dice, steals, cards)", lkOf),
+      row("Win chance lost by moves", (c) => (c.moves != null ? `<b class="${c.moves < 0 ? "neg" : ""}">${sgn(c.moves)}%</b>` : `<span class="rt-st">–</span>`))];
+    const more = cls.map((k) => row(`${badge(k, "sm")}${k === "missed" ? "Missed" : CLS[k][0]}`, (c) => { const v = c.s.sum?.cls?.[k]; return v == null ? `<span class="rt-st">–</span>` : `<b class="${v ? "" : "zero"}">${v}</b>`; }));
+    const body = (all ? [...core, ...more] : core).join("");
+    return `<section class="rv-card sbs-card" data-rvsbs-card><div class="rv-gt"><b>Players side by side</b><small>${n > 4 ? "swipe, " : ""}tap a player for their page</small></div><div class="sbs-w"><div class="sbs" data-rvsbs style="--n:${n}">${head}${body}</div></div><button type="button" class="sbs-more" data-rvsbsall aria-expanded="${all}">${all ? "Show fewer rows" : "Show all rows (move classes)"}</button>${prov ? `<p class="rt-foot">* first look: the deep check is still running.</p>` : ""}</section>`;
   },
   /** Overview: "Why won / lost" for a chosen player (chips), under the side-by-side table. */
-  _rvWhyCard() {
+  _rvWhyCard({ head = true } = {}) {
     const LK = this._lkState();
     if (LK.na) return "";
     const pid = this._rvWhyP != null && this.players[this._rvWhyP] ? this._rvWhyP : this._rvPid;
     const chips = this.players.map((p) => `<button type="button" class="pc-${p.id}${p.id === pid ? " on" : ""}" data-rvwhy2="${p.id}" aria-pressed="${p.id === pid}">${this._av(p, "rt-av")}<span>${this._rvNm(p.id)}</span></button>`).join("");
     const info = `<button type="button" class="lk-ib" data-rvwhy-i aria-expanded="false" aria-label="What do these bars mean?">${IC.info}</button>`;
-    const txt = `<p class="lk-it" data-rvwhy-t hidden><b>Set-up</b>: the starting position. <b>Luck</b>: rolls, steals, card draws and seat order against what was expected (the table's Luck). <b>Own moves</b>: what their choices cost against the best move each time (the Moves cost row above). <b>The others</b>: what the other players' luck and moves did to them, plus what the estimates cannot tell apart.</p>`;
-    return `<section class="rv-card rvx why-card" data-rvwhy>${this._rcLead?.() || ""}<div class="rv-gt"><b>Why ${this._rvWhyBars(pid)?.end === 1 ? "won" : "lost"}</b><span>${info}</span></div>${txt}<div class="lkd-seg" role="group" aria-label="Whose">${chips}</div>${this._rvWhyHtml(pid)}${this._rcLuckPlay?.() || ""}</section>`;
+    const txt = `<p class="lk-it" data-rvwhy-t hidden><b>Set-up</b>: the starting position. <b>Luck</b>: rolls, steals, card draws and seat order against what was expected (the table's Luck). <b>Own moves</b>: what their choices cost against the best move each time (the Win chance lost by moves row in the table). <b>The others</b>: what the other players' luck and moves did to them, plus what the estimates cannot tell apart.</p>`;
+    return `<section class="rv-card rvx why-card" data-rvwhy>${this._rcLead?.({ head }) || ""}<div class="rv-gt"><b>Why ${this._rvWhyBars(pid)?.end === 1 ? "won" : "lost"}</b><span>${info}</span></div>${txt}<div class="lkd-seg" role="group" aria-label="Whose">${chips}</div>${this._rvWhyHtml(pid)}${this._rcLuckPlay?.() || ""}</section>`;
   },
   _rvBindSbs(root) {
+    root.querySelector("[data-rvsbsall]")?.addEventListener("click", () => { this._rvSbsAll = !this._rvSbsAll; this._rvDrawReview(); });
+    root.querySelector("[data-vdall]")?.addEventListener("click", (e) => { this._rvKmOpen = !this._rvKmOpen; const r = root.querySelector("[data-vdrest]"); if (r) r.hidden = !this._rvKmOpen; e.currentTarget.setAttribute("aria-expanded", String(!!this._rvKmOpen)); });
     root.querySelectorAll("[data-rvwhy2]").forEach((b) => b.addEventListener("click", () => { this._rvWhyP = +b.dataset.rvwhy2; this._rvDrawReview(); }));
     root.querySelector("[data-rvwhy-i]")?.addEventListener("click", (e) => { const t = root.querySelector("[data-rvwhy-t]"); t.hidden = !t.hidden; e.currentTarget.setAttribute("aria-expanded", String(!t.hidden)); });
     root.querySelectorAll("[data-rvcol]").forEach((b) => b.addEventListener("click", () => { const pid = +b.dataset.rvcol; this._rvOpenReview(pid, { tab: "player" }); }));
@@ -1033,6 +1038,42 @@ export const ReviewGameMixin = {
     c.replaceWith(n); n.querySelector(".sbs-w").scrollLeft = sc;
     this._rvBindTable(n); this._rvBindSbs(n);
   },
+  /** v1.68 the verdict first: one sentence (the AI headline, else built from the engine's data), the 3 biggest moments, then "All key moments". */
+  _rvVerdictHtml(ds, rv, all, mineAll, othAll) {
+    const pid = this._rvPid, you = this._rvIsYou(pid), me = this.players[pid], nm = you ? "You" : esc(me?.name || ""), w = this.winner;
+    const top = all.slice(0, 3), topIds = new Set(top.map((x) => x.i));
+    const ai = this._rcHeadline?.() || "";
+    let line = ai, sub = "";
+    const W = this._rvWhyBars(pid);
+    if (!line) {
+      let res = "";
+      if (w) {
+        const oth = this.players.filter((q) => q !== w).map((q) => q.victoryPoints), mg = w === me ? me.victoryPoints - Math.max(0, ...oth) : w.victoryPoints - me.victoryPoints;
+        const pts = `${mg} ${mg === 1 ? "point" : "points"}`;
+        res = w === me ? `${nm} won${mg > 0 ? ` by ${pts}` : ""}` : `${nm} lost${mg > 0 ? ` by ${pts}` : ` on a tiebreak`}`;
+      } else res = `${nm} finished with ${me?.victoryPoints ?? 0} points`;
+      const won = w === me, t = all.find((x) => x.when !== "Setup" && (won ? x.v > 0 : x.v < 0)) || all.find((x) => x.when !== "Setup") || all[0];
+      let why = "";
+      if (t) {
+        const when = t.when.toLowerCase().replace(/^setup$/, "set-up");
+        why = t.own ? `${you ? "your" : "their"} biggest slip was on ${when}: ${esc(t.say)} (${t.pc}%)` : `the biggest swing was on ${when}: ${esc(t.say.charAt(0).toLowerCase() + t.say.slice(1))} (${t.pc}%)`;
+      }
+      line = `${res}${why ? `: ${why}` : ""}.`;
+    }
+    if (W) sub = `Win chance: luck ${wpText(W.luck)}${W.moves != null ? `, ${you ? "your" : "their"} moves ${wpText(W.moves)}` : ""}.`;
+    else { const T = this._rvT; if (T && T.moves != null) sub = `${you ? "Your" : "Their"} moves cost ${Math.abs(Math.round(T.moves))}% win chance.`; }
+    const rows = top.map((x) => x.h);
+    const used = new Set();
+    const topH = this._rcMergeKeys?.(top, { extra: false, used }) ?? rows.join("");
+    const f = ["you", "oth"].includes(this._rvKm) ? this._rvKm : "all";
+    const src = f === "you" ? mineAll : f === "oth" ? othAll : all;
+    const rest = src.filter((x) => !topIds.has(x.i));
+    const restH = this._rcMergeKeys?.(rest, { extra: f === "all", used }) ?? rest.map((x) => x.h).join("");
+    const seg = [["all", "All"], ["you", you ? "You" : esc(me?.name || "")], ["oth", "Others"]].map(([k, l]) => `<button type="button" class="${k === f ? "on" : ""}" aria-pressed="${k === f}" data-rvkm="${k}">${l}</button>`).join("");
+    const restAll = all.filter((x) => !topIds.has(x.i)), open = !!this._rvKmOpen && !!(restH || restAll.length);
+    const total = all.length;
+    return `<section class="rv-card vd-card" data-rvverdict><p class="vd-line">${line}</p>${sub ? `<p class="vd-sub">${sub}</p>` : ""}<div class="rv-gt vd-gt"><b>Key moments</b><small>tap one to see it on the board</small></div><div class="vd-rows">${topH || `<p class="rs-lost">No clear mistake or big swing.</p>`}</div>${restH || restAll.length ? `<button type="button" class="rc-link vd-all" data-vdall aria-expanded="${open}">All key moments (${Math.max(total, top.length)})</button><div data-vdrest${open ? "" : " hidden"}><div class="km-seg" role="group" aria-label="Whose moments">${seg}</div>${restH || `<p class="rs-lost">None more here.</p>`}</div>` : ""}</section>`;
+  },
   _rvTabOverview(ds, rv, prov) {
     const pid = this._rvPid, you = this._rvIsYou(pid), nm = esc(this.players[pid]?.name || "");
     const hist = !prov ? this._rvLogGame(pid) : this._rvHistory();
@@ -1041,16 +1082,14 @@ export const ReviewGameMixin = {
     const cmpText = lv ? (lv.band ? `${lv.label} bots usually score ${Math.round(lv.band[0])} ± ${Math.round(lv.band[1])} on their own moves${prov ? " (the deep check)" : ""}.` : "") : prov ? "" : rv.midCheck ? `Checked during the game · not in your average. ${cmp.text}` : cmp.text;
     const sg = (v) => sgn(v * 100), ico = IC.next.replace("<svg", '<svg class="chev"');
     const imp = this._rvImp(ds);
-    const mine = imp.slice(0, 5).map((d) => ({ T: this._rcTurnOf?.(d), P: pid, m: d.gap * 100, h: `<button type="button" class="rs-key rs-imp" data-rvj="${d.i}" data-rvq="imp">${badge(d.cls)}<span class="t">${this._rvWhen(d)}</span><span class="x">${esc(this._rvTerse(d))}${d.x.why?.head ? `<small class="w">${esc(d.x.why.head)}</small>` : ""}</span><b class="neg">${sg(-d.gap)}%</b>${ico}</button>` }));
-    const swings = ds.filter((d, k) => Math.abs(d.cp) >= 3 && !(k && (ds[k - 1].x.s ?? 0) === (d.x.s ?? 0))).sort((a, b) => Math.abs(b.cp) - Math.abs(a.cp)).slice(0, 3);
-    const oth = swings.map((lk) => ({ T: this._rcTurnOf?.(lk), P: this._rvRollActor(ds, ds.indexOf(lk)), m: Math.abs(lk.chance) * 100, h: `<button type="button" class="rs-key" data-rvj="${lk.i}"><i class="rs-b c-luck sm" aria-hidden="true">⚄</i><span class="t">${this._rvWhen(lk)}</span><span class="x">${esc(this._rvCause(ds, ds.indexOf(lk)))}</span><b class="${lk.cp >= 0 ? "pos" : "neg"}">${sg(lk.chance)}%</b>${ico}</button>` }));
-    const f = ["you", "oth"].includes(this._rvKm) ? this._rvKm : "all";
-    const list = f === "you" ? mine : f === "oth" ? oth : [...mine, ...oth].sort((a, b) => b.m - a.m).slice(0, 5);
-    const seg = [["all", "All"], ["you", you ? "You" : nm], ["oth", "Others"]].map(([k, l]) => `<button type="button" class="${k === f ? "on" : ""}" aria-pressed="${k === f}" data-rvkm="${k}">${l}</button>`).join("");
+    const mine = imp.slice(0, 8).map((d) => ({ i: d.i, own: true, v: -d.gap * 100, T: this._rcTurnOf?.(d), P: pid, m: d.gap * 100, when: this._rvWhen(d), say: this._rvTerse(d), pc: sg(-d.gap), h: `<button type="button" class="rs-key rs-imp" data-rvj="${d.i}" data-rvq="imp">${badge(d.cls)}<span class="t">${this._rvWhen(d)}</span><span class="x">${esc(this._rvTerse(d))}${d.x.why?.head ? `<small class="w">${esc(d.x.why.head)}</small>` : ""}</span><b class="neg">${sg(-d.gap)}%</b>${ico}</button>` }));
+    const swings = ds.filter((d, k) => Math.abs(d.cp) >= 3 && !(k && (ds[k - 1].x.s ?? 0) === (d.x.s ?? 0))).sort((a, b) => Math.abs(b.cp) - Math.abs(a.cp)).slice(0, 5);
+    const oth = swings.map((lk) => ({ i: lk.i, v: lk.chance * 100, T: this._rcTurnOf?.(lk), P: this._rvRollActor(ds, ds.indexOf(lk)), m: Math.abs(lk.chance) * 100, when: this._rvWhen(lk), say: this._rvCause(ds, ds.indexOf(lk)), pc: sg(lk.chance), h: `<button type="button" class="rs-key" data-rvj="${lk.i}"><i class="rs-b c-luck sm" aria-hidden="true">⚄</i><span class="t">${this._rvWhen(lk)}</span><span class="x">${esc(this._rvCause(ds, ds.indexOf(lk)))}</span><b class="${lk.cp >= 0 ? "pos" : "neg"}">${sg(lk.chance)}%</b>${ico}</button>` }));
+    const seen = new Set(), all = [...mine, ...oth].sort((a, b) => b.m - a.m).filter((x) => (seen.has(x.i) ? false : (seen.add(x.i), true)));
     const sum = summarize(rv.results);
-    const html = `<section class="rv-card rs-sum">${this._rvStrip(sum.acc, cmp, false, prov)}${cmpText ? `<p class="rv-cmpline rvt-cmp">${esc(cmpText)}${cmp.m != null ? ` <span class="rv-keyme">▮ this game</span> <span class="rv-keyavg">● your average</span>` : ""}</p>` : ""}</section>${this._rvSbsHtml()}${this._rvWhyCard() || this._rcHead?.() || ""}
-      <section class="rv-card rs-keys rs-better"><div class="rv-gt"><b>Key moments</b><div class="km-seg" role="group" aria-label="Whose moments">${seg}</div></div><p class="km-cap">${f === "you" ? `${you ? "Your" : `${nm}’s`} own moves, biggest gap first` : f === "oth" ? `Dice and the others, biggest swing in ${you ? "your" : "their"} win chance` : "The biggest moments, moves and swings together"}</p>${list.length ? niceWords(this._rcMergeKeys?.(list, { extra: f === "all" }) ?? list.map((x) => x.h).join("")) : `<p class="rs-lost">${f === "oth" ? "No big swing from the dice or the others." : `No clear mistake in ${you ? "your" : "their"} moves.`}</p>`}</section>`;
-    return { html, bind: (el) => el.querySelectorAll("[data-rvkm]").forEach((b) => b.addEventListener("click", () => { this._rvKm = b.dataset.rvkm; this._rvDrawReview(); })) };
+    const strip = `<section class="rv-card rs-sum">${this._rvStrip(sum.acc, cmp, false, prov)}${cmpText ? `<p class="rv-cmpline rvt-cmp">${esc(cmpText)}${cmp.m != null ? ` <span class="rv-keyme">▮ this game</span> <span class="rv-keyavg">● your average</span>` : ""}</p>` : ""}</section>`;
+    const html = `${this._rvVerdictHtml(ds, rv, all, mine, oth)}${this._rvWhyCard({ head: !this._rcHeadline?.() }) || this._rcHead?.() || ""}${this._rvSbsHtml()}${strip}`;
+    return { html, bind: (el) => el.querySelectorAll("[data-rvkm]").forEach((b) => b.addEventListener("click", () => { this._rvKm = b.dataset.rvkm; this._rvKmOpen = true; this._rvDrawReview(); })) };
   },
 
   // Win chance
@@ -1246,14 +1285,24 @@ export const ReviewGameMixin = {
   },
 
   // Moves
+  /** v1.68 the move list as compact rows (44px touch targets): turn in words, the verdict word with its icon and colour, the move, the cost.
+   *  "Mistakes" (could be better and worse) is the default; the choice is remembered. */
+  _rvMovesCard(ds, you, nm) {
+    let f = "mistakes"; try { f = localStorage.getItem("colonist_review_moves") === "all" ? "all" : "mistakes"; } catch (_) { /* private mode */ }
+    const bad = new Set(["could", "mistake", "blunder", "missed"]), list = f === "all" ? ds : ds.filter((d) => bad.has(d.cls));
+    const sg = (v) => sgn(v * 100), tw = this._rvTW();
+    const rows = list.map((d) => `<button type="button" class="mv-r c-${d.cls}" data-rvj="${d.i}" data-rvq="all"><span class="mv-t">${d.k === "setup" ? "Set-up" : `${tw} ${d.t}`}</span><span class="mv-m"><b class="mv-v">${badge(d.cls, "sm")}${d.cls === "missed" ? "Missed" : CLS[d.cls][0]}</b><span class="mv-w">${esc(this._rvShort(d))}</span></span><em class="mv-c">${d.gap >= 0.01 ? `${sg(-d.gap)}%` : ""}</em></button>`).join("");
+    const seg = [["mistakes", "Mistakes"], ["all", "All"]].map(([k, l]) => `<button type="button" class="${k === f ? "on" : ""}" aria-pressed="${k === f}" data-rvmf="${k}">${l}</button>`).join("");
+    return `<section class="rv-card mv-card"><div class="rv-gt"><b>${you ? "Your" : `${nm}’s`} moves</b><div class="km-seg mv-seg" role="group" aria-label="Which moves">${seg}</div></div>${rows || `<p class="rs-lost">No mistakes in ${you ? "your" : "their"} moves. Switch to All to see every move.</p>`}</section>`;
+  },
+  _rvBindMoves(root) {
+    root.querySelectorAll("[data-rvmf]").forEach((b) => b.addEventListener("click", () => { try { localStorage.setItem("colonist_review_moves", b.dataset.rvmf); } catch (_) { /* private mode */ } this._rvDrawReview(); }));
+  },
   _rvTabMoves(ds, res, rv) {
     const pid = this._rvPid, you = this._rvIsYou(pid), nm = esc(this.players[pid]?.name || ""), sum = summarize(rv.results), T = this._rvT || this._rvTotals(ds), imp = this._rvImp(ds), first = imp.length ? imp[0].i : ds[0]?.i;
     const sg = (v) => sgn(v * 100);
-    const groups = [];
-    ds.forEach((d) => { const key2 = d.k === "setup" ? "Setup" : `${this._rvTW()} ${d.t}`; let g = groups[groups.length - 1]; if (!g || g.key !== key2) groups.push((g = { key: key2, items: [] })); g.items.push(d); });
-    const rows = groups.map((g) => `<div class="rs-trow"><span class="t">${g.key === "Setup" ? "Setup" : g.key.replace(/^(Turn|Roll) /, this.isRush() ? "R" : "T")}</span><div>${g.items.map((d) => `<button type="button" class="rs-mv c-${d.cls}" data-rvj="${d.i}" data-rvq="all"${d.cls === "triv" ? ' aria-label="No real choice"' : ""}>${badge(d.cls, "sm")}<span>${esc(this._rvShort(d))}</span>${d.gap >= 0.01 ? `<small>${sg(-d.gap)}</small>` : ""}</button>`).join("")}</div></div>`).join("");
     const html = `${ds.length ? `<button type="button" class="rv-btn pri rs-go" data-rvj="${first}" data-rvq="${imp.length ? "imp" : "all"}" data-rvfirst>${IC.step}Step through ${you ? "your" : `${nm}’s`} moves${imp.length ? ` · ${imp.length} to look at` : ""}</button>` : ""}
-      <section class="rv-card"><div class="rv-gt"><b>All ${you ? "your" : `${nm}’s`} moves</b><small>tap to step</small></div>${sum.lost != null ? `<p class="rs-lost">${sum.n} ${sum.n === 1 ? "move" : "moves"} that mattered · about ${sum.lost}% win chance lost per move${T.capped ? ` · ${you ? "your" : "the"} moves are capped at the ${T.cap}% ${you ? "you" : "they"} could have had` : ""}</p>` : ""}${rows}</section>`;
+      ${sum.lost != null ? `<section class="rv-card"><p class="rs-lost">${sum.n} ${sum.n === 1 ? "move" : "moves"} that mattered · about ${sum.lost}% win chance lost per move${T.capped ? ` · ${you ? "your" : "the"} moves are capped at the ${T.cap}% ${you ? "you" : "they"} could have had` : ""}</p></section>` : ""}${this._rvMovesCard(ds, you, nm)}`;
     return { html };
   },
   _rvOverviewMid(ds, res, rv) {
@@ -1274,9 +1323,6 @@ export const ReviewGameMixin = {
     const swings = ds.filter((d, k) => Math.abs(d.cp) >= 3 && !(k && (ds[k - 1].x.s ?? 0) === (d.x.s ?? 0))).sort((a, b) => Math.abs(b.cp) - Math.abs(a.cp)).slice(0, 3);
     const key = swings.map((lk) => `<button type="button" class="rs-key" data-rvj="${lk.i}"><i class="rs-b c-luck sm" aria-hidden="true">⚄</i><span class="t">${this._rvWhen(lk)}</span><span class="x">${esc(this._rvCause(ds, ds.indexOf(lk)))}</span><b class="${lk.cp >= 0 ? "pos" : "neg"}">${sg(lk.chance)}%</b>${ico}</button>`).join("");
     const tile = tileOf(luck);
-    const groups = [];
-    ds.forEach((d) => { const key2 = d.k === "setup" ? "Setup" : `${this._rvTW()} ${d.t}`; let g = groups[groups.length - 1]; if (!g || g.key !== key2) groups.push((g = { key: key2, items: [] })); g.items.push(d); });
-    const rows = groups.map((g) => `<div class="rs-trow"><span class="t">${g.key === "Setup" ? "Setup" : g.key.replace(/^(Turn|Roll) /, this.isRush() ? "R" : "T")}</span><div>${g.items.map((d) => `<button type="button" class="rs-mv c-${d.cls}" data-rvj="${d.i}" data-rvq="all"${d.cls === "triv" ? ' aria-label="No real choice"' : ""}>${badge(d.cls, "sm")}<span>${esc(this._rvShort(d))}</span>${d.gap >= 0.01 ? `<small>${sg(-d.gap)}</small>` : ""}</button>`).join("")}</div></div>`).join("");
     const first = imp.length ? imp[0].i : ds[0]?.i;
     const scroll = el.querySelector(".rv-scroll")?.scrollTop || 0;
     el.className = "rv rs tm";
@@ -1299,7 +1345,7 @@ export const ReviewGameMixin = {
         ${this._rvTableHtml(pid, pid) || this._rvLuckCard(luck, pid)}
         ${key ? `<section class="rv-card rs-keys rs-swings"><div class="rv-gt"><b>${swings.length} biggest swings</b><small>win chance, from dice and the others</small></div>${key}</section>` : ""}
         ${ds.length ? `<section class="rv-card rs-wcard"><div class="rv-gt"><b>Win chance</b><small>${you ? "you" : nm} thick · bars: dice and others <i class="kl"></i> ${you ? "your" : "their"} moves <i class="ks"></i></small></div>${this._rvChart(ds)}</section>` : ""}
-        <section class="rv-card"><div class="rv-gt"><b>All ${you ? "your" : `${nm}’s`} moves</b><small>tap to step</small></div>${rows}</section>
+        ${this._rvMovesCard(ds, you, nm)}
         ${mid ? "" : this._raBox?.() || ""}
 
       </div>`;
@@ -1308,6 +1354,7 @@ export const ReviewGameMixin = {
     this._rvBindTop(el);
     this._raBind?.(el);
     this._rvBindTable(el);
+    this._rvBindMoves(el);
     el.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = b.dataset.rvq || "all"; this._rvDrawReview(+b.dataset.rvj); }));
   },
   /** The dice luck of everyone at the table, yours first with the numbers behind it, and the one honest sentence. */

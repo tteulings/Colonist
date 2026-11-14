@@ -100,20 +100,22 @@ export const ReviewRecapMixin = {
    *  moments (_rcMergeKeys), the luck-or-play verdict next to the luck summary (_rcLuckPlay), the lesson at the end (_rcBox). */
   _rcOk() { return !!this.winner && !this._rvMid && !!this._rv; },
   /** The lead of the Overview's Why card: label + Regenerate, the headline full width, a small footer (or the button / spinner / error). */
-  _rcLead() {
+  _rcLead({ head = true } = {}) {
     if (!this._rcOk()) return "";
     const lang = recapLang(), t = T[lang], S = this._rcSaved(), U = this._rcUi, mine = U?.pid === this._rvPid;
     if (mine && U.loading) return `<div class="rc-lead" role="status" aria-live="polite"><p class="rc-wait"><i class="rc-spin" aria-hidden="true"></i>${t.wait}</p></div>`;
     const err = mine && U.err ? `<p class="rc-err" role="alert">${esc(t[U.err] || t.fail)}</p>` : "";
     if (S) {
       const rl = T[S.lang] ? S.lang : lang, h = S.recap?.headline;
-      return `<div class="rc-lead"><div class="rc-lh2"><small>${T[rl].title}</small>${this._rcOnline() ? `<button type="button" class="rc-link" data-rcgo>${t.regen}</button>` : ""}</div>${err}${h ? `<p class="rc-head" lang="${rl}"><b>${inline(h)}</b></p>` : `<div class="rc-text" lang="${rl}">${recapHtml(S.text)}</div>`}<p class="rc-foot">${T[rl].foot}</p></div>`;
+      return `<div class="rc-lead"><div class="rc-lh2"><small>${T[rl].title}</small>${this._rcOnline() ? `<button type="button" class="rc-link" data-rcgo>${t.regen}</button>` : ""}</div>${err}${h ? (head ? `<p class="rc-head" lang="${rl}"><b>${inline(h)}</b></p>` : "") : `<div class="rc-text" lang="${rl}">${recapHtml(S.text)}</div>`}<p class="rc-foot">${T[rl].foot}</p></div>`;
     }
     if (!this._rcOnline() && !err) return "";
     return `<div class="rc-lead">${err}${this._rcOnline() ? `<button type="button" class="rv-btn rc-btn" data-rcgo>${t.btn}</button>` : ""}</div>`;
   },
+  /** The saved AI headline as html ("" when there is none): the Overview's verdict card shows it first. */
+  _rcHeadline() { const S = this._rcSaved(); return this._rcOk() && S?.recap?.headline ? `<span lang="${T[S.lang] ? S.lang : recapLang()}">${inline(S.recap.headline)}</span>` : ""; },
   /** Standalone fallback when the Overview has no Why card (no luck analysis). */
-  _rcHead() { const l = this._rcLead(); return l ? `<section class="rv-card rc-card rc-top">${l}</section>` : ""; },
+  _rcHead() { const l = this._rcLead({ head: !this._rcHeadline() }); return l ? `<section class="rv-card rc-card rc-top">${l}</section>` : ""; },
   /** Luck or play, next to the luck summary (hidden when the recap says "none" or has none). */
   _rcLuckPlay() {
     const S = this._rcSaved(), lp = S?.recap?.luckOrPlay; if (!this._rcOk() || !lp || lp.verdict === "none" || !lp.text) return "";
@@ -123,9 +125,9 @@ export const ReviewRecapMixin = {
   },
   /** The merged key moments: rows = [{ T, m, h }] (engine rows, by size). Each gets the AI title + text of its turn and a Why?; AI turning
    *  points with no engine row are added in turn order with an AI marker. Returns the html list, or null when there is no recap. */
-  _rcMergeKeys(rows, { extra = true } = {}) {
+  _rcMergeKeys(rows, { extra = true, used = new Set() } = {}) {
     const S = this._rcSaved(), tps = S?.recap?.turningPoints; if (!this._rcOk() || !tps?.length) return null;
-    const t = T[T[S.lang] ? S.lang : recapLang()], used = new Set(), ico = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const t = T[T[S.lang] ? S.lang : recapLang()], ico = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     const block = (tp) => { const q = this._rcSeat(tp.player), on = this._rcOnline(); return `<div class="rc-km"><b class="rc-ti">${esc(tp.title)}</b><p class="rc-tx" data-rcx tabindex="0" role="button" aria-expanded="false">${inline(tp.text)}</p>${isNum(tp.turn) && on ? `<button type="button" class="rv-btn rc-why" data-rcwhy="${tp.turn}" data-rcq="${q ?? ""}" aria-label="${esc(t.whyL)}: ${esc(t.turn)} ${esc(tp.turn)}"><i aria-hidden="true">?</i>${t.why}</button>` : ""}</div>`; };
     const out = rows.map((r) => {
       const tp = r.T != null ? tps.find((x) => x.turn === r.T && !used.has(x) && (r.P == null || this._rcSeat(x.player) == null || this._rcSeat(x.player) === r.P)) : null;

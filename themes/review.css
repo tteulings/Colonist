@@ -706,3 +706,15 @@
 .rs-wc span em { display: none; font-style: normal; overflow: hidden; text-overflow: ellipsis; max-width: 70px; }
 .rs-wc span.me em, .rs-wc.open span em { display: inline; }
 .rs-wc b { margin-left: 0; padding-left: 2px; }
+
+/* v1.68 verdict first, collapsed table, move rows */
+.vd-card { padding-bottom: 6px; } .vd-line { margin: 0 0 4px; font: 750 14.5px/1.35 var(--font-body); color: var(--heading); } .vd-sub { margin: 0 0 6px; font: 600 12px/1.3 var(--font-body); color: var(--ink-soft); }
+.vd-gt { margin-top: 6px; } .vd-all { display: block; min-height: 44px; width: 100%; text-align: left; padding: 0 2px; border-top: 1px solid var(--rv-sep); } [data-vdrest] { padding-top: 4px; } [data-vdrest][hidden] { display: none; }
+.vd-card .rs-key { grid-template-columns: 20px 52px minmax(0, 1fr) auto 14px; }
+.sbs-more { display: block; width: 100%; min-height: 44px; margin-top: 2px; border: 0; border-top: 1px solid var(--rv-sep); background: none; color: var(--primary); font: 700 12.5px var(--font-body); cursor: pointer; }
+.mv-card { padding-bottom: 6px; } .mv-seg button { min-height: 40px; }
+.mv-r { width: 100%; min-height: 44px; display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 8px; align-items: center; border: 0; border-top: 1px solid var(--rv-sep); border-left: 3px solid var(--cc, transparent); background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; padding: 3px 2px 3px 7px; }
+.mv-r .mv-t { font: 800 12px/1.15 var(--font-body); color: var(--ink-soft); } .mv-m { display: flex; flex-direction: column; min-width: 0; }
+.mv-v { display: flex; align-items: center; gap: 5px; font: 800 12.5px/1.2 var(--font-body); color: var(--cc, var(--ink)); } .mv-w { font: 600 12.5px/1.25 var(--font-body); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mv-c { font: 800 13px var(--font-body); font-style: normal; color: var(--neg); } .mv-r.c-triv { opacity: .7; }
+.vd-card .rs-key .x { white-space: normal; line-height: 1.2; }
