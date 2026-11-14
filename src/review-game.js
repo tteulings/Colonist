@@ -911,11 +911,12 @@ export const ReviewGameMixin = {
     el.className = "rv rs tm";
     const pop0 = el.querySelector(".rv-pop"); // an open progress card stays open through the redraw
     el.innerHTML = `${tab === "player" ? part.bar : this._rvBar(`${ds.length} decisions · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`, { overview: "Overview", win: "Win chance", luck: "Luck", moves: "Moves" }[tab])}${tab === "player" ? "" : this._rvTabsBar(tab)}
-      <div class="rv-scroll">${part.html}${tab === "overview" ? this._raBox?.() || "" : ""}</div>`;
+      <div class="rv-scroll">${part.html}${tab === "overview" ? (this._rcBox?.() || "") + (this._raBox?.() || "") : ""}</div>`;
     el.querySelector(".rv-scroll").scrollTop = scroll;
     if (pop0) el.appendChild(pop0);
     this._rvBindTop(el);
     this._raBind?.(el);
+    this._rcBind?.(el);
     this._rvBindTable(el);
     el.querySelectorAll("[data-rvt]").forEach((b) => b.addEventListener("click", () => { if (this._rvTab !== b.dataset.rvt || b.dataset.rvpp) { this._rvTab = b.dataset.rvt; this._rvDrawReview(); } }));
     el.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = b.dataset.rvq || "all"; this._rvEnterStep(+b.dataset.rvj); }));

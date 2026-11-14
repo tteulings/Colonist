@@ -21,6 +21,7 @@ import { NavMixin } from "./nav.js"; // v1.26 Back gesture: history entries foll
 import { ReviewGameMixin, installReviewGame } from "./review-game.js"; // v1.03 … the Game review (Monte Carlo accuracy)
 import { ReviewTurnMixin } from "./review-turn.js"; // v1.56 step mode by turn
 import { ReviewLuckMixin } from "./review-luck.js"; // v1.31 … luck in win chance (every roll, steal and card draw replayed)
+import { ReviewRecapMixin } from "./review-recap.js"; // v1.62 AI recap
 import { ReviewAgainMixin } from "./review-again.js"; // v1.41 … Review again (a saved game with today's engine)
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
@@ -11441,7 +11442,7 @@ Object.assign(ColonistFullGame.prototype, StatsMixin, StatsUiMixin);
 installStats(ColonistFullGame);
 Object.assign(ColonistFullGame.prototype, LiveStatsMixin); // live stats during the game (src/live-stats.js)
 installLiveStats(ColonistFullGame);
-Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin, ReviewLuckMixin, ReviewTurnMixin, ReviewAgainMixin); // v1.02/1.03 post-game review (src/review*.js)
+Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin, ReviewLuckMixin, ReviewTurnMixin, ReviewAgainMixin, ReviewRecapMixin); // v1.02/1.03 post-game review (src/review*.js)
 installReview(ColonistFullGame);
 installReviewUi(ColonistFullGame);
 installReviewGame(ColonistFullGame);

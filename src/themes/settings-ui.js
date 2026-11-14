@@ -6,7 +6,8 @@ import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
 import { liveWinOn, setLiveWin, liveRefineOn, setLiveRefine } from "../live-bar.js";
-export const APP_VERSION = "1.61";
+import { recapLang, setRecapLang } from "../review-recap.js";
+export const APP_VERSION = "1.62";
 
 /** v1.34 Settings: the running version and "Check for updates" (index.html: reg.update() + a version compare). */
 function versionRow() {
@@ -144,6 +145,12 @@ export class SettingsUI {
       mrow.innerHTML = `<div><b id="rvModelLbl">Review model</b><small>Quick is rough; Deep takes almost 3x as long.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="rvModelLbl">${[["quick", "Quick"], ["standard", "Standard"], ["deep", "Deep"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${mdl === k}" class="${mdl === k ? "on" : ""}" data-rv-model="${k}">${l}</button>`).join("")}</div>`;
       mrow.querySelectorAll("[data-rv-model]").forEach((b) => b.addEventListener("click", () => { mrow.querySelectorAll("[data-rv-model]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); try { localStorage.setItem("colonist_review_model", b.dataset.rvModel); } catch (_) {} }));
       body.appendChild(mrow);
+      // v1.62 the language of the AI recap (src/review-recap.js)
+      const crow = document.createElement("div");
+      crow.className = "st-row";
+      crow.innerHTML = `<div><b id="rcLangLbl">Recap language</b><small>The AI recap of a finished game.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="rcLangLbl">${[["en", "English"], ["nl", "Nederlands"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${recapLang() === k}" class="${recapLang() === k ? "on" : ""}" data-rc-lang="${k}">${l}</button>`).join("")}</div>`;
+      crow.querySelectorAll("[data-rc-lang]").forEach((b) => b.addEventListener("click", () => { crow.querySelectorAll("[data-rc-lang]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); setRecapLang(b.dataset.rcLang); }));
+      body.appendChild(crow);
       // v1.59 the live win-chance bar (src/live-bar.js): off by default
       const lrow = document.createElement("div");
       lrow.className = "st-row";

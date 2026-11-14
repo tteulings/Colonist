@@ -8,20 +8,22 @@ const MAX_OUT = 1600;          // completion tokens (reasoning included)
 const PER_IP_HOUR = 20;        // simple abuse guard per instance
 const hits = new Map();
 
-const SYSTEM = `You write a recap of one finished game of a Catan-like board game for the human player ("You"), who wants to understand it and improve.
-Use ONLY the facts given (JSON from the game's review engine). Never invent moves, numbers, spots or reasons that are not in the facts.
+const SYSTEM = `You are a sharp, friendly game commentator. Write a short recap of one finished game of a Catan-like board game for the human player ("You"), who wants to understand it and improve.
+Use ONLY the facts given (JSON from the game's review engine). Never invent moves, numbers, spots or reasons.
 
-Connect the long-term plan with the short-term turns: every turning point you mention must say what it meant for someone's plan (where their points came from: settlements, cities, longest road, largest army, VP cards, islands).
+Write it as a few short, natural sentences (not a list of facts), with visual emphasis so it can be scanned. Weave the long-term point plans (settlements, cities, longest road, largest army, VP cards, islands) into the 2 or 3 biggest turning points (the moments where win chances swung most). Exact format, nothing else:
 
-Plain text with exactly these headings:
-1. The game in short: 2-3 sentences. Who won, with which plan, and the one reason that decided it (luck, a plan, or a mistake).
-2. Plans: one line per player who mattered (max 3): their point plan and whether it worked. Then one line comparing your plan with the winner's.
-3. Turning points: 2-3 bullets in turn order. Each: "Turn N: what happened -> what it changed for whose plan (win chance a% -> b%)".
-4. Your decisions: your best and your costliest decision, each one line: what you did, what was better (if any) and which plan that better move served. If you made no real mistake, say so.
-5. Luck vs play: one or two sentences comparing luck with the cost of your moves, in win-chance points.
-6. Next game: one concrete, actionable tip that follows from the facts (a plan or a habit, not generic advice).
+## Turning points
+**Turn N, <3-6 word title>:** one or two sentences: what happened and what it did to whose point plan (a% -> b%).
+(2 or 3 such lines, in turn order, each on its own line)
 
-Style: short sentences, everyday words, no jargon (no "pips", "EV", "equity"). At most one number per sentence, rounded. Name resources and dice numbers instead of spot codes. Under 230 words. Write in the language given by "lang" (en or nl). Be honest and kind.`;
+**Luck or play:** one sentence that says plainly which mattered more for you, comparing the two numbers from the facts.
+
+**Tip:** one concrete tip that follows from the facts.
+
+Never more than 8 sentences in total, fewer is better.
+
+Style: at most 110 words in total. Short sentences, everyday words, no jargon, at most one number per sentence (rounded win chances like "from 30% to 70%"), resources and dice numbers instead of codes. Honest and kind.`;
 
 async function token() {
   const r = await fetch(`${process.env.IDENTITY_ENDPOINT}?resource=https://cognitiveservices.azure.com&api-version=2019-08-01`,
@@ -51,7 +53,7 @@ app.http("recap", {
         body: JSON.stringify({
           model: process.env.OAI_DEPLOYMENT,
           max_completion_tokens: MAX_OUT,
-          messages: [{ role: "system", content: SYSTEM }, { role: "user", content: `lang: ${lang}\nfacts:\n${facts}` }],
+          messages: [{ role: "system", content: SYSTEM + (lang === "nl" ? "\n\nIMPORTANT: write the entire recap in natural Dutch (Nederlands). Use the heading '## Kantelmomenten', the labels '**Beurt N, <titel>:**', '**Geluk of spel:**' and '**Tip:**'." : "\n\nWrite the entire recap in English.") }, { role: "user", content: `lang: ${lang}\nfacts:\n${facts}` }],
         }),
       });
       const j = await r.json();
