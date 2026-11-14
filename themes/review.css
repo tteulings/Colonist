@@ -692,3 +692,17 @@
 .rc-lead .rc-foot { margin: 0; font-size: 11px; }
 .rc-lead .rc-btn { justify-self: start; min-height: 40px; }
 .rc-top .rc-lead { border: 0; margin: 0; padding: 0; }
+
+/* v1.67 step view: the page scrolls (the card grows), Previous / Next stay at the bottom, the legend over the board is small chips */
+.rs.step { overflow-y: auto; overscroll-behavior: contain; }
+.rs.step > * { flex-shrink: 0; }
+.rs.step .rs-card { flex: none; min-height: 0; overflow: visible; margin-bottom: 0; padding-bottom: 0; }
+.rs.step .rs-stage { flex: 0 0 auto; height: calc(var(--stage) * 1.55); min-height: 240px; max-height: 62vh; }
+.rs.step .rs-nav:not(.tv-btns), .rs.step .tv-nav { position: sticky; bottom: 0; z-index: 3; margin: 0 -12px; padding: 8px 12px max(8px, env(safe-area-inset-bottom)); background: var(--sheet); background-image: var(--sheet-image); border-top: 1px solid var(--rv-sep, rgba(0,0,0,.12)); border-radius: 0 0 18px 18px; }
+.rs.step .tv-nav { margin-top: 6px; }
+.rs-nav .rv-btn, .tv-btns .rv-btn { min-height: 44px; min-width: 44px; }
+.rs-wc { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px; max-width: 78%; pointer-events: auto; cursor: pointer; background: transparent; backdrop-filter: none; }
+.rs-wc span { gap: 4px; padding: 2px 6px; border-radius: 999px; background: rgba(10,30,36,.66); font-size: 11px; }
+.rs-wc span em { display: none; font-style: normal; overflow: hidden; text-overflow: ellipsis; max-width: 70px; }
+.rs-wc span.me em, .rs-wc.open span em { display: inline; }
+.rs-wc b { margin-left: 0; padding-left: 2px; }

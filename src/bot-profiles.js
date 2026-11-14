@@ -14,9 +14,9 @@
 
 import { botBand } from "./review/bands.js";
 
-export const BOT_STRENGTH_SOURCE = "One bot vs 3 Intermediate bots, 4 players, 10 points, 2000 games (500 seeds x 4 seats), v1.03 code. Equal bots win 25% each.";
+export const BOT_STRENGTH_SOURCE = "One bot vs 3 Medium bots, 4 players, 10 points, 2000 games (500 seeds x 4 seats), v1.03 code. Equal bots win 25% each.";
 
-/** level: 1–5 dots (from the measured win rate), win: { p, ci } vs 3 Intermediate, acc: [review accuracy, SE] from src/review/bands.js */
+/** level: 1–5 dots (from the measured win rate), win: { p, ci } vs 3 Medium, acc: [review accuracy, SE] from src/review/bands.js */
 /** v1.39 Grandmaster is released: in the picker, the AI Lab and on the Bots page. Kill switch for support: ?gm=0 or localStorage
  *  colonist.gm = "0" hides it again. */
 export function gmFlag() {
@@ -24,7 +24,7 @@ export function gmFlag() {
 }
 export const BOT_PROFILES = {
   beginner: {
-    label: "Beginner", tagline: "gentle, learns rules", level: 2, win: { p: 11.2, ci: 1.4 }, acc: botBand("Beginner"),
+    label: "Easy", tagline: "gentle, learns rules", level: 2, win: { p: 11.2, ci: 1.4 }, acc: botBand("Beginner"),
     style: "Settles on the biggest numbers and builds whatever it can afford, in a fixed order: settlement, city, road, card.",
     good: "Never sits on a full hand: it builds as soon as it can.",
     weak: "No plan: it doesn't save up for cities and spends on roads. It ignores the score, so it never slows down a leader.",
@@ -44,7 +44,7 @@ export const BOT_PROFILES = {
     cards: "Buys a card whenever it can; plays only Knights.",
   },
   intermediate: {
-    label: "Intermediate", tagline: "solid all-rounder", level: 3, win: { p: 25.0, ci: 1.9 }, acc: botBand("Intermediate"),
+    label: "Medium", tagline: "solid all-rounder", level: 3, win: { p: 25.0, ci: 1.9 }, acc: botBand("Intermediate"),
     style: "Plans its next build (settlement, city or card) by what pays off soonest and saves its cards for it.",
     good: "Mixes resources and ports when it settles, and makes fair deals that help its plan.",
     weak: "No race for Longest Road or Largest Army, and it plays cards only when the use is obvious.",
@@ -54,8 +54,8 @@ export const BOT_PROFILES = {
     cards: "Buys with spare cards; plays one when the use is obvious (robber on its tile, Largest Army in reach, Monopoly for a big haul).",
   },
   expert: {
-    label: "Expert", tagline: "plays to win", level: 4, win: { p: 41.1, ci: 2.2 }, acc: botBand("Expert"),
-    style: "The Intermediate's planner, plus it races for Longest Road, aims for 2:1 harbours and avoids tiles the robber likes.",
+    label: "Hard", tagline: "plays to win", level: 4, win: { p: 41.1, ci: 2.2 }, acc: botBand("Expert"),
+    style: "The Medium bot's planner, plus it races for Longest Road, aims for 2:1 harbours and avoids tiles the robber likes.",
     good: "Chases Largest Army, saves Monopoly for the biggest haul, and plays a Knight before rolling when that pays.",
     weak: "Won't deal with anyone 2 points ahead of it, so it can get stuck on one resource. It guesses your hand only from what everyone can see.",
     beat: "Keep your public score low and spread your numbers so one robber can't hurt you much.",
@@ -65,17 +65,17 @@ export const BOT_PROFILES = {
   },
   trader: {
     label: "Trader", tagline: "deals all game", level: 3, win: { p: 29.1, ci: 2.0 }, acc: botBand("Trader"),
-    style: "An Intermediate that lives at the market: it makes offers every turn, to everyone, and keeps dealing after it has built.",
+    style: "A Medium that lives at the market: it makes offers every turn, to everyone, and keeps dealing after it has built.",
     good: "Finishes builds early: it pays 2-for-1 when that completes a build right now.",
     weak: "Spends cards on deals, and every deal it makes also helps someone else.",
     beat: "Take its offers only when they help you more than it, and expect a lot of them.",
     trades: "Up to 6 offers a turn plus 2 more deals with bots after building; accepts any small but real gain. Like every bot it won't help a leader who is about to win.",
-    robber: "Like the Intermediate: leans toward players above the average score, steals from the biggest hand.",
+    robber: "Like the Medium bot: leans toward players above the average score, steals from the biggest hand.",
     cards: "Reactive: buys with spare cards, plays them when the use is obvious.",
   },
   builder: {
     label: "Builder", tagline: "roads & cities", level: 4, win: { p: 36.7, ci: 2.1 }, acc: botBand("Builder"),
-    style: "The Expert's eye for the board (placement, harbours, Longest Road race) with only reactive cards and basic awareness.",
+    style: "The Hard bot's eye for the board (placement, harbours, Longest Road race) with only reactive cards and basic awareness.",
     good: "Expands fast and well: roads up to 4 steps toward its next spot, and it goes for Longest Road.",
     weak: "Doesn't chase Largest Army and only watches the score roughly, so it is late to stop a runaway leader.",
     beat: "Cut its road to the next good spot early, and take Largest Army; it won't fight you for it.",
@@ -85,60 +85,60 @@ export const BOT_PROFILES = {
   },
   shark: {
     label: "Shark", tagline: "hunts the leader", level: 3, win: { p: 28.8, ci: 2.0 }, acc: botBand("Shark"),
-    style: "An Intermediate builder with the Expert's sharp eyes: it tracks the score and the public card counts and goes after whoever leads.",
+    style: "A Medium builder with the Hard bot's sharp eyes: it tracks the score and the public card counts and goes after whoever leads.",
     good: "Robber and Knights hit the leader, it chases Largest Army, and it won't deal with anyone 2+ points ahead of it.",
-    weak: "Plainer settling and planning than the Expert, and no race for Longest Road.",
+    weak: "Plainer settling and planning than the Hard bot, and no race for Longest Road.",
     beat: "Don't lead in public: keep points hidden (development cards) and stay level until you can finish.",
     trades: "Bank, harbours and fair deals; never with the leader or anyone 2+ points ahead of it.",
     robber: "Hits the leader hard, harder when the leader is close to winning, and steals the card it most likely needs.",
     cards: "Strategic: builds toward Largest Army, saves Monopoly for a big haul.",
   },
   master: {
-    label: "Master", tagline: "Expert + looks ahead", level: 5, win: { p: 55.6, ci: 3.4 }, acc: botBand("Master"),
-    style: "Plays like the Expert, but before each set-up spot, build step and robber move it plays out about 100 possible futures (up to half a second) and picks what wins most.",
-    good: "Wins 55.6% against 3 Intermediate bots (±3.4, 800 games), 14.8 percentage points more than the Expert on the same boards.",
-    weak: "Player trades are the Expert's own. In Seafarers it searches too (ships, the free ship move and the pirate included) and scores its futures with a model learned from Seafarers games: 52.5% against 3 Intermediates there (±6.9, 200 games; the Expert 30.5%). In Rush its search is capped at a quarter of a second a move, and with 5–6 players it gets fewer playouts in its half second, so its edge there is smaller and not measured.",
-    beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
-    trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
+    label: "Master", tagline: "Hard + looks ahead", level: 5, win: { p: 55.6, ci: 3.4 }, acc: botBand("Master"),
+    style: "Plays like the Hard bot, but before each set-up spot, build step and robber move it plays out about 100 possible futures (up to half a second) and picks what wins most.",
+    good: "Wins 55.6% against 3 Medium bots (±3.4, 800 games), 14.8 percentage points more than the Hard bot on the same boards.",
+    weak: "Player trades are the Hard bot's own. In Seafarers it searches too (ships, the free ship move and the pirate included) and scores its futures with a model learned from Seafarers games: 52.5% against 3 Medium bots there (±6.9, 200 games; the Hard bot 30.5%). In Rush its search is capped at a quarter of a second a move, and with 5–6 players it gets fewer playouts in its half second, so its edge there is smaller and not measured.",
+    beat: "Same as the Hard bot: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
+    trades: "Like the Hard bot: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
     robber: "Searched: it tries the tiles and keeps the one that pays off best in its playouts.",
-    cards: "Strategic, like the Expert; whether to play a card is part of the search.",
-    note: "Measured: on the same 800 boards as the Expert +14.8 pp (±4.3). Earlier, against 3 Experts: +8.4 ±5.4 pp over an Expert in the same seat (n=500).",
+    cards: "Strategic, like the Hard bot; whether to play a card is part of the search.",
+    note: "Measured: on the same 800 boards as the Hard bot +14.8 pp (±4.3). Earlier, against 3 Hard bots: +8.4 ±5.4 pp over a Hard in the same seat (n=500).",
   },
   // v1.10: the Master's search with ten times the thinking. bot-125: measured (vs 3 Intermediates, no time limit).
   super: {
     label: "Super Expert", tagline: "Master with 10x more thinking", level: 5, beyond: true, win: { p: 64.0, ci: 6.7 }, acc: null,
     style: "The Master's search with ten times the thinking: before each set-up spot, build step and robber move it plays out 545 possible futures, looking 14 turns ahead (18 in set-up), and picks what wins most. It stops early when one move is clearly ahead.",
-    good: "Much stronger than the Master: 64.0% against 3 Intermediate bots at the 545 futures the app plays (±6.7, 200 games), 23.0 points above the Expert on the same boards. Against 3 Experts it wins 41.0% (±6.8; 25% is a fair share). It sees further and spots slow plans (a city race, Longest Road) that a short look misses.",
-    weak: "Slow: 545 futures a move, about 3 seconds on a phone, so your phone waits for it (a fixed amount of thinking: as strong on every phone, just faster or slower). In Rush it gets 20 futures a move (about a Master there). In Seafarers it searches too (ships, the free ship move and the pirate included) and scores its futures with a model learned from Seafarers games; its strength there is not measured yet. With 5–6 players the same 3 seconds buy fewer playouts. Player trades are the Expert's own.",
-    beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
-    trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
+    good: "Much stronger than the Master: 64.0% against 3 Medium bots at the 545 futures the app plays (±6.7, 200 games), 23.0 points above the Hard bot on the same boards. Against 3 Hard bots it wins 41.0% (±6.8; 25% is a fair share). It sees further and spots slow plans (a city race, Longest Road) that a short look misses.",
+    weak: "Slow: 545 futures a move, about 3 seconds on a phone, so your phone waits for it (a fixed amount of thinking: as strong on every phone, just faster or slower). In Rush it gets 20 futures a move (about a Master there). In Seafarers it searches too (ships, the free ship move and the pirate included) and scores its futures with a model learned from Seafarers games; its strength there is not measured yet. With 5–6 players the same 3 seconds buy fewer playouts. Player trades are the Hard bot's own.",
+    beat: "Same as the Hard bot: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
+    trades: "Like the Hard bot: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
     robber: "Searched: it tries the tiles and keeps the one that pays off best in many playouts.",
-    cards: "Strategic, like the Expert; whether to play a card is part of the search.",
-    note: "Measured at the app setting, 545 futures a move (about 3 s on a phone). Earlier, at 1000 futures a move without a time limit, it won 71.0% (±4.4, 400 games). Classic rating 1277 (±37, Intermediate = 1000).",
+    cards: "Strategic, like the Hard bot; whether to play a card is part of the search.",
+    note: "Measured at the app setting, 545 futures a move (about 3 s on a phone). Earlier, at 1000 futures a move without a time limit, it won 71.0% (±4.4, 400 games). Classic rating 1277 (±37, Medium = 1000).",
   },
   // eng-130: the Super Expert+ search spread over several cores. Numbers: src/bot-stats.js (filled in from the eng-130 runs).
   grandmaster: {
     label: "Grandmaster", tagline: "Super Expert+ on every core", level: 5, beyond: true, win: { p: 70.0, ci: 6.4 }, acc: null,
     style: "The Super Expert+ search (the learned position score at the end of every future, 14 turns ahead, 18 in set-up, 1090 futures a move, twice the Super Expert+), run on several cores of your phone at once, each playing its own share of the futures. In the same 3 seconds it plays about three times as many futures as the Super Expert+.",
-    good: "The strongest bot: 70.0% against 3 Intermediate bots (±6.4, 200 games) and 58.5% against 3 Experts (±6.8). Head to head with the Super Expert+ (and 2 Experts) at the app's 3 s a move, it won 48.0% of the games against 25.0% for the Super Expert+ (+23 points, ±15, 100 games with every seat order). It plays about twice as many futures per move in the same time, so its choices rest on more evidence, mostly in close calls.",
-    weak: "About 3 seconds a move on a phone with several cores (1090 futures), and it keeps up to 3 cores busy meanwhile: more battery, and a long game can warm the phone. On a phone with few cores it does the same work on one, so it thinks longer there (up to 6 s; then it stops). In Rush it has a quarter of a second a move. With 5–6 players the same time buys fewer futures. Player trades are the Expert's own.",
-    beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
-    trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
+    good: "The strongest bot: 70.0% against 3 Medium bots (±6.4, 200 games) and 58.5% against 3 Hard bots (±6.8). Head to head with the Super Expert+ (and 2 Hard bots) at the app's 3 s a move, it won 48.0% of the games against 25.0% for the Super Expert+ (+23 points, ±15, 100 games with every seat order). It plays about twice as many futures per move in the same time, so its choices rest on more evidence, mostly in close calls.",
+    weak: "About 3 seconds a move on a phone with several cores (1090 futures), and it keeps up to 3 cores busy meanwhile: more battery, and a long game can warm the phone. On a phone with few cores it does the same work on one, so it thinks longer there (up to 6 s; then it stops). In Rush it has a quarter of a second a move. With 5–6 players the same time buys fewer futures. Player trades are the Hard bot's own.",
+    beat: "Same as the Hard bot: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
+    trades: "Like the Hard bot: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
     robber: "Searched: it tries the tiles (and in Seafarers the pirate's sea hexes) and keeps the one that pays off best in many playouts.",
-    cards: "Strategic, like the Expert; whether to play a card is part of the search.",
-    note: "Measured head to head with the Super Expert+ at the app setting: the 3 s on a phone counted in futures (Super Expert+ 545, Grandmaster 1090, the futures each got in 1 s on an idle 4-core desktop, a phone taken as 3x slower: an estimate). Against 3 Intermediates it won 70.0% (±6.4, 200 games, 1090 futures a move), 29.0 pp above the Expert on the same boards; Classic rating 1374 (±31, Intermediate = 1000). Other game types: see the Bots page. Battery and heat: while it thinks it uses up to 3 cores for 3 s a move; set a weaker bot for long sessions on battery.",
+    cards: "Strategic, like the Hard bot; whether to play a card is part of the search.",
+    note: "Measured head to head with the Super Expert+ at the app setting: the 3 s on a phone counted in futures (Super Expert+ 545, Grandmaster 1090, the futures each got in 1 s on an idle 4-core desktop, a phone taken as 3x slower: an estimate). Against 3 Medium bots it won 70.0% (±6.4, 200 games, 1090 futures a move), 29.0 pp above the Hard bot on the same boards; Classic rating 1374 (±31, Medium = 1000). Other game types: see the Bots page. Battery and heat: while it thinks it uses up to 3 cores for 3 s a move; set a weaker bot for long sessions on battery.",
   },
   // bot-125 (working name): the Super Expert's search with the boosted value model as its position score. Measured like the Super Expert.
   superplus: {
     label: "Super Expert+", tagline: "Super Expert with a learned eye", level: 5, beyond: true, win: { p: 69.0, ci: 6.4 }, acc: null,
     style: "The Super Expert's search (545 futures a move, 14 turns ahead, 18 in set-up, about 3 s on a phone), but where each future stops it judges the position with a model learned from thousands of bot games (the same scorer as the game review), not the hand-made score.",
-    good: "About as strong as the Super Expert against 3 Intermediate bots: 69.0% at the 545 futures the app plays (±6.4, 200 games; 28.0 pp above the Expert on the same boards, ±8.7); against 3 Experts it wins 56.0% (±6.9). Head to head at one table (1000 futures each) it finished above the Super Expert in 58.0% of 112 games (±9.0): a slight lean, not significant.",
-    weak: "Slow, like the Super Expert: 545 futures a move, about 3 seconds on a phone, so your phone waits for it. In Rush it gets 20 futures a move. In Seafarers it searches too (ships, the free ship move and the pirate included) and scores its futures with a model learned from Seafarers games: 70.0% against 3 Intermediates there (±9.0, 100 games at 1000 futures, no time limit, not the 182 the app plays there; the Expert 30.5%). With 5–6 players the same 3 seconds buy fewer playouts. Player trades are the Expert's own.",
-    beat: "Same as the Expert: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
-    trades: "Like the Expert: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
+    good: "About as strong as the Super Expert against 3 Medium bots: 69.0% at the 545 futures the app plays (±6.4, 200 games; 28.0 pp above the Hard bot on the same boards, ±8.7); against 3 Hard bots it wins 56.0% (±6.9). Head to head at one table (1000 futures each) it finished above the Super Expert in 58.0% of 112 games (±9.0): a slight lean, not significant.",
+    weak: "Slow, like the Super Expert: 545 futures a move, about 3 seconds on a phone, so your phone waits for it. In Rush it gets 20 futures a move. In Seafarers it searches too (ships, the free ship move and the pirate included) and scores its futures with a model learned from Seafarers games: 70.0% against 3 Medium bots there (±9.0, 100 games at 1000 futures, no time limit, not the 182 the app plays there; the Hard bot 30.5%). With 5–6 players the same 3 seconds buy fewer playouts. Player trades are the Hard bot's own.",
+    beat: "Same as the Hard bot: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
+    trades: "Like the Hard bot: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",
     robber: "Searched: it tries the tiles and keeps the one that pays off best in many playouts.",
-    cards: "Strategic, like the Expert; whether to play a card is part of the search.",
-    note: "Measured at the app setting, 545 futures a move (about 3 s on a phone), the setting of its head to head with the Grandmaster. Earlier, at 1000 futures without a time limit: 71.5% (±4.4, 400 games). Classic rating 1332 (±34, Intermediate = 1000).",
+    cards: "Strategic, like the Hard bot; whether to play a card is part of the search.",
+    note: "Measured at the app setting, 545 futures a move (about 3 s on a phone), the setting of its head to head with the Grandmaster. Earlier, at 1000 futures without a time limit: 71.5% (±4.4, 400 games). Classic rating 1332 (±34, Medium = 1000).",
   },
 };
 

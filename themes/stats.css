@@ -294,14 +294,14 @@
 }
 
 /* ── Live stats (src/live-stats.js): a half-height sheet docked above the dock, one card at a time ── */
-.ls-sheet { --ls-h: clamp(250px, calc(var(--app-h, 100dvh) * .43), 380px);
+.ls-sheet { --ls-h: clamp(250px, calc(var(--app-h, var(--dvh, 100dvh)) * .43), 380px);
   position: absolute; left: 0; right: 0; bottom: 0; height: var(--ls-h); z-index: 7; display: flex; flex-direction: column;
   background: var(--sheet); background-image: var(--sheet-image); border-top: var(--sheet-border); border-radius: 18px 18px 0 0;
   box-shadow: 0 -6px 24px rgba(0,0,0,.16); font-family: var(--font-body); color: var(--ink); transition: transform 200ms ease; }
 .ls-sheet.in { animation: lsIn 240ms var(--ease-out, ease) both; }
 @keyframes lsIn { from { transform: translateY(40%); opacity: 0; } }
 html[data-motion="reduced"] .ls-sheet.in { animation: none; }
-.app.ls-open .rush-offers { bottom: calc(clamp(250px, calc(var(--app-h, 100dvh) * .43), 380px) + 6px); }
+.app.ls-open .rush-offers { bottom: calc(clamp(250px, calc(var(--app-h, var(--dvh, 100dvh)) * .43), 380px) + 6px); }
 .ls-head { flex: none; position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 8px 2px 14px; touch-action: none; cursor: grab; }
 .ls-grab { position: absolute; left: 50%; top: 5px; width: 38px; height: 4px; margin-left: -19px; border-radius: 3px; background: var(--ink-faint, var(--gs-ink)); opacity: .6; }
 .ls-head h3 { margin: 0; display: flex; align-items: baseline; gap: 6px; font: var(--display-weight, 700) 17px/1.2 var(--font-display); color: var(--heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -389,7 +389,7 @@ html[data-motion="reduced"] .ls-sheet.in { animation: none; }
 .gs-toplab h3 { margin: 0; font: var(--display-weight, 700) 20px/1.1 var(--font-display); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.3); }
 .gs-toplab small { display: block; font-size: 12px; font-weight: 650; opacity: .95; text-shadow: 0 1px 2px rgba(0,0,0,.3); }
 /* Back gesture with nothing open in a running game (src/nav.js) */
-.nav-toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 200; max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 999px;
+.nav-toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 200; max-width: calc(var(--dvw, 100vw) - 32px); padding: 10px 16px; border-radius: 999px;
   background: rgba(20,28,34,.92); color: #fff; font: 700 13.5px/1.25 var(--font-body); text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.25); pointer-events: none; animation: fadeIn 160ms ease; }
 .gs-ov { margin-bottom: 0; }
 .gs-lh { font: var(--display-weight, 700) 17px/1.2 var(--font-display); color: var(--heading); margin: 0 2px 8px; }

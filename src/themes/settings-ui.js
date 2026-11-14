@@ -4,10 +4,15 @@
 // About › Developer. Look & feel: theme cards, Motion, quick toggle. Applies instantly.
 import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, paletteAuto, paletteAutoMode, autoTimeInfo, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
 
-/** Shown in Settings › About and on the settings button; bumped with every release. */
 import { liveWinOn, setLiveWin, liveRefineOn, setLiveRefine } from "../live-bar.js";
 import { recapLang, setRecapLang, recapPoints, setRecapPoints } from "../review-recap.js";
-export const APP_VERSION = "1.66";
+
+/** v1.67 Text size (Compact / Normal / Large): a device preference, applied to <html data-textsize> (themes/base.css scales it). */
+export function getTextSize() { try { const v = localStorage.getItem("colonist_textsize"); return v === "normal" || v === "large" ? v : "compact"; } catch (_) { return "compact"; } }
+export function setTextSize(v) { try { localStorage.setItem("colonist_textsize", v); } catch (_) {} document.documentElement.dataset.textsize = v; window.__colonistAppH?.(); window.dispatchEvent(new Event("resize")); }
+try { document.documentElement.dataset.textsize = getTextSize(); window.__colonistAppH?.(); } catch (_) {}
+/** Shown in Settings › About and on the settings button; bumped with every release. */
+export const APP_VERSION = "1.67";
 
 /** v1.34 Settings: the running version and "Check for updates" (index.html: reg.update() + a version compare). */
 function versionRow() {
@@ -145,6 +150,12 @@ export class SettingsUI {
       mrow.innerHTML = `<div><b id="rvModelLbl">Review model</b><small>Quick is rough; Deep takes almost 3x as long.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="rvModelLbl">${[["quick", "Quick"], ["standard", "Standard"], ["deep", "Deep"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${mdl === k}" class="${mdl === k ? "on" : ""}" data-rv-model="${k}">${l}</button>`).join("")}</div>`;
       mrow.querySelectorAll("[data-rv-model]").forEach((b) => b.addEventListener("click", () => { mrow.querySelectorAll("[data-rv-model]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); try { localStorage.setItem("colonist_review_model", b.dataset.rvModel); } catch (_) {} }));
       body.appendChild(mrow);
+      // v1.67 text size: Compact (default) / Normal / Large scale the whole interface (CSS zoom 1 / 1.12 / 1.25 on <html>)
+      const tsz = getTextSize(), trow = document.createElement("div");
+      trow.className = "st-row";
+      trow.innerHTML = `<div><b id="tsLbl">Text size</b><small>Compact is the default. Larger sizes scale the whole app.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="tsLbl">${[["compact", "Compact"], ["normal", "Normal"], ["large", "Large"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${k === tsz}" class="${k === tsz ? "on" : ""}" data-ts="${k}">${l}</button>`).join("")}</div>`;
+      trow.querySelectorAll("[data-ts]").forEach((b) => b.addEventListener("click", () => { trow.querySelectorAll("[data-ts]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); setTextSize(b.dataset.ts); }));
+      body.appendChild(trow);
       // v1.62 the language of the AI recap (src/review-recap.js)
       const crow = document.createElement("div");
       crow.className = "st-row";
@@ -178,7 +189,7 @@ export class SettingsUI {
       body.appendChild(lb);
       body.appendChild(this.botPane);
     } else if (this.tab === "about") {
-      body.innerHTML = this.head("About", "") + `<p class="sub">Katan: Handelaren en Bouwers ${"v" + APP_VERSION} — a settle-and-trade island game against friendly bots.</p>
+      body.innerHTML = this.head("About", "") + `<p class="sub">Katan ${"v" + APP_VERSION} — a settle-and-trade island game against friendly bots.</p>
         <button type="button" class="st-howto">${icon("hint")}How to play</button>
         <p class="sub">Keyboard: R roll dice · E end turn · 1–3 build · B buy card · T trade · V fit board · Esc cancel.</p>
         <p class="sub st-screen">Screen: ${innerWidth}×${innerHeight} @${+(window.devicePixelRatio || 1).toFixed(2)}x${matchMedia("(display-mode: standalone)").matches ? " · installed app" : ""}</p>

@@ -1,6 +1,6 @@
 // Network-first service worker: always try fresh files (the app updates often),
 // fall back to the cache so the game still starts offline.
-const CACHE = "colonist-v166";
+const CACHE = "colonist-v167";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./manifest.webmanifest", "./assets/favicon.svg",
   "./themes/base.css", "./themes/theme-sunny.css", "./themes/theme-wood.css", "./themes/theme-silhouette.css", "./themes/theme-classic.css", "./themes/six.css", "./themes/seafarers.css", "./themes/hotseat.css", "./themes/stats.css", "./themes/review.css", "./themes/sunny-night.css", "./themes/sunny-dusk.css", "./themes/profiles.css", "./themes/history.css", "./src/history.js", "./themes/bots.css", "./src/bots-page.js", "./src/nav.js", "./src/bot-stats.js",
@@ -24,7 +24,7 @@ const SHELL = [
 ];
 
 // v1.34: the page asks a new worker which version it brings (index.html), so a cold launch that already runs
-// the new files offers no update; colonist-v166 → "1.34" (CACHE is bumped with APP_VERSION every release)
+// the new files offers no update; colonist-v167 → "1.34" (CACHE is bumped with APP_VERSION every release)
 const VERSION = CACHE.replace(/^colonist-v(\d)(\d+)$/, "$1.$2");
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "version" && event.ports[0]) event.ports[0].postMessage({ version: VERSION });

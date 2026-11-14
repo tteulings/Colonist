@@ -180,14 +180,14 @@ if (gmFlag()) AI_PRESETS.grandmaster = { ...GM_PRESET };
 
 // Player-facing names, short taglines and badge glyphs for the presets ("custom" = hand-tuned mix)
 const AI_PRESET_INFO = {
-  beginner:     { label: "Beginner",     tagline: "gentle, learns rules", glyph: "" },
+  beginner:     { label: "Easy",         tagline: "gentle, learns rules", glyph: "" },
   simple:       { label: "Simple",       tagline: "plays by 7 rules",     glyph: "", isNew: true },
-  intermediate: { label: "Intermediate", tagline: "solid all-rounder",    glyph: "" },
-  expert:       { label: "Expert",       tagline: "plays to win",         glyph: "" },
+  intermediate: { label: "Medium",       tagline: "solid all-rounder",    glyph: "" },
+  expert:       { label: "Hard",         tagline: "plays to win",         glyph: "" },
   trader:       { label: "Trader",       tagline: "deals all game",       glyph: "\u21c4", isNew: true },
   builder:      { label: "Builder",      tagline: "roads & cities",       glyph: "\u2692", isNew: true },
   shark:        { label: "Shark",        tagline: "hunts the leader",     glyph: "\u25b2", isNew: true },
-  master:       { label: "Master",       tagline: "Expert + looks ahead", glyph: "\u2605", isNew: true },
+  master:       { label: "Master",       tagline: "Hard + looks ahead", glyph: "\u2605", isNew: true },
   super:        { label: "Super Expert", tagline: "Master with 10x more thinking", glyph: "\u2605\u2605", isNew: true },
   superplus:    { label: "Super Expert+", tagline: "Super Expert with a learned eye", glyph: "\u2605\u2605+", isNew: true },
   grandmaster:  { label: "Grandmaster",  tagline: "Super Expert+ on every core", glyph: "\u2605\u2605\u2605", isNew: true },
@@ -1104,7 +1104,7 @@ class ColonistFullGame {
     const sea = (board || last.board) === "seafarers"; // ⚓ Seafarers: at most 3 bots
     const s = { ...last, mode: mode === "rush" ? "rush" : "classic", numBots: clamp(Number(numBots) || 3, 1, sea ? 3 : PLAYER_CONFIG.length - 1) };
     if (board) s.board = board === "seafarers" ? "seafarers" : "island"; // ⚓ Home › Map
-    s.humans = DEFAULT_SETTINGS.humans.slice(); // Home's quick start is you vs bots (pass & play: More settings › Players)
+    s.humans = DEFAULT_SETTINGS.humans.slice(); // Home's quick start is you vs bots (pass & play: Rules & options › Players)
     // Rush with 5–6 players: a roll every 15 s unless a slower pace was picked
     if (s.mode === "rush" && isBigTable(s.numBots + 1) && s.rushInterval < BIG_RUSH_INTERVAL) s.rushInterval = BIG_RUSH_INTERVAL;
     if (preset && preset !== "custom" && AI_PRESETS[preset]) {
