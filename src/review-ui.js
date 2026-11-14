@@ -41,6 +41,19 @@ export function whyHtml(w) {
     <p class="w1"><s>A</s><span>${esc(w.plan)}</span></p>${w.vs ? `<p class="w2"><s class="alt">B</s><span>${esc(w.vs)}</span></p>` : ""}
     ${w.chips?.length ? `<div class="w-chips">${w.chips.map((c) => `<span>${esc(c)}</span>`).join("")}</div>` : ""}</div>`;
 }
+const AIM = { s: "Settlements", c: "Cities", lr: "Longest road", la: "Largest army", dv: "VP cards", is: "New islands" };
+const aimText = (a) => a?.src?.length ? a.src.slice(0, 2).map(([k, v]) => `${AIM[k]} (${v}%)`).join(" · ") : null;
+/** v1.61 "Aims at": which points A's and B's futures go for, the usual next build, and the simple (Expert bot) choice. Old reviews have none: "". */
+export function aimHtml(x, who, pct) {
+  const A = x.aim?.A, B = x.aim?.B, S = x.simple;
+  if (!A && !B && !S) return "";
+  const ta = aimText(A), tb = aimText(B), ka = A?.src?.[0]?.[0], kb = B?.src?.[0]?.[0];
+  const w = who === "You" ? "you" : who;
+  const diff = ta && tb && ka !== kb ? `<p class="w3"><span>Better plan goes for ${esc(AIM[ka])}; ${w} went for ${esc(AIM[kb])}.</span></p>` : "";
+  const nx = A?.nx ? `<p class="w2"><span>Usually next: ${esc(A.nx[0])} within 2 turns (${A.nx[1]} of ${A.nx[2]} futures that build).</span></p>` : "";
+  const sm = !S ? "" : S.is === "A" ? `<p class="w2"><span>Better = also the simple choice.</span></p>` : S.is === "B" ? `<p class="w2"><span>The simple choice is what ${w === "you" ? "you" : who} played.</span></p>` : `<p class="w2"><span>Simple choice: ${esc(S.label)}${S.win != null ? ` · win chance ${pct(S.win)}` : ""}</span></p>`;
+  return `<div class="rs-why rs-aim"><div class="w-h"><b>Aims at</b><small>where the points come from in the futures</small></div>${ta ? `<p class="w1"><s>A</s><span>${esc(ta)}</span></p>` : ""}${tb ? `<p class="w2"><s class="alt">B</s><span>${esc(tb)}</span></p>` : ""}${diff}${nx}${sm}</div>`;
+}
 const handHtml = (h) => `<div class="sx-hand rv-hand">${R5.map(([r, l]) => `<span class="sx-card r-${r}${h?.[r] ? "" : " zero"}"><b>${h?.[r] || 0}</b>${l}</span>`).join("")}</div>`;
 
 export const ReviewUiMixin = {

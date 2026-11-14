@@ -607,3 +607,4 @@
 .tv-card.on { border-color: var(--accent, var(--primary)); box-shadow: inset 0 0 0 2px var(--accent, var(--primary)); }
 .tv-btns { margin-top: 0; } .tv-btns .rs-ov { font-size: 13px; padding: 0 8px; }
 .tv-all { min-height: 40px; justify-self: center; padding: 0 16px; margin-top: 4px; }
+.rs-aim .w3 span { color: var(--heading); font-weight: 750; } .rs-aim { margin-top: 6px; }

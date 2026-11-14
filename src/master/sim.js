@@ -118,7 +118,7 @@ export function winProbs(g, T = 1.2) {
 }
 
 /** Play `turns` turn ends with every seat's normal policy (lab weights jittered ±jitter for variety). */
-export function rollout(g, turns, rng, { jitter = 0.15, maxRounds = 250 } = {}) {
+export function rollout(g, turns, rng, { jitter = 0.15, maxRounds = 250, onEnd = null } = {}) {
   const orig = Math.random; Math.random = rng;
   const ownDice = Object.prototype.hasOwnProperty.call(g, "rollDice"), saveDice = g.rollDice;
   g.rollDice = function () { const d1 = 1 + Math.floor(rng() * 6), d2 = 1 + Math.floor(rng() * 6); this.lastDiceTotal = d1 + d2; return { total: d1 + d2, d1, d2 }; };
@@ -134,6 +134,7 @@ export function rollout(g, turns, rng, { jitter = 0.15, maxRounds = 250 } = {}) 
       if (g.phase === "main") g.executeAiMainPhase(p);
       if (g.winner) break;
       g.endTurn();
+      if (onEnd) onEnd(p); // v1.61 review: the futures' follow-up builds (src/review/aims.js)
       if (++ended >= turns) break;
     }
   } finally {
