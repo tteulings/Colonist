@@ -84,9 +84,9 @@
 .tm-settings .st-h, .hm-card .hm-h { font-size: var(--fs-xs); letter-spacing: .08em; }
 .tm-settings .st-newgame { display: none; } /* New game lives on Home and in the Menu */
 /* segmented control */
-.tm-settings .seg, .tm-settings .cm-seg { background: var(--seg-bg); border: var(--seg-border); border-radius: var(--r-m); }
-.tm-settings .seg button, .tm-settings .cm-seg button { border-radius: var(--r-s); font-size: var(--fs-m); }
-html .tm-settings .seg button.on, html .tm-settings .cm-seg button.on { background: var(--card-bg); color: var(--heading); box-shadow: 0 1px 3px rgba(0,0,0,.14), inset 0 0 0 2px var(--accent); }
+.tm-settings .seg, .tm-settings .cm-seg, .tm-settings .st-seg { background: var(--seg-bg); border: var(--seg-border); border-radius: var(--r-m); }
+.tm-settings .seg button, .tm-settings .cm-seg button, .tm-settings .st-seg button { border-radius: var(--r-s); font-size: var(--fs-m); }
+html .tm-settings .seg button.on, html .tm-settings .cm-seg button.on, html .tm-settings .st-seg button.on { background: var(--card-bg); color: var(--heading); box-shadow: 0 1px 3px rgba(0,0,0,.14), inset 0 0 0 2px var(--accent); }
 /* switch (checkboxes in Settings and the Menu look like the st-switch) */
 .tm-settings input[type="checkbox"], .mn-live input[type="checkbox"] { -webkit-appearance: none; appearance: none; flex: none; position: relative; width: var(--switch-w); height: var(--switch-h); margin: 0; border-radius: var(--switch-h); background: var(--switch-off, color-mix(in srgb, var(--ink) 22%, transparent)); cursor: pointer; transition: background-color 160ms; }
 .tm-settings input[type="checkbox"]::after, .mn-live input[type="checkbox"]::after { content: ""; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: left 160ms; }
@@ -95,7 +95,6 @@ html .tm-settings .seg button.on, html .tm-settings .cm-seg button.on { backgrou
 .tm-settings input[type="checkbox"]:focus-visible, .mn-live input[type="checkbox"]:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .tm-settings .st-game input[type="checkbox"] { width: var(--switch-w); height: var(--switch-h); }
 .mn-live input[type="checkbox"] { width: var(--switch-w); height: var(--switch-h); }
-.tm-settings .settings-toggle-label:not(:has(small)) { flex-direction: row-reverse; justify-content: space-between; }
 /* slider */
 .tm-settings input[type="range"], .mn-speed input[type="range"] { -webkit-appearance: none; appearance: none; background: none; height: 28px; margin: 0; accent-color: var(--accent); }
 .tm-settings input[type="range"]::-webkit-slider-runnable-track, .mn-speed input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 18%, transparent); }
@@ -108,3 +107,19 @@ html .tm-settings .seg button.on, html .tm-settings .cm-seg button.on { backgrou
 /* chart labels keep a halo in the card colour, so a line or marker behind them never makes them unreadable */
 .bpg-svg text.b, .bpg-svg text.v { paint-order: stroke; stroke: var(--sheet); stroke-width: 3px; stroke-linejoin: round; }
 .mn-speed.mn-live { grid-template-columns: minmax(0, 1fr) auto; } .mn-speed.mn-live em { grid-column: 1 / -1; }
+
+/* one switch, whichever markup it comes from (input or button): same size, track and knob, on and off */
+.tm-settings, .mn-card { --sw-off: color-mix(in srgb, var(--ink) 22%, transparent); }
+.tm-settings input[type="checkbox"], .mn-live input[type="checkbox"], .tm-settings .st-switch { background: var(--sw-off); }
+.tm-settings input[type="checkbox"]:checked, .mn-live input[type="checkbox"]:checked, .tm-settings .st-switch.on { background: var(--accent); }
+.tm-settings .st-switch { width: var(--switch-w); height: var(--switch-h); border-radius: var(--switch-h); }
+.tm-settings .st-switch i, html .tm-settings .st-switch.on i { width: 18px; height: 18px; left: 3px; top: 3px; background: #fff !important; }
+.tm-settings .st-switch.on i { left: 21px; }
+/* segmented controls: full width, equal cells */
+.tm-settings .seg, .tm-settings .cm-seg, .tm-settings .st-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; overflow: visible; padding: 3px; }
+.tm-settings .st-seg button { min-height: 44px; padding: 8px 4px; font-weight: 650; color: var(--ink-soft); }
+/* rows: label (+ description under it) on the left, the switch on the right */
+.tm-settings .st-game .settings-toggle-label { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; }
+.tm-settings .st-game .settings-toggle-label input { grid-column: 2; grid-row: 1 / span 2; }
+.tm-settings .st-game .settings-toggle-label .st-note { grid-column: 1; margin: 0; }
+.tm-settings .st-game .settings-version { display: none; } /* the version is on the About tab */
