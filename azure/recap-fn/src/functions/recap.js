@@ -51,7 +51,7 @@ app.http("recap", {
         body: JSON.stringify({
           model: process.env.OAI_DEPLOYMENT,
           max_completion_tokens: MAX_OUT,
-          messages: [{ role: "system", content: SYSTEM }, { role: "user", content: `lang: ${lang}\nfacts:\n${facts}` }],
+          messages: [{ role: "system", content: SYSTEM + (lang === "nl" ? "\n\nIMPORTANT: write the entire recap in Dutch (Nederlands), including the headings (translate them), player-facing terms and the tip." : "\n\nWrite the entire recap in English.") }, { role: "user", content: `lang: ${lang}\nfacts:\n${facts}` }],
         }),
       });
       const j = await r.json();
