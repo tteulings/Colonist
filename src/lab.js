@@ -346,7 +346,7 @@ function treeRows(n, depth, rows, siblingsMax) {
   if (vt === "score") val = f2(v);
   else if (vt === "signed") val = Math.abs(v) < 0.005 ? "0" : `${v > 0 ? "+" : "−"}${f2(Math.abs(v))}`;
   else if (vt === "div") val = `÷${f2(v)}`;
-  else if (vt === "pips") val = `${Math.round(v)} pips`;
+  else if (vt === "pips") val = `${Math.round(v)} dice dots`;
   else if (vt === "none") val = "";
   const col = n.term && TERM_COLOR[n.tk] ? `;background:${TERM_COLOR[n.tk]};opacity:.9` : "";
   const bar = n.stack?.length && siblingsMax > 0 ? stackHtml(n.stack, siblingsMax).replace("sx-bar stk", "lt-bar stk")
@@ -378,7 +378,7 @@ function renderTree(t, p) {
   if (view?.analysis.lab?.kind === "step") view._labOverlay(null);
   $("#labTreeWho").textContent = p ? `${p.name} · tap a row` : "";
   if (!t) { $("#labTree").innerHTML = `<p class="lb-note">Nothing to decide here.</p>`; $("#labTreeSum").textContent = ""; $("#labTreeEq").textContent = ""; return; }
-  const sc = t.score == null || t.noScore ? "" : t.rules ? ` · <b>${Math.round(t.score)} pips</b>` : ` · score <b>${f2(t.score)}</b>${st.mode === "build" ? " per turn" : ""}`;
+  const sc = t.score == null || t.noScore ? "" : t.rules ? ` · <b>${Math.round(t.score)} dice dots</b>` : ` · score <b>${f2(t.score)}</b>${st.mode === "build" ? " per turn" : ""}`;
   const plan = st.mode === "build" && t.target && !t.action.includes(t.target) ? ` · plan <b>${esc(t.target)}</b>` : "";
   $("#labTreeSum").innerHTML = `${t.rules && st.mode === "build" ? "Fires" : st.mode === "build" ? "Now:" : "Chooses"} <b>${esc(t.action)}</b>${plan}${sc}`;
   $("#labTreeEq").textContent = t.eq || "";

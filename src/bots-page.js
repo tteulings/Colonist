@@ -54,7 +54,7 @@ export function youIndex(metas) {
 
 // ── pieces ───────────────────────────────────────────────────────────────────────────────────────
 const dotsHtml = (n, beyond) => `<span class="bpg-dots" aria-hidden="true">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}${beyond ? `<i class="star"></i>` : ""}</span>`;
-const lvText = (r) => `level ${r.p.level} of 5${r.p.beyond ? " plus a star" : ""}`;
+const lvText = (r) => `strength ${r.p.level} of 5${r.p.beyond ? " plus a star" : ""}`;
 const emb = (key, s = 20) => `<span class="bpg-em">${profileMini(key, s)}</span>`;
 const inner = (key) => profileMini(key, 100).replace(/^<svg[^>]*>/, "").replace(/<\/svg>$/, "");
 const tag = (label) => `<span class="bpg-tag t-${label.replace(" ", "-")}">${label}</span>`;
@@ -127,10 +127,10 @@ function ladderSvg(W) {
   // bot-125: the scale grows with the strongest bot's interval (the search bots reach past 70%), at least 0–55
   const D = Math.max(55, Math.ceil((Math.max(0, ...R.map((b) => b.win.v + (b.win.ci || 0))) + 2) / 5) * 5);
   const x0 = 104, x1 = W - 54, S = (x1 - x0) / D, X = (v) => x0 + v * S, top = 30, rh = 44, H = top + R.length * rh + 22, r = 9;
-  let s = `<svg class="bpg-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="group" aria-label="Strength ladder: win chance of each bot with its 95 percent interval. Dashed line is the 25 percent fair share. Tap a bot to open its profile.">`;
+  let s = `<svg class="bpg-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="group" aria-label="Strength ladder: win chance of each bot with its likely range. Dashed line is 25 wins out of 100, an even share. Tap a bot to open its profile.">`;
   [0, 10, 20, 30, 40, 50, 60, 70, 80, 90].filter((v) => v <= D).forEach((v) => (s += `<line class="g" x1="${X(v)}" x2="${X(v)}" y1="${top - 8}" y2="${H - 22}"/>`));
   s += `<line class="ref" x1="${X(25)}" x2="${X(25)}" y1="${top - 8}" y2="${H - 22}"/>`;
-  [[0, "0"], [25, "25 fair share"], [50, "50"], [75, "75"]].filter(([v]) => v <= D).forEach(([v, t]) => (s += `<text x="${X(v)}" y="14" text-anchor="middle"${v === 25 ? ' class="b"' : ""}>${t}</text>`));
+  [[0, "0"], [25, "25 = even"], [50, "50"], [75, "75"]].filter(([v]) => v <= D).forEach(([v, t]) => (s += `<text x="${X(v)}" y="14" text-anchor="middle"${v === 25 ? ' class="b"' : ""}>${t}</text>`));
   R.forEach((b, i) => {
     const y = top + i * rh + rh / 2, w = b.win, est = w.label === "estimate";
     s += `<g class="hit" data-open="${b.key}" tabindex="0" role="button" aria-label="${esc(`${b.p.label}, ${lvText(b)}. Win chance ${est ? `about ${Math.round(w.v)} percent, an estimate` : `${f1(w.v)} percent, plus or minus ${f1(w.ci)}, measured`}. Open profile`)}">`;
@@ -141,14 +141,14 @@ function ladderSvg(W) {
     s += `<line class="stem" x1="${X(0)}" x2="${X(w.v)}" y1="${y}" y2="${y}"/>`;
     if (!est) s += `<g class="iv"><line x1="${X(w.v - w.ci)}" x2="${X(w.v + w.ci)}" y1="${y}" y2="${y}"/><line x1="${X(w.v - w.ci)}" x2="${X(w.v - w.ci)}" y1="${y - 14}" y2="${y + 14}"/><line x1="${X(w.v + w.ci)}" x2="${X(w.v + w.ci)}" y1="${y - 14}" y2="${y + 14}"/></g>`;
     s += `<g transform="translate(${X(w.v)},${y})"><circle r="${r}" class="disc"/><g transform="translate(${-r + 1.5},${-r + 1.5}) scale(${(2 * r - 3) / 100})">${inner(b.key)}</g><circle r="${r}" class="ring${est ? " est" : ""}" style="stroke-opacity:${0.4 + b.p.level * 0.12}"/></g>`;
-    s += `<text class="v" x="${W}" y="${y - 1}" text-anchor="end">${est ? "~" + Math.round(w.v) : f1(w.v)}</text><text x="${W}" y="${y + 13}" text-anchor="end">${est ? "estimate" : "±" + f1(w.ci)}</text></g>`;
+    s += `<text class="v" x="${W}" y="${y - 1}" text-anchor="end">${est ? "~" + Math.round(w.v) : f1(w.v)}</text><text x="${W}" y="${y + 13}" text-anchor="end">${est ? "estimate" : `likely ${f1(Math.max(0, w.v - w.ci))}–${f1(w.v + w.ci)}`}</text></g>`;
   });
   s += `<text x="${X(D / 2)}" y="${H - 3}" text-anchor="middle">win chance, %</text></svg>`;
   return s;
 }
 const ladderCard = (W) => `<section class="bpg-card bpg-hero" aria-labelledby="bpgLadH"><h2 id="bpgLadH">Strength ladder</h2>
-  <p class="bpg-lede">Win chance of one bot against 3 Intermediates. A fair share is 25%.</p>${ladderSvg(W)}
-  <ul class="bpg-leg"><li><i class="k-ring"></i>measured</li>${hasEst() ? `<li><i class="k-ring est"></i>estimate, not a measurement</li>` : ""}<li><i class="k-cap"></i>95% interval</li><li><span class="bpg-dots" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>level 1 to 5</li></ul>
+  <p class="bpg-lede">Wins out of 100 games for one bot against 3 Intermediate bots (25 = an even share).</p>${ladderSvg(W)}
+  <ul class="bpg-leg"><li><i class="k-ring"></i>measured</li>${hasEst() ? `<li><i class="k-ring est"></i>estimate, not a measurement</li>` : ""}<li><i class="k-cap"></i>likely range</li><li><span class="bpg-dots" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>strength (1 to 5 dots)</li></ul>
   ${ladderFoot()}
   ${numbersHtml("ladder")}</section>`;
 
@@ -178,7 +178,7 @@ function scatterSvg(W, sel) {
   let s = `<svg class="bpg-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="group" aria-label="Win chance against review accuracy for each bot. Tap a bot, or a group of bots, for its numbers.">`;
   [50, 60, 70, 80].forEach((v) => (s += `<line class="g" x1="${l}" x2="${W - rgt}" y1="${YS(v)}" y2="${YS(v)}"/><text x="${l - 6}" y="${YS(v) + 4}" text-anchor="end">${v}</text>`));
   [0, 20, 40, 60, 80].filter((v) => v <= g.D).forEach((v) => (s += `<line class="g" x1="${XS(v)}" x2="${XS(v)}" y1="${t}" y2="${H - b}"/><text x="${XS(v)}" y="${H - b + 16}" text-anchor="middle">${v}</text>`));
-  s += `<line class="ref" x1="${XS(25)}" x2="${XS(25)}" y1="${t}" y2="${H - b}"/><text class="b" x="${XS(25) + 4}" y="${t + 11}">25 fair share</text>`;
+  s += `<line class="ref" x1="${XS(25)}" x2="${XS(25)}" y1="${t}" y2="${H - b}"/><text class="b" x="${XS(25) + 4}" y="${t + 11}">25 = even</text>`;
   s += `<text x="${(l + W - rgt) / 2}" y="${H - 4}" text-anchor="middle">win chance, %</text><text transform="translate(11,${(t + H - b) / 2}) rotate(-90)" text-anchor="middle">review accuracy</text>`;
   const taken = []; // label boxes and markers, to keep labels apart
   g.groups.forEach((G) => G.forEach((p) => taken.push([p.x - 11, p.y - 11, p.x + 11, p.y + 11])));
@@ -227,7 +227,7 @@ function selPanel(sel) {
 }
 const scatterCard = (W, sel) => `<section class="bpg-card bpg-hero" aria-labelledby="bpgScH"><h2 id="bpgScH">Strength against accuracy</h2>
   <p class="bpg-lede">Do the strong bots also play clean? Tap a bot.</p>${scatterSvg(W, sel)}
-  <ul class="bpg-leg"><li><i class="k-cross"></i>interval (95% win, ±1 SE accuracy)</li>${hasEst() ? `<li><i class="k-ring est"></i>estimate</li>` : ""}<li><i class="k-grp">n</i>group of bots</li></ul>
+  <ul class="bpg-leg"><li><i class="k-cross"></i>likely range (wins, accuracy)</li>${hasEst() ? `<li><i class="k-ring est"></i>estimate</li>` : ""}<li><i class="k-grp">n</i>group of bots</li></ul>
   <div data-selpanel>${selPanel(sel)}</div>
   <p class="bpg-foot">${esc(accNote())}</p>${scatterFoot()}
   ${numbersHtml("scatter")}</section>`;
@@ -248,7 +248,7 @@ function numbersHtml(kind) {
   const set = [...setups.map((k) => ["Win chance", `${SETUPS[k]} Code ${codes(k)}.`]), ...(kind === "scatter" ? [["Accuracy", SETUPS.review + " Code v1.21."]] : [])];
   const vsE = BOT_STATS.master?.vsExpert;
   return `<details class="bpg-nums"><summary>Show the numbers</summary><div class="bpg-tw" tabindex="0"><table><caption class="sr">${kind === "ladder" ? "Win chance per bot" : "Win chance and review accuracy per bot"}</caption>
-    <thead><tr><th scope="col">Bot</th><th scope="col">Win %</th><th scope="col">±95%</th><th scope="col">n</th><th scope="col">Code</th><th scope="col">Label</th>${kind === "ladder" ? `<th scope="col">vs 3 Experts</th><th scope="col">Rating</th>` : ""}${kind === "scatter" ? `<th scope="col">Acc</th><th scope="col">±SE</th>` : ""}</tr></thead><tbody>${rowsH}</tbody></table></div>
+    <thead><tr><th scope="col">Bot</th><th scope="col">Win %</th><th scope="col">Likely range ±</th><th scope="col">n</th><th scope="col">Code</th><th scope="col">Label</th>${kind === "ladder" ? `<th scope="col">vs 3 Experts</th><th scope="col">Rating</th>` : ""}${kind === "scatter" ? `<th scope="col">Acc</th><th scope="col">±SE</th>` : ""}</tr></thead><tbody>${rowsH}</tbody></table></div>
     ${set.map(([a, b]) => `<p class="bpg-foot"><b>${a}:</b> ${esc(b)}</p>`).join("")}
     ${kind === "ladder" ? `<p class="bpg-foot"><b>vs 3 Experts:</b> ${esc(SETUPS.vsExperts || "")}</p><p class="bpg-foot"><b>Rating:</b> ${esc(SETUPS.rating || "")}</p>` : ""}
     ${rows().filter((r) => r.win.src || (r.key === "master" && vsE)).map((r) => `<p class="bpg-foot"><b>${r.p.label}:</b> ${esc([r.win.src, r.key === "master" && vsE ? `Measured on its own: +${f1(vsE.v)} pp (±${f1(vsE.ci)}) over an Expert in the same seat, ${vsE.n} games against 3 Experts; its own seat wins ${f1(vsE.own.v)}% (±${f1(vsE.own.ci)}) there.` : ""].filter(Boolean).join(" "))}</p>`).join("")}</details>`;
@@ -262,9 +262,9 @@ function modeCard(tab) {
   const rowsH = keys.map((k) => { const w = M[k]; return `<tr><th scope="row">${name(k)}</th><td>${f1(w.v)}</td><td>±${f1(w.ci)}</td><td>${w.n}${w.prov ? " (provisional)" : ""}</td><td>${w.vsE ? `${w.vsE.v > 0 ? "+" : ""}${f1(w.vsE.v)} ±${f1(w.vsE.ci)}` : "–"}</td><td>${esc(w.fut || "–")}</td></tr>`; }).join("");
   const setup = SETUPS[M[keys[0]].setup] || "";
   const code = M[keys[0]].code;
-  return `<section class="bpg-card bpg-hero" aria-labelledby="bpgModeH"><h2 id="bpgModeH">Measured here</h2><p class="bpg-lede">One bot against Intermediates; a fair share is ${FAIR[tab]}%. ${(() => { const miss = Object.keys(P).filter((k) => !keys.includes(k)).map(name); return miss.length ? `Not measured here: ${miss.join(", ")}.` : "Every bot is measured here."; })()}${keys.some((k) => M[k].prov) ? " Provisional: from a run that was stopped early." : ""}</p>
+  return `<section class="bpg-card bpg-hero" aria-labelledby="bpgModeH"><h2 id="bpgModeH">Measured here</h2><p class="bpg-lede">One bot against 3 Intermediate bots; ${FAIR[tab]} wins out of 100 games is an even share. ${(() => { const miss = Object.keys(P).filter((k) => !keys.includes(k)).map(name); return miss.length ? `Not measured here: ${miss.join(", ")}.` : "Every bot is measured here."; })()}${keys.some((k) => M[k].prov) ? " Provisional: from a run that was stopped early." : ""}</p>
     <details class="bpg-nums"><summary>Show the numbers</summary><div class="bpg-tw" tabindex="0"><table><caption class="sr">Win chance per measured bot</caption>
-    <thead><tr><th scope="col">Bot</th><th scope="col">Win %</th><th scope="col">±95%</th><th scope="col">n</th><th scope="col">vs Expert (pp)</th><th scope="col">Search</th></tr></thead><tbody>${rowsH}</tbody></table></div>
+    <thead><tr><th scope="col">Bot</th><th scope="col">Win %</th><th scope="col">Likely range ±</th><th scope="col">n</th><th scope="col">vs Expert (pp)</th><th scope="col">Search</th></tr></thead><tbody>${rowsH}</tbody></table></div>
     <p class="bpg-foot"><b>Win chance:</b> ${esc(setup)} Code ${esc(code)}.</p><p class="bpg-foot"><b>vs Expert:</b> the same boards and seats played by the Expert; the difference in win chance, in percentage points, ± 95%.</p>${keys.filter((k) => M[k].src && /^(Measured|Provisional)/.test(M[k].src)).map((k) => `<p class="bpg-foot"><b>${esc(name(k))}:</b> ${esc(M[k].src.replace(/ Same boards and seats.*$/, ""))}</p>`).join("")}</details></section>`;
 }
 
@@ -323,7 +323,7 @@ export const BotsPageMixin = {
         <div class="bpg-tabs" role="tablist" aria-label="Game type">${TABS.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === S.tab}" data-btab="${k}" class="${k === S.tab ? "on" : ""}">${l}</button>`).join("")}</div>
         ${measured ? ladderCard(W) : MODE_STATS[S.tab] ? modeCard(S.tab) : `<div class="bpg-notice" role="status"><b>Not measured yet</b>${NOT[S.tab] || ""} There is no ranking here; “You” still counts your own games.</div>`}
         ${listHtml(S.tab, S.sort, you, S.who, S.metric || "win")}
-        <p class="bpg-foot">${measured ? `<b>Win %</b> = one bot against 3 Intermediates, 4 players, 10 VP, ± 95% interval (2000 games a bot; fewer for the search bots, see the numbers); a fair share is 25%. <b>Acc</b> = how often its moves match the best move (game review), ±1 SE. <b>You</b> = your wins in games where that bot sat at the table, from ${YOU_MIN} games (fewer: “few”).` : `<b>Win %</b> = one bot against Intermediates at this kind of table, ± 95% interval (see the numbers above); “not measured”: no figure for that bot here yet. Fair share: ${FAIR[S.tab]}%. Accuracy is only measured in Classic. <b>You</b> = your wins in games where that bot sat at the table, from ${YOU_MIN} games.`}</p>
+        <p class="bpg-foot">${measured ? `<b>Win %</b> = one bot against 3 Intermediates, 4 players, 10 VP, with the likely range (2000 games a bot; fewer for the search bots, see the numbers); 25 wins out of 100 is an even share. <b>Acc</b> = how often its moves match the best move (game review), ±1 SE. <b>You</b> = your wins in games where that bot sat at the table, from ${YOU_MIN} games (fewer: “few”).` : `<b>Win %</b> = one bot against Intermediates at this kind of table, ± 95% interval (see the numbers above); “not measured”: no figure for that bot here yet. Fair share: ${FAIR[S.tab]}%. Accuracy is only measured in Classic. <b>You</b> = your wins in games where that bot sat at the table, from ${YOU_MIN} games.`}</p>
         ${measured ? scatterCard(W, S.sel) : ""}
       </div>`;
     el.querySelectorAll("details").forEach((d, i) => { d.dataset.k = i; if (open.includes(String(i))) d.open = true; });

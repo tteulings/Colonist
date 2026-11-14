@@ -125,8 +125,9 @@ export const AnalysisMixin = {
     return `${sea ? "Pirate" : "Robber"} on ${this._hexName(hexId)}`;
   },
   _spotLabel(nodeId) {
-    const nums = this.geometry.nodes[nodeId].adjacentHexes.map((h) => this.geometry.hexes[h]).filter((h) => h.number).map((h) => h.number);
-    return nums.length ? nums.join("·") : "coast";
+    // "Lumber 4, Ore 3, Grain 8" (resource words, so the label reads without the board in front of you)
+    const hs = this.geometry.nodes[nodeId].adjacentHexes.map((h) => this.geometry.hexes[h]).filter((h) => h.number);
+    return hs.length ? hs.map((h) => (RES_LABEL[h.resource] ? `${RES_LABEL[h.resource]} ${h.number}` : String(h.number))).join(", ") : "coast";
   },
 
   _nodeDims(player, nodeId) {
@@ -140,9 +141,9 @@ export const AnalysisMixin = {
       const ids = this._rulesSetupSpots(player);
       const b = this._rulesSetupSpot(player);
       if (!b) return null;
-      const alts = ids.filter((id) => id !== b.id).map((id) => ({ id, s: this._rulesPips(id) })).sort((x, y) => y.s - x.s).slice(0, 3).map((c) => ({ label: `Spot ${this._spotLabel(c.id)}`, score: c.s }));
-      return { kind: "setup", pid: player.id, title: "Settlement · most pips", score: b.pips, dims: dims0(), alts, rules: null, fmt: "int",
-        note: `Rule: most pips (${b.pips}), tie → more resources (${b.kinds})`, nodes: ids.map((id) => ({ id, s: this._rulesPips(id) })), pick: { node: b.id } };
+      const alts = ids.filter((id) => id !== b.id).map((id) => ({ id, s: this._rulesPips(id) })).sort((x, y) => y.s - x.s).slice(0, 3).map((c) => ({ label: `Spot on ${this._spotLabel(c.id)}`, score: c.s }));
+      return { kind: "setup", pid: player.id, title: "Settlement · most dice dots", score: b.pips, dims: dims0(), alts, rules: null, fmt: "int",
+        note: `Rule: most dice dots (${b.pips}), tie → more resources (${b.kinds})`, nodes: ids.map((id) => ({ id, s: this._rulesPips(id) })), pick: { node: b.id } };
     }
     const cands = this._aiSetupCandidates(player);
     let best = null;
@@ -150,9 +151,9 @@ export const AnalysisMixin = {
     if (!best) return null;
     const { dims } = this._nodeDims(player, best.id);
     const alts = cands.filter((c) => c.id !== best.id).sort((x, y) => y.score - x.score).slice(0, 3)
-      .map((c) => ({ label: `Spot ${this._spotLabel(c.id)}`, score: c.score }));
+      .map((c) => ({ label: `Spot on ${this._spotLabel(c.id)}`, score: c.score }));
     return { kind: "setup", pid: player.id, title: "Settlement", score: best.score, dims, alts,
-      note: `Best: Spot ${this._spotLabel(best.id)} of ${cands.length} spots`, nodes: cands.map((c) => ({ id: c.id, s: c.score })), pick: { node: best.id } };
+      note: `Best: Spot on ${this._spotLabel(best.id)} of ${cands.length} spots`, nodes: cands.map((c) => ({ id: c.id, s: c.score })), pick: { node: best.id } };
   },
 
   _aiNoteSetup(player, nodeId) {
@@ -182,7 +183,7 @@ export const AnalysisMixin = {
       if (!r.pick) return null;
       const pick = chosen != null ? r.cands.find((c) => c.id === chosen) || r.pick : r.pick;
       return { kind: "robber", pid: player.id, title: "Robber · leader's best tile", score: pick.lead, dims: dims0(), alts: [], fmt: "int",
-        note: `Rule: the leader (${r.leader?.name || "–"})'s tile with the most pips, never its own · steals from the leader`,
+        note: `Rule: the leader (${r.leader?.name || "–"})'s tile with the most dice dots, never its own · steals from the leader`,
         hexes: r.cands.filter((c) => !c.own).map((c) => ({ id: c.id, s: c.lead, dmg: c.lead ? c.lead / 36 * 10 : null })), pick: { hex: pick.id } };
     }
     if (this.sea) {
@@ -464,12 +465,12 @@ export const AnalysisMixin = {
       const c = snap.cands.find((x) => x.id === newNode);
       if (snap.best?.id === newNode) Object.assign(dims, snap.best.dims); // split read before building
       d = { ...d, title: "Settlement", score: c ? c.s : null, nodes: snap.cands.map((x) => ({ id: x.id, s: x.s })), pick: { node: newNode },
-        alts: others(newNode).map((x) => ({ label: `Spot ${this._spotLabel(x.id)}`, score: x.s })) };
+        alts: others(newNode).map((x) => ({ label: `Spot on ${this._spotLabel(x.id)}`, score: x.s })) };
     } else if (kind === "city" && newCity != null) {
       const c = snap.cands.find((x) => x.id === newCity);
       dims.placement = c ? c.s : 0;
       d = { ...d, title: "City", score: c ? c.s : null, cities: snap.cands.map((x) => ({ id: x.id, s: x.s })), pick: { city: newCity },
-        alts: others(newCity).map((x) => ({ label: `City ${this._spotLabel(x.id)}`, score: x.s })) };
+        alts: others(newCity).map((x) => ({ label: `City on ${this._spotLabel(x.id)}`, score: x.s })) };
     } else if (kind === "road" && newEdge != null) {
       const c = snap.cands.find((x) => x.id === newEdge);
       dims.expansion = c && Number.isFinite(c.s) ? c.s : 0;

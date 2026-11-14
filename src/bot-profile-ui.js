@@ -26,8 +26,8 @@ export function strengthLine(key) {
   const w = winOf(key); // bot-125: the search bots read their measured figure from bot-stats.js
   const h = BOT_STATS[key]?.h2h; // v1.39 Grandmaster: measured head to head with the Super Expert+
   if (key === "grandmaster" && w.label !== "measured" && h?.gm != null) return `<span class="bp-win">Wins <b>${Math.round(h.gm)}%</b> head to head vs the Super Expert+ (${Math.round(h.sp)}%) <span class="bp-fair">(+${Math.round(h.diff)} pts ±${Math.round(h.diffci)})</span></span>`;
-  if (key === "master" || isSuperKey(key)) return w.label === "measured" ? `<span class="bp-win">Wins <b>${Math.round(w.v)}%</b> vs 3 Intermediate bots <span class="bp-fair">(fair share 25%)</span></span>` : `<span class="bp-win">Win figure <b>not measured yet</b></span>`;
-  return p.win ? `<span class="bp-win">Wins <b>${Math.round(p.win.p)}%</b> vs 3 Intermediate bots <span class="bp-fair">(fair share 25%)</span></span>` : "";
+  if (key === "master" || isSuperKey(key)) return w.label === "measured" ? `<span class="bp-win">Wins <b>${Math.round(w.v)}</b> of 100 games vs 3 Intermediate bots <span class="bp-fair">(25 = even)</span></span>` : `<span class="bp-win">Win figure <b>not measured yet</b></span>`;
+  return p.win ? `<span class="bp-win">Wins <b>${Math.round(p.win.p)}</b> of 100 games vs 3 Intermediate bots <span class="bp-fair">(25 = even)</span></span>` : "";
 }
 
 /** An avatar with its profile frame (bots only; a human or a bot without a profile gets the plain avatar). */
@@ -85,7 +85,7 @@ function soFar(game, pid) {
 function details(key) {
   const p = P[key];
   const w = winOf(key);
-  const src = w.label === "measured" ? `Measured: ${w.n} games against 3 Intermediate bots (±${w.ci} pts).${p.note ? ` ${p.note}` : ""}` : p.note || "";
+  const src = w.label === "measured" ? `Measured: ${w.n} games against 3 Intermediate bots (likely range ${Math.max(0, Math.round((w.v - w.ci) * 10) / 10)}–${Math.round((w.v + w.ci) * 10) / 10} wins out of 100).${p.note ? ` ${p.note}` : ""}` : p.note || "";
   return `<p class="bp-style">${p.style}</p>
     <div class="bp-rows">${row("good", "+", "Good at", p.good)}${row("weak", "−", "Weak spot", p.weak)}
     ${row("trade", "⇄", "Trading", p.trades)}${row("rob", "♟", "Robber", p.robber)}${row("card", "★", "Dev cards", p.cards)}</div>

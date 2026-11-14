@@ -208,12 +208,12 @@ export function makeMaster(opts = {}) {
     tr.forEach(([a, b]) => { give[a] = (give[a] || 0) + 1; get[b] = (get[b] || 0) + 1; });
     return `${Object.keys(give).map((r) => RES[r]).join(" + ")} → ${Object.entries(get).map(([r, n]) => `${n} ${RES[r]}`).join(" + ")}`;
   };
-  const goalName = (g, goal) => (goal.type === "settlement" ? `Settlement ${g._spotLabel(goal.nodeId)}${goal.dist ? ` +${goal.dist} road${goal.dist > 1 ? "s" : ""}` : ""}`
+  const goalName = (g, goal) => (goal.type === "settlement" ? `Settlement on ${g._spotLabel(goal.nodeId)}${goal.dist ? ` +${goal.dist} road${goal.dist > 1 ? "s" : ""}` : ""}`
     : goal.type === "city" ? `City on ${g._spotLabel(goal.nodeId)}` : goal.type === "road" ? "Longest Road" : goal.type === "dev" ? "Dev card" : goal.label);
   const goalFocus = (goal) => (goal.type === "settlement" ? { node: goal.nodeId } : goal.type === "city" ? { city: goal.nodeId } : goal.type === "road" && goal.edge != null ? { edge: goal.edge } : null);
   const describeDiff = (g, p, dif, plan) => {
     if (dif.cities.length) return { label: `City on ${g._spotLabel(dif.cities[0])}`, focus: { city: dif.cities[0] } };
-    if (dif.sett.length) return { label: `Settlement ${g._spotLabel(dif.sett[0])}`, focus: { node: dif.sett[0] } };
+    if (dif.sett.length) return { label: `Settlement on ${g._spotLabel(dif.sett[0])}`, focus: { node: dif.sett[0] } };
     if (dif.ships?.length) { const to = dif.ships[0]; const moved = dif.shipMoved; return { label: moved ? shipMoveLabel(g, p, to) : shipBuildLabel(g, p, to), focus: { edge: to } }; }
     if (dif.roads.length) {
       const g0 = plan.goals[0];
@@ -288,7 +288,7 @@ export function makeMaster(opts = {}) {
       const ids = [def, ...g._aiSetupCandidates(p).sort((a, b) => b.score - a.score).map((c) => c.id).filter((id) => id !== def)].slice(0, o.topSetup);
       if (ids.length <= 1 || def == null) return null;
       return { kind, cands: ids, depth: o.setupDepth, choiceOf: (k) => ids[k],
-        named: () => ids.map((id) => ({ c: { kind: "spot", node: id }, label: `Spot ${g._spotLabel(id)}`, focus: { node: id } })),
+        named: () => ids.map((id) => ({ c: { kind: "spot", node: id }, label: `Spot on ${g._spotLabel(id)}`, focus: { node: id } })),
         apply: (gg, node) => {
           const once = { used: false };
           const save = Object.prototype.hasOwnProperty.call(gg, "getBestInitialSettlementNode") ? gg.getBestInitialSettlementNode : null;

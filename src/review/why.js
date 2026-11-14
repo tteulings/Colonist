@@ -153,7 +153,7 @@ const lrText = (g, c) => {
 function roadPlan(g, p, mv, c) {
   const items = [], chips = [], t = c.target;
   if (t) {
-    items.push(`reaches ${t.label} (${t.d0 <= 1 ? "this road" : plural(t.d0, "road")}, ${t.pips} pips)`);
+    items.push(`reaches ${t.label} (${t.d0 <= 1 ? "this road" : plural(t.d0, "road")}, ${t.pips} dice dots)`);
     if (t.newRes.length) { items.push(`adds ${list(t.newRes)}`); chips.push(`+${list(t.newRes)}`); }
     if (t.port) { items.push(t.port); chips.push(t.port); }
     if (t.d1 === 0) items.push("then settle there");
@@ -161,13 +161,13 @@ function roadPlan(g, p, mv, c) {
   }
   if (c.blocks.length) { const b = c.blocks[0]; items.push(`blocks ${nm(g, b.pid)} from ${b.label}`); chips.push(`blocks ${nm(g, b.pid)}`); }
   if (lrRelevant(c)) { items.push(lrText(g, c)); chips.push(lrText(g, c)); }
-  if (t && !chips.length) chips.push(`${t.pips} pips`);
+  if (t && !chips.length) chips.push(`${t.pips} dice dots`);
   return { items, chips };
 }
 const roadVs = (g, c) => {
   const t = c.target;
   if (!t) return "dead end: no free spot within 3 roads";
-  const bits = [`reaches ${t.label} (${t.pips} pips`, t.newRes.length ? `adds ${list(t.newRes)})` : "nothing new)"];
+  const bits = [`reaches ${t.label} (${t.pips} dice dots`, t.newRes.length ? `adds ${list(t.newRes)})` : "nothing new)"];
   return bits.join(", ");
 };
 
@@ -196,7 +196,7 @@ function settleBlocks(g, p, n) {
 }
 function settlePlan(g, p, mv) {
   const c = buildCard(g, p, mv), items = [], chips = [];
-  items.push(`+${c.pips} pips (${list(c.kinds)})`);
+  items.push(`+${c.pips} dice dots (${list(c.kinds)})`);
   if (c.newRes.length) { items.push(`new: ${list(c.newRes)}`); chips.push(`+${list(c.newRes)}`); }
   if (c.port) { items.push(c.port); chips.push(c.port); }
   const bl = settleBlocks(g, p, mv.node).find((b) => b.pid !== p.id);
@@ -207,9 +207,9 @@ function settlePlan(g, p, mv) {
 }
 function cityPlan(g, p, mv) {
   const c = buildCard(g, p, mv), items = [], chips = [];
-  items.push(`doubles ${c.pips} pips (${list(c.doubled)})`);
-  items.push(`income ${c.own.total} → ${c.own.total + c.pips} pips`);
-  chips.push(`+${c.pips} pips`);
+  items.push(`doubles ${c.pips} dice dots (${list(c.doubled)})`);
+  items.push(`income ${c.own.total} → ${c.own.total + c.pips} dice dots`);
+  chips.push(`+${c.pips} dice dots`);
   return { c, items, chips };
 }
 
@@ -227,7 +227,7 @@ export function hexCard(g, p, hexId) {
   return { id: hexId, name: g._hexName(hexId), pips: Object.values(hit).reduce((a, b) => a + b, 0), victims, own: own.pips, leaderHit: victims.some((v) => v.leader), here: g.robberHexId === hexId };
 }
 const hexText = (g, c) => {
-  if (!c.victims.length) return c.own ? `${c.name}: hits only you (−${c.own} pips)` : `${c.name}: nobody on it`;
+  if (!c.victims.length) return c.own ? `${c.name}: hits only you (−${c.own} dice dots)` : `${c.name}: nobody on it`;
   const v = c.victims.slice(0, 2).map((x) => `${nm(g, x.pid)} (${x.vp} VP${x.leader ? ", leader" : ""}) −${x.pips}`).join(", ");
   return `${c.name}: ${v} pips${c.own ? `, you −${c.own}` : ""}`;
 };
