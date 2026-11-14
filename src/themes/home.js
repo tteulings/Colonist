@@ -88,7 +88,7 @@ export class Home {
     this.el.classList.toggle("has-save", !!s);
     this.el.innerHTML = `<div class="hm-col">
       <header class="hm-brand"><svg class="hm-logo" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>
-        <h1>Katan<small class="hm-sub">Handelaren en Bouwers</small></h1>${s ? "" : `<p>Settle the island, trade with friendly bots, reach 10 points first.</p>`}</header>
+        <h1>Katan<small class="hm-sub">Handelaren en Bouwers</small></h1>${s ? "" : `<p>Settle the island, trade with friendly bots, reach ${sea ? 14 : 10} points first.</p>`}</header>
       ${upd ? `<button type="button" class="hm-update" data-home="update" aria-live="polite">${UPDATE_IC}<span><b>${upd.version ? `Update to v${upd.version}` : "Update ready"}</b><small>New version ready · tap to reload${s ? " · your game is saved" : ""}</small></span>${CHEV}</button>` : ""}
       ${s ? `<button type="button" class="hm-continue" data-home="continue">${PLAY_IC}<span class="hm-ct"><b>Continue game</b><small>${s.mode} · ${s.mode.startsWith("Rush") ? "roll" : "turn"} ${s.turn}</small></span>${CHEV}
         <span class="hm-score">${s.players.map((q) => `<span class="pc-${q.seat}" title="${q.name}: ${q.vp} points">${avatarSvg(q.seat, "hm-av")}<em class="nm">${q.name}</em> <b>${q.vp}</b></span>`).join("")}</span></button>` : ""}
@@ -157,9 +157,12 @@ export class GameMenu {
     el.setAttribute("role", "dialog");
     el.setAttribute("aria-modal", "true");
     el.setAttribute("aria-label", "Menu");
+    const sr = this.game.speedRange;
     const item = (k, ic, label, sub = "") => `<button type="button" data-menu="${k}">${ic}<span>${label}${sub ? `<small>${sub}</small>` : ""}</span></button>`;
     el.innerHTML = `<div class="mn-card">
       <div class="mn-head"><h2>${themed(this.game, "menu", MENU_IC, "ic-menu")}Menu</h2><button type="button" class="btn ghost icon-only mn-close" aria-label="Close">${icon("close")}</button></div>
+      ${this.game._botLevelLabel?.() ? `<p class="mn-sub">${this.game._botLevelLabel()}</p>` : ""}
+      ${sr ? `<label class="mn-speed"><span>Bot speed</span><input type="range" min="${sr.min}" max="${sr.max}" step="${sr.step || 1}" value="${sr.value}" aria-label="Bot speed" /><em aria-hidden="true">Slow \u2192 Fast</em></label>` : ""}
       <div class="mn-list">
         ${item("home", `<svg class="ic" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>`, "Home", this.game.winner ? "" : "Your game is saved")}
         ${this.game.liveStatsAvailable?.() && !this.game._lsNeedsBoard?.() ? item("stats", STATS_IC, "Stats", "Dice, points and income so far") : ""}
@@ -172,6 +175,11 @@ export class GameMenu {
       </div></div>`;
     el.addEventListener("click", (e) => { if (e.target === el) this.close(); });
     el.querySelector(".mn-close").addEventListener("click", () => this.close());
+    const sp = el.querySelector(".mn-speed input");
+    if (sp && sr) {
+      sp.addEventListener("input", () => { sr.value = sp.value; sr.dispatchEvent(new Event("input", { bubbles: true })); });
+      sp.addEventListener("change", () => sr.dispatchEvent(new Event("change", { bubbles: true })));
+    }
     const go = { stats: "onStats", check: "onCheck", history: "onHistory", home: "onHome", newgame: "onNewGame", settings: "onSettings", intro: "onIntro", about: "onAbout" };
     el.querySelectorAll("[data-menu]").forEach((b) => b.addEventListener("click", () => { const fn = this.opts[go[b.dataset.menu]]; this.close(); fn?.(); }));
     document.addEventListener("keydown", this.onKey);
