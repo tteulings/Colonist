@@ -2617,7 +2617,9 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
 /* v1.59 live win-chance bar (src/live-bar.js) */
 .livebar { flex: none; position: relative; z-index: 6; padding: 1px 10px 2px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .livebar[hidden] { display: none; }
-.lb-track { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: rgba(0,0,0,.12); }
+.lb-row { display: flex; align-items: center; gap: 6px; }
+.lb-depth { flex: none; min-width: 52px; text-align: right; font: 600 9px/10px system-ui, sans-serif; letter-spacing: .02em; color: var(--ink-soft, #667); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lb-track { flex: 1 1 auto; display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: rgba(0,0,0,.12); }
 .lb-seg { display: block; flex: 1 1 0; flex-basis: 0; min-width: 0; transition: flex-grow .6s ease; position: relative; text-align: center; font: 700 8px/10px system-ui, sans-serif; color: #fff; text-shadow: 0 0 2px rgba(0,0,0,.7); font-style: normal; overflow: hidden; white-space: nowrap; }
 .lb-seg b { font-weight: 700; }
 .lb-seg.me { box-shadow: inset 0 -2px 0 #fff; }

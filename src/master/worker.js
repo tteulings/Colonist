@@ -14,6 +14,8 @@
 //   → { type: "sprep" | "srun" | "send", sid, ... }               (eng-130 Grandmaster: a share of one parallel search, src/master/parallel.js)
 //   → { type: "luck", id, base, ev, opts }                      (v1.31 luck in win chance: one chance event, src/review/luck-mc.js)
 //   ← { type: "luck", id, result }
+//   → { type: "live", op: "start" | "pause" | "resume" | "stop", job, ... }   (v1.60 the live win-chance bar keeps refining: futures in batches)
+//   ← { type: "live", job, n, p }                                 (running average of the seats' win chances after n futures)
 //   ← { type: "ready" } once loaded, { type: "error", id, message } on failure
 import "./dom.js";
 await import("../game.js"); // constructs a stub game as self.__colonistGame (no page, no saving)
@@ -22,6 +24,8 @@ const { detectMissed } = await import("../review/detect.js");
 const { loadPosition, loadRecord } = await import("../review/engine.js");
 const { evaluateRecord } = await import("../review/evaluate.js");
 const { luckEvent } = await import("../review/luck-mc.js");
+const { snapshot, restore, rollout, withoutAgents, mulberry32 } = await import("./sim.js");
+const { gbmProbs } = await import("./leaf-gbm.js");
 const g = prepareEngine(self.__colonistGame);
 g._rvOff = true; // v1.02: this copy never records a review
 const H = g.constructor.labHelpers;
@@ -102,9 +106,42 @@ function playGame(m) {
   } finally { Math.random = orig; g.players.forEach((p) => { p.agent = null; }); g.addLog = noLog; }
 }
 
+// v1.60 live win chance that keeps deepening (src/live-bar.js): futures of the position as it stands (nobody's hand hidden, as the
+// Quick model sees it), `depth` turn ends of normal bot play each, scored by the gbm leaf; posted as a running average after every batch.
+// Its own RNG (mulberry32 on a clock seed), never the game's. A new "start" replaces the job at the next batch; "stop" drops it.
+let LJ = null;
+function liveStart(m) {
+  LJ = null;
+  loadPosition(g, { state: m.state, trk: m.trk, turnSerial: m.turnSerial || 0, seat: m.seat });
+  g.players.forEach((p, i) => { if (m.humans?.[i]) p.strategy = { ...H.AI_PRESETS.expert }; });
+  LJ = { job: m.job, root: snapshot(g), n: 0, sum: g.players.map(() => 0), cap: m.cap, batch: m.batch, depth: m.depth, seed: (Date.now() ^ (m.job * 2654435761)) >>> 0, paused: false };
+  setTimeout(liveStep, 0);
+}
+function liveStep() {
+  const J = LJ;
+  if (!J) return;
+  if (J.paused) { setTimeout(liveStep, 120); return; }
+  const t0 = performance.now();
+  for (let k = 0; k < J.batch && J.n < J.cap; k++) {
+    const r = mulberry32(J.seed + J.n * 7919);
+    const w = withoutAgents(g, () => { restore(g, J.root); if (!g.winner) rollout(g, J.depth, r); return gbmProbs(g); });
+    w.forEach((x, i) => { J.sum[i] += x; });
+    J.n += 1;
+  }
+  restore(g, J.root);
+  self.postMessage({ type: "live", job: J.job, n: J.n, p: J.sum.map((x) => x / J.n), ms: Math.round(performance.now() - t0) });
+  if (J.n < J.cap) setTimeout(liveStep, 0); else if (LJ === J) LJ = null;
+}
+
 self.onmessage = (e) => {
   const m = e.data;
   try {
+    if (m.type === "live") {
+      if (m.op === "start") liveStart(m);
+      else if (m.op === "stop") LJ = null;
+      else if (LJ && LJ.job === m.job) LJ.paused = m.op === "pause";
+      return;
+    }
     if (m.type === "decide") { loadedSid = null; self.postMessage({ type: "decision", id: m.id, kind: m.kind, ...decide(m) }); }
     else if (m.type === "sprep") self.postMessage({ type: "sprep", id: m.id, ...sprep(m) });
     else if (m.type === "srun") self.postMessage({ type: "srun", id: m.id, ...srun(m) });

@@ -5,8 +5,8 @@
 import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, paletteAuto, paletteAutoMode, autoTimeInfo, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-import { liveWinOn, setLiveWin } from "../live-bar.js";
-export const APP_VERSION = "1.59";
+import { liveWinOn, setLiveWin, liveRefineOn, setLiveRefine } from "../live-bar.js";
+export const APP_VERSION = "1.60";
 
 /** v1.34 Settings: the running version and "Check for updates" (index.html: reg.update() + a version compare). */
 function versionRow() {
@@ -150,6 +150,12 @@ export class SettingsUI {
       lrow.innerHTML = `<div><b id="lwLbl">Live win chance</b><small>A thin bar under the players. Quick model, a rough guide.</small></div><button type="button" class="st-switch${liveWinOn() ? " on" : ""}" role="switch" aria-checked="${liveWinOn()}" aria-labelledby="lwLbl"><i></i></button>`;
       lrow.querySelector("button").addEventListener("click", (e) => { const b = e.currentTarget, on = b.getAttribute("aria-checked") !== "true"; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); setLiveWin(on); });
       body.appendChild(lrow);
+      // v1.60 keep refining: one background worker plays futures while the position stands still (battery: turn it off)
+      const rrow = document.createElement("div");
+      rrow.className = "st-row";
+      rrow.innerHTML = `<div><b id="lrLbl">Keep refining</b><small>Like a chess engine: the bar deepens by simulating futures while you think. Off saves battery.</small></div><button type="button" class="st-switch${liveRefineOn() ? " on" : ""}" role="switch" aria-checked="${liveRefineOn()}" aria-labelledby="lrLbl"><i></i></button>`;
+      rrow.querySelector("button").addEventListener("click", (e) => { const b = e.currentTarget, on = b.getAttribute("aria-checked") !== "true"; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); setLiveRefine(on); });
+      body.appendChild(rrow);
       body.appendChild(versionRow());
     } else if (this.tab === "bots") {
       body.innerHTML = this.head("Bot personalities", "");
