@@ -490,7 +490,7 @@ export const HistoryMixin = {
   },
   _histAcc(m, name = "") {
     if (m.acc == null) return "";
-    return `<span class="hs-acc${m.prov ? " prov" : ""}" title="Game review accuracy${m.prov ? ", provisional" : ""}${m.mid ? " (checked during the game)" : ""}">${m.mid ? `<i class="mid" title="Checked during the game" aria-hidden="true"></i>` : ""}<small>${name ? esc(name) : "Acc"}</small>${m.prov ? "~" : ""}${m.acc}</span>`;
+    return `<span class="hs-acc${m.prov ? " prov" : ""}" title="Game review accuracy${m.prov ? ", provisional" : ""}${m.mid ? " (checked during the game)" : ""}">${m.mid ? `<i class="mid" title="Checked during the game" aria-hidden="true"></i>` : ""}<small>${name ? esc(name) : "Accuracy"}</small>${m.prov ? "~" : ""}${m.acc}</span>`;
   },
   _histRow(m) {
     const w = m.seats[m.winner];

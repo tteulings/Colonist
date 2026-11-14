@@ -6150,12 +6150,12 @@ class ColonistFullGame {
   /**
    * Pause between bot moves in ms. The whole slider maps linearly, right = faster:
    * bot turns 2300 ms (Slow) … 280 ms (Fast); "Watch bots play" turns 3000 … 500 ms.
-   * The default (72) keeps the old pace: ~850 ms per bot move, 1200 ms per watched turn.
+   * The default (93) is about twice as fast as the old 72: ~425 ms per bot move.
    */
   botStepMs(kind = "bot") {
     const min = Number(this.speedRange?.min ?? 0), max = Number(this.speedRange?.max ?? 100);
     const v = Number(this.speedRange?.value);
-    const t = Number.isFinite(v) && max > min ? Math.min(1, Math.max(0, (v - min) / (max - min))) : 0.72;
+    const t = Number.isFinite(v) && max > min ? Math.min(1, Math.max(0, (v - min) / (max - min))) : 0.93;
     const [slow, fast] = kind === "autoplay" ? [3000, 500] : [2300, 280];
     return Math.round(slow - t * (slow - fast));
   }
@@ -10824,7 +10824,7 @@ class ColonistFullGame {
       const w = this._buildWhy(human, t);
       const free = this.freeRoadsRemaining > 0 && (t === "road" || t === "ship");
       const foot = !w ? `<span class="bc-n">${free ? "free" : `${this.piecesLeft(human, t)} left`}</span>`
-        : w.miss ? `<span class="bc-need">need ${w.miss.map(([r, n]) => `${n}<i class="mini-card"><svg viewBox="0 0 250 350" aria-hidden="true"><use href="#cardm-${r}"/></svg></i> ${RESOURCE_LABEL[r]}`).join(" · ")}</span>`
+        : w.miss ? `<span class="bc-need"><b>need</b>${w.miss.map(([r, n]) => `<span class="bc-miss">${n}<i class="mini-card"><svg viewBox="0 0 250 350" aria-hidden="true"><use href="#cardm-${r}"/></svg></i>${RESOURCE_LABEL[r]}</span>`).join("")}</span>`
         : `<span class="bc-need">${w.short}</span>`;
       return `<button type="button" class="bc-row${pa === t ? " sel" : ""}${w ? " off" : ""}" data-bc="${t}" aria-pressed="${pa === t}" aria-disabled="${!!w}" aria-label="${label}${w ? `: ${w.text}` : ""}">`
         + `<span class="bc-top">${icon(t)}<span class="bc-name">${label}</span></span><span class="bc-cost">${free ? "" : this._miniCost(COSTS[t], human.resources)}</span>${foot}</button>`;

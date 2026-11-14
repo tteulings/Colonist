@@ -302,7 +302,7 @@ export const ReviewGameMixin = {
       did, better, hand: det?.hand || hand,
       why: `${det?.kind === "seven" ? `A 7 then took ${det.n} of your ${det.T7} cards. ` : ""}Checked by ${MC}: ${better} kept ${A}% win chance, ${did.charAt(0).toLowerCase() + did.slice(1)} ${B}%.`.replace(/  +/g, " "),
       cmp: { a: better, b: did, total: "Win chance %", int: true, sa: A, sb: B,
-        rows: [{ k: "win", label: "Win chance", a: A, b: B }, { k: "eta", label: "Futures played", a: x.futures || 0, b: x.futures || 0 }] },
+        rows: [{ k: "win", label: "Win chance", a: A, b: B }, { k: "eta", label: "Games simulated", a: x.futures || 0, b: x.futures || 0 }] },
       focus: { a: x.best.focus || det?.focus?.a || null, b: x.focus || det?.focus?.b || null } };
   },
 
@@ -412,17 +412,17 @@ export const ReviewGameMixin = {
     const you = this._rvIsYou(pid), nm = you ? "You" : esc(this.players[pid].name), won = W.end === 1;
     const pc = (v) => `${Math.abs(Math.round(v * 100))}%`, sg = (v) => wpText(v);
     if (won) {
-      const best = [["a strong start (seat, set-up)", W.start], ["the dice", W.luck]].sort((a, b) => b[1] - a[1])[0];
+      const best = [["a strong start (seat, set-up)", W.start], ["luck", W.luck]].sort((a, b) => b[1] - a[1])[0];
       const mv = W.moves != null && W.moves > -0.05 ? ` and clean play (moves cost only ${pc(W.moves)})` : "";
       if (best[1] >= 0.05) return `${nm} won on ${best[0]} (${sg(best[1])})${mv}.`;
       return `${nm} won without a big edge${mv}: the others fell away.`;
     }
-    const c = [["a weak start", W.start], ["the dice", W.luck]];
+    const c = [["a weak start", W.start], ["luck", W.luck]];
     if (W.moves != null) c.push([you ? "your moves" : "their moves", W.moves]);
     const bad = c.sort((a, b) => a[1] - b[1])[0];
-    if (W.moves == null) return `Start ${sg(W.start)}, dice ${sg(W.luck)}. ${you ? "Your" : "Their"} moves are still being checked.`;
+    if (W.moves == null) return `Start ${sg(W.start)}, luck ${sg(W.luck)}. ${you ? "Your" : "Their"} moves are still being checked.`;
     if (bad[1] > -0.04) return `No big weakness of ${you ? "your" : "their"} own: the others pulled ahead.`;
-    const dice = bad[0] !== "the dice" ? ` Not the dice (${sg(W.luck)}).` : "";
+    const dice = bad[0] !== "luck" ? ` Not luck (${sg(W.luck)}).` : "";
     const slip = worst && bad[0].includes("moves") ? ` Biggest slip: ${esc(this._rvWhen(worst).replace("Setup", "set-up"))} (${sgn(-worst.gp)}%).` : "";
     return `${bad[0].charAt(0).toUpperCase() + bad[0].slice(1)} cost ${pc(bad[1])}.${dice}${slip}`;
   },
@@ -434,9 +434,9 @@ export const ReviewGameMixin = {
     if (W) {
       const big = W.moves != null && Math.abs(W.others) >= 0.2;
       return `<div class="rsc-wy"><b>${W.end === 1 ? "Why won" : "Why lost"}</b><small>win chance ${Math.round(W.even * 100)}% → ${Math.round(W.end * 100)}%</small></div>
-        <div class="rsc-wf">${row("Start", W.start)}${row("Dice luck", W.luck)}${row(you ? "Your moves" : "Own moves", W.moves)}${row(W.moves == null ? "Moves + others" : "The others", W.others)}</div>
+        <div class="rsc-wf">${row("Start", W.start)}${row("Dice, steals, cards", W.luck)}${row(you ? "Your moves" : "Own moves", W.moves)}${row(W.moves == null ? "Moves + others" : "The others", W.others)}</div>
         <p class="rsc-v">${this._rvWhyVerdict(pid, W, wd)}</p>
-        <p class="rsc-n">Start = seat order and set-up${Math.round(W.seat * 100) ? ` (seat order ${wpText(W.seat)})` : ""}. ${W.moves == null ? "" : `The others = what their luck and moves did${big ? ", and what the estimates cannot tell apart. It is large here, so read it as a rough share" : ""}.`}</p>`;
+        <p class="rsc-n">Luck in total (dice, steals, cards): ${wpText(W.tot)}. Start = seat order and set-up${Math.round(W.seat * 100) ? ` (seat order ${wpText(W.seat)})` : ""}. ${W.moves == null ? "" : `The others = what their luck and moves did${big ? ", and what the estimates cannot tell apart. It is large here, so read it as a rough share" : ""}.`}</p>`;
     }
     if (LK.na) return "";
     if (LK.done) return `<p class="rsc-n">No reasons available for this game.</p>`;
@@ -615,7 +615,7 @@ export const ReviewGameMixin = {
     const last = mine.filter((x) => (x.eng || "m100") === REVIEW_ENGINE && (x.k ?? "k0.08v1") === ACC.id && x.eid === eid).slice(-10).map((x) => x.acc);
     const older = mine.filter((x) => x.eid !== eid).length, olderTxt = older ? ` ${older} ${older === 1 ? "review" : "reviews"} of another engine or model not counted · Review again.` : "";
     if (!BANDS.length) return { n: last.length, text: "" };
-    if (last.length < 5) return { n: last.length, text: `Average vs the bots after 5 games (${last.length} of 5), ${mlab} model.${olderTxt}` };
+    if (last.length < 5) return { n: last.length, text: `Your average vs the bots appears after 5 reviewed games (${last.length} so far), ${mlab} model.${olderTxt}` };
     const m = last.reduce((a, b) => a + b, 0) / last.length;
     const sd = Math.sqrt(last.reduce((a, b) => a + (b - m) ** 2, 0) / (last.length - 1));
     const se = sd / Math.sqrt(last.length);
@@ -1098,7 +1098,19 @@ export const ReviewGameMixin = {
       else if (a.k === "steal") lines.push(`${nmOf(a.p)} stole a card from ${nmOf(a.q)}.`);
     });
     Object.entries(roads).forEach(([q, n]) => lines.push(`${nmOf(+q)} built ${n === 1 ? "a road" : n + " roads"}.`));
-    return { acts, roads, lostTxt, actor: stp && stp[1] >= 0 ? stp[1] : null, head: `${this._rvTW()} ${st.turnOf[s]}${roll ? ` · ${who ? `${who} rolled` : "rolled"} ${roll}` : ""}`, lines: lines.filter(Boolean), builds, roll, robber, cards };
+    // v1.66 the winning step: say what carried the winner over the line (point card, city, settlement, Longest road, Largest army)
+    let winBy = null;
+    try {
+      const w = this.winner, last = Math.min(st.N ?? s, st.steps.length);
+      if (w && stp && s === last && stp[1] === w.id) {
+        const how = [];
+        (this._lkEvents?.() || []).filter((e) => e.kind === "dev" && e.pid === w.id && (e.s === s || e.s === s - 1)).forEach((e) => how.push(e.card === "victoryPoint" ? "bought a development card: a point card" : "bought a development card"));
+        builds.filter((b) => b.pid === w.id).forEach((b) => how.push(b.kind === "c" ? "built a city" : "built a settlement"));
+        (st.awards || []).filter((a) => a.s === s && a.pid === w.id).forEach((a) => how.push(a.kind === "L" ? "took Longest road" : "took Largest army"));
+        if (how.length) { winBy = `${how.join(", ")} → ${w.victoryPoints} points`; lines.push(`${nmOf(w.id)} won: ${winBy}.`); }
+      }
+    } catch (_) { /* the line is a bonus */ }
+    return { winBy, acts, roads, lostTxt, actor: stp && stp[1] >= 0 ? stp[1] : null, head: `${this._rvTW()} ${st.turnOf[s]}${roll ? ` · ${who ? `${who} rolled` : "rolled"} ${roll}` : ""}`, lines: lines.filter(Boolean), builds, roll, robber, cards };
   },
   _rvTabWin(ds) {
     let O = null; try { O = gameOdds(this); } catch (_) { O = null; }

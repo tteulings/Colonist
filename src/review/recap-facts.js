@@ -148,6 +148,7 @@ export function recapFacts(g, { max = FACTS_MAX } = {}) {
   const dice = st?.dice ? { rolls: st.rolls, histogram: st.dice, sevens: st.dice[7] || 0, sevensExpected: Math.round((st.rolls / 6) * 10) / 10 } : null;
   const tot = tryv(() => g._rvTotals(ds));
   const book = luckOk ? tryv(() => g._lkBook(pid)) : null;
+  const luckTot = luckOk ? tryv(() => g._lkState().tot[pid]) : null; // the table's luck: seat order + dice, steals, card draws (same number as the Overview table)
   const w = g.winner;
   const facts = clean({
     game: { mode: g.isRush?.() ? "Rush" : "Classic", board: g.sea ? "Seafarers" : "Island", players: n, pointsToWin: g.winPoints || 10, [`${TW.toLowerCase()}s`]: g.turn, winner: nm(w.id), reviewedPlayer: nm(pid), reviewedPlace: ranked.indexOf(players[pid]) + 1 },
@@ -155,8 +156,8 @@ export function recapFacts(g, { max = FACTS_MAX } = {}) {
     reviewedPlayerSummary: clean({
       name: nm(pid), accuracyPct: accOf[pid], movesThatMattered: tryv(() => g._rvSeat(pid).sum.n), winChanceLostByMovesPct: tot?.moves != null ? Math.abs(tot.moves) : null,
       startingWinChancePct: book ? pc(book.start) : null, finalWinChancePct: pc(ds.length ? ds[ds.length - 1].win : null),
-      luckWinChancePct: book ? pc(book.luck, 1) : null, moveCostWinChancePct: book?.moves != null ? pc(book.moves, 1) : null,
-      luckOrPlayVerdict: book && book.moves != null ? verdict(pc(book.luck, 1), pc(book.moves, 1)) : null,
+      luckWinChancePct: luckTot != null ? pc(luckTot, 1) : book ? pc(book.luck, 1) : null, luckNote: "luck in total = dice, steals, card draws and seat order, as in the Overview table", moveCostWinChancePct: book?.moves != null ? pc(book.moves, 1) : null,
+      luckOrPlayVerdict: book && book.moves != null ? verdict(luckTot != null ? pc(luckTot, 1) : pc(book.luck, 1), pc(book.moves, 1)) : null,
     }),
     winChanceByTurn: perTurn.length > 1 ? perTurn : null, tableWinChanceAt: tableAt,
     turningPointCandidates: turning, ending, costliestDecisions: costliest, bestDecisions: bestMoves, dice,

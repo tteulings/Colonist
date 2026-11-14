@@ -165,7 +165,7 @@ export class SettingsUI {
       // v1.60 keep refining: one background worker plays futures while the position stands still (battery: turn it off)
       const rrow = document.createElement("div");
       rrow.className = "st-row";
-      rrow.innerHTML = `<div><b id="lrLbl">Keep refining</b><small>Like a chess engine: the bar deepens by simulating futures while you think. Off saves battery.</small></div><button type="button" class="st-switch${liveRefineOn() ? " on" : ""}" role="switch" aria-checked="${liveRefineOn()}" aria-labelledby="lrLbl"><i></i></button>`;
+      rrow.innerHTML = `<div><b id="lrLbl">Keep refining (simulates more games)</b><small>Like a chess engine: the bar deepens by playing out more games while you think. Off saves battery.</small></div><button type="button" class="st-switch${liveRefineOn() ? " on" : ""}" role="switch" aria-checked="${liveRefineOn()}" aria-labelledby="lrLbl"><i></i></button>`;
       rrow.querySelector("button").addEventListener("click", (e) => { const b = e.currentTarget, on = b.getAttribute("aria-checked") !== "true"; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); setLiveRefine(on); });
       body.appendChild(rrow);
       body.appendChild(versionRow());
