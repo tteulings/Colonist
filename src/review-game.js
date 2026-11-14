@@ -18,6 +18,7 @@ import { botBand } from "./review/bands.js";
 import { gameOdds } from "./replay-odds.js";
 import { wpText, luckKey } from "./review-luck.js";
 import { currentEngineId } from "./review-again.js";
+import { niceWhy } from "./review/why.js";
 import { LUCK_MC } from "./review/luck-mc.js";
 
 // The bots' accuracy with the review engine in use (src/review/evaluate.js REVIEW_ENGINES), if measured.
@@ -451,7 +452,7 @@ export const ReviewGameMixin = {
     const ranked = w ? [w, ...this.players.filter((p) => p !== w).sort((a, b) => b.victoryPoints - a.victoryPoints)] : [...this.players];
     const src = st?.sources;
     const maxV = Math.max(this.winPoints || 10, ...this.players.map((p) => p.victoryPoints));
-    const parts = [["settlements", "Settlements"], ["cities", "Cities"], ["road", this.sea ? "Longest trade route" : "Longest road"], ["army", "Largest army"], ["cards", "VP card"], ["islands", "Islands"]];
+    const parts = [["settlements", "Settlements"], ["cities", "Cities"], ["road", this.sea ? "Longest trade route" : "Longest road"], ["army", "Largest army"], ["cards", "Point card"], ["islands", "Islands"]];
     const used = src ? parts.filter(([k]) => src.some((s) => s?.[k] > 0)) : [];
     const open = this._rsOpen != null && this.players[this._rsOpen] ? this._rsOpen : null;
     const rows = ranked.map((p, k) => {
@@ -808,7 +809,7 @@ export const ReviewGameMixin = {
   },
   // ── v1.05 the review: overview + step mode (board first) ──
   /** The decisions with a win chance, in play order, in whole percent (src/review/score.js): class, gap, A and B, and the luck term between two of them. */
-  _rvDecisions(res) { return decide(res, this.players.length, this._rvPid); },
+  _rvDecisions(res) { res.forEach((r) => { try { if (r.why) niceWhy(r.why); else if (r.x?.why) niceWhy(r.x.why); } catch (_) { /* text only */ } }); return decide(res, this.players.length, this._rvPid); },
   _rvTotals(ds) { return totals(ds); },
   _rvWhen(d) { return d.k === "setup" ? "Setup" : `${this._rvTW()} ${d.t}`; },
   _rvLine(d) {
@@ -941,7 +942,7 @@ export const ReviewGameMixin = {
     const why = `<section class="rv-card rvx pp-why"><div class="rv-gt"><b>${head}</b>${W ? `<small>win chance ${Math.round(W.even * 100)}% → ${Math.round(W.end * 100)}%</small>` : ""}</div>${W ? `<p class="rsc-v">${this._rvWhyVerdict(pid, W, wd)}</p><p class="rsc-n">The four bars are on the Overview.</p>` : `<p class="rsc-n">${this._lkState().na ? "Not available for this game." : "The luck check has not finished, so the reasons are not there yet."}</p>`}</section>`;
     // points
     const st = this._st, src = st?.sources?.[pid];
-    const parts = [["settlements", "Settlements", 1], ["cities", "Cities", 2], ["road", this.sea ? "Longest trade route" : "Longest road", 0], ["army", "Largest army", 0], ["cards", "VP cards", 0], ["islands", "Islands", 0]];
+    const parts = [["settlements", "Settlements", 1], ["cities", "Cities", 2], ["road", this.sea ? "Longest trade route" : "Longest road", 0], ["army", "Largest army", 0], ["cards", "Point cards", 0], ["islands", "Islands", 0]];
     const usedAll = st?.sources ? parts.filter(([k]) => st.sources.some((x) => x?.[k] > 0)) : [];
     const rows = src ? usedAll.map(([k, l, per], i) => (src[k] > 0 ? `<div class="pp-pr"><i class="s${i}"></i><span>${l}${per ? ` × ${src[k] / per}` : ""}</span><b>${src[k]}</b></div>` : "")).join("") : "";
     const bar2 = src ? `<div class="rsc-src"><div class="trk" style="--w:100">${usedAll.map(([k], i) => (src[k] > 0 ? `<i class="s${i}" style="flex:${src[k]} 1 0">${src[k]}</i>` : "")).join("")}</div></div>` : "";
@@ -1002,7 +1003,7 @@ export const ReviewGameMixin = {
     const chips = this.players.map((p) => `<button type="button" class="pc-${p.id}${p.id === pid ? " on" : ""}" data-rvwhy2="${p.id}" aria-pressed="${p.id === pid}">${this._av(p, "rt-av")}<span>${this._rvNm(p.id)}</span></button>`).join("");
     const info = `<button type="button" class="lk-ib" data-rvwhy-i aria-expanded="false" aria-label="What do these bars mean?">${IC.info}</button>`;
     const txt = `<p class="lk-it" data-rvwhy-t hidden><b>Start</b>: seat order and set-up. <b>Dice luck</b>: their rolls, steals and card draws against what was expected. <b>Own moves</b>: what their choices cost against the best move each time (the Moves cost row above). <b>The others</b>: what the other players' luck and moves did to them, plus what the estimates cannot tell apart.</p>`;
-    return `<section class="rv-card rvx why-card" data-rvwhy><div class="rv-gt"><b>Why ${this._rvWhyBars(pid)?.end === 1 ? "won" : "lost"}</b><span>${info}</span></div>${txt}<div class="lkd-seg" role="group" aria-label="Whose">${chips}</div>${this._rvWhyHtml(pid)}${this._rcLuckPlay?.() || ""}</section>`;
+    return `<section class="rv-card rvx why-card" data-rvwhy>${this._rcLead?.() || ""}<div class="rv-gt"><b>Why ${this._rvWhyBars(pid)?.end === 1 ? "won" : "lost"}</b><span>${info}</span></div>${txt}<div class="lkd-seg" role="group" aria-label="Whose">${chips}</div>${this._rvWhyHtml(pid)}${this._rcLuckPlay?.() || ""}</section>`;
   },
   _rvBindSbs(root) {
     root.querySelectorAll("[data-rvwhy2]").forEach((b) => b.addEventListener("click", () => { this._rvWhyP = +b.dataset.rvwhy2; this._rvDrawReview(); }));
@@ -1035,7 +1036,7 @@ export const ReviewGameMixin = {
     const list = f === "you" ? mine : f === "oth" ? oth : [...mine, ...oth].sort((a, b) => b.m - a.m).slice(0, 5);
     const seg = [["all", "All"], ["you", you ? "You" : nm], ["oth", "Others"]].map(([k, l]) => `<button type="button" class="${k === f ? "on" : ""}" aria-pressed="${k === f}" data-rvkm="${k}">${l}</button>`).join("");
     const sum = summarize(rv.results);
-    const html = `<section class="rv-card rs-sum">${this._rvStrip(sum.acc, cmp, false, prov)}${cmpText ? `<p class="rv-cmpline rvt-cmp">${esc(cmpText)}${cmp.m != null ? ` <span class="rv-keyme">▮ this game</span> <span class="rv-keyavg">● your average</span>` : ""}</p>` : ""}</section>${this._rvSbsHtml()}${this._rcHead?.() || ""}${this._rvWhyCard()}
+    const html = `<section class="rv-card rs-sum">${this._rvStrip(sum.acc, cmp, false, prov)}${cmpText ? `<p class="rv-cmpline rvt-cmp">${esc(cmpText)}${cmp.m != null ? ` <span class="rv-keyme">▮ this game</span> <span class="rv-keyavg">● your average</span>` : ""}</p>` : ""}</section>${this._rvSbsHtml()}${this._rvWhyCard() || this._rcHead?.() || ""}
       <section class="rv-card rs-keys rs-better"><div class="rv-gt"><b>Key moments</b><div class="km-seg" role="group" aria-label="Whose moments">${seg}</div></div><p class="km-cap">${f === "you" ? `${you ? "Your" : `${nm}’s`} own moves, biggest gap first` : f === "oth" ? `Dice and the others, biggest swing in ${you ? "your" : "their"} win chance` : "The biggest moments, moves and swings together"}</p>${list.length ? (this._rcMergeKeys?.(list, { extra: f === "all" }) ?? list.map((x) => x.h).join("")) : `<p class="rs-lost">${f === "oth" ? "No big swing from the dice or the others." : `No clear mistake in ${you ? "your" : "their"} moves.`}</p>`}</section>`;
     return { html, bind: (el) => el.querySelectorAll("[data-rvkm]").forEach((b) => b.addEventListener("click", () => { this._rvKm = b.dataset.rvkm; this._rvDrawReview(); })) };
   },
@@ -1075,7 +1076,7 @@ export const ReviewGameMixin = {
     const pay = Object.entries(cards).map(([q, c]) => `${nmOf(+q)} +${c}`);
     lines.push(pay.length ? `Cards from the roll: ${pay.join(", ")}.` : roll ? "Nobody collected a card." : "");
     if (roll === 7 || robber != null) lines.push(robber != null ? `${nmOf(robber)} moved the robber.` : "The robber moved.");
-    builds.forEach((b) => lines.push(`${nmOf(b.pid)} built ${b.kind === "c" ? "a city (+1 VP)" : b.bonus ? "a settlement on a new island (+1 VP and +2 VP island bonus)" : "a settlement (+1 VP)"}.`));
+    builds.forEach((b) => lines.push(`${nmOf(b.pid)} built ${b.kind === "c" ? "a city (+1 point)" : b.bonus ? "a settlement on a new island (+1 point and +2 points island bonus)" : "a settlement (+1 point)"}.`));
     const DEV = { knight: "a Knight", monopoly: "Monopoly", yearOfPlenty: "Year of Plenty", roadBuilding: "Road Building", victoryPoint: "a Victory Point" };
     const lostTxt = (m) => { const l = (m.lost || []).map((n, q) => [q, n]).filter(([q, n]) => n > 0 && q !== m.p).sort((a, b) => b[1] - a[1]); return l.length ? (l.length === 1 ? ` from ${nmOf(l[0][0])}` : `, mostly from ${nmOf(l[0][0])}`) : ""; };
     acts.forEach((a) => {

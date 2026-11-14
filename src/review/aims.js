@@ -3,7 +3,7 @@
 // from (settlements, cities, Longest road, Largest army, VP cards, new islands) and the first build within two
 // of the mover's own turns. Pure bookkeeping on the futures that are played anyway: no win chance changes.
 export const SRC = ["s", "c", "lr", "la", "dv", "is"];
-export const SRC_NAME = { s: "Settlements", c: "Cities", lr: "Longest road", la: "Largest army", dv: "VP cards", is: "New islands" };
+export const SRC_NAME = { s: "Settlements", c: "Cities", lr: "Longest road", la: "Largest army", dv: "point cards", is: "New islands" };
 const comps = (g, me) => {
   const p = g.players[me];
   return [p.settlements.size, p.cities.size, g.longestRoadHolder === me ? 1 : 0, g.largestArmyHolder === me ? 1 : 0, p.devVictoryPoints || 0, g.sea ? g.sea.bonusVP(p) : 0];

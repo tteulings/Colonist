@@ -41,7 +41,7 @@ export function whyHtml(w) {
     <p class="w1"><s>A</s><span>${esc(w.plan)}</span></p>${w.vs ? `<p class="w2"><s class="alt">B</s><span>${esc(w.vs)}</span></p>` : ""}
     ${w.chips?.length ? `<div class="w-chips">${w.chips.map((c) => `<span>${esc(c)}</span>`).join("")}</div>` : ""}</div>`;
 }
-const AIM = { s: "Settlements", c: "Cities", lr: "Longest road", la: "Largest army", dv: "VP cards", is: "New islands" };
+const AIM = { s: "Settlements", c: "Cities", lr: "Longest road", la: "Largest army", dv: "Point cards", is: "New islands" };
 const aimText = (a) => a?.src?.length ? a.src.slice(0, 2).map(([k, v]) => `${AIM[k]} (${v}%)`).join(" · ") : null;
 /** v1.61 "Aims at": which points A's and B's futures go for, the usual next build, and the simple (Expert bot) choice. Old reviews have none: "". */
 export function aimHtml(x, who, pct) {

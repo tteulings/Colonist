@@ -685,3 +685,10 @@
 .rc-aim { flex: none; padding: 1px 5px; border-radius: 5px; font: 800 9.5px var(--font-body); font-style: normal; letter-spacing: .04em; background: var(--primary); color: #fff; }
 .rc-lop { margin-top: 8px; padding-top: 8px; border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
 .rc-lop p { margin: 4px 0 0; font-size: 13px; line-height: 1.4; }
+.rc-lead { display: grid; gap: 4px; margin: 0 0 10px; padding-bottom: 10px; border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
+.rc-lead .rc-lh2 { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rc-lead .rc-lh2 small { font: 800 11px var(--font-body); text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
+.rc-lead .rc-head { margin: 0; font-size: 14.5px; line-height: 1.4; }
+.rc-lead .rc-foot { margin: 0; font-size: 11px; }
+.rc-lead .rc-btn { justify-self: start; min-height: 40px; }
+.rc-top .rc-lead { border: 0; margin: 0; padding: 0; }

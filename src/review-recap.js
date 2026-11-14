@@ -99,18 +99,21 @@ export const ReviewRecapMixin = {
   /** v1.64 the AI is woven through the Overview (no standalone card): the headline card on top, the turning points merged into the key
    *  moments (_rcMergeKeys), the luck-or-play verdict next to the luck summary (_rcLuckPlay), the lesson at the end (_rcBox). */
   _rcOk() { return !!this.winner && !this._rvMid && !!this._rv; },
-  _rcHead() {
+  /** The lead of the Overview's Why card: label + Regenerate, the headline full width, a small footer (or the button / spinner / error). */
+  _rcLead() {
     if (!this._rcOk()) return "";
     const lang = recapLang(), t = T[lang], S = this._rcSaved(), U = this._rcUi, mine = U?.pid === this._rvPid;
-    if (mine && U.loading) return `<section class="rv-card rc-card rc-top" role="status" aria-live="polite"><p class="rc-wait"><i class="rc-spin" aria-hidden="true"></i>${t.wait}</p></section>`;
+    if (mine && U.loading) return `<div class="rc-lead" role="status" aria-live="polite"><p class="rc-wait"><i class="rc-spin" aria-hidden="true"></i>${t.wait}</p></div>`;
     const err = mine && U.err ? `<p class="rc-err" role="alert">${esc(t[U.err] || t.fail)}</p>` : "";
     if (S) {
       const rl = T[S.lang] ? S.lang : lang, h = S.recap?.headline;
-      return `<section class="rv-card rc-card rc-top"><div class="rv-gt"><b>${T[rl].title}</b>${this._rcOnline() ? `<button type="button" class="rc-link" data-rcgo>${t.regen}</button>` : ""}</div>${err}${h ? `<p class="rc-head" lang="${rl}"><b>${inline(h)}</b></p>` : `<div class="rc-text" lang="${rl}">${recapHtml(S.text)}</div>`}<p class="rc-foot">${T[rl].foot}</p></section>`;
+      return `<div class="rc-lead"><div class="rc-lh2"><small>${T[rl].title}</small>${this._rcOnline() ? `<button type="button" class="rc-link" data-rcgo>${t.regen}</button>` : ""}</div>${err}${h ? `<p class="rc-head" lang="${rl}"><b>${inline(h)}</b></p>` : `<div class="rc-text" lang="${rl}">${recapHtml(S.text)}</div>`}<p class="rc-foot">${T[rl].foot}</p></div>`;
     }
     if (!this._rcOnline() && !err) return "";
-    return `<div class="rc-row">${err}${this._rcOnline() ? `<button type="button" class="rv-btn rc-btn" data-rcgo>${t.btn}</button>` : ""}</div>`;
+    return `<div class="rc-lead">${err}${this._rcOnline() ? `<button type="button" class="rv-btn rc-btn" data-rcgo>${t.btn}</button>` : ""}</div>`;
   },
+  /** Standalone fallback when the Overview has no Why card (no luck analysis). */
+  _rcHead() { const l = this._rcLead(); return l ? `<section class="rv-card rc-card rc-top">${l}</section>` : ""; },
   /** Luck or play, next to the luck summary (hidden when the recap says "none" or has none). */
   _rcLuckPlay() {
     const S = this._rcSaved(), lp = S?.recap?.luckOrPlay; if (!this._rcOk() || !lp || lp.verdict === "none" || !lp.text) return "";

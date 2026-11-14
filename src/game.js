@@ -151,7 +151,7 @@ const AI_STRATEGY_CATEGORIES = {
     descriptions: {
       none:     "Ignores who is winning; robber blocks the busiest opponent tile, steals at random",
       basic:    "Robs the richest opponent, won't trade with a leader",
-      advanced: "Targets the VP leader, reads public card counts, shifts to points near the endgame",
+      advanced: "Targets the leader on points, reads public card counts, shifts to points near the endgame",
     },
   },
 };
