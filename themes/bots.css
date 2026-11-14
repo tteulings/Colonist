@@ -107,3 +107,4 @@ html .tm-settings .seg button.on, html .tm-settings .cm-seg button.on { backgrou
 .tm-settings .cm-info, .tm-settings .pal-info { width: auto; height: auto; min-height: 24px; margin: 0 0 0 8px; padding: 2px 10px; border-radius: var(--r-pill); font: 600 var(--fs-s)/1.2 var(--font-body); font-style: normal; border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); color: var(--ink-soft); }
 /* chart labels keep a halo in the card colour, so a line or marker behind them never makes them unreadable */
 .bpg-svg text.b, .bpg-svg text.v { paint-order: stroke; stroke: var(--sheet); stroke-width: 3px; stroke-linejoin: round; }
+.mn-speed.mn-live { grid-template-columns: minmax(0, 1fr) auto; } .mn-speed.mn-live em { grid-column: 1 / -1; }
