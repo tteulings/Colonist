@@ -20,14 +20,14 @@ export function profileOf(game, player) {
 /** Strength dots (1–5). */
 export const dots = (n, cls = "bp-dots", beyond = false) => `<span class="${cls}" aria-hidden="true">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}${beyond ? `<i class="star"></i>` : ""}</span>`; // v1.10: "beyond" = the Super Expert's sixth mark, a star
 
-/** "Wins 29% vs 3 Intermediate bots" or, for the Master (never measured against them), "+8 pp vs Expert". */
+/** "Wins 29% vs 3 Medium bots" or, for the Master (never measured against them), "+8 pp vs Hard". */
 export function strengthLine(key) {
   const p = P[key];
   const w = winOf(key); // bot-125: the search bots read their measured figure from bot-stats.js
   const h = BOT_STATS[key]?.h2h; // v1.39 Grandmaster: measured head to head with the Super Expert+
   if (key === "grandmaster" && w.label !== "measured" && h?.gm != null) return `<span class="bp-win">Wins <b>${Math.round(h.gm)}%</b> head to head vs the Super Expert+ (${Math.round(h.sp)}%) <span class="bp-fair">(+${Math.round(h.diff)} pts ±${Math.round(h.diffci)})</span></span>`;
-  if (key === "master" || isSuperKey(key)) return w.label === "measured" ? `<span class="bp-win">Wins <b>${Math.round(w.v)}</b> of 100 games vs 3 Intermediate bots <span class="bp-fair">(25 = even)</span></span>` : `<span class="bp-win">Win figure <b>not measured yet</b></span>`;
-  return p.win ? `<span class="bp-win">Wins <b>${Math.round(p.win.p)}</b> of 100 games vs 3 Intermediate bots <span class="bp-fair">(25 = even)</span></span>` : "";
+  if (key === "master" || isSuperKey(key)) return w.label === "measured" ? `<span class="bp-win">Wins <b>${Math.round(w.v)}</b> of 100 games vs 3 Medium bots <span class="bp-fair">(25 = even)</span></span>` : `<span class="bp-win">Win figure <b>not measured yet</b></span>`;
+  return p.win ? `<span class="bp-win">Wins <b>${Math.round(p.win.p)}</b> of 100 games vs 3 Medium bots <span class="bp-fair">(25 = even)</span></span>` : "";
 }
 
 /** An avatar with its profile frame (bots only; a human or a bot without a profile gets the plain avatar). */
@@ -85,7 +85,7 @@ function soFar(game, pid) {
 function details(key) {
   const p = P[key];
   const w = winOf(key);
-  const src = w.label === "measured" ? `Measured: ${w.n} games against 3 Intermediate bots (likely range ${Math.max(0, Math.round((w.v - w.ci) * 10) / 10)}–${Math.round((w.v + w.ci) * 10) / 10} wins out of 100).${p.note ? ` ${p.note}` : ""}` : p.note || "";
+  const src = w.label === "measured" ? `Measured: ${w.n} games against 3 Medium bots (likely range ${Math.max(0, Math.round((w.v - w.ci) * 10) / 10)}–${Math.round((w.v + w.ci) * 10) / 10} wins out of 100).${p.note ? ` ${p.note}` : ""}` : p.note || "";
   return `<p class="bp-style">${p.style}</p>
     <div class="bp-rows">${row("good", "+", "Good at", p.good)}${row("weak", "−", "Weak spot", p.weak)}
     ${row("trade", "⇄", "Trading", p.trades)}${row("rob", "♟", "Robber", p.robber)}${row("card", "★", "Dev cards", p.cards)}</div>

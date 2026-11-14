@@ -111,7 +111,7 @@ h1, h2, h3, .display { font-family: var(--font-display); font-weight: var(--disp
   --fan-h: 112px; /* v0.73: totals bar (22) + cards; was 118 without the bar */
   /* side gutters of the phone chrome; the board fit keeps the island (with harbours) inside --board-side */
   --gut: 14px; --board-side: 14px; --menu-w: 44px;
-  position: relative; height: 100vh; height: 100dvh; height: var(--app-h, 100dvh); width: 100%; overflow: hidden;
+  position: relative; height: var(--dvh, 100vh); height: var(--dvh, 100dvh); height: var(--app-h, var(--dvh, 100dvh)); width: 100%; overflow: hidden;
   display: flex; flex-direction: column; background: var(--sea-bg);
 }
 .topbar { display: none; }
@@ -129,7 +129,7 @@ h1, h2, h3, .display { font-family: var(--font-display); font-weight: var(--disp
 .pchip .row { display: flex; align-items: center; gap: 5px; }
 .pchip .avatar { --av: 32px; --av-ring: 2.5px; }
 .pchip .vpn { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 21px; line-height: 1; color: var(--heading); display: flex; flex-direction: column; align-items: center; }
-.pchip .vpn small { font-family: var(--font-body); font-size: 8.5px; letter-spacing: .06em; color: var(--ink-soft); font-weight: 750; }
+.pchip .vpn small { font-family: var(--font-body); font-size: 9.5px; letter-spacing: .06em; color: var(--ink-soft); font-weight: 750; }
 /* ⚓ v0.86 Seafarers: your own points badge carries the goal, "3/14" (the /14 smaller, same ink) */
 .pchip .vpn.goal { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: baseline; }
 .pchip .vpn.goal small { flex-basis: 100%; text-align: center; }
@@ -243,7 +243,7 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 .cv-meta .ic { font-size: 14px; }
 .cv-meta .cv-bld { overflow: hidden; text-overflow: ellipsis; display: block; min-width: 0; }
 .cv-vp { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 20px; line-height: 1; color: var(--heading); display: flex; flex-direction: column; align-items: center; }
-.cv-vp small { font-family: var(--font-body); font-size: 8.5px; letter-spacing: .06em; font-weight: 750; color: var(--ink-soft); }
+.cv-vp small { font-family: var(--font-body); font-size: 9.5px; letter-spacing: .06em; font-weight: 750; color: var(--ink-soft); }
 .cv-radio { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--ink-faint, rgba(0,0,0,.3)); flex: none; }
 .cp-victim.sel .cv-radio { border-color: var(--pc); background: radial-gradient(circle, var(--pc) 0 45%, transparent 50%); }
 
@@ -346,7 +346,7 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 @keyframes fadeIn { from { opacity: 0; } }
 @keyframes sheetUp { from { transform: translateY(40px); opacity: 0; } }
 .app .sheet {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 42; max-height: calc(var(--app-h, 100dvh) - 60px); overflow-y: auto;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 42; max-height: calc(var(--app-h, var(--dvh, 100dvh)) - 60px); overflow-y: auto;
   background: var(--sheet); background-image: var(--sheet-image); border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
   box-shadow: 0 -10px 40px rgba(0,0,0,.25); border-top: var(--sheet-border); padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
   color: var(--ink); animation: sheetUp 280ms var(--ease-out, ease-out); width: auto; transform: none; top: auto;
@@ -614,7 +614,7 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 
 /* ---------- settings (Look & feel etc.) ---------- */
 .tm-settings { position: fixed; inset: 0; z-index: 70; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; animation: fadeIn 200ms ease; }
-.tm-settings .st-card { width: 100%; max-height: calc(var(--app-h, 100dvh) - 40px); display: flex; flex-direction: column; background: var(--panel); color: var(--ink); border-radius: var(--sheet-radius) var(--sheet-radius) 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,.25); animation: sheetUp 280ms var(--ease-out, ease-out); font-family: var(--font-body); overflow: hidden; }
+.tm-settings .st-card { width: 100%; max-height: calc(var(--app-h, var(--dvh, 100dvh)) - 40px); display: flex; flex-direction: column; background: var(--panel); color: var(--ink); border-radius: var(--sheet-radius) var(--sheet-radius) 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,.25); animation: sheetUp 280ms var(--ease-out, ease-out); font-family: var(--font-body); overflow: hidden; }
 .tm-settings .st-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 12px 12px 0; flex: none; }
 .tm-settings .st-nav h1 { display: none; }
 .app .tm-settings .st-nav button, .tm-settings .st-nav button { flex: none; min-height: 44px; padding: 6px 4px; border-radius: 10px; font-weight: 650; color: var(--ink-soft); font-size: 14px; line-height: 1.15; text-align: center; display: flex; align-items: center; justify-content: center; }
@@ -842,7 +842,7 @@ body.home-open > .update-chip:not(.in-row) { display: none; }
 
 /* ---------- in-game Menu: bottom sheet on phones, small card on desktop ---------- */
 .menu-sheet { position: fixed; inset: 0; z-index: 65; display: flex; align-items: flex-end; justify-content: center; background: var(--scrim); animation: fadeIn 180ms ease; font-family: var(--font-body); color: var(--ink); }
-.mn-card { width: 100%; max-height: calc(var(--app-h, 100dvh) - 24px); overflow-y: auto; padding: 10px 16px calc(14px + env(safe-area-inset-bottom)); background: var(--sheet); background-image: var(--sheet-image); border-radius: var(--sheet-radius) var(--sheet-radius) 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,.22); animation: sheetUp 260ms var(--ease-out, ease-out); }
+.mn-card { width: 100%; max-height: calc(var(--app-h, var(--dvh, 100dvh)) - 24px); overflow-y: auto; padding: 10px 16px calc(14px + env(safe-area-inset-bottom)); background: var(--sheet); background-image: var(--sheet-image); border-radius: var(--sheet-radius) var(--sheet-radius) 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,.22); animation: sheetUp 260ms var(--ease-out, ease-out); }
 .mn-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 2px 4px; }
 .mn-head h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-family: var(--font-display); font-weight: var(--display-weight); font-size: 22px; color: var(--heading); }
 .mn-head h2 .ic { font-size: 20px; color: var(--ink-soft); }
@@ -853,7 +853,7 @@ body.home-open > .update-chip:not(.in-row) { display: none; }
 .mn-list button small { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
 @media (min-width: 901px) and (min-height: 501px), (max-height: 500px) and (orientation: landscape) {
   .menu-sheet { align-items: center; }
-  .mn-card { width: min(380px, calc(100vw - 32px)); border-radius: 20px; padding: 12px 18px 14px; max-height: calc(var(--app-h, 100dvh) - 16px); }
+  .mn-card { width: min(380px, calc(var(--dvw, 100vw) - 32px)); border-radius: 20px; padding: 12px 18px 14px; max-height: calc(var(--app-h, var(--dvh, 100dvh)) - 16px); }
 }
 /* v0.82: the menu gained a Stats row — on a short landscape phone (360 px tall) the rows tighten so it still fits */
 @media (max-height: 500px) and (orientation: landscape) {
@@ -867,7 +867,7 @@ body.home-open > .update-chip:not(.in-row) { display: none; }
 /* ---------- how-to-play cards ---------- */
 .welcome { position: fixed; inset: 0; z-index: 85; display: flex; align-items: flex-end; justify-content: center; background: var(--scrim); animation: fadeIn 240ms ease; font-family: var(--font-body); color: var(--ink); }
 .wl-card {
-  width: 100%; max-height: calc(var(--app-h, 100dvh) - 24px); overflow-y: auto; padding: 22px 20px calc(18px + env(safe-area-inset-bottom)); text-align: center;
+  width: 100%; max-height: calc(var(--app-h, var(--dvh, 100dvh)) - 24px); overflow-y: auto; padding: 22px 20px calc(18px + env(safe-area-inset-bottom)); text-align: center;
   background: var(--sheet); background-image: var(--sheet-image); border-radius: var(--sheet-radius) var(--sheet-radius) 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,.22);
   animation: sheetUp 320ms var(--ease-out, ease-out);
 }
@@ -906,7 +906,7 @@ body.home-open > .update-chip:not(.in-row) { display: none; }
 .welcome .wl-nav .wl-btn { justify-content: center; text-align: center; min-height: 52px; font-weight: 750; font-size: 16px; }
 @media (min-width: 901px) and (min-height: 501px), (max-height: 500px) and (orientation: landscape) {
   .welcome { align-items: center; }
-  .wl-card { width: min(440px, calc(100vw - 32px)); border-radius: 20px; padding: 24px 24px 20px; max-height: calc(var(--app-h, 100dvh) - 16px); }
+  .wl-card { width: min(440px, calc(var(--dvw, 100vw) - 32px)); border-radius: 20px; padding: 24px 24px 20px; max-height: calc(var(--app-h, var(--dvh, 100dvh)) - 16px); }
 }
 @media (max-height: 500px) and (orientation: landscape) {
   .wl-logo { width: 40px; height: 40px; }
@@ -1061,7 +1061,7 @@ body.home-open > .update-chip:not(.in-row) { display: none; }
   .app.opp-turn .primary-slot > :not(.waiting) { display: none !important; }
 
   /* sheets → floating dialogs over the board */
-  .app .sheet { left: 50%; right: auto; bottom: auto; top: 50%; width: 460px; max-height: calc(100vh - 80px); transform: translate(-50%, -50%); border-radius: var(--panel-radius); border: var(--panel-border); box-shadow: 0 24px 60px rgba(0,0,0,.28); padding: 16px 20px 18px; animation: fadeIn 200ms ease; }
+  .app .sheet { left: 50%; right: auto; bottom: auto; top: 50%; width: 460px; max-height: calc(var(--dvh, 100vh) - 80px); transform: translate(-50%, -50%); border-radius: var(--panel-radius); border: var(--panel-border); box-shadow: 0 24px 60px rgba(0,0,0,.28); padding: 16px 20px 18px; animation: fadeIn 200ms ease; }
   .app .sheet .grab { display: none; }
   .app .trade-sheet { top: auto; bottom: 182px; left: auto; right: calc(var(--rail-w) + 16px); transform: none; }
   .app .journal.open { position: relative; }
@@ -1087,7 +1087,7 @@ body.home-open > .update-chip:not(.in-row) { display: none; }
 
   .app .game-over-overlay { position: absolute; }
   .tm-settings { align-items: center; }
-  .tm-settings .st-card { width: 900px; max-width: calc(100vw - 40px); height: min(760px, calc(100vh - 60px)); flex-direction: row; border-radius: 18px; }
+  .tm-settings .st-card { width: 900px; max-width: calc(var(--dvw, 100vw) - 40px); height: min(760px, calc(var(--dvh, 100vh) - 60px)); flex-direction: row; border-radius: 18px; }
   .tm-settings .st-nav { display: flex; flex-direction: column; width: 200px; flex: none; background: var(--group); border-right: var(--divider); padding: 22px 12px; gap: 4px; }
   .tm-settings .st-nav h1 { display: block; font-size: 26px; padding: 0 10px 14px; color: var(--heading); }
   .tm-settings .st-nav button { text-align: left; justify-content: flex-start; padding: 11px 12px; }
@@ -1176,17 +1176,17 @@ body.home-open > .update-chip:not(.in-row) { display: none; }
   .confirm-pill { left: max(10px, calc(50% - 220px)); right: max(10px, calc(50% - 220px)); }
   /* sheets: centred columns that use the full height */
   .app > .sheet, .app.build-open .buildgrp, .app .journal.open {
-    left: max(8px, calc(50% - 280px)); right: max(8px, calc(50% - 280px)); width: auto; max-height: calc(var(--app-h, 100dvh) - 8px);
+    left: max(8px, calc(50% - 280px)); right: max(8px, calc(50% - 280px)); width: auto; max-height: calc(var(--app-h, var(--dvh, 100dvh)) - 8px);
   }
-  .tm-settings .st-card, .tm-modal .resource-picker-panel { width: min(560px, calc(100vw - 16px)); max-height: calc(var(--app-h, 100dvh) - 8px); }
+  .tm-settings .st-card, .tm-modal .resource-picker-panel { width: min(560px, calc(var(--dvw, 100vw) - 16px)); max-height: calc(var(--app-h, var(--dvh, 100dvh)) - 8px); }
   .app.build-open .buildgrp { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .app .bbtn { grid-template-columns: 1fr; justify-items: center; text-align: center; min-height: 0; padding: 8px 6px; row-gap: 2px; }
   .app .bbtn > .ic { grid-row: auto; font-size: 34px; }
   .app .bbtn .bl, .app .bbtn .left { align-self: center; }
-  .app .journal.open { height: calc(var(--app-h, 100dvh) - 8px); }
+  .app .journal.open { height: calc(var(--app-h, var(--dvh, 100dvh)) - 8px); }
   .rush-seven { align-items: center; justify-content: center; }
-  .app .rush-seven .rush-seven-card { width: min(560px, calc(100vw - 16px)); max-height: calc(var(--app-h, 100dvh) - 8px); border-radius: var(--sheet-radius); }
-  .over-panel { max-height: calc(var(--app-h, 100dvh) - 16px); overflow-y: auto; padding-top: 14px; }
+  .app .rush-seven .rush-seven-card { width: min(560px, calc(var(--dvw, 100vw) - 16px)); max-height: calc(var(--app-h, var(--dvh, 100dvh)) - 8px); border-radius: var(--sheet-radius); }
+  .over-panel { max-height: calc(var(--app-h, var(--dvh, 100dvh)) - 16px); overflow-y: auto; padding-top: 14px; }
   .over-panel .trophy { width: 48px; height: 48px; margin: 0 auto; }
   .over-panel h3 { font-size: 28px; }
   .podium .r { padding: 3px 10px; }
@@ -1328,7 +1328,7 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 @keyframes trDown { 40% { transform: translateY(3px); opacity: .55; } }
 
 @media (min-width: 901px) and (min-height: 501px) {
-  .app .trade-sheet { --sx: 20px; padding-bottom: 0; max-height: calc(100vh - 210px); }
+  .app .trade-sheet { --sx: 20px; padding-bottom: 0; max-height: calc(var(--dvh, 100vh) - 210px); }
   .trade-foot { padding-bottom: 14px; }
   .hand .card.slot .slot-name { font-size: 11px; }
   .rush-offers { width: 420px; }
@@ -1572,7 +1572,7 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 }
 
 /* "Update ready · Reload" — a new version was deployed while this tab was open (index.html) */
-.update-chip { position: fixed; z-index: 200; left: 50%; top: calc(10px + env(safe-area-inset-top)); transform: translateX(-50%); max-width: calc(100vw - 32px); display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px; border-radius: 999px; background: var(--chip, #fff); color: var(--chip-ink, #2E3A3D); border: var(--chip-border, 1px solid #D7EBE6); box-shadow: var(--float-shadow, 0 4px 14px rgba(0,0,0,.18)); font: 600 14px/1 var(--font-body, system-ui, sans-serif); white-space: nowrap; cursor: pointer; animation: update-chip-in .3s var(--ease-out, ease-out); }
+.update-chip { position: fixed; z-index: 200; left: 50%; top: calc(10px + env(safe-area-inset-top)); transform: translateX(-50%); max-width: calc(var(--dvw, 100vw) - 32px); display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px; border-radius: 999px; background: var(--chip, #fff); color: var(--chip-ink, #2E3A3D); border: var(--chip-border, 1px solid #D7EBE6); box-shadow: var(--float-shadow, 0 4px 14px rgba(0,0,0,.18)); font: 600 14px/1 var(--font-body, system-ui, sans-serif); white-space: nowrap; cursor: pointer; animation: update-chip-in .3s var(--ease-out, ease-out); }
 .update-chip b { color: var(--btn-on-ink, #A84E2F); font-weight: 800; }
 @keyframes update-chip-in { from { opacity: 0; transform: translate(-50%, -8px); } }
 @media (prefers-reduced-motion: reduce) { .update-chip { animation: none; } }
@@ -1591,7 +1591,7 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .tkrow:has(> .update-chip.in-row) .ticker .txt:not(:has(.tk-main)), .tkrow:has(> .update-chip.in-row) .ticker .tk-main { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: unset; }
 
 /* floating pills/popovers never wider than the screen (game.js _clampFloaters keeps them inside) */
-.confirm-pill, .ai-reasoning-popup, .rush-offers, .toasts { max-width: calc(100vw - 16px); box-sizing: border-box; }
+.confirm-pill, .ai-reasoning-popup, .rush-offers, .toasts { max-width: calc(var(--dvw, 100vw) - 16px); box-sizing: border-box; }
 
 /* ==========================================================================
    v0.73 · player chip stats, hand totals bar, bank counts
@@ -1663,7 +1663,7 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
    two routes in the footer (bank/harbour · offer). Green is only for ✓ accept.
    ========================================================================== */
 :root { --accept: #0E6B3A; --accept-ink: #FFFFFF; --accept-shadow: #084A28; /* v0.78: a deep accept green, darker than the green seat (#2E9E5E) so a ✓ never reads as Groenewoud */ --route-bank: #1F7F86; --route-bank-ink: #FFFFFF; }
-.app .trade-sheet { max-height: calc(var(--app-h, 100dvh) - var(--strip-h, 92px)); }
+.app .trade-sheet { max-height: calc(var(--app-h, var(--dvh, 100dvh)) - var(--strip-h, 92px)); }
 .app.trade-open .pstrip { position: relative; z-index: 41; }
 .trade-sheet .sheet-head h3 { margin: 0; }
 .tlbl { display: flex; align-items: baseline; justify-content: space-between; font-size: 12px; font-weight: 800; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .08em; margin: 10px 2px 6px; }
@@ -1842,7 +1842,7 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 [data-hand-counts="stack"] .app .hand .card[data-n="4"] { box-shadow: -2px -4px 0 0 var(--stack-1, #EADFC6), -4px -8px 0 0 var(--stack-2, #DCCFB2), -6px -12px 0 0 var(--stack-3, #CDBF9F); }
 /* fit 5 resources + 3 dev kinds at 360 px without a swipe; more kinds than that scroll as before */
 [data-hand-counts="stack"] .app .hand .cards { padding-top: 16px; padding-left: calc(var(--gut) + 8px); }
-[data-hand-counts="stack"] .app .hand .card { --cw: clamp(40px, calc((100vw - 60px) / 8 + 4px), 54px); margin-right: -4px; }
+[data-hand-counts="stack"] .app .hand .card { --cw: clamp(40px, calc((var(--dvw, 100vw) - 60px) / 8 + 4px), 54px); margin-right: -4px; }
 [data-hand-counts="stack"] .app .hand .card:last-child { margin-right: 6px; }
 [data-hand-counts="stack"] .app .hand .sep { width: 8px; }
 [data-theme="B"] { --rib-paper: #F3E6C8; --stack-1: #E2CFA4; --stack-2: #CDB582; --stack-3: #B39866; }
@@ -2020,7 +2020,7 @@ html[data-lab] .table .board-wrap { position: absolute !important; inset: 0 !imp
 .hand .card .dplay::before { content: ""; position: absolute; inset: -6px -6px -4px; } /* a finger-sized target */
 .hand .cards { overflow-y: visible; }
 /* effect bubble (selected card) and the dock tip (Buy card greyed) */
-.dev-bubble { position: fixed; z-index: 60; left: 8px; max-width: calc(100vw - 16px); background: var(--sheet, #FFFDF6); color: var(--ink, #1F3440);
+.dev-bubble { position: fixed; z-index: 60; left: 8px; max-width: calc(var(--dvw, 100vw) - 16px); background: var(--sheet, #FFFDF6); color: var(--ink, #1F3440);
   font: 600 12.5px/1.25 var(--font-body); padding: 7px 11px; border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.28); pointer-events: auto; }
 .dev-bubble b { font-weight: 800; }
 .dev-bubble small { display: block; font-size: 11.5px; font-weight: 650; color: var(--ink-soft, #5D6E78); margin-top: 1px; }
@@ -2253,9 +2253,9 @@ html[data-lab] .table .board-wrap { position: absolute !important; inset: 0 !imp
   .hs-cover.hs-cover .hs-why { margin: 0 0 8px; }
   .hs-cover.hs-cover .hs-foot { position: static; margin-top: 6px; }
   /* bubbles: the bank popover opens below the pill, the dev-card bubble to the left of its card */
-  .hand-info.below { left: auto; right: calc(var(--col-pad) + env(safe-area-inset-right)); width: min(300px, calc(100vw - var(--lrail) - 24px)); max-width: none; }
+  .hand-info.below { left: auto; right: calc(var(--col-pad) + env(safe-area-inset-right)); width: min(300px, calc(var(--dvw, 100vw) - var(--lrail) - 24px)); max-width: none; }
   .hand-info.below::after { bottom: auto; top: -6px; }
-  .dev-bubble.side { max-width: min(300px, calc(100vw - var(--rcol) - var(--lrail) - 16px)); }
+  .dev-bubble.side { max-width: min(300px, calc(var(--dvw, 100vw) - var(--rcol) - var(--lrail) - 16px)); }
   .dev-bubble.side::after { bottom: auto; left: auto; right: -6px; top: var(--ay, 50%); transform: translateY(-50%) rotate(45deg); }
 }
 /* v0.87 Simple bot: its rulebook as a checklist in the analysis panel (the rule that fired lit) */
@@ -2489,7 +2489,7 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
   body.rush-merged .app .rush-hud .ticker .tk-cancel { height: 24px; padding: 0 8px; font-size: 12px; }
   body.rush-merged .app .rush-hud .rush-voters { padding-top: 0; }
   body.rush-merged .app .rush-hud .rush-next7 { gap: 0; }
-  body.rush-merged .app .rush-hud .rush-next7-label { font-size: 8.5px; }
+  body.rush-merged .app .rush-hud .rush-next7-label { font-size: 9.5px; }
   body.rush-merged .app .rush-hud .rush-next7 .avatar { --av: 26px; }
   /* the player strip: avatar + points, then the (short) name and the cards (v0.96: the names are back) */
   body.rush-merged .pstrip .pchip { padding-top: 4px; padding-bottom: 3px; }
@@ -2606,8 +2606,8 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
 /* v1.2x usability: visible tiny labels on the player chips; home swipes scroll instead of selecting */
 @media (max-width: 760px) {
   [data-theme] .app .pstrip .pchip .vpn { flex-direction: row; align-items: baseline; gap: 1px; }
-  [data-theme] .app .pstrip .pchip .vpn small { display: inline; font-size: 7px; letter-spacing: 0; font-weight: 750; text-transform: lowercase; opacity: .85; margin-left: 1px; flex-basis: auto; }
-  .app .pstrip .pchip .pcards span::after { content: "cards"; font-size: 8.5px; font-weight: 700; margin-left: 2px; opacity: .85; }
+  [data-theme] .app .pstrip .pchip .vpn small { display: inline; font-size: 9px; letter-spacing: 0; font-weight: 750; text-transform: lowercase; opacity: .85; margin-left: 1px; flex-basis: auto; }
+  .app .pstrip .pchip .pcards span::after { content: "cards"; font-size: 9.5px; font-weight: 700; margin-left: 2px; opacity: .85; }
   .app .pstrip:has(.pchip:nth-child(5)) .pchip .pcards span::after, .app .pstrip:has(.pchip:nth-child(5)) .pchip .vpn small { display: none; }
 }
 .home, .home .hm-card, .home .hm-tile, .home button, .home .hm-row, .home .hm-brand, .home a { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
@@ -2620,9 +2620,9 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
 .livebar { flex: none; position: relative; z-index: 6; padding: 1px 10px 2px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .livebar[hidden] { display: none; }
 .lb-row { display: flex; align-items: center; gap: 6px; }
-.lb-depth { flex: none; min-width: 52px; text-align: right; font: 600 9px/10px system-ui, sans-serif; letter-spacing: .02em; color: var(--ink-soft, #667); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lb-depth { flex: none; min-width: 52px; text-align: right; font: 600 11px/12px system-ui, sans-serif; letter-spacing: .02em; color: var(--ink-soft, #667); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lb-track { flex: 1 1 auto; display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: rgba(0,0,0,.12); }
-.lb-seg { display: block; flex: 1 1 0; flex-basis: 0; min-width: 0; transition: flex-grow .6s ease; position: relative; text-align: center; font: 700 8px/10px system-ui, sans-serif; color: #fff; text-shadow: 0 0 2px rgba(0,0,0,.7); font-style: normal; overflow: hidden; white-space: nowrap; }
+.lb-seg { display: block; flex: 1 1 0; flex-basis: 0; min-width: 0; transition: flex-grow .6s ease; position: relative; text-align: center; font: 700 11px/12px system-ui, sans-serif; color: #fff; text-shadow: 0 0 2px rgba(0,0,0,.7); font-style: normal; overflow: hidden; white-space: nowrap; }
 .lb-seg b { font-weight: 700; }
 .lb-seg.me { box-shadow: inset 0 -2px 0 #fff; }
 .lb-note { position: absolute; left: 10px; right: 10px; top: 100%; z-index: 20; padding: 4px 8px; border-radius: 8px; background: rgba(20,20,20,.92); color: #fff; font-size: 11px; line-height: 1.3; }
@@ -2632,3 +2632,14 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
 }
 @media (prefers-reduced-motion: reduce) { .lb-seg { transition: none; } }
 .mn-live input { width: 22px; height: 22px; justify-self: end; }
+
+/* v1.67 Text size setting (Settings > Game): Compact = as designed; Normal / Large scale the whole interface */
+html[data-textsize="normal"] { zoom: 1.12; --dvh: calc(100dvh / 1.12); --dvw: calc(100vw / 1.12); }
+html[data-textsize="large"] { zoom: 1.25; --dvh: calc(100dvh / 1.25); --dvw: calc(100vw / 1.25); }
+
+/* v1.67 live win-chance bar: readable chip in your player card, readable depth label */
+.pchip { position: relative; }
+.pchip .lb-chip { position: absolute; right: 3px; bottom: 3px; padding: 1px 6px; border-radius: 999px; font: 800 11px/1.3 var(--font-body); font-style: normal; background: var(--primary, #1F6E77); color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); pointer-events: none; }
+.lb-depth { font-size: 11px; line-height: 12px; min-width: 0; }
+.lb-track { height: 12px; }
+.lb-seg { font-size: 11px; line-height: 12px; }

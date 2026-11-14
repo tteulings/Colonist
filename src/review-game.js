@@ -403,24 +403,26 @@ export const ReviewGameMixin = {
     if (!LK || LK.na || !LK.done || LK.cover < 0.9 || !this.winner) return null;
     const B = this._lkBook(pid);
     if (!B) return null;
-    const n = this.players.length, start = B.start - 1 / n, luck = B.luck, moves = B.moves;
-    const others = B.end - B.start - luck - (moves || 0); // with the moves not checked yet this holds them too (the row says so)
-    return { n, even: 1 / n, end: B.end, start, luck, moves, others, seat: this._lkSeat(pid), tot: LK.tot[pid] };
+    const n = this.players.length, seat = this._lkSeat(pid), moves = B.moves;
+    // v1.67 ONE luck number: dice, steals, cards AND seat order (= the table's Luck, LK.tot). Start is then only the set-up.
+    const start = B.start - 1 / n - seat, luck = B.luck + seat;
+    const others = B.end - B.start - B.luck - (moves || 0); // with the moves not checked yet this holds them too (the row says so)
+    return { n, even: 1 / n, end: B.end, start, luck, moves, others, seat, tot: LK.tot[pid] };
   },
   /** One short sentence: the biggest reason, from the bars (a winner: what carried it; a loser: what cost most, and whether it was the dice). */
   _rvWhyVerdict(pid, W, worst) {
     const you = this._rvIsYou(pid), nm = you ? "You" : esc(this.players[pid].name), won = W.end === 1;
     const pc = (v) => `${Math.abs(Math.round(v * 100))}%`, sg = (v) => wpText(v);
     if (won) {
-      const best = [["a strong start (seat, set-up)", W.start], ["luck", W.luck]].sort((a, b) => b[1] - a[1])[0];
+      const best = [["a strong set-up", W.start], ["luck", W.luck]].sort((a, b) => b[1] - a[1])[0];
       const mv = W.moves != null && W.moves > -0.05 ? ` and clean play (moves cost only ${pc(W.moves)})` : "";
       if (best[1] >= 0.05) return `${nm} won on ${best[0]} (${sg(best[1])})${mv}.`;
       return `${nm} won without a big edge${mv}: the others fell away.`;
     }
-    const c = [["a weak start", W.start], ["luck", W.luck]];
+    const c = [["a weak set-up", W.start], ["luck", W.luck]];
     if (W.moves != null) c.push([you ? "your moves" : "their moves", W.moves]);
     const bad = c.sort((a, b) => a[1] - b[1])[0];
-    if (W.moves == null) return `Start ${sg(W.start)}, luck ${sg(W.luck)}. ${you ? "Your" : "Their"} moves are still being checked.`;
+    if (W.moves == null) return `Set-up ${sg(W.start)}, luck ${sg(W.luck)}. ${you ? "Your" : "Their"} moves are still being checked.`;
     if (bad[1] > -0.04) return `No big weakness of ${you ? "your" : "their"} own: the others pulled ahead.`;
     const dice = bad[0] !== "luck" ? ` Not luck (${sg(W.luck)}).` : "";
     const slip = worst && bad[0].includes("moves") ? ` Biggest slip: ${esc(this._rvWhen(worst).replace("Setup", "set-up"))} (${sgn(-worst.gp)}%).` : "";
@@ -434,9 +436,9 @@ export const ReviewGameMixin = {
     if (W) {
       const big = W.moves != null && Math.abs(W.others) >= 0.2;
       return `<div class="rsc-wy"><b>${W.end === 1 ? "Why won" : "Why lost"}</b><small>win chance ${Math.round(W.even * 100)}% → ${Math.round(W.end * 100)}%</small></div>
-        <div class="rsc-wf">${row("Start", W.start)}${row("Dice, steals, cards", W.luck)}${row(you ? "Your moves" : "Own moves", W.moves)}${row(W.moves == null ? "Moves + others" : "The others", W.others)}</div>
+        <div class="rsc-wf">${row("Set-up", W.start)}${row("Luck", W.luck)}${row(you ? "Your moves" : "Own moves", W.moves)}${row(W.moves == null ? "Moves + others" : "The others", W.others)}</div>
         <p class="rsc-v">${this._rvWhyVerdict(pid, W, wd)}</p>
-        <p class="rsc-n">Luck in total (dice, steals, cards): ${wpText(W.tot)}. Start = seat order and set-up${Math.round(W.seat * 100) ? ` (seat order ${wpText(W.seat)})` : ""}. ${W.moves == null ? "" : `The others = what their luck and moves did${big ? ", and what the estimates cannot tell apart. It is large here, so read it as a rough share" : ""}.`}</p>`;
+        <p class="rsc-n">Luck = dice, steals, card draws and seat order${Math.round(W.seat * 100) ? ` (seat order ${wpText(W.seat)})` : ""}: the same number as in the table. Set-up = your starting spots. ${W.moves == null ? "" : `The others = what their luck and moves did${big ? ", and what the estimates cannot tell apart. It is large here, so read it as a rough share" : ""}.`}</p>`;
     }
     if (LK.na) return "";
     if (LK.done) return `<p class="rsc-n">No reasons available for this game.</p>`;
@@ -1012,7 +1014,7 @@ export const ReviewGameMixin = {
     const pid = this._rvWhyP != null && this.players[this._rvWhyP] ? this._rvWhyP : this._rvPid;
     const chips = this.players.map((p) => `<button type="button" class="pc-${p.id}${p.id === pid ? " on" : ""}" data-rvwhy2="${p.id}" aria-pressed="${p.id === pid}">${this._av(p, "rt-av")}<span>${this._rvNm(p.id)}</span></button>`).join("");
     const info = `<button type="button" class="lk-ib" data-rvwhy-i aria-expanded="false" aria-label="What do these bars mean?">${IC.info}</button>`;
-    const txt = `<p class="lk-it" data-rvwhy-t hidden><b>Start</b>: seat order and set-up. <b>Dice luck</b>: their rolls, steals and card draws against what was expected. <b>Own moves</b>: what their choices cost against the best move each time (the Moves cost row above). <b>The others</b>: what the other players' luck and moves did to them, plus what the estimates cannot tell apart.</p>`;
+    const txt = `<p class="lk-it" data-rvwhy-t hidden><b>Set-up</b>: the starting position. <b>Luck</b>: rolls, steals, card draws and seat order against what was expected (the table's Luck). <b>Own moves</b>: what their choices cost against the best move each time (the Moves cost row above). <b>The others</b>: what the other players' luck and moves did to them, plus what the estimates cannot tell apart.</p>`;
     return `<section class="rv-card rvx why-card" data-rvwhy>${this._rcLead?.() || ""}<div class="rv-gt"><b>Why ${this._rvWhyBars(pid)?.end === 1 ? "won" : "lost"}</b><span>${info}</span></div>${txt}<div class="lkd-seg" role="group" aria-label="Whose">${chips}</div>${this._rvWhyHtml(pid)}${this._rcLuckPlay?.() || ""}</section>`;
   },
   _rvBindSbs(root) {
@@ -1373,13 +1375,14 @@ export const ReviewGameMixin = {
     el.innerHTML = `<div class="rv-bar rs-bar${whoBtn ? " w" : ""}"><button type="button" class="rv-btn" data-rvclose-step aria-label="${mid ? "Back to the overview" : this._rvStepFrom ? "Back to the review" : "Back to the results"}">${IC.back}</button><div><h3>${this._rvIsYou(me) ? "You" : esc(this.players[me].name)} · moves</h3><small>${this._rvWhen(d)} · ${d.k === "setup" ? `${k + 1} of ${list.length}` : (() => { const tt = this._tvTurns(ds); return `${tt.findIndex((x) => x.T === this._tv?.T) + 1} of ${tt.length}`; })()}${this._rvQ === "imp" ? " · could be better" : ""}${prov ? " · provisional" : ""}</small></div>${whoBtn}<button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review">${IC.info}</button></div>
       ${this._rvProgHtml(this._rvPid)}
       <div class="rs-stage"><div class="rs-eval">${evalHtml}</div>
-        ${mid ? "" : `<div class="rs-board"><canvas></canvas><svg class="rs-marks" aria-hidden="true"></svg><div class="rs-wc" aria-hidden="true">${wcHtml}</div><button type="button" class="rs-pbp" data-rvpbp aria-label="Play by play: every move since your last decision">${IC.step}<span>Play</span></button>${noA ? "" : `<div class="rs-tog" role="group" aria-label="Show on the board"><button type="button" data-rvab="A" class="${show === "A" ? "on" : ""}" aria-label="Better move"><s>A</s></button><button type="button" data-rvab="both" class="${show === "both" ? "on" : ""}">A + B</button><button type="button" data-rvab="B" class="${show === "B" ? "on" : ""}" aria-label="What you did"><s class="alt">B</s></button></div>`}</div>`}</div>
+        ${mid ? "" : `<div class="rs-board"><canvas></canvas><svg class="rs-marks" aria-hidden="true"></svg><div class="rs-wc" title="Tap for names">${wcHtml}</div><button type="button" class="rs-pbp" data-rvpbp aria-label="Play by play: every move since your last decision">${IC.step}<span>Play</span></button>${noA ? "" : `<div class="rs-tog" role="group" aria-label="Show on the board"><button type="button" data-rvab="A" class="${show === "A" ? "on" : ""}" aria-label="Better move"><s>A</s></button><button type="button" data-rvab="both" class="${show === "both" ? "on" : ""}">A + B</button><button type="button" data-rvab="B" class="${show === "B" ? "on" : ""}" aria-label="What you did"><s class="alt">B</s></button></div>`}</div>`}</div>
       <div class="rs-card">${cardHtml}</div>`;
-    const sc = el.querySelector(".rs-strip"); if (sc) { sc.scrollLeft = scrub; el.querySelector(".rs-chip.on")?.scrollIntoView?.({ inline: "center", block: "nearest" }); }
+    const sc = el.querySelector(".rs-strip"); if (sc) { sc.scrollLeft = scrub; { const c = el.querySelector(".rs-chip.on"); if (c) sc.scrollLeft = c.offsetLeft - sc.clientWidth / 2 + c.offsetWidth / 2; } }
     this._rvBindTop(el);
     el.querySelectorAll("[data-rvclose-step]").forEach((b) => b.addEventListener("click", () => this._rvStepBack()));
     el.querySelector("[data-rvwho]")?.addEventListener("click", (e) => { e.stopPropagation(); this._rvWhoPop(); });
     bindCard(el);
+    el.querySelector(".rs-wc")?.addEventListener("click", (e) => e.currentTarget.classList.toggle("open")); // v1.67 the legend is small chips; a tap shows the names
     el.querySelector("[data-rvpbp]")?.addEventListener("click", () => this._rvPbpOpen(d, ds));
     let x0 = null;
     [el.querySelector(".rs-stage"), el.querySelector(".rs-card")].forEach((n) => { if (!n) return; n.addEventListener("touchstart", (e) => { x0 = e.touches[0].clientX; }, { passive: true }); n.addEventListener("touchend", (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; if (!this._rvPbp && Math.abs(dx) > 50) { if (d.k === "setup") { const nx = list[k + (dx < 0 ? 1 : -1)]; if (nx) this._rvDrawReview(nx.i); } else this._tvStep(dx < 0 ? 1 : -1, d, ds); } }, { passive: true }); });
@@ -1416,7 +1419,7 @@ export const ReviewGameMixin = {
   _rvLegend(seats, est = false) {
     const me = this._rvPid, sum = seats.reduce((a, b) => a + b, 0) || 1;
     const order = [me, ...this.players.map((p) => p.id).filter((q) => q !== me).sort((a, b) => seats[b] - seats[a])];
-    return order.map((q) => `<span class="pc-${q}${q === me ? " me" : ""}"><i></i>${this._rvNm(q)}<b>${est ? "≈" : ""}${Math.round((seats[q] / sum) * 100)}%</b></span>`).join("");
+    return order.map((q) => `<span class="pc-${q}${q === me ? " me" : ""}"><i></i><em>${this._rvNm(q)}</em><b>${est ? "≈" : ""}${Math.round((seats[q] / sum) * 100)}%</b></span>`).join("");
   },
   _rvPName(pid) { const p = this.players[pid]; return !p ? "Someone" : p.isHuman && !this.hotseat ? "You" : esc(p.name); },
   /** Every move between your previous decision and this one, as beats: a roll (with who got what), a build, a trade, the robber, a steal, a card. */

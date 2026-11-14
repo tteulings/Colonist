@@ -131,8 +131,12 @@ export const LiveBarMixin = {
     P.forEach((p, i) => {
       const seg = track.children[i];
       seg.style.flexGrow = String(Math.max(w[i], 0.002));
-      seg.firstChild.textContent = w[i] >= 0.09 ? pct[i] + "%" : "";
+      seg.firstChild.textContent = w[i] >= 0.13 ? pct[i] + "%" : ""; // (a label only where the segment is wide enough to read it)
     });
+    // v1.67 your own win chance as a readable chip in your player card (the bar keeps its seat order = the player cards' order)
+    document.querySelectorAll(".pchip .lb-chip").forEach((c) => c.remove());
+    const card = me >= 0 ? document.querySelector(`.pchip[data-seat="${me}"]`) : null;
+    if (card) { const c = document.createElement("em"); c.className = "lb-chip"; c.textContent = pct[me] + "%"; c.title = "Your win chance"; c.setAttribute("aria-hidden", "true"); card.appendChild(c); }
     el.setAttribute("aria-label", (n ? `Win chance (${n} games simulated): ` : "Win chance (quick model): ") + P.map((p, i) => `${i === me ? "you" : p.name} ${pct[i]}%`).join(", "));
     el.hidden = false;
   },

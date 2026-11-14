@@ -1,6 +1,6 @@
 // Home screen (shown on every launch and via Menu › Home) and the in-game Menu sheet.
 // Home: Continue (when a game is saved) · New game: Classic / Rush tiles that start at once with the
-// chosen opponents and bot level · More settings (full New game screen) · How to play · Settings.
+// chosen opponents and bot level · Rules & options (full New game screen) · How to play · Settings.
 import { icon, avatarSvg } from "./manager.js";
 import { HISTORY_ICON } from "../history.js";
 import { liveWinOn, setLiveWin, liveRefineOn, setLiveRefine } from "../live-bar.js";
@@ -59,7 +59,7 @@ export class Home {
       this.el.className = "home";
       this.el.setAttribute("role", "dialog");
       this.el.setAttribute("aria-modal", "true");
-      this.el.setAttribute("aria-label", "Katan: Handelaren en Bouwers home");
+      this.el.setAttribute("aria-label", "Katan home");
       document.addEventListener("keydown", this.onKey);
       document.addEventListener("colonist:update", this.onUpdate);
       document.body.appendChild(this.el);
@@ -89,7 +89,7 @@ export class Home {
     this.el.classList.toggle("has-save", !!s);
     this.el.innerHTML = `<div class="hm-col">
       <header class="hm-brand"><svg class="hm-logo" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>
-        <h1>Katan<small class="hm-sub">Handelaren en Bouwers</small></h1>${s ? "" : `<p>Settle the island, trade with friendly bots, reach ${sea ? 14 : 10} points first.</p>`}</header>
+        <h1>Katan<small class="hm-sub">Traders and Builders</small></h1>${s ? "" : `<p>Settle the island, trade with friendly bots, reach ${sea ? 14 : 10} points first.</p>`}</header>
       ${upd ? `<button type="button" class="hm-update" data-home="update" aria-live="polite">${UPDATE_IC}<span><b>${upd.version ? `Update to v${upd.version}` : "Update ready"}</b><small>New version ready · tap to reload${s ? " · your game is saved" : ""}</small></span>${CHEV}</button>` : ""}
       ${s ? `<button type="button" class="hm-continue" data-home="continue">${PLAY_IC}<span class="hm-ct"><b>Continue game</b><small>${s.mode} · ${s.mode.startsWith("Rush") ? "roll" : "turn"} ${s.turn}</small></span>${CHEV}
         <span class="hm-score">${s.players.map((q) => `<span class="pc-${q.seat}" title="${q.name}: ${q.vp} points">${avatarSvg(q.seat, "hm-av")}<em class="nm">${q.name}</em> <b>${q.vp}</b></span>`).join("")}</span></button>` : ""}
@@ -109,7 +109,7 @@ export class Home {
         <button type="button" data-home="history">${HISTORY_ICON}<span>Past games<small>${(() => { const n = this.opts.historyCount?.(); return n ? `${n} finished game${n > 1 ? "s" : ""} · replay, stats, review` : "Replay and review your finished games"; })()}</small></span>${CHEV}</button>
         <button type="button" data-home="friend">${icon("trade")}<span>Play with a friend<small>Share this phone · pass it on</small></span>${CHEV}</button>
         <button type="button" data-home="bots">${BOTS_IC}<span>Bots<small>Leaderboard, strength and your results</small></span>${CHEV}</button>
-        <button type="button" data-home="more">${themed(this.game, "sliders", SLIDERS_IC)}<span>More settings<small>Rules, map, bots</small></span>${CHEV}</button>
+        <button type="button" data-home="more">${themed(this.game, "sliders", SLIDERS_IC)}<span>Rules &amp; options<small>Rules, map, bots</small></span>${CHEV}</button>
         <button type="button" data-home="intro" class="${fresh ? "fresh" : ""}">${themed(this.game, "book", BOOK_IC)}<span>How to play${fresh ? `<small>New here? 3 short cards</small>` : ""}</span>${CHEV}</button>
         <div class="hm-pair"><button type="button" data-home="settings">${icon("settings")}<span>Settings</span>${CHEV}</button>
         <a class="hm-lab" href="./lab.html" data-home="lab" title="See how the bots score the board">${LAB_IC}<span>AI Lab</span>${CHEV}</a></div>

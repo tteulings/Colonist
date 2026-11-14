@@ -25,7 +25,7 @@ body {
 
 /* ── App Shell ── */
 .app-shell {
-  height: 100vh;
+  height: var(--dvh, 100vh);
   display: grid;
   grid-template-rows: auto 1fr auto;
   gap: 0;
@@ -1098,7 +1098,7 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
   box-shadow: 0 8px 24px rgba(44, 24, 16, 0.2);
   padding: 0.5rem;
   width: 270px;
-  max-height: calc(100vh - 120px);
+  max-height: calc(var(--dvh, 100vh) - 120px);
   overflow-y: auto;
   animation: slideInLeft 0.2s ease-out;
 }
@@ -2191,8 +2191,8 @@ label { font-size: 0.72rem; color: #2a4c70; font-weight: 600; }
 @media (max-width: 1080px) {
   body { overflow: hidden; }
   .app-shell {
-    height: 100vh;
-    height: 100dvh;
+    height: var(--dvh, 100vh);
+    height: var(--dvh, 100dvh);
     display: flex;
     flex-direction: column;
     gap: 0;

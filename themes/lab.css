@@ -236,7 +236,7 @@ body.lb-stepping .lb-tools, body.lb-stepping #labResult { display: none; }
 .lb-toolrow { display: flex; gap: 6px; align-items: stretch; }
 .lb-toolrow .lb-toolseg { flex: 1; min-width: 0; }
 .lb-boardbtn { min-height: 36px; padding: 0 10px; font-size: 12px; flex: none; }
-.lb-sheet { border: 0; padding: 0; background: none; width: min(560px, calc(100vw - 16px)); max-height: calc(100vh - 24px); margin: auto auto 8px; }
+.lb-sheet { border: 0; padding: 0; background: none; width: min(560px, calc(var(--dvw, 100vw) - 16px)); max-height: calc(var(--dvh, 100vh) - 24px); margin: auto auto 8px; }
 .lb-sheet::backdrop { background: var(--scrim, rgba(24,40,42,.42)); }
 .lb-sheet .lb-card { box-shadow: var(--float-shadow); }
 /* light slider tracks */
@@ -330,7 +330,7 @@ body.lb-stepping .lb-tools, body.lb-stepping #labResult { display: none; }
 .lb-sw::after { content: ""; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: left .15s; }
 .lb-sw.on { background: var(--accent); }
 .lb-sw.on::after { left: 21px; }
-.lb-sheet .lb-card { max-height: calc(100vh - 40px); overflow: auto; }
+.lb-sheet .lb-card { max-height: calc(var(--dvh, 100vh) - 40px); overflow: auto; }
 .lb-pick { display: grid; gap: 2px; }
 .lb-opt { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 48px; padding: 4px 6px; border: 0; border-radius: 10px; background: none; color: var(--ink); text-align: left; font: inherit; }
 .lb-opt.on { background: var(--chip); outline: 2px solid var(--accent); outline-offset: -2px; }

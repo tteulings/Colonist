@@ -21,7 +21,7 @@ const CHEV_R = `<svg viewBox="0 0 20 20" class="ic bpg-chev" aria-hidden="true">
 /** The rows: every bot with its win and accuracy entries. */
 const rows = (tab = "classic", metric = "win") => KEYS.map((key) => ({ key, p: P[key], win: tab === "classic" ? metricOf(key, metric) : winOf(key, tab), acc: accOf(key, P[key].label) }));
 // v1.43 Classic: which figure the list's first column shows (and sorts by): win % against 3 Intermediates, against 3 Experts, or the rating
-const METRICS = [["win", "vs Intermediates", "Win %"], ["vse", "vs Experts", "vs Exp"], ["rating", "Rating", "Rating"]];
+const METRICS = [["win", "vs Medium bots", "Win %"], ["vse", "vs Hard bots", "vs Exp"], ["rating", "Rating", "Rating"]];
 const hasEst = () => rows().some((r) => r.win.label === "estimate"); // bot-125: the legend shows "estimate" only while one is left
 const plain = (r) => r.win.v != null && r.win.label !== "early test"; // has a number to place (measured or estimate)
 
@@ -109,7 +109,7 @@ function listHtml(tab, sort, you, who, metric = "win") {
   const body = o.list.map((r) => {
     const rank = o.ranked && plain(r) ? ++n : null;
     const w = winCell(r, tab), a = accCell(r, tab), y = youCell(yt.bots[r.key]);
-    return `<button type="button" class="bpg-row" role="row" data-open="${r.key}" aria-label="${esc(`${rank ? `Rank ${rank}. ` : ""}${r.p.label}, ${lvText(r)}. ${metric === "vse" ? "Win chance against 3 Experts" : metric === "rating" ? "Classic" : "Win chance"} ${w.aria}. Review accuracy ${a.aria}. You: ${y.aria}. Open profile`)}">
+    return `<button type="button" class="bpg-row" role="row" data-open="${r.key}" aria-label="${esc(`${rank ? `Rank ${rank}. ` : ""}${r.p.label}, ${lvText(r)}. ${metric === "vse" ? "Win chance against 3 Hard bots" : metric === "rating" ? "Classic" : "Win chance"} ${w.aria}. Review accuracy ${a.aria}. You: ${y.aria}. Open profile`)}">
       <span class="bpg-rk" aria-hidden="true">${rank ?? "·"}</span>${emb(r.key, 20)}
       <span class="bpg-nm"><b>${r.p.label}</b>${dotsHtml(r.p.level, r.p.beyond)}</span>
       <span class="bpg-c">${w.html}</span><span class="bpg-c">${a.html}</span><span class="bpg-c">${y.html}</span></button>`;
@@ -147,7 +147,7 @@ function ladderSvg(W) {
   return s;
 }
 const ladderCard = (W) => `<section class="bpg-card bpg-hero" aria-labelledby="bpgLadH"><h2 id="bpgLadH">Strength ladder</h2>
-  <p class="bpg-lede">Wins out of 100 games for one bot against 3 Intermediate bots (25 = an even share).</p>${ladderSvg(W)}
+  <p class="bpg-lede">Wins out of 100 games for one bot against 3 Medium bots (25 = an even share).</p>${ladderSvg(W)}
   <ul class="bpg-leg"><li><i class="k-ring"></i>measured</li>${hasEst() ? `<li><i class="k-ring est"></i>estimate, not a measurement</li>` : ""}<li><i class="k-cap"></i>likely range</li><li><span class="bpg-dots" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>strength (1 to 5 dots)</li></ul>
   ${ladderFoot()}
   ${numbersHtml("ladder")}</section>`;
@@ -248,10 +248,10 @@ function numbersHtml(kind) {
   const set = [...setups.map((k) => ["Win chance", `${SETUPS[k]} Code ${codes(k)}.`]), ...(kind === "scatter" ? [["Accuracy", SETUPS.review + " Code v1.21."]] : [])];
   const vsE = BOT_STATS.master?.vsExpert;
   return `<details class="bpg-nums"><summary>Show the numbers</summary><div class="bpg-tw" tabindex="0"><table><caption class="sr">${kind === "ladder" ? "Win chance per bot" : "Win chance and review accuracy per bot"}</caption>
-    <thead><tr><th scope="col">Bot</th><th scope="col">Win %</th><th scope="col">Likely range ±</th><th scope="col">n</th><th scope="col">Code</th><th scope="col">Label</th>${kind === "ladder" ? `<th scope="col">vs 3 Experts</th><th scope="col">Rating</th>` : ""}${kind === "scatter" ? `<th scope="col">Acc</th><th scope="col">±SE</th>` : ""}</tr></thead><tbody>${rowsH}</tbody></table></div>
+    <thead><tr><th scope="col">Bot</th><th scope="col">Win %</th><th scope="col">Likely range ±</th><th scope="col">n</th><th scope="col">Code</th><th scope="col">Label</th>${kind === "ladder" ? `<th scope="col">vs 3 Hard bots</th><th scope="col">Rating</th>` : ""}${kind === "scatter" ? `<th scope="col">Acc</th><th scope="col">±SE</th>` : ""}</tr></thead><tbody>${rowsH}</tbody></table></div>
     ${set.map(([a, b]) => `<p class="bpg-foot"><b>${a}:</b> ${esc(b)}</p>`).join("")}
-    ${kind === "ladder" ? `<p class="bpg-foot"><b>vs 3 Experts:</b> ${esc(SETUPS.vsExperts || "")}</p><p class="bpg-foot"><b>Rating:</b> ${esc(SETUPS.rating || "")}</p>` : ""}
-    ${rows().filter((r) => r.win.src || (r.key === "master" && vsE)).map((r) => `<p class="bpg-foot"><b>${r.p.label}:</b> ${esc([r.win.src, r.key === "master" && vsE ? `Measured on its own: +${f1(vsE.v)} pp (±${f1(vsE.ci)}) over an Expert in the same seat, ${vsE.n} games against 3 Experts; its own seat wins ${f1(vsE.own.v)}% (±${f1(vsE.own.ci)}) there.` : ""].filter(Boolean).join(" "))}</p>`).join("")}</details>`;
+    ${kind === "ladder" ? `<p class="bpg-foot"><b>vs 3 Hard bots:</b> ${esc(SETUPS.vsExperts || "")}</p><p class="bpg-foot"><b>Rating:</b> ${esc(SETUPS.rating || "")}</p>` : ""}
+    ${rows().filter((r) => r.win.src || (r.key === "master" && vsE)).map((r) => `<p class="bpg-foot"><b>${r.p.label}:</b> ${esc([r.win.src, r.key === "master" && vsE ? `Measured on its own: +${f1(vsE.v)} pp (±${f1(vsE.ci)}) over a Hard in the same seat, ${vsE.n} games against 3 Hard bots; its own seat wins ${f1(vsE.own.v)}% (±${f1(vsE.own.ci)}) there.` : ""].filter(Boolean).join(" "))}</p>`).join("")}</details>`;
 }
 
 /** v1.34 a tab with figures for a few bots: what was measured, the fair share, the paired gaps, and the set-up (behind "Show the numbers"). */
@@ -262,10 +262,10 @@ function modeCard(tab) {
   const rowsH = keys.map((k) => { const w = M[k]; return `<tr><th scope="row">${name(k)}</th><td>${f1(w.v)}</td><td>±${f1(w.ci)}</td><td>${w.n}${w.prov ? " (provisional)" : ""}</td><td>${w.vsE ? `${w.vsE.v > 0 ? "+" : ""}${f1(w.vsE.v)} ±${f1(w.vsE.ci)}` : "–"}</td><td>${esc(w.fut || "–")}</td></tr>`; }).join("");
   const setup = SETUPS[M[keys[0]].setup] || "";
   const code = M[keys[0]].code;
-  return `<section class="bpg-card bpg-hero" aria-labelledby="bpgModeH"><h2 id="bpgModeH">Measured here</h2><p class="bpg-lede">One bot against 3 Intermediate bots; ${FAIR[tab]} wins out of 100 games is an even share. ${(() => { const miss = Object.keys(P).filter((k) => !keys.includes(k)).map(name); return miss.length ? `Not measured here: ${miss.join(", ")}.` : "Every bot is measured here."; })()}${keys.some((k) => M[k].prov) ? " Provisional: from a run that was stopped early." : ""}</p>
+  return `<section class="bpg-card bpg-hero" aria-labelledby="bpgModeH"><h2 id="bpgModeH">Measured here</h2><p class="bpg-lede">One bot against 3 Medium bots; ${FAIR[tab]} wins out of 100 games is an even share. ${(() => { const miss = Object.keys(P).filter((k) => !keys.includes(k)).map(name); return miss.length ? `Not measured here: ${miss.join(", ")}.` : "Every bot is measured here."; })()}${keys.some((k) => M[k].prov) ? " Provisional: from a run that was stopped early." : ""}</p>
     <details class="bpg-nums"><summary>Show the numbers</summary><div class="bpg-tw" tabindex="0"><table><caption class="sr">Win chance per measured bot</caption>
-    <thead><tr><th scope="col">Bot</th><th scope="col">Win %</th><th scope="col">Likely range ±</th><th scope="col">n</th><th scope="col">vs Expert (pp)</th><th scope="col">Search</th></tr></thead><tbody>${rowsH}</tbody></table></div>
-    <p class="bpg-foot"><b>Win chance:</b> ${esc(setup)} Code ${esc(code)}.</p><p class="bpg-foot"><b>vs Expert:</b> the same boards and seats played by the Expert; the difference in win chance, in percentage points, ± 95%.</p>${keys.filter((k) => M[k].src && /^(Measured|Provisional)/.test(M[k].src)).map((k) => `<p class="bpg-foot"><b>${esc(name(k))}:</b> ${esc(M[k].src.replace(/ Same boards and seats.*$/, ""))}</p>`).join("")}</details></section>`;
+    <thead><tr><th scope="col">Bot</th><th scope="col">Win %</th><th scope="col">Likely range ±</th><th scope="col">n</th><th scope="col">vs Hard (pp)</th><th scope="col">Search</th></tr></thead><tbody>${rowsH}</tbody></table></div>
+    <p class="bpg-foot"><b>Win chance:</b> ${esc(setup)} Code ${esc(code)}.</p><p class="bpg-foot"><b>vs Hard:</b> the same boards and seats played by the Hard bot; the difference in win chance, in percentage points, ± 95%.</p>${keys.filter((k) => M[k].src && /^(Measured|Provisional)/.test(M[k].src)).map((k) => `<p class="bpg-foot"><b>${esc(name(k))}:</b> ${esc(M[k].src.replace(/ Same boards and seats.*$/, ""))}</p>`).join("")}</details></section>`;
 }
 
 const NOT = { rush: "Win chances were only measured in Classic. In Rush the Master and both Super Experts search for less time, so their numbers can differ.", five: "With 5 players a fair share is 20%.", six: "With 6 players a fair share is about 17%.", sea: "In Seafarers the Master and both Super Experts search too, with a model learned from Seafarers games. Nobody measured their win chances there yet." };
@@ -323,7 +323,7 @@ export const BotsPageMixin = {
         <div class="bpg-tabs" role="tablist" aria-label="Game type">${TABS.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === S.tab}" data-btab="${k}" class="${k === S.tab ? "on" : ""}">${l}</button>`).join("")}</div>
         ${measured ? ladderCard(W) : MODE_STATS[S.tab] ? modeCard(S.tab) : `<div class="bpg-notice" role="status"><b>Not measured yet</b>${NOT[S.tab] || ""} There is no ranking here; “You” still counts your own games.</div>`}
         ${listHtml(S.tab, S.sort, you, S.who, S.metric || "win")}
-        <p class="bpg-foot">${measured ? `<b>Win %</b> = one bot against 3 Intermediates, 4 players, 10 points, with the likely range (2000 games a bot; fewer for the search bots, see the numbers); 25 wins out of 100 is an even share. <b>Acc</b> = how often its moves match the best move (game review), ±1 SE. <b>You</b> = your wins in games where that bot sat at the table, from ${YOU_MIN} games (fewer: “few”).` : `<b>Win %</b> = one bot against Intermediates at this kind of table, ± 95% interval (see the numbers above); “not measured”: no figure for that bot here yet. Fair share: ${FAIR[S.tab]}%. Accuracy is only measured in Classic. <b>You</b> = your wins in games where that bot sat at the table, from ${YOU_MIN} games.`}</p>
+        <p class="bpg-foot">${measured ? `<b>Win %</b> = one bot against 3 Medium bots, 4 players, 10 points, with the likely range (2000 games a bot; fewer for the search bots, see the numbers); 25 wins out of 100 is an even share. <b>Acc</b> = how often its moves match the best move (game review), ±1 SE. <b>You</b> = your wins in games where that bot sat at the table, from ${YOU_MIN} games (fewer: “few”).` : `<b>Win %</b> = one bot against Medium bots at this kind of table, ± 95% interval (see the numbers above); “not measured”: no figure for that bot here yet. Fair share: ${FAIR[S.tab]}%. Accuracy is only measured in Classic. <b>You</b> = your wins in games where that bot sat at the table, from ${YOU_MIN} games.`}</p>
         ${measured ? scatterCard(W, S.sel) : ""}
       </div>`;
     el.querySelectorAll("details").forEach((d, i) => { d.dataset.k = i; if (open.includes(String(i))) d.open = true; });

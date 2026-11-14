@@ -482,7 +482,7 @@ export const HistoryMixin = {
       <button type="button" class="hs-btn pri" data-hplay>Start a game</button></section>`;
   },
 
-  /** "3x Intermediate" / "Trader · Shark · Builder": the bots' profiles with their mini emblems. */
+  /** "3x Medium" / "Trader · Shark · Builder": the bots' profiles with their mini emblems. */
   _histBots(m, long = false) {
     const g = new Map();
     m.seats.forEach((s) => { if (s.prof) { const k = `${s.prof}${s.custom ? "~" : ""}`; g.set(k, (g.get(k) || 0) + 1); } });
