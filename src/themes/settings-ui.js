@@ -12,7 +12,7 @@ export function getTextSize() { try { const v = localStorage.getItem("colonist_t
 export function setTextSize(v) { try { localStorage.setItem("colonist_textsize", v); } catch (_) {} document.documentElement.dataset.textsize = v; window.__colonistAppH?.(); window.dispatchEvent(new Event("resize")); }
 try { document.documentElement.dataset.textsize = getTextSize(); window.__colonistAppH?.(); } catch (_) {}
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "1.67";
+export const APP_VERSION = "1.68";
 
 /** v1.34 Settings: the running version and "Check for updates" (index.html: reg.update() + a version compare). */
 function versionRow() {
