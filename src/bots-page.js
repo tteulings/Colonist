@@ -118,7 +118,7 @@ function listHtml(tab, sort, you, who, metric = "win") {
   const sorts = `<div class="bpg-sort" role="radiogroup" aria-label="Sort by"><span>Sort by</span>${SORTS.map(([k, l]) => `<button type="button" role="radio" aria-checked="${o.sort === k}" data-sort="${k}" class="${o.sort === k ? "on" : ""}"${dis && k === "acc" ? " disabled" : ""}>${l}</button>`).join("")}</div>`;
   const mets = tab === "classic" ? `<div class="bpg-sort bpg-met" role="radiogroup" aria-label="Show"><span>Show</span>${METRICS.map(([k, l]) => `<button type="button" role="radio" aria-checked="${metric === k}" data-metric="${k}" class="${metric === k ? "on" : ""}">${l}</button>`).join("")}</div>` : "";
   const head = (METRICS.find((m) => m[0] === metric) || METRICS[0])[2];
-  return `${mets}${sorts}<div class="bpg-card bpg-list" role="table" aria-label="Bot leaderboard"><div class="bpg-hd" role="row"><span></span><span></span><span>Bot</span><span class="${o.sort === "win" ? "on" : ""}">${head}</span><span class="${o.sort === "acc" ? "on" : ""}">Acc</span><span class="${o.sort === "you" ? "on" : ""}">You</span></div>${youRow}${body}</div>`;
+  return `${mets}${sorts}<div class="bpg-card bpg-list" role="table" aria-label="Bot leaderboard"><div class="bpg-hd" role="row"><span></span><span></span><span>Bot</span><span class="${o.sort === "win" ? "on" : ""}">${head}</span><span class="${o.sort === "acc" ? "on" : ""}">Accuracy</span><span class="${o.sort === "you" ? "on" : ""}">You</span></div>${youRow}${body}</div>`;
 }
 
 // ── 1. the strength ladder (dot plot) ───────────────────────────────────────────────────────────

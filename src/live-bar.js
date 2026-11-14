@@ -20,7 +20,7 @@ export function setLiveRefine(on) {
   try { localStorage.setItem(RKEY, on ? "on" : "off"); } catch (_) {}
   window.dispatchEvent(new CustomEvent("livewin-change", { detail: liveWinOn() }));
 }
-const NOTE = "Quick model, then refined by simulating futures. Not a promise.";
+const NOTE = "Quick model, then refined by simulating games. Not a promise.";
 export const LIVE_MC = { cap: 400, batch: 10, depth: 20 };
 
 export const LiveBarMixin = {
@@ -70,7 +70,7 @@ export const LiveBarMixin = {
     if (key !== this._lbKey || !this._lbCanDeep()) return;
     if (!this._lbWorker) {
       try {
-        const w = new Worker(new URL("./master/worker.js?v=165", import.meta.url), { type: "module" });
+        const w = new Worker(new URL("./master/worker.js?v=166", import.meta.url), { type: "module" });
         w.addEventListener("message", (e) => {
           const m = e.data;
           if (m.type === "live" && m.job === this._lbJob) { this._lbN = m.n; this._lbDraw(m.p, m.n); const s = (window.__lbStats ||= { n: 0, ms: 0, max: 0, last: null }); s.deep = { n: m.n, p: m.p }; }
@@ -122,7 +122,7 @@ export const LiveBarMixin = {
     if (!el) return;
     if (!w || !w.length || w.some((x) => !Number.isFinite(x))) { el.hidden = true; return; }
     const P = this.players, track = el.querySelector(".lb-track");
-    el.querySelector(".lb-depth").textContent = n ? `${n} futures` : "quick";
+    el.querySelector(".lb-depth").textContent = n ? `${n} games simulated` : "quick";
     const me = P.findIndex((p) => p.isHuman);
     if (track.children.length !== P.length) {
       track.innerHTML = P.map((p, i) => `<i class="lb-seg${i === me ? " me" : ""}" style="background:${p.color}"><b></b></i>`).join("");
@@ -133,7 +133,7 @@ export const LiveBarMixin = {
       seg.style.flexGrow = String(Math.max(w[i], 0.002));
       seg.firstChild.textContent = w[i] >= 0.09 ? pct[i] + "%" : "";
     });
-    el.setAttribute("aria-label", (n ? `Win chance (${n} futures): ` : "Win chance (quick model): ") + P.map((p, i) => `${i === me ? "you" : p.name} ${pct[i]}%`).join(", "));
+    el.setAttribute("aria-label", (n ? `Win chance (${n} games simulated): ` : "Win chance (quick model): ") + P.map((p, i) => `${i === me ? "you" : p.name} ${pct[i]}%`).join(", "));
     el.hidden = false;
   },
 };

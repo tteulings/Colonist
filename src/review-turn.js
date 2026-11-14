@@ -55,6 +55,7 @@ export const ReviewTurnMixin = {
         r.cards += w.cards?.[r.id] || 0;
         (w.builds || []).filter((b) => b.pid === r.id).forEach((b) => r.built.push(b.kind === "c" ? "city" : "settlement"));
         r.roads += w.roads?.[r.id] || 0;
+        if (w.winBy && stp && stp[1] === r.id) r.did.push(`won: ${w.winBy}`);
         (w.acts || []).forEach((x) => {
           if (x.k === "mono") { if (x.p === r.id) r.did.push(`Monopoly +${x.n} ${x.res}`); else if ((x.lost?.[r.id] || 0) > 0) r.did.push(`Monopoly −${x.lost[r.id]} ${x.res}`); }
           else if (x.p === r.id) r.did.push(x.k === "dev" ? (x.type === "knight" ? "Knight" : x.type === "roadBuilding" ? "Road Building" : x.type === "monopoly" ? "" : "dev card") : x.k === "plenty" ? `Plenty +${x.n}` : x.k === "bank" ? "bank trade" : x.k === "trade" ? "trade" : x.k === "steal" ? "steal" : "");

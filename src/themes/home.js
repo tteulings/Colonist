@@ -165,7 +165,7 @@ export class GameMenu {
       ${this.game._botLevelLabel?.() ? `<p class="mn-sub">${this.game._botLevelLabel()}</p>` : ""}
       ${sr ? `<label class="mn-speed"><span>Bot speed</span><input type="range" min="${sr.min}" max="${sr.max}" step="${sr.step || 1}" value="${sr.value}" aria-label="Bot speed" /><em aria-hidden="true">Slow \u2192 Fast</em></label>` : ""}
       <label class="mn-speed mn-live"><span>Live win chance</span><input type="checkbox" ${liveWinOn() ? "checked" : ""} aria-label="Live win chance" /><em aria-hidden="true">Quick model, a rough guide</em></label>
-      <label class="mn-speed mn-live mn-refine"><span>Keep refining</span><input type="checkbox" ${liveRefineOn() ? "checked" : ""} aria-label="Keep refining" /><em aria-hidden="true">Simulates futures, uses battery</em></label>
+      <label class="mn-speed mn-live mn-refine"><span>Keep refining (simulates more games)</span><input type="checkbox" ${liveRefineOn() ? "checked" : ""} aria-label="Keep refining" /><em aria-hidden="true">Uses battery</em></label>
       <div class="mn-list">
         ${item("home", `<svg class="ic" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>`, "Home", this.game.winner ? "" : "Your game is saved")}
         ${this.game.liveStatsAvailable?.() && !this.game._lsNeedsBoard?.() ? item("stats", STATS_IC, "Stats", "Dice, points and income so far") : ""}

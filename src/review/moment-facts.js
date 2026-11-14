@@ -11,8 +11,22 @@ const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
 const clean = (o) => { Object.keys(o).forEach((k) => { const v = o[k]; if (v == null || v === "" || (Array.isArray(v) && !v.length) || (typeof v === "object" && !Array.isArray(v) && !Object.keys(v).length)) delete o[k]; }); return o; };
 const aimTxt = (a) => (a?.src?.length ? a.src.map(([k, v]) => `${AIM[k] || k} ${v}%`).join(", ") : null);
 
-/** Resources and dice numbers around a node, e.g. "wheat 6, ore 8, wood 5". */
-const spot = (g, id) => tryv(() => (g.geometry.nodes[id].adjacentHexes || []).map((h) => g.geometry.hexes[h]).filter((h) => h && h.number && RN[h.resource]).map((h) => `${RN[h.resource]} ${h.number}`).join(", "), "");
+const pips = (n) => (n >= 2 && n <= 12 && n !== 7 ? 6 - Math.abs(7 - n) : 0);
+/** Resources and dice numbers around a node, e.g. "wheat 6 (5 dots), ore 8 (5 dots)". */
+const spot = (g, id) => tryv(() => (g.geometry.nodes[id].adjacentHexes || []).map((h) => g.geometry.hexes[h]).filter((h) => h && h.number && RN[h.resource]).map((h) => `${RN[h.resource]} ${h.number} (${pips(h.number)} dots)`).join(", "), "");
+/** One building spot: dice dots in total, the resources it pays, ports. */
+const spotCard = (g, id, kind) => tryv(() => {
+  const hs = (g.geometry.nodes[id].adjacentHexes || []).map((h) => g.geometry.hexes[h]).filter((h) => h && h.number && RN[h.resource]);
+  const ports = (g.geometry.nodes[id].ports || []).map((t) => (t === "any" ? "3:1 port" : `${RN[t] || t} 2:1 port`));
+  return clean({ kind, tiles: hs.map((h) => `${RN[h.resource]} ${h.number}`).join(", "), diceDots: hs.reduce((a, h) => a + pips(h.number) * (kind === "city" ? 2 : 1), 0), resources: [...new Set(hs.map((h) => RN[h.resource]))], ports });
+});
+/** Per player: the resources the settlements and cities pay (income), the kinds missing, and the ports. */
+function income(g, p) {
+  const have = new Set(), ports = new Set(); let dots = 0;
+  [...(p.settlements || []), ...(p.cities || [])].forEach((n) => { const c = spotCard(g, n, "settlement"); (c?.resources || []).forEach((r) => have.add(r)); (c?.ports || []).forEach((t) => ports.add(t)); dots += c?.diceDots || 0; });
+  const all = ["wood", "brick", "sheep", "wheat", "ore"];
+  return { income: [...have], youLack: all.filter((r) => !have.has(r)), diceDots: dots, ports: [...ports] };
+}
 
 /** Words for a move label (the same text the card shows). */
 export const momentLabel = (l) => clip(tradeShow(String(l ?? "")), 90);
@@ -27,6 +41,7 @@ function position(g, pid) {
     settlements: [...(p.settlements || [])].map((n) => spot(g, n)),
     cities: [...(p.cities || [])].map((n) => spot(g, n)),
     roads: (p.roads || []).length || (p.roads?.size ?? undefined),
+    ...(p.id === pid ? (tryv(() => income(g, p)) || {}) : {}),
   }));
 }
 
