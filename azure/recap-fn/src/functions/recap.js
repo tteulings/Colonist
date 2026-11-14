@@ -7,6 +7,13 @@ const MAX_FACTS = 40000;       // characters of game facts accepted
 const MAX_OUT = 1600;          // completion tokens (reasoning included)
 const PER_IP_HOUR = 20;        // simple abuse guard per instance
 const hits = new Map();
+const EXPLAIN = `You explain one moment of a finished game of a Catan-like board game to the human player ("You"), like an analyst talking to a friend.
+Use ONLY the facts given (JSON from the game's review engine for this moment: the position, the move played (B), the engine's better move (A) if any, win chances, point-plan sources ("aims"), usual next builds in the simulated futures, the simple choice). Never invent moves, numbers or reasons.
+Answer the player's question about this moment. Compare A and B concretely: which resources and dice numbers each move gains or blocks, which point plan each serves, what usually happens next in the futures, and the win-chance difference.
+Return JSON: answer = 2-4 short sentences, every sentence a concrete fact, no stock phrases; points = 2-4 short bullet facts (max 12 words each) that support the answer; highlight = "A", "B" or "none" (which move on the board the answer is mostly about).
+Questions unrelated to this game moment: answer only "I can only explain this game moment." with empty points.`;
+const EXPLAIN_SCHEMA = { type: "object", additionalProperties: false, required: ["answer", "points", "highlight"],
+  properties: { answer: { type: "string" }, points: { type: "array", items: { type: "string" } }, highlight: { type: "string", enum: ["A", "B", "none"] } } };
 const NUM = { type: ["integer", "null"] };
 const SCHEMA = {
   type: "object", additionalProperties: false,
@@ -59,6 +66,8 @@ app.http("recap", {
     if (!facts || facts.length > MAX_FACTS) return { status: 413, jsonBody: { error: "facts missing or too large" } };
     const lang = body?.lang === "nl" ? "nl" : "en";
     const nTp = Math.max(1, Math.min(5, parseInt(body?.turningPoints, 10) || 3));
+    const explain = body?.mode === "explain";
+    const question = String(body?.question || "Why is the better move better than what I did?").slice(0, 300);
 
     try {
       const r = await fetch(`${process.env.OAI_ENDPOINT}/openai/v1/chat/completions`, {
@@ -67,15 +76,16 @@ app.http("recap", {
         body: JSON.stringify({
           model: process.env.OAI_DEPLOYMENT,
           max_completion_tokens: MAX_OUT,
-          response_format: { type: "json_schema", json_schema: { name: "recap", strict: true, schema: SCHEMA } },
+          response_format: { type: "json_schema", json_schema: { name: explain ? "explain" : "recap", strict: true, schema: explain ? EXPLAIN_SCHEMA : SCHEMA } },
           messages: [
-            { role: "system", content: SYSTEM + (lang === "nl" ? "\n\nWrite all text fields in natural Dutch (Nederlands)." : "\n\nWrite all text fields in English.") },
-            { role: "user", content: `turningPoints wanted: ${nTp}\nfacts:\n${facts}` },
+            { role: "system", content: (explain ? EXPLAIN : SYSTEM) + (lang === "nl" ? "\n\nWrite all text fields in natural Dutch (Nederlands)." : "\n\nWrite all text fields in English.") },
+            { role: "user", content: explain ? `question: ${question}\nfacts:\n${facts}` : `turningPoints wanted: ${nTp}\nfacts:\n${facts}` },
           ],
         }),
       });
       const j = await r.json();
       if (!r.ok) { ctx.error("oai", r.status, JSON.stringify(j).slice(0, 500)); return { status: 502, jsonBody: { error: "model error " + r.status } }; }
+      if (explain) { let ex; try { ex = JSON.parse(j.choices?.[0]?.message?.content || ""); } catch { return { status: 502, jsonBody: { error: "model returned no JSON" } }; } return { jsonBody: { explain: ex, usage: j.usage } }; }
       let recap; try { recap = JSON.parse(j.choices?.[0]?.message?.content || ""); } catch { return { status: 502, jsonBody: { error: "model returned no JSON" } }; }
       if (Array.isArray(recap.turningPoints)) recap.turningPoints = recap.turningPoints.slice(0, nTp);
       const lp = recap.luckOrPlay || {}, L = Math.abs(lp.luck ?? NaN), M = Math.abs(lp.moves ?? NaN);
