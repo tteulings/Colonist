@@ -35,7 +35,7 @@ const TBOARDS = [["random", "Random"], ["balanced", "Balanced"]];
 const WEIGHTS = [
   ["Placement", [["num", "Number strength", "value of 6 / 8 over 2 / 12"], ["variety", "Resource variety", "bonus per different resource"], ["scarcity", "Scarcity", "resources it lacks or the board lacks count more"]]],
   ["Trading", [["port", "Port value", "3:1 and matching 2:1 harbours"], ["margin", "Deal margin", "gain needed to accept a deal (8%, Eager 3%)", true]]],
-  ["Expansion", [["road", "Road distance", "penalty per road to reach a spot"], ["prod", "Production vs points", "long-term income against a VP now"], ["patience", "Patience", "wait for a bigger build vs build now"]]],
+  ["Expansion", [["road", "Road distance", "penalty per road to reach a spot"], ["prod", "Production vs points", "long-term income against a point now"], ["patience", "Patience", "wait for a bigger build vs build now"]]],
   ["Dev cards", [["card", "Card value", "what one card is worth (0.85 points)"]]],
   ["Awareness", [["leader", "Leader targeting", "robber and steals lean on the leader"]]],
 ];
@@ -651,7 +651,7 @@ function tableHtml(rows) {
   // lab-131: with reviewed games, accuracy (the review's, mean over the games ± spread between games · moves checked) replaces turns
   const acc = rows.some((r) => r.accN);
   const accCell = (r) => (r.accN ? `<span class="num">${r.acc.toFixed(1)}<small class="ci">${r.accSd != null ? `±${r.accSd.toFixed(1)} · ` : ""}n ${r.accN}</small></span>` : `<span class="num">–</span>`);
-  return `<div class="lb-rt${acc ? " lb-rt-acc" : ""}"><span class="hd"></span><span class="hd">bot · n = seats played</span><span class="hd r">wins ±95%</span>${acc ? `<span class="hd r">accuracy ±sd · games</span>` : ""}<span class="hd r">VP</span>${acc ? "" : `<span class="hd r">turns</span>`}`
+  return `<div class="lb-rt${acc ? " lb-rt-acc" : ""}"><span class="hd"></span><span class="hd">bot · n = seats played</span><span class="hd r">wins ±95%</span>${acc ? `<span class="hd r">accuracy ±sd · games</span>` : ""}<span class="hd r">pts</span>${acc ? "" : `<span class="hd r">turns</span>`}`
     + rows.map((r, i) => `<b class="rk">${i + 1}</b><span class="who">${emblem(r.key, 26)}<span>${esc(r.label)}<small class="ci">n = ${r.n}</small></span></span><span class="num">${pct(r.p)}<small class="ci">±${half(r)}</small></span>${acc ? accCell(r) : ""}<span class="num">${r.avgVp.toFixed(1)}</span>${acc ? "" : `<span class="num">${Math.round(r.avgTurns)}</span>`}${band(r.lo, r.hi, r.p, r.fair)}`).join("")
     + `</div><p class="lb-fine">Line = even share (${pct(rows[0]?.fair ?? 0.25)}). Ranked by wins.${acc ? ` Accuracy: the Game review's check of each bot's own moves, mean over ${Math.max(...rows.map((r) => r.accN))} reviewed games (± spread between games), deep round only, the scale of the Bots page.` : ""}</p>`;
 }
@@ -669,7 +669,7 @@ function renderStand(final = false) {
     ${rows.length ? tableHtml(rows) : ""}`;
 }
 function runText(rows, v, title, n) {
-  return [`AI Lab · ${title} · ${n} games · 4-player base game`, v.line, ...rows.map((r, i) => `${i + 1}. ${r.label}: ${pct(r.p)} ±${half(r)} (n=${r.n}), ${r.avgVp.toFixed(1)} VP, ${Math.round(r.avgTurns)} turns`)].join("\n");
+  return [`AI Lab · ${title} · ${n} games · 4-player base game`, v.line, ...rows.map((r, i) => `${i + 1}. ${r.label}: ${pct(r.p)} ±${half(r)} (n=${r.n}), ${r.avgVp.toFixed(1)} points, ${Math.round(r.avgTurns)} turns`)].join("\n");
 }
 function renderSummary() {
   const el = $("#labSummary");

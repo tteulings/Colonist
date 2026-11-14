@@ -65,7 +65,7 @@ export const ReviewRecapMixin = {
     const nums = lp && (isNum(lp.luck) || isNum(lp.moves)) ? `<span class="rc-nums">${isNum(lp.luck) ? `${t.luck} ${sgn(lp.luck)}%` : ""}${isNum(lp.luck) && isNum(lp.moves) ? " \u00b7 " : ""}${isNum(lp.moves) ? `${t.moves} ${sgn(lp.moves)}%` : ""}</span>` : "";
     return `${rc.headline ? `<p class="rc-head"><b>${inline(rc.headline)}</b></p>` : ""}${rows ? `<ol class="rc-tps">${rows}</ol>` : ""}`
       + (lp?.text ? `<div class="rc-lop"><div class="rc-lh"><b>${t.luckOrPlay}</b>${vd ? `<span class="rc-badge ${vd}">${t.v[vd]}</span>` : ""}${nums}</div><p>${inline(lp.text)}</p></div>` : "")
-      + (rc.lessonTitle && rc.tip ? `<div class="rc-lesson"><div class="rc-lh"><i class="rc-ki" aria-hidden="true">${KIND_IC[rc.lessonKind] || "\u2605"}</i><small>${t.lesson}${KIND[rc.lessonKind]?.[lang_(t)] ? ` \u00b7 ${KIND[rc.lessonKind][lang_(t)]}` : ""}</small></div><b>${inline(rc.lessonTitle)}</b><p>${inline(rc.tip)}</p></div>` : rc.tip ? `<p class="rc-tip"><b>${t.tip}:</b> ${inline(rc.tip)}</p>` : "");
+      + (rc.lessonTitle && rc.tip ? `<div class="rc-lesson"><div class="rc-lh"><i class="rc-ki" aria-hidden="true">${KIND_IC[this._rcKind(rc)] || "\u2605"}</i><small>${t.lesson}${KIND[this._rcKind(rc)]?.[lang_(t)] ? ` \u00b7 ${KIND[this._rcKind(rc)][lang_(t)]}` : ""}</small></div><b>${inline(rc.lessonTitle)}</b><p>${inline(rc.tip)}</p></div>` : rc.tip ? `<p class="rc-tip"><b>${t.tip}:</b> ${inline(rc.tip)}</p>` : "");
   },
   /** Tap on a turning point: the review's step mode on that turn (the nearest turn the person has a decision in). */
   _rcGoTurn(T, q, why = false) {
@@ -81,9 +81,9 @@ export const ReviewRecapMixin = {
     } catch (e) { console.warn("recap goto", e); }
   },
   /** The recap's description of a turn (only when a recap is saved; never a network call). */
-  _rcTp(T) {
+  _rcTp(T, P = this._rvPid) {
     const rc = this._rcSaved()?.recap; if (!rc?.turningPoints || T == null) return null;
-    return rc.turningPoints.find((x) => x.turn === T) || null;
+    return rc.turningPoints.find((x) => x.turn === T && (P == null || this._rcSeat(x.player) == null || this._rcSeat(x.player) === P)) || null;
   },
   _rcTurnOf(d) { return this._st?.turnOf?.[d?.x?.s ?? 0] ?? d?.t ?? null; },
   /** One-line AI subtitle for a key moment row. */
@@ -128,24 +128,31 @@ export const ReviewRecapMixin = {
     const t = T[T[S.lang] ? S.lang : recapLang()], used = new Set(), ico = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     const block = (tp) => { const q = this._rcSeat(tp.player), on = this._rcOnline(); return `<div class="rc-km"><b class="rc-ti">${esc(tp.title)}</b><p class="rc-tx" data-rcx tabindex="0" role="button" aria-expanded="false">${inline(tp.text)}</p>${isNum(tp.turn) && on ? `<button type="button" class="rv-btn rc-why" data-rcwhy="${tp.turn}" data-rcq="${q ?? ""}" aria-label="${esc(t.whyL)}: ${esc(t.turn)} ${esc(tp.turn)}"><i aria-hidden="true">?</i>${t.why}</button>` : ""}</div>`; };
     const out = rows.map((r) => {
-      const tp = r.T != null && !used.has(r.T) ? tps.find((x) => x.turn === r.T) : null;
-      if (tp) used.add(r.T);
+      const tp = r.T != null ? tps.find((x) => x.turn === r.T && !used.has(x) && (r.P == null || this._rcSeat(x.player) == null || this._rcSeat(x.player) === r.P)) : null;
+      if (tp) used.add(tp);
       return { T: r.T ?? 1e9, h: tp ? `<div class="rc-kw">${r.h}${block(tp)}</div>` : r.h };
     });
     if (extra) tps.forEach((tp) => {
-      if (!isNum(tp.turn) || used.has(tp.turn)) return; used.add(tp.turn);
+      if (!isNum(tp.turn) || used.has(tp)) return; used.add(tp);
       const q = this._rcSeat(tp.player), has = isNum(tp.from) && isNum(tp.to), up = has && tp.to >= tp.from, you = q != null && this._rvIsYou?.(q);
       const chg = has ? `<b class="${you ? (up ? "pos" : "neg") : ""}">${Math.round(tp.from)}\u2192${Math.round(tp.to)}%</b>` : "";
       out.push({ T: tp.turn, h: `<div class="rc-kw ai"><button type="button" class="rs-key" data-rctp="${tp.turn}" data-rcq="${q ?? ""}" aria-label="${esc(t.go)}: ${esc(t.turn)} ${esc(tp.turn)}"><i class="rc-aim">AI</i><span class="t">${t.turn} ${esc(tp.turn)}</span><span class="x">${esc(tp.player)}</span>${chg}${ico}</button>${block(tp)}</div>` });
     });
     return out.sort((a, b) => a.T - b.T).map((x) => x.h).join("");
   },
+  /** The lesson kind to show: "played_well" only when the luck-or-play verdict is luck and the moves cost is small; else no kind badge. */
+  _rcKind(rc) {
+    const k = rc?.lessonKind; if (k !== "played_well") return k;
+    const lp = rc.luckOrPlay;
+    return lp?.verdict === "luck" && (!isNum(lp.moves) || Math.abs(lp.moves) <= 5) ? k : null;
+  },
   /** The lesson card, last on the Overview. */
   _rcBox() {
     const S = this._rcSaved(), rc = S?.recap; if (!this._rcOk() || !rc?.tip) return "";
     const rl = T[S.lang] ? S.lang : recapLang(), t = T[rl];
     if (!rc.lessonTitle) return `<section class="rv-card rc-card"><p class="rc-tip"><b>${t.tip}:</b> ${inline(rc.tip)}</p></section>`;
-    return `<section class="rv-card rc-card"><div class="rc-lesson"><div class="rc-lh"><i class="rc-ki" aria-hidden="true">${KIND_IC[rc.lessonKind] || "\u2605"}</i><small>${t.lesson}${KIND[rc.lessonKind]?.[rl] ? ` \u00b7 ${KIND[rc.lessonKind][rl]}` : ""}</small></div><b>${inline(rc.lessonTitle)}</b><p>${inline(rc.tip)}</p></div></section>`;
+    const lk = this._rcKind(rc);
+    return `<section class="rv-card rc-card"><div class="rc-lesson"><div class="rc-lh"><i class="rc-ki" aria-hidden="true">${KIND_IC[lk] || "\u2605"}</i><small>${t.lesson}${KIND[lk]?.[rl] ? ` \u00b7 ${KIND[lk][rl]}` : ""}</small></div><b>${inline(rc.lessonTitle)}</b><p>${inline(rc.tip)}</p></div></section>`;
   },
   _rcBind(root) {
     root.querySelectorAll("[data-rcgo]").forEach((b) => b.addEventListener("click", () => this._rcRun()));
