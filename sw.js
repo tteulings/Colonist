@@ -1,11 +1,11 @@
 // Network-first service worker: always try fresh files (the app updates often),
 // fall back to the cache so the game still starts offline.
-const CACHE = "colonist-v158";
+const CACHE = "colonist-v159";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./manifest.webmanifest", "./assets/favicon.svg",
   "./themes/base.css", "./themes/theme-sunny.css", "./themes/theme-wood.css", "./themes/theme-silhouette.css", "./themes/theme-classic.css", "./themes/six.css", "./themes/seafarers.css", "./themes/hotseat.css", "./themes/stats.css", "./themes/review.css", "./themes/sunny-night.css", "./themes/sunny-dusk.css", "./themes/profiles.css", "./themes/history.css", "./src/history.js", "./themes/bots.css", "./src/bots-page.js", "./src/nav.js", "./src/bot-stats.js",
   "./lab.html", "./themes/lab.css", "./src/lab.js", "./src/lab-stats.js", "./src/lab-games.js", "./src/ai-analysis.js", "./src/ai-tree.js", "./src/ai-rules.js", "./src/bot-profiles.js", "./src/bot-profile-ui.js", "./src/master.js", "./src/master/sim.js", "./src/master/leaf-fit.js", "./src/master/leaf-gbm.js", "./src/master/leaf-gbm-model.js", "./src/master/leaf-gbm-sea-model.js", "./src/master/parallel.js", "./src/master/search.js", "./src/master/worker.js", "./src/master/dom.js",
-  "./src/game.js", "./src/sound.js", "./src/six.js", "./src/six-ui.js", "./src/hotseat.js", "./src/names.js", "./src/stats.js", "./src/stats-ui.js", "./src/live-stats.js", "./src/review.js", "./src/review-ui.js", "./src/review/detect.js", "./src/review/engine.js", "./src/review/evaluate.js", "./src/review/score.js", "./src/review/bands.js", "./src/review/luck.js", "./src/review/luck-mc.js", "./src/review-luck.js", "./src/review-turn.js", "./src/review-again.js", "./src/review/pack.js", "./src/review/why.js", "./src/review-game.js", "./src/replay-odds.js", "./src/replay-odds-worker.js", "./src/themes/seats.js", "./src/themes/portraits.js",
+  "./src/game.js", "./src/sound.js", "./src/six.js", "./src/six-ui.js", "./src/hotseat.js", "./src/names.js", "./src/stats.js", "./src/stats-ui.js", "./src/live-stats.js", "./src/live-bar.js", "./src/review.js", "./src/review-ui.js", "./src/review/detect.js", "./src/review/engine.js", "./src/review/evaluate.js", "./src/review/score.js", "./src/review/bands.js", "./src/review/luck.js", "./src/review/luck-mc.js", "./src/review-luck.js", "./src/review-turn.js", "./src/review-again.js", "./src/review/pack.js", "./src/review/why.js", "./src/review-game.js", "./src/replay-odds.js", "./src/replay-odds-worker.js", "./src/themes/seats.js", "./src/themes/portraits.js",
   "./src/themes/manager.js", "./src/themes/art-util.js", "./src/themes/board-renderer.js",
   "./src/themes/fx.js", "./src/themes/daylight.js", "./src/themes/settings-ui.js", "./src/themes/onboarding.js", "./src/themes/home.js",
   "./src/themes/sunny/art.js", "./src/themes/sunny/ui-icons.js", "./src/themes/classic/art.js",
@@ -24,7 +24,7 @@ const SHELL = [
 ];
 
 // v1.34: the page asks a new worker which version it brings (index.html), so a cold launch that already runs
-// the new files offers no update; colonist-v158 → "1.34" (CACHE is bumped with APP_VERSION every release)
+// the new files offers no update; colonist-v159 → "1.34" (CACHE is bumped with APP_VERSION every release)
 const VERSION = CACHE.replace(/^colonist-v(\d)(\d+)$/, "$1.$2");
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "version" && event.ports[0]) event.ports[0].postMessage({ version: VERSION });

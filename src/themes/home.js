@@ -3,6 +3,7 @@
 // chosen opponents and bot level · More settings (full New game screen) · How to play · Settings.
 import { icon, avatarSvg } from "./manager.js";
 import { HISTORY_ICON } from "../history.js";
+import { liveWinOn, setLiveWin } from "../live-bar.js";
 
 const MENU_IC = `<svg class="ic ic-menu" viewBox="-50 -50 100 100" aria-hidden="true"><path d="M-30 -22H30M-30 0H30M-30 22H30" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/></svg>`;
 const PLAY_IC = `<svg class="hm-play" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="currentColor" opacity=".2"/><path d="M9.6 7.4v9.2l7.4-4.6z" fill="currentColor"/></svg>`;
@@ -163,6 +164,7 @@ export class GameMenu {
       <div class="mn-head"><h2>${themed(this.game, "menu", MENU_IC, "ic-menu")}Menu</h2><button type="button" class="btn ghost icon-only mn-close" aria-label="Close">${icon("close")}</button></div>
       ${this.game._botLevelLabel?.() ? `<p class="mn-sub">${this.game._botLevelLabel()}</p>` : ""}
       ${sr ? `<label class="mn-speed"><span>Bot speed</span><input type="range" min="${sr.min}" max="${sr.max}" step="${sr.step || 1}" value="${sr.value}" aria-label="Bot speed" /><em aria-hidden="true">Slow \u2192 Fast</em></label>` : ""}
+      <label class="mn-speed mn-live"><span>Live win chance</span><input type="checkbox" ${liveWinOn() ? "checked" : ""} aria-label="Live win chance" /><em aria-hidden="true">Quick model, a rough guide</em></label>
       <div class="mn-list">
         ${item("home", `<svg class="ic" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>`, "Home", this.game.winner ? "" : "Your game is saved")}
         ${this.game.liveStatsAvailable?.() && !this.game._lsNeedsBoard?.() ? item("stats", STATS_IC, "Stats", "Dice, points and income so far") : ""}
@@ -175,7 +177,8 @@ export class GameMenu {
       </div></div>`;
     el.addEventListener("click", (e) => { if (e.target === el) this.close(); });
     el.querySelector(".mn-close").addEventListener("click", () => this.close());
-    const sp = el.querySelector(".mn-speed input");
+    el.querySelector(".mn-live input")?.addEventListener("change", (e) => setLiveWin(e.target.checked));
+    const sp = el.querySelector(".mn-speed:not(.mn-live) input");
     if (sp && sr) {
       sp.addEventListener("input", () => { sr.value = sp.value; sr.dispatchEvent(new Event("input", { bubbles: true })); });
       sp.addEventListener("change", () => sr.dispatchEvent(new Event("change", { bubbles: true })));

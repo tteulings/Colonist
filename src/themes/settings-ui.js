@@ -5,7 +5,8 @@
 import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, paletteAuto, paletteAutoMode, autoTimeInfo, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
 
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "1.58";
+import { liveWinOn, setLiveWin } from "../live-bar.js";
+export const APP_VERSION = "1.59";
 
 /** v1.34 Settings: the running version and "Check for updates" (index.html: reg.update() + a version compare). */
 function versionRow() {
@@ -143,6 +144,12 @@ export class SettingsUI {
       mrow.innerHTML = `<div><b id="rvModelLbl">Review model</b><small>Quick is rough; Deep takes almost 3x as long.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="rvModelLbl">${[["quick", "Quick"], ["standard", "Standard"], ["deep", "Deep"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${mdl === k}" class="${mdl === k ? "on" : ""}" data-rv-model="${k}">${l}</button>`).join("")}</div>`;
       mrow.querySelectorAll("[data-rv-model]").forEach((b) => b.addEventListener("click", () => { mrow.querySelectorAll("[data-rv-model]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); try { localStorage.setItem("colonist_review_model", b.dataset.rvModel); } catch (_) {} }));
       body.appendChild(mrow);
+      // v1.59 the live win-chance bar (src/live-bar.js): off by default
+      const lrow = document.createElement("div");
+      lrow.className = "st-row";
+      lrow.innerHTML = `<div><b id="lwLbl">Live win chance</b><small>A thin bar under the players. Quick model, a rough guide.</small></div><button type="button" class="st-switch${liveWinOn() ? " on" : ""}" role="switch" aria-checked="${liveWinOn()}" aria-labelledby="lwLbl"><i></i></button>`;
+      lrow.querySelector("button").addEventListener("click", (e) => { const b = e.currentTarget, on = b.getAttribute("aria-checked") !== "true"; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); setLiveWin(on); });
+      body.appendChild(lrow);
       body.appendChild(versionRow());
     } else if (this.tab === "bots") {
       body.innerHTML = this.head("Bot personalities", "");

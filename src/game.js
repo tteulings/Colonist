@@ -27,6 +27,7 @@ import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
 import { presetHighlight, BOT_PROFILES, gmFlag } from "./bot-profiles.js"; // v1.04 Settings › Bots: which preset chip is lit
 import { framedAvatar, profileLabel, profileOf, openProfileSheet, pickerExtras, tableList, presetCards, dots, superOff, byStrength } from "./bot-profile-ui.js"; // v1.04 bot profile frames + sheet
+import { LiveBarMixin } from "./live-bar.js"; // v1.59 optional live win-chance bar
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
@@ -11420,6 +11421,7 @@ class ColonistFullGame {
     this._syncScrim();
     this._clampFloaters();
     this._renderAnalysis();
+    this._lbTick();
     if (!document.body.dataset.gameReady) {
       document.body.dataset.gameReady = "true";
     }
@@ -11430,6 +11432,7 @@ class ColonistFullGame {
 Object.assign(ColonistFullGame.prototype, SbpMixin, SixUiMixin, AnalysisMixin, LabMixin, TreeMixin, RulesMixin, MasterMixin);
 // AI Lab (lab.html): settings + bot tables for its engine iframes
 ColonistFullGame.labHelpers = { normalizeSettings, discardLimitFor, DEFAULT_SETTINGS, AI_PRESETS, AI_PRESET_INFO, AI_STRATEGY_CATEGORIES, AI_LEVEL_LABEL, AI_PLAN_WEIGHTS, AI_WEIGHT_KEYS };
+Object.assign(ColonistFullGame.prototype, LiveBarMixin);
 Object.assign(ColonistFullGame.prototype, SeaGame); // ⚓ Seafarers game-side methods (src/seafarers/ui.js)
 // Pass & play (src/hotseat.js): defineProperties keeps its `hotseat` getter a getter
 Object.defineProperties(ColonistFullGame.prototype, Object.getOwnPropertyDescriptors(HotseatMixin));
