@@ -5,7 +5,7 @@ import { totals, decide } from "./evaluate.js";
 import { luckKey } from "../review-luck.js";
 
 export const FACTS_MAX = 12000; // aim for a normal game; the Function accepts 40000
-const AIM = { s: "settlements", c: "cities", lr: "Longest road", la: "Largest army", dv: "VP cards", is: "new islands" };
+const AIM = { s: "settlements", c: "cities", lr: "Longest road", la: "Largest army", dv: "point cards", is: "new islands" };
 const unesc = (s) => String(s ?? "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
 const pc = (v, d = 0) => (v == null || !isFinite(v) ? null : Math.round(v * 100 * 10 ** d) / 10 ** d);
 const clip = (s, n) => { s = String(s ?? ""); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
@@ -14,7 +14,7 @@ const clean = (o) => { Object.keys(o).forEach((k) => { const v = o[k]; if (v == 
 
 /** |luck| >= 3x|moves| -> luck, the reverse -> play, else both (decided by the numbers; the Function checks it again). */
 export const verdict = (luck, moves) => { const L = Math.abs(luck ?? NaN), M = Math.abs(moves ?? NaN); if (!isFinite(L) || !isFinite(M)) return null; return L >= 3 * M ? "luck" : M >= 3 * L ? "play" : "both"; };
-const DEVN = { knight: "a Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly", victoryPoint: "a Victory Point card" };
+const DEVN = { knight: "a Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly", victoryPoint: "a point card" };
 
 /** Every step (one player's roll-and-play) with its win chances before/after for all seats, from the luck run. Returns the best
  *  candidates (one per turn, biggest swing first, at most 8) and the ending (the winner's last turn). */
@@ -40,8 +40,8 @@ function turningSteps(g, nm, { luckOk, pid, n }) {
     const actor = stp[1] >= 0 ? stp[1] : pid, what = tryv(() => g._rvStepWhat(k), null);
     const youPre = pre[pid], youPost = post[pid], plPre = pre[actor], plPost = post[actor];
     const luck = (by[k] || []).filter((x) => Math.abs(x.l[pid]) >= 0.01 || Math.abs(x.l[actor]) >= 0.01).sort((a, c) => Math.max(Math.abs(c.l[pid]), Math.abs(c.l[actor])) - Math.max(Math.abs(a.l[pid]), Math.abs(a.l[actor]))).slice(0, 3)
-      .map((x) => clean({ event: luckTxt(x.ev), youPoints: Math.round(x.l[pid] * 100), playerPoints: actor === pid ? undefined : Math.round(x.l[actor] * 100) }));
-    const drew = (by[k] || []).filter((x) => x.ev.kind === "dev").map((x) => `${nm(x.ev.pid)} bought a development card: ${x.ev.card === "victoryPoint" ? "it was a Victory Point card" : `it was ${DEVN[x.ev.card] || "a card"}`}`);
+      .map((x) => clean({ event: luckTxt(x.ev), youPct: Math.round(x.l[pid] * 100), playerPct: actor === pid ? undefined : Math.round(x.l[actor] * 100) }));
+    const drew = (by[k] || []).filter((x) => x.ev.kind === "dev").map((x) => `${nm(x.ev.pid)} bought a development card: ${x.ev.card === "victoryPoint" ? "it was a point card" : `it was ${DEVN[x.ev.card] || "a card"}`}`);
     const lines = what?.lines?.length ? what.lines.map((l) => clip(unesc(l).replace(/<[^>]+>/g, ""), 100)).slice(0, 4) : [];
     const cards = what?.cards ? Object.fromEntries(Object.entries(what.cards).map(([q, c]) => [nm(+q), c])) : null;
     const score = Math.max(...pre.map((v, q) => Math.abs(post[q] - v)));
@@ -60,7 +60,7 @@ function turningSteps(g, nm, { luckOk, pid, n }) {
   // the ending: the winner's last turn (their steps in the final turn) and the swing it made
   const lastT = st.turnOf[N], mine = all.filter((c) => c.fact.turn === lastT && c.actor === w);
   const e = mine.length ? mine[mine.length - 1] : null;
-  const ending = e ? clean({ ...e.fact, note: "the winner's last turn; the game ended here", swingPoints: Object.fromEntries(Object.entries(e.fact.winChancePct || {}).map(([q, v]) => [q, Math.round(v[1] - v[0])])) }) : null;
+  const ending = e ? clean({ ...e.fact, note: "the winner's last turn; the game ended here", swingPct: Object.fromEntries(Object.entries(e.fact.winChancePct || {}).map(([q, v]) => [q, Math.round(v[1] - v[0])])) }) : null;
   return { cands, ending };
 }
 
@@ -110,7 +110,7 @@ export function recapFacts(g, { max = FACTS_MAX } = {}) {
       builtOnTurns: clean({ settlementsAfterSetup: when_[p.id].settlements, cities: when_[p.id].cities, awards: awardsOf(p.id) }),
       pointsFrom: sources[p.id] ? clean({ settlements: sources[p.id].settlements, cities: sources[p.id].cities, longestRoad: sources[p.id].road, largestArmy: sources[p.id].army, vpCards: sources[p.id].cards, islands: sources[p.id].islands }) : null,
       accuracyPct: accOf[p.id], winChanceLostByMovesPct: costOf[p.id] != null ? Math.abs(costOf[p.id]) : null,
-      luckInWinChancePoints: lk(p.id),
+      luckInWinChancePct: lk(p.id),
       resourceCards: dl ? { got: dl.got, expected: Math.round(dl.exp) } : null,
       built: st?.built?.[p.id] ? clean({ roads: st.built[p.id].road, settlements: st.built[p.id].settlement, cities: st.built[p.id].city, ships: st.built[p.id].ship }) : null,
     });
@@ -133,7 +133,7 @@ export function recapFacts(g, { max = FACTS_MAX } = {}) {
   const imp = g._rvImp(ds);
   const moveCard = (d, own = true) => { const x = d.x; return clean({
     played: clip(x.label, 90), better: x.best && !d.same ? clip(x.best.label, 90) : null,
-    winIfPlayedPct: d.B, winIfBetterPct: d.A, movePointsLost: own ? Math.round(d.gap * 1000) / 10 : null, rating: d.cls,
+    winIfPlayedPct: d.B, winIfBetterPct: d.A, moveWinChanceLostPct: own ? Math.round(d.gap * 1000) / 10 : null, rating: d.cls,
     likelyReason: x.why?.head ? clip(x.why.head, 140) : null,
     betterAimsAt: aimTxt(x.aim?.A), playedAimsAt: aimTxt(x.aim?.B),
     simpleChoice: x.simple ? (x.simple.is === "A" ? "the better move" : x.simple.is === "B" ? "what was played" : clip(x.simple.label, 80)) : null,
@@ -142,7 +142,7 @@ export function recapFacts(g, { max = FACTS_MAX } = {}) {
   // best and costliest decisions of the person
   const costliest = imp.slice(0, 2).map((d) => clean({ when: when(d), winChanceAfterPct: pc(d.win), ...moveCard(d, true) }));
   const bestMoves = ds.filter((d) => ["best", "great"].includes(d.cls) && d.x.spread != null).sort((a, b) => b.x.spread - a.x.spread).slice(0, 1)
-    .map((d) => clean({ when: when(d), winChanceAfterPct: pc(d.win), ...moveCard(d, false), aheadOfNextBestPoints: d.x.lead != null ? Math.round(d.x.lead * 1000) / 10 : undefined, stakePoints: Math.round(d.x.spread * 1000) / 10 }));
+    .map((d) => clean({ when: when(d), winChanceAfterPct: pc(d.win), ...moveCard(d, false), aheadOfNextBestPct: d.x.lead != null ? Math.round(d.x.lead * 1000) / 10 : undefined, stakePct: Math.round(d.x.spread * 1000) / 10 }));
 
   // dice
   const dice = st?.dice ? { rolls: st.rolls, histogram: st.dice, sevens: st.dice[7] || 0, sevensExpected: Math.round((st.rolls / 6) * 10) / 10 } : null;
@@ -153,9 +153,9 @@ export function recapFacts(g, { max = FACTS_MAX } = {}) {
     game: { mode: g.isRush?.() ? "Rush" : "Classic", board: g.sea ? "Seafarers" : "Island", players: n, pointsToWin: g.winPoints || 10, [`${TW.toLowerCase()}s`]: g.turn, winner: nm(w.id), reviewedPlayer: nm(pid), reviewedPlace: ranked.indexOf(players[pid]) + 1 },
     players: table,
     reviewedPlayerSummary: clean({
-      name: nm(pid), accuracyPct: accOf[pid], movesThatMattered: tryv(() => g._rvSeat(pid).sum.n), winChanceLostByMovesPoints: tot?.moves != null ? Math.abs(tot.moves) : null,
+      name: nm(pid), accuracyPct: accOf[pid], movesThatMattered: tryv(() => g._rvSeat(pid).sum.n), winChanceLostByMovesPct: tot?.moves != null ? Math.abs(tot.moves) : null,
       startingWinChancePct: book ? pc(book.start) : null, finalWinChancePct: pc(ds.length ? ds[ds.length - 1].win : null),
-      luckWinChancePoints: book ? pc(book.luck, 1) : null, moveCostWinChancePoints: book?.moves != null ? pc(book.moves, 1) : null,
+      luckWinChancePct: book ? pc(book.luck, 1) : null, moveCostWinChancePct: book?.moves != null ? pc(book.moves, 1) : null,
       luckOrPlayVerdict: book && book.moves != null ? verdict(pc(book.luck, 1), pc(book.moves, 1)) : null,
     }),
     winChanceByTurn: perTurn.length > 1 ? perTurn : null, tableWinChanceAt: tableAt,
