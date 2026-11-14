@@ -78,6 +78,8 @@ app.http("recap", {
       if (!r.ok) { ctx.error("oai", r.status, JSON.stringify(j).slice(0, 500)); return { status: 502, jsonBody: { error: "model error " + r.status } }; }
       let recap; try { recap = JSON.parse(j.choices?.[0]?.message?.content || ""); } catch { return { status: 502, jsonBody: { error: "model returned no JSON" } }; }
       if (Array.isArray(recap.turningPoints)) recap.turningPoints = recap.turningPoints.slice(0, nTp);
+      const lp = recap.luckOrPlay || {}, L = Math.abs(lp.luck ?? NaN), M = Math.abs(lp.moves ?? NaN);
+      if (Number.isFinite(L) && Number.isFinite(M)) lp.verdict = L >= 3 * M ? "luck" : M >= 3 * L ? "play" : "both"; // decided by numbers, not by the model
       return { jsonBody: { recap, text: toText(recap, lang === "nl"), usage: j.usage } };
     } catch (e) {
       ctx.error(String(e)); return { status: 500, jsonBody: { error: "recap failed" } };
