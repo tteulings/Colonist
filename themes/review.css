@@ -718,3 +718,5 @@
 .mv-v { display: flex; align-items: center; gap: 5px; font: 800 12.5px/1.2 var(--font-body); color: var(--cc, var(--ink)); } .mv-w { font: 600 12.5px/1.25 var(--font-body); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mv-c { font: 800 13px var(--font-body); font-style: normal; color: var(--neg); } .mv-r.c-triv { opacity: .7; }
 .vd-card .rs-key .x { white-space: normal; line-height: 1.2; }
+.rc-old { max-height: calc(3 * 1.4em); overflow: hidden; line-height: 1.4; } .rc-old.open { max-height: none; }
+.rc-old h4, .rc-old p, .rc-old ul { margin: 0 0 3px; font-size: 13px; line-height: 1.4; }

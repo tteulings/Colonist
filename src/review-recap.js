@@ -107,7 +107,7 @@ export const ReviewRecapMixin = {
     const err = mine && U.err ? `<p class="rc-err" role="alert">${esc(t[U.err] || t.fail)}</p>` : "";
     if (S) {
       const rl = T[S.lang] ? S.lang : lang, h = S.recap?.headline;
-      return `<div class="rc-lead"><div class="rc-lh2"><small>${T[rl].title}</small>${this._rcOnline() ? `<button type="button" class="rc-link" data-rcgo>${t.regen}</button>` : ""}</div>${err}${h ? (head ? `<p class="rc-head" lang="${rl}"><b>${inline(h)}</b></p>` : "") : `<div class="rc-text" lang="${rl}">${recapHtml(S.text)}</div>`}<p class="rc-foot">${T[rl].foot}</p></div>`;
+      return `<div class="rc-lead"><div class="rc-lh2"><small>${T[rl].title}</small>${this._rcOnline() ? `<button type="button" class="rc-link" data-rcgo>${t.regen}</button>` : ""}</div>${err}${h ? (head ? `<p class="rc-head" lang="${rl}"><b>${inline(h)}</b></p>` : "") : `<div class="rc-text rc-old" data-rcold lang="${rl}">${recapHtml(S.text)}</div><button type="button" class="rc-link" data-rcoldt aria-expanded="false">Show</button><p class="rc-foot">Older recap format \u00b7 Regenerate for the new layout</p>`}<p class="rc-foot">${T[rl].foot}</p></div>`;
     }
     if (!this._rcOnline() && !err) return "";
     return `<div class="rc-lead">${err}${this._rcOnline() ? `<button type="button" class="rv-btn rc-btn" data-rcgo>${t.btn}</button>` : ""}</div>`;
@@ -157,6 +157,7 @@ export const ReviewRecapMixin = {
     return `<section class="rv-card rc-card"><div class="rc-lesson"><div class="rc-lh"><i class="rc-ki" aria-hidden="true">${KIND_IC[lk] || "\u2605"}</i><small>${t.lesson}${KIND[lk]?.[rl] ? ` \u00b7 ${KIND[lk][rl]}` : ""}</small></div><b>${inline(rc.lessonTitle)}</b><p>${inline(rc.tip)}</p></div></section>`;
   },
   _rcBind(root) {
+    root.querySelectorAll("[data-rcoldt]").forEach((b) => b.addEventListener("click", () => { const t = root.querySelector("[data-rcold]"), o = t.classList.toggle("open"); b.textContent = o ? "Hide" : "Show"; b.setAttribute("aria-expanded", String(o)); }));
     root.querySelectorAll("[data-rcgo]").forEach((b) => b.addEventListener("click", () => this._rcRun()));
     root.querySelectorAll("[data-rcwhy]").forEach((b) => b.addEventListener("click", () => this._rcGoTurn(parseInt(b.dataset.rcwhy, 10), b.dataset.rcq, true)));
     root.querySelectorAll("[data-rctp]").forEach((b) => b.addEventListener("click", () => this._rcGoTurn(parseInt(b.dataset.rctp, 10), b.dataset.rcq)));

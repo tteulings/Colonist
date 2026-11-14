@@ -1038,12 +1038,42 @@ export const ReviewGameMixin = {
     c.replaceWith(n); n.querySelector(".sbs-w").scrollLeft = sc;
     this._rvBindTable(n); this._rvBindSbs(n);
   },
-  /** v1.68 the verdict first: one sentence (the AI headline, else built from the engine's data), the 3 biggest moments, then "All key moments". */
-  _rvVerdictHtml(ds, rv, all, mineAll, othAll) {
+  /** v1.68 every step of the game with what it did to this player's win chance (any player's turn, any kind), biggest first. */
+  _rvSwings() {
+    const st = this._st, me = this._rvPid; if (!st) return [];
+    let O = null; try { O = gameOdds(this); } catch (_) { O = null; }
+    const look = this._rvLook(), out = [];
+    if (look) look.steps.forEach((x) => out.push({ S: x.S, b: x.b[me], a: x.a[me], e: x.e[me] }));
+    else if (O && !O.na) for (let s = 1; s <= (st.N || 0); s++) { const p = O.get(s - 1), q = O.get(s); if (p && q) out.push({ S: s, b: p[me], a: q[me], e: q[me] }); }
+    const evs = (() => { try { return this._lkEvents?.() || []; } catch (_) { return []; } })();
+    const you = (q) => this._rvIsYou(q), nm = (q) => this._rvNm(q);
+    return out.map((x) => {
+      const stp = st.steps[x.S - 1], actor = stp && stp[1] >= 0 ? stp[1] : null, W = this._rvStepWhat(x.S), roll = stp ? stp[2] + stp[3] : null;
+      const who = actor != null ? nm(actor) : "The table", d = x.e - x.b;
+      let say = "";
+      const dev = evs.find((q) => q.kind === "dev" && q.pid === actor && (q.s === x.S || q.s === x.S - 1));
+      const mono = W.acts.find((q) => q.k === "mono"), steal = W.acts.find((q) => q.k === "steal"), bld = W.builds.find((q) => q.pid === actor) || W.builds[0];
+      const rollPart = () => { const n = W.cards?.[this._rvPid] || 0; return `${who} rolled ${roll}${W.robber != null && roll === 7 ? ` and moved the robber` : ""} · ${you(this._rvPid) ? "you" : nm(this._rvPid)} ${n ? `+${n} ${n === 1 ? "card" : "cards"}` : "got no cards"}`; };
+      if (dev) say = `${who} drew ${dev.card === "victoryPoint" ? "a point card" : "a development card"}`;
+      else if (Math.abs(x.a - x.b) >= Math.abs(x.e - x.a) && roll) say = rollPart();
+      else if (mono) say = `${nm(mono.p)} played Monopoly and took ${mono.n} ${mono.res}`;
+      else if (bld) say = `${nm(bld.pid)} built a ${bld.kind === "c" ? "city" : "settlement"}`;
+      else if (steal) say = `${nm(steal.p)} stole a card from ${nm(steal.q)}`;
+      else if ((st.awards || []).some((q) => q.s === x.S)) say = `${who} took ${(st.awards.find((q) => q.s === x.S).kind === "L") ? "Longest road" : "Largest army"}`;
+      else if (W.acts.length || Object.keys(W.roads).length) say = `${who} ${Object.keys(W.roads).length && !W.acts.length ? "built a road" : "traded and built"}`;
+      else say = roll ? rollPart() : `${who} played the turn`;
+      return { S: x.S, T: st.turnOf[x.S], actor, d, b: x.b, e: x.e, say };
+    }).sort((p, q) => Math.abs(q.d) - Math.abs(p.d));
+  },
+  /** v1.68 the verdict first: one sentence (the AI headline, else the single biggest swing in this player's win chance), the 3 biggest swings, then "All key moments". */
+  _rvVerdictHtml(ds, rv) {
     const pid = this._rvPid, you = this._rvIsYou(pid), me = this.players[pid], nm = you ? "You" : esc(me?.name || ""), w = this.winner;
-    const top = all.slice(0, 3), topIds = new Set(top.map((x) => x.i));
+    const ico = IC.next.replace("<svg", '<svg class="chev"'), sg = (v) => sgn(v * 100);
+    const sw = this._rvSwings().filter((x) => Math.abs(x.d) >= 0.01);
+    const row = (x) => ({ i: x.S, T: x.T, P: null, own: x.actor === pid, m: Math.abs(x.d) * 100, h: `<button type="button" class="rs-key" data-rctp="${x.T}" data-rcq="${x.actor ?? ""}">${x.actor != null ? `<i class="pc-${x.actor} rvw-dot" aria-hidden="true"></i>` : `<i class="rs-b c-luck sm" aria-hidden="true">⚄</i>`}<span class="t">${this._rvTW()} ${x.T}</span><span class="x">${x.say}</span><b class="${x.d >= 0 ? "pos" : "neg"}">${sg(x.d)}%</b>${ico}</button>` });
+    let all = sw.map(row);
     const ai = this._rcHeadline?.() || "";
-    let line = ai, sub = "";
+    let line = ai;
     const W = this._rvWhyBars(pid);
     if (!line) {
       let res = "";
@@ -1052,27 +1082,20 @@ export const ReviewGameMixin = {
         const pts = `${mg} ${mg === 1 ? "point" : "points"}`;
         res = w === me ? `${nm} won${mg > 0 ? ` by ${pts}` : ""}` : `${nm} lost${mg > 0 ? ` by ${pts}` : ` on a tiebreak`}`;
       } else res = `${nm} finished with ${me?.victoryPoints ?? 0} points`;
-      const won = w === me, t = all.find((x) => x.when !== "Setup" && (won ? x.v > 0 : x.v < 0)) || all.find((x) => x.when !== "Setup") || all[0];
-      let why = "";
-      if (t) {
-        const when = t.when.toLowerCase().replace(/^setup$/, "set-up");
-        why = t.own ? `${you ? "your" : "their"} biggest slip was on ${when}: ${esc(t.say)} (${t.pc}%)` : `the biggest swing was on ${when}: ${esc(t.say.charAt(0).toLowerCase() + t.say.slice(1))} (${t.pc}%)`;
-      }
-      line = `${res}${why ? `: ${why}` : ""}.`;
+      const won = w === me, t = [...sw].sort((p, q) => (won ? q.d - p.d : p.d - q.d))[0];
+      line = `${res}${t ? `: ${t.say} on ${this._rvTW().toLowerCase()} ${t.T} (${you ? "your" : "their"} win chance ${Math.round(t.b * 100)}% → ${Math.round(t.e * 100)}%)` : ""}.`;
     }
-    if (W) sub = `Win chance: luck ${wpText(W.luck)}${W.moves != null ? `, ${you ? "your" : "their"} moves ${wpText(W.moves)}` : ""}.`;
-    else { const T = this._rvT; if (T && T.moves != null) sub = `${you ? "Your" : "Their"} moves cost ${Math.abs(Math.round(T.moves))}% win chance.`; }
-    const rows = top.map((x) => x.h);
-    const used = new Set();
-    const topH = this._rcMergeKeys?.(top, { extra: false, used }) ?? rows.join("");
+    let sub = "";
+    if (W) sub = `Luck ${wpText(W.luck)}${W.moves != null ? ` · ${you ? "your" : "their"} moves ${wpText(W.moves)}` : ""} (win chance)`;
+    else { const T = this._rvT; if (T && T.moves != null) sub = `${you ? "Your" : "Their"} moves cost ${Math.abs(Math.round(T.moves))}% win chance`; }
+    const top = all.slice(0, 3), topIds = new Set(top.map((x) => x.i)), used = new Set();
+    const topH = this._rcMergeKeys?.(top, { extra: false, used }) ?? top.map((x) => x.h).join("");
     const f = ["you", "oth"].includes(this._rvKm) ? this._rvKm : "all";
-    const src = f === "you" ? mineAll : f === "oth" ? othAll : all;
-    const rest = src.filter((x) => !topIds.has(x.i));
+    const restAll = all.filter((x) => !topIds.has(x.i)).slice(0, 12), rest = restAll.filter((x) => f === "all" || (f === "you") === x.own);
     const restH = this._rcMergeKeys?.(rest, { extra: f === "all", used }) ?? rest.map((x) => x.h).join("");
-    const seg = [["all", "All"], ["you", you ? "You" : esc(me?.name || "")], ["oth", "Others"]].map(([k, l]) => `<button type="button" class="${k === f ? "on" : ""}" aria-pressed="${k === f}" data-rvkm="${k}">${l}</button>`).join("");
-    const restAll = all.filter((x) => !topIds.has(x.i)), open = !!this._rvKmOpen && !!(restH || restAll.length);
-    const total = all.length;
-    return `<section class="rv-card vd-card" data-rvverdict><p class="vd-line">${line}</p>${sub ? `<p class="vd-sub">${sub}</p>` : ""}<div class="rv-gt vd-gt"><b>Key moments</b><small>tap one to see it on the board</small></div><div class="vd-rows">${topH || `<p class="rs-lost">No clear mistake or big swing.</p>`}</div>${restH || restAll.length ? `<button type="button" class="rc-link vd-all" data-vdall aria-expanded="${open}">All key moments (${Math.max(total, top.length)})</button><div data-vdrest${open ? "" : " hidden"}><div class="km-seg" role="group" aria-label="Whose moments">${seg}</div>${restH || `<p class="rs-lost">None more here.</p>`}</div>` : ""}</section>`;
+    const seg = [["all", "All"], ["you", you ? "Your turns" : esc(me?.name || "")], ["oth", "Others"]].map(([k, l]) => `<button type="button" class="${k === f ? "on" : ""}" aria-pressed="${k === f}" data-rvkm="${k}">${l}</button>`).join("");
+    const open = !!this._rvKmOpen && !!(restH || restAll.length);
+    return `<section class="rv-card vd-card" data-rvverdict><p class="vd-line">${line}</p>${sub ? `<p class="vd-sub">${sub}</p>` : ""}<div class="rv-gt vd-gt"><b>Key moments</b><small>biggest swings in ${you ? "your" : "their"} win chance</small></div><div class="vd-rows">${topH || `<p class="rs-lost">No big swing.</p>`}</div>${restH || restAll.length ? `<button type="button" class="rc-link vd-all" data-vdall aria-expanded="${open}">All key moments (${top.length + restAll.length})</button><div data-vdrest${open ? "" : " hidden"}><div class="km-seg" role="group" aria-label="Whose turns">${seg}</div>${restH || `<p class="rs-lost">None more here.</p>`}</div>` : ""}</section>`;
   },
   _rvTabOverview(ds, rv, prov) {
     const pid = this._rvPid, you = this._rvIsYou(pid), nm = esc(this.players[pid]?.name || "");
@@ -1080,15 +1103,9 @@ export const ReviewGameMixin = {
     const lv = this.players[pid]?.isHuman ? null : this._rvLevel(this.players[pid]);
     const cmp = prov || lv ? { text: "" } : this._rvCompare(hist);
     const cmpText = lv ? (lv.band ? `${lv.label} bots usually score ${Math.round(lv.band[0])} ± ${Math.round(lv.band[1])} on their own moves${prov ? " (the deep check)" : ""}.` : "") : prov ? "" : rv.midCheck ? `Checked during the game · not in your average. ${cmp.text}` : cmp.text;
-    const sg = (v) => sgn(v * 100), ico = IC.next.replace("<svg", '<svg class="chev"');
-    const imp = this._rvImp(ds);
-    const mine = imp.slice(0, 8).map((d) => ({ i: d.i, own: true, v: -d.gap * 100, T: this._rcTurnOf?.(d), P: pid, m: d.gap * 100, when: this._rvWhen(d), say: this._rvTerse(d), pc: sg(-d.gap), h: `<button type="button" class="rs-key rs-imp" data-rvj="${d.i}" data-rvq="imp">${badge(d.cls)}<span class="t">${this._rvWhen(d)}</span><span class="x">${esc(this._rvTerse(d))}${d.x.why?.head ? `<small class="w">${esc(d.x.why.head)}</small>` : ""}</span><b class="neg">${sg(-d.gap)}%</b>${ico}</button>` }));
-    const swings = ds.filter((d, k) => Math.abs(d.cp) >= 3 && !(k && (ds[k - 1].x.s ?? 0) === (d.x.s ?? 0))).sort((a, b) => Math.abs(b.cp) - Math.abs(a.cp)).slice(0, 5);
-    const oth = swings.map((lk) => ({ i: lk.i, v: lk.chance * 100, T: this._rcTurnOf?.(lk), P: this._rvRollActor(ds, ds.indexOf(lk)), m: Math.abs(lk.chance) * 100, when: this._rvWhen(lk), say: this._rvCause(ds, ds.indexOf(lk)), pc: sg(lk.chance), h: `<button type="button" class="rs-key" data-rvj="${lk.i}"><i class="rs-b c-luck sm" aria-hidden="true">⚄</i><span class="t">${this._rvWhen(lk)}</span><span class="x">${esc(this._rvCause(ds, ds.indexOf(lk)))}</span><b class="${lk.cp >= 0 ? "pos" : "neg"}">${sg(lk.chance)}%</b>${ico}</button>` }));
-    const seen = new Set(), all = [...mine, ...oth].sort((a, b) => b.m - a.m).filter((x) => (seen.has(x.i) ? false : (seen.add(x.i), true)));
     const sum = summarize(rv.results);
     const strip = `<section class="rv-card rs-sum">${this._rvStrip(sum.acc, cmp, false, prov)}${cmpText ? `<p class="rv-cmpline rvt-cmp">${esc(cmpText)}${cmp.m != null ? ` <span class="rv-keyme">▮ this game</span> <span class="rv-keyavg">● your average</span>` : ""}</p>` : ""}</section>`;
-    const html = `${this._rvVerdictHtml(ds, rv, all, mine, oth)}${this._rvWhyCard({ head: !this._rcHeadline?.() }) || this._rcHead?.() || ""}${this._rvSbsHtml()}${strip}`;
+    const html = `${this._rvVerdictHtml(ds, rv)}${this._rvWhyCard({ head: !this._rcHeadline?.() }) || this._rcHead?.() || ""}${this._rvSbsHtml()}${strip}`;
     return { html, bind: (el) => el.querySelectorAll("[data-rvkm]").forEach((b) => b.addEventListener("click", () => { this._rvKm = b.dataset.rvkm; this._rvKmOpen = true; this._rvDrawReview(); })) };
   },
 
