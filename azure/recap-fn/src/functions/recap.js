@@ -36,7 +36,7 @@ Return JSON matching the schema. Field rules:
 - turningPoints[]: in turn order. turn = turn number; player = name of the player it was about; title = 2-5 words; text = one or two short sentences; from/to = that player's win chance in % before/after (integers, from the facts; null if not in the facts).
 - luckOrPlay: verdict for you, decided by numbers: if facts give a computed verdict (luckOrPlayVerdict), use it; else "luck" when |luck| >= 3 x |moves|, "play" when |moves| >= 3 x |luck|, otherwise "both"; luck and moves = your win-chance points from the facts (numbers, null if missing); text = one sentence that matches the verdict and says plainly which mattered more.
 - tip: one concrete tip that follows from the facts.
-Style: short sentences, everyday words, no jargon, resources and dice numbers instead of codes. Honest and kind.`;
+Style: explain like an analyst talking to a friend, not like a sports recap. Every sentence must carry a concrete fact: who did what (card, build, roll, trade), the points or numbers involved, and the effect (e.g. "Blaauw bought a development card, drew a Victory Point card and went from 9 to 10 points: your win chance fell by 60 points."). No filler or stock phrases such as "pushed the plan forward", "kept you close", "locked in the lead", "put pressure on", "turned the tide", "the race was on". No moralising closing lines. Short sentences, everyday words, resources and dice numbers instead of codes. Honest and kind.`;
 
 async function token() {
   const r = await fetch(`${process.env.IDENTITY_ENDPOINT}?resource=https://cognitiveservices.azure.com&api-version=2019-08-01`,
