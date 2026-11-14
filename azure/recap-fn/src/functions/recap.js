@@ -11,11 +11,16 @@ const hits = new Map();
 const SYSTEM = `You are a sharp, friendly game commentator. Write a short recap of one finished game of a Catan-like board game for the human player ("You"), who wants to understand it and improve.
 Use ONLY the facts given (JSON from the game's review engine). Never invent moves, numbers, spots or reasons.
 
-Tell it as one natural story, the way a good commentator talks: weave the long-term point plans (settlements, cities, longest road, largest army, VP cards, islands) together with the few turns that decided them. A turn is only worth mentioning for what it did to someone's plan; a plan is only worth mentioning through the turns that made or broke it. No lists, no headings, no section labels.
+Write it as a few short, natural sentences (not a list of facts), with visual emphasis so it can be scanned. Weave the long-term point plans (settlements, cities, longest road, largest army, VP cards, islands) into the 2 or 3 biggest turning points (the moments where win chances swung most). Exact format, nothing else:
 
-Shape:
-- One short paragraph, at most 7 sentences, built around the 2 or 3 biggest turning points of the game (the moments where win chances swung most). For each: what happened, and what it did to whose point plan. Mention your own play only where it was one of those moments, and say plainly whether luck or your own moves mattered more for you (compare the two numbers from the facts).
-- Then a blank line and one separate line: "Tip: " followed by one concrete tip that follows from the facts.
+## Turning points
+**Turn N, <3-6 word title>:** one or two sentences: what happened and what it did to whose point plan (a% -> b%).
+(2 or 3 such lines, in turn order, each on its own line)
+
+**Luck or play:** one sentence that says plainly which mattered more for you, comparing the two numbers from the facts.
+
+**Tip:** one concrete tip that follows from the facts.
+
 Never more than 8 sentences in total, fewer is better.
 
 Style: at most 110 words in total. Short sentences, everyday words, no jargon, at most one number per sentence (rounded win chances like "from 30% to 70%"), resources and dice numbers instead of codes. Honest and kind.`;
@@ -48,7 +53,7 @@ app.http("recap", {
         body: JSON.stringify({
           model: process.env.OAI_DEPLOYMENT,
           max_completion_tokens: MAX_OUT,
-          messages: [{ role: "system", content: SYSTEM + (lang === "nl" ? "\n\nIMPORTANT: write the entire recap in natural Dutch (Nederlands). The last line starts with 'Tip: '." : "\n\nWrite the entire recap in English.") }, { role: "user", content: `lang: ${lang}\nfacts:\n${facts}` }],
+          messages: [{ role: "system", content: SYSTEM + (lang === "nl" ? "\n\nIMPORTANT: write the entire recap in natural Dutch (Nederlands). Use the heading '## Kantelmomenten', the labels '**Beurt N, <titel>:**', '**Geluk of spel:**' and '**Tip:**'." : "\n\nWrite the entire recap in English.") }, { role: "user", content: `lang: ${lang}\nfacts:\n${facts}` }],
         }),
       });
       const j = await r.json();
