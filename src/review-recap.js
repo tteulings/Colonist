@@ -25,6 +25,7 @@ export function recapHtml(text) {
     let m;
     if ((m = l.match(/^#{1,6}\s+(.*)$/)) || (m = l.match(/^\*\*([^*]+?)\*\*:?$/))) { close(); out.push(`<h4>${inline(m[1])}</h4>`); }
     else if ((m = l.match(/^(?:[-*•]|\d+[.)])\s+(.*)$/))) { if (!ul) { out.push("<ul>"); ul = true; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if ((m = l.match(/^(?:\*\*)?(?:Tip|Tipp?)(?:\*\*)?:(?:\*\*)?\s*(.+)$/i))) { close(); out.push(`<p class="rc-tip"><b>${/^tip/i.test(l.replace(/^\*\*/, "")) ? l.replace(/^\*\*/, "").slice(0, 3) : "Tip"}:</b> ${inline(m[1])}</p>`); }
     else { close(); out.push(`<p>${inline(l)}</p>`); }
   });
   close();
