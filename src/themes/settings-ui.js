@@ -12,7 +12,7 @@ export function getTextSize() { try { const v = localStorage.getItem("colonist_t
 export function setTextSize(v) { try { localStorage.setItem("colonist_textsize", v); } catch (_) {} document.documentElement.dataset.textsize = v; window.__colonistAppH?.(); window.dispatchEvent(new Event("resize")); }
 try { document.documentElement.dataset.textsize = getTextSize(); window.__colonistAppH?.(); } catch (_) {}
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "1.69";
+export const APP_VERSION = "1.70";
 
 /** v1.34 Settings: the running version and "Check for updates" (index.html: reg.update() + a version compare). */
 function versionRow() {
@@ -222,7 +222,7 @@ export class SettingsUI {
           } else if (mode === "system") { autoLine = `Now ${NAME[shown]}`; autoMore = `Night while your device is in dark mode, otherwise ${NAME[dayPalette()]}.`; }
           return `<div class="st-row st-row-pal${on ? "" : " st-row-off"}" style="margin-top:14px"><div><b>Colours</b><small>${on ? "Light is soft · Vivid is bold · Dusk is golden hour · Night is calm and dark." : "Only for Sunny Island."}</small></div>
           <div class="seg pal-seg pal-seg5" role="radiogroup" aria-label="Colours"${on ? "" : ` aria-disabled="true"`}>${[["light", "Light"], ["vivid", "Vivid"], ["dusk", "Dusk"], ["night", "Night"], ["auto", "Auto"]].map(([v, l]) => `<button type="button" data-palette="${v}" class="${cur === v ? "on" : ""}${mode && v === shown ? " shown" : ""}" aria-checked="${cur === v}" role="radio"${on ? "" : " disabled"}><i class="pal-dot pal-${v === "auto" ? "autodot" : v}"></i>${l}</button>`).join("")}</div></div>
-          ${mode && on ? `<div class="st-row st-row-pal pal-auto"><div><b>Auto follows<button type="button" class="pal-info" data-pal-info aria-label="More about Auto" aria-expanded="false">i</button></b><small>${autoLine}</small><small class="pal-more" hidden>${autoMore}</small></div>
+          ${mode && on ? `<div class="st-row st-row-pal pal-auto"><div><b>Auto follows<button type="button" class="pal-info" data-pal-info aria-label="More about Auto" aria-expanded="false" title="What Auto does">How it works</button></b><small>${autoLine}</small><small class="pal-more" hidden>${autoMore}</small></div>
           <div class="seg" role="radiogroup" aria-label="Auto follows">${[["time", "Time of day"], ["system", "Device dark mode"]].map(([v, l]) => `<button type="button" data-pal-auto="${v}" class="${mode === v ? "on" : ""}" aria-checked="${mode === v}" role="radio">${l}</button>`).join("")}</div></div>` : ""}`;
         })()}
         <div class="st-row"><div><b>Motion</b><small>Reduced replaces travel and spin with short fades.</small></div>
