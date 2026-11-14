@@ -11,12 +11,12 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=157";
-import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=157";
-import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=157";
-import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=157";
-import { byStrength } from "./bot-stats.js?v=157";
-import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=157";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=158";
+import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=158";
+import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=158";
+import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=158";
+import { byStrength } from "./bot-stats.js?v=158";
+import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=158";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -346,7 +346,7 @@ function treeRows(n, depth, rows, siblingsMax) {
   if (vt === "score") val = f2(v);
   else if (vt === "signed") val = Math.abs(v) < 0.005 ? "0" : `${v > 0 ? "+" : "−"}${f2(Math.abs(v))}`;
   else if (vt === "div") val = `÷${f2(v)}`;
-  else if (vt === "pips") val = `${Math.round(v)} pips`;
+  else if (vt === "pips") val = `${Math.round(v)} dice dots`;
   else if (vt === "none") val = "";
   const col = n.term && TERM_COLOR[n.tk] ? `;background:${TERM_COLOR[n.tk]};opacity:.9` : "";
   const bar = n.stack?.length && siblingsMax > 0 ? stackHtml(n.stack, siblingsMax).replace("sx-bar stk", "lt-bar stk")
@@ -378,7 +378,7 @@ function renderTree(t, p) {
   if (view?.analysis.lab?.kind === "step") view._labOverlay(null);
   $("#labTreeWho").textContent = p ? `${p.name} · tap a row` : "";
   if (!t) { $("#labTree").innerHTML = `<p class="lb-note">Nothing to decide here.</p>`; $("#labTreeSum").textContent = ""; $("#labTreeEq").textContent = ""; return; }
-  const sc = t.score == null || t.noScore ? "" : t.rules ? ` · <b>${Math.round(t.score)} pips</b>` : ` · score <b>${f2(t.score)}</b>${st.mode === "build" ? " per turn" : ""}`;
+  const sc = t.score == null || t.noScore ? "" : t.rules ? ` · <b>${Math.round(t.score)} dice dots</b>` : ` · score <b>${f2(t.score)}</b>${st.mode === "build" ? " per turn" : ""}`;
   const plan = st.mode === "build" && t.target && !t.action.includes(t.target) ? ` · plan <b>${esc(t.target)}</b>` : "";
   $("#labTreeSum").innerHTML = `${t.rules && st.mode === "build" ? "Fires" : st.mode === "build" ? "Now:" : "Chooses"} <b>${esc(t.action)}</b>${plan}${sc}`;
   $("#labTreeEq").textContent = t.eq || "";

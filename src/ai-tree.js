@@ -59,19 +59,19 @@ export const TreeMixin = {
     const b = this._rulesSetupSpot(P);
     if (!b) return null;
     const sorted = ids.map((id) => ({ id, pips: this._rulesPips(id), kinds: this._rulesKinds(id) })).sort((x, y) => y.pips - x.pips || y.kinds - x.kinds || x.id - y.id);
-    const kids = sorted.slice(0, 8).map((c) => node({ id: `spot:${c.id}`, label: `Spot ${this._spotLabel(c.id)}`, sub: `${c.kinds} resource${c.kinds === 1 ? "" : "s"}`, v: c.pips, bar: c.pips, vt: "pips",
+    const kids = sorted.slice(0, 8).map((c) => node({ id: `spot:${c.id}`, label: `Spot on ${this._spotLabel(c.id)}`, sub: `${c.kinds} resource${c.kinds === 1 ? "" : "s"}`, v: c.pips, bar: c.pips, vt: "pips",
       chosen: c.id === b.id, tag: c.id === b.id ? "chosen" : null, focus: { node: c.id } }));
-    const root = node({ id: "root", label: "Start settlement", sub: "rule: most pips, tie → more resources", vt: "none", chosen: true, children: kids });
-    return { root, action: `Settlement on ${b.pips} pips (${this._spotLabel(b.id)})`, score: b.pips, rules: true, pick: { node: b.id },
-      eq: "Pips = how many of the 36 dice rolls pay this spot. No other terms.", data: { sorted, best: b } };
+    const root = node({ id: "root", label: "Start settlement", sub: "rule: most dice dots, tie → more resources", vt: "none", chosen: true, children: kids });
+    return { root, action: `Settlement on ${b.pips} dice dots (${this._spotLabel(b.id)})`, score: b.pips, rules: true, pick: { node: b.id },
+      eq: "Dice dots = how many of the 36 dice rolls pay this spot. No other terms.", data: { sorted, best: b } };
   },
   _treeRulesRobber(P) {
     const r = this._rulesRobber(P);
     if (!r.pick) return null;
     const sorted = r.cands.slice().sort((a, b) => (a.own - b.own) || b.lead - a.lead || b.any - a.any);
-    const kids = sorted.slice(0, 8).map((c) => node({ id: `hex:${c.id}`, label: this._hexName(c.id), sub: c.own ? "its own tile: never" : `${r.leader?.name || "leader"}'s pips`, v: c.lead, bar: c.lead, vt: "pips",
+    const kids = sorted.slice(0, 8).map((c) => node({ id: `hex:${c.id}`, label: this._hexName(c.id), sub: c.own ? "its own tile: never" : `${r.leader?.name || "leader"}'s dice dots`, v: c.lead, bar: c.lead, vt: "pips",
       chosen: c.id === r.pick.id, tag: c.id === r.pick.id ? "chosen" : null, off: c.own, focus: { hex: c.id } }));
-    const root = node({ id: "root", label: "Move robber", sub: `rule: the leader's tile with the most pips`, vt: "none", chosen: true, children: kids });
+    const root = node({ id: "root", label: "Move robber", sub: `rule: the leader's tile with the most dice dots`, vt: "none", chosen: true, children: kids });
     return { root, action: `Robber on ${this._hexName(r.pick.id)}, steals from ${r.leader?.name || "the leader"}`, score: r.pick.lead, rules: true, pick: { hex: r.pick.id },
       eq: `Leader = most public points (${r.leader ? `${r.leader.name}, ${r.leader.publicVictoryPoints}` : "–"}). Pips count double on a city.`, data: { r, sorted } };
   },
@@ -85,7 +85,7 @@ export const TreeMixin = {
 
   _treeSpot(player, nodeId, score, chosen, idp = "spot") {
     const { terms } = this._treeSpotTerms(player, nodeId, null, `${idp}:${nodeId}`);
-    return node({ id: `${idp}:${nodeId}`, label: `Spot ${this._spotLabel(nodeId)}`, v: score, bar: score, chosen, tag: chosen ? "chosen" : null, focus: { node: nodeId }, children: terms, stack: stackOf(terms) });
+    return node({ id: `${idp}:${nodeId}`, label: `Spot on ${this._spotLabel(nodeId)}`, v: score, bar: score, chosen, tag: chosen ? "chosen" : null, focus: { node: nodeId }, children: terms, stack: stackOf(terms) });
   },
 
   // ── set-up: every free spot, scored by getNodeProductionScore ──
@@ -98,7 +98,7 @@ export const TreeMixin = {
     const kids = sorted.slice(0, 6).map((c) => this._treeSpot(P, c.id, c.score, c.id === best.id));
     const rest = sorted.slice(6);
     if (rest.length) kids.push(node({ id: "spot:more", label: `${rest.length} more spots`, sub: "ranked lower", vt: "none",
-      children: rest.map((c) => node({ id: `spot:${c.id}`, label: `Spot ${this._spotLabel(c.id)}`, v: c.score, bar: c.score, focus: { node: c.id }, leafish: true })) }));
+      children: rest.map((c) => node({ id: `spot:${c.id}`, label: `Spot on ${this._spotLabel(c.id)}`, v: c.score, bar: c.score, focus: { node: c.id }, leafish: true })) }));
     const root = node({ id: "root", label: "Start settlement", sub: `${cands.length} spots`, vt: "none", chosen: true, children: kids });
     return { root, action: `Settlement on ${this._spotLabel(best.id)}`, score: best.score, pick: { node: best.id }, data: { sorted, best, P },
       eq: "Spot score = numbers + scarcity + variety + port (+ the Complex terms). The highest spot wins." };
@@ -260,7 +260,7 @@ export const TreeMixin = {
         const h = kidsW.reduce((a, k) => a + k.v, 0);
         ch.push(node({ id: `${id}:why`, label: "Spot rank", sub: "picks which spots get planned; not part of the score above", v: h, bar: h, children: kidsW, stack: stackOf(kidsW), rank: true }));
       }
-      const label = g.type === "settlement" ? `Spot ${this._spotLabel(g.nodeId)}` : g.type === "city" ? `City on ${this._spotLabel(g.nodeId)}` : g.type === "road" ? "Extend the road" : "Development card";
+      const label = g.type === "settlement" ? `Spot on ${this._spotLabel(g.nodeId)}` : g.type === "city" ? `City on ${this._spotLabel(g.nodeId)}` : g.type === "road" ? "Extend the road" : "Development card";
       const sub = g.type === "settlement" ? (g.dist ? `+${g.dist} road${g.dist > 1 ? "s" : ""}${g.via === "ship" ? " (ships)" : ""}` : "reachable now") : g.eta === 0 ? "affordable now" : `~${f1(g.eta)} turns`;
       const focus = g.type === "settlement" ? { node: g.nodeId, edge: g.dist ? g.edge : null } : g.type === "city" ? { city: g.nodeId } : g.type === "road" ? { edge: g.edge } : null;
       const isPlan = g === goal0, isSide = g === side;
@@ -276,7 +276,7 @@ export const TreeMixin = {
         const inGoals = new Set(gs.map(([g]) => g.nodeId));
         const more = plan.spots.filter((s) => !inGoals.has(s.nodeId));
         if (more.length) kids.push(node({ id: "goal:settlement:more", label: `${more.length} more spots in reach`, sub: "spot rank, not planned", vt: "none",
-          children: more.map((s) => node({ id: `rank:${s.nodeId}`, label: `Spot ${this._spotLabel(s.nodeId)}`, sub: s.d ? `+${s.d} road${s.d > 1 ? "s" : ""}` : "", v: s.h, bar: s.h, focus: { node: s.nodeId }, leafish: true })) }));
+          children: more.map((s) => node({ id: `rank:${s.nodeId}`, label: `Spot on ${this._spotLabel(s.nodeId)}`, sub: s.d ? `+${s.d} road${s.d > 1 ? "s" : ""}` : "", v: s.h, bar: s.h, focus: { node: s.nodeId }, leafish: true })) }));
       }
       const top = Math.max(...gs.map(([g]) => g.score));
       const has0 = gs.some(([g]) => g === goal0), hasSide = gs.some(([g]) => g === side);
@@ -345,12 +345,12 @@ export const TreeMixin = {
       const top = all.slice(0, 6);
       const termsOf = (c) => rules ? [{ k: "num", label: "Pips", v: c.score }, { k: "variety", label: "Resources (tie-break)", v: c.kinds }] : this._stepTerms(P, c.id);
       add({ key: "free", title: "Free spots", sub: `${all.length} corners it may settle`, text: "No building on it or next to it.", overlay: { nodes: all.map((c) => ({ id: c.id, s: c.score })), noLabels: true } });
-      add({ key: "cands", title: rules ? "Count the pips" : "Score the best spots", sub: rules ? "dice rolls that pay each spot" : "numbers + scarcity + variety + port",
-        rows: top.map((c, i) => ({ letter: LETTERS[i], label: `Spot ${this._spotLabel(c.id)}`, sub: rules ? `${c.kinds} resources` : "", v: c.score, vt: rules ? "int" : "score", stack: rules ? null : termsOf(c).filter((x) => x.v > 0), chosen: c.id === best, focus: { node: c.id } })),
+      add({ key: "cands", title: rules ? "Count the dice dots" : "Score the best spots", sub: rules ? "dice rolls that pay each spot" : "numbers + scarcity + variety + port",
+        rows: top.map((c, i) => ({ letter: LETTERS[i], label: `Spot on ${this._spotLabel(c.id)}`, sub: rules ? `${c.kinds} resources` : "", v: c.score, vt: rules ? "int" : "score", stack: rules ? null : termsOf(c).filter((x) => x.v > 0), chosen: c.id === best, focus: { node: c.id } })),
         overlay: { nodes: top.map((c) => ({ id: c.id, s: c.score })), badges: lettered(top, (c) => ({ node: c.id })), noLabels: true } });
       const a = all.find((c) => c.id === best), b = all.find((c) => c.id !== best);
-      add({ key: "choice", title: "Choice", sub: t.action, text: rules ? "Most pips wins; a tie goes to more different resources." : "",
-        compare: compare({ label: `${LETTERS[top.indexOf(a)] || ""} · Spot ${this._spotLabel(a.id)}`, terms: termsOf(a), score: a.score }, b && { label: `${LETTERS[top.indexOf(b)] || ""} · Spot ${this._spotLabel(b.id)}`, terms: termsOf(b), score: b.score }, rules ? "pips" : ""),
+      add({ key: "choice", title: "Choice", sub: t.action, text: rules ? "Most dice dots wins; a tie goes to more different resources." : "",
+        compare: compare({ label: `${LETTERS[top.indexOf(a)] || ""} · Spot on ${this._spotLabel(a.id)}`, terms: termsOf(a), score: a.score }, b && { label: `${LETTERS[top.indexOf(b)] || ""} · Spot on ${this._spotLabel(b.id)}`, terms: termsOf(b), score: b.score }, rules ? "pips" : ""),
         overlay: { nodes: [{ id: a.id, s: 1 }, ...(b ? [{ id: b.id, s: 0.4 }] : [])], badges: winBadges({ node: a.id }, b && { node: b.id }, LETTERS[top.indexOf(a)] || "1", LETTERS[top.indexOf(b)] || "2"), noLabels: true, pick: { node: a.id } } });
       return S;
     }
@@ -362,11 +362,11 @@ export const TreeMixin = {
         add({ key: "leader", title: "Find the leader", sub: lead ? `${lead.name} · ${lead.publicVictoryPoints} points` : "no leader", text: "The opponent with the most public points.",
           overlay: { nodes: leadNodes.map((id) => ({ id, s: 1 })), noLabels: true } });
         const top = sorted.filter((c) => !c.own).slice(0, 6);
-        add({ key: "cands", title: "Leader's pips per tile", sub: "never a tile with its own building",
+        add({ key: "cands", title: "Leader's dice dots per tile", sub: "never a tile with its own building",
           rows: top.map((c, i) => ({ letter: LETTERS[i], label: this._hexName(c.id), v: c.lead, vt: "int", chosen: c.id === r.pick.id, focus: { hex: c.id } })),
           overlay: { hexes: top.map((c) => ({ id: c.id, s: c.lead, dmg: null })), badges: lettered(top, (c) => ({ hex: c.id })), noLabels: true } });
         const a = r.pick, b = top.find((c) => c.id !== a.id);
-        const tm = (c) => [{ k: "block", label: "Leader's pips", v: c.lead }, { k: "steal", label: "All opponents' pips (tie-break)", v: c.any }];
+        const tm = (c) => [{ k: "block", label: "Leader's dice dots", v: c.lead }, { k: "steal", label: "All opponents' dice dots (tie-break)", v: c.any }];
         add({ key: "choice", title: "Choice", sub: t.action, compare: compare({ label: `${LETTERS[top.findIndex((c) => c.id === a.id)] || ""} · ${this._hexName(a.id)}`, terms: tm(a), score: a.lead }, b && { label: `${LETTERS[top.indexOf(b)] || ""} · ${this._hexName(b.id)}`, terms: tm(b), score: b.lead }, "pips"),
           overlay: { hexes: [{ id: a.id, s: 1, dmg: null }], badges: winBadges({ hex: a.id }, b && { hex: b.id }, LETTERS[top.findIndex((c) => c.id === a.id)] || "1", LETTERS[top.indexOf(b)] || "2"), noLabels: true, pick: { hex: a.id } } });
         add({ key: "steal", title: "Steal", sub: `from ${lead?.name || "the leader"}`, text: "Rule: always the leader when the leader is on the tile.", overlay: { hexes: [{ id: a.id, s: 1, dmg: null }], noLabels: true, focus: { hex: a.id } } });
@@ -424,7 +424,7 @@ export const TreeMixin = {
     const goalBadges = (gs, text) => gs.filter((g) => place(g)).map((g) => ({ text: text(g), ...place(g) }));
     const goalOverlay = (gs) => ({ nodes: gs.filter((g) => g.type === "settlement").map((g) => ({ id: g.nodeId, s: g.score })), cities: gs.filter((g) => g.type === "city").map((g) => ({ id: g.nodeId, s: g.score })),
       edges: [...gs.filter((g) => g.type === "road" && g.edge != null).map((g) => ({ id: g.edge, s: g.score })), ...gs.filter((g) => g.type === "settlement" && g.dist > 0).flatMap((g) => route(g.nodeId))], noLabels: true });
-    const name = (g) => (g.type === "settlement" ? `Settlement ${this._spotLabel(g.nodeId)}${g.dist ? ` +${g.dist} road${g.dist > 1 ? "s" : ""}` : ""}` : g.type === "city" ? `City on ${this._spotLabel(g.nodeId)}` : g.type === "road" ? "Longest Road" : "Dev card");
+    const name = (g) => (g.type === "settlement" ? `Settlement on ${this._spotLabel(g.nodeId)}${g.dist ? ` +${g.dist} road${g.dist > 1 ? "s" : ""}` : ""}` : g.type === "city" ? `City on ${this._spotLabel(g.nodeId)}` : g.type === "road" ? "Longest Road" : "Dev card");
     // 2. options in the order the bot really takes them
     const stepOk = goal0 ? has(h, this._aiStepCost(goal0)) : false;
     const opts = [
@@ -457,7 +457,7 @@ export const TreeMixin = {
         add({ key: "spots", title: "Settlement spots in reach", sub: "what each costs in roads and turns; the top 3 by rank become plans",
           legend: "reach", foot: foot.join(" "),
           rows: spots.map((x) => { const r = info.get(x.nodeId);
-            return { letter: letterOf(`n${x.nodeId}`), label: `Spot ${this._spotLabel(x.nodeId)}`, sub: r ? this._reachText(r) : x.d ? `+${x.d} road${x.d > 1 ? "s" : ""}` : "on its roads", v: x.h, vt: "score",
+            return { letter: letterOf(`n${x.nodeId}`), label: `Spot on ${this._spotLabel(x.nodeId)}`, sub: r ? this._reachText(r) : x.d ? `+${x.d} road${x.d > 1 ? "s" : ""}` : "on its roads", v: x.h, vt: "score",
               warn: r?.rival ? { text: this._rivalText(r), color: this.players[r.rival.pid].color } : null,
               stack: this._stepTerms(Pl, x.nodeId, this.getResourceIncomeProfile(Pl)).filter((y) => y.v > 0), chosen: goal0?.nodeId === x.nodeId && goal0?.type === "settlement", focus: { node: x.nodeId } }; }),
           overlay: { nodes: spots.map((x) => ({ id: x.nodeId, s: x.h })), badges: spots.map((x) => ({ text: letterOf(`n${x.nodeId}`), node: x.nodeId })), noLabels: true,
@@ -560,7 +560,7 @@ function compareHtml(c) {
   return `<div class="sx-cmp"><div class="sx-leg"><span>${let_(A)}${escH(A.t)}</span>${c.b ? `<span>${let_(B, true)}${escH(B.t)}</span>` : ""}</div>
     <div class="sx-cmph"><span></span><b>${let_(A)}</b>${c.b ? `<b>${let_(B, true)}</b><span>${escH(A.l || "1")} − ${escH(B.l || "2")}</span>` : ""}</div>
     ${c.rows.map((r) => `<div class="sx-cmpr"><span><i style="background:${TERM_COLOR[r.k] || "var(--accent)"}"></i>${escH(r.label)}</span><span>${fv(r.a, r.div)}</span>${c.b ? `<span>${fv(r.b, r.div)}</span><span class="d">${diff(r)}</span>` : ""}</div>`).join("")}
-    <div class="sx-cmpr tot"><span>${c.unit === "pips" ? "Pips" : "Score"}</span><span>${c.unit === "pips" ? Math.round(c.sa) : f2(c.sa)}</span>${c.b ? `<span>${c.unit === "pips" ? Math.round(c.sb) : f2(c.sb)}</span><span class="d">${c.unit === "pips" ? `+${Math.round(c.sa - c.sb)}` : `+${f2(c.sa - c.sb)}`}</span>` : ""}</div></div>`;
+    <div class="sx-cmpr tot"><span>${c.unit === "pips" ? "Dice dots" : "Score"}</span><span>${c.unit === "pips" ? Math.round(c.sa) : f2(c.sa)}</span>${c.b ? `<span>${c.unit === "pips" ? Math.round(c.sb) : f2(c.sb)}</span><span class="d">${c.unit === "pips" ? `+${Math.round(c.sa - c.sb)}` : `+${f2(c.sa - c.sb)}`}</span>` : ""}</div></div>`;
 }
 /** The step strip: 1 … n, the current one filled; done ones tinted; a rule that didn't match greyed. */
 export function stepStripHtml(steps, cur, attr = "data-step") {

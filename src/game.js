@@ -1821,7 +1821,7 @@ class ColonistFullGame {
       this.toastStack.removeChild(this.toastStack.firstChild);
     }
     // Longer display for robber-related events so the player can follow what happened
-    const duration = /(robber|stole|discard)/i.test(text) ? 4500 : 2600;
+    const duration = /(robber|stole|discard)/i.test(text) ? 4500 : /^Trade done/.test(text) ? 3200 : 2600;
     window.setTimeout(() => {
       if (!toast.parentElement) return;
       toast.style.opacity = "0";
@@ -2118,7 +2118,7 @@ class ColonistFullGame {
       if (hexId == null) return;
       if (this.sea && this.sea.thief !== this._seaHexKind(hexId) && this._robberHexAllowed(hexId, player)) this.sea.thief = this._seaHexKind(hexId); // ⚓ land = robber, sea = pirate
       if (!this._robberHexAllowed(hexId, player)) {
-        this._flashPrompt(this._robberBlockedReason(hexId, player));
+        this._flashPrompt(this._robberBlockedReason(hexId, player), 4200);
         this.sfx.error?.();
         return;
       }
@@ -3722,6 +3722,7 @@ class ColonistFullGame {
       this.pushToast(why, "important");
       return;
     }
+    if (this.trayMode) this.closeTray(); // the Build card makes room for the Trade sheet
     this.tradeModal.style.display = "";
     this.tradeOffer = makeEmptyResources();
     this.tradeRequest = makeEmptyResources();
@@ -4010,8 +4011,10 @@ class ColonistFullGame {
       // sent: a calm outline button (green stays for ✓ accept only)
       this.tradeProposalBtn.classList.toggle("primary", !askedSame);
       this.tradeProposalBtn.classList.toggle("sent", askedSame);
-      const sub = askedSame ? "edit to ask again" : !offerTotal ? "pick what you give" : !requestTotal ? "pick what you get" : n === 0 ? "no bots at the table" : `to ${who(n)}`;
-      this.tradeProposalBtn.innerHTML = `${icon("trade")}<span class="rt"><b>${askedSame ? "Offer sent" : hs ? "Ask the bots" : "Offer"}</b><small>${sub}</small></span>`;
+      const ans = askedSame ? this._tradeAnswers : null;
+      const noTakers = !!ans && !ans.responses.some((x) => x.accepts) && !ans.counter;
+      const sub = askedSame ? (noTakers ? "change the offer to try again" : "edit to ask again") : !offerTotal ? "pick what you give" : !requestTotal ? "pick what you get" : n === 0 ? "no bots at the table" : `to ${who(n)}`;
+      this.tradeProposalBtn.innerHTML = `${icon("trade")}<span class="rt"><b>${askedSame ? (noTakers ? "No takers" : "Offer sent") : hs ? "Ask the bots" : "Offer"}</b><small>${sub}</small></span>`;
       this.tradeProposalBtn.setAttribute("aria-label", askedSame ? "Offered to the players · change your offer to ask again" : `Offer to the players${offerTotal && requestTotal ? "" : `: ${sub}`}`);
     }
     const hint = document.querySelector("#tradeHint");
@@ -4153,7 +4156,10 @@ class ColonistFullGame {
       });
     }
     this._refreshTradeGrids();
-    if (!acceptors.length && !counter) this._tradeHint("No one wants this trade. Change it and offer again.");
+    if (!acceptors.length && !counter) {
+      const easy = responses.some((x) => isRulesBot(x.player) || ["none", "conservative"].includes(this._aiStrat(x.player)?.trading));
+      this._tradeHint(`No takers${easy ? " · Easy bots only trade when it lets them build right away" : ""} · change the offer to try again.`);
+    }
     // the answers sit above the footer: bring them into view
     window.requestAnimationFrame(() => document.querySelector("#tradePlayers")?.scrollIntoView?.({ block: "nearest", behavior: motionReduced() ? "auto" : "smooth" }));
   }
@@ -4361,11 +4367,18 @@ class ColonistFullGame {
       const id = this._offerSeq;
       this.pendingIncomingTrade = { fromPlayer, to, give, want, resolve, id, ask, ms: CLASSIC_OFFER_MS };
       // pass & play: no time limit (the phone first has to reach the right person)
-      if (!this.hotseat) this._later(() => {
-        if (this.pendingIncomingTrade?.id !== id) return;
-        this.addLog(`${fromPlayer.name}'s offer expired.`);
-        this.resolveIncomingTrade(false, true);
-      }, CLASSIC_OFFER_MS);
+      // v1.2x: touching / holding the card pauses the countdown (as in Rush)
+      if (!this.hotseat) {
+        let left = CLASSIC_OFFER_MS;
+        const tick = () => {
+          if (this.pendingIncomingTrade?.id !== id) return;
+          if (!this._offerHeld) left -= 100;
+          if (left > 0) { this._later(tick, 100); return; }
+          this.addLog(`${fromPlayer.name}'s offer expired.`);
+          this.resolveIncomingTrade(false, true);
+        };
+        this._later(tick, 100);
+      }
       if (this.hotseat) this.render(); // pass & play: the cover hands the phone to the receiver first
       else this._renderRushOffers();
     });
@@ -4391,6 +4404,7 @@ class ColonistFullGame {
       this.addLog(this._you(human) ? `You accepted ${fromPlayer.name}'s trade: got ${resourceString(give)} for ${resourceString(want)}.`
         : `${human.name} traded with ${fromPlayer.name}: got ${resourceString(give)} for ${resourceString(want)}.`);
       this.sfx.trade();
+      if (this._you(human)) this.pushToast(`Trade done: got ${resourceString(give)} for ${resourceString(want)}`, "important");
     } else if (!expired) {
       this.addLog(this._you(human) ? `You rejected ${fromPlayer.name}'s trade offer.` : `${human.name} declined ${fromPlayer.name}'s offer.`);
     }
@@ -6143,6 +6157,15 @@ class ColonistFullGame {
     return Math.round(slow - t * (slow - fast));
   }
 
+  /** "Bots: Intermediate" for the in-game menu header ("" when no bots). */
+  _botLevelLabel() {
+    const names = [...new Set(this.players.filter((q) => !q.isHuman && q.strategy).map((q) => {
+      const k = q.personality && AI_PRESET_INFO[q.personality] ? q.personality : presetForStrategy(q.strategy);
+      return AI_PRESET_INFO[k]?.label || "Custom";
+    }))];
+    return names.length ? `Bots: ${names.join(", ")}` : "";
+  }
+
   _syncSpeedLabel() {
     if (!this.speedRange) return;
     const ms = this.botStepMs();
@@ -6672,6 +6695,7 @@ class ColonistFullGame {
         this._animateTradeCards(offer.want, offer.give, this._offerCardEl());
         this.sfx.trade();
         this.addLog(`You traded with ${from.name}: got ${resourceString(offer.give)} for ${resourceString(offer.want)}.`);
+        this.pushToast(`Trade done: got ${resourceString(offer.give)} for ${resourceString(offer.want)}`, "important");
         this._rushAfterAction(human);
       }
     }
@@ -6702,8 +6726,8 @@ class ColonistFullGame {
     if (!el) return;
     if (!el.__hold) { // v0.93: touching / holding the card pauses its countdown
       el.__hold = true;
-      const on = (e) => { if (e.target.closest?.(".rush-offer")) this._offerHeld = true; };
-      const off = () => { this._offerHeld = false; };
+      const on = (e) => { if (e.target.closest?.(".rush-offer")) { this._offerHeld = true; el.classList.add("held"); } };
+      const off = () => { this._offerHeld = false; el.classList.remove("held"); };
       el.addEventListener("pointerdown", on);
       ["pointerup", "pointercancel", "pointerleave"].forEach((t) => el.addEventListener(t, off));
     }
@@ -8754,9 +8778,15 @@ class ColonistFullGame {
         window.clearTimeout(this._tradeNoticeTimer);
         this._tradeNoticeTimer = this._later(() => { this._lastLogKey = null; this.renderLog(); }, RUSH_TRADE_NOTICE_MS - (now - real.time) + 20);
       }
-      const own = this._ownRollSummary();
+      let own = this._ownRollSummary();
       let line = null;
-      if (own) {
+      // v1.2x: never keep a stale "Roll: …" / "<bot> collects …" once the turn has moved on
+      const cpNow = this.currentPlayer;
+      const humanRollNext = !rush && !this.setupPhase && !this.winner && cpNow?.isHuman && this.phase === "pre_roll";
+      if (cpNow && !cpNow.isHuman) own = "";
+      if (humanRollNext) {
+        line = [this._enrichLogText("Your turn · roll the dice"), "dice"];
+      } else if (own) {
         // Right after your roll the line is about YOU, not the last bot that collected
         line = [this._enrichLogText(own), "dice"];
       } else if (real) {
@@ -8765,7 +8795,7 @@ class ColonistFullGame {
         const rm = /^Roll #(\d+): rolled \d+\.?$/.exec(real.text);
         if (rm) {
           const at = this.logEntries.indexOf(real), mine = this.logEntries.slice(at + 1).map((e) => /^You collect (.+)\.$/.exec(e.text)).find(Boolean);
-          t = `Roll: ${mine ? mine[1].split(", ").map((x) => `+${x}`).join(" · ") : "nothing for you"}`;
+          t = `Roll: ${mine ? mine[1].split(", ").map((x) => `+${x}`).join(" · ") : `nothing for you${this._nothingWhy(Number(/rolled (\d+)/.exec(real.text)?.[1]))}`}`;
         }
         line = [this._enrichLogText(t), this._logIcon(real.text)];
       } else if (this.currentPlayer && !this.winner) {
@@ -8808,8 +8838,21 @@ class ColonistFullGame {
     const m = i >= 0 ? /^Turn \d+: You rolled (\d+)\.$/.exec(L[i].text) : null;
     if (!m || m[1] === "7") return "";
     const mine = L.slice(i + 1).map((e) => /^You collect (.+)\.$/.exec(e.text)).find(Boolean);
-    const gain = mine ? mine[1].split(", ").map((p) => `+${p}`).join(" · ") : "nothing for you";
+    const gain = mine ? mine[1].split(", ").map((p) => `+${p}`).join(" · ") : `nothing for you${this._nothingWhy(Number(m[1]))}`;
     return `Roll: ${gain}`;
+  }
+
+  /** " · robber blocks your 6" / " · nothing on 8" for a roll that paid the human nothing. */
+  _nothingWhy(n) {
+    if (!n || n === 7) return "";
+    try {
+      const me = this._me?.() || this.players.find((q) => q.isHuman);
+      if (!me) return "";
+      const mine = this.geometry.hexes.filter((h) => h.number === n && h.nodes.some((id) => this.geometry.nodes[id].owner === me.id));
+      if (mine.some((h) => h.id === this.robberHexId)) return ` · robber blocks your ${n}`;
+      if (!mine.length) return ` · nothing on ${n}`;
+    } catch (_) {}
+    return "";
   }
 
   renderStatusAndControls() {
@@ -10418,7 +10461,7 @@ class ColonistFullGame {
     if (this.sea && hexId === this.sea.pirateHexId) return "The pirate is already there — pick another sea hex"; // ⚓
     const prot = [...new Set(this.geometry.hexes[hexId].nodes.map((id) => this.geometry.nodes[id].owner)
       .filter((o) => o != null && this._isRobberProtected(o, mover)))].map((o) => this.players[o].name);
-    return prot.length ? `${prot.join(" and ")} ${prot.length > 1 ? "are" : "is"} protected (${FRIENDLY_ROBBER_VP} points or fewer)` : "The robber can't go there";
+    return prot.length ? `${prot.join(" and ")} ${prot.length > 1 ? "are" : "is"} protected · players with ${FRIENDLY_ROBBER_VP} points or fewer can't be robbed` : "The robber can't go there";
   }
 
   _startRobberTimer() {
@@ -10741,7 +10784,7 @@ class ColonistFullGame {
     if (miss.length) return { miss, short: "need", text: `${t === "settlement" ? "Settlement" : t[0].toUpperCase() + t.slice(1)} · you need ${missingCostString(human.resources, COSTS[t])} more` };
     const spot = { road: () => this.geometry.edges.some((e) => this.canBuildRoad(human, e.id, { free })), settlement: () => this.geometry.nodes.some((n) => this.canBuildSettlement(human, n.id, false)),
       city: () => this.geometry.nodes.some((n) => this.canBuildCity(human, n.id, false)), ship: () => this.geometry.edges.some((e) => this.canBuildShip?.(human, e.id, { free })) };
-    if (!spot[t]()) return { short: "no spot", text: `No free spot for a ${t}` };
+    if (!spot[t]()) return { short: "no spot", text: `No free spot for a ${t}${t === "ship" ? " · Ships start from a coastal settlement or road" : ""}` };
     if (this.freeRoadsRemaining > 0 && t !== "road" && t !== "ship") return { short: "roads first", text: "Place the free roads first" };
     return null;
   }
@@ -10778,7 +10821,7 @@ class ColonistFullGame {
       const w = this._buildWhy(human, t);
       const free = this.freeRoadsRemaining > 0 && (t === "road" || t === "ship");
       const foot = !w ? `<span class="bc-n">${free ? "free" : `${this.piecesLeft(human, t)} left`}</span>`
-        : w.miss ? `<span class="bc-need">need ${w.miss.map(([r, n]) => `${n}<i class="mini-card"><svg viewBox="0 0 250 350" aria-hidden="true"><use href="#cardm-${r}"/></svg></i>`).join(" ")}</span>`
+        : w.miss ? `<span class="bc-need">need ${w.miss.map(([r, n]) => `${n}<i class="mini-card"><svg viewBox="0 0 250 350" aria-hidden="true"><use href="#cardm-${r}"/></svg></i> ${RESOURCE_LABEL[r]}`).join(" · ")}</span>`
         : `<span class="bc-need">${w.short}</span>`;
       return `<button type="button" class="bc-row${pa === t ? " sel" : ""}${w ? " off" : ""}" data-bc="${t}" aria-pressed="${pa === t}" aria-disabled="${!!w}" aria-label="${label}${w ? `: ${w.text}` : ""}">`
         + `<span class="bc-top">${icon(t)}<span class="bc-name">${label}</span></span><span class="bc-cost">${free ? "" : this._miniCost(COSTS[t], human.resources)}</span>${foot}</button>`;

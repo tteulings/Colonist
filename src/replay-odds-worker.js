@@ -1,7 +1,7 @@
 // v1.28 The Replay's running win chance, off the page (src/replay-odds.js): one step at a time, each result posted.
 //   → { type: "start", D }        ← { type: "step", s, p, ms } … { type: "done" }
 //   → { type: "at", id, s, upto } ← { type: "at", id, p }     (a moment inside a step, for the review's play-by-play)
-import { oddsRunner } from "./replay-odds.js?v=157";
+import { oddsRunner } from "./replay-odds.js?v=158";
 
 let R = null;
 self.onmessage = (e) => {

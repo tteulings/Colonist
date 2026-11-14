@@ -187,7 +187,8 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 .board-tools { position: absolute; left: var(--gut, 10px); top: 10px; display: flex; flex-direction: column; gap: 8px; z-index: 3; }
 .board-tools .btn { background: var(--float); border: var(--float-border); box-shadow: var(--float-shadow); color: var(--ink); border-radius: var(--fab-radius); }
 .board-tools .btn .ic { font-size: 24px; }
-.board-tools #zoomInBtn, .board-tools #zoomOutBtn { display: none; }
+.board-tools #zoomInBtn, .board-tools #zoomOutBtn { display: inline-flex; min-width: 0; width: 38px; height: 38px; padding: 0; justify-content: center; align-items: center; }
+.board-tools #zoomInBtn .ic, .board-tools #zoomOutBtn .ic { font-size: 20px; }
 
 .toasts { position: absolute; right: var(--gut, 12px); top: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 4; pointer-events: none; width: min(300px, 70%); align-items: flex-end; }
 .toasts .toast { display: none; }
@@ -1298,8 +1299,9 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .app .rush-offer-accept { min-height: 44px; padding: 0 14px; font-size: 15px; }
 .app .rush-offer-accept:disabled { opacity: .4; filter: grayscale(1); }
 .app .rush-offer-decline { width: 44px; height: 44px; }
-.offer-time { height: 2px; bottom: 2px; background: transparent; }
-.offer-time i { opacity: .35; }
+.offer-time { height: 5px; bottom: 3px; background: var(--sep); border-radius: 3px; }
+.offer-time i { opacity: 1; background: var(--accent); border-radius: 3px; }
+.rush-offers.held .offer-time i { animation-play-state: paused !important; opacity: .6; }
 .rush-offers[data-more]:not([data-more=""])::before { right: 10px; top: -10px; }
 @media (max-width: 400px) {
   .rush-offer-deal .oc .on { display: none; }
@@ -1442,7 +1444,8 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .app .ticker.act .txt, .app .ticker.act .tk-main { color: var(--primary-ink); font-weight: 800; -webkit-line-clamp: 1; white-space: nowrap; }
 .app .ticker.act .ticker-ic { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--primary-ink); color: var(--primary); flex: none; }
 .app .ticker.act .ticker-ic .ic { font-size: 22px; }
-.app .ticker.act .more, .app .ticker.act .tk-cancel { color: var(--primary-ink); }
+.app .ticker.act .more { color: var(--primary-ink); }
+.app .ticker.act .tk-cancel { background: var(--primary-ink); color: var(--primary); border-color: transparent; box-shadow: none; font-weight: 800; }
 /* v0.81: "Move robber" in the primary slot — a disabled primary button: it says what is pending, End turn waits */
 .app .primary-slot .waiting.robber-wait { background: var(--primary); background-image: var(--primary-image); color: var(--primary-ink); border: var(--primary-border); opacity: .62; cursor: not-allowed; }
 .app .primary-slot .waiting.robber-wait .wt small { color: var(--primary-ink); opacity: .85; }
@@ -2597,3 +2600,16 @@ html[data-motion="reduced"] .rush-offer.rush { transition: none; }
 .tgrid .tbk { display: inline-flex; align-items: center; gap: 3px; }
 .tgrid .tbk .ic { width: 12px; height: 12px; font-size: 12px; display: block; opacity: .85; }
 .tgrid .tbk.low { color: var(--bk-low-ink); }
+
+/* v1.2x usability: visible tiny labels on the player chips; home swipes scroll instead of selecting */
+@media (max-width: 760px) {
+  [data-theme] .app .pstrip .pchip .vpn { flex-direction: row; align-items: baseline; gap: 1px; }
+  [data-theme] .app .pstrip .pchip .vpn small { display: inline; font-size: 7px; letter-spacing: 0; font-weight: 750; text-transform: lowercase; opacity: .85; margin-left: 1px; flex-basis: auto; }
+  .app .pstrip .pchip .pcards span::after { content: "cards"; font-size: 8.5px; font-weight: 700; margin-left: 2px; opacity: .85; }
+  .app .pstrip:has(.pchip:nth-child(5)) .pchip .pcards span::after, .app .pstrip:has(.pchip:nth-child(5)) .pchip .vpn small { display: none; }
+}
+.home, .home .hm-card, .home .hm-tile, .home button, .home .hm-row, .home .hm-brand, .home a { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.mn-sub { margin: 0 2px 6px; font-size: 13px; font-weight: 700; color: var(--ink-soft); }
+.mn-speed { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px 12px; margin: 0 2px 8px; padding: 8px 12px; border-radius: 12px; background: var(--sep, rgba(0,0,0,.06)); font-size: 14px; font-weight: 750; color: var(--heading); }
+.mn-speed input { width: 100%; min-width: 0; }
+.mn-speed em { grid-column: 2; justify-self: end; font-style: normal; font-size: 11px; font-weight: 650; color: var(--ink-soft); }

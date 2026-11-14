@@ -613,7 +613,7 @@ export class SvgBoardRenderer {
     const px = 1 / (this.u * g.view.scale);
     g.geometry.hexes.forEach((h) => {
       // ⚓ Seafarers: the sea is never dimmed (robber mode simply ignores it; pirate mode dims the land)
-      if (!legal.has(h.id)) { if (h.id !== g.robberHexId && !(g.sea && h.resource === "sea")) this.dimHex(h.id, 1); return; }
+      if (!legal.has(h.id)) { if (h.id !== g.robberHexId && !(g.sea && h.resource === "sea")) { this.dimHex(h.id, 1); this.dimHex(h.id, 1); } return; }
       const c = this.hexArt(h);
       // v0.82: no white rim on every legal tile (nearly all of them are legal: it read as heavy borders). The
       // illegal tiles are dimmed (above); the legal ones only brighten very slightly on a slow beat, and the tile
@@ -839,22 +839,22 @@ export class SvgBoardRenderer {
     const br = reduced ? 0.5 : 0.5 - 0.5 * Math.cos(((now - this._placeStart) / 3600) * Math.PI * 2);
     const fade = e * (0.82 + 0.18 * br);
     // set-up (most corners legal): quieter dots, ~50% opacity at ~70% size, so the board doesn't turn busy
-    const busy = nodes.length + cities.length > 20 ? [0.5, 0.7] : [1, 1];
+    const busy = nodes.length + cities.length > 20 ? [0.8, 0.85] : [1, 1];
     // v0.84: one piece chosen on the build card: its spots a little stronger (ring, dot, dashes)
     const k = !g.setupPhase && ["road", "settlement", "city", "ship"].includes(type) ? 1.35 : 1;
     const ring = (x, y, r, dot) => {
       ctx.save(); ctx.translate(x, y); ctx.globalAlpha = fade;
-      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.lineWidth = 1.5 * k * px; ctx.strokeStyle = k > 1 ? "rgba(255,255,255,.82)" : "rgba(255,255,255,.55)"; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.lineWidth = 2.2 * k * px; ctx.strokeStyle = k > 1 ? "rgba(255,255,255,.95)" : "rgba(255,255,255,.85)"; ctx.stroke();
       if (dot) { ctx.globalAlpha = fade * busy[0]; ctx.beginPath(); ctx.arc(0, 0, 3 * busy[1] * (k > 1 ? 1.2 : 1) * px, 0, Math.PI * 2); ctx.fillStyle = c.base; ctx.fill(); ctx.lineWidth = 0.8 * px; ctx.strokeStyle = c.line || c.dark || "rgba(0,0,0,.4)"; ctx.stroke(); }
       ctx.restore();
     };
     edges.forEach((id) => {
       if (cb && cb.type === "road" && cb.id === id) return;
       const [a, b] = this.roadEnds(g.geometry.edges[id]);
-      ctx.save(); ctx.lineCap = "round"; ctx.globalAlpha = Math.min(1, 0.75 * k) * fade;
-      ctx.setLineDash([4 * px, 5 * px]);
+      ctx.save(); ctx.lineCap = "round"; ctx.globalAlpha = Math.min(1, 0.95 * k) * fade;
+      ctx.setLineDash([6 * px, 5 * px]);
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-      ctx.lineWidth = 2.5 * k * px; ctx.strokeStyle = c.base; ctx.stroke();
+      ctx.lineWidth = 3.6 * k * px; ctx.strokeStyle = c.base; ctx.stroke();
       ctx.restore();
     });
     if (ships.length) drawShipSpots(this, ctx, ships, cb, { a: 0.4 * fade, e: 0.5 }, c); // ⚓ ghost hulls on the legal edges (v0.98)
