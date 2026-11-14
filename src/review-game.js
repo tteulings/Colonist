@@ -850,6 +850,16 @@ export const ReviewGameMixin = {
     if (robbed) return `Robbed · ${robbed} stolen`;
     return cards ? `Others pulled ahead · +${cards} for ${this._rvIsYou(me) ? "you" : "them"}${paid > 1 ? ` over ${paid} rolls` : ""}` : shift ? "A 7 and no cards" : "No cards from your numbers";
   },
+  /** The seat that rolled the best-paying dice in the stretch before ds[k] (null when unknown). */
+  _rvRollActor(ds, k) {
+    const st = this._st, d = ds[k], p = ds[k - 1], me = this._rvPid; if (!st || !p || !d) return null;
+    let best = null;
+    for (let s = (p.x.s ?? 0) + 1; s <= (d.x.s ?? 0) && s <= st.N; s++) {
+      let c = 0; (st.stepEvents[s] || []).forEach((e) => { if (e[1] === "P" && e[2] === me) c += e[5] || 1; });
+      const step = st.steps[s - 1]; if (step && c && (!best || c > best.c)) best = { c, a: step[1] };
+    }
+    return best && best.a >= 0 ? best.a : null;
+  },
   _rvKind(d) { return { setup: "Setup", build: "Build", bank: "Bank", buy: "Dev card", play: "Dev card", robber: "Robber", end: "Turn end" }[d.k] || ""; },
   _rvShort(d) { const l = d.x.label || ""; return d.k === "end" ? "End turn" : l.replace(/ toward .*/, "").replace(/ on .*/, "").replace(/^Bank trade.*/, "Bank trade"); },
   /** Win-chance chart: a thin line per player, yours thick; below it bars for the chance term (grey) and your moves (red). */
@@ -1029,9 +1039,9 @@ export const ReviewGameMixin = {
     const cmpText = lv ? (lv.band ? `${lv.label} bots usually score ${Math.round(lv.band[0])} ± ${Math.round(lv.band[1])} on their own moves${prov ? " (the deep check)" : ""}.` : "") : prov ? "" : rv.midCheck ? `Checked during the game · not in your average. ${cmp.text}` : cmp.text;
     const sg = (v) => sgn(v * 100), ico = IC.next.replace("<svg", '<svg class="chev"');
     const imp = this._rvImp(ds);
-    const mine = imp.slice(0, 5).map((d) => ({ T: this._rcTurnOf?.(d), m: d.gap * 100, h: `<button type="button" class="rs-key rs-imp" data-rvj="${d.i}" data-rvq="imp">${badge(d.cls)}<span class="t">${this._rvWhen(d)}</span><span class="x">${esc(this._rvTerse(d))}${d.x.why?.head ? `<small class="w">${esc(d.x.why.head)}</small>` : ""}</span><b class="neg">${sg(-d.gap)}%</b>${ico}</button>` }));
+    const mine = imp.slice(0, 5).map((d) => ({ T: this._rcTurnOf?.(d), P: pid, m: d.gap * 100, h: `<button type="button" class="rs-key rs-imp" data-rvj="${d.i}" data-rvq="imp">${badge(d.cls)}<span class="t">${this._rvWhen(d)}</span><span class="x">${esc(this._rvTerse(d))}${d.x.why?.head ? `<small class="w">${esc(d.x.why.head)}</small>` : ""}</span><b class="neg">${sg(-d.gap)}%</b>${ico}</button>` }));
     const swings = ds.filter((d, k) => Math.abs(d.cp) >= 3 && !(k && (ds[k - 1].x.s ?? 0) === (d.x.s ?? 0))).sort((a, b) => Math.abs(b.cp) - Math.abs(a.cp)).slice(0, 3);
-    const oth = swings.map((lk) => ({ T: this._rcTurnOf?.(lk), m: Math.abs(lk.chance) * 100, h: `<button type="button" class="rs-key" data-rvj="${lk.i}"><i class="rs-b c-luck sm" aria-hidden="true">⚄</i><span class="t">${this._rvWhen(lk)}</span><span class="x">${esc(this._rvCause(ds, ds.indexOf(lk)))}</span><b class="${lk.cp >= 0 ? "pos" : "neg"}">${sg(lk.chance)}%</b>${ico}</button>` }));
+    const oth = swings.map((lk) => ({ T: this._rcTurnOf?.(lk), P: this._rvRollActor(ds, ds.indexOf(lk)), m: Math.abs(lk.chance) * 100, h: `<button type="button" class="rs-key" data-rvj="${lk.i}"><i class="rs-b c-luck sm" aria-hidden="true">⚄</i><span class="t">${this._rvWhen(lk)}</span><span class="x">${esc(this._rvCause(ds, ds.indexOf(lk)))}</span><b class="${lk.cp >= 0 ? "pos" : "neg"}">${sg(lk.chance)}%</b>${ico}</button>` }));
     const f = ["you", "oth"].includes(this._rvKm) ? this._rvKm : "all";
     const list = f === "you" ? mine : f === "oth" ? oth : [...mine, ...oth].sort((a, b) => b.m - a.m).slice(0, 5);
     const seg = [["all", "All"], ["you", you ? "You" : nm], ["oth", "Others"]].map(([k, l]) => `<button type="button" class="${k === f ? "on" : ""}" aria-pressed="${k === f}" data-rvkm="${k}">${l}</button>`).join("");
@@ -1177,7 +1187,7 @@ export const ReviewGameMixin = {
         const b2 = what.builds.filter((q) => q.pid === top.p).sort((a1, a2) => a2.vp - a1.vp)[0], got = what.cards?.[top.p] || 0;
         const parts = [...(what.builds.some((q) => q.kind === "c") ? ["city"] : []), ...(what.builds.some((q) => q.kind === "s") ? ["settlement"] : []), ...what.acts.filter((q) => q.k === "mono").map((q) => `Monopoly +${q.n} ${q.res}`), ...(Object.values(what.roads).some((n) => n) ? ["road"] : []), ...(what.acts.some((q) => q.k === "bank" || q.k === "trade") ? [`${what.acts.filter((q) => q.k === "bank" || q.k === "trade").length} trades`] : []), ...what.acts.filter((q) => q.k === "dev" && q.type !== "monopoly").map(() => "dev card")];
         const mo = what.acts.find((a) => a.k === "mono" && a.p === top.p), ml = what.acts.find((a) => a.k === "mono" && a.p !== top.p && (a.lost[top.p] || 0) > 0), st2 = what.acts.find((a) => a.k === "steal" && (a.p === top.p || a.q === top.p));
-        const cause = top.k !== "roll" && parts.length > 1 && what.actor != null ? `${what.actor === top.p ? "" : this._rvIsYou(what.actor) ? "Your " : `${this._rvNm(what.actor)}’s `}${what.actor === top.p ? "turn" : "turn"}: ${parts.join(", ")}` : top.k !== "roll" && mo ? `Monopoly: took ${mo.n} ${mo.res}${what.lostTxt(mo)}` : top.k !== "roll" && ml ? `${this._rvNm(ml.p)} played Monopoly and took ${ml.lost[top.p]} ${ml.res} from ${this._rvNm(top.p)}` : top.k !== "roll" && st2 && !b2 ? "a card stolen" : top.k === "roll" ? (got ? `the roll paid ${got} ${got === 1 ? "card" : "cards"}` : what.robber != null && top.x < 0 ? "the roll moved the robber" : "the roll (luck)") : b2 ? (b2.bonus ? "built a settlement on a new island (+3 VP with the island bonus)" : b2.kind === "c" ? "built a city" : "built a settlement") : what.robber === top.p ? "moved the robber" : "the moves of this turn";
+        const cause = top.k !== "roll" && parts.length > 1 && what.actor != null ? `${what.actor === top.p ? "" : this._rvIsYou(what.actor) ? "Your " : `${this._rvNm(what.actor)}’s `}${what.actor === top.p ? "turn" : "turn"}: ${parts.join(", ")}` : top.k !== "roll" && mo ? `Monopoly: took ${mo.n} ${mo.res}${what.lostTxt(mo)}` : top.k !== "roll" && ml ? `${this._rvNm(ml.p)} played Monopoly and took ${ml.lost[top.p]} ${ml.res} from ${this._rvNm(top.p)}` : top.k !== "roll" && st2 && !b2 ? "a card stolen" : top.k === "roll" ? (got ? `the roll paid ${got} ${got === 1 ? "card" : "cards"}` : what.robber != null && top.x < 0 ? "the roll moved the robber" : "the roll (luck)") : b2 ? (b2.bonus ? "built a settlement on a new island (+3 points with the island bonus)" : b2.kind === "c" ? "built a city" : "built a settlement") : what.robber === top.p ? "moved the robber" : "the moves of this turn";
         topTxt = `<b>Biggest effect:</b> ${this._rvNm(top.p)} <span class="${top.x > 0 ? "pos" : "neg"}">${sgp(top.x)}</span>, ${esc(cause)}.`;
       }
       rows = `<div class="rvw-l">Before the roll</div>${bar(ent.b)}<div class="rvw-l">After the roll <em>luck: ${this._rvNm(me)} ${sgp(ent.a[me] - ent.b[me])}</em></div>${bar(ent.a)}<div class="rvw-l">End of the turn <em>moves: ${this._rvNm(me)} ${sgp(ent.e[me] - ent.a[me])}</em></div>${bar(ent.e)}${exact ? `<div class="rvw-l">Your checked move <em>deeper, step mode</em></div>${bar(exact)}` : ""}`;

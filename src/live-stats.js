@@ -370,7 +370,7 @@ export const LiveStatsMixin = {
       title = `${nm(leader)} ${verb} with ${top} point${top === 1 ? "" : "s"}${top - second >= 2 ? `, ${top - second} ahead` : ""}`;
     }
     return card.replace(/<h2>[\s\S]*?<\/h2>/, `<h2>${title}</h2>`).replace('data-card="race"', `data-card="race" data-vp="${now.join(",")}"`)
-      .replace(`<div class="gs-sub">Points over time</div>`, `<div class="gs-sub">Points so far · hidden VP cards not counted</div>`);
+      .replace(`<div class="gs-sub">Points over time</div>`, `<div class="gs-sub">Points so far · hidden point cards not counted</div>`);
   },
 };
 

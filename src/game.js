@@ -8396,7 +8396,7 @@ class ColonistFullGame {
         const fresh = st === "next";
         const name = DEV_NAME[t];
         const sel = this.devSel === t;
-        const tag = st === "vp" ? '<span class="dtag dt-vp" aria-hidden="true">+1 VP</span>' : fresh ? `<span class="dtag dt-nx" aria-hidden="true">${when}</span>` : "";
+        const tag = st === "vp" ? '<span class="dtag dt-vp" aria-hidden="true">+1 pt</span>' : fresh ? `<span class="dtag dt-nx" aria-hidden="true">${when}</span>` : "";
         const play = sel && st === "ready" ? `<span class="dplay" data-dev-go="${t}" role="button" aria-label="Play ${name}">Play</span>` : "";
         return `<button type="button" class="card dev ds-${st}${fresh ? " new" : ""}${sel ? " dsel-on" : ""}${this._newDevPulse === t ? " drawn" : ""}" data-dev="${t}" style="${fan(RESOURCES.length + j)}" aria-pressed="${sel}" aria-label="${name}: ${devCounts[t]}${fresh ? ` (playable ${when})` : st === "ready" ? " (tap to play)" : ""}" title="${name}: ${CARD_TEXT[t]}${fresh ? ` — playable ${when}` : ""}" data-n="${Math.min(devCounts[t], 4)}">${cardSvg(t)}<span class="count">${devCounts[t]}</span><span class="rib" aria-hidden="true"><b>${devCounts[t]}</b><span>${name}</span></span>${tag}${play}</button>`;
       }).join("");
@@ -8577,7 +8577,7 @@ class ColonistFullGame {
     const mini = (k, n, low, sym = `cardm-${k}`, tip = "") => `<span class="hi-c${low ? " low" : ""}"${tip ? ` title="${tip}"` : ""}><svg class="hi-card" viewBox="0 0 250 350" aria-hidden="true"><use href="#${sym}"/></svg><b>${n}</b></span>`;
     const who = this.hotseat ? `${human.name}` : "You";
     pop.innerHTML = `<div class="hi-h"><span>${who}</span><span class="hi-n${total > limit ? " warn" : ""}">${icon("cards")}<b>${total}</b>${total > limit ? `<small>max ${limit}</small>` : ""}</span><span class="hi-n">${icon("devcard")}<b>${devTotal}</b></span></div>`
-      + (dev.length ? `<div class="hi-dev">${dev.map(([t, n]) => `<span>${n > 1 ? `${n}× ` : ""}${t === "victoryPoint" ? "VP" : SHORT_DEV[t]}</span>`).join("")}</div>` : "")
+      + (dev.length ? `<div class="hi-dev">${dev.map(([t, n]) => `<span>${n > 1 ? `${n}× ` : ""}${t === "victoryPoint" ? "pt" : SHORT_DEV[t]}</span>`).join("")}</div>` : "")
       + `<div class="hi-h hi-bank"><span>${icon("bank")}Bank</span></div>`
       + `<div class="hi-row">${RESOURCES.map((r) => mini(r, this.bank[r], this.bank[r] <= 3)).join("")}<i class="hi-sep" aria-hidden="true"></i>${mini("deck", deck, deck <= 3, "card-back", `${deck} development card${deck === 1 ? "" : "s"} left in the deck`).replace("hi-c", "hi-c hi-deck")}</div>`;
     pop.hidden = false;
@@ -9331,7 +9331,7 @@ class ColonistFullGame {
       const uniq = [...new Set(bots)];
       const mode = d.mode === "rush" ? `<strong>Rush · ${d.rushInterval}s rolls</strong>` : "<strong>Classic</strong>";
       const extras = [
-        d.board === "seafarers" ? "Seafarers · 14 VP" : `${d.winPoints} VP`, // ⚓
+        d.board === "seafarers" ? "Seafarers · 14 points" : `${d.winPoints} points`, // ⚓
         discardLimitFor(d) !== 7 ? `discard over ${discardLimitFor(d)}` : null,
         d.friendlyRobber ? "friendly robber" : null,
         `${d.dice === "deck" ? "event-deck" : d.dice} dice`,
@@ -9942,7 +9942,7 @@ class ColonistFullGame {
       { label: `Settlements (${settlements}/5)`, value: settlements },
       { label: `Cities (${cities}/4)`, value: `${cities} x 2 = ${cities * 2}` },
     ];
-    if (devVP > 0) vpRows.push({ label: "Dev VP", value: devVP });
+    if (devVP > 0) vpRows.push({ label: "Dev points", value: devVP });
     if (longestRoad) vpRows.push({ label: this.sea ? "Longest Trade Route" : "Longest Road", value: 2 }); // ⚓
     vpRows.push(...this._seaVpRows(player));
     if (largestArmy) vpRows.push({ label: "Largest Army", value: 2 });
@@ -10724,7 +10724,7 @@ class ColonistFullGame {
     if (this.robberVictimOptions?.length) {
       return { mode: "victims", hint: "Steal from… · tap a player",
         html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>1 random card</small></div>` + this._victimGrid(this.robberVictimOptions.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
-          return tbtn(`data-steal="${id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}`); })) };
+          return tbtn(`data-steal="${id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} pts</small></span>`, `victim pc-${id}`); })) };
     }
     if (this.pendingAction === "robber" && cb?.type === "robber") {
       const info = this._robberTileInfo(cb.id, cur);
@@ -10738,7 +10738,7 @@ class ColonistFullGame {
       if (vic.length > 1 && (!cb.victim || this.confirmPlacements)) {
         return { mode: "robber", hint: this.confirmPlacements ? "Steal from… pick a player, then Place" : "Steal from… · tap a player",
           html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>${pir ? lead : `${where} · ${blocks}${own}`}</small></div>` + this._victimGrid(vic.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
-            return tbtn(`data-victim="${id}" aria-pressed="${cb.victim === id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} VP</small></span>`, `victim pc-${id}${cb.victim === id ? " sel" : ""}`); }))
+            return tbtn(`data-victim="${id}" aria-pressed="${cb.victim === id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} pts</small></span>`, `victim pc-${id}${cb.victim === id ? " sel" : ""}`); }))
             + (this.confirmPlacements ? tbtn(`data-rob-now ${cb.victim != null ? "" : "disabled"}`, `${icon("check")}<span>Place</span>`, "primary") : "")
             + close("data-rob-undo", "Pick another tile") };
       }
@@ -11345,7 +11345,7 @@ class ColonistFullGame {
       h += `<${tag}${r.canRob ? ` type="button" role="radio" aria-checked="${sel}" data-victim="${r.id}"` : ""} class="cp-victim pc-${r.id}${sel ? " sel" : ""}${r.canRob ? "" : " off"}">`
         + `${this._av(this.players[r.id])}<span class="cv-main"><span class="cv-name"><b class="who pc-${r.id}">${r.name}</b>${r.leader ? '<span class="cv-lead">Leader</span>' : ""}</span>`
         + `<span class="cv-meta"><span title="Resource cards">${icon("cards")}${r.cards}</span><span title="Development cards">${icon("devcard")}${r.dev}</span><span class="cv-bld">${bld(r)}</span></span></span>`
-        + `<span class="cv-vp">${r.vp}<small>VP</small></span>${pick && r.canRob ? '<span class="cv-radio" aria-hidden="true"></span>' : ""}</${tag}>`;
+        + `<span class="cv-vp">${r.vp}<small>pts</small></span>${pick && r.canRob ? '<span class="cv-radio" aria-hidden="true"></span>' : ""}</${tag}>`;
     });
     if (info.own) h += `<div class="cp-note">Your ${info.own.c ? "city" : "settlement"}${info.own.s + info.own.c > 1 ? "s" : ""} here would be blocked too</div>`;
     return h;

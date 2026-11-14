@@ -7,7 +7,7 @@ import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette
 /** Shown in Settings › About and on the settings button; bumped with every release. */
 import { liveWinOn, setLiveWin, liveRefineOn, setLiveRefine } from "../live-bar.js";
 import { recapLang, setRecapLang, recapPoints, setRecapPoints } from "../review-recap.js";
-export const APP_VERSION = "1.64";
+export const APP_VERSION = "1.65";
 
 /** v1.34 Settings: the running version and "Check for updates" (index.html: reg.update() + a version compare). */
 function versionRow() {

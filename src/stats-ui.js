@@ -368,7 +368,7 @@ export const StatsUiMixin = {
 
   /** Where the points came from (final): adds up to every player's score. */
   _stCardSources(st) {
-    const parts = [["settlements", "settlement", "Settlements"], ["cities", "city", "Cities"], ["road", "longestRoad", this.sea ? "Longest Trade Route" : "Longest Road"], ["army", "largestArmy", "Largest Army"], ["cards", "vp", "VP cards"], ["islands", "settlement", "Islands"]];
+    const parts = [["settlements", "settlement", "Settlements"], ["cities", "city", "Cities"], ["road", "longestRoad", this.sea ? "Longest Trade Route" : "Longest Road"], ["army", "largestArmy", "Largest Army"], ["cards", "vp", "Point cards"], ["islands", "settlement", "Islands"]];
     const used = parts.filter(([k]) => st.sources.some((s) => s[k] > 0));
     const maxV = Math.max(...st.sources.map((s) => s.total), 1);
     const ranked = [...this.players].sort((a, b) => b.victoryPoints - a.victoryPoints);
