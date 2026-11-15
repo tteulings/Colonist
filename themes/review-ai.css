@@ -103,3 +103,21 @@ b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { c
 .ai-c.col { padding: 0; } .ai-colb { display: grid; gap: 2px; width: 100%; min-width: 0; text-align: left; border: 0; background: none; padding: 8px 10px; min-height: 40px; cursor: pointer; color: var(--ink); font: 500 12px/1.3 var(--font-body); }
 .ai-colb b { font-weight: 750; color: var(--heading); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ai-colb span { color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-c.flash { animation: aiflash 1.1s ease-out 1; }
+
+/* v1.75: all-players strategy rows and the near-miss visual */
+.ai-plan.all { gap: 8px; } .ai-pr2 { min-width: 0; }
+.ai-pr2 .hd { display: flex; align-items: baseline; gap: 6px; min-width: 0; } .ai-pr2 .n { font: 750 12px/1.2 var(--font-body); color: var(--pc-text, var(--pc)); overflow-wrap: anywhere; }
+.ai-pr2 em { font: 600 10.5px/1.2 var(--font-body); font-style: normal; color: var(--ink-soft); flex: 1; min-width: 0; } .ai-pr2 .hd b { font: 750 11px/1 var(--font-body); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.ai-pr2 svg { display: block; width: 100%; height: auto; max-height: 28px; margin-top: 1px; } .ai-pr2 .ln { stroke: color-mix(in srgb, var(--ink) 16%, transparent); stroke-width: 1; } .ai-pr2 .bd { fill: color-mix(in srgb, var(--primary) 14%, transparent); }
+.ai-pr2 .cl { font: 500 12px/1.3 var(--font-body); color: var(--ink); margin-top: 1px; }
+.ai-nm { display: grid; gap: 8px; } .ai-nm .nm-hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; font: 600 12px/1.3 var(--font-body); color: var(--ink-soft); } .ai-nm .nm-hd > b { font: 800 20px/1 var(--font-body); color: var(--ink); font-variant-numeric: tabular-nums; } .ai-nm .nm-hd i { font-style: normal; }
+.ai-nm .nm-b { margin-left: auto; } .ai-nm .nm-b b { color: var(--ink); }
+.ai-nm .nm-need { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.ai-nm .nm-ic { display: inline-flex; align-items: center; gap: 5px; font: 750 12.5px/1.2 var(--font-body); color: var(--ink); } .ai-nm .nm-ic svg { flex: none; } .ai-nm .nm-ic .f { fill: var(--ink); } .ai-nm .nm-ic .l, .ai-nm .nm-ic .a { fill: none; stroke: var(--ink); stroke-width: 1.8; } .ai-nm .nm-ic .v { fill: #C99A2E; } .ai-nm .nm-ic small { font-weight: 600; color: var(--ink-soft); }
+.ai-nm .nm-ar { font: 700 16px/1 var(--font-body); color: var(--ink-soft); }
+.ai-nm .nm-ms { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; } .ai-nm .nm-ms small { flex-basis: 100%; font: 700 10px/1 var(--font-body); text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); }
+.ai-nm .ai-r.ok { --rc: #2F7D4E; } .ai-nm .nm-away { font: 600 12px/1.3 var(--font-body); color: var(--ink-soft); } .ai-nm .nm-away b { color: var(--ink); }
+.ai-pr2 .cl.soft { color: var(--ink-soft); font-size: 11px; }
+.ai-bd .bd2 { display: flex; gap: 4px; width: 100%; } .ai-bd .bdp { position: relative; flex: 1; min-width: 0; } .ai-bd .bdp img { display: block; width: 100%; height: auto; }
+.ai-nm .nm-b { display: inline-flex; align-items: center; gap: 5px; }
+.ai-nm .nm-b { border: 0; box-shadow: none; background: none; padding: 0; min-height: 0; }

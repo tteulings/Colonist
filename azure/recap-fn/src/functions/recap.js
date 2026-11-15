@@ -4,7 +4,7 @@
 const { app } = require("@azure/functions");
 
 const MAX_FACTS = 40000;       // characters of game facts accepted
-const MAX_OUT = 1600;          // completion tokens (reasoning included)
+const MAX_OUT = 2600;          // completion tokens (reasoning included)
 const PER_IP_HOUR = 20;        // simple abuse guard per instance
 const hits = new Map();
 const EXPLAIN = `You explain one moment of a finished game of a Catan-like board game to the human player ("You"), like an analyst talking to a friend.
@@ -33,19 +33,23 @@ const GAME_SCHEMA = { type: "object", additionalProperties: false, required: ["a
 const INSIGHTS = `You curate the AI tab for ONE finished game of a Catan-like board game for the human player ("You"). Every game is different: pick what is genuinely interesting in THIS game, not a fixed template.
 Use ONLY the facts given (review engine data). Never invent moves, numbers or reasons.
 DECISIONS: in the facts, "played" (or B) is the move that was ACTUALLY made in the game; "better" (or A) is the engine\'s better alternative that was NOT played. Never describe the better move as if it was played, never swap players, and only attribute a move to the player named in the facts.
-Choose 3 to 6 insight cards, ordered as a story, mixing levels where the facts support it:
+Choose 4 to 7 insight cards, ordered as a story, mixing levels where the facts support it:
 - level "game": what decided the game (luck, a plan, a single moment);
 - level "decision": one specific decision of you or an opponent that mattered (what was played, what was better, why);
 - level "strategy": the point plan of you or an opponent and how it worked out, or a pattern (e.g. "Blaauw went for cities and the army; nobody blocked his ore").
-Skip levels with nothing interesting. For each card pick the visual that explains it best: view = "winchance" | "luck" | "points" | "plan" | "board" | "moves" | "none"; turns (max 4), focusTurn (or null), players (names it is about).
-WRITE FOR A PHONE SCREEN. Hard limits: headline max 14 words; card title max 6 words; card text exactly ONE complete sentence of max 16 words (never rely on truncation, no trailing clauses), a concrete fact with a number or name; never repeat the same point in two cards (merge similar strategy cards into one); each followUp max 24 characters (e.g. "Why did I lose?").
-Return JSON: headline, cards[] {level, title, text, view, turns, focusTurn, players}, followUps (3 short questions this game invites, specific to it).
+Skip levels with nothing interesting, EXCEPT these two cards which are ALWAYS required:
+(1) CLOSE GAME: if facts.nearMiss.margin is 2 or less (you lost by 1-2 points, or won by 1-2), ALWAYS include one level "game" card about how close it was, view "nearmiss", players ["You"], turns = [nearMiss.bestWinChance.turn]. Use nearMiss only: points vs the winner, the best win chance turn, and when you lost: what the cheapest next point needed (nearMiss.needed, nearMiss.finalHand missing resources) and "about N turns away" from nearMiss.turnsAway (call it an estimate, e.g. "You were one point away: a settlement needed 1 wood and 1 wheat, about 4 turns off."). If turnsAway is null say the production was missing. If you won, say how close the others came. Never invent a need that nearMiss does not give.
+(2) ALL STRATEGIES: ALWAYS include exactly one level "strategy" card with view "plan" and players = ALL players (every name in facts.plans, "You" included) that covers every player\'s win strategy. Use facts.plans[name].plan and its timeline. Its text is ONE short sentence of max 16 words on the overall pattern; additionally fill "clauses" with one entry per player {player: exact name, text: ONE short clause of max 12 words about how that player won or tried to win, with a turn number, e.g. "cities from turn 7, army on turn 14"}. For each player compare plan with fittingPlanFromStart (start = dice dots per resource of the set-up settlements) and planCoherencePct (share of their points that matched the fitting plan; roadsBuilt shows road spam): if coherence is low (under 50) say so bluntly and playfully in the clause, one short clause, e.g. "headless chicken: ore and grain start, yet roads everywhere" (Dutch "kip zonder kop"), never insulting; if high (70 or more) say the plan fitted the start. Use only these numbers. Other cards: clauses = []. For each card pick the visual that explains it best: view = "winchance" | "luck" | "points" | "plan" | "board" | "moves" | "nearmiss" | "none"; turns (max 4), focusTurn (or null), players (names it is about).
+WRITE FOR A PHONE SCREEN. Hard limits: headline max 14 words; card title max 6 words; card text exactly ONE complete sentence of max 16 words (the all-players strategy card also has its per-player clauses) (never rely on truncation, no trailing clauses), a concrete fact with a number or name; never repeat the same point in two cards (merge similar strategy cards into one); each followUp max 24 characters (e.g. "Why did I lose?").
+Return JSON: headline, cards[] {level, title, text, view, turns, focusTurn, players, clauses}, followUps (3 short questions this game invites, specific to it).
+CHECK BEFORE ANSWERING: (a) if facts.nearMiss.margin <= 2, one card has view "nearmiss" (not "none", not "points"); (b) exactly one strategy card has view "plan", players = every name in facts.plans, and its "clauses" has ONE entry per player (so 4 players = 4 clauses, empty clauses are a mistake). Example strategy card: {"level":"strategy","title":"Everyone's plan","text":"Blaauw's cities and army beat your roads.","view":"plan","turns":[],"focusTurn":null,"players":["You","Blaauw","Van Geelen"],"clauses":[{"player":"You","text":"settlements and roads, 11 built; plan fitted the start"},{"player":"Blaauw","text":"cities from turn 7, army on turn 14"},{"player":"Van Geelen","text":"headless chicken: ore and grain start, roads everywhere"}]}.
 Say "points" (Dutch "punten"), never "VP"; win chance as %.`;
 const INSIGHTS_SCHEMA = { type: "object", additionalProperties: false, required: ["headline", "cards", "followUps"], properties: {
   headline: { type: "string" },
-  cards: { type: "array", items: { type: "object", additionalProperties: false, required: ["level", "title", "text", "view", "turns", "focusTurn", "players"], properties: {
+  cards: { type: "array", items: { type: "object", additionalProperties: false, required: ["level", "title", "text", "view", "turns", "focusTurn", "players", "clauses"], properties: {
     level: { type: "string", enum: ["game", "decision", "strategy"] }, title: { type: "string" }, text: { type: "string" },
-    view: { type: "string", enum: ["winchance", "luck", "points", "plan", "board", "moves", "none"] }, turns: { type: "array", items: { type: "integer" } }, focusTurn: { type: ["integer", "null"] }, players: { type: "array", items: { type: "string" } } } } },
+    view: { type: "string", enum: ["winchance", "luck", "points", "plan", "board", "moves", "nearmiss", "none"] }, turns: { type: "array", items: { type: "integer" } }, focusTurn: { type: ["integer", "null"] }, players: { type: "array", items: { type: "string" } },
+    clauses: { type: "array", items: { type: "object", additionalProperties: false, required: ["player", "text"], properties: { player: { type: "string" }, text: { type: "string" } } } } } } },
   followUps: { type: "array", items: { type: "string" } } } };
 const EXPLAIN_SCHEMA = { type: "object", additionalProperties: false, required: ["answer", "points", "highlight"],
   properties: { answer: { type: "string" }, points: { type: "array", items: { type: "string" } }, highlight: { type: "string", enum: ["A", "B", "none"] } } };
