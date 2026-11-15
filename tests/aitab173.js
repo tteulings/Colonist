@@ -24,9 +24,10 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     let worst = null, best = null;
     for (let t = 2; t <= g.turn; t++) for (let s = 0; s < n; s++) { const c = wcChange(ser, s, t, t); if (!c) continue; if (s === me && (!worst || c.d < worst.d)) worst = { t, s, ...c }; if (s === me && (!best || c.d > best.d)) best = { t, s, ...c }; }
     let opp = null; for (let t = 2; t <= g.turn; t++) for (let s = 0; s < n; s++) { if (s === me) continue; const c = wcChange(ser, s, t, t); if (c && (!opp || Math.abs(c.d) > Math.abs(opp.d))) opp = { t, s, ...c }; }
+    let alt = null; for (let t = 2; t <= g.turn && !alt; t++) { const c = wcChange(ser, me, t, t); if (c && c.d !== 0 && t !== (worst && worst.t) && t !== (best && best.t) && t !== (opp && opp.t) && Math.abs(t - (worst ? worst.t : 0)) > 1) alt = { t, ...c }; }
     const f = aiFacts(g);
     const d0 = (f?.obj.decisions || []).find((x) => x.player === "You" && x.turn >= 2 && x.costPct >= 1); if (d0) { const c = wcChange(ser, me, d0.turn, d0.turn); if (c) worst = { t: d0.turn, s: me, ...c, cost: Math.round(d0.costPct) }; }
-    return { me, names, n, worst, best, opp, src: ser.src, size: f?.json.length, keys: Object.keys(f?.obj || {}), maxT: g.turn, dec: f?.obj.decisions?.slice(0, 3), you: g._rvIsYou(me), tabs: [...document.querySelectorAll(".rv-tabs button")].map((e) => e.textContent) };
+    return { me, names, n, worst, best, opp, alt, src: ser.src, size: f?.json.length, keys: Object.keys(f?.obj || {}), maxT: g.turn, dec: f?.obj.decisions?.slice(0, 3), you: g._rvIsYou(me), tabs: [...document.querySelectorAll(".rv-tabs button")].map((e) => e.textContent) };
   });
   console.log(JSON.stringify(F));
   ok(F.src === "luck" && F.size > 2000 && F.size < 40000 && F.keys.includes("winChancePctByTurn") && F.keys.includes("decisions"), "facts: win chance per turn and decisions, size ok", [F.src, F.size]);
@@ -43,7 +44,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       { level: "game", title: "Points came late", text: "10 points, mostly cities. Ore 6 and Grain 9 carried it.", view: "points", turns: [], players: [] },
       { level: "strategy", title: "Builders", text: `${opN} built early; ${meN} followed on turn ${F.best.t}.`, view: "plan", turns: [F.best.t], focusTurn: F.best.t, players: [] },
       { level: "decision", title: "The key spot", text: "A better spot was open.", view: "board", turns: [TX], focusTurn: TX, players: [] },
-      { level: "game", title: "Where the chances moved", text: "Chances moved around then.", view: "winchance", turns: [F.worst.t, F.worst.t + 1], focusTurn: F.worst.t, players: [meN] },
+      { level: "game", title: "Where the chances moved", text: "Chances moved around then.", view: "winchance", turns: [F.alt.t, F.alt.t + 1], focusTurn: F.alt.t, players: [meN] },
       { level: "strategy", title: "Keep it simple", text: "Plan for two resources at once.", view: "none", turns: [], players: [] },
     ] } } }
     : { body: { explain: { answer: `${opN} won because of cities on turn ${F.opp.t}. Second line here. A third line that makes the text longer than three lines on a narrow phone screen so it can expand. Then a fourth sentence with more words so that it certainly needs the more link on any phone.`, points: ["10 points", "Ore 6 / Grain 9"], view: "winchance", turns: [F.opp.t], focusTurn: F.opp.t, players: [opN], followUps: ["Who built first?", "And the longest road?"] } } };
@@ -121,6 +122,50 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   ok(await G(() => [...document.querySelectorAll("[data-aic^=c]")].every((c) => !c.querySelector(".ai-tx")?.innerText.includes("\u2026")) && [...document.querySelectorAll("[data-aic^=c] .ai-tx")].every((e) => e.getBoundingClientRect().height <= parseFloat(getComputedStyle(e).lineHeight) * 2 + 3)), "3: body copy <= 2 lines, no ellipsis");
   console.log(JSON.stringify(await G(() => [...document.querySelectorAll("[data-aic^=c]")].map((c) => [!!c.querySelector(".ai-bd"), c.querySelectorAll(".ai-bd").length, !!c.querySelector(".ai-wc, .ai-bars, .ai-plan, .ai-mv"), !!c.querySelector("[data-aileg]")]))));
   ok(await G(() => [...document.querySelectorAll("[data-aic^=c]")].filter((c) => c.querySelector(".ai-bd")).every((c) => !c.querySelector(".ai-wc, .ai-bars, .ai-plan, .ai-mv") && c.querySelectorAll(".ai-bd").length === 1 && (!c.querySelector(".ai-chg small") || !!c.querySelector("[data-aileg]")) )), "2: decision card shows exactly one board with legend, no bars/timeline");
+  // v1.74 critic 3 items 1-5
+  const Z = await G(async ([me, t1, t2, o]) => {
+    const g = window.__colonistGame, C = g._aiCtx(), { aiChip } = await import("./src/review-ai.js"), r = {}, strip = (h) => h.replace(/<[^>]+>|\u2060/g, "");
+    const titles = ["You stayed close", "Great move", "Your move helped", "Best choice of the game", "Your Knight paid off"];
+    r.titles = titles.map((x) => g._aiCard({ level: "decision", view: "moves", title: x, text: "Fine.", turns: [t1], focusTurn: t1, players: [] }, C).title);
+    r.neutralLine = g._aiCard({ level: "decision", view: "moves", title: "x", text: "Your move paid off and stayed close.", turns: [t1], focusTurn: t1, players: [] }, C).text;
+    r.colon = strip(g._aiFmt(r.neutralLine, C, null)); r.colonHtml = g._aiFmt("Turn 21: your move cost 2%. Set-up: fine.", C, null);
+    r.poss = g._aiFmt(`${o}'s city and ${o}\u2019s road`, C, null);
+    r.strat = g._aiCard({ level: "strategy", view: "plan", title: "Strong comeback", text: "Fine.", turns: [t2], focusTurn: t2, players: [] }, C);
+    const mk = (title, turn, extra = {}) => ({ level: "game", view: "winchance", title, text: "Plain sentence stays.", turns: [turn], focusTurn: turn, players: [], ...extra });
+    const list = (cs) => g._aiCardList(cs, C, new Set()).length;
+    r.dupFact = list([mk("A title", t1, { players: [o] }), mk("Another title", t1, { players: [o] })]);
+    r.sameTitle = list([mk("Same title", t1), mk("Same title", t2)]);
+    r.generic = list([mk("Best move ever", t1), { level: "decision", view: "moves", title: "Great move", text: "x.", turns: [t1], focusTurn: t1, players: [] }]);
+    r.genericAlone = list([{ level: "decision", view: "moves", title: "Great move", text: "x.", turns: [t1], focusTurn: t1, players: [] }]);
+    r.finalDup = list([{ level: "game", view: "points", title: "P1", text: "A.", turns: [], players: [] }, { level: "game", view: "none", title: "P2", text: "You finished with 9 points.", turns: [], players: [] }]);
+    const fr = g._aiCard({ level: "game", view: "winchance", title: "x", text: "A complete one. Another complete one! This one is cut off and", turns: [t1], focusTurn: t1, players: [] }, C).text;
+    const only = g._aiCard({ level: "game", view: "winchance", title: "x", text: "This is cut off and", turns: [t1], focusTurn: t1, players: [] }, C);
+    const ans = g._aiCard({ answer: "Done well. The second one is cut", points: ["Ore 6", "10 points"], view: "winchance", turns: [t1], focusTurn: t1 }, C, { answer: true });
+    r.frag = fr; r.fragOnly = only.text; r.ans = ans.text;
+    r.ptsPlain = g._aiFmt("Ore 6 / 10 points on turn 5", C, null, { plain: true });
+    r.chips = ["How unlucky was I", "Why did I lose so much win chance on turn 17?", "What was the best move of the game overall?", "Who was luckiest?", "How did the winner win it so fast", "Short one"].map((q) => aiChip(q));
+    const d = g.geometry, hs = d.hexSize, ps = [{ x: 0, y: 0 }, { x: hs * 3, y: hs }]; const v = g._aiCropView(ps, 330, 205, 0.3);
+    const L = v.box; r.crop = v && [L.minX, L.maxX, L.minY, L.maxY].every((x) => isFinite(x)) && v.offsetX + L.minX * v.scale >= -0.5 && v.offsetX + L.maxX * v.scale <= 330.5 && v.offsetY + L.minY * v.scale >= -0.5 && v.offsetY + L.maxY * v.scale <= 205.5 && L.minX <= -hs * 2 && L.maxX >= hs * 5;
+    return r;
+  }, [me, F.worst.t, F.alt.t, opN]);
+  console.log(JSON.stringify(Z));
+  const POSW = /stayed close|great|helped|best|paid off|strong|comeback/i;
+  ok(Z.titles.every((x) => !POSW.test(x) && /^(Turn \d+|Set-up) \u00b7 .* \u2212\d+%$/.test(x)), "1: positive title with a negative chip -> neutral app title 'Turn N \u00b7 your move \u2212x%'", Z.titles);
+  ok(!/stayed close|paid off/.test(Z.neutralLine) && /^On turn \d+ your move cost/.test(Z.neutralLine), "1: positive text with a negative chip -> neutral line", Z.neutralLine);
+  ok(!/ :|: /.test(Z.colon) && !/<\/span>:/.test(Z.colonHtml) && !/\s:/.test(Z.colonHtml), "1: no 'Turn 21 : ' (no colon after a chip)", Z.colon);
+  ok((Z.poss.match(/<span[^>]*ai-n[^>]*>[^<]*['\u2019]s<\/span>/g) || []).length === 2 && !/<\/span>['\u2019]s/.test(Z.poss), "1: possessive is inside the name chip", Z.poss);
+  ok(/^Strategy \u00b7 /.test(Z.strat.title) || !POSW.test(Z.strat.title) || Z.strat.chg.length === 0, "1: strategy title checked", Z.strat.title);
+  ok(Z.dupFact === 1, "3: same turn + same player -> one card", Z.dupFact);
+  ok(Z.sameTitle === 1, "3: two cards never share a title", Z.sameTitle);
+  ok(Z.generic === 1 && Z.genericAlone === 1, "3: generic app fallback dropped when another card covers the turn, kept alone", [Z.generic, Z.genericAlone]);
+  ok(Z.finalDup === 1, "3: same final-points fact only once", Z.finalDup);
+  ok(Z.frag === "A complete one. Another complete one!" && !/cut off/.test(Z.frag), "4: a cut sentence is dropped, complete ones kept", Z.frag);
+  ok(!/cut off/.test(Z.fragOnly) && (Z.fragOnly === "" || /[.!?]$/.test(Z.fragOnly)), "4: only a fragment -> neutral app line or nothing", Z.fragOnly);
+  ok(/^Done well\.$/.test(Z.ans), "4: answer card: complete sentences only", Z.ans);
+  ok(!/</.test(Z.ptsPlain) && /Ore 6/.test(Z.ptsPlain), "4: point chips are plain text (no nested pills)", Z.ptsPlain);
+  ok(await G(() => [...document.querySelectorAll(".ai-pts > span")].every((e) => !e.querySelector("span,b"))), "4: no nested pills in the DOM");
+  ok(Z.chips[0] === "Luck vs play?" && Z.chips[1] === "Why did I lose?" && Z.chips[2] === "Best move?" && Z.chips.every((c) => c === null || (c.length <= 24 && !/\u2026|\.\.\./.test(c) && !/\b(I|the|a|of|to)$/.test(c))), "5: follow-up chips never cut: long or cut ones get a short app label", Z.chips);
+  ok(Z.crop, "2: board crop = box of A and B plus a hex ring, fully inside the picture", Z.crop);
   await page.screenshot({ path: `${SH}/${process.env.TAG || "mock"}-top.png` });
   await G(() => { document.querySelector(".rv-scroll").scrollTop = 520; }); await sleep(300); await page.screenshot({ path: `${SH}/${process.env.TAG || "mock"}-mid.png` });
   await G(() => { document.querySelector(".rv-scroll").scrollTop = 99999; }); await sleep(300); await page.screenshot({ path: `${SH}/${process.env.TAG || "mock"}-end.png` });
