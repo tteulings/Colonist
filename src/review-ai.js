@@ -177,9 +177,12 @@ export const ReviewAiMixin = {
     if (r.kind === "sim") a = `${alt.label} ${T.wouldHave} ${alt.v}% ${T.wc}, ${r.played.v}% ${T.asp}${Math.abs(r.d) < 8 || Math.abs(r.d) <= (r.pm || 0) ? ` (${T.noise})` : ""}.`;
     else if (r.best) a = nl ? `${TT}: ${mv} was de beste (\u00b10): geen betere zet gevonden.` : `${TT}: ${mv} was rated best (\u00b10): no better move found.`;
     else a = alt ? (nl ? `${TT}: ${mv} kostte ${Math.abs(r.d)}% winkans (${r.played.v}% zoals gespeeld, ${alt.v}% met de betere zet).` : `${TT}: ${mv} cost ${Math.abs(r.d)}% win chance (${r.played.v}% as played, ${alt.v}% with the better move).`) : (nl ? `${TT}: ${mv} kostte ${Math.abs(r.d)}% winkans${r.better ? `: ${r.better} was beter` : ""} (${r.played.v}% zoals gespeeld).` : `${TT}: ${mv} cost ${Math.abs(r.d)}% win chance${r.better ? `: ${r.better} was the better move` : ""} (${r.played.v}% as played).`);
-    const neg = r.d < 0, extra = (card.src.match(/(?:[^.!?]|[.!?](?!\s|$))+[.!?]+(?:\s+|$)/g) || []).map((x) => x.trim()).filter((x) => x && !/\d\s?%/.test(x) && !CF.test(x) && !posW(x) && !negW(x) && !/\b(?:instead|in plaats|engine)\b/i.test(x) && !new RegExp(`\\b${TW}\\s+\\d`, "i").test(x))[0];
+    // v1.80 a set-up / settlement / city decision: the short app sentence (the bars carry the percentages), then the model's WHY (up to 2 sentences: direction words like "better" are fine there)
+    const spot = r.kind === "dec" && !r.best && (r.k === "setup" || /^(?:settlement|city)\b/i.test(r.played.label || "")); if (spot) a = nl ? `${TT}: ${mv} kostte ${Math.abs(r.d)}% winkans.` : `${TT}: ${mv} cost ${Math.abs(r.d)}% win chance.`;
+    const ok1 = (x) => x && !/\d\s?%/.test(x) && !CF.test(x) && (spot || !/\b(?:instead|in plaats|engine)\b/i.test(x)) && !new RegExp(`\\b${TW}\\s+\\d`, "i").test(x), sents = (card.src.match(/(?:[^.!?]|[.!?](?!\s|$))+[.!?]+(?:\s+|$)/g) || []).map((x) => x.trim());
+    const neg = r.d < 0, extra = spot ? sents.filter(ok1).slice(0, 2).join(" ") : sents.filter((x) => ok1(x) && !posW(x) && !negW(x))[0];
     if (!extra) card.fix.push("rec");
-    return `${a}${extra ? ` ${extra}` : ""}`;
+    return spot && extra ? extra : `${a}${extra ? ` ${extra}` : ""}`;
   },
   /** v1.78 A card about a win-chance swing names its cause from the app (who did what in that turn moved it most): a sentence that names another player or event is replaced. */
   _aiCauseFit(card, C) {
@@ -389,7 +392,7 @@ export const ReviewAiMixin = {
   _aiDecAt(T, C, seats = null) { const l = C.decs.filter((x) => x.turn === T && (!seats?.length || seats.includes(x.seat))).sort((a, b) => (b.own - a.own) || (b.gap - a.gap)); return l[0] || null; },
   _aiCardHtml(card, C, o = {}) {
     const L = C.t, key = o.key ?? "", vis = o.ref ? `<div class="ai-ac"><button type="button" class="ai-a" data-airef="${o.ref}">${esc((CHAT[C.lang] || CHAT.en).same)}</button></div>` : card.bk ? this._aiBlocksHtml(card, C, key) : this._aiVisual(card, C, o.seen);
-    (this._aiSrc ||= new Map()).set(key, { text: card.text, card, max: o.q ? 3 : 2 });
+    (this._aiSrc ||= new Map()).set(key, { text: card.text, card, max: o.q ? (card.bk?.some((b) => b.type === "spots") ? 5 : 3) : 2 });
     const dec = card.focus != null ? this._aiDecAt(card.focus, C, card.dseats) : null;
     const canWhy = card.level === "decision" && dec?.own && this._rvIsYou(C.pid) && this._exCan?.(dec.d);
     const acts = `${canWhy ? `<button type="button" class="ai-a" data-aiwhy="${card.focus}">${L.why}</button>` : ""}${card.focus != null ? `<button type="button" class="ai-a" data-aigo="${card.focus}">${L.show}</button>` : ""}`;
@@ -531,7 +534,7 @@ export const ReviewAiMixin = {
     return (Array.isArray(bl) ? bl : []).filter((b) => b && typeof b === "object").slice(0, 8).map((b) => JSON.parse(JSON.stringify(b, (k, v) => (typeof v === "string" ? v.slice(0, 300) : v)))).slice(0, 8);
   },
   _aiBkEnv(card, C) {
-    return { C, g: this.geometry, ev: card.evRaw || [], maxT: C.maxT, seats: (names) => this._aiSeats(names, C), decAt: (T, seats) => this._aiDecAt(T, C, seats), pos: (f) => tryv(() => rvPos(this.geometry, f)) };
+    return { C, game: this, g: this.geometry, ev: card.evRaw || [], maxT: C.maxT, seats: (names) => this._aiSeats(names, C), decAt: (T, seats) => this._aiDecAt(T, C, seats), pos: (f) => tryv(() => rvPos(this.geometry, f)) };
   },
   /** card.bk = the validated blocks of the model (when it gave any visual), card.blocks = the blocks of the card (the old view mapped on them when it gave none). */
   _aiCardBlocks(card, raw, C) {
@@ -572,6 +575,7 @@ export const ReviewAiMixin = {
       }
       case "route": return wrap(strip(this._aiVPlan({ seats: [], rows: b.seats, route: true, clauses: [], turns: [], level: "game" }, C)), "ai-plan all");
       case "timeline": return wrap(this._aiVTimeline(b, C));
+      case "spots": return wrap(this._aiVSpots(b, C));
       case "compare": return wrap(this._aiVCompare(b, C, !!card.chg?.some((c) => c.move)));
       case "board": {
         this._aiBkSpec ||= new Map(); this._aiBkSpec.set(bkey, b);
@@ -595,6 +599,12 @@ export const ReviewAiMixin = {
     const rows = b.options.map((o, i) => `<div class="ai-sr rec bkc${i === b.bestIdx ? " best" : ""} k-${o.kind}"><span class="l"><em class="tg ${o.kind}">${esc(o.kind === "played" ? T.played : o.kind === "best" || (i === b.bestIdx && o.kind !== "alt") ? String(C.t.better).replace(/^[AB]\s+/, "") : "alt")}</em>${esc(o.label)}</span><span class="tr"><i style="width:${Math.max(1, (o.v / hi) * 100).toFixed(1)}%"></i></span><b>${i === b.bestIdx ? "★ " : ""}${o.v}%${o.pm ? `<small>±${o.pm}</small>` : ""}</b></div>`).join("");
     const cost = b.cost && !hasChip ? `<div class="bk-ft"><span class="ai-chg dn pc-${b.seat}"><b>−${b.cost}%</b><small>${esc(you ? C.t.mine : C.t.move)}</small></span><span class="ai-cap">${esc(T.wc)}</span></div>` : "";
     return `<div class="ai-sm rec" data-aisimv>${rows}<div class="ai-ax" aria-hidden="true"><span class="tk"><i>0%</i><i>${hi / 2}%</i><i>${hi}%</i></span><span></span></div>${cost}</div>`;
+  },
+  // v1.80 the factor table of a set-up / settlement / city decision (src/review/ai-spots.js): one row per factor, the winning cell lit
+  _aiVSpots(b, C) {
+    const n = b.opts.length, hd = b.opts.map((o) => `<div class="sp-h"><s class="rg ${o.letter === "A" ? "a" : o.letter === "B" ? "b" : "n"}">${o.letter}</s>${o.win != null ? `<b>${o.win}%</b>` : ""}</div>`).join("");
+    const rows = b.rows.map((r) => `<div class="sp-l">${esc(r.label)}</div>${r.cells.map((c, i) => `<div class="sp-c${r.win === i ? " win" : ""}">${esc(c ?? "\u2014")}</div>`).join("")}`).join("");
+    return `<div class="ai-sp" style="--n:${n}"><div class="sp-h0"></div>${hd}${rows}</div>${b.summary ? `<div class="sp-sum">${esc(b.summary)}</div>` : ""}${b.rule ? `<div class="sp-rule">${esc(b.rule)}</div>` : ""}`;
   },
   _aiBkLegend(b, C) {
     const T = CHAT[C.lang] || CHAT.en, cut = (s) => esc(String(s || "").length > 26 ? `${String(s).slice(0, 25)}…` : s || "");
