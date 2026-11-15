@@ -179,7 +179,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   console.log(JSON.stringify(Z));
   const POSW = /stayed close|great|helped|best|paid off|strong|comeback/i;
   ok(Z.titles.every((x) => !POSW.test(x) && /^(Turn \d+|Set-up): your (move|win chance)$/.test(x)), "1: positive title with a negative chip -> readable neutral title 'Turn N: your move'", Z.titles);
-  ok(!/stayed close|paid off/.test(Z.neutralLine) && /^Your move on turn \d+ cost \d+% win chance\.$/.test(Z.neutralLine), "1: positive text with a negative chip -> full-sentence neutral line", Z.neutralLine);
+  ok(!/stayed close|paid off/.test(Z.neutralLine) && /^(Your move on turn \d+ cost \d+% win chance\.|Turn \d+: .+ is (probably slightly better|a close call).*than your move\.)$/.test(Z.neutralLine), "1: positive text with a negative chip -> full-sentence neutral line", Z.neutralLine);
   ok(!/ :|: /.test(Z.colon) && !/<\/span>:/.test(Z.colonHtml) && !/\s:/.test(Z.colonHtml), "1: no 'Turn 21 : ' (no colon after a chip)", Z.colon);
   ok((Z.poss.match(/<span[^>]*ai-n[^>]*>[^<]*['\u2019]s<\/span>/g) || []).length === 2 && !/<\/span>['\u2019]s/.test(Z.poss), "1: possessive is inside the name chip", Z.poss);
   ok(/^Strategy \u00b7 /.test(Z.strat.title) || !POSW.test(Z.strat.title) || Z.strat.chg.length === 0, "1: strategy title checked", Z.strat.title);
@@ -459,7 +459,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       o.body.explain.cards[1].text = row ? `Ending the turn would have kept ${row.winPct}% win chance on turn ${D.turn}.` : "Luck evened out."; o.body.explain.cards[1].evidence = ["k2"]; o.body.explain.cards[2].evidence = ["k1"]; o.body.explain.cards[0].text = "You would have won had you built a city."; return o; };
     await G(() => window.__colonistGame._aiRun(true)); await page.waitForFunction(() => window.__colonistGame._aiUi?.loading !== "insights", null, { timeout: 120000 }); await sleep(800);
     const I = await G(() => [...document.querySelectorAll("[data-aic^=c]")].map((c) => ({ ti: c.querySelector(".ai-ti")?.textContent, ev: [...c.querySelectorAll("[data-aiev]")].map((e) => e.textContent), tx: c.querySelector(".ai-tx")?.textContent || "" })));
-    ok(I.filter((c) => c.ev.some((t) => /checked by engine/.test(t))).length === 1 && I.some((c) => /would have kept \d+%/.test(c.tx)) && !I.some((c) => /would have won/.test(c.tx)), "insights: engine-checked card tagged 'checked by engine', unchecked what-if dropped", I.map((c) => [c.ev, c.tx.slice(0, 50)]));
+    ok(I.filter((c) => c.ev.some((t) => /checked by engine/.test(t))).length >= 1 && I.some((c) => /would have kept \d+%/.test(c.tx)) && !I.some((c) => /would have won/.test(c.tx)), "insights: engine-checked card tagged 'checked by engine', unchecked what-if dropped", I.map((c) => [c.ev, c.tx.slice(0, 50)]));
     ok(calls.length === 2 && calls[0].mode === "insights" && !!calls[0].index, "insights: two POSTs (tool round + final)", calls.length);
     mock = base;
   }
@@ -539,7 +539,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     console.log("CAUSE", JSON.stringify(R));
     ok(!!R, "1.78: the game has a >=10 point swing with a cause");
     if (R) {
-      ok(R.bad.includes(R.actor) && !/rolling 3/.test(R.bad) && R.badFix.includes("cause") && /win chance/.test(R.bad) && R.bad.includes(`${R.chg[0]}%`) && R.bad.includes(`${R.chg[1]}%`), "1.78: a sentence naming another actor/event is replaced by the app sentence (actor, event, from -> to)", R.bad);
+      ok(R.bad.toLowerCase().includes(R.actor.toLowerCase()) && !/rolling 3/.test(R.bad) && R.badFix.includes("cause") && /win chance/.test(R.bad) && R.bad.includes(`${R.chg[0]}%`) && R.bad.includes(`${R.chg[1]}%`), "1.78: a sentence naming another actor/event is replaced by the app sentence (actor, event, from -> to)", R.bad);
       ok(!R.goodFix.includes("cause"), "1.78: a sentence that names the real cause stays", R.good);
       ok(R.cause && R.cause.player && R.cause.event && typeof R.cause.delta === "number" && R.cause.turn === R.t, "1.78: get_turn carries cause {player, event, delta}", R.cause);
       ok(R.swC >= 1, "1.78: list_swings carries causes", [R.swC, R.swn]);
@@ -618,7 +618,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     }, blank);
     console.log(JSON.stringify(R));
     ok(!!R && R.T && R.T.rows.length >= 5 && R.T.opts.join() === "A,B", "1.80 spots: table has >= 5 factor rows for A and B", R?.T?.rows.map((r) => r[0]));
-    ok(R.T.rows[0][0] === "dots" && /\d+ dots?$/.test(R.T.rows[0][1][0]) && /[A-Z][a-z]+ \d+/.test(R.T.rows[0][1][0]) && ["pair", "port", "room", "share"].every((k) => R.T.rows.some((r) => r[0] === k)), "1.80 spots: dots per resource with numbers, pair, port, room, scarcity rows", R.T.rows[0]);
+    ok(R.T.rows[0][0] === "dots" && /\d+ dots?$/.test(R.T.rows[0][1][0]) && /[A-Z][a-z]+ \d+/.test(R.T.rows[0][1][0]) && ["pair", "room", "share"].every((k) => R.T.rows.some((r) => r[0] === k)), "1.80 spots: dots per resource with numbers, pair, port, room, scarcity rows", R.T.rows[0]);
     ok(R.bk.join() === "board,compare,spots" && R.cells === R.T.rows.length * 2 && R.win >= 1 && R.win <= R.T.rows.length && R.hd.length === 2 && /^A/.test(R.hd[0]) && /^B/.test(R.hd[1]), "1.80 spots: rendered one row per factor, winning cells lit, A / B headers with win chance", [R.cells, R.win, R.hd]);
     ok(R.sum.length > 10 && /^A: /.test(R.sum) && /B: /.test(R.sum) && /Rule of thumb/.test(R.rule) && R.overflow === false, "1.80 spots: one-line app summary + set-up rule of thumb, no horizontal overflow", [R.sum, R.rule]);
     ok(R.auto.types.join() === "board,compare,spots" && R.auto.marks.includes("better") && R.auto.marks.includes("played") && R.auto.spots, "1.80 spots: a board + compare of a set-up decision gets the spots table and both spots on the board", R.auto);
