@@ -49,7 +49,6 @@ export const ReviewAiMixin = {
   _rvOpenAiTab() {
     if (!this._aiAvail()) return;
     this._rvTab = "ai"; this._rvStep = null; this._rvDrawReview();
-    if (!this._aiSaved() && this._aiUi?.loading !== "insights") this._aiRun(false);
   },
 
   // ── the data the cards are checked against ──
@@ -320,6 +319,8 @@ export const ReviewAiMixin = {
 
   // ── the tab ──
   _rvTabAi() {
+    const U = this._aiUi?.pid === this._rvPid ? this._aiUi : null; // (the insights are asked for on opening the tab, once; an error waits for "Try again")
+    if (!this._aiSaved() && !U?.loading && !U?.err) setTimeout(() => { if (this._rvTab === "ai" && !this._aiSaved()) this._aiRun(false); }, 0);
     return { html: `<div class="ai" data-aibody>${this._aiBodyHtml()}</div>`, foot: `<div data-aiask>${this._aiAskHtml()}</div>`, bind: (el) => this._aiBind(el) };
   },
   _aiErrHtml(C) { const e = this._aiUi?.err; return e ? `<section class="ai-c err" role="alert"><b class="ai-ti">${esc(C.t[e] || C.t.fail)}</b><div class="ai-ac"><button type="button" class="ai-a" data-airun>${C.t.again}</button></div></section>` : ""; },
