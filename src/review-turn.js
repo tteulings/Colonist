@@ -81,14 +81,14 @@ export const ReviewTurnMixin = {
   _tvSentence(T, W) {
     if (!W) return "";
     const o = this.players.map((p) => ({ id: p.id, dl: W.post[p.id] - W.pre[p.id] })).sort((a, b) => Math.abs(b.dl) - Math.abs(a.dl)).filter((x) => Math.round(Math.abs(x.dl) * 100) >= 2).slice(0, 2);
-    if (!o.length) return `<b>Biggest effect:</b> nothing moved much this ${this._rvTW().toLowerCase()}.`;
-    return `<b>Biggest effect:</b> ${o.map((x) => `${esc(this._rvNm(x.id))} ${pc(W.pre[x.id])}% → ${pc(W.post[x.id])}%`).join("; ")}.`;
+    if (!o.length) return `<b>Biggest effect over the whole ${this._rvTW().toLowerCase()}:</b> nothing moved much.`;
+    return `<b>Biggest effect over the whole ${this._rvTW().toLowerCase()} (start \u2192 end of ${this._rvTW().toLowerCase()}):</b> ${o.map((x) => `${esc(this._rvNm(x.id))} ${pc(W.pre[x.id])}% → ${pc(W.post[x.id])}%`).join("; ")}.`;
   },
   _tvCardsHtml(d, ds) {
     const turns = this._tvTurns(ds), k = turns.findIndex((x) => x.d === d || x.T === this._tv.T), me = this._rvPid;
     const from = Math.max(0, Math.min(k - 3, turns.length - 7)), cards = turns.slice(Math.max(0, from), Math.max(0, from) + 7);
     const key = turns.slice(k + 1).find((x) => this._tvKeyOf(x.T));
-    const one = (x) => { const W = this._tvWin(x.T), dl = W ? W.post[me] - W.pre[me] : null, sel = x.T === this._tv.T; return `<button type="button" class="tv-card${sel ? " on" : ""}${W && W.swing >= KEY_SWING ? " key" : ""}" data-tvt="${x.d.i}" aria-label="${this._rvTW()} ${x.T}${dl != null ? `, ${sg(dl)}%` : ""}${W && W.swing >= KEY_SWING ? ", key turn" : ""}"${sel ? ' aria-current="true"' : ""}><b>${x.T}</b><small>${W ? `${pc(W.post[me])}%` : ""}</small><i class="${dl == null ? "" : cl(dl)}">${dl == null ? "" : sg(dl)}</i></button>`; };
+    const one = (x) => { const W = this._tvWin(x.T), dl = W ? W.post[me] - W.pre[me] : null, sel = x.T === this._tv.T; return `<button type="button" class="tv-card${sel ? " on" : ""}${W && W.swing >= KEY_SWING ? " key" : ""}" data-tvt="${x.d.i}" title="${W ? `End of ${this._rvTW().toLowerCase()}: ${pc(W.post[me])}%, change over the whole ${this._rvTW().toLowerCase()} ${sg(dl)}` : ""}" aria-label="${this._rvTW()} ${x.T}${dl != null ? `, ${sg(dl)}% over the whole ${this._rvTW().toLowerCase()}` : ""}${W && W.swing >= KEY_SWING ? ", key turn" : ""}"${sel ? ' aria-current="true"' : ""}><b>${x.T}</b><small>${W ? `${pc(W.post[me])}%` : ""}</small><i class="${dl == null ? "" : cl(dl)}">${dl == null ? "" : sg(dl)}</i></button>`; };
     return `<div class="tv-nav"><div class="tv-cards" role="group" aria-label="${this._rvTW()}s">${cards.map(one).join("")}</div>
       <div class="rs-nav tv-btns"><button type="button" class="rv-btn" data-tvgo="-1" ${k > 0 ? "" : "disabled"} aria-label="Previous ${this._rvTW().toLowerCase()}">${IC.prev}Previous</button><button type="button" class="rv-btn rs-ov" data-tvkey="${key ? key.d.i : ""}" ${key ? "" : "disabled"}>Next key ${this._rvTW().toLowerCase()}</button><button type="button" class="rv-btn pri" data-tvgo="1" ${k >= 0 && k < turns.length - 1 ? "" : "disabled"} aria-label="Next ${this._rvTW().toLowerCase()}">Next${IC.next}</button></div></div>`;
   },
@@ -104,7 +104,7 @@ export const ReviewTurnMixin = {
       const sp = W && checked ? ` · <span class="${cl(W.luck[q])}">luck ${sg(W.luck[q])}</span> <span class="${cl(W.mv[q])}">moves ${sg(W.mv[q])}</span>` : W ? ` · <span class="${cl(W.luck[q])}">luck ${sg(W.luck[q])}</span> <span class="tv-nc">moves ~</span>` : "";
       const lo = dl == null ? 0 : Math.min(pre, post) * 100, hi = dl == null ? 0 : Math.abs(dl) * 100;
       const bar = dl == null ? "" : `<span class="tv-bar pc-${q}" aria-hidden="true"><i style="width:${lo}%"></i><u class="${dl >= 0 ? "up" : "dn"}" style="left:${lo}%;width:${hi}%"></u></span>`;
-      const wtxt = dl == null ? "" : `<em>${checked ? "" : "~"}${pc(pre)} → ${pc(post)}%</em>`;
+      const wtxt = dl == null ? "" : `<em title="start of the ${this._rvTW().toLowerCase()} \u2192 end of the ${this._rvTW().toLowerCase()}">${checked ? "" : "~"}${pc(pre)} → ${pc(post)}%</em>`;
       const decHtml = open ? `<div class="tv-decs">${decs.length ? decs.map((x) => `<button type="button" class="tv-dec${q === this._rvPid && x.i === d.i ? " on" : ""}" data-tvd="${q}:${x.i}">${esc(tradeShow(x.x.label))}<i class="${x.gp ? "neg" : "pos"}">${x.same || !x.gp ? "best" : sg(-x.gap)}</i></button>`).join("") : `<p>${checked ? "No real choice this turn." : "Not checked yet: the win chance shown is the estimate (~)."}</p>`}</div>` : "";
       if (small) return `<li class="tv-row sm${checked ? "" : " nc"}"><button type="button" class="tv-h" data-tvr="${q}" aria-expanded="false"><b class="pc-${q}">${esc(this._rvNm(q))}</b><span>${esc(r.bits.join(" · ") || r.got || "nothing")}</span>${wtxt}</button></li>`;
       return `<li class="tv-row${open ? " open" : ""}${checked ? "" : " nc"}${q === this._rvPid ? " me" : ""}"><button type="button" class="tv-h" data-tvr="${q}" aria-expanded="${open}"><b class="pc-${q}">${esc(this._rvNm(q))}</b><span>${esc([r.got, ...r.bits].filter(Boolean).join(" · ") || "nothing")}</span>${wtxt}</button><div class="tv-s">${bar}<small>${sp.replace(/^ · /, "")}</small></div>${decHtml}</li>`;

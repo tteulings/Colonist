@@ -50,7 +50,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       { level: "game", title: "One point short", text: "You were one point away: a settlement needed 1 wood and 1 wheat.", view: "nearmiss", turns: [], players: ["You"], clauses: [] },
       { level: "strategy", title: "Every plan", text: "Cities and the army beat your settlements.", view: "plan", turns: [], players: F.names, clauses: F.names.map((n, i) => ({ player: n, text: `built up from turn ${3 + i}, clause ${i}` })) },
     ] } } }
-    : { body: { explain: { answer: `${opN} won because of cities on turn ${F.opp.t}. Second line here. A third line that makes the text longer than three lines on a narrow phone screen so it can expand. Then a fourth sentence with more words so that it certainly needs the more link on any phone.`, points: ["10 points", "Ore 6 / Grain 9"], view: "winchance", turns: [F.opp.t], focusTurn: F.opp.t, players: [opN], followUps: ["Who built first?", "And the longest road?"] } } };
+    : { body: { explain: { answer: `${opN} won by drawing a point card on turn ${F.opp.t}. Second line here. A third line that makes the text longer than three lines on a narrow phone screen so it can expand. Then a fourth sentence with more words so that it certainly needs the more link on any phone.`, points: ["10 points", "Ore 6 / Grain 9"], view: "winchance", turns: [F.opp.t], focusTurn: F.opp.t, players: [opN], followUps: ["Who built first?", "And the longest road?"] } } };
   const mock0 = mock;
   const tab = () => page.locator("[data-rvt=ai]");
   // Overview row opens the tab
@@ -521,6 +521,28 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     ok(await G(() => [...document.querySelectorAll(".rt-incl")].every((e) => /Income per turn/.test(e.textContent)) && !/clause/i.test(document.querySelector("[data-aibody]").innerText)), "6: income strip has a legend; no 'clause N' jargon anywhere in the tab");
     ok(await G(() => { const g = window.__colonistGame; localStorage.setItem("colonist_recap_lang", "en"); const e = g._aiL(); localStorage.setItem("colonist_recap_lang", "nl"); const n = g._aiL(); localStorage.setItem("colonist_recap_lang", "en"); return /busy/.test(e.rate) && /No connection/.test(e.net) && /druk/.test(n.rate); }), "6: messages are English unless the recap language is Dutch");
     mock = mock0;
+  }
+  // v1.78: a swing card names its cause (who did what in the turn), from the app
+  {
+    const R = await G(async () => {
+      const g = window.__colonistGame, { swingCause, causeEvent } = await import("./src/review/ai-cause.js"), { aiSeries, wcChange } = await import("./src/review/ai-facts.js"), { aiToolRun } = await import("./src/review/ai-tools.js");
+      const ser = aiSeries(g), me = g._rvPid; let b = null;
+      for (let t = 2; t <= g.turn; t++) { const c = wcChange(ser, me, t, t), cs = c && swingCause(g, t, me); if (cs && Math.abs(c.d) >= 10 && (!b || Math.abs(c.d) > Math.abs(b.c.d))) b = { t, c, cs }; }
+      if (!b) return null;
+      const C = g._aiCtx(), nm = (q) => C.nmRaw(q), ev = causeEvent(b.cs, nm), wrong = b.cs.kind === "build" ? "rolled 3" : "built a road after rolling 3";
+      const mk = (text) => g._aiCard({ level: "game", view: "winchance", title: "Last-turn blowout", text, turns: [b.t], focusTurn: b.t, players: ["You"], points: [] }, C);
+      const bad = mk(`At Turn ${b.t} you ${wrong}.`), good = mk(`At Turn ${b.t} ${nm(b.cs.actor)} ${ev}: win chance ${b.c.from}% to ${b.c.to}%.`);
+      const tt = aiToolRun(g, "get_turn", { turn: b.t }), sw = aiToolRun(g, "list_swings", { n: 8 });
+      return { t: b.t, ev, actor: nm(b.cs.actor), bad: bad.text, badFix: bad.fix, good: good.text, goodFix: good.fix, cause: tt.cause, swC: (sw.swings || []).filter((x) => x.cause).length, swn: (sw.swings || []).length, chg: bad.chg[0] && [bad.chg[0].from, bad.chg[0].to], tvl: await (async () => { g._rvTab = "moves"; return null; })() };
+    });
+    console.log("CAUSE", JSON.stringify(R));
+    ok(!!R, "1.78: the game has a >=10 point swing with a cause");
+    if (R) {
+      ok(R.bad.includes(R.actor) && !/rolling 3/.test(R.bad) && R.badFix.includes("cause") && /win chance/.test(R.bad) && R.bad.includes(`${R.chg[0]}%`) && R.bad.includes(`${R.chg[1]}%`), "1.78: a sentence naming another actor/event is replaced by the app sentence (actor, event, from -> to)", R.bad);
+      ok(!R.goodFix.includes("cause"), "1.78: a sentence that names the real cause stays", R.good);
+      ok(R.cause && R.cause.player && R.cause.event && typeof R.cause.delta === "number" && R.cause.turn === R.t, "1.78: get_turn carries cause {player, event, delta}", R.cause);
+      ok(R.swC >= 1, "1.78: list_swings carries causes", [R.swC, R.swn]);
+    }
   }
   ok(errors.length === 0, "no page errors after the tool loop", errors.join("|"));
   await b.close(); console.log(fails ? "FAILED" : "ALL OK"); process.exit(fails ? 1 : 0);

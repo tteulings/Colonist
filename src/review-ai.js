@@ -7,6 +7,7 @@ import { decide } from "./review/evaluate.js";
 import { aiIndex, aiToolRun, aiSimPlan, aiSimResult, aiIntent, aiIntentArgs, aiCantMsg, aiSlimDecision, aiKindOf, aiDecList, TIER2, CAPS } from "./review/ai-tools.js";
 import { reviewRequest, reviewLaneCount, reviewAvailable } from "./master.js";
 import { RECAP_URL, recapLang } from "./review-recap.js";
+import { swingCause } from "./review/ai-cause.js";
 import { rvPos, rvMarks } from "./review-game.js";
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -144,6 +145,7 @@ export const ReviewAiMixin = {
     if (card.rec || raw?.cant) card.points = []; // the model's chips would carry numbers of their own
     card.text = raw?.cant ? String(raw.answer || "").slice(0, 300) : card.rec ? this._aiRecordText(card, C) : this._aiTrust(card, C);
     if (!answer && !card.rec && card.level === "decision") this._aiDecFit(card, C);
+    if (!card.rec && !raw?.cant) this._aiCauseFit(card, C);
     card.title = this._aiTitle(card, C);
     card.generic = card.fix.includes("title");
     return card;
@@ -176,6 +178,23 @@ export const ReviewAiMixin = {
     const neg = r.d < 0, extra = (card.src.match(/(?:[^.!?]|[.!?](?!\s|$))+[.!?]+(?:\s+|$)/g) || []).map((x) => x.trim()).filter((x) => x && !/\d\s?%/.test(x) && !CF.test(x) && !posW(x) && !negW(x) && !/\b(?:instead|in plaats|engine)\b/i.test(x) && !new RegExp(`\\b${TW}\\s+\\d`, "i").test(x))[0];
     if (!extra) card.fix.push("rec");
     return `${a}${extra ? ` ${extra}` : ""}`;
+  },
+  /** v1.78 A card about a win-chance swing names its cause from the app (who did what in that turn moved it most): a sentence that names another player or event is replaced. */
+  _aiCauseFit(card, C) {
+    const ch = card.chg[0]; if (card.focus == null || !ch || ch.from == null || ch.move || ch.luck || Math.abs(ch.d) < 10) return;
+    const cs = tryv(() => swingCause(this, card.focus, ch.seat)); if (!cs) return;
+    const nl = C.lang === "nl", youA = this._rvIsYou(cs.actor), youS = this._rvIsYou(ch.seat), an = C.nmRaw(cs.actor), sn = C.nmRaw(cs.victimSeat ?? ch.seat);
+    const KW = { dice: /\b(?:roll\w*|dice|worp|gooi\w*|dobbel\w*)\b/i, steal: /\b(?:stole|steal\w*|stal|steel\w*|rob\w*)\b/i, build: /\b(?:built|build\w*|bouw\w*|city|cities|settlement|road|stad|dorp|weg)\b/i, play: /\b(?:play\w*|knight|monopoly|speel\w*|ridder)\b/i };
+    const dk = cs.kind === "dev" ? (cs.data.card === "victoryPoint" ? /\b(?:point card|victory|puntenkaart|overwinning\w*)\b/i : /\b(?:development|dev card|drew|bought|knight|kaart|kocht|trok)\b/i) : KW[cs.kind];
+    const nm = [C.nmRaw(cs.actor), this.players[cs.actor]?.name || ""].filter((x) => x.length >= 2).map(reEsc).join("|"), actorRe = new RegExp(`(?:^|[^\\p{L}\\p{N}])(?:${nm || "\u0000"}${youA ? "|you|your|jij|je|jouw" : ""})(?![\\p{L}\\p{N}])`, "iu");
+    const t = card.text || "", claims = Object.values(KW).some((r) => r.test(t)) || /\b(?:drew|bought|point card|development|trok|kocht|puntenkaart)\b/i.test(t), ok = !claims || (actorRe.test(t) && (!dk || dk.test(t)));
+    if (ok) return;
+    const D = { en: { dice: (d) => `rolled ${d.roll}`, steal: (d) => `stole a card from ${C.nmRaw(d.victim)}`, dev: (d) => (d.card === "victoryPoint" ? "drew a point card" : `drew ${{ knight: "a Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly" }[d.card] || "a development card"}`), build: (d) => `built a ${d.what}`, play: (d) => `played ${{ knight: "a Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly" }[d.what] || "a card"}` },
+      nl: { dice: (d) => `gooide ${d.roll}`, steal: (d) => `stal een kaart van ${C.nmRaw(d.victim)}`, dev: (d) => (d.card === "victoryPoint" ? "trok een puntenkaart" : "trok een ontwikkelingskaart"), build: (d) => `bouwde ${{ city: "een stad", settlement: "een dorp", road: "een weg" }[d.what] || "iets"}`, play: () => "speelde een kaart" } }[nl ? "nl" : "en"];
+    const who = youA ? (nl ? "jij" : "you") : an, TW = nl ? "beurt" : (this._rvTW?.() || "Turn").toLowerCase(), chance = youS ? (nl ? "jouw winkans" : "your win chance") : (nl ? `de winkans van ${sn}` : `${sn}\u2019s win chance`);
+    card.fix.push("cause");
+    card.text = nl ? `Op ${TW} ${card.focus} ${D[cs.kind](cs.data)} ${who}: ${chance} ${ch.from}% \u2192 ${ch.to}%.` : `On ${TW} ${card.focus} ${who} ${D[cs.kind](cs.data)}: ${chance} ${ch.from}% \u2192 ${ch.to}%.`;
+    card.cause = { player: cs.actor, kind: cs.kind, delta: cs.delta };
   },
   /** A decision card's sentence must be about the decision its board shows: else the app's own line (played, better, cost) replaces it. */
   _aiDecFit(card, C) {
