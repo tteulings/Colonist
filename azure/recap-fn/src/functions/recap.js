@@ -105,6 +105,7 @@ const TOOLS = [
     { turn: INT, player: STR, n: NINT, moves: { type: "array", items: { type: "object", additionalProperties: false, required: ["kind", "type", "at", "give", "get", "hex", "card"], properties: { kind: { type: "string", enum: ["build", "bank", "robber", "buy", "play", "end"] }, type: { type: ["string", "null"], enum: ["road", "settlement", "city", "ship", null] }, at: NINT, give: NSTR, get: NSTR, hex: NINT, card: NSTR } } } }),
   fnT("can_still_win", "Tier 2, the review engine, takes seconds. The best-line win chance of the player at the first decision on or after that turn, searched afresh.", { turn: INT, player: STR }),
 ];
+const SWING_RULE = `\n\nSWINGS: describe a win-chance swing by its CAUSE from the facts: the tool results get_turn / list_swings carry cause {player, event, delta}, the app's finding of who did what in that turn moved the win chance most (it may be ANOTHER player's action, a dice roll, a steal or a development card draw, not the reviewed player's own move). Name that player and event in the sentence ("On turn 22 Blaauw drew a point card: your win chance fell 57% to 0%."). Never attribute a swing to a different player or move than its cause; without a cause, say only that the win chance moved.`;
 const TOOLS_COMMON = `\n\nYOU HAVE TOOLS. The message holds only an INDEX of the game (players, result, nearMiss, plans, top swings, the list of reviewed decisions); the details are fetched with tools that the app runs on the stored review. Tier 1 (get_decision, get_turn, get_luck, get_plan, get_lessons, list_swings) is instant: ask for several in ONE round, and never more than needed. Tier 2 (simulate_moves, can_still_win) runs the engine and takes seconds.
 Numbers: quote only numbers that are in the index or in a tool result (whole %, as given). Players are named exactly as in the index ("You" is the reviewed player).
 COUNTERFACTUALS ("what if", "would have", "had you ..."): state one only if a tool result shows it: the evaluated candidates of get_decision are engine results; for a move that is not listed, call simulate_moves first. Small differences (under about 8 points) are noise with 100 futures: say so rather than calling one move better.
@@ -164,7 +165,7 @@ app.http("recap", {
           body: JSON.stringify({ model: process.env.OAI_DEPLOYMENT, max_completion_tokens: 4200,
             response_format: { type: "json_schema", json_schema: { name: ins ? "insights" : "game", strict: true, schema } },
             ...(useTools ? { tools: useTools, tool_choice: "auto" } : {}),
-            messages: [{ role: "system", content: (ins ? INSIGHTS + TOOLS_INSIGHTS : GAME + TOOLS_GAME) + (useTools ? "" : "\n\nNo more tool calls are possible: answer now from the index and the tool results you have.") + (lang === "nl" ? "\n\nWrite all text fields in natural Dutch (Nederlands)." : "\n\nWrite all text fields in English.") },
+            messages: [{ role: "system", content: (ins ? INSIGHTS + TOOLS_INSIGHTS : GAME + TOOLS_GAME) + SWING_RULE + (useTools ? "" : "\n\nNo more tool calls are possible: answer now from the index and the tool results you have.") + (lang === "nl" ? "\n\nWrite all text fields in natural Dutch (Nederlands)." : "\n\nWrite all text fields in English.") },
               { role: "user", content: ins ? `index:\n${index}` : `question: ${q || "What decided this game?"}\nindex:\n${index}` }, ...hist] }) });
         const j = await r.json(); if (!r.ok) { ctx.error("oai", r.status, JSON.stringify(j).slice(0, 500)); throw new Error("model error " + r.status); } return j;
       };
@@ -203,7 +204,7 @@ app.http("recap", {
           max_completion_tokens: MAX_OUT,
           response_format: { type: "json_schema", json_schema: { name: insights ? "insights" : game ? "game" : explain ? "explain" : "recap", strict: true, schema: insights ? INSIGHTS_SCHEMA : game ? GAME_SCHEMA : explain ? EXPLAIN_SCHEMA : SCHEMA } },
           messages: [
-            { role: "system", content: (insights ? INSIGHTS : game ? GAME : lesson ? LESSON : explain ? EXPLAIN : SYSTEM) + (lang === "nl" ? "\n\nWrite all text fields in natural Dutch (Nederlands)." : "\n\nWrite all text fields in English.") },
+            { role: "system", content: (insights ? INSIGHTS + SWING_RULE : game ? GAME + SWING_RULE : lesson ? LESSON : explain ? EXPLAIN : SYSTEM) + (lang === "nl" ? "\n\nWrite all text fields in natural Dutch (Nederlands)." : "\n\nWrite all text fields in English.") },
             { role: "user", content: insights ? `facts:\n${facts}` : explain ? `question: ${question}\nfacts:\n${facts}` : `turningPoints wanted: ${nTp}\nfacts:\n${facts}` },
           ],
         }),

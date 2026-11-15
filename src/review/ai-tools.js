@@ -5,6 +5,7 @@
 import { aiFacts, aiSeries, wcChange } from "./ai-facts.js";
 import { decide } from "./evaluate.js";
 import { turningSteps } from "./recap-facts.js";
+import { swingCause, causeEvent } from "./ai-cause.js";
 
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
 const unesc = (s) => String(s ?? "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/<[^>]+>/g, "");
@@ -47,6 +48,8 @@ const steps = (g) => memo(g, "steps", () => {
   const L = tryv(() => g._lkState()), luckOk = L && !L.na && L.done && L.cover >= 0.9, n = g.players.length;
   return tryv(() => turningSteps(g, (q) => nameOf(g, q), { luckOk, pid: g._rvPid, n }), { all: [] }).all || [];
 });
+/** v1.78 { player, event, delta (win-chance points of the viewed player), turn } for the biggest part of the viewed player's change in turn T, from the app. */
+const causeOf = (g, T) => { const c = tryv(() => swingCause(g, T, g._rvPid)); return c ? { player: nameOf(g, c.actor), event: causeEvent(c, (q) => nameOf(g, q)), delta: c.delta, turn: T, of: "the win chance of You" } : null; };
 const facts = (g) => memo(g, "facts", () => tryv(() => aiFacts(g)?.obj, null));
 
 const focusId = (f) => (f ? (f.node ?? f.edge ?? f.hex ?? f.city ?? null) : null);
@@ -99,7 +102,8 @@ export function aiToolRun(g, name, a = {}) {
       const ser = tryv(() => aiSeries(g)), wc = ser ? Object.fromEntries(g.players.map((p) => { const c = wcChange(ser, p.id, T, T); return [nameOf(g, p.id), c ? [c.from, c.to] : null]; }).filter(([, v]) => v)) : {};
       const decs = aiDecList(g).filter((e) => e.turn === T).map((e) => ({ player: nameOf(g, e.seat), n: e.n, played: clip(e.x.label, 70), better: e.x.best ? clip(e.x.best.label, 70) : null, costPct: Math.round(e.gap * 1000) / 10 }));
       if (!st.length && !decs.length && !Object.keys(wc).length) return { error: `no data for turn ${T} (the game lasted ${g.turn} turns)` };
-      return { turn: T, winChancePctBeforeAfter: wc, steps: st, reviewedDecisions: decs };
+      const cause = causeOf(g, T);
+      return { turn: T, winChancePctBeforeAfter: wc, ...(cause ? { cause } : {}), steps: st, reviewedDecisions: decs };
     }
     if (name === "get_luck") {
       const seat = aiSeatOf(g, a.player); if (seat == null) return { error: `unknown player "${a.player}"` };
@@ -120,7 +124,7 @@ export function aiToolRun(g, name, a = {}) {
     }
     if (name === "list_swings") {
       const n = Math.max(1, Math.min(8, +a.n || 5));
-      return { swings: steps(g).sort((p, q) => q.score - p.score).slice(0, n).sort((p, q) => p.turn - q.turn).map((s) => { const { score, ...r } = s; return { ...r, swingPct: score }; }) };
+      return { swings: steps(g).sort((p, q) => q.score - p.score).slice(0, n).sort((p, q) => p.turn - q.turn).map((s) => { const { score, ...r } = s, cause = causeOf(g, s.turn); return { ...r, swingPct: score, ...(cause ? { cause } : {}) }; }) };
     }
   } catch (e) { return { error: "lookup failed" }; }
   return { error: `unknown tool ${name}` };
