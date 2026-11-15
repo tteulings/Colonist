@@ -93,7 +93,7 @@ export function attribute(fa, fb, va, vb, { zMin = 2, max = 3, meta = {} } = {})
   // vp15 / vp20 are the outcome of the other features, not a reason: only when nothing else is found
   // a trade-off is not a reason: only the direction that is good in itself (earlier, more, fewer losses)
   const good = (x) => (UNIT[x.feature] === "turn" ? x.diff < 0 : x.feature === "lost" ? x.diff < 0 : x.feature === "bank" || x.feature === "port" ? true : x.diff > 0);
-  const sig0 = all.filter((x) => Math.abs(x.z) >= zMin && good(x) && x.share > 0.04 && x.r * Math.sign(gap || 1) > 0.05);
+  const sig0 = all.filter((x) => Math.abs(x.z) >= zMin && good(x) && x.share > 0.04 && Math.abs(x.r) > 0.05);
   // in turn features a smaller number is earlier: the sign of the difference is the finding, the slope already says whether it helps
   const cause = sig0.filter((x) => x.feature !== "vp15" && x.feature !== "vp20");
   const sig = cause.length ? cause : sig0;
