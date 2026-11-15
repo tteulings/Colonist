@@ -98,7 +98,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   await page.locator(`[data-lncat=${cat.id}]`).tap(); await sleep(400);
   const c0 = calls;
   await page.locator(".ln-chip").first().tap(); await page.waitForSelector(".ln-ans .ex-a", { timeout: 60000 }); await sleep(300);
-  ok(calls === c0 + 1 && body.mode === "explain" && typeof body.facts === "string" && body.facts.length < 4000 && body.question === "How do I get better at this?" && /worstExamples/.test(body.facts), "ask posts explain with facts < 4k", { len: body.facts.length, lang: body.lang });
+  ok(calls === c0 + 1 && body.mode === "lesson" && typeof body.facts === "string" && body.facts.length < 4000 && body.question === "How do I get better at this?" && /worstExamples/.test(body.facts), "ask posts lesson mode with facts < 4k", { len: body.facts.length, lang: body.lang });
   const f = JSON.parse(body.facts); ok(f.category === cat.name && f.worstExamples.length === Math.min(3, shown[cat.id]) && f.worstExamples[0].better_A && f.rule, "facts: category, rule, worst examples with A/B", f.worstExamples[0]);
   await page.locator(".ln-ask").scrollIntoViewIfNeeded(); await page.screenshot({ path: `${SH}/ask.png` });
   await page.locator(".ln-chip").first().tap(); await sleep(500);
