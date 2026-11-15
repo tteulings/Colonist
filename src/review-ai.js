@@ -104,37 +104,67 @@ export const ReviewAiMixin = {
     if (level === "decision" && focus != null) chg = dm && Math.round(dm.gap * 100) >= 1 ? [{ seat: dm.seat, from: null, to: null, d: -Math.round(dm.gap * 100), move: true }] : [];
     // luck: the chip is the luck of the named player (or yours) in win chance, with its own sign
     if (view === "luck" && C.luck) { const s = seats[0] ?? C.me, d = Math.round((C.luck[s] ?? 0) * 100); chg = d ? [{ seat: s, from: null, to: null, d, luck: true }] : []; }
+    if (view === "plan" || view === "points") chg = []; // a plan / points card has no win-chance fact of its own
+    chg = chg.slice(0, 1); // one primary chip: the main fact (the rest is in the visual)
     const card = { level, view, turns: turns.slice(0, 6), focus, seats, chg, title: String(raw?.title ?? "").slice(0, 120), src: String(answer ? raw?.answer : raw?.text ?? "").slice(0, 900), points: (raw?.points || []).map(String).slice(0, 4), fix: [] };
     card.dec = card.focus != null && !!this._aiDecAt(card.focus, C);
     card.seat = chg[0]?.seat ?? seats[0] ?? null;
     card.text = this._aiTrust(card, C);
     card.title = this._aiTitle(card, C);
     card.generic = card.fix.includes("title");
-    if (card.generic && card.focus != null && card.chg[0]) { const TW = C.lang === "nl" ? "Beurt" : this._rvTW?.() || "Turn"; if (card.text === this._aiNeutral(card, C, card.chg[0].seat, card.focus, TW)) card.text = ""; } // the app title already says it
     return card;
+  },
+  _aiPoss(C, s) { const nm = C.nmRaw(s); return this._rvIsYou(s) ? C.t.your : C.lang === "nl" ? `${nm}s` : `${nm}'s`; },
+  /** A readable app title (never "X \u00b7 Y"): "Turn 21: your move", "Blaauw's plan", "Luck for you". */
+  _aiNeutralTitle(card, C) {
+    const L = C.t, c = card.chg[0], TW = C.lang === "nl" ? "Beurt" : this._rvTW?.() || "Turn", cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+    const s = c?.seat ?? card.seats[0] ?? C.me, you = this._rvIsYou(s), poss = this._aiPoss(C, s), nl = C.lang === "nl";
+    if (c?.luck) return nl ? `${L.luck} voor ${you ? "jou" : C.nmRaw(s)}` : `${L.luck} for ${you ? "you" : C.nmRaw(s)}`;
+    if (card.focus != null && c) return `${card.focus === 0 ? L.setup : `${TW} ${card.focus}`}: ${you && c.move ? L.mine : `${poss} ${c.move ? L.move : L.win}`}`;
+    if (card.view === "plan" || card.level === "strategy") return cap(`${poss} plan`);
+    return cap(`${poss} ${(nl ? { game: "spel", decision: "beslissing", strategy: "strategie" } : { game: "game", decision: "decision", strategy: "strategy" })[card.level]}`);
   },
   /** The AI's title unless it contradicts the chip (a "best move" with a negative chip, luck "against you" with a positive one): then a neutral app title. */
   _aiTitle(card, C) {
-    const t = card.title, c = card.chg[0], L = C.t, TW = C.lang === "nl" ? "Beurt" : this._rvTW?.() || "Turn";
+    const t = card.title, c = card.chg[0];
     if (!t || !c || !c.d) return t;
     const bad = c.luck ? (AGAINST.test(t) && c.d > 0) || (FAVOUR.test(t) && c.d < 0) : (posW(t) && !negW(t) && c.d < 0) || (negW(t) && !posW(t) && c.d > 0);
     if (!bad) return t;
     card.fix.push("title");
-    const you = this._rvIsYou(c.seat), nm = C.nmRaw(c.seat), poss = you ? L.your : C.lang === "nl" ? `${nm}s` : `${nm}'s`;
-    if (c.luck) return `${L.luck} \u00b7 ${you ? L.you : nm} ${sgn(c.d)}%`;
-    if (card.focus == null) return `${L.lv[card.level]} \u00b7 ${you ? L.you : nm}`;
-    const tt = card.focus === 0 ? L.setup : `${TW} ${card.focus}`;
-    return `${tt} \u00b7 ${you && c.move ? L.mine : `${poss} ${c.move ? L.move : L.win}`} ${sgn(c.d)}%`;
+    return this._aiNeutralTitle(card, C);
   },
-  /** A neutral sentence for a seat from the app's own number: "Turn 22: your win chance fell 57%". */
+  /** "Blaauw's plan: cities and the army." from the build timeline (the plan card when the AI's sentence could not be kept). */
+  _aiPlanLine(C, s) {
+    const cnt = {}; (C.tl[s] || []).forEach(([, k]) => { cnt[k] = (cnt[k] || 0) + 1; });
+    const nl = C.lang === "nl", W = nl ? { c: "steden", s: "dorpen", L: "de langste weg", A: "het leger", v: "puntenkaarten" } : { c: "cities", s: "settlements", L: "the longest road", A: "the army", v: "point cards" };
+    const top = ["c", "A", "L", "v", "s"].filter((k) => cnt[k]).slice(0, 2); if (!top.length) return "";
+    const poss = this._aiPoss(C, s), who = poss.charAt(0).toUpperCase() + poss.slice(1);
+    return `${who} plan: ${top.map((k) => W[k]).join(nl ? " en " : " and ")}.`;
+  },
+  /** A neutral full sentence for a seat from the app's own number: "On turn 5 your win chance fell 11%." / "Your move on turn 21 cost 2% win chance." */
   _aiNeutral(card, C, s, T0, TW) {
-    const L = C.t, you = this._rvIsYou(s), nm = C.nmRaw(s), poss = you ? L.your : C.lang === "nl" ? `${nm}s` : `${nm}'s`;
+    const L = C.t, you = this._rvIsYou(s), nm = C.nmRaw(s), poss = this._aiPoss(C, s), nl = C.lang === "nl", cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+    if (card.view === "plan" && !card.chg.length) return this._aiPlanLine(C, s);
     const mv = card.chg.find((c) => c.move && c.seat === s), lk = card.view === "luck" ? card.chg.find((c) => c.luck && c.seat === s) : null;
-    const tt = T0 == null ? "" : T0 === 0 ? `${L.atSetup} ` : `${L.onT} ${T0} `;
-    if (mv) return `${tt}${poss} ${L.move} ${L.cost} ${Math.abs(mv.d)}% ${L.win}.`.replace(/^./, (c) => c.toUpperCase());
-    if (lk) return `${L.luck}: ${poss} ${L.win} ${lk.d > 0 ? L.rose : L.fell} ${Math.abs(lk.d)}%.`;
+    if (mv) { const n = Math.abs(mv.d); return nl ? cap(`${poss} zet ${T0 == null ? "" : T0 === 0 ? "bij de opzet" : `in beurt ${T0}`} kostte ${n}% winkans.`.replace(/\s{2,}/g, " ")) : cap(`${poss} ${T0 === 0 ? "set-up move" : `move${T0 == null ? "" : ` on turn ${T0}`}`} cost ${n}% win chance.`); }
+    if (lk) { const n = Math.abs(lk.d); return nl ? (lk.d > 0 ? `Geluk gaf ${you ? "jou" : nm} ${n}% winkans erbij.` : `Pech kostte ${you ? "jou" : nm} ${n}% winkans.`) : (lk.d > 0 ? `Luck added ${n}% to ${poss} win chance.` : `Luck cost ${you ? "you" : nm} ${n}% win chance.`); }
     const c = T0 != null ? wcChange(C.ser, s, T0, T0) : null; if (!c || !c.d) return "";
-    return `${tt}${poss} ${L.win} ${c.d > 0 ? L.rose : L.fell} ${Math.abs(c.d)}%.`.replace(/^./, (x) => x.toUpperCase());
+    const tt = T0 === 0 ? (nl ? "Bij de opzet" : "At set-up") : nl ? `In beurt ${T0}` : `On turn ${T0}`, n = Math.abs(c.d);
+    return nl ? `${tt} ${c.d > 0 ? "steeg" : "daalde"} ${poss} winkans met ${n}%.` : `${tt} ${poss} win chance ${c.d > 0 ? "rose" : "fell"} ${n}%.`;
+  },
+  /** A sentence's win-chance numbers replaced by the app's value for that turn and player (a pair "a% to b%" = the turn's step); null when it cannot be matched.
+   *  Any other number within 2 points of the card's chip shows the chip's value. */
+  _aiNums(sent, card, C, seat) {
+    const tm = sent.match(/\b(?:turn|beurt)\s+(\d+)/i), T = tm ? +tm[1] : card.focus ?? card.turns[0] ?? null, s = seat ?? card.chg[0]?.seat ?? C.me, N = "(\\d+(?:[.,]\\d+)?)";
+    const wc = (t) => { const v = t == null ? null : wcAt(C.ser, s, t); return v == null ? null : Math.round(v); };
+    let bad = false;
+    sent = sent.replace(new RegExp(`${N}(\\s?%\\s*(?:\u2192|->|to|and|naar|en)\\s*)${N}(\\s?%)`, "i"), (m, a, mid, b, pc) => { const c = T != null ? wcChange(C.ser, s, T, T) : null; if (!c || c.from == null) { bad = true; return m; } return `${c.from}${mid}${c.to}${pc}`; });
+    const one = (m, n) => { const v = wc(T); if (v == null) { bad = true; return m; } return m.replace(n, String(v)); };
+    sent = sent.replace(new RegExp(`${N}\\s?%\\s+(?:win ?chance|winkans)`, "gi"), (m, n) => one(m, n));
+    sent = sent.replace(new RegExp(`(?:win ?chance|winkans)(?:\\s+(?!from\\b|to\\b|and\\b|naar\\b|en\\b|van\\b)[\\p{L}]+){0,2}\\s+${N}\\s?%`, "giu"), (m, n) => one(m, n));
+    if (bad) return null;
+    const chips = card.chg.filter((c) => c.d);
+    return sent.replace(new RegExp(`${N}(\\s?%)`, "g"), (m, n, pc) => { const v = parseFloat(n.replace(",", ".")), hit = chips.find((c) => Math.abs(Math.abs(c.d) - v) <= 2); return hit && Math.abs(hit.d) !== v ? `${Math.abs(hit.d)}${pc}` : m; });
   },
   /** The numbers (whole %) a sentence may quote: the win chances of the seats it is about at the card's turns (+-1) and their steps, the cost of the
    *  decisions there, and the game-wide numbers of the review (luck, accuracy, moves cost). Anything else is not in the review. */
@@ -161,16 +191,17 @@ export const ReviewAiMixin = {
     const neutral = (s) => this._aiNeutral(card, C, s, T0, TW);
     const out = []; let used = false;
     const put = (s) => { if (s && !used) { out.push(s); used = true; } else if (!s) used = used; };
-    for (const sent of sents) {
+    for (let sent of sents) {
       const seen = nameRes.filter((x) => x.re.test(sent)).map((x) => x.s);
       const seat = seen.length === 1 ? seen[0] : seen.length === 0 ? card.chg[0]?.seat ?? null : null;
       const mvc = seat != null ? card.chg.find((x) => x.move && x.seat === seat) : null, wc = seat != null && T0 != null ? wcChange(C.ser, seat, T0, T0) : null;
       const c = mvc || wc;
-      const pos = posW(sent), neg = negW(sent);
-      let bad = false, why = "";
       if (!SENT_END.test(sent)) { card.fix.push("cut"); continue; } // a sentence the AI did not finish is dropped
-      if (c && pos && !neg && c.d <= -1) { bad = true; why = "verb"; }
-      else if (c && neg && !pos && c.d >= 1) { bad = true; why = "verb"; }
+      let bad = false, why = "";
+      { const rw = this._aiNums(sent, card, C, seat); if (rw === null) { bad = true; why = "number"; } else if (rw !== sent) { card.fix.push("num"); sent = rw; } } // win-chance numbers: the app's value for that turn and player
+      const pos = posW(sent), neg = negW(sent);
+      if (!bad && c && pos && !neg && c.d <= -1) { bad = true; why = "verb"; }
+      else if (!bad && c && neg && !pos && c.d >= 1) { bad = true; why = "verb"; }
       if (!bad && card.view === "luck" && C.luck && seat != null) { const lv = Math.round(C.luck[seat] * 100); if ((AGAINST.test(sent) && lv >= 1) || (FAVOUR.test(sent) && lv <= -1)) { bad = true; why = "luck"; } }
       if (!bad) {
         const nums = [...sent.matchAll(/(\d+(?:[.,]\d+)?)\s?%/g)].map((m) => parseFloat(m[1].replace(",", ".")));
@@ -220,7 +251,7 @@ export const ReviewAiMixin = {
       if (g.pct) {
         const signed = /^[+\u2212\-\u2013]/.test(m.trim()), val = parseFloat(m.replace(/[^\d.,]/g, "").replace(",", ".")), hit = card?.chg?.find((c) => Math.abs(Math.abs(c.d) - val) <= 2);
         if (signed && hit && hit.d !== 0) { // a signed number is a change: the review's sign and size
-          const cls = hit.d > 0 ? "up" : "dn";
+          const you = this._rvIsYou(hit.seat), cls = you ? (hit.d > 0 ? "up" : "dn") : `opp pc-${hit.seat}`;
           return `<b class="ai-c ${cls}">${sgn(hit.d)}%</b>`;
         }
         return luckCard ? lk("data-ailuck", "ai-v", m.trim()) : `<b class="ai-v">${m.trim()}</b>`;
@@ -236,9 +267,10 @@ export const ReviewAiMixin = {
 
   // ── cards ──
   _aiChgChips(card, C) {
-    return card.chg.filter((c) => c.d).map((c) => { const you = this._rvIsYou(c.seat), cls = c.d > 0 ? "up" : "dn"; const nm = C.nmRaw(c.seat);
-      const small = c.move ? (you ? C.t.mine : C.t.move) : c.luck ? C.t.luck.toLowerCase() : c.from != null ? `${c.from}\u2192${c.to}%` : "";
-      return `<button type="button" class="ai-chg ${cls}${you ? "" : " opp"} pc-${c.seat}" ${card.focus != null && !c.luck ? `data-ait="${card.focus}"` : c.luck ? "data-ailuck" : ""} title="${esc(nm)} \u00b7 ${esc(c.luck ? C.t.luck : c.move ? C.t.move : C.t.win)}${c.from != null ? ` ${c.from}% \u2192 ${c.to}%` : ""}"><i class="ai-dot" aria-hidden="true"></i>${you ? "" : `<span>${esc(nm)}</span>`}<b>${sgn(c.d)}%</b>${small ? `<small>${esc(small)}</small>` : ""}</button>`; }).join("");
+    // green / red only for YOUR win chance; an opponent's change is in that player's colour with their name ("Blaauw +14%")
+    return card.chg.filter((c) => c.d).slice(0, 1).map((c) => { const you = this._rvIsYou(c.seat), cls = you ? (c.d > 0 ? "up" : "dn") : "opp"; const nm = C.nmRaw(c.seat);
+      const small = c.move ? (you ? C.t.mine : C.t.move) : c.luck ? C.t.luck.toLowerCase() : "";
+      return `<button type="button" class="ai-chg ${cls} pc-${c.seat}" ${card.focus != null && !c.luck ? `data-ait="${card.focus}"` : c.luck ? "data-ailuck" : ""} title="${esc(nm)} \u00b7 ${esc(c.luck ? C.t.luck : c.move ? C.t.move : C.t.win)}${c.from != null ? ` ${c.from}% \u2192 ${c.to}%` : ""}"><i class="ai-dot" aria-hidden="true"></i>${you ? "" : `<span>${esc(nm)}</span>`}<b>${sgn(c.d)}%</b>${small ? `<small>${esc(small)}</small>` : ""}</button>`; }).join("");
   },
   /** A decision has a place on the board only when its A or B is a spot (node / edge): a trade or a development card has none. */
   _aiHasPos(d) { const g = this.geometry; if (!d?.x || !g) return false; return [d.x.best?.focus, d.x.focus].some((f) => f && tryv(() => rvPos(g, f))); },
@@ -317,13 +349,14 @@ export const ReviewAiMixin = {
     }).join("");
     const xl = `<text x="${l}" y="${H - 6}" text-anchor="start">${t0 ? "T" + t0 : C.t.setup}</text><text x="${W - r}" y="${H - 6}" text-anchor="end">T${t1}</text>`;
     const leg = seats.length > 1 ? `<div class="ai-leg">${seats.map((s) => `<span class="pc-${s}"><i class="ai-dot"></i>${esc(C.nmRaw(s))}</span>`).join("")}</div>` : "";
-    return `<div class="ai-vz"><svg class="ai-wc" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(C.t.win)}">${grid}${paths}${marks}${xl}</svg>${leg}</div>`;
+    const ch = (card.chg || []).find((c) => c.from != null && !c.move && !c.luck), cap = ch ? `<div class="ai-cap pc-${ch.seat}">${esc(C.nmRaw(ch.seat))} ${ch.from}% \u2192 ${ch.to}%</div>` : "";
+    return `<div class="ai-vz"><svg class="ai-wc" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(C.t.win)}">${grid}${paths}${marks}${xl}</svg>${leg}${cap}</div>`;
   },
   _aiVLuck(card, C) {
     if (!C.luck) return "";
     const seats = this._aiSeatRows(card, C), vals = seats.map((s) => (C.luck[s] ?? 0) * 100), max = Math.max(4, ...vals.map(Math.abs));
     return `<div class="ai-vz ai-bars">${seats.map((s, i) => { const v = vals[i], w = Math.min(50, (Math.abs(v) / max) * 50);
-      return `<div class="ai-br pc-${s}"><span class="n">${esc(C.nmRaw(s))}</span><span class="tr"><i class="z"></i><i class="b ${v < 0 ? "neg" : "pos"}" style="${v < 0 ? `right:50%;` : `left:50%;`}width:${w.toFixed(1)}%"></i></span><b class="${v > 0.4 ? "up" : v < -0.4 ? "dn" : ""}">${sgn(v)}%</b></div>`; }).join("")}</div>`;
+      return `<div class="ai-br pc-${s}"><span class="n">${esc(C.nmRaw(s))}</span><span class="tr"><i class="z"></i><i class="b ${v < 0 ? "neg" : "pos"}" style="${v < 0 ? `right:50%;` : `left:50%;`}width:${w.toFixed(1)}%"></i></span><b class="${this._rvIsYou(s) ? (v > 0.4 ? "up" : v < -0.4 ? "dn" : "") : ""}">${sgn(v)}%</b></div>`; }).join("")}</div>`;
   },
   _aiVPoints(card, C) {
     const src = C.st?.sources; if (!src) return "";
@@ -353,7 +386,7 @@ export const ReviewAiMixin = {
     if (!rows.length && !strict) rows = C.decs.filter((x) => x.own).sort((a, b) => b.gap - a.gap).slice(0, 3);
     if (!rows.length) return "";
     const cl = (s) => esc(String(s ?? "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/<[^>]+>/g, "").slice(0, 60));
-    return `<div class="ai-vz ai-mv">${rows.map((x) => `<div class="ai-mr pc-${x.seat}"><button type="button" class="ai-t" data-ait="${x.turn}">${x.turn === 0 ? C.t.setup : `T${x.turn}`}</button>${x.own ? "" : `<i class="ai-dot"></i>`}<span class="mt"><s>${cl(x.d.x.label)}</s> → <b>${cl(x.d.x.best.label)}</b></span><em class="dn">${sgn(-x.gap * 100)}%</em></div>`).join("")}</div>`;
+    return `<div class="ai-vz ai-mv">${rows.map((x) => `<div class="ai-mr pc-${x.seat}"><button type="button" class="ai-t" data-ait="${x.turn}">${x.turn === 0 ? C.t.setup : `T${x.turn}`}</button>${x.own ? "" : `<i class="ai-dot"></i>`}<span class="mt"><s>${cl(x.d.x.label)}</s> → <b>${cl(x.d.x.best.label)}</b></span><em class="${x.own ? "dn" : "opp"}">${sgn(-x.gap * 100)}%</em></div>`).join("")}</div>`;
   },
   _aiVBoard(card, C) {
     const T0 = card.focus ?? card.turns[0]; if (T0 == null || !C.st) return "";
@@ -363,8 +396,8 @@ export const ReviewAiMixin = {
   /** The view that fits the box of the spots plus a ring of hexes, whole, in a w x h picture: no hex of it is ever clipped. */
   _aiCropView(use, w, h, fitScale) {
     const g = this.geometry; if (!use?.length || !g) return null;
-    const m = g.hexSize * 2.6, xs = use.map((p) => p.x), ys = use.map((p) => p.y), minX = Math.min(...xs) - m, maxX = Math.max(...xs) + m, minY = Math.min(...ys) - m, maxY = Math.max(...ys) + m;
-    const sc = Math.min(w / (maxX - minX), h / (maxY - minY), fitScale * 2.8);
+    const m = g.hexSize * 2.2, xs = use.map((p) => p.x), ys = use.map((p) => p.y), minX = Math.min(...xs) - m, maxX = Math.max(...xs) + m, minY = Math.min(...ys) - m, maxY = Math.max(...ys) + m;
+    const pad = 16, sc = Math.min((w - 2 * pad) / (maxX - minX), (h - 2 * pad) / (maxY - minY), fitScale * 3.4);
     return { scale: sc, offsetX: w / 2 - ((minX + maxX) / 2) * sc, offsetY: h / 2 - ((minY + maxY) / 2) * sc, box: { minX, maxX, minY, maxY } };
   },
   /** The board at the turn as a picture (the Replay's renderer into an off-screen canvas), zoomed to the decision's A and B, or what was built. */
@@ -390,7 +423,7 @@ export const ReviewAiMixin = {
       if (v) this.view = v;
       this.boardRenderer?.resync?.(); this.boardRenderer?.invalidateStatic?.();
       if (this.boardRenderer) { this.boardRenderer.anims = []; this.boardRenderer.draw(performance.now()); } else this.drawCanvasScene(); // synchronous: requestDraw would paint after the canvas is read
-      out = { url: cv.toDataURL("image/png"), marks: d ? rvMarks(this, d, A, B) : "", w, h };
+      out = { url: cv.toDataURL("image/png"), marks: d ? rvMarks(this, d, A, B, { tight: true }) : "", w, h, view: { scale: this.view.scale, offsetX: this.view.offsetX, offsetY: this.view.offsetY } };
     } catch (e) { console.warn("ai board", e); } finally { try { this._rpClose(); } catch (_) { /* none open */ } }
     if (out) this._aiImgs.set(key, out);
     return out;
@@ -434,8 +467,9 @@ export const ReviewAiMixin = {
     if (U.askErr) out.push(`<section class="ai-c err" role="alert"><b class="ai-ti">${esc(L[U.askErr] || L.fail)}</b></section>`);
     ans.forEach((a, i) => { const card = this._aiCard(a.a, C, { answer: true }); out.push(this._aiCardHtml(card, C, { q: a.q, pin: !!a.pinned, idx: i, key: `a${i}`, seen })); });
     if (S) {
-      if (S.insights.headline) out.push(`<p class="ai-hl" data-aitx="hl" lang="${C.lang}">${this._aiFmt(S.insights.headline, C)}</p>`); this._aiSrc.set("hl", { text: S.insights.headline, card: null, max: 2 });
-      out.push(...this._aiCardList(S.insights.cards, C, seen));
+      const hl = this._aiHeadline(S.insights.headline, C);
+      if (hl) out.push(`<p class="ai-hl" data-aitx="hl" lang="${C.lang}">${this._aiFmt(hl, C)}</p>`); this._aiSrc.set("hl", { text: hl, card: null, max: 2 });
+      out.push(...this._aiCardList(S.insights.cards, C, seen, hl));
       out.push(`<p class="ai-ft"><span>${L.foot}</span>${online() ? `<button type="button" class="ai-rg" data-airun="1">${L.regen}</button>` : ""}</p>`);
     } else if (U.loading === "insights") out.push(`<p class="ai-hl sk">${L.wait}</p>${'<section class="ai-c" aria-busy="true"><div class="ai-sk"><i></i><i></i></div><div class="ai-skv"></div></section>'.repeat(3)}`);
     else if (U.err) out.push(this._aiErrHtml(C));
@@ -443,15 +477,25 @@ export const ReviewAiMixin = {
   },
   /** The insight cards as html: a card is dropped when its main fact (same turn + same player, or the final points) or its title was already shown,
    *  and an app fallback ("Turn 21 \u00b7 your move") when another card already covers that turn. */
-  _aiCardList(cards, C, seen) {
+  /** The headline, unless it quotes a number the review does not have. */
+  _aiHeadline(h, C) {
+    h = String(h || "").trim(); if (!h) return "";
+    const nums = [...h.matchAll(/(\d+(?:[.,]\d+)?)\s?%/g)].map((m) => parseFloat(m[1].replace(",", "."))); if (!nums.length) return h;
+    const A = this._aiAllowed({ turns: [], chg: [], view: "game" }, C, this.players.map((p) => p.id), "");
+    return nums.every((v) => [...A].some((a) => Math.abs(a - v) <= 2)) ? h : "";
+  },
+  _aiCardList(cards, C, seen, headline = "") {
     const ks = cards.map((c, i) => ({ k: this._aiCard(c, C), i }));
     const covered = (x) => ks.some((y) => y !== x && !y.k.generic && y.k.focus != null && y.k.focus === x.k.focus);
-    const dup = new Set(), facts = new Set(), titles = new Set(), out = [];
+    const dup = new Set(), facts = new Set(), out = [], norm = (t) => String(t || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim(), titles = new Set(headline ? [norm(headline)] : []);
+    const same = (t) => !!t && (titles.has(t) || (t.length >= 12 && [...titles].some((q) => q.includes(t) || t.includes(q))));
     ks.forEach((x) => {
-      const k = x.k, id = `${k.level}|${k.view}|${[...k.seats].sort().join()}|${k.level === "decision" ? k.focus : ""}`;
+      const k = x.k;
+      if (same(norm(k.title))) { k.title = this._aiNeutralTitle(k, C); if (same(norm(k.title))) return; } // a title repeating the headline or another card: retitled, else dropped
+      const id = `${k.level}|${k.view}|${[...k.seats].sort().join()}|${k.level === "decision" ? k.focus : ""}`;
       const fin = k.view === "points" || /\b(?:finished|ended|final|reached)\b[^.]*\b\d+ points?\b/i.test(k.text);
-      const f = [k.focus != null ? `t${k.focus}|${k.seat ?? ""}` : "", fin ? "final" : ""].filter(Boolean), ti = String(k.title || "").trim().toLowerCase();
-      if (dup.has(id) || (k.generic && covered(x)) || f.some((q) => facts.has(q)) || (ti && titles.has(ti))) return;
+      const f = [k.focus != null ? `t${k.focus}|${k.seat ?? ""}` : "", fin ? "final" : ""].filter(Boolean), ti = norm(k.title);
+      if (dup.has(id) || (k.generic && covered(x)) || f.some((q) => facts.has(q))) return;
       dup.add(id); f.forEach((q) => facts.add(q)); if (ti) titles.add(ti);
       out.push(this._aiCardHtml(k, C, { key: `c${x.i}`, seen }));
     });

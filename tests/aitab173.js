@@ -60,7 +60,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   const want = ["ai-bd|ai-mv", "ai-bars", null, "ai-plan", "ai-bd|ai-mv|ai-wc", "ai-wc"]; ok(want.every((k, i) => (k ? k.split("|").includes(S.cards[i].vis.join()) : S.cards[i].vis.length === 0)) && S.cards[6].vis.length === 0, "visuals: decision = board always, luck bars, no points bars, plan for strategy, chart, none", S.cards.map((c) => c.vis.join()));
   ok(S.cards[5].markers >= 1 && S.cards[5].markers <= 3 && S.cards[5].markers < 3 + 1, "win chart: merged adjacent markers (T10-11 is one)", S.cards[5].markers);
   ok(S.cards[0].chips.length === 1 && S.cards[0].chips[0].includes("\u2212" + F.worst.cost + "%") && /your move/.test(S.cards[0].chips[0]), "decision chip = YOUR cost with your sign (red, your move)", [S.cards[0].chips, F.worst.cost]);
-  ok(S.cards[3].chips.length === 1 && S.cards[3].chips[0].includes(sg(F.best.d) + "%"), "non-decision chip = real win-chance change from the per-turn timeline (same source as the chart)", [S.cards[3].chips, sg(F.best.d)]);
+  ok(S.cards[3].chips.length === 0, "6: a plan card has no win-chance chip (one primary chip only, on the card whose main fact it is)", S.cards[3].chips);
   ok(await G(() => document.querySelector("[data-aic=c0] .ai-chg").classList.contains("dn") && !document.querySelector("[data-aic=c0] .ai-chg").classList.contains("up")), "decision chip is red");
   ok(!new RegExp(wrongVerb).test(S.cards[0].text) && new RegExp(`turn ${F.worst.t}: your (move|win chance)`, "i").test(S.cards[0].shown) && !/…/.test(S.cards[0].shown) && /second sentence stays/.test(S.cards[0].text) && S.cards[0].title !== "Turn " + F.worst.t + " cost the most" || true, "trust: the contradicting verb sentence is replaced by a neutral app line", S.cards[0].text);
   const NB = await G(([o, t]) => { const g = window.__colonistGame, C = g._aiCtx(); const k = g._aiCard({ level: "game", view: "winchance", title: "x", text: `${o} rose from 77% to 88%. Plain sentence stays.`, turns: [t], focusTurn: t, players: [o] }, C); const sp = g._aiFmtLite("On turn 5 you had 60% and Ore 6 and 10 points"); return { text: k.text, fix: k.fix, sp }; }, [opN, F.opp.t]);
@@ -95,7 +95,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   ok(!/points card 1 points|Blaauw Turn 11|\bt12\b/.test(Q.garble) && /Blaauw on Turn 11/.test(Q.garble), "5: garbled app sentences fixed", Q.garble);
   ok(Q.dupDrop, "6: a duplicate card (same level + view + players) is dropped");
   ok(Q.noBdw && Q.chipTrunc, "2/4: no '\u2026' placeholder, no truncated names or chips");
-  ok(/\u2192/.test(Q.chip5) && /^T\d+\u2013\d+$/.test(Q.mk5 || ""), "1: chip states from\u2192to values and the chart marker spans the same turns", [Q.chip5, Q.mk5]);
+  ok(/^[\u2212+]\d+%$/.test(Q.chip5.replace(/\s?[a-z]+$/, "")) && /^T\d+\u2013\d+$/.test(Q.mk5 || ""), "1: win chip is a single signed number; the chart marker spans the same turns", [Q.chip5, Q.mk5]);
   ok(Q.bdFit && Q.decNoBd, "2/3: board sized to its picture (not clipped); every board has rings or is replaced", Q);
   // items 1-5: one sign rule, board on decisions, clean text, short chips, no repeated visuals
   const N = await G(async ([o, me, t]) => {
@@ -150,8 +150,8 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   }, [me, F.worst.t, F.alt.t, opN]);
   console.log(JSON.stringify(Z));
   const POSW = /stayed close|great|helped|best|paid off|strong|comeback/i;
-  ok(Z.titles.every((x) => !POSW.test(x) && /^(Turn \d+|Set-up) \u00b7 .* \u2212\d+%$/.test(x)), "1: positive title with a negative chip -> neutral app title 'Turn N \u00b7 your move \u2212x%'", Z.titles);
-  ok(!/stayed close|paid off/.test(Z.neutralLine) && /^On turn \d+ your move cost/.test(Z.neutralLine), "1: positive text with a negative chip -> neutral line", Z.neutralLine);
+  ok(Z.titles.every((x) => !POSW.test(x) && /^(Turn \d+|Set-up): your (move|win chance)$/.test(x)), "1: positive title with a negative chip -> readable neutral title 'Turn N: your move'", Z.titles);
+  ok(!/stayed close|paid off/.test(Z.neutralLine) && /^Your move on turn \d+ cost \d+% win chance\.$/.test(Z.neutralLine), "1: positive text with a negative chip -> full-sentence neutral line", Z.neutralLine);
   ok(!/ :|: /.test(Z.colon) && !/<\/span>:/.test(Z.colonHtml) && !/\s:/.test(Z.colonHtml), "1: no 'Turn 21 : ' (no colon after a chip)", Z.colon);
   ok((Z.poss.match(/<span[^>]*ai-n[^>]*>[^<]*['\u2019]s<\/span>/g) || []).length === 2 && !/<\/span>['\u2019]s/.test(Z.poss), "1: possessive is inside the name chip", Z.poss);
   ok(/^Strategy \u00b7 /.test(Z.strat.title) || !POSW.test(Z.strat.title) || Z.strat.chg.length === 0, "1: strategy title checked", Z.strat.title);
@@ -252,6 +252,53 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   ok(await G(() => navigator.onLine === false && !document.querySelector("[data-rvt=ai]") && !document.querySelector("[data-rcai]")), "offline: tab and Overview row hidden", await G(() => [...document.querySelectorAll(".rv-tabs button")].map((e) => e.textContent)));
   await ctx.setOffline(false); await G(() => window.dispatchEvent(new Event("online"))); await sleep(700);
   ok(await G(() => !!document.querySelector("[data-rvt=ai]")), "online again: tab back");
+  // 4th critic pass: items 1-5
+  const Y = await G(async ([o, me, t, opS]) => {
+    const g = window.__colonistGame, C = g._aiCtx(), { wcAt, wcChange } = await import("./src/review/ai-facts.js"), r = {}, strip = (h) => h.replace(/<[^>]+>|\u2060/g, "");
+    const mk = (extra) => ({ level: "game", view: "winchance", title: "x", text: "Plain.", turns: [t], focusTurn: t, players: [], ...extra });
+    // 1: neutral lines are sentences, no leading dot, no "X \u00b7 Y"
+    const cs = [g._aiCard(mk({ level: "decision", view: "moves", title: "Great move", text: "Your move paid off." }), C), g._aiCard(mk({ title: "Great win", text: "Your win chance rose a lot and was great." }), C), g._aiCard({ level: "strategy", view: "plan", title: "Strong plan", text: "Strong plan was great.", turns: [], players: [opS] }, C)];
+    r.lines = cs.map((c) => [c.title, c.chg[0] ? g._aiNeutral(c, C, c.chg[0].seat, c.focus, "Turn") : ""]); r.lines[2][1] = g._aiNeutral(cs[2], C, opS, null, "Turn") || cs[2].text; // (the card's own text is blank when it equals the neutral line)
+    r.plan = g._aiPlanLine(C, opS);
+    const wcc = wcChange(C.ser, me, t, t), v = Math.round(wcAt(C.ser, me, t));
+    // 2: numbers = the app's value for that turn and player
+    const a = g._aiCard(mk({ text: `Your win chance was 71% on turn ${t}.`, players: [] }), C); r.a = a.text; r.av = v;
+    const b2 = g._aiCard(mk({ text: `Your win chance went from 5% to 99% on turn ${t}.` }), C); r.b = b2.text; r.bw = wcc && [wcc.from, wcc.to];
+    const c3 = g._aiCard(mk({ text: "Your win chance was 71% then." , turns: [], focusTurn: null }), C); r.c = c3.text;
+    // 3: opponent chip is not green/red, has name + sign
+    const oc = g._aiCard(mk({ players: [o], text: "Fine." }), C), ch = strip(g._aiChgChips(oc, C)); r.oppChip = ch; r.oppCls = (g._aiChgChips(oc, C).match(/class="ai-chg ([^"]*)"/) || [])[1];
+    const yc = g._aiChgChips(g._aiCard(mk({ players: [] , text: "Fine."}), C), C); r.youCls = (yc.match(/class="ai-chg ([^"]*)"/) || [])[1];
+    r.chips = [oc, g._aiCard(mk({ players: [o, "You"] }), C)].map((c) => (g._aiChgChips(c, C).match(/class="ai-chg /g) || []).length);
+    const oh = g._aiFmt("Blaauw +14% here.", C, { chg: [{ seat: opS, d: 14 }], focus: t }); r.oppInline = /ai-c opp pc-\d/.test(oh) && !/ai-c (up|dn)/.test(oh);
+    const lh = g._aiVLuck({ seats: [], turns: [] }, C); r.luckOpp = !C.luck || [...new DOMParser().parseFromString(lh, "text/html").querySelectorAll(".ai-br")].every((row, i) => i === me || !/\b(up|dn)\b/.test(row.querySelector("b").className));
+    // 4: a title repeating the headline or another card is retitled or dropped
+    const html = g._aiCardList([mk({ title: "Same title here", text: "A.", turns: [3], focusTurn: 3 }), mk({ level: "strategy", view: "plan", title: "Same title here", text: "B.", turns: [9], focusTurn: 9 }), mk({ level: "game", view: "luck", title: "Headline of the game", text: "C.", turns: [], focusTurn: null })], C, new Set(), "Headline of the game");
+    r.titles = html.map((h) => (h.match(/class="ai-ti">([^<]*)/) || [])[1]);
+    return r;
+  }, [opN, me, F.worst.t, F.opp.s]);
+  console.log(JSON.stringify(Y));
+  ok(Y.lines.every(([ti, tx]) => !/\u00b7/.test(ti + tx) && !/^[\s\u00b7]/.test(tx)) && /^(Turn \d+: your move)$/.test(Y.lines[0][0]) && /^Your move on turn \d+ cost \d+% win chance\.$/.test(Y.lines[0][1]), "1: neutral title and line are readable full sentences", Y.lines);
+  ok(/^\w+(?: \w+)?'s plan: [a-z ]+\.$/.test(Y.plan) && /\bplan\b/.test(Y.lines[2][0]), "1: plan line 'Blaauw's plan: cities and the army.' and title", [Y.plan, Y.lines[2][0]]);
+  ok(Y.a.includes(Y.av + "%") && !/71/.test(Y.a), "2: a win-chance number is replaced by the app's value for that turn and player", [Y.a, Y.av]);
+  ok(!/\b5%|99%/.test(Y.b) || (Y.bw && Y.b.includes(Y.bw[0] + "%") && Y.b.includes(Y.bw[1] + "%")), "2: 'a% to b%' shows the app's step or is dropped", [Y.b, Y.bw]);
+  ok(!/71/.test(Y.c), "2: an unmatched win-chance number is removed (no number differing from the chip/visual)", Y.c);
+  ok(Y.oppCls === "opp pc-" + F.opp.s && /^[\w ]+[+\u2212]\d+%/.test(Y.oppChip) && /^(up|dn) pc-/.test(Y.youCls), "3: opponent chip in the player's colour with name, never red/green; yours green/red", [Y.oppCls, Y.oppChip, Y.youCls]);
+  ok(Y.chips.every((n) => n <= 1) && Y.oppInline && Y.luckOpp, "3: at most one primary chip per card; opponent numbers never up/dn", Y);
+  ok(Y.titles.length >= 2 && new Set(Y.titles).size === Y.titles.length && !Y.titles.includes("Headline of the game"), "4: duplicate title / title repeating the headline is retitled or dropped", Y.titles);
+  // 5: ring badges are not on number tokens
+  const R5 = await G(async () => {
+    const g = window.__colonistGame, C = g._aiCtx(), out = [];
+    for (const x of C.decs.filter((q) => g._aiHasPos(q.d)).slice(0, 6)) {
+      const s = g._aiShot(x.turn, C, 320, 198), V = s?.view; if (!s?.marks) continue;
+      const toks = g.geometry.hexes.filter((h) => h.number).map((h) => [h.center.x * V.scale + V.offsetX, h.center.y * V.scale + V.offsetY]), tr = g.geometry.hexSize * V.scale * 0.34;
+      const doc = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg">${s.marks}</svg>`, "image/svg+xml");
+      const bad = [...doc.querySelectorAll(".mk-a circle[stroke], .mk-b circle[stroke], .mk-a g circle, .mk-b g circle")].some((c) => { const gt = c.parentNode.getAttribute?.("transform"), m = gt && gt.match(/translate\(([-\d.]+) ([-\d.]+)\)/), cx = m ? +m[1] : +c.getAttribute("cx"), cy = m ? +m[2] : +c.getAttribute("cy"), r = +c.getAttribute("r"); return toks.some((t) => Math.hypot(t[0] - cx, t[1] - cy) < r + tr - 1 && c.parentNode.closest?.(".x") == null && (m || r < g.geometry.hexSize * V.scale * 0.5)); });
+      out.push([x.turn, bad]);
+    }
+    return out;
+  });
+  console.log(JSON.stringify(R5));
+  ok(R5.length > 0 && R5.every(([, bad]) => !bad), "5: A/B rings and their labels do not cover a number token", R5);
   ok(errors.length === 0, "no page errors", errors.join("|"));
   await b.close(); console.log(fails ? "FAILED" : "ALL OK"); process.exit(fails ? 1 : 0);
 })();
