@@ -26,7 +26,9 @@ export function decMoves(dm) {
   const b = x.best, bc = b ? x.cands.find((c) => c !== c0 && c.label === b.label) || x.cands.find((c) => c !== c0 && sameF(c.focus, b.focus)) : null;
   const best = b ? { label: clean(b.label, 80), focus: b.focus || null, win: pc(bc?.win ?? (base != null && b.gain != null ? base + b.gain : null)), kind: "best" } : null;
   const alts = x.cands.slice(1).filter((c) => c.win != null && !(best && (c.label === best.label || sameF(c.focus, best.focus)))).sort((p, q) => q.win - p.win).slice(0, 3).map((c) => ({ label: clean(c.label, 80), focus: c.focus || null, win: pc(c.win), kind: "alt" }));
-  return { played, best, alts, gap: Math.max(0, dm.gap ?? dm.d?.gap ?? 0), x };
+  const gap = Math.max(0, dm.gap ?? dm.d?.gap ?? 0);
+  if (best && played.win != null && gap >= 0.005) best.win = played.win + Math.round(gap * 100); // the review's own cost: the bars and the chip agree (the two rounded win chances may differ by 1)
+  return { played, best, alts, gap, x };
 }
 /** One move by ref ("played", "best", "alt2") of a decision. */
 export function moveOf(mv, ref) {

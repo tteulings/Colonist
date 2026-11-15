@@ -615,7 +615,7 @@ export const ReviewAiMixin = {
     const inP = (a) => !only || only.some((q) => Math.hypot(q.x - a.p.x, q.y - a.p.y) < 1);
     let out = "";
     b.arrows.forEach((a) => {
-      const A = at(a.from), B = at(a.to); if (!inP(A) && !inP(B)) return;
+      const A = at(a.from), B = at(a.to); if (only ? !(inP(A) && inP(B)) : false) return;
       const [x1, y1] = A.c, [x2, y2] = B.c, L = Math.hypot(x2 - x1, y2 - y1) || 1, ux = (x2 - x1) / L, uy = (y2 - y1) / L, e1 = [x1 + ux * (A.r + 3), y1 + uy * (A.r + 3)], e2 = [x2 - ux * (B.r + 5), y2 - uy * (B.r + 5)], col = a.kind === "alt" ? "#E0A526" : "var(--primary)";
       if (L > A.r + B.r + 10) out += `<g class="mk-arrow"><line x1="${e1[0].toFixed(1)}" y1="${e1[1].toFixed(1)}" x2="${e2[0].toFixed(1)}" y2="${e2[1].toFixed(1)}" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".9"/><line x1="${e1[0].toFixed(1)}" y1="${e1[1].toFixed(1)}" x2="${e2[0].toFixed(1)}" y2="${e2[1].toFixed(1)}" stroke="${col}" stroke-width="3" stroke-dasharray="1 7" stroke-linecap="round"/><path d="M${e2[0].toFixed(1)},${e2[1].toFixed(1)} l${(-ux * 11 - uy * 7).toFixed(1)},${(-uy * 11 + ux * 7).toFixed(1)} l0,0 M${e2[0].toFixed(1)},${e2[1].toFixed(1)} l${(-ux * 11 + uy * 7).toFixed(1)},${(-uy * 11 - ux * 7).toFixed(1)}" stroke="${col}" stroke-width="3" stroke-linecap="round" fill="none"/></g>`;
     });
