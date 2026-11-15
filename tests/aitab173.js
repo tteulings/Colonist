@@ -56,7 +56,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     hl: document.querySelector(".ai-hl")?.textContent, qchips: [...document.querySelectorAll(".ai-q")].map((e) => e.textContent), askVisible: (() => { const r = document.querySelector(".ai-ask").getBoundingClientRect(); return r.bottom <= innerHeight + 1 && r.height > 40; })() }));
   console.log(JSON.stringify(S.cards.map((c) => [c.title, c.vis, c.chips, c.why, c.go])));
   ok(S.cards.length === 7, "7 cards rendered", S.cards.length);
-  const want = ["ai-bd", "ai-bars", null, "ai-plan", "ai-bd", "ai-wc"]; ok(want.every((k, i) => (k ? S.cards[i].vis.join() === k : S.cards[i].vis.length === 0)) && S.cards[6].vis.length === 0, "visuals: decision = board always, luck bars, no points bars, plan for strategy, chart, none", S.cards.map((c) => c.vis.join()));
+  const want = ["ai-bd|ai-mv", "ai-bars", null, "ai-plan", "ai-bd|ai-mv|ai-wc", "ai-wc"]; ok(want.every((k, i) => (k ? k.split("|").includes(S.cards[i].vis.join()) : S.cards[i].vis.length === 0)) && S.cards[6].vis.length === 0, "visuals: decision = board always, luck bars, no points bars, plan for strategy, chart, none", S.cards.map((c) => c.vis.join()));
   ok(S.cards[5].markers >= 1 && S.cards[5].markers <= 3 && S.cards[5].markers < 3 + 1, "win chart: merged adjacent markers (T10-11 is one)", S.cards[5].markers);
   ok(S.cards[0].chips.length === 1 && S.cards[0].chips[0].includes("\u2212" + F.worst.cost + "%") && /your move/.test(S.cards[0].chips[0]), "decision chip = YOUR cost with your sign (red, your move)", [S.cards[0].chips, F.worst.cost]);
   ok(S.cards[3].chips.length === 1 && S.cards[3].chips[0].includes(sg(F.best.d) + "%"), "non-decision chip = real win-chance change from the per-turn timeline (same source as the chart)", [S.cards[3].chips, sg(F.best.d)]);
@@ -76,6 +76,26 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   ok(await G(() => document.documentElement.scrollWidth <= innerWidth + 1 && [...document.querySelectorAll(".ai-c")].every((c) => c.scrollWidth <= c.clientWidth + 1)), "no horizontal overflow");
   await sleep(600);
   ok(await G(() => { const i = document.querySelector(".ai-bd img"); return !!i && i.naturalWidth > 100; }), "board card: picture of the zoomed board");
+  // v1.73 critic items 1-6
+  const Q = await G(() => {
+    const g = window.__colonistGame, C = g._aiCtx(), r = {}, R = g._rv;
+    r.garble = g._aiFmt("Your points card 1 points and You built a point card t12, Blaauw turn 11.", C, null).replace(/<[^>]+>|\u2060/g, "");
+    const cards = document.querySelectorAll("[data-aic^=c]").length, keep = R.ai.insights.cards.slice();
+    R.ai.insights.cards.push({ ...keep[5] }); const h = g._aiBodyHtml(); R.ai.insights.cards = keep;
+    r.dupDrop = (h.match(/data-aic="c\d+"/g) || []).length === cards;
+    r.noBdw = !document.querySelector(".ai-bdw") && !/\u2026/.test([...document.querySelectorAll(".ai-bd")].map((e) => e.textContent).join(""));
+    r.chipTrunc = [...document.querySelectorAll(".ai-chg span, .ai-br .n, .ai-pr .n")].every((e) => e.scrollWidth <= e.clientWidth + 1 && getComputedStyle(e).textOverflow !== "ellipsis");
+    const wc = document.querySelector("[data-aic=c5]"); r.chip5 = wc.querySelector(".ai-chg")?.textContent; r.mk5 = wc.querySelector(".ai-wc .mk text")?.textContent;
+    r.bdFit = [...document.querySelectorAll(".ai-bd")].every((e) => { const i = e.querySelector("img"); return !i || Math.abs(i.getBoundingClientRect().height - e.getBoundingClientRect().height) <= 1; });
+    r.decNoBd = [...document.querySelectorAll("[data-aic^=c].lvl-decision")].every((c) => !c.querySelector(".ai-bd") || (!!c.querySelector(".ai-bd img") && !!c.querySelector(".ai-bd svg *")));
+    return r;
+  });
+  console.log(JSON.stringify(Q));
+  ok(!/points card 1 points|Blaauw Turn 11|\bt12\b/.test(Q.garble) && /Blaauw on Turn 11/.test(Q.garble), "5: garbled app sentences fixed", Q.garble);
+  ok(Q.dupDrop, "6: a duplicate card (same level + view + players) is dropped");
+  ok(Q.noBdw && Q.chipTrunc, "2/4: no '\u2026' placeholder, no truncated names or chips");
+  ok(/\u2192/.test(Q.chip5) && /^T\d+\u2013\d+$/.test(Q.mk5 || ""), "1: chip states from\u2192to values and the chart marker spans the same turns", [Q.chip5, Q.mk5]);
+  ok(Q.bdFit && Q.decNoBd, "2/3: board sized to its picture (not clipped); every board has rings or is replaced", Q);
   // items 1-5: one sign rule, board on decisions, clean text, short chips, no repeated visuals
   const N = await G(async ([o, me, t]) => {
     const g = window.__colonistGame, C = g._aiCtx(), { aiChip } = await import("./src/review-ai.js"), r = {};
