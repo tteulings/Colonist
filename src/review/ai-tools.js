@@ -4,6 +4,8 @@
 // Every number a tool returns comes from the stored review or from the engine; nothing is invented.
 import { aiFacts, aiSeries, wcChange } from "./ai-facts.js";
 import { decide } from "./evaluate.js";
+import { decMoves, moveOf } from "./ai-blocks.js";
+import { spotTable, spotsForModel } from "./ai-spots.js";
 import { turningSteps } from "./recap-facts.js";
 import { swingCause, causeEvent } from "./ai-cause.js";
 
@@ -93,7 +95,10 @@ export function aiToolRun(g, name, a = {}) {
       const out = { player: nameOf(g, e.seat), turn: e.turn, n: e.n, decisionsThatTurn: r.of, kind: x.k, played: clip(x.label, 80), playedWinPct: pc(base), better: x.best ? clip(x.best.label, 80) : null, costPct: Math.round(e.gap * 1000) / 10, rating: e.d.cls || null, evaluated: cands };
       if (x.aim) out.aims = JSON.parse(JSON.stringify(x.aim, (k, v) => (typeof v === "number" ? Math.round(v * 100) / 100 : v))); // where the points of the better (A) and played (B) futures come from
       if (x.simple) out.simpleChoice = x.simple;
-      if (JSON.stringify(out).length > 4200) delete out.aims;
+      const sp = tryv(() => { const mv = decMoves(e); return mv ? spotsForModel(spotTable(g, e, "en", ["best", "played"], (rf) => moveOf(mv, rf))) : null; }); // v1.80 the WHY of a spot decision: factors read from the position
+      if (sp) { out.spots = sp; out.spotsNote = "Explain the WHY from spots.factors (favours = the option that wins that factor) and appSummary: name the 2 decisive factors; use only these numbers. Pair = with the settlement you actually placed (for a first set-up pick that is the 2nd, chosen after the first: hindsight). The table is a rule-of-thumb read; the win chances come from the engine\u2019s futures: if no factor favours the better spot, say the table does not explain the gap."; }
+      if (JSON.stringify(out).length > 6200) delete out.aims;
+      if (JSON.stringify(out).length > 6200) delete out.evaluated;
       return out;
     }
     if (name === "get_turn") {

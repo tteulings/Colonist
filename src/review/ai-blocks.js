@@ -1,7 +1,8 @@
+import { spotTable, spotRefs, isSpotDecision } from "./ai-spots.js";
 // v1.79 VISUAL BLOCKS. The model composes an answer from a small toolkit (board, compare, line, bars, route, timeline, text); it names only
 // WHAT to show (turn / player / move ids). Every number, position and label is fetched here from the stored review or the tool results.
 // A block with an unresolvable ref is dropped; at most 3 visual blocks per card; text blocks are 1-2 short sentences.
-export const BLOCK_TYPES = ["board", "compare", "line", "bars", "route", "timeline", "text"];
+export const BLOCK_TYPES = ["board", "compare", "spots", "line", "bars", "route", "timeline", "text"];
 export const MAX_VISUAL = 3, MARK_KINDS = ["played", "better", "alt", "robber", "focus"], METRICS = ["luck", "points", "income"];
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
 const pc = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100));
@@ -55,6 +56,7 @@ export function evRow(ev, ref) {
 /** raw.blocks -> validated blocks. env: { C (context), g (geometry), seats(names), decAt(turn, seats), ev, maxT }. Invalid ones are dropped. */
 export function aiBlocks(rawBlocks, env) {
   const { C, g, ev } = env, out = []; let vis = 0, txt = 0;
+  tryv(() => autoSpots(rawBlocks, env), null);
   (Array.isArray(rawBlocks) ? rawBlocks : []).forEach((b) => {
     if (!b || typeof b !== "object" || !BLOCK_TYPES.includes(b.type)) return;
     if (b.type === "text") { const md = textOf(b.md); if (md && txt < 2) { out.push({ type: "text", md }); txt++; } return; }
@@ -62,6 +64,29 @@ export function aiBlocks(rawBlocks, env) {
     const r = tryv(() => ONE[b.type](b, env)); if (r) { out.push(r); vis++; }
   });
   return out;
+}
+/** v1.80 a board / compare of a set-up or settlement / city decision always comes with the spots table, and the board shows both spots (edits the raw list in place). */
+export function autoSpots(raw, env) {
+  if (!Array.isArray(raw) || !env.game) return;
+  const vb = raw.filter((b) => b && ["board", "compare", "spots"].includes(b.type)); if (!vb.length) return;
+  const T = [...new Set(vb.map((b) => int(b.turn)).filter((t) => t != null))][0]; if (T == null) return;
+  const b0 = vb.find((b) => int(b.turn) === T), seats = env.seats(b0.player == null ? [] : [b0.player]), dm = env.decAt(T, seats.length ? seats : null);
+  if (!dm || !isSpotDecision(dm.d?.x || dm.x)) return;
+  const mv = decMoves(dm); if (!mv?.best) return;
+  raw.filter((b) => b?.type === "board" && int(b.turn) === T).forEach((b) => {
+    b.marks = Array.isArray(b.marks) ? b.marks : []; b.arrows = Array.isArray(b.arrows) ? b.arrows : [];
+    const has = (at) => b.marks.some((m) => String(m?.at).toLowerCase() === at || (at === "best" && String(m?.at).toLowerCase() === "better"));
+    if (!has("played")) b.marks.unshift({ kind: "played", at: "played", label: null });
+    if (!has("best")) b.marks.unshift({ kind: "better", at: "best", label: null });
+    if (!b.arrows.length) b.arrows.push({ from: "played", to: "best", kind: "move" });
+  });
+  const mk = (type, extra) => ({ type, turn: T, player: b0.player ?? null, players: [], marks: [], arrows: [], zoom: null, options: [], series: [], turns: [], metric: null, from: null, to: null, md: null, ...extra });
+  const at = (type) => raw.findIndex((b) => b?.type === type && int(b.turn) === T);
+  if (at("board") < 0) raw.unshift(mk("board", { marks: [{ kind: "played", at: "played", label: null }, { kind: "better", at: "best", label: null }], arrows: [{ from: "played", to: "best", kind: "move" }], zoom: "auto" }));
+  if (at("compare") < 0) raw.splice(at("board") + 1, 0, mk("compare", { options: [{ label: "", ref: "played" }, { label: "", ref: "best" }, ...(mv.alts[0] ? [{ label: "", ref: "alt1" }] : [])] }));
+  if (at("spots") >= 0) return;
+  const i = Math.max(at("compare"), at("board"));
+  raw.splice(i + 1, 0, { type: "spots", turn: T, player: b0.player ?? null, players: [], marks: [], arrows: [], zoom: null, options: [{ label: "", ref: "best" }, { label: "", ref: "played" } ], series: [], turns: [], metric: null, from: null, to: null, md: null });
 }
 /** At most 2 short sentences, no markup. */
 export function textOf(md) {
@@ -105,6 +130,13 @@ const ONE = {
     const max = Math.max(...opts.map((o) => o.v)), bi = opts.findIndex((o) => o.kind === "best"), bestIdx = bi >= 0 ? bi : opts.findIndex((o) => o.v === max), played = opts.find((o) => o.kind === "played");
     const cost = played && opts[bestIdx].v - played.v >= 1 && opts[bestIdx] !== played ? opts[bestIdx].v - played.v : 0;
     return { type: "compare", turn: T, seat: dm?.seat ?? seats[0] ?? env.C.me, options: opts, bestIdx, cost };
+  },
+  spots(b, env) {
+    const T = turnOk(b.turn, env); if (T == null || !env.game) return null;
+    const seats = env.seats(b.player == null ? [] : [b.player]), dm = env.decAt(T, seats.length ? seats : null); if (!dm) return null;
+    const mv = decMoves(dm); if (!mv) return null;
+    const t = spotTable(env.game, dm, env.C.lang, spotRefs(b.options), (rf) => moveOf(mv, rf)); if (!t) return null;
+    return { type: "spots", turn: T, seat: dm.seat, ...t };
   },
   line(b, env) {
     const ser = env.C.ser; if (!ser || ser.by.size < 2) return null;

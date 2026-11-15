@@ -579,7 +579,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     ok(!!R, "1.79: a decision with a place on the board exists");
     if (R) {
       const B = R.board, M = R.mv;
-      ok(B.types?.join() === "board" && B.marks.length >= 2 && B.marks[0][0] === "played" && B.marks[0][1] === M.played && B.marks[1][0] === "better" && B.marks[1][1] === M.best, "1.79 board: marks resolved from refs (played / best win chances from the review), the bad alt9 dropped", B.marks);
+      ok(B.types?.[0] === "board" && B.marks.length >= 2 && B.marks[0][0] === "played" && B.marks[0][1] === M.played && B.marks[1][0] === "better" && B.marks[1][1] === M.best, "1.79 board: marks resolved from refs (played / best win chances from the review), the bad alt9 dropped", B.marks);
       ok(B.img && B.rings >= 4 && (B.arrow || B.two), "1.79 board: real board picture with rings and arrow", [B.img, B.rings, B.arrow]);
       ok(B.leg.length === B.marks.length && /A/.test(B.leg[1]) && B.leg[0].includes(`${M.played}%`) && B.leg[1].includes(`${M.best}%`) && (M.alt1 == null || B.leg.some((t) => /^1/.test(t) && t.includes(`${M.alt1}%`))), "1.79 board: legend A / B / numbered alternative with the win chance chips", B.leg);
       const rs = R.cmp.rows;
@@ -596,6 +596,49 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       ok(R.legacy.bk === null && R.legacy.blocks.join() === "line" && R.legacy.vis, "1.79: an old view maps to a block and still renders", R.legacy);
       ok(R.ordered[0] === "ai-hd" && R.ordered.includes("ai-tx") && R.ordered.indexOf("ai-hd") < R.ordered.indexOf("ai-tx"), "1.79: answer card order chip, text", R.ordered);
     }
+  }
+  // v1.80 spots: the factor table of a set-up decision, auto-added to a board / compare answer, with the WHY from the tool result
+  {
+    const blank = { type: "spots", turn: 0, player: "You", players: [], marks: [], arrows: [], zoom: null, options: [{ label: "", ref: "best" }, { label: "", ref: "played" }], series: [], turns: [], metric: null, from: null, to: null, md: null };
+    const R = await G(async (blank) => {
+      const g = window.__colonistGame, C = g._aiCtx(), { spotTable } = await import("./src/review/ai-spots.js"), { decMoves, moveOf } = await import("./src/review/ai-blocks.js");
+      const dm = C.decs.find((x) => x.turn === 0 && x.seat === g._rvPid && x.d.x.best); if (!dm) return null;
+      const host = document.createElement("div"); host.id = "t180"; host.style.cssText = "width:330px;position:relative"; (document.querySelector("[data-aibody]") || document.body).appendChild(host);
+      const mv = decMoves(dm), T = spotTable(g, dm, "en", ["best", "played"], (rf) => moveOf(mv, rf));
+      const run = async (raw) => { const card = g._aiCard({ level: "game", view: "none", title: "t", text: "Hello there.", answer: "Hello there.", turns: [], focusTurn: null, players: [], points: [], clauses: [], ...raw }, C, { answer: true }); host.innerHTML = g._aiCardHtml(card, C, { q: "Q?", key: "t180" }); g._aiBoards(host); await new Promise((r) => setTimeout(r, 1500)); return card; };
+      const c = await run({ blocks: [blank] });
+      const sp = host.querySelector(".ai-bk.bk-spots");
+      const out = { T: T && { rows: T.rows.map((r) => [r.k, r.cells, r.win]), summary: T.summary, rule: T.rule, opts: T.opts.map((o) => o.letter) }, bk: c.bk?.map((b) => b.type), cells: sp ? [...sp.querySelectorAll(".sp-c")].length : 0, win: sp ? sp.querySelectorAll(".sp-c.win").length : 0, hd: sp ? [...sp.querySelectorAll(".sp-h")].map((e) => e.textContent) : [], sum: sp?.querySelector(".sp-sum")?.textContent || "", rule: sp?.querySelector(".sp-rule")?.textContent || "", overflow: sp ? sp.scrollWidth > sp.clientWidth + 1 : null };
+      const c2 = await run({ blocks: [{ ...blank, type: "board", turn: 0, marks: [{ kind: "played", at: "played", label: null }], arrows: [], options: [] }, { ...blank, type: "compare", turn: 0, options: [{ label: "x", ref: "played" }, { label: "y", ref: "best" }] }] });
+      out.auto = { types: c2.bk?.map((b) => b.type), marks: c2.bk?.[0]?.marks.map((m) => m.kind), spots: !!host.querySelector(".ai-bk.bk-spots .ai-sp") };
+      const rob = C.decs.find((x) => x.d.x.k === "robber" && g._aiHasPos(x.d));
+      if (rob) { const c3 = await run({ blocks: [{ ...blank, type: "compare", turn: rob.turn, player: g.players[rob.seat].name, options: [{ label: "x", ref: "played" }, { label: "y", ref: "best" }] }] }); out.rob = c3.bk?.map((b) => b.type); }
+      host.remove(); return out;
+    }, blank);
+    console.log(JSON.stringify(R));
+    ok(!!R && R.T && R.T.rows.length >= 5 && R.T.opts.join() === "A,B", "1.80 spots: table has >= 5 factor rows for A and B", R?.T?.rows.map((r) => r[0]));
+    ok(R.T.rows[0][0] === "dots" && /\d+ dots?$/.test(R.T.rows[0][1][0]) && /[A-Z][a-z]+ \d+/.test(R.T.rows[0][1][0]) && ["pair", "port", "room", "share"].every((k) => R.T.rows.some((r) => r[0] === k)), "1.80 spots: dots per resource with numbers, pair, port, room, scarcity rows", R.T.rows[0]);
+    ok(R.bk.join() === "board,compare,spots" && R.cells === R.T.rows.length * 2 && R.win >= 1 && R.win <= R.T.rows.length && R.hd.length === 2 && /^A/.test(R.hd[0]) && /^B/.test(R.hd[1]), "1.80 spots: rendered one row per factor, winning cells lit, A / B headers with win chance", [R.cells, R.win, R.hd]);
+    ok(R.sum.length > 10 && /^A: /.test(R.sum) && /B: /.test(R.sum) && /Rule of thumb/.test(R.rule) && R.overflow === false, "1.80 spots: one-line app summary + set-up rule of thumb, no horizontal overflow", [R.sum, R.rule]);
+    ok(R.auto.types.join() === "board,compare,spots" && R.auto.marks.includes("better") && R.auto.marks.includes("played") && R.auto.spots, "1.80 spots: a board + compare of a set-up decision gets the spots table and both spots on the board", R.auto);
+    ok(!R.rob || !R.rob.includes("spots"), "1.80 spots: a robber decision gets no spots table", R.rob);
+    const TC = (id, name, args) => ({ id, type: "function", function: { name, arguments: JSON.stringify(args) } });
+    const WHY = "The better spot wins because it adds a 3:1 port, while the played one has 1 more dot.";
+    console.log("TAB", JSON.stringify(await G(() => { const g = window.__colonistGame; return [g._rvTab, g._rvStep]; })));
+    await G(() => { const g = window.__colonistGame; g._rvTab = "ai"; g._rvStep = null; g._aiRefresh(); });
+    await sleep(800); let seenT = null; calls.length = 0;
+    mock = (body) => { if (body.mode !== "game") return mock0(body);
+      if (!body.history) return { body: { toolRequests: [{ id: "k1", name: "get_decision", args: { turn: 0, player: "You", n: null } }], history: [{ role: "assistant", content: null, tool_calls: [TC("k1", "get_decision", { turn: 0, player: "You", n: null })] }] } };
+      seenT = body.toolResults; return { body: { explain: { answer: WHY, points: [], view: "none", turns: [0], focusTurn: 0, players: ["You"], followUps: [], evidence: ["k1"], blocks: [{ ...blank, type: "board", turn: 0, marks: [{ kind: "played", at: "played", label: null }, { kind: "better", at: "best", label: null }], arrows: [{ from: "played", to: "best", kind: "move" }], options: [] }, { ...blank, type: "compare", turn: 0, options: [{ label: "p", ref: "played" }, { label: "b", ref: "best" }] }] } } }; };
+    await G(() => window.__colonistGame._aiAsk("Where should I have placed my first settlement?", true)); await page.waitForFunction(() => window.__colonistGame._aiUi?.loading !== "ask", null, { timeout: 120000 }); await page.waitForFunction(() => [...document.querySelectorAll("[data-aic^=a]")].some((e) => /first settlement/.test(e.textContent)), null, { timeout: 15000 }).catch(() => {}); await sleep(2500);
+    const A = await G(() => { const c = [...document.querySelectorAll("[data-aic^=a]:not(.col)")].find((e) => /first settlement/.test(e.textContent)); return { types: [...(c?.querySelectorAll("[data-bk]") || [])].map((e) => e.dataset.bk), text: c?.querySelector(".ai-tx")?.textContent || "", all: (c?.textContent || "").replace(/\s+/g, " ").slice(0, 400), cells: c?.querySelectorAll(".bk-spots .sp-c").length || 0, win: c?.querySelectorAll(".bk-spots .sp-c.win").length || 0 }; });
+    if (!A.types.length) console.log("CARDS", JSON.stringify(await G(() => [...document.querySelectorAll("[data-aic]")].map((e) => [e.dataset.aic, e.className, e.textContent.replace(/\s+/g, " ").slice(0, 70)]))), JSON.stringify(await G(() => [window.__colonistGame._aiUi, window.__colonistGame._rv.ai.answers.slice(0, 3).map((a) => [a.q, a.a.answer.slice(0, 60)])])));
+    console.log("SRC", JSON.stringify(await G(() => { const g = window.__colonistGame, c = [...document.querySelectorAll("[data-aic^=a]:not(.col)")].find((e) => /first settlement/.test(e.textContent)); const k = g._aiSrc.get(c.dataset.aic); return [c.dataset.aic, k && { text: k.text, src: k.src, fix: k.fix, ev: k.ev && { dec: k.ev.dec, n: [...k.ev.nums] } }]; })));
+    const sp = seenT?.[0]?.result?.spots;
+    console.log(JSON.stringify([A, sp && Object.keys(sp), sp?.appSummary]));
+    ok(sp && sp.factors?.length >= 5 && sp.appSummary && sp.ruleOfThumb && sp.options?.length === 2 && JSON.stringify(sp).length < 3500, "1.80 get_decision for a set-up carries the spots analysis (factors, app summary, rule of thumb), compact", [sp?.factors?.length, JSON.stringify(sp || {}).length]);
+    ok(A.types.join() === "board,compare,spots" && A.cells >= 10 && A.win >= 1 && /because/.test(A.text) && /port/.test(A.text), "1.80 the answer to a set-up question = board + compare + spots table + the why sentence", A);
+    await G(() => document.querySelector("[data-aic^=a]:not(.col)")?.scrollIntoView({ block: "start" })); await sleep(300); await page.screenshot({ path: SH + "/spots-answer.png" });
   }
   ok(errors.length === 0, "no page errors after the tool loop", errors.join("|"));
   await b.close(); console.log(fails ? "FAILED" : "ALL OK"); process.exit(fails ? 1 : 0);
