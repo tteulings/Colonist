@@ -134,3 +134,13 @@ b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { c
 .ai-plan .rt-sg svg .f { fill: #fff; } .ai-plan .rt-sg svg .l, .ai-plan .rt-sg svg .a { fill: none; stroke: #fff; stroke-width: 1.8; } .ai-plan .rt-sg svg .v { fill: #FFE08A; }
 .rt-ms b { white-space: normal; font-size: 9px; line-height: 10px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .rt-bar { height: 28px; } .rt-sg { padding-bottom: 8px; } .rt-sg svg { width: 11px; height: 11px; } .rt-need { font: 600 10px/1.2 var(--font-body); color: var(--ink-soft); text-align: right; margin-bottom: 1px; }
+
+/* v1.77 luck marker on drawn points, income strip */
+.rt-sg.lk { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.28) 0 3px, transparent 3px 6px); }
+.rt-inc { display: flex; gap: 4px; align-items: flex-end; margin: 2px 0 1px; height: 26px; }
+.rt-ib { --rc: #888; position: relative; flex: 1 1 0; max-width: 42px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; border-radius: 4px; padding: 1px 0; }
+.rt-ib i { display: block; width: 100%; min-height: 2px; border-radius: 3px 3px 1px 1px; background: var(--rc); }
+.rt-ib small { font: 700 8.5px/9px var(--font-body); color: var(--ink-soft); }
+.rt-ib.r-ore { --rc: #4A6D99; } .rt-ib.r-wheat { --rc: #C9A31E; } .rt-ib.r-sheep { --rc: #5FAE3C; } .rt-ib.r-wood { --rc: #4B7A2C; } .rt-ib.r-brick { --rc: #B2552A; }
+.rt-ib.nn { opacity: .45; }
+.rt-ib.bn { outline: 1.5px solid var(--neg); outline-offset: 0; background: color-mix(in srgb, var(--neg) 12%, transparent); } .rt-ib.bn small { color: var(--neg); font-weight: 800; }

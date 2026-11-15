@@ -93,6 +93,19 @@ export function aiPlan(g, q, tl = aiTimeline(g)) {
   const keys = (parts.length ? parts : [["settlements", s.settlements]]).slice(0, 3).map((x) => x[0]);
   return { keys, label: keys.map((k) => EN[k]).join(" + "), total: s.total, sources: { settlements: s.settlements, cities: s.cities, longestRoad: s.road, largestArmy: s.army, pointCards: s.cards }, timeline: tl[q] || [] };
 }
+/** v1.77 what a player's plan was built FROM: cards per turn by resource (robber blocks included, it is what they got), what the goal needs in total,
+ *  the bottleneck resource (least covered), harbours at the end, and how much came from trades / monopoly. */
+export function aiIncome(g, q, goal) {
+  const st = g._st, P = g.players[q], prod = st?.prod?.[q]; if (!prod || !P) return null;
+  const T = Math.max(1, g.turn || 1), per = Object.fromEntries(R5.map((r, i) => [r, Math.round((prod[i] / T) * 10) / 10]));
+  const need = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 }, add = (c, n) => Object.entries(c).forEach(([r, a]) => { need[r] += a * n; });
+  add(COST.city, goal.cities || 0); add(COST.settlement, Math.max(0, (goal.settlements || 0) - 2)); add(COST.road, goal.road ? 5 : 0); add(COST.dev, goal.army ? 3 : 0);
+  const cover = R5.map((r, i) => (need[r] > 0 ? { res: r, got: prod[i], needs: need[r], ratio: prod[i] / need[r] } : null)).filter(Boolean).sort((a, b) => a.ratio - b.ratio);
+  const b = cover[0] || null, rate = (r) => tryv(() => g.getPlayerTradeRate(P, r), 4);
+  const ports = R5.filter((r) => rate(r) <= 2), general = !ports.length && R5.some((r) => rate(r) === 3);
+  return { perTurn: per, need, bottleneck: b ? { res: b.res, got: b.got, needs: b.needs, perTurn: per[b.res], short: b.ratio < 1 } : null, ports, generalPort: general,
+    trades: { bank: st.bankTrades?.[q] || 0, players: st.playerTrades?.[q] || 0, monopoly: st.monoGot?.[q] || 0 } };
+}
 /** The ROUTE TO THE TARGET of one player: the goal composition that fits their start (cities+army, settlements+cities+road ...), the points they got by
  *  source in the order gained (turn = last gain), what was still missing at the end (cheapest piece + the cards) and when they were closest. */
 export function aiRoute(g, q, ser = aiSeries(g), tl = aiTimeline(g)) {
@@ -100,19 +113,27 @@ export function aiRoute(g, q, ser = aiSeries(g), tl = aiTimeline(g)) {
   const target = g.winPoints || 10, sp = tryv(() => aiStart(g, q)), fit = sp?.fit || "balanced";
   const have = { settlements: s.settlements, cities: s.cities / 2, road: s.road / 2, army: s.army / 2, cards: s.cards };
   const MAX = { settlements: 5, cities: 4, road: 1, army: 1, cards: 5 }, PTS = { settlements: 1, cities: 2, road: 2, army: 2, cards: 1 };
-  const ORDER = { cities: [["cities", 4], ["army", 1], ["settlements", 5], ["road", 1], ["cards", 5]], roads: [["road", 1], ["settlements", 4], ["cities", 4], ["settlements", 5], ["army", 1], ["cards", 5]], balanced: [["cities", 2], ["settlements", 4], ["army", 1], ["road", 1], ["cities", 4], ["cards", 5]] }[fit];
-  const goal = {}; let sum = 0;
-  for (const [k, cap] of ORDER) { while (sum < target && (goal[k] || 0) < Math.min(cap, MAX[k])) { goal[k] = (goal[k] || 0) + 1; sum += PTS[k]; } }
+  // v1.77 the goal follows the player's own start (dice dots per resource of the two set-up settlements): each source gets units in proportion to
+  // what the start can feed (city: ore+grain, settlement: all four, road: wood+brick, army: wool+grain+ore), with diminishing returns
+  const pi = sp?.startDots || { wood: 1, brick: 1, sheep: 1, wheat: 1, ore: 1 };
+  const FE = { cities: Math.min(pi.ore / 3, pi.wheat / 2), settlements: Math.min(pi.wood, pi.brick, pi.sheep, pi.wheat) / 1.2, road: Math.min(pi.wood, pi.brick) / 1.5, army: Math.min(pi.sheep, pi.wheat, pi.ore) / 1.5 };
+  const UNIT = { cities: [2, 4], settlements: [1, 5], road: [2, 1], army: [2, 1] }, goal = { settlements: 2 }; let sum = 2;
+  while (sum < target) {
+    const open = Object.keys(UNIT).filter((k) => (goal[k] || 0) < UNIT[k][1]); if (!open.length) break;
+    const pr = (k) => (FE[k] + 0.05) / (1 + 0.45 * (goal[k] || 0) * UNIT[k][0]);
+    const k = open.sort((x, y) => pr(y) - pr(x))[0]; goal[k] = (goal[k] || 0) + 1; sum += UNIT[k][0];
+  }
   const goalParts = ["cities", "settlements", "road", "army", "cards"].filter((k) => goal[k]).map((k) => ({ k, n: goal[k] }));
   const matched = goalParts.reduce((a, { k, n }) => a + Math.min(have[k], n) * PTS[k], 0), goalPts = goalParts.reduce((a, { k, n }) => a + n * PTS[k], 0);
   const KEY = { settlements: "s", cities: "c", road: "L", army: "A", cards: "v" }, last = {};
   (tl[q] || []).forEach(([t, k]) => { last[k] = t; });
-  const segs = ["settlements", "cities", "road", "army", "cards"].filter((k) => have[k] > 0).map((k) => ({ k, kind: KEY[k], pts: have[k] * PTS[k], turn: last[KEY[k]] ?? 0 })).sort((a, b) => a.turn - b.turn || a.pts - b.pts);
+  const segs = ["settlements", "cities", "road", "army", "cards"].filter((k) => have[k] > 0).map((k) => ({ k, kind: KEY[k], pts: have[k] * PTS[k], turn: last[KEY[k]] ?? 0, ...(k === "cards" ? { luck: true } : {}) })).sort((a, b) => a.turn - b.turn || a.pts - b.pts);
   const total = P.victoryPoints, won = g.winner === P, short = Math.max(0, target - total);
   const out = { target, total, won, goal: goalParts, goalPoints: goalPts, fit, goalProgressPct: Math.round(Math.min(1, matched / Math.max(1, Math.min(target, goalPts))) * 100), segments: segs };
   const bw = (() => { let b = null; for (const [t, v] of [...ser.by.entries()].sort((a, c) => a[0] - c[0])) if (v[q] != null && (!b || v[q] >= b.v)) b = { turn: t, v: v[q] }; return b; })();
   if (bw) out.closest = { turn: bw.turn, winChancePct: Math.round(bw.v * 100) };
-  if (won) { out.matchedGoal = out.goalProgressPct >= 70; out.verdict = { v: "worked" }; return out; }
+  out.income = tryv(() => aiIncome(g, q, goal));
+  if (won) { out.matchedGoal = out.goalProgressPct >= 70; const lastP = [...(tl[q] || [])].sort((a, c) => a[0] - c[0]).pop(); out.verdict = lastP && lastP[1] === "v" ? { v: "worked", luck: "card", at: lastP[0] } : { v: "worked" }; return out; }
   const hand = Object.fromEntries(R5.map((r) => [r, P.resources?.[r] || 0])), cands = [];
   const add = (kind, cost) => { const m = Object.fromEntries(Object.entries(cost).map(([r, a]) => [r, Math.max(0, a - hand[r])]).filter(([, a]) => a > 0)); cands.push({ kind, missing: m, cards: Object.values(m).reduce((a, b) => a + b, 0) }); };
   if (P.cities.size < 4 && P.settlements.size) add("city", COST.city);
@@ -126,12 +147,13 @@ export function aiRoute(g, q, ser = aiSeries(g), tl = aiTimeline(g)) {
   if (cands[0]) out.missing = { kind: cands[0].kind, cards: cands[0].missing };
   const T = Math.max(1, g.turn || 1), lastGain = Math.max(0, ...(tl[q] || []).map((x) => x[0])), coh = sp?.coherencePct ?? 100;
   const lockedBy = lrH != null && lrH >= 0 && lrH !== q && goal.road && !have.road && (g.players[lrH]?.longestRoadLength || 0) >= 5 ? lrH : null;
+  const dice = (() => { const e = st.expected?.[q], got = st.prodTot?.[q]; return e > 0 && got != null && got / e < 0.85 ? { got, expected: Math.round(e) } : null; })();
   if (out.goalProgressPct >= 70 && short <= 2) out.verdict = { v: "worked" };
   else if (lockedBy != null) out.verdict = { v: "wrong", reason: "road", by: lockedBy, byName: g._rvIsYou(lockedBy) ? "You" : unesc(g.players[lockedBy].name || ""), at: lastGain };
   else if (coh < 50) out.verdict = { v: "wrong", reason: "start", at: lastGain };
   else {
     const mr = Object.entries(out.missing?.cards || {}).sort((a, b) => (st.prod?.[q]?.[R5.indexOf(a[0])] || 0) - (st.prod?.[q]?.[R5.indexOf(b[0])] || 0))[0];
-    out.verdict = { v: "stalled", at: lastGain, ...(mr ? { reason: "income", res: mr[0], rate: Math.round(((st.prod?.[q]?.[R5.indexOf(mr[0])] || 0) / T) * 10) / 10 } : {}) };
+    out.verdict = { v: "stalled", at: lastGain, cause: dice ? "dice" : "plan", ...(dice ? { dice } : {}), ...(mr ? { reason: "income", res: mr[0], rate: Math.round(((st.prod?.[q]?.[R5.indexOf(mr[0])] || 0) / T) * 10) / 10 } : {}) };
   }
   return out;
 }
@@ -189,7 +211,7 @@ export function aiFacts(g, { max = AI_FACTS_MAX } = {}) {
     f.winChancePctByTurn = { note: `[turn, win chance %] after that turn, per player (turn 0 = after set-up)${ser.src === "moves" ? "; only the turns with a decision" : ""}`, ...Object.fromEntries(g.players.map((p) => [nm(p.id), [...ser.by.entries()].sort((a, b) => a[0] - b[0]).map(([t, v]) => [t, Math.round(v[p.id] * 100)])])) };
   }
   const tl = aiTimeline(g), KN = { s: "settlement", c: "city", L: "Longest road", A: "Largest army", v: "point card" };
-  f.plans = Object.fromEntries(g.players.map((p) => { const a = tryv(() => aiPlan(g, p.id, tl)); const sp = tryv(() => aiStart(g, p.id)); return [nm(p.id), a ? { plan: a.label, ...(sp ? { start: sp.startDots, fittingPlanFromStart: sp.fitting, planCoherencePct: sp.coherencePct, roadsBuilt: sp.roadsBuilt } : {}), points: a.total, from: a.sources, ...(rt => (rt ? { routeToTarget: { target: rt.target, goal: rt.goal.map((x) => `${x.n} ${x.k}`).join(" + "), pointsBySourceInOrder: rt.segments.map((x) => `${x.k} ${x.pts} (t${x.turn})`), goalProgressPct: rt.goalProgressPct, verdict: rt.verdict && `${rt.verdict.v}${rt.verdict.at != null && rt.verdict.v !== "worked" ? ` (progress stopped after turn ${rt.verdict.at})` : ""}${rt.verdict.reason === "road" ? `: longest road was held by ${rt.verdict.byName}` : rt.verdict.reason === "start" ? ": building did not match the start" : rt.verdict.reason === "income" ? `: only ${rt.verdict.rate} ${rt.verdict.res} per turn` : ""}`, ...(rt.won ? { wonViaGoal: rt.matchedGoal } : { pointsShort: rt.shortPoints, stillMissing: rt.missing ? `${rt.missing.kind}: ${Object.entries(rt.missing.cards).map(([r, n]) => `${n} ${r}`).join(", ") || "affordable"}` : undefined }), ...(rt.closest ? { closestTurn: rt.closest.turn, bestWinChancePct: rt.closest.winChancePct } : {}) } } : {}))(tryv(() => aiRoute(g, p.id, ser, tl))), timeline: a.timeline.map(([t, k]) => `${KN[k]} t${t}`) } : { timeline: tl[p.id].map(([t, k]) => `${KN[k]} t${t}`) }]; }));
+  f.plans = Object.fromEntries(g.players.map((p) => { const a = tryv(() => aiPlan(g, p.id, tl)); const sp = tryv(() => aiStart(g, p.id)); return [nm(p.id), a ? { plan: a.label, ...(sp ? { start: sp.startDots, fittingPlanFromStart: sp.fitting, planCoherencePct: sp.coherencePct, roadsBuilt: sp.roadsBuilt } : {}), points: a.total, from: a.sources, ...(rt => (rt ? { routeToTarget: { target: rt.target, goal: rt.goal.map((x) => `${x.n} ${x.k}`).join(" + "), pointsBySourceInOrder: rt.segments.map((x) => `${x.k} ${x.pts} (t${x.turn}) [${x.luck ? "drawn: luck" : "built"}]`), goalProgressPct: rt.goalProgressPct, verdict: rt.verdict && `${rt.verdict.v}${rt.verdict.luck ? `, with luck: the last point was a point card drawn on turn ${rt.verdict.at}` : ""}${rt.verdict.cause === "dice" ? `: stalled by dice (${rt.verdict.dice.got} cards received, ${rt.verdict.dice.expected} expected)` : rt.verdict.cause === "plan" ? " (plan, not dice)" : ""}${rt.verdict.at != null && rt.verdict.v !== "worked" ? ` (progress stopped after turn ${rt.verdict.at})` : ""}${rt.verdict.reason === "road" ? `: longest road was held by ${rt.verdict.byName}` : rt.verdict.reason === "start" ? ": building did not match the start" : rt.verdict.reason === "income" ? `: only ${rt.verdict.rate} ${rt.verdict.res} per turn` : ""}`, ...(rt.won ? { wonViaGoal: rt.matchedGoal } : { pointsShort: rt.shortPoints, stillMissing: rt.missing ? `${rt.missing.kind}: ${Object.entries(rt.missing.cards).map(([r, n]) => `${n} ${r}`).join(", ") || "affordable"}` : undefined }), ...(rt.income ? { incomePerTurn: rt.income.perTurn, goalNeedsTotalCards: rt.income.need, bottleneck: rt.income.bottleneck && `${rt.income.bottleneck.res}: ${rt.income.bottleneck.perTurn} per turn, got ${rt.income.bottleneck.got} of ${rt.income.bottleneck.needs} needed`, harbours: rt.income.ports.length ? rt.income.ports.join(", ") : rt.income.generalPort ? "3:1 only" : "none", tradedBy: rt.income.trades } : {}), ...(rt.closest ? { closestTurn: rt.closest.turn, bestWinChancePct: rt.closest.winChancePct } : {}) } } : {}))(tryv(() => aiRoute(g, p.id, ser, tl))), timeline: a.timeline.map(([t, k]) => `${KN[k]} t${t}`) } : { timeline: tl[p.id].map(([t, k]) => `${KN[k]} t${t}`) }]; }));
   const nmz = tryv(() => aiNearMiss(g, ser)); if (nmz) f.nearMiss = nmz;
   const decs = [];
   g.players.forEach((p) => {
