@@ -144,6 +144,10 @@ export const ReviewAiMixin = {
         card.chg = r.d ? [{ seat: r.seat, from: null, to: null, d: r.d, move: true, small: r.kind === "sim" ? (CHAT[C.lang] || CHAT.en).vs : null }] : []; }
     }
     if (card.rec || raw?.cant) card.points = []; // the model's chips would carry numbers of their own
+    { const tpl = card.rec || raw?.cant ? "" : tryv(() => this._aiNeutral(card, C, card.chg[0]?.seat ?? card.seats[0] ?? C.me, card.focus, ""), "") || "";
+      card.src = this._aiGuard(card.src, C, tpl); card.title = this._aiGuard(card.title, C, ""); card.points = card.points.filter((q) => this._aiGuard(q, C) === q); // a chip with a number is dropped whole (stripped it would be a fragment)
+      card.clauses = card.clauses.map((c) => ({ ...c, text: this._aiGuard(c.text, C) })).filter((c) => c.text);
+      if (raw?.cant) raw = { ...raw, answer: this._aiGuard(raw.answer, C) }; }
     card.text = raw?.cant ? String(raw.answer || "").slice(0, 300) : card.rec ? this._aiRecordText(card, C) : this._aiTrust(card, C);
     if (!answer && !card.rec && card.level === "decision") this._aiDecFit(card, C);
     if (!card.rec && !raw?.cant) this._aiCauseFit(card, C);
@@ -329,6 +333,40 @@ export const ReviewAiMixin = {
     if (!out.length && card.fix.includes("cut")) { const n2 = neutral(card.chg[0]?.seat ?? card.seat ?? C.me); if (n2) out.push(n2); }
     return out.join(" ").trim();
   },
+
+  // ── v1.81 digit guard: the model never free-texts a number ──
+  /** Every LLM free-text passes through here. Kept: turn references up to the game's last turn ("turn 22"), board spots that exist on the board ("Ore 6"), the final score
+   *  (rendered from the app's points). A win-chance percentage is removed; any other digit sequence (a count, dots, points) makes the sentence the app's template
+   *  (tpl) or dropped. Hits are counted in this._aiGuardN and logged (debug). */
+  _aiGuard(text, C, tpl = "") {
+    text = String(text ?? ""); if (!/\d/.test(text) || this._aiGuardOff) return text; // _aiGuardOff: tests of the older trust layer only
+    const G = this._aiGuardStat ||= { n: 0, log: [] }, keep = [], hold = (h) => String.fromCharCode(0xE000 + keep.push(h) - 1);
+    const fin = tryv(() => { const v = this.players.map((p) => p.victoryPoints).filter((x) => Number.isFinite(x)).sort((a, b) => b - a); return v.length >= 2 ? v : null; });
+    const hasSpot = (w, n) => { const rs = RESN[w.toLowerCase()]; return !!rs && !!this.geometry?.hexes?.some((x) => x.resource === rs && x.number === n); };
+    const sents = text.match(/(?:[^.!?]|[.!?](?!\s|$))+[.!?]*(?:\s+|$)/g)?.map((x) => x.trim()).filter(Boolean) || [text], out = []; let tplUsed = false;
+    for (let sent of sents) {
+      if (!/\d/.test(sent)) { out.push(sent); continue; }
+      const orig = sent;
+      sent = sent.replace(/\b(turns?|beurt(?:en)?)\s+(\d+)\b/gi, (m, w, n) => (+n <= C.maxT ? hold(m) : m));
+      sent = sent.replace(/\b(ore|grain|wheat|wool|sheep|lumber|wood|brick|erts|graan|tarwe|wol|schaap|hout|baksteen)\s+(\d{1,2})\b/gi, (m, w, n) => (hasSpot(w, +n) ? hold(m) : m));
+      sent = sent.replace(/\b(\d{1,2})\s?[\u2013\u2212-]\s?(\d{1,2})\b(?:\s+(?:points?|punten))?/gi, (m, a, b) => (fin && +a === fin[0] && +b === fin[1] ? hold(`${fin[0]}\u2013${fin[1]}${/points?|punten/i.test(m) ? " " + m.replace(/^[\d\s\u2013\u2212-]+/, "") : ""}`) : m));
+      let hit = false;
+      sent = sent.replace(/\(\s*[+\u2212\-\u2013]?\s?\d+(?:[.,]\d+)?\s?%\s*\)/g, () => { hit = true; return ""; }).replace(/[+\u2212\-\u2013]?\s?\d+(?:[.,]\d+)?\s?%/g, () => { hit = true; return "\uE0FF"; });
+      let bad = /\d/.test(sent);
+      if (hit && !bad) { // a sentence that falls apart without its percentage is the template
+        const W = "was|were|is|are|of|from|to|by|at|with|than|about|around|only|just|nearly|almost|fell|rose|dropped|jumped|gained|lost|cost|kept|had|has|van|naar|met|tot|dan|ongeveer|bijna|alleen|daalde|steeg|kostte|verloor|won|op|bij|er";
+        const m0 = sent.replace(/[\uE000-\uE0FE]/g, "x").replace(/\s+/g, " "), t = m0.replace(/\uE0FF/g, "");
+        if (new RegExp(`(?:\\b(?:${W})|[,(:;])\\s*\uE0FF`, "i").test(m0) || /\uE0FF\s*(?:of|van)\b/i.test(m0)) bad = true;
+        else if (/\b(?:from|to|by|of|at|with|van|naar|met|tot|and|en|than|dan)\s*(?:[,.;:!?)]|$)/i.test(t) || /\b(?:from|to|by|van|naar|met|tot)\s+(?:from|to|by|of|on|in|van|naar|met|tot|op|bij|and|en)\b/i.test(t) || /(?:^|[(,;:])\s*[,;:)]/.test(t)) bad = true;
+      }
+      sent = sent.replace(/\uE0FF/g, "");
+      if (hit || bad) { G.n++; G.log.push(orig.slice(0, 80)); console.debug("[ai-guard]", bad ? "replaced" : "stripped", orig.slice(0, 120)); }
+      if (bad) { if (tpl && !tplUsed) { out.push(tpl); tplUsed = true; } continue; }
+      out.push(sent.replace(/\s+([,.;:!?)])/g, "$1").replace(/\(\s*\)/g, "").replace(/\s{2,}/g, " ").trim().replace(/[\uE000-\uE0FF]/g, (m) => keep[m.charCodeAt(0) - 0xE000]));
+    }
+    return out.filter(Boolean).join(" ").replace(/[\uE000-\uE0FF]/g, (m) => keep[m.charCodeAt(0) - 0xE000]).trim();
+  },
+  _aiGuardCount() { return this._aiGuardStat?.n || 0; },
 
   // ── the inline formatter: turns, changes, points, players, resource spots ──
   _aiFmt(text, C, card = null, { links = true, plain = false } = {}) {
@@ -557,7 +595,7 @@ export const ReviewAiMixin = {
     return (card.bk || []).map((b, i) => {
       try {
         if (b.type === "text") {
-          const ok = textOf(b.md).split(/(?<=[.!?])\s+/).filter((sn) => [...sn.matchAll(/(\d+(?:[.,]\d+)?)\s?%/g)].every((m) => [...nums].some((a) => Math.abs(a - parseFloat(m[1].replace(",", "."))) <= 1))).join(" ");
+          const ok = this._aiGuard(textOf(b.md), C).split(/(?<=[.!?])\s+/).filter((sn) => [...sn.matchAll(/(\d+(?:[.,]\d+)?)\s?%/g)].every((m) => [...nums].some((a) => Math.abs(a - parseFloat(m[1].replace(",", "."))) <= 1))).join(" ");
           return ok ? `<div class="ai-tx bk-tx" lang="${C.lang}">${this._aiFmt(ok, C, card)}</div>` : "";
         }
         return this._aiBlockHtml(b, card, C, `${key}:${i}`);
@@ -780,7 +818,7 @@ export const ReviewAiMixin = {
    *  and an app fallback ("Turn 21 \u00b7 your move") when another card already covers that turn. */
   /** The headline, unless it quotes a number the review does not have. */
   _aiHeadline(h, C) {
-    h = String(h || "").trim(); if (!h) return "";
+    h = this._aiGuard(String(h || "").trim(), C); if (!h) return "";
     if (DECIDED.test(h)) { const tn = h.match(/\b(?:turn|beurt)\s+(\d+)/i); if (!tn || !(C.big && C.big.d >= 15 && C.big.turn === +tn[1])) { const w = this.winner; return w ? (C.lang === "nl" ? `${C.nmRaw(w.id)} won het spel.` : `${C.nmRaw(w.id)} won the game.`) : ""; } }
     const nums = [...h.matchAll(/(\d+(?:[.,]\d+)?)\s?%/g)].map((m) => parseFloat(m[1].replace(",", "."))); if (!nums.length) return h;
     const A = this._aiAllowed({ turns: [], chg: [], view: "game" }, C, this.players.map((p) => p.id), "");
@@ -807,7 +845,7 @@ export const ReviewAiMixin = {
     const C = { t: this._aiL() }, S = this._aiSaved(), L = C.t, R = this._rv;
     const asked = new Set((R.ai?.answers || []).map((a) => qkey(a.q)));
     const lastA = (R.ai?.answers || [])[0], src = [...(lastA?.followUps || []), ...(S?.insights?.followUps || [])];
-    const chips = []; src.forEach((q) => { const c = aiChip(q, recapLang()); if (c && !asked.has(qkey(q)) && !chips.some((x) => x.c === c)) chips.push({ c, q: String(q).slice(0, 300) }); });
+    const chips = []; src.forEach((q0) => { const q = /\d/.test(q0) ? this._aiGuard(String(q0), { maxT: this.turn || 99 }) : q0; if (!q || q !== q0) return; const c = aiChip(q, recapLang()); if (c && !asked.has(qkey(q)) && !chips.some((x) => x.c === c)) chips.push({ c, q: String(q).slice(0, 300) }); });
     if (S && !chips.length) { const lg = recapLang(), fb = FALLBACK[lg] || FALLBACK.en, fq = FALLQ[lg] || FALLQ.en; fb.forEach((c, i) => { if (!asked.has(qkey(fq[i]))) chips.push({ c, q: fq[i] }); }); }
     const busy = this._aiUi?.loading === "ask";
     const pend = busy ? `<div class="ai-pend" role="status" aria-busy="true"><i class="ai-spin"></i><b>${esc(this._aiUi?.q || "")}</b><span>${esc((CHAT[recapLang()] || CHAT.en).pend)}</span></div>` : "";

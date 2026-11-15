@@ -31,6 +31,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     return { me, names, n, worst, best, opp, alt, src: ser.src, ownT, size: f?.json.length, keys: Object.keys(f?.obj || {}), maxT: g.turn, dec: f?.obj.decisions?.slice(0, 3), you: g._rvIsYou(me), tabs: [...document.querySelectorAll(".rv-tabs button")].map((e) => e.textContent) };
   });
   console.log(JSON.stringify(F));
+  await G(() => { window.__colonistGame._aiGuardOff = true; }); // the older tests feed numbers on purpose to the older trust layer; the 1.81 block turns the guard on
   ok(F.src === "luck" && F.size > 2000 && F.size < 40000 && F.keys.includes("winChancePctByTurn") && F.keys.includes("decisions"), "facts: win chance per turn and decisions, size ok", [F.src, F.size]);
   ok(F.tabs.length === 5 && /AI/.test(F.tabs[4]), "5 tabs incl. AI · beta", F.tabs);
   const me = F.me, meN = F.names[me], opN = F.names[F.opp.s];
@@ -42,7 +43,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     cards: [
       { level: "decision", title: "Turn " + F.worst.t + " cost the most", text: `${meN} ${wrongVerb} ground on turn ${F.worst.t}, from ${F.worst.from + 30}% to ${F.worst.to + 30}%. A second sentence stays.`, view: "winchance", turns: [F.worst.t], focusTurn: F.worst.t, players: [meN] },
       { level: "game", title: "Luck evened out", text: "Dice favoured the others a little.", view: "luck", turns: [], players: [] },
-      { level: "game", title: "Points came late", text: "10 points, mostly cities. Ore 6 and Grain 9 carried it.", view: "points", turns: [], players: [] },
+      { level: "game", title: "Points came late", text: "A late finish, 10\u20139 points. Ore 6 and Grain 9 carried it.", view: "points", turns: [], players: [] },
       { level: "strategy", title: "Builders", text: `${opN} built early; ${meN} followed on turn ${F.best.t}.`, view: "plan", turns: [F.best.t], focusTurn: F.best.t, players: [] },
       { level: "decision", title: "The key spot", text: "A better spot was open.", view: "board", turns: [TX], focusTurn: TX, players: [] },
       { level: "game", title: "Where the chances moved", text: "Chances moved around then.", view: "winchance", turns: [F.alt.t, F.alt.t + 1], focusTurn: F.alt.t, players: [meN] },
@@ -164,7 +165,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     r.sameTitle = list([mk("Same title", t1), mk("Same title", t2)]);
     r.generic = list([mk("Best move ever", t1), { level: "decision", view: "moves", title: "Great move", text: "x.", turns: [t1], focusTurn: t1, players: [] }]);
     r.genericAlone = list([{ level: "decision", view: "moves", title: "Great move", text: "x.", turns: [t1], focusTurn: t1, players: [] }]);
-    r.finalDup = list([{ level: "game", view: "points", title: "P1", text: "A.", turns: [], players: [] }, { level: "game", view: "none", title: "P2", text: "You finished with 9 points.", turns: [], players: [] }]);
+    r.finalDup = list([{ level: "game", view: "points", title: "P1", text: "A.", turns: [], players: [] }, { level: "game", view: "none", title: "P2", text: "You finished 10\u20139 points.", turns: [], players: [] }]);
     const fr = g._aiCard({ level: "game", view: "winchance", title: "x", text: "A complete one. Another complete one! This one is cut off and", turns: [t1], focusTurn: t1, players: [] }, C).text;
     const only = g._aiCard({ level: "game", view: "winchance", title: "x", text: "This is cut off and", turns: [t1], focusTurn: t1, players: [] }, C);
     const ans = g._aiCard({ answer: "Done well. The second one is cut", points: ["Ore 6", "10 points"], view: "winchance", turns: [t1], focusTurn: t1 }, C, { answer: true });
@@ -639,6 +640,26 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     ok(sp && sp.factors?.length >= 5 && sp.appSummary && sp.ruleOfThumb && sp.options?.length === 2 && JSON.stringify(sp).length < 3500, "1.80 get_decision for a set-up carries the spots analysis (factors, app summary, rule of thumb), compact", [sp?.factors?.length, JSON.stringify(sp || {}).length]);
     ok(A.types.join() === "board,compare,spots" && A.cells >= 10 && A.win >= 1 && /because/.test(A.text) && /port/.test(A.text), "1.80 the answer to a set-up question = board + compare + spots table + the why sentence", A);
     await G(() => document.querySelector("[data-aic^=a]:not(.col)")?.scrollIntoView({ block: "start" })); await sleep(300); await page.screenshot({ path: SH + "/spots-answer.png" });
+  }
+  { // v1.81 digit guard
+    const R = await G(() => { const g = window.__colonistGame, C = (g._aiGuardOff = false, g._aiCtx()), n0 = g._aiGuardCount(), mxT = C.maxT;
+      const hx = g.geometry.hexes.find((h) => h.number && h.resource === "ore"), spot = hx ? `Ore ${hx.number}` : null;
+      const v = g.players.map((p) => p.victoryPoints).sort((a, b) => b - a), sc = `${v[0]}\u2013${v[1]}`;
+      const o = { pct: g._aiGuard("Your chances were much better on turn 3 (57%).", C), keep: g._aiGuard(`On turn ${mxT} the robber sat on ${spot}.`, C), spot, mxT,
+        far: g._aiGuard(`On turn ${mxT + 40} it ended.`, C, "TEMPLATE."), bad: g._aiGuard("Nice. The win chance fell from 57% to 0%. Last one.", C, "TEMPLATE."), cnt: g._aiGuard("It had 7 points and 12 dots.", C, "TEMPLATE."), none: g._aiGuard("It had 7 dots.", C), sc: g._aiGuard(`It ended ${sc}.`, C), fake: g._aiGuard("It ended 99\u201398.", C, "TEMPLATE."), ore: g._aiGuard("Ore 77 was key.", C, "TEMPLATE."),
+        hits: g._aiGuardCount() - n0, sc0: sc }; return o; });
+    console.log(JSON.stringify(R));
+    ok(!/57%/.test(R.pct) && /turn 3/.test(R.pct), "1.81 guard: percentage stripped, turn reference kept", R.pct);
+    ok(R.keep.includes(`turn ${R.mxT}`) && (!R.spot || R.keep.includes(R.spot)), "1.81 guard: turn and an existing board spot kept", R.keep);
+    ok(R.far === "TEMPLATE." && R.ore === "TEMPLATE.", "1.81 guard: a turn past the game or a spot not on the board -> template sentence", [R.far, R.ore]);
+    ok(R.bad === "Nice. TEMPLATE. Last one." && R.cnt === "TEMPLATE." && R.none === "", "1.81 guard: sentence with a count/broken percentage replaced by the template, dropped without one", [R.bad, R.cnt, R.none]);
+    ok(R.sc === `It ended ${R.sc0}.` && R.fake === "TEMPLATE.", "1.81 guard: the score is the app's final points; a made-up score is replaced", [R.sc, R.fake]);
+    ok(R.hits >= 6, "1.81 guard: hits counted", R.hits);
+    const K = await G(() => { const g = window.__colonistGame, C = g._aiCtx(), n0 = g._aiGuardCount(); const k = g._aiCard({ level: "game", view: "none", title: "Chances hit 40% late", text: "Your win chance fell from 57% to 0% on turn 5. A close finish on turn 9.", points: ["57% left", "Ore 6 dried up"], turns: [], players: [] }, C);
+      const h = g._aiHeadline("A close one, 57% at the peak. Decided on turn 22.", C), ch = [...g._aiBodyHtml().matchAll(/\d+%/g)].length; g._aiGuardOff = true; return { text: k.text, title: k.title, points: k.points, h, hits: g._aiGuardCount() - n0, ch }; });
+    console.log(JSON.stringify(K));
+    ok(!/\d+\s?%/.test(K.text + K.title + K.points.join("")) && /turn 9/.test(K.text) && K.points.join() === "Ore 6 dried up".replace(/^/, "") && !/57/.test(K.h), "1.81 guard in a card: no percentage in text/title/chips, sentence replaced by the app's template, turn kept", K);
+    console.log("GUARD_HITS", R.hits, K.hits);
   }
   ok(errors.length === 0, "no page errors after the tool loop", errors.join("|"));
   await b.close(); console.log(fails ? "FAILED" : "ALL OK"); process.exit(fails ? 1 : 0);
