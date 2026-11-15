@@ -383,6 +383,19 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     });
     console.log(JSON.stringify(D));
     ok(D.ixLen < D.factsLen && D.ixKeys.includes("topSwings") && D.ixKeys.includes("plans") && D.ixKeys.includes("nearMiss") && D.ixDecs >= 3 && !D.ixKeys.includes("turningPointCandidates"), "tools: the index is smaller than the facts dump and lists swings, plans, decisions", [D.ixLen, D.factsLen]);
+    { // luck markers, verdict with luck / dice, goals from the start, income strip
+      const Q = await G(async () => { const g = window.__colonistGame, C = g._aiCtx(), { aiFacts } = await import("./src/review/ai-facts.js"), fj = aiFacts(g).json;
+        const card = document.querySelectorAll("[data-aic^=c]")[8];
+        const rows = [...(card?.querySelectorAll(".ai-pr2") || [])].map((r) => { const s = +r.dataset.aipr, rt = C.route(s), inc = r.querySelector(".rt-inc");
+          return { s, goal: r.querySelector("em")?.textContent, won: rt.won, v: rt.verdict, lastCard: [...(C.tl[s] || [])].sort((a, b) => a[0] - b[0]).pop()?.[1] === "v", lk: [...r.querySelectorAll(".rt-sg.lk")].map((e) => e.getAttribute("title")), vtag: r.querySelector(".rt-v")?.textContent, bars: inc ? inc.querySelectorAll(".rt-ib").length : 0, bn: inc ? [...inc.querySelectorAll(".rt-ib.bn")].map((e) => e.dataset.res) : null, bres: rt.income?.bottleneck, hasCards: rt.segments.some((x) => x.luck) }; });
+        return { rows, drawn: /\[drawn: luck\]/.test(fj), built: /\[built\]/.test(fj), inc: /incomePerTurn/.test(fj) && /bottleneck/.test(fj) && /harbours/.test(fj) }; });
+      console.log(JSON.stringify(Q));
+      ok(Q.drawn && Q.built && Q.inc, "route facts: every point source is [drawn: luck] or [built]; income, bottleneck, harbours, trades included");
+      ok(Q.rows.length === F.n && Q.rows.every((r) => r.bars === 5 && (r.bn.length <= 1) && (r.bres?.short ? r.bn[0] === r.bres.res : r.bn.length === 0)), "income strip: 5 resource bars per player, only the short bottleneck is highlighted", Q.rows.map((r) => [r.bars, r.bn, r.bres && r.bres.res]));
+      ok(Q.rows.filter((r) => r.hasCards).every((r) => r.lk.length >= 1 && /luck/.test(r.lk[0])), "route bar: a point-card segment carries the luck marker and tooltip", Q.rows.map((r) => r.lk));
+      ok(Q.rows.filter((r) => r.won && r.lastCard).every((r) => r.v.luck === "card" && /luck/.test(r.vtag)) && Q.rows.filter((r) => r.won && !r.lastCard).every((r) => !r.v.luck && /^✓ worked$/.test(r.vtag)), "verdict: a win whose last point was a drawn card is 'worked, with luck'", Q.rows.map((r) => [r.won, r.lastCard, r.vtag]));
+      ok(new Set(Q.rows.map((r) => r.goal)).size >= 2, "goals differ between players (derived from each start)", Q.rows.map((r) => r.goal));
+    }
     const T1 = await G(async () => { const g = window.__colonistGame; const { aiToolRun } = await import("./src/review/ai-tools.js"); const t0 = performance.now(); const o = {};
       o.dec = aiToolRun(g, "get_decision", { turn: 5, player: "You", n: null }); o.turn = aiToolRun(g, "get_turn", { turn: 5 }); o.luck = aiToolRun(g, "get_luck", { player: "You" }); o.plan = aiToolRun(g, "get_plan", { player: "Blaauw" });
       o.les = aiToolRun(g, "get_lessons", { category: "build" }); o.sw = aiToolRun(g, "list_swings", { n: 3 }); o.bad = aiToolRun(g, "get_decision", { turn: 999, player: "You", n: null }); o.who = aiToolRun(g, "get_luck", { player: "Nobody" }); o.ms = Math.round(performance.now() - t0); return o; });
