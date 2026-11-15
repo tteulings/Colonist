@@ -572,7 +572,7 @@ export const ReviewAiMixin = {
       }
       case "route": return wrap(strip(this._aiVPlan({ seats: [], rows: b.seats, route: true, clauses: [], turns: [], level: "game" }, C)), "ai-plan all");
       case "timeline": return wrap(this._aiVTimeline(b, C));
-      case "compare": return wrap(this._aiVCompare(b, C));
+      case "compare": return wrap(this._aiVCompare(b, C, !!card.chg?.some((c) => c.move)));
       case "board": {
         this._aiBkSpec ||= new Map(); this._aiBkSpec.set(bkey, b);
         return wrap(`<div class="ai-bd" data-aibd="${b.turn}" data-aibk="${bkey}"><span class="ai-bdw" aria-hidden="true"></span></div>${this._aiBkLegend(b, C)}`);
@@ -590,10 +590,10 @@ export const ReviewAiMixin = {
     const used = new Set(ev.map((e) => e[1]));
     return `<div class="ai-pr tl pc-${b.seat}"><span class="n">${esc(C.nmRaw(b.seat))}</span><svg viewBox="0 0 ${W} 36" aria-label="${esc(C.nmRaw(b.seat))}"><line x1="4" x2="${W - 4}" y1="13" y2="13" class="ln"/>${ic}</svg></div><div class="ai-leg">${["s", "c", "L", "A", "v"].filter((k) => used.has(k)).map((k) => `<span><svg viewBox="0 0 14 14" width="12" height="12">${planIcon(k, 7, 7)}</svg>${esc(C.t.legend[k])}</span>`).join("")}</div>`;
   },
-  _aiVCompare(b, C) {
+  _aiVCompare(b, C, hasChip = false) {
     const T = CHAT[C.lang] || CHAT.en, mx = Math.max(...b.options.map((o) => o.v)), hi = Math.min(100, Math.max(20, (Math.floor(mx / 10) + 1) * 10)), you = this._rvIsYou(b.seat), nl = C.lang === "nl";
-    const rows = b.options.map((o, i) => `<div class="ai-sr rec bkc${i === b.bestIdx ? " best" : ""} k-${o.kind}"><span class="l"><em class="tg ${o.kind}">${esc(o.kind === "played" ? T.played : i === b.bestIdx || o.kind === "best" ? String(C.t.better).replace(/^[AB]\s+/, "") : "alt")}</em>${esc(o.label)}</span><span class="tr"><i style="width:${Math.max(1, (o.v / hi) * 100).toFixed(1)}%"></i></span><b>${i === b.bestIdx ? "★ " : ""}${o.v}%${o.pm ? `<small>±${o.pm}</small>` : ""}</b></div>`).join("");
-    const cost = b.cost ? `<div class="bk-ft"><span class="ai-chg dn pc-${b.seat}"><b>−${b.cost}%</b><small>${esc(you ? C.t.mine : C.t.move)}</small></span><span class="ai-cap">${esc(T.wc)}</span></div>` : `<div class="bk-ft"><span class="ai-cap">${esc(T.wc)}</span></div>`;
+    const rows = b.options.map((o, i) => `<div class="ai-sr rec bkc${i === b.bestIdx ? " best" : ""} k-${o.kind}"><span class="l"><em class="tg ${o.kind}">${esc(o.kind === "played" ? T.played : o.kind === "best" || (i === b.bestIdx && o.kind !== "alt") ? String(C.t.better).replace(/^[AB]\s+/, "") : "alt")}</em>${esc(o.label)}</span><span class="tr"><i style="width:${Math.max(1, (o.v / hi) * 100).toFixed(1)}%"></i></span><b>${i === b.bestIdx ? "★ " : ""}${o.v}%${o.pm ? `<small>±${o.pm}</small>` : ""}</b></div>`).join("");
+    const cost = b.cost && !hasChip ? `<div class="bk-ft"><span class="ai-chg dn pc-${b.seat}"><b>−${b.cost}%</b><small>${esc(you ? C.t.mine : C.t.move)}</small></span><span class="ai-cap">${esc(T.wc)}</span></div>` : "";
     return `<div class="ai-sm rec" data-aisimv>${rows}<div class="ai-ax" aria-hidden="true"><span class="tk"><i>0%</i><i>${hi / 2}%</i><i>${hi}%</i></span><span></span></div>${cost}</div>`;
   },
   _aiBkLegend(b, C) {

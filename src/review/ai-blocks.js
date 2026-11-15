@@ -28,6 +28,7 @@ export function decMoves(dm) {
   const alts = x.cands.slice(1).filter((c) => c.win != null && !(best && (c.label === best.label || sameF(c.focus, best.focus)))).sort((p, q) => q.win - p.win).slice(0, 3).map((c) => ({ label: clean(c.label, 80), focus: c.focus || null, win: pc(c.win), kind: "alt" }));
   const gap = Math.max(0, dm.gap ?? dm.d?.gap ?? 0);
   if (best && played.win != null && gap >= 0.005) best.win = played.win + Math.round(gap * 100); // the review's own cost: the bars and the chip agree (the two rounded win chances may differ by 1)
+  if (best?.win != null) { for (let i = alts.length - 1; i >= 0; i--) if (alts[i].win > best.win) alts.splice(i, 1); } // an alternative that rates above the review's best is within the noise: not shown
   return { played, best, alts, gap, x };
 }
 /** One move by ref ("played", "best", "alt2") of a decision. */
@@ -101,8 +102,8 @@ const ONE = {
       opts.push({ label: m.label || clean(o.label, 60), v: m.win, kind: m.kind, pm: m.pm || 0, ref });
     });
     if (opts.length < 2) return null;
-    const max = Math.max(...opts.map((o) => o.v)), bestIdx = opts.findIndex((o) => o.v === max), played = opts.find((o) => o.kind === "played");
-    const cost = played && max - played.v >= 1 && opts[bestIdx] !== played ? max - played.v : 0;
+    const max = Math.max(...opts.map((o) => o.v)), bi = opts.findIndex((o) => o.kind === "best"), bestIdx = bi >= 0 ? bi : opts.findIndex((o) => o.v === max), played = opts.find((o) => o.kind === "played");
+    const cost = played && opts[bestIdx].v - played.v >= 1 && opts[bestIdx] !== played ? opts[bestIdx].v - played.v : 0;
     return { type: "compare", turn: T, seat: dm?.seat ?? seats[0] ?? env.C.me, options: opts, bestIdx, cost };
   },
   line(b, env) {
