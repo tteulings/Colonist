@@ -26,6 +26,7 @@ const T = {
 const GOODT = /\b(paid off|worked|rewarded|best|great|strong|brilliant|perfect|smart|excellent|beste|geweldig|sterk|perfecte|slim|uitstekend)\b/i;
 const TPOS = /\b(stayed close|stays close|kept (?:you|him|her|them|\w+) alive|good|helped|helps|comeback|rescued|saved)\b/i;
 const TNEG = /\b(missed|misses|miss|wrong|mistakes?|blunders?|worst|bad|costly|errors?|poor|behind|fout|fouten|gemist|slecht|verkeerd)\b/i;
+const CHAT = { en: { same: "Same view as the card above", clear: "Clear chat", pend: "Thinking…" }, nl: { same: "Zelfde beeld als de kaart hierboven", clear: "Chat wissen", pend: "Aan het denken…" } };
 const posW = (t) => GOODT.test(t) || POS.test(t) || TPOS.test(t), negW = (t) => NEG.test(t) || TNEG.test(t);
 const SENT_END = /[.!?]["')\u201d\u2019]*$/;
 const AGAINST = /\b(against|unlucky|unluck\w*|tegen|pech|ongelukkig)\b/i, FAVOUR = /\b(in (?:your|his|her|their) favou?r|favou?red|fortunate|lucky for|gelukkig|ten gunste|mee)\b/i;
@@ -193,14 +194,22 @@ export const ReviewAiMixin = {
     const put = (s) => { if (s && !used) { out.push(s); used = true; } else if (!s) used = used; };
     for (let sent of sents) {
       const seen = nameRes.filter((x) => x.re.test(sent)).map((x) => x.s);
-      const seat = seen.length === 1 ? seen[0] : seen.length === 0 ? card.chg[0]?.seat ?? null : null;
+      let seat = seen.length === 1 ? seen[0] : seen.length === 0 ? card.chg[0]?.seat ?? null : null, ambig = false;
+      if (seen.length > 1) { // several players named: the numbers belong to the subject just before the first number, else the sentence loses its numbers
+        const np = sent.search(/\d\s?%/); let best = -1, bs = null;
+        if (np >= 0) nameRes.forEach((x) => { if (!seen.includes(x.s)) return; for (const mm of sent.matchAll(new RegExp(x.re.source, "giu"))) { if (mm.index < np && mm.index > best) { best = mm.index; bs = x.s; } } });
+        if (np >= 0 && bs != null) seat = bs; else if (np >= 0) ambig = true;
+      }
       const mvc = seat != null ? card.chg.find((x) => x.move && x.seat === seat) : null, wc = seat != null && T0 != null ? wcChange(C.ser, seat, T0, T0) : null;
       const c = mvc || wc;
       if (!SENT_END.test(sent)) { card.fix.push("cut"); continue; } // a sentence the AI did not finish is dropped
       let bad = false, why = "";
+      if (ambig) { bad = true; why = "number"; } else
       { const rw = this._aiNums(sent, card, C, seat); if (rw === null) { bad = true; why = "number"; } else if (rw !== sent) { card.fix.push("num"); sent = rw; } } // win-chance numbers: the app's value for that turn and player
       const pos = posW(sent), neg = negW(sent);
-      if (!bad && c && pos && !neg && c.d <= -1) { bad = true; why = "verb"; }
+      const pr = !bad && sent.match(/(\d+(?:[.,]\d+)?)\s?%\s*(?:\u2192|->|to|and|naar|en)\s*(\d+(?:[.,]\d+)?)\s?%/i);
+      if (pr && ((neg && !pos && parseFloat(pr[2]) > parseFloat(pr[1])) || (pos && !neg && parseFloat(pr[2]) < parseFloat(pr[1])))) { bad = true; why = "verb"; }
+      else if (!bad && c && pos && !neg && c.d <= -1) { bad = true; why = "verb"; }
       else if (!bad && c && neg && !pos && c.d >= 1) { bad = true; why = "verb"; }
       if (!bad && card.view === "luck" && C.luck && seat != null) { const lv = Math.round(C.luck[seat] * 100); if ((AGAINST.test(sent) && lv >= 1) || (FAVOUR.test(sent) && lv <= -1)) { bad = true; why = "luck"; } }
       if (!bad) {
@@ -276,7 +285,7 @@ export const ReviewAiMixin = {
   _aiHasPos(d) { const g = this.geometry; if (!d?.x || !g) return false; return [d.x.best?.focus, d.x.focus].some((f) => f && tryv(() => rvPos(g, f))); },
   _aiDecAt(T, C) { const l = C.decs.filter((x) => x.turn === T).sort((a, b) => (b.own - a.own) || (b.gap - a.gap)); return l[0] || null; },
   _aiCardHtml(card, C, o = {}) {
-    const L = C.t, vis = this._aiVisual(card, C, o.seen), key = o.key ?? "";
+    const L = C.t, key = o.key ?? "", vis = o.ref ? `<div class="ai-ac"><button type="button" class="ai-a" data-airef="${o.ref}">${esc((CHAT[C.lang] || CHAT.en).same)}</button></div>` : this._aiVisual(card, C, o.seen);
     (this._aiSrc ||= new Map()).set(key, { text: card.text, card, max: o.q ? 3 : 2 });
     const dec = card.focus != null ? this._aiDecAt(card.focus, C) : null;
     const canWhy = card.level === "decision" && dec?.own && this._rvIsYou(C.pid) && this._exCan?.(dec.d);
@@ -458,14 +467,30 @@ export const ReviewAiMixin = {
     if (!this._aiSaved() && !U?.loading && !U?.err) setTimeout(() => { if (this._rvTab === "ai" && !this._aiSaved()) this._aiRun(false); }, 0);
     return { html: `<div class="ai" data-aibody>${this._aiBodyHtml()}</div>`, foot: `<div data-aiask>${this._aiAskHtml()}</div>`, bind: (el) => this._aiBind(el) };
   },
+  /** The chat under the insight cards, oldest first: the open answer in full (the newest by default), the others one line (tap to open). A visual
+   *  already shown by an insight card or an earlier answer is not drawn again: a link to that card instead. */
+  _aiThread(ans, S, C, seen) {
+    if (!ans.length) return [];
+    const T = CHAT[C.lang] || CHAT.en, sig = (k) => (k.view && k.view !== "none" && (k.turns.length || k.seats.length) ? `${k.view}|${[...k.turns].sort((a, b) => a - b).join()}|${[...k.seats].sort().join()}` : "");
+    const shown = new Map(); (S?.insights?.cards || []).forEach((c, i) => { const g = sig(this._aiCard(c, C)); if (g && !shown.has(g)) shown.set(g, `c${i}`); });
+    const openAt = this._aiOpen != null && ans.some((a) => a.at === this._aiOpen) ? this._aiOpen : ans[0].at, out = [];
+    for (let i = ans.length - 1; i >= 0; i--) {
+      const a = ans[i], card = this._aiCard(a.a, C, { answer: true }), g = sig(card), key = `a${i}`;
+      if (a.at !== openAt) {
+        out.push(`<section class="ai-c ans col" data-aic="${key}"><button type="button" class="ai-colb" data-aiopen="${a.at}" aria-expanded="false"><b>${esc(a.q)}</b><span>${esc(card.text || "")}</span></button></section>`);
+      } else {
+        out.push(this._aiCardHtml(card, C, { q: a.q, pin: !!a.pinned, idx: i, key, seen, ref: g && shown.has(g) ? shown.get(g) : "" }));
+      }
+      if (g && !shown.has(g)) shown.set(g, key);
+    }
+    if (ans.some((a) => !a.pinned)) out.push(`<p class="ai-ft"><span></span><button type="button" class="ai-rg" data-aiclear>${T.clear}</button></p>`);
+    return out;
+  },
   _aiErrHtml(C) { const e = this._aiUi?.err; return e ? `<section class="ai-c err" role="alert"><b class="ai-ti">${esc(C.t[e] || C.t.fail)}</b><div class="ai-ac"><button type="button" class="ai-a" data-airun>${C.t.again}</button></div></section>` : ""; },
   _aiBodyHtml() {
     const C = this._aiCtx(), L = C.t, S = this._aiSaved(), U = this._aiUi || {}, R = this._rv;
     const ans = (R.ai?.pid === C.pid && R.ai?.lang === C.lang ? R.ai.answers : (R.ai?.answers || []).filter((a) => a.pinned)) || [];
     const out = [], seen = new Set(); this._aiSrc = new Map();
-    if (U.loading === "ask") out.push(`<section class="ai-c ans pend" aria-busy="true"><div class="ai-hd"><span class="ai-lv q">${esc(U.q || "")}</span></div><div class="ai-sk"><i></i><i></i></div></section>`);
-    if (U.askErr) out.push(`<section class="ai-c err" role="alert"><b class="ai-ti">${esc(L[U.askErr] || L.fail)}</b></section>`);
-    ans.forEach((a, i) => { const card = this._aiCard(a.a, C, { answer: true }); out.push(this._aiCardHtml(card, C, { q: a.q, pin: !!a.pinned, idx: i, key: `a${i}`, seen })); });
     if (S) {
       const hl = this._aiHeadline(S.insights.headline, C);
       if (hl) out.push(`<p class="ai-hl" data-aitx="hl" lang="${C.lang}">${this._aiFmt(hl, C)}</p>`); this._aiSrc.set("hl", { text: hl, card: null, max: 2 });
@@ -473,6 +498,8 @@ export const ReviewAiMixin = {
       out.push(`<p class="ai-ft"><span>${L.foot}</span>${online() ? `<button type="button" class="ai-rg" data-airun="1">${L.regen}</button>` : ""}</p>`);
     } else if (U.loading === "insights") out.push(`<p class="ai-hl sk">${L.wait}</p>${'<section class="ai-c" aria-busy="true"><div class="ai-sk"><i></i><i></i></div><div class="ai-skv"></div></section>'.repeat(3)}`);
     else if (U.err) out.push(this._aiErrHtml(C));
+    out.push(...this._aiThread(ans, S, C, seen));
+    if (U.askErr) out.push(`<section class="ai-c err" role="alert"><b class="ai-ti">${esc(L[U.askErr] || L.fail)}</b></section>`);
     return out.join("");
   },
   /** The insight cards as html: a card is dropped when its main fact (same turn + same player, or the final points) or its title was already shown,
@@ -508,15 +535,17 @@ export const ReviewAiMixin = {
     const chips = []; src.forEach((q) => { const c = aiChip(q, recapLang()); if (c && !asked.has(qkey(q)) && !chips.some((x) => x.c === c)) chips.push({ c, q: String(q).slice(0, 300) }); });
     if (S && !chips.length) { const lg = recapLang(), fb = FALLBACK[lg] || FALLBACK.en, fq = FALLQ[lg] || FALLQ.en; fb.forEach((c, i) => { if (!asked.has(qkey(fq[i]))) chips.push({ c, q: fq[i] }); }); }
     const busy = this._aiUi?.loading === "ask";
-    return `<form class="ai-ask" data-aiform>${chips.length && S ? `<div class="ai-chips">${chips.slice(0, 3).map((x) => `<button type="button" class="ai-q" data-aiq="${esc(x.q)}"${busy ? " disabled" : ""}>${esc(x.c)}</button>`).join("")}</div>` : ""}
-      <div class="ai-in"><input type="text" maxlength="300" enterkeyhint="send" autocomplete="off" placeholder="${esc(L.ph)}" aria-label="${esc(L.ph)}" data-aiin${busy || !S ? " disabled" : ""}><button type="submit" class="rv-btn pri"${busy || !S ? " disabled" : ""}>${L.ask}</button></div></form>`;
+    const pend = busy ? `<div class="ai-pend" role="status" aria-busy="true"><i class="ai-spin"></i><b>${esc(this._aiUi?.q || "")}</b><span>${esc((CHAT[recapLang()] || CHAT.en).pend)}</span></div>` : "";
+    return `<form class="ai-ask" data-aiform>${pend}${chips.length && S ? `<div class="ai-chips">${chips.slice(0, 3).map((x) => `<button type="button" class="ai-q" data-aiq="${esc(x.q)}"${busy ? " disabled" : ""}>${esc(x.c)}</button>`).join("")}</div>` : ""}
+      <div class="ai-in"><input type="text" maxlength="300" enterkeyhint="send" autocomplete="off" placeholder="${esc(L.ph)}" aria-label="${esc(L.ph)}" data-aiin${!S ? " disabled" : ""}><button type="submit" class="rv-btn pri"${busy || !S ? " disabled" : ""}>${L.ask}</button></div></form>`;
   },
   _aiRefresh() {
     const el = this._rvEl; if (!el || this._rvTab !== "ai" || this._rvStep != null) return;
     const body = el.querySelector("[data-aibody]"), ask = el.querySelector("[data-aiask]"); if (!body || !ask) return;
-    const kept = ask.querySelector("[data-aiin]")?.value;
+    const kept = ask.querySelector("[data-aiin]")?.value, had = document.activeElement === ask.querySelector("[data-aiin]");
     body.innerHTML = this._aiBodyHtml(); ask.innerHTML = this._aiAskHtml();
     if (kept) { const i = ask.querySelector("[data-aiin]"); if (i && !i.disabled) i.value = kept; }
+    if (had) ask.querySelector("[data-aiin]")?.focus({ preventScroll: true });
     this._aiBind(el);
   },
   _aiBind(el) {
@@ -535,7 +564,10 @@ export const ReviewAiMixin = {
     this._aiClamp(body, wire); wire(body);
     body.querySelectorAll("[data-airun]").forEach((b) => b.addEventListener("click", () => this._aiRun(true)));
     body.querySelectorAll("[data-aipin]").forEach((b) => b.addEventListener("click", () => { const a = this._rv.ai?.answers?.[+b.dataset.aipin]; if (!a) return; a.pinned = !a.pinned; this._aiSave(); this._aiRefresh(); }));
-    ask?.querySelector("[data-aiform]")?.addEventListener("submit", (e) => { e.preventDefault(); const v = ask.querySelector("[data-aiin]").value.trim(); if (v) this._aiAsk(v.slice(0, 300)); });
+    body.querySelectorAll("[data-aiopen]").forEach((b) => b.addEventListener("click", () => { this._aiOpen = +b.dataset.aiopen; this._aiRefresh(); this._aiToAnswer(this._aiOpen); }));
+    body.querySelectorAll("[data-aiclear]").forEach((b) => b.addEventListener("click", () => { const ai = this._rv.ai; if (!ai) return; ai.answers = ai.answers.filter((a) => a.pinned); this._aiOpen = null; this._aiSave(); this._aiRefresh(); }));
+    body.querySelectorAll("[data-airef]").forEach((b) => b.addEventListener("click", () => { const t = body.querySelector(`[data-aic="${b.dataset.airef}"]`); if (!t) return; t.scrollIntoView?.({ block: "center", behavior: "smooth" }); t.classList.remove("flash"); void t.offsetWidth; t.classList.add("flash"); }));
+    ask?.querySelector("[data-aiform]")?.addEventListener("submit", (e) => { e.preventDefault(); const i = ask.querySelector("[data-aiin]"), v = i.value.trim(); if (v) { i.value = ""; this._aiAsk(v.slice(0, 300), true); } });
     ask?.querySelectorAll("[data-aiq]").forEach((b) => b.addEventListener("click", () => this._aiAsk(b.dataset.aiq)));
     this._aiBoards(body);
     if (this._aiScrollY != null) { const sc = el.querySelector(".rv-scroll"), y = this._aiScrollY; if (sc) { sc.scrollTop = y; this._aiRestore = { y, until: Date.now() + 2500 }; } this._aiScrollY = null; } // Back from a link: the same place
@@ -606,25 +638,32 @@ export const ReviewAiMixin = {
     this._aiUi = { pid, loading: null, err: null };
     this._aiSave(); this._aiRefresh();
   },
-  async _aiAsk(q) {
+  /** Scroll the answer (by its time stamp) to the top of the scroll area. */
+  _aiToAnswer(at) {
+    const ans = this._rv?.ai?.answers || [], i = ans.findIndex((a) => a.at === at), el = i < 0 ? null : this._rvEl?.querySelector(`[data-aic="a${i}"]`);
+    if (el) { el.scrollIntoView?.({ block: "start", behavior: "smooth" }); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+  },
+  async _aiAsk(q, typed = false) {
     const R = this._rv, pid = this._rvPid, lang = recapLang();
     if (!R || !q || this._aiUi?.loading === "ask") return;
     const ai = R.ai; if (!ai) return;
     const hit = ai.answers.findIndex((a) => qkey(a.q) === qkey(q));
-    if (hit >= 0) { const [a] = ai.answers.splice(hit, 1); ai.answers.unshift(a); this._aiUi = { pid }; this._aiSave(); this._aiRefresh(); return; }
+    if (hit >= 0) { this._aiOpen = ai.answers[hit].at; this._aiUi = { pid }; this._aiRefresh(); this._aiToAnswer(this._aiOpen); return; }
     if (!online()) { this._aiUi = { pid, askErr: "net" }; this._aiRefresh(); return; }
     let f = null; try { f = aiFacts(this); } catch (_) { f = null; }
     if (!f) { this._aiUi = { pid, askErr: "none" }; this._aiRefresh(); return; }
     this._aiUi = { pid, loading: "ask", q }; this._aiRefresh();
+    { const sc = this._rvEl?.querySelector(".rv-scroll"); if (sc) sc.scrollTo?.({ top: sc.scrollHeight, behavior: "smooth" }); if (typed) this._rvEl?.querySelector("[data-aiin]")?.focus({ preventScroll: true }); }
     const r = await this._aiCall({ mode: "game", lang, question: q, facts: f.json }, 60000);
     if (this._rv !== R) return;
     if (r.err || !r.x?.answer) { this._aiUi = { pid, askErr: r.err || "fail" }; this._aiRefresh(); return; }
     const x = r.x;
-    ai.answers.unshift({ q, at: Date.now(), pinned: false, followUps: (x.followUps || []).map(String).slice(0, 6), a: { answer: String(x.answer), points: (x.points || []).map(String).slice(0, 4), view: x.view, turns: x.turns, focusTurn: x.focusTurn, players: x.players } });
+    const at = Date.now(); this._aiOpen = at;
+    ai.answers.unshift({ q, at, pinned: false, followUps: (x.followUps || []).map(String).slice(0, 6), a: { answer: String(x.answer), points: (x.points || []).map(String).slice(0, 4), view: x.view, turns: x.turns, focusTurn: x.focusTurn, players: x.players } });
     while (ai.answers.length > 12) { const i = ai.answers.map((a) => !a.pinned).lastIndexOf(true); if (i < 0) break; ai.answers.splice(i, 1); }
     this._aiUi = { pid };
     this._aiSave(); this._aiRefresh();
-    this._rvEl?.querySelector(".rv-scroll")?.scrollTo?.({ top: 0 });
+    this._aiToAnswer(at);
   },
 };
 // leaving or entering the network: the tab (and the Overview row) show only online
