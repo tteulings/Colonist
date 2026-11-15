@@ -46,9 +46,10 @@ CHECK BEFORE ANSWERING: (a) if facts.nearMiss.margin <= 2, one card has view "ne
 Say "points" (Dutch "punten"), never "VP"; win chance as %.`;
 const INSIGHTS_SCHEMA = { type: "object", additionalProperties: false, required: ["headline", "cards", "followUps"], properties: {
   headline: { type: "string" },
-  cards: { type: "array", items: { type: "object", additionalProperties: false, required: ["level", "title", "text", "view", "turns", "focusTurn", "players"], properties: {
+  cards: { type: "array", items: { type: "object", additionalProperties: false, required: ["level", "title", "text", "view", "turns", "focusTurn", "players", "clauses"], properties: {
     level: { type: "string", enum: ["game", "decision", "strategy"] }, title: { type: "string" }, text: { type: "string" },
-    view: { type: "string", enum: ["winchance", "luck", "points", "plan", "board", "moves", "none"] }, turns: { type: "array", items: { type: "integer" } }, focusTurn: { type: ["integer", "null"] }, players: { type: "array", items: { type: "string" } } } } },
+    view: { type: "string", enum: ["winchance", "luck", "points", "plan", "board", "moves", "nearmiss", "none"] }, turns: { type: "array", items: { type: "integer" } }, focusTurn: { type: ["integer", "null"] }, players: { type: "array", items: { type: "string" } },
+    clauses: { type: "array", items: { type: "object", additionalProperties: false, required: ["player", "text"], properties: { player: { type: "string" }, text: { type: "string" } } } } } } },
   followUps: { type: "array", items: { type: "string" } } } };
 const EXPLAIN_SCHEMA = { type: "object", additionalProperties: false, required: ["answer", "points", "highlight"],
   properties: { answer: { type: "string" }, points: { type: "array", items: { type: "string" } }, highlight: { type: "string", enum: ["A", "B", "none"] } } };
