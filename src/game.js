@@ -25,6 +25,7 @@ import { ReviewRecapMixin } from "./review-recap.js"; // v1.62 AI recap
 import { ReviewExplainMixin } from "./review-explain.js"; // v1.64 Why?
 import { ReviewAiMixin } from "./review-ai.js"; // v1.73 AI tab
 import { LessonsMixin, installLessons } from "./lessons.js"; // v1.71 Lessons
+import { ReviewRefineMixin } from "./review-refine.js"; // v1.81 refine close / lean decisions with more futures
 import { ReviewAgainMixin } from "./review-again.js"; // v1.41 … Review again (a saved game with today's engine)
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
@@ -11447,7 +11448,7 @@ Object.assign(ColonistFullGame.prototype, StatsMixin, StatsUiMixin);
 installStats(ColonistFullGame);
 Object.assign(ColonistFullGame.prototype, LiveStatsMixin); // live stats during the game (src/live-stats.js)
 installLiveStats(ColonistFullGame);
-Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin, ReviewLuckMixin, ReviewTurnMixin, ReviewAgainMixin, ReviewRecapMixin, ReviewExplainMixin, ReviewAiMixin, LessonsMixin); // v1.02/1.03 post-game review (src/review*.js)
+Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin, ReviewLuckMixin, ReviewTurnMixin, ReviewAgainMixin, ReviewRefineMixin, ReviewRecapMixin, ReviewExplainMixin, ReviewAiMixin, LessonsMixin); // v1.02/1.03 post-game review (src/review*.js)
 installReview(ColonistFullGame);
 installReviewUi(ColonistFullGame);
 installReviewGame(ColonistFullGame);

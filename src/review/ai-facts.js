@@ -1,6 +1,7 @@
 // v1.73 AI tab: the data the tab shows and sends. Series = win chance of every player after each turn (luck run when it covers the game,
 // else the seats of the reviewed player's decisions); timeline = what each player built / took on which turn. Facts = the recap facts
 // plus explicit decisions, per-player win chance per turn and the points timeline. Nothing here is guessed: a part we lack is left out.
+import { vcFields, vcMeta } from "./score.js";
 import { decide } from "./evaluate.js";
 import { luckKey } from "../review-luck.js";
 import { recapFacts } from "./recap-facts.js";
@@ -220,7 +221,7 @@ export function aiFacts(g, { max = AI_FACTS_MAX } = {}) {
     const res = r.results.filter((x) => !x.skip || x.skip === "trivial").sort((a, b) => a.i - b.i);
     const ds = tryv(() => (p.id === g._rvPid ? g._rvDecisions(res) : decide(res, n, p.id)), []);
     ds.filter((d) => d.x?.best && !d.same && d.gap > 0.01).sort((a, b) => b.gap - a.gap).slice(0, p.id === g._rvPid ? 6 : 2).forEach((d) => {
-      decs.push({ player: nm(p.id), turn: d.k === "setup" ? 0 : (g._rcTurnOf?.(d) ?? d.t), played: clip(d.x.label, 90), better: clip(d.x.best.label, 90), costPct: Math.round(d.gap * 1000) / 10, rating: d.cls });
+      decs.push({ player: nm(p.id), turn: d.k === "setup" ? 0 : (g._rcTurnOf?.(d) ?? d.t), played: clip(d.x.label, 90), ...vcFields(d.x, 90), costPct: Math.round(d.gap * 1000) / 10, rating: d.cls, ...vcMeta(d.x) });
     });
   });
   if (decs.length) f.decisions = decs.sort((a, b) => a.turn - b.turn);

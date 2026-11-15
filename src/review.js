@@ -290,7 +290,7 @@ export const ReviewMixin = {
         }
       } catch (e) { if (!e?.quickDone) console.warn("review run", e); }
       if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVis);
-      if (live()) { rv.done = !run.stop && this._rvReviewComplete(pid); if (rv.done && !mid) Object.assign(rv, this._raStamp?.(run.eid || rv.engId) || {}); /* v1.41 what made it (Review again) */ if (R.run === run) R.run = null; this._rvSave(); if (rv.done && this.players[pid]?.isHuman) this._rvLogGame?.(pid); this._rvTick(); if (live() && !run.stop && !mid) { this._rvQueueNext(); if (!R.run) R.lrun?.grow?.(); } }
+      if (live()) { rv.done = !run.stop && this._rvReviewComplete(pid); if (rv.done && !mid) Object.assign(rv, this._raStamp?.(run.eid || rv.engId) || {}); /* v1.41 what made it (Review again) */ if (R.run === run) R.run = null; this._rvSave(); if (rv.done && this.players[pid]?.isHuman) this._rvLogGame?.(pid); this._rvTick(); if (live() && !run.stop && !mid) { if (rv.done && this.players[pid]?.isHuman && !this.hotseat) { const rfp = this._rfAuto?.(pid); if (rfp) { rfp.then(() => { if (this._rv === R) { this._rvQueueNext(); if (!R.run) R.lrun?.grow?.(); } }); return rv; } } this._rvQueueNext(); if (!R.run) R.lrun?.grow?.(); } }
       return rv;
     })();
     return run.promise;

@@ -471,6 +471,7 @@ export function makeMaster(opts = {}) {
       } finally { restore(g, root); Math.random = orig; }
       if (ps == null) return null;
     }
+    if (o.only != null) named = named.filter((x, i) => i === 0 || x.label === o.only); // v1.81 refinement: the played move against ONE other move (o.only = its label), more futures
     if (named.length <= 1) return null;
     seedRng(g, p);
     const rec = search(g, p.id, named.map((x) => x.c), (gg, c) => {

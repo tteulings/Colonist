@@ -159,8 +159,8 @@
 .rv-midnote p b { font: 800 15px var(--font-body); color: var(--heading); }
 
 /* v1.05 Step mode for the Game review. Theme tokens only; classes get one hue each, text >= 11 px, targets >= 40 px. */
-.rs, .rt { --c-best: #1F8F7A; --c-great: #2F6FD0; --c-excellent: #4F8A33; --c-good: #86A94A; --c-inacc: #D99A1E; --c-could: #D99A1E; --c-triv: #9AA3AB; --c-mistake: #E27B2F; --c-blunder: #C8402E; --c-missed: #8C5AC8; --c-luck: #6B7280; --neg: #C0432F; --pos: #2E7D4F; }
-[data-palette="night"] :is(.rs, .rt) { --c-best: #4CC9B0; --c-great: #7FA8F5; --c-excellent: #7DBA5C; --c-good: #A8C86C; --c-inacc: #F0B45C; --c-could: #F0B45C; --c-triv: #7C858F; --c-mistake: #F29A58; --c-blunder: #F2705E; --c-missed: #B58BE8; --c-luck: #9AA3B2; --neg: #F2907A; --pos: #7DBA5C; }
+.rs, .rt { --c-best: #1F8F7A; --c-great: #2F6FD0; --c-excellent: #4F8A33; --c-good: #86A94A; --c-inacc: #D99A1E; --c-could: #D99A1E; --c-lean: #C9A24A; --c-close: #8E9AA6; --c-triv: #9AA3AB; --c-mistake: #E27B2F; --c-blunder: #C8402E; --c-missed: #8C5AC8; --c-luck: #6B7280; --neg: #C0432F; --pos: #2E7D4F; }
+[data-palette="night"] :is(.rs, .rt) { --c-best: #4CC9B0; --c-great: #7FA8F5; --c-excellent: #7DBA5C; --c-good: #A8C86C; --c-inacc: #F0B45C; --c-could: #F0B45C; --c-lean: #D8B66E; --c-close: #8A95A1; --c-triv: #7C858F; --c-mistake: #F29A58; --c-blunder: #F2705E; --c-missed: #B58BE8; --c-luck: #9AA3B2; --neg: #F2907A; --pos: #7DBA5C; }
 .rs .neg { color: var(--neg); } .rs .pos { color: var(--pos); }
 .rs-b { width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center; flex: none; font: 800 12px/1 var(--font-body); font-style: normal; color: #fff; background: var(--cc, var(--c-luck)); }
 .rs-b.sm { width: 17px; height: 17px; font-size: var(--fs-s); } .rs-b.lg { width: 26px; height: 26px; font-size: var(--fs-l); }
@@ -226,7 +226,7 @@
 .rs.noboard .rs-stage { flex: none; }
 
 
-.c-could { --cc: var(--c-could); } .c-triv { --cc: var(--c-triv); }
+.c-could { --cc: var(--c-could); } .c-lean { --cc: var(--c-lean); } .c-close { --cc: var(--c-close); } .rs .neu, .rt .neu { color: var(--c-close); } .c-triv { --cc: var(--c-triv); }
 .rs-cnts { grid-template-columns: repeat(4, 1fr); }
 .rs-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c-triv); display: inline-block; opacity: .85; }
 .rs-mv.c-triv { opacity: .7; }
@@ -506,7 +506,7 @@
 .rvw-c svg path { fill: none; stroke: var(--pc); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; opacity: .75; } .rvw-c svg path.me { stroke-width: 3.2; opacity: 1; }
 .rvw-c svg .g { stroke: var(--rv-sep); } .rvw-c svg .sep { stroke: var(--ink-soft); stroke-width: 1; stroke-dasharray: 2 3; opacity: .6; } .rvw-c svg .cur { stroke: var(--heading); stroke-width: 1.5; }
 .rvw-c svg text { font: 600 9.5px var(--font-body); fill: var(--ink-soft); } .rvw-c svg .pt { fill: var(--pc); stroke: #fff; stroke-width: 1.5; }
-.rvw-c svg .dec { fill: var(--c-triv); stroke: #fff; stroke-width: 1.2; } .rvw-c svg .dec.c-could { fill: var(--c-could); } .rvw-c svg .dec.c-mistake { fill: var(--c-mistake); } .rvw-c svg .dec.c-blunder { fill: var(--c-blunder); } .rvw-c svg .dec.c-missed { fill: var(--c-missed); }
+.rvw-c svg .dec { fill: var(--c-triv); stroke: #fff; stroke-width: 1.2; } .rvw-c svg .dec.c-could { fill: var(--c-could); } .rvw-c svg .dec.c-lean { fill: var(--c-lean); } .rvw-c svg .dec.c-close { fill: var(--c-close); } .rvw-c svg .dec.c-mistake { fill: var(--c-mistake); } .rvw-c svg .dec.c-blunder { fill: var(--c-blunder); } .rvw-c svg .dec.c-missed { fill: var(--c-missed); }
 .rvw-c .rsw-wait { margin: -90px 0 80px; text-align: center; font: 650 12px var(--font-body); color: var(--ink-soft); }
 .rvw-i .rvw-l { margin: 6px 0 3px; font: 650 11px/1 var(--font-body); color: var(--ink-soft); }
 .rvw-bar { display: flex; gap: 2px; height: 24px; border-radius: 8px; overflow: hidden; } .rvw-bar i { display: grid; place-items: center; font: 800 11.5px/1 var(--font-body); font-style: normal; color: var(--pc-ink, #fff); background: var(--pc); } .rvw-bar.na { background: color-mix(in srgb, var(--ink) 8%, transparent); display: grid; place-items: center; color: var(--ink-soft); }
@@ -740,3 +740,7 @@
 .rc-card .rc-foot { margin: 2px 0 0; }
 .rc-cm { display: grid; min-width: 0; gap: 1px; } .rc-cm .rc-hl { font: 600 12px/1.3 var(--font-body); opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vd-card .rc-sub { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 600; }
+
+/* v1.81 targeted refinement state under the verdict (step view) */
+.rs-rf { display: flex; align-items: center; gap: 8px; margin: 2px 0 6px; font: 650 12px/1.3 var(--font-body); color: var(--ink-soft, #667); } .rs-rf .rv-spin { width: 14px; height: 14px; flex: none; } .rs-rf.done { color: var(--c-close, #8E9AA6); }
+.rs-rfb { margin: 2px 0 8px; min-height: 40px; }

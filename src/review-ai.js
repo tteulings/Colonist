@@ -4,7 +4,7 @@
 // the review) is replaced by a neutral line. Insights and answers are kept in the saved review (R.ai). Online only.
 import { aiFacts, aiSeries, aiTimeline, aiPlan, aiNearMiss, aiStart, aiRoute, wcAt, wcChange } from "./review/ai-facts.js";
 import { decide } from "./review/evaluate.js";
-import { aiIndex, aiToolRun, aiSimPlan, aiSimResult, aiIntent, aiIntentArgs, aiCantMsg, aiSlimDecision, aiKindOf, aiDecList, TIER2, CAPS } from "./review/ai-tools.js";
+import { REFINE_TOOL, aiIndex, aiToolRun, aiSimPlan, aiSimResult, aiIntent, aiIntentArgs, aiCantMsg, aiSlimDecision, aiKindOf, aiDecList, TIER2, CAPS } from "./review/ai-tools.js";
 import { reviewRequest, reviewLaneCount, reviewAvailable } from "./master.js";
 import { RECAP_URL, recapLang } from "./review-recap.js";
 import { swingCause } from "./review/ai-cause.js";
@@ -30,8 +30,8 @@ const T = {
 const GOODT = /\b(paid off|worked|rewarded|best|great|strong|brilliant|perfect|smart|excellent|beste|geweldig|sterk|perfecte|slim|uitstekend)\b/i;
 const TPOS = /\b(stayed close|stays close|kept (?:you|him|her|them|\w+) alive|good|helped|helps|comeback|rescued|saved)\b/i;
 const TNEG = /\b(missed|misses|miss|wrong|mistakes?|blunders?|worst|bad|costly|errors?|poor|behind|fout|fouten|gemist|slecht|verkeerd)\b/i;
-const CHAT = { en: { same: "Same view as the card above", clear: "Clear chat", pend: "Thinking…", cancel: "Cancel", review: "from your review · instant", checked: "checked by engine", eng: (n) => `engine · ${n} games`, simN: (n) => `Engine is simulating ${n} move${n === 1 ? "" : "s"} · 100 games each`, asPlayed: "As played", noise: "within noise", vs: "vs played", ratedBest: "Rated best (\u00b10): no better move found.", wouldHave: "would have given", inst: "Instead of", within: "Within noise: no clear difference.", played: "played", better: "was better", cost: "cost", wc: "win chance", asp: "as played" },
-  nl: { same: "Zelfde beeld als de kaart hierboven", clear: "Chat wissen", pend: "Aan het denken…", cancel: "Annuleer", review: "uit je review · direct", checked: "gecontroleerd door engine", eng: (n) => `engine · ${n} spellen`, simN: (n) => `Engine simuleert ${n} ${n === 1 ? "zet" : "zetten"} · elk 100 spellen`, asPlayed: "Zoals gespeeld", noise: "binnen de ruis", vs: "t.o.v. gespeeld", ratedBest: "Beoordeeld als beste (\u00b10): geen betere zet gevonden.", wouldHave: "had gegeven", inst: "In plaats van", within: "Binnen de ruis: geen duidelijk verschil.", played: "speelde", better: "was beter", cost: "kostte", wc: "winkans", asp: "zoals gespeeld" } };
+const CHAT = { en: { vcw: { lean: "slightly better", close: "other option" }, same: "Same view as the card above", clear: "Clear chat", pend: "Thinking…", cancel: "Cancel", review: "from your review · instant", checked: "checked by engine", eng: (n) => `engine · ${n} games`, simN: (n) => `Engine is simulating ${n} move${n === 1 ? "" : "s"} · 100 games each`, asPlayed: "As played", noise: "within noise", vs: "vs played", ratedBest: "Rated best (\u00b10): no better move found.", wouldHave: "would have given", inst: "Instead of", within: "Within noise: no clear difference.", played: "played", better: "was better", cost: "cost", wc: "win chance", asp: "as played" },
+  nl: { vcw: { lean: "iets beter", close: "andere optie" }, same: "Zelfde beeld als de kaart hierboven", clear: "Chat wissen", pend: "Aan het denken…", cancel: "Annuleer", review: "uit je review · direct", checked: "gecontroleerd door engine", eng: (n) => `engine · ${n} spellen`, simN: (n) => `Engine simuleert ${n} ${n === 1 ? "zet" : "zetten"} · elk 100 spellen`, asPlayed: "Zoals gespeeld", noise: "binnen de ruis", vs: "t.o.v. gespeeld", ratedBest: "Beoordeeld als beste (\u00b10): geen betere zet gevonden.", wouldHave: "had gegeven", inst: "In plaats van", within: "Binnen de ruis: geen duidelijk verschil.", played: "speelde", better: "was beter", cost: "kostte", wc: "winkans", asp: "zoals gespeeld" } };
 const CF = /\b(?:would have|would\u2019ve|would've|could have|had you|if you had|if (?:he|she|they) had|zou(?:den)? [^.]*hebben|als je [^.]*had)\b/i;
 const evNums = (res) => { const A = new Set(), w = []; const walk = (v, k) => { if (typeof v === "number" && isFinite(v) && Math.abs(v) <= 100) { A.add(Math.round(Math.abs(v))); if (/win/i.test(k || "") && !/vs|plusMinus/i.test(k || "")) w.push(v); } else if (Array.isArray(v)) v.forEach((x) => walk(x, k)); else if (v && typeof v === "object") Object.entries(v).forEach(([kk, x]) => walk(x, kk)); }; walk(res, ""); w.forEach((a) => w.forEach((b) => A.add(Math.round(Math.abs(a - b))))); return [...A]; };
 const posW = (t) => GOODT.test(t) || POS.test(t) || TPOS.test(t), negW = (t) => NEG.test(t) || TNEG.test(t);
@@ -126,7 +126,7 @@ export const ReviewAiMixin = {
     // a decision: the chip is the cost of that move with the mover's sign (a better move worth +6% is "-6% your move", never a green +6%)
     const decs = level === "decision" && focus != null ? C.decs.filter((x) => x.turn === focus) : [];
     const dm = decs.filter((x) => dseats.includes(x.seat) || !dseats.length).sort((a, b) => (b.own - a.own) || (b.gap - a.gap))[0] || null;
-    if (level === "decision" && focus != null) chg = dm && Math.round(dm.gap * 100) >= 1 ? [{ seat: dm.seat, from: null, to: null, d: -Math.round(dm.gap * 100), move: true }] : [];
+    if (level === "decision" && focus != null) chg = dm && Math.round(dm.gap * 100) >= 1 ? [{ seat: dm.seat, from: null, to: null, d: -Math.round(dm.gap * 100), move: true, vc: dm.d?.vc || null }] : [];
     // luck: the chip is the luck of the named player (or yours) in win chance, with its own sign
     if (view === "luck" && C.luck) { const s = seats[0] ?? C.me, d = Math.round((C.luck[s] ?? 0) * 100); chg = d ? [{ seat: s, from: null, to: null, d, luck: true }] : []; }
     if (view === "plan" || view === "points" || view === "nearmiss") chg = []; // a plan / points card has no win-chance fact of its own
@@ -141,7 +141,7 @@ export const ReviewAiMixin = {
     else if (answer) { // v1.77 one source: the tool record (an engine run or a decision lookup) gives the bars, the badge and the text of an answer
       card.rec = tryv(() => this._aiRecord(raw, C));
       if (card.rec) { const r = card.rec; card.view = "none"; card.focus = r.turn; if (!card.turns.includes(r.turn)) card.turns.unshift(r.turn); card.seat = r.seat; card.dec = false;
-        card.chg = r.d ? [{ seat: r.seat, from: null, to: null, d: r.d, move: true, small: r.kind === "sim" ? (CHAT[C.lang] || CHAT.en).vs : null }] : []; }
+        card.chg = r.d ? [{ seat: r.seat, from: null, to: null, d: r.d, move: true, vc: r.vc || null, small: r.kind === "sim" ? (CHAT[C.lang] || CHAT.en).vs : null }] : []; }
     }
     if (card.rec || raw?.cant) card.points = []; // the model's chips would carry numbers of their own
     { const tpl = card.rec || raw?.cant ? "" : tryv(() => this._aiNeutral(card, C, card.chg[0]?.seat ?? card.seats[0] ?? C.me, card.focus, ""), "") || "";
@@ -150,6 +150,7 @@ export const ReviewAiMixin = {
       if (raw?.cant) raw = { ...raw, answer: this._aiGuard(raw.answer, C) }; }
     card.text = raw?.cant ? String(raw.answer || "").slice(0, 300) : card.rec ? this._aiRecordText(card, C) : this._aiTrust(card, C);
     if (!answer && !card.rec && card.level === "decision") this._aiDecFit(card, C);
+    if (!card.rec) this._aiVcGate(card, C);
     if (!card.rec && !raw?.cant) this._aiCauseFit(card, C);
     card.title = this._aiTitle(card, C);
     this._aiCardBlocks(card, raw, C);
@@ -169,9 +170,9 @@ export const ReviewAiMixin = {
       return { kind: "sim", seat: seatOf(r.player), turn: r.turn, who: r.player, played: { label: r.playedLabel || T.asPlayed, v: r.storedPlayedWinPct }, alts: rows.map((x) => ({ label: x.label, v: x.winPct, pm: x.plusMinusPct })), d, pm: alt.plusMinusPct || 0 };
     }
     const dc = ev.find((e) => e.n === "get_decision" && e.r?.playedWinPct != null); if (!dc) return null;
-    const r = dc.r, ev2 = r.evaluated || [], bt = ev2.find((c) => !c.played && c.label === r.better) || ev2.filter((c) => !c.played).sort((a, b) => (b.winPct ?? -1) - (a.winPct ?? -1))[0];
+    const r = dc.r, ev2 = r.evaluated || [], bt = ev2.find((c) => !c.played && c.label === (r.better || r.otherOption)) || ev2.filter((c) => !c.played).sort((a, b) => (b.winPct ?? -1) - (a.winPct ?? -1))[0];
     const best = !(r.costPct >= 0.5), cost = Math.round(r.costPct), ok = !best && bt && Math.abs(bt.winPct - r.playedWinPct - cost) <= 1; // the bars and the badge show the review's own cost (the two rounded win chances may differ by 1)
-    return { kind: "dec", seat: seatOf(r.player), turn: r.turn, who: r.player, k: r.kind, played: { label: r.played, v: r.playedWinPct }, alts: ok ? [{ label: bt.label, v: r.playedWinPct + cost }] : [], best, better: !best && r.better ? r.better : null, d: best ? 0 : -cost, cost: r.costPct };
+    return { kind: "dec", seat: seatOf(r.player), turn: r.turn, who: r.player, k: r.kind, played: { label: r.played, v: r.playedWinPct }, alts: ok ? [{ label: bt.label, v: r.playedWinPct + cost }] : [], best, better: !best && (r.better || r.otherOption) ? (r.better || r.otherOption) : null, d: best ? 0 : -cost, cost: r.costPct, vc: r.verdict || null, se: r.plusMinusPct ?? null };
   },
   /** The sentence of a record card, only from the record (the model's own sentences stay only when they say nothing about direction or numbers). */
   _aiRecordText(card, C) {
@@ -179,10 +180,11 @@ export const ReviewAiMixin = {
     const mv = you ? (nl ? "jouw zet" : "your move") : (nl ? `de zet van ${nm}` : `${nm}\u2019s move`), TT = `${nl ? "Beurt" : "Turn"} ${r.turn}`;
     let a;
     if (r.kind === "sim") a = `${alt.label} ${T.wouldHave} ${alt.v}% ${T.wc}, ${r.played.v}% ${T.asp}${Math.abs(r.d) < 8 || Math.abs(r.d) <= (r.pm || 0) ? ` (${T.noise})` : ""}.`;
+    else if (r.vc === "close" || r.vc === "lean") a = this._aiVcLine(r.vc, TT, mv, r.better, nl);
     else if (r.best) a = nl ? `${TT}: ${mv} was de beste (\u00b10): geen betere zet gevonden.` : `${TT}: ${mv} was rated best (\u00b10): no better move found.`;
     else a = alt ? (nl ? `${TT}: ${mv} kostte ${Math.abs(r.d)}% winkans (${r.played.v}% zoals gespeeld, ${alt.v}% met de betere zet).` : `${TT}: ${mv} cost ${Math.abs(r.d)}% win chance (${r.played.v}% as played, ${alt.v}% with the better move).`) : (nl ? `${TT}: ${mv} kostte ${Math.abs(r.d)}% winkans${r.better ? `: ${r.better} was beter` : ""} (${r.played.v}% zoals gespeeld).` : `${TT}: ${mv} cost ${Math.abs(r.d)}% win chance${r.better ? `: ${r.better} was the better move` : ""} (${r.played.v}% as played).`);
     // v1.80 a set-up / settlement / city decision: the short app sentence (the bars carry the percentages), then the model's WHY (up to 2 sentences: direction words like "better" are fine there)
-    const spot = r.kind === "dec" && !r.best && (r.k === "setup" || /^(?:settlement|city)\b/i.test(r.played.label || "")); if (spot) a = nl ? `${TT}: ${mv} kostte ${Math.abs(r.d)}% winkans.` : `${TT}: ${mv} cost ${Math.abs(r.d)}% win chance.`;
+    const spot = r.kind === "dec" && !r.best && r.vc !== "close" && r.vc !== "lean" && (r.k === "setup" || /^(?:settlement|city)\b/i.test(r.played.label || "")); if (spot) a = nl ? `${TT}: ${mv} kostte ${Math.abs(r.d)}% winkans.` : `${TT}: ${mv} cost ${Math.abs(r.d)}% win chance.`;
     const ok1 = (x) => x && !/\d\s?%/.test(x) && !CF.test(x) && (spot || !/\b(?:instead|in plaats|engine)\b/i.test(x)) && !new RegExp(`\\b${TW}\\s+\\d`, "i").test(x), sents = (card.src.match(/(?:[^.!?]|[.!?](?!\s|$))+[.!?]+(?:\s+|$)/g) || []).map((x) => x.trim());
     const neg = r.d < 0, extra = spot ? sents.filter(ok1).slice(0, 2).join(" ") : sents.filter((x) => ok1(x) && !posW(x) && !negW(x))[0];
     if (!extra) card.fix.push("rec");
@@ -205,6 +207,21 @@ export const ReviewAiMixin = {
     card.text = nl ? `Op ${TW} ${card.focus} ${D[cs.kind](cs.data)} ${who}: ${chance} ${ch.from}% \u2192 ${ch.to}%.` : `On ${TW} ${card.focus} ${who} ${D[cs.kind](cs.data)}: ${chance} ${ch.from}% \u2192 ${ch.to}%.`;
     card.cause = { player: cs.actor, kind: cs.kind, delta: cs.delta };
   },
+  /** v1.81 the one sentence of a lean / close decision (no digits): the class wording, never "mistake" or "better" for a close call. */
+  _aiVcLine(vc, TT, mv, other, nl) {
+    const o = other ? String(other).replace(/<[^>]+>/g, "").slice(0, 70) : (nl ? "de andere zet" : "the other move");
+    return vc === "close" ? (nl ? `${TT}: ${mv} en ${o} liggen dicht bij elkaar: een close call, ongeveer gelijk.` : `${TT}: ${mv} and ${o} are about equal: a close call.`)
+      : (nl ? `${TT}: ${o} is waarschijnlijk iets beter dan ${mv}.` : `${TT}: ${o} is probably slightly better than ${mv}.`);
+  },
+  /** v1.81 wording gate: a card about a lean / close decision never says mistake / blunder / (plain) better; its sentence becomes the app line. */
+  _aiVcGate(card, C) {
+    const dm = card.focus != null && card.level === "decision" ? this._aiDecAt(card.focus, C, card.dseats) : null, vc = dm?.d?.vc;
+    if ((vc !== "close" && vc !== "lean") || !card.text) return;
+    const t = card.text, bad = vc === "close" ? /\b(?:mistakes?|blunders?|better|worse|costly|cost|missed|errors?|wrong|fouten?|beter|gemist|kostte|slechter)\b/i : /\b(?:mistakes?|blunders?|costly|errors?|wrong|clearly|fouten?|gemist|duidelijk)\b/i.test(t) || (/\b(?:better|beter)\b/i.test(t) && !/\b(?:slightly|probably|iets|waarschijnlijk)\b/i.test(t)) ? /./ : /$^/;
+    if (!bad.test(t)) return;
+    const nl = C.lang === "nl", nm = this._rvIsYou(dm.seat) ? (nl ? "Jij" : "You") : C.nmRaw(dm.seat), mv = this._rvIsYou(dm.seat) ? (nl ? "jouw zet" : "your move") : (nl ? `de zet van ${nm}` : `${nm}\u2019s move`);
+    card.fix.push("vc"); card.text = this._aiVcLine(vc, `${nl ? "Beurt" : "Turn"} ${card.focus}`, mv, dm.d.x.best?.label, nl);
+  },
   /** A decision card's sentence must be about the decision its board shows: else the app's own line (played, better, cost) replaces it. */
   _aiDecFit(card, C) {
     const dm = card.focus != null ? this._aiDecAt(card.focus, C, card.dseats) : null; if (!dm || !card.text) return;
@@ -214,6 +231,7 @@ export const ReviewAiMixin = {
     if (fits) return;
     const nl = C.lang === "nl", nm = this._rvIsYou(dm.seat) ? (nl ? "Jij" : "You") : C.nmRaw(dm.seat), TW = nl ? "Beurt" : "Turn", clipL = (v) => String(v).replace(/<[^>]+>/g, "").slice(0, 70);
     card.fix.push("dec");
+    if (dm.d.vc === "close" || dm.d.vc === "lean") { card.text = this._aiVcLine(dm.d.vc, `${TW} ${card.focus}`, this._rvIsYou(dm.seat) ? (nl ? "jouw zet" : "your move") : nm, x.best.label, nl); return; }
     card.text = nl ? `${TW} ${card.focus}: ${nm} speelde ${clipL(lab)}; ${clipL(x.best.label)} was beter (kostte ${Math.round(dm.gap * 100)}% winkans).` : `${TW} ${card.focus}: ${nm} played ${clipL(lab)}; ${clipL(x.best.label)} was better (cost ${Math.round(dm.gap * 100)}% win chance).`;
   },
   _aiPoss(C, s) { const nm = C.nmRaw(s); return this._rvIsYou(s) ? C.t.your : C.lang === "nl" ? `${nm}s` : `${nm}'s`; },
@@ -420,7 +438,7 @@ export const ReviewAiMixin = {
   // ── cards ──
   _aiChgChips(card, C) {
     // green / red only for YOUR win chance; an opponent's change is in that player's colour with their name ("Blaauw +14%")
-    return card.chg.filter((c) => c.d).slice(0, 1).map((c) => { const you = this._rvIsYou(c.seat), cls = you ? (c.d > 0 ? "up" : "dn") : "opp"; const nm = C.nmRaw(c.seat);
+    return card.chg.filter((c) => c.d).slice(0, 1).map((c) => { const you = this._rvIsYou(c.seat), cls = c.move && c.vc === "close" ? "nz" : you ? (c.d > 0 ? "up" : "dn") : "opp"; const nm = C.nmRaw(c.seat);
       const small = c.small ? c.small : c.move ? (you ? C.t.mine : C.t.move) : c.luck ? C.t.luck.toLowerCase() : "";
       return `<button type="button" class="ai-chg ${cls} pc-${c.seat}" ${card.focus != null && !c.luck ? `data-ait="${card.focus}"` : c.luck ? "data-ailuck" : ""} title="${esc(nm)} \u00b7 ${esc(c.luck ? C.t.luck : c.move ? C.t.move : C.t.win)}${c.from != null ? ` ${c.from}% \u2192 ${c.to}%` : ""}"><i class="ai-dot" aria-hidden="true"></i>${you ? "" : `<span>${esc(nm)}</span>`}<b>${sgn(c.d)}%</b>${small ? `<small>${esc(small)}</small>` : ""}</button>`; }).join("");
   },
@@ -565,7 +583,7 @@ export const ReviewAiMixin = {
   _aiVBoard(card, C) {
     const T0 = card.focus ?? card.turns[0]; if (T0 == null || !C.st) return "";
     const d = this._aiDecAt(T0, C);
-    return `<div class="ai-vz"><div class="ai-bd" data-aibd="${T0}"><span class="ai-bdw" aria-hidden="true"></span></div>${d ? `<div class="ai-leg" data-aileg hidden><span><s class="rg a">A</s>${esc(C.t.better)}</span><span><s class="rg b">B</s>${esc(C.t.played)}</span></div>` : ""}</div>`;
+    return `<div class="ai-vz"><div class="ai-bd" data-aibd="${T0}"><span class="ai-bdw" aria-hidden="true"></span></div>${d ? `<div class="ai-leg" data-aileg hidden><span><s class="rg a">A</s>${esc(d?.d?.vc === "close" ? (CHAT[C.lang] || CHAT.en).vcw.close : d?.d?.vc === "lean" ? (CHAT[C.lang] || CHAT.en).vcw.lean : C.t.better)}</span><span><s class="rg b">B</s>${esc(C.t.played)}</span></div>` : ""}</div>`;
   },
   // ── v1.79 visual blocks: the model names what to show, the app fetches every number (src/review/ai-blocks.js) ──
   _aiRawBlocks(bl) {
@@ -634,8 +652,10 @@ export const ReviewAiMixin = {
   },
   _aiVCompare(b, C, hasChip = false) {
     const T = CHAT[C.lang] || CHAT.en, mx = Math.max(...b.options.map((o) => o.v)), hi = Math.min(100, Math.max(20, (Math.floor(mx / 10) + 1) * 10)), you = this._rvIsYou(b.seat), nl = C.lang === "nl";
-    const rows = b.options.map((o, i) => `<div class="ai-sr rec bkc${i === b.bestIdx ? " best" : ""} k-${o.kind}"><span class="l"><em class="tg ${o.kind}">${esc(o.kind === "played" ? T.played : o.kind === "best" || (i === b.bestIdx && o.kind !== "alt") ? String(C.t.better).replace(/^[AB]\s+/, "") : "alt")}</em>${esc(o.label)}</span><span class="tr"><i style="width:${Math.max(1, (o.v / hi) * 100).toFixed(1)}%"></i></span><b>${i === b.bestIdx ? "★ " : ""}${o.v}%${o.pm ? `<small>±${o.pm}</small>` : ""}</b></div>`).join("");
-    const cost = b.cost && !hasChip ? `<div class="bk-ft"><span class="ai-chg dn pc-${b.seat}"><b>−${b.cost}%</b><small>${esc(you ? C.t.mine : C.t.move)}</small></span><span class="ai-cap">${esc(T.wc)}</span></div>` : "";
+    const vc = b.vc || "clear", star = (i) => i === b.bestIdx && vc === "clear", bw = (o) => (o.kind !== "played" && o.se ? Math.min(100, (o.v / hi) * 100 + (o.se / hi) * 100) : 0);
+    const bword = vc === "close" ? T.vcw.close : vc === "lean" ? T.vcw.lean : String(C.t.better).replace(/^[AB]\s+/, "");
+    const rows = b.options.map((o, i) => `<div class="ai-sr rec bkc${i === b.bestIdx ? " best" : ""} k-${o.kind}"><span class="l"><em class="tg ${o.kind}">${esc(o.kind === "played" ? T.played : o.kind === "best" || (i === b.bestIdx && o.kind !== "alt") ? bword : "alt")}</em>${esc(o.label)}</span><span class="tr"><i style="width:${Math.max(1, (o.v / hi) * 100).toFixed(1)}%"></i>${o.kind !== "played" && o.se ? `<u class="wh" data-se="${o.se}" style="left:${Math.max(0, (o.v - o.se) / hi * 100).toFixed(1)}%;width:${Math.min(100 - Math.max(0, (o.v - o.se) / hi * 100), 2 * o.se / hi * 100).toFixed(1)}%"></u>` : ""}</span><b>${star(i) ? "★ " : ""}${o.v}%${o.pm ? `<small>±${o.pm}</small>` : o.se ? `<small>±${Math.max(1, Math.round(o.se))}</small>` : ""}</b></div>`).join("");
+    const cost = b.cost && !hasChip ? `<div class="bk-ft"><span class="ai-chg ${vc === "close" ? "nz" : "dn"} pc-${b.seat}"><b>−${b.cost}%</b><small>${esc(you ? C.t.mine : C.t.move)}</small></span><span class="ai-cap">${esc(T.wc)}</span></div>` : "";
     return `<div class="ai-sm rec" data-aisimv>${rows}<div class="ai-ax" aria-hidden="true"><span class="tk"><i>0%</i><i>${hi / 2}%</i><i>${hi}%</i></span><span></span></div>${cost}</div>`;
   },
   // v1.80 the factor table of a set-up / settlement / city decision (src/review/ai-spots.js): one row per factor, the winning cell lit
@@ -648,7 +668,7 @@ export const ReviewAiMixin = {
     const T = CHAT[C.lang] || CHAT.en, cut = (s) => esc(String(s || "").length > 26 ? `${String(s).slice(0, 25)}…` : s || "");
     const items = b.marks.map((m) => {
       const chip = m.win != null ? `<b>${m.win}%</b>` : "";
-      if (m.kind === "better") return `<span class="lg"><s class="rg a">A</s>${esc(String(C.t.better).replace(/^[AB]\s+/, ""))}${chip}</span>`;
+      if (m.kind === "better") { const vc = b.dec?.d?.vc; return `<span class="lg"><s class="rg a">A</s>${esc(vc === "close" ? T.vcw.close : vc === "lean" ? T.vcw.lean : String(C.t.better).replace(/^[AB]\s+/, ""))}${chip}</span>`; }
       if (m.kind === "played") return `<span class="lg"><s class="rg b">B</s>${esc(String(C.t.played).replace(/^[AB]\s+/, ""))}${chip}</span>`;
       if (m.kind === "alt") return `<span class="lg"><s class="rg n">${m.n}</s>${cut(m.label)}${chip}</span>`;
       if (m.kind === "robber") return `<span class="lg"><s class="rg r">⚉</s>${esc(C.lang === "nl" ? "Struikrover" : "Robber")}</span>`;
@@ -973,7 +993,7 @@ export const ReviewAiMixin = {
         const t2 = TIER2.has(q.name); let res;
         if (calls >= CAPS.calls) res = { error: "tool budget used up" };
         else if (t2 && sims >= simCap) res = { error: "engine budget used up" };
-        else { calls += 1; if (t2) sims += 1; res = t2 ? await this._aiSimTool(q) : aiToolRun(this, q.name, q.args || {}); }
+        else { calls += 1; if (t2) sims += 1; res = q.name === REFINE_TOOL ? await this._rfTool(q.args || {}).then(async (o) => (o?.error || o?.note ? o : { ...o, decision: aiToolRun(this, "get_decision", q.args || {}) })) : t2 ? await this._aiSimTool(q) : aiToolRun(this, q.name, q.args || {}); }
         if (this._rv !== R) return { err: "gone" };
         if (res?.cancelled) { if (mode === "game") return { err: "cancel" }; res = { error: "cancelled by the user: do not state any what-if" }; }
         trace.push({ id: q.id, name: q.name, args: q.args, res, t: t2 ? 2 : 1 });

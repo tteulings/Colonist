@@ -12,8 +12,8 @@ import { makeMaster, shipMoveLabel } from "../master/search.js";
 import { explain } from "./why.js";
 import { aimPack } from "./aims.js";
 import { BOT_BANDS } from "./bands.js";
-import { FMT, LIMITS, SETUP_LIMITS, GREAT, BEST_LEAD, CLASSES, TRIVIAL as TRIV, SE_SHRINK as SHRINK, clsOf, markOfCls, derive, gpOf, avgLost, rescoreResult, unknownRateLabel, liftSameStep } from "./score.js";
-export { FMT, LIMITS, SETUP_LIMITS, GREAT, BEST_LEAD, CLASSES, clsOf, markOfCls, gpOf, tradeShow, decide, totals } from "./score.js";
+import { FMT, LIMITS, SETUP_LIMITS, GREAT, BEST_LEAD, CLASSES, TRIVIAL as TRIV, SE_SHRINK as SHRINK, clsOf, markOfCls, vcOf, derive, gpOf, avgLost, rescoreResult, unknownRateLabel, liftSameStep } from "./score.js";
+export { vcOf, seOf, VERDICTS, SEVERE, WORSE, FMT, LIMITS, SETUP_LIMITS, GREAT, BEST_LEAD, CLASSES, clsOf, markOfCls, gpOf, tradeShow, decide, totals } from "./score.js";
 
 // v1.03 review engines: the ONE place where the depth of the Game review is chosen. After the game there is
 // time, so each decision gets a deeper search than a Master move. `sec`: seconds per decision in a desktop
@@ -182,7 +182,9 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   if (!played) return { ...base, skip: "n/a" };
   // v1.04 opts.engine: "m100" is the quick first round after a game (the deep round is "full", the default)
   const eng = opts.engine && REVIEW_ENGINES[opts.engine] ? opts.engine : REVIEW_ENGINE, E = REVIEW_ENGINES[eng];
-  const agent = makeMaster({ ...(eng === REVIEW_ENGINE ? REVIEW_BUDGET : E.budget), seats: true, aims: kindMain(rec), ...(opts.budget || {}) }); // seats: every seat's win chance, no extra rollouts
+  const bud = { ...(opts.budget || {}) };
+  if (bud.only != null && g._rushPos) bud.only = String(bud.only).replace(/^Wait/, "End turn"); // (the stored label says Wait, the engine End turn)
+  const agent = makeMaster({ ...(eng === REVIEW_ENGINE ? REVIEW_BUDGET : E.budget), seats: true, aims: kindMain(rec), ...bud }); // seats: every seat's win chance, no extra rollouts
   base.eng = eng;
   base.leaf = (eng === REVIEW_ENGINE ? REVIEW_BUDGET : E.budget).leaf || "v1"; // which score function judged it
   const scored = eng === REVIEW_ENGINE ? SCORED_KINDS : E.scored; // the 8-turn look-ahead can't judge development cards
@@ -214,6 +216,7 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   const res = { ...base, aim, simple, rush: g._rushPos || undefined, why, label: played.label, focus: played.focus || null, move: { k: rec.k, a: rec.a || {} }, win: winP == null ? null : r4(winP), best: best ? { label: b.label, focus: b.focus, gain: r4(b.m), se: b.se, seats: r.seats?.[best] || null } : null, seats: r.seats?.[0] || null,
     loss, lossRaw, spread, lead, trivial, skip: trivial ? "trivial" : null, acc: trivial || !scored.includes(rec.k) ? null : Math.round(accuracyOf(lossRaw) * 10) / 10,
     cands, futures: r.vals[0].filter((v) => v != null).length, rollouts: r.rollouts, ms };
+  res.vc = vcOf(res);
   res.mark = trivial ? "good" : markOfCls(clsOf(res)); // the old three-way mark, now from the same class as everywhere
   return res;
 }
@@ -267,3 +270,24 @@ export function rescoreReview(rv) {
 }
 /** v1.29 the same-step lift (score.js liftSameStep) on a review's results, with the accuracy curve. */
 export function liftReview(rv) { if (rv?.results) liftSameStep(rv.results, (l) => accuracyOf(l)); return rv; }
+
+// ── v1.81 targeted refinement: a close / lean decision of the person is re-run with the played move against its best alternative only,
+// on more paired futures (REFINE_N); the gap, se and class follow. Pure: no engine here. ──
+export const REFINE_N = 400;
+/** The `opts` of the refinement request for a stored result (null: nothing to refine). */
+export const refineOpts = (x) => (x?.best?.label && x.cands?.length > 1 ? { engine: x.eng && x.eng !== REVIEW_ENGINE ? x.eng : undefined, budget: { only: x.best.label, nPer: REFINE_N, noHalve: true } } : null);
+/** Fold the refined run `out` (an evaluate result) into the stored result x (same decision). Returns the new result (x itself is not changed), or null. */
+export function refineResult(x, out) {
+  if (!x?.best || !out?.cands?.length || out.skip) return null;
+  const E = REVIEW_ENGINES[x.eng || REVIEW_ENGINE] || REVIEW;
+  const was = { gap: gpOf(x), se: x.best.se, vc: vcOf(x), cls: clsOf(x) };
+  const { lift0, lifted, ...y } = x; // the lift is applied afresh by the caller (liftReview)
+  if (lift0) Object.assign(y, lift0);
+  const bi = y.cands.findIndex((c, k) => k && c.label === y.best.label), ri = out.cands.findIndex((c, k) => k && c.label === y.best.label);
+  if (bi < 0 || ri < 0) return null;
+  const r = out.cands[ri];
+  y.cands = y.cands.map((c, k) => (k === bi ? { ...c, m: r.m, se: r.se, n: r.n, fin: true } : c));
+  const z = rescoreResult(y, { trivial: E.trivial ?? TRIV, scored: x.eng && x.eng !== REVIEW_ENGINE ? E.scored || SCORED_KINDS : SCORED_KINDS, acc: (l) => accuracyOf(l) });
+  z.refined = { n: r.n, was };
+  return z;
+}

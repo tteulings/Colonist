@@ -137,7 +137,7 @@ export class HistoryStore {
 
 // ── the entry ───────────────────────────────────────────────────────────────────────────────────
 const startOf = (id) => { const t = parseInt(String(id).slice(0, 8), 36); return Number.isFinite(t) && t > 1.5e12 && t < 4e12 ? t : Date.now(); };
-const PROBLEM = ["could", "mistake", "blunder", "missed"];
+const PROBLEM = ["lean", "could", "mistake", "blunder", "missed"];
 /** The kind of a marked decision, for "your most frequent mistake" (what the review says the better move was). */
 const mistKey = (x) => (x.k === "end" && /^(City|Settlement|Road|Development|Ship)/.test(x.best?.label || "") ? "end>build" : x.k);
 export const MIST_TEXT = { "end>build": "ended your turn while a build was possible", build: "built something weaker", bank: "a weaker bank trade", robber: "a weaker robber tile", setup: "a weaker set-up spot", end: "ended your turn with a better move left", buy: "a development card at the wrong time", play: "a development card played too early or late" };
@@ -444,7 +444,7 @@ export const HistoryMixin = {
     const won = fin.filter((m) => m.result === "won").length, l10 = fin.slice(-10);
     const winHtml = fin.length ? `<div class="pg-t"><b>${Math.round((100 * won) / fin.length)}%</b><small>Won ${won} of ${fin.length}</small><span class="pg-wl" aria-hidden="true">${l10.map((m) => `<i class="${m.result}"></i>`).join("")}</span></div>` : "";
     // marked moves per game
-    const per = rev.map((m) => ({ c: (m.cls.could || 0) + (m.cls.missed || 0), m: m.cls.mistake || 0, b: m.cls.blunder || 0 }));
+    const per = rev.map((m) => ({ c: (m.cls.lean || 0) + (m.cls.could || 0) + (m.cls.missed || 0), m: m.cls.mistake || 0, b: m.cls.blunder || 0 }));
     let markHtml = `<div class="pg-t"><b>–</b><small>Marked moves</small></div>`, bars = "";
     if (per.length) {
       const tot = (p) => p.c + p.m + p.b, last = per.slice(-5), prev = per.slice(-10, -5);
@@ -530,7 +530,7 @@ export const HistoryMixin = {
       <ol class="hs-pod">${order.map((i, k) => { const s = m.seats[i]; return `<li class="${i === m.winner ? "win" : ""}"><span class="pl">${k + 1}</span>${avatarSvg(i, "hs-av2")}<span class="nm">${esc(s.name)}${s.you ? " <em>you</em>" : ""}${s.prof ? `<span class="hs-bot">${profileMini(s.prof, 16)}${s.custom ? "Custom" : esc(BOT_PROFILES[s.prof]?.label || "")}</span>` : ""}</span><b>${s.vp}</b></li>`; }).join("")}</ol>
       <dl class="hs-facts"><div><dt>Mode</dt><dd>${kind}</dd></div><div><dt>Players</dt><dd>${m.n}</dd></div><div><dt>${m.mode === "rush" ? "Rolls" : "Turns"}</dt><dd>${m.turns}</dd></div><div><dt>Played</dt><dd>${dur(m.ms)}</dd></div>
         <div><dt>Accuracy</dt><dd>${m.acc != null ? `${m.prov ? "~" : ""}${m.acc}${m.prov ? ` <small>provisional</small>` : m.mid ? ` <small>checked during the game</small>` : ""}` : "–"}</dd></div>
-        <div><dt>Marked moves</dt><dd>${m.cls ? `${(m.cls.could || 0) + (m.cls.missed || 0)} · ${m.cls.mistake || 0} · ${m.cls.blunder || 0}<small>could be better · mistake · blunder</small>` : "–"}</dd></div></dl>
+        <div><dt>Marked moves</dt><dd>${m.cls ? `${(m.cls.lean || 0) + (m.cls.could || 0) + (m.cls.missed || 0)} · ${m.cls.mistake || 0} · ${m.cls.blunder || 0}<small>could be better · mistake · blunder</small>` : "–"}</dd></div></dl>
       <div class="hs-acts">
         <button type="button" class="hs-btn pri" data-sact="replay">${PLAY}Replay</button>
         <button type="button" class="hs-btn" data-sact="stats">${BARS}Stats</button>

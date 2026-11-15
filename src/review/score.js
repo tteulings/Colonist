@@ -8,7 +8,7 @@
 //   A − B is always the gap that the class uses, on every screen.
 // Everything below is derived from the stored candidates (`cands`), so a saved review can be re-scored without the engine.
 
-export const FMT = 4; // stamp on a review (`rv.fmt`) and on its history entry: numbers, classes and labels of this file (v1.29: 4, liftSameStep)
+export const FMT = 5; // stamp on a review (`rv.fmt`) and on its history entry: numbers, classes and labels of this file (v1.29: 4, liftSameStep)
 
 // Classes on the gap in whole percent. The upper bound of each class (the gap must be under it). Best: under 1 (0).
 export const LIMITS = [[1, "best"], [3, "good"], [6, "could"], [12, "mistake"], [Infinity, "blunder"]];
@@ -19,7 +19,27 @@ export const LIMITS = [[1, "best"], [3, "good"], [6, "could"], [12, "mistake"], 
 export const SETUP_LIMITS = [[2, "best"], [5, "good"], [10, "could"], [18, "mistake"], [Infinity, "blunder"]];
 export const GREAT = 8; // Great: the best move with the next one at least this many percent behind (not in set-up / End turn)
 export const BEST_LEAD = 0;
-export const CLASSES = ["best", "great", "good", "could", "mistake", "blunder", "missed"];
+export const CLASSES = ["best", "great", "good", "close", "lean", "could", "mistake", "blunder", "missed"];
+// v1.81 verdict class: how sure the gap is, from the gap and its own standard error (measured: the paired-future noise of a
+// decision at 100 futures is ~3 points). Only "clear" may be called a mistake / blunder / better; "lean" = slightly better, probably;
+// "close" = a close call, about equal. Without a stored se: fixed points. `lean` and `close` replace could / mistake / blunder / missed.
+export const VERDICTS = ["clear", "lean", "close"], SE_CLEAR = 2, SE_LEAN = 1, FB_CLEAR = 6, FB_LEAN = 3;
+export const seOf = (x) => { const s = x?.best?.se; return s != null && s > 0 ? s : null; };
+/** The gap here is the one the screens show (A − B = the best gap less one standard error), against that same se.
+ *  "clear" | "lean" | "close" for a result (null: no best move / no real choice). Refinement updates gap and se; this follows. */
+export function vcOf(x) {
+  if (!x || x.trivial || x.skip === "trivial" || !x.best || x.loss == null) return null;
+  const g = x.loss * 100, s = seOf(x), se = s == null ? null : s * 100;
+  if (se == null) return g >= FB_CLEAR ? "clear" : g >= FB_LEAN ? "lean" : "close";
+  return g >= SE_CLEAR * se ? "clear" : g >= SE_LEAN * se ? "lean" : "close";
+}
+const clipS = (s, n) => { s = String(s ?? "").replace(/<[^>]+>/g, ""); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
+/** v1.81 the verdict class of a decision, for the model: clear | lean | close, the standard error, and the only wording the class allows. */
+export const VC_WORDS = { clear: "may be called a mistake / blunder / better, as the rating says", lean: "say only \"slightly better\" or \"probably better\"; never mistake or blunder", close: "say \"a close call, about equal\"; NEVER mistake, blunder or better" };
+export const vcMeta = (x) => { const vc = vcOf(x), se = seOf(x); return vc ? { verdict: vc, plusMinusPct: se != null ? Math.max(1, Math.round(se * 100)) : null, ...(x.refined ? { refined: true } : {}) } : {}; };
+/** The other move under the key the class allows: `better` (clear, lean) or `otherOption` (close). */
+export const vcFields = (x, n = 80) => (x.best ? { [vcOf(x) === "close" ? "otherOption" : "better"]: clipS(x.best.label, n) } : {});
+export const SEVERE = ["could", "mistake", "blunder", "missed"], WORSE = ["lean", ...SEVERE]; // WORSE: what counts as a (possible) mistake
 export const TRIVIAL = 0.02; // every option within 2 points of the played one: no real choice
 export const SE_SHRINK = 1;
 export const limitsFor = (k) => (k === "setup" ? SETUP_LIMITS : LIMITS);
@@ -52,10 +72,12 @@ export function clsOf(x) {
   const c = limitsFor(x.k).find(([m]) => gp < m)[1];
   if (c !== "best" && c !== "good" && ["end", "bank"].includes(x.k) && /^(City|Settlement|Road|Development)/.test(x.best?.label || "")) return "missed";
   if (c === "best") return lead >= GREAT && (x.cands?.length ?? 0) >= 3 && x.k !== "setup" && x.k !== "end" ? "great" : "best";
+  if (SEVERE.includes(c) || c === "missed") { const v = vcOf(x); if (v === "lean" || v === "close") return v; }
+  if (c === "good" && gp >= 1 && vcOf(x) === "close") return "close"; // a gap inside its own noise: no "Good", no "Better"
   return c;
 }
 /** The old three-way mark (good / inacc / miss) that stored results carry, from the class. */
-export const markOfCls = (c) => (c === "mistake" || c === "blunder" || c === "missed" ? "miss" : c === "could" ? "inacc" : "good");
+export const markOfCls = (c) => (c === "mistake" || c === "blunder" || c === "missed" ? "miss" : c === "could" || c === "lean" ? "inacc" : "good");
 
 /** Seat chances with my seat set to `mine` (0–1) and the others scaled to fill the rest. */
 export function fitSeats(seats, me, mine) {
@@ -79,7 +101,7 @@ export function decide(results, n, me) {
     return { i: x.i, x, t: x.t, k: x.k, cls, gp, B, A, cp, base, loss: x.loss || 0,
       win: B / 100, vBest: A / 100, gap: gp / 100, chance: cp / 100,
       seats: fitSeats(norm(x.seats, x.win), me, B / 100), bseats: fitSeats(norm(x.best?.seats, x.win + (x.best?.gain || 0)), me, A / 100),
-      same: cls === "triv" || !x.best || gp < 1 };
+      vc: vcOf(x), se: seOf(x), same: cls === "triv" || !x.best || gp < 1 };
   });
 }
 
@@ -155,6 +177,7 @@ export function rescoreResult(x, cfg) {
   const y = { ...x, label, cands, best, loss: d.loss, lossRaw: d.lossRaw, spread: d.spread, lead: d.lead, trivial: d.trivial, skip: d.trivial ? "trivial" : null,
     win: d.win == null ? x.win : r4(d.win),
     acc: d.trivial || !cfg.scored.includes(x.k) ? null : Math.round(cfg.acc(d.lossRaw) * 10) / 10 };
+  y.vc = vcOf(y);
   y.mark = d.trivial ? "good" : markOfCls(clsOf(y));
   return y;
 }

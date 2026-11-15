@@ -34,8 +34,8 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     const { decide, rescoreReview } = await import("./src/review/evaluate.js");
     const kind = { setup: "setup", robber: "robber", build: "build", shipmove: "build", buy: "dev", play: "dev", bank: "trade", end: "timing" };
     const out = { n: {}, lost: {}, total: 0, meta: 0 };
-    exs.forEach((ex) => { const r = ex.rv.reviews[ex.meta.me]; rescoreReview(r); out.meta += ["could", "mistake", "blunder", "missed"].reduce((a, k) => a + (ex.meta.cls?.[k] || 0), 0);
-      decide(r.results.filter((x) => !x.skip || x.skip === "trivial"), ex.meta.n, ex.meta.me).forEach((d) => { if (["could", "mistake", "blunder", "missed"].includes(d.cls) && d.gp >= 1 && d.x.best) { const c = kind[d.k]; out.n[c] = (out.n[c] || 0) + 1; out.lost[c] = (out.lost[c] || 0) + d.gp; out.total++; } }); });
+    exs.forEach((ex) => { const r = ex.rv.reviews[ex.meta.me]; rescoreReview(r); out.meta += ["lean", "could", "mistake", "blunder", "missed"].reduce((a, k) => a + (ex.meta.cls?.[k] || 0), 0);
+      decide(r.results.filter((x) => !x.skip || x.skip === "trivial"), ex.meta.n, ex.meta.me).forEach((d) => { if (["lean", "could", "mistake", "blunder", "missed"].includes(d.cls) && d.gp >= 1 && d.x.best) { const c = kind[d.k]; out.n[c] = (out.n[c] || 0) + 1; out.lost[c] = (out.lost[c] || 0) + d.gp; out.total++; } }); });
     return out;
   }, exs);
   console.log("expected", JSON.stringify(exp));
