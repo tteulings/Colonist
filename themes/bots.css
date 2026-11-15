@@ -114,7 +114,7 @@ html .tm-settings .seg button.on, html .tm-settings .cm-seg button.on, html .tm-
 .tm-settings input[type="checkbox"]:checked, .mn-live input[type="checkbox"]:checked, .tm-settings .st-switch.on { background: var(--accent); }
 .tm-settings .st-switch { width: var(--switch-w); height: var(--switch-h); border-radius: var(--switch-h); }
 .tm-settings .st-switch i, html .tm-settings .st-switch.on i { width: 18px; height: 18px; left: 3px; top: 3px; background: #fff !important; }
-.tm-settings .st-switch.on i { left: 21px; }
+html .tm-settings .st-switch.on i { left: 21px; }
 /* segmented controls: full width, equal cells */
 .tm-settings .seg, .tm-settings .cm-seg, .tm-settings .st-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; overflow: visible; padding: 3px; }
 .tm-settings .st-seg button { min-height: 44px; padding: 8px 4px; font-weight: 650; color: var(--ink-soft); }
@@ -123,3 +123,6 @@ html .tm-settings .seg button.on, html .tm-settings .cm-seg button.on, html .tm-
 .tm-settings .st-game .settings-toggle-label input { grid-column: 2; grid-row: 1 / span 2; }
 .tm-settings .st-game .settings-toggle-label .st-note { grid-column: 1; margin: 0; }
 .tm-settings .st-game .settings-version { display: none; } /* the version is on the About tab */
+
+/* v1.72 segmented cells: label centred, equal cells (all three variants) */
+.tm-settings .seg button, .tm-settings .cm-seg button, .tm-settings .st-seg button { display: flex; align-items: center; justify-content: center; text-align: center; min-width: 0; }

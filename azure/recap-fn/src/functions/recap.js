@@ -18,6 +18,34 @@ Use ONLY the facts given: the category, their stats (mistakes, win chance lost, 
 Answer the question as a coach: name the pattern you see in their examples, the concrete habit to change, and how to recognise the situation next time. Refer to examples by turn and resources in plain words.
 Return JSON: answer = 2-4 short sentences, every sentence concrete, no stock phrases; points = 2-4 short bullet facts or habits (max 12 words each); highlight = "none".
 Say "points" (Dutch "punten"), never "VP"; win chance as %. Questions unrelated to the game: answer only "I can only help with your Catan play." with empty points.`;
+const GAME = `You are an interactive game analyst for one finished game of a Catan-like board game, talking to the human player ("You").
+Use ONLY the facts given (JSON from the game's review engine: players, final points and point sources, win-chance timeline per turn, key moments with actions, luck events, your decisions with A/B, lessons). Never invent moves, numbers or reasons.
+DECISIONS: in the facts, "played" (or B) is the move that was ACTUALLY made in the game; "better" (or A) is the engine\'s better alternative that was NOT played. Never describe the better move as if it was played, never swap players, and only attribute a move to the player named in the facts.
+Answer the player's question about this game AND choose the best visualisation for it, so the app can draw it:
+- view: "winchance" (win-chance lines over turns), "luck" (luck per player), "points" (final point sources per player), "plan" (each player's point plan over the game: when settlements, cities, longest road, largest army, point cards came), "board" (the board at one turn, with the better move A and the played move B if it is a decision), "moves" (your decisions with cost), or "none".
+Work on three levels, whichever the question needs: the game as a whole (what decided it), individual decisions (yours or an opponent's: what was played, what was better and why, with the A/B facts), and the bigger strategy of you and of each opponent (their point plan, how it developed, what worked against whom, and what you could do against it next time).
+- turns: the turn numbers the answer is about (max 4, may be empty); focusTurn: the single most relevant turn or null; players: names of the players the answer is about (may be empty).
+Return JSON: answer = 2-4 short sentences, every sentence a concrete fact; points = 0-4 short bullet facts (max 12 words); view, turns, focusTurn, players as above; followUps = 2-3 short follow-up questions the player may want to ask next.
+Say "points" (Dutch "punten"), never "VP"; win chance as %. Off-topic questions: answer "I can only talk about this game." with view "none".`;
+const GAME_SCHEMA = { type: "object", additionalProperties: false, required: ["answer", "points", "view", "turns", "focusTurn", "players", "followUps"],
+  properties: { answer: { type: "string" }, points: { type: "array", items: { type: "string" } }, view: { type: "string", enum: ["winchance", "luck", "points", "plan", "board", "moves", "none"] },
+    turns: { type: "array", items: { type: "integer" } }, focusTurn: { type: ["integer", "null"] }, players: { type: "array", items: { type: "string" } }, followUps: { type: "array", items: { type: "string" } } } };
+const INSIGHTS = `You curate the AI tab for ONE finished game of a Catan-like board game for the human player ("You"). Every game is different: pick what is genuinely interesting in THIS game, not a fixed template.
+Use ONLY the facts given (review engine data). Never invent moves, numbers or reasons.
+DECISIONS: in the facts, "played" (or B) is the move that was ACTUALLY made in the game; "better" (or A) is the engine\'s better alternative that was NOT played. Never describe the better move as if it was played, never swap players, and only attribute a move to the player named in the facts.
+Choose 3 to 6 insight cards, ordered as a story, mixing levels where the facts support it:
+- level "game": what decided the game (luck, a plan, a single moment);
+- level "decision": one specific decision of you or an opponent that mattered (what was played, what was better, why);
+- level "strategy": the point plan of you or an opponent and how it worked out, or a pattern (e.g. "Blaauw went for cities and the army; nobody blocked his ore").
+Skip levels with nothing interesting. For each card pick the visual that explains it best: view = "winchance" | "luck" | "points" | "plan" | "board" | "moves" | "none"; turns (max 4), focusTurn (or null), players (names it is about).
+Return JSON: headline (one sentence for this game), cards[] {level, title (3-7 words), text (1-3 short sentences, concrete facts, no stock phrases), view, turns, focusTurn, players}, followUps (3 questions this game invites, specific to it).
+Say "points" (Dutch "punten"), never "VP"; win chance as %.`;
+const INSIGHTS_SCHEMA = { type: "object", additionalProperties: false, required: ["headline", "cards", "followUps"], properties: {
+  headline: { type: "string" },
+  cards: { type: "array", items: { type: "object", additionalProperties: false, required: ["level", "title", "text", "view", "turns", "focusTurn", "players"], properties: {
+    level: { type: "string", enum: ["game", "decision", "strategy"] }, title: { type: "string" }, text: { type: "string" },
+    view: { type: "string", enum: ["winchance", "luck", "points", "plan", "board", "moves", "none"] }, turns: { type: "array", items: { type: "integer" } }, focusTurn: { type: ["integer", "null"] }, players: { type: "array", items: { type: "string" } } } } },
+  followUps: { type: "array", items: { type: "string" } } } };
 const EXPLAIN_SCHEMA = { type: "object", additionalProperties: false, required: ["answer", "points", "highlight"],
   properties: { answer: { type: "string" }, points: { type: "array", items: { type: "string" } }, highlight: { type: "string", enum: ["A", "B", "none"] } } };
 const NUM = { type: ["integer", "null"] };
@@ -77,7 +105,9 @@ app.http("recap", {
     const lang = body?.lang === "nl" ? "nl" : "en";
     const nTp = Math.max(1, Math.min(5, parseInt(body?.turningPoints, 10) || 3));
     const lesson = body?.mode === "lesson";
-    const explain = body?.mode === "explain" || lesson;
+    const game = body?.mode === "game";
+    const insights = body?.mode === "insights";
+    const explain = body?.mode === "explain" || lesson || game || insights;
     const question = String(body?.question || "Why is the better move better than what I did?").slice(0, 300);
 
     try {
@@ -87,10 +117,10 @@ app.http("recap", {
         body: JSON.stringify({
           model: process.env.OAI_DEPLOYMENT,
           max_completion_tokens: MAX_OUT,
-          response_format: { type: "json_schema", json_schema: { name: explain ? "explain" : "recap", strict: true, schema: explain ? EXPLAIN_SCHEMA : SCHEMA } },
+          response_format: { type: "json_schema", json_schema: { name: insights ? "insights" : game ? "game" : explain ? "explain" : "recap", strict: true, schema: insights ? INSIGHTS_SCHEMA : game ? GAME_SCHEMA : explain ? EXPLAIN_SCHEMA : SCHEMA } },
           messages: [
-            { role: "system", content: (lesson ? LESSON : explain ? EXPLAIN : SYSTEM) + (lang === "nl" ? "\n\nWrite all text fields in natural Dutch (Nederlands)." : "\n\nWrite all text fields in English.") },
-            { role: "user", content: explain ? `question: ${question}\nfacts:\n${facts}` : `turningPoints wanted: ${nTp}\nfacts:\n${facts}` },
+            { role: "system", content: (insights ? INSIGHTS : game ? GAME : lesson ? LESSON : explain ? EXPLAIN : SYSTEM) + (lang === "nl" ? "\n\nWrite all text fields in natural Dutch (Nederlands)." : "\n\nWrite all text fields in English.") },
+            { role: "user", content: insights ? `facts:\n${facts}` : explain ? `question: ${question}\nfacts:\n${facts}` : `turningPoints wanted: ${nTp}\nfacts:\n${facts}` },
           ],
         }),
       });
