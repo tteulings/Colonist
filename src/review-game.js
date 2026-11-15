@@ -42,22 +42,29 @@ export const rvPos = (g, f) => {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, edge: true };
 };
 /** A (better: accent ring, letter) and B (what was done: white dashed ring + class badge) on the zoomed board, with an arrow B to A. */
-export function rvMarks(game, d, Af, Bf) {
+export function rvMarks(game, d, Af, Bf, opt = {}) {
   const g = game.geometry, V = game.view, xy = (p) => [p.x * V.scale + V.offsetX, p.y * V.scale + V.offsetY];
-  const at = (f) => { if (!f) return null; const p = rvPos(g, f); return { c: xy(p), r: p.hex ? g.hexSize * V.scale * 0.6 : p.edge ? 15 : 17, hex: !!p.hex }; };
+  const at = (f) => { if (!f) return null; const p = rvPos(g, f); const hs = g.hexSize * V.scale; return { c: xy(p), r: p.hex ? hs * 0.6 : opt.tight ? Math.max(8, Math.min(p.edge ? 11 : 13, hs * 0.34)) : p.edge ? 15 : 17, hex: !!p.hex, p }; };
   const A = at(Af), B = at(Bf);
+  // tight (the AI tab): the badge sits in the direction with no number token of a neighbouring hex, so the ring and its label never cover a token
+  const free = (m, avoid = []) => {
+    const rr = m.r + 11, toks = g.hexes.filter((h) => Math.hypot(h.center.x - m.p.x, h.center.y - m.p.y) < g.hexSize * 1.6).map((h) => xy(h.center)); let best = [m.c[0], m.c[1] - rr], bd = -1;
+    for (let a = 0; a < 24; a++) { const ang = (a * Math.PI) / 12, P = [m.c[0] + Math.cos(ang) * rr, m.c[1] + Math.sin(ang) * rr], dm = Math.min(99, ...toks.map((t) => Math.hypot(t[0] - P[0], t[1] - P[1])), ...avoid.map((q) => Math.hypot(q[0] - P[0], q[1] - P[1]) * 1.4)); if (dm > bd) { bd = dm; best = P; } }
+    return best;
+  };
+  const bpB = opt.tight && B ? free(B, A ? [A.c] : []) : null, bpA = opt.tight && A ? free(A, [...(B ? [B.c, bpB] : [])]) : null;
   const ring = (m, alt) => {
     if (!m) return "";
-    const [x, y] = m.c, r = m.r, fill = m.hex ? `<circle cx="${x}" cy="${y}" r="${r}" fill="${alt ? "#fff" : "var(--primary)"}" opacity=".22"/>` : "";
+    const [x, y] = m.c, r = m.r, [bx, by] = opt.tight ? (alt ? bpB : bpA) : [x + r * 0.78, y - r * 0.78], fill = m.hex ? `<circle cx="${x}" cy="${y}" r="${r}" fill="${alt ? "#fff" : "var(--primary)"}" opacity=".22"/>` : "";
     const o = alt ? `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#fff" stroke-width="3.5" stroke-dasharray="6 4"/>` : `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#fff" stroke-width="7"/><circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="var(--primary)" stroke-width="3.6"/>`;
-    return `${fill}${o}<g transform="translate(${(x + r * 0.78).toFixed(1)} ${(y - r * 0.78).toFixed(1)})"><circle r="11" fill="${alt ? "#fff" : "var(--primary)"}" stroke="${alt ? "var(--primary)" : "#fff"}" stroke-width="2"/><text y="4.6" text-anchor="middle" font-size="13" font-weight="800" fill="${alt ? "var(--primary)" : "#fff"}">${alt ? "B" : "A"}</text></g>`;
+    return `${fill}${o}<g transform="translate(${bx.toFixed(1)} ${by.toFixed(1)})"><circle r="${opt.tight ? 8 : 11}" fill="${alt ? "#fff" : "var(--primary)"}" stroke="${alt ? "var(--primary)" : "#fff"}" stroke-width="2"/><text y="4.6" text-anchor="middle" font-size="13" font-weight="800" fill="${alt ? "var(--primary)" : "#fff"}">${alt ? "B" : "A"}</text></g>`;
   };
   let arrow = "";
-  if (A && B && !A.hex) {
+  if (A && B && !A.hex && !opt.tight) {
     const [x1, y1] = B.c, [x2, y2] = A.c, L = Math.hypot(x2 - x1, y2 - y1) || 1, ux = (x2 - x1) / L, uy = (y2 - y1) / L, e1 = [x1 + ux * (B.r + 4), y1 + uy * (B.r + 4)], e2 = [x2 - ux * (A.r + 6), y2 - uy * (A.r + 6)];
     if (L > A.r + B.r + 14) arrow = `<g class="mk-arrow"><line x1="${e1[0]}" y1="${e1[1]}" x2="${e2[0]}" y2="${e2[1]}" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".9"/><line x1="${e1[0]}" y1="${e1[1]}" x2="${e2[0]}" y2="${e2[1]}" stroke="var(--primary)" stroke-width="3" stroke-dasharray="1 7" stroke-linecap="round"/><path d="M${e2[0]},${e2[1]} l${-ux * 11 - uy * 7},${-uy * 11 + ux * 7} M${e2[0]},${e2[1]} l${-ux * 11 + uy * 7},${-uy * 11 - ux * 7}" stroke="var(--primary)" stroke-width="3.4" stroke-linecap="round" fill="none"/></g>`;
   }
-  const cls = B ? `<g transform="translate(${(B.c[0] - B.r * 0.78).toFixed(1)} ${(B.c[1] - B.r * 0.78).toFixed(1)})"><circle r="10" class="rs-cb c-${d.cls}"/><text y="4.5" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">${CLS[d.cls][1]}</text></g>` : "";
+  const cls = B && !opt.tight ? `<g transform="translate(${(B.c[0] - B.r * 0.78).toFixed(1)} ${(B.c[1] - B.r * 0.78).toFixed(1)})"><circle r="10" class="rs-cb c-${d.cls}"/><text y="4.5" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">${CLS[d.cls][1]}</text></g>` : "";
   // v1.11 the plan behind A: the road route to the target, and the rival spots it takes away
   const W = d.x.why?.mark, wp = (f) => { const p = rvPos(g, f); return xy(p); };
   let why = "";
