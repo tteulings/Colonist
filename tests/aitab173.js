@@ -7,6 +7,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
 (async () => {
   const { b, ctx, page, errors } = await openApp(port);
   const G = (f, a) => page.evaluate(f, a);
+  page.on("console", (m) => { if (/ai visual|ai board/.test(m.text())) console.log("CONSOLE", m.text().slice(0, 300)); });
   const ex = JSON.parse(fs.readFileSync(file, "utf8"));
   let calls = [], mock = null;
   page.on("request", (r) => { if (/api\/recap/.test(r.url()) && r.method() === "POST") calls.push(JSON.parse(r.postData())); });
@@ -46,6 +47,8 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       { level: "decision", title: "The key spot", text: "A better spot was open.", view: "board", turns: [TX], focusTurn: TX, players: [] },
       { level: "game", title: "Where the chances moved", text: "Chances moved around then.", view: "winchance", turns: [F.alt.t, F.alt.t + 1], focusTurn: F.alt.t, players: [meN] },
       { level: "strategy", title: "Keep it simple", text: "Plan for two resources at once.", view: "none", turns: [], players: [] },
+      { level: "game", title: "One point short", text: "You were one point away: a settlement needed 1 wood and 1 wheat.", view: "nearmiss", turns: [], players: ["You"], clauses: [] },
+      { level: "strategy", title: "Every plan", text: "Cities and the army beat your settlements.", view: "plan", turns: [], players: F.names, clauses: F.names.map((n, i) => ({ player: n, text: `built up from turn ${3 + i}, clause ${i}` })) },
     ] } } }
     : { body: { explain: { answer: `${opN} won because of cities on turn ${F.opp.t}. Second line here. A third line that makes the text longer than three lines on a narrow phone screen so it can expand. Then a fourth sentence with more words so that it certainly needs the more link on any phone.`, points: ["10 points", "Ore 6 / Grain 9"], view: "winchance", turns: [F.opp.t], focusTurn: F.opp.t, players: [opN], followUps: ["Who built first?", "And the longest road?"] } } };
   const tab = () => page.locator("[data-rvt=ai]");
@@ -56,7 +59,20 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   const S = await G(() => ({ cards: [...document.querySelectorAll("[data-aic^=c]")].map((c) => ({ lv: c.querySelector(".ai-lv")?.className, title: c.querySelector(".ai-ti")?.textContent, text: window.__colonistGame._aiSrc.get(c.dataset.aic)?.text, shown: c.querySelector(".ai-tx")?.innerText, vis: ["ai-wc", "ai-bars", "ai-plan", "ai-bd", "ai-mv"].filter((k) => c.querySelector("." + k)), chips: [...c.querySelectorAll(".ai-chg")].map((e) => e.innerText.replace(/\s+/g, " ")), why: !!c.querySelector("[data-aiwhy]"), go: !!c.querySelector("[data-aigo]"), markers: c.querySelectorAll(".ai-wc .mk").length })),
     hl: document.querySelector(".ai-hl")?.textContent, qchips: [...document.querySelectorAll(".ai-q")].map((e) => e.textContent), askVisible: (() => { const r = document.querySelector(".ai-ask").getBoundingClientRect(); return r.bottom <= innerHeight + 1 && r.height > 40; })() }));
   console.log(JSON.stringify(S.cards.map((c) => [c.title, c.vis, c.chips, c.why, c.go])));
-  ok(S.cards.length === 7, "7 cards rendered", S.cards.length);
+  ok(S.cards.length === 9, "9 cards rendered (7 + near-miss + all-players strategy)", S.cards.length);
+  { // v1.75: near-miss card, all-players strategy card, board zoom
+    const N = await G(() => { const g = window.__colonistGame, cs = [...document.querySelectorAll("[data-aic^=c]")], nmC = cs[7], plC = cs[8], m = g._aiCtx().nm;
+      const rows = [...plC.querySelectorAll(".ai-pr2")].map((r) => ({ seat: +r.dataset.aipr, name: r.querySelector(".n")?.textContent, color: getComputedStyle(r.querySelector(".n")).color, label: r.querySelector("em")?.textContent, icons: r.querySelectorAll("svg path.f, svg path.l, svg path.a, svg path.v").length, clause: r.querySelector(".cl")?.textContent }));
+      const zooms = [...document.querySelectorAll(".ai-bd[data-zoom]")].map((e) => (e.dataset.zoom === "two" ? 1 : +e.dataset.zoom));
+      return { m, nm: !!nmC.querySelector(".ai-nm"), nmHd: nmC.querySelector(".nm-hd")?.textContent, need: nmC.querySelector(".nm-need")?.textContent, tags: [...nmC.querySelectorAll(".nm-ms .ai-r")].map((e) => e.textContent), away: nmC.querySelector(".nm-away")?.textContent, rows, zooms, tl: g._aiCtx().tl.map((l) => l.length), plan: g._aiCtx().plan(0) }; });
+    console.log(JSON.stringify(N));
+    ok(N.nm && N.m && N.m.margin >= 1 && new RegExp(`^${N.m.youPoints}\\s*/\\s*${N.m.result === "won" ? N.m.youPoints - N.m.margin : N.m.winnerPoints}`).test(N.nmHd), "near-miss card: points header from the app's facts", [N.nmHd, N.m && N.m.margin]);
+    ok(N.m.result === "won" || (N.need && /\u2192/.test(N.need) && (N.tags.length === Object.keys(N.m.needed.missing).length || N.tags[0].length) && N.tags.every((t) => /^\d+ \p{L}+/u.test(t) || t.length > 3)), "near-miss card: needed \u2192 missing resource tags", [N.need, N.tags, N.m.needed]);
+    ok(N.m.result === "won" || N.m.turnsAway == null || /\u2248\s*\d+/.test(N.away), "near-miss card: turns-away estimate shown", N.away);
+    ok(N.rows.length === F.n && N.rows.every((r, i) => r.seat === i && r.name === F.names[i].replace(/^You$/, r.name) && r.color !== "rgba(0, 0, 0, 0)" && r.label && r.icons === N.tl[i]), "strategy card: one row per player, name coloured, app plan label, icons = timeline", N.rows.map((r) => [r.name, r.label, r.icons]));
+    ok(N.rows.every((r, i) => new RegExp(`clause ${i}$`).test(r.clause || "")), "strategy card: each AI clause on its own player's row", N.rows.map((r) => r.clause));
+    ok(N.zooms.length >= 1 && N.zooms.every((z) => z > 0 && z < 80), "decision board: zoom box smaller than the full board (% of board area)", N.zooms);
+  }
   const want = ["ai-bd|ai-mv", "ai-bars", null, "ai-plan", "ai-bd|ai-mv|ai-wc", "ai-wc"]; ok(want.every((k, i) => (k ? k.split("|").includes(S.cards[i].vis.join()) : S.cards[i].vis.length === 0)) && S.cards[6].vis.length === 0, "visuals: decision = board always, luck bars, no points bars, plan for strategy, chart, none", S.cards.map((c) => c.vis.join()));
   ok(S.cards[5].markers >= 1 && S.cards[5].markers <= 3 && S.cards[5].markers < 3 + 1, "win chart: merged adjacent markers (T10-11 is one)", S.cards[5].markers);
   ok(S.cards[0].chips.length === 1 && S.cards[0].chips[0].includes("\u2212" + F.worst.cost + "%") && /your move/.test(S.cards[0].chips[0]), "decision chip = YOUR cost with your sign (red, your move)", [S.cards[0].chips, F.worst.cost]);
@@ -145,7 +161,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     r.ptsPlain = g._aiFmt("Ore 6 / 10 points on turn 5", C, null, { plain: true });
     r.chips = ["How unlucky was I", "Why did I lose so much win chance on turn 17?", "What was the best move of the game overall?", "Who was luckiest?", "How did the winner win it so fast", "Short one"].map((q) => aiChip(q));
     const d = g.geometry, hs = d.hexSize, ps = [{ x: 0, y: 0 }, { x: hs * 3, y: hs }]; const v = g._aiCropView(ps, 330, 205, 0.3);
-    const L = v.box; r.crop = v && [L.minX, L.maxX, L.minY, L.maxY].every((x) => isFinite(x)) && v.offsetX + L.minX * v.scale >= -0.5 && v.offsetX + L.maxX * v.scale <= 330.5 && v.offsetY + L.minY * v.scale >= -0.5 && v.offsetY + L.maxY * v.scale <= 205.5 && L.minX <= -hs * 2 && L.maxX >= hs * 5;
+    const L = v.box; r.crop = v && [L.minX, L.maxX, L.minY, L.maxY].every((x) => isFinite(x)) && v.offsetX + L.minX * v.scale >= -0.5 && v.offsetX + L.maxX * v.scale <= 330.5 && v.offsetY + L.minY * v.scale >= -0.5 && v.offsetY + L.maxY * v.scale <= 205.5 && L.minX <= -hs * 1.5 && L.maxX >= hs * 4.5;
     return r;
   }, [me, F.worst.t, F.alt.t, opN]);
   console.log(JSON.stringify(Z));
@@ -259,7 +275,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 20000 }); await sleep(2000);
   const n0 = calls.length;
   await page.locator("[data-rcai]").tap(); await sleep(2500);
-  ok(calls.length === n0 && await G(() => document.querySelectorAll("[data-aic^=c]").length) === 7, "reopened game: cards from the saved review, no second call", [calls.length, n0]);
+  ok(calls.length === n0 && await G(() => document.querySelectorAll("[data-aic^=c]").length) === 9, "reopened game: cards from the saved review, no second call", [calls.length, n0]);
   // 429 on regenerate -> friendly message (new lang forces a new insights call)
   mock = () => ({ status: 429, body: {} });
   await page.evaluate(() => localStorage.setItem("colonist_recap_lang", "nl")); await G(() => window.__colonistGame._rvDrawReview()); await sleep(800);

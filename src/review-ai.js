@@ -2,7 +2,7 @@
 // visual (win chance line, luck / points bars, plan timeline, zoomed board, moves). The app, not the AI, decides directions and numbers:
 // the real win-chance change of the card's turn is shown as a chip, and a sentence that contradicts it (or quotes a number >2 points off
 // the review) is replaced by a neutral line. Insights and answers are kept in the saved review (R.ai). Online only.
-import { aiFacts, aiSeries, aiTimeline, wcAt, wcChange } from "./review/ai-facts.js";
+import { aiFacts, aiSeries, aiTimeline, aiPlan, aiNearMiss, aiStart, wcAt, wcChange } from "./review/ai-facts.js";
 import { decide } from "./review/evaluate.js";
 import { RECAP_URL, recapLang } from "./review-recap.js";
 import { rvPos, rvMarks } from "./review-game.js";
@@ -11,17 +11,17 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
 const sgn = (v) => { const r = Math.round(v); return r > 0 ? `+${r}` : r < 0 ? `\u2212${-r}` : "0"; };
-const VIEWS = ["winchance", "luck", "points", "plan", "board", "moves", "none"];
+const VIEWS = ["winchance", "luck", "points", "plan", "board", "moves", "nearmiss", "none"];
 const LEVELS = ["game", "decision", "strategy"];
 const T = {
   en: { lv: { game: "Game", decision: "Decision", strategy: "Strategy" }, why: "Why?", show: "Show in review", turn: "Turn", setup: "Set-up", ask: "Ask", ph: "Ask about this game…", regen: "Regenerate", foot: "Written by AI from this review · numbers by the app · may contain mistakes",
     wait: "Reading the game…", again: "Try again", pin: "Keep this answer", unpin: "Unpin", win: "win chance", you: "You", better: "A better", played: "B played", mine: "your move", your: "your", move: "move", cost: "cost", onT: "On turn", atSetup: "At set-up", rose: "rose", fell: "fell", more: "more", less: "less", tab: "AI · beta",
     rate: "The AI is busy right now (too many requests). Try again in a minute.", time: "That took too long. Try again.", net: "No connection. Check your internet and try again.", fail: "No answer this time. Try again later.", none: "Not enough in this review to ask the AI.",
-    luck: "Luck", pts: "Points", legend: { s: "Settlement", c: "City", L: "Longest road", A: "Largest army", v: "Point card" } },
+    luck: "Luck", pts: "Points", legend: { s: "Settlement", c: "City", L: "Longest road", A: "Largest army", v: "Point card" }, x: { fitTx: "of the points matched the start", need: "Needed", miss: "Missing", have: "Cards in hand", est: "turns away (estimate)", one: "turn away (estimate)", best: "Best chance", of: "points", ready: "Cards in hand", chance: "chance of a point", route: { city: "City", settlement: "Settlement", road: "Longest road", army: "Largest army", dev: "Development card" }, parts: { cities: "cities", settlements: "settlements", road: "longest road", army: "army", cards: "point cards", islands: "islands" }, res: { wood: "wood", brick: "brick", sheep: "sheep", wheat: "wheat", ore: "ore" } } },
   nl: { lv: { game: "Spel", decision: "Beslissing", strategy: "Strategie" }, why: "Waarom?", show: "Toon in review", turn: "Beurt", setup: "Opzet", ask: "Vraag", ph: "Vraag iets over dit spel…", regen: "Opnieuw", foot: "Geschreven door AI op basis van deze review · cijfers van de app · kan fouten bevatten",
     wait: "Het spel lezen…", again: "Probeer opnieuw", pin: "Bewaar dit antwoord", unpin: "Los", win: "winkans", you: "Jij", better: "A beter", played: "B gespeeld", mine: "jouw zet", your: "jouw", move: "zet", cost: "kostte", onT: "In beurt", atSetup: "Bij de opzet", rose: "steeg", fell: "daalde", more: "meer", less: "minder", tab: "AI · beta",
     rate: "De AI is nu druk (te veel verzoeken). Probeer het over een minuut opnieuw.", time: "Dat duurde te lang. Probeer opnieuw.", net: "Geen verbinding. Controleer je internet en probeer opnieuw.", fail: "Nu geen antwoord. Probeer het later opnieuw.", none: "Er staat te weinig in deze review om de AI te vragen.",
-    luck: "Geluk", pts: "Punten", legend: { s: "Dorp", c: "Stad", L: "Langste weg", A: "Grootste leger", v: "Puntenkaart" } },
+    luck: "Geluk", pts: "Punten", legend: { s: "Dorp", c: "Stad", L: "Langste weg", A: "Grootste leger", v: "Puntenkaart" }, x: { fitTx: "van de punten paste bij de start", need: "Nodig", miss: "Ontbrak", have: "Kaarten in hand", est: "beurten ervandaan (schatting)", one: "beurt ervandaan (schatting)", best: "Beste kans", of: "punten", ready: "Kaarten in hand", chance: "kans op een punt", route: { city: "Stad", settlement: "Dorp", road: "Langste weg", army: "Grootste leger", dev: "Ontwikkelingskaart" }, parts: { cities: "steden", settlements: "dorpen", road: "langste weg", army: "leger", cards: "puntenkaarten", islands: "eilanden" }, res: { wood: "hout", brick: "baksteen", sheep: "wol", wheat: "graan", ore: "erts" } } },
 };
 const GOODT = /\b(paid off|worked|rewarded|best|great|strong|brilliant|perfect|smart|excellent|beste|geweldig|sterk|perfecte|slim|uitstekend)\b/i;
 const TPOS = /\b(stayed close|stays close|kept (?:you|him|her|them|\w+) alive|good|helped|helps|comeback|rescued|saved)\b/i;
@@ -51,6 +51,13 @@ export function aiChip(q, lang = "en") {
 const FALLBACK = { en: ["Best move?", "Biggest mistake?", "Who was luckiest?"], nl: ["Beste zet?", "Grootste fout?", "Wie had geluk?"] };
 const FALLQ = { en: ["What was my best move of the game?", "What was my biggest mistake?", "Who was the luckiest player?"], nl: ["Wat was mijn beste zet van het spel?", "Wat was mijn grootste fout?", "Wie had het meeste geluk?"] };
 
+const planIcon = (k, cx, cy) => ({
+  s: `<path d="M${cx - 4} ${cy + 4}V${cy - 1}L${cx} ${cy - 5}L${cx + 4} ${cy - 1}V${cy + 4}Z" class="f"/>`,
+  c: `<path d="M${cx - 5} ${cy + 5}V${cy - 2}H${cx - 1}V${cy - 6}H${cx + 5}V${cy + 5}Z" class="f"/>`,
+  L: `<path d="M${cx - 5} ${cy + 3}L${cx - 1} ${cy - 2}L${cx + 1} ${cy + 2}L${cx + 5} ${cy - 3}" class="l"/>`,
+  A: `<path d="M${cx} ${cy - 5}L${cx + 4.5} ${cy - 3}V${cy + 1}Q${cx + 4} ${cy + 4} ${cx} ${cy + 6}Q${cx - 4} ${cy + 4} ${cx - 4.5} ${cy + 1}V${cy - 3}Z" class="a"/>`,
+  v: `<path d="M${cx} ${cy - 5.5}L${cx + 1.6} ${cy - 1.7}L${cx + 5.5} ${cy - 1.4}L${cx + 2.5} ${cy + 1.2}L${cx + 3.4} ${cy + 5}L${cx} ${cy + 3}L${cx - 3.4} ${cy + 5}L${cx - 2.5} ${cy + 1.2}L${cx - 5.5} ${cy - 1.4}L${cx - 1.6} ${cy - 1.7}Z" class="v"/>`,
+}[k]);
 export const ReviewAiMixin = {
   _aiL() { return T[recapLang()] || T.en; },
   _aiAvail() { return online() && !!this.winner && !this._rvMid && !!this._rv && this._rcOk?.() === true; },
@@ -76,7 +83,7 @@ export const ReviewAiMixin = {
       const list = p.id === pid ? ds : tryv(() => decide(rs, n, p.id), []);
       list.forEach((d) => { if (d.x?.best && !d.same && d.gap > 0.005) decs.push({ seat: p.id, turn: turnOf(d), d, gap: d.gap, own: p.id === pid }); });
     });
-    return { pid, me, ser, tl, st, n, nmRaw, ds, turnOf, luck, decs, maxT: Math.max(ser.maxT, this.turn || 0), lang: recapLang(), t: this._aiL() };
+    return { pid, me, ser, tl, st, n, nmRaw, ds, turnOf, luck, decs, nm: tryv(() => aiNearMiss(this, ser)), plan: (q) => tryv(() => aiPlan(this, q, tl)), start: (q) => tryv(() => aiStart(this, q)), maxT: Math.max(ser.maxT, this.turn || 0), lang: recapLang(), t: this._aiL() };
   },
 
   // ── trust: the app decides direction words and numbers ──
@@ -105,9 +112,10 @@ export const ReviewAiMixin = {
     if (level === "decision" && focus != null) chg = dm && Math.round(dm.gap * 100) >= 1 ? [{ seat: dm.seat, from: null, to: null, d: -Math.round(dm.gap * 100), move: true }] : [];
     // luck: the chip is the luck of the named player (or yours) in win chance, with its own sign
     if (view === "luck" && C.luck) { const s = seats[0] ?? C.me, d = Math.round((C.luck[s] ?? 0) * 100); chg = d ? [{ seat: s, from: null, to: null, d, luck: true }] : []; }
-    if (view === "plan" || view === "points") chg = []; // a plan / points card has no win-chance fact of its own
+    if (view === "plan" || view === "points" || view === "nearmiss") chg = []; // a plan / points card has no win-chance fact of its own
     chg = chg.slice(0, 1); // one primary chip: the main fact (the rest is in the visual)
-    const card = { level, view, turns: turns.slice(0, 6), focus, seats, chg, title: String(raw?.title ?? "").slice(0, 120), src: String(answer ? raw?.answer : raw?.text ?? "").slice(0, 900), points: (raw?.points || []).map(String).slice(0, 4), fix: [] };
+    const clauses = (Array.isArray(raw?.clauses) ? raw.clauses : []).map((c) => ({ seat: this._aiSeats([c?.player], C)[0], text: String(c?.text ?? "").replace(/[<>]/g, "").trim().slice(0, 120) })).filter((c) => c.seat != null && c.text).filter((c, i, a) => a.findIndex((x) => x.seat === c.seat) === i);
+    const card = { level, view, clauses: view === "plan" && level === "strategy" ? clauses : [], turns: turns.slice(0, 6), focus, seats, chg, title: String(raw?.title ?? "").slice(0, 120), src: String(answer ? raw?.answer : raw?.text ?? "").slice(0, 900), points: (raw?.points || []).map(String).slice(0, 4), fix: [] };
     card.dec = card.focus != null && !!this._aiDecAt(card.focus, C);
     card.seat = chg[0]?.seat ?? seats[0] ?? null;
     card.text = this._aiTrust(card, C);
@@ -308,7 +316,7 @@ export const ReviewAiMixin = {
       if (view === "points") return "";
       if (view === "board" && card.level !== "decision" && T0 != null && this._aiDecAt(T0, C)) return ""; // a decision's board belongs to its decision card // the Overview already shows the points
       if (view === "plan" && card.level !== "strategy") return "";
-      const key = view === "board" ? `board${T0}` : view === "winchance" ? `win${card.seats.join()}|${card.turns.join()}` : view === "moves" ? `mv${card.turns.join()}` : view;
+      const key = view === "plan" && card.clauses?.length ? "planall" : view === "board" ? `board${T0}` : view === "winchance" ? `win${card.seats.join()}|${card.turns.join()}` : view === "moves" ? `mv${card.turns.join()}` : view;
       if (view !== "none" && seen.has(key)) return "";
       const out = this._aiVisualOf({ ...card, view }, C, card.level === "decision");
       if (out && view !== "none") seen.add(key);
@@ -322,6 +330,7 @@ export const ReviewAiMixin = {
         case "luck": return this._aiVLuck(card, C);
         case "points": return this._aiVPoints(card, C);
         case "plan": return this._aiVPlan(card, C);
+        case "nearmiss": return this._aiVNear(card, C);
         case "board": return this._aiVBoard(card, C);
         case "moves": return this._aiVMoves(card, C, strict);
         default: return "";
@@ -374,19 +383,26 @@ export const ReviewAiMixin = {
     return `<div class="ai-vz ai-bars">${rows}<div class="ai-leg">${used.map(([k, c]) => `<span><i class="sw s-${c}"></i>${esc(C.t.legend[c] || k)}</span>`).join("")}</div></div>`;
   },
   _aiVPlan(card, C) {
-    const seats = this._aiSeatRows(card, C), W = 250, H = 22, mx = Math.max(1, C.maxT), x = (t) => 7 + (t / mx) * (W - 14);
-    const icon = (k, cx, cy) => ({
-      s: `<path d="M${cx - 4} ${cy + 4}V${cy - 1}L${cx} ${cy - 5}L${cx + 4} ${cy - 1}V${cy + 4}Z" class="f"/>`,
-      c: `<path d="M${cx - 5} ${cy + 5}V${cy - 2}H${cx - 1}V${cy - 6}H${cx + 5}V${cy + 5}Z" class="f"/>`,
-      L: `<path d="M${cx - 5} ${cy + 3}L${cx - 1} ${cy - 2}L${cx + 1} ${cy + 2}L${cx + 5} ${cy - 3}" class="l"/>`,
-      A: `<path d="M${cx} ${cy - 5}L${cx + 4.5} ${cy - 3}V${cy + 1}Q${cx + 4} ${cy + 4} ${cx} ${cy + 6}Q${cx - 4} ${cy + 4} ${cx - 4.5} ${cy + 1}V${cy - 3}Z" class="a"/>`,
-      v: `<path d="M${cx} ${cy - 5.5}L${cx + 1.6} ${cy - 1.7}L${cx + 5.5} ${cy - 1.4}L${cx + 2.5} ${cy + 1.2}L${cx + 3.4} ${cy + 5}L${cx} ${cy + 3}L${cx - 3.4} ${cy + 5}L${cx - 2.5} ${cy + 1.2}L${cx - 5.5} ${cy - 1.4}L${cx - 1.6} ${cy - 1.7}Z" class="v"/>`,
-    }[k]);
+    const all = card.clauses?.length >= 2 || (card.level === "strategy" && (!card.seats.length || card.seats.length >= C.n)), seats = all ? this.players.map((p) => p.id) : this._aiSeatRows(card, C), W = 250, H = 22, mx = Math.max(1, C.maxT), x = (t) => 7 + (t / mx) * (W - 14);
+    const icon = planIcon;
     const band = card.turns.length ? `<rect class="bd" x="${(x(Math.min(...card.turns)) - 4).toFixed(1)}" y="0" width="${(x(Math.max(...card.turns)) - x(Math.min(...card.turns)) + 8).toFixed(1)}" height="${H}" rx="4"/>` : "";
-    const rows = seats.map((s) => { let last = -99; const ic = C.tl[s].map(([t, k]) => { let cx = x(t); if (cx - last < 9) cx = last + 9; last = cx; return icon(k, Math.min(W - 6, cx).toFixed(1) * 1, 11); }).join("");
+    const rowsAll = (s) => { let last = -99; const ic = C.tl[s].map(([t, k]) => { let cx = x(t); if (cx - last < 9) cx = last + 9; last = cx; return icon(k, Math.min(W - 6, cx).toFixed(1) * 1, 11); }).join("");
+      const pl = C.plan(s), cl = card.clauses.find((c) => c.seat === s), lab = pl ? pl.keys.map((k) => C.t.x.parts[k] || k).join(" + ") : "";
+      return `<div class="ai-pr2 pc-${s}" data-aipr="${s}"><div class="hd"><span class="n">${esc(C.nmRaw(s))}</span>${lab ? `<em>${esc(lab)}</em>` : ""}${pl ? `<b>${pl.total}</b>` : ""}</div><svg viewBox="0 0 ${W} ${H}" aria-label="${esc(C.nmRaw(s))}">${band}<line x1="4" x2="${W - 4}" y1="11" y2="11" class="ln"/>${ic}</svg>${cl ? `<div class="cl">${this._aiFmt(cl.text, C, card, { plain: true })}</div>` : (sp => (sp ? `<div class="cl soft">${esc(`${sp.coherencePct}% ${C.t.x.fitTx}`)}</div>` : ""))(C.start(s))}</div>`; };
+    const rows = all ? seats.map(rowsAll).join("") : seats.map((s) => { let last = -99; const ic = C.tl[s].map(([t, k]) => { let cx = x(t); if (cx - last < 9) cx = last + 9; last = cx; return icon(k, Math.min(W - 6, cx).toFixed(1) * 1, 11); }).join("");
       return `<div class="ai-pr pc-${s}"><span class="n">${esc(C.nmRaw(s))}</span><svg viewBox="0 0 ${W} ${H}" aria-label="${esc(C.nmRaw(s))}">${band}<line x1="4" x2="${W - 4}" y1="11" y2="11" class="ln"/>${ic}</svg></div>`; }).join("");
     const used = new Set(C.tl.flat().map((q) => q[1]));
-    return `<div class="ai-vz ai-plan">${rows}<div class="ai-leg">${["s", "c", "L", "A", "v"].filter((k) => used.has(k)).map((k) => `<span><svg viewBox="0 0 14 14" width="12" height="12">${icon(k, 7, 7)}</svg>${esc(C.t.legend[k])}</span>`).join("")}</div></div>`;
+    return `<div class="ai-vz ai-plan${all ? " all" : ""}">${rows}<div class="ai-leg">${["s", "c", "L", "A", "v"].filter((k) => used.has(k)).map((k) => `<span><svg viewBox="0 0 14 14" width="12" height="12">${icon(k, 7, 7)}</svg>${esc(C.t.legend[k])}</span>`).join("")}</div></div>`;
+  },
+  /** "needed -> missing": the cheapest next point with the final hand (icon + what was missing as resource tags) and the estimate of turns. */
+  _aiVNear(card, C) {
+    const m = C.nm, X = C.t.x; if (!m) return "";
+    const head = `<div class="nm-hd"><b>${m.youPoints}</b> <i>/</i> <b>${m.result === "won" ? m.youPoints - m.margin : m.winnerPoints}</b> <span>${esc(X.of)}</span>${m.bestWinChance ? `<span class="nm-b">${esc(X.best)} <b>${m.bestWinChance.pct}%</b> <button type="button" class="ai-t" data-ait="${m.bestWinChance.turn}">T${m.bestWinChance.turn}</button></span>` : ""}</div>`;
+    if (!m.needed) return `<div class="ai-vz ai-nm">${head}</div>`;
+    const kinds = { city: "c", settlement: "s", road: "L", army: "A", dev: "v" }, miss = Object.entries(m.needed.missing);
+    const tags = miss.length ? miss.map(([r, a]) => `<span class="ai-r r-${r}">${a} ${esc(X.res[r] || r)}</span>`).join("") : `<span class="ai-r ok">${esc(X.ready)}</span>`;
+    const away = m.turnsAway != null ? `<div class="nm-away">\u2248 <b>${m.turnsAway}</b> ${esc(m.turnsAway === 1 ? X.one : X.est)}</div>` : "";
+    return `<div class="ai-vz ai-nm">${head}<div class="nm-need"><span class="nm-ic"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">${planIcon(kinds[m.needed.kind] || "v", 12, 12)}</svg><span>${esc(X.route[m.needed.kind] || m.needed.label)}${m.needed.note ? ` <small>(${esc(X.chance)})</small>` : ""}</span></span><span class="nm-ar" aria-hidden="true">\u2192</span><span class="nm-ms"><small>${esc(X.miss)}</small>${tags}</span></div>${away}</div>`;
   },
   _aiVMoves(card, C, strict = false) {
     const set = new Set([card.focus, ...card.turns].filter((t) => t != null));
@@ -405,34 +421,42 @@ export const ReviewAiMixin = {
   /** The view that fits the box of the spots plus a ring of hexes, whole, in a w x h picture: no hex of it is ever clipped. */
   _aiCropView(use, w, h, fitScale) {
     const g = this.geometry; if (!use?.length || !g) return null;
-    const m = g.hexSize * 2.2, xs = use.map((p) => p.x), ys = use.map((p) => p.y), minX = Math.min(...xs) - m, maxX = Math.max(...xs) + m, minY = Math.min(...ys) - m, maxY = Math.max(...ys) + m;
+    const m = g.hexSize * 1.8, xs = use.map((p) => p.x), ys = use.map((p) => p.y), minX = Math.min(...xs) - m, maxX = Math.max(...xs) + m, minY = Math.min(...ys) - m, maxY = Math.max(...ys) + m;
     const pad = 16, sc = Math.min((w - 2 * pad) / (maxX - minX), (h - 2 * pad) / (maxY - minY), fitScale * 3.4);
     return { scale: sc, offsetX: w / 2 - ((minX + maxX) / 2) * sc, offsetY: h / 2 - ((minY + maxY) / 2) * sc, box: { minX, maxX, minY, maxY } };
   },
   /** The board at the turn as a picture (the Replay's renderer into an off-screen canvas), zoomed to the decision's A and B, or what was built. */
-  _aiShot(T0, C, w, h) {
-    const key = `${this._rvPid}|${T0}|${w}`; this._aiImgs ||= new Map();
+  /** The spots a board picture is about: a decision's A and B (plus the spots of its reason), or what was built that turn. */
+  _aiSpots(T0, C, only = null) {
+    const g = this.geometry, st = this._st, d = this._aiDecAt(T0, C)?.d; let A = null, B = null, pts = [];
+    if (d) {
+      A = d.x.best?.focus; B = d.x.focus;
+      const W = d.x.why?.mark; pts = [A, B, ...(W ? [...(W.nodes || []).map((node) => ({ node })), ...(W.edges || []).map((edge) => ({ edge }))] : [])].filter(Boolean).map((f) => tryv(() => rvPos(g, f))).filter(Boolean);
+    } else {
+      for (let q = 1; q <= st.N; q++) if ((st.turnOf[q] ?? 0) === T0) (st.stepEvents[q] || []).forEach((e) => { if (e[1] === "b") { const f = e[3] === "r" || e[3] === "h" ? { edge: e[4] } : { node: e[4] }; try { pts.push(rvPos(g, f)); } catch (_) { /* skip */ } } });
+    }
+    const ab = d ? [A, B].filter(Boolean).map((f) => tryv(() => rvPos(g, f))).filter(Boolean) : [];
+    if (only && d) { const f = only === "A" ? A : B, p = f ? tryv(() => rvPos(g, f)) : null; return { d, A: only === "A" ? A : null, B: only === "B" ? B : null, use: p ? [p] : ab, both: ab.length === 2 }; }
+    return { d, A, B, use: ab.length ? ab : pts, both: ab.length === 2 };
+  },
+  /** The board at the turn as a picture (the Replay's renderer into an off-screen canvas), zoomed to the decision's A and B plus a ring of hexes, or what was built.
+   *  The picture is as tall as that box needs (a tall box gets a taller picture instead of a smaller board). */
+  _aiShot(T0, C, w, h0, only = null) {
+    const key = `${this._rvPid}|${T0}|${w}|${only || ""}`; this._aiImgs ||= new Map();
     if (this._aiImgs.has(key)) return this._aiImgs.get(key);
     const g = this.geometry, st = this._st; if (!g || !st) return null;
-    const d = this._aiDecAt(T0, C)?.d, cv = document.createElement("canvas"); let out = null;
+    const sp = this._aiSpots(T0, C, only), d = sp.d, box = this._aiCropView(sp.use, w, h0, 1)?.box;
+    const h = box ? Math.max(h0, Math.min(Math.round(w * 0.95), Math.round((w * (box.maxY - box.minY)) / (box.maxX - box.minX)))) : h0;
+    const cv = document.createElement("canvas"); let out = null;
     this._rpOpen(cv, w, h);
     try {
-      let A = null, B = null, pts = [];
-      if (d) {
-        const rec = this._rv.recs[d.i]; this._rpSeek(rec.s, rec.e);
-        A = d.x.best?.focus; B = d.x.focus;
-        const W = d.x.why?.mark; pts = [A, B, ...(W ? [...(W.nodes || []).map((node) => ({ node })), ...(W.edges || []).map((edge) => ({ edge }))] : [])].filter(Boolean).map((f) => rvPos(g, f));
-      } else {
-        let k = 0; for (let q = 1; q <= st.N; q++) if ((st.turnOf[q] ?? 0) === T0) k = q;
-        this._rpSeek(k);
-        for (let q = 1; q <= st.N; q++) if ((st.turnOf[q] ?? 0) === T0) (st.stepEvents[q] || []).forEach((e) => { if (e[1] === "b") { const f = e[3] === "r" || e[3] === "h" ? { edge: e[4] } : { node: e[4] }; try { pts.push(rvPos(g, f)); } catch (_) { /* skip */ } } });
-      }
-      const fit = this._rpFitView(w, h, 8);
-      const ab = d ? [A, B].filter(Boolean).map((f) => tryv(() => rvPos(g, f))).filter(Boolean) : [], v = this._aiCropView(ab.length ? ab : pts, w, h, fit.scale);
+      if (d) { const rec = this._rv.recs[d.i]; this._rpSeek(rec.s, rec.e); }
+      else { let k = 0; for (let q = 1; q <= st.N; q++) if ((st.turnOf[q] ?? 0) === T0) k = q; this._rpSeek(k); }
+      const fit = this._rpFitView(w, h, 8), v = this._aiCropView(sp.use, w, h, fit.scale);
       if (v) this.view = v;
       this.boardRenderer?.resync?.(); this.boardRenderer?.invalidateStatic?.();
       if (this.boardRenderer) { this.boardRenderer.anims = []; this.boardRenderer.draw(performance.now()); } else this.drawCanvasScene(); // synchronous: requestDraw would paint after the canvas is read
-      out = { url: cv.toDataURL("image/png"), marks: d ? rvMarks(this, d, A, B, { tight: true }) : "", w, h, view: { scale: this.view.scale, offsetX: this.view.offsetX, offsetY: this.view.offsetY } };
+      out = { url: cv.toDataURL("image/png"), marks: d ? rvMarks(this, d, sp.A, sp.B, { tight: true }) : "", w, h, view: { scale: this.view.scale, offsetX: this.view.offsetX, offsetY: this.view.offsetY }, box: v?.box, full: { w: w / fit.scale, h: h / fit.scale }, far: !only && sp.both && v?.box && ((v.box.maxX - v.box.minX) * (v.box.maxY - v.box.minY)) / ((w / fit.scale) * (h / fit.scale)) > 0.5 };
     } catch (e) { console.warn("ai board", e); } finally { try { this._rpClose(); } catch (_) { /* none open */ } }
     if (out) this._aiImgs.set(key, out);
     return out;
@@ -443,7 +467,8 @@ export const ReviewAiMixin = {
     const next = () => {
       const el = els.shift(); if (!el || !el.isConnected || this._rv !== R) return;
       const w = Math.max(200, Math.round(el.getBoundingClientRect().width)), h = Math.round(w * 0.62);
-      const s = this._aiShot(+el.dataset.aibd, C, w, h);
+      let s = this._aiShot(+el.dataset.aibd, C, w, h), two = null;
+      if (s?.far) { const w2 = Math.floor((w - 6) / 2), h2 = Math.round(w2 * 0.95), sa = this._aiShot(+el.dataset.aibd, C, w2, h2, "A"), sb = this._aiShot(+el.dataset.aibd, C, w2, h2, "B"); if (sa && sb) two = [sa, sb]; } // A and B far apart: one zoomed picture of each, not the whole board
       el.dataset.done = "1";
       const vz = el.closest(".ai-vz");
       if (vz && this._aiDecAt(+el.dataset.aibd, C) && (!s || !s.marks)) { // a decision with no place on the board: its moves instead of a bare picture
@@ -454,7 +479,8 @@ export const ReviewAiMixin = {
         setTimeout(next, 20); return;
       }
       if (s?.marks) el.closest(".ai-vz")?.querySelector("[data-aileg]")?.removeAttribute("hidden"); // A / B only where the move has a place on the board
-      if (s) { el.style.aspectRatio = "auto"; el.innerHTML = `<img src="${s.url}" alt="" width="${w}" height="${h}"><svg viewBox="0 0 ${w} ${h}" aria-hidden="true">${s.marks}</svg>`; } else el.closest(".ai-vz")?.remove();
+      if (s && two) { el.style.aspectRatio = "auto"; el.dataset.zoom = "two"; el.innerHTML = `<div class="bd2">${two.map((q) => `<div class="bdp"><img src="${q.url}" alt="" width="${q.w}" height="${q.h}"><svg viewBox="0 0 ${q.w} ${q.h}" aria-hidden="true">${q.marks}</svg></div>`).join("")}</div>`; }
+      else if (s) { el.style.aspectRatio = "auto"; el.dataset.zoom = s.box ? Math.round(((s.box.maxX - s.box.minX) * (s.box.maxY - s.box.minY)) / (s.full.w * s.full.h) * 100) : ""; el.innerHTML = `<img src="${s.url}" alt="" width="${s.w}" height="${s.h}"><svg viewBox="0 0 ${s.w} ${s.h}" aria-hidden="true">${s.marks}</svg>`; } else el.closest(".ai-vz")?.remove();
       setTimeout(next, 20);
       if (!els.length) { const r = this._aiRestore, sc = this._rvEl?.querySelector(".rv-scroll"); if (r && sc && Date.now() < r.until) sc.scrollTop = r.y; this._aiRestore = null; } // the boards changed the heights: the same place again
     };
@@ -631,10 +657,11 @@ export const ReviewAiMixin = {
     const r = await this._aiCall({ mode: "insights", lang, facts: f.json }, 70000);
     if (this._rv !== R) return;
     const cards = Array.isArray(r.x?.cards) ? r.x.cards.filter((c) => c && typeof c === "object" && (c.title || c.text)).slice(0, 10) : [];
+    { const nm0 = tryv(() => aiNearMiss(this)); if (nm0 && nm0.margin >= 1 && nm0.margin <= 2 && !cards.some((c) => c.view === "nearmiss")) { const c0 = cards.find((c) => c.level === "game" && (!c.view || c.view === "none" || c.view === "points")); if (c0) c0.view = "nearmiss"; } } // the close-game card always has its needed \u2192 missing visual
     if (r.x && !cards.length && !r.err) r.err = "fail";
     if (r.err) { this._aiUi = { pid, err: r.err }; this._aiRefresh(); return; }
     const keep = (R.ai?.answers || []).filter((a) => a.pinned || (!force && R.ai?.pid === pid && R.ai?.lang === lang));
-    R.ai = { pid, lang, at: Date.now(), n: f.json.length, insights: { headline: String(r.x.headline || "").slice(0, 200), cards: cards.map((c) => ({ level: c.level, title: c.title, text: c.text, view: c.view, turns: c.turns, focusTurn: c.focusTurn, players: c.players })), followUps: (r.x.followUps || []).map(String).slice(0, 8) }, answers: keep };
+    R.ai = { pid, lang, at: Date.now(), n: f.json.length, insights: { headline: String(r.x.headline || "").slice(0, 200), cards: cards.map((c) => ({ level: c.level, title: c.title, text: c.text, view: c.view, turns: c.turns, focusTurn: c.focusTurn, players: c.players, clauses: Array.isArray(c.clauses) ? c.clauses.slice(0, 8).map((x) => ({ player: String(x?.player ?? ""), text: String(x?.text ?? "") })) : [] })), followUps: (r.x.followUps || []).map(String).slice(0, 8) }, answers: keep };
     this._aiUi = { pid, loading: null, err: null };
     this._aiSave(); this._aiRefresh();
   },
