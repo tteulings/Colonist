@@ -18,6 +18,16 @@ Use ONLY the facts given: the category, their stats (mistakes, win chance lost, 
 Answer the question as a coach: name the pattern you see in their examples, the concrete habit to change, and how to recognise the situation next time. Refer to examples by turn and resources in plain words.
 Return JSON: answer = 2-4 short sentences, every sentence concrete, no stock phrases; points = 2-4 short bullet facts or habits (max 12 words each); highlight = "none".
 Say "points" (Dutch "punten"), never "VP"; win chance as %. Questions unrelated to the game: answer only "I can only help with your Catan play." with empty points.`;
+const GAME = `You are an interactive game analyst for one finished game of a Catan-like board game, talking to the human player ("You").
+Use ONLY the facts given (JSON from the game's review engine: players, final points and point sources, win-chance timeline per turn, key moments with actions, luck events, your decisions with A/B, lessons). Never invent moves, numbers or reasons.
+Answer the player's question about this game AND choose the best visualisation for it, so the app can draw it:
+- view: "winchance" (win-chance lines over turns), "luck" (luck per player), "points" (point sources per player), "board" (the board at one turn), "moves" (your decisions with cost), or "none".
+- turns: the turn numbers the answer is about (max 4, may be empty); focusTurn: the single most relevant turn or null; players: names of the players the answer is about (may be empty).
+Return JSON: answer = 2-4 short sentences, every sentence a concrete fact; points = 0-4 short bullet facts (max 12 words); view, turns, focusTurn, players as above; followUps = 2-3 short follow-up questions the player may want to ask next.
+Say "points" (Dutch "punten"), never "VP"; win chance as %. Off-topic questions: answer "I can only talk about this game." with view "none".`;
+const GAME_SCHEMA = { type: "object", additionalProperties: false, required: ["answer", "points", "view", "turns", "focusTurn", "players", "followUps"],
+  properties: { answer: { type: "string" }, points: { type: "array", items: { type: "string" } }, view: { type: "string", enum: ["winchance", "luck", "points", "board", "moves", "none"] },
+    turns: { type: "array", items: { type: "integer" } }, focusTurn: { type: ["integer", "null"] }, players: { type: "array", items: { type: "string" } }, followUps: { type: "array", items: { type: "string" } } } };
 const EXPLAIN_SCHEMA = { type: "object", additionalProperties: false, required: ["answer", "points", "highlight"],
   properties: { answer: { type: "string" }, points: { type: "array", items: { type: "string" } }, highlight: { type: "string", enum: ["A", "B", "none"] } } };
 const NUM = { type: ["integer", "null"] };
@@ -77,7 +87,8 @@ app.http("recap", {
     const lang = body?.lang === "nl" ? "nl" : "en";
     const nTp = Math.max(1, Math.min(5, parseInt(body?.turningPoints, 10) || 3));
     const lesson = body?.mode === "lesson";
-    const explain = body?.mode === "explain" || lesson;
+    const game = body?.mode === "game";
+    const explain = body?.mode === "explain" || lesson || game;
     const question = String(body?.question || "Why is the better move better than what I did?").slice(0, 300);
 
     try {
@@ -87,9 +98,9 @@ app.http("recap", {
         body: JSON.stringify({
           model: process.env.OAI_DEPLOYMENT,
           max_completion_tokens: MAX_OUT,
-          response_format: { type: "json_schema", json_schema: { name: explain ? "explain" : "recap", strict: true, schema: explain ? EXPLAIN_SCHEMA : SCHEMA } },
+          response_format: { type: "json_schema", json_schema: { name: game ? "game" : explain ? "explain" : "recap", strict: true, schema: game ? GAME_SCHEMA : explain ? EXPLAIN_SCHEMA : SCHEMA } },
           messages: [
-            { role: "system", content: (lesson ? LESSON : explain ? EXPLAIN : SYSTEM) + (lang === "nl" ? "\n\nWrite all text fields in natural Dutch (Nederlands)." : "\n\nWrite all text fields in English.") },
+            { role: "system", content: (game ? GAME : lesson ? LESSON : explain ? EXPLAIN : SYSTEM) + (lang === "nl" ? "\n\nWrite all text fields in natural Dutch (Nederlands)." : "\n\nWrite all text fields in English.") },
             { role: "user", content: explain ? `question: ${question}\nfacts:\n${facts}` : `turningPoints wanted: ${nTp}\nfacts:\n${facts}` },
           ],
         }),
