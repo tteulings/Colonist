@@ -69,8 +69,18 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     ok(N.nm && N.m && N.m.margin >= 1 && new RegExp(`^${N.m.youPoints}\\s*/\\s*${N.m.result === "won" ? N.m.youPoints - N.m.margin : N.m.winnerPoints}`).test(N.nmHd), "near-miss card: points header from the app's facts", [N.nmHd, N.m && N.m.margin]);
     ok(N.m.result === "won" || (N.need && /\u2192/.test(N.need) && (N.tags.length === Object.keys(N.m.needed.missing).length || N.tags[0].length) && N.tags.every((t) => /^\d+ \p{L}+/u.test(t) || t.length > 3)), "near-miss card: needed \u2192 missing resource tags", [N.need, N.tags, N.m.needed]);
     ok(N.m.result === "won" || N.m.turnsAway == null || /\u2248\s*\d+/.test(N.away), "near-miss card: turns-away estimate shown", N.away);
-    ok(N.rows.length === F.n && N.rows.every((r, i) => r.seat === i && r.name === F.names[i].replace(/^You$/, r.name) && r.color !== "rgba(0, 0, 0, 0)" && r.label && r.icons === N.tl[i]), "strategy card: one row per player, name coloured, app plan label, icons = timeline", N.rows.map((r) => [r.name, r.label, r.icons]));
+    ok(N.rows.length === F.n && N.rows.every((r, i) => r.seat === i && r.name === F.names[i].replace(/^You$/, r.name) && r.color !== "rgba(0, 0, 0, 0)" && r.label), "strategy card: one row per player, name coloured, app goal label", N.rows.map((r) => [r.name, r.label, r.icons]));
     ok(N.rows.every((r, i) => new RegExp(`clause ${i}$`).test(r.clause || "")), "strategy card: each AI clause on its own player's row", N.rows.map((r) => r.clause));
+    { // v1.76 route to the target
+      const RT = await G(() => { const g = window.__colonistGame, C = g._aiCtx(), card = document.querySelectorAll("[data-aic^=c]")[8];
+        return [...card.querySelectorAll(".ai-pr2")].map((r) => { const s = +r.dataset.aipr, rt = C.route(s), segs = [...r.querySelectorAll(".rt-sg")].map((e) => +e.dataset.pts), ms = r.querySelector(".rt-ms");
+          return { s, rt: rt && { total: rt.total, target: rt.target, won: rt.won, v: rt.verdict?.v, goal: rt.goal.length }, segs, ms: ms ? +ms.dataset.pts : 0, flag: !!r.querySelector(".rt-fl"), goalTx: r.querySelector("em")?.textContent, vtag: r.querySelector(".rt-v")?.textContent, missTx: ms?.textContent }; }); });
+      console.log(JSON.stringify(RT));
+      ok(RT.every((r) => r.rt && r.segs.reduce((a, b) => a + b, 0) === r.rt.total), "route bar: source segments sum to the player's points", RT.map((r) => [r.segs, r.rt && r.rt.total]));
+      ok(RT.every((r) => (r.rt.total < r.rt.target ? r.ms === r.rt.target - r.rt.total && r.missTx.length >= 2 : r.flag && !r.ms)), "route bar: dashed missing segment up to the target (labelled), winner gets a flag", RT.map((r) => [r.ms, r.flag, r.missTx]));
+      ok(RT.every((r) => /^(Goal|Doel): .+/.test(r.goalTx || "") && r.rt.goal >= 1), "route bar: goal label present", RT.map((r) => r.goalTx));
+      ok(RT.every((r) => /^(\u2713|\u23F8|\u2717)/.test(r.vtag || "")) && RT.filter((r) => r.rt.won).every((r) => r.rt.v === "worked"), "route bar: verdict tag (worked / stalled / didn't work) on every row, winner worked", RT.map((r) => [r.vtag, r.rt.v]));
+    }
     ok(N.zooms.length >= 1 && N.zooms.every((z) => z > 0 && z < 80), "decision board: zoom box smaller than the full board (% of board area)", N.zooms);
   }
   const want = ["ai-bd|ai-mv", "ai-bars", null, "ai-plan", "ai-bd|ai-mv|ai-wc", "ai-wc"]; ok(want.every((k, i) => (k ? k.split("|").includes(S.cards[i].vis.join()) : S.cards[i].vis.length === 0)) && S.cards[6].vis.length === 0, "visuals: decision = board always, luck bars, no points bars, plan for strategy, chart, none", S.cards.map((c) => c.vis.join()));
