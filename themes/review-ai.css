@@ -150,7 +150,12 @@ b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { c
 .ai-ev.eng { color: #1F7F86; background: color-mix(in srgb, #1F7F86 14%, transparent); } [data-palette="night"] .ai-ev.eng { color: #4CC9B0; }
 .ai-simc { gap: 6px; } .ai-sbar { display: block; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 9%, transparent); overflow: hidden; } .ai-sbar i { display: block; height: 100%; background: var(--primary); border-radius: 3px; transition: width .4s; }
 .ai-simc .ai-ac { justify-content: space-between; align-items: center; } .ai-sn { font: 700 11px/1 var(--font-body); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.ai-sm { display: grid; gap: 6px; } .ai-sr { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 2px 8px; align-items: center; font: 650 11.5px/1.2 var(--font-body); }
+.ai-sm { display: grid; gap: 6px; } .ai-sr { display: grid; grid-template-columns: minmax(0, 1fr) 64px 30px; gap: 2px 8px; align-items: center; font: 650 11.5px/1.2 var(--font-body); }
 .ai-sr .l { grid-column: 1 / -1; overflow-wrap: anywhere; color: var(--ink); } .ai-sr .tr { height: 9px; border-radius: 5px; background: color-mix(in srgb, var(--ink) 8%, transparent); overflow: hidden; } .ai-sr .tr i { display: block; height: 100%; background: var(--primary); border-radius: 5px; }
 .ai-sr.base .tr i { background: var(--ai-s); } .ai-sr b { font: 800 12px/1 var(--font-body); font-variant-numeric: tabular-nums; color: var(--heading); } .ai-sr b small { font-weight: 600; font-size: 9.5px; color: var(--ink-soft); margin-left: 2px; }
 .ai-sr em { font: 800 11.5px/1 var(--font-body); font-style: normal; font-variant-numeric: tabular-nums; color: var(--ink-soft); } .ai-sr em.up { color: var(--pos); } .ai-sr em.dn { color: var(--neg); } .ai-sr em.nz { opacity: .7; }
+/* v1.77 record cards: the played move and the alternative on one 0-100% scale (same track width in every row), a tiny axis under the bars */
+.ai-sr.rec { grid-template-columns: minmax(0, 1fr) 64px; } .ai-sr.rec b { text-align: right; white-space: nowrap; }
+.ai-ax { display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 8px; margin-top: -2px; } .ai-ax .tk { display: flex; justify-content: space-between; font: 600 9.5px/1 var(--font-body); color: var(--ink-soft); } .ai-ax .tk i { font-style: normal; }
+.rt-incl { font: 600 9.5px/1.2 var(--font-body); color: var(--ink-soft); margin-top: 2px; }
+.ai-pr2 .rt-v.v-close { color: #8A6A16; background: color-mix(in srgb, #C99A2E 16%, transparent); }

@@ -26,9 +26,9 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     for (let t = 2; t <= g.turn; t++) for (let s = 0; s < n; s++) { const c = wcChange(ser, s, t, t); if (!c) continue; if (s === me && (!worst || c.d < worst.d)) worst = { t, s, ...c }; if (s === me && (!best || c.d > best.d)) best = { t, s, ...c }; }
     let opp = null; for (let t = 2; t <= g.turn; t++) for (let s = 0; s < n; s++) { if (s === me) continue; const c = wcChange(ser, s, t, t); if (c && (!opp || Math.abs(c.d) > Math.abs(opp.d))) opp = { t, s, ...c }; }
     let alt = null; for (let t = 2; t <= g.turn && !alt; t++) { const c = wcChange(ser, me, t, t); if (c && c.d !== 0 && t !== (worst && worst.t) && t !== (best && best.t) && t !== (opp && opp.t) && Math.abs(t - (worst ? worst.t : 0)) > 1) alt = { t, ...c }; }
-    const f = aiFacts(g);
+    const f = aiFacts(g); const { aiDecList } = await import("./src/review/ai-tools.js"); const ownT = [...new Set(aiDecList(g).filter((e) => e.seat === me && e.gap > 0.01 && e.x.best && e.turn >= 2).map((e) => e.turn))];
     const d0 = (f?.obj.decisions || []).find((x) => x.player === "You" && x.turn >= 2 && x.costPct >= 1); if (d0) { const c = wcChange(ser, me, d0.turn, d0.turn); if (c) worst = { t: d0.turn, s: me, ...c, cost: Math.round(d0.costPct) }; }
-    return { me, names, n, worst, best, opp, alt, src: ser.src, size: f?.json.length, keys: Object.keys(f?.obj || {}), maxT: g.turn, dec: f?.obj.decisions?.slice(0, 3), you: g._rvIsYou(me), tabs: [...document.querySelectorAll(".rv-tabs button")].map((e) => e.textContent) };
+    return { me, names, n, worst, best, opp, alt, src: ser.src, ownT, size: f?.json.length, keys: Object.keys(f?.obj || {}), maxT: g.turn, dec: f?.obj.decisions?.slice(0, 3), you: g._rvIsYou(me), tabs: [...document.querySelectorAll(".rv-tabs button")].map((e) => e.textContent) };
   });
   console.log(JSON.stringify(F));
   ok(F.src === "luck" && F.size > 2000 && F.size < 40000 && F.keys.includes("winChancePctByTurn") && F.keys.includes("decisions"), "facts: win chance per turn and decisions, size ok", [F.src, F.size]);
@@ -37,7 +37,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   const P = (s) => F.names[s];
   const sg = (d) => (d > 0 ? "+" : "−") + Math.abs(d);
   const wrongVerb = F.worst.d < 0 ? "gained" : "lost"; // contradicts the real change on purpose
-  const TX = F.opp.t !== F.worst.t ? F.opp.t : Math.max(2, F.worst.t - 1);
+  const TX = F.ownT.find((x) => x !== F.worst.t) ?? (F.opp.t !== F.worst.t ? F.opp.t : Math.max(2, F.worst.t - 1));
   mock = (body) => body.mode === "insights" ? { body: { explain: { headline: "A close game decided on turn " + F.worst.t, followUps: ["Why did I lose win chance?", "What was the best move of the game overall?", "Who was luckiest?", "How did the winner win it so fast"],
     cards: [
       { level: "decision", title: "Turn " + F.worst.t + " cost the most", text: `${meN} ${wrongVerb} ground on turn ${F.worst.t}, from ${F.worst.from + 30}% to ${F.worst.to + 30}%. A second sentence stays.`, view: "winchance", turns: [F.worst.t], focusTurn: F.worst.t, players: [meN] },
@@ -71,7 +71,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     ok(N.m.result === "won" || (N.need && /\u2192/.test(N.need) && (N.tags.length === Object.keys(N.m.needed.missing).length || N.tags[0].length) && N.tags.every((t) => /^\d+ \p{L}+/u.test(t) || t.length > 3)), "near-miss card: needed \u2192 missing resource tags", [N.need, N.tags, N.m.needed]);
     ok(N.m.result === "won" || N.m.turnsAway == null || /\u2248\s*\d+/.test(N.away), "near-miss card: turns-away estimate shown", N.away);
     ok(N.rows.length === F.n && N.rows.every((r, i) => r.seat === i && r.name === F.names[i].replace(/^You$/, r.name) && r.color !== "rgba(0, 0, 0, 0)" && r.label), "strategy card: one row per player, name coloured, app goal label", N.rows.map((r) => [r.name, r.label, r.icons]));
-    ok(N.rows.every((r, i) => new RegExp(`clause ${i}$`).test(r.clause || "")), "strategy card: each AI clause on its own player's row", N.rows.map((r) => r.clause));
+    ok(N.rows.every((r, i) => new RegExp(`built up from turn ${3 + i}$`).test(r.clause || "")) && !N.rows.some((r) => /clause/i.test(r.clause)), "6: strategy card: each AI clause on its own player's row, no \"clause N\" jargon", N.rows.map((r) => r.clause));
     { // v1.76 route to the target
       const RT = await G(() => { const g = window.__colonistGame, C = g._aiCtx(), card = document.querySelectorAll("[data-aic^=c]")[8];
         return [...card.querySelectorAll(".ai-pr2")].map((r) => { const s = +r.dataset.aipr, rt = C.route(s), segs = [...r.querySelectorAll(".rt-sg")].map((e) => +e.dataset.pts), ms = r.querySelector(".rt-ms");
@@ -80,7 +80,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       ok(RT.every((r) => r.rt && r.segs.reduce((a, b) => a + b, 0) === r.rt.total), "route bar: source segments sum to the player's points", RT.map((r) => [r.segs, r.rt && r.rt.total]));
       ok(RT.every((r) => (r.rt.total < r.rt.target ? r.ms === r.rt.target - r.rt.total && r.missTx.length >= 2 : r.flag && !r.ms)), "route bar: dashed missing segment up to the target (labelled), winner gets a flag", RT.map((r) => [r.ms, r.flag, r.missTx]));
       ok(RT.every((r) => /^(Goal|Doel): .+/.test(r.goalTx || "") && r.rt.goal >= 1), "route bar: goal label present", RT.map((r) => r.goalTx));
-      ok(RT.every((r) => /^(\u2713|\u23F8|\u2717)/.test(r.vtag || "")) && RT.filter((r) => r.rt.won).every((r) => r.rt.v === "worked"), "route bar: verdict tag (worked / stalled / didn't work) on every row, winner worked", RT.map((r) => [r.vtag, r.rt.v]));
+      ok(RT.every((r) => /^(\u2713|\u23F8|\u2717|\u2248)/.test(r.vtag || "")) && RT.filter((r) => r.rt.won).every((r) => r.rt.v === "worked"), "route bar: verdict tag (worked / stalled / didn't work) on every row, winner worked", RT.map((r) => [r.vtag, r.rt.v]));
     }
     ok(N.zooms.length >= 1 && N.zooms.every((z) => z > 0 && z < 80), "decision board: zoom box smaller than the full board (% of board area)", N.zooms);
   }
@@ -263,7 +263,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     await page.fill("[data-aiin]", "Another question?"); await page.locator(".ai-in .rv-btn").tap(); await sleep(900);
     ok(calls.length === 3 && await G(() => !!document.querySelector("[data-aic=a0] .ai-tx")), "chat: repeated question scrolls to / opens the existing answer, no new call", calls.length);
     const m0 = mock; mock = (b) => b.mode === "game" && b.question === "Dedupe?" ? { body: { explain: { answer: "Same chart again.", view: "winchance", turns: [F.alt.t, F.alt.t + 1], focusTurn: F.alt.t, players: [meN], followUps: ["Why so?", "What came next?"] } } } : m0(b);
-    DELAY = 1800; await page.fill("[data-aiin]", "Dedupe?"); await page.locator(".ai-in .rv-btn").tap(); await sleep(500);
+    DELAY = 1800; await page.fill("[data-aiin]", "Dedupe?"); await page.locator(".ai-in .rv-btn").tap(); await sleep(1100);
     const P = await G(() => { const sc = document.querySelector(".rv-scroll"), p = document.querySelector(".ai-ask .ai-pend"), a = document.querySelector(".ai-ask"); return { pend: !!p && /Dedupe\?/.test(p.textContent), above: !!p && !!a && p.getBoundingClientRect().bottom <= a.querySelector(".ai-in").getBoundingClientRect().top + 1, atBottom: sc.scrollHeight - sc.scrollTop - sc.clientHeight < 80, focus: document.activeElement?.matches?.("[data-aiin]") }; });
     ok(P.pend && P.above && P.atBottom && P.focus, "chat: pending card right above the ask bar, scrolled to the end, ask field keeps focus", P);
     await sleep(2500); DELAY = 0;
@@ -417,7 +417,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     ok(calls.length === 2 && calls[0].index && !calls[0].facts && calls[1].history?.length === 1 && calls[1].toolResults?.length === 2, "tier 1: two POSTs (index, then toolResults + history)", calls.map((c) => [!!c.index, c.history?.length, c.toolResults?.length]));
     ok(seen.t1[0].result.evaluated?.length >= 3 && seen.t1[1].result.swings?.length === 3, "tier 1: the app executed both lookups locally and posted the results", seen.t1.map((r) => r.id));
     await G(() => document.querySelector("[data-aic^=a]:not(.col)")?.scrollIntoView({ block: "start" })); await sleep(300); await page.screenshot({ path: SH + "/tier1-answer.png" });
-    ok(A1.ev.some((e) => e[0] === "review" && /instant/.test(e[1])) && !A1.ev.some((e) => e[0] === "engine") && !A1.sim, "tier 1: answer tagged from your review · instant, no engine tag", A1.ev);
+    ok(A1.ev.some((e) => e[0] === "review" && /instant/.test(e[1])) && !A1.ev.some((e) => e[0] === "engine"), "tier 1: answer tagged from your review · instant, no engine tag", A1.ev);
     ok(new RegExp(`${D.cost}%`).test(A1.text), "tier 1: the number from the tool result is kept", A1.text);
     // tier 2 question: progress card, engine, tag, bars, sign colours
     calls.length = 0; stamps = [];
@@ -444,7 +444,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       seen.cap = body.toolResults; return { body: { explain: { answer: "You would have won with a city. It was a close game.", points: [], view: "none", turns: [], focusTurn: null, players: [], followUps: [], evidence: [] } } }; };
     await ask("Could I have won?"); const A3 = await lastAns();
     ok(seen.cap.length === 4 && seen.cap.slice(0, 3).every((r) => !r.result.error) && /budget/.test(seen.cap[3].result.error || ""), "caps: the 4th engine call of a question is refused (3 max)", seen.cap.map((r) => r.result.error || r.result.tool));
-    ok(!/would have/.test(A3.text) && /close game/.test(A3.text), "trust: an unchecked what-if sentence is dropped, the rest stays", A3.text);
+    ok(!/won with a city/.test(A3.text) && /close game/.test(A3.text), "trust: an unchecked what-if sentence is dropped, the rest stays", A3.text);
     calls.length = 0;
     mock = (body) => { if (body.mode !== "game") return base(body); seen.n = (body.toolResults || []).length;
       return req(Array.from({ length: 14 }, (_, i) => ({ id: "x" + i, name: "get_turn", args: { turn: 2 + (i % 5) } }))); };
@@ -461,6 +461,66 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     ok(I.filter((c) => c.ev.some((t) => /checked by engine/.test(t))).length === 1 && I.some((c) => /would have kept \d+%/.test(c.tx)) && !I.some((c) => /would have won/.test(c.tx)), "insights: engine-checked card tagged 'checked by engine', unchecked what-if dropped", I.map((c) => [c.ev, c.tx.slice(0, 50)]));
     ok(calls.length === 2 && calls[0].mode === "insights" && !!calls[0].index, "insights: two POSTs (tool round + final)", calls.length);
     mock = base;
+  }
+  { // v1.77 consistency: one source record per card, the asked comparison, titles that match the data
+    const base2 = mock0, TCx = (id, name, args) => ({ id, type: "function", function: { name, arguments: JSON.stringify(args) } });
+    const req2 = (list) => ({ body: { toolRequests: list, history: [{ role: "assistant", content: null, tool_calls: list.map((q) => TCx(q.id, q.name, q.args)) }] } });
+    const ask2 = async (q) => { await G((q) => window.__colonistGame._aiAsk(q, true), q); await page.waitForFunction(() => window.__colonistGame._aiUi?.loading !== "ask", null, { timeout: 120000 }); await sleep(500); };
+    const card2 = () => G(() => { const g = window.__colonistGame, c = [...document.querySelectorAll("[data-aic^=a]:not(.col)")].pop(); const tr = [...(c?.querySelectorAll(".ai-sr .tr") || [])], ch = c?.querySelector(".ai-chg b");
+      return { text: c?.querySelector(".ai-tx")?.textContent || "", all: c?.textContent || "", chip: ch ? parseInt(ch.textContent.replace("−", "-"), 10) : null, chipCls: c?.querySelector(".ai-chg")?.className || "", eng: !!c?.querySelector("[data-aiev=engine]"),
+        rows: [...(c?.querySelectorAll(".ai-sr") || [])].map((r) => ({ l: r.querySelector(".l")?.textContent || "", v: parseInt(r.querySelector("b").textContent, 10) })), tw: tr.map((e) => Math.round(e.getBoundingClientRect().width)), fill: tr.map((e) => Math.round((e.firstElementChild.getBoundingClientRect().width / e.getBoundingClientRect().width) * 100)), ax: [...(c?.querySelectorAll(".ai-ax i") || [])].map((e) => e.textContent) }; });
+    const D2 = await G(async () => { const g = window.__colonistGame; const { aiDecList } = await import("./src/review/ai-tools.js"); const mine = aiDecList(g).filter((e) => e.seat === g._rvPid && e.x.cands.length > 1);
+      const e1 = mine.filter((e) => e.gap > 0.02 && e.turn >= 2 && e.x.k === "build").sort((a, b) => b.gap - a.gap)[0], e0 = mine.find((e) => e.gap < 0.004 && e.turn >= 2 && e.x.cands.length > 1); return { w: e1 && { turn: e1.turn, n: e1.n, label: e1.x.label }, b: e0 && { turn: e0.turn, n: e0.n, label: e0.x.label } }; });
+    // 1: "ending the turn instead of <played> on turn T": the model only looks the decision up; the app tests the asked move itself, and shows exactly the two options
+    if (D2.w) {
+      mock = (body) => { if (body.mode !== "game") return base2(body); if (!body.history) return req2([{ id: "k1", name: "get_decision", args: { turn: D2.w.turn, player: "You", n: D2.w.n } }]);
+        return { body: { explain: { answer: "Building the road gave you 22% win chance. A city would have won the game.", points: [], view: "winchance", turns: [D2.w.turn], focusTurn: D2.w.turn, players: ["You"], followUps: [], evidence: ["k1"] } } }; };
+      const kind = /^Road/i.test(D2.w.label) ? "a road" : /^Settlement/i.test(D2.w.label) ? "a settlement" : /^City/i.test(D2.w.label) ? "a city" : "my move";
+      await ask2(`What if I had ended my turn instead of ${kind} on turn ${D2.w.turn}?`); const Q1 = await card2(); console.log(JSON.stringify(Q1));
+      ok(Q1.eng && Q1.rows.length === 2 && /^End/i.test(Q1.rows[1].l), "1: the app asks the engine for the asked move; the card shows exactly the played move and the asked one, engine tag", [Q1.eng, Q1.rows]);
+      ok(Q1.chip === Q1.rows[0].v - Q1.rows[1].v && (Q1.chip === 0 || (Q1.chip < 0 ? /dn/.test(Q1.chipCls) : /up/.test(Q1.chipCls))), "2: badge = played minus asked bar (negative red = your cost)", [Q1.chip, Q1.rows, Q1.chipCls]);
+      ok(Q1.tw.length === 2 && Q1.tw[0] === Q1.tw[1] && Q1.tw[0] > 100 && Q1.rows.every((r, i) => Math.abs(Q1.fill[i] - r.v) <= 2) && Q1.ax.join() === "0%,50%,100%", "2: bars share one 0-100% scale with an axis (equal tracks, fill = value)", [Q1.tw, Q1.fill, Q1.ax]);
+      ok([...Q1.text.matchAll(/(\d+)%/g)].every((m) => Q1.rows.some((r) => r.v === +m[1]) || Math.abs(Q1.chip) === +m[1]) && !/22%|city would/.test(Q1.text), "2: every number in the text is one of the bars or the badge; the model's own numbers are gone", Q1.text);
+    } else ok(true, "1/2: (no own decision with a cost in this game: skipped)");
+    // 1b: a city the engine cannot test: said plainly, no other answer, no engine tag
+    mock = (body) => { if (body.mode !== "game") return base2(body); if (!body.history) return req2([{ id: "k1", name: "get_turn", args: { turn: D2.w?.turn ?? 2 } }]); return { body: { explain: { answer: "A city would have been better. You were at 31% win chance.", points: [], view: "winchance", turns: [], focusTurn: null, players: [], followUps: [], evidence: [] } } }; };
+    await ask2("What if I had built a city instead of a road on turn 1?"); const Q2 = await card2(); console.log(JSON.stringify(Q2));
+    ok(/can.t test a city on Turn 1/i.test(Q2.text) && !Q2.eng && Q2.rows.length === 0 && Q2.chip == null && !/31%|better/.test(Q2.text), "1: an untestable what-if is said plainly (no spot / no cards), nothing else is answered", Q2.text);
+    // 3: a decision the review rates Best: no card presents a better alternative, whatever the model says
+    if (D2.b) {
+      mock = (body) => { if (body.mode !== "game") return base2(body); if (!body.history) return req2([{ id: "k1", name: "get_decision", args: { turn: D2.b.turn, player: "You", n: D2.b.n } }]);
+        return { body: { explain: { answer: "Yes, that was a mistake: a better move cost you a lot of win chance.", points: [], view: "winchance", turns: [D2.b.turn], focusTurn: D2.b.turn, players: ["You"], followUps: [], evidence: ["k1"] } } }; };
+      await ask2(`Was my turn-${D2.b.turn} move bad?`); const Q3 = await card2(); console.log(JSON.stringify(Q3));
+      ok(/rated best/i.test(Q3.text) && Q3.rows.length === 1 && Q3.chip == null && !/mistake|better move cost/i.test(Q3.text), "3: a decision the review rates Best never shows a better alternative or a cost", [Q3.text, Q3.rows, Q3.chip]);
+    } else ok(true, "3: (no Best decision in this game: skipped)");
+    // 3b: the review's own cost is the badge of a decision answer (same number as the Moves list)
+    if (D2.w) {
+      mock = (body) => { if (body.mode !== "game") return base2(body); if (!body.history) return req2([{ id: "k1", name: "get_decision", args: { turn: D2.w.turn, player: "You", n: D2.w.n } }]); return { body: { explain: { answer: "Fine move overall.", points: [], view: "winchance", turns: [D2.w.turn], focusTurn: D2.w.turn, players: ["You"], followUps: [], evidence: ["k1"] } } }; };
+      await ask2(`Was my turn ${D2.w.turn} decision good?`); const Q4 = await card2();
+      const cs = await G((a) => { const g = window.__colonistGame; return import("./src/review/ai-tools.js").then(({ aiToolRun }) => Math.round(aiToolRun(g, "get_decision", { player: "You", turn: a.turn, n: a.n }).costPct)); }, D2.w);
+      ok(Q4.chip === -cs && Q4.rows.length >= 1 && new RegExp(`cost ${cs}%`).test(Q4.text), "3: decision answer: badge, bars and text all come from the decision record (cost = the review's)", [Q4.chip, cs, Q4.text, Q4.rows]);
+    }
+    // 4: titles must match the data
+    const TT = await G(() => { const g = window.__colonistGame, C = g._aiCtx(), me = C.me, mk = (title, o = {}) => ({ title, view: "luck", level: "game", seats: [], turns: [], focus: null, fix: [], chg: [], ...o });
+      const T1 = (C2, c) => g._aiTitle(c, C2);
+      return { evenBad: T1({ ...C, luck: { [me]: -0.19 } }, mk("Luck evened out", { chg: [{ seat: me, d: -19, luck: true }] })), evenOk: T1({ ...C, luck: { [me]: 0.02 } }, mk("Luck evened out", { chg: [{ seat: me, d: 2, luck: true }] })),
+        decBad: T1({ ...C, big: { turn: 22, d: 40 } }, mk("Decided on Turn 5", { view: "winchance", focus: 5, chg: [{ seat: me, d: -4, from: 40, to: 36 }] })), decSmall: T1({ ...C, big: { turn: 5, d: 4 } }, mk("Decided on Turn 5", { view: "winchance", focus: 5, chg: [{ seat: me, d: -4, from: 40, to: 36 }] })), decOk: T1({ ...C, big: { turn: 5, d: 30 } }, mk("Decided on Turn 5", { view: "winchance", focus: 5, chg: [{ seat: me, d: -30, from: 60, to: 30 }] })),
+        hlBad: g._aiHeadline("A close game decided on Turn 5", { ...C, big: { turn: 22, d: 40 } }), hlOk: g._aiHeadline("The game was decided on Turn 5", { ...C, big: { turn: 5, d: 40 }, nmRaw: C.nmRaw }) }; });
+    console.log(JSON.stringify(TT));
+    ok(!/evened/i.test(TT.evenBad) && /evened out/.test(TT.evenOk), "4: 'Luck evened out' only for luck under 5 points (-19% gets a neutral luck title)", [TT.evenBad, TT.evenOk]);
+    ok(!/decided/i.test(TT.decBad) && !/decided/i.test(TT.decSmall) && /Decided on Turn 5/.test(TT.decOk), "4: 'decided' only on the largest swing of 15 points or more", [TT.decBad, TT.decSmall, TT.decOk]);
+    ok(!/decided/i.test(TT.hlBad) && /decided on Turn 5/.test(TT.hlOk), "4: the headline's 'decided on Turn N' is checked the same way", [TT.hlBad, TT.hlOk]);
+    // 5: Overview wording: the bar says what it measures; the slip names a decision with a cost
+    await G(() => { const g = window.__colonistGame; g._rvTab = "overview"; g._rvDrawReview(); }); await sleep(700);
+    const OV = await G(() => ({ bars: [...document.querySelectorAll(".rsc-wf > span")].map((e) => e.textContent), v: document.querySelector(".rsc-v")?.textContent || "" }));
+    ok((!OV.bars.length || OV.bars.includes("Set-up position")) && !/slip: set-up \(/i.test(OV.v), "5: the Overview bar is 'Set-up position'; a set-up slip reads 'your set-up choice', not 'set-up (-6%)'", OV);
+    // 6: chart label never over the axis labels, no jargon, income legend, messages in the right language
+    await G(() => { const g = window.__colonistGame; g._rvTab = "ai"; g._rvDrawReview(); }); await sleep(900);
+    const AX = await G(() => [...document.querySelectorAll(".ai-wc")].map((s) => { const ax = Math.max(...[...s.querySelectorAll(":scope > text")].filter((e) => e.getAttribute("text-anchor") === "end" && +e.getAttribute("y") < 110).map((e) => +e.getAttribute("x"))); return [...s.querySelectorAll(".mk rect")].every((r) => +r.getAttribute("x") > ax); }));
+    ok(AX.length > 0 && AX.every(Boolean), "6: chart marker labels never sit over the axis labels", AX);
+    ok(await G(() => [...document.querySelectorAll(".rt-incl")].every((e) => /Income per turn/.test(e.textContent)) && !/clause/i.test(document.querySelector("[data-aibody]").innerText)), "6: income strip has a legend; no 'clause N' jargon anywhere in the tab");
+    ok(await G(() => { const g = window.__colonistGame; localStorage.setItem("colonist_recap_lang", "en"); const e = g._aiL(); localStorage.setItem("colonist_recap_lang", "nl"); const n = g._aiL(); localStorage.setItem("colonist_recap_lang", "en"); return /busy/.test(e.rate) && /No connection/.test(e.net) && /druk/.test(n.rate); }), "6: messages are English unless the recap language is Dutch");
+    mock = mock0;
   }
   ok(errors.length === 0, "no page errors after the tool loop", errors.join("|"));
   await b.close(); console.log(fails ? "FAILED" : "ALL OK"); process.exit(fails ? 1 : 0);

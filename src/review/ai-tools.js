@@ -189,5 +189,34 @@ export function aiSimResult(plan, outs) {
     return { label: clip(o.label, 80), winPct: pc(p), plusMinusPct: se != null ? Math.max(1, Math.round(se * 100)) : null, futures: n, ...(M.stored.playedWinPct != null ? { vsPlayedPct: pc(p) - M.stored.playedWinPct } : {}), ...(M.tool === "can_still_win" ? { bestLineWinPct: pc(Math.max(...(o.cands || []).map((c) => c.win ?? 0))), bestMove: o.best ? clip(o.best.label, 80) : clip(o.label, 80) } : {}) };
   });
   const games = rows.reduce((s, r) => s + (r.futures || 0), 0);
-  return { tool: M.tool, player: M.player, turn: M.turn, storedPlayedWinPct: M.stored.playedWinPct, results: rows, games, note: "100 futures a move: differences under about 8 points are within noise" };
+  return { tool: M.tool, player: M.player, turn: M.turn, n: M.n, playedLabel: M.stored.playedLabel || null, storedPlayedWinPct: M.stored.playedWinPct, results: rows, games, note: "100 futures a move: differences under about 8 points are within noise" };
 }
+
+// ── v1.77 consistency: the app reads "X instead of Y on turn T" itself, so the answer is about that comparison, from one engine record ──
+const KINDRE = [["city", /\b(?:cit(?:y|ies)|stad|steden)\b/], ["settlement", /\b(?:settlements?|villages?|dorpen|dorp)\b/], ["road", /\b(?:roads?|wegen|weg)\b/], ["ship", /\bships?\b/], ["buy", /\b(?:dev(?:elopment)? cards?|ontwikkelingskaarten?)\b/], ["end", /\b(?:end(?:ed)?(?: my| the)? turn|just end|passed|do nothing|beurt (?:be\u00ebindigd|beëindigd))\b/]];
+const kindIn = (t) => { let b = null; KINDRE.forEach(([k, re]) => { const m = re.exec(t); if (m && (!b || m.index < b.i)) b = { k, i: m.index }; }); return b?.k || null; };
+/** "What if I had built a city instead of a road on turn 12?" -> { turn: 12, x: "city", y: "road" }; null when it is no what-if about a move on a turn. */
+export function aiIntent(q) {
+  const s = String(q ?? "").toLowerCase(), tm = s.match(/\b(?:turn|beurt)\s*(\d+)/); if (!tm || !/\b(?:what if|what would|had i|if i had|would have|wat als|als ik)\b/.test(s)) return null;
+  const parts = s.split(/\b(?:instead of|rather than|in plaats van)\b/), x = kindIn(parts[0].replace(/\b(?:turn|beurt)\s*\d+/g, "")); if (!x) return null;
+  const y = parts[1] ? kindIn(parts[1].replace(/\b(?:turn|beurt)\s*\d+/g, "")) : null;
+  return { turn: +tm[1], x, y };
+}
+export const aiKindOf = (label) => { const l = String(label || ""); return /^city/i.test(l) ? "city" : /^settlement/i.test(l) ? "settlement" : /^road/i.test(l) ? "road" : /^ship/i.test(l) ? "ship" : /^(?:end|pass)/i.test(l) ? "end" : /dev|^buy|card/i.test(l) ? "buy" : null; };
+/** The args of the simulate_moves call that tests an intent on the player's own decision of that turn whose played move is of kind y. */
+export function aiIntentArgs(g, it) {
+  const mine = aiDecList(g).filter((e) => e.seat === g._rvPid && e.turn === it.turn); if (!mine.length) return null;
+  const e = (it.y && mine.find((q) => aiKindOf(q.x.label) === it.y)) || (it.y ? null : [...mine].sort((a, b) => b.gap - a.gap)[0]); if (!e) return null;
+  const mv = it.x === "end" || it.x === "buy" ? { kind: it.x } : { kind: "build", type: it.x };
+  return { player: "You", turn: it.turn, n: e.n, moves: [mv] };
+}
+const WHAT = { en: { city: "a city", settlement: "a settlement", road: "a road", ship: "a ship", buy: "a development card", end: "ending the turn" }, nl: { city: "een stad", settlement: "een dorp", road: "een weg", ship: "een schip", buy: "een ontwikkelingskaart", end: "de beurt beëindigen" } };
+export const aiWhat = (k, lang = "en") => (WHAT[lang] || WHAT.en)[k] || k;
+/** A plain sentence for a move the engine cannot test (never the tool's own wording). */
+export function aiCantMsg(err, it, lang = "en") {
+  const nl = lang === "nl", w = aiWhat(it.x, lang), T = it.turn, e = String(err || ""), short = (e.match(/needs ([^]*?) more than/) || [])[1], nm = (x) => x.replace(/\b(wood|brick|sheep|wheat|ore)\b/g, (r) => (nl ? { wood: "hout", brick: "baksteen", sheep: "wol", wheat: "graan", ore: "erts" }[r] : r));
+  const why = /not affordable/.test(e) ? (nl ? `je had de kaarten niet${short ? ` (tekort: ${nm(short)})` : ""}` : `you didn\u2019t have the cards${short ? ` (short: ${short})` : ""}`) : /no (?:city|settlement|road|ship) spot|spot was among/.test(e) ? (nl ? `er is geen plek of geen dorp om uit te breiden` : `there was no ${it.x} spot (a city needs one of your own settlements)`) : (nl ? "de engine kan die zet daar niet doorrekenen" : "the engine can\u2019t run that move there");
+  return nl ? `De engine kan ${w} in beurt ${T} niet testen: ${why}.` : `The engine can\u2019t test ${w} on turn ${T}: ${why}.`;
+}
+/** The record of a get_decision result a card keeps (small): the one source its numbers come from. */
+export const aiSlimDecision = (r) => (r && !r.error ? { player: r.player, turn: r.turn, n: r.n, kind: r.kind, played: r.played, playedWinPct: r.playedWinPct, better: r.better, costPct: r.costPct, rating: r.rating, evaluated: (r.evaluated || []).slice(0, 4) } : null);

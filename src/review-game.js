@@ -432,7 +432,7 @@ export const ReviewGameMixin = {
     if (W.moves == null) return `Set-up ${sg(W.start)}, luck ${sg(W.luck)}. ${you ? "Your" : "Their"} moves are still being checked.`;
     if (bad[1] > -0.04) return `No big weakness of ${you ? "your" : "their"} own: the others pulled ahead.`;
     const dice = bad[0] !== "luck" ? ` Not luck (${sg(W.luck)}).` : "";
-    const slip = worst && bad[0].includes("moves") ? ` Biggest slip: ${esc(this._rvWhen(worst).replace("Setup", "set-up"))} (${sgn(-worst.gp)}%).` : "";
+    const wh = worst ? this._rvWhen(worst) : "", slip = worst && bad[0].includes("moves") ? ` Biggest slip: ${/^Setup/.test(wh) ? "your set-up choice" : esc(wh)} (${sgn(-worst.gp)}% vs the best option).` : ""; // a slip is a decision with a cost; the "Set-up position" bar is where the start left you, a different number
     return `${bad[0].charAt(0).toUpperCase() + bad[0].slice(1)} cost ${pc(bad[1])}.${dice}${slip}`;
   },
   /** "Why won / lost": four bars from the start (everyone had the same chance) to the result, one sentence and a note (or a line saying why not yet). */
@@ -443,9 +443,9 @@ export const ReviewGameMixin = {
     if (W) {
       const big = W.moves != null && Math.abs(W.others) >= 0.2;
       return `<div class="rsc-wy"><b>${W.end === 1 ? "Why won" : "Why lost"}</b><small>win chance ${Math.round(W.even * 100)}% → ${Math.round(W.end * 100)}%</small></div>
-        <div class="rsc-wf">${row("Set-up", W.start)}${row("Luck", W.luck)}${row(you ? "Your moves" : "Own moves", W.moves)}${row(W.moves == null ? "Moves + others" : "The others", W.others)}</div>
+        <div class="rsc-wf">${row("Set-up position", W.start)}${row("Luck", W.luck)}${row(you ? "Your moves" : "Own moves", W.moves)}${row(W.moves == null ? "Moves + others" : "The others", W.others)}</div>
         <p class="rsc-v">${this._rvWhyVerdict(pid, W, wd)}</p>
-        <p class="rsc-n">Luck = dice, steals, card draws and seat order${Math.round(W.seat * 100) ? ` (seat order ${wpText(W.seat)})` : ""}: the same number as in the table. Set-up = your starting spots. ${W.moves == null ? "" : `The others = what their luck and moves did${big ? ", and what the estimates cannot tell apart. It is large here, so read it as a rough share" : ""}.`}</p>`;
+        <p class="rsc-n">Luck = dice, steals, card draws and seat order${Math.round(W.seat * 100) ? ` (seat order ${wpText(W.seat)})` : ""}: the same number as in the table. Set-up position = how your starting spots stood (not the choice you made there). ${W.moves == null ? "" : `The others = what their luck and moves did${big ? ", and what the estimates cannot tell apart. It is large here, so read it as a rough share" : ""}.`}</p>`;
     }
     if (LK.na) return "";
     if (LK.done) return `<p class="rsc-n">No reasons available for this game.</p>`;
