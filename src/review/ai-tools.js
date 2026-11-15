@@ -101,8 +101,11 @@ export function aiToolRun(g, name, a = {}) {
       const out = { player: nameOf(g, e.seat), turn: e.turn, n: e.n, decisionsThatTurn: r.of, kind: x.k, played: clip(x.label, 80), playedWinPct: pc(base), ...(x.best ? vcFields(x, 80) : { better: null }), costPct: Math.round(e.gap * 1000) / 10, rating: e.d.cls || null, ...vcMeta(x), wording: x.best ? VC_WORDS[vcOf(x)] || null : null, evaluated: cands };
       if (x.aim) out.aims = JSON.parse(JSON.stringify(x.aim, (k, v) => (typeof v === "number" ? Math.round(v * 100) / 100 : v))); // where the points of the better (A) and played (B) futures come from
       if (x.simple) out.simpleChoice = x.simple;
+      // v1.82 the WHY from the engine's own paired futures (computed lazily by the app, saved with the decision): the model bases its why on these
+      if (x.rsn) { out.reasons = (x.rsn.reasons || []).map((r) => ({ feature: r.feature, a: r.a, b: r.b, diff: r.diff, se: r.se, unit: r.unit, text: r.text })); out.reasonsNote = x.rsn.reasons?.length ? "Base the WHY on reasons (the engine\u2019s own paired futures: A = the better move, B = the played one; text is the app\u2019s sentence). Name the 1-2 strongest in words, no digits: the app shows the numbers. Use spots only as a rule of thumb." : "The engine\u2019s futures show no single clear reason: say the advantage is spread out; do not invent one from the rule-of-thumb table."; }
       const sp = tryv(() => { const mv = decMoves(e); return mv ? spotsForModel(spotTable(g, e, "en", ["best", "played"], (rf) => moveOf(mv, rf))) : null; }); // v1.80 the WHY of a spot decision: factors read from the position
       if (sp) { out.spots = sp; out.spotsNote = "Explain the WHY from spots.factors (favours = the option that wins that factor) and appSummary: name the 2 decisive factors; use only these numbers. Pair = with the settlement you actually placed (for a first set-up pick that is the 2nd, chosen after the first: hindsight). The table is a rule-of-thumb read; the win chances come from the engine\u2019s futures: if no factor favours the better spot, say the table does not explain the gap."; }
+      if (JSON.stringify(out).length > 6200 && out.reasons) delete out.spots;
       if (JSON.stringify(out).length > 6200) delete out.aims;
       if (JSON.stringify(out).length > 6200) delete out.evaluated;
       return out;

@@ -56,7 +56,9 @@ export function momentFacts(g, d, { tpTurn = null, max = MOMENT_MAX } = {}) {
     A_better: noA ? "none: B was the best move" : { move: momentLabel(x.best?.label), winChancePct: d.A, aimsAt: aimTxt(x.aim?.A),
       usuallyNext: x.aim?.A?.nx ? `${x.aim.A.nx[0]} within 2 turns (${x.aim.A.nx[1]} of ${x.aim.A.nx[2]} futures)` : null },
     rating: d.cls, winChanceLostPoints: d.gap != null ? Math.round(d.gap * 1000) / 10 : null,
-    likelyReason: x.why?.head || x.why?.plan ? clip(x.why.head || x.why.plan, 160) : null,
+    // v1.82 the WHY from the engine's own paired futures (x.rsn, src/review/why-mc.js): when present it replaces the heuristic reading
+    reasons: x.rsn ? (x.rsn.reasons?.length ? x.rsn.reasons.map((r) => ({ feature: r.feature, text: clip(r.text, 140) })) : "no single clear reason: the advantage is spread out") : null,
+    likelyReason: !x.rsn && (x.why?.head || x.why?.plan) ? clip(x.why.head || x.why.plan, 160) : null,
     simpleChoice: x.simple ? (x.simple.is === "A" ? "A, the better move" : x.simple.is === "B" ? "B, what was played" : clip(x.simple.label, 80)) : null,
   };
   if (tpTurn != null) {

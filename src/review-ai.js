@@ -30,8 +30,8 @@ const T = {
 const GOODT = /\b(paid off|worked|rewarded|best|great|strong|brilliant|perfect|smart|excellent|beste|geweldig|sterk|perfecte|slim|uitstekend)\b/i;
 const TPOS = /\b(stayed close|stays close|kept (?:you|him|her|them|\w+) alive|good|helped|helps|comeback|rescued|saved)\b/i;
 const TNEG = /\b(missed|misses|miss|wrong|mistakes?|blunders?|worst|bad|costly|errors?|poor|behind|fout|fouten|gemist|slecht|verkeerd)\b/i;
-const CHAT = { en: { vcw: { lean: "slightly better", close: "other option" }, same: "Same view as the card above", clear: "Clear chat", pend: "Thinking…", cancel: "Cancel", review: "from your review · instant", checked: "checked by engine", eng: (n) => `engine · ${n} games`, simN: (n) => `Engine is simulating ${n} move${n === 1 ? "" : "s"} · 100 games each`, asPlayed: "As played", noise: "within noise", vs: "vs played", ratedBest: "Rated best (\u00b10): no better move found.", wouldHave: "would have given", inst: "Instead of", within: "Within noise: no clear difference.", played: "played", better: "was better", cost: "cost", wc: "win chance", asp: "as played" },
-  nl: { vcw: { lean: "iets beter", close: "andere optie" }, same: "Zelfde beeld als de kaart hierboven", clear: "Chat wissen", pend: "Aan het denken…", cancel: "Annuleer", review: "uit je review · direct", checked: "gecontroleerd door engine", eng: (n) => `engine · ${n} spellen`, simN: (n) => `Engine simuleert ${n} ${n === 1 ? "zet" : "zetten"} · elk 100 spellen`, asPlayed: "Zoals gespeeld", noise: "binnen de ruis", vs: "t.o.v. gespeeld", ratedBest: "Beoordeeld als beste (\u00b10): geen betere zet gevonden.", wouldHave: "had gegeven", inst: "In plaats van", within: "Binnen de ruis: geen duidelijk verschil.", played: "speelde", better: "was beter", cost: "kostte", wc: "winkans", asp: "zoals gespeeld" } };
+const CHAT = { en: { rsnT: "Why A is better", rsnN: "No single clear reason; the advantage is spread out.", rsnF: "Rule-of-thumb factors", rsnW: "Working out why…", rsnS: "from the engine\u2019s futures", vcw: { lean: "slightly better", close: "other option" }, same: "Same view as the card above", clear: "Clear chat", pend: "Thinking…", cancel: "Cancel", review: "from your review · instant", checked: "checked by engine", eng: (n) => `engine · ${n} games`, simN: (n) => `Engine is simulating ${n} move${n === 1 ? "" : "s"} · 100 games each`, asPlayed: "As played", noise: "within noise", vs: "vs played", ratedBest: "Rated best (\u00b10): no better move found.", wouldHave: "would have given", inst: "Instead of", within: "Within noise: no clear difference.", played: "played", better: "was better", cost: "cost", wc: "win chance", asp: "as played" },
+  nl: { rsnT: "Waarom A beter is", rsnN: "Geen enkele duidelijke reden; het voordeel is verspreid.", rsnF: "Vuistregel-factoren", rsnW: "Uitzoeken waarom…", rsnS: "uit de toekomsten van de engine", vcw: { lean: "iets beter", close: "andere optie" }, same: "Zelfde beeld als de kaart hierboven", clear: "Chat wissen", pend: "Aan het denken…", cancel: "Annuleer", review: "uit je review · direct", checked: "gecontroleerd door engine", eng: (n) => `engine · ${n} spellen`, simN: (n) => `Engine simuleert ${n} ${n === 1 ? "zet" : "zetten"} · elk 100 spellen`, asPlayed: "Zoals gespeeld", noise: "binnen de ruis", vs: "t.o.v. gespeeld", ratedBest: "Beoordeeld als beste (\u00b10): geen betere zet gevonden.", wouldHave: "had gegeven", inst: "In plaats van", within: "Binnen de ruis: geen duidelijk verschil.", played: "speelde", better: "was beter", cost: "kostte", wc: "winkans", asp: "zoals gespeeld" } };
 const CF = /\b(?:would have|would\u2019ve|would've|could have|had you|if you had|if (?:he|she|they) had|zou(?:den)? [^.]*hebben|als je [^.]*had)\b/i;
 const evNums = (res) => { const A = new Set(), w = []; const walk = (v, k) => { if (typeof v === "number" && isFinite(v) && Math.abs(v) <= 100) { A.add(Math.round(Math.abs(v))); if (/win/i.test(k || "") && !/vs|plusMinus/i.test(k || "")) w.push(v); } else if (Array.isArray(v)) v.forEach((x) => walk(x, k)); else if (v && typeof v === "object") Object.entries(v).forEach(([kk, x]) => walk(x, kk)); }; walk(res, ""); w.forEach((a) => w.forEach((b) => A.add(Math.round(Math.abs(a - b))))); return [...A]; };
 const posW = (t) => GOODT.test(t) || POS.test(t) || TPOS.test(t), negW = (t) => NEG.test(t) || TNEG.test(t);
@@ -632,6 +632,7 @@ export const ReviewAiMixin = {
       case "route": return wrap(strip(this._aiVPlan({ seats: [], rows: b.seats, route: true, clauses: [], turns: [], level: "game" }, C)), "ai-plan all");
       case "timeline": return wrap(this._aiVTimeline(b, C));
       case "spots": return wrap(this._aiVSpots(b, C));
+      case "reasons": return wrap(this._aiVReasons(b, C), "bk-rsn-w");
       case "compare": return wrap(this._aiVCompare(b, C, !!card.chg?.some((c) => c.move)));
       case "board": {
         this._aiBkSpec ||= new Map(); this._aiBkSpec.set(bkey, b);
@@ -659,10 +660,25 @@ export const ReviewAiMixin = {
     return `<div class="ai-sm rec" data-aisimv>${rows}<div class="ai-ax" aria-hidden="true"><span class="tk"><i>0%</i><i>${hi / 2}%</i><i>${hi}%</i></span><span></span></div>${cost}</div>`;
   },
   // v1.80 the factor table of a set-up / settlement / city decision (src/review/ai-spots.js): one row per factor, the winning cell lit
+  /** v1.82 the reasons from the engine's own futures: icon, plain sentence, A vs B values with the small +-se. The numbers come from the stored run, never from the model. */
+  _aiVReasons(b, C) {
+    const T = CHAT[C.lang] || CHAT.en;
+    const IC = { settlement: "\u2302", city: "\u25A3", road: "\u2550", knight: "\u2694", dev: "\u2726", robber: "\u2689", trade: "\u21C4", port: "\u2693", star: "\u2605", cards: "\u25A4" };
+    const ICON = { s3: "settlement", s4: "settlement", c1: "city", c2: "city", lr: "road", lrT: "road", la: "knight", laT: "knight", dev: "dev", lost: "robber", bank: "trade", port: "port", vp15: "star", vp20: "star", got10: "cards" };
+    const v = (x, u) => (u === "%" ? `${Math.round(x)}%` : u === "turn" ? `${Math.round(x)}` : `${Math.round(x * 10) / 10}`);
+    const unit = (u) => (u === "turn" ? (C.lang === "nl" ? "beurt" : "turn") : u === "%" ? "" : u === "points" ? (C.lang === "nl" ? "punten" : "pts") : u === "trades" ? (C.lang === "nl" ? "ruilen" : "trades") : (C.lang === "nl" ? "kaarten" : "cards"));
+    const rows = b.none ? `<div class="rs-r none"><span class="rs-t">${esc(T.rsnN)}</span></div>` : b.rows.map((r) => {
+      const ic = IC[ICON[r.feature] || (String(r.feature).startsWith("r_") ? "cards" : "star")] || "\u2022";
+      const txt = String(r.text || "").replace(/\s*\([^)]*\)(?=\.$)/, "");
+      return `<div class="rs-r"><i aria-hidden="true">${ic}</i><span class="rs-t">${esc(txt)}</span><span class="rs-v"><s class="rg a">A</s><b>${v(r.a, r.unit)}</b><s class="rg b">B</s><b>${v(r.b, r.unit)}</b>${r.se ? `<small>\u00b1${v(r.se, r.unit)}</small>` : ""}<em>${esc(unit(r.unit))}</em></span></div>`;
+    }).join("");
+    return `<div class="ai-rsn"><div class="rs-h"><b>${esc(T.rsnT)}</b><small>${esc(T.rsnS)}</small></div>${rows}</div>`;
+  },
   _aiVSpots(b, C) {
     const n = b.opts.length, hd = b.opts.map((o) => `<div class="sp-h"><s class="rg ${o.letter === "A" ? "a" : o.letter === "B" ? "b" : "n"}">${o.letter}</s>${o.win != null ? `<b>${o.win}%</b>` : ""}</div>`).join("");
     const rows = b.rows.map((r) => `<div class="sp-l">${esc(r.label)}</div>${r.cells.map((c, i) => `<div class="sp-c${r.win === i ? " win" : ""}">${esc(c ?? "\u2014")}</div>`).join("")}`).join("");
-    return `<div class="ai-sp" style="--n:${n}"><div class="sp-h0"></div>${hd}${rows}</div>${b.summary ? `<div class="sp-sum">${esc(b.summary)}</div>` : ""}${b.rule ? `<div class="sp-rule">${esc(b.rule)}</div>` : ""}`;
+    const tbl = `<div class="ai-sp" style="--n:${n}"><div class="sp-h0"></div>${hd}${rows}</div>${b.summary ? `<div class="sp-sum">${esc(b.summary)}</div>` : ""}${b.rule ? `<div class="sp-rule">${esc(b.rule)}</div>` : ""}`;
+    return b.fold ? `<details class="ai-fold"><summary>${esc((CHAT[C.lang] || CHAT.en).rsnF)}</summary>${tbl}</details>` : tbl; // v1.82 with reasons above it, the table is the collapsed rule of thumb
   },
   _aiBkLegend(b, C) {
     const T = CHAT[C.lang] || CHAT.en, cut = (s) => esc(String(s || "").length > 26 ? `${String(s).slice(0, 25)}…` : s || "");
@@ -868,7 +884,7 @@ export const ReviewAiMixin = {
     const chips = []; src.forEach((q0) => { const q = /\d/.test(q0) ? this._aiGuard(String(q0), { maxT: this.turn || 99 }) : q0; if (!q || q !== q0) return; const c = aiChip(q, recapLang()); if (c && !asked.has(qkey(q)) && !chips.some((x) => x.c === c)) chips.push({ c, q: String(q).slice(0, 300) }); });
     if (S && !chips.length) { const lg = recapLang(), fb = FALLBACK[lg] || FALLBACK.en, fq = FALLQ[lg] || FALLQ.en; fb.forEach((c, i) => { if (!asked.has(qkey(fq[i]))) chips.push({ c, q: fq[i] }); }); }
     const busy = this._aiUi?.loading === "ask";
-    const pend = busy ? `<div class="ai-pend" role="status" aria-busy="true"><i class="ai-spin"></i><b>${esc(this._aiUi?.q || "")}</b><span>${esc((CHAT[recapLang()] || CHAT.en).pend)}</span></div>` : "";
+    const pend = busy ? `<div class="ai-pend" role="status" aria-busy="true"><i class="ai-spin"></i><b>${esc(this._aiUi?.q || "")}</b><span>${esc((CHAT[recapLang()] || CHAT.en)[this._rsnWorking ? "rsnW" : "pend"])}</span></div>` : "";
     return `<form class="ai-ask" data-aiform>${pend}${chips.length && S ? `<div class="ai-chips">${chips.slice(0, 3).map((x) => `<button type="button" class="ai-q" data-aiq="${esc(x.q)}"${busy ? " disabled" : ""}>${esc(x.c)}</button>`).join("")}</div>` : ""}
       <div class="ai-in"><input type="text" maxlength="300" enterkeyhint="send" autocomplete="off" placeholder="${esc(L.ph)}" aria-label="${esc(L.ph)}" data-aiin${!S ? " disabled" : ""}><button type="submit" class="rv-btn pri"${busy || !S ? " disabled" : ""}>${L.ask}</button></div></form>`;
   },
@@ -993,7 +1009,7 @@ export const ReviewAiMixin = {
         const t2 = TIER2.has(q.name); let res;
         if (calls >= CAPS.calls) res = { error: "tool budget used up" };
         else if (t2 && sims >= simCap) res = { error: "engine budget used up" };
-        else { calls += 1; if (t2) sims += 1; res = q.name === REFINE_TOOL ? await this._rfTool(q.args || {}).then(async (o) => (o?.error || o?.note ? o : { ...o, decision: aiToolRun(this, "get_decision", q.args || {}) })) : t2 ? await this._aiSimTool(q) : aiToolRun(this, q.name, q.args || {}); }
+        else { calls += 1; if (t2) sims += 1; if (q.name === "get_decision") await this._rsnTool(q.args || {}); res = q.name === REFINE_TOOL ? await this._rfTool(q.args || {}).then(async (o) => { if (o?.error || o?.note) return o; await this._rsnTool(q.args || {}); return { ...o, decision: aiToolRun(this, "get_decision", q.args || {}) }; }) : t2 ? await this._aiSimTool(q) : aiToolRun(this, q.name, q.args || {}); }
         if (this._rv !== R) return { err: "gone" };
         if (res?.cancelled) { if (mode === "game") return { err: "cancel" }; res = { error: "cancelled by the user: do not state any what-if" }; }
         trace.push({ id: q.id, name: q.name, args: q.args, res, t: t2 ? 2 : 1 });
@@ -1080,7 +1096,7 @@ export const ReviewAiMixin = {
       }
     } else if (/\b(?:my|mijn)\b/i.test(q) && /\b(?:turn|beurt)[- ]?(\d+)/i.test(q) && /bad|good|mistake|best|worst|wrong|move|robber|rover|build|road|city|settlement|trade|fout|slecht|goed|zet/i.test(q) && !r.trace.some((t) => t.name === "get_decision" && t.res && !t.res.error)) {
       const T0 = +q.match(/\b(?:turn|beurt)[- ]?(\d+)/i)[1], mine = aiDecList(this).filter((e) => e.seat === this._rvPid && e.turn === T0), rb = /robber|rover/i.test(q) ? mine.find((e) => e.x.k === "robber") : null, e0 = rb || [...mine].sort((a, b) => b.gap - a.gap)[0];
-      if (e0) { const res = aiToolRun(this, "get_decision", { player: "You", turn: T0, n: e0.n }); if (!res.error) { r.trace.push({ id: "app2", name: "get_decision", args: { player: "You", turn: T0, n: e0.n }, res, t: 1 }); ids.push("app2"); } }
+      if (e0) { await this._rsnTool({ player: "You", turn: T0, n: e0.n }); const res = aiToolRun(this, "get_decision", { player: "You", turn: T0, n: e0.n }); if (!res.error) { r.trace.push({ id: "app2", name: "get_decision", args: { player: "You", turn: T0, n: e0.n }, res, t: 1 }); ids.push("app2"); } }
     }
     x.evidence = ids;
     const at = Date.now(); this._aiOpen = at;
