@@ -10,7 +10,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   const ex = JSON.parse(fs.readFileSync(file, "utf8"));
   let calls = [], mock = null;
   page.on("request", (r) => { if (/api\/recap/.test(r.url()) && r.method() === "POST") calls.push(JSON.parse(r.postData())); });
-  if (!real) await page.route(/api\/recap/, (r) => { if (r.request().method() === "OPTIONS") return r.fulfill({ status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "*" } });
+  let DELAY = 0; if (!real) await page.route(/api\/recap/, async (r) => { if (DELAY) await sleep(DELAY); if (r.request().method() === "OPTIONS") return r.fulfill({ status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "*" } });
     const body = JSON.parse(r.request().postData()); const m = mock(body);
     return r.fulfill({ status: m.status || 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(m.body) }); });
   await G(async (ex) => { const g = window.__colonistGame; const { meta, format, v, ...rec } = ex; await g.hist.put({ ...meta, id: meta.id }, rec, { quiet: true }); }, ex);
@@ -214,8 +214,8 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   const first = await G(() => document.querySelector(".ai-q")?.dataset.aiq);
   await page.locator(".ai-q").first().tap(); await page.waitForSelector("[data-aic=a0]", { timeout: 15000 }); await sleep(2000);
   ok(calls.length === 2 && calls[1].mode === "game" && calls[1].question === first, "chip sent a game question", [calls.length, calls[1]?.mode]);
-  const A = await G(() => { const a = document.querySelector("[data-aic=a0]"), r = a.getBoundingClientRect(), f = document.querySelector("[data-aic=c0]").getBoundingClientRect(); return { top: r.top < f.top, wc: !!a.querySelector(".ai-wc"), pts: a.querySelectorAll(".ai-pts > span").length, h: a.querySelector(".ai-tx").getBoundingClientRect().height, lh: parseFloat(getComputedStyle(a.querySelector(".ai-tx")).lineHeight), more: !!a.querySelector(".ai-tx [data-aimore]"), pin: !!a.querySelector("[data-aipin]"), why: !!a.querySelector("[data-aiwhy]") }; });
-  ok(A.top && A.wc && A.pts === 2 && A.h <= A.lh * 3 + 3 && A.pin, "answer card on top, own visual, 2-line text, points chips, pin", A);
+  const A = await G(() => { const a = document.querySelector("[data-aic=a0]"), r = a.getBoundingClientRect(), f = document.querySelector("[data-aic=c0]").getBoundingClientRect(); return { top: r.top > f.top, wc: !!a.querySelector(".ai-wc"), pts: a.querySelectorAll(".ai-pts > span").length, h: a.querySelector(".ai-tx").getBoundingClientRect().height, lh: parseFloat(getComputedStyle(a.querySelector(".ai-tx")).lineHeight), more: !!a.querySelector(".ai-tx [data-aimore]"), pin: !!a.querySelector("[data-aipin]"), why: !!a.querySelector("[data-aiwhy]") }; });
+  ok(A.top && A.wc && A.pts === 2 && A.h <= A.lh * 3 + 3 && A.pin, "answer card below the insight cards (chat), own visual, 2-line text, points chips, pin", A);
   ok(A.more, "answer text longer than 2 lines is expandable");
   await page.locator("[data-aic=a0] [data-aimore]").tap(); await sleep(300);
   ok(await G(() => document.querySelector("[data-aic=a0] .ai-tx").getBoundingClientRect().height > 40 && /less$/.test(document.querySelector("[data-aic=a0] .ai-tx").innerText.trim()) && !/…/.test(document.querySelector("[data-aic=a0] .ai-tx").innerText)), "more shows the whole text");
@@ -227,9 +227,29 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   await page.locator("[data-aic=a0] [data-aipin]").tap(); await sleep(300);
   await page.fill("[data-aiin]", "Another question?"); await page.locator(".ai-in .rv-btn").tap(); await sleep(1500);
   ok(calls.length === 3 && await G(() => document.querySelectorAll("[data-aic^=a]").length) === 2, "second question adds a card", calls.length);
+  // v1.74 chat: collapse, repeated question, pending card, dedupe link, chip refresh, clear chat
+  { const C1 = await G(() => ({ a1col: !!document.querySelector("[data-aic=a1] .ai-colb"), a0open: !!document.querySelector("[data-aic=a0] .ai-tx"), open: document.querySelectorAll("[data-aic^=a] .ai-tx").length }));
+    ok(C1.a1col && C1.a0open && C1.open === 1, "chat: newest answer open, the earlier one collapsed to one line", C1);
+    await page.locator("[data-aic=a1] .ai-colb").tap(); await sleep(500);
+    const C2 = await G(() => ({ a1: !!document.querySelector("[data-aic=a1] .ai-tx"), a0col: !!document.querySelector("[data-aic=a0] .ai-colb"), open: document.querySelectorAll("[data-aic^=a] .ai-tx").length }));
+    ok(C2.a1 && C2.a0col && C2.open === 1 && calls.length === 3, "chat: tapping a collapsed answer opens it and closes the other (max 1 open), no call", C2);
+    await page.fill("[data-aiin]", "Another question?"); await page.locator(".ai-in .rv-btn").tap(); await sleep(900);
+    ok(calls.length === 3 && await G(() => !!document.querySelector("[data-aic=a0] .ai-tx")), "chat: repeated question scrolls to / opens the existing answer, no new call", calls.length);
+    const m0 = mock; mock = (b) => b.mode === "game" && b.question === "Dedupe?" ? { body: { explain: { answer: "Same chart again.", view: "winchance", turns: [F.alt.t, F.alt.t + 1], focusTurn: F.alt.t, players: [meN], followUps: ["Why so?", "What came next?"] } } } : m0(b);
+    DELAY = 1800; await page.fill("[data-aiin]", "Dedupe?"); await page.locator(".ai-in .rv-btn").tap(); await sleep(500);
+    const P = await G(() => { const sc = document.querySelector(".rv-scroll"), p = document.querySelector(".ai-ask .ai-pend"), a = document.querySelector(".ai-ask"); return { pend: !!p && /Dedupe\?/.test(p.textContent), above: !!p && !!a && p.getBoundingClientRect().bottom <= a.querySelector(".ai-in").getBoundingClientRect().top + 1, atBottom: sc.scrollHeight - sc.scrollTop - sc.clientHeight < 80, focus: document.activeElement?.matches?.("[data-aiin]") }; });
+    ok(P.pend && P.above && P.atBottom && P.focus, "chat: pending card right above the ask bar, scrolled to the end, ask field keeps focus", P);
+    await sleep(2500); DELAY = 0;
+    const D = await G(() => { const a = document.querySelector("[data-aic=a0]"), ref = a?.querySelector("[data-airef]"); return { calls: 0, pendGone: !document.querySelector(".ai-pend"), noWc: !!a && !a.querySelector(".ai-wc"), ref: ref?.dataset.airef, exists: ref ? !!document.querySelector(`[data-aic="${ref.dataset.airef}"]`) : false, chips: [...document.querySelectorAll(".ai-q")].map((e) => e.dataset.aiq), labels: [...document.querySelectorAll(".ai-q")].map((e) => e.textContent) }; });
+    ok(calls.length === 4 && D.pendGone && D.noWc && D.ref && D.exists, "chat: answer with the same visual as a card shows a link, not the chart again", D);
+    ok(D.chips.length && D.labels.every((q) => q.length <= 24) && !D.chips.includes("Dedupe?") && !D.chips.includes(first) && D.chips.some((q) => /Why so|What came/.test(q)), "chat: chips refresh from the last answer, asked ones removed, <=24 chars", D.chips);
+    await page.locator("[data-aic=a0] [data-airef]").tap(); await sleep(400);
+    ok(calls.length === 4 && await G(() => !!document.querySelector(".ai-c.flash, .ai-vz.flash")), "chat: the link highlights the card, no call");
+    await page.locator("[data-aiclear]").tap(); await sleep(400);
+    ok(await G(() => document.querySelectorAll("[data-aic^=a]").length) === 1 && await G(() => !!document.querySelector("[data-aic^=a] .ai-pin.on")), "chat: Clear chat removes unpinned answers, keeps the pinned one"); mock = m0; }
   await G(() => { document.querySelector(".rv-scroll").scrollTop = 99999; });
   await page.locator("[data-airun]").tap(); await sleep(2500);
-  ok(calls.length === 4 && calls[3].mode === "insights", "Regenerate asks again", calls.length);
+  ok(calls.length === 5 && calls[4].mode === "insights", "Regenerate asks again", calls.length);
   const kept = await G(() => [...document.querySelectorAll("[data-aic^=a] .ai-lv")].map((e) => e.textContent));
   ok(kept.length === 1 && kept[0].startsWith(first.slice(0, 20)), "only the pinned answer survives Regenerate", kept);
   // cache: leave and reopen the review: no new call
@@ -300,5 +320,32 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   console.log(JSON.stringify(R5));
   ok(R5.length > 0 && R5.every(([, bad]) => !bad), "5: A/B rings and their labels do not cover a number token", R5);
   ok(errors.length === 0, "no page errors", errors.join("|"));
+  // v1.74: chart line colours = player colours; subject/number; verb vs pair; one resource tag style
+  await page.evaluate(() => localStorage.setItem("colonist_recap_lang", "en")); await G(() => window.__colonistGame._rvDrawReview()); await sleep(600);
+  await page.locator("[data-rvt=ai]").tap().catch(() => {}); await sleep(2500);
+  const V = await G(async () => {
+    const g = window.__colonistGame, C = g._aiCtx(), cs = (el, p) => getComputedStyle(el)[p];
+    const lines = [...document.querySelectorAll(".ai-wc path[class^=pc-]")].map((p) => ({ seat: +p.getAttribute("class").slice(3), stroke: cs(p, "stroke") }));
+    const dots = {}; lines.forEach((l) => { const d = document.createElement("i"); d.className = "ai-dot pc-" + l.seat; document.querySelector(".ai").appendChild(d); dots[l.seat] = cs(d, "backgroundColor"); d.remove(); });
+    const { aiSeries, wcChange } = await import("./src/review/ai-facts.js"); const ser = aiSeries(g);
+    let T = null, a = null, b = null; for (let t = 3; t <= g.turn && T == null; t++) for (let x = 0; x < g.players.length; x++) for (let y = 0; y < g.players.length; y++) { if (x === y) continue; const cx = wcChange(ser, x, t, t), cy = wcChange(ser, y, t, t); if (cx && cy && cx.d < -2 && cy.d > 2 && T == null) { T = t; a = x; b = y; } }
+    const nm = (q) => C.nmRaw(q), out = { T, a, b };
+    if (T != null) {
+      const card = { src: "", view: "winchance", turns: [T], focus: T, chg: [{ seat: b, d: wcChange(ser, b, T, T).d, from: wcChange(ser, b, T, T).from, to: wcChange(ser, b, T, T).to }], fix: [] };
+      const ca = wcChange(ser, a, T, T), cb = wcChange(ser, b, T, T);
+      card.src = `${nm(b)} drew a point card on turn ${T}, and ${nm(a)} dropped from ${cb.from}% to ${cb.to}%.`; out.t1 = g._aiTrust(card, C); out.ca = ca; out.cb = cb;
+      card.fix = []; card.src = `${nm(a)} dropped from ${ca.to}% to ${ca.from}% on turn ${T}.`; out.t2 = g._aiTrust(card, C);
+      card.fix = []; card.src = `On turn ${T} ${nm(b)} rose from ${cb.to}% to ${cb.from}%.`; out.t3 = g._aiTrust(card, C);
+    }
+    const tags = ["Ore 6", "Grain 9", "Wood 4", "Brick 8", "Sheep 5"].map((x) => { const h = document.createElement("div"); h.innerHTML = g._aiFmt(x, C, null); document.body.appendChild(h); const e = h.querySelector(".ai-r"); const r = e && { fs: cs(e, "fontSize"), fw: cs(e, "fontWeight"), pad: cs(e, "padding"), br: cs(e, "borderRadius"), sh: cs(e, "boxShadow").replace(/(?:rgba?|color)\([^)]*\)/g, "C"), bg: cs(e, "backgroundColor"), col: cs(e, "color") }; h.remove(); return r; });
+    return { lines, dots, out, tags };
+  });
+  ok(V.lines.length >= 2 && V.lines.every((l) => l.stroke === V.dots[l.seat]), "chart line strokes equal the legend player colours", [V.lines, V.dots]);
+  if (V.out.T != null) {
+    ok(!/dropped from \d+% to \d+%/.test(V.out.t1 || "") || new RegExp(`dropped from ${V.out.ca.from}% to ${V.out.ca.to}%`).test(V.out.t1), "subject: numbers of the player named before them", V.out.t1);
+    ok(!/dropped/.test(V.out.t2 || "") || new RegExp(`from ${V.out.ca.from}% to ${V.out.ca.to}%`).test(V.out.t2), "dropped with a rising pair is never shown", V.out.t2);
+    ok(!/rose/.test(V.out.t3 || "") || new RegExp(`from ${V.out.cb.from}% to ${V.out.cb.to}%`).test(V.out.t3), "rose with a falling pair is never shown", V.out.t3);
+  } else ok(true, "subject case: no opposing pair in this export (skipped)");
+  ok(V.tags.every((t) => t && JSON.stringify({ ...t, bg: 0, col: 0 }) === JSON.stringify({ ...V.tags[0], bg: 0, col: 0 })) && new Set(V.tags.map((t) => t.col)).size === V.tags.length, "one resource tag style, own colour each", V.tags[0]);
   await b.close(); console.log(fails ? "FAILED" : "ALL OK"); process.exit(fails ? 1 : 0);
 })();

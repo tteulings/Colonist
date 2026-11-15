@@ -29,8 +29,8 @@
 .ai-c.up, .ai-c.dn, .ai-c.opp { font-weight: 800; font-variant-numeric: tabular-nums; } b.ai-c { display: inline; padding: 0; background: none; box-shadow: none; border: 0; border-radius: 0; }
 b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { color: var(--pc-text, var(--pc)); }
 .ai-r { display: inline-block; padding: 0 6px; border-radius: 6px; font: 750 11px/1.5 var(--font-body); color: var(--rc); background: color-mix(in srgb, var(--rc) 15%, transparent); }
-.ai-r.r-ore { --rc: #596577; } .ai-r.r-wheat { --rc: #967A12; } .ai-r.r-sheep { --rc: #3F8C23; } .ai-r.r-wood { --rc: #4B7A2C; } .ai-r.r-brick { --rc: #B2552A; }
-[data-palette="night"] .ai-r.r-ore { --rc: #AAB5C6; } [data-palette="night"] .ai-r.r-wheat { --rc: #E2C65C; } [data-palette="night"] .ai-r.r-sheep { --rc: #8ED35E; } [data-palette="night"] .ai-r.r-wood { --rc: #8DBE62; } [data-palette="night"] .ai-r.r-brick { --rc: #E88A5C; }
+.ai-r.r-ore { --rc: #4A6D99; } .ai-r.r-wheat { --rc: #967A12; } .ai-r.r-sheep { --rc: #3F8C23; } .ai-r.r-wood { --rc: #4B7A2C; } .ai-r.r-brick { --rc: #B2552A; }
+[data-palette="night"] .ai-r.r-ore { --rc: #9DB9E3; } [data-palette="night"] .ai-r.r-wheat { --rc: #E2C65C; } [data-palette="night"] .ai-r.r-sheep { --rc: #8ED35E; } [data-palette="night"] .ai-r.r-wood { --rc: #8DBE62; } [data-palette="night"] .ai-r.r-brick { --rc: #E88A5C; }
 .ai-pts { display: flex; flex-wrap: wrap; gap: 4px; } .ai-pts > span { font: 600 11.5px/1.3 var(--font-body); padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
 .ai-ac { display: flex; gap: 14px; margin-top: 1px; } .ai-a { border: 0; background: none; padding: 5px 0; min-height: 28px; font: 750 12px/1 var(--font-body); color: var(--primary-text, var(--primary)); cursor: pointer; }
 .ai-vz { margin-top: 2px; min-width: 0; }
@@ -38,7 +38,7 @@ b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { c
 /* win chance line */
 .ai-wc { display: block; width: 100%; height: auto; overflow: visible; font: 600 9.5px var(--font-body); }
 .ai-wc text { fill: var(--ink-soft); } .ai-wc .g { stroke: color-mix(in srgb, var(--ink) 14%, transparent); stroke-width: 1; }
-.ai-wc path { stroke: var(--pc-line, var(--pc)); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+.ai-wc path { stroke: var(--pc); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
 .ai-wc .mk { cursor: pointer; outline: none; } .ai-wc .mk .hit { fill: transparent; } .ai-wc .mk .d { fill: var(--pc); stroke: var(--sheet, #fff); stroke-width: 2; }
 .ai-wc .mk rect { fill: var(--heading); } .ai-wc .mk text { fill: var(--sheet, #fff); font-weight: 800; font-size: 9.5px; }
 .ai-wc .mk:focus-visible rect { stroke: var(--primary); stroke-width: 2; }
@@ -90,3 +90,16 @@ b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { c
 .ai-chg.opp { color: var(--pc-text, var(--pc)); background: color-mix(in srgb, var(--pc) 14%, transparent); }
 .ai-mr em.opp { color: var(--pc-text, var(--pc)); }
 .ai-cap { margin-top: 4px; font: 750 11.5px/1.3 var(--font-body); font-variant-numeric: tabular-nums; color: var(--pc-text, var(--pc)); }
+
+/* v1.74: one resource tag style (tinted pill in the resource colour, with a colour dot): ore is slate blue, never the grey of the turn tags */
+.ai-r { background: color-mix(in srgb, var(--rc) 20%, transparent); color: var(--rc); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rc) 45%, transparent); }
+.ai-r::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 50%; background: var(--rc); vertical-align: 1px; }
+
+/* v1.74 chat: pending card above the ask bar, collapsed earlier answers */
+.ai-pend { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 7px 10px; border-radius: 12px; background: color-mix(in srgb, var(--primary) 10%, transparent); font: 600 12px/1.25 var(--font-body); color: var(--ink); }
+.ai-pend b { flex: 1; min-width: 0; font-weight: 750; color: var(--heading); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ai-pend span { flex: none; color: var(--ink-soft); }
+.ai-spin { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--primary) 25%, transparent); border-top-color: var(--primary); animation: aispin .8s linear infinite; } @keyframes aispin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ai-spin { animation: none; } }
+.ai-c.col { padding: 0; } .ai-colb { display: grid; gap: 2px; width: 100%; min-width: 0; text-align: left; border: 0; background: none; padding: 8px 10px; min-height: 40px; cursor: pointer; color: var(--ink); font: 500 12px/1.3 var(--font-body); }
+.ai-colb b { font-weight: 750; color: var(--heading); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ai-colb span { color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-c.flash { animation: aiflash 1.1s ease-out 1; }
