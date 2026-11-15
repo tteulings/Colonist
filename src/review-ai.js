@@ -99,12 +99,14 @@ export const ReviewAiMixin = {
   },
   /** The numbers (whole %) a sentence may quote: the win chances of the seats it is about at the card's turns (+-1) and their steps, the cost of the
    *  decisions there, and the game-wide numbers of the review (luck, accuracy, moves cost). Anything else is not in the review. */
-  _aiAllowed(card, C, seats) {
+  _aiAllowed(card, C, seats, sent = "") {
+    const wcSent = /win ?chance|winkans/i.test(sent) && card.view !== "luck"; // a sentence about win chance may not borrow luck / accuracy numbers
     const A = new Set([0, 100]), add = (v) => { if (v != null && isFinite(v)) A.add(Math.round(Math.abs(v))); };
     const ts = new Set(); card.turns.forEach((t) => [t - 1, t, t + 1].forEach((x) => x >= 0 && ts.add(x)));
-    seats.forEach((s) => { let prev = null; [...ts].sort((a, b) => a - b).forEach((t) => { const v = wcAt(C.ser, s, t); add(v); if (prev != null && v != null) add(v - prev); prev = v; }); if (!card.turns.length) { add(wcAt(C.ser, s, 0)); add(wcAt(C.ser, s, C.maxT)); } if (C.luck) add(C.luck[s] * 100); });
+    seats.forEach((s) => { let prev = null; [...ts].sort((a, b) => a - b).forEach((t) => { const v = wcAt(C.ser, s, t); add(v); if (prev != null && v != null) add(v - prev); prev = v; }); if (!card.turns.length) { add(wcAt(C.ser, s, 0)); add(wcAt(C.ser, s, C.maxT)); } if (C.luck && !wcSent) add(C.luck[s] * 100); });
     card.chg.forEach((c) => { add(c.d); add(c.from); add(c.to); });
-    C.decs.forEach((x) => { if (card.turns.includes(x.turn) || !card.turns.length) add(x.gap * 100); });
+    if (!wcSent) C.decs.forEach((x) => { if (card.turns.includes(x.turn) || !card.turns.length) add(x.gap * 100); });
+    if (wcSent) return A;
     const fc = this._aiFC; const f = fc && fc.R === this._rv ? fc.f : (this._aiFC = { R: this._rv, f: tryv(() => aiFacts(this)?.obj) }).f;
     f?.players?.forEach((p) => { add(p.accuracyPct); add(p.winChanceLostByMovesPct); Object.values(p.luckInWinChancePct || {}).forEach(add); });
     Object.values(f?.reviewedPlayerSummary || {}).forEach((v) => typeof v === "number" && add(v));
@@ -130,7 +132,7 @@ export const ReviewAiMixin = {
       else if (c && neg && !pos && c.d >= 1) { bad = true; why = "verb"; }
       if (!bad) {
         const nums = [...sent.matchAll(/(\d+(?:[.,]\d+)?)\s?%/g)].map((m) => parseFloat(m[1].replace(",", ".")));
-        const allowed = this._aiAllowed(card, C, seen.length ? seen : card.chg.length ? card.chg.map((c) => c.seat) : [C.me]);
+        const allowed = this._aiAllowed(card, C, seen.length ? seen : card.chg.length ? card.chg.map((c) => c.seat) : [C.me], sent);
         const off = nums.some((v) => ![...allowed].some((a) => Math.abs(a - v) <= 2));
         if (off) { bad = true; why = "number"; }
       }
