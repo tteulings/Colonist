@@ -4,6 +4,8 @@
 // the review) is replaced by a neutral line. Insights and answers are kept in the saved review (R.ai). Online only.
 import { aiFacts, aiSeries, aiTimeline, aiPlan, aiNearMiss, aiStart, aiRoute, wcAt, wcChange } from "./review/ai-facts.js";
 import { decide } from "./review/evaluate.js";
+import { aiIndex, aiToolRun, aiSimPlan, aiSimResult, TIER2, CAPS } from "./review/ai-tools.js";
+import { reviewRequest, reviewLaneCount, reviewAvailable } from "./master.js";
 import { RECAP_URL, recapLang } from "./review-recap.js";
 import { rvPos, rvMarks } from "./review-game.js";
 
@@ -26,7 +28,10 @@ const T = {
 const GOODT = /\b(paid off|worked|rewarded|best|great|strong|brilliant|perfect|smart|excellent|beste|geweldig|sterk|perfecte|slim|uitstekend)\b/i;
 const TPOS = /\b(stayed close|stays close|kept (?:you|him|her|them|\w+) alive|good|helped|helps|comeback|rescued|saved)\b/i;
 const TNEG = /\b(missed|misses|miss|wrong|mistakes?|blunders?|worst|bad|costly|errors?|poor|behind|fout|fouten|gemist|slecht|verkeerd)\b/i;
-const CHAT = { en: { same: "Same view as the card above", clear: "Clear chat", pend: "Thinking…" }, nl: { same: "Zelfde beeld als de kaart hierboven", clear: "Chat wissen", pend: "Aan het denken…" } };
+const CHAT = { en: { same: "Same view as the card above", clear: "Clear chat", pend: "Thinking…", cancel: "Cancel", review: "from your review · instant", checked: "checked by engine", eng: (n) => `engine · ${n} games`, simN: (n) => `Engine is simulating ${n} move${n === 1 ? "" : "s"} · 100 games each`, asPlayed: "As played", noise: "within noise" },
+  nl: { same: "Zelfde beeld als de kaart hierboven", clear: "Chat wissen", pend: "Aan het denken…", cancel: "Annuleer", review: "uit je review · direct", checked: "gecontroleerd door engine", eng: (n) => `engine · ${n} spellen`, simN: (n) => `Engine simuleert ${n} ${n === 1 ? "zet" : "zetten"} · elk 100 spellen`, asPlayed: "Zoals gespeeld", noise: "binnen de ruis" } };
+const CF = /\b(?:would have|would\u2019ve|would've|could have|had you|if you had|if (?:he|she|they) had|zou(?:den)? [^.]*hebben|als je [^.]*had)\b/i;
+const evNums = (res) => { const A = new Set(), w = []; const walk = (v, k) => { if (typeof v === "number" && isFinite(v) && Math.abs(v) <= 100) { A.add(Math.round(Math.abs(v))); if (/win/i.test(k || "") && !/vs|plusMinus/i.test(k || "")) w.push(v); } else if (Array.isArray(v)) v.forEach((x) => walk(x, k)); else if (v && typeof v === "object") Object.entries(v).forEach(([kk, x]) => walk(x, kk)); }; walk(res, ""); w.forEach((a) => w.forEach((b) => A.add(Math.round(Math.abs(a - b))))); return [...A]; };
 const posW = (t) => GOODT.test(t) || POS.test(t) || TPOS.test(t), negW = (t) => NEG.test(t) || TNEG.test(t);
 const SENT_END = /[.!?]["')\u201d\u2019]*$/;
 const AGAINST = /\b(against|unlucky|unluck\w*|tegen|pech|ongelukkig)\b/i, FAVOUR = /\b(in (?:your|his|her|their) favou?r|favou?red|fortunate|lucky for|gelukkig|ten gunste|mee)\b/i;
@@ -116,6 +121,8 @@ export const ReviewAiMixin = {
     chg = chg.slice(0, 1); // one primary chip: the main fact (the rest is in the visual)
     const clauses = (Array.isArray(raw?.clauses) ? raw.clauses : []).map((c) => ({ seat: this._aiSeats([c?.player], C)[0], text: String(c?.text ?? "").replace(/[<>]/g, "").trim().slice(0, 120) })).filter((c) => c.seat != null && c.text).filter((c, i, a) => a.findIndex((x) => x.seat === c.seat) === i);
     const card = { level, view, clauses: view === "plan" && level === "strategy" ? clauses : [], turns: turns.slice(0, 6), focus, seats, chg, title: String(raw?.title ?? "").slice(0, 120), src: String(answer ? raw?.answer : raw?.text ?? "").slice(0, 900), points: (raw?.points || []).map(String).slice(0, 4), fix: [] };
+    { const ev = (Array.isArray(raw?.ev) ? raw.ev : []).slice(0, 4), sim = ev.filter((e) => e.t === 2 && e.r?.results), nums = new Set(ev.flatMap((e) => e.nums || []));
+      card.ev = ev.length ? { nums, sim: sim.map((e) => e.r), games: sim.reduce((a, e) => a + (e.r.games || 0), 0), dec: ev.some((e) => e.n === "get_decision") || sim.length > 0 } : null; }
     card.dec = card.focus != null && !!this._aiDecAt(card.focus, C);
     card.seat = chg[0]?.seat ?? seats[0] ?? null;
     card.text = this._aiTrust(card, C);
@@ -212,15 +219,17 @@ export const ReviewAiMixin = {
       const c = mvc || wc;
       if (!SENT_END.test(sent)) { card.fix.push("cut"); continue; } // a sentence the AI did not finish is dropped
       let bad = false, why = "";
-      if (ambig) { bad = true; why = "number"; } else
+      const ev = card.ev, n0 = [...sent.matchAll(/(\d+(?:[.,]\d+)?)\s?%/g)].map((m) => parseFloat(m[1].replace(",", "."))), evOk = !!ev && n0.length > 0 && n0.every((v) => [...ev.nums].some((a) => Math.abs(a - v) <= 1)); // v1.77 numbers a tool result gives are the app's own
+      if (CF.test(sent) && !ev?.dec) { bad = true; why = "cf"; } else // a what-if the engine did not check is not allowed
+      if (ambig) { bad = true; why = "number"; } else if (evOk) { /* numbers from a tool result */ } else
       { const rw = this._aiNums(sent, card, C, seat); if (rw === null) { bad = true; why = "number"; } else if (rw !== sent) { card.fix.push("num"); sent = rw; } } // win-chance numbers: the app's value for that turn and player
       const pos = posW(sent), neg = negW(sent);
       const pr = !bad && sent.match(/(\d+(?:[.,]\d+)?)\s?%\s*(?:\u2192|->|to|and|naar|en)\s*(\d+(?:[.,]\d+)?)\s?%/i);
       if (pr && ((neg && !pos && parseFloat(pr[2]) > parseFloat(pr[1])) || (pos && !neg && parseFloat(pr[2]) < parseFloat(pr[1])))) { bad = true; why = "verb"; }
-      else if (!bad && c && pos && !neg && c.d <= -1) { bad = true; why = "verb"; }
-      else if (!bad && c && neg && !pos && c.d >= 1) { bad = true; why = "verb"; }
+      else if (!bad && !evOk && c && pos && !neg && c.d <= -1) { bad = true; why = "verb"; }
+      else if (!bad && !evOk && c && neg && !pos && c.d >= 1) { bad = true; why = "verb"; }
       if (!bad && card.view === "luck" && C.luck && seat != null) { const lv = Math.round(C.luck[seat] * 100); if ((AGAINST.test(sent) && lv >= 1) || (FAVOUR.test(sent) && lv <= -1)) { bad = true; why = "luck"; } }
-      if (!bad) {
+      if (!bad && !evOk) {
         const nums = [...sent.matchAll(/(\d+(?:[.,]\d+)?)\s?%/g)].map((m) => parseFloat(m[1].replace(",", ".")));
         const allowed = this._aiAllowed(card, C, seen.length ? seen : card.chg.length ? card.chg.map((c) => c.seat) : [C.me], sent);
         const off = nums.some((v) => ![...allowed].some((a) => Math.abs(a - v) <= 2));
@@ -298,14 +307,16 @@ export const ReviewAiMixin = {
     const dec = card.focus != null ? this._aiDecAt(card.focus, C) : null;
     const canWhy = card.level === "decision" && dec?.own && this._rvIsYou(C.pid) && this._exCan?.(dec.d);
     const acts = `${canWhy ? `<button type="button" class="ai-a" data-aiwhy="${card.focus}">${L.why}</button>` : ""}${card.focus != null ? `<button type="button" class="ai-a" data-aigo="${card.focus}">${L.show}</button>` : ""}`;
-    const tag = o.q ? `<span class="ai-lv q">${esc(o.q)}</span>` : `<span class="ai-lv lv-${card.level}">${L.lv[card.level]}</span>`;
+    const T2 = CHAT[C.lang] || CHAT.en, evTag = card.ev?.sim?.length ? `<span class="ai-ev eng" data-aiev="engine">${esc(o.q ? T2.eng(card.ev.games) : T2.checked)}</span>` : o.q && card.ev ? `<span class="ai-ev rev" data-aiev="review">${esc(T2.review)}</span>` : "";
+    const tag0 = o.q ? `<span class="ai-lv q">${esc(o.q)}</span>` : `<span class="ai-lv lv-${card.level}">${L.lv[card.level]}</span>`;
+    const tag = tag0 + evTag;
     const pin = o.pin != null ? `<button type="button" class="ai-pin${o.pin ? " on" : ""}" data-aipin="${o.idx}" aria-pressed="${!!o.pin}" aria-label="${o.pin ? L.unpin : L.pin}" title="${o.pin ? L.unpin : L.pin}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6zM12 14v7" fill="${o.pin ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` : "";
     const pts = card.points?.length ? `<div class="ai-pts">${card.points.map((p) => `<span>${this._aiFmt(p, C, card, { plain: true })}</span>`).join("")}</div>` : "";
     return `<section class="ai-c lvl-${card.level}${o.q ? " ans" : ""}" data-aic="${key}" data-aifocus="${card.focus ?? ""}">
       <div class="ai-hd">${tag}${this._aiChgChips(card, C)}${pin}</div>
       ${card.title ? `<b class="ai-ti">${this._aiFmt(card.title, C, card)}</b>` : ""}
       ${card.text ? `<div class="ai-tx" data-aitx="${key}" lang="${C.lang}">${this._aiFmt(card.text, C, card)}</div>` : ""}${pts}
-      ${vis}${acts ? `<div class="ai-ac">${acts}</div>` : ""}</section>`;
+      ${vis}${this._aiVSim(card, C)}${acts ? `<div class="ai-ac">${acts}</div>` : ""}</section>`;
   },
   _aiSeatRows(card, C) { return card.seats.length >= 2 ? card.seats : this.players.map((p) => p.id); },
   /** One visual per card, never the same visual with the same data twice in the tab. A decision always shows its board (A better, B played). */
@@ -535,6 +546,7 @@ export const ReviewAiMixin = {
     } else if (U.loading === "insights") out.push(`<p class="ai-hl sk">${L.wait}</p>${'<section class="ai-c" aria-busy="true"><div class="ai-sk"><i></i><i></i></div><div class="ai-skv"></div></section>'.repeat(3)}`);
     else if (U.err) out.push(this._aiErrHtml(C));
     out.push(...this._aiThread(ans, S, C, seen));
+    if (U.sim) out.push(this._aiSimCardHtml(C));
     if (U.askErr) out.push(`<section class="ai-c err" role="alert"><b class="ai-ti">${esc(L[U.askErr] || L.fail)}</b></section>`);
     return out.join("");
   },
@@ -598,6 +610,7 @@ export const ReviewAiMixin = {
     on("[data-aispot]", (b) => { const [rs, nm] = b.dataset.aispot.split(":"), c = b.closest("[data-aic]"), t = c?.dataset.aifocus; this._aiNav(() => this._aiSpot(rs, +nm, t != null && t !== "" ? +t : null)); }, sc);
     };
     this._aiClamp(body, wire); wire(body);
+    body.querySelectorAll("[data-aisimcancel]").forEach((b) => b.addEventListener("click", () => { if (this._aiUi) this._aiUi.cancel = true; b.disabled = true; }));
     body.querySelectorAll("[data-airun]").forEach((b) => b.addEventListener("click", () => this._aiRun(true)));
     body.querySelectorAll("[data-aipin]").forEach((b) => b.addEventListener("click", () => { const a = this._rv.ai?.answers?.[+b.dataset.aipin]; if (!a) return; a.pinned = !a.pinned; this._aiSave(); this._aiRefresh(); }));
     body.querySelectorAll("[data-aiopen]").forEach((b) => b.addEventListener("click", () => { this._aiOpen = +b.dataset.aiopen; this._aiRefresh(); this._aiToAnswer(this._aiOpen); }));
@@ -653,25 +666,90 @@ export const ReviewAiMixin = {
       const r = await fetch(RECAP_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctl.signal });
       let j = null; try { j = await r.json(); } catch (_) { j = null; }
       if (r.status === 429) return { err: "rate" };
+      if (r.ok && Array.isArray(j?.toolRequests)) return { tr: j };
       if (!r.ok || !j?.explain) return { err: "fail" };
       return { x: j.explain };
     } catch (e) { return { err: e?.name === "AbortError" ? "time" : "net" }; } finally { clearTimeout(to); }
+  },
+  // ── v1.77 the tool loop: the Function answers with tool requests; tier 1 runs here at once (src/review/ai-tools.js), tier 2 on the review engine ──
+  _aiSimCache() {
+    const R = this._rv; if (this._aiSC?.R !== R) this._aiSC = { R, m: new Map(Object.entries(R?.ai?.cache || {})) };
+    return this._aiSC.m;
+  },
+  async _aiSimTool(q) {
+    const R = this._rv, key = q.name + JSON.stringify(q.args), cache = this._aiSimCache();
+    if (cache.has(key)) return cache.get(key);
+    if (!this._aiAvail() || !reviewAvailable()) return { error: "the engine is not available now" };
+    const plan = aiSimPlan(this, q.name, q.args); if (plan.error) return { error: plan.error };
+    const idx = plan.reqs.map((r, i) => (r.rec ? i : -1)).filter((i) => i >= 0), outs = [];
+    const U = this._aiUi || (this._aiUi = {}); U.sim = { n: idx.length, done: 0 }; U.cancel = false; this._aiRefresh();
+    const lanes = Math.min(idx.length, await reviewLaneCount()); let next = 0;
+    const lane = async (w) => { while (next < idx.length && !U.cancel) { const i = idx[next++], r = plan.reqs[i];
+      const m = await reviewRequest({ type: "evaluate", base: plan.base, rec: r.rec, opts: { ...(r.opts || {}), ...(this._aiSimOpts || {}) } }, 150000, w).catch(() => null);
+      outs[i] = m?.result || null; U.sim.done += 1; if (this._rv === R) this._aiRefresh(); } };
+    await Promise.all(Array.from({ length: Math.max(1, lanes) }, (_, w) => lane(w)));
+    U.sim = null; const cancelled = U.cancel; U.cancel = false;
+    if (this._rv !== R) return { error: "gone" };
+    if (cancelled) return { cancelled: true };
+    const res = aiSimResult(plan, outs); cache.set(key, res); return res;
+  },
+  /** Ask the Function until it answers, running its tool requests. Caps: 6 rounds, 12 tool calls, engine calls 2 (insights) / 3 (a question). */
+  async _aiLoop(mode, { lang, question, ms }) {
+    const R = this._rv, idx = tryv(() => aiIndex(this)); if (!idx) return { err: "none" };
+    const trace = [], simCap = CAPS.sims[mode]; let history = null, results = null, rounds = 0, calls = 0, sims = 0;
+    for (;;) {
+      const r = await this._aiCall({ mode, lang, ...(question ? { question } : {}), index: idx.json, ...(history ? { history, toolResults: results } : {}) }, ms);
+      if (this._rv !== R) return { err: "gone" };
+      if (r.err) return r;
+      if (!r.tr) return { x: r.x, trace, n: idx.json.length };
+      if (++rounds > CAPS.rounds) return { err: "fail" };
+      results = [];
+      for (const q of r.tr.toolRequests.slice(0, CAPS.calls)) {
+        const t2 = TIER2.has(q.name); let res;
+        if (calls >= CAPS.calls) res = { error: "tool budget used up" };
+        else if (t2 && sims >= simCap) res = { error: "engine budget used up" };
+        else { calls += 1; if (t2) sims += 1; res = t2 ? await this._aiSimTool(q) : aiToolRun(this, q.name, q.args || {}); }
+        if (this._rv !== R) return { err: "gone" };
+        if (res?.cancelled) { if (mode === "game") return { err: "cancel" }; res = { error: "cancelled by the user: do not state any what-if" }; }
+        trace.push({ id: q.id, name: q.name, args: q.args, res, t: t2 ? 2 : 1 });
+        results.push({ id: q.id, result: res });
+      }
+      history = r.tr.history;
+    }
+  },
+  /** The evidence of a card / answer: the tool calls it names (only those that ran and gave a result), as stored: the numbers they gave, and the engine runs in full. */
+  _aiEvOf(ids, trace) {
+    const seen = new Set();
+    return (Array.isArray(ids) ? ids : []).map((id) => (trace || []).find((t) => t.id === id)).filter((t) => t && t.res && !t.res.error && !seen.has(t.id) && seen.add(t.id)).slice(0, 4)
+      .map((t) => ({ n: t.name, t: t.t, nums: evNums(t.res), ...(t.t === 2 ? { r: t.res } : {}) }));
+  },
+  _aiSimCardHtml(C) {
+    const sim = this._aiUi?.sim; if (!sim) return "";
+    const T = CHAT[C?.lang || recapLang()] || CHAT.en, pct = Math.round((sim.done / Math.max(1, sim.n)) * 100);
+    return `<section class="ai-c ai-simc" role="status" aria-busy="true" data-aisim><b class="ai-ti">${esc(T.simN(sim.n))}</b><span class="ai-sbar"><i style="width:${Math.max(6, pct)}%"></i></span><div class="ai-ac"><span class="ai-sn">${sim.done}/${sim.n}</span><button type="button" class="ai-a" data-aisimcancel>${esc(T.cancel)}</button></div></section>`;
+  },
+  /** The engine's win chances for the moves a card rests on: bars, the change against the move as played with its real sign. */
+  _aiVSim(card, C) {
+    const T = CHAT[C.lang] || CHAT.en, rows = [];
+    (card.ev?.sim || []).forEach((r) => { if (r.storedPlayedWinPct != null && !rows.some((x) => x.base && x.t === r.turn)) rows.push({ base: true, t: r.turn, label: T.asPlayed, v: r.storedPlayedWinPct });
+      (r.results || []).forEach((x) => { if (x.winPct != null) rows.push({ label: x.label, v: x.winPct, d: x.vsPlayedPct, pm: x.plusMinusPct, best: x.bestMove }); }); });
+    if (!rows.length) return "";
+    return `<div class="ai-vz ai-sm" data-aisimv>${rows.slice(0, 6).map((x) => `<div class="ai-sr${x.base ? " base" : ""}"><span class="l">${esc(x.label)}</span><span class="tr"><i style="width:${Math.max(2, Math.min(100, x.v))}%"></i></span><b>${x.v}%${x.pm ? `<small>\u00b1${x.pm}</small>` : ""}</b>${x.d != null && !x.base ? `<em class="${x.d > 0 ? "up" : x.d < 0 ? "dn" : ""}${Math.abs(x.d) < 8 ? " nz" : ""}" title="${Math.abs(x.d) < 8 ? esc(T.noise) : ""}">${sgn(x.d)}</em>` : ""}</div>`).join("")}</div>`;
   },
   async _aiRun(force) {
     const R = this._rv, pid = this._rvPid, lang = recapLang();
     if (!R || !this.winner || this._aiUi?.loading === "insights") return;
     if (!online()) { this._aiUi = { pid, err: "net" }; this._aiRefresh(); return; }
-    let f = null; try { f = aiFacts(this); } catch (_) { f = null; }
-    if (!f) { this._aiUi = { pid, err: "none" }; this._aiRefresh(); return; }
     this._aiUi = { pid, loading: "insights", err: null }; this._aiRefresh();
-    const r = await this._aiCall({ mode: "insights", lang, facts: f.json }, 70000);
+    const r = await this._aiLoop("insights", { lang, ms: 90000 });
+    if (r.err === "gone") return;
     if (this._rv !== R) return;
     const cards = Array.isArray(r.x?.cards) ? r.x.cards.filter((c) => c && typeof c === "object" && (c.title || c.text)).slice(0, 10) : [];
     { const nm0 = tryv(() => aiNearMiss(this)); if (nm0 && nm0.margin >= 1 && nm0.margin <= 2 && !cards.some((c) => c.view === "nearmiss")) { const c0 = cards.find((c) => c.level === "game" && (!c.view || c.view === "none" || c.view === "points")); if (c0) c0.view = "nearmiss"; } } // the close-game card always has its needed \u2192 missing visual
     if (r.x && !cards.length && !r.err) r.err = "fail";
     if (r.err) { this._aiUi = { pid, err: r.err }; this._aiRefresh(); return; }
     const keep = (R.ai?.answers || []).filter((a) => a.pinned || (!force && R.ai?.pid === pid && R.ai?.lang === lang));
-    R.ai = { pid, lang, at: Date.now(), n: f.json.length, insights: { headline: String(r.x.headline || "").slice(0, 200), cards: cards.map((c) => ({ level: c.level, title: c.title, text: c.text, view: c.view, turns: c.turns, focusTurn: c.focusTurn, players: c.players, clauses: Array.isArray(c.clauses) ? c.clauses.slice(0, 8).map((x) => ({ player: String(x?.player ?? ""), text: String(x?.text ?? "") })) : [] })), followUps: (r.x.followUps || []).map(String).slice(0, 8) }, answers: keep };
+    R.ai = { pid, lang, at: Date.now(), n: r.n, insights: { headline: String(r.x.headline || "").slice(0, 200), cards: cards.map((c) => ({ level: c.level, title: c.title, text: c.text, view: c.view, turns: c.turns, focusTurn: c.focusTurn, players: c.players, clauses: Array.isArray(c.clauses) ? c.clauses.slice(0, 8).map((x) => ({ player: String(x?.player ?? ""), text: String(x?.text ?? "") })) : [], ev: this._aiEvOf(c.evidence, r.trace) })), followUps: (r.x.followUps || []).map(String).slice(0, 8) }, answers: keep, cache: Object.fromEntries([...this._aiSimCache()].slice(-10)) };
     this._aiUi = { pid, loading: null, err: null };
     this._aiSave(); this._aiRefresh();
   },
@@ -687,16 +765,16 @@ export const ReviewAiMixin = {
     const hit = ai.answers.findIndex((a) => qkey(a.q) === qkey(q));
     if (hit >= 0) { this._aiOpen = ai.answers[hit].at; this._aiUi = { pid }; this._aiRefresh(); this._aiToAnswer(this._aiOpen); return; }
     if (!online()) { this._aiUi = { pid, askErr: "net" }; this._aiRefresh(); return; }
-    let f = null; try { f = aiFacts(this); } catch (_) { f = null; }
-    if (!f) { this._aiUi = { pid, askErr: "none" }; this._aiRefresh(); return; }
     this._aiUi = { pid, loading: "ask", q }; this._aiRefresh();
     { const sc = this._rvEl?.querySelector(".rv-scroll"); if (sc) sc.scrollTo?.({ top: sc.scrollHeight, behavior: "smooth" }); if (typed) this._rvEl?.querySelector("[data-aiin]")?.focus({ preventScroll: true }); }
-    const r = await this._aiCall({ mode: "game", lang, question: q, facts: f.json }, 60000);
-    if (this._rv !== R) return;
+    const r = await this._aiLoop("game", { lang, question: q, ms: 70000 });
+    if (this._rv !== R || r.err === "gone") return;
+    if (r.err === "cancel") { this._aiUi = { pid }; this._aiRefresh(); return; }
     if (r.err || !r.x?.answer) { this._aiUi = { pid, askErr: r.err || "fail" }; this._aiRefresh(); return; }
     const x = r.x;
     const at = Date.now(); this._aiOpen = at;
-    ai.answers.unshift({ q, at, pinned: false, followUps: (x.followUps || []).map(String).slice(0, 6), a: { answer: String(x.answer), points: (x.points || []).map(String).slice(0, 4), view: x.view, turns: x.turns, focusTurn: x.focusTurn, players: x.players } });
+    ai.answers.unshift({ q, at, pinned: false, followUps: (x.followUps || []).map(String).slice(0, 6), a: { answer: String(x.answer), points: (x.points || []).map(String).slice(0, 4), view: x.view, turns: x.turns, focusTurn: x.focusTurn, players: x.players, ev: this._aiEvOf(x.evidence, r.trace) } });
+    ai.cache = Object.fromEntries([...this._aiSimCache()].slice(-10));
     while (ai.answers.length > 12) { const i = ai.answers.map((a) => !a.pinned).lastIndexOf(true); if (i < 0) break; ai.answers.splice(i, 1); }
     this._aiUi = { pid };
     this._aiSave(); this._aiRefresh();

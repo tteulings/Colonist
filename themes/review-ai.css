@@ -144,3 +144,13 @@ b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { c
 .rt-ib.r-ore { --rc: #4A6D99; } .rt-ib.r-wheat { --rc: #C9A31E; } .rt-ib.r-sheep { --rc: #5FAE3C; } .rt-ib.r-wood { --rc: #4B7A2C; } .rt-ib.r-brick { --rc: #B2552A; }
 .rt-ib.nn { opacity: .45; }
 .rt-ib.bn { outline: 1.5px solid var(--neg); outline-offset: 0; background: color-mix(in srgb, var(--neg) 12%, transparent); } .rt-ib.bn small { color: var(--neg); font-weight: 800; }
+
+/* v1.77 tool loop: evidence tags, engine progress card, simulated-move bars */
+.ai-ev { flex: none; font: 750 10px/1 var(--font-body); padding: 3px 7px; border-radius: 99px; color: var(--ink-soft); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.ai-ev.eng { color: #1F7F86; background: color-mix(in srgb, #1F7F86 14%, transparent); } [data-palette="night"] .ai-ev.eng { color: #4CC9B0; }
+.ai-simc { gap: 6px; } .ai-sbar { display: block; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 9%, transparent); overflow: hidden; } .ai-sbar i { display: block; height: 100%; background: var(--primary); border-radius: 3px; transition: width .4s; }
+.ai-simc .ai-ac { justify-content: space-between; align-items: center; } .ai-sn { font: 700 11px/1 var(--font-body); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.ai-sm { display: grid; gap: 6px; } .ai-sr { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 2px 8px; align-items: center; font: 650 11.5px/1.2 var(--font-body); }
+.ai-sr .l { grid-column: 1 / -1; overflow-wrap: anywhere; color: var(--ink); } .ai-sr .tr { height: 9px; border-radius: 5px; background: color-mix(in srgb, var(--ink) 8%, transparent); overflow: hidden; } .ai-sr .tr i { display: block; height: 100%; background: var(--primary); border-radius: 5px; }
+.ai-sr.base .tr i { background: var(--ai-s); } .ai-sr b { font: 800 12px/1 var(--font-body); font-variant-numeric: tabular-nums; color: var(--heading); } .ai-sr b small { font-weight: 600; font-size: 9.5px; color: var(--ink-soft); margin-left: 2px; }
+.ai-sr em { font: 800 11.5px/1 var(--font-body); font-style: normal; font-variant-numeric: tabular-nums; color: var(--ink-soft); } .ai-sr em.up { color: var(--pos); } .ai-sr em.dn { color: var(--neg); } .ai-sr em.nz { opacity: .7; }

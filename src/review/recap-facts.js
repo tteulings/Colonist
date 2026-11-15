@@ -18,8 +18,8 @@ const DEVN = { knight: "a Knight", roadBuilding: "Road Building", yearOfPlenty: 
 
 /** Every step (one player's roll-and-play) with its win chances before/after for all seats, from the luck run. Returns the best
  *  candidates (one per turn, biggest swing first, at most 8) and the ending (the winner's last turn). */
-function turningSteps(g, nm, { luckOk, pid, n }) {
-  const st = g._st, none = { cands: [], ending: null };
+export function turningSteps(g, nm, { luckOk, pid, n }) {
+  const st = g._st, none = { cands: [], ending: null, all: [] };
   if (!luckOk || !st?.steps?.length) return none;
   const L = g._lkStore(), evs = g._lkEvents(), b = new Map();
   evs.forEach((ev) => { const r = L.res[luckKey(ev)]; if (ev.kind === "dice" && r?.b) b.set(ev.s, r.b); });
@@ -61,7 +61,7 @@ function turningSteps(g, nm, { luckOk, pid, n }) {
   const lastT = st.turnOf[N], mine = all.filter((c) => c.fact.turn === lastT && c.actor === w);
   const e = mine.length ? mine[mine.length - 1] : null;
   const ending = e ? clean({ ...e.fact, note: "the winner's last turn; the game ended here", swingPct: Object.fromEntries(Object.entries(e.fact.winChancePct || {}).map(([q, v]) => [q, Math.round(v[1] - v[0])])) }) : null;
-  return { cands, ending };
+  return { cands, ending, all: all.map((c) => ({ ...c.fact, score: Math.round(c.score * 100) })) };
 }
 
 const aimTxt = (a) => (a?.src?.length ? a.src.map(([k, v]) => `${AIM[k] || k} ${v}%`).join(", ") : null);
