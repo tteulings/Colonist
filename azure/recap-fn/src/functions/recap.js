@@ -5,7 +5,7 @@ const { app } = require("@azure/functions");
 
 const MAX_FACTS = 40000;       // characters of game facts accepted
 const MAX_OUT = 2600;          // completion tokens (reasoning included)
-const PER_IP_HOUR = 20;        // simple abuse guard per instance
+const PER_IP_HOUR = 20, PER_IP_STEPS = 150;        // simple abuse guard per instance
 const hits = new Map();
 const EXPLAIN = `You explain one moment of a finished game of a Catan-like board game to the human player ("You"), like an analyst talking to a friend.
 Use ONLY the facts given (JSON from the game's review engine for this moment: the position, the move played (B), the engine's better move (A) if any, win chances, point-plan sources ("aims"), usual next builds in the simulated futures, the simple choice). Never invent moves, numbers or reasons.
@@ -88,6 +88,46 @@ Return JSON matching the schema. Field rules:
 Terminology: win-chance numbers are always written as percentages of win chance ("-40% win chance", Dutch "-40% winkans"), never as "points"; "points" (Dutch "punten") only means game points. Write fully in the requested language (Dutch: "geluk", "zetten", "ontwikkelingskaart", no English words). Say "points" (Dutch "punten"), never "VP" or "victory points" abbreviations; a Victory Point card is "punt-kaart" in Dutch and "point card" in English.
 Style: explain like an analyst talking to a friend, not like a sports recap. Every sentence must carry a concrete fact: who did what (card, build, roll, trade), the points or numbers involved, and the effect (e.g. "Blaauw bought a development card, drew a Victory Point card and went from 9 to 10 points: your win chance fell by 60 points."). No filler or stock phrases such as "pushed the plan forward", "kept you close", "locked in the lead", "put pressure on", "turned the tide", "the race was on". No moralising closing lines, and no sentence that only restates a previous one. Short sentences, everyday words, resources and dice numbers instead of codes. Honest and kind.`;
 
+
+// ── v1.77 tool loop: the app sends a compact INDEX; the model asks for details with tools; the app runs them (tier 1: lookups in the stored
+// review, instant; tier 2: the review engine, seconds) and posts the results back with the history. The Function keeps no state.
+const MAX_ROUNDS = 6, MAX_CALLS = 12, SIM_CAP = { insights: 2, game: 3 }, SIM = new Set(["simulate_moves", "can_still_win"]);
+const fnT = (name, description, properties) => ({ type: "function", function: { name, description, strict: true, parameters: { type: "object", additionalProperties: false, required: Object.keys(properties), properties } } });
+const INT = { type: "integer" }, STR = { type: "string" }, NINT = { type: ["integer", "null"] }, NSTR = { type: ["string", "null"] };
+const TOOLS = [
+  fnT("get_decision", "Tier 1, instant. All moves the review engine evaluated at one decision of a player on a turn: win chance of each (played move first), the cost, the aims (where the points would come from) and the simple choice. n = which decision of that turn (0-based; null = the costliest).", { turn: INT, player: STR, n: NINT }),
+  fnT("get_turn", "Tier 1, instant. What happened on one turn: every player's actions, dice, cards, luck events and the win chance before/after, plus the reviewed decisions of that turn.", { turn: INT }),
+  fnT("get_luck", "Tier 1, instant. Luck in win chance of a player (dice, steals, card draws, seat order) and resource cards got vs expected.", { player: STR }),
+  fnT("get_plan", "Tier 1, instant. A player's point plan: route to the target, points by source, verdict (worked / stalled / wrong), what was missing.", { player: STR }),
+  fnT("get_lessons", "Tier 1, instant. The reviewed player's decisions of one category in this game with their cost.", { category: { type: "string", enum: ["setup", "robber", "build", "dev_cards", "trading", "timing"] } }),
+  fnT("list_swings", "Tier 1, instant. The n biggest win-chance swings of the game (any player).", { n: INT }),
+  fnT("simulate_moves", "Tier 2, the review engine, takes seconds (100 futures per move). Win chance if each of up to 4 moves is played at that decision. Use only for a move that get_decision does not list, or to verify a what-if before you state it. build: type road|settlement|city|ship and optional at (spot id from get_decision, null = the engine's best spot of that type). bank: give, get = resource names (wood, brick, sheep, wheat, ore). robber: hex. buy: development card. play: card (knight, roadBuilding, yearOfPlenty, monopoly). end: end the turn.",
+    { turn: INT, player: STR, n: NINT, moves: { type: "array", items: { type: "object", additionalProperties: false, required: ["kind", "type", "at", "give", "get", "hex", "card"], properties: { kind: { type: "string", enum: ["build", "bank", "robber", "buy", "play", "end"] }, type: { type: ["string", "null"], enum: ["road", "settlement", "city", "ship", null] }, at: NINT, give: NSTR, get: NSTR, hex: NINT, card: NSTR } } } }),
+  fnT("can_still_win", "Tier 2, the review engine, takes seconds. The best-line win chance of the player at the first decision on or after that turn, searched afresh.", { turn: INT, player: STR }),
+];
+const TOOLS_COMMON = `\n\nYOU HAVE TOOLS. The message holds only an INDEX of the game (players, result, nearMiss, plans, top swings, the list of reviewed decisions); the details are fetched with tools that the app runs on the stored review. Tier 1 (get_decision, get_turn, get_luck, get_plan, get_lessons, list_swings) is instant: ask for several in ONE round, and never more than needed. Tier 2 (simulate_moves, can_still_win) runs the engine and takes seconds.
+Numbers: quote only numbers that are in the index or in a tool result (whole %, as given). Players are named exactly as in the index ("You" is the reviewed player).
+COUNTERFACTUALS ("what if", "would have", "had you ..."): state one only if a tool result shows it: the evaluated candidates of get_decision are engine results; for a move that is not listed, call simulate_moves first. Small differences (under about 8 points) are noise with 100 futures: say so rather than calling one move better.
+"evidence" = the ids of the tool calls whose results this card/answer states (empty if it rests on the index alone).`;
+const TOOLS_INSIGHTS = `${TOOLS_COMMON}
+For the cards: fetch first the 3-5 decisions / turns that look most interesting from the index (costliest decisions, top swings), then write. The index's nearMiss and plans are complete for the CLOSE GAME and ALL STRATEGIES cards (use them as "facts.nearMiss" and "facts.plans"). At most 2 engine simulations in total; use them to VERIFY a counterfactual claim before a card states it; no sim, no counterfactual.`;
+const TOOLS_GAME = `${TOOLS_COMMON}
+Answer from tier 1 whenever you can (a move that was a candidate is already evaluated). If the question names a turn, call get_decision / get_turn for it first. Use simulate_moves only for a move that is not listed, at most 3 engine calls per question. If a tool says a move is not possible or the engine could not run, say that plainly instead of guessing.`;
+const withEv = (schema, path) => { const s = JSON.parse(JSON.stringify(schema)), o = path ? s.properties.cards.items : s; o.required = [...o.required, "evidence"]; o.properties.evidence = { type: "array", items: { type: "string" } }; return s; };
+const cap = (s, n) => (String(s).length > n ? String(s).slice(0, n) : String(s));
+/** The history the app sends back: only assistant tool calls and tool results, rebuilt field by field. */
+function cleanHistory(h) {
+  if (!Array.isArray(h) || h.length > 40) return null;
+  const out = [];
+  for (const m of h) {
+    if (m?.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.length && m.tool_calls.length <= MAX_CALLS) {
+      out.push({ role: "assistant", content: null, tool_calls: m.tool_calls.map((c) => ({ id: cap(c?.id, 24), type: "function", function: { name: cap(c?.function?.name, 40), arguments: cap(c?.function?.arguments || "{}", 3000) } })) });
+    } else if (m?.role === "tool" && typeof m.tool_call_id === "string") out.push({ role: "tool", tool_call_id: cap(m.tool_call_id, 24), content: cap(m.content ?? "", 9000) });
+    else return null;
+  }
+  return out;
+}
+
 async function token() {
   const r = await fetch(`${process.env.IDENTITY_ENDPOINT}?resource=https://cognitiveservices.azure.com&api-version=2019-08-01`,
     { headers: { "X-IDENTITY-HEADER": process.env.IDENTITY_HEADER } });
@@ -100,11 +140,50 @@ app.http("recap", {
   authLevel: "anonymous",
   handler: async (req, ctx) => {
     const ip = (req.headers.get("x-forwarded-for") || "?").split(",")[0].split(":")[0];
-    const now = Date.now(), list = (hits.get(ip) || []).filter((t) => now - t < 3600e3);
-    if (list.length >= PER_IP_HOUR) return { status: 429, jsonBody: { error: "Too many recaps, try again later." } };
-    list.push(now); hits.set(ip, list);
-
     let body; try { body = await req.json(); } catch { return { status: 400, jsonBody: { error: "bad json" } }; }
+    const cont = Array.isArray(body?.history) && body.history.length > 0, bucket = cont ? "s" + ip : ip, lim = cont ? PER_IP_STEPS : PER_IP_HOUR;
+    const now = Date.now(), list = (hits.get(bucket) || []).filter((t) => now - t < 3600e3);
+    if (list.length >= lim) return { status: 429, jsonBody: { error: "Too many recaps, try again later." } };
+    list.push(now); hits.set(bucket, list);
+
+    if ((body?.mode === "insights" || body?.mode === "game") && body.index != null) {
+      const index = typeof body.index === "string" ? body.index : JSON.stringify(body.index);
+      if (!index || index.length > MAX_FACTS) return { status: 413, jsonBody: { error: "index missing or too large" } };
+      const lang = body.lang === "nl" ? "nl" : "en", ins = body.mode === "insights", q = String(body.question || "").slice(0, 300);
+      let hist = cleanHistory(body.history || []); if (!hist) return { status: 400, jsonBody: { error: "bad history" } };
+      if (hist.length) { // the results of the last round, in the order of its calls
+        const last = hist[hist.length - 1], res = Array.isArray(body.toolResults) ? body.toolResults : [];
+        if (last.role === "assistant") hist = [...hist, ...last.tool_calls.map((c) => ({ role: "tool", tool_call_id: c.id, content: cap(JSON.stringify(res.find((r) => r?.id === c.id)?.result ?? { error: "no result" }), 9000) }))];
+      }
+      const asst = hist.filter((m) => m.role === "assistant"), rounds = asst.length, calls = asst.reduce((a, m) => a + m.tool_calls.length, 0), sims = asst.reduce((a, m) => a + m.tool_calls.filter((c) => SIM.has(c.function.name)).length, 0), simCap = SIM_CAP[body.mode];
+      let tools = rounds >= MAX_ROUNDS || calls >= MAX_CALLS ? null : sims >= simCap ? TOOLS.filter((t) => !SIM.has(t.function.name)) : TOOLS;
+      const schema = withEv(ins ? INSIGHTS_SCHEMA : GAME_SCHEMA, ins);
+      const run = async (useTools) => {
+        const r = await fetch(`${process.env.OAI_ENDPOINT}/openai/v1/chat/completions`, {
+          method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
+          body: JSON.stringify({ model: process.env.OAI_DEPLOYMENT, max_completion_tokens: 4200,
+            response_format: { type: "json_schema", json_schema: { name: ins ? "insights" : "game", strict: true, schema } },
+            ...(useTools ? { tools: useTools, tool_choice: "auto" } : {}),
+            messages: [{ role: "system", content: (ins ? INSIGHTS + TOOLS_INSIGHTS : GAME + TOOLS_GAME) + (useTools ? "" : "\n\nNo more tool calls are possible: answer now from the index and the tool results you have.") + (lang === "nl" ? "\n\nWrite all text fields in natural Dutch (Nederlands)." : "\n\nWrite all text fields in English.") },
+              { role: "user", content: ins ? `index:\n${index}` : `question: ${q || "What decided this game?"}\nindex:\n${index}` }, ...hist] }) });
+        const j = await r.json(); if (!r.ok) { ctx.error("oai", r.status, JSON.stringify(j).slice(0, 500)); throw new Error("model error " + r.status); } return j;
+      };
+      try {
+        let j = await run(tools), m = j.choices?.[0]?.message;
+        if (m?.tool_calls?.length && tools) {
+          const room = MAX_CALLS - calls; let simLeft = simCap - sims;
+          const keep = []; for (const c of m.tool_calls) { if (keep.length >= room) break; if (SIM.has(c.function?.name)) { if (simLeft <= 0) continue; simLeft -= 1; } keep.push(c); }
+          if (!keep.length) { j = await run(null); m = j.choices?.[0]?.message; }
+          else {
+            const ids = keep.map((c, i) => ({ id: "k" + (calls + i + 1), name: c.function.name, args: (() => { try { return JSON.parse(c.function.arguments || "{}"); } catch { return {}; } })() }));
+            const msg = { role: "assistant", content: null, tool_calls: keep.map((c, i) => ({ id: ids[i].id, type: "function", function: { name: c.function.name, arguments: JSON.stringify(ids[i].args) } })) };
+            return { jsonBody: { toolRequests: ids, history: [...hist, msg], usage: j.usage } };
+          }
+        }
+        let ex; try { ex = JSON.parse(m?.content || ""); } catch { return { status: 502, jsonBody: { error: "model returned no JSON" } }; }
+        return { jsonBody: { explain: ex, usage: j.usage, rounds, calls } };
+      } catch (e) { ctx.error(String(e)); return { status: 502, jsonBody: { error: "model error" } }; }
+    }
     const facts = typeof body?.facts === "string" ? body.facts : JSON.stringify(body?.facts ?? "");
     if (!facts || facts.length > MAX_FACTS) return { status: 413, jsonBody: { error: "facts missing or too large" } };
     const lang = body?.lang === "nl" ? "nl" : "en";
