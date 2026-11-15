@@ -97,15 +97,16 @@ export const ReviewAiMixin = {
     card.text = this._aiTrust(card, C);
     return card;
   },
-  _aiAllowed(card, C) {
-    const A = new Set([0, 100]), add = (v) => { if (v != null && isFinite(v)) { A.add(Math.round(Math.abs(v))); } };
+  /** The numbers (whole %) a sentence may quote: the win chances of the seats it is about at the card's turns (+-1) and their steps, the cost of the
+   *  decisions there, and the game-wide numbers of the review (luck, accuracy, moves cost). Anything else is not in the review. */
+  _aiAllowed(card, C, seats) {
+    const A = new Set([0, 100]), add = (v) => { if (v != null && isFinite(v)) A.add(Math.round(Math.abs(v))); };
     const ts = new Set(); card.turns.forEach((t) => [t - 1, t, t + 1].forEach((x) => x >= 0 && ts.add(x)));
-    const seats = this.players.map((p) => p.id);
-    seats.forEach((s) => { let prev = null; [...ts].sort((a, b) => a - b).forEach((t) => { const v = wcAt(C.ser, s, t); add(v); if (prev != null && v != null) add(v - prev); prev = v; }); });
-    seats.forEach((s) => { add(wcAt(C.ser, s, 0)); add(wcAt(C.ser, s, C.maxT)); if (C.luck) add(C.luck[s] * 100); });
+    seats.forEach((s) => { let prev = null; [...ts].sort((a, b) => a - b).forEach((t) => { const v = wcAt(C.ser, s, t); add(v); if (prev != null && v != null) add(v - prev); prev = v; }); if (!card.turns.length) { add(wcAt(C.ser, s, 0)); add(wcAt(C.ser, s, C.maxT)); } if (C.luck) add(C.luck[s] * 100); });
+    card.chg.forEach((c) => { add(c.d); add(c.from); add(c.to); });
     C.decs.forEach((x) => { if (card.turns.includes(x.turn) || !card.turns.length) add(x.gap * 100); });
     const fc = this._aiFC; const f = fc && fc.R === this._rv ? fc.f : (this._aiFC = { R: this._rv, f: tryv(() => aiFacts(this)?.obj) }).f;
-    f?.players?.forEach((p) => { add(p.accuracyPct); add(p.winChanceLostByMovesPct); Object.values(p.luckInWinChancePct || {}).forEach(add); add(p.points); });
+    f?.players?.forEach((p) => { add(p.accuracyPct); add(p.winChanceLostByMovesPct); Object.values(p.luckInWinChancePct || {}).forEach(add); });
     Object.values(f?.reviewedPlayerSummary || {}).forEach((v) => typeof v === "number" && add(v));
     return A;
   },
@@ -116,8 +117,7 @@ export const ReviewAiMixin = {
     const sents = src.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g)?.map((s) => s.trim()).filter(Boolean) || [src];
     const nameRes = this.players.map((p) => ({ s: p.id, re: new RegExp(`(?:^|[^\\p{L}\\p{N}])(?:${[C.nmRaw(p.id), p.name || ""].filter((x) => x.length >= 2).map(reEsc).join("|") || "\u0000"})(?![\\p{L}\\p{N}])`, "iu") }));
     nameRes.forEach((x) => { if (this._rvIsYou(x.s)) x.re = new RegExp(`${x.re.source}|\\b(?:you|your|jij|je|jouw)\\b`, "iu"); });
-    const allowed = this._aiAllowed(card, C);
-    const neutral = (s) => { const c = T0 != null ? wcChange(C.ser, s, T0, T0) : null; if (!c) return ""; return `${C.nmRaw(s)} · ${TW} ${T0} · ${L.win} ${sgn(c.d)}%`; };
+    const neutral = (s) => { const mv = card.chg.find((c) => c.move && c.seat === s); if (mv) return `${C.nmRaw(s)} \u00b7 ${TW} ${T0} \u00b7 ${L.mine} ${sgn(mv.d)}%`; const c = T0 != null ? wcChange(C.ser, s, T0, T0) : null; if (!c) return ""; return `${C.nmRaw(s)} · ${TW} ${T0} · ${L.win} ${sgn(c.d)}%`; };
     const out = []; let used = false;
     const put = (s) => { if (s && !used) { out.push(s); used = true; } else if (!s) used = used; };
     for (const sent of sents) {
@@ -130,6 +130,7 @@ export const ReviewAiMixin = {
       else if (c && neg && !pos && c.d >= 1) { bad = true; why = "verb"; }
       if (!bad) {
         const nums = [...sent.matchAll(/(\d+(?:[.,]\d+)?)\s?%/g)].map((m) => parseFloat(m[1].replace(",", ".")));
+        const allowed = this._aiAllowed(card, C, seen.length ? seen : card.chg.length ? card.chg.map((c) => c.seat) : [C.me]);
         const off = nums.some((v) => ![...allowed].some((a) => Math.abs(a - v) <= 2));
         if (off) { bad = true; why = "number"; }
       }
@@ -145,7 +146,7 @@ export const ReviewAiMixin = {
     const L = C.t, names = this._aiNameRe(C), luckCard = card?.view === "luck";
     const parts = [
       "(?<turn>\\b(?:turns?|beurten|beurt|rolls?|round)\\s+\\d+\\b)", "(?<setup>\\bset-?up\\b|\\bopzet\\b)",
-      "(?<pct>[+\\u2212\\-\\u2013]?\\s?\\d+(?:[.,]\\d+)?\\s?%)", "(?<res>\\b(?:ore|grain|wheat|wool|sheep|lumber|wood|brick|erts|graan|tarwe|wol|schaap|hout|baksteen)\\s+\\d{1,2}\\b)",
+      "(?<pct>(?:[+\\u2212\\-\\u2013]\\s?)?\\d+(?:[.,]\\d+)?\\s?%)", "(?<res>\\b(?:ore|grain|wheat|wool|sheep|lumber|wood|brick|erts|graan|tarwe|wol|schaap|hout|baksteen)\\s+\\d{1,2}\\b)",
       "(?<pts>\\b\\d+(?:[\\u2013\\-]\\d+)?\\s+(?:points?|punten|pt)\\b|\\bpoint cards?\\b|\\bpuntenkaarten?\\b)",
       "(?<dec>\\b(?:decisions?|moves?|mistakes?|blunders?|beslissing(?:en)?|zetten|zet|fouten|fout)\\b)", "(?<lk>\\b(?:luck|geluk)\\b)",
     ];
