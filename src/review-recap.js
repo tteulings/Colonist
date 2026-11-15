@@ -87,7 +87,7 @@ export const ReviewRecapMixin = {
   },
   _rcTurnOf(d) { return this._st?.turnOf?.[d?.x?.s ?? 0] ?? d?.t ?? null; },
   /** One-line AI subtitle for a key moment row. */
-  _rcSub(d) { const tp = this._rcTp(this._rcTurnOf(d)); return tp ? `<small class="rc-sub"><i>AI</i>${esc(tp.title)}: ${esc(tp.text)}</small>` : ""; },
+  _rcSub(d) { const tp = this._rcTp(this._rcTurnOf(d)); return tp ? `<small class="rc-sub"><i>AI</i>${this._aiFmtLite?.(tp.title) ?? esc(tp.title)}: ${this._aiFmtLite?.(tp.text) ?? esc(tp.text)}</small>` : ""; },
   /** The turn's AI description at the top of the turn view / moment card. */
   _rcLine(d) {
     if (d?.k === "setup") return "";
@@ -106,13 +106,14 @@ export const ReviewRecapMixin = {
   },
   /** v1.72 the Overview's end: one "AI coach" row (opens the AI tab via _rvOpenAiTab when present; the recap's headline as its line)
    *  and the lesson as a one-line collapsible row. Key-moment rows carry the AI subtitle (_rcSubT). */
-  _rcSubT(T_, P) { const tp = this._rcOk() ? this._rcTp(T_, P) : null; return tp ? `<small class="rc-sub"><i>AI</i>${esc(tp.title)}</small>` : ""; },
+  _rcSubT(T_, P) { const tp = this._rcOk() ? this._rcTp(T_, P) : null; return tp ? `<small class="rc-sub"><i>AI</i>${this._aiFmtLite?.(tp.title) ?? esc(tp.title)}</small>` : ""; },
   _rcBox() {
     if (!this._rcOk()) return "";
+    const aiOn = this._aiAvail?.() !== false; // v1.73 offline: the AI coach row is hidden (the lesson row stays)
     const lang = recapLang(), S = this._rcSaved(), rl = S && T[S.lang] ? S.lang : lang, t = T[rl], rc = S?.recap;
     const chev = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     const h = rc?.headline ? `<span class="rc-hl" lang="${rl}">${inline(rc.headline)}</span>` : "";
-    const row = `<button type="button" class="rc-aib" data-rcai><i class="rc-aim">AI</i><div class="rc-cm"><b>AI coach · open the AI tab</b>${h}</div>${chev}</button>`;
+    const row = !aiOn ? "" : `<button type="button" class="rc-aib" data-rcai><i class="rc-aim">AI</i><div class="rc-cm"><b>AI coach · open the AI tab</b>${h}</div>${chev}</button>`;
     let les = "";
     if (rc?.tip) {
       const lk = this._rcKind(rc);

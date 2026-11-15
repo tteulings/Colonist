@@ -35,29 +35,36 @@ const OTHERS_NOTE = "1.1 points of accuracy apart on average, 5 at most, in abou
 export const CLS = { best: ["Best", "★"], great: ["Great", "⇈"], good: ["Good", "●"], could: ["Could be better", "↗"], mistake: ["Mistake", "▲"], blunder: ["Blunder", "✕"], missed: ["Missed chance", "◎"], triv: ["No real choice", "·"] };
 const IMP = ["could", "mistake", "blunder", "missed"];
 const badge = (c, sz = "") => `<i class="rs-b c-${c} ${sz}" aria-hidden="true">${CLS[c][1]}</i>`;
-const rvPos = (g, f) => {
+export const rvPos = (g, f) => {
   if (f.hex != null) return { ...g.hexes[f.hex].center, hex: true };
   if (f.city != null || f.node != null) { const n = g.nodes[f.city ?? f.node]; return { x: n.x, y: n.y }; }
   const [a, b] = g.edges[f.edge].nodes.map((i) => g.nodes[i]);
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, edge: true };
 };
 /** A (better: accent ring, letter) and B (what was done: white dashed ring + class badge) on the zoomed board, with an arrow B to A. */
-function rvMarks(game, d, Af, Bf) {
+export function rvMarks(game, d, Af, Bf, opt = {}) {
   const g = game.geometry, V = game.view, xy = (p) => [p.x * V.scale + V.offsetX, p.y * V.scale + V.offsetY];
-  const at = (f) => { if (!f) return null; const p = rvPos(g, f); return { c: xy(p), r: p.hex ? g.hexSize * V.scale * 0.6 : p.edge ? 15 : 17, hex: !!p.hex }; };
+  const at = (f) => { if (!f) return null; const p = rvPos(g, f); const hs = g.hexSize * V.scale; return { c: xy(p), r: p.hex ? hs * 0.6 : opt.tight ? Math.max(8, Math.min(p.edge ? 11 : 13, hs * 0.34)) : p.edge ? 15 : 17, hex: !!p.hex, p }; };
   const A = at(Af), B = at(Bf);
+  // tight (the AI tab): the badge sits in the direction with no number token of a neighbouring hex, so the ring and its label never cover a token
+  const free = (m, avoid = []) => {
+    const rr = m.r + 11, toks = g.hexes.filter((h) => Math.hypot(h.center.x - m.p.x, h.center.y - m.p.y) < g.hexSize * 1.6).map((h) => xy(h.center)); let best = [m.c[0], m.c[1] - rr], bd = -1;
+    for (let a = 0; a < 24; a++) { const ang = (a * Math.PI) / 12, P = [m.c[0] + Math.cos(ang) * rr, m.c[1] + Math.sin(ang) * rr], dm = Math.min(99, ...toks.map((t) => Math.hypot(t[0] - P[0], t[1] - P[1])), ...avoid.map((q) => Math.hypot(q[0] - P[0], q[1] - P[1]) * 1.4)); if (dm > bd) { bd = dm; best = P; } }
+    return best;
+  };
+  const bpB = opt.tight && B ? free(B, A ? [A.c] : []) : null, bpA = opt.tight && A ? free(A, [...(B ? [B.c, bpB] : [])]) : null;
   const ring = (m, alt) => {
     if (!m) return "";
-    const [x, y] = m.c, r = m.r, fill = m.hex ? `<circle cx="${x}" cy="${y}" r="${r}" fill="${alt ? "#fff" : "var(--primary)"}" opacity=".22"/>` : "";
+    const [x, y] = m.c, r = m.r, [bx, by] = opt.tight ? (alt ? bpB : bpA) : [x + r * 0.78, y - r * 0.78], fill = m.hex ? `<circle cx="${x}" cy="${y}" r="${r}" fill="${alt ? "#fff" : "var(--primary)"}" opacity=".22"/>` : "";
     const o = alt ? `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#fff" stroke-width="3.5" stroke-dasharray="6 4"/>` : `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#fff" stroke-width="7"/><circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="var(--primary)" stroke-width="3.6"/>`;
-    return `${fill}${o}<g transform="translate(${(x + r * 0.78).toFixed(1)} ${(y - r * 0.78).toFixed(1)})"><circle r="11" fill="${alt ? "#fff" : "var(--primary)"}" stroke="${alt ? "var(--primary)" : "#fff"}" stroke-width="2"/><text y="4.6" text-anchor="middle" font-size="13" font-weight="800" fill="${alt ? "var(--primary)" : "#fff"}">${alt ? "B" : "A"}</text></g>`;
+    return `${fill}${o}<g transform="translate(${bx.toFixed(1)} ${by.toFixed(1)})"><circle r="${opt.tight ? 8 : 11}" fill="${alt ? "#fff" : "var(--primary)"}" stroke="${alt ? "var(--primary)" : "#fff"}" stroke-width="2"/><text y="4.6" text-anchor="middle" font-size="13" font-weight="800" fill="${alt ? "var(--primary)" : "#fff"}">${alt ? "B" : "A"}</text></g>`;
   };
   let arrow = "";
-  if (A && B && !A.hex) {
+  if (A && B && !A.hex && !opt.tight) {
     const [x1, y1] = B.c, [x2, y2] = A.c, L = Math.hypot(x2 - x1, y2 - y1) || 1, ux = (x2 - x1) / L, uy = (y2 - y1) / L, e1 = [x1 + ux * (B.r + 4), y1 + uy * (B.r + 4)], e2 = [x2 - ux * (A.r + 6), y2 - uy * (A.r + 6)];
     if (L > A.r + B.r + 14) arrow = `<g class="mk-arrow"><line x1="${e1[0]}" y1="${e1[1]}" x2="${e2[0]}" y2="${e2[1]}" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".9"/><line x1="${e1[0]}" y1="${e1[1]}" x2="${e2[0]}" y2="${e2[1]}" stroke="var(--primary)" stroke-width="3" stroke-dasharray="1 7" stroke-linecap="round"/><path d="M${e2[0]},${e2[1]} l${-ux * 11 - uy * 7},${-uy * 11 + ux * 7} M${e2[0]},${e2[1]} l${-ux * 11 + uy * 7},${-uy * 11 - ux * 7}" stroke="var(--primary)" stroke-width="3.4" stroke-linecap="round" fill="none"/></g>`;
   }
-  const cls = B ? `<g transform="translate(${(B.c[0] - B.r * 0.78).toFixed(1)} ${(B.c[1] - B.r * 0.78).toFixed(1)})"><circle r="10" class="rs-cb c-${d.cls}"/><text y="4.5" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">${CLS[d.cls][1]}</text></g>` : "";
+  const cls = B && !opt.tight ? `<g transform="translate(${(B.c[0] - B.r * 0.78).toFixed(1)} ${(B.c[1] - B.r * 0.78).toFixed(1)})"><circle r="10" class="rs-cb c-${d.cls}"/><text y="4.5" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">${CLS[d.cls][1]}</text></g>` : "";
   // v1.11 the plan behind A: the road route to the target, and the rival spots it takes away
   const W = d.x.why?.mark, wp = (f) => { const p = rvPos(g, f); return xy(p); };
   let why = "";
@@ -695,6 +702,7 @@ export const ReviewGameMixin = {
     this._rvDrawReview();
   },
   _rvOpenReview(pid, { mid = false, at = null, near = null, tab = null } = {}) {
+    if (!this._aiKeep) this._aiBack = null; // (v1.73 only a link from the AI tab makes Back return there)
     if (!this._rvReviewable()) return;
     if (!this._rvGateOk(pid)) { this._hsGate?.(pid, "Your game review", () => this._rvOpenReview(pid, { mid, at, near })); return; } // pass & play: hand the phone over first
     const inReview = !!this._rvEl; // v1.52 opened from inside the review (a column, Whose moves): the way back stays where you came from
@@ -909,22 +917,23 @@ export const ReviewGameMixin = {
   // ── v1.49 the review in tabs: Overview (players side by side, key moments) · Win chance · Luck · Moves ──
   _rvTabsBar(on) {
     const T = [["overview", "Overview"], ["win", "Win chance"], ["luck", "Luck"], ["moves", "Moves"]];
-    return `<div class="rv-tabs" role="tablist" aria-label="Game review">${T.map(([k, l]) => `<button type="button" role="tab" class="${k === on ? "on" : ""}" aria-selected="${k === on}" data-rvt="${k}">${l}</button>`).join("")}</div>`;
+    if (this._aiAvail?.()) T.push(["ai", "AI \u00b7 beta"]); // v1.73 the AI tab (online, finished game)
+    return `<div class="rv-tabs${T.length > 4 ? " t5" : ""}" role="tablist" aria-label="Game review">${T.map(([k, l]) => `<button type="button" role="tab" class="${k === on ? "on" : ""}" aria-selected="${k === on}" data-rvt="${k}">${l}</button>`).join("")}</div>`;
   },
   /** The review of one player as four tabs (a check during the game keeps the single column: _rvOverviewMid). */
   _rvOverview(ds, res, rv) {
     if (this._rvMid) return this._rvOverviewMid(ds, res, rv);
     const el = this._rvEl, pid = this._rvPid, prov = !this._rvReviewComplete(pid);
-    const tab = (this._rvTab = ["overview", "win", "luck", "moves", "player"].includes(this._rvTab) ? this._rvTab : "overview");
+    const tab = (this._rvTab = ["overview", "win", "luck", "moves", "player", ...(this._aiAvail?.() ? ["ai"] : [])].includes(this._rvTab) ? this._rvTab : "overview");
     this._rvWinOff2?.(); this._rvWinOff2 = null;
     this._rvT = this._rvTotals(ds);
-    const part = { overview: () => this._rvTabOverview(ds, rv, prov), win: () => this._rvTabWin(ds), luck: () => this._rvTabLuck(ds), moves: () => this._rvTabMoves(ds, res, rv), player: () => this._rvTabPlayer(ds, rv, prov) }[tab]();
+    const part = { overview: () => this._rvTabOverview(ds, rv, prov), win: () => this._rvTabWin(ds), luck: () => this._rvTabLuck(ds), moves: () => this._rvTabMoves(ds, res, rv), player: () => this._rvTabPlayer(ds, rv, prov), ai: () => this._rvTabAi(ds, rv, prov) }[tab]();
     const scroll = this._rvTabDrawn === `${pid}|${tab}` ? el.querySelector(".rv-scroll")?.scrollTop || 0 : 0;
     this._rvTabDrawn = `${pid}|${tab}`;
     el.className = "rv rs tm";
     const pop0 = el.querySelector(".rv-pop"); // an open progress card stays open through the redraw
-    el.innerHTML = `${tab === "player" ? part.bar : this._rvBar(`${ds.length} decisions · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`, { overview: "Overview", win: "Win chance", luck: "Luck", moves: "Moves" }[tab])}${tab === "player" ? "" : this._rvTabsBar(tab)}
-      <div class="rv-scroll">${part.html}${tab === "overview" ? (this._rcBox?.() || "") + (this._raBox?.() || "") : ""}</div>`;
+    el.innerHTML = `${tab === "player" ? part.bar : this._rvBar(`${ds.length} decisions · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`, { overview: "Overview", win: "Win chance", luck: "Luck", moves: "Moves", ai: "AI coach" }[tab])}${tab === "player" ? "" : this._rvTabsBar(tab)}
+      <div class="rv-scroll">${part.html}${tab === "overview" ? (this._rcBox?.() || "") + (this._raBox?.() || "") : ""}</div>${part.foot || ""}`;
     el.querySelector(".rv-scroll").scrollTop = scroll;
     if (pop0) el.appendChild(pop0);
     this._rvBindTop(el);
@@ -932,7 +941,7 @@ export const ReviewGameMixin = {
     this._rcBind?.(el);
     this._rvBindTable(el);
     this._rvBindMoves(el);
-    el.querySelectorAll("[data-rvt]").forEach((b) => b.addEventListener("click", () => { if (this._rvTab !== b.dataset.rvt || b.dataset.rvpp) { this._rvTab = b.dataset.rvt; this._rvDrawReview(); } }));
+    el.querySelectorAll("[data-rvt]").forEach((b) => b.addEventListener("click", () => { const bk = b.dataset.rvpp && this._aiBack?.R === this._rv ? this._aiBack : null; if (bk) { this._aiBack = null; this._aiScrollY ??= 0; if (bk.pid !== this._rvPid) this._rvOpenReview(bk.pid, { tab: "ai" }); else { this._rvTab = "ai"; this._rvDrawReview(); } return; } if (this._rvTab !== b.dataset.rvt || b.dataset.rvpp) { this._rvTab = b.dataset.rvt; this._rvDrawReview(); } }));
     el.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = b.dataset.rvq || "all"; this._rvEnterStep(+b.dataset.rvj); }));
     this._rvBindSbs(el);
     part.bind?.(el);

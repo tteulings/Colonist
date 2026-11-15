@@ -38,7 +38,8 @@ Choose 3 to 6 insight cards, ordered as a story, mixing levels where the facts s
 - level "decision": one specific decision of you or an opponent that mattered (what was played, what was better, why);
 - level "strategy": the point plan of you or an opponent and how it worked out, or a pattern (e.g. "Blaauw went for cities and the army; nobody blocked his ore").
 Skip levels with nothing interesting. For each card pick the visual that explains it best: view = "winchance" | "luck" | "points" | "plan" | "board" | "moves" | "none"; turns (max 4), focusTurn (or null), players (names it is about).
-Return JSON: headline (one sentence for this game), cards[] {level, title (3-7 words), text (1-3 short sentences, concrete facts, no stock phrases), view, turns, focusTurn, players}, followUps (3 questions this game invites, specific to it).
+WRITE FOR A PHONE SCREEN. Hard limits: headline max 14 words; card title max 6 words; card text exactly ONE complete sentence of max 16 words (never rely on truncation, no trailing clauses), a concrete fact with a number or name; never repeat the same point in two cards (merge similar strategy cards into one); each followUp max 24 characters (e.g. "Why did I lose?").
+Return JSON: headline, cards[] {level, title, text, view, turns, focusTurn, players}, followUps (3 short questions this game invites, specific to it).
 Say "points" (Dutch "punten"), never "VP"; win chance as %.`;
 const INSIGHTS_SCHEMA = { type: "object", additionalProperties: false, required: ["headline", "cards", "followUps"], properties: {
   headline: { type: "string" },
