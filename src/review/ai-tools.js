@@ -4,6 +4,8 @@
 // Every number a tool returns comes from the stored review or from the engine; nothing is invented.
 import { aiFacts, aiSeries, wcChange } from "./ai-facts.js";
 import { decide } from "./evaluate.js";
+import { vcOf, seOf, vcMeta, vcFields, VC_WORDS } from "./score.js";
+export { vcMeta, vcFields, VC_WORDS };
 import { decMoves, moveOf } from "./ai-blocks.js";
 import { spotTable, spotsForModel } from "./ai-spots.js";
 import { turningSteps } from "./recap-facts.js";
@@ -14,7 +16,8 @@ const unesc = (s) => String(s ?? "").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
 const clip = (s, n) => { s = unesc(s); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
 const pc = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100));
 export const TIER2 = new Set(["simulate_moves", "can_still_win"]);
-export const TOOL_NAMES = ["get_decision", "get_turn", "get_luck", "get_plan", "get_lessons", "list_swings", "simulate_moves", "can_still_win"];
+export const REFINE_TOOL = "refine_decision"; // v1.81 more futures on the played move and its best alternative (run by src/review-refine.js)
+export const TOOL_NAMES = ["get_decision", "get_turn", "get_luck", "get_plan", "get_lessons", "list_swings", "simulate_moves", "can_still_win", "refine_decision"];
 export const CAPS = { rounds: 6, calls: 12, sims: { insights: 2, game: 3 }, moves: 4 };
 const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
 
@@ -27,6 +30,8 @@ export function aiSeatOf(g, who) {
   return i >= 0 ? g.players[i].id : null;
 }
 const cache = new WeakMap();
+/** v1.81 a refinement changed a stored decision: the memoised lists of this review are dropped. */
+export const aiCacheReset = (g) => { if (g?._rv) cache.delete(g._rv); };
 const memo = (g, key, f) => { const R = g._rv; if (!R) return f(); let m = cache.get(R); if (!m) cache.set(R, (m = new Map())); if (!m.has(key)) m.set(key, f()); return m.get(key); };
 
 /** All reviewed decisions of every player: { seat, turn, n (nth of that player on that turn), d, x }. */
@@ -65,13 +70,14 @@ export function aiIndex(g) {
   const sw = steps(g).map((s) => ({ turn: s.turn, player: s.player, score: s.score, you: s.winChancePct?.You })).sort((a, b) => b.score - a.score).slice(0, 6).sort((a, b) => a.turn - b.turn);
   idx.topSwings = sw.map((s) => ({ turn: s.turn, player: s.player, youWinChancePct: s.you }));
   const list = aiDecList(g).filter((e) => e.x.best && e.gap > 0.005).sort((a, b) => b.gap - a.gap).slice(0, 18).sort((a, b) => a.turn - b.turn || a.seat - b.seat);
-  idx.reviewedDecisions = list.map((e) => ({ turn: e.turn, player: nameOf(g, e.seat), n: e.n, played: clip(e.x.label, 70), better: clip(e.x.best.label, 70), costPct: Math.round(e.gap * 1000) / 10 }));
+  idx.reviewedDecisions = list.map((e) => ({ turn: e.turn, player: nameOf(g, e.seat), n: e.n, played: clip(e.x.label, 70), ...vcFields(e.x, 70), costPct: Math.round(e.gap * 1000) / 10, ...vcMeta(e.x) }));
   idx.turns = g.turn || null;
   idx.note = "INDEX only. Players are named as here. Fetch details with the tools (get_decision{turn,player,n}, get_turn, get_luck, get_plan, get_lessons, list_swings; engine: simulate_moves, can_still_win).";
   const json = JSON.stringify(idx);
   return { obj: idx, json };
 }
 
+export const aiPick = (g, a) => pick(g, a);
 const pick = (g, a, needMain = false) => {
   const seat = aiSeatOf(g, a.player); if (seat == null) return { err: `unknown player "${a.player}"` };
   const turn = Number.isInteger(+a.turn) ? +a.turn : null; if (turn == null) return { err: "turn must be a number" };
@@ -92,7 +98,7 @@ export function aiToolRun(g, name, a = {}) {
       const { e } = r, x = e.x, base = x.cands[0]?.win;
       const cands = x.cands.map((c, i) => ({ label: clip(c.label, 80), at: focusId(c.focus), winPct: pc(c.win), vsPlayedPct: base != null && c.win != null ? pc(c.win) - pc(base) : null, futures: c.n, ...(i === 0 ? { played: true } : {}) }))
         .sort((p, q) => (q.winPct ?? -1) - (p.winPct ?? -1)).slice(0, 8);
-      const out = { player: nameOf(g, e.seat), turn: e.turn, n: e.n, decisionsThatTurn: r.of, kind: x.k, played: clip(x.label, 80), playedWinPct: pc(base), better: x.best ? clip(x.best.label, 80) : null, costPct: Math.round(e.gap * 1000) / 10, rating: e.d.cls || null, evaluated: cands };
+      const out = { player: nameOf(g, e.seat), turn: e.turn, n: e.n, decisionsThatTurn: r.of, kind: x.k, played: clip(x.label, 80), playedWinPct: pc(base), ...(x.best ? vcFields(x, 80) : { better: null }), costPct: Math.round(e.gap * 1000) / 10, rating: e.d.cls || null, ...vcMeta(x), wording: x.best ? VC_WORDS[vcOf(x)] || null : null, evaluated: cands };
       if (x.aim) out.aims = JSON.parse(JSON.stringify(x.aim, (k, v) => (typeof v === "number" ? Math.round(v * 100) / 100 : v))); // where the points of the better (A) and played (B) futures come from
       if (x.simple) out.simpleChoice = x.simple;
       const sp = tryv(() => { const mv = decMoves(e); return mv ? spotsForModel(spotTable(g, e, "en", ["best", "played"], (rf) => moveOf(mv, rf))) : null; }); // v1.80 the WHY of a spot decision: factors read from the position
@@ -228,4 +234,4 @@ export function aiCantMsg(err, it, lang = "en") {
   return nl ? `De engine kan ${w} in beurt ${T} niet testen: ${why}.` : `The engine can\u2019t test ${w} on turn ${T}: ${why}.`;
 }
 /** The record of a get_decision result a card keeps (small): the one source its numbers come from. */
-export const aiSlimDecision = (r) => (r && !r.error ? { player: r.player, turn: r.turn, n: r.n, kind: r.kind, played: r.played, playedWinPct: r.playedWinPct, better: r.better, costPct: r.costPct, rating: r.rating, evaluated: (r.evaluated || []).slice(0, 4) } : null);
+export const aiSlimDecision = (r) => (r && !r.error ? { player: r.player, turn: r.turn, n: r.n, kind: r.kind, played: r.played, playedWinPct: r.playedWinPct, better: r.better, costPct: r.costPct, rating: r.rating, verdict: r.verdict, plusMinusPct: r.plusMinusPct, otherOption: r.otherOption, refined: r.refined, evaluated: (r.evaluated || []).slice(0, 4) } : null);

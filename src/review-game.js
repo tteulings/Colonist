@@ -32,8 +32,9 @@ export const MC = "deep Monte Carlo (100 futures a move)"; // what runs the chec
 // v1.29 the bots' lighter deep check against checking all their moves with the full engine (scratchpad others129 budget-an.mjs)
 const OTHERS_NOTE = "1.1 points of accuracy apart on average, 5 at most, in about 60% of the time";
 // v1.05 chess-style classes: name, glyph (own icons, one hue each in review.css)
-export const CLS = { best: ["Best", "★"], great: ["Great", "⇈"], good: ["Good", "●"], could: ["Could be better", "↗"], mistake: ["Mistake", "▲"], blunder: ["Blunder", "✕"], missed: ["Missed chance", "◎"], triv: ["No real choice", "·"] };
-const IMP = ["could", "mistake", "blunder", "missed"];
+export const CLS = { best: ["Best", "★"], great: ["Great", "⇈"], good: ["Good", "●"], lean: ["Slightly better", "↗"], close: ["Close call", "≈"], could: ["Could be better", "↗"], mistake: ["Mistake", "▲"], blunder: ["Blunder", "✕"], missed: ["Missed chance", "◎"], triv: ["No real choice", "·"] };
+const IMP = ["lean", "could", "mistake", "blunder", "missed"]; // v1.81 lean counts as a (possible) mistake, close does not
+export const aLabel = (d) => (d.cls === "close" || d.vc === "close" ? "Other option" : d.cls === "lean" || d.vc === "lean" ? "Slightly better" : "Better");
 const badge = (c, sz = "") => `<i class="rs-b c-${c} ${sz}" aria-hidden="true">${CLS[c][1]}</i>`;
 export const rvPos = (g, f) => {
   if (f.hex != null) return { ...g.hexes[f.hex].center, hex: true };
@@ -112,7 +113,7 @@ export const ReviewGameMixin = {
     const rv = this._rvOf(pid);
     if (!rv || rv.pid !== pid || !rv.results.length) return 0;
     const c = summarize(rv.results).cls;
-    return (c.could || 0) + (c.mistake || 0) + (c.blunder || 0) + (c.missed || 0);
+    return (c.lean || 0) + (c.could || 0) + (c.mistake || 0) + (c.blunder || 0) + (c.missed || 0);
   },
   /** The inside of the end screen's review button, one line: "Game review" + a status chip (checking 12/24 ·
    *  provisional · accuracy 92 · Re-check for an old formula); never started: "Review this game" + the time. */
@@ -340,7 +341,7 @@ export const ReviewGameMixin = {
     const deep = (rv?.results || []).filter((x) => !this._rvNeedsFull(x) && (!x.skip || x.skip === "trivial"));
     const deepTodo = (rv?.results || []).filter((x) => !["forced", "n/a"].includes(x.skip) && !(this._rvBotSeat(pid) && this._rvQuickDone(x))).length;
     let worst = null;
-    if (cov && (p.isHuman || done || deep.length >= Math.min(6, deepTodo))) worst = this._rvImp(decide(p.isHuman ? rv.results.filter((x) => !x.skip || x.skip === "trivial") : deep, this.players.length, pid))[0] || null;
+    if (cov && (p.isHuman || done || deep.length >= Math.min(6, deepTodo))) worst = this._rvImp(decide(p.isHuman ? rv.results.filter((x) => !x.skip || x.skip === "trivial") : deep, this.players.length, pid)).filter((d) => d.cls !== "lean")[0] || null;
     const running = run?.pid === pid && run.round ? { j: run.round.j, n: run.round.n, quick: run.round.eng === "m100", paused: run.paused } : null;
     const st = running ? "run" : done ? "done" : cov && p.isHuman ? "prov" : rv?.stopped || (!p.isHuman && R.othersOff) ? "stopped" : cov ? "quick" : this._rvQueued(pid) || (!p.isHuman && !R.othersPlanned) ? "queued" : "idle";
     return { st, sum, running, worst, todo, done, cov, deepN: deep.length };
@@ -769,6 +770,7 @@ export const ReviewGameMixin = {
     d.innerHTML = `<div class="rv-card"><div class="rv-ih"><b>About this review</b><button type="button" class="rv-btn" data-rvinfo-x aria-label="Close">✕</button></div>
       <p><b>Win chance</b>: your chance to win, in %. It comes from ${MC}: the position is played on for 20 turns, 100 times for every move (Standard model).</p>
       <p><b>A and B</b>: A is the best move, B is what you played. A − B is what that move cost. Classes: ${lim(LIMITS)}. Set-up spots use wider limits (${lim(SETUP_LIMITS)}).</p>
+      <p><b>How sure</b>: every gap comes with its own margin (the noise of 100 futures is about 3 points). Only a <b>clear</b> gap (at least twice the margin) is called a mistake or blunder. A smaller one is <b>Slightly better</b> (probably) or a <b>Close call</b> (about equal, not a mistake). Your close and slightly-better moves are checked again with 400 futures on the two moves that matter.</p>
       <p><b>Play</b>: shows every move since your last decision: rolls, builds, trades, the robber. Win chances exist at your decisions only.</p>
       <p><b>Plan</b>: the likely reason A is better, read from the position. No clear reason, no Plan.</p>
       <p><b>Missed chance</b>: you ended the turn or traded while a build was worth 3+ %. <b>Great</b>: the best move, the next one ${GREAT}+ % behind. <b>No real choice</b>: every option within 2 %.</p>
@@ -829,6 +831,9 @@ export const ReviewGameMixin = {
     if (d.cls === "best") return `${esc(x.label)}: the best move.`;
     if (d.cls === "great") return `${esc(x.label)}: far ahead of the rest.`;
     if (d.cls === "good") return d.gp >= 1 ? `${esc(x.label)} kept ${d.B}%; ${esc(lc(tradeShow(x.best.label)))} kept ${d.A}%.` : `${esc(x.label)}: a good move.`;
+    const pm = d.se != null ? ` ±${Math.round(d.se * 100)}` : "";
+    if (d.cls === "close") return `${who} played ${esc(lc(x.label))}; ${esc(lc(x.best.label))} looks about equal (${gain}${pm}): a close call.`;
+    if (d.cls === "lean") return `${who} played ${esc(lc(x.label))}; ${esc(lc(x.best.label))} is probably slightly better (${gain}${pm}).`;
     return `${who} played ${esc(lc(x.label))}; ${esc(lc(x.best.label))} was worth ${gain}.`;
   },
   /** One short line for the key moments: "Ended turn · road 2·11·10". */
@@ -1311,9 +1316,9 @@ export const ReviewGameMixin = {
    *  "Mistakes" (could be better and worse) is the default; the choice is remembered. */
   _rvMovesCard(ds, you, nm) {
     let f = "mistakes"; try { f = localStorage.getItem("colonist_review_moves") === "all" ? "all" : "mistakes"; } catch (_) { /* private mode */ }
-    const bad = new Set(["could", "mistake", "blunder", "missed"]), list = f === "all" ? ds : ds.filter((d) => bad.has(d.cls));
+    const bad = new Set(IMP), list = f === "all" ? ds : ds.filter((d) => bad.has(d.cls));
     const sg = (v) => sgn(v * 100), tw = this._rvTW();
-    const rows = list.map((d) => `<button type="button" class="mv-r c-${d.cls}" data-rvj="${d.i}" data-rvq="all"><span class="mv-t">${d.k === "setup" ? "Set-up" : `${tw} ${d.t}`}</span><span class="mv-m"><b class="mv-v">${badge(d.cls, "sm")}${d.cls === "missed" ? "Missed" : CLS[d.cls][0]}</b><span class="mv-w">${esc(this._rvShort(d))}</span></span><em class="mv-c">${d.gap >= 0.01 ? `${sg(-d.gap)}%` : ""}</em></button>`).join("");
+    const rows = list.map((d) => `<button type="button" class="mv-r c-${d.cls}" data-rvj="${d.i}" data-rvq="all"><span class="mv-t">${d.k === "setup" ? "Set-up" : `${tw} ${d.t}`}</span><span class="mv-m"><b class="mv-v">${badge(d.cls, "sm")}${d.cls === "missed" ? "Missed" : CLS[d.cls][0]}</b><span class="mv-w">${esc(this._rvShort(d))}</span></span><em class="mv-c${d.cls === "close" ? " neu" : ""}">${d.gap >= 0.01 ? `${sg(-d.gap)}%` : ""}</em></button>`).join("");
     const seg = [["mistakes", "Mistakes"], ["all", "All"]].map(([k, l]) => `<button type="button" class="${k === f ? "on" : ""}" aria-pressed="${k === f}" data-rvmf="${k}">${l}</button>`).join("");
     return `<section class="rv-card mv-card"><div class="rv-gt"><b>${you ? "Your" : `${nm}’s`} moves</b><div class="km-seg mv-seg" role="group" aria-label="Which moves">${seg}</div></div>${rows || `<p class="rs-lost">No mistakes in ${you ? "your" : "their"} moves. Switch to All to see every move.</p>`}</section>`;
   },
@@ -1407,12 +1412,13 @@ export const ReviewGameMixin = {
     const sameBoard = el.classList.contains("step") && this._rvBoardKey === `${d.i}|${show}` && el.querySelector(".rs-board canvas");
     const scrub = el.querySelector(".rs-strip")?.scrollLeft || 0;
     const prov = !this._rvReviewComplete(this._rvPid);
-    const A = noA ? "" : `<div class="a${show === "B" ? " dim" : ""}" data-rvab="A"><s>A</s><small>Better · win chance</small><b>${esc(tradeShow(x.best.label))}</b><i>${d.A}%</i></div>`;
+    const A = noA ? "" : `<div class="a${show === "B" ? " dim" : ""}" data-rvab="A"><s>A</s><small>${aLabel(d)} · win chance</small><b>${esc(tradeShow(x.best.label))}</b><i>${d.A}%</i></div>`;
     const B = `<div class="b${show === "A" && !noA ? " dim" : ""}" data-rvab="B"><s class="alt">B</s><small>${who} did · win chance</small><b>${esc(tradeShow(x.label))}</b><i>${d.B}%</i></div>`;
     const tvs = this._tvEnsure(d, ds, this._tvKeep), ov = tvs.ov;
-    const cardHtml = `${this._rcLine(d)}${ov ? "" : `<div class="rs-h">${badge(d.cls, "lg")}<b>${CLS[d.cls][0]}</b><span>${this._rvKind(d)}</span><em class="${d.gp ? "neg" : "pos"}">${d.gp ? sg(-d.gap) : "±0"}</em></div>
+    const cardHtml = `${this._rcLine(d)}${ov ? "" : `<div class="rs-h">${badge(d.cls, "lg")}<b>${CLS[d.cls][0]}</b><span>${this._rvKind(d)}</span><em class="${d.cls === "close" ? "neu" : d.gp ? "neg" : "pos"}">${d.gp ? sg(-d.gap) : "±0"}</em></div>
         <p class="rs-s">${this._rvLine(d)}</p>
-        ${noA ? "" : whyHtml(x.why)}
+        ${this._rfHtml?.(d) || ""}
+        ${noA || d.cls === "close" ? "" : whyHtml(x.why)}
         ${this._exBox(d)}
         <div class="rs-ab${noA ? " one" : ""}">${A}${B}</div>
         ${noA ? "" : aimHtml(x, who, (v) => `${Math.round(v * 100)}%`)}
@@ -1425,6 +1431,7 @@ export const ReviewGameMixin = {
       root.querySelectorAll("[data-rvallmoves]").forEach((b) => b.addEventListener("click", () => { this._rvStep = null; this._rvPbp = null; this._rvStepFrom = null; if (!this._rvMid) this._rvTab = "moves"; this._rvDrawReview(); })); // (the card is redrawn while a check runs: bound here too)
       this._tvBind(root, d, ds); this._exBind?.(root, d);
       root.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = "all"; this._rvDrawReview(+b.dataset.rvj); }));
+      root.querySelectorAll("[data-rvrf]").forEach((b) => b.addEventListener("click", () => { const i = +b.dataset.rvrf; b.disabled = true; this._rv?.rfFail?.delete(i); this._rfRunNow?.(i); }));
       root.querySelectorAll("[data-rvwhy]").forEach((b) => b.addEventListener("click", () => { this._rvInfoOpen = true; this._rvShowInfo(); }));
       root.querySelectorAll("[data-rvnav]").forEach((b) => b.addEventListener("click", () => { const n = list[k + +b.dataset.rvnav]; if (n) this._rvDrawReview(n.i); }));
       root.querySelectorAll("[data-rvab]").forEach((b) => b.addEventListener("click", () => { const v = b.dataset.rvab; this._rvAB = v === this._rvAB && v !== "both" ? "both" : v; this._rvDrawReview(); }));
@@ -1457,6 +1464,7 @@ export const ReviewGameMixin = {
     [el.querySelector(".rs-stage"), el.querySelector(".rs-card")].forEach((n) => { if (!n) return; n.addEventListener("touchstart", (e) => { x0 = e.touches[0].clientX; }, { passive: true }); n.addEventListener("touchend", (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; if (!this._rvPbp && Math.abs(dx) > 50) { if (d.k === "setup") { const nx = list[k + (dx < 0 ? 1 : -1)]; if (nx) this._rvDrawReview(nx.i); } else this._tvStep(dx < 0 ? 1 : -1, d, ds); } }, { passive: true }); });
     if (!mid) { this._rvBoard(d, show); try { gameOdds(this); } catch (_) { /* the play-by-play's win chance warms up (worker, cached per game) */ } }
     if (this._rvPbp && !mid) this._rvPbpGo(d, ds, this._rvPbp.j); // back from A/B toggle etc. while playing by play
+    this._rfKick?.(d);
   },
   /** v1.31 design B: "Since your last move: Luck +2% · Others +1% · Your move ±0". Luck = the chance events in between (src/review-luck.js),
    *  Others = the rest of "Dice & others" (the others' moves, and the estimate moving between two moments). Each folds open: Luck to every
@@ -1464,7 +1472,7 @@ export const ReviewGameMixin = {
   _lkSplitHtml(d, ds, sg) {
     const me = this._rvPid, k = ds.indexOf(d), from = k > 0 ? ds[k - 1].x.e ?? 0 : 0, to = d.x.e ?? 0;
     const lead = `<span>${d === ds[0] ? `At the start everyone had ${Math.round(100 / Math.max(1, this.players.length))}%` : `Since ${this._rvIsYou(me) ? "your" : "their"} last move`}</span>`, lead2 = `<span>${d === ds[0] ? "From the start" : "Since last move"}</span>`;
-    const mv = `<b class="${d.gp ? "neg" : "pos"}">${this._rvIsYou(me) ? "Your move" : "Move"} ${d.gp ? sg(-d.gap) : "±0"}</b>`;
+    const mv = `<b class="${d.cls === "close" ? "neu" : d.gp ? "neg" : "pos"}">${this._rvIsYou(me) ? "Your move" : "Move"} ${d.gp ? sg(-d.gap) : "±0"}</b>`;
     const LK = this._lkState(), lk = !LK.na && LK.cover >= 0.9 ? this._lkBetween(me, from, to) : null;
     if (!lk || lk.missing) return `<div class="rs-lkw"><div class="rs-lk">${lead}<b class="${d.cp >= 0 ? "pos" : "neg"}">Luck (dice, steals, cards) ${sg(d.chance)}</b>${mv}</div></div>`;
     const oth = d.chance - lk.sum, c = (v) => (Math.round(v * 100) > 0 ? "pos" : Math.round(v * 100) < 0 ? "neg" : "");

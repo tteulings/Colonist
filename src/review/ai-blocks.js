@@ -17,6 +17,7 @@ export function spotFocus(g, at) {
   if (k === "e") return g.edges?.[i] ? { edge: i } : null;
   return g.hexes?.[i] ? { hex: i } : null;
 }
+import { vcOf, seOf } from "./score.js";
 const sameF = (a, b) => !!a && !!b && (a.node ?? a.city ?? null) === (b.node ?? b.city ?? null) && (a.edge ?? null) === (b.edge ?? null) && (a.hex ?? null) === (b.hex ?? null);
 
 /** The moves of one decision by ref: played, best, alt1..3 (the other evaluated moves by win chance). { label, focus, win (%), kind } or null. */
@@ -25,12 +26,12 @@ export function decMoves(dm) {
   const c0 = x.cands[0], base = x.win != null ? x.win : c0.win;
   const played = { label: clean(x.label || c0.label, 80), focus: x.focus || c0.focus || null, win: pc(c0.win ?? base), kind: "played" };
   const b = x.best, bc = b ? x.cands.find((c) => c !== c0 && c.label === b.label) || x.cands.find((c) => c !== c0 && sameF(c.focus, b.focus)) : null;
-  const best = b ? { label: clean(b.label, 80), focus: b.focus || null, win: pc(bc?.win ?? (base != null && b.gain != null ? base + b.gain : null)), kind: "best" } : null;
-  const alts = x.cands.slice(1).filter((c) => c.win != null && !(best && (c.label === best.label || sameF(c.focus, best.focus)))).sort((p, q) => q.win - p.win).slice(0, 3).map((c) => ({ label: clean(c.label, 80), focus: c.focus || null, win: pc(c.win), kind: "alt" }));
+  const best = b ? { label: clean(b.label, 80), focus: b.focus || null, win: pc(bc?.win ?? (base != null && b.gain != null ? base + b.gain : null)), kind: "best", se: seOf(x) != null ? Math.round(seOf(x) * 1000) / 10 : null } : null;
+  const alts = x.cands.slice(1).filter((c) => c.win != null && !(best && (c.label === best.label || sameF(c.focus, best.focus)))).sort((p, q) => q.win - p.win).slice(0, 3).map((c) => ({ label: clean(c.label, 80), focus: c.focus || null, win: pc(c.win), kind: "alt", se: c.se > 0 ? Math.round(c.se * 1000) / 10 : null }));
   const gap = Math.max(0, dm.gap ?? dm.d?.gap ?? 0);
   if (best && played.win != null && gap >= 0.005) best.win = played.win + Math.round(gap * 100); // the review's own cost: the bars and the chip agree (the two rounded win chances may differ by 1)
   if (best?.win != null) { for (let i = alts.length - 1; i >= 0; i--) if (alts[i].win > best.win) alts.splice(i, 1); } // an alternative that rates above the review's best is within the noise: not shown
-  return { played, best, alts, gap, x };
+  return { played, best, alts, gap, x, vc: vcOf(x) };
 }
 /** One move by ref ("played", "best", "alt2") of a decision. */
 export function moveOf(mv, ref) {
@@ -124,12 +125,13 @@ const ONE = {
       const ref = String(o?.ref ?? "").trim(), m = /^(played|best|better|alt[1-3])$/i.test(ref) ? moveOf(mv, ref) : evRow(ev, ref);
       if (!m || m.win == null) return;
       if (opts.some((x) => x.label === m.label && x.win === m.win && x.kind === m.kind)) return;
-      opts.push({ label: m.label || clean(o.label, 60), v: m.win, kind: m.kind, pm: m.pm || 0, ref });
+      opts.push({ label: m.label || clean(o.label, 60), v: m.win, kind: m.kind, pm: m.pm || 0, se: m.se || 0, ref });
     });
     if (opts.length < 2) return null;
     const max = Math.max(...opts.map((o) => o.v)), bi = opts.findIndex((o) => o.kind === "best"), bestIdx = bi >= 0 ? bi : opts.findIndex((o) => o.v === max), played = opts.find((o) => o.kind === "played");
     const cost = played && opts[bestIdx].v - played.v >= 1 && opts[bestIdx] !== played ? opts[bestIdx].v - played.v : 0;
-    return { type: "compare", turn: T, seat: dm?.seat ?? seats[0] ?? env.C.me, options: opts, bestIdx, cost };
+    const vc = mv?.vc && opts[bestIdx]?.kind === "best" ? mv.vc : null; // v1.81 how sure the gap is: clear | lean | close (null: not a reviewed decision)
+    return { type: "compare", turn: T, seat: dm?.seat ?? seats[0] ?? env.C.me, options: opts, bestIdx, cost, vc };
   },
   spots(b, env) {
     const T = turnOk(b.turn, env); if (T == null || !env.game) return null;
