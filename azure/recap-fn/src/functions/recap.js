@@ -20,6 +20,7 @@ Return JSON: answer = 2-4 short sentences, every sentence concrete, no stock phr
 Say "points" (Dutch "punten"), never "VP"; win chance as %. Questions unrelated to the game: answer only "I can only help with your Catan play." with empty points.`;
 const GAME = `You are an interactive game analyst for one finished game of a Catan-like board game, talking to the human player ("You").
 Use ONLY the facts given (JSON from the game's review engine: players, final points and point sources, win-chance timeline per turn, key moments with actions, luck events, your decisions with A/B, lessons). Never invent moves, numbers or reasons.
+DECISIONS: in the facts, "played" (or B) is the move that was ACTUALLY made in the game; "better" (or A) is the engine\'s better alternative that was NOT played. Never describe the better move as if it was played, never swap players, and only attribute a move to the player named in the facts.
 Answer the player's question about this game AND choose the best visualisation for it, so the app can draw it:
 - view: "winchance" (win-chance lines over turns), "luck" (luck per player), "points" (final point sources per player), "plan" (each player's point plan over the game: when settlements, cities, longest road, largest army, point cards came), "board" (the board at one turn, with the better move A and the played move B if it is a decision), "moves" (your decisions with cost), or "none".
 Work on three levels, whichever the question needs: the game as a whole (what decided it), individual decisions (yours or an opponent's: what was played, what was better and why, with the A/B facts), and the bigger strategy of you and of each opponent (their point plan, how it developed, what worked against whom, and what you could do against it next time).
@@ -31,6 +32,7 @@ const GAME_SCHEMA = { type: "object", additionalProperties: false, required: ["a
     turns: { type: "array", items: { type: "integer" } }, focusTurn: { type: ["integer", "null"] }, players: { type: "array", items: { type: "string" } }, followUps: { type: "array", items: { type: "string" } } } };
 const INSIGHTS = `You curate the AI tab for ONE finished game of a Catan-like board game for the human player ("You"). Every game is different: pick what is genuinely interesting in THIS game, not a fixed template.
 Use ONLY the facts given (review engine data). Never invent moves, numbers or reasons.
+DECISIONS: in the facts, "played" (or B) is the move that was ACTUALLY made in the game; "better" (or A) is the engine\'s better alternative that was NOT played. Never describe the better move as if it was played, never swap players, and only attribute a move to the player named in the facts.
 Choose 3 to 6 insight cards, ordered as a story, mixing levels where the facts support it:
 - level "game": what decided the game (luck, a plan, a single moment);
 - level "decision": one specific decision of you or an opponent that mattered (what was played, what was better, why);
