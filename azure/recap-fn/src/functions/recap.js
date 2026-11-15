@@ -13,6 +13,11 @@ Answer the player's question about this moment. Compare A and B concretely: whic
 Return JSON: answer = 2-4 short sentences, every sentence a concrete fact, no stock phrases; points = 2-4 short bullet facts (max 12 words each) that support the answer; highlight = "A", "B" or "none" (which move on the board the answer is mostly about).
 Say "points" (Dutch "punten"), never "VP".
 Questions unrelated to this game moment: answer only "I can only explain this game moment." with empty points.`;
+const LESSON = `You are a friendly Catan-like board game coach. The player asks about one skill category across their own reviewed games (set-up placement, robber, building choice, development cards, trading or timing).
+Use ONLY the facts given: the category, their stats (mistakes, win chance lost, trend), the built-in rule, and examples from their games with the move played (B), the better move (A), win chances and point-plan sources. Never invent games, moves or numbers.
+Answer the question as a coach: name the pattern you see in their examples, the concrete habit to change, and how to recognise the situation next time. Refer to examples by turn and resources in plain words.
+Return JSON: answer = 2-4 short sentences, every sentence concrete, no stock phrases; points = 2-4 short bullet facts or habits (max 12 words each); highlight = "none".
+Say "points" (Dutch "punten"), never "VP"; win chance as %. Questions unrelated to the game: answer only "I can only help with your Catan play." with empty points.`;
 const EXPLAIN_SCHEMA = { type: "object", additionalProperties: false, required: ["answer", "points", "highlight"],
   properties: { answer: { type: "string" }, points: { type: "array", items: { type: "string" } }, highlight: { type: "string", enum: ["A", "B", "none"] } } };
 const NUM = { type: ["integer", "null"] };
@@ -71,7 +76,8 @@ app.http("recap", {
     if (!facts || facts.length > MAX_FACTS) return { status: 413, jsonBody: { error: "facts missing or too large" } };
     const lang = body?.lang === "nl" ? "nl" : "en";
     const nTp = Math.max(1, Math.min(5, parseInt(body?.turningPoints, 10) || 3));
-    const explain = body?.mode === "explain";
+    const lesson = body?.mode === "lesson";
+    const explain = body?.mode === "explain" || lesson;
     const question = String(body?.question || "Why is the better move better than what I did?").slice(0, 300);
 
     try {
@@ -83,7 +89,7 @@ app.http("recap", {
           max_completion_tokens: MAX_OUT,
           response_format: { type: "json_schema", json_schema: { name: explain ? "explain" : "recap", strict: true, schema: explain ? EXPLAIN_SCHEMA : SCHEMA } },
           messages: [
-            { role: "system", content: (explain ? EXPLAIN : SYSTEM) + (lang === "nl" ? "\n\nWrite all text fields in natural Dutch (Nederlands)." : "\n\nWrite all text fields in English.") },
+            { role: "system", content: (lesson ? LESSON : explain ? EXPLAIN : SYSTEM) + (lang === "nl" ? "\n\nWrite all text fields in natural Dutch (Nederlands)." : "\n\nWrite all text fields in English.") },
             { role: "user", content: explain ? `question: ${question}\nfacts:\n${facts}` : `turningPoints wanted: ${nTp}\nfacts:\n${facts}` },
           ],
         }),
