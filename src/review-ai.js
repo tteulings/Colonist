@@ -15,15 +15,19 @@ const VIEWS = ["winchance", "luck", "points", "plan", "board", "moves", "none"];
 const LEVELS = ["game", "decision", "strategy"];
 const T = {
   en: { lv: { game: "Game", decision: "Decision", strategy: "Strategy" }, why: "Why?", show: "Show in review", turn: "Turn", setup: "Set-up", ask: "Ask", ph: "Ask about this game…", regen: "Regenerate", foot: "Written by AI from this review · numbers by the app · may contain mistakes",
-    wait: "Reading the game…", again: "Try again", pin: "Keep this answer", unpin: "Unpin", win: "win chance", you: "You", better: "A better", played: "B played", mine: "your move", your: "your", move: "move", cost: "cost", rose: "rose", fell: "fell", more: "more", less: "less", tab: "AI · beta",
+    wait: "Reading the game…", again: "Try again", pin: "Keep this answer", unpin: "Unpin", win: "win chance", you: "You", better: "A better", played: "B played", mine: "your move", your: "your", move: "move", cost: "cost", onT: "On turn", atSetup: "At set-up", rose: "rose", fell: "fell", more: "more", less: "less", tab: "AI · beta",
     rate: "The AI is busy right now (too many requests). Try again in a minute.", time: "That took too long. Try again.", net: "No connection. Check your internet and try again.", fail: "No answer this time. Try again later.", none: "Not enough in this review to ask the AI.",
     luck: "Luck", pts: "Points", legend: { s: "Settlement", c: "City", L: "Longest road", A: "Largest army", v: "Point card" } },
   nl: { lv: { game: "Spel", decision: "Beslissing", strategy: "Strategie" }, why: "Waarom?", show: "Toon in review", turn: "Beurt", setup: "Opzet", ask: "Vraag", ph: "Vraag iets over dit spel…", regen: "Opnieuw", foot: "Geschreven door AI op basis van deze review · cijfers van de app · kan fouten bevatten",
-    wait: "Het spel lezen…", again: "Probeer opnieuw", pin: "Bewaar dit antwoord", unpin: "Los", win: "winkans", you: "Jij", better: "A beter", played: "B gespeeld", mine: "jouw zet", your: "jouw", move: "zet", cost: "kostte", rose: "steeg", fell: "daalde", more: "meer", less: "minder", tab: "AI · beta",
+    wait: "Het spel lezen…", again: "Probeer opnieuw", pin: "Bewaar dit antwoord", unpin: "Los", win: "winkans", you: "Jij", better: "A beter", played: "B gespeeld", mine: "jouw zet", your: "jouw", move: "zet", cost: "kostte", onT: "In beurt", atSetup: "Bij de opzet", rose: "steeg", fell: "daalde", more: "meer", less: "minder", tab: "AI · beta",
     rate: "De AI is nu druk (te veel verzoeken). Probeer het over een minuut opnieuw.", time: "Dat duurde te lang. Probeer opnieuw.", net: "Geen verbinding. Controleer je internet en probeer opnieuw.", fail: "Nu geen antwoord. Probeer het later opnieuw.", none: "Er staat te weinig in deze review om de AI te vragen.",
     luck: "Geluk", pts: "Punten", legend: { s: "Dorp", c: "Stad", L: "Langste weg", A: "Grootste leger", v: "Puntenkaart" } },
 };
 const GOODT = /\b(paid off|worked|rewarded|best|great|strong|brilliant|perfect|smart|excellent|beste|geweldig|sterk|perfecte|slim|uitstekend)\b/i;
+const TPOS = /\b(stayed close|stays close|kept (?:you|him|her|them|\w+) alive|good|helped|helps|comeback|rescued|saved)\b/i;
+const TNEG = /\b(missed|misses|miss|wrong|mistakes?|blunders?|worst|bad|costly|errors?|poor|behind|fout|fouten|gemist|slecht|verkeerd)\b/i;
+const posW = (t) => GOODT.test(t) || POS.test(t) || TPOS.test(t), negW = (t) => NEG.test(t) || TNEG.test(t);
+const SENT_END = /[.!?]["')\u201d\u2019]*$/;
 const AGAINST = /\b(against|unlucky|unluck\w*|tegen|pech|ongelukkig)\b/i, FAVOUR = /\b(in (?:your|his|her|their) favou?r|favou?red|fortunate|lucky for|gelukkig|ten gunste|mee)\b/i;
 const POS = /\b(helped|gained|gains?|stayed ahead|stays ahead|improved|improves|rose|rises|boosted|climbed|jumped|grew|surged|took the lead|pulled ahead|strengthened|increased|hielp|won|bleef voor|verbeterde|steeg|groeide|versterkte|nam de leiding|nam een voorsprong)\b/i;
 const NEG = /\b(lost|loses|dropped|drops|fell|falls|hurt|cost|costs|slipped|wasted|damaged|collapsed|weakened|decreased|sank|plunged|verloor|daalde|viel|schaadde|kostte|zakte|verzwakte|verspeelde)\b/i;
@@ -32,16 +36,15 @@ const online = () => typeof navigator === "undefined" || navigator.onLine !== fa
 const qkey = (q) => String(q).trim().toLowerCase().replace(/\s+/g, " ");
 const SRC = [["settlements", "s"], ["cities", "c"], ["road", "L"], ["army", "A"], ["cards", "v"], ["islands", "i"]];
 
-/** A follow-up chip: at most 24 characters, never cut with "…": the question without filler, or its first clause; one that does not fit is left out. */
-export function aiChip(q) {
+/** A follow-up chip: at most 24 characters, a whole question (never cut, never a fragment); a longer or cut one gets a short app label by topic. */
+const FRAG = /\b(?:i|me|my|the|a|an|of|to|in|on|at|for|and|or|but|was|were|is|are|did|do|does|how|why|what|who|ik|mijn|de|het|een|van|naar|en|of|was|waren|is|zijn)$/i;
+const CHIPFB = { en: [[/\b(?:lose|lost|loss|decid|why)\b/i, "Why did I lose?"], [/luck/i, "Luck vs play?"], [/best|move|miss|mistake|setup|set-up|trade|road|city/i, "Best move?"]], nl: [[/verlo|waarom|besliss/i, "Waarom verloren?"], [/geluk|pech/i, "Geluk of spel?"], [/beste|zet|fout|gemist|opzet|stad|weg/i, "Beste zet?"]] };
+export function aiChip(q, lang = "en") {
   q = String(q ?? "").trim().replace(/\s+/g, " ").replace(/[?.!]+$/, "");
   if (!q) return null;
-  if (q.length <= 24) return q;
-  const filler = /\b(?:really|actually|exactly|overall|already|just|very|so much|in this game|of the game|of this game|in total|at all|again|eigenlijk|echt|precies|helemaal|in dit spel)\b\s*/gi;
-  const base = q.replace(/^(?:can|could) you (?:please )?(?:tell me )?|^please |^tell me /i, "").replace(filler, "").replace(/\s+/g, " ").trim();
-  const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1), noArt = (x) => x.replace(/\b(?:the|a|an|de|het|een)\s+/gi, "").replace(/\s+/g, " ").trim();
-  const first = base.split(/\s*(?:,|;|:|\u2013|\u2014| - |\bbut\b|\band\b|\bbecause\b|\bwhile\b|\bwant\b|\bmaar\b|\ben\b|\bomdat\b)\s*/i)[0];
-  for (const c of [base, first, noArt(base), noArt(first)]) if (c.length >= 6 && c.length <= 24) return cap(c);
+  const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+  if (q.length <= 24 && !FRAG.test(q)) return cap(q);
+  for (const [re, lab] of CHIPFB[lang] || CHIPFB.en) if (re.test(q)) return lab;
   return null;
 }
 const FALLBACK = { en: ["Best move?", "Biggest mistake?", "Who was luckiest?"], nl: ["Beste zet?", "Grootste fout?", "Wie had geluk?"] };
@@ -103,27 +106,31 @@ export const ReviewAiMixin = {
     if (view === "luck" && C.luck) { const s = seats[0] ?? C.me, d = Math.round((C.luck[s] ?? 0) * 100); chg = d ? [{ seat: s, from: null, to: null, d, luck: true }] : []; }
     const card = { level, view, turns: turns.slice(0, 6), focus, seats, chg, title: String(raw?.title ?? "").slice(0, 120), src: String(answer ? raw?.answer : raw?.text ?? "").slice(0, 900), points: (raw?.points || []).map(String).slice(0, 4), fix: [] };
     card.dec = card.focus != null && !!this._aiDecAt(card.focus, C);
+    card.seat = chg[0]?.seat ?? seats[0] ?? null;
     card.text = this._aiTrust(card, C);
     card.title = this._aiTitle(card, C);
+    card.generic = card.fix.includes("title");
+    if (card.generic && card.focus != null && card.chg[0]) { const TW = C.lang === "nl" ? "Beurt" : this._rvTW?.() || "Turn"; if (card.text === this._aiNeutral(card, C, card.chg[0].seat, card.focus, TW)) card.text = ""; } // the app title already says it
     return card;
   },
   /** The AI's title unless it contradicts the chip (a "best move" with a negative chip, luck "against you" with a positive one): then a neutral app title. */
   _aiTitle(card, C) {
     const t = card.title, c = card.chg[0], L = C.t, TW = C.lang === "nl" ? "Beurt" : this._rvTW?.() || "Turn";
     if (!t || !c || !c.d) return t;
-    const bad = c.luck ? (AGAINST.test(t) && c.d > 0) || (FAVOUR.test(t) && c.d < 0) : (GOODT.test(t) || POS.test(t)) && !NEG.test(t) && c.d < 0 || NEG.test(t) && !POS.test(t) && c.d > 0;
+    const bad = c.luck ? (AGAINST.test(t) && c.d > 0) || (FAVOUR.test(t) && c.d < 0) : (posW(t) && !negW(t) && c.d < 0) || (negW(t) && !posW(t) && c.d > 0);
     if (!bad) return t;
     card.fix.push("title");
     const you = this._rvIsYou(c.seat), nm = C.nmRaw(c.seat), poss = you ? L.your : C.lang === "nl" ? `${nm}s` : `${nm}'s`;
-    if (c.luck) return `${poss.charAt(0).toUpperCase() + poss.slice(1)} ${L.luck.toLowerCase()} \u00b7 ${sgn(c.d)}%`;
-    const cap = poss.charAt(0).toUpperCase() + poss.slice(1);
-    return c.move ? `${cap} ${L.move} \u00b7 ${sgn(c.d)}%` : `${cap} ${L.win} \u00b7 ${sgn(c.d)}%`;
+    if (c.luck) return `${L.luck} \u00b7 ${you ? L.you : nm} ${sgn(c.d)}%`;
+    if (card.focus == null) return `${L.lv[card.level]} \u00b7 ${you ? L.you : nm}`;
+    const tt = card.focus === 0 ? L.setup : `${TW} ${card.focus}`;
+    return `${tt} \u00b7 ${you && c.move ? L.mine : `${poss} ${c.move ? L.move : L.win}`} ${sgn(c.d)}%`;
   },
   /** A neutral sentence for a seat from the app's own number: "Turn 22: your win chance fell 57%". */
   _aiNeutral(card, C, s, T0, TW) {
     const L = C.t, you = this._rvIsYou(s), nm = C.nmRaw(s), poss = you ? L.your : C.lang === "nl" ? `${nm}s` : `${nm}'s`;
     const mv = card.chg.find((c) => c.move && c.seat === s), lk = card.view === "luck" ? card.chg.find((c) => c.luck && c.seat === s) : null;
-    const tt = T0 == null ? "" : T0 === 0 ? `${L.setup}: ` : `${TW} ${T0}: `;
+    const tt = T0 == null ? "" : T0 === 0 ? `${L.atSetup} ` : `${L.onT} ${T0} `;
     if (mv) return `${tt}${poss} ${L.move} ${L.cost} ${Math.abs(mv.d)}% ${L.win}.`.replace(/^./, (c) => c.toUpperCase());
     if (lk) return `${L.luck}: ${poss} ${L.win} ${lk.d > 0 ? L.rose : L.fell} ${Math.abs(lk.d)}%.`;
     const c = T0 != null ? wcChange(C.ser, s, T0, T0) : null; if (!c || !c.d) return "";
@@ -157,9 +164,11 @@ export const ReviewAiMixin = {
     for (const sent of sents) {
       const seen = nameRes.filter((x) => x.re.test(sent)).map((x) => x.s);
       const seat = seen.length === 1 ? seen[0] : seen.length === 0 ? card.chg[0]?.seat ?? null : null;
-      const c = seat != null && T0 != null ? wcChange(C.ser, seat, T0, T0) : null;
-      const pos = POS.test(sent), neg = NEG.test(sent);
+      const mvc = seat != null ? card.chg.find((x) => x.move && x.seat === seat) : null, wc = seat != null && T0 != null ? wcChange(C.ser, seat, T0, T0) : null;
+      const c = mvc || wc;
+      const pos = posW(sent), neg = negW(sent);
       let bad = false, why = "";
+      if (!SENT_END.test(sent)) { card.fix.push("cut"); continue; } // a sentence the AI did not finish is dropped
       if (c && pos && !neg && c.d <= -1) { bad = true; why = "verb"; }
       else if (c && neg && !pos && c.d >= 1) { bad = true; why = "verb"; }
       if (!bad && card.view === "luck" && C.luck && seat != null) { const lv = Math.round(C.luck[seat] * 100); if ((AGAINST.test(sent) && lv >= 1) || (FAVOUR.test(sent) && lv <= -1)) { bad = true; why = "luck"; } }
@@ -172,16 +181,19 @@ export const ReviewAiMixin = {
       if (bad) { card.fix.push(why); const n2 = neutral(seat ?? card.chg[0]?.seat ?? C.me); if (n2 && !out.includes(n2)) out.push(n2); }
       else out.push(sent);
     }
+    if (!out.length && card.fix.includes("cut")) { const n2 = neutral(card.chg[0]?.seat ?? card.seat ?? C.me); if (n2) out.push(n2); }
     return out.join(" ").trim();
   },
 
   // ── the inline formatter: turns, changes, points, players, resource spots ──
-  _aiFmt(text, C, card = null, { links = true } = {}) {
+  _aiFmt(text, C, card = null, { links = true, plain = false } = {}) {
     text = String(text ?? ""); if (!text) return "";
     // the facts say "point card t12" / "settlement t7": never "points card 1 points" or "Brown Turn 11"
     const TWd = C.lang === "nl" ? "beurt" : (this._rvTW?.() || "Turn").toLowerCase();
     text = text.replace(/\bpoints? cards?\s+(?:\d+\s+points?)\b/gi, "point card").replace(/\bt(\d{1,2})\b/g, `${TWd} $1`);
     { const nms = this._aiNameRe(C).filter((x) => x.length >= 2); if (nms.length) text = text.replace(new RegExp(`(?<![\\p{L}\\p{N}])(${nms.join("|")})\\s+(turns?|beurten|beurt)\\s+(\\d)`, "giu"), (m, n, t, d) => `${n} ${C.lang === "nl" ? "in" : "on"} ${t} ${d}`); }
+    if (plain) { text = text.replace(/\s+(['\u2019]s\b)/g, "$1").replace(/\s+([,.;:!?])/g, "$1").replace(/\s{2,}/g, " "); return esc(text); }
+    text = text.replace(/\b((?:turns?|beurt|beurten)\s+\d+|set-?up|opzet)\s*:\s+/gi, "$1 \u2013 ");
     text = text.replace(/\s+(['\u2019]s\b)/g, "$1").replace(/(\p{L})(\d+(?:[.,]\d+)?\s?%)/gu, "$1 $2").replace(/%(?=\p{L})/gu, "% ").replace(/\b(turns?|beurten|beurt)(\d)/gi, "$1 $2").replace(/\s+([,.;:!?])/g, "$1").replace(/\s{2,}/g, " ");
     const L = C.t, names = this._aiNameRe(C), luckCard = card?.view === "luck";
     const parts = [
@@ -190,9 +202,9 @@ export const ReviewAiMixin = {
       "(?<pts>\\b\\d+(?:[\\u2013\\-]\\d+)?\\s+(?:points?|punten|pt)\\b|\\bpoint cards?\\b|\\bpuntenkaarten?\\b)",
       "(?<dec>\\b(?:decisions?|moves?|mistakes?|blunders?|beslissing(?:en)?|zetten|zet|fouten|fout)\\b)", "(?<lk>\\b(?:luck|geluk)\\b)",
     ];
-    if (names.length) parts.push(`(?<nm>(?<![\\p{L}\\p{N}])(?:${names.join("|")})(?![\\p{L}\\p{N}]))`);
+    if (names.length) parts.push(`(?<nm>(?<![\\p{L}\\p{N}])(?:${names.join("|")})(?:['\u2019]s)?(?![\\p{L}\\p{N}]))`);
     const re = new RegExp(parts.join("|"), "giu"), E = esc(text);
-    const seatOf = (word) => { const w = word.toLowerCase(); return this.players.find((p) => esc(C.nmRaw(p.id)).toLowerCase() === w || esc(p.name || "").toLowerCase() === w)?.id; };
+    const seatOf = (word) => { const w = word.toLowerCase().replace(/['\u2019]s$/, (x, i) => (this.players.some((p) => esc(C.nmRaw(p.id)).toLowerCase() === word.toLowerCase()) ? x : "")); return this.players.find((p) => esc(C.nmRaw(p.id)).toLowerCase() === w || esc(p.name || "").toLowerCase() === w)?.id; };
     // a reference is a link (a span with a role, styled as a chip or underlined) when links are on; plain styled text otherwise (inside a button)
     const lk = (attr, cls, inner) => (links ? `<span role="button" tabindex="0" class="ai-l ${cls}" ${attr}>${inner}</span>` : `<span class="${cls}">${inner}</span>`);
     let seenDec = false;
@@ -239,7 +251,7 @@ export const ReviewAiMixin = {
     const acts = `${canWhy ? `<button type="button" class="ai-a" data-aiwhy="${card.focus}">${L.why}</button>` : ""}${card.focus != null ? `<button type="button" class="ai-a" data-aigo="${card.focus}">${L.show}</button>` : ""}`;
     const tag = o.q ? `<span class="ai-lv q">${esc(o.q)}</span>` : `<span class="ai-lv lv-${card.level}">${L.lv[card.level]}</span>`;
     const pin = o.pin != null ? `<button type="button" class="ai-pin${o.pin ? " on" : ""}" data-aipin="${o.idx}" aria-pressed="${!!o.pin}" aria-label="${o.pin ? L.unpin : L.pin}" title="${o.pin ? L.unpin : L.pin}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6zM12 14v7" fill="${o.pin ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` : "";
-    const pts = card.points?.length ? `<div class="ai-pts">${card.points.map((p) => `<span>${this._aiFmt(p, C, card)}</span>`).join("")}</div>` : "";
+    const pts = card.points?.length ? `<div class="ai-pts">${card.points.map((p) => `<span>${this._aiFmt(p, C, card, { plain: true })}</span>`).join("")}</div>` : "";
     return `<section class="ai-c lvl-${card.level}${o.q ? " ans" : ""}" data-aic="${key}" data-aifocus="${card.focus ?? ""}">
       <div class="ai-hd">${tag}${this._aiChgChips(card, C)}${pin}</div>
       ${card.title ? `<b class="ai-ti">${this._aiFmt(card.title, C, card)}</b>` : ""}
@@ -348,6 +360,13 @@ export const ReviewAiMixin = {
     const d = this._aiDecAt(T0, C);
     return `<div class="ai-vz"><div class="ai-bd" data-aibd="${T0}"><span class="ai-bdw" aria-hidden="true"></span></div>${d ? `<div class="ai-leg" data-aileg hidden><span><s class="rg a">A</s>${esc(C.t.better)}</span><span><s class="rg b">B</s>${esc(C.t.played)}</span></div>` : ""}</div>`;
   },
+  /** The view that fits the box of the spots plus a ring of hexes, whole, in a w x h picture: no hex of it is ever clipped. */
+  _aiCropView(use, w, h, fitScale) {
+    const g = this.geometry; if (!use?.length || !g) return null;
+    const m = g.hexSize * 2.6, xs = use.map((p) => p.x), ys = use.map((p) => p.y), minX = Math.min(...xs) - m, maxX = Math.max(...xs) + m, minY = Math.min(...ys) - m, maxY = Math.max(...ys) + m;
+    const sc = Math.min(w / (maxX - minX), h / (maxY - minY), fitScale * 2.8);
+    return { scale: sc, offsetX: w / 2 - ((minX + maxX) / 2) * sc, offsetY: h / 2 - ((minY + maxY) / 2) * sc, box: { minX, maxX, minY, maxY } };
+  },
   /** The board at the turn as a picture (the Replay's renderer into an off-screen canvas), zoomed to the decision's A and B, or what was built. */
   _aiShot(T0, C, w, h) {
     const key = `${this._rvPid}|${T0}|${w}`; this._aiImgs ||= new Map();
@@ -367,11 +386,8 @@ export const ReviewAiMixin = {
         for (let q = 1; q <= st.N; q++) if ((st.turnOf[q] ?? 0) === T0) (st.stepEvents[q] || []).forEach((e) => { if (e[1] === "b") { const f = e[3] === "r" || e[3] === "h" ? { edge: e[4] } : { node: e[4] }; try { pts.push(rvPos(g, f)); } catch (_) { /* skip */ } } });
       }
       const fit = this._rpFitView(w, h, 8);
-      if (pts.length) {
-        const m = g.hexSize * 1.7, xs = pts.map((p) => p.x), ys = pts.map((p) => p.y), minX = Math.min(...xs) - m, maxX = Math.max(...xs) + m, minY = Math.min(...ys) - m, maxY = Math.max(...ys) + m;
-        const sc = Math.min(Math.max(Math.min(w / (maxX - minX), h / (maxY - minY)), fit.scale * 1.15), fit.scale * 2.8);
-        this.view = { scale: sc, offsetX: w / 2 - ((minX + maxX) / 2) * sc, offsetY: h / 2 - ((minY + maxY) / 2) * sc };
-      }
+      const ab = d ? [A, B].filter(Boolean).map((f) => tryv(() => rvPos(g, f))).filter(Boolean) : [], v = this._aiCropView(ab.length ? ab : pts, w, h, fit.scale);
+      if (v) this.view = v;
       this.boardRenderer?.resync?.(); this.boardRenderer?.invalidateStatic?.();
       if (this.boardRenderer) { this.boardRenderer.anims = []; this.boardRenderer.draw(performance.now()); } else this.drawCanvasScene(); // synchronous: requestDraw would paint after the canvas is read
       out = { url: cv.toDataURL("image/png"), marks: d ? rvMarks(this, d, A, B) : "", w, h };
@@ -419,18 +435,33 @@ export const ReviewAiMixin = {
     ans.forEach((a, i) => { const card = this._aiCard(a.a, C, { answer: true }); out.push(this._aiCardHtml(card, C, { q: a.q, pin: !!a.pinned, idx: i, key: `a${i}`, seen })); });
     if (S) {
       if (S.insights.headline) out.push(`<p class="ai-hl" data-aitx="hl" lang="${C.lang}">${this._aiFmt(S.insights.headline, C)}</p>`); this._aiSrc.set("hl", { text: S.insights.headline, card: null, max: 2 });
-      const dup = new Set();
-      S.insights.cards.forEach((c, i) => { const k = this._aiCard(c, C), id = `${k.level}|${k.view}|${[...k.seats].sort().join()}|${k.level === "decision" ? k.focus : ""}`; if (dup.has(id)) return; dup.add(id); out.push(this._aiCardHtml(k, C, { key: `c${i}`, seen })); });
+      out.push(...this._aiCardList(S.insights.cards, C, seen));
       out.push(`<p class="ai-ft"><span>${L.foot}</span>${online() ? `<button type="button" class="ai-rg" data-airun="1">${L.regen}</button>` : ""}</p>`);
     } else if (U.loading === "insights") out.push(`<p class="ai-hl sk">${L.wait}</p>${'<section class="ai-c" aria-busy="true"><div class="ai-sk"><i></i><i></i></div><div class="ai-skv"></div></section>'.repeat(3)}`);
     else if (U.err) out.push(this._aiErrHtml(C));
     return out.join("");
   },
+  /** The insight cards as html: a card is dropped when its main fact (same turn + same player, or the final points) or its title was already shown,
+   *  and an app fallback ("Turn 21 \u00b7 your move") when another card already covers that turn. */
+  _aiCardList(cards, C, seen) {
+    const ks = cards.map((c, i) => ({ k: this._aiCard(c, C), i }));
+    const covered = (x) => ks.some((y) => y !== x && !y.k.generic && y.k.focus != null && y.k.focus === x.k.focus);
+    const dup = new Set(), facts = new Set(), titles = new Set(), out = [];
+    ks.forEach((x) => {
+      const k = x.k, id = `${k.level}|${k.view}|${[...k.seats].sort().join()}|${k.level === "decision" ? k.focus : ""}`;
+      const fin = k.view === "points" || /\b(?:finished|ended|final|reached)\b[^.]*\b\d+ points?\b/i.test(k.text);
+      const f = [k.focus != null ? `t${k.focus}|${k.seat ?? ""}` : "", fin ? "final" : ""].filter(Boolean), ti = String(k.title || "").trim().toLowerCase();
+      if (dup.has(id) || (k.generic && covered(x)) || f.some((q) => facts.has(q)) || (ti && titles.has(ti))) return;
+      dup.add(id); f.forEach((q) => facts.add(q)); if (ti) titles.add(ti);
+      out.push(this._aiCardHtml(k, C, { key: `c${x.i}`, seen }));
+    });
+    return out;
+  },
   _aiAskHtml() {
     const C = { t: this._aiL() }, S = this._aiSaved(), L = C.t, R = this._rv;
     const asked = new Set((R.ai?.answers || []).map((a) => qkey(a.q)));
     const lastA = (R.ai?.answers || [])[0], src = [...(lastA?.followUps || []), ...(S?.insights?.followUps || [])];
-    const chips = []; src.forEach((q) => { const c = aiChip(q); if (c && !asked.has(qkey(q)) && !chips.some((x) => x.c === c)) chips.push({ c, q: String(q).slice(0, 300) }); });
+    const chips = []; src.forEach((q) => { const c = aiChip(q, recapLang()); if (c && !asked.has(qkey(q)) && !chips.some((x) => x.c === c)) chips.push({ c, q: String(q).slice(0, 300) }); });
     if (S && !chips.length) { const lg = recapLang(), fb = FALLBACK[lg] || FALLBACK.en, fq = FALLQ[lg] || FALLQ.en; fb.forEach((c, i) => { if (!asked.has(qkey(fq[i]))) chips.push({ c, q: fq[i] }); }); }
     const busy = this._aiUi?.loading === "ask";
     return `<form class="ai-ask" data-aiform>${chips.length && S ? `<div class="ai-chips">${chips.slice(0, 3).map((x) => `<button type="button" class="ai-q" data-aiq="${esc(x.q)}"${busy ? " disabled" : ""}>${esc(x.c)}</button>`).join("")}</div>` : ""}
@@ -475,6 +506,12 @@ export const ReviewAiMixin = {
       const full = fmt(src.text), more = (t, k, lab) => ` <button type="button" class="ai-more" data-aimore="${k}">${lab}</button>`;
       el.innerHTML = full; if (el.getBoundingClientRect().height <= lim) return;
       const words = src.text.trim().split(/\s+/), draw = (m) => { el.innerHTML = fmt(words.slice(0, m).join(" ").replace(/[\s,;:\u2013\u2014-]+$/, "").replace(/\u2026$/, "")) + more(0, "1", L.more); return el.getBoundingClientRect().height <= lim; };
+      const sn = src.text.match(/(?:[^.!?]|[.!?](?!\s|$))+[.!?]+(?:\s+|$)/g)?.map((x) => x.trim()) || [];
+      if (sn.length > 1) { // whole sentences first: the most that fit, so a cut never leaves half a sentence
+        const drawS = (m) => { el.innerHTML = fmt(sn.slice(0, m).join(" ")) + more(0, "1", L.more); return el.getBoundingClientRect().height <= lim; };
+        let k = 0; for (let m = sn.length - 1; m >= 1; m--) if (drawS(m)) { k = m; break; }
+        if (k) { drawS(k); const tg = (open) => { el.innerHTML = open ? full + more(0, "0", L.less) : (drawS(k), el.innerHTML); wire(el); el.querySelector("[data-aimore]")?.addEventListener("click", (e) => { e.stopPropagation(); tg(!open); }); }; el.querySelector("[data-aimore]").addEventListener("click", (e) => { e.stopPropagation(); tg(true); }); return; }
+      }
       let lo = 1, hi = words.length - 1, best = 1;
       while (lo <= hi) { const mid = (lo + hi) >> 1; if (draw(mid)) { best = mid; lo = mid + 1; } else hi = mid - 1; }
       for (let m = best; m >= Math.ceil(best * 0.6) && m > 1; m--) if (/[.,;:!?]$/.test(words[m - 1])) { best = m; break; } // prefer a clause end
