@@ -96,65 +96,29 @@ export const ReviewRecapMixin = {
   },
   _rcOnline() { return typeof navigator === "undefined" || navigator.onLine !== false; },
   _rcSaved() { const r = this._rv?.recap; return r?.text && r.pid === this._rvPid ? r : null; },
-  /** v1.64 the AI is woven through the Overview (no standalone card): the headline card on top, the turning points merged into the key
-   *  moments (_rcMergeKeys), the luck-or-play verdict next to the luck summary (_rcLuckPlay), the lesson at the end (_rcBox). */
+  /** v1.72 the AI recap is the LAST card of the Overview (after accuracy, players, key moments, why): see _rcBox. */
   _rcOk() { return !!this.winner && !this._rvMid && !!this._rv; },
-  /** The lead of the Overview's Why card: label + Regenerate, the headline full width, a small footer (or the button / spinner / error). */
-  _rcLead({ head = true } = {}) {
-    if (!this._rcOk()) return "";
-    const lang = recapLang(), t = T[lang], S = this._rcSaved(), U = this._rcUi, mine = U?.pid === this._rvPid;
-    if (mine && U.loading) return `<div class="rc-lead" role="status" aria-live="polite"><p class="rc-wait"><i class="rc-spin" aria-hidden="true"></i>${t.wait}</p></div>`;
-    const err = mine && U.err ? `<p class="rc-err" role="alert">${esc(t[U.err] || t.fail)}</p>` : "";
-    if (S) {
-      const rl = T[S.lang] ? S.lang : lang, h = S.recap?.headline;
-      return `<div class="rc-lead"><div class="rc-lh2"><small>${T[rl].title}</small>${this._rcOnline() ? `<button type="button" class="rc-link" data-rcgo>${t.regen}</button>` : ""}</div>${err}${h ? (head ? `<p class="rc-head" lang="${rl}"><b>${inline(h)}</b></p>` : "") : `<div class="rc-text rc-old" data-rcold lang="${rl}">${recapHtml(S.text)}</div><button type="button" class="rc-link" data-rcoldt aria-expanded="false">Show</button><p class="rc-foot">Older recap format \u00b7 Regenerate for the new layout</p>`}<p class="rc-foot">${T[rl].foot}</p></div>`;
-    }
-    if (!this._rcOnline() && !err) return "";
-    return `<div class="rc-lead">${err}${this._rcOnline() ? `<button type="button" class="rv-btn rc-btn" data-rcgo>${t.btn}</button>` : ""}</div>`;
-  },
-  /** The saved AI headline as html ("" when there is none): the Overview's verdict card shows it first. */
-  _rcHeadline() { const S = this._rcSaved(); return this._rcOk() && S?.recap?.headline ? `<span lang="${T[S.lang] ? S.lang : recapLang()}">${inline(S.recap.headline)}</span>` : ""; },
-  /** Standalone fallback when the Overview has no Why card (no luck analysis). */
-  _rcHead() { const l = this._rcLead({ head: !this._rcHeadline() }); return l ? `<section class="rv-card rc-card rc-top">${l}</section>` : ""; },
-  /** Luck or play, next to the luck summary (hidden when the recap says "none" or has none). */
-  _rcLuckPlay() {
-    const S = this._rcSaved(), lp = S?.recap?.luckOrPlay; if (!this._rcOk() || !lp || lp.verdict === "none" || !lp.text) return "";
-    const t = T[T[S.lang] ? S.lang : recapLang()], vd = t.v[lp.verdict] ? lp.verdict : null;
-    const nums = isNum(lp.luck) || isNum(lp.moves) ? `<span class="rc-nums">${isNum(lp.luck) ? `${t.luck} ${sgn(lp.luck)}%` : ""}${isNum(lp.luck) && isNum(lp.moves) ? " \u00b7 " : ""}${isNum(lp.moves) ? `${t.moves} ${sgn(lp.moves)}%` : ""}</span>` : "";
-    return `<div class="rc-lop"><div class="rc-lh"><b>${t.luckOrPlay}</b>${vd ? `<span class="rc-badge ${vd}">${t.v[vd]}</span>` : ""}${nums}</div><p>${inline(lp.text)}</p></div>`;
-  },
-  /** The merged key moments: rows = [{ T, m, h }] (engine rows, by size). Each gets the AI title + text of its turn and a Why?; AI turning
-   *  points with no engine row are added in turn order with an AI marker. Returns the html list, or null when there is no recap. */
-  _rcMergeKeys(rows, { extra = true, used = new Set() } = {}) {
-    const S = this._rcSaved(), tps = S?.recap?.turningPoints; if (!this._rcOk() || !tps?.length) return null;
-    const t = T[T[S.lang] ? S.lang : recapLang()], ico = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    const block = (tp) => { const q = this._rcSeat(tp.player), on = this._rcOnline(); return `<div class="rc-km"><b class="rc-ti">${esc(tp.title)}</b><p class="rc-tx" data-rcx tabindex="0" role="button" aria-expanded="false">${inline(tp.text)}</p>${isNum(tp.turn) && on ? `<button type="button" class="rv-btn rc-why" data-rcwhy="${tp.turn}" data-rcq="${q ?? ""}" aria-label="${esc(t.whyL)}: ${esc(t.turn)} ${esc(tp.turn)}"><i aria-hidden="true">?</i>${t.why}</button>` : ""}</div>`; };
-    const out = rows.map((r) => {
-      const tp = r.T != null ? tps.find((x) => x.turn === r.T && !used.has(x) && (r.P == null || this._rcSeat(x.player) == null || this._rcSeat(x.player) === r.P)) : null;
-      if (tp) used.add(tp);
-      return { T: r.T ?? 1e9, h: tp ? `<div class="rc-kw">${r.h}${block(tp)}</div>` : r.h };
-    });
-    if (extra) tps.forEach((tp) => {
-      if (!isNum(tp.turn) || used.has(tp)) return; used.add(tp);
-      const q = this._rcSeat(tp.player), has = isNum(tp.from) && isNum(tp.to), up = has && tp.to >= tp.from, you = q != null && this._rvIsYou?.(q);
-      const chg = has ? `<b class="${you ? (up ? "pos" : "neg") : ""}">${Math.round(tp.from)}\u2192${Math.round(tp.to)}%</b>` : "";
-      out.push({ T: tp.turn, h: `<div class="rc-kw ai"><button type="button" class="rs-key" data-rctp="${tp.turn}" data-rcq="${q ?? ""}" aria-label="${esc(t.go)}: ${esc(t.turn)} ${esc(tp.turn)}"><i class="rc-aim">AI</i><span class="t">${t.turn} ${esc(tp.turn)}</span><span class="x">${esc(tp.player)}</span>${chg}${ico}</button>${block(tp)}</div>` });
-    });
-    return out.sort((a, b) => a.T - b.T).map((x) => x.h).join("");
-  },
   /** The lesson kind to show: "played_well" only when the luck-or-play verdict is luck and the moves cost is small; else no kind badge. */
   _rcKind(rc) {
     const k = rc?.lessonKind; if (k !== "played_well") return k;
     const lp = rc.luckOrPlay;
     return lp?.verdict === "luck" && (!isNum(lp.moves) || Math.abs(lp.moves) <= 5) ? k : null;
   },
-  /** The lesson card, last on the Overview. */
+  /** v1.72 the Overview's end: one "AI coach" row (opens the AI tab via _rvOpenAiTab when present; the recap's headline as its line)
+   *  and the lesson as a one-line collapsible row. Key-moment rows carry the AI subtitle (_rcSubT). */
+  _rcSubT(T_, P) { const tp = this._rcOk() ? this._rcTp(T_, P) : null; return tp ? `<small class="rc-sub"><i>AI</i>${esc(tp.title)}</small>` : ""; },
   _rcBox() {
-    const S = this._rcSaved(), rc = S?.recap; if (!this._rcOk() || !rc?.tip) return "";
-    const rl = T[S.lang] ? S.lang : recapLang(), t = T[rl];
-    if (!rc.lessonTitle) return `<section class="rv-card rc-card"><p class="rc-tip"><b>${t.tip}:</b> ${inline(rc.tip)}</p></section>`;
-    const lk = this._rcKind(rc);
-    return `<section class="rv-card rc-card"><div class="rc-lesson"><div class="rc-lh"><i class="rc-ki" aria-hidden="true">${KIND_IC[lk] || "\u2605"}</i><small>${t.lesson}${KIND[lk]?.[rl] ? ` \u00b7 ${KIND[lk][rl]}` : ""}</small></div><b>${inline(rc.lessonTitle)}</b><p>${inline(rc.tip)}</p><button type="button" class="rv-btn ln-all" data-lnall>All lessons</button></div></section>`;
+    if (!this._rcOk()) return "";
+    const lang = recapLang(), S = this._rcSaved(), rl = S && T[S.lang] ? S.lang : lang, t = T[rl], rc = S?.recap;
+    const chev = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const h = rc?.headline ? `<span class="rc-hl" lang="${rl}">${inline(rc.headline)}</span>` : "";
+    const row = `<button type="button" class="rc-aib" data-rcai><i class="rc-aim">AI</i><div class="rc-cm"><b>AI coach · open the AI tab</b>${h}</div>${chev}</button>`;
+    let les = "";
+    if (rc?.tip) {
+      const lk = this._rcKind(rc);
+      les = `<div class="rc-t rc-lessonw"><button type="button" class="rc-tp rc-lesb" data-rctog aria-expanded="false"><span class="rc-top"><i class="rc-ki" aria-hidden="true">${KIND_IC[lk] || "★"}</i><b>${t.lesson}${rc.lessonTitle ? `: ${inline(rc.lessonTitle)}` : ""}</b>${chev}</span></button><div class="rc-tb" hidden><p class="rc-tx">${inline(rc.tip)}</p><div class="rc-acts"><button type="button" class="rc-link" data-lnall>All lessons</button></div></div></div>`;
+    }
+    return `<section class="rv-card rc-card rc-mini" data-rcbox>${row}${les}</section>`;
   },
   _rcBind(root) {
     root.querySelectorAll("[data-lnall]").forEach((b) => b.addEventListener("click", () => this.lessonsOpen?.()));
@@ -162,6 +126,8 @@ export const ReviewRecapMixin = {
     root.querySelectorAll("[data-rcgo]").forEach((b) => b.addEventListener("click", () => this._rcRun()));
     root.querySelectorAll("[data-rcwhy]").forEach((b) => b.addEventListener("click", () => this._rcGoTurn(parseInt(b.dataset.rcwhy, 10), b.dataset.rcq, true)));
     root.querySelectorAll("[data-rctp]").forEach((b) => b.addEventListener("click", () => this._rcGoTurn(parseInt(b.dataset.rctp, 10), b.dataset.rcq)));
+    root.querySelectorAll("[data-rcai]").forEach((b) => b.addEventListener("click", () => this._rvOpenAiTab?.()));
+    root.querySelectorAll("[data-rctog]").forEach((b) => b.addEventListener("click", () => { const o = b.getAttribute("aria-expanded") !== "true", body = b.nextElementSibling; b.setAttribute("aria-expanded", String(o)); if (body) body.hidden = !o; }));
     root.querySelectorAll("[data-rcx]").forEach((b) => { const f = () => { const o = b.classList.toggle("open"); b.setAttribute("aria-expanded", String(o)); }; b.addEventListener("click", f); b.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); f(); } }); });
   },
   _rcRefresh() { if (this._rvEl && !this._rvStep) { try { this._rvDrawReview(); } catch (e) { console.warn("recap refresh", e); } } },

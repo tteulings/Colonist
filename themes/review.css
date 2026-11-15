@@ -669,7 +669,7 @@
 .rc-lesson small { font: 750 11px var(--font-body); text-transform: uppercase; letter-spacing: .03em; opacity: .75; }
 .rc-ki { width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center; font: 800 12px var(--font-body); font-style: normal; background: var(--primary); color: #fff; }
 .rc-line { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 8px; padding: 6px 8px; border-radius: 10px; font-size: var(--fs-m); line-height: 1.35; background: color-mix(in srgb, var(--primary) 8%, transparent); }
-.rc-line > i, .rc-sub > i { flex: none; padding: 0 5px; border-radius: 5px; font: 800 9.5px var(--font-body); font-style: normal; letter-spacing: .04em; background: var(--primary); color: #fff; }
+.rc-line > i, .rc-sub > i { flex: none; padding: 0 5px; border-radius: 5px; font: 800 11px var(--font-body); font-style: normal; letter-spacing: .04em; background: var(--primary); color: #fff; }
 .rc-line > i { margin-top: 2px; }
 .rc-sub { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .8; }
 .rc-sub > i { margin-right: 5px; }
@@ -682,7 +682,7 @@
 .rc-km .rc-tx.open { display: block; }
 .rc-km .rc-why { justify-self: end; min-height: 32px; margin-top: 2px; }
 .rc-kw.ai > .rs-key { border-left: 3px solid var(--primary); }
-.rc-aim { flex: none; padding: 1px 5px; border-radius: 5px; font: 800 9.5px var(--font-body); font-style: normal; letter-spacing: .04em; background: var(--primary); color: #fff; }
+.rc-aim { flex: none; padding: 1px 5px; border-radius: 5px; font: 800 11px var(--font-body); font-style: normal; letter-spacing: .04em; background: var(--primary); color: #fff; }
 .rc-lop { margin-top: 8px; padding-top: 8px; border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
 .rc-lop p { margin: 4px 0 0; font-size: var(--fs-m); line-height: 1.4; }
 .rc-lead { display: grid; gap: 4px; margin: 0 0 10px; padding-bottom: 10px; border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
@@ -720,3 +720,23 @@
 .vd-card .rs-key .x { white-space: normal; line-height: 1.2; }
 .rc-old { max-height: calc(3 * 1.4em); overflow: hidden; line-height: 1.4; } .rc-old.open { max-height: none; }
 .rc-old h4, .rc-old p, .rc-old ul { margin: 0 0 3px; font-size: var(--fs-m); line-height: 1.4; }
+
+/* v1.72 Overview order: accuracy first (with the result line), the AI recap last as a compact, interactive card */
+.rv-res { margin: 0 0 6px; font: 750 14.5px/1.3 var(--font-body); color: var(--heading); }
+.rc-card { display: grid; gap: 6px; }
+.rc-card .rc-lh2 { display: flex; align-items: center; gap: 6px; } .rc-card .rc-lh2 b { font: 800 13.5px var(--font-body); } .rc-card .rc-lh2 .rc-link { margin-left: auto; }
+.rc-card .rc-head { margin: 0; font-size: var(--fs-m); line-height: 1.35; }
+.rc-card .rc-tps { margin: 0; gap: 4px; } .rc-card .rc-t { display: block; }
+.rc-card .rc-tp { min-height: 44px; padding: 6px 10px; align-content: center; cursor: pointer; font: inherit; color: inherit; }
+.rc-card .rc-tp .chev { width: 14px; height: 14px; flex: none; transition: transform .15s; } .rc-card .rc-chg + .chev { margin-left: 6px; } .rc-card .rc-top > .chev:last-child { margin-left: auto; } .rc-card .rc-chg ~ .chev { margin-left: 6px; }
+.rc-card .rc-tp[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.rc-card .rc-lopb .rc-top, .rc-card .rc-lesb .rc-top { gap: 8px; } .rc-card .rc-lesb .rc-ki { flex: none; width: 20px; height: 20px; } .rc-card .rc-lesb b { font: 800 13px var(--font-body); min-width: 0; }
+.rc-tb { padding: 6px 10px 4px; display: grid; gap: 4px; } .rc-tb[hidden] { display: none; } .rc-tb .rc-tx { margin: 0; opacity: 1; }
+.rc-acts { display: flex; align-items: center; justify-content: space-between; gap: 8px; } .rc-acts .rc-why { justify-self: auto; }
+.rc-kind { font: 750 11px var(--font-body); opacity: .7; }
+.rc-mini .rc-aib { display: flex; flex-direction: row; align-items: center; gap: 8px; width: 100%; min-height: 44px; justify-content: flex-start; background: none; border: 0; padding: 0 2px; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.rc-mini .rc-aib b { font: 800 13.5px var(--font-body); } .rc-mini .rc-aib .chev { margin-left: auto; width: 14px; height: 14px; }
+.rc-mini .rc-oldrow { flex-wrap: wrap; cursor: default; } .rc-mini .rc-old { display: none; } .rc-mini .rc-old.open { display: block; max-height: none; }
+.rc-card .rc-foot { margin: 2px 0 0; }
+.rc-cm { display: grid; min-width: 0; gap: 1px; } .rc-cm .rc-hl { font: 600 12px/1.3 var(--font-body); opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vd-card .rc-sub { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 600; }
