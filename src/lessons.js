@@ -121,7 +121,7 @@ export const LessonsMixin = {
     const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 45000);
     let err = null, ans = null;
     try {
-      const r = await fetch(RECAP_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "explain", lang, question: q.slice(0, 300), facts }), signal: ctl.signal });
+      const r = await fetch(RECAP_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "lesson", lang, question: q.slice(0, 300), facts }), signal: ctl.signal });
       let j = null; try { j = await r.json(); } catch (_) { j = null; }
       if (r.status === 429) err = "The AI is busy right now (too many requests). Try again in a minute."; else if (!r.ok || !j?.explain?.answer) err = "No answer this time. Try again later.";
       else ans = { answer: String(j.explain.answer), points: (j.explain.points || []).map(String).slice(0, 4) };
