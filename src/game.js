@@ -23,6 +23,7 @@ import { ReviewTurnMixin } from "./review-turn.js"; // v1.56 step mode by turn
 import { ReviewLuckMixin } from "./review-luck.js"; // v1.31 … luck in win chance (every roll, steal and card draw replayed)
 import { ReviewRecapMixin } from "./review-recap.js"; // v1.62 AI recap
 import { ReviewExplainMixin } from "./review-explain.js"; // v1.64 Why?
+import { LessonsMixin, installLessons } from "./lessons.js"; // v1.71 Lessons
 import { ReviewAgainMixin } from "./review-again.js"; // v1.41 … Review again (a saved game with today's engine)
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
@@ -1021,6 +1022,7 @@ class ColonistFullGame {
       onIntro: () => this.onboarding.showIntro(0, true),
       onSettings: () => this.settingsUI.open("game"),
       onHistory: () => this.histOpen(),
+      onLessons: () => this.lessonsOpen(),
       onBots: () => this.botsOpen(),
       historyCount: () => this._hist?.count ?? null,
     });
@@ -1033,6 +1035,7 @@ class ColonistFullGame {
       onStats: () => this.liveStatsOpen(),
       onCheck: () => this._rvOpenMid(),
       onHistory: () => this.histOpen(),
+      onLessons: () => this.lessonsOpen(),
       historyCount: () => this._hist?.count ?? null,
     });
     const oldSlot = this.histOldSlot(); // read now: the resetGame() below clears a finished game
@@ -11443,13 +11446,14 @@ Object.assign(ColonistFullGame.prototype, StatsMixin, StatsUiMixin);
 installStats(ColonistFullGame);
 Object.assign(ColonistFullGame.prototype, LiveStatsMixin); // live stats during the game (src/live-stats.js)
 installLiveStats(ColonistFullGame);
-Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin, ReviewLuckMixin, ReviewTurnMixin, ReviewAgainMixin, ReviewRecapMixin, ReviewExplainMixin); // v1.02/1.03 post-game review (src/review*.js)
+Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin, ReviewLuckMixin, ReviewTurnMixin, ReviewAgainMixin, ReviewRecapMixin, ReviewExplainMixin, LessonsMixin); // v1.02/1.03 post-game review (src/review*.js)
 installReview(ColonistFullGame);
 installReviewUi(ColonistFullGame);
 installReviewGame(ColonistFullGame);
 Object.defineProperties(ColonistFullGame.prototype, Object.getOwnPropertyDescriptors(HistoryMixin)); // v1.07 (keeps the `hist` getter a getter)
 Object.assign(ColonistFullGame.prototype, BotsPageMixin); // v1.23
 installHistory(ColonistFullGame);
+installLessons(ColonistFullGame);
 Object.assign(ColonistFullGame.prototype, NavMixin); // v1.26
 
 const game = new ColonistFullGame();

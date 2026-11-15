@@ -65,7 +65,7 @@ export const ReviewRecapMixin = {
     const nums = lp && (isNum(lp.luck) || isNum(lp.moves)) ? `<span class="rc-nums">${isNum(lp.luck) ? `${t.luck} ${sgn(lp.luck)}%` : ""}${isNum(lp.luck) && isNum(lp.moves) ? " \u00b7 " : ""}${isNum(lp.moves) ? `${t.moves} ${sgn(lp.moves)}%` : ""}</span>` : "";
     return `${rc.headline ? `<p class="rc-head"><b>${inline(rc.headline)}</b></p>` : ""}${rows ? `<ol class="rc-tps">${rows}</ol>` : ""}`
       + (lp?.text ? `<div class="rc-lop"><div class="rc-lh"><b>${t.luckOrPlay}</b>${vd ? `<span class="rc-badge ${vd}">${t.v[vd]}</span>` : ""}${nums}</div><p>${inline(lp.text)}</p></div>` : "")
-      + (rc.lessonTitle && rc.tip ? `<div class="rc-lesson"><div class="rc-lh"><i class="rc-ki" aria-hidden="true">${KIND_IC[this._rcKind(rc)] || "\u2605"}</i><small>${t.lesson}${KIND[this._rcKind(rc)]?.[lang_(t)] ? ` \u00b7 ${KIND[this._rcKind(rc)][lang_(t)]}` : ""}</small></div><b>${inline(rc.lessonTitle)}</b><p>${inline(rc.tip)}</p></div>` : rc.tip ? `<p class="rc-tip"><b>${t.tip}:</b> ${inline(rc.tip)}</p>` : "");
+      + (rc.lessonTitle && rc.tip ? `<div class="rc-lesson"><div class="rc-lh"><i class="rc-ki" aria-hidden="true">${KIND_IC[this._rcKind(rc)] || "\u2605"}</i><small>${t.lesson}${KIND[this._rcKind(rc)]?.[lang_(t)] ? ` \u00b7 ${KIND[this._rcKind(rc)][lang_(t)]}` : ""}</small></div><b>${inline(rc.lessonTitle)}</b><p>${inline(rc.tip)}</p><button type="button" class="rv-btn ln-all" data-lnall>All lessons</button></div>` : rc.tip ? `<p class="rc-tip"><b>${t.tip}:</b> ${inline(rc.tip)}</p>` : "");
   },
   /** Tap on a turning point: the review's step mode on that turn (the nearest turn the person has a decision in). */
   _rcGoTurn(T, q, why = false) {
@@ -154,9 +154,10 @@ export const ReviewRecapMixin = {
     const rl = T[S.lang] ? S.lang : recapLang(), t = T[rl];
     if (!rc.lessonTitle) return `<section class="rv-card rc-card"><p class="rc-tip"><b>${t.tip}:</b> ${inline(rc.tip)}</p></section>`;
     const lk = this._rcKind(rc);
-    return `<section class="rv-card rc-card"><div class="rc-lesson"><div class="rc-lh"><i class="rc-ki" aria-hidden="true">${KIND_IC[lk] || "\u2605"}</i><small>${t.lesson}${KIND[lk]?.[rl] ? ` \u00b7 ${KIND[lk][rl]}` : ""}</small></div><b>${inline(rc.lessonTitle)}</b><p>${inline(rc.tip)}</p></div></section>`;
+    return `<section class="rv-card rc-card"><div class="rc-lesson"><div class="rc-lh"><i class="rc-ki" aria-hidden="true">${KIND_IC[lk] || "\u2605"}</i><small>${t.lesson}${KIND[lk]?.[rl] ? ` \u00b7 ${KIND[lk][rl]}` : ""}</small></div><b>${inline(rc.lessonTitle)}</b><p>${inline(rc.tip)}</p><button type="button" class="rv-btn ln-all" data-lnall>All lessons</button></div></section>`;
   },
   _rcBind(root) {
+    root.querySelectorAll("[data-lnall]").forEach((b) => b.addEventListener("click", () => this.lessonsOpen?.()));
     root.querySelectorAll("[data-rcoldt]").forEach((b) => b.addEventListener("click", () => { const t = root.querySelector("[data-rcold]"), o = t.classList.toggle("open"); b.textContent = o ? "Hide" : "Show"; b.setAttribute("aria-expanded", String(o)); }));
     root.querySelectorAll("[data-rcgo]").forEach((b) => b.addEventListener("click", () => this._rcRun()));
     root.querySelectorAll("[data-rcwhy]").forEach((b) => b.addEventListener("click", () => this._rcGoTurn(parseInt(b.dataset.rcwhy, 10), b.dataset.rcq, true)));

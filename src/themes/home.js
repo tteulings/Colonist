@@ -3,6 +3,7 @@
 // chosen opponents and bot level · Rules & options (full New game screen) · How to play · Settings.
 import { icon, avatarSvg } from "./manager.js";
 import { HISTORY_ICON } from "../history.js";
+import { LESSONS_ICON } from "../lessons.js";
 import { liveWinOn, setLiveWin, liveRefineOn, setLiveRefine } from "../live-bar.js";
 
 const MENU_IC = `<svg class="ic ic-menu" viewBox="-50 -50 100 100" aria-hidden="true"><path d="M-30 -22H30M-30 0H30M-30 22H30" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/></svg>`;
@@ -107,6 +108,7 @@ export class Home {
       </section>
       <nav class="hm-card hm-list" aria-label="More">
         <button type="button" data-home="history">${HISTORY_ICON}<span>Past games<small>${(() => { const n = this.opts.historyCount?.(); return n ? `${n} finished game${n > 1 ? "s" : ""} · replay, stats, review` : "Replay and review your finished games"; })()}</small></span>${CHEV}</button>
+        <button type="button" data-home="lessons">${LESSONS_ICON}<span>Lessons<small>Learn from your reviewed games</small></span>${CHEV}</button>
         <button type="button" data-home="friend">${icon("trade")}<span>Play with a friend<small>Share this phone · pass it on</small></span>${CHEV}</button>
         <button type="button" data-home="bots">${BOTS_IC}<span>Bots<small>Leaderboard, strength and your results</small></span>${CHEV}</button>
         <button type="button" data-home="more">${themed(this.game, "sliders", SLIDERS_IC)}<span>Rules &amp; options<small>Rules, map, bots</small></span>${CHEV}</button>
@@ -131,6 +133,7 @@ export class Home {
     on("[data-home='friend']", () => this.opts.onFriend?.());
     on("[data-home='bots']", () => this.opts.onBots?.());
     on("[data-home='history']", () => this.opts.onHistory?.());
+    on("[data-home='lessons']", () => this.opts.onLessons?.());
     on("[data-home='intro']", () => this.opts.onIntro());
     on("[data-home='settings']", () => this.opts.onSettings());
   }
@@ -172,6 +175,7 @@ export class GameMenu {
         ${this.game._rvMidPid?.() != null ? item("check", CHECK_IC, "Check my moves so far", this.game._rvMidSub()) : ""}
         ${item("newgame", icon("dice"), "New game", "Mode, rules and opponents")}
         ${item("history", HISTORY_ICON, "Past games", (() => { const n = this.opts.historyCount?.(); return n ? `${n} finished game${n > 1 ? "s" : ""}` : "Replay and review"; })())}
+        ${item("lessons", LESSONS_ICON, "Lessons", "Learn from your reviewed games")}
         ${item("settings", icon("settings"), "Settings", "Sound, bot speed, look")}
         ${item("intro", themed(this.game, "book", BOOK_IC), "How to play")}
         ${item("about", themed(this.game, "info", INFO_IC), "About")}
@@ -185,7 +189,7 @@ export class GameMenu {
       sp.addEventListener("input", () => { sr.value = sp.value; sr.dispatchEvent(new Event("input", { bubbles: true })); });
       sp.addEventListener("change", () => sr.dispatchEvent(new Event("change", { bubbles: true })));
     }
-    const go = { stats: "onStats", check: "onCheck", history: "onHistory", home: "onHome", newgame: "onNewGame", settings: "onSettings", intro: "onIntro", about: "onAbout" };
+    const go = { stats: "onStats", check: "onCheck", history: "onHistory", lessons: "onLessons", home: "onHome", newgame: "onNewGame", settings: "onSettings", intro: "onIntro", about: "onAbout" };
     el.querySelectorAll("[data-menu]").forEach((b) => b.addEventListener("click", () => { const fn = this.opts[go[b.dataset.menu]]; this.close(); fn?.(); }));
     document.addEventListener("keydown", this.onKey);
     document.body.appendChild(el);
