@@ -90,6 +90,7 @@ export const ReviewAiMixin = {
     const chgSeats = seats.length ? seats.slice(0, 2) : focus != null ? [C.me] : [];
     const chg = chgSeats.map((s) => { const c = focus != null ? wcChange(C.ser, s, focus, focus) : null; return c ? { seat: s, ...c } : null; }).filter(Boolean);
     const card = { level, view, turns: turns.slice(0, 6), focus, seats, chg, title: String(raw?.title ?? "").slice(0, 120), src: String(answer ? raw?.answer : raw?.text ?? "").slice(0, 900), points: (raw?.points || []).map(String).slice(0, 4), fix: [] };
+    card.dec = card.focus != null && !!this._aiDecAt(card.focus, C);
     card.text = this._aiTrust(card, C);
     return card;
   },
@@ -136,38 +137,44 @@ export const ReviewAiMixin = {
   },
 
   // ── the inline formatter: turns, changes, points, players, resource spots ──
-  _aiFmt(text, C, card = null) {
+  _aiFmt(text, C, card = null, { links = true } = {}) {
     text = String(text ?? ""); if (!text) return "";
-    const L = C.t, names = this._aiNameRe(C);
+    const L = C.t, names = this._aiNameRe(C), luckCard = card?.view === "luck";
     const parts = [
       "(?<turn>\\b(?:turns?|beurten|beurt|rolls?|round)\\s+\\d+\\b)", "(?<setup>\\bset-?up\\b|\\bopzet\\b)",
       "(?<pct>[+\\u2212\\-\\u2013]?\\s?\\d+(?:[.,]\\d+)?\\s?%)", "(?<res>\\b(?:ore|grain|wheat|wool|sheep|lumber|wood|brick|erts|graan|tarwe|wol|schaap|hout|baksteen)\\s+\\d{1,2}\\b)",
-      "(?<pts>\\b\\d+(?:[\\u2013\\-]\\d+)?\\s+(?:points?|punten|pt)\\b)",
+      "(?<pts>\\b\\d+(?:[\\u2013\\-]\\d+)?\\s+(?:points?|punten|pt)\\b|\\bpoint cards?\\b|\\bpuntenkaarten?\\b)",
+      "(?<dec>\\b(?:decisions?|moves?|mistakes?|blunders?|beslissing(?:en)?|zetten|zet|fouten|fout)\\b)", "(?<lk>\\b(?:luck|geluk)\\b)",
     ];
     if (names.length) parts.push(`(?<nm>(?<![\\p{L}\\p{N}])(?:${names.join("|")})(?![\\p{L}\\p{N}]))`);
     const re = new RegExp(parts.join("|"), "giu"), E = esc(text);
     const seatOf = (word) => { const w = word.toLowerCase(); return this.players.find((p) => esc(C.nmRaw(p.id)).toLowerCase() === w || esc(p.name || "").toLowerCase() === w)?.id; };
+    // a reference is a link (a span with a role, styled as a chip or underlined) when links are on; plain styled text otherwise (inside a button)
+    const lk = (attr, cls, inner) => (links ? `<span role="button" tabindex="0" class="ai-l ${cls}" ${attr}>${inner}</span>` : `<span class="${cls}">${inner}</span>`);
+    let seenDec = false;
     return E.replace(re, (m, ...a) => {
       const g = a[a.length - 1];
-      if (g.turn) { const k = parseInt(m.match(/\d+/)[0], 10); return `<button type="button" class="ai-t" data-ait="${k}">${m.replace(/^./, (c) => c.toUpperCase())}</button>`; }
-      if (g.setup) return `<button type="button" class="ai-t" data-ait="0">${L.setup}</button>`;
-      if (g.res) { const [w, v] = m.split(/\s+/); return `<span class="ai-r r-${RESN[w.toLowerCase()] || "ore"}">${m}</span>`; }
-      if (g.pts) return `<b class="ai-p">${m}</b>`;
-      if (g.nm) {
-        const s = seatOf(m);
-        if (s == null) return m;
-        return `<b class="ai-n pc-${s}">${m}</b>`;
-      }
+      if (g.turn) { const k = parseInt(m.match(/\d+/)[0], 10); return lk(`data-ait="${k}"`, "ai-t", m.replace(/^./, (c) => c.toUpperCase())); }
+      if (g.setup) return lk('data-ait="0"', "ai-t", L.setup);
+      if (g.res) { const [w, v] = m.split(/\s+/); const rs = RESN[w.toLowerCase()] || "ore"; return lk(`data-aispot="${rs}:${v}"`, `ai-r r-${rs}`, m); }
+      if (g.pts) return lk("data-aipts", "ai-p", m);
+      if (g.dec) { if (seenDec || !card?.dec || !links) return m; seenDec = true; return lk(`data-aidec="${card.focus}"`, "ai-d", m); }
+      if (g.lk) return luckCard ? lk("data-ailuck", "ai-d", m) : m;
+      if (g.nm) { const s = seatOf(m); return s == null ? m : lk(`data-aipl="${s}"`, `ai-n pc-${s}`, m); }
       if (g.pct) {
-        const signed = /^[+−\-–]/.test(m.trim()), val = parseFloat(m.replace(/[^\d.,]/g, "").replace(",", ".")), hit = card?.chg?.find((c) => Math.abs(Math.abs(c.d) - val) <= 2);
+        const signed = /^[+\u2212\-\u2013]/.test(m.trim()), val = parseFloat(m.replace(/[^\d.,]/g, "").replace(",", ".")), hit = card?.chg?.find((c) => Math.abs(Math.abs(c.d) - val) <= 2);
         if (signed && hit && hit.d !== 0) { // a signed number is a change: the review's sign and size
           const you = this._rvIsYou(hit.seat), cls = you ? (hit.d > 0 ? "up" : "dn") : "opp";
           return `<b class="ai-c ${cls}${you ? "" : ` pc-${hit.seat}`}">${sgn(hit.d)}%</b>`;
         }
-        return `<b class="ai-v">${m.trim()}</b>`;
+        return luckCard ? lk("data-ailuck", "ai-v", m.trim()) : `<b class="ai-v">${m.trim()}</b>`;
       }
       return m;
     });
+  },
+  /** The same formatting for a line elsewhere (the Overview's AI subtitles): no links, as it sits inside a button. */
+  _aiFmtLite(text) {
+    try { return this._aiFmt(text, { t: this._aiL(), lang: recapLang(), nmRaw: (q) => (this._rvIsYou(q) ? this._aiL().you : this.players[q]?.name || `Player ${q + 1}`) }, null, { links: false }); } catch (_) { return esc(text); }
   },
 
   // ── cards ──
@@ -184,7 +191,7 @@ export const ReviewAiMixin = {
     const tag = o.q ? `<span class="ai-lv q" title="${esc(o.q)}">${esc(o.q.length > 34 ? `${o.q.slice(0, 33)}…` : o.q)}</span>` : `<span class="ai-lv lv-${card.level}">${L.lv[card.level]}</span>`;
     const pin = o.pin != null ? `<button type="button" class="ai-pin${o.pin ? " on" : ""}" data-aipin="${o.idx}" aria-pressed="${!!o.pin}" aria-label="${o.pin ? L.unpin : L.pin}" title="${o.pin ? L.unpin : L.pin}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6zM12 14v7" fill="${o.pin ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` : "";
     const pts = card.points?.length ? `<div class="ai-pts">${card.points.map((p) => `<span>${this._aiFmt(p, C, card)}</span>`).join("")}</div>` : "";
-    return `<section class="ai-c lvl-${card.level}${o.q ? " ans" : ""}" data-aic="${key}">
+    return `<section class="ai-c lvl-${card.level}${o.q ? " ans" : ""}" data-aic="${key}" data-aifocus="${card.focus ?? ""}">
       <div class="ai-hd">${tag}${this._aiChgChips(card, C)}${pin}</div>
       ${card.title ? `<b class="ai-ti">${this._aiFmt(card.title, C, card)}</b>` : ""}
       ${card.text ? `<div class="ai-tx" data-aitx lang="${C.lang}">${this._aiFmt(card.text, C, card)}</div>` : ""}${pts}
@@ -358,16 +365,37 @@ export const ReviewAiMixin = {
   },
   _aiBind(el) {
     const body = el.querySelector("[data-aibody]"), ask = el.querySelector("[data-aiask]"); if (!body) return;
-    body.querySelectorAll("[data-ait]").forEach((b) => { const f = (e) => { e.stopPropagation(); this._rcGoTurn(parseInt(b.dataset.ait, 10), null, false); }; b.addEventListener("click", f); if (b.tagName === "g") b.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); f(e); } }); });
-    body.querySelectorAll("[data-aigo]").forEach((b) => b.addEventListener("click", () => this._rcGoTurn(parseInt(b.dataset.aigo, 10), null, false)));
-    body.querySelectorAll("[data-aiwhy]").forEach((b) => b.addEventListener("click", () => this._rcGoTurn(parseInt(b.dataset.aiwhy, 10), null, true)));
+    const on = (sel, fn) => body.querySelectorAll(sel).forEach((b) => { const f = (e) => { e.stopPropagation(); fn(b, e); }; b.addEventListener("click", f); if (b.getAttribute("role") === "button" && b.tagName !== "BUTTON") b.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); f(e); } }); });
+    const T0 = (b) => parseInt(b.dataset.ait ?? b.dataset.aigo ?? b.dataset.aidec ?? b.dataset.aiwhy, 10);
+    on("[data-ait]", (b) => this._aiNav(() => this._rcGoTurn(T0(b), null, false)));
+    on("[data-aigo]", (b) => this._aiNav(() => this._rcGoTurn(T0(b), null, false)));
+    on("[data-aiwhy], [data-aidec]", (b) => this._aiNav(() => this._rcGoTurn(T0(b), null, true)));
+    on("[data-aipl]", (b) => this._aiNav(() => this._aiPlayer(+b.dataset.aipl)));
+    on("[data-ailuck]", () => { this._rvTab = "luck"; this._rvDrawReview(); });
+    on("[data-aipts]", (b) => { const v = b.closest(".ai-c")?.querySelector(".ai-plan, .ai-bars"); if (v) { v.scrollIntoView?.({ block: "nearest", behavior: "smooth" }); v.classList.remove("flash"); void v.offsetWidth; v.classList.add("flash"); } else { this._rvTab = "overview"; this._rvDrawReview(); } });
+    on("[data-aispot]", (b) => { const [rs, nm] = b.dataset.aispot.split(":"), c = b.closest("[data-aic]"), t = c?.dataset.aifocus; this._aiNav(() => this._aiSpot(rs, +nm, t != null && t !== "" ? +t : null)); });
     body.querySelectorAll("[data-airun]").forEach((b) => b.addEventListener("click", () => this._aiRun(true)));
     body.querySelectorAll("[data-aipin]").forEach((b) => b.addEventListener("click", () => { const a = this._rv.ai?.answers?.[+b.dataset.aipin]; if (!a) return; a.pinned = !a.pinned; this._aiSave(); this._aiRefresh(); }));
-    body.querySelectorAll("[data-aitx], [data-aihl]").forEach((t) => { t.addEventListener("click", (e) => { if (e.target.closest("button")) return; t.classList.toggle("open"); }); });
+    body.querySelectorAll("[data-aitx], [data-aihl]").forEach((t) => { t.addEventListener("click", (e) => { if (e.target.closest("button, [role=button]")) return; t.classList.toggle("open"); }); });
     ask?.querySelector("[data-aiform]")?.addEventListener("submit", (e) => { e.preventDefault(); const v = ask.querySelector("[data-aiin]").value.trim(); if (v) this._aiAsk(v.slice(0, 300)); });
     ask?.querySelectorAll("[data-aiq]").forEach((b) => b.addEventListener("click", () => this._aiAsk(b.dataset.aiq)));
     body.querySelectorAll("[data-aitx], [data-aihl]").forEach((t) => { if (t.scrollHeight > t.clientHeight + 2) t.classList.add("more"); });
     this._aiBoards(body);
+    if (this._aiScrollY != null) { const sc = el.querySelector(".rv-scroll"); if (sc) sc.scrollTop = this._aiScrollY; this._aiScrollY = null; } // Back from a link: the same place
+  },
+  /** Leave for a link target: Back returns to the AI tab, at this scroll position. */
+  _aiNav(fn) { this._aiScrollY = this._rvEl?.querySelector(".rv-scroll")?.scrollTop ?? 0; try { fn(); } catch (e) { console.warn("ai link", e); } },
+  /** A player's page in the review; its Back returns here. */
+  _aiPlayer(seat) { const me = this._rvPid; this._aiBack = { pid: me, R: this._rv }; this._aiKeep = true; try { this._rvOpenReview(seat, { tab: "player" }); } finally { this._aiKeep = false; } },
+  /** The board at the turn (the step view), with the hexes of that resource and number ringed. */
+  _aiSpot(rs, num, T) {
+    this._rcGoTurn(T ?? this.turn ?? 0, null, false);
+    setTimeout(() => {
+      const svg = this._rvEl?.querySelector(".rs-marks"), V = this.view; if (!svg || !V) return;
+      const w = svg.viewBox.baseVal.width, h = svg.viewBox.baseVal.height;
+      this.geometry.hexes.filter((x) => x.resource === rs && x.number === num).forEach((x) => { const cx = x.center.x * V.scale + V.offsetX, cy = x.center.y * V.scale + V.offsetY; if (cx < -10 || cy < -10 || cx > w + 10 || cy > h + 10) return;
+        svg.insertAdjacentHTML("beforeend", `<g class="ai-spot"><circle cx="${cx}" cy="${cy}" r="${this.geometry.hexSize * V.scale * 0.55}" fill="none" stroke="#fff" stroke-width="7"/><circle cx="${cx}" cy="${cy}" r="${this.geometry.hexSize * V.scale * 0.55}" fill="none" stroke="#E0A82E" stroke-width="3.5" stroke-dasharray="2 5" stroke-linecap="round"/></g>`); });
+    }, 400);
   },
   _aiSave() { try { this._rvSave?.(); } catch (_) { /* best effort */ } try { this._histSoon?.(); } catch (_) { /* best effort */ } },
   async _aiCall(body, ms) {

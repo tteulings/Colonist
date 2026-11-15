@@ -695,6 +695,7 @@ export const ReviewGameMixin = {
     this._rvDrawReview();
   },
   _rvOpenReview(pid, { mid = false, at = null, near = null, tab = null } = {}) {
+    if (!this._aiKeep) this._aiBack = null; // (v1.73 only a link from the AI tab makes Back return there)
     if (!this._rvReviewable()) return;
     if (!this._rvGateOk(pid)) { this._hsGate?.(pid, "Your game review", () => this._rvOpenReview(pid, { mid, at, near })); return; } // pass & play: hand the phone over first
     const inReview = !!this._rvEl; // v1.52 opened from inside the review (a column, Whose moves): the way back stays where you came from
@@ -933,7 +934,7 @@ export const ReviewGameMixin = {
     this._rcBind?.(el);
     this._rvBindTable(el);
     this._rvBindMoves(el);
-    el.querySelectorAll("[data-rvt]").forEach((b) => b.addEventListener("click", () => { if (this._rvTab !== b.dataset.rvt || b.dataset.rvpp) { this._rvTab = b.dataset.rvt; this._rvDrawReview(); } }));
+    el.querySelectorAll("[data-rvt]").forEach((b) => b.addEventListener("click", () => { const bk = b.dataset.rvpp && this._aiBack?.R === this._rv ? this._aiBack : null; if (bk) { this._aiBack = null; this._aiScrollY ??= 0; if (bk.pid !== this._rvPid) this._rvOpenReview(bk.pid, { tab: "ai" }); else { this._rvTab = "ai"; this._rvDrawReview(); } return; } if (this._rvTab !== b.dataset.rvt || b.dataset.rvpp) { this._rvTab = b.dataset.rvt; this._rvDrawReview(); } }));
     el.querySelectorAll("[data-rvj]").forEach((b) => b.addEventListener("click", () => { this._rvQ = b.dataset.rvq || "all"; this._rvEnterStep(+b.dataset.rvj); }));
     this._rvBindSbs(el);
     part.bind?.(el);

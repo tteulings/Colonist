@@ -87,7 +87,7 @@ export const ReviewRecapMixin = {
   },
   _rcTurnOf(d) { return this._st?.turnOf?.[d?.x?.s ?? 0] ?? d?.t ?? null; },
   /** One-line AI subtitle for a key moment row. */
-  _rcSub(d) { const tp = this._rcTp(this._rcTurnOf(d)); return tp ? `<small class="rc-sub"><i>AI</i>${esc(tp.title)}: ${esc(tp.text)}</small>` : ""; },
+  _rcSub(d) { const tp = this._rcTp(this._rcTurnOf(d)); return tp ? `<small class="rc-sub"><i>AI</i>${this._aiFmtLite?.(tp.title) ?? esc(tp.title)}: ${this._aiFmtLite?.(tp.text) ?? esc(tp.text)}</small>` : ""; },
   /** The turn's AI description at the top of the turn view / moment card. */
   _rcLine(d) {
     if (d?.k === "setup") return "";
@@ -106,7 +106,7 @@ export const ReviewRecapMixin = {
   },
   /** v1.72 the Overview's end: one "AI coach" row (opens the AI tab via _rvOpenAiTab when present; the recap's headline as its line)
    *  and the lesson as a one-line collapsible row. Key-moment rows carry the AI subtitle (_rcSubT). */
-  _rcSubT(T_, P) { const tp = this._rcOk() ? this._rcTp(T_, P) : null; return tp ? `<small class="rc-sub"><i>AI</i>${esc(tp.title)}</small>` : ""; },
+  _rcSubT(T_, P) { const tp = this._rcOk() ? this._rcTp(T_, P) : null; return tp ? `<small class="rc-sub"><i>AI</i>${this._aiFmtLite?.(tp.title) ?? esc(tp.title)}</small>` : ""; },
   _rcBox() {
     if (!this._rcOk()) return "";
     const aiOn = this._aiAvail?.() !== false; // v1.73 offline: the AI coach row is hidden (the lesson row stays)

@@ -75,6 +75,35 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   await G(() => { document.querySelector(".rv-scroll").scrollTop = 520; }); await sleep(300); await page.screenshot({ path: `${SH}/${process.env.TAG || "mock"}-mid.png` });
   await G(() => { document.querySelector(".rv-scroll").scrollTop = 99999; }); await sleep(300); await page.screenshot({ path: `${SH}/${process.env.TAG || "mock"}-end.png` });
   await G(() => { document.querySelector(".rv-scroll").scrollTop = 0; });
+  // every reference is a link: styled, >=32px touch area, Back returns to the AI tab at the same scroll position
+  const LK = await G(() => { const c = [...document.querySelectorAll("[data-aic^=c]")]; const info = (sel) => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); const a = getComputedStyle(e, "::after"); return { role: e.getAttribute("role"), h: parseFloat(a.height), tab: e.tabIndex }; };
+    return { turn: info(".ai-tx .ai-l.ai-t"), name: info(".ai-l.ai-n"), pts: info(".ai-l.ai-p"), spot: info(".ai-l.ai-r"), dec: info(".ai-l.ai-d"), luck: !!document.querySelector("[data-aic=c1] [data-ailuck]") }; });
+  console.log(JSON.stringify(LK));
+  ok(["turn", "name", "pts", "spot"].every((k) => LK[k] && LK[k].role === "button" && LK[k].h >= 32), "turn / name / points / spot are links with >=32px touch area", LK);
+  ok(LK.dec, "decision word linked", JSON.stringify(LK.dec));
+  const sc0 = await G(() => { const s = document.querySelector(".rv-scroll"); s.scrollTop = 330; return s.scrollTop; });
+  await sleep(200);
+  const nameSeat = await G(() => { const e = document.querySelector("[data-aic^=c] [data-aipl]"); e.scrollIntoView({ block: "center" }); return +e.dataset.aipl; });
+  const sc1 = await G(() => document.querySelector(".rv-scroll").scrollTop);
+  await page.locator("[data-aic^=c] [data-aipl]").first().dispatchEvent("click"); await sleep(1200);
+  ok(await G((s) => !!document.querySelector(".pp-bar") , nameSeat), "player name link opens that player's page", nameSeat);
+  await page.locator(".pp-bar [data-rvt]").first().tap(); await sleep(1000);
+  const bk = await G(() => ({ ai: !!document.querySelector("[data-rvt=ai].on"), top: document.querySelector(".rv-scroll").scrollTop }));
+  ok(bk.ai && Math.abs(bk.top - sc1) <= 3, "Back from the player page: AI tab, same scroll", [bk, sc1]);
+  const sp = await G(() => { const e = document.querySelector("[data-aispot]"); e.scrollIntoView({ block: "center" }); return document.querySelector(".rv-scroll").scrollTop; });
+  await page.locator("[data-aispot]").first().dispatchEvent("click"); await sleep(1200);
+  ok(await G(() => !!document.querySelector(".rv.step .rs-board")), "spot link opens the board view");
+  console.log("spot rings:", await G(() => document.querySelectorAll(".rs-marks .ai-spot").length));
+  await page.screenshot({ path: `${SH}/${process.env.TAG || "mock"}-spot.png` });
+  await page.locator("[data-rvclose-step]").first().tap(); await sleep(900);
+  const bk2 = await G(() => ({ ai: !!document.querySelector("[data-rvt=ai].on"), top: document.querySelector(".rv-scroll").scrollTop }));
+  ok(bk2.ai && Math.abs(bk2.top - sp) <= 3, "Back from the board view: same scroll position", [bk2, sp]);
+  await page.locator("[data-aic=c1] [data-ailuck]").first().dispatchEvent("click").catch(() => {}); await sleep(900);
+  ok(await G(() => document.querySelector("[data-rvt=luck].on") !== null) || !LK.luck, "luck reference opens the Luck tab (when linked)");
+  await page.locator("[data-rvt=ai]").tap(); await sleep(900);
+  await page.locator("[data-aic=c2] [data-aipts]").first().dispatchEvent("click"); await sleep(500);
+  ok(await G(() => !!document.querySelector("[data-aic=c2] .ai-vz.flash")), "points reference highlights the points visual of its card");
+  await G(() => { document.querySelector(".rv-scroll").scrollTop = 0; });
   // marker / turn chip -> step view at that turn; back returns to the AI tab
   await page.locator("[data-aic=c0] .ai-wc .mk").first().dispatchEvent("click"); await sleep(1200);
   ok(await G(() => document.querySelector(".rv.step") && new RegExp(`Turn ${window.__w}\\b`).test(document.body.innerText) || !!document.querySelector(".rv.step")), "marker opens the step view");
