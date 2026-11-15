@@ -544,6 +544,59 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       ok(R.swC >= 1, "1.78: list_swings carries causes", [R.swC, R.swn]);
     }
   }
+  // v1.79: visual blocks (board, compare, line, bars, route, timeline, text): values from refs, invalid refs dropped, <= 3 visuals
+  {
+    const R = await G(async () => {
+      const g = window.__colonistGame, { decMoves } = await import("./src/review/ai-blocks.js"), C = g._aiCtx();
+      const own = C.decs.filter((x) => x.own && g._aiHasPos(x.d)).sort((a, b) => b.gap - a.gap)[0] || C.decs.find((x) => g._aiHasPos(x.d));
+      if (!own) return null;
+      const mv = decMoves(own), nm = (s) => g.players[s].name, T = own.turn, me = own.seat;
+      const host = document.createElement("div"); host.id = "t179"; host.style.cssText = "width:330px;position:relative"; (document.querySelector("[data-aibody]") || document.body).appendChild(host);
+      const run = async (raw, ans = true) => { const card = g._aiCard({ level: "game", view: "none", title: "t", text: "Hello there.", answer: "Hello there.", turns: [], focusTurn: null, players: [], points: [], clauses: [], ...raw }, C, { answer: ans }); host.innerHTML = g._aiCardHtml(card, C, { q: "Q?", key: "t179" }); g._aiBoards(host); await new Promise((r) => setTimeout(r, 1800)); return card; };
+      const out = { T, me, mv: { played: mv.played.win, best: mv.best?.win, alt1: mv.alts[0]?.win, nAlts: mv.alts.length, bl: mv.best?.label } };
+      let c = await run({ blocks: [{ type: "board", turn: T, player: nm(me), marks: [{ kind: "played", at: "played", label: null }, { kind: "better", at: "best", label: null }, ...(mv.alts[0] ? [{ kind: "alt", at: "alt1", label: null }] : []), { kind: "alt", at: "alt9", label: null }], arrows: [{ from: "played", to: "best", kind: "move" }], zoom: "auto", options: [], series: [], turns: [], players: [], metric: null, from: null, to: null, md: null }] });
+      out.board = { types: c.bk?.map((b) => b.type), marks: c.bk?.[0]?.marks.map((m) => [m.kind, m.win]), img: !!host.querySelector(".ai-bk.bk-board .ai-bd img, .ai-bk.bk-board .ai-bd .bdp img"), rings: host.querySelectorAll(".ai-bk.bk-board svg circle").length, leg: [...host.querySelectorAll(".bk-lg .lg")].map((e) => e.textContent), arrow: !!host.querySelector(".mk-arrow") };
+      c = await run({ blocks: [{ type: "compare", turn: T, player: nm(me), options: [{ label: "x", ref: "played" }, { label: "y", ref: "best" }, ...(mv.alts[0] ? [{ label: "z", ref: "alt1" }] : []), { label: "bad", ref: "alt3x" }], marks: [], arrows: [], zoom: null, series: [], turns: [], players: [], metric: null, from: null, to: null, md: null, player: null }] });
+      out.cmp = { rows: [...host.querySelectorAll(".ai-bk.bk-compare .ai-sr")].map((e) => [e.querySelector("b").textContent.replace(/[^\d]/g, ""), e.classList.contains("best"), e.querySelector(".tr i").style.width]), cost: host.querySelector(".bk-ft .ai-chg b")?.textContent, label0: host.querySelector(".ai-sr .l")?.textContent, ax: !!host.querySelector(".ai-bk .ai-ax") };
+      const evx = [{ id: "k1", n: "simulate_moves", t: 2, r: { tool: "simulate_moves", turn: 7, player: "You", playedLabel: "Road", storedPlayedWinPct: 35, results: [{ label: "Settlement at 12", winPct: 41, plusMinusPct: 3 }] } }];
+      c = await run({ ev: evx, blocks: [{ type: "compare", turn: 7, player: null, options: [{ label: "", ref: "k1:played" }, { label: "", ref: "k1" }], marks: [], arrows: [], zoom: null, series: [], turns: [], players: [], metric: null, from: null, to: null, md: null }] });
+      out.cmpEv = { rows: [...host.querySelectorAll(".ai-bk.bk-compare .ai-sr b")].map((e) => e.textContent), cost: host.querySelector(".bk-ft .ai-chg b")?.textContent };
+      const T2 = Math.max(2, Math.min(C.maxT, T)), blank = { options: [], marks: [], arrows: [], zoom: null, turn: null, player: null, players: [], metric: null, from: null, to: null, md: null, series: [], turns: [] };
+      c = await run({ blocks: [{ ...blank, type: "line", series: [{ player: "You", from: 0, to: C.maxT }, { player: nm((me + 1) % C.n), from: null, to: null }], turns: [T2, T2 + 1, T2 + 2, T2 + 3, 5] }] });
+      out.line = { paths: host.querySelectorAll(".ai-bk.bk-line path").length, marks: host.querySelectorAll(".ai-bk.bk-line .mk").length, leg: host.querySelectorAll(".ai-bk.bk-line .ai-leg span").length };
+      const bars = {}; for (const m of ["luck", "points", "income"]) { c = await run({ blocks: [{ ...blank, type: "bars", metric: m, players: [] }] }); bars[m] = { rows: host.querySelectorAll(".ai-bk.bk-bars .ai-br").length, vals: [...host.querySelectorAll(".ai-bk.bk-bars .ai-br b")].map((e) => e.textContent) }; }
+      out.bars = bars; out.luck = C.luck && C.all.map((s) => Math.round(C.luck[s] * 100)); out.pts = C.st?.sources?.map((s) => s.total);
+      c = await run({ blocks: [{ ...blank, type: "route", players: ["You"] }] }); out.route = { rows: host.querySelectorAll(".ai-bk.bk-route .ai-pr2").length, bar: !!host.querySelector(".ai-bk.bk-route .rt-bar") };
+      c = await run({ blocks: [{ ...blank, type: "timeline", player: "You", from: 0, to: C.maxT }] }); out.tl = { n: host.querySelectorAll(".ai-bk.bk-timeline g[data-ait]").length, want: C.tl[me].length };
+      c = await run({ blocks: [{ ...blank, type: "text", md: "First sentence. Second sentence. Third sentence." }, { ...blank, type: "bars", metric: "luck" }, { ...blank, type: "text", md: "You lost 77% of it." }] }); out.text = { n: host.querySelectorAll(".bk-tx").length, t: [...host.querySelectorAll(".bk-tx")].map((e) => e.textContent) };
+      c = await run({ blocks: [{ ...blank, type: "board", turn: 9999, marks: [{ kind: "played", at: "played", label: null }] }, { ...blank, type: "compare", turn: T, options: [{ label: "a", ref: "zzz" }, { label: "b", ref: "alt7" }] }, { ...blank, type: "line", series: [{ player: "Nobody", from: 1, to: 3 }] }, { ...blank, type: "bars", metric: "nope" }, { ...blank, type: "board", turn: T, marks: [{ kind: "focus", at: "n99999", label: null }] }, { ...blank, type: "bars", metric: "luck" }] }); out.invalid = { bk: c.bk?.map((b) => b.type), vz: host.querySelectorAll(".ai-bk").length };
+      c = await run({ blocks: ["bars", "luck", "points", "income"].map((m) => ({ ...blank, type: "bars", metric: m === "bars" ? "luck" : m })).concat([{ ...blank, type: "route" }, { ...blank, type: "text", md: "One." }]) }); out.max3 = { vis: host.querySelectorAll(".ai-bk").length, bk: c.bk?.filter((b) => b.type !== "text").length };
+      c = g._aiCard({ level: "game", view: "winchance", title: "t", text: "Hello.", turns: [T], focusTurn: T, players: ["You"], points: [], clauses: [] }, C); out.legacy = { bk: c.bk, blocks: c.blocks.map((b) => b.type), vis: g._aiCardHtml(c, C, { key: "lg" }).includes("ai-wc") };
+      c = await run({ blocks: [] }); out.ordered = (() => { const s = host.querySelector("section"); return [...s.children].map((e) => e.className.split(" ")[0]); })();
+      host.remove(); return out;
+    });
+    console.log("BLOCKS", JSON.stringify(R));
+    ok(!!R, "1.79: a decision with a place on the board exists");
+    if (R) {
+      const B = R.board, M = R.mv;
+      ok(B.types?.join() === "board" && B.marks.length >= 2 && B.marks[0][0] === "played" && B.marks[0][1] === M.played && B.marks[1][0] === "better" && B.marks[1][1] === M.best, "1.79 board: marks resolved from refs (played / best win chances from the review), the bad alt9 dropped", B.marks);
+      ok(B.img && B.rings >= 4 && B.arrow, "1.79 board: real board picture with rings and arrow", [B.img, B.rings, B.arrow]);
+      ok(B.leg.length === B.marks.length && /A/.test(B.leg[1]) && B.leg[0].includes(`${M.played}%`) && B.leg[1].includes(`${M.best}%`) && (M.alt1 == null || B.leg.some((t) => /^1/.test(t) && t.includes(`${M.alt1}%`))), "1.79 board: legend A / B / numbered alternative with the win chance chips", B.leg);
+      const rs = R.cmp.rows;
+      ok(rs.length === (M.alt1 != null ? 3 : 2) && +rs[0][0] === M.played && +rs[1][0] === M.best && rs[1][1] && R.cmp.ax && R.cmp.cost === `−${Math.max(...rs.map((r) => +r[0])) - M.played}%`, "1.79 compare: bars from refs on one scale, best marked, cost chip, invalid option dropped", [rs, R.cmp.cost]);
+      ok(+R.cmpEv.rows[0].replace(/\D/g, "") === 35 && /41/.test(R.cmpEv.rows[1]) && R.cmpEv.cost === "−6%", "1.79 compare: tool refs k1:played / k1 give 35% and 41%", R.cmpEv);
+      ok(R.line.paths === 2 && R.line.marks >= 1 && R.line.marks <= 3 && R.line.leg === 2, "1.79 line: two player lines, <= 3 markers", R.line);
+      ok(R.bars.luck.rows === R.luck?.length && R.bars.luck.vals.every((v, i) => v.replace("−", "-").replace("+", "") === String(R.luck[i]) + "%" || Math.abs(parseInt(v.replace("−", "-")) - R.luck[i]) <= 0), "1.79 bars luck: values from the review", [R.bars.luck.vals, R.luck]);
+      ok(R.bars.points.vals.join() === R.pts.join() && R.bars.income.rows >= 2, "1.79 bars points / income", [R.bars.points.vals, R.pts, R.bars.income]);
+      ok(R.route.rows === 1 && R.route.bar, "1.79 route: route-to-10 for the named player", R.route);
+      ok(R.tl.n === R.tl.want && R.tl.n > 0, "1.79 timeline: one icon per build / card of the player", R.tl);
+      ok(R.text.n === 1 && /First sentence\. Second sentence\.?$/.test(R.text.t[0]) && !/Third/.test(R.text.t[0]), "1.79 text: <= 2 sentences; a text block quoting a % nobody gave is dropped", R.text);
+      ok(R.invalid.bk?.join() === "bars" && R.invalid.vz === 1, "1.79: invalid refs (turn 9999, alt7, unknown player, bad metric, spot n99999) drop the block", R.invalid);
+      ok(R.max3.vis === 3 && R.max3.bk === 3, "1.79: at most 3 visual blocks per answer", R.max3);
+      ok(R.legacy.bk === null && R.legacy.blocks.join() === "line" && R.legacy.vis, "1.79: an old view maps to a block and still renders", R.legacy);
+      ok(R.ordered[0] === "ai-hd" && R.ordered.includes("ai-tx") && R.ordered.indexOf("ai-hd") < R.ordered.indexOf("ai-tx"), "1.79: answer card order chip, text", R.ordered);
+    }
+  }
   ok(errors.length === 0, "no page errors after the tool loop", errors.join("|"));
   await b.close(); console.log(fails ? "FAILED" : "ALL OK"); process.exit(fails ? 1 : 0);
 })();

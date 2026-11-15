@@ -9,6 +9,7 @@ import { reviewRequest, reviewLaneCount, reviewAvailable } from "./master.js";
 import { RECAP_URL, recapLang } from "./review-recap.js";
 import { swingCause } from "./review/ai-cause.js";
 import { rvPos, rvMarks } from "./review-game.js";
+import { aiBlocks, legacyBlocks, textOf, decMoves, spotFocus } from "./review/ai-blocks.js";
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -90,7 +91,7 @@ export const ReviewAiMixin = {
       const list = p.id === pid ? ds : tryv(() => decide(rs, n, p.id), []);
       list.forEach((d) => { if (d.x?.best && !d.same && d.gap > 0.005) decs.push({ seat: p.id, turn: turnOf(d), d, gap: d.gap, own: p.id === pid }); });
     });
-    return { pid, me, ser, tl, st, n, nmRaw, ds, turnOf, luck, decs, nm: tryv(() => aiNearMiss(this, ser)), plan: (q) => tryv(() => aiPlan(this, q, tl)), start: (q) => tryv(() => aiStart(this, q)), route: (q) => tryv(() => aiRoute(this, q, ser, tl)), big: tryv(() => this._aiBig(ser)), maxT: Math.max(ser.maxT, this.turn || 0), lang: recapLang(), t: this._aiL() };
+    return { pid, me, all: this.players.map((p) => p.id), ser, tl, st, n, nmRaw, ds, turnOf, luck, decs, nm: tryv(() => aiNearMiss(this, ser)), plan: (q) => tryv(() => aiPlan(this, q, tl)), start: (q) => tryv(() => aiStart(this, q)), route: (q) => tryv(() => aiRoute(this, q, ser, tl)), big: tryv(() => this._aiBig(ser)), maxT: Math.max(ser.maxT, this.turn || 0), lang: recapLang(), t: this._aiL() };
   },
 
   /** The turn with the largest win-chance swing of any player: { turn, d } (the only turn a card may say "decided"). */
@@ -147,6 +148,7 @@ export const ReviewAiMixin = {
     if (!answer && !card.rec && card.level === "decision") this._aiDecFit(card, C);
     if (!card.rec && !raw?.cant) this._aiCauseFit(card, C);
     card.title = this._aiTitle(card, C);
+    this._aiCardBlocks(card, raw, C);
     card.generic = card.fix.includes("title");
     return card;
   },
@@ -386,7 +388,7 @@ export const ReviewAiMixin = {
   _aiMentioned(txt, C) { const out = []; this.players.forEach((p) => { const nm = [C.nmRaw(p.id), p.name || ""].filter((x) => x.length >= 2).map(reEsc); if (this._rvIsYou(p.id)) nm.push("you", "your", "jij", "je", "jouw"); if (nm.length && new RegExp(`(?:^|[^\\p{L}\\p{N}])(?:${nm.join("|")})(?![\\p{L}\\p{N}])`, "iu").test(txt)) out.push(p.id); }); return out; },
   _aiDecAt(T, C, seats = null) { const l = C.decs.filter((x) => x.turn === T && (!seats?.length || seats.includes(x.seat))).sort((a, b) => (b.own - a.own) || (b.gap - a.gap)); return l[0] || null; },
   _aiCardHtml(card, C, o = {}) {
-    const L = C.t, key = o.key ?? "", vis = o.ref ? `<div class="ai-ac"><button type="button" class="ai-a" data-airef="${o.ref}">${esc((CHAT[C.lang] || CHAT.en).same)}</button></div>` : this._aiVisual(card, C, o.seen);
+    const L = C.t, key = o.key ?? "", vis = o.ref ? `<div class="ai-ac"><button type="button" class="ai-a" data-airef="${o.ref}">${esc((CHAT[C.lang] || CHAT.en).same)}</button></div>` : card.bk ? this._aiBlocksHtml(card, C, key) : this._aiVisual(card, C, o.seen);
     (this._aiSrc ||= new Map()).set(key, { text: card.text, card, max: o.q ? 3 : 2 });
     const dec = card.focus != null ? this._aiDecAt(card.focus, C, card.dseats) : null;
     const canWhy = card.level === "decision" && dec?.own && this._rvIsYou(C.pid) && this._exCan?.(dec.d);
@@ -400,9 +402,9 @@ export const ReviewAiMixin = {
       <div class="ai-hd">${tag}${this._aiChgChips(card, C)}${pin}</div>
       ${card.title ? `<b class="ai-ti">${this._aiFmt(card.title, C, card)}</b>` : ""}
       ${card.text ? `<div class="ai-tx" data-aitx="${key}" lang="${C.lang}">${this._aiFmt(card.text, C, card)}</div>` : ""}${pts}
-      ${vis}${this._aiVSim(card, C)}${acts ? `<div class="ai-ac">${acts}</div>` : ""}</section>`;
+      ${vis}${card.bk?.some((b) => b.type === "compare") ? "" : this._aiVSim(card, C)}${acts ? `<div class="ai-ac">${acts}</div>` : ""}</section>`;
   },
-  _aiSeatRows(card, C) { return card.seats.length >= 2 ? card.seats : this.players.map((p) => p.id); },
+  _aiSeatRows(card, C) { return card.rows?.length ? card.rows : card.seats.length >= 2 ? card.seats : this.players.map((p) => p.id); },
   /** One visual per card, never the same visual with the same data twice in the tab. A decision always shows its board (A better, B played). */
   _aiVisual(card, C, seen = new Set()) {
     try {
@@ -432,11 +434,12 @@ export const ReviewAiMixin = {
       }
     } catch (e) { console.warn("ai visual", e); return ""; }
   },
-  _aiVWin(card, C) {
+  _aiVWin(card, C, o = null) {
     const ser = C.ser; if (ser.by.size < 2) return "";
     let seats = card.seats.length ? card.seats.slice(0, 3) : [C.me]; if (!seats.includes(C.me) && seats.length < 3 && !card.seats.length) seats = [C.me];
     let t0 = 0, t1 = C.maxT;
-    if (card.turns.length) { t0 = Math.max(0, Math.min(...card.turns) - 4); t1 = Math.min(C.maxT, Math.max(...card.turns) + 4); if (t1 - t0 < 8) { t1 = Math.min(C.maxT, t0 + 8); t0 = Math.max(0, t1 - 8); } }
+    if (o) { t0 = o.t0; t1 = o.t1; if (t1 - t0 < 4) { t1 = Math.min(C.maxT, t0 + 4); t0 = Math.max(0, t1 - 4); } }
+    else if (card.turns.length) { t0 = Math.max(0, Math.min(...card.turns) - 4); t1 = Math.min(C.maxT, Math.max(...card.turns) + 4); if (t1 - t0 < 8) { t1 = Math.min(C.maxT, t0 + 8); t0 = Math.max(0, t1 - 8); } }
     const ts = [...ser.by.keys()].filter((t) => t >= t0 && t <= t1).sort((a, b) => a - b);
     if (ts.length < 2) return "";
     const lines = seats.map((s) => ({ s, p: ts.map((t) => [t, Math.round((ser.by.get(t)[s] ?? 0) * 100)]) }));
@@ -445,7 +448,7 @@ export const ReviewAiMixin = {
     const W = 320, H = 136, l = 30, r = 14, tp = 22, b = 22, x = (t) => l + ((t - t0) / Math.max(1, t1 - t0)) * (W - l - r), y = (v) => H - b - ((v - lo) / (hi - lo)) * (H - tp - b);
     const grid = [lo, (lo + hi) / 2, hi].map((v) => `<line x1="${l}" x2="${W - r}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="g"/><text x="${l - 4}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">${Math.round(v)}%</text>`).join("");
     const paths = lines.map((ln) => `<path class="pc-${ln.s}" d="${ln.p.map((q, i) => `${i ? "L" : "M"}${x(q[0]).toFixed(1)} ${y(q[1]).toFixed(1)}`).join("")}" fill="none"/>`).join("");
-    const mt = [...new Set([card.focus, ...(card.focus != null && card.chg?.some((c) => c.from != null) ? [card.focus - 1] : []), ...card.turns].filter((t) => t != null && t >= t0 && t <= t1))].slice(0, 3);
+    const mt = [...new Set((o ? o.marks : [card.focus, ...(card.focus != null && card.chg?.some((c) => c.from != null) ? [card.focus - 1] : []), ...card.turns]).filter((t) => t != null && t >= t0 && t <= t1))].slice(0, 3);
     // adjacent turns (T10, T11) are one marker: "T10\u201311", so the labels never crowd
     const groups = []; mt.sort((a, c) => a - c).forEach((t) => { const g = groups[groups.length - 1]; if (g && t - g[g.length - 1] <= 2) g.push(t); else groups.push([t]); });
     let lastX = -99, flip = false;
@@ -478,7 +481,7 @@ export const ReviewAiMixin = {
     return `<div class="ai-vz ai-bars">${rows}<div class="ai-leg">${used.map(([k, c]) => `<span><i class="sw s-${c}"></i>${esc(C.t.legend[c] || k)}</span>`).join("")}</div></div>`;
   },
   _aiVPlan(card, C) {
-    const all = card.clauses?.length >= 2 || (card.level === "strategy" && (!card.seats.length || card.seats.length >= C.n)), seats = all ? this.players.map((p) => p.id) : this._aiSeatRows(card, C), W = 250, H = 22, mx = Math.max(1, C.maxT), x = (t) => 7 + (t / mx) * (W - 14);
+    const all = card.route || card.clauses?.length >= 2 || (card.level === "strategy" && (!card.seats.length || card.seats.length >= C.n)), seats = all ? (card.rows?.length ? card.rows : this.players.map((p) => p.id)) : this._aiSeatRows(card, C), W = 250, H = 22, mx = Math.max(1, C.maxT), x = (t) => 7 + (t / mx) * (W - 14);
     const icon = planIcon;
     const band = card.turns.length ? `<rect class="bd" x="${(x(Math.min(...card.turns)) - 4).toFixed(1)}" y="0" width="${(x(Math.max(...card.turns)) - x(Math.min(...card.turns)) + 8).toFixed(1)}" height="${H}" rx="4"/>` : "";
     const rowsAll = (s) => { let last = -99; const ic = C.tl[s].map(([t, k]) => { let cx = x(t); if (cx - last < 9) cx = last + 9; last = cx; return icon(k, Math.min(W - 6, cx).toFixed(1) * 1, 11); }).join("");
@@ -523,6 +526,129 @@ export const ReviewAiMixin = {
     const d = this._aiDecAt(T0, C);
     return `<div class="ai-vz"><div class="ai-bd" data-aibd="${T0}"><span class="ai-bdw" aria-hidden="true"></span></div>${d ? `<div class="ai-leg" data-aileg hidden><span><s class="rg a">A</s>${esc(C.t.better)}</span><span><s class="rg b">B</s>${esc(C.t.played)}</span></div>` : ""}</div>`;
   },
+  // ── v1.79 visual blocks: the model names what to show, the app fetches every number (src/review/ai-blocks.js) ──
+  _aiRawBlocks(bl) {
+    return (Array.isArray(bl) ? bl : []).filter((b) => b && typeof b === "object").slice(0, 8).map((b) => JSON.parse(JSON.stringify(b, (k, v) => (typeof v === "string" ? v.slice(0, 300) : v)))).slice(0, 8);
+  },
+  _aiBkEnv(card, C) {
+    return { C, g: this.geometry, ev: card.evRaw || [], maxT: C.maxT, seats: (names) => this._aiSeats(names, C), decAt: (T, seats) => this._aiDecAt(T, C, seats), pos: (f) => tryv(() => rvPos(this.geometry, f)) };
+  },
+  /** card.bk = the validated blocks of the model (when it gave any visual), card.blocks = the blocks of the card (the old view mapped on them when it gave none). */
+  _aiCardBlocks(card, raw, C) {
+    card.bk = null; card.blocks = [];
+    const env = this._aiBkEnv({ evRaw: raw?.ev }, C);
+    if (raw?.cant) return;
+    const bl = tryv(() => aiBlocks(raw?.blocks, env), []);
+    if (bl.some((b) => b.type !== "text")) { card.bk = bl; card.blocks = bl; }
+    else card.blocks = tryv(() => legacyBlocks(card, env), []);
+  },
+  /** The numbers a text block may quote: the tool evidence, the card's chip and the values of its own blocks. */
+  _aiBkNums(card) {
+    const s = new Set([...(card.ev?.nums || [])]);
+    (card.chg || []).forEach((c) => { if (c.d != null) s.add(Math.abs(c.d)); if (c.from != null) { s.add(c.from); s.add(c.to); } });
+    (card.bk || []).forEach((b) => { (b.options || []).forEach((o) => s.add(o.v)); if (b.cost) s.add(b.cost); (b.marks || []).forEach((m) => m.win != null && s.add(m.win)); });
+    return s;
+  },
+  _aiBlocksHtml(card, C, key) {
+    const nums = this._aiBkNums(card); this._aiBk ||= new Map();
+    return (card.bk || []).map((b, i) => {
+      try {
+        if (b.type === "text") {
+          const ok = textOf(b.md).split(/(?<=[.!?])\s+/).filter((sn) => [...sn.matchAll(/(\d+(?:[.,]\d+)?)\s?%/g)].every((m) => [...nums].some((a) => Math.abs(a - parseFloat(m[1].replace(",", "."))) <= 1))).join(" ");
+          return ok ? `<div class="ai-tx bk-tx" lang="${C.lang}">${this._aiFmt(ok, C, card)}</div>` : "";
+        }
+        return this._aiBlockHtml(b, card, C, `${key}:${i}`);
+      } catch (e) { console.warn("ai visual", e); return ""; }
+    }).join("");
+  },
+  _aiBlockHtml(b, card, C, bkey) {
+    const wrap = (inner, cls = "") => (inner ? `<div class="ai-vz ai-bk bk-${b.type}${cls ? " " + cls : ""}" data-bk="${b.type}">${inner}</div>` : "");
+    const strip = (h) => h.replace(/^<div class="ai-vz[^"]*">/, "").replace(/<\/div>$/, "");
+    switch (b.type) {
+      case "line": return wrap(strip(this._aiVWin({ seats: b.series.map((s) => s.seat), turns: [], focus: null, chg: [] }, C, { t0: b.t0, t1: b.t1, marks: b.marks })));
+      case "bars": {
+        const k = { seats: [], rows: b.seats, turns: [], chg: [] };
+        return wrap(strip(b.metric === "luck" ? this._aiVLuck(k, C) : b.metric === "points" ? this._aiVPoints(k, C) : this._aiVIncome(k, C)));
+      }
+      case "route": return wrap(strip(this._aiVPlan({ seats: [], rows: b.seats, route: true, clauses: [], turns: [], level: "game" }, C)), "ai-plan all");
+      case "timeline": return wrap(this._aiVTimeline(b, C));
+      case "compare": return wrap(this._aiVCompare(b, C));
+      case "board": {
+        this._aiBkSpec ||= new Map(); this._aiBkSpec.set(bkey, b);
+        return wrap(`<div class="ai-bd" data-aibd="${b.turn}" data-aibk="${bkey}"><span class="ai-bdw" aria-hidden="true"></span></div>${this._aiBkLegend(b, C)}`);
+      }
+      default: return "";
+    }
+  },
+  _aiVIncome(card, C) {
+    const rows = card.rows.map((s) => ({ s, v: Object.values(tryv(() => C.route(s))?.income?.perTurn || {}).reduce((a, x) => a + x, 0) })), mx = Math.max(1, ...rows.map((r) => r.v));
+    return `<div class="ai-vz ai-bars">${rows.map((r) => `<div class="ai-br pc-${r.s}"><span class="n">${esc(C.nmRaw(r.s))}</span><span class="tr"><i class="b pos" style="left:0;width:${((r.v / mx) * 100).toFixed(1)}%"></i></span><b>${(Math.round(r.v * 10) / 10).toString()}</b></div>`).join("")}<div class="ai-cap">${esc(C.t.x.inc)}</div></div>`;
+  },
+  _aiVTimeline(b, C) {
+    const ev = b.items, W = 300, x = (t) => 10 + ((t - b.from) / Math.max(1, b.to - b.from)) * (W - 20); let last = -99;
+    const ic = ev.map(([t, k]) => { let cx = x(t); if (cx - last < 12) cx = last + 12; last = cx; return `<g data-ait="${t}">${planIcon(k, Math.min(W - 8, cx).toFixed(1) * 1, 13)}<text x="${Math.min(W - 8, cx).toFixed(1)}" y="31" text-anchor="middle">${t}</text></g>`; }).join("");
+    const used = new Set(ev.map((e) => e[1]));
+    return `<div class="ai-pr tl pc-${b.seat}"><span class="n">${esc(C.nmRaw(b.seat))}</span><svg viewBox="0 0 ${W} 36" aria-label="${esc(C.nmRaw(b.seat))}"><line x1="4" x2="${W - 4}" y1="13" y2="13" class="ln"/>${ic}</svg></div><div class="ai-leg">${["s", "c", "L", "A", "v"].filter((k) => used.has(k)).map((k) => `<span><svg viewBox="0 0 14 14" width="12" height="12">${planIcon(k, 7, 7)}</svg>${esc(C.t.legend[k])}</span>`).join("")}</div>`;
+  },
+  _aiVCompare(b, C) {
+    const T = CHAT[C.lang] || CHAT.en, mx = Math.max(...b.options.map((o) => o.v)), hi = Math.min(100, Math.max(20, (Math.floor(mx / 10) + 1) * 10)), you = this._rvIsYou(b.seat), nl = C.lang === "nl";
+    const rows = b.options.map((o, i) => `<div class="ai-sr rec bkc${i === b.bestIdx ? " best" : ""} k-${o.kind}"><span class="l"><em class="tg ${o.kind}">${esc(o.kind === "played" ? T.played : i === b.bestIdx || o.kind === "best" ? String(C.t.better).replace(/^[AB]\s+/, "") : "alt")}</em>${esc(o.label)}</span><span class="tr"><i style="width:${Math.max(1, (o.v / hi) * 100).toFixed(1)}%"></i></span><b>${i === b.bestIdx ? "★ " : ""}${o.v}%${o.pm ? `<small>±${o.pm}</small>` : ""}</b></div>`).join("");
+    const cost = b.cost ? `<div class="bk-ft"><span class="ai-chg dn pc-${b.seat}"><b>−${b.cost}%</b><small>${esc(you ? C.t.mine : C.t.move)}</small></span><span class="ai-cap">${esc(T.wc)}</span></div>` : `<div class="bk-ft"><span class="ai-cap">${esc(T.wc)}</span></div>`;
+    return `<div class="ai-sm rec" data-aisimv>${rows}<div class="ai-ax" aria-hidden="true"><span class="tk"><i>0%</i><i>${hi / 2}%</i><i>${hi}%</i></span><span></span></div>${cost}</div>`;
+  },
+  _aiBkLegend(b, C) {
+    const T = CHAT[C.lang] || CHAT.en, cut = (s) => esc(String(s || "").length > 26 ? `${String(s).slice(0, 25)}…` : s || "");
+    const items = b.marks.map((m) => {
+      const chip = m.win != null ? `<b>${m.win}%</b>` : "";
+      if (m.kind === "better") return `<span class="lg"><s class="rg a">A</s>${esc(String(C.t.better).replace(/^[AB]\s+/, ""))}${chip}</span>`;
+      if (m.kind === "played") return `<span class="lg"><s class="rg b">B</s>${esc(String(C.t.played).replace(/^[AB]\s+/, ""))}${chip}</span>`;
+      if (m.kind === "alt") return `<span class="lg"><s class="rg n">${m.n}</s>${cut(m.label)}${chip}</span>`;
+      if (m.kind === "robber") return `<span class="lg"><s class="rg r">⚉</s>${esc(C.lang === "nl" ? "Struikrover" : "Robber")}</span>`;
+      return `<span class="lg"><s class="rg f"></s>${cut(m.label) || esc(C.t.show || "")}</span>`;
+    }).join("");
+    return `<div class="ai-leg bk-lg">${items}</div>`;
+  },
+  /** The marks and arrows of a board block in the picture's own pixels (the shot's view). */
+  _aiBkSvg(s, b, only = null) {
+    const g = this.geometry, V = s.view, hs = g.hexSize * V.scale, xy = (p) => [p.x * V.scale + V.offsetX, p.y * V.scale + V.offsetY];
+    const at = (f) => { const p = rvPos(g, f), c = xy(p); return { c, p, r: p.hex ? hs * 0.6 : Math.max(8, Math.min(p.edge ? 11 : 13, hs * 0.34)) }; };
+    const inP = (a) => !only || only.some((q) => Math.hypot(q.x - a.p.x, q.y - a.p.y) < 1);
+    let out = "";
+    b.arrows.forEach((a) => {
+      const A = at(a.from), B = at(a.to); if (!inP(A) && !inP(B)) return;
+      const [x1, y1] = A.c, [x2, y2] = B.c, L = Math.hypot(x2 - x1, y2 - y1) || 1, ux = (x2 - x1) / L, uy = (y2 - y1) / L, e1 = [x1 + ux * (A.r + 3), y1 + uy * (A.r + 3)], e2 = [x2 - ux * (B.r + 5), y2 - uy * (B.r + 5)], col = a.kind === "alt" ? "#E0A526" : "var(--primary)";
+      if (L > A.r + B.r + 10) out += `<g class="mk-arrow"><line x1="${e1[0].toFixed(1)}" y1="${e1[1].toFixed(1)}" x2="${e2[0].toFixed(1)}" y2="${e2[1].toFixed(1)}" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".9"/><line x1="${e1[0].toFixed(1)}" y1="${e1[1].toFixed(1)}" x2="${e2[0].toFixed(1)}" y2="${e2[1].toFixed(1)}" stroke="${col}" stroke-width="3" stroke-dasharray="1 7" stroke-linecap="round"/><path d="M${e2[0].toFixed(1)},${e2[1].toFixed(1)} l${(-ux * 11 - uy * 7).toFixed(1)},${(-uy * 11 + ux * 7).toFixed(1)} l0,0 M${e2[0].toFixed(1)},${e2[1].toFixed(1)} l${(-ux * 11 + uy * 7).toFixed(1)},${(-uy * 11 - ux * 7).toFixed(1)}" stroke="${col}" stroke-width="3" stroke-linecap="round" fill="none"/></g>`;
+    });
+    b.marks.forEach((m) => {
+      const M = at(m.focus); if (!inP(M)) return; const [x, y] = M.c, r = M.r, bx = x + r * 0.8, by = y - r * 0.8;
+      const badge = (txt, fill, stroke, col) => `<g transform="translate(${bx.toFixed(1)} ${by.toFixed(1)})"><circle r="8" fill="${fill}" stroke="${stroke}" stroke-width="2"/><text y="4.4" text-anchor="middle" font-size="11.5" font-weight="800" fill="${col}">${txt}</text></g>`;
+      if (m.kind === "better") out += `${M.p.hex ? `<circle cx="${x}" cy="${y}" r="${r}" fill="var(--primary)" opacity=".22"/>` : ""}<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#fff" stroke-width="7"/><circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="var(--primary)" stroke-width="3.6"/>${badge("A", "var(--primary)", "#fff", "#fff")}`;
+      else if (m.kind === "played") out += `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#fff" stroke-width="3.5" stroke-dasharray="6 4"/>${badge("B", "#fff", "var(--primary)", "var(--primary)")}`;
+      else if (m.kind === "alt") out += `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#fff" stroke-width="6"/><circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#E0A526" stroke-width="3" stroke-dasharray="5 3"/>${badge(m.n, "#E0A526", "#fff", "#2b2210")}`;
+      else if (m.kind === "robber") out += `<circle cx="${x}" cy="${y}" r="${r}" fill="#23201c" opacity=".38"/><circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#fff" stroke-width="5"/><circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#23201c" stroke-width="2.6"/>${badge("⚉", "#23201c", "#fff", "#fff")}`;
+      else out += `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#fff" stroke-width="5"/><circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="var(--primary)" stroke-width="2" stroke-dasharray="2 4" stroke-linecap="round"/>`;
+    });
+    return out;
+  },
+  /** The board of a block into its element: zoomed to the marks (two pictures when they are far apart), rings and arrows drawn over the real renderer. */
+  _aiBkBoard(el, C, w) {
+    const b = this._aiBkSpec?.get(el.dataset.aibk); if (!b) return false;
+    const g = this.geometry, pts = [...b.marks.map((m) => m.focus), ...b.arrows.flatMap((a) => [a.from, a.to])].map((f) => tryv(() => rvPos(g, f))).filter(Boolean);
+    const d = b.dec?.d || null, h = Math.round(w * 0.62), tag = (u) => u.map((p) => `${Math.round(p.x)},${Math.round(p.y)}`).join(";");
+    const ov = (u) => ({ d, use: u, tag: `${b.turn}:${tag(u)}${b.zoom}` });
+    const s = this._aiShot(b.turn, C, w, h, null, b.zoom === "full" ? { d, use: [], tag: `full${b.turn}` } : ov(pts)); if (!s) return false;
+    let panels = null;
+    if (s.far && pts.length >= 2) { // far apart: two zoomed pictures, each with its own cluster
+      let ia = 0, ib = 1, best = -1; pts.forEach((p, i) => pts.forEach((q, j) => { const dd = Math.hypot(p.x - q.x, p.y - q.y); if (dd > best) { best = dd; ia = i; ib = j; } }));
+      const ga = [], gb = []; pts.forEach((p) => (Math.hypot(p.x - pts[ia].x, p.y - pts[ia].y) <= Math.hypot(p.x - pts[ib].x, p.y - pts[ib].y) ? ga : gb).push(p));
+      const w2 = Math.floor((w - 6) / 2), h2 = Math.round(w2 * 0.95), sa = this._aiShot(b.turn, C, w2, h2, null, ov(ga)), sb = this._aiShot(b.turn, C, w2, h2, null, ov(gb));
+      if (sa && sb) panels = [[sa, ga], [sb, gb]];
+    }
+    el.style.aspectRatio = "auto";
+    if (panels) { el.dataset.zoom = "two"; el.innerHTML = `<div class="bd2">${panels.map(([q, u]) => `<div class="bdp"><img src="${q.url}" alt="" width="${q.w}" height="${q.h}"><svg viewBox="0 0 ${q.w} ${q.h}" aria-hidden="true">${this._aiBkSvg(q, b, u)}</svg></div>`).join("")}</div>`; }
+    else { el.dataset.zoom = s.box ? Math.round(((s.box.maxX - s.box.minX) * (s.box.maxY - s.box.minY)) / (s.full.w * s.full.h) * 100) : ""; el.innerHTML = `<img src="${s.url}" alt="" width="${s.w}" height="${s.h}"><svg viewBox="0 0 ${s.w} ${s.h}" aria-hidden="true">${this._aiBkSvg(s, b)}</svg>`; }
+    return true;
+  },
   /** The view that fits the box of the spots plus a ring of hexes, whole, in a w x h picture: no hex of it is ever clipped. */
   _aiCropView(use, w, h, fitScale) {
     const g = this.geometry; if (!use?.length || !g) return null;
@@ -546,11 +672,11 @@ export const ReviewAiMixin = {
   },
   /** The board at the turn as a picture (the Replay's renderer into an off-screen canvas), zoomed to the decision's A and B plus a ring of hexes, or what was built.
    *  The picture is as tall as that box needs (a tall box gets a taller picture instead of a smaller board). */
-  _aiShot(T0, C, w, h0, only = null) {
-    const key = `${this._rvPid}|${T0}|${w}|${only || ""}`; this._aiImgs ||= new Map();
+  _aiShot(T0, C, w, h0, only = null, ov = null) {
+    const key = `${this._rvPid}|${T0}|${w}|${only || ""}|${ov?.tag || ""}`; this._aiImgs ||= new Map();
     if (this._aiImgs.has(key)) return this._aiImgs.get(key);
     const g = this.geometry, st = this._st; if (!g || !st) return null;
-    const sp = this._aiSpots(T0, C, only), d = sp.d, box = this._aiCropView(sp.use, w, h0, 1)?.box;
+    const sp = ov ? { d: ov.d, use: ov.use, both: ov.use.length >= 2 } : this._aiSpots(T0, C, only), d = sp.d, box = this._aiCropView(sp.use, w, h0, 1)?.box;
     const h = box ? Math.max(h0, Math.min(Math.round(w * 0.95), Math.round((w * (box.maxY - box.minY)) / (box.maxX - box.minX)))) : h0;
     const cv = document.createElement("canvas"); let out = null;
     this._rpOpen(cv, w, h);
@@ -561,7 +687,7 @@ export const ReviewAiMixin = {
       if (v) this.view = v;
       this.boardRenderer?.resync?.(); this.boardRenderer?.invalidateStatic?.();
       if (this.boardRenderer) { this.boardRenderer.anims = []; this.boardRenderer.draw(performance.now()); } else this.drawCanvasScene(); // synchronous: requestDraw would paint after the canvas is read
-      out = { url: cv.toDataURL("image/png"), marks: d ? rvMarks(this, d, sp.A, sp.B, { tight: true }) : "", w, h, view: { scale: this.view.scale, offsetX: this.view.offsetX, offsetY: this.view.offsetY }, box: v?.box, full: { w: w / fit.scale, h: h / fit.scale }, far: !only && sp.both && v?.box && ((v.box.maxX - v.box.minX) * (v.box.maxY - v.box.minY)) / ((w / fit.scale) * (h / fit.scale)) > 0.5 };
+      out = { url: cv.toDataURL("image/png"), marks: d && !ov ? rvMarks(this, d, sp.A, sp.B, { tight: true }) : "", w, h, view: { scale: this.view.scale, offsetX: this.view.offsetX, offsetY: this.view.offsetY }, box: v?.box, full: { w: w / fit.scale, h: h / fit.scale }, far: !only && sp.both && !ov?.tag?.startsWith("full") && v?.box && ((v.box.maxX - v.box.minX) * (v.box.maxY - v.box.minY)) / ((w / fit.scale) * (h / fit.scale)) > 0.5 };
     } catch (e) { console.warn("ai board", e); } finally { try { this._rpClose(); } catch (_) { /* none open */ } }
     if (out) this._aiImgs.set(key, out);
     return out;
@@ -572,6 +698,12 @@ export const ReviewAiMixin = {
     const next = () => {
       const el = els.shift(); if (!el || !el.isConnected || this._rv !== R) return;
       const w = Math.max(200, Math.round(el.getBoundingClientRect().width)), h = Math.round(w * 0.62);
+      if (el.dataset.aibk) { // v1.79 a board block: its own rings and arrows
+        el.dataset.done = "1"; if (!tryv(() => this._aiBkBoard(el, C, w))) el.closest(".ai-vz")?.remove();
+        setTimeout(next, 20);
+        if (!els.length) { const r = this._aiRestore, sc = this._rvEl?.querySelector(".rv-scroll"); if (r && sc && Date.now() < r.until) sc.scrollTop = r.y; this._aiRestore = null; }
+        return;
+      }
       let s = this._aiShot(+el.dataset.aibd, C, w, h), two = null;
       if (s?.far) { const w2 = Math.floor((w - 6) / 2), h2 = Math.round(w2 * 0.95), sa = this._aiShot(+el.dataset.aibd, C, w2, h2, "A"), sb = this._aiShot(+el.dataset.aibd, C, w2, h2, "B"); if (sa && sb) two = [sa, sb]; } // A and B far apart: one zoomed picture of each, not the whole board
       el.dataset.done = "1";
@@ -808,7 +940,7 @@ export const ReviewAiMixin = {
     let l = Array.isArray(ids) ? ids.filter((x) => (trace || []).some((t) => t.id === x)) : [], inf = false;
     if (!l.length && trace?.length) l = trace.filter((t) => turn === "all" || (turn != null && +t.args?.turn === +turn)).map((t) => t.id), inf = true; // the model named none: the calls of that turn (an answer: all of them)
     return l.map((id) => (trace || []).find((t) => t.id === id)).filter((t) => t && t.res && !t.res.error && !seen.has(t.id) && seen.add(t.id)).slice(0, 4)
-      .map((t) => ({ n: t.name, t: t.t, ...(inf ? { inf: true } : {}), nums: evNums(t.res), ...(t.t === 2 ? { r: t.res } : t.name === "get_decision" ? { r: aiSlimDecision(t.res) } : {}) }));
+      .map((t) => ({ id: t.id, n: t.name, t: t.t, ...(inf ? { inf: true } : {}), nums: evNums(t.res), ...(t.t === 2 ? { r: t.res } : t.name === "get_decision" ? { r: aiSlimDecision(t.res) } : {}) }));
   },
   _aiSimCardHtml(C) {
     const sim = this._aiUi?.sim; if (!sim) return "";
@@ -842,7 +974,7 @@ export const ReviewAiMixin = {
     if (r.x && !cards.length && !r.err) r.err = "fail";
     if (r.err) { this._aiUi = { pid, err: r.err }; this._aiRefresh(); return; }
     const keep = (R.ai?.answers || []).filter((a) => a.pinned || (!force && R.ai?.pid === pid && R.ai?.lang === lang));
-    R.ai = { pid, lang, at: Date.now(), n: r.n, insights: { headline: String(r.x.headline || "").slice(0, 200), cards: cards.map((c) => ({ level: c.level, title: c.title, text: c.text, view: c.view, turns: c.turns, focusTurn: c.focusTurn, players: c.players, clauses: Array.isArray(c.clauses) ? c.clauses.slice(0, 8).map((x) => ({ player: String(x?.player ?? ""), text: String(x?.text ?? "") })) : [], ev: this._aiEvOf(c.evidence, r.trace, c.focusTurn) })), followUps: (r.x.followUps || []).map(String).slice(0, 8) }, answers: keep, cache: Object.fromEntries([...this._aiSimCache()].slice(-10)) };
+    R.ai = { pid, lang, at: Date.now(), n: r.n, insights: { headline: String(r.x.headline || "").slice(0, 200), cards: cards.map((c) => ({ level: c.level, title: c.title, text: c.text, view: c.view, turns: c.turns, focusTurn: c.focusTurn, players: c.players, clauses: Array.isArray(c.clauses) ? c.clauses.slice(0, 8).map((x) => ({ player: String(x?.player ?? ""), text: String(x?.text ?? "") })) : [], blocks: this._aiRawBlocks(c.blocks), ev: this._aiEvOf(c.evidence, r.trace, c.focusTurn) })), followUps: (r.x.followUps || []).map(String).slice(0, 8) }, answers: keep, cache: Object.fromEntries([...this._aiSimCache()].slice(-10)) };
     this._aiUi = { pid, loading: null, err: null };
     this._aiSave(); this._aiRefresh();
   },
@@ -884,7 +1016,7 @@ export const ReviewAiMixin = {
     }
     x.evidence = ids;
     const at = Date.now(); this._aiOpen = at;
-    ai.answers.unshift({ q, at, pinned: false, followUps: (x.followUps || []).map(String).slice(0, 6), a: { ...(it ? { intent: it } : {}), ...(cant ? { cant: true } : {}), answer: cant || String(x.answer), points: (x.points || []).map(String).slice(0, 4), view: x.view, turns: x.turns, focusTurn: cant ? it.turn : x.focusTurn, players: x.players, ev: cant ? [] : this._aiEvOf(ids.length ? ids : x.evidence, r.trace, "all") } });
+    ai.answers.unshift({ q, at, pinned: false, followUps: (x.followUps || []).map(String).slice(0, 6), a: { ...(it ? { intent: it } : {}), ...(cant ? { cant: true } : {}), answer: cant || String(x.answer), points: (x.points || []).map(String).slice(0, 4), view: x.view, turns: x.turns, focusTurn: cant ? it.turn : x.focusTurn, players: x.players, blocks: cant ? [] : this._aiRawBlocks(x.blocks), ev: cant ? [] : this._aiEvOf(ids.length ? ids : x.evidence, r.trace, "all") } });
     ai.cache = Object.fromEntries([...this._aiSimCache()].slice(-10));
     while (ai.answers.length > 12) { const i = ai.answers.map((a) => !a.pinned).lastIndexOf(true); if (i < 0) break; ai.answers.splice(i, 1); }
     this._aiUi = { pid };
