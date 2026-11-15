@@ -85,3 +85,4 @@ b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { c
 .ai-l:active { opacity: .65; }
 .ai-vz.flash { animation: aiflash 1.1s ease-out 1; border-radius: 10px; } @keyframes aiflash { 0% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 55%, transparent); } 100% { box-shadow: 0 0 0 3px transparent; } }
 .rc-sub .ai-t, .rc-sub .ai-r { font-size: inherit; padding: 0 5px; }
+.ai-chg small { font: 650 10.5px/1 var(--font-body); opacity: .85; }

@@ -15,11 +15,11 @@ const VIEWS = ["winchance", "luck", "points", "plan", "board", "moves", "none"];
 const LEVELS = ["game", "decision", "strategy"];
 const T = {
   en: { lv: { game: "Game", decision: "Decision", strategy: "Strategy" }, why: "Why?", show: "Show in review", turn: "Turn", setup: "Set-up", ask: "Ask", ph: "Ask about this game…", regen: "Regenerate", foot: "Written by AI from this review · numbers by the app · may contain mistakes",
-    wait: "Reading the game…", again: "Try again", pin: "Keep this answer", unpin: "Unpin", win: "win chance", you: "You", better: "A better", played: "B played", tab: "AI · beta",
+    wait: "Reading the game…", again: "Try again", pin: "Keep this answer", unpin: "Unpin", win: "win chance", you: "You", better: "A better", played: "B played", mine: "your move", tab: "AI · beta",
     rate: "The AI is busy right now (too many requests). Try again in a minute.", time: "That took too long. Try again.", net: "No connection. Check your internet and try again.", fail: "No answer this time. Try again later.", none: "Not enough in this review to ask the AI.",
     luck: "Luck", pts: "Points", legend: { s: "Settlement", c: "City", L: "Longest road", A: "Largest army", v: "Point card" } },
   nl: { lv: { game: "Spel", decision: "Beslissing", strategy: "Strategie" }, why: "Waarom?", show: "Toon in review", turn: "Beurt", setup: "Opzet", ask: "Vraag", ph: "Vraag iets over dit spel…", regen: "Opnieuw", foot: "Geschreven door AI op basis van deze review · cijfers van de app · kan fouten bevatten",
-    wait: "Het spel lezen…", again: "Probeer opnieuw", pin: "Bewaar dit antwoord", unpin: "Los", win: "winkans", you: "Jij", better: "A beter", played: "B gespeeld", tab: "AI · beta",
+    wait: "Het spel lezen…", again: "Probeer opnieuw", pin: "Bewaar dit antwoord", unpin: "Los", win: "winkans", you: "Jij", better: "A beter", played: "B gespeeld", mine: "jouw zet", tab: "AI · beta",
     rate: "De AI is nu druk (te veel verzoeken). Probeer het over een minuut opnieuw.", time: "Dat duurde te lang. Probeer opnieuw.", net: "Geen verbinding. Controleer je internet en probeer opnieuw.", fail: "Nu geen antwoord. Probeer het later opnieuw.", none: "Er staat te weinig in deze review om de AI te vragen.",
     luck: "Geluk", pts: "Punten", legend: { s: "Dorp", c: "Stad", L: "Langste weg", A: "Grootste leger", v: "Puntenkaart" } },
 };
@@ -89,6 +89,9 @@ export const ReviewAiMixin = {
     const seats = this._aiSeats(raw?.players, C);
     const chgSeats = seats.length ? seats.slice(0, 2) : focus != null ? [C.me] : [];
     const chg = chgSeats.map((s) => { const c = focus != null ? wcChange(C.ser, s, focus, focus) : null; return c ? { seat: s, ...c } : null; }).filter(Boolean);
+    // a decision of yours: the chip is YOUR cost, with your sign (a better move worth +6% is "-6% your move", never a green +6%)
+    const dm = level === "decision" && focus != null && this._rvIsYou(C.me) && (!seats.length || seats.includes(C.me)) ? this._aiDecAt(focus, C) : null;
+    if (dm?.own && Math.round(dm.gap * 100) >= 1) { const i = chg.findIndex((c) => c.seat === C.me), mv = { seat: C.me, from: null, to: null, d: -Math.round(dm.gap * 100), move: true }; if (i >= 0) chg[i] = mv; else chg.unshift(mv); }
     const card = { level, view, turns: turns.slice(0, 6), focus, seats, chg, title: String(raw?.title ?? "").slice(0, 120), src: String(answer ? raw?.answer : raw?.text ?? "").slice(0, 900), points: (raw?.points || []).map(String).slice(0, 4), fix: [] };
     card.dec = card.focus != null && !!this._aiDecAt(card.focus, C);
     card.text = this._aiTrust(card, C);
@@ -179,8 +182,8 @@ export const ReviewAiMixin = {
 
   // ── cards ──
   _aiChgChips(card, C) {
-    return card.chg.map((c) => { const you = this._rvIsYou(c.seat), cls = c.d === 0 ? "" : you ? (c.d > 0 ? "up" : "dn") : "opp"; const nm = C.nmRaw(c.seat); const short = nm.length > 9 ? `${nm.slice(0, 8)}…` : nm;
-      return `<button type="button" class="ai-chg ${cls} pc-${c.seat}" data-ait="${card.focus}" title="${esc(nm)} · ${esc(C.t.win)} ${c.from}% → ${c.to}%"><i class="ai-dot" aria-hidden="true"></i>${you ? "" : `<span>${esc(short)}</span>`}<b>${sgn(c.d)}%</b></button>`; }).join("");
+    return card.chg.map((c) => { const you = this._rvIsYou(c.seat), cls = c.move ? "dn" : c.d === 0 ? "" : you ? (c.d > 0 ? "up" : "dn") : "opp"; const nm = C.nmRaw(c.seat); const short = nm.length > 9 ? `${nm.slice(0, 8)}…` : nm;
+      return `<button type="button" class="ai-chg ${cls} pc-${c.seat}" data-ait="${card.focus}" title="${esc(nm)} · ${esc(C.t.win)} ${c.from}% → ${c.to}%"><i class="ai-dot" aria-hidden="true"></i>${you ? "" : `<span>${esc(short)}</span>`}<b>${sgn(c.d)}%</b>${c.move ? `<small>${esc(C.t.mine)}</small>` : ""}</button>`; }).join("");
   },
   _aiDecAt(T, C) { const l = C.decs.filter((x) => x.turn === T).sort((a, b) => (b.own - a.own) || (b.gap - a.gap)); return l[0] || null; },
   _aiCardHtml(card, C, o = {}) {

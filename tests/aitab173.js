@@ -25,7 +25,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     for (let t = 2; t <= g.turn; t++) for (let s = 0; s < n; s++) { const c = wcChange(ser, s, t, t); if (!c) continue; if (s === me && (!worst || c.d < worst.d)) worst = { t, s, ...c }; if (s === me && (!best || c.d > best.d)) best = { t, s, ...c }; }
     let opp = null; for (let t = 2; t <= g.turn; t++) for (let s = 0; s < n; s++) { if (s === me) continue; const c = wcChange(ser, s, t, t); if (c && (!opp || Math.abs(c.d) > Math.abs(opp.d))) opp = { t, s, ...c }; }
     const f = aiFacts(g);
-    const d0 = (f?.obj.decisions || []).find((x) => x.player === "You" && x.turn >= 2); if (d0) { const c = wcChange(ser, me, d0.turn, d0.turn); if (c) worst = { t: d0.turn, s: me, ...c }; }
+    const d0 = (f?.obj.decisions || []).find((x) => x.player === "You" && x.turn >= 2 && x.costPct >= 1); if (d0) { const c = wcChange(ser, me, d0.turn, d0.turn); if (c) worst = { t: d0.turn, s: me, ...c, cost: Math.round(d0.costPct) }; }
     return { me, names, n, worst, best, opp, src: ser.src, size: f?.json.length, keys: Object.keys(f?.obj || {}), maxT: g.turn, dec: f?.obj.decisions?.slice(0, 3), you: g._rvIsYou(me), tabs: [...document.querySelectorAll(".rv-tabs button")].map((e) => e.textContent) };
   });
   console.log(JSON.stringify(F));
@@ -57,7 +57,9 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   ok(S.cards.length === 7, "7 cards rendered", S.cards.length);
   const want = ["ai-wc", "ai-bars", "ai-bars", "ai-plan", "ai-bd", "ai-mv"]; ok(want.every((k, i) => S.cards[i].vis.includes(k)) && S.cards[6].vis.length === 0, "a visual per view (winchance, luck, points, plan, board, moves, none)", S.cards.map((c) => c.vis.join()));
   ok(S.cards[0].markers >= 1 && S.cards[0].markers <= 3, "win chart: <=3 markers", S.cards[0].markers);
-  ok(S.cards[0].chips.length === 1 && S.cards[0].chips[0].includes(sg(F.worst.d) + "%"), "chip shows the app's real change", [S.cards[0].chips, sg(F.worst.d)]);
+  ok(S.cards[0].chips.length === 1 && S.cards[0].chips[0].includes("\u2212" + F.worst.cost + "%") && /your move/.test(S.cards[0].chips[0]), "decision chip = YOUR cost with your sign (red, your move)", [S.cards[0].chips, F.worst.cost]);
+  ok(S.cards[3].chips.length === 1 && S.cards[3].chips[0].includes(sg(F.best.d) + "%"), "non-decision chip = real win-chance change from the per-turn timeline (same source as the chart)", [S.cards[3].chips, sg(F.best.d)]);
+  ok(await G(() => document.querySelector("[data-aic=c0] .ai-chg").classList.contains("dn") && !document.querySelector("[data-aic=c0] .ai-chg").classList.contains("up")), "decision chip is red");
   ok(!new RegExp(wrongVerb).test(S.cards[0].text) && new RegExp(`${meN}.*turn ${F.worst.t}.*win chance`, "i").test(S.cards[0].text) && /second sentence stays/.test(S.cards[0].text), "trust: the contradicting verb sentence is replaced by a neutral app line", S.cards[0].text);
   ok(!/\+30|\b\d+% to \d+%/.test(S.cards[0].text) || true, "(numbers)");
   ok(S.cards.map((c, i) => c.why === (c.lv.includes("decision") && !!c.go && i !== 99 ? c.why : false)).every(Boolean) && S.cards.filter((c) => c.why).every((c) => /decision/.test(c.lv)), "Why? only on decision cards", S.cards.map((c) => c.why));
