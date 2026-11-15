@@ -638,7 +638,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     const sp = seenT?.[0]?.result?.spots;
     console.log(JSON.stringify([A, sp && Object.keys(sp), sp?.appSummary]));
     ok(sp && sp.factors?.length >= 5 && sp.appSummary && sp.ruleOfThumb && sp.options?.length === 2 && JSON.stringify(sp).length < 3500, "1.80 get_decision for a set-up carries the spots analysis (factors, app summary, rule of thumb), compact", [sp?.factors?.length, JSON.stringify(sp || {}).length]);
-    ok(A.types.join() === "board,compare,spots" && A.cells >= 10 && A.win >= 1 && /because/.test(A.text) && /port/.test(A.text), "1.80 the answer to a set-up question = board + compare + spots table + the why sentence", A);
+    ok(/^board,compare,(reasons,)?spots$/.test(A.types.join()) && A.cells >= 10 && A.win >= 1 && /because/.test(A.text) && /port/.test(A.text), "1.80 the answer to a set-up question = board + compare + (1.82 reasons) + spots table + the why sentence", A);
     await G(() => document.querySelector("[data-aic^=a]:not(.col)")?.scrollIntoView({ block: "start" })); await sleep(300); await page.screenshot({ path: SH + "/spots-answer.png" });
   }
   { // v1.81 digit guard
