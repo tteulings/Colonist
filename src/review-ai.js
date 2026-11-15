@@ -122,7 +122,7 @@ export const ReviewAiMixin = {
     const clauses = (Array.isArray(raw?.clauses) ? raw.clauses : []).map((c) => ({ seat: this._aiSeats([c?.player], C)[0], text: String(c?.text ?? "").replace(/[<>]/g, "").trim().slice(0, 120) })).filter((c) => c.seat != null && c.text).filter((c, i, a) => a.findIndex((x) => x.seat === c.seat) === i);
     const card = { level, view, clauses: view === "plan" && level === "strategy" ? clauses : [], turns: turns.slice(0, 6), focus, seats, chg, title: String(raw?.title ?? "").slice(0, 120), src: String(answer ? raw?.answer : raw?.text ?? "").slice(0, 900), points: (raw?.points || []).map(String).slice(0, 4), fix: [] };
     { const ev = (Array.isArray(raw?.ev) ? raw.ev : []).slice(0, 4), sim = ev.filter((e) => e.t === 2 && e.r?.results), nums = new Set(ev.flatMap((e) => e.nums || []));
-      card.ev = ev.length ? { nums, sim: sim.map((e) => e.r), games: sim.reduce((a, e) => a + (e.r.games || 0), 0), dec: ev.some((e) => e.n === "get_decision") || sim.length > 0 } : null; }
+      card.ev = ev.length ? { nums, sim: sim.map((e) => e.r), games: sim.reduce((a, e) => a + (e.r.games || 0), 0), dec: ev.some((e) => !e.inf && (e.n === "get_decision" || e.t === 2)) } : null; }
     card.dec = card.focus != null && !!this._aiDecAt(card.focus, C);
     card.seat = chg[0]?.seat ?? seats[0] ?? null;
     card.text = this._aiTrust(card, C);
@@ -718,10 +718,12 @@ export const ReviewAiMixin = {
     }
   },
   /** The evidence of a card / answer: the tool calls it names (only those that ran and gave a result), as stored: the numbers they gave, and the engine runs in full. */
-  _aiEvOf(ids, trace) {
+  _aiEvOf(ids, trace, turn = null) {
     const seen = new Set();
-    return (Array.isArray(ids) ? ids : []).map((id) => (trace || []).find((t) => t.id === id)).filter((t) => t && t.res && !t.res.error && !seen.has(t.id) && seen.add(t.id)).slice(0, 4)
-      .map((t) => ({ n: t.name, t: t.t, nums: evNums(t.res), ...(t.t === 2 ? { r: t.res } : {}) }));
+    let l = Array.isArray(ids) ? ids.filter((x) => (trace || []).some((t) => t.id === x)) : [], inf = false;
+    if (!l.length && trace?.length) l = trace.filter((t) => turn === "all" || (turn != null && +t.args?.turn === +turn)).map((t) => t.id), inf = true; // the model named none: the calls of that turn (an answer: all of them)
+    return l.map((id) => (trace || []).find((t) => t.id === id)).filter((t) => t && t.res && !t.res.error && !seen.has(t.id) && seen.add(t.id)).slice(0, 4)
+      .map((t) => ({ n: t.name, t: t.t, ...(inf ? { inf: true } : {}), nums: evNums(t.res), ...(t.t === 2 ? { r: t.res } : {}) }));
   },
   _aiSimCardHtml(C) {
     const sim = this._aiUi?.sim; if (!sim) return "";
@@ -749,7 +751,7 @@ export const ReviewAiMixin = {
     if (r.x && !cards.length && !r.err) r.err = "fail";
     if (r.err) { this._aiUi = { pid, err: r.err }; this._aiRefresh(); return; }
     const keep = (R.ai?.answers || []).filter((a) => a.pinned || (!force && R.ai?.pid === pid && R.ai?.lang === lang));
-    R.ai = { pid, lang, at: Date.now(), n: r.n, insights: { headline: String(r.x.headline || "").slice(0, 200), cards: cards.map((c) => ({ level: c.level, title: c.title, text: c.text, view: c.view, turns: c.turns, focusTurn: c.focusTurn, players: c.players, clauses: Array.isArray(c.clauses) ? c.clauses.slice(0, 8).map((x) => ({ player: String(x?.player ?? ""), text: String(x?.text ?? "") })) : [], ev: this._aiEvOf(c.evidence, r.trace) })), followUps: (r.x.followUps || []).map(String).slice(0, 8) }, answers: keep, cache: Object.fromEntries([...this._aiSimCache()].slice(-10)) };
+    R.ai = { pid, lang, at: Date.now(), n: r.n, insights: { headline: String(r.x.headline || "").slice(0, 200), cards: cards.map((c) => ({ level: c.level, title: c.title, text: c.text, view: c.view, turns: c.turns, focusTurn: c.focusTurn, players: c.players, clauses: Array.isArray(c.clauses) ? c.clauses.slice(0, 8).map((x) => ({ player: String(x?.player ?? ""), text: String(x?.text ?? "") })) : [], ev: this._aiEvOf(c.evidence, r.trace, c.focusTurn) })), followUps: (r.x.followUps || []).map(String).slice(0, 8) }, answers: keep, cache: Object.fromEntries([...this._aiSimCache()].slice(-10)) };
     this._aiUi = { pid, loading: null, err: null };
     this._aiSave(); this._aiRefresh();
   },
@@ -773,7 +775,7 @@ export const ReviewAiMixin = {
     if (r.err || !r.x?.answer) { this._aiUi = { pid, askErr: r.err || "fail" }; this._aiRefresh(); return; }
     const x = r.x;
     const at = Date.now(); this._aiOpen = at;
-    ai.answers.unshift({ q, at, pinned: false, followUps: (x.followUps || []).map(String).slice(0, 6), a: { answer: String(x.answer), points: (x.points || []).map(String).slice(0, 4), view: x.view, turns: x.turns, focusTurn: x.focusTurn, players: x.players, ev: this._aiEvOf(x.evidence, r.trace) } });
+    ai.answers.unshift({ q, at, pinned: false, followUps: (x.followUps || []).map(String).slice(0, 6), a: { answer: String(x.answer), points: (x.points || []).map(String).slice(0, 4), view: x.view, turns: x.turns, focusTurn: x.focusTurn, players: x.players, ev: this._aiEvOf(x.evidence, r.trace, "all") } });
     ai.cache = Object.fromEntries([...this._aiSimCache()].slice(-10));
     while (ai.answers.length > 12) { const i = ai.answers.map((a) => !a.pinned).lastIndexOf(true); if (i < 0) break; ai.answers.splice(i, 1); }
     this._aiUi = { pid };

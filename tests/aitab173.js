@@ -429,7 +429,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     await G(() => clearInterval(window.__simIv));
     const A2 = await lastAns(), SS = await G(() => window.__simSeen), r2 = seen.t2[0].result;
     console.log(JSON.stringify([A2, SS.slice(0, 2), r2, wall2]));
-    ok(SS.length > 0 && /simulating 2 moves/.test(SS[0]) && /100 games each/.test(SS[0]) && /Cancel/.test(SS[0]), "tier 2: the progress card shows 'Engine is simulating 2 moves · 100 games each' with Cancel", SS[0]);
+    ok(SS.length > 0 && /simulating [12] moves?/.test(SS[0]) && /100 games each/.test(SS[0]) && /Cancel/.test(SS[0]), "tier 2: the progress card shows 'Engine is simulating 2 moves · 100 games each' with Cancel", SS[0]);
     ok(r2.tool === "simulate_moves" && r2.results.length === 2 && r2.results.some((x) => typeof x.winPct === "number" && x.futures > 0) && r2.games > 0, "tier 2: the engine ran on the stored position and the results were posted", r2);
     ok(A2.ev.some((e) => e[0] === "engine" && /engine · \d+ games/.test(e[1])) && A2.sim && A2.rows.length >= 2, "tier 2: tagged 'engine · N games', bars for the as-played and simulated moves", [A2.ev, A2.rows.length]);
     ok(A2.rows.filter((r) => r.d).every((r) => (/^−/.test(r.d) ? /dn/.test(r.cls) : /^\+/.test(r.d) ? /up/.test(r.cls) : true)), "tier 2: change colour follows the real sign", A2.rows);

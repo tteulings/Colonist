@@ -145,7 +145,10 @@ export function aiSimPlan(g, name, a = {}) {
   const r = pick(g, a); if (r.err) return { error: r.err };
   const moves = Array.isArray(a.moves) ? a.moves.slice(0, CAPS.moves) : []; if (!moves.length) return { error: "no moves given" };
   const { e } = r, rec0 = R.recs[e.x.i]; if (!rec0?.st) return { error: "position not stored" };
-  const reqs = [];
+  const reqs = [], pos = tryv(() => JSON.parse(rec0.st)), me = pos?.players?.[e.seat], hand = me?.resources || null;
+  const COSTS = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, ship: { wood: 1, sheep: 1 }, buy: { sheep: 1, wheat: 1, ore: 1 } };
+  const lacks = (c) => (hand && rec0.k !== "setup" && !(pos.freeRoadsRemaining > 0) ? Object.entries(COSTS[c]).filter(([r, n]) => (hand[r] || 0) < n).map(([r, n]) => `${n - (hand[r] || 0)} ${r}`) : []);
+  const pips = (id) => (g.geometry?.nodes?.[id]?.adjacentHexes || []).reduce((a, h) => a + ({ 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 }[g.geometry.hexes[h]?.number] || 0), 0);
   for (const m of moves) {
     let k = null, act = null;
     const kind = String(m.kind || "").toLowerCase(), type = String(m.type || "").toLowerCase();
@@ -156,6 +159,8 @@ export function aiSimPlan(g, name, a = {}) {
     } else if (kind === "build") {
       if (!TYPE_LABEL[type]) { reqs.push({ error: "build type: road, settlement, city or ship" }); continue; }
       let id = m.at != null && Number.isInteger(+m.at) ? +m.at : null;
+      { const lk = lacks(type); if (lk.length) { reqs.push({ error: `not affordable there: a ${type} needs ${lk.join(" + ")} more than ${nameOf(g, e.seat)} had` }); continue; } }
+      if (id == null && type === "city") id = (me?.settlements || []).slice().sort((a, b) => pips(b) - pips(a))[0] ?? null; // the player's own settlement with the most dice dots
       if (id == null) { // the engine's own best spot of that type among the evaluated candidates
         const c = e.x.cands.filter((c) => TYPE_LABEL[type].test(String(c.label)) && focusId(c.focus) != null).sort((p, q) => (q.win ?? 0) - (p.win ?? 0))[0];
         if (!c) { reqs.push({ error: `no ${type} spot was among the engine's candidates there (give "at")` }); continue; } id = focusId(c.focus);
@@ -164,7 +169,7 @@ export function aiSimPlan(g, name, a = {}) {
     } else if (kind === "bank") {
       const gv = RES[String(m.give || "").toLowerCase()], gt = RES[String(m.get || "").toLowerCase()];
       if (!gv || !gt || gv === gt) { reqs.push({ error: "bank trade needs give and get resources" }); continue; } k = "bank"; act = { tr: [[gv, gt]] };
-    } else if (kind === "buy") { k = "buy"; act = {}; }
+    } else if (kind === "buy") { const lk = lacks("buy"); if (lk.length) { reqs.push({ error: `not affordable there: a development card needs ${lk.join(" + ")} more` }); continue; } k = "buy"; act = {}; }
     else if (kind === "play") { const c = DEVC[String(m.card || "").toLowerCase().replace(/\s+/g, "")]; if (!c) { reqs.push({ error: "card: knight, roadBuilding, yearOfPlenty or monopoly" }); continue; } k = "play"; act = { t: c }; }
     else if (kind === "end") { k = "end"; act = {}; }
     else { reqs.push({ error: "unknown move kind" }); continue; }
