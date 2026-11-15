@@ -32,8 +32,21 @@ export const ReviewExplainMixin = {
       body = `<div class="ex-a" lang="${lang}"><p><b>${esc(lead)}</b>${rest ? ` ${esc(rest)}` : ""}</p>${a.points?.length ? `<ul class="ex-pts">${a.points.slice(0, 4).map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}<small>${t.foot}</small></div>`;
     }
     return `<section class="ex-p" aria-label="${t.title}"><div class="ex-h"><b>${t.why}</b><button type="button" class="ex-x" data-exclose aria-label="${t.close}">&times;</button></div>
-      <div class="ex-chips">${chips}</div>
+      ${this._exReasons(d, lang)}<div class="ex-chips">${chips}</div>
       <form class="ex-f" data-exform><input type="text" maxlength="300" enterkeyhint="send" autocomplete="off" placeholder="${esc(t.ph)}" aria-label="${esc(t.ph)}" data-exin${U.loading ? " disabled" : ""}><button type="submit" class="rv-btn pri" ${U.loading ? "disabled" : ""}>${t.send}</button></form>${body}</section>`;
+  },
+  /** v1.82 the reasons from the engine's own futures (above the AI's answer): worked out the first time the panel is opened for a real A-vs-B decision. */
+  _exReasons(d, lang) {
+    const x = d.x; if (d.same || !x?.best) return "";
+    if (x.rsn) return `<div class="ex-rsn">${this._aiVReasons({ rows: x.rsn.reasons || [], none: !(x.rsn.reasons || []).length }, { lang })}</div>`;
+    if (this._rsnRunning?.(d.i)) return `<p class="rc-wait" role="status" aria-live="polite"><i class="rc-spin" aria-hidden="true"></i>${lang === "nl" ? "Uitzoeken waarom…" : "Working out why…"}</p>`;
+    return "";
+  },
+  /** Start the reasons run for this moment (once; a refresh follows when it ends). */
+  _exWhy(d) {
+    if (d.same || !d.x?.best || d.x.rsn || !this._rsnCan?.(d.x) || this._rsnRunning(d.i)) return;
+    const p = this._rsnRun(d.i); this._exRefresh(d);
+    p.then(() => { if (this._exUi && this._exUi.i === d.i && this._exUi.open) this._exRefresh(d); });
   },
   _exRefresh(d) {
     const box = this._rvEl?.querySelector("[data-exbox]"); if (!box) return;
@@ -43,7 +56,7 @@ export const ReviewExplainMixin = {
   },
   _exBind(root, d) {
     const box = root.querySelector?.("[data-exbox]"); if (!box) return;
-    box.querySelector("[data-exopen]")?.addEventListener("click", () => { this._exUi = { ...(this._exUiOf(d) || {}), i: d.i, pid: this._rvPid, open: true }; this._exRefresh(d); box.querySelector("[data-exin]")?.focus?.({ preventScroll: true }); });
+    box.querySelector("[data-exopen]")?.addEventListener("click", () => { this._exUi = { ...(this._exUiOf(d) || {}), i: d.i, pid: this._rvPid, open: true }; this._exRefresh(d); this._exWhy(d); box.querySelector("[data-exin]")?.focus?.({ preventScroll: true }); });
     box.querySelector("[data-exclose]")?.addEventListener("click", () => { if (this._exUi) this._exUi.open = false; this._exRefresh(d); });
     box.querySelectorAll("[data-exq]").forEach((b) => b.addEventListener("click", () => this._exAsk(d, b.dataset.exq)));
     box.querySelector("[data-exform]")?.addEventListener("submit", (e) => { e.preventDefault(); const v = box.querySelector("[data-exin]").value.trim(); if (v) this._exAsk(d, v.slice(0, 300)); });
@@ -63,6 +76,7 @@ export const ReviewExplainMixin = {
     const hit = R.explain?.[key];
     if (hit) { U.ans = hit; this._exRefresh(d); this._exHighlight(d, hit.highlight); return; }
     if (!online()) { U.err = "net"; this._exRefresh(d); return; }
+    if (!d.same && d.x?.best && !d.x.rsn && this._rsnCan?.(d.x)) { U.loading = true; this._exRefresh(d); try { await this._rsnRun(d.i); } catch (_) { /* facts without reasons */ } if (this._exUi !== U) return; U.loading = false; }
     let f = null; try { f = momentFacts(this, d, { tpTurn: U.tp }); } catch (_) { f = null; }
     if (!f) { U.err = "none"; this._exRefresh(d); return; }
     U.loading = true; this._exRefresh(d);

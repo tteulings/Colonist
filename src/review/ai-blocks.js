@@ -2,7 +2,7 @@ import { spotTable, spotRefs, isSpotDecision } from "./ai-spots.js";
 // v1.79 VISUAL BLOCKS. The model composes an answer from a small toolkit (board, compare, line, bars, route, timeline, text); it names only
 // WHAT to show (turn / player / move ids). Every number, position and label is fetched here from the stored review or the tool results.
 // A block with an unresolvable ref is dropped; at most 3 visual blocks per card; text blocks are 1-2 short sentences.
-export const BLOCK_TYPES = ["board", "compare", "spots", "line", "bars", "route", "timeline", "text"];
+export const BLOCK_TYPES = ["board", "compare", "spots", "reasons", "line", "bars", "route", "timeline", "text"];
 export const MAX_VISUAL = 3, MARK_KINDS = ["played", "better", "alt", "robber", "focus"], METRICS = ["luck", "points", "income"];
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
 const pc = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100));
@@ -58,8 +58,11 @@ export function evRow(ev, ref) {
 export function aiBlocks(rawBlocks, env) {
   const { C, g, ev } = env, out = []; let vis = 0, txt = 0;
   tryv(() => autoSpots(rawBlocks, env), null);
+  tryv(() => autoReasons(rawBlocks, env), null);
+  let rs = 0;
   (Array.isArray(rawBlocks) ? rawBlocks : []).forEach((b) => {
     if (!b || typeof b !== "object" || !BLOCK_TYPES.includes(b.type)) return;
+    if (b.type === "reasons") { if (rs < 1) { const r = tryv(() => ONE.reasons(b, env)); if (r) { out.push(r); rs++; } } return; } // v1.82 compact, not a visual of the three
     if (b.type === "text") { const md = textOf(b.md); if (md && txt < 2) { out.push({ type: "text", md }); txt++; } return; }
     if (vis >= MAX_VISUAL) return;
     const r = tryv(() => ONE[b.type](b, env)); if (r) { out.push(r); vis++; }
@@ -88,6 +91,17 @@ export function autoSpots(raw, env) {
   if (at("spots") >= 0) return;
   const i = Math.max(at("compare"), at("board"));
   raw.splice(i + 1, 0, { type: "spots", turn: T, player: b0.player ?? null, players: [], marks: [], arrows: [], zoom: null, options: [{ label: "", ref: "best" }, { label: "", ref: "played" } ], series: [], turns: [], metric: null, from: null, to: null, md: null });
+}
+/** v1.82 a decision whose reasons were worked out (x.rsn) always shows them, above the rule-of-thumb table (or after the board / compare). Edits the raw list in place. */
+export function autoReasons(raw, env) {
+  if (!Array.isArray(raw)) return;
+  const vb = raw.filter((b) => b && ["board", "compare", "spots"].includes(b.type)); if (!vb.length || raw.some((b) => b?.type === "reasons")) return;
+  const T = [...new Set(vb.map((b) => int(b.turn)).filter((t) => t != null))][0]; if (T == null) return;
+  const b0 = vb.find((b) => int(b.turn) === T), seats = env.seats(b0.player == null ? [] : [b0.player]), dm = env.decAt(T, seats.length ? seats : null);
+  if (!(dm?.d?.x || dm?.x)?.rsn) return;
+  const i = raw.findIndex((b) => b?.type === "spots" && int(b.turn) === T);
+  const at = i >= 0 ? i : Math.max(raw.findIndex((b) => b?.type === "compare" && int(b.turn) === T), raw.findIndex((b) => b?.type === "board" && int(b.turn) === T)) + 1;
+  raw.splice(Math.max(0, at), 0, { type: "reasons", turn: T, player: b0.player ?? null, players: [], marks: [], arrows: [], zoom: null, options: [], series: [], turns: [], metric: null, from: null, to: null, md: null });
 }
 /** At most 2 short sentences, no markup. */
 export function textOf(md) {
@@ -133,12 +147,19 @@ const ONE = {
     const vc = mv?.vc && opts[bestIdx]?.kind === "best" ? mv.vc : null; // v1.81 how sure the gap is: clear | lean | close (null: not a reviewed decision)
     return { type: "compare", turn: T, seat: dm?.seat ?? seats[0] ?? env.C.me, options: opts, bestIdx, cost, vc };
   },
+  reasons(b, env) {
+    const T = turnOk(b.turn, env); if (T == null) return null;
+    const seats = env.seats(b.player == null ? [] : [b.player]), dm = env.decAt(T, seats.length ? seats : null); if (!dm) return null;
+    const rsn = (dm.d?.x || dm.x)?.rsn; if (!rsn) return null;
+    const rows = (rsn.reasons || []).slice(0, 3).map((r) => ({ feature: r.feature, text: clean(r.text, 160), a: r.a, b: r.b, diff: r.diff, se: r.se, unit: r.unit }));
+    return { type: "reasons", turn: T, seat: dm.seat, rows, none: !rows.length, n: rsn.n };
+  },
   spots(b, env) {
     const T = turnOk(b.turn, env); if (T == null || !env.game) return null;
     const seats = env.seats(b.player == null ? [] : [b.player]), dm = env.decAt(T, seats.length ? seats : null); if (!dm) return null;
     const mv = decMoves(dm); if (!mv) return null;
     const t = spotTable(env.game, dm, env.C.lang, spotRefs(b.options), (rf) => moveOf(mv, rf)); if (!t) return null;
-    return { type: "spots", turn: T, seat: dm.seat, ...t };
+    return { type: "spots", turn: T, seat: dm.seat, ...t, fold: !!(dm.d?.x || dm.x)?.rsn }; // v1.82 with reasons above it, the table is the collapsed rule of thumb
   },
   line(b, env) {
     const ser = env.C.ser; if (!ser || ser.by.size < 2) return null;

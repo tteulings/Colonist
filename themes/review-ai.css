@@ -191,3 +191,10 @@ b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { c
 /* v1.81 verdict class: the +/- whisker of a compared move (its standard error) and the neutral cost chip of a close call */
 .ai-sr .tr { position: relative; } .ai-sr .tr u.wh { position: absolute; top: 3px; height: 3px; background: color-mix(in srgb, var(--ink) 55%, transparent); border-radius: 2px; box-shadow: -1px 0 0 0 var(--ink), 1px 0 0 0 var(--ink); }
 .ai-chg.nz { color: var(--ink-soft); background: color-mix(in srgb, var(--ink) 9%, transparent); }
+/* v1.82 reasons from the engine's futures, and the collapsed rule-of-thumb table */
+.ai-rsn { display: grid; gap: 6px; } .ai-rsn .rs-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; } .ai-rsn .rs-h b { font: 750 12px/1.3 var(--font-body); color: var(--heading); } .ai-rsn .rs-h small { font: 600 10.5px/1.3 var(--font-body); color: var(--ink-soft); }
+.ai-rsn .rs-r { display: grid; grid-template-columns: 22px 1fr; gap: 2px 8px; align-items: start; padding: 6px 8px; border: 1px solid var(--line, rgba(128,128,128,.25)); border-radius: 10px; background: var(--card, transparent); }
+.ai-rsn .rs-r i { font-style: normal; font-size: 15px; line-height: 1.3; text-align: center; color: var(--primary); } .ai-rsn .rs-t { font: 650 12.5px/1.35 var(--font-body); color: var(--heading); }
+.ai-rsn .rs-v { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font: 600 11.5px/1.2 var(--font-body); color: var(--ink-soft); } .ai-rsn .rs-v b { color: var(--heading); font-weight: 750; margin-right: 4px; } .ai-rsn .rs-v small { font-size: 10px; opacity: .8; } .ai-rsn .rs-v em { font-style: normal; font-size: 10.5px; opacity: .8; }
+.ai-rsn .rs-r.none { grid-template-columns: 1fr; } .ai-rsn .rs-r.none .rs-t { font-weight: 600; color: var(--ink-soft); }
+.ai-fold { margin-top: 2px; } .ai-fold > summary { cursor: pointer; font: 700 11.5px/1.4 var(--font-body); color: var(--ink-soft); padding: 4px 0; list-style-position: inside; } .ai-fold[open] > summary { margin-bottom: 6px; }

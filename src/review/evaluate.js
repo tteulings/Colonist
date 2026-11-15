@@ -10,6 +10,7 @@
 // are left out. Player trades, discards and turn starts are not searched (the Master doesn't either).
 import { makeMaster, shipMoveLabel } from "../master/search.js";
 import { explain } from "./why.js";
+import { attribute, checkpoints } from "./why-mc.js";
 import { aimPack } from "./aims.js";
 import { BOT_BANDS } from "./bands.js";
 import { FMT, LIMITS, SETUP_LIMITS, GREAT, BEST_LEAD, CLASSES, TRIVIAL as TRIV, SE_SHRINK as SHRINK, clsOf, markOfCls, vcOf, derive, gpOf, avgLost, rescoreResult, unknownRateLabel, liftSameStep } from "./score.js";
@@ -176,6 +177,7 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   const base = { k: rec.k, pid: rec.pid, t: rec.t, s: rec.s, e: rec.e };
   if (!EVAL_KINDS.includes(rec.k) || (rec.k === "build" && rec.a?.free)) return { ...base, skip: "n/a" };
   const p = load(rec);
+  const g0 = { turn: g.turn };
   if (g.winner) return { ...base, skip: "n/a" };
   if (rec.k === "robber") { g.pendingAction = null; g.robberContext = null; }
   const played = playedMove(g, p, rec);
@@ -183,6 +185,7 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   // v1.04 opts.engine: "m100" is the quick first round after a game (the deep round is "full", the default)
   const eng = opts.engine && REVIEW_ENGINES[opts.engine] ? opts.engine : REVIEW_ENGINE, E = REVIEW_ENGINES[eng];
   const bud = { ...(opts.budget || {}) };
+  if (opts.explain) { const dp = Math.min(100, Math.max(24, g.players.length * (checkpoints(g.turn)[1] - g.turn + 1))); bud.trace = true; bud.depth = bud.setupDepth = dp; bud.noHalve = true; bud.nPer = bud.nPer || 200; }
   if (bud.only != null && g._rushPos) bud.only = String(bud.only).replace(/^Wait/, "End turn"); // (the stored label says Wait, the engine End turn)
   const agent = makeMaster({ ...(eng === REVIEW_ENGINE ? REVIEW_BUDGET : E.budget), seats: true, aims: kindMain(rec), ...bud }); // seats: every seat's win chance, no extra rollouts
   base.eng = eng;
@@ -216,6 +219,12 @@ export function evaluateRecord(g, rec, load, opts = {}) {
   const res = { ...base, aim, simple, rush: g._rushPos || undefined, why, label: played.label, focus: played.focus || null, move: { k: rec.k, a: rec.a || {} }, win: winP == null ? null : r4(winP), best: best ? { label: b.label, focus: b.focus, gain: r4(b.m), se: b.se, seats: r.seats?.[best] || null } : null, seats: r.seats?.[0] || null,
     loss, lossRaw, spread, lead, trivial, skip: trivial ? "trivial" : null, acc: trivial || !scored.includes(rec.k) ? null : Math.round(accuracyOf(lossRaw) * 10) / 10,
     cands, futures: r.vals[0].filter((v) => v != null).length, rollouts: r.rollouts, ms };
+  // v1.82 explain run (opts.explain): A's and B's paired futures carried the mover's feature records (search.js o.trace): reasons from them
+  if (opts.explain && r.feats && best) {
+    const A = r.feats[best].map((f, j) => f), B = r.feats[0];
+    const at = attribute(A, B, r.vals[best], r.vals[0], { meta: { t0: g0.turn, cp: checkpoints(g0.turn) } });
+    res.explain = { n: at.n, gap: at.gap == null ? null : r4(at.gap), se: at.se == null ? null : r4(at.se), reasons: at.reasons, a: b.label, b: played.label, depth: r.depth, ms: Math.round(r.ms), stop: r.stop, ...(opts.debug ? { all: at.all } : {}) };
+  }
   res.vc = vcOf(res);
   res.mark = trivial ? "good" : markOfCls(clsOf(res)); // the old three-way mark, now from the same class as everywhere
   return res;
