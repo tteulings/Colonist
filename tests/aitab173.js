@@ -416,6 +416,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     const A1 = await lastAns(); console.log(JSON.stringify([A1, stamps.map((s) => s[1])]));
     ok(calls.length === 2 && calls[0].index && !calls[0].facts && calls[1].history?.length === 1 && calls[1].toolResults?.length === 2, "tier 1: two POSTs (index, then toolResults + history)", calls.map((c) => [!!c.index, c.history?.length, c.toolResults?.length]));
     ok(seen.t1[0].result.evaluated?.length >= 3 && seen.t1[1].result.swings?.length === 3, "tier 1: the app executed both lookups locally and posted the results", seen.t1.map((r) => r.id));
+    await G(() => document.querySelector("[data-aic^=a]:not(.col)")?.scrollIntoView({ block: "start" })); await sleep(300); await page.screenshot({ path: SH + "/tier1-answer.png" });
     ok(A1.ev.some((e) => e[0] === "review" && /instant/.test(e[1])) && !A1.ev.some((e) => e[0] === "engine") && !A1.sim, "tier 1: answer tagged from your review · instant, no engine tag", A1.ev);
     ok(new RegExp(`${D.cost}%`).test(A1.text), "tier 1: the number from the tool result is kept", A1.text);
     // tier 2 question: progress card, engine, tag, bars, sign colours
@@ -425,7 +426,9 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       if (!body.history) return req([{ id: "k1", name: "simulate_moves", args: { turn: D.turn, player: "You", n: D.n, moves: [{ kind: "end", type: null, at: null, give: null, get: null, hex: null, card: null }, { kind: "buy", type: null, at: null, give: null, get: null, hex: null, card: null }] } }]);
       seen.t2 = body.toolResults; const rr = body.toolResults[0].result, row = (rr.results || []).find((x) => x.winPct != null);
       return { body: { explain: { answer: row ? `Ending the turn would have given ${row.winPct}% win chance in the engine.` : "The engine could not run that move.", points: [], view: "none", turns: [D.turn], focusTurn: D.turn, players: ["You"], followUps: [], evidence: ["k1"] } } }; };
-    const t0 = Date.now(); await ask("What if I had ended my turn on turn " + D.turn + "?"); const wall2 = Date.now() - t0;
+    let shotP = false; const poll = setInterval(async () => { if (shotP) return; if (await page.$("[data-aisim]").catch(() => null)) { shotP = true; await page.screenshot({ path: SH + "/sim-progress.png" }).catch(() => {}); } }, 150);
+    const t0 = Date.now(); await ask("What if I had ended my turn on turn " + D.turn + "?"); const wall2 = Date.now() - t0; clearInterval(poll);
+    await G(() => document.querySelector("[data-aic^=a]:not(.col)")?.scrollIntoView({ block: "start" })); await sleep(300); await page.screenshot({ path: SH + "/sim-answer.png" });
     await G(() => clearInterval(window.__simIv));
     const A2 = await lastAns(), SS = await G(() => window.__simSeen), r2 = seen.t2[0].result;
     console.log(JSON.stringify([A2, SS.slice(0, 2), r2, wall2]));
