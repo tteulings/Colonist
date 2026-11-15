@@ -35,14 +35,14 @@ const OTHERS_NOTE = "1.1 points of accuracy apart on average, 5 at most, in abou
 export const CLS = { best: ["Best", "★"], great: ["Great", "⇈"], good: ["Good", "●"], could: ["Could be better", "↗"], mistake: ["Mistake", "▲"], blunder: ["Blunder", "✕"], missed: ["Missed chance", "◎"], triv: ["No real choice", "·"] };
 const IMP = ["could", "mistake", "blunder", "missed"];
 const badge = (c, sz = "") => `<i class="rs-b c-${c} ${sz}" aria-hidden="true">${CLS[c][1]}</i>`;
-const rvPos = (g, f) => {
+export const rvPos = (g, f) => {
   if (f.hex != null) return { ...g.hexes[f.hex].center, hex: true };
   if (f.city != null || f.node != null) { const n = g.nodes[f.city ?? f.node]; return { x: n.x, y: n.y }; }
   const [a, b] = g.edges[f.edge].nodes.map((i) => g.nodes[i]);
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, edge: true };
 };
 /** A (better: accent ring, letter) and B (what was done: white dashed ring + class badge) on the zoomed board, with an arrow B to A. */
-function rvMarks(game, d, Af, Bf) {
+export function rvMarks(game, d, Af, Bf) {
   const g = game.geometry, V = game.view, xy = (p) => [p.x * V.scale + V.offsetX, p.y * V.scale + V.offsetY];
   const at = (f) => { if (!f) return null; const p = rvPos(g, f); return { c: xy(p), r: p.hex ? g.hexSize * V.scale * 0.6 : p.edge ? 15 : 17, hex: !!p.hex }; };
   const A = at(Af), B = at(Bf);
@@ -909,22 +909,23 @@ export const ReviewGameMixin = {
   // ── v1.49 the review in tabs: Overview (players side by side, key moments) · Win chance · Luck · Moves ──
   _rvTabsBar(on) {
     const T = [["overview", "Overview"], ["win", "Win chance"], ["luck", "Luck"], ["moves", "Moves"]];
-    return `<div class="rv-tabs" role="tablist" aria-label="Game review">${T.map(([k, l]) => `<button type="button" role="tab" class="${k === on ? "on" : ""}" aria-selected="${k === on}" data-rvt="${k}">${l}</button>`).join("")}</div>`;
+    if (this._aiAvail?.()) T.push(["ai", "AI \u00b7 beta"]); // v1.73 the AI tab (online, finished game)
+    return `<div class="rv-tabs${T.length > 4 ? " t5" : ""}" role="tablist" aria-label="Game review">${T.map(([k, l]) => `<button type="button" role="tab" class="${k === on ? "on" : ""}" aria-selected="${k === on}" data-rvt="${k}">${l}</button>`).join("")}</div>`;
   },
   /** The review of one player as four tabs (a check during the game keeps the single column: _rvOverviewMid). */
   _rvOverview(ds, res, rv) {
     if (this._rvMid) return this._rvOverviewMid(ds, res, rv);
     const el = this._rvEl, pid = this._rvPid, prov = !this._rvReviewComplete(pid);
-    const tab = (this._rvTab = ["overview", "win", "luck", "moves", "player"].includes(this._rvTab) ? this._rvTab : "overview");
+    const tab = (this._rvTab = ["overview", "win", "luck", "moves", "player", ...(this._aiAvail?.() ? ["ai"] : [])].includes(this._rvTab) ? this._rvTab : "overview");
     this._rvWinOff2?.(); this._rvWinOff2 = null;
     this._rvT = this._rvTotals(ds);
-    const part = { overview: () => this._rvTabOverview(ds, rv, prov), win: () => this._rvTabWin(ds), luck: () => this._rvTabLuck(ds), moves: () => this._rvTabMoves(ds, res, rv), player: () => this._rvTabPlayer(ds, rv, prov) }[tab]();
+    const part = { overview: () => this._rvTabOverview(ds, rv, prov), win: () => this._rvTabWin(ds), luck: () => this._rvTabLuck(ds), moves: () => this._rvTabMoves(ds, res, rv), player: () => this._rvTabPlayer(ds, rv, prov), ai: () => this._rvTabAi(ds, rv, prov) }[tab]();
     const scroll = this._rvTabDrawn === `${pid}|${tab}` ? el.querySelector(".rv-scroll")?.scrollTop || 0 : 0;
     this._rvTabDrawn = `${pid}|${tab}`;
     el.className = "rv rs tm";
     const pop0 = el.querySelector(".rv-pop"); // an open progress card stays open through the redraw
-    el.innerHTML = `${tab === "player" ? part.bar : this._rvBar(`${ds.length} decisions · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`, { overview: "Overview", win: "Win chance", luck: "Luck", moves: "Moves" }[tab])}${tab === "player" ? "" : this._rvTabsBar(tab)}
-      <div class="rv-scroll">${part.html}${tab === "overview" ? (this._rcBox?.() || "") + (this._raBox?.() || "") : ""}</div>`;
+    el.innerHTML = `${tab === "player" ? part.bar : this._rvBar(`${ds.length} decisions · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`, { overview: "Overview", win: "Win chance", luck: "Luck", moves: "Moves", ai: "AI coach" }[tab])}${tab === "player" ? "" : this._rvTabsBar(tab)}
+      <div class="rv-scroll">${part.html}${tab === "overview" ? (this._rcBox?.() || "") + (this._raBox?.() || "") : ""}</div>${part.foot || ""}`;
     el.querySelector(".rv-scroll").scrollTop = scroll;
     if (pop0) el.appendChild(pop0);
     this._rvBindTop(el);
