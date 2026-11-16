@@ -20,7 +20,7 @@ const sg = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${-v}` : "0");
 const VISIBLE = 4;
 const RES_ICON = { wood: "./assets/icons/resource-wood-v3.svg", brick: "./assets/icons/resource-brick-v2.svg", sheep: "./assets/icons/resource-sheep-v2.svg", wheat: "./assets/icons/resource-wheat-v2.svg", ore: "./assets/icons/resource-ore-v2.svg" };
 const LV_CLASS = { Game: "game", "Near miss": "near", Decision: "decision", Strategy: "strategy", Luck: "luck" };
-const SRC_CLASS = { s: "s", c: "c", L: "l", A: "a", v: "v" };
+const SRC_CLASS = { s: "s", c: "c", L: "l", A: "a", v: "v", I: "i" };
 const CHEV = `<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const dots = (n) => `<span class="ap-dots" role="img" aria-label="${n} of 3">${[1, 2, 3].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`;
 const tick = (span) => (span > 30 ? 10 : span > 12 ? 5 : span > 6 ? 2 : 1);
@@ -233,10 +233,10 @@ export const ReviewAiPageMixin = {
   _pgStack(b, fx) {
     const q = fx.seatOf(b.player), log = fx.log; if (!log) return "";
     const goal = this.winPoints || 10, cells = [];
-    (log.pts[q] || []).slice().sort((a, c) => a.t - c.t).forEach((e) => { if (e.n > 0) for (let i = 0; i < e.n; i++) cells.push(e.k); else for (let i = 0; i < -e.n; i++) { const j = cells.lastIndexOf(e.k); if (j >= 0) cells.splice(j, 1); } });
+    cells.push(...(fx.score[q]?.cells || []));
     const have = cells.length, n = Math.max(goal, have), cnt = {}; cells.forEach((k) => { cnt[k] = (cnt[k] || 0) + 1; });
     const grid = Array.from({ length: n }, (_, i) => (i < have ? `<span class="ap-cell ${SRC_CLASS[cells[i]]}">${i + 1}</span>` : `<span class="ap-cell need">${i + 1}</span>`)).join("");
-    const leg = Object.entries(cnt).map(([k, v]) => `<span><i class="sw ${SRC_CLASS[k]}"></i>${fx.t.srcPl[k]} <b>${v}</b></span>`).join("");
+    const leg = Object.entries(cnt).map(([k, v]) => `<span><i class="sw ${SRC_CLASS[k]}"></i>${fx.t.srcPl[k]} <b>${k === "c" ? v / 2 : v}</b></span>`).join("");
     return `<div class="ap-vz ap-stack"><div class="ap-cap">${fx.t.pointsBySrc}</div><div class="ap-cells">${grid}</div><div class="ap-sub">${fx.t.haveOf(have, goal)}${have < goal ? fx.t.dashed : ""}</div><div class="ap-leg">${leg}</div></div>`;
   },
   _pgTiles(b, fx) {

@@ -73,12 +73,17 @@ export function ptsByTurn(log, q) {
   return out;
 }
 
-/** Points by source of a player over the whole game: { s: settlements, c: cities, v: point cards, L: longest road, A: largest army } in points. */
-export function srcPoints(log, q) {
-  const o = { s: 0, c: 0, v: 0, L: 0, A: 0 };
-  (log.pts[q] || []).forEach((e) => { o[e.k] = (o[e.k] || 0) + e.n; });
-  // a city replaces a settlement: the settlement stays 1 point, the city adds 1 more, so it reads "settlements 3, cities 4 (=2 cities)" as the points they carry
-  return o;
+/** THE final score breakdown of a player (single source for recipes, the composer, chat and chips). Read from the FINAL BOARD, not from the events
+ *  that built it: by = { s settlements still standing as settlements (x1), c number of cities (x2 each; the city replaced its settlement, which is not
+ *  counted again), v point cards, L longest road (2 if held at the end), A largest army (2), I the rest of the final points: Seafarers new-island
+ *  bonuses }. total = the final points = s + 2c + v + L + A + I by construction. cells = the squares of the points row (a city is two squares). */
+export function finalScore(g, q, log = handLog(g)) {
+  const P = g.players[q]; if (!P) return null;
+  const s = P.settlements?.size || 0, c = P.cities?.size || 0, L = g.longestRoadHolder === q ? 2 : 0, A = g.largestArmyHolder === q ? 2 : 0, vp = P.victoryPoints || 0;
+  const v = Number.isFinite(P.devVictoryPoints) ? P.devVictoryPoints : Math.max(0, (log?.pts[q] || []).reduce((a, e) => a + (e.k === "v" ? e.n : 0), 0));
+  const I = vp - (s + 2 * c + v + L + A), by = { s, c, v, L, A, I: Math.max(0, I) };
+  const cells = []; [["s", 1], ["c", 2], ["v", 1], ["L", 1], ["A", 1], ["I", 1]].forEach(([k, w]) => { for (let i = 0; i < by[k] * w; i++) cells.push(k); });
+  return { seat: q, by, total: vp, cells, ok: I >= 0 };
 }
 
 const famOf = (list) => list.map((b) => FAM[b.k]);
@@ -130,7 +135,7 @@ export function stratOf(g, q, ser) {
   // a winner's plan is never called weak: the result says otherwise (and the labels may not contradict it)
   if (won && verdict?.tone === "bad") verdict = V("mid", 1, "Hard to say", "unclear");
   const headless = !!planFam && verdict?.tone === "bad" && !won && share >= STALL_SHARE && dir === "wobbly";
-  const src = srcPoints(log, q), total = Object.values(src).reduce((a, b) => a + b, 0);
+  const fs_ = finalScore(g, q, log), src = fs_.by, total = fs_.total;
   return { seat: q, plan: planFam ? PLAN_NAME[planFam] : null, planFam, first2: builds.slice(0, 2), builds, dir, switches: sw, pivot, steady: dir === "steady", wobbly: dir === "wobbly",
     won, turns, stalled, idleN: stalled.length, waitN: waitRes ? waitTurns[waitRes].length : 0, waitRes, stretches, E, SD, startDots: dots, need, feeds, share, bad, verdict, headless, src, srcTotal: total, hand: log.hand[q], ptsBy: pb };
 }

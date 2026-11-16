@@ -3,10 +3,10 @@
 // and the app resolves them at render time, so a number can never disagree between two widgets. Pure: no DOM.
 //   name.<p>  turn.<t>  wc.<p>@<t>  d.<p>@<t>  pts.<p>  strat.<p>.<field>  luck.total.<p>  luck.dominant  rate.<res>.<p|top>
 //   near.<field>  dec.<t>.<field>  game.<field>
-import { aiSeries, aiNearMiss, wcAt, wcChange } from "./ai-facts.js";
+import { aiSeries, aiNearMiss, aiDecisive, wcAt, wcChange } from "./ai-facts.js";
 import { aiDecList } from "./ai-tools.js";
 import { decMoves } from "./ai-blocks.js";
-import { stratOf, handLog, R5 } from "./ai-strat.js";
+import { stratOf, handLog, finalScore, R5 } from "./ai-strat.js";
 import { luckKey, ownOf } from "../review-luck.js";
 import { swingCause } from "./ai-cause.js";
 import { langOf, moveLabel } from "./ai-lang.js";
@@ -46,6 +46,9 @@ export function buildFacts(g, lang = recapLang()) {
   fx.rate = st?.prod ? Object.fromEntries(R5.map((r, i) => [r, g.players.map((_, q) => Math.round(((st.prod[q]?.[i] || 0) / turns) * 10) / 10)])) : null;
   fx.dice = st?.dice ? { counts: st.dice, N: st.steps?.length || 0 } : null;
   fx.near = tryv(() => aiNearMiss(g, ser));
+  // the two authoritative facts every consumer uses: what decided the game, and the final score breakdown (refs game.decisive.* / score.<p>.<src>)
+  fx.decisive = tryv(() => { const d = aiDecisive(g, ser, me); return d && { ...d, key: keys[d.seat], other: d.other && { ...d.other, key: keys[d.other.seat] } }; });
+  fx.score = g.players.map((_, q) => tryv(() => finalScore(g, q, log)));
   // the reviewed player's decisions that cost win chance, biggest first
   fx.decs = tryv(() => aiDecList(g).filter((e) => e.seat === me && e.x?.best && e.gap >= 0.005 && e.turn >= 1).map((e) => {
     const mv = tryv(() => decMoves(e, lang)); if (!mv?.best || mv.played?.win == null || mv.best.win == null) return null;
@@ -83,9 +86,11 @@ export function buildFacts(g, lang = recapLang()) {
       case "game": {
         if (p[1] === "winner") return fx.winner == null ? null : { v: fx.winner, k: "player" };
         if (p[1] === "T") return { v: T, k: "turn" };
+        if (p[1] === "decisive") { const d = fx.decisive; if (!d) return null; if (p[2] === "t") return { v: d.t, k: "turn" }; if (p[2] === "player") return { v: d.seat, k: "player" }; return null; }
         if (p[1] === "futures") return null;
         return null;
       }
+      case "score": { const q = seat(p[1]), x = q == null ? null : fx.score[q]; if (!x) return null; return p[2] === "total" ? num(x.total) : x.by[p[2]] != null ? num(x.by[p[2]]) : null; }
       case "luck": {
         if (!fx.luck) return null;
         if (p[1] === "total" && p.length === 3) { const q = seat(p[2]); return q == null ? null : { v: fx.luck.tot[q], k: "pct" }; }

@@ -101,6 +101,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       let t1 = await G(() => document.querySelector(".ap-sheet .ap-sh-h b")?.textContent); ok(t1 === `Turn ${t0 + 1}`, "next turn arrow", t1);
       await page.locator("[data-pgprev]").tap(); await page.locator("[data-pgprev]").tap(); await sleep(400);
       t1 = await G(() => document.querySelector(".ap-sheet .ap-sh-h b")?.textContent); ok(t1 === `Turn ${Math.max(1, t0 - 1)}`, "previous turn arrow", t1);
+      await page.locator("[data-pgnext]").tap(); await sleep(400); // back on the tapped marker turn: it always has an Open button
       await page.locator("[data-pgopen]").first().tap(); await sleep(800);
       st = await G(() => ({ sheet: !!document.querySelector(".ap-sheetw.on"), pulse: document.querySelectorAll(".ap-c.pulse").length }));
       ok(!st.sheet && st.pulse === 1, "Open <card> closes the sheet and pulses the card", st);
