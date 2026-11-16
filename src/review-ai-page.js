@@ -10,7 +10,7 @@ import { R5 } from "./review/ai-strat.js";
 import { recapLang } from "./review-recap.js";
 import { stateOfSpec } from "./review/ai-board.js";
 import { decMoves } from "./review/ai-blocks.js";
-import { composePage, composeAnswer, MIN_WIDGETS } from "./review/ai-compose.js";
+import { composePage, composeAnswer, composeEnabled, MIN_WIDGETS } from "./review/ai-compose.js";
 
 const online = () => typeof navigator === "undefined" || navigator.onLine !== false;
 const qk = (q) => String(q || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
@@ -47,7 +47,7 @@ export const ReviewAiPageMixin = {
   _pgSetSpec(spec) { const s = this._pgState(); const v = validatePage(spec, s.fx); if (v.widgets.length) s.page = v; return v; },
   /** On opening the tab: the recipes page is already drawn; ask the Function to compose the page in the background, then swap it in. Once per review and language. */
   _pgKick() {
-    const R = this._rv, lang = recapLang(); if (!R || this._pgLegacy() || this._rvTab !== "ai" || !online()) return;
+    const R = this._rv, lang = recapLang(); if (!composeEnabled() || !R || this._pgLegacy() || this._rvTab !== "ai" || !online()) return;
     const ai = R.ai; if (!ai || ai.pid !== this._rvPid || ai.lang !== lang) return;
     const { fx } = this._pgState(), rec = ai.page, haveLuck = !!fx.luck;
     if (rec?.spec && (rec.L || !haveLuck)) return;                       // composed already (and luck did not arrive after it)

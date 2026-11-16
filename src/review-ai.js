@@ -9,7 +9,7 @@ import { reviewRequest, reviewLaneCount, reviewAvailable } from "./master.js";
 import { RECAP_URL, recapLang } from "./review-recap.js";
 import { swingCause } from "./review/ai-cause.js";
 import { rvPos, rvMarks } from "./review-game.js";
-import { composeAnswer } from "./review/ai-compose.js";
+import { composeAnswer, composeEnabled } from "./review/ai-compose.js";
 import { aiBlocks, legacyBlocks, textOf, decMoves, spotFocus } from "./review/ai-blocks.js";
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -1085,7 +1085,7 @@ export const ReviewAiMixin = {
     if (el) { el.scrollIntoView?.({ block: "start", behavior: "smooth" }); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
   },
   /** A question: first as a NEW composed widget drawn inline on the page (compose mode with the question); no valid widget -> the text chat answers as before. */
-  async _aiAsk(q, typed = false) { if (this._pgLegacy()) return this._aiAskText(q, typed); return this._pgFollow(q, typed); },
+  async _aiAsk(q, typed = false) { if (this._pgLegacy() || !composeEnabled()) return this._aiAskText(q, typed); return this._pgFollow(q, typed); },
   async _pgFollow(q, typed = false) {
     const R = this._rv, pid = this._rvPid, lang = recapLang(), ai = R?.ai; if (!R || !ai || !q || this._pgFuBusy || this._aiUi?.loading === "ask") return;
     const rec = ai.page || (ai.page = { k: lang, L: false, at: 0, spec: null, fu: [] }); rec.fu = rec.fu || [];

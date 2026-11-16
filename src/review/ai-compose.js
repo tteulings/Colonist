@@ -5,6 +5,10 @@ import { validatePage, recipePage, CAPS, textOk, blockOk, sigsOf, partsOk } from
 
 export const COMPOSE_URL = "https://katan-recap-fn.azurewebsites.net/api/recap";
 export const MIN_WIDGETS = 2;
+/** v1.86 feature flag: the LLM-composed page (background compose call + swap-in + compose-question widgets) is OFF by default; the AI tab shows the validated recipes page and
+ *  questions use the text chat. Enable for testing with localStorage katan_ai_compose=1. */
+export const COMPOSE_ENABLED = false;
+export function composeEnabled() { try { return COMPOSE_ENABLED || (typeof localStorage !== "undefined" && localStorage.getItem("katan_ai_compose") === "1"); } catch (_) { return COMPOSE_ENABLED; } }
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
 const RES = ["wood", "brick", "sheep", "wheat", "ore"];
 
