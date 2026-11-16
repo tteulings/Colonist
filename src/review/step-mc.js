@@ -12,7 +12,8 @@ export function valueAt(g, base, rec, opts = {}) {
   loadPosition(g, { state: { ...st, ...base }, trk: rec.trk, turnSerial: rec.ts, seat: rec.pid });
   const H = g.constructor.labHelpers; g.players.forEach((p, i) => { if (humans[i] || !p.strategy) p.strategy = { ...H.AI_PRESETS.expert }; });
   const n = g.players.length;
-  if (g.winner) return { v: Array.from({ length: n }, (_, q) => (q === g.winner.id ? 1 : 0)), se: Array(n).fill(0), F: 0, ms: 0 };
+  if (o.pass && g.phase === "main" && !g.winner) withoutAgents(g, () => g.endTurn()); // B: "end turn instead" (the pass valuation)
+  if (g.winner) return { v: Array.from({ length: n }, (_, q) => (q === g.winner.id ? 1 : 0)), se: Array(n).fill(0), F: 0, W: [], ms: 0 };
   const S0 = snap(g), W = [], keepR = Math.random;
   try {
     for (let j = 0; j < o.futures; j += 1) {
@@ -24,5 +25,5 @@ export function valueAt(g, base, rec, opts = {}) {
   } finally { Math.random = keepR; }
   const F = W.length, v = Array.from({ length: n }, (_, q) => W.reduce((a, w) => a + w[q], 0) / F);
   const se = v.map((m, q) => Math.sqrt(W.reduce((a, w) => a + (w[q] - m) ** 2, 0) / Math.max(1, F - 1) / F));
-  return { v, se, F, ms: performance.now() - t0 };
+  return { v, se, F, W, ms: performance.now() - t0 };
 }
