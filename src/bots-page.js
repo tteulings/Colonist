@@ -55,7 +55,8 @@ export function youIndex(metas) {
 // ── pieces ───────────────────────────────────────────────────────────────────────────────────────
 const dotsHtml = (n, beyond) => `<span class="bpg-dots" aria-hidden="true">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}${beyond ? `<i class="star"></i>` : ""}</span>`;
 const lvText = (r) => `strength ${r.p.level} of 5${r.p.beyond ? " plus a star" : ""}`;
-const emb = (key, s = 20) => `<span class="bpg-em">${profileMini(key, s)}</span>`;
+const TIER = { beginner: "ore", simple: "ore", intermediate: "wood", trader: "wood", builder: "wood", shark: "wood", expert: "brick", master: "wheat", super: "wheat", superplus: "wheat", grandmaster: "wheat" }; // data keeps colour: a medal per tier, in the chart palette
+const emb = (key, s = 20) => `<span class="bpg-em t-${TIER[key] || "ore"}">${profileMini(key, s)}</span>`;
 const inner = (key) => profileMini(key, 100).replace(/^<svg[^>]*>/, "").replace(/<\/svg>$/, "");
 const tag = (label) => `<span class="bpg-tag t-${label.replace(" ", "-")}">${label}</span>`;
 
@@ -140,7 +141,7 @@ function ladderSvg(W) {
     if (b.p.beyond) s += `<path class="dia star" transform="translate(${17 + 5 * 11 - 1},${y + 4.5})" d="M5 0l1.2 3.6H10L7 5.8 8.1 9.5 5 7.3 1.9 9.5 3 5.8 0 3.6h3.8z"/>`; // lab-131: the Supers' star, as in the list
     s += `<line class="stem" x1="${X(0)}" x2="${X(w.v)}" y1="${y}" y2="${y}"/>`;
     if (!est) s += `<g class="iv"><line x1="${X(w.v - w.ci)}" x2="${X(w.v + w.ci)}" y1="${y}" y2="${y}"/><line x1="${X(w.v - w.ci)}" x2="${X(w.v - w.ci)}" y1="${y - 14}" y2="${y + 14}"/><line x1="${X(w.v + w.ci)}" x2="${X(w.v + w.ci)}" y1="${y - 14}" y2="${y + 14}"/></g>`;
-    s += `<g transform="translate(${X(w.v)},${y})"><circle r="${r}" class="disc"/><g transform="translate(${-r + 1.5},${-r + 1.5}) scale(${(2 * r - 3) / 100})">${inner(b.key)}</g><circle r="${r}" class="ring${est ? " est" : ""}" style="stroke-opacity:${0.4 + b.p.level * 0.12}"/></g>`;
+    s += `<g class="mk t-${TIER[b.key] || "ore"}" transform="translate(${X(w.v)},${y})"><circle r="${r}" class="disc"/><g transform="translate(${-r + 1.5},${-r + 1.5}) scale(${(2 * r - 3) / 100})">${inner(b.key)}</g><circle r="${r}" class="ring${est ? " est" : ""}" style="stroke-opacity:${0.4 + b.p.level * 0.12}"/></g>`;
     s += `<text class="v" x="${W}" y="${y - 1}" text-anchor="end">${est ? "~" + Math.round(w.v) : f1(w.v)}</text><text x="${W}" y="${y + 13}" text-anchor="end">${est ? "estimate" : `${f1(Math.max(0, w.v - w.ci))}–${f1(w.v + w.ci)}`}</text></g>`;
   });
   s += `<text x="${X(D / 2)}" y="${H - 3}" text-anchor="middle">win chance, %</text></svg>`;

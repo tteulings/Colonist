@@ -37,8 +37,15 @@
 /* 5 · charts use the stats palette (teal accent + ink), not gold / amber */
 .hs-prog { --pg-c: color-mix(in srgb, var(--primary) 42%, var(--sheet)); --pg-m: var(--primary); --pg-b: var(--ink); }
 [data-palette="night"] .hs-prog, [data-palette="dusk"] .hs-prog { --pg-c: #5E9AA0; --pg-m: #9ADADC; --pg-b: #F1F5F6; }
-.bpg-svg .stem { stroke: color-mix(in srgb, var(--ink) 42%, transparent); }
-.bpg-dots i.star, .bpg-svg .dia.star { background: var(--ink); fill: var(--ink); }
+.bpg-svg .stem { stroke: var(--bp-wheat); stroke-width: 4; opacity: .9; }
+.bpg-dots i.on, .bpg-svg .dia.on, .bpg-dots i.star, .bpg-svg .dia.star { background: var(--bp-wheat-ink); fill: var(--bp-wheat-ink); }
+/* the Bots strength ladder keeps its colour (data, not a control): gold bars and gold strength marks, a medal per tier in the chart palette */
+.bpg { --bp-wheat-ink: #C98B0B; --t-ore: #5F7391; --t-wood: #2F8A44; --t-brick: #C4502B; --t-wheat: #C98B0B; }
+[data-palette="night"] .bpg, [data-palette="dusk"] .bpg { --bp-wheat-ink: #EDC25E; --t-ore: #9AB0CC; --t-wood: #7CC278; --t-brick: #EE8F6A; --t-wheat: #F2CB6A; }
+.bpg .t-ore { color: var(--t-ore); } .bpg .t-wood { color: var(--t-wood); } .bpg .t-brick { color: var(--t-brick); } .bpg .t-wheat { color: var(--t-wheat); }
+.bpg-em[class*="t-"] { background: color-mix(in srgb, currentColor 16%, var(--sheet, #fff)); box-shadow: 0 0 0 1.5px color-mix(in srgb, currentColor 55%, transparent); }
+.bpg-svg .mk .disc { fill: color-mix(in srgb, currentColor 18%, var(--sheet, #fff)); }
+.bpg-svg .mk .ring { stroke: currentColor; }
 /* the result mark of a past game is a rounded tag, never a round avatar */
 .hs-badge { border-radius: 10px; background: color-mix(in srgb, var(--hs-won) 18%, transparent); color: var(--hs-won); box-shadow: inset 0 0 0 2px var(--hs-won); }
 .hs-badge.lost { background: color-mix(in srgb, var(--hs-lost) 16%, transparent); color: var(--hs-lost); box-shadow: inset 0 0 0 2px var(--hs-lost); }
@@ -58,3 +65,25 @@
 .hs-prog, .ln-stats { border-radius: var(--r-card); }
 /* Night: the turn tags on the AI line chart keep a dark halo (the white one made the text unreadable) */
 [data-palette="night"] .ap-svg .mk .tg, [data-palette="dusk"] .ap-svg .mk .tg { stroke: #18242B; }
+
+/* v1.86 player chips: one format for 4 to 6 players: the points are a number on the seat-coloured pill, the cards an icon and a number.
+   No "pts" / "cards" words (they pushed the name to "Bla…" and ran past the chip edge); the title and aria-label keep the words. */
+@media (max-width: 760px) {
+  [data-theme] .app .pstrip .pchip .vpn small { display: none !important; }
+  .app .pstrip .pchip .pcards span::after { content: none !important; }
+  .app .pstrip .pchip .pn { text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+}
+
+/* v1.86 player strip motion (classes set by game.js _chipMotion; transform and opacity only, reduced motion: base.css 1 ms rule) */
+@keyframes mo-turn { 0% { outline: 2px solid color-mix(in srgb, var(--accent, #E7A21C) 80%, transparent); outline-offset: 0; transform: scale(.97); } 45% { transform: scale(1.035); } 100% { outline: 2px solid transparent; outline-offset: 9px; transform: scale(1); } }
+@keyframes mo-bump { 0% { transform: scale(1); } 35% { transform: scale(1.3); } 100% { transform: scale(1); } }
+@keyframes mo-tick { 0% { transform: translateY(0); } 30% { transform: translateY(-3px); } 100% { transform: translateY(0); } }
+@keyframes mo-award { 0% { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.25); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes mo-in { 0% { opacity: 0; transform: translateY(-8px); } 100% { opacity: 1; transform: none; } }
+.app .pstrip .pchip.mo-turn { animation: mo-turn .8s ease-out; }
+.app .pstrip .mo-bump { animation: mo-bump .55s cubic-bezier(.3, 1.6, .5, 1); }
+.app .pstrip .mo-tick { animation: mo-tick .4s ease-out; display: inline-flex; }
+.app .pstrip .mo-award { animation: mo-award .6s cubic-bezier(.3, 1.4, .5, 1); }
+.app .pstrip.mo-in .pchip { animation: mo-in .45s ease-out both; }
+.app .pstrip.mo-in .pchip:nth-child(2) { animation-delay: .05s; } .app .pstrip.mo-in .pchip:nth-child(3) { animation-delay: .1s; }
+.app .pstrip.mo-in .pchip:nth-child(4) { animation-delay: .15s; } .app .pstrip.mo-in .pchip:nth-child(5) { animation-delay: .2s; } .app .pstrip.mo-in .pchip:nth-child(6) { animation-delay: .25s; }

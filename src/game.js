@@ -3890,7 +3890,7 @@ class ColonistFullGame {
       const word = v === "yes" ? "accepts · tap to trade" : v === "no" ? "declines" : v === "counter" ? "counter-offer" : "";
       return `<button type="button" class="tp pc-${p.id}${v ? ` ${v}` : ""}" data-partner="${p.id}" ${v === "yes" ? "" : "aria-disabled=\"true\""} aria-label="${p.name}${word ? `: ${word}` : ""}">
         <span class="tp-av">${this._av(p)}${badge ? `<i class="tp-st ${v}">${badge}</i>` : ""}</span>
-        <span class="who pc-${p.id}">${p.name}</span><span class="tp-n" title="${sumResources(p.resources)} cards in hand">${icon("cards")}${sumResources(p.resources)}</span>${v === "yes" ? '<em class="tp-go">Trade</em>' : ""}
+        <span class="who pc-${p.id}">${p.short || p.name}</span><span class="tp-n" title="${sumResources(p.resources)} cards in hand">${icon("cards")}${sumResources(p.resources)}</span>${v === "yes" ? '<em class="tp-go">Trade</em>' : ""}
       </button>`;
     }).join("");
     row.querySelectorAll("button.tp.ask").forEach((b) => b.addEventListener("click", () => {
@@ -8666,6 +8666,7 @@ class ColonistFullGame {
       this.playerStrip.innerHTML = this._sixUp() ? this._sixChips() : chips.join("");
       this.playerStrip.style.setProperty("--n", this.players.length);
       this._sixStripAttrs();
+      this._chipMotion();
     }
     const wire = (el) => {
       const player = this.players[Number(el.dataset.seat)];
@@ -8692,6 +8693,30 @@ class ColonistFullGame {
     };
     this.scoreboard.querySelectorAll("[data-seat]").forEach(wire);
     this.playerStrip?.querySelectorAll("[data-seat]").forEach(wire);
+  }
+
+  /** v1.86 motion on the player strip: the chip of the player whose turn it is pulses once, the points pill bumps when the
+   *  points change, the card count ticks, a newly held Longest Road / Largest Army pops in and the strip eases in once per
+   *  game. CSS classes on transform / opacity only (themes/coherence.css); reduced motion is handled by the 1 ms rule
+   *  in base.css. The previous values are kept per seat, a fresh game (other players or a load) only runs the entrance. */
+  _chipMotion() {
+    const strip = this.playerStrip; if (!strip) return;
+    const prev = this._chipPrev, now = {};
+    strip.querySelectorAll("[data-seat]").forEach((el) => {
+      const id = el.dataset.seat;
+      now[id] = { vp: el.querySelector(".vpn, .sx-vp")?.textContent || "", cards: el.querySelector('[data-stat="cards"]')?.textContent || "", aw: el.querySelectorAll(".award").length, active: el.classList.contains("active") };
+    });
+    const same = prev && Object.keys(prev).join() === Object.keys(now).join();
+    this._chipPrev = now;
+    if (!same) { strip.classList.add("mo-in"); setTimeout(() => strip.classList.remove("mo-in"), 900); return; }
+    const pop = (el, cls) => { if (!el) return; el.classList.add(cls); setTimeout(() => el.classList.remove(cls), 800); };
+    strip.querySelectorAll("[data-seat]").forEach((el) => {
+      const id = el.dataset.seat, a = prev[id], b = now[id];
+      if (b.active && !a.active) pop(el, "mo-turn");
+      if (b.vp !== a.vp) pop(el.querySelector(".vpn, .sx-vp"), "mo-bump");
+      if (b.cards !== a.cards) pop(el.querySelector('[data-stat="cards"]'), "mo-tick");
+      if (b.aw > a.aw) pop(el.querySelector(".award"), "mo-award");
+    });
   }
 
   renderTopPanels() {

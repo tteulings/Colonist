@@ -317,7 +317,7 @@ export const ReviewGameMixin = {
   // ── v1.29 everyone at the table ──
   /** "You" is the one person in a solo game; anyone else (a bot, each person in pass & play) goes by name. */
   _rvIsYou(pid) { return !this.hotseat && !!this.players[pid]?.isHuman; },
-  _rvNm(pid) { return this._rvIsYou(pid) ? "You" : esc(this.players[pid]?.name || "Someone"); },
+  _rvNm(pid) { return this._rvIsYou(pid) ? "You" : esc(this.players[pid]?.short || this.players[pid]?.name || "Someone"); },
   _rvWhose(pid) { return this._rvIsYou(pid) ? "Your" : `${esc(this.players[pid]?.name || "Their")}’s`; },
   /** A bot's level and its accuracy band (src/review/bands.js): { label, band: [acc, SE] | null }. */
   _rvLevel(p) {
@@ -1016,7 +1016,7 @@ export const ReviewGameMixin = {
     const cls = CLASSES.filter((k) => cols.some((c) => c.s.sum?.cls?.[k]) || !["great", "blunder"].includes(k));
     const prov = cols.some((c) => c.s.sum?.acc != null && !c.s.done);
     const row = (label, f) => `<span class="sbs-l">${label}</span>${cols.map((c) => cell(c, f(c))).join("")}`;
-    const head = `<span class="sbs-l"></span>${cols.map((c) => `<button type="button" class="sbs-c sbs-h pc-${c.p.id}${c.p.id === this._rvPid ? " cur" : ""}" data-rvcol="${c.p.id}" aria-label="${esc(this._rvNm(c.p.id))}: ${this._rvTodo(c.p.id).length ? "show" : "no"} review" aria-pressed="${c.p.id === this._rvPid}">${this._av(c.p, "rt-av")}<small>${this._rvIsYou(c.p.id) ? "You" : esc(c.p.name)}</small></button>`).join("")}`;
+    const head = `<span class="sbs-l"></span>${cols.map((c) => `<button type="button" class="sbs-c sbs-h pc-${c.p.id}${c.p.id === this._rvPid ? " cur" : ""}" data-rvcol="${c.p.id}" aria-label="${esc(this._rvNm(c.p.id))}: ${this._rvTodo(c.p.id).length ? "show" : "no"} review" aria-pressed="${c.p.id === this._rvPid}">${this._av(c.p, "rt-av")}<small>${this._rvIsYou(c.p.id) ? "You" : esc(c.p.short || c.p.name)}</small></button>`).join("")}`;
     const all = !!this._rvSbsAll;
     const core = [row("Points", (c) => `<b class="big">${c.p.victoryPoints}</b>`), row("Accuracy", accOf), row("Luck (dice, steals, cards)", lkOf),
       row("Win chance lost by moves", (c) => (c.moves != null ? `<b class="${c.moves < 0 ? "neg" : ""}">${sgn(c.moves)}%</b>` : `<span class="rt-st">–</span>`))];
