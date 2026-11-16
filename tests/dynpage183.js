@@ -91,7 +91,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       await page.screenshot({ path: `${SH}/${tag}-expanded.png` });
       // turn sheet
       await G(() => window.__colonistGame._pgToggle(document.querySelector(".ap-c.open"), document.querySelector("[data-aibody]"), window.__colonistGame._pgState().fx, false));
-      const mk = page.locator(".ap-svg.win .mk"); ok(await mk.count() >= 2, "win chance line has tappable turn markers", await mk.count());
+      const mk = page.locator(".ap-svg.win .mk"); ok(await mk.count() >= 1, "win chance line has tappable turn markers", await mk.count());
       const t0 = +(await mk.first().getAttribute("data-pgturn")); await mk.first().tap(); await sleep(700);
       const sh = await G(() => ({ title: document.querySelector(".ap-sheet .ap-sh-h b")?.textContent, rows: document.querySelectorAll(".ap-sh-r").length, btn: [...document.querySelectorAll(".ap-sh-a .ap-btn")].map((e) => e.textContent.trim()), match: document.querySelectorAll(".ap-c.match").length, glow: document.querySelectorAll(".ap-t.glow, .mk.glow").length, y: document.querySelector(".ap-sheet")?.getBoundingClientRect().bottom, h: innerHeight }));
       ok(sh.title === `Turn ${t0}` && sh.rows >= 1 && sh.btn.some((x) => /^Open /.test(x)) && sh.match >= 1, "marker tap opens the turn sheet with facts and Open buttons", sh);

@@ -21,13 +21,13 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     const S = await G(() => {
       const g = window.__colonistGame, st = g._pgState(), fx = st.fx, me = fx.me, P = g.players[me];
       const cards = [...document.querySelectorAll(".ap-c")], wcW = st.page.widgets.find((w) => w.id === "wc");
-      const wcCard = cards.find((c) => c.querySelector(".ap-lv, .ap-ti") && /win chance/i.test(c.querySelector(".ap-ti").textContent));
+      const wcCard = cards.find((c) => c.querySelector(".ap-svg.win")) || cards.find((c) => c.querySelector(".ap-lv, .ap-ti") && /win chance/i.test(c.querySelector(".ap-ti").textContent));
       const duo = [me, ...(fx.winner != null && fx.winner !== me ? [fx.winner] : [])];
       let best = null; if (fx.hasWc) duo.forEach((q) => fx.swings(q, 99).forEach((s) => { if (!best || Math.abs(s.d) > Math.abs(best.d) || (Math.abs(s.d) === Math.abs(best.d) && s.t > best.t)) best = { q, ...s }; }));
       const chip = wcW?.chip?.ref || null, m = /^d\.(.+)@(\d+)$/.exec(chip || "");
       const stacks = [...document.querySelectorAll(".ap-stack")].map((e) => { const c = {}; e.querySelectorAll(".ap-cell:not(.need)").forEach((x) => { const k = [...x.classList].find((n) => n !== "ap-cell"); c[k] = (c[k] || 0) + 1; }); return { c, have: e.querySelectorAll(".ap-cell:not(.need)").length }; });
       const mine = g.players[me];
-      return { won: fx.won, best, chip, chipT: m ? +m[2] : null, chipSeat: m ? fx.seatOf(m[1]) : null, title: wcCard?.querySelector(".ap-ti").textContent || null,
+      return { shape: fx.shape?.id || null, won: fx.won, best, chip, chipT: m ? +m[2] : null, chipSeat: m ? fx.seatOf(m[1]) : null, title: wcCard?.querySelector(".ap-ti").textContent || null,
         marks: wcW?.blocks?.[0]?.marks || null, vp: P.victoryPoints, nS: mine.settlements.size, nC: mine.cities.size, stacks, titles: cards.map((c) => c.querySelector(".ap-ti").textContent), T: fx.T,
         hl: document.querySelector(".ap-hl")?.textContent, strat: fx.strat[me] && { idleN: fx.strat[me].idleN, turns: fx.strat[me].turns, plan: fx.strat[me].plan, src: fx.strat[me].src, total: fx.strat[me].srcTotal },
         pts: g.players.map((p, q) => [p.victoryPoints, fx.strat[q]?.srcTotal]),
@@ -44,8 +44,10 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     }
     if (S.best) {
       ok(Math.abs(S.best.d) >= 3 ? S.chipT === S.best.t && S.chipSeat === S.best.q : true, `${tag}: game card turn/player = the decisive swing`, [S.chipT, S.chipSeat, S.best]);
-      ok(!S.marks || S.marks.includes(S.best.t), `${tag}: marker on the decisive turn`, S.marks);
-      if (S.title && S.dir) { const up = S.dir.d > 0; ok(up ? /\brose\b|steeg/.test(S.title.split(";")[0]) && !/slid/.test(S.title.split(";")[0]) : /\bslid\b|daalde/.test(S.title.split(";")[0]), `${tag}: direction word matches the sign`, [S.dir.d, S.title]); }
+      const shaped = S.shape && !["sudden", "seesaw"].includes(S.shape); // v1.88: a shaped game labels the turns its headline names
+      ok(!S.marks || shaped || S.marks.includes(S.best.t), `${tag}: marker on the decisive turn (or on the turns the shape headline names)`, S.marks);
+      if (shaped) ok(S.marks?.length >= 1 && /turn|beurt/i.test(S.title || ""), `${tag}: shape ${S.shape}: headline names a turn and the chart marks it`, [S.marks, S.title]);
+      if (S.title && S.dir && !shaped) { const up = S.dir.d > 0; ok(up ? /\brose\b|steeg/.test(S.title.split(";")[0]) && !/slid/.test(S.title.split(";")[0]) : /\bslid\b|daalde/.test(S.title.split(";")[0]), `${tag}: direction word matches the sign`, [S.dir.d, S.title]); }
     }
     if (gi === 0) {
       ok(S.chipT >= 21 && /(Blaauw|win chance)/.test(S.title) && /turn 2[12]/.test(S.title), "owner game: card leads with the final collapse on turns 21-22", S.title);

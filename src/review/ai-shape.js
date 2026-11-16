@@ -55,16 +55,37 @@ export function shapeTitle(fx, sh, P, R) {
   if (!sh || sh.id === "sudden" || sh.id === "seesaw") return null;
   const nl = fx.lang === "nl", Y = fx.keys[fx.me], W = fx.keys[sh.winner], you = !!fx.players?.[fx.me]?.you, t = (k) => R(`turn.${k}`);
   const how = sh.mostly ? (nl ? [", vooral op ", t(sh.step.t)] : [", mostly on ", t(sh.step.t)]) : (nl ? [" stap voor stap"] : [" step by step"]);
+  const howNl = sh.mostly ? ["liep uit, vooral op ", t(sh.step.t)] : ["liep stap voor stap uit"];
   switch (sh.id) {
     case "knockout": return nl
-      ? [P(Y), " viel op ", t(sh.tOut), " uit en kwam niet boven ", R(`wc.${Y}@${sh.tCeil}`), "; ", P(W), " stond voor vanaf ", t(sh.tLead ?? sh.tOut), " en liep uit", ...how, "."]
+      ? [P(Y), " viel op ", t(sh.tOut), " uit en kwam niet boven ", R(`wc.${Y}@${sh.tCeil}`), "; ", P(W), " stond voor vanaf ", t(sh.tLead ?? sh.tOut), " en ", ...howNl, "."]
       : [P(Y), " fell out on ", t(sh.tOut), " and never got above ", R(`wc.${Y}@${sh.tCeil}`), "; ", P(W), " led from ", t(sh.tLead ?? sh.tOut), " and pulled away", ...how, "."];
     case "pullaway": return nl
-      ? [P(W), " stond voor vanaf ", t(sh.tLead), " en liep uit", ...how, "; ", you ? "jouw" : "zijn", " beste winkans was ", R(`wc.${Y}@${sh.tBest}`), " op ", t(sh.tBest), "."]
+      ? [P(W), " stond voor vanaf ", t(sh.tLead), " en ", ...howNl, "; ", you ? "jouw" : "zijn", " beste winkans was ", R(`wc.${Y}@${sh.tBest}`), " op ", t(sh.tBest), "."]
       : [P(W), " led from ", t(sh.tLead), " and pulled away", ...how, "; ", you ? "your" : "their", " best win chance was ", R(`wc.${Y}@${sh.tBest}`), " on ", t(sh.tBest), "."];
     case "wire": return nl ? [P(Y), " stond voor vanaf ", t(sh.tLead), " en gaf dat niet meer weg."] : [P(Y), " led from ", t(sh.tLead), " and never gave it up."];
     case "takeover": return nl ? [P(Y), " nam de leiding over op ", t(sh.tLead), " en bleef voorop tot het einde."] : [P(Y), " took the lead on ", t(sh.tLead), " and stayed in front to the end."];
     case "comeback": return nl ? [P(Y), " zat op ", t(sh.tLow), " op ", R(`wc.${Y}@${sh.tLow}`), " en kwam terug om te winnen."] : [P(Y), you ? " were down to " : " was down to ", R(`wc.${Y}@${sh.tLow}`), " on ", t(sh.tLow), " and came back to win."];
   }
   return null;
+}
+
+/** v1.88 The chart of the game card for a shape: the turns the headline names (each on its player's line), a shaded zone and the other players faded.
+ *  { players, marks, mseat, zone, field } to merge into the win chance line block, or {} to keep the decisive-swing chart. */
+export function shapeChart(fx, sh, Y, W) {
+  if (!sh || sh.id === "seesaw") return {};
+  const T = fx.T, wk = W ?? Y, duo = wk === Y ? [Y] : [Y, wk], mk = [], add = (t, k) => { if (Number.isFinite(t) && t >= 0 && t <= T && !mk.some((m) => m[0] === t)) mk.push([t, k]); };
+  let zone = null;
+  const my = (t) => fx.wc(fx.me, t) ?? 100;
+  switch (sh.id) {
+    case "knockout": add(sh.tOut, Y); if (sh.mostly) add(sh.step.t, wk); zone = { k: "out", a: sh.tOut, b: T, hi: sh.ceil + 4 }; break;
+    case "pullaway": add(sh.tBest, Y); add(sh.mostly ? sh.step.t : sh.tLead, wk); zone = { k: "pull", a: sh.tLead, b: T, who: wk }; break;
+    case "wire": case "takeover": add(sh.tLead, Y); zone = { k: "pull", a: sh.tLead, b: T, who: Y }; break;
+    case "comeback": {
+      let a = sh.tLow, b = sh.tLow; const lim = sh.low + 6; while (a > 0 && my(a - 1) <= lim) a--; while (b < T && my(b + 1) <= lim) b++;
+      add(sh.tLow, Y); add(sh.step.t, Y); zone = b > a ? { k: "low", a, b, hi: lim } : null; break;
+    }
+    case "sudden": add(sh.step.t, wk); break;
+  }
+  return { players: duo, marks: mk.map((m) => m[0]), mseat: mk.map((m) => m[1]), ...(zone ? { zone } : {}), field: true };
 }
