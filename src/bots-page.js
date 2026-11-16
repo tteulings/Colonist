@@ -127,10 +127,10 @@ function ladderSvg(W) {
   const R = rows().filter(plain).sort((a, b) => b.win.v - a.win.v);
   // bot-125: the scale grows with the strongest bot's interval (the search bots reach past 70%), at least 0–55
   const D = Math.max(55, Math.ceil((Math.max(0, ...R.map((b) => b.win.v + (b.win.ci || 0))) + 2) / 5) * 5);
-  const x0 = 104, x1 = W - 66, S = (x1 - x0) / D, X = (v) => x0 + v * S, top = 30, rh = 44, H = top + R.length * rh + 22, r = 9;
+  const x0 = 104, x1 = W - 66, S = (x1 - x0) / D, X = (v) => x0 + v * S, top = 30, rh = 44, H = top + R.length * rh + 8, r = 9;
   let s = `<svg class="bpg-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="group" aria-label="Strength ladder: win chance of each bot with its likely range. Dashed line is 25 wins out of 100, an even share. Tap a bot to open its profile.">`;
-  [0, 25, 50, 75, 100].filter((v) => v <= D).forEach((v) => (s += `<line class="g" x1="${X(v)}" x2="${X(v)}" y1="${top - 8}" y2="${H - 22}"/>`));
-  s += `<line class="ref" x1="${X(25)}" x2="${X(25)}" y1="${top - 8}" y2="${H - 22}"/>`;
+  [0, 25, 50, 75, 100].filter((v) => v <= D).forEach((v) => (s += `<line class="g" x1="${X(v)}" x2="${X(v)}" y1="${top - 8}" y2="${H - 8}"/>`));
+  s += `<line class="ref" x1="${X(25)}" x2="${X(25)}" y1="${top - 8}" y2="${H - 8}"/>`;
   [[0, "0"], [25, "25 = even"], [50, "50"], [75, "75"]].filter(([v]) => v <= D).forEach(([v, t]) => (s += `<text x="${X(v)}" y="14" text-anchor="middle"${v === 25 ? ' class="b"' : ""}>${t}</text>`));
   R.forEach((b, i) => {
     const y = top + i * rh + rh / 2, w = b.win, est = w.label === "estimate";
@@ -144,7 +144,7 @@ function ladderSvg(W) {
     if (!est) s += `<g class="iv thin"><line x1="${X(w.v - w.ci)}" x2="${X(w.v + w.ci)}" y1="${y + r + 6}" y2="${y + r + 6}"/><line x1="${X(w.v - w.ci)}" x2="${X(w.v - w.ci)}" y1="${y + r + 2.5}" y2="${y + r + 9.5}"/><line x1="${X(w.v + w.ci)}" x2="${X(w.v + w.ci)}" y1="${y + r + 2.5}" y2="${y + r + 9.5}"/></g>`;
     s += `<text class="v" x="${W}" y="${y - 1}" text-anchor="end">${est ? "~" + Math.round(w.v) : f1(w.v)}</text><text x="${W}" y="${y + 13}" text-anchor="end">${est ? "estimate" : `${f1(Math.max(0, w.v - w.ci))}–${f1(w.v + w.ci)}`}</text></g>`;
   });
-  s += `<text x="${X(D / 2)}" y="${H - 3}" text-anchor="middle">win chance, %</text></svg>`;
+  s += `<text x="0" y="14">win chance, %</text></svg>`; // v1.87: the axis name sits with the ticks, at the top
   return s;
 }
 const ladderCard = (W) => `<section class="bpg-card bpg-hero" aria-labelledby="bpgLadH"><h2 id="bpgLadH">Strength ladder</h2>

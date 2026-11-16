@@ -12,7 +12,7 @@
 //     k pid give rate get bank/harbour trade      x a b na nb player trade (a gave na cards, b gave nb)
 //     v pid card        development card bought   y pid type  development card played
 //     m pid res n [lost per player...] Monopoly   o pid n     Year of Plenty cards
-//     a award holder prev  award moved (award L = Longest Road / Trade Route, A = Largest Army; -1 = nobody)
+//     a award holder prev  award moved (award L = Longest road / Trade Route, A = Largest army; -1 = nobody)
 // Builds, the robber and the pirate are recorded by diffing the board on every render (so every code
 // path — set-up, bots, Rush, Road Building, undo, ship moves — is covered); the rest by small wrappers.
 // The arrays stay small: a long 6-player game is a few thousand numbers (~20 KB of JSON).

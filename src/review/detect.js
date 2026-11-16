@@ -46,7 +46,7 @@ export function detectMissed(g, recs, load, o = {}) {
 
 // ── helpers on a loaded position ──
 const nameOf = (g, pid, me) => (pid === me ? "you" : g.players[pid].name);
-const goalName = (g, x) => (x.type === "city" ? `City on ${g._spotLabel(x.nodeId)}` : x.type === "settlement" ? `Settlement on ${g._spotLabel(x.nodeId)}${x.dist ? ` (+${x.dist} road${x.dist > 1 ? "s" : ""})` : ""}` : x.type === "dev" ? "Development card" : x.type === "road" ? "Longest Road" : x.label);
+const goalName = (g, x) => (x.type === "city" ? `City on ${g._spotLabel(x.nodeId)}` : x.type === "settlement" ? `Settlement on ${g._spotLabel(x.nodeId)}${x.dist ? ` (+${x.dist} road${x.dist > 1 ? "s" : ""})` : ""}` : x.type === "dev" ? "Development card" : x.type === "road" ? "Longest road" : x.label);
 const goalFocus = (x) => (x.type === "city" ? { city: x.nodeId } : x.type === "settlement" ? { node: x.nodeId, ...(x.dist && x.edge != null ? { edge: x.edge } : {}) } : x.type === "road" && x.edge != null ? { edge: x.edge } : null);
 const vpGoalsNow = (g, p, plan, hand) => plan.goals.filter((x) => (x.type === "city" || (x.type === "settlement" && !x.dist)) && has(hand, x.cost)
   && (x.type === "city" ? p.settlements.has(x.nodeId) : g.canBuildSettlement(p, x.nodeId, false)));
@@ -88,7 +88,7 @@ function detectBuild(g, recs, load, T) {
     } else {
       after = sub(hand, COST.road);
       const via = plan.goals.find((x) => x.edge === r.a.id);
-      did = via ? `Built a road toward ${via.type === "road" ? "Longest Road" : g._spotLabel(via.nodeId)}` : "Built a road";
+      did = via ? `Built a road toward ${via.type === "road" ? "Longest road" : g._spotLabel(via.nodeId)}` : "Built a road";
       B = via || { label: "Road" };
       sb = via ? via.score : 0;
       bTerms = via ? terms(via, via.eta + off) : [{ k: "vp", label: "Points", v: 0 }];

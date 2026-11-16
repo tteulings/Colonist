@@ -258,3 +258,42 @@
 /* Bots ladder: the likely range is a thin line drawn in front of the badge (it was a thick one hidden behind it) */
 .bpg-svg .iv.thin line { stroke-width: 1.4; }
 .bpg-svg .iv.thin { pointer-events: none; }
+
+/* ── v1.87 round 6 ── */
+/* hand: the fan sits clear of the dock (names and bank pills never hang under it), the ribbon has room for count + name,
+   and with 7+ of a kind the bank pills step aside (the totals chip still opens the bank) */
+@media (max-width: 900px) and (min-height: 501px) {
+  .app .hand .cards, [data-hand-counts] .app .hand .cards { padding-bottom: 22px; margin-bottom: 0; }
+  [data-hand-counts="stack"] .app .hand .cards[data-crowd] { padding-bottom: 22px; }
+}
+.hand .card .bk-lbl { top: calc(100% + 1px); }
+.hand .card.slot .bk-lbl { top: calc(100% + 3px); }
+[data-hand-counts="stack"] .app .hand .card:not(.dev) .rib { height: 46%; gap: 2px; }
+[data-hand-counts="stack"] .app .hand .card:not(.dev) .rib b { line-height: 1; }
+.hand .cards[data-deep] .card .bk-lbl { display: none; }
+.hand .cards[data-deep] { padding-bottom: 8px; }
+/* ticker: always one line (ellipsis); a tap on it opens the full log, so the strip never changes height */
+.app .ticker .txt, .app .ticker .txt .tk-main { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: unset; display: block; line-height: 1.25; }
+.app .ticker .txt:has(.tk-main) { display: flex; }
+/* focus rings: keyboard only (html[data-input="kbd"] is set by the first Tab / arrow key in game.js) */
+html:not([data-input="kbd"]) :is(button, a, summary, [role="button"], [tabindex]):focus-visible { outline: none !important; }
+.st-vpinfo { margin-top: 10px; font-size: 12.5px; color: var(--ink-soft); } .st-vpinfo summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+/* trade sheet: the count sits in a corner chip, never over the card art; both headings use one colour */
+.trade-sheet .tlbl.give, .trade-sheet .tlbl.get, .trade-sheet .tlbl > span { color: var(--heading); }
+.tcell .tcard .tnum { right: auto; bottom: auto; left: -9px; top: -6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; display: grid; place-items: center;
+  font-size: 12px; line-height: 1; letter-spacing: 0; -webkit-text-stroke: 0; color: #fff; background: #22313A; box-shadow: 0 0 0 1.5px var(--sheet, #fff); }
+[data-theme="B"] .tcell .tcard .tnum { font-family: var(--font-body); font-weight: 800; }
+.tcell.none .tcard .tnum { opacity: .9; }
+/* player legend popup: labels at full ink (the blue-grey read dim on Night) */
+.vp-tooltip .vp-tooltip-label { color: var(--ink); }
+.vp-tooltip .vp-tooltip-section, .vp-tooltip-grid small { color: color-mix(in srgb, var(--ink) 78%, transparent); }
+/* review > Moves: "Better option" is information, not praise: slate-blue instead of the olive that read as green;
+   each move carries a small bar, its length the win chance that move gave up */
+.rs, .rt { --c-lean: #476584; }
+[data-palette="night"] :is(.rs, .rt) { --c-lean: #9CB9D6; }
+.mv-r .mv-c { display: grid; justify-items: end; gap: 3px; min-width: 52px; }
+.mv-r .mv-bar2 { display: block; width: 52px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 10%, transparent); position: relative; overflow: hidden; }
+.mv-r .mv-bar2::after { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: var(--w, 10%); border-radius: 3px; background: var(--cc, var(--neg)); }
+/* "reviewed with vX · Model" sits straight on the teal page: white, not grey */
+.rv-scroll > [data-rabox] .ra-row > small, .rv-scroll > [data-rabox] .ra-row > span, .rv-scroll > [data-rabox] .ra-row > span small { color: #fff; opacity: .95; text-shadow: 0 1px 2px rgba(10,50,60,.35); }
+.app .hand .swipe { top: 2px; }

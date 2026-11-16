@@ -210,7 +210,7 @@ export function seatFeatures(g) {
 }
 
 /** Win chances from the fitted score function (softmax of w·features over the seats).
- *  v1.19 `adj` (leaf 'fit2', see FIT2_ADJ in leaf-fit.js): a stage-scaled score offset for holding Longest Road / Largest Army.
+ *  v1.19 `adj` (leaf 'fit2', see FIT2_ADJ in leaf-fit.js): a stage-scaled score offset for holding Longest road / Largest army.
  *  The fit weights are fitted on whole games, where a holder is also the stronger player; two moves compared in the same future
  *  differ only in who holds the award at the horizon, and there the fit over-credits it (measured against the game played out). */
 export function fitProbs(g, W = FIT_W, adj = null) {

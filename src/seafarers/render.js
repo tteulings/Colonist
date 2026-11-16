@@ -340,7 +340,13 @@ export function drawPirateAndChips(R, ctx, now, reduced, devK, drawSpec) {
         R.requestDraw();
       }
     }
-    ctx.save(); ctx.translate(pos.x, pos.y + 6); ctx.scale(R.pieceScale * 1.25, R.pieceScale * 1.25);
+    // v1.87: the pirate never sits on a harbour pill: where its hex holds one, it steps clear (up or down, away from the pill)
+    let py = pos.y + 6;
+    const pr = 30 * R.pieceScale * 1.25;
+    (R.layer?.pills || harbourBadges(R.game, harbourScale(R.game))).forEach((q) => {
+      if (Math.abs(pos.x - q.x) < q.w / 2 + pr * 0.7 && Math.abs(py - q.y) < q.h / 2 + pr * 0.95) py = q.y + (py < q.y ? -1 : 1) * (q.h / 2 + pr * 0.95);
+    });
+    ctx.save(); ctx.translate(pos.x, py); ctx.scale(R.pieceScale * 1.25, R.pieceScale * 1.25);
     drawSpec(ctx, S.pirate, { k: devK, rim: R.theme.rim, rimW: R.theme.rimW ?? 5 });
     ctx.restore();
   }

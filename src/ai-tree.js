@@ -233,7 +233,7 @@ export const TreeMixin = {
 
   // Plan goals grouped by kind; each goal split into points / production / turns, settlement spots into their terms
   _treeGoals(P, plan, goal0, act, side) {
-    const kinds = [["settlement", "Build settlement"], ["city", "Build city"], ["road", "Longest Road"], ["dev", "Buy dev card"]];
+    const kinds = [["settlement", "Build settlement"], ["city", "Build city"], ["road", "Longest road"], ["dev", "Buy dev card"]];
     const profile = this.getResourceIncomeProfile(P);
     const pen = plan.W.roadPenalty[plan.strat.expansion] ?? plan.W.roadPenalty.medium;
     const out = [];
@@ -424,7 +424,7 @@ export const TreeMixin = {
     const goalBadges = (gs, text) => gs.filter((g) => place(g)).map((g) => ({ text: text(g), ...place(g) }));
     const goalOverlay = (gs) => ({ nodes: gs.filter((g) => g.type === "settlement").map((g) => ({ id: g.nodeId, s: g.score })), cities: gs.filter((g) => g.type === "city").map((g) => ({ id: g.nodeId, s: g.score })),
       edges: [...gs.filter((g) => g.type === "road" && g.edge != null).map((g) => ({ id: g.edge, s: g.score })), ...gs.filter((g) => g.type === "settlement" && g.dist > 0).flatMap((g) => route(g.nodeId))], noLabels: true });
-    const name = (g) => (g.type === "settlement" ? `Settlement on ${this._spotLabel(g.nodeId)}${g.dist ? ` +${g.dist} road${g.dist > 1 ? "s" : ""}` : ""}` : g.type === "city" ? `City on ${this._spotLabel(g.nodeId)}` : g.type === "road" ? "Longest Road" : "Dev card");
+    const name = (g) => (g.type === "settlement" ? `Settlement on ${this._spotLabel(g.nodeId)}${g.dist ? ` +${g.dist} road${g.dist > 1 ? "s" : ""}` : ""}` : g.type === "city" ? `City on ${this._spotLabel(g.nodeId)}` : g.type === "road" ? "Longest road" : "Dev card");
     // 2. options in the order the bot really takes them
     const stepOk = goal0 ? has(h, this._aiStepCost(goal0)) : false;
     const opts = [

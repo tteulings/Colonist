@@ -1,7 +1,7 @@
 // End-of-game statistics, part 2: what the player sees when the game is over.
 //
 //   1. the winning-move count — the winner's points counted ON the board (+1 per settlement, +2 per city,
-//      the road network for Longest Road, +2 at the chip for Largest Army, +1 per VP card), ≤ 1.2 s
+//      the road network for Longest road, +2 at the chip for Largest army, +1 per VP card), ≤ 1.2 s
 //   2. a short transition — you won: your portrait bounces in over a sunburst and a fast timelapse of the
 //      game, confetti in the house colours; you lost: the winner's portrait slides in with a friendly nod
 //   3. the recap (always on top): final scores, three one-line highlights, turns / time / your rank, and
@@ -88,6 +88,7 @@ export const StatsUiMixin = {
    *  no intro and no timelapse (it raced through the whole game, ~30 rolls a second, before the recap appeared). */
   showGameOverOverlay(opts = {}) {
     if (document.querySelector(".game-over-overlay")) return;
+    this._dismissChipHint?.(); // v1.87: the first-game hint never sits on the end screen
     this.hideTradePanel();
     this.toggleBuildSheet?.(false);
     const st = this._stCompute();
@@ -308,7 +309,7 @@ export const StatsUiMixin = {
     const cols = this.players.map((p) => cs.getPropertyValue(`--p${p.id}`).trim() || "#D9714E");
     let seed = 11;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < 34; i += 1) {
+    for (let i = 0; i < 60; i += 1) { // v1.87: a fuller burst
       const el = document.createElement("i");
       el.style.left = `${rnd() * 100}%`;
       el.style.background = cols[i % cols.length];
@@ -368,7 +369,7 @@ export const StatsUiMixin = {
 
   /** Where the points came from (final): adds up to every player's score. */
   _stCardSources(st) {
-    const parts = [["settlements", "settlement", "Settlements"], ["cities", "city", "Cities"], ["road", "longestRoad", this.sea ? "Longest Trade Route" : "Longest Road"], ["army", "largestArmy", "Largest Army"], ["cards", "vp", "Point cards"], ["islands", "settlement", "Islands"]];
+    const parts = [["settlements", "settlement", "Settlements"], ["cities", "city", "Cities"], ["road", "longestRoad", this.sea ? "Longest trade route" : "Longest road"], ["army", "largestArmy", "Largest army"], ["cards", "vp", "Point cards"], ["islands", "settlement", "Islands"]];
     const used = parts.filter(([k]) => st.sources.some((s) => s[k] > 0));
     const maxV = Math.max(...st.sources.map((s) => s.total), 1);
     const ranked = [...this.players].sort((a, b) => b.victoryPoints - a.victoryPoints);
@@ -481,9 +482,9 @@ export const StatsUiMixin = {
     if (sw.d > 0) rows.push({ ic: "vp", text: `${this._stName(P(sw.pid))} +${sw.d} point${sw.d > 1 ? "s" : ""} in ${tw} ${st.turnOf[sw.s]}` });
     if (sw.d >= 2 || !st.leadChanges) rows.push({ ic: "dice", text: st.leadChanges ? `The lead changed hands ${st.leadChanges}×` : "One leader all game" }); // (otherwise it is the card title)
     const lr = st.awards.filter((a) => a.kind === "L");
-    if (lr.length) { const last = lr[lr.length - 1]; rows.push({ ic: "longestRoad", text: `${this.sea ? "Longest Trade Route" : "Longest Road"}: ${lr.length > 1 ? `${lr.length} changes, ` : ""}${last.pid >= 0 ? `${this._stName(P(last.pid))} from ${tw} ${st.turnOf[last.s]}` : "nobody at the end"}` }); }
+    if (lr.length) { const last = lr[lr.length - 1]; rows.push({ ic: "longestRoad", text: `${this.sea ? "Longest trade route" : "Longest road"}: ${lr.length > 1 ? `${lr.length} changes, ` : ""}${last.pid >= 0 ? `${this._stName(P(last.pid))} from ${tw} ${st.turnOf[last.s]}` : "nobody at the end"}` }); }
     const la = st.awards.filter((a) => a.kind === "A");
-    if (la.length) { const last = la[la.length - 1]; rows.push({ ic: "largestArmy", text: `Largest Army: ${last.pid >= 0 ? `${this._stName(P(last.pid))} from ${tw} ${st.turnOf[last.s]}` : "nobody at the end"}` }); }
+    if (la.length) { const last = la[la.length - 1]; rows.push({ ic: "largestArmy", text: `Largest army: ${last.pid >= 0 ? `${this._stName(P(last.pid))} from ${tw} ${st.turnOf[last.s]}` : "nobody at the end"}` }); }
     const rt = st.robberTurns, rb = rt.indexOf(Math.max(...rt));
     if (rt[rb] > 0) rows.push({ ic: "robber", text: `The robber sat on ${this._stTile(rb)} for ${rt[rb]} ${tw}s${st.hexBlocked[rb] ? `, blocking ${st.hexBlocked[rb]} cards` : ""}` });
     const builds = this.players.map((p) => { const b = st.built[p.id]; return b.road + b.settlement + b.city + b.ship; });

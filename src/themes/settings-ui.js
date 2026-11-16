@@ -191,11 +191,15 @@ export class SettingsUI {
     } else if (this.tab === "about") {
       body.innerHTML = this.head("About", "") + `<p class="sub">Katan ${"v" + APP_VERSION} — a settle-and-trade island game against friendly bots.</p>
         <button type="button" class="st-howto">${icon("hint")}How to play</button>
-        <p class="sub">Keyboard: R roll dice · E end turn · 1–3 build · B buy card · T trade · V fit board · Esc cancel.</p>
-        <p class="sub st-screen">Screen: ${innerWidth}×${innerHeight} @${+(window.devicePixelRatio || 1).toFixed(2)}x${matchMedia("(display-mode: standalone)").matches ? " · installed app" : ""}</p>
-        <p class="sub st-viewport">${viewportDebug()}</p>`;
+        <p class="sub">Keyboard: R roll dice · E end turn · 1–3 build · B buy card · T trade · V fit board · Esc cancel.</p>`;
       body.querySelector(".st-howto").addEventListener("click", () => { this.close(); g.onboarding?.showIntro(0, false); });
       body.querySelector(".st-howto").after(versionRow());
+      // v1.87: the screen / viewport numbers (bug-report detail) live under Developer, collapsed
+      this.devPane.querySelector(".st-vpinfo")?.remove();
+      const vp = document.createElement("details");
+      vp.className = "st-vpinfo";
+      vp.innerHTML = `<summary>Screen details</summary><p class="sub st-screen">Screen: ${innerWidth}×${innerHeight} @${+(window.devicePixelRatio || 1).toFixed(2)}x${matchMedia("(display-mode: standalone)").matches ? " · installed app" : ""}</p><p class="sub st-viewport">${viewportDebug()}</p>`;
+      this.devPane.appendChild(vp);
       body.appendChild(this.devPane);
     } else {
       const cur = g.theme.id;

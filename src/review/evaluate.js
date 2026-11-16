@@ -90,7 +90,7 @@ export function analysisOpts(eng, lanes = 1) {
 export const ACC = { a: 103.1668, k: REVIEW.k ?? 0.08, b: 3.1669, ver: 5, // eng-124 v5: the gbm leaf (v4: fit)
   get id() { return `k${this.k}v${this.ver}`; } };
 // Development cards (buy / play) are checked and marked but not scored: their value lies mostly beyond the
-// 8-turn look-ahead (a hidden deck, Largest Army later), and scoring them put the bot levels out of order.
+// 8-turn look-ahead (a hidden deck, Largest army later), and scoring them put the bot levels out of order.
 export const SCORED_KINDS = REVIEW.scored || ["setup", "build", "bank", "robber", "end"];
 export const TRIVIAL = REVIEW.trivial ?? TRIV; // every alternative within 2 points of win chance: not a real choice (calibrated)
 export const SE_SHRINK = SHRINK;  // the loss is the best gap less this many standard errors (winner's curse)

@@ -110,6 +110,13 @@ const BOARD_RADIUS = 2;
 // Layout breakpoints (keep in sync with themes/base.css): phones = narrow OR short (landscape)
 const MOBILE_MQ = "(max-width: 900px), (max-height: 500px)";
 const LANDSCAPE_MQ = "(max-height: 500px) and (orientation: landscape)";
+// v1.87: focus rings are for the keyboard only: a tap (or a script moving focus to Start Game / Skip) never leaves one behind.
+// html[data-input="kbd"] switches on with the first Tab / arrow key and off again with the next pointer press (see coherence.css).
+try {
+  const de = document.documentElement;
+  window.addEventListener("keydown", (e) => { if (["Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter", " "].includes(e.key) && de.dataset.input !== "kbd") de.dataset.input = "kbd"; }, true);
+  ["pointerdown", "touchstart", "mousedown"].forEach((t) => window.addEventListener(t, () => { if (de.dataset.input === "kbd") delete de.dataset.input; }, { capture: true, passive: true }));
+} catch { /* no DOM (tests) */ }
 const HARBOUR_FREE = 18; // v0.86: css px of open pier between a coast corner and its harbour pill (see _fitTarget)
 const TURN_LIMIT = 500;
 
@@ -130,7 +137,7 @@ const AI_STRATEGY_CATEGORIES = {
     descriptions: {
       simple:  "Builds whatever it can afford in a fixed order; roads to the nearest spot",
       medium:  "Plans its next build (settlement, city or card) by points and production per expected turn, and saves cards for it",
-      complex: "Same plan, plus races for Longest Road and values reachable ports",
+      complex: "Same plan, plus races for Longest road and values reachable ports",
     },
   },
   trading: {
@@ -149,7 +156,7 @@ const AI_STRATEGY_CATEGORIES = {
     descriptions: {
       none:      "Never buys or plays dev cards",
       reactive:  "Buys with spare cards, plays when obviously useful; Monopoly on what it needs",
-      strategic: "Chases Largest Army, holds Monopoly for the biggest estimated haul of what it needs",
+      strategic: "Chases Largest army, holds Monopoly for the biggest estimated haul of what it needs",
     },
   },
   awareness: {
@@ -220,7 +227,7 @@ const AI_LEVEL_PLAIN = {
   expansion: {
     simple:  "builds whatever it can afford, roads toward the nearest open spot.",
     medium:  "picks its next build (settlement, city or card) by what pays off soonest, and saves cards for it.",
-    complex: "plans the same way, and also races for Longest Road and ports it can reach.",
+    complex: "plans the same way, and also races for Longest road and ports it can reach.",
   },
   trading: {
     none:         "never trades.",
@@ -231,7 +238,7 @@ const AI_LEVEL_PLAIN = {
   devCards: {
     none:      "never buys development cards.",
     reactive:  "buys with spare cards, plays a card when the use is obvious.",
-    strategic: "chases Largest Army and saves Monopoly for a big haul of what it needs.",
+    strategic: "chases Largest army and saves Monopoly for a big haul of what it needs.",
   },
   awareness: {
     none:     "ignores who is winning; robber just blocks the busiest tile.",
@@ -4948,15 +4955,15 @@ class ColonistFullGame {
     });
     if (badRobber) return "The robber blocks its own tile";
 
-    // Playing this knight would claim Largest Army
+    // Playing this knight would claim Largest army
     const armyHolder = this.largestArmyHolder;
     const holderKnights = armyHolder != null ? this.players[armyHolder].knightsPlayed : 2;
-    if (armyHolder !== player.id && player.knightsPlayed + 1 > holderKnights) return "Claims Largest Army (+2)";
+    if (armyHolder !== player.id && player.knightsPlayed + 1 > holderKnights) return "Claims Largest army (+2)";
     if (strat === "strategic") {
       // Strategic: keep a lead in the army race (or build toward it), else hold the knight in reserve
       const rival = Math.max(0, ...this.players.filter((p) => p.id !== player.id).map((p) => p.knightsPlayed));
-      if (armyHolder === player.id) return rival >= player.knightsPlayed - 1 ? "Keeps its Largest Army lead" : null;
-      if (player.knightsPlayed + 2 >= holderKnights) return "Builds toward Largest Army";
+      if (armyHolder === player.id) return rival >= player.knightsPlayed - 1 ? "Keeps its Largest army lead" : null;
+      if (player.knightsPlayed + 2 >= holderKnights) return "Builds toward Largest army";
     }
 
     // Otherwise only worth it to block a high-yield hex of the (publicly) leading opponent
@@ -5025,7 +5032,7 @@ class ColonistFullGame {
   shouldPlayRoadBuilding(player) {
     if (this.sea) return !!this.sea.aiFreePiece(player); // ⚓
     if (this._aiStrat(player).devCards !== "strategic") return this.chooseStrategicRoadEdge(player, true) != null;
-    // Strategic: save it for roads the plan actually needs (toward a spot, or Longest Road)
+    // Strategic: save it for roads the plan actually needs (toward a spot, or Longest road)
     const planned = this._aiPlan(player).goals.find((g) => g.edge != null);
     return !!planned && this.canBuildRoad(player, planned.edge, { free: true });
   }
@@ -5096,7 +5103,7 @@ class ColonistFullGame {
   // ── AI planner ──────────────────────────────────────────────────────
   // Every bot keeps a ranked list of candidate builds ("goals"): a city, its best few settlement
   // spots (with the roads needed to reach them), a development card and, for complex expansion,
-  // a Longest Road grab. Each goal has a value (VP + production it adds, converted to VP over the
+  // a Longest road grab. Each goal has a value (VP + production it adds, converted to VP over the
   // turns that are likely left) and an ETA (expected turns until affordable from income, plus bank
   // and port trades). Goals are ranked by value per turn: value / (ETA + 1).
 
@@ -5385,14 +5392,14 @@ class ColonistFullGame {
     if (strat.devCards !== "none" && this.devDeck.length > 0) {
       add({ type: "dev", label: "Development card", cost: COSTS.development, vp: this._aiDevValue(player, strat, W), prod: 0 });
     }
-    // Longest Road grab (complex expansion): 1-2 roads away from taking the 2 VP
+    // Longest road grab (complex expansion): 1-2 roads away from taking the 2 VP
     if (strat.expansion === "complex" && roadsLeft > 0 && this.longestRoadHolder !== player.id) {
       const holder = this.longestRoadHolder;
       const k = (holder != null ? this.players[holder].longestRoadLength + 1 : 5) - player.longestRoadLength;
       if (k >= 1 && k <= 2 && roadsLeft >= k) {
         const edge = this._aiRoadExtendEdge(player);
         const nearWin = holder != null && this.players[holder].publicVictoryPoints >= this.winPoints - 3;
-        if (edge != null) add({ type: "road", label: "Longest Road", cost: { wood: k, brick: k }, vp: 2 + (nearWin && strat.awareness === "advanced" ? 1 : 0), prod: 0, edge });
+        if (edge != null) add({ type: "road", label: "Longest road", cost: { wood: k, brick: k }, vp: 2 + (nearWin && strat.awareness === "advanced" ? 1 : 0), prod: 0, edge });
       }
     }
     const plan = { strat, inc, incTurn, rates, goals, R, W, spots: lastSpots };
@@ -5830,7 +5837,7 @@ class ColonistFullGame {
       return this.getFallbackRoad(player, freeBuild);
     }
 
-    // Medium + Complex: follow the build plan (road toward the planned spot / Longest Road)
+    // Medium + Complex: follow the build plan (road toward the planned spot / Longest road)
     const planned = this._aiPlan(player).goals.find((g) => g.edge != null);
     if (planned && this.canBuildRoad(player, planned.edge, { free: freeBuild })) return planned.edge;
 
@@ -5966,7 +5973,7 @@ class ColonistFullGame {
   }
 
   computeLongestRoadLength(player) {
-    if (this.sea) return this.sea.tradeRouteLength(player); // ⚓ Longest Trade Route: roads + ships
+    if (this.sea) return this.sea.tradeRouteLength(player); // ⚓ Longest trade route: roads + ships
     if (!player.roads.size) return 0;
     // eng-130 speed: the answer depends only on the road edges and on which of their end nodes a rival holds; memoised on exactly
     // that (the bots' searches recompute every player's road after every build, ~20 % of their time)
@@ -6033,8 +6040,8 @@ class ColonistFullGame {
     this.updateLargestArmyHolder();
     // v0.73: the journal says when an award moves (it only showed as a small badge before)
     if (this.players.length && !this._loadingState) {
-      this._logAward(this.sea ? "Longest Trade Route" : "Longest Road", prevLR, this.longestRoadHolder, (p) => `${p.longestRoadLength} ${this.sea ? "roads and ships" : "roads"}`); // ⚓
-      this._logAward("Largest Army", prevLA, this.largestArmyHolder, (p) => `${p.knightsPlayed} knights`);
+      this._logAward(this.sea ? "Longest trade route" : "Longest road", prevLR, this.longestRoadHolder, (p) => `${p.longestRoadLength} ${this.sea ? "roads and ships" : "roads"}`); // ⚓
+      this._logAward("Largest army", prevLA, this.largestArmyHolder, (p) => `${p.knightsPlayed} knights`);
     }
 
     this.players.forEach((player, idx) => {
@@ -8423,6 +8430,7 @@ class ColonistFullGame {
     }
     this.resourceCardStrip.style.setProperty("--hn", String(n));
     this.resourceCardStrip.toggleAttribute("data-crowd", n >= 8);
+    this.resourceCardStrip.toggleAttribute("data-deep", RESOURCES.some((r) => human.resources[r] >= 7)); // v1.87: big stacks: the bank pills step aside
     this.resourceCardStrip.innerHTML = html;
     this.resourceCardStrip.querySelectorAll(".card[data-card]").forEach((el) => {
       el.addEventListener("click", (e) => {
@@ -8637,8 +8645,8 @@ class ColonistFullGame {
         : "";
       const totalCards = sumResources(player.resources);
       const totalDev = DEV_CARD_TYPES.reduce((sum, t) => sum + player.devCards[t] + player.newDevCards[t], 0) + player.devVictoryPoints; // how many is public (VP cards included), only the kind is secret
-      const awards = (this.longestRoadHolder === player.id ? (this.sea ? `<span title="Longest Trade Route (+2 points)">${icon("tradeRoute")}</span>` : `<span title="Longest Road (+2 points)">${icon("longestRoad")}</span>`) : "") // ⚓
-        + (this.largestArmyHolder === player.id ? `<span title="Largest Army (+2 points)">${icon("largestArmy")}</span>` : "");
+      const awards = (this.longestRoadHolder === player.id ? (this.sea ? `<span title="Longest trade route (+2 points)">${icon("tradeRoute")}</span>` : `<span title="Longest road (+2 points)">${icon("longestRoad")}</span>`) : "") // ⚓
+        + (this.largestArmyHolder === player.id ? `<span title="Largest army (+2 points)">${icon("largestArmy")}</span>` : "");
       const vp = this.displayVictoryPoints(player);
       // knights played and road length only once they mean something (knights > 0, a road of 3+ or the award);
       // v0.75: the award holder's number sits on a gold pill with "+2" (gold: never a seat colour)
@@ -8647,10 +8655,10 @@ class ColonistFullGame {
       const stats = [
         `<span data-stat="cards"${over ? ' class="warn"' : ""} title="${totalCards} resource card${totalCards === 1 ? "" : "s"}${over ? ` (more than ${this._discardLimit()}: hands back half on a 7)` : ""}">${icon("cards")}${totalCards}</span>`,
         totalDev > 0 ? `<span data-stat="dev" title="${totalDev} development card${totalDev === 1 ? "" : "s"}">${icon("devcard")}${totalDev}</span>` : "",
-        awardStat("knights", player.knightsPlayed, la, `${player.knightsPlayed} knight${player.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest Army (+2 points)" : ` (${this.largestArmyHolder != null ? this.players[this.largestArmyHolder].knightsPlayed + 1 : 3}+ to take Largest Army)`}`, "knight"),
+        awardStat("knights", player.knightsPlayed, la, `${player.knightsPlayed} knight${player.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest army (+2 points)" : ` (${this.largestArmyHolder != null ? this.players[this.largestArmyHolder].knightsPlayed + 1 : 3}+ to take Largest army)`}`, "knight"),
         this.sea // ⚓ Seafarers: the trade route counts roads + ships
-          ? awardStat("road", player.longestRoadLength, lr, `Trade route ${player.longestRoadLength}${lr ? " · Longest Trade Route (+2 points)" : " (5+ to win Longest Trade Route)"}`, "tradeRoute")
-          : awardStat("road", player.longestRoadLength, lr, `Longest road ${player.longestRoadLength}${lr ? " · Longest Road (+2 points)" : " (5+ to win Longest Road)"}`, "road"),
+          ? awardStat("road", player.longestRoadLength, lr, `Trade route ${player.longestRoadLength}${lr ? " · Longest trade route (+2 points)" : " (5+ to win Longest trade route)"}`, "tradeRoute")
+          : awardStat("road", player.longestRoadLength, lr, `Longest road ${player.longestRoadLength}${lr ? " · Longest road (+2 points)" : " (5+ to win Longest road)"}`, "road"),
         this.sea && this.sea.bonus[player.id]?.length ? `<span data-stat="isle" class="award" title="New islands: ${this.sea.bonus[player.id].length} (+${this.sea.bonusVP(player)} points)">${icon("island")}${this.sea.bonus[player.id].length}</span>` : "", // ⚓
       ].filter(Boolean);
       rows.push(`<div class="prow player-card-mini pc-${idx}${active ? " active" : ""}${isReady ? " rush-ready" : ""}" data-seat="${idx}">
@@ -8721,7 +8729,7 @@ class ColonistFullGame {
   }
 
   /** v1.86 motion on the player strip: the chip of the player whose turn it is pulses once, the points pill bumps when the
-   *  points change, the card count ticks, a newly held Longest Road / Largest Army pops in and the strip eases in once per
+   *  points change, the card count ticks, a newly held Longest road / Largest army pops in and the strip eases in once per
    *  game. CSS classes on transform / opacity only (themes/coherence.css); reduced motion is handled by the 1 ms rule
    *  in base.css. The previous values are kept per seat, a fresh game (other players or a load) only runs the entrance. */
   _chipMotion() {
@@ -9007,7 +9015,7 @@ class ColonistFullGame {
       title = "Robber!";
       status = "Game paused — discards, then the robber";
     } else if (humanTurn && this.pendingAction === "robber") {
-      status = this.confirmBuild ? "Robber: confirm below" : this.sea?.thief === "pirate" ? `Move the pirate · ${tapw} a sea tile` : `Move the robber · ${tapw} a tile`;
+      status = this.confirmBuild ? "Robber: confirm below" : this.sea?.thief === "pirate" ? "Move the pirate" : "Move the robber";
     } else if (rushOn && mainPhase && (!this.pendingAction || (this._isAutoGlow() && this.trayMode !== "build"))) {
       title = "Rush";
       status = this.autoplayInterval ? "Bots are playing for you" : "Build, trade or play a card any time";
@@ -10044,9 +10052,9 @@ class ColonistFullGame {
       { label: `Cities (${cities}/4)`, value: `${cities} x 2 = ${cities * 2}` },
     ];
     if (devVP > 0) vpRows.push({ label: "Dev points", value: devVP });
-    if (longestRoad) vpRows.push({ label: this.sea ? "Longest Trade Route" : "Longest Road", value: 2 }); // ⚓
+    if (longestRoad) vpRows.push({ label: this.sea ? "Longest trade route" : "Longest road", value: 2 }); // ⚓
     vpRows.push(...this._seaVpRows(player));
-    if (largestArmy) vpRows.push({ label: "Largest Army", value: 2 });
+    if (largestArmy) vpRows.push({ label: "Largest army", value: 2 });
     vpRows.push({ label: "Total", value: total, total: true });
     html += vpRows.map((r) => row(r.label, r.value, r.total ? " vp-tooltip-total" : "")).join("");
     html += '<div class="vp-tooltip-section" style="margin-top:0.35rem">Pieces</div>';
@@ -10613,7 +10621,7 @@ class ColonistFullGame {
       this.devPick = null;
     }
     this.logEntries = this.logEntries.filter((e) => !d.logs.includes(e));
-    if (d.ev != null && this.stats?.ev?.length > d.ev) this.stats.ev.length = d.ev; // and its stats events (the Knight, a Largest Army award)
+    if (d.ev != null && this.stats?.ev?.length > d.ev) this.stats.ev.length = d.ev; // and its stats events (the Knight, a Largest army award)
     this.canvas.style.cursor = "grab";
     this.recomputeScores();
     this.saveToStorage();
@@ -10828,7 +10836,7 @@ class ColonistFullGame {
     const seaTray = this.sea && !this.robberVictimOptions?.length ? this._seaTray(human, cur, tbtn, close) : null; // ⚓ robber/pirate, move ship, set-up ship
     if (seaTray) return seaTray;
     if (this.robberVictimOptions?.length) {
-      return { mode: "victims", hint: "Steal from… · tap a player",
+      return { mode: "victims", hint: "Steal from…",
         html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>1 random card</small></div>` + this._victimGrid(this.robberVictimOptions.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
           return tbtn(`data-steal="${id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} pts</small></span>`, `victim pc-${id}`); })) };
     }
@@ -10842,7 +10850,7 @@ class ColonistFullGame {
       const pir = this.sea && hex.resource === "sea" ? this._seaPirateText(cb.id, cur) : null; // ⚓ the pirate's own words
       const lead = pir ? pir.hint : `Robber on ${where} · ${blocks}${own}`, sub = pir ? pir.sub : `${where} · ${blocks}`;
       if (vic.length > 1 && (!cb.victim || this.confirmPlacements)) {
-        return { mode: "robber", hint: this.confirmPlacements ? "Steal from… pick a player, then Place" : "Steal from… · tap a player",
+        return { mode: "robber", hint: "Steal from…",
           html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>${pir ? lead : `${where} · ${blocks}${own}`}</small></div>` + this._victimGrid(vic.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
             return tbtn(`data-victim="${id}" aria-pressed="${cb.victim === id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} pts</small></span>`, `victim pc-${id}${cb.victim === id ? " sel" : ""}`); }))
             + (this.confirmPlacements ? tbtn(`data-rob-now ${cb.victim != null ? "" : "disabled"}`, `${icon("check")}<span>Place</span>`, "primary") : "")
@@ -11142,9 +11150,17 @@ class ColonistFullGame {
     const pts = best.map((h) => h.center);
     g.nodes.forEach((n) => { if (n.owner != null || n.structure) pts.push({ x: n.x, y: n.y }); });
     g.edges.forEach((e) => { if (e.owner != null) e.nodes.forEach((id) => pts.push({ x: g.nodes[id].x, y: g.nodes[id].y })); });
+    // v1.87: the harbour pills of the main island count too (the 2:1 pills ran past both screen edges)
+    const u = hs / 100, hp = [];
+    harbourBadges(this, harbourScale(this)).forEach((q) => {
+      const x = g.centerX + q.x * u, y = g.centerY + q.y * u;
+      if (best.some((h) => Math.hypot(h.center.x - x, h.center.y - y) < hs * 2.6)) hp.push({ x0: x - (q.w / 2) * u, x1: x + (q.w / 2) * u, y0: y - (q.h / 2) * u, y1: y + (q.h / 2) * u });
+    });
     const m = hs * 1.45; // margin around the outermost centres: the hex itself plus a little sea (pieces and harbours stay in view)
     const mx = hs * 1.15; // sideways a phone has no room to spare: the hex plus a sliver of sea
-    return { minX: Math.min(...pts.map((q) => q.x)) - mx, maxX: Math.max(...pts.map((q) => q.x)) + mx, minY: Math.min(...pts.map((q) => q.y)) - m, maxY: Math.max(...pts.map((q) => q.y)) + m };
+    const pad = hs * 0.12;
+    return { minX: Math.min(Math.min(...pts.map((q) => q.x)) - mx, ...hp.map((q) => q.x0 - pad)), maxX: Math.max(Math.max(...pts.map((q) => q.x)) + mx, ...hp.map((q) => q.x1 + pad)),
+      minY: Math.min(Math.min(...pts.map((q) => q.y)) - m, ...hp.map((q) => q.y0 - pad)), maxY: Math.max(Math.max(...pts.map((q) => q.y)) + m, ...hp.map((q) => q.y1 + pad)) };
   }
 
   /** 🌊 A piece outside the zoomed area (new island): glide out so everything stays in view. Never zooms in by itself. */
@@ -11425,13 +11441,13 @@ class ColonistFullGame {
     if (/\bwins?\b/.test(text)) return "vp";
     if (/rolled|^Roll #/.test(text)) return "dice";
     if (/robber|stole|discard/i.test(text)) return "robber";
-    if (/Longest Trade Route/.test(text)) return "tradeRoute"; // ⚓
-    if (/Longest Road/.test(text)) return "longestRoad";
+    if (/Longest trade route/i.test(text)) return "tradeRoute"; // ⚓
+    if (/Longest road/i.test(text)) return "longestRoad";
     if (/new island/.test(text)) return "island"; // ⚓ Seafarers
     if (/pirate/.test(text)) return "pirate";
     if (/gold/.test(text)) return "gold";
     if (/\bship\b/.test(text)) return "ship";
-    if (/Largest Army/.test(text)) return "largestArmy";
+    if (/Largest army/i.test(text)) return "largestArmy";
     if (/Knight/.test(text)) return "knight";
     if (/Monopoly/.test(text)) return "monopoly";
     if (/Year of Plenty/.test(text)) return "yearOfPlenty";

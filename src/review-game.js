@@ -37,7 +37,7 @@ export const MC = "deep Monte Carlo (100 futures a move)"; // what runs the chec
 // v1.29 the bots' lighter deep check against checking all their moves with the full engine (scratchpad others129 budget-an.mjs)
 const OTHERS_NOTE = "1.1 points of accuracy apart on average, 5 at most, in about 60% of the time";
 // v1.05 chess-style classes: name, glyph (own icons, one hue each in review.css)
-export const CLS = { best: ["Best", "★"], great: ["Great", "⇈"], good: ["Good", "●"], lean: ["Slightly better", "↗"], close: ["Close call", "≈"], could: ["Could be better", "!"], mistake: ["Mistake", "▲"], blunder: ["Blunder", "✕"], missed: ["Missed chance", "◎"], triv: ["No real choice", "·"] };
+export const CLS = { best: ["Best", "★"], great: ["Great", "⇈"], good: ["Good", "●"], lean: ["Better option", "↗"], close: ["Close call", "≈"], could: ["Could be better", "!"], mistake: ["Mistake", "▲"], blunder: ["Blunder", "✕"], missed: ["Missed chance", "◎"], triv: ["No real choice", "·"] };
 const IMP = ["lean", "could", "mistake", "blunder", "missed"]; // v1.81 lean counts as a (possible) mistake, close does not
 export const aLabel = (d) => (d.cls === "close" || d.vc === "close" ? "Other option" : d.cls === "lean" || d.vc === "lean" ? "Slightly better" : "Better");
 /** "−19 cards" → "19 fewer cards" (the Luck table's side note: a label, not a second headline number) */
@@ -532,7 +532,7 @@ export const ReviewGameMixin = {
     if (!st || !c) return;
     let O; try { O = gameOdds(this); } catch (_) { return; }
     if (O.na) return;
-    const W = 304, H = 112, x0 = 24, x1 = W - 12, top = 6, bot = H - 14, N = Math.max(1, st.N);
+    const W = 304, H = 112, x0 = 30, x1 = W - 12, top = 6, bot = H - 14, N = Math.max(1, st.N);
     const su = O.setup(), M = su.length - 1, f = M >= 1 ? 0.14 : 0, gap = M >= 1 ? 6 : 0, w = x1 - x0 - gap;
     const Xs = (i) => x0 + (i / Math.max(1, M)) * f * w, Xt = (s) => x0 + f * w + gap + (s / N) * (1 - f) * w, Y = (p) => top + (1 - p) * (bot - top);
     const me = who ?? this._rvSoloPid?.();
@@ -544,7 +544,7 @@ export const ReviewGameMixin = {
       return pts.length > 1 ? `<path class="pc-${p.id}${p.id === me ? " me" : ""}" d="${pts.map((q, i) => `${i ? "L" : "M"}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join("")}"/>` : "";
     });
     const have = lines.some(Boolean);
-    const grid = [0, 0.5, 1].map((p) => `<line x1="${x0}" x2="${x1}" y1="${Y(p).toFixed(1)}" y2="${Y(p).toFixed(1)}" class="g"/><text x="${x0 - 4}" y="${(Y(p) + 3).toFixed(1)}" text-anchor="end">${p * 100}</text>`).join("");
+    const grid = [0, 0.5, 1].map((p) => `<line x1="${x0}" x2="${x1}" y1="${Y(p).toFixed(1)}" y2="${Y(p).toFixed(1)}" class="g"/><text x="${x0 - 4}" y="${(Y(p) + 3).toFixed(1)}" text-anchor="end">${p * 100}%</text>`).join("");
     const sep = M >= 1 ? `<line x1="${(x0 + f * w + gap / 2).toFixed(1)}" x2="${(x0 + f * w + gap / 2).toFixed(1)}" y1="${top}" y2="${bot}" class="sep"/><text x="${x0}" y="${H - 2}">set-up</text>` : `<text x="${x0}" y="${H - 2}">start</text>`;
     c.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Win chance of every player, set-up and every ${this._stTurnWord?.() || "turn"}">${grid}${have ? lines.filter((l, i) => this.players[i].id !== me).join("") + lines.filter((l, i) => this.players[i].id === me).join("") : ""}${sep}<text x="${x1}" y="${H - 2}" text-anchor="end">${this.isRush?.() ? "roll" : "turn"} ${this.isRush?.() ? (this.rush?.rollNo ?? st.N) : this.turn}</text></svg>${have ? "" : `<p class="rsw-wait" role="status">Working out the win chance…</p>`}`;
   },
@@ -778,7 +778,7 @@ export const ReviewGameMixin = {
     d.innerHTML = `<div class="rv-card"><div class="rv-ih"><b>About this review</b><button type="button" class="rv-btn" data-rvinfo-x aria-label="Close">✕</button></div>
       <p><b>Win chance</b>: your chance to win, in %. It comes from ${MC}: the position is played on for 20 turns, 100 times for every move (Standard model).</p>
       <p><b>A and B</b>: A is the best move, B is what you played. A − B is what that move cost. Classes: ${lim(LIMITS)}. Set-up spots use wider limits (${lim(SETUP_LIMITS)}).</p>
-      <p><b>How sure</b>: every gap comes with its own margin (the noise of 100 futures is about 3 points). Only a <b>clear</b> gap (at least twice the margin) is called a mistake or blunder. A smaller one is <b>Slightly better</b> (probably) or a <b>Close call</b> (about equal, not a mistake). Your close and slightly-better moves are checked again with 400 futures on the two moves that matter.</p>
+      <p><b>How sure</b>: every gap comes with its own margin (the noise of 100 futures is about 3 points). Only a <b>clear</b> gap (at least twice the margin) is called a mistake or blunder. A smaller one is a <b>Better option</b> (probably) or a <b>Close call</b> (about equal, not a mistake). Your close and slightly-better moves are checked again with 400 futures on the two moves that matter.</p>
       <p><b>Play</b>: shows every move since your last decision: rolls, builds, trades, the robber. Win chances exist at your decisions only.</p>
       <p><b>Plan</b>: the likely reason A is better, read from the position. No clear reason, no Plan.</p>
       <p><b>Missed chance</b>: you ended the turn or traded while a build was worth 3+ %. <b>Great</b>: the best move, the next one ${GREAT}+ % behind. <b>No real choice</b>: every option within 2 %.</p>
@@ -894,7 +894,7 @@ export const ReviewGameMixin = {
     const mid = h - bh / 2 - (axis ? 12 : 2), sc = (bh / 2) / 0.2, bw = Math.max(3, Math.min(9, (X1 - X0) / n - 2));
     const bar = (v, cls, dx, x) => `<rect x="${(x + dx).toFixed(1)}" y="${(v > 0 ? mid - Math.min(bh / 2, v * sc) : mid).toFixed(1)}" width="${(bw / 2).toFixed(1)}" height="${Math.max(1, Math.min(bh / 2, Math.abs(v) * sc)).toFixed(1)}" rx="1" class="${cls}"/>`;
     const barSvg = bars ? `<line x1="${X0}" x2="${X1}" y1="${mid}" y2="${mid}" class="g-grid"/>${ds.map((d, k) => bar(d.chance, "b-luck", -bw / 2, X(k)) + bar(-d.gap, "b-skill", 0, X(k))).join("")}` : "";
-    const grid = axis ? [0, 0.5, 1].map((p) => `<line x1="${X0}" x2="${X1}" y1="${Y(p)}" y2="${Y(p)}" class="g-grid"/><text x="${X0 - 4}" y="${Y(p) + 4}" text-anchor="end" class="g-ax">${p * 100}</text>`).join("") : `<line x1="${X0}" x2="${X1}" y1="${Y(0.5)}" y2="${Y(0.5)}" class="g-grid"/>`;
+    const grid = axis ? [0, 0.5, 1].map((p) => `<line x1="${X0}" x2="${X1}" y1="${Y(p)}" y2="${Y(p)}" class="g-grid"/><text x="${X0 - 4}" y="${Y(p) + 4}" text-anchor="end" class="g-ax">${p * 100}%</text>`).join("") : `<line x1="${X0}" x2="${X1}" y1="${Y(0.5)}" y2="${Y(0.5)}" class="g-grid"/>`;
     const dots = ds.map((d, k) => `<circle cx="${X(k).toFixed(1)}" cy="${Y(d.win).toFixed(1)}" r="${["best", "great", "good", "triv"].includes(d.cls) ? 2.4 : 4}" class="gd c-${d.cls}"/>`).join("");
     const curL = cur >= 0 && ds[cur] ? `<line x1="${X(cur)}" x2="${X(cur)}" y1="${top - 2}" y2="${h - (axis ? 12 : 2)}" class="g-sel"/><circle cx="${X(cur)}" cy="${Y(ds[cur].win)}" r="6" class="g-cur"/>` : "";
     const hit = ds.map((d, k) => `<rect data-rvj="${d.i}" x="${(X(k) - (X1 - X0) / Math.max(1, n) / 2).toFixed(1)}" y="0" width="${((X1 - X0) / Math.max(1, n)).toFixed(1)}" height="${h}" fill="transparent"/>`).join("");
@@ -1333,8 +1333,8 @@ export const ReviewGameMixin = {
   _rvMovesCard(ds, you, nm) {
     let f = "mistakes"; try { f = localStorage.getItem("colonist_review_moves") === "all" ? "all" : "mistakes"; } catch (_) { /* private mode */ }
     const bad = new Set(IMP), list = f === "all" ? ds : ds.filter((d) => bad.has(d.cls));
-    const sg = (v) => sgn(v * 100), tw = this._rvTW();
-    const rows = list.map((d) => `<button type="button" class="mv-r c-${d.cls}" data-rvj="${d.i}" data-rvq="all"><span class="mv-t">${d.k === "setup" ? "Set-up" : `${tw} ${d.t}`}</span><span class="mv-m"><b class="mv-v">${badge(d.cls, "sm")}${d.cls === "missed" ? "Missed" : CLS[d.cls][0]}</b><span class="mv-w">${esc(this._rvShort(d))}</span></span><em class="mv-c${d.cls === "close" ? " neu" : ""}">${d.gap >= 0.01 ? `${sg(-d.gap)}%` : ""}</em></button>`).join("");
+    const sg = (v) => sgn(v * 100), tw = this._rvTW(), maxGap = Math.max(0.01, ...list.map((d) => d.gap || 0)); // v1.87: a bar per move, its length the win chance given up
+    const rows = list.map((d) => `<button type="button" class="mv-r c-${d.cls}" data-rvj="${d.i}" data-rvq="all"><span class="mv-t">${d.k === "setup" ? "Set-up" : `${tw} ${d.t}`}</span><span class="mv-m"><b class="mv-v">${badge(d.cls, "sm")}${d.cls === "missed" ? "Missed" : CLS[d.cls][0]}</b><span class="mv-w">${esc(this._rvShort(d))}</span></span><em class="mv-c${d.cls === "close" ? " neu" : ""}">${d.gap >= 0.01 ? `${sg(-d.gap)}%<i class="mv-bar2" style="--w:${Math.max(8, Math.round((d.gap / maxGap) * 100))}%" aria-hidden="true"></i>` : ""}</em></button>`).join("");
     const seg = [["mistakes", "Mistakes"], ["all", "All"]].map(([k, l]) => `<button type="button" class="${k === f ? "on" : ""}" aria-pressed="${k === f}" data-rvmf="${k}">${l}</button>`).join("");
     return `<section class="rv-card mv-card"><div class="rv-gt"><b>${you ? "Your" : `${nm}’s`} moves</b><div class="km-seg mv-seg" role="group" aria-label="Which moves">${seg}</div></div>${rows || `<p class="rs-lost">No mistakes in ${you ? "your" : "their"} moves. Switch to All to see every move.</p>`}</section>`;
   },

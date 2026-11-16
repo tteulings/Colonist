@@ -170,7 +170,7 @@ export function installSprite(T) {
 // ── tiny markup helpers shared by the DOM UI ─────────────────────────────
 export const icon = (n, cls = "") => `<svg class="ic ${cls}" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-${n}" x="-50" y="-50" width="100" height="100"/></svg>`;
 /** v0.75 player chip stat for knights played / road length, only once it means something (knights > 0, a road
- *  of 3+) or for the holder of the award (Largest Army / Longest Road): then the number sits on a gold pill with
+ *  of 3+) or for the holder of the award (Largest army / Longest road): then the number sits on a gold pill with
  *  "+2" — gold is never a seat colour. Returns "" when there is nothing to show (keeps the chips calm). */
 export function awardStat(stat, n, held, title, ic) {
   if (!held && n < (stat === "road" ? 3 : 1)) return "";
