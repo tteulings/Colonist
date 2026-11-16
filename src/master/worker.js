@@ -12,7 +12,7 @@
 //   → { type: "evaluate", id, base, rec, opts }                 (v1.03 Game review: one decision, Monte Carlo)
 //   ← { type: "evaluate", id, result }
 //   → { type: "sprep" | "srun" | "send", sid, ... }               (eng-130 Grandmaster: a share of one parallel search, src/master/parallel.js)
-//   → { type: "luck", id, base, ev, opts }                      (v1.31 luck in win chance: one chance event, src/review/luck-mc.js)
+//   → { type: "luck", id, base, ev, opts }                      (v1.31 luck in win chance: one chance event, src/review/luck-mc.js; v1.90 ev.kind "pos": one position of the step ledger, step-mc.js)
 //   ← { type: "luck", id, result }
 //   → { type: "live", op: "start" | "pause" | "resume" | "stop", job, ... }   (v1.60 the live win-chance bar keeps refining: futures in batches)
 //   ← { type: "live", job, n, p }                                 (running average of the seats' win chances after n futures)
@@ -24,6 +24,7 @@ const { detectMissed } = await import("../review/detect.js");
 const { loadPosition, loadRecord } = await import("../review/engine.js");
 const { evaluateRecord } = await import("../review/evaluate.js");
 const { luckEvent } = await import("../review/luck-mc.js");
+const { posValue } = await import("../review/step-mc.js");
 const { snapshot, restore, rollout, withoutAgents, mulberry32 } = await import("./sim.js");
 const { gbmProbs } = await import("./leaf-gbm.js");
 const g = prepareEngine(self.__colonistGame);
@@ -148,7 +149,7 @@ self.onmessage = (e) => {
     else if (m.type === "send") { sessions.delete(m.sid); if (loadedSid === m.sid) loadedSid = null; if (m.id != null) self.postMessage({ type: "send", id: m.id }); }
     else if (m.type === "game") { loadedSid = null; self.postMessage({ type: "game", id: m.id, ...playGame(m) }); }
     else if (m.type === "detect") { loadedSid = null; self.postMessage({ type: "detect", id: m.id, ...detect(m) }); }
-    else if (m.type === "luck") { loadedSid = null; self.postMessage({ type: "luck", id: m.id, result: luckEvent(g, m.base, m.ev, m.opts || {}) }); }
+    else if (m.type === "luck") { loadedSid = null; self.postMessage({ type: "luck", id: m.id, result: m.ev?.kind === "pos" ? posValue(g, m.base, m.ev, m.opts || {}) : luckEvent(g, m.base, m.ev, m.opts || {}) }); } // v1.90 kind "pos": one ledger position (src/review/step-mc.js)
     else if (m.type === "evaluate") { loadedSid = null; self.postMessage({ type: "evaluate", id: m.id, result: evaluateRecord(g, m.rec, (rec) => loadRecord(g, m.base, rec), m.opts || {}) }); }
   } catch (err) {
     self.postMessage({ type: "error", id: m.id, message: String(err && err.stack || err) });

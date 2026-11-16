@@ -820,7 +820,7 @@ export const ReviewAiMixin = {
     if (!this._pgLegacy()) { const R = this._rv, pid = this._rvPid, lang = recapLang(); if (R && (!R.ai || R.ai.pid !== pid || R.ai.lang !== lang)) R.ai = { pid, lang, at: Date.now(), insights: null, answers: (R.ai?.answers || []).filter((a) => a.pinned) }; } // v1.83 the page has no saved insights; the chat keeps its answers here
     const U = this._aiUi?.pid === this._rvPid ? this._aiUi : null; // (the insights are asked for on opening the tab, once; an error waits for "Try again")
     if (this._pgLegacy() && !this._aiSaved() && !U?.loading && !U?.err) setTimeout(() => { if (this._rvTab === "ai" && !this._aiSaved()) this._aiRun(false); }, 0);
-    if (!this._pgLegacy()) setTimeout(() => { if (this._rvTab === "ai" && this._rvStep == null) this._pgKick?.(); }, 120); // the recipes page is drawn; the composed page follows in the background
+    if (!this._pgLegacy()) setTimeout(() => { if (this._rvTab === "ai" && this._rvStep == null) { this._pgKick?.(); this._ldKick?.(); } }, 120); // v1.90 + the ledger's refinement of the shown steps and the progress credit (worker, background) // the recipes page is drawn; the composed page follows in the background
     return { html: `<div class="ai" data-aibody>${this._aiBodyHtml()}</div>`, foot: `<div data-aiask>${this._aiAskHtml()}</div>`, bind: (el) => this._aiBind(el) };
   },
   /** The chat under the insight cards, oldest first: the open answer in full (the newest by default), the others one line (tap to open). A visual
@@ -1090,7 +1090,7 @@ export const ReviewAiMixin = {
     if (el) { el.scrollIntoView?.({ block: "start", behavior: "smooth" }); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
   },
   /** A question: first as a NEW composed widget drawn inline on the page (compose mode with the question); no valid widget -> the text chat answers as before. */
-  async _aiAsk(q, typed = false) { if (this._pgLegacy() || !composeEnabled()) return this._aiAskText(q, typed); return this._pgFollow(q, typed); },
+  async _aiAsk(q, typed = false) { if (!this._pgLegacy() && this._ldFollow?.(q)) return; /* v1.90 the ledger answers "why did I fall behind" / "what happened in turn N" itself */ if (this._pgLegacy() || !composeEnabled()) return this._aiAskText(q, typed); return this._pgFollow(q, typed); },
   async _pgFollow(q, typed = false) {
     const R = this._rv, pid = this._rvPid, lang = recapLang(), ai = R?.ai; if (!R || !ai || !q || this._pgFuBusy || this._aiUi?.loading === "ask") return;
     const rec = ai.page || (ai.page = { k: lang, L: false, at: 0, spec: null, fu: [] }); rec.fu = rec.fu || [];

@@ -33,7 +33,7 @@ export const ReviewAiPageMixin = {
   _pgRec() { const a = this._rv?.ai; return a && a.pid === this._rvPid && a.lang === recapLang() ? a.page || null : null; },
   /** { fx, page, src, fu } for the reviewed game, rebuilt when the review moved on (luck run, new results, a composed page arrived). src: "ai" | "recipes". */
   _pgState() {
-    const R = this._rv, L = tryv(() => this._lkState()), rec = this._pgRec(), k = `${L?.j ?? -1}|${L?.done ? 1 : 0}|${this.players.map((p) => tryv(() => this._rvOf(p.id)?.results?.length, 0)).join()}|${this._rvPid}|${recapLang()}|${rec?.at || 0}|${rec?.fu?.length || 0}`;
+    const R = this._rv, L = tryv(() => this._lkState()), rec = this._pgRec(), k = `${L?.j ?? -1}|${L?.done ? 1 : 0}|${this.players.map((p) => tryv(() => this._rvOf(p.id)?.results?.length, 0)).join()}|${this._rvPid}|${recapLang()}|${rec?.at || 0}|${rec?.fu?.length || 0}|${tryv(() => this._ldKey(), 0)}`;
     const c = this._pgMemo; if (c && c.R === R && c.k === k) return c;
     const fx = buildFacts(this, recapLang());
     let page = null, src = "recipes";
@@ -149,6 +149,7 @@ export const ReviewAiPageMixin = {
         case "compare": return this._pgCompare(b, fx, bkey);
         case "board": return this._pgBoard(b, fx, bkey);
         case "surprise": return this._pgSurprise(fx);
+        case "ledger": return this._pgLedger(b, fx);
         default: return "";
       }
     } catch (e) { console.warn("ai page block", b.p, e); return ""; }
@@ -329,6 +330,7 @@ export const ReviewAiPageMixin = {
     if (body._pgH) body.removeEventListener("click", body._pgH);
     if (body._pgK) body.removeEventListener("keydown", body._pgK);
     const h = (e) => {
+      const rd = e.target.closest?.("[data-lground]"); if (rd) { e.stopPropagation(); this._ldView?.(+rd.dataset.lground); return; } // v1.90 a row of the ledger: that round in detail
       const el = e.target.closest?.("[data-pgturn]"); if (el) { e.stopPropagation(); this._pgSheet(+el.dataset.pgturn); return; }
       const why = e.target.closest?.("[data-pgwhy]"); if (why) { e.stopPropagation(); this._aiNav(() => this._rcGoTurn(+why.dataset.pgwhy, null, true)); return; }
       const more = e.target.closest?.("[data-pgmore]"); if (more) { e.stopPropagation(); const rest = body.querySelector("[data-pgrest]"); rest.hidden = false; more.closest("[data-pgmorebox]").remove(); this._pgWire(rest); return; }
@@ -372,10 +374,11 @@ export const ReviewAiPageMixin = {
       <div class="ap-sh-h"><button type="button" class="ap-nav" data-pgprev aria-label="${esc(fx.t.prev)}"${t <= 1 ? " disabled" : ""}><svg viewBox="0 0 14 14"><path d="M9 2L4 7l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><b>${fx.t.Turn} ${t}</b><button type="button" class="ap-nav" data-pgnext aria-label="${esc(fx.t.next)}"${t >= fx.T ? " disabled" : ""}><svg viewBox="0 0 14 14"><path d="M5 2l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
       <div class="ap-sh-l">${lines.length ? lines.map((l) => `<p>${l}</p>`).join("") : `<p class="mut">${esc(fx.t.nothing)}</p>`}</div>
       ${rows.length ? `<div class="ap-sh-k">${esc(fx.t.wcIn)}</div>${rows.map(({ q, c }) => `<div class="ap-sh-r pc-${q}"><span class="n"><i></i><span>${esc(fx.nameOf(q))}</span></span><span class="tr"><i style="width:${Math.max(1, c.to)}%"></i></span><span class="ft">${c.from}% → <b>${c.to}%</b> <em class="${c.d > 0 ? "up" : c.d < 0 ? "dn" : ""}">${sg(c.d)}%</em></span></div>`).join("")}` : ""}
-      <div class="ap-sh-a">${widgets.map((w) => `<button type="button" class="ap-btn" data-pgopen="${esc(w.id)}">${esc(fx.t.open(w.short))}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M5 2l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`).join("")}<button type="button" class="ap-btn" data-pgturnview>${esc(fx.t.board)}</button><button type="button" class="ap-btn ap-close" data-pgclose>${esc(fx.t.close)}</button></div></div>`;
+      <div class="ap-sh-a">${widgets.map((w) => `<button type="button" class="ap-btn" data-pgopen="${esc(w.id)}">${esc(fx.t.open(w.short))}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M5 2l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`).join("")}${fx.lg && tryv(() => fx.lg.view(t)) ? `<button type="button" class="ap-btn" data-lgopen>${esc(fx.t.lg.steps)}</button>` : ""}<button type="button" class="ap-btn" data-pgturnview>${esc(fx.t.board)}</button><button type="button" class="ap-btn ap-close" data-pgclose>${esc(fx.t.close)}</button></div></div>`;
     const go = (d) => this._pgSheet(t + d, true);
     sh.querySelector("[data-pgprev]").onclick = () => go(-1); sh.querySelector("[data-pgnext]").onclick = () => go(1);
     sh.querySelector("[data-pgclose]").onclick = () => this._pgClose();
+    sh.querySelector("[data-lgopen]")?.addEventListener("click", () => { this._pgClose(); this._ldView?.(t); }); // v1.90 the sheet's way into the round view (the step ledger)
     sh.querySelector("[data-pgturnview]").onclick = () => { this._pgClose(); this._aiNav(() => this._rcGoTurn(t, null, false)); };
     sh.querySelectorAll("[data-pgopen]").forEach((b) => { b.onclick = () => { const id = b.dataset.pgopen, body = this._rvEl.querySelector("[data-aibody]"); this._pgClose(); this._pgRevealCard(body, id); }; });
     sh.querySelector(".ap-sheet").onkeydown = (e) => { if (e.key === "Escape") this._pgClose(); };

@@ -37,6 +37,8 @@ export function composeIndex(fx) {
       decisive: fx.decisive ? { player: fx.decisive.key, turn: fx.decisive.t, from: fx.decisive.from, to: fx.decisive.to } : null,
       shape: fx.shape ? { id: fx.shape.id, winnerLedFromTurn: fx.shape.tLead, biggestStepTurn: fx.shape.step.t } : null, // v1.87 how the game went (ai-shape.js)
       suddenWhy: fx.surprise ? { kind: fx.surprise.kind, sentence: tryv(() => fx.surpriseFact()?.sentence, null) } : null },   // v1.86.2 why the decisive swing was so sudden (the app's classification; refs sx.*)
+    // v1.90 the step ledger (src/review/ai-ledger.js): the rounds that decided the game with their steps (what moved the win chance, in whole points, with the margin), and the round where the reviewer fell furthest
+    ledger: fx.ledger ? { rows: fx.ledger.rows, top: fx.ledger.top.slice(0, 4) } : null, behind: fx.behind || null,
     decisions: (fx.decs || []).slice(0, 5).map((d) => ({ turn: d.turn, verdict: d.vc, board: !!d.pos })),   // compare / board bind to these turns only
     board: bd ? { hexes: bd.hexes.map((h) => `${h.id}:${h.res}${h.num ? " " + h.num : ""}`).join(", "), robberMoves: rob.map((m) => ({ turn: m.turn, by: keys[m.seat], hex: m.hex })) } : null,   // board blocks: dec (above), turn 0 + players (set-up), turn + show robber (a turn above), turn + players (network), hexes (ids above)
     strategy: keys.map((k, q) => ({ key: k, hasPlan: !!fx.strat[q]?.verdict, planStalled: !!fx.strat[q]?.idleN, pointsLog: !!fx.strat[q]?.srcTotal, startFeeds: !!fx.strat[q]?.feeds })),

@@ -57,9 +57,12 @@ export function shapeTitle(fx, sh, P, R) {
   const how = sh.mostly ? (nl ? [", vooral op ", t(sh.step.t)] : [", mostly on ", t(sh.step.t)]) : (nl ? [" stap voor stap"] : [" step by step"]);
   const howNl = sh.mostly ? ["liep uit, vooral op ", t(sh.step.t)] : ["liep stap voor stap uit"];
   switch (sh.id) {
-    case "knockout": return nl
-      ? [P(Y), " viel op ", t(sh.tOut), " uit en kwam niet boven ", R(`wc.${Y}@${sh.tCeil}`), "; ", P(W), " stond voor vanaf ", t(sh.tLead ?? sh.tOut), " en ", ...howNl, "."]
-      : [P(Y), " fell out on ", t(sh.tOut), " and never got above ", R(`wc.${Y}@${sh.tCeil}`), "; ", P(W), " led from ", t(sh.tLead ?? sh.tOut), " and pulled away", ...how, "."];
+    case "knockout": { // v1.90 "Your win chance slid on turn 3 from 31% to 12%, mostly on the dice, and never got back above 16%": the fall itself, its cause when the ledger proves one, then the winner (never "fell out")
+      const lead = fx.t.r.wcLead(you, P(Y)), cz = fx.lgCause?.(sh.tOut), why = cz ? [fx.t.r.lgCause[cz]] : [], a = Math.max(0, sh.tOut - 1);
+      return nl
+        ? [...lead, "zakte in ", t(sh.tOut), " van ", R(`wc.${Y}@${a}`), " naar ", R(`wc.${Y}@${sh.tOut}`), ...why, " en kwam daarna niet meer boven ", R(`wc.${Y}@${sh.tCeil}`), "; ", P(W), " stond voor vanaf ", t(sh.tLead ?? sh.tOut), " en ", ...howNl, "."]
+        : [...lead, "slid on ", t(sh.tOut), " from ", R(`wc.${Y}@${a}`), " to ", R(`wc.${Y}@${sh.tOut}`), ...why, " and never got back above ", R(`wc.${Y}@${sh.tCeil}`), "; ", P(W), " led from ", t(sh.tLead ?? sh.tOut), " and pulled away", ...how, "."];
+    }
     case "pullaway": return nl
       ? [P(W), " stond voor vanaf ", t(sh.tLead), " en ", ...howNl, "; ", you ? "jouw" : "zijn", " beste winkans was ", R(`wc.${Y}@${sh.tBest}`), " op ", t(sh.tBest), "."]
       : [P(W), " led from ", t(sh.tLead), " and pulled away", ...how, "; ", you ? "your" : "their", " best win chance was ", R(`wc.${Y}@${sh.tBest}`), " on ", t(sh.tBest), "."];

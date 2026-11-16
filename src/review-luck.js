@@ -9,6 +9,7 @@
 import { reviewRequest, reviewAvailable, reviewLaneCount, SEA_LEAF } from "./master.js";
 import { REVIEW, decide, totals } from "./review/evaluate.js";
 import { luckEvents, LUCK_MC } from "./review/luck-mc.js";
+import { posEvents } from "./review/ledger.js";
 
 /** Version of the numbers: results of another version or budget are computed again. */
 /** v1.31 time limit: when the run would take longer than LITE_AFTER_S (measured over its first events, late events cost ~1.5x the
@@ -20,7 +21,7 @@ import { luckEvents, LUCK_MC } from "./review/luck-mc.js";
 export const LUCK_BOOST = null; // v1.42 the 7 turns are the fixed budget now (LUCK_MC.depth)
 export const LITE = { futures: 15, maxFutures: 45 }, LITE_AFTER_S = Infinity; // v1.42 no switch on time any more (the user's rule: a fixed budget); kept for saved runs that used it
 export const LUCK_ID = `v2c-f${LUCK_MC.futures}-${LUCK_MC.maxFutures}e${LUCK_MC.seMax}d${LUCK_MC.depth}s${LUCK_MC.seed}`;
-const keyOf = (ev) => `${ev.kind}:${ev.s}:${ev.e}`;
+const keyOf = (ev) => (ev.kind === "pos" ? `pos:${ev.i}` : `${ev.kind}:${ev.s}:${ev.e}`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hiddenTab = () => typeof document !== "undefined" && (document.hidden || document.visibilityState === "hidden");
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -41,6 +42,7 @@ export const luckKey = keyOf;
  *  accounting start → end = luck + the rest; a seat event: v, every seat's win chance from the empty board. */
 export function luckRecord(ev, x) {
   const r4 = (v) => Math.round(v * 1e4) / 1e4;
+  if (ev.kind === "pos") return x && x.w && x.v ? { k: "pos", F: x.F, v: x.v, w: x.w } : { k: "pos", skip: "error" }; // v1.90 a ledger position (src/review/ledger.js)
   if (ev.kind === "seat") return x && !x.skip && x.v ? { k: "seat", s: 0, e: ev.e, v: x.v, se: x.se } : { k: "seat", s: 0, e: ev.e, skip: x?.skip || "error" };
   return x && !x.skip && x.luck ? { k: ev.kind, s: ev.s, e: ev.e, l: x.luck, se: x.se, ...(x.cs ? { cs: x.cs, bt: x.bt, ox: x.ox } : {}), b: x.b || x.luck.map((_, q) => r4(x.groups.reduce((a, gr) => a + gr.p * (gr.v?.[q] ?? 0), 0))), F: x.F, g: x.groups.length } : { k: ev.kind, s: ev.s, e: ev.e, skip: x?.skip || "error" };
 }
@@ -95,7 +97,18 @@ export const ReviewLuckMixin = {
     if (!R || R.lrun || R.noLuck || !reviewAvailable() || this._lkNa()) return false; // (noLuck: the AI Lab's review of its own games)
     const L = this._lkStore();
     if (L.stopped) return false;
-    return this._lkEvents().some((ev) => !L.res[keyOf(ev)]);
+    return this._lkEvents().some((ev) => !L.res[keyOf(ev)]) || this._ldEvents().some((ev) => !L.res[keyOf(ev)]);
+  },
+  /** v1.90 the step ledger's positions of this game (one per distinct recorded position; none for a game without a winner). */
+  _ldEvents() {
+    const R = this._rv;
+    if (!R?.recs?.length || !this.winner) return [];
+    try { if (localStorage.getItem("colonist_ledger") === "0") return []; } catch (_) { /* no storage: on */ } // (a switch for measuring and for a bad day: colonist_ledger = 0 skips the step ledger)
+    if (R._ldEv && R._ldEv.n === R.recs.length) return R._ldEv.list;
+    let list = [];
+    try { list = posEvents(R.recs); } catch (e) { console.warn("ledger events", e); list = []; }
+    Object.defineProperty(R, "_ldEv", { value: { n: R.recs.length, list }, configurable: true, writable: true, enumerable: false });
+    return list;
   },
   /** Run the events without a result, one at a time in the review's worker. */
   _lkRun() {
@@ -107,7 +120,7 @@ export const ReviewLuckMixin = {
     R.lrun = run;
     const live = () => this._rv === R && R.id === id && !run.stop;
     run.promise = (async () => {
-      const todo = this._lkEvents().filter((ev) => !L.res[keyOf(ev)]);
+      const todo = [...this._lkEvents(), ...this._ldEvents()].filter((ev) => !L.res[keyOf(ev)]); // v1.90 the luck events first, then the ledger's positions
       this._rvTick?.();
       // v1.40 the events on several review lanes at once (src/master.js reviewLaneCount); each event is computed on its own (own seeds),
       // so the results are the same as one after the other. run.times: the time between two finished events.
@@ -119,7 +132,7 @@ export const ReviewLuckMixin = {
         if (run.paused) { run.paused = false; this._rvTick?.(); }
         if (!live() || next >= todo.length) break;
         const ev = todo[next++];
-        const { i, ...plain } = ev; // the record goes along whole (its position)
+        const { i, ...plain } = ev; // the record goes along whole (its position); (a ledger position: its record is the position itself)
         const m = await reviewRequest({ type: "luck", base: R.base, ev: plain, opts: { leaf: this.sea ? SEA_LEAF : REVIEW.budget.leaf || "gbm", ...this._lkBudget(lanes) } }, 120000, w);
         if (!live() && this._rv !== R) break;
         const x = m?.result;
@@ -136,7 +149,7 @@ export const ReviewLuckMixin = {
       run.grow = () => { run.grow = null; if (live()) for (let w = nl; w < lanes; w += 1) loops.push(lane(w)); };
       while (loops.length) { const l = loops.splice(0); await Promise.all(l); }
       run.grow = null;
-      if (this._rv === R) { R.lrun = null; R.share = false; R.lkEnd?.(); if (this._lkEvents().every((ev) => L.res[keyOf(ev)])) Object.assign(L, this._raStamp?.() || {}); this._rvSave?.(); this._rvTick?.(); }
+      if (this._rv === R) { R.lrun = null; R.share = false; R.lkEnd?.(); if (this._lkEvents().every((ev) => L.res[keyOf(ev)])) Object.assign(L, this._raStamp?.() || {}); this._rvSave?.(); this._rvTick?.(); this._ldAfterRun?.(); }
     })();
     return run.promise;
   },

@@ -9,7 +9,8 @@ import { decMoves } from "./ai-blocks.js";
 import { stratOf, handLog, finalScore, R5 } from "./ai-strat.js";
 import { luckKey, ownOf } from "../review-luck.js";
 import { swingCause } from "./ai-cause.js";
-import { gameShape } from "./ai-shape.js";
+import { gameShape, shapeChart } from "./ai-shape.js";
+import { ledgerFacts } from "./ai-ledger.js";
 import { aiSurprise, surpriseFact } from "./ai-surprise.js";
 import { langOf, moveLabel } from "./ai-lang.js";
 import { recapLang } from "../review-recap.js";
@@ -20,7 +21,7 @@ export const LUCK_DOMINANT = 8; // win chance points: a player's luck from chanc
 
 /** All facts of the game the reviewed player is looking at. */
 export function buildFacts(g, lang = recapLang()) {
-  const t_ = langOf(lang), n = g.players.length, me = g._rvPid, ser = tryv(() => aiSeries(g), { by: new Map(), maxT: 0 }), log = tryv(() => handLog(g));
+  const t_ = langOf(lang), n = g.players.length, me = g._rvPid, led = tryv(() => g._ldReady?.()), ser = (led && tryv(() => led.series())) || tryv(() => aiSeries(g), { by: new Map(), maxT: 0 }), log = tryv(() => handLog(g)); // v1.90 the game card reads the STEP LEDGER's series when it is complete (one source for the chart, the headline and the ledger numbers); the Win chance tab keeps its own
   const T = Math.max(ser.maxT || 0, g.turn || 0, log?.T || 0);
   const nameOf = (q) => (g._rvIsYou(q) ? t_.you : String(g.players[q]?.name || `Player ${q + 1}`).replace(/<[^>]+>/g, ""));
   const keys = [], used = new Set();
@@ -55,6 +56,12 @@ export function buildFacts(g, lang = recapLang()) {
   // why the decisive swing was so sudden (ai-surprise.js): one fact for the game card, the chat and the composer (refs sx.<field>)
   fx.surprise = tryv(() => (fx.decisive ? aiSurprise(g, ser, fx.decisive, log) : null));
   fx.surpriseFact = () => (fx.surprise ? surpriseFact(fx.surprise, nameOf, fx.lang) : null);
+  // v1.90 the step ledger as facts (src/review/ai-ledger.js): the rows of the card, the biggest rounds with their steps, why the reviewed player fell behind; null while the positions are not all valued
+  fx.lg = tryv(() => { if (!led || ser.src !== "ledger") return null; const mk = fx.shape && fx.shape.id !== "seesaw" ? shapeChart(fx, fx.shape, keys[me], fx.winner != null ? keys[fx.winner] : keys[me]).marks || [] : fx.decisive ? [fx.decisive.t] : []; return g._ldModel(fx, mk, fx.surprise); });
+  fx.ledger = tryv(() => (fx.lg ? ledgerFacts(fx.lg, fx) : null));
+  fx.behind = tryv(() => (fx.lg ? fx.lg.behind() : null));
+  /** What a round's win chance moved on (for the headline): "dice" | "card" | null when no single cause is proven. */
+  fx.lgCause = (t) => tryv(() => { const v = fx.lg?.view(t); if (!v || !v.tot) return null; const sh = (x) => (Math.sign(x) === Math.sign(v.tot) ? Math.abs(x) / Math.abs(v.tot) : 0); if (sh(v.chance) < 0.6) return null; const dev = v.steps.some((s) => s.type === "dev" && s.chance && Math.abs(s.d[me]) >= 0.5 * Math.abs(v.d[me])); return dev ? "card" : v.steps.some((s) => s.type === "roll") ? "dice" : null; });
   // the reviewed player's decisions that cost win chance, biggest first
   fx.decs = tryv(() => aiDecList(g).filter((e) => e.seat === me && e.x?.best && e.gap >= 0.005 && e.turn >= 1).map((e) => {
     const mv = tryv(() => decMoves(e, lang)); if (!mv?.best || mv.played?.win == null || mv.best.win == null) return null;

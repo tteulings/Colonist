@@ -4,6 +4,7 @@ Used by `src/i18n-nl-*.js` and the AI tab (`src/review/ai-lang.js`). `tests/i18n
 
 | Concept | Dutch | Never |
 |---|---|---|
+| settlement | dorp (the AI tab's "dorpsplek" for a spot) | nederzetting |
 | robber / pirate | rover / piraat | Struikrover |
 | Longest road | Langste handelsroute | Langste weg |
 | Largest army | Grootste riddermacht | Grootste leger |

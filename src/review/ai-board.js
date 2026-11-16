@@ -14,7 +14,7 @@
 //     turn | step + upto | d                      the moment: end of turn `turn`; or the board just before the move of aiDecList entry `d.d` (rec.s / rec.e)
 //     zoom:   "auto" | "full"
 //   }
-//   opts  = { width: 330, state?: { nodes:[[owner,structure]], edges:[[owner,ship]], robber, pirate }, accent: css colour of "better", legend: true|false, label: aria }
+//   opts  = { nameOf(seat) -> the legend's name (v1.90: "Jij" / "You"), width: 330, state?: { nodes:[[owner,structure]], edges:[[owner,ship]], robber, pirate }, accent: css colour of "better", legend: true|false, label: aria }
 //   boardStateAt(g, { step, upto }) / stateOfSpec(g, spec) are exported for the caller and the tests.
 
 import { langOf } from "./ai-lang.js";
@@ -74,7 +74,7 @@ export function renderBoardPrimitive(spec = {}, g, opts = {}) {
   const BD = langOf(opts.lang).bd, TX = (r) => (r === "focus" ? "" : BD[r] || ""), RN = (r) => BD.res[r] || RES_NAME[r];
   const W = Math.max(200, Math.round(opts.width || 330)), hs = geo.hexSize, acc = opts.accent || "var(--primary,#2a6fdb)";
   const S = opts.state || stateOfSpec(g, spec) || { nodes: geo.nodes.map((n) => [n.owner ?? null, n.structure ?? null]), edges: geo.edges.map((e) => [e.owner ?? null, !!e.ship]), robber: g.robberHexId ?? null, pirate: g.sea?.pirateHexId ?? null };
-  const players = g.players || [], col = (q) => players[q]?.color || "#777", pname = (q) => players[q]?.name || players[q]?.short || `P${q + 1}`;
+  const players = g.players || [], col = (q) => players[q]?.color || "#777", pname = (q) => (typeof opts.nameOf === "function" ? opts.nameOf(q) : null) || players[q]?.name || players[q]?.short || `P${q + 1}`; // v1.90 opts.nameOf: the page's own name ("Jij" / "You") in the legend
   const marks = (spec.marks || []).map((m) => ({ ...m, role: ROLE[m.role] ? m.role : "focus", p: spot(geo, m.at ?? m) })).filter((m) => m.p).slice(0, 8);
   const sp = (s) => spot(geo, s === "robber" ? (S.robber != null ? { hex: S.robber } : null) : s === "pirate" ? (S.pirate != null ? { hex: S.pirate } : null) : s); // "robber" / "pirate": where it stands at that moment
   const arrows = (spec.arrows || []).map((a) => ({ ...a, A: sp(a.from), B: sp(a.to) })).filter((a) => a.A && a.B && (a.A.kind !== a.B.kind || a.A.id !== a.B.id)).slice(0, 4);
