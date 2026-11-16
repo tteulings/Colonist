@@ -16,13 +16,15 @@
 // off while `_histView` is set), the end screen (Stats) or the Replay or the Game review opens on it, and
 // "Past games" in the top-left puts your running game back (it stays in localStorage untouched).
 // Styles: themes/history.css.
+import { oicon } from "./ui-icons.js";
 import { icon, avatarSvg } from "./themes/manager.js";
 import { BOT_PROFILES, profileMini } from "./bot-profiles.js";
 import { profileOf } from "./bot-profile-ui.js";
 import { summarize, clsOf, ACC, REVIEW as RVCFG, FMT, rescoreReview, reviewStatus } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
 import { packRecs, unpackRecs } from "./review/pack.js";
-import { Names } from "./names.js";
+import { Names, dispName } from "./names.js";
+import { recapLang } from "./review-recap.js";
 
 const DB_NAME = "colonist_history";
 export const LIMITS = { games: 50, bytes: 10 * 1024 * 1024, nearFull: 0.8 };
@@ -49,6 +51,8 @@ async function unpack(b) {
   return JSON.parse(b.data);
 }
 
+/** v1.87 the result tag of a past game is a word, not a letter: Won / Lost (Gewonnen / Verloren), Table for a pass & play game. */
+const resultWord = (r) => { const nl = recapLang() === "nl"; return r === "won" ? (nl ? "Gewonnen" : "Won") : r === "lost" ? (nl ? "Verloren" : "Lost") : (nl ? "Tafel" : "Table"); };
 export class HistoryStore {
   constructor(name = DB_NAME, limits = LIMITS) { this.name = name; this.lim = limits; this.db = null; this.mem = new Map(); this.mode = "idb"; this.metas = []; this.ready = null; this.full = false; this.pruned = 0; this.budget = limits.bytes; this.onChange = null; }
 
@@ -437,8 +441,12 @@ export const HistoryMixin = {
       accHtml = `<div class="pg-t"><b>${Math.round(avg(last.map((m) => m.acc)))}${prev.length ? trend(avg(last.map((m) => m.acc)) - avg(prev.map((m) => m.acc))) : ""}</b><small>Accuracy · last ${last.length}</small></div>`;
     }
     if (pts.length >= 2) {
-      const v = pts.slice(-12).map((m) => m.acc), lo = Math.min(...v, 70), hi = Math.max(...v, 90), W = 300, H = 54, X = (i) => 6 + (i / (v.length - 1)) * (W - 12), Y = (a) => 6 + (1 - (a - lo) / (hi - lo)) * (H - 14);
-      spark = `<svg class="pg-spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="Accuracy of your last ${v.length} reviewed games: ${v.join(", ")}"><path d="${v.map((a, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(a).toFixed(1)}`).join("")}" class="pg-line"/>${v.map((a, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(a).toFixed(1)}" r="${i === v.length - 1 ? 4 : 2.6}" class="pg-dot"/>`).join("")}<text x="${W - 6}" y="${H - 1}" text-anchor="end" class="pg-ax">${v[v.length - 1]}</text></svg>`;
+      // v1.88: a small chart in the app's chart style (the Win chance tab): % axis with grid lines, "oldest / latest" under the ends, the last value beside its dot
+      const v = pts.slice(-12).map((m) => m.acc), lo = Math.floor(Math.min(...v, 70) / 10) * 10, hi = Math.min(100, Math.ceil(Math.max(...v, 90) / 10) * 10), W = 318, H = 112, X0 = 30, X1 = W - 10, T = 14, B = H - 18;
+      const X = (i) => X0 + 6 + (i / (v.length - 1)) * (X1 - X0 - 12), Y = (a) => T + (1 - (a - lo) / (hi - lo)) * (B - T), mid = Math.round((lo + hi) / 2);
+      const grid = [lo, mid, hi].map((t) => `<line x1="${X0}" x2="${X1}" y1="${Y(t).toFixed(1)}" y2="${Y(t).toFixed(1)}" class="pg-grid"/><text x="${X0 - 5}" y="${(Y(t) + 3.5).toFixed(1)}" text-anchor="end" class="pg-ax">${t}</text>`).join("");
+      const lx = X(v.length - 1), ly = Y(v[v.length - 1]);
+      spark = `<p class="pg-cap">Accuracy <small>last ${v.length} reviewed games</small></p><svg class="pg-spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="Accuracy of your last ${v.length} reviewed games, oldest first: ${v.join(", ")}">${grid}<path d="${v.map((a, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(a).toFixed(1)}`).join("")}" class="pg-line"/>${v.map((a, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(a).toFixed(1)}" r="${i === v.length - 1 ? 4.2 : 2.8}" class="pg-dot"/>`).join("")}<text x="${lx.toFixed(1)}" y="${(ly - 9).toFixed(1)}" text-anchor="end" class="pg-val">${v[v.length - 1]}</text><text x="${X0}" y="${H - 3}" class="pg-ax">oldest</text><text x="${X1}" y="${H - 3}" text-anchor="end" class="pg-ax">latest</text></svg>`;
     }
     // wins
     const won = fin.filter((m) => m.result === "won").length, l10 = fin.slice(-10);
@@ -451,8 +459,9 @@ export const HistoryMixin = {
       markHtml = `<div class="pg-t"><b>${(avg(last.map(tot))).toFixed(1)}${prev.length ? trend(avg(last.map(tot)) - avg(prev.map(tot)), 1, -1) : ""}</b><small>Marked per game</small></div>`;
     }
     if (per.length >= 2) {
-      const v = per.slice(-12), mx = Math.max(4, ...v.map((p) => p.c + p.m + p.b)), bw = 300 / v.length;
-      bars = `<svg class="pg-bars" viewBox="0 0 300 50" role="img" aria-label="Marked moves per game, oldest first: ${v.map((p) => p.c + p.m + p.b).join(", ")}">${v.map((p, i) => { let y = 48; return [["b", p.b], ["m", p.m], ["c", p.c]].map(([k, n]) => { const h = (n / mx) * 44; y -= h; return h ? `<rect x="${(i * bw + 2).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" class="pg-${k}"/>` : ""; }).join(""); }).join("")}</svg><p class="pg-key"><i class="pg-c"></i>could be better <i class="pg-m"></i>mistake <i class="pg-b"></i>blunder</p>`;
+      const v = per.slice(-12), mx = Math.max(4, ...v.map((p) => p.c + p.m + p.b)), W = 318, H = 98, X0 = 30, X1 = W - 10, T = 8, B = H - 18, bw = (X1 - X0) / v.length, Yb = (n) => B - (n / mx) * (B - T);
+      const grid = (mx % 2 ? [0, mx] : [0, mx / 2, mx]).map((t) => `<line x1="${X0}" x2="${X1}" y1="${Yb(t).toFixed(1)}" y2="${Yb(t).toFixed(1)}" class="pg-grid"/><text x="${X0 - 5}" y="${(Yb(t) + 3.5).toFixed(1)}" text-anchor="end" class="pg-ax">${t}</text>`).join("");
+      bars = `<p class="pg-cap">Marked moves <small>per reviewed game</small></p><svg class="pg-bars" viewBox="0 0 ${W} ${H}" role="img" aria-label="Marked moves per game, oldest first: ${v.map((p) => p.c + p.m + p.b).join(", ")}">${grid}${v.map((p, i) => { let y = B; return [["b", p.b], ["m", p.m], ["c", p.c]].map(([k, n]) => { const h = (n / mx) * (B - T); y -= h; return h ? `<rect x="${(X0 + i * bw + 2).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" class="pg-${k}"/>` : ""; }).join(""); }).join("")}<text x="${X0}" y="${H - 3}" class="pg-ax">oldest</text><text x="${X1}" y="${H - 3}" text-anchor="end" class="pg-ax">latest</text></svg><p class="pg-key"><i class="pg-c"></i>could be better <i class="pg-m"></i>mistake <i class="pg-b"></i>blunder</p>`;
     }
     // the most frequent kind of mistake
     const mist = {}; let all2 = 0;
@@ -494,14 +503,14 @@ export const HistoryMixin = {
   },
   _histRow(m) {
     const w = m.seats[m.winner];
-    const t = m.result === "won" ? `Won with ${m.seats[m.me].vp} points` : m.result === "lost" ? `Lost to ${esc(w?.name || "a bot")}` : `${esc(w?.name || "?")} won`;
-    const badge = m.result === "won" ? ["won", "W"] : m.result === "lost" ? ["lost", "L"] : ["table", "•"];
+    const t = m.result === "won" ? `Won with ${m.seats[m.me].vp} points` : m.result === "lost" ? `Lost to ${esc(dispName(w?.name) || "a bot")}` : `${esc(dispName(w?.name) || "?")} won`;
+    const badge = [m.result === "won" ? "won" : m.result === "lost" ? "lost" : "table", resultWord(m.result)];
     const kind = m.board === "seafarers" ? "Seafarers" : m.mode === "rush" ? "Rush" : "Classic";
     return `<li><div class="hs-row" data-hrow="${m.id}" role="button" tabindex="0" aria-label="${t}, ${when(m.end)}">
       <span class="hs-badge ${badge[0]}">${badge[1]}</span>
       <div class="hs-main"><b>${t}</b><small>${when(m.end)} · ${kind}</small></div>
       <button type="button" class="hs-star${m.star ? " on" : ""}" data-hrstar="${m.id}" aria-pressed="${!!m.star}" aria-label="${m.star ? "Unstar" : "Keep with a star"}">${STAR(m.star)}</button>
-      <div class="hs-foot"><span class="hs-sc">${m.seats.map((s, i) => `<span class="${i === m.winner ? "win" : ""}" title="${esc(s.name)}">${avatarSvg(i, "hs-av")}<b>${s.vp}</b></span>`).join("")}</span><span class="hs-dur">${dur(m.ms)}</span></div>
+      <div class="hs-foot"><span class="hs-sc">${m.seats.map((s, i) => `<span class="${i === m.winner ? "win" : ""}" title="${esc(dispName(s.name))}">${avatarSvg(i, "hs-av")}<b>${s.vp}</b></span>`).join("")}</span><span class="hs-dur">${dur(m.ms)}</span></div>
       <div class="hs-foot2"><span class="hs-bots">${this._histBots(m)}</span>${m.hot && m.hn?.length ? m.hn.map((h) => this._histAcc(h, h.name)).join("") : this._histAcc(m)}</div></div></li>`;
   },
 
@@ -514,7 +523,7 @@ export const HistoryMixin = {
     sh.className = "hs-sheet tm-modal";
     sh.setAttribute("role", "dialog"); sh.setAttribute("aria-modal", "true"); sh.setAttribute("aria-label", "Game details");
     const w = m.seats[m.winner];
-    const t = m.result === "won" ? "You won" : m.result === "lost" ? `${esc(w?.name)} won` : `${esc(w?.name)} won`;
+    const t = m.result === "won" ? "You won" : m.result === "lost" ? `${esc(dispName(w?.name))} won` : `${esc(dispName(w?.name))} won`;
     const kind = m.board === "seafarers" ? "Seafarers" : m.mode === "rush" ? "Rush" : "Classic";
     const unit = m.mode === "rush" ? "rolls" : "turns";
     const why = m.me == null && !(m.hot && m.hn?.length) ? "Pass & play games can’t be reviewed" : !m.rec ? "This game has no recording to review" : !reviewAvailable() ? "This browser can’t run the review in the background" : "";
@@ -524,10 +533,10 @@ export const HistoryMixin = {
       : ["Review this game", `deep Monte Carlo checks your moves · about ${Math.max(1, Math.round(((m.rd || 20) * RVCFG.sec) / 60))} min`];
     const order = [...m.seats.keys()].sort((a, b) => (b === m.winner) - (a === m.winner) || m.seats[b].vp - m.seats[a].vp);
     sh.innerHTML = `<div class="hs-card${again ? " again" : ""}"><div class="hs-grab"></div>
-      <div class="hs-head"><span class="hs-badge big ${m.result === "won" ? "won" : m.result === "lost" ? "lost" : "table"}">${m.result === "won" ? "W" : m.result === "lost" ? "L" : "•"}</span><div><h4>${t}</h4><small>${when(m.end, true)}</small></div>
+      <div class="hs-head"><span class="hs-badge big ${m.result === "won" ? "won" : m.result === "lost" ? "lost" : "table"}">${resultWord(m.result)}</span><div><h4>${t}</h4><small>${when(m.end, true)}</small></div>
         <button type="button" class="hs-star${m.star ? " on" : ""}" data-sstar aria-pressed="${!!m.star}" aria-label="${m.star ? "Unstar" : "Keep with a star"}">${STAR(m.star)}</button>
         <button type="button" class="hs-x sm" data-sclose aria-label="Close">${icon("close")}</button></div>
-      <ol class="hs-pod">${order.map((i, k) => { const s = m.seats[i]; return `<li class="${i === m.winner ? "win" : ""}"><span class="pl">${k + 1}</span>${avatarSvg(i, "hs-av2")}<span class="nm">${esc(s.name)}${s.you ? " <em>you</em>" : ""}${s.prof ? `<span class="hs-bot">${profileMini(s.prof, 16)}${s.custom ? "Custom" : esc(BOT_PROFILES[s.prof]?.label || "")}</span>` : ""}</span><b>${s.vp}</b></li>`; }).join("")}</ol>
+      <ol class="hs-pod">${order.map((i, k) => { const s = m.seats[i]; return `<li class="${i === m.winner ? "win" : ""}"><span class="pl">${k + 1}</span>${avatarSvg(i, "hs-av2")}<span class="nm">${esc(dispName(s.name))}${s.you && s.name !== "You" ? " <em>you</em>" : ""}${s.prof ? `<span class="hs-bot">${profileMini(s.prof, 16)}${s.custom ? "Custom" : esc(BOT_PROFILES[s.prof]?.label || "")}</span>` : ""}</span><b>${s.vp}</b></li>`; }).join("")}</ol>
       <dl class="hs-facts"><div><dt>Mode</dt><dd>${kind}</dd></div><div><dt>Players</dt><dd>${m.n}</dd></div><div><dt>${m.mode === "rush" ? "Rolls" : "Turns"}</dt><dd>${m.turns}</dd></div><div><dt>Played</dt><dd>${dur(m.ms)}</dd></div>
         <div><dt>Accuracy</dt><dd>${m.acc != null ? `${m.prov ? "~" : ""}${m.acc}${m.prov ? ` <small>provisional</small>` : m.mid ? ` <small>checked during the game</small>` : ""}` : "–"}</dd></div>
         <div><dt>Marked moves</dt><dd>${m.cls ? `${(m.cls.lean || 0) + (m.cls.could || 0) + (m.cls.missed || 0)} · ${m.cls.mistake || 0} · ${m.cls.blunder || 0}<small>could be better · mistake · blunder</small>` : "–"}</dd></div></dl>
@@ -599,7 +608,7 @@ const DOWN = `<svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><path d="M1
 const TRASH = `<svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><path d="M5 7h14M9.5 7V4.5h5V7M7 7l.8 12.5h8.4L17 7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const WARN = `<svg viewBox="0 0 24 24" class="ic hs-wi" aria-hidden="true"><path d="M12 3.5 22 20H2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4.5M12 17.2v.2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`;
 const CHECK = `<svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-export const HISTORY_ICON = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9M4 4.5V8h3.5M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+export const HISTORY_ICON = oicon("history");
 
 function dur(ms) { const m = Math.max(1, Math.round(ms / 60000)); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`; }
 function kb(b) { return b < 1024 ? `${b} B` : `${(b / 1024).toFixed(b < 10240 ? 1 : 0)} KB`; }

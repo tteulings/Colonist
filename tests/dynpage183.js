@@ -11,7 +11,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
 (async () => {
   const { b, page, errors } = await openApp(port);
   const G = (f, a) => page.evaluate(f, a);
-  const calls = []; page.on("request", (r) => { if (/api\/recap/.test(r.url())) calls.push(r.url()); });
+  const calls = []; page.on("request", (r) => { if (/api\/recap/.test(r.url())) { let m = null; try { m = JSON.parse(r.postData() || "{}").mode; } catch (_) {} calls.push(m); } });
   const kinds = [];
   const WEAK = /Weak plan|Probably weak plan|Headless chicken|Zwak plan|Kip zonder kop/;
   const gather = () => page.evaluate(() => { const g = window.__colonistGame, st = g._pgState(), fx = st.fx, txt = document.querySelector("[data-aibody]")?.innerText || "", badges = [...document.querySelectorAll(".ap-badge")].map((e) => e.textContent.trim()); return { txt, badges, strat_txt: [...document.querySelectorAll(".ap-c.lv-strategy")].map((e) => e.innerText).join(" "), won: fx.won, me: fx.me, strat: fx.strat[fx.me] && { tone: fx.strat[fx.me].verdict?.tone, head: fx.strat[fx.me].headless, code: fx.strat[fx.me].verdict?.code }, allWon: fx.strat.map((x, q) => ({ q, won: x.won, head: x.headless, tone: x.verdict?.tone })) }; });
@@ -107,7 +107,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     }
   }
   ok(kinds.includes("won") && kinds.includes("lost"), "a won and a lost game rendered", kinds);
-  ok(calls.length === 0, "no model call for the whole page", calls);
+  ok(calls.every((m) => m === "compose"), "the page only ever asks the compose mode (a failed or blocked call leaves the recipes)", calls);
   // ── Dutch, then contrast in several themes (the same game, re-opened after each change) ──
   const EX0 = JSON.parse(fs.readFileSync(FILES[0], "utf8")), SHEET_NL = [];
   const reopen = async (set) => {

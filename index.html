@@ -76,7 +76,7 @@
     </script>
     <!-- v1.27: fetch the start-up modules in parallel (without these the browser only finds each import after parsing its parent: one round trip per level).
          Same URLs as the imports (game.js keeps its ?v=); a stale entry costs one extra fetch, a missing one only its head start. -->
-    <link rel="modulepreload" href="./src/game.js?v=184" />
+    <link rel="modulepreload" href="./src/game.js?v=186" />
     <link rel="modulepreload" href="./src/themes/manager.js" />
     <link rel="modulepreload" href="./src/themes/board-renderer.js" />
     <link rel="modulepreload" href="./src/themes/fx.js" />
@@ -142,6 +142,7 @@
         background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 85% 70% at 50% 46%, #6ACBC3 0%, #3CA9B0 52%, #2B8C98 100%), #3CA9B0;
         transition: opacity 240ms ease; -webkit-user-select: none; user-select: none; }
       #splash.gone { opacity: 0; }
+      #splash.gone > * { opacity: 0; transition: opacity 110ms ease; }
       #splash .sp-logo { display: block; width: 92px; height: 92px; margin: -6vh 0 14px; filter: drop-shadow(0 3px 8px rgba(0,30,60,.3)); }
       #splash .sp-name { margin: 0; font-size: 40px; font-weight: 650; line-height: 1; letter-spacing: 0; }
       #splash .sp-sub { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px auto 0; font-size: 12px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; opacity: .92; line-height: 1.2; }
@@ -225,24 +226,25 @@
     </script>
     <!-- v1.27: the stylesheets follow the splash, so the splash paints while they load (the app below still waits for them).
          Legacy styles sit in a low-priority cascade layer: the themed CSS below always wins -->
-    <style>@import url("./styles.css?v=184") layer(legacy);</style>
-    <link rel="stylesheet" href="./themes/base.css?v=184" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=184" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=184" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=184" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=184" />
-    <link rel="stylesheet" href="./themes/six.css?v=184" />
-    <link rel="stylesheet" href="./themes/seafarers.css?v=184" />
-    <link rel="stylesheet" href="./themes/hotseat.css?v=184" />
-    <link rel="stylesheet" href="./themes/stats.css?v=184" />
-    <link rel="stylesheet" href="./themes/review.css?v=184" />
-    <link rel="stylesheet" href="./themes/review-ai.css?v=184" />
-    <link rel="stylesheet" href="./themes/sunny-night.css?v=184" />
-    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=184" />
-    <link rel="stylesheet" href="./themes/profiles.css?v=184" />
-    <link rel="stylesheet" href="./themes/history.css?v=184" />
-    <link rel="stylesheet" href="./themes/lessons.css?v=184" />
-    <link rel="stylesheet" href="./themes/bots.css?v=184" />
+    <style>@import url("./styles.css?v=186") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=186" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=186" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=186" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=186" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=186" />
+    <link rel="stylesheet" href="./themes/six.css?v=186" />
+    <link rel="stylesheet" href="./themes/seafarers.css?v=186" />
+    <link rel="stylesheet" href="./themes/hotseat.css?v=186" />
+    <link rel="stylesheet" href="./themes/stats.css?v=186" />
+    <link rel="stylesheet" href="./themes/review.css?v=186" />
+    <link rel="stylesheet" href="./themes/review-ai.css?v=186" />
+    <link rel="stylesheet" href="./themes/sunny-night.css?v=186" />
+    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=186" />
+    <link rel="stylesheet" href="./themes/profiles.css?v=186" />
+    <link rel="stylesheet" href="./themes/history.css?v=186" />
+    <link rel="stylesheet" href="./themes/lessons.css?v=186" />
+    <link rel="stylesheet" href="./themes/bots.css?v=186" />
+    <link rel="stylesheet" href="./themes/coherence.css?v=186" />
     <div class="app" id="app">
       <header class="topbar" id="topbar">
         <div class="brand">
@@ -314,7 +316,7 @@
             <div class="st-h">Developer</div>
             <p class="sub">Hand your seat to a bot for a while — handy for testing or watching a game play out.</p>
             <div class="button-row">
-              <button id="nextTurnBtn" type="button" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Let bots play</button>
+              <button id="nextTurnBtn" type="button" class="btn-neutral">Let bots play</button>
               <button id="autoplayBtn" type="button" class="btn-neutral">Watch bots play</button>
             </div>
           </div>
@@ -475,7 +477,7 @@
     </div>
     <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=184"></script>
+    <script type="module" src="./src/game.js?v=186"></script>
     <script>
       // Updates: sw.js and its imports are never taken from the HTTP cache (updateViaCache), the
       // registration is re-checked whenever the app comes back to the foreground, and a new

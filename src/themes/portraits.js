@@ -13,8 +13,8 @@ const FRAME = "#C9C2B6"; // ink style: thin light frame for glasses and the mono
 export const PERSONAS = {
   rosa: { name: "Roodhart", full: "Rosa Roodhart", seat: "#D1453A", bg: "#FADBD6", emblem: "heart" },
   blaauw: { name: "Blaauw", full: "Mevrouw Blaauw van Draet", seat: "#3C75C6", bg: "#D9E5F8", emblem: "feather" },
-  geelen: { name: "Van Geelen", short: "Geelen", full: "Kolonel Van Geelen", seat: "#F08A2E", bg: "#FDE4CB", emblem: "medal" },
-  groenewoud: { name: "Groenewoud", short: "Groen", full: "Dominee Groenewoud", seat: "#2A8556", bg: "#D8F0E2", emblem: "clover" },
+  geelen: { name: "Geelen", short: "Geelen", full: "Kolonel Van Geelen", seat: "#F08A2E", bg: "#FDE4CB", emblem: "medal" },
+  groenewoud: { name: "Groen", short: "Groen", full: "Dominee Groenewoud", seat: "#2A8556", bg: "#D8F0E2", emblem: "clover" },
   dewit: { name: "De Wit", full: "Mevrouw De Wit", seat: "#EFE7D4", bg: "#DCD3C1", emblem: "star", dark: true },
   pimpel: { name: "Pimpel", full: "Professor Pimpel", seat: "#5A2C88", bg: "#E8DEF3", emblem: "diamond" },
 };
@@ -72,7 +72,7 @@ const SHAPES = {
   },
   blaauw: {
     back: "M-7,-35 a11,10 0 1 1 15,-3 Z",
-    bun: [3, -38, 10.5],
+    bun: [3, -35.5, 10],
     front: "M-20,-2 Q-23,-31 0,-31 Q23,-31 20,-2 Q18,-20 6,-23 Q-2,-18 -14,-19 Q-18,-14 -20,-2Z",
     hair: "#221B20", hair2: "#0F0B0E",
     earrings: true,

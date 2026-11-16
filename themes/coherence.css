@@ -1,0 +1,405 @@
+/* v1.86 visual coherence: one design language across Home, Menu, Lessons, Bots, Past games and the review.
+   Loaded last, so it only has to restate the few things that differed. Shared tokens first. */
+:root {
+  /* resource colours (src/resources.js is the table of names + colours + icons) */
+  --res-wood: #3E9A4E; --res-brick: #D8613C; --res-sheep: #86BF3C; --res-wheat: #E3A21F; --res-ore: #7D8DA5;
+  /* points by source: the end screen legend and the review's AI page read these */
+  --src-s: #4A90D9; --src-c: #4F9A35; --src-L: #1F6E77; --src-A: #D9714E; --src-v: #8C5AC8; --src-i: #C99A2E;
+  /* radii: outer cards, tiles inside them, pills */
+  --r-card: 18px; --r-tile: 12px;
+  --tile-bg: color-mix(in srgb, var(--ink) 6%, transparent); --tile-line: color-mix(in srgb, var(--ink) 9%, transparent);
+}
+[data-palette="night"], [data-palette="dusk"] {
+  --res-wood: #6FB067; --res-brick: #E07E5A; --res-sheep: #A5D46A; --res-wheat: #EDC25E; --res-ore: #9AA9BB;
+  --src-s: #6FAEEA; --src-c: #8BCB62; --src-L: #4FB8BF; --src-A: #F09270; --src-v: #B58BE8; --src-i: #E3BB5A;
+}
+
+/* 1 · one outline icon set (src/ui-icons.js): 2 px stroke on a 24 grid, currentColor */
+.oi { stroke-width: 2; }
+.hm-tile .oi { width: 34px; height: 34px; color: var(--brand-ink, var(--primary)); margin-bottom: 4px; }
+.hm-list .oi, .mn-list button .oi { color: var(--ink-soft); }
+.build-card .bc-top .oi { width: 22px; height: 22px; flex: none; color: var(--ink); }
+.ln-ci .oi { width: 20px; height: 20px; }
+.bp-row .ic2[class] { background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--brand-ink, var(--primary)); }
+.bp-row .ic2 .oi { width: 15px; height: 15px; }
+.pa-mini, .bpg-svg { color: var(--brand-ink, #1F6E77); }
+.bpg-em { background: color-mix(in srgb, var(--primary) 10%, var(--sheet, #fff)); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--primary) 35%, transparent); }
+.bpg-svg .disc { fill: var(--sheet, #fff); }
+
+/* 3 · points by source: the same five colours on the end screen */
+.gs-seg.k-settlements, .gs-legend i.k-settlements { fill: var(--src-s); background: var(--src-s); }
+.gs-seg.k-cities, .gs-legend i.k-cities { fill: var(--src-c); background: var(--src-c); }
+.gs-seg.k-road, .gs-legend i.k-road { fill: var(--src-L); background: var(--src-L); }
+.gs-seg.k-army, .gs-legend i.k-army { fill: var(--src-A); background: var(--src-A); }
+.gs-seg.k-cards, .gs-legend i.k-cards { fill: var(--src-v); background: var(--src-v); }
+.gs-seg.k-islands, .gs-legend i.k-islands { fill: var(--src-i); background: var(--src-i); }
+
+/* 5 · charts use the stats palette (teal accent + ink), not gold / amber */
+.hs-prog { --pg-c: color-mix(in srgb, var(--primary) 42%, var(--sheet)); --pg-m: var(--primary); --pg-b: var(--ink); }
+[data-palette="night"] .hs-prog, [data-palette="dusk"] .hs-prog { --pg-c: #5E9AA0; --pg-m: #9ADADC; --pg-b: #F1F5F6; }
+.bpg-svg .stem { stroke: var(--bp-wheat); stroke-width: 4; opacity: .9; }
+.bpg-dots i.on, .bpg-svg .dia.on, .bpg-dots i.star, .bpg-svg .dia.star { background: var(--bp-wheat-ink); fill: var(--bp-wheat-ink); }
+/* the Bots strength ladder keeps its colour (data, not a control): gold bars and gold strength marks, a medal per tier in the chart palette */
+.bpg { --bp-wheat-ink: #C98B0B; --t-ore: #5F7391; --t-wood: #2F8A44; --t-brick: #C4502B; --t-wheat: #C98B0B; }
+[data-palette="night"] .bpg, [data-palette="dusk"] .bpg { --bp-wheat-ink: #EDC25E; --t-ore: #9AB0CC; --t-wood: #7CC278; --t-brick: #EE8F6A; --t-wheat: #F2CB6A; }
+.bpg .t-ore { color: var(--t-ore); } .bpg .t-wood { color: var(--t-wood); } .bpg .t-brick { color: var(--t-brick); } .bpg .t-wheat { color: var(--t-wheat); }
+.bpg-em[class*="t-"] { background: color-mix(in srgb, currentColor 16%, var(--sheet, #fff)); box-shadow: 0 0 0 1.5px color-mix(in srgb, currentColor 55%, transparent); }
+.bpg-svg .mk .disc { fill: color-mix(in srgb, currentColor 18%, var(--sheet, #fff)); }
+.bpg-svg .mk .ring { stroke: currentColor; }
+/* the result mark of a past game is a rounded tag, never a round avatar */
+.hs-badge { border-radius: 10px; background: color-mix(in srgb, var(--hs-won) 18%, transparent); color: var(--hs-won); box-shadow: inset 0 0 0 2px var(--hs-won); }
+.hs-badge.lost { background: color-mix(in srgb, var(--hs-lost) 16%, transparent); color: var(--hs-lost); box-shadow: inset 0 0 0 2px var(--hs-lost); }
+.hs-badge.table { background: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--ink-soft); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ink) 35%, transparent); }
+[data-palette="night"] .hs-badge, [data-palette="dusk"] .hs-badge { color: var(--hs-won); }
+[data-palette="night"] .hs-badge.lost, [data-palette="dusk"] .hs-badge.lost { color: var(--hs-lost); }
+[data-palette="night"] .hs-badge.table, [data-palette="dusk"] .hs-badge.table { color: var(--ink-soft); }
+
+/* 6 · Night: the AI tab reads like its neighbours; one pill family (Moves tab, AI Why? and chips) */
+.rv-tabs.t5 button:last-child { color: var(--ink-soft); }
+.rv-tabs.t5 button.on:last-child { color: var(--heading); }
+.ai-q, .ap-btn { background: color-mix(in srgb, var(--ink) 9%, var(--chip, transparent)); color: var(--heading); border-radius: 999px; font-weight: 750; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent); }
+.ai-q { min-height: 34px; font-size: 12.5px; }
+
+/* 7 · tiles inside cards: one radius, one fill, no shadow */
+.pg-t, .ap-tile { border-radius: var(--r-tile); background: var(--tile-bg); border: 1px solid var(--tile-line); box-shadow: none; }
+.hs-prog, .ln-stats { border-radius: var(--r-card); }
+/* Night: the turn tags on the AI line chart keep a dark halo (the white one made the text unreadable) */
+[data-palette="night"] .ap-svg .mk .tg, [data-palette="dusk"] .ap-svg .mk .tg { stroke: #18242B; }
+
+/* v1.86 player chips: one format for 4 to 6 players: the points are a number on the seat-coloured pill, the cards an icon and a number.
+   No "pts" / "cards" words (they pushed the name to "Bla…" and ran past the chip edge); the title and aria-label keep the words. */
+@media (max-width: 760px) {
+  [data-theme] .app .pstrip .pchip .vpn small { display: none !important; }
+  .app .pstrip .pchip .pcards span::after { content: none !important; }
+  .app .pstrip .pchip .pn { text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+}
+
+/* v1.86 player strip motion (classes set by game.js _chipMotion; transform and opacity only, reduced motion: base.css 1 ms rule) */
+@keyframes mo-turn { 0% { outline: 2px solid color-mix(in srgb, var(--accent, #E7A21C) 80%, transparent); outline-offset: 0; transform: scale(.97); } 45% { transform: scale(1.035); } 100% { outline: 2px solid transparent; outline-offset: 9px; transform: scale(1); } }
+@keyframes mo-bump { 0% { transform: scale(1); } 35% { transform: scale(1.3); } 100% { transform: scale(1); } }
+@keyframes mo-tick { 0% { transform: translateY(0); } 30% { transform: translateY(-6px); color: var(--tick-c, #D98A0B); } 65% { color: var(--tick-c, #D98A0B); } 100% { transform: translateY(0); } }
+@keyframes mo-award { 0% { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.25); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes mo-in { 0% { opacity: 0; transform: translateY(-8px); } 100% { opacity: 1; transform: none; } }
+.app .pstrip .pchip.mo-turn { animation: mo-turn .8s ease-out; }
+.app .pstrip .mo-bump { animation: mo-bump .55s cubic-bezier(.3, 1.6, .5, 1); }
+.app .pstrip .mo-tick { animation: mo-tick .55s ease-out; display: inline-flex; }
+.app .pstrip .mo-award { animation: mo-award .6s cubic-bezier(.3, 1.4, .5, 1); }
+.app .pstrip.mo-in .pchip { animation: mo-in .45s ease-out both; }
+.app .pstrip.mo-in .pchip:nth-child(2) { animation-delay: .05s; } .app .pstrip.mo-in .pchip:nth-child(3) { animation-delay: .1s; }
+.app .pstrip.mo-in .pchip:nth-child(4) { animation-delay: .15s; } .app .pstrip.mo-in .pchip:nth-child(5) { animation-delay: .2s; } .app .pstrip.mo-in .pchip:nth-child(6) { animation-delay: .25s; }
+
+/* ==========================================================================
+   v1.87 ONE player chip for 2 to 6 players (src/game.js renderScoreboard): avatar + points tile, name, cards + development
+   cards, knights + road. Sizes scale with the table (--n), the layout never changes: no badge over a face, no clipped crown.
+   Points tile: the number over a small star (points); crown = single leader, hammer = builds between turns.
+   Every stat is an icon + a figure of 12 px or more; the "+2" text is gone (the gold pill is the award), the tooltip explains.
+   ========================================================================== */
+.app .pstrip { --chip-av: 32px; --chip-tile: 30px; --chip-num: 19px; --chip-pn: 12.5px; }
+.app .pstrip.six-up, .app .pstrip[data-seats="5"], .app .pstrip[data-seats="6"] { --chip-av: 25px; --chip-tile: 21px; --chip-num: 14.5px; --chip-pn: 12px; gap: 3px; }
+[data-theme] .app .pstrip .pchip {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px;
+  padding: 6px 3px 5px; min-height: 0; overflow: visible; text-align: center;
+}
+[data-theme] .app .pstrip.six-up .pchip { padding: 5px 1px 4px; }
+[data-theme] .app .pstrip .pchip .row { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; min-width: 0; }
+[data-theme] .app .pstrip.six-up .pchip .row { gap: 3px; }
+[data-theme] .app .pstrip .pchip .avatar { --av: var(--chip-av); --av-ring: 2.5px; flex: none; position: relative; }
+[data-theme] .app .pstrip .pchip .vpn {
+  flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  min-width: var(--chip-tile); width: auto; height: auto; padding: 2px 2px 3px; border-radius: 8px; line-height: 1; position: relative;
+}
+[data-theme] .app .pstrip .pchip .vpn b { font: inherit; font-size: var(--chip-num); line-height: 1; font-variant-numeric: lining-nums tabular-nums; }
+[data-theme] .app .pstrip .pchip .vpn .vgoal { font-size: 11px; }
+[data-theme] .app .pstrip .pchip .vpn .vpi { display: block; width: 10px; height: 10px; line-height: 0; opacity: .92; }
+[data-theme] .app .pstrip .pchip .vpn .vpi svg { width: 10px; height: 10px; display: block; fill: currentColor; stroke: none; }
+[data-theme] .app .pstrip .pchip .vpn .vpi .oi { fill: currentColor; stroke: currentColor; stroke-width: 1.6; }
+[data-theme] .app .pstrip .pchip .vpn .vpi .ic { width: 10px; height: 10px; }
+[data-theme] .app .pstrip .pchip .vpn.lead .vpi, [data-theme] .app .pstrip .pchip.building .vpn .vpi { width: 12px; height: 12px; opacity: 1; }
+[data-theme] .app .pstrip .pchip .vpn .sx-crown { position: static; width: 12px; height: 12px; }
+[data-theme] .app .pstrip .pchip .pn { font-size: var(--chip-pn); line-height: 1.15; font-weight: 750; max-width: 100%; padding: 0; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-theme] .app .pstrip.six-up .pchip .pn { letter-spacing: -.02em; }
+[data-theme] .app .pstrip .pchip .mini { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 16px; max-width: 100%; font-size: 12.5px; line-height: 16px; font-weight: 750; letter-spacing: 0; }
+[data-theme] .app .pstrip.six-up .pchip .mini { gap: 3px; font-size: 12px; }
+[data-theme] .app .pstrip .pchip .mini span { display: inline-flex; align-items: center; gap: 1px; flex: none; }
+[data-theme] .app .pstrip .pchip .mini .ic { width: 13px; height: 13px; font-size: 13px; }
+[data-theme] .app .pstrip.six-up .pchip .mini .ic { width: 12px; height: 12px; font-size: 12px; }
+/* an award is the same stat on a gold pill, at least as legible as the plain one */
+[data-theme] .app .pstrip .pchip .mini span.award { padding: 0 4px 0 2px; border-radius: 6px; font-size: 12.5px; line-height: 16px; }
+[data-theme] .app .pstrip.six-up .pchip .mini span.award { padding: 0 3px 0 1px; font-size: 12px; }
+[data-theme] .app .pstrip .pchip .mini span.award .ic { width: 13px; height: 13px; font-size: 13px; }
+.app .pstrip .pchip .mini span.award .aw-plus, .app .pstrip .pchip .mini.dense span.award .aw-plus { display: none; }
+/* road: the same pill mark, a size up */
+.app .pstrip .pchip .mini [data-stat="road"]::before, .app .pstrip .pchip .mini.dense [data-stat="road"]::before { width: 14px; height: 6px; margin: 0 2px 0 0; border-radius: 3px; }
+.app .pstrip.six-up .pchip .mini [data-stat="road"]::before { width: 12px; height: 5.5px; margin-right: 1px; }
+.app .pstrip .pchip .mini [data-stat="knights"] + [data-stat="road"], .app .pstrip .pchip .mini .award + [data-stat="road"] { margin-left: 0; }
+/* the old second layout is gone */
+.app .pstrip .pchip .sx-av, .app .pstrip .pchip .sx-vp, .app .pstrip .pchip .bdg, .app .pstrip .pchip .pcards { display: none; }
+.app .pstrip .pchip.thinking::after { left: 6px; }
+
+/* v1.87 hand: the empty slot's name is never clipped ("Lumber" fits the 40 px card: 10.5 px, tight tracking, nothing cut); a held card is
+   named by its art, which is the shared resource table's icon and colour (src/resources.js), the same as the trade sheet, the bank row and the review. */
+.hand .card.slot { overflow: visible; padding-left: 0; padding-right: 0; }
+.hand .card.slot .slot-name { max-width: none; width: 100%; text-align: center; font-size: 10.5px; letter-spacing: -.03em; white-space: nowrap; overflow: visible; text-overflow: clip; }
+.hand .card.slot .slot-n { font-size: 17px; }
+
+/* v1.87 a past game's result tag is a word (Won / Lost, NL Gewonnen / Verloren), a rounded tag, never a round letter */
+.hs-row { grid-template-columns: 58px minmax(0, 1fr) 44px; }
+.hs-row .hs-badge, .hs-head .hs-badge.big { width: auto; min-width: 50px; height: 28px; max-width: none; padding: 0 8px; border-radius: 9px; font-size: 12.5px; font-weight: 800; letter-spacing: 0; white-space: nowrap; }
+.hs-head .hs-badge.big { height: 32px; font-size: 14px; }
+
+/* v1.87 board tools on a phone: Fit stays top left; the zoom + / - buttons are placed by game.js _placeZoomButtons (first slot with no harbour under it) */
+}
+
+/* v1.87 Win chance chart (review tab): the reviewed player's line is the chart (thick, full strength), the others are faint context
+   (about 35 %), the axis names its unit (0% 50% 100%), the cursor markers are nudged apart (src/review-game.js _rvPtYs). Same line weights as the AI page chart. */
+.rvw-c svg path, .rsw svg path { stroke-width: 1.5; opacity: .35; }
+.rvw-c svg path.me, .rsw svg path.me { stroke-width: 3.2; opacity: 1; }
+.rvw-c svg text { font-size: 10px; }
+.rvw-c svg .pt { stroke: var(--sheet-solid, #fff); stroke-width: 1.6; fill-opacity: .75; }
+.rvw-c svg .pt.me { fill-opacity: 1; stroke-width: 2; }
+.rvw-c svg .dec { stroke-width: 1; }
+/* the level frame stays inside the chip: a size down, under the points tile */
+[data-theme] .app .pstrip .pchip .avatar > .lf { width: 134% !important; height: 134% !important; }
+[data-theme] .app .pstrip .pchip .vpn { z-index: 3; }
+[data-theme] .app .pstrip .pchip .row { gap: 5px; }
+[data-theme] .app .pstrip.six-up .pchip .row { gap: 4px; }
+[data-theme] .app .pstrip .pchip { padding-top: 5px; padding-bottom: 4px; gap: 1px; }
+[data-theme] .app .pstrip.six-up .pchip { padding-top: 4px; padding-bottom: 3px; }
+[data-theme] .app .pstrip .pchip .mini { min-height: 15px; line-height: 15px; }
+/* 6 seats: the two award pills on the knights / road line fit inside the chip */
+[data-theme] .app .pstrip.six-up .pchip .mini.feats { gap: 2px; }
+[data-theme] .app .pstrip.six-up .pchip .mini span.award { padding: 0 2px 0 1px; border-radius: 5px; }
+[data-theme] .app .pstrip.six-up .pchip .mini span.award .ic { width: 12px; height: 12px; font-size: 12px; }
+.app .pstrip.six-up .pchip .mini [data-stat="road"]::before { width: 9px; height: 5px; margin-right: 1px; }
+/* chip height: the same as before the redesign (the board keeps its size) */
+.app .pstrip { --chip-av: 28px; --chip-tile: 28px; --chip-num: 17px; }
+.app .pstrip.six-up, .app .pstrip[data-seats="5"], .app .pstrip[data-seats="6"] { --chip-av: 24px; --chip-tile: 20px; --chip-num: 14px; }
+[data-theme] .app .pstrip .pchip { padding-top: 4px; padding-bottom: 3px; gap: 0; }
+[data-theme] .app .pstrip .pchip .vpn { padding: 1px 2px 2px; gap: 0; }
+[data-theme] .app .pstrip .pchip .vpn .vpi, [data-theme] .app .pstrip .pchip .vpn .vpi svg, [data-theme] .app .pstrip .pchip .vpn .vpi .ic { width: 9px; height: 9px; }
+[data-theme] .app .pstrip .pchip .vpn.lead .vpi, [data-theme] .app .pstrip .pchip.building .vpn .vpi, [data-theme] .app .pstrip .pchip .vpn .sx-crown { width: 11px; height: 11px; }
+[data-theme] .app .pstrip .pchip .pn { line-height: 1.1; }
+[data-theme] .app .pstrip .pchip .mini { min-height: 14px; line-height: 14px; }
+/* the chip is 71 px at every table size and whatever it shows (the strip never grows when a knight or a road appears; the board keeps its size) */
+.app .pstrip { padding-top: 4px; padding-bottom: 4px; }
+[data-theme] .app .pstrip .pchip, [data-theme] .app .pstrip.six-up .pchip { padding-top: 3px; padding-bottom: 3px; box-sizing: border-box; height: 71px; justify-content: flex-start; }
+[data-theme] .app .pstrip .pchip .row { height: 28px; }
+[data-theme] .app .pstrip .pchip .vpn { height: 28px; box-sizing: border-box; padding: 2px 2px 1px; justify-content: space-between; }
+[data-theme] .app .pstrip .pchip .vpn b { line-height: 16px; }
+[data-theme] .app .pstrip .pchip .pn { line-height: 13px; }
+[data-theme] .app .pstrip .pchip .mini { min-height: 13px; height: 13px; line-height: 13px; }
+[data-theme] .app .pstrip .pchip .mini span.award { line-height: 13px; }
+/* v1.87 (71 px budget) a size down so the level frame never reaches the name */
+.app .pstrip { --chip-av: 26px; --chip-tile: 26px; --chip-num: 16px; }
+.app .pstrip.six-up, .app .pstrip[data-seats="5"], .app .pstrip[data-seats="6"] { --chip-av: 23px; --chip-tile: 20px; --chip-num: 14px; }
+[data-theme] .app .pstrip .pchip, [data-theme] .app .pstrip.six-up .pchip { padding-top: 4px; padding-bottom: 0; }
+[data-theme] .app .pstrip .pchip .row { height: 26px; }
+[data-theme] .app .pstrip .pchip .vpn { height: 26px; padding: 1px 2px 1px; }
+[data-theme] .app .pstrip .pchip .vpn b { line-height: 15px; }
+[data-theme] .app .pstrip .pchip .vpn .vpi, [data-theme] .app .pstrip .pchip .vpn .vpi svg, [data-theme] .app .pstrip .pchip .vpn .vpi .ic { width: 8px; height: 8px; }
+[data-theme] .app .pstrip .pchip .avatar > .lf { width: 120% !important; height: 120% !important; }
+[data-theme] .app .pstrip .pchip .pn { line-height: 14px; margin-top: 2px; overflow: visible; }
+.app .pstrip { padding-top: 3px; padding-bottom: 2px; }
+[data-theme] .app .pstrip .pchip, [data-theme] .app .pstrip.six-up .pchip { height: 74px; padding-bottom: 2px; }
+
+/* v1.88 the Undo pill sits in the ticker row without touching the player strip above: its top is the ticker's top, it grows only downward into the gap */
+.tkrow .undo-toast { top: 0; transform: none; height: 40px; padding: 2px; }
+.app .tkrow .undo-toast .ut-btn { height: 36px; }
+/* v1.88 seat 5 (ivory): its avatar ring reads as a ring, not a thin white line: an ivory band with a strong dark-ink outline, on every strip colour */
+[data-theme] .app .pstrip .pchip.pc-4 .avatar { box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 2px) var(--pc-line), var(--avatar-shadow, none); }
+[data-palette="night"] .app .pstrip .pchip.pc-4 .avatar, [data-palette="dusk"] .app .pstrip .pchip.pc-4 .avatar { box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 1.5px) #1B2A31, var(--avatar-shadow, none); }
+/* v1.88 Night: Lumber (deep forest + logs) and Wool (pale meadow + sheep) stay two clearly different greens in the hand and the trade sheet */
+[data-palette="night"][data-theme="A"] .card[data-card="wood"] > svg, [data-palette="dusk"][data-theme="A"] .card[data-card="wood"] > svg { filter: brightness(1.28) saturate(1.25) hue-rotate(-8deg); }
+[data-palette="night"][data-theme="A"] .card[data-card="sheep"] > svg { filter: brightness(1.05) saturate(.85) hue-rotate(14deg); }
+
+/* ==========================================================================
+   v1.89 coherence round 5
+   ========================================================================== */
+/* strip entrance: 0.38 s per chip, 70 ms apart, from 22 px up and slightly small, so it reads as a motion (was 8 px / 0.45 s, easy to miss) */
+@keyframes mo-in { 0% { opacity: 0; transform: translateY(-22px) scale(.92); } 55% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+.app .pstrip.mo-in .pchip { animation: mo-in .38s cubic-bezier(.2, .8, .3, 1.12) both; }
+.app .pstrip.mo-in .pchip:nth-child(2) { animation-delay: .07s; } .app .pstrip.mo-in .pchip:nth-child(3) { animation-delay: .14s; }
+.app .pstrip.mo-in .pchip:nth-child(4) { animation-delay: .21s; } .app .pstrip.mo-in .pchip:nth-child(5) { animation-delay: .28s; } .app .pstrip.mo-in .pchip:nth-child(6) { animation-delay: .35s; }
+/* points tile with "3/14": number over the trophy like every other tile (the base row layout squeezed the trophy into the corner) */
+[data-theme] .app .pstrip .pchip .vpn.goal { flex-direction: column; flex-wrap: nowrap; align-items: center; }
+[data-theme] .app .pstrip .pchip .vpn.goal b { white-space: nowrap; }
+/* first-game hint under the strip */
+.chip-hint { position: fixed; left: 12px; right: 12px; z-index: 55; display: flex; align-items: center; gap: 6px; padding: 6px 4px 6px 12px; border-radius: 12px; pointer-events: none;
+  background: var(--ink, #1F3440); color: var(--sheet, #fff); font: 700 13px/1.25 var(--font-body); box-shadow: 0 4px 14px rgba(0,0,0,.3); animation: chip-hint-in .3s ease-out both; }
+.chip-hint::before { content: ""; position: absolute; top: -5px; left: 38px; width: 12px; height: 12px; background: inherit; transform: rotate(45deg); border-radius: 2px; }
+.chip-hint.out { opacity: 0; transition: opacity .25s; }
+.chip-hint-t { flex: 1; min-width: 0; }
+.chip-hint-x { pointer-events: auto; width: 36px; height: 36px; flex: none; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: none; color: inherit; cursor: pointer; }
+.chip-hint-x .ic { font-size: 16px; }
+@keyframes chip-hint-in { 0% { opacity: 0; transform: translateY(-6px); } 100% { opacity: 1; transform: none; } }
+.vp-tooltip-prof { display: block; width: 100%; margin-top: 8px; padding: 7px 10px; min-height: 36px; border: var(--chip-border, 1px solid rgba(0,0,0,.15)); border-radius: 10px; background: var(--chip, rgba(0,0,0,.05)); color: var(--heading, var(--ink)); font: 800 12.5px var(--font-body); text-align: center; cursor: pointer; }
+/* the Undo pill stays at the right end of the ticker row: the status text stops before it */
+.tkrow:has(> .undo-toast:not([hidden])) .ticker .txt { margin-right: calc(var(--ut-w, 0px) + 18px); }
+/* trade sheet: the sub-headers sit right next to their title; the players are equal columns */
+.trade-sheet .tlbl { justify-content: flex-start; gap: 10px; }
+.trade-sheet .tp-row { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); justify-content: stretch; justify-items: center; gap: 4px; }
+.trade-sheet .tp-row .tp { width: 100%; max-width: 100px; }
+/* Luck: one headline number (win chance in %), the cards are a labelled side note; the bar track has a scale */
+.lkx-g b small { font-weight: 600; }
+.lkx-sc { position: relative; height: 12px; font: 650 10.5px/12px var(--font-body); color: var(--ink-soft); margin-top: -2px; }
+.lkx-sc i { position: absolute; top: 0; transform: translateX(-50%); font-style: normal; white-space: nowrap; }
+.lkx-sc i:first-child { transform: none; } .lkx-sc i:last-child { transform: translateX(-100%); }
+.lkx-g { grid-template-columns: 100px minmax(0, 1fr) 88px; }
+.lkx-g .tr { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent); background-image: linear-gradient(to right, transparent calc(25% - .5px), color-mix(in srgb, var(--ink) 16%, transparent) calc(25% - .5px) calc(25% + .5px), transparent calc(25% + .5px), transparent calc(75% - .5px), color-mix(in srgb, var(--ink) 16%, transparent) calc(75% - .5px) calc(75% + .5px), transparent calc(75% + .5px)); }
+.lkd-head { display: flex; align-items: baseline; gap: 8px; margin: 2px 0 2px; }
+.lkd-head b { font: 800 26px/1 var(--font-head, var(--font-body)); font-variant-numeric: tabular-nums; }
+.lkd-head b.pos { color: var(--pos); } .lkd-head b.neg { color: var(--neg); }
+.lkd-head span { font: 650 12.5px/1.2 var(--font-body); color: var(--ink-soft); }
+/* end screen: "Game stats" is a heading, not a chip; the last card clears the action bar; the review button's icon is visible on its filled background */
+.gs-more { margin: 18px 4px 6px; }
+.gs-more span { display: inline; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: #fff; font: var(--display-weight, 800) 20px/1.2 var(--font-display); text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.gs-scroll { padding-bottom: 28px; scroll-padding-bottom: 28px; }
+.rv1.gs-revcard .rvb .t svg { color: var(--primary-ink); }
+/* Bots ladder: the likely range is a thin line drawn in front of the badge (it was a thick one hidden behind it) */
+.bpg-svg .iv.thin line { stroke-width: 1.4; }
+.bpg-svg .iv.thin { pointer-events: none; }
+
+/* ── v1.87 round 6 ── */
+/* hand: the fan sits clear of the dock (names and bank pills never hang under it), the ribbon has room for count + name,
+   and with 7+ of a kind the bank pills step aside (the totals chip still opens the bank) */
+@media (max-width: 900px) and (min-height: 501px) {
+  .app .hand .cards, [data-hand-counts] .app .hand .cards { padding-bottom: 22px; margin-bottom: 0; }
+  [data-hand-counts="stack"] .app .hand .cards[data-crowd] { padding-bottom: 22px; }
+}
+.hand .card .bk-lbl { top: calc(100% + 1px); }
+.hand .card.slot .bk-lbl { top: calc(100% + 3px); }
+[data-hand-counts="stack"] .app .hand .card:not(.dev) .rib { height: 46%; gap: 2px; }
+[data-hand-counts="stack"] .app .hand .card:not(.dev) .rib b { line-height: 1; }
+.hand .cards[data-deep] .card .bk-lbl { display: none; }
+.hand .cards[data-deep] { padding-bottom: 8px; }
+/* ticker: always one line (ellipsis); a tap on it opens the full log, so the strip never changes height */
+.app .ticker .txt, .app .ticker .txt .tk-main { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: unset; display: block; line-height: 1.25; }
+.app .ticker .txt:has(.tk-main) { display: flex; }
+/* focus rings: keyboard only (html[data-input="kbd"] is set by the first Tab / arrow key in game.js) */
+html:not([data-input="kbd"]) :is(button, a, summary, [role="button"], [tabindex]):focus-visible { outline: none !important; }
+.st-vpinfo { margin-top: 10px; font-size: 12.5px; color: var(--ink-soft); } .st-vpinfo summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+/* trade sheet: the count sits in a corner chip, never over the card art; both headings use one colour */
+.trade-sheet .tlbl.give, .trade-sheet .tlbl.get, .trade-sheet .tlbl > span { color: var(--heading); }
+.tcell .tcard .tnum { right: auto; bottom: auto; left: -9px; top: -6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; display: grid; place-items: center;
+  font-size: 12px; line-height: 1; letter-spacing: 0; -webkit-text-stroke: 0; color: #fff; background: #22313A; box-shadow: 0 0 0 1.5px var(--sheet, #fff); }
+[data-theme="B"] .tcell .tcard .tnum { font-family: var(--font-body); font-weight: 800; }
+.tcell.none .tcard .tnum { opacity: .9; }
+/* player legend popup: labels at full ink (the blue-grey read dim on Night) */
+.vp-tooltip .vp-tooltip-label { color: var(--ink); }
+.vp-tooltip .vp-tooltip-section, .vp-tooltip-grid small { color: color-mix(in srgb, var(--ink) 78%, transparent); }
+/* review > Moves: "Better option" is information, not praise: slate-blue instead of the olive that read as green;
+   each move carries a small bar, its length the win chance that move gave up */
+.rs, .rt { --c-lean: #476584; }
+[data-palette="night"] :is(.rs, .rt) { --c-lean: #9CB9D6; }
+.mv-r .mv-c { display: grid; justify-items: end; gap: 3px; min-width: 52px; }
+.mv-r .mv-bar2 { display: block; width: 52px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 10%, transparent); position: relative; overflow: hidden; }
+.mv-r .mv-bar2::after { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: var(--w, 10%); border-radius: 3px; background: var(--cc, var(--neg)); }
+/* "reviewed with vX · Model" sits straight on the teal page: white, not grey */
+.rv-scroll > [data-rabox] .ra-row > small, .rv-scroll > [data-rabox] .ra-row > span, .rv-scroll > [data-rabox] .ra-row > span small { color: #fff; opacity: .95; text-shadow: 0 1px 2px rgba(10,50,60,.35); }
+.app .hand .swipe { top: 2px; }
+
+/* ==========================================================================
+   v1.86 coherence round 7
+   ========================================================================== */
+/* review > Overview: "Show all rows" is a link in the brand ink (dark teal vanished on Night); the label column is transparent on the card */
+.sbs-more { color: var(--brand-ink, var(--primary)); }
+.sbs-l { background: transparent; }
+.sbs[style*="--n:5"] .sbs-l, .sbs[style*="--n:6"] .sbs-l { background: var(--sheet-solid, var(--sheet)); } /* swiping tables: the sticky label column hides what scrolls under it */
+/* one back icon: the line chevron, the same size on every page bar (review used a "‹" glyph) */
+.rv-bar .rv-btn svg, .rv-bar .rv-btn .ic { width: 20px; height: 20px; }
+.rv-bar .rv-btn svg path { stroke-width: 2.4; }
+
+/* Settings: one weight for every row label; no second heading under the tab */
+.tm-settings .st-body { position: relative; }
+.tm-settings .st-body .st-head-bare { position: absolute; top: 6px; right: 8px; z-index: 2; }
+.tm-settings .st-head-bare + .sub { padding-right: 44px; }
+.tm-settings .settings-toggle-label, .tm-settings .st-range-label, .tm-settings .st-row > div > b, .tm-settings .st-row b, .tm-settings .cm-row b { font-weight: 700; font-size: var(--fs-l); color: var(--heading); }
+.tm-settings .settings-toggle-label .st-note, .tm-settings .st-range-label small { font-weight: 600; font-size: var(--fs-m); color: var(--ink-soft); }
+.tm-settings .st-body > .st-head-bare + * { margin-top: 0; }
+.tm-settings .st-howto { font-weight: 700; }
+.tm-settings .st-howto .ic, .tm-settings .dev-tools .button-row .ic { width: 20px; height: 20px; font-size: 20px; color: var(--brand-ink, var(--primary)); }
+.tm-settings .dev-tools .button-row button { font-weight: 700; }
+/* Bots: "All bots / One bot" is the same control as every other segmented row: the selected one is outlined in the accent */
+.tm-settings .ai-strategy-panel .bs-seg { gap: 2px; padding: 3px; border-radius: 10px; background: var(--seg-bg); border: var(--seg-border); border-radius: var(--r-m); overflow: visible; }
+.tm-settings .ai-strategy-panel .bs-seg button { border-radius: var(--r-s, 8px); min-height: 38px; font-weight: 650; color: var(--ink-soft); }
+.tm-settings .ai-strategy-panel .bs-seg button + button { border-left: 0; }
+.tm-settings .ai-strategy-panel .bs-seg button[aria-pressed="true"] { background: var(--card-bg, var(--panel)); color: var(--heading); box-shadow: 0 1px 3px rgba(0,0,0,.14), inset 0 0 0 2px var(--accent); }
+
+/* New Game: line icons (the Home set), never emoji */
+.ng-mode-icon .oi, .ng-seg-btn .oi, .ng-pill-btn .oi { width: 20px; height: 20px; flex: none; vertical-align: -4px; }
+.ng-mode-icon { font-size: 0; display: inline-grid; place-items: center; }
+.ng-mode-icon .oi { color: var(--brand-ink, var(--primary)); }
+.ng-mode-card.rush .ng-mode-icon .oi { color: var(--danger, #C4502B); }
+.ng-seg-btn .oi { margin-right: 6px; }
+.ng-pill-btn .oi { margin-right: 4px; vertical-align: -5px; }
+.rush-seven-timer .oi { width: 14px; height: 14px; vertical-align: -2px; margin-right: 3px; }
+
+/* Menu: the three switches are rows in the same list (an outlined tile, not a beige slab); every label is one weight, every entry has a subtitle */
+.mn-speed, .mn-speed.mn-live { background: transparent; border: 1.5px solid var(--tile-line); border-radius: var(--r-tile); padding: 8px 12px; font-weight: 700; font-size: var(--fs-l); color: var(--ink); }
+.mn-speed em { font-weight: 600; font-size: var(--fs-s); color: var(--ink-soft); }
+.mn-speed > span, .mn-list button > span { font-weight: 700; color: var(--ink); }
+.mn-list button { font-weight: 700; }
+.mn-list button small { font-weight: 600; font-size: var(--fs-s); }
+
+/* Lessons: the icon disc reads (icon 3:1 or better on its disc, Night too) */
+.ln-ci, .ln-ico { background: color-mix(in srgb, var(--brand-ink, var(--primary)) 13%, var(--sheet-solid, var(--sheet))); color: var(--brand-ink, var(--primary)); }
+[data-palette="night"] .ln-ci, [data-palette="dusk"] .ln-ci, [data-palette="night"] .ln-ico, [data-palette="dusk"] .ln-ico { background: color-mix(in srgb, var(--brand-ink) 22%, #131E24); }
+
+/* End screen: the win card's "N points" is white on the teal; the table drops the Accuracy column until a review has numbers */
+.gs-intro .gs-vpn { font: 700 20px var(--font-display); color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,.35); white-space: normal; overflow: visible; }
+.gs-intro .gs-vpn b { font-variant-numeric: tabular-nums; }
+.rsc.no-acc .rsc-hd { grid-template-columns: minmax(0, 1fr) 54px 36px 12px; }
+.rsc.no-acc .rsc-hd span:nth-child(1) { display: none; }
+.rsc.no-acc .rsc-hd span:nth-child(2) { grid-column: 2; } .rsc.no-acc .rsc-hd span:nth-child(3) { grid-column: 3; }
+.rsc.no-acc .rsc-h { grid-template-columns: 14px 28px minmax(0, 1fr) 54px 36px 12px; }
+.rsc.no-acc .rsc-h .rt-ac { display: none; }
+.rsc .rt-l > b { font-variant-numeric: tabular-nums; }
+.gs-confetti i { top: 0; left: 0; }
+
+/* Hand: a development card carries its short name all the time (Knight, Monopoly, Plenty, Roads, Point), the same ribbon as a resource */
+[data-hand-counts="stack"] .app .hand .card.dev .rib { flex-direction: column; gap: 1px; left: 3%; right: 3%; bottom: 3%; height: 46%; padding: 1px 0 2px; box-sizing: border-box; }
+[data-hand-counts="stack"] .app .hand .card.dev .rib b { font-size: 15px; margin-top: 0; line-height: 1; }
+[data-hand-counts="stack"] .app .hand .card.dev .rib span { position: static; width: auto; height: auto; clip-path: none; overflow: visible; max-width: 100%; font: 800 9.5px/1 var(--font-body); letter-spacing: -.03em; white-space: nowrap; color: var(--cnt-ink); opacity: .95; }
+
+/* Splash to Home: the splash's own logo and text leave first, the Home logo arrives after, so one logo is on screen at any time */
+html:has(#splash) .home .hm-brand { opacity: 0; }
+html:has(#splash.gone) .home .hm-brand { opacity: 1; transition: opacity .22s ease .12s; }
+/* Undo pill: exactly the ticker's height (never taller), left of the chevron */
+.tkrow .undo-toast { top: 0; bottom: 0; height: auto; padding: 2px; transform: none; box-sizing: border-box; }
+.app .tkrow .undo-toast .ut-btn { height: 100%; min-height: 0; padding: 0 12px; font-size: 12.5px; }
+/* Hand: the first card, with its stack of copies behind it, starts clear of the screen edge */
+@media (max-width: 900px) and (min-height: 501px) {
+  [data-hand-counts="stack"] .app .hand .cards { padding-left: calc(var(--gut, 12px) + 14px); }
+}
+/* 5-6 players: names and counts stay at 12 px (the chip layout, not the type, absorbs the width) */
+[data-theme] .app .pstrip.six-up .pchip .pn, [data-theme] .app .pstrip[data-seats="5"] .pchip .pn, [data-theme] .app .pstrip[data-seats="6"] .pchip .pn { font-size: 12px; }
+[data-theme] .app .pstrip.six-up .pchip .mini, [data-theme] .app .pstrip[data-seats="5"] .pchip .mini, [data-theme] .app .pstrip[data-seats="6"] .pchip .mini { font-size: 12px; }
+/* one close icon (the line cross) everywhere */
+.nm-x .oi, .ls-x .oi, .gs-rp-x .oi, .bp-x .oi, .rv-ih .rv-btn .oi { width: 18px; height: 18px; display: block; margin: auto; }
+
+/* ---- round 8 ---- */
+/* one row-label weight in Settings (the Game tab's generic label rule was more specific than the row rule): 700, like Confirm builds */
+.tm-settings .st-game .settings-toggle-label, .tm-settings .st-game .st-range-label, .tm-settings .st-game .st-volume .st-range-label { font-weight: 700; font-size: var(--fs-l); color: var(--heading); }
+.tm-settings .st-game .st-range-label output { font-weight: 600; font-size: var(--fs-s); color: var(--ink-soft); }
+.tm-settings .st-game .settings-toggle-label .st-note { font-weight: 600; font-size: var(--fs-m); color: var(--ink-soft); }
+.mn-speed > span, .mn-live > span, .mn-speed label, .mn-live label { font-weight: 700; font-size: var(--fs-l); color: var(--ink); }
+/* Win chance: the swing rows carry who (the player's colour) and which way (a white arrow); the chart is calmer: lighter grid, thinner faded lines, the few biggest decisions marked */
+.rvw-s .rvw-dot { width: 20px; height: 20px; display: grid; place-items: center; font: 800 9px/1 var(--font-body); color: #fff; font-style: normal; box-shadow: 0 0 0 2px color-mix(in srgb, var(--sheet-solid, #fff) 70%, transparent); }
+.rvw-c svg .g { stroke-opacity: .5; stroke-dasharray: 2 4; }
+.rvw-c svg path { stroke-width: 1.2; opacity: .3; }
+.rvw-c svg path.me { stroke-width: 2.8; opacity: 1; }
+.rvw-c svg .pt:not(.me) { display: none; }
+.rvw-c svg .dec { stroke-width: 1.4; }
+.rvw-c svg text { font-size: 11px; }
+/* Moves: the % takes the row's own colour (amber / slate / red) with its bar, so it reads on the sheet */
+.mv-r .mv-c { color: var(--neg); }
+.mv-r.c-could .mv-c, .mv-r.c-lean .mv-c, .mv-r.c-close .mv-c { color: var(--cc); }
+.mv-r .mv-c.neu { color: var(--ink-soft); }
+.mv-r .mv-bar2::after { background: currentColor; }
+/* 5-6 players: the chips use the full width and the avatar, the points badge and the name get air */
+[data-theme] .app .pstrip.six-up, [data-theme] .app .pstrip[data-seats="5"], [data-theme] .app .pstrip[data-seats="6"] { gap: 2px; --chip-av: 21px; }
+[data-theme] .app .pstrip.six-up .pchip .row { gap: 4px; }
+[data-theme] .app .pstrip.six-up .pchip .vpn { min-width: 18px; padding-left: 1px; padding-right: 1px; }
+/* end screen: "points" sits on a dark pill, so it reads over the rays */
+.gs-intro .gs-vpn { display: inline-block; padding: 3px 14px 4px; border-radius: 999px; background: rgba(8, 36, 44, .62); text-shadow: none; }
+.gs-intro .gs-vpn .gs-vpn-u { font-weight: 700; }

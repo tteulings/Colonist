@@ -533,10 +533,13 @@ export class SvgBoardRenderer {
   drawSeaPills(ctx) {
     const L = this.layer, g = this.game;
     if (!L?.pills) return;
-    const px = 1 / (this.u * g.view.scale), rw = 2 * px; // v0.96: a thinner dark-teal rim (was 2.4 px near-black: read as a sticker); >= 3:1 on every sea
+    const px = 1 / (this.u * g.view.scale), rw = 1.5 * px; // v1.86: 1.5 px, resource-coloured; v0.96: a thinner dark-teal rim (was 2.4 px near-black: read as a sticker); >= 3:1 on every sea
     const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); };
     const T = ctx.getTransform();
-    L.pills.forEach((q) => {
+    // v1.86 the rim is the harbour's own colour, darkened (like the main-island pills' resource outline), not one dark teal
+    const RIM = { wood: "#1F5A2B", brick: "#7A2F18", sheep: "#3F6A1A", wheat: "#7A5410", ore: "#3A4558", any: "#2A4650" };
+    L.pills.forEach((q, qi) => {
+      const rim = RIM[g.ports?.[qi]?.type] || RIM.any;
       const x0 = q.x - q.w / 2, y0 = q.y - q.h / 2;
       ctx.save();
       rr(x0, y0, q.w, q.h, q.r); ctx.clip();
@@ -550,7 +553,7 @@ export class SvgBoardRenderer {
       const ix0 = fl(x0, T.a, T.e, true), iy0 = fl(y0, T.d, T.f, true), ix1 = fl(x0 + q.w, T.a, T.e, false), iy1 = fl(y0 + q.h, T.d, T.f, false);
       ctx.beginPath();
       if (ctx.roundRect) { ctx.roundRect(ox0, oy0, ox1 - ox0, oy1 - oy0, q.r + rw); ctx.roundRect(ix0, iy0, ix1 - ix0, iy1 - iy0, Math.max(0, q.r - (iy0 - y0))); } else { ctx.rect(ox0, oy0, ox1 - ox0, oy1 - oy0); ctx.rect(ix0, iy0, ix1 - ix0, iy1 - iy0); }
-      ctx.fillStyle = this.theme.seaPillRim || "#0F3034"; ctx.fill("evenodd");
+      if (this.theme.seaPillRim) { ctx.fillStyle = this.theme.seaPillRim; ctx.fill("evenodd"); } // v1.87 no extra dark rim: the pill is the same cream pill with its own resource outline as on a classic board
     });
   }
 
@@ -621,9 +624,13 @@ export class SvgBoardRenderer {
       // ticker prompt stay the main cue.
       if (sel == null && h.id !== g.hoverHexId && h.id !== g.robberHexId && !(g.sea && h.id === g.sea.pirateHexId)) {
         const t = ((now - (this._robModeStart ?? now)) / 2400) * Math.PI * 2;
-        const a = reduced ? 0.05 : 0.045 + 0.035 * Math.sin(t);
+        // v1.86 r7: a visible ring (soft white over a thin dark one, so it reads on pale and dark tiles, Night too) that pulses
+        const k = reduced ? 0.85 : 0.75 + 0.25 * Math.sin(t);
         ctx.save(); ctx.translate(c.x, c.y);
-        ctx.fillStyle = `rgba(255,255,255,${a.toFixed(3)})`; ctx.fill(HEX_P(97));
+        ctx.fillStyle = `rgba(255,255,255,${(0.05 + 0.05 * k).toFixed(3)})`; ctx.fill(HEX_P(97));
+        ctx.lineJoin = "round";
+        ctx.lineWidth = Math.max(4.5, 4 * px); ctx.strokeStyle = `rgba(20,32,36,${(0.28 * k).toFixed(3)})`; ctx.stroke(HEX_P(86));
+        ctx.lineWidth = Math.max(3, 2.8 * px); ctx.strokeStyle = `rgba(255,255,255,${(0.95 * k).toFixed(3)})`; ctx.stroke(HEX_P(86));
         ctx.restore();
         return;
       }

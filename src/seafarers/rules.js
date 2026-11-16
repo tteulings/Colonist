@@ -7,11 +7,11 @@
 //       sea and a land hex, never between two land hexes; a new ship is placed next to your own coastal
 //       settlement/city or next to one of your ships; branching allowed; one ship OR one road per coast edge.
 //  p.4 §4 Shipping Routes: ships never connect directly to roads (and vice versa): only through a settlement
-//       or city at the meeting point; unconnected networks do not count for the Longest Trade Route.
+//       or city at the meeting point; unconnected networks do not count for the Longest trade route.
 //  p.4 §5 Moving Ships: 1 ship per turn, during your building phase; not a ship built this turn; obey the
 //       placement rules; only a ship with one end not adjacent to any of your other pieces; never a ship of
 //       a closed route (an unbroken line of ships between two of your settlements/cities).
-//  p.5 §7 Longest Trade Route: like Longest Road (2 VP, min. 5) but roads and ships count together, linked
+//  p.5 §7 Longest trade route: like Longest road (2 VP, min. 5) but roads and ships count together, linked
 //       only through a settlement/city; only the single longest branch counts.
 //  p.5 §8 Road Building card: 2 roads, 2 ships, or 1 of each.
 //  p.6 §9 Gold fields: each adjacent settlement takes 1, each city 2, of any resource(s) of its choice.

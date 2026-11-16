@@ -24,7 +24,7 @@ export const DETECT = {
   max: 3,
 };
 const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
-const RL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
+import { RES_EN as RL } from "../resources.js";
 const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, development: { sheep: 1, wheat: 1, ore: 1 } };
 const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
 const has = (h, c) => R5.every((r) => (h[r] || 0) >= (c[r] || 0));
@@ -46,7 +46,7 @@ export function detectMissed(g, recs, load, o = {}) {
 
 // ── helpers on a loaded position ──
 const nameOf = (g, pid, me) => (pid === me ? "you" : g.players[pid].name);
-const goalName = (g, x) => (x.type === "city" ? `City on ${g._spotLabel(x.nodeId)}` : x.type === "settlement" ? `Settlement on ${g._spotLabel(x.nodeId)}${x.dist ? ` (+${x.dist} road${x.dist > 1 ? "s" : ""})` : ""}` : x.type === "dev" ? "Development card" : x.type === "road" ? "Longest Road" : x.label);
+const goalName = (g, x) => (x.type === "city" ? `City on ${g._spotLabel(x.nodeId)}` : x.type === "settlement" ? `Settlement on ${g._spotLabel(x.nodeId)}${x.dist ? ` (+${x.dist} road${x.dist > 1 ? "s" : ""})` : ""}` : x.type === "dev" ? "Development card" : x.type === "road" ? "Longest road" : x.label);
 const goalFocus = (x) => (x.type === "city" ? { city: x.nodeId } : x.type === "settlement" ? { node: x.nodeId, ...(x.dist && x.edge != null ? { edge: x.edge } : {}) } : x.type === "road" && x.edge != null ? { edge: x.edge } : null);
 const vpGoalsNow = (g, p, plan, hand) => plan.goals.filter((x) => (x.type === "city" || (x.type === "settlement" && !x.dist)) && has(hand, x.cost)
   && (x.type === "city" ? p.settlements.has(x.nodeId) : g.canBuildSettlement(p, x.nodeId, false)));
@@ -88,7 +88,7 @@ function detectBuild(g, recs, load, T) {
     } else {
       after = sub(hand, COST.road);
       const via = plan.goals.find((x) => x.edge === r.a.id);
-      did = via ? `Built a road toward ${via.type === "road" ? "Longest Road" : g._spotLabel(via.nodeId)}` : "Built a road";
+      did = via ? `Built a road toward ${via.type === "road" ? "Longest road" : g._spotLabel(via.nodeId)}` : "Built a road";
       B = via || { label: "Road" };
       sb = via ? via.score : 0;
       bTerms = via ? terms(via, via.eta + off) : [{ k: "vp", label: "Points", v: 0 }];
@@ -179,10 +179,10 @@ function detectSeven(g, recs, load, T) {
     const m = best.m;
     out.push({ kind: "seven", pid: d.pid, i: j, t: e.t, s: e.s, e: e.e, size: best.saved, seven: { t: d.t, s: d.s }, n, T7,
       line: `Held ${T7} cards into a 7`, gain: `${n} cards`, gainLong: best.saved >= n ? `all ${n} cards kept` : `${best.saved} of ${n} cards kept`,
-      did: `Ended the turn with ${tot(hand)} cards`, better: m.label.replace(/^A /, "").replace(/^(.)/, (c) => c.toUpperCase()),
+      did: `Ended the turn with ${tot(hand)} card${tot(hand) === 1 ? "" : "s"}`, better: m.label.replace(/^A /, "").replace(/^(.)/, (c) => c.toUpperCase()),
       why: `A 7 in turn ${d.t} took ${n} of your ${T7} cards (over ${limit}, half go). ${m.label} at the end of this turn would have left ${best.left}${best.loss ? `, so only ${best.loss} lost` : `: safe`}.`,
       hand,
-      cmp: { a: m.label.replace(/^A /, "").replace(/^(.)/, (c) => c.toUpperCase()), b: `Ended with ${tot(hand)} cards`, total: "Cards lost", lowerBetter: true,
+      cmp: { a: m.label.replace(/^A /, "").replace(/^(.)/, (c) => c.toUpperCase()), b: `Ended with ${tot(hand)} card${tot(hand) === 1 ? "" : "s"}`, total: "Cards lost", lowerBetter: true,
         rows: [{ k: "sets", label: "Cards at the 7", a: best.left, b: T7, int: true }, { k: "build", label: m.trade ? "Traded away" : "Spent on it", a: m.spent, b: 0, int: true }],
         sa: best.loss, sb: n, int: true },
       focus: { a: m.focus, b: null } });
@@ -209,7 +209,7 @@ function detectRobber(g, recs, load, T) {
     const rows = [["block", "Cards blocked"], ["leader", "Hits the leader"], ["own", "Your own tiles"], ["steal", "The steal"]]
       .map(([k, label]) => ({ k, label, a: r2(best.parts[k] || 0), b: r2(mine.parts[k] || 0) })).filter((x) => x.a || x.b);
     out.push({ kind: "robber", pid: r.pid, i, t: r.t, s: r.s, e: r.e, size: gap / 2,
-      line: `Robber on ${nb}`, gain: `≈${Math.round(dmg)} cards`, gainLong: `about ${Math.round(dmg)} more cards blocked`,
+      line: `Robber on ${nb}`, gain: `≈${Math.round(dmg)} card${Math.round(dmg) === 1 ? "" : "s"}`, gainLong: `about ${Math.round(dmg)} more card${Math.round(dmg) === 1 ? "" : "s"} blocked`,
       did: `Robber on ${nm}`, better: `Robber on ${nb}`,
       why: `On ${g._hexName(best.id)} the robber blocks about ${best.dmg.toFixed(1)} cards over the next ~10 rolls (with the steal); on ${g._hexName(mine.id)} ${mine.dmg < 0.5 ? "almost none" : `about ${mine.dmg.toFixed(1)}`}.`,
       hand: { ...p.resources },
@@ -230,7 +230,7 @@ function detectKnight(g, recs, load, T) {
     const r = recs[run.i];
     const cards = (run.w / 36) * run.R * run.turns;
     out.push({ kind: "knight", pid, i: run.i, t: r.t, s: r.s, e: r.e, size: cards,
-      line: `Knight held, robber on your ${run.num}`, gain: `≈${Math.round(cards)} cards`, gainLong: `about ${Math.round(cards)} cards back`,
+      line: `Knight held, robber on your ${run.num}`, gain: `≈${Math.round(cards)} card${Math.round(cards) === 1 ? "" : "s"}`, gainLong: `about ${Math.round(cards)} card${Math.round(cards) === 1 ? "" : "s"} back`,
       did: "Kept the Knight", better: "Play the Knight",
       why: `The robber sat on your best tile (${run.name}) for ${run.turns} of your turns while you held a Knight. Playing it moves the robber away (and steals a card).`,
       hand: run.hand, cmp: { a: "Play the Knight", b: "Kept the Knight", total: "Cards blocked", lowerBetter: true, int: true,

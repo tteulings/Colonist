@@ -1,11 +1,12 @@
 // v1.82 "Why is A better than B", read from the engine's own futures. While the explain run plays A and B into the SAME paired
 // futures (src/master/search.js, o.trace), a tracer watches the mover: when the 3rd / 4th settlement and the cities were built,
-// Longest Road / Largest Army, dev cards, cards received in the ${win} 10 turns, cards lost to the robber and 7s, bank / port trades,
+// Longest road / Largest army, dev cards, cards received in the ${win} 10 turns, cards lost to the robber and 7s, bank / port trades,
 // points at turn 15 / 20. attribute() then compares the two moves per feature (paired mean difference, standard error) and keeps what
 // is significant (about 2 SE) AND moves the win chance; reasonSentence() words each in the app's plain language.
 // The tracer only observes (no random draw, no state change): the futures are exactly the ones played without it.
 const RES = ["wood", "brick", "sheep", "wheat", "ore"];
-export const RESN = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
+import { RES_EN } from "../resources.js";
+export const RESN = RES_EN;
 const sum = (o) => RES.reduce((a, r) => a + (o[r] || 0), 0);
 
 /** The two turns at which the points are read: 15 and 20 from an early position, else 6 and 12 turns on. */
@@ -126,8 +127,8 @@ export function reasonSentence(x, meta = {}) {
     const n = Math.max(1, Math.round(Math.abs(dif)));
     return `With A you built your ${ORD[f]} about ${plural(n, "turn")} ${dif < 0 ? "earlier" : "later"} (turn ${tv(a)} vs ${tv(b)}).`;
   }
-  if (f === "lr" || f === "la") return `With A you ${dif > 0 ? "more often held" : "less often held"} ${f === "lr" ? "Longest Road" : "Largest Army"} (${Math.round(a * 100)}% of the futures vs ${Math.round(b * 100)}%).`;
-  if (f === "lrT" || f === "laT") return `With A you got ${f === "lrT" ? "Longest Road" : "Largest Army"} about ${plural(Math.max(1, Math.round(Math.abs(dif))), "turn")} ${dif < 0 ? "earlier" : "later"} (turn ${tv(a)} vs ${tv(b)}).`;
+  if (f === "lr" || f === "la") return `With A you ${dif > 0 ? "more often held" : "less often held"} ${f === "lr" ? "Longest road" : "Largest army"} (${Math.round(a * 100)}% of the futures vs ${Math.round(b * 100)}%).`;
+  if (f === "lrT" || f === "laT") return `With A you got ${f === "lrT" ? "Longest road" : "Largest army"} about ${plural(Math.max(1, Math.round(Math.abs(dif))), "turn")} ${dif < 0 ? "earlier" : "later"} (turn ${tv(a)} vs ${tv(b)}).`;
   if (f === "dev") return `With A you bought ${dif > 0 ? "more" : "fewer"} development cards (${rnd(a, 1)} vs ${rnd(b, 1)}).`;
   if (f === "lost") return `With A you lost ${dif < 0 ? "fewer" : "more"} cards to the robber and 7s (${rnd(a, 1)} vs ${rnd(b, 1)}).`;
   if (f === "bank") return `With A you traded with the bank ${dif > 0 ? "more" : "less"} (${rnd(a, 1)} vs ${rnd(b, 1)} trades).`;

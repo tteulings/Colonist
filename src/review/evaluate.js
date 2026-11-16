@@ -90,13 +90,13 @@ export function analysisOpts(eng, lanes = 1) {
 export const ACC = { a: 103.1668, k: REVIEW.k ?? 0.08, b: 3.1669, ver: 5, // eng-124 v5: the gbm leaf (v4: fit)
   get id() { return `k${this.k}v${this.ver}`; } };
 // Development cards (buy / play) are checked and marked but not scored: their value lies mostly beyond the
-// 8-turn look-ahead (a hidden deck, Largest Army later), and scoring them put the bot levels out of order.
+// 8-turn look-ahead (a hidden deck, Largest army later), and scoring them put the bot levels out of order.
 export const SCORED_KINDS = REVIEW.scored || ["setup", "build", "bank", "robber", "end"];
 export const TRIVIAL = REVIEW.trivial ?? TRIV; // every alternative within 2 points of win chance: not a real choice (calibrated)
 export const SE_SHRINK = SHRINK;  // the loss is the best gap less this many standard errors (winner's curse)
 export const EVAL_KINDS = ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"]; // eng-130 shipmove: Seafarers
 
-const RL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
+import { RES_EN as RL } from "../resources.js";
 const DEV = { knight: "Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly" };
 const COST = { ship: { wood: 1, sheep: 1 }, road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 } };
 const r4 = (x) => Math.round(x * 1e4) / 1e4;

@@ -56,8 +56,8 @@ export const SixUiMixin = {
       // v0.75: knights played (> 0) and road length (3+) on their own line, only when there is something to show;
       // a held award is that number on a gold "+2" pill, so the separate monochrome award marks are no longer needed
       const lr = this.longestRoadHolder === p.id, la = this.largestArmyHolder === p.id;
-      const feats = awardStat("knights", p.knightsPlayed, la, `${p.knightsPlayed} knight${p.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest Army (+2 points)" : ""}`, "knight")
-        + awardStat("road", p.longestRoadLength, lr, `Longest road ${p.longestRoadLength}${lr ? " · Longest Road (+2 points)" : ""}`, this.sea ? "tradeRoute" : "road");
+      const feats = awardStat("knights", p.knightsPlayed, la, `${p.knightsPlayed} knight${p.knightsPlayed === 1 ? "" : "s"} played${la ? " · Largest army (+2 points)" : ""}`, "knight")
+        + awardStat("road", p.longestRoadLength, lr, `Longest road ${p.longestRoadLength}${lr ? " · Longest road (+2 points)" : ""}`, this.sea ? "tradeRoute" : "road");
       const awards = "";
       return this._sixChip(p, {
         active: idx === owner && !this.winner && !(this.isRush() && !this.setupPhase),

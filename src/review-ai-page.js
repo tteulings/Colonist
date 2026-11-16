@@ -8,11 +8,17 @@ import { aiBlocks } from "./review/ai-blocks.js";
 import { PIPS } from "./review/luck.js";
 import { R5 } from "./review/ai-strat.js";
 import { recapLang } from "./review-recap.js";
+import { stateOfSpec } from "./review/ai-board.js";
+import { decMoves } from "./review/ai-blocks.js";
+import { composePage, composeAnswer, composeEnabled, MIN_WIDGETS } from "./review/ai-compose.js";
 
+const online = () => typeof navigator === "undefined" || navigator.onLine !== false;
+const qk = (q) => String(q || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
 const sg = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${-v}` : "0");
 const VISIBLE = 4;
+const RES_ICON = { wood: "./assets/icons/resource-wood-v3.svg", brick: "./assets/icons/resource-brick-v2.svg", sheep: "./assets/icons/resource-sheep-v2.svg", wheat: "./assets/icons/resource-wheat-v2.svg", ore: "./assets/icons/resource-ore-v2.svg" };
 const LV_CLASS = { Game: "game", "Near miss": "near", Decision: "decision", Strategy: "strategy", Luck: "luck" };
 const SRC_CLASS = { s: "s", c: "c", L: "l", A: "a", v: "v" };
 const CHEV = `<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -22,28 +28,74 @@ const tick = (span) => (span > 30 ? 10 : span > 12 ? 5 : span > 6 ? 2 : 1);
 export const ReviewAiPageMixin = {
   /** The legacy (model cards) render path stays reachable for the v1.73-1.82 tests: g._aiLegacy = true or localStorage colonist_ai_legacy = 1. */
   _pgLegacy() { return !!this._aiLegacy || tryv(() => localStorage.getItem("colonist_ai_legacy") === "1", false); },
-  /** { fx, page } for the reviewed game, rebuilt when the review moved on (luck run, new results). */
+  /** The composed-page record of this review ({ k, L, at, spec, fu:[{id, q, spec, answer}] }), kept in R.ai.page: it rides the saved review and the history entry. */
+  _pgRec() { const a = this._rv?.ai; return a && a.pid === this._rvPid && a.lang === recapLang() ? a.page || null : null; },
+  /** { fx, page, src, fu } for the reviewed game, rebuilt when the review moved on (luck run, new results, a composed page arrived). src: "ai" | "recipes". */
   _pgState() {
-    const R = this._rv, L = tryv(() => this._lkState()), k = `${L?.j ?? -1}|${L?.done ? 1 : 0}|${this.players.map((p) => tryv(() => this._rvOf(p.id)?.results?.length, 0)).join()}|${this._rvPid}|${recapLang()}`;
+    const R = this._rv, L = tryv(() => this._lkState()), rec = this._pgRec(), k = `${L?.j ?? -1}|${L?.done ? 1 : 0}|${this.players.map((p) => tryv(() => this._rvOf(p.id)?.results?.length, 0)).join()}|${this._rvPid}|${recapLang()}|${rec?.at || 0}|${rec?.fu?.length || 0}`;
     const c = this._pgMemo; if (c && c.R === R && c.k === k) return c;
-    const fx = buildFacts(this, recapLang()), page = recipeValidated(fx);
-    this._pgMemo = { R, k, fx, page };
+    const fx = buildFacts(this, recapLang());
+    let page = null, src = "recipes";
+    if (rec?.spec) { const v = validatePage(rec.spec, fx); if (v.widgets.length >= MIN_WIDGETS) { if (!v.follow.length) v.follow = recipeValidated(fx).follow; page = v; src = "ai"; } }
+    if (!page) page = recipeValidated(fx);
+    const fu = (rec?.fu || []).map((f) => { const w = validatePage({ widgets: [f.spec], follow: [] }, fx).widgets[0]; return w && !w.titleFallback ? { w, q: f.q, answer: f.answer || "" } : null; }).filter(Boolean);
+    this._pgMemo = { R, k, fx, page, src, fu };
     if (page.dropped.length) console.debug("ai page dropped", page.dropped);
     return this._pgMemo;
   },
   /** Use a given (model composed) spec instead of the recipes: validated, never trusted. */
   _pgSetSpec(spec) { const s = this._pgState(); const v = validatePage(spec, s.fx); if (v.widgets.length) s.page = v; return v; },
+  /** On opening the tab: the recipes page is already drawn; ask the Function to compose the page in the background, then swap it in. Once per review and language. */
+  _pgKick() {
+    const R = this._rv, lang = recapLang(); if (!composeEnabled() || !R || this._pgLegacy() || this._rvTab !== "ai" || !online()) return;
+    const ai = R.ai; if (!ai || ai.pid !== this._rvPid || ai.lang !== lang) return;
+    const { fx } = this._pgState(), rec = ai.page, haveLuck = !!fx.luck;
+    if (rec?.spec && (rec.L || !haveLuck)) return;                       // composed already (and luck did not arrive after it)
+    const key = `${R.id || ""}|${this._rvPid}|${lang}|${haveLuck ? 1 : 0}`, F = this._pgJob;
+    if (F && F.key === key && (F.busy || Date.now() - F.at < 120000)) return;       // running, or failed a moment ago
+    const job = (this._pgJob = { key, at: Date.now(), busy: true });
+    this._pgFoot();
+    composePage(this, lang, { fx }).then((res) => {
+      job.busy = false; job.at = Date.now();
+      if (this._rv !== R || R.ai !== ai) return;
+      if (res.source === "ai" && res.spec) { ai.page = { ...(ai.page || {}), k: lang, L: haveLuck, at: Date.now(), spec: res.spec, fu: ai.page?.fu || [] }; this._aiSave(); job.ok = true; this._pgSwap(); }
+      else { job.ok = false; this._pgFoot(); }
+    }).catch(() => { job.busy = false; job.ok = false; this._pgFoot(); });
+  },
+  /** The footnote tells honestly what the page is: composed for this game, or the summary (also while composing, and when it failed). */
+  _pgFoot() {
+    const p = this._rvEl?.querySelector("[data-pgft]"); if (!p) return;
+    const { fx, src } = this._pgState(), busy = !!this._pgJob?.busy && !this._pgJob.ok;
+    p.classList.toggle("busy", busy); p.innerHTML = this._pgFootInner(fx, src, busy);
+  },
+  _pgFootInner(fx, src, busy) { return `${busy ? '<i class="ap-pulse" aria-hidden="true"></i>' : ""}<span>${esc(busy ? `${fx.t.foot} ${fx.t.composing}…` : src === "ai" ? fx.t.footAi : fx.t.foot)}</span>`; },
+  /** Swap the composed page in: fade, same scroll position, the open card stays open when it still exists. */
+  _pgSwap() {
+    const el = this._rvEl; if (!el || this._rvTab !== "ai" || this._rvStep != null) return;
+    const body = el.querySelector("[data-aibody]"), old = body?.querySelector(".ap[data-pg]"); if (!old) return;
+    const sc = el.querySelector(".rv-scroll"), y = sc ? sc.scrollTop : 0, openId = old.querySelector(".ap-c.open")?.dataset.pgc, h = old.offsetHeight;
+    this._pgMemo = null;
+    const tmp = document.createElement("div"); tmp.innerHTML = this._pgHtml(); const nu = tmp.firstElementChild; if (!nu) return;
+    nu.style.minHeight = `${h}px`; nu.classList.add("ap-in");
+    old.replaceWith(nu);
+    if (sc) sc.scrollTop = y;
+    this._pgBind(body); this._aiBoards?.(body);
+    if (openId) { const c = nu.querySelector(`[data-pgc="${CSS.escape(openId)}"]`); if (c?.classList.contains("exp")) this._pgToggle(c, body, this._pgState().fx, true); }
+    setTimeout(() => { nu.style.minHeight = ""; nu.classList.remove("ap-in"); }, 420);
+    this._aiRefreshAsk?.();
+  },
 
   // ── parts: text with refs, filled from the facts ──
   _pgParts(parts, fx) {
-    let out = "", start = true;
+    let out = "", start = true, sp = true; // sp: the text so far ends in a space (or is empty); a model that forgot the space between two parts gets one
     (parts || []).forEach((p) => {
-      if (typeof p === "string") { out += esc(start ? p.replace(/^(\s*)(\p{L})/u, (m, a, b) => a + b.toUpperCase()) : p); if (p.trim()) start = /[.!?]\s*$/.test(p); return; }
+      if (typeof p === "string") { if (!sp && p && !/^[\s.,;:!?)%\u2019']/.test(p)) out += " "; sp = /[\s(]$/.test(p); out += esc(start ? p.replace(/^(\s*)(\p{L})/u, (m, a, b) => a + b.toUpperCase()) : p); if (p.trim()) start = /[.!?]\s*$/.test(p); return; }
+      if (!sp) out += " "; sp = false;
       if (p.dir) { const a = fx.ref(p.dir[0])?.v, b = fx.ref(p.dir[1])?.v; out += `<b class="ap-dir">${esc(b > a ? p.up : b < a ? p.down : p.same)}</b>`; start = false; return; }
       const r = fx.ref(p.ref); if (!r) return;
       switch (p.fmt) {
         case "player": { const you = r.v === fx.me; out += `<${you ? "span" : "button type=\"button\""} class="ap-pl pc-${r.v}"${you ? "" : ` data-aipl="${r.v}"`}>${esc(fx.nameOf(r.v))}</${you ? "span" : "button"}>`; break; }
-        case "turn": out += `<button type="button" class="ap-t" data-pgturn="${r.v}">${start ? fx.t.Turn : fx.t.turn} ${r.v}</button>`; break;
+        case "turn": out += `<button type="button" class="ap-t" data-pgturn="${r.v}">${start ? fx.t.Turn : /(?:turn|beurt)\s*$/i.test(out.replace(/<[^>]+>/g, "")) ? "" : fx.t.turn} ${r.v}</button>`.replace("> ", ">"); break;
         case "pct": out += `<b class="ap-n">${r.v}%</b>`; break;
         case "sgpct": out += `<b class="ap-n ${r.v > 0 ? "up" : r.v < 0 ? "dn" : ""}">${sg(r.v)}%</b>`; break;
         case "x": { const s = String(r.v); out += esc(start ? s.charAt(0).toUpperCase() + s.slice(1) : s); break; }
@@ -56,19 +108,26 @@ export const ReviewAiPageMixin = {
 
   // ── the page ──
   _pgHtml() {
-    const { fx, page } = this._pgState();
+    const { fx, page, src, fu } = this._pgState();
     this._pgOpenSet = this._pgOpenSet || new Set();
     const hl = page.headline ? `<p class="ap-hl">${this._pgParts(page.headline, fx)}</p>` : "";
     const cards = page.widgets.map((w, i) => this._pgCardHtml(w, i, fx));
     const vis = cards.slice(0, VISIBLE), more = cards.slice(VISIBLE);
-    this._pgX = new Map(); page.widgets.forEach((w) => this._pgX.set(w.id, w));
-    return `<div class="ap" data-pg>${hl}${vis.join("")}${more.length ? `<div class="ap-more-w" data-pgmorebox><button type="button" class="ap-more" data-pgmore aria-expanded="false">${fx.t.more}<span>${more.length}</span></button></div><div data-pgrest hidden>${more.join("")}</div>` : ""}<p class="ap-ft"><span>${esc(fx.t.foot)}</span></p></div>`;
+    this._pgX = new Map(); page.widgets.forEach((w) => this._pgX.set(w.id, w)); fu.forEach((f) => this._pgX.set(f.w.id, f.w));
+    const busy = !!this._pgJob?.busy && !this._pgJob.ok;
+    return `<div class="ap" data-pg>${hl}${vis.join("")}${more.length ? `<div class="ap-more-w" data-pgmorebox><button type="button" class="ap-more" data-pgmore aria-expanded="false">${fx.t.more}<span>${more.length}</span></button></div><div data-pgrest hidden>${more.join("")}</div>` : ""}<div class="ap-fu" data-pgfu>${this._pgFuHtml(fx, fu)}</div><p class="ap-ft${busy ? " busy" : ""}" data-pgft>${this._pgFootInner(fx, src, busy)}</p></div>`;
   },
-  _pgCardHtml(w, i, fx) {
+  /** The follow-up widgets (answers drawn as new cards, oldest first) and the card being worked on (shimmer). */
+  _pgFuHtml(fx, fu = this._pgState().fu) {
+    const base = this._pgState().page.widgets.length, pend = this._pgFuBusy;
+    return fu.map((f, i) => this._pgCardHtml(f.w, base + i, fx, { q: f.q, answer: f.answer })).join("") + (pend ? this._pgFuSkel(fx, pend.q) : "");
+  },
+  _pgFuSkel(fx, q) { return `<section class="ap-c ap-sk" aria-busy="true" role="status"><p class="ap-asked">${esc(q)}</p><div class="ap-skl"><i></i><i></i></div><div class="ap-skv"></div><span class="ap-skt">${esc(fx.t.fuWork)}…</span></section>`; },
+  _pgCardHtml(w, i, fx, o = {}) {
     const exp = !!(w.expand.length || w.notes.length), lv = LV_CLASS[w.level] || "game", q = w.who != null ? fx.seatOf(w.who) : -1;
     const chip = w.chip ? (() => { const r = fx.ref(w.chip.ref); if (!r) return ""; const v = r.v, tone = w.chip.tone || (v > 0 ? "up" : v < 0 ? "dn" : ""); return `<span class="ap-chip ${tone}">${w.chip.fmt === "n" ? v : w.chip.fmt === "pct" ? `${v}%` : `${sg(v)}%`}</span>`; })() : "";
-    return `<section class="ap-c lv-${lv}${exp ? " exp" : ""}" data-pgc="${esc(w.id)}" data-pgi="${i}"><div class="ap-hd"><span class="ap-lv">${esc(fx.t.lv[w.level] || w.level)}</span>${q >= 0 && !fx.players[q].you ? `<span class="ap-who pc-${q}"><i></i>${esc(fx.nameOf(q))}</span>` : q >= 0 ? `<span class="ap-who pc-${q}"><i></i>${esc(fx.nameOf(q))}</span>` : ""}${chip}${exp ? `<button type="button" class="ap-chev" data-pgtoggle aria-expanded="false" aria-label="${esc(fx.t.details)}">${CHEV}</button>` : ""}</div>
-      <h3 class="ap-ti">${this._pgParts(w.title, fx)}</h3><div class="ap-bl">${w.blocks.map((b, j) => this._pgBlock(b, w, fx, `${w.id}:${j}`)).join("")}</div>${exp ? `<div class="ap-ex" data-pgex hidden></div>` : ""}</section>`;
+    return `<section class="ap-c lv-${lv}${exp ? " exp" : ""}${o.q ? " fu" : ""}" data-pgc="${esc(w.id)}" data-pgi="${i}">${o.q ? `<p class="ap-asked">${esc(o.q)}</p>` : ""}<div class="ap-hd"><span class="ap-lv">${esc(fx.t.lv[w.level] || w.level)}</span>${q >= 0 && !fx.players[q].you ? `<span class="ap-who pc-${q}"><i></i>${esc(fx.nameOf(q))}</span>` : q >= 0 ? `<span class="ap-who pc-${q}"><i></i>${esc(fx.nameOf(q))}</span>` : ""}${chip}${exp ? `<button type="button" class="ap-chev" data-pgtoggle aria-expanded="false" aria-label="${esc(fx.t.details)}">${CHEV}</button>` : ""}</div>
+      <h3 class="ap-ti">${this._pgParts(w.title, fx)}</h3>${o.answer ? `<p class="ap-ans">${esc(o.answer)}</p>` : ""}<div class="ap-bl">${w.blocks.map((b, j) => this._pgBlock(b, w, fx, `${w.id}:${j}`)).join("")}</div>${exp ? `<div class="ap-ex" data-pgex hidden></div>` : ""}</section>`;
   },
   _pgExpandHtml(w, fx) {
     return `${w.expand.map((b, j) => this._pgBlock(b, w, fx, `${w.id}:x${j}`)).join("")}${w.notes.map((n) => `<p class="ap-note">${this._pgParts(n, fx)}</p>`).join("")}`;
@@ -92,9 +151,9 @@ export const ReviewAiPageMixin = {
       }
     } catch (e) { console.warn("ai page block", b.p, e); return ""; }
   },
+  /** The x axis as the Win chance tab draws it: "set-up" (or the first turn) at the left, "turn N" at the right; no tick numbers. */
   _pgAxis(l, r, t0, t1, H, bm, x, step, t) {
-    let o = ""; for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) o += `<text x="${x(t).toFixed(1)}" y="${H - bm + 13}" text-anchor="middle" class="ax">${t}</text>`;
-    return o + `<text x="${r}" y="${H - 1}" text-anchor="end" class="axl">${t.Turn}</text>`;
+    return `<text x="${x(t0).toFixed(1)}" y="${H - bm + 13}" text-anchor="start" class="ax">${t0 === 0 ? t.setup : `${t.turn} ${t0}`}</text><text x="${x(t1).toFixed(1)}" y="${H - bm + 13}" text-anchor="end" class="ax">${t.turn} ${t1}</text>`;
   },
   _pgWinLine(b, fx) {
     const seats = b.players.map((k) => fx.seatOf(k)), [t0, t1] = b.range || [0, fx.T], W = 320, H = 168, l = 32, r = 12, tp = 20, bm = 34;
@@ -103,9 +162,9 @@ export const ReviewAiPageMixin = {
     const all = lines.flatMap((x) => x.p.map((p) => p[1])); let lo = 0, hi = 100;
     if (t1 - t0 < fx.T * 0.6) { lo = Math.max(0, Math.floor((Math.min(...all) - 6) / 10) * 10); hi = Math.min(100, Math.ceil((Math.max(...all) + 6) / 10) * 10); if (hi - lo < 30) { hi = Math.min(100, lo + 30); lo = Math.max(0, hi - 30); } }
     const x = (t) => l + ((t - t0) / Math.max(1, t1 - t0)) * (W - l - r), y = (v) => H - bm - ((v - lo) / (hi - lo)) * (H - tp - bm);
-    const grid = [lo, Math.round((lo + hi) / 2), hi].map((v) => `<line x1="${l}" x2="${W - r}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="g"/><text x="${l - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" class="ax">${v}%</text>`).join("");
+    const grid = [lo, Math.round((lo + hi) / 2), hi].map((v) => `<line x1="${l}" x2="${W - r}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="g"/><text x="${l - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" class="ax">${v}</text>`).join("");
     const paths = lines.map((ln) => `<path class="pc-${ln.q}${ln.q === fx.me ? " me" : ""}" d="${ln.p.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}`).join("")}"/>`).join("");
-    const placed = []; // label rects already used: a label takes the first free spot above or below its dot
+    const placed = [{ x: l - 6, y: -9, w: 74, h: 14 }]; // (the chart title is taken) label rects already used: a label takes the first free spot above or below its dot
     // markers closer than MK_GAP apart are merged: the one with the biggest win chance move stays (the sheet has previous / next for the rest)
     const MK_GAP = 46, big = (t) => Math.abs(fx.change(seats[0], t)?.d || 0), shown = [];
     b.marks.slice().sort((a, c) => big(c) - big(a) || a - c).forEach((t) => { if (shown.every((u) => Math.abs(x(t) - x(u)) >= MK_GAP)) shown.push(t); });
@@ -184,12 +243,12 @@ export const ReviewAiPageMixin = {
     return `<div class="ap-tiles n${b.items.length}">${b.items.map((it) => {
       if (it.kind === "num") {
         const v = fx.ref(it.ref)?.v, of = it.of ? fx.ref(it.of)?.v : null, sub = it.sub && it.subIf && fx.ref(it.subIf) ? this._pgParts(it.sub, fx) : "";
-        return `<div class="ap-tile"><small>${esc(it.label)}</small><div><b class="big">${v}</b>${of != null ? `<span class="of">${fx.t.of} ${of}</span>` : ""}</div>${sub ? `<div class="sb">${sub}</div>` : ""}</div>`;
+        return `<div class="ap-tile"><small>${esc(it.label)}</small><div><b class="big${typeof v === "string" ? " txt" : ""}">${esc(v)}</b>${of != null ? `<span class="of">${fx.t.of} ${of}</span>` : ""}</div>${sub ? `<div class="sb">${sub}</div>` : ""}</div>`;
       }
       if (it.kind === "startfeed") {
         const q = fx.seatOf(it.player), S = fx.strat[q], dt = S?.startDots; if (!dt) return "";
         const mx = Math.max(6, ...R5.map((r) => dt[r])), need = new Set(S.need), word = fx.t[S.feeds] || S.feeds;
-        return `<div class="ap-tile"><small>${esc(fx.t.startFeeds)}</small><div class="ap-feed"><span class="bars">${R5.map((r) => `<span class="rb ${need.has(r) ? "need" : ""}"><i class="r-${r}" style="height:${Math.max(3, (dt[r] / mx) * 26).toFixed(0)}px"></i><em>${fx.t.abbr[r]}</em></span>`).join("")}</span><b class="fd ${S.feeds}">${word}</b></div></div>`;
+        return `<div class="ap-tile"><small>${esc(fx.t.startFeeds)}</small><div class="ap-feed"><span class="bars">${R5.map((r) => `<span class="rb ${need.has(r) ? "need" : ""}"><i class="r-${r}" style="height:${Math.max(3, (dt[r] / mx) * 26).toFixed(0)}px"></i><img class="ri" src="${RES_ICON[r]}" alt="${esc(fx.t.res[r])}" title="${esc(fx.t.res[r])}" width="18" height="18"></span>`).join("")}</span><b class="fd ${S.feeds}">${word}</b></div></div>`;
       }
       if (it.kind === "miss") { const n = fx.ref("near.n")?.v, res = fx.ref("near.res")?.v; return `<div class="ap-tile"><small>${esc(fx.t.short)}</small><div><b class="big">${n}</b><span class="of">${esc(res)}</span></div></div>`; }
       return "";
@@ -214,9 +273,31 @@ export const ReviewAiPageMixin = {
     const cf = { clear: 3, lean: 2, close: 1 }[d?.vc], badge = cf ? `<div class="ap-badges"><span class="ap-badge mid">${dots(cf)}${esc(fx.t.conf[d.vc])}</span></div>` : "";
     return `${html}${badge}${why}`;
   },
+  /** The board of a validated board block as a spec of the tab's real board renderer (the Replay's, themed: same hexes, tokens, pieces, robber, sea): a decision (played vs better), the robber's move of a turn, the set-up spots, or a player's network. */
+  _pgBoardSpec(b, fx) {
+    const seats = (b.players || []).map((k) => fx.seatOf(k)).filter((q) => q >= 0), foc = (b.hexes || []).map((h) => ({ kind: "focus", focus: { hex: h } }));
+    if (b.dec != null) {
+      const d = fx.decAt(b.dec), mv = d ? tryv(() => decMoves(d.e, fx.lang)) : null; if (!mv?.played || !mv.best) return null;
+      const pf = mv.played.focus, bf = mv.best.focus, same = pf && bf && ["hex", "node", "city", "edge"].some((k) => pf[k] != null && bf[k] != null);
+      const marks = [...(bf ? [{ kind: "better", focus: bf, win: mv.best.win, label: mv.best.label, id: "best" }] : []), ...(pf ? [{ kind: "played", focus: pf, win: mv.played.win, label: mv.played.label, id: "played" }] : [])];
+      return marks.length ? { type: "board", turn: d.turn, seat: d.seat, dec: { d: d.e.d, turn: d.turn, seat: d.seat }, marks, arrows: same ? [{ from: pf, to: bf, kind: "move" }] : [], zoom: "auto" } : null;
+    }
+    if (b.robber) {
+      const m = fx.board?.robber.find((r) => r.turn === b.turn); if (!m) return null;
+      return { type: "board", turn: b.turn, seat: m.seat, dec: null, marks: [{ kind: "robber", focus: { hex: m.hex } }, ...foc], arrows: m.from != null && m.from !== m.hex ? [{ from: { hex: m.from }, to: { hex: m.hex }, kind: "move" }] : [], zoom: "auto" };
+    }
+    const st = tryv(() => stateOfSpec(this, { turn: b.turn })), crop = [], marks = [...foc];
+    if (st && seats.length) { st.nodes.forEach((n, i) => { if (n[0] != null && seats.includes(n[0])) { crop.push({ node: i }); if (b.turn === 0) marks.push({ kind: "focus", focus: { node: i } }); } }); st.edges.forEach((e, i) => { if (e[0] != null && seats.includes(e[0])) crop.push({ edge: i }); }); }
+    if (!marks.length && !crop.length) return null;
+    return { type: "board", turn: b.turn, seat: seats[0] ?? null, dec: null, marks, arrows: [], crop: crop.slice(0, 40), zoom: "auto" };
+  },
   _pgBoard(b, fx, bkey) {
-    const { C, b: blk } = this._pgBlockOf({ type: "board", turn: b.turn, marks: [{ kind: "played", at: "played" }, { kind: "best", at: "best" }] }, fx); if (!blk) return "";
-    return this._aiBlockHtml(blk, { chg: [] }, C, bkey);
+    const spec = this._pgBoardSpec(b, fx); if (!spec) return "";
+    this._aiBkSpec ||= new Map(); this._aiBkSpec.set(bkey, spec);
+    const C = this._aiCtx(), seats = b.players?.length ? b.players.map((k) => fx.seatOf(k)).filter((q) => q >= 0) : fx.players.map((p) => p.seat);
+    const leg = spec.marks.some((m) => m.kind !== "focus") ? this._aiBkLegend(spec, C) : "";
+    const names = `<div class="ap-leg">${seats.map((q) => `<span class="pc-${q}"><i></i>${esc(fx.nameOf(q))}</span>`).join("")}</div>`;
+    return `<div class="ai-vz ap-bdv"><div class="ai-bd" data-aibd="${spec.turn}" data-aibk="${esc(bkey)}"><span class="ai-bdw" aria-hidden="true"></span></div>${leg}${names}</div>`;
   },
 
   // ── interaction ──

@@ -274,7 +274,7 @@ export function drawShips(R, ctx, now, reduced) {
   // its rim, so not even the anti-aliased rim edge shows a course or a halo through it
   const pills = R.layer?.pills;
   if (pills?.length) {
-    const px = 1 / (R.u * g.view.scale), m = 3.4 * px;
+    const px = 1 / (R.u * g.view.scale), m = 7 * px;
     const clip = new Path2D();
     clip.rect(-1e5, -1e5, 2e5, 2e5);
     pills.forEach((q) => { const x0 = q.x - q.w / 2 - m, y0 = q.y - q.h / 2 - m, w = q.w + 2 * m, h = q.h + 2 * m; if (clip.roundRect) clip.roundRect(x0, y0, w, h, (q.r || 0) + m); else clip.rect(x0, y0, w, h); });
@@ -340,7 +340,13 @@ export function drawPirateAndChips(R, ctx, now, reduced, devK, drawSpec) {
         R.requestDraw();
       }
     }
-    ctx.save(); ctx.translate(pos.x, pos.y + 6); ctx.scale(R.pieceScale * 1.25, R.pieceScale * 1.25);
+    // v1.87: the pirate never sits on a harbour pill: where its hex holds one, it steps clear (up or down, away from the pill)
+    let py = pos.y + 6;
+    const pr = 30 * R.pieceScale * 1.25;
+    (R.layer?.pills || harbourBadges(R.game, harbourScale(R.game))).forEach((q) => {
+      if (Math.abs(pos.x - q.x) < q.w / 2 + pr * 0.7 && Math.abs(py - q.y) < q.h / 2 + pr * 0.95) py = q.y + (py < q.y ? -1 : 1) * (q.h / 2 + pr * 0.95);
+    });
+    ctx.save(); ctx.translate(pos.x, py); ctx.scale(R.pieceScale * 1.25, R.pieceScale * 1.25);
     drawSpec(ctx, S.pirate, { k: devK, rim: R.theme.rim, rimW: R.theme.rimW ?? 5 });
     ctx.restore();
   }

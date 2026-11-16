@@ -19,7 +19,7 @@ import { GBM_MODEL } from "./leaf-gbm-model.js";
 import { FIT2_ADJ } from "./leaf-fit.js";
 
 export const MASTER_OPTS = { n: 100, timeMs: 0, depth: 8, setupDepth: 12, z: 1.0, minAdv: 0.002, jitter: 0.15, T: 1.2, topSetup: 6, topRobber: 4, maxCands: 7 };
-const RES = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
+import { RES_EN as RES } from "../resources.js";
 const DEV = { knight: "Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly" };
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 const r4 = (v) => Math.round(v * 1e4) / 1e4;
@@ -133,7 +133,7 @@ export function makeMaster(opts = {}) {
         const hk = ax && ts ? (pl) => { aimHook(g, ax)(pl); ts.hook(pl); } : ax ? aimHook(g, ax) : ts ? ts.hook : null;
         if (!g.winner && depth > 0) { try { rollout(g, a === "ended" ? depth - 1 : depth, r, { jitter: o.jitter, onEnd: hk, maxRounds: o.maxRounds || 250 }); } catch (e) { if (ts) ts.end(); throw e; } } // (v1.42 depth 0: the leaf straight on the position, the review's Quick model)
         if (o.leaf === "gbm" || o.leaf === "gbm0") { const ws = gbmProbs(g, o.leaf === "gbm0" ? GBM_MODEL : null); v = ws[me]; if (seatW) seatW[k][j] = ws; } // eng-124 o.leaf 'gbm': boosted trees (src/master/leaf-gbm.js; the review's leaf); eng-130: the Seafarers model on a Seafarers board ('gbm0': always the island model, for measurements)
-        else if (o.leaf === "fit" || o.leaf === "fit2") { const ws = fitProbs(g, undefined, o.leaf === "fit2" ? FIT2_ADJ : null); v = ws[me]; if (seatW) seatW[k][j] = ws; } // v1.10 o.leaf 'fit': the fitted score function; v1.19 'fit2': plus the Longest Road / Largest Army offset
+        else if (o.leaf === "fit" || o.leaf === "fit2") { const ws = fitProbs(g, undefined, o.leaf === "fit2" ? FIT2_ADJ : null); v = ws[me]; if (seatW) seatW[k][j] = ws; } // v1.10 o.leaf 'fit': the fitted score function; v1.19 'fit2': plus the Longest road / Largest army offset
         else if (seatW) { const ws = winProbs(g, o.T); v = ws[me]; seatW[k][j] = ws; } else v = winProb(g, me, o.T);
       }
       vals[k][j] = v;
@@ -219,7 +219,7 @@ export function makeMaster(opts = {}) {
     return `${Object.keys(give).map((r) => RES[r]).join(" + ")} → ${Object.entries(get).map(([r, n]) => `${n} ${RES[r]}`).join(" + ")}`;
   };
   const goalName = (g, goal) => (goal.type === "settlement" ? `Settlement on ${g._spotLabel(goal.nodeId)}${goal.dist ? ` +${goal.dist} road${goal.dist > 1 ? "s" : ""}` : ""}`
-    : goal.type === "city" ? `City on ${g._spotLabel(goal.nodeId)}` : goal.type === "road" ? "Longest Road" : goal.type === "dev" ? "Dev card" : goal.label);
+    : goal.type === "city" ? `City on ${g._spotLabel(goal.nodeId)}` : goal.type === "road" ? "Longest road" : goal.type === "dev" ? "Dev card" : goal.label);
   const goalFocus = (goal) => (goal.type === "settlement" ? { node: goal.nodeId } : goal.type === "city" ? { city: goal.nodeId } : goal.type === "road" && goal.edge != null ? { edge: goal.edge } : null);
   const describeDiff = (g, p, dif, plan) => {
     if (dif.cities.length) return { label: `City on ${g._spotLabel(dif.cities[0])}`, focus: { city: dif.cities[0] } };
@@ -228,7 +228,7 @@ export function makeMaster(opts = {}) {
     if (dif.roads.length) {
       const g0 = plan.goals[0];
       if (g0?.type === "settlement" && g0.dist > 0) return { label: `Road toward ${g._spotLabel(g0.nodeId)}`, focus: { edge: dif.roads[0], node: g0.nodeId } };
-      return { label: g0?.type === "road" ? "Road (Longest Road)" : "Road", focus: { edge: dif.roads[0] } };
+      return { label: g0?.type === "road" ? "Road (Longest road)" : "Road", focus: { edge: dif.roads[0] } };
     }
     if (dif.devBought > 0) return { label: "Dev card", focus: null };
     const gave = Object.keys(RES).filter((r) => dif.res[r] < 0), got = Object.keys(RES).filter((r) => dif.res[r] > 0);
