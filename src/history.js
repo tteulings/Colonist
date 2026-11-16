@@ -16,6 +16,7 @@
 // off while `_histView` is set), the end screen (Stats) or the Replay or the Game review opens on it, and
 // "Past games" in the top-left puts your running game back (it stays in localStorage untouched).
 // Styles: themes/history.css.
+import { oicon } from "./ui-icons.js";
 import { icon, avatarSvg } from "./themes/manager.js";
 import { BOT_PROFILES, profileMini } from "./bot-profiles.js";
 import { profileOf } from "./bot-profile-ui.js";
@@ -599,7 +600,7 @@ const DOWN = `<svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><path d="M1
 const TRASH = `<svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><path d="M5 7h14M9.5 7V4.5h5V7M7 7l.8 12.5h8.4L17 7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const WARN = `<svg viewBox="0 0 24 24" class="ic hs-wi" aria-hidden="true"><path d="M12 3.5 22 20H2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4.5M12 17.2v.2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`;
 const CHECK = `<svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-export const HISTORY_ICON = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9M4 4.5V8h3.5M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+export const HISTORY_ICON = oicon("history");
 
 function dur(ms) { const m = Math.max(1, Math.round(ms / 60000)); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`; }
 function kb(b) { return b < 1024 ? `${b} B` : `${(b / 1024).toFixed(b < 10240 ? 1 : 0)} KB`; }

@@ -375,13 +375,13 @@ export const StatsUiMixin = {
     const rows = ranked.map((p) => {
       const s = st.sources[p.id];
       let acc = 0;
-      const segs = used.map(([k], i) => { const v = s[k]; if (!v) return ""; const seg = `<rect class="gs-seg s${i}" x="${(acc / maxV) * 100}%" width="calc(${(v / maxV) * 100}% - 2px)" height="16" rx="4"/>`; acc += v; return seg; }).join("");
+      const segs = used.map(([k], i) => { const v = s[k]; if (!v) return ""; const seg = `<rect class="gs-seg s${i} k-${k}" x="${(acc / maxV) * 100}%" width="calc(${(v / maxV) * 100}% - 2px)" height="16" rx="4"/>`; acc += v; return seg; }).join("");
       return `<div class="gs-row" data-pid="${p.id}" data-sum="${s.total}" data-vp="${p.victoryPoints}">${this._stPortrait(p.id, "", 26)}<svg class="gs-bar" height="16">${segs}</svg><b>${s.total}</b></div>`;
     }).join("");
     const w = st.sources[st.winner], wn = this._stName(this.players[st.winner]);
     const top = used.reduce((b, [k, , l]) => (w[k] > (b?.v || 0) ? { k, l, v: w[k] } : b), null);
     const title = top ? `${top.l} gave ${wn === "You" ? "you" : wn} ${top.v} of ${w.total} points` : "Where the points came from";
-    const legend = `<div class="gs-legend neutral">${used.map(([, ic, l], i) => `<span><i class="s${i}"></i>${l}</span>`).join("")}</div>`;
+    const legend = `<div class="gs-legend neutral">${used.map(([k, , l], i) => `<span><i class="s${i} k-${k}"></i>${l}</span>`).join("")}</div>`;
     return this._stCard("sources", title, "Points by source", `<div class="gs-rows">${rows}</div>${legend}`);
   },
 

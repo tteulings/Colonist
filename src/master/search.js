@@ -19,7 +19,7 @@ import { GBM_MODEL } from "./leaf-gbm-model.js";
 import { FIT2_ADJ } from "./leaf-fit.js";
 
 export const MASTER_OPTS = { n: 100, timeMs: 0, depth: 8, setupDepth: 12, z: 1.0, minAdv: 0.002, jitter: 0.15, T: 1.2, topSetup: 6, topRobber: 4, maxCands: 7 };
-const RES = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
+import { RES_EN as RES } from "../resources.js";
 const DEV = { knight: "Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly" };
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 const r4 = (v) => Math.round(v * 1e4) / 1e4;

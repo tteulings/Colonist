@@ -5,17 +5,18 @@
 import { CATS, CAT, CLS_WORD, gameLessons, aggregate, moveText, betterText, practiceOptions, loadPractice, savePractice, practiceStats, pickPractice, exKey, askFacts } from "./lessons-data.js";
 import { RECAP_URL, recapLang } from "./review-recap.js";
 import { esc } from "./review-ui.js";
+import { oicon } from "./ui-icons.js";
 
 const CHEV_L = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const CHEV_R = `<svg class="ic ln-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-export const LESSONS_ICON = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5C4 5 4.5 4.5 5 4.5h5c1.1 0 2 .9 2 2V19c0-.8-.7-1.5-1.5-1.5H5c-.5 0-1-.4-1-1zM20 5.5c0-.5-.5-1-1-1h-5c-1.1 0-2 .9-2 2V19c0-.8.7-1.5 1.5-1.5H19c.5 0 1-.4 1-1z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>`;
-const CAT_IC = { setup: "⌖", robber: "♟", build: "⚒", dev: "♣", trade: "⇄", timing: "⏱" };
+export const LESSONS_ICON = oicon("lessons");
+const CAT_IC = { setup: oicon("target"), robber: oicon("robber"), build: oicon("build"), dev: oicon("devcard"), trade: oicon("trade"), timing: oicon("clock") };
 const TREND = { better: ["↓", "Getting better"], worse: ["↑", "Getting worse"], same: ["→", "About the same"] };
 const PRESETS = ["How do I get better at this?", "What do I keep doing wrong?", "Give me one rule to follow"];
 const ASK_KEY = "colonist_lessons_ask";
 const online = () => typeof navigator === "undefined" || navigator.onLine !== false;
 const day = (t) => new Date(t).toLocaleDateString([], { day: "numeric", month: "short" });
-const RL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
+import { RES_EN as RL } from "./resources.js";
 const askCache = () => { try { return JSON.parse(localStorage.getItem(ASK_KEY) || "{}") || {}; } catch (_) { return {}; } };
 const askSave = (o) => { try { const ks = Object.keys(o); if (ks.length > 60) ks.slice(0, ks.length - 60).forEach((k) => delete o[k]); localStorage.setItem(ASK_KEY, JSON.stringify(o)); } catch (_) { /* private mode */ } };
 const norm = (q) => String(q).trim().toLowerCase().replace(/\s+/g, " ");

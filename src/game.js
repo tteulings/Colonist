@@ -45,7 +45,8 @@ const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 const currentPalette = () => { const p = document.documentElement.dataset.palette; return p === "vivid" || p === "night" || p === "dusk" ? p : "light"; };
 const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore: "Or" };
 // Glossary names (shared/glossary.md): cards are Lumber / Brick / Wool / Grain / Ore
-const RESOURCE_LABEL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
+import { RES_EN as RESOURCE_LABEL } from "./resources.js";
+import { oicon } from "./ui-icons.js";
 const RESOURCE_ICON_PATH = {
   wood: "./assets/icons/resource-wood-v3.svg",
   brick: "./assets/icons/resource-brick-v2.svg",
@@ -10834,7 +10835,7 @@ class ColonistFullGame {
         : w.miss ? `<span class="bc-need"><b>need</b>${w.miss.map(([r, n]) => `<span class="bc-miss">${n}<i class="mini-card"><svg viewBox="0 0 250 350" aria-hidden="true"><use href="#cardm-${r}"/></svg></i>${RESOURCE_LABEL[r]}</span>`).join("")}</span>`
         : `<span class="bc-need">${w.short}</span>`;
       return `<button type="button" class="bc-row${pa === t ? " sel" : ""}${w ? " off" : ""}" data-bc="${t}" aria-pressed="${pa === t}" aria-disabled="${!!w}" aria-label="${label}${w ? `: ${w.text}` : ""}">`
-        + `<span class="bc-top">${icon(t)}<span class="bc-name">${label}</span></span><span class="bc-cost">${free ? "" : this._miniCost(COSTS[t], human.resources)}</span>${foot}</button>`;
+        + `<span class="bc-top">${oicon(t)}<span class="bc-name">${label}</span></span><span class="bc-cost">${free ? "" : this._miniCost(COSTS[t], human.resources)}</span>${foot}</button>`;
     };
     const html = row("road", "Road") + (this.sea ? row("ship", "Ship") : "") + row("settlement", "Settle") + row("city", "City");
     if (el.__html !== html) { el.__html = html; el.innerHTML = html; }

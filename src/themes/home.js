@@ -4,18 +4,19 @@
 import { icon, avatarSvg } from "./manager.js";
 import { HISTORY_ICON } from "../history.js";
 import { LESSONS_ICON } from "../lessons.js";
+import { oicon } from "../ui-icons.js";
 import { liveWinOn, setLiveWin, liveRefineOn, setLiveRefine } from "../live-bar.js";
 
 const MENU_IC = `<svg class="ic ic-menu" viewBox="-50 -50 100 100" aria-hidden="true"><path d="M-30 -22H30M-30 0H30M-30 22H30" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/></svg>`;
 const PLAY_IC = `<svg class="hm-play" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="currentColor" opacity=".2"/><path d="M9.6 7.4v9.2l7.4-4.6z" fill="currentColor"/></svg>`;
-const CLOCK_IC = `<svg class="ic hm-clock" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="26.5" r="16.5" fill="#FFD25A" stroke="#7A4B12" stroke-width="3"/><path d="M24 16v10.5l6.5 4.5" stroke="#7A4B12" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M19 5.5h10M24 5.5v4" stroke="#7A4B12" stroke-width="3.4" stroke-linecap="round"/></svg>`;
-const SLIDERS_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/><circle cx="15" cy="7" r="2.3" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="9" cy="17" r="2.3" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>`;
-const BOTS_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M12 20V4M19 20v-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>`;
-const BOOK_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5c3-1.4 5.8-1.2 8.5.8v13c-2.7-2-5.5-2.2-8.5-.8zM20.5 5.5c-3-1.4-5.8-1.2-8.5.8v13c2.7-2 5.5-2.2 8.5-.8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/></svg>`;
+const CLOCK_IC = oicon("clock", "hm-clock");
+const SLIDERS_IC = oicon("sliders");
+const BOTS_IC = oicon("bars");
+const BOOK_IC = oicon("book");
 /** A theme may draw its own version of these glyphs (Silhouette does): use its sprite icon when it has one. */
 const themed = (game, k, fallback, cls = "") => (game?.theme?.icons?.[k] ? icon(k, cls) : fallback);
-const INFO_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="7.6" r="1.4" fill="currentColor"/></svg>`;
-const LAB_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3.5h5M10.5 3.5v5.2L5 18.2a1.6 1.6 0 0 0 1.4 2.3h11.2a1.6 1.6 0 0 0 1.4-2.3l-5.5-9.5V3.5" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" fill="none"/><circle cx="10" cy="16" r="1.3" fill="currentColor"/><circle cx="13.6" cy="14" r="1" fill="currentColor"/></svg>`;
+const INFO_IC = oicon("info");
+const LAB_IC = oicon("lab");
 const CHEV = `<span class="hm-chev" aria-hidden="true">›</span>`;
 const UPDATE_IC = `<svg class="hm-upd-ic" viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 10a5.5 5.5 0 1 1-1.8-4.1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M14.6 1.8v4.6H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
@@ -97,8 +98,8 @@ export class Home {
       <section class="hm-card hm-new" aria-labelledby="hmNewH">
         <h2 class="hm-h" id="hmNewH">${s ? "Start a new game" : "Choose a game"}</h2>
         <div class="hm-tiles">
-          <button type="button" class="hm-tile" data-mode="classic">${icon("dice")}<b>Classic</b><small>Take turns at your own pace</small><span class="hm-vs">${vs}</span></button>
-          <button type="button" class="hm-tile" data-mode="rush">${themed(this.game, "clock", CLOCK_IC, "hm-clock")}<b>Rush</b><small>Everyone plays at once, dice every ${p.numBots >= BIG_FROM_BOTS ? Math.max(p.rushInterval, BIG_RUSH_SECONDS) : p.rushInterval}s</small><span class="hm-vs">${vs}</span></button>
+          <button type="button" class="hm-tile" data-mode="classic">${oicon("dice")}<b>Classic</b><small>Take turns at your own pace</small><span class="hm-vs">${vs}</span></button>
+          <button type="button" class="hm-tile" data-mode="rush">${CLOCK_IC}<b>Rush</b><small>Everyone plays at once, dice every ${p.numBots >= BIG_FROM_BOTS ? Math.max(p.rushInterval, BIG_RUSH_SECONDS) : p.rushInterval}s</small><span class="hm-vs">${vs}</span></button>
         </div>
         <div class="hm-row"><span>Opponents</span>${seg("bots", "Opponents", Array.from({ length: MAX_BOTS }, (_, i) => [i + 1, String(i + 1), `${i + 1} bot${i ? "s" : ""}`]), p.numBots, sea ? [4, 5] : [])}</div>
         ${!sea && p.numBots >= BIG_FROM_BOTS ? `<p class="hm-cap">${p.numBots + 1} players · bigger island · build between turns</p>` : ""}
@@ -109,11 +110,11 @@ export class Home {
       <nav class="hm-card hm-list" aria-label="More">
         <button type="button" data-home="history">${HISTORY_ICON}<span>Past games<small>${(() => { const n = this.opts.historyCount?.(); return n ? `${n} finished game${n > 1 ? "s" : ""} · replay, stats, review` : "Replay and review your finished games"; })()}</small></span>${CHEV}</button>
         <button type="button" data-home="lessons">${LESSONS_ICON}<span>Lessons<small>Learn from your reviewed games</small></span>${CHEV}</button>
-        <button type="button" data-home="friend">${icon("trade")}<span>Play with a friend<small>Share this phone · pass it on</small></span>${CHEV}</button>
+        <button type="button" data-home="friend">${oicon("trade")}<span>Play with a friend<small>Share this phone · pass it on</small></span>${CHEV}</button>
         <button type="button" data-home="bots">${BOTS_IC}<span>Bots<small>Leaderboard, strength and your results</small></span>${CHEV}</button>
-        <button type="button" data-home="more">${themed(this.game, "sliders", SLIDERS_IC)}<span>Rules &amp; options<small>Rules, map, bots</small></span>${CHEV}</button>
-        <button type="button" data-home="intro" class="${fresh ? "fresh" : ""}">${themed(this.game, "book", BOOK_IC)}<span>How to play${fresh ? `<small>New here? 3 short cards</small>` : ""}</span>${CHEV}</button>
-        <div class="hm-pair"><button type="button" data-home="settings">${icon("settings")}<span>Settings</span>${CHEV}</button>
+        <button type="button" data-home="more">${SLIDERS_IC}<span>Rules &amp; options<small>Rules, map, bots</small></span>${CHEV}</button>
+        <button type="button" data-home="intro" class="${fresh ? "fresh" : ""}">${BOOK_IC}<span>How to play${fresh ? `<small>New here? 3 short cards</small>` : ""}</span>${CHEV}</button>
+        <div class="hm-pair"><button type="button" data-home="settings">${oicon("settings")}<span>Settings</span>${CHEV}</button>
         <a class="hm-lab" href="./lab.html" data-home="lab" title="See how the bots score the board">${LAB_IC}<span>AI Lab</span>${CHEV}</a></div>
       </nav>
     </div>`;
@@ -140,8 +141,8 @@ export class Home {
 }
 
 /** The in-game Menu (dock button on phones, top bar on desktop): Home · New game · Settings · How to play · About. */
-const CHECK_IC = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l5-6 4 3 7-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-const STATS_IC = `<svg class="ic" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M3 11h3v6H3zM8.5 4h3v13h-3zM14 8h3v9h-3z"/></svg>`;
+const CHECK_IC = oicon("check");
+const STATS_IC = oicon("bars");
 
 export class GameMenu {
   /** opts: { onHome(), onNewGame(), onSettings(), onIntro(), onAbout() } */
@@ -164,21 +165,21 @@ export class GameMenu {
     const sr = this.game.speedRange;
     const item = (k, ic, label, sub = "") => `<button type="button" data-menu="${k}">${ic}<span>${label}${sub ? `<small>${sub}</small>` : ""}</span></button>`;
     el.innerHTML = `<div class="mn-card">
-      <div class="mn-head"><h2>${themed(this.game, "menu", MENU_IC, "ic-menu")}Menu</h2><button type="button" class="btn ghost icon-only mn-close" aria-label="Close">${icon("close")}</button></div>
+      <div class="mn-head"><h2>${MENU_IC}Menu</h2><button type="button" class="btn ghost icon-only mn-close" aria-label="Close">${icon("close")}</button></div>
       ${this.game._botLevelLabel?.() ? `<p class="mn-sub">${this.game._botLevelLabel()}</p>` : ""}
       ${sr ? `<label class="mn-speed"><span>Bot speed</span><input type="range" min="${sr.min}" max="${sr.max}" step="${sr.step || 1}" value="${sr.value}" aria-label="Bot speed" /><em aria-hidden="true">Slow \u2192 Fast</em></label>` : ""}
       <label class="mn-speed mn-live"><span>Live win chance</span><input type="checkbox" ${liveWinOn() ? "checked" : ""} aria-label="Live win chance" /><em aria-hidden="true">Quick model, a rough guide</em></label>
       <label class="mn-speed mn-live mn-refine"><span>Keep refining (simulates more games)</span><input type="checkbox" ${liveRefineOn() ? "checked" : ""} aria-label="Keep refining" /><em aria-hidden="true">Uses battery</em></label>
       <div class="mn-list">
-        ${item("home", `<svg class="ic" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>`, "Home", this.game.winner ? "" : "Your game is saved")}
+        ${item("home", oicon("home"), "Home", this.game.winner ? "" : "Your game is saved")}
         ${this.game.liveStatsAvailable?.() && !this.game._lsNeedsBoard?.() ? item("stats", STATS_IC, "Stats", "Dice, points and income so far") : ""}
         ${this.game._rvMidPid?.() != null ? item("check", CHECK_IC, "Check my moves so far", this.game._rvMidSub()) : ""}
-        ${item("newgame", icon("dice"), "New game", "Mode, rules and opponents")}
+        ${item("newgame", oicon("dice"), "New game", "Mode, rules and opponents")}
         ${item("history", HISTORY_ICON, "Past games", (() => { const n = this.opts.historyCount?.(); return n ? `${n} finished game${n > 1 ? "s" : ""}` : "Replay and review"; })())}
         ${item("lessons", LESSONS_ICON, "Lessons", "Learn from your reviewed games")}
-        ${item("settings", icon("settings"), "Settings", "Sound, bot speed, look")}
-        ${item("intro", themed(this.game, "book", BOOK_IC), "How to play")}
-        ${item("about", themed(this.game, "info", INFO_IC), "About")}
+        ${item("settings", oicon("settings"), "Settings", "Sound, bot speed, look")}
+        ${item("intro", BOOK_IC, "How to play")}
+        ${item("about", INFO_IC, "About")}
       </div></div>`;
     el.addEventListener("click", (e) => { if (e.target === el) this.close(); });
     el.querySelector(".mn-close").addEventListener("click", () => this.close());

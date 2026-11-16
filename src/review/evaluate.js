@@ -96,7 +96,7 @@ export const TRIVIAL = REVIEW.trivial ?? TRIV; // every alternative within 2 poi
 export const SE_SHRINK = SHRINK;  // the loss is the best gap less this many standard errors (winner's curse)
 export const EVAL_KINDS = ["setup", "build", "bank", "buy", "play", "robber", "end", "shipmove"]; // eng-130 shipmove: Seafarers
 
-const RL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
+import { RES_EN as RL } from "../resources.js";
 const DEV = { knight: "Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly" };
 const COST = { ship: { wood: 1, sheep: 1 }, road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 } };
 const r4 = (x) => Math.round(x * 1e4) / 1e4;

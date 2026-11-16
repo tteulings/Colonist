@@ -10,7 +10,7 @@
 // Node: { id, label, sub, v, vt: "score"|"signed"|"div"|"none", text, bar, w, chosen, tag, focus, children }
 
 const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
-const RES_LABEL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
+import { RES_EN as RES_LABEL } from "./resources.js";
 const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, development: { sheep: 1, wheat: 1, ore: 1 } };
 const DEV = { knight: "Knight", monopoly: "Monopoly", yearOfPlenty: "Year of Plenty", roadBuilding: "Road Building" };
 // getNodeProductionScore terms: [key, label, lab weight]

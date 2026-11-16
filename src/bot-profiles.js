@@ -239,23 +239,21 @@ export function profileArt(key, size = 72) {
 
 // ── mini emblems (16–20 px medallions): the one key object, thick strokes ──
 const MINI = {
-  beginner: `<circle cx="50" cy="50" r="26" fill="#FFFDF8"${o(8)}/><path d="M50,26 L58,50 L50,74 L42,50Z" fill="#D1453A"/><path d="M50,50 L58,50 L50,74 L42,50Z" fill="#8D9AA8"/>`,
-  simple: `<rect x="26" y="20" width="48" height="62" rx="6" fill="#FFFDF8"${o(7)}/><path d="M36,38 l6,6 l12,-12 M36,62 H64" fill="none" stroke="#2A8556" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>`,
-  intermediate: `<path d="M50,60 L40,78 H60Z" fill="#8D9AA8"${o(6)}/><rect x="12" y="52" width="76" height="9" rx="4" fill="#C98F55"${o(6)}/><path d="M18,52 V38 L28,28 L38,38 V52Z" fill="#E57A3C"${o(6)}/><circle cx="72" cy="40" r="11" fill="#F2C94C"${o(6)}/>`,
-  expert: `<path d="M18,34 l16,-10 l16,10 v20 l-16,10 l-16,-10Z" fill="#7FB069"${o(6)}/><path d="M50,34 l16,-10 l16,10 v20 l-16,10 l-16,-10Z" fill="#E9B949"${o(6)}/><path d="M40,82 V66 L50,57 L60,66 V82Z" fill="#3C75C6"${o(6)}/>`,
-  trader: `<path d="M50,20 V78 M20,34 H80 M36,80 H64" fill="none"${o(8)}/><path d="M10,54 Q22,68 34,54Z M66,54 Q78,68 90,54Z" fill="#E9B949"${o(6)}/>`,
-  builder: `<g transform="rotate(38 50 50)"><rect x="44" y="34" width="12" height="54" rx="4" fill="#C98F55"${o(6)}/><path d="M26,18 H74 V38 H26 Q20,28 26,18Z" fill="#8D9AA8"${o(6)}/></g>`,
-  shark: `<path d="M14,70 Q32,60 50,70 T86,70" fill="none" stroke="#3C8DB5" stroke-width="8" stroke-linecap="round"/><path d="M24,66 Q32,30 66,16 Q54,42 60,66Z" fill="#6E8796"${o(7)}/>`,
-  master: `<path d="M50,10 L61,36 L89,37 L67,55 L75,83 L50,67 L25,83 L33,55 L11,37 L39,36Z" fill="#F2C94C"${o(7)}/>`,
-  // two stars, one behind the other
-  super: `<path d="M38,6 L47,28 L70,29 L52,43 L58,66 L38,53 L18,66 L24,43 L6,29 L29,28Z" fill="#F2C94C"${o(6)}/><path d="M66,34 L75,56 L98,57 L80,71 L86,94 L66,81 L46,94 L52,71 L34,57 L57,56Z" fill="#F2C94C"${o(6)}/>`,
-  // Super Expert+: the two stars and a plus disc
-  // Grandmaster: three stars in a crown row
-  grandmaster: `<path d="M50,4 L57,22 L76,23 L61,34 L66,53 L50,42 L34,53 L39,34 L24,23 L43,22Z" fill="#F2C94C"${o(6)}/><path d="M22,40 L28,55 L44,56 L32,65 L36,81 L22,72 L8,81 L12,65 L0,56 L16,55Z" fill="#F2C94C"${o(5)}/><path d="M78,40 L84,55 L100,56 L88,65 L92,81 L78,72 L64,81 L68,65 L56,56 L72,55Z" fill="#F2C94C"${o(5)}/><rect x="22" y="84" width="56" height="12" rx="4" fill="#2FA39A"${o(5)}/>`,
-  superplus: `<path d="M38,6 L47,28 L70,29 L52,43 L58,66 L38,53 L18,66 L24,43 L6,29 L29,28Z" fill="#F2C94C"${o(6)}/><path d="M66,34 L75,56 L98,57 L80,71 L86,94 L66,81 L46,94 L52,71 L34,57 L57,56Z" fill="#F2C94C"${o(6)}/><circle cx="20" cy="80" r="17" fill="#2FA39A"${o(6)}/><path d="M20,70 V90 M10,80 H30" stroke="#FFFDF8" stroke-width="7" stroke-linecap="round"/>`,
+  // v1.86 outline set: 100 grid, one 8-unit currentColor stroke, no fills (the same grammar as src/ui-icons.js)
+  beginner: `<path d="M50,16 L64,50 L50,84 L36,50Z"/><path d="M36,50 H64"/>`,
+  simple: `<rect x="26" y="16" width="48" height="68" rx="9"/><path d="M38,40 l7,7 l15,-15 M38,66 H62"/>`,
+  intermediate: `<path d="M12,52 H88"/><path d="M50,52 L38,82 H62Z"/><path d="M20,52 V38 L32,27 L44,38 V52"/><circle cx="72" cy="38" r="11"/>`,
+  expert: `<path d="M16,34 l17,-10 l17,10 v20 l-17,10 l-17,-10Z"/><path d="M50,34 l17,-10 l17,10 v20 l-17,10 l-17,-10Z"/><path d="M38,84 V70 L50,60 L62,70 V84Z"/>`,
+  trader: `<path d="M20,34 H82 M68,18 l16,16 -16,16"/><path d="M80,66 H18 M32,50 l-16,16 16,16"/>`,
+  builder: `<path d="M24,80 L52,52"/><path d="M42,30 L58,14 L86,42 L70,58Z"/>`,
+  shark: `<path d="M12,76 Q31,66 50,76 T88,76"/><path d="M26,66 Q34,30 68,16 Q56,42 62,66Z"/>`,
+  master: `<path d="M50.0,14.0 L60.1,38.2 L86.1,40.3 L66.3,57.3 L72.3,82.7 L50.0,69.1 L27.7,82.7 L33.7,57.3 L13.9,40.3 L39.9,38.2Z"/>`,
+  super: `<path d="M36.0,12.0 L42.9,28.5 L60.7,30.0 L47.1,41.6 L51.3,59.0 L36.0,49.7 L20.7,59.0 L24.9,41.6 L11.3,30.0 L29.1,28.5Z"/><path d="M64.0,38.0 L70.9,54.5 L88.7,56.0 L75.1,67.6 L79.3,85.0 L64.0,75.7 L48.7,85.0 L52.9,67.6 L39.3,56.0 L57.1,54.5Z"/>`,
+  grandmaster: `<path d="M50.0,6.0 L55.3,18.7 L69.0,19.8 L58.6,28.8 L61.8,42.2 L50.0,35.0 L38.2,42.2 L41.4,28.8 L31.0,19.8 L44.7,18.7Z"/><path d="M24.0,46.0 L29.3,58.7 L43.0,59.8 L32.6,68.8 L35.8,82.2 L24.0,75.0 L12.2,82.2 L15.4,68.8 L5.0,59.8 L18.7,58.7Z"/><path d="M76.0,46.0 L81.3,58.7 L95.0,59.8 L84.6,68.8 L87.8,82.2 L76.0,75.0 L64.2,82.2 L67.4,68.8 L57.0,59.8 L70.7,58.7Z"/>`,
+  superplus: `<path d="M36.0,12.0 L42.9,28.5 L60.7,30.0 L47.1,41.6 L51.3,59.0 L36.0,49.7 L20.7,59.0 L24.9,41.6 L11.3,30.0 L29.1,28.5Z"/><path d="M66.0,38.0 L71.8,52.0 L86.9,53.2 L75.4,63.1 L78.9,77.8 L66.0,69.9 L53.1,77.8 L56.6,63.1 L45.1,53.2 L60.2,52.0Z"/><path d="M24,76 V94 M15,85 H33"/>`,
 };
 export function profileMini(key, size = 18) {
-  return `<svg class="pa-mini" width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true">${MINI[key] || MINI.intermediate}</svg>`;
+  return `<svg class="pa-mini" width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">${MINI[key] || MINI.intermediate}</g></svg>`;
 }
 
 // ── level frames (variant a): strength as material, style bots by pattern; every kind differs in SHAPE too ──

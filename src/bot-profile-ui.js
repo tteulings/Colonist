@@ -2,6 +2,7 @@
 // chip, an (i) in the new-game picker, a row in Settings › Bots) and the small pieces they share.
 // Texts and illustrations live in bot-profiles.js; this file only builds DOM strings and wires the sheet.
 import { BOT_PROFILES as P, profileArt, profileMini, levelFrame } from "./bot-profiles.js";
+import { oicon } from "./ui-icons.js";
 import { avatarSvg } from "./themes/manager.js";
 import { winOf, BOT_STATS } from "./bot-stats.js";
 export { byStrength } from "./bot-stats.js"; // lab-131: picker order
@@ -88,7 +89,7 @@ function details(key) {
   const src = w.label === "measured" ? `Measured: ${w.n} games against 3 Medium bots (likely range ${Math.max(0, Math.round((w.v - w.ci) * 10) / 10)}–${Math.round((w.v + w.ci) * 10) / 10} wins out of 100).${p.note ? ` ${p.note}` : ""}` : p.note || "";
   return `<p class="bp-style">${p.style}</p>
     <div class="bp-rows">${row("good", "+", "Good at", p.good)}${row("weak", "−", "Weak spot", p.weak)}
-    ${row("trade", "⇄", "Trading", p.trades)}${row("rob", "♟", "Robber", p.robber)}${row("card", "★", "Dev cards", p.cards)}</div>
+    ${row("trade", oicon("trade"), "Trading", p.trades)}${row("rob", oicon("robber"), "Robber", p.robber)}${row("card", oicon("devcard"), "Dev cards", p.cards)}</div>
     <p class="bp-src">${src}${p.acc ? ` Review accuracy ${p.acc[0]} ± ${p.acc[1]}: its own moves checked by deep Monte Carlo (1000 futures), the same scale as the review screen.` : ""}</p>`;
 }
 

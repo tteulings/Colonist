@@ -9,7 +9,7 @@
 //     plan: one short line about A · vs: one short line about B · head: the one-line reason (the "Could be better" card)
 //     mark: { nodes, edges, rivals } what to light up on the board besides A and B themselves
 // Pure reads: the few temporary edits (a road laid to look at the reach) are undone in a finally.
-const RN = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
+import { RES_EN as RN } from "../resources.js";
 const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
 const BY_NAME = Object.fromEntries(Object.entries(RN).map(([k, v]) => [v, k]));
 const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, dev: { sheep: 1, wheat: 1, ore: 1 } };

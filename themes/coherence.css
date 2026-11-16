@@ -1,0 +1,60 @@
+/* v1.86 visual coherence: one design language across Home, Menu, Lessons, Bots, Past games and the review.
+   Loaded last, so it only has to restate the few things that differed. Shared tokens first. */
+:root {
+  /* resource colours (src/resources.js is the table of names + colours + icons) */
+  --res-wood: #3E9A4E; --res-brick: #D8613C; --res-sheep: #86BF3C; --res-wheat: #E3A21F; --res-ore: #7D8DA5;
+  /* points by source: the end screen legend and the review's AI page read these */
+  --src-s: #A9B0B4; --src-c: #5F6B73; --src-L: #1F6E77; --src-A: #D9714E; --src-v: #8C5AC8; --src-i: #C99A2E;
+  /* radii: outer cards, tiles inside them, pills */
+  --r-card: 18px; --r-tile: 12px;
+  --tile-bg: color-mix(in srgb, var(--ink) 6%, transparent); --tile-line: color-mix(in srgb, var(--ink) 9%, transparent);
+}
+[data-palette="night"], [data-palette="dusk"] {
+  --res-wood: #6FB067; --res-brick: #E07E5A; --res-sheep: #A5D46A; --res-wheat: #EDC25E; --res-ore: #9AA9BB;
+  --src-s: #9AA3A8; --src-c: #C3CBD0; --src-L: #4FB8BF; --src-A: #F09270; --src-v: #B58BE8; --src-i: #E3BB5A;
+}
+
+/* 1 · one outline icon set (src/ui-icons.js): 2 px stroke on a 24 grid, currentColor */
+.oi { stroke-width: 2; }
+.hm-tile .oi { width: 34px; height: 34px; color: var(--brand-ink, var(--primary)); margin-bottom: 4px; }
+.hm-list .oi, .mn-list button .oi { color: var(--ink-soft); }
+.build-card .bc-top .oi { width: 22px; height: 22px; flex: none; color: var(--ink); }
+.ln-ci .oi { width: 20px; height: 20px; }
+.bp-row .ic2[class] { background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--brand-ink, var(--primary)); }
+.bp-row .ic2 .oi { width: 15px; height: 15px; }
+.pa-mini, .bpg-svg { color: var(--brand-ink, #1F6E77); }
+.bpg-em { background: color-mix(in srgb, var(--primary) 10%, var(--sheet, #fff)); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--primary) 35%, transparent); }
+.bpg-svg .disc { fill: var(--sheet, #fff); }
+
+/* 3 · points by source: the same five colours on the end screen */
+.gs-seg.k-settlements, .gs-legend i.k-settlements { fill: var(--src-s); background: var(--src-s); }
+.gs-seg.k-cities, .gs-legend i.k-cities { fill: var(--src-c); background: var(--src-c); }
+.gs-seg.k-road, .gs-legend i.k-road { fill: var(--src-L); background: var(--src-L); }
+.gs-seg.k-army, .gs-legend i.k-army { fill: var(--src-A); background: var(--src-A); }
+.gs-seg.k-cards, .gs-legend i.k-cards { fill: var(--src-v); background: var(--src-v); }
+.gs-seg.k-islands, .gs-legend i.k-islands { fill: var(--src-i); background: var(--src-i); }
+
+/* 5 · charts use the stats palette (teal accent + ink), not gold / amber */
+.hs-prog { --pg-c: color-mix(in srgb, var(--primary) 42%, var(--sheet)); --pg-m: var(--primary); --pg-b: var(--ink); }
+[data-palette="night"] .hs-prog, [data-palette="dusk"] .hs-prog { --pg-c: #5E9AA0; --pg-m: #9ADADC; --pg-b: #F1F5F6; }
+.bpg-svg .stem { stroke: color-mix(in srgb, var(--ink) 42%, transparent); }
+.bpg-dots i.star, .bpg-svg .dia.star { background: var(--ink); fill: var(--ink); }
+/* the result mark of a past game is a rounded tag, never a round avatar */
+.hs-badge { border-radius: 10px; background: color-mix(in srgb, var(--hs-won) 18%, transparent); color: var(--hs-won); box-shadow: inset 0 0 0 2px var(--hs-won); }
+.hs-badge.lost { background: color-mix(in srgb, var(--hs-lost) 16%, transparent); color: var(--hs-lost); box-shadow: inset 0 0 0 2px var(--hs-lost); }
+.hs-badge.table { background: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--ink-soft); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ink) 35%, transparent); }
+[data-palette="night"] .hs-badge, [data-palette="dusk"] .hs-badge { color: var(--hs-won); }
+[data-palette="night"] .hs-badge.lost, [data-palette="dusk"] .hs-badge.lost { color: var(--hs-lost); }
+[data-palette="night"] .hs-badge.table, [data-palette="dusk"] .hs-badge.table { color: var(--ink-soft); }
+
+/* 6 · Night: the AI tab reads like its neighbours; one pill family (Moves tab, AI Why? and chips) */
+.rv-tabs.t5 button:last-child { color: var(--ink-soft); }
+.rv-tabs.t5 button.on:last-child { color: var(--heading); }
+.ai-q, .ap-btn { background: color-mix(in srgb, var(--ink) 9%, var(--chip, transparent)); color: var(--heading); border-radius: 999px; font-weight: 750; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent); }
+.ai-q { min-height: 34px; font-size: 12.5px; }
+
+/* 7 · tiles inside cards: one radius, one fill, no shadow */
+.pg-t, .ap-tile { border-radius: var(--r-tile); background: var(--tile-bg); border: 1px solid var(--tile-line); box-shadow: none; }
+.hs-prog, .ln-stats { border-radius: var(--r-card); }
+/* Night: the turn tags on the AI line chart keep a dark halo (the white one made the text unreadable) */
+[data-palette="night"] .ap-svg .mk .tg, [data-palette="dusk"] .ap-svg .mk .tg { stroke: #18242B; }

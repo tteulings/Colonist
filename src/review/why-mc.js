@@ -5,7 +5,8 @@
 // is significant (about 2 SE) AND moves the win chance; reasonSentence() words each in the app's plain language.
 // The tracer only observes (no random draw, no state change): the futures are exactly the ones played without it.
 const RES = ["wood", "brick", "sheep", "wheat", "ore"];
-export const RESN = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
+import { RES_EN } from "../resources.js";
+export const RESN = RES_EN;
 const sum = (o) => RES.reduce((a, r) => a + (o[r] || 0), 0);
 
 /** The two turns at which the points are read: 15 and 20 from an early position, else 6 and 12 turns on. */
