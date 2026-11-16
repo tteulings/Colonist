@@ -18,6 +18,11 @@ import { botBand } from "./review/bands.js";
 import { gameOdds } from "./replay-odds.js";
 import { wpText, luckKey } from "./review-luck.js";
 import { currentEngineId } from "./review-again.js";
+import { resName } from "./resources.js";
+import { recapLang } from "./review-recap.js";
+const RKEYS = ["wood", "brick", "sheep", "wheat", "ore"];
+/** v1.87 a resource in review prose: the shared table's name (Lumber / Brick / Wool / Grain / Ore, NL Hout / Baksteen / Wol / Graan / Erts), also for logs saved before v1.86 that say sheep / wheat. */
+const rname = (k) => (RKEYS.includes(k) ? resName(k, recapLang()) : k);
 import { niceWhy, niceWords } from "./review/why.js";
 import { LUCK_MC } from "./review/luck-mc.js";
 
@@ -1121,7 +1126,7 @@ export const ReviewGameMixin = {
 
   // Win chance
   _rvWinGeom(O, W = 304, H = 112) {
-    const st = this._st, x0 = 24, x1 = W - 4, top = 6, bot = H - 14, N = Math.max(1, st.N), su = O.setup(), M = su.length - 1;
+    const st = this._st, x0 = 30, x1 = W - 4, top = 6, bot = H - 14, N = Math.max(1, st.N), su = O.setup(), M = su.length - 1;
     const f = M >= 1 ? 0.14 : 0, gap = M >= 1 ? 6 : 0, w = x1 - x0 - gap;
     return { W, H, x0, x1, top, bot, N, su, M, f, gap, w, Xs: (i) => x0 + (i / Math.max(1, M)) * f * w, Xt: (s) => x0 + f * w + gap + (s / N) * (1 - f) * w, Y: (p) => top + (1 - p) * (bot - top),
       inv: (x) => (x < x0 + f * w + gap / 2 ? 0 : Math.max(0, Math.min(N, Math.round(((x - (x0 + f * w + gap)) / ((1 - f) * w)) * N)))) };
@@ -1158,10 +1163,10 @@ export const ReviewGameMixin = {
     const DEV = { knight: "a Knight", monopoly: "Monopoly", yearOfPlenty: "Year of Plenty", roadBuilding: "Road Building", victoryPoint: "a Victory Point" };
     const lostTxt = (m) => { const l = (m.lost || []).map((n, q) => [q, n]).filter(([q, n]) => n > 0 && q !== m.p).sort((a, b) => b[1] - a[1]); return l.length ? (l.length === 1 ? ` from ${nmOf(l[0][0])}` : `, mostly from ${nmOf(l[0][0])}`) : ""; };
     acts.forEach((a) => {
-      if (a.k === "mono") lines.push(`${nmOf(a.p)} played Monopoly: took ${a.n} ${a.res}${lostTxt(a)}.`);
+      if (a.k === "mono") lines.push(`${nmOf(a.p)} played Monopoly: took ${a.n} ${rname(a.res)}${lostTxt(a)}.`);
       else if (a.k === "dev" && a.type !== "monopoly") lines.push(`${nmOf(a.p)} played ${DEV[a.type] || "a development card"}.`);
       else if (a.k === "plenty") lines.push(`${nmOf(a.p)} took ${a.n} ${a.n === 1 ? "card" : "cards"} from the bank (Year of Plenty).`);
-      else if (a.k === "bank") lines.push(`${nmOf(a.p)} traded ${a.rate} ${a.give} for 1 ${a.get} with the bank.`);
+      else if (a.k === "bank") lines.push(`${nmOf(a.p)} traded ${a.rate} ${rname(a.give)} for 1 ${rname(a.get)} with the bank.`);
       else if (a.k === "trade") lines.push(`${nmOf(a.p)} traded ${a.a} for ${a.b} ${a.b === 1 ? "card" : "cards"} with ${nmOf(a.q)}.`);
       else if (a.k === "steal") lines.push(`${nmOf(a.p)} stole a card from ${nmOf(a.q)}.`);
     });
@@ -1205,6 +1210,14 @@ export const ReviewGameMixin = {
     };
     return { html, bind };
   },
+  /** v1.87 the cursor markers: one per player at its win chance, nudged apart (at least 7.5 px) so no two sit on each other; yours never moves. */
+  _rvPtYs(g, here, me) {
+    const ys = this.players.map((p) => g.Y(here[p.id])), idx = ys.map((_, i) => i).sort((a, b) => ys[a] - ys[b] || (this.players[a].id === me ? -1 : 1)), out = ys.slice(), GAP = 7.5;
+    for (let i = 1; i < idx.length; i += 1) out[idx[i]] = Math.max(out[idx[i]], out[idx[i - 1]] + GAP); // push down
+    const last = idx[idx.length - 1];
+    if (out[last] > g.bot) { out[last] = g.bot; for (let i = idx.length - 2; i >= 0; i -= 1) out[idx[i]] = Math.min(out[idx[i]], out[idx[i + 1]] - GAP); } // never below the axis: push the others up
+    return out;
+  },
   _rvWinTabPaint(el, O, ds, keep = false) {
     const c = el.querySelector("[data-rvwc]"), wi = el.querySelector("[data-rvwi]"), ws = el.querySelector("[data-rvws]");
     if (!c || !wi) return;
@@ -1214,7 +1227,7 @@ export const ReviewGameMixin = {
     if (keep === "cursor" && c.querySelector("svg")) { // v1.55 dragging: only the cursor line and the dots move, nothing else is worked out
       const sv = c.querySelector("svg"), cx0 = g.Xt(cur), ent0 = look?.steps.find((x) => x.S === cur), h0 = ent0 ? ent0.e : O.get(cur), cl = sv.querySelector(".cur");
       cl?.setAttribute("x1", cx0.toFixed(1)); cl?.setAttribute("x2", cx0.toFixed(1));
-      const pts = sv.querySelectorAll(".pt"); if (h0) this.players.forEach((p, k) => { const e = pts[k]; if (e) { e.setAttribute("cx", cx0.toFixed(1)); e.setAttribute("cy", g.Y(h0[p.id]).toFixed(1)); } });
+      const pts = sv.querySelectorAll(".pt"); if (h0) { const py = this._rvPtYs(g, h0, me); this.players.forEach((p, k) => { const e = pts[k]; if (e) { e.setAttribute("cx", cx0.toFixed(1)); e.setAttribute("cy", py[k].toFixed(1)); } }); }
       return;
     }
     const lines = this.players.map((p) => {
@@ -1223,16 +1236,16 @@ export const ReviewGameMixin = {
       this._rvLinePts(O, p.id, look).pts.forEach(([s, v]) => pts.push([g.Xt(s), g.Y(v)]));
       return { id: p.id, d: pts.length > 1 ? pts.map((q, i) => `${i ? "L" : "M"}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join("") : "" };
     });
-    const grid = [0, 0.5, 1].map((p) => `<line x1="${g.x0}" x2="${g.x1}" y1="${g.Y(p).toFixed(1)}" y2="${g.Y(p).toFixed(1)}" class="g"/><text x="${g.x0 - 4}" y="${(g.Y(p) + 3).toFixed(1)}" text-anchor="end">${p * 100}</text>`).join("");
+    const grid = [0, 0.5, 1].map((p) => `<line x1="${g.x0}" x2="${g.x1}" y1="${g.Y(p).toFixed(1)}" y2="${g.Y(p).toFixed(1)}" class="g"/><text x="${g.x0 - 4}" y="${(g.Y(p) + 3).toFixed(1)}" text-anchor="end">${p * 100}%</text>`).join("");
     const sx = g.M >= 1 ? (g.x0 + g.f * g.w + g.gap / 2).toFixed(1) : null;
     const cx = g.Xt(cur), ent = look?.steps.find((x) => x.S === cur), here = ent ? ent.e : O.get(cur);
     const dec = ds.map((d) => { const s = Math.min(g.N, d.x.s ?? 0), v = d.seats ? d.seats[me] / (d.seats.reduce((a, b) => a + b, 0) || 1) : null; return v == null ? "" : `<circle cx="${g.Xt(s).toFixed(1)}" cy="${g.Y(v).toFixed(1)}" r="${["best", "great", "good", "triv"].includes(d.cls) ? 0 : 3.6}" class="dec c-${d.cls}"/>`; }).join("");
     const old = keep ? c.querySelector("svg") : null;
     if (old) { // v1.55 dragging: only the cursor line and the dots move; the chart is not drawn again
       const cl = old.querySelector(".cur"); cl?.setAttribute("x1", cx.toFixed(1)); cl?.setAttribute("x2", cx.toFixed(1));
-      const pts = old.querySelectorAll(".pt"); if (here) this.players.forEach((p, k) => { const e = pts[k]; if (e) { e.setAttribute("cx", cx.toFixed(1)); e.setAttribute("cy", g.Y(here[p.id]).toFixed(1)); } });
+      const pts = old.querySelectorAll(".pt"); if (here) { const py = this._rvPtYs(g, here, me); this.players.forEach((p, k) => { const e = pts[k]; if (e) { e.setAttribute("cx", cx.toFixed(1)); e.setAttribute("cy", py[k].toFixed(1)); } }); }
     } else {
-    c.innerHTML = `<svg viewBox="0 0 304 190" role="img" aria-label="Win chance of every player, set-up and every ${this._stTurnWord?.() || "turn"}. Tap or drag to pick a moment">${grid}${lines.filter((l) => l.id !== me).map((l) => (l.d ? `<path class="pc-${l.id}" d="${l.d}"/>` : "")).join("")}${lines.filter((l) => l.id === me).map((l) => (l.d ? `<path class="pc-${l.id} me" d="${l.d}"/>` : "")).join("")}${dec}${sx ? `<line x1="${sx}" x2="${sx}" y1="${g.top}" y2="${g.bot}" class="sep"/>` : ""}<line x1="${cx.toFixed(1)}" x2="${cx.toFixed(1)}" y1="${g.top - 2}" y2="${g.bot}" class="cur"/>${here ? this.players.map((p) => `<circle cx="${cx.toFixed(1)}" cy="${g.Y(here[p.id]).toFixed(1)}" r="${p.id === me ? 5 : 3.6}" class="pc-${p.id} pt"/>`).join("") : ""}<text x="${g.x0}" y="186">${g.M >= 1 ? "set-up" : "start"}</text><text x="${g.x1}" y="186" text-anchor="end">${this.isRush?.() ? "roll" : "turn"} ${this.isRush?.() ? g.N : this.turn}</text></svg>${lines.some((l) => l.d) ? "" : `<p class="rsw-wait" role="status">Working out the win chance…</p>`}`;
+    c.innerHTML = `<svg viewBox="0 0 304 190" role="img" aria-label="Win chance of every player, set-up and every ${this._stTurnWord?.() || "turn"}. Tap or drag to pick a moment">${grid}${lines.filter((l) => l.id !== me).map((l) => (l.d ? `<path class="pc-${l.id}" d="${l.d}"/>` : "")).join("")}${lines.filter((l) => l.id === me).map((l) => (l.d ? `<path class="pc-${l.id} me" d="${l.d}"/>` : "")).join("")}${dec}${sx ? `<line x1="${sx}" x2="${sx}" y1="${g.top}" y2="${g.bot}" class="sep"/>` : ""}<line x1="${cx.toFixed(1)}" x2="${cx.toFixed(1)}" y1="${g.top - 2}" y2="${g.bot}" class="cur"/>${here ? (() => { const py = this._rvPtYs(g, here, me); return this.players.map((p, k) => `<circle cx="${cx.toFixed(1)}" cy="${py[k].toFixed(1)}" r="${p.id === me ? 5 : 3.4}" class="pc-${p.id} pt${p.id === me ? " me" : ""}"/>`).join(""); })() : ""}<text x="${g.x0}" y="186">${g.M >= 1 ? "set-up" : "start"}</text><text x="${g.x1}" y="186" text-anchor="end">${this.isRush?.() ? "roll" : "turn"} ${this.isRush?.() ? g.N : this.turn}</text></svg>${lines.some((l) => l.d) ? "" : `<p class="rsw-wait" role="status">Working out the win chance…</p>`}`;
     }
     if (!c.__pd) { // one set of handlers on the container, so the drag survives a redraw of the svg
       c.__pd = true;
@@ -1502,7 +1515,7 @@ export const ReviewGameMixin = {
   /** Every move between your previous decision and this one, as beats: a roll (with who got what), a build, a trade, the robber, a steal, a card. */
   _rvBeats(d, ds) {
     const st = this._st, ev = this.stats.ev, k = ds.indexOf(d), from = k ? ds[k - 1].x.e : 0, to = d.x.e;
-    const s0 = k ? ds[k - 1].x.s : 0, RN = ["Lumber", "Brick", "Wool", "Grain", "Ore"], me = this._rvPid;
+    const s0 = k ? ds[k - 1].x.s : 0, RN = RKEYS.map(rname), me = this._rvPid;
     const beats = [], nm = (q) => this._rvPName(q);
     // v1.31 the luck of each roll / steal / card draw for this seat (src/review-luck.js), when computed
     const LKm = new Map(); try { if (!this._lkNa()) this._lkList(me).filter((x) => x.own).forEach((x) => LKm.set(x.ev.kind === "dice" ? `d${x.ev.s}` : `e${x.ev.e}`, x.w)); } catch (_) { /* no luck numbers */ }

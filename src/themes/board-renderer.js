@@ -553,7 +553,7 @@ export class SvgBoardRenderer {
       const ix0 = fl(x0, T.a, T.e, true), iy0 = fl(y0, T.d, T.f, true), ix1 = fl(x0 + q.w, T.a, T.e, false), iy1 = fl(y0 + q.h, T.d, T.f, false);
       ctx.beginPath();
       if (ctx.roundRect) { ctx.roundRect(ox0, oy0, ox1 - ox0, oy1 - oy0, q.r + rw); ctx.roundRect(ix0, iy0, ix1 - ix0, iy1 - iy0, Math.max(0, q.r - (iy0 - y0))); } else { ctx.rect(ox0, oy0, ox1 - ox0, oy1 - oy0); ctx.rect(ix0, iy0, ix1 - ix0, iy1 - iy0); }
-      ctx.fillStyle = this.theme.seaPillRim || rim; ctx.fill("evenodd");
+      if (this.theme.seaPillRim) { ctx.fillStyle = this.theme.seaPillRim; ctx.fill("evenodd"); } // v1.87 no extra dark rim: the pill is the same cream pill with its own resource outline as on a classic board
     });
   }
 

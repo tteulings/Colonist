@@ -23,7 +23,8 @@ import { profileOf } from "./bot-profile-ui.js";
 import { summarize, clsOf, ACC, REVIEW as RVCFG, FMT, rescoreReview, reviewStatus } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
 import { packRecs, unpackRecs } from "./review/pack.js";
-import { Names } from "./names.js";
+import { Names, dispName } from "./names.js";
+import { recapLang } from "./review-recap.js";
 
 const DB_NAME = "colonist_history";
 export const LIMITS = { games: 50, bytes: 10 * 1024 * 1024, nearFull: 0.8 };
@@ -50,6 +51,8 @@ async function unpack(b) {
   return JSON.parse(b.data);
 }
 
+/** v1.87 the result tag of a past game is a word, not a letter: Won / Lost (Gewonnen / Verloren), Table for a pass & play game. */
+const resultWord = (r) => { const nl = recapLang() === "nl"; return r === "won" ? (nl ? "Gewonnen" : "Won") : r === "lost" ? (nl ? "Verloren" : "Lost") : (nl ? "Tafel" : "Table"); };
 export class HistoryStore {
   constructor(name = DB_NAME, limits = LIMITS) { this.name = name; this.lim = limits; this.db = null; this.mem = new Map(); this.mode = "idb"; this.metas = []; this.ready = null; this.full = false; this.pruned = 0; this.budget = limits.bytes; this.onChange = null; }
 
@@ -495,14 +498,14 @@ export const HistoryMixin = {
   },
   _histRow(m) {
     const w = m.seats[m.winner];
-    const t = m.result === "won" ? `Won with ${m.seats[m.me].vp} points` : m.result === "lost" ? `Lost to ${esc(w?.name || "a bot")}` : `${esc(w?.name || "?")} won`;
-    const badge = m.result === "won" ? ["won", "W"] : m.result === "lost" ? ["lost", "L"] : ["table", "•"];
+    const t = m.result === "won" ? `Won with ${m.seats[m.me].vp} points` : m.result === "lost" ? `Lost to ${esc(dispName(w?.name) || "a bot")}` : `${esc(dispName(w?.name) || "?")} won`;
+    const badge = [m.result === "won" ? "won" : m.result === "lost" ? "lost" : "table", resultWord(m.result)];
     const kind = m.board === "seafarers" ? "Seafarers" : m.mode === "rush" ? "Rush" : "Classic";
     return `<li><div class="hs-row" data-hrow="${m.id}" role="button" tabindex="0" aria-label="${t}, ${when(m.end)}">
       <span class="hs-badge ${badge[0]}">${badge[1]}</span>
       <div class="hs-main"><b>${t}</b><small>${when(m.end)} · ${kind}</small></div>
       <button type="button" class="hs-star${m.star ? " on" : ""}" data-hrstar="${m.id}" aria-pressed="${!!m.star}" aria-label="${m.star ? "Unstar" : "Keep with a star"}">${STAR(m.star)}</button>
-      <div class="hs-foot"><span class="hs-sc">${m.seats.map((s, i) => `<span class="${i === m.winner ? "win" : ""}" title="${esc(s.name)}">${avatarSvg(i, "hs-av")}<b>${s.vp}</b></span>`).join("")}</span><span class="hs-dur">${dur(m.ms)}</span></div>
+      <div class="hs-foot"><span class="hs-sc">${m.seats.map((s, i) => `<span class="${i === m.winner ? "win" : ""}" title="${esc(dispName(s.name))}">${avatarSvg(i, "hs-av")}<b>${s.vp}</b></span>`).join("")}</span><span class="hs-dur">${dur(m.ms)}</span></div>
       <div class="hs-foot2"><span class="hs-bots">${this._histBots(m)}</span>${m.hot && m.hn?.length ? m.hn.map((h) => this._histAcc(h, h.name)).join("") : this._histAcc(m)}</div></div></li>`;
   },
 
@@ -515,7 +518,7 @@ export const HistoryMixin = {
     sh.className = "hs-sheet tm-modal";
     sh.setAttribute("role", "dialog"); sh.setAttribute("aria-modal", "true"); sh.setAttribute("aria-label", "Game details");
     const w = m.seats[m.winner];
-    const t = m.result === "won" ? "You won" : m.result === "lost" ? `${esc(w?.name)} won` : `${esc(w?.name)} won`;
+    const t = m.result === "won" ? "You won" : m.result === "lost" ? `${esc(dispName(w?.name))} won` : `${esc(dispName(w?.name))} won`;
     const kind = m.board === "seafarers" ? "Seafarers" : m.mode === "rush" ? "Rush" : "Classic";
     const unit = m.mode === "rush" ? "rolls" : "turns";
     const why = m.me == null && !(m.hot && m.hn?.length) ? "Pass & play games can’t be reviewed" : !m.rec ? "This game has no recording to review" : !reviewAvailable() ? "This browser can’t run the review in the background" : "";
@@ -525,10 +528,10 @@ export const HistoryMixin = {
       : ["Review this game", `deep Monte Carlo checks your moves · about ${Math.max(1, Math.round(((m.rd || 20) * RVCFG.sec) / 60))} min`];
     const order = [...m.seats.keys()].sort((a, b) => (b === m.winner) - (a === m.winner) || m.seats[b].vp - m.seats[a].vp);
     sh.innerHTML = `<div class="hs-card${again ? " again" : ""}"><div class="hs-grab"></div>
-      <div class="hs-head"><span class="hs-badge big ${m.result === "won" ? "won" : m.result === "lost" ? "lost" : "table"}">${m.result === "won" ? "W" : m.result === "lost" ? "L" : "•"}</span><div><h4>${t}</h4><small>${when(m.end, true)}</small></div>
+      <div class="hs-head"><span class="hs-badge big ${m.result === "won" ? "won" : m.result === "lost" ? "lost" : "table"}">${resultWord(m.result)}</span><div><h4>${t}</h4><small>${when(m.end, true)}</small></div>
         <button type="button" class="hs-star${m.star ? " on" : ""}" data-sstar aria-pressed="${!!m.star}" aria-label="${m.star ? "Unstar" : "Keep with a star"}">${STAR(m.star)}</button>
         <button type="button" class="hs-x sm" data-sclose aria-label="Close">${icon("close")}</button></div>
-      <ol class="hs-pod">${order.map((i, k) => { const s = m.seats[i]; return `<li class="${i === m.winner ? "win" : ""}"><span class="pl">${k + 1}</span>${avatarSvg(i, "hs-av2")}<span class="nm">${esc(s.name)}${s.you && s.name !== "You" ? " <em>you</em>" : ""}${s.prof ? `<span class="hs-bot">${profileMini(s.prof, 16)}${s.custom ? "Custom" : esc(BOT_PROFILES[s.prof]?.label || "")}</span>` : ""}</span><b>${s.vp}</b></li>`; }).join("")}</ol>
+      <ol class="hs-pod">${order.map((i, k) => { const s = m.seats[i]; return `<li class="${i === m.winner ? "win" : ""}"><span class="pl">${k + 1}</span>${avatarSvg(i, "hs-av2")}<span class="nm">${esc(dispName(s.name))}${s.you && s.name !== "You" ? " <em>you</em>" : ""}${s.prof ? `<span class="hs-bot">${profileMini(s.prof, 16)}${s.custom ? "Custom" : esc(BOT_PROFILES[s.prof]?.label || "")}</span>` : ""}</span><b>${s.vp}</b></li>`; }).join("")}</ol>
       <dl class="hs-facts"><div><dt>Mode</dt><dd>${kind}</dd></div><div><dt>Players</dt><dd>${m.n}</dd></div><div><dt>${m.mode === "rush" ? "Rolls" : "Turns"}</dt><dd>${m.turns}</dd></div><div><dt>Played</dt><dd>${dur(m.ms)}</dd></div>
         <div><dt>Accuracy</dt><dd>${m.acc != null ? `${m.prov ? "~" : ""}${m.acc}${m.prov ? ` <small>provisional</small>` : m.mid ? ` <small>checked during the game</small>` : ""}` : "–"}</dd></div>
         <div><dt>Marked moves</dt><dd>${m.cls ? `${(m.cls.lean || 0) + (m.cls.could || 0) + (m.cls.missed || 0)} · ${m.cls.mistake || 0} · ${m.cls.blunder || 0}<small>could be better · mistake · blunder</small>` : "–"}</dd></div></dl>

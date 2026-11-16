@@ -77,13 +77,127 @@
 /* v1.86 player strip motion (classes set by game.js _chipMotion; transform and opacity only, reduced motion: base.css 1 ms rule) */
 @keyframes mo-turn { 0% { outline: 2px solid color-mix(in srgb, var(--accent, #E7A21C) 80%, transparent); outline-offset: 0; transform: scale(.97); } 45% { transform: scale(1.035); } 100% { outline: 2px solid transparent; outline-offset: 9px; transform: scale(1); } }
 @keyframes mo-bump { 0% { transform: scale(1); } 35% { transform: scale(1.3); } 100% { transform: scale(1); } }
-@keyframes mo-tick { 0% { transform: translateY(0); } 30% { transform: translateY(-3px); } 100% { transform: translateY(0); } }
+@keyframes mo-tick { 0% { transform: translateY(0); } 30% { transform: translateY(-6px); color: var(--tick-c, #D98A0B); } 65% { color: var(--tick-c, #D98A0B); } 100% { transform: translateY(0); } }
 @keyframes mo-award { 0% { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.25); opacity: 1; } 100% { transform: scale(1); } }
 @keyframes mo-in { 0% { opacity: 0; transform: translateY(-8px); } 100% { opacity: 1; transform: none; } }
 .app .pstrip .pchip.mo-turn { animation: mo-turn .8s ease-out; }
 .app .pstrip .mo-bump { animation: mo-bump .55s cubic-bezier(.3, 1.6, .5, 1); }
-.app .pstrip .mo-tick { animation: mo-tick .4s ease-out; display: inline-flex; }
+.app .pstrip .mo-tick { animation: mo-tick .55s ease-out; display: inline-flex; }
 .app .pstrip .mo-award { animation: mo-award .6s cubic-bezier(.3, 1.4, .5, 1); }
 .app .pstrip.mo-in .pchip { animation: mo-in .45s ease-out both; }
 .app .pstrip.mo-in .pchip:nth-child(2) { animation-delay: .05s; } .app .pstrip.mo-in .pchip:nth-child(3) { animation-delay: .1s; }
 .app .pstrip.mo-in .pchip:nth-child(4) { animation-delay: .15s; } .app .pstrip.mo-in .pchip:nth-child(5) { animation-delay: .2s; } .app .pstrip.mo-in .pchip:nth-child(6) { animation-delay: .25s; }
+
+/* ==========================================================================
+   v1.87 ONE player chip for 2 to 6 players (src/game.js renderScoreboard): avatar + points tile, name, cards + development
+   cards, knights + road. Sizes scale with the table (--n), the layout never changes: no badge over a face, no clipped crown.
+   Points tile: the number over a small star (points); crown = single leader, hammer = builds between turns.
+   Every stat is an icon + a figure of 12 px or more; the "+2" text is gone (the gold pill is the award), the tooltip explains.
+   ========================================================================== */
+.app .pstrip { --chip-av: 32px; --chip-tile: 30px; --chip-num: 19px; --chip-pn: 12.5px; }
+.app .pstrip.six-up, .app .pstrip[data-seats="5"], .app .pstrip[data-seats="6"] { --chip-av: 25px; --chip-tile: 21px; --chip-num: 14.5px; --chip-pn: 12px; gap: 3px; }
+[data-theme] .app .pstrip .pchip {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px;
+  padding: 6px 3px 5px; min-height: 0; overflow: visible; text-align: center;
+}
+[data-theme] .app .pstrip.six-up .pchip { padding: 5px 1px 4px; }
+[data-theme] .app .pstrip .pchip .row { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; min-width: 0; }
+[data-theme] .app .pstrip.six-up .pchip .row { gap: 3px; }
+[data-theme] .app .pstrip .pchip .avatar { --av: var(--chip-av); --av-ring: 2.5px; flex: none; position: relative; }
+[data-theme] .app .pstrip .pchip .vpn {
+  flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  min-width: var(--chip-tile); width: auto; height: auto; padding: 2px 2px 3px; border-radius: 8px; line-height: 1; position: relative;
+}
+[data-theme] .app .pstrip .pchip .vpn b { font: inherit; font-size: var(--chip-num); line-height: 1; font-variant-numeric: lining-nums tabular-nums; }
+[data-theme] .app .pstrip .pchip .vpn .vgoal { font-size: 11px; }
+[data-theme] .app .pstrip .pchip .vpn .vpi { display: block; width: 10px; height: 10px; line-height: 0; opacity: .92; }
+[data-theme] .app .pstrip .pchip .vpn .vpi svg { width: 10px; height: 10px; display: block; fill: currentColor; stroke: none; }
+[data-theme] .app .pstrip .pchip .vpn .vpi .oi { fill: currentColor; stroke: currentColor; stroke-width: 1.6; }
+[data-theme] .app .pstrip .pchip .vpn .vpi .ic { width: 10px; height: 10px; }
+[data-theme] .app .pstrip .pchip .vpn.lead .vpi, [data-theme] .app .pstrip .pchip.building .vpn .vpi { width: 12px; height: 12px; opacity: 1; }
+[data-theme] .app .pstrip .pchip .vpn .sx-crown { position: static; width: 12px; height: 12px; }
+[data-theme] .app .pstrip .pchip .pn { font-size: var(--chip-pn); line-height: 1.15; font-weight: 750; max-width: 100%; padding: 0; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-theme] .app .pstrip.six-up .pchip .pn { letter-spacing: -.02em; }
+[data-theme] .app .pstrip .pchip .mini { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 16px; max-width: 100%; font-size: 12.5px; line-height: 16px; font-weight: 750; letter-spacing: 0; }
+[data-theme] .app .pstrip.six-up .pchip .mini { gap: 3px; font-size: 12px; }
+[data-theme] .app .pstrip .pchip .mini span { display: inline-flex; align-items: center; gap: 1px; flex: none; }
+[data-theme] .app .pstrip .pchip .mini .ic { width: 13px; height: 13px; font-size: 13px; }
+[data-theme] .app .pstrip.six-up .pchip .mini .ic { width: 12px; height: 12px; font-size: 12px; }
+/* an award is the same stat on a gold pill, at least as legible as the plain one */
+[data-theme] .app .pstrip .pchip .mini span.award { padding: 0 4px 0 2px; border-radius: 6px; font-size: 12.5px; line-height: 16px; }
+[data-theme] .app .pstrip.six-up .pchip .mini span.award { padding: 0 3px 0 1px; font-size: 12px; }
+[data-theme] .app .pstrip .pchip .mini span.award .ic { width: 13px; height: 13px; font-size: 13px; }
+.app .pstrip .pchip .mini span.award .aw-plus, .app .pstrip .pchip .mini.dense span.award .aw-plus { display: none; }
+/* road: the same pill mark, a size up */
+.app .pstrip .pchip .mini [data-stat="road"]::before, .app .pstrip .pchip .mini.dense [data-stat="road"]::before { width: 14px; height: 6px; margin: 0 2px 0 0; border-radius: 3px; }
+.app .pstrip.six-up .pchip .mini [data-stat="road"]::before { width: 12px; height: 5.5px; margin-right: 1px; }
+.app .pstrip .pchip .mini [data-stat="knights"] + [data-stat="road"], .app .pstrip .pchip .mini .award + [data-stat="road"] { margin-left: 0; }
+/* the old second layout is gone */
+.app .pstrip .pchip .sx-av, .app .pstrip .pchip .sx-vp, .app .pstrip .pchip .bdg, .app .pstrip .pchip .pcards { display: none; }
+.app .pstrip .pchip.thinking::after { left: 6px; }
+
+/* v1.87 hand: the empty slot's name is never clipped ("Lumber" fits the 40 px card: 10.5 px, tight tracking, nothing cut); a held card is
+   named by its art, which is the shared resource table's icon and colour (src/resources.js), the same as the trade sheet, the bank row and the review. */
+.hand .card.slot { overflow: visible; padding-left: 0; padding-right: 0; }
+.hand .card.slot .slot-name { max-width: none; width: 100%; text-align: center; font-size: 10.5px; letter-spacing: -.03em; white-space: nowrap; overflow: visible; text-overflow: clip; }
+.hand .card.slot .slot-n { font-size: 17px; }
+
+/* v1.87 a past game's result tag is a word (Won / Lost, NL Gewonnen / Verloren), a rounded tag, never a round letter */
+.hs-row { grid-template-columns: 58px minmax(0, 1fr) 44px; }
+.hs-row .hs-badge, .hs-head .hs-badge.big { width: auto; min-width: 50px; height: 28px; max-width: none; padding: 0 8px; border-radius: 9px; font-size: 12.5px; font-weight: 800; letter-spacing: 0; white-space: nowrap; }
+.hs-head .hs-badge.big { height: 32px; font-size: 14px; }
+
+/* v1.87 board tools on a phone: Fit stays top left; the zoom + / - buttons are placed by game.js _placeZoomButtons (first slot with no harbour under it) */
+}
+
+/* v1.87 Win chance chart (review tab): the reviewed player's line is the chart (thick, full strength), the others are faint context
+   (about 35 %), the axis names its unit (0% 50% 100%), the cursor markers are nudged apart (src/review-game.js _rvPtYs). Same line weights as the AI page chart. */
+.rvw-c svg path, .rsw svg path { stroke-width: 1.5; opacity: .35; }
+.rvw-c svg path.me, .rsw svg path.me { stroke-width: 3.2; opacity: 1; }
+.rvw-c svg text { font-size: 10px; }
+.rvw-c svg .pt { stroke: var(--sheet-solid, #fff); stroke-width: 1.6; fill-opacity: .75; }
+.rvw-c svg .pt.me { fill-opacity: 1; stroke-width: 2; }
+.rvw-c svg .dec { stroke-width: 1; }
+/* the level frame stays inside the chip: a size down, under the points tile */
+[data-theme] .app .pstrip .pchip .avatar > .lf { width: 134% !important; height: 134% !important; }
+[data-theme] .app .pstrip .pchip .vpn { z-index: 3; }
+[data-theme] .app .pstrip .pchip .row { gap: 5px; }
+[data-theme] .app .pstrip.six-up .pchip .row { gap: 4px; }
+[data-theme] .app .pstrip .pchip { padding-top: 5px; padding-bottom: 4px; gap: 1px; }
+[data-theme] .app .pstrip.six-up .pchip { padding-top: 4px; padding-bottom: 3px; }
+[data-theme] .app .pstrip .pchip .mini { min-height: 15px; line-height: 15px; }
+/* 6 seats: the two award pills on the knights / road line fit inside the chip */
+[data-theme] .app .pstrip.six-up .pchip .mini.feats { gap: 2px; }
+[data-theme] .app .pstrip.six-up .pchip .mini span.award { padding: 0 2px 0 1px; border-radius: 5px; }
+[data-theme] .app .pstrip.six-up .pchip .mini span.award .ic { width: 12px; height: 12px; font-size: 12px; }
+.app .pstrip.six-up .pchip .mini [data-stat="road"]::before { width: 9px; height: 5px; margin-right: 1px; }
+/* chip height: the same as before the redesign (the board keeps its size) */
+.app .pstrip { --chip-av: 28px; --chip-tile: 28px; --chip-num: 17px; }
+.app .pstrip.six-up, .app .pstrip[data-seats="5"], .app .pstrip[data-seats="6"] { --chip-av: 24px; --chip-tile: 20px; --chip-num: 14px; }
+[data-theme] .app .pstrip .pchip { padding-top: 4px; padding-bottom: 3px; gap: 0; }
+[data-theme] .app .pstrip .pchip .vpn { padding: 1px 2px 2px; gap: 0; }
+[data-theme] .app .pstrip .pchip .vpn .vpi, [data-theme] .app .pstrip .pchip .vpn .vpi svg, [data-theme] .app .pstrip .pchip .vpn .vpi .ic { width: 9px; height: 9px; }
+[data-theme] .app .pstrip .pchip .vpn.lead .vpi, [data-theme] .app .pstrip .pchip.building .vpn .vpi, [data-theme] .app .pstrip .pchip .vpn .sx-crown { width: 11px; height: 11px; }
+[data-theme] .app .pstrip .pchip .pn { line-height: 1.1; }
+[data-theme] .app .pstrip .pchip .mini { min-height: 14px; line-height: 14px; }
+/* the chip is 71 px at every table size and whatever it shows (the strip never grows when a knight or a road appears; the board keeps its size) */
+.app .pstrip { padding-top: 4px; padding-bottom: 4px; }
+[data-theme] .app .pstrip .pchip, [data-theme] .app .pstrip.six-up .pchip { padding-top: 3px; padding-bottom: 3px; box-sizing: border-box; height: 71px; justify-content: flex-start; }
+[data-theme] .app .pstrip .pchip .row { height: 28px; }
+[data-theme] .app .pstrip .pchip .vpn { height: 28px; box-sizing: border-box; padding: 2px 2px 1px; justify-content: space-between; }
+[data-theme] .app .pstrip .pchip .vpn b { line-height: 16px; }
+[data-theme] .app .pstrip .pchip .pn { line-height: 13px; }
+[data-theme] .app .pstrip .pchip .mini { min-height: 13px; height: 13px; line-height: 13px; }
+[data-theme] .app .pstrip .pchip .mini span.award { line-height: 13px; }
+/* v1.87 (71 px budget) a size down so the level frame never reaches the name */
+.app .pstrip { --chip-av: 26px; --chip-tile: 26px; --chip-num: 16px; }
+.app .pstrip.six-up, .app .pstrip[data-seats="5"], .app .pstrip[data-seats="6"] { --chip-av: 23px; --chip-tile: 20px; --chip-num: 14px; }
+[data-theme] .app .pstrip .pchip, [data-theme] .app .pstrip.six-up .pchip { padding-top: 4px; padding-bottom: 0; }
+[data-theme] .app .pstrip .pchip .row { height: 26px; }
+[data-theme] .app .pstrip .pchip .vpn { height: 26px; padding: 1px 2px 1px; }
+[data-theme] .app .pstrip .pchip .vpn b { line-height: 15px; }
+[data-theme] .app .pstrip .pchip .vpn .vpi, [data-theme] .app .pstrip .pchip .vpn .vpi svg, [data-theme] .app .pstrip .pchip .vpn .vpi .ic { width: 8px; height: 8px; }
+[data-theme] .app .pstrip .pchip .avatar > .lf { width: 120% !important; height: 120% !important; }
+[data-theme] .app .pstrip .pchip .pn { line-height: 14px; margin-top: 2px; overflow: visible; }
+.app .pstrip { padding-top: 3px; padding-bottom: 2px; }
+[data-theme] .app .pstrip .pchip, [data-theme] .app .pstrip.six-up .pchip { height: 74px; padding-bottom: 2px; }

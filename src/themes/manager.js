@@ -145,8 +145,8 @@ export const SEAT_PRESETS = SEAT_PERSONAS;
 export const BOT_PROFILE = {
   rosa: { name: "You", botName: "Roodhart", full: "Rosa Roodhart", tag: "Your colony" },
   blaauw: { name: "Blaauw", full: "Mevrouw Blaauw van Draet", tag: "The Trader" },
-  geelen: { name: "Van Geelen", full: "Kolonel Van Geelen", tag: "The Builder" },
-  groenewoud: { name: "Groenewoud", full: "Dominee Groenewoud", tag: "The Shark" },
+  geelen: { name: "Geelen", full: "Kolonel Van Geelen", tag: "The Builder" },
+  groenewoud: { name: "Groen", full: "Dominee Groenewoud", tag: "The Shark" },
   dewit: { name: "De Wit", full: "Mevrouw De Wit", tag: "Seat 5" },
   pimpel: { name: "Pimpel", full: "Professor Pimpel", tag: "Seat 6" },
 };

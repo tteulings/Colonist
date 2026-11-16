@@ -271,9 +271,12 @@ export function levelFrame(key, d = 40) {
   // the mark sits at the upper right (45°), clear of the hair, the points badge and the Rush ready dot (upper left)
   const at = (body) => `<g transform="translate(81 19) rotate(45)">${body}</g>`;
   let g = "";
-  if (k === "plain") g = ring("var(--lf-plain,rgba(43,33,28,.32))", 4);
+  // v1.87 every ring is the seat colour (--pc, set by .pc-N on the avatar): plain and silver rings are the seat colour itself, the
+  // special frames keep their own mark and gain a thin seat-colour ring inside, so a bot looks the same in the game and on the end screen
+  const seatC = "var(--pc,var(--lf-silver,#A3AFBC))", seatEdge = "var(--pc-line,var(--lf-edge,rgba(43,33,28,.6)))";
+  if (k === "plain") g = ring(seatEdge, 8.5) + ring(seatC, 5.5);
   // silver: a wide bright band split by a dark groove (two lanes) + a white shine: clearly more than the thin plain ring
-  if (k === "silver") g = ring(edge, 14) + ring(silver, 11) + ring(edge, 2.6) + `<path d="M24,22 A40,40 0 0 1 50,10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-opacity=".9"/>`;
+  if (k === "silver") g = ring(seatEdge, 14) + ring(seatC, 11) + ring(seatEdge, 2.6) + `<path d="M24,22 A40,40 0 0 1 50,10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-opacity=".9"/>`;
   if (k === "gold" || k === "star" || k === "star2" || k === "star2p" || k === "star3") {
     g = ring(edge, 12) + ring(gold, 9);
     g += [135, 225, 315].map((a) => `<circle cx="${(c + R * Math.cos(a * Math.PI / 180)).toFixed(1)}" cy="${(c + R * Math.sin(a * Math.PI / 180)).toFixed(1)}" r="5.4" fill="#FFF3C4" stroke="${edge}" stroke-width="1.8"/>`).join("");
@@ -293,6 +296,7 @@ export function levelFrame(key, d = 40) {
   if (k === "fin") g = ring(edge, 11) + ring("var(--lf-shark,#5D7C8E)", 8)
     + `<path d="M56,12 Q60,-12 82,-28 Q80,8 96,36 Q92,34 56,12Z" fill="var(--lf-shark,#5D7C8E)" stroke="${edge}" stroke-width="3" stroke-linejoin="round"/>`
     + `<path d="M66,2 Q71,-9 79,-17" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2.6" stroke-linecap="round"/>`;
+  if (k !== "plain" && k !== "silver") g += `<circle cx="${c}" cy="${c}" r="37" fill="none" stroke="${seatC}" stroke-width="4"/>`;
   return `<svg class="lf lf-${k}" width="${d}" height="${d}" viewBox="-10 -10 120 120" aria-hidden="true">${g}</svg>`;
 }
 

@@ -9,7 +9,7 @@ import { SoundEngine } from "./sound.js";
 import { isBigTable, bigAxialHexes, BIG_CENTER_SHIFT, BIG_BANK_SIZE, BIG_RUSH_INTERVAL, assignBigTiles, assignBigPorts, createBigDevDeck, SbpMixin } from "./six.js";
 import { SixUiMixin } from "./six-ui.js";
 import { HotseatMixin } from "./hotseat.js";
-import { Names, cleanName, sameName, openNamesSheet } from "./names.js";
+import { Names, cleanName, sameName, openNamesSheet, dispName } from "./names.js";
 import { StatsMixin, installStats } from "./stats.js"; // end-of-game statistics: the recorder
 import { StatsUiMixin } from "./stats-ui.js"; // … the stats screen, heatmaps and the replay
 import { LiveStatsMixin, installLiveStats } from "./live-stats.js"; // … and the same cards during the game
@@ -86,6 +86,7 @@ const COSTS = {
   ship: SHIP_COST, // ⚓ Seafarers
 };
 
+const CROWN = `<svg class="sx-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z" fill="#FFD25A" stroke="#7A4B12" stroke-width="1.6" stroke-linejoin="round"/></svg>`; // the single points leader
 const BANK_SIZE = 19; // cards of each resource in the game
 const PIECE_LIMITS = { road: 15, settlement: 5, city: 4, ship: 15 }; // ⚓ ship: Seafarers only
 
@@ -96,8 +97,8 @@ const PLAYER_CONFIG = [
   // v0.75 seat colours (colonist.io order): red · blue · orange · green · ivory · purple; the theme overrides these
   { name: "You", hsName: "Roodhart", fullName: "Rosa Roodhart", color: "#E0312B", isHuman: true, avatar: "./assets/avatars/avatar-human.svg?v=57" },
   { name: "Blaauw", fullName: "Mevrouw Blaauw van Draet", color: "#2F6FE6", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg?v=57" },
-  { name: "Van Geelen", short: "Geelen", fullName: "Kolonel Van Geelen", color: "#F7931E", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
-  { name: "Groenewoud", short: "Groen", fullName: "Dominee Groenewoud", color: "#2E9E5E", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
+  { name: "Geelen", short: "Geelen", fullName: "Kolonel Van Geelen", color: "#F7931E", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
+  { name: "Groen", short: "Groen", fullName: "Dominee Groenewoud", color: "#2E9E5E", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
   // seats 5 and 6 (5–6 player games); colours come from the theme (see src/themes/seats.js)
   { name: "De Wit", fullName: "Mevrouw De Wit", color: "#EDE6D3", isHuman: false, avatar: "" },
   { name: "Pimpel", fullName: "Professor Pimpel", color: "#72309F", isHuman: false, avatar: "" },
@@ -7232,7 +7233,7 @@ class ColonistFullGame {
     this.players = data.players.map((saved, id) => {
       const config = PLAYER_CONFIG[id];
       const spec = seatSpec(this.settings, id);
-      const seat = typeof saved.isHuman === "boolean" ? { ...spec, isHuman: id === 0 || saved.isHuman, name: saved.name || spec.name } : spec;
+      const seat = typeof saved.isHuman === "boolean" ? { ...spec, isHuman: id === 0 || saved.isHuman, name: (saved.isHuman ? saved.name : dispName(saved.name)) || spec.name } : spec;
       if (seat.name !== spec.name) seat.short = seat.name === config.name ? config.short : seat.name.length > 9 ? `${seat.name.slice(0, 8)}…` : undefined;
       return {
         id,
@@ -8652,18 +8653,24 @@ class ColonistFullGame {
       const isleChip = isles ? `<span class="isle-chip" title="New islands: ${isles} (+${this.sea.bonusVP(player)} points)">${icon("island")}<b>${isles}</b></span>` : "";
       // ⚓ v0.86: at sea (first to 14) your own badge carries the goal: "3/14"; the others stay plain
       const goal = this.sea && player === this._me() && this._seesPrivate(player) ? `<span class="vgoal">/${this.winPoints}</span>` : "";
-      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points${goal ? ` of ${this.winPoints}` : ""}${profileLabel(this, player)}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
-        <div class="row">${framedAvatar(this, player)}<div class="vpn${goal ? " goal" : ""}">${vp}${goal}<small>PTS</small></div></div>
+      // v1.87 ONE chip for 2 to 6 players (no separate 5-6 layout): avatar + points tile on the first row (the tile carries a small
+      // star = points, a crown for the single leader, a hammer while the seat builds between turns), the name, then cards + development
+      // cards, then knights played + road length. Every number is an icon and a figure of 12 px or more; a tap / long press on the chip names them all.
+      const lead = this._sixLeader?.() === idx, building = (this._sbpMarkedSeats?.() || []).includes(idx);
+      const tileIc = building ? icon("build") : lead ? CROWN : oicon("star");
+      const pickStat = (k) => stats.find((x) => x.includes(`data-stat="${k}"`)) || "";
+      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}${lead ? " leader" : ""}${building ? " building" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points${goal ? ` of ${this.winPoints}` : ""}, ${totalCards} cards, ${totalDev} development cards${lead ? ", in the lead" : ""}${building ? ", building" : ""}${profileLabel(this, player)}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
+        <div class="row">${framedAvatar(this, player)}<div class="vpn${goal ? " goal" : ""}${lead ? " lead" : ""}"><b>${vp}${goal}</b><i class="vpi" title="Points">${tileIc}</i></div></div>
         <div class="pn">${player.short || player.name}</div>
-        <div class="pcards">${stats[0]}</div>
-        <div class="mini${miniStats.length > 2 ? " dense" : ""}">${miniStats.join("")}</div>${isleChip}</div>`);
+        <div class="mini main">${pickStat("cards")}${pickStat("dev")}</div>
+        <div class="mini feats">${pickStat("knights")}${pickStat("road")}</div>${isleChip}</div>`);
     });
     this.scoreboard.innerHTML = rows.join("");
     const goal = this.scoreboard.parentElement?.querySelector("h2 .sub");
     if (goal && /points wins/.test(goal.textContent)) goal.textContent = `First to ${this.winPoints} points wins${this.sea ? " · Seafarers" : ""}`; // ⚓ 14 at sea
     if (this.playerStrip) {
       // 5–6 players: six compact chips in one row (src/six-ui.js)
-      this.playerStrip.innerHTML = this._sixUp() ? this._sixChips() : chips.join("");
+      this.playerStrip.innerHTML = chips.join("");
       this.playerStrip.style.setProperty("--n", this.players.length);
       this._sixStripAttrs();
       this._chipMotion();
@@ -8675,6 +8682,15 @@ class ColonistFullGame {
         vpEl.style.cursor = "help";
         vpEl.addEventListener("mouseenter", () => this._showVPTooltip(player, vpEl));
         vpEl.addEventListener("mouseleave", () => this._hideVPTooltip());
+      }
+      // v1.87 long press (or right click) on any chip: the numbers explained (cards, dev cards, knights, road, points) — on a bot's chip a tap opens its profile
+      if (el.classList.contains("pchip")) {
+        let lp = null, fired = false;
+        const stop = () => { clearTimeout(lp); lp = null; };
+        el.addEventListener("pointerdown", () => { fired = false; stop(); lp = setTimeout(() => { fired = true; this._showVPTooltip(player, el); setTimeout(() => this._hideVPTooltip(), 6000); }, 480); });
+        ["pointerup", "pointercancel", "pointerleave", "pointermove"].forEach((t) => el.addEventListener(t, (ev) => { if (t === "pointermove" && Math.abs(ev.movementX || 0) + Math.abs(ev.movementY || 0) < 3) return; stop(); }));
+        el.addEventListener("click", (e) => { if (fired) { e.stopImmediatePropagation(); e.preventDefault(); fired = false; } }, true);
+        el.addEventListener("contextmenu", (e) => { if (e.pointerType === "touch" || fired) e.preventDefault(); });
       }
       el.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -9967,7 +9983,7 @@ class ColonistFullGame {
     let html = `<div class="vp-tooltip-section">${this._you(player) ? "Your hand" : "In hand"}</div>`;
     html += `<div class="vp-tooltip-grid">`
       + `<span${cardsN > limit ? ' class="warn"' : ""}>${icon("cards")}<b>${cardsN}</b><small>cards</small></span>`
-      + `<span>${icon("devcard")}<b>${totalDevCards}</b><small>dev</small></span>`
+      + `<span>${icon("devcard")}<b>${totalDevCards}</b><small>dev cards</small></span>`
       + `<span>${icon("knight")}<b>${player.knightsPlayed}</b><small>knights</small></span>`
       + `<span>${icon(this.sea ? "tradeRoute" : "road")}<b>${player.longestRoadLength}</b><small>${this.sea ? "route" : "road"}</small></span></div>`;
     html += '<div class="vp-tooltip-section" style="margin-top:0.35rem">Points</div>';
@@ -11205,6 +11221,34 @@ class ColonistFullGame {
     this._userZoomed = false;
     Object.assign(this.view, this._fitTarget());
     this._viewChanged();
+    this._placeZoomButtons();
+  }
+
+  /** v1.87 phones: the zoom + / - buttons take the first free slot (beside Fit, under Fit, left edge low, right under the dice) where no harbour
+   *  pill sits under them in the fitted view, so none is ever covered at 360 px (they stacked down the left edge over the 2:1 harbours).
+   *  The board is not pushed for them (that cost ~6% of its size); a pan or zoom afterwards is the player's own doing. */
+  _placeZoomButtons() {
+    const wrap = document.querySelector("#boardWrap .board-tools"), zi = document.getElementById("zoomInBtn"), zo = document.getElementById("zoomOutBtn"), fit = document.getElementById("fitBoardBtn");
+    if (!wrap || !zi || !zo || !fit || !this.isMobileLayout || !this.geometry || this.labMode) { wrap?.style.removeProperty("--zx"); return; }
+    const cv = this.canvas?.getBoundingClientRect?.(), wr = wrap.getBoundingClientRect(), fr = fit.getBoundingClientRect();
+    if (!cv?.width || !wr.width) return;
+    const Z = 38, G = 8, v = this.view, g = this.geometry, u = g.hexSize / 100, M = 6;
+    const S = (wx, wy) => ({ x: v.offsetX + wx * v.scale, y: v.offsetY + wy * v.scale });
+    const pills = harbourBadges(this, harbourScale(this)).map((q) => { const a = S(g.centerX + (q.x - q.w / 2) * u, g.centerY + (q.y - q.h / 2) * u), b = S(g.centerX + (q.x + q.w / 2) * u, g.centerY + (q.y + q.h / 2) * u); return { l: a.x, r: b.x, t: a.y, b: b.y }; });
+    const dice = this.lastDiceDisplay?.getBoundingClientRect?.(), W = cv.width, H = cv.height;
+    const fl = fr.left - cv.left, ft = fr.top - cv.top, fb = ft + fr.height;
+    const slots = [
+      [[fl + fr.width + G, ft], [fl + fr.width + G + Z + G, ft]], // a row beside Fit
+      [[fl, fb + G], [fl, fb + G + Z + G]], // under Fit (the old column)
+      [[fl + fr.width + G + Z + G + Z + G, ft], [fl + fr.width + G + Z + G + Z + G + Z + G, ft]],
+      [[W - 10 - Z, (dice?.width ? dice.bottom - cv.top : ft + 50) + G], [W - 10 - Z, (dice?.width ? dice.bottom - cv.top : ft + 50) + G + Z + G]], // right edge under the dice
+      [[fl, H - 250], [fl, H - 250 + Z + G]],
+    ];
+    const free = (sl) => sl.every(([x, y]) => x >= 0 && x + Z <= W && !pills.some((p) => p.l < x + Z + M && p.r > x - M && p.t < y + Z + M && p.b > y - M));
+    const pick = slots.find(free) || slots[1];
+    const bx = wr.left - cv.left, by = wr.top - cv.top; // the buttons are positioned inside .board-tools
+    zi.style.cssText = `position:absolute;left:${(pick[0][0] - bx).toFixed(0)}px;top:${(pick[0][1] - by).toFixed(0)}px`;
+    zo.style.cssText = `position:absolute;left:${(pick[1][0] - bx).toFixed(0)}px;top:${(pick[1][1] - by).toFixed(0)}px`;
   }
 
   requestBoardDraw() {

@@ -4,6 +4,11 @@
 // function is try/catch: a private window just forgets the names.
 const KEY = "colonist_names_v1";
 const MAX = 12;
+/** v1.87 the ONE display-name policy: a bot is always shown under the same short form (strip, end screen, Overview
+ *  columns, headline, Luck tab, review prose, AI page, Past games). a bot is Blaauw / Geelen / Groen / De Wit / Pimpel, never "Van Geelen" in one place and "Geelen" in
+ *  another; the full persona names stay in the profile sheet. Older saved games are mapped on read. */
+const DISPLAY = { "Van Geelen": "Geelen", "Kolonel Van Geelen": "Geelen", "Groenewoud": "Groen", "Dominee Groenewoud": "Groen" };
+export const dispName = (n) => (n != null && Object.prototype.hasOwnProperty.call(DISPLAY, n) ? DISPLAY[n] : n);
 export const cleanName = (s) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, 14);
 export const sameName = (a, b) => cleanName(a).toLowerCase() === cleanName(b).toLowerCase() && !!cleanName(a);
 
