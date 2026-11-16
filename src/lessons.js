@@ -3,6 +3,7 @@
 // would you do?" on one of your own mistake positions (the step view with the answer hidden), and "Ask" sends your numbers to the same
 // explain endpoint as Why?. Practice results and Ask answers live in localStorage (best effort). Styles: themes/lessons.css.
 import { CATS, CAT, CLS_WORD, gameLessons, aggregate, moveText, betterText, practiceOptions, loadPractice, savePractice, practiceStats, pickPractice, exKey, askFacts } from "./lessons-data.js";
+import { dateLocale } from "./i18n.js";
 import { RECAP_URL, recapLang } from "./review-recap.js";
 import { esc } from "./review-ui.js";
 import { oicon } from "./ui-icons.js";
@@ -15,7 +16,7 @@ const TREND = { better: ["↓", "Getting better"], worse: ["↑", "Getting worse
 const PRESETS = ["How do I get better at this?", "What do I keep doing wrong?", "Give me one rule to follow"];
 const ASK_KEY = "colonist_lessons_ask";
 const online = () => typeof navigator === "undefined" || navigator.onLine !== false;
-const day = (t) => new Date(t).toLocaleDateString([], { day: "numeric", month: "short" });
+const day = (t) => new Date(t).toLocaleDateString(dateLocale(), { day: "numeric", month: "short" });
 import { RES_EN as RL } from "./resources.js";
 const askCache = () => { try { return JSON.parse(localStorage.getItem(ASK_KEY) || "{}") || {}; } catch (_) { return {}; } };
 const askSave = (o) => { try { const ks = Object.keys(o); if (ks.length > 60) ks.slice(0, ks.length - 60).forEach((k) => delete o[k]); localStorage.setItem(ASK_KEY, JSON.stringify(o)); } catch (_) { /* private mode */ } };

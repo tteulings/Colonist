@@ -74,7 +74,7 @@ export const ReviewAgainMixin = {
       <div class="ra-ms" role="radiogroup" aria-label="Model">${["quick", "standard", "deep"].map(opt).join("")}</div>
       <div class="ra-go"><button type="button" class="rv-btn" data-raa="no">Cancel</button><button type="button" class="rv-btn pri" data-raa="go">Review again</button></div></div>` : "";
     const ml = M.model ? ` · ${REVIEW_MODELS[M.model].label}` : "";
-    return `<div class="ra-row${M.old ? " old" : ""}"><small>${M.app ? `reviewed with v${M.app}${ml}` : "reviewed with an older version"}</small><button type="button" class="rv-btn${M.old ? " pri" : ""}" data-raagain aria-expanded="${!!this._raAsk}">Review again</button></div>${conf}`;
+    return `<div class="ra-row${M.old ? " old" : ""}"><small>${M.app ? `reviewed with v${M.app}${ml}` : "reviewed with an older version"}</small><button type="button" class="rv-btn${M.old ? " pri" : ""}" data-raagain aria-expanded="${!!this._raAsk}" data-nl="Opnieuw">Review again</button></div>${conf}`;
   },
   _raBind(root) {
     root.querySelectorAll("[data-raagain]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); this._raAsk = !this._raAsk; this._raRedraw(); }));

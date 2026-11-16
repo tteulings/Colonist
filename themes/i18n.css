@@ -1,0 +1,6 @@
+/* v1.87 Dutch is about 20% longer than English: room where a label sat tight. Only under html[lang="nl"]. */
+html[lang="nl"] .hs-facts dt { letter-spacing: 0; font-size: 11px; overflow-wrap: anywhere; }
+html[lang="nl"] .hs-acc small { max-width: 8em; }
+html[lang="nl"] .app .mbtn.mbuy { font-size: 10px; }
+html[lang="nl"] .hand .card .dplay, html[lang="nl"] .app .dock .hand .card .dplay { padding: 6px 7px; font-size: 11.5px; letter-spacing: 0; }
+html[lang="nl"] .hand .card .dplay, html[lang="nl"] .app .dock .hand .card .dplay { min-width: max-content; }
