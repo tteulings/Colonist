@@ -196,13 +196,15 @@ export function recipePage(fx) {
   const t = fx.t, r = t.r, Y = fx.keys[fx.me], W = fx.winner != null ? fx.keys[fx.winner] : null, S = fx.strat[fx.me], widgets = [], youIs = !!fx.players[fx.me]?.you;
   const headline = fx.won ? [P(Y), ...r.won(R(`turn.${fx.T}`), R(`pts.${Y}`))]
     : W ? [P(W), r.lostA, R(`turn.${fx.T}`), ". ", P(Y), r.lostB, R(`pts.${Y}`), r.lostC] : null;
-  // 1. win chance: the biggest swing of the reviewed player, against the winner (or the strongest rival). Point wording: the value before and after that turn.
-  const sw = fx.hasWc ? fx.swings(fx.me, 6).filter((s) => s.t < fx.T).slice(0, 3) : [];
-  if (sw.length && Math.abs(sw[0].d) >= 3) {
-    const tn = sw[0].t, rival = !fx.won && W ? W : fx.keys[[...fx.players].filter((p) => !p.you).sort((a, b) => (fx.wc(b.seat, Math.max(1, Math.floor(fx.T * 0.7))) ?? 0) - (fx.wc(a.seat, Math.max(1, Math.floor(fx.T * 0.7))) ?? 0))[0]?.seat] ?? null;
-    widgets.push({ id: "wc", level: "Game", short: t.short_.wc, chip: { ref: `d.${Y}@${tn}`, fmt: "sgpct", tone: sw[0].d > 0 ? "up" : "dn" },
-      title: [...r.wcLead(youIs, P(Y)), { dir: [`wc.${Y}@${tn - 1}`, `wc.${Y}@${tn}`], up: r.up, down: r.down }, r.wcFrom, R(`wc.${Y}@${tn - 1}`), r.wcTo, R(`wc.${Y}@${tn}`), r.wcOn, R(`turn.${tn}`), "."],
-      blocks: [{ p: "line", metric: "winchance", players: [Y, ...(rival && rival !== Y ? [rival] : [])], marks: sw.map((x) => x.t).sort((a, b) => a - b) }],
+  // 1. win chance: the DECISIVE swing (fx.decisive, one source: ai-facts.js aiDecisive), who moved which way, plus the other of the two on that turn.
+  const D = fx.decisive;
+  if (fx.hasWc && D) {
+    const tn = D.t, K = D.key, oc = D.other, duo = [Y, ...(W && W !== Y ? [W] : [])];
+    const lead = (k) => r.wcLead(k === Y && youIs, P(k)), mv = (k) => ({ dir: [`wc.${k}@${tn - 1}`, `wc.${k}@${tn}`], up: r.up, down: r.down });
+    const clause = (k) => [...lead(k), mv(k), r.wcFrom, R(`wc.${k}@${tn - 1}`), r.wcTo, R(`wc.${k}@${tn}`)];
+    widgets.push({ id: "wc", level: "Game", short: t.short_.wc, chip: { ref: `d.${K}@${tn}`, fmt: "sgpct", tone: D.d > 0 ? "up" : "dn" },
+      title: [...clause(K), r.wcOn, R(`turn.${tn}`), ...(oc ? ["; ", ...clause(oc.key).map((x, i) => (i === 0 && typeof x === "string" ? x.charAt(0).toLowerCase() + x.slice(1) : x))] : []), "."],
+      blocks: [{ p: "line", metric: "winchance", players: duo.includes(K) ? duo : [K, ...duo], marks: D.marks }],
       notes: [[r.wcN1], [r.wcN2]] });
   }
   // 4. near miss

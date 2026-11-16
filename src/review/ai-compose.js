@@ -18,9 +18,9 @@ export function composeIndex(fx) {
   const keys = fx.keys, T = fx.T, me = fx.me;
   keys.forEach((k, q) => { add(`name.${k}`); add(`pts.${k}`); add(`luck.total.${k}`);
     ["plan", "idleN", "turns", "waitN", "waitRes", "E", "SD", "verdict", "feeds", "steady", "wobbly", "headless", "pivot", "pivot.t", "pivot.to"].forEach((f) => add(`strat.${k}.${f}`));
-    RES.forEach((r) => add(`rate.${r}.${k}`)); });
+    RES.forEach((r) => add(`rate.${r}.${k}`)); ["s", "c", "v", "L", "A", "I", "total"].forEach((f) => add(`score.${k}.${f}`)); });
   RES.forEach((r) => { add(`rate.${r}.top`); add(`rate.${r}.low`); });
-  ["luck.dominant", "game.winner", "game.T", "near.pts", "near.wpts", "near.goal", "near.margin", "near.res", "near.n", "near.label"].forEach(add);
+  ["luck.dominant", "game.winner", "game.decisive.t", "game.decisive.player", "game.T", "near.pts", "near.wpts", "near.goal", "near.margin", "near.res", "near.n", "near.label"].forEach(add);
   // win chance at the turns that matter: the biggest swings of every player (before and after), a quarter way, half way, the end
   const turns = new Set([T, Math.round(T / 4), Math.round(T / 2), Math.round((3 * T) / 4)].filter((t) => t >= 1));
   if (fx.hasWc) keys.forEach((k, q) => fx.swings(q, 3).forEach((s) => { turns.add(s.t); if (s.t > 1) turns.add(s.t - 1); add(`d.${k}@${s.t}`); }));
@@ -32,7 +32,8 @@ export function composeIndex(fx) {
   [...turns].sort((a, b) => a - b).forEach((t) => { add(`turn.${t}`); if (fx.hasWc) keys.forEach((k) => add(`wc.${k}@${t}`)); });
   return {
     game: { turns: T, players: fx.players.map((p) => ({ key: p.key, name: p.name, you: p.you })), you: keys[me], winner: fx.winner != null ? keys[fx.winner] : null, youWon: !!fx.won,
-      winChance: !!fx.hasWc, luck: !!fx.luck, turnRange: [0, T] },
+      winChance: !!fx.hasWc, luck: !!fx.luck, turnRange: [0, T],
+      decisive: fx.decisive ? { player: fx.decisive.key, turn: fx.decisive.t, from: fx.decisive.from, to: fx.decisive.to } : null },
     decisions: (fx.decs || []).slice(0, 5).map((d) => ({ turn: d.turn, verdict: d.vc, board: !!d.pos })),   // compare / board bind to these turns only
     board: bd ? { hexes: bd.hexes.map((h) => `${h.id}:${h.res}${h.num ? " " + h.num : ""}`).join(", "), robberMoves: rob.map((m) => ({ turn: m.turn, by: keys[m.seat], hex: m.hex })) } : null,   // board blocks: dec (above), turn 0 + players (set-up), turn + show robber (a turn above), turn + players (network), hexes (ids above)
     strategy: keys.map((k, q) => ({ key: k, hasPlan: !!fx.strat[q]?.verdict, planStalled: !!fx.strat[q]?.idleN, pointsLog: !!fx.strat[q]?.srcTotal, startFeeds: !!fx.strat[q]?.feeds })),
