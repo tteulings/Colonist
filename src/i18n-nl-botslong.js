@@ -202,7 +202,7 @@ export const NL_BOTSLONG = [
  ],
  [
   "Same as the Hard bot: stay out of the lead in public, keep your numbers spread, and finish in one turn.",
-  "Net als de Moeilijke bot: blijf in het openbaar uit de leiding, spreid je getallen en win in één beurt."
+  "Net als de Moeilijke bot: blijf onopvallend, ook als je voorstaat, spreid je getallen en win in één beurt."
  ],
  [
   "Like the Hard bot: fair deals that bring its plan closer, never with someone 2+ points ahead of it.",

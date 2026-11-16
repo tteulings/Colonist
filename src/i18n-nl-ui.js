@@ -11,7 +11,7 @@ export const NL_UI = [
   ["Knight", "Ridder"], ["Road Building", "Wegenbouw"], ["Year of Plenty", "Uitvinding"], ["Monopoly", "Monopolie"], ["Victory Point", "Puntenkaart"],
   ["Lumber", "Hout"], ["Brick", "Baksteen"], ["Wool", "Wol"], ["Grain", "Graan"], ["Ore", "Erts"], ["Desert", "Woestijn"], ["Gold", "Goud"], ["Gold field", "Goudveld"],
   ["wood", "hout"], ["brick", "baksteen"], ["sheep", "wol"], ["wheat", "graan"], ["ore", "erts"],
-  ["Road", "Weg"], ["Ship", "Schip"], ["Move ship", "Schip verplaatsen"], ["Settlement", "Dorp"], ["City", "Stad"], ["Card", "Kaart"], ["Trade", "Ruilen"], ["Build", "Bouwen"], ["Buy card", "Koop kaart"], ["Play card", "Speel kaart"],
+  ["Road", "Weg"], ["Ship", "Schip"], ["Move ship", "Schip verplaatsen"], ["Settlement", "Dorp"], ["City", "Stad"], ["Card", "Kaart"], ["Trade", "Ruilen"], ["Build", "Bouwen"], ["Buy card", "Koop kaart"], ["5s", "5 sec"], ["8s", "8 sec"], ["15s", "15 sec"], ["Play card", "Speel kaart"],
   ["Close", "Sluit"], ["Place", "Plaats"], ["Players", "Spelers"], ["First to 10 points wins", "Wie het eerst 10 punten heeft wint"], ["First to {n} points wins", "Wie het eerst {n} punten heeft wint"], ["Journal", "Logboek"], ["Newest at the bottom", "Nieuwste onderaan"], ["Close journal", "Sluit logboek"], ["Toggle journal", "Logboek aan/uit"],
   ["Your hand", "Jouw hand"], ["Card totals", "Totalen kaarten"], ["Your cards", "Jouw kaarten"], ["swipe ›", "veeg ›"], ["Choices", "Keuzes"],
   ["Roll dice", "Gooi dobbelstenen"], ["Roll dice (R)", "Gooi dobbelstenen (R)"], ["End turn", "Einde beurt"], ["End turn (E)", "Beurt beëindigen (E)"], ["Roll now – you are done (R)", "Nu gooien – je bent klaar (R)"], ["Roll now", "Nu gooien"],
