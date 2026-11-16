@@ -355,3 +355,4 @@ b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { c
 .ap-svg .zn.pull rect { fill: color-mix(in srgb, var(--pc) 11%, transparent); }
 .ap-svg .zn.pull text { fill: var(--pc-text, var(--pc)); font-weight: 800; font-size: 9.5px; }
 .ap-leg > span.fd > i { background: var(--ink-faint); opacity: .6; }
+.ap-svg .zn.lead rect { fill: color-mix(in srgb, var(--pos) 13%, transparent); } .ap-svg .zn.lead text { fill: var(--pos); font-weight: 800; font-size: 9.5px; }
