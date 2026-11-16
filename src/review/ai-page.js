@@ -7,6 +7,7 @@
 //  - per-primitive fallback: an invalid block is dropped, a widget with no valid block is dropped, no widget left -> recipes;
 //  - DEDUPE: a primitive that shows the same fact binding as one already on the page is dropped (the same tile twice, the same bars twice).
 import { sxParts } from "./ai-surprise.js";
+import { gameShape, shapeTitle } from "./ai-shape.js";
 export const LEVELS = ["Game", "Near miss", "Decision", "Strategy", "Luck"];
 export const PRIMS = ["line", "bars", "strip", "stack", "tiles", "compare", "board", "badge", "table", "text", "surprise"];
 export const FMTS = ["player", "turn", "pct", "sgpct", "n", "x"];
@@ -203,7 +204,7 @@ export function recipePage(fx) {
   const headline = fx.won ? [P(Y), ...r.won(R(`turn.${fx.T}`), R(`pts.${Y}`))]
     : W ? [P(W), r.lostA, R(`turn.${fx.T}`), ". ", P(Y), r.lostB, R(`pts.${Y}`), r.lostC] : null;
   // 1. win chance: the DECISIVE swing (fx.decisive, one source: ai-facts.js aiDecisive), who moved which way, plus the other of the two on that turn.
-  const D = fx.decisive;
+  const D = fx.decisive, SH = tryv(() => fx.shape ?? gameShape(fx)), shT = SH ? tryv(() => shapeTitle(fx, SH, P, R)) : null; // v1.87 the headline follows the SHAPE of the game (ai-shape.js)
   if (fx.hasWc && D) {
     const tn = D.t, K = D.key, oc = D.other, duo = [Y, ...(W && W !== Y ? [W] : [])];
     // v1.86.2 why it was so sudden: one short line (parts, numbers through refs sx.*) and the small points visual (ai-surprise.js)
@@ -211,7 +212,7 @@ export function recipePage(fx) {
     const lead = (k) => r.wcLead(k === Y && youIs, P(k)), mv = (k) => ({ dir: [`wc.${k}@${tn - 1}`, `wc.${k}@${tn}`], up: r.up, down: r.down });
     const clause = (k) => [...lead(k), mv(k), r.wcFrom, R(`wc.${k}@${tn - 1}`), r.wcTo, R(`wc.${k}@${tn}`)];
     widgets.push({ id: "wc", level: "Game", short: t.short_.wc, chip: { ref: `d.${K}@${tn}`, fmt: "sgpct", tone: D.d > 0 ? "up" : "dn" },
-      title: [...clause(K), r.wcOn, R(`turn.${tn}`), ...(oc ? ["; ", ...clause(oc.key).map((x, i) => (i === 0 && typeof x === "string" ? x.charAt(0).toLowerCase() + x.slice(1) : x))] : []), "."],
+      title: shT || [...clause(K), r.wcOn, R(`turn.${tn}`), ...(oc ? ["; ", ...clause(oc.key).map((x, i) => (i === 0 && typeof x === "string" ? x.charAt(0).toLowerCase() + x.slice(1) : x))] : []), "."],
       blocks: [{ p: "line", metric: "winchance", players: duo.includes(K) ? duo : [K, ...duo], marks: D.marks }, ...sx],
       notes: [[r.wcN1], [r.wcN2]] });
   }
