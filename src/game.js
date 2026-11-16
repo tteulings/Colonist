@@ -1072,6 +1072,7 @@ class ColonistFullGame {
     this.uiPaused = false;
     this.home?.close();
     this.onboarding?.close();
+    if (this._chipEnterPending) window.setTimeout(() => { if (!this.onboardingHold) this._playStripEntrance(); }, 120);
     if (resume && this.setupPhase && !this.setupAction) this.processSetupQueue();
   }
 
@@ -1103,7 +1104,9 @@ class ColonistFullGame {
     this.uiPaused = false;
     this.home.close();
     this.onboarding?.close();
+    this._chipEnterPending = true;
     if (!this.loadFromStorage()) this.resetGame();
+    window.setTimeout(() => { if (this._chipEnterPending) this._playStripEntrance(); }, 120);
     this._buildStrategyUI();
   }
 
@@ -3938,6 +3941,12 @@ class ColonistFullGame {
     return { give: r, rate, n: rate * k, k, auto: true };
   }
 
+  /** v1.88: the route buttons' one-line reason (titles stay "Bank"/"Offer"; the hint line keeps the full text). */
+  _shortWhy(why) {
+    return String(why || "").replace(/^pick what you get$/, "pick to get").replace(/^bank is out of (.+)$/, "bank has no $1")
+      .replace(/^not enough of one kind$/, "need 1 kind").replace(/^needs (\d+) (.+)$/, "needs $1 $2");
+  }
+
   /** The footer line (always on screen): a short reason, or ("ok") what the last trade did. */
   _tradeHint(text, cls = "") {
     const hint = document.querySelector("#tradeHint");
@@ -4006,7 +4015,8 @@ class ColonistFullGame {
       const giveRes = makeEmptyResources();
       if (plan.give) giveRes[plan.give] = plan.n;
       const top = ok ? this._tradeDealHtml(giveRes, this.tradeRequest) : "Bank";
-      const sub = ok ? where : plan.why;
+      const sub = ok ? where : this._shortWhy(plan.why);
+      this.tradeExecuteBtn.classList.toggle("idle", !ok);
       this.tradeExecuteBtn.innerHTML = `${icon("bank")}<span class="rt"><b>${top}</b><small>${sub}</small></span>`;
       this.tradeExecuteBtn.setAttribute("aria-label", ok
         ? `Trade ${plan.n} ${RESOURCE_LABEL[plan.give]} → ${RESOURCES.filter((r) => this.tradeRequest[r] > 0).map((r) => `${this.tradeRequest[r]} ${RESOURCE_LABEL[r]}`).join(" + ")} with the ${plan.rate < 4 ? `harbour (${plan.rate}:1)` : "bank"}; you keep ${player.resources[plan.give] - plan.n} ${RESOURCE_LABEL[plan.give]}`
@@ -4025,7 +4035,7 @@ class ColonistFullGame {
       this.tradeProposalBtn.classList.toggle("sent", askedSame);
       const ans = askedSame ? this._tradeAnswers : null;
       const noTakers = !!ans && !ans.responses.some((x) => x.accepts) && !ans.counter;
-      const sub = askedSame ? (noTakers ? "change the offer to try again" : "edit to ask again") : !offerTotal ? "pick what you give" : !requestTotal ? "pick what you get" : n === 0 ? "no bots at the table" : `to ${who(n)}`;
+      const sub = askedSame ? (noTakers ? "change the offer to try again" : "edit to ask again") : !offerTotal ? "pick to give" : !requestTotal ? "pick to get" : n === 0 ? "no bots at the table" : `to ${who(n)}`;
       this.tradeProposalBtn.innerHTML = `${icon("trade")}<span class="rt"><b>${askedSame ? (noTakers ? "No takers" : "Offer sent") : hs ? "Ask the bots" : "Offer"}</b><small>${sub}</small></span>`;
       this.tradeProposalBtn.setAttribute("aria-label", askedSame ? "Offered to the players · change your offer to ask again" : `Offer to the players${offerTotal && requestTotal ? "" : `: ${sub}`}`);
     }
@@ -8410,6 +8420,8 @@ class ColonistFullGame {
         return `<button type="button" class="card dev ds-${st}${fresh ? " new" : ""}${sel ? " dsel-on" : ""}${this._newDevPulse === t ? " drawn" : ""}" data-dev="${t}" style="${fan(RESOURCES.length + j)}" aria-pressed="${sel}" aria-label="${name}: ${devCounts[t]}${fresh ? ` (playable ${when})` : st === "ready" ? " (tap to play)" : ""}" title="${name}: ${CARD_TEXT[t]}${fresh ? ` — playable ${when}` : ""}" data-n="${Math.min(devCounts[t], 4)}">${cardSvg(t)}<span class="count">${devCounts[t]}</span><span class="rib" aria-hidden="true"><b>${devCounts[t]}</b><span>${name}</span></span>${tag}${play}</button>`;
       }).join("");
     }
+    this.resourceCardStrip.style.setProperty("--hn", String(n));
+    this.resourceCardStrip.toggleAttribute("data-crowd", n >= 8);
     this.resourceCardStrip.innerHTML = html;
     this.resourceCardStrip.querySelectorAll(".card[data-card]").forEach((el) => {
       el.addEventListener("click", (e) => {
@@ -8657,7 +8669,7 @@ class ColonistFullGame {
       // star = points, a crown for the single leader, a hammer while the seat builds between turns), the name, then cards + development
       // cards, then knights played + road length. Every number is an icon and a figure of 12 px or more; a tap / long press on the chip names them all.
       const lead = this._sixLeader?.() === idx, building = (this._sbpMarkedSeats?.() || []).includes(idx);
-      const tileIc = building ? icon("build") : lead ? CROWN : oicon("star");
+      const tileIc = building ? icon("build") : lead ? CROWN : oicon("trophy");
       const pickStat = (k) => stats.find((x) => x.includes(`data-stat="${k}"`)) || "";
       chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}${lead ? " leader" : ""}${building ? " building" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points${goal ? ` of ${this.winPoints}` : ""}, ${totalCards} cards, ${totalDev} development cards${lead ? ", in the lead" : ""}${building ? ", building" : ""}${profileLabel(this, player)}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
         <div class="row">${framedAvatar(this, player)}<div class="vpn${goal ? " goal" : ""}${lead ? " lead" : ""}"><b>${vp}${goal}</b><i class="vpi" title="Points">${tileIc}</i></div></div>
@@ -8724,7 +8736,12 @@ class ColonistFullGame {
     });
     const same = prev && Object.keys(prev).join() === Object.keys(now).join();
     this._chipPrev = now;
-    if (!same) { strip.classList.add("mo-in"); setTimeout(() => strip.classList.remove("mo-in"), 900); return; }
+    if (!same) {
+      // v1.88: the entrance waits for the Home screen to close (it used to play behind it, unseen); tests can replay it with _playStripEntrance()
+      if (this.onboardingHold) { this._chipEnterPending = true; return; }
+      this._playStripEntrance();
+      return;
+    }
     const pop = (el, cls) => { if (!el) return; el.classList.add(cls); setTimeout(() => el.classList.remove(cls), 800); };
     strip.querySelectorAll("[data-seat]").forEach((el) => {
       const id = el.dataset.seat, a = prev[id], b = now[id];
@@ -8733,6 +8750,17 @@ class ColonistFullGame {
       if (b.cards !== a.cards) pop(el.querySelector('[data-stat="cards"]'), "mo-tick");
       if (b.aw > a.aw) pop(el.querySelector(".award"), "mo-award");
     });
+  }
+
+  /** The strip's entrance: the chips ease down one after another (~0.7 s). Replayable: `__colonistGame._playStripEntrance()`. */
+  _playStripEntrance() {
+    const strip = this.playerStrip; if (!strip) return;
+    this._chipEnterPending = false;
+    window.clearTimeout(this._chipInTimer);
+    strip.classList.remove("mo-in");
+    void strip.offsetWidth; // restart the animation
+    strip.classList.add("mo-in");
+    this._chipInTimer = window.setTimeout(() => strip.classList.remove("mo-in"), 1000);
   }
 
   renderTopPanels() {
@@ -10011,6 +10039,8 @@ class ColonistFullGame {
     // v0.84 phones: open under the ticker, so the next action stays readable
     const tk = this.isMobileLayout && !this.isLandscapePhone && anchorEl.closest(".pstrip") ? document.querySelector(".tkrow, #ticker") : null;
     if (tk) top = Math.max(top, tk.getBoundingClientRect().bottom + 4);
+    // v1.88: and under the board tools (Fit, zoom + / -), never over them
+    if (tk) document.querySelectorAll("#fitBoardBtn, #zoomInBtn, #zoomOutBtn").forEach((b) => { const r = b.getBoundingClientRect(); if (r.width && r.top < top + tipRect.height && r.bottom > top && r.left < left + tipRect.width && r.right > left) top = Math.max(top, r.bottom + 6); });
     // Keep within viewport
     if (left + tipRect.width > window.innerWidth - 8) left = window.innerWidth - tipRect.width - 8;
     if (left < 8) left = 8;
@@ -11150,6 +11180,11 @@ class ColonistFullGame {
     }
     this._fitScale = t.scale;
     let seaFocused = false;
+    const clearTools = () => { // v1.88: a zoomed-in view also keeps the land out from under the Fit / zoom / dice row
+      if (!this.isMobileLayout || this.labMode || !this.geometry) return;
+      const pad = this._chromePad(t);
+      if (pad > 0.5) t = this._clampView({ ...t, offsetY: t.offsetY + pad });
+    };
     if (!whole && this.sea && !this.labMode && this.geometry) {
       const f = this._seaFocusBox();
       if (f) {
@@ -11158,6 +11193,7 @@ class ColonistFullGame {
         if (s > t.scale * 1.08) {
           seaFocused = true;
           t = this._clampView({ scale: s, offsetX: vp.l + vp.W / 2 - ((f.minX + f.maxX) / 2) * s, offsetY: vp.t + vp.H / 2 - ((f.minY + f.maxY) / 2) * s });
+          clearTools();
         }
       }
     }
@@ -11197,7 +11233,12 @@ class ColonistFullGame {
     const rel = (r) => ({ l: r.left - cv.left, r: r.right - cv.left, t: r.top - cv.top, b: r.bottom - cv.top });
     const rects = [];
     const fitBtn = document.getElementById("fitBoardBtn")?.getBoundingClientRect();
-    if (fitBtn?.width) rects.push(rel(fitBtn));
+    if (fitBtn?.width) {
+      rects.push(rel(fitBtn));
+      // v1.88: the zoom + / - buttons sit in the row beside Fit (see _placeZoomButtons): the land is pushed below them too, so they never cover a harbour or a hex
+      const fb = rel(fitBtn), zl = fb.r + 8;
+      rects.push({ l: zl, r: zl + 38, t: fb.t, b: fb.t + 38 }, { l: zl + 46, r: zl + 84, t: fb.t, b: fb.t + 38 });
+    }
     const lt = document.querySelector("#boardWrap .lefttop")?.getBoundingClientRect(), dice = this.lastDiceDisplay?.getBoundingClientRect();
     if (dice?.width) rects.push(rel(dice));
     else if (lt) rects.push({ l: lt.right - cv.left - 132, r: lt.right - cv.left, t: lt.top - cv.top, b: lt.top - cv.top + 44 });
@@ -11244,8 +11285,12 @@ class ColonistFullGame {
       [[W - 10 - Z, (dice?.width ? dice.bottom - cv.top : ft + 50) + G], [W - 10 - Z, (dice?.width ? dice.bottom - cv.top : ft + 50) + G + Z + G]], // right edge under the dice
       [[fl, H - 250], [fl, H - 250 + Z + G]],
     ];
-    const free = (sl) => sl.every(([x, y]) => x >= 0 && x + Z <= W && !pills.some((p) => p.l < x + Z + M && p.r > x - M && p.t < y + Z + M && p.b > y - M));
-    const pick = slots.find(free) || slots[1];
+    // v1.88: land hexes count too (a button over a hex hides its number or a road), and with no free slot the one with the least under it wins
+    const hexes = g.hexes.filter((h) => h.resource !== "sea").map((h) => { const a = S(h.center.x - 0.87 * g.hexSize, h.center.y - g.hexSize), b = S(h.center.x + 0.87 * g.hexSize, h.center.y + g.hexSize); return { l: a.x, r: b.x, t: a.y, b: b.y }; });
+    const items = pills.concat(hexes);
+    const hit = (x, y) => items.filter((p) => p.l < x + Z + M && p.r > x - M && p.t < y + Z + M && p.b > y - M).length;
+    const cost = (sl) => sl.reduce((a, [x, y]) => a + (x >= 0 && x + Z <= W ? hit(x, y) : 99), 0);
+    const pick = slots.find((sl) => cost(sl) === 0) || slots.slice().sort((a, b) => cost(a) - cost(b))[0];
     const bx = wr.left - cv.left, by = wr.top - cv.top; // the buttons are positioned inside .board-tools
     zi.style.cssText = `position:absolute;left:${(pick[0][0] - bx).toFixed(0)}px;top:${(pick[0][1] - by).toFixed(0)}px`;
     zo.style.cssText = `position:absolute;left:${(pick[1][0] - bx).toFixed(0)}px;top:${(pick[1][1] - by).toFixed(0)}px`;

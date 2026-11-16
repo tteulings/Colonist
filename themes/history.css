@@ -190,3 +190,13 @@
 .pg-who button small { display: block; font-weight: 500; font-size: var(--fs-s); opacity: .7; }
 .pg-who button.on { background: var(--sheet); box-shadow: 0 1px 4px rgba(0,0,0,.2); }
 .hs-acc small { max-width: 5.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
+/* v1.88 progress charts: grid + axis labels like the Win chance chart */
+.pg-grid { stroke: color-mix(in srgb, var(--ink) 11%, transparent); stroke-width: 1; }
+.pg-ax { font: 700 10px var(--font-body); fill: var(--ink-soft); }
+.pg-val { font: 850 12px var(--font-body); fill: var(--heading); }
+.pg-cap { margin: 10px 0 0; font: 800 13px/1.2 var(--font-body); color: var(--heading); }
+.pg-cap small { font-weight: 650; font-size: var(--fs-s); color: var(--ink-soft); margin-left: 4px; }
+.pg-spark, .pg-bars { margin-top: 2px; }
+/* v1.88: the result tag sizes its own column (a longer word, "Verloren", is never clipped) */
+.hs-row { grid-template-columns: max-content minmax(0, 1fr) 44px; }
+.hs-row .hs-badge { min-width: 50px; justify-self: start; box-sizing: border-box; }

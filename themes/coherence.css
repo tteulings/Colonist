@@ -201,3 +201,13 @@
 [data-theme] .app .pstrip .pchip .pn { line-height: 14px; margin-top: 2px; overflow: visible; }
 .app .pstrip { padding-top: 3px; padding-bottom: 2px; }
 [data-theme] .app .pstrip .pchip, [data-theme] .app .pstrip.six-up .pchip { height: 74px; padding-bottom: 2px; }
+
+/* v1.88 the Undo pill sits in the ticker row without touching the player strip above: its top is the ticker's top, it grows only downward into the gap */
+.tkrow .undo-toast { top: 0; transform: none; height: 40px; padding: 2px; }
+.app .tkrow .undo-toast .ut-btn { height: 36px; }
+/* v1.88 seat 5 (ivory): its avatar ring reads as a ring, not a thin white line: an ivory band with a strong dark-ink outline, on every strip colour */
+[data-theme] .app .pstrip .pchip.pc-4 .avatar { box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 2px) var(--pc-line), var(--avatar-shadow, none); }
+[data-palette="night"] .app .pstrip .pchip.pc-4 .avatar, [data-palette="dusk"] .app .pstrip .pchip.pc-4 .avatar { box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 1.5px) #1B2A31, var(--avatar-shadow, none); }
+/* v1.88 Night: Lumber (deep forest + logs) and Wool (pale meadow + sheep) stay two clearly different greens in the hand and the trade sheet */
+[data-palette="night"][data-theme="A"] .card[data-card="wood"] > svg, [data-palette="dusk"][data-theme="A"] .card[data-card="wood"] > svg { filter: brightness(1.28) saturate(1.25) hue-rotate(-8deg); }
+[data-palette="night"][data-theme="A"] .card[data-card="sheep"] > svg { filter: brightness(1.05) saturate(.85) hue-rotate(14deg); }

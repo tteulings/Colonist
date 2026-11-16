@@ -744,3 +744,4 @@
 /* v1.81 targeted refinement state under the verdict (step view) */
 .rs-rf { display: flex; align-items: center; gap: 8px; margin: 2px 0 6px; font: 650 12px/1.3 var(--font-body); color: var(--ink-soft, #667); } .rs-rf .rv-spin { width: 14px; height: 14px; flex: none; } .rs-rf.done { color: var(--c-close, #8E9AA6); }
 .rs-rfb { margin: 2px 0 8px; min-height: 40px; }
+.rv-astrip .nw { white-space: nowrap; }

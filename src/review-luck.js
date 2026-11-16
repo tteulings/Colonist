@@ -236,7 +236,7 @@ export const ReviewLuckMixin = {
     const B = this._lkBook(pid);
     if (!B) return "";
     const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-    const nm = you ? "You" : esc(this.players[pid].name), n = Math.round(B.extra), m = Math.abs(n);
+    const nm = you ? "You" : esc(this.players[pid].name), dl = this._rvLuck?.(pid)?.me, n = Math.round(dl && Number.isFinite(dl.luck) ? dl.luck : B.extra), m = Math.abs(n); // v1.88: the same cards-vs-expected number as the table's tile (dice stats), not the model's own surplus (it differed by a card)
     const cardsTxt = n ? `${nm} got ${m} ${m === 1 ? "card" : "cards"} ${n > 0 ? "more" : "fewer"} than expected (${wpText(B.cards)})` : `${nm} got about the cards expected (${wpText(B.cards)})`;
     const k = Math.round(B.kind * 100), kindTxt = k > 0 ? "the right ones at the right moment" : k < 0 ? "the wrong ones or at the wrong moment" : "neither the right nor the wrong ones";
     const join = (Math.round(B.cards * 100) >= 0) === (k >= 0) || !k ? "and" : "but";

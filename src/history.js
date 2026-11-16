@@ -441,8 +441,12 @@ export const HistoryMixin = {
       accHtml = `<div class="pg-t"><b>${Math.round(avg(last.map((m) => m.acc)))}${prev.length ? trend(avg(last.map((m) => m.acc)) - avg(prev.map((m) => m.acc))) : ""}</b><small>Accuracy · last ${last.length}</small></div>`;
     }
     if (pts.length >= 2) {
-      const v = pts.slice(-12).map((m) => m.acc), lo = Math.min(...v, 70), hi = Math.max(...v, 90), W = 300, H = 54, X = (i) => 6 + (i / (v.length - 1)) * (W - 12), Y = (a) => 6 + (1 - (a - lo) / (hi - lo)) * (H - 14);
-      spark = `<svg class="pg-spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="Accuracy of your last ${v.length} reviewed games: ${v.join(", ")}"><path d="${v.map((a, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(a).toFixed(1)}`).join("")}" class="pg-line"/>${v.map((a, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(a).toFixed(1)}" r="${i === v.length - 1 ? 4 : 2.6}" class="pg-dot"/>`).join("")}<text x="${W - 6}" y="${H - 1}" text-anchor="end" class="pg-ax">${v[v.length - 1]}</text></svg>`;
+      // v1.88: a small chart in the app's chart style (the Win chance tab): % axis with grid lines, "oldest / latest" under the ends, the last value beside its dot
+      const v = pts.slice(-12).map((m) => m.acc), lo = Math.floor(Math.min(...v, 70) / 10) * 10, hi = Math.min(100, Math.ceil(Math.max(...v, 90) / 10) * 10), W = 318, H = 112, X0 = 30, X1 = W - 10, T = 14, B = H - 18;
+      const X = (i) => X0 + 6 + (i / (v.length - 1)) * (X1 - X0 - 12), Y = (a) => T + (1 - (a - lo) / (hi - lo)) * (B - T), mid = Math.round((lo + hi) / 2);
+      const grid = [lo, mid, hi].map((t) => `<line x1="${X0}" x2="${X1}" y1="${Y(t).toFixed(1)}" y2="${Y(t).toFixed(1)}" class="pg-grid"/><text x="${X0 - 5}" y="${(Y(t) + 3.5).toFixed(1)}" text-anchor="end" class="pg-ax">${t}</text>`).join("");
+      const lx = X(v.length - 1), ly = Y(v[v.length - 1]);
+      spark = `<p class="pg-cap">Accuracy <small>last ${v.length} reviewed games</small></p><svg class="pg-spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="Accuracy of your last ${v.length} reviewed games, oldest first: ${v.join(", ")}">${grid}<path d="${v.map((a, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(a).toFixed(1)}`).join("")}" class="pg-line"/>${v.map((a, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(a).toFixed(1)}" r="${i === v.length - 1 ? 4.2 : 2.8}" class="pg-dot"/>`).join("")}<text x="${lx.toFixed(1)}" y="${(ly - 9).toFixed(1)}" text-anchor="end" class="pg-val">${v[v.length - 1]}</text><text x="${X0}" y="${H - 3}" class="pg-ax">oldest</text><text x="${X1}" y="${H - 3}" text-anchor="end" class="pg-ax">latest</text></svg>`;
     }
     // wins
     const won = fin.filter((m) => m.result === "won").length, l10 = fin.slice(-10);
@@ -455,8 +459,9 @@ export const HistoryMixin = {
       markHtml = `<div class="pg-t"><b>${(avg(last.map(tot))).toFixed(1)}${prev.length ? trend(avg(last.map(tot)) - avg(prev.map(tot)), 1, -1) : ""}</b><small>Marked per game</small></div>`;
     }
     if (per.length >= 2) {
-      const v = per.slice(-12), mx = Math.max(4, ...v.map((p) => p.c + p.m + p.b)), bw = 300 / v.length;
-      bars = `<svg class="pg-bars" viewBox="0 0 300 50" role="img" aria-label="Marked moves per game, oldest first: ${v.map((p) => p.c + p.m + p.b).join(", ")}">${v.map((p, i) => { let y = 48; return [["b", p.b], ["m", p.m], ["c", p.c]].map(([k, n]) => { const h = (n / mx) * 44; y -= h; return h ? `<rect x="${(i * bw + 2).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" class="pg-${k}"/>` : ""; }).join(""); }).join("")}</svg><p class="pg-key"><i class="pg-c"></i>could be better <i class="pg-m"></i>mistake <i class="pg-b"></i>blunder</p>`;
+      const v = per.slice(-12), mx = Math.max(4, ...v.map((p) => p.c + p.m + p.b)), W = 318, H = 98, X0 = 30, X1 = W - 10, T = 8, B = H - 18, bw = (X1 - X0) / v.length, Yb = (n) => B - (n / mx) * (B - T);
+      const grid = (mx % 2 ? [0, mx] : [0, mx / 2, mx]).map((t) => `<line x1="${X0}" x2="${X1}" y1="${Yb(t).toFixed(1)}" y2="${Yb(t).toFixed(1)}" class="pg-grid"/><text x="${X0 - 5}" y="${(Yb(t) + 3.5).toFixed(1)}" text-anchor="end" class="pg-ax">${t}</text>`).join("");
+      bars = `<p class="pg-cap">Marked moves <small>per reviewed game</small></p><svg class="pg-bars" viewBox="0 0 ${W} ${H}" role="img" aria-label="Marked moves per game, oldest first: ${v.map((p) => p.c + p.m + p.b).join(", ")}">${grid}${v.map((p, i) => { let y = B; return [["b", p.b], ["m", p.m], ["c", p.c]].map(([k, n]) => { const h = (n / mx) * (B - T); y -= h; return h ? `<rect x="${(X0 + i * bw + 2).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" class="pg-${k}"/>` : ""; }).join(""); }).join("")}<text x="${X0}" y="${H - 3}" class="pg-ax">oldest</text><text x="${X1}" y="${H - 3}" text-anchor="end" class="pg-ax">latest</text></svg><p class="pg-key"><i class="pg-c"></i>could be better <i class="pg-m"></i>mistake <i class="pg-b"></i>blunder</p>`;
     }
     // the most frequent kind of mistake
     const mist = {}; let all2 = 0;

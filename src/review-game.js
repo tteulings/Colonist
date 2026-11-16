@@ -655,7 +655,7 @@ export const ReviewGameMixin = {
     const when = mid ? "so far" : prov ? "" : "this game";
     const bar = `<div class="rv-abar" aria-hidden="true">${B ? `<i class="b" style="left:${pc(B[0][1])}%;width:${pc(B[1][1]) - pc(B[0][1])}%"></i>` : ""}${cmp?.m != null ? `<i class="avg" style="left:${pc(cmp.m - cmp.se)}%;width:${Math.max(1, pc(cmp.m + cmp.se) - pc(cmp.m - cmp.se))}%"></i><i class="avgd" style="left:${pc(cmp.m)}%"></i>` : ""}${acc != null ? `<i class="me" style="left:${pc(acc)}%"></i>` : ""}</div>`;
     return `<div class="rv-astrip${prov ? " prov" : ""}" role="group" aria-label="Accuracy ${acc ?? (few ? fewTxt : "not available")} ${when || "provisional"}${B ? `, bots usually score ${Math.round(B[0][1])} to ${Math.round(B[1][1])}` : ""}">
-      <b class="n">${acc ?? "–"}</b><div class="l"><span><b>accuracy</b> ${when}${prov && !mid ? `<em class="pv">provisional</em>` : ""}</span>${B ? `<span>bots usually score ${Math.round(B[0][1])}–${Math.round(B[1][1])}</span>` : ""}${few ? `<span class="pv">${fewTxt}</span>` : ""}</div>
+      <b class="n">${acc ?? "–"}</b><div class="l"><span><b>accuracy</b> ${when}${prov && !mid ? `<em class="pv">provisional</em>` : ""}</span>${B ? `<span>bots usually score <span class="nw">${Math.round(B[0][1])}–${Math.round(B[1][1])}</span></span>` : ""}${few ? `<span class="pv">${fewTxt}</span>` : ""}</div>
       <div class="rv-arow"><small>${lo}</small>${bar}<small>${hi}</small>${out ? `<span class="o ${acc < lo ? "lo" : "hi"}">${acc < lo ? `&lt;${lo}` : `&gt;${hi}`}: ${acc}</span>` : ""}</div></div>`;
   },
 
