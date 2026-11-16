@@ -25,6 +25,8 @@ const P = {
   city: `<path d="M3 21V11h6v10M9 21V4l7 3v14M16 21v-8h5v8M2 21h20"/><path d="M12 10v.01M12 14v.01"/>`,
   ship: `<path d="M3.5 15h17l-2.5 5h-12z"/><path d="M12 3v12M12 4l6 8h-6M12 7 7 12h5"/>`,
   harbor: `<circle cx="12" cy="5" r="2"/><path d="M12 7v13M7 12h10M5 15c0 3 3 5 7 5s7-2 7-5"/>`,
+  scale: `<path d="M12 4v16M7 20h10M5 7h14"/><path d="M5 7l-2.5 6a3 3 0 0 0 5 0zM19 7l-2.5 6a3 3 0 0 0 5 0z"/>`,
+  close: `<path d="M6 6l12 12M18 6 6 18"/>`,
   check: `<path d="M5 12.5l4.5 4.5L19 7.5"/>`,
   explore: `<path d="M6 12.5l4 4 8-9"/>`,
 };

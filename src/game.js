@@ -47,6 +47,7 @@ const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore:
 // Glossary names (shared/glossary.md): cards are Lumber / Brick / Wool / Grain / Ore
 import { RES_EN as RESOURCE_LABEL } from "./resources.js";
 import { oicon } from "./ui-icons.js";
+const DEV_SHORT = { knight: "Knight", monopoly: "Monopoly", yearOfPlenty: "Plenty", roadBuilding: "Roads", victoryPoint: "Point" }; // the always-visible name on a held card
 const RESOURCE_ICON_PATH = {
   wood: "./assets/icons/resource-wood-v3.svg",
   brick: "./assets/icons/resource-brick-v2.svg",
@@ -6040,7 +6041,7 @@ class ColonistFullGame {
     this.updateLargestArmyHolder();
     // v0.73: the journal says when an award moves (it only showed as a small badge before)
     if (this.players.length && !this._loadingState) {
-      this._logAward(this.sea ? "Longest trade route" : "Longest road", prevLR, this.longestRoadHolder, (p) => `${p.longestRoadLength} ${this.sea ? "roads and ships" : "roads"}`); // ⚓
+      this._logAward(this.sea ? "Longest route" : "Longest road", prevLR, this.longestRoadHolder, (p) => `${p.longestRoadLength} ${this.sea ? "roads and ships" : "roads"}`); // ⚓
       this._logAward("Largest army", prevLA, this.largestArmyHolder, (p) => `${p.knightsPlayed} knights`);
     }
 
@@ -6059,10 +6060,10 @@ class ColonistFullGame {
     const P = (id) => this.players[id];
     if (now != null) {
       const p = P(now);
-      this.addLog(`${p.name} ${this._you(p) ? "take" : "takes"} ${name} (${why(p)}) · +2 points${prev != null ? ` from ${P(prev).name}` : ""}.`);
+      this.addLog(`${p.name} ${this._you(p) ? "take" : "takes"} ${name} (+2${prev != null ? ` from ${P(prev).name}` : ""}).`); // v1.86 r7: short enough for the one-line ticker
     } else if (prev != null) {
       const p = P(prev);
-      this.addLog(`${p.name} ${this._you(p) ? "lose" : "loses"} ${name}${/^Longest (Road|Trade Route)$/.test(name) ? ` (now ${p.longestRoadLength})` : ""} · nobody holds it.`);
+      this.addLog(`${p.name} ${this._you(p) ? "lose" : "loses"} ${name}${/^Longest (road|route)$/i.test(name) ? ` (now ${p.longestRoadLength})` : ""} · nobody holds it.`);
     }
   }
 
@@ -6904,8 +6905,8 @@ class ColonistFullGame {
       this.modeBadge.hidden = !this.isRush();
       if (this.isRush()) {
         this.modeBadge.textContent = rushOn
-          ? `⚡ Rush · Roll #${this.rush.rollNo} · ${formatClock(this.rush.clockMs)}`
-          : "⚡ Rush · setup";
+          ? `Rush · Roll #${this.rush.rollNo} · ${formatClock(this.rush.clockMs)}`
+          : "Rush · setup";
       }
     }
     if (!this.rushHud) return;
@@ -7029,7 +7030,7 @@ class ColonistFullGame {
     const discardStep = panel.querySelector(".rush-seven-discard");
     if (discardStep) {
       const pendingIds = seven.discards.map((d) => d.playerId);
-      const timerHtml = seven.stage === "discard" && secs != null ? `<span class="rush-seven-timer">⏱ 0:${String(secs).padStart(2, "0")} left</span>` : "";
+      const timerHtml = seven.stage === "discard" && secs != null ? `<span class="rush-seven-timer">${oicon("clock")}0:${String(secs).padStart(2, "0")} left</span>` : "";
       const status = this.players.map((p) => {
         const cards = sumResources(p.resources);
         let state = "safe ✓";
@@ -8425,7 +8426,7 @@ class ColonistFullGame {
         const sel = this.devSel === t;
         const tag = st === "vp" ? '<span class="dtag dt-vp" aria-hidden="true">+1 pt</span>' : fresh ? `<span class="dtag dt-nx" aria-hidden="true">${when}</span>` : "";
         const play = sel && st === "ready" ? `<span class="dplay" data-dev-go="${t}" role="button" aria-label="Play ${name}">Play</span>` : "";
-        return `<button type="button" class="card dev ds-${st}${fresh ? " new" : ""}${sel ? " dsel-on" : ""}${this._newDevPulse === t ? " drawn" : ""}" data-dev="${t}" style="${fan(RESOURCES.length + j)}" aria-pressed="${sel}" aria-label="${name}: ${devCounts[t]}${fresh ? ` (playable ${when})` : st === "ready" ? " (tap to play)" : ""}" title="${name}: ${CARD_TEXT[t]}${fresh ? ` — playable ${when}` : ""}" data-n="${Math.min(devCounts[t], 4)}">${cardSvg(t)}<span class="count">${devCounts[t]}</span><span class="rib" aria-hidden="true"><b>${devCounts[t]}</b><span>${name}</span></span>${tag}${play}</button>`;
+        return `<button type="button" class="card dev ds-${st}${fresh ? " new" : ""}${sel ? " dsel-on" : ""}${this._newDevPulse === t ? " drawn" : ""}" data-dev="${t}" style="${fan(RESOURCES.length + j)}" aria-pressed="${sel}" aria-label="${name}: ${devCounts[t]}${fresh ? ` (playable ${when})` : st === "ready" ? " (tap to play)" : ""}" title="${name}: ${CARD_TEXT[t]}${fresh ? ` — playable ${when}` : ""}" data-n="${Math.min(devCounts[t], 4)}">${cardSvg(t)}<span class="count">${devCounts[t]}</span><span class="rib" aria-hidden="true"><b>${devCounts[t]}</b><span>${DEV_SHORT[t] || name}</span></span>${tag}${play}</button>`;
       }).join("");
     }
     this.resourceCardStrip.style.setProperty("--hn", String(n));
@@ -9491,7 +9492,7 @@ class ColonistFullGame {
               <h2 class="ng-title">New Game</h2>
               <p class="ng-subtitle">Pick a mode, tune the rules, and choose your opponents.</p>
             </div>
-            <button type="button" class="ng-pill-btn" data-action="last" title="Restore the settings of your last game">&#8635; Use last settings</button>
+            <button type="button" class="ng-pill-btn" data-action="last" title="Restore the settings of your last game">${oicon("history")}Use last settings</button>
           </header>
           <div class="ng-columns">
             <div class="ng-col">
@@ -9499,12 +9500,12 @@ class ColonistFullGame {
                 <h3 class="ng-section-title">Mode</h3>
                 <div class="ng-mode-row">
                   <button type="button" class="ng-mode-card${d.mode === "classic" ? " selected" : ""}" data-mode="classic" aria-pressed="${d.mode === "classic"}">
-                    <span class="ng-mode-name"><span class="ng-mode-icon">&#10227;</span>Classic</span>
+                    <span class="ng-mode-name"><span class="ng-mode-icon">${oicon("dice")}</span>Classic</span>
                     <span class="ng-mode-desc">Take turns: roll, trade, build, end turn. Calm and tactical.</span>
                   </button>
                   <button type="button" class="ng-mode-card rush${d.mode === "rush" ? " selected" : ""}" data-mode="rush" aria-pressed="${d.mode === "rush"}"${hotseatOn(d) ? " disabled" : ""}>
                     <span class="ng-mode-tag">Fast</span>
-                    <span class="ng-mode-name"><span class="ng-mode-icon">&#9889;</span>Rush</span>
+                    <span class="ng-mode-name"><span class="ng-mode-icon">${oicon("clock")}</span>Rush</span>
                     <span class="ng-mode-desc">No turns. Everyone builds &amp; trades at once; dice roll on a timer.</span>
                     ${hotseatOn(d) ? '<span class="hs-off">Pass &amp; play is Classic only</span>' : ""}
                   </button>
@@ -9532,7 +9533,7 @@ class ColonistFullGame {
                 <div class="ng-row">
                   <div class="ng-row-label">Board</div>
                   <div class="ng-row-control">
-                    ${seg("board", [["island", "Island"], ["seafarers", "&#9875; Seafarers"]], d.board, "ng-seg-pills")}
+                    ${seg("board", [["island", "Island"], ["seafarers", `${oicon("ship")}Seafarers`]], d.board, "ng-seg-pills")}
                     <p class="ng-help">${d.board === "seafarers" ? "Heading for New Shores: build ships, sail to three small islands (+2 points for your first settlement on each), gold fields and a pirate. First to 14 points." : "The classic island of 19 tiles."}</p>
                   </div>
                 </div>
@@ -9557,7 +9558,7 @@ class ColonistFullGame {
                 <div class="ng-row">
                   <div class="ng-row-label">Dice</div>
                   <div class="ng-row-control">
-                    ${seg("dice", [["random", "&#127922; Random"], ["balanced", "&#9878; Balanced"], ["deck", "&#127183; Event deck"]], d.dice, "ng-seg-pills")}
+                    ${seg("dice", [["random", `${oicon("dice")}Random`], ["balanced", `${oicon("scale")}Balanced`], ["deck", `${oicon("devcard")}Event deck`]], d.dice, "ng-seg-pills")}
                     <p class="ng-help">${diceHelp[d.dice]}</p>
                   </div>
                 </div>
@@ -10045,11 +10046,11 @@ class ColonistFullGame {
       + `<span${cardsN > limit ? ' class="warn"' : ""}>${icon("cards")}<b>${cardsN}</b><small>cards</small></span>`
       + `<span>${icon("devcard")}<b>${totalDevCards}</b><small>dev cards</small></span>`
       + `<span>${icon("knight")}<b>${player.knightsPlayed}</b><small>knights</small></span>`
-      + `<span>${icon(this.sea ? "tradeRoute" : "road")}<b>${player.longestRoadLength}</b><small>${this.sea ? "route" : "road"}</small></span></div>`;
+      + `<span>${icon(this.sea ? "tradeRoute" : "road")}<b>${player.longestRoadLength}</b><small>${this.sea ? "trade route" : "longest road"}</small></span></div>`;
     html += '<div class="vp-tooltip-section" style="margin-top:0.35rem">Points</div>';
     const vpRows = [
       { label: `Settlements (${settlements}/5)`, value: settlements },
-      { label: `Cities (${cities}/4)`, value: `${cities} x 2 = ${cities * 2}` },
+      { label: `Cities (${cities}/4)`, value: `${cities} × 2 = ${cities * 2}` },
     ];
     if (devVP > 0) vpRows.push({ label: "Dev points", value: devVP });
     if (longestRoad) vpRows.push({ label: this.sea ? "Longest trade route" : "Longest road", value: 2 }); // ⚓
@@ -11441,7 +11442,7 @@ class ColonistFullGame {
     if (/\bwins?\b/.test(text)) return "vp";
     if (/rolled|^Roll #/.test(text)) return "dice";
     if (/robber|stole|discard/i.test(text)) return "robber";
-    if (/Longest trade route/i.test(text)) return "tradeRoute"; // ⚓
+    if (/Longest (trade )?route/i.test(text)) return "tradeRoute"; // ⚓
     if (/Longest road/i.test(text)) return "longestRoad";
     if (/new island/.test(text)) return "island"; // ⚓ Seafarers
     if (/pirate/.test(text)) return "pirate";

@@ -297,3 +297,82 @@ html:not([data-input="kbd"]) :is(button, a, summary, [role="button"], [tabindex]
 /* "reviewed with vX · Model" sits straight on the teal page: white, not grey */
 .rv-scroll > [data-rabox] .ra-row > small, .rv-scroll > [data-rabox] .ra-row > span, .rv-scroll > [data-rabox] .ra-row > span small { color: #fff; opacity: .95; text-shadow: 0 1px 2px rgba(10,50,60,.35); }
 .app .hand .swipe { top: 2px; }
+
+/* ==========================================================================
+   v1.86 coherence round 7
+   ========================================================================== */
+/* review > Overview: "Show all rows" is a link in the brand ink (dark teal vanished on Night); the label column is transparent on the card */
+.sbs-more { color: var(--brand-ink, var(--primary)); }
+.sbs-l { background: transparent; }
+.sbs[style*="--n:5"] .sbs-l, .sbs[style*="--n:6"] .sbs-l { background: var(--sheet-solid, var(--sheet)); } /* swiping tables: the sticky label column hides what scrolls under it */
+/* one back icon: the line chevron, the same size on every page bar (review used a "‹" glyph) */
+.rv-bar .rv-btn svg, .rv-bar .rv-btn .ic { width: 20px; height: 20px; }
+.rv-bar .rv-btn svg path { stroke-width: 2.4; }
+
+/* Settings: one weight for every row label; no second heading under the tab */
+.tm-settings .st-body { position: relative; }
+.tm-settings .st-body .st-head-bare { position: absolute; top: 6px; right: 8px; z-index: 2; }
+.tm-settings .st-head-bare + .sub { padding-right: 44px; }
+.tm-settings .settings-toggle-label, .tm-settings .st-range-label, .tm-settings .st-row > div > b, .tm-settings .st-row b, .tm-settings .cm-row b { font-weight: 700; font-size: var(--fs-l); color: var(--heading); }
+.tm-settings .settings-toggle-label .st-note, .tm-settings .st-range-label small { font-weight: 600; font-size: var(--fs-m); color: var(--ink-soft); }
+.tm-settings .st-body > .st-head-bare + * { margin-top: 0; }
+.tm-settings .st-howto { font-weight: 700; }
+.tm-settings .st-howto .ic, .tm-settings .dev-tools .button-row .ic { width: 20px; height: 20px; font-size: 20px; color: var(--brand-ink, var(--primary)); }
+.tm-settings .dev-tools .button-row button { font-weight: 700; }
+/* Bots: "All bots / One bot" is the same control as every other segmented row: the selected one is outlined in the accent */
+.tm-settings .ai-strategy-panel .bs-seg { gap: 2px; padding: 3px; border-radius: 10px; background: var(--seg-bg); border: var(--seg-border); border-radius: var(--r-m); overflow: visible; }
+.tm-settings .ai-strategy-panel .bs-seg button { border-radius: var(--r-s, 8px); min-height: 38px; font-weight: 650; color: var(--ink-soft); }
+.tm-settings .ai-strategy-panel .bs-seg button + button { border-left: 0; }
+.tm-settings .ai-strategy-panel .bs-seg button[aria-pressed="true"] { background: var(--card-bg, var(--panel)); color: var(--heading); box-shadow: 0 1px 3px rgba(0,0,0,.14), inset 0 0 0 2px var(--accent); }
+
+/* New Game: line icons (the Home set), never emoji */
+.ng-mode-icon .oi, .ng-seg-btn .oi, .ng-pill-btn .oi { width: 20px; height: 20px; flex: none; vertical-align: -4px; }
+.ng-mode-icon { font-size: 0; display: inline-grid; place-items: center; }
+.ng-mode-icon .oi { color: var(--brand-ink, var(--primary)); }
+.ng-mode-card.rush .ng-mode-icon .oi { color: var(--danger, #C4502B); }
+.ng-seg-btn .oi { margin-right: 6px; }
+.ng-pill-btn .oi { margin-right: 4px; vertical-align: -5px; }
+.rush-seven-timer .oi { width: 14px; height: 14px; vertical-align: -2px; margin-right: 3px; }
+
+/* Menu: the three switches are rows in the same list (an outlined tile, not a beige slab); every label is one weight, every entry has a subtitle */
+.mn-speed, .mn-speed.mn-live { background: transparent; border: 1.5px solid var(--tile-line); border-radius: var(--r-tile); padding: 8px 12px; font-weight: 700; font-size: var(--fs-l); color: var(--ink); }
+.mn-speed em { font-weight: 600; font-size: var(--fs-s); color: var(--ink-soft); }
+.mn-speed > span, .mn-list button > span { font-weight: 700; color: var(--ink); }
+.mn-list button { font-weight: 700; }
+.mn-list button small { font-weight: 600; font-size: var(--fs-s); }
+
+/* Lessons: the icon disc reads (icon 3:1 or better on its disc, Night too) */
+.ln-ci, .ln-ico { background: color-mix(in srgb, var(--brand-ink, var(--primary)) 13%, var(--sheet-solid, var(--sheet))); color: var(--brand-ink, var(--primary)); }
+[data-palette="night"] .ln-ci, [data-palette="dusk"] .ln-ci, [data-palette="night"] .ln-ico, [data-palette="dusk"] .ln-ico { background: color-mix(in srgb, var(--brand-ink) 22%, #131E24); }
+
+/* End screen: the win card's "N points" is white on the teal; the table drops the Accuracy column until a review has numbers */
+.gs-intro .gs-vpn { font: 700 20px var(--font-display); color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,.35); white-space: normal; overflow: visible; }
+.gs-intro .gs-vpn b { font-variant-numeric: tabular-nums; }
+.rsc.no-acc .rsc-hd { grid-template-columns: minmax(0, 1fr) 54px 36px 12px; }
+.rsc.no-acc .rsc-hd span:nth-child(1) { display: none; }
+.rsc.no-acc .rsc-hd span:nth-child(2) { grid-column: 2; } .rsc.no-acc .rsc-hd span:nth-child(3) { grid-column: 3; }
+.rsc.no-acc .rsc-h { grid-template-columns: 14px 28px minmax(0, 1fr) 54px 36px 12px; }
+.rsc.no-acc .rsc-h .rt-ac { display: none; }
+.rsc .rt-l > b { font-variant-numeric: tabular-nums; }
+.gs-confetti i { top: 0; left: 0; }
+
+/* Hand: a development card carries its short name all the time (Knight, Monopoly, Plenty, Roads, Point), the same ribbon as a resource */
+[data-hand-counts="stack"] .app .hand .card.dev .rib { flex-direction: column; gap: 1px; left: 3%; right: 3%; bottom: 3%; height: 46%; padding: 1px 0 2px; box-sizing: border-box; }
+[data-hand-counts="stack"] .app .hand .card.dev .rib b { font-size: 15px; margin-top: 0; line-height: 1; }
+[data-hand-counts="stack"] .app .hand .card.dev .rib span { position: static; width: auto; height: auto; clip-path: none; overflow: visible; max-width: 100%; font: 800 9.5px/1 var(--font-body); letter-spacing: -.03em; white-space: nowrap; color: var(--cnt-ink); opacity: .95; }
+
+/* Splash to Home: the splash's own logo and text leave first, the Home logo arrives after, so one logo is on screen at any time */
+html:has(#splash) .home .hm-brand { opacity: 0; }
+html:has(#splash.gone) .home .hm-brand { opacity: 1; transition: opacity .22s ease .12s; }
+/* Undo pill: exactly the ticker's height (never taller), left of the chevron */
+.tkrow .undo-toast { top: 0; bottom: 0; height: auto; padding: 2px; transform: none; box-sizing: border-box; }
+.app .tkrow .undo-toast .ut-btn { height: 100%; min-height: 0; padding: 0 12px; font-size: 12.5px; }
+/* Hand: the first card, with its stack of copies behind it, starts clear of the screen edge */
+@media (max-width: 900px) and (min-height: 501px) {
+  [data-hand-counts="stack"] .app .hand .cards { padding-left: calc(var(--gut, 12px) + 14px); }
+}
+/* 5-6 players: names and counts stay at 12 px (the chip layout, not the type, absorbs the width) */
+[data-theme] .app .pstrip.six-up .pchip .pn, [data-theme] .app .pstrip[data-seats="5"] .pchip .pn, [data-theme] .app .pstrip[data-seats="6"] .pchip .pn { font-size: 12px; }
+[data-theme] .app .pstrip.six-up .pchip .mini, [data-theme] .app .pstrip[data-seats="5"] .pchip .mini, [data-theme] .app .pstrip[data-seats="6"] .pchip .mini { font-size: 12px; }
+/* one close icon (the line cross) everywhere */
+.nm-x .oi, .ls-x .oi, .gs-rp-x .oi, .bp-x .oi, .rv-ih .rv-btn .oi { width: 18px; height: 18px; display: block; margin: auto; }

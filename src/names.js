@@ -2,6 +2,7 @@
 //   { v: 1, me: "Tim", list: [{ n: "Tim", at: <last used>, g: <games> }] }  at most 12 names, newest first.
 // `me` is the name of the person who starts the game (seat 0): the New game screen offers it again. Every
 // function is try/catch: a private window just forgets the names.
+import { oicon } from "./ui-icons.js";
 const KEY = "colonist_names_v1";
 const MAX = 12;
 /** v1.87 the ONE display-name policy: a bot is always shown under the same short form (strip, end screen, Overview
@@ -70,7 +71,7 @@ export function openNamesSheet({ onRename, onChange } = {}) {
   let editing = null;
   const draw = () => {
     const list = Names.list();
-    el.innerHTML = `<div class="nm-card"><div class="nm-h"><h3>Names on this phone</h3><button type="button" class="nm-x" data-close aria-label="Close">✕</button></div>
+    el.innerHTML = `<div class="nm-card"><div class="nm-h"><h3>Names on this phone</h3><button type="button" class="nm-x" data-close aria-label="Close">${oicon("close")}</button></div>
       ${list.length ? `<ul class="nm-list">${list.map((x, i) => `<li>${editing === i ? `<input class="nm-in" data-in="${i}" value="${esc(x.n)}" maxlength="14" aria-label="New name for ${esc(x.n)}"><button type="button" class="nm-b pri" data-save="${i}">Save</button>`
         : `<b>${esc(x.n)}</b><small>${x.g} game${x.g === 1 ? "" : "s"}</small><button type="button" class="nm-b" data-edit="${i}">Rename</button><button type="button" class="nm-b" data-del="${i}" aria-label="Forget ${esc(x.n)}">Forget</button>`}</li>`).join("")}</ul>
         <p class="nm-note">Renaming to a name that exists merges the two, also in Past games.</p>` : `<p class="nm-note">No names yet. They are kept after your first pass &amp; play game.</p>`}

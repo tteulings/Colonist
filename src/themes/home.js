@@ -113,7 +113,7 @@ export class Home {
         <button type="button" data-home="friend">${oicon("trade")}<span>Play with a friend<small>Share this phone · pass it on</small></span>${CHEV}</button>
         <button type="button" data-home="bots">${BOTS_IC}<span>Bots<small>Leaderboard, strength and your results</small></span>${CHEV}</button>
         <button type="button" data-home="more">${SLIDERS_IC}<span>Rules &amp; options<small>Rules, map, bots</small></span>${CHEV}</button>
-        <button type="button" data-home="intro" class="${fresh ? "fresh" : ""}">${BOOK_IC}<span>How to play${fresh ? `<small>New here? 3 short cards</small>` : ""}</span>${CHEV}</button>
+        <button type="button" data-home="intro" class="${fresh ? "fresh" : ""}">${BOOK_IC}<span>How to play<small>${fresh ? "New here? 3 short cards" : "Three short cards"}</small></span>${CHEV}</button>
         <div class="hm-pair"><button type="button" data-home="settings">${oicon("settings")}<span>Settings</span>${CHEV}</button>
         <a class="hm-lab" href="./lab.html" data-home="lab" title="See how the bots score the board">${LAB_IC}<span>AI Lab</span>${CHEV}</a></div>
       </nav>
@@ -178,8 +178,8 @@ export class GameMenu {
         ${item("history", HISTORY_ICON, "Past games", (() => { const n = this.opts.historyCount?.(); return n ? `${n} finished game${n > 1 ? "s" : ""}` : "Replay and review"; })())}
         ${item("lessons", LESSONS_ICON, "Lessons", "Learn from your reviewed games")}
         ${item("settings", oicon("settings"), "Settings", "Sound, bot speed, look")}
-        ${item("intro", BOOK_IC, "How to play")}
-        ${item("about", INFO_IC, "About")}
+        ${item("intro", BOOK_IC, "How to play", "Three short cards")}
+        ${item("about", INFO_IC, "About", "Version, updates and shortcuts")}
       </div></div>`;
     el.addEventListener("click", (e) => { if (e.target === el) this.close(); });
     el.querySelector(".mn-close").addEventListener("click", () => this.close());

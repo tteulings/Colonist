@@ -142,6 +142,7 @@
         background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 85% 70% at 50% 46%, #6ACBC3 0%, #3CA9B0 52%, #2B8C98 100%), #3CA9B0;
         transition: opacity 240ms ease; -webkit-user-select: none; user-select: none; }
       #splash.gone { opacity: 0; }
+      #splash.gone > * { opacity: 0; transition: opacity 110ms ease; }
       #splash .sp-logo { display: block; width: 92px; height: 92px; margin: -6vh 0 14px; filter: drop-shadow(0 3px 8px rgba(0,30,60,.3)); }
       #splash .sp-name { margin: 0; font-size: 40px; font-weight: 650; line-height: 1; letter-spacing: 0; }
       #splash .sp-sub { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px auto 0; font-size: 12px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; opacity: .92; line-height: 1.2; }
@@ -315,7 +316,7 @@
             <div class="st-h">Developer</div>
             <p class="sub">Hand your seat to a bot for a while — handy for testing or watching a game play out.</p>
             <div class="button-row">
-              <button id="nextTurnBtn" type="button" class="btn-build"><img class="btn-icon" src="./assets/icons/ui-bot-turns.svg" alt="" />Let bots play</button>
+              <button id="nextTurnBtn" type="button" class="btn-neutral">Let bots play</button>
               <button id="autoplayBtn" type="button" class="btn-neutral">Watch bots play</button>
             </div>
           </div>

@@ -8,6 +8,7 @@
 //   · a tappable turn strip and a list of your turns; Show on board for a marked decision
 //   · the missed-chance lines on the end screen then come from the Master's check (verified)
 import { esc, IC, cmpHtml, whyHtml, aimHtml } from "./review-ui.js";
+import { oicon } from "./ui-icons.js";
 import { reviewModel, REVIEW_MODELS, modelOfId } from "./review/evaluate.js";
 import { summarize, REVIEW, REVIEW_ENGINE, REVIEW_ENGINES, ACC, clsOf, LIMITS, SETUP_LIMITS, CLASSES, GREAT, gpOf, decide, totals, tradeShow, needsFull } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
@@ -481,7 +482,8 @@ export const ReviewGameMixin = {
       const d = !L || L.na ? null : L.all?.[p.id], t = d ? tileOf({ me: d }) : null, top = d ? topText(d.top) : "";
       const wv = LK.na ? null : LK.done && LK.cover >= 0.9 ? LK.tot[p.id] : null, wc = wv == null ? "" : Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : "";
       const pend = wv == null && !LK.na && !LK.done && t; // v1.52 the win chance impact is coming: say so, cards underneath
-      const luck = wv != null ? `<b class="${wc}">${wpText(wv)}</b>` : pend ? `<b class="pend" title="Luck in win chance follows">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}–</b><small>${esc(t.n)}</small>` : t ? `<b class="${t.cls || ""}">${esc(t.n.replace(/ cards?$/, ""))}</b><small>cards</small>` : `<span class="rt-st">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}${LK.na || LK.done ? "–" : "…"}</span>`;
+      const pendRing = pend && LK.run && !LK.paused; // v1.86 r7: a dash only while a ring says it is coming; otherwise the cards are the figure
+      const luck = wv != null ? `<b class="${wc}">${wpText(wv)}</b>` : pendRing ? `<b class="pend" title="Luck in win chance follows">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}–</b><small>${esc(t.n)}</small>` : t ? `<b class="${t.cls || ""}">${esc(t.n.replace(/ cards?$/, ""))}</b><small>cards</small>` : `<span class="rt-st">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}${LK.na || LK.done ? "–" : "…"}</span>`;
       const sc = src?.[p.id];
       const bar = sc ? `<div class="rsc-src" role="img" aria-label="${esc(nm)}: ${used.filter(([q]) => sc[q] > 0).map(([q, l]) => `${l} ${sc[q]}`).join(", ")}"><div class="trk" style="--w:${Math.max(8, Math.min(100, Math.round((p.victoryPoints / maxV) * 100)))}">${used.map(([q]) => (sc[q] > 0 ? `<i class="s${si(q)}" style="flex:${sc[q]} 1 0">${sc[q]}</i>` : "")).join("")}</div></div>` : "";
       const isOpen = open === p.id;
@@ -496,8 +498,9 @@ export const ReviewGameMixin = {
       return `<div class="rsc-p pc-${p.id}${p === w ? " win" : ""}${isOpen ? " open" : ""}" data-pid="${p.id}"><button type="button" class="rsc-h" data-rsx="${p.id}" aria-expanded="${isOpen}" aria-label="${esc(nm)}, ${p.victoryPoints} points${wv != null ? `, luck ${wpText(wv)}` : ""}${s.sum?.acc != null ? `, accuracy ${s.sum.acc}${s.done ? "" : ", provisional"}${lv?.band ? `, usual for ${esc(lv.label)} ${Math.round(lv.band[0] - lv.band[1])} to ${Math.round(lv.band[0] + lv.band[1])}` : ""}` : ""}. ${isOpen ? "Hide" : "Show"} why">
         <span class="rk">${k + 1}</span>${this._av(p, "rt-av")}<span class="nm"><b class="rt-nm">${nm}</b>${lv ? `<small>${esc(lv.label)}</small>` : ""}</span><span class="rt-c rt-ac">${acc}</span><span class="rt-c rt-l"${top ? ` title="${esc(top)}"` : ""}>${luck}</span><span class="pts">${p.victoryPoints}</span>${IC.chev}</button>${bar}${det}</div>`;
     }).join("");
+    const accAny = ranked.some((p) => { const q = this._rvSeat(p.id); return q.sum?.acc != null || q.st === "run"; }); // no accuracy for anyone yet: the column waits
     const leg = used.length ? `<div class="rsc-leg">${used.map(([q, l]) => `<span><i class="s${si(q)}"></i>${l}</span>`).join("")}</div>` : "";
-    return `<section class="rv-card rt rsc" data-rvtable aria-label="Result"><div class="rv-gt"><b>Result</b><small>tap a player: why they won or lost</small></div><div class="rsc-hd" aria-hidden="true"><span>Accuracy</span><span>Luck</span><span>Points</span></div>${rows}${leg}${!R.bots ? `<p class="rt-foot">Played before the bots’ moves were recorded: their accuracy is not available.</p>` : ""}</section>`;
+    return `<section class="rv-card rt rsc${accAny ? "" : " no-acc"}" data-rvtable aria-label="Result"><div class="rv-gt"><b>Result</b><small>tap a player: why they won or lost</small></div><div class="rsc-hd" aria-hidden="true"><span>Accuracy</span><span>Luck</span><span>Points</span></div>${rows}${leg}${!R.bots ? `<p class="rt-foot">Played before the bots’ moves were recorded: their accuracy is not available.</p>` : ""}</section>`;
   },
   /** The win chance of every player through the game (set-up first), under the scorecard; tap: the review's Win chance. "" when there is none (Seafarers, no move log). */
   _rvWinCardHtml() {
@@ -775,7 +778,7 @@ export const ReviewGameMixin = {
     d.className = "rv-info";
     d.setAttribute("role", "dialog");
     d.setAttribute("aria-label", "About this review");
-    d.innerHTML = `<div class="rv-card"><div class="rv-ih"><b>About this review</b><button type="button" class="rv-btn" data-rvinfo-x aria-label="Close">✕</button></div>
+    d.innerHTML = `<div class="rv-card"><div class="rv-ih"><b>About this review</b><button type="button" class="rv-btn" data-rvinfo-x aria-label="Close">${oicon("close")}</button></div>
       <p><b>Win chance</b>: your chance to win, in %. It comes from ${MC}: the position is played on for 20 turns, 100 times for every move (Standard model).</p>
       <p><b>A and B</b>: A is the best move, B is what you played. A − B is what that move cost. Classes: ${lim(LIMITS)}. Set-up spots use wider limits (${lim(SETUP_LIMITS)}).</p>
       <p><b>How sure</b>: every gap comes with its own margin (the noise of 100 futures is about 3 points). Only a <b>clear</b> gap (at least twice the margin) is called a mistake or blunder. A smaller one is a <b>Better option</b> (probably) or a <b>Close call</b> (about equal, not a mistake). Your close and slightly-better moves are checked again with 400 futures on the two moves that matter.</p>
@@ -798,7 +801,7 @@ export const ReviewGameMixin = {
     el.appendChild(d);
   },
   _rvBar(sub, tab = "") {
-    return `<div class="rv-bar"><button type="button" class="rv-btn" data-rvclose aria-label="${this._rvMid ? "Back to the game" : "Back to results"}">‹</button><div><h3${tab ? ' class="ht"' : ""}>Game review${tab ? ` · ${tab}` : this._rvPid != null && !this._rvIsYou(this._rvPid) ? ` · <span class="pc-${this._rvPid} rv-who">${esc(this.players[this._rvPid].name)}</span>` : ""}</h3><small>${tab && this._rvPid != null && !this._rvIsYou(this._rvPid) ? `${esc(this.players[this._rvPid].name)}’s review · ` : ""}${sub}</small></div><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>${this._rvForSeg()}`;
+    return `<div class="rv-bar"><button type="button" class="rv-btn" data-rvclose aria-label="${this._rvMid ? "Back to the game" : "Back to results"}">${IC.back}</button><div><h3${tab ? ' class="ht"' : ""}>Game review${tab ? ` · ${tab}` : this._rvPid != null && !this._rvIsYou(this._rvPid) ? ` · <span class="pc-${this._rvPid} rv-who">${esc(this.players[this._rvPid].name)}</span>` : ""}</h3><small>${tab && this._rvPid != null && !this._rvIsYou(this._rvPid) ? `${esc(this.players[this._rvPid].name)}’s review · ` : ""}${sub}</small></div><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>${this._rvForSeg()}`;
   },
 
   /** Pass & play: "Review for [Rosa] [You]": one person's moves at a time, with where each check stands. */

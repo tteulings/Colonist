@@ -118,7 +118,7 @@ export function openProfileSheet(game, opts = {}) {
   const html = `<div class="bp-scrim" data-bp-close></div>
     <div class="bp-sheet" role="dialog" aria-label="${esc(player ? player.name + ": " : "")}${p.label} profile">
       <div class="bp-grab"></div>
-      <div class="bp-who">${who}<button type="button" class="bp-x" data-bp-close aria-label="Close">✕</button></div>
+      <div class="bp-who">${who}<button type="button" class="bp-x" data-bp-close aria-label="Close">${oicon("close")}</button></div>
       <div class="bp-hero">${profileArt(key, 132)}</div>
       <div class="bp-meter">${dots(p.level, "bp-dots", p.beyond)}<span>${p.beyond ? `Strength ${p.level}/5 + star` : `Strength ${p.level}/5`}</span></div>
       ${isSuperKey(key) && player && !superHere(game) ? `<p class="bp-warn" role="status">${superHere(game, true).replace("a Super Expert", `a ${p.label}`)}</p>` : ""}

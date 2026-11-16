@@ -624,9 +624,13 @@ export class SvgBoardRenderer {
       // ticker prompt stay the main cue.
       if (sel == null && h.id !== g.hoverHexId && h.id !== g.robberHexId && !(g.sea && h.id === g.sea.pirateHexId)) {
         const t = ((now - (this._robModeStart ?? now)) / 2400) * Math.PI * 2;
-        const a = reduced ? 0.05 : 0.045 + 0.035 * Math.sin(t);
+        // v1.86 r7: a visible ring (soft white over a thin dark one, so it reads on pale and dark tiles, Night too) that pulses
+        const k = reduced ? 0.85 : 0.75 + 0.25 * Math.sin(t);
         ctx.save(); ctx.translate(c.x, c.y);
-        ctx.fillStyle = `rgba(255,255,255,${a.toFixed(3)})`; ctx.fill(HEX_P(97));
+        ctx.fillStyle = `rgba(255,255,255,${(0.05 + 0.05 * k).toFixed(3)})`; ctx.fill(HEX_P(97));
+        ctx.lineJoin = "round";
+        ctx.lineWidth = Math.max(4.5, 4 * px); ctx.strokeStyle = `rgba(20,32,36,${(0.28 * k).toFixed(3)})`; ctx.stroke(HEX_P(86));
+        ctx.lineWidth = Math.max(3, 2.8 * px); ctx.strokeStyle = `rgba(255,255,255,${(0.95 * k).toFixed(3)})`; ctx.stroke(HEX_P(86));
         ctx.restore();
         return;
       }

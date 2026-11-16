@@ -4,6 +4,7 @@
 // About › Developer. Look & feel: theme cards, Motion, quick toggle. Applies instantly.
 import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, paletteAuto, paletteAutoMode, autoTimeInfo, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
 
+import { oicon } from "../ui-icons.js";
 import { liveWinOn, setLiveWin, liveRefineOn, setLiveRefine } from "../live-bar.js";
 import { recapLang, setRecapLang, recapPoints, setRecapPoints } from "../review-recap.js";
 
@@ -123,7 +124,8 @@ export class SettingsUI {
   }
 
   head(title, sub) {
-    return `<div class="st-head"><h2>${title}</h2><button type="button" class="btn ghost icon-only st-close" aria-label="Close">${icon("close")}</button></div>${sub ? `<p class="sub">${sub}</p>` : ""}`;
+    // v1.86 r7: the tab already says where you are: no second "Game" / "About" heading, just the close button (title "")
+    return `<div class="st-head${title ? "" : " st-head-bare"}">${title ? `<h2>${title}</h2>` : ""}<button type="button" class="btn ghost icon-only st-close" aria-label="Close">${icon("close")}</button></div>${sub ? `<p class="sub">${sub}</p>` : ""}`;
   }
 
   renderBody() {
@@ -133,7 +135,7 @@ export class SettingsUI {
     this.botPane.remove();
     this.devPane.remove();
     if (this.tab === "game") {
-      body.innerHTML = this.head("Game", "");
+      body.innerHTML = this.head("", "");
       body.appendChild(this.gamePane);
       g._renderConfirmSetting?.();
       // v1.04 the Game review starts by itself after a game (a device preference)
@@ -189,8 +191,8 @@ export class SettingsUI {
       body.appendChild(lb);
       body.appendChild(this.botPane);
     } else if (this.tab === "about") {
-      body.innerHTML = this.head("About", "") + `<p class="sub">Katan ${"v" + APP_VERSION} — a settle-and-trade island game against friendly bots.</p>
-        <button type="button" class="st-howto">${icon("hint")}How to play</button>
+      body.innerHTML = this.head("", "") + `<p class="sub">Katan, a settle-and-trade island game against friendly bots.</p>
+        <button type="button" class="st-howto">${oicon("book")}How to play</button>
         <p class="sub">Keyboard: R roll dice · E end turn · 1–3 build · B buy card · T trade · V fit board · Esc cancel.</p>`;
       body.querySelector(".st-howto").addEventListener("click", () => { this.close(); g.onboarding?.showIntro(0, false); });
       body.querySelector(".st-howto").after(versionRow());
@@ -208,7 +210,7 @@ export class SettingsUI {
           <div class="meta"><div class="nm"><b>${T.name}</b><span class="aa" style="font-family:${T.sampleFont || (T.id === "A" ? "Outfit,system-ui,sans-serif" : "Inter,sans-serif")}">Aa</span></div>
           <p>${T.mood}</p><div class="dots">${T.paletteDots.map((c) => `<i style="background:${c}"></i>`).join("")}</div></div></button>`;
       const m = motionPref();
-      body.innerHTML = this.head("Look &amp; feel", "Pick a world for your island. Board, cards, pieces and motion follow the theme. Applies instantly.") +
+      body.innerHTML = this.head("", "Pick a world for your island. Board, cards, pieces and motion follow the theme. Applies instantly.") +
         `<div class="tcards">${THEME_ORDER.map((id) => card(THEMES[id])).join("")}</div>
         ${(() => {
           // Palettes only exist for Sunny Island: in other themes they stay visible but disabled, with the reason.
