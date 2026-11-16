@@ -154,6 +154,34 @@ function cleanHistory(h) {
   return out;
 }
 
+
+// ── v1.84 compose mode: the model composes the whole AI page (widgets of primitives bound to fact refs) in ONE call, no tools.
+// The app validates every spec (src/review/ai-page.js validatePage) and owns every number; the schema below is flat because strict
+// structured outputs have no unions: nullable fields stand for "not used" and the client (src/review/ai-compose.js) normalises them.
+const COMPOSE = `You compose the AI page for ONE finished game of a Catan-like board game, for the human player ("You"). The page is a few small widgets. Each widget is built from PRIMITIVES (line, bars, strip, stack, tiles, compare, board, badge, table, text) bound to FACT REFS from the index. You write structure and wording; the app draws every chart and fills every number from the refs.
+INPUT: "index" = the facts of this game: players (key, name, you), result, and "refs": every ref you may bind, with its kind (player, turn, pct, n, x, b) and a short value hint so you can decide what matters. "examples" = recipe pages in the exact output shape. The examples are EXAMPLES, not a menu: do not copy them; compose for THIS game.
+WHAT TO COMPOSE (at most 6 widgets, fewer is fine; each must earn its place): the game (how it was won or lost), the key decisions (only costly ones whose verdict is clear, or close calls named as close), the strategy of You and of the opponents (plan, stalls, pivot), and luck ONLY when it was relevant (luck.dominant is present). Pick the 3 to 5 things that matter in this game; skip what is flat or unremarkable. Mix primitives freely inside a widget (for example a line plus bars plus tiles) when they tell one story. Order widgets by importance. level is one of Game, Near miss, Decision, Strategy, Luck.
+SHAPE: every text is a list of parts: {k:"s",s:"words"} plain words; {k:"ref",ref:"wc.you@12",fmt:"pct"} a number or name filled by the app; {k:"dir",a:refA,b:refB,up:"rose",down:"slid",same:"held"} a direction word the app picks by comparing the two refs. Titles are one short sentence (at most 20 words) built from parts, with every number a ref part. "requires" lists refs that must exist for the title's claim (for example strat.you.pivot when the title says pivot). "short" is 2 to 3 words for a button. "expand" holds up to 3 extra blocks shown on tap, "notes" up to 3 short explanation lines (parts). "follow" holds up to 4 follow-up questions the player may tap (under 40 characters, no digits) that this page leaves open. Use fields that a block does not need as null or empty.
+BINDING RULES: bind ONLY refs that appear in the index "refs" list, spelled exactly; never invent a ref, a player key, a turn or a decision. A board or compare block needs a decision turn listed in the index. Do not repeat the same fact on the page twice (same bars, same tile, same line). Players are named by their key.
+HONESTY: never invent a number or a fact; numbers appear only as ref parts, never as digits in plain words. No causal claims: do not say because, caused, due to, thanks to, led to, therefore, since; describe what happened and let the facts sit next to each other. Do not judge a close or lean decision as a mistake. Say "points", never "VP". Win chance is an estimate from played-out futures: do not state it as certain. Do not write verdict wording ("Weak plan", "Solid plan"); the badge primitive shows the app's verdict.`;
+const PARTS = { type: "array", items: { type: "object", additionalProperties: false, required: ["k", "s", "ref", "fmt", "a", "b", "up", "down", "same"], properties: {
+  k: { type: "string", enum: ["s", "ref", "dir"] }, s: NSTR0(), ref: NSTR0(), fmt: { type: ["string", "null"], enum: ["player", "turn", "pct", "sgpct", "n", "x", null] }, a: NSTR0(), b: NSTR0(), up: NSTR0(), down: NSTR0(), same: NSTR0() } } };
+function NSTR0() { return { type: ["string", "null"] }; }
+const CBLOCK = { type: "object", additionalProperties: false, required: ["p", "metric", "player", "players", "range", "marks", "show", "rows", "diverging", "unit", "items", "dec", "turn", "of", "parts", "link"], properties: {
+  p: { type: "string", enum: ["line", "bars", "strip", "stack", "tiles", "compare", "board", "badge", "table", "text"] },
+  metric: { type: ["string", "null"], enum: ["winchance", "points", "hand", "rolls", null] }, player: NSTR0(), players: { type: "array", items: { type: "string" } },
+  range: { type: "array", items: { type: "integer" } }, marks: { type: "array", items: { type: "integer" } }, show: { type: "array", items: { type: "string", enum: ["plan", "stalls", "pivot"] } },
+  rows: { type: "array", items: { type: "object", additionalProperties: false, required: ["player", "ref"], properties: { player: { type: "string" }, ref: { type: "string" } } } },
+  diverging: { type: "boolean" }, unit: NSTR0(),
+  items: { type: "array", items: { type: "object", additionalProperties: false, required: ["kind", "label", "ref", "of", "subIf", "sub", "player"], properties: { kind: { type: "string", enum: ["num", "startfeed", "miss"] }, label: NSTR0(), ref: NSTR0(), of: NSTR0(), subIf: NSTR0(), sub: PARTS, player: NSTR0() } } },
+  dec: { type: ["integer", "null"] }, turn: { type: ["integer", "null"] }, of: { type: ["string", "null"], enum: ["luck", null] }, parts: PARTS, link: { type: "boolean" } } };
+const CWIDGET = { type: "object", additionalProperties: false, required: ["id", "level", "short", "who", "chip", "title", "requires", "blocks", "expand", "notes"], properties: {
+  id: { type: "string" }, level: { type: "string", enum: ["Game", "Near miss", "Decision", "Strategy", "Luck"] }, short: { type: "string" }, who: NSTR0(),
+  chip: { anyOf: [{ type: "null" }, { type: "object", additionalProperties: false, required: ["ref", "fmt", "tone"], properties: { ref: { type: "string" }, fmt: { type: "string", enum: ["sgpct", "pct", "n"] }, tone: { type: ["string", "null"], enum: ["up", "dn", null] } } }] },
+  title: PARTS, requires: { type: "array", items: { type: "string" } }, blocks: { type: "array", items: CBLOCK }, expand: { type: "array", items: CBLOCK }, notes: { type: "array", items: PARTS } } };
+const COMPOSE_SCHEMA = { type: "object", additionalProperties: false, required: ["headline", "widgets", "follow"], properties: {
+  headline: PARTS, widgets: { type: "array", items: CWIDGET }, follow: { type: "array", items: { type: "string" } } } };
+
 async function token() {
   const r = await fetch(`${process.env.IDENTITY_ENDPOINT}?resource=https://cognitiveservices.azure.com&api-version=2019-08-01`,
     { headers: { "X-IDENTITY-HEADER": process.env.IDENTITY_HEADER } });
@@ -171,6 +199,25 @@ app.http("recap", {
     const now = Date.now(), list = (hits.get(bucket) || []).filter((t) => now - t < 3600e3);
     if (list.length >= lim) return { status: 429, jsonBody: { error: "Too many recaps, try again later." } };
     list.push(now); hits.set(bucket, list);
+
+    if (body?.mode === "compose" && body.index != null) {
+      const index = typeof body.index === "string" ? body.index : JSON.stringify(body.index);
+      const examples = body.examples == null ? "" : typeof body.examples === "string" ? body.examples : JSON.stringify(body.examples);
+      if (!index || index.length > MAX_FACTS || examples.length > 12000) return { status: 413, jsonBody: { error: "index missing or too large" } };
+      const lang = body.lang === "nl" ? "nl" : "en";
+      try {
+        const r = await fetch(`${process.env.OAI_ENDPOINT}/openai/v1/chat/completions`, {
+          method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
+          body: JSON.stringify({ model: process.env.OAI_DEPLOYMENT, max_completion_tokens: 6000,
+            response_format: { type: "json_schema", json_schema: { name: "compose", strict: true, schema: COMPOSE_SCHEMA } },
+            messages: [{ role: "system", content: COMPOSE + VERDICT + NO_NUMBERS + (lang === "nl" ? "\n\nWrite all words in natural Dutch (Nederlands); keep refs, keys and the level names exactly as given." : "\n\nWrite all words in English.") },
+              { role: "user", content: `index:\n${index}\n\nexamples (recipes):\n${examples}` }] }) });
+        const j = await r.json(); if (!r.ok) { ctx.error("oai", r.status, JSON.stringify(j).slice(0, 500)); return { status: 502, jsonBody: { error: "model error " + r.status } }; }
+        let ex; try { ex = JSON.parse(j.choices?.[0]?.message?.content || ""); } catch { return { status: 502, jsonBody: { error: "model returned no JSON" } }; }
+        if (Array.isArray(ex.widgets)) ex.widgets = ex.widgets.slice(0, 6);
+        return { jsonBody: { compose: ex, usage: j.usage } };
+      } catch (e) { ctx.error(String(e)); return { status: 502, jsonBody: { error: "model error" } }; }
+    }
 
     if ((body?.mode === "insights" || body?.mode === "game") && body.index != null) {
       const index = typeof body.index === "string" ? body.index : JSON.stringify(body.index);
