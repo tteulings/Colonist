@@ -1,5 +1,5 @@
 // Sunny Island · UI icon set (chrome only: player bar, ticker, buttons, sheets).
-// v0.75: award tiles (Longest Road, Largest Army) are gold — red and orange are seat colours now.
+// v0.75: award tiles (Longest road, Largest army) are gold — red and orange are seat colours now.
 // One grammar: 100-unit box (-50..50), live area ±40, a solid base tone + one darker shade, rounded
 // joins/caps, corner radius 8–18, no hairlines (they mush at 14–20 px). Resource and award glyphs are
 // white silhouettes on a coloured rounded tile; pieces and the trade arrows carry a white halo so they

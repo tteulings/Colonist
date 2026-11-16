@@ -5,7 +5,7 @@
 //  * a ship step toward the top sea goal (the planner then saves Lumber + Wool for it, since every
 //    discard / trade decision protects the cost of its top goals);
 //  * a free ship move (once per turn) when it brings a target closer or frees a dead-end ship for a better
-//    route ("sea potential", see _seaPotential) or takes the Longest Trade Route; never one that shortens
+//    route ("sea potential", see _seaPotential) or takes the Longest trade route; never one that shortens
 //    a route it holds or races for;
 //  * pirate or robber on a 7 / Knight: compared by expected damage in cards — the robber's land block and
 //    the pirate's route block (how much later each rival reaches its best sea spot, gold coasts included),
@@ -179,7 +179,7 @@ export const SeaAI = {
   },
 
   /** Free action (once per turn, rulebook p.4 §5): move an open-end ship when that brings the plan's sea
-   *  goal closer, frees a dead-end ship for a better route, or takes / secures the Longest Trade Route;
+   *  goal closer, frees a dead-end ship for a better route, or takes / secures the Longest trade route;
    *  never one that shortens a route it holds or is racing for. Each position is judged once per turn. */
   aiMoveStep(player, plan) {
     if (!this.canMoveNow(player) || !player.ships?.size) return false;
@@ -199,7 +199,7 @@ export const SeaAI = {
     const holder = g.longestRoadHolder;
     const rivalLen = Math.max(0, ...g.players.filter((p) => p.id !== player.id).map((p) => p.longestRoadLength || 0));
     const lrMatters = holder === player.id || rivalLen - lrLen <= 1 || lrLen >= 3;
-    // the Longest Trade Route (2 VP) in cards: taking it, or getting out of reach of the next rival
+    // the Longest trade route (2 VP) in cards: taking it, or getting out of reach of the next rival
     const lrValue = (len) => {
       if (len < 5) return 0;
       if (holder === player.id) return len > rivalLen + 1 ? 2 : len > rivalLen ? 1 : 0;
@@ -223,7 +223,7 @@ export const SeaAI = {
         } finally { this._swap(player, to, from); }
         if (!ok) continue;
         // closer to the planned goal (and not a worse sea overall), a better sea potential, or the
-        // Longest Trade Route taken / made safer without losing sea potential
+        // Longest trade route taken / made safer without losing sea potential
         const gain = (d < before ? 2 * Math.min(3, before - d) : 0) + (pot - pot0) + lrGain;
         if ((d < before && pot >= pot0 - 0.5) || pot - pot0 >= 1 || (lrGain > 0 && pot >= pot0 - 1)) {
           if (!best || gain > best.gain) best = { from, to, gain };

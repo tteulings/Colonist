@@ -8,6 +8,7 @@
 //   · a tappable turn strip and a list of your turns; Show on board for a marked decision
 //   · the missed-chance lines on the end screen then come from the Master's check (verified)
 import { esc, IC, cmpHtml, whyHtml, aimHtml } from "./review-ui.js";
+import { oicon } from "./ui-icons.js";
 import { reviewModel, REVIEW_MODELS, modelOfId } from "./review/evaluate.js";
 import { summarize, REVIEW, REVIEW_ENGINE, REVIEW_ENGINES, ACC, clsOf, LIMITS, SETUP_LIMITS, CLASSES, GREAT, gpOf, decide, totals, tradeShow, needsFull } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
@@ -18,6 +19,11 @@ import { botBand } from "./review/bands.js";
 import { gameOdds } from "./replay-odds.js";
 import { wpText, luckKey } from "./review-luck.js";
 import { currentEngineId } from "./review-again.js";
+import { resName } from "./resources.js";
+import { recapLang } from "./review-recap.js";
+const RKEYS = ["wood", "brick", "sheep", "wheat", "ore"];
+/** v1.87 a resource in review prose: the shared table's name (Lumber / Brick / Wool / Grain / Ore, NL Hout / Baksteen / Wol / Graan / Erts), also for logs saved before v1.86 that say sheep / wheat. */
+const rname = (k) => (RKEYS.includes(k) ? resName(k, recapLang()) : k);
 import { niceWhy, niceWords } from "./review/why.js";
 import { LUCK_MC } from "./review/luck-mc.js";
 
@@ -32,9 +38,11 @@ export const MC = "deep Monte Carlo (100 futures a move)"; // what runs the chec
 // v1.29 the bots' lighter deep check against checking all their moves with the full engine (scratchpad others129 budget-an.mjs)
 const OTHERS_NOTE = "1.1 points of accuracy apart on average, 5 at most, in about 60% of the time";
 // v1.05 chess-style classes: name, glyph (own icons, one hue each in review.css)
-export const CLS = { best: ["Best", "★"], great: ["Great", "⇈"], good: ["Good", "●"], lean: ["Slightly better", "↗"], close: ["Close call", "≈"], could: ["Could be better", "↗"], mistake: ["Mistake", "▲"], blunder: ["Blunder", "✕"], missed: ["Missed chance", "◎"], triv: ["No real choice", "·"] };
+export const CLS = { best: ["Best", "★"], great: ["Great", "⇈"], good: ["Good", "●"], lean: ["Better option", "↗"], close: ["Close call", "≈"], could: ["Could be better", "!"], mistake: ["Mistake", "▲"], blunder: ["Blunder", "✕"], missed: ["Missed chance", "◎"], triv: ["No real choice", "·"] };
 const IMP = ["lean", "could", "mistake", "blunder", "missed"]; // v1.81 lean counts as a (possible) mistake, close does not
 export const aLabel = (d) => (d.cls === "close" || d.vc === "close" ? "Other option" : d.cls === "lean" || d.vc === "lean" ? "Slightly better" : "Better");
+/** "−19 cards" → "19 fewer cards" (the Luck table's side note: a label, not a second headline number) */
+const cardsWord = (n) => { const m = /^([+−-])\s*(\d+)\s*(cards?)$/.exec(String(n).trim()); return m ? `${m[2]} ${m[1] === "+" ? "more" : "fewer"} ${m[3]}` : String(n); };
 const badge = (c, sz = "") => `<i class="rs-b c-${c} ${sz}" aria-hidden="true">${CLS[c][1]}</i>`;
 export const rvPos = (g, f) => {
   if (f.hex != null) return { ...g.hexes[f.hex].center, hex: true };
@@ -317,7 +325,7 @@ export const ReviewGameMixin = {
   // ── v1.29 everyone at the table ──
   /** "You" is the one person in a solo game; anyone else (a bot, each person in pass & play) goes by name. */
   _rvIsYou(pid) { return !this.hotseat && !!this.players[pid]?.isHuman; },
-  _rvNm(pid) { return this._rvIsYou(pid) ? "You" : esc(this.players[pid]?.name || "Someone"); },
+  _rvNm(pid) { return this._rvIsYou(pid) ? "You" : esc(this.players[pid]?.short || this.players[pid]?.name || "Someone"); },
   _rvWhose(pid) { return this._rvIsYou(pid) ? "Your" : `${esc(this.players[pid]?.name || "Their")}’s`; },
   /** A bot's level and its accuracy band (src/review/bands.js): { label, band: [acc, SE] | null }. */
   _rvLevel(p) {
@@ -464,18 +472,20 @@ export const ReviewGameMixin = {
     const maxV = Math.max(this.winPoints || 10, ...this.players.map((p) => p.victoryPoints));
     const parts = [["settlements", "Settlements"], ["cities", "Cities"], ["road", this.sea ? "Longest trade route" : "Longest road"], ["army", "Largest army"], ["cards", "Point card"], ["islands", "Islands"]];
     const used = src ? parts.filter(([k]) => src.some((s) => s?.[k] > 0)) : [];
+    const si = (q) => parts.findIndex(([k]) => k === q); // v1.89 a source keeps its colour whichever sources are used
     const open = this._rsOpen != null && this.players[this._rsOpen] ? this._rsOpen : null;
     const rows = ranked.map((p, k) => {
       const s = this._rvSeat(p.id), lv = p.isHuman ? null : this._rvLevel(p), nm = this._rvNm(p.id);
       const acc = s.sum?.acc != null ? `<b class="rt-acc${s.done ? "" : " prov"}">${s.done ? "" : "~"}${s.sum.acc}</b>`
         : s.st === "run" ? `<span class="rt-st rt-now"><i class="rv-ring" style="--p:${Math.round((100 * s.running.j) / Math.max(1, s.running.n))}%" aria-hidden="true"></i>${s.running.j}/${s.running.n}</span>`
-        : `<span class="rt-st">${{ queued: p.isHuman ? "queued" : "waiting", stopped: "stopped", idle: p.isHuman ? "not checked" : "waiting", norec: "n/a", none: "–", prov: "–", done: "–", quick: "waiting" }[s.st] || "–"}</span>`;
+        : `<span class="rt-st">${{ queued: p.isHuman ? "queued" : "–", stopped: "stopped", idle: p.isHuman ? "not checked" : "–", norec: "n/a", none: "–", prov: "–", done: "–", quick: "–" }[s.st] || "–"}</span>`;
       const d = !L || L.na ? null : L.all?.[p.id], t = d ? tileOf({ me: d }) : null, top = d ? topText(d.top) : "";
       const wv = LK.na ? null : LK.done && LK.cover >= 0.9 ? LK.tot[p.id] : null, wc = wv == null ? "" : Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : "";
       const pend = wv == null && !LK.na && !LK.done && t; // v1.52 the win chance impact is coming: say so, cards underneath
-      const luck = wv != null ? `<b class="${wc}">${wpText(wv)}</b>` : pend ? `<b class="pend" title="Luck in win chance follows">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}…%</b><small>${esc(t.n)}</small>` : t ? `<b class="${t.cls || ""}">${esc(t.n.replace(/ cards?$/, ""))}</b><small>cards</small>` : `<span class="rt-st">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}${LK.na || LK.done ? "–" : "…"}</span>`;
+      const pendRing = pend && LK.run && !LK.paused; // v1.86 r7: a dash only while a ring says it is coming; otherwise the cards are the figure
+      const luck = wv != null ? `<b class="${wc}">${wpText(wv)}</b>` : pendRing ? `<b class="pend" title="Luck in win chance follows">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}–</b><small>${esc(t.n)}</small>` : t ? `<b class="${t.cls || ""}">${esc(t.n.replace(/ cards?$/, ""))}</b><small>cards</small>` : `<span class="rt-st">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}${LK.na || LK.done ? "–" : "…"}</span>`;
       const sc = src?.[p.id];
-      const bar = sc ? `<div class="rsc-src" role="img" aria-label="${esc(nm)}: ${used.filter(([q]) => sc[q] > 0).map(([q, l]) => `${l} ${sc[q]}`).join(", ")}"><div class="trk" style="--w:${Math.max(8, Math.min(100, Math.round((p.victoryPoints / maxV) * 100)))}">${used.map(([q], i) => (sc[q] > 0 ? `<i class="s${i}" style="flex:${sc[q]} 1 0">${sc[q]}</i>` : "")).join("")}</div></div>` : "";
+      const bar = sc ? `<div class="rsc-src" role="img" aria-label="${esc(nm)}: ${used.filter(([q]) => sc[q] > 0).map(([q, l]) => `${l} ${sc[q]}`).join(", ")}"><div class="trk" style="--w:${Math.max(8, Math.min(100, Math.round((p.victoryPoints / maxV) * 100)))}">${used.map(([q]) => (sc[q] > 0 ? `<i class="s${si(q)}" style="flex:${sc[q]} 1 0">${sc[q]}</i>` : "")).join("")}</div></div>` : "";
       const isOpen = open === p.id;
       let det = "";
       if (isOpen) {
@@ -488,8 +498,9 @@ export const ReviewGameMixin = {
       return `<div class="rsc-p pc-${p.id}${p === w ? " win" : ""}${isOpen ? " open" : ""}" data-pid="${p.id}"><button type="button" class="rsc-h" data-rsx="${p.id}" aria-expanded="${isOpen}" aria-label="${esc(nm)}, ${p.victoryPoints} points${wv != null ? `, luck ${wpText(wv)}` : ""}${s.sum?.acc != null ? `, accuracy ${s.sum.acc}${s.done ? "" : ", provisional"}${lv?.band ? `, usual for ${esc(lv.label)} ${Math.round(lv.band[0] - lv.band[1])} to ${Math.round(lv.band[0] + lv.band[1])}` : ""}` : ""}. ${isOpen ? "Hide" : "Show"} why">
         <span class="rk">${k + 1}</span>${this._av(p, "rt-av")}<span class="nm"><b class="rt-nm">${nm}</b>${lv ? `<small>${esc(lv.label)}</small>` : ""}</span><span class="rt-c rt-ac">${acc}</span><span class="rt-c rt-l"${top ? ` title="${esc(top)}"` : ""}>${luck}</span><span class="pts">${p.victoryPoints}</span>${IC.chev}</button>${bar}${det}</div>`;
     }).join("");
-    const leg = used.length ? `<div class="rsc-leg">${used.map(([q, l], i) => `<span><i class="s${i}"></i>${l}</span>`).join("")}</div>` : "";
-    return `<section class="rv-card rt rsc" data-rvtable aria-label="Result"><div class="rv-gt"><b>Result</b><small>tap a player: why they won or lost</small></div><div class="rsc-hd" aria-hidden="true"><span>Accuracy</span><span>Luck</span><span>Points</span></div>${rows}${leg}${!R.bots ? `<p class="rt-foot">Played before the bots’ moves were recorded: their accuracy is not available.</p>` : ""}</section>`;
+    const accAny = ranked.some((p) => { const q = this._rvSeat(p.id); return q.sum?.acc != null || q.st === "run"; }); // no accuracy for anyone yet: the column waits
+    const leg = used.length ? `<div class="rsc-leg">${used.map(([q, l]) => `<span><i class="s${si(q)}"></i>${l}</span>`).join("")}</div>` : "";
+    return `<section class="rv-card rt rsc${accAny ? "" : " no-acc"}" data-rvtable aria-label="Result"><div class="rv-gt"><b>Result</b><small>tap a player: why they won or lost</small></div><div class="rsc-hd" aria-hidden="true"><span>Accuracy</span><span>Luck</span><span>Points</span></div>${rows}${leg}${!R.bots ? `<p class="rt-foot">Played before the bots’ moves were recorded: their accuracy is not available.</p>` : ""}</section>`;
   },
   /** The win chance of every player through the game (set-up first), under the scorecard; tap: the review's Win chance. "" when there is none (Seafarers, no move log). */
   _rvWinCardHtml() {
@@ -524,7 +535,7 @@ export const ReviewGameMixin = {
     if (!st || !c) return;
     let O; try { O = gameOdds(this); } catch (_) { return; }
     if (O.na) return;
-    const W = 304, H = 112, x0 = 24, x1 = W - 4, top = 6, bot = H - 14, N = Math.max(1, st.N);
+    const W = 304, H = 112, x0 = 30, x1 = W - 12, top = 6, bot = H - 14, N = Math.max(1, st.N);
     const su = O.setup(), M = su.length - 1, f = M >= 1 ? 0.14 : 0, gap = M >= 1 ? 6 : 0, w = x1 - x0 - gap;
     const Xs = (i) => x0 + (i / Math.max(1, M)) * f * w, Xt = (s) => x0 + f * w + gap + (s / N) * (1 - f) * w, Y = (p) => top + (1 - p) * (bot - top);
     const me = who ?? this._rvSoloPid?.();
@@ -536,7 +547,7 @@ export const ReviewGameMixin = {
       return pts.length > 1 ? `<path class="pc-${p.id}${p.id === me ? " me" : ""}" d="${pts.map((q, i) => `${i ? "L" : "M"}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join("")}"/>` : "";
     });
     const have = lines.some(Boolean);
-    const grid = [0, 0.5, 1].map((p) => `<line x1="${x0}" x2="${x1}" y1="${Y(p).toFixed(1)}" y2="${Y(p).toFixed(1)}" class="g"/><text x="${x0 - 4}" y="${(Y(p) + 3).toFixed(1)}" text-anchor="end">${p * 100}</text>`).join("");
+    const grid = [0, 0.5, 1].map((p) => `<line x1="${x0}" x2="${x1}" y1="${Y(p).toFixed(1)}" y2="${Y(p).toFixed(1)}" class="g"/><text x="${x0 - 4}" y="${(Y(p) + 3).toFixed(1)}" text-anchor="end">${p * 100}%</text>`).join("");
     const sep = M >= 1 ? `<line x1="${(x0 + f * w + gap / 2).toFixed(1)}" x2="${(x0 + f * w + gap / 2).toFixed(1)}" y1="${top}" y2="${bot}" class="sep"/><text x="${x0}" y="${H - 2}">set-up</text>` : `<text x="${x0}" y="${H - 2}">start</text>`;
     c.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Win chance of every player, set-up and every ${this._stTurnWord?.() || "turn"}">${grid}${have ? lines.filter((l, i) => this.players[i].id !== me).join("") + lines.filter((l, i) => this.players[i].id === me).join("") : ""}${sep}<text x="${x1}" y="${H - 2}" text-anchor="end">${this.isRush?.() ? "roll" : "turn"} ${this.isRush?.() ? (this.rush?.rollNo ?? st.N) : this.turn}</text></svg>${have ? "" : `<p class="rsw-wait" role="status">Working out the win chance…</p>`}`;
   },
@@ -650,7 +661,7 @@ export const ReviewGameMixin = {
     const when = mid ? "so far" : prov ? "" : "this game";
     const bar = `<div class="rv-abar" aria-hidden="true">${B ? `<i class="b" style="left:${pc(B[0][1])}%;width:${pc(B[1][1]) - pc(B[0][1])}%"></i>` : ""}${cmp?.m != null ? `<i class="avg" style="left:${pc(cmp.m - cmp.se)}%;width:${Math.max(1, pc(cmp.m + cmp.se) - pc(cmp.m - cmp.se))}%"></i><i class="avgd" style="left:${pc(cmp.m)}%"></i>` : ""}${acc != null ? `<i class="me" style="left:${pc(acc)}%"></i>` : ""}</div>`;
     return `<div class="rv-astrip${prov ? " prov" : ""}" role="group" aria-label="Accuracy ${acc ?? (few ? fewTxt : "not available")} ${when || "provisional"}${B ? `, bots usually score ${Math.round(B[0][1])} to ${Math.round(B[1][1])}` : ""}">
-      <b class="n">${acc ?? "–"}</b><div class="l"><span><b>accuracy</b> ${when}${prov && !mid ? `<em class="pv">provisional</em>` : ""}</span>${B ? `<span>bots usually score ${Math.round(B[0][1])}–${Math.round(B[1][1])}</span>` : ""}${few ? `<span class="pv">${fewTxt}</span>` : ""}</div>
+      <b class="n">${acc ?? "–"}</b><div class="l"><span><b>accuracy</b> ${when}${prov && !mid ? `<em class="pv">provisional</em>` : ""}</span>${B ? `<span>bots usually score <span class="nw">${Math.round(B[0][1])}–${Math.round(B[1][1])}</span></span>` : ""}${few ? `<span class="pv">${fewTxt}</span>` : ""}</div>
       <div class="rv-arow"><small>${lo}</small>${bar}<small>${hi}</small>${out ? `<span class="o ${acc < lo ? "lo" : "hi"}">${acc < lo ? `&lt;${lo}` : `&gt;${hi}`}: ${acc}</span>` : ""}</div></div>`;
   },
 
@@ -767,10 +778,10 @@ export const ReviewGameMixin = {
     d.className = "rv-info";
     d.setAttribute("role", "dialog");
     d.setAttribute("aria-label", "About this review");
-    d.innerHTML = `<div class="rv-card"><div class="rv-ih"><b>About this review</b><button type="button" class="rv-btn" data-rvinfo-x aria-label="Close">✕</button></div>
+    d.innerHTML = `<div class="rv-card"><div class="rv-ih"><b>About this review</b><button type="button" class="rv-btn" data-rvinfo-x aria-label="Close">${oicon("close")}</button></div>
       <p><b>Win chance</b>: your chance to win, in %. It comes from ${MC}: the position is played on for 20 turns, 100 times for every move (Standard model).</p>
       <p><b>A and B</b>: A is the best move, B is what you played. A − B is what that move cost. Classes: ${lim(LIMITS)}. Set-up spots use wider limits (${lim(SETUP_LIMITS)}).</p>
-      <p><b>How sure</b>: every gap comes with its own margin (the noise of 100 futures is about 3 points). Only a <b>clear</b> gap (at least twice the margin) is called a mistake or blunder. A smaller one is <b>Slightly better</b> (probably) or a <b>Close call</b> (about equal, not a mistake). Your close and slightly-better moves are checked again with 400 futures on the two moves that matter.</p>
+      <p><b>How sure</b>: every gap comes with its own margin (the noise of 100 futures is about 3 points). Only a <b>clear</b> gap (at least twice the margin) is called a mistake or blunder. A smaller one is a <b>Better option</b> (probably) or a <b>Close call</b> (about equal, not a mistake). Your close and slightly-better moves are checked again with 400 futures on the two moves that matter.</p>
       <p><b>Play</b>: shows every move since your last decision: rolls, builds, trades, the robber. Win chances exist at your decisions only.</p>
       <p><b>Plan</b>: the likely reason A is better, read from the position. No clear reason, no Plan.</p>
       <p><b>Missed chance</b>: you ended the turn or traded while a build was worth 3+ %. <b>Great</b>: the best move, the next one ${GREAT}+ % behind. <b>No real choice</b>: every option within 2 %.</p>
@@ -790,7 +801,7 @@ export const ReviewGameMixin = {
     el.appendChild(d);
   },
   _rvBar(sub, tab = "") {
-    return `<div class="rv-bar"><button type="button" class="rv-btn" data-rvclose aria-label="${this._rvMid ? "Back to the game" : "Back to results"}">‹</button><div><h3${tab ? ' class="ht"' : ""}>Game review${tab ? ` · ${tab}` : this._rvPid != null && !this._rvIsYou(this._rvPid) ? ` · <span class="pc-${this._rvPid} rv-who">${esc(this.players[this._rvPid].name)}</span>` : ""}</h3><small>${tab && this._rvPid != null && !this._rvIsYou(this._rvPid) ? `${esc(this.players[this._rvPid].name)}’s review · ` : ""}${sub}</small></div><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>${this._rvForSeg()}`;
+    return `<div class="rv-bar"><button type="button" class="rv-btn" data-rvclose aria-label="${this._rvMid ? "Back to the game" : "Back to results"}">${IC.back}</button><div><h3${tab ? ' class="ht"' : ""}>Game review${tab ? ` · ${tab}` : this._rvPid != null && !this._rvIsYou(this._rvPid) ? ` · <span class="pc-${this._rvPid} rv-who">${esc(this.players[this._rvPid].name)}</span>` : ""}</h3><small>${tab && this._rvPid != null && !this._rvIsYou(this._rvPid) ? `${esc(this.players[this._rvPid].name)}’s review · ` : ""}${sub}</small></div><button type="button" class="rv-btn rv-i" data-rvinfo aria-label="About this review"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>${this._rvForSeg()}`;
   },
 
   /** Pass & play: "Review for [Rosa] [You]": one person's moves at a time, with where each check stands. */
@@ -886,7 +897,7 @@ export const ReviewGameMixin = {
     const mid = h - bh / 2 - (axis ? 12 : 2), sc = (bh / 2) / 0.2, bw = Math.max(3, Math.min(9, (X1 - X0) / n - 2));
     const bar = (v, cls, dx, x) => `<rect x="${(x + dx).toFixed(1)}" y="${(v > 0 ? mid - Math.min(bh / 2, v * sc) : mid).toFixed(1)}" width="${(bw / 2).toFixed(1)}" height="${Math.max(1, Math.min(bh / 2, Math.abs(v) * sc)).toFixed(1)}" rx="1" class="${cls}"/>`;
     const barSvg = bars ? `<line x1="${X0}" x2="${X1}" y1="${mid}" y2="${mid}" class="g-grid"/>${ds.map((d, k) => bar(d.chance, "b-luck", -bw / 2, X(k)) + bar(-d.gap, "b-skill", 0, X(k))).join("")}` : "";
-    const grid = axis ? [0, 0.5, 1].map((p) => `<line x1="${X0}" x2="${X1}" y1="${Y(p)}" y2="${Y(p)}" class="g-grid"/><text x="${X0 - 4}" y="${Y(p) + 4}" text-anchor="end" class="g-ax">${p * 100}</text>`).join("") : `<line x1="${X0}" x2="${X1}" y1="${Y(0.5)}" y2="${Y(0.5)}" class="g-grid"/>`;
+    const grid = axis ? [0, 0.5, 1].map((p) => `<line x1="${X0}" x2="${X1}" y1="${Y(p)}" y2="${Y(p)}" class="g-grid"/><text x="${X0 - 4}" y="${Y(p) + 4}" text-anchor="end" class="g-ax">${p * 100}%</text>`).join("") : `<line x1="${X0}" x2="${X1}" y1="${Y(0.5)}" y2="${Y(0.5)}" class="g-grid"/>`;
     const dots = ds.map((d, k) => `<circle cx="${X(k).toFixed(1)}" cy="${Y(d.win).toFixed(1)}" r="${["best", "great", "good", "triv"].includes(d.cls) ? 2.4 : 4}" class="gd c-${d.cls}"/>`).join("");
     const curL = cur >= 0 && ds[cur] ? `<line x1="${X(cur)}" x2="${X(cur)}" y1="${top - 2}" y2="${h - (axis ? 12 : 2)}" class="g-sel"/><circle cx="${X(cur)}" cy="${Y(ds[cur].win)}" r="6" class="g-cur"/>` : "";
     const hit = ds.map((d, k) => `<rect data-rvj="${d.i}" x="${(X(k) - (X1 - X0) / Math.max(1, n) / 2).toFixed(1)}" y="0" width="${((X1 - X0) / Math.max(1, n)).toFixed(1)}" height="${h}" fill="transparent"/>`).join("");
@@ -971,8 +982,8 @@ export const ReviewGameMixin = {
     const st = this._st, src = st?.sources?.[pid];
     const parts = [["settlements", "Settlements", 1], ["cities", "Cities", 2], ["road", this.sea ? "Longest trade route" : "Longest road", 0], ["army", "Largest army", 0], ["cards", "Point cards", 0], ["islands", "Islands", 0]];
     const usedAll = st?.sources ? parts.filter(([k]) => st.sources.some((x) => x?.[k] > 0)) : [];
-    const rows = src ? usedAll.map(([k, l, per], i) => (src[k] > 0 ? `<div class="pp-pr"><i class="s${i}"></i><span>${l}${per ? ` × ${src[k] / per}` : ""}</span><b>${src[k]}</b></div>` : "")).join("") : "";
-    const bar2 = src ? `<div class="rsc-src"><div class="trk" style="--w:100">${usedAll.map(([k], i) => (src[k] > 0 ? `<i class="s${i}" style="flex:${src[k]} 1 0">${src[k]}</i>` : "")).join("")}</div></div>` : "";
+    const rows = src ? usedAll.map(([k, l, per]) => (src[k] > 0 ? `<div class="pp-pr"><i class="s${parts.findIndex(([q]) => q === k)}"></i><span>${l}${per ? ` × ${src[k] / per}` : ""}</span><b>${src[k]}</b></div>` : "")).join("") : "";
+    const bar2 = src ? `<div class="rsc-src"><div class="trk" style="--w:100">${usedAll.map(([k]) => (src[k] > 0 ? `<i class="s${parts.findIndex(([q]) => q === k)}" style="flex:${src[k]} 1 0">${src[k]}</i>` : "")).join("")}</div></div>` : "";
     const pts = src ? `<section class="rv-card rsc pp-pts"><div class="rv-gt"><b>Points</b><small>${p.victoryPoints} points · ${this.winPoints || 10} to win</small></div>${bar2}<div class="pp-prs">${rows}</div></section>` : "";
     // accuracy
     const acc = `<section class="rv-card rs-sum">${this._rvStrip(sum.acc, cmp, false, prov)}${cmpText ? `<p class="rv-cmpline rvt-cmp">${esc(cmpText)}</p>` : ""}${sum.lost != null ? `<p class="rs-lost">${sum.n} ${sum.n === 1 ? "move" : "moves"} that mattered · about ${sum.lost}% win chance lost per move${T.capped ? ` · ${you ? "your" : "their"} moves are capped at the ${T.cap}% ${you ? "you" : "they"} could have had` : ""}</p>` : ""}</section>`;
@@ -1016,7 +1027,7 @@ export const ReviewGameMixin = {
     const cls = CLASSES.filter((k) => cols.some((c) => c.s.sum?.cls?.[k]) || !["great", "blunder"].includes(k));
     const prov = cols.some((c) => c.s.sum?.acc != null && !c.s.done);
     const row = (label, f) => `<span class="sbs-l">${label}</span>${cols.map((c) => cell(c, f(c))).join("")}`;
-    const head = `<span class="sbs-l"></span>${cols.map((c) => `<button type="button" class="sbs-c sbs-h pc-${c.p.id}${c.p.id === this._rvPid ? " cur" : ""}" data-rvcol="${c.p.id}" aria-label="${esc(this._rvNm(c.p.id))}: ${this._rvTodo(c.p.id).length ? "show" : "no"} review" aria-pressed="${c.p.id === this._rvPid}">${this._av(c.p, "rt-av")}<small>${this._rvIsYou(c.p.id) ? "You" : esc(c.p.name)}</small></button>`).join("")}`;
+    const head = `<span class="sbs-l"></span>${cols.map((c) => `<button type="button" class="sbs-c sbs-h pc-${c.p.id}${c.p.id === this._rvPid ? " cur" : ""}" data-rvcol="${c.p.id}" aria-label="${esc(this._rvNm(c.p.id))}: ${this._rvTodo(c.p.id).length ? "show" : "no"} review" aria-pressed="${c.p.id === this._rvPid}">${this._av(c.p, "rt-av")}<small>${this._rvIsYou(c.p.id) ? "You" : esc(c.p.short || c.p.name)}</small></button>`).join("")}`;
     const all = !!this._rvSbsAll;
     const core = [row("Points", (c) => `<b class="big">${c.p.victoryPoints}</b>`), row("Accuracy", accOf), row("Luck (dice, steals, cards)", lkOf),
       row("Win chance lost by moves", (c) => (c.moves != null ? `<b class="${c.moves < 0 ? "neg" : ""}">${sgn(c.moves)}%</b>` : `<span class="rt-st">–</span>`))];
@@ -1121,7 +1132,7 @@ export const ReviewGameMixin = {
 
   // Win chance
   _rvWinGeom(O, W = 304, H = 112) {
-    const st = this._st, x0 = 24, x1 = W - 4, top = 6, bot = H - 14, N = Math.max(1, st.N), su = O.setup(), M = su.length - 1;
+    const st = this._st, x0 = 30, x1 = W - 12, top = 6, bot = H - 14, N = Math.max(1, st.N), su = O.setup(), M = su.length - 1;
     const f = M >= 1 ? 0.14 : 0, gap = M >= 1 ? 6 : 0, w = x1 - x0 - gap;
     return { W, H, x0, x1, top, bot, N, su, M, f, gap, w, Xs: (i) => x0 + (i / Math.max(1, M)) * f * w, Xt: (s) => x0 + f * w + gap + (s / N) * (1 - f) * w, Y: (p) => top + (1 - p) * (bot - top),
       inv: (x) => (x < x0 + f * w + gap / 2 ? 0 : Math.max(0, Math.min(N, Math.round(((x - (x0 + f * w + gap)) / ((1 - f) * w)) * N)))) };
@@ -1158,10 +1169,10 @@ export const ReviewGameMixin = {
     const DEV = { knight: "a Knight", monopoly: "Monopoly", yearOfPlenty: "Year of Plenty", roadBuilding: "Road Building", victoryPoint: "a Victory Point" };
     const lostTxt = (m) => { const l = (m.lost || []).map((n, q) => [q, n]).filter(([q, n]) => n > 0 && q !== m.p).sort((a, b) => b[1] - a[1]); return l.length ? (l.length === 1 ? ` from ${nmOf(l[0][0])}` : `, mostly from ${nmOf(l[0][0])}`) : ""; };
     acts.forEach((a) => {
-      if (a.k === "mono") lines.push(`${nmOf(a.p)} played Monopoly: took ${a.n} ${a.res}${lostTxt(a)}.`);
+      if (a.k === "mono") lines.push(`${nmOf(a.p)} played Monopoly: took ${a.n} ${rname(a.res)}${lostTxt(a)}.`);
       else if (a.k === "dev" && a.type !== "monopoly") lines.push(`${nmOf(a.p)} played ${DEV[a.type] || "a development card"}.`);
       else if (a.k === "plenty") lines.push(`${nmOf(a.p)} took ${a.n} ${a.n === 1 ? "card" : "cards"} from the bank (Year of Plenty).`);
-      else if (a.k === "bank") lines.push(`${nmOf(a.p)} traded ${a.rate} ${a.give} for 1 ${a.get} with the bank.`);
+      else if (a.k === "bank") lines.push(`${nmOf(a.p)} traded ${a.rate} ${rname(a.give)} for 1 ${rname(a.get)} with the bank.`);
       else if (a.k === "trade") lines.push(`${nmOf(a.p)} traded ${a.a} for ${a.b} ${a.b === 1 ? "card" : "cards"} with ${nmOf(a.q)}.`);
       else if (a.k === "steal") lines.push(`${nmOf(a.p)} stole a card from ${nmOf(a.q)}.`);
     });
@@ -1205,6 +1216,14 @@ export const ReviewGameMixin = {
     };
     return { html, bind };
   },
+  /** v1.87 the cursor markers: one per player at its win chance, nudged apart (at least 7.5 px) so no two sit on each other; yours never moves. */
+  _rvPtYs(g, here, me) {
+    const ys = this.players.map((p) => g.Y(here[p.id])), idx = ys.map((_, i) => i).sort((a, b) => ys[a] - ys[b] || (this.players[a].id === me ? -1 : 1)), out = ys.slice(), GAP = 7.5;
+    for (let i = 1; i < idx.length; i += 1) out[idx[i]] = Math.max(out[idx[i]], out[idx[i - 1]] + GAP); // push down
+    const last = idx[idx.length - 1];
+    if (out[last] > g.bot) { out[last] = g.bot; for (let i = idx.length - 2; i >= 0; i -= 1) out[idx[i]] = Math.min(out[idx[i]], out[idx[i + 1]] - GAP); } // never below the axis: push the others up
+    return out;
+  },
   _rvWinTabPaint(el, O, ds, keep = false) {
     const c = el.querySelector("[data-rvwc]"), wi = el.querySelector("[data-rvwi]"), ws = el.querySelector("[data-rvws]");
     if (!c || !wi) return;
@@ -1214,25 +1233,28 @@ export const ReviewGameMixin = {
     if (keep === "cursor" && c.querySelector("svg")) { // v1.55 dragging: only the cursor line and the dots move, nothing else is worked out
       const sv = c.querySelector("svg"), cx0 = g.Xt(cur), ent0 = look?.steps.find((x) => x.S === cur), h0 = ent0 ? ent0.e : O.get(cur), cl = sv.querySelector(".cur");
       cl?.setAttribute("x1", cx0.toFixed(1)); cl?.setAttribute("x2", cx0.toFixed(1));
-      const pts = sv.querySelectorAll(".pt"); if (h0) this.players.forEach((p, k) => { const e = pts[k]; if (e) { e.setAttribute("cx", cx0.toFixed(1)); e.setAttribute("cy", g.Y(h0[p.id]).toFixed(1)); } });
+      const pts = sv.querySelectorAll(".pt"); if (h0) { const py = this._rvPtYs(g, h0, me); this.players.forEach((p, k) => { const e = pts[k]; if (e) { e.setAttribute("cx", cx0.toFixed(1)); e.setAttribute("cy", py[k].toFixed(1)); } }); }
       return;
     }
     const lines = this.players.map((p) => {
       const pts = [];
       if (g.M >= 1) g.su.forEach((q, i) => { const v = (q.x ? q.x.p : q.p)?.[p.id]; if (v != null) pts.push([g.Xs(i), g.Y(v)]); });
       this._rvLinePts(O, p.id, look).pts.forEach(([s, v]) => pts.push([g.Xt(s), g.Y(v)]));
+      const kk = Math.max(1, Math.ceil(pts.length / 64)); // fewer vertices: the trend reads, not every step
+      if (kk > 1) { const last = pts[pts.length - 1]; const th = pts.filter((_, i) => i % kk === 0); if (th[th.length - 1] !== last) th.push(last); pts.length = 0; pts.push(...th); }
       return { id: p.id, d: pts.length > 1 ? pts.map((q, i) => `${i ? "L" : "M"}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join("") : "" };
     });
-    const grid = [0, 0.5, 1].map((p) => `<line x1="${g.x0}" x2="${g.x1}" y1="${g.Y(p).toFixed(1)}" y2="${g.Y(p).toFixed(1)}" class="g"/><text x="${g.x0 - 4}" y="${(g.Y(p) + 3).toFixed(1)}" text-anchor="end">${p * 100}</text>`).join("");
+    const grid = [0, 0.5, 1].map((p) => `<line x1="${g.x0}" x2="${g.x1}" y1="${g.Y(p).toFixed(1)}" y2="${g.Y(p).toFixed(1)}" class="g"/><text x="${g.x0 - 4}" y="${(g.Y(p) + 3).toFixed(1)}" text-anchor="end">${p * 100}%</text>`).join("");
     const sx = g.M >= 1 ? (g.x0 + g.f * g.w + g.gap / 2).toFixed(1) : null;
     const cx = g.Xt(cur), ent = look?.steps.find((x) => x.S === cur), here = ent ? ent.e : O.get(cur);
-    const dec = ds.map((d) => { const s = Math.min(g.N, d.x.s ?? 0), v = d.seats ? d.seats[me] / (d.seats.reduce((a, b) => a + b, 0) || 1) : null; return v == null ? "" : `<circle cx="${g.Xt(s).toFixed(1)}" cy="${g.Y(v).toFixed(1)}" r="${["best", "great", "good", "triv"].includes(d.cls) ? 0 : 3.6}" class="dec c-${d.cls}"/>`; }).join("");
+    const decTop = new Set(ds.filter((d) => !["best", "great", "good", "triv", "close", "lean"].includes(d.cls)).sort((x, y) => (y.gap || 0) - (x.gap || 0)).slice(0, 4)); // only the few biggest
+    const dec = ds.map((d) => { if (!decTop.has(d)) return ""; const s = Math.min(g.N, d.x.s ?? 0), v = d.seats ? d.seats[me] / (d.seats.reduce((a, b) => a + b, 0) || 1) : null; return v == null ? "" : `<circle cx="${g.Xt(s).toFixed(1)}" cy="${g.Y(v).toFixed(1)}" r="4.2" class="dec c-${d.cls}"/>`; }).join("");
     const old = keep ? c.querySelector("svg") : null;
     if (old) { // v1.55 dragging: only the cursor line and the dots move; the chart is not drawn again
       const cl = old.querySelector(".cur"); cl?.setAttribute("x1", cx.toFixed(1)); cl?.setAttribute("x2", cx.toFixed(1));
-      const pts = old.querySelectorAll(".pt"); if (here) this.players.forEach((p, k) => { const e = pts[k]; if (e) { e.setAttribute("cx", cx.toFixed(1)); e.setAttribute("cy", g.Y(here[p.id]).toFixed(1)); } });
+      const pts = old.querySelectorAll(".pt"); if (here) { const py = this._rvPtYs(g, here, me); this.players.forEach((p, k) => { const e = pts[k]; if (e) { e.setAttribute("cx", cx.toFixed(1)); e.setAttribute("cy", py[k].toFixed(1)); } }); }
     } else {
-    c.innerHTML = `<svg viewBox="0 0 304 190" role="img" aria-label="Win chance of every player, set-up and every ${this._stTurnWord?.() || "turn"}. Tap or drag to pick a moment">${grid}${lines.filter((l) => l.id !== me).map((l) => (l.d ? `<path class="pc-${l.id}" d="${l.d}"/>` : "")).join("")}${lines.filter((l) => l.id === me).map((l) => (l.d ? `<path class="pc-${l.id} me" d="${l.d}"/>` : "")).join("")}${dec}${sx ? `<line x1="${sx}" x2="${sx}" y1="${g.top}" y2="${g.bot}" class="sep"/>` : ""}<line x1="${cx.toFixed(1)}" x2="${cx.toFixed(1)}" y1="${g.top - 2}" y2="${g.bot}" class="cur"/>${here ? this.players.map((p) => `<circle cx="${cx.toFixed(1)}" cy="${g.Y(here[p.id]).toFixed(1)}" r="${p.id === me ? 5 : 3.6}" class="pc-${p.id} pt"/>`).join("") : ""}<text x="${g.x0}" y="186">${g.M >= 1 ? "set-up" : "start"}</text><text x="${g.x1}" y="186" text-anchor="end">${this.isRush?.() ? "roll" : "turn"} ${this.isRush?.() ? g.N : this.turn}</text></svg>${lines.some((l) => l.d) ? "" : `<p class="rsw-wait" role="status">Working out the win chance…</p>`}`;
+    c.innerHTML = `<svg viewBox="0 0 304 190" role="img" aria-label="Win chance of every player, set-up and every ${this._stTurnWord?.() || "turn"}. Tap or drag to pick a moment">${grid}${lines.filter((l) => l.id !== me).map((l) => (l.d ? `<path class="pc-${l.id}" d="${l.d}"/>` : "")).join("")}${lines.filter((l) => l.id === me).map((l) => (l.d ? `<path class="pc-${l.id} me" d="${l.d}"/>` : "")).join("")}${dec}${sx ? `<line x1="${sx}" x2="${sx}" y1="${g.top}" y2="${g.bot}" class="sep"/>` : ""}<line x1="${cx.toFixed(1)}" x2="${cx.toFixed(1)}" y1="${g.top - 2}" y2="${g.bot}" class="cur"/>${here ? (() => { const py = this._rvPtYs(g, here, me); return this.players.map((p, k) => `<circle cx="${cx.toFixed(1)}" cy="${py[k].toFixed(1)}" r="${p.id === me ? 5 : 3.4}" class="pc-${p.id} pt${p.id === me ? " me" : ""}"/>`).join(""); })() : ""}<text x="${g.x0}" y="186">${g.M >= 1 ? "set-up" : "start"}</text><text x="${g.x1}" y="186" text-anchor="end">${this.isRush?.() ? "roll" : "turn"} ${this.isRush?.() ? g.N : this.turn}</text></svg>${lines.some((l) => l.d) ? "" : `<p class="rsw-wait" role="status">Working out the win chance…</p>`}`;
     }
     if (!c.__pd) { // one set of handlers on the container, so the drag survives a redraw of the svg
       c.__pd = true;
@@ -1253,7 +1275,7 @@ export const ReviewGameMixin = {
     if (keep === "cursor") return;
     // before and after the picked step: with the luck check's numbers (looking ahead): before the roll, after the roll, end of the turn; else the model's estimate
     const su = g.su;
-    const bar = (v) => { if (!v) return `<div class="rvw-bar na">…</div>`; const sum = v.reduce((a, b) => a + b, 0) || 1; return `<div class="rvw-bar" role="img" aria-label="${this.players.map((p) => `${this._rvNm(p.id)} ${Math.round((v[p.id] / sum) * 100)}%`).join(", ")}">${this.players.map((p) => `<i class="pc-${p.id}" style="flex:${(v[p.id] / sum).toFixed(4)} 1 0">${v[p.id] / sum >= 0.08 ? Math.round((v[p.id] / sum) * 100) : ""}</i>`).join("")}</div>`; };
+    const bar = (v) => { if (!v) return `<div class="rvw-bar na">…</div>`; const sum = v.reduce((a, b) => a + b, 0) || 1; return `<div class="rvw-bar" role="img" aria-label="${this.players.map((p) => `${this._rvNm(p.id)} ${Math.round((v[p.id] / sum) * 100)}%`).join(", ")}">${this.players.filter((p) => v[p.id] / sum > 0.002).map((p) => `<i class="pc-${p.id}" style="flex:${(v[p.id] / sum).toFixed(4)} 1 0">${v[p.id] / sum >= 0.08 ? Math.round((v[p.id] / sum) * 100) : ""}</i>`).join("")}</div>`; };
     const what = this._rvStepWhat(cur);
     const near = ds.filter((q) => (q.x.s ?? 0) <= cur).pop() || ds[0];
     const chk = cur > 0 ? ds.filter((q) => (q.x.s ?? 0) === cur && q.seats).pop() : null, cs = chk ? chk.seats.reduce((a, b2) => a + b2, 0) || 1 : 1, exact = chk ? chk.seats.map((v) => v / cs) : null;
@@ -1265,7 +1287,7 @@ export const ReviewGameMixin = {
       this.players.forEach((p) => { [["roll", ent.a[p.id] - ent.b[p.id]], ["moves", ent.e[p.id] - ent.a[p.id]]].forEach(([k, x]) => { if (!top || Math.abs(x) > Math.abs(top.x)) top = { p: p.id, k, x }; }); });
       if (top && Math.abs(top.x) >= 0.01) {
         const b2 = what.builds.filter((q) => q.pid === top.p).sort((a1, a2) => a2.vp - a1.vp)[0], got = what.cards?.[top.p] || 0;
-        const parts = [...(what.builds.some((q) => q.kind === "c") ? ["city"] : []), ...(what.builds.some((q) => q.kind === "s") ? ["settlement"] : []), ...what.acts.filter((q) => q.k === "mono").map((q) => `Monopoly +${q.n} ${q.res}`), ...(Object.values(what.roads).some((n) => n) ? ["road"] : []), ...(what.acts.some((q) => q.k === "bank" || q.k === "trade") ? [`${what.acts.filter((q) => q.k === "bank" || q.k === "trade").length} trades`] : []), ...what.acts.filter((q) => q.k === "dev" && q.type !== "monopoly").map(() => "dev card")];
+        const parts = [...(what.builds.some((q) => q.kind === "c") ? ["city"] : []), ...(what.builds.some((q) => q.kind === "s") ? ["settlement"] : []), ...what.acts.filter((q) => q.k === "mono").map((q) => `Monopoly +${q.n} ${q.res}`), ...(Object.values(what.roads).some((n) => n) ? ["road"] : []), ...(what.acts.some((q) => q.k === "bank" || q.k === "trade") ? [(n1 => `${n1} trade${n1 === 1 ? "" : "s"}`)(what.acts.filter((q) => q.k === "bank" || q.k === "trade").length)] : []), ...what.acts.filter((q) => q.k === "dev" && q.type !== "monopoly").map(() => "dev card")];
         const mo = what.acts.find((a) => a.k === "mono" && a.p === top.p), ml = what.acts.find((a) => a.k === "mono" && a.p !== top.p && (a.lost[top.p] || 0) > 0), st2 = what.acts.find((a) => a.k === "steal" && (a.p === top.p || a.q === top.p));
         const cause = top.k !== "roll" && parts.length > 1 && what.actor != null ? `${what.actor === top.p ? "" : this._rvIsYou(what.actor) ? "Your " : `${this._rvNm(what.actor)}’s `}${what.actor === top.p ? "turn" : "turn"}: ${parts.join(", ")}` : top.k !== "roll" && mo ? `Monopoly: took ${mo.n} ${mo.res}${what.lostTxt(mo)}` : top.k !== "roll" && ml ? `${this._rvNm(ml.p)} played Monopoly and took ${ml.lost[top.p]} ${ml.res} from ${this._rvNm(top.p)}` : top.k !== "roll" && st2 && !b2 ? "a card stolen" : top.k === "roll" ? (got ? `the roll paid ${got} ${got === 1 ? "card" : "cards"}` : what.robber != null && top.x < 0 ? "the roll moved the robber" : "the roll (luck)") : b2 ? (b2.bonus ? "built a settlement on a new island (+3 points with the island bonus)" : b2.kind === "c" ? "built a city" : "built a settlement") : what.robber === top.p ? "moved the robber" : "the moves of this turn";
         topTxt = `<b>Biggest effect:</b> ${this._rvNm(top.p)} <span class="${top.x > 0 ? "pos" : "neg"}">${sgp(top.x)}</span>, ${esc(cause)}.`;
@@ -1292,7 +1314,7 @@ export const ReviewGameMixin = {
       else for (let s = 1; s <= g.N; s++) { const a = O.get(s - 1), b = O.get(s); if (!a || !b) continue; let best = null; this.players.forEach((p) => { const v = b[p.id] - a[p.id]; if (!best || Math.abs(v) > Math.abs(best.x)) best = { p: p.id, k: "est", x: v }; }); if (best) sw.push({ s, ...best }); }
       sw.sort((a, b) => Math.abs(b.x) - Math.abs(a.x));
       const tag = { roll: "from the roll (luck)", moves: "from the turn’s moves", est: "≈ estimate" };
-      ws.innerHTML = sw.slice(0, 4).map((x) => { const w = this._rvStepWhat(x.s), v = Math.round(x.x * 100); return `<button type="button" class="rs-key" data-rvws="${x.s}"><i class="pc-${x.p} rvw-dot" aria-hidden="true"></i><span class="t">${esc(w.head.split(" · ")[0])}</span><span class="x">${esc(w.head.split(" · ")[1] || "")}<small class="w">${esc(this._rvNm(x.p))}: ${tag[x.k]}</small></span><b class="${v >= 0 ? "pos" : "neg"}">${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v)}%</b></button>`; }).join("") || `<p class="rs-lost">The numbers are still coming in.</p>`;
+      ws.innerHTML = sw.slice(0, 4).map((x) => { const w = this._rvStepWhat(x.s), v = Math.round(x.x * 100); return `<button type="button" class="rs-key" data-rvws="${x.s}"><i class="pc-${x.p} rvw-dot ${v >= 0 ? "up" : "dn"}" aria-hidden="true">${v >= 0 ? "▲" : "▼"}</i><span class="t">${esc(w.head.split(" · ")[0])}</span><span class="x">${esc(w.head.split(" · ")[1] || "")}<small class="w">${esc(this._rvNm(x.p))}: ${tag[x.k]}</small></span><b class="${v >= 0 ? "pos" : "neg"}">${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v)}%</b></button>`; }).join("") || `<p class="rs-lost">The numbers are still coming in.</p>`;
       ws.querySelectorAll("[data-rvws]").forEach((b) => b.addEventListener("click", () => { this._rvWc = +b.dataset.rvws; this._rvWcAuto = false; this._rvWinTabPaint(el, O, ds); el.querySelector(".rv-scroll").scrollTop = 0; }));
     }
   },
@@ -1305,8 +1327,8 @@ export const ReviewGameMixin = {
     const U = (this._lkUi ||= { open: false, pid: null, sort: "size", all: false });
     if (U.pid == null || !this.players[U.pid]) U.pid = pid;
     const L = this._rvLuck(pid);
-    const bars = this.players.map((p) => { const wv = LK.tot[p.id], d = !L || L.na ? null : L.all?.[p.id], t = d ? tileOf({ me: d }) : null, wd = Math.min(50, (Math.abs(wv) / 0.5) * 50), c = Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : ""; return `<span class="pc-${p.id} lkx-n">${this._av(p, "rt-av")}${this._rvIsYou(p.id) ? "You" : esc(p.name)}</span><i class="tr"><i class="z"></i><i class="${wv < 0 ? "neg" : "pos"}" style="${wv < 0 ? "right" : "left"}:50%;width:${wd.toFixed(1)}%"></i></i><b class="${c}">${wpText(wv)}${t ? `<small>${esc(t.n)}</small>` : ""}</b>`; }).join("");
-    const html = `<section class="rv-card rvx lkx"><div class="rv-gt"><b>Luck, in win chance</b><small>dice, steals, card draws, seat order</small></div><div class="lkx-g">${bars}</div></section>
+    const bars = this.players.map((p) => { const wv = LK.tot[p.id], d = !L || L.na ? null : L.all?.[p.id], t = d ? tileOf({ me: d }) : null, wd = Math.min(50, (Math.abs(wv) / 0.5) * 50), c = Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : ""; return `<span class="pc-${p.id} lkx-n">${this._av(p, "rt-av")}${this._rvIsYou(p.id) ? "You" : esc(p.name)}</span><i class="tr"><i class="z"></i><i class="${wv < 0 ? "neg" : "pos"}" style="${wv < 0 ? "right" : "left"}:50%;width:${wd.toFixed(1)}%"></i></i><b class="${c}">${wpText(wv)}${t ? `<small title="Cards above or below what the dice were expected to give">${esc(cardsWord(t.n))}</small>` : ""}</b>`; }).join("");
+    const html = `<section class="rv-card rvx lkx"><div class="rv-gt"><b>Luck, in win chance</b><small>dice, steals, card draws, seat order</small></div><div class="lkx-g">${bars}<span></span><span class="lkx-sc" aria-hidden="true"><i style="left:0">−50%</i><i style="left:50%">0</i><i style="left:100%">+50%</i></span><span></span></div></section>
       <section class="rv-card rt rvx">${this._lkDetailsHtml(LK, true)}</section>`;
     return { html }; // (its buttons are bound with the rest: _rvBindTable)
   },
@@ -1317,8 +1339,8 @@ export const ReviewGameMixin = {
   _rvMovesCard(ds, you, nm) {
     let f = "mistakes"; try { f = localStorage.getItem("colonist_review_moves") === "all" ? "all" : "mistakes"; } catch (_) { /* private mode */ }
     const bad = new Set(IMP), list = f === "all" ? ds : ds.filter((d) => bad.has(d.cls));
-    const sg = (v) => sgn(v * 100), tw = this._rvTW();
-    const rows = list.map((d) => `<button type="button" class="mv-r c-${d.cls}" data-rvj="${d.i}" data-rvq="all"><span class="mv-t">${d.k === "setup" ? "Set-up" : `${tw} ${d.t}`}</span><span class="mv-m"><b class="mv-v">${badge(d.cls, "sm")}${d.cls === "missed" ? "Missed" : CLS[d.cls][0]}</b><span class="mv-w">${esc(this._rvShort(d))}</span></span><em class="mv-c${d.cls === "close" ? " neu" : ""}">${d.gap >= 0.01 ? `${sg(-d.gap)}%` : ""}</em></button>`).join("");
+    const sg = (v) => sgn(v * 100), tw = this._rvTW(), maxGap = Math.max(0.01, ...list.map((d) => d.gap || 0)); // v1.87: a bar per move, its length the win chance given up
+    const rows = list.map((d) => `<button type="button" class="mv-r c-${d.cls}" data-rvj="${d.i}" data-rvq="all"><span class="mv-t">${d.k === "setup" ? "Set-up" : `${tw} ${d.t}`}</span><span class="mv-m"><b class="mv-v">${badge(d.cls, "sm")}${d.cls === "missed" ? "Missed" : CLS[d.cls][0]}</b><span class="mv-w">${esc(this._rvShort(d))}</span></span><em class="mv-c${d.cls === "close" ? " neu" : ""}">${d.gap >= 0.01 ? `${sg(-d.gap)}%<i class="mv-bar2" style="--w:${Math.max(8, Math.round((d.gap / maxGap) * 100))}%" aria-hidden="true"></i>` : ""}</em></button>`).join("");
     const seg = [["mistakes", "Mistakes"], ["all", "All"]].map(([k, l]) => `<button type="button" class="${k === f ? "on" : ""}" aria-pressed="${k === f}" data-rvmf="${k}">${l}</button>`).join("");
     return `<section class="rv-card mv-card"><div class="rv-gt"><b>${you ? "Your" : `${nm}’s`} moves</b><div class="km-seg mv-seg" role="group" aria-label="Which moves">${seg}</div></div>${rows || `<p class="rs-lost">No mistakes in ${you ? "your" : "their"} moves. Switch to All to see every move.</p>`}</section>`;
   },
@@ -1502,7 +1524,7 @@ export const ReviewGameMixin = {
   /** Every move between your previous decision and this one, as beats: a roll (with who got what), a build, a trade, the robber, a steal, a card. */
   _rvBeats(d, ds) {
     const st = this._st, ev = this.stats.ev, k = ds.indexOf(d), from = k ? ds[k - 1].x.e : 0, to = d.x.e;
-    const s0 = k ? ds[k - 1].x.s : 0, RN = ["Lumber", "Brick", "Wool", "Grain", "Ore"], me = this._rvPid;
+    const s0 = k ? ds[k - 1].x.s : 0, RN = RKEYS.map(rname), me = this._rvPid;
     const beats = [], nm = (q) => this._rvPName(q);
     // v1.31 the luck of each roll / steal / card draw for this seat (src/review-luck.js), when computed
     const LKm = new Map(); try { if (!this._lkNa()) this._lkList(me).filter((x) => x.own).forEach((x) => LKm.set(x.ev.kind === "dice" ? `d${x.ev.s}` : `e${x.ev.e}`, x.w)); } catch (_) { /* no luck numbers */ }
@@ -1528,7 +1550,7 @@ export const ReviewGameMixin = {
       else if (c === "b" && b === "c") beats.push({ ...obj, chip: "city", head: `${nmA} built a city`, focus: { city: x } });
       else if (c === "R") beats.push({ ...obj, chip: "robber", head: `${nmA} moved the robber`, sub: `To ${this._hexName?.(b) ?? "another tile"}.`, focus: { hex: b } });
       else if (c === "t") beats.push({ ...obj, chip: "steal", head: `${nmA} stole a card`, sub: `From ${nm(b)}.${lkTxt(LKm.get(`e${g}`))}` });
-      else if (c === "x") beats.push({ ...obj, chip: "trade", head: `${nmA} traded with ${nm(b)}`, sub: `${x} for ${y} cards.` });
+      else if (c === "x") beats.push({ ...obj, chip: "trade", head: `${nmA} traded with ${nm(b)}`, sub: `${x} for ${y} card${y === 1 ? "" : "s"}.` });
       else if (c === "k") beats.push({ ...obj, chip: "bank", head: `${nmA} traded with the bank`, sub: `Gave ${x} ${RN[b]} for 1 ${RN[y]}.` });
       else if (c === "d") beats.push({ ...obj, chip: "7", head: `${nmA} handed back ${b} cards` });
       else if (c === "v") beats.push({ ...obj, chip: "card", head: `${nmA} bought a development card`, ...(LKm.has(`e${g}`) ? { sub: lkTxt(LKm.get(`e${g}`)).replace(/^ · l/, "L") } : {}) });

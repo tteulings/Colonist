@@ -1,6 +1,6 @@
 // v1.11 Review "Plan": the likely reason a better move (A) was stronger than the one played (B).
 // The Monte Carlo only says THAT A won more futures; this says what A does on the board, from the position
-// itself: spots and their pips, the road reach (g._aiRoadReach), Longest Road / Largest Army counts, ports,
+// itself: spots and their pips, the road reach (g._aiRoadReach), Longest road / Largest army counts, ports,
 // what the robber would hit, what a trade or a saved hand makes affordable. Everything below is read from the
 // engine standing on the recorded position (src/review/engine.js) or from the move's own label; nothing is
 // guessed. When no feature clearly separates A from B the answer is null and the screen shows nothing.
@@ -9,7 +9,7 @@
 //     plan: one short line about A · vs: one short line about B · head: the one-line reason (the "Could be better" card)
 //     mark: { nodes, edges, rivals } what to light up on the board besides A and B themselves
 // Pure reads: the few temporary edits (a road laid to look at the reach) are undone in a finally.
-const RN = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
+import { RES_EN as RN } from "../resources.js";
 const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
 const BY_NAME = Object.fromEntries(Object.entries(RN).map(([k, v]) => [v, k]));
 const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, dev: { sheep: 1, wheat: 1, ore: 1 } };
@@ -69,7 +69,7 @@ export function parseMove(label, focus, kind) {
   if (t) { trade = { give: t[1].split(" + ").map((x) => BY_NAME[x]).filter(Boolean), get: parseGet(t[2]) }; l = t[3]; }
   let m = null;
   if (kind === "setup" || /^Spot /.test(l)) m = { type: "setup", node: focus?.node };
-  else if (/^Road/.test(l) || /^Longest Road/.test(l)) m = { type: "road", edge: focus?.edge, target: focus?.node, lr: /Longest Road/.test(l) };
+  else if (/^Road/.test(l) || /^Longest road/i.test(l)) m = { type: "road", edge: focus?.edge, target: focus?.node, lr: /Longest road/i.test(l) };
   else if (/^Settlement .* \+\d+ roads?$/.test(l)) m = { type: "road", edge: focus?.edge, target: focus?.node }; // a settlement goal still roads away: the move is the road
   else if (/^Settlement/.test(l)) m = { type: "settlement", node: focus?.node };
   else if (/^City/.test(l)) m = { type: "city", node: focus?.city ?? focus?.node };
@@ -102,7 +102,7 @@ export function recMove(rec, focus, label) {
 }
 
 // ── road ──
-/** Everything about one road: where it leads, whom it blocks, the Longest Road count. */
+/** Everything about one road: where it leads, whom it blocks, the Longest road count. */
 export function roadCard(g, p, edge, hint = null, pre = null) {
   const G = g.geometry, own = pre?.own || ownPips(g, p);
   const R0 = pre?.R0 || g._aiRoadReach(p);
@@ -145,10 +145,10 @@ const lrRelevant = (c) => {
 };
 const lrText = (g, c) => {
   const { len1, holderLen, mine, holder } = c.lr;
-  if (mine) return `Longest Road ${len1} (lead ${len1 - holderLen})`;
-  if (holder == null) return len1 >= 5 ? `takes Longest Road (${len1})` : `Longest Road ${len1} of 5 needed`;
-  if (len1 > holderLen) return `takes Longest Road (${len1} vs ${holderLen})`;
-  return `Longest Road ${len1} vs ${holderLen} (${nm(g, holder)})`;
+  if (mine) return `Longest road ${len1} (lead ${len1 - holderLen})`;
+  if (holder == null) return len1 >= 5 ? `takes Longest road (${len1})` : `Longest road ${len1} of 5 needed`;
+  if (len1 > holderLen) return `takes Longest road (${len1} vs ${holderLen})`;
+  return `Longest road ${len1} vs ${holderLen} (${nm(g, holder)})`;
 };
 function roadPlan(g, p, mv, c) {
   const items = [], chips = [], t = c.target;
@@ -402,8 +402,8 @@ function explain1(g, p, rec, A, B) {
     const mine = p.knightsPlayed, holder = g.largestArmyHolder, hk = holder != null ? g.players[holder].knightsPlayed : 0;
     const rival = Math.max(0, ...g.players.filter((q) => q.id !== p.id).map((q) => q.knightsPlayed));
     const items = [], chips = [];
-    if (holder !== p.id && mine + 1 >= 3 && mine + 1 > Math.max(hk, 2)) { items.push(`takes Largest Army (${mine + 1} vs ${hk})`); chips.push("Largest Army"); }
-    else if (holder !== p.id && mine + 1 >= 2 && rival - (mine + 1) <= 1) { items.push(`Largest Army race: ${mine + 1} knights vs ${rival}`); chips.push("Army race"); }
+    if (holder !== p.id && mine + 1 >= 3 && mine + 1 > Math.max(hk, 2)) { items.push(`takes Largest army (${mine + 1} vs ${hk})`); chips.push("Largest army"); }
+    else if (holder !== p.id && mine + 1 >= 2 && rival - (mine + 1) <= 1) { items.push(`Largest army race: ${mine + 1} knights vs ${rival}`); chips.push("Army race"); }
     const rh = g.geometry.hexes[g.robberHexId], blocked = rh ? pipsOfOwn(g, p, rh.id) : 0;
     if (blocked >= 3) { items.push(`frees your ${g._hexName(g.robberHexId)} (−${blocked} dice dots)`); chips.push(`+${blocked} dice dots`); }
     return items.length ? done("dev", items, b.type === "end" ? "kept the Knight" : null, chips) : null;

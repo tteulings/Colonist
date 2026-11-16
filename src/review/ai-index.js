@@ -9,7 +9,7 @@ import { decMoves } from "./ai-blocks.js";
 import { stratOf, handLog, R5 } from "./ai-strat.js";
 import { luckKey, ownOf } from "../review-luck.js";
 import { swingCause } from "./ai-cause.js";
-import { langOf } from "./ai-lang.js";
+import { langOf, moveLabel } from "./ai-lang.js";
 import { recapLang } from "../review-recap.js";
 
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
@@ -48,12 +48,24 @@ export function buildFacts(g, lang = recapLang()) {
   fx.near = tryv(() => aiNearMiss(g, ser));
   // the reviewed player's decisions that cost win chance, biggest first
   fx.decs = tryv(() => aiDecList(g).filter((e) => e.seat === me && e.x?.best && e.gap >= 0.005 && e.turn >= 1).map((e) => {
-    const mv = tryv(() => decMoves(e)); if (!mv?.best || mv.played?.win == null || mv.best.win == null) return null;
+    const mv = tryv(() => decMoves(e, lang)); if (!mv?.best || mv.played?.win == null || mv.best.win == null) return null;
     return { turn: e.turn, seat: e.seat, gap: Math.round(e.gap * 100), vc: mv.vc || null, played: mv.played.label, best: mv.best.label, playedWin: mv.played.win, bestWin: mv.best.win, pos: !!(mv.played.focus || mv.best.focus), e };
   }).filter(Boolean).sort((a, b) => b.gap - a.gap), []);
   fx.decAt = (t) => fx.decs.find((d) => d.turn === t) || null;
   // the turns where a seat's win chance moved most (whole points), biggest first
   fx.swings = (q, k = 4) => { const out = []; for (const t of ser.by.keys()) { if (t < 1) continue; const c = wcChange(ser, q, t, t); if (c && c.d) out.push({ t, ...c }); } return out.sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, k); };
+  // the board: hex ids, the robber's moves per turn and the start spots, for the board primitive (src/review/ai-board.js) and the refs rob.<t>.* / setup.<p>.<n>
+  fx.board = tryv(() => {
+    const geo = g.geometry, st = g._st; if (!geo?.hexes?.length || !st?.stepEvents) return null;
+    const hexName = (id) => moveLabel(String(g._hexName(id)), fx.lang), spotName = (id) => moveLabel(String(g._spotLabel(id)), fx.lang);
+    const robber = [], setup = g.players.map(() => []); let cur = st.r0 ?? null;
+    for (let k = 0; k <= st.N; k++) (st.stepEvents[k] || []).forEach((e) => {
+      const [, c, a, b, x] = e;
+      if (c === "R") { const t = st.turnOf[k] ?? 0; const last = robber[robber.length - 1]; const m = { turn: t, seat: a, hex: b, from: cur }; if (last && last.turn === t) robber[robber.length - 1] = m; else robber.push(m); cur = b; }
+      else if (c === "b" && b === "s" && k === 0 && setup[a] && setup[a].length < 2) setup[a].push(x);
+    });
+    return { hexes: geo.hexes.map((h) => ({ id: h.id, res: h.resource, num: h.number || null })), robber: robber.filter((m) => m.turn >= 1 && m.hex != null && geo.hexes[m.hex]), setup, hexName, spotName };
+  });
   /** What happened in turn t (from the app): the cause of the biggest change of a seat, in words. */
   fx.cause = (t, q) => { const c = tryv(() => swingCause(g, t, q)); return c ? { actor: c.actor, text: t_.cause(c, nameOf), kind: c.kind, delta: c.delta, from: c.from, to: c.to } : null; };
 
@@ -105,6 +117,15 @@ export function buildFacts(g, lang = recapLang()) {
         if (p[2] === "played") return { v: d.played, k: "x" };
         if (p[2] === "best") return { v: d.best, k: "x" };
         return null;
+      }
+      case "rob": { // rob.<turn>.hex | rob.<turn>.by : where the robber went in that turn, and who moved it
+        const m = fx.board && /^\d+$/.test(p[1] ?? "") ? fx.board.robber.find((r) => r.turn === +p[1]) : null; if (!m) return null;
+        if (p[2] === "hex") return { v: fx.board.hexName(m.hex), k: "x" };
+        if (p[2] === "by") return g.players[m.seat] ? { v: m.seat, k: "player" } : null;
+        return null;
+      }
+      case "setup": { // setup.<player>.<1|2> : the start spots of a player, as their hexes ("Graan 9, Erts 6")
+        const q = seat(p[1]), n = +p[2], id = q == null || !fx.board ? null : fx.board.setup[q]?.[n - 1]; return id == null ? null : { v: fx.board.spotName(id), k: "x" };
       }
       case "strat": {
         const q = seat(p[1]), s = q == null ? null : fx.strat[q]; if (!s) return null;

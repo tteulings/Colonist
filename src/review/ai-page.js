@@ -43,6 +43,7 @@ export function partsOk(parts, fx, { words = CAPS.words } = {}) {
 
 const key = (fx, k) => { const q = fx.seatOf(k); return q >= 0 ? q : null; };
 const numRef = (fx, r) => { const v = typeof r === "string" ? tryv(() => fx.ref(r)) : null; return v && (v.k === "n" || v.k === "pct") ? v : null; };
+const tileRef = (fx, r) => { const v = typeof r === "string" ? tryv(() => fx.ref(r)) : null; return v && (v.k === "n" || v.k === "pct" || v.k === "x" || v.k === "turn") ? v : null; }; // a tile can also say a word (the set-up spots) or a turn
 const label = (s) => (typeof s === "string" && textOk(s, CAPS.label) && s.trim() ? s.trim() : null);
 
 /** One primitive -> a normalised block or null. */
@@ -78,7 +79,7 @@ export function blockOk(b, fx) {
       for (const it of (Array.isArray(b.items) ? b.items : []).slice(0, CAPS.tiles)) {
         if (!it) continue;
         if (it.kind === "num") {
-          const lb = label(it.label); if (!lb || !numRef(fx, it.ref)) continue;
+          const lb = label(it.label); if (!lb || !tileRef(fx, it.ref)) continue;
           const of = it.of && numRef(fx, it.of) ? it.of : null, sub = it.subIf && tryv(() => fx.ref(it.subIf)) && it.sub ? partsOk(it.sub, fx, { words: 10 }) : null;
           items.push({ kind: "num", label: lb, ref: it.ref, of, subIf: sub ? it.subIf : null, sub });
         } else if (it.kind === "startfeed") { const q = key(fx, it.player); if (q != null && fx.strat[q]?.feeds) items.push({ kind: "startfeed", player: it.player }); }
@@ -87,7 +88,18 @@ export function blockOk(b, fx) {
       return items.length ? { p: "tiles", items } : null;
     }
     case "compare": return isInt(b.dec) && fx.decAt(b.dec) ? { p: "compare", dec: b.dec } : null;
-    case "board": return isInt(b.turn) && fx.decAt(b.turn)?.pos ? { p: "board", turn: b.turn } : null;
+    case "board": { // a decision (dec: played vs better), or a moment: set-up spots (turn 0), where the robber went (show robber), a player's network (players + turn), highlighted hexes
+      const bd = fx.board, seats = (Array.isArray(b.players) ? b.players : []).filter((k, i, a) => key(fx, k) != null && a.indexOf(k) === i).slice(0, 3);
+      const hexes = [...new Set((Array.isArray(b.hexes) ? b.hexes : []).filter((h) => isInt(h) && bd?.hexes.some((x) => x.id === h)))].slice(0, 4);
+      const rob = Array.isArray(b.show) && b.show.includes("robber");
+      let dec = isInt(b.dec) ? b.dec : null, turn = isInt(b.turn) && b.turn >= 0 && b.turn <= T ? b.turn : null;
+      if (dec == null && turn != null && !seats.length && !hexes.length && !rob && fx.decAt(turn)?.pos) { dec = turn; turn = null; } // the v1.83 shape {p:"board", turn: <decision turn>}
+      if (dec != null && fx.decAt(dec)?.pos) return { p: "board", dec, turn: null, players: [], hexes: [], robber: false };
+      if (dec != null && turn == null) turn = isInt(dec) && dec >= 0 && dec <= T ? dec : null; // no such decision: the turn may still be a moment (robber / network)
+      if (!bd || !(seats.length || hexes.length || rob)) return null;
+      if (rob && !bd.robber.some((m) => m.turn === turn)) return null;
+      return { p: "board", dec: null, turn: turn ?? T, players: seats, hexes, robber: rob };
+    }
     case "badge": { const q = key(fx, b.player), s = q == null ? null : fx.strat[q]; return s?.verdict ? { p: "badge", player: b.player } : null; }
     case "table": return b.of === "luck" && fx.luck ? { p: "table", of: "luck" } : null;
     case "text": { const parts = partsOk(b.parts, fx, { words: 18 }); return parts ? { p: "text", parts, link: !!b.link } : null; }
@@ -104,7 +116,7 @@ export function sigsOf(b) {
     case "stack": return [`stack|${b.player}`];
     case "tiles": return b.items.map((i) => (i.kind === "num" ? `num|${i.ref}|${i.of || ""}` : i.kind === "startfeed" ? `startfeed|${i.player}` : "miss"));
     case "compare": return [`compare|${b.dec}`];
-    case "board": return [`board|${b.turn}`];
+    case "board": return [b.dec != null ? `board|dec|${b.dec}` : `board|${b.turn}|${b.players.join(",")}|${b.hexes.join(",")}|${b.robber ? "r" : ""}`];
     case "badge": return [`badge|${b.player}`];
     case "table": return [`table|${b.of}`];
     case "text": return [`text|${JSON.stringify(b.parts)}`];
@@ -140,7 +152,7 @@ const titleFallback = (w, fx) => { const q = w.who != null ? key(fx, w.who) : nu
 export function turnsOf(w, fx) {
   const out = new Set(), walk = (parts) => (parts || []).forEach((p) => { if (p?.ref) { const r = tryv(() => fx.ref(p.ref)); if (r?.k === "turn") out.add(r.v); const m = /@(\d+)$/.exec(p.ref); if (m) out.add(+m[1]); } if (p?.dir) p.dir.forEach((d) => { const m = /@(\d+)$/.exec(d); if (m) out.add(+m[1]); }); });
   walk(w.title); (w.notes || []).forEach(walk);
-  [...w.blocks, ...(w.expand || [])].forEach((b) => { if (b.p === "line") (b.marks || []).forEach((t) => out.add(t)); if (b.p === "compare") out.add(b.dec); if (b.p === "board") out.add(b.turn); if (b.p === "text") walk(b.parts); });
+  [...w.blocks, ...(w.expand || [])].forEach((b) => { if (b.p === "line") (b.marks || []).forEach((t) => out.add(t)); if (b.p === "compare") out.add(b.dec); if (b.p === "board") { if (b.dec != null) out.add(b.dec); else if (b.robber || b.turn < fx.T) out.add(b.turn); } if (b.p === "text") walk(b.parts); });
   return [...out].filter((t) => Number.isInteger(t) && t >= 0 && t <= fx.T).sort((a, b) => a - b);
 }
 
@@ -162,7 +174,7 @@ export function validatePage(spec, fx) {
     const req = (Array.isArray(w0.requires) ? w0.requires : []).every((r) => tryv(() => fx.ref(r)));
     w.title = req ? partsOk(w0.title, fx) : null;
     if (!w.title) { w.title = titleFallback(w, fx); w.titleFallback = true; dropped.push({ id, why: req ? "title invalid" : "requires failed" }); }
-    if (w0.chip && typeof w0.chip === "object") { const r = numRef(fx, w0.chip.ref); if (r && ["sgpct", "pct", "n"].includes(w0.chip.fmt)) w.chip = { ref: w0.chip.ref, fmt: w0.chip.fmt, tone: w0.chip.tone === "up" || w0.chip.tone === "dn" ? w0.chip.tone : null }; }
+    if (w0.chip && typeof w0.chip === "object") { const r = numRef(fx, w0.chip.ref); if (r && ["sgpct", "pct", "n"].includes(w0.chip.fmt)) w.chip = { ref: w0.chip.ref, fmt: w0.chip.fmt, tone: r.v > 0 ? "up" : r.v < 0 ? "dn" : null }; } // the tone is the sign of the value (the app decides, a model cannot contradict the number)
     const valid = (l) => (Array.isArray(l) ? l : []).map((b) => { const v = blockOk(b, fx); if (!v) dropped.push({ id, why: `block ${b?.p} invalid` }); return v; }).filter(Boolean);
     w.blocks = keep(valid(w0.blocks), seen, CAPS.blocks, dropped, id);
     w.expand = keep(valid(w0.expand), seen, CAPS.expand, dropped, id);
@@ -220,7 +232,7 @@ export function recipePage(fx) {
   if (d) {
     widgets.push({ id: "dec", level: "Decision", short: t.short_.dec, chip: { ref: `dec.${d.turn}.neg`, fmt: "sgpct", tone: "dn" },
       title: [r.dec.a, R(`turn.${d.turn}`), r.dec.b, R(`dec.${d.turn}.gap`, "pct"), r.dec.c],
-      blocks: [{ p: "compare", dec: d.turn }], expand: d.pos ? [{ p: "board", turn: d.turn }] : [],
+      blocks: [{ p: "compare", dec: d.turn }], expand: d.pos ? [{ p: "board", dec: d.turn }] : [],
       notes: [[r.decN]] });
   }
   // 3. waiting on one resource while holding cards (the stalled / start tiles live on the plan card: no repeat here)

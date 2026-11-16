@@ -1,7 +1,7 @@
 // End-of-game statistics, part 2: what the player sees when the game is over.
 //
 //   1. the winning-move count — the winner's points counted ON the board (+1 per settlement, +2 per city,
-//      the road network for Longest Road, +2 at the chip for Largest Army, +1 per VP card), ≤ 1.2 s
+//      the road network for Longest road, +2 at the chip for Largest army, +1 per VP card), ≤ 1.2 s
 //   2. a short transition — you won: your portrait bounces in over a sunburst and a fast timelapse of the
 //      game, confetti in the house colours; you lost: the winner's portrait slides in with a friendly nod
 //   3. the recap (always on top): final scores, three one-line highlights, turns / time / your rank, and
@@ -14,6 +14,7 @@
 // at low contrast with ONE accent (the theme's primary teal); heat = one warm gold ramp (--gs-heat).
 // Styles: themes/stats.css.
 import { icon, dieSvg, motionReduced } from "./themes/manager.js";
+import { oicon } from "./ui-icons.js";
 import { SEAT_PERSONAS } from "./themes/portraits.js";
 import { TERRAIN_NAME } from "./themes/art-util.js";
 import { RES, computeStats } from "./stats.js";
@@ -88,6 +89,7 @@ export const StatsUiMixin = {
    *  no intro and no timelapse (it raced through the whole game, ~30 rolls a second, before the recap appeared). */
   showGameOverOverlay(opts = {}) {
     if (document.querySelector(".game-over-overlay")) return;
+    this._dismissChipHint?.(); // v1.87: the first-game hint never sits on the end screen
     this.hideTradePanel();
     this.toggleBuildSheet?.(false);
     const st = this._stCompute();
@@ -240,8 +242,8 @@ export const StatsUiMixin = {
     if (human) {
       const ph = st.pHex[human.id];
       const best = ph.indexOf(Math.max(...ph));
-      if (ph[best] > 0) out.push({ ic: "settlement", text: `Your best tile: ${this._stTile(best)} · ${ph[best]} cards` });
-    } else if (w) out.push({ ic: "cards", text: `${w.name} collected ${st.prodTot[w.id]} cards` });
+      if (ph[best] > 0) out.push({ ic: "settlement", text: `Your best tile: ${this._stTile(best)} · ${ph[best]} card${ph[best] === 1 ? "" : "s"}` });
+    } else if (w) out.push({ ic: "cards", text: `${w.name} collected ${st.prodTot[w.id]} card${st.prodTot[w.id] === 1 ? "" : "s"}` });
     if (st.N) out.push({ ic: "dice", text: this._stDiceText(st) });
     return out.slice(0, 3);
   },
@@ -268,24 +270,24 @@ export const StatsUiMixin = {
     const rays = Array.from({ length: 16 }, (_, k) => { const a0 = k * Math.PI / 8 - 0.09, a1 = k * Math.PI / 8 + 0.09; return `<path d="M0,0 L${210 * Math.cos(a0)},${210 * Math.sin(a0)} A210,210 0 0 1 ${210 * Math.cos(a1)},${210 * Math.sin(a1)}Z"/>`; }).join("");
     intro.innerHTML = `${st && !reduced ? `<canvas class="gs-tl-bg"></canvas>` : ""}<div class="gs-intro-dim"></div>
       ${won ? `<svg class="gs-rays" viewBox="-210 -210 420 420" aria-hidden="true"><defs><radialGradient id="stRayG"><stop offset=".15" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient><mask id="stRayM"><circle r="210" fill="url(#stRayG)"/></mask></defs><g mask="url(#stRayM)">${rays}</g></svg><div class="gs-confetti"></div>
-        <div class="gs-hero">${this._stPortrait(winner.id, "gs-hero-por", 150)}</div><h2>${this._stWinsText(winner)}</h2><div class="gs-vpn"><b>0</b> points</div>`
+        <div class="gs-hero">${this._stPortrait(winner.id, "gs-hero-por", 150)}</div><h2>${this._stWinsText(winner)}</h2><div class="gs-vpn"><b>0</b> <span class="gs-vpn-u">points</span></div>`
         : `<div class="gs-lose-card">${this._stPortrait(winner.id, "gs-nod", 96)}<h2>${winner.name} wins</h2><p>${human ? `Well played · you finished ${ord(rank)}` : `${winner.victoryPoints} points`}</p>${human ? this._stPortrait(human.id, "gs-shrug", 40) : ""}</div>`}
       <div class="gs-skip">tap to continue</div>`;
     overlay.appendChild(intro);
     overlay.classList.add("intro");
-    const dur = reduced ? 1100 : won ? 2050 : 1600;
+    const dur = reduced ? 1100 : won ? 2600 : 1600; // v1.86 r7: the winner's confetti needs its time
     let tl = null;
     if (st && !reduced) {
       const cv = intro.querySelector(".gs-tl-bg");
       tl = this._rpTimelapse(cv, Math.min(dur, 2400), null);
     }
     if (won && !reduced) {
-      const b = intro.querySelector(".gs-vpn b");
+      const b = intro.querySelector(".gs-vpn b"), u = intro.querySelector(".gs-vpn-u");
       const t0 = performance.now(), target = winner.victoryPoints;
-      const tick = () => { const k = Math.min(1, (performance.now() - t0 - 350) / 900); b.textContent = Math.max(0, Math.round(target * Math.max(0, k))); if (k < 1 && intro.isConnected) requestAnimationFrame(tick); };
+      const tick = () => { const k = Math.min(1, (performance.now() - t0 - 350) / 900); const n = Math.max(0, Math.round(target * Math.max(0, k))); b.textContent = n; if (u) u.textContent = n === 1 ? "point" : "points"; if (k < 1 && intro.isConnected) requestAnimationFrame(tick); };
       requestAnimationFrame(tick);
       this._stConfetti(intro.querySelector(".gs-confetti"));
-    } else if (won) intro.querySelector(".gs-vpn b").textContent = winner.victoryPoints;
+    } else if (won) { intro.querySelector(".gs-vpn b").textContent = winner.victoryPoints; if (winner.victoryPoints === 1) intro.querySelector(".gs-vpn-u").textContent = "point"; }
     let ended = false;
     const end = () => {
       if (ended) return;
@@ -308,14 +310,25 @@ export const StatsUiMixin = {
     const cols = this.players.map((p) => cs.getPropertyValue(`--p${p.id}`).trim() || "#D9714E");
     let seed = 11;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < 34; i += 1) {
+    // v1.86 r7: three origins, 120 pieces: a rain from the top and a cannon from each lower corner that throws up and across, then falls
+    const W = innerWidth, H = innerHeight;
+    for (let i = 0; i < 120; i += 1) {
       const el = document.createElement("i");
-      el.style.left = `${rnd() * 100}%`;
+      const kind = i % 3; // 0 rain, 1 left cannon, 2 right cannon
+      const x0 = kind === 0 ? rnd() * W : kind === 1 ? -6 : W + 6, y0 = kind === 0 ? -20 : H * (0.62 + rnd() * 0.12);
+      el.style.left = "0px"; el.style.top = "0px";
       el.style.background = cols[i % cols.length];
+      if (i % 4 === 0) el.style.borderRadius = "50%";
       box.appendChild(el);
-      const x = (rnd() - 0.5) * 120, rot = 240 + rnd() * 500, fall = innerHeight * (0.7 + rnd() * 0.3);
-      el.animate([{ transform: "translate(0,-20px) rotate(0)", opacity: 1 }, { transform: `translate(${x}px,${fall}px) rotate(${rot}deg)`, opacity: 0.1 }],
-        { duration: 1600 + rnd() * 600, delay: 120 + rnd() * 420, easing: "cubic-bezier(.3,.1,.6,1)", fill: "both" });
+      const rot = 240 + rnd() * 600, dir = kind === 1 ? 1 : -1;
+      const fall = kind === 0 ? H * (0.8 + rnd() * 0.25) : H * (0.95 + rnd() * 0.15);
+      const frames = kind === 0
+        ? [{ transform: `translate(${x0}px,${y0}px) rotate(0)`, opacity: 1 }, { transform: `translate(${x0 + (rnd() - 0.5) * 140}px,${fall}px) rotate(${rot}deg)`, opacity: 0.15 }]
+        : (() => { const up = H * (0.22 + rnd() * 0.3), reach = W * (0.25 + rnd() * 0.5); return [
+            { transform: `translate(${x0}px,${y0}px) rotate(0)`, opacity: 1 },
+            { transform: `translate(${x0 + dir * reach * 0.55}px,${y0 - up}px) rotate(${rot * 0.45}deg)`, opacity: 1, offset: 0.38 },
+            { transform: `translate(${x0 + dir * reach}px,${fall}px) rotate(${rot}deg)`, opacity: 0.15 }]; })();
+      el.animate(frames, { duration: (kind === 0 ? 1700 : 2100) + rnd() * 700, delay: (kind === 0 ? 120 : 60) + rnd() * 520, easing: "cubic-bezier(.3,.1,.6,1)", fill: "both" });
     }
   },
 
@@ -368,20 +381,20 @@ export const StatsUiMixin = {
 
   /** Where the points came from (final): adds up to every player's score. */
   _stCardSources(st) {
-    const parts = [["settlements", "settlement", "Settlements"], ["cities", "city", "Cities"], ["road", "longestRoad", this.sea ? "Longest Trade Route" : "Longest Road"], ["army", "largestArmy", "Largest Army"], ["cards", "vp", "Point cards"], ["islands", "settlement", "Islands"]];
+    const parts = [["settlements", "settlement", "Settlements"], ["cities", "city", "Cities"], ["road", "longestRoad", this.sea ? "Longest trade route" : "Longest road"], ["army", "largestArmy", "Largest army"], ["cards", "vp", "Point cards"], ["islands", "settlement", "Islands"]];
     const used = parts.filter(([k]) => st.sources.some((s) => s[k] > 0));
     const maxV = Math.max(...st.sources.map((s) => s.total), 1);
     const ranked = [...this.players].sort((a, b) => b.victoryPoints - a.victoryPoints);
     const rows = ranked.map((p) => {
       const s = st.sources[p.id];
       let acc = 0;
-      const segs = used.map(([k], i) => { const v = s[k]; if (!v) return ""; const seg = `<rect class="gs-seg s${i}" x="${(acc / maxV) * 100}%" width="calc(${(v / maxV) * 100}% - 2px)" height="16" rx="4"/>`; acc += v; return seg; }).join("");
+      const segs = used.map(([k], i) => { const v = s[k]; if (!v) return ""; const seg = `<rect class="gs-seg s${i} k-${k}" x="${(acc / maxV) * 100}%" width="calc(${(v / maxV) * 100}% - 2px)" height="16" rx="4"/>`; acc += v; return seg; }).join("");
       return `<div class="gs-row" data-pid="${p.id}" data-sum="${s.total}" data-vp="${p.victoryPoints}">${this._stPortrait(p.id, "", 26)}<svg class="gs-bar" height="16">${segs}</svg><b>${s.total}</b></div>`;
     }).join("");
     const w = st.sources[st.winner], wn = this._stName(this.players[st.winner]);
     const top = used.reduce((b, [k, , l]) => (w[k] > (b?.v || 0) ? { k, l, v: w[k] } : b), null);
     const title = top ? `${top.l} gave ${wn === "You" ? "you" : wn} ${top.v} of ${w.total} points` : "Where the points came from";
-    const legend = `<div class="gs-legend neutral">${used.map(([, ic, l], i) => `<span><i class="s${i}"></i>${l}</span>`).join("")}</div>`;
+    const legend = `<div class="gs-legend neutral">${used.map(([k, , l], i) => `<span><i class="s${i} k-${k}"></i>${l}</span>`).join("")}</div>`;
     return this._stCard("sources", title, "Points by source", `<div class="gs-rows">${rows}</div>${legend}`);
   },
 
@@ -481,9 +494,9 @@ export const StatsUiMixin = {
     if (sw.d > 0) rows.push({ ic: "vp", text: `${this._stName(P(sw.pid))} +${sw.d} point${sw.d > 1 ? "s" : ""} in ${tw} ${st.turnOf[sw.s]}` });
     if (sw.d >= 2 || !st.leadChanges) rows.push({ ic: "dice", text: st.leadChanges ? `The lead changed hands ${st.leadChanges}×` : "One leader all game" }); // (otherwise it is the card title)
     const lr = st.awards.filter((a) => a.kind === "L");
-    if (lr.length) { const last = lr[lr.length - 1]; rows.push({ ic: "longestRoad", text: `${this.sea ? "Longest Trade Route" : "Longest Road"}: ${lr.length > 1 ? `${lr.length} changes, ` : ""}${last.pid >= 0 ? `${this._stName(P(last.pid))} from ${tw} ${st.turnOf[last.s]}` : "nobody at the end"}` }); }
+    if (lr.length) { const last = lr[lr.length - 1]; rows.push({ ic: "longestRoad", text: `${this.sea ? "Longest trade route" : "Longest road"}: ${lr.length > 1 ? `${lr.length} changes, ` : ""}${last.pid >= 0 ? `${this._stName(P(last.pid))} from ${tw} ${st.turnOf[last.s]}` : "nobody at the end"}` }); }
     const la = st.awards.filter((a) => a.kind === "A");
-    if (la.length) { const last = la[la.length - 1]; rows.push({ ic: "largestArmy", text: `Largest Army: ${last.pid >= 0 ? `${this._stName(P(last.pid))} from ${tw} ${st.turnOf[last.s]}` : "nobody at the end"}` }); }
+    if (la.length) { const last = la[la.length - 1]; rows.push({ ic: "largestArmy", text: `Largest army: ${last.pid >= 0 ? `${this._stName(P(last.pid))} from ${tw} ${st.turnOf[last.s]}` : "nobody at the end"}` }); }
     const rt = st.robberTurns, rb = rt.indexOf(Math.max(...rt));
     if (rt[rb] > 0) rows.push({ ic: "robber", text: `The robber sat on ${this._stTile(rb)} for ${rt[rb]} ${tw}s${st.hexBlocked[rb] ? `, blocking ${st.hexBlocked[rb]} cards` : ""}` });
     const builds = this.players.map((p) => { const b = st.built[p.id]; return b.road + b.settlement + b.city + b.ship; });
@@ -523,7 +536,7 @@ export const StatsUiMixin = {
     v = land;
     if (!v[best]) return kind === "robber" ? "The robber stayed home" : kind === "income" ? `${this._stName(this.players[pid])} got nothing from the dice` : "No tile paid out";
     const tile = this._stTile(best);
-    if (kind === "prod") return `${cap(tile)} paid out most: ${v[best]} cards`;
+    if (kind === "prod") return `${cap(tile)} paid out most: ${v[best]} card${v[best] === 1 ? "" : "s"}`;
     if (kind === "robber") return !this.winner && !st.robberMoves && best === st.r0 ? `The robber hasn't moved yet` : `The robber liked ${tile}: ${v[best]} ${this._stTurnWord()}s`;
     const p = this.players[pid];
     return `${this._you(p) ? "Your" : `${p.name}'s`} best tile: ${tile} · ${v[best]} cards`;
@@ -783,7 +796,7 @@ export const StatsUiMixin = {
           <button type="button" class="gs-rp-play" aria-label="Pause"><svg viewBox="0 0 20 20" aria-hidden="true"><path class="pz" d="M5 3h3.4v14H5zM11.6 3H15v14h-3.4z"/><path class="pl" d="M6 3.2v13.6c0 .8.9 1.3 1.6.8l9.4-6.8c.6-.4.6-1.2 0-1.6L7.6 2.4C6.9 1.9 6 2.4 6 3.2z"/></svg></button>
           <button type="button" class="gs-rp-step" data-rpstep="1" aria-label="Next turn">${IC("M16 3h-2.6v14H16zM3.6 3.6v12.8c0 .8.9 1.3 1.6.8l7.3-6c.7-.5.7-1.6 0-2.1L5.2 2.8c-.7-.5-1.6 0-1.6.8z")}</button>
           <div class="gs-rp-cap" aria-live="polite"><b></b><span></span></div>
-          <button type="button" class="gs-rp-x" aria-label="Close replay">✕</button></div>
+          <button type="button" class="gs-rp-x" aria-label="Close replay">${oicon("close")}</button></div>
         <div class="gs-rp-tlw"><div class="gs-rp-su" hidden role="img" aria-label="Win chance through the set-up, tap or drag to place the board"><svg class="gs-rp-suc" viewBox="0 0 1 100" preserveAspectRatio="none" aria-hidden="true"></svg><div class="gs-rp-sud" aria-hidden="true"></div><i class="gs-rp-suk" aria-hidden="true"></i></div>
         <div class="gs-rp-tl"><svg class="gs-rp-chart" viewBox="0 0 ${Math.max(1, st.N)} 100" preserveAspectRatio="none" aria-hidden="true"></svg><div class="gs-rp-dots" aria-hidden="true"></div><i class="gs-rp-cur" aria-hidden="true"></i>
           <input type="range" class="gs-rp-scrub" min="0" max="${st.N}" value="0" step="1" aria-label="${this.isRush() ? "Roll" : "Turn"}"></div></div>

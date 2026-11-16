@@ -55,7 +55,8 @@ export function youIndex(metas) {
 // ── pieces ───────────────────────────────────────────────────────────────────────────────────────
 const dotsHtml = (n, beyond) => `<span class="bpg-dots" aria-hidden="true">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}${beyond ? `<i class="star"></i>` : ""}</span>`;
 const lvText = (r) => `strength ${r.p.level} of 5${r.p.beyond ? " plus a star" : ""}`;
-const emb = (key, s = 20) => `<span class="bpg-em">${profileMini(key, s)}</span>`;
+const TIER = { beginner: "ore", simple: "ore", intermediate: "wood", trader: "wood", builder: "wood", shark: "wood", expert: "brick", master: "wheat", super: "wheat", superplus: "wheat", grandmaster: "wheat" }; // data keeps colour: a medal per tier, in the chart palette
+const emb = (key, s = 20) => `<span class="bpg-em t-${TIER[key] || "ore"}">${profileMini(key, s)}</span>`;
 const inner = (key) => profileMini(key, 100).replace(/^<svg[^>]*>/, "").replace(/<\/svg>$/, "");
 const tag = (label) => `<span class="bpg-tag t-${label.replace(" ", "-")}">${label}</span>`;
 
@@ -126,10 +127,10 @@ function ladderSvg(W) {
   const R = rows().filter(plain).sort((a, b) => b.win.v - a.win.v);
   // bot-125: the scale grows with the strongest bot's interval (the search bots reach past 70%), at least 0–55
   const D = Math.max(55, Math.ceil((Math.max(0, ...R.map((b) => b.win.v + (b.win.ci || 0))) + 2) / 5) * 5);
-  const x0 = 104, x1 = W - 66, S = (x1 - x0) / D, X = (v) => x0 + v * S, top = 30, rh = 44, H = top + R.length * rh + 22, r = 9;
+  const x0 = 104, x1 = W - 66, S = (x1 - x0) / D, X = (v) => x0 + v * S, top = 30, rh = 50, H = top + R.length * rh + 8, r = 12;
   let s = `<svg class="bpg-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="group" aria-label="Strength ladder: win chance of each bot with its likely range. Dashed line is 25 wins out of 100, an even share. Tap a bot to open its profile.">`;
-  [0, 10, 20, 30, 40, 50, 60, 70, 80, 90].filter((v) => v <= D).forEach((v) => (s += `<line class="g" x1="${X(v)}" x2="${X(v)}" y1="${top - 8}" y2="${H - 22}"/>`));
-  s += `<line class="ref" x1="${X(25)}" x2="${X(25)}" y1="${top - 8}" y2="${H - 22}"/>`;
+  [0, 25, 50, 75, 100].filter((v) => v <= D).forEach((v) => (s += `<line class="g" x1="${X(v)}" x2="${X(v)}" y1="${top - 8}" y2="${H - 8}"/>`));
+  s += `<line class="ref" x1="${X(25)}" x2="${X(25)}" y1="${top - 8}" y2="${H - 8}"/>`;
   [[0, "0"], [25, "25 = even"], [50, "50"], [75, "75"]].filter(([v]) => v <= D).forEach(([v, t]) => (s += `<text x="${X(v)}" y="14" text-anchor="middle"${v === 25 ? ' class="b"' : ""}>${t}</text>`));
   R.forEach((b, i) => {
     const y = top + i * rh + rh / 2, w = b.win, est = w.label === "estimate";
@@ -139,11 +140,11 @@ function ladderSvg(W) {
     for (let k = 0; k < 5; k++) s += `<rect class="dia${k < b.p.level ? " on" : ""}" x="${17 + k * 11}" y="${y + 6}" width="6.5" height="6.5" rx="1.5" transform="rotate(45 ${20.2 + k * 11} ${y + 9.2})"/>`;
     if (b.p.beyond) s += `<path class="dia star" transform="translate(${17 + 5 * 11 - 1},${y + 4.5})" d="M5 0l1.2 3.6H10L7 5.8 8.1 9.5 5 7.3 1.9 9.5 3 5.8 0 3.6h3.8z"/>`; // lab-131: the Supers' star, as in the list
     s += `<line class="stem" x1="${X(0)}" x2="${X(w.v)}" y1="${y}" y2="${y}"/>`;
-    if (!est) s += `<g class="iv"><line x1="${X(w.v - w.ci)}" x2="${X(w.v + w.ci)}" y1="${y}" y2="${y}"/><line x1="${X(w.v - w.ci)}" x2="${X(w.v - w.ci)}" y1="${y - 14}" y2="${y + 14}"/><line x1="${X(w.v + w.ci)}" x2="${X(w.v + w.ci)}" y1="${y - 14}" y2="${y + 14}"/></g>`;
-    s += `<g transform="translate(${X(w.v)},${y})"><circle r="${r}" class="disc"/><g transform="translate(${-r + 1.5},${-r + 1.5}) scale(${(2 * r - 3) / 100})">${inner(b.key)}</g><circle r="${r}" class="ring${est ? " est" : ""}" style="stroke-opacity:${0.4 + b.p.level * 0.12}"/></g>`;
+    s += `<g class="mk t-${TIER[b.key] || "ore"}" transform="translate(${X(w.v)},${y})"><circle r="${r}" class="disc"/><g transform="translate(${-r + 1.5},${-r + 1.5}) scale(${(2 * r - 3) / 100})">${inner(b.key)}</g><circle r="${r}" class="ring${est ? " est" : ""}" style="stroke-opacity:${0.4 + b.p.level * 0.12}"/></g>`;
+    if (!est) s += `<g class="iv thin"><line x1="${X(w.v - w.ci)}" x2="${X(w.v + w.ci)}" y1="${y + r + 6}" y2="${y + r + 6}"/><line x1="${X(w.v - w.ci)}" x2="${X(w.v - w.ci)}" y1="${y + r + 2.5}" y2="${y + r + 9.5}"/><line x1="${X(w.v + w.ci)}" x2="${X(w.v + w.ci)}" y1="${y + r + 2.5}" y2="${y + r + 9.5}"/></g>`;
     s += `<text class="v" x="${W}" y="${y - 1}" text-anchor="end">${est ? "~" + Math.round(w.v) : f1(w.v)}</text><text x="${W}" y="${y + 13}" text-anchor="end">${est ? "estimate" : `${f1(Math.max(0, w.v - w.ci))}–${f1(w.v + w.ci)}`}</text></g>`;
   });
-  s += `<text x="${X(D / 2)}" y="${H - 3}" text-anchor="middle">win chance, %</text></svg>`;
+  s += `<text x="0" y="14">win chance, %</text></svg>`; // v1.87: the axis name sits with the ticks, at the top
   return s;
 }
 const ladderCard = (W) => `<section class="bpg-card bpg-hero" aria-labelledby="bpgLadH"><h2 id="bpgLadH">Strength ladder</h2>

@@ -13,6 +13,7 @@
 // development card identities, stolen cards only as counts. In pass & play "you" = the phone holder.
 // Styles: themes/stats.css (the .ls-* block).
 import { RES, computeStats } from "./stats.js";
+import { oicon } from "./ui-icons.js";
 
 const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
 const W = 300;
@@ -58,7 +59,7 @@ export const LiveStatsMixin = {
     el.setAttribute("aria-label", "Live stats");
     el.innerHTML = `<div class="ls-head"><span class="ls-grab" aria-hidden="true"></span>
         <h3>${CHART_IC}Live stats <small class="ls-when"></small></h3>
-        <button type="button" class="btn ghost icon-only ls-x" aria-label="Close stats">✕</button></div>
+        <button type="button" class="btn ghost icon-only ls-x" aria-label="Close stats">${oicon("close")}</button></div>
       <div class="ls-chips" role="tablist">${CARDS.map(([k, l], i) => `<button type="button" role="tab" class="ls-chip${i ? "" : " on"}" data-go="${k}" aria-selected="${i ? "false" : "true"}">${k === "map-robber" && this.sea ? "Robber &amp; pirate" : l}</button>`).join("")}</div>
       <div class="ls-track gs-pane">${CARDS.map(([k]) => `<div class="ls-slot" data-slot="${k}"></div>`).join("")}</div>`;
     host.appendChild(el);

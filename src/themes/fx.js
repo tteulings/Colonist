@@ -275,7 +275,7 @@ export class Fx {
     this.later([el], 800);
   }
 
-  // ── badge transfer (Longest Road / Largest Army) ────────────────────────
+  // ── badge transfer (Longest road / Largest army) ────────────────────────
   badge(kind, fromId, toId) {
     const g = this.game;
     const to = rect(g.playerAnchor(toId));
