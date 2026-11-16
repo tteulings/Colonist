@@ -518,7 +518,9 @@ export const ReviewGameMixin = {
     const LK = this._lkState?.();
     if (!LK || LK.na || !LK.done || LK.cover < 0.9 || !this._st || !this.winner) return null;
     const L = this._lkStore(), by = new Map();
-    this._lkEvents().forEach((e) => { if (e.kind !== "dice") return; const r = L.res[luckKey(e)]; if (r?.b && r.l) by.set(e.s + 1, { b: r.b, a: r.b.map((v, q) => v + (r.l[q] || 0)), roll: e.roll }); });
+    // v1.86.2 the estimates of the seats are independent runs (their sum drifts 84-111%): every moment is shown normalised to 100%, as on the AI tab
+    const norm = (v) => { const t = v.reduce((a, c) => a + (c || 0), 0); return t > 0 && Math.abs(t - 1) > 1e-9 ? v.map((c) => (c || 0) / t) : v; };
+    this._lkEvents().forEach((e) => { if (e.kind !== "dice") return; const r = L.res[luckKey(e)]; if (r?.b && r.l) by.set(e.s + 1, { b: norm(r.b), a: norm(r.b.map((v, q) => v + (r.l[q] || 0))), roll: e.roll }); });
     if (by.size < 3) return null;
     const keys = [...by.keys()].sort((x, y) => x - y), res = this.players.map((p) => (p.id === this.winner.id ? 1 : 0));
     return { steps: keys.map((S, i) => { const nx = by.get(keys[i + 1]); return { S, b: by.get(S).b, a: by.get(S).a, e: nx ? nx.b : res, roll: by.get(S).roll }; }) };

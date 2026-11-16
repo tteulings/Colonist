@@ -339,3 +339,11 @@ b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { c
 .ap-feed { flex-wrap: wrap; row-gap: 2px; } .ap-feed .fd { margin: 0; }
 .ap-tile .big.txt { font-size: 15px; line-height: 1.25; }
 .ap-leg .sw.i { background: #5F7A4B; } [data-palette="night"] .ap-leg .sw.c { background: #4F6E9A; }
+
+/* v1.86.2 chip of another player's change: that player's colour, never green / red (those are for your own gain or loss) */
+.ap-chip.opp { color: var(--pc-text, var(--pc)); background: color-mix(in srgb, var(--pc) 14%, transparent); }
+/* v1.86.2 why the decisive swing was so sudden: points before (shown / hidden) and gained this turn */
+.ap-sur { gap: 5px; } .ap-sur .ap-cell.pub { background: #7F7A6F; } .ap-sur .ap-cell.hid { background: repeating-linear-gradient(135deg, #8C5AC8 0 4px, color-mix(in srgb, #8C5AC8 55%, transparent) 4px 8px); }
+.ap-sur .ap-cell.new { outline: 2px solid var(--ink); outline-offset: 1px; }
+.ap-sur .ap-leg .sw { width: 12px; height: 12px; border-radius: 4px; display: inline-block; vertical-align: -2px; margin-right: 5px; background: #7F7A6F; } .ap-sur .ap-leg .sw.hid { background: repeating-linear-gradient(135deg, #8C5AC8 0 3px, color-mix(in srgb, #8C5AC8 55%, transparent) 3px 6px); } .ap-sur .ap-leg .sw.new { background: none; box-shadow: inset 0 0 0 2px var(--ink); }
+.ap-sn { margin: 2px 0 0; font: 500 12px/1.35 var(--font-body); color: var(--ink-soft); }

@@ -117,7 +117,8 @@ export function aiToolRun(g, name, a = {}) {
       const decs = aiDecList(g).filter((e) => e.turn === T).map((e) => ({ player: nameOf(g, e.seat), n: e.n, played: clip(e.x.label, 70), better: e.x.best ? clip(e.x.best.label, 70) : null, costPct: Math.round(e.gap * 1000) / 10 }));
       if (!st.length && !decs.length && !Object.keys(wc).length) return { error: `no data for turn ${T} (the game lasted ${g.turn} turns)` };
       const cause = causeOf(g, T);
-      return { turn: T, winChancePctBeforeAfter: wc, ...(cause ? { cause } : {}), steps: st, reviewedDecisions: decs };
+      const dsv = tryv(() => facts(g)?.decisiveSwing), sur = dsv && dsv.turn === T ? dsv.surprise : null; // v1.86.2 the decisive turn comes with why it was so sudden
+      return { turn: T, winChancePctBeforeAfter: wc, ...(cause ? { cause } : {}), ...(sur ? { whySudden: sur } : {}), steps: st, reviewedDecisions: decs };
     }
     if (name === "get_luck") {
       const seat = aiSeatOf(g, a.player); if (seat == null) return { error: `unknown player "${a.player}"` };

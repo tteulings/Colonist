@@ -181,3 +181,22 @@ export function rescoreResult(x, cfg) {
   y.mark = d.trivial ? "good" : markOfCls(clsOf(y));
   return y;
 }
+
+/** v1.86.2 THE final score breakdown of a player: the ONE source for every screen (end screen, Overview, player page, history, share, recap facts, chat tools, the AI tab). Read from the FINAL BOARD, not from the events
+ *  that built it: by = { s settlements still standing as settlements (x1), c number of cities (x2 each; the city replaced its settlement, which is not
+ *  counted again), v point cards, L longest road (2 if held at the end), A largest army (2), I the rest of the final points: Seafarers new-island
+ *  bonuses }. total = the final points = s + 2c + v + L + A + I by construction. cells = the squares of the points row (a city is two squares). */
+export function finalScore(g, q, log = null) {
+  const P = g.players[q]; if (!P) return null;
+  const s = P.settlements?.size || 0, c = P.cities?.size || 0, L = g.longestRoadHolder === q ? 2 : 0, A = g.largestArmyHolder === q ? 2 : 0, vp = P.victoryPoints || 0;
+  const v = Number.isFinite(P.devVictoryPoints) ? P.devVictoryPoints : Math.max(0, (log?.pts[q] || []).reduce((a, e) => a + (e.k === "v" ? e.n : 0), 0));
+  const I = vp - (s + 2 * c + v + L + A), by = { s, c, v, L, A, I: Math.max(0, I) };
+  const cells = []; [["s", 1], ["c", 2], ["v", 1], ["L", 1], ["A", 1], ["I", 1]].forEach(([k, w]) => { for (let i = 0; i < by[k] * w; i++) cells.push(k); });
+  return { seat: q, by, total: vp, cells, ok: I >= 0 };
+}
+/** The same breakdown in points per source, the shape the screens draw: { settlements, cities (2 each), road, army, cards, islands, total }; total = the player's points. */
+export function sourcesOf(g, q, log = null) {
+  const x = finalScore(g, q, log); if (!x) return null;
+  const b = x.by;
+  return { settlements: b.s, cities: b.c * 2, road: b.L, army: b.A, cards: b.v, islands: b.I, total: x.total };
+}

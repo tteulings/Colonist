@@ -100,7 +100,11 @@ export function recapFacts(g, { max = FACTS_MAX } = {}) {
   };
   const sources = st?.sources || [];
   const when_ = players.map(() => ({ settlements: [], cities: [] }));
-  if (st?.stepEvents) for (let k = 1; k <= (st.N || 0); k++) (st.stepEvents[k] || []).forEach((e) => { if (e[1] === "b" && when_[e[2]]) { if (e[3] === "s") when_[e[2]].settlements.push(st.turnOf?.[k]); else if (e[3] === "c") when_[e[2]].cities.push(st.turnOf?.[k]); } });
+  if (st?.stepEvents) for (let k = 1; k <= (st.N || 0); k++) (st.stepEvents[k] || []).forEach((e) => {
+    if (!when_[e[2]] || (e[3] !== "s" && e[3] !== "c")) return;
+    const l = when_[e[2]][e[3] === "s" ? "settlements" : "cities"];
+    if (e[1] === "b") l.push(st.turnOf?.[k]); else if (e[1] === "u") l.pop(); // an undone build is not a build (v1.86.2)
+  });
   const awardsOf = (q) => (st?.awards || []).filter((a) => a.pid === q).map((a) => `${a.kind === "L" ? "Longest road" : "Largest army"} on turn ${st.turnOf?.[a.s] ?? "?"}`);
   const table = players.map((p) => {
     const dl = st?.dl?.[p.id];
@@ -112,7 +116,7 @@ export function recapFacts(g, { max = FACTS_MAX } = {}) {
       accuracyPct: accOf[p.id], winChanceLostByMovesPct: costOf[p.id] != null ? Math.abs(costOf[p.id]) : null,
       luckInWinChancePct: lk(p.id),
       resourceCards: dl ? { got: dl.got, expected: Math.round(dl.exp) } : null,
-      built: st?.built?.[p.id] ? clean({ roads: st.built[p.id].road, settlements: st.built[p.id].settlement, cities: st.built[p.id].city, ships: st.built[p.id].ship }) : null,
+      built: st?.built?.[p.id] ? clean({ note: "pieces built over the whole game; every city was built on a settlement, so settlements built includes the ones later upgraded. What stands at the end is in pointsFrom (a city counts 2 and not as a settlement too)", roads: st.built[p.id].road, settlements: st.built[p.id].settlement, cities: st.built[p.id].city, ships: st.built[p.id].ship }) : null,
     });
   });
 

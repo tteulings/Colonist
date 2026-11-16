@@ -9,6 +9,7 @@ import { decMoves } from "./ai-blocks.js";
 import { stratOf, handLog, finalScore, R5 } from "./ai-strat.js";
 import { luckKey, ownOf } from "../review-luck.js";
 import { swingCause } from "./ai-cause.js";
+import { aiSurprise, surpriseFact } from "./ai-surprise.js";
 import { langOf, moveLabel } from "./ai-lang.js";
 import { recapLang } from "../review-recap.js";
 
@@ -49,6 +50,9 @@ export function buildFacts(g, lang = recapLang()) {
   // the two authoritative facts every consumer uses: what decided the game, and the final score breakdown (refs game.decisive.* / score.<p>.<src>)
   fx.decisive = tryv(() => { const d = aiDecisive(g, ser, me); return d && { ...d, key: keys[d.seat], other: d.other && { ...d.other, key: keys[d.other.seat] } }; });
   fx.score = g.players.map((_, q) => tryv(() => finalScore(g, q, log)));
+  // why the decisive swing was so sudden (ai-surprise.js): one fact for the game card, the chat and the composer (refs sx.<field>)
+  fx.surprise = tryv(() => (fx.decisive ? aiSurprise(g, ser, fx.decisive, log) : null));
+  fx.surpriseFact = () => (fx.surprise ? surpriseFact(fx.surprise, nameOf, fx.lang) : null);
   // the reviewed player's decisions that cost win chance, biggest first
   fx.decs = tryv(() => aiDecList(g).filter((e) => e.seat === me && e.x?.best && e.gap >= 0.005 && e.turn >= 1).map((e) => {
     const mv = tryv(() => decMoves(e, lang)); if (!mv?.best || mv.played?.win == null || mv.best.win == null) return null;
@@ -88,6 +92,17 @@ export function buildFacts(g, lang = recapLang()) {
         if (p[1] === "T") return { v: T, k: "turn" };
         if (p[1] === "decisive") { const d = fx.decisive; if (!d) return null; if (p[2] === "t") return { v: d.t, k: "turn" }; if (p[2] === "player") return { v: d.seat, k: "player" }; return null; }
         if (p[1] === "futures") return null;
+        return null;
+      }
+      case "sx": { // sx.<field> : the surprise of the decisive swing (ai-surprise.js)
+        const x = fx.surprise; if (!x) return null; const f = p[1];
+        const seatV = (q) => (q == null || !g.players[q] ? null : { v: q, k: "player" });
+        if (f === "mover") return seatV(x.mover); if (f === "actor") return seatV(x.actor); if (f === "victim") return seatV(x.victim); if (f === "prev") return seatV(x.prev);
+        if (f === "t") return { v: x.turn, k: "turn" };
+        if (f === "odds") return x.odds ? { v: x.odds.pct, k: "pct" } : null;
+        if (f === "hidden") return x.hidden > 0 ? num(x.hidden) : null;
+        if (f === "by") return x.by?.[p[2]] > 0 ? num(x.by[p[2]]) : null; // by.s .c .v .I .L .A
+        if (["gain", "need", "before", "after", "public", "roll"].includes(f)) return x[f] == null || (f !== "need" && f !== "public" && x[f] <= 0) ? null : num(x[f]);
         return null;
       }
       case "score": { const q = seat(p[1]), x = q == null ? null : fx.score[q]; if (!x) return null; return p[2] === "total" ? num(x.total) : x.by[p[2]] != null ? num(x.by[p[2]]) : null; }

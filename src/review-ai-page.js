@@ -5,6 +5,7 @@
 import { buildFacts } from "./review/ai-index.js";
 import { recipeValidated, validatePage, turnsOf, LEVELS } from "./review/ai-page.js";
 import { aiBlocks } from "./review/ai-blocks.js";
+import { SX_LANG } from "./review/ai-surprise.js";
 import { PIPS } from "./review/luck.js";
 import { R5 } from "./review/ai-strat.js";
 import { recapLang } from "./review-recap.js";
@@ -125,7 +126,7 @@ export const ReviewAiPageMixin = {
   _pgFuSkel(fx, q) { return `<section class="ap-c ap-sk" aria-busy="true" role="status"><p class="ap-asked">${esc(q)}</p><div class="ap-skl"><i></i><i></i></div><div class="ap-skv"></div><span class="ap-skt">${esc(fx.t.fuWork)}…</span></section>`; },
   _pgCardHtml(w, i, fx, o = {}) {
     const exp = !!(w.expand.length || w.notes.length), lv = LV_CLASS[w.level] || "game", q = w.who != null ? fx.seatOf(w.who) : -1;
-    const chip = w.chip ? (() => { const r = fx.ref(w.chip.ref); if (!r) return ""; const v = r.v, tone = w.chip.tone || (v > 0 ? "up" : v < 0 ? "dn" : ""); return `<span class="ap-chip ${tone}">${w.chip.fmt === "n" ? v : w.chip.fmt === "pct" ? `${v}%` : `${sg(v)}%`}</span>`; })() : "";
+    const chip = w.chip ? (() => { const r = fx.ref(w.chip.ref); if (!r) return ""; const v = r.v, tone = w.chip.tone || (v > 0 ? "up" : v < 0 ? "dn" : ""); return `<span class="ap-chip ${tone}${w.chip.tone === "opp" ? ` pc-${w.chip.seat}` : ""}">${w.chip.fmt === "n" ? v : w.chip.fmt === "pct" ? `${v}%` : `${sg(v)}%`}</span>`; })() : "";
     return `<section class="ap-c lv-${lv}${exp ? " exp" : ""}${o.q ? " fu" : ""}" data-pgc="${esc(w.id)}" data-pgi="${i}">${o.q ? `<p class="ap-asked">${esc(o.q)}</p>` : ""}<div class="ap-hd"><span class="ap-lv">${esc(fx.t.lv[w.level] || w.level)}</span>${q >= 0 && !fx.players[q].you ? `<span class="ap-who pc-${q}"><i></i>${esc(fx.nameOf(q))}</span>` : q >= 0 ? `<span class="ap-who pc-${q}"><i></i>${esc(fx.nameOf(q))}</span>` : ""}${chip}${exp ? `<button type="button" class="ap-chev" data-pgtoggle aria-expanded="false" aria-label="${esc(fx.t.details)}">${CHEV}</button>` : ""}</div>
       <h3 class="ap-ti">${this._pgParts(w.title, fx)}</h3>${o.answer ? `<p class="ap-ans">${esc(o.answer)}</p>` : ""}<div class="ap-bl">${w.blocks.map((b, j) => this._pgBlock(b, w, fx, `${w.id}:${j}`)).join("")}</div>${exp ? `<div class="ap-ex" data-pgex hidden></div>` : ""}</section>`;
   },
@@ -147,6 +148,7 @@ export const ReviewAiPageMixin = {
         case "text": return `<p class="ap-tx${b.link ? " link" : ""}">${this._pgParts(b.parts, fx)}</p>`;
         case "compare": return this._pgCompare(b, fx, bkey);
         case "board": return this._pgBoard(b, fx, bkey);
+        case "surprise": return this._pgSurprise(fx);
         default: return "";
       }
     } catch (e) { console.warn("ai page block", b.p, e); return ""; }
@@ -238,6 +240,17 @@ export const ReviewAiPageMixin = {
     const grid = Array.from({ length: n }, (_, i) => (i < have ? `<span class="ap-cell ${SRC_CLASS[cells[i]]}">${i + 1}</span>` : `<span class="ap-cell need">${i + 1}</span>`)).join("");
     const leg = Object.entries(cnt).map(([k, v]) => `<span><i class="sw ${SRC_CLASS[k]}"></i>${fx.t.srcPl[k]} <b>${k === "c" ? v / 2 : v}</b></span>`).join("");
     return `<div class="ap-vz ap-stack"><div class="ap-cap">${fx.t.pointsBySrc}</div><div class="ap-cells">${grid}</div><div class="ap-sub">${fx.t.haveOf(have, goal)}${have < goal ? fx.t.dashed : ""}</div><div class="ap-leg">${leg}</div></div>`;
+  },
+  /** v1.86.2 why the decisive swing was so sudden: the mover's points before (shown at the table, hidden point cards) and what that turn added, by source (ai-surprise.js). */
+  _pgSurprise(fx) {
+    const x = fx.surprise; if (!x || x.mover == null) return "";
+    const L = SX_LANG[fx.lang] || SX_LANG.en, goal = this.winPoints || 10, n = Math.max(goal, x.after), pub = Math.max(0, x.public), hid = Math.max(0, x.hidden), cells = [];
+    const gains = []; ["s", "c", "v", "I", "L", "A"].forEach((k) => { for (let i = 0; i < (x.by[k] || 0); i++) gains.push(k); });
+    const cls = (i) => (i <= pub ? "pub" : i <= pub + hid ? "hid" : i <= x.after ? `new ${SRC_CLASS[gains[i - x.before - 1] || "s"]}` : "need");
+    for (let i = 1; i <= n; i++) cells.push(`<span class="ap-cell ${cls(i)}">${i}</span>`);
+    const m = fx.nameOf(x.mover), leg = [[`pub`, L.legendSeen, pub], ...(hid ? [["hid", L.legendHid, hid]] : []), ["new", L.legendNew, x.gain]].map(([c, l, v]) => `<span><i class="sw ${c}"></i>${esc(l)} <b>${c === "new" ? "+" : ""}${v}</b></span>`).join("");
+    const notes = [x.hidden > 0 ? L.hid(m, x.public, x.hidden) : "", x.seen === "held" ? L.seen : x.seen === "none" ? L.unseen : "", x.final ? L.final : ""].filter(Boolean);
+    return `<div class="ap-vz ap-sur" data-pgsur><div class="ap-cap">${esc(m)} \u00b7 ${esc(fx.t.points.toLowerCase())} ${x.before} \u2192 ${x.after}</div><div class="ap-cells">${cells.join("")}</div><div class="ap-leg">${leg}</div>${notes.map((t) => `<p class="ap-sn">${esc(t)}</p>`).join("")}</div>`;
   },
   _pgTiles(b, fx) {
     return `<div class="ap-tiles n${b.items.length}">${b.items.map((it) => {
