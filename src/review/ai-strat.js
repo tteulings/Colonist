@@ -3,6 +3,7 @@
 // while holding >= 4 cards), what they were waiting for, whether the start could feed the plan, and a verdict with an honest confidence.
 // Pure: reads g._st (stats.js computeStats) and the win-chance series; no DOM.
 import { aiStart, wcAt } from "./ai-facts.js";
+import { finalScore as finalScoreOf } from "./score.js";
 
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
 export const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
@@ -61,25 +62,24 @@ export function handLog(g) {
   }
   (st.awards || []).forEach((a) => { const t = st.turnOf[a.s] ?? 0; if (a.pid >= 0) addPt(a.pid, t, a.kind === "L" ? "L" : "A", 2); if (a.prev >= 0) addPt(a.prev, t, a.kind === "L" ? "L" : "A", -2); });
   pts.forEach((l) => l.sort((x, y) => x.t - y.t));
-  const out = { T, last, hand, res: snap, pts, builds };
+  // v1.86.2 the points at the end of each turn are the game's own record (st.vp, what the scoreboard showed), not a sum of build events: a point card
+  // counts from the next turn on, a Seafarers island bonus is not an event, an undone build leaves no trace. The events stay for WHAT was gained (icons, sources).
+  const vp = Array.from({ length: n }, (_, q) => { let prev = st.vp?.[0]?.[q] ?? 0; return Array.from({ length: T + 1 }, (_, t) => { const k = t === 0 ? 0 : last[t]; const v = k > 0 || t === 0 ? st.vp?.[k]?.[q] : null; if (v != null) prev = v; return prev; }); });
+  const out = { T, last, hand, res: snap, pts, builds, vp };
   memo.set(st, out);
   return out;
 }
 
-/** Points at the end of each turn t (0 = after set-up) from the point log. */
+/** Points at the end of each turn t (0 = after set-up): the game's own per-step record (log.vp); only a log without it falls back to the sum of the point events. */
 export function ptsByTurn(log, q) {
+  if (log.vp?.[q]) return log.vp[q].slice();
   const out = Array(log.T + 1).fill(0); let s = 0, i = 0; const l = log.pts[q] || [];
   for (let t = 0; t <= log.T; t++) { while (i < l.length && l[i].t <= t) { s += l[i].n; i++; } out[t] = s; }
   return out;
 }
 
-/** Points by source of a player over the whole game: { s: settlements, c: cities, v: point cards, L: longest road, A: largest army } in points. */
-export function srcPoints(log, q) {
-  const o = { s: 0, c: 0, v: 0, L: 0, A: 0 };
-  (log.pts[q] || []).forEach((e) => { o[e.k] = (o[e.k] || 0) + e.n; });
-  // a city replaces a settlement: the settlement stays 1 point, the city adds 1 more, so it reads "settlements 3, cities 4 (=2 cities)" as the points they carry
-  return o;
-}
+/** THE final score breakdown lives in score.js (a neutral module: the end screen, Overview, history, chat and the AI tab all read it). Default log: this game's hand log. */
+export const finalScore = (g, q, log = handLog(g)) => finalScoreOf(g, q, log);
 
 const famOf = (list) => list.map((b) => FAM[b.k]);
 /** The strategy facts of one player. ser = aiSeries(g). null without the log. */
@@ -130,7 +130,7 @@ export function stratOf(g, q, ser) {
   // a winner's plan is never called weak: the result says otherwise (and the labels may not contradict it)
   if (won && verdict?.tone === "bad") verdict = V("mid", 1, "Hard to say", "unclear");
   const headless = !!planFam && verdict?.tone === "bad" && !won && share >= STALL_SHARE && dir === "wobbly";
-  const src = srcPoints(log, q), total = Object.values(src).reduce((a, b) => a + b, 0);
+  const fs_ = finalScore(g, q, log), src = fs_.by, total = fs_.total;
   return { seat: q, plan: planFam ? PLAN_NAME[planFam] : null, planFam, first2: builds.slice(0, 2), builds, dir, switches: sw, pivot, steady: dir === "steady", wobbly: dir === "wobbly",
     won, turns, stalled, idleN: stalled.length, waitN: waitRes ? waitTurns[waitRes].length : 0, waitRes, stretches, E, SD, startDots: dots, need, feeds, share, bad, verdict, headless, src, srcTotal: total, hand: log.hand[q], ptsBy: pb };
 }

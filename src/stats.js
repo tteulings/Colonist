@@ -21,6 +21,7 @@ import { Seafarers } from "./seafarers/index.js";
 export const RES = ["wood", "brick", "sheep", "wheat", "ore"];
 const KINDS = { r: "road", s: "settlement", c: "city", h: "ship" };
 import { rollMoments, summary as luckSummary } from "./review/luck.js";
+import { sourcesOf } from "./review/score.js";
 const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
 const sum = (o) => RES.reduce((a, r) => a + (o?.[r] || 0), 0);
 
@@ -373,15 +374,7 @@ export function computeStats(game) {
   out.dl = dl.map((d, i) => luckSummary({ got: out.prodTot[i], ...d }, out.diceMode === "random"));
 
   // VP sources (final state)
-  out.sources = game.players.map((p, i) => {
-    const src = {
-      settlements: p.settlements.size, cities: p.cities.size * 2,
-      road: game.longestRoadHolder === i ? 2 : 0, army: game.largestArmyHolder === i ? 2 : 0,
-      cards: p.devVictoryPoints, islands: game.sea ? game.sea.bonusVP(p) : 0,
-    };
-    src.total = src.settlements + src.cities + src.road + src.army + src.cards + src.islands;
-    return src;
-  });
+  out.sources = game.players.map((_, i) => sourcesOf(game, i)); // one source for every screen: src/review/score.js (the final board; a city is 2 and its base settlement is not counted again)
 
   // takeaways
   const winner = game.winner ? game.winner.id : out.vp[N].indexOf(Math.max(...out.vp[N]));

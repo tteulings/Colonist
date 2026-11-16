@@ -71,11 +71,11 @@ const AI_SKIP = /^(Samenvatting uit de cijfers|Voor dit spel samengesteld|Vraag 
   // ── 5a the Dutch tables and the AI tab hold no forbidden variant ──
   {
     const fs = require("fs"); const root = path.join(__dirname, "..", "src");
-    const files = fs.readdirSync(root).filter((f) => /^i18n-nl.*\.js$/.test(f)).map((f) => path.join(root, f)).concat(path.join(root, "review", "ai-lang.js"));
+    const files = fs.readdirSync(root).filter((f) => /^i18n-nl.*\.js$/.test(f)).map((f) => path.join(root, f)).concat(path.join(root, "review", "ai-lang.js"), path.join(root, "review", "ai-surprise.js")); // v1.87: ai-surprise.js (v1.86.2) has its own NL strings
     const bad = [];
     for (const f of files) {
-      const src = fs.readFileSync(f, "utf8"); const isAi = /ai-lang/.test(f);
-      const vals = isAi ? [src.slice(src.indexOf("  nl: {"), src.indexOf("export const langOf")).replace(/"steal"|steal:/g, ""), src.slice(src.indexOf("const NLW"))] : [...src.matchAll(/\[\s*"((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\s*\]/g)].map((m) => m[2]);
+      const src = fs.readFileSync(f, "utf8"); const isAi = /ai-lang/.test(f), isSx = /ai-surprise/.test(f);
+      const vals = isSx ? [src.replace(/\bsteals?\b|"steal"/gi, "")] : isAi ? [src.slice(src.indexOf("  nl: {"), src.indexOf("export const langOf")).replace(/"steal"|steal:/g, ""), src.slice(src.indexOf("const NLW"))] : [...src.matchAll(/\[\s*"((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\s*\]/g)].map((m) => m[2]);
       for (const v of vals) for (const [re, why] of TERMS) if (re.test(v)) bad.push(`${path.basename(f)}: ${why}: ${(v.match(re) ? v.slice(Math.max(0, v.search(re) - 20), v.search(re) + 40) : v.slice(0, 60))}`);
     }
     ok(!bad.length, "Dutch tables + AI tab: no forbidden variant (glossary)", bad.slice(0, 6));

@@ -5,6 +5,8 @@ import { vcFields, vcMeta } from "./score.js";
 import { decide } from "./evaluate.js";
 import { luckKey } from "../review-luck.js";
 import { recapFacts } from "./recap-facts.js";
+import { finalScore } from "./ai-strat.js";
+import { aiSurprise, surpriseFact } from "./ai-surprise.js";
 
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
 const unesc = (s) => String(s ?? "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
@@ -38,6 +40,8 @@ export function aiSeries(g) {
       if (by.size > 1) src = "moves";
     }
   }
+  // ONE authoritative series: the engine's estimates per seat are independent runs (their sum drifts 84-111%), so every turn is normalised to 100%
+  for (const [t, v] of [...by.entries()]) { const sum = v.reduce((a, c) => a + (c || 0), 0); if (sum > 0 && Math.abs(sum - 1) > 1e-9) by.set(t, v.map((c) => (c || 0) / sum)); }
   const maxT = Math.max(0, ...by.keys(), g.turn || 0);
   return { by, maxT, src };
 }
@@ -52,6 +56,18 @@ export function wcChange(ser, seat, t0, t1) {
   t1 = Number.isFinite(t1) ? t1 : t0;
   const from = wcAt(ser, seat, Math.max(0, Math.min(t0, t1) - 1)), to = wcAt(ser, seat, Math.max(t0, t1));
   return from == null || to == null ? null : { from, to, d: to - from };
+}
+/** THE decisive swing: the biggest win chance move (either direction, set-up to the FINAL turn) of the reviewed player or the winner (a rival when the
+ *  reviewed player won), and what the other of the two did on that same turn. Whole points. null without win chance or below `min` points. */
+export function aiDecisive(g, ser, me, min = 3) {
+  const W = g.winner ? g.winner.id : null, seats = [me, ...(W != null && W !== me ? [W] : [])]; if (!ser?.by?.size) return null;
+  const T = Math.max(...ser.by.keys()), cand = [];
+  seats.forEach((q) => { for (let t = 1; t <= T; t++) { const c = wcChange(ser, q, t, t); if (c && Math.abs(c.d) >= min) cand.push({ seat: q, t, ...c }); } });
+  cand.sort((a, b) => Math.abs(b.d) - Math.abs(a.d) || b.t - a.t);
+  if (!cand.length) return null;
+  const top = cand[0], other = cand.find((c) => c.seat !== top.seat && c.t === top.t && Math.abs(c.d) >= 5) || null;
+  const marks = [top.t]; cand.forEach((c) => { if (marks.length < 3 && !marks.includes(c.t)) marks.push(c.t); });
+  return { ...top, other, marks: marks.sort((a, b) => a - b), final: top.t >= T };
 }
 /** What each player built or took, by turn: [[turn, kind]] with kind s settlement, c city, L longest road, A largest army, v point card. */
 export function aiTimeline(g) {
@@ -214,6 +230,9 @@ export function aiFacts(g, { max = AI_FACTS_MAX } = {}) {
   const tl = aiTimeline(g), KN = { s: "settlement", c: "city", L: "Longest road", A: "Largest army", v: "point card" };
   f.plans = Object.fromEntries(g.players.map((p) => { const a = tryv(() => aiPlan(g, p.id, tl)); const sp = tryv(() => aiStart(g, p.id)); return [nm(p.id), a ? { plan: a.label, ...(sp ? { start: sp.startDots, fittingPlanFromStart: sp.fitting, planCoherencePct: sp.coherencePct, roadsBuilt: sp.roadsBuilt } : {}), points: a.total, from: a.sources, ...(rt => (rt ? { routeToTarget: { target: rt.target, goal: rt.goal.map((x) => `${x.n} ${x.k}`).join(" + "), pointsBySourceInOrder: rt.segments.map((x) => `${x.k} ${x.pts} (t${x.turn}) [${x.luck ? "drawn: luck" : "built"}]`), goalProgressPct: rt.goalProgressPct, verdict: rt.verdict && `${rt.verdict.v}${rt.verdict.luck ? `, with luck: the last point was a point card drawn on turn ${rt.verdict.at}` : ""}${rt.verdict.cause === "dice" ? `: stalled by dice (${rt.verdict.dice.got} cards received, ${rt.verdict.dice.expected} expected)` : rt.verdict.cause === "plan" ? " (plan, not dice)" : ""}${rt.verdict.at != null && rt.verdict.v !== "worked" ? ` (progress stopped after turn ${rt.verdict.at})` : ""}${rt.verdict.reason === "road" ? `: longest road was held by ${rt.verdict.byName}` : rt.verdict.reason === "start" ? ": building did not match the start" : rt.verdict.reason === "income" ? `: only ${rt.verdict.rate} ${rt.verdict.res} per turn` : ""}`, ...(rt.won ? { wonViaGoal: rt.matchedGoal } : { pointsShort: rt.shortPoints, stillMissing: rt.missing ? `${rt.missing.kind}: ${Object.entries(rt.missing.cards).map(([r, n]) => `${n} ${r}`).join(", ") || "affordable"}` : undefined }), ...(rt.income ? { incomePerTurn: rt.income.perTurn, goalNeedsTotalCards: rt.income.need, bottleneck: rt.income.bottleneck && `${rt.income.bottleneck.res}: ${rt.income.bottleneck.perTurn} per turn, got ${rt.income.bottleneck.got} of ${rt.income.bottleneck.needs} needed`, harbours: rt.income.ports.length ? rt.income.ports.join(", ") : rt.income.generalPort ? "3:1 only" : "none", tradedBy: rt.income.trades } : {}), ...(rt.closest ? { closestTurn: rt.closest.turn, bestWinChancePct: rt.closest.winChancePct } : {}) } } : {}))(tryv(() => aiRoute(g, p.id, ser, tl))), timeline: a.timeline.map(([t, k]) => `${KN[k]} t${t}`) } : { timeline: tl[p.id].map(([t, k]) => `${KN[k]} t${t}`) }]; }));
   const nmz = tryv(() => aiNearMiss(g, ser)); if (nmz) f.nearMiss = nmz;
+  const dsv = tryv(() => aiDecisive(g, ser, g._rvPid)); if (dsv) f.decisiveSwing = { note: "the biggest win chance move of you or the winner, final turns included; whole points", player: nm(dsv.seat), turn: dsv.t, from: dsv.from, to: dsv.to, ...(dsv.other ? { alsoThatTurn: { player: nm(dsv.other.seat), from: dsv.other.from, to: dsv.other.to } } : {}) };
+  if (dsv) { const sx = tryv(() => surpriseFact(aiSurprise(g, ser, dsv), nm, "en")); if (sx) f.decisiveSwing.surprise = sx; } // v1.86.2 why that swing was so sudden (ai-surprise.js)
+  const sc = tryv(() => g.players.map((p) => { const x = finalScore(g, p.id); return [nm(p.id), { settlements: x.by.s, cities: x.by.c * 2, pointCards: x.by.v, longestRoad: x.by.L, largestArmy: x.by.A, newIslands: x.by.I, total: x.total }]; })); if (sc) f.finalScore = { note: "points by source at the end (a city is 2, its base settlement is not counted again); totals equal the final points", ...Object.fromEntries(sc) };
   const decs = [];
   g.players.forEach((p) => {
     const r = tryv(() => g._rvOf(p.id));
