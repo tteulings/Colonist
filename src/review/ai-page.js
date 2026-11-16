@@ -6,8 +6,9 @@
 //  - complexity caps (extra elements are dropped, not an error), closed vocabulary (level, roles, formats, metrics);
 //  - per-primitive fallback: an invalid block is dropped, a widget with no valid block is dropped, no widget left -> recipes;
 //  - DEDUPE: a primitive that shows the same fact binding as one already on the page is dropped (the same tile twice, the same bars twice).
+import { sxParts } from "./ai-surprise.js";
 export const LEVELS = ["Game", "Near miss", "Decision", "Strategy", "Luck"];
-export const PRIMS = ["line", "bars", "strip", "stack", "tiles", "compare", "board", "badge", "table", "text"];
+export const PRIMS = ["line", "bars", "strip", "stack", "tiles", "compare", "board", "badge", "table", "text", "surprise"];
 export const FMTS = ["player", "turn", "pct", "sgpct", "n", "x"];
 export const CAPS = { widgets: 6, blocks: 4, expand: 3, notes: 3, boards: 1, lines: 2, rows: 5, tiles: 3, marks: 4, follow: 4, words: 26, label: 28 };
 export const CAUSAL = /\b(because|caused?|causing|due to|thanks to|therefore|led to|leads to|lead to|since|as a result|resulted in|owing to|so that|hence|omdat|doordat|dankzij|daardoor|waardoor|vandaar)\b/i;
@@ -41,6 +42,8 @@ export function partsOk(parts, fx, { words = CAPS.words } = {}) {
   return w <= words ? out : null;
 }
 
+/** The seat a chip is about: d.<player>@<t>, luck.total.<player>; dec.* is the reviewed player's. null when unknown (the sign decides). */
+const chipSeat = (ref, fx) => { const m = /^d\.([^@]+)@/.exec(ref) || /^luck\.total\.(.+)$/.exec(ref); if (m) { const q = fx.seatOf(m[1]); return q >= 0 ? q : null; } return /^dec\./.test(ref) ? fx.me : null; };
 const key = (fx, k) => { const q = fx.seatOf(k); return q >= 0 ? q : null; };
 const numRef = (fx, r) => { const v = typeof r === "string" ? tryv(() => fx.ref(r)) : null; return v && (v.k === "n" || v.k === "pct") ? v : null; };
 const tileRef = (fx, r) => { const v = typeof r === "string" ? tryv(() => fx.ref(r)) : null; return v && (v.k === "n" || v.k === "pct" || v.k === "x" || v.k === "turn") ? v : null; }; // a tile can also say a word (the set-up spots) or a turn
@@ -103,6 +106,7 @@ export function blockOk(b, fx) {
     case "badge": { const q = key(fx, b.player), s = q == null ? null : fx.strat[q]; return s?.verdict ? { p: "badge", player: b.player } : null; }
     case "table": return b.of === "luck" && fx.luck ? { p: "table", of: "luck" } : null;
     case "text": { const parts = partsOk(b.parts, fx, { words: 18 }); return parts ? { p: "text", parts, link: !!b.link } : null; }
+    case "surprise": { const x = fx.surprise; return x && x.mover != null && x.gain > 0 ? { p: "surprise" } : null; } // v1.86.2 why the decisive swing was so sudden: the points of that turn (ai-surprise.js)
     default: return null;
   }
 }
@@ -120,6 +124,7 @@ export function sigsOf(b) {
     case "badge": return [`badge|${b.player}`];
     case "table": return [`table|${b.of}`];
     case "text": return [`text|${JSON.stringify(b.parts)}`];
+    case "surprise": return ["surprise"];
     default: return [];
   }
 }
@@ -174,7 +179,8 @@ export function validatePage(spec, fx) {
     const req = (Array.isArray(w0.requires) ? w0.requires : []).every((r) => tryv(() => fx.ref(r)));
     w.title = req ? partsOk(w0.title, fx) : null;
     if (!w.title) { w.title = titleFallback(w, fx); w.titleFallback = true; dropped.push({ id, why: req ? "title invalid" : "requires failed" }); }
-    if (w0.chip && typeof w0.chip === "object") { const r = numRef(fx, w0.chip.ref); if (r && ["sgpct", "pct", "n"].includes(w0.chip.fmt)) w.chip = { ref: w0.chip.ref, fmt: w0.chip.fmt, tone: r.v > 0 ? "up" : r.v < 0 ? "dn" : null }; } // the tone is the sign of the value (the app decides, a model cannot contradict the number)
+    // v1.86.2 colour rule: green / red only for a change that is YOURS (your gain or loss); another player's change takes that player's colour (class opp + seat), never green or red
+    if (w0.chip && typeof w0.chip === "object") { const r = numRef(fx, w0.chip.ref); if (r && ["sgpct", "pct", "n"].includes(w0.chip.fmt)) { const q = chipSeat(w0.chip.ref, fx); w.chip = { ref: w0.chip.ref, fmt: w0.chip.fmt, ...(q != null && !fx.players[q]?.you ? { tone: "opp", seat: q } : { tone: r.v > 0 ? "up" : r.v < 0 ? "dn" : null }) }; } } // the tone is the sign of the value (the app decides, a model cannot contradict the number)
     const valid = (l) => (Array.isArray(l) ? l : []).map((b) => { const v = blockOk(b, fx); if (!v) dropped.push({ id, why: `block ${b?.p} invalid` }); return v; }).filter(Boolean);
     w.blocks = keep(valid(w0.blocks), seen, CAPS.blocks, dropped, id);
     w.expand = keep(valid(w0.expand), seen, CAPS.expand, dropped, id);
@@ -200,11 +206,13 @@ export function recipePage(fx) {
   const D = fx.decisive;
   if (fx.hasWc && D) {
     const tn = D.t, K = D.key, oc = D.other, duo = [Y, ...(W && W !== Y ? [W] : [])];
+    // v1.86.2 why it was so sudden: one short line (parts, numbers through refs sx.*) and the small points visual (ai-surprise.js)
+    const X = fx.surprise, sxp = X ? sxParts(X, fx.lang, P, R, (q) => fx.keys[q]) : null, sx = sxp ? [{ p: "text", parts: sxp }, ...(X.mover != null ? [{ p: "surprise" }] : [])] : [];
     const lead = (k) => r.wcLead(k === Y && youIs, P(k)), mv = (k) => ({ dir: [`wc.${k}@${tn - 1}`, `wc.${k}@${tn}`], up: r.up, down: r.down });
     const clause = (k) => [...lead(k), mv(k), r.wcFrom, R(`wc.${k}@${tn - 1}`), r.wcTo, R(`wc.${k}@${tn}`)];
     widgets.push({ id: "wc", level: "Game", short: t.short_.wc, chip: { ref: `d.${K}@${tn}`, fmt: "sgpct", tone: D.d > 0 ? "up" : "dn" },
       title: [...clause(K), r.wcOn, R(`turn.${tn}`), ...(oc ? ["; ", ...clause(oc.key).map((x, i) => (i === 0 && typeof x === "string" ? x.charAt(0).toLowerCase() + x.slice(1) : x))] : []), "."],
-      blocks: [{ p: "line", metric: "winchance", players: duo.includes(K) ? duo : [K, ...duo], marks: D.marks }],
+      blocks: [{ p: "line", metric: "winchance", players: duo.includes(K) ? duo : [K, ...duo], marks: D.marks }, ...sx],
       notes: [[r.wcN1], [r.wcN2]] });
   }
   // 4. near miss
