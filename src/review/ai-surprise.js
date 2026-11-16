@@ -104,19 +104,19 @@ export const SX_LANG = {
     },
   },
   nl: {
-    award: { L: "Langste weg", A: "Grootste leger" }, item: { s: "een dorp", c: "een stad", v: "een puntenkaart", I: "een nieuw eiland" },
+    award: { L: "Langste handelsroute", A: "Grootste riddermacht" }, item: { s: "een dorp", c: "een stad", v: "een puntenkaart", I: "een nieuw eiland" },
     cap: "Punten voor en na", legendSeen: "Zichtbaar aan tafel", legendHid: "Verborgen puntenkaart", legendNew: "Erbij", legendNeed: "Nog nodig", final: "De laatste beurt beëindigt het spel: 100% en 0% zijn uitkomsten.",
     seen: "De winkans telt puntenkaarten die al vastgehouden worden, niet de volgende trekking.", unseen: "Deze winkans kwam alleen uit de zetten en zag vastgehouden puntenkaarten niet.",
     hid: (m, pub, h) => `${m} liet ${pub} punten zien aan tafel; ${h === 1 ? "één was een verborgen puntenkaart" : `${h} waren verborgen puntenkaarten`}.`,
     sentence: (x, nm) => {
-      const m = x.mover != null ? nm(x.mover) : "", w = (k) => ({ s: x.by?.s > 1 ? `${x.by.s} dorpen` : "een dorp", c: x.by?.c > 1 ? `${x.by.c} steden` : "een stad", v: x.by?.v > 1 ? `${x.by.v} puntenkaarten` : "een puntenkaart", I: "een nieuw eiland", L: "Langste weg", A: "Grootste leger" }[k]);
+      const m = x.mover != null ? nm(x.mover) : "", w = (k) => ({ s: x.by?.s > 1 ? `${x.by.s} dorpen` : "een dorp", c: x.by?.c > 1 ? `${x.by.c} steden` : "een stad", v: x.by?.v > 1 ? `${x.by.v} puntenkaarten` : "een puntenkaart", I: "een nieuw eiland", L: "Langste handelsroute", A: "Grootste riddermacht" }[k]);
       const list = () => ["s", "c", "v", "I", "L", "A"].filter((k) => x.by?.[k] > 0).map(w).join(", ").replace(/, ([^,]*)$/, " en $1");
       switch (x.kind) {
         case "card": return x.final ? `${m} had ${x.need} ${x.need === 1 ? "punt" : "punten"} nodig en kocht een puntenkaart van de stapel${x.odds ? `, een kans van ${x.odds.pct}%` : ""}.` : `${m} kocht een puntenkaart van de stapel${x.odds ? `, een kans van ${x.odds.pct}%` : ""}, en ging van ${x.before} naar ${x.after} punten.`;
         case "combo": return `${m} haalde ${x.gain} punten in één beurt: ${list()}.`;
         case "award": return `${m} pakte ${SX_LANG.nl.award[x.award] || list()}, goed voor 2 punten${x.prev != null ? ` van ${nm(x.prev)}` : ""}.`;
         case "build": return `${m} bouwde ${x.sole === "c" ? "een stad" : "een dorp"} en ging van ${x.before} naar ${x.after} punten.`;
-        case "robber": return `${nm(x.actor)} gooide een zeven: de struikrover, het afgooien en een diefstal verschoven de kansen.`;
+        case "robber": return `${nm(x.actor)} gooide een zeven: de rover, het afleggen en een gepakte kaart verschoven de kansen.`;
         case "steal": return `${nm(x.actor)} pakte een kaart van ${nm(x.victim)}, en die kaart verschoof de kansen.`;
         case "dice": return `${nm(x.actor)} gooide ${x.roll}, en alleen die worp verschoof de kansen.`;
         case "trade": return "Een ruil tussen spelers verschoof de kansen.";
@@ -158,7 +158,7 @@ export function sxParts(x, lang, P, R, key) {
     case "combo": return en ? [P(m), " made ", R("sx.gain"), " points in one turn: ", ...list(), "."] : [P(m), " haalde ", R("sx.gain"), " punten in één beurt: ", ...list(), "."];
     case "award": return en ? [P(m), " took ", L.award[x.award], ", worth ", R("sx.gain"), " points", ...(x.prev != null ? [" from ", P(key(x.prev))] : []), "."] : [P(m), " pakte ", L.award[x.award], ", goed voor ", R("sx.gain"), " punten", ...(x.prev != null ? [" van ", P(key(x.prev))] : []), "."];
     case "build": return en ? [P(m), x.sole === "c" ? " built a city and went from " : " built a settlement and went from ", R("sx.before"), " to ", R("sx.after"), " points."] : [P(m), x.sole === "c" ? " bouwde een stad en ging van " : " bouwde een dorp en ging van ", R("sx.before"), " naar ", R("sx.after"), " punten."];
-    case "robber": return en ? [P(a), " rolled a seven: the robber, the discards and a steal moved the odds."] : [P(a), " gooide een zeven: de struikrover, het afgooien en een diefstal verschoven de kansen."];
+    case "robber": return en ? [P(a), " rolled a seven: the robber, the discards and a steal moved the odds."] : [P(a), " gooide een zeven: de rover, het afleggen en een gepakte kaart verschoven de kansen."];
     case "steal": return en ? [P(a), " stole a card from ", P(key(x.victim)), ", and that card moved the odds."] : [P(a), " pakte een kaart van ", P(key(x.victim)), ", en die kaart verschoof de kansen."];
     case "dice": return en ? [P(a), " rolled ", R("sx.roll"), ", and the roll alone moved the odds."] : [P(a), " gooide ", R("sx.roll"), ", en alleen die worp verschoof de kansen."];
     case "trade": return en ? ["A trade between players moved the odds."] : ["Een ruil tussen spelers verschoof de kansen."];

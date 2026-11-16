@@ -1,6 +1,6 @@
 // v1.84 Words of the dynamic AI page (EN / NL). The page follows the Recap language setting (recapLang in src/review-recap.js).
 // Everything the page says itself lives here: titles, notes, labels, chart words, the turn sheet, verdict words. Numbers never do (they are refs).
-const DEV = { en: { knight: "a Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly", victoryPoint: "a point card" }, nl: { knight: "een ridder", roadBuilding: "Wegenbouw", yearOfPlenty: "Jaar van overvloed", monopoly: "Monopolie", victoryPoint: "een puntenkaart" } };
+const DEV = { en: { knight: "a Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly", victoryPoint: "a point card" }, nl: { knight: "een ridder", roadBuilding: "Wegenbouw", yearOfPlenty: "Uitvinding", monopoly: "Monopolie", victoryPoint: "een puntenkaart" } };
 const plural = (n, a, b) => (n === 1 ? a : b);
 export const LANG = {
   en: {
@@ -44,14 +44,14 @@ export const LANG = {
     verdict: { weak: "Zwak plan", "probably-weak": "Waarschijnlijk zwak plan", solid: "Sterk plan", "probably-solid": "Waarschijnlijk sterk plan", unclear: "Moeilijk te zeggen" },
     conf: { clear: "Duidelijk beter", lean: "Waarschijnlijk beter", close: "Nipt verschil" },
     headless: "Kip zonder kop", yes: "Ja", partly: "Deels", no: "Nee",
-    turn: "beurt", Turn: "Beurt", setup: "opzet", more: "Meer", details: "Details", foot: "Samenvatting uit de cijfers van dit spel. Beta.", footAi: "Voor dit spel samengesteld uit de cijfers. Beta.", composing: "Een pagina voor dit spel samenstellen", of: "van",
-    fuWork: "Een plaatje samenstellen", fuNone: "Hier past geen plaatje bij, dus hier is het geschreven antwoord.", fuFail: "Dit keer geen antwoord.", fuAsked: "Jouw vraag", bd: { played: "Gespeeld", better: "Beter", alt: "Optie", paid: "Uitbetaald", robber: "Struikrover", pirate: "Piraat", marked: "Gemarkeerd", res: { wood: "Hout", brick: "Baksteen", sheep: "Wol", wheat: "Graan", ore: "Erts", desert: "Woestijn", gold: "Goud" }, aria: "Bord" },
+    turn: "beurt", Turn: "Beurt", setup: "beginopstelling", more: "Meer", details: "Details", foot: "Samenvatting uit de cijfers van dit spel. Beta.", footAi: "Voor dit spel samengesteld uit de cijfers. Beta.", composing: "Een pagina voor dit spel samenstellen", of: "van",
+    fuWork: "Een plaatje samenstellen", fuNone: "Hier past geen plaatje bij, dus hier is het geschreven antwoord.", fuFail: "Dit keer geen antwoord.", fuAsked: "Jouw vraag", bd: { played: "Gespeeld", better: "Beter", alt: "Optie", paid: "Uitbetaald", robber: "Rover", pirate: "Piraat", marked: "Gemarkeerd", res: { wood: "Hout", brick: "Baksteen", sheep: "Wol", wheat: "Graan", ore: "Erts", desert: "Woestijn", gold: "Goud" }, aria: "Bord" },
     winChance: "Winkans", winChanceBy: "Winkans per beurt", tapDot: "Tik op een stip om die beurt te openen", points: "Punten", pointsBy: "Punten per beurt", plan_: "plan", pivot: "omslag",
-    src: { s: "Dorp", c: "Stad", L: "Langste weg", A: "Grootste leger", v: "Puntenkaart" }, srcPl: { s: "Dorpen", c: "Steden", L: "Langste weg", A: "Grootste leger", v: "Puntenkaarten", I: "Nieuwe eilanden" },
+    src: { s: "Dorp", c: "Stad", L: "Langste handelsroute", A: "Grootste riddermacht", v: "Puntenkaart" }, srcPl: { s: "Dorpen", c: "Steden", L: "Langste handelsroute", A: "Grootste riddermacht", v: "Puntenkaarten", I: "Nieuwe eilanden" },
     road: "Weg", stalled: "Vastgelopen", planL: "Plan", hand: "Kaarten in de hand", handBy: "Kaarten in de hand per beurt", otherTurns: "Andere beurten", built: "Iets gebouwd",
     rolled: "Keer gegooid", diceNr: "Worp", rolledL: "Gegooid", expected: "Verwacht", diceAria: "Dobbelstenen",
     pointsBySrc: "Punten per bron", haveOf: (a, b) => `${a} van ${b}`, dashed: " (stippellijn: nog nodig)",
-    tStalled: "Vastgelopen beurten", startFeeds: "Start voedt het plan", short: "Tekort aan het eind", tbl: { dice: "Worp", steal: "Stelen", draw: "Kaarten", seat: "Plek" },
+    tStalled: "Vastgelopen beurten", startFeeds: "Start voedt het plan", short: "Tekort aan het eind", tbl: { dice: "Worp", steal: "Pakken", draw: "Kaarten", seat: "Plek" },
     why: "Waarom?", prev: "Vorige beurt", next: "Volgende beurt", nothing: "Er veranderde weinig in deze beurt.", wcIn: "Winkans in deze beurt", open: (s) => `Open ${s}`, board: "Toon het bord", close: "Sluit",
     built1: (c) => `bouwde een ${c === "c" ? "stad" : "dorp"}.`,
     cause: (c, nm) => (c.kind === "dice" ? `gooide ${c.data.roll}` : c.kind === "steal" ? `pakte een kaart van ${nm(c.data.victim)}` : c.kind === "dev" ? `trok ${DEV.nl[c.data.card] || "een kaart"}` : c.kind === "build" ? `bouwde een ${{ road: "weg", city: "stad", settlement: "dorp" }[c.data.what] || c.data.what}` : c.kind === "play" ? `speelde ${DEV.nl[c.data.what] || c.data.what}` : ""),
@@ -64,7 +64,7 @@ export const LANG = {
       headless: { a: " zat ", b: " van de ", c: " beurten vast, zonder vast plan." },
       pivot: { a: " koos eerst voor ", b: " en stapte over op ", c: " bij " }, steady: { a: " koos voor ", b: " en bleef daarbij. ", n: (k) => plural(k, " vastgelopen beurt.", " vastgelopen beurten.") },
       plain: { a: " had ", n: (k) => plural(k, " vastgelopen beurt van ", " vastgelopen beurten van "), z: "." },
-      gsN1: "Plan: de eerste twee bouwacties na de opzet. Vastgelopen beurt: geen punten terwijl je vier kaarten of meer vasthoudt.", gsN2: { a: "De winkans daalde ", b: " over de vastgelopen beurten." },
+      gsN1: "Plan: de eerste twee bouwacties na de beginopstelling. Vastgelopen beurt: geen punten terwijl je vier kaarten of meer vasthoudt.", gsN2: { a: "De winkans daalde ", b: " over de vastgelopen beurten." },
       waiting: " keer wachten op ", wait: { a: "Kaarten in de hand, geen punten. ", b: " uit dobbelstenen: ", c: " per beurt, beste tegenstander ", d: "." }, waitUnit: (r) => `${r} uit dobbelstenen, kaarten per beurt`,
       luck: { a: " had ", b: " winkans door toeval." }, luckUnit: "winkans gewonnen of verloren door toeval",
       dec: { a: "Op ", b: " was een andere zet ", c: " beter." }, decN: "Winkans na elke zet, uit toekomsten die de review doorspeelde.",
@@ -75,9 +75,9 @@ export const LANG = {
 export const langOf = (l) => LANG[l] || LANG.en;
 
 // ── move labels: the review stores them in English ("Robber on Grain 9", "Settlement on Lumber 4, Ore 3"); the page shows them in its language ──
-const NLW = { Lumber: "Hout", Brick: "Baksteen", Wool: "Wol", Grain: "Graan", Ore: "Erts", Desert: "Woestijn", Tile: "Tegel", coast: "kust", Knight: "Ridder", "Road Building": "Wegenbouw", "Year of Plenty": "Uitvinding", Monopoly: "Monopolie", "Victory Point": "Overwinningspunt" };
+const NLW = { Lumber: "Hout", Brick: "Baksteen", Wool: "Wol", Grain: "Graan", Ore: "Erts", Desert: "Woestijn", Tile: "Tegel", coast: "kust", Knight: "Ridder", "Road Building": "Wegenbouw", "Year of Plenty": "Uitvinding", Monopoly: "Monopolie", "Victory Point": "Puntenkaart" };
 const NLD = { "top left": "linksboven", "top right": "rechtsboven", "bottom left": "linksonder", "bottom right": "rechtsonder", top: "boven", bottom: "onder", left: "links", right: "rechts", centre: "midden" };
-const NLR = [[/^Settlement on /, "Dorp op "], [/^City on /, "Stad op "], [/^Spot on /, "Plek op "], [/^Road toward /, "Weg richting "], [/^Road(?= )/, "Weg"], [/^Robber on /, "Struikrover op "], [/^Pirate on /, "Piraat op "], [/^Bank trade /, "Bankruil "], [/^Development card$/, "Ontwikkelingskaart"], [/^Play /, "Speel "], [/^End turn$/, "Beurt beëindigen"], [/^Ship toward /, "Schip richting "], [/^Ship(?= )/, "Schip"], [/^Move ship /, "Verplaats schip "], [/^Road$/, "Weg"], [/^Ship$/, "Schip"], [/^the sea, /, "de zee, "]];
+const NLR = [[/^Settlement on /, "Dorp op "], [/^City on /, "Stad op "], [/^Spot on /, "Plek op "], [/^Road toward /, "Weg richting "], [/^Road(?= )/, "Weg"], [/^Robber on /, "Rover op "], [/^Pirate on /, "Piraat op "], [/^Bank trade /, "Bankruil "], [/^Development card$/, "Ontwikkelingskaart"], [/^Play /, "Speel "], [/^End turn$/, "Beurt beëindigen"], [/^Ship toward /, "Schip richting "], [/^Ship(?= )/, "Schip"], [/^Move ship /, "Verplaats schip "], [/^Road$/, "Weg"], [/^Ship$/, "Schip"], [/^the sea, /, "de zee, "]];
 /** An English move label of the review in `lang` (EN: as is). Resource words, board positions and card names are translated; unknown text stays. */
 export function moveLabel(label, lang = "en") {
   const s = String(label ?? ""); if (lang !== "nl" || !s) return s;

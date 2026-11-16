@@ -17,6 +17,7 @@
 // "Past games" in the top-left puts your running game back (it stays in localStorage untouched).
 // Styles: themes/history.css.
 import { oicon } from "./ui-icons.js";
+import { dateLocale } from "./i18n.js";
 import { icon, avatarSvg } from "./themes/manager.js";
 import { BOT_PROFILES, profileMini } from "./bot-profiles.js";
 import { profileOf } from "./bot-profile-ui.js";
@@ -499,7 +500,7 @@ export const HistoryMixin = {
   },
   _histAcc(m, name = "") {
     if (m.acc == null) return "";
-    return `<span class="hs-acc${m.prov ? " prov" : ""}" title="Game review accuracy${m.prov ? ", provisional" : ""}${m.mid ? " (checked during the game)" : ""}">${m.mid ? `<i class="mid" title="Checked during the game" aria-hidden="true"></i>` : ""}<small>${name ? esc(name) : "Accuracy"}</small>${m.prov ? "~" : ""}${m.acc}</span>`;
+    return `<span class="hs-acc${m.prov ? " prov" : ""}" title="Game review accuracy${m.prov ? ", provisional" : ""}${m.mid ? " (checked during the game)" : ""}">${m.mid ? `<i class="mid" title="Checked during the game" aria-hidden="true"></i>` : ""}<small${name ? "" : ' data-nl="Nauwk."'}>${name ? esc(name) : "Accuracy"}</small>${m.prov ? "~" : ""}${m.acc}</span>`;
   },
   _histRow(m) {
     const w = m.seats[m.winner];
@@ -614,9 +615,9 @@ function dur(ms) { const m = Math.max(1, Math.round(ms / 60000)); return m < 60 
 function kb(b) { return b < 1024 ? `${b} B` : `${(b / 1024).toFixed(b < 10240 ? 1 : 0)} KB`; }
 function when(t, long = false) {
   const d = new Date(t), n = new Date(), day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diff = Math.round((day(n) - day(d)) / 864e5), hm = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-  const nice = diff === 0 ? "Today" : diff === 1 ? "Yesterday" : diff < 7 ? d.toLocaleDateString([], { weekday: "short" }) : d.toLocaleDateString([], { day: "numeric", month: "short", ...(d.getFullYear() !== n.getFullYear() ? { year: "numeric" } : {}) });
-  return long ? `${d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} · ${hm}` : `${nice} ${hm}`;
+  const diff = Math.round((day(n) - day(d)) / 864e5), hm = d.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", hour12: false });
+  const nice = diff === 0 ? "Today" : diff === 1 ? "Yesterday" : diff < 7 ? d.toLocaleDateString(dateLocale(), { weekday: "short" }) : d.toLocaleDateString(dateLocale(), { day: "numeric", month: "short", ...(d.getFullYear() !== n.getFullYear() ? { year: "numeric" } : {}) });
+  return long ? `${d.toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" })} · ${hm}` : `${nice} ${hm}`;
 }
 
 /** Wire it into the game class: no writes while a past game is open, archive at game over / review done. */

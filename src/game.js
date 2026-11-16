@@ -45,8 +45,10 @@ const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
 const currentPalette = () => { const p = document.documentElement.dataset.palette; return p === "vivid" || p === "night" || p === "dusk" ? p : "light"; };
 const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore: "Or" };
 // Glossary names (shared/glossary.md): cards are Lumber / Brick / Wool / Grain / Ore
-import { RES_EN as RESOURCE_LABEL } from "./resources.js";
+import { RES_EN as RESOURCE_LABEL, RES_NL } from "./resources.js";
 import { oicon } from "./ui-icons.js";
+import { startLocalizer, tr, onLang, localize } from "./i18n.js"; // v1.87 English / Dutch for the whole app
+startLocalizer();
 const DEV_SHORT = { knight: "Knight", monopoly: "Monopoly", yearOfPlenty: "Plenty", roadBuilding: "Roads", victoryPoint: "Point" }; // the always-visible name on a held card
 const RESOURCE_ICON_PATH = {
   wood: "./assets/icons/resource-wood-v3.svg",
@@ -8823,14 +8825,16 @@ class ColonistFullGame {
   }
 
   _enrichLogText(text) {
+    text = tr(text); // v1.87 the sentence in the app language first (the journal stores English); names stay as they are
     let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     // "2 Lumber" → "2 [icon] Lumber"
     RESOURCES.forEach((r) => {
-      const regex = new RegExp(`\\b(\\d+)\\s+${RESOURCE_LABEL[r]}\\b`, "g");
-      html = html.replace(regex, `$1 ${icon(r)} ${RESOURCE_LABEL[r]}`);
+      const regex = new RegExp(`\\b(\\d+)\\s+(${RESOURCE_LABEL[r]}|${RES_NL[r].toLowerCase()})\\b`, "g");
+      html = html.replace(regex, (m, n, w) => `${n} ${icon(r)} ${w}`);
     });
     // Player names in their colour: one pass over whole names, the longest first (v1.41: "Super Expert" no longer showed "Expert" inside it as another player)
     const byName = new Map(this.players.filter((p) => p.name).map((p) => [p.name, p]));
+    this.players.forEach((p) => { if (p.name && tr(p.name) !== p.name) byName.set(tr(p.name), p); });
     if (byName.size) {
       const alt = [...byName.keys()].sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
       html = html.replace(new RegExp(`(?<![\\w-])(${alt})(?![\\w-])`, "g"), (m) => { const p = byName.get(m); return p ? `<span class="who pc-${p.id}">${m}</span>` : m; });
@@ -10067,6 +10071,7 @@ class ColonistFullGame {
 
     const rect = anchorEl.getBoundingClientRect();
     document.body.appendChild(tip);
+    localize(tip); // v1.87 Dutch is longer: translate before the tooltip is measured and placed
     // Position below the anchor, clamped to viewport
     const tipRect = tip.getBoundingClientRect();
     let left = rect.left;
@@ -11621,6 +11626,7 @@ Object.assign(ColonistFullGame.prototype, NavMixin); // v1.26
 
 const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle
+onLang(() => { try { game._lastLogKey = null; game.render?.(); if (game.home?.open) game.home.render(); } catch (_) { /* the page is localized by src/i18n.js anyway */ } }); // v1.87 a new language: the journal and Home are built again
 game._navInstall(); // v1.26 Back closes the top screen / sheet (src/nav.js)
 if (document.documentElement.dataset.labwatch) game._watchBoot(); // lab-137 an AI Lab game watched full screen (the normal game screen, spectator)
 else if (document.documentElement.dataset.lab) game._labBoot(document.documentElement.dataset.lab); // AI Lab engine (lab.html)
