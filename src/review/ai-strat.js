@@ -88,10 +88,12 @@ export function stratOf(g, q, ser) {
   const T = log.T, builds = log.builds[q].filter((b) => b.t > 0), fam = famOf(builds);
   const first2 = fam.slice(0, 2), nX = first2.filter((f) => f === "X").length;
   const planFam = first2.length < 2 ? null : nX === 2 ? "X" : nX === 0 ? "C" : "M";
-  let sw = 0, swAt = null; for (let i = 1; i < fam.length; i++) if (fam[i] !== fam[i - 1]) { sw++; if (sw === 1) swAt = i; }
-  const after = swAt != null ? fam.length - swAt : 0;
-  const dir = !planFam ? "none" : sw === 1 && after >= 2 && fam.length - after >= 2 ? "pivot" : sw >= 4 ? "wobbly" : "steady";
-  const pivot = dir === "pivot" ? { t: builds[swAt].t, to: PLAN_NAME[fam[swAt]] } : null;
+  // direction: a lone development card is not a change of plan (v1.84), so only roads, settlements and cities count here
+  const dbuilds = builds.filter((b) => b.k !== "d"), dfam = famOf(dbuilds), won = g.winner?.id === q;
+  let sw = 0, swAt = null; for (let i = 1; i < dfam.length; i++) if (dfam[i] !== dfam[i - 1]) { sw++; if (sw === 1) swAt = i; }
+  const after = swAt != null ? dfam.length - swAt : 0;
+  const dir = !planFam ? "none" : sw === 1 && after >= 2 && dfam.length - after >= 2 ? "pivot" : sw >= 4 ? "wobbly" : "steady";
+  const pivot = dir === "pivot" ? { t: dbuilds[swAt].t, to: PLAN_NAME[dfam[swAt]], toFam: dfam[swAt] } : null;
   const turns = Math.max(0, T - 1), pb = ptsByTurn(log, q), stalled = [], wait = {}, ptl = log.pts[q].filter((e) => e.n > 0 && e.t > 0);
   const waitTurns = {};
   for (let t = 1; t <= T - 1; t++) {
@@ -111,19 +113,24 @@ export function stratOf(g, q, ser) {
   }
   const SD = Math.round(SD_UNIT * Math.sqrt(Math.max(1, stretches.length)));
   const sp = tryv(() => aiStart(g, q)), dots = sp?.startDots || null;
-  const need = planFam === "X" ? ["wood", "brick"] : planFam === "C" ? ["wheat", "ore"] : planFam === "M" ? ["wood", "brick", "wheat", "ore"] : [];
+  // every resource the plan's builds need (a settlement also needs sheep and wheat), plus the one it was stalled on
+  const needSet = new Set(); builds.slice(0, 2).forEach((b) => COST[b.k].forEach((k, ri) => { if (k) needSet.add(R5[ri]); })); if (waitRes) needSet.add(waitRes);
+  const need = planFam ? R5.filter((r) => needSet.has(r)) : [];
   const good = dots ? need.filter((r) => dots[r] >= 3).length : 0, feeds = !dots || !need.length ? null : good === need.length ? "yes" : good > 0 ? "partly" : "no";
   const share = turns ? stalled.length / turns : 0, bad = (share >= STALL_SHARE ? 1 : 0) + (feeds === "no" ? 1 : 0) + (dir === "wobbly" ? 1 : 0);
   let verdict = null;
+  const V = (tone, dots, label, code) => ({ tone, dots, label, code });
   if (planFam && E != null) {
-    if (bad && E >= 2 * SD) verdict = { tone: "bad", dots: 3, label: "Weak plan" };
-    else if (bad && E >= SD) verdict = { tone: "bad", dots: 2, label: "Probably weak plan" };
-    else if (!bad && E <= 0.5 * SD) verdict = { tone: "good", dots: 3, label: "Solid plan" };
-    else if (!bad && E < SD) verdict = { tone: "good", dots: 2, label: "Probably solid plan" };
-    else verdict = { tone: "mid", dots: 1, label: "Hard to say" };
-  } else if (planFam) verdict = { tone: "mid", dots: 1, label: "Hard to say" };
-  const headless = !!planFam && share >= STALL_SHARE && dir === "wobbly";
+    if (bad && E >= 2 * SD) verdict = V("bad", 3, "Weak plan", "weak");
+    else if (bad && E >= SD) verdict = V("bad", 2, "Probably weak plan", "probably-weak");
+    else if (!bad && E <= 0.5 * SD) verdict = V("good", 3, "Solid plan", "solid");
+    else if (!bad && E < SD) verdict = V("good", 2, "Probably solid plan", "probably-solid");
+    else verdict = V("mid", 1, "Hard to say", "unclear");
+  } else if (planFam) verdict = V("mid", 1, "Hard to say", "unclear");
+  // a winner's plan is never called weak: the result says otherwise (and the labels may not contradict it)
+  if (won && verdict?.tone === "bad") verdict = V("mid", 1, "Hard to say", "unclear");
+  const headless = !!planFam && verdict?.tone === "bad" && !won && share >= STALL_SHARE && dir === "wobbly";
   const src = srcPoints(log, q), total = Object.values(src).reduce((a, b) => a + b, 0);
   return { seat: q, plan: planFam ? PLAN_NAME[planFam] : null, planFam, first2: builds.slice(0, 2), builds, dir, switches: sw, pivot, steady: dir === "steady", wobbly: dir === "wobbly",
-    turns, stalled, idleN: stalled.length, waitN: waitRes ? waitTurns[waitRes].length : 0, waitRes, stretches, E, SD, startDots: dots, need, feeds, share, bad, verdict, headless, src, srcTotal: total, hand: log.hand[q], ptsBy: pb };
+    won, turns, stalled, idleN: stalled.length, waitN: waitRes ? waitTurns[waitRes].length : 0, waitRes, stretches, E, SD, startDots: dots, need, feeds, share, bad, verdict, headless, src, srcTotal: total, hand: log.hand[q], ptsBy: pb };
 }

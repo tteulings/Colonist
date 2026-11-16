@@ -8,22 +8,24 @@ import { aiDecList } from "./ai-tools.js";
 import { decMoves } from "./ai-blocks.js";
 import { stratOf, handLog, R5 } from "./ai-strat.js";
 import { luckKey, ownOf } from "../review-luck.js";
-import { swingCause, causeEvent } from "./ai-cause.js";
+import { swingCause } from "./ai-cause.js";
+import { langOf } from "./ai-lang.js";
+import { recapLang } from "../review-recap.js";
 
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
 const slug = (s) => String(s || "").toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "") || "p";
 export const LUCK_DOMINANT = 8; // win chance points: a player's luck from chance at least this big is worth a card
 
 /** All facts of the game the reviewed player is looking at. */
-export function buildFacts(g) {
-  const n = g.players.length, me = g._rvPid, ser = tryv(() => aiSeries(g), { by: new Map(), maxT: 0 }), log = tryv(() => handLog(g));
+export function buildFacts(g, lang = recapLang()) {
+  const t_ = langOf(lang), n = g.players.length, me = g._rvPid, ser = tryv(() => aiSeries(g), { by: new Map(), maxT: 0 }), log = tryv(() => handLog(g));
   const T = Math.max(ser.maxT || 0, g.turn || 0, log?.T || 0);
-  const nameOf = (q) => (g._rvIsYou(q) ? "You" : String(g.players[q]?.name || `Player ${q + 1}`).replace(/<[^>]+>/g, ""));
+  const nameOf = (q) => (g._rvIsYou(q) ? t_.you : String(g.players[q]?.name || `Player ${q + 1}`).replace(/<[^>]+>/g, ""));
   const keys = [], used = new Set();
   g.players.forEach((p, q) => { let k = g._rvIsYou(q) ? "you" : slug(p.name); if (used.has(k)) k = `${k}${q}`; used.add(k); keys[q] = k; });
   const seatOf = (k) => keys.indexOf(String(k));
   const players = g.players.map((p, q) => ({ seat: q, key: keys[q], name: nameOf(q), you: g._rvIsYou(q) }));
-  const fx = { g, n, me, T, ser, log, players, keys, seatOf, nameOf, hasWc: ser.by.size >= 2 };
+  const fx = { lang: t_ === langOf("nl") ? "nl" : "en", t: t_, g, n, me, T, ser, log, players, keys, seatOf, nameOf, hasWc: ser.by.size >= 2 };
   fx.wc = (q, t) => wcAt(ser, q, t);
   fx.change = (q, t) => wcChange(ser, q, t, t);
   fx.winner = g.winner ? g.winner.id : null;
@@ -53,7 +55,7 @@ export function buildFacts(g) {
   // the turns where a seat's win chance moved most (whole points), biggest first
   fx.swings = (q, k = 4) => { const out = []; for (const t of ser.by.keys()) { if (t < 1) continue; const c = wcChange(ser, q, t, t); if (c && c.d) out.push({ t, ...c }); } return out.sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, k); };
   /** What happened in turn t (from the app): the cause of the biggest change of a seat, in words. */
-  fx.cause = (t, q) => { const c = tryv(() => swingCause(g, t, q)); return c ? { actor: c.actor, text: causeEvent(c, nameOf), kind: c.kind, delta: c.delta, from: c.from, to: c.to } : null; };
+  fx.cause = (t, q) => { const c = tryv(() => swingCause(g, t, q)); return c ? { actor: c.actor, text: t_.cause(c, nameOf), kind: c.kind, delta: c.delta, from: c.from, to: c.to } : null; };
 
   /** Resolve a ref to { v, k } (k: player turn pct n x b) or null. */
   fx.ref = (ref) => {
@@ -91,7 +93,7 @@ export function buildFacts(g) {
         if (p[1] === "goal") return num(m.pointsToWin);
         if (p[1] === "margin") return m.margin ? num(m.margin) : null;
         const ms = m.needed?.missing ? Object.entries(m.needed.missing) : [];
-        if (p[1] === "res") return ms.length === 1 ? { v: ms[0][0], k: "x" } : null;
+        if (p[1] === "res") return ms.length === 1 ? { v: t_.res[ms[0][0]] || ms[0][0], k: "x" } : null;
         if (p[1] === "n") return ms.length === 1 ? num(ms[0][1]) : null;
         if (p[1] === "label") return m.needed?.label ? { v: m.needed.label, k: "x" } : null;
         return null;
@@ -107,15 +109,15 @@ export function buildFacts(g) {
       case "strat": {
         const q = seat(p[1]), s = q == null ? null : fx.strat[q]; if (!s) return null;
         const f = p[2];
-        if (f === "pivot") { if (!s.pivot) return null; if (p[3] === "t") return { v: s.pivot.t, k: "turn" }; if (p[3] === "to") return { v: s.pivot.to, k: "x" }; return { v: 1, k: "b" }; }
+        if (f === "pivot") { if (!s.pivot) return null; if (p[3] === "t") return { v: s.pivot.t, k: "turn" }; if (p[3] === "to") return { v: t_.plan[s.pivot.toFam] || s.pivot.to, k: "x" }; return { v: 1, k: "b" }; }
         if (["steady", "wobbly", "headless"].includes(f)) return s[f] ? { v: 1, k: "b" } : null;
-        if (f === "plan") return s.plan ? { v: s.plan, k: "x" } : null;
-        if (f === "waitRes") return s.waitRes ? { v: s.waitRes, k: "x" } : null;
+        if (f === "plan") return s.plan ? { v: t_.plan[s.planFam] || s.plan, k: "x" } : null;
+        if (f === "waitRes") return s.waitRes ? { v: t_.res[s.waitRes] || s.waitRes, k: "x" } : null;
         if (f === "waitN") return s.waitRes ? num(s.waitN) : null;
         if (f === "E") return s.E == null ? null : { v: s.E, k: "pct" };
         if (f === "SD") return { v: s.SD, k: "pct" };
         if (f === "idleN" || f === "turns") return num(s[f]);
-        if (f === "verdict") return s.verdict ? { v: s.verdict.label, k: "x" } : null;
+        if (f === "verdict") return s.verdict ? { v: t_.verdict[s.verdict.code] || s.verdict.label, k: "x" } : null;
         if (f === "feeds") return s.feeds ? { v: s.feeds, k: "x" } : null;
         return null;
       }

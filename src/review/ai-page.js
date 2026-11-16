@@ -10,7 +10,7 @@ export const LEVELS = ["Game", "Near miss", "Decision", "Strategy", "Luck"];
 export const PRIMS = ["line", "bars", "strip", "stack", "tiles", "compare", "board", "badge", "table", "text"];
 export const FMTS = ["player", "turn", "pct", "sgpct", "n", "x"];
 export const CAPS = { widgets: 6, blocks: 4, expand: 3, notes: 3, boards: 1, lines: 2, rows: 5, tiles: 3, marks: 4, follow: 4, words: 26, label: 28 };
-export const CAUSAL = /\b(because|caused?|causing|due to|thanks to|therefore|led to|leads to|lead to|since|as a result|resulted in|owing to|so that|hence)\b/i;
+export const CAUSAL = /\b(because|caused?|causing|due to|thanks to|therefore|led to|leads to|lead to|since|as a result|resulted in|owing to|so that|hence|omdat|doordat|dankzij|daardoor|waardoor|vandaar)\b/i;
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
 const isInt = (v) => Number.isInteger(v);
 const KIND_OK = { player: ["player"], turn: ["turn"], pct: ["pct", "n"], sgpct: ["pct", "n"], n: ["n", "pct"], x: ["x"] };
@@ -179,66 +179,65 @@ const P = (k) => ({ ref: `name.${k}`, fmt: "player" });
 const R = (ref, fmt) => ({ ref, ...(fmt ? { fmt } : {}) });
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** A full page spec from the facts alone. */
+/** A full page spec from the facts alone. All words come from fx.t (src/review/ai-lang.js: EN / NL). */
 export function recipePage(fx) {
-  const Y = fx.keys[fx.me], W = fx.winner != null ? fx.keys[fx.winner] : null, S = fx.strat[fx.me], widgets = [];
-  const headline = fx.won ? [P(Y), " won on ", R(`turn.${fx.T}`), " with ", R(`pts.${Y}`), " points."]
-    : W ? [P(W), " won on ", R(`turn.${fx.T}`), ". ", P(Y), " stood on ", R(`pts.${Y}`), " points."] : null;
-  // 1. win chance: the biggest swing of the reviewed player, against the winner (or the strongest rival)
+  const t = fx.t, r = t.r, Y = fx.keys[fx.me], W = fx.winner != null ? fx.keys[fx.winner] : null, S = fx.strat[fx.me], widgets = [], youIs = !!fx.players[fx.me]?.you;
+  const headline = fx.won ? [P(Y), ...r.won(R(`turn.${fx.T}`), R(`pts.${Y}`))]
+    : W ? [P(W), r.lostA, R(`turn.${fx.T}`), ". ", P(Y), r.lostB, R(`pts.${Y}`), r.lostC] : null;
+  // 1. win chance: the biggest swing of the reviewed player, against the winner (or the strongest rival). Point wording: the value before and after that turn.
   const sw = fx.hasWc ? fx.swings(fx.me, 6).filter((s) => s.t < fx.T).slice(0, 3) : [];
   if (sw.length && Math.abs(sw[0].d) >= 3) {
-    const t = sw[0].t, rival = !fx.won && W ? W : fx.keys[[...fx.players].filter((p) => !p.you).sort((a, b) => (fx.wc(b.seat, Math.max(1, Math.floor(fx.T * 0.7))) ?? 0) - (fx.wc(a.seat, Math.max(1, Math.floor(fx.T * 0.7))) ?? 0))[0]?.seat] ?? null;
-    widgets.push({ id: "wc", level: "Game", short: "win chance", chip: { ref: `d.${Y}@${t}`, fmt: "sgpct", tone: sw[0].d > 0 ? "up" : "dn" },
-      title: [P(Y), " stood at ", R(`wc.${Y}@${t - 1}`), " until ", R(`turn.${t}`), ", then it ", { dir: [`wc.${Y}@${t - 1}`, `wc.${Y}@${t}`], up: "rose", down: "slid" }, "."],
-      blocks: [{ p: "line", metric: "winchance", players: [Y, ...(rival && rival !== Y ? [rival] : [])], marks: sw.map((s) => s.t).sort((a, b) => a - b) }],
-      notes: [["Dots mark the turns where the win chance moved most. Tap one to open that turn."], ["Each win chance is a set of futures played out from that position, so a rerun moves it a little."]] });
+    const tn = sw[0].t, rival = !fx.won && W ? W : fx.keys[[...fx.players].filter((p) => !p.you).sort((a, b) => (fx.wc(b.seat, Math.max(1, Math.floor(fx.T * 0.7))) ?? 0) - (fx.wc(a.seat, Math.max(1, Math.floor(fx.T * 0.7))) ?? 0))[0]?.seat] ?? null;
+    widgets.push({ id: "wc", level: "Game", short: t.short_.wc, chip: { ref: `d.${Y}@${tn}`, fmt: "sgpct", tone: sw[0].d > 0 ? "up" : "dn" },
+      title: [...r.wcLead(youIs, P(Y)), { dir: [`wc.${Y}@${tn - 1}`, `wc.${Y}@${tn}`], up: r.up, down: r.down }, r.wcFrom, R(`wc.${Y}@${tn - 1}`), r.wcTo, R(`wc.${Y}@${tn}`), r.wcOn, R(`turn.${tn}`), "."],
+      blocks: [{ p: "line", metric: "winchance", players: [Y, ...(rival && rival !== Y ? [rival] : [])], marks: sw.map((x) => x.t).sort((a, b) => a - b) }],
+      notes: [[r.wcN1], [r.wcN2]] });
   }
   // 4. near miss
-  const nm = fx.near;
+  const nm = fx.near; let hasNear = false;
   if (nm && !fx.won && nm.youPoints >= nm.pointsToWin - 3 && nm.margin > 0) {
     const one = tryv(() => fx.ref("near.res"));
-    widgets.push({ id: "near", level: "Near miss", short: "near miss",
-      title: one ? [R(`pts.${Y}`), " of ", R("near.goal"), " points. ", R("near.n"), " ", R("near.res", "x"), " short on ", R(`turn.${fx.T}`), "."] : [R(`pts.${Y}`), " of ", R("near.goal"), " points at the end."],
-      blocks: [{ p: "stack", player: Y }, { p: "tiles", items: [{ kind: "miss" }] }] });
+    widgets.push({ id: "near", level: "Near miss", short: t.short_.near,
+      title: one ? [R(`pts.${Y}`), r.nearOne.a, R("near.goal"), r.nearOne.b, R("near.n"), " ", R("near.res", "x"), r.nearOne.c, R(`turn.${fx.T}`), "."] : [R(`pts.${Y}`), r.nearOne.a, R("near.goal"), r.nearEnd],
+      blocks: [{ p: "stack", player: Y }, ...(one ? [{ p: "tiles", items: [{ kind: "miss" }] }] : [])] }); // the "short" tile only when exactly one resource was missing (else the block cannot resolve)
+    hasNear = true;
   }
   // 2. grand strategy of the reviewed player
   if (S?.verdict) {
-    const base = [P(Y)];
-    const title = S.headless ? [...base, " spent ", R(`strat.${Y}.idleN`), " of ", R(`strat.${Y}.turns`), " turns stuck, with no steady plan."]
-      : S.pivot ? [...base, " planned ", R(`strat.${Y}.plan`, "x"), ", then pivoted to ", R(`strat.${Y}.pivot.to`, "x"), " at ", R(`strat.${Y}.pivot.t`, "turn"), "."]
-      : S.steady ? [...base, " planned ", R(`strat.${Y}.plan`, "x"), " and stayed on it. ", R(`strat.${Y}.idleN`), S.idleN === 1 ? " stalled turn." : " stalled turns."]
-      : [...base, " had ", R(`strat.${Y}.idleN`), S.idleN === 1 ? " stalled turn of " : " stalled turns of ", R(`strat.${Y}.turns`), "."];
+    const base = [P(Y)], n = S.idleN;
+    const title = S.headless ? [...base, r.headless.a, R(`strat.${Y}.idleN`), r.headless.b, R(`strat.${Y}.turns`), r.headless.c]
+      : S.pivot ? [...base, r.pivot.a, R(`strat.${Y}.plan`, "x"), r.pivot.b, R(`strat.${Y}.pivot.to`, "x"), r.pivot.c, R(`strat.${Y}.pivot.t`, "turn"), "."]
+      : S.steady ? [...base, r.steady.a, R(`strat.${Y}.plan`, "x"), r.steady.b, R(`strat.${Y}.idleN`), r.steady.n(n)]
+      : [...base, r.plain.a, R(`strat.${Y}.idleN`), r.plain.n(n), R(`strat.${Y}.turns`), r.plain.z];
     const req = S.headless ? [`strat.${Y}.headless`] : S.pivot ? [`strat.${Y}.pivot`] : S.steady ? [`strat.${Y}.steady`] : [];
-    widgets.push({ id: "gs", level: "Strategy", short: "the plan", who: Y, requires: req, title,
-      blocks: [{ p: "badge", player: Y }, { p: "line", metric: "points", player: Y, show: ["plan", "stalls", "pivot"] }, { p: "stack", player: Y },
-        { p: "tiles", items: [{ kind: "num", label: "Stalled turns", ref: `strat.${Y}.idleN`, of: `strat.${Y}.turns`, subIf: `strat.${Y}.waitN`, sub: [R(`strat.${Y}.waitN`), " waiting on ", R(`strat.${Y}.waitRes`, "x")] }, { kind: "startfeed", player: Y }] }],
-      notes: [["Plan: the first two builds after set-up. A stalled turn: no points while holding four cards or more."],
-        ...(S.E != null ? [["Stalled turns cost about ", R(`strat.${Y}.E`, "pct"), " of win chance, give or take ", R(`strat.${Y}.SD`, "pct"), "."]] : [])] });
+    widgets.push({ id: "gs", level: "Strategy", short: t.short_.gs, who: Y, requires: req, title,
+      blocks: [{ p: "badge", player: Y }, { p: "line", metric: "points", player: Y, show: ["plan", "stalls", "pivot"] }, ...(hasNear ? [] : [{ p: "stack", player: Y }]),
+        { p: "tiles", items: [{ kind: "num", label: t.tStalled, ref: `strat.${Y}.idleN`, of: `strat.${Y}.turns`, subIf: `strat.${Y}.waitN`, sub: [R(`strat.${Y}.waitN`), r.waiting, R(`strat.${Y}.waitRes`, "x")] }, { kind: "startfeed", player: Y }] }],
+      notes: [[r.gsN1], ...(S.E > 0 ? [[r.gsN2.a, R(`strat.${Y}.E`, "pct"), r.gsN2.b]] : [])] });
   }
   // 5. the decision that cost the most
   const d = fx.decs.find((x) => x.gap >= 3 && x.vc !== "close");
   if (d) {
-    widgets.push({ id: "dec", level: "Decision", short: "the decision", chip: { ref: `dec.${d.turn}.neg`, fmt: "sgpct", tone: "dn" },
-      title: ["On ", R(`turn.${d.turn}`), " another move was ", R(`dec.${d.turn}.gap`, "pct"), " better."],
+    widgets.push({ id: "dec", level: "Decision", short: t.short_.dec, chip: { ref: `dec.${d.turn}.neg`, fmt: "sgpct", tone: "dn" },
+      title: [r.dec.a, R(`turn.${d.turn}`), r.dec.b, R(`dec.${d.turn}.gap`, "pct"), r.dec.c],
       blocks: [{ p: "compare", dec: d.turn }], expand: d.pos ? [{ p: "board", turn: d.turn }] : [],
-      notes: [["Win chance after each move, from futures played out by the review."]] });
+      notes: [[r.decN]] });
   }
-  // 3. waiting on one resource while holding cards
+  // 3. waiting on one resource while holding cards (the stalled / start tiles live on the plan card: no repeat here)
   if (S?.waitRes && S.waitN >= 3 && fx.rate?.[S.waitRes]) {
-    const r = S.waitRes, others = fx.players.filter((p) => !p.you).map((p) => p.key);
-    widgets.push({ id: "wait", level: "Strategy", short: `${r} and cards`, who: Y,
-      title: ["Cards in hand, no points. ", R(`strat.${Y}.waitRes`, "x"), " came ", R(`rate.${r}.${Y}`), " a turn, the top rival ", R(`rate.${r}.top`), "."],
-      blocks: [{ p: "strip", metric: "hand", player: Y }, { p: "bars", rows: [...others, Y].map((k) => ({ player: k, ref: `rate.${r}.${k}` })), unit: `${r} cards per turn` },
-        { p: "tiles", items: [{ kind: "startfeed", player: Y }, { kind: "num", label: `Waiting on ${r}`, ref: `strat.${Y}.waitN`, of: `strat.${Y}.idleN` }] }] });
+    const res = S.waitRes, others = fx.players.filter((p) => !p.you).map((p) => p.key);
+    widgets.push({ id: "wait", level: "Strategy", short: t.short_.wait(t.res[res]), who: Y,
+      title: [r.wait.a, R(`strat.${Y}.waitRes`, "x"), r.wait.b, R(`rate.${res}.${Y}`), r.wait.c, R(`rate.${res}.top`), r.wait.d],
+      blocks: [{ p: "strip", metric: "hand", player: Y }, { p: "bars", rows: [...others, Y].map((k) => ({ player: k, ref: `rate.${res}.${k}` })), unit: r.waitUnit(t.res[res]) }] });
   }
   // 6. luck, only when it was big
   if (fx.luck && Math.max(...fx.luck.tot.map(Math.abs)) >= 5) {
     const rows = fx.players.slice().sort((a, b) => (b.you ? 1 : 0) - (a.you ? 1 : 0) || Math.abs(fx.luck.tot[b.seat]) - Math.abs(fx.luck.tot[a.seat])).slice(0, CAPS.rows).map((p) => ({ player: p.key, ref: `luck.total.${p.key}` }));
-    widgets.push({ id: "luck", level: "Luck", short: "luck", chip: { ref: `luck.total.${Y}`, fmt: "sgpct", tone: fx.luck.tot[fx.me] >= 0 ? "up" : "dn" },
-      title: [P(Y), " got ", R(`luck.total.${Y}`, "sgpct"), " of win chance from chance."],
-      blocks: [{ p: "bars", rows, diverging: true, unit: "win chance gained or lost to chance" }], expand: [{ p: "table", of: "luck" }, ...(fx.dice ? [{ p: "strip", metric: "rolls" }] : [])] });
+    widgets.push({ id: "luck", level: "Luck", short: t.short_.luck, chip: { ref: `luck.total.${Y}`, fmt: "sgpct", tone: fx.luck.tot[fx.me] >= 0 ? "up" : "dn" },
+      title: [P(Y), r.luck.a, R(`luck.total.${Y}`, "sgpct"), r.luck.b],
+      blocks: [{ p: "bars", rows, diverging: true, unit: r.luckUnit }], expand: [{ p: "table", of: "luck" }, ...(fx.dice ? [{ p: "strip", metric: "rolls" }] : [])] });
   }
-  const follow = (fx.won ? [{ q: "Why did I win?" }] : [{ q: "Why did I lose?" }]).concat([{ q: "Best move of the game?" }, { q: "Who was luckiest?" }, { q: "What was the winner's plan?" }]);
+  const f = r.follow, follow = [{ q: fx.won ? f.won : f.lost }, { q: f.best }, { q: f.lucky }, { q: f.plan }];
   return { headline, widgets, follow };
 }
 
