@@ -376,3 +376,30 @@ html:has(#splash.gone) .home .hm-brand { opacity: 1; transition: opacity .22s ea
 [data-theme] .app .pstrip.six-up .pchip .mini, [data-theme] .app .pstrip[data-seats="5"] .pchip .mini, [data-theme] .app .pstrip[data-seats="6"] .pchip .mini { font-size: 12px; }
 /* one close icon (the line cross) everywhere */
 .nm-x .oi, .ls-x .oi, .gs-rp-x .oi, .bp-x .oi, .rv-ih .rv-btn .oi { width: 18px; height: 18px; display: block; margin: auto; }
+
+/* ---- round 8 ---- */
+/* one row-label weight in Settings (the Game tab's generic label rule was more specific than the row rule): 700, like Confirm builds */
+.tm-settings .st-game .settings-toggle-label, .tm-settings .st-game .st-range-label, .tm-settings .st-game .st-volume .st-range-label { font-weight: 700; font-size: var(--fs-l); color: var(--heading); }
+.tm-settings .st-game .st-range-label output { font-weight: 600; font-size: var(--fs-s); color: var(--ink-soft); }
+.tm-settings .st-game .settings-toggle-label .st-note { font-weight: 600; font-size: var(--fs-m); color: var(--ink-soft); }
+.mn-speed > span, .mn-live > span, .mn-speed label, .mn-live label { font-weight: 700; font-size: var(--fs-l); color: var(--ink); }
+/* Win chance: the swing rows carry who (the player's colour) and which way (a white arrow); the chart is calmer: lighter grid, thinner faded lines, the few biggest decisions marked */
+.rvw-s .rvw-dot { width: 20px; height: 20px; display: grid; place-items: center; font: 800 9px/1 var(--font-body); color: #fff; font-style: normal; box-shadow: 0 0 0 2px color-mix(in srgb, var(--sheet-solid, #fff) 70%, transparent); }
+.rvw-c svg .g { stroke-opacity: .5; stroke-dasharray: 2 4; }
+.rvw-c svg path { stroke-width: 1.2; opacity: .3; }
+.rvw-c svg path.me { stroke-width: 2.8; opacity: 1; }
+.rvw-c svg .pt:not(.me) { display: none; }
+.rvw-c svg .dec { stroke-width: 1.4; }
+.rvw-c svg text { font-size: 11px; }
+/* Moves: the % takes the row's own colour (amber / slate / red) with its bar, so it reads on the sheet */
+.mv-r .mv-c { color: var(--neg); }
+.mv-r.c-could .mv-c, .mv-r.c-lean .mv-c, .mv-r.c-close .mv-c { color: var(--cc); }
+.mv-r .mv-c.neu { color: var(--ink-soft); }
+.mv-r .mv-bar2::after { background: currentColor; }
+/* 5-6 players: the chips use the full width and the avatar, the points badge and the name get air */
+[data-theme] .app .pstrip.six-up, [data-theme] .app .pstrip[data-seats="5"], [data-theme] .app .pstrip[data-seats="6"] { gap: 2px; --chip-av: 21px; }
+[data-theme] .app .pstrip.six-up .pchip .row { gap: 4px; }
+[data-theme] .app .pstrip.six-up .pchip .vpn { min-width: 18px; padding-left: 1px; padding-right: 1px; }
+/* end screen: "points" sits on a dark pill, so it reads over the rays */
+.gs-intro .gs-vpn { display: inline-block; padding: 3px 14px 4px; border-radius: 999px; background: rgba(8, 36, 44, .62); text-shadow: none; }
+.gs-intro .gs-vpn .gs-vpn-u { font-weight: 700; }

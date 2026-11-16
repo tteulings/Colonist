@@ -10738,8 +10738,8 @@ class ColonistFullGame {
     if (!pd) return;
     this._discardSuggestPick(pd);
     const who = this._you(pd.player) ? "you" : pd.player.name;
-    this.pushToast(`Time's up · ${pd.count} cards handed back for ${who}`);
-    this.addLog(`Time's up — ${pd.count} cards handed back automatically.`);
+    this.pushToast(`Time's up · ${pd.count} card${pd.count === 1 ? "" : "s"} handed back for ${who}`);
+    this.addLog(`Time's up — ${pd.count} card${pd.count === 1 ? "" : "s"} handed back automatically.`);
     this._confirmDiscard();
   }
 

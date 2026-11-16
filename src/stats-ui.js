@@ -242,8 +242,8 @@ export const StatsUiMixin = {
     if (human) {
       const ph = st.pHex[human.id];
       const best = ph.indexOf(Math.max(...ph));
-      if (ph[best] > 0) out.push({ ic: "settlement", text: `Your best tile: ${this._stTile(best)} · ${ph[best]} cards` });
-    } else if (w) out.push({ ic: "cards", text: `${w.name} collected ${st.prodTot[w.id]} cards` });
+      if (ph[best] > 0) out.push({ ic: "settlement", text: `Your best tile: ${this._stTile(best)} · ${ph[best]} card${ph[best] === 1 ? "" : "s"}` });
+    } else if (w) out.push({ ic: "cards", text: `${w.name} collected ${st.prodTot[w.id]} card${st.prodTot[w.id] === 1 ? "" : "s"}` });
     if (st.N) out.push({ ic: "dice", text: this._stDiceText(st) });
     return out.slice(0, 3);
   },
@@ -536,7 +536,7 @@ export const StatsUiMixin = {
     v = land;
     if (!v[best]) return kind === "robber" ? "The robber stayed home" : kind === "income" ? `${this._stName(this.players[pid])} got nothing from the dice` : "No tile paid out";
     const tile = this._stTile(best);
-    if (kind === "prod") return `${cap(tile)} paid out most: ${v[best]} cards`;
+    if (kind === "prod") return `${cap(tile)} paid out most: ${v[best]} card${v[best] === 1 ? "" : "s"}`;
     if (kind === "robber") return !this.winner && !st.robberMoves && best === st.r0 ? `The robber hasn't moved yet` : `The robber liked ${tile}: ${v[best]} ${this._stTurnWord()}s`;
     const p = this.players[pid];
     return `${this._you(p) ? "Your" : `${p.name}'s`} best tile: ${tile} · ${v[best]} cards`;

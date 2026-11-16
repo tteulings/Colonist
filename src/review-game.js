@@ -1240,12 +1240,15 @@ export const ReviewGameMixin = {
       const pts = [];
       if (g.M >= 1) g.su.forEach((q, i) => { const v = (q.x ? q.x.p : q.p)?.[p.id]; if (v != null) pts.push([g.Xs(i), g.Y(v)]); });
       this._rvLinePts(O, p.id, look).pts.forEach(([s, v]) => pts.push([g.Xt(s), g.Y(v)]));
+      const kk = Math.max(1, Math.ceil(pts.length / 64)); // fewer vertices: the trend reads, not every step
+      if (kk > 1) { const last = pts[pts.length - 1]; const th = pts.filter((_, i) => i % kk === 0); if (th[th.length - 1] !== last) th.push(last); pts.length = 0; pts.push(...th); }
       return { id: p.id, d: pts.length > 1 ? pts.map((q, i) => `${i ? "L" : "M"}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join("") : "" };
     });
     const grid = [0, 0.5, 1].map((p) => `<line x1="${g.x0}" x2="${g.x1}" y1="${g.Y(p).toFixed(1)}" y2="${g.Y(p).toFixed(1)}" class="g"/><text x="${g.x0 - 4}" y="${(g.Y(p) + 3).toFixed(1)}" text-anchor="end">${p * 100}%</text>`).join("");
     const sx = g.M >= 1 ? (g.x0 + g.f * g.w + g.gap / 2).toFixed(1) : null;
     const cx = g.Xt(cur), ent = look?.steps.find((x) => x.S === cur), here = ent ? ent.e : O.get(cur);
-    const dec = ds.map((d) => { const s = Math.min(g.N, d.x.s ?? 0), v = d.seats ? d.seats[me] / (d.seats.reduce((a, b) => a + b, 0) || 1) : null; return v == null ? "" : `<circle cx="${g.Xt(s).toFixed(1)}" cy="${g.Y(v).toFixed(1)}" r="${["best", "great", "good", "triv"].includes(d.cls) ? 0 : 3.6}" class="dec c-${d.cls}"/>`; }).join("");
+    const decTop = new Set(ds.filter((d) => !["best", "great", "good", "triv", "close", "lean"].includes(d.cls)).sort((x, y) => (y.gap || 0) - (x.gap || 0)).slice(0, 4)); // only the few biggest
+    const dec = ds.map((d) => { if (!decTop.has(d)) return ""; const s = Math.min(g.N, d.x.s ?? 0), v = d.seats ? d.seats[me] / (d.seats.reduce((a, b) => a + b, 0) || 1) : null; return v == null ? "" : `<circle cx="${g.Xt(s).toFixed(1)}" cy="${g.Y(v).toFixed(1)}" r="4.2" class="dec c-${d.cls}"/>`; }).join("");
     const old = keep ? c.querySelector("svg") : null;
     if (old) { // v1.55 dragging: only the cursor line and the dots move; the chart is not drawn again
       const cl = old.querySelector(".cur"); cl?.setAttribute("x1", cx.toFixed(1)); cl?.setAttribute("x2", cx.toFixed(1));
@@ -1284,7 +1287,7 @@ export const ReviewGameMixin = {
       this.players.forEach((p) => { [["roll", ent.a[p.id] - ent.b[p.id]], ["moves", ent.e[p.id] - ent.a[p.id]]].forEach(([k, x]) => { if (!top || Math.abs(x) > Math.abs(top.x)) top = { p: p.id, k, x }; }); });
       if (top && Math.abs(top.x) >= 0.01) {
         const b2 = what.builds.filter((q) => q.pid === top.p).sort((a1, a2) => a2.vp - a1.vp)[0], got = what.cards?.[top.p] || 0;
-        const parts = [...(what.builds.some((q) => q.kind === "c") ? ["city"] : []), ...(what.builds.some((q) => q.kind === "s") ? ["settlement"] : []), ...what.acts.filter((q) => q.k === "mono").map((q) => `Monopoly +${q.n} ${q.res}`), ...(Object.values(what.roads).some((n) => n) ? ["road"] : []), ...(what.acts.some((q) => q.k === "bank" || q.k === "trade") ? [`${what.acts.filter((q) => q.k === "bank" || q.k === "trade").length} trades`] : []), ...what.acts.filter((q) => q.k === "dev" && q.type !== "monopoly").map(() => "dev card")];
+        const parts = [...(what.builds.some((q) => q.kind === "c") ? ["city"] : []), ...(what.builds.some((q) => q.kind === "s") ? ["settlement"] : []), ...what.acts.filter((q) => q.k === "mono").map((q) => `Monopoly +${q.n} ${q.res}`), ...(Object.values(what.roads).some((n) => n) ? ["road"] : []), ...(what.acts.some((q) => q.k === "bank" || q.k === "trade") ? [(n1 => `${n1} trade${n1 === 1 ? "" : "s"}`)(what.acts.filter((q) => q.k === "bank" || q.k === "trade").length)] : []), ...what.acts.filter((q) => q.k === "dev" && q.type !== "monopoly").map(() => "dev card")];
         const mo = what.acts.find((a) => a.k === "mono" && a.p === top.p), ml = what.acts.find((a) => a.k === "mono" && a.p !== top.p && (a.lost[top.p] || 0) > 0), st2 = what.acts.find((a) => a.k === "steal" && (a.p === top.p || a.q === top.p));
         const cause = top.k !== "roll" && parts.length > 1 && what.actor != null ? `${what.actor === top.p ? "" : this._rvIsYou(what.actor) ? "Your " : `${this._rvNm(what.actor)}’s `}${what.actor === top.p ? "turn" : "turn"}: ${parts.join(", ")}` : top.k !== "roll" && mo ? `Monopoly: took ${mo.n} ${mo.res}${what.lostTxt(mo)}` : top.k !== "roll" && ml ? `${this._rvNm(ml.p)} played Monopoly and took ${ml.lost[top.p]} ${ml.res} from ${this._rvNm(top.p)}` : top.k !== "roll" && st2 && !b2 ? "a card stolen" : top.k === "roll" ? (got ? `the roll paid ${got} ${got === 1 ? "card" : "cards"}` : what.robber != null && top.x < 0 ? "the roll moved the robber" : "the roll (luck)") : b2 ? (b2.bonus ? "built a settlement on a new island (+3 points with the island bonus)" : b2.kind === "c" ? "built a city" : "built a settlement") : what.robber === top.p ? "moved the robber" : "the moves of this turn";
         topTxt = `<b>Biggest effect:</b> ${this._rvNm(top.p)} <span class="${top.x > 0 ? "pos" : "neg"}">${sgp(top.x)}</span>, ${esc(cause)}.`;
@@ -1311,7 +1314,7 @@ export const ReviewGameMixin = {
       else for (let s = 1; s <= g.N; s++) { const a = O.get(s - 1), b = O.get(s); if (!a || !b) continue; let best = null; this.players.forEach((p) => { const v = b[p.id] - a[p.id]; if (!best || Math.abs(v) > Math.abs(best.x)) best = { p: p.id, k: "est", x: v }; }); if (best) sw.push({ s, ...best }); }
       sw.sort((a, b) => Math.abs(b.x) - Math.abs(a.x));
       const tag = { roll: "from the roll (luck)", moves: "from the turn’s moves", est: "≈ estimate" };
-      ws.innerHTML = sw.slice(0, 4).map((x) => { const w = this._rvStepWhat(x.s), v = Math.round(x.x * 100); return `<button type="button" class="rs-key" data-rvws="${x.s}"><i class="pc-${x.p} rvw-dot" aria-hidden="true"></i><span class="t">${esc(w.head.split(" · ")[0])}</span><span class="x">${esc(w.head.split(" · ")[1] || "")}<small class="w">${esc(this._rvNm(x.p))}: ${tag[x.k]}</small></span><b class="${v >= 0 ? "pos" : "neg"}">${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v)}%</b></button>`; }).join("") || `<p class="rs-lost">The numbers are still coming in.</p>`;
+      ws.innerHTML = sw.slice(0, 4).map((x) => { const w = this._rvStepWhat(x.s), v = Math.round(x.x * 100); return `<button type="button" class="rs-key" data-rvws="${x.s}"><i class="pc-${x.p} rvw-dot ${v >= 0 ? "up" : "dn"}" aria-hidden="true">${v >= 0 ? "▲" : "▼"}</i><span class="t">${esc(w.head.split(" · ")[0])}</span><span class="x">${esc(w.head.split(" · ")[1] || "")}<small class="w">${esc(this._rvNm(x.p))}: ${tag[x.k]}</small></span><b class="${v >= 0 ? "pos" : "neg"}">${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v)}%</b></button>`; }).join("") || `<p class="rs-lost">The numbers are still coming in.</p>`;
       ws.querySelectorAll("[data-rvws]").forEach((b) => b.addEventListener("click", () => { this._rvWc = +b.dataset.rvws; this._rvWcAuto = false; this._rvWinTabPaint(el, O, ds); el.querySelector(".rv-scroll").scrollTop = 0; }));
     }
   },
@@ -1547,7 +1550,7 @@ export const ReviewGameMixin = {
       else if (c === "b" && b === "c") beats.push({ ...obj, chip: "city", head: `${nmA} built a city`, focus: { city: x } });
       else if (c === "R") beats.push({ ...obj, chip: "robber", head: `${nmA} moved the robber`, sub: `To ${this._hexName?.(b) ?? "another tile"}.`, focus: { hex: b } });
       else if (c === "t") beats.push({ ...obj, chip: "steal", head: `${nmA} stole a card`, sub: `From ${nm(b)}.${lkTxt(LKm.get(`e${g}`))}` });
-      else if (c === "x") beats.push({ ...obj, chip: "trade", head: `${nmA} traded with ${nm(b)}`, sub: `${x} for ${y} cards.` });
+      else if (c === "x") beats.push({ ...obj, chip: "trade", head: `${nmA} traded with ${nm(b)}`, sub: `${x} for ${y} card${y === 1 ? "" : "s"}.` });
       else if (c === "k") beats.push({ ...obj, chip: "bank", head: `${nmA} traded with the bank`, sub: `Gave ${x} ${RN[b]} for 1 ${RN[y]}.` });
       else if (c === "d") beats.push({ ...obj, chip: "7", head: `${nmA} handed back ${b} cards` });
       else if (c === "v") beats.push({ ...obj, chip: "card", head: `${nmA} bought a development card`, ...(LKm.has(`e${g}`) ? { sub: lkTxt(LKm.get(`e${g}`)).replace(/^ · l/, "L") } : {}) });
