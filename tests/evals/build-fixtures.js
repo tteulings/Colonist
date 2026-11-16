@@ -10,7 +10,7 @@ const STATE = process.env.STATE || SC + "redesign/state9984.json";
 const OUT = path.join(__dirname, "fixtures");
 
 // runs in the page: the serialisable fact index
-function extract() {
+async function extract() {
   const g = window.__colonistGame, fx = g._pgState().fx, keys = fx.keys, T = fx.T, refs = {}, add = (r) => { const v = fx.ref(r); if (v) refs[r] = v; };
   keys.forEach((k) => { add(`name.${k}`); add(`pts.${k}`); add(`luck.total.${k}`); for (let t = 0; t <= T; t++) { add(`wc.${k}@${t}`); add(`d.${k}@${t}`); }
     ["pivot", "pivot.t", "pivot.to", "steady", "wobbly", "headless", "plan", "waitRes", "waitN", "E", "SD", "idleN", "turns", "verdict", "feeds"].forEach((f) => add(`strat.${k}.${f}`));
@@ -27,6 +27,7 @@ function extract() {
     decs: fx.decs.map(({ e, ...r }) => r), refs, board: fx.board && { hexes: fx.board.hexes, robber: fx.board.robber, setup: fx.board.setup },
     meta: { mode: g._histView?.mode || null, pts: g.players.map((p) => p.victoryPoints), names: g.players.map((p) => p.name) },
   }, (k, v) => (typeof v === "function" ? undefined : v)));
+  j.behindRaw = (await import("/src/review/ai-behind.js")).behindRaw(g); // v1.89 the board and event log copy tests/behind189.js re-derives the why-behind numbers from
   return j;
 }
 

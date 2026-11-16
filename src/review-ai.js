@@ -49,12 +49,17 @@ const SRC = [["settlements", "s"], ["cities", "c"], ["road", "L"], ["army", "A"]
 /** A follow-up chip: at most 24 characters, a whole question (never cut, never a fragment); a longer or cut one gets a short app label by topic. */
 const FRAG = /\b(?:i|me|my|the|a|an|of|to|in|on|at|for|and|or|but|was|were|is|are|did|do|does|how|why|what|who|ik|mijn|de|het|een|van|naar|en|of|was|waren|is|zijn)$/i;
 const CHIPFB = { en: [[/\b(?:lose|lost|loss|decid|why)\b/i, "Why did I lose?"], [/luck/i, "Luck vs play?"], [/best|move|miss|mistake|setup|set-up|trade|road|city/i, "Best move?"]], nl: [[/verlo|waarom|besliss/i, "Waarom verloren?"], [/geluk|pech/i, "Geluk of spel?"], [/beste|zet|fout|gemist|opzet|stad|weg/i, "Beste zet?"]] };
-export function aiChip(q, lang = "en") {
+// v1.89 the chip about the result follows the result: "Why did I win?" on a won game, "Why did I lose?" on a lost one (a first-person why-question about winning or losing)
+const WL = { en: { won: "Why did I win?", lost: "Why did I lose?" }, nl: { won: "Waarom gewonnen?", lost: "Waarom verloren?" } };
+const WINLOSE = /\b(?:win|won|winning|lose|lost|loss|losing|gewonnen|winnen|verloren|verlies|verloor|verliezen)\b/i;
+export function aiChip(q, lang = "en", won = null) {
   q = String(q ?? "").trim().replace(/\s+/g, " ").replace(/[?.!]+$/, "");
   if (!q) return null;
   const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+  const W = WL[lang] || WL.en;
+  if (typeof won === "boolean" && /\b(?:why|waarom)\b/i.test(q) && /\b(?:i|ik)\b/i.test(q) && WINLOSE.test(q)) return W[won ? "won" : "lost"];
   if (q.length <= 24 && !FRAG.test(q)) return cap(q);
-  for (const [re, lab] of CHIPFB[lang] || CHIPFB.en) if (re.test(q)) return lab;
+  for (const [re, lab] of CHIPFB[lang] || CHIPFB.en) if (re.test(q)) return typeof won === "boolean" && lab === W.lost ? W[won ? "won" : "lost"] : lab;
   return null;
 }
 const FALLBACK = { en: ["Best move?", "Biggest mistake?", "Who was luckiest?"], nl: ["Beste zet?", "Grootste fout?", "Wie had geluk?"] };
@@ -886,7 +891,7 @@ export const ReviewAiMixin = {
     const C = { t: this._aiL() }, L = C.t, R = this._rv, leg = this._pgLegacy(), S = leg ? this._aiSaved() : tryv(() => ({ follow: this._pgState().page.follow.map((f) => f.q) }), { follow: [] });
     const asked = new Set([...(R.ai?.answers || []).map((a) => qkey(a.q)), ...(leg ? [] : (this._pgRec()?.fu || []).map((f) => qkey(f.q)))]);
     const lastA = (R.ai?.answers || [])[0], src = [...(lastA?.followUps || []), ...(leg ? S?.insights?.followUps || [] : S?.follow || [])];
-    const chips = []; src.forEach((q0) => { const q = /\d/.test(q0) ? this._aiGuard(String(q0), { maxT: this.turn || 99 }) : q0; if (!q || q !== q0) return; const c = aiChip(q, recapLang()); if (c && !asked.has(qkey(q)) && !chips.some((x) => x.c === c)) chips.push({ c, q: String(q).slice(0, 300) }); });
+    const won = tryv(() => this._pgState().fx.won, null), chips = []; src.forEach((q0) => { const q = /\d/.test(q0) ? this._aiGuard(String(q0), { maxT: this.turn || 99 }) : q0; if (!q || q !== q0) return; const c = aiChip(q, recapLang(), won); if (c && !asked.has(qkey(q)) && !chips.some((x) => x.c === c)) chips.push({ c, q: String(q).slice(0, 300) }); });
     if (S && !chips.length) { const lg = recapLang(), fb = FALLBACK[lg] || FALLBACK.en, fq = FALLQ[lg] || FALLQ.en; fb.forEach((c, i) => { if (!asked.has(qkey(fq[i]))) chips.push({ c, q: fq[i] }); }); }
     const busy = this._aiUi?.loading === "ask" || !!this._pgFuBusy;
     const pend = busy && !this._pgFuBusy ? `<div class="ai-pend" role="status" aria-busy="true"><i class="ai-spin"></i><b>${esc(this._aiUi?.q || "")}</b><span>${esc((CHAT[recapLang()] || CHAT.en)[this._rsnWorking ? "rsnW" : "pend"])}</span></div>` : "";
