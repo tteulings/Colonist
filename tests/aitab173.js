@@ -31,6 +31,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     return { me, names, n, worst, best, opp, alt, src: ser.src, ownT, size: f?.json.length, keys: Object.keys(f?.obj || {}), maxT: g.turn, dec: f?.obj.decisions?.slice(0, 3), you: g._rvIsYou(me), tabs: [...document.querySelectorAll(".rv-tabs button")].map((e) => e.textContent) };
   });
   console.log(JSON.stringify(F));
+  await G(() => { window.__colonistGame._aiLegacy = true; }); // v1.83: this test is about the model cards (kept reachable behind g._aiLegacy)
   await G(() => { window.__colonistGame._aiGuardOff = true; }); // the older tests feed numbers on purpose to the older trust layer; the 1.81 block turns the guard on
   ok(F.src === "luck" && F.size > 2000 && F.size < 40000 && F.keys.includes("winChancePctByTurn") && F.keys.includes("decisions"), "facts: win chance per turn and decisions, size ok", [F.src, F.size]);
   ok(F.tabs.length === 5 && /AI/.test(F.tabs[4]), "5 tabs incl. AI · beta", F.tabs);
