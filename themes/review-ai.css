@@ -347,3 +347,12 @@ b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { c
 .ap-sur .ap-cell.new { outline: 2px solid var(--ink); outline-offset: 1px; }
 .ap-sur .ap-leg .sw { width: 12px; height: 12px; border-radius: 4px; display: inline-block; vertical-align: -2px; margin-right: 5px; background: #7F7A6F; } .ap-sur .ap-leg .sw.hid { background: repeating-linear-gradient(135deg, #8C5AC8 0 3px, color-mix(in srgb, #8C5AC8 55%, transparent) 3px 6px); } .ap-sur .ap-leg .sw.new { background: none; box-shadow: inset 0 0 0 2px var(--ink); }
 .ap-sn { margin: 2px 0 0; font: 500 12px/1.35 var(--font-body); color: var(--ink-soft); }
+
+/* v1.88 game shape on the game card: other players faded, one shaded zone (red tint only for You: out of it / low point; the winner's own colour for pulling away) */
+.ap-svg.win path.fd { stroke: var(--ink-faint); stroke-width: 1.4; opacity: .4; }
+.ap-svg .zn.neg rect { fill: color-mix(in srgb, var(--neg) 16%, transparent); stroke: color-mix(in srgb, var(--neg) 45%, transparent); stroke-width: 1; stroke-dasharray: 3 3; }
+.ap-svg .zn.neg text { fill: var(--neg); font-weight: 800; font-size: 9.5px; }
+.ap-svg .zn.pull rect { fill: color-mix(in srgb, var(--pc) 11%, transparent); }
+.ap-svg .zn.pull text { fill: var(--pc-text, var(--pc)); font-weight: 800; font-size: 9.5px; }
+.ap-leg > span.fd > i { background: var(--ink-faint); opacity: .6; }
+.ap-svg .zn.lead rect { fill: color-mix(in srgb, var(--pos) 13%, transparent); } .ap-svg .zn.lead text { fill: var(--pos); font-weight: 800; font-size: 9.5px; }

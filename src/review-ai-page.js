@@ -165,19 +165,28 @@ export const ReviewAiPageMixin = {
     if (t1 - t0 < fx.T * 0.6) { lo = Math.max(0, Math.floor((Math.min(...all) - 6) / 10) * 10); hi = Math.min(100, Math.ceil((Math.max(...all) + 6) / 10) * 10); if (hi - lo < 30) { hi = Math.min(100, lo + 30); lo = Math.max(0, hi - 30); } }
     const x = (t) => l + ((t - t0) / Math.max(1, t1 - t0)) * (W - l - r), y = (v) => H - bm - ((v - lo) / (hi - lo)) * (H - tp - bm);
     const grid = [lo, Math.round((lo + hi) / 2), hi].map((v) => `<line x1="${l}" x2="${W - r}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="g"/><text x="${l - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" class="ax">${v}</text>`).join("");
-    const paths = lines.map((ln) => `<path class="pc-${ln.q}${ln.q === fx.me ? " me" : ""}" d="${ln.p.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}`).join("")}"/>`).join("");
+    const dOf = (p) => p.map((c, i) => `${i ? "L" : "M"}${x(c[0]).toFixed(1)} ${y(c[1]).toFixed(1)}`).join("");
+    // v1.88 shape treatment: the other players faded, and one shaded zone (you out of it / your low point in the "neg" red, the winner pulling away in their colour)
+    const fade = b.field ? fx.keys.map((_, q) => q).filter((q) => !seats.includes(q)).map((q) => `<path class="fd" d="${dOf(vals(q))}"/>`).join("") : "";
+    let zone = ""; const Z = b.zone;
+    if (Z && Z.b > t0 && Z.a < t1) {
+      const za = Math.max(t0, Z.a), zb = Math.min(t1, Z.b), zq = Z.who != null ? fx.seatOf(Z.who) : fx.me, mine = zq === fx.me, lab = Z.k === "out" ? fx.t.zoneOut : Z.k === "low" ? fx.t.zoneLow : mine ? fx.t.zoneLead : fx.t.zonePull;
+      if (Z.k === "pull") zone = `<g class="zn ${mine ? "lead" : `pull pc-${zq}`}"><rect x="${x(za).toFixed(1)}" y="${tp}" width="${(x(zb) - x(za)).toFixed(1)}" height="${H - bm - tp}" rx="4"/><text x="${(x(za) + 4).toFixed(1)}" y="${tp + 11}" text-anchor="start">${esc(lab)}</text></g>`;
+      else { const yt = y(Math.max(lo, Math.min(hi, Z.hi))), y0 = y(lo); zone = `<g class="zn neg"><rect x="${x(za).toFixed(1)}" y="${yt.toFixed(1)}" width="${(x(zb) - x(za)).toFixed(1)}" height="${(y0 - yt).toFixed(1)}" rx="3"/>${Z.k === "low" ? (x(zb) + 6 + lab.length * 5.4 < W - r ? `<text x="${(x(zb) + 4).toFixed(1)}" y="${(y0 - 4).toFixed(1)}" text-anchor="start">${esc(lab)}</text>` : `<text x="${(x(za) - 4).toFixed(1)}" y="${(y0 - 4).toFixed(1)}" text-anchor="end">${esc(lab)}</text>`) : `<text x="${(x(zb) - 4).toFixed(1)}" y="${(yt - 4).toFixed(1)}" text-anchor="end">${esc(lab)}</text>`}</g>`; }
+    }
+    const paths = fade + zone + lines.map((ln) => `<path class="pc-${ln.q}${ln.q === fx.me ? " me" : ""}" d="${dOf(ln.p)}"/>`).join("");
     const placed = [{ x: l - 6, y: -9, w: 74, h: 14 }]; // (the chart title is taken) label rects already used: a label takes the first free spot above or below its dot
     // markers closer than MK_GAP apart are merged: the one with the biggest win chance move stays (the sheet has previous / next for the rest)
-    const MK_GAP = 46, big = (t) => Math.abs(fx.change(seats[0], t)?.d || 0), shown = [];
+    const MK_GAP = 46, mq = (t) => { const i = b.marks.indexOf(t), k = b.mseat?.[i]; return k != null ? fx.seatOf(k) : seats[0]; }, big = (t) => (b.mseat ? 99 - b.marks.indexOf(t) : Math.abs(fx.change(mq(t), t)?.d || 0)), shown = [];
     b.marks.slice().sort((a, c) => big(c) - big(a) || a - c).forEach((t) => { if (shown.every((u) => Math.abs(x(t) - x(u)) >= MK_GAP)) shown.push(t); });
     const marks = shown.sort((a, c) => a - c).map((t) => {
-      const q = seats[0], v = fx.wc(q, t); if (v == null) return ""; const cx = x(t), cy = y(v), lab = `T${t}`, w = lab.length * 6.6 + 12;
+      const q = mq(t), v = fx.wc(q, t); if (v == null) return ""; const cx = x(t), cy = y(v), lab = `${fx.t.tL || "T"}${t}`, w = lab.length * 6.6 + 12;
       const lx = Math.max(l - 6, Math.min(W - r - w + 6, cx - w / 2));
       const free = (ly) => ly >= 1 && ly <= H - bm - 17 && !placed.some((p) => lx < p.x + p.w + 3 && lx + w + 3 > p.x && ly < p.y + 19 && ly + 19 > p.y);
       const ly = [cy - 25, cy + 9, cy - 44, cy + 28].find(free) ?? Math.max(1, Math.min(H - bm - 17, cy - 25)); placed.push({ x: lx, y: ly, w });
       return `<g class="mk pc-${q}" data-pgturn="${t}" role="button" tabindex="0" aria-label="${fx.t.Turn} ${t}, ${v}%"><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="23" class="hit"/><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4.8" class="dot"/><rect x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" width="${w}" height="16" rx="8" class="tag"/><text x="${(lx + w / 2).toFixed(1)}" y="${(ly + 11.2).toFixed(1)}" text-anchor="middle" class="tg">${lab}</text></g>`;
     }).join("");
-    const leg = seats.length > 1 ? seats.map((q) => `<span class="pc-${q}"><i></i>${esc(fx.nameOf(q))}</span>`).join("") : "";
+    const leg = (seats.length > 1 || b.field ? seats.map((q) => `<span class="pc-${q}"><i></i>${esc(fx.nameOf(q))}</span>`).join("") : "") + (b.field ? `<span class="fd"><i></i>${esc(fx.t.others)}</span>` : "");
     return `<div class="ap-vz"><svg viewBox="0 0 ${W} ${H}" class="ap-svg win" role="img" aria-label="${esc(fx.t.winChanceBy)}"><text x="${l - 5}" y="10" class="axl" text-anchor="start">${fx.t.winChance}</text>${grid}${paths}${this._pgAxis(l, W - r, t0, t1, H, bm, x, tick(t1 - t0), fx.t)}${marks}</svg>${leg || shown.length ? `<div class="ap-leg">${leg}${shown.length ? `<em>${esc(fx.t.tapDot)}</em>` : ""}</div>` : ""}</div>`;
   },
   _pgShape(k, cx, cy) {

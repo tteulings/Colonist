@@ -7,6 +7,7 @@
 //  - per-primitive fallback: an invalid block is dropped, a widget with no valid block is dropped, no widget left -> recipes;
 //  - DEDUPE: a primitive that shows the same fact binding as one already on the page is dropped (the same tile twice, the same bars twice).
 import { sxParts } from "./ai-surprise.js";
+import { gameShape, shapeTitle, shapeChart } from "./ai-shape.js";
 export const LEVELS = ["Game", "Near miss", "Decision", "Strategy", "Luck"];
 export const PRIMS = ["line", "bars", "strip", "stack", "tiles", "compare", "board", "badge", "table", "text", "surprise"];
 export const FMTS = ["player", "turn", "pct", "sgpct", "n", "x"];
@@ -63,8 +64,11 @@ export function blockOk(b, fx) {
       if (b.metric !== "winchance" || !fx.hasWc) return null;
       const players = (Array.isArray(b.players) ? b.players : [fx.keys[fx.me]]).filter((k, i, a) => key(fx, k) != null && a.indexOf(k) === i).slice(0, 2); if (!players.length) return null;
       let range = null; if (Array.isArray(b.range)) { const [a, c] = b.range; if (isInt(a) && isInt(c) && a >= 0 && c <= T && c - a >= 2) range = [a, c]; }
-      const [t0, t1] = range || [0, T], marks = [...new Set((Array.isArray(b.marks) ? b.marks : []).filter((t) => isInt(t) && t >= t0 && t <= t1))].slice(0, CAPS.marks);
-      return { p: "line", metric: "winchance", players, range, marks };
+      const [t0, t1] = range || [0, T], ms = (Array.isArray(b.marks) ? b.marks : []), marks = [...new Set(ms.filter((t) => isInt(t) && t >= t0 && t <= t1))].slice(0, CAPS.marks);
+      // v1.88 shape treatment: whose line each mark sits on (parallel to marks), a shaded zone, the other players faded (ai-shape.js)
+      const mseat = marks.map((t) => { const i = ms.indexOf(t), k = Array.isArray(b.mseat) ? b.mseat[i] : null; return key(fx, k) != null ? k : null; });
+      const z = b.zone && typeof b.zone === "object" && ["out", "low", "pull"].includes(b.zone.k) && isInt(b.zone.a) && isInt(b.zone.b) && b.zone.a >= t0 && b.zone.b <= t1 && b.zone.b > b.zone.a ? { k: b.zone.k, a: b.zone.a, b: b.zone.b, hi: Number.isFinite(b.zone.hi) ? Math.max(5, Math.min(60, Math.round(b.zone.hi))) : 20, who: key(fx, b.zone.who) != null ? b.zone.who : null } : null;
+      return { p: "line", metric: "winchance", players, range, marks, ...(mseat.some(Boolean) ? { mseat } : {}), ...(z ? { zone: z } : {}), ...(b.field ? { field: true } : {}) };
     }
     case "bars": {
       const rows = (Array.isArray(b.rows) ? b.rows : []).filter((r) => r && key(fx, r.player) != null && numRef(fx, r.ref)).slice(0, CAPS.rows); if (!rows.length) return null;
@@ -203,7 +207,7 @@ export function recipePage(fx) {
   const headline = fx.won ? [P(Y), ...r.won(R(`turn.${fx.T}`), R(`pts.${Y}`))]
     : W ? [P(W), r.lostA, R(`turn.${fx.T}`), ". ", P(Y), r.lostB, R(`pts.${Y}`), r.lostC] : null;
   // 1. win chance: the DECISIVE swing (fx.decisive, one source: ai-facts.js aiDecisive), who moved which way, plus the other of the two on that turn.
-  const D = fx.decisive;
+  const D = fx.decisive, SH = tryv(() => fx.shape ?? gameShape(fx)), shT = SH ? tryv(() => shapeTitle(fx, SH, P, R)) : null; // v1.87 the headline follows the SHAPE of the game (ai-shape.js)
   if (fx.hasWc && D) {
     const tn = D.t, K = D.key, oc = D.other, duo = [Y, ...(W && W !== Y ? [W] : [])];
     // v1.86.2 why it was so sudden: one short line (parts, numbers through refs sx.*) and the small points visual (ai-surprise.js)
@@ -211,8 +215,8 @@ export function recipePage(fx) {
     const lead = (k) => r.wcLead(k === Y && youIs, P(k)), mv = (k) => ({ dir: [`wc.${k}@${tn - 1}`, `wc.${k}@${tn}`], up: r.up, down: r.down });
     const clause = (k) => [...lead(k), mv(k), r.wcFrom, R(`wc.${k}@${tn - 1}`), r.wcTo, R(`wc.${k}@${tn}`)];
     widgets.push({ id: "wc", level: "Game", short: t.short_.wc, chip: { ref: `d.${K}@${tn}`, fmt: "sgpct", tone: D.d > 0 ? "up" : "dn" },
-      title: [...clause(K), r.wcOn, R(`turn.${tn}`), ...(oc ? ["; ", ...clause(oc.key).map((x, i) => (i === 0 && typeof x === "string" ? x.charAt(0).toLowerCase() + x.slice(1) : x))] : []), "."],
-      blocks: [{ p: "line", metric: "winchance", players: duo.includes(K) ? duo : [K, ...duo], marks: D.marks }, ...sx],
+      title: shT || [...clause(K), r.wcOn, R(`turn.${tn}`), ...(oc ? ["; ", ...clause(oc.key).map((x, i) => (i === 0 && typeof x === "string" ? x.charAt(0).toLowerCase() + x.slice(1) : x))] : []), "."],
+      blocks: [{ p: "line", metric: "winchance", players: duo.includes(K) ? duo : [K, ...duo], marks: D.marks, ...shapeChart(fx, SH, Y, W) }, ...sx],
       notes: [[r.wcN1], [r.wcN2]] });
   }
   // 4. near miss

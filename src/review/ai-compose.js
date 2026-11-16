@@ -35,6 +35,7 @@ export function composeIndex(fx) {
     game: { turns: T, players: fx.players.map((p) => ({ key: p.key, name: p.name, you: p.you })), you: keys[me], winner: fx.winner != null ? keys[fx.winner] : null, youWon: !!fx.won,
       winChance: !!fx.hasWc, luck: !!fx.luck, turnRange: [0, T],
       decisive: fx.decisive ? { player: fx.decisive.key, turn: fx.decisive.t, from: fx.decisive.from, to: fx.decisive.to } : null,
+      shape: fx.shape ? { id: fx.shape.id, winnerLedFromTurn: fx.shape.tLead, biggestStepTurn: fx.shape.step.t } : null, // v1.87 how the game went (ai-shape.js)
       suddenWhy: fx.surprise ? { kind: fx.surprise.kind, sentence: tryv(() => fx.surpriseFact()?.sentence, null) } : null },   // v1.86.2 why the decisive swing was so sudden (the app's classification; refs sx.*)
     decisions: (fx.decs || []).slice(0, 5).map((d) => ({ turn: d.turn, verdict: d.vc, board: !!d.pos })),   // compare / board bind to these turns only
     board: bd ? { hexes: bd.hexes.map((h) => `${h.id}:${h.res}${h.num ? " " + h.num : ""}`).join(", "), robberMoves: rob.map((m) => ({ turn: m.turn, by: keys[m.seat], hex: m.hex })) } : null,   // board blocks: dec (above), turn 0 + players (set-up), turn + show robber (a turn above), turn + players (network), hexes (ids above)

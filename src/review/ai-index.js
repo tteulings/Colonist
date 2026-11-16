@@ -9,6 +9,7 @@ import { decMoves } from "./ai-blocks.js";
 import { stratOf, handLog, finalScore, R5 } from "./ai-strat.js";
 import { luckKey, ownOf } from "../review-luck.js";
 import { swingCause } from "./ai-cause.js";
+import { gameShape } from "./ai-shape.js";
 import { aiSurprise, surpriseFact } from "./ai-surprise.js";
 import { langOf, moveLabel } from "./ai-lang.js";
 import { recapLang } from "../review-recap.js";
@@ -49,6 +50,7 @@ export function buildFacts(g, lang = recapLang()) {
   fx.near = tryv(() => aiNearMiss(g, ser));
   // the two authoritative facts every consumer uses: what decided the game, and the final score breakdown (refs game.decisive.* / score.<p>.<src>)
   fx.decisive = tryv(() => { const d = aiDecisive(g, ser, me); return d && { ...d, key: keys[d.seat], other: d.other && { ...d.other, key: keys[d.other.seat] } }; });
+  fx.shape = tryv(() => gameShape(fx)); // v1.87 the shape of the game (ai-shape.js)
   fx.score = g.players.map((_, q) => tryv(() => finalScore(g, q, log)));
   // why the decisive swing was so sudden (ai-surprise.js): one fact for the game card, the chat and the composer (refs sx.<field>)
   fx.surprise = tryv(() => (fx.decisive ? aiSurprise(g, ser, fx.decisive, log) : null));

@@ -68,7 +68,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       ok(L.allWon.every((x) => !x.head || (x.tone === "bad" && !x.won)), `${tag}: headless only with a bad verdict and never for a winner`, L.allWon);
       ok(!(L.badges.some((b) => /Hard to say/.test(b)) && L.badges.some((b) => /Headless/.test(b))) && !(L.badges.some((b) => /Solid/.test(b)) && L.badges.some((b) => /Weak|Headless/.test(b))), `${tag}: labels do not contradict each other`, L.badges);
       ok(!/give or take|\bcost about\b|Stalled turns cost/i.test(L.txt) && !/±/.test(L.strat_txt) && !/stood at \d+% until/.test(L.txt), `${tag}: no invented ± and no "stood at X until" claim`, "");
-      const win = S.titles.find((t) => /win chance/i.test(t)); if (win) ok(/\d+% to \d+% on turn \d+/.test(win), `${tag}: win chance title uses point wording`, win);
+      const win = S.titles.find((t) => /win chance (rose|slid) from/i.test(t)); if (win) ok(/\d+% to \d+% on turn \d+/.test(win), `${tag}: win chance title uses point wording`, win);
       const wt = S.titles.find((t) => /^Cards in hand, no points/.test(t)); if (wt) ok(/from dice/.test(wt), `${tag}: the resource rate says "from dice"`, wt);
       ok((await NAMES()).length === 0, `${tag}: no name wraps onto two lines`, await NAMES());
     }
@@ -91,8 +91,10 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       await page.screenshot({ path: `${SH}/${tag}-expanded.png` });
       // turn sheet
       await G(() => window.__colonistGame._pgToggle(document.querySelector(".ap-c.open"), document.querySelector("[data-aibody]"), window.__colonistGame._pgState().fx, false));
-      const mk = page.locator(".ap-svg.win .mk"); ok(await mk.count() >= 2, "win chance line has tappable turn markers", await mk.count());
-      const t0 = +(await mk.first().getAttribute("data-pgturn")); await mk.first().tap(); await sleep(700);
+      const mk = page.locator(".ap-svg.win .mk"); ok(await mk.count() >= 1, "win chance line has tappable turn markers", await mk.count());
+      // v1.88 the chart labels only the turns its headline names (a sudden game: only the last turn, which has no next turn): open a marker that is not the last turn, else the turn sheet of an earlier turn
+      const Tm = await G(() => window.__colonistGame._pgState().fx.T), tl = await mk.evaluateAll((e) => e.map((x) => +x.dataset.pgturn)), pk = tl.findIndex((t) => t < Tm - 1);
+      let t0; if (pk >= 0) { t0 = tl[pk]; await mk.nth(pk).tap(); } else { t0 = Math.max(1, Tm - 3); await G((t) => window.__colonistGame._pgSheet(t), t0); } await sleep(700);
       const sh = await G(() => ({ title: document.querySelector(".ap-sheet .ap-sh-h b")?.textContent, rows: document.querySelectorAll(".ap-sh-r").length, btn: [...document.querySelectorAll(".ap-sh-a .ap-btn")].map((e) => e.textContent.trim()), match: document.querySelectorAll(".ap-c.match").length, glow: document.querySelectorAll(".ap-t.glow, .mk.glow").length, y: document.querySelector(".ap-sheet")?.getBoundingClientRect().bottom, h: innerHeight }));
       ok(sh.title === `Turn ${t0}` && sh.rows >= 1 && sh.btn.some((x) => /^Open /.test(x)) && sh.match >= 1, "marker tap opens the turn sheet with facts and Open buttons", sh);
       await page.screenshot({ path: `${SH}/${tag}-sheet.png` });
