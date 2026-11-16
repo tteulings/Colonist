@@ -68,7 +68,8 @@ const planIcon = (k, cx, cy) => ({
 }[k]);
 export const ReviewAiMixin = {
   _aiL() { return T[recapLang()] || T.en; },
-  _aiAvail() { return online() && !!this.winner && !this._rvMid && !!this._rv && this._rcOk?.() === true; },
+  // v1.83 the dynamic page needs no model: the tab is there for any finished, reviewed game (the ask bar needs the network). The v1.73-1.82 card path (g._aiLegacy) keeps its old rule.
+  _aiAvail() { return !!this.winner && !this._rvMid && !!this._rv && (this._pgLegacy() ? online() && this._rcOk?.() === true : true); },
   _aiSaved() { const a = this._rv?.ai; return a && a.pid === this._rvPid && a.lang === recapLang() && a.insights?.cards?.length ? a : null; },
   /** The Overview's "AI coach" row: the AI tab, asking for the insights when there are none yet. */
   _rvOpenAiTab() {
@@ -810,8 +811,9 @@ export const ReviewAiMixin = {
 
   // ── the tab ──
   _rvTabAi() {
+    if (!this._pgLegacy()) { const R = this._rv, pid = this._rvPid, lang = recapLang(); if (R && (!R.ai || R.ai.pid !== pid || R.ai.lang !== lang)) R.ai = { pid, lang, at: Date.now(), insights: null, answers: (R.ai?.answers || []).filter((a) => a.pinned) }; } // v1.83 the page has no saved insights; the chat keeps its answers here
     const U = this._aiUi?.pid === this._rvPid ? this._aiUi : null; // (the insights are asked for on opening the tab, once; an error waits for "Try again")
-    if (!this._aiSaved() && !U?.loading && !U?.err) setTimeout(() => { if (this._rvTab === "ai" && !this._aiSaved()) this._aiRun(false); }, 0);
+    if (this._pgLegacy() && !this._aiSaved() && !U?.loading && !U?.err) setTimeout(() => { if (this._rvTab === "ai" && !this._aiSaved()) this._aiRun(false); }, 0);
     return { html: `<div class="ai" data-aibody>${this._aiBodyHtml()}</div>`, foot: `<div data-aiask>${this._aiAskHtml()}</div>`, bind: (el) => this._aiBind(el) };
   },
   /** The chat under the insight cards, oldest first: the open answer in full (the newest by default), the others one line (tap to open). A visual
@@ -838,7 +840,8 @@ export const ReviewAiMixin = {
     const C = this._aiCtx(), L = C.t, S = this._aiSaved(), U = this._aiUi || {}, R = this._rv;
     const ans = (R.ai?.pid === C.pid && R.ai?.lang === C.lang ? R.ai.answers : (R.ai?.answers || []).filter((a) => a.pinned)) || [];
     const out = [], seen = new Set(); this._aiSrc = new Map();
-    if (S) {
+    if (!this._pgLegacy()) out.push(this._pgHtml());
+    else if (S) {
       const hl = this._aiHeadline(S.insights.headline, C);
       if (hl) out.push(`<p class="ai-hl" data-aitx="hl" lang="${C.lang}">${this._aiFmt(hl, C)}</p>`); this._aiSrc.set("hl", { text: hl, card: null, max: 2 });
       out.push(...this._aiCardList(S.insights.cards, C, seen, hl));
@@ -878,9 +881,9 @@ export const ReviewAiMixin = {
     return out;
   },
   _aiAskHtml() {
-    const C = { t: this._aiL() }, S = this._aiSaved(), L = C.t, R = this._rv;
+    const C = { t: this._aiL() }, L = C.t, R = this._rv, leg = this._pgLegacy(), S = leg ? this._aiSaved() : tryv(() => ({ follow: this._pgState().page.follow.map((f) => f.q) }), { follow: [] });
     const asked = new Set((R.ai?.answers || []).map((a) => qkey(a.q)));
-    const lastA = (R.ai?.answers || [])[0], src = [...(lastA?.followUps || []), ...(S?.insights?.followUps || [])];
+    const lastA = (R.ai?.answers || [])[0], src = [...(lastA?.followUps || []), ...(leg ? S?.insights?.followUps || [] : S?.follow || [])];
     const chips = []; src.forEach((q0) => { const q = /\d/.test(q0) ? this._aiGuard(String(q0), { maxT: this.turn || 99 }) : q0; if (!q || q !== q0) return; const c = aiChip(q, recapLang()); if (c && !asked.has(qkey(q)) && !chips.some((x) => x.c === c)) chips.push({ c, q: String(q).slice(0, 300) }); });
     if (S && !chips.length) { const lg = recapLang(), fb = FALLBACK[lg] || FALLBACK.en, fq = FALLQ[lg] || FALLQ.en; fb.forEach((c, i) => { if (!asked.has(qkey(fq[i]))) chips.push({ c, q: fq[i] }); }); }
     const busy = this._aiUi?.loading === "ask";
@@ -919,7 +922,7 @@ export const ReviewAiMixin = {
     body.querySelectorAll("[data-airef]").forEach((b) => b.addEventListener("click", () => { const t = body.querySelector(`[data-aic="${b.dataset.airef}"]`); if (!t) return; t.scrollIntoView?.({ block: "center", behavior: "smooth" }); t.classList.remove("flash"); void t.offsetWidth; t.classList.add("flash"); }));
     ask?.querySelector("[data-aiform]")?.addEventListener("submit", (e) => { e.preventDefault(); const i = ask.querySelector("[data-aiin]"), v = i.value.trim(); if (v) { i.value = ""; this._aiAsk(v.slice(0, 300), true); } });
     ask?.querySelectorAll("[data-aiq]").forEach((b) => b.addEventListener("click", () => this._aiAsk(b.dataset.aiq)));
-    this._aiBoards(body);
+    this._aiBoards(body); this._pgBind(body);
     if (this._aiScrollY != null) { const sc = el.querySelector(".rv-scroll"), y = this._aiScrollY; if (sc) { sc.scrollTop = y; this._aiRestore = { y, until: Date.now() + 2500 }; } this._aiScrollY = null; } // Back from a link: the same place
   },
   /** Body copy: at most 2 lines (an answer 3), cut at a word with no ellipsis and a "more" link that shows it all. */

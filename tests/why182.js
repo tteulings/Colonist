@@ -48,18 +48,25 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   await page.locator(`[data-hrow="${ex.meta.id}"]`).tap(); await sleep(900);
   await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 20000 }); await sleep(2500);
   const R = await G(async () => {
-    const g = window.__colonistGame, { aiToolRun } = await import("./src/review/ai-tools.js");
-    const before = aiToolRun(g, "get_decision", { turn: 0, player: "You", n: 0 });
-    let calls = 0; const w = window.Worker; // count worker evaluate requests
-    const pp = Worker.prototype.postMessage; Worker.prototype.postMessage = function (m) { if (m && m.type === "evaluate") calls++; return pp.apply(this, arguments); };
-    const t0 = performance.now(); const r1 = await g._rsnTool({ turn: 0, player: "You", n: 0 }); const t1 = performance.now() - t0;
-    const c1 = calls; const r2 = await g._rsnTool({ turn: 0, player: "You", n: 0 }); const c2 = calls;
-    const after = aiToolRun(g, "get_decision", { turn: 0, player: "You", n: 0 });
-    const x = g._rvOf(g._rvPid).results.find((y) => y.k === "setup");
+    const g = window.__colonistGame, { aiToolRun, aiDecList, aiSeatOf } = await import("./src/review/ai-tools.js");
+    // data-driven: the first decision of "You" the engine can explain. The app offers a reason run for any real choice with a better move, but the
+    // engine may call a setup spot "forced" (no usable run); then the next candidate is tried. Counts worker evaluate requests per attempt.
+    const me = aiSeatOf(g, "You"), cand = aiDecList(g).filter((e) => e.seat === me && g._rsnCan(e.x, e.seat)); if (!cand.length) return { none: true };
+    let calls = 0; const pp = Worker.prototype.postMessage; Worker.prototype.postMessage = function (m) { if (m && m.type === "evaluate") calls++; return pp.apply(this, arguments); };
+    let E0, A, before, r1, t1, c1, tried = 0;
+    for (const e of cand.slice(0, 6)) {
+      tried++; E0 = e; A = { turn: e.turn, player: "You", n: e.n }; before = aiToolRun(g, "get_decision", A); calls = 0;
+      const t0 = performance.now(); r1 = await g._rsnTool(A); t1 = performance.now() - t0; c1 = calls; if (r1) break;
+    }
+    const r2 = await g._rsnTool(A); const c2 = calls;
+    const after = aiToolRun(g, "get_decision", A);
+    const x = g._rvOf(g._rvPid).results.find((y) => y.i === E0.x.i);
     Worker.prototype.postMessage = pp;
     const bk = g._aiVReasons({ rows: x.rsn.reasons, none: !x.rsn.reasons.length }, { lang: "en" });
-    return { before: before.reasons ?? null, r1, t1, c1, c2, same: r1 === r2, after: after.reasons, note: after.reasonsNote, saved: !!x.rsn, ver: x.rsn?.v, bk, bot: !!g._rv?.run };
+    return { tried, before: before.reasons ?? null, r1, t1, c1, c2, same: r1 === r2, after: after.reasons, note: after.reasonsNote, saved: !!x.rsn, ver: x.rsn?.v, bk, bot: !!g._rv?.run };
   });
+  ok(!R.none, "the game has an explainable decision of You");
+  if (R.none) { await b.close(); console.log("1 FAILED"); process.exit(1); }
   ok(R.before == null, "before the first request there are no reasons (nothing computed during the review)");
   ok(R.r1 && R.r1.n >= 100 && Array.isArray(R.r1.reasons) && R.c1 === 1, "lazy: the first request ran ONE explain run on paired futures", [R.r1?.n, R.c1, Math.round(R.t1 / 100) / 10 + "s"]);
   ok(R.c2 === 1 && R.same, "cached: the second request reuses it (no new worker run)");

@@ -96,11 +96,11 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   // ── refinement ──
   const F = await G(async () => {
     const g = window.__colonistGame, E = await import("./src/review/evaluate.js"), S = await import("./src/review/score.js"), rv = g._rvOf(g._rvPid);
-    const x = rv.results.find((y) => { const v = S.vcOf(y); return (v === "lean" || v === "close") && g._rfCan(y); });
+    const x = rv.results.find((y) => { const v = S.vcOf(y); return (v === "lean" || v === "close") && S.gpOf(y) > 0 && g._rfCan(y); });
     if (!x) return { none: true };
     // pure: a fake refined run with a small se turns a lean into clear (and a big gap into close)
     const b = x.best.label, mkOut = (m, se) => ({ cands: x.cands.map((c, k) => (c.label === b && k ? { ...c, m, se, n: 400 } : c)) });
-    const up = E.refineResult(x, mkOut(x.best.gain + 0.03, 0.01)), down = E.refineResult(x, mkOut(0.012, 0.02));
+    const up = E.refineResult(x, mkOut(x.best.gain + 0.03, 0.01)), down = E.refineResult({ ...x, cands: x.cands.map((c, k) => (k && c.label !== b && c.m > 0.012 ? { ...c, m: 0.012 } : c)) }, mkOut(0.012, 0.02)) // the other alternatives shrink too (refineResult only replaces the best one);
     return { i: x.i, before: { vc: S.vcOf(x), cls: S.clsOf(x), se: x.best.se, gap: S.gpOf(x) }, up: { vc: S.vcOf(up), cls: S.clsOf(up), refined: up.refined?.n, se: up.best.se }, down: { vc: S.vcOf(down), cls: S.clsOf(down) }, opts: E.refineOpts(x) };
   });
   console.log(JSON.stringify(F));

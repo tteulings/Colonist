@@ -24,6 +24,7 @@ import { ReviewLuckMixin } from "./review-luck.js"; // v1.31 … luck in win cha
 import { ReviewRecapMixin } from "./review-recap.js"; // v1.62 AI recap
 import { ReviewExplainMixin } from "./review-explain.js"; // v1.64 Why?
 import { ReviewAiMixin } from "./review-ai.js"; // v1.73 AI tab
+import { ReviewAiPageMixin } from "./review-ai-page.js"; // v1.83 the AI tab's dynamic page
 import { LessonsMixin, installLessons } from "./lessons.js"; // v1.71 Lessons
 import { ReviewRefineMixin } from "./review-refine.js"; // v1.81 refine close / lean decisions with more futures
 import { ReviewReasonsMixin } from "./review-reasons.js"; // v1.82 why A beats B, from the futures
@@ -11449,7 +11450,7 @@ Object.assign(ColonistFullGame.prototype, StatsMixin, StatsUiMixin);
 installStats(ColonistFullGame);
 Object.assign(ColonistFullGame.prototype, LiveStatsMixin); // live stats during the game (src/live-stats.js)
 installLiveStats(ColonistFullGame);
-Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin, ReviewLuckMixin, ReviewTurnMixin, ReviewAgainMixin, ReviewRefineMixin, ReviewReasonsMixin, ReviewRecapMixin, ReviewExplainMixin, ReviewAiMixin, LessonsMixin); // v1.02/1.03 post-game review (src/review*.js)
+Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin, ReviewLuckMixin, ReviewTurnMixin, ReviewAgainMixin, ReviewRefineMixin, ReviewReasonsMixin, ReviewRecapMixin, ReviewExplainMixin, ReviewAiMixin, ReviewAiPageMixin, LessonsMixin); // v1.02/1.03 post-game review (src/review*.js)
 installReview(ColonistFullGame);
 installReviewUi(ColonistFullGame);
 installReviewGame(ColonistFullGame);

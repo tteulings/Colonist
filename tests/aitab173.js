@@ -31,6 +31,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     return { me, names, n, worst, best, opp, alt, src: ser.src, ownT, size: f?.json.length, keys: Object.keys(f?.obj || {}), maxT: g.turn, dec: f?.obj.decisions?.slice(0, 3), you: g._rvIsYou(me), tabs: [...document.querySelectorAll(".rv-tabs button")].map((e) => e.textContent) };
   });
   console.log(JSON.stringify(F));
+  await G(() => { window.__colonistGame._aiLegacy = true; }); // v1.83: this test is about the model cards (kept reachable behind g._aiLegacy)
   await G(() => { window.__colonistGame._aiGuardOff = true; }); // the older tests feed numbers on purpose to the older trust layer; the 1.81 block turns the guard on
   ok(F.src === "luck" && F.size > 2000 && F.size < 40000 && F.keys.includes("winChancePctByTurn") && F.keys.includes("decisions"), "facts: win chance per turn and decisions, size ok", [F.src, F.size]);
   ok(F.tabs.length === 5 && /AI/.test(F.tabs[4]), "5 tabs incl. AI · beta", F.tabs);
@@ -179,7 +180,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   console.log(JSON.stringify(Z));
   const POSW = /stayed close|great|helped|best|paid off|strong|comeback/i;
   ok(Z.titles.every((x) => !POSW.test(x) && /^(Turn \d+|Set-up): your (move|win chance)$/.test(x)), "1: positive title with a negative chip -> readable neutral title 'Turn N: your move'", Z.titles);
-  ok(!/stayed close|paid off/.test(Z.neutralLine) && /^(Your move on turn \d+ cost \d+% win chance\.|Turn \d+: .+ is (probably slightly better|a close call).*than your move\.)$/.test(Z.neutralLine), "1: positive text with a negative chip -> full-sentence neutral line", Z.neutralLine);
+  ok(!/stayed close|paid off/.test(Z.neutralLine) && /^(Your move on turn \d+ cost \d+% win chance\.|Turn \d+: .+ is (probably slightly better|a close call).*than your move\.|(Turn \d+|Set-up): .+ played .+; .+ was better \(cost \d+% win chance\)\.)$/.test(Z.neutralLine), "1: positive text with a negative chip -> full-sentence neutral line", Z.neutralLine);
   ok(!/ :|: /.test(Z.colon) && !/<\/span>:/.test(Z.colonHtml) && !/\s:/.test(Z.colonHtml), "1: no 'Turn 21 : ' (no colon after a chip)", Z.colon);
   ok((Z.poss.match(/<span[^>]*ai-n[^>]*>[^<]*['\u2019]s<\/span>/g) || []).length === 2 && !/<\/span>['\u2019]s/.test(Z.poss), "1: possessive is inside the name chip", Z.poss);
   ok(/^Strategy \u00b7 /.test(Z.strat.title) || !POSW.test(Z.strat.title) || Z.strat.chg.length === 0, "1: strategy title checked", Z.strat.title);
