@@ -1,0 +1,14 @@
+/* v1.87 Dutch is about 20% longer than English: room where a label sat tight. Only under html[lang="nl"]. */
+html[lang="nl"] .hs-facts dt { letter-spacing: 0; font-size: 11px; overflow-wrap: anywhere; }
+html[lang="nl"] .hs-acc small { max-width: 8em; }
+html[lang="nl"] .app .mbtn.mbuy { font-size: 10px; }
+html[lang="nl"] .hand .card .dplay, html[lang="nl"] .app .dock .hand .card .dplay { padding: 6px 7px; font-size: 11.5px; letter-spacing: 0; }
+html[lang="nl"] .hand .card .dplay, html[lang="nl"] .app .dock .hand .card .dplay { min-width: max-content; }
+/* v1.88 tray pickers (Monopoly, Year of Plenty, gold): "Baksteen" fits without an ellipsis */
+html[lang="nl"] .tbtn.res > span:not(.card) { font-size: 11.5px; letter-spacing: -.25px; }
+html[lang="nl"] .app .tbtn.res { padding-left: 0; padding-right: 0; }
+html[lang="nl"] .tray { gap: 3px; }
+/* v1.88 Bots tabs ("Zeevaarders" in full) and the review step header (the turn line may use two lines) */
+html[lang="nl"] .bpg-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.45fr); }
+html[lang="nl"] .bpg-tabs button { font-size: 12.5px; letter-spacing: -.2px; }
+html[lang="nl"] .rs-bar small, html[lang="nl"] .rs-bar.w small { white-space: normal; line-height: 1.15; }

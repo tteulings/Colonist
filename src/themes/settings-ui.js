@@ -3,10 +3,12 @@
 // listeners stay intact): New game first, then sound and pace. The bot-autoplay controls live in
 // About › Developer. Look & feel: theme cards, Motion, quick toggle. Applies instantly.
 import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, paletteAuto, paletteAutoMode, autoTimeInfo, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
+import { dateLocale } from "../i18n.js";
 
 import { oicon } from "../ui-icons.js";
 import { liveWinOn, setLiveWin, liveRefineOn, setLiveRefine } from "../live-bar.js";
-import { recapLang, setRecapLang, recapPoints, setRecapPoints } from "../review-recap.js";
+import { recapPoints, setRecapPoints } from "../review-recap.js";
+import { langChoice, setLang } from "../i18n.js";
 
 /** v1.67 Text size (Compact / Normal / Large): a device preference, applied to <html data-textsize> (themes/base.css scales it). */
 export function getTextSize() { try { const v = localStorage.getItem("colonist_textsize"); return v === "normal" || v === "large" ? v : "compact"; } catch (_) { return "compact"; } }
@@ -158,12 +160,13 @@ export class SettingsUI {
       trow.innerHTML = `<div><b id="tsLbl">Text size</b><small>Compact is the default. Larger sizes scale the whole app.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="tsLbl">${[["compact", "Compact"], ["normal", "Normal"], ["large", "Large"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${k === tsz}" class="${k === tsz ? "on" : ""}" data-ts="${k}">${l}</button>`).join("")}</div>`;
       trow.querySelectorAll("[data-ts]").forEach((b) => b.addEventListener("click", () => { trow.querySelectorAll("[data-ts]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); setTextSize(b.dataset.ts); }));
       body.appendChild(trow);
-      // v1.62 the language of the AI recap (src/review-recap.js)
+      // v1.87 the one language of the whole app (src/i18n.js): Auto follows the browser; the AI recap and the AI tab read it too
       const crow = document.createElement("div");
       crow.className = "st-row";
-      crow.innerHTML = `<div><b id="rcLangLbl">Recap language</b><small>The AI recap of a finished game.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="rcLangLbl">${[["en", "English"], ["nl", "Nederlands"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${recapLang() === k}" class="${recapLang() === k ? "on" : ""}" data-rc-lang="${k}">${l}</button>`).join("")}</div>`;
-      crow.querySelectorAll("[data-rc-lang]").forEach((b) => b.addEventListener("click", () => { crow.querySelectorAll("[data-rc-lang]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); setRecapLang(b.dataset.rcLang); }));
-      body.appendChild(crow);
+      const lc = langChoice();
+      crow.innerHTML = `<div><b id="lgLbl">Language</b><small>Menus, the game, reviews and the AI recap.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="lgLbl">${[["", "Auto"], ["en", "English"], ["nl", "Nederlands"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${lc === k}" class="${lc === k ? "on" : ""}" data-lang="${k}"${k ? " data-i18n-skip" : ""}>${l}</button>`).join("")}</div>`;
+      crow.querySelectorAll("[data-lang]").forEach((b) => b.addEventListener("click", () => { crow.querySelectorAll("[data-lang]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); setLang(b.dataset.lang); }));
+      (body.firstElementChild && body.firstElementChild.classList.contains("st-head") ? body.firstElementChild.after(crow) : body.prepend(crow));
       const prow = document.createElement("div");
       prow.className = "st-row";
       prow.innerHTML = `<div><b id="rcPtsLbl">Recap turning points</b><small>How many moments the AI recap tells about.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="rcPtsLbl">${[2, 3, 4].map((k) => `<button type="button" role="radio" aria-checked="${recapPoints() === k}" class="${recapPoints() === k ? "on" : ""}" data-rc-pts="${k}">${k}</button>`).join("")}</div>`;
@@ -199,7 +202,7 @@ export class SettingsUI {
       // v1.87: the screen / viewport numbers (bug-report detail) live under Developer, collapsed
       this.devPane.querySelector(".st-vpinfo")?.remove();
       const vp = document.createElement("details");
-      vp.className = "st-vpinfo";
+      vp.className = "st-vpinfo"; vp.setAttribute("data-i18n-skip", ""); // a developer line: numbers and browser words
       vp.innerHTML = `<summary>Screen details</summary><p class="sub st-screen">Screen: ${innerWidth}×${innerHeight} @${+(window.devicePixelRatio || 1).toFixed(2)}x${matchMedia("(display-mode: standalone)").matches ? " · installed app" : ""}</p><p class="sub st-viewport">${viewportDebug()}</p>`;
       this.devPane.appendChild(vp);
       body.appendChild(this.devPane);
@@ -218,7 +221,7 @@ export class SettingsUI {
           // the device's dark mode; the line under it says what is on screen now and when it changes next.
           const on = g.theme?.id === "A", mode = paletteAutoMode(), cur = mode ? "auto" : palettePref();
           const shown = effectivePalette(), NAME = { light: "Light", vivid: "Vivid", dusk: "Dusk", night: "Night" };
-          const hm = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          const hm = (ms) => new Date(ms).toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
           let autoLine = "", autoMore = "";
           if (mode === "time") {
             const t = autoTimeInfo(), place = t.place.how === "zone" ? t.place.tz.split("/").pop().replace(/_/g, " ") : "your time zone";

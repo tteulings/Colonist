@@ -5,11 +5,13 @@ import { recapFacts } from "./review/recap-facts.js";
 
 export const RECAP_URL = "https://katan-recap-fn.azurewebsites.net/api/recap";
 export const RECAP_LANG_KEY = "colonist_recap_lang";
-export const recapLang = () => { try { return localStorage.getItem(RECAP_LANG_KEY) === "nl" ? "nl" : "en"; } catch (_) { return "en"; } };
-export const setRecapLang = (l) => { try { localStorage.setItem(RECAP_LANG_KEY, l === "nl" ? "nl" : "en"); } catch (_) { /* private mode */ } };
+// v1.87 one language for the whole app (src/i18n.js, Settings > Language): the AI recap and the AI tab read the same setting
+export const recapLang = () => lang();
+export const setRecapLang = (l) => { setLang(l === "nl" ? "nl" : "en"); };
 export const RECAP_POINTS_KEY = "colonist_recap_points";
 export const recapPoints = () => { try { const n = parseInt(localStorage.getItem(RECAP_POINTS_KEY), 10); return n >= 2 && n <= 4 ? n : 3; } catch (_) { return 3; } };
 export const setRecapPoints = (n) => { try { localStorage.setItem(RECAP_POINTS_KEY, String(Math.max(2, Math.min(4, parseInt(n, 10) || 3)))); } catch (_) { /* private mode */ } };
+import { lang, setLang } from "./i18n.js";
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const T = {
   en: { btn: "AI recap", wait: "Writing recap…", foot: "Written by AI from this review · may contain mistakes", regen: "Regenerate", retry: "Try again", title: "AI recap", turn: "Turn", luckOrPlay: "Luck or play", v: { luck: "Luck", play: "Play", both: "Both" }, luck: "luck", moves: "moves", tip: "Tip", lesson: "Lesson", go: "Show this turn", why: "Why?", whyL: "Ask why about this moment",

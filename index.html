@@ -77,6 +77,8 @@
     <!-- v1.27: fetch the start-up modules in parallel (without these the browser only finds each import after parsing its parent: one round trip per level).
          Same URLs as the imports (game.js keeps its ?v=); a stale entry costs one extra fetch, a missing one only its head start. -->
     <link rel="modulepreload" href="./src/game.js?v=188" />
+    <link rel="modulepreload" href="./src/i18n.js" />
+    <link rel="modulepreload" href="./src/i18n-nl.js" />
     <link rel="modulepreload" href="./src/themes/manager.js" />
     <link rel="modulepreload" href="./src/themes/board-renderer.js" />
     <link rel="modulepreload" href="./src/themes/fx.js" />
@@ -245,6 +247,7 @@
     <link rel="stylesheet" href="./themes/lessons.css?v=188" />
     <link rel="stylesheet" href="./themes/bots.css?v=188" />
     <link rel="stylesheet" href="./themes/coherence.css?v=188" />
+    <link rel="stylesheet" href="./themes/i18n.css?v=188" />
     <div class="app" id="app">
       <header class="topbar" id="topbar">
         <div class="brand">
@@ -408,8 +411,8 @@
             <button id="playDevBtn" class="btn play-btn"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-knight" x="-50" y="-50" width="100" height="100"/></svg><span>Play card</span> <span class="kbd">P</span></button>
           </div>
           <div class="primary-slot">
-            <button id="rollDiceBtn" class="btn primary mainbtn" title="Roll dice (R)"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-dice" x="-50" y="-50" width="100" height="100"/></svg><span>Roll dice</span><small>R</small></button>
-            <button id="endTurnBtn" class="btn primary mainbtn" title="End turn (E)" style="display: none"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-endTurn" x="-50" y="-50" width="100" height="100"/></svg><span>End turn</span><small>E</small></button>
+            <button id="rollDiceBtn" class="btn primary mainbtn" title="Roll dice (R)"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-dice" x="-50" y="-50" width="100" height="100"/></svg><span data-nl="Gooien">Roll dice</span><small>R</small></button>
+            <button id="endTurnBtn" class="btn primary mainbtn" title="End turn (E)" style="display: none"><svg class="ic" viewBox="-50 -50 100 100"><use href="#ic-endTurn" x="-50" y="-50" width="100" height="100"/></svg><span data-nl="Klaar">End turn</span><small>E</small></button>
             <button id="rushReadyBtn" class="btn primary mainbtn rush-ready-btn" type="button" title="Roll now – you are done (R)" hidden>Roll now</button>
             <div class="waiting" id="waitingBar" hidden></div>
             <button id="newGameMainBtn" class="btn primary mainbtn" type="button" hidden><span>New game</span></button>
