@@ -3687,7 +3687,7 @@ class ColonistFullGame {
       <div class="sheet-head"><h3 id="tradeTitle">${icon("trade")}Trade</h3>
         <button type="button" id="tradeModalClose" class="btn ghost icon-only" aria-label="Close">${icon("close")}</button></div>
       <div class="trade-body" id="tradeBody">
-        <div class="tlbl"><span>You give</span><small class="tlbl-na">you have → after</small></div>
+        <div class="tlbl give"><span>You give</span><small class="tlbl-na">tap a card to give it</small></div>
         <div id="tradeOfferGrid" class="tgrid give" role="group" aria-label="You give"></div>
         <div class="tlbl"><span>You get</span><small class="tlbl-na">from the bank or a player</small></div>
         <div id="tradeRequestGrid" class="tgrid get" role="group" aria-label="You get"></div>
@@ -3856,7 +3856,7 @@ class ColonistFullGame {
       const arrow = `<span class="na">${have} → <b class="${after < have ? "dn" : "up"}">${after}</b></span>`;
       // v1.43: the get row is about what you can GET: the bank's stock is always on the card (tag); your own count only once
       // you ask for that card ("you 2 → 3"), so it no longer reads as what the other players hold
-      const sub = side === "give" ? (n ? arrow : `<span class="na">${have}</span>`)
+      const sub = side === "give" ? (n ? arrow : "") // v1.89: the card's numeral is the count; "have → after" appears only once a card is picked
         : out ? "bank empty" : n ? `<span class="na">you ${have} → <b class="up">${after}</b></span>` : `<span class="na tbk${this._bankLow(stock)}" title="The bank has ${stock} ${name}">${icon("bank")}${stock}</span>`;
       const low = side === "get" && stock > 0 && stock <= 3 ? `<span class="rate-tag low" title="The bank has ${stock} ${name} left">${stock} left</span>` : "";
       const label = side === "give" ? `Give one more ${name} (you have ${have}${n ? `, giving ${n}, ${after} after` : ""})` : `Get one more ${name} (you have ${have}${n ? `, asking ${n}, ${after} after` : ""}) · bank has ${stock}`;
@@ -3885,6 +3885,7 @@ class ColonistFullGame {
     const ans = this._tradeAnswers;
     const others = this.players.filter((p) => p.id !== player.id);
     const picked = sumResources(this.tradeOffer) > 0 && sumResources(this.tradeRequest) > 0;
+    row.style.setProperty("--n", others.length);
     row.innerHTML = others.map((p) => {
       // pass & play: another person is asked directly (the phone goes to them)
       if (this.hotseat && p.isHuman) return `<button type="button" class="tp ask pc-${p.id}" data-ask="${p.id}" ${picked ? "" : "aria-disabled=\"true\""} aria-label="Ask ${p.name}">
@@ -8706,14 +8707,10 @@ class ColonistFullGame {
       }
       el.addEventListener("click", (e) => {
         e.stopPropagation();
-        // v1.04: a tap on a bot's chip opens its profile sheet (the points number still shows the VP breakdown)
-        if (el.classList.contains("pchip") && profileOf(this, player) && !e.target.closest(".vpn, .sx-vp")) {
-          this._hideVPTooltip();
-          openProfileSheet(this, { player });
-          return;
-        }
+        // v1.89: a tap (not only a long press) on any chip names its numbers; a bot's legend ends in a link to its profile sheet
         if (document.getElementById("vpTooltip")) { this._hideVPTooltip(); return; }
-        this._showVPTooltip(player, el);
+        this._dismissChipHint?.(true);
+        this._showVPTooltip(player, el, el.classList.contains("pchip") && profileOf(this, player) ? { profile: true } : null);
         const dismiss = () => { this._hideVPTooltip(); document.removeEventListener("click", dismiss); };
         setTimeout(() => document.addEventListener("click", dismiss, { once: true }), 50);
         setTimeout(() => this._hideVPTooltip(), 4000);
@@ -8760,7 +8757,34 @@ class ColonistFullGame {
     strip.classList.remove("mo-in");
     void strip.offsetWidth; // restart the animation
     strip.classList.add("mo-in");
-    this._chipInTimer = window.setTimeout(() => strip.classList.remove("mo-in"), 1000);
+    this._chipInTimer = window.setTimeout(() => strip.classList.remove("mo-in"), 1100);
+    window.clearTimeout(this._chipHintTimer);
+    this._chipHintTimer = window.setTimeout(() => this._showChipHint(), 1300);
+  }
+
+  /** v1.89 first game only: one dismissible hint under the strip that the chips explain themselves on a tap. Stored once seen. */
+  _showChipHint() {
+    const strip = this.playerStrip;
+    if (!strip || this.onboardingHold || this.hotseat || document.getElementById("chipHint")) return;
+    let seen = false; try { seen = localStorage.getItem("colonist.chipHint") === "1"; } catch (_) { /* private mode */ }
+    const r = strip.getBoundingClientRect();
+    if (seen || !r.width || !r.height) return;
+    try { localStorage.setItem("colonist.chipHint", "1"); } catch (_) { /* private mode */ }
+    const tk = document.querySelector(".tkrow, #ticker");
+    const top = Math.max(r.bottom, tk ? tk.getBoundingClientRect().bottom : 0) + 6;
+    const el = document.createElement("div");
+    el.id = "chipHint"; el.className = "chip-hint"; el.setAttribute("role", "status");
+    el.style.top = `${top}px`;
+    el.innerHTML = `<span class="chip-hint-t">Tap a player to see what the numbers mean</span><button type="button" class="chip-hint-x" aria-label="Dismiss">${icon("close")}</button>`;
+    el.querySelector("button").addEventListener("click", () => this._dismissChipHint());
+    document.body.appendChild(el);
+    this._chipHintGone = window.setTimeout(() => this._dismissChipHint(), 11000);
+  }
+  _dismissChipHint() {
+    window.clearTimeout(this._chipHintGone);
+    window.clearTimeout(this._chipHintTimer);
+    const el = document.getElementById("chipHint");
+    if (el) { el.classList.add("out"); window.setTimeout(() => el.remove(), 260); }
   }
 
   renderTopPanels() {
@@ -9989,7 +10013,7 @@ class ColonistFullGame {
   }
 
   // ── VP Breakdown Tooltip ────────────────────────────────────────────
-  _showVPTooltip(player, anchorEl) {
+  _showVPTooltip(player, anchorEl, opts = null) {
     this._hideVPTooltip();
     const settlements = player.settlements.size;
     const cities = player.cities.size;
@@ -10028,7 +10052,9 @@ class ColonistFullGame {
     html += '<div class="vp-tooltip-section" style="margin-top:0.35rem">Pieces</div>';
     html += row("Roads", `${roads}/15`);
     if (this.sea) html += row("Ships", `${player.ships.size}/15`); // ⚓
+    if (opts?.profile) html += `<button type="button" class="vp-tooltip-prof">Bot profile<span aria-hidden="true"> ›</span></button>`;
     tip.innerHTML = html;
+    tip.querySelector(".vp-tooltip-prof")?.addEventListener("click", (ev) => { ev.stopPropagation(); this._hideVPTooltip(); openProfileSheet(this, { player }); });
 
     const rect = anchorEl.getBoundingClientRect();
     document.body.appendChild(tip);
@@ -10455,11 +10481,12 @@ class ColonistFullGame {
     }
     if (home && el.parentElement !== home) home.appendChild(el);
     const u = this.undoState;
-    if (!u || u.dock) { el.hidden = true; el.innerHTML = ""; return; } // ⚓ a ship move offers Undo in the dock
+    if (!u || u.dock) { el.hidden = true; el.innerHTML = ""; home?.style.removeProperty("--ut-w"); return; } // ⚓ a ship move offers Undo in the dock
     el.hidden = false;
     el.classList.toggle("timed", !!u.ms);
     el.style.setProperty("--undo-ms", `${u.ms || 0}ms`);
     el.innerHTML = `${icon(u.icon || "check")}<span class="ut">${u.label}</span><button type="button" class="btn primary ut-btn" data-undo aria-label="Undo: ${u.label}">${icon("undo")}Undo${u.noun ? ` ${u.noun}` : ""}</button><span class="ut-time" aria-hidden="true"><i></i></span>`;
+    if (home?.classList.contains("tkrow")) home.style.setProperty("--ut-w", `${Math.ceil(el.getBoundingClientRect().width || 112)}px`); // v1.89 the ticker text stops before the pill
   }
 
   /** Take back the last placement (or Year of Plenty picks): pieces, cards, bonuses and the log line. */

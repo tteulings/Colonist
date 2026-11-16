@@ -2048,8 +2048,8 @@ html[data-lab] .table .board-wrap { position: absolute !important; inset: 0 !imp
 .dev-bubble .mini-card { width: 11px; height: 15px; margin: 0 1px; }
 .dev-bubble::after { content: ""; position: absolute; bottom: -6px; left: var(--ax, 50%); width: 12px; height: 12px; background: inherit; transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
 /* totals pill over the hand (left): resource cards · dev cards · bank */
-.hand .hand-total { position: absolute; left: var(--gut, 10px); top: 14px; z-index: 4; pointer-events: auto; display: inline-flex; align-items: center; gap: 3px;
-  height: 24px; padding: 0 8px; border-radius: 999px; font: 650 12px/1 var(--font-body); color: var(--bar-ink, var(--ink));
+.hand .hand-total { position: absolute; left: var(--gut, 10px); top: -9px; z-index: 4; pointer-events: auto; display: inline-flex; align-items: center; gap: 3px;
+  height: 22px; padding: 0 8px; border-radius: 999px; font: 650 12px/1 var(--font-body); color: var(--bar-ink, var(--ink));
   background: var(--glass, var(--float)); border: 1px solid var(--glass-line, rgba(255,255,255,.4)); box-shadow: var(--glass-shadow, 0 1px 3px rgba(0,0,0,.18)); cursor: pointer; }
 .hand .hand-total b { font-weight: 800; font-variant-numeric: tabular-nums; }
 .hand .hand-total .ic { font-size: 13px; }

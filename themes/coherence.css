@@ -4,14 +4,14 @@
   /* resource colours (src/resources.js is the table of names + colours + icons) */
   --res-wood: #3E9A4E; --res-brick: #D8613C; --res-sheep: #86BF3C; --res-wheat: #E3A21F; --res-ore: #7D8DA5;
   /* points by source: the end screen legend and the review's AI page read these */
-  --src-s: #A9B0B4; --src-c: #5F6B73; --src-L: #1F6E77; --src-A: #D9714E; --src-v: #8C5AC8; --src-i: #C99A2E;
+  --src-s: #4A90D9; --src-c: #4F9A35; --src-L: #1F6E77; --src-A: #D9714E; --src-v: #8C5AC8; --src-i: #C99A2E;
   /* radii: outer cards, tiles inside them, pills */
   --r-card: 18px; --r-tile: 12px;
   --tile-bg: color-mix(in srgb, var(--ink) 6%, transparent); --tile-line: color-mix(in srgb, var(--ink) 9%, transparent);
 }
 [data-palette="night"], [data-palette="dusk"] {
   --res-wood: #6FB067; --res-brick: #E07E5A; --res-sheep: #A5D46A; --res-wheat: #EDC25E; --res-ore: #9AA9BB;
-  --src-s: #9AA3A8; --src-c: #C3CBD0; --src-L: #4FB8BF; --src-A: #F09270; --src-v: #B58BE8; --src-i: #E3BB5A;
+  --src-s: #6FAEEA; --src-c: #8BCB62; --src-L: #4FB8BF; --src-A: #F09270; --src-v: #B58BE8; --src-i: #E3BB5A;
 }
 
 /* 1 · one outline icon set (src/ui-icons.js): 2 px stroke on a 24 grid, currentColor */
@@ -211,3 +211,50 @@
 /* v1.88 Night: Lumber (deep forest + logs) and Wool (pale meadow + sheep) stay two clearly different greens in the hand and the trade sheet */
 [data-palette="night"][data-theme="A"] .card[data-card="wood"] > svg, [data-palette="dusk"][data-theme="A"] .card[data-card="wood"] > svg { filter: brightness(1.28) saturate(1.25) hue-rotate(-8deg); }
 [data-palette="night"][data-theme="A"] .card[data-card="sheep"] > svg { filter: brightness(1.05) saturate(.85) hue-rotate(14deg); }
+
+/* ==========================================================================
+   v1.89 coherence round 5
+   ========================================================================== */
+/* strip entrance: 0.38 s per chip, 70 ms apart, from 22 px up and slightly small, so it reads as a motion (was 8 px / 0.45 s, easy to miss) */
+@keyframes mo-in { 0% { opacity: 0; transform: translateY(-22px) scale(.92); } 55% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+.app .pstrip.mo-in .pchip { animation: mo-in .38s cubic-bezier(.2, .8, .3, 1.12) both; }
+.app .pstrip.mo-in .pchip:nth-child(2) { animation-delay: .07s; } .app .pstrip.mo-in .pchip:nth-child(3) { animation-delay: .14s; }
+.app .pstrip.mo-in .pchip:nth-child(4) { animation-delay: .21s; } .app .pstrip.mo-in .pchip:nth-child(5) { animation-delay: .28s; } .app .pstrip.mo-in .pchip:nth-child(6) { animation-delay: .35s; }
+/* points tile with "3/14": number over the trophy like every other tile (the base row layout squeezed the trophy into the corner) */
+[data-theme] .app .pstrip .pchip .vpn.goal { flex-direction: column; flex-wrap: nowrap; align-items: center; }
+[data-theme] .app .pstrip .pchip .vpn.goal b { white-space: nowrap; }
+/* first-game hint under the strip */
+.chip-hint { position: fixed; left: 12px; right: 12px; z-index: 55; display: flex; align-items: center; gap: 6px; padding: 6px 4px 6px 12px; border-radius: 12px; pointer-events: none;
+  background: var(--ink, #1F3440); color: var(--sheet, #fff); font: 700 13px/1.25 var(--font-body); box-shadow: 0 4px 14px rgba(0,0,0,.3); animation: chip-hint-in .3s ease-out both; }
+.chip-hint::before { content: ""; position: absolute; top: -5px; left: 38px; width: 12px; height: 12px; background: inherit; transform: rotate(45deg); border-radius: 2px; }
+.chip-hint.out { opacity: 0; transition: opacity .25s; }
+.chip-hint-t { flex: 1; min-width: 0; }
+.chip-hint-x { pointer-events: auto; width: 36px; height: 36px; flex: none; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: none; color: inherit; cursor: pointer; }
+.chip-hint-x .ic { font-size: 16px; }
+@keyframes chip-hint-in { 0% { opacity: 0; transform: translateY(-6px); } 100% { opacity: 1; transform: none; } }
+.vp-tooltip-prof { display: block; width: 100%; margin-top: 8px; padding: 7px 10px; min-height: 36px; border: var(--chip-border, 1px solid rgba(0,0,0,.15)); border-radius: 10px; background: var(--chip, rgba(0,0,0,.05)); color: var(--heading, var(--ink)); font: 800 12.5px var(--font-body); text-align: center; cursor: pointer; }
+/* the Undo pill stays at the right end of the ticker row: the status text stops before it */
+.tkrow:has(> .undo-toast:not([hidden])) .ticker .txt { margin-right: calc(var(--ut-w, 0px) + 18px); }
+/* trade sheet: the sub-headers sit right next to their title; the players are equal columns */
+.trade-sheet .tlbl { justify-content: flex-start; gap: 10px; }
+.trade-sheet .tp-row { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); justify-content: stretch; justify-items: center; gap: 4px; }
+.trade-sheet .tp-row .tp { width: 100%; max-width: 100px; }
+/* Luck: one headline number (win chance in %), the cards are a labelled side note; the bar track has a scale */
+.lkx-g b small { font-weight: 600; }
+.lkx-sc { position: relative; height: 12px; font: 650 10.5px/12px var(--font-body); color: var(--ink-soft); margin-top: -2px; }
+.lkx-sc i { position: absolute; top: 0; transform: translateX(-50%); font-style: normal; white-space: nowrap; }
+.lkx-sc i:first-child { transform: none; } .lkx-sc i:last-child { transform: translateX(-100%); }
+.lkx-g { grid-template-columns: 100px minmax(0, 1fr) 88px; }
+.lkx-g .tr { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent); background-image: linear-gradient(to right, transparent calc(25% - .5px), color-mix(in srgb, var(--ink) 16%, transparent) calc(25% - .5px) calc(25% + .5px), transparent calc(25% + .5px), transparent calc(75% - .5px), color-mix(in srgb, var(--ink) 16%, transparent) calc(75% - .5px) calc(75% + .5px), transparent calc(75% + .5px)); }
+.lkd-head { display: flex; align-items: baseline; gap: 8px; margin: 2px 0 2px; }
+.lkd-head b { font: 800 26px/1 var(--font-head, var(--font-body)); font-variant-numeric: tabular-nums; }
+.lkd-head b.pos { color: var(--pos); } .lkd-head b.neg { color: var(--neg); }
+.lkd-head span { font: 650 12.5px/1.2 var(--font-body); color: var(--ink-soft); }
+/* end screen: "Game stats" is a heading, not a chip; the last card clears the action bar; the review button's icon is visible on its filled background */
+.gs-more { margin: 18px 4px 6px; }
+.gs-more span { display: inline; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: #fff; font: var(--display-weight, 800) 20px/1.2 var(--font-display); text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.gs-scroll { padding-bottom: 28px; scroll-padding-bottom: 28px; }
+.rv1.gs-revcard .rvb .t svg { color: var(--primary-ink); }
+/* Bots ladder: the likely range is a thin line drawn in front of the badge (it was a thick one hidden behind it) */
+.bpg-svg .iv.thin line { stroke-width: 1.4; }
+.bpg-svg .iv.thin { pointer-events: none; }

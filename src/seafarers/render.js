@@ -274,7 +274,7 @@ export function drawShips(R, ctx, now, reduced) {
   // its rim, so not even the anti-aliased rim edge shows a course or a halo through it
   const pills = R.layer?.pills;
   if (pills?.length) {
-    const px = 1 / (R.u * g.view.scale), m = 3.4 * px;
+    const px = 1 / (R.u * g.view.scale), m = 7 * px;
     const clip = new Path2D();
     clip.rect(-1e5, -1e5, 2e5, 2e5);
     pills.forEach((q) => { const x0 = q.x - q.w / 2 - m, y0 = q.y - q.h / 2 - m, w = q.w + 2 * m, h = q.h + 2 * m; if (clip.roundRect) clip.roundRect(x0, y0, w, h, (q.r || 0) + m); else clip.rect(x0, y0, w, h); });

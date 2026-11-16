@@ -244,8 +244,12 @@ export const ReviewLuckMixin = {
     const ev = (x) => `${esc(this._lkWhat(x.ev, pid))} in ${esc(this._lkWhen(x.ev).replace(/^T/, "turn ").replace(/^R/, "roll "))} (${wpText(x.w)})`;
     const lo = own[0], hi = own[own.length - 1];
     const most = [lo && Math.round(lo.w * 100) < 0 ? `Worst: ${ev(lo)}.` : "", hi && Math.round(hi.w * 100) > 0 ? `Best: ${ev(hi)}.` : ""].filter(Boolean).join(" ");
+    const LKs = this._lkState?.(), tot = LKs && !LKs.na && LKs.tot ? LKs.tot[pid] : null, sw0 = this._lkSeat(pid);
+    const cardsTxt2 = n ? `the number of cards ${wpText(B.cards)} (${m} ${m === 1 ? "card" : "cards"} ${n > 0 ? "more" : "fewer"} than expected)` : `the number of cards ${wpText(B.cards)} (about as expected)`;
+    const parts = [Math.round(sw0 * 100) ? `seat order ${wpText(sw0)}` : "", cardsTxt2, `which cards and when ${wpText(B.kind)}`].filter(Boolean);
     const say = `<div class="lk-hd"><b>${you ? "Your" : `${nm}’s`} luck</b>${infoBtn("split", U.info?.split)}</div>
-      <p class="lkd-say">${(() => { const sw = this._lkSeat(pid); return Math.round(sw * 100) ? `Seat order on this board: ${wpText(sw)}. ` : ""; })()}${cardsTxt}, ${join} ${kindTxt} (${wpText(B.kind)}). ${most}</p>
+      ${tot != null ? `<p class="lkd-head"><b class="${Math.round(tot * 100) > 0 ? "pos" : Math.round(tot * 100) < 0 ? "neg" : ""}">${wpText(tot)}</b><span>win chance from luck, in total</span></p>` : ""}
+      <p class="lkd-say">${tot != null ? "Made up of " : ""}${parts.join(", ")}. ${most}</p>
       ${infoTxt("split", U.info?.split, `Number of cards: cards above or below expected, at what a card was worth to ${you ? "you" : "them"} on average this game. The rest is which cards, and when. Each part is an estimate, good to about ±${Math.max(1, Math.round(B.se * 100))} points.`)}`;
     return say; // (the four bars "Why won / lost" are on the Overview tab)
   },

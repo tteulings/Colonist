@@ -159,8 +159,8 @@
 .rv-midnote p b { font: 800 15px var(--font-body); color: var(--heading); }
 
 /* v1.05 Step mode for the Game review. Theme tokens only; classes get one hue each, text >= 11 px, targets >= 40 px. */
-.rs, .rt { --c-best: #1F8F7A; --c-great: #2F6FD0; --c-excellent: #4F8A33; --c-good: #86A94A; --c-inacc: #D99A1E; --c-could: #D99A1E; --c-lean: #C9A24A; --c-close: #8E9AA6; --c-triv: #9AA3AB; --c-mistake: #E27B2F; --c-blunder: #C8402E; --c-missed: #8C5AC8; --c-luck: #6B7280; --neg: #C0432F; --pos: #2E7D4F; }
-[data-palette="night"] :is(.rs, .rt) { --c-best: #4CC9B0; --c-great: #7FA8F5; --c-excellent: #7DBA5C; --c-good: #A8C86C; --c-inacc: #F0B45C; --c-could: #F0B45C; --c-lean: #D8B66E; --c-close: #8A95A1; --c-triv: #7C858F; --c-mistake: #F29A58; --c-blunder: #F2705E; --c-missed: #B58BE8; --c-luck: #9AA3B2; --neg: #F2907A; --pos: #7DBA5C; }
+.rs, .rt { --c-best: #1F8F7A; --c-great: #2F6FD0; --c-excellent: #4F8A33; --c-good: #86A94A; --c-inacc: #D99A1E; --c-could: #A3540A; --c-lean: #7C6600; --c-close: #8E9AA6; --c-triv: #9AA3AB; --c-mistake: #E27B2F; --c-blunder: #C8402E; --c-missed: #8C5AC8; --c-luck: #6B7280; --neg: #C0432F; --pos: #2E7D4F; }
+[data-palette="night"] :is(.rs, .rt) { --c-best: #4CC9B0; --c-great: #7FA8F5; --c-excellent: #7DBA5C; --c-good: #A8C86C; --c-inacc: #F0B45C; --c-could: #F5A04A; --c-lean: #D9CC6A; --c-close: #8A95A1; --c-triv: #7C858F; --c-mistake: #F29A58; --c-blunder: #F2705E; --c-missed: #B58BE8; --c-luck: #9AA3B2; --neg: #F2907A; --pos: #7DBA5C; }
 .rs .neg { color: var(--neg); } .rs .pos { color: var(--pos); }
 .rs-b { width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center; flex: none; font: 800 12px/1 var(--font-body); font-style: normal; color: #fff; background: var(--cc, var(--c-luck)); }
 .rs-b.sm { width: 17px; height: 17px; font-size: var(--fs-s); } .rs-b.lg { width: 26px; height: 26px; font-size: var(--fs-l); }
@@ -438,7 +438,7 @@
 
 /* v1.48 the end screen's scorecard: points and where they came from, accuracy, luck, and "Why won / lost" folded under each row */
 [data-rvbox] > .rsw { margin: 0 0 10px; border-radius: 12px; background: var(--chip); background-image: none; border: var(--chip-border); box-shadow: none; padding: 10px 10px 8px; }
-.rsc { --s0: #A9B0B4; --s1: #5F6B73; --s2: #1F6E77; --s3: #D9714E; --s4: #8C5AC8; --s5: #C99A2E; }
+.rsc { --s0: var(--src-s, #4A90D9); --s1: var(--src-c, #4F9A35); --s2: var(--src-L, #1F6E77); --s3: var(--src-A, #D9714E); --s4: var(--src-v, #8C5AC8); --s5: var(--src-i, #C99A2E); }
 :is(.rsc, .rvx) .rsc-hd { display: grid; grid-template-columns: minmax(0, 1fr) 52px 54px 36px 12px; column-gap: 6px; padding: 2px 4px 4px; font: 650 11px/1.2 var(--font-body); color: var(--ink-soft); }
 :is(.rsc, .rvx) .rsc-hd span { text-align: right; } :is(.rsc, .rvx) .rsc-hd span:first-child { grid-column: 2; }
 :is(.rsc, .rvx) .rsc-p { border-top: 1px solid var(--rv-sep); padding: 2px 0 8px; }

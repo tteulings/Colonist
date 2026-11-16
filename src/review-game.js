@@ -37,9 +37,11 @@ export const MC = "deep Monte Carlo (100 futures a move)"; // what runs the chec
 // v1.29 the bots' lighter deep check against checking all their moves with the full engine (scratchpad others129 budget-an.mjs)
 const OTHERS_NOTE = "1.1 points of accuracy apart on average, 5 at most, in about 60% of the time";
 // v1.05 chess-style classes: name, glyph (own icons, one hue each in review.css)
-export const CLS = { best: ["Best", "★"], great: ["Great", "⇈"], good: ["Good", "●"], lean: ["Slightly better", "↗"], close: ["Close call", "≈"], could: ["Could be better", "↗"], mistake: ["Mistake", "▲"], blunder: ["Blunder", "✕"], missed: ["Missed chance", "◎"], triv: ["No real choice", "·"] };
+export const CLS = { best: ["Best", "★"], great: ["Great", "⇈"], good: ["Good", "●"], lean: ["Slightly better", "↗"], close: ["Close call", "≈"], could: ["Could be better", "!"], mistake: ["Mistake", "▲"], blunder: ["Blunder", "✕"], missed: ["Missed chance", "◎"], triv: ["No real choice", "·"] };
 const IMP = ["lean", "could", "mistake", "blunder", "missed"]; // v1.81 lean counts as a (possible) mistake, close does not
 export const aLabel = (d) => (d.cls === "close" || d.vc === "close" ? "Other option" : d.cls === "lean" || d.vc === "lean" ? "Slightly better" : "Better");
+/** "−19 cards" → "19 fewer cards" (the Luck table's side note: a label, not a second headline number) */
+const cardsWord = (n) => { const m = /^([+−-])\s*(\d+)\s*(cards?)$/.exec(String(n).trim()); return m ? `${m[2]} ${m[1] === "+" ? "more" : "fewer"} ${m[3]}` : String(n); };
 const badge = (c, sz = "") => `<i class="rs-b c-${c} ${sz}" aria-hidden="true">${CLS[c][1]}</i>`;
 export const rvPos = (g, f) => {
   if (f.hex != null) return { ...g.hexes[f.hex].center, hex: true };
@@ -469,18 +471,19 @@ export const ReviewGameMixin = {
     const maxV = Math.max(this.winPoints || 10, ...this.players.map((p) => p.victoryPoints));
     const parts = [["settlements", "Settlements"], ["cities", "Cities"], ["road", this.sea ? "Longest trade route" : "Longest road"], ["army", "Largest army"], ["cards", "Point card"], ["islands", "Islands"]];
     const used = src ? parts.filter(([k]) => src.some((s) => s?.[k] > 0)) : [];
+    const si = (q) => parts.findIndex(([k]) => k === q); // v1.89 a source keeps its colour whichever sources are used
     const open = this._rsOpen != null && this.players[this._rsOpen] ? this._rsOpen : null;
     const rows = ranked.map((p, k) => {
       const s = this._rvSeat(p.id), lv = p.isHuman ? null : this._rvLevel(p), nm = this._rvNm(p.id);
       const acc = s.sum?.acc != null ? `<b class="rt-acc${s.done ? "" : " prov"}">${s.done ? "" : "~"}${s.sum.acc}</b>`
         : s.st === "run" ? `<span class="rt-st rt-now"><i class="rv-ring" style="--p:${Math.round((100 * s.running.j) / Math.max(1, s.running.n))}%" aria-hidden="true"></i>${s.running.j}/${s.running.n}</span>`
-        : `<span class="rt-st">${{ queued: p.isHuman ? "queued" : "waiting", stopped: "stopped", idle: p.isHuman ? "not checked" : "waiting", norec: "n/a", none: "–", prov: "–", done: "–", quick: "waiting" }[s.st] || "–"}</span>`;
+        : `<span class="rt-st">${{ queued: p.isHuman ? "queued" : "–", stopped: "stopped", idle: p.isHuman ? "not checked" : "–", norec: "n/a", none: "–", prov: "–", done: "–", quick: "–" }[s.st] || "–"}</span>`;
       const d = !L || L.na ? null : L.all?.[p.id], t = d ? tileOf({ me: d }) : null, top = d ? topText(d.top) : "";
       const wv = LK.na ? null : LK.done && LK.cover >= 0.9 ? LK.tot[p.id] : null, wc = wv == null ? "" : Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : "";
       const pend = wv == null && !LK.na && !LK.done && t; // v1.52 the win chance impact is coming: say so, cards underneath
-      const luck = wv != null ? `<b class="${wc}">${wpText(wv)}</b>` : pend ? `<b class="pend" title="Luck in win chance follows">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}…%</b><small>${esc(t.n)}</small>` : t ? `<b class="${t.cls || ""}">${esc(t.n.replace(/ cards?$/, ""))}</b><small>cards</small>` : `<span class="rt-st">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}${LK.na || LK.done ? "–" : "…"}</span>`;
+      const luck = wv != null ? `<b class="${wc}">${wpText(wv)}</b>` : pend ? `<b class="pend" title="Luck in win chance follows">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}–</b><small>${esc(t.n)}</small>` : t ? `<b class="${t.cls || ""}">${esc(t.n.replace(/ cards?$/, ""))}</b><small>cards</small>` : `<span class="rt-st">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}${LK.na || LK.done ? "–" : "…"}</span>`;
       const sc = src?.[p.id];
-      const bar = sc ? `<div class="rsc-src" role="img" aria-label="${esc(nm)}: ${used.filter(([q]) => sc[q] > 0).map(([q, l]) => `${l} ${sc[q]}`).join(", ")}"><div class="trk" style="--w:${Math.max(8, Math.min(100, Math.round((p.victoryPoints / maxV) * 100)))}">${used.map(([q], i) => (sc[q] > 0 ? `<i class="s${i}" style="flex:${sc[q]} 1 0">${sc[q]}</i>` : "")).join("")}</div></div>` : "";
+      const bar = sc ? `<div class="rsc-src" role="img" aria-label="${esc(nm)}: ${used.filter(([q]) => sc[q] > 0).map(([q, l]) => `${l} ${sc[q]}`).join(", ")}"><div class="trk" style="--w:${Math.max(8, Math.min(100, Math.round((p.victoryPoints / maxV) * 100)))}">${used.map(([q]) => (sc[q] > 0 ? `<i class="s${si(q)}" style="flex:${sc[q]} 1 0">${sc[q]}</i>` : "")).join("")}</div></div>` : "";
       const isOpen = open === p.id;
       let det = "";
       if (isOpen) {
@@ -493,7 +496,7 @@ export const ReviewGameMixin = {
       return `<div class="rsc-p pc-${p.id}${p === w ? " win" : ""}${isOpen ? " open" : ""}" data-pid="${p.id}"><button type="button" class="rsc-h" data-rsx="${p.id}" aria-expanded="${isOpen}" aria-label="${esc(nm)}, ${p.victoryPoints} points${wv != null ? `, luck ${wpText(wv)}` : ""}${s.sum?.acc != null ? `, accuracy ${s.sum.acc}${s.done ? "" : ", provisional"}${lv?.band ? `, usual for ${esc(lv.label)} ${Math.round(lv.band[0] - lv.band[1])} to ${Math.round(lv.band[0] + lv.band[1])}` : ""}` : ""}. ${isOpen ? "Hide" : "Show"} why">
         <span class="rk">${k + 1}</span>${this._av(p, "rt-av")}<span class="nm"><b class="rt-nm">${nm}</b>${lv ? `<small>${esc(lv.label)}</small>` : ""}</span><span class="rt-c rt-ac">${acc}</span><span class="rt-c rt-l"${top ? ` title="${esc(top)}"` : ""}>${luck}</span><span class="pts">${p.victoryPoints}</span>${IC.chev}</button>${bar}${det}</div>`;
     }).join("");
-    const leg = used.length ? `<div class="rsc-leg">${used.map(([q, l], i) => `<span><i class="s${i}"></i>${l}</span>`).join("")}</div>` : "";
+    const leg = used.length ? `<div class="rsc-leg">${used.map(([q, l]) => `<span><i class="s${si(q)}"></i>${l}</span>`).join("")}</div>` : "";
     return `<section class="rv-card rt rsc" data-rvtable aria-label="Result"><div class="rv-gt"><b>Result</b><small>tap a player: why they won or lost</small></div><div class="rsc-hd" aria-hidden="true"><span>Accuracy</span><span>Luck</span><span>Points</span></div>${rows}${leg}${!R.bots ? `<p class="rt-foot">Played before the bots’ moves were recorded: their accuracy is not available.</p>` : ""}</section>`;
   },
   /** The win chance of every player through the game (set-up first), under the scorecard; tap: the review's Win chance. "" when there is none (Seafarers, no move log). */
@@ -529,7 +532,7 @@ export const ReviewGameMixin = {
     if (!st || !c) return;
     let O; try { O = gameOdds(this); } catch (_) { return; }
     if (O.na) return;
-    const W = 304, H = 112, x0 = 24, x1 = W - 4, top = 6, bot = H - 14, N = Math.max(1, st.N);
+    const W = 304, H = 112, x0 = 24, x1 = W - 12, top = 6, bot = H - 14, N = Math.max(1, st.N);
     const su = O.setup(), M = su.length - 1, f = M >= 1 ? 0.14 : 0, gap = M >= 1 ? 6 : 0, w = x1 - x0 - gap;
     const Xs = (i) => x0 + (i / Math.max(1, M)) * f * w, Xt = (s) => x0 + f * w + gap + (s / N) * (1 - f) * w, Y = (p) => top + (1 - p) * (bot - top);
     const me = who ?? this._rvSoloPid?.();
@@ -976,8 +979,8 @@ export const ReviewGameMixin = {
     const st = this._st, src = st?.sources?.[pid];
     const parts = [["settlements", "Settlements", 1], ["cities", "Cities", 2], ["road", this.sea ? "Longest trade route" : "Longest road", 0], ["army", "Largest army", 0], ["cards", "Point cards", 0], ["islands", "Islands", 0]];
     const usedAll = st?.sources ? parts.filter(([k]) => st.sources.some((x) => x?.[k] > 0)) : [];
-    const rows = src ? usedAll.map(([k, l, per], i) => (src[k] > 0 ? `<div class="pp-pr"><i class="s${i}"></i><span>${l}${per ? ` × ${src[k] / per}` : ""}</span><b>${src[k]}</b></div>` : "")).join("") : "";
-    const bar2 = src ? `<div class="rsc-src"><div class="trk" style="--w:100">${usedAll.map(([k], i) => (src[k] > 0 ? `<i class="s${i}" style="flex:${src[k]} 1 0">${src[k]}</i>` : "")).join("")}</div></div>` : "";
+    const rows = src ? usedAll.map(([k, l, per]) => (src[k] > 0 ? `<div class="pp-pr"><i class="s${parts.findIndex(([q]) => q === k)}"></i><span>${l}${per ? ` × ${src[k] / per}` : ""}</span><b>${src[k]}</b></div>` : "")).join("") : "";
+    const bar2 = src ? `<div class="rsc-src"><div class="trk" style="--w:100">${usedAll.map(([k]) => (src[k] > 0 ? `<i class="s${parts.findIndex(([q]) => q === k)}" style="flex:${src[k]} 1 0">${src[k]}</i>` : "")).join("")}</div></div>` : "";
     const pts = src ? `<section class="rv-card rsc pp-pts"><div class="rv-gt"><b>Points</b><small>${p.victoryPoints} points · ${this.winPoints || 10} to win</small></div>${bar2}<div class="pp-prs">${rows}</div></section>` : "";
     // accuracy
     const acc = `<section class="rv-card rs-sum">${this._rvStrip(sum.acc, cmp, false, prov)}${cmpText ? `<p class="rv-cmpline rvt-cmp">${esc(cmpText)}</p>` : ""}${sum.lost != null ? `<p class="rs-lost">${sum.n} ${sum.n === 1 ? "move" : "moves"} that mattered · about ${sum.lost}% win chance lost per move${T.capped ? ` · ${you ? "your" : "their"} moves are capped at the ${T.cap}% ${you ? "you" : "they"} could have had` : ""}</p>` : ""}</section>`;
@@ -1126,7 +1129,7 @@ export const ReviewGameMixin = {
 
   // Win chance
   _rvWinGeom(O, W = 304, H = 112) {
-    const st = this._st, x0 = 30, x1 = W - 4, top = 6, bot = H - 14, N = Math.max(1, st.N), su = O.setup(), M = su.length - 1;
+    const st = this._st, x0 = 30, x1 = W - 12, top = 6, bot = H - 14, N = Math.max(1, st.N), su = O.setup(), M = su.length - 1;
     const f = M >= 1 ? 0.14 : 0, gap = M >= 1 ? 6 : 0, w = x1 - x0 - gap;
     return { W, H, x0, x1, top, bot, N, su, M, f, gap, w, Xs: (i) => x0 + (i / Math.max(1, M)) * f * w, Xt: (s) => x0 + f * w + gap + (s / N) * (1 - f) * w, Y: (p) => top + (1 - p) * (bot - top),
       inv: (x) => (x < x0 + f * w + gap / 2 ? 0 : Math.max(0, Math.min(N, Math.round(((x - (x0 + f * w + gap)) / ((1 - f) * w)) * N)))) };
@@ -1266,7 +1269,7 @@ export const ReviewGameMixin = {
     if (keep === "cursor") return;
     // before and after the picked step: with the luck check's numbers (looking ahead): before the roll, after the roll, end of the turn; else the model's estimate
     const su = g.su;
-    const bar = (v) => { if (!v) return `<div class="rvw-bar na">…</div>`; const sum = v.reduce((a, b) => a + b, 0) || 1; return `<div class="rvw-bar" role="img" aria-label="${this.players.map((p) => `${this._rvNm(p.id)} ${Math.round((v[p.id] / sum) * 100)}%`).join(", ")}">${this.players.map((p) => `<i class="pc-${p.id}" style="flex:${(v[p.id] / sum).toFixed(4)} 1 0">${v[p.id] / sum >= 0.08 ? Math.round((v[p.id] / sum) * 100) : ""}</i>`).join("")}</div>`; };
+    const bar = (v) => { if (!v) return `<div class="rvw-bar na">…</div>`; const sum = v.reduce((a, b) => a + b, 0) || 1; return `<div class="rvw-bar" role="img" aria-label="${this.players.map((p) => `${this._rvNm(p.id)} ${Math.round((v[p.id] / sum) * 100)}%`).join(", ")}">${this.players.filter((p) => v[p.id] / sum > 0.002).map((p) => `<i class="pc-${p.id}" style="flex:${(v[p.id] / sum).toFixed(4)} 1 0">${v[p.id] / sum >= 0.08 ? Math.round((v[p.id] / sum) * 100) : ""}</i>`).join("")}</div>`; };
     const what = this._rvStepWhat(cur);
     const near = ds.filter((q) => (q.x.s ?? 0) <= cur).pop() || ds[0];
     const chk = cur > 0 ? ds.filter((q) => (q.x.s ?? 0) === cur && q.seats).pop() : null, cs = chk ? chk.seats.reduce((a, b2) => a + b2, 0) || 1 : 1, exact = chk ? chk.seats.map((v) => v / cs) : null;
@@ -1318,8 +1321,8 @@ export const ReviewGameMixin = {
     const U = (this._lkUi ||= { open: false, pid: null, sort: "size", all: false });
     if (U.pid == null || !this.players[U.pid]) U.pid = pid;
     const L = this._rvLuck(pid);
-    const bars = this.players.map((p) => { const wv = LK.tot[p.id], d = !L || L.na ? null : L.all?.[p.id], t = d ? tileOf({ me: d }) : null, wd = Math.min(50, (Math.abs(wv) / 0.5) * 50), c = Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : ""; return `<span class="pc-${p.id} lkx-n">${this._av(p, "rt-av")}${this._rvIsYou(p.id) ? "You" : esc(p.name)}</span><i class="tr"><i class="z"></i><i class="${wv < 0 ? "neg" : "pos"}" style="${wv < 0 ? "right" : "left"}:50%;width:${wd.toFixed(1)}%"></i></i><b class="${c}">${wpText(wv)}${t ? `<small>${esc(t.n)}</small>` : ""}</b>`; }).join("");
-    const html = `<section class="rv-card rvx lkx"><div class="rv-gt"><b>Luck, in win chance</b><small>dice, steals, card draws, seat order</small></div><div class="lkx-g">${bars}</div></section>
+    const bars = this.players.map((p) => { const wv = LK.tot[p.id], d = !L || L.na ? null : L.all?.[p.id], t = d ? tileOf({ me: d }) : null, wd = Math.min(50, (Math.abs(wv) / 0.5) * 50), c = Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : ""; return `<span class="pc-${p.id} lkx-n">${this._av(p, "rt-av")}${this._rvIsYou(p.id) ? "You" : esc(p.name)}</span><i class="tr"><i class="z"></i><i class="${wv < 0 ? "neg" : "pos"}" style="${wv < 0 ? "right" : "left"}:50%;width:${wd.toFixed(1)}%"></i></i><b class="${c}">${wpText(wv)}${t ? `<small title="Cards above or below what the dice were expected to give">${esc(cardsWord(t.n))}</small>` : ""}</b>`; }).join("");
+    const html = `<section class="rv-card rvx lkx"><div class="rv-gt"><b>Luck, in win chance</b><small>dice, steals, card draws, seat order</small></div><div class="lkx-g">${bars}<span></span><span class="lkx-sc" aria-hidden="true"><i style="left:0">−50%</i><i style="left:50%">0</i><i style="left:100%">+50%</i></span><span></span></div></section>
       <section class="rv-card rt rvx">${this._lkDetailsHtml(LK, true)}</section>`;
     return { html }; // (its buttons are bound with the rest: _rvBindTable)
   },
