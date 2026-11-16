@@ -10,7 +10,8 @@ import { NL_MODES } from "./i18n-nl-modes.js";
 import { NL_FIX } from "./i18n-nl-fix.js";
 import { NL_HTML } from "./i18n-nl-html.js";
 import { NL_MORE } from "./i18n-nl-more.js";
-const ALL = [...NL_UI, ...NL_SET, ...NL_GAME, ...NL_REVIEW, ...NL_MISC, ...NL_BOTSLONG, ...NL_MORE, ...NL_REASON, ...NL_MODES, ...NL_FIX, ...NL_HTML];
+import { NL_R2 } from "./i18n-nl-r2.js";
+const ALL = [...NL_UI, ...NL_SET, ...NL_GAME, ...NL_REVIEW, ...NL_MISC, ...NL_BOTSLONG, ...NL_MORE, ...NL_REASON, ...NL_MODES, ...NL_FIX, ...NL_HTML, ...NL_R2];
 export const NL = Object.create(null); export const NLP = []; export const NLT = Object.create(null); // NLT: the template of every entry, for t("… {n} …", vars)
 // patterns that would match almost any sentence are not allowed
 const TOO_WIDE = new Set(["{x}: {y}", "{x}: {n}", "{x} · {y} · {z}", "{n} × {x}", "{n}× {x}", "{x} points", "{x} {n} points", "{x}, {n} points", "{x} on {y}", "{x} · Rush", ", {x}.", "{x} bot", "{x} played {y}", "{x} played {y}.", "{x} {y} {z}", "{x} won", "{x} thick", "{x} {n} points", "Open {x}, {y}", "{x} profile", "Bots: {x}", "{x} · moves"]);

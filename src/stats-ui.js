@@ -462,7 +462,7 @@ export const StatsUiMixin = {
     }).join("");
     const top = ranked[0];
     const legend = `<div class="gs-legend res">${RES.map((r) => `<span>${icon(r)}</span>`).join("")}</div>`;
-    const title = st.prodTot[top.id] ? `${this._stName(top)} earned the most: ${st.prodTot[top.id]} cards` : "Nobody earned cards from the dice";
+    const title = st.prodTot[top.id] ? `${this._stName(top)} earned the most: ${st.prodTot[top.id]} card${st.prodTot[top.id] === 1 ? "" : "s"}` : "Nobody earned cards from the dice";
     return this._stCard("res", title, "Cards from the dice", `<div class="gs-rows">${rows}</div>${legend}`);
   },
 
@@ -498,7 +498,7 @@ export const StatsUiMixin = {
     const la = st.awards.filter((a) => a.kind === "A");
     if (la.length) { const last = la[la.length - 1]; rows.push({ ic: "largestArmy", text: `Largest army: ${last.pid >= 0 ? `${this._stName(P(last.pid))} from ${tw} ${st.turnOf[last.s]}` : "nobody at the end"}` }); }
     const rt = st.robberTurns, rb = rt.indexOf(Math.max(...rt));
-    if (rt[rb] > 0) rows.push({ ic: "robber", text: `The robber sat on ${this._stTile(rb)} for ${rt[rb]} ${tw}s${st.hexBlocked[rb] ? `, blocking ${st.hexBlocked[rb]} cards` : ""}` });
+    if (rt[rb] > 0) rows.push({ ic: "robber", text: `The robber sat on ${this._stTile(rb)} for ${rt[rb]} ${tw}${rt[rb] === 1 ? "" : "s"}${st.hexBlocked[rb] ? `, blocking ${st.hexBlocked[rb]} card${st.hexBlocked[rb] === 1 ? "" : "s"}` : ""}` });
     const builds = this.players.map((p) => { const b = st.built[p.id]; return b.road + b.settlement + b.city + b.ship; });
     const bb = builds.indexOf(Math.max(...builds));
     if (builds[bb]) rows.push({ ic: "build", text: `${this._stName(P(bb))} built the most: ${builds[bb]} pieces` });
@@ -537,7 +537,7 @@ export const StatsUiMixin = {
     if (!v[best]) return kind === "robber" ? "The robber stayed home" : kind === "income" ? `${this._stName(this.players[pid])} got nothing from the dice` : "No tile paid out";
     const tile = this._stTile(best);
     if (kind === "prod") return `${cap(tile)} paid out most: ${v[best]} card${v[best] === 1 ? "" : "s"}`;
-    if (kind === "robber") return !this.winner && !st.robberMoves && best === st.r0 ? `The robber hasn't moved yet` : `The robber liked ${tile}: ${v[best]} ${this._stTurnWord()}s`;
+    if (kind === "robber") return !this.winner && !st.robberMoves && best === st.r0 ? `The robber hasn't moved yet` : `The robber liked ${tile}: ${v[best]} ${this._stTurnWord()}${v[best] === 1 ? "" : "s"}`;
     const p = this.players[pid];
     return `${this._you(p) ? "Your" : `${p.name}'s`} best tile: ${tile} · ${v[best]} cards`;
   },
@@ -621,7 +621,7 @@ export const StatsUiMixin = {
         ctx.lineWidth = 2.5; ctx.strokeStyle = kind === "robber" ? "rgba(255,255,255,.9)" : "#FFF6D8"; ctx.stroke();
         const c = g.hexes[best].center;
         bestEl.hidden = false;
-        bestEl.textContent = kind === "robber" ? `${v[best]} ${this._stTurnWord()}s` : `${v[best]} cards`;
+        bestEl.textContent = kind === "robber" ? `${v[best]} ${this._stTurnWord()}${v[best] === 1 ? "" : "s"}` : `${v[best]} cards`;
         bestEl.style.left = `${((c.x * img.view.scale + img.view.offsetX) / w) * 100}%`;
         bestEl.style.top = `${((c.y * img.view.scale + img.view.offsetY) / h) * 100}%`;
       } else bestEl.hidden = true;

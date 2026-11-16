@@ -54,7 +54,7 @@ export const NL_BOTSLONG = [
  ],
  [
   "Always the leader's tile with the most dice dots, and it steals from the leader. On a 7 it discards what it has most of.",
-  "Altijd de tegel van de koploper met de meeste dobbelogen, en hij pakt van de koploper. Bij een 7 gooit hij af waar hij het meest van heeft."
+  "Altijd de tegel van de koploper met de meeste dobbelogen, en hij pakt van de koploper. Bij een 7 legt hij af waar hij het meest van heeft."
  ],
  [
   "Plans its next build (settlement, city or card) by what pays off soonest and saves its cards for it.",
@@ -98,7 +98,7 @@ export const NL_BOTSLONG = [
  ],
  [
   "Keep your public score low and spread your numbers so one robber can't hurt you much.",
-  "Houd je openbare stand laag en spreid je getallen zodat één rover je niet veel kan schaden."
+  "Zorg dat je openbare stand laag blijft en spreid je getallen zodat één rover je niet veel kan schaden."
  ],
  [
   "Bank, harbours and fair deals that bring its plan closer; never with the leader or anyone 2+ points ahead of it.",
@@ -174,7 +174,7 @@ export const NL_BOTSLONG = [
  ],
  [
   "Don't lead in public: keep points hidden (development cards) and stay level until you can finish.",
-  "Leid niet in het openbaar: houd punten verborgen (ontwikkelingskaarten) en blijf gelijk tot je kunt winnen."
+  "Val niet op: verberg punten (ontwikkelingskaarten) en blijf onopvallend, ook als je voorstaat, tot je kunt winnen."
  ],
  [
   "Bank, harbours and fair deals; never with the leader or anyone 2+ points ahead of it.",
@@ -190,7 +190,7 @@ export const NL_BOTSLONG = [
  ],
  [
   "Plays like the Hard bot, but before each set-up spot, build step and robber move it plays out about 100 possible futures (up to half a second) and picks what wins most.",
-  "Speelt als de Moeilijke bot, maar voor elke opzetplek, bouwstap en roverzet speelt hij zo'n 100 mogelijke toekomsten door (tot een halve seconde) en kiest wat het vaakst wint."
+  "Speelt als de Moeilijke bot, maar voor elke startplek, bouwstap en roverzet speelt hij zo'n 100 mogelijke toekomsten door (tot een halve seconde) en kiest wat het vaakst wint."
  ],
  [
   "Wins 55.6% against 3 Medium bots (±3.4, 800 games), 14.8 percentage points more than the Hard bot on the same boards.",
@@ -222,7 +222,7 @@ export const NL_BOTSLONG = [
  ],
  [
   "The Master's search with ten times the thinking: before each set-up spot, build step and robber move it plays out 545 possible futures, looking 14 turns ahead (18 in set-up), and picks what wins most. It stops early when one move is clearly ahead.",
-  "De zoektocht van de Meester met tien keer zoveel denkwerk: voor elke opzetplek, bouwstap en roverzet speelt hij 545 mogelijke toekomsten door, 14 beurten vooruit (18 bij de opzet), en kiest wat het vaakst wint. Hij stopt eerder als één zet duidelijk voorligt."
+  "De zoektocht van de Meester met tien keer zoveel denkwerk: voor elke startplek, bouwstap en roverzet speelt hij 545 mogelijke toekomsten door, 14 beurten vooruit (18 bij de beginopstelling), en kiest wat het vaakst wint. Hij stopt eerder als één zet duidelijk voorligt."
  ],
  [
   "Much stronger than the Master: 64.0% against 3 Medium bots at the 545 futures the app plays (±6.7, 200 games), 23.0 points above the Hard bot on the same boards. Against 3 Hard bots it wins 41.0% (±6.8; 25% is a fair share). It sees further and spots slow plans (a city race, Longest road) that a short look misses.",
@@ -238,11 +238,11 @@ export const NL_BOTSLONG = [
  ],
  [
   "Measured at the app setting, 545 futures a move (about 3 s on a phone). Earlier, at 1000 futures a move without a time limit, it won 71.0% (±4.4, 400 games). Classic rating 1277 (±37, Medium = 1000).",
-  "Gemeten bij de app-instelling, 545 toekomsten per zet (zo'n 3 s op een telefoon). Eerder, bij 1000 toekomsten per zet zonder tijdslimiet, won hij 71,0% (±4,4, 400 spellen). Klassieke rating 1277 (±37, Gemiddeld = 1000)."
+  "Gemeten bij de app-instelling, 545 toekomsten per zet (zo'n 3 s op een telefoon). Eerder, bij 1000 toekomsten per zet zonder tijdslimiet, won hij 71,0% (±4,4, 400 spellen). Klassieke waardering 1277 (±37, Gemiddeld = 1000)."
  ],
  [
   "The Super Expert+ search (the learned position score at the end of every future, 14 turns ahead, 18 in set-up, 1090 futures a move, twice the Super Expert+), run on several cores of your phone at once, each playing its own share of the futures. In the same 3 seconds it plays about three times as many futures as the Super Expert+.",
-  "De zoektocht van Superexpert+ (de geleerde positiescore aan het eind van elke toekomst, 14 beurten vooruit, 18 bij de opzet, 1090 toekomsten per zet, twee keer Superexpert+), uitgevoerd op meerdere kernen van je telefoon tegelijk, elk met een eigen deel van de toekomsten. In dezelfde 3 seconden speelt hij zo'n drie keer zoveel toekomsten door als Superexpert+."
+  "De zoektocht van Superexpert+ (de geleerde positiescore aan het eind van elke toekomst, 14 beurten vooruit, 18 bij de beginopstelling, 1090 toekomsten per zet, twee keer Superexpert+), uitgevoerd op meerdere kernen van je telefoon tegelijk, elk met een eigen deel van de toekomsten. In dezelfde 3 seconden speelt hij zo'n drie keer zoveel toekomsten door als Superexpert+."
  ],
  [
   "The strongest bot: 70.0% against 3 Medium bots (±6.4, 200 games) and 58.5% against 3 Hard bots (±6.8). Head to head with the Super Expert+ (and 2 Hard bots) at the app's 3 s a move, it won 48.0% of the games against 25.0% for the Super Expert+ (+23 points, ±15, 100 games with every seat order). It plays about twice as many futures per move in the same time, so its choices rest on more evidence, mostly in close calls.",
@@ -258,11 +258,11 @@ export const NL_BOTSLONG = [
  ],
  [
   "Measured head to head with the Super Expert+ at the app setting: the 3 s on a phone counted in futures (Super Expert+ 545, Grandmaster 1090, the futures each got in 1 s on an idle 4-core desktop, a phone taken as 3x slower: an estimate). Against 3 Medium bots it won 70.0% (±6.4, 200 games, 1090 futures a move), 29.0 pp above the Hard bot on the same boards; Classic rating 1374 (±31, Medium = 1000). Other game types: see the Bots page. Battery and heat: while it thinks it uses up to 3 cores for 3 s a move; set a weaker bot for long sessions on battery.",
-  "Onderling gemeten met Superexpert+ bij de app-instelling: de 3 s op een telefoon geteld in toekomsten (Superexpert+ 545, Grootmeester 1090, de toekomsten die elk in 1 s kreeg op een rustige desktop met 4 kernen, een telefoon als 3x trager gerekend: een schatting). Tegen 3 Gemiddelde bots won hij 70,0% (±6,4, 200 spellen, 1090 toekomsten per zet), 29,0 pp boven de Moeilijke bot op dezelfde borden; Klassieke rating 1374 (±31, Gemiddeld = 1000). Andere speltypen: zie de Botpagina. Batterij en hitte: terwijl hij denkt gebruikt hij tot 3 kernen gedurende 3 s per zet; kies voor lange sessies op batterij een zwakkere bot."
+  "Onderling gemeten met Superexpert+ bij de app-instelling: de 3 s op een telefoon geteld in toekomsten (Superexpert+ 545, Grootmeester 1090, de toekomsten die elk in 1 s kreeg op een rustige desktop met 4 kernen, een telefoon als 3x trager gerekend: een schatting). Tegen 3 Gemiddelde bots won hij 70,0% (±6,4, 200 spellen, 1090 toekomsten per zet), 29,0 pp boven de Moeilijke bot op dezelfde borden; Klassieke waardering 1374 (±31, Gemiddeld = 1000). Andere speltypen: zie de Botpagina. Batterij en hitte: terwijl hij denkt gebruikt hij tot 3 kernen gedurende 3 s per zet; kies voor lange sessies op batterij een zwakkere bot."
  ],
  [
   "The Super Expert's search (545 futures a move, 14 turns ahead, 18 in set-up, about 3 s on a phone), but where each future stops it judges the position with a model learned from thousands of bot games (the same scorer as the game review), not the hand-made score.",
-  "De zoektocht van Superexpert (545 toekomsten per zet, 14 beurten vooruit, 18 bij de opzet, zo'n 3 s op een telefoon), maar waar elke toekomst stopt beoordeelt hij de stand met een model dat op duizenden botspellen is geleerd (dezelfde waardering als de spelreview), niet met de met de hand gemaakte score."
+  "De zoektocht van Superexpert (545 toekomsten per zet, 14 beurten vooruit, 18 bij de beginopstelling, zo'n 3 s op een telefoon), maar waar elke toekomst stopt beoordeelt hij de stand met een model dat op duizenden botspellen is geleerd (dezelfde waardering als de spelreview), niet met de met de hand gemaakte score."
  ],
  [
   "About as strong as the Super Expert against 3 Medium bots: 69.0% at the 545 futures the app plays (±6.4, 200 games; 28.0 pp above the Hard bot on the same boards, ±8.7); against 3 Hard bots it wins 56.0% (±6.9). Head to head at one table (1000 futures each) it finished above the Super Expert in 58.0% of 112 games (±9.0): a slight lean, not significant.",
@@ -274,7 +274,7 @@ export const NL_BOTSLONG = [
  ],
  [
   "Measured at the app setting, 545 futures a move (about 3 s on a phone), the setting of its head to head with the Grandmaster. Earlier, at 1000 futures without a time limit: 71.5% (±4.4, 400 games). Classic rating 1332 (±34, Medium = 1000).",
-  "Gemeten bij de app-instelling, 545 toekomsten per zet (zo'n 3 s op een telefoon), de instelling van zijn onderlinge duel met de Grootmeester. Eerder, bij 1000 toekomsten zonder tijdslimiet: 71,5% (±4,4, 400 spellen). Klassieke rating 1332 (±34, Gemiddeld = 1000)."
+  "Gemeten bij de app-instelling, 545 toekomsten per zet (zo'n 3 s op een telefoon), de instelling van zijn onderlinge duel met de Grootmeester. Eerder, bij 1000 toekomsten zonder tijdslimiet: 71,5% (±4,4, 400 spellen). Klassieke waardering 1332 (±34, Gemiddeld = 1000)."
  ],
  [
   "One bot against 3 Medium bots, Classic island, 4 players, 10 points. 2000 games (500 boards x 4 seats, paired seeds, seat rotated). 95% interval.",
@@ -290,11 +290,11 @@ export const NL_BOTSLONG = [
  ],
  [
   "One bot against 3 Medium bots, Classic island, 4 players, 10 points. 400 games (100 boards x 4 seats, paired seeds, seat rotated). Searched WITHOUT a time limit, with a fixed budget (1000 futures, 14 turns deep, 18 in set-up, early stop), so the machine's speed does not change the result; in the app the search stops at 3 s. 95% interval.",
-  "Eén bot tegen 3 Gemiddelde bots, klassiek eiland, 4 spelers, 10 punten. 400 spellen (100 borden × 4 plekken, gepaarde seeds, plek geroteerd). ZONDER tijdslimiet doorgezocht, met een vast budget (1000 toekomsten, 14 beurten diep, 18 bij de opzet, vroeg stoppen), zodat de snelheid van de machine het resultaat niet verandert; in de app stopt de zoektocht na 3 s. 95%-interval."
+  "Eén bot tegen 3 Gemiddelde bots, klassiek eiland, 4 spelers, 10 punten. 400 spellen (100 borden × 4 plekken, gepaarde seeds, plek geroteerd). ZONDER tijdslimiet doorgezocht, met een vast budget (1000 toekomsten, 14 beurten diep, 18 bij de beginopstelling, vroeg stoppen), zodat de snelheid van de machine het resultaat niet verandert; in de app stopt de zoektocht na 3 s. 95%-interval."
  ],
  [
   "One bot against 3 Medium bots, Classic island, 4 players, 10 points. 200 games (50 boards x 4 seats, paired seeds, seat rotated). Searched with the app's budgets counted in futures (Super Expert and Super Expert+ 545 a move, Grandmaster 1090, 14 turns deep, 18 in set-up, early stop) on the app's clock rules, so the figure is what the app plays. 95% interval.",
-  "Eén bot tegen 3 Gemiddelde bots, klassiek eiland, 4 spelers, 10 punten. 200 spellen (50 borden × 4 plekken, gepaarde seeds, plek geroteerd). Doorgezocht met de budgetten van de app geteld in toekomsten (Superexpert en Superexpert+ 545 per zet, Grootmeester 1090, 14 beurten diep, 18 bij de opzet, vroeg stoppen) volgens de klokregels van de app, dus het cijfer is wat de app speelt. 95%-interval."
+  "Eén bot tegen 3 Gemiddelde bots, klassiek eiland, 4 spelers, 10 punten. 200 spellen (50 borden × 4 plekken, gepaarde seeds, plek geroteerd). Doorgezocht met de budgetten van de app geteld in toekomsten (Superexpert en Superexpert+ 545 per zet, Grootmeester 1090, 14 beurten diep, 18 bij de beginopstelling, vroeg stoppen) volgens de klokregels van de app, dus het cijfer is wat de app speelt. 95%-interval."
  ],
  [
   "Super Expert, Super Expert+ and 2 Hard bots at one table, Classic island, 4 players, 10 points; per board 8 games (4 seat orders, the two Supers swapped). Both without a time limit. 95% interval.",
@@ -310,11 +310,11 @@ export const NL_BOTSLONG = [
  ],
  [
   "One number from every table measured in Classic (against 3 Medium bots, against 3 Hard bots, the head to heads Super Expert / Super Expert+ and Grandmaster / Super Expert+): the chance to win a game is the softmax of the players' ratings (Plackett-Luce, Bradley-Terry for one winner), Elo scale (+400 = 10x the odds), Medium = 1000, ± 95% bootstrap over the games. The search bots at the app's budgets.",
-  "Eén getal uit elke tabel gemeten in Klassiek (tegen 3 Gemiddelde bots, tegen 3 Moeilijke bots, de onderlinge duels Superexpert / Superexpert+ en Grootmeester / Superexpert+): de kans om een spel te winnen is de softmax van de ratings van de spelers (Plackett-Luce, Bradley-Terry voor één winnaar), Elo-schaal (+400 = 10x de kansen), Gemiddeld = 1000, ± 95% bootstrap over de spellen. De zoekbots met de budgetten van de app."
+  "Eén getal uit elke tabel gemeten in Klassiek (tegen 3 Gemiddelde bots, tegen 3 Moeilijke bots, de onderlinge duels Superexpert / Superexpert+ en Grootmeester / Superexpert+): de kans om een spel te winnen is de softmax van de waarderingen van de spelers (Plackett-Luce, Bradley-Terry voor één winnaar), Elo-schaal (+400 = 10x de kansen), Gemiddeld = 1000, ± 95% bootstrap over de spellen. De zoekbots met de budgetten van de app."
  ],
  [
   "One bot against 3 Medium bots, island, 4 players, 10 points, Rush searched as turn-by-turn play (the way the bots see Rush): 50 boards x 4 seats, seat rotated. The search gets what a phone does in a quarter of a second (about 20 futures, an estimate), the set-up its full budget. Not modelled: the clock itself. 95% interval.",
-  "Eén bot tegen 3 Gemiddelde bots, eiland, 4 spelers, 10 punten, Rush doorgezocht als beurt-voor-beurtspel (zoals de bots Rush zien): 50 borden × 4 plekken, plek geroteerd. De zoektocht krijgt wat een telefoon in een kwart seconde doet (zo'n 20 toekomsten, een schatting), de opzet zijn volle budget. Niet gemodelleerd: de klok zelf. 95%-interval."
+  "Eén bot tegen 3 Gemiddelde bots, eiland, 4 spelers, 10 punten, Rush doorgezocht als beurt-voor-beurtspel (zoals de bots Rush zien): 50 borden × 4 plekken, plek geroteerd. De zoektocht krijgt wat een telefoon in een kwart seconde doet (zo'n 20 toekomsten, een schatting), de beginopstelling zijn volle budget. Niet gemodelleerd: de klok zelf. 95%-interval."
  ],
  [
   "One bot against 4 Medium bots, island, 5 players, 10 points: 40 boards x 5 seats, seat rotated. The search bots with the futures a move shown in the table (the app's: Master 100, Super Expert 545, Grandmaster 1090; the Super Expert+ was measured at 1000, not the app's 545), no time limit for the 1000-future run, the others with the app's clock. 95% interval.",

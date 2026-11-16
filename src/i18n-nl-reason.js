@@ -21,5 +21,5 @@ export const NL_REASON = [
   ["Bank trade {x} → {y}", "Bankruil {x} → {y}"], ["Gave {n} {x} for 1 {y}", "{n} {x} gegeven voor 1 {y}"], ["Traded {x} for {y}", "{x} geruild voor {y}"], ["Bank trade {n} {x} → 1 {y}", "Bankruil {n} {x} → 1 {y}"], ["Bank trade {x}", "Bankruil {x}"],
   ["Ship toward {x}", "Schip richting {x}"], ["do nothing now", "nu niets doen"], ["Quick", "Snel"], ["Standard", "Standaard"],
   ["+{n} cards", "+{n} kaarten"], ["−{n} cards", "−{n} kaarten"], ["±0 cards", "±0 kaarten"], ["got nothing", "kreeg niets"], ["as expected", "zoals verwacht"], ["above expected", "boven verwacht"], ["below expected", "onder verwacht"], ["balanced dice: no percentile", "evenwichtige dobbelstenen: geen percentiel"], ["{x} · no percentile with this dice rule", "{x} · geen percentiel bij deze dobbelregel"],
-  ["no position", "geen positie"], ["one kind", "één soort"], ["the same position", "dezelfde positie"], ["no outcome", "geen uitkomst"], ["no set-up", "geen opzet"], ["Aims at", "Mikt op"], ["New islands", "Nieuwe eilanden"],
+  ["no position", "geen positie"], ["one kind", "één soort"], ["the same position", "dezelfde positie"], ["no outcome", "geen uitkomst"], ["no set-up", "geen beginopstelling"], ["Aims at", "Mikt op"], ["New islands", "Nieuwe eilanden"],
 ];

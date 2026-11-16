@@ -37,8 +37,8 @@ export function setLang(l) {
 // ── lookup ──
 const rx = (s) => s.replace(/[.*+?^$()|[\]\\]/g, "\\$&");
 const mk = ([k, v]) => {
-  const names = []; const src = rx(k).replace(/\{(\w+)\}/g, (_, n) => { names.push(n); return /^n\d*$/.test(n) ? "(-?[\\d.,]+)" : /^d\d*$/.test(n) ? "([+\\-−±]?[\\d.,]+)" : "(.+?)"; });
-  return { re: new RegExp(`^${src}$`), names, v };
+  const names = []; const raw = new Set(); const src = rx(k).replace(/(v?)\{(\w+)\}/g, (_, v, n) => { names.push(n); if (v) raw.add(n); return (v ? "v" : "") + (v ? "(.+?)" : /^n\d*$/.test(n) ? "(-?[\\d.,]+)" : /^d\d*$/.test(n) ? "([+\\-−±]?[\\d.,]+)" : "(.+?)"); });
+  return { re: new RegExp(`^${src}$`), names, raw, v };
 };
 // The Dutch tables (about 200 KB) load only when Dutch is wanted: nothing is fetched or parsed in English.
 let NL = Object.create(null), NLT = Object.create(null), PAT = [], PATH = [], loading = null, loaded = false;
@@ -47,7 +47,7 @@ let queued = false; const queue = () => { if (queued) return; queued = true; loa
 if (lang() === "nl") await load(); // Dutch from the first paint
 export const misses = new Set();
 // words inside a captured piece ("1 Lumber, 2 Ore"): lower case, as in the middle of a Dutch sentence
-const WORDS = { Lumber: "hout", Brick: "baksteen", Wool: "wol", Grain: "graan", Ore: "erts", Knight: "ridder", Knights: "ridders", Road: "weg", Roads: "wegen", Ship: "schip", Ships: "schepen", Settlement: "dorp", Settlements: "dorpen", City: "stad", Cities: "steden", Desert: "woestijn", Gold: "goud", You: "jij", "Victory Point": "overwinningspunt", "Road Building": "Wegenbouw", "Year of Plenty": "Uitvinding", Monopoly: "Monopolie", robber: "rover", pirate: "piraat", bank: "bank", Forest: "Bos", Hills: "Heuvels", Pasture: "Weide", Fields: "Akkers", Mountains: "Bergen", "the sea": "de zee", "the Desert": "de woestijn", nothing: "niets", forest: "bos", hills: "heuvels", pasture: "weide", fields: "akkers", mountains: "bergen", desert: "woestijn", Trader: "Handelaar", Shark: "Haai", Builder: "Bouwer", Grandmaster: "Grootmeester", "Super Expert+": "Superexpert+", "Super Expert": "Superexpert", Master: "Meester", Hard: "Moeilijk", Medium: "Gemiddeld", Easy: "Makkelijk", Simple: "Simpel", Beginner: "Beginner", Intermediate: "Gemiddeld", Expert: "Expert", Custom: "Eigen mix" };
+const WORDS = { Lumber: "hout", Brick: "baksteen", Wool: "wol", Grain: "graan", Ore: "erts", Knight: "ridder", Knights: "ridders", Road: "weg", Roads: "wegen", Ship: "schip", Ships: "schepen", Settlement: "dorp", Settlements: "dorpen", City: "stad", Cities: "steden", Desert: "woestijn", Gold: "goud", You: "jij", "Victory Point": "puntenkaart", "Road Building": "Wegenbouw", "Year of Plenty": "Uitvinding", Monopoly: "Monopolie", robber: "rover", pirate: "piraat", bank: "bank", Forest: "Bos", Hills: "Heuvels", Pasture: "Weide", Fields: "Akkers", Mountains: "Bergen", "the sea": "de zee", "the Desert": "de woestijn", nothing: "niets", forest: "bos", hills: "heuvels", pasture: "weide", fields: "akkers", mountains: "bergen", desert: "woestijn", Trader: "Handelaar", Shark: "Haai", Builder: "Bouwer", Grandmaster: "Grootmeester", "Super Expert+": "Superexpert+", "Super Expert": "Superexpert", Master: "Meester", Hard: "Moeilijk", Medium: "Gemiddeld", Easy: "Makkelijk", Simple: "Simpel", Beginner: "Beginner", Intermediate: "Gemiddeld", Expert: "Expert", Custom: "Eigen mix" };
 const WRE = new RegExp(`\\b(${Object.keys(WORDS).sort((a, b) => b.length - a.length).join("|")})\\b`, "g");
 const RESW = { Lumber: "hout", Brick: "baksteen", Wool: "wol", Grain: "graan", Ore: "erts" }; // a single resource inside a sentence: lower case
 const ord = (x) => (/^\d+(st|nd|rd|th)$/.test(x) ? x.replace(/(st|nd|rd|th)$/, "e") : undefined);
@@ -58,6 +58,7 @@ const SRC = { Settlements: "Dorpen", Cities: "Steden", "Longest road": "Langste 
 // shapes that are lists, not sentences
 function special(s) {
   if (/^\d+(st|nd|rd|th)$/.test(s)) return s.replace(/(st|nd|rd|th)$/, "e"); // 1st -> 1e
+  if (/^T\d+(?:\s*[–·,-]\s*T?\d+)*$/.test(s)) return s.replace(/T(\d+)/g, "B$1"); // chart labels T14 -> B14 (Beurt)
   if (/^[\d.,+\-−±–% ×x/()]+$/.test(s) && /\d\.\d/.test(s)) return s.replace(/(\d)\.(\d)/g, "$1,$2"); // 70.0 -> 70,0 (numbers on their own)
   let m = /^(.+?): ((?:(?:Settlements|Cities|Longest road|Largest army|Point cards?|Islands) \d+(?:, )?)+)$/.exec(s);
   if (m) return `${NL[m[1]] ?? m[1]}: ${m[2].replace(/(Settlements|Cities|Longest road|Largest army|Point cards?|Islands)/g, (x) => SRC[x])}`;
@@ -72,6 +73,11 @@ function parts(s) {
   const ps = body.split(" · "); let hit = 0; const out = ps.map((x) => { const r = lookup(x); if (r !== undefined && r !== x) { hit++; return r; } return x; });
   return hit ? lead + out.join(" · ") : undefined;
 }
+// Dutch grammar after a sentence is filled in: "1 kaarten" -> "1 kaart", "5 beurt" -> "5 beurten", "gaven jij" -> "gaven jou"
+const SING = [["kaart", "kaarten"], ["grondstofkaart", "grondstofkaarten"], ["ontwikkelingskaart", "ontwikkelingskaarten"], ["puntenkaart", "puntenkaarten"], ["beurt", "beurten"], ["worp", "worpen"], ["zet", "zetten"], ["spel", "spellen"], ["bot", "bots"], ["punt", "punten"], ["dorp", "dorpen"], ["stad", "steden"], ["weg", "wegen"], ["ridder", "ridders"], ["schip", "schepen"], ["tegel", "tegels"], ["speler", "spelers"], ["ruil", "ruilen"], ["eiland", "eilanden"], ["plek", "plekken"], ["aanbod", "aanbiedingen"], ["fout", "fouten"], ["blunder", "blunders"], ["seconde", "seconden"], ["minuut", "minuten"], ["uur", "uren"], ["dag", "dagen"], ["foto", "foto's"]];
+const PLMAP = new Map(); SING.forEach(([a, b]) => { PLMAP.set(a, [a, b]); PLMAP.set(b, [a, b]); });
+const PLRE = new RegExp(`(^|[^\\d.,\\w])(\\d+) (${[...PLMAP.keys()].sort((a, b) => b.length - a.length).join("|")})(?![\\wé])`, "g");
+const nlFix = (s) => s.replace(PLRE, (m, pre, n, w) => `${pre}${n} ${PLMAP.get(w)[n === "1" ? 0 : 1]}`).replace(/\b(aan|van|voor|met|bij|naar|tegen|over|gaven|gaf|geeft|geven|stuurt|toont|geef|gunt) [Jj]ij\b/g, "$1 jou");
 const plural = (n, a, b) => `${n} ${Number(n) === 1 ? a : b}`;
 // "Jij: 9 points, 4 cards, 1 development cards, in the lead"
 function chip(s) {
@@ -85,7 +91,7 @@ function lookup(s) {
   const sp = special(s) ?? chip(s); if (sp !== undefined) return sp;
   for (const p of PAT) {
     const m = p.re.exec(s); if (!m) continue;
-    const vars = {}; p.names.forEach((n, i) => { vars[n] = cap(n, m[i + 1]); });
+    const vars = {}; p.names.forEach((n, i) => { vars[n] = p.raw.has(n) ? m[i + 1] : cap(n, m[i + 1]); });
     return fill(p.v, vars);
   }
   const pt = parts(s); if (pt !== undefined) return pt;
@@ -102,13 +108,14 @@ export function tr(s) {
   const key = String(s).replace(/\s+/g, " ").trim(); if (!key) return s;
   const r = lookup(key);
   if (r === undefined) { if (/[A-Za-z]{3}/.test(key)) misses.add(key); return s; }
-  return r;
+  return nlFix(r);
 }
 /** t("Roll {n}", { n: 8 }): translated text with its variables filled in. */
 export function t(key, vars) {
   if (lang() === "nl" && !loaded) { queue(); return vars ? fill(key, vars) : key; }
   const base = lang() === "nl" ? (NLT[key] ?? lookup(key) ?? key) : key;
-  return vars ? fill(base, vars) : base;
+  const o = vars ? fill(base, vars) : base;
+  return lang() === "nl" ? nlFix(o) : o;
 }
 /** Plural by language: Dutch and English both split 1 / other. */
 export const tn = (n, one, other) => (n === 1 ? one : other);
@@ -163,7 +170,7 @@ export function mixedHtml(root) {
 const isMixedChain = (el) => { for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) if (isMixed(p)) return true; return false; };
 function lookupHtml(src) {
   const e = NL[src]; if (e !== undefined) return e;
-  for (const p of PATH) { const m = p.re.exec(src); if (!m) continue; const vars = {}; p.names.forEach((n, i) => { vars[n] = cap(n, m[i + 1]); }); return fill(p.v, vars); }
+  for (const p of PATH) { const m = p.re.exec(src); if (!m) continue; const vars = {}; p.names.forEach((n, i) => { vars[n] = p.raw.has(n) ? m[i + 1] : cap(n, m[i + 1]); }); return fill(p.v, vars); }
   return undefined;
 }
 function doHtml(el) { // true: this element was handled as a whole (its children are not looked at one by one)

@@ -11016,7 +11016,7 @@ class ColonistFullGame {
     b.classList.toggle("off", !can);
     if (b.__key === key) return;
     b.__key = key;
-    b.innerHTML = `${icon("devcard")}<span class="mlbl">Buy card</span><span class="mb-cost">${cost}</span>`;
+    b.innerHTML = `${icon("devcard")}<span class="mlbl" data-nl="Kaart">Buy card</span><span class="mb-cost">${cost}</span>`;
     const lbl = can ? `Buy a development card (${resourceString(COSTS.development)})` : `Buy card: ${this._buyWhy(human)}`;
     b.setAttribute("aria-label", lbl); b.title = lbl;
   }
