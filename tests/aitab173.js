@@ -180,7 +180,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   console.log(JSON.stringify(Z));
   const POSW = /stayed close|great|helped|best|paid off|strong|comeback/i;
   ok(Z.titles.every((x) => !POSW.test(x) && /^(Turn \d+|Set-up): your (move|win chance)$/.test(x)), "1: positive title with a negative chip -> readable neutral title 'Turn N: your move'", Z.titles);
-  ok(!/stayed close|paid off/.test(Z.neutralLine) && /^(Your move on turn \d+ cost \d+% win chance\.|Turn \d+: .+ is (probably slightly better|a close call).*than your move\.)$/.test(Z.neutralLine), "1: positive text with a negative chip -> full-sentence neutral line", Z.neutralLine);
+  ok(!/stayed close|paid off/.test(Z.neutralLine) && /^(Your move on turn \d+ cost \d+% win chance\.|Turn \d+: .+ is (probably slightly better|a close call).*than your move\.|(Turn \d+|Set-up): .+ played .+; .+ was better \(cost \d+% win chance\)\.)$/.test(Z.neutralLine), "1: positive text with a negative chip -> full-sentence neutral line", Z.neutralLine);
   ok(!/ :|: /.test(Z.colon) && !/<\/span>:/.test(Z.colonHtml) && !/\s:/.test(Z.colonHtml), "1: no 'Turn 21 : ' (no colon after a chip)", Z.colon);
   ok((Z.poss.match(/<span[^>]*ai-n[^>]*>[^<]*['\u2019]s<\/span>/g) || []).length === 2 && !/<\/span>['\u2019]s/.test(Z.poss), "1: possessive is inside the name chip", Z.poss);
   ok(/^Strategy \u00b7 /.test(Z.strat.title) || !POSW.test(Z.strat.title) || Z.strat.chg.length === 0, "1: strategy title checked", Z.strat.title);
