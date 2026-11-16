@@ -17,6 +17,7 @@
 //   opts  = { width: 330, state?: { nodes:[[owner,structure]], edges:[[owner,ship]], robber, pirate }, accent: css colour of "better", legend: true|false, label: aria }
 //   boardStateAt(g, { step, upto }) / stateOfSpec(g, spec) are exported for the caller and the tests.
 
+import { langOf } from "./ai-lang.js";
 const SEA = "#bfdbe6", SEA_HEX = "#a9cddb", EDGE = "rgba(40,35,28,.55)";
 const LAND = { wood: "#4a7c3f", brick: "#c66536", sheep: "#8fd05f", wheat: "#e0c35a", ore: "#8b96a8", desert: "#dccb97", gold: "#e5bc52" };
 const RES_NAME = { wood: "Wood", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore", desert: "Desert", gold: "Gold" };
@@ -70,9 +71,10 @@ const ROLE = { played: { txt: "Played" }, better: { txt: "Better" }, alt: { txt:
 
 export function renderBoardPrimitive(spec = {}, g, opts = {}) {
   const geo = g?.geometry; if (!geo?.hexes?.length) return "";
+  const BD = langOf(opts.lang).bd, TX = (r) => (r === "focus" ? "" : BD[r] || ""), RN = (r) => BD.res[r] || RES_NAME[r];
   const W = Math.max(200, Math.round(opts.width || 330)), hs = geo.hexSize, acc = opts.accent || "var(--primary,#2a6fdb)";
   const S = opts.state || stateOfSpec(g, spec) || { nodes: geo.nodes.map((n) => [n.owner ?? null, n.structure ?? null]), edges: geo.edges.map((e) => [e.owner ?? null, !!e.ship]), robber: g.robberHexId ?? null, pirate: g.sea?.pirateHexId ?? null };
-  const players = g.players || [], col = (q) => players[q]?.color || "#777", pname = (q) => players[q]?.short || players[q]?.name || `P${q + 1}`;
+  const players = g.players || [], col = (q) => players[q]?.color || "#777", pname = (q) => players[q]?.name || players[q]?.short || `P${q + 1}`;
   const marks = (spec.marks || []).map((m) => ({ ...m, role: ROLE[m.role] ? m.role : "focus", p: spot(geo, m.at ?? m) })).filter((m) => m.p).slice(0, 8);
   const sp = (s) => spot(geo, s === "robber" ? (S.robber != null ? { hex: S.robber } : null) : s === "pirate" ? (S.pirate != null ? { hex: S.pirate } : null) : s); // "robber" / "pirate": where it stands at that moment
   const arrows = (spec.arrows || []).map((a) => ({ ...a, A: sp(a.from), B: sp(a.to) })).filter((a) => a.A && a.B && (a.A.kind !== a.B.kind || a.A.id !== a.B.id)).slice(0, 4);
@@ -127,7 +129,7 @@ export function renderBoardPrimitive(spec = {}, g, opts = {}) {
       const hot = h.number === 6 || h.number === 8, rob = h.id === robHex && spec.robber !== false, tr = rob ? tokR * 0.78 : tokR, cy = h.center.y + (rob ? 0.4 * hs : 0), fs = tr * 1.2;
       const pips = PIPS[h.number] || 0, dots = Array.from({ length: pips }, (_, i) => `<circle cx="${f1(h.center.x + (i - (pips - 1) / 2) * tr * 0.26)}" cy="${f1(cy + tr * 0.62)}" r="${f1(tr * 0.085)}" fill="${hot ? "#c0281d" : "#4a4337"}"/>`).join("");
       tokSvg.push(`<g><circle cx="${f1(h.center.x)}" cy="${f1(cy)}" r="${f1(tr)}" fill="#fbf4e1" stroke="rgba(40,30,15,.5)" stroke-width="${px(1)}"/><text x="${f1(h.center.x)}" y="${f1(cy + fs * 0.12)}" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="${f1(fs)}" fill="${hot ? "#c0281d" : "#2b2519"}">${h.number}</text>${dots}</g>`);
-    } else if (!sea && h.resource === "gold") tokSvg.push(`<text x="${f1(h.center.x)}" y="${f1(h.center.y + hs * 0.12)}" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="${f1(hs * 0.34)}" fill="#6b4f08">Gold</text>`);
+    } else if (!sea && h.resource === "gold") tokSvg.push(`<text x="${f1(h.center.x)}" y="${f1(h.center.y + hs * 0.12)}" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="${f1(hs * 0.34)}" fill="#6b4f08">${RN("gold")}</text>`);
   });
   out.push(hexSvg.join(""));
   // a "paid" hex gets a soft glow under the pieces
@@ -192,7 +194,7 @@ export function renderBoardPrimitive(spec = {}, g, opts = {}) {
   // labels: a pill beside each mark, nudged off the other pills, kept inside the picture
   const pill = (txt, x, y, fill, ink) => { const w = (txt.length * 6.4 + 14) * k, h = 18 * k; return { x, y, w, h, svg: `<g><rect x="${f1(x - w / 2)}" y="${f1(y - h / 2)}" width="${f1(w)}" height="${f1(h)}" rx="${f1(h / 2)}" fill="${fill}" stroke="#fff" stroke-width="${px(1.6)}"/><text x="${f1(x)}" y="${f1(y + 4.3 * k)}" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="${px(11.5)}" fill="${ink}">${esc(txt)}</text></g>` }; };
   marks.forEach((m) => {
-    const txt = m.label ?? ROLE[m.role].txt; if (!txt) return;
+    const txt = m.label ?? TX(m.role); if (!txt) return;
     const fill = m.role === "better" ? acc : m.role === "played" ? "#23201c" : m.role === "paid" ? "#d98a00" : m.role === "robber" ? "#23201c" : m.role === "alt" ? "#E0A526" : acc, ink = m.role === "alt" ? "#2b2210" : "#fff";
     const off = (m.p.kind === "hex" ? 0.78 * hs : 24 * k), tries = [[0, -off], [0, off], [off * 1.1, 0], [-off * 1.1, 0]]; let best = null;
     for (const [dx, dy] of tries) {
@@ -209,8 +211,8 @@ export function renderBoardPrimitive(spec = {}, g, opts = {}) {
     legend.forEach((q) => { const t = pname(q), w = (t.length * 6.6 + 24) * k; if (x + w > maxX) return; L.push(`<circle cx="${f1(x + 5 * k)}" cy="${f1(y0)}" r="${px(5.5)}" fill="${col(q)}" stroke="${dark(col(q))}" stroke-width="${px(1.2)}"/><text x="${f1(x + 14 * k)}" y="${f1(y0 + 4 * k)}" font-family="system-ui,sans-serif" font-weight="700" font-size="${px(11.5)}" fill="#2b2519">${esc(t)}</text>`); x += w; });
     out.push(L.join(""));
   }
-  const desc = [marks.map((m) => `${ROLE[m.role].txt || "Marked"} ${m.p.kind === "hex" ? `hex${geo.hexes[m.p.id].resource && RES_NAME[geo.hexes[m.p.id].resource] ? ` (${RES_NAME[geo.hexes[m.p.id].resource]} ${geo.hexes[m.p.id].number ?? ""})` : ""}` : m.p.kind}`).join(", ")].filter(Boolean).join("");
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f1(minX)} ${f1(minY)} ${f1(bw)} ${f1(H)}" width="${W}" height="${Math.round(H / k)}" class="pg-board" role="img" aria-label="${esc(opts.label || `Board${desc ? ": " + desc : ""}`)}" style="display:block;width:100%;height:auto;max-width:100%;background:${SEA};border-radius:10px">${out.join("")}</svg>`;
+  const desc = [marks.map((m) => `${TX(m.role) || BD.marked} ${m.p.kind === "hex" ? `hex${geo.hexes[m.p.id].resource && RN(geo.hexes[m.p.id].resource) ? ` (${RN(geo.hexes[m.p.id].resource)} ${geo.hexes[m.p.id].number ?? ""})` : ""}` : m.p.kind}`).join(", ")].filter(Boolean).join("");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f1(minX)} ${f1(minY)} ${f1(bw)} ${f1(H)}" width="${W}" height="${Math.round(H / k)}" class="ap-board" role="img" aria-label="${esc(opts.label || `${BD.aria}${desc ? ": " + desc : ""}`)}" style="display:block;width:100%;height:auto;max-width:100%;background:${SEA};border-radius:10px">${out.join("")}</svg>`;
   if (opts.as === "node" && typeof document !== "undefined") { const t = document.createElement("template"); t.innerHTML = svg; return t.content.firstElementChild; }
   return svg;
 }

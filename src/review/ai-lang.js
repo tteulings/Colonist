@@ -10,7 +10,8 @@ export const LANG = {
     verdict: { weak: "Weak plan", "probably-weak": "Probably weak plan", solid: "Solid plan", "probably-solid": "Probably solid plan", unclear: "Hard to say" },
     conf: { clear: "Clearly better", lean: "Probably better", close: "Close call" },
     headless: "Headless chicken", yes: "Yes", partly: "Partly", no: "No",
-    turn: "turn", Turn: "Turn", more: "More", details: "Details", foot: "Summary from this game's numbers. Beta.", of: "of",
+    turn: "turn", Turn: "Turn", setup: "set-up", more: "More", details: "Details", foot: "Summary from this game's numbers. Beta.", footAi: "Composed for this game from its numbers. Beta.", composing: "Composing a page for this game", of: "of",
+    fuWork: "Putting a picture together", fuNone: "No picture for this one, so here is the written answer.", fuFail: "No answer this time.", fuAsked: "Your question", bd: { played: "Played", better: "Better", alt: "Option", paid: "Paid out", robber: "Robber", pirate: "Pirate", marked: "Marked", res: { wood: "Wood", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore", desert: "Desert", gold: "Gold" }, aria: "Board" },
     winChance: "Win chance", winChanceBy: "Win chance by turn", tapDot: "Tap a dot to open that turn", points: "Points", pointsBy: "Points by turn", plan_: "plan", pivot: "pivot",
     src: { s: "Settlement", c: "City", L: "Longest road", A: "Largest army", v: "Point card" }, srcPl: { s: "Settlements", c: "Cities", L: "Longest road", A: "Largest army", v: "Point cards" },
     road: "Road", stalled: "Stalled", planL: "Plan", hand: "Cards in hand", handBy: "Cards in hand by turn", otherTurns: "Other turns", built: "Built something",
@@ -43,7 +44,8 @@ export const LANG = {
     verdict: { weak: "Zwak plan", "probably-weak": "Waarschijnlijk zwak plan", solid: "Sterk plan", "probably-solid": "Waarschijnlijk sterk plan", unclear: "Moeilijk te zeggen" },
     conf: { clear: "Duidelijk beter", lean: "Waarschijnlijk beter", close: "Nipt verschil" },
     headless: "Kip zonder kop", yes: "Ja", partly: "Deels", no: "Nee",
-    turn: "beurt", Turn: "Beurt", more: "Meer", details: "Details", foot: "Samenvatting uit de cijfers van dit spel. Beta.", of: "van",
+    turn: "beurt", Turn: "Beurt", setup: "opzet", more: "Meer", details: "Details", foot: "Samenvatting uit de cijfers van dit spel. Beta.", footAi: "Voor dit spel samengesteld uit de cijfers. Beta.", composing: "Een pagina voor dit spel samenstellen", of: "van",
+    fuWork: "Een plaatje samenstellen", fuNone: "Hier past geen plaatje bij, dus hier is het geschreven antwoord.", fuFail: "Dit keer geen antwoord.", fuAsked: "Jouw vraag", bd: { played: "Gespeeld", better: "Beter", alt: "Optie", paid: "Uitbetaald", robber: "Struikrover", pirate: "Piraat", marked: "Gemarkeerd", res: { wood: "Hout", brick: "Baksteen", sheep: "Wol", wheat: "Graan", ore: "Erts", desert: "Woestijn", gold: "Goud" }, aria: "Bord" },
     winChance: "Winkans", winChanceBy: "Winkans per beurt", tapDot: "Tik op een stip om die beurt te openen", points: "Punten", pointsBy: "Punten per beurt", plan_: "plan", pivot: "omslag",
     src: { s: "Dorp", c: "Stad", L: "Langste weg", A: "Grootste leger", v: "Puntenkaart" }, srcPl: { s: "Dorpen", c: "Steden", L: "Langste weg", A: "Grootste leger", v: "Puntenkaarten" },
     road: "Weg", stalled: "Vastgelopen", planL: "Plan", hand: "Kaarten in de hand", handBy: "Kaarten in de hand per beurt", otherTurns: "Andere beurten", built: "Iets gebouwd",
@@ -71,3 +73,18 @@ export const LANG = {
   },
 };
 export const langOf = (l) => LANG[l] || LANG.en;
+
+// ── move labels: the review stores them in English ("Robber on Grain 9", "Settlement on Lumber 4, Ore 3"); the page shows them in its language ──
+const NLW = { Lumber: "Hout", Brick: "Baksteen", Wool: "Wol", Grain: "Graan", Ore: "Erts", Desert: "Woestijn", Tile: "Tegel", coast: "kust", Knight: "Ridder", "Road Building": "Wegenbouw", "Year of Plenty": "Uitvinding", Monopoly: "Monopolie", "Victory Point": "Overwinningspunt" };
+const NLD = { "top left": "linksboven", "top right": "rechtsboven", "bottom left": "linksonder", "bottom right": "rechtsonder", top: "boven", bottom: "onder", left: "links", right: "rechts", centre: "midden" };
+const NLR = [[/^Settlement on /, "Dorp op "], [/^City on /, "Stad op "], [/^Spot on /, "Plek op "], [/^Road toward /, "Weg richting "], [/^Road(?= )/, "Weg"], [/^Robber on /, "Struikrover op "], [/^Pirate on /, "Piraat op "], [/^Bank trade /, "Bankruil "], [/^Development card$/, "Ontwikkelingskaart"], [/^Play /, "Speel "], [/^End turn$/, "Beurt beëindigen"], [/^Ship toward /, "Schip richting "], [/^Ship(?= )/, "Schip"], [/^Move ship /, "Verplaats schip "], [/^Road$/, "Weg"], [/^Ship$/, "Schip"], [/^the sea, /, "de zee, "]];
+/** An English move label of the review in `lang` (EN: as is). Resource words, board positions and card names are translated; unknown text stays. */
+export function moveLabel(label, lang = "en") {
+  const s = String(label ?? ""); if (lang !== "nl" || !s) return s;
+  let o = s; for (const [re, to] of NLR) if (re.test(o)) { o = o.replace(re, to); break; }
+  o = o.replace(/\b(Road Building|Year of Plenty|Victory Point|Lumber|Brick|Wool|Grain|Ore|Desert|Tile|coast|Knight|Monopoly)\b/g, (m) => NLW[m] || m);
+  o = o.replace(/\bthe sea\b/g, "de zee");
+  o = o.replace(/\b(top left|top right|bottom left|bottom right|centre|top|bottom|left|right)\b/g, (m) => NLD[m] || m);
+  o = o.replace(/^Weg(?= [^ ]*[A-Za-z]) /, "Weg ").replace(/^Speel Ridder$/, "Speel ridder");
+  return o;
+}

@@ -19,11 +19,12 @@ function extract() {
   ["wood", "brick", "sheep", "wheat", "ore"].forEach((r) => { add(`rate.${r}.top`); add(`rate.${r}.low`); });
   ["game.winner", "game.T", "luck.dominant", "near.pts", "near.wpts", "near.goal", "near.margin", "near.res", "near.n", "near.label"].forEach(add);
   fx.decs.forEach((d) => ["gap", "neg", "played", "best"].forEach((f) => add(`dec.${d.turn}.${f}`)));
+  if (fx.board) { fx.board.robber.forEach((m) => { add(`rob.${m.turn}.hex`); add(`rob.${m.turn}.by`); }); keys.forEach((k) => { add(`setup.${k}.1`); add(`setup.${k}.2`); }); }
   const strip = (s) => s && (({ hand, ptsBy, ...r }) => r)(s);
   const j = JSON.parse(JSON.stringify({
     n: fx.n, me: fx.me, T, keys, players: fx.players, winner: fx.winner, won: fx.won, hasWc: fx.hasWc, hasLog: !!fx.log,
     strat: fx.strat.map(strip), luck: fx.luck, rate: fx.rate, dice: fx.dice ? { N: fx.dice.N } : null, near: fx.near && (({ needed, ...r }) => ({ ...r, needed: needed && { label: needed.label, missing: needed.missing } }))(fx.near),
-    decs: fx.decs.map(({ e, ...r }) => r), refs,
+    decs: fx.decs.map(({ e, ...r }) => r), refs, board: fx.board && { hexes: fx.board.hexes, robber: fx.board.robber, setup: fx.board.setup },
     meta: { mode: g._histView?.mode || null, pts: g.players.map((p) => p.victoryPoints), names: g.players.map((p) => p.name) },
   }, (k, v) => (typeof v === "function" ? undefined : v)));
   return j;

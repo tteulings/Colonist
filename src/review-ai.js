@@ -9,6 +9,7 @@ import { reviewRequest, reviewLaneCount, reviewAvailable } from "./master.js";
 import { RECAP_URL, recapLang } from "./review-recap.js";
 import { swingCause } from "./review/ai-cause.js";
 import { rvPos, rvMarks } from "./review-game.js";
+import { composeAnswer } from "./review/ai-compose.js";
 import { aiBlocks, legacyBlocks, textOf, decMoves, spotFocus } from "./review/ai-blocks.js";
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -718,7 +719,7 @@ export const ReviewAiMixin = {
   /** The board of a block into its element: zoomed to the marks (two pictures when they are far apart), rings and arrows drawn over the real renderer. */
   _aiBkBoard(el, C, w) {
     const b = this._aiBkSpec?.get(el.dataset.aibk); if (!b) return false;
-    const g = this.geometry, pts = [...b.marks.map((m) => m.focus), ...b.arrows.flatMap((a) => [a.from, a.to])].map((f) => tryv(() => rvPos(g, f))).filter(Boolean);
+    const g = this.geometry, pts = [...b.marks.map((m) => m.focus), ...b.arrows.flatMap((a) => [a.from, a.to]), ...(b.crop || [])].map((f) => tryv(() => rvPos(g, f))).filter(Boolean);
     const d = b.dec?.d || null, h = Math.round(w * 0.62), tag = (u) => u.map((p) => `${Math.round(p.x)},${Math.round(p.y)}`).join(";");
     const ov = (u) => ({ d, use: u, tag: `${b.turn}:${tag(u)}${b.zoom}` });
     const s = this._aiShot(b.turn, C, w, h, null, b.zoom === "full" ? { d, use: [], tag: `full${b.turn}` } : ov(pts)); if (!s) return false;
@@ -814,6 +815,7 @@ export const ReviewAiMixin = {
     if (!this._pgLegacy()) { const R = this._rv, pid = this._rvPid, lang = recapLang(); if (R && (!R.ai || R.ai.pid !== pid || R.ai.lang !== lang)) R.ai = { pid, lang, at: Date.now(), insights: null, answers: (R.ai?.answers || []).filter((a) => a.pinned) }; } // v1.83 the page has no saved insights; the chat keeps its answers here
     const U = this._aiUi?.pid === this._rvPid ? this._aiUi : null; // (the insights are asked for on opening the tab, once; an error waits for "Try again")
     if (this._pgLegacy() && !this._aiSaved() && !U?.loading && !U?.err) setTimeout(() => { if (this._rvTab === "ai" && !this._aiSaved()) this._aiRun(false); }, 0);
+    if (!this._pgLegacy()) setTimeout(() => { if (this._rvTab === "ai" && this._rvStep == null) this._pgKick?.(); }, 120); // the recipes page is drawn; the composed page follows in the background
     return { html: `<div class="ai" data-aibody>${this._aiBodyHtml()}</div>`, foot: `<div data-aiask>${this._aiAskHtml()}</div>`, bind: (el) => this._aiBind(el) };
   },
   /** The chat under the insight cards, oldest first: the open answer in full (the newest by default), the others one line (tap to open). A visual
@@ -882,12 +884,12 @@ export const ReviewAiMixin = {
   },
   _aiAskHtml() {
     const C = { t: this._aiL() }, L = C.t, R = this._rv, leg = this._pgLegacy(), S = leg ? this._aiSaved() : tryv(() => ({ follow: this._pgState().page.follow.map((f) => f.q) }), { follow: [] });
-    const asked = new Set((R.ai?.answers || []).map((a) => qkey(a.q)));
+    const asked = new Set([...(R.ai?.answers || []).map((a) => qkey(a.q)), ...(leg ? [] : (this._pgRec()?.fu || []).map((f) => qkey(f.q)))]);
     const lastA = (R.ai?.answers || [])[0], src = [...(lastA?.followUps || []), ...(leg ? S?.insights?.followUps || [] : S?.follow || [])];
     const chips = []; src.forEach((q0) => { const q = /\d/.test(q0) ? this._aiGuard(String(q0), { maxT: this.turn || 99 }) : q0; if (!q || q !== q0) return; const c = aiChip(q, recapLang()); if (c && !asked.has(qkey(q)) && !chips.some((x) => x.c === c)) chips.push({ c, q: String(q).slice(0, 300) }); });
     if (S && !chips.length) { const lg = recapLang(), fb = FALLBACK[lg] || FALLBACK.en, fq = FALLQ[lg] || FALLQ.en; fb.forEach((c, i) => { if (!asked.has(qkey(fq[i]))) chips.push({ c, q: fq[i] }); }); }
-    const busy = this._aiUi?.loading === "ask";
-    const pend = busy ? `<div class="ai-pend" role="status" aria-busy="true"><i class="ai-spin"></i><b>${esc(this._aiUi?.q || "")}</b><span>${esc((CHAT[recapLang()] || CHAT.en)[this._rsnWorking ? "rsnW" : "pend"])}</span></div>` : "";
+    const busy = this._aiUi?.loading === "ask" || !!this._pgFuBusy;
+    const pend = busy && !this._pgFuBusy ? `<div class="ai-pend" role="status" aria-busy="true"><i class="ai-spin"></i><b>${esc(this._aiUi?.q || "")}</b><span>${esc((CHAT[recapLang()] || CHAT.en)[this._rsnWorking ? "rsnW" : "pend"])}</span></div>` : "";
     return `<form class="ai-ask" data-aiform>${pend}${chips.length && S ? `<div class="ai-chips">${chips.slice(0, 3).map((x) => `<button type="button" class="ai-q" data-aiq="${esc(x.q)}"${busy ? " disabled" : ""}>${esc(x.c)}</button>`).join("")}</div>` : ""}
       <div class="ai-in"><input type="text" maxlength="300" enterkeyhint="send" autocomplete="off" placeholder="${esc(L.ph)}" aria-label="${esc(L.ph)}" data-aiin${!S ? " disabled" : ""}><button type="submit" class="rv-btn pri"${busy || !S ? " disabled" : ""}>${L.ask}</button></div></form>`;
   },
@@ -899,6 +901,19 @@ export const ReviewAiMixin = {
     if (kept) { const i = ask.querySelector("[data-aiin]"); if (i && !i.disabled) i.value = kept; }
     if (had) ask.querySelector("[data-aiin]")?.focus({ preventScroll: true });
     this._aiBind(el);
+  },
+  _aiBindAsk(ask) {
+    ask?.querySelector("[data-aiform]")?.addEventListener("submit", (e) => { e.preventDefault(); const i = ask.querySelector("[data-aiin]"), v = i.value.trim(); if (v) { i.value = ""; this._aiAsk(v.slice(0, 300), true); } });
+    ask?.querySelectorAll("[data-aiq]").forEach((b) => b.addEventListener("click", () => this._aiAsk(b.dataset.aiq)));
+  },
+  /** Only the ask bar (chips, input) is redrawn: the typed text and the focus stay. */
+  _aiRefreshAsk() {
+    const ask = this._rvEl?.querySelector("[data-aiask]"); if (!ask || this._rvTab !== "ai") return;
+    const inp = ask.querySelector("[data-aiin]"), kept = inp?.value, had = document.activeElement === inp;
+    ask.innerHTML = this._aiAskHtml();
+    if (kept) { const i = ask.querySelector("[data-aiin]"); if (i && !i.disabled) i.value = kept; }
+    if (had) ask.querySelector("[data-aiin]")?.focus({ preventScroll: true });
+    this._aiBindAsk(ask);
   },
   _aiBind(el) {
     const body = el.querySelector("[data-aibody]"), ask = el.querySelector("[data-aiask]"); if (!body) return;
@@ -920,8 +935,7 @@ export const ReviewAiMixin = {
     body.querySelectorAll("[data-aiopen]").forEach((b) => b.addEventListener("click", () => { this._aiOpen = +b.dataset.aiopen; this._aiRefresh(); this._aiToAnswer(this._aiOpen); }));
     body.querySelectorAll("[data-aiclear]").forEach((b) => b.addEventListener("click", () => { const ai = this._rv.ai; if (!ai) return; ai.answers = ai.answers.filter((a) => a.pinned); this._aiOpen = null; this._aiSave(); this._aiRefresh(); }));
     body.querySelectorAll("[data-airef]").forEach((b) => b.addEventListener("click", () => { const t = body.querySelector(`[data-aic="${b.dataset.airef}"]`); if (!t) return; t.scrollIntoView?.({ block: "center", behavior: "smooth" }); t.classList.remove("flash"); void t.offsetWidth; t.classList.add("flash"); }));
-    ask?.querySelector("[data-aiform]")?.addEventListener("submit", (e) => { e.preventDefault(); const i = ask.querySelector("[data-aiin]"), v = i.value.trim(); if (v) { i.value = ""; this._aiAsk(v.slice(0, 300), true); } });
-    ask?.querySelectorAll("[data-aiq]").forEach((b) => b.addEventListener("click", () => this._aiAsk(b.dataset.aiq)));
+    this._aiBindAsk(ask);
     this._aiBoards(body); this._pgBind(body);
     if (this._aiScrollY != null) { const sc = el.querySelector(".rv-scroll"), y = this._aiScrollY; if (sc) { sc.scrollTop = y; this._aiRestore = { y, until: Date.now() + 2500 }; } this._aiScrollY = null; } // Back from a link: the same place
   },
@@ -1070,7 +1084,34 @@ export const ReviewAiMixin = {
     const ans = this._rv?.ai?.answers || [], i = ans.findIndex((a) => a.at === at), el = i < 0 ? null : this._rvEl?.querySelector(`[data-aic="a${i}"]`);
     if (el) { el.scrollIntoView?.({ block: "start", behavior: "smooth" }); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
   },
-  async _aiAsk(q, typed = false) {
+  /** A question: first as a NEW composed widget drawn inline on the page (compose mode with the question); no valid widget -> the text chat answers as before. */
+  async _aiAsk(q, typed = false) { if (this._pgLegacy()) return this._aiAskText(q, typed); return this._pgFollow(q, typed); },
+  async _pgFollow(q, typed = false) {
+    const R = this._rv, pid = this._rvPid, lang = recapLang(), ai = R?.ai; if (!R || !ai || !q || this._pgFuBusy || this._aiUi?.loading === "ask") return;
+    const rec = ai.page || (ai.page = { k: lang, L: false, at: 0, spec: null, fu: [] }); rec.fu = rec.fu || [];
+    const hit = rec.fu.find((f) => qkey(f.q) === qkey(q));
+    if (hit) { this._rvEl?.querySelector(`[data-pgc="${CSS.escape(hit.id)}"]`)?.scrollIntoView?.({ block: "center", behavior: "smooth" }); return; }
+    if (!online()) return this._aiAskText(q, typed);
+    const { fx, page, fu } = this._pgState();
+    this._pgFuBusy = { q }; this._pgFuPaint(true); this._aiRefreshAsk();
+    let res = null;
+    try { res = await composeAnswer(this, lang, q, { fx, shown: [...page.widgets, ...fu.map((f) => f.w)].map((w) => (w.short || w.level)) }); } catch (e) { res = null; console.warn("ai follow", e); }
+    if (this._rv !== R || R.ai !== ai) return;
+    console.debug("ai follow", res ? "widget" : "none (text chat answers)");
+    this._pgFuBusy = null;
+    if (!res) { this._pgFuPaint(false); this._aiRefreshAsk(); return this._aiAskText(q, typed); }
+    rec.fu.push({ id: res.widget.id, q, spec: res.spec, answer: res.answer }); rec.fu = rec.fu.slice(-6);
+    this._aiSave(); this._pgMemo = null; this._pgFuPaint(false, res.widget.id); this._aiRefreshAsk();
+  },
+  /** Redraw the follow-up region only (the page above stays as it is). */
+  _pgFuPaint(work, newId = null) {
+    const el = this._rvEl, box = el?.querySelector("[data-pgfu]"); if (!box) return;
+    const { fx } = this._pgState(); box.innerHTML = this._pgFuHtml(fx);
+    if (work) { box.querySelector(".ap-sk")?.scrollIntoView?.({ block: "center", behavior: "smooth" }); return; }
+    box.querySelectorAll(".ap-c").forEach((c) => { if (c.dataset.pgc === newId) { c.classList.add("ap-new"); setTimeout(() => c.scrollIntoView?.({ block: "center", behavior: "smooth" }), 30); } });
+    const body = el.querySelector("[data-aibody]"); if (body) { this._pgBind(body); this._pgWire(box); }
+  },
+  async _aiAskText(q, typed = false) {
     const R = this._rv, pid = this._rvPid, lang = recapLang();
     if (!R || !q || this._aiUi?.loading === "ask") return;
     const ai = R.ai; if (!ai) return;

@@ -18,16 +18,18 @@ export function spotFocus(g, at) {
   return g.hexes?.[i] ? { hex: i } : null;
 }
 import { vcOf, seOf } from "./score.js";
+import { moveLabel } from "./ai-lang.js";
 const sameF = (a, b) => !!a && !!b && (a.node ?? a.city ?? null) === (b.node ?? b.city ?? null) && (a.edge ?? null) === (b.edge ?? null) && (a.hex ?? null) === (b.hex ?? null);
 
 /** The moves of one decision by ref: played, best, alt1..3 (the other evaluated moves by win chance). { label, focus, win (%), kind } or null. */
-export function decMoves(dm) {
+export function decMoves(dm, lang = "en") {
+  const L = (l) => moveLabel(l, lang);
   const x = dm?.d?.x || dm?.x; if (!x?.cands?.length) return null;
   const c0 = x.cands[0], base = x.win != null ? x.win : c0.win;
-  const played = { label: clean(x.label || c0.label, 80), focus: x.focus || c0.focus || null, win: pc(c0.win ?? base), kind: "played" };
+  const played = { label: clean(L(x.label || c0.label), 80), focus: x.focus || c0.focus || null, win: pc(c0.win ?? base), kind: "played" };
   const b = x.best, bc = b ? x.cands.find((c) => c !== c0 && c.label === b.label) || x.cands.find((c) => c !== c0 && sameF(c.focus, b.focus)) : null;
-  const best = b ? { label: clean(b.label, 80), focus: b.focus || null, win: pc(bc?.win ?? (base != null && b.gain != null ? base + b.gain : null)), kind: "best", se: seOf(x) != null ? Math.round(seOf(x) * 1000) / 10 : null } : null;
-  const alts = x.cands.slice(1).filter((c) => c.win != null && !(best && (c.label === best.label || sameF(c.focus, best.focus)))).sort((p, q) => q.win - p.win).slice(0, 3).map((c) => ({ label: clean(c.label, 80), focus: c.focus || null, win: pc(c.win), kind: "alt", se: c.se > 0 ? Math.round(c.se * 1000) / 10 : null }));
+  const best = b ? { label: clean(L(b.label), 80), focus: b.focus || null, win: pc(bc?.win ?? (base != null && b.gain != null ? base + b.gain : null)), kind: "best", se: seOf(x) != null ? Math.round(seOf(x) * 1000) / 10 : null } : null;
+  const alts = x.cands.slice(1).filter((c) => c.win != null && !(best && (L(c.label) === best.label || sameF(c.focus, best.focus)))).sort((p, q) => q.win - p.win).slice(0, 3).map((c) => ({ label: clean(L(c.label), 80), focus: c.focus || null, win: pc(c.win), kind: "alt", se: c.se > 0 ? Math.round(c.se * 1000) / 10 : null }));
   const gap = Math.max(0, dm.gap ?? dm.d?.gap ?? 0);
   if (best && played.win != null && gap >= 0.005) best.win = played.win + Math.round(gap * 100); // the review's own cost: the bars and the chip agree (the two rounded win chances may differ by 1)
   if (best?.win != null) { for (let i = alts.length - 1; i >= 0; i--) if (alts[i].win > best.win) alts.splice(i, 1); } // an alternative that rates above the review's best is within the noise: not shown
@@ -76,7 +78,7 @@ export function autoSpots(raw, env) {
   const T = [...new Set(vb.map((b) => int(b.turn)).filter((t) => t != null))][0]; if (T == null) return;
   const b0 = vb.find((b) => int(b.turn) === T), seats = env.seats(b0.player == null ? [] : [b0.player]), dm = env.decAt(T, seats.length ? seats : null);
   if (!dm || !isSpotDecision(dm.d?.x || dm.x)) return;
-  const mv = decMoves(dm); if (!mv?.best) return;
+  const mv = decMoves(dm, env.C?.lang); if (!mv?.best) return;
   raw.filter((b) => b?.type === "board" && int(b.turn) === T).forEach((b) => {
     b.marks = Array.isArray(b.marks) ? b.marks : []; b.arrows = Array.isArray(b.arrows) ? b.arrows : [];
     const has = (at) => b.marks.some((m) => String(m?.at).toLowerCase() === at || (at === "best" && String(m?.at).toLowerCase() === "better"));
@@ -113,7 +115,7 @@ const turnOk = (t, env) => { const v = int(t); return v != null && v >= 0 && v <
 const ONE = {
   board(b, env) {
     const T = turnOk(b.turn, env); if (T == null || !env.C.st || !env.g) return null;
-    const seats = env.seats(b.player == null ? [] : [b.player]), dm = env.decAt(T, seats.length ? seats : null), mv = dm ? decMoves(dm) : null;
+    const seats = env.seats(b.player == null ? [] : [b.player]), dm = env.decAt(T, seats.length ? seats : null), mv = dm ? decMoves(dm, env.C?.lang) : null;
     let alt = 0; const marks = [];
     (Array.isArray(b.marks) ? b.marks : []).slice(0, 8).forEach((m) => {
       const kind = MARK_KINDS.includes(m?.kind) ? m.kind : null; if (!kind) return;
@@ -134,7 +136,7 @@ const ONE = {
   },
   compare(b, env) {
     const T = turnOk(b.turn, env); if (T == null) return null;
-    const ev = env.ev, seats = env.seats(b.player == null ? [] : [b.player]), dm = env.decAt(T, seats.length ? seats : null), mv = dm ? decMoves(dm) : null, opts = [];
+    const ev = env.ev, seats = env.seats(b.player == null ? [] : [b.player]), dm = env.decAt(T, seats.length ? seats : null), mv = dm ? decMoves(dm, env.C?.lang) : null, opts = [];
     (Array.isArray(b.options) ? b.options : []).slice(0, 4).forEach((o) => {
       const ref = String(o?.ref ?? "").trim(), m = /^(played|best|better|alt[1-3])$/i.test(ref) ? moveOf(mv, ref) : evRow(ev, ref);
       if (!m || m.win == null) return;
@@ -157,7 +159,7 @@ const ONE = {
   spots(b, env) {
     const T = turnOk(b.turn, env); if (T == null || !env.game) return null;
     const seats = env.seats(b.player == null ? [] : [b.player]), dm = env.decAt(T, seats.length ? seats : null); if (!dm) return null;
-    const mv = decMoves(dm); if (!mv) return null;
+    const mv = decMoves(dm, env.C?.lang); if (!mv) return null;
     const t = spotTable(env.game, dm, env.C.lang, spotRefs(b.options), (rf) => moveOf(mv, rf)); if (!t) return null;
     return { type: "spots", turn: T, seat: dm.seat, ...t, fold: !!(dm.d?.x || dm.x)?.rsn }; // v1.82 with reasons above it, the table is the collapsed rule of thumb
   },

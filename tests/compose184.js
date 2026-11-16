@@ -5,12 +5,12 @@ let fails = 0; const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"
 (async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "compose184-")), src = path.join(__dirname, "..", "src", "review");
   fs.writeFileSync(path.join(dir, "package.json"), '{"type":"module"}');
-  for (const f of ["ai-page.js", "ai-compose.js"]) fs.copyFileSync(path.join(src, f), path.join(dir, f));
-  const C = await import(pathToFileURL(path.join(dir, "ai-compose.js")).href);
+  for (const f of ["ai-page.js", "ai-compose.js", "ai-lang.js"]) fs.copyFileSync(path.join(src, f), path.join(dir, f));
+  const C = await import(pathToFileURL(path.join(dir, "ai-compose.js")).href), LG = await import(pathToFileURL(path.join(dir, "ai-lang.js")).href);
   // a small fake fact index: refs resolve from a table
   const T = 30, tab = { "name.you": [0, "player"], "name.mila": [1, "player"], "pts.you": [8, "n"], "pts.mila": [10, "n"], "turn.30": [30, "turn"], "turn.12": [12, "turn"], "wc.you@11": [40, "pct"], "wc.you@12": [22, "pct"], "d.you@12": [-18, "pct"],
     "strat.you.idleN": [6, "n"], "strat.you.turns": [30, "n"], "strat.you.steady": [1, "b"], "strat.you.plan": ["cities", "x"], "luck.total.you": [-9, "pct"], "luck.total.mila": [9, "pct"], "luck.dominant": [1, "b"] };
-  const fx = { T, me: 0, keys: ["you", "mila"], winner: 1, won: false, hasWc: true, near: null, luck: { tot: [-9, 9] }, dice: null, rate: null, log: {}, decs: [], decAt: () => null, swings: (q) => (q === 0 ? [{ t: 12, d: -18 }] : []),
+  const fx = { t: LG.langOf("en"), lang: "en", T, me: 0, keys: ["you", "mila"], winner: 1, won: false, hasWc: true, near: null, luck: { tot: [-9, 9] }, dice: null, rate: null, log: {}, decs: [], decAt: () => null, swings: (q) => (q === 0 ? [{ t: 12, d: -18 }] : []),
     players: [{ seat: 0, key: "you", name: "You", you: true }, { seat: 1, key: "mila", name: "Mila", you: false }], nameOf: (q) => (q ? "Mila" : "You"), seatOf: (k) => ["you", "mila"].indexOf(String(k)),
     strat: [{ verdict: { label: "Solid plan" }, steady: true, plan: "cities", idleN: 6, turns: 30, srcTotal: 8, planFam: "cities", feeds: "yes" }, { verdict: null }],
     wc: () => 40, ref: (r) => { const e = tab[r]; return e ? { v: e[0], k: e[1] } : null; } };
@@ -50,6 +50,23 @@ let fails = 0; const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"
   ok(r.source === "recipes", "offline -> recipes");
   r = await C.composePage(null, "en", { fx, fetchFn: mock({ widgets: "junk" }) });
   ok(r.source === "recipes", "garbage answer -> recipes");
+  // 3. v1.85 board blocks and the follow-up (question) mode
+  fx.board = { hexes: [{ id: 0, res: "wood", num: 6 }, { id: 1, res: "ore", num: 8 }], robber: [{ turn: 12, seat: 1, hex: 1, from: 0 }], setup: [[1, 2], [3, 4]], hexName: (i) => `hex ${i}`, spotName: (i) => `spot ${i}` };
+  fx.decs = [{ turn: 12, pos: true, gap: 9, vc: "clear", played: "A", best: "B", e: {} }]; fx.decAt = (t) => fx.decs.find((d) => d.turn === t) || null;
+  tab["turn.0"] = [0, "turn"]; tab["rob.12.hex"] = ["Ore 8", "x"]; tab["rob.12.by"] = [1, "player"]; tab["dec.12.gap"] = [9, "pct"];
+  const PB = await import(pathToFileURL(path.join(dir, "ai-page.js")).href);
+  const bk = (o) => PB.blockOk(blk({ p: "board", ...o }), fx);
+  ok(bk({ dec: 12 })?.dec === 12 && bk({ turn: 12 })?.dec === 12, "board: a decision (dec, or the v1.83 turn shape)");
+  ok(bk({ turn: 12, show: ["robber"] })?.robber === true && bk({ turn: 11, show: ["robber"] }) === null, "board: robber move only for a turn the robber moved in");
+  ok(bk({ turn: 0, players: ["you", "mila"] })?.players.length === 2 && bk({ turn: 5, players: ["ghost"] }) === null, "board: set-up / network of known players only");
+  ok(bk({ turn: 5, hexes: [1, 99] })?.hexes.join() === "1" && bk({}) === null, "board: unknown hexes dropped, an empty board refused");
+  const wq = (title, blocks) => ({ answer: "The robber went to an ore tile on that turn.", widgets: [{ id: "x", level: "Game", short: "robber", who: null, chip: null, title, requires: [], blocks, expand: [], notes: [] }] });
+  const qa = C.answerOf(wq([T1("The robber went to "), R1("rob.12.hex", "x")], [blk({ p: "board", show: ["robber"], turn: 12 })]), fx, "fuA");
+  ok(qa && qa.widget.id === "fuA" && qa.widget.blocks[0].p === "board" && qa.answer.startsWith("The robber"), "question mode: one validated widget plus the answer");
+  ok(C.answerOf(wq([T1("It hurt most on "), R1("rob.99.hex", "x")], [blk({ p: "board", turn: 12, show: ["robber"] })]), fx) === null, "question mode: a fallback title (unresolved ref) = no widget (text chat answers)");
+  ok(C.answerOf({ answer: "", widgets: [] }, fx) === null, "question mode: no widget = null");
+  sent = null; const q2 = await C.composeAnswer(null, "nl", "Waar sloeg de rover toe?", { fx, fetchFn: async (u, i) => { sent = JSON.parse(i.body); return { ok: true, json: async () => ({ compose: wq([T1("De rover stond op "), R1("rob.12.hex", "x")], [blk({ p: "board", show: ["robber"], turn: 12 })]) }) }; } });
+  ok(sent.question === "Waar sloeg de rover toe?" && sent.lang === "nl" && sent.mode === "compose" && !sent.examples && q2?.widget.blocks.length === 1, "question mode request: question + lang, no examples");
   fs.rmSync(dir, { recursive: true });
   console.log(fails ? `${fails} FAILED` : "all ok"); process.exit(fails ? 1 : 0);
 })();
