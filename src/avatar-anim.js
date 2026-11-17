@@ -105,6 +105,9 @@ function watchTurn() {
   }
 }
 
+/** Called after each render: the turn pulse / thinking dots follow the current player. */
+export function avatarTick(g) { try { game = g; if (document.querySelector(".avatar.av-live")) watchTurn(); } catch (_) { /* never break the game */ } }
+
 /** Start watching the page: new avatars get their state; a tap on a past game's winner plays happy. */
 export function initAvatarAnim(g) {
   game = g;

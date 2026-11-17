@@ -1,7 +1,7 @@
-import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, avatarLive, dieSvg, cardSvg, motionReduced, SEAT_PRESETS, awardStat, paletteTick } from "./themes/manager.js";
+import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, avatarLive, avatarAnimOn, dieSvg, cardSvg, motionReduced, SEAT_PRESETS, awardStat, paletteTick } from "./themes/manager.js";
 import { SvgBoardRenderer, drawSpec, PIECE_GROW, PIECE_OUTLINE_PX, PIECE_HALO_PX, pieceHalo, outlined } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
-import { initAvatarAnim, avatarLogEvent } from "./avatar-anim.js"; // v1.91 avatar animations
+import { initAvatarAnim, avatarLogEvent, avatarTick } from "./avatar-anim.js"; // v1.91 avatar animations
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
 import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted, seaHarbourScale, pierDot, drawPierDot } from "./themes/art-util.js";
 import { Onboarding, introSeen } from "./themes/onboarding.js";
@@ -8637,7 +8637,7 @@ class ColonistFullGame {
     const readyIds = this.rush && !this.setupPhase ? this.rush.ready : null;
     const scoreKey = this.players.map((p, i) =>
       `${i}:${this.displayVictoryPoints(p)}:${sumResources(p.resources)}:${p.settlements.size}:${p.cities.size}:${p.roads.size}:${p.knightsPlayed}:${p.longestRoadLength}:${this.longestRoadHolder}:${this.largestArmyHolder}:${this.currentPlayerIndex}:${p.personality}:${readyIds ? readyIds.includes(p.id) : "-"}:${DEV_CARD_TYPES.reduce((s, t) => s + p.devCards[t] + p.newDevCards[t], 0) + p.devVictoryPoints}`
-    ).join("|") + `:${!!this.winner}:${this.isRush()}:${this.theme.id}:${this.setupPhase}:${this._sixKey()}:${this.viewerId}:${this.handHidden}`;
+    ).join("|") + `:${!!this.winner}:${this.isRush()}:${this.theme.id}:${this.setupPhase}:${this._sixKey()}:${this.viewerId}:${this.handHidden}:${avatarAnimOn()}`;
     if (scoreKey === this._lastScoreKey) return;
     this._lastScoreKey = scoreKey;
     const rows = [];
@@ -11437,6 +11437,7 @@ class ColonistFullGame {
   /** Turn spotlight + badge transfers, detected from state changes between renders. */
   _themeEffects() {
     if (!this.players || !this.fx) return;
+    avatarTick(this); // v1.91: turn pulse, thinking dots
     const now = { gen: this.gameGen, cur: this.currentPlayerIndex, lr: this.longestRoadHolder, la: this.largestArmyHolder, setup: this.setupPhase };
     const p = this._fxPrev;
     this._fxPrev = now;
