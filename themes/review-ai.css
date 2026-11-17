@@ -399,3 +399,10 @@ b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { c
 .lg-ib { display: grid; gap: 4px; } .lg-ibr { display: grid; grid-template-columns: 58px minmax(0, 1fr) 18px; gap: 7px; align-items: center; font: 650 11.5px/1 var(--font-body); } .lg-ibt { height: 9px; border-radius: 5px; background: color-mix(in srgb, var(--ink) 8%, transparent); overflow: hidden; } .lg-ibt i { display: block; height: 100%; border-radius: 5px; background: var(--ink-soft); }
 .lg-ibt i.r-wood { background: #8DBE62; } .lg-ibt i.r-brick { background: #E0805A; } .lg-ibt i.r-sheep { background: #B7E08A; } .lg-ibt i.r-wheat { background: #E2C65C; } .lg-ibt i.r-ore { background: #9DB9E3; } .lg-ibr b { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
 .lg-ibr.low .lg-ibn, .lg-ibr.low b { color: var(--neg); font-weight: 800; } .lg-ibr.low .lg-ibt { outline: 1.5px solid var(--neg); outline-offset: 1px; }
+
+/* v1.91 the ask bar stays small (at most 15% of the screen, it covered 28%): the chips are one row that scrolls sideways (a fade at the edge says so), and the field sits right under it */
+.ai-ask { gap: 5px; padding-top: 5px; }
+.ai-chips { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; scroll-snap-type: x proximity; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent); padding-right: 22px; }
+.ai-chips::-webkit-scrollbar { display: none; }
+.ai-chips .ai-q { flex: none; max-width: none; min-height: 32px; scroll-snap-align: start; }
+.ai-in input { min-height: 40px; }

@@ -600,7 +600,7 @@
 .tv-dec i { font-style: normal; font-weight: 800; font-size: var(--fs-s); } .tv-dec .pos { color: var(--good, #2E7D4F); } .tv-dec .neg { color: var(--danger, #C4452F); }
 .tv-nav { display: grid; gap: 6px; margin-top: 6px; }
 .tv-cards { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
-.tv-card { flex: none; width: 44px; min-height: 58px; border-radius: 10px; border: var(--chip-border); background: var(--chip); color: var(--ink); display: grid; place-items: center; gap: 0; padding: 4px 0; position: relative; font-variant-numeric: tabular-nums; }
+.tv-card { flex: 1 1 0; min-width: 0; max-width: 52px; width: auto; min-height: 58px; border-radius: 10px; border: var(--chip-border); background: var(--chip); color: var(--ink); display: grid; place-items: center; gap: 0; padding: 4px 0; position: relative; font-variant-numeric: tabular-nums; }
 .tv-card b { font: 750 14px var(--font-display); } .tv-card small { font: 650 11px var(--font-body); color: var(--ink-soft); } .tv-card i { font: 800 11px var(--font-body); font-style: normal; color: var(--ink-soft); }
 .tv-card i.pos { color: var(--good, #2E7D4F); } .tv-card i.neg { color: var(--danger, #C4452F); }
 .tv-card.key::after { content: "★"; position: absolute; top: 2px; right: 4px; font-size: var(--fs-xs); color: var(--accent, var(--primary)); }
@@ -749,3 +749,7 @@
 /* v1.91 green and red belong to the user's own numbers: another player's gain or loss keeps that player's colour (the sign says which way) */
 .rv .opp.pos, .rv .opp.neg, .rv .opp .pos, .rv .opp .neg, .rv .opp.up, .rv .opp.dn, .ap-sheetw .opp.up, .ap-sheetw .opp.dn { color: var(--pc-text, var(--ink)) !important; }
 .rv .tr > i.opp.pos, .rv .tr > i.opp.neg { background: var(--pc) !important; opacity: .85; }
+
+/* v1.91 the names strip on the board never runs under the Play button; the turn cards share the row (all seven in view, no cut-off card) */
+.rs-wc { max-width: calc(100% - 118px); }
+.tv-cards { overflow-x: hidden; }
