@@ -1673,7 +1673,7 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
    v0.76 trade: one panel (give row · get row · players with their answers),
    two routes in the footer (bank/harbour · offer). Green is only for ✓ accept.
    ========================================================================== */
-:root { --accept: #0E6B3A; --accept-ink: #FFFFFF; --accept-shadow: #084A28; /* v0.78: a deep accept green, darker than the green seat (#2E9E5E) so a ✓ never reads as Groenewoud */ --route-bank: #1F7F86; --route-bank-ink: #FFFFFF; }
+:root { --accept: #0E6B3A; --accept-ink: #FFFFFF; --accept-shadow: #084A28; /* v0.78: a deep accept green, darker than the teal-green seat (#1E9E8E) so a ✓ never reads as Groenewoud */ --route-bank: #1F7F86; --route-bank-ink: #FFFFFF; }
 .app .trade-sheet { max-height: calc(var(--app-h, var(--dvh, 100dvh)) - var(--strip-h, 92px)); }
 .app.trade-open .pstrip { position: relative; z-index: 41; }
 .trade-sheet .sheet-head h3 { margin: 0; }

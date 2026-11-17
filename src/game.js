@@ -102,7 +102,7 @@ const PLAYER_CONFIG = [
   { name: "You", hsName: "Roodhart", fullName: "Rosa Roodhart", color: "#E0312B", isHuman: true, avatar: "./assets/avatars/avatar-human.svg?v=57" },
   { name: "Blaauw", fullName: "Mevrouw Blaauw van Draet", color: "#2F6FE6", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg?v=57" },
   { name: "Geelen", short: "Geelen", fullName: "Kolonel Van Geelen", color: "#F7931E", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
-  { name: "Groen", short: "Groen", fullName: "Dominee Groenewoud", color: "#2E9E5E", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
+  { name: "Groen", short: "Groen", fullName: "Dominee Groenewoud", color: "#1E9E8E", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
   // seats 5 and 6 (5–6 player games); colours come from the theme (see src/themes/seats.js)
   { name: "De Wit", fullName: "Mevrouw De Wit", color: "#EDE6D3", isHuman: false, avatar: "" },
   { name: "Pimpel", fullName: "Professor Pimpel", color: "#72309F", isHuman: false, avatar: "" },

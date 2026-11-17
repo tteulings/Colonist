@@ -214,10 +214,12 @@ export function recipePage(fx) {
     const tn = D.t, K = D.key, oc = D.other, duo = [Y, ...(W && W !== Y ? [W] : [])];
     // v1.86.2 why it was so sudden: one short line (parts, numbers through refs sx.*) and the small points visual (ai-surprise.js)
     const X = fx.surprise, sxp = X ? sxParts(X, fx.lang, P, R, (q) => fx.keys[q]) : null, sx = sxp ? [{ p: "text", parts: sxp }, ...(X.mover != null ? [{ p: "surprise" }] : [])] : [];
-    const lead = (k) => r.wcLead(k === Y && youIs, P(k)), mv = (k) => ({ dir: [`wc.${k}@${tn - 1}`, `wc.${k}@${tn}`], up: r.up, down: r.down });
-    const clause = (k) => [...lead(k), mv(k), r.wcFrom, R(`wc.${k}@${tn - 1}`), r.wcTo, R(`wc.${k}@${tn}`)];
+    const mv = (k) => ({ dir: [`wc.${k}@${tn - 1}`, `wc.${k}@${tn}`], up: r.up, down: r.down });
+    // v1.90.2 the headline starts with the player the review is about ("Jij daalde van 49% naar 0% op beurt 22; Blaauw steeg van 42% naar 100%"), the others follow, each in their colour
+    const clause = (k) => [P(k), " ", mv(k), r.wcFrom, R(`wc.${k}@${tn - 1}`), r.wcTo, R(`wc.${k}@${tn}`)];
+    const k1 = oc && oc.key === Y && K !== Y ? oc.key : K, k2 = oc ? (k1 === K ? oc.key : K) : null;
     widgets.push({ id: "wc", level: "Game", short: t.short_.wc,
-      title: shT || [...clause(K), r.wcOn, R(`turn.${tn}`), ...(oc ? ["; ", ...clause(oc.key).map((x, i) => (i === 0 && typeof x === "string" ? x.charAt(0).toLowerCase() + x.slice(1) : x))] : []), "."],
+      title: shT || [...clause(k1), r.wcOn, R(`turn.${tn}`), ...(k2 ? ["; ", ...clause(k2)] : []), "."],
       blocks: [{ p: "line", metric: "winchance", players: duo.includes(K) ? duo : [K, ...duo], marks: D.marks, ...shapeChart(fx, SH, Y, W) }, ...(fx.lg ? [{ p: "ledger" }] : []), ...sx], // v1.90 the ledger rows (what decided it) sit between the chart and the surprise line
       notes: [[r.wcN1], [r.wcN2], ...(fx.lg ? [[t.lg.noteTab]] : [])] });
   }
