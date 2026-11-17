@@ -8,6 +8,7 @@ import { esc, IC } from "./review-ui.js";
 import { decide, tradeShow, clsOf } from "./review/evaluate.js";
 import { luckKey, wpText } from "./review-luck.js";
 import { gameOdds } from "./replay-odds.js";
+import { tr } from "./i18n.js";
 
 const KEY_SWING = 0.15; // a "key turn": somebody's win chance moved by this much or more
 const pc = (v) => `${Math.round(v * 100)}`;
@@ -66,7 +67,8 @@ export const ReviewTurnMixin = {
     }
     return rows.map((r) => {
       const cnt = [...r.did.filter(Boolean).reduce((m, x) => m.set(x, (m.get(x) || 0) + 1), new Map())].map(([x, n]) => (n > 1 ? `${n}× ${x}` : x));
-      return { id: r.id, got: `${r.rolls.length ? `Rolled ${r.rolls.join(", ")}` : ""}${r.cards ? `${r.rolls.length ? " · " : ""}+${r.cards} cards` : ""}`, bits: [...r.built, r.roads ? `${r.roads} ${r.roads === 1 ? "road" : "roads"}` : "", ...cnt].filter(Boolean), cards: r.cards };
+      // every piece is turned into the app language here (a long line of pieces is not one sentence for the localizer)
+      return { id: r.id, got: [r.rolls.length ? tr(`Rolled ${r.rolls.join(", ")}`) : "", r.cards ? tr(`+${r.cards} cards`) : ""].filter(Boolean).join(" · "), bits: [...r.built.map(tr), r.roads ? tr(`${r.roads} ${r.roads === 1 ? "road" : "roads"}`) : "", ...cnt.map(tr)].filter(Boolean), cards: r.cards };
     });
   },
   /** The decisions of one player in the turn (their own review; [] when it is not checked). */
