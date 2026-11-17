@@ -31,7 +31,7 @@ export const ReviewLedgerMixin = {
     if (R._ldWait0 == null) Object.defineProperty(R, "_ldWait0", { value: now(), writable: true, configurable: true, enumerable: false });
     if (now() - R._ldWait0 > 150000) return false;
     const led = tryv(() => this._ldLed());
-    if (!led || !led.complete()) return !!(LK.run && !LK.paused);
+    if (!led || !led.complete()) return !LK.paused && (!!LK.run || (!LK.done && now() - R._ldWait0 < 8000)); // (the run may start a moment after the tab opens: no page is drawn meanwhile)
     const ld = tryv(() => this._lkStore().ld); return !(ld && (ld.ok || (ld.r && Object.keys(ld.r).length && !this._ldJob?.busy)));
   },
   /** The ledger of this review (null: not valued completely yet, or a game the review cannot value). Rebuilt when the store was replaced. */
