@@ -228,8 +228,8 @@ export const ReviewLuckMixin = {
     const shown = U.all ? rows : rows.slice(0, 12);
     const seatW = this._lkSeat(pid), np0 = this.players.length, first0 = this.stats?.steps?.[0]?.[1], place0 = first0 != null && first0 >= 0 ? (pid - first0 + np0) % np0 : null;
     const tot = seatW + list.reduce((a, x) => a + x.w, 0), se = Math.sqrt(list.reduce((a, x) => a + (x.se || 0) ** 2, 0));
-    const cls = (v) => (Math.round(v * 1000) > 0 ? "pos" : Math.round(v * 1000) < 0 ? "neg" : "");
     const you = this._rvIsYou ? this._rvIsYou(pid) : false;
+    const cls = (v) => (Math.round(v * 1000) > 0 ? "pos" : Math.round(v * 1000) < 0 ? "neg" : "") + (you ? "" : ` pc-${pid} opp`); // v1.91 green / red only for the user
     const sub = (x) => (x.cards != null ? (x.ev.roll === 7 ? "the robber moves, big hands are halved" : `${x.cards} ${x.cards === 1 ? "card" : "cards"}${x.gold ? ` (${x.gold} gold)` : ""}${x.exp != null ? `, ${x.exp.toFixed(1)} expected` : ""} · others ${x.others}`) : { steal: "a random card from the hand", dev: "a random card from the deck" }[x.ev.kind] || "");
     const seg = this.players.map((p) => `<button type="button" class="pc-${p.id}${p.id === pid ? " on" : ""}" data-rvlkp="${p.id}" aria-pressed="${p.id === pid}">${this._av ? this._av(p, "rt-av") : ""}<span>${this._rvNm ? this._rvNm(p.id) : esc(p.name)}</span></button>`).join("");
     const kinds = { dice: 0, steal: 0, dev: 0 }; list.forEach((x) => { kinds[x.ev.kind] += 1; });
@@ -261,7 +261,7 @@ export const ReviewLuckMixin = {
     const cardsTxt2 = n ? `the number of cards ${wpText(B.cards)} (${m} ${m === 1 ? "card" : "cards"} ${n > 0 ? "more" : "fewer"} than expected)` : `the number of cards ${wpText(B.cards)} (about as expected)`;
     const parts = [Math.round(sw0 * 100) ? `seat order ${wpText(sw0)}` : "", cardsTxt2, `which cards and when ${wpText(B.kind)}`].filter(Boolean);
     const say = `<div class="lk-hd"><b>${you ? "Your" : `${nm}’s`} luck</b>${infoBtn("split", U.info?.split)}</div>
-      ${tot != null ? `<p class="lkd-head"><b class="${Math.round(tot * 100) > 0 ? "pos" : Math.round(tot * 100) < 0 ? "neg" : ""}">${wpText(tot)}</b><span>win chance from luck, in total</span></p>` : ""}
+      ${tot != null ? `<p class="lkd-head"><b class="${Math.round(tot * 100) > 0 ? "pos" : Math.round(tot * 100) < 0 ? "neg" : ""}${pid !== undefined && !(this._rvIsYou && this._rvIsYou(pid)) ? ` pc-${pid} opp` : ""}">${wpText(tot)}</b><span>win chance from luck, in total</span></p>` : ""}
       <p class="lkd-say">${tot != null ? "Made up of " : ""}${parts.join(", ")}. ${most}</p>
       ${infoTxt("split", U.info?.split, `Number of cards: cards above or below expected, at what a card was worth to ${you ? "you" : "them"} on average this game. The rest is which cards, and when. Each part is an estimate, good to about ±${Math.max(1, Math.round(B.se * 100))} points.`)}`;
     return say; // (the four bars "Why won / lost" are on the Overview tab)

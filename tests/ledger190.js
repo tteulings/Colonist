@@ -194,7 +194,7 @@ const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3,
   }
   // the version and the files
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8"), idx = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8"), ui = fs.readFileSync(path.join(__dirname, "..", "src", "themes", "settings-ui.js"), "utf8");
-  ok(/colonist-v190/.test(sw) && /APP_VERSION = "1\.90"/.test(ui) && /game\.js\?v=190/.test(idx), "version 1.90: APP_VERSION, ?v=190, cache colonist-v190");
+  ok(/colonist-v19\d/.test(sw) && /APP_VERSION = "1\.9\d"/.test(ui) && /game\.js\?v=19\d/.test(idx), "version 1.9x: APP_VERSION, ?v=, cache colonist-v19x");
   ok(["review/ledger.js", "review/ai-ledger.js", "review/step-mc.js", "review-ledger.js"].every((x) => sw.includes(`"./src/${x}"`)), "the new files are in the service worker's SHELL");
   console.log(fails ? `\n${fails} FAILED` : "\nall ok"); process.exit(fails ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

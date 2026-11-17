@@ -1,5 +1,5 @@
 // v1.90.2 round 2, the card and the round view as the reader sees them (real app, real exports, 360 px):
-//  * the ask bar: chips wrap to at most two lines and nothing is cut off; the chart hint says "point" (EN "Tap a point"), "stippen" stay for resource dots
+//  * the ask bar: chips are one row (v1.91, scrolls sideways) and no chip is cut; the chart hint says "point" (EN "Tap a point"), "stippen" stay for resource dots
 //  * a round view: the headline's number is the round's Total; a large rest is explained by listing the next steps; the "what the moves earned" block names whose moves and says why it is not in the total
 //  * the card rows: a concrete "why" line on a lost-by-dice round (dots of the one who was paid against yours) and the self-explaining "Graan op Van Geelens getallen: 22 stippen, jij 5"
 //  * the chat: the turn the user names, several players, a bare name (through the app's own ask path)
@@ -49,7 +49,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await page.evaluate(() => document.querySelector(".rv-scroll")?.scrollTo(0, 0)); await sleep(500);
     // the ask bar
     const C = await page.evaluate(() => { const c = document.querySelector(".ai-chips"); if (!c) return null; const r = c.getBoundingClientRect(), qs = [...c.querySelectorAll(".ai-q")].map((q) => q.getBoundingClientRect()); const tops = new Set(qs.map((q) => Math.round(q.top))); return { n: qs.length, rows: tops.size, sw: c.scrollWidth, cw: c.clientWidth, over: qs.filter((q) => q.right > r.right + 0.5 || q.left < r.left - 0.5).length, texts: [...c.querySelectorAll(".ai-q")].map((q) => q.textContent), clipped: [...c.querySelectorAll(".ai-q")].filter((q) => q.scrollWidth > q.clientWidth + 1).length }; });
-    ok(C && C.n >= 2 && C.rows <= 2 && C.sw <= C.cw + 1 && !C.over && !C.clipped, `${lang}: the ask chips wrap to at most two lines and nothing is cut off`, C);
+    ok(C && C.n >= 2 && C.rows <= 1 && !C.clipped, `${lang}: the ask chips are one row (v1.91: it scrolls sideways, the bar stays under 15% of the screen) and no chip is cut`, C);
     // the chart hint
     const H = await page.evaluate(() => document.querySelector(".ai")?.innerText || "");
     ok(lang === "nl" ? /Tik op een punt in de grafiek/.test(H) && !/Tik op een stip/.test(H) : /Tap a point on the chart/.test(H) && !/Tap a dot/.test(H), `${lang}: the chart hint says point, not dot`);

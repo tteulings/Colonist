@@ -110,6 +110,8 @@ export const ReviewAiPageMixin = {
   // ── the page ──
   _pgHtml() {
     const { fx, page, src, fu } = this._pgState();
+    // v1.91 not final yet (the luck run values the positions, the shown rounds are refined): nothing ranked is drawn, so nothing it says moves later
+    if (tryv(() => this._ldSettling?.(), false)) return `<div class="ap ap-settle" data-pg><section class="ap-c ap-sk" aria-busy="true" role="status"><div class="ap-skl"><i></i><i></i></div><div class="ap-skv"></div><span class="ap-skt">${esc(fx.t.settle)}…</span><p class="ap-asked ap-settle-sub">${esc(fx.t.settleSub)}</p></section></div>`;
     this._pgOpenSet = this._pgOpenSet || new Set();
     const hl = page.headline ? `<p class="ap-hl">${this._pgParts(page.headline, fx)}</p>` : "";
     const cards = page.widgets.map((w, i) => this._pgCardHtml(w, i, fx));
@@ -373,7 +375,7 @@ export const ReviewAiPageMixin = {
     sh.innerHTML = `<div class="ap-sheet" role="dialog" aria-modal="true" aria-label="${fx.t.Turn} ${t}"><i class="grab" aria-hidden="true"></i>
       <div class="ap-sh-h"><button type="button" class="ap-nav" data-pgprev aria-label="${esc(fx.t.prev)}"${t <= 1 ? " disabled" : ""}><svg viewBox="0 0 14 14"><path d="M9 2L4 7l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><b>${fx.t.Turn} ${t}</b><button type="button" class="ap-nav" data-pgnext aria-label="${esc(fx.t.next)}"${t >= fx.T ? " disabled" : ""}><svg viewBox="0 0 14 14"><path d="M5 2l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
       <div class="ap-sh-l">${lines.length ? lines.map((l) => `<p>${l}</p>`).join("") : `<p class="mut">${esc(fx.t.nothing)}</p>`}</div>
-      ${rows.length ? `<div class="ap-sh-k">${esc(fx.t.wcIn)}</div>${rows.map(({ q, c }) => `<div class="ap-sh-r pc-${q}"><span class="n"><i></i><span>${esc(fx.nameOf(q))}</span></span><span class="tr"><i style="width:${Math.max(1, c.to)}%"></i></span><span class="ft">${c.from}% → <b>${c.to}%</b> <em class="${c.d > 0 ? "up" : c.d < 0 ? "dn" : ""}">${sg(c.d)}%</em></span></div>`).join("")}` : ""}
+      ${rows.length ? `<div class="ap-sh-k">${esc(fx.t.wcIn)}</div>${rows.map(({ q, c }) => `<div class="ap-sh-r pc-${q}"><span class="n"><i></i><span>${esc(fx.nameOf(q))}</span></span><span class="tr"><i style="width:${Math.max(1, c.to)}%"></i></span><span class="ft">${c.from}% → <b>${c.to}%</b> <em class="${c.d > 0 ? "up" : c.d < 0 ? "dn" : ""}${q === me ? "" : " opp"}">${sg(c.d)}%</em></span></div>`).join("")}` : ""}
       <div class="ap-sh-a">${widgets.map((w) => `<button type="button" class="ap-btn" data-pgopen="${esc(w.id)}">${esc(fx.t.open(w.short))}<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M5 2l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`).join("")}${fx.lg && tryv(() => fx.lg.view(t)) ? `<button type="button" class="ap-btn" data-lgopen>${esc(fx.t.lg.steps)}</button>` : ""}<button type="button" class="ap-btn" data-pgturnview>${esc(fx.t.board)}</button><button type="button" class="ap-btn ap-close" data-pgclose>${esc(fx.t.close)}</button></div></div>`;
     const go = (d) => this._pgSheet(t + d, true);
     sh.querySelector("[data-pgprev]").onclick = () => go(-1); sh.querySelector("[data-pgnext]").onclick = () => go(1);

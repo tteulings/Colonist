@@ -430,3 +430,7 @@ html[data-motion="reduced"] .ls-sheet.in { animation: none; }
 .gs-hlc > summary { list-style: none; display: flex; align-items: center; gap: 8px; cursor: pointer; min-height: 32px; } .gs-hlc > summary::-webkit-details-marker { display: none; }
 .gs-hlc > summary h2 { margin: 0; } .gs-hlc > summary small { margin-left: auto; font-size: var(--fs-s); font-weight: 800; color: var(--ink-soft); }
 .gs-hlc > summary::after { content: "›"; font-size: var(--fs-xl); color: var(--ink-soft); transition: transform .15s; } .gs-hlc[open] > summary::after { transform: rotate(90deg); } .gs-hlc[open] > summary { margin-bottom: 8px; }
+
+/* v1.91 the replay caption never cuts a word in half ("Beginopstellin", "plaatste een do…"): it wraps to two lines instead */
+.gs-rp-cap b { font-size: 16px; line-height: 1.15; overflow-wrap: anywhere; hyphens: auto; }
+.gs-rp-cap span, .gs-rp-cap span i, .gs-rp-cap span em { white-space: normal; text-overflow: clip; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
