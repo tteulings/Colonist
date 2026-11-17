@@ -17,7 +17,7 @@
 // "Past games" in the top-left puts your running game back (it stays in localStorage untouched).
 // Styles: themes/history.css.
 import { oicon } from "./ui-icons.js";
-import { dateLocale } from "./i18n.js";
+import { dateLocale, num, t } from "./i18n.js";
 import { icon, avatarSvg } from "./themes/manager.js";
 import { BOT_PROFILES, profileMini } from "./bot-profiles.js";
 import { profileOf } from "./bot-profile-ui.js";
@@ -432,7 +432,7 @@ export const HistoryMixin = {
     const rev = old.filter((m) => m.acc != null && !m.prov && m.rn && m.cls);
     if (fin.length < 2 && rev.length < 2 && names.length < 2) return "";
     const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
-    const trend = (v, dec = 0, good = 1) => { const f = 10 ** dec, d = Math.round(v * f) / f; return !d ? "" : `<i class="pg-d ${d * good > 0 ? "up" : "down"}">${d > 0 ? "▲" : "▼"}${Math.abs(d)}</i>`; };
+    const trend = (v, dec = 0, good = 1) => { const f = 10 ** dec, d = Math.round(v * f) / f; return !d ? "" : `<i class="pg-d ${d * good > 0 ? "up" : "down"}">${d > 0 ? "▲" : "▼"}${num(Math.abs(d), dec)}</i>`; }; // v1.91: Dutch decimals use a comma everywhere
     // accuracy: only games checked after play, with the review settings of the latest one
     const kNow = rev.length ? rev[rev.length - 1].rk : null;
     const pts = rev.filter((m) => !m.mid && m.rk === kNow);
@@ -457,7 +457,7 @@ export const HistoryMixin = {
     let markHtml = `<div class="pg-t"><b>–</b><small>Marked moves</small></div>`, bars = "";
     if (per.length) {
       const tot = (p) => p.c + p.m + p.b, last = per.slice(-5), prev = per.slice(-10, -5);
-      markHtml = `<div class="pg-t"><b>${(avg(last.map(tot))).toFixed(1)}${prev.length ? trend(avg(last.map(tot)) - avg(prev.map(tot)), 1, -1) : ""}</b><small>Marked per game</small></div>`;
+      markHtml = `<div class="pg-t"><b>${num(avg(last.map(tot)), 1)}${prev.length ? trend(avg(last.map(tot)) - avg(prev.map(tot)), 1, -1) : ""}</b><small>Marked per game</small></div>`;
     }
     if (per.length >= 2) {
       const v = per.slice(-12), mx = Math.max(4, ...v.map((p) => p.c + p.m + p.b)), W = 318, H = 98, X0 = 30, X1 = W - 10, T = 8, B = H - 18, bw = (X1 - X0) / v.length, Yb = (n) => B - (n / mx) * (B - T);
@@ -505,10 +505,9 @@ export const HistoryMixin = {
   _histRow(m) {
     const w = m.seats[m.winner];
     const t = m.result === "won" ? `Won with ${m.seats[m.me].vp} points` : m.result === "lost" ? `Lost to ${esc(dispName(w?.name) || "a bot")}` : `${esc(dispName(w?.name) || "?")} won`;
-    const badge = [m.result === "won" ? "won" : m.result === "lost" ? "lost" : "table", resultWord(m.result)];
+    const res = m.result === "won" ? "won" : m.result === "lost" ? "lost" : "table"; // v1.91: the result is said once, by the title; the card's left edge carries its colour (no second tag to overlap the title)
     const kind = m.board === "seafarers" ? "Seafarers" : m.mode === "rush" ? "Rush" : "Classic";
-    return `<li><div class="hs-row" data-hrow="${m.id}" role="button" tabindex="0" aria-label="${t}, ${when(m.end)}">
-      <span class="hs-badge ${badge[0]}">${badge[1]}</span>
+    return `<li><div class="hs-row ${res}" data-hrow="${m.id}" role="button" tabindex="0" aria-label="${t}, ${when(m.end)}">
       <div class="hs-main"><b>${t}</b><small>${when(m.end)} · ${kind}</small></div>
       <button type="button" class="hs-star${m.star ? " on" : ""}" data-hrstar="${m.id}" aria-pressed="${!!m.star}" aria-label="${m.star ? "Unstar" : "Keep with a star"}">${STAR(m.star)}</button>
       <div class="hs-foot"><span class="hs-sc">${m.seats.map((s, i) => `<span class="${i === m.winner ? "win" : ""}" title="${esc(dispName(s.name))}">${avatarSvg(i, "hs-av")}<b>${s.vp}</b></span>`).join("")}</span><span class="hs-dur">${dur(m.ms)}</span></div>
@@ -612,11 +611,11 @@ const CHECK = `<svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><path d="M
 export const HISTORY_ICON = oicon("history");
 
 function dur(ms) { const m = Math.max(1, Math.round(ms / 60000)); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`; }
-function kb(b) { return b < 1024 ? `${b} B` : `${(b / 1024).toFixed(b < 10240 ? 1 : 0)} KB`; }
-function when(t, long = false) {
-  const d = new Date(t), n = new Date(), day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+function kb(b) { return b < 1024 ? `${b} B` : `${num(b / 1024, b < 10240 ? 1 : 0)} KB`; }
+function when(ts, long = false) {
+  const d = new Date(ts), n = new Date(), day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((day(n) - day(d)) / 864e5), hm = d.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", hour12: false });
-  const nice = diff === 0 ? "Today" : diff === 1 ? "Yesterday" : diff < 7 ? d.toLocaleDateString(dateLocale(), { weekday: "short" }) : d.toLocaleDateString(dateLocale(), { day: "numeric", month: "short", ...(d.getFullYear() !== n.getFullYear() ? { year: "numeric" } : {}) });
+  const nice = diff === 0 ? t("Today") : diff === 1 ? t("Yesterday") : diff < 7 ? d.toLocaleDateString(dateLocale(), { weekday: "short" }) : d.toLocaleDateString(dateLocale(), { day: "numeric", month: "short", ...(d.getFullYear() !== n.getFullYear() ? { year: "numeric" } : {}) });
   return long ? `${d.toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" })} · ${hm}` : `${nice} ${hm}`;
 }
 
