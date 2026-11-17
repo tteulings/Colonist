@@ -98,17 +98,17 @@ export const ReviewTurnMixin = {
   /** The turn block: biggest effect, then one row per player; the viewed player's row (or any you tap) open to the decisions. */
   _tvHtml(d, ds, keep) {
     const st = this._st; if (!st || d.k === "setup") return "";
-    const tv = this._tvEnsure(d, ds, keep), T = tv.T, W = this._tvWin(T), rows = this._tvRows(T), many = this.players.length >= 5;
+    const oq = (q) => (this._rvIsYou(q) ? "" : ` pc-${q} opp`), tv = this._tvEnsure(d, ds, keep), T = tv.T, W = this._tvWin(T), rows = this._tvRows(T), many = this.players.length >= 5;
     let O = null; if (!W) { try { const rg = this._tvRange(T); O = this._rvOdds ? this._rvOdds() : gameOdds(this); if (O) O = { b: O.get(rg.lo - 1), a: O.get(rg.hi) }; } catch (_) { O = null; } }
     const body = rows.map((r) => {
       const q = r.id, pre = W ? W.pre[q] : O?.b?.[q], post = W ? W.post[q] : O?.a?.[q], dl = pre != null && post != null ? post - pre : null;
       const decs = this._tvDecs(q, T, ds), checked = q === this._rvPid || this._rvReviewComplete(q), open = tv.open.has(q);
       const small = many && !open && dl != null && Math.abs(dl) < 0.03 && !decs.some((x) => x.gp);
-      const sp = W && checked ? ` · <span class="${cl(W.luck[q])}">luck ${sg(W.luck[q])}</span> <span class="${cl(W.mv[q])}">moves ${sg(W.mv[q])}</span>` : W ? ` · <span class="${cl(W.luck[q])}">luck ${sg(W.luck[q])}</span> <span class="tv-nc">moves ~</span>` : "";
+      const sp = W && checked ? ` · <span class="${cl(W.luck[q])}${oq(q)}">luck ${sg(W.luck[q])}</span> <span class="${cl(W.mv[q])}${oq(q)}">moves ${sg(W.mv[q])}</span>` : W ? ` · <span class="${cl(W.luck[q])}${oq(q)}">luck ${sg(W.luck[q])}</span> <span class="tv-nc">moves ~</span>` : "";
       const lo = dl == null ? 0 : Math.min(pre, post) * 100, hi = dl == null ? 0 : Math.abs(dl) * 100;
       const bar = dl == null ? "" : `<span class="tv-bar pc-${q}" aria-hidden="true"><i style="width:${lo}%"></i><u class="${dl >= 0 ? "up" : "dn"}" style="left:${lo}%;width:${hi}%"></u></span>`;
       const wtxt = dl == null ? "" : `<em title="start of the ${this._rvTW().toLowerCase()} \u2192 end of the ${this._rvTW().toLowerCase()}">${checked ? "" : "~"}${pc(pre)} → ${pc(post)}%</em>`;
-      const decHtml = open ? `<div class="tv-decs">${decs.length ? decs.map((x) => `<button type="button" class="tv-dec${q === this._rvPid && x.i === d.i ? " on" : ""}" data-tvd="${q}:${x.i}">${esc(tradeShow(x.x.label))}<i class="${x.cls === "close" ? "neu" : x.gp ? "neg" : "pos"}">${x.same || !x.gp ? "best" : `${x.cls === "close" ? "≈ " : ""}${sg(-x.gap)}`}</i></button>`).join("") : `<p>${checked ? "No real choice this turn." : "Not checked yet: the win chance shown is the estimate (~)."}</p>`}</div>` : "";
+      const decHtml = open ? `<div class="tv-decs">${decs.length ? decs.map((x) => `<button type="button" class="tv-dec${q === this._rvPid && x.i === d.i ? " on" : ""}" data-tvd="${q}:${x.i}">${esc(tradeShow(x.x.label))}<i class="${x.cls === "close" ? "neu" : x.gp ? "neg" : "pos"}${oq(q)}">${x.same || !x.gp ? "best" : `${x.cls === "close" ? "≈ " : ""}${sg(-x.gap)}`}</i></button>`).join("") : `<p>${checked ? "No real choice this turn." : "Not checked yet: the win chance shown is the estimate (~)."}</p>`}</div>` : "";
       if (small) return `<li class="tv-row sm${checked ? "" : " nc"}"><button type="button" class="tv-h" data-tvr="${q}" aria-expanded="false"><b class="pc-${q}">${esc(this._rvNm(q))}</b><span>${esc(r.bits.join(" · ") || r.got || "nothing")}</span>${wtxt}</button></li>`;
       return `<li class="tv-row${open ? " open" : ""}${checked ? "" : " nc"}${q === this._rvPid ? " me" : ""}"><button type="button" class="tv-h" data-tvr="${q}" aria-expanded="${open}"><b class="pc-${q}">${esc(this._rvNm(q))}</b><span>${esc([r.got, ...r.bits].filter(Boolean).join(" · ") || "nothing")}</span>${wtxt}</button><div class="tv-s">${bar}<small>${sp.replace(/^ · /, "")}</small></div>${decHtml}</li>`;
     }).join("");

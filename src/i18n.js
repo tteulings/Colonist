@@ -89,7 +89,7 @@ function lookup(s) {
   if (!s) return s;
   const hit = NL[s]; if (hit !== undefined) return hit;
   const sp = special(s) ?? chip(s); if (sp !== undefined) return sp;
-  if (s.includes(", ")) { const ps = s.split(", "), o = ps.map((x) => NL[x] ?? (PAT.some((p) => p.re.test(x)) ? lookup(x) : undefined)); if (o.every((x) => x !== undefined)) return o.join(", "); } // a list of known phrases ("built a city, took Longest road")
+  const ps = s.includes(", ") ? s.split(/, (?![^(]*\))/) : null; if (ps && ps.length > 1) { const o = ps.map((x) => NL[x] ?? (PAT.some((p) => p.re.test(x)) ? lookup(x) : undefined)); if (o.every((x) => x !== undefined)) return o.join(", "); } // a list of known phrases ("built a city, took Longest road")
   for (const p of PAT) {
     const m = p.re.exec(s); if (!m) continue;
     const vars = {}; p.names.forEach((n, i) => { vars[n] = p.raw.has(n) ? m[i + 1] : cap(n, m[i + 1]); });

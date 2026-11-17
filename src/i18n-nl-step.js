@@ -17,6 +17,14 @@ export const NL_STEP = [
   ["Monopoly +{n} {x}", "Monopolie +{n} {x}"], ["Monopoly −{n} {x}", "Monopolie −{n} {x}"], ["{n}× steal", "{n}× kaart gepakt"], ["{n}× robbed", "{n}× bestolen"], ["{n}× trade", "{n}× ruil"], ["{n}× bank trade", "{n}× bankruil"],
   ["wood", "hout"], ["brick", "baksteen"], ["sheep", "wol"], ["wheat", "graan"], ["ore", "erts"], ["settlement", "dorp"], ["city", "stad"],
   ["won: {x} → {n} points", "won: {x} → {n} punten"], ["built a settlement", "bouwde een dorp"], ["built a city", "bouwde een stad"], ["took Longest road", "pakte de langste handelsroute"], ["took Largest army", "pakte de grootste riddermacht"],
+  // move names (lower case inside a sentence too)
+  ["traded {x} for {y}", "ruilde {x} voor {y}"], ["play {x}", "speel {x}"], ["steal {x}", "pak van {x}"], ["Steal {x}", "Pak van {x}"],
+  ["Road (Longest road)", "Weg (langste handelsroute)"], ["road (Longest road)", "weg (langste handelsroute)"], ["Road (Longest Road)", "Weg (langste handelsroute)"], ["road (Longest Road)", "weg (langste handelsroute)"],
+  ["End turn (saves its cards)", "Einde beurt (bewaart de kaarten)"], ["end turn (saves its cards)", "einde beurt (bewaart de kaarten)"],
+  ["Dead end: no free spot within 3 roads", "Doodlopend: geen vrije plek binnen 3 wegen"],
+  ["Trade {x} → {y}, then {z}", "Ruil {x} → {y}, daarna {z}"], ["trade {x} → {y}, then {z}", "ruil {x} → {y}, daarna {z}"],
+  ["{x}, top left", "{x}, linksboven"], ["{x}, top right", "{x}, rechtsboven"], ["{x}, bottom left", "{x}, linksonder"], ["{x}, bottom right", "{x}, rechtsonder"], ["{x}, top", "{x}, boven"], ["{x}, bottom", "{x}, onder"], ["{x}, left", "{x}, links"], ["{x}, right", "{x}, rechts"], ["{x}, centre", "{x}, midden"],
+  ["{x}: {y} dice dots, you −{n}", "{x}: {y} ogen, jij −{n}"], ["{x}: {y} dice dots", "{x}: {y} ogen"], ["{x} ({n} points, leader) −{m}", "{x} ({n} punten, koploper) −{m}"], ["{x} ({n} points) −{m}", "{x} ({n} punten) −{m}"],
   // plan lines (why)
   ["Reaches {x} ({y}, {n} dice dots) · adds {z} · {w}", "Bereikt {x} ({y}, {n} ogen) · voegt {z} toe · {w}"],
   ["Reaches {x} ({y}, {n} dice dots) · adds {z}", "Bereikt {x} ({y}, {n} ogen) · voegt {z} toe"], ["Reaches {x} ({y}, {n} dice dots)", "Bereikt {x} ({y}, {n} ogen)"],
