@@ -3,7 +3,7 @@
 // card block and the round view (tap a round). The numbers are src/review/ledger.js + ai-ledger.js; this file only schedules, draws and binds.
 import { reviewRequest, reviewLaneCount, reviewAvailable, SEA_LEAF } from "./master.js";
 import { makeLedger, refineRound, creditRound, LG } from "./review/ledger.js";
-import { ledgerModel, segsText, ledgerRoute } from "./review/ai-ledger.js";
+import { ledgerModel, segsText, ledgerRoute, ledgerAnswer } from "./review/ai-ledger.js";
 import { mechRaw } from "./review/ai-mech.js";
 import { REVIEW } from "./review/evaluate.js";
 import { stateOfSpec } from "./review/ai-board.js";
@@ -127,7 +127,7 @@ export const ReviewLedgerMixin = {
   // ── the card block ──
   _pgLedger(b, fx) {
     const M = fx.lg; if (!M) return "";
-    const rows = b.rounds ? b.rounds.map((t) => M.row(t)).filter(Boolean) : M.rows(); if (!rows.length) return "";
+    const rows = b.rounds ? b.rounds.map((t) => M.row(t, b.seat)).filter(Boolean) : M.rows(); if (!rows.length) return "";
     const L = fx.t.lg, tL = fx.t.tL || "T";
     const html = rows.map((r) => {
       const who = r.subj === fx.me ? `<span class="lg-who me">${esc(fx.t.you)}</span>` : `<span class="lg-who pc-${r.subj}">${esc(fx.nameOf(r.subj))}</span>`;
@@ -155,12 +155,12 @@ export const ReviewLedgerMixin = {
     if (sp) { const bk = `lg:${t}`, spec = this._ldBoardSpec(sp, me); if (spec) { (this._aiBkSpec ||= new Map()).set(bk, spec); why += `<div class="lg-mv"><div class="ai-vz ap-bdv"><div class="ai-bd" data-aibd="${spec.turn}" data-aibk="${esc(bk)}"><span class="ai-bdw" aria-hidden="true"></span></div><div class="ap-leg">${[me, sp.by].map((q) => `<span class="pc-${q}"><i></i>${esc(fx.nameOf(q))}</span>`).join("")}</div></div><div class="lg-cap">${this._ldSegs(L.cap2(sp), fx)}.</div></div>`; } }
     const busy = this._ldJob?.busy ? `<span class="lg-calc" role="status"><i aria-hidden="true"></i>${esc(L.calc)}</span>` : "";
     w.innerHTML = `<div class="lg-sc"><div class="lg-top"><button type="button" class="lg-bk" data-lgback aria-label="${esc(L.back)}">${IC.back}</button><div><div class="lg-tt">${tL} ${t}</div><div class="lg-ts">${esc(fx.t.you)} ${esc(L.sub(Math.round(v.v0[me] * 100), Math.round(v.v1[me] * 100), v.tot, L.pointsWord))}</div></div>${busy}</div>
-      <section class="ap-c lg-c"><div class="lg-hd"><span class="lg-lv">${tL} ${t}</span></div><p class="lg-ti">${this._ldSegs(v.head, fx)}</p>
+      <section class="ap-c lg-c">${v.tag ? `<div class="lg-hd"><span class="lg-lv">${esc(L.cause[v.tag])}</span></div>` : ""}<p class="lg-ti">${this._ldSegs(v.head, fx)}</p>
       <div class="lg-split"><div class="lg-sb"><span class="lg-sh">${IC.dice} ${esc(L.chance)}</span><b class="lg-d ${cls(v.chance)}">${sg(v.chance)}</b><span class="lg-ss">${esc(L.chanceSub)}</span></div><div class="lg-sb"><span class="lg-sh">${IC.pick} ${esc(L.choice)}</span><b class="lg-d ${cls(v.choice)}">${sg(v.choice)}</b><span class="lg-ss">${esc(L.choiceSub)}</span></div></div></section>
       <section class="ap-c lg-c"><div class="lg-sec first">${esc(L.steps)}</div>${steps}<div class="lg-wf oth"><span class="lg-wi"></span><div class="lg-wt"><div>${esc(L.other)}</div></div><div class="lg-wv"><b class="lg-d ${cls(v.other)}">${sg(v.other)}</b></div></div>
       <div class="lg-wf tot"><span class="lg-wi"></span><div class="lg-wt"><div>${esc(L.total)}</div></div><div class="lg-wv"><b class="lg-d ${cls(v.tot)}">${sg(v.tot)}</b></div></div><div class="lg-note">${esc(L.noteA(v.seN))}</div></section>
       ${credit ? `<section class="ap-c lg-c"><div class="lg-sec first">${esc(L.progress)} <em>≈</em></div>${credit}<div class="lg-note">${esc(L.noteB)}</div></section>` : ""}
-      ${why ? `<section class="ap-c lg-c"><div class="lg-sec first">${esc(L.why)}</div>${why}<div class="lg-key"><span>${IC.dice} ${esc(L.key[0])}</span><span>${IC.pick} ${esc(L.key[1])}</span><span><b>≈</b> ${esc(L.key[2])}</span></div></section>` : `<div class="lg-key lg-keyo"><span>${IC.dice} ${esc(L.key[0])}</span><span>${IC.pick} ${esc(L.key[1])}</span><span><b>≈</b> ${esc(L.key[2])}</span></div>`}</div>`;
+      ${why ? `<section class="ap-c lg-c"><div class="lg-sec first">${esc(L.ctx)}</div>${why}<div class="lg-key"><span>${IC.dice} ${esc(L.key[0])}</span><span>${IC.pick} ${esc(L.key[1])}</span><span><b>≈</b> ${esc(L.key[2])}</span></div></section>` : `<div class="lg-key lg-keyo"><span>${IC.dice} ${esc(L.key[0])}</span><span>${IC.pick} ${esc(L.key[1])}</span><span><b>≈</b> ${esc(L.key[2])}</span></div>`}</div>`;
     w.querySelector("[data-lgback]").onclick = () => this._ldClose();
     w.onkeydown = (e) => { if (e.key === "Escape") this._ldClose(); };
     const sc = w.querySelector(".lg-sc"); if (keep && sc) sc.scrollTop = sc0;
@@ -178,14 +178,12 @@ export const ReviewLedgerMixin = {
   },
   // ── the chat: questions the ledger answers itself ("why did my win chance fall", "what happened in turn 7"): an app-built card and answer, no model, offline too ──
   _ldAnswer(q) {
-    const { fx } = this._pgState(), M = fx.lg; if (!M) return null; q = String(q || "");
-    const rt = ledgerRoute(q), L = fx.t.lg; let t = null, kind = null;
-    if (rt?.kind === "turn") { t = rt.t; kind = "turn"; } else if (rt?.kind === "behind") { const b = fx.behind; if (b) { t = b.t; kind = "behind"; } }
-    if (t == null || t < 1 || t > fx.T) return null;
-    const v = tryv(() => M.view(t)); if (!v) return null;
-    const me = fx.me, a = Math.round(v.v0[me] * 100), b = Math.round(v.v1[me] * 100), d = v.tot, lead = kind === "behind" ? L.ansBehind(t, a, b, d) : L.ansTurn(t, a, b, d);
-    const body = segsText(v.head, fx).replace(/\s+$/, ""), mech = v.line ? ` ${segsText(v.line.segs, fx)}.` : "";
-    return { t, kind, answer: `${lead}${body}${mech}`, spec: { id: `ld${Date.now().toString(36)}${t}`, level: "Game", short: fx.t.short_.wc, title: [...(kind === "behind" ? L.askBehind : L.askTurn).slice(0, 1), { ref: `turn.${t}`, fmt: "turn" }, ...(kind === "behind" ? L.askBehind : L.askTurn).slice(1)], blocks: [{ p: "ledger", rounds: [t] }] } };
+    const { fx } = this._pgState(), M = fx.lg; if (!M) return null;
+    const rt = ledgerRoute(String(q || ""), { me: fx.me, players: fx.players }); if (!rt || (rt.t != null && (rt.t < 1 || rt.t > fx.T))) return null;
+    const L = fx.t.lg, a = tryv(() => ledgerAnswer(M, fx, rt)); if (!a) return null;
+    const you = a.seat === fx.me, tr = { ref: `turn.${a.t}`, fmt: "turn" }, who = { ref: `name.${fx.keys[a.seat]}`, fmt: "player" }, ask = rt.kind === "behind" ? (you ? L.askBehind : L.askBehindOf) : you ? L.askTurn : L.askTurnOf;
+    const title = you ? [ask[0], tr, ask[1]] : [ask[0], who, ask[1], tr, ask[2]];
+    return { t: a.t, kind: a.kind, seat: a.seat, answer: a.answer, spec: { id: `ld${Date.now().toString(36)}${a.t}`, level: "Game", short: fx.t.short_.wc, title, blocks: [{ p: "ledger", rounds: [a.t], seat: a.seat }] } };
   },
   /** Answer a typed / chip question from the ledger when it can; true when it did (the page shows the card under the follow-ups). */
   _ldFollow(q) {

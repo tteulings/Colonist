@@ -71,7 +71,8 @@ b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { c
 .ai-ft { margin: 2px 4px 4px; display: flex; gap: 10px; align-items: baseline; justify-content: space-between; font: 600 10.5px/1.3 var(--font-body); color: var(--ink-soft); } .ai-rg { flex: none; border: 0; background: none; font: 750 12px var(--font-body); color: var(--primary-text, var(--primary)); padding: 6px 2px; min-height: 28px; cursor: pointer; }
 /* ask bar pinned under the scroll */
 .ai-ask { flex: none; padding: 6px 10px max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--rv-sep, color-mix(in srgb, var(--ink) 12%, transparent)); background: var(--sheet, var(--bg)); display: grid; gap: 6px; }
-.ai-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-chips { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; margin: 0 -10px; padding: 0 10px; } .ai-chips::-webkit-scrollbar { display: none; } /* v1.90.1 one line: the ask bar takes less of the screen, the cause rows stay in view */
+.rv-scroll:has(.ai) { scroll-padding-bottom: 24px; } .ai { padding-bottom: 16px; }
 .ai-q { flex: none; min-height: 30px; padding: 0 11px; border: 0; border-radius: 99px; font: 700 12px/1 var(--font-body); color: var(--heading); background: color-mix(in srgb, var(--primary) 13%, transparent); cursor: pointer; white-space: nowrap; } .ai-q:disabled { opacity: .5; }
 .ai-in { display: flex; gap: 6px; } .ai-in input { flex: 1; min-width: 0; min-height: 40px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); background: var(--chip); color: var(--ink); padding: 0 12px; font: 500 14px var(--font-body); } .ai-in .rv-btn { min-height: 40px; }
 /* links in the AI text: styled like their chips; the touch target (>=32px) is a transparent pseudo-element, so lines keep their height */

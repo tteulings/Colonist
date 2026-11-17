@@ -110,7 +110,7 @@ export function blockOk(b, fx) {
     case "badge": { const q = key(fx, b.player), s = q == null ? null : fx.strat[q]; return s?.verdict ? { p: "badge", player: b.player } : null; }
     case "table": return b.of === "luck" && fx.luck ? { p: "table", of: "luck" } : null;
     case "text": { const parts = partsOk(b.parts, fx, { words: 18 }); return parts ? { p: "text", parts, link: !!b.link } : null; }
-    case "ledger": { if (!fx.lg) return null; const rs = (Array.isArray(b.rounds) ? b.rounds : []).filter((t, i, a) => isInt(t) && t >= 1 && t <= T && a.indexOf(t) === i && tryv(() => fx.lg.row(t))).slice(0, 3); return rs.length ? { p: "ledger", rounds: rs } : Array.isArray(b.rounds) ? null : fx.lg.rows().length ? { p: "ledger" } : null; } // v1.90 the rows of the step ledger on the game card (src/review/ai-ledger.js)
+    case "ledger": { if (!fx.lg) return null; const rs = (Array.isArray(b.rounds) ? b.rounds : []).filter((t, i, a) => isInt(t) && t >= 1 && t <= T && a.indexOf(t) === i && tryv(() => fx.lg.row(t))).slice(0, 3); const sq = Number.isInteger(b.seat) && b.seat >= 0 && b.seat < fx.n ? b.seat : null; return rs.length ? { p: "ledger", rounds: rs, ...(sq != null ? { seat: sq } : {}) } : Array.isArray(b.rounds) ? null : fx.lg.rows().length ? { p: "ledger" } : null; } // v1.90 the rows of the step ledger on the game card (src/review/ai-ledger.js)
     case "surprise": { const x = fx.surprise; return x && x.mover != null && x.gain > 0 ? { p: "surprise" } : null; } // v1.86.2 why the decisive swing was so sudden: the points of that turn (ai-surprise.js)
     default: return null;
   }
@@ -130,7 +130,7 @@ export function sigsOf(b) {
     case "table": return [`table|${b.of}`];
     case "text": return [`text|${JSON.stringify(b.parts)}`];
     case "surprise": return ["surprise"];
-    case "ledger": return [b.rounds ? `ledger|${b.rounds.join(",")}` : "ledger"];
+    case "ledger": return [b.rounds ? `ledger|${b.rounds.join(",")}|${b.seat ?? ""}` : "ledger"];
     default: return [];
   }
 }
