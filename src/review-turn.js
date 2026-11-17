@@ -8,7 +8,7 @@ import { esc, IC } from "./review-ui.js";
 import { decide, tradeShow, clsOf } from "./review/evaluate.js";
 import { luckKey, wpText } from "./review-luck.js";
 import { gameOdds } from "./replay-odds.js";
-import { tr } from "./i18n.js";
+import { tr, t } from "./i18n.js";
 
 const KEY_SWING = 0.15; // a "key turn": somebody's win chance moved by this much or more
 const pc = (v) => `${Math.round(v * 100)}`;
@@ -91,7 +91,8 @@ export const ReviewTurnMixin = {
     const turns = this._tvTurns(ds), k = turns.findIndex((x) => x.d === d || x.T === this._tv.T), me = this._rvPid;
     const from = Math.max(0, Math.min(k - 3, turns.length - 7)), cards = turns.slice(Math.max(0, from), Math.max(0, from) + 7);
     const key = turns.slice(k + 1).find((x) => this._tvKeyOf(x.T));
-    const one = (x) => { const W = this._tvWin(x.T), dl = W ? W.post[me] - W.pre[me] : null, sel = x.T === this._tv.T; return `<button type="button" class="tv-card${sel ? " on" : ""}${W && W.swing >= KEY_SWING ? " key" : ""}" data-tvt="${x.d.i}" title="${W ? `End of ${this._rvTW().toLowerCase()}: ${pc(W.post[me])}%, change over the whole ${this._rvTW().toLowerCase()} ${sg(dl)}` : ""}" aria-label="${this._rvTW()} ${x.T}${dl != null ? `, ${sg(dl)}% over the whole ${this._rvTW().toLowerCase()}` : ""}${W && W.swing >= KEY_SWING ? ", key turn" : ""}"${sel ? ' aria-current="true"' : ""}><b>${x.T}</b><small>${W ? `${pc(W.post[me])}%` : ""}</small><i class="${dl == null ? "" : cl(dl)}">${dl == null ? "" : sg(dl)}</i></button>`; };
+    const rush = !!this.isRush?.(), aria = (T, dl, key) => (dl == null ? t(rush ? "Roll {n}" : "Turn {n}", { n: T }) : t(rush ? "Roll {n}, {d}% over the whole roll" : "Turn {n}, {d}% over the whole turn", { n: T, d: sg(dl) })) + (key ? ", " + t(rush ? "key roll" : "key turn") : "");
+    const one = (x) => { const W = this._tvWin(x.T), dl = W ? W.post[me] - W.pre[me] : null, sel = x.T === this._tv.T; return `<button type="button" class="tv-card${sel ? " on" : ""}${W && W.swing >= KEY_SWING ? " key" : ""}" data-tvt="${x.d.i}" title="${W ? esc(t(rush ? "End of roll: {n}%, change over the whole roll {d}" : "End of turn: {n}%, change over the whole turn {d}", { n: pc(W.post[me]), d: sg(dl) })) : ""}" aria-label="${esc(aria(x.T, dl, W && W.swing >= KEY_SWING))}"${sel ? ' aria-current="true"' : ""}><b>${x.T}</b><small>${W ? `${pc(W.post[me])}%` : ""}</small><i class="${dl == null ? "" : cl(dl)}">${dl == null ? "" : sg(dl)}</i></button>`; };
     return `<div class="tv-nav"><div class="tv-cards" role="group" aria-label="${this._rvTW()}s">${cards.map(one).join("")}</div>
       <div class="rs-nav tv-btns"><button type="button" class="rv-btn" data-tvgo="-1" ${k > 0 ? "" : "disabled"} aria-label="Previous ${this._rvTW().toLowerCase()}">${IC.prev}Previous</button><button type="button" class="rv-btn rs-ov" data-tvkey="${key ? key.d.i : ""}" ${key ? "" : "disabled"}>Next key ${this._rvTW().toLowerCase()}</button><button type="button" class="rv-btn pri" data-tvgo="1" ${k >= 0 && k < turns.length - 1 ? "" : "disabled"} aria-label="Next ${this._rvTW().toLowerCase()}">Next${IC.next}</button></div></div>`;
   },

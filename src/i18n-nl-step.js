@@ -6,7 +6,7 @@ export const NL_STEP = [
   // turn cards, luck list, summaries
   ["This turn for everyone", "Deze beurt voor iedereen"], ["This round for everyone", "Deze ronde voor iedereen"], ["start of the turn → end of the turn", "start van de beurt → einde van de beurt"], ["start of the round → end of the round", "start van de ronde → einde van de ronde"],
   ["End of turn: {n}%, change over the whole turn {d}", "Einde beurt: {n}%, verandering over de hele beurt {d}"], ["Turn {n}, {d}% over the whole turn", "Beurt {n}, {d}% over de hele beurt"],
-  ["Turn", "Beurt"],
+  ["Turn", "Beurt"], ["Roll {n}, {d}% over the whole roll", "Worp {n}, {d}% over de hele worp"], ["End of roll: {n}%, change over the whole roll {d}", "Einde worp: {n}%, verandering over de hele worp {d}"], ["key turn", "sleutelbeurt"], ["key roll", "sleutelworp"],
   ["{x} stole {y} from {z}", "{x} pakte {y} van {z}"], ["{x} (pirate) stole {y} from {z}", "{x} (piraat) pakte {y} van {z}"], ["a card", "een kaart"],
   ["a random card from the hand", "een willekeurige kaart uit de hand"], ["a random card from the deck", "een willekeurige kaart uit de stapel"],
   ["{x} drew a {y}", "{x} trok een {y}"], ["{x} drew an {y}", "{x} trok een {y}"],

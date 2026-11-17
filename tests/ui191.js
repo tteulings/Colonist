@@ -133,6 +133,20 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
     }
     await ctx.close();
   }
+  // ── EN -> NL in the same session: the step view's turn cards (title / aria-label, incl. "key turn") are Dutch whichever order things load in ──
+  for (const first of ["en", "nl"]) {
+    const tag = `switch ${first}->nl 412x923`; const { page, ctx } = await open(first, 412, 923); await review(page);
+    await page.locator(".rv .rv-tabs button").nth(3).tap(); await sleep(1200); await page.locator("button", { hasText: /^Alle$|^All$/ }).first().tap(); await sleep(600);
+    const i = await page.evaluate(() => Math.max(0, [...document.querySelectorAll(".mv-r")].findIndex((r) => r.classList.contains("c-missed"))));
+    await page.locator(".mv-r").nth(i).tap(); await sleep(2600);
+    if (first === "en") { await page.evaluate(async () => { (await import("/src/i18n.js")).setLang("nl"); }); await sleep(2500); }
+    const A = await page.evaluate(() => [...document.querySelectorAll(".tv-card")].flatMap((c) => [c.getAttribute("title"), c.getAttribute("aria-label")]).filter(Boolean));
+    ok(A.length > 0, `${tag}: the step view has turn cards`, A.length); // whether a turn is a "key turn" depends on the (Monte Carlo) luck run, so not asserted; the Dutch of that label is checked by the English scan below
+    ok(english([...new Set(A)]).length === 0, `${tag}: turn cards' title / aria-label have no English`, english([...new Set(A)]).slice(0, 10));
+    const K = await page.evaluate(async () => { const { t } = await import("/src/i18n.js"); return [t("Turn {n}, {d}% over the whole turn, key turn".replace(", key turn", ""), { n: 4, d: "−17" }), t("key turn"), t("key roll")]; });
+    ok(K[0] === "Beurt 4, −17% over de hele beurt" && K[1] === "sleutelbeurt" && K[2] === "sleutelworp", `${tag}: the key-turn strings are Dutch (whether a turn is a key turn varies per run)`, K);
+    await ctx.close();
+  }
   ok(errs.filter((e) => !/Service Worker|ERR_FAILED/.test(e)).length === 0, "no page errors", errs.slice(0, 3));
   await b.close(); console.log(fails ? `\n${fails} FAILED` : "\nall ok"); process.exit(fails ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
