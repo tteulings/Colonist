@@ -23,7 +23,7 @@
 //       first settlement on each small island = 2 special VP (each player, each island); 14 VP wins.
 import { ISLAND_NAMES, WIN_POINTS, SHIP_LIMIT, SHIP_COST } from "./scenario.js";
 
-const RES = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as RES } from "../core/constants.js";
 
 export class Seafarers {
   /** @param game the ColonistFullGame; @param saved serialized state (or null for a new game) */

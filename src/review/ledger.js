@@ -98,7 +98,7 @@ export function roundSteps(led, t) {
 }
 
 // ── what a step was (page side data: the records, the statistics log, the hexes) ──
-const RES5 = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as RES5 } from "../core/constants.js";
 /** { i, k, pid, type, chance, ... }: type roll (sum, prod: seat -> [resources], hexes), robber (hex, steal), build (what, at), dev (card), play (card), bank, ptrade, setup, other. */
 export function describeStep(i, ctx) {
   const { recs, steps, ev, hexes } = ctx, r = recs[i], it = { i, k: r.k, pid: r.pid, chance: false };

@@ -10,9 +10,9 @@
 //     mark: { nodes, edges, rivals } what to light up on the board besides A and B themselves
 // Pure reads: the few temporary edits (a road laid to look at the reach) are undone in a finally.
 import { RES_EN as RN } from "../resources.js";
-const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as R5, COSTS } from "../core/constants.js";
 const BY_NAME = Object.fromEntries(Object.entries(RN).map(([k, v]) => [v, k]));
-const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, dev: { sheep: 1, wheat: 1, ore: 1 } };
+const COST = { road: COSTS.road, settlement: COSTS.settlement, city: COSTS.city, dev: COSTS.development };
 const BUILD_NAME = { road: "Road", settlement: "Settlement", city: "City", dev: "Development card" };
 const pipsOf = (n) => (n ? 6 - Math.abs(7 - n) : 0);
 const sum = (o) => R5.reduce((a, r) => a + (o?.[r] || 0), 0);

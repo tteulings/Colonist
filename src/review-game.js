@@ -22,7 +22,7 @@ import { wpText, luckKey } from "./review-luck.js";
 import { currentEngineId } from "./review-again.js";
 import { resName } from "./resources.js";
 import { recapLang } from "./review-recap.js";
-const RKEYS = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as RKEYS } from "./core/constants.js";
 /** v1.87 a resource in review prose: the shared table's name (Lumber / Brick / Wool / Grain / Ore, NL Hout / Baksteen / Wol / Graan / Erts), also for logs saved before v1.86 that say sheep / wheat. */
 const rname = (k) => (RKEYS.includes(k) ? resName(k, recapLang()) : k);
 import { niceWhy, niceWords } from "./review/why.js";
@@ -1156,7 +1156,7 @@ export const ReviewGameMixin = {
     const roll = stp ? stp[2] + stp[3] : null, who = stp && stp[1] >= 0 ? nmOf(stp[1]) : null;
     const evs = st.stepEvents?.[s] || [], cards = {}, builds = [];
     let robber = null;
-    const acts = [], roads = {}, RESN = ["wood", "brick", "sheep", "wheat", "ore"];
+    const acts = [], roads = {}, RESN = RKEYS;
     evs.forEach((e) => {
       if (e[1] === "P") cards[e[2]] = (cards[e[2]] || 0) + (e[5] || 1);
       else if (e[1] === "b" && e[3] !== "r" && e[3] !== "h") {

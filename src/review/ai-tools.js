@@ -19,7 +19,7 @@ export const TIER2 = new Set(["simulate_moves", "can_still_win"]);
 export const REFINE_TOOL = "refine_decision"; // v1.81 more futures on the played move and its best alternative (run by src/review-refine.js)
 export const TOOL_NAMES = ["get_decision", "get_turn", "get_luck", "get_plan", "get_lessons", "list_swings", "simulate_moves", "can_still_win", "refine_decision"];
 export const CAPS = { rounds: 6, calls: 12, sims: { insights: 2, game: 3 }, moves: 4 };
-const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as R5, COSTS_SEA, PIPS } from "../core/constants.js";
 
 const nameOf = (g, q) => (g._rvIsYou(q) ? "You" : unesc(g.players[q]?.name || `Player ${q + 1}`));
 /** A player name (as in the index) to a seat; "You", "me", the player's name, or a seat number. */
@@ -165,9 +165,9 @@ export function aiSimPlan(g, name, a = {}) {
   const moves = Array.isArray(a.moves) ? a.moves.slice(0, CAPS.moves) : []; if (!moves.length) return { error: "no moves given" };
   const { e } = r, rec0 = R.recs[e.x.i]; if (!rec0?.st) return { error: "position not stored" };
   const reqs = [], pos = tryv(() => JSON.parse(rec0.st)), me = pos?.players?.[e.seat], hand = me?.resources || null;
-  const COSTS = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, ship: { wood: 1, sheep: 1 }, buy: { sheep: 1, wheat: 1, ore: 1 } };
+  const COSTS = { road: COSTS_SEA.road, settlement: COSTS_SEA.settlement, city: COSTS_SEA.city, ship: COSTS_SEA.ship, buy: COSTS_SEA.development };
   const lacks = (c) => (hand && rec0.k !== "setup" && !(pos.freeRoadsRemaining > 0) ? Object.entries(COSTS[c]).filter(([r, n]) => (hand[r] || 0) < n).map(([r, n]) => `${n - (hand[r] || 0)} ${r}`) : []);
-  const pips = (id) => (g.geometry?.nodes?.[id]?.adjacentHexes || []).reduce((a, h) => a + ({ 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 }[g.geometry.hexes[h]?.number] || 0), 0);
+  const pips = (id) => (g.geometry?.nodes?.[id]?.adjacentHexes || []).reduce((a, h) => a + (PIPS[g.geometry.hexes[h]?.number] || 0), 0);
   for (const m of moves) {
     let k = null, act = null;
     const kind = String(m.kind || "").toLowerCase(), type = String(m.type || "").toLowerCase();

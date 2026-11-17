@@ -10,7 +10,7 @@ export const MIN_WIDGETS = 2;
 export const COMPOSE_ENABLED = false;
 export function composeEnabled() { try { return COMPOSE_ENABLED || (typeof localStorage !== "undefined" && localStorage.getItem("katan_ai_compose") === "1"); } catch (_) { return COMPOSE_ENABLED; } }
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
-const RES = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as RES } from "../core/constants.js";
 
 /** The compact, typed index the model sees: players, result and every bindable ref with kind and a value hint. */
 export function composeIndex(fx) {

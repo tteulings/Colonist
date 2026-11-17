@@ -18,10 +18,9 @@
 // without workers it runs on the page in slices of ~6 ms. Results are kept in memory per game (not saved).
 import { gbmProbs } from "./master/leaf-gbm.js";
 
-const RES = ["wood", "brick", "sheep", "wheat", "ore"];
-const DEV = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
-const COST = { r: { wood: 1, brick: 1 }, s: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, c: { wheat: 2, ore: 3 }, h: { wood: 1, sheep: 1 } };
-const DEV_COST = { sheep: 1, wheat: 1, ore: 1 };
+import { RESOURCES as RES, DEV_CARD_TYPES as DEV, COSTS_SEA } from "./core/constants.js";
+const COST = { r: COSTS_SEA.road, s: COSTS_SEA.settlement, c: COSTS_SEA.city, h: COSTS_SEA.ship };
+const DEV_COST = COSTS_SEA.development;
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 /** Why there is no win chance for this game (null: it can be computed). */

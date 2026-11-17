@@ -18,11 +18,11 @@
 // The arrays stay small: a long 6-player game is a few thousand numbers (~20 KB of JSON).
 import { Seafarers } from "./seafarers/index.js";
 
-export const RES = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as RES, DICE_WAYS as PIPS } from "./core/constants.js";
+export { RES };
 const KINDS = { r: "road", s: "settlement", c: "city", h: "ship" };
 import { rollMoments, summary as luckSummary } from "./review/luck.js";
 import { sourcesOf } from "./review/score.js";
-const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
 const sum = (o) => RES.reduce((a, r) => a + (o?.[r] || 0), 0);
 
 export const StatsMixin = {

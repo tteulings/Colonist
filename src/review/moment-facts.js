@@ -1,5 +1,6 @@
 // v1.64 "Why?": the facts of ONE moment (a decision of the person, or a turning point of the recap) for the explain mode of the recap
 // Function (azure/recap-fn, mode "explain"). Same rule as recap-facts.js: only what the review already knows, nothing guessed.
+import { RESOURCES } from "../core/constants.js";
 import { tradeShow } from "./evaluate.js";
 import { recapFacts } from "./recap-facts.js";
 
@@ -24,7 +25,7 @@ const spotCard = (g, id, kind) => tryv(() => {
 function income(g, p) {
   const have = new Set(), ports = new Set(); let dots = 0;
   [...(p.settlements || []), ...(p.cities || [])].forEach((n) => { const c = spotCard(g, n, "settlement"); (c?.resources || []).forEach((r) => have.add(r)); (c?.ports || []).forEach((t) => ports.add(t)); dots += c?.diceDots || 0; });
-  const all = ["wood", "brick", "sheep", "wheat", "ore"];
+  const all = RESOURCES;
   return { income: [...have], youLack: all.filter((r) => !have.has(r)), diceDots: dots, ports: [...ports] };
 }
 

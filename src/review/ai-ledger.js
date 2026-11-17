@@ -4,6 +4,7 @@
 //   fx.ledger / fx.behind  the same, for the composer and the chat (refs lg.*)
 // Words are segments (strings and { pl: seat } a name, { pos: seat } a possessive, { d: points, q: seat, se, est } a signed number, { x: text } bold), so the page can colour them and the chat can
 // flatten them. Wording lives in src/review/ai-lang.js (lg). Mechanism claims (C) are only made when ai-mech.js can PROVE them from the board and the event log; else the line is left out.
+import { RESOURCES } from "../core/constants.js";
 import { LG, roundSteps, bigRounds, shownSteps, describeStep, actionTurns, progressOf, roundMaxSe } from "./ledger.js";
 import * as M from "./ai-mech.js";
 
@@ -99,7 +100,7 @@ export function ledgerModel(inp) {
     if (twice) { const k = 6 - Math.abs(7 - twice); c.odds = { sum: twice, ways: k, oneIn: Math.round(1296 / (k * k) / 10) * 10 || Math.round(1296 / (k * k)) }; return { segs: lg.oddsShort(c.odds), claim: c, glyph: null }; }
     // a bank trade for a resource the player's dots hardly pay, in that player's own turn, in a round the player lost ground
     const bk = its.find((x) => x.type === "bank" && x.pid === subj && x.tr?.length && raw);
-    if (bk && dir < 0) { const [give, get, ratio] = bk.tr[0], i2 = M.incomeAt(raw, t, subj).dots; if (i2[get] <= 2 && ["wood", "brick", "sheep", "wheat", "ore"].includes(get)) { c.bank = { q: subj, give, get, ratio, dots: i2[get], all: i2 }; return { segs: lg.bankShort(c.bank), claim: c, glyph: { dots: i2, mark: get } }; } }
+    if (bk && dir < 0) { const [give, get, ratio] = bk.tr[0], i2 = M.incomeAt(raw, t, subj).dots; if (i2[get] <= 2 && RESOURCES.includes(get)) { c.bank = { q: subj, give, get, ratio, dots: i2[get], all: i2 }; return { segs: lg.bankShort(c.bank), claim: c, glyph: { dots: i2, mark: get } }; } }
     return null;
   };
 

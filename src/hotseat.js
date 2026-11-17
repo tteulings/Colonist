@@ -8,7 +8,7 @@
 // and nothing private is drawn until they tap "I'm <name>". While only bots act, every hand is hidden.
 import { avatarSvg, icon } from "./themes/manager.js";
 
-const RES = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as RES } from "./core/constants.js";
 const sum = (o) => RES.reduce((a, r) => a + (o?.[r] || 0), 0);
 const has = (hand, cost) => RES.every((r) => (hand[r] || 0) >= (cost[r] || 0));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

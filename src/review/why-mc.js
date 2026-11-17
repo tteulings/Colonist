@@ -4,7 +4,7 @@
 // points at turn 15 / 20. attribute() then compares the two moves per feature (paired mean difference, standard error) and keeps what
 // is significant (about 2 SE) AND moves the win chance; reasonSentence() words each in the app's plain language.
 // The tracer only observes (no random draw, no state change): the futures are exactly the ones played without it.
-const RES = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as RES } from "../core/constants.js";
 import { RES_EN } from "../resources.js";
 export const RESN = RES_EN;
 const sum = (o) => RES.reduce((a, r) => a + (o[r] || 0), 0);

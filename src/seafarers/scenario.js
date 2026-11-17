@@ -34,8 +34,7 @@ export const ISLANDS = { W: { id: 1, name: "West Isle" }, S: { id: 2, name: "Sou
 export const ISLAND_NAMES = { 0: "the main island", 1: "West Isle", 2: "South Isle", 3: "East Isle" };
 export const PIRATE_START = "8,4"; // open sea between South and East Isle
 export const WIN_POINTS = 14;
-export const SHIP_LIMIT = 15;
-export const SHIP_COST = { wood: 1, sheep: 1 }; // 1 lumber + 1 wool (rulebook p. 3)
+export { SHIP_COST, SHIP_LIMIT } from "../core/constants.js"; // 1 lumber + 1 wool (rulebook p. 3); 15 ships
 
 /**
  * Hex list for createBoardGeometry: axial (q, r) per position, plus its kind and key.

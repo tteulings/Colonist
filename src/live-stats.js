@@ -15,7 +15,7 @@
 import { RES, computeStats } from "./stats.js";
 import { oicon } from "./ui-icons.js";
 
-const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
+import { DICE_WAYS as PIPS, DEV_CARD_TYPES } from "./core/constants.js";
 const W = 300;
 const nf = (x) => (Math.round(x * 10) / 10).toString();
 const CHART_IC = `<svg class="ic" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M3 11h3v6H3zM8.5 4h3v13h-3zM14 8h3v9h-3z"/></svg>`;
@@ -348,7 +348,7 @@ export const LiveStatsMixin = {
     const bank = `<div class="ls-bank">${RES.map((r) => cell(r, this.bank[r], this.bank[r] <= 3)).join("")}<i class="ls-bsep" aria-hidden="true"></i>${cell("deck", deck, deck <= 3, "card-back", `${deck} development card${deck === 1 ? "" : "s"} left in the deck`)}</div>`;
     const rows = this.players.map((p) => {
       const n = Object.values(p.resources).reduce((a, b) => a + b, 0);
-      const dev = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"].reduce((a, t) => a + p.devCards[t] + p.newDevCards[t], 0) + p.devVictoryPoints; // public count, VP cards included
+      const dev = DEV_CARD_TYPES.reduce((a, t) => a + p.devCards[t] + p.newDevCards[t], 0) + p.devVictoryPoints; // public count, VP cards included
       return `<div class="ls-hrow pc-${p.id}"><i></i><span class="ls-hn">${this._stName(p)}</span><span>${this._lsIcon("cards")}<b>${n}</b></span><span>${this._lsIcon("devcard")}<b>${dev}</b></span><span>${this._lsIcon("knight")}<b>${p.knightsPlayed}</b></span></div>`;
     }).join("");
     const total = RES.reduce((a, r) => a + this.bank[r], 0);

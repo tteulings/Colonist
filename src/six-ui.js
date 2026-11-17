@@ -5,8 +5,7 @@ import { icon, avatarSvg, awardStat } from "./themes/manager.js";
 import { framedAvatar, profileLabel } from "./bot-profile-ui.js"; // v1.04 bot profile frame
 import { SBP_WINDOW_MS } from "./six.js";
 
-const RES = ["wood", "brick", "sheep", "wheat", "ore"];
-const DEV = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
+import { RESOURCES as RES, DEV_CARD_TYPES as DEV } from "./core/constants.js";
 const sum = (o) => RES.reduce((a, r) => a + (o[r] || 0), 0);
 const CROWN = `<svg class="sx-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z" fill="#FFD25A" stroke="#7A4B12" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
 

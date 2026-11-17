@@ -8,9 +8,9 @@ import { GBM_SEA_MODEL } from "./leaf-gbm-sea-model.js";
 let SEA_MODEL = GBM_SEA_MODEL;
 /** Tests: swap the Seafarers model (null: the island model everywhere). */
 export function setSeaModel(M) { SEA_MODEL = M && M.sea ? M : null; }
-const RES = ["wood", "brick", "sheep", "wheat", "ore"];
-const BUILD = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, dev: { sheep: 1, wheat: 1, ore: 1 } };
-const HEX = [0, 0, 1, 2, 3, 4, 5, 0, 5, 4, 3, 2, 1]; // index = dice number, value /36
+import { RESOURCES as RES, COSTS, PIPS } from "../core/constants.js";
+const BUILD = { road: COSTS.road, settlement: COSTS.settlement, city: COSTS.city, dev: COSTS.development };
+const HEX = Array.from({ length: 13 }, (_, n) => PIPS[n] || 0); // index = dice number, value /36
 export const BASE_NAMES = ["vp", "vp2", "incTot", "incTot*tLeft", "wood", "brick", "sheep", "wheat", "ore", "hand", "over7", "devHand", "knightsHand", "roadYop", "monoHand",
   "devVP", "knightsPlayed", "hasArmy", "armyGap", "roadLen", "hasRoad", "roadGap", "ports2", "port2match", "port3", "spots0", "spots1", "spots2", "diversity", "zeroRes", "robberLoss", "cities", "settlements", "roads",
   "affRoad", "affSett", "affCity", "affDev", "affN", "missNext", "useful", "surplus", "convertible", "roadToFive", "affN*tLeft", "spots1*affRoad"];

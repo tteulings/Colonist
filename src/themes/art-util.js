@@ -39,8 +39,9 @@ export function wrap(text, n) {
   return out;
 }
 
-export const RESOURCE_KEYS = ["wood", "brick", "sheep", "wheat", "ore"];
-export const DEV_KEYS = ["knight", "roadBuilding", "yearOfPlenty", "monopoly", "victoryPoint"];
+import { RESOURCES, DEV_KEYS } from "../core/constants.js";
+export const RESOURCE_KEYS = RESOURCES;
+export { DEV_KEYS };
 
 // Glossary (shared/glossary.md): friendly, consistent names.
 import { RES_EN } from "../resources.js";

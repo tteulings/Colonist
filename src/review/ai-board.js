@@ -21,7 +21,7 @@ import { langOf } from "./ai-lang.js";
 const SEA = "#bfdbe6", SEA_HEX = "#a9cddb", EDGE = "rgba(40,35,28,.55)";
 const LAND = { wood: "#4a7c3f", brick: "#c66536", sheep: "#8fd05f", wheat: "#e0c35a", ore: "#8b96a8", desert: "#dccb97", gold: "#e5bc52" };
 const RES_NAME = { wood: "Wood", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore", desert: "Desert", gold: "Gold" };
-const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
+import { PIPS } from "../core/constants.js";
 const f1 = (v) => (Math.round(v * 10) / 10).toString();
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const fade = (hex) => { const m = /^#([0-9a-f]{6})$/i.exec(hex || ""); if (!m) return "#aaa"; const n = parseInt(m[1], 16), mx = (c, t) => Math.round(c * 0.4 + t * 0.6); return `rgb(${mx(n >> 16, 190)},${mx((n >> 8) & 255, 184)},${mx(n & 255, 168)})`; }; // other players: washed out, still opaque

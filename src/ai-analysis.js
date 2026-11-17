@@ -14,14 +14,10 @@ import { stepStripHtml, stepCardHtml } from "./ai-tree.js";
 export const AI_DIMS = [
   ["placement", "Placement"], ["expansion", "Expansion"], ["trading", "Trading"], ["devCards", "Dev Cards"], ["awareness", "Awareness"],
 ];
-const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as R5, COSTS, PIPS as DICE } from "./core/constants.js";
 import { RES_EN as RES_LABEL } from "./resources.js";
-const COST = {
-  road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 },
-  development: { sheep: 1, wheat: 1, ore: 1 },
-};
+const COST = { road: COSTS.road, settlement: COSTS.settlement, city: COSTS.city, development: COSTS.development };
 const DEV_TITLE = { knight: "Knight", monopoly: "Monopoly", yearOfPlenty: "Year of Plenty", roadBuilding: "Road Building" };
-const DICE = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
 const KEY = "colonist.aiAnalysis";
 const MIN_KEY = "colonist.aiAnalysisMin";
 const UNIT = "AI score — higher is better";

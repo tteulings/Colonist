@@ -84,10 +84,9 @@ export function aiTimeline(g) {
   return out;
 }
 
-const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
-const COST = { settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, road: { wood: 1, brick: 1 }, dev: { sheep: 1, wheat: 1, ore: 1 } };
+import { RESOURCES as R5, COSTS, PIPS } from "../core/constants.js";
+const COST = { settlement: COSTS.settlement, city: COSTS.city, road: COSTS.road, dev: COSTS.development };
 const scale = (c, k) => Object.fromEntries(Object.entries(c).map(([r, a]) => [r, a * k]));
-const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
 /** The start position: dice dots per resource of the two set-up settlements, the plan that FITS it (computed here) and how much of the real building
  *  matched that plan (coherence 0-100). null without data. */
 export function aiStart(g, q) {

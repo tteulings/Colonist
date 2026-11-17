@@ -6,7 +6,8 @@ import { aiStart, wcAt } from "./ai-facts.js";
 import { finalScore as finalScoreOf } from "./score.js";
 
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
-export const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES } from "../core/constants.js";
+export const R5 = RESOURCES;
 const COST = { s: [1, 1, 1, 1, 0], c: [0, 0, 0, 2, 3], r: [1, 1, 0, 0, 0], h: [1, 0, 1, 0, 0], d: [0, 0, 1, 1, 1] }; // wood brick sheep wheat ore
 export const STALL_HAND = 4, STALL_SHARE = 0.25, SD_UNIT = 3;
 const FAM = { r: "X", s: "X", h: "X", c: "C", d: "C" };

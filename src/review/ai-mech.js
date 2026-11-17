@@ -5,10 +5,10 @@
 //   (c) needsVsIncome what the next build needs, the income per turn of each needed resource, and the turns actually waited per resource
 //   (d) robberLosses cards the robber / 7s cost a player in one turn: blocked rolls and cards, steals from them, discards
 // mechRaw(g) copies what is needed out of the app (once); every function below takes that copy, so tests re-derive the numbers from the eval fixtures.
-export const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
-export const COST = { settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, road: { wood: 1, brick: 1 } };
+import { RESOURCES, COSTS, PIPS as PIP } from "../core/constants.js";
+export const R5 = RESOURCES;
+export const COST = { settlement: COSTS.settlement, city: COSTS.city, road: COSTS.road };
 const KIND = { s: "settlement", c: "city", r: "road" };
-const PIP = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
 const KEEP = "bRPXtdu";
 
 /** The serialisable copy: board (hexes, nodes with hexes / neighbours / ports, edges) and the events [turn, code, ...] in order (b build, u undo, R robber, P paid, X blocked, t steal, d discard). */
