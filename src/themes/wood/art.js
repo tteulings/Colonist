@@ -348,7 +348,7 @@ const wood = {
   robberDx: 46, robberDy: -12, tokenDy: 0,
   icons: ICONS,
   card, cardBack,
-  avatar: (preset, rig) => sunny.avatar(preset, "B", rig), // v0.78: the shared portraits in B's wood-stain warmth
+  avatar: (preset, rig) => sunny.avatarTone(preset, "B", rig), // v0.78: the shared portraits in B's wood-stain warmth
   die,
   thumb,
   swatch: () => `<svg viewBox="0 0 36 36"><rect width="36" height="36" fill="#A8673A"/><path d="M0,8 Q18,4 36,9 M0,20 Q18,16 36,22 M0,30 Q18,27 36,32" stroke="#7E4C2A" stroke-width="1.4" fill="none"/><path d="${hexPath(18, 18, 11)}" fill="#62BCCB"/><path d="${hexPath(18, 18, 6.5)}" fill="#F3EBDA"/></svg>`,

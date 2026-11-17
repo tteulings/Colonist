@@ -1,6 +1,7 @@
-import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, dieSvg, cardSvg, motionReduced, SEAT_PRESETS, awardStat, paletteTick } from "./themes/manager.js";
+import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, avatarLive, dieSvg, cardSvg, motionReduced, SEAT_PRESETS, awardStat, paletteTick } from "./themes/manager.js";
 import { SvgBoardRenderer, drawSpec, PIECE_GROW, PIECE_OUTLINE_PX, PIECE_HALO_PX, pieceHalo, outlined } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
+import { initAvatarAnim, avatarLogEvent } from "./avatar-anim.js"; // v1.91 avatar animations
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
 import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted, seaHarbourScale, pierDot, drawPierDot } from "./themes/art-util.js";
 import { Onboarding, introSeen } from "./themes/onboarding.js";
@@ -1824,6 +1825,7 @@ class ColonistFullGame {
     const entry = { text, meta, time: Date.now() };
     if (this.rush) entry.clock = this.rush.clockMs; // Rush feed timestamp (mm:ss of game time)
     this.logEntries.push(entry);
+    avatarLogEvent(this, text); // v1.91: a build, a big payout, a robbery or a 7 makes that portrait react
     if (this.logEntries.length > this.maxLogEntries) {
       this.logEntries = this.logEntries.slice(-this.maxLogEntries);
     }
@@ -10151,6 +10153,7 @@ class ColonistFullGame {
     installSprite(this.theme);
     this.app = document.querySelector("#app");
     this.fx = new Fx(this);
+    initAvatarAnim(this);
     this.boardRenderer = this.theme.canvasArt ? new SvgBoardRenderer(this, this.theme) : null;
     this._fitScale = 1;
     const $ = (s) => document.querySelector(s);
@@ -11423,7 +11426,7 @@ class ColonistFullGame {
     this._lastSupplyKey = null;
   }
 
-  _av(player, cls = "") { return avatarSvg(player.id, cls); }
+  _av(player, cls = "") { return cls === "player-avatar" ? avatarLive(player.id, cls) : avatarSvg(player.id, cls); } // v1.91: the rail portrait can animate
 
   /** Element to fly things to/from for a player (avatar in the strip or the rail). */
   playerAnchor(pid) {

@@ -3,7 +3,7 @@
 // Texts and illustrations live in bot-profiles.js; this file only builds DOM strings and wires the sheet.
 import { BOT_PROFILES as P, profileArt, profileMini, levelFrame } from "./bot-profiles.js";
 import { oicon } from "./ui-icons.js";
-import { avatarSvg } from "./themes/manager.js";
+import { avatarSvg, avatarLive } from "./themes/manager.js";
 import { winOf, BOT_STATS } from "./bot-stats.js";
 export { byStrength } from "./bot-stats.js"; // lab-131: picker order
 
@@ -32,8 +32,8 @@ export function strengthLine(key) {
 }
 
 /** An avatar with its profile frame (bots only; a human or a bot without a profile gets the plain avatar). */
-export function framedAvatar(game, player, cls = "") {
-  const html = avatarSvg(player.id, cls);
+export function framedAvatar(game, player, cls = "", live = true) {
+  const html = live ? avatarLive(player.id, cls) : avatarSvg(player.id, cls);
   const pr = profileOf(game, player);
   if (!pr) return html;
   const frame = levelFrame(pr.custom ? "custom" : pr.key, 40);
@@ -171,7 +171,7 @@ export function tableList(game, { sel = null, onSelect = null } = {}) {
     const p = P[pr.key];
     const on = sel === b.id;
     return `<div class="bt-row${on ? " sel" : ""}"><button type="button" class="bt-bot pc-${b.id}" data-seat="${b.id}" aria-pressed="${on}" aria-label="${esc(b.name)}: ${pr.custom ? "custom mix" : p.label}. Pick this bot">
-      <span class="bt-av">${framedAvatar(game, b)}</span>
+      <span class="bt-av">${framedAvatar(game, b, "", false)}</span>
       <span class="bt-txt"><span class="nm">${esc(b.name)}</span><span class="pf"><span class="bt-em">${profileMini(pr.key, 18)}</span><b>${pr.custom ? "Custom" : p.label}</b>${pr.custom ? `<small>like ${p.label}</small>` : ""}${dots(p.level, "bp-dots bs-dots", p.beyond)}</span></span></button>
       <button type="button" class="bt-info" data-info-seat="${b.id}" aria-label="${esc(b.name)}: profile"><span aria-hidden="true">i</span></button></div>`;
   }).join("");

@@ -1,0 +1,85 @@
+/* v1.91 avatar animations. Only transform / opacity (GPU), nothing changes layout; the still drawing is the v1.90 art (src/themes/portraits.js
+   wraps the same shapes in .av-* groups). Idle (blink, breathing, <=1.3deg sway) runs on avatars of 40px and up (class .av-idle, set by
+   src/avatar-anim.js); reactions come from game events: data-avr = happy | sad | seven, data-avt = their turn, data-avk = bot thinking,
+   .av-win = the winner on the end screen. Off with Settings > Avatar animations and with reduced motion. */
+/* ── idle ───────────────────────────────────────────────────────────────── */
+.av-live.av-idle .av-eye { animation: avBlink var(--av-bp, 5.4s) linear infinite; animation-delay: var(--av-bd, 0s); }
+.av-live.av-idle .av-body { animation: avBreathe 4.6s ease-in-out infinite; animation-delay: var(--av-sd, 0s); }
+.av-live.av-idle .av-tilt { animation: avSway 7.4s ease-in-out infinite; animation-delay: var(--av-sd, 0s); }
+@keyframes avBlink { 0%, 90%, 100% { transform: scaleY(1); } 93.5% { transform: scaleY(.08); } 97% { transform: scaleY(1); } }
+@keyframes avBreathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.006, 1.022); } }
+@keyframes avSway { 0%, 100% { transform: translateY(0) rotate(-1.1deg); } 50% { transform: translateY(-.5px) rotate(1.2deg); } }
+
+/* ── their turn: ring pulse + a 1.5px hop ───────────────────────────────── */
+.av-live[data-avt]::after { content: ""; position: absolute; inset: calc(var(--av-ring, 3px) * -1); border-radius: 50%; border: 2px solid var(--pc); opacity: 0; pointer-events: none;
+  animation: avRing 900ms ease-out 2 both; animation-delay: var(--av-td, 0s); }
+.av-live[data-avt] { animation: avHop 900ms ease-in-out 2 both; animation-delay: var(--av-td, 0s); }
+@keyframes avRing { 0% { opacity: .8; transform: scale(1); } 100% { opacity: 0; transform: scale(1.38); } }
+@keyframes avHop { 0%, 100% { translate: 0 0; } 25% { translate: 0 -1.5px; } 50% { translate: 0 0; } }
+
+/* ── reactions ──────────────────────────────────────────────────────────── */
+.av-live[data-avr] .av-ov { opacity: 1; }
+.av-live[data-avr] .av-tilt, .av-live[data-avr] .av-eye, .av-live[data-avr] .av-mouth, .av-live[data-avr] .av-brows, .av-live[data-avr] .av-mous, .av-live[data-avr] .av-body { animation-duration: var(--avd, 1100ms); animation-delay: var(--av-rd, 0s); animation-iteration-count: 1; animation-fill-mode: both; animation-timing-function: ease-in-out; animation-name: none; }
+.av-live[data-avr="happy"] { --avd: 1100ms; } .av-live[data-avr="sad"] { --avd: 1500ms; } .av-live[data-avr="seven"] { --avd: 1300ms; }
+/* happy */
+.av-live[data-avr="happy"] .av-tilt { animation-name: avHappyHead; }
+.av-live[data-avr="happy"] .av-eye { animation-name: avHappyEye; }
+.av-live[data-avr="happy"] .av-mouth { animation-name: avHappyMouth; }
+.av-live[data-avr="happy"] .av-mous { animation-name: avHappyMous; }
+.av-live[data-avr="happy"] .ov-sp { animation: avSpark 1100ms ease-out both; animation-delay: calc(var(--av-rd, 0s) + 0s); }
+@keyframes avHappyHead { 0%, 100% { transform: translateY(0) rotate(0); } 18% { transform: translateY(-2.4px) rotate(-1.5deg); } 36% { transform: translateY(0) rotate(0); } 54% { transform: translateY(-1.6px) rotate(1.5deg); } 72% { transform: translateY(0) rotate(0); } }
+@keyframes avHappyEye { 0%, 100% { transform: scaleY(1); } 15%, 80% { transform: scaleY(.68); } }
+@keyframes avHappyMouth { 0%, 100% { transform: scale(1, 1); } 15%, 80% { transform: scale(1.2, 1.35); } }
+@keyframes avHappyMous { 0%, 100% { transform: translateY(0); } 15%, 80% { transform: translateY(-.7px); } }
+@keyframes avSpark { 0% { opacity: 0; transform: scale(.2) rotate(0); } 25% { opacity: 1; transform: scale(1) rotate(30deg); } 80% { opacity: 1; transform: scale(.8) rotate(70deg); } 100% { opacity: 0; transform: scale(.2) rotate(90deg); } }
+/* sad (subtle): the head dips, the smile turns over, one tear */
+.av-live[data-avr="sad"] .av-tilt { animation-name: avSadHead; }
+.av-live[data-avr="sad"] .av-eye { animation-name: avSadEye; }
+.av-live[data-avr="sad"] .av-mouth { animation-name: avSadMouth; }
+.av-live[data-avr="sad"] .av-brows { animation-name: avSadBrows; }
+.av-live[data-avr="sad"] .ov-tear { animation: avTear 1500ms ease-in both; animation-delay: var(--av-rd, 0s); }
+@keyframes avSadHead { 0%, 100% { transform: translateY(0) rotate(0); } 20%, 75% { transform: translateY(.9px) rotate(-1.8deg); } }
+@keyframes avSadEye { 0%, 100% { transform: scaleY(1); } 20%, 75% { transform: scaleY(.82); } }
+@keyframes avSadMouth { 0%, 100% { transform: scale(1, 1); } 20%, 75% { transform: scale(.92, -.9); } }
+@keyframes avSadBrows { 0%, 100% { transform: translateY(0); } 20%, 75% { transform: translateY(.9px); } }
+@keyframes avTear { 0%, 18% { opacity: 0; transform: translateY(-2px) scale(.5); } 35% { opacity: 1; transform: translateY(0) scale(1); } 85% { opacity: .9; transform: translateY(8px) scale(1); } 100% { opacity: 0; transform: translateY(10px) scale(.8); } }
+/* seven: wide eyes (the existing eye shapes, scaled) and a "!" outside the face */
+.av-live[data-avr="seven"] .av-eye { animation-name: avWide; }
+.av-live[data-avr="seven"] .av-brows { animation-name: avWideBrows; }
+.av-live[data-avr="seven"] .av-mouth { animation-name: avWideMouth; }
+.av-live[data-avr="seven"] .av-tilt { animation-name: avRecoil; }
+.av-live[data-avr="seven"] .ov-bang { animation: avBang 1300ms ease-out both; animation-delay: var(--av-rd, 0s); }
+@keyframes avWide { 0%, 100% { transform: scale(1); } 12%, 80% { transform: scale(1.38); } }
+@keyframes avWideBrows { 0%, 100% { transform: translateY(0); } 12%, 80% { transform: translateY(-1.3px); } }
+@keyframes avWideMouth { 0%, 100% { transform: scale(1, 1); } 12%, 80% { transform: scale(.8, 1.5); } }
+@keyframes avRecoil { 0%, 100% { transform: translateY(0) rotate(0); } 12%, 40% { transform: translateY(-1.2px) rotate(1deg); } 60% { transform: translateY(-.6px) rotate(-1deg); } }
+@keyframes avBang { 0% { opacity: 0; transform: scale(.2); } 14% { opacity: 1; transform: scale(1.25); } 26% { opacity: 1; transform: scale(1); } 85% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(.7); } }
+
+/* ── a bot is thinking: three dots (a reaction or the pulse takes over) ───── */
+.av-live[data-avk]:not([data-avr]) .ov-dots { opacity: 1; animation: avDotsIn 240ms ease-out both; animation-delay: var(--av-kd, 0s); }
+.av-live[data-avk]:not([data-avr]) .ov-dots circle { animation: avDot 1200ms ease-in-out infinite; }
+.av-live[data-avk]:not([data-avr]) .ov-dots .d2 { animation-delay: .15s; } .av-live[data-avk]:not([data-avr]) .ov-dots .d3 { animation-delay: .3s; }
+@keyframes avDotsIn { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
+@keyframes avDot { 0%, 60%, 100% { transform: translateY(0); opacity: .55; } 30% { transform: translateY(-2px); opacity: 1; } }
+
+/* ── win: gold ring + shine + sparkles ───────────────────────────────────── */
+.av-live.av-win::before { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 3px solid #F2B632; box-shadow: 0 0 0 2px rgba(255, 236, 170, .65); pointer-events: none; animation: avGold 1800ms ease-in-out 3; }
+.av-live.av-win .ov-shine { animation: avShine 2400ms ease-in-out 3; animation-delay: .5s; }
+.av-live.av-win .ov-sp { animation: avTwinkle 1400ms ease-in-out 4; }
+.av-live.av-win .av-tilt { animation: avHappyHead 1100ms 2; animation-delay: .4s; }
+@keyframes avGold { 0%, 100% { opacity: .85; transform: scale(1); } 50% { opacity: 1; transform: scale(1.04); } }
+@keyframes avShine { 0% { opacity: .5; transform: translateX(-80px); } 60%, 100% { opacity: .5; transform: translateX(80px); } }
+@keyframes avTwinkle { 0%, 100% { opacity: 0; transform: scale(.3); } 50% { opacity: 1; transform: scale(1); } }
+.av-live.av-win .av-ov { opacity: 1; }
+
+/* ── off: Settings > Avatar animations, reduced motion ──────────────────── */
+html[data-avanim="off"] .av-live *, html[data-avanim="off"] .av-live::after, html[data-avanim="off"] .av-live::before, html[data-motion="reduced"] .av-live::before, html[data-motion="reduced"] .av-live *, html[data-motion="reduced"] .av-live::after,
+html[data-avanim="off"] .av-live, html[data-motion="reduced"] .av-live { animation: none !important; }
+html[data-avanim="off"] .av-live .av-ov, html[data-motion="reduced"] .av-live .av-ov { opacity: 0 !important; }
+html[data-avanim="off"] .av-live::after, html[data-motion="reduced"] .av-live::after { content: none !important; }
+html[data-avanim="off"] .av-live.av-win::before { content: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion="full"]) .av-live *, html:not([data-motion="full"]) .av-live, html:not([data-motion="full"]) .av-live::after, html:not([data-motion="full"]) .av-live::before { animation: none !important; }
+  html:not([data-motion="full"]) .av-live .av-ov { opacity: 0 !important; }
+  html:not([data-motion="full"]) .av-live::after { content: none !important; }
+}

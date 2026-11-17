@@ -14,7 +14,7 @@ export const PERSONAS = {
   rosa: { name: "Roodhart", full: "Rosa Roodhart", seat: "#D1453A", bg: "#FADBD6", emblem: "heart" },
   blaauw: { name: "Blaauw", full: "Mevrouw Blaauw van Draet", seat: "#3C75C6", bg: "#D9E5F8", emblem: "feather" },
   geelen: { name: "Geelen", short: "Geelen", full: "Kolonel Van Geelen", seat: "#F08A2E", bg: "#FDE4CB", emblem: "medal" },
-  groenewoud: { name: "Groen", short: "Groen", full: "Dominee Groenewoud", seat: "#2A8556", bg: "#D8F0E2", emblem: "clover" },
+  groenewoud: { name: "Groen", short: "Groen", full: "Dominee Groenewoud", seat: "#3FD9C2", bg: "#D8F0E2", emblem: "clover" },
   dewit: { name: "De Wit", full: "Mevrouw De Wit", seat: "#EFE7D4", bg: "#DCD3C1", emblem: "star", dark: true },
   pimpel: { name: "Pimpel", full: "Professor Pimpel", seat: "#5A2C88", bg: "#E8DEF3", emblem: "diamond" },
 };
@@ -30,11 +30,11 @@ const piv = (rig, x, y, cls, inner) => (rig ? `<g transform="translate(${x} ${y}
 const grp = (rig, c, inner) => (rig ? `<g class="${c}">${inner}</g>` : inner);
 const STAR = "M0,-5 Q.6,-.6 5,0 Q.6,.6 0,5 Q-.6,.6 -5,0 Q-.6,-.6 0,-5Z";
 /** Reaction overlays (all invisible until CSS turns one on): tear, sparkles, "!" badge, thinking dots, win shine. Outside the face art. */
-const overlays = () => `<g class="av-ov" opacity="0"><g transform="translate(-14.5 5)" opacity="0"><path class="ov-tear" d="M0,-3.4 Q3.2,1 0,3.6 Q-3.2,1 0,-3.4Z" fill="#8FD0F2" stroke="#3F86B5" stroke-width=".8"/></g>`
-  + [[-33, -22, 0], [35, -12, 0.25], [27, -34, 0.5]].map(([x, y, d]) => `<g transform="translate(${x} ${y})" opacity="0"><path class="ov-sp" style="animation-delay:${d}s" d="${STAR}" fill="#FFD25A" stroke="#C99416" stroke-width=".7"/></g>`).join("")
-  + `<g transform="translate(35 -26)" opacity="0"><g class="ov-bang"><rect x="-2.6" y="-10" width="5.2" height="13" rx="2.6" fill="#FFD25A" stroke="#8A6410" stroke-width="1.1"/><circle cy="7" r="2.8" fill="#FFD25A" stroke="#8A6410" stroke-width="1.1"/></g></g>`
-  + `<g transform="translate(22 -30)" opacity="0"><g class="ov-dots"><rect x="-15" y="-7" width="30" height="14" rx="7" fill="#fff" stroke="#7A8A96" stroke-width=".8"/><circle class="d1" cx="-7" r="2.5" fill="#4C5E6C"/><circle class="d2" cx="0" r="2.5" fill="#4C5E6C"/><circle class="d3" cx="7" r="2.5" fill="#4C5E6C"/></g></g>`
-  + `<g transform="rotate(18)" opacity="0"><rect class="ov-shine" x="-8" y="-62" width="9" height="124" fill="#fff"/></g></g>`;
+const overlays = () => `<g class="av-ov"><g transform="translate(-14.5 5)"><path class="ov-tear" opacity="0" d="M0,-3.4 Q3.2,1 0,3.6 Q-3.2,1 0,-3.4Z" fill="#8FD0F2" stroke="#3F86B5" stroke-width=".8"/></g>`
+  + [[-33, -22, 0], [35, -12, 0.25], [27, -34, 0.5]].map(([x, y, d]) => `<g transform="translate(${x} ${y})"><path class="ov-sp" opacity="0" style="animation-delay:${d}s" d="${STAR}" fill="#FFD25A" stroke="#C99416" stroke-width=".7"/></g>`).join("")
+  + `<g transform="translate(35 -26)"><g class="ov-bang" opacity="0"><rect x="-2.6" y="-10" width="5.2" height="13" rx="2.6" fill="#FFD25A" stroke="#8A6410" stroke-width="1.1"/><circle cy="7" r="2.8" fill="#FFD25A" stroke="#8A6410" stroke-width="1.1"/></g></g>`
+  + `<g transform="translate(22 -30)"><g class="ov-dots" opacity="0"><rect x="-15" y="-7" width="30" height="14" rx="7" fill="#fff" stroke="#7A8A96" stroke-width=".8"/><circle class="d1" cx="-7" r="2.5" fill="#4C5E6C"/><circle class="d2" cx="0" r="2.5" fill="#4C5E6C"/><circle class="d3" cx="7" r="2.5" fill="#4C5E6C"/></g></g>`
+  + `<g transform="rotate(18)"><rect class="ov-shine" opacity="0" x="-8" y="-62" width="9" height="124" fill="#fff"/></g></g>`;
 const p = (d, fill, x = "") => `<path d="${d}" fill="${fill}"${x}/>`;
 const seatFill = (k) => `style="fill:var(--pc,${PERSONAS[k].seat})"`;
 
