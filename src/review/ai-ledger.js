@@ -107,7 +107,7 @@ export function ledgerModel(inp) {
     // the steps on show: "end the turn" and steps under 3 points (for both seats) fold into "other steps" (never fewer than the biggest 2, never more than 5)
     const big = (i) => Math.max(Math.abs(pts(i.d[me])), win != null ? Math.abs(pts(i.d[win])) : 0);
     let cand = its.filter((i) => shownIds.has(i.i)); const keep = cand.filter((i) => i.type !== "end" && big(i) >= 3);
-    cand = (keep.length >= 2 ? keep : cand.filter((i) => i.type !== "end").sort((a, b) => big(b) - big(a)).slice(0, 2).sort((a, b) => a.i - b.i)).slice(0, 5);
+    cand = (keep.length >= 2 ? keep : cand.filter((i) => i.type !== "end")).sort((a, b) => big(b) - big(a) || a.i - b.i).slice(0, keep.length >= 2 ? 5 : 2).sort((a, b) => a.i - b.i);
     const shown = cand.map((i) => ({ ...i, pts: pts(i.d[me]), ptsW: win != null && win !== me ? pts(i.d[win]) : null, seN: seOf(i.se[me]), title: stepTitle(i) }));
     const tot = dLvl(rs.v0[me], rs.v1[me]), other = tot - shown.reduce((a, s) => a + s.pts, 0), choice = tot - pts(chance);
     const maxSe = Math.max(0, ...shown.map((s) => Math.max(...seats.map((q) => s.se[q]))));

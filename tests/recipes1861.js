@@ -24,7 +24,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       const wcCard = cards.find((c) => c.querySelector(".ap-svg.win")) || cards.find((c) => c.querySelector(".ap-lv, .ap-ti") && /win chance/i.test(c.querySelector(".ap-ti").textContent));
       const duo = [me, ...(fx.winner != null && fx.winner !== me ? [fx.winner] : [])];
       let best = null; if (fx.hasWc) duo.forEach((q) => fx.swings(q, 99).forEach((s) => { if (!best || Math.abs(s.d) > Math.abs(best.d) || (Math.abs(s.d) === Math.abs(best.d) && s.t > best.t)) best = { q, ...s }; }));
-      const chip = wcW?.chip?.ref || null, m = /^d\.(.+)@(\d+)$/.exec(chip || "");
+      const chip = null, m = fx.decisive ? [null, fx.decisive.key, String(fx.decisive.t)] : null; // v1.90.1 the +47% chip is gone: the card's turn / player are the decisive swing (fx.decisive)
       const stacks = [...document.querySelectorAll(".ap-stack")].map((e) => { const c = {}; e.querySelectorAll(".ap-cell:not(.need)").forEach((x) => { const k = [...x.classList].find((n) => n !== "ap-cell"); c[k] = (c[k] || 0) + 1; }); return { c, have: e.querySelectorAll(".ap-cell:not(.need)").length }; });
       const mine = g.players[me];
       return { shape: fx.shape?.id || null, won: fx.won, best, chip, chipT: m ? +m[2] : null, chipSeat: m ? fx.seatOf(m[1]) : null, title: wcCard?.querySelector(".ap-ti").textContent || null,
