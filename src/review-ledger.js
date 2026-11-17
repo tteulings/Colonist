@@ -33,7 +33,7 @@ export const ReviewLedgerMixin = {
     const W = (this._ldW0 = this._ldW0?.id === R.id ? this._ldW0 : { id: R.id, t: now(), tab: 0 }); // (the clock restarts when the AI tab opens: _ldTabOpen)
     if (now() - W.t > 150000) return false;
     const led = tryv(() => this._ldLed());
-    if (!led || !led.complete()) return !LK.paused && (!!LK.run || (!LK.done && now() - W.tab < 8000)); // (the run may start a moment after the tab opens: no page is drawn meanwhile)
+    if (!led || !led.complete()) return !LK.paused && (!!LK.run || now() - W.tab < 8000); // (the run may start a moment after the tab opens: no page is drawn meanwhile)
     const ld = tryv(() => this._lkStore().ld); return !(ld && (ld.ok || (ld.r && Object.keys(ld.r).length && !this._ldJob?.busy)));
   },
   /** The ledger of this review (null: not valued completely yet, or a game the review cannot value). Rebuilt when the store was replaced. */
