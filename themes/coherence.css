@@ -143,8 +143,21 @@
 .hand .card.slot .slot-n { font-size: 17px; }
 
 /* v1.87 a past game's result tag is a word (Won / Lost, NL Gewonnen / Verloren), a rounded tag, never a round letter */
-.hs-row { grid-template-columns: 58px minmax(0, 1fr) 44px; }
-.hs-row .hs-badge, .hs-head .hs-badge.big { width: auto; min-width: 50px; height: 28px; max-width: none; padding: 0 8px; border-radius: 9px; font-size: 12.5px; font-weight: 800; letter-spacing: 0; white-space: nowrap; }
+.hs-row .hs-badge { display: none; }
+.hs-head .hs-badge.big { width: auto; min-width: 50px; height: 28px; max-width: none; padding: 0 8px; border-radius: 9px; font-size: 12.5px; font-weight: 800; letter-spacing: 0; white-space: nowrap; }
+/* v1.91 a card says its result once, in its title; the left edge carries the colour. Nothing is clipped: the title and the bots wrap */
+.hs-row { grid-template-columns: minmax(0, 1fr) 44px; grid-template-areas: "m s" "f f" "g g"; gap: 3px 8px; padding: 11px 6px 10px 16px; box-shadow: var(--float-shadow), inset 5px 0 0 var(--hs-won); }
+.hs-row.lost { box-shadow: var(--float-shadow), inset 5px 0 0 var(--hs-lost); }
+.hs-row.table { box-shadow: var(--float-shadow), inset 5px 0 0 color-mix(in srgb, var(--ink) 35%, transparent); }
+.hs-row .hs-foot2 { grid-area: g; }
+.hs-main b { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.hs-main small { white-space: normal; overflow: visible; text-overflow: clip; }
+.hs-foot { flex-wrap: wrap; row-gap: 4px; }
+.hs-sc { gap: 4px 14px; flex-wrap: wrap; }
+.hs-sc > span { gap: 5px; }
+.hs-sc b { font-size: 13px; }
+.hs-foot2 { flex-wrap: wrap; row-gap: 4px; }
+.hs-bots { flex-wrap: wrap; overflow: visible; white-space: normal; }
 .hs-head .hs-badge.big { height: 32px; font-size: 14px; }
 
 /* v1.87 board tools on a phone: Fit stays top left; the zoom + / - buttons are placed by game.js _placeZoomButtons (first slot with no harbour under it) */
@@ -403,3 +416,17 @@ html:has(#splash.gone) .home .hm-brand { opacity: 1; transition: opacity .22s ea
 /* end screen: "points" sits on a dark pill, so it reads over the rays */
 .gs-intro .gs-vpn { display: inline-block; padding: 3px 14px 4px; border-radius: 999px; background: rgba(8, 36, 44, .62); text-shadow: none; }
 .gs-intro .gs-vpn .gs-vpn-u { font-weight: 700; }
+
+/* v1.91 Settings: the close button sits in the tab row (top right), not over the first section's heading */
+@media (max-width: 900px), (max-height: 500px) {
+  .tm-settings .st-card { position: relative; }
+  .tm-settings .st-body { position: static; }
+  .tm-settings .st-body .st-head-bare { top: 12px; right: 8px; }
+  .tm-settings .st-nav { padding-right: 56px; }
+  .tm-settings .st-head-bare + .sub { padding-right: 0; }
+}
+.tm-settings .st-lab-link { margin-left: 0; }
+/* v1.91 past games filters: the mode chips wrap instead of hiding behind a scroll */
+.hs-chips { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; }
+/* v1.91 home: Dutch row labels ("Tegenstanders") get a wider label column */
+html[lang="nl"] .hm-row > span { hyphens: manual; overflow-wrap: normal; } /* "Tegen­standers" breaks at its soft hyphen instead of running into the segment */

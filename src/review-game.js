@@ -13,6 +13,7 @@ import { reviewModel, REVIEW_MODELS, modelOfId } from "./review/evaluate.js";
 import { summarize, REVIEW, REVIEW_ENGINE, REVIEW_ENGINES, ACC, clsOf, LIMITS, SETUP_LIMITS, CLASSES, GREAT, gpOf, decide, totals, tradeShow, needsFull } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
 import { cardsText, topText, tileOf, sentence } from "./review/luck.js";
+import { segsText } from "./review/ai-ledger.js";
 import { BOT_PROFILES } from "./bot-profiles.js";
 import { profileOf } from "./bot-profile-ui.js";
 import { botBand } from "./review/bands.js";
@@ -391,7 +392,7 @@ export const ReviewGameMixin = {
       const n = t ? t.n.replace(/ cards?$/, "") : "–";
       // v1.31 design B (user's choice): luck in win chance as the number, the cards from the dice small under it
       const cardsSm = t ? `${esc(n)} ${Math.abs(parseInt(n.replace(/[^\d]/g, ""), 10)) === 1 ? "card" : "cards"}` : "";
-      const wv = LK.na ? null : LK.done && LK.cover >= 0.9 ? LK.tot[p.id] : null, wc = wv == null ? "" : Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : "";
+      const wv = LK.na ? null : LK.done && LK.cover >= 0.9 ? LK.tot[p.id] : null, wc0 = wv == null ? "" : Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : "", wc = wc0 && !this._rvIsYou(p.id) ? `${wc0} pc-${p.id} opp` : wc0; // v1.91 green / red is for the user: the others keep their own colour
       const luck = LK.na ? `<span class="rt-c rt-l"${top ? ` title="${esc(top)}"` : ""}><b class="${t?.cls || ""}">${esc(n)}</b><small>${t ? (Math.abs(parseInt(n.replace(/[^\d]/g, ""), 10)) === 1 ? "card" : "cards") : "n/a"}</small></span>`
         : `<span class="rt-c rt-l rt-lw"${top ? ` title="${esc(top)}"` : ""}>${wv != null ? `<b class="${wc}">${wpText(wv)}</b>` : `<span class="rt-st">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}${LK.done ? "n/a" : "…"}</span>`}<small>${cardsSm || "–"}</small></span>`;
       const when = w ? this._rvWhen(w).replace(/^(Turn|Roll) /, this.isRush?.() ? "R" : "T").replace("Setup", "set-up") : "";
@@ -447,8 +448,8 @@ export const ReviewGameMixin = {
   /** "Why won / lost": four bars from the start (everyone had the same chance) to the result, one sentence and a note (or a line saying why not yet). */
   _rvWhyHtml(pid, s = this._rvSeat(pid)) {
     const LK = this._lkState(), W = this._rvWhyBars(pid), wd = s.worst, you = this._rvIsYou(pid);
-    const track = (v) => { const wd2 = Math.min(50, (Math.abs(v) / 0.5) * 50); return `<i class="tr"><i class="z"></i><i class="${v < 0 ? "neg" : "pos"}" style="${v < 0 ? "right" : "left"}:50%;width:${wd2.toFixed(1)}%"></i></i>`; };
-    const row = (l, v) => (v == null ? `<span>${l}</span><i class="tr"></i><b class="mut">…</b>` : `<span>${l}</span>${track(v)}<b class="${Math.round(v * 100) > 0 ? "pos" : Math.round(v * 100) < 0 ? "neg" : ""}">${wpText(v)}</b>`);
+    const oc = you ? "" : ` pc-${pid} opp`, track = (v) => { const wd2 = Math.min(50, (Math.abs(v) / 0.5) * 50); return `<i class="tr"><i class="z"></i><i class="${v < 0 ? "neg" : "pos"}${oc}" style="${v < 0 ? "right" : "left"}:50%;width:${wd2.toFixed(1)}%"></i></i>`; };
+    const row = (l, v) => (v == null ? `<span>${l}</span><i class="tr"></i><b class="mut">…</b>` : `<span>${l}</span>${track(v)}<b class="${Math.round(v * 100) > 0 ? "pos" : Math.round(v * 100) < 0 ? "neg" : ""}${oc}">${wpText(v)}</b>`);
     if (W) {
       const big = W.moves != null && Math.abs(W.others) >= 0.2;
       return `<div class="rsc-wy"><b>${W.end === 1 ? "Why won" : "Why lost"}</b><small>win chance ${Math.round(W.even * 100)}% → ${Math.round(W.end * 100)}%</small></div>
@@ -480,7 +481,7 @@ export const ReviewGameMixin = {
         : s.st === "run" ? `<span class="rt-st rt-now"><i class="rv-ring" style="--p:${Math.round((100 * s.running.j) / Math.max(1, s.running.n))}%" aria-hidden="true"></i>${s.running.j}/${s.running.n}</span>`
         : `<span class="rt-st">${{ queued: p.isHuman ? "queued" : "–", stopped: "stopped", idle: p.isHuman ? "not checked" : "–", norec: "n/a", none: "–", prov: "–", done: "–", quick: "–" }[s.st] || "–"}</span>`;
       const d = !L || L.na ? null : L.all?.[p.id], t = d ? tileOf({ me: d }) : null, top = d ? topText(d.top) : "";
-      const wv = LK.na ? null : LK.done && LK.cover >= 0.9 ? LK.tot[p.id] : null, wc = wv == null ? "" : Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : "";
+      const wv = LK.na ? null : LK.done && LK.cover >= 0.9 ? LK.tot[p.id] : null, wc0 = wv == null ? "" : Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : "", wc = wc0 && !this._rvIsYou(p.id) ? `${wc0} pc-${p.id} opp` : wc0; // v1.91 green / red is for the user: the others keep their own colour
       const pend = wv == null && !LK.na && !LK.done && t; // v1.52 the win chance impact is coming: say so, cards underneath
       const pendRing = pend && LK.run && !LK.paused; // v1.86 r7: a dash only while a ring says it is coming; otherwise the cards are the figure
       const luck = wv != null ? `<b class="${wc}">${wpText(wv)}</b>` : pendRing ? `<b class="pend" title="Luck in win chance follows">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}–</b><small>${esc(t.n)}</small>` : t ? `<b class="${t.cls || ""}">${esc(t.n.replace(/ cards?$/, ""))}</b><small>cards</small>` : `<span class="rt-st">${LK.run && !LK.paused ? `<i class="rv-ring" style="--p:${Math.round((100 * LK.j) / Math.max(1, LK.n))}%" aria-hidden="true"></i>` : ""}${LK.na || LK.done ? "–" : "…"}</span>`;
@@ -1026,14 +1027,14 @@ export const ReviewGameMixin = {
     });
     const cell = (c, inner, cls = "") => `<span class="sbs-c pc-${c.p.id}${c.p.id === this._rvPid ? " cur" : ""} ${cls}">${inner}</span>`;
     const accOf = (c) => c.s.sum?.acc != null ? `<b class="big${c.s.done ? "" : " prov"}">${c.s.sum.acc}${c.s.done ? "" : "*"}</b>` : c.s.st === "run" ? `<span class="rt-st">${c.s.running.j}/${c.s.running.n}</span>` : `<span class="rt-st">–</span>`;
-    const lkOf = (c) => c.wv != null ? `<b class="${Math.round(c.wv * 100) > 0 ? "pos" : Math.round(c.wv * 100) < 0 ? "neg" : ""}">${wpText(c.wv)}</b>${c.t ? `<small>${esc(c.t.n)}</small>` : ""}` : c.t ? `<b class="${c.t.cls || ""}">${esc(c.t.n.replace(/ cards?$/, ""))}</b><small>cards</small>` : `<span class="rt-st">…</span>`;
+    const lkOf = (c) => c.wv != null ? `<b class="${Math.round(c.wv * 100) > 0 ? "pos" : Math.round(c.wv * 100) < 0 ? "neg" : ""}${this._rvIsYou(c.p.id) ? "" : ` pc-${c.p.id} opp`}">${wpText(c.wv)}</b>${c.t ? `<small>${esc(c.t.n)}</small>` : ""}` : c.t ? `<b class="${c.t.cls || ""}">${esc(c.t.n.replace(/ cards?$/, ""))}</b><small>cards</small>` : `<span class="rt-st">…</span>`;
     const cls = CLASSES.filter((k) => cols.some((c) => c.s.sum?.cls?.[k]) || !["great", "blunder"].includes(k));
     const prov = cols.some((c) => c.s.sum?.acc != null && !c.s.done);
     const row = (label, f) => `<span class="sbs-l">${label}</span>${cols.map((c) => cell(c, f(c))).join("")}`;
     const head = `<span class="sbs-l"></span>${cols.map((c) => `<button type="button" class="sbs-c sbs-h pc-${c.p.id}${c.p.id === this._rvPid ? " cur" : ""}" data-rvcol="${c.p.id}" aria-label="${esc(this._rvNm(c.p.id))}: ${this._rvTodo(c.p.id).length ? "show" : "no"} review" aria-pressed="${c.p.id === this._rvPid}">${this._av(c.p, "rt-av")}<small>${this._rvIsYou(c.p.id) ? "You" : esc(c.p.short || c.p.name)}</small></button>`).join("")}`;
     const all = !!this._rvSbsAll;
     const core = [row("Points", (c) => `<b class="big">${c.p.victoryPoints}</b>`), row("Accuracy", accOf), row("Luck (dice, steals, cards)", lkOf),
-      row("Win chance lost by moves", (c) => (c.moves != null ? `<b class="${c.moves < 0 ? "neg" : ""}">${sgn(c.moves)}%</b>` : `<span class="rt-st">–</span>`))];
+      row("Win chance lost by moves", (c) => (c.moves != null ? `<b class="${c.moves < 0 ? "neg" : ""}${this._rvIsYou(c.p.id) ? "" : ` pc-${c.p.id} opp`}">${sgn(c.moves)}%</b>` : `<span class="rt-st">–</span>`))];
     const more = cls.map((k) => row(`${badge(k, "sm")}${k === "missed" ? "Missed" : CLS[k][0]}`, (c) => { const v = c.s.sum?.cls?.[k]; return v == null ? `<span class="rt-st">–</span>` : `<b class="${v ? "" : "zero"}">${v}</b>`; }));
     const body = (all ? [...core, ...more] : core).join("");
     return `<section class="rv-card sbs-card" data-rvsbs-card><div class="rv-gt"><b>Players side by side</b><small>${n > 4 ? "swipe, " : ""}tap a player for their page</small></div><div class="sbs-w"><div class="sbs" data-rvsbs style="--n:${n}">${head}${body}</div></div><button type="button" class="sbs-more" data-rvsbsall aria-expanded="${all}">${all ? "Show fewer rows" : "Show all rows (move classes)"}</button>${prov ? `<p class="rt-foot">* first look: the deep check is still running.</p>` : ""}</section>`;
@@ -1105,6 +1106,13 @@ export const ReviewGameMixin = {
     {
       const won = w === me, t = [...sw].sort((p, q) => (won ? q.d - p.d : p.d - q.d))[0];
       line = t ? `${won ? "Turning point" : "Decided"} on ${this._rvTW().toLowerCase()} ${t.T}: ${t.say} (${you ? "your" : "their"} win chance ${Math.round(t.b * 100)}% → ${Math.round(t.e * 100)}%)` : "";
+      // v1.91 one set of facts: with the step ledger the line names the round, the cause and the numbers of the round view (AI tab); while those are not final, no line (a second, different story)
+      let lgl = null;
+      try {
+        if (this._ldSettling?.()) { line = ""; this._ldWake?.(); }
+        else { const fx = this._pgState().fx, M = fx.lg; if (M) { const pick = won ? M.rowTurns().map((q) => M.row(q, pid)).filter(Boolean).sort((a, b) => b.d - a.d)[0] : (() => { const b = M.behind(pid); return b ? M.row(b.t, pid) : null; })(); if (pick && Math.abs(pick.d) >= 3) lgl = { T: pick.t, say: segsText(pick.text, fx).replace(/\s*\([^()]*\)\s*\.?\s*$/, "").replace(/[.\s]+$/, ""), b: pick.v0, e: pick.v1 }; } }
+      } catch (_) { lgl = null; }
+      if (lgl) line = `${won ? "Turning point" : "Decided"} on ${this._rvTW().toLowerCase()} ${lgl.T}: ${lgl.say} (${you ? "your" : "their"} win chance ${Math.round(lgl.b * 100)}% → ${Math.round(lgl.e * 100)}%)`;
     }
     let sub = "";
     if (W) sub = `Luck ${wpText(W.luck)}${W.moves != null ? ` · ${you ? "your" : "their"} moves ${wpText(W.moves)}` : ""} (win chance)`;
@@ -1330,7 +1338,7 @@ export const ReviewGameMixin = {
     const U = (this._lkUi ||= { open: false, pid: null, sort: "size", all: false });
     if (U.pid == null || !this.players[U.pid]) U.pid = pid;
     const L = this._rvLuck(pid);
-    const bars = this.players.map((p) => { const wv = LK.tot[p.id], d = !L || L.na ? null : L.all?.[p.id], t = d ? tileOf({ me: d }) : null, wd = Math.min(50, (Math.abs(wv) / 0.5) * 50), c = Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : ""; return `<span class="pc-${p.id} lkx-n">${this._av(p, "rt-av")}${this._rvIsYou(p.id) ? "You" : esc(p.name)}</span><i class="tr"><i class="z"></i><i class="${wv < 0 ? "neg" : "pos"}" style="${wv < 0 ? "right" : "left"}:50%;width:${wd.toFixed(1)}%"></i></i><b class="${c}">${wpText(wv)}${t ? `<small title="Cards above or below what the dice were expected to give">${esc(cardsWord(t.n))}</small>` : ""}</b>`; }).join("");
+    const bars = this.players.map((p) => { const wv = LK.tot[p.id], d = !L || L.na ? null : L.all?.[p.id], t = d ? tileOf({ me: d }) : null, wd = Math.min(50, (Math.abs(wv) / 0.5) * 50), c = Math.round(wv * 100) > 0 ? "pos" : Math.round(wv * 100) < 0 ? "neg" : ""; return `<span class="pc-${p.id} lkx-n">${this._av(p, "rt-av")}${this._rvIsYou(p.id) ? "You" : esc(p.name)}</span><i class="tr"><i class="z"></i><i class="${wv < 0 ? "neg" : "pos"}${this._rvIsYou(p.id) ? "" : ` pc-${p.id} opp`}" style="${wv < 0 ? "right" : "left"}:50%;width:${wd.toFixed(1)}%"></i></i><b class="${c}${this._rvIsYou(p.id) ? "" : ` pc-${p.id} opp`}">${wpText(wv)}${t ? `<small title="Cards above or below what the dice were expected to give">${esc(cardsWord(t.n))}</small>` : ""}</b>`; }).join("");
     const html = `<section class="rv-card rvx lkx"><div class="rv-gt"><b>Luck, in win chance</b><small>dice, steals, card draws, seat order</small></div><div class="lkx-g">${bars}<span></span><span class="lkx-sc" aria-hidden="true"><i style="left:0">−50%</i><i style="left:50%">0</i><i style="left:100%">+50%</i></span><span></span></div></section>
       <section class="rv-card rt rvx">${this._lkDetailsHtml(LK, true)}</section>`;
     return { html }; // (its buttons are bound with the rest: _rvBindTable)
@@ -1343,7 +1351,7 @@ export const ReviewGameMixin = {
     let f = "mistakes"; try { f = localStorage.getItem("colonist_review_moves") === "all" ? "all" : "mistakes"; } catch (_) { /* private mode */ }
     const bad = new Set(IMP), list = f === "all" ? ds : ds.filter((d) => bad.has(d.cls));
     const sg = (v) => sgn(v * 100), tw = this._rvTW(), maxGap = Math.max(0.01, ...list.map((d) => d.gap || 0)); // v1.87: a bar per move, its length the win chance given up
-    const rows = list.map((d) => `<button type="button" class="mv-r c-${d.cls}" data-rvj="${d.i}" data-rvq="all"><span class="mv-t">${d.k === "setup" ? "Set-up" : `${tw} ${d.t}`}</span><span class="mv-m"><b class="mv-v">${badge(d.cls, "sm")}${d.cls === "missed" ? "Missed" : CLS[d.cls][0]}</b><span class="mv-w">${esc(this._rvShort(d))}</span></span><em class="mv-c${d.cls === "close" ? " neu" : ""}">${d.gap >= 0.01 ? `${sg(-d.gap)}%<i class="mv-bar2" style="--w:${Math.max(8, Math.round((d.gap / maxGap) * 100))}%" aria-hidden="true"></i>` : ""}</em></button>`).join("");
+    const rows = list.map((d) => `<button type="button" class="mv-r c-${d.cls}" data-rvj="${d.i}" data-rvq="all"><span class="mv-t"${d.k === "setup" ? ' data-nl="Start" title="Set-up"' : ""}>${d.k === "setup" ? "Set-up" : `${tw} ${d.t}`}</span><span class="mv-m"><b class="mv-v">${badge(d.cls, "sm")}${d.cls === "missed" ? "Missed" : CLS[d.cls][0]}</b><span class="mv-w">${esc(this._rvShort(d))}</span></span><em class="mv-c${d.cls === "close" ? " neu" : ""}">${d.gap >= 0.01 ? `${sg(-d.gap)}%<i class="mv-bar2" style="--w:${Math.max(8, Math.round((d.gap / maxGap) * 100))}%" aria-hidden="true"></i>` : ""}</em></button>`).join("");
     const seg = [["mistakes", "Mistakes"], ["all", "All"]].map(([k, l]) => `<button type="button" class="${k === f ? "on" : ""}" aria-pressed="${k === f}" data-rvmf="${k}">${l}</button>`).join("");
     return `<section class="rv-card mv-card"><div class="rv-gt"><b>${you ? "Your" : `${nm}’s`} moves</b><div class="km-seg mv-seg" role="group" aria-label="Which moves">${seg}</div></div>${rows || `<p class="rs-lost">No mistakes in ${you ? "your" : "their"} moves. Switch to All to see every move.</p>`}</section>`;
   },
@@ -1386,7 +1394,7 @@ export const ReviewGameMixin = {
           ${this._rvStrip(sum.acc, cmp, mid, prov, sum.n)}
           <div class="rs-sl"><div><small>${you ? "Win chance lost by your moves" : "Win chance lost by moves"}</small><b class="${T.moves < 0 ? "neg" : ""}">${sgn(T.moves)}%</b></div>${(() => { const LK = this._lkState(), w = !LK.na && LK.done && LK.cover >= 0.9 ? LK.tot[pid] : null; // v1.31 design B: luck in win chance first, the cards under it
             if (w == null) return `<button type="button" class="rs-lt" data-rvluckgo aria-label="Dice luck: ${tile.n}, ${esc(tile.sub)}. Show the table"><small>Dice luck</small><b class="${tile.cls}">${tile.n}</b><em>${esc(tile.sub)}</em></button>`;
-            const c = Math.round(w * 100) > 0 ? "pos" : Math.round(w * 100) < 0 ? "neg" : "";
+            const c = (Math.round(w * 100) > 0 ? "pos" : Math.round(w * 100) < 0 ? "neg" : "") + (you ? "" : ` pc-${pid} opp`);
             return `<button type="button" class="rs-lt" data-rvluckgo aria-label="Luck: ${wpText(w)} win chance; dice ${tile.n}, ${esc(tile.side || tile.sub)}. Show the table"><small>Luck</small><b class="${c}">${wpText(w)}</b><em>${esc(tile.n)} from the dice · ${esc(tile.side || "")}</em></button>`; })()}</div>
           ${sum.lost != null ? `<p class="rs-lost">${sum.n} ${sum.n === 1 ? "move" : "moves"} that mattered · about ${sum.lost}% win chance lost per move${T.capped ? ` · ${you ? "your" : "the"} moves are capped at the ${T.cap}% you could have had` : ""}</p>` : ""}
           <div class="rs-cnts">${chips}</div>

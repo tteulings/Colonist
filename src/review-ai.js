@@ -817,6 +817,7 @@ export const ReviewAiMixin = {
 
   // ── the tab ──
   _rvTabAi() {
+    this._ldTabOpen?.();
     if (!this._pgLegacy()) { const R = this._rv, pid = this._rvPid, lang = recapLang(); if (R && (!R.ai || R.ai.pid !== pid || R.ai.lang !== lang)) R.ai = { pid, lang, at: Date.now(), insights: null, answers: (R.ai?.answers || []).filter((a) => a.pinned) }; } // v1.83 the page has no saved insights; the chat keeps its answers here
     const U = this._aiUi?.pid === this._rvPid ? this._aiUi : null; // (the insights are asked for on opening the tab, once; an error waits for "Try again")
     if (this._pgLegacy() && !this._aiSaved() && !U?.loading && !U?.err) setTimeout(() => { if (this._rvTab === "ai" && !this._aiSaved()) this._aiRun(false); }, 0);

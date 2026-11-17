@@ -15,6 +15,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     await page.locator(`[data-hrow="${ex.meta.id}"]`).tap(); await sleep(900);
     await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 20000 }); await sleep(2500);
     await page.locator("[data-rvt=ai]").tap(); await sleep(2200);
+    for (let w = 0; w < 240; w++) { if (!(await page.evaluate(() => !!window.__colonistGame._ldSettling?.()))) break; await sleep(500); } await sleep(1200); // v1.91 the page is drawn once its numbers are final
     const tag = `game${gi + 1}`;
     const S = await G(async () => {
       const g = window.__colonistGame, st = g._pgState(), fx = st.fx, x = fx.surprise, sc = await import("/src/review/score.js"), ai = await import("/src/review/ai-strat.js"), log = ai.handLog(g);

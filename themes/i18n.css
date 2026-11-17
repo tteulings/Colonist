@@ -12,3 +12,16 @@ html[lang="nl"] .tray { gap: 3px; }
 html[lang="nl"] .bpg-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.45fr); }
 html[lang="nl"] .bpg-tabs button { font-size: 12.5px; letter-spacing: -.2px; }
 html[lang="nl"] .rs-bar small, html[lang="nl"] .rs-bar.w small { white-space: normal; line-height: 1.15; }
+/* v1.91 dock: "Koop kaart" gets a slightly wider slot than Bouwen / Ruilen (the three slots keep the same total), and the resource names fit their cards */
+html[lang="nl"] .actions { grid-template-columns: var(--menu-w) minmax(0, 50px) minmax(0, 62px) minmax(0, 50px) minmax(0, 1fr); }
+@media (max-width: 370px) { html[lang="nl"] .actions { grid-template-columns: var(--menu-w) minmax(0, 46px) minmax(0, 60px) minmax(0, 46px) minmax(0, 1fr); } }
+html[lang="nl"] .hand .card .rib span, html[lang="nl"] .hand .card.slot .slot-name { font-size: 10px; letter-spacing: -.04em; }
+/* v1.91 the setup prompt in the dock may use two short lines at 320 wide */
+.app .dock .waiting .wt small, .waiting .wt small { white-space: normal; }
+@media (max-width: 340px) {
+  .actions, html[lang="nl"] .actions { grid-template-columns: var(--menu-w) minmax(0, 42px) minmax(0, 56px) minmax(0, 42px) minmax(0, 1fr); gap: 4px; }
+  .app .primary-slot .waiting { padding: 0 6px; }
+  .app .primary-slot .waiting .wt { font-size: 12px; white-space: normal; overflow-wrap: normal; }
+  .app .primary-slot .waiting .wt small { display: none; }
+}
+@media (max-width: 340px) { html[lang="nl"] .home .hm-seg button { font-size: 12px; letter-spacing: -.02em; } html[lang="nl"] .hm-row { grid-template-columns: 62px minmax(0, 1fr); gap: 5px; } }
