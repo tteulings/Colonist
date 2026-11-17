@@ -1,0 +1,4 @@
+/* v1.91 MOCKUP, not linked from index.html: the opt-in detail layer of the portraits (portrait(k, { detail: true })).
+   Hidden on avatars narrower than 32px, so the small sizes stay exactly as drawn today. Toggle one part: .av-d-eyes / .av-d-skin / .av-d-hair / .av-d-cloth / .av-d-brooch. */
+.avatar { container-type: inline-size; }
+@container (max-width: 31.5px) { .av-detail { display: none; } }
