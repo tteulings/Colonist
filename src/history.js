@@ -27,6 +27,7 @@ import { reviewAvailable } from "./master.js";
 import { packRecs, unpackRecs } from "./review/pack.js";
 import { Names, dispName } from "./names.js";
 import { recapLang } from "./review-recap.js";
+import { rowOf, rowKey, ROW_V } from "./lessons-row.js"; // v1.94 the Lessons row of a reviewed game is saved with its list entry
 
 const DB_NAME = "colonist_history";
 export const LIMITS = { games: 50, bytes: 10 * 1024 * 1024, nearFull: 0.8 };
@@ -109,6 +110,11 @@ export class HistoryStore {
     while (cand().length && (extra > n || this.metas.filter((m) => !m.star).length > this.lim.games || this.bytes > this.budget)) { await this.remove(cand()[0].id, true); n += 1; }
     if (n) this.pruned += n;
   }
+  /** v1.94 the stored blob of a game as it is ({ id, enc, data }), not unpacked: the Lessons analysis hands it to its worker */
+  async getRaw(id) {
+    await this.open();
+    try { return this.db ? await req(this.db.transaction("blobs").objectStore("blobs").get(id)) : this.mem.get(id) || null; } catch (_) { return null; }
+  }
   async get(id) {
     await this.open();
     try {
@@ -158,6 +164,11 @@ export function revMeta(recs, rv, pid, prev = null) {
 }
 const seatProf = (p, game) => { if (p.isHuman) return {}; const pr = game ? profileOf(game, game.players[p.id] || p) : null; const k = pr?.key || (BOT_PROFILES[p.personality] ? p.personality : "intermediate"); return { prof: k, custom: pr ? pr.custom : !BOT_PROFILES[p.personality] }; };
 
+/** v1.94 the entry gets its Lessons row (about 1 KB, see src/lessons-row.js) when the game has a review of its player; never throws, never blocks the save */
+function lessonRow(meta, payload) {
+  try { if (meta.me != null && meta.rec && meta.acc != null && payload?.rv?.reviews) { const lr = rowOf(payload, meta); meta.lr = lr || { v: ROW_V, k: rowKey(meta), none: 1 }; } } catch (_) { /* the Lessons make it later, in the background */ }
+  return meta;
+}
 export const HistoryMixin = {
   _hist: null,
   get hist() { return this._hist || (this._hist = Object.assign(new HistoryStore(), { onChange: () => { this._histChanged?.(); } })); },
@@ -216,8 +227,8 @@ export const HistoryMixin = {
     if (!v || !R || R.id !== v.id) return;
     const m = this.hist.metas.find((x) => x.id === v.id);
     if (!m || (m.me == null && !m.hn)) return;
-    await this.hist.put({ ...m, ...(m.hn ? { hn: this._histHn(R, m.hn) } : this._histRev(R.revs?.[m.me], m.me, m)), rec: true },
-      { state: v.state, rv: { base: R.base, recs: packRecs(R.recs), reviews: this._rvAll(R), bots: R.bots ? 1 : 0, ...(R.luck ? { luck: R.luck } : {}), ...(R.recap ? { recap: R.recap } : {}), ...(R.ai ? { ai: R.ai } : {}) } });
+    const payload = { state: v.state, rv: { base: R.base, recs: packRecs(R.recs), reviews: this._rvAll(R), bots: R.bots ? 1 : 0, ...(R.luck ? { luck: R.luck } : {}), ...(R.recap ? { recap: R.recap } : {}), ...(R.ai ? { ai: R.ai } : {}) } };
+    await this.hist.put(lessonRow({ ...m, ...(m.hn ? { hn: this._histHn(R, m.hn) } : this._histRev(R.revs?.[m.me], m.me, m)), rec: true }, payload), payload);
   },
 
   /** Game over (and again when the review finishes): keep this game. Never throws, never waits. */
@@ -230,7 +241,7 @@ export const HistoryMixin = {
       const state = this.serializeState();
       state.logEntries = [];
       const payload = { state, rv: rv ? { base: rv.base, recs: packRecs(rv.recs), reviews: this._rvAll(rv), bots: rv.bots ? 1 : 0, ...(rv.luck ? { luck: rv.luck } : {}), ...(rv.recap ? { recap: rv.recap } : {}), ...(rv.ai ? { ai: rv.ai } : {}) } : null }; // v1.29 packed records (src/review/pack.js), the bots' decisions too
-      return H.put(this._histMeta(undefined, prev), payload);
+      return H.put(lessonRow(this._histMeta(undefined, prev), payload), payload);
     }).catch(() => false);
   },
   /** What the old single-slot storage holds (strings, read before a new game can clear it). */

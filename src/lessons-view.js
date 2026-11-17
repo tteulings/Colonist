@@ -124,11 +124,13 @@ export function answerDec(les, q, models) {
     if (q === "rule") return { lead: top.length ? L(`Check first whether ${list(top.map(rn).sort()).replace(" and ", " or ")} is in your start.`, `Kijk eerst of ${list(top.map(rn)).replace(` en `, " of ")} in je start zit.`) : L("Check first which kinds your start still misses.", "Kijk eerst welke soorten je start nog mist."), text: cnt, chips: more.slice(0, 3).map((i) => ({ ex: i, side: "q" })), extra: null };
     return { lead: L("Look at which kinds you miss before you look at the numbers.", "Kijk eerst welke soorten je mist, dan pas naar de getallen."), text: cnt, chips: more.slice(0, 3).map((i) => ({ ex: i, side: "q" })), extra: null };
   }
-  const pk = most(ex.map((e) => e.pk)), bk = most(ex.map((e) => e.bk)), pd = ex.filter((e) => e.pk === pk?.[0]).length, bd = ex.filter((e) => e.bk === bk?.[0]).length;
-  const pw = playedWord(pk?.[0] || "other").toLowerCase(), bw = moveWord(bk?.[0] || "other", ex.find((e) => e.bk === bk?.[0])?.bd);
-  const fact = L(`In ${bd} of ${n} moves, ${bw} was better.`, `In ${bd} van ${n} zetten was ${bw} beter.`);
+  const NOUN = { road: L("a road", "een weg"), settlement: L("a settlement", "een dorp"), city: L("a city", "een stad"), bank: L("a trade", "een ruil"), end: L("ending the turn", "de beurt beëindigen"), card: L("a card", "een kaart"), robber: L("another tile", "een andere tegel"), other: L("another move", "een andere zet") };
+  const cnt = (f) => { const c = {}; ex.forEach((e) => { c[f(e)] = (c[f(e)] || 0) + 1; }); return Object.entries(c).sort((a, b) => b[1] - a[1]); };
+  const bks = cnt((e) => e.bk).slice(0, 3), pks = cnt((e) => e.pk), pk = pks[0], bk = bks[0];
+  const bw = moveWord(bk?.[0] || "other", ex.find((e) => e.bk === bk?.[0])?.bd), pw = playedWord(pk?.[0] || "other").toLowerCase();
+  const fact = L(`Better: ${bks.map(([k, c]) => `${NOUN[k]} (${c}×)`).join(", ")}.`, `Beter: ${bks.map(([k, c]) => `${NOUN[k]} (${c}×)`).join(", ")}.`);
   const chipsB = idx((e) => e.bk === bk?.[0]).slice(0, 3).map((i) => ({ ex: i, side: "q" })), chipsP = idx((e) => e.pk === pk?.[0]).slice(0, 3).map((i) => ({ ex: i, side: "p" }));
-  if (q === "wrong") return { lead: L(`You often chose: ${pw} (${pd} of ${n}).`, `Je koos vaak: ${pw} (${pd} van ${n}).`), text: fact, chips: chipsP, extra: null };
+  if (q === "wrong") return { lead: L(`You often chose: ${pw} (${pk?.[1]} of ${n}).`, `Je koos vaak: ${pw} (${pk?.[1]} van ${n}).`), text: fact, chips: chipsP, extra: null };
   if (q === "rule") return { lead: L(`Before you decide, check: ${bw}.`, `Check voor je kiest: ${bw}.`), text: fact, chips: chipsB, extra: null };
   return { lead: L(`Look at ${bw} first.`, `Kijk eerst naar ${bw}.`), text: fact, chips: chipsB, extra: null };
 }
