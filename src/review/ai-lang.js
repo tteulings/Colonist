@@ -41,7 +41,7 @@ export const LANG = {
     lg: {
       decided: "What decided it", chance: "Luck", choice: "Choice", chanceSub: "dice, drawn cards", choiceSub: "building, trading, robber", other: "other steps", total: "Total", steps: "Step by step", why: "Why", progress: "What the moves earned", cause: { dice: "Dice", card: "Drawn card", choice: "Choice" }, ctx: "Context",
       key: ["luck", "choice", "estimate"], noteA: (n) => `Luck and steps: margin up to ±${n} ${n === 1 ? "point" : "points"} per step.`, noteB: "≈ is an estimate (±), not counted in the total.", calc: "Calculating…", back: "Back", open: "Open turn", pointsWord: "points",
-      sub: (from, to, d, pw) => `${from}% → ${to}% · ${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${pw}`, income: "Your dots per resource", vs: "vs. doing nothing",
+      sub: (from, to, d, pw) => `${from}% → ${to}% · ${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${pw}`, income: "Your dots per resource", incomeOf: (name) => `${name}’s dots per resource`, vs: "vs. doing nothing",
       dots: (n) => (n === 1 ? "dot" : "dots"), rw: (r) => LANG.en.res[r],
       scarceShort: (c) => [{ pl: c.q }, c.dots === 0 ? ` had no ${LANG.en.res[c.res]} dot` : " had only ", ...(c.dots === 0 ? [] : [{ x: c.dots }, ` ${LANG.en.res[c.res]} ${c.dots === 1 ? "dot" : "dots"}`])],
       spotShort: (c) => [{ pl: c.by }, " took ", { pos: c.q }, " best spot (", { x: c.pips }, ` ${c.pips === 1 ? "dot" : "dots"})`],
@@ -50,11 +50,12 @@ export const LANG = {
       oddsShort: (c) => [`A ${c.sum} comes up `, { x: c.ways }, " times in 36; twice in a row about 1 in ", { x: c.oneIn }],
       bankShort: (c) => [{ pl: c.q }, " had ", { x: c.dots }, ` ${LANG.en.res[c.get]} ${c.dots === 1 ? "dot" : "dots"}: `, { x: c.ratio }, ` ${LANG.en.res[c.give]} → 1 ${LANG.en.res[c.get]} at the bank`],
       cap1: (c) => [...LANG.en.lg.scarceShort(c), `: ${LANG.en.res[c.res]} was scarce`],
-      cap2: (c) => [{ pl: c.by }, " built on your best spot (", { x: c.pips }, ` ${c.pips === 1 ? "dot" : "dots"}): `, { x: c.after }, ` ${c.after === 1 ? "spot" : "spots"} within 1 road left, was `, { x: c.before }],
+      cap2: (c) => [{ pl: c.by }, " built on ", { pos: c.q }, " best spot (", { x: c.pips }, ` ${c.pips === 1 ? "dot" : "dots"}): `, { x: c.after }, ` ${c.after === 1 ? "spot" : "spots"} within 1 road left, was `, { x: c.before }],
       noteTab: "Win chances are estimates from played-out futures, so a level can be a few points off. The Win chance tab shows the same numbers.", quiet: "Nothing moved much this turn.", askBehind: ["Why did your win chance drop in ", "?"], askTurn: ["What happened in ", "?"], askBehindOf: ["Why did the win chance of ", " drop in ", "?"], askTurnOf: ["What happened to ", " in ", "?"],
       ansBehind: (t, a, b, d, who) => `${who} dropped in turn ${t}, from ${a}% to ${b}% (${d < 0 ? "−" : "+"}${Math.abs(d)} ${Math.abs(d) === 1 ? "point" : "points"}). `, ansTurn: (t, a, b, d, who) => `In turn ${t} ${who} went from ${a}% to ${b}% (${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${Math.abs(d) === 1 ? "point" : "points"}). `, ansWho: (name, you) => (you ? "your win chance" : `${name}’s win chance`),
       and: "and",
       ansBig: (t, a, b, d, who) => `${who} changed most in turn ${t}, from ${a}% to ${b}% (${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${Math.abs(d) === 1 ? "point" : "points"}). `, ansNoFall: (name, you) => `${you ? "Your win chance" : name + "’s win chance"} never fell by 4 points or more in one turn.`,
+      devPart: (it, part, me) => (part === "luck" ? { a: [{ pl: it.pid }, it.card ? ` drew ${DEV.en[it.card]}` : " drew a card"], b: ["compared with an average card"] } : { a: [{ pl: it.pid }, it.pid === me ? " buy a development card" : " buys a development card"], b: ["average of the cards left in the deck"] }),
       spotAlt: (n) => `Spot ${n}`, boardNote: (c) => [{ pl: c.by }, " takes it on turn ", { x: c.turn }],
       step: (it, me, win) => {
         const nm = (q) => ({ pl: q }), KIND = { settlement: "a settlement", city: "a city", road: "a road" }, RES = (l) => [...new Set(l)].map((r) => LANG.en.res[r]).join(" + ");
@@ -79,8 +80,8 @@ export const LANG = {
       },
       rowText: (f, o) => {
         const { me, win, subj, top } = f, rolls = top.filter((x) => x.type === "roll").slice(0, 2), sum = (l) => l.reduce((a, x) => a + Math.abs(x.d[subj]), 0), allSum = top.reduce((a, x) => a + Math.abs(x.d[subj]), 0), RES = (l) => [...new Set(l)].map((r) => LANG.en.res[r]).join(" and ");
-        const dv = top.find((x) => x.type === "dev" && x.chance);
-        if (dv && (!rolls.length || Math.abs(dv.d[subj]) >= sum(rolls))) { const od = o.sx && o.sx.turn === f.t && o.sx.odds ? o.sx.odds.pct : null; return [{ pl: dv.pid }, dv.card ? ` drew ${DEV.en[dv.card]}` : " bought a development card", ...(od != null ? [" (", { x: `${od}%` }, " chance)"] : []), ". ", { pl: me }, " ", { d: Math.round(dv.d[me] * 100), q: me }, "."]; }
+        const dv = top.find((x) => x.type === "dev" && x.chance && Math.abs(x.lk[subj]) >= 0.5 * Math.abs(x.d[subj])); // v1.90.2 only when the card drawn (the luck part) carried the step
+        if (dv && (!rolls.length || Math.abs(dv.lk[subj]) >= sum(rolls))) { const od = o.sx && o.sx.turn === f.t && o.sx.odds ? o.sx.odds.pct : null; return [{ pl: dv.pid }, dv.card ? ` drew ${DEV.en[dv.card]}` : " bought a development card", ...(od != null ? [" (", { x: `${od}%` }, " chance)"] : []), ". ", { pl: me }, " ", { d: f.tot[me], q: me }, " this turn."]; }
         if (rolls.length && sum(rolls) >= 0.5 * allSum) {
           const got = {}; rolls.forEach((r) => Object.entries(r.prod || {}).forEach(([q, l]) => { got[q] = (got[q] || []).concat(l); }));
           const ben = Object.entries(got).filter(([q]) => +q !== me).sort((a, b) => b[1].length - a[1].length)[0], B = ben ? +ben[0] : me, cards = got[B] || [], d = (r) => ({ d: Math.round(r.d[subj] * 100), q: subj }), blt = (o.built || []).find((b) => b.pid === B);
@@ -89,7 +90,7 @@ export const LANG = {
           const parts = []; rolls.forEach((r, i) => { if (i) parts.push(" and "); parts.push({ pos: r.pid }, " ", { x: r.sum }, " (", d(r), ")"); });
           return [...parts, " gave ", { pl: B }, cards.length ? ` ${RES(cards)}` : " nothing", ...(bw ? [`, with which `, { pl: B }, ` built ${bw}`] : []), "."];
         }
-        if (o.credit && top[0] && !top[0].chance) return [...o.credit.title, " together ", { d: o.credit.pts, q: subj, est: true, se: o.credit.se }, "."]; // the progress credit (B) of that turn, when it is valued
+        if (o.credit && top[0] && !(top[0].chance && Math.abs(top[0].lk[subj]) >= 0.5 * Math.abs(top[0].d[subj]))) return [...o.credit.title, " together ", { d: o.credit.pts, q: subj, est: true, se: o.credit.se }, "."]; // the progress credit (B) of that turn, when it is valued
         const t0 = top[0]; if (!t0) return [{ pl: subj }, " moved ", { d: 0, q: subj }, "."];
         const s = LANG.en.lg.step(t0, me, win); return [...s.a, " (", { d: Math.round(t0.d[subj] * 100), q: subj }, ")."];
       },
@@ -133,7 +134,7 @@ export const LANG = {
     lg: {
       decided: "Waar het om draaide", chance: "Geluk", choice: "Keuze", chanceSub: "dobbelstenen, getrokken kaarten", choiceSub: "bouwen, ruilen, rover", other: "overige stappen", total: "Totaal", steps: "Stap voor stap", why: "Waarom", progress: "Wat de zetten opleverden", cause: { dice: "Dobbelstenen", card: "Getrokken kaart", choice: "Keuze" }, ctx: "Context",
       key: ["geluk", "keuze", "schatting"], noteA: (n) => `Geluk en stappen: marge tot ±${n} ${n === 1 ? "punt" : "punten"} per stap.`, noteB: "≈ is een schatting (±), niet meegeteld in het totaal.", calc: "Rekent…", back: "Terug", open: "Open beurt", pointsWord: "punten",
-      sub: (from, to, d, pw) => `${from}% → ${to}% · ${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${pw}`, income: "Jouw stippen per grondstof", vs: "vergeleken met niets doen",
+      sub: (from, to, d, pw) => `${from}% → ${to}% · ${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${pw}`, income: "Jouw stippen per grondstof", incomeOf: (name) => `Stippen van ${name} per grondstof`, vs: "vergeleken met niets doen",
       dots: (n) => (n === 1 ? "stip" : "stippen"), rw: (r) => LANG.nl.res[r],
       scarceShort: (c) => (c.dots === 0 ? [{ pl: c.q }, ` had geen ${LANG.nl.res[c.res]}stip`] : [{ pl: c.q }, " had maar ", { x: c.dots }, ` ${LANG.nl.res[c.res]}stip`]),
       spotShort: (c) => [{ pl: c.by }, " nam ", { pos: c.q }, " beste plek (", { x: c.pips }, ` ${c.pips === 1 ? "stip" : "stippen"})`],
@@ -142,11 +143,12 @@ export const LANG = {
       oddsShort: (c) => [`Een ${c.sum} valt `, { x: c.ways }, " van de 36 keer; twee keer achter elkaar ongeveer 1 op ", { x: c.oneIn }],
       bankShort: (c) => [{ pl: c.q }, " had ", { x: c.dots }, ` ${LANG.nl.res[c.get]}${c.dots === 1 ? "stip" : "stippen"}: `, { x: c.ratio }, ` ${LANG.nl.res[c.give]} → 1 ${LANG.nl.res[c.get]} bij de bank`],
       cap1: (c) => [...LANG.nl.lg.scarceShort(c), `: ${LANG.nl.res[c.res]} was schaars`],
-      cap2: (c) => [{ pl: c.by }, " bouwde op je beste plek (", { x: c.pips }, ` ${c.pips === 1 ? "stip" : "stippen"}): nog `, { x: c.after }, ` ${c.after === 1 ? "dorpsplek" : "dorpsplekken"} binnen 1 weg, was `, { x: c.before }],
+      cap2: (c) => [{ pl: c.by }, " bouwde op ", { pos: c.q }, " beste plek (", { x: c.pips }, ` ${c.pips === 1 ? "stip" : "stippen"}): nog `, { x: c.after }, ` ${c.after === 1 ? "dorpsplek" : "dorpsplekken"} binnen 1 weg, was `, { x: c.before }],
       noteTab: "Winkansen zijn schattingen uit doorgespeelde toekomsten, dus een waarde kan een paar punten afwijken. De Winkans-tab toont dezelfde cijfers.", quiet: "Er veranderde weinig in deze beurt.", askBehind: ["Waarom zakte je winkans in ", "?"], askTurn: ["Wat gebeurde er in ", "?"], askBehindOf: ["Waarom zakte de winkans van ", " in ", "?"], askTurnOf: ["Wat gebeurde er met ", " in ", "?"],
       ansBehind: (t, a, b, d, who) => `${who} zakte in beurt ${t} van ${a}% naar ${b}% (${d < 0 ? "−" : "+"}${Math.abs(d)} ${Math.abs(d) === 1 ? "punt" : "punten"}). `, ansTurn: (t, a, b, d, who) => `In beurt ${t} ging ${who} van ${a}% naar ${b}% (${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${Math.abs(d) === 1 ? "punt" : "punten"}). `, ansWho: (name, you) => (you ? "je winkans" : `${name}${/[sxz]$/i.test(name) ? "’" : "s"} winkans`),
       and: "en",
       ansBig: (t, a, b, d, who) => `${who} veranderde het meest in beurt ${t}, van ${a}% naar ${b}% (${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${Math.abs(d) === 1 ? "punt" : "punten"}). `, ansNoFall: (name, you) => `${you ? "Je winkans" : name + (/[sxz]$/i.test(name) ? "’" : "s") + " winkans"} zakte nergens 4 punten of meer in één beurt.`,
+      devPart: (it, part, me) => (part === "luck" ? { a: [{ pl: it.pid }, it.card ? ` trok ${DEV.nl[it.card]}` : " trok een kaart"], b: ["vergeleken met een gemiddelde kaart"] } : { a: [{ pl: it.pid }, " koopt een ontwikkelingskaart"], b: ["gemiddelde van de kaarten in de stapel"] }),
       spotAlt: (n) => `Plek ${n}`, boardNote: (c) => [{ pl: c.by }, " neemt hem in beurt ", { x: c.turn }],
       step: (it, me, win) => {
         const nm = (q) => ({ pl: q }), KIND = { settlement: "een dorp", city: "een stad", road: "een weg" }, RES = (l) => [...new Set(l)].map((r) => LANG.nl.res[r]).join(" + ");
@@ -171,8 +173,8 @@ export const LANG = {
       },
       rowText: (f, o) => {
         const { me, win, subj, top } = f, rolls = top.filter((x) => x.type === "roll").slice(0, 2), sum = (l) => l.reduce((a, x) => a + Math.abs(x.d[subj]), 0), allSum = top.reduce((a, x) => a + Math.abs(x.d[subj]), 0), RES = (l) => [...new Set(l)].map((r) => LANG.nl.res[r]).join(" en ");
-        const dv = top.find((x) => x.type === "dev" && x.chance);
-        if (dv && (!rolls.length || Math.abs(dv.d[subj]) >= sum(rolls))) { const od = o.sx && o.sx.turn === f.t && o.sx.odds ? o.sx.odds.pct : null; return [{ pl: dv.pid }, dv.card ? ` trok ${DEV.nl[dv.card]}` : " kocht een ontwikkelingskaart", ...(od != null ? [" (kans ", { x: `${od}%` }, ")"] : []), ". ", { pl: me }, " ", { d: Math.round(dv.d[me] * 100), q: me }, "."]; }
+        const dv = top.find((x) => x.type === "dev" && x.chance && Math.abs(x.lk[subj]) >= 0.5 * Math.abs(x.d[subj])); // v1.90.2 only when the card drawn (the luck part) carried the step
+        if (dv && (!rolls.length || Math.abs(dv.lk[subj]) >= sum(rolls))) { const od = o.sx && o.sx.turn === f.t && o.sx.odds ? o.sx.odds.pct : null; return [{ pl: dv.pid }, dv.card ? ` trok ${DEV.nl[dv.card]}` : " kocht een ontwikkelingskaart", ...(od != null ? [" (kans ", { x: `${od}%` }, ")"] : []), ". ", { pl: me }, " ", { d: f.tot[me], q: me }, " in deze beurt."]; }
         if (rolls.length && sum(rolls) >= 0.5 * allSum) {
           const got = {}; rolls.forEach((r) => Object.entries(r.prod || {}).forEach(([q, l]) => { got[q] = (got[q] || []).concat(l); }));
           const ben = Object.entries(got).filter(([q]) => +q !== me).sort((a, b) => b[1].length - a[1].length)[0], B = ben ? +ben[0] : me, cards = got[B] || [], d = (r) => ({ d: Math.round(r.d[subj] * 100), q: subj }), blt = (o.built || []).find((b) => b.pid === B);
@@ -181,7 +183,7 @@ export const LANG = {
           const parts = []; rolls.forEach((r, i) => { if (i) parts.push(" en "); parts.push({ pos: r.pid }, " ", { x: r.sum }, " (", d(r), ")"); });
           return [...parts, rolls.length === 1 ? " gaf " : " gaven ", B === me ? "jou" : { pl: B }, cards.length ? ` ${RES(cards)}` : " niets", ...(bw ? [", waarmee ", { pl: B }, ` ${bw} bouwde`] : []), "."];
         }
-        if (o.credit && top[0] && !top[0].chance) return [...o.credit.title, " samen ", { d: o.credit.pts, q: subj, est: true, se: o.credit.se }, "."]; // de voortgangswaarde (B) van die beurt, als die berekend is
+        if (o.credit && top[0] && !(top[0].chance && Math.abs(top[0].lk[subj]) >= 0.5 * Math.abs(top[0].d[subj]))) return [...o.credit.title, " samen ", { d: o.credit.pts, q: subj, est: true, se: o.credit.se }, "."]; // de voortgangswaarde (B) van die beurt, als die berekend is
         const t0 = top[0]; if (!t0) return [{ pl: subj }, " bewoog ", { d: 0, q: subj }, "."];
         const s = LANG.nl.lg.step(t0, me, win); return [...s.a, " (", { d: Math.round(t0.d[subj] * 100), q: subj }, ")."];
       },

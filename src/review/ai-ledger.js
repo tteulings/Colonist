@@ -16,7 +16,9 @@ const seOf = (x) => Math.max(1, Math.round(x * 100));
 /** The model of a game. in: { led, ctx: { recs, steps, ev, hexes }, raw (ai-mech mechRaw, or null), me, win, n, marks (turns the headline names), sx (the surprise fact or null), lang, lg (the words) } */
 export function ledgerModel(inp) {
   const { led, ctx, raw, me, win, lg } = inp, seats = [me, ...(win != null && win !== me ? [win] : [])];
-  const items = (t) => { const rs = roundSteps(led, t); return rs ? { rs, its: rs.steps.map((s) => ({ ...describeStep(s.i, ctx), d: s.d, se: s.se })) } : null; };
+  // v1.90.2 lk: the luck part of a step per seat (a roll: all of it; a development card: how far the card drawn is from the expected card; none: nothing), ch: the rest (the choice)
+  const items = (t) => { const rs = roundSteps(led, t); return rs ? { rs, its: rs.steps.map((s) => { const it = describeStep(s.i, { ...ctx, res: led.res }), lk = !it.chance ? s.d.map(() => 0) : it.dl === "none" ? s.d.map(() => 0) : Array.isArray(it.dl) ? it.dl : s.d; return { ...it, chance: it.chance && it.dl !== "none", d: s.d, se: s.se, lk, ch: s.d.map((x, q) => x - lk[q]), split: it.type === "dev" && it.dl != null }; }) } : null; };
+  const lkSum = (its, q) => its.reduce((a, x) => a + x.lk[q], 0), isLk = (x, q) => x.chance && Math.abs(x.lk[q]) >= 0.5 * Math.abs(x.d[q]);
   const out = { seats, led, me, win, lg, inp };
   const dOf = (r, q) => r.d[q];
   const big = (r) => Math.max(...seats.map((q) => Math.abs(r.d[q])));
@@ -47,7 +49,7 @@ export function ledgerModel(inp) {
     const r = led.round(t); if (!r) return {};
     const m = {}, dq = r.d[q];
     // scarce (only in a round the player lost ground, mostly by choices): at the end of this round one resource is paid by at most one dot of the player's buildings
-    const luckPart = its.filter((x) => x.chance).reduce((a, x) => a + x.d[q], 0); // a fall that is mostly dice or a drawn card is not explained by what the player's buildings pay
+    const luckPart = lkSum(its, q); // a fall that is mostly dice or a drawn card is not explained by what the player's buildings pay
     if (dq <= -0.03 && luckPart / dq < 0.6) {
       const inc = M.incomeAt(raw, t, q), low = M.R5.slice().sort((a, b) => inc.dots[a] - inc.dots[b])[0];
       if (inc.dots[low] <= 1) m.scarce = { q, res: low, dots: inc.dots[low], all: inc.dots };
@@ -92,8 +94,8 @@ export function ledgerModel(inp) {
   /** what a round moved on for a seat: "dice", "card" (a drawn development card) or "choice" when that part carries at least 60% of the seat's change, else "" */
   const causeOf = (its, total, q) => {
     const tS = total[q]; if (Math.abs(tS) < 0.03) return "";
-    const chS = its.filter((i) => i.chance).reduce((a, i) => a + i.d[q], 0), sh = (v) => (Math.sign(v) === Math.sign(tS) ? Math.abs(v) / Math.abs(tS) : 0);
-    const topCh = its.filter((i) => i.chance).sort((a, b) => Math.abs(b.d[q]) - Math.abs(a.d[q]))[0];
+    const chS = lkSum(its, q), sh = (v) => (Math.sign(v) === Math.sign(tS) ? Math.abs(v) / Math.abs(tS) : 0);
+    const topCh = its.filter((i) => i.chance).sort((a, b) => Math.abs(b.lk[q]) - Math.abs(a.lk[q]))[0];
     return sh(chS) >= 0.6 ? (topCh && topCh.type === "dev" ? "card" : its.some((i) => i.type === "roll") ? "dice" : "") : sh(tS - chS) >= 0.6 ? "choice" : "";
   };
   out.cause = (t, q = me) => { const x = items(t); return x ? causeOf(x.its, x.rs.d, q) : ""; };
@@ -103,19 +105,28 @@ export function ledgerModel(inp) {
   out.view = (t) => {
     const x = items(t); if (!x) return null;
     const { rs, its } = x, total = rs.d, sh = shownSteps(led, t, seats), shownIds = new Set(sh.map((s) => s.i));
-    const chance = its.filter((i) => i.chance).reduce((a, i) => a + i.d[me], 0);
+    const chance = lkSum(its, me);
     // the steps on show: "end the turn" and steps under 3 points (for both seats) fold into "other steps" (never fewer than the biggest 2, never more than 5)
     const big = (i) => Math.max(Math.abs(pts(i.d[me])), win != null ? Math.abs(pts(i.d[win])) : 0);
     let cand = its.filter((i) => shownIds.has(i.i)); const keep = cand.filter((i) => i.type !== "end" && big(i) >= 3);
     cand = (keep.length >= 2 ? keep : cand.filter((i) => i.type !== "end")).sort((a, b) => big(b) - big(a) || a.i - b.i).slice(0, keep.length >= 2 ? 5 : 2).sort((a, b) => a.i - b.i);
-    const shown = cand.map((i) => ({ ...i, pts: pts(i.d[me]), ptsW: win != null && win !== me ? pts(i.d[win]) : null, seN: seOf(i.se[me]), title: stepTitle(i) }));
-    const tot = dLvl(rs.v0[me], rs.v1[me]), other = tot - shown.reduce((a, s) => a + s.pts, 0), choice = tot - pts(chance);
+    const row = (i, part, raw, rawW, chance) => ({ ...i, part, chance, raw, pts: pts(raw), ptsW: rawW != null ? pts(rawW) : null, seN: seOf(i.se[me]), title: part ? lg.devPart(i, part, me) : stepTitle(i) }), wq = win != null && win !== me ? win : null;
+    // a development card purchase is shown as its two parts: the expected value (Keuze) and the card against the expected card (Geluk)
+    const rowsOf = (i) => (i.split ? [row(i, "choice", i.ch[me], wq != null ? i.ch[wq] : null, false), row(i, "luck", i.lk[me], wq != null ? i.lk[wq] : null, true)] : [row(i, null, i.d[me], wq != null ? i.d[wq] : null, i.chance)]);
+    const tot = dLvl(rs.v0[me], rs.v1[me]); let shown = cand.flatMap(rowsOf);
+    // v1.90.2 a large rest is explained, not folded: while the other steps add up to 5 points or more, the next largest step that pulls it back to zero is listed too (at most 4 more)
+    for (let k = 0; k < 4; k++) {
+      const rest = tot - shown.reduce((a, s) => a + s.pts, 0); if (Math.abs(rest) < 5) break;
+      const left = its.filter((i) => !cand.includes(i) && pts(i.d[me]) !== 0 && Math.sign(pts(i.d[me])) === Math.sign(rest)).sort((a, b) => Math.abs(pts(b.d[me])) - Math.abs(pts(a.d[me])) || a.i - b.i); if (!left.length) break;
+      cand = [...cand, left[0]].sort((a, b) => a.i - b.i); shown = cand.flatMap(rowsOf);
+    }
+    const other = tot - shown.reduce((a, s) => a + s.pts, 0), choice = tot - pts(chance);
     const maxSe = Math.max(0, ...shown.map((s) => Math.max(...seats.map((q) => s.se[q]))));
     // B: the progress credit of the player-turns that did something (valued lazily, shown hatched, never in the total)
     const credit = actionTurns(led, t, ctx).map((tu) => progressOf(led, tu)).filter(Boolean).filter((c) => Math.abs(c.d[me]) >= LG.PASS_MIN || Math.abs(c.d[c.pid]) >= 2 * LG.PASS_MIN).sort((a, b) => Math.max(Math.abs(b.d[me]), Math.abs(b.d[b.pid])) - Math.max(Math.abs(a.d[me]), Math.abs(a.d[a.pid]))).slice(0, 3).sort((a, b) => a.from - b.from)
       .map((c) => { const acts = its.filter((i) => c.from <= i.i && i.i <= c.to && i.pid === c.pid && ["build", "bank", "play", "ptrade", "dev"].includes(i.type)); return { ...c, pts: pts(c.d[me]), ptsMover: pts(c.d[c.pid]), seN: seOf(Math.max(c.se[me], c.se[c.pid])), acts, title: lg.credit(c.pid, acts, me) }; });
     const subjQ = Math.abs(total[me]) >= Math.abs(total[win ?? me]) ? me : win;
-    const ml = mech(t, me, its);
+    const ml = mech(t, subjQ, its); // v1.90.2 one scarcity claim per round, about the player the round (and its row) is about
     const why = { scarce: ml.scarce || null, spot: ml.spot || null };
     const line = mechLine(t, subjQ, its);
     const f = rowFacts(t, its, subjQ);
@@ -127,17 +138,17 @@ export function ledgerModel(inp) {
   // ── a row on the card ──
   const rowFacts = (t, its, subj) => {
     const sh = shownSteps(led, t, seats.includes(subj) ? seats : [subj]), shownIds = new Set(sh.map((s) => s.i)), top = its.filter((i) => shownIds.has(i.i)).sort((a, b) => Math.abs(b.d[subj]) - Math.abs(a.d[subj]));
-    return { t, subj, top, its, me, win };
+    return { t, subj, top, its, me, win, tot: Object.fromEntries(Array.from({ length: led.n }, (_, q) => [q, dLvl(led.round(t).v0[q], led.round(t).v1[q])])) }; // tot: every seat's change over the whole round, in whole points (what the pill and the total show)
   };
   /** (seat: the row is about this player; default: you or the winner, whichever moved more) */
   out.row = (t, seat) => {
     const x = items(t); if (!x) return null; const { rs, its } = x;
     const subj = seat != null ? seat : Math.abs(rs.d[me]) >= Math.abs(rs.d[win ?? me]) ? me : win, f = rowFacts(t, its, subj);
-    const t0 = f.top[0], cr = t0 && !t0.chance ? actionTurns(led, t, ctx).map((tu) => progressOf(led, tu)).filter(Boolean).find((c) => c.pid === t0.pid && Math.abs(c.d[subj]) >= LG.PASS_MIN) : null;
+    const t0 = f.top[0], cr = t0 && !isLk(t0, subj) ? actionTurns(led, t, ctx).map((tu) => progressOf(led, tu)).filter(Boolean).find((c) => c.pid === t0.pid && Math.abs(c.d[subj]) >= LG.PASS_MIN) : null;
     const credit = cr ? { title: lg.credit(cr.pid, its.filter((i) => cr.from <= i.i && i.i <= cr.to && i.pid === cr.pid && ["build", "bank", "play", "ptrade", "dev"].includes(i.type)), me).a, pts: pts(cr.d[subj]), se: seOf(cr.se[subj]) } : null;
     const text = f.top.length ? lg.rowText(f, { sx: inp.sx, built: its.filter((i) => i.type === "build"), credit }) : [lg.quiet];
     const ml = mechLine(t, subj, its);
-    return { t, subj, v0: rs.v0[subj], v1: rs.v1[subj], d: dLvl(rs.v0[subj], rs.v1[subj]), icon: f.top[0] && !f.top[0].chance ? "pick" : "dice", text, mech: ml, maxSe: roundMaxSe(led, t, seats.includes(subj) ? seats : [subj]) };
+    return { t, subj, v0: rs.v0[subj], v1: rs.v1[subj], d: dLvl(rs.v0[subj], rs.v1[subj]), icon: f.top[0] && !isLk(f.top[0], subj) ? "pick" : "dice", text, mech: ml, maxSe: roundMaxSe(led, t, seats.includes(subj) ? seats : [subj]) };
   };
   out.rows = () => out.rowTurns().map((t) => out.row(t)).filter(Boolean);
   /** why a player fell behind (default: the reviewed player): the round where their win chance fell most (or null when it never fell by 4 points or more) */

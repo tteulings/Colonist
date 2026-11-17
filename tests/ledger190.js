@@ -25,8 +25,8 @@ const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3,
     // ── 1 the store ──
     const ev = L.posEvents(recs), al = L.aliasOf(recs), canon = al.filter((c, i) => c === i).length, posN = Object.keys(G.res).filter((k) => k.startsWith("pos:")).length;
     ok(ev.length === canon && posN === canon && led.complete(), `${tag}: one stored position per distinct record (${canon} of ${recs.length}), complete`, [ev.length, posN]);
-    let badW = 0, badMean = 0; for (const [k, e] of Object.entries(G.res)) { const W = unpack(e.w, n); if (W.length !== e.F) badW++; const m = Array.from({ length: n }, (_, q) => mean(W.map((w) => w[q]))); if (m.some((x, q) => Math.abs(x - e.v[q]) > 0.002)) badMean++; if (W.some((w) => Math.abs(w.reduce((a, c) => a + c, 0) - 1) > 0.01)) badW++; }
-    ok(!badW && !badMean, `${tag}: every stored position decodes to its futures (each one sums to 100%) and its value is their mean (all ${Object.keys(G.res).length} entries)`, [badW, badMean]);
+    let badW = 0, badMean = 0; for (const [k, e] of Object.entries(G.res).filter(([k]) => /^(pos|ref|pas):/.test(k))) { const W = unpack(e.w, n); if (W.length !== e.F) badW++; const m = Array.from({ length: n }, (_, q) => mean(W.map((w) => w[q]))); if (m.some((x, q) => Math.abs(x - e.v[q]) > 0.002)) badMean++; if (W.some((w) => Math.abs(w.reduce((a, c) => a + c, 0) - 1) > 0.01)) badW++; }
+    ok(!badW && !badMean, `${tag}: every stored position decodes to its futures (each one sums to 100%) and its value is their mean (all ${Object.keys(G.res).filter((k) => /^(pos|ref|pas):/.test(k)).length} entries)`, [badW, badMean]);
     // ── 2 telescoping ──
     const rounds = led.rounds(); let badTele = 0, badSum = 0, badContig = 0, last = null; const totalD = Array(n).fill(0);
     rounds.forEach((r) => { const rs = L.roundSteps(led, r.t); const s = Array(n).fill(0); rs.steps.forEach((st) => st.d.forEach((x, q) => { s[q] += x; })); if (s.some((x, q) => Math.abs(x - rs.d[q]) > 1e-12)) badTele++; if (Math.abs(rs.d.reduce((a, c) => a + c, 0)) > 1e-5) badSum++; if (last != null && r.a !== last + 1) badContig++; last = r.b; rs.d.forEach((x, q) => { totalD[q] += x; }); });
@@ -52,7 +52,9 @@ const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3,
       const v = m.view(r.t); if (!v) { badView++; continue; } views++;
       const sumShown = v.shown.reduce((a, s) => a + s.pts, 0);
       if (v.tot !== DL(led.round(r.t).v0[me], led.round(r.t).v1[me]) || sumShown + v.other !== v.tot || v.chance + v.choice !== v.tot) badSplit++;
-      v.shown.forEach((s) => { const st = led.step(s.i); if (s.pts !== Math.round(100 * st.d[me]) + 0 || s.seN !== Math.max(1, Math.round(100 * st.se[me]))) badView++; });
+      v.shown.forEach((s) => { const st = led.step(s.i); if (s.part) { if (s.pts !== Math.round(100 * s.raw) + 0) badView++; return; } if (s.pts !== Math.round(100 * st.d[me]) + 0 || s.seN !== Math.max(1, Math.round(100 * st.se[me]))) badView++; });
+      // v1.90.2 a purchase is shown in two parts that add up to the step exactly (choice + luck), once each
+      const byI = new Map(); v.shown.filter((s) => s.part).forEach((s) => { (byI.get(s.i) || byI.set(s.i, []).get(s.i)).push(s); }); byI.forEach((l, i) => { const st = led.step(i); if (l.length !== 2 || new Set(l.map((x) => x.part)).size !== 2 || Math.abs(l[0].raw + l[1].raw - st.d[me]) > 1e-12) badView++; });
     }
     ok(!badView && !badSplit, `${tag}: all ${views} round views: each shown step = the ledger's step, shown + the rest = the total = the round's change, chance + choice = the total`, [badView, badSplit]);
     // facts for the composer / chat
@@ -119,6 +121,19 @@ const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3,
     // v1.90.1 mechanism lines under a round: facts of the round (turn <= it) in the direction of its change; none otherwise
     { const bad = []; for (const lang of ["nl"]) for (const r of rounds.filter((x) => x.t >= 1)) { const v = built[lang].view(r.t); if (!v || !v.line) continue; const q = v.subj, c = v.line.claim, dq = led.round(r.t).d[q]; if (c.spot && (c.spot.turn !== r.t || dq > -0.03)) bad.push(["spot", r.t]); if (c.scarce && dq > -0.03) bad.push(["scarce", r.t]); if (c.bank && dq >= 0) bad.push(["bank", r.t]); if (c.gap && dq <= 0) bad.push(["gap", r.t]); if (c.odds && (Math.sign(dq) === 0)) bad.push(["odds", r.t]); }
       ok(!bad.length, `${tag}: mechanism lines come from the round itself and match the direction of its change (no 1-stip-per-N-turns formula)`, bad); }
+    // v1.90.2 round 2: at most one scarcity claim per round, about the player the round (and its row) is about, the same one in the row and in the view
+    { const bad = []; for (const r of rounds.filter((x) => x.t >= 1)) { const v = m.view(r.t), row = m.row(r.t); if (!v) continue; const sc = [v.why.scarce, v.line && v.line.claim.scarce, row && row.mech && row.mech.claim.scarce].filter(Boolean); if (sc.some((x) => x.q !== v.subj || x.res !== sc[0].res || x.dots !== sc[0].dots) || (row && row.subj !== v.subj)) bad.push([r.t, sc.map((x) => x.q), v.subj]); }
+      ok(!bad.length, `${tag}: one scarcity claim per round, about the round's subject (the same in the row and the view)`, bad.slice(0, 3)); }
+    // v1.90.2 round 2: a development card purchase = its expected value (Keuze) + the drawn card against the expected card (Geluk, the luck run's number for that draw); the telescoping sum stays exact
+    { const bad = []; let buys = 0;
+      for (const r of rounds.filter((x) => x.t >= 1)) {
+        let lkSum = 0, any = false;
+        for (let i = r.a; i <= r.b; i++) { const rec = recs[i]; if (rec.k === "roll" || rec.k === "turn") lkSum += led.step(i).d[me]; else if (rec.k === "buy") { const j = G.ev.findIndex((e, k) => k >= rec.e && e[0] === rec.s && e[1] === "v" && e[2] === rec.pid), x = G.res[`dev:${rec.s}:${j}`]; buys++; if (x && x.l) { lkSum += x.l[me]; any = true; } else if (x && x.skip) { /* nothing left to chance */ } else lkSum += led.step(i).d[me]; } }
+        const v = m.view(r.t); if (!v) continue; const want = Math.round(100 * lkSum) + 0;
+        if (v.chance !== want || v.choice !== v.tot - want) bad.push([r.t, v.chance, want]);
+        if (any) { const parts = v.shown.filter((s) => s.part); parts.forEach((s) => { const i = s.i, rec = recs[i], j = G.ev.findIndex((e, k) => k >= rec.e && e[0] === rec.s && e[1] === "v" && e[2] === rec.pid), l = G.res[`dev:${rec.s}:${j}`].l[me], d = led.step(i).d[me]; if (Math.abs(s.raw - (s.part === "luck" ? l : d - l)) > 1e-12 || s.chance !== (s.part === "luck")) bad.push([r.t, i, s.part]); }); }
+      }
+      ok(!bad.length, `${tag}: Luck of a round = rolls + the card draws' own luck (independent re-sum of ${buys} purchase(s)); Choice = the rest; each purchase shows as Keuze + Geluk and adds up`, bad.slice(0, 3)); }
     timing.push([tag, G.T]);
     if (tag === files[0].replace(".json", "")) {
       const nl = LANG.langOf("nl"), en = LANG.langOf("en"), all = JSON.stringify([nl.lg, en.lg]);

@@ -106,7 +106,11 @@ export function describeStep(i, ctx) {
     it.hexes = [...hx].map((h) => ({ id: h, res: hexes?.[h]?.resource, num: hexes?.[h]?.number }));
   } else if (r.k === "robber") { it.type = "robber"; it.hex = r.a?.hex; const t = (ev || []).find((e) => e[0] === r.s && e[1] === "t" && e[2] === r.pid); if (t) it.taken = { from: t[3] }; }
   else if (r.k === "build") { it.type = "build"; it.what = r.a?.type; it.at = r.a?.id; }
-  else if (r.k === "buy") { it.type = "dev"; it.chance = true; const v = (ev || []).find((e) => e[0] === r.s && e[1] === "v" && e[2] === r.pid); it.card = v ? v[3] : null; }
+  else if (r.k === "buy") { // v1.90.2 a purchase is two things: its expected value (the player CHOSE to buy: Keuze) and how much the card drawn differs from the expected card (Geluk, the luck run's own number for that draw)
+    it.type = "dev"; it.chance = true; const v = (ev || []).find((e) => e[0] === r.s && e[1] === "v" && e[2] === r.pid); it.card = v ? v[3] : null;
+    const j = (ev || []).findIndex((e, k) => k >= (r.e ?? 0) && e && e[0] === r.s && e[1] === "v" && e[2] === r.pid), x = ctx.res && j >= 0 ? ctx.res[`dev:${r.s}:${j}`] : null;
+    if (x && Array.isArray(x.l)) it.dl = x.l; else if (x && x.skip === "one kind") it.dl = "none"; // (no luck result yet: the whole step stays luck, as before; one kind left in the deck: nothing was left to chance)
+  }
   else if (r.k === "play") { it.type = "play"; it.card = r.a?.t; }
   else if (r.k === "bank") { it.type = "bank"; it.tr = r.a?.tr; }
   else if (r.k === "ptrade") it.type = "ptrade";
