@@ -107,8 +107,9 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
     if (process.env.AI !== "0") {
       await page.evaluate(() => { const g = window.__colonistGame; try { g._rvCloseReview?.(true); } catch (_) {} });
       await page.evaluate(() => window.__colonistGame.histOpen()); await sleep(1200); await page.locator(`[data-hrow="${gid}"]`).tap(); await sleep(800); await review(page);
-      await page.evaluate(() => { window.__colonistGame._rvTab = "ai"; }); await page.locator(".rv .rv-tabs button", { hasText: /AI/ }).first().tap(); await sleep(2500);
-      const early = await page.evaluate(() => ({ rows: document.querySelectorAll(".lg-rr").length, ti: !!document.querySelector(".ap-ti, .ap-hl, .ap-c [data-pgturn]"), settle: !!document.querySelector(".ap-settle"), busy: !!window.__colonistGame._ldSettling?.() }));
+      for (let k = 0; k < 4 && !(await page.locator("[data-aibody]").count()); k++) { await page.locator("[data-rvt=ai]").first().tap(); await sleep(k ? 900 : 2500); }
+      const early = await page.evaluate(() => ({ rows: document.querySelectorAll(".lg-rr").length, ti: !!document.querySelector(".ap-ti, .ap-hl, .ap-c [data-pgturn]"), settle: !!document.querySelector(".ap-settle"), busy: !!window.__colonistGame._ldSettling?.(), tab: window.__colonistGame._rvTab, rv: !!document.querySelector(".rv"), step: window.__colonistGame._rvStep, ap: !!document.querySelector(".ap"), aib: !!document.querySelector("[data-aibody]") }));
+      await shot(page, "ai-early", lang, w);
       ok(!early.busy || (early.rows === 0 && early.settle), `${tag}: AI tab: nothing ranked while the numbers are not final`, early);
       let done = false; for (let i = 0; i < 160 && !done; i++) { done = await page.evaluate(() => { const g = window.__colonistGame; return !g._ldSettling?.() && !!g._ldReady?.(); }); if (!done) await sleep(500); }
       ok(done, `${tag}: AI tab: the numbers become final`);
