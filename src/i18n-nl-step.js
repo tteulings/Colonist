@@ -3,6 +3,16 @@ export const NL_STEP = [
   ["* first look: the deep check is still running.", "* eerste indruk: de diepe controle loopt nog."],
   ["From turn {n}", "Vanaf beurt {n}"], ["From roll {n}", "Vanaf worp {n}"],
   ["Lumber {n}", "Hout {n}"], ["Brick {n}", "Baksteen {n}"], ["Wool {n}", "Wol {n}"], ["Grain {n}", "Graan {n}"], ["Ore {n}", "Erts {n}"], ["−{n} dice dots", "−{n} ogen"],
+  // turn cards, luck list, summaries
+  ["This turn for everyone", "Deze beurt voor iedereen"], ["This round for everyone", "Deze ronde voor iedereen"], ["start of the turn → end of the turn", "start van de beurt → einde van de beurt"], ["start of the round → end of the round", "start van de ronde → einde van de ronde"],
+  ["End of turn: {n}%, change over the whole turn {d}", "Einde beurt: {n}%, verandering over de hele beurt {d}"], ["Turn {n}, {d}% over the whole turn", "Beurt {n}, {d}% over de hele beurt"],
+  ["Turn", "Beurt"],
+  ["{x} stole {y} from {z}", "{x} pakte {y} van {z}"], ["{x} (pirate) stole {y} from {z}", "{x} (piraat) pakte {y} van {z}"], ["a card", "een kaart"],
+  ["a random card from the hand", "een willekeurige kaart uit de hand"], ["a random card from the deck", "een willekeurige kaart uit de stapel"],
+  ["{x} drew a {y}", "{x} trok een {y}"], ["{x} drew an {y}", "{x} trok een {y}"],
+  ["Luck cost {n}%.", "Geluk kostte {n}%."], ["A weak set-up cost {n}%.", "Een zwakke beginopstelling kostte {n}%."], ["A weak set-up cost {n}%. Not luck ({x}).", "Een zwakke beginopstelling kostte {n}%. Niet door geluk ({x})."],
+  ["Your moves cost {n}%. Not luck ({x}). Biggest slip: {w} ({y}% vs the best option).", "Jouw zetten kostten {n}%. Niet door geluk ({x}). Grootste misser: {w} ({y}% t.o.v. de beste optie)."], ["Their moves cost {n}%. Not luck ({x}). Biggest slip: {w} ({y}% vs the best option).", "Hun zetten kostten {n}%. Niet door geluk ({x}). Grootste misser: {w} ({y}% t.o.v. de beste optie)."],
+  ["Your moves cost {n}%.", "Jouw zetten kostten {n}%."], ["Their moves cost {n}%.", "Hun zetten kostten {n}%."],
   // the decision line
   ["{x} ended the turn; {y} was worth {z}.", "{x} beëindigde de beurt; {y} was {z} waard."], ["{x} traded; {y} was worth {z}.", "{x} ruilde; {y} was {z} waard."],
   ["Since last move", "Sinds je laatste zet"], ["Since your last move", "Sinds je laatste zet"], ["Since their last move", "Sinds hun laatste zet"], ["From the start", "Vanaf de start"], ["At the start everyone had {n}%", "Bij de start had iedereen {n}%"],
