@@ -80,6 +80,18 @@ export function ledgerModel(inp) {
       const iw = M.incomeAt(raw, t, subj).dots[res], im = M.incomeAt(raw, t, me).dots[res];
       if (iw >= 4 && iw >= 2 * im + 2) { c.gap = { res, winner: subj, dots: iw, mine: im }; return { segs: lg.gapShort(c.gap), claim: c, glyph: null }; }
     }
+    // the same, seen from the player who LOST by it: the dice paid somebody else (the one with most cards from the rolls that cost the subject points), on numbers where that player has far more dots than the subject; a fact of this round's board, in the direction of the round
+    if (raw && subj === me && dir < 0) {
+      const hurt = its.filter((x) => x.type === "roll" && x.d[subj] < 0 && Object.entries(x.prod || {}).some(([q, l]) => +q !== subj && l.length)).sort((a, b) => a.d[subj] - b.d[subj]).slice(0, 2); // the two rolls that cost the subject most (the ones the row names)
+      if (hurt.reduce((a, x) => a + x.d[subj], 0) <= -0.05) {
+        const got = {}; hurt.forEach((x) => Object.entries(x.prod).forEach(([q, l]) => { if (+q !== subj) (got[q] = got[q] || []).push(...l); }));
+        for (const [bq, list] of Object.entries(got).sort((a, b) => b[1].length - a[1].length)) {
+          const B = +bq; if (!(R.d[B] > 0.02)) continue;
+          const dB = M.incomeAt(raw, t, B).dots, dS = M.incomeAt(raw, t, subj).dots, res = [...new Set(list)].sort((a, b) => (dB[b] - 2 * dS[b]) - (dB[a] - 2 * dS[a]) || list.filter((x) => x === b).length - list.filter((x) => x === a).length)[0], iw = dB[res], im = dS[res]; // of the resources the rolls paid, the one where the gap in dots is biggest
+          if (iw >= 4 && iw >= 2 * im + 2) { c.gap = { res, winner: B, dots: iw, mine: im }; return { segs: lg.gapShort(c.gap), claim: c, glyph: null }; }
+        }
+      }
+    }
     // (a point card's "before: 9 points" is said by the surprise line under the rows, so it is not repeated here)
     // the same number in two rolls right after each other, both moving the subject the way the round went: its odds, from the dice
     const seq = its.filter((x) => x.type === "roll"); let twice = null;

@@ -39,13 +39,13 @@ export const LANG = {
     },
     // v1.90 the ledger card and the round view (src/review/ai-ledger.js): segments are strings, { pl: seat } a name, { pos: seat } a possessive, { d: points, q, se, est } a signed number, { x } bold
     lg: {
-      decided: "What decided it", chance: "Luck", choice: "Choice", chanceSub: "dice, drawn cards", choiceSub: "building, trading, robber", other: "other steps", total: "Total", steps: "Step by step", why: "Why", progress: "What the moves earned", cause: { dice: "Dice", card: "Drawn card", choice: "Choice" }, ctx: "Context",
-      key: ["luck", "choice", "estimate"], noteA: (n) => `Luck and steps: margin up to ±${n} ${n === 1 ? "point" : "points"} per step.`, noteB: "≈ is an estimate (±), not counted in the total.", calc: "Calculating…", back: "Back", open: "Open turn", pointsWord: "points",
+      decided: "What decided it", chance: "Luck", choice: "Choice", chanceSub: "dice, drawn cards", choiceSub: "building, trading, robber", other: "other steps", total: "Total", steps: "Step by step", why: "Why", progress: "What the moves earned", progressFor: (l) => (l.length === 1 ? (l[0].you ? "What your moves earned" : `What ${l[0].name}’s moves earned`) : `What the moves of ${l.map((x) => (x.you ? "you" : x.name)).join(" and ")} earned`), cause: { dice: "Dice", card: "Drawn card", choice: "Choice" }, ctx: "Context",
+      key: ["luck", "choice", "estimate"], noteA: (n) => `Luck and steps: margin up to ±${n} ${n === 1 ? "point" : "points"} per step.`, noteB: "≈ is an estimate (±). It is measured against doing nothing, which did not happen, so it is not in the total.", calc: "Calculating…", back: "Back", open: "Open turn", pointsWord: "points",
       sub: (from, to, d, pw) => `${from}% → ${to}% · ${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${pw}`, income: "Your dots per resource", incomeOf: (name) => `${name}’s dots per resource`, vs: "vs. doing nothing",
       dots: (n) => (n === 1 ? "dot" : "dots"), rw: (r) => LANG.en.res[r],
       scarceShort: (c) => [{ pl: c.q }, c.dots === 0 ? ` had no ${LANG.en.res[c.res]} dot` : " had only ", ...(c.dots === 0 ? [] : [{ x: c.dots }, ` ${LANG.en.res[c.res]} ${c.dots === 1 ? "dot" : "dots"}`])],
       spotShort: (c) => [{ pl: c.by }, " took ", { pos: c.q }, " best spot (", { x: c.pips }, ` ${c.pips === 1 ? "dot" : "dots"})`],
-      gapShort: (c) => [`${LANG.en.res[c.res].replace(/^./, (x) => x.toUpperCase())} dots: `, { pl: c.winner }, " ", { x: c.dots }, ", you ", { x: c.mine }],
+      gapShort: (c) => [`${LANG.en.res[c.res].replace(/^./, (x) => x.toUpperCase())} on `, { pos: c.winner }, " numbers: ", { x: c.dots }, " dots, you ", { x: c.mine }],
       pointsShort: (c) => ["Before it ", { pl: c.q }, " had ", { x: c.before }, ` ${c.before === 1 ? "point" : "points"}; the point card was point `, { x: c.after }],
       oddsShort: (c) => [`A ${c.sum} comes up `, { x: c.ways }, " times in 36; twice in a row about 1 in ", { x: c.oneIn }],
       bankShort: (c) => [{ pl: c.q }, " had ", { x: c.dots }, ` ${LANG.en.res[c.get]} ${c.dots === 1 ? "dot" : "dots"}: `, { x: c.ratio }, ` ${LANG.en.res[c.give]} → 1 ${LANG.en.res[c.get]} at the bank`],
@@ -86,7 +86,7 @@ export const LANG = {
           const got = {}; rolls.forEach((r) => Object.entries(r.prod || {}).forEach(([q, l]) => { got[q] = (got[q] || []).concat(l); }));
           const ben = Object.entries(got).filter(([q]) => +q !== me).sort((a, b) => b[1].length - a[1].length)[0], B = ben ? +ben[0] : me, cards = got[B] || [], d = (r) => ({ d: Math.round(r.d[subj] * 100), q: subj }), blt = (o.built || []).find((b) => b.pid === B);
           const bw = blt ? { settlement: "a settlement", city: "a city", road: "a road" }[blt.what] : null;
-          if (rolls.length === 2 && rolls[0].sum === rolls[1].sum && rolls.every((r) => (r.prod?.[B] || []).length)) return [`Two ${rolls[0].sum}s: `, { x: cards.length }, ` ${cards.length === 1 ? "card" : "cards"} for `, { pl: B }, " (", d(rolls[0]), " and ", d(rolls[1]), ")."];
+          if (rolls.length === 2 && rolls[0].sum === rolls[1].sum && rolls.every((r) => (r.prod?.[B] || []).length)) return [`Two ${rolls[0].sum}s (`, d(rolls[0]), " and ", d(rolls[1]), ") gave ", { pl: B }, bw ? ` ${RES(cards)}, with which ` : ` ${cards.length} ${cards.length === 1 ? "card" : "cards"}: ${RES(cards)}`, ...(bw ? [{ pl: B }, ` built ${bw}`] : []), "."]; // v1.90.2 concrete: what the two rolls paid, and what it bought
           const parts = []; rolls.forEach((r, i) => { if (i) parts.push(" and "); parts.push({ pos: r.pid }, " ", { x: r.sum }, " (", d(r), ")"); });
           return [...parts, " gave ", { pl: B }, cards.length ? ` ${RES(cards)}` : " nothing", ...(bw ? [`, with which `, { pl: B }, ` built ${bw}`] : []), "."];
         }
@@ -132,13 +132,13 @@ export const LANG = {
     },
     // v1.90 de ledger-kaart en de beurtweergave (src/review/ai-ledger.js): segmenten zijn tekst, { pl: stoel } een naam, { pos: stoel } een bezitsvorm, { d: punten, q, se, est } een getal met teken, { x } vet
     lg: {
-      decided: "Waar het om draaide", chance: "Geluk", choice: "Keuze", chanceSub: "dobbelstenen, getrokken kaarten", choiceSub: "bouwen, ruilen, rover", other: "overige stappen", total: "Totaal", steps: "Stap voor stap", why: "Waarom", progress: "Wat de zetten opleverden", cause: { dice: "Dobbelstenen", card: "Getrokken kaart", choice: "Keuze" }, ctx: "Context",
-      key: ["geluk", "keuze", "schatting"], noteA: (n) => `Geluk en stappen: marge tot ±${n} ${n === 1 ? "punt" : "punten"} per stap.`, noteB: "≈ is een schatting (±), niet meegeteld in het totaal.", calc: "Rekent…", back: "Terug", open: "Open beurt", pointsWord: "punten",
+      decided: "Waar het om draaide", chance: "Geluk", choice: "Keuze", chanceSub: "dobbelstenen, getrokken kaarten", choiceSub: "bouwen, ruilen, rover", other: "overige stappen", total: "Totaal", steps: "Stap voor stap", why: "Waarom", progress: "Wat de zetten opleverden", progressFor: (l) => (l.length === 1 ? (l[0].you ? "Wat jouw zetten opleverden" : `Wat de zetten van ${l[0].name} opleverden`) : `Wat de zetten van ${l.map((x) => (x.you ? "jou" : x.name)).join(" en ")} opleverden`), cause: { dice: "Dobbelstenen", card: "Getrokken kaart", choice: "Keuze" }, ctx: "Context",
+      key: ["geluk", "keuze", "schatting"], noteA: (n) => `Geluk en stappen: marge tot ±${n} ${n === 1 ? "punt" : "punten"} per stap.`, noteB: "≈ is een schatting (±). Gemeten tegen niets doen, en dat gebeurde niet: daarom niet in het totaal.", calc: "Rekent…", back: "Terug", open: "Open beurt", pointsWord: "punten",
       sub: (from, to, d, pw) => `${from}% → ${to}% · ${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${pw}`, income: "Jouw stippen per grondstof", incomeOf: (name) => `Stippen van ${name} per grondstof`, vs: "vergeleken met niets doen",
       dots: (n) => (n === 1 ? "stip" : "stippen"), rw: (r) => LANG.nl.res[r],
       scarceShort: (c) => (c.dots === 0 ? [{ pl: c.q }, ` had geen ${LANG.nl.res[c.res]}stip`] : [{ pl: c.q }, " had maar ", { x: c.dots }, ` ${LANG.nl.res[c.res]}stip`]),
       spotShort: (c) => [{ pl: c.by }, " nam ", { pos: c.q }, " beste plek (", { x: c.pips }, ` ${c.pips === 1 ? "stip" : "stippen"})`],
-      gapShort: (c) => [`${LANG.nl.res[c.res].replace(/^./, (x) => x.toUpperCase())}stippen: `, { pl: c.winner }, " ", { x: c.dots }, ", jij ", { x: c.mine }],
+      gapShort: (c) => [`${LANG.nl.res[c.res].replace(/^./, (x) => x.toUpperCase())} op `, { pos: c.winner }, " getallen: ", { x: c.dots }, " stippen, jij ", { x: c.mine }],
       pointsShort: (c) => ["Ervoor had ", { pl: c.q }, " ", { x: c.before }, ` ${c.before === 1 ? "punt" : "punten"}; de puntenkaart was punt `, { x: c.after }],
       oddsShort: (c) => [`Een ${c.sum} valt `, { x: c.ways }, " van de 36 keer; twee keer achter elkaar ongeveer 1 op ", { x: c.oneIn }],
       bankShort: (c) => [{ pl: c.q }, " had ", { x: c.dots }, ` ${LANG.nl.res[c.get]}${c.dots === 1 ? "stip" : "stippen"}: `, { x: c.ratio }, ` ${LANG.nl.res[c.give]} → 1 ${LANG.nl.res[c.get]} bij de bank`],
@@ -179,7 +179,7 @@ export const LANG = {
           const got = {}; rolls.forEach((r) => Object.entries(r.prod || {}).forEach(([q, l]) => { got[q] = (got[q] || []).concat(l); }));
           const ben = Object.entries(got).filter(([q]) => +q !== me).sort((a, b) => b[1].length - a[1].length)[0], B = ben ? +ben[0] : me, cards = got[B] || [], d = (r) => ({ d: Math.round(r.d[subj] * 100), q: subj }), blt = (o.built || []).find((b) => b.pid === B);
           const bw = blt ? { settlement: "een dorp", city: "een stad", road: "een weg" }[blt.what] : null;
-          if (rolls.length === 2 && rolls[0].sum === rolls[1].sum && rolls.every((r) => (r.prod?.[B] || []).length)) return [`Twee keer een ${rolls[0].sum}: `, { x: cards.length }, ` ${cards.length === 1 ? "kaart" : "kaarten"} voor `, { pl: B }, " (", d(rolls[0]), " en ", d(rolls[1]), ")."];
+          if (rolls.length === 2 && rolls[0].sum === rolls[1].sum && rolls.every((r) => (r.prod?.[B] || []).length)) return [`Twee keer een ${rolls[0].sum} (`, d(rolls[0]), " en ", d(rolls[1]), ") gaf ", { pl: B }, bw ? ` ${RES(cards)}, waarmee ` : ` ${cards.length} ${cards.length === 1 ? "kaart" : "kaarten"}: ${RES(cards)}`, ...(bw ? [{ pl: B }, ` ${bw} bouwde`] : []), "."];
           const parts = []; rolls.forEach((r, i) => { if (i) parts.push(" en "); parts.push({ pos: r.pid }, " ", { x: r.sum }, " (", d(r), ")"); });
           return [...parts, rolls.length === 1 ? " gaf " : " gaven ", B === me ? "jou" : { pl: B }, cards.length ? ` ${RES(cards)}` : " niets", ...(bw ? [", waarmee ", { pl: B }, ` ${bw} bouwde`] : []), "."];
         }
