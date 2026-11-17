@@ -36,47 +36,52 @@ export function ledgerModel(inp) {
   /** the rounds the progress credit (B) is valued for: the 3-5 biggest */
   out.creditTurns = () => bigRounds(led, seats, 4).map((r) => r.t).sort((a, b) => a - b);
 
-  // ── C: the mechanism of a round, only what the data proves ──
-  const mech = (t, q) => {
+  // ── C: the mechanism of a round, only what the data proves: facts of turns up to this round, and only in the direction the round moved ──
+  const lv = (x) => Math.round(x * 100) + 0;
+  /** (its: the round's items with their steps) */
+  const mech = (t, q, its = []) => {
     if (!raw) return {};
     const r = led.round(t); if (!r) return {};
-    const m = {};
-    const inc = M.incomeAt(raw, t, q), nv = M.needsVsIncome(raw, t, q);
-    // scarce: the next build needs a resource that the player's dots hardly pay, and it took turns to get it
-    const sc = nv.need.filter((x) => x.perTurn >= 0 && inc.dots[x.res] <= 1 && x.turnsWithout >= 3 && x.received === 0).sort((a, b) => a.perTurn - b.perTurn)[0];
-    if (sc && nv.built) m.scarce = { q, res: sc.res, dots: inc.dots[sc.res], kind: nv.kind, turn: nv.turn, without: sc.turnsWithout, every: sc.expectedTurns == null ? null : Math.round(sc.expectedTurns), all: inc.dots };
-    // spot: a spot within 1 road of the network before the round that somebody else then built on (within 3 rounds)
-    const before = M.reachSpots(raw, t - 1, q), spots = before.spots.filter((s) => s.d <= 1 && s.pips >= 6), lost = [];
-    for (let u = t; u <= t + 3; u++) spots.forEach((s) => { if (lost.some((l) => l.n === s.n)) return; const b = raw.ev.find((e) => e[0] === u && e[1] === "b" && (e[3] === "s" || e[3] === "c") && e[4] === s.n && e[2] !== q); if (b) lost.push({ n: s.n, pips: s.pips, d: s.d, turn: u, by: b[2] }); });
-    lost.sort((a, b) => b.pips - a.pips || a.turn - b.turn);
-    if (lost[0]) { const after = M.reachSpots(raw, lost[0].turn, q); m.spot = { q, ...lost[0], before: before.within1, after: after.within1 }; }
+    const m = {}, dq = r.d[q];
+    // scarce (only in a round the player lost ground): at the end of this round one resource is paid by at most one dot of the player's buildings
+    if (dq <= -0.03) {
+      const inc = M.incomeAt(raw, t, q), low = M.R5.slice().sort((a, b) => inc.dots[a] - inc.dots[b])[0];
+      if (inc.dots[low] <= 1) m.scarce = { q, res: low, dots: inc.dots[low], all: inc.dots };
+    }
+    // spot: a spot within 1 road of the network before the round that somebody else built on IN this round, in a step that cost the player win chance
+    if (dq <= -0.03) {
+      const before = M.reachSpots(raw, t - 1, q), spots = before.spots.filter((s) => s.d <= 1 && s.pips >= 6), lost = [];
+      spots.forEach((s) => { const b = raw.ev.find((e) => e[0] === t && e[1] === "b" && (e[3] === "s" || e[3] === "c") && e[4] === s.n && e[2] !== q), st = its.find((i) => i.type === "build" && i.at === s.n && i.pid !== q && i.d[q] <= -0.02); if (b && st) lost.push({ n: s.n, pips: s.pips, d: s.d, turn: t, by: b[2] }); });
+      lost.sort((a, b) => b.pips - a.pips);
+      if (lost[0]) { const after = M.reachSpots(raw, t, q); m.spot = { q, ...lost[0], before: before.within1, after: after.within1 }; }
+    }
     return m;
   };
   out.mech = mech;
   /** one mechanism line + tiny visual for a round, for the subject seat; null when nothing is proven */
   const mechLine = (t, subj, its) => {
-    const segs = [], c = {};
-    const mine = mech(t, me);
-    if (subj === me && (mine.scarce || mine.spot)) {
+    const segs = [], c = {}, R = led.round(t); if (!R || Math.abs(R.d[subj]) < 0.03) return null;
+    const mine = mech(t, subj, its), dir = Math.sign(R.d[subj]);
+    if (mine.scarce || mine.spot) {
       if (mine.scarce) { segs.push(...lg.scarceShort(mine.scarce)); c.scarce = mine.scarce; }
       if (mine.spot) { if (segs.length) segs.push("; "); segs.push(...lg.spotShort(mine.spot)); c.spot = mine.spot; }
       return { segs, claim: c, glyph: mine.scarce ? { dots: mine.scarce.all, mark: mine.scarce.res } : null };
     }
-    // the winner's dice: the resource of the biggest roll steps, dots of the winner against yours
+    // the winner's dice: the resource of the biggest roll steps, dots of the winner against yours (only when the winner gained in this round, mostly on those rolls)
     const rolls = its.filter((x) => x.type === "roll" && x.d[subj] > 0 && x.prod?.[subj]?.length);
-    if (raw && subj !== me && rolls.length) {
+    if (raw && subj !== me && dir > 0 && rolls.length && rolls.reduce((a, x) => a + x.d[subj], 0) >= 0.05) {
       const cnt = {}; rolls.forEach((x) => x.prod[subj].forEach((r) => { cnt[r] = (cnt[r] || 0) + 1; })); const res = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0][0];
       const iw = M.incomeAt(raw, t, subj).dots[res], im = M.incomeAt(raw, t, me).dots[res];
       if (iw >= 4 && iw >= 2 * im + 2) { c.gap = { res, winner: subj, dots: iw, mine: im }; return { segs: lg.gapShort(c.gap), claim: c, glyph: null }; }
     }
     // (a point card's "before: 9 points" is said by the surprise line under the rows, so it is not repeated here)
-    // the same number twice in a round: its odds, from the dice
-    const rr = its.filter((x) => x.type === "roll" && x.sum && x.sum !== 7 && Math.abs(x.d[subj]) >= LG.SHOW_MIN), sums = {}; rr.forEach((x) => { sums[x.sum] = (sums[x.sum] || 0) + 1; });
-    const twice = Object.entries(sums).find(([, k]) => k >= 2);
-    if (twice) { const s = +twice[0], k = 6 - Math.abs(7 - s); c.odds = { sum: s, ways: k, oneIn: Math.round(1296 / (k * k) / 10) * 10 || Math.round(1296 / (k * k)) }; return { segs: lg.oddsShort(c.odds), claim: c, glyph: null }; }
-    // a bank trade for a resource the player's dots hardly pay, in that player's own turn
+    // the same number in two rolls right after each other, both moving the subject the way the round went: its odds, from the dice
+    const seq = its.filter((x) => x.type === "roll"); let twice = null;
+    for (let k = 1; k < seq.length && !twice; k++) { const a = seq[k - 1], b = seq[k]; if (a.sum && a.sum === b.sum && a.sum !== 7 && [a, b].every((x) => Math.abs(x.d[subj]) >= LG.SHOW_MIN && Math.sign(x.d[subj]) === dir)) twice = a.sum; }
+    if (twice) { const k = 6 - Math.abs(7 - twice); c.odds = { sum: twice, ways: k, oneIn: Math.round(1296 / (k * k) / 10) * 10 || Math.round(1296 / (k * k)) }; return { segs: lg.oddsShort(c.odds), claim: c, glyph: null }; }
+    // a bank trade for a resource the player's dots hardly pay, in that player's own turn, in a round the player lost ground
     const bk = its.find((x) => x.type === "bank" && x.pid === subj && x.tr?.length && raw);
-    if (bk) { const [give, get, ratio] = bk.tr[0], i2 = M.incomeAt(raw, t, subj).dots; if (i2[get] <= 2 && ["wood", "brick", "sheep", "wheat", "ore"].includes(get)) { c.bank = { q: subj, give, get, ratio, dots: i2[get], all: i2 }; return { segs: lg.bankShort(c.bank), claim: c, glyph: { dots: i2, mark: get } }; } }
+    if (bk && dir < 0) { const [give, get, ratio] = bk.tr[0], i2 = M.incomeAt(raw, t, subj).dots; if (i2[get] <= 2 && ["wood", "brick", "sheep", "wheat", "ore"].includes(get)) { c.bank = { q: subj, give, get, ratio, dots: i2[get], all: i2 }; return { segs: lg.bankShort(c.bank), claim: c, glyph: { dots: i2, mark: get } }; } }
     return null;
   };
 

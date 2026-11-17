@@ -112,6 +112,27 @@ const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3,
       const cases = [["Waarom zakte ik?", "behind"], ["why did I fall behind", "behind"], ["what happened in turn 5", "turn", 5], ["Wat gebeurde er in beurt 7?", "turn", 7], ["Waarom won ik?", null], ["What was my best move?", null], ["Waarom viel ik achter?", "behind"]];
       ok(cases.every(([q, k, t]) => { const r = AL.ledgerRoute(q); return k ? r && r.kind === k && (t == null || r.t === t) : r === null; }), "the ledger routes 'why did I fall behind' / 'what happened in turn N' (NL + EN) and leaves other questions alone");
     }
+    // v1.90.1 the chat answers about the player ASKED (held-out phrasings, written before the router was changed): a name, a negation, a win question, another subject
+    if (tag === files[0].replace(".json", "")) {
+      const PL = [{ seat: 0, name: "Jij", you: true }, { seat: 1, name: "Geelen" }, { seat: 2, name: "Blaauw" }, { seat: 3, name: "Groenewoud" }], C = { me: 0, win: 1, players: PL };
+      const H = [ // [question, expected route: null or { kind, seat, t? }]
+        ["Waarom is Geelen zo ver teruggevallen?", { kind: "behind", seat: 1 }], ["Hoe kwam het dat Blaauw terugzakte?", { kind: "behind", seat: 2 }], ["Why did Blaauw lose so much ground in the middle of the game?", { kind: "behind", seat: 2 }],
+        ["Waarom daalde mijn winkans zo hard?", { kind: "behind", seat: 0 }], ["Why did I get so far behind in the early game?", { kind: "behind", seat: 0 }], ["why did Groenewoud drop so much", { kind: "behind", seat: 3 }],
+        ["Wat gebeurde er in beurt 9 met Blaauw?", { kind: "turn", seat: 2, t: 9 }], ["What happened to Geelen in round 6?", { kind: "turn", seat: 1, t: 6 }], ["Tell me what happened in turn 12 for me", { kind: "turn", seat: 0, t: 12 }], ["wat gebeurde er in beurt 4", { kind: "turn", seat: 0, t: 4 }],
+        ["Waarom zakte ik eigenlijk niet verder?", null], ["Why didn't Geelen fall behind earlier?", null], ["Waarom zakte Blaauw niet?", null], ["Why did I never drop below 20%?", null],
+        ["Why did I win after being behind for so long?", null], ["Waarom won ik terwijl ik achterstond?", null], ["Why did Geelen win?", null],
+        ["Why did everyone else fall behind me?", null], ["Why did the other players drop so far behind?", null], ["Waarom zakte de bank achter met kaarten?", null], ["Waarom zakte Pieter?", null],
+        ["What was my best move?", null], ["Wat was het plan van Geelen?", null], ["Who was luckiest?", null]];
+      const bad = H.filter(([q, want]) => { const r = AL.ledgerRoute(q, C); return want ? !(r && r.kind === want.kind && r.seat === want.seat && (want.t == null || r.t === want.t)) : r !== null; });
+      ok(!bad.length, `${tag}: the chat router: the asked player (a name, ik/mijn/I), no answer for a negated question, a win question or another subject (${H.length} held-out phrasings)`, bad.map((b) => [b[0], AL.ledgerRoute(b[0], C)]));
+      // the answer is about that player, with that player's numbers from the ledger
+      const fxA = { lang: "nl", me, T: G.T, keys: [], nameOf: (q) => (q === me ? "Jij" : G.names[q]) }, other = [...Array(n).keys()].filter((q) => q !== me);
+      for (const q of [me, ...other]) {
+        const a = AL.ledgerAnswer(m, fxA, { kind: "behind", seat: q }); if (!a) { ok(false, `${tag}: an answer for seat ${q}`); continue; }
+        const R = led.round(a.t), lo = Math.min(...rounds.filter((x) => x.t >= 1).map((x) => led.round(x.t).d[q])), nm = q === me ? "Je" : G.names[q];
+        ok(a.seat === q && Math.abs(R.d[q] - lo) < 1e-12 && a.answer.includes(`${Math.round(R.v0[q] * 100)}%`) && a.answer.includes(`${Math.round(R.v1[q] * 100)}%`) && a.answer.startsWith(nm) && (q === me || !/^Je /.test(a.answer)), `${tag}: the "fell behind" answer for seat ${q} is about ${nm}: its biggest fall in turn ${a.t}, its own numbers`, a.answer.slice(0, 110));
+      }
+    }
     // fx.behind
     const bh = m.behind(); ok(bh == null || (bh.d < 0 && bh.d === Math.round(100 * L.roundSteps(led, bh.t).d[me]) + 0 && bh.v0 === Math.round(led.round(bh.t).v0[me] * 100) && bh.v1 === Math.round(led.round(bh.t).v1[me] * 100)), `${tag}: fx.behind is the round with the biggest fall, with the ledger's numbers`, bh);
   }
