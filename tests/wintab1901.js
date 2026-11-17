@@ -35,6 +35,7 @@ const INDEP = () => {
     await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 20000 });
     await page.evaluate(() => { window.__colonistGame._rvTab = "ai"; }); await page.locator(".rv .rv-tabs button", { hasText: /AI/ }).first().tap();
     let ready = false; for (let i = 0; i < 400 && !ready; i++) { ready = await page.evaluate(() => !!window.__colonistGame._ldReady?.()); if (!ready) await sleep(300); }
+    let settled = false; for (let i = 0; i < 300 && !settled; i++) { settled = await page.evaluate(() => { const g = window.__colonistGame; return !!g._ldJob && !g._ldJob.busy; }); if (!settled) await sleep(400); } await sleep(500); // (the shown rounds are refined once, in the worker: the numbers settle, then every screen is compared)
     ok(ready, `${tag}: the ledger is complete`);
     const flag = await page.evaluate(() => !!window.__colonistGame._rvOdds().ledger); ok(flag, `${tag}: the odds every screen reads are the ledger's`);
 

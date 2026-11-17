@@ -47,7 +47,10 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       const shaped = S.shape && !["sudden", "seesaw"].includes(S.shape); // v1.88: a shaped game labels the turns its headline names
       ok(!S.marks || shaped || S.marks.includes(S.best.t), `${tag}: marker on the decisive turn (or on the turns the shape headline names)`, S.marks);
       if (shaped) ok(S.marks?.length >= 1 && /turn|beurt/i.test(S.title || ""), `${tag}: shape ${S.shape}: headline names a turn and the chart marks it`, [S.marks, S.title]);
-      if (S.title && S.dir && !shaped) { const up = S.dir.d > 0; ok(up ? /\brose\b|steeg/.test(S.title.split(";")[0]) && !/slid/.test(S.title.split(";")[0]) : /\bslid\b|daalde/.test(S.title.split(";")[0]), `${tag}: direction word matches the sign`, [S.dir.d, S.title]); }
+      if (S.title && S.dir && !shaped) { // v1.90.2 the headline starts with the reviewed player; every clause's direction word matches its own numbers, and the decisive player's clause has the sign of the decisive swing
+        const cls = S.title.split(";").map((c) => /(rose|slid|steeg|daalde) (?:from|van) (\d+)% (?:to|naar) (\d+)%/.exec(c)).filter(Boolean), up = S.dir.d > 0;
+        ok(cls.length >= 1 && cls.every((m) => (/rose|steeg/.test(m[1]) ? +m[3] > +m[2] : +m[3] < +m[2])) && cls.some((m) => (up ? /rose|steeg/.test(m[1]) : /slid|daalde/.test(m[1]))), `${tag}: direction words match the numbers and the sign`, [S.dir.d, S.title]);
+      }
     }
     if (gi === 0) {
       ok(S.chipT >= 21 && /(Blaauw|win chance)/.test(S.title) && /turn 2[12]/.test(S.title), "owner game: card leads with the final collapse on turns 21-22", S.title);
