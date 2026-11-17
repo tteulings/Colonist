@@ -22,12 +22,26 @@ const IC = {
 const RS = ["wood", "brick", "sheep", "wheat", "ore"];
 
 export const ReviewLedgerMixin = {
+  /** v1.91 true while the numbers of the card are not final: the luck run still values the positions, or the shown rounds are not refined yet. The AI tab then shows
+   *  nothing ranked (no headline, no "what decided it"), so nothing it said moves later; the Overview leaves its "decided on" line out the same way. Gives up after
+   *  150 s, when the worker is unavailable, or when the refinement failed (the page then shows what there is). */
+  _ldSettling() {
+    const R = this._rv; if (!R || R.noLuck || !this.winner || !reviewAvailable() || this._ldFailed === R.id) return false;
+    const LK = tryv(() => this._lkState()); if (!LK || LK.na) return false;
+    if (R._ldWait0 == null) Object.defineProperty(R, "_ldWait0", { value: now(), writable: true, configurable: true, enumerable: false });
+    if (now() - R._ldWait0 > 150000) return false;
+    const led = tryv(() => this._ldLed());
+    if (!led || !led.complete()) return !!(LK.run && !LK.paused);
+    const ld = tryv(() => this._lkStore().ld); return !(ld && (ld.ok || (ld.r && Object.keys(ld.r).length && !this._ldJob?.busy)));
+  },
   /** The ledger of this review (null: not valued completely yet, or a game the review cannot value). Rebuilt when the store was replaced. */
   _ldLed() {
     const R = this._rv, L = tryv(() => this._lkStore()); if (!R?.recs?.length || !L || !this.winner) return null;
     let c = R._ldC; if (!c || c.res !== L.res || c.N !== R.recs.length) { c = { res: L.res, N: R.recs.length, led: makeLedger({ recs: R.recs, n: this.players.length, winner: this.winner.id, res: L.res }) }; Object.defineProperty(R, "_ldC", { value: c, configurable: true, writable: true, enumerable: false }); }
     return c.led;
   },
+  /** v1.91 the Overview waits for the same final numbers: start the refinement from there too (once the ledger is complete). */
+  _ldWake() { if (this._ldWk === this._rv?.id) return; this._ldWk = this._rv?.id; setTimeout(() => { if (this._ldReady?.()) this._ldKick?.(); else this._ldWk = null; }, 150); },
   /** The ledger when every position is valued (the card draws from it), else null. */
   _ldReady() { const led = this._ldLed(); return led && led.complete() ? led : null; },
   _ldCtx() { return { recs: this._rv.recs, steps: this.stats?.steps || [], ev: this.stats?.ev || [], hexes: this.geometry?.hexes || [] }; },
@@ -88,7 +102,7 @@ export const ReviewLedgerMixin = {
     const R = this._rv, led = this._ldReady(); if (!R || !led || this._ldJob?.busy || !reviewAvailable() || R.noLuck) return;
     const L = this._lkStore(), ld = (L.ld ||= { r: {}, c: [] }), fx = this._pgState().fx, model = fx.lg; if (!model) return;
     const todoR = model.focus().filter((t) => !ld.r[t]), todoC = model.creditTurns().filter((t) => !ld.c.includes(t));
-    if (!todoR.length && !todoC.length) return;
+    if (!todoR.length && !todoC.length) { ld.ok = true; return; }
     const job = (this._ldJob = { busy: true, t0: now(), rounds: todoR.length, positions: 0, tR: 0, tC: 0 }), id = R.id, live = () => this._rv === R && R.id === id && !!this._ldJob && this._ldJob === job;
     this._ldPaint("calc");
     try {
@@ -105,7 +119,8 @@ export const ReviewLedgerMixin = {
         if (!live()) break; const a = now(); await creditRound(led, t, model.seats, this._ldCtx(), value, store, { live }); job.tC += now() - a;
         if (live()) ld.c.push(t);
       }
-    } catch (e) { console.warn("ledger refine", e); }
+    } catch (e) { console.warn("ledger refine", e); this._ldFailed = id; }
+    if (live() && this._ldFailed !== id) ld.ok = true;
     job.busy = false; job.ms = now() - job.t0; job.done = true;
     if (this._rv === R) { this._rvSave?.(); this._ldPaint("final"); }
     return job;
@@ -125,10 +140,11 @@ export const ReviewLedgerMixin = {
     job.busy = false; if (this._rv === R) { this._rvSave?.(); this._ldPaint(); }
   },
   /** The luck run ended: the ledger may be complete now; draw the card from it and start the refinement. */
-  _ldAfterRun() { this._pgMemo = null; if (this._rvTab === "win" && this._rvStep == null) tryv(() => this._rvWinRepaint?.()); if (this._rvTab === "ai" && this._rvStep == null && this._ldReady()) { this._ldPaint("final"); this._ldKick(); } },
+  _ldAfterRun() { this._pgMemo = null; if (this._rvTab === "win" && this._rvStep == null) tryv(() => this._rvWinRepaint?.()); if (this._rvTab === "ai" && this._rvStep == null && this._ldReady()) { this._ldPaint("final"); this._ldKick(); } else if (this._rvTab === "overview" && this._rvStep == null && this._ldReady()) this._ldKick(); },
   /** Draw again what shows ledger numbers. "calc": only the wait line moves (the numbers change once, at the end, so the card does not flicker); "final": the card is swapped in softly, or the round view that is open is redrawn. */
   _ldPaint(mode = "final") {
-    this._pgMemo = null; const el = this._rvEl; if (!el || this._rvTab !== "ai") return;
+    this._pgMemo = null; const el = this._rvEl; if (!el) return;
+    if (this._rvTab !== "ai") { if (mode === "final" && this._rvTab === "overview" && this._rvStep == null && !this._ldSettling()) tryv(() => this._rvDrawReview?.()); return; } // v1.91 the Overview's line reads the same final numbers
     if (this._ldViewT != null && el.querySelector("[data-lgview]")) { this._ldView(this._ldViewT, true); if (mode === "calc") return; }
     if (mode === "calc") { const fx = this._pgState().fx; el.querySelectorAll("[data-lg] .lg-sec").forEach((sec) => { sec.querySelector(".lg-calc")?.remove(); sec.insertAdjacentHTML("beforeend", this._ldCalc(fx)); }); return; }
     if (this._rvStep != null) return;

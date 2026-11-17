@@ -13,6 +13,7 @@ import { reviewModel, REVIEW_MODELS, modelOfId } from "./review/evaluate.js";
 import { summarize, REVIEW, REVIEW_ENGINE, REVIEW_ENGINES, ACC, clsOf, LIMITS, SETUP_LIMITS, CLASSES, GREAT, gpOf, decide, totals, tradeShow, needsFull } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
 import { cardsText, topText, tileOf, sentence } from "./review/luck.js";
+import { segsText } from "./review/ai-ledger.js";
 import { BOT_PROFILES } from "./bot-profiles.js";
 import { profileOf } from "./bot-profile-ui.js";
 import { botBand } from "./review/bands.js";
@@ -1105,6 +1106,13 @@ export const ReviewGameMixin = {
     {
       const won = w === me, t = [...sw].sort((p, q) => (won ? q.d - p.d : p.d - q.d))[0];
       line = t ? `${won ? "Turning point" : "Decided"} on ${this._rvTW().toLowerCase()} ${t.T}: ${t.say} (${you ? "your" : "their"} win chance ${Math.round(t.b * 100)}% → ${Math.round(t.e * 100)}%)` : "";
+      // v1.91 one set of facts: with the step ledger the line names the round, the cause and the numbers of the round view (AI tab); while those are not final, no line (a second, different story)
+      let lgl = null;
+      try {
+        if (this._ldSettling?.()) { line = ""; this._ldWake?.(); }
+        else { const fx = this._pgState().fx, M = fx.lg; if (M) { const pick = won ? M.rowTurns().map((q) => M.row(q, pid)).filter(Boolean).sort((a, b) => b.d - a.d)[0] : (() => { const b = M.behind(pid); return b ? M.row(b.t, pid) : null; })(); if (pick && Math.abs(pick.d) >= 3) lgl = { T: pick.t, say: segsText(pick.text, fx).replace(/\s*\([^()]*\)\s*\.?\s*$/, "").replace(/[.\s]+$/, ""), b: pick.v0, e: pick.v1 }; } }
+      } catch (_) { lgl = null; }
+      if (lgl) line = `${won ? "Turning point" : "Decided"} on ${this._rvTW().toLowerCase()} ${lgl.T}: ${lgl.say} (${you ? "your" : "their"} win chance ${Math.round(lgl.b * 100)}% → ${Math.round(lgl.e * 100)}%)`;
     }
     let sub = "";
     if (W) sub = `Luck ${wpText(W.luck)}${W.moves != null ? ` · ${you ? "your" : "their"} moves ${wpText(W.moves)}` : ""} (win chance)`;

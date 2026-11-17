@@ -110,6 +110,8 @@ export const ReviewAiPageMixin = {
   // ── the page ──
   _pgHtml() {
     const { fx, page, src, fu } = this._pgState();
+    // v1.91 not final yet (the luck run values the positions, the shown rounds are refined): nothing ranked is drawn, so nothing it says moves later
+    if (tryv(() => this._ldSettling?.(), false)) return `<div class="ap ap-settle" data-pg><section class="ap-c ap-sk" aria-busy="true" role="status"><div class="ap-skl"><i></i><i></i></div><div class="ap-skv"></div><span class="ap-skt">${esc(fx.t.settle)}…</span><p class="ap-asked ap-settle-sub">${esc(fx.t.settleSub)}</p></section></div>`;
     this._pgOpenSet = this._pgOpenSet || new Set();
     const hl = page.headline ? `<p class="ap-hl">${this._pgParts(page.headline, fx)}</p>` : "";
     const cards = page.widgets.map((w, i) => this._pgCardHtml(w, i, fx));
