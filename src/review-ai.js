@@ -49,12 +49,17 @@ const SRC = [["settlements", "s"], ["cities", "c"], ["road", "L"], ["army", "A"]
 /** A follow-up chip: at most 24 characters, a whole question (never cut, never a fragment); a longer or cut one gets a short app label by topic. */
 const FRAG = /\b(?:i|me|my|the|a|an|of|to|in|on|at|for|and|or|but|was|were|is|are|did|do|does|how|why|what|who|ik|mijn|de|het|een|van|naar|en|of|was|waren|is|zijn)$/i;
 const CHIPFB = { en: [[/\b(?:lose|lost|loss|decid|why)\b/i, "Why did I lose?"], [/luck/i, "Luck vs play?"], [/best|move|miss|mistake|setup|set-up|trade|road|city/i, "Best move?"]], nl: [[/verlo|waarom|besliss/i, "Waarom verloren?"], [/geluk|pech/i, "Geluk of spel?"], [/beste|zet|fout|gemist|opzet|stad|weg/i, "Beste zet?"]] };
-export function aiChip(q, lang = "en") {
+// v1.89 the chip about the result follows the result: "Why did I win?" on a won game, "Why did I lose?" on a lost one (a first-person why-question about winning or losing)
+const WL = { en: { won: "Why did I win?", lost: "Why did I lose?" }, nl: { won: "Waarom gewonnen?", lost: "Waarom verloren?" } };
+const WINLOSE = /\b(?:win|won|winning|lose|lost|loss|losing|gewonnen|winnen|verloren|verlies|verloor|verliezen)\b/i;
+export function aiChip(q, lang = "en", won = null) {
   q = String(q ?? "").trim().replace(/\s+/g, " ").replace(/[?.!]+$/, "");
   if (!q) return null;
   const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+  const W = WL[lang] || WL.en;
+  if (typeof won === "boolean" && /\b(?:why|waarom)\b/i.test(q) && /\b(?:i|ik)\b/i.test(q) && WINLOSE.test(q)) return W[won ? "won" : "lost"];
   if (q.length <= 24 && !FRAG.test(q)) return cap(q);
-  for (const [re, lab] of CHIPFB[lang] || CHIPFB.en) if (re.test(q)) return lab;
+  for (const [re, lab] of CHIPFB[lang] || CHIPFB.en) if (re.test(q)) return typeof won === "boolean" && lab === W.lost ? W[won ? "won" : "lost"] : lab;
   return null;
 }
 const FALLBACK = { en: ["Best move?", "Biggest mistake?", "Who was luckiest?"], nl: ["Beste zet?", "Grootste fout?", "Wie had geluk?"] };
@@ -815,7 +820,7 @@ export const ReviewAiMixin = {
     if (!this._pgLegacy()) { const R = this._rv, pid = this._rvPid, lang = recapLang(); if (R && (!R.ai || R.ai.pid !== pid || R.ai.lang !== lang)) R.ai = { pid, lang, at: Date.now(), insights: null, answers: (R.ai?.answers || []).filter((a) => a.pinned) }; } // v1.83 the page has no saved insights; the chat keeps its answers here
     const U = this._aiUi?.pid === this._rvPid ? this._aiUi : null; // (the insights are asked for on opening the tab, once; an error waits for "Try again")
     if (this._pgLegacy() && !this._aiSaved() && !U?.loading && !U?.err) setTimeout(() => { if (this._rvTab === "ai" && !this._aiSaved()) this._aiRun(false); }, 0);
-    if (!this._pgLegacy()) setTimeout(() => { if (this._rvTab === "ai" && this._rvStep == null) this._pgKick?.(); }, 120); // the recipes page is drawn; the composed page follows in the background
+    if (!this._pgLegacy()) setTimeout(() => { if (this._rvTab === "ai" && this._rvStep == null) { this._pgKick?.(); this._ldKick?.(); } }, 120); // v1.90 + the ledger's refinement of the shown steps and the progress credit (worker, background) // the recipes page is drawn; the composed page follows in the background
     return { html: `<div class="ai" data-aibody>${this._aiBodyHtml()}</div>`, foot: `<div data-aiask>${this._aiAskHtml()}</div>`, bind: (el) => this._aiBind(el) };
   },
   /** The chat under the insight cards, oldest first: the open answer in full (the newest by default), the others one line (tap to open). A visual
@@ -886,7 +891,7 @@ export const ReviewAiMixin = {
     const C = { t: this._aiL() }, L = C.t, R = this._rv, leg = this._pgLegacy(), S = leg ? this._aiSaved() : tryv(() => ({ follow: this._pgState().page.follow.map((f) => f.q) }), { follow: [] });
     const asked = new Set([...(R.ai?.answers || []).map((a) => qkey(a.q)), ...(leg ? [] : (this._pgRec()?.fu || []).map((f) => qkey(f.q)))]);
     const lastA = (R.ai?.answers || [])[0], src = [...(lastA?.followUps || []), ...(leg ? S?.insights?.followUps || [] : S?.follow || [])];
-    const chips = []; src.forEach((q0) => { const q = /\d/.test(q0) ? this._aiGuard(String(q0), { maxT: this.turn || 99 }) : q0; if (!q || q !== q0) return; const c = aiChip(q, recapLang()); if (c && !asked.has(qkey(q)) && !chips.some((x) => x.c === c)) chips.push({ c, q: String(q).slice(0, 300) }); });
+    const won = tryv(() => this._pgState().fx.won, null), chips = []; src.forEach((q0) => { const q = /\d/.test(q0) ? this._aiGuard(String(q0), { maxT: this.turn || 99 }) : q0; if (!q || q !== q0) return; const c = aiChip(q, recapLang(), won); if (c && !asked.has(qkey(q)) && !chips.some((x) => x.c === c)) chips.push({ c, q: String(q).slice(0, 300) }); });
     if (S && !chips.length) { const lg = recapLang(), fb = FALLBACK[lg] || FALLBACK.en, fq = FALLQ[lg] || FALLQ.en; fb.forEach((c, i) => { if (!asked.has(qkey(fq[i]))) chips.push({ c, q: fq[i] }); }); }
     const busy = this._aiUi?.loading === "ask" || !!this._pgFuBusy;
     const pend = busy && !this._pgFuBusy ? `<div class="ai-pend" role="status" aria-busy="true"><i class="ai-spin"></i><b>${esc(this._aiUi?.q || "")}</b><span>${esc((CHAT[recapLang()] || CHAT.en)[this._rsnWorking ? "rsnW" : "pend"])}</span></div>` : "";
@@ -1085,7 +1090,7 @@ export const ReviewAiMixin = {
     if (el) { el.scrollIntoView?.({ block: "start", behavior: "smooth" }); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
   },
   /** A question: first as a NEW composed widget drawn inline on the page (compose mode with the question); no valid widget -> the text chat answers as before. */
-  async _aiAsk(q, typed = false) { if (this._pgLegacy() || !composeEnabled()) return this._aiAskText(q, typed); return this._pgFollow(q, typed); },
+  async _aiAsk(q, typed = false) { if (!this._pgLegacy() && this._ldFollow?.(q)) return; /* v1.90 the ledger answers "why did I fall behind" / "what happened in turn N" itself */ if (this._pgLegacy() || !composeEnabled()) return this._aiAskText(q, typed); return this._pgFollow(q, typed); },
   async _pgFollow(q, typed = false) {
     const R = this._rv, pid = this._rvPid, lang = recapLang(), ai = R?.ai; if (!R || !ai || !q || this._pgFuBusy || this._aiUi?.loading === "ask") return;
     const rec = ai.page || (ai.page = { k: lang, L: false, at: 0, spec: null, fu: [] }); rec.fu = rec.fu || [];

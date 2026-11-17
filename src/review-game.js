@@ -506,7 +506,7 @@ export const ReviewGameMixin = {
   _rvWinCardHtml() {
     const R = this._rv;
     if (!R?.recs?.length || this._rvMid || !this.players.some((p) => !p.isHuman) || !this._st) return "";
-    let O; try { O = gameOdds(this); } catch (_) { return ""; }
+    let O; try { O = this._rvOdds(); } catch (_) { return ""; }
     if (O.na) return "";
     const pid = this._rvSoloPid?.();
     return `<section class="rv-card rsw" data-rvwin${pid != null ? ` role="button" tabindex="0" data-rvwpid="${pid}"` : ""} aria-label="Win chance through the game${pid != null ? ", open in the review" : ""}"><div class="rv-gt"><b>Win chance through the game</b><small>${pid != null ? "tap to open" : "set-up and every turn"}</small></div><div class="rsw-c"></div><div class="rsw-leg">${this.players.map((p) => `<span class="pc-${p.id}"><i></i>${this._rvNm(p.id)}</span>`).join("")}</div></section>`;
@@ -515,6 +515,7 @@ export const ReviewGameMixin = {
    *  with the Monte Carlo), right after it (the roll that came), and at the end of the turn (= the next roll's "before": the moves are in). A predictable build
    *  is already in "after the roll", so it no longer jumps. null until the luck check has covered the rolls (then the line is the model's ≈ estimate). */
   _rvLook() {
+    const LL = this._rvLedgerLook?.(); if (LL) return LL; // v1.90.1 the ledger's own numbers (the card reads them too)
     const LK = this._lkState?.();
     if (!LK || LK.na || !LK.done || LK.cover < 0.9 || !this._st || !this.winner) return null;
     const L = this._lkStore(), by = new Map();
@@ -535,7 +536,7 @@ export const ReviewGameMixin = {
   _rvWinDraw(card, who = null) {
     const st = this._st, c = card.querySelector(".rsw-c");
     if (!st || !c) return;
-    let O; try { O = gameOdds(this); } catch (_) { return; }
+    let O; try { O = this._rvOdds(); } catch (_) { return; }
     if (O.na) return;
     const W = 304, H = 112, x0 = 30, x1 = W - 12, top = 6, bot = H - 14, N = Math.max(1, st.N);
     const su = O.setup(), M = su.length - 1, f = M >= 1 ? 0.14 : 0, gap = M >= 1 ? 6 : 0, w = x1 - x0 - gap;
@@ -559,7 +560,7 @@ export const ReviewGameMixin = {
     this._rvWinOff?.(); this._rvWinOff = null;
     if (!card) return;
     this._rvWinDraw(card, card.dataset.rvwho != null ? +card.dataset.rvwho : null);
-    let O; try { O = gameOdds(this); } catch (_) { return; }
+    let O; try { O = this._rvOdds(); } catch (_) { return; }
     let t = 0;
     const off = O.on?.(() => { if (!card.isConnected) { off?.(); return; } if (!t) t = setTimeout(() => { t = 0; if (card.isConnected) this._rvWinDraw(card, card.dataset.rvwho != null ? +card.dataset.rvwho : null); }, 150); });
     this._rvWinOff = () => { off?.(); clearTimeout(t); };
@@ -996,14 +997,14 @@ export const ReviewGameMixin = {
     const kmc = `<section class="rv-card rs-keys rs-better"><div class="rv-gt"><b>Key moments</b><small>${imp.length ? "tap one to see it on the board" : ""}</small></div>${km || `<p class="rs-lost">No clear mistake in ${you ? "your" : "their"} moves.</p>`}</section>`;
     // the line
     let win = "";
-    try { const O = gameOdds(this); if (!O.na && st) win = `<section class="rv-card rsw pp-win" data-rvwin data-rvwho="${pid}" role="button" tabindex="0" aria-label="Win chance, open the Win chance tab"><div class="rv-gt"><b>Win chance</b><small>${you ? "you" : nm} thick · tap for the details</small></div><div class="rsw-c"></div></section>`; } catch (_) { win = ""; }
+    try { const O = this._rvOdds(); if (!O.na && st) win = `<section class="rv-card rsw pp-win" data-rvwin data-rvwho="${pid}" role="button" tabindex="0" aria-label="Win chance, open the Win chance tab"><div class="rv-gt"><b>Win chance</b><small>${you ? "you" : nm} thick · tap for the details</small></div><div class="rsw-c"></div></section>`; } catch (_) { win = ""; }
     const first = imp.length ? imp[0].i : ds[0]?.i;
     const go = ds.length ? `<button type="button" class="rv-btn pri rs-go" data-rvj="${first}" data-rvq="${imp.length ? "imp" : "all"}" data-rvfirst>${IC.step}Step through ${you ? "your" : `${nm}’s`} moves</button>` : "";
     return { bar, html: `${why}${pts}${acc}${kmc}${win}${go}`, bind: (el) => {
       const c = el.querySelector("[data-rvwin]");
       if (!c) return;
       this._rvWinDraw(c, pid);
-      let O; try { O = gameOdds(this); } catch (_) { return; }
+      let O; try { O = this._rvOdds(); } catch (_) { return; }
       let t = 0;
       const off = O.on?.(() => { if (!c.isConnected) { off?.(); return; } if (!t) t = setTimeout(() => { t = 0; if (c.isConnected) this._rvWinDraw(c, pid); }, 150); });
       this._rvWinOff2 = () => { off?.(); clearTimeout(t); };
@@ -1068,7 +1069,7 @@ export const ReviewGameMixin = {
   /** v1.68 every step of the game with what it did to this player's win chance (any player's turn, any kind), biggest first. */
   _rvSwings() {
     const st = this._st, me = this._rvPid; if (!st) return [];
-    let O = null; try { O = gameOdds(this); } catch (_) { O = null; }
+    let O = null; try { O = this._rvOdds(); } catch (_) { O = null; }
     const look = this._rvLook(), out = [];
     if (look) look.steps.forEach((x) => out.push({ S: x.S, b: x.b[me], a: x.a[me], e: x.e[me] }));
     else if (O && !O.na) for (let s = 1; s <= (st.N || 0); s++) { const p = O.get(s - 1), q = O.get(s); if (p && q) out.push({ S: s, b: p[me], a: q[me], e: q[me] }); }
@@ -1194,7 +1195,7 @@ export const ReviewGameMixin = {
     return { winBy, acts, roads, lostTxt, actor: stp && stp[1] >= 0 ? stp[1] : null, head: `${this._rvTW()} ${st.turnOf[s]}${roll ? ` · ${who ? `${who} rolled` : "rolled"} ${roll}` : ""}`, lines: lines.filter(Boolean), builds, roll, robber, cards };
   },
   _rvTabWin(ds) {
-    let O = null; try { O = gameOdds(this); } catch (_) { O = null; }
+    let O = null; try { O = this._rvOdds(); } catch (_) { O = null; }
     const pid = this._rvPid, you = this._rvIsYou(pid);
     const info = `<button type="button" class="lk-ib" data-rvwi-b aria-expanded="false" aria-label="About this chart">${IC.info}</button>`;
     const infoTxt = `<p class="lk-it" data-rvwi-t hidden>Each line is a player's chance to win, estimated after every roll and move (often about 9 points off; good for the trend). The first part is the set-up, one point per placement. The two bars show the table just before and just after the step you pick.</p>`;
@@ -1210,7 +1211,7 @@ export const ReviewGameMixin = {
         this._rvWcP = pid;
         this._rvWc = 1; this._rvWcAuto = true; // until you pick one: the step that moved this player's win chance most
       }
-      paint();
+      this._rvWinRepaint = paint; paint();
       el.querySelector("[data-rvwi-b]")?.addEventListener("click", (e) => { const t = el.querySelector("[data-rvwi-t]"); t.hidden = !t.hidden; e.currentTarget.setAttribute("aria-expanded", String(!t.hidden)); });
       let t = 0;
       const off = O.on?.(() => { if (!el.isConnected || this._rvEl !== el) { off?.(); return; } if (!t) t = setTimeout(() => { t = 0; if (el.isConnected && this._rvTab === "win" && this._rvStep == null) paint(); }, 200); });
@@ -1593,7 +1594,7 @@ export const ReviewGameMixin = {
     // v1.28 the running win chance at this move: the Replay's estimate (≈, src/replay-odds.js); the decision itself keeps the review's numbers
     const wc = el.querySelector(".rs-wc");
     if (wc) {
-      const O = gameOdds(this), key = (this._rvPbpSeq = (this._rvPbpSeq || 0) + 1);
+      const O = this._rvOdds(), key = (this._rvPbpSeq = (this._rvPbpSeq || 0) + 1);
       if (!wc.classList.contains("est")) wc.innerHTML = "<span>Win chance ≈ …</span>"; // (not the decision's numbers while it computes)
       wc.classList.add("est");
       if (!O.na && b.start && O.seat) { wc.classList.remove("est"); wc.innerHTML = this._rvLegend(O.seat); }

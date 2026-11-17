@@ -784,7 +784,7 @@ export const StatsUiMixin = {
     const ui = document.createElement("div");
     ui.className = `gs-replay tm ${mode}`;
     const maxV = Math.max(this.winPoints, ...st.vp[st.N]);
-    const odds = mode === "replay" ? gameOdds(this) : null;
+    const odds = mode === "replay" ? (this._rvOdds ? this._rvOdds() : gameOdds(this)) : null; // v1.90.2 the review's ledger numbers when it has them
     const seaNa = odds?.na === "sea";
     const IC = (d) => `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${d}"/></svg>`;
     ui.innerHTML = mode === "replay" ? `

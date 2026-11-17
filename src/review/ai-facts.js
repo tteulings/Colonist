@@ -17,6 +17,7 @@ export const AI_FACTS_MAX = 30000;
 export function aiSeries(g) {
   const st = g._st, n = g.players.length, by = new Map();
   if (!st?.steps?.length || !g.winner) return { by, maxT: 0, src: null };
+  const led = tryv(() => g._ldReady?.()), ls = led && tryv(() => led.series()); if (ls && ls.by.size > 1) return ls; // v1.90.1 the step ledger's series when it is complete: one set of numbers for the card, the Win chance tab and the chat
   const L = tryv(() => g._lkState()), ok = L && !L.na && L.done && L.cover >= 0.9;
   const N = Math.min(st.N, st.steps.length);
   let src = null;

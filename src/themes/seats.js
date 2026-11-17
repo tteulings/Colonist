@@ -14,7 +14,7 @@ export const SEAT_PC_DAY = {
   red: { base: "#B81E2E", dark: "#8A1220", light: "#E25A66", line: "#33060B" },
   blue: { base: "#1F55B8", dark: "#163F8A", light: "#6A94E4", line: "#0A1D48" },
   orange: { base: "#FF8C1A", dark: "#C76200", light: "#FFBA6A", line: "#4A2100" },
-  green: { base: "#0B5E44", dark: "#074632", light: "#45A07E", line: "#022016" },
+  green: { base: "#0A6B63", dark: "#064E49", light: "#45A89D", line: "#02201E" }, // v1.90.2 a teal green (was #0B5E44): apart from the green of a gain (+5) and from the forest, dE to it 14 (was 12), and better apart from red under protan (16, was 6)
   ivory: { base: "#FFFFFF", dark: "#D8D0BE", light: "#FFFFFF", line: "#4A4234" },
   purple: { base: "#D077E8", dark: "#A04CBE", light: "#EBB0F6", line: "#3A0F4A" },
 };
@@ -22,13 +22,13 @@ export const SEAT_PC_NIGHT = {
   red: { base: "#FF4F5E", dark: "#C22E3C", light: "#FF9AA2", line: "#3E0A10" },
   blue: { base: "#6AB0FF", dark: "#3A78C8", light: "#B4D8FF", line: "#0D2552" },
   orange: { base: "#FF8A10", dark: "#C9650A", light: "#FFBE72", line: "#4A2406" },
-  green: { base: "#45DC95", dark: "#22A066", light: "#9CEFC6", line: "#0A2E1D" },
+  green: { base: "#3FD9C2", dark: "#1E9C8C", light: "#9AEEE4", line: "#07302B" }, // v1.90.2 an aqua green (was the mint #45DC95): dE 22 to the green of a gain (+5) on the night sheet (was 13); apart from blue 32, ivory 28
   ivory: { base: "#FFFFFF", dark: "#D8D0BE", light: "#FFFFFF", line: "#4A4234" },
   purple: { base: "#6A3AA8", dark: "#4E2482", light: "#A07AD8", line: "#1C0A33" },
 };
 /** Seat hues as text: on paper (day; applySeatTokens darkens further where AA needs it) and on the Night sheet. */
-export const SEAT_TEXT_DAY = { red: "#8A1220", blue: "#163F8A", orange: "#A3510A", green: "#074632", ivory: "#5E5139", purple: "#8A3AA6" };
-export const SEAT_TEXT_NIGHT = { red: "#FF9AA2", blue: "#B4D8FF", orange: "#FFBE72", green: "#9CEFC6", ivory: "#F2EBDA", purple: "#C4A6F0" };
+export const SEAT_TEXT_DAY = { red: "#8A1220", blue: "#163F8A", orange: "#A3510A", green: "#064E49", ivory: "#5E5139", purple: "#8A3AA6" };
+export const SEAT_TEXT_NIGHT = { red: "#FF9AA2", blue: "#B4D8FF", orange: "#FFBE72", green: "#9AEEE4", ivory: "#F2EBDA", purple: "#C4A6F0" };
 /** A fresh copy of a seat set (themes mutate their own piece objects). */
 export const seatSet = (set, over = {}) => Object.fromEntries(Object.entries(set).map(([k, v]) => [k, { ...v, ...over }]));
 

@@ -29,7 +29,7 @@ export function aiSurprise(g, ser, D, log = tryv(() => handLog(g))) {
   if (final) mover = W;
   else if (D.d > 0 && gain[D.seat] > 0) mover = D.seat;
   else { let b = 0; gain.forEach((v, q) => { if (v > gain[b]) b = q; }); if (gain[b] > 0 && (D.d <= 0 || b !== D.seat)) mover = b; }
-  const out = { turn: t, seat: D.seat, from: D.from, to: D.to, d: D.d, final, target, mover: null, kind: null, gain: 0, by: null, items: 0, before: null, after: null, public: null, hidden: 0, need: null, odds: null, roll: null, actor: null, victim: null, part: null, prev: null, award: null, sees: ser.src === "luck" ? "held" : "none", wcMover: null };
+  const out = { turn: t, seat: D.seat, from: D.from, to: D.to, d: D.d, final, target, mover: null, kind: null, gain: 0, by: null, items: 0, before: null, after: null, public: null, hidden: 0, need: null, odds: null, roll: null, actor: null, victim: null, part: null, prev: null, award: null, sees: ser.src === "luck" || ser.src === "ledger" ? "held" : "none", wcMover: null };
   let b = null, kinds = [];
   if (mover != null && gain[mover] > 0) {
     b = evBy(mover); kinds = ["s", "c", "v", "L", "A", "I"].filter((k) => b[k] > 0);
@@ -74,7 +74,7 @@ export function aiSurprise(g, ser, D, log = tryv(() => handLog(g))) {
       if (out.kind === "build") out.kind = "devcard"; // a build with no point gained (a road, say) moved the odds as an action of that turn
     }
   }
-  // what the win chance could know: it replays the finished game with every hand known (the dev deck reshuffled), so a point card already HELD counts, the next draw does not
+  // what the win chance could know: the luck run and the step ledger (v1.90) both value the REAL recorded position (every hand as it was, only the deck is reshuffled) (the dev deck reshuffled), so a point card already HELD counts, the next draw does not; only the moves-only estimate ("moves") cannot see it
   out.seen = out.hidden > 0 || out.kind === "card" ? out.sees : null; // "held" (the series replays every hand) | "none" (estimated from the moves alone)
   return out;
 }

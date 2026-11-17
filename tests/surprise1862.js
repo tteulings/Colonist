@@ -37,8 +37,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       ok(S.x.mover == null || S.hasVisual, `${tag}: the points visual is on the game card`);
       ok(!!S.fact?.sentence && S.fact.sentence.length > 15, `${tag}: the surprise is a fact for chat / composer`, S.fact?.sentence);
     }
-    if (S.dec && !S.dec.you) ok(/opp/.test(S.chipCls || "") && !/\b(up|dn)\b/.test(S.chipCls || ""), `${tag}: the chip of another player's change is not green / red`, S.chipCls);
-    if (S.dec && S.dec.you) ok(/\b(up|dn)\b/.test(S.chipCls || ""), `${tag}: your own change is green / red`, S.chipCls);
+    ok(S.tone == null && S.chipSeat == null, `${tag}: v1.90.1 the unlabelled "+47%" chip is gone from the game card (the numbers sit in the rows)`, [S.tone, S.chipSeat]);
     if (gi === 0) {
       ok(S.x?.kind === "card" && S.x.final && S.x.hidden === 1 && S.x.public === 8 && S.x.before === 9 && S.x.after === 10 && S.x.odds?.pct === 21 && S.x.seen === "held", "72eb: Blaauw drew his 2nd point card (a 21% draw) from 9 points, 8 shown at the table, on the last turn", S.x);
       ok(/hidden point card/.test(S.surText) && /counts point cards already held/.test(S.surText), "72eb: the card says it was hidden and that the win chance counted held cards", S.surText);

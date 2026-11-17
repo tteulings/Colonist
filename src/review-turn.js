@@ -29,8 +29,9 @@ export const ReviewTurnMixin = {
     const C = (this._tvCache ||= { n: -1, b: new Map(), ev: [] }), L = this._lkStore(), evs = this._lkEvents(), j = LK.j;
     if (C.n !== j || C.id !== this._rv?.id) { C.n = j; C.id = this._rv?.id; C.b = new Map(); C.ev = evs; evs.forEach((ev) => { const r = L.res[luckKey(ev)]; if (ev.kind === "dice" && r?.b) C.b.set(ev.s, r.b); }); C.sw = new Map(); }
     const n = this.players.length;
-    const pre = C.b.get(rg.lo - 1) || (rg.lo <= 1 ? L.res["seat:0:-1"]?.v : null);
-    let post = C.b.get(rg.hi);
+    let pre = C.b.get(rg.lo - 1) || (rg.lo <= 1 ? L.res["seat:0:-1"]?.v : null), post = C.b.get(rg.hi);
+    const OL = (() => { try { const o = this._rvOdds?.(); return o && o.ledger ? o : null; } catch (_) { return null; } })(); // v1.90.2 one set of numbers: the ledger's value at the start and at the end of the turn
+    if (OL) { pre = OL.get(rg.lo - 1) || pre; post = OL.get(rg.hi) || post; }
     if (!post && this.winner) post = Array.from({ length: n }, (_, q) => (q === this.winner.id ? 1 : 0));
     if (!pre || !post) return null;
     const luck = Array(n).fill(0);
@@ -96,7 +97,7 @@ export const ReviewTurnMixin = {
   _tvHtml(d, ds, keep) {
     const st = this._st; if (!st || d.k === "setup") return "";
     const tv = this._tvEnsure(d, ds, keep), T = tv.T, W = this._tvWin(T), rows = this._tvRows(T), many = this.players.length >= 5;
-    let O = null; if (!W) { try { const rg = this._tvRange(T); O = gameOdds(this); if (O) O = { b: O.get(rg.lo - 1), a: O.get(rg.hi) }; } catch (_) { O = null; } }
+    let O = null; if (!W) { try { const rg = this._tvRange(T); O = this._rvOdds ? this._rvOdds() : gameOdds(this); if (O) O = { b: O.get(rg.lo - 1), a: O.get(rg.hi) }; } catch (_) { O = null; } }
     const body = rows.map((r) => {
       const q = r.id, pre = W ? W.pre[q] : O?.b?.[q], post = W ? W.post[q] : O?.a?.[q], dl = pre != null && post != null ? post - pre : null;
       const decs = this._tvDecs(q, T, ds), checked = q === this._rvPid || this._rvReviewComplete(q), open = tv.open.has(q);

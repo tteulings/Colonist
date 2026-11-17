@@ -372,3 +372,4 @@ export function luckEvents(recs, stats, { rush = false } = {}) {
   if (i0 >= 0) out.push({ kind: "seat", s: 0, i: i0, rec: recs[i0], e: -1 });
   return out.sort((a, b) => a.e - b.e || (a.kind === "dice" ? -1 : 1));
 }
+export { snap, back, play, shuffle, hash, load as loadEvent, leafOf }; // (ledger prototype: the helpers step-mc.js reuses)

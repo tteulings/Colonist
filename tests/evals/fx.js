@@ -13,4 +13,11 @@ function rehydrate(F) {
   fx.change = (q, t) => { const c = fx.ref(`d.${keys[q]}@${t}`); return c ? { d: c.v } : null; };
   return fx;
 }
-module.exports = { rehydrate };
+/** v1.90 the same fx but with the win chance series of the step ledger (the game card reads that one): fx.wc and the wc.<p>@<t> refs come from ser (Map turn -> fractions). */
+function withLedger(fx, ser) {
+  const wcL = (q, t) => { let v = null; for (let k = t; k >= 0 && !v; k--) v = ser.by.get(k); return v ? Math.round(v[q] * 100) : null; };
+  fx.wc = wcL; const old = fx.ref;
+  fx.ref = (r) => { const m = /^wc\.([^@]+)@(\d+)$/.exec(r); if (m) { const q = fx.seatOf(m[1]), v = q < 0 ? null : wcL(q, +m[2]); return v == null ? null : { v, k: "pct" }; } return old(r); };
+  return fx;
+}
+module.exports = { rehydrate, withLedger };

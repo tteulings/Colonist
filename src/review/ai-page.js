@@ -9,9 +9,9 @@
 import { sxParts } from "./ai-surprise.js";
 import { gameShape, shapeTitle, shapeChart } from "./ai-shape.js";
 export const LEVELS = ["Game", "Near miss", "Decision", "Strategy", "Luck"];
-export const PRIMS = ["line", "bars", "strip", "stack", "tiles", "compare", "board", "badge", "table", "text", "surprise"];
+export const PRIMS = ["line", "bars", "strip", "stack", "tiles", "compare", "board", "badge", "table", "text", "surprise", "ledger"];
 export const FMTS = ["player", "turn", "pct", "sgpct", "n", "x"];
-export const CAPS = { widgets: 6, blocks: 4, expand: 3, notes: 3, boards: 1, lines: 2, rows: 5, tiles: 3, marks: 4, follow: 4, words: 26, label: 28 };
+export const CAPS = { widgets: 6, blocks: 4, expand: 3, notes: 3, boards: 1, lines: 2, rows: 5, tiles: 3, marks: 4, follow: 4, words: 38, label: 28 }; // v1.90 words 26 -> 38: the knockout headline names the fall, its cause, the ceiling and the winner's lead
 export const CAUSAL = /\b(because|caused?|causing|due to|thanks to|therefore|led to|leads to|lead to|since|as a result|resulted in|owing to|so that|hence|omdat|doordat|dankzij|daardoor|waardoor|vandaar)\b/i;
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
 const isInt = (v) => Number.isInteger(v);
@@ -110,6 +110,7 @@ export function blockOk(b, fx) {
     case "badge": { const q = key(fx, b.player), s = q == null ? null : fx.strat[q]; return s?.verdict ? { p: "badge", player: b.player } : null; }
     case "table": return b.of === "luck" && fx.luck ? { p: "table", of: "luck" } : null;
     case "text": { const parts = partsOk(b.parts, fx, { words: 18 }); return parts ? { p: "text", parts, link: !!b.link } : null; }
+    case "ledger": { if (!fx.lg) return null; const rs = (Array.isArray(b.rounds) ? b.rounds : []).filter((t, i, a) => isInt(t) && t >= 1 && t <= T && a.indexOf(t) === i && tryv(() => fx.lg.row(t))).slice(0, 3); const sq = Number.isInteger(b.seat) && b.seat >= 0 && b.seat < fx.n ? b.seat : null; return rs.length ? { p: "ledger", rounds: rs, ...(sq != null ? { seat: sq } : {}) } : Array.isArray(b.rounds) ? null : fx.lg.rows().length ? { p: "ledger" } : null; } // v1.90 the rows of the step ledger on the game card (src/review/ai-ledger.js)
     case "surprise": { const x = fx.surprise; return x && x.mover != null && x.gain > 0 ? { p: "surprise" } : null; } // v1.86.2 why the decisive swing was so sudden: the points of that turn (ai-surprise.js)
     default: return null;
   }
@@ -129,6 +130,7 @@ export function sigsOf(b) {
     case "table": return [`table|${b.of}`];
     case "text": return [`text|${JSON.stringify(b.parts)}`];
     case "surprise": return ["surprise"];
+    case "ledger": return [b.rounds ? `ledger|${b.rounds.join(",")}|${b.seat ?? ""}` : "ledger"];
     default: return [];
   }
 }
@@ -212,12 +214,14 @@ export function recipePage(fx) {
     const tn = D.t, K = D.key, oc = D.other, duo = [Y, ...(W && W !== Y ? [W] : [])];
     // v1.86.2 why it was so sudden: one short line (parts, numbers through refs sx.*) and the small points visual (ai-surprise.js)
     const X = fx.surprise, sxp = X ? sxParts(X, fx.lang, P, R, (q) => fx.keys[q]) : null, sx = sxp ? [{ p: "text", parts: sxp }, ...(X.mover != null ? [{ p: "surprise" }] : [])] : [];
-    const lead = (k) => r.wcLead(k === Y && youIs, P(k)), mv = (k) => ({ dir: [`wc.${k}@${tn - 1}`, `wc.${k}@${tn}`], up: r.up, down: r.down });
-    const clause = (k) => [...lead(k), mv(k), r.wcFrom, R(`wc.${k}@${tn - 1}`), r.wcTo, R(`wc.${k}@${tn}`)];
-    widgets.push({ id: "wc", level: "Game", short: t.short_.wc, chip: { ref: `d.${K}@${tn}`, fmt: "sgpct", tone: D.d > 0 ? "up" : "dn" },
-      title: shT || [...clause(K), r.wcOn, R(`turn.${tn}`), ...(oc ? ["; ", ...clause(oc.key).map((x, i) => (i === 0 && typeof x === "string" ? x.charAt(0).toLowerCase() + x.slice(1) : x))] : []), "."],
-      blocks: [{ p: "line", metric: "winchance", players: duo.includes(K) ? duo : [K, ...duo], marks: D.marks, ...shapeChart(fx, SH, Y, W) }, ...sx],
-      notes: [[r.wcN1], [r.wcN2]] });
+    const mv = (k) => ({ dir: [`wc.${k}@${tn - 1}`, `wc.${k}@${tn}`], up: r.up, down: r.down });
+    // v1.90.2 the headline starts with the player the review is about ("Jij daalde van 49% naar 0% op beurt 22; Blaauw steeg van 42% naar 100%"), the others follow, each in their colour
+    const clause = (k) => [P(k), " ", mv(k), r.wcFrom, R(`wc.${k}@${tn - 1}`), r.wcTo, R(`wc.${k}@${tn}`)];
+    const k1 = oc && oc.key === Y && K !== Y ? oc.key : K, k2 = oc ? (k1 === K ? oc.key : K) : null;
+    widgets.push({ id: "wc", level: "Game", short: t.short_.wc,
+      title: shT || [...clause(k1), r.wcOn, R(`turn.${tn}`), ...(k2 ? ["; ", ...clause(k2)] : []), "."],
+      blocks: [{ p: "line", metric: "winchance", players: duo.includes(K) ? duo : [K, ...duo], marks: D.marks, ...shapeChart(fx, SH, Y, W) }, ...(fx.lg ? [{ p: "ledger" }] : []), ...sx], // v1.90 the ledger rows (what decided it) sit between the chart and the surprise line
+      notes: [[r.wcN1], [r.wcN2], ...(fx.lg ? [[t.lg.noteTab]] : [])] });
   }
   // 4. near miss
   const nm = fx.near; let hasNear = false;

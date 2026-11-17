@@ -25,6 +25,7 @@ import { ReviewRecapMixin } from "./review-recap.js"; // v1.62 AI recap
 import { ReviewExplainMixin } from "./review-explain.js"; // v1.64 Why?
 import { ReviewAiMixin } from "./review-ai.js"; // v1.73 AI tab
 import { ReviewAiPageMixin } from "./review-ai-page.js"; // v1.83 the AI tab's dynamic page
+import { ReviewLedgerMixin } from "./review-ledger.js"; // v1.90 the step ledger: refinement, progress credit, the card block and the round view
 import { LessonsMixin, installLessons } from "./lessons.js"; // v1.71 Lessons
 import { ReviewRefineMixin } from "./review-refine.js"; // v1.81 refine close / lean decisions with more futures
 import { ReviewReasonsMixin } from "./review-reasons.js"; // v1.82 why A beats B, from the futures
@@ -101,7 +102,7 @@ const PLAYER_CONFIG = [
   { name: "You", hsName: "Roodhart", fullName: "Rosa Roodhart", color: "#E0312B", isHuman: true, avatar: "./assets/avatars/avatar-human.svg?v=57" },
   { name: "Blaauw", fullName: "Mevrouw Blaauw van Draet", color: "#2F6FE6", isHuman: false, avatar: "./assets/avatars/avatar-pioneer.svg?v=57" },
   { name: "Geelen", short: "Geelen", fullName: "Kolonel Van Geelen", color: "#F7931E", isHuman: false, avatar: "./assets/avatars/avatar-sage.svg?v=57" },
-  { name: "Groen", short: "Groen", fullName: "Dominee Groenewoud", color: "#2E9E5E", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
+  { name: "Groen", short: "Groen", fullName: "Dominee Groenewoud", color: "#1E9E8E", isHuman: false, avatar: "./assets/avatars/avatar-vector.svg?v=57" },
   // seats 5 and 6 (5–6 player games); colours come from the theme (see src/themes/seats.js)
   { name: "De Wit", fullName: "Mevrouw De Wit", color: "#EDE6D3", isHuman: false, avatar: "" },
   { name: "Pimpel", fullName: "Professor Pimpel", color: "#72309F", isHuman: false, avatar: "" },
@@ -11614,7 +11615,7 @@ Object.assign(ColonistFullGame.prototype, StatsMixin, StatsUiMixin);
 installStats(ColonistFullGame);
 Object.assign(ColonistFullGame.prototype, LiveStatsMixin); // live stats during the game (src/live-stats.js)
 installLiveStats(ColonistFullGame);
-Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin, ReviewLuckMixin, ReviewTurnMixin, ReviewAgainMixin, ReviewRefineMixin, ReviewReasonsMixin, ReviewRecapMixin, ReviewExplainMixin, ReviewAiMixin, ReviewAiPageMixin, LessonsMixin); // v1.02/1.03 post-game review (src/review*.js)
+Object.assign(ColonistFullGame.prototype, ReviewMixin, ReviewUiMixin, ReviewGameMixin, ReviewLuckMixin, ReviewTurnMixin, ReviewAgainMixin, ReviewRefineMixin, ReviewReasonsMixin, ReviewRecapMixin, ReviewExplainMixin, ReviewAiMixin, ReviewAiPageMixin, ReviewLedgerMixin, LessonsMixin); // v1.02/1.03 post-game review (src/review*.js)
 installReview(ColonistFullGame);
 installReviewUi(ColonistFullGame);
 installReviewGame(ColonistFullGame);
