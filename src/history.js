@@ -16,6 +16,7 @@
 // off while `_histView` is set), the end screen (Stats) or the Replay or the Game review opens on it, and
 // "Past games" in the top-left puts your running game back (it stays in localStorage untouched).
 // Styles: themes/history.css.
+import { upgradeSpots } from "./review/spot-names.js";
 import { oicon } from "./ui-icons.js";
 import { dateLocale } from "./i18n.js";
 import { icon, avatarSvg } from "./themes/manager.js";
@@ -282,6 +283,7 @@ export const HistoryMixin = {
       if (this._labBack) this.players.forEach((p, i) => { const sp = rec.state.players?.[i]; if (p.isHuman && sp?.strategy) Object.assign(p, { isHuman: false, strategy: { ...sp.strategy }, personality: sp.personality || p.personality }); });
       const revs = rec.rv ? (rec.rv.reviews || (rec.rv.review?.results?.length ? { [rec.rv.review.pid]: rec.rv.review } : {})) : {}; // (older entries: one review)
       Object.values(revs).forEach((r) => rescoreReview(r)); // v1.21 today's numbers, classes and labels from the saved candidates
+      Object.values(revs).forEach((r) => upgradeSpots(this, r)); // v1.91 old "6·11·10" spot names become "Grain 6, Lumber 11, …"
       this._rv = rec.rv ? { id, base: rec.rv.base, recs: unpackRecs(rec.rv.recs), res: null, busy: false, ms: 0, revs, queue: [], bots: !!rec.rv.bots, review: this._rvMine?.(revs) || undefined, ...(rec.rv.luck ? { luck: rec.rv.luck } : {}), ...(rec.rv.recap ? { recap: rec.rv.recap } : {}), ...(rec.rv.ai ? { ai: rec.rv.ai } : {}) } : null;
       this._rv?.recs?.length && this._rvFinish?.(false); // v1.11: the missed-chance detectors run for a past game too (no auto review): without this the end screen said "checking…" for ever
     } else if (!document.querySelector(".game-over-overlay")) this.showGameOverOverlay({ quiet: true });
