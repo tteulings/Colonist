@@ -18,11 +18,12 @@ let fails = 0; const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"
 (async () => {
   const b = await chromium.launch();
   // ── 1 still frames ──
+  // the detail layer (v1.91, on by default) is the only addition: still frames are compared on the no-detail path
   const BASE = process.env.BASE || "origin/main";
   const tmp = path.join(os.tmpdir(), `portraits-base-${process.pid}.mjs`);
   fs.writeFileSync(tmp, execSync(`git -C ${ROOT} show ${BASE}:src/themes/portraits.js`, { maxBuffer: 1 << 24 }));
   const base = await renderStills(tmp, () => ({}), { browser: b });
-  for (const [name, opt] of [["rig off", () => ({})], ["rig on", () => ({ rig: true })]]) {
+  for (const [name, opt] of [["rig off", () => ({ detail: false })], ["rig on", () => ({ rig: true, detail: false })]]) {
     const cur = await renderStills(path.join(ROOT, "src/themes/portraits.js"), opt, { browser: b });
     const bad = Object.keys(base).filter((k) => !base[k].equals(cur[k]));
     bad.forEach((k) => { fs.writeFileSync(path.join(SHOTS, `diff-${name.replace(" ", "-")}-${k}-v190.png`), base[k]); fs.writeFileSync(path.join(SHOTS, `diff-${name.replace(" ", "-")}-${k}-now.png`), cur[k]); });
@@ -57,6 +58,18 @@ let fails = 0; const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"
         const p = await load(a), q = await load(b); let n = 0; if (p.length !== q.length) return -1; for (let i = 0; i < p.length; i += 4) if (Math.abs(p[i] - q[i]) > 60 || Math.abs(p[i + 1] - q[i + 1]) > 60 || Math.abs(p[i + 2] - q[i + 2]) > 60) n++; return n; }, [A.toString("base64"), B.toString("base64")]);
       if (diff > 0.045 * (2 * px) ** 2) { bad.push(`${seat}@${px}`); fs.writeFileSync(path.join(SHOTS, `live-vs-sprite-${tag}-${seat}-${px}-sprite.png`), A); fs.writeFileSync(path.join(SHOTS, `live-vs-sprite-${tag}-${seat}-${px}-live.png`), B); }
     }
+    // the detail layer: drawn from 32px up, hidden below (sprite and inline avatars)
+    for (const px of [28, 31, 32, 40, 64]) {
+      const shot = async (hide) => { await G(([px, hide]) => { document.getElementById("avT")?.remove(); document.getElementById("avH")?.remove(); document.documentElement.dataset.motion = "reduced";
+        if (hide) { const st = document.createElement("style"); st.id = "avH"; st.textContent = ".av-detail{display:none!important}"; document.head.append(st); }
+        const h = document.createElement("div"); h.id = "avT"; h.className = "app"; h.style.cssText = "position:fixed;left:10px;top:10px;z-index:99999;display:flex;background:#fff;padding:10px";
+        h.innerHTML = `<div id="avA" style="--av:${px}px;--av-ring:0px">${window.__colonistGame._av({ id: 0 })}</div><div id="avB" style="--av:${px}px;--av-ring:0px">${window.__colonistGame._av({ id: 0 }, "player-avatar")}</div>`; document.body.append(h); }, [px, hide]);
+        return [await (await page.$("#avA")).screenshot(), await (await page.$("#avB")).screenshot()]; };
+      const [sa, la] = await shot(false), [sb, lb] = await shot(true);
+      const want = px >= 32;
+      ok(sa.equals(sb) === !want && la.equals(lb) === !want, `${tag}: detail layer ${want ? "drawn" : "hidden"} at ${px}px (sprite and inline avatar)`);
+    }
+    await G(() => { document.getElementById("avH")?.remove(); });
     await G(() => { document.getElementById("avT")?.remove(); document.documentElement.dataset.motion = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "reduced" : "full"; });
     ok(bad.length === 0, `${tag}: the live avatar equals the sprite avatar (edge anti-aliasing aside, <4.5% of pixels) at 6 seats x 4 sizes`, bad.slice(0, 6));
     const live = await G(() => [...document.querySelectorAll(".avatar.av-live")].map((e) => ({ w: Math.round(e.getBoundingClientRect().width), idle: e.classList.contains("av-idle"), seat: e.className.match(/pc-(\d)/)?.[1], inStrip: !!e.closest("#playerStrip") })));

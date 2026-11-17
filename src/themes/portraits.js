@@ -154,7 +154,7 @@ function detailParts(k, S, sk2) {
  * One portrait in the -50..50 box.
  * style "flat": skin and hair colours; "ink": black silhouette (hair and face), cream eyes.
  */
-export function portrait(k, { style = "flat", ink = "#2B211C", paper = "#FFF9EE", tone = "A", rig = false, detail = false } = {}) {
+export function portrait(k, { style = "flat", ink = "#2B211C", paper = "#FFF9EE", tone = "A", rig = false, detail = true } = {}) {
   const P = PERSONAS[k] || PERSONAS.rosa, S = SHAPES[k] || SHAPES.rosa;
   k = PERSONAS[k] ? k : "rosa";
   const flat = style === "flat";
