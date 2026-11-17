@@ -24,6 +24,17 @@ const SKIN = {
   groenewoud: ["#7A4E33", "#5C3A26"], dewit: ["#DDA87F", "#B9845F"], pimpel: ["#EED3B9", "#CBA88C"],
 };
 
+// v1.91 animation rig: with rig on, the SAME shapes are wrapped in classed <g> elements (a pivot translate pair, so CSS can
+// transform about that point) and overlays at opacity 0 are added; the still frame stays pixel-identical to the plain drawing.
+const piv = (rig, x, y, cls, inner) => (rig ? `<g transform="translate(${x} ${y})"><g class="${cls}"><g transform="translate(${-x} ${-y})">${inner}</g></g></g>` : inner);
+const grp = (rig, c, inner) => (rig ? `<g class="${c}">${inner}</g>` : inner);
+const STAR = "M0,-5 Q.6,-.6 5,0 Q.6,.6 0,5 Q-.6,.6 -5,0 Q-.6,-.6 0,-5Z";
+/** Reaction overlays (all invisible until CSS turns one on): tear, sparkles, "!" badge, thinking dots, win shine. Outside the face art. */
+const overlays = () => `<g class="av-ov" opacity="0"><g transform="translate(-14.5 5)" opacity="0"><path class="ov-tear" d="M0,-3.4 Q3.2,1 0,3.6 Q-3.2,1 0,-3.4Z" fill="#8FD0F2" stroke="#3F86B5" stroke-width=".8"/></g>`
+  + [[-33, -22, 0], [35, -12, 0.25], [27, -34, 0.5]].map(([x, y, d]) => `<g transform="translate(${x} ${y})" opacity="0"><path class="ov-sp" style="animation-delay:${d}s" d="${STAR}" fill="#FFD25A" stroke="#C99416" stroke-width=".7"/></g>`).join("")
+  + `<g transform="translate(35 -26)" opacity="0"><g class="ov-bang"><rect x="-2.6" y="-10" width="5.2" height="13" rx="2.6" fill="#FFD25A" stroke="#8A6410" stroke-width="1.1"/><circle cy="7" r="2.8" fill="#FFD25A" stroke="#8A6410" stroke-width="1.1"/></g></g>`
+  + `<g transform="translate(22 -30)" opacity="0"><g class="ov-dots"><rect x="-15" y="-7" width="30" height="14" rx="7" fill="#fff" stroke="#7A8A96" stroke-width=".8"/><circle class="d1" cx="-7" r="2.5" fill="#4C5E6C"/><circle class="d2" cx="0" r="2.5" fill="#4C5E6C"/><circle class="d3" cx="7" r="2.5" fill="#4C5E6C"/></g></g>`
+  + `<g transform="rotate(18)" opacity="0"><rect class="ov-shine" x="-8" y="-62" width="9" height="124" fill="#fff"/></g></g>`;
 const p = (d, fill, x = "") => `<path d="${d}" fill="${fill}"${x}/>`;
 const seatFill = (k) => `style="fill:var(--pc,${PERSONAS[k].seat})"`;
 
@@ -51,14 +62,13 @@ const HEAD = { cx: 0, cy: -3, rx: 18.5, ry: 21.5 };
 
 /** Face features (flat): brows, eyes, nose, smile, cheeks. o: { lash, age, ink } */
 function faceFlat(k, o = {}) {
-  const [, sk2] = SKIN[k], ink = o.ink || "#2B211C";
-  return `<path d="M-11,-10.4 Q-7.4,-13.6 -3.6,-11.6 M3.6,-11.6 Q7.4,-13.6 11,-10.4" stroke="${o.brow || ink}" stroke-width="2" fill="none" stroke-linecap="round"/>
-    <ellipse cx="-7" cy="-4.5" rx="2.2" ry="2.7" fill="${ink}"/><ellipse cx="7" cy="-4.5" rx="2.2" ry="2.7" fill="${ink}"/>
-    <circle cx="-6.2" cy="-5.4" r=".8" fill="#fff" opacity=".85"/><circle cx="7.8" cy="-5.4" r=".8" fill="#fff" opacity=".85"/>
-    ${o.lash ? `<path d="M-9.4,-6.2 l-2,-1.4 M9.4,-6.2 l2,-1.4" stroke="${ink}" stroke-width="1.4" stroke-linecap="round"/>` : ""}
+  const [, sk2] = SKIN[k], ink = o.ink || "#2B211C", rg = !!o.rig;
+  return `${grp(rg, "av-brows", `<path d="M-11,-10.4 Q-7.4,-13.6 -3.6,-11.6 M3.6,-11.6 Q7.4,-13.6 11,-10.4" stroke="${o.brow || ink}" stroke-width="2" fill="none" stroke-linecap="round"/>`)}
+    ${piv(rg, -7, -4.5, "av-eye", `<ellipse cx="-7" cy="-4.5" rx="2.2" ry="2.7" fill="${ink}"/><circle cx="-6.2" cy="-5.4" r=".8" fill="#fff" opacity=".85"/>`)}${piv(rg, 7, -4.5, "av-eye", `<ellipse cx="7" cy="-4.5" rx="2.2" ry="2.7" fill="${ink}"/><circle cx="7.8" cy="-5.4" r=".8" fill="#fff" opacity=".85"/>`)}
+    ${o.lash ? grp(rg, "av-lash", `<path d="M-9.4,-6.2 l-2,-1.4 M9.4,-6.2 l2,-1.4" stroke="${ink}" stroke-width="1.4" stroke-linecap="round"/>`) : ""}
     ${o.age ? `<path d="M-13.5,-3 l-2.4,1 M13.5,-3 l2.4,1 M-6,13 q6,2 12,0" stroke="${sk2}" stroke-width="1.2" fill="none" stroke-linecap="round"/>` : ""}
     <path d="M.6,-1.6 Q-1.8,4 1.4,5" stroke="${sk2}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-    ${o.noMouth ? "" : `<path d="M-6,8.6 Q0,13.4 6,8.6" stroke="${o.lips || ink}" stroke-width="${o.lips ? 2.4 : 1.8}" fill="none" stroke-linecap="round"/>`}
+    ${o.noMouth ? "" : piv(rg, 0, 10.8, "av-mouth", `<path d="M-6,8.6 Q0,13.4 6,8.6" stroke="${o.lips || ink}" stroke-width="${o.lips ? 2.4 : 1.8}" fill="none" stroke-linecap="round"/>`)}
     <circle cx="-11.5" cy="4" r="3.6" fill="#E8707A" opacity=".2"/><circle cx="11.5" cy="4" r="3.6" fill="#E8707A" opacity=".2"/>`;
 }
 
@@ -111,7 +121,7 @@ const SHAPES = {
  * One portrait in the -50..50 box.
  * style "flat": skin and hair colours; "ink": black silhouette (hair and face), cream eyes.
  */
-export function portrait(k, { style = "flat", ink = "#2B211C", paper = "#FFF9EE", tone = "A" } = {}) {
+export function portrait(k, { style = "flat", ink = "#2B211C", paper = "#FFF9EE", tone = "A", rig = false, detail = false } = {}) {
   const P = PERSONAS[k] || PERSONAS.rosa, S = SHAPES[k] || SHAPES.rosa;
   k = PERSONAS[k] ? k : "rosa";
   const flat = style === "flat";
@@ -132,9 +142,13 @@ export function portrait(k, { style = "flat", ink = "#2B211C", paper = "#FFF9EE"
   let s = flat
     ? `<circle r="50" fill="${P.bg}"/><circle r="50" style="fill:color-mix(in srgb, var(--pc,${P.seat}) 24%, ${tint})"/>`
     : `<circle r="50" fill="${P.bg}"/>`;
+  const OPEN = (x, y, c) => `<g transform="translate(${x} ${y})"><g class="${c}"><g transform="translate(${-x} ${-y})">`, SHUT = "</g></g></g>";
+  if (rig) s += OPEN(0, 20, "av-tilt av-hairback");
   if (S.bun) s += `<circle cx="${S.bun[0]}" cy="${S.bun[1]}" r="${S.bun[2]}" fill="${hair}"${line}/>`;
   if (S.back) s += p(S.back, hair, line);
+  if (rig) s += SHUT + OPEN(0, 54, "av-body");
   s += cloth + S.cloth(k, ink, flat);
+  if (rig) s += SHUT + OPEN(0, 20, "av-tilt av-head");
   s += p("M-7,10 h14 v13 q-7,5 -14,0Z", flat ? sk2 : ink);
   if (k === "rosa") s += p("M-9,22 L0,33 L9,22Z", flat ? skin : ink) ;
   s += `<ellipse cx="${HEAD.cx}" cy="${HEAD.cy}" rx="${HEAD.rx}" ry="${HEAD.ry}" fill="${skin}"${flat ? ` stroke="${sk2}" stroke-width="1.2"` : ""}/>`;
@@ -163,10 +177,10 @@ export function portrait(k, { style = "flat", ink = "#2B211C", paper = "#FFF9EE"
   }
   // face
   if (flat) {
-    s += faceFlat(k, { age: k === "dewit" || k === "geelen", lips: k === "rosa" ? "#C2303A" : k === "blaauw" ? "#7A2E3A" : "", noMouth: !!S.moustache, brow: k === "geelen" || k === "dewit" ? "#9C9488" : "" });
+    s += faceFlat(k, { rig, age: k === "dewit" || k === "geelen", lips: k === "rosa" ? "#C2303A" : k === "blaauw" ? "#7A2E3A" : "", noMouth: !!S.moustache, brow: k === "geelen" || k === "dewit" ? "#9C9488" : "" });
   } // ink: a faceless silhouette (no eyes, no features)
   if (S.moustache) {
-    s += p(S.moustache, flat ? S.hair : ink, flat ? ` stroke="${S.hair2}" stroke-width="1"` : "");
+    s += grp(rig, "av-mous", p(S.moustache, flat ? S.hair : ink, flat ? ` stroke="${S.hair2}" stroke-width="1"` : ""));
     s += `<circle cx="7" cy="-4.5" r="5.6" fill="none" stroke="${flat ? "#C9A04A" : FRAME}" stroke-width="${flat ? 1.5 : 1.3}"/><path d="M12.4,-3 Q16,8 14,18" stroke="${flat ? "#C9A04A" : FRAME}" stroke-width=".9" fill="none"/>`;
   }
   if (S.glasses) {
@@ -178,8 +192,10 @@ export function portrait(k, { style = "flat", ink = "#2B211C", paper = "#FFF9EE"
   if (S.earrings) s += `<circle cx="-18.6" cy="5" r="2.4" fill="#FFFDF5" stroke="${flat ? "#B8B0A0" : ink}" stroke-width=".8"/><circle cx="18.6" cy="5" r="2.4" fill="#FFFDF5" stroke="${flat ? "#B8B0A0" : ink}" stroke-width=".8"/>`;
   // Rosa in ink: a bow in the seat colour on her hair
   if (!flat && k === "rosa") s += `<g transform="translate(-15 -25) rotate(-24) scale(1.3)" style="fill:var(--pc,${P.seat})" stroke="${ink}" stroke-width="1.2"><path d="M0,0 L-8,-5 L-8,5Z M0,0 L8,-5 L8,5Z"/><circle r="2.4"/></g>`;
-  s += brooch(k, flat ? "#000" : ink);
+  if (rig) s += SHUT;
+  s += rig ? OPEN(0, 54, "av-body") + brooch(k, flat ? "#000" : ink) + SHUT : brooch(k, flat ? "#000" : ink);
   if (flat && tone === "B") s += `<circle r="50" fill="#9A6A32" opacity=".07"/>`; // B: the wood-stain warmth over the whole print
+  if (rig) s += overlays();
   return s;
 }
 

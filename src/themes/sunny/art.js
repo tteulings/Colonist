@@ -545,7 +545,7 @@ const sunny = {
   get icons() { return { ...ICONS, ...UI_ICONS }; },
   card, cardBack,
   // seat portraits: the shared persona drawings (src/themes/portraits.js), also used by B and Classic
-  avatar: (preset, tone = "A") => (AVP[preset] ? AVP[preset]() : portrait(preset, { tone })),
+  avatar: (preset, tone = "A", rig = false) => (AVP[preset] ? AVP[preset]() : portrait(preset, { tone, rig })),
   die: (n) => dieFace(n, 2, 2, 0, 1.08),
   swatch: () => `<svg viewBox="0 0 36 36"><rect width="36" height="36" fill="${P.sea1}"/><path d="M0,24 Q10,16 18,20 Q26,12 36,18 V36 H0Z" fill="${P.olive[0]}"/><path d="M0,30 Q18,26 36,30 V36 H0Z" fill="${P.sand}"/><circle cx="25" cy="10" r="5" fill="#E9C46A"/></svg>`,
   uiDefs: () => boardDefs(),
