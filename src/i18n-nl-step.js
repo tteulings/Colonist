@@ -1,5 +1,8 @@
 // v1.91 Dutch for the review's step view (turn card, player rows, plan lines): what the localizer could not turn into Dutch before.
 export const NL_STEP = [
+  ["* first look: the deep check is still running.", "* eerste indruk: de diepe controle loopt nog."],
+  ["From turn {n}", "Vanaf beurt {n}"], ["From roll {n}", "Vanaf worp {n}"],
+  ["Lumber {n}", "Hout {n}"], ["Brick {n}", "Baksteen {n}"], ["Wool {n}", "Wol {n}"], ["Grain {n}", "Graan {n}"], ["Ore {n}", "Erts {n}"], ["−{n} dice dots", "−{n} ogen"],
   // the decision line
   ["{x} ended the turn; {y} was worth {z}.", "{x} beëindigde de beurt; {y} was {z} waard."], ["{x} traded; {y} was worth {z}.", "{x} ruilde; {y} was {z} waard."],
   ["Since last move", "Sinds je laatste zet"], ["Since your last move", "Sinds je laatste zet"], ["Since their last move", "Sinds hun laatste zet"], ["From the start", "Vanaf de start"], ["At the start everyone had {n}%", "Bij de start had iedereen {n}%"],
