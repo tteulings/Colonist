@@ -31,8 +31,15 @@ self.addEventListener("message", (event) => {
 });
 
 self.addEventListener("install", (event) => {
-  // The shell is fetched past the HTTP cache too, or a fresh SW could precache stale files
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL.map((url) => new Request(url, { cache: "no-cache" })))).then(() => self.skipWaiting()));
+  // The shell is fetched past the HTTP cache too, or a fresh SW could precache stale files.
+  // v1.91.1: cache.addAll() fails the whole install on one transient 5xx; fetch each file, retry the failures once
+  // and only then give up (the old worker then stays and the next update check tries again). Only 200s are stored.
+  const get = (cache, url) => fetch(new Request(url, { cache: "no-cache" })).then((r) => { if (!r.ok) throw new Error(r.status + " " + url); return cache.put(url, r); });
+  event.waitUntil(caches.open(CACHE).then(async (cache) => {
+    let bad = (await Promise.allSettled(SHELL.map((u) => get(cache, u)))).map((r, i) => (r.status === "rejected" ? SHELL[i] : null)).filter(Boolean);
+    if (bad.length) bad = (await Promise.allSettled(bad.map((u) => get(cache, u)))).map((r, i) => (r.status === "rejected" ? bad[i] : null)).filter(Boolean);
+    if (bad.length) throw new Error("shell incomplete: " + bad.join(" "));
+  }).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -46,6 +53,11 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET" || new URL(request.url).origin !== self.location.origin) return;
+  // v1.91.1: only a 200 is answered from the network. A 5xx/404 (a transient GitHub Pages hiccup, a deploy that has not
+  // reached every edge yet) or a network error falls back to the cached copy, so one failed module fetch no longer
+  // stops the app from starting; nothing but 200s is ever stored (never a 503 under a good file's name).
+  const cached = () => caches.match(request, { ignoreSearch: true })
+    .then((hit) => hit || (request.mode === "navigate" ? caches.match("./index.html") : undefined));
   event.respondWith(
     // Always revalidate with the server, never answer from the HTTP cache: GitHub Pages serves
     // everything with max-age=600, so a plain fetch() hands out the old index.html (and old
@@ -53,13 +65,14 @@ self.addEventListener("fetch", (event) => {
     // no-cache still lets the server answer 304, so an unchanged file costs almost nothing.
     fetch(request, { cache: "no-cache" })
       .then((response) => {
-        if (response.ok) {
+        if (response.status === 200) {
           const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
+          caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
+          return response;
         }
-        return response;
+        if (response.ok || response.status === 304) return response;
+        return cached().then((hit) => hit || response); // not OK: the cached copy if there is one, else the error as it is
       })
-      .catch(() => caches.match(request, { ignoreSearch: true })
-        .then((hit) => hit || (request.mode === "navigate" ? caches.match("./index.html") : undefined)))
+      .catch(() => cached())
   );
 });

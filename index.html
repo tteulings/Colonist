@@ -202,7 +202,7 @@
         if (d.dataset.lab) { s.remove(); return; }
         function hide() {
           if (done) return;
-          done = true; clearInterval(iv); clearTimeout(slowT);
+          done = true; clearInterval(iv); clearTimeout(slowT); tries(0);
           var raf = window.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
           raf(function () { raf(function () {
             if (d.dataset.motion === "reduced") { s.remove(); return; }
@@ -210,18 +210,33 @@
             setTimeout(function () { s.remove(); }, 300);
           }); });
         }
+        // v1.91.1 a failed module fetch (one transient 503/offline blip on any of the ~100 files) used to end here at once.
+        // The module map remembers a failed URL until the page is reloaded, so the retry is a reload (at most twice per
+        // launch, counted in sessionStorage); the failure screen only shows when that did not help either.
+        function tries(n) { try { if (n === undefined) return +sessionStorage.getItem("colonist.bootTry") || 0; if (n) sessionStorage.setItem("colonist.bootTry", String(n)); else sessionStorage.removeItem("colonist.bootTry"); } catch (e) {} return 0; }
         function slow(failed) {
           if (done || window.__colonistGame) return;
           if (failed) { document.getElementById("splashMsg").textContent = "Katan could not start."; s.classList.add("failed"); }
           s.classList.add("slow");
         }
+        // Reload: forget the service worker and every cache first, so a half-updated install cannot come back
+        function fresh() {
+          var go = function () { tries(0); location.reload(); }, t = setTimeout(go, 4000);
+          var after = function () { clearTimeout(t); go(); };
+          try {
+            var p = navigator.serviceWorker && navigator.serviceWorker.getRegistrations ? navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }) : Promise.resolve();
+            p.catch(function () {}).then(function () { return window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : null; }).catch(function () {}).then(after);
+          } catch (e) { after(); }
+        }
         window.__colonistSplashDone = hide;
-        document.getElementById("splashReload").addEventListener("click", function () { location.reload(); });
-        iv = setInterval(function () { if (window.__colonistGame) hide(); }, 400);
+        document.getElementById("splashReload").addEventListener("click", fresh);
+        iv = setInterval(function () { if (window.__colonistGame) { tries(0); hide(); } }, 400);
         slowT = setTimeout(function () { slow(false); }, 8000);
         window.addEventListener("error", function (e) {
           var t = e && e.target;
           if (done || !(e instanceof ErrorEvent || (t && t.tagName === "SCRIPT"))) return; // a missing image or font is not fatal
+          var n = tries();
+          if (n < 2 && !window.__colonistGame) { tries(n + 1); setTimeout(function () { if (!done && !window.__colonistGame) location.reload(); }, 400 + 600 * n); return; }
           setTimeout(function () { slow(true); }, 1500);
         }, true);
       })();
