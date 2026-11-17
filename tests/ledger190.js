@@ -152,8 +152,30 @@ const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3,
         ok(a.seat === q && Math.abs(R.d[q] - lo) < 1e-12 && a.answer.includes(`${Math.round(R.v0[q] * 100)}%`) && a.answer.includes(`${Math.round(R.v1[q] * 100)}%`) && a.answer.startsWith(nm) && (q === me || !/^Je /.test(a.answer)), `${tag}: the "fell behind" answer for seat ${q} is about ${nm}: its biggest fall in turn ${a.t}, its own numbers`, a.answer.slice(0, 110));
       }
     }
+    // v1.90.2 round 2: the turn the user NAMES, several players in one question, a bare player name (held-out phrasings, written before the router was changed)
+    if (tag === files[0].replace(".json", "")) {
+      const mk = (g) => [{ seat: 0, name: "Jij", you: true }, { seat: 1, name: g }, { seat: 2, name: "Blaauw" }, { seat: 3, name: "Groenewoud" }];
+      const H2 = [ // [question, expected: null or { kind, seats, t? }]
+        ["Waarom zakte Van Geelen in beurt 7?", { kind: "behind", seats: [1], t: 7 }], ["Waarom zakte Geelen in beurt 7?", { kind: "behind", seats: [1], t: 7 }], ["Why did Blaauw fall in turn 10?", { kind: "behind", seats: [2], t: 10 }],
+        ["Waarom zakte ik in ronde 3?", { kind: "behind", seats: [0], t: 3 }], ["Why did my win chance drop in round 14?", { kind: "behind", seats: [0], t: 14 }], ["Wat gebeurde er met Geelen in beurt 11?", { kind: "turn", seats: [1], t: 11 }],
+        ["Waarom zakten ik en Blaauw?", { kind: "behind", seats: [0, 2] }], ["Why did I and Blaauw fall?", { kind: "behind", seats: [0, 2] }], ["Why did Blaauw and I lose ground?", { kind: "behind", seats: [0, 2] }], ["Waarom zakten Geelen en Blaauw zo ver?", { kind: "behind", seats: [1, 2] }],
+        ["Wat gebeurde er met mij en Groenewoud in beurt 5?", { kind: "turn", seats: [0, 3], t: 5 }], ["What happened to me and Blaauw in turn 8?", { kind: "turn", seats: [0, 2], t: 8 }],
+        ["Geelen", { kind: "player", seats: [1] }], ["Geelen?", { kind: "player", seats: [1] }], ["blaauw?", { kind: "player", seats: [2] }], ["  Groenewoud ? ", { kind: "player", seats: [3] }], ["Geelen en Blaauw?", { kind: "player", seats: [1, 2] }], ["Van Geelen?", { kind: "player", seats: [1] }],
+        ["Pieter?", null], ["Waarom zakte Geelen niet in beurt 7?", null], ["Why did I win in turn 7?", null], ["Waarom zakte Pieter in beurt 7?", null], ["Wat gebeurde er in beurt 7 met iedereen?", null], ["Hoe zit het met de bank?", null], ["Wie is Geelen?", null], ["?", null], ["Waarom zakte iedereen behalve ik in beurt 4?", null]];
+      const bad2 = []; for (const g of ["Geelen", "Van Geelen"]) for (const [q, want] of H2) { const r = AL.ledgerRoute(q, { me: 0, win: 1, players: mk(g) }); const same = want ? r && r.kind === want.kind && JSON.stringify(r.seats || [r.seat]) === JSON.stringify(want.seats) && (want.t == null ? r.t == null : r.t === want.t) : r === null; if (!same) bad2.push([g, q, r]); }
+      ok(!bad2.length, `${tag}: the chat router honours a named turn, several players, a bare player name (${H2.length * 2} held-out phrasings, "Geelen" and "Van Geelen")`, bad2.slice(0, 4));
+      const fxA = { lang: "nl", me, T: G.T, keys: [], nameOf: (q) => (q === me ? "Jij" : G.names[q]) }, tt = rounds.filter((x) => x.t >= 1), o1 = [...Array(n).keys()].filter((q) => q !== me)[0];
+      for (const t of [Math.max(1, Math.round(tt.length / 3)), tt.length - 1]) {
+        const R = led.round(t), a = AL.ledgerAnswer(m, fxA, { kind: "behind", seat: o1, seats: [o1], t });
+        ok(a && a.t === t && a.seat === o1 && a.answer.includes(`${Math.round(R.v0[o1] * 100)}%`) && a.answer.includes(`${Math.round(R.v1[o1] * 100)}%`) && a.answer.includes(G.names[o1]) && new RegExp(`beurt ${t}\\b`).test(a.answer), `${tag}: a named turn is answered as that turn (${t}), even when it is not the biggest round`, a && a.answer.slice(0, 100));
+      }
+      { const o2 = [...Array(n).keys()].filter((q) => q !== me)[1], a = AL.ledgerAnswer(m, fxA, { kind: "turn", seat: me, seats: [me, o2], t: 3 }), R = led.round(3);
+        ok(a && a.all && a.all.length === 2 && a.all[0].seat === me && a.all[1].seat === o2 && a.answer.includes(`${Math.round(R.v1[me] * 100)}%`) && a.answer.includes(`${Math.round(R.v1[o2] * 100)}%`) && a.answer.includes(G.names[o2]), `${tag}: a question about two players answers both, each with its own numbers`, a && a.answer.slice(0, 160)); }
+      { const b = AL.ledgerAnswer(m, fxA, { kind: "player", seat: o1, seats: [o1] }), rr = tt.map((x) => led.round(x.t)), big = rr.reduce((a, x) => (Math.abs(x.d[o1]) > Math.abs(a.d[o1]) ? x : a), rr[0]);
+        ok(b && b.t === big.t && b.seat === o1 && b.answer.includes(G.names[o1]) && b.answer.includes(`${Math.round(big.v0[o1] * 100)}%`), `${tag}: a bare player name answers with that player's biggest round`, b && b.answer.slice(0, 120)); }
+    }
     // fx.behind
-    const bh = m.behind(); ok(bh == null || (bh.d < 0 && bh.d === DL(led.round(bh.t).v0[me], led.round(bh.t).v1[me]) && bh.v0 === Math.round(led.round(bh.t).v0[me] * 100) && bh.v1 === Math.round(led.round(bh.t).v1[me] * 100)), `${tag}: fx.behind is the round with the biggest fall, with the ledger's numbers`, bh);
+    const bh =m.behind(); ok(bh == null || (bh.d < 0 && bh.d === DL(led.round(bh.t).v0[me], led.round(bh.t).v1[me]) && bh.v0 === Math.round(led.round(bh.t).v0[me] * 100) && bh.v1 === Math.round(led.round(bh.t).v1[me] * 100)), `${tag}: fx.behind is the round with the biggest fall, with the ledger's numbers`, bh);
   }
   // the version and the files
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8"), idx = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8"), ui = fs.readFileSync(path.join(__dirname, "..", "src", "themes", "settings-ui.js"), "utf8");

@@ -208,9 +208,11 @@ export const ReviewLedgerMixin = {
     const { fx } = this._pgState(), M = fx.lg; if (!M) return null;
     const rt = ledgerRoute(String(q || ""), { me: fx.me, players: fx.players }); if (!rt || (rt.t != null && (rt.t < 1 || rt.t > fx.T))) return null;
     const L = fx.t.lg, a = tryv(() => ledgerAnswer(M, fx, rt)); if (!a) return null;
-    const you = a.seat === fx.me, tr = { ref: `turn.${a.t}`, fmt: "turn" }, who = { ref: `name.${fx.keys[a.seat]}`, fmt: "player" }, ask = rt.kind === "behind" ? (you ? L.askBehind : L.askBehindOf) : you ? L.askTurn : L.askTurnOf;
-    const title = you ? [ask[0], tr, ask[1]] : [ask[0], who, ask[1], tr, ask[2]];
-    return { t: a.t, kind: a.kind, seat: a.seat, answer: a.answer, spec: { id: `ld${Date.now().toString(36)}${a.t}`, level: "Game", short: fx.t.short_.wc, title, blocks: [{ p: "ledger", rounds: [a.t], seat: a.seat }] } };
+    const tr = (t) => ({ ref: `turn.${t}`, fmt: "turn" }), who = (q) => ({ ref: `name.${fx.keys[q]}`, fmt: "player" }), ask = rt.kind === "behind" ? (a.seat === fx.me ? L.askBehind : L.askBehindOf) : a.seat === fx.me ? L.askTurn : L.askTurnOf;
+    let title;
+    if (a.all.length > 1 || rt.kind === "player") { const nm = []; a.all.forEach((x, i) => { if (i) nm.push(i === a.all.length - 1 ? ` ${L.and} ` : ", "); nm.push(who(x.seat)); }); const ts = [...new Set(a.all.map((x) => x.t))]; title = [...nm, ` · ${fx.t.winChance}`, ...(ts.length === 1 ? [" · ", tr(ts[0])] : [])]; }
+    else title = a.seat === fx.me ? [ask[0], tr(a.t), ask[1]] : [ask[0], who(a.seat), ask[1], tr(a.t), ask[2]];
+    return { t: a.t, kind: a.kind, seat: a.seat, answer: a.answer, spec: { id: `ld${Date.now().toString(36)}${a.t}`, level: "Game", short: fx.t.short_.wc, title, blocks: a.all.slice(0, 3).map((x) => ({ p: "ledger", rounds: [x.t], seat: x.seat })) } };
   },
   /** Answer a typed / chip question from the ledger when it can; true when it did (the page shows the card under the follow-ups). */
   _ldFollow(q) {

@@ -172,42 +172,68 @@ export function ledgerFacts(model, fx) {
 // ── the chat: which question, about whom ──
 const FALL = /\b(waarom|hoe|why|how)\b.*\b(zak\w*|terugzak\w*|teruggezakt|terugval\w*|teruggevallen|daal\w*|gedaald|viel|vielen|gevallen|achter\w*|achteruit|fall\w*|fell|drop\w*|slid\w*|slide|sliding|behind|decline\w*|sink\w*|sank|lose|lost|losing)\b/i;
 const FALL_OK = /\b(zak\w*|terugzak\w*|teruggezakt|terugval\w*|teruggevallen|daal\w*|gedaald|viel|gevallen|achter\w*|achteruit|fall\w*|fell|drop\w*|slid\w*|slide|behind|decline\w*|sink\w*|sank)\b|\b(lose|lost|losing)\b.*\bground\b/i;
-const TURNQ = /\b(?:what happened|wat (?:gebeurde|is er gebeurd|ging er)|what went on)\b.*\b(?:turn|beurt|ronde|round)\s*(\d+)\b/i;
+const TURNQ = /\b(?:what happened|wat (?:gebeurde|is er gebeurd|ging er)|what went on)\b.*\b(?:turn|beurt|ronde|round)\s*(\d+)\b/i, TURNN = /\b(?:turn|beurt|ronde|round)\s*(\d+)\b/i;
 const NEG = /\b(niet|nooit|geen|never|not|nobody|niemand)\b|n['’]t\b/i, WIN = /\b(won|win|wins|winning|winner|winnaar|winnen|gewonnen|verloor|lost the game)\b/i, ME = /\b(ik|mij|mijn|me|my|myself|i|je|jij|jouw|your|you)\b/i;
+const ME_AND = /\b(ik|mij|me|i|jij|je)\b\s*(?:en|and|&)\s+\u0001|\u0001\s*(?:en|and|&)\s+(?:ik|mij|me|i|jij|je)\b/i;
 const OTHERS = /\b(everyone|everybody|iedereen|others?|anderen|andere|else|bank|rest|tegenstanders?|opponents?|players|spelers|team|all)\b/i;
 const esc = (x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** Whom the question is about: { seat } (a named player, or you), "other" (somebody the game does not have, or a group), or null (no subject given). */
+const PARTICLE = /^(van|de|der|den|het|ten|ter|von|di|da|la|le|el|bin|ibn|mc|mac|jr|sr)$/i;
+/** the words a player is called by: the whole name and each word of it (a name word of 3 letters or more that is not a particle, and that no other player has) */
+const aliasesOf = (p, all) => { const words = String(p.name).split(/[\s-]+/).filter((w) => w.length >= 3 && !PARTICLE.test(w) && !all.some((o) => o !== p && String(o.name).split(/[\s-]+/).some((x) => x.toLowerCase() === w.toLowerCase()))); return [...new Set([String(p.name), ...words])].sort((a, b) => b.length - a.length); };
+/** Whom the question is about: { seats: [..] } (named players, you, or both), "other" (somebody the game does not have, or a group), or null (no subject given). Also tells whether the question is nothing but names (bare). */
 function subjectOf(q, ctx) {
-  const pl = (ctx && ctx.players) || [], plain = q.replace(/\b(winkans|win ?chance|winning chance)\b/gi, " "), named = pl.filter((p) => !p.you && p.name && new RegExp(`(^|[^\\p{L}])${esc(p.name)}(s|'s|’s)?(?![\\p{L}])`, "iu").test(plain));
-  if (named.length === 1) return { seat: named[0].seat };
-  if (named.length > 1) return "other";
+  const pl = ((ctx && ctx.players) || []).filter((p) => p && p.name), me = ctx && ctx.me != null ? ctx.me : null;
+  let plain = q.replace(/\b(winkans|win ?chance|winning chance)\b/gi, " "); const seats = [];
+  for (const p of pl) { if (p.you) continue; const re = new RegExp(`(^|[^\\p{L}])(${aliasesOf(p, pl).map(esc).join("|")})(s|'s|’s)?(?![\\p{L}])`, "giu"); plain = plain.replace(re, (m, a) => { if (!seats.includes(p.seat)) seats.push(p.seat); return `${a}\u0001`; }); }
+  plain = plain.replace(/(^|[^\p{L}])(?:van|de|der|den|ten|ter|von)\s+(?=\u0001)/giu, "$1");
+  const bare = seats.length > 0 && /^\u0001(\s*(,|en|and|&)\s*\u0001)*$/.test(plain.replace(/[\s?!.¿¡]+$/, "").replace(/^[\s¿¡]+/, ""));
+  if (seats.length) {
+    const left = plain.replace(/^\s*\S+\s+/, "").replace(/^\s*(did|is|was|waren|was)\s+/i, ""), caps = (left.match(/(^|[\s,;(])([A-ZÀ-Ý][\p{L}]+)/gu) || []).map((x) => x.trim().replace(/^[,;(]/, "")).filter((x) => !/^(I|Ik|Why|How|Waarom|Hoe|What|Wat|Tell|Het|De|The)$/.test(x));
+    if (caps.length && !bare) return "other";
+    if (ME_AND.test(plain) && me != null && !seats.includes(me)) seats.unshift(me);
+    return { seats, bare };
+  }
   if (OTHERS.test(plain)) return "other";
-  if (ME.test(plain)) return { seat: ctx && ctx.me != null ? ctx.me : null };
+  if (ME.test(plain)) return { seats: [me], bare: false };
   if (/(^|[\s,;(])[A-ZÀ-Ý][\p{L}]+/u.test(plain.replace(/^\s*\S+\s+/, "").replace(/^\s*(did|is|was|waren|was)\s+/i, ""))) { const caps = (plain.replace(/^\s*\S+\s+/, "").match(/(^|[\s,;(])([A-ZÀ-Ý][\p{L}]+)/gu) || []).map((x) => x.trim()).filter((x) => !/^(I|Ik|Why|How|Waarom|Hoe|What|Wat|Tell|Het|De|The)$/.test(x)); if (caps.length) return "other"; }
+  if (/^[\s?!.¿¡]*[A-ZÀ-Ý][\p{L}]+[\s?!.]*$/u.test(q)) return "other"; // a single unknown name
   return null;
 }
-/** The questions the ledger answers itself, about the player asked: { kind: "turn", t, seat } (what happened in turn N [to X]), { kind: "behind", seat } (why did X fall behind / zakte ik), or null.
+const routeOf = (kind, sb, me, t) => { const seats = sb && sb.seats && sb.seats.length ? sb.seats : [me]; return { kind, seat: seats[0], seats, ...(t != null ? { t } : {}) }; };
+/** The questions the ledger answers itself, about the players asked: { kind: "turn", t, seat, seats } (what happened in turn N [to X and Y]), { kind: "behind", seat, seats, t? } (why did X fall behind / zakte ik; with the turn the user names), { kind: "player", seat, seats } (a bare name: "Geelen?"), or null.
  *  No answer for a negated question ("why did I not fall"), a win question ("why did I win"), another subject (a group, the bank, a name the game does not have) or a question the ledger does not know.
- *  ctx: { me, players: [{ seat, name, you }] } (the reviewed player is the default subject of "what happened in turn N"). The wording is Dutch or English. */
+ *  ctx: { me, players: [{ seat, name, you }] } (the reviewed player is the default subject of "what happened in turn N"). A player is called by their whole name or by any word of it ("Geelen" for "Van Geelen"). The wording is Dutch or English. */
 export function ledgerRoute(q, ctx) {
   q = String(q || ""); const me = ctx && ctx.me != null ? ctx.me : null, m = TURNQ.exec(q);
-  if (m) { const sb = subjectOf(q, ctx); if (sb === "other") return null; return { kind: "turn", t: +m[1], seat: sb && sb.seat != null ? sb.seat : me }; }
-  if (!FALL.test(q) || !FALL_OK.test(q.replace(/\b(waarom|hoe|why|how)\b/gi, " "))) return null;
-  const plain = q.replace(/\b(winkans|win ?chance|winning chance)\b/gi, " ");
-  if (NEG.test(plain) || WIN.test(plain)) return null;
-  const sb = subjectOf(q, ctx); if (sb === "other") return null;
-  if (!sb) return /\b(winkans|win ?chance)\b/i.test(q) ? { kind: "behind", seat: me } : null;
-  return { kind: "behind", seat: sb.seat != null ? sb.seat : me };
+  if (m) { const sb = subjectOf(q, ctx); if (sb === "other") return null; return routeOf("turn", sb, me, +m[1]); }
+  if (FALL.test(q) && FALL_OK.test(q.replace(/\b(waarom|hoe|why|how)\b/gi, " "))) {
+    const plain = q.replace(/\b(winkans|win ?chance|winning chance)\b/gi, " ");
+    if (NEG.test(plain) || WIN.test(plain)) return null;
+    const sb = subjectOf(q, ctx); if (sb === "other") return null;
+    const tn = TURNN.exec(q), t = tn ? +tn[1] : null;
+    if (!sb) return /\b(winkans|win ?chance)\b/i.test(q) ? routeOf("behind", null, me, t) : null;
+    return routeOf("behind", sb, me, t);
+  }
+  const sb = subjectOf(q, ctx); if (sb && sb !== "other" && sb.bare) return routeOf("player", sb, me);
+  return null;
 }
-/** The chat answer for a route: { t, kind, seat, answer (text), claim } about that player with that player's numbers from the ledger (null: nothing to say). fx: { lang, me, nameOf, t: the words } */
+/** The chat answer for a route: { t, kind, seat, answer (text), claim, all } about each player asked with that player's numbers from the ledger (null: nothing to say). fx: { lang, me, nameOf, t: the words } */
 export function ledgerAnswer(model, fx, route) {
-  if (!route) return null; const L = (fx.t && fx.t.lg) || langOfLg(fx.lang).lg, q = route.seat != null ? route.seat : model.me;
-  let t = route.t; if (route.kind === "behind") { const b = model.behind(q); if (!b) return null; t = b.t; }
-  if (t == null || t < 1) return null;
-  const v = model.view(t), R = model.led.round(t); if (!v || !R) return null;
-  const a = lvl(R.v0[q]), b = lvl(R.v1[q]), d = dLvl(R.v0[q], R.v1[q]), you = q === model.me, nm = fx.nameOf(q), who = L.ansWho(nm, you);
-  const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1), lead = (route.kind === "behind" ? L.ansBehind : L.ansTurn)(t, a, b, d, route.kind === "behind" ? cap(who) : who);
-  const row = model.row(t, q), body = row ? segsText(row.text, fx).replace(/\s+$/, "") : "", mech = row && row.mech ? ` ${segsText(row.mech.segs, fx)}.` : "";
-  return { t, kind: route.kind, seat: q, answer: `${lead}${body}${mech}`, d, v0: a, v1: b };
+  if (!route) return null; const L = (fx.t && fx.t.lg) || langOfLg(fx.lang).lg, seats = route.seats && route.seats.length ? route.seats : [route.seat != null ? route.seat : model.me], multi = seats.length > 1, all = [], none = [];
+  const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+  for (const q of seats) {
+    let t = route.t, kind = route.kind;
+    if (kind === "behind" && t == null) { const b = model.behind(q); if (!b) { none.push(q); continue; } t = b.t; }
+    if (kind === "player") { const rs = model.led.rounds().filter((r) => r.t >= 1).map((r) => model.led.round(r.t)).filter(Boolean); if (!rs.length) continue; t = rs.reduce((a, x) => (Math.abs(dLvl(x.v0[q], x.v1[q])) > Math.abs(dLvl(a.v0[q], a.v1[q])) ? x : a), rs[0]).t; }
+    if (t == null || t < 1) continue;
+    const v = model.view(t), R = model.led.round(t); if (!v || !R) continue;
+    const a = lvl(R.v0[q]), b = lvl(R.v1[q]), d = dLvl(R.v0[q], R.v1[q]), you = q === model.me, nm = fx.nameOf(q), who = L.ansWho(nm, you);
+    const lead = kind === "player" ? L.ansBig(t, a, b, d, cap(who)) : (kind === "behind" && d < 0 ? L.ansBehind : L.ansTurn)(t, a, b, d, kind === "behind" && d < 0 ? cap(who) : who);
+    const row = model.row(t, q), body = row ? segsText(row.text, fx).replace(/\s+$/, "") : "", mech = row && row.mech ? ` ${segsText(row.mech.segs, fx)}.` : "";
+    all.push({ t, kind, seat: q, answer: `${lead}${body}${mech}`, d, v0: a, v1: b });
+  }
+  if (!all.length) return null;
+  const tail = multi ? none.map((q) => ` ${L.ansNoFall(fx.nameOf(q), q === model.me)}`).join("") : "";
+  return { ...all[0], answer: all.map((x) => x.answer).join(" ") + tail, all };
 }
 import { langOf as langOfLg } from "./ai-lang.js";

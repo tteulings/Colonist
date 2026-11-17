@@ -12,7 +12,7 @@ export const LANG = {
     headless: "Headless chicken", yes: "Yes", partly: "Partly", no: "No",
     turn: "turn", Turn: "Turn", setup: "set-up", more: "More", details: "Details", foot: "Summary from this game's numbers. Beta.", footAi: "Composed for this game from its numbers. Beta.", composing: "Composing a page for this game", of: "of",
     fuWork: "Putting a picture together", fuNone: "No picture for this one, so here is the written answer.", fuFail: "No answer this time.", fuAsked: "Your question", bd: { played: "Played", better: "Better", alt: "Option", paid: "Paid out", robber: "Robber", pirate: "Pirate", marked: "Marked", res: { wood: "Wood", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore", desert: "Desert", gold: "Gold" }, aria: "Board" },
-    winChance: "Win chance", winChanceBy: "Win chance by turn", tapDot: "Tap a dot on the chart to open that turn", zoneOut: "out of it", zoneLead: "in front", zonePull: "pulling away", zoneLow: "low point", others: "others", tL: "T", points: "Points", pointsBy: "Points by turn", plan_: "plan", pivot: "pivot",
+    winChance: "Win chance", winChanceBy: "Win chance by turn", tapDot: "Tap a point on the chart to open that turn", zoneOut: "out of it", zoneLead: "in front", zonePull: "pulling away", zoneLow: "low point", others: "others", tL: "T", points: "Points", pointsBy: "Points by turn", plan_: "plan", pivot: "pivot",
     src: { s: "Settlement", c: "City", L: "Longest road", A: "Largest army", v: "Point card" }, srcPl: { s: "Settlements", c: "Cities", L: "Longest road", A: "Largest army", v: "Point cards", I: "New islands" },
     road: "Road", stalled: "Stalled", planL: "Plan", hand: "Cards in hand", handBy: "Cards in hand by turn", otherTurns: "Other turns", built: "Built something",
     rolled: "Times rolled", diceNr: "Dice number", rolledL: "Rolled", expected: "Expected", diceAria: "Dice rolls",
@@ -26,7 +26,7 @@ export const LANG = {
       won: (T, pts) => [" won on ", T, " with ", pts, " points."], lostA: " won on ", lostB: " stood on ", lostC: " points.",
       wcLead: (you, P) => (you ? ["Your win chance "] : [P, "'s win chance "]), wcFrom: " from ", wcTo: " to ", wcOn: " on ", up: "rose", down: "slid",
       lgCause: { dice: ", mostly on dice luck,", card: ", mostly on a drawn card," },
-      wcN1: "Dots mark the turns where the win chance moved most. Tap one to open that turn.", wcN2: "Each win chance is a set of futures played out from that position, so a rerun moves it a little.",
+      wcN1: "Marked points show the turns where the win chance moved most. Tap one to open that turn.", wcN2: "Each win chance is a set of futures played out from that position, so a rerun moves it a little.",
       nearOne: { a: " of ", b: " points. ", c: " short on " }, nearEnd: " points at the end.",
       headless: { a: " spent ", b: " of ", c: " turns stuck, with no steady plan." },
       pivot: { a: " planned ", b: ", then pivoted to ", c: " at " }, steady: { a: " planned ", b: " and stayed on it. ", n: (k) => plural(k, " stalled turn.", " stalled turns.") },
@@ -53,6 +53,8 @@ export const LANG = {
       cap2: (c) => [{ pl: c.by }, " built on your best spot (", { x: c.pips }, ` ${c.pips === 1 ? "dot" : "dots"}): `, { x: c.after }, ` ${c.after === 1 ? "spot" : "spots"} within 1 road left, was `, { x: c.before }],
       noteTab: "Win chances are estimates from played-out futures, so a level can be a few points off. The Win chance tab shows the same numbers.", quiet: "Nothing moved much this turn.", askBehind: ["Why did your win chance drop in ", "?"], askTurn: ["What happened in ", "?"], askBehindOf: ["Why did the win chance of ", " drop in ", "?"], askTurnOf: ["What happened to ", " in ", "?"],
       ansBehind: (t, a, b, d, who) => `${who} dropped in turn ${t}, from ${a}% to ${b}% (${d < 0 ? "−" : "+"}${Math.abs(d)} ${Math.abs(d) === 1 ? "point" : "points"}). `, ansTurn: (t, a, b, d, who) => `In turn ${t} ${who} went from ${a}% to ${b}% (${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${Math.abs(d) === 1 ? "point" : "points"}). `, ansWho: (name, you) => (you ? "your win chance" : `${name}’s win chance`),
+      and: "and",
+      ansBig: (t, a, b, d, who) => `${who} changed most in turn ${t}, from ${a}% to ${b}% (${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${Math.abs(d) === 1 ? "point" : "points"}). `, ansNoFall: (name, you) => `${you ? "Your win chance" : name + "’s win chance"} never fell by 4 points or more in one turn.`,
       spotAlt: (n) => `Spot ${n}`, boardNote: (c) => [{ pl: c.by }, " takes it on turn ", { x: c.turn }],
       step: (it, me, win) => {
         const nm = (q) => ({ pl: q }), KIND = { settlement: "a settlement", city: "a city", road: "a road" }, RES = (l) => [...new Set(l)].map((r) => LANG.en.res[r]).join(" + ");
@@ -116,7 +118,7 @@ export const LANG = {
       won: (T, pts) => [" won op ", T, " met ", pts, " punten."], lostA: " won op ", lostB: " stond op ", lostC: " punten.",
       wcLead: (you, P) => (you ? ["Jouw winkans "] : ["De winkans van ", P, " "]), wcFrom: " van ", wcTo: " naar ", wcOn: " op ", up: "steeg", down: "daalde",
       lgCause: { dice: ", vooral door dobbelstenen,", card: ", vooral door een getrokken kaart," },
-      wcN1: "De stippen tonen de beurten waarin de winkans het meest veranderde. Tik op een stip om die beurt te openen.", wcN2: "Elke winkans komt uit doorgespeelde toekomsten vanaf die stand, dus een nieuwe run verschuift hem iets.",
+      wcN1: "De gemarkeerde punten tonen de beurten waarin de winkans het meest veranderde. Tik op een punt om die beurt te openen.", wcN2: "Elke winkans komt uit doorgespeelde toekomsten vanaf die stand, dus een nieuwe run verschuift hem iets.",
       nearOne: { a: " van de ", b: " punten. ", c: " tekort op " }, nearEnd: " punten aan het eind.",
       headless: { a: " zat ", b: " van de ", c: " beurten vast, zonder vast plan." },
       pivot: { a: " koos eerst voor ", b: " en stapte over op ", c: " bij " }, steady: { a: " koos voor ", b: " en bleef daarbij. ", n: (k) => plural(k, " vastgelopen beurt.", " vastgelopen beurten.") },
@@ -143,6 +145,8 @@ export const LANG = {
       cap2: (c) => [{ pl: c.by }, " bouwde op je beste plek (", { x: c.pips }, ` ${c.pips === 1 ? "stip" : "stippen"}): nog `, { x: c.after }, ` ${c.after === 1 ? "dorpsplek" : "dorpsplekken"} binnen 1 weg, was `, { x: c.before }],
       noteTab: "Winkansen zijn schattingen uit doorgespeelde toekomsten, dus een waarde kan een paar punten afwijken. De Winkans-tab toont dezelfde cijfers.", quiet: "Er veranderde weinig in deze beurt.", askBehind: ["Waarom zakte je winkans in ", "?"], askTurn: ["Wat gebeurde er in ", "?"], askBehindOf: ["Waarom zakte de winkans van ", " in ", "?"], askTurnOf: ["Wat gebeurde er met ", " in ", "?"],
       ansBehind: (t, a, b, d, who) => `${who} zakte in beurt ${t} van ${a}% naar ${b}% (${d < 0 ? "−" : "+"}${Math.abs(d)} ${Math.abs(d) === 1 ? "punt" : "punten"}). `, ansTurn: (t, a, b, d, who) => `In beurt ${t} ging ${who} van ${a}% naar ${b}% (${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${Math.abs(d) === 1 ? "punt" : "punten"}). `, ansWho: (name, you) => (you ? "je winkans" : `${name}${/[sxz]$/i.test(name) ? "’" : "s"} winkans`),
+      and: "en",
+      ansBig: (t, a, b, d, who) => `${who} veranderde het meest in beurt ${t}, van ${a}% naar ${b}% (${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${Math.abs(d) === 1 ? "punt" : "punten"}). `, ansNoFall: (name, you) => `${you ? "Je winkans" : name + (/[sxz]$/i.test(name) ? "’" : "s") + " winkans"} zakte nergens 4 punten of meer in één beurt.`,
       spotAlt: (n) => `Plek ${n}`, boardNote: (c) => [{ pl: c.by }, " neemt hem in beurt ", { x: c.turn }],
       step: (it, me, win) => {
         const nm = (q) => ({ pl: q }), KIND = { settlement: "een dorp", city: "een stad", road: "een weg" }, RES = (l) => [...new Set(l)].map((r) => LANG.nl.res[r]).join(" + ");
