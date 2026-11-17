@@ -41,6 +41,11 @@ export function motionReduced() {
   const p = motionPref();
   return p === "reduced" || (p === "system" && !!mq?.matches);
 }
+// v1.91 avatar animations (blink, breathing, reactions): Settings > Avatar animations, default on
+const AVANIM_KEY = "colonist.avatarAnim";
+export const avatarAnimOn = () => store.get(AVANIM_KEY) !== "off";
+export function applyAvatarAttr() { if (typeof document !== "undefined") document.documentElement.dataset.avanim = avatarAnimOn() ? "on" : "off"; }
+export function setAvatarAnim(on) { store.set(AVANIM_KEY, on ? "on" : "off"); applyAvatarAttr(); }
 export function setMotionPref(v) {
   store.set(MOTION_KEY, v);
   applyMotionAttr();
@@ -118,6 +123,7 @@ export function paletteTick() {
 if (typeof window !== "undefined") window.setInterval(paletteTick, 60000);
 if (typeof document !== "undefined" && paletteAutoMode() === "time") applyPaletteAttr(); // correct a stale first paint
 export function applyMotionAttr() {
+  applyAvatarAttr();
   document.documentElement.dataset.motion = motionReduced() ? "reduced" : "full";
 }
 mq?.addEventListener?.("change", applyMotionAttr);
@@ -150,7 +156,11 @@ export const BOT_PROFILE = {
   dewit: { name: "De Wit", full: "Mevrouw De Wit", tag: "Seat 5" },
   pimpel: { name: "Pimpel", full: "Professor Pimpel", tag: "Seat 6" },
 };
+let LIVE_T = null; const LIVE = [];
+/** The rigged portrait of a seat for the current theme (cached), for the inline (animated) avatars. */
+const liveArt = (seat) => (LIVE[seat] ??= (() => { try { return LIVE_T?.avatar?.(SEAT_PRESETS[seat], true) || ""; } catch (_) { return ""; } })());
 export function buildSprite(T) {
+  LIVE_T = T; LIVE.length = 0;
   let s = `<svg id="themeSprite" class="sprites" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>${T.uiDefs ? T.uiDefs() : ""}`;
   // the Menu glyph: three lines unless the theme draws its own; the default ⚓ ship icon in neutral ink (a build icon is UI, not a seat colour)
   const icons = { menu: `<path d="M-30 -22H30M-30 0H30M-30 22H30" stroke="currentColor" stroke-width="9" stroke-linecap="round" fill="none"/>`, ...seaIcons(T.youPc || { base: "#22313A", dark: "#16222A", light: "#4A5A64", line: "#0E161B" }, T.palette?.ink), ...T.icons };
@@ -177,6 +187,12 @@ export function awardStat(stat, n, held, title, ic) {
   return `<span data-stat="${stat}"${held ? ' class="award"' : ""} title="${title}">${icon(ic)}${n}${held ? '<b class="aw-plus">+2</b>' : ""}</span>`;
 }
 export const avatarSvg = (seat, cls = "") => `<span class="avatar pc-${seat} ${cls}"><svg viewBox="-50 -50 100 100" aria-hidden="true"><use href="#av-${seat}" x="-50" y="-50" width="100" height="100"/></svg></span>`;
+/** An avatar that can animate: the portrait drawn inline with its rig groups (themes without a rig, or Settings off: the plain sprite avatar). */
+export function avatarLive(seat, cls = "") {
+  const art = avatarAnimOn() ? liveArt(seat) : "";
+  if (!art) return avatarSvg(seat, cls);
+  return `<span class="avatar pc-${seat} av-live ${cls}"><svg viewBox="-50 -50 100 100" aria-hidden="true">${art}</svg></span>`;
+}
 export const dieSvg = (n, cls = "") => `<svg class="die ${cls}" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#die-${n}" x="-50" y="-50" width="100" height="100"/></svg>`;
 export const cardSvg = (k, big = false) => `<svg viewBox="0 0 250 350" aria-hidden="true"><use href="#${big ? "card" : "cardm"}-${k}"/></svg>`;
 export const cardBackSvg = () => `<svg viewBox="0 0 250 350" aria-hidden="true"><use href="#card-back"/></svg>`;

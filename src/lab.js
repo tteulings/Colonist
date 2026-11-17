@@ -11,12 +11,12 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=1911";
-import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=1911";
-import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=1911";
-import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=1911";
-import { byStrength } from "./bot-stats.js?v=1911";
-import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=1911";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=192";
+import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=192";
+import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=192";
+import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=192";
+import { byStrength } from "./bot-stats.js?v=192";
+import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=192";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -533,7 +533,7 @@ function bindBoardTools(frame) {
 // v1.13: a free sandbox. 2-4 seats, each any preset (or Random: a different bot every game, drawn from a seeded
 // stream so game i is the same line-up in every run), or the Custom mix you saved in Analysis (only then).
 // Results are counted per bot PROFILE over every seat it played (src/lab-stats.js). Same boards and dice in every run.
-const SEAT_COL = (i) => view?.players?.[i]?.color || ["#D1453A", "#3C75C6", "#F08A2E", "#2A8556"][i];
+const SEAT_COL = (i) => view?.players?.[i]?.color || ["#D1453A", "#3C75C6", "#F08A2E", "#3FD9C2"][i];
 const P = BOT_PROFILES;
 const DICE = `<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="9" cy="9" r="1.3" fill="currentColor"/><circle cx="15" cy="15" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1.3" fill="currentColor"/><circle cx="9" cy="15" r="1.3" fill="currentColor"/></svg>`;
 const PEN = `<svg viewBox="0 0 16 16" width="100%" height="100%" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M2 11l7-7 3 3-7 7H2zM8 5l3 3"/></svg>`;

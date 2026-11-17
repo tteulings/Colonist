@@ -13,7 +13,7 @@
 // Colours: player colours only where a player is meant (house colours, --pN); everything else the theme ink
 // at low contrast with ONE accent (the theme's primary teal); heat = one warm gold ramp (--gs-heat).
 // Styles: themes/stats.css.
-import { icon, dieSvg, motionReduced } from "./themes/manager.js";
+import { icon, dieSvg, motionReduced, avatarAnimOn } from "./themes/manager.js";
 import { oicon } from "./ui-icons.js";
 import { SEAT_PERSONAS } from "./themes/portraits.js";
 import { TERRAIN_NAME } from "./themes/art-util.js";
@@ -67,10 +67,11 @@ export const StatsUiMixin = {
   /** Inline portrait (themed) with the head and the brooch as separate groups for the animations. */
   _stPortrait(pid, cls = "", size = 44) {
     let inner = "";
-    try { inner = this.theme?.avatar ? this.theme.avatar(SEAT_PERSONAS[pid]) : ""; } catch (_) { inner = ""; }
+    const live = size >= 40 && avatarAnimOn(); // v1.91: the big portraits carry the animation rig (blink, breathing, win shine)
+    try { inner = this.theme?.avatar ? this.theme.avatar(SEAT_PERSONAS[pid], live) : ""; } catch (_) { inner = ""; }
     if (!inner) return `<span class="avatar pc-${pid} gs-por ${cls}" style="--av:${size}px"><svg viewBox="-50 -50 100 100" aria-hidden="true"><use href="#av-${pid}" x="-50" y="-50" width="100" height="100"/></svg></span>`;
     const { body, brooch } = splitBrooch(inner);
-    return `<span class="avatar pc-${pid} gs-por ${cls}" style="--av:${size}px"><svg viewBox="-50 -50 100 100" aria-hidden="true"><g class="gs-head">${body}</g>${brooch ? `<g transform="translate(-21 36)"><g class="gs-brooch">${brooch}</g></g>` : ""}</svg></span>`;
+    return `<span class="avatar pc-${pid} gs-por${live ? " av-live" : ""} ${cls}" style="--av:${size}px"><svg viewBox="-50 -50 100 100" aria-hidden="true"><g class="gs-head">${body}</g>${brooch ? `<g transform="translate(-21 36)"><g class="gs-brooch">${brooch}</g></g>` : ""}</svg></span>`;
   },
 
   _stTile(hexId) {
@@ -181,7 +182,7 @@ export const StatsUiMixin = {
       <div class="gs-top"><button type="button" class="gs-homebtn" data-gsback aria-label="Home"><svg class="ic" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg><span>Home</span></button></div>
       <div class="gs-scroll">
         <section class="gs-recap over-panel" aria-label="Recap">
-          <div class="gs-rhead">${this._stPortrait(winner.id, "gs-win-por", 52)}<div><h3>${this._stWinsText(winner)}</h3>
+          <div class="gs-rhead">${this._stPortrait(winner.id, "gs-win-por av-win", 52)}<div><h3>${this._stWinsText(winner)}</h3>
             <p class="lead">${winner.isHuman || !human ? `${winner.victoryPoints} points${this.isRush() ? "" : ` on turn ${this.turn}`}` : `You finished ${ord(rank)}`}</p></div></div>
           <div class="podium gs-rank">${ranked.map((p, k) => `<div class="r${p === winner ? " win" : ""}" data-pid="${p.id}"><span class="pl">${k + 1}</span>${this._stPortrait(p.id, p === winner ? "gs-emb" : "", 30)}<span class="nmc"><span class="pname">${this._stName(p)}</span></span><span class="s">${p.victoryPoints}</span></div>`).join("")}</div>
           <div class="gs-ov"><span><b>${turns}</b>${this.isRush() ? "rolls" : "turns"}</span><span><b>${fmtDur(st?.ms || 0)}</b>played</span>${human ? `<span><b>${rank ? ord(rank) : "—"}</b>your rank</span>` : `<span><b>${this.players.length}</b>players</span>`}</div>
@@ -270,7 +271,7 @@ export const StatsUiMixin = {
     const rays = Array.from({ length: 16 }, (_, k) => { const a0 = k * Math.PI / 8 - 0.09, a1 = k * Math.PI / 8 + 0.09; return `<path d="M0,0 L${210 * Math.cos(a0)},${210 * Math.sin(a0)} A210,210 0 0 1 ${210 * Math.cos(a1)},${210 * Math.sin(a1)}Z"/>`; }).join("");
     intro.innerHTML = `${st && !reduced ? `<canvas class="gs-tl-bg"></canvas>` : ""}<div class="gs-intro-dim"></div>
       ${won ? `<svg class="gs-rays" viewBox="-210 -210 420 420" aria-hidden="true"><defs><radialGradient id="stRayG"><stop offset=".15" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient><mask id="stRayM"><circle r="210" fill="url(#stRayG)"/></mask></defs><g mask="url(#stRayM)">${rays}</g></svg><div class="gs-confetti"></div>
-        <div class="gs-hero">${this._stPortrait(winner.id, "gs-hero-por", 150)}</div><h2>${this._stWinsText(winner)}</h2><div class="gs-vpn"><b>0</b> <span class="gs-vpn-u">points</span></div>`
+        <div class="gs-hero">${this._stPortrait(winner.id, "gs-hero-por av-win", 150)}</div><h2>${this._stWinsText(winner)}</h2><div class="gs-vpn"><b>0</b> <span class="gs-vpn-u">points</span></div>`
         : `<div class="gs-lose-card">${this._stPortrait(winner.id, "gs-nod", 96)}<h2>${winner.name} wins</h2><p>${human ? `Well played · you finished ${ord(rank)}` : `${winner.victoryPoints} points`}</p>${human ? this._stPortrait(human.id, "gs-shrug", 40) : ""}</div>`}
       <div class="gs-skip">tap to continue</div>`;
     overlay.appendChild(intro);

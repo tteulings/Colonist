@@ -73,7 +73,7 @@ function card(k, mini) {
 }
 const cardBack = () => `<rect x="1" y="1" width="248" height="348" rx="18" fill="#1a3a52" stroke="#c4a265" stroke-width="4"/><g transform="translate(125 175) scale(2.2)">${ICONS.logo}</g>`;
 
-const avatar = (preset) => sunny.avatar(preset);
+const avatar = (preset, rig) => sunny.avatar(preset, rig);
 
 const PIPS = { 1: [[0, 0]], 2: [[-14, -14], [14, 14]], 3: [[-14, -14], [0, 0], [14, 14]], 4: [[-14, -14], [14, -14], [-14, 14], [14, 14]], 5: [[-14, -14], [14, -14], [0, 0], [-14, 14], [14, 14]], 6: [[-14, -16], [14, -16], [-14, 0], [14, 0], [-14, 16], [14, 16]] };
 const die = (n) => `<rect x="-36" y="-36" width="72" height="72" rx="14" fill="#fffdf8" stroke="#8a7a5a" stroke-width="3"/>${PIPS[n].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="6.4" fill="#18212c"/>`).join("")}`;

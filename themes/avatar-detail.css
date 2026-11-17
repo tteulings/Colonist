@@ -1,0 +1,4 @@
+/* v1.91 detail layer of the portraits (src/themes/portraits.js, portrait(k, { detail })): a little extra finish drawn inside the existing
+   silhouettes. Shown on avatars of 32px and up; narrower avatars keep the plain drawing. Toggle one part: .av-d-eyes / .av-d-skin / .av-d-hair / .av-d-cloth / .av-d-brooch. */
+.avatar { container-type: inline-size; }
+@container (max-width: 31.5px) { .av-detail { display: none; } }

@@ -315,7 +315,7 @@ const ICONS = {};
 /* ---------- avatars: the six seat personas (src/themes/portraits.js) as faceless Fiep-style silhouettes
    in one neutral soft charcoal (the board figures' FIG): no eyes or features, identity from the outline,
    clothes in the seat colour, an emblem brooch ---------- */
-const avatar6 = (preset) => portrait(preset, { style: "ink", ink: FIG, paper: PA });
+const avatar6 = (preset, rig) => portrait(preset, { style: "ink", ink: FIG, paper: PA, rig });
 
 /* ---------- cards: one flat colour field, a silhouette scene, hand-lettered title on paper ---------- */
 // card scenes may be busier than tiles (they are pictures, not a playing surface)

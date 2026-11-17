@@ -2,7 +2,8 @@
 // "Game" hosts the game controls from index.html (#settingsDrawer body, moved here so their
 // listeners stay intact): New game first, then sound and pace. The bot-autoplay controls live in
 // About › Developer. Look & feel: theme cards, Motion, quick toggle. Applies instantly.
-import { THEMES, THEME_ORDER, motionPref, setMotionPref, palettePref, setPalette, paletteAuto, paletteAutoMode, autoTimeInfo, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
+import { refreshAvatars } from "../avatar-anim.js";
+import { THEMES, THEME_ORDER, motionPref, setMotionPref, avatarAnimOn, setAvatarAnim, palettePref, setPalette, paletteAuto, paletteAutoMode, autoTimeInfo, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
 import { dateLocale } from "../i18n.js";
 
 import { oicon } from "../ui-icons.js";
@@ -15,7 +16,7 @@ export function getTextSize() { try { const v = localStorage.getItem("colonist_t
 export function setTextSize(v) { try { localStorage.setItem("colonist_textsize", v); } catch (_) {} document.documentElement.dataset.textsize = v; window.__colonistAppH?.(); window.dispatchEvent(new Event("resize")); }
 try { document.documentElement.dataset.textsize = getTextSize(); window.__colonistAppH?.(); } catch (_) {}
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "1.91.1";
+export const APP_VERSION = "1.92";
 
 /** v1.34 Settings: the running version and "Check for updates" (index.html: reg.update() + a version compare). */
 function versionRow() {
@@ -236,6 +237,8 @@ export class SettingsUI {
         })()}
         <div class="st-row"><div><b>Motion</b><small>Reduced replaces travel and spin with short fades.</small></div>
           <div class="seg" role="radiogroup" aria-label="Motion">${[["full", "Full"], ["reduced", "Reduced"], ["system", "Follow system"]].map(([v, l]) => `<button type="button" data-motion="${v}" class="${m === v ? "on" : ""}" aria-checked="${m === v}" role="radio">${l}</button>`).join("")}</div></div>
+        <div class="st-row"><div><b>Avatar animations</b><small>Blinking, reactions and the turn pulse on the portraits.</small></div>
+          <div class="seg" role="radiogroup" aria-label="Avatar animations">${[[true, "On"], [false, "Off"]].map(([v, l]) => `<button type="button" data-avanim="${v}" class="${avatarAnimOn() === v ? "on" : ""}" aria-checked="${avatarAnimOn() === v}" role="radio">${l}</button>`).join("")}</div></div>
         <div class="st-row"><div><b>Quick toggle</b><small>The same swatches sit in the top bar on wide screens.</small></div><div class="theme-toggle" data-qt></div></div>`;
       body.querySelectorAll("[data-theme-id]").forEach((b) => {
         b.addEventListener("pointerenter", () => prefetchFonts(THEMES[b.dataset.themeId]));
@@ -245,6 +248,7 @@ export class SettingsUI {
       body.querySelector("[data-pal-info]")?.addEventListener("click", (e) => { const m = body.querySelector(".pal-more"); m.hidden = !m.hidden; e.currentTarget.setAttribute("aria-expanded", String(!m.hidden)); });
       body.querySelectorAll("[data-pal-auto]").forEach((b) => b.addEventListener("click", () => { setPaletteAuto(b.dataset.palAuto); g.requestBoardDraw(); this.renderBody(); }));
       body.querySelectorAll("[data-motion]").forEach((b) => b.addEventListener("click", () => { setMotionPref(b.dataset.motion); g.requestBoardDraw(); this.renderBody(); }));
+      body.querySelectorAll("[data-avanim]").forEach((b) => b.addEventListener("click", () => { setAvatarAnim(b.dataset.avanim === "true"); g.render(); refreshAvatars(); this.renderBody(); }));
       renderQuickToggle(body.querySelector("[data-qt]"), g, () => this.renderBody());
     }
     body.querySelector(".st-close")?.addEventListener("click", () => this.close());
