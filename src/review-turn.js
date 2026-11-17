@@ -96,7 +96,7 @@ export const ReviewTurnMixin = {
   _tvHtml(d, ds, keep) {
     const st = this._st; if (!st || d.k === "setup") return "";
     const tv = this._tvEnsure(d, ds, keep), T = tv.T, W = this._tvWin(T), rows = this._tvRows(T), many = this.players.length >= 5;
-    let O = null; if (!W) { try { const rg = this._tvRange(T); O = gameOdds(this); if (O) O = { b: O.get(rg.lo - 1), a: O.get(rg.hi) }; } catch (_) { O = null; } }
+    let O = null; if (!W) { try { const rg = this._tvRange(T); O = this._rvOdds ? this._rvOdds() : gameOdds(this); if (O) O = { b: O.get(rg.lo - 1), a: O.get(rg.hi) }; } catch (_) { O = null; } }
     const body = rows.map((r) => {
       const q = r.id, pre = W ? W.pre[q] : O?.b?.[q], post = W ? W.post[q] : O?.a?.[q], dl = pre != null && post != null ? post - pre : null;
       const decs = this._tvDecs(q, T, ds), checked = q === this._rvPid || this._rvReviewComplete(q), open = tv.open.has(q);

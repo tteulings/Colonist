@@ -8,6 +8,7 @@ import { mechRaw } from "./review/ai-mech.js";
 import { REVIEW } from "./review/evaluate.js";
 import { stateOfSpec } from "./review/ai-board.js";
 import { recapLang } from "./review-recap.js";
+import { gameOdds } from "./replay-odds.js";
 
 const tryv = (f, d = null) => { try { return f(); } catch (_) { return d; } };
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -37,6 +38,32 @@ export const ReviewLedgerMixin = {
   _ldModel(fx, marks, sx) {
     const led = this._ldReady(); if (!led || fx.me == null) return null;
     return ledgerModel({ led, ctx: this._ldCtx(), raw: this._ldRaw(), me: fx.me, win: fx.winner, marks, sx, lang: fx.lang, lg: fx.t.lg });
+  },
+
+  // ── v1.90.1 the Win chance tab reads the SAME numbers as the card: the ledger's value of every position, once the ledger is complete (until then the tab keeps its own run) ──
+  /** the ledger and where each player-turn's roll sits in its records: roll step s (the stats' 0-based index) = the record whose position is "before that roll". null while the ledger is not complete. */
+  _rvLedgerMap() {
+    const led = tryv(() => this._ldReady?.()); if (!led || !this._st || !this.winner) return null;
+    const R = this._rv, k = `${led.valued()}|${led.N}`; if (R._ldFirst?.k === k) return R._ldFirst.m;
+    const first = new Map(); led.recs.forEach((r, i) => { if (r && (r.k === "roll" || r.k === "turn") && !first.has(r.s)) first.set(r.s, i); });
+    const m = first.size >= 3 ? { led, first } : null; Object.defineProperty(R, "_ldFirst", { value: { k, m }, configurable: true, writable: true, enumerable: false }); return m;
+  },
+  /** The win chances of the game as the Win chance tab and the review's cards read them: O.get(s) = after step s. The ledger's numbers when the ledger is complete, else the tab's own run (gameOdds). */
+  _rvOdds() {
+    const O = gameOdds(this), M = O.na ? null : tryv(() => this._rvLedgerMap()); if (!M) return O;
+    const { led, first } = M, N = O.N, W = Object.create(O);
+    W.get = (s) => { const i = s >= N ? led.N : first.get(s); const v = i == null ? null : tryv(() => led.v(i)); return v ? v.slice() : O.get(s); };
+    W.ledger = true; return W;
+  },
+  /** The line of the Win chance tab from the ledger (before each roll, right after it, at the end of the turn), or null while the ledger is not complete. */
+  _rvLedgerLook() {
+    const M = tryv(() => this._rvLedgerMap()); if (!M) return null;
+    const { led, first } = M, st = this._st, N = st.N, steps = [];
+    for (let s = 0; s < N; s++) {
+      const i = first.get(s); if (i == null) continue; const b = led.v(i), a = led.v(i + 1), e = s + 1 >= N ? led.v(led.N) : led.v(first.get(s + 1) ?? led.N), d = st.steps?.[s]; if (!b || !a || !e) continue;
+      steps.push({ S: s + 1, b, a, e, roll: d ? d[2] + d[3] : null });
+    }
+    return steps.length >= 3 ? { steps, ledger: true } : null;
   },
 
   // ── refinement and the progress credit, in the review's worker ──
@@ -90,7 +117,7 @@ export const ReviewLedgerMixin = {
     job.busy = false; if (this._rv === R) { this._rvSave?.(); this._ldPaint(); }
   },
   /** The luck run ended: the ledger may be complete now; draw the card from it and start the refinement. */
-  _ldAfterRun() { this._pgMemo = null; if (this._rvTab === "ai" && this._rvStep == null && this._ldReady()) { this._ldPaint("final"); this._ldKick(); } },
+  _ldAfterRun() { this._pgMemo = null; if (this._rvTab === "win" && this._rvStep == null) tryv(() => this._rvWinRepaint?.()); if (this._rvTab === "ai" && this._rvStep == null && this._ldReady()) { this._ldPaint("final"); this._ldKick(); } },
   /** Draw again what shows ledger numbers. "calc": only the wait line moves (the numbers change once, at the end, so the card does not flicker); "final": the card is swapped in softly, or the round view that is open is redrawn. */
   _ldPaint(mode = "final") {
     this._pgMemo = null; const el = this._rvEl; if (!el || this._rvTab !== "ai") return;
