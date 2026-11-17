@@ -54,6 +54,8 @@ export function makeLedger({ recs, n, winner, res = {} }) {
   const Wof = (e) => { if (!e) return null; if (e.fin) return null; let w = unp.get(e); if (!w) { w = unpackW(e.w, n); unp.set(e, w); } return w; };
   /** the seats' win chances at position i (0 .. N): the last valued position at or before i; null before the first. */
   led.v = (i) => { for (let k = Math.min(i, N); k >= 0; k--) { const e = ent(k); if (e) return e.v; } return null; };
+  /** the win chances at a moment inside the game: after the events before global event index `upto` (the first record that starts at or after it; the final result when none does) */
+  led.atEvent = (upto) => { let k = N; for (let i = 0; i < N; i++) { const r = recs[i]; if (r && typeof r.e === "number" && r.e >= upto) { k = i; break; } } return led.v(k); };
   led.F = (i) => { const e = ent(i); return e ? e.F : 0; };
   led.complete = () => alias.every((c, i) => c == null || c !== i || !!res[`pos:${i}`]) && !!ent(0);
   led.valued = () => alias.filter((c, i) => c === i && res[`pos:${i}`]).length;

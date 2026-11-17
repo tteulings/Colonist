@@ -1594,7 +1594,7 @@ export const ReviewGameMixin = {
     // v1.28 the running win chance at this move: the Replay's estimate (≈, src/replay-odds.js); the decision itself keeps the review's numbers
     const wc = el.querySelector(".rs-wc");
     if (wc) {
-      const O = gameOdds(this), key = (this._rvPbpSeq = (this._rvPbpSeq || 0) + 1);
+      const O = this._rvOdds(), key = (this._rvPbpSeq = (this._rvPbpSeq || 0) + 1);
       if (!wc.classList.contains("est")) wc.innerHTML = "<span>Win chance ≈ …</span>"; // (not the decision's numbers while it computes)
       wc.classList.add("est");
       if (!O.na && b.start && O.seat) { wc.classList.remove("est"); wc.innerHTML = this._rvLegend(O.seat); }

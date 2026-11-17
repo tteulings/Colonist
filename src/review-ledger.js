@@ -48,12 +48,20 @@ export const ReviewLedgerMixin = {
     const first = new Map(); led.recs.forEach((r, i) => { if (r && (r.k === "roll" || r.k === "turn") && !first.has(r.s)) first.set(r.s, i); });
     const m = first.size >= 3 ? { led, first } : null; Object.defineProperty(R, "_ldFirst", { value: { k, m }, configurable: true, writable: true, enumerable: false }); return m;
   },
-  /** The win chances of the game as the Win chance tab and the review's cards read them: O.get(s) = after step s. The ledger's numbers when the ledger is complete, else the tab's own run (gameOdds). */
+  /** The win chances of the game as every screen reads them (the Win chance tab, the scorecard chart, the card, the play-by-play, the Replay, the turn view): O.get(s) = after step s, O.at(s, upto) a moment inside a step,
+   *  O.setup() the placements. The ledger's numbers whenever the ledger is complete (checked at every call, so a screen that is open when it completes switches too), else the run of src/replay-odds.js (an estimate).
+   *  With the ledger there is no second "exact" number: the reviewed decisions' own deep checks are a different thing (the move, not the position) and are shown as such. */
   _rvOdds() {
-    const O = gameOdds(this), M = O.na ? null : tryv(() => this._rvLedgerMap()); if (!M) return O;
-    const { led, first } = M, N = O.N, W = Object.create(O);
-    W.get = (s) => { const i = s >= N ? led.N : first.get(s); const v = i == null ? null : tryv(() => led.v(i)); return v ? v.slice() : O.get(s); };
-    W.ledger = true; return W;
+    const O = gameOdds(this); if (O.na) return O;
+    const live = () => tryv(() => this._rvLedgerMap()), W = Object.create(O), cp = (v) => (v ? v.slice() : null);
+    W.get = (s) => { const M = live(); if (!M) return O.get(s); const i = s >= O.N ? M.led.N : M.first.get(s), v = i == null ? null : tryv(() => M.led.v(i)); return v ? v.slice() : O.get(s); };
+    W.exact = (s) => (live() ? null : O.exact(s));
+    W.setup = () => { const M = live(), su = O.setup(); return !M ? su : su.map((q) => { const v = cp(tryv(() => M.led.atEvent(q.g))); return v ? { ...q, p: v, est: v.slice(), x: null } : q; }); };
+    W.at = (s, upto) => { const M = live(); return M ? Promise.resolve(cp(tryv(() => M.led.atEvent(upto)))) : O.at(s, upto); };
+    Object.defineProperty(W, "ledger", { get: () => !!live() });
+    Object.defineProperty(W, "marks", { get: () => (live() ? new Map() : O.marks) });
+    Object.defineProperty(W, "seat", { get: () => { const M = live(); return M ? cp(tryv(() => M.led.v(0))) : O.seat; } });
+    return W;
   },
   /** The line of the Win chance tab from the ledger (before each roll, right after it, at the end of the turn), or null while the ledger is not complete. */
   _rvLedgerLook() {
