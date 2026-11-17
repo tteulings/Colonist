@@ -40,7 +40,7 @@ export const LANG = {
     // v1.90 the ledger card and the round view (src/review/ai-ledger.js): segments are strings, { pl: seat } a name, { pos: seat } a possessive, { d: points, q, se, est } a signed number, { x } bold
     lg: {
       decided: "What decided it", chance: "Luck", choice: "Choice", chanceSub: "dice, drawn cards", choiceSub: "building, trading, robber", other: "other steps", total: "Total", steps: "Step by step", why: "Why", progress: "What the moves earned", progressFor: (l) => (l.length === 1 ? (l[0].you ? "What your moves earned" : `What ${l[0].name}’s moves earned`) : `What the moves of ${((n) => (n.length > 1 ? `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}` : n[0]))(l.map((x) => (x.you ? "you" : x.name)))} earned`), cause: { dice: "Dice", card: "Drawn card", choice: "Choice" }, ctx: "Context",
-      key: ["luck", "choice", "estimate"], noteA: (n) => `Luck and steps: margin up to ±${n} ${n === 1 ? "point" : "points"} per step.`, noteB: "≈ is an estimate (±). It is measured against doing nothing, which did not happen, so it is not in the total.", calc: "Calculating…", back: "Back", open: "Open turn", pointsWord: "points",
+      key: ["luck", "choice", "estimate"], noteA: (n) => `Luck and steps: margin up to ±${n} ${n === 1 ? "point" : "points"} per step.`, noteB: "≈ is an estimate (±): compared with doing nothing, so not in the total.", calc: "Calculating…", back: "Back", open: "Open turn", pointsWord: "points",
       sub: (from, to, d, pw) => `${from}% → ${to}% · ${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${pw}`, income: "Your dots per resource", incomeOf: (name) => `${name}’s dots per resource`, vs: "vs. doing nothing",
       dots: (n) => (n === 1 ? "dot" : "dots"), rw: (r) => LANG.en.res[r],
       scarceShort: (c) => [{ pl: c.q }, c.dots === 0 ? ` had no ${LANG.en.res[c.res]} dot` : " had only ", ...(c.dots === 0 ? [] : [{ x: c.dots }, ` ${LANG.en.res[c.res]} ${c.dots === 1 ? "dot" : "dots"}`])],
@@ -66,7 +66,7 @@ export const LANG = {
         if (it.type === "play") return { a: [nm(it.pid), it.pid === me ? " play " : " plays ", DEV.en[it.card] || "a card"], b: [] };
         if (it.type === "bank") return { a: [nm(it.pid), it.pid === me ? " trade " : " trades ", "with the bank"], b: (it.tr || []).map((t, i) => (i ? ", " : "") + `${t[2]} ${LANG.en.res[t[0]]} → 1 ${LANG.en.res[t[1]]}`) };
         if (it.type === "ptrade") return { a: [nm(it.pid), it.pid === me ? " trade " : " trades ", "with a player"], b: [] };
-        if (it.type === "end") return { a: [nm(it.pid), it.pid === me ? " end the turn" : " ends the turn"], b: [] };
+        if (it.type === "end") return { a: ["Other end-of-turn effects"], b: [] }; // v1.90.3 not "ends the turn +14": ending a turn earns nothing, this is what the rest of the turn moved
         if (it.type === "discard") return { a: [nm(it.pid), it.pid === me ? " discard cards" : " discards cards"], b: [] };
         return { a: [nm(it.pid), " ", it.type], b: [] };
       },
@@ -84,11 +84,10 @@ export const LANG = {
         if (dv && (!rolls.length || Math.abs(dv.lk[subj]) >= sum(rolls))) { const od = o.sx && o.sx.turn === f.t && o.sx.odds ? o.sx.odds.pct : null; return [{ pl: dv.pid }, dv.card ? ` drew ${DEV.en[dv.card]}` : " bought a development card", ...(od != null ? [" (", { x: `${od}%` }, " chance)"] : []), ". ", { pl: me }, " ", { d: f.tot[me], q: me }, " this turn."]; }
         if (rolls.length && sum(rolls) >= 0.5 * allSum) {
           const got = {}; rolls.forEach((r) => Object.entries(r.prod || {}).forEach(([q, l]) => { got[q] = (got[q] || []).concat(l); }));
-          const ben = Object.entries(got).filter(([q]) => +q !== me).sort((a, b) => b[1].length - a[1].length)[0], B = ben ? +ben[0] : me, cards = got[B] || [], d = (r) => ({ d: Math.round(r.d[subj] * 100), q: subj }), blt = (o.built || []).find((b) => b.pid === B);
-          const bw = blt ? { settlement: "a settlement", city: "a city", road: "a road" }[blt.what] : null;
-          if (rolls.length === 2 && rolls[0].sum === rolls[1].sum && rolls.every((r) => (r.prod?.[B] || []).length)) return [`Two ${rolls[0].sum}s (`, d(rolls[0]), " and ", d(rolls[1]), ") gave ", { pl: B }, bw ? ` ${RES(cards)}, with which ` : ` ${cards.length} ${cards.length === 1 ? "card" : "cards"}: ${RES(cards)}`, ...(bw ? [{ pl: B }, ` built ${bw}`] : []), "."]; // v1.90.2 concrete: what the two rolls paid, and what it bought
+          const ben = Object.entries(got).filter(([q]) => +q !== me).sort((a, b) => b[1].length - a[1].length)[0], B = ben ? +ben[0] : me, cards = got[B] || [], d = (r) => ({ d: Math.round(r.d[subj] * 100), q: subj });
+          if (rolls.length === 2 && rolls[0].sum === rolls[1].sum && rolls.every((r) => (r.prod?.[B] || []).length)) return [`Two ${rolls[0].sum}s (`, d(rolls[0]), " and ", d(rolls[1]), ") gave ", { pl: B }, cards.length ? ` ${RES(cards)}` : " nothing", "."]; // v1.90.2 concrete: what the two rolls paid, and what it bought
           const parts = []; rolls.forEach((r, i) => { if (i) parts.push(" and "); parts.push({ pos: r.pid }, " ", { x: r.sum }, " (", d(r), ")"); });
-          return [...parts, " gave ", { pl: B }, cards.length ? ` ${RES(cards)}` : " nothing", ...(bw ? [`, with which `, { pl: B }, ` built ${bw}`] : []), "."];
+          return [...parts, " gave ", { pl: B }, cards.length ? ` ${RES(cards)}` : " nothing", "."];
         }
         if (o.credit && top[0] && !(top[0].chance && Math.abs(top[0].lk[subj]) >= 0.5 * Math.abs(top[0].d[subj]))) return [...o.credit.title, " together ", { d: o.credit.pts, q: subj, est: true, se: o.credit.se }, "."]; // the progress credit (B) of that turn, when it is valued
         const t0 = top[0]; if (!t0) return [{ pl: subj }, " moved ", { d: 0, q: subj }, "."];
@@ -133,7 +132,7 @@ export const LANG = {
     // v1.90 de ledger-kaart en de beurtweergave (src/review/ai-ledger.js): segmenten zijn tekst, { pl: stoel } een naam, { pos: stoel } een bezitsvorm, { d: punten, q, se, est } een getal met teken, { x } vet
     lg: {
       decided: "Waar het om draaide", chance: "Geluk", choice: "Keuze", chanceSub: "dobbelstenen, getrokken kaarten", choiceSub: "bouwen, ruilen, rover", other: "overige stappen", total: "Totaal", steps: "Stap voor stap", why: "Waarom", progress: "Wat de zetten opleverden", progressFor: (l) => (l.length === 1 ? (l[0].you ? "Wat jouw zetten opleverden" : `Wat de zetten van ${l[0].name} opleverden`) : `Wat de zetten van ${((n) => (n.length > 1 ? `${n.slice(0, -1).join(", ")} en ${n[n.length - 1]}` : n[0]))(l.map((x) => (x.you ? "jou" : x.name)))} opleverden`), cause: { dice: "Dobbelstenen", card: "Getrokken kaart", choice: "Keuze" }, ctx: "Context",
-      key: ["geluk", "keuze", "schatting"], noteA: (n) => `Geluk en stappen: marge tot ±${n} ${n === 1 ? "punt" : "punten"} per stap.`, noteB: "≈ is een schatting (±). Gemeten tegen niets doen, en dat gebeurde niet: daarom niet in het totaal.", calc: "Rekent…", back: "Terug", open: "Open beurt", pointsWord: "punten",
+      key: ["geluk", "keuze", "schatting"], noteA: (n) => `Geluk en stappen: marge tot ±${n} ${n === 1 ? "punt" : "punten"} per stap.`, noteB: "≈ is een schatting (±): vergeleken met niets doen, dus niet in het totaal.", calc: "Rekent…", back: "Terug", open: "Open beurt", pointsWord: "punten",
       sub: (from, to, d, pw) => `${from}% → ${to}% · ${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)} ${pw}`, income: "Jouw stippen per grondstof", incomeOf: (name) => `Stippen van ${name} per grondstof`, vs: "vergeleken met niets doen",
       dots: (n) => (n === 1 ? "stip" : "stippen"), rw: (r) => LANG.nl.res[r],
       scarceShort: (c) => (c.dots === 0 ? [{ pl: c.q }, ` had geen ${LANG.nl.res[c.res]}stip`] : [{ pl: c.q }, " had maar ", { x: c.dots }, ` ${LANG.nl.res[c.res]}stip`]),
@@ -159,7 +158,7 @@ export const LANG = {
         if (it.type === "play") return { a: [nm(it.pid), " speelt ", (DEV.nl[it.card] || "een kaart").replace(/^een /, "")], b: [] };
         if (it.type === "bank") return { a: [nm(it.pid), " ruilt met de bank"], b: (it.tr || []).map((t, i) => (i ? ", " : "") + `${t[2]} ${LANG.nl.res[t[0]]} → 1 ${LANG.nl.res[t[1]]}`) };
         if (it.type === "ptrade") return { a: [nm(it.pid), " ruilt met een speler"], b: [] };
-        if (it.type === "end") return { a: [nm(it.pid), " beëindigt de beurt"], b: [] };
+        if (it.type === "end") return { a: ["Overige effecten einde beurt"], b: [] };
         if (it.type === "discard") return { a: [nm(it.pid), " legt kaarten af"], b: [] };
         return { a: [nm(it.pid), " ", it.type], b: [] };
       },
@@ -177,11 +176,10 @@ export const LANG = {
         if (dv && (!rolls.length || Math.abs(dv.lk[subj]) >= sum(rolls))) { const od = o.sx && o.sx.turn === f.t && o.sx.odds ? o.sx.odds.pct : null; return [{ pl: dv.pid }, dv.card ? ` trok ${DEV.nl[dv.card]}` : " kocht een ontwikkelingskaart", ...(od != null ? [" (kans ", { x: `${od}%` }, ")"] : []), ". ", { pl: me }, " ", { d: f.tot[me], q: me }, " in deze beurt."]; }
         if (rolls.length && sum(rolls) >= 0.5 * allSum) {
           const got = {}; rolls.forEach((r) => Object.entries(r.prod || {}).forEach(([q, l]) => { got[q] = (got[q] || []).concat(l); }));
-          const ben = Object.entries(got).filter(([q]) => +q !== me).sort((a, b) => b[1].length - a[1].length)[0], B = ben ? +ben[0] : me, cards = got[B] || [], d = (r) => ({ d: Math.round(r.d[subj] * 100), q: subj }), blt = (o.built || []).find((b) => b.pid === B);
-          const bw = blt ? { settlement: "een dorp", city: "een stad", road: "een weg" }[blt.what] : null;
-          if (rolls.length === 2 && rolls[0].sum === rolls[1].sum && rolls.every((r) => (r.prod?.[B] || []).length)) return [`Twee keer een ${rolls[0].sum} (`, d(rolls[0]), " en ", d(rolls[1]), ") gaf ", { pl: B }, bw ? ` ${RES(cards)}, waarmee ` : ` ${cards.length} ${cards.length === 1 ? "kaart" : "kaarten"}: ${RES(cards)}`, ...(bw ? [{ pl: B }, ` ${bw} bouwde`] : []), "."];
+          const ben = Object.entries(got).filter(([q]) => +q !== me).sort((a, b) => b[1].length - a[1].length)[0], B = ben ? +ben[0] : me, cards = got[B] || [], d = (r) => ({ d: Math.round(r.d[subj] * 100), q: subj });
+          if (rolls.length === 2 && rolls[0].sum === rolls[1].sum && rolls.every((r) => (r.prod?.[B] || []).length)) return [`Twee keer een ${rolls[0].sum} (`, d(rolls[0]), ", ", d(rolls[1]), ") gaf ", { pl: B }, cards.length ? ` ${RES(cards)}` : " niets", "."];
           const parts = []; rolls.forEach((r, i) => { if (i) parts.push(" en "); parts.push({ pos: r.pid }, " ", { x: r.sum }, " (", d(r), ")"); });
-          return [...parts, rolls.length === 1 ? " gaf " : " gaven ", B === me ? "jou" : { pl: B }, cards.length ? ` ${RES(cards)}` : " niets", ...(bw ? [", waarmee ", { pl: B }, ` ${bw} bouwde`] : []), "."];
+          return [...parts, rolls.length === 1 ? " gaf " : " gaven ", B === me ? "jou" : { pl: B }, cards.length ? ` ${RES(cards)}` : " niets", "."];
         }
         if (o.credit && top[0] && !(top[0].chance && Math.abs(top[0].lk[subj]) >= 0.5 * Math.abs(top[0].d[subj]))) return [...o.credit.title, " samen ", { d: o.credit.pts, q: subj, est: true, se: o.credit.se }, "."]; // de voortgangswaarde (B) van die beurt, als die berekend is
         const t0 = top[0]; if (!t0) return [{ pl: subj }, " bewoog ", { d: 0, q: subj }, "."];

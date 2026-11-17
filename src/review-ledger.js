@@ -3,7 +3,7 @@
 // card block and the round view (tap a round). The numbers are src/review/ledger.js + ai-ledger.js; this file only schedules, draws and binds.
 import { reviewRequest, reviewLaneCount, reviewAvailable, SEA_LEAF } from "./master.js";
 import { makeLedger, refineRound, creditRound, LG } from "./review/ledger.js";
-import { ledgerModel, segsText, ledgerRoute, ledgerAnswer } from "./review/ai-ledger.js";
+import { ledgerModel, segsText, midName, ledgerRoute, ledgerAnswer } from "./review/ai-ledger.js";
 import { mechRaw } from "./review/ai-mech.js";
 import { REVIEW } from "./review/evaluate.js";
 import { stateOfSpec } from "./review/ai-board.js";
@@ -144,9 +144,11 @@ export const ReviewLedgerMixin = {
   // ── words and numbers as HTML ──
   _ldSegs(segs, fx) {
     const me = fx.me, nl = fx.lang === "nl";
+    let acc = "";
     return (segs || []).map((s) => {
-      if (typeof s === "string") return esc(s);
-      if (s.pl != null) return `<span class="ap-pl pc-${s.pl}">${esc(fx.nameOf(s.pl))}</span>`;
+      if (typeof s === "string") { acc += s; return esc(s); }
+      if (s.pl != null) { const n = midName(fx.nameOf(s.pl), s.pl === me, acc); acc += n; return `<span class="ap-pl pc-${s.pl}">${esc(n)}</span>`; }
+      acc += "x";
       if (s.pos != null) return `<span class="ap-pl pc-${s.pos}">${esc(segsText([s], fx))}</span>`;
       if (s.d != null) { const cls = s.q === me ? (s.d > 0 ? "up" : s.d < 0 ? "dn" : "") : `pc-${s.q}`; return `<b class="lg-d ${cls}">${s.est ? "≈" : ""}${s.d > 0 ? "+" : s.d < 0 ? "−" : "±"}${Math.abs(s.d)}${s.se ? ` <small>±${s.se}</small>` : ""}</b>`; }
       return `<b>${esc(s.x)}</b>`;

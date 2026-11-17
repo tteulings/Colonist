@@ -177,14 +177,20 @@ export function ledgerModel(inp) {
 // ── segments -> HTML / plain text (names and numbers come from the caller: nameOf(seat), the language) ──
 export function segsText(segs, fx) {
   const nl = fx.lang === "nl"; const sgn = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${-v}` : "±0");
+  let acc = "";
   return (segs || []).map((s) => {
+    const r = segText(s); acc += r; return r;
+  }).join("");
+  function segText(s) {
     if (typeof s === "string") return s;
-    if (s.pl != null) return fx.nameOf(s.pl);
+    if (s.pl != null) return midName(fx.nameOf(s.pl), s.pl === fx.me, acc);
     if (s.pos != null) { const nm = fx.nameOf(s.pos); return s.pos === fx.me ? (nl ? "jouw" : "your") : nl ? nm + (/[sxz]$/i.test(nm) ? "" : "s") : `${nm}’s`; }
     if (s.d != null) return `${s.est ? "≈" : ""}${sgn(s.d)}${s.se ? ` ±${s.se}` : ""}`;
     return s.x != null ? String(s.x) : "";
-  }).join("");
+  }
 }
+/** v1.90.3 "Jij"/"You" is lower case inside a sentence (after text that does not end a sentence) */
+export const midName = (name, isMe, before) => (isMe && before && !/(^|[.!?:]\s*)$/.test(before) ? name.charAt(0).toLowerCase() + name.slice(1) : name);
 /** The facts the composer and the chat get (refs lg.*): the rows and the round numbers as one JSON-able object. */
 export function ledgerFacts(model, fx) {
   const rows = model.rows().map((r) => ({ turn: r.t, who: fx.keys[r.subj], from: Math.round(r.v0 * 100), to: Math.round(r.v1 * 100), d: r.d, text: segsText(r.text, fx), mech: r.mech ? segsText(r.mech.segs, fx) : null }));
