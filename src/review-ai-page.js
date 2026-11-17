@@ -171,7 +171,7 @@ export const ReviewAiPageMixin = {
     const fade = b.field ? fx.keys.map((_, q) => q).filter((q) => !seats.includes(q)).map((q) => `<path class="fd" d="${dOf(vals(q))}"/>`).join("") : "";
     let zone = ""; const Z = b.zone;
     if (Z && Z.b > t0 && Z.a < t1) {
-      const za = Math.max(t0, Z.a), zb = Math.min(t1, Z.b), zq = Z.who != null ? fx.seatOf(Z.who) : fx.me, mine = zq === fx.me, lab = Z.k === "out" ? fx.t.zoneOut : Z.k === "low" ? fx.t.zoneLow : mine ? fx.t.zoneLead : fx.t.zonePull;
+      const za = Math.max(t0, Z.a), zb = Math.min(t1, Z.b), zq = Z.who != null ? fx.seatOf(Z.who) : fx.me, mine = zq === fx.me, lab = Z.k === "out" ? `≤${Math.round(Z.hi)}%` : Z.k === "low" ? fx.t.zoneLow : mine ? fx.t.zoneLead : fx.t.zonePull;
       if (Z.k === "pull") zone = `<g class="zn ${mine ? "lead" : `pull pc-${zq}`}"><rect x="${x(za).toFixed(1)}" y="${tp}" width="${(x(zb) - x(za)).toFixed(1)}" height="${H - bm - tp}" rx="4"/><text x="${(x(za) + 4).toFixed(1)}" y="${tp + 11}" text-anchor="start">${esc(lab)}</text></g>`;
       else { const yt = y(Math.max(lo, Math.min(hi, Z.hi))), y0 = y(lo); zone = `<g class="zn neg"><rect x="${x(za).toFixed(1)}" y="${yt.toFixed(1)}" width="${(x(zb) - x(za)).toFixed(1)}" height="${(y0 - yt).toFixed(1)}" rx="3"/>${Z.k === "low" ? (x(zb) + 6 + lab.length * 5.4 < W - r ? `<text x="${(x(zb) + 4).toFixed(1)}" y="${(y0 - 4).toFixed(1)}" text-anchor="start">${esc(lab)}</text>` : `<text x="${(x(za) - 4).toFixed(1)}" y="${(y0 - 4).toFixed(1)}" text-anchor="end">${esc(lab)}</text>`) : `<text x="${(x(zb) - 4).toFixed(1)}" y="${(yt - 4).toFixed(1)}" text-anchor="end">${esc(lab)}</text>`}</g>`; }
     }

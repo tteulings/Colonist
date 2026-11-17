@@ -61,7 +61,7 @@ export function buildFacts(g, lang = recapLang()) {
   fx.ledger = tryv(() => (fx.lg ? ledgerFacts(fx.lg, fx) : null));
   fx.behind = tryv(() => (fx.lg ? fx.lg.behind() : null));
   /** What a round's win chance moved on (for the headline): "dice" | "card" | null when no single cause is proven. */
-  fx.lgCause = (t) => tryv(() => { const v = fx.lg?.view(t); if (!v || !v.tot) return null; const sh = (x) => (Math.sign(x) === Math.sign(v.tot) ? Math.abs(x) / Math.abs(v.tot) : 0); if (sh(v.chance) < 0.6) return null; const dev = v.steps.some((s) => s.type === "dev" && s.chance && Math.abs(s.d[me]) >= 0.5 * Math.abs(v.d[me])); return dev ? "card" : v.steps.some((s) => s.type === "roll") ? "dice" : null; });
+  fx.lgCause = (t) => tryv(() => { const c = fx.lg?.cause(t, me); return c === "dice" || c === "card" ? c : null; });
   // the reviewed player's decisions that cost win chance, biggest first
   fx.decs = tryv(() => aiDecList(g).filter((e) => e.seat === me && e.x?.best && e.gap >= 0.005 && e.turn >= 1).map((e) => {
     const mv = tryv(() => decMoves(e, lang)); if (!mv?.best || mv.played?.win == null || mv.best.win == null) return null;

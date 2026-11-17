@@ -57,11 +57,11 @@ export function shapeTitle(fx, sh, P, R) {
   const how = sh.mostly ? (nl ? [", vooral op ", t(sh.step.t)] : [", mostly on ", t(sh.step.t)]) : (nl ? [" stap voor stap"] : [" step by step"]);
   const howNl = sh.mostly ? ["liep uit, vooral op ", t(sh.step.t)] : ["liep stap voor stap uit"];
   switch (sh.id) {
-    case "knockout": { // v1.90 "Your win chance slid on turn 3 from 31% to 12%, mostly on the dice, and never got back above 16%": the fall itself, its cause when the ledger proves one, then the winner (never "fell out")
-      const lead = fx.t.r.wcLead(you, P(Y)), cz = fx.lgCause?.(sh.tOut), why = cz ? [fx.t.r.lgCause[cz]] : [], a = Math.max(0, sh.tOut - 1);
+    case "knockout": { // v1.90.1 "You dropped in turn 3 from 31% to 13%, mostly on dice luck, and never got above 15%. Geelen took the lead in turn 5 and pulled away in turn 11.": the fall itself, its cause when the ledger proves one, the ceiling, then the winner
+      const cz = fx.lgCause?.(sh.tOut), why = cz ? [fx.t.r.lgCause[cz]] : [], a = Math.max(0, sh.tOut - 1);
       return nl
-        ? [...lead, "zakte in ", t(sh.tOut), " van ", R(`wc.${Y}@${a}`), " naar ", R(`wc.${Y}@${sh.tOut}`), ...why, " en kwam daarna niet meer boven ", R(`wc.${Y}@${sh.tCeil}`), "; ", P(W), " stond voor vanaf ", t(sh.tLead ?? sh.tOut), " en ", ...howNl, "."]
-        : [...lead, "slid on ", t(sh.tOut), " from ", R(`wc.${Y}@${a}`), " to ", R(`wc.${Y}@${sh.tOut}`), ...why, " and never got back above ", R(`wc.${Y}@${sh.tCeil}`), "; ", P(W), " led from ", t(sh.tLead ?? sh.tOut), " and pulled away", ...how, "."];
+        ? [P(Y), " zakte in ", t(sh.tOut), " van ", R(`wc.${Y}@${a}`), " naar ", R(`wc.${Y}@${sh.tOut}`), ...why, " en kwam niet meer boven ", R(`wc.${Y}@${sh.tCeil}`), ". ", P(W), " nam de leiding in ", t(sh.tLead ?? sh.tOut), ...(sh.mostly ? [" en liep uit in ", t(sh.step.t)] : [" en liep stap voor stap uit"]), "."]
+        : [P(Y), " dropped in ", t(sh.tOut), " from ", R(`wc.${Y}@${a}`), " to ", R(`wc.${Y}@${sh.tOut}`), ...why, " and never got above ", R(`wc.${Y}@${sh.tCeil}`), ". ", P(W), " took the lead in ", t(sh.tLead ?? sh.tOut), ...(sh.mostly ? [" and pulled away in ", t(sh.step.t)] : [" and pulled away step by step"]), "."];
     }
     case "pullaway": return nl
       ? [P(W), " stond voor vanaf ", t(sh.tLead), " en ", ...howNl, "; ", you ? "jouw" : "zijn", " beste winkans was ", R(`wc.${Y}@${sh.tBest}`), " op ", t(sh.tBest), "."]
@@ -81,7 +81,7 @@ export function shapeChart(fx, sh, Y, W) {
   let zone = null;
   const my = (t) => fx.wc(fx.me, t) ?? 100;
   switch (sh.id) {
-    case "knockout": add(sh.tOut, Y); if (sh.mostly) add(sh.step.t, wk); zone = { k: "out", a: sh.tOut, b: T, hi: sh.ceil + 4 }; break;
+    case "knockout": add(sh.tOut, Y); if (sh.mostly) add(sh.step.t, wk); zone = { k: "out", a: sh.tOut, b: T, hi: sh.ceil }; break;
     case "pullaway": add(sh.tBest, Y); add(sh.mostly ? sh.step.t : sh.tLead, wk); zone = { k: "pull", a: sh.tLead, b: T, who: wk }; break;
     case "wire": case "takeover": add(sh.tLead, Y); zone = { k: "pull", a: sh.tLead, b: T, who: Y }; break;
     case "comeback": {

@@ -216,7 +216,7 @@ export function recipePage(fx) {
     const X = fx.surprise, sxp = X ? sxParts(X, fx.lang, P, R, (q) => fx.keys[q]) : null, sx = sxp ? [{ p: "text", parts: sxp }, ...(X.mover != null ? [{ p: "surprise" }] : [])] : [];
     const lead = (k) => r.wcLead(k === Y && youIs, P(k)), mv = (k) => ({ dir: [`wc.${k}@${tn - 1}`, `wc.${k}@${tn}`], up: r.up, down: r.down });
     const clause = (k) => [...lead(k), mv(k), r.wcFrom, R(`wc.${k}@${tn - 1}`), r.wcTo, R(`wc.${k}@${tn}`)];
-    widgets.push({ id: "wc", level: "Game", short: t.short_.wc, chip: { ref: `d.${K}@${tn}`, fmt: "sgpct", tone: D.d > 0 ? "up" : "dn" },
+    widgets.push({ id: "wc", level: "Game", short: t.short_.wc,
       title: shT || [...clause(K), r.wcOn, R(`turn.${tn}`), ...(oc ? ["; ", ...clause(oc.key).map((x, i) => (i === 0 && typeof x === "string" ? x.charAt(0).toLowerCase() + x.slice(1) : x))] : []), "."],
       blocks: [{ p: "line", metric: "winchance", players: duo.includes(K) ? duo : [K, ...duo], marks: D.marks, ...shapeChart(fx, SH, Y, W) }, ...(fx.lg ? [{ p: "ledger" }] : []), ...sx], // v1.90 the ledger rows (what decided it) sit between the chart and the surprise line
       notes: [[r.wcN1], [r.wcN2], ...(fx.lg ? [[t.lg.noteTab]] : [])] });

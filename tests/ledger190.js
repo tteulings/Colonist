@@ -9,6 +9,7 @@
 const fs = require("fs"), path = require("path");
 process.removeAllListeners("warning");
 let fails = 0; const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "" ? "  " + (typeof x === "string" ? x : JSON.stringify(x)) : ""}`); if (!c) fails++; };
+const LV = (x) => Math.round(x * 100) + 0, DL = (a, b) => LV(b) - LV(a) + 0; // v1.90.1 the shown change is the difference of the shown levels
 const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
 (async () => {
   const L = await import("../src/review/ledger.js"), AL = await import("../src/review/ai-ledger.js"), M = await import("../src/review/ai-mech.js"), LANG = await import("../src/review/ai-lang.js"), SH = await import("../src/review/ai-shape.js"), AP = await import("../src/review/ai-page.js");
@@ -40,17 +41,17 @@ const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3,
     const shape = SH.gameShape(fx); fx.shape = shape;
     const marks = shape && shape.id !== "seesaw" ? SH.shapeChart(fx, shape, fx.keys[me], fx.keys[win]).marks || [] : [];
     const sxr = (k) => F0.refs[`sx.${k}`]?.v, sx = F0.refs["sx.t"] ? { turn: sxr("t"), mover: sxr("mover"), before: sxr("before"), after: sxr("after"), odds: F0.refs["sx.odds"] ? { pct: sxr("odds") } : null } : null;
-    const raw = F0.behindRaw, built = {}; for (const lang of ["nl", "en"]) built[lang] = AL.ledgerModel({ led, ctx, raw, me, win, marks, sx, lang, lg: LANG.langOf(lang).lg });
+    const describe = (i) => L.describeStep(i, ctx), raw = F0.behindRaw, built = {}; for (const lang of ["nl", "en"]) built[lang] = AL.ledgerModel({ led, ctx, raw, me, win, marks, sx, lang, lg: LANG.langOf(lang).lg });
     const m = built.nl, rows = m.rows();
     ok(rows.length >= 1 && rows.length <= 3, `${tag}: the card has ${rows.length} row(s)`, rows.map((r) => r.t));
-    let badRow = 0; rows.forEach((r) => { const R = led.round(r.t); if (Math.abs(r.v0 - R.v0[r.subj]) > 1e-12 || Math.abs(r.v1 - R.v1[r.subj]) > 1e-12 || r.d !== Math.round(100 * (R.v1[r.subj] - R.v0[r.subj])) + 0) badRow++; if (Math.round(r.v0 * 100) !== (ser.by.get(r.t - 1) ? Math.round(ser.by.get(r.t - 1)[r.subj] * 100) : Math.round(r.v0 * 100))) badRow++; });
+    let badRow = 0; rows.forEach((r) => { const R = led.round(r.t); if (Math.abs(r.v0 - R.v0[r.subj]) > 1e-12 || Math.abs(r.v1 - R.v1[r.subj]) > 1e-12 || r.d !== DL(R.v0[r.subj], R.v1[r.subj])) badRow++; if (Math.round(r.v0 * 100) !== (ser.by.get(r.t - 1) ? Math.round(ser.by.get(r.t - 1)[r.subj] * 100) : Math.round(r.v0 * 100))) badRow++; });
     ok(!badRow, `${tag}: a row's "31% -> 12%" and its change are the ledger's round values = the chart's points (no 60% vs 53%)`, badRow);
     // the round view of every round with steps: shown numbers = the ledger, the rest and the total add up
     let badView = 0, badSplit = 0, badSe = 0, views = 0, worst = 0; const focus = m.focus();
     for (const r of rounds.filter((x) => x.t >= 1)) {
       const v = m.view(r.t); if (!v) { badView++; continue; } views++;
       const sumShown = v.shown.reduce((a, s) => a + s.pts, 0);
-      if (v.tot !== Math.round(100 * L.roundSteps(led, r.t).d[me]) + 0 || sumShown + v.other !== v.tot || v.chance + v.choice !== v.tot) badSplit++;
+      if (v.tot !== DL(led.round(r.t).v0[me], led.round(r.t).v1[me]) || sumShown + v.other !== v.tot || v.chance + v.choice !== v.tot) badSplit++;
       v.shown.forEach((s) => { const st = led.step(s.i); if (s.pts !== Math.round(100 * st.d[me]) + 0 || s.seN !== Math.max(1, Math.round(100 * st.se[me]))) badView++; });
     }
     ok(!badView && !badSplit, `${tag}: all ${views} round views: each shown step = the ledger's step, shown + the rest = the total = the round's change, chance + choice = the total`, [badView, badSplit]);
@@ -67,7 +68,7 @@ const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3,
     for (const t of m.creditTurns()) {
       const v = m.view(t); credits += v.credit.length;
       for (const c of v.credit) { const p = unpack(G.res[`pas:${c.from}`].w, n), e = c.to + 1 >= recs.length ? null : unpack((G.res[`ref:${al[c.to + 1]}`] && G.res[`ref:${al[c.to + 1]}`].F >= G.res[`pos:${al[c.to + 1]}`].F ? G.res[`ref:${al[c.to + 1]}`] : G.res[`pos:${al[c.to + 1]}`]).w, n), F = Math.min(p.length, e ? e.length : 1e9), d = mean(Array.from({ length: F }, (_, j) => (e ? e[j][me] : me === win ? 1 : 0) - p[j][me])); if (Math.abs(d - c.d[me]) > 1e-9) badB++; if (Math.abs(c.pts - Math.round(d * 100)) > 0) badB++; }
-      if (v.tot !== Math.round(100 * L.roundSteps(led, t).d[me]) + 0) badTot++;
+      if (v.tot !== DL(led.round(t).v0[me], led.round(t).v1[me])) badTot++;
     }
     ok(!badB && !badTot, `${tag}: progress credit B (${credits} shown) = the paired futures of "end the turn instead" vs the position after the actions; the total of the round does not contain it`, [badB, badTot]);
     // ── 6 the mechanism claims, re-derived ──
@@ -76,13 +77,12 @@ const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3,
     let claims = 0, badC = [];
     const allClaims = []; rows.forEach((r) => { if (r.mech) allClaims.push([r.t, r.mech.claim]); }); for (const r of rounds.filter((x) => x.t >= 1)) { const v = m.view(r.t); if (v?.line) allClaims.push([r.t, v.line.claim]); if (v?.why.scarce) allClaims.push([r.t, { scarce: v.why.scarce }]); if (v?.why.spot) allClaims.push([r.t, { spot: v.why.spot }]); }
     for (const [t, c] of allClaims) {
-      if (c.scarce) { claims++; const s = c.scarce, d = dotsOf(t, s.q); let without = 0, got = 0; for (let u = t + 1; u <= s.turn; u++) { const g = raw.ev.filter((e) => e[0] === u && e[1] === "P" && e[2] === s.q && R5[e[4]] === s.res).reduce((a, e) => a + (e[5] || 1), 0); got += g; if (!g) without++; }
-        const nb = raw.ev.find((e) => e[0] > t && e[1] === "b" && e[2] === s.q && ["s", "c", "r"].includes(e[3])), kind = nb ? { s: "settlement", c: "city", r: "road" }[nb[3]] : null;
-        if (!R5.every((x) => d[x] === s.all[x]) || s.dots !== d[s.res] || s.dots > 1 || s.without !== without || got !== 0 || without < 3 || !nb || nb[0] !== s.turn || kind !== s.kind || !M.COST[s.kind][s.res]) badC.push(["scarce", t, s]); }
+      if (c.scarce) { claims++; const s = c.scarce, d = dotsOf(t, s.q), R = led.round(t), v = m.view(t), lk = L.roundSteps(led, t).steps.map((x) => ({ ...x, ...describe(x.i) })).filter((x) => x.chance).reduce((a, x) => a + x.d[s.q], 0); // v1.90.1 a fact of THIS round (the board at its end), in the direction of the round (a fall, mostly by choices)
+        if (!R5.every((x) => d[x] === s.all[x]) || s.dots !== d[s.res] || s.dots > 1 || R.d[s.q] > -0.03 || lk / R.d[s.q] >= 0.6 || R5.some((x) => d[x] < s.dots)) badC.push(["scarce", t, s]); }
       if (c.spot) { claims++; const s = c.spot, Wb = world(t - 1), pips = raw.nodes[s.n].hx.reduce((a, h) => a + (raw.hexes[h].num && R5.includes(raw.hexes[h].res) ? PIP[raw.hexes[h].num] : 0), 0);
         const free = !Wb.occ[s.n] && raw.nodes[s.n].nb.every((x) => !Wb.occ[x]); const seen = new Set(); Object.entries(Wb.occ).forEach(([nd, [ow]]) => { if (ow === s.q) seen.add(+nd); }); Object.entries(Wb.own).forEach(([e, ow]) => { if (ow === s.q) { seen.add(raw.edges[e].a); seen.add(raw.edges[e].b); } });
         const near = seen.has(s.n) || raw.edges.some((e, i) => Wb.own[i] == null && ((seen.has(e.a) && e.b === s.n) || (seen.has(e.b) && e.a === s.n))), b = raw.ev.find((e) => e[0] === s.turn && e[1] === "b" && (e[3] === "s" || e[3] === "c") && e[4] === s.n);
-        if (!free || !near || pips !== s.pips || pips < 6 || !b || b[2] !== s.by || s.by === s.q || s.turn < t || s.turn > t + 3) badC.push(["spot", t, s]); }
+        if (!free || !near || pips !== s.pips || pips < 6 || !b || b[2] !== s.by || s.by === s.q || s.turn !== t || led.round(t).d[s.q] > -0.03) badC.push(["spot", t, s]); }
       if (c.gap) { claims++; const g = c.gap; if (dotsOf(t, g.winner)[g.res] !== g.dots || dotsOf(t, me)[g.res] !== g.mine || g.dots < 4 || g.dots < 2 * g.mine + 2) badC.push(["gap", t, g]); }
       if (c.odds) { claims++; const o = c.odds, rolls = recs.map((r, i) => ({ r, i })).filter(({ r }) => (r.k === "roll" || r.k === "turn") && r.t === t).map(({ r }) => G.steps[r.s]).filter(Boolean).map((s) => s[2] + s[3]); if (rolls.filter((x) => x === o.sum).length < 2 || o.ways !== 6 - Math.abs(7 - o.sum) || Math.abs(o.oneIn - 1296 / (o.ways * o.ways)) > 10) badC.push(["odds", t, o]); }
       if (c.points) { claims++; const p = c.points; if (!sx || sx.turn !== t || sx.mover !== p.q || sx.before !== p.before || sx.after !== p.after || p.after <= p.before) badC.push(["points", t, p]); }
@@ -91,7 +91,8 @@ const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3,
     ok(!badC.length, `${tag}: ${claims} mechanism claim(s) shown, each re-derived from the board and the event log by the oracle`, badC.slice(0, 2));
     // ── 5 words ──
     const texts = { nl: [], en: [] }, nameOf = (q) => (q === me ? (true ? "Jij" : "") : G.names[q]);
-    for (const lang of ["nl", "en"]) { const mm = built[lang], f2 = { lang, me, nameOf: (q) => (q === me ? (lang === "nl" ? "Jij" : "You") : G.names[q]) }; mm.rows().forEach((r) => { texts[lang].push(AL.segsText(r.text, f2)); if (r.mech) texts[lang].push(AL.segsText(r.mech.segs, f2)); }); for (const r of rounds.filter((x) => x.t >= 1)) { const v = mm.view(r.t); if (!v) continue; texts[lang].push(AL.segsText(v.head, f2)); v.shown.forEach((s) => { texts[lang].push(AL.segsText(s.title.a, f2), AL.segsText(s.title.b, f2)); }); v.credit.forEach((c) => texts[lang].push(AL.segsText(c.title.a, f2))); if (v.why.scarce) texts[lang].push(AL.segsText(LANG.langOf(lang).lg.cap1(v.why.scarce), f2)); if (v.why.spot) texts[lang].push(AL.segsText(LANG.langOf(lang).lg.cap2(v.why.spot), f2)); } }
+    for (const lang of ["nl", "en"]) { const mm = built[lang], f2 = { lang, me, nameOf: (q) => (q === me ? (lang === "nl" ? "Jij" : "You") : G.names[q]) }; mm.rows().forEach((r) => { texts[lang].push(AL.segsText(r.text, f2)); if (r.mech) texts[lang].push(AL.segsText(r.mech.segs, f2)); }); for (const r of rounds.filter((x) => x.t >= 1)) { const v = mm.view(r.t); if (!v) continue; texts[lang].push(AL.segsText(v.head, f2)); v.shown.forEach((s) => { texts[lang].push(AL.segsText(s.title.a, f2), AL.segsText(s.title.b, f2)); }); v.credit.forEach((c) => texts[lang].push(AL.segsText(c.title.a, f2))); if (v.why.scarce) texts[lang].push(AL.segsText(LANG.langOf(lang).lg.cap1(v.why.scarce), f2));
+        texts[lang + "h"] = (texts[lang + "h"] || []).concat(AL.segsText(v.head, f2));  if (v.why.spot) texts[lang].push(AL.segsText(LANG.langOf(lang).lg.cap2(v.why.spot), f2)); } }
     const bad = (re, lang) => texts[lang].filter((t) => re.test(t));
     ok(texts.nl.length > 5 && !bad(/viel uit|nederzetting|\b1 (stippen|kaarten|beurten|punten|dorpen)\b|\b([2-9]|\d\d) (stip|kaart|beurt|punt|dorp|worp)\b(?!\w)/i, "nl").length, `${tag}: Dutch ledger words: no "viel uit", no "nederzetting", counts agree with their noun (${texts.nl.length} lines)`, bad(/viel uit|nederzetting|\b1 (stippen|kaarten|beurten|punten)\b/i, "nl").slice(0, 2));
     ok(texts.en.length > 5 && !bad(/fell out|settlement ?spot|\b1 (dots|cards|turns|points)\b/i, "en").length && !texts.en.some((t) => /\b(gooit|kaart|beurt|stip|jij)\b/i.test(t)), `${tag}: English ledger words: no "fell out", no Dutch left (${texts.en.length} lines)`);
@@ -101,7 +102,7 @@ const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3,
       const P = (k) => ({ ref: `name.${k}`, fmt: "player" }), Rf = (ref, fmt) => ({ ref, ...(fmt ? { fmt } : {}) });
       if (shape && shape.id === "knockout") {
         const parts = SH.shapeTitle(fl, shape, P, Rf), txt = parts.map((p) => (typeof p === "string" ? p : p.ref.startsWith("wc.") ? `${fl.ref(p.ref).v}%` : p.ref.startsWith("turn.") ? `${lang === "nl" ? "beurt" : "turn"} ${p.ref.split(".")[1]}` : p.ref.startsWith("name.") ? "X" : "")).join("").replace(/\s+/g, " ");
-        const a = Math.max(0, shape.tOut - 1), want = lang === "nl" ? new RegExp(`zakte in beurt ${shape.tOut} van ${fl.ref(`wc.you@${a}`).v}% naar ${fl.ref(`wc.you@${shape.tOut}`).v}%`) : new RegExp(`slid on turn ${shape.tOut} from ${fl.ref(`wc.you@${a}`).v}% to ${fl.ref(`wc.you@${shape.tOut}`).v}%`);
+        const a = Math.max(0, shape.tOut - 1), want = lang === "nl" ? new RegExp(`zakte in beurt ${shape.tOut} van ${fl.ref(`wc.you@${a}`).v}% naar ${fl.ref(`wc.you@${shape.tOut}`).v}%`) : new RegExp(`dropped in turn ${shape.tOut} from ${fl.ref(`wc.you@${a}`).v}% to ${fl.ref(`wc.you@${shape.tOut}`).v}%`);
         ok(want.test(txt) && !/viel uit|fell out/i.test(txt), `${tag} ${lang}: the knockout headline says the fall: "${txt.slice(0, 120)}"`);
         ok(AP.partsOk(parts, fl) != null, `${tag} ${lang}: the headline passes the page's own validator (refs resolve, no digits or causal words in free text, within the word cap)`);
       }
@@ -134,7 +135,7 @@ const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3,
       }
     }
     // fx.behind
-    const bh = m.behind(); ok(bh == null || (bh.d < 0 && bh.d === Math.round(100 * L.roundSteps(led, bh.t).d[me]) + 0 && bh.v0 === Math.round(led.round(bh.t).v0[me] * 100) && bh.v1 === Math.round(led.round(bh.t).v1[me] * 100)), `${tag}: fx.behind is the round with the biggest fall, with the ledger's numbers`, bh);
+    const bh = m.behind(); ok(bh == null || (bh.d < 0 && bh.d === DL(led.round(bh.t).v0[me], led.round(bh.t).v1[me]) && bh.v0 === Math.round(led.round(bh.t).v0[me] * 100) && bh.v1 === Math.round(led.round(bh.t).v1[me] * 100)), `${tag}: fx.behind is the round with the biggest fall, with the ledger's numbers`, bh);
   }
   // the version and the files
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8"), idx = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8"), ui = fs.readFileSync(path.join(__dirname, "..", "src", "themes", "settings-ui.js"), "utf8");
