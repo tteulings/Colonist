@@ -22,7 +22,7 @@ export const NL_STEP = [
   ["Biggest effect over the whole turn (start → end of turn):", "Grootste effect over de hele beurt (start → einde beurt):"], ["Biggest effect over the whole turn:", "Grootste effect over de hele beurt:"], ["nothing moved much.", "er bewoog weinig."],
   ["Biggest effect over the whole round (start → end of round):", "Grootste effect over de hele ronde (start → einde ronde):"], ["Biggest effect over the whole round:", "Grootste effect over de hele ronde:"],
   ["{x} {n}% → {m}%; {y} {k}% → {j}%.", "{x} {n}% → {m}%; {y} {k}% → {j}%."], ["{x} {n}% → {m}%.", "{x} {n}% → {m}%."],
-  ["Next key turn", "Volgende sleutelbeurt"], ["Next key round", "Volgende sleutelronde"], ["Missed", "Gemiste kans"],
+  ["Next key turn", "Sleutelbeurt"], ["Next key round", "Sleutelronde"], ["Missed", "Gemiste kans"],
   ["Rolled {x}", "Gooide {x}"], ["luck {d}", "geluk {d}"], ["moves {d}", "zetten {d}"], ["moves ~", "zetten ~"], ["luck ±0", "geluk ±0"], ["moves ±0", "zetten ±0"],
   ["No real choice this turn.", "Geen echte keuze deze beurt."], ["Not checked yet: the win chance shown is the estimate (~).", "Nog niet gecontroleerd: de getoonde winkans is de schatting (~)."], ["best", "beste"],
   ["Robber on {x}", "Rover op {x}"], ["nothing", "niets"],
