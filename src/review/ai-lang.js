@@ -25,7 +25,7 @@ export const LANG = {
     r: {
       won: (T, pts) => [" won on ", T, " with ", pts, " points."], lostA: " won on ", lostB: " stood on ", lostC: " points.",
       wcLead: (you, P) => (you ? ["Your win chance "] : [P, "'s win chance "]), wcFrom: " from ", wcTo: " to ", wcOn: " on ", up: "rose", down: "slid",
-      lgCause: { dice: ", mostly on dice luck", card: ", mostly on a drawn card" },
+      lgCause: { dice: ", mostly on dice luck,", card: ", mostly on a drawn card," },
       wcN1: "Dots mark the turns where the win chance moved most. Tap one to open that turn.", wcN2: "Each win chance is a set of futures played out from that position, so a rerun moves it a little.",
       nearOne: { a: " of ", b: " points. ", c: " short on " }, nearEnd: " points at the end.",
       headless: { a: " spent ", b: " of ", c: " turns stuck, with no steady plan." },
@@ -115,7 +115,7 @@ export const LANG = {
     r: {
       won: (T, pts) => [" won op ", T, " met ", pts, " punten."], lostA: " won op ", lostB: " stond op ", lostC: " punten.",
       wcLead: (you, P) => (you ? ["Jouw winkans "] : ["De winkans van ", P, " "]), wcFrom: " van ", wcTo: " naar ", wcOn: " op ", up: "steeg", down: "daalde",
-      lgCause: { dice: ", vooral door dobbelstenen", card: ", vooral door een getrokken kaart" },
+      lgCause: { dice: ", vooral door dobbelstenen,", card: ", vooral door een getrokken kaart," },
       wcN1: "De stippen tonen de beurten waarin de winkans het meest veranderde. Tik op een stip om die beurt te openen.", wcN2: "Elke winkans komt uit doorgespeelde toekomsten vanaf die stand, dus een nieuwe run verschuift hem iets.",
       nearOne: { a: " van de ", b: " punten. ", c: " tekort op " }, nearEnd: " punten aan het eind.",
       headless: { a: " zat ", b: " van de ", c: " beurten vast, zonder vast plan." },

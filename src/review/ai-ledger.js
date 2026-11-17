@@ -139,7 +139,7 @@ export function ledgerModel(inp) {
     const ml = mechLine(t, subj, its);
     return { t, subj, v0: rs.v0[subj], v1: rs.v1[subj], d: dLvl(rs.v0[subj], rs.v1[subj]), icon: f.top[0] && !f.top[0].chance ? "pick" : "dice", text, mech: ml, maxSe: roundMaxSe(led, t, seats.includes(subj) ? seats : [subj]) };
   };
-  out.rows = () => out.rowTurns().map(out.row).filter(Boolean);
+  out.rows = () => out.rowTurns().map((t) => out.row(t)).filter(Boolean);
   /** why a player fell behind (default: the reviewed player): the round where their win chance fell most (or null when it never fell by 4 points or more) */
   out.behind = (q = me) => {
     const rs = led.rounds().filter((r) => r.t >= 1).map((r) => led.round(r.t)).filter(Boolean).sort((a, b) => a.d[q] - b.d[q] || a.t - b.t);

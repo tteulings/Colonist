@@ -92,7 +92,7 @@ const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3,
     // ── 5 words ──
     const texts = { nl: [], en: [] }, nameOf = (q) => (q === me ? (true ? "Jij" : "") : G.names[q]);
     for (const lang of ["nl", "en"]) { const mm = built[lang], f2 = { lang, me, nameOf: (q) => (q === me ? (lang === "nl" ? "Jij" : "You") : G.names[q]) }; mm.rows().forEach((r) => { texts[lang].push(AL.segsText(r.text, f2)); if (r.mech) texts[lang].push(AL.segsText(r.mech.segs, f2)); }); for (const r of rounds.filter((x) => x.t >= 1)) { const v = mm.view(r.t); if (!v) continue; texts[lang].push(AL.segsText(v.head, f2)); v.shown.forEach((s) => { texts[lang].push(AL.segsText(s.title.a, f2), AL.segsText(s.title.b, f2)); }); v.credit.forEach((c) => texts[lang].push(AL.segsText(c.title.a, f2))); if (v.why.scarce) texts[lang].push(AL.segsText(LANG.langOf(lang).lg.cap1(v.why.scarce), f2));
-        texts[lang + "h"] = (texts[lang + "h"] || []).concat(AL.segsText(v.head, f2));  if (v.why.spot) texts[lang].push(AL.segsText(LANG.langOf(lang).lg.cap2(v.why.spot), f2)); } }
+         if (v.why.spot) texts[lang].push(AL.segsText(LANG.langOf(lang).lg.cap2(v.why.spot), f2)); } }
     const bad = (re, lang) => texts[lang].filter((t) => re.test(t));
     ok(texts.nl.length > 5 && !bad(/viel uit|nederzetting|\b1 (stippen|kaarten|beurten|punten|dorpen)\b|\b([2-9]|\d\d) (stip|kaart|beurt|punt|dorp|worp)\b(?!\w)/i, "nl").length, `${tag}: Dutch ledger words: no "viel uit", no "nederzetting", counts agree with their noun (${texts.nl.length} lines)`, bad(/viel uit|nederzetting|\b1 (stippen|kaarten|beurten|punten)\b/i, "nl").slice(0, 2));
     ok(texts.en.length > 5 && !bad(/fell out|settlement ?spot|\b1 (dots|cards|turns|points)\b/i, "en").length && !texts.en.some((t) => /\b(gooit|kaart|beurt|stip|jij)\b/i.test(t)), `${tag}: English ledger words: no "fell out", no Dutch left (${texts.en.length} lines)`);
@@ -107,7 +107,25 @@ const R5 = ["wood", "brick", "sheep", "wheat", "ore"], PIP = { 2: 1, 3: 2, 4: 3,
         ok(AP.partsOk(parts, fl) != null, `${tag} ${lang}: the headline passes the page's own validator (refs resolve, no digits or causal words in free text, within the word cap)`);
       }
     }
+    // v1.90.1 the progress credit says what REALLY happened in that player-turn (built / traded / both), from the records
+    { let badL = 0, n = 0; const kinds = (c) => { const ks = new Set(); for (let i = c.from; i <= c.to; i++) if (recs[i] && recs[i].pid === c.pid) ks.add(recs[i].k); return ks; };
+      for (const t of m.creditTurns()) for (const c of m.view(t).credit) { n++; const ks = kinds(c), nl = AL.segsText(c.title.a, { lang: "nl", me, nameOf: (q) => G.names[q] }), en = AL.segsText(built.en.view(t).credit.find((x) => x.from === c.from).title.a, { lang: "en", me, nameOf: (q) => G.names[q] });
+        const built_ = ks.has("build"), traded = ks.has("bank") || ks.has("ptrade");
+        if (/bouw/.test(nl) !== built_ || /ruilt/.test(nl) !== traded || /\bbuild/i.test(en) !== built_ || /\btrade/i.test(en) !== traded || /bouwt en ruilt|bankruil/.test(nl)) badL++; }
+      ok(!badL, `${tag}: ${n} progress-credit label(s) say only what the records show (built / traded / both), no "bouwt en ruilt:" for a build alone`, badL); }
+    // v1.90.1 the round headline: one sentence, no double colon, no "in beurt N" inside a Beurt N view, no "±" on its number; the cause tag is the tile word
+    { const bad = []; for (const lang of ["nl", "en"]) for (const r of rounds.filter((x) => x.t >= 1)) { const v = built[lang].view(r.t); if (!v) continue; const tx = AL.segsText(v.head, { lang, me, nameOf: (q) => (q === me ? "Jij" : G.names[q]) }); if ((tx.match(/:/g) || []).length > 1 || /in beurt \d|on turn \d|±\d/.test(tx) || (v.tag && !["dice", "card", "choice"].includes(v.tag))) bad.push([lang, r.t, tx]); }
+      ok(!bad.length, `${tag}: round headlines have at most one colon, no turn number repeated, no ± in the sentence`, bad.slice(0, 2)); }
+    // v1.90.1 mechanism lines under a round: facts of the round (turn <= it) in the direction of its change; none otherwise
+    { const bad = []; for (const lang of ["nl"]) for (const r of rounds.filter((x) => x.t >= 1)) { const v = built[lang].view(r.t); if (!v || !v.line) continue; const q = v.subj, c = v.line.claim, dq = led.round(r.t).d[q]; if (c.spot && (c.spot.turn !== r.t || dq > -0.03)) bad.push(["spot", r.t]); if (c.scarce && dq > -0.03) bad.push(["scarce", r.t]); if (c.bank && dq >= 0) bad.push(["bank", r.t]); if (c.gap && dq <= 0) bad.push(["gap", r.t]); if (c.odds && (Math.sign(dq) === 0)) bad.push(["odds", r.t]); }
+      ok(!bad.length, `${tag}: mechanism lines come from the round itself and match the direction of its change (no 1-stip-per-N-turns formula)`, bad); }
     timing.push([tag, G.T]);
+    if (tag === files[0].replace(".json", "")) {
+      const nl = LANG.langOf("nl"), en = LANG.langOf("en"), all = JSON.stringify([nl.lg, en.lg]);
+      ok(nl.lg.chance === "Geluk" && en.lg.chance === "Luck" && nl.lg.choice === "Keuze" && en.lg.choice === "Choice" && !/Kans|"kans"|kansloos/.test(JSON.stringify(nl.lg.key) + nl.lg.chance + nl.zoneOut), "the tile is Geluk / Luck (Kans clashed with Winkans, kans 21% and kansloos)", [nl.lg.chance, nl.zoneOut]);
+      ok(nl.lg.noteA(1).includes("±1 punt per") && !/punten per/.test(nl.lg.noteA(1)) && en.lg.noteA(1).includes("±1 point per") && nl.lg.noteA(2).includes("±2 punten"), "±1 punt / ±1 point in the singular", [nl.lg.noteA(1), en.lg.noteA(1)]);
+      ok(!/Wat bouwen opleverde|t\.o\.v\./.test(all) && /≈/.test(nl.lg.noteB) && /niet meegeteld/.test(nl.lg.noteB) && nl.lg.vs === "vergeleken met niets doen", "the credit block has a plain name; ≈ and 'niet meegeteld' stay", [nl.lg.progress, nl.lg.vs]);
+    }
     // the questions the ledger answers itself
     if (tag === files[0].replace(".json", "")) {
       const cases = [["Waarom zakte ik?", "behind"], ["why did I fall behind", "behind"], ["what happened in turn 5", "turn", 5], ["Wat gebeurde er in beurt 7?", "turn", 7], ["Waarom won ik?", null], ["What was my best move?", null], ["Waarom viel ik achter?", "behind"]];
