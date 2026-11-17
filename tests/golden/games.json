@@ -1,0 +1,366 @@
+{
+ "classic-beginner": {
+  "moves": 215,
+  "movesHash": "b8933c4ddc2ee02c",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "30ad56b8",
+  "randomCalls": 307,
+  "winner": 3,
+  "turns": 14,
+  "vp": [
+   4,
+   2,
+   6,
+   10
+  ]
+ },
+ "classic-simple": {
+  "moves": 688,
+  "movesHash": "1a942e8b85c93a93",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "61957b4f",
+  "randomCalls": 826,
+  "winner": 3,
+  "turns": 54,
+  "vp": [
+   5,
+   6,
+   8,
+   10
+  ]
+ },
+ "classic-intermediate": {
+  "moves": 293,
+  "movesHash": "8d495d8f27577447",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "e8eb5e7f",
+  "randomCalls": 354,
+  "winner": 1,
+  "turns": 19,
+  "vp": [
+   7,
+   10,
+   8,
+   4
+  ]
+ },
+ "classic-expert": {
+  "moves": 392,
+  "movesHash": "15a3b778b2d47d39",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "e8dd4d4c",
+  "randomCalls": 275,
+  "winner": 1,
+  "turns": 22,
+  "vp": [
+   7,
+   10,
+   9,
+   7
+  ]
+ },
+ "classic-styles": {
+  "moves": 226,
+  "movesHash": "483432ac6309a479",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "8c1f32bf",
+  "randomCalls": 697,
+  "winner": 3,
+  "turns": 14,
+  "vp": [
+   8,
+   6,
+   6,
+   10
+  ]
+ },
+ "classic-ladder": {
+  "moves": 380,
+  "movesHash": "2a3e2fea66f3b363",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "86e98d1a",
+  "randomCalls": 373,
+  "winner": 2,
+  "turns": 23,
+  "vp": [
+   6,
+   9,
+   10,
+   8
+  ]
+ },
+ "classic-rules8-deck": {
+  "moves": 257,
+  "movesHash": "c53b6b92c70d43a1",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "02f750dd",
+  "randomCalls": 34406,
+  "winner": 0,
+  "turns": 16,
+  "vp": [
+   8,
+   7,
+   3,
+   5
+  ]
+ },
+ "classic-2p": {
+  "moves": 173,
+  "movesHash": "d7967b05d120bb9f",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "67fb3bb0",
+  "randomCalls": 307,
+  "winner": 1,
+  "turns": 26,
+  "vp": [
+   5,
+   10
+  ]
+ },
+ "classic-master": {
+  "moves": 378,
+  "movesHash": "e19ba6ebc0036bc3",
+  "decisionsHash": "808492d359eac7d0",
+  "stateHash": "422aa93d",
+  "randomCalls": 1304,
+  "winner": 2,
+  "turns": 21,
+  "vp": [
+   8,
+   8,
+   10,
+   3
+  ]
+ },
+ "classic-super": {
+  "moves": 221,
+  "movesHash": "e11250a6536919c6",
+  "decisionsHash": "25807aa5698fbb4f",
+  "stateHash": "c2c1e9f0",
+  "randomCalls": 640,
+  "winner": 0,
+  "turns": 14,
+  "vp": [
+   10,
+   7,
+   4,
+   4
+  ]
+ },
+ "classic-superplus": {
+  "moves": 269,
+  "movesHash": "09ca03c0fbf44da1",
+  "decisionsHash": "7bed9e3a1ce34328",
+  "stateHash": "d7e19419",
+  "randomCalls": 1639,
+  "winner": 0,
+  "turns": 16,
+  "vp": [
+   10,
+   4,
+   7,
+   5
+  ]
+ },
+ "classic-grandmaster": {
+  "moves": 225,
+  "movesHash": "87fdd9f9cb56aeb4",
+  "decisionsHash": "d871f54c407044aa",
+  "stateHash": "93c6bd3c",
+  "randomCalls": 839,
+  "winner": 0,
+  "turns": 14,
+  "vp": [
+   10,
+   4,
+   4,
+   3
+  ]
+ },
+ "rush-expert": {
+  "moves": 301,
+  "movesHash": "4289efb07069b27d",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "c9a21c64",
+  "randomCalls": 1065,
+  "winner": 0,
+  "turns": 82,
+  "vp": [
+   10,
+   8,
+   6,
+   6
+  ]
+ },
+ "rush-ladder": {
+  "moves": 248,
+  "movesHash": "f7b9660dd743f7ae",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "7bf7afe8",
+  "randomCalls": 985,
+  "winner": 3,
+  "turns": 72,
+  "vp": [
+   9,
+   5,
+   4,
+   10
+  ]
+ },
+ "rush-master": {
+  "moves": 200,
+  "movesHash": "7e9112b44b7983a4",
+  "decisionsHash": "30f01883d9da9f11",
+  "stateHash": "12b716a1",
+  "randomCalls": 973,
+  "winner": 0,
+  "turns": 55,
+  "vp": [
+   10,
+   5,
+   9,
+   5
+  ]
+ },
+ "rush-6p": {
+  "moves": 299,
+  "movesHash": "c63284450d0c03b9",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "2741b819",
+  "randomCalls": 1983,
+  "winner": 2,
+  "turns": 65,
+  "vp": [
+   6,
+   7,
+   11,
+   3,
+   4,
+   6
+  ]
+ },
+ "sea-expert": {
+  "moves": 492,
+  "movesHash": "e103a389b585f9b9",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "59a31214",
+  "randomCalls": 404,
+  "winner": 0,
+  "turns": 39,
+  "vp": [
+   14,
+   11,
+   9
+  ]
+ },
+ "sea-ladder": {
+  "moves": 386,
+  "movesHash": "9fa492395066ad2e",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "f3396fa6",
+  "randomCalls": 405,
+  "winner": 1,
+  "turns": 21,
+  "vp": [
+   4,
+   14,
+   8,
+   13
+  ]
+ },
+ "sea-master": {
+  "moves": 430,
+  "movesHash": "ee5da2c4c07cb648",
+  "decisionsHash": "90fc7dbec7faf597",
+  "stateHash": "514285a6",
+  "randomCalls": 2109,
+  "winner": 0,
+  "turns": 33,
+  "vp": [
+   14,
+   10,
+   7
+  ]
+ },
+ "sea-rush": {
+  "moves": 328,
+  "movesHash": "70b737cdf5986ea7",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "0f93d1b3",
+  "randomCalls": 1011,
+  "winner": 1,
+  "turns": 100,
+  "vp": [
+   13,
+   14,
+   11
+  ]
+ },
+ "six-expert": {
+  "moves": 406,
+  "movesHash": "02d6ad701884d489",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "5ce4ef79",
+  "randomCalls": 709,
+  "winner": 3,
+  "turns": 12,
+  "vp": [
+   6,
+   9,
+   6,
+   10,
+   6,
+   7
+  ]
+ },
+ "six-ladder": {
+  "moves": 323,
+  "movesHash": "e33c7cf0a651974a",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "4814ddbe",
+  "randomCalls": 669,
+  "winner": 3,
+  "turns": 12,
+  "vp": [
+   3,
+   4,
+   7,
+   10,
+   6,
+   6
+  ]
+ },
+ "five-intermediate": {
+  "moves": 249,
+  "movesHash": "3bca77e5e123e1cd",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "2529ac43",
+  "randomCalls": 2440,
+  "winner": 1,
+  "turns": 10,
+  "vp": [
+   6,
+   10,
+   4,
+   5,
+   3
+  ]
+ },
+ "six-master": {
+  "moves": 327,
+  "movesHash": "d9e6bb3ab3b1348d",
+  "decisionsHash": "0110509bb1ec41ba",
+  "stateHash": "0243dd90",
+  "randomCalls": 1795,
+  "winner": 1,
+  "turns": 11,
+  "vp": [
+   6,
+   10,
+   7,
+   3,
+   4,
+   7
+  ]
+ }
+}
