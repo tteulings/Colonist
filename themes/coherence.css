@@ -374,9 +374,13 @@ html:not([data-input="kbd"]) :is(button, a, summary, [role="button"], [tabindex]
 [data-hand-counts="stack"] .app .hand .card.dev .rib b { font-size: 15px; margin-top: 0; line-height: 1; }
 [data-hand-counts="stack"] .app .hand .card.dev .rib span { position: static; width: auto; height: auto; clip-path: none; overflow: visible; max-width: 100%; font: 800 9.5px/1 var(--font-body); letter-spacing: -.03em; white-space: nowrap; color: var(--cnt-ink); opacity: .95; }
 
-/* Splash to Home: the splash's own logo and text leave first, the Home logo arrives after, so one logo is on screen at any time */
-html:has(#splash) .home .hm-brand { opacity: 0; }
-html:has(#splash.gone) .home .hm-brand { opacity: 1; transition: opacity .22s ease .12s; }
+/* Splash to Home: the splash's logo, "Katan" and tagline fly onto Home's header (index.html fly()); Home's own copies stay hidden until the splash is removed, so one logo is on screen at any time */
+html:has(#splash) .home .hm-brand .hm-logo, html:has(#splash) .home .hm-brand h1, html:has(#splash) .home .hm-brand p { opacity: 0; }
+html:has(#splash.gone) .home .hm-brand .hm-logo, html:has(#splash.gone) .home .hm-brand h1, html:has(#splash.gone) .home .hm-brand p { opacity: 1; transition: opacity .22s ease .12s; }
+html:has(#splash.fly) .home .hm-brand p { opacity: 1; transition: opacity .3s ease .25s; }
+@keyframes hm-in { from { opacity: 0; transform: translateY(10px); } }
+html:has(#splash.fly) .home .hm-col > :not(.hm-brand) { animation: hm-in .36s ease .12s both; }
+html:has(#splash.rmfade) .home .hm-brand .hm-logo, html:has(#splash.rmfade) .home .hm-brand h1 { opacity: 0; }
 /* Undo pill: exactly the ticker's height (never taller), left of the chevron */
 .tkrow .undo-toast { top: 0; bottom: 0; height: auto; padding: 2px; transform: none; box-sizing: border-box; }
 .app .tkrow .undo-toast .ut-btn { height: 100%; min-height: 0; padding: 0 12px; font-size: 12.5px; }

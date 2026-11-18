@@ -21,7 +21,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   for (const vp of [{ width: 360, height: 780 }, { width: 412, height: 923 }]) {
     console.log(`--- ${vp.width}x${vp.height}`);
     const mk = async (opts = {}) => { const ctx = await b.newContext({ viewport: vp, ...opts }); const page = await ctx.newPage(); const errs = []; page.on("pageerror", (e) => errs.push("PAGEERR " + e.message.split("\n")[0])); page.on("console", (m) => { if (m.type() === "error" && !/503|Failed to load resource/.test(m.text())) errs.push("console: " + m.text().slice(0, 140)); }); return { ctx, page, errs }; };
-    const probe = () => { window.__sp = { seen: 0, gone: 0 }; const t = () => { const s = document.getElementById("splash"); if (s && !window.__sp.seen) { const r = s.getBoundingClientRect(); if (r.width > 0) window.__sp.seen = performance.now(); } if (s && s.classList.contains("gone") && !window.__sp.handoff) window.__sp.handoff = performance.now(); if (!s && window.__sp.seen && !window.__sp.gone) window.__sp.gone = performance.now(); if (!window.__sp.gone) requestAnimationFrame(t); }; requestAnimationFrame(t); };
+    const probe = () => { window.__sp = { seen: 0, gone: 0 }; const t = () => { const s = document.getElementById("splash"); if (s && !window.__sp.seen) { const r = s.getBoundingClientRect(); if (r.width > 0) window.__sp.seen = performance.now(); } if (s && (s.classList.contains("gone") || s.classList.contains("fly") || s.classList.contains("rmfade")) && !window.__sp.handoff) window.__sp.handoff = performance.now(); if (!s && window.__sp.seen && !window.__sp.gone) window.__sp.gone = performance.now(); if (!window.__sp.gone) requestAnimationFrame(t); }; requestAnimationFrame(t); };
     // fast start
     gameDelay = 0; gameFail = false;
     { const { ctx, page, errs } = await mk(); await page.addInitScript(probe);
@@ -32,6 +32,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const cov = await page.evaluate(() => { const e = document.elementFromPoint(innerWidth / 2, innerHeight / 2); return { sp: !!(e && e.closest("#splash")), left: document.querySelectorAll("#splash,.sp-art").length }; });
       ok(!cov.sp && cov.left === 0, "no splash element left over the home screen", cov);
       await sleep(400); ok(errs.length === 0, "no console errors (fast)", errs.slice(0, 3)); await ctx.close(); }
+    // v1.93.1 one continuous identity: never two logos at once; the splash logo lands on the Home header logo (+-2 px), as do "Katan" and the tagline
+    gameDelay = 0; gameFail = false;
+    for (const [lang, pal] of [["en", "light"], ["nl", "light"], ["en", "night"], ["nl", "night"]]) {
+      const { ctx, page, errs } = await mk(); await page.addInitScript(([l, pl]) => { try { localStorage.setItem("colonist_lang", l); localStorage.setItem("colonist.palette", pl); } catch (e) {}
+        window.__fr = []; const vis = (el) => { if (!el) return 0; const r = el.getBoundingClientRect(); if (r.width < 2) return 0; let o = 1; for (let e = el; e; e = e.parentElement) o *= +getComputedStyle(e).opacity; return o > 0.05 ? 1 : 0; };
+        const rc = (r) => ({ l: r.left, t: r.top, w: r.width, h: r.height });
+        const tick = () => { const sl = document.querySelector("#splash .sp-logo"), hl = document.querySelector(".home .hm-logo");
+          if (sl) { const rg = (el) => { const r = document.createRange(); r.selectNodeContents(el); return rc(r.getBoundingClientRect()); }; const h1 = document.querySelector(".home .hm-brand h1");
+            window.__last = { logo: rc(sl.getBoundingClientRect()), hl: hl ? rc(hl.getBoundingClientRect()) : null, w: rg(document.querySelector("#splash .sp-w")), hw: h1 ? rg(h1.firstChild) : null, s: rg(document.querySelector("#splash .sp-sub").lastChild), hs: h1 && h1.querySelector(".hm-sub") ? rg(h1.querySelector(".hm-sub").lastChild) : null, fly: document.getElementById("splash").classList.contains("fly") }; }
+          window.__fr.push({ n: vis(sl) + vis(hl), sp: !!sl }); if (!window.__done) requestAnimationFrame(tick); }; requestAnimationFrame(tick); }, [lang, pal]);
+      await page.goto(URL, { waitUntil: "commit" });
+      await page.waitForFunction(() => window.__colonistGame && !document.getElementById("splash"), null, { timeout: 8000 }); await sleep(300);
+      const r = await page.evaluate(() => { window.__done = 1; const fr = window.__fr, home = document.querySelector(".home .hm-logo").getBoundingClientRect(), hv = getComputedStyle(document.querySelector(".home .hm-brand h1")).opacity; return { frames: fr.length, max: Math.max(...fr.map((f) => f.n)), last: window.__last, flew: !!(window.__last && window.__last.fly), homeNow: { l: home.left, t: home.top, w: home.width, h: home.height }, hv }; });
+      const tag = `${lang}/${pal}`; const d = (a, b) => (a && b ? Math.max(Math.abs(a.l - b.l), Math.abs(a.t - b.t), Math.abs(a.w - b.w), Math.abs(a.h - b.h)) : 99);
+      ok(r.flew && r.frames > 20, `[${tag}] hand-off flew (shared-element path) over many frames`, { frames: r.frames, flew: r.flew });
+      ok(r.max <= 1, `[${tag}] no frame with two logos visible`, r.max);
+      const L = r.last; const dl = d(L.logo, L.hl), dh = d(L.logo, r.homeNow);
+      ok(dl <= 2 && dh <= 2, `[${tag}] splash logo ends on the Home header logo box +-2 px`, { toHeaderLastFrame: +dl.toFixed(2), toHeaderNow: +dh.toFixed(2) });
+      const cd = (a, b) => Math.max(Math.abs(a.l + a.w / 2 - b.l - b.w / 2), Math.abs(a.t + a.h / 2 - b.t - b.h / 2));
+      ok(cd(L.w, L.hw) <= 2 && Math.abs(L.w.w / L.hw.w - 1) <= .03, `[${tag}] "Katan" wordmark lands on the Home wordmark`, { dc: +cd(L.w, L.hw).toFixed(2), scale: +(L.w.w / L.hw.w).toFixed(3) });
+      ok(cd(L.s, L.hs) <= 2, `[${tag}] tagline lands on the Home tagline`, +cd(L.s, L.hs).toFixed(2));
+      ok(errs.length === 0, `[${tag}] no console errors`, errs.slice(0, 3)); await ctx.close(); }
     // slow loading: loop
     gameDelay = 4500;
     { const { ctx, page, errs } = await mk(); await page.goto(URL, { waitUntil: "commit" });

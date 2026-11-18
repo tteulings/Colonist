@@ -141,8 +141,8 @@
       #splash { position: fixed; inset: 0; z-index: 2147483000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; margin: 0;
         padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom); box-sizing: border-box; pointer-events: none; opacity: 1;
         color: #fff; text-align: center; text-shadow: 0 1px 6px rgba(0,25,50,.45); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-        background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 85% 70% at 50% 46%, #6ACBC3 0%, #3CA9B0 52%, #2B8C98 100%), #3CA9B0;
         transition: opacity 240ms ease; -webkit-user-select: none; user-select: none; }
+      #splash::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 85% 70% at 50% 46%, #6ACBC3 0%, #3CA9B0 52%, #2B8C98 100%), #3CA9B0; }
       #splash.gone { opacity: 0; }
       #splash.gone > * { opacity: 0; transition: opacity 110ms ease; }
       #splash .sp-logo { display: block; width: 92px; height: 92px; margin: -6vh 0 14px; filter: drop-shadow(0 3px 8px rgba(0,30,60,.3)); }
@@ -158,14 +158,14 @@
       html[data-theme="A"] #splash { font-family: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
       html[data-theme="A"] #splash .sp-name { font-family: "Outfit", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
       /* the home screen's sea for each look (the theme stylesheets are not loaded yet) */
-      html[data-theme="A"][data-palette="vivid"] #splash { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 85% 70% at 50% 46%, #48D0D9 0%, #1AA8CF 50%, #0E80B9 100%), #1394C4; }
-      html[data-theme="A"][data-palette="night"] #splash { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 85% 70% at 50% 46%, #1E5A64 0%, #123E4A 55%, #0A2630 100%), #123E4A; }
-      html[data-theme="A"][data-palette="dusk"] #splash { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), linear-gradient(180deg, rgba(255,152,96,.58) 0%, rgba(226,110,128,.30) 22%, rgba(58,67,116,0) 46%), radial-gradient(ellipse 85% 70% at 50% 46%, #5F5E92 0%, #3A4374 55%, #232849 100%), #3A4374; }
-      html[data-theme="B"] #splash { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 90% 70% at 32% 26%, rgba(255,222,170,.20), rgba(255,222,170,0) 60%, rgba(24,12,4,.30) 100%), #956541; }
-      html[data-theme="C"] #splash { background: #2E9FAC; }
-      html[data-theme="classic"] #splash { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse at 47% 48%, #5aadcc, #4090b0 40%, #2a6a88), #4090b0; }
+      html[data-theme="A"][data-palette="vivid"] #splash::before { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 85% 70% at 50% 46%, #48D0D9 0%, #1AA8CF 50%, #0E80B9 100%), #1394C4; }
+      html[data-theme="A"][data-palette="night"] #splash::before { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 85% 70% at 50% 46%, #1E5A64 0%, #123E4A 55%, #0A2630 100%), #123E4A; }
+      html[data-theme="A"][data-palette="dusk"] #splash::before { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), linear-gradient(180deg, rgba(255,152,96,.58) 0%, rgba(226,110,128,.30) 22%, rgba(58,67,116,0) 46%), radial-gradient(ellipse 85% 70% at 50% 46%, #5F5E92 0%, #3A4374 55%, #232849 100%), #3A4374; }
+      html[data-theme="B"] #splash::before { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 90% 70% at 32% 26%, rgba(255,222,170,.20), rgba(255,222,170,0) 60%, rgba(24,12,4,.30) 100%), #956541; }
+      html[data-theme="C"] #splash::before { background: #2E9FAC; }
+      html[data-theme="classic"] #splash::before { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse at 47% 48%, #5aadcc, #4090b0 40%, #2a6a88), #4090b0; }
       @media (prefers-color-scheme: dark) { /* no stored look readable (the head script did not run): follow the system */
-        html:not([data-palette]) #splash { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 85% 70% at 50% 46%, #1E5A64 0%, #123E4A 55%, #0A2630 100%), #123E4A; }
+        html:not([data-palette]) #splash::before { background: linear-gradient(rgba(5,38,66,.52), rgba(5,38,66,.30) 45%, rgba(5,38,66,.42)), radial-gradient(ellipse 85% 70% at 50% 46%, #1E5A64 0%, #123E4A 55%, #0A2630 100%), #123E4A; }
       }
       html[data-motion="reduced"] #splash { transition: none; }
       @media (prefers-reduced-motion: reduce) {
@@ -200,13 +200,23 @@
       .sb{animation:a-bob 2.4s ease-in-out 1.1s infinite} .s2 .sb{animation-delay:1.9s}
       @keyframes a-wave{to{transform:translateX(-20px)}} @keyframes a-sail1{from{transform:translateX(-150px)}} @keyframes a-sail2{from{transform:translateX(150px)}}
       @keyframes a-bob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-2px) rotate(2.5deg)}}
+      /* v1.93.1 hand-off: the splash logo + wordmark fly (transform only) to the Home header's logo + wordmark; backdrop, dice and ships fade/sail out */
+      #splash .sp-w{display:inline-block}
+      @keyframes sp-out{to{opacity:0}}
+      #splash.fly::before{opacity:0;transition:opacity 340ms ease 60ms}
+      #splash.fly .sp-logo,#splash.fly .sp-w,#splash.fly .sp-sub{animation:none;transition:transform 420ms cubic-bezier(.45,0,.2,1);transform-origin:0 0}
+      #splash.fly .sp-name{animation:none;opacity:1;transition:none}
+      #splash.fly .sp-dice,#splash.fly .sp-sea{animation:sp-out 220ms ease both}
+      #splash.fly .sp-sea{transform:translateX(70px);transition:transform 300ms ease-in}
+      #splash.fly .sp-sub{transition:transform 420ms cubic-bezier(.45,0,.2,1)}
+      #splash.rmfade{opacity:0;transition:opacity 140ms ease!important}
     </style>
   </head>
   <body>
     <!-- v1.27 launch splash (no JS needed to show it): the app logo and name on Home's sea until Home or the resumed game is drawn -->
     <div id="splash" role="status" aria-live="polite" aria-label="Loading Katan">
       <svg class="sp-logo sp-art" viewBox="-50 -50 100 100" aria-hidden="true"><g transform="scale(0.28) translate(-250 -250)"><g class="a1"><path d="M230.95,102 Q250,91 269.05,102 L316.68,129.5 Q335.74,140.5 335.74,162.5 L335.74,217.5 Q335.74,239.5 316.68,250.5 L269.05,278 Q250,289 230.95,278 L183.32,250.5 Q164.26,239.5 164.26,217.5 L164.26,162.5 Q164.26,140.5 183.32,129.5 Z" fill="#F7E1AC"/><path d="M239.61,119 Q250,113 260.39,119 L306.29,145.5 Q316.68,151.5 316.68,163.5 L316.68,216.5 Q316.68,228.5 306.29,234.5 L260.39,261 Q250,267 239.61,261 L193.71,234.5 Q183.32,228.5 183.32,216.5 L183.32,163.5 Q183.32,151.5 193.71,145.5 Z" fill="#3FA05A"/></g><g class="a2"><path d="M301.96,225 Q321.01,214 340.07,225 L387.7,252.5 Q406.75,263.5 406.75,285.5 L406.75,340.5 Q406.75,362.5 387.7,373.5 L340.07,401 Q321.01,412 301.96,401 L254.33,373.5 Q235.28,362.5 235.28,340.5 L235.28,285.5 Q235.28,263.5 254.33,252.5 Z" fill="#F7E1AC"/><path d="M310.62,242 Q321.01,236 331.41,242 L377.31,268.5 Q387.7,274.5 387.7,286.5 L387.7,339.5 Q387.7,351.5 377.31,357.5 L331.41,384 Q321.01,390 310.62,384 L264.72,357.5 Q254.33,351.5 254.33,339.5 L254.33,286.5 Q254.33,274.5 264.72,268.5 Z" fill="#E36C43"/></g><g class="a3"><path d="M159.93,225 Q178.99,214 198.04,225 L245.67,252.5 Q264.72,263.5 264.72,285.5 L264.72,340.5 Q264.72,362.5 245.67,373.5 L198.04,401 Q178.99,412 159.93,401 L112.3,373.5 Q93.25,362.5 93.25,340.5 L93.25,285.5 Q93.25,263.5 112.3,252.5 Z" fill="#F7E1AC"/><path d="M168.59,242 Q178.99,236 189.38,242 L235.28,268.5 Q245.67,274.5 245.67,286.5 L245.67,339.5 Q245.67,351.5 235.28,357.5 L189.38,384 Q178.99,390 168.59,384 L122.69,357.5 Q112.3,351.5 112.3,339.5 L112.3,286.5 Q112.3,274.5 122.69,268.5 Z" fill="#F5BC3C"/></g><g class="a4"><path d="M194,312.32 V245.12 L250,191.36 L306,245.12 V312.32 Z" fill="#FFFFFF"/></g><g class="a5"><path d="M179.44,249.49 L250,183.35 L320.56,249.49" fill="none" stroke="#2F62D6" stroke-width="23.52" stroke-linejoin="round" stroke-linecap="round"/></g><g class="a6"><rect x="238.8" y="274.69" width="22.4" height="37.63" rx="6.72" fill="#E8643C"/></g></g></svg>
-      <div class="sp-name">Katan<span class="sp-sub">Traders and Builders</span></div>
+      <div class="sp-name"><span class="sp-w">Katan</span><span class="sp-sub">Traders and Builders</span></div>
       <svg class="sp-dice sp-art" viewBox="0 0 64 28" aria-hidden="true"><g><rect x="2" y="2" width="24" height="24" rx="6" fill="#E36C43"/><circle cx="9" cy="9" r="2.1" fill="#fff"/><circle cx="14" cy="14" r="2.1" fill="#fff"/><circle cx="19" cy="19" r="2.1" fill="#fff"/></g><g><rect x="38" y="2" width="24" height="24" rx="6" fill="#F5BC3C"/><circle cx="45" cy="9" r="2.1" fill="#fff"/><circle cx="55" cy="9" r="2.1" fill="#fff"/><circle cx="45" cy="19" r="2.1" fill="#fff"/><circle cx="55" cy="19" r="2.1" fill="#fff"/></g></svg>
       <svg class="sp-sea sp-art" viewBox="0 0 240 40" aria-hidden="true"><defs><g id="sp-sh"><ellipse cx="3" cy="15" rx="22" ry="4.5" fill="#14201F" opacity=".3"/><path d="M-22,2L22,2Q18,14 9,14L-14,14Q-20,11 -22,2Z" style="fill:var(--c);stroke:var(--l)" stroke-width="2.2" stroke-linejoin="round"/><path d="M-1,2V-30" stroke="#33060B" stroke-width="2.4" stroke-linecap="round"/><path d="M1,-27Q17,-14 15,-1L1,-1Z" fill="#FBF6EA" stroke="#33060B" stroke-width="2" stroke-linejoin="round"/><path d="M-3,-23Q-15,-12 -14,-1L-3,-1Z" fill="#EFE6D2" stroke="#33060B" stroke-width="2" stroke-linejoin="round"/><path d="M-1,-30L-12,-26L-1,-22Z" style="fill:var(--c)"/></g></defs><g class="sw"><path d="M-20 30q5-4 10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0"/><path class="w2" d="M-20 36q5-4 10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0t10 0"/></g><g transform="translate(92 25) scale(.5)"><g class="s1"><g class="sb"><use href="#sp-sh" style="--c:#B81E2E;--l:#33060B"/></g></g></g><g transform="translate(150 27) scale(-.4 .4)"><g class="s2"><g class="sb"><use href="#sp-sh" style="--c:#1F55B8;--l:#0A1D48"/></g></g></g></svg>
       <div class="sp-fail"><p id="splashMsg">Katan is taking longer than usual to start.</p><button type="button" id="splashReload">Reload</button></div>
@@ -218,13 +228,36 @@
         var t0 = Date.now(), s = document.getElementById("splash"), d = document.documentElement, done = false, iv, slowT;
         if (!s) return;
         if (d.dataset.lab) { s.remove(); return; }
+        // v1.93.1 shared element: FLIP the splash logo / "Katan" / tagline onto Home's header (same artwork, same type, transform only).
+        // Home's own copies stay hidden (coherence.css) until the splash is removed, so only one logo is ever visible. false = no Home header to land on.
+        function fly(s) {
+          try {
+            var h = document.querySelector(".home .hm-brand"), hl = h && h.querySelector(".hm-logo"), h1 = h && h.querySelector("h1"), hs = h1 && h1.querySelector(".hm-sub");
+            var sl = s.querySelector(".sp-logo"), sw = s.querySelector(".sp-w"), ss = s.querySelector(".sp-sub");
+            if (!hl || !h1 || !hs || !sl || !sw || !ss) return false;
+            var tr = function (el) { var r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect(); };
+            var L = sl.getBoundingClientRect(), HL = hl.getBoundingClientRect(), W = sw.getBoundingClientRect(), HW = tr(h1.firstChild), S = tr(ss.lastChild), HS = tr(hs.lastChild);
+            if (!HL.width || !HW.width || !HS.width || !L.width || !W.width) return false;
+            var vh = innerHeight, vw = innerWidth;
+            if (HL.bottom < 0 || HL.top > vh || HL.right < 0 || HL.left > vw) return false;
+            var move = function (el, c, n, k) { // map rect c onto rect n, scaling about the element's top-left
+              var o = el.getBoundingClientRect(), sc = k === 0 ? 1 : n.width / c.width;
+              var dx = n.left + n.width / 2 - (o.left + sc * (c.left + c.width / 2 - o.left)), dy = n.top + n.height / 2 - (o.top + sc * (c.top + c.height / 2 - o.top));
+              el.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + sc + ")";
+            };
+            s.classList.add("fly"); void s.offsetWidth;
+            move(sl, L, HL); move(sw, W, HW); move(ss, S, HS, 0);
+            return true;
+          } catch (e) { return false; }
+        }
         function hide() {
           if (done) return;
           done = true; clearInterval(iv); clearTimeout(slowT); tries(0);
           var raf = window.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
           var rm = d.dataset.motion === "reduced" || (d.dataset.motion !== "full" && matchMedia("(prefers-reduced-motion: reduce)").matches);
           setTimeout(function () { raf(function () { raf(function () {
-            if (rm) { s.remove(); return; }
+            if (rm) { s.classList.add("rmfade"); setTimeout(function () { s.remove(); }, 150); return; }
+            if (fly(s)) { setTimeout(function () { s.remove(); }, 460); return; }
             s.classList.add("gone");
             setTimeout(function () { s.remove(); }, 320);
           }); }); }, rm ? 0 : Math.max(0, 1100 - (Date.now() - t0)));
