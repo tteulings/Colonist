@@ -54,6 +54,30 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       ok(cd(L.w, L.hw) <= 2 && Math.abs(L.w.w / L.hw.w - 1) <= .03, `[${tag}] "Katan" wordmark lands on the Home wordmark`, { dc: +cd(L.w, L.hw).toFixed(2), scale: +(L.w.w / L.hw.w).toFixed(3) });
       ok(cd(L.s, L.hs) <= 2, `[${tag}] tagline lands on the Home tagline`, +cd(L.s, L.hs).toFixed(2));
       ok(errs.length === 0, `[${tag}] no console errors`, errs.slice(0, 3)); await ctx.close(); }
+    // v1.93.2 one palette from the first frame: frame 0 = Android launch splash (manifest colour + icon circle 58% wide, centred), no light -> dark switch after it
+    gameDelay = 0; gameFail = false;
+    for (const [name, ls, scheme, want] of [["light", { "colonist.palette": "light" }, "dark", "light"], ["night", { "colonist.palette": "night" }, "light", "night"], ["auto/light OS", { "colonist.paletteAuto": "on" }, "light", "light"], ["auto/dark OS", { "colonist.paletteAuto": "on" }, "dark", "night"], ["auto time, stale last palette", { "colonist.paletteAuto": "time", "colonist.autoPalette": "light", __sched: 1 }, "light", "night"]]) {
+      const { ctx, page, errs } = await mk({ colorScheme: scheme });
+      await page.addInitScript(([l]) => { try { const n = Date.now(); for (const k in l) { if (k === "__sched") localStorage.setItem("colonist.autoSched", JSON.stringify([[n - 3 * 36e5, "day"], [n - 36e5, "night"], [n + 9 * 36e5, "day"]])); else localStorage.setItem(k, l[k]); } } catch (e) {}
+        window.__pal = new Set(); const t = () => { window.__pal.add(document.documentElement.dataset.palette); if (!window.__g0) { const sp = document.querySelector("#splash .sp-disc"), lg = document.querySelector("#splash .sp-logo"); if (sp && lg) { const d = sp.getBoundingClientRect(), l = lg.getBoundingClientRect(); if (d.width) window.__g0 = { disc: d.width / innerWidth, dcx: d.left + d.width / 2 - innerWidth / 2, dcy: d.top + d.height / 2 - innerHeight / 2, lcx: l.left + l.width / 2 - innerWidth / 2, lcy: l.top + l.height / 2 - innerHeight / 2, lw: l.width * .88 / innerWidth, bg: getComputedStyle(document.getElementById('splash')).backgroundColor, bo: +getComputedStyle(document.getElementById('splash'), '::before').opacity, tc: document.querySelector('meta[name="theme-color"]').content }; } } if (!window.__pdone) requestAnimationFrame(t); }; requestAnimationFrame(t); }, [ls]);
+      const px = async () => { const b64 = (await page.screenshot()).toString("base64"); return page.evaluate(async (d) => { const im = await createImageBitmap(await (await fetch("data:image/png;base64," + d)).blob()); const c = new OffscreenCanvas(im.width, im.height), x = c.getContext("2d"); x.drawImage(im, 0, 0); const g = x.getImageData(0, 0, 1, 1).data, f = (devicePixelRatio || 1); return [g[0], g[1], g[2]]; }, b64); };
+      const lum = (c) => .2126 * c[0] + .7152 * c[1] + .0722 * c[2];
+      await page.goto(URL, { waitUntil: "commit" }); await page.waitForSelector("#splash", { state: "visible", timeout: 3000 });
+      let c0; await page.waitForFunction(() => window.__g0); const g0 = await page.evaluate(() => window.__g0);
+      await sleep(550); const c1 = await px();
+      await page.waitForFunction(() => window.__colonistGame && !document.getElementById("splash"), null, { timeout: 8000 }); await sleep(300); const c2 = await px();
+      const r = await page.evaluate(() => { window.__pdone = 1; return { pals: [...window.__pal], tc: document.querySelector('meta[name="theme-color"]').content }; }); await sleep(950); const tcEnd = await page.evaluate(() => document.querySelector('meta[name="theme-color"]').content);
+      const near = (c, e, t) => c.every((v, i) => Math.abs(v - e[i]) <= t);
+      ok(g0.bg === "rgb(41, 119, 133)" && g0.bo < .25, `[${name}] first frame background = manifest colour #297785 (Android launch splash)`, { bg: g0.bg, palette: g0.bo });
+      c0 = [41, 119, 133];
+      ok(Math.abs(g0.disc - .58) < .01 && Math.abs(g0.dcx) < 1.5 && Math.abs(g0.dcy) < 1.5, `[${name}] first frame: icon circle 58% wide, centred`, g0);
+      ok(Math.abs(g0.lcx) < 1.5 && Math.abs(g0.lcy) < 1.5 && Math.abs(g0.lw - .464) < .01, `[${name}] first frame: logo art sits on the icon centre`, { lcx: g0.lcx, lcy: g0.lcy, hexSpan: g0.lw });
+      ok(g0.tc === "#297785", `[${name}] theme-color starts at the launch colour`, g0.tc);
+      ok(r.pals.length === 1 && r.pals[0] === want, `[${name}] palette on <html> is ${want} at every frame (no switch)`, r.pals);
+      if (want === "night") ok(lum(c1) <= lum(c0) + 4 && lum(c2) <= lum(c1) + 4 && lum(c2) < 55, `[${name}] backdrop only ever darkens: launch -> intro -> home`, [c0, c1, c2].map(lum).map(Math.round));
+      else ok(Math.abs(lum(c1) - lum(c0)) < 40 && lum(c2) > 60, `[${name}] backdrop stays light: launch -> intro -> home`, [c0, c1, c2].map(lum).map(Math.round));
+      ok(tcEnd === (want === "night" ? "#0E1B22" : "#2d6888"), `[${name}] theme-color ends on the palette colour`, tcEnd);
+      ok(errs.length === 0, `[${name}] no console errors`, errs.slice(0, 3)); await ctx.close(); }
     // slow loading: loop
     gameDelay = 4500;
     { const { ctx, page, errs } = await mk(); await page.goto(URL, { waitUntil: "commit" });
