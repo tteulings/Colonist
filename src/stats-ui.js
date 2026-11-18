@@ -179,7 +179,7 @@ export const StatsUiMixin = {
     const turns = this.isRush() ? `${this.rush?.rollNo ?? st?.N ?? 0}` : `${this.turn}`;
     const hl = st ? this._stHighlights(st) : [];
     overlay.innerHTML = `
-      <div class="gs-top"><button type="button" class="gs-homebtn" data-gsback aria-label="Home"><svg class="ic" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg><span>Home</span></button></div>
+      <div class="gs-top"><button type="button" class="gs-homebtn" data-gsback aria-label="Home"><svg class="ic" viewBox="0 0 100 100" aria-hidden="true"><use href="#kt-logo" width="100" height="100"/></svg><span>Home</span></button></div>
       <div class="gs-scroll">
         <section class="gs-recap over-panel" aria-label="Recap">
           <div class="gs-rhead">${this._stPortrait(winner.id, "gs-win-por av-win", 52)}<div><h3>${this._stWinsText(winner)}</h3>

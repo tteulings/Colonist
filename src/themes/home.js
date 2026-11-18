@@ -90,7 +90,7 @@ export class Home {
     const upd = window.__colonistUpdate;
     this.el.classList.toggle("has-save", !!s);
     this.el.innerHTML = `<div class="hm-col">
-      <header class="hm-brand"><svg class="hm-logo" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg>
+      <header class="hm-brand"><svg class="hm-logo" viewBox="0 0 100 100" aria-hidden="true"><use href="#kt-logo" width="100" height="100"/></svg>
         <h1>Katan<small class="hm-sub">Traders and Builders</small></h1>${s ? "" : `<p>Settle the island, trade with friendly bots, reach ${sea ? 14 : 10} points first.</p>`}</header>
       ${upd ? `<button type="button" class="hm-update" data-home="update" aria-live="polite">${UPDATE_IC}<span><b>${upd.version ? `Update to v${upd.version}` : "Update ready"}</b><small>New version ready · tap to reload${s ? " · your game is saved" : ""}</small></span>${CHEV}</button>` : ""}
       ${s ? `<button type="button" class="hm-continue" data-home="continue">${PLAY_IC}<span class="hm-ct"><b>Continue game</b><small>${s.mode} · ${s.mode.startsWith("Rush") ? "roll" : "turn"} ${s.turn}</small></span>${CHEV}
