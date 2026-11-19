@@ -27,7 +27,7 @@ export const PROMPTS = {
   monopoly: { types: ["pick"], desc: "Monopoly: name one resource" },
   chooseGold: { types: ["pickGold"], desc: "Seafarers: choose the cards a gold field pays" },
   sbp: { types: ["build", "buyDev", "passSbp"], desc: "5-6 players: Special Building Phase window (no trade, no dev cards played)" },
-  rushAny: { types: ["build", "moveShip", "buyDev", "playDev", "tradeBank", "ready"], desc: "Rush: any seat, any time between rolls" },
+  rushAny: { types: ["build", "moveShip", "buyDev", "playDev", "tradeBank", "offerTrade", "cancelOffer", "ready"], desc: "Rush: any seat, any time between rolls" },
 };
 
 // ── field checkers ──

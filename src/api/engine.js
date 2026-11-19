@@ -40,6 +40,7 @@ import { PROMPTS, validateShape, actionKey, cleanHand, handSize, emptyHand } fro
 const sum = (h) => RES.reduce((n, r) => n + (h[r] || 0), 0);
 const has = (hand, cost) => RES.every((r) => (hand[r] || 0) >= (cost[r] || 0));
 const copy = (h) => ({ ...h });
+const devSum = (h) => DEV_CARD_TYPES.reduce((n, t) => n + (h[t] || 0), 0);
 const refuse = (reason) => ({ ok: false, reason, events: [], prompts: [] });
 const keyOf = actionKey;
 
@@ -221,7 +222,13 @@ export class Engine {
     if (out.length) return out;
     if (g.devPick) return [{ kind: g.devPick.type === "monopoly" ? "monopoly" : "yearOfPlenty", actor: cur.id, count: g.devPick.count }];
     if (g.freeRoadsRemaining > 0) return [{ kind: "freeRoad", actor: cur.id, remaining: g.freeRoadsRemaining }];
-    if (rush) { g.players.forEach((p) => out.push({ kind: "rushAny", actor: p.id })); return out; }
+    if (rush) {
+      g.players.forEach((p) => out.push({ kind: "rushAny", actor: p.id }));
+      this._offers.forEach((o) => o.to.forEach((s) => { if (!o.answered[s]) out.push({ kind: "respondTrade", actor: s, offer: o.id, from: o.from }); }));
+      const me = g._me?.();
+      if (me) (rush.offers || []).forEach((o) => out.push({ kind: "respondTrade", actor: me.id, offer: o.id, from: o.fromId, legacy: true })); // a bot's offer to the human (Rush card)
+      return out;
+    }
     if (g.phase === "pre_roll") out.push({ kind: "preRoll", actor: cur.id });
     else if (g.phase === "sbp") out.push({ kind: "sbp", actor: cur.id });
     else if (g.phase === "main") {
@@ -297,17 +304,16 @@ export class Engine {
         if (on("buyDev") && g.devDeck.length > 0 && has(p.resources, COSTS.development)) A({ type: "buyDev" });
         if (on("playDev") && !sbp) DEV_CARD_TYPES.forEach((t) => { if (g.canPlayDevelopmentCard(p, t)) A({ type: "playDev", card: t }); });
         if (on("tradeBank") && !sbp) out.push(...this._bankTrades(p));
-        if (on("offerTrade") && prompt.kind === "main" && sum(p.resources) > 0 && g.players.length > 1) A({ type: "offerTrade", choose: true });
-        if (on("cancelOffer") && prompt.kind === "main") this._offers.forEach((o) => { if (o.from === id) A({ type: "cancelOffer", offer: o.id }); });
+        if (on("offerTrade") && !sbp && sum(p.resources) > 0 && g.players.length > 1) A({ type: "offerTrade", choose: true });
+        if (on("cancelOffer") && !sbp) this._offers.forEach((o) => { if (o.from === id) A({ type: "cancelOffer", offer: o.id }); });
         if (on("passSbp") && sbp) A({ type: "passSbp" });
         if (on("endTurn") && prompt.kind === "main") A({ type: "endTurn" });
         if (on("ready") && prompt.kind === "rushAny" && !g.rush.ready.includes(id) && !g.rush.paused) A({ type: "ready" });
         break;
       }
       case "freeRoad": {
-        const b = this._builds(p, true);
-        if (on("build")) out.push(...b);
-        if (on("skipFree") && !b.length) A({ type: "skipFree" });
+        if (on("build")) out.push(...this._builds(p, true));
+        if (on("skipFree")) A({ type: "skipFree" }); // the old bots may leave a free road unused (a human could only undo the card)
         break;
       }
       case "discard": if (on("discard")) A({ type: "discard", choose: true, count: prompt.count }); break;
@@ -323,8 +329,9 @@ export class Engine {
       case "chooseGold": if (on("pickGold")) A({ type: "pickGold", choose: true, count: prompt.count }); break;
       case "respondTrade":
         if (on("respondTrade")) {
-          const o = this._offers.find((x) => x.id === prompt.offer);
+          const o = prompt.legacy ? g.rush?.offers.find((x) => x.id === prompt.offer) && (({ id, fromId, give, want }) => ({ id, from: fromId, give, want }))(g.rush.offers.find((x) => x.id === prompt.offer)) : this._offers.find((x) => x.id === prompt.offer);
           if (o) {
+            if (prompt.legacy) { if (has(p.resources, o.want) && has(g.players[o.from].resources, o.give)) A({ type: "respondTrade", offer: o.id, answer: "accept" }); A({ type: "respondTrade", offer: o.id, answer: "reject" }); break; }
             if (has(p.resources, o.want) && has(g.players[o.from].resources, o.give)) A({ type: "respondTrade", offer: o.id, answer: "accept" });
             A({ type: "respondTrade", offer: o.id, answer: "reject" });
             A({ type: "respondTrade", offer: o.id, answer: "counter", choose: true });
@@ -359,7 +366,7 @@ export class Engine {
       else if (a.type === "offerTrade") RES.forEach((give) => { if (p.resources[give] > 0) RES.forEach((want) => { if (want !== give && out.length < max) out.push({ actor: seat, type: "offerTrade", to: "all", give: { [give]: 1 }, want: { [want]: 1 } }); }); });
       else if (a.type === "respondTrade") { // counters: swap one card each way
         const o = this._offers.find((x) => x.id === a.offer);
-        if (o) RES.forEach((give) => { if (p.resources[give] > 0) RES.forEach((want) => { if (want !== give && out.length < max && o.give[want] === undefined) out.push({ actor: seat, type: "respondTrade", offer: o.id, answer: "counter", give: { [give]: 1 }, want: { [want]: 1 } }); }); });
+        if (o) RES.forEach((give) => { if (p.resources[give] > 0) RES.forEach((want) => { if (want !== give && out.length < max && g.players[o.from].resources[want] > 0) out.push({ actor: seat, type: "respondTrade", offer: o.id, answer: "counter", give: { [give]: 1 }, want: { [want]: 1 } }); }); });
       }
     }
     return out.slice(0, max);
@@ -401,7 +408,7 @@ export class Engine {
       if (!PROMPTS[pr.kind].types.includes(a.type)) { why = why || `${a.type} is not an answer to ${pr.kind}`; continue; }
       for (const l of this._legalOf(pr, a.type)) {
         if (!l.choose) { if (keyOf(this._canon(l)) === k) return { ok: true }; continue; }
-        if (l.type !== a.type) continue;
+        if (l.type !== a.type || (l.answer && l.answer !== a.answer)) continue;
         const bad = this._validateChoose(l, a, pr);
         if (!bad) return { ok: true };
         why = bad;
@@ -433,7 +440,7 @@ export class Engine {
   _brief() {
     const g = this.g;
     return { hands: g.players.map((p) => copy(p.resources)), vp: g.players.map((p) => p.publicVictoryPoints), nd: g.players.map((p) => copy(p.newDevCards)), dvp: g.players.map((p) => p.devVictoryPoints), turn: g.turn, robber: g.robberHexId, pirate: g.sea?.pirateHexId ?? null,
-      dev: g.players.map((p) => sum(p.devCards) + sum(p.newDevCards) + p.devVictoryPoints), lr: g.longestRoadHolder?.id ?? null, la: g.largestArmyHolder?.id ?? null, cur: g.currentPlayerIndex };
+      dev: g.players.map((p) => devSum(p.devCards) + devSum(p.newDevCards) + p.devVictoryPoints), lr: g.longestRoadHolder?.id ?? null, la: g.largestArmyHolder?.id ?? null, cur: g.currentPlayerIndex };
   }
   /**
    * Do an action. Returns { ok, events, prompts } (events are JSON facts, see _events). An illegal action changes nothing and returns
@@ -483,7 +490,8 @@ export class Engine {
     g._dropUndo?.();
     if (a.card === "knight") this._via = "knight";
     if (!g.playDevelopmentCard(p, a.card)) return false;
-    g.recomputeScores(); g.checkForWinner(p);
+    g.recomputeScores();
+    if (g.pendingAction !== "robber") g.checkForWinner(p); // a Knight's Largest Army wins once the robber has moved (the bots' order)
     return true;
   }
   _do_pick(a, p) {
@@ -495,7 +503,7 @@ export class Engine {
   }
   _do_tradeBank(a, p) { const g = this.g; if (!g.performBankTrade(p, a.give, a.get)) return false; g._dropUndo?.(); if (g.rush) g._rushAfterAction(p); return true; }
   _do_moveShip(a, p) { const g = this.g, n = p.ships.size; g._seaCommitMove(p, a.from, a.to); return p.ships.has(a.to) && p.ships.size === n && !p.ships.has(a.from); }
-  _do_skipFree(a, p) { const g = this.g; g.freeRoadsRemaining = 0; g.pendingAction = null; g.recomputeScores(); }
+  _do_skipFree(a, p) { const g = this.g; g.freeRoadsRemaining = 0; g.pendingAction = null; g.recomputeScores(); g.checkForWinner(p); }
   _do_passSbp() { this.g.sbpSkip(); }
   _do_ready(a) { const r = this.g.rush; r.ready.push(a.actor); r.readyAt = r.clockMs; }
   _do_pickGold(a, p) { const g = this.g; a.resources.forEach((r) => g.sea.pickGold(p, r)); g.recomputeScores(); g.checkForWinner(p); }
@@ -532,12 +540,13 @@ export class Engine {
     if (g.sea) g.sea.thief = g._seaHexKind(a.hex);
     g._commitRobber(p, a.hex, null);
     this._via = null;
+    if (!g.robberVictimOptions?.length) g.checkForWinner(g.currentPlayer);
   }
   _do_steal(a, p) {
     const g = this.g;
     g.stealFromVictim(p, a.victim);
     g.robberContext = null; g.robberVictimOptions = [];
-    g.recomputeScores?.();
+    g.checkForWinner(g.currentPlayer);
   }
   // trades: the engine keeps the offers. A seat it does not control answers by the game's own evaluator, at once.
   _do_offerTrade(a, p) {
@@ -565,6 +574,7 @@ export class Engine {
   _closeIfAnswered(o) { if (o.to.every((s) => o.answered[s])) this._offers = this._offers.filter((x) => x !== o); }
   _do_respondTrade(a) {
     const g = this.g, o = this._offers.find((x) => x.id === a.offer);
+    if (!o && g.rush?.offers.some((x) => x.id === a.offer)) { g._resolveRushOffer(a.offer, a.answer === "accept"); return; } // a bot's Rush offer to the human
     if (a.answer === "accept") { this._settle(o, a.actor); return; }
     o.answered[a.actor] = a.answer;
     if (a.answer === "counter") { // a counter closes the offer and opens one from the responder, one level deep
@@ -635,7 +645,7 @@ export class Engine {
     const geo = g.geometry;
     const seats = g.players.map((p, i) => {
       const pub = { id: i, name: p.name, vp: sees(i) ? p.victoryPoints : p.publicVictoryPoints, knightsPlayed: p.knightsPlayed, longestRoad: p.longestRoadLength,
-        handCount: sum(p.resources), devCount: sum(p.devCards) + sum(p.newDevCards) + p.devVictoryPoints,
+        handCount: sum(p.resources), devCount: devSum(p.devCards) + devSum(p.newDevCards) + p.devVictoryPoints,
         roads: [...p.roads].sort((x, y) => x - y), ships: [...(p.ships || [])].sort((x, y) => x - y), settlements: [...p.settlements].sort((x, y) => x - y), cities: [...p.cities].sort((x, y) => x - y),
         left: { road: g.piecesLeft(p, "road"), settlement: g.piecesLeft(p, "settlement"), city: g.piecesLeft(p, "city"), ...(g.sea ? { ship: g.piecesLeft(p, "ship") } : {}) },
         rates: Object.fromEntries(RES.map((r) => [r, g.getPlayerTradeRate(p, r)])) };
@@ -650,7 +660,7 @@ export class Engine {
       if (sees(i) || !trk) { est.push(null); return; }
       const saved = copy(trk.est[i]); est.push(copy(g._aiEstimate(p))); Object.assign(trk.est[i], saved);
     });
-    const known = me >= 0 ? sum(g.players[me].devCards) + sum(g.players[me].newDevCards) + g.players[me].devVictoryPoints : 0;
+    const known = me >= 0 ? devSum(g.players[me].devCards) + devSum(g.players[me].newDevCards) + g.players[me].devVictoryPoints : 0;
     const deck = g.bigBoard ? BIG_DEV_DECK : DEV_DECK;
     const v = {
       mode: this.mode(), turn: g.turn, phase: g.phase, current: g.currentPlayerIndex, winner: g.winner ? g.winner.id : null, prompts: this.prompts(),
@@ -702,7 +712,7 @@ export class Engine {
     if (this.g.rush) throw new Error("clone(): Rush keeps its clock in timers; not supported (see engine.js notes)");
     const c = new Engine(this.g, { control: [...this._control], meta: this.meta, parked: true });
     c._snap = this._save();
-    c._src = { ...this._src }; c._log = JSON.parse(JSON.stringify(this._log)); c._offers = JSON.parse(JSON.stringify(this._offers)); c._offerSeq = this._offerSeq; c._via = this._via;
+    c._src = { ...this._src }; c._log = this._log.slice(); /* entries are never edited once pushed */ c._offers = JSON.parse(JSON.stringify(this._offers)); c._offerSeq = this._offerSeq; c._via = this._via;
     c._seq = this._seq; c._evlog = this._evlog.slice();
     return c; // parked until its first use
   }
@@ -724,7 +734,8 @@ export class Engine {
     const g = this.g, self = this, restoreFns = [];
     const obs = (this._obs = { stack: [], entries: [], ctx: null });
     const live = () => !self._applying && self.H.active === self && self._obs === obs;
-    const wrap = (obj, k, fn) => { const o = obj[k]; obj[k] = function (...args) { return live() ? fn.call(this, o, args) : o.apply(this, args); }; restoreFns.push(() => { obj[k] = o; }); };
+    // a wrapper is put back only if nobody wrapped over it meanwhile (the golden harness wraps the same methods); if someone did, ours stays inert
+    const wrap = (obj, k, fn) => { const o = obj[k]; const mine = function (...args) { return live() ? fn.call(this, o, args) : o.apply(this, args); }; obj[k] = mine; restoreFns.push(() => { if (obj[k] === mine) obj[k] = o; }); };
     const judge = (a, prompt) => { try { return self.isLegal(a, { prompt }); } catch (e) { return { ok: false, reason: `exception: ${e.message}` }; } };
     const emit = (entry) => { obs.entries.push(entry); self._log.push({ a: entry.a, chance: entry.chance }); cb(entry); };
     const run = (a, prompt, call, okOf = (r) => r !== false) => { // one reported move around the old method call
@@ -749,13 +760,17 @@ export class Engine {
     });
     wrap(g, "placeCity", function (o, [p, node, free]) { return run({ actor: p.id, type: "build", piece: "city", node }, seatPrompt(p.id), () => o.call(this, p, node, free)); });
     wrap(g, "placeRoad", function (o, [p, edge, opts = {}]) {
-      return run({ actor: p.id, type: opts.setupNode != null ? "place" : "build", piece: "road", edge }, edgePrompt(p, opts), () => o.call(this, p, edge, opts));
+      const r = run({ actor: p.id, type: opts.setupNode != null ? "place" : "build", piece: "road", edge }, edgePrompt(p, opts), () => o.call(this, p, edge, opts));
+      if (r !== false && freeCtx()) obs.ctx.placed++;
+      return r;
     });
     { // Seafarers rules are an object rebuilt with every game: wrap their prototype (shared by every game)
       const P = Seafarers.prototype;
-      const wrapP = (k, fn) => { const o = P[k]; P[k] = function (...args) { return live() ? fn.call(this, o, args) : o.apply(this, args); }; restoreFns.push(() => { P[k] = o; }); };
+      const wrapP = (k, fn) => wrap(P, k, fn);
       wrapP("placeShip", function (o, [p, edge, opts = {}]) {
-        return run({ actor: p.id, type: opts.setupNode != null ? "place" : "build", piece: "ship", edge }, edgePrompt(p, opts), () => o.call(this, p, edge, opts));
+        const r = run({ actor: p.id, type: opts.setupNode != null ? "place" : "build", piece: "ship", edge }, edgePrompt(p, opts), () => o.call(this, p, edge, opts));
+        if (r !== false && freeCtx()) obs.ctx.placed++;
+        return r;
       });
       wrapP("moveShip", function (o, [p, from, to]) { return run({ actor: p.id, type: "moveShip", from, to }, seatPrompt(p.id), () => o.call(this, p, from, to)); });
       wrapP("aiGoldPicks", function (o, [p, can]) {
@@ -768,7 +783,13 @@ export class Engine {
     wrap(g, "buyDevelopmentCard", function (o, [p]) { return run({ actor: p.id, type: "buyDev" }, seatPrompt(p.id), () => o.call(this, p)); });
     wrap(g, "playDevelopmentCard", function (o, [p, card]) {
       const prompt = self.g.phase === "pre_roll" ? { kind: "preRoll", actor: p.id } : seatPrompt(p.id);
-      return run({ actor: p.id, type: "playDev", card }, prompt, () => inCtx({ free: card === "roadBuilding", card }, () => o.call(this, p, card)));
+      const G = self.g, ctx = { free: card === "roadBuilding", card, placed: 0, expected: card === "roadBuilding" ? Math.min(2, G.piecesLeft(p, "road") + (G.sea ? G.sea.shipsLeft(p) : 0)) : 0 };
+      const r = run({ actor: p.id, type: "playDev", card }, prompt, () => inCtx(ctx, () => o.call(this, p, card)));
+      if (r !== false && ctx.free && ctx.placed < ctx.expected && G._hasLegalRoad(p, true)) { // the bot left a free road unused: the driven game asks, so the log answers
+        const a = { actor: p.id, type: "skipFree" }, pr = { kind: "freeRoad", actor: p.id, remaining: ctx.expected - ctx.placed };
+        emit({ a, prompt: pr, legal: judge(a, pr), ok: true, chance: [] });
+      }
+      return r;
     });
     wrap(g, "chooseYearOfPlentyResources", function (o, [p]) {
       const picks = o.call(this, p);
@@ -857,14 +878,24 @@ export function newGame(game, spec = {}) {
   return e.takeControl("all");
 }
 
-/** Play a log (engine.log()) on a fresh game; returns the engine. Throws on the first action the engine refuses. */
-export function replay(game, log, upTo = Infinity) {
+/**
+ * Play a log (engine.log()) on a fresh game; returns the engine (engine.replayInfo = { played, skipped }). Throws on the first action the
+ * engine refuses. One difference between a bot's turn and a driven turn: the old bots check for the win once, at the end of their
+ * main phase, while the engine (like the tap UI) declares it the moment a seat reaches the target; a bot may therefore still make a
+ * trade or two after its winning move. With `untilWin` (default) those trailing actions of the winner are skipped instead of refused.
+ */
+export function replay(game, log, { untilWin = true } = {}) {
   const e = newGame(game, log.setup);
-  let i = 0;
+  let played = 0, skipped = 0;
   for (const it of log.actions) {
-    if (i++ >= upTo) break;
+    if (untilWin && e.winner() != null) {
+      if (it.a.actor !== e.winner()) throw new Error(`replay: step ${played + skipped + 1} ${JSON.stringify(it.a)} follows a win by another seat`);
+      skipped++; continue;
+    }
     const r = e.apply(it.a, { chance: it.chance });
-    if (!r.ok) throw new Error(`replay: step ${i} ${JSON.stringify(it.a)} refused: ${r.reason}`);
+    if (!r.ok) throw new Error(`replay: step ${played + skipped + 1} ${JSON.stringify(it.a)} refused: ${r.reason}`);
+    played++;
   }
+  e.replayInfo = { played, skipped };
   return e;
 }
