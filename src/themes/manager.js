@@ -81,9 +81,23 @@ export function effectivePalette() {
   if (mode === "system") return systemDark() ? "night" : dayPalette();
   return palettePref();
 }
+/** v1.93.2: the next ~2 days of phase edges [[ms, "day|dusk|night"], ...] for the index.html head script, so a launch hours
+ *  after the last one still paints the right palette on the first frame (a stale "last palette" flipped light -> dark). */
+function storeSched() {
+  try {
+    const out = []; let t = clockNow().getTime();
+    for (let i = 0; i < 10; i += 1) {
+      const d = new Date(t), info = timePhase(d, estimatePlace(d));
+      out.push([t, info.phase]);
+      if (!info.next || info.next <= t) break;
+      t = info.next + 1000;
+    }
+    store.set("colonist.autoSched", JSON.stringify(out));
+  } catch (_) { /* optional */ }
+}
 function applyPaletteAttr({ soft = false } = {}) {
   const p = effectivePalette();
-  if (paletteAutoMode() === "time") store.set(PHASE_KEY, p); // the index.html head script paints this before first frame
+  if (paletteAutoMode() === "time") { store.set(PHASE_KEY, p); storeSched(); } // the index.html head script paints this before first frame
   if (document.documentElement.dataset.palette === p) return;
   const root = document.documentElement;
   if (soft) { // a slow cross-fade instead of a jump (CSS: html.pal-fade; game.js fades a snapshot of the board)
@@ -94,6 +108,7 @@ function applyPaletteAttr({ soft = false } = {}) {
   root.dataset.palette = p;
   const tc = document.querySelector('meta[name="theme-color"]');
   if (tc) tc.content = root.dataset.theme === "A" && p === "night" ? "#0E1B22" : root.dataset.theme === "A" && p === "dusk" ? "#1D1828" : "#2d6888";
+  window.__tcFinal = tc.content;
   document.dispatchEvent(new CustomEvent("colonist:palette", { detail: { palette: p, soft } }));
 }
 /** Pick a palette: an explicit pick switches Auto off. */
