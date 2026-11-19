@@ -21,7 +21,7 @@ const askCache = () => { try { return JSON.parse(localStorage.getItem(ASK_KEY) |
 const askSave = (o) => { try { const ks = Object.keys(o); if (ks.length > 40) ks.slice(0, ks.length - 40).forEach((k) => delete o[k]); localStorage.setItem(ASK_KEY, JSON.stringify(o)); } catch (_) { /* private mode */ } };
 const norm = (q) => String(q).trim().toLowerCase().replace(/\s+/g, " ");
 const TITLES = { setup: ["Starting spot", "Startplek"], build: ["What to build", "Wat bouw je"], timing: ["Ending your turn early", "Beurt te vroeg beëindigd"], trade: ["Trading", "Ruilen"], dev: ["Development cards", "Ontwikkelkaarten"], robber: ["Robber", "Rover"] };
-const UNITS = { setup: ["Your starts", "Jouw starts"], build: ["Your builds", "Jouw bouwkeuzes"], timing: ["Your turns", "Jouw beurten"], trade: ["Your trades", "Jouw ruilen"], dev: ["Your cards", "Jouw kaarten"], robber: ["Your robber moves", "Jouw rover-zetten"] };
+const UNITS = { setup: ["Your starts", "Jouw opstellingen"], build: ["Your builds", "Jouw bouwkeuzes"], timing: ["Your turns", "Jouw beurten"], trade: ["Your trades", "Jouw ruilen"], dev: ["Your cards", "Jouw kaarten"], robber: ["Your robber moves", "Jouw rover-zetten"] };
 const SUBS = { setup: ["Weaker start", "Zwakkere start"], build: ["A better build", "Een betere bouwzet"], timing: ["Turn ended early", "Beurt te vroeg beëindigd"], trade: ["A better trade", "Een betere ruil"], dev: ["A better card move", "Een betere kaartzet"], robber: ["A better robber spot", "Een betere roverplek"] };
 const rname = (r) => resName(r, lang()).toLowerCase();
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
