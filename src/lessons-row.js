@@ -32,7 +32,7 @@ export function rowOf(payload, m) {
   const own = (state?.stats?.ev || []).filter((e) => e[0] === 0 && e[1] === "b" && e[2] === m.me && e[3] === "s").map((e) => e[4]); // my start settlements, in order
   const dec = gl.ex.slice().sort((a, b) => b.gp - a.gp || a.i - b.i).slice(0, 12).map((e) => ({ t: e.t, i: e.i, c: e.cat, l: e.cls, g: e.gp, a: e.A, b: e.B, pk: kindOf(e.x.label), bk: kindOf(e.x.best.label), p: spec(e.x.focus), q: spec(e.x.best.focus), pd: detail(e.x), bd: detail(e.x.best), ...(e.cat === "setup" && e.x.focus?.node != null && own.length > 1 && own[1] === e.x.focus.node ? { o: own[0] } : {}) }));
   const cl = {}; gl.ex.forEach((e) => { const c = (cl[e.cat] ||= [0, 0]); c[0] += 1; c[1] += e.gp; });
-  const row = { v: ROW_V, k: rowKey(m), n: m.n || 4, ek: `${m.rk || ""}|${m.fmt || ""}`, dec, cl, seen: gl.seen, marks: gl.ex.length, gp: gl.ex.reduce((s, e) => s + e.gp, 0) };
+  const row = { v: ROW_V, k: rowKey(m), n: m.n || 4, ek: m.rk || "", dec, cl, seen: gl.seen, marks: gl.ex.length, gp: gl.ex.reduce((s, e) => s + e.gp, 0) };
   const me = m.me, n = m.n || 4, T = m.turns || 0;
   const bd = boardOf(state); if (bd) row.bd = boardPack(bd);
   try {

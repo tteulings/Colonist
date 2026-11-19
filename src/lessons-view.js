@@ -103,6 +103,19 @@ export function exModel(e, board) {
   return m;
 }
 
+/** the headline of a set-up lesson, counted over ALL the examples: the kinds missing from the start in >= 2 of them (ties all named), and in how many starts at least one of those was missing.
+ *  models[i].miss = the kinds example i's start lacks. Returns { top: kinds (most missed first), tops: example indexes, lead, count: text (per kind), n } or { top: [] } when no kind is missing twice. */
+export function missHeadline(models, n = models.length) {
+  const miss = {}; models.forEach((m) => (m?.miss || []).forEach((r) => { miss[r] = (miss[r] || 0) + 1; }));
+  const top = Object.entries(miss).filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1] || R5.indexOf(a[0]) - R5.indexOf(b[0])).map(([r]) => r);
+  if (!top.length) return { top, tops: [], lead: null, count: null, n };
+  const tops = models.map((m, i) => (m?.miss?.some((r) => top.includes(r)) ? i : -1)).filter((i) => i >= 0), names = top.map(rn);
+  const orEn = list(names).replace(" and ", " or "), orNl = list(names).replace(" en ", " of ");
+  return { top, tops, n,
+    lead: L(`In ${tops.length} of ${n} starts you missed ${orEn}.`, `In ${tops.length} van ${n} starts miste je ${orNl}.`),
+    count: L("Missing: ", "Gemist: ") + top.map((r) => `${rn(r)} ${miss[r]}×`).join(", ") + "." };
+}
+
 // ── answers to the three preset questions, worded only from the examples' own numbers ──
 export const QS = [
   { id: "better", en: "How do I get better at this?", nl: "Hoe word ik hier beter in?" },
@@ -115,12 +128,10 @@ export function answerDec(les, q, models) {
   const ex = les.examples, n = ex.length; if (!n) return null;
   const idx = (f) => ex.map((e, i) => (f(e, models[i], i) ? i : -1)).filter((i) => i >= 0);
   if (les.cat === "setup" && models.some((m) => m?.a)) {
-    const wb = idx((e, m) => m?.miss?.some((r) => r === "wood" || r === "brick")), miss = {}; models.forEach((m) => (m?.miss || []).forEach((r) => { miss[r] = (miss[r] || 0) + 1; }));
-    const top = Object.entries(miss).sort((a, b) => b[1] - a[1]).filter(([, c]) => c >= 2).slice(0, 2).map(([r]) => r), tops = idx((e, m) => m?.miss?.some((r) => top.includes(r)));
+    const { top, tops, lead: found, count: cnt } = missHeadline(models, n);
     const five = idx((e, m) => m?.b && m.b.kinds === 5), more = idx((e, m) => m?.b && m.a && m.b.kinds > m.a.kinds);
-    const found = top.length ? L(`Your start often misses ${list(top.map(rn).sort())}.`.replace(" and ", " or "), `Je start mist vaak ${list(top.map(rn)).replace(` ${"en"} `, " of ")}.`) : null;
-    const cnt = top.length ? L(`In ${tops.length} of ${n} starts one of those was missing.`, `In ${tops.length} van ${n} starts ontbrak er een van.`) : L(`In ${more.length} of ${n} starts the better spot gave a kind more.`, `In ${more.length} van ${n} starts gaf de betere plek een soort erbij.`);
-    if (q === "wrong") return { lead: found || L("Your starts gave fewer kinds than the better ones.", "Je starts gaven minder soorten dan de betere."), text: cnt, chips: (top.length ? tops : more).map((i) => ({ ex: i, side: "p" })), extra: five.length ? { text: L(`In ${five.map((i) => i + 1).join(", ")} all 5 kinds were possible.`, `In ${five.map((i) => i + 1).join(", ")} kon je alle 5 soorten hebben.`), chips: five.slice(0, 3).map((i) => ({ ex: i, side: "q" })) } : null };
+    if (!cnt) return { lead: L("Your starts gave fewer kinds than the better ones.", "Je starts gaven minder soorten dan de betere."), text: L(`In ${more.length} of ${n} starts the better spot gave a kind more.`, `In ${more.length} van ${n} starts gaf de betere plek een soort erbij.`), chips: more.map((i) => ({ ex: i, side: "p" })), extra: null };
+    if (q === "wrong") return { lead: found, text: cnt, chips: (top.length ? tops : more).map((i) => ({ ex: i, side: "p" })), extra: five.length ? { text: L(`In ${five.map((i) => i + 1).join(", ")} all 5 kinds were possible.`, `In ${five.map((i) => i + 1).join(", ")} kon je alle 5 soorten hebben.`), chips: five.slice(0, 3).map((i) => ({ ex: i, side: "q" })) } : null };
     if (q === "rule") return { lead: top.length ? L(`Check first whether ${list(top.map(rn).sort()).replace(" and ", " or ")} is in your start.`, `Kijk eerst of ${list(top.map(rn)).replace(` en `, " of ")} in je start zit.`) : L("Check first which kinds your start still misses.", "Kijk eerst welke soorten je start nog mist."), text: cnt, chips: more.slice(0, 3).map((i) => ({ ex: i, side: "q" })), extra: null };
     return { lead: L("Look at which kinds you miss before you look at the numbers.", "Kijk eerst welke soorten je mist, dan pas naar de getallen."), text: cnt, chips: more.slice(0, 3).map((i) => ({ ex: i, side: "q" })), extra: null };
   }

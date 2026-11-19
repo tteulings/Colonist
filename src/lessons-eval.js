@@ -13,7 +13,7 @@ const se = (a) => { if (a.length < 2) return null; const m = mean(a); return Mat
 export const wilson = (k, n, z = 1.28) => { if (!n) return [0, 1]; const p = k / n, d = 1 + z * z / n, c = p + z * z / (2 * n), r = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)); return [Math.max(0, (c - r) / d), Math.min(1, (c + r) / d)]; };
 export const streakNeeded = (p) => { let m = 3; while (Math.pow(1 - p, m) > 0.1 && m < 8) m++; return m; };
 
-/** the games the lessons are made from: reviewed, with a row, the newest 12 that were reviewed like the newest one (same engine tag and format) */
+/** the games the lessons are made from: reviewed, with a row, the newest 12 that were reviewed like the newest one (same review engine tag; the scores are re-scored by the current formula whatever their stored format) */
 export function usable(items) {
   const have = items.filter((g) => g.lr), first = have[0]; if (!first) return { used: [], skipped: 0 };
   const same = have.filter((g) => g.lr.ek === first.lr.ek);

@@ -60,7 +60,7 @@ export const LessonsMixin = {
   async _lnRefresh() {
     try { const items = await this._lnItems(); this._ln.items = items; this._ln.D = buildLessons(items); } catch (_) { this._ln.items = []; this._ln.D = buildLessons([]); }
   },
-  _lnCur() { const S = this._ln; return S?.id ? [...S.D.lessons, ...S.D.watch].find((l) => l.id === S.id) || null : null; },
+  _lnCur() { const S = this._ln; return S?.id && S.D ? [...S.D.lessons, ...S.D.watch].find((l) => l.id === S.id) || null : null; },
   _lnBoard(gid) { const it = this._ln.items?.find((x) => x.id === gid); return it?.lr?.bd ? boardUnpack(it.lr.bd) : null; },
   _lnColor(pid) { return this.players?.[pid]?.color || this.theme?.seatColors?.[pid] || "#D1453A"; },
   /** the examples of a lesson as the page shows them: the row's move plus its board, its model and where it belongs */
@@ -75,7 +75,7 @@ export const LessonsMixin = {
     const S = this._ln; if (!S || S.an?.running) return;
     const todo = this._lnTodo(); if (!todo.length) return;
     const an = (S.an = { running: true, done: 0, total: todo.length, token: (this._lnTok = (this._lnTok || 0) + 1) });
-    this._lnDrawSoon();
+    this._lnDraw();
     const step = async () => {
       if (this._ln !== S || S.an !== an || this._lnTok !== an.token) return;
       const next = this._lnTodo()[0];
@@ -85,7 +85,7 @@ export const LessonsMixin = {
       if (row === undefined) { next.none = true; } // could not be analysed (kept as it is, not tried again now)
       else { await this.hist.patch(next.id, { lr: row }); next.lr = row.none ? null : row; next.none = !!row.none; next.meta.lr = row; }
       an.done += 1;
-      if (an.done % 2 === 0 || !this._lnTodo().length) { S.D = buildLessons(S.items); this._lnDrawSoon(); }
+      S.D = buildLessons(S.items.filter((x) => !x.none || x.lr)); this._lnDraw();
       this._lnIdle(step);
     };
     this._lnIdle(step);
@@ -249,7 +249,7 @@ export const LessonsMixin = {
   },
   _lnEx(e, i) {
     const idx = e.i0 + 1, m = e.model, turn = e.c === "setup" ? L("Start", "Start") : L(`Turn ${e.t}`, `Beurt ${e.t}`);
-    return `<article class="ln-c ln-exc" id="lnex${e.i0}" data-ex="${e.i0}"><div class="ln-row"><span class="ln-sub"><b class="ln-ref big">${idx}</b> <b>${esc(turn)}</b> · ${esc(day(e.end))} · <span class="${resCls(e.result)}">${esc(resWord(e.result))}</span></span><button type="button" class="ln-open" data-lnex="${e.i0}">${L("Open", "Open")} ›</button></div>
+    return `<article class="ln-c ln-exc" id="lnex${e.i0}" data-ex="${e.i0}" data-gid="${esc(e.gid)}" data-turn="${e.t}"><div class="ln-row"><span class="ln-sub"><b class="ln-ref big">${idx}</b> <b>${esc(turn)}</b> · ${esc(day(e.end))} · <span class="${resCls(e.result)}">${esc(resWord(e.result))}</span></span><button type="button" class="ln-open" data-lnex="${e.i0}">${L("Open", "Open")} ›</button></div>
       <div class="ln-pair"><div><div class="ln-lbl"><span>${L("You chose", "Jij koos")}</span><b class="neg">${num(e.b)}%</b></div>${this._lnExSide(e, "p", 150)}</div><div><div class="ln-lbl"><span>${L("Better", "Beter")}</span><b class="pos">${num(e.a)}%</b></div>${this._lnExSide(e, "q", 150)}</div></div>
       ${m.lines?.length ? `<div class="ln-two"><span>${esc(m.lines[0])}</span><span class="soft">${esc(m.lines[1])}</span></div>` : ""}</article>`;
   },
