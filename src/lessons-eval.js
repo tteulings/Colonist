@@ -24,6 +24,8 @@ const gamesOf = (used) => used.map((g) => ({ id: g.id, end: g.end, result: g.res
 
 function decLesson(cat, G) { // G: oldest first
   const N = G.length, per = G.map((g) => g.lr.cl?.[cat] || [0, 0]), gpg = per.map((p) => p[1]), moves = sum(per.map((p) => p[0])), total = sum(gpg);
+  // an example that shows the same move twice (no board spot to compare, same kind and detail) teaches nothing: it counts in the numbers but is not shown
+  const same = (d) => !(d.p && d.q && d.p[0] === d.q[0]) && d.pk === d.bk && JSON.stringify(d.pd ?? null) === JSON.stringify(d.bd ?? null);
   const ds = G.flatMap((g) => g.lr.dec.filter((d) => d.c === cat).map((d) => ({ ...d, gid: g.id, end: g.end, result: g.result })));
   const top = ds.slice().sort((a, b) => b.g - a.g)[0] || null, games = per.filter((p) => p[0]).length;
   const bigGames = G.filter((g) => g.lr.dec.some((d) => d.c === cat && d.g >= MIN.big)).length;
@@ -32,10 +34,14 @@ function decLesson(cat, G) { // G: oldest first
   const status = enough ? "les" : moves >= 2 || (top && top.g >= 10) ? "watch" : "quiet";
   const clean = (() => { let c = 0; for (let i = N - 1; i >= 0 && !per[i][0]; i--) c++; return c; })();
   const rec = gpg.slice(-3), old = gpg.slice(0, -3), trend = old.length >= 3 && rec.length >= 3 ? { recent: mean(rec), earlier: mean(old) } : null;
-  const need = status === "watch" ? (N < MIN.games ? { games: MIN.games - N } : bigGames < MIN.gamesWithMove ? { games: MIN.gamesWithMove - bigGames } : moves < MIN.moves ? { moves: MIN.moves - moves } : concentrated ? { spread: Math.round(100 * (top && total ? Math.max(top.g / total, topGame / total) : 0)) } : {}) : null;
-  const prog = Math.min(1, (Math.min(N, MIN.games) / MIN.games + Math.min(moves, MIN.moves) / MIN.moves + Math.min(bigGames, MIN.gamesWithMove) / MIN.gamesWithMove) / 3);
-  return { id: "dec-" + cat, kind: "dec", cat, status, cost: total / N, se: se(gpg), k: games, N, moves, total, top, bigGames, concentrated, need, prog, clean, trend, series: G.map((g, i) => ({ id: g.id, end: g.end, result: g.result, v: gpg[i] })), examples: ds.sort((a, b) => b.g - a.g || b.end - a.end), p: games / N };
+  const topShare = total > 0 ? Math.max(top ? top.g / total : 0, topGame / total) : 0;
+  // what is still missing, and how far it is (the bar is the share of the three conditions met, never full while it is a watch)
+  const need = status === "watch" ? (N < MIN.games ? { games: MIN.games - N } : bigGames < MIN.gamesWithMove ? { games: MIN.gamesWithMove - bigGames } : moves < MIN.moves ? { moves: MIN.moves - moves } : games / N < MIN.share ? { share: [Math.round(100 * games / N), Math.round(100 * MIN.share)] } : concentrated ? { spread: Math.round(100 * topShare), limit: 50 } : {}) : null;
+  const ratio = need?.games ? (N < MIN.games ? N / MIN.games : bigGames / MIN.gamesWithMove) : need?.moves ? moves / MIN.moves : need?.share ? (games / N) / MIN.share : need?.spread ? Math.min(1, (need.limit / 100) / Math.max(0.01, topShare)) : 0.9;
+  const prog = Math.min(0.95, Math.max(0.05, ratio));
+  return { id: "dec-" + cat, kind: "dec", cat, status, cost: total / N, se: se(gpg), k: games, N, moves, total, top, bigGames, concentrated, need, prog, clean, trend, series: G.map((g, i) => ({ id: g.id, end: g.end, result: g.result, v: gpg[i] })), examples: ds.filter((d) => !same(d)).sort((a, b) => b.g - a.g || b.end - a.end), p: games / N };
 }
+const g_blk = (rb) => { const b = rb.filter((g) => g.lr.rb); return b.length ? { mine: mean(b.map((g) => g.lr.rb[0])), opp: mean(b.map((g) => g.lr.rb[1])), N: b.length } : null; };
 function mechLessons(G) {
   const out = { lessons: [], watch: [], strong: [] };
   const sc = G.filter((g) => g.lr.sc), N = sc.length;
@@ -43,14 +49,14 @@ function mechLessons(G) {
     const mine = sum(sc.map((g) => g.lr.sc[ri])), opp = sum(sc.map((g) => g.lr.oc[ri])), oppN = sum(sc.map((g) => g.lr.on)), [lo] = wilson(mine, N), rate = oppN ? opp / oppN : 0;
     const base = { id: "res-" + r, kind: "res", res: r, k: mine, N, opp, oppN, series: sc.map((g) => ({ id: g.id, end: g.end, result: g.result, v: g.lr.sc[ri] })), cost: null };
     if (N >= 4 && mine / N >= 0.6 && lo > rate) out.lessons.push({ ...base, status: "les" });
-    else if (N >= 4 && mine >= 3 && mine / N >= 0.5) out.watch.push({ ...base, status: "watch", prog: Math.min(1, lo / Math.max(rate, 0.01) / 1) * 0 + Math.min(1, mine / 4), need: { games: Math.max(1, 4 - N) } });
+    else if (N >= 4 && mine >= 3 && mine / N >= 0.5) out.watch.push({ ...base, status: "watch", prog: Math.min(0.95, mine / N / 0.6), need: { share: [Math.round(100 * mine / N), 60] } });
   });
   const rb = G.filter((g) => g.lr.rob), RN = rb.length;
   if (RN) {
     const worse = rb.filter((g) => g.lr.rob[0] >= g.lr.rob[1] + 5), low = rb.filter((g) => g.lr.rob[0] < g.lr.rob[1] - 3);
-    const base = { id: "rob", kind: "rob", N: RN, mine: mean(rb.map((g) => g.lr.rob[0])), opp: mean(rb.map((g) => g.lr.rob[1])), series: rb.map((g) => ({ id: g.id, end: g.end, result: g.result, v: g.lr.rob[0], o: g.lr.rob[1] })), cost: null };
+    const base = { id: "rob", kind: "rob", N: RN, mine: mean(rb.map((g) => g.lr.rob[0])), opp: mean(rb.map((g) => g.lr.rob[1])), blk: g_blk(rb), series: rb.map((g) => ({ id: g.id, end: g.end, result: g.result, v: g.lr.rob[0], o: g.lr.rob[1] })), cost: null };
     if (RN >= 4 && worse.length / RN >= 0.6) out.lessons.push({ ...base, status: "les", k: worse.length });
-    else if (worse.length >= 3 && worse.length / RN >= 0.4) out.watch.push({ ...base, status: "watch", k: worse.length, prog: Math.min(1, worse.length / 4), need: { games: 1 } });
+    else if (worse.length >= 3 && worse.length / RN >= 0.4) out.watch.push({ ...base, status: "watch", k: worse.length, prog: Math.min(0.95, worse.length / RN / 0.6), need: { share: [Math.round(100 * worse.length / RN), 60] } });
     if (RN >= 3 && low.length >= 3 && low.length / RN >= 0.5) out.strong.push({ ...base, status: "strong", k: low.length });
   }
   const bk = G.filter((g) => g.lr.b4), BN = bk.length;
@@ -58,7 +64,7 @@ function mechLessons(G) {
     const many = bk.filter((g) => g.lr.b4[0] >= 3 && g.lr.b4[0] >= g.lr.b4[1] + 2);
     const base = { id: "b4", kind: "b4", N: BN, k: many.length, mine: mean(bk.map((g) => g.lr.b4[0])), opp: mean(bk.map((g) => g.lr.b4[1])), series: bk.map((g) => ({ id: g.id, end: g.end, result: g.result, v: g.lr.b4[0], o: g.lr.b4[1] })), cost: null };
     if (BN >= 4 && many.length / BN >= 0.5) out.lessons.push({ ...base, status: "les" });
-    else if (many.length >= 3 && many.length / BN >= 0.4) out.watch.push({ ...base, status: "watch", prog: Math.min(1, many.length / 4), need: { games: 1 } });
+    else if (many.length >= 3 && many.length / BN >= 0.4) out.watch.push({ ...base, status: "watch", prog: Math.min(0.95, many.length / BN / 0.5), need: { share: [Math.round(100 * many.length / BN), 50] } });
   }
   return out;
 }
