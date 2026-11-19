@@ -6,10 +6,10 @@ import { loadPractice, savePractice, practiceStats, pickPractice, exKey } from "
 import { buildLessons } from "./lessons-eval.js";
 import { rowKey } from "./lessons-row.js";
 import { boardUnpack } from "./lessons-geo.js";
-import { L, pl, esc, day, cropSvg, tileHtml, exModel, spotHexes, QS, answerDec } from "./lessons-view.js";
+import { L, pl, ofN, esc, day, cropSvg, tileHtml, exModel, spotHexes, QS, answerDec, missHeadline } from "./lessons-view.js";
 import { RECAP_URL, recapLang } from "./review-recap.js";
-import { resName } from "./resources.js";
-import { lang, onLang, num } from "./i18n.js";
+import { resName, RES_COLOR } from "./resources.js";
+import { lang, onLang, num, tn } from "./i18n.js";
 import { oicon } from "./ui-icons.js";
 
 const CHEV_L = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -28,10 +28,16 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const titleOf = (l) => (l.kind === "dec" ? L(...TITLES[l.cat]) : l.kind === "res" ? L(`${cap(rname(l.res))} is scarce`, `${cap(rname(l.res))} is schaars`) : l.kind === "rob" ? L("Robber and 7s", "Rover en 7") : l.kind === "b4" ? L("Often 4:1 with the bank", "Vaak 4:1 bij de bank") : l.kind === "learned" ? L(...TITLES[l.cat]) : L("Games without a marked move", "Potjes zonder gemarkeerde zet"));
 const gamesN = (n) => pl(n, "game", "games", "potje", "potjes");
 const movesN = (n) => pl(n, "move", "moves", "zet", "zetten");
+/** the marked moves are the ones that cost >= 1 point of win chance (the game's own review also lists the smaller ones) */
+const markedN = (n) => L(`${num(n)} ${tn(n, "move", "moves")} of ≥1 point marked`, `${num(n)} ${tn(n, "zet", "zetten")} van ≥1 punt gemarkeerd`);
+const cardsN = (v) => pl(Math.round(v), "card", "cards", "kaart", "kaarten");
+const ptN = (v) => `−${num(Math.max(1, Math.round(v)))} pt`;
+const FAIR_LOW = 15;
 const pct = (v) => `${num(Math.round(v))}%`;
 const resWord = (r) => (r === "won" ? L("won", "gewonnen") : r === "lost" ? L("lost", "verloren") : "");
 const resCls = (r) => (r === "won" ? "pos" : r === "lost" ? "neg" : "");
 
+const c0 = (P, i) => P.ex === i;
 export const LessonsMixin = {
   // ── data ──
   /** The reviewed games of this device (one person's review each), newest first, each with its row when it has one. */
@@ -131,18 +137,19 @@ export const LessonsMixin = {
     if (loading || !D) { sub = L("Loading…", "Laden…"); body = `<p class="hs-note" role="status">${L("Reading your games…", "Je potjes lezen…")}</p>`; }
     else if (!S.items.length) { sub = L("Learn from your reviewed games", "Leer van je beoordeelde potjes"); body = this._lnEmpty(); }
     else if (les) { title = titleOf(les); sub = this._lnSub(les); body = this._lnLesson(les); }
-    else { sub = D.N ? L(`From ${gamesN(D.N)} reviewed · ${movesN(D.moves)} marked`, `Uit ${gamesN(D.N)} beoordeeld · ${movesN(D.moves)} gemarkeerd`) : L("Your games are being read", "Je potjes worden gelezen"); body = this._lnHome(); }
+    else { sub = D.N ? L(`From ${gamesN(D.N)} reviewed · ${markedN(D.moves)}`, `Uit ${gamesN(D.N)} beoordeeld · ${markedN(D.moves)}`) : L("Your games are being read", "Je potjes worden gelezen"); body = this._lnHome(); }
     if (S.view === "home" && S.tab === "potjes" && D?.N) title = L("Your games", "Jouw potjes");
     el.innerHTML = `<div class="hs-bar"><button type="button" class="hs-x" data-lnback aria-label="${les ? L("Back to Lessons", "Terug naar Lessen") : L("Back", "Terug")}">${CHEV_L}</button><div><h3>${esc(title)}</h3><small>${esc(sub)}</small></div></div><div class="hs-scroll ln-scroll">${body}</div>`;
     el.querySelector(".hs-scroll").scrollTop = scroll;
   },
   _lnEmpty() {
-    return `<section class="ln-c ln-empty"><i class="ln-ico" aria-hidden="true">${LESSONS_ICON}</i><h4>${L("Lessons appear after you review games", "Lessen verschijnen nadat je potjes hebt beoordeeld")}</h4><p>${L("Play a game, then open its game review. Your marked moves are then collected across games, so you see what costs you the most.", "Speel een potje en open dan de spelreview. Je gemarkeerde zetten worden dan over potjes heen verzameld, zodat je ziet wat je het meest kost.")}</p><button type="button" class="hs-btn pri" data-lnpast>${L("Past games", "Eerdere spellen")}</button></section>`;
+    return `<section class="ln-c ln-empty"><i class="ln-ico" aria-hidden="true">${LESSONS_ICON}</i><h4>${L("Lessons appear after you review games", "Lessen verschijnen nadat je potjes hebt beoordeeld")}</h4><p>${L("Play a game, then open its game review. Your marked moves are then collected across games, so you see what costs you the most.", "Speel een potje en open dan de spelreview. Je gemarkeerde zetten worden dan over potjes heen verzameld, zodat je ziet wat je het meest kost.")}</p><button type="button" class="hs-btn pri" data-lnpast>${L("Past games", "Eerdere potjes")}</button></section>`;
   },
   _lnSub(les) {
     const unit = les.kind === "dec" ? L(...SUBS[les.cat]) : null;
-    if (les.kind === "dec") return L(`${unit} in ${les.k} of ${les.N} games`, `${unit} in ${les.k} van ${les.N} potjes`);
-    return L(`In ${les.k} of ${les.N} games`, `In ${les.k} van ${les.N} potjes`);
+    if (les.kind === "dec") return L(`${unit} in ${ofN(les.k, les.N)}`, `${unit} in ${ofN(les.k, les.N)}`);
+    if (les.kind === "rob") return L(`In ${ofN(les.k, les.N)} more cards lost than the bots`, `In ${ofN(les.k, les.N)} meer kaarten kwijt dan de bots`);
+    return L(`In ${ofN(les.k, les.N)}`, `In ${ofN(les.k, les.N)}`);
   },
   _lnAn() {
     const a = this._ln.an; if (!a?.running) return "";
@@ -164,78 +171,121 @@ export const LessonsMixin = {
     let out = tabs + this._lnAn();
     if (!D.N) return out + `<section class="ln-c"><h4>${L("Reading your games", "Je potjes worden gelezen")}</h4><p>${L("The lessons appear as soon as the first games are read.", "De lessen verschijnen zodra de eerste potjes zijn gelezen.")}</p></section>` + this._lnFoot();
     if (D.lessons.length) out += `<h5 class="ln-sec">${L("Your lessons, biggest loss first", "Jouw lessen, grootste verlies eerst")}</h5>` + D.lessons.map((l, i) => this._lnCard(l, i === 0 && l.kind === "dec")).join("");
-    else out += `<section class="ln-c"><h4>${L("No lesson yet", "Nog geen les")}</h4><p>${L("A lesson needs 3 marked moves of one kind in 2 games.", "Een les vraagt 3 gemarkeerde zetten van één soort in 2 potjes.")}</p></section>`;
+    else out += `<section class="ln-c"><h4>${L("No lesson yet", "Nog geen les")}</h4><p>${L("A lesson needs 3 marked moves of one kind in 2 games.", "Een les vraagt 3 gemarkeerde zetten van één soort in 2 potjes.")}</p>${this._lnCatBars(D)}</section>`;
     if (D.watch.length) out += `<h5 class="ln-sec">${L("Too little to say yet", "Nog te weinig om te zeggen")}</h5>` + D.watch.map((l) => this._lnWatch(l)).join("");
     if (D.strong.length) out += `<h5 class="ln-sec">${L("Going well", "Dit gaat goed")}</h5>` + D.strong.map((l) => this._lnStrong(l)).join("");
     return out + this._lnFoot();
   },
   _lnFoot() {
-    const S = this._ln, D = S.D, all = S.items.length, seen = D.N + D.skipped;
-    const cov = L(`${num(S.items.length)} reviewed games on this device.`, `${num(S.items.length)} beoordeelde potjes op dit apparaat.`);
-    return `<p class="ln-foot">${L("A lesson needs 3 marked moves in 2 games. Percentages are win chance per game, ± is the spread over your games.", "Een les vraagt ≥3 zetten in ≥2 potjes. Percentages zijn winkans per potje, ± = spreiding over je potjes.")}${D.skipped ? ` ${L(`${gamesN(D.skipped)} reviewed with an older method are left out.`, `${gamesN(D.skipped)} met een oudere beoordeling tellen niet mee.`)}` : ""}${all > seen + (this._lnTodo().length) ? "" : ""}</p><p class="ln-foot soft">${cov}</p>`;
+    const S = this._ln, D = S.D, n = S.items.length;
+    const rule = D.lessons.length ? `${L("A lesson needs 3 marked moves in 2 games. ", "Een les vraagt ≥3 zetten in ≥2 potjes. ")}` : "";
+    const cov = tn(n, L(`${num(n)} reviewed game on this device.`, `${num(n)} beoordeeld potje op dit apparaat.`), L(`${num(n)} reviewed games on this device.`, `${num(n)} beoordeelde potjes op dit apparaat.`)) + (n > D.N + D.skipped ? L(` The lessons use the newest ${D.N}.`, ` De lessen gebruiken de nieuwste ${D.N}.`) : "");
+    return `<p class="ln-foot">${rule}${L("pt = percentage points of win chance; ± is the spread over your games.", "pt = procentpunt winkans; ± = spreiding over je potjes.")}${D.skipped ? ` ${L(`${gamesN(D.skipped)} reviewed with an older method are left out.`, `${gamesN(D.skipped)} met een oudere beoordeling tellen niet mee.`)}` : ""}</p><p class="ln-foot soft">${cov}</p>`;
+  },
+  /** where the marked moves are, per kind of decision (counts, no percentages): the visual of the "no lesson yet" card */
+  _lnCatBars(D) {
+    const cnt = {}; D.games.forEach((g) => Object.entries(g.lr.cl || {}).forEach(([c, v]) => { cnt[c] = (cnt[c] || 0) + v[0]; }));
+    const rows = Object.entries(cnt).filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1]); if (!rows.length) return "";
+    const mx = Math.max(...rows.map((r) => r[1]));
+    return `<div class="ln-cb" aria-label="${esc(L("Marked moves per kind", "Gemarkeerde zetten per soort"))}">${rows.map(([c, v]) => `<div class="ln-cr" data-cat="${c}"><span>${esc(L(...TITLES[c]))}</span><span class="ln-gb"><i style="width:${Math.max(8, (v / mx) * 100)}%"></i></span><b>${num(v)}</b></div>`).join("")}</div>`;
   },
   _lnCard(l, focus) {
     const progress = this._lnProgress(l);
     if (l.kind === "dec") {
-      const ex = this._lnExamples(l), line = answerDec(l, "wrong", ex.map((e) => e.model)), txt = l.cat === "setup" ? line?.lead : line?.text;
+      const ex = this._lnExamples(l), line = answerDec(l, "wrong", ex.map((e) => e.model)), txt = l.cat === "setup" ? this._lnSetupLead(ex.map((e) => e.model), line) : line?.text;
       return `<div role="button" tabindex="0" class="ln-c ln-les${focus ? " focus" : ""}" data-lnopen="${l.id}"><span class="ln-row"><b class="ln-t">${esc(titleOf(l))}</b>${focus ? `<em class="ln-tag">${L("Your focus", "Jouw focus")}</em>` : ""}</span>
-        <span class="ln-row end"><span class="ln-big neg">−${num(Math.max(1, Math.round(l.cost)))}%<small> ${L("win chance per game", "winkans per potje")}${l.se != null ? ` ±${num(Math.round(l.se))}` : ""}</small></span><span class="ln-sub">${L("in", "in")} <b>${l.k} ${L("of", "van")} ${l.N}</b> ${L("games", "potjes")}</span></span>
+        <span class="ln-row end"><span class="ln-big neg">${ptN(l.cost)}<small> ${L("win chance per game", "winkans per potje")}${l.se != null ? ` ±${num(Math.round(l.se))}` : ""}</small></span><span class="ln-sub">${L("in", "in")} <b>${ofN(l.k, l.N)}</b></span></span>
         ${this._lnStrip(l.series)}<span class="ln-two"><span>${esc(txt || "")}</span>${progress ? `<span class="soft">${progress}</span>` : ""}</span></div>`;
     }
     const mech = this._lnMech(l);
-    return `<div role="button" tabindex="0" class="ln-c ln-les" data-lnopen="${l.id}"><span class="ln-row"><b class="ln-t">${esc(titleOf(l))}</b></span><span class="ln-row end"><span class="ln-big2">${mech.big}</span><span class="ln-sub">${L("in", "in")} <b>${l.k} ${L("of", "van")} ${l.N}</b> ${L("games", "potjes")}</span></span><span class="ln-two"><span class="soft">${esc(mech.line)}</span></span></div>`;
+    return `<div role="button" tabindex="0" class="ln-c ln-les" data-lnopen="${l.id}"><span class="ln-row"><b class="ln-t">${esc(titleOf(l))}</b></span><span class="ln-row end"><span class="ln-big2">${mech.big}</span><span class="ln-sub">${L("in", "in")} <b>${ofN(l.k, l.N)}</b></span></span><span class="ln-two"><span class="soft">${esc(mech.line)}</span>${mech.line2 ? `<span class="soft">${esc(mech.line2)}</span>` : ""}</span></div>`;
   },
   _lnProgress(l) {
     const out = [];
     if (l.clean >= 1) out.push(L(`The last ${gamesN(l.clean)} without this`, `De laatste ${gamesN(l.clean)} zonder dit`));
-    else if (l.trend) out.push(L(`Last 3 games −${num(Math.round(l.trend.recent))}%, before −${num(Math.round(l.trend.earlier))}% per game`, `Laatste 3 potjes −${num(Math.round(l.trend.recent))}%, daarvoor −${num(Math.round(l.trend.earlier))}% per potje`));
+    else if (l.trend) out.push(L(`Last 3 games ${ptN(l.trend.recent)}, before ${ptN(l.trend.earlier)} per game`, `Laatste 3 potjes ${ptN(l.trend.recent)}, daarvoor ${ptN(l.trend.earlier)} per potje`));
     return esc(out.join(" · "));
   },
   _lnMech(l) {
-    if (l.kind === "res") return { big: `${l.k}/${l.N}`, line: L(`Bots: ${l.opp} of ${l.oppN} (at most 1 dot at turn 5)`, `Bots: ${l.opp} van ${l.oppN} (hooguit 1 stip bij beurt 5)`) };
-    if (l.kind === "rob") return { big: num(Math.round(l.mine)), line: L(`cards lost per game, bots ${num(Math.round(l.opp))}`, `kaarten kwijt per potje, bots ${num(Math.round(l.opp))}`) };
+    if (l.kind === "res") return { big: `${l.k}/${l.N}`, line: L(`Bots: ${l.opp} of ${l.oppN} players (at most 1 dot at turn 5)`, `Bots: ${l.opp} van ${l.oppN} spelers (hooguit 1 stip bij beurt 5)`) };
+    if (l.kind === "rob") return { big: num(Math.round(l.mine)), line: L(`cards stolen from you or discarded per game, bots ${num(Math.round(l.opp))}`, `kaarten gestolen of afgegooid per potje, bots ${num(Math.round(l.opp))}`), line2: l.blk ? L(`Production blocked by the robber: ${cardsN(l.blk.mine)} per game, bots ${num(Math.round(l.blk.opp))}`, `Productie geblokkeerd door de rover: ${cardsN(l.blk.mine)} per potje, bots ${num(Math.round(l.blk.opp))}`) : "" };
     return { big: num(Math.round(l.mine * 10) / 10), line: L(`4:1 trades per game, bots ${num(Math.round(l.opp * 10) / 10)}`, `4:1 ruilen per potje, bots ${num(Math.round(l.opp * 10) / 10)}`) };
+  },
+  _lnNeed(l) {
+    const n = l.need; if (!n) return "";
+    if (n.games) return L(`${n.games} more ${tn(n.games, "game", "games")} needed`, `nog ${gamesN(n.games)} nodig`);
+    if (n.moves) return L(`${movesN(n.moves)} more needed`, `nog ${movesN(n.moves)} nodig`);
+    if (n.share) return L(`now ${n.share[0]}% of the games, a lesson from ${n.share[1]}%`, `nu ${n.share[0]}% van de potjes, vanaf ${n.share[1]}% een les`);
+    if (n.spread) return L(`1 move is ${n.spread}% of the loss; under ${n.limit}% needed`, `1 zet is ${n.spread}% van het verlies; onder ${n.limit}% nodig`);
+    return L("more evidence needed", "meer bewijs nodig");
   },
   _lnWatch(l) {
     let txt;
     if (l.kind === "dec") {
-      if (l.need?.spread) txt = L(`${l.k} of ${l.N} games, but 1 move counts for ${l.need.spread}%.`, `${l.k} van ${l.N} potjes, maar 1 zet telt voor ${l.need.spread}%.`);
-      else txt = L(`${movesN(l.moves)} in ${gamesN(l.k)} (−${num(Math.round(l.total))}%).`, `${movesN(l.moves)} in ${gamesN(l.k)} (−${num(Math.round(l.total))}%).`);
+      if (l.need?.spread) txt = L(`${ofN(l.k, l.N)}, but 1 move counts for ${l.need.spread}%.`, `${ofN(l.k, l.N)}, maar 1 zet telt voor ${l.need.spread}%.`);
+      else txt = L(`${movesN(l.moves)} in ${gamesN(l.k)} (${ptN(l.total)} in all).`, `${movesN(l.moves)} in ${gamesN(l.k)} (${ptN(l.total)} samen).`);
     } else txt = this._lnMech(l).line;
-    const need = l.need?.games ? L(`${l.need.games} more ${l.need.games === 1 ? "game" : "games"}`, `nog ${gamesN(l.need.games)}`) : l.need?.moves ? L(`${movesN(l.need.moves)} more`, `nog ${movesN(l.need.moves)}`) : "";
+    const need = this._lnNeed(l), pc = Math.round((l.prog || 0) * 100);
     return `<div role="button" tabindex="0" class="ln-c ln-les ln-w" data-lnopen="${l.id}"><span class="ln-row"><b class="ln-t">${esc(titleOf(l))}</b><em class="ln-tag soft">${L("Watch", "Let op")}</em></span><span class="ln-two"><span>${esc(txt)}</span></span>
-      <span class="ln-row"><span class="ln-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round((l.prog || 0) * 100)}"><i style="width:${Math.round((l.prog || 0) * 100)}%"></i></span><span class="ln-need">${esc(need)}</span></span></div>`;
+      <span class="ln-need">${esc(need)}</span><span class="ln-bar" role="progressbar" aria-label="${esc(need)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pc}"><i style="width:${pc}%"></i></span></div>`;
   },
   _lnStrong(l) {
     let big = "", line = "", sub = "";
-    if (l.kind === "rob") { big = `<b class="ln-big2 pos">${num(Math.round(l.mine))}</b> <span class="ln-sub">${L(`cards lost, bots ${num(Math.round(l.opp))}`, `kaarten kwijt, bots ${num(Math.round(l.opp))}`)}</span>`; line = L("Averaged per game, you against the 3 bots.", "Gemiddeld per potje, jij tegen de bots."); sub = L(`in <b>${l.k} of ${l.N}</b> games`, `in <b>${l.k} van ${l.N}</b> potjes`); }
+    if (l.kind === "rob") { const mm = this._lnMech(l); big = `<b class="ln-big2 pos">${num(Math.round(l.mine))}</b> <span class="ln-sub">${L(`cards stolen or discarded, bots ${num(Math.round(l.opp))}`, `kaarten gestolen of afgegooid, bots ${num(Math.round(l.opp))}`)}</span>`; line = L("Averaged per game, you against the bots.", "Gemiddeld per potje, jij tegen de bots.") + (mm.line2 ? ` ${mm.line2}.` : ""); sub = L(`in <b>${ofN(l.k, l.N)}</b> fewer than the bots`, `in <b>${ofN(l.k, l.N)}</b> minder dan de bots`); }
     else if (l.kind === "learned") { big = `<b class="ln-big2 pos">${L("Learned", "Geleerd")}</b>`; line = L(`The last ${gamesN(l.m)} without this mistake.`, `De laatste ${gamesN(l.m)} zonder deze fout.`); sub = ""; }
-    else { big = `<b class="ln-big2 pos">${l.k}</b> <span class="ln-sub">${L("games", "potjes")}</span>`; line = L("No move was marked in them.", "Er was geen zet gemarkeerd."); sub = L(`of <b>${l.N}</b>`, `van <b>${l.N}</b>`); }
+    else { big = `<b class="ln-big2 pos">${l.k}</b> <span class="ln-sub">${tn(l.k, L("game", "potje"), L("games", "potjes"))}</span>`; line = L("No move of ≥1 point was marked in them.", "Er was geen zet van ≥1 punt gemarkeerd."); sub = L(`of <b>${l.N}</b>`, `van <b>${l.N}</b>`); }
     return `<div class="ln-c ln-st"><span class="ln-row"><b class="ln-t">${esc(titleOf(l))}</b><em class="ln-tag ok">${L("Strong", "Sterk")}</em></span><span class="ln-row end"><span>${big}</span><span class="ln-sub">${sub}</span></span><span class="ln-two"><span class="soft">${esc(line)}</span></span></div>`;
   },
-  /** the second tab: the games next to each other */
+  /** the win chance curve of one game (your win chance after your last decision of each turn), the dotted fair share, a ring on each marked move */
+  _lnSpark(r, result) {
+    const wc = r.wc; if (!wc || wc.length < 3) return "";
+    const W = 150, H = 46, t0 = wc[0][0], t1 = wc[wc.length - 1][0], ymax = Math.max(40, ...wc.map((q) => q[1])) + 4, fair = 100 / (r.n || 4);
+    const X = (t) => (4 + ((t - t0) / Math.max(1, t1 - t0)) * (W - 8)).toFixed(1), Y = (v) => (H - 3 - (v / ymax) * (H - 8)).toFixed(1);
+    const at = (t) => wc.reduce((b, q) => (Math.abs(q[0] - t) < Math.abs(b[0] - t) ? q : b), wc[0]);
+    const col = result === "won" ? "var(--hs-won)" : result === "lost" ? "var(--hs-lost)" : "var(--ink-soft)";
+    const rings = (r.dec || []).map((d) => at(d.t)).filter((q, k, a) => a.indexOf(q) === k).map((q) => `<circle cx="${X(q[0])}" cy="${Y(q[1])}" r="3.4" fill="var(--sheet)" stroke="${col}" stroke-width="1.8"/>`).join("");
+    return `<svg class="ln-spk" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(L("Your win chance per turn", "Je winkans per beurt"))}"><line x1="2" x2="${W - 2}" y1="${Y(fair)}" y2="${Y(fair)}" stroke="var(--ink-soft)" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/><polyline points="${wc.map((q) => `${X(q[0])},${Y(q[1])}`).join(" ")}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${rings}</svg>`;
+  },
+  /** the second tab: the games next to each other. Per game: the curve, the marked moves (>= 1 point each) and the biggest single one; nothing is summed over moves. */
   _lnGames() {
     const S = this._ln, items = S.items.filter((x) => x.lr);
     if (!items.length) return `<section class="ln-c"><p>${L("The games are being read.", "De potjes worden gelezen.")}</p></section>`;
-    const mx = Math.max(1, ...items.map((x) => x.lr.gp));
-    return `<h5 class="ln-sec">${L("Per game, newest first", "Per potje, nieuwste eerst")}</h5>` + items.map((it) => {
-      const r = it.lr, rob = r.rob ? L(`Robber and 7s: ${num(Math.round(r.rob[0]))} cards lost, bots ${num(Math.round(r.rob[1]))}`, `Rover en 7: ${num(Math.round(r.rob[0]))} kaarten kwijt, bots ${num(Math.round(r.rob[1]))}`) : "";
+    const big = (r) => (r.dec || []).reduce((b, d) => (!b || d.g > b.g ? d : b), null), mx = Math.max(1, ...items.map((x) => big(x.lr)?.g || 0));
+    const marks = items.reduce((a, x) => a + x.lr.marks, 0), top = items.map((x) => ({ x, d: big(x.lr) })).filter((o) => o.d).sort((a, b) => b.d.g - a.d.g)[0];
+    const cv = items.filter((x) => x.lr.wc), low = cv.map((x) => x.lr.wc.find((q) => q[1] < FAIR_LOW)).filter(Boolean);
+    const where = (o) => `${day(o.x.end)}, ${o.d.c === "setup" ? L("set-up", "beginopstelling") : L(`turn ${o.d.t}`, `beurt ${o.d.t}`)}`;
+    const sum = `<section class="ln-c ln-sum"><span class="ln-row"><h4>${L("What stands out", "Wat valt op")}</h4><em class="ln-tag soft">${esc(gamesN(items.length))}</em></span>
+      <p>${esc(L(`${markedN(marks)} in ${gamesN(items.filter((x) => x.lr.marks).length)}.`, `${markedN(marks)} in ${gamesN(items.filter((x) => x.lr.marks).length)}.`))}${top ? ` ${esc(L(`Biggest single move: ${ptN(top.d.g)} win chance (${where(top)}).`, `Grootste enkele zet: ${ptN(top.d.g)} winkans (${where(top)}).`))}` : ""}</p>
+      ${cv.length ? `<p class="soft">${esc(low.length ? L(`Under ${FAIR_LOW}% win chance in ${ofN(low.length, cv.length)}, from turn ${Math.min(...low.map((q) => q[0]))}${low.length > 1 ? `–${Math.max(...low.map((q) => q[0]))}` : ""}.`, `Onder ${FAIR_LOW}% winkans in ${ofN(low.length, cv.length)}, vanaf beurt ${Math.min(...low.map((q) => q[0]))}${low.length > 1 ? `–${Math.max(...low.map((q) => q[0]))}` : ""}.`) : L(`Never under ${FAIR_LOW}% win chance.`, `Nooit onder ${FAIR_LOW}% winkans.`))}</p>` : ""}</section>`;
+    return sum + `<h5 class="ln-sec">${L("Per game, newest first", "Per potje, nieuwste eerst")}</h5>` + items.map((it) => {
+      const r = it.lr, b = big(r), cv1 = r.wc ? r.wc.find((q) => q[1] < FAIR_LOW) : null, sp = this._lnSpark(r, it.result);
+      const robT = r.rob ? L(`Robber and 7s: ${cardsN(r.rob[0])} stolen or discarded (bots ${num(Math.round(r.rob[1]))})${r.rb ? `, ${cardsN(r.rb[0])} of production blocked (bots ${num(Math.round(r.rb[1]))})` : ""}`, `Rover en 7: ${cardsN(r.rob[0])} gestolen of afgegooid (bots ${num(Math.round(r.rob[1]))})${r.rb ? `, ${cardsN(r.rb[0])} productie geblokkeerd (bots ${num(Math.round(r.rb[1]))})` : ""}`) : "";
       return `<div class="ln-c ln-gm" data-lngame="${esc(it.id)}"><span class="ln-row"><b class="ln-t">${esc(day(it.end))}${it.vp != null ? ` · ${pl(it.vp, "point", "points", "punt", "punten")}` : ""}</b><b class="${resCls(it.result)}">${esc(resWord(it.result))}</b></span>
-        <span class="ln-gr"><span>${L("Your choices", "Jouw keuzes")}</span><span class="ln-gb"><i class="${r.gp ? "" : "ok"}" style="width:${r.gp ? Math.max(4, (r.gp / mx) * 100) : 2}%"></i></span><b class="${r.gp ? "neg" : ""}">${r.gp ? `−${num(Math.round(r.gp))}` : "0"}</b></span>
-        <span class="ln-two"><span class="soft">${esc(r.marks ? L(`${movesN(r.marks)} marked`, `${movesN(r.marks)} gemarkeerd`) : L("No move marked", "Geen zet gemarkeerd"))}</span>${rob ? `<span class="soft">${esc(rob)}</span>` : ""}</span></div>`;
-    }).join("");
+        <span class="ln-gs">${sp}<span class="ln-gt"><b>${esc(r.marks ? markedN(r.marks) : L("No move of ≥1 point marked", "Geen zet van ≥1 punt gemarkeerd"))}</b><span class="soft">${esc(r.wc ? (cv1 ? L(`under ${FAIR_LOW}% from turn ${cv1[0]}`, `onder ${FAIR_LOW}% vanaf beurt ${cv1[0]}`) : L(`never under ${FAIR_LOW}%`, `nooit onder ${FAIR_LOW}%`)) : "")}</span></span></span>
+        ${b ? `<span class="ln-gr"><span>${L("Biggest move", "Grootste zet")}</span><span class="ln-gb"><i style="width:${Math.max(4, (b.g / mx) * 100)}%"></i></span><b class="neg">${ptN(b.g)}</b></span>` : ""}
+        ${robT ? `<span class="ln-two"><span class="soft">${esc(robT)}</span></span>` : ""}</div>`;
+    }).join("") + `<p class="ln-foot">${esc(L(`Dotted line = fair share (${Math.round(100 / (items[0].lr.n || 4))}%). Ring = marked move (≥1 point). The bar is the biggest single move, win chance in points.`, `Stippellijn = eerlijk deel (${Math.round(100 / (items[0].lr.n || 4))}%). Ring = gemarkeerde zet (≥1 punt). De balk is de grootste enkele zet, in procentpunt winkans.`))}</p>`;
   },
 
   // ── a lesson ──
+  /** the one sentence of a set-up lesson: the leader kind, else the dots pattern, else the per-kind counts */
+  _lnSetupLead(models, line) { const h = missHeadline(models); return h.lead || h.count || line?.lead || ""; },
+  /** per kind of resource: in how many of the examples' starts it was missing (counts of starts, one unit) */
+  _lnMissBars(models) {
+    const h = missHeadline(models), n = models.length, rows = ["wood", "brick", "sheep", "wheat", "ore"].map((r) => [r, h.miss[r] || 0]).filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]); if (!rows.length) return "";
+    return `<div class="ln-mb" aria-label="${esc(L("Missing kinds per start", "Gemiste soorten per opstelling"))}">${rows.map(([r, c]) => `<div class="ln-mr" data-miss="${r}"><span><i class="lc-rd" style="background:${RES_COLOR[r]}"></i>${esc(cap(rname(r)))}</span><span class="ln-gb"><i style="width:${Math.max(6, (c / n) * 100)}%"></i></span><b>${L(`${c} of ${n} starts`, `${c} van ${n} opstellingen`)}</b></div>`).join("")}</div>`;
+  },
   _lnLesson(les) {
     const S = this._ln;
     if (les.kind !== "dec") return this._lnMechPage(les);
-    const ex = this._lnExamples(les), models = ex.map((e) => e.model), line = answerDec(les, "wrong", models), showN = S.all ? ex.length : Math.min(2, ex.length);
-    const head = `<section class="ln-c ln-focus"><span class="ln-row end"><span class="ln-big neg">−${num(Math.max(1, Math.round(les.cost)))}%<small> ${L("win chance per game", "winkans per potje")}${les.se != null ? ` ±${num(Math.round(les.se))}` : ""}</small></span><span class="ln-sub">${L("in", "in")} <b>${les.k} ${L("of", "van")} ${les.N}</b></span></span>
-      ${this._lnStrip(les.series)}<span class="ln-two"><span>${esc(les.cat === "setup" ? line?.lead || "" : line?.text || "")}</span><span class="soft">${esc(les.status === "les" ? L(`Measured on your ${movesN(les.moves)} marked.`, `Gemeten op jouw ${movesN(les.moves)} gemarkeerd.`) : L("Not enough yet to call this a lesson.", "Nog niet genoeg om dit een les te noemen."))}${this._lnProgress(les) ? ` ${this._lnProgress(les)}` : ""}</span></span></section>`;
-    const exs = `<h5 class="ln-sec">${esc(L(...UNITS[les.cat]))}${L(", biggest loss first", ", grootste verlies eerst")}</h5>` + ex.slice(0, showN).map((e, i) => this._lnEx(e, i)).join("")
-      + (ex.length > showN ? `<button type="button" class="hs-btn ln-more" data-lnmore>${L("More examples", "Meer voorbeelden")} (${ex.length - showN})</button>` : "");
-    return head + exs + this._lnPractice(les, ex) + this._lnAsk(les, ex);
+    const ex = this._lnExamples(les), models = ex.map((e) => e.model), line = answerDec(les, "wrong", models), P = this._lnPracticeP(les, ex), pi = P ? P.ex : -1;
+    const rest = ex.map((_, i) => i).filter((i) => i >= 2 && i !== pi), vis = S.all ? ex.map((_, i) => i).filter((i) => i !== pi) : [0, 1].filter((i) => i < ex.length);
+    const m = les.moves, need = les.status === "les" ? L(`Measured on your ${num(m)} marked ${tn(m, "move", "moves")} (≥1 point).`, `Gemeten op ${num(m)} gemarkeerde ${tn(m, "zet", "zetten")} (≥1 punt).`) : `${L("Not enough yet to call this a lesson", "Nog niet genoeg om dit een les te noemen")}: ${this._lnNeed(les)}.`;
+    const head = `<section class="ln-c ln-focus"><span class="ln-row end"><span class="ln-big neg">${ptN(les.cost)}<small> ${L("win chance per game", "winkans per potje")}${les.se != null ? ` ±${num(Math.round(les.se))}` : ""}</small></span><span class="ln-sub">${L("in", "in")} <b>${ofN(les.k, les.N)}</b></span></span>
+      ${this._lnStrip(les.series)}<span class="ln-two"><span>${esc(les.cat === "setup" ? this._lnSetupLead(models, line) : line?.text || "")}</span><span class="soft">${esc(need)}${this._lnProgress(les) ? ` ${this._lnProgress(les)}` : ""}</span></span>${les.cat === "setup" ? this._lnMissBars(models) : ""}</section>`;
+    const exs = `<h5 class="ln-sec">${esc(L(...UNITS[les.cat]))}${L(", biggest loss first", ", grootste verlies eerst")}</h5><p class="ln-foot left">${L("% = win chance after that choice", "% = winkans na die keuze")}</p>` + vis.map((i) => this._lnEx(ex[i], i)).join("")
+      + (!S.all && rest.length ? `<button type="button" class="hs-btn ln-more" data-lnmore>${L("More examples", "Meer voorbeelden")} (${rest.length})</button>` : "");
+    return head + exs + this._lnPractice(les, ex, P) + this._lnAsk(les, ex);
   },
   _lnExSide(e, which, w) {
     const kind = which === "p" ? e.pk : e.bk, d = which === "p" ? e.pd : e.bd, spec = which === "p" ? e.p : e.q;
@@ -253,11 +303,14 @@ export const LessonsMixin = {
       <div class="ln-pair"><div><div class="ln-lbl"><span>${L("You chose", "Jij koos")}</span><b class="neg">${num(e.b)}%</b></div>${this._lnExSide(e, "p", 150)}</div><div><div class="ln-lbl"><span>${L("Better", "Beter")}</span><b class="pos">${num(e.a)}%</b></div>${this._lnExSide(e, "q", 150)}</div></div>
       ${m.lines?.length ? `<div class="ln-two"><span>${esc(m.lines[0])}</span><span class="soft">${esc(m.lines[1])}</span></div>` : ""}</article>`;
   },
-  _lnPractice(les, ex) {
-    if (!ex.length) return "";
-    const S = this._ln, pr = loadPractice(), st = practiceStats(pr, les.cat);
-    let P = S.pr; if (!P || P.lesson !== les.id) { P = S.pr = this._lnPick(les, ex, pr, null); }
-    if (!P) return "";
+  /** the practice question of this page: a position with a spot on the board that is NOT among the first two examples (those are shown on the page), or null */
+  _lnPracticeP(les, ex) {
+    const S = this._ln; let P = S.pr; if (P && P.lesson === les.id && ex[P.ex]) return P;
+    return (S.pr = this._lnPick(les, ex, loadPractice(), null));
+  },
+  _lnPractice(les, ex, P) {
+    if (!ex.length || !P) return "";
+    const pr = loadPractice(), st = practiceStats(pr, les.cat);
     const e = ex[P.ex], sides = P.flip ? ["q", "p"] : ["p", "q"], opt = (k) => `<div class="ln-opt"><div class="ln-lbl"><span class="ln-ab">${"AB"[k]}</span>${P.pick != null ? `<b class="${sides[k] === "q" ? "pos" : "neg"}">${num(sides[k] === "q" ? e.a : e.b)}%</b>` : ""}</div>${this._lnExSide(e, sides[k], 150)}</div>`;
     const ok = P.pick != null && sides[P.pick] === "q" || (P.pick != null && e.a === e.b);
     const fb = P.pick == null ? `<div class="ln-btns"><button type="button" class="hs-btn pri" data-lnpick="0">${L("Choose A", "Kies A")}</button><button type="button" class="hs-btn pri" data-lnpick="1">${L("Choose B", "Kies B")}</button></div>`
@@ -267,7 +320,9 @@ export const LessonsMixin = {
       <div class="ln-pair">${opt(0)}${opt(1)}</div>${fb}</section>`;
   },
   _lnPick(les, ex, pr, skip) {
-    const e = pickPractice(les.cat, ex.map((x) => ({ ...x, gid: x.gid, i: x.i, end: x.end, x: { best: true } })), pr, skip); if (!e) return null;
+    // only positions with a spot on the board (a tile of "ended the turn" gives nothing to judge) and never one of the two examples the page shows
+    const pool = ex.map((x, i) => ({ x, i })).filter(({ x, i }) => i >= 2 && x.model.spot && x.board && x.p && x.q).map(({ x }) => ({ ...x, gid: x.gid, i: x.i, end: x.end, x: { best: true } }));
+    const e = pickPractice(les.cat, pool, pr, skip); if (!e) return null;
     return { lesson: les.id, ex: ex.findIndex((x) => x.gid === e.gid && x.i === e.i), flip: Math.random() < 0.5, pick: null };
   },
   _lnAsk(les, ex) {
@@ -277,7 +332,7 @@ export const LessonsMixin = {
     return `<section class="ln-c ln-ask" aria-label="${esc(L("Ask", "Vraag"))}"><h4>${L("Ask", "Vraag")}</h4><div class="ln-chips">${chips}</div>${form}<div class="ln-ans" aria-live="polite">${this._lnAns(A, ex)}</div></section>`;
   },
   _lnChip(ex, c) {
-    const e = ex[c.ex]; if (!e) return "";
+    const e = ex[c.ex]; if (!e || (this._ln.pr && this._ln.pr.lesson === this._ln.ask?.lesson && c.ex === this._ln.pr.ex)) return "";
     const thumb = e.model.spot && e.board ? cropSvg(e.board, c.side === "p" ? e.p : e.q, { w: 56, color: this._lnColor(e.pid), label: "" }) : `<i class="ln-ti sm" aria-hidden="true">${oicon(ICON[c.side === "p" ? e.pk : e.bk] || "target")}</i>`;
     return `<button type="button" class="ln-rc" data-lnref="${c.ex}"><span class="ln-ref">${c.ex + 1}</span>${thumb}<small>${c.side === "q" ? L("better", "beter") : esc(day(e.end))}</small></button>`;
   },
@@ -289,15 +344,15 @@ export const LessonsMixin = {
       const x = a.local;
       return `<div class="ln-a"><p class="ln-lead">${esc(x.lead)}</p>${x.text ? `<p class="ln-two"><span class="soft">${esc(x.text)}</span></p>` : ""}<div class="ln-refs">${x.chips.map((c) => this._lnChip(ex, c)).join("")}</div>${x.extra ? `<p class="ln-two"><span class="soft">${esc(x.extra.text)}</span></p><div class="ln-refs">${x.extra.chips.map((c) => this._lnChip(ex, c)).join("")}</div>` : ""}</div>`;
     }
-    const used = []; const html = esc(a.answer || "").replace(/\[(\d{1,2})\]/g, (m, d) => { const i = +d - 1; if (!ex[i]) return ""; if (!used.includes(i)) used.push(i); return `<button type="button" class="ln-ref in" data-lnref="${i}" aria-label="${esc(L("Example", "Voorbeeld"))} ${d}">${d}</button>`; });
+    const used = []; const html = esc(a.answer || "").replace(/\[(\d{1,2})\]/g, (m, d) => { const i = +d - 1; if (!ex[i] || (this._ln.pr && c0(this._ln.pr, i))) return ""; if (!used.includes(i)) used.push(i); return `<button type="button" class="ln-ref in" data-lnref="${i}" aria-label="${esc(L("Example", "Voorbeeld"))} ${d}">${d}</button>`; });
     const m = html.match(/^(.+?[.!?])(\s+[\s\S]*)?$/), lead = m ? m[1] : html, rest = m?.[2]?.trim() || "";
     return `<div class="ln-a"><p class="ln-lead">${lead}</p>${rest ? `<p>${rest}</p>` : ""}${a.points?.length ? `<ul class="ln-pts">${a.points.slice(0, 4).map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}${used.length ? `<div class="ln-refs">${used.map((i) => this._lnChip(ex, { ex: i, side: "p" })).join("")}</div>` : ""}<small class="ln-note">${L("Written by AI from your games · may contain mistakes", "Geschreven door AI uit je potjes · kan fouten bevatten")}</small></div>`;
   },
   /** a mechanism lesson (a scarce resource, robber losses, 4:1 trades): the numbers per game next to the bots', and the same Ask */
   _lnMechPage(les) {
     const m = this._lnMech(les), ser = les.series;
-    const head = `<section class="ln-c ln-focus"><span class="ln-row end"><span class="ln-big2">${m.big}</span><span class="ln-sub">${L("in", "in")} <b>${les.k} ${L("of", "van")} ${les.N}</b> ${L("games", "potjes")}</span></span>
-      ${this._lnStrip(ser, les.kind === "res" ? "flag" : "n")}<span class="ln-two"><span class="soft">${esc(m.line)}</span><span class="soft">${L("Counted from your saved games; the bots are the baseline.", "Geteld uit je bewaarde potjes; de bots zijn de maatstaf.")}</span></span></section>`;
+    const head = `<section class="ln-c ln-focus"><span class="ln-row end"><span class="ln-big2">${m.big}</span><span class="ln-sub">${L("in", "in")} <b>${ofN(les.k, les.N)}</b></span></span>
+      ${this._lnStrip(ser, les.kind === "res" ? "flag" : "n")}<span class="ln-two"><span class="soft">${esc(m.line)}</span>${m.line2 ? `<span class="soft">${esc(m.line2)}</span>` : ""}<span class="soft">${L("Counted from your saved games; the bots are the baseline.", "Geteld uit je bewaarde potjes; de bots zijn de maatstaf.")}</span></span></section>`;
     const A = this._ln.ask && this._ln.ask.lesson === les.id ? this._ln.ask : null;
     const chips = QS.map((q) => `<button type="button" class="ln-chip${A?.q === q.id ? " on" : ""}" data-lnq="${q.id}">${esc(L(q.en, q.nl))}</button>`).join("");
     const ans = A?.local ? `<div class="ln-a"><p class="ln-lead">${esc(A.local.lead)}</p><p class="ln-two"><span class="soft">${esc(A.local.text)}</span></p></div>` : "";
@@ -305,7 +360,7 @@ export const LessonsMixin = {
   },
   _lnMechAnswer(les, q) {
     const m = this._lnMech(les);
-    const lead = les.kind === "res" ? L(`${cap(rname(les.res))} was scarce at turn 5 in ${les.k} of ${les.N} games.`, `${cap(rname(les.res))} was schaars bij beurt 5 in ${les.k} van ${les.N} potjes.`) : les.kind === "rob" ? L(`You lost ${num(Math.round(les.mine))} cards a game to the robber and 7s.`, `Je verloor ${num(Math.round(les.mine))} kaarten per potje aan de rover en 7.`) : L(`You traded 4:1 about ${num(Math.round(les.mine * 10) / 10)} times a game.`, `Je ruilde ${num(Math.round(les.mine * 10) / 10)} keer per potje 4:1.`);
+    const lead = les.kind === "res" ? L(`${cap(rname(les.res))} was scarce at turn 5 in ${ofN(les.k, les.N)}.`, `${cap(rname(les.res))} was schaars bij beurt 5 in ${ofN(les.k, les.N)}.`) : les.kind === "rob" ? L(`${num(Math.round(les.mine))} cards a game were stolen from you or discarded on a 7.`, `Per potje werden ${num(Math.round(les.mine))} kaarten van je gestolen of door jou afgegooid bij een 7.`) : L(`You traded 4:1 about ${num(Math.round(les.mine * 10) / 10)} times a game.`, `Je ruilde ${num(Math.round(les.mine * 10) / 10)} keer per potje 4:1.`);
     const tip = q === "rule" ? (les.kind === "res" ? L("Check early whether a port or a trade can bring it in.", "Kijk vroeg of een haven of ruil het kan aanvoeren.") : les.kind === "rob" ? L("Keep fewer cards in hand when a 7 is likely.", "Houd minder kaarten vast als een 7 waarschijnlijk is.") : L("Look for a port or a player before you trade 4:1.", "Zoek een haven of speler voor je 4:1 ruilt.")) : m.line;
     return { lead, text: tip, chips: [], extra: null };
   },
@@ -360,8 +415,8 @@ export const LessonsMixin = {
     if (this._lnEl) this._lnDraw();
   },
   _lnFacts(les, ex) {
-    const exs = ex.slice(0, 3).map((e) => ({ ref: `[${e.i0 + 1}]`, game: day(e.end), turn: e.c === "setup" ? "set-up" : e.t, played: e.model.lines?.[0] || e.pk, better: e.model.lines?.[1] || e.bk, winChanceYouChose: `${e.b}%`, winChanceBetter: `${e.a}%` }));
-    const mk = (l) => JSON.stringify({ note: "These are the player's own marked moves of one kind over several reviewed games. Answer the question from these facts only, in at most 3 short sentences; refer to an example by its ref like [1].", lesson: titleOf(les), games: `${les.k} of ${les.N}`, winChanceLostPerGame: les.cost != null ? `${Math.round(les.cost)}%` : undefined, examples: l });
+    const exs = ex.filter((e) => !(this._ln.pr && this._ln.pr.lesson === les.id && this._ln.pr.ex === e.i0)).slice(0, 3).map((e) => ({ ref: `[${e.i0 + 1}]`, game: day(e.end), turn: e.c === "setup" ? "set-up" : e.t, played: e.model.lines?.[0] || e.pk, better: e.model.lines?.[1] || e.bk, winChanceYouChose: `${e.b}%`, winChanceBetter: `${e.a}%` }));
+    const mk = (l) => JSON.stringify({ note: "These are the player's own marked moves of one kind over several reviewed games. Answer the question from these facts only, in at most 3 short sentences; refer to an example by its ref like [1].", lesson: titleOf(les), games: `${les.k} of ${les.N}`, winChanceLostPerGamePoints: les.cost != null ? Math.round(les.cost) : undefined, examples: l });
     let s = mk(exs); for (let k = exs.length; s.length > 3800 && k > 0; k -= 1) s = mk(exs.slice(0, k - 1));
     return s.slice(0, 3900);
   },

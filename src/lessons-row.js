@@ -1,13 +1,13 @@
 // v1.94 Lessons: the compact row a reviewed game leaves for the cross-game Lessons (pure: no DOM, runs in the page and in src/lessons-worker.js).
 // rowOf(payload, meta) reads ONLY what the app saved for the game (the review's decisions, the board and the event log) and returns about 1 KB:
 //   { v, k (the key it was made for), ek (review engine tag), bd (the board, standard island only), dec: the marked moves (<= 12, biggest first), cl: { cat: [moves, win chance lost] } (all of them), seen: { cat: n decisions }, sc: [mine scarce at the end of turn 5 (5 resources, 0/1)],
-//     oc: [opponents with that resource scarce (5)], on: opponents, rob: [cards you lost to the robber / 7s, mean of the opponents], b4: [4:1 bank trades, mean of the opponents] }
+//     oc: [opponents with that resource scarce (5)], on: opponents, rob: [cards stolen from you or discarded on a 7, mean of the opponents], rb: [cards your hexes did not pay because the robber sat on them, mean of the opponents], wc: [[turn, your win chance % after your last decision of that turn]], b4: [4:1 bank trades, mean of the opponents] }
 // It lives in the game's list entry (meta.lr), so the Lessons never unpack the heavy part of 50 games; old games get it in the background (src/lessons.js).
 import { gameLessons } from "./lessons-data.js";
 import { stdGeo, boardOf, boardPack } from "./lessons-geo.js";
 import { stateAt, incomeAt, robberLosses, R5 } from "./review/ai-mech.js";
 
-export const ROW_V = 1;
+export const ROW_V = 2;
 /** what a row was made for: another review score (acc), engine tag or format means a new row */
 export const rowKey = (m) => `${ROW_V}|${m.acc ?? ""}|${m.rk || ""}|${m.fmt || ""}`;
 const KEEP = "bRPXtdu";
@@ -33,6 +33,12 @@ export function rowOf(payload, m) {
   const dec = gl.ex.slice().sort((a, b) => b.gp - a.gp || a.i - b.i).slice(0, 12).map((e) => ({ t: e.t, i: e.i, c: e.cat, l: e.cls, g: e.gp, a: e.A, b: e.B, pk: kindOf(e.x.label), bk: kindOf(e.x.best.label), p: spec(e.x.focus), q: spec(e.x.best.focus), pd: detail(e.x), bd: detail(e.x.best), ...(e.cat === "setup" && e.x.focus?.node != null && own.length > 1 && own[1] === e.x.focus.node ? { o: own[0] } : {}) }));
   const cl = {}; gl.ex.forEach((e) => { const c = (cl[e.cat] ||= [0, 0]); c[0] += 1; c[1] += e.gp; });
   const row = { v: ROW_V, k: rowKey(m), n: m.n || 4, ek: m.rk || "", dec, cl, seen: gl.seen, marks: gl.ex.length, gp: gl.ex.reduce((s, e) => s + e.gp, 0) };
+  try { // the win chance curve: your win chance after your last decision of each turn (the review's own numbers)
+    const rvw = payload.rv, rr = (rvw?.reviews || (rvw?.review ? { [rvw.review.pid]: rvw.review } : {}))[m.me], byT = new Map();
+    (rr?.results || []).forEach((x) => { if (Number.isFinite(x.win) && Number.isFinite(x.t) && !x.skip) { const o = byT.get(x.t); if (!o || x.s >= o.s) byT.set(x.t, { s: x.s ?? 0, v: x.win }); } });
+    const wc = [...byT.entries()].sort((a, b) => a[0] - b[0]).map(([t, o]) => [t, Math.round(o.v * 100)]);
+    if (wc.length >= 3) row.wc = wc.slice(0, 60);
+  } catch (_) { /* no curve for this game */ }
   const me = m.me, n = m.n || 4, T = m.turns || 0;
   const bd = boardOf(state); if (bd) row.bd = boardPack(bd);
   try {
@@ -40,8 +46,9 @@ export function rowOf(payload, m) {
     if (raw && T > 1) {
       const t5 = Math.min(5, T - 1), inc = Array.from({ length: n }, (_, q) => incomeAt(raw, t5, q).dots);
       row.sc = R5.map((r) => (inc[me][r] <= 1 ? 1 : 0)); row.oc = R5.map((r) => inc.filter((d, q) => q !== me && d[r] <= 1).length); row.on = n - 1;
-      const rl = Array.from({ length: n }, (_, q) => { let tot = 0; for (let t = 1; t <= T; t++) tot += robberLosses(raw, t, q).total; return tot; });
-      row.rob = [rl[me], r1(mean(rl.filter((_, q) => q !== me)))];
+      const rl = Array.from({ length: n }, (_, q) => { let lost = 0, blk = 0; for (let t = 1; t <= T; t++) { const r = robberLosses(raw, t, q); lost += r.stolen + r.discarded; blk += r.cards; } return [lost, blk]; });
+      const oth = (k) => r1(mean(rl.filter((_, q) => q !== me).map((x) => x[k])));
+      row.rob = [rl[me][0], oth(0)]; row.rb = [rl[me][1], oth(1)];
     }
   } catch (_) { /* no mechanism numbers for this game: its marked moves still count */ }
   try {

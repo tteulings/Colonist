@@ -3,10 +3,12 @@
 // Words: L(en, nl) picks by the app language (the page redraws on a language change); counts agree with their noun ("1 potje", "2 potjes").
 import { stdGeo, hexCorners } from "./lessons-geo.js";
 import { RES_COLOR, resName } from "./resources.js";
-import { lang, dateLocale, num } from "./i18n.js";
+import { lang, dateLocale, num, tn } from "./i18n.js";
 
 export const L = (en, nl) => (lang() === "nl" ? nl : en);
-export const pl = (n, en1, enN, nl1, nlN) => `${num(n)} ${n === 1 ? L(en1, nl1) : L(enN, nlN)}`;
+export const pl = (n, en1, enN, nl1, nlN) => `${num(n)} ${tn(n, L(en1, nl1), L(enN, nlN))}`;
+/** "3 of 5 games" / "3 van 5 potjes": the noun agrees with the total */
+export const ofN = (k, N) => L(`${num(k)} of ${pl(N, "game", "games", "potje", "potjes")}`, `${num(k)} van ${pl(N, "game", "games", "potje", "potjes")}`);
 export const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 export const day = (t) => new Date(t).toLocaleDateString(dateLocale(), { day: "numeric", month: "short" }).replace(/\.$/, "");
 export const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
@@ -103,17 +105,22 @@ export function exModel(e, board) {
   return m;
 }
 
-/** the headline of a set-up lesson, counted over ALL the examples: the kinds missing from the start in >= 2 of them (ties all named), and in how many starts at least one of those was missing.
- *  models[i].miss = the kinds example i's start lacks. Returns { top: kinds (most missed first), tops: example indexes, lead, count: text (per kind), n } or { top: [] } when no kind is missing twice. */
+/** the headline of a set-up lesson, counted over ALL the examples (the unit is the start: "opstellingen"). models[i].miss = the kinds example i's start lacks.
+ *  - one kind missed clearly most often (>= 2 and more than any other): "You missed lumber most: in 3 of 4 starts."
+ *  - no leader (a tie or near-even): the next honest pattern in the data, when it holds in >= 2 starts: you took more dots, the better spot had more kinds
+ *  - otherwise no sentence; the per-kind counts (miss) are drawn as bars by the page.
+ *  Returns { top (kinds missed >= 2, most first), tops (example indexes), lead, count, n, miss: {res: count}, leader, dotsMore } or lead null when no kind is missed twice and no pattern holds. */
 export function missHeadline(models, n = models.length) {
   const miss = {}; models.forEach((m) => (m?.miss || []).forEach((r) => { miss[r] = (miss[r] || 0) + 1; }));
-  const top = Object.entries(miss).filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1] || R5.indexOf(a[0]) - R5.indexOf(b[0])).map(([r]) => r);
-  if (!top.length) return { top, tops: [], lead: null, count: null, n };
-  const tops = models.map((m, i) => (m?.miss?.some((r) => top.includes(r)) ? i : -1)).filter((i) => i >= 0), names = top.map(rn);
-  const orEn = list(names).replace(" and ", " or "), orNl = list(names).replace(" en ", " of ");
-  return { top, tops, n,
-    lead: L(`In ${tops.length} of ${n} starts you missed ${orEn}.`, `In ${tops.length} van ${n} gevallen miste je ${orNl}.`),
-    count: L("Missing: ", "Gemist: ") + top.map((r) => `${rn(r)} ${miss[r]}×`).join(", ") + "." };
+  const ranked = Object.entries(miss).sort((a, b) => b[1] - a[1] || R5.indexOf(a[0]) - R5.indexOf(b[0]));
+  const top = ranked.filter(([, c]) => c >= 2).map(([r]) => r);
+  const dotsMore = models.filter((m) => m?.a && m?.b && m.a.dots > m.b.dots && m.b.kinds > m.a.kinds).length;
+  const leader = ranked.length && ranked[0][1] >= 2 && ranked[0][1] > (ranked[1]?.[1] || 0) ? ranked[0][0] : null;
+  const tops = models.map((m, i) => (m?.miss?.some((r) => top.includes(r)) ? i : -1)).filter((i) => i >= 0);
+  const base = { top, tops, n, miss, leader, dotsMore, count: top.length ? L("Missing: ", "Gemist: ") + top.map((r) => `${rn(r)} ${miss[r]}×`).join(", ") + "." : null };
+  if (leader) return { ...base, lead: L(`You missed ${rn(leader)} most: in ${miss[leader]} of ${n} starts.`, `Het vaakst miste je ${rn(leader)}: in ${miss[leader]} van ${n} opstellingen.`) };
+  if (dotsMore >= 2) return { ...base, lead: L(`In ${dotsMore} of ${n} starts you took more dots; the better spot had more kinds.`, `In ${dotsMore} van ${n} opstellingen koos je meer stippen; de betere plek had meer soorten.`) };
+  return { ...base, lead: null };
 }
 
 // ── answers to the three preset questions, worded only from the examples' own numbers ──
@@ -128,10 +135,10 @@ export function answerDec(les, q, models) {
   const ex = les.examples, n = ex.length; if (!n) return null;
   const idx = (f) => ex.map((e, i) => (f(e, models[i], i) ? i : -1)).filter((i) => i >= 0);
   if (les.cat === "setup" && models.some((m) => m?.a)) {
-    const { top, tops, lead: found, count: cnt } = missHeadline(models, n);
+    const { top: top0, tops, lead: found, count: cnt, leader } = missHeadline(models, n), top = leader ? [leader] : top0;
     const five = idx((e, m) => m?.b && m.b.kinds === 5), more = idx((e, m) => m?.b && m.a && m.b.kinds > m.a.kinds);
-    if (!cnt) return { lead: L("Your starts gave fewer kinds than the better ones.", "Je opstellingen gaven minder soorten dan de betere."), text: L(`In ${more.length} of ${n} starts the better spot gave a kind more.`, `In ${more.length} van ${n} gevallen gaf de betere plek een soort erbij.`), chips: more.map((i) => ({ ex: i, side: "p" })), extra: null };
-    if (q === "wrong") return { lead: found, text: cnt, chips: (top.length ? tops : more).map((i) => ({ ex: i, side: "p" })), extra: five.length ? { text: L(`In ${five.map((i) => i + 1).join(", ")} all 5 kinds were possible.`, `In ${five.map((i) => i + 1).join(", ")} kon je alle 5 soorten hebben.`), chips: five.slice(0, 3).map((i) => ({ ex: i, side: "q" })) } : null };
+    if (!cnt) return { lead: L("Your starts gave fewer kinds than the better ones.", "Je opstellingen gaven minder soorten dan de betere."), text: L(`In ${more.length} of ${n} starts the better spot gave a kind more.`, `In ${more.length} van ${n} opstellingen gaf de betere plek een soort erbij.`), chips: more.map((i) => ({ ex: i, side: "p" })), extra: null };
+    if (q === "wrong") return { lead: found || L("No single kind stands out.", "Geen enkele soort valt op."), text: cnt, chips: (top.length ? tops : more).map((i) => ({ ex: i, side: "p" })), extra: five.length ? { text: L(`In ${five.map((i) => i + 1).join(", ")} all 5 kinds were possible.`, `In ${five.map((i) => i + 1).join(", ")} kon je alle 5 soorten hebben.`), chips: five.slice(0, 3).map((i) => ({ ex: i, side: "q" })) } : null };
     if (q === "rule") return { lead: top.length ? L(`Check first whether ${list(top.map(rn).sort()).replace(" and ", " or ")} is in your start.`, `Kijk eerst of ${list(top.map(rn)).replace(` en `, " of ")} in je start zit.`) : L("Check first which kinds your start still misses.", "Kijk eerst welke soorten je start nog mist."), text: cnt, chips: more.slice(0, 3).map((i) => ({ ex: i, side: "q" })), extra: null };
     return { lead: L("Look at which kinds you miss before you look at the numbers.", "Kijk eerst welke soorten je mist, dan pas naar de getallen."), text: cnt, chips: more.slice(0, 3).map((i) => ({ ex: i, side: "q" })), extra: null };
   }
