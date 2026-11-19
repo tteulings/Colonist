@@ -1,6 +1,8 @@
 // v1.91 avatar animations (avatar192). node tests/avatar192.js ROOT PORT   (server: node step105/tests/serve.mjs ROOT PORT)
 //  1 still frames: the six portraits x tones A/B x 28/40/64/96 px, with the rig on and off, are byte-identical to the v1.90 drawings
-//    (BASE = a git ref, default origin/main; diffs go to $SHOTS); the inline (live) avatar equals the sprite avatar in the app
+//    (BASE = a git ref, default b2f741f~1 = the last pre-avatar commit; diffs go to $SHOTS). Both sides render with detail:false (the detail layer
+//    is on by default since v1.92 and absent in older refs); the detail:true drawings are pinned by hash in tests/golden/avatar192-stills.json
+//    (UPDATE_GOLDEN=1 rewrites it); the inline (live) avatar equals the sprite avatar in the app
 //  2 in a game at 360x780 and 412x923: live avatars in the strip / rail, idle only on avatars of 40px and up; reactions fire from the log
 //    (build -> happy, big payout -> happy, robbed -> sad, a 7 -> seven), one per avatar at a time (no queue), thinking dots, turn pulse
 //  3 no layout shift: offset boxes of every strip chip and body scroll size unchanged while reactions play
@@ -19,10 +21,10 @@ let fails = 0; const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"
   const b = await chromium.launch();
   // ── 1 still frames ──
   // the detail layer (v1.91, on by default) is the only addition: still frames are compared on the no-detail path
-  const BASE = process.env.BASE || "origin/main";
+  const BASE = process.env.BASE || "b2f741f~1";
   const tmp = path.join(os.tmpdir(), `portraits-base-${process.pid}.mjs`);
   fs.writeFileSync(tmp, execSync(`git -C ${ROOT} show ${BASE}:src/themes/portraits.js`, { maxBuffer: 1 << 24 }));
-  const base = await renderStills(tmp, () => ({}), { browser: b });
+  const base = await renderStills(tmp, () => ({ detail: false }), { browser: b }); // detail:false: like with like (v1.93+ refs default it on)
   for (const [name, opt] of [["rig off", () => ({ detail: false })], ["rig on", () => ({ rig: true, detail: false })]]) {
     const cur = await renderStills(path.join(ROOT, "src/themes/portraits.js"), opt, { browser: b });
     const bad = Object.keys(base).filter((k) => !base[k].equals(cur[k]));
@@ -30,6 +32,16 @@ let fails = 0; const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"
     ok(bad.length === 0, `still frames identical to ${BASE} (${name}): ${Object.keys(base).length} portraits at 28/40/64/96`, bad.slice(0, 5));
   }
   fs.unlinkSync(tmp);
+  {
+    const sha = (x) => require("crypto").createHash("sha256").update(x).digest("hex");
+    const gp = path.join(__dirname, "golden", "avatar192-stills.json");
+    const cur = await renderStills(path.join(ROOT, "src/themes/portraits.js"), () => ({ detail: true }), { browser: b });
+    const now = Object.fromEntries(Object.keys(cur).sort().map((k) => [k, sha(cur[k])]));
+    if (process.env.UPDATE_GOLDEN) fs.writeFileSync(gp, JSON.stringify(now, null, 1) + "\n");
+    const gold = JSON.parse(fs.readFileSync(gp, "utf8"));
+    const bad = Object.keys(now).filter((k) => gold[k] !== now[k]);
+    ok(bad.length === 0 && Object.keys(gold).length === Object.keys(now).length, `still frames with the detail layer match tests/golden/avatar192-stills.json (${Object.keys(now).length})`, bad.slice(0, 5));
+  }
 
   const errors = [];
   for (const [w, h] of [[360, 780], [412, 923]]) {
@@ -111,11 +123,16 @@ let fails = 0; const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"
     ok(await G(() => document.querySelectorAll('.avatar.av-live[data-avr]').length === 0), `${tag}: nothing left playing after the burst`);
 
     // turn pulse + thinking dots
+    // The pulse only starts when the current player CHANGES, and the game may already be on seat 2: step via seat 3 first. Then wait on the
+    // state itself (data attributes + running CSS animations, polled per frame) instead of a wall-clock sleep.
+    await G(() => { const g = window.__colonistGame; g.currentPlayerIndex = 3; g.render(); });
+    await sleep(100);
     await G(() => { const g = window.__colonistGame; g.currentPlayerIndex = 2; g.render(); });
-    await sleep(300);
-    const turn = await G(() => ({ t: [...document.querySelectorAll(".avatar.av-live.pc-2")].some((e) => e.dataset.avt), k: [...document.querySelectorAll(".avatar.av-live.pc-2")].some((e) => e.dataset.avk) }));
+    const seatState = () => page.waitForFunction(() => { const E = [...document.querySelectorAll(".avatar.av-live.pc-2")]; const t = E.find((e) => e.dataset.avt), k = E.find((e) => e.dataset.avk);
+      return t && k && t.getAnimations({ subtree: true }).some((a) => a.playState === "running") && { t: true, k: true, ring: getComputedStyle(t, "::after").borderTopColor !== "rgba(0, 0, 0, 0)", anim: getComputedStyle(t).animationName !== "none" }; }, null, { polling: "raf", timeout: 1500 }).then((h) => h.jsonValue(), () => ({ t: false, k: false, ring: false, anim: false }));
+    const turn = await seatState();
     ok(turn.t, `${tag}: the active seat pulses (ring + hop)`); ok(turn.k, `${tag}: a bot on the move shows the thinking dots`);
-    ok(await G(() => { const e = document.querySelector(".avatar.av-live.pc-2[data-avt]"); return e && getComputedStyle(e, "::after").borderTopColor !== "rgba(0, 0, 0, 0)" && getComputedStyle(e).animationName !== "none"; }), `${tag}: the pulse is drawn in the seat colour`);
+    ok(turn.ring && turn.anim, `${tag}: the pulse is drawn in the seat colour`, turn);
 
     if (w === 360) {
       // Groen's ring = the aqua seat colour of v1.90
