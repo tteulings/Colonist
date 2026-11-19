@@ -2,6 +2,7 @@
 // visual (win chance line, luck / points bars, plan timeline, zoomed board, moves). The app, not the AI, decides directions and numbers:
 // the real win-chance change of the card's turn is shown as a chip, and a sentence that contradicts it (or quotes a number >2 points off
 // the review) is replaced by a neutral line. Insights and answers are kept in the saved review (R.ai). Online only.
+import { RESOURCES } from "./core/constants.js";
 import { aiFacts, aiSeries, aiTimeline, aiPlan, aiNearMiss, aiStart, aiRoute, wcAt, wcChange } from "./review/ai-facts.js";
 import { decide } from "./review/evaluate.js";
 import { REFINE_TOOL, aiIndex, aiToolRun, aiSimPlan, aiSimResult, aiIntent, aiIntentArgs, aiCantMsg, aiSlimDecision, aiKindOf, aiDecList, TIER2, CAPS } from "./review/ai-tools.js";
@@ -574,7 +575,7 @@ export const ReviewAiMixin = {
   /** v1.77 a tiny income strip: cards per turn by resource (5 mini bars, one scale for all players), the bottleneck bar outlined. */
   _aiIncomeStrip(rt, C) {
     const inc = rt?.income; if (!inc) return "";
-    const X = C.t.x, R5 = ["wood", "brick", "sheep", "wheat", "ore"], mx = (this._aiIncC?.R === this._rv ? this._aiIncC : (this._aiIncC = { R: this._rv, v: Math.max(0.5, ...this.players.map((p) => Math.max(...Object.values(tryv(() => C.route(p.id))?.income?.perTurn || { a: 0 })))) })).v;
+    const X = C.t.x, R5 = RESOURCES, mx = (this._aiIncC?.R === this._rv ? this._aiIncC : (this._aiIncC = { R: this._rv, v: Math.max(0.5, ...this.players.map((p) => Math.max(...Object.values(tryv(() => C.route(p.id))?.income?.perTurn || { a: 0 })))) })).v;
     const b = inc.bottleneck?.short ? inc.bottleneck.res : null;
     return `<div class="rt-inc" data-aiinc="${b || ""}" aria-label="${esc(X.inc)}">${R5.map((r) => `<span class="rt-ib r-${r}${r === b ? " bn" : ""}${inc.need[r] ? "" : " nn"}" data-res="${r}" title="${esc(`${r} ${inc.perTurn[r]} ${X.inc}${inc.ports.includes(r) ? " \u00b7 2:1" : ""}`)}"><i style="height:${Math.max(1, Math.round((inc.perTurn[r] / mx) * 14))}px"></i><small>${inc.perTurn[r]}</small></span>`).join("")}</div><div class="rt-incl">${esc(X.incT)}: ${R5.map((r) => esc(X.res[r])).join(" \u00b7 ")}${b ? ` \u00b7 ${esc(X.bnT)}` : ""}</div>`;
   },

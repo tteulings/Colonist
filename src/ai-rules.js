@@ -13,10 +13,9 @@
 // steals from the leader. Player deals: never offers; accepts only a deal that lets it build right away.
 // Nothing here uses the score formula or the weights: what the checklist says is all there is.
 
-const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as R5, COSTS, PIPS } from "./core/constants.js";
 const RES_LABEL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
-const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
-const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, development: { sheep: 1, wheat: 1, ore: 1 } };
+const COST = { road: COSTS.road, settlement: COSTS.settlement, city: COSTS.city, development: COSTS.development };
 const has = (h, c) => Object.entries(c).every(([r, n]) => (h[r] || 0) >= n);
 const short = (h, c) => R5.filter((r) => (c[r] || 0) > (h[r] || 0)).map((r) => `${(c[r] || 0) - (h[r] || 0)} ${RES_LABEL[r]}`).join(" + ");
 

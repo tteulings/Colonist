@@ -5,7 +5,7 @@
 // Effects never block input: game flow is driven by the game's own timers, not by these animations.
 import { motionReduced, dieSvg, cardSvg, cardBackSvg, icon } from "./manager.js";
 import { DEV_NAME } from "./art-util.js";
-const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES } from "../core/constants.js";
 
 const rect = (el) => el?.getBoundingClientRect?.();
 const center = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });

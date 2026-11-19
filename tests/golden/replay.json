@@ -1,0 +1,141 @@
+{
+ "save-classic-t9": {
+  "players": 4,
+  "loaded": "7c4e6ccca000a5a5",
+  "moves": 131,
+  "movesHash": "daa15e1818eebe5f",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "13888f40",
+  "randomCalls": 74,
+  "winner": 1,
+  "turns": 17,
+  "vp": [
+   8,
+   11,
+   4,
+   6
+  ]
+ },
+ "save-rush": {
+  "players": 4,
+  "loaded": "7ffd920b2f7dd75c",
+  "moves": 181,
+  "movesHash": "52d30bee38defbf1",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "30fab5d4",
+  "randomCalls": 141,
+  "winner": 2,
+  "turns": 20,
+  "vp": [
+   4,
+   7,
+   10,
+   7
+  ]
+ },
+ "save-sea": {
+  "players": 3,
+  "loaded": "d79db6155335fbab",
+  "moves": 262,
+  "movesHash": "6b533986d7957453",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "c0a1cf3c",
+  "randomCalls": 140,
+  "winner": 0,
+  "turns": 29,
+  "vp": [
+   15,
+   10,
+   8
+  ]
+ },
+ "save-six": {
+  "players": 6,
+  "loaded": "ce5fb2376f9a6f5b",
+  "moves": 188,
+  "movesHash": "2124b3be849e8325",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "22e52632",
+  "randomCalls": 82,
+  "winner": 2,
+  "turns": 11,
+  "vp": [
+   4,
+   3,
+   10,
+   7,
+   8,
+   8
+  ]
+ },
+ "save-upgrade1911": {
+  "players": 4,
+  "loaded": "ffc5c7bf0a8bca11",
+  "moves": 0,
+  "movesHash": "4f53cda18c2baa0c",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "26f8d994",
+  "randomCalls": 0,
+  "vp": [
+   3,
+   11,
+   5,
+   3
+  ]
+ },
+ "save-ui191-final": {
+  "players": 4,
+  "loaded": "8c7fca4c250da051",
+  "moves": 0,
+  "movesHash": "4f53cda18c2baa0c",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "26f8d994",
+  "randomCalls": 0,
+  "vp": [
+   3,
+   11,
+   5,
+   3
+  ]
+ },
+ "records-ui191": {
+  "records": 187,
+  "all": "00082735e9712719",
+  "first": "06fce6dc2f7de553",
+  "last": "d79fdac359a198b3"
+ },
+ "save-ui191-rec60": {
+  "players": 4,
+  "loaded": "1956fca3aa7da331",
+  "moves": 198,
+  "movesHash": "aa6a3e614122554f",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "dc65f9d0",
+  "randomCalls": 107,
+  "winner": 3,
+  "turns": 17,
+  "vp": [
+   6,
+   9,
+   7,
+   10
+  ]
+ },
+ "save-ui191-rec120": {
+  "players": 4,
+  "loaded": "0e779ff896e0a5e5",
+  "moves": 95,
+  "movesHash": "c8cfd436122f9ab5",
+  "decisionsHash": "4f53cda18c2baa0c",
+  "stateHash": "9dc061fd",
+  "randomCalls": 47,
+  "winner": 1,
+  "turns": 16,
+  "vp": [
+   3,
+   10,
+   6,
+   5
+  ]
+ }
+}

@@ -22,7 +22,7 @@ import { gameOdds } from "./replay-odds.js";
 
 const NUMW = { 2: "twos", 3: "threes", 4: "fours", 5: "fives", 6: "sixes", 7: "sevens", 8: "eights", 9: "nines", 10: "tens", 11: "elevens", 12: "twelves" };
 const NUM1 = { 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve" };
-const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
+import { DICE_WAYS as PIPS } from "./core/constants.js";
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const ord = (n) => `${n}${n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th"}`;
 // v1.11 plain names (the keys stay): Points race · Dice · Cards · Where it paid (the heat maps) · Key moments
@@ -179,7 +179,7 @@ export const StatsUiMixin = {
     const turns = this.isRush() ? `${this.rush?.rollNo ?? st?.N ?? 0}` : `${this.turn}`;
     const hl = st ? this._stHighlights(st) : [];
     overlay.innerHTML = `
-      <div class="gs-top"><button type="button" class="gs-homebtn" data-gsback aria-label="Home"><svg class="ic" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#ic-logo" x="-50" y="-50" width="100" height="100"/></svg><span>Home</span></button></div>
+      <div class="gs-top"><button type="button" class="gs-homebtn" data-gsback aria-label="Home"><svg class="ic" viewBox="0 0 100 100" aria-hidden="true"><use href="#kt-logo-s" width="100" height="100"/></svg><span>Home</span></button></div>
       <div class="gs-scroll">
         <section class="gs-recap over-panel" aria-label="Recap">
           <div class="gs-rhead">${this._stPortrait(winner.id, "gs-win-por av-win", 52)}<div><h3>${this._stWinsText(winner)}</h3>

@@ -59,7 +59,7 @@ const READY_TIMEOUT_MS = 8000;
 // Pacing: the Expert makes all its builds of a turn at once; a Master shows each searched step, a short
 // beat apart (the search itself takes ~0.2–0.5 s), so its turn takes only a little longer
 const STEP_GAP_MS = 120; // the worker loads the whole game code once (~0.4 s on a laptop)
-const RES5 = ["wood", "brick", "sheep", "wheat", "ore"], DEV5 = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
+import { RESOURCES as RES5, DEV_CARD_TYPES as DEV5 } from "./core/constants.js";
 const RUSH_TICK = [1000, 2000], RUSH_HURRY_MS = 300; // as RUSH_TICK_MS / RUSH_HURRY_TICK_MS in game.js
 const shared = { worker: null, ready: null, broken: false, seq: 0, waiting: new Map() };
 
@@ -68,7 +68,7 @@ function poolWorker(pool) {
   if (pool.broken || typeof Worker === "undefined") return null;
   if (pool.worker) return pool.ready;
   try {
-    pool.worker = new Worker(new URL("./master/worker.js?v=193", import.meta.url), { type: "module" });
+    pool.worker = new Worker(new URL("./master/worker.js?v=194", import.meta.url), { type: "module" });
   } catch (_) { pool.broken = true; return null; }
   pool.ready = new Promise((resolve) => {
     const t = setTimeout(() => { pool.broken = true; resolve(null); }, READY_TIMEOUT_MS);

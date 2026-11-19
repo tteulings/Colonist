@@ -7,7 +7,8 @@
 // The cards collected are then close to normal; the percentile is the mid-p 1 − Φ((got − E) / √V) (v1.29; was P(cards ≥ got)). Measured against a
 // simulation of dice in score121/../luck124 (tests/luck-unit.mjs): the simulated tails agree with this within about 2 points.
 // "balanced" and "deck" dice are not independent (the deck evens the rolls out), so they get the cards over or under but no percentile.
-export const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
+import { DICE_WAYS } from "../core/constants.js";
+export const PIPS = DICE_WAYS;
 
 /** Moments of one roll for a player: cards = { number: cards paid on that number }. */
 export function rollMoments(cards) {

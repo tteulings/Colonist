@@ -19,7 +19,7 @@ const IC = {
   chev: '<svg class="lg-ic lg-chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   back: '<svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
-const RS = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as RS } from "./core/constants.js";
 
 export const ReviewLedgerMixin = {
   /** the AI tab was opened: the waiting clock restarts */

@@ -3,8 +3,8 @@
 // Ported from the research branch (research/sim.mjs, measured there). Runs on a private headless copy of
 // the game (the Web Worker in src/master/worker.js, or the Node harness), never on the game you play.
 import { FIT_W } from "./leaf-fit.js";
-export const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
-export const DEV_CARD_TYPES = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
+import { RESOURCES, DEV_CARD_TYPES, PIPS } from "../core/constants.js";
+export { RESOURCES, DEV_CARD_TYPES };
 export const hasResources = (res, cost) => Object.entries(cost).every(([t, a]) => res[t] >= a);
 export const sumResources = (r) => RESOURCES.reduce((a, k) => a + r[k], 0);
 export const mulberry32 = (a) => () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -163,7 +163,7 @@ export function withoutAgents(g, fn) {
 // W is fitted offline on bot games (scratchpad/step105/tests/fit.py) and shipped as FIT_W in src/master/leaf-fit.js.
 export const FEATURE_NAMES = ["vp", "vp2", "incTot", "incTot*tLeft", "wood", "brick", "sheep", "wheat", "ore", "hand", "over7", "devHand", "knightsHand", "roadYop", "monoHand",
   "devVP", "knightsPlayed", "hasArmy", "armyGap", "roadLen", "hasRoad", "roadGap", "ports2", "port2match", "port3", "spots0", "spots1", "spots2", "diversity", "zeroRes", "robberLoss", "cities", "settlements", "roads"];
-const hexNum = (n) => ({ 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 }[n] || 0) / 36;
+const hexNum = (n) => (PIPS[n] || 0) / 36;
 const IDX_HAS_ROAD = FEATURE_NAMES.indexOf("hasRoad"), IDX_HAS_ARMY = FEATURE_NAMES.indexOf("hasArmy");
 export function seatFeatures(g) {
   const G = g.geometry, wp = g.winPoints, lead = Math.max(...g.players.map((p) => p.victoryPoints));

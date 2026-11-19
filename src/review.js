@@ -29,7 +29,7 @@ const KEY = "colonist_review_v1";
 // others129/tests budget-an.mjs) against every move deep: accuracy 1.1 points apart on average, 5 at most, in 57% of the time.
 // Fewer futures a move were tried too (40 a move on the real choices: 3.2 apart, at most 11.7; 40 on all: 4.5, at most 18.6).
 export const OTHERS = { deep: "all", top: 6, minLoss: 0.02, policy: "real", engine: REVIEW_ENGINE };
-const RES5 = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as RES5 } from "./core/constants.js";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hiddenTab = () => typeof document !== "undefined" && (document.hidden || document.visibilityState === "hidden");
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());

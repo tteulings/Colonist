@@ -40,9 +40,9 @@ import { LiveBarMixin } from "./live-bar.js"; // v1.59 optional live win-chance 
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
-import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS, SHIP_COST } from "./seafarers/index.js";
+import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS } from "./seafarers/index.js";
 
-const RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES, COSTS_SEA as COSTS, PIECE_LIMITS_SEA as PIECE_LIMITS, BANK_SIZE, DICE_WAYS as DICE_WEIGHT, DEV_CARD_TYPES, DEV_DECK, deckList } from "./core/constants.js"; // (COSTS / PIECE_LIMITS carry the Seafarers ship: it is only looked up when this.sea)
 /** Sunny Island colour palette from <html data-palette> (default light; v0.85: + night). */
 const currentPalette = () => { const p = document.documentElement.dataset.palette; return p === "vivid" || p === "night" || p === "dusk" ? p : "light"; };
 const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore: "Or" };
@@ -69,31 +69,7 @@ const RESOURCE_COLORS = {
   gold: "#e5bc52", // ⚓ Seafarers gold field
 };
 
-const DICE_WEIGHT = {
-  2: 1,
-  3: 2,
-  4: 3,
-  5: 4,
-  6: 5,
-  7: 6,
-  8: 5,
-  9: 4,
-  10: 3,
-  11: 2,
-  12: 1,
-};
-
-const COSTS = {
-  road: { wood: 1, brick: 1 },
-  settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 },
-  city: { wheat: 2, ore: 3 },
-  development: { sheep: 1, wheat: 1, ore: 1 },
-  ship: SHIP_COST, // ⚓ Seafarers
-};
-
 const CROWN = `<svg class="sx-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z" fill="#FFD25A" stroke="#7A4B12" stroke-width="1.6" stroke-linejoin="round"/></svg>`; // the single points leader
-const BANK_SIZE = 19; // cards of each resource in the game
-const PIECE_LIMITS = { road: 15, settlement: 5, city: 4, ship: 15 }; // ⚓ ship: Seafarers only
 
 const PLAYER_CONFIG = [
   // Names: a homage to the Dutch Cluedo cast (portraits: src/themes/portraits.js). Seat 0 is "You";
@@ -109,7 +85,6 @@ const PLAYER_CONFIG = [
   { name: "Pimpel", fullName: "Professor Pimpel", color: "#72309F", isHuman: false, avatar: "" },
 ];
 
-const DEV_CARD_TYPES = ["knight", "roadBuilding", "yearOfPlenty", "monopoly"];
 const SQRT3 = Math.sqrt(3);
 const BOARD_RADIUS = 2;
 // Layout breakpoints (keep in sync with themes/base.css): phones = narrow OR short (landscape)
@@ -803,13 +778,7 @@ function assignPorts(geometry) {
 }
 
 function createDevelopmentDeck() {
-  return shuffle([
-    ...Array(14).fill("knight"),
-    ...Array(2).fill("roadBuilding"),
-    ...Array(2).fill("yearOfPlenty"),
-    ...Array(2).fill("monopoly"),
-    ...Array(5).fill("victoryPoint"),
-  ]);
+  return shuffle(deckList(DEV_DECK));
 }
 
 function chooseRandomWeighted(candidates) {

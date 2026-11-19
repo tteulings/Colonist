@@ -11,9 +11,7 @@
 //    the pirate's route block (how much later each rival reaches its best sea spot, gold coasts included),
 //    each minus the block the piece left behind, plus the steal (v0.79);
 //  * gold picks: what the plan is short of, bank permitting.
-const RES = ["wood", "brick", "sheep", "wheat", "ore"];
-const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
-const SHIP = { wood: 1, sheep: 1 };
+import { RESOURCES as RES, SHIP_COST as SHIP, PIPS } from "../core/constants.js";
 const VP_CARDS = 5;       // a victory point is worth about this many cards (sea potential)
 const ROUTE_BLOCK = 0.35; // the pirate only delays a route for a few turns: share of the potential lost that counts
 

@@ -86,7 +86,7 @@ async function walk(page, { shot, log = () => {} } = {}) {
   await step("review-player", async () => { await page.locator(`.rv-tabs [data-rvt=overview]`).tap(); await sleep(800); try { await page.locator("[data-rvp], .rsc-h").first().tap({ timeout: 2000 }); } catch (_) {} await sleep(800); });
   await closeAll(); await G(() => { const g = window.__colonistGame; try { g._rvCloseReview?.(true); } catch (_) {} try { g.histClose(); } catch (_) {} }); await sleep(400);
   await step("lessons", async () => { await G(() => window.__colonistGame.goHome()); await sleep(500); await page.locator("[data-home=lessons]").tap(); await sleep(1500); });
-  await step("lessons-cat", async () => { await page.locator(".ln-cat").first().tap(); await sleep(700); });
+  await step("lessons-cat", async () => { await page.locator("[data-lnopen]").first().tap(); await sleep(700); });
   await closeAll(); await G(() => { try { window.__colonistGame.lessonsClose(); } catch (_) {} });
   await step("bots", async () => { await G(() => window.__colonistGame.goHome()); await sleep(500); await page.locator("[data-home=bots]").tap(); await sleep(1500); });
   await step("bot-profile", async () => { await page.locator(".bpg-row, [data-open]").first().tap({ timeout: 3000 }); await sleep(700); });

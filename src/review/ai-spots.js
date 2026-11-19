@@ -3,7 +3,7 @@
 // how scarce each resource is on this board, the pair with the player's other set-up settlement, port access, room to expand,
 // blocking, and the point plan / usual next build of the engine's futures. Pure reads, no engine: every number comes from here.
 //   spotTable(game, e, lang, refs) -> { kind, opts:[{letter, ref, label, node, win}], rows:[{k, label, cells, win}], summary, rule } | null
-const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as R5 } from "../core/constants.js";
 const NAME = { en: { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" }, nl: { wood: "Hout", brick: "Baksteen", sheep: "Wol", wheat: "Graan", ore: "Erts" } };
 const LOW = { en: { wood: "lumber", brick: "brick", sheep: "wool", wheat: "grain", ore: "ore" }, nl: { wood: "hout", brick: "baksteen", sheep: "wol", wheat: "graan", ore: "erts" } };
 const SRC = { en: { s: "Settlements", c: "Cities", lr: "Longest road", la: "Largest army", dv: "Point cards", is: "New islands" }, nl: { s: "Dorpen", c: "Steden", lr: "Langste weg", la: "Grootste leger", dv: "Puntenkaarten", is: "Nieuwe eilanden" } };

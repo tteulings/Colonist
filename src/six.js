@@ -12,7 +12,6 @@
 // code so the classic game is untouched.
 
 export const BIG_MIN_PLAYERS = 5;
-export const BIG_BANK_SIZE = 24;
 export const BIG_HEX_COUNT = 30;
 export const BIG_RUSH_INTERVAL = 15; // Rush with 5–6: a roll every 15 s by default (v0.93: 20 → 15, the slowest option)
 export const SBP_WINDOW_MS = 8000;   // the human's build window closes by itself after this (paused while busy)
@@ -23,14 +22,8 @@ const BIG_RESOURCE_POOL = [
 ];
 const BIG_NUMBERS = [2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12];
 const BIG_PORTS = ["any", "any", "any", "any", "any", "wood", "brick", "sheep", "sheep", "wheat", "ore"];
-const BIG_DEV_DECK = { knight: 20, roadBuilding: 3, yearOfPlenty: 3, monopoly: 3, victoryPoint: 5 };
-const RES = ["wood", "brick", "sheep", "wheat", "ore"];
-const COST = {
-  road: { wood: 1, brick: 1 },
-  settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 },
-  city: { wheat: 2, ore: 3 },
-  development: { sheep: 1, wheat: 1, ore: 1 },
-};
+import { RESOURCES as RES, DEV_CARD_TYPES, COSTS as COST, BIG_BANK_SIZE, BIG_DEV_DECK, deckList } from "./core/constants.js";
+export { BIG_BANK_SIZE };
 const has = (hand, cost) => Object.entries(cost).every(([r, n]) => hand[r] >= n);
 const pips = (n) => (n ? 6 - Math.abs(7 - n) : 0);
 
@@ -193,7 +186,7 @@ export function assignBigPorts(geometry) {
 
 /** 34 development cards: 20 Knights, 3 Road Building, 3 Year of Plenty, 3 Monopoly, 5 Victory Points. */
 export function createBigDevDeck() {
-  return shuffled(Object.entries(BIG_DEV_DECK).flatMap(([k, n]) => Array(n).fill(k)));
+  return shuffled(deckList(BIG_DEV_DECK));
 }
 
 // ══ Special Building Phase (engine + bots) ════════════════════════════════════════════════════
@@ -275,7 +268,7 @@ export const SbpMixin = {
 
   /** Cards bought in the build window are playable from the buyer's next turn. */
   _sbpMature(player) {
-    ["knight", "roadBuilding", "yearOfPlenty", "monopoly"].forEach((t) => {
+    DEV_CARD_TYPES.forEach((t) => {
       player.devCards[t] += player.newDevCards[t];
       player.newDevCards[t] = 0;
     });

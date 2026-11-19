@@ -23,10 +23,9 @@ export const DETECT = {
   knightPips: 5,     // the blocked tile pays the person at least this (pips × 1 / 2 for a city)
   max: 3,
 };
-const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as R5, COSTS, PIPS } from "../core/constants.js";
 import { RES_EN as RL } from "../resources.js";
-const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, development: { sheep: 1, wheat: 1, ore: 1 } };
-const PIPS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
+const COST = { road: COSTS.road, settlement: COSTS.settlement, city: COSTS.city, development: COSTS.development };
 const has = (h, c) => R5.every((r) => (h[r] || 0) >= (c[r] || 0));
 const sub = (h, c) => { const o = { ...h }; R5.forEach((r) => { o[r] = (o[r] || 0) - (c[r] || 0); }); return o; };
 const tot = (h) => R5.reduce((a, r) => a + (h?.[r] || 0), 0);

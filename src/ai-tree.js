@@ -9,9 +9,9 @@
 //
 // Node: { id, label, sub, v, vt: "score"|"signed"|"div"|"none", text, bar, w, chosen, tag, focus, children }
 
-const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as R5, COSTS } from "./core/constants.js";
 import { RES_EN as RES_LABEL } from "./resources.js";
-const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, development: { sheep: 1, wheat: 1, ore: 1 } };
+const COST = { road: COSTS.road, settlement: COSTS.settlement, city: COSTS.city, development: COSTS.development };
 const DEV = { knight: "Knight", monopoly: "Monopoly", yearOfPlenty: "Year of Plenty", roadBuilding: "Road Building" };
 // getNodeProductionScore terms: [key, label, lab weight]
 const SPOT_TERMS = [["num", "Numbers", "num"], ["scarcity", "Scarcity", "scarcity"], ["variety", "Variety", "variety"], ["port", "Port", "port"],

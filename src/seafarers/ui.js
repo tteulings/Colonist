@@ -6,10 +6,10 @@ import { icon, cardSvg } from "../themes/manager.js";
 import { drawSpec } from "../themes/board-renderer.js";
 import { drawChoiceIcon } from "./render.js";
 
-const RES = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as RES, COSTS_SEA } from "../core/constants.js";
 const LBL = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
 const shuffle = (a) => { const r = [...a]; for (let i = r.length - 1; i > 0; i -= 1) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; } return r; };
-const COST = { road: { wood: 1, brick: 1 }, ship: SHIP_COST, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, development: { sheep: 1, wheat: 1, ore: 1 } };
+const COST = { road: COSTS_SEA.road, ship: COSTS_SEA.ship, settlement: COSTS_SEA.settlement, city: COSTS_SEA.city, development: COSTS_SEA.development };
 
 export const SeaGame = {
   /** Board layout for createBoardGeometry (null in a normal game). */

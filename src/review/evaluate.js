@@ -98,7 +98,7 @@ export const EVAL_KINDS = ["setup", "build", "bank", "buy", "play", "robber", "e
 
 import { RES_EN as RL } from "../resources.js";
 const DEV = { knight: "Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly" };
-const COST = { ship: { wood: 1, sheep: 1 }, road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 } };
+import { COSTS_SEA as COST } from "../core/constants.js"; // (ship: used only when gg.sea; the Classic modes never look it up)
 const r4 = (x) => Math.round(x * 1e4) / 1e4;
 
 export function accuracyOf(loss, k = ACC.k) {
