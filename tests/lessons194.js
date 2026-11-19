@@ -86,6 +86,16 @@ async function run(w, h, lang) {
   // 4 a lesson: crops
   await page.locator("[data-lnopen=dec-setup]").tap(); await sleep(500);
   ok((await G(() => document.querySelectorAll(".ln-exc").length)) === 2 && await G(() => !!document.querySelector("[data-lnmore]")), `${tag}: two examples and "more examples"`);
+  await checkText(page, w, lang, `${tag} lesson (2 examples)`);
+  if (SHOTS && lang === "nl") { const sh = await G(() => document.querySelector(".ln-scroll").scrollHeight); await page.setViewportSize({ width: w, height: Math.min(sh + 110, 6000) }); await sleep(300); await page.screenshot({ path: shot("lesson") }); await page.setViewportSize({ width: w, height: h }); await sleep(300); }
+  // the headline counts over ALL examples (not the two shown): recount from the examples' own missing kinds
+  const hl = await G(() => { const g = window.__colonistGame, les = g._ln.D.lessons.find((l) => l.id === "dec-setup"), ex = g._lnExamples(les), miss = {}; ex.forEach((e) => (e.model.miss || []).forEach((r) => { miss[r] = (miss[r] || 0) + 1; }));
+    return { n: ex.length, miss, shown: document.querySelector(".ln-focus .ln-two > span").innerText, ex: document.querySelectorAll(".ln-exc").length }; });
+  const tops = Object.entries(hl.miss).filter(([, c]) => c >= 2).map(([r]) => r), nums = hl.shown.match(/\d+/g) || [];
+  const RES = { wood: /hout|lumber/i, brick: /baksteen|brick/i, sheep: /schaap|wol|wool|sheep/i, wheat: /graan|tarwe|grain|wheat/i, ore: /erts|ore/i };
+  const sh0 = (hl.shown || "").toLowerCase();
+  ok(tops.length === 0 || tops.every((r) => RES[r].test(sh0)) && Object.keys(RES).filter((r) => !tops.includes(r)).every((r) => !RES[r].test(sh0)), `${tag}: headline names exactly the kinds missed in >= 2 of the ${hl.n} examples (${tops.join()})`, hl.shown);
+  ok(!/\b(vaak|often)\b/i.test(hl.shown) && (tops.length === 0 || (+nums[1] === hl.n && +nums[0] <= hl.n)), `${tag}: headline claims "k of n" over all examples, no "often"`, hl.shown);
   await page.locator("[data-lnmore]").tap(); await sleep(300);
   const crops = await G(() => [...document.querySelectorAll(".ln-exc")].map((a) => ({ gid: a.dataset.gid, crops: [...a.querySelectorAll("svg.lc-crop")].map((s) => ({ spot: s.dataset.crop, hexes: [...s.querySelectorAll("[data-hex]")].map((g) => [+g.dataset.hex, g.dataset.res, +g.dataset.num]), tokens: [...s.querySelectorAll("text")].map((t) => +t.textContent), pips: s.querySelectorAll("g[data-hex] circle[r='1.15']").length, piece: !!s.querySelector("[data-piece=settlement]") })) })));
   ok(crops.length === 4 && crops.every((c) => c.crops.length === 2), `${tag}: four examples, each with "You chose" and "Better"`, crops.length);
@@ -96,8 +106,7 @@ async function run(w, h, lang) {
   ok(await G(() => { const r = [...document.querySelectorAll(".ln-exc")].map((a) => +a.dataset.turn); return r.length === 4; }), `${tag}: examples carry their turn`);
   const lines = await G(() => [...document.querySelectorAll(".ln-exc .ln-two")].map((e) => e.innerText.split("\n").filter(Boolean)));
   ok(lines.every((l) => l.length <= 2) && lines.every((l) => l[0] && l[1] && l[0].length < 60 && l[1].length < 60), `${tag}: at most two short lines under an example`, lines.slice(0, 2));
-  await checkText(page, w, lang, `${tag} lesson`);
-  if (SHOTS && lang === "nl") { const sh = await G(() => document.querySelector(".ln-scroll").scrollHeight); await page.setViewportSize({ width: w, height: Math.min(sh + 110, 6000) }); await sleep(300); await page.screenshot({ path: shot("lesson") }); await page.setViewportSize({ width: w, height: h }); await sleep(300); }
+  await checkText(page, w, lang, `${tag} lesson (all examples)`);
   // 5 practise
   await G(() => document.querySelector(".ln-pr").scrollIntoView()); 
   const pr0 = await G(() => ({ a: !!document.querySelector(".ln-pr .ln-opt"), shown: /%/.test(document.querySelector(".ln-pr").innerText.replace(/\d+%? ?\S* ?potje/g, "")) }));
@@ -176,6 +185,14 @@ async function run(w, h, lang) {
   await b.close();
 }
 (async () => {
+  { // unit: the headline over a tie of three kinds (the case the first build got wrong: it named two of three)
+    const V = await import(path.join(__dirname, "..", "src", "lessons-view.js")), mk = (a) => a.map((x) => ({ miss: x }));
+    const h = V.missHeadline(mk([["wood"], ["brick", "ore"], ["wood", "ore"], ["brick"]]));
+    ok(h.top.length === 3 && ["wood", "brick", "ore"].every((r) => h.top.includes(r)) && h.tops.length === 4 && /4 of 4/.test(h.lead) && /lumber 2.*brick 2.*ore 2/.test(h.count), "unit: a three-way tie names all three kinds, counted over all four starts", h);
+    const h2 = V.missHeadline(mk([["wood"], ["wood", "ore"], [], ["sheep"], []]));
+    ok(h2.top.join() === "wood" && h2.tops.length === 2 && /2 of 5/.test(h2.lead), "unit: one kind missed twice: 2 of 5 starts, the single misses stay out", h2.lead);
+    ok(V.missHeadline(mk([["wood"], ["ore"], []])).lead === null, "unit: nothing missed twice: no headline");
+  }
   for (const [w, h] of [[360, 780], [412, 923]]) for (const lang of ["nl", "en"]) await run(w, h, lang);
   // no Worker at all: the page analyses by itself, in small pieces
   {
