@@ -1,7 +1,7 @@
 // Action API (architecture step 2): `createEngine(game)` is a facade over the existing ColonistFullGame. It answers four questions without
 // the caller touching a game field:
 //
-//   prompt()              who has to decide what, now                               (derived from the game's own fields)
+//   prompt() / prompts()  who has to decide what, now                               (derived from the game's own fields)
 //   legalActions(seat)    every action that seat may take                           (calls canBuild*, canPlayDevelopmentCard, ...)
 //   isLegal(action)       {ok} | {ok:false, reason}
 //   apply(action)         do it, report events                                      (calls _commitBuild, playDevelopmentCard, endTurn, ...)
@@ -237,6 +237,8 @@ export class Engine {
     }
     return out;
   }
+  /** The first prompt (who must decide what now), or null when the game is over. Most of the time it is the only one. */
+  prompt() { return this.prompts()[0] ?? null; }
   /** The prompt a seat holds (the first), or null. */
   promptFor(seat) { return this.prompts().find((p) => p.actor === seat) || null; }
 
