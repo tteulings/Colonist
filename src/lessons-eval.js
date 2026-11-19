@@ -7,7 +7,8 @@
 export const MIN = { games: 3, moves: 3, gamesWithMove: 2, share: 0.4, big: 3 };
 export const WINDOW = 12;
 export const CAT_IDS = ["setup", "build", "timing", "trade", "dev", "robber"];
-export const R5 = ["wood", "brick", "sheep", "wheat", "ore"];
+import { RESOURCES as R5 } from "./core/constants.js";
+export { R5 };
 const sum = (a) => a.reduce((x, y) => x + y, 0), mean = (a) => (a.length ? sum(a) / a.length : 0);
 const se = (a) => { if (a.length < 2) return null; const m = mean(a); return Math.sqrt(sum(a.map((x) => (x - m) ** 2)) / (a.length - 1)) / Math.sqrt(a.length); };
 export const wilson = (k, n, z = 1.28) => { if (!n) return [0, 1]; const p = k / n, d = 1 + z * z / n, c = p + z * z / (2 * n), r = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)); return [Math.max(0, (c - r) / d), Math.min(1, (c + r) / d)]; };

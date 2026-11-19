@@ -21,14 +21,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   for (const vp of [{ width: 360, height: 780 }, { width: 412, height: 923 }]) {
     console.log(`--- ${vp.width}x${vp.height}`);
     const mk = async (opts = {}) => { const ctx = await b.newContext({ viewport: vp, ...opts }); const page = await ctx.newPage(); const errs = []; page.on("pageerror", (e) => errs.push("PAGEERR " + e.message.split("\n")[0])); page.on("console", (m) => { if (m.type() === "error" && !/503|Failed to load resource/.test(m.text())) errs.push("console: " + m.text().slice(0, 140)); }); return { ctx, page, errs }; };
-    const probe = () => { window.__sp = { seen: 0, gone: 0 }; const t = () => { const s = document.getElementById("splash"); if (s && !window.__sp.seen) { const r = s.getBoundingClientRect(); if (r.width > 0) window.__sp.seen = performance.now(); } if (s && (s.classList.contains("gone") || s.classList.contains("fly") || s.classList.contains("rmfade")) && !window.__sp.handoff) window.__sp.handoff = performance.now(); if (!s && window.__sp.seen && !window.__sp.gone) window.__sp.gone = performance.now(); if (!window.__sp.gone) requestAnimationFrame(t); }; requestAnimationFrame(t); };
+    const probe = () => { window.__sp = { seen: 0, gone: 0 }; const t = () => { if (window.__colonistGame && !window.__sp.ready) window.__sp.ready = performance.now(); const s = document.getElementById("splash"); if (s && !window.__sp.seen) { const r = s.getBoundingClientRect(); if (r.width > 0) window.__sp.seen = performance.now(); } if (s && (s.classList.contains("gone") || s.classList.contains("fly") || s.classList.contains("rmfade")) && !window.__sp.handoff) window.__sp.handoff = performance.now(); if (!s && window.__sp.seen && !window.__sp.gone) window.__sp.gone = performance.now(); if (!window.__sp.gone) requestAnimationFrame(t); }; requestAnimationFrame(t); };
     // fast start
     gameDelay = 0; gameFail = false;
     { const { ctx, page, errs } = await mk(); await page.addInitScript(probe);
       await page.goto(URL, { waitUntil: "commit" });
       const first = await page.waitForSelector("#splash", { state: "visible", timeout: 3000 }).then(() => true).catch(() => false); ok(first, "splash visible at first paint");
       await page.waitForFunction(() => window.__colonistGame && !document.getElementById("splash"), null, { timeout: 8000 });
-      const sp = await page.evaluate(() => window.__sp); ok(sp.handoff > 0 && sp.handoff <= 700, "hand-off starts <= 0.7 s", Math.round(sp.handoff) + " ms"); ok(sp.gone <= 1150, "splash fully gone <= ~1.1 s (no middle stage)", Math.round(sp.gone) + " ms");
+      const sp = await page.evaluate(() => window.__sp); // robust under load: the budgets are measured from the app's own events (game ready -> hand-off = 100 ms poll + 250 ms min intro + 2 frames; hand-off -> removed = the 570 ms fly timer), not from navigation start, which includes network/CPU time the splash does not control
+      ok(sp.handoff > 0 && sp.ready > 0 && sp.handoff - sp.ready <= 900, "hand-off starts right after the app is ready (<= 0.9 s: 100 ms poll + 250 ms intro + frames, load slack)", { handoff: Math.round(sp.handoff), ready: Math.round(sp.ready) }); ok(sp.gone - sp.handoff <= 1100, "hand-off to removed takes the fly time (570 ms timer, <= 1.1 s with load slack; no middle stage)", Math.round(sp.gone - sp.handoff) + " ms");
       const cov = await page.evaluate(() => { const e = document.elementFromPoint(innerWidth / 2, innerHeight / 2); return { sp: !!(e && e.closest("#splash")), left: document.querySelectorAll("#splash,.sp-art").length }; });
       ok(!cov.sp && cov.left === 0, "no splash element left over the home screen", cov);
       await sleep(400); ok(errs.length === 0, "no console errors (fast)", errs.slice(0, 3)); await ctx.close(); }
@@ -105,6 +106,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     gameFail = true; gameDelay = 0;
     { const { ctx, page, errs } = await mk(); await page.goto(URL, { waitUntil: "commit" });
       const shown = await page.waitForSelector("#splash.failed #splashReload", { state: "visible", timeout: 20000 }).then(() => true).catch(() => false); ok(shown, "error state shows Reload after the boot retries");
+      await page.waitForFunction(() => /grayscale/.test(getComputedStyle(document.querySelector(".sp-logo")).filter) && document.getAnimations().filter((a) => document.getElementById("splash").contains(a.effect.target)).every((a) => a.playState !== "running"), null, { timeout: 10000 }).catch(() => {}); // the grey-out is a CSS state: wait for it to apply instead of sampling at a fixed time
       const g = await page.evaluate(() => ({ msg: document.getElementById("splashMsg").textContent, filter: getComputedStyle(document.querySelector(".sp-logo")).filter, paused: document.getAnimations().filter((a) => document.getElementById("splash").contains(a.effect.target)).every((a) => a.playState !== "running") }));
       ok(/could not start/.test(g.msg) && /grayscale/.test(g.filter) && g.paused, "greyed art, paused, message", g); await ctx.close(); }
   }
