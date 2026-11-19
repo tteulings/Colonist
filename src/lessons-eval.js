@@ -23,6 +23,8 @@ const gamesOf = (used) => used.map((g) => ({ id: g.id, end: g.end, result: g.res
 
 function decLesson(cat, G) { // G: oldest first
   const N = G.length, per = G.map((g) => g.lr.cl?.[cat] || [0, 0]), gpg = per.map((p) => p[1]), moves = sum(per.map((p) => p[0])), total = sum(gpg);
+  // an example that shows the same move twice (no board spot to compare, same kind and detail) teaches nothing: it counts in the numbers but is not shown
+  const same = (d) => !(d.p && d.q && d.p[0] === d.q[0]) && d.pk === d.bk && JSON.stringify(d.pd ?? null) === JSON.stringify(d.bd ?? null);
   const ds = G.flatMap((g) => g.lr.dec.filter((d) => d.c === cat).map((d) => ({ ...d, gid: g.id, end: g.end, result: g.result })));
   const top = ds.slice().sort((a, b) => b.g - a.g)[0] || null, games = per.filter((p) => p[0]).length;
   const bigGames = G.filter((g) => g.lr.dec.some((d) => d.c === cat && d.g >= MIN.big)).length;
@@ -36,7 +38,7 @@ function decLesson(cat, G) { // G: oldest first
   const need = status === "watch" ? (N < MIN.games ? { games: MIN.games - N } : bigGames < MIN.gamesWithMove ? { games: MIN.gamesWithMove - bigGames } : moves < MIN.moves ? { moves: MIN.moves - moves } : games / N < MIN.share ? { share: [Math.round(100 * games / N), Math.round(100 * MIN.share)] } : concentrated ? { spread: Math.round(100 * topShare), limit: 50 } : {}) : null;
   const ratio = need?.games ? (N < MIN.games ? N / MIN.games : bigGames / MIN.gamesWithMove) : need?.moves ? moves / MIN.moves : need?.share ? (games / N) / MIN.share : need?.spread ? Math.min(1, (need.limit / 100) / Math.max(0.01, topShare)) : 0.9;
   const prog = Math.min(0.95, Math.max(0.05, ratio));
-  return { id: "dec-" + cat, kind: "dec", cat, status, cost: total / N, se: se(gpg), k: games, N, moves, total, top, bigGames, concentrated, need, prog, clean, trend, series: G.map((g, i) => ({ id: g.id, end: g.end, result: g.result, v: gpg[i] })), examples: ds.sort((a, b) => b.g - a.g || b.end - a.end), p: games / N };
+  return { id: "dec-" + cat, kind: "dec", cat, status, cost: total / N, se: se(gpg), k: games, N, moves, total, top, bigGames, concentrated, need, prog, clean, trend, series: G.map((g, i) => ({ id: g.id, end: g.end, result: g.result, v: gpg[i] })), examples: ds.filter((d) => !same(d)).sort((a, b) => b.g - a.g || b.end - a.end), p: games / N };
 }
 const g_blk = (rb) => { const b = rb.filter((g) => g.lr.rb); return b.length ? { mine: mean(b.map((g) => g.lr.rb[0])), opp: mean(b.map((g) => g.lr.rb[1])), N: b.length } : null; };
 function mechLessons(G) {

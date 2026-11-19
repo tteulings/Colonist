@@ -40,8 +40,8 @@
 .ln-ref.big { margin: 0 4px 0 0; } .ln-ref.in { cursor: pointer; min-width: 24px; height: 24px; margin: 0 2px; }
 .ln-exc.flash { box-shadow: inset 0 0 0 2px var(--primary), var(--float-shadow); }
 .ln-open { min-height: 44px; min-width: 64px; padding: 0 6px; border: 0; background: transparent; color: var(--primary); font: 800 var(--fs-m) var(--font-body); cursor: pointer; }
-.ln-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
-.ln-pair > div { min-width: 0; }
+.ln-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: stretch; }
+.ln-pair > div { min-width: 0; display: flex; flex-direction: column; } .ln-pair > div > .lc-tile { flex: 1 1 auto; }
 .ln-lbl { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; font-size: var(--fs-m); font-weight: 700; color: var(--ink-soft); margin-bottom: 2px; } .ln-lbl b { font-size: 15px; }
 .lc-crop { margin: 0 auto; }
 .lc-tile { min-height: 104px; border-radius: 14px; border: 1px solid var(--ln-sep); background: color-mix(in srgb, var(--ink) 5%, transparent); display: grid; place-items: center; align-content: center; gap: 6px; padding: 8px; text-align: center; }
@@ -87,3 +87,12 @@
 .ln-mr > span:first-child, .ln-cr > span:first-child { display: flex; align-items: center; gap: 6px; color: var(--heading); min-width: 0; }
 .ln-mr b, .ln-cr b { color: var(--heading); font-size: var(--fs-s); text-align: right; }
 @media (max-width: 374px) { .ln-mr, .ln-cr { grid-template-columns: 6.3em 1fr auto; } }
+
+/* v1.94 round 3: signed luck / choice bars per game, the one-game state */
+.ln-sg { grid-template-columns: 4.6em 1fr 4.2em; }
+.ln-dv { position: relative; height: 12px; border-radius: 99px; background: color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; }
+.ln-dv::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1.5px; background: var(--ink-soft); opacity: .6; }
+.ln-dv i { position: absolute; top: 0; bottom: 0; } .ln-dv i.neg { background: var(--hs-lost); } .ln-dv i.pos { background: var(--hs-won); }
+.ln-first { justify-items: start; } .ln-first .hs-btn { justify-self: stretch; min-height: 46px; } .ln-first p.soft { color: var(--ink-soft); font-weight: 600; }
+.ln-h5 { margin: 2px 0 0; font: 800 var(--fs-s) var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+.ln-mt { display: grid; gap: 5px; width: 100%; font-size: var(--fs-m); font-weight: 700; color: var(--heading); } .ln-mt b { color: var(--ink-soft); }

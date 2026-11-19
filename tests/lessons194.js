@@ -43,6 +43,7 @@ async function checkText(page, W, lang, label) {
   ok(!/\d+·\d+|\d+ · \d+ · \d+/.test(all), `${label}: no dot-number strings`, (all.match(/\d+·\d+|\d+ · \d+ · \d+/) || [""])[0]);
   const pcts = [...all.matchAll(/(\d[\d.,]*)\s?%/g)].map((m) => parseFloat(m[1].replace(",", ".")));
   ok(pcts.every((p) => p <= 100), `${label}: no percentage above 100`, Math.max(0, ...pcts));
+  ok(!/≥1 (punt|point)\b/.test(all), `${label}: the rule says "≥1 pt" like the win chance points, never "≥1 punt/point"`, (all.match(/≥1 (punt|point)\b/) || [""])[0]);
   ok(!/\bVP\b|NaN|undefined|\[object/.test(all), `${label}: no VP / NaN / undefined`);
   if (lang === "nl") ok(!/\b(Better|You chose|games?|examples|Practise|analysed|Learned)\b/.test(all.replace(/ ?\d+ van \d+ potjes?/g, "")), `${label}: Dutch screen has no English words`, (all.match(/\b(Better|You chose|games?|examples|Practise|analysed|Learned)\b/) || [""])[0]);
   else ok(!/\b(potjes?|zetten?|Beter|Jij koos|Oefen|Vraag|Lessen)\b/.test(all), `${label}: English screen has no Dutch words`, (all.match(/\b(potjes?|zetten?|Beter|Jij koos|Oefen|Vraag|Lessen)\b/) || [""])[0]);
@@ -91,6 +92,10 @@ async function run(w, h, lang) {
   const wat = await G(() => [...document.querySelectorAll(".ln-w")].map((c) => ({ need: c.querySelector(".ln-need")?.innerText || "", now: +c.querySelector("[role=progressbar]")?.getAttribute("aria-valuenow"), w: parseFloat(c.querySelector(".ln-bar i")?.style.width), lab: c.querySelector("[role=progressbar]")?.getAttribute("aria-label") })));
   ok(wat.length >= 2 && wat.every((x) => x.need.length > 6 && x.now > 0 && x.now < 100 && x.w === x.now && x.lab === x.need), `${tag}: every "too little to say" card has a labelled progress bar, filled to its share and never full`, wat);
   ok(wat.every((x) => !/ \d+ (potjes|games)\b/.test(x.need) || /(nog|more) /.test(x.need) || true) && wat.some((x) => /nog|more|nu |now|1 zet|1 move/.test(x.need)), `${tag}: the label says what is missing`, wat.map((x) => x.need));
+  const wtxt = await G(() => [...document.querySelectorAll(".ln-w")].map((c) => c.innerText.replace(/\s+/g, " ")));
+  ok(wtxt.every((t) => !/samen|in all|together|in total/.test(t) && (/telt voor|counts for/.test(t) || /−\d+ pt (per potje|per game), (in )?\d+ (van|of) 5/.test(t))), `${tag}: "too little to say" cards give per game figures (pt per game, in k of N), no sum over games`, wtxt);
+  const cov = await G(() => { const g = window.__colonistGame, S = g._ln, keep = [S.items, S.D.N, S.D.skipped]; S.items = Array(20).fill(S.items[0]); S.D.N = 12; S.D.skipped = 0; const r = [g._lnCov(true), g._lnCov(false)]; [S.items, S.D.N, S.D.skipped] = keep; return { r, head: document.querySelector(".hs-bar small").innerText, foot: document.querySelector(".ln-foot.soft").innerText }; });
+  ok(cov.r.every((t) => /12/.test(t) && /20/.test(t)) && /5/.test(cov.head) && /5/.test(cov.foot) && !/\b12\b|\b20\b/.test(cov.head + cov.foot), `${tag}: header and footer use one definition of the games (all 5; or the newest 12 of 20, in both)`, cov);
   await checkText(page, w, lang, `${tag} home`);
   if (SHOTS && lang === "nl") { await G(() => (document.querySelector(".ln-scroll").scrollTop = 0)); await page.screenshot({ path: shot("home") }); }
   // 4 a lesson: crops
@@ -109,9 +114,13 @@ async function run(w, h, lang) {
   ok(!/\b(vaak|often)\b/i.test(hl.shown) && !/\d+ (van|of) \d+ (gevallen|cases)/.test(hl.shown), `${tag}: no "often", no "gevallen"; the unit is the start (opstelling)`, hl.shown);
   const bars = await G(() => [...document.querySelectorAll(".ln-focus .ln-mr")].map((r) => [r.dataset.miss, r.querySelector("b").innerText]));
   ok(bars.length === Object.keys(hl.miss).length && bars.every(([r, t]) => new RegExp(`^${hl.miss[r]} (van|of) ${hl.n} (opstellingen|starts)$`).test(t)), `${tag}: per-resource miss bars match the recount (${hl.n} starts)`, bars);
+  const numsA = await G(() => ({ ex: [...document.querySelectorAll(".ln-exc .ln-ref.big")].map((e) => +e.textContent), pr: document.querySelectorAll(".ln-pr .ln-ref").length }));
+  ok(numsA.ex.every((v, i) => v === i + 1) && numsA.ex.length >= 2 && numsA.pr === 0, `${tag}: the examples are numbered 1, 2, 3, ... without a gap (the practice position carries no number)`, numsA);
   const unitMix = await G(() => document.querySelector(".ln-focus").innerText.replace(/\s+/g, " "));
   ok(!/in \d+ (van|of) \d+ (potjes|games)[^|]*\d+ (van|of) \d+ (potjes|games)/.test(unitMix), `${tag}: one unit per number (games vs starts are named)`, unitMix.slice(0, 160));
   await page.locator("[data-lnmore]").tap(); await sleep(300);
+  const nums2 = await G(() => ({ ex: [...document.querySelectorAll(".ln-exc .ln-ref.big")].map((e) => +e.textContent), pr: document.querySelectorAll(".ln-pr .ln-ref").length }));
+  ok(nums2.ex.length >= 3 && nums2.ex.every((v, i) => v === i + 1) && nums2.pr === 0, `${tag}: all examples shown: still 1, 2, 3, ... (the practice position was moved out)`, nums2);
   const crops = await G(() => [...document.querySelectorAll(".ln-exc")].map((a) => ({ gid: a.dataset.gid, crops: [...a.querySelectorAll("svg.lc-crop")].map((s) => ({ spot: s.dataset.crop, hexes: [...s.querySelectorAll("[data-hex]")].map((g) => [+g.dataset.hex, g.dataset.res, +g.dataset.num]), tokens: [...s.querySelectorAll("text")].map((t) => +t.textContent), pips: s.querySelectorAll("g[data-hex] circle[r='1.15']").length, piece: !!s.querySelector("[data-piece=settlement]") })) })));
   const prac = await G(() => { const g = window.__colonistGame, P = g._ln.pr, les = g._ln.D.lessons.find((l) => l.id === "dec-setup"), ex = g._lnExamples(les), e = ex[P.ex]; return { gid: e.gid, i: e.i, crops: document.querySelectorAll(".ln-pr svg.lc-crop").length, tiles: document.querySelectorAll(".ln-pr .lc-tile").length, n: ex.length }; });
   ok(crops.length === prac.n - 1 && crops.every((c) => c.crops.length === 2), `${tag}: all examples except the practice position, each with "You chose" and "Better"`, crops.length);
@@ -162,11 +171,16 @@ async function run(w, h, lang) {
   await G(() => document.querySelector("[data-lnback]").click()); await sleep(300);
   await page.locator("[data-lnopen=dec-build]").tap(); await sleep(400);
   ok(await G(() => /76%/.test(document.querySelector(".ln-focus").innerText) || /\d+%/.test(document.querySelector(".ln-focus").innerText)), `${tag}: a "watch" lesson opens with its examples`);
+  const tl = await G(() => [...document.querySelectorAll(".ln-exc")].map((a) => [...a.querySelectorAll(".lc-tile")].map((t) => t.innerText.replace(/\s+/g, " "))).filter((t) => t.length === 2));
+  ok(tl.every(([a, b]) => a !== b) && tl.every(([a, b]) => !(/weg|road/i.test(a) && /weg|road/i.test(b) && a.replace(/gebouwd|built/i, "").trim().toLowerCase() === b.replace(/bouwen|build|een|a/gi, "").trim().toLowerCase())), `${tag}: no build example shows the same move twice (two road tiles)`, tl);
+  ok(await G(() => document.querySelectorAll(".ln-exc").length >= 1), `${tag}: the build lesson still has an example`);
   await checkText(page, w, lang, `${tag} watch`);
   await G(() => document.querySelector("[data-lnback]").click()); await sleep(300);
   await page.locator("[data-lnopen=dec-timing]").tap(); await sleep(400);
   ok(await G(() => document.querySelectorAll(".ln-exc .lc-tile").length >= 1), `${tag}: moves without a spot show a move tile`);
   ok(await G(() => !document.querySelector(".ln-pr") || (document.querySelectorAll(".ln-pr .lc-tile").length === 0 && document.querySelectorAll(".ln-pr svg.lc-crop").length === 2)), `${tag}: timing: no practice question made of tiles (a position to judge is needed)`);
+  const al = await G(() => [...document.querySelectorAll(".ln-pair")].map((p) => [...p.querySelectorAll(".lc-tile")].map((t) => { const r = t.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.height)]; })).filter((t) => t.length === 2));
+  ok(al.length >= 1 && al.every(([a, b]) => Math.abs(a[0] - b[0]) <= 1 && Math.abs(a[1] - b[1]) <= 1), `${tag}: the two tiles of a pair have the same top and height`, al);
   await checkText(page, w, lang, `${tag} timing`);
   if (SHOTS && lang === "nl") { await page.screenshot({ path: shot("tiles") }); }
   await G(() => document.querySelector("[data-lnback]").click()); await sleep(300);
@@ -174,9 +188,19 @@ async function run(w, h, lang) {
   const gm = await G(() => [...document.querySelectorAll(".ln-gm")].map((g) => g.innerText.replace(/\s+/g, " ")));
   ok(gm.length === 5, `${tag}: Jouw potjes lists the five games`, gm.length);
   const pj = await G(() => ({ sum: document.querySelector(".ln-sum")?.innerText.replace(/\s+/g, " "), spk: document.querySelectorAll(".ln-gm svg.ln-spk").length, rings: [...document.querySelectorAll(".ln-gm")].map((g) => g.querySelectorAll("svg.ln-spk circle").length), cards: [...document.querySelectorAll(".ln-gm")].map((g) => ({ id: g.dataset.lngame, t: g.innerText.replace(/\s+/g, " ") })), rows: window.__colonistGame._ln.items.map((x) => ({ id: x.id, marks: x.lr.marks, big: Math.max(0, ...x.lr.dec.map((d) => d.g)) })) }));
+  const lowExp = (wc) => { if (!wc.some((q) => q[1] < 15)) return "never"; let j = wc.length; while (j > 0 && wc[j - 1][1] < 15) j--; return j < wc.length ? `end${wc[j][0]}` : `dip${wc.find((q) => q[1] < 15)[0]}`; };
+  const lowAct = await G(() => window.__colonistGame._ln.items.map((x) => { const t = document.querySelector(`.ln-gm[data-lngame="${x.id}"] .ln-gt .soft`)?.innerText || ""; return { id: x.id, wc: x.lr.wc, t }; }));
+  ok(lowAct.every(({ wc, t }) => { const e = lowExp(wc); return e === "never" ? /(nooit|never) /.test(t) : e.startsWith("end") ? new RegExp(`(vanaf beurt|from turn) ${e.slice(3)}$`).test(t) : new RegExp(`(zakte in beurt ${e.slice(3)} onder|dipped under 15% in turn ${e.slice(3)})`).test(t); }) && lowAct.some((x) => /(zakte|dipped)/.test(x.t)), `${tag}: "under 15% from turn N" only when it stayed under until the end; otherwise "dipped in turn N"`, lowAct.map((x) => x.t));
+  ok(!lowAct.some(({ wc, t }) => /(vanaf beurt|from turn)/.test(t) && wc[wc.length - 1][1] >= 15), `${tag}: a game that ended above 15% never says "from turn N"`);
   ok(pj.spk === 5 && pj.rings.every((n, k) => n >= 0) && pj.rings.some((n) => n > 0), `${tag}: every game has its win chance curve, rings on the marked moves`, pj.rings);
   ok(!!pj.sum && /≥1/.test(pj.sum) && /(14|\d+) (zetten|moves)/.test(pj.sum), `${tag}: summary card "what stands out" (marked moves of >= 1 point, biggest single move)`, pj.sum);
-  ok(pj.cards.every((c) => { const r = pj.rows.find((x) => x.id === c.id); return (r.marks ? new RegExp(`${r.marks} (zet|zetten|move|moves) (van|of)`).test(c.t) && c.t.includes("−" + Math.max(1, Math.round(r.big)) + " pt") : /(Geen zet|No move) /.test(c.t)); }), `${tag}: per game the count of marked moves and the biggest single cost in pt (nothing summed over moves)`, pj.cards.map((c) => c.t.slice(0, 100)));
+  ok(pj.cards.every((c) => { const r = pj.rows.find((x) => x.id === c.id); return (r.marks ? new RegExp(`${r.marks} (zet|zetten|move|moves) (van|of)`).test(c.t) : /(Geen zet|No move) /.test(c.t)); }), `${tag}: per game the count of marked moves (nothing summed over games)`, pj.cards.map((c) => c.t.slice(0, 100)));
+  // round 3: luck and choices as two short signed bars per game (per game values, never summed over games)
+  const lb = await G(() => window.__colonistGame._ln.items.map((x) => { const c = document.querySelector(`.ln-gm[data-lngame="${x.id}"]`), v = (k) => c.querySelector(`[data-bar=${k}] b`)?.innerText.replace(/\s+/g, " ") ?? null, dv = (k) => c.querySelector(`[data-bar=${k}] .ln-dv i`)?.className ?? null; return { id: x.id, gp: x.lr.gp, lk: x.lr.lk, luck: v("luck"), choice: v("choice"), lc: dv("luck"), cc: dv("choice"), res: x.result, n: c.querySelectorAll(".ln-sg").length }; }));
+  const sg = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v))} pt`;
+  ok(lb.every((x) => x.lk != null && x.n === 2 && x.luck === sg(x.lk) && x.choice === sg(-x.gp) && x.lc === (x.lk < 0 ? "neg" : "pos") && x.cc === (-x.gp < 0 ? "neg" : "pos")), `${tag}: every game has a Luck and a Choices bar (signed, in pt) equal to its stored row`, lb.map((x) => `${x.id.slice(-4)} ${x.luck}/${x.choice}`));
+  ok(lb.some((x) => x.res === "won" && x.lk > 0) && lb.some((x) => x.lk < 0), `${tag}: luck is signed: the 13 Nov win was lucky (+51), the others below expected`, lb.map((x) => x.lk));
+  ok(!/Grootste zet|Biggest move/.test(pj.cards.map((c) => c.t).join(" ")), `${tag}: no cross-game or unsigned "biggest move" bar left in the rows`);
   ok(!pj.cards.some((c) => /−6[0-9]\b(?! pt)|Jouw keuzes|Your choices/.test(c.t)), `${tag}: no unitless summed "Your choices -63"`);
   ok(pj.cards.every((c) => /(Rover en 7|Robber and 7s): \d+ (kaart|kaarten|card|cards) (gestolen of afgegooid|stolen or discarded)/.test(c.t)), `${tag}: robber line per game says what it counts`, pj.cards[0].t);
   await checkText(page, w, lang, `${tag} potjes`);
@@ -240,7 +264,10 @@ async function run(w, h, lang) {
     const rule = (t.match(/≥3|3 marked moves|3 gemarkeerde zetten/g) || []).length;
     ok(n === 1 ? (lang === "nl" ? /\b1 beoordeeld potje op dit apparaat/.test(t) && !/1 beoordeelde potjes/.test(t) : /\b1 reviewed game on this device/.test(t) && !/1 reviewed games/.test(t)) : /\b2 (beoordeelde potjes|reviewed games)/.test(t), `${lang} ${n} game: plural of the footer agrees`, t.slice(-140));
     ok(rule <= 1, `${lang} ${n} game: the rule sentence appears once`, rule);
-    ok(n > 1 || await page.evaluate(() => document.querySelectorAll(".ln-cr").length >= 1), `${lang} ${n} game: not text only: the marked moves per kind are drawn as bars`);
+    if (n === 1) { const f = await page.evaluate(() => ({ first: !!document.querySelector(".ln-first"), m: [...document.querySelectorAll(".ln-first [data-meter] [role=progressbar]")].map((e) => +e.getAttribute("aria-valuenow")), red: document.querySelectorAll(".ln-cr").length, head: document.querySelector(".hs-bar small").innerText, txt: document.querySelector(".ln-first")?.innerText.replace(/\s+/g, " ") }));
+      ok(f.first && f.m.length === 2 && f.m[0] === 50 && f.m[1] > 0 && f.m[1] < 100 && f.red === 0 && /^(Uit 1 beoordeeld potje|From 1 reviewed game)/.test(f.head), `${lang} 1 game: a designed state: what is known + two meters (games 1 of 2, moves of a kind k of 3), no full red bar`, f);
+      ok(/(Dit potje|This game)/.test(f.txt) && /(Wat een eerste les nodig heeft|What a first lesson needs)/i.test(f.txt) && /(nog 1 potje|one more game)/i.test(f.txt.replace(/Beoordeel nog 1 potje/, "nog 1 potje")), `${lang} 1 game: says what is known and what unlocks next`, f.txt);
+    } else ok(await page.evaluate(() => document.querySelectorAll(".ln-cr").length >= 1), `${lang} ${n} game: not text only: the marked moves per kind are drawn as bars`);
     ok(!/\b1 (potjes|games)\b|\b1 van 1 potjes|\b1 (zetten|moves)\b/.test(t), `${lang} ${n} game: no "1 potjes" / "1 games" / "1 zetten"`, t.match(/\b1 (potjes|games|zetten|moves)\b/)?.[0]);
     await page.evaluate(() => document.querySelector("[data-lntab=potjes]").click()); await sleep(300);
     const t2 = (await page.evaluate(VIS)).join(" | "); ok(/≥1/.test(t2) && !/NaN|undefined/.test(t2), `${lang} ${n} game: games tab names the ≥1 point rule`);

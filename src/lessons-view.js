@@ -131,14 +131,14 @@ export const QS = [
 ];
 const most = (a) => { const c = {}; a.forEach((x) => { if (x != null) c[x] = (c[x] || 0) + 1; }); return Object.entries(c).sort((x, y) => y[1] - x[1])[0] || null; };
 /** { lead, chips: [{ ex: index, side: "p"|"q" }], extra: { text, chips } | null } for a decision lesson; models[i] = exModel of example i */
-export function answerDec(les, q, models) {
+export function answerDec(les, q, models, no = (i) => i + 1) {
   const ex = les.examples, n = ex.length; if (!n) return null;
   const idx = (f) => ex.map((e, i) => (f(e, models[i], i) ? i : -1)).filter((i) => i >= 0);
   if (les.cat === "setup" && models.some((m) => m?.a)) {
     const { top: top0, tops, lead: found, count: cnt, leader } = missHeadline(models, n), top = leader ? [leader] : top0;
     const five = idx((e, m) => m?.b && m.b.kinds === 5), more = idx((e, m) => m?.b && m.a && m.b.kinds > m.a.kinds);
     if (!cnt) return { lead: L("Your starts gave fewer kinds than the better ones.", "Je opstellingen gaven minder soorten dan de betere."), text: L(`In ${more.length} of ${n} starts the better spot gave a kind more.`, `In ${more.length} van ${n} opstellingen gaf de betere plek een soort erbij.`), chips: more.map((i) => ({ ex: i, side: "p" })), extra: null };
-    if (q === "wrong") return { lead: found || L("No single kind stands out.", "Geen enkele soort valt op."), text: cnt, chips: (top.length ? tops : more).map((i) => ({ ex: i, side: "p" })), extra: five.length ? { text: L(`In ${five.map((i) => i + 1).join(", ")} all 5 kinds were possible.`, `In ${five.map((i) => i + 1).join(", ")} kon je alle 5 soorten hebben.`), chips: five.slice(0, 3).map((i) => ({ ex: i, side: "q" })) } : null };
+    if (q === "wrong") return { lead: found || L("No single kind stands out.", "Geen enkele soort valt op."), text: cnt, chips: (top.length ? tops : more).map((i) => ({ ex: i, side: "p" })), extra: five.length ? { text: L(`In ${five.map(no).join(", ")} all 5 kinds were possible.`, `In ${five.map(no).join(", ")} kon je alle 5 soorten hebben.`), chips: five.slice(0, 3).map((i) => ({ ex: i, side: "q" })) } : null };
     if (q === "rule") return { lead: top.length ? L(`Check first whether ${list(top.map(rn).sort()).replace(" and ", " or ")} is in your start.`, `Kijk eerst of ${list(top.map(rn)).replace(` en `, " of ")} in je start zit.`) : L("Check first which kinds your start still misses.", "Kijk eerst welke soorten je start nog mist."), text: cnt, chips: more.slice(0, 3).map((i) => ({ ex: i, side: "q" })), extra: null };
     return { lead: L("Look at which kinds you miss before you look at the numbers.", "Kijk eerst welke soorten je mist, dan pas naar de getallen."), text: cnt, chips: more.slice(0, 3).map((i) => ({ ex: i, side: "q" })), extra: null };
   }

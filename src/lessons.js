@@ -29,10 +29,13 @@ const titleOf = (l) => (l.kind === "dec" ? L(...TITLES[l.cat]) : l.kind === "res
 const gamesN = (n) => pl(n, "game", "games", "potje", "potjes");
 const movesN = (n) => pl(n, "move", "moves", "zet", "zetten");
 /** the marked moves are the ones that cost >= 1 point of win chance (the game's own review also lists the smaller ones) */
-const markedN = (n) => L(`${num(n)} ${tn(n, "move", "moves")} of ≥1 point marked`, `${num(n)} ${tn(n, "zet", "zetten")} van ≥1 punt gemarkeerd`);
+const markedN = (n) => L(`${num(n)} ${tn(n, "move", "moves")} of ≥1 pt marked`, `${num(n)} ${tn(n, "zet", "zetten")} van ≥1 pt gemarkeerd`);
 const cardsN = (v) => pl(Math.round(v), "card", "cards", "kaart", "kaarten");
 const ptN = (v) => `−${num(Math.max(1, Math.round(v)))} pt`;
 const FAIR_LOW = 15;
+/** where the win chance curve stays under 15%: "end" = from turn t until the last sample (sustained), "dip" = it went under at turn t but came back, "never" */
+const lowOf = (wc) => { if (!wc?.length) return null; const first = wc.findIndex((q) => q[1] < FAIR_LOW); if (first < 0) return { k: "never" }; let last = -1; wc.forEach((q, j) => { if (q[1] >= FAIR_LOW) last = j; }); return last < wc.length - 1 ? { k: "end", t: wc[last + 1][0] } : { k: "dip", t: wc[first][0] }; };
+const sgn = (v) => (v > 0 ? "+" : v < 0 ? "−" : "");
 const pct = (v) => `${num(Math.round(v))}%`;
 const resWord = (r) => (r === "won" ? L("won", "gewonnen") : r === "lost" ? L("lost", "verloren") : "");
 const resCls = (r) => (r === "won" ? "pos" : r === "lost" ? "neg" : "");
@@ -137,7 +140,7 @@ export const LessonsMixin = {
     if (loading || !D) { sub = L("Loading…", "Laden…"); body = `<p class="hs-note" role="status">${L("Reading your games…", "Je potjes lezen…")}</p>`; }
     else if (!S.items.length) { sub = L("Learn from your reviewed games", "Leer van je beoordeelde potjes"); body = this._lnEmpty(); }
     else if (les) { title = titleOf(les); sub = this._lnSub(les); body = this._lnLesson(les); }
-    else { sub = D.N ? L(`From ${gamesN(D.N)} reviewed · ${markedN(D.moves)}`, `Uit ${gamesN(D.N)} beoordeeld · ${markedN(D.moves)}`) : L("Your games are being read", "Je potjes worden gelezen"); body = this._lnHome(); }
+    else { sub = D.N ? `${this._lnCov(true)} · ${markedN(D.moves)}` : L("Your games are being read", "Je potjes worden gelezen"); body = this._lnHome(); }
     if (S.view === "home" && S.tab === "potjes" && D?.N) title = L("Your games", "Jouw potjes");
     el.innerHTML = `<div class="hs-bar"><button type="button" class="hs-x" data-lnback aria-label="${les ? L("Back to Lessons", "Terug naar Lessen") : L("Back", "Terug")}">${CHEV_L}</button><div><h3>${esc(title)}</h3><small>${esc(sub)}</small></div></div><div class="hs-scroll ln-scroll">${body}</div>`;
     el.querySelector(".hs-scroll").scrollTop = scroll;
@@ -171,16 +174,32 @@ export const LessonsMixin = {
     let out = tabs + this._lnAn();
     if (!D.N) return out + `<section class="ln-c"><h4>${L("Reading your games", "Je potjes worden gelezen")}</h4><p>${L("The lessons appear as soon as the first games are read.", "De lessen verschijnen zodra de eerste potjes zijn gelezen.")}</p></section>` + this._lnFoot();
     if (D.lessons.length) out += `<h5 class="ln-sec">${L("Your lessons, biggest loss first", "Jouw lessen, grootste verlies eerst")}</h5>` + D.lessons.map((l, i) => this._lnCard(l, i === 0 && l.kind === "dec")).join("");
+    else if (D.N === 1) out += this._lnFirst(D);
     else out += `<section class="ln-c"><h4>${L("No lesson yet", "Nog geen les")}</h4><p>${L("A lesson needs 3 marked moves of one kind in 2 games.", "Een les vraagt 3 gemarkeerde zetten van één soort in 2 potjes.")}</p>${this._lnCatBars(D)}</section>`;
     if (D.watch.length) out += `<h5 class="ln-sec">${L("Too little to say yet", "Nog te weinig om te zeggen")}</h5>` + D.watch.map((l) => this._lnWatch(l)).join("");
     if (D.strong.length) out += `<h5 class="ln-sec">${L("Going well", "Dit gaat goed")}</h5>` + D.strong.map((l) => this._lnStrong(l)).join("");
     return out + this._lnFoot();
   },
+  /** the one definition of "which games": all of them, or the newest D.N of the n reviewed ones (the lessons never use more than that). header = short, footer = sentence */
+  _lnCov(head) {
+    const S = this._ln, D = S.D, n = S.items.length, cut = n > D.N + D.skipped;
+    if (cut) return head ? L(`Newest ${D.N} of ${n} reviewed games`, `Nieuwste ${D.N} van ${n} beoordeelde potjes`) : L(`The lessons use the newest ${D.N} of ${n} reviewed games`, `De lessen gebruiken de nieuwste ${D.N} van ${n} beoordeelde potjes`);
+    return head ? L(`From ${num(D.N)} reviewed ${tn(D.N, "game", "games")}`, `Uit ${num(D.N)} beoordeeld${D.N === 1 ? "" : "e"} ${tn(D.N, "potje", "potjes")}`) : L(`${num(n)} reviewed ${tn(n, "game", "games")} on this device`, `${num(n)} beoordeeld${n === 1 ? "" : "e"} ${tn(n, "potje", "potjes")} op dit apparaat`);
+  },
   _lnFoot() {
     const S = this._ln, D = S.D, n = S.items.length;
     const rule = D.lessons.length ? `${L("A lesson needs 3 marked moves in 2 games. ", "Een les vraagt ≥3 zetten in ≥2 potjes. ")}` : "";
-    const cov = tn(n, L(`${num(n)} reviewed game on this device.`, `${num(n)} beoordeeld potje op dit apparaat.`), L(`${num(n)} reviewed games on this device.`, `${num(n)} beoordeelde potjes op dit apparaat.`)) + (n > D.N + D.skipped ? L(` The lessons use the newest ${D.N}.`, ` De lessen gebruiken de nieuwste ${D.N}.`) : "");
+    const cov = this._lnCov(false) + ".";
     return `<p class="ln-foot">${rule}${L("pt = percentage points of win chance; ± is the spread over your games.", "pt = procentpunt winkans; ± = spreiding over je potjes.")}${D.skipped ? ` ${L(`${gamesN(D.skipped)} reviewed with an older method are left out.`, `${gamesN(D.skipped)} met een oudere beoordeling tellen niet mee.`)}` : ""}</p><p class="ln-foot soft">${cov}</p>`;
+  },
+  /** the state after ONE game: what is known from it, and the two things a first lesson still needs (2 games, 3 marked moves of one kind), each as a meter */
+  _lnFirst(D) {
+    const r = D.games[0].lr, kinds = Object.entries(r.cl || {}).filter(([, v]) => v[0] > 0).sort((a, b) => b[1][0] - a[1][0]), top = kinds.length ? kinds[0][1][0] : 0;
+    const known = r.marks ? L(`This game: ${markedN(r.marks)}, ${kinds.map(([c, v]) => `${L(...TITLES[c]).toLowerCase()} ${v[0]}×`).join(", ")}.`, `Dit potje: ${markedN(r.marks)}: ${kinds.map(([c, v]) => `${L(...TITLES[c]).toLowerCase()} ${v[0]}×`).join(", ")}.`) : L("This game had no move of ≥1 pt marked.", "In dit potje was geen zet van ≥1 pt gemarkeerd.");
+    const mt = (lab, have, need) => { const pc = Math.round(100 * Math.min(have, need) / need), t = L(`${have} of ${need}`, `${have} van ${need}`); return `<div class="ln-mt" data-meter><span class="ln-row"><span>${esc(lab)}</span><b>${esc(t)}</b></span><span class="ln-bar" role="progressbar" aria-label="${esc(`${lab}: ${t}`)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pc}"><i style="width:${pc}%"></i></span></div>`; };
+    return `<section class="ln-c ln-first"><i class="ln-ico" aria-hidden="true">${LESSONS_ICON}</i><h4>${L("Your first game is read", "Je eerste potje is gelezen")}</h4><p>${esc(known)}</p>
+      <h5 class="ln-h5">${L("What a first lesson needs", "Wat een eerste les nodig heeft")}</h5>${mt(L("Reviewed games", "Beoordeelde potjes"), 1, 2)}${mt(L("Marked moves of one kind", "Gemarkeerde zetten van één soort"), top, 3)}
+      <p class="soft">${L("Review one more game: from then on the lessons show what costs you the most.", "Beoordeel nog 1 potje: dan laten de lessen zien wat je het meest kost.")}</p><button type="button" class="hs-btn pri" data-lnpast>${L("Past games", "Eerdere potjes")}</button></section>`;
   },
   /** where the marked moves are, per kind of decision (counts, no percentages): the visual of the "no lesson yet" card */
   _lnCatBars(D) {
@@ -223,7 +242,7 @@ export const LessonsMixin = {
     let txt;
     if (l.kind === "dec") {
       if (l.need?.spread) txt = L(`${ofN(l.k, l.N)}, but 1 move counts for ${l.need.spread}%.`, `${ofN(l.k, l.N)}, maar 1 zet telt voor ${l.need.spread}%.`);
-      else txt = L(`${movesN(l.moves)} in ${gamesN(l.k)} (${ptN(l.total)} in all).`, `${movesN(l.moves)} in ${gamesN(l.k)} (${ptN(l.total)} samen).`);
+      else txt = L(`${ptN(l.cost)} per game, in ${ofN(l.k, l.N)} · ${movesN(l.moves)}.`, `${ptN(l.cost)} per potje, in ${ofN(l.k, l.N)} · ${movesN(l.moves)}.`);
     } else txt = this._lnMech(l).line;
     const need = this._lnNeed(l), pc = Math.round((l.prog || 0) * 100);
     return `<div role="button" tabindex="0" class="ln-c ln-les ln-w" data-lnopen="${l.id}"><span class="ln-row"><b class="ln-t">${esc(titleOf(l))}</b><em class="ln-tag soft">${L("Watch", "Let op")}</em></span><span class="ln-two"><span>${esc(txt)}</span></span>
@@ -233,7 +252,7 @@ export const LessonsMixin = {
     let big = "", line = "", sub = "";
     if (l.kind === "rob") { const mm = this._lnMech(l); big = `<b class="ln-big2 pos">${num(Math.round(l.mine))}</b> <span class="ln-sub">${L(`cards stolen or discarded, bots ${num(Math.round(l.opp))}`, `kaarten gestolen of afgegooid, bots ${num(Math.round(l.opp))}`)}</span>`; line = L("Averaged per game, you against the bots.", "Gemiddeld per potje, jij tegen de bots.") + (mm.line2 ? ` ${mm.line2}.` : ""); sub = L(`in <b>${ofN(l.k, l.N)}</b> fewer than the bots`, `in <b>${ofN(l.k, l.N)}</b> minder dan de bots`); }
     else if (l.kind === "learned") { big = `<b class="ln-big2 pos">${L("Learned", "Geleerd")}</b>`; line = L(`The last ${gamesN(l.m)} without this mistake.`, `De laatste ${gamesN(l.m)} zonder deze fout.`); sub = ""; }
-    else { big = `<b class="ln-big2 pos">${l.k}</b> <span class="ln-sub">${tn(l.k, L("game", "potje"), L("games", "potjes"))}</span>`; line = L("No move of ≥1 point was marked in them.", "Er was geen zet van ≥1 punt gemarkeerd."); sub = L(`of <b>${l.N}</b>`, `van <b>${l.N}</b>`); }
+    else { big = `<b class="ln-big2 pos">${l.k}</b> <span class="ln-sub">${tn(l.k, L("game", "potje"), L("games", "potjes"))}</span>`; line = L("No move of ≥1 pt was marked in them.", "Er was geen zet van ≥1 pt gemarkeerd."); sub = L(`of <b>${l.N}</b>`, `van <b>${l.N}</b>`); }
     return `<div class="ln-c ln-st"><span class="ln-row"><b class="ln-t">${esc(titleOf(l))}</b><em class="ln-tag ok">${L("Strong", "Sterk")}</em></span><span class="ln-row end"><span>${big}</span><span class="ln-sub">${sub}</span></span><span class="ln-two"><span class="soft">${esc(line)}</span></span></div>`;
   },
   /** the win chance curve of one game (your win chance after your last decision of each turn), the dotted fair share, a ring on each marked move */
@@ -252,19 +271,24 @@ export const LessonsMixin = {
     if (!items.length) return `<section class="ln-c"><p>${L("The games are being read.", "De potjes worden gelezen.")}</p></section>`;
     const big = (r) => (r.dec || []).reduce((b, d) => (!b || d.g > b.g ? d : b), null), mx = Math.max(1, ...items.map((x) => big(x.lr)?.g || 0));
     const marks = items.reduce((a, x) => a + x.lr.marks, 0), top = items.map((x) => ({ x, d: big(x.lr) })).filter((o) => o.d).sort((a, b) => b.d.g - a.d.g)[0];
-    const cv = items.filter((x) => x.lr.wc), low = cv.map((x) => x.lr.wc.find((q) => q[1] < FAIR_LOW)).filter(Boolean);
+    const cv = items.filter((x) => x.lr.wc), lows = cv.map((x) => lowOf(x.lr.wc)), ends = lows.filter((q) => q.k === "end"), dips = lows.filter((q) => q.k === "dip");
+    const a0 = Math.min(...ends.map((q) => q.t)), a1 = Math.max(...ends.map((q) => q.t)), span = a0 === a1 ? `${a0}` : `${a0}–${a1}`;
+    const lowText = !cv.length ? "" : !ends.length && !dips.length ? L(`Never under ${FAIR_LOW}% win chance.`, `Nooit onder ${FAIR_LOW}% winkans.`)
+      : [ends.length ? L(`Under ${FAIR_LOW}% to the end in ${ofN(ends.length, cv.length)}, from turn ${span}.`, `Onder ${FAIR_LOW}% tot het einde in ${ofN(ends.length, cv.length)}, vanaf beurt ${span}.`) : "", dips.length ? L(`In ${ofN(dips.length, cv.length)} it dipped under ${FAIR_LOW}% for a while.`, `In ${ofN(dips.length, cv.length)} zakte het even onder ${FAIR_LOW}%.`) : ""].filter(Boolean).join(" ");
+    const lk = items.map((x) => x.lr.lk).filter((v) => v != null), mx2 = Math.max(1, ...lk.map(Math.abs), ...items.map((x) => Math.abs(x.lr.gp || 0)));
+    const sg = (cls, lab, v) => { const r = Math.round(v), w = Math.max(r ? 3 : 0, (Math.abs(v) / mx2) * 50); return `<span class="ln-gr ln-sg" data-bar="${cls}"><span>${lab}</span><span class="ln-dv" role="img" aria-label="${esc(`${lab}: ${sgn(r)}${Math.abs(r)} pt`)}"><i class="${r < 0 ? "neg" : "pos"}" style="width:${w.toFixed(1)}%;${r < 0 ? "right" : "left"}:50%"></i></span><b class="${r < 0 ? "neg" : r > 0 ? "pos" : ""}">${sgn(r)}${num(Math.abs(r))} pt</b></span>`; };
     const where = (o) => `${day(o.x.end)}, ${o.d.c === "setup" ? L("set-up", "beginopstelling") : L(`turn ${o.d.t}`, `beurt ${o.d.t}`)}`;
     const sum = `<section class="ln-c ln-sum"><span class="ln-row"><h4>${L("What stands out", "Wat valt op")}</h4><em class="ln-tag soft">${esc(gamesN(items.length))}</em></span>
       <p>${esc(L(`${markedN(marks)} in ${gamesN(items.filter((x) => x.lr.marks).length)}.`, `${markedN(marks)} in ${gamesN(items.filter((x) => x.lr.marks).length)}.`))}${top ? ` ${esc(L(`Biggest single move: ${ptN(top.d.g)} win chance (${where(top)}).`, `Grootste enkele zet: ${ptN(top.d.g)} winkans (${where(top)}).`))}` : ""}</p>
-      ${cv.length ? `<p class="soft">${esc(low.length ? L(`Under ${FAIR_LOW}% win chance in ${ofN(low.length, cv.length)}, from turn ${Math.min(...low.map((q) => q[0]))}${low.length > 1 ? `–${Math.max(...low.map((q) => q[0]))}` : ""}.`, `Onder ${FAIR_LOW}% winkans in ${ofN(low.length, cv.length)}, vanaf beurt ${Math.min(...low.map((q) => q[0]))}${low.length > 1 ? `–${Math.max(...low.map((q) => q[0]))}` : ""}.`) : L(`Never under ${FAIR_LOW}% win chance.`, `Nooit onder ${FAIR_LOW}% winkans.`))}</p>` : ""}</section>`;
+      ${cv.length ? `<p class="soft">${esc(lowText)}</p>` : ""}</section>`;
     return sum + `<h5 class="ln-sec">${L("Per game, newest first", "Per potje, nieuwste eerst")}</h5>` + items.map((it) => {
-      const r = it.lr, b = big(r), cv1 = r.wc ? r.wc.find((q) => q[1] < FAIR_LOW) : null, sp = this._lnSpark(r, it.result);
+      const r = it.lr, lw = lowOf(r.wc), sp = this._lnSpark(r, it.result);
       const robT = r.rob ? L(`Robber and 7s: ${cardsN(r.rob[0])} stolen or discarded (bots ${num(Math.round(r.rob[1]))})${r.rb ? `, ${cardsN(r.rb[0])} of production blocked (bots ${num(Math.round(r.rb[1]))})` : ""}`, `Rover en 7: ${cardsN(r.rob[0])} gestolen of afgegooid (bots ${num(Math.round(r.rob[1]))})${r.rb ? `, ${cardsN(r.rb[0])} productie geblokkeerd (bots ${num(Math.round(r.rb[1]))})` : ""}`) : "";
       return `<div class="ln-c ln-gm" data-lngame="${esc(it.id)}"><span class="ln-row"><b class="ln-t">${esc(day(it.end))}${it.vp != null ? ` · ${pl(it.vp, "point", "points", "punt", "punten")}` : ""}</b><b class="${resCls(it.result)}">${esc(resWord(it.result))}</b></span>
-        <span class="ln-gs">${sp}<span class="ln-gt"><b>${esc(r.marks ? markedN(r.marks) : L("No move of ≥1 point marked", "Geen zet van ≥1 punt gemarkeerd"))}</b><span class="soft">${esc(r.wc ? (cv1 ? L(`under ${FAIR_LOW}% from turn ${cv1[0]}`, `onder ${FAIR_LOW}% vanaf beurt ${cv1[0]}`) : L(`never under ${FAIR_LOW}%`, `nooit onder ${FAIR_LOW}%`)) : "")}</span></span></span>
-        ${b ? `<span class="ln-gr"><span>${L("Biggest move", "Grootste zet")}</span><span class="ln-gb"><i style="width:${Math.max(4, (b.g / mx) * 100)}%"></i></span><b class="neg">${ptN(b.g)}</b></span>` : ""}
+        <span class="ln-gs">${sp}<span class="ln-gt"><b>${esc(r.marks ? markedN(r.marks) : L("No move of ≥1 pt marked", "Geen zet van ≥1 pt gemarkeerd"))}</b><span class="soft">${esc(r.wc ? (lw.k === "end" ? L(`under ${FAIR_LOW}% from turn ${lw.t}`, `onder ${FAIR_LOW}% vanaf beurt ${lw.t}`) : lw.k === "dip" ? L(`dipped under ${FAIR_LOW}% in turn ${lw.t}`, `zakte in beurt ${lw.t} onder ${FAIR_LOW}%`) : L(`never under ${FAIR_LOW}%`, `nooit onder ${FAIR_LOW}%`)) : "")}</span></span></span>
+        ${r.lk != null ? sg("luck", L("Luck", "Geluk"), r.lk) : ""}${sg("choice", L("Choices", "Keuzes"), -(r.gp || 0))}
         ${robT ? `<span class="ln-two"><span class="soft">${esc(robT)}</span></span>` : ""}</div>`;
-    }).join("") + `<p class="ln-foot">${esc(L(`Dotted line = fair share (${Math.round(100 / (items[0].lr.n || 4))}%). Ring = marked move (≥1 point). The bar is the biggest single move, win chance in points.`, `Stippellijn = eerlijk deel (${Math.round(100 / (items[0].lr.n || 4))}%). Ring = gemarkeerde zet (≥1 punt). De balk is de grootste enkele zet, in procentpunt winkans.`))}</p>`;
+    }).join("") + `<p class="ln-foot">${esc(L(`Dotted line = fair share (${Math.round(100 / (items[0].lr.n || 4))}%). Ring = marked move. Luck = what rolls, steals and card draws gave you; Choices = what your marked moves cost you. Per game, never added over games.`, `Stippellijn = eerlijk deel (${Math.round(100 / (items[0].lr.n || 4))}%). Ring = gemarkeerde zet. Geluk = wat dobbelstenen, rovers en kaarten je gaven; Keuzes = wat je gemarkeerde zetten je kostten. Per potje, nooit over potjes opgeteld.`))}</p>`;
   },
 
   // ── a lesson ──
@@ -280,13 +304,16 @@ export const LessonsMixin = {
     if (les.kind !== "dec") return this._lnMechPage(les);
     const ex = this._lnExamples(les), models = ex.map((e) => e.model), line = answerDec(les, "wrong", models), P = this._lnPracticeP(les, ex), pi = P ? P.ex : -1;
     const rest = ex.map((_, i) => i).filter((i) => i >= 2 && i !== pi), vis = S.all ? ex.map((_, i) => i).filter((i) => i !== pi) : [0, 1].filter((i) => i < ex.length);
-    const m = les.moves, need = les.status === "les" ? L(`Measured on your ${num(m)} marked ${tn(m, "move", "moves")} (≥1 point).`, `Gemeten op ${num(m)} gemarkeerde ${tn(m, "zet", "zetten")} (≥1 punt).`) : `${L("Not enough yet to call this a lesson", "Nog niet genoeg om dit een les te noemen")}: ${this._lnNeed(les)}.`;
+    const m = les.moves, need = les.status === "les" ? L(`Measured on your ${num(m)} marked ${tn(m, "move", "moves")} (≥1 pt).`, `Gemeten op ${num(m)} gemarkeerde ${tn(m, "zet", "zetten")} (≥1 pt).`) : `${L("Not enough yet to call this a lesson", "Nog niet genoeg om dit een les te noemen")}: ${this._lnNeed(les)}.`;
     const head = `<section class="ln-c ln-focus"><span class="ln-row end"><span class="ln-big neg">${ptN(les.cost)}<small> ${L("win chance per game", "winkans per potje")}${les.se != null ? ` ±${num(Math.round(les.se))}` : ""}</small></span><span class="ln-sub">${L("in", "in")} <b>${ofN(les.k, les.N)}</b></span></span>
       ${this._lnStrip(les.series)}<span class="ln-two"><span>${esc(les.cat === "setup" ? this._lnSetupLead(models, line) : line?.text || "")}</span><span class="soft">${esc(need)}${this._lnProgress(les) ? ` ${this._lnProgress(les)}` : ""}</span></span>${les.cat === "setup" ? this._lnMissBars(models) : ""}</section>`;
     const exs = `<h5 class="ln-sec">${esc(L(...UNITS[les.cat]))}${L(", biggest loss first", ", grootste verlies eerst")}</h5><p class="ln-foot left">${L("% = win chance after that choice", "% = winkans na die keuze")}</p>` + vis.map((i) => this._lnEx(ex[i], i)).join("")
       + (!S.all && rest.length ? `<button type="button" class="hs-btn ln-more" data-lnmore>${L("More examples", "Meer voorbeelden")} (${rest.length})</button>` : "");
-    return head + exs + this._lnPractice(les, ex, P) + this._lnAsk(les, ex);
+    return head + exs + this._lnPractice(les, ex, P) + this._lnAsk(les, ex) + `<p class="ln-foot">${L("pt = percentage points of win chance; ± is the spread over your games.", "pt = procentpunt winkans; ± = spreiding over je potjes.")}</p>`;
   },
+  /** the number an example carries on the page: consecutive over the examples shown (the practice position is not one of them) */
+  _lnNo(i) { const P = this._ln?.pr; return P && P.lesson === this._ln.id && P.ex < i ? i : i + 1; },
+  _lnIdx(no) { const P = this._ln?.pr, i = no - 1; return P && P.lesson === this._ln.id && P.ex <= i ? i + 1 : i; },
   _lnExSide(e, which, w) {
     const kind = which === "p" ? e.pk : e.bk, d = which === "p" ? e.pd : e.bd, spec = which === "p" ? e.p : e.q;
     if (e.model.spot && e.board && spec) return cropSvg(e.board, spec, { w, color: this._lnColor(e.pid), label: this._lnAlt(e, which) });
@@ -298,7 +325,7 @@ export const LessonsMixin = {
     return `${which === "p" ? L("You chose", "Jij koos") : L("Better", "Beter")}: ${hx.map((h) => `${rname(b[h].res)} ${b[h].num || ""}`.trim()).join(", ")}`;
   },
   _lnEx(e, i) {
-    const idx = e.i0 + 1, m = e.model, turn = e.c === "setup" ? L("Start", "Start") : L(`Turn ${e.t}`, `Beurt ${e.t}`);
+    const idx = this._lnNo(e.i0), m = e.model, turn = e.c === "setup" ? L("Start", "Start") : L(`Turn ${e.t}`, `Beurt ${e.t}`);
     return `<article class="ln-c ln-exc" id="lnex${e.i0}" data-ex="${e.i0}" data-gid="${esc(e.gid)}" data-turn="${e.t}"><div class="ln-row"><span class="ln-sub"><b class="ln-ref big">${idx}</b> <b>${esc(turn)}</b> · ${esc(day(e.end))} · <span class="${resCls(e.result)}">${esc(resWord(e.result))}</span></span><button type="button" class="ln-open" data-lnex="${e.i0}">${L("Open", "Open")} ›</button></div>
       <div class="ln-pair"><div><div class="ln-lbl"><span>${L("You chose", "Jij koos")}</span><b class="neg">${num(e.b)}%</b></div>${this._lnExSide(e, "p", 150)}</div><div><div class="ln-lbl"><span>${L("Better", "Beter")}</span><b class="pos">${num(e.a)}%</b></div>${this._lnExSide(e, "q", 150)}</div></div>
       ${m.lines?.length ? `<div class="ln-two"><span>${esc(m.lines[0])}</span><span class="soft">${esc(m.lines[1])}</span></div>` : ""}</article>`;
@@ -315,7 +342,7 @@ export const LessonsMixin = {
     const ok = P.pick != null && sides[P.pick] === "q" || (P.pick != null && e.a === e.b);
     const fb = P.pick == null ? `<div class="ln-btns"><button type="button" class="hs-btn pri" data-lnpick="0">${L("Choose A", "Kies A")}</button><button type="button" class="hs-btn pri" data-lnpick="1">${L("Choose B", "Kies B")}</button></div>`
       : `<div class="ln-fb ${ok ? "ok" : "no"}" role="status"><i aria-hidden="true">${ok ? "✓" : "✕"}</i><b>${ok ? L("Right: that was the better move.", "Goed: dat was de betere zet.") : L(`Not quite: ${"AB"[sides.indexOf("q")]} was better.`, `Niet helemaal: ${"AB"[sides.indexOf("q")]} was beter.`)}</b></div><div class="ln-btns"><button type="button" class="hs-btn pri" data-lnnext>${L("Next question", "Volgende vraag")}</button><button type="button" class="hs-btn" data-lnex="${P.ex}">${L("Open", "Open")} ›</button></div>`;
-    return `<section class="ln-c ln-pr"><div class="ln-row"><h4>${L("Practise this", "Oefen dit")}</h4><span class="ln-sub">${esc(day(e.end))} · ${e.c === "setup" ? L("set-up", "beginopstelling") : L(`turn ${e.t}`, `beurt ${e.t}`)} <b class="ln-ref">${P.ex + 1}</b></span></div>
+    return `<section class="ln-c ln-pr"><div class="ln-row"><h4>${L("Practise this", "Oefen dit")}</h4><span class="ln-sub">${esc(day(e.end))} · ${e.c === "setup" ? L("set-up", "beginopstelling") : L(`turn ${e.t}`, `beurt ${e.t}`)} </span></div>
       <div class="ln-two"><span>${L("Your own position. Which would you pick?", "Jouw eigen stand. Wat kies je?")}</span>${st.n ? `<span class="soft">${L(`Practised ${st.n} · right ${st.ok}`, `Geoefend ${st.n} · goed ${st.ok}`)}</span>` : ""}</div>
       <div class="ln-pair">${opt(0)}${opt(1)}</div>${fb}</section>`;
   },
@@ -334,7 +361,7 @@ export const LessonsMixin = {
   _lnChip(ex, c) {
     const e = ex[c.ex]; if (!e || (this._ln.pr && this._ln.pr.lesson === this._ln.ask?.lesson && c.ex === this._ln.pr.ex)) return "";
     const thumb = e.model.spot && e.board ? cropSvg(e.board, c.side === "p" ? e.p : e.q, { w: 56, color: this._lnColor(e.pid), label: "" }) : `<i class="ln-ti sm" aria-hidden="true">${oicon(ICON[c.side === "p" ? e.pk : e.bk] || "target")}</i>`;
-    return `<button type="button" class="ln-rc" data-lnref="${c.ex}"><span class="ln-ref">${c.ex + 1}</span>${thumb}<small>${c.side === "q" ? L("better", "beter") : esc(day(e.end))}</small></button>`;
+    return `<button type="button" class="ln-rc" data-lnref="${c.ex}"><span class="ln-ref">${this._lnNo(c.ex)}</span>${thumb}<small>${c.side === "q" ? L("better", "beter") : esc(day(e.end))}</small></button>`;
   },
   _lnAns(a, ex) {
     if (!a) return "";
@@ -344,7 +371,7 @@ export const LessonsMixin = {
       const x = a.local;
       return `<div class="ln-a"><p class="ln-lead">${esc(x.lead)}</p>${x.text ? `<p class="ln-two"><span class="soft">${esc(x.text)}</span></p>` : ""}<div class="ln-refs">${x.chips.map((c) => this._lnChip(ex, c)).join("")}</div>${x.extra ? `<p class="ln-two"><span class="soft">${esc(x.extra.text)}</span></p><div class="ln-refs">${x.extra.chips.map((c) => this._lnChip(ex, c)).join("")}</div>` : ""}</div>`;
     }
-    const used = []; const html = esc(a.answer || "").replace(/\[(\d{1,2})\]/g, (m, d) => { const i = +d - 1; if (!ex[i] || (this._ln.pr && c0(this._ln.pr, i))) return ""; if (!used.includes(i)) used.push(i); return `<button type="button" class="ln-ref in" data-lnref="${i}" aria-label="${esc(L("Example", "Voorbeeld"))} ${d}">${d}</button>`; });
+    const used = []; const html = esc(a.answer || "").replace(/\[(\d{1,2})\]/g, (m, d) => { const i = this._lnIdx(+d); if (!ex[i] || (this._ln.pr && c0(this._ln.pr, i))) return ""; if (!used.includes(i)) used.push(i); return `<button type="button" class="ln-ref in" data-lnref="${i}" aria-label="${esc(L("Example", "Voorbeeld"))} ${d}">${d}</button>`; });
     const m = html.match(/^(.+?[.!?])(\s+[\s\S]*)?$/), lead = m ? m[1] : html, rest = m?.[2]?.trim() || "";
     return `<div class="ln-a"><p class="ln-lead">${lead}</p>${rest ? `<p>${rest}</p>` : ""}${a.points?.length ? `<ul class="ln-pts">${a.points.slice(0, 4).map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}${used.length ? `<div class="ln-refs">${used.map((i) => this._lnChip(ex, { ex: i, side: "p" })).join("")}</div>` : ""}<small class="ln-note">${L("Written by AI from your games · may contain mistakes", "Geschreven door AI uit je potjes · kan fouten bevatten")}</small></div>`;
   },
@@ -381,7 +408,7 @@ export const LessonsMixin = {
     if ("lnnext" in d) { const pr = loadPractice(), ex = this._lnExamples(les); S.pr = this._lnPick(les, ex, pr, S.pr ? exKey(ex[S.pr.ex]) : null); this._lnDraw(); return; }
     if ("lnq" in d) {
       const ex = les.kind === "dec" ? this._lnExamples(les) : [];
-      S.ask = { lesson: les.id, q: d.lnq, local: les.kind === "dec" ? answerDec(les, d.lnq, ex.map((x) => x.model)) : this._lnMechAnswer(les, d.lnq) }; this._lnDraw();
+      S.ask = { lesson: les.id, q: d.lnq, local: les.kind === "dec" ? answerDec(les, d.lnq, ex.map((x) => x.model), (i) => this._lnNo(i)) : this._lnMechAnswer(les, d.lnq) }; this._lnDraw();
     }
   },
   _lnDoPick(les, k) {
@@ -415,7 +442,7 @@ export const LessonsMixin = {
     if (this._lnEl) this._lnDraw();
   },
   _lnFacts(les, ex) {
-    const exs = ex.filter((e) => !(this._ln.pr && this._ln.pr.lesson === les.id && this._ln.pr.ex === e.i0)).slice(0, 3).map((e) => ({ ref: `[${e.i0 + 1}]`, game: day(e.end), turn: e.c === "setup" ? "set-up" : e.t, played: e.model.lines?.[0] || e.pk, better: e.model.lines?.[1] || e.bk, winChanceYouChose: `${e.b}%`, winChanceBetter: `${e.a}%` }));
+    const exs = ex.filter((e) => !(this._ln.pr && this._ln.pr.lesson === les.id && this._ln.pr.ex === e.i0)).slice(0, 3).map((e) => ({ ref: `[${this._lnNo(e.i0)}]`, game: day(e.end), turn: e.c === "setup" ? "set-up" : e.t, played: e.model.lines?.[0] || e.pk, better: e.model.lines?.[1] || e.bk, winChanceYouChose: `${e.b}%`, winChanceBetter: `${e.a}%` }));
     const mk = (l) => JSON.stringify({ note: "These are the player's own marked moves of one kind over several reviewed games. Answer the question from these facts only, in at most 3 short sentences; refer to an example by its ref like [1].", lesson: titleOf(les), games: `${les.k} of ${les.N}`, winChanceLostPerGamePoints: les.cost != null ? Math.round(les.cost) : undefined, examples: l });
     let s = mk(exs); for (let k = exs.length; s.length > 3800 && k > 0; k -= 1) s = mk(exs.slice(0, k - 1));
     return s.slice(0, 3900);
