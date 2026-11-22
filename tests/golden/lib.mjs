@@ -55,8 +55,8 @@ const simLater = g._later; // the lab sim stub (calls at once); Rush needs the r
 // ── the move log ──
 const SEA = await import("../../src/seafarers/rules.js");
 let LOG = null, quiet = 0;
-const pushLog = (e) => { LOG.push(e); if (process.env.RC) RC.push(calls); };
-export const RC = []; // debug: Math.random call count when each log entry was written (tests/golden: diffing two ways of playing)
+const pushLog = (e) => { LOG.push(e); if (RC) RC.push(calls); };
+export const RC = process.env.RC ? [] : null; // debugging two ways of playing: with RC=1 the Math.random call count at each log entry is kept here
 const MOVES = [
   ["placeRoad", (p, e) => `${p.id} road ${e}`], ["placeSettlement", (p, n) => `${p.id} set ${n}`], ["placeCity", (p, n) => `${p.id} city ${n}`],
   ["performBankTrade", (p, a, b) => `${p.id} bank ${a}>${b}`], ["buyDevelopmentCard", (p) => `${p.id} buy`], ["playDevelopmentCard", (p, t) => `${p.id} play ${t}`, "play"],
@@ -129,7 +129,7 @@ function agentsFor(spec, record) {
   return spec.seats.map((name) => {
     if (!BUDGETS[name]) return null;
     const a = makeMaster({ ...BUDGETS[name], ...(spec.sea ? { leaf: SEA_LEAF } : {}) });
-    ["decideSetup", "decideMain", "decideRobber"].forEach((f, fi) => { const o = a[f]; a[f] = (...x) => { quiet += 1; let d; const c0 = calls; try { d = o(...x); } finally { quiet -= 1; } if (process.env.DRC) console.log("decide", fi, x[1]?.id, "turn", g.turn, "calls", c0, "->", calls); if (record) record.push(`D${fi} ${x[1]?.id} ${JSON.stringify(d ? d.choice : null)}`); return d; }; });
+    ["decideSetup", "decideMain", "decideRobber"].forEach((f, fi) => { const o = a[f]; a[f] = (...x) => { quiet += 1; let d; try { d = o(...x); } finally { quiet -= 1; } if (record) record.push(`D${fi} ${x[1]?.id} ${JSON.stringify(d ? d.choice : null)}`); return d; }; });
     return a;
   });
 }
