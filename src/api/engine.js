@@ -110,7 +110,7 @@ function hash53(str) {
 export class Engine {
   constructor(g, opts = {}) {
     this.g = g;
-    this.H = hooks(g);
+    this.H = opts.noHooks ? { active: this, later0: undefined, laterSaved: false } : hooks(g); // noHooks: the UI's engine (src/ui/intent.js) leaves the game's methods alone
     this.meta = opts.meta || null;           // how the game was made (newGame spec): the first line of a log
     this._control = opts.control ? new Set(opts.control) : new Set();
     this._src = { dice: null, steal: null }; // user ChanceSource
@@ -120,7 +120,7 @@ export class Engine {
     this._evlog = []; this._seq = 0; this._applying = 0; this._via = null;
     this._snap = null;                        // state parked while another engine uses the same game object
     this._obs = null;
-    if (!opts.parked) { const H = this.H; if (H.active && H.active !== this && !H.active._dead) H.active._snap = H.active._save(); H.active = this; }
+    if (!opts.parked && !opts.noHooks) { const H = this.H; if (H.active && H.active !== this && !H.active._dead) H.active._snap = H.active._save(); H.active = this; }
   }
 
   // ── plumbing ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

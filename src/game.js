@@ -40,6 +40,7 @@ import { LiveBarMixin } from "./live-bar.js"; // v1.59 optional live win-chance 
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
+import { createUiEngine } from "./ui/intent.js"; // architecture step 3: human input goes through the Action API
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS } from "./seafarers/index.js";
 
 import { RESOURCES, COSTS_SEA as COSTS, PIECE_LIMITS_SEA as PIECE_LIMITS, BANK_SIZE, DICE_WAYS as DICE_WEIGHT, DEV_CARD_TYPES, DEV_DECK, deckList } from "./core/constants.js"; // (COSTS / PIECE_LIMITS carry the Seafarers ship: it is only looked up when this.sea)
@@ -1725,6 +1726,23 @@ class ColonistFullGame {
     }), 400);
   }
 
+  /** The Action API the UI plays through (src/ui/intent.js): legal spots for the highlights, apply() for every committed move. */
+  get api() { return this._api || (this._api = createUiEngine(this)); }
+
+  /** Commit a staged / tapped piece through the API (set-up: place; otherwise: build). A refusal flashes the engine's reason. */
+  _applyPiece(player, cb, setup = false) {
+    const edgeLike = cb.type === "road" || cb.type === "ship";
+    const a = { actor: player.id, type: setup ? "place" : "build", piece: cb.type, ...(edgeLike ? { edge: cb.id } : { node: cb.id }) };
+    const r = this.api.dispatch(a);
+    if (!r.ok && !r.bug) { // the spot is no longer legal (taken meanwhile, cards spent): what _commitBuild does when the placement fails
+      this.confirmBuild = null;
+      if (setup) { this._flashPrompt(r.reason); return false; }
+      if (this.rush) { this.addLog("Too slow — that spot was just taken."); this.sfx.error(); }
+      this.render();
+    }
+    return r.ok;
+  }
+
   handleSetupClick(x, y) {
     const player = this.players[this.setupQueue[this.setupStep]];
     if (!player.isHuman) return;
@@ -1732,22 +1750,24 @@ class ColonistFullGame {
     // Confirm placements on: the ✓ / Place commits the selected spot
     if (this.confirmBuild && this.hitTestConfirmIcon(x, y)) {
       const cb = this.confirmBuild;
-      if (cb.type === this.setupAction) { this._commitSetup(player, cb); return; }
+      if (cb.type === this.setupAction) { this._applyPiece(player, cb, true); return; }
     }
 
+    // the legal spots are the engine's: set-up settlements, or the roads (Seafarers: and ships) next to the new settlement
+    const spots = this.api.spots(player.id);
     let target = null;
     if (this.setupAction === "settlement") {
-      const nodeId = this.findNodeAt(x, y, (id) => this.canBuildSettlement(player, id, true));
+      const nodeId = this.findNodeAt(x, y, (id) => spots.settlement.has(id));
       if (nodeId != null) target = { type: "settlement", id: nodeId };
     } else if (this.setupAction === "road" && this.sea) {
       target = this._seaSetupEdgeAt(player, x, y); // ⚓ road or ship
     } else if (this.setupAction === "road") {
-      const edgeId = this.findEdgeAt(x, y, (id) => { const e = this.geometry.edges[id]; return e.owner == null && e.nodes.includes(this.lastSetupNodeId); });
+      const edgeId = this.findEdgeAt(x, y, (id) => spots.road.has(id));
       if (edgeId != null) target = { type: "road", id: edgeId };
     }
     if (!target) { this.confirmBuild = null; this.drawCanvasScene(); return; }
     // Default: a tap on a legal spot places it (the settlement can be taken back until the road is down)
-    if (this._confirmLevel() !== "always") { this._commitSetup(player, target); return; }
+    if (this._confirmLevel() !== "always") { this._applyPiece(player, target, true); return; }
     this.confirmBuild = target;
     this._cbAt = performance.now();
     this.drawCanvasScene();
@@ -2166,7 +2186,7 @@ class ColonistFullGame {
 
     // The ✓ above a selected spot (desktop) / Place (phones) commits it
     if (this.confirmBuild && this.hitTestConfirmIcon(x, y)) {
-      this._commitBuild(player, this.confirmBuild);
+      this._applyPiece(player, this.confirmBuild);
       return;
     }
 
@@ -2201,7 +2221,7 @@ class ColonistFullGame {
     // A second tap on the shown spot builds it, but not when it follows within CONFIRM_TAP_GUARD_MS (a double tap).
     const direct = !auto && (lvl === "never" || (lvl === "unsure" && !target.ambiguous));
     const quick = same && performance.now() - this._cbAt >= CONFIRM_TAP_GUARD_MS;
-    if (direct || quick) { this._commitBuild(player, target); return; }
+    if (direct || quick) { this._applyPiece(player, target); return; }
     if (same) { this.render(); return; }
     if (auto) this.pendingAction = target.type;
     this.confirmBuild = target;
@@ -2240,11 +2260,12 @@ class ColonistFullGame {
     if (!corner && !this.freeRoadsRemaining && (!this.pendingAction || this.pendingAction === "build")) {
       const r = Math.max(0.5 * L, 26) / k;
       let best = null, bd = r;
+      const S = this.api.spots(player.id, { free: false });
       geo.nodes.forEach((n) => {
         const d = Math.hypot(x - n.x, y - n.y);
-        if (d < bd && (this.canBuildCity(player, n.id, false) || this.canBuildSettlement(player, n.id, false))) { bd = d; best = n.id; }
+        if (d < bd && (S.city.has(n.id) || S.settlement.has(n.id))) { bd = d; best = n.id; }
       });
-      if (best != null) corner = { type: this.canBuildCity(player, best, false) ? "city" : "settlement", id: best, ambiguous: true };
+      if (best != null) corner = { type: S.city.has(best) ? "city" : "settlement", id: best, ambiguous: true };
     }
     const edgeT = t && !isCorner(t) ? t : null;
     if (corner) {
@@ -2287,11 +2308,12 @@ class ColonistFullGame {
     const wantSet = pa === "settlement" || (all && !free);
     const wantCity = pa === "city" || (all && !free);
     let node = null, edge = null, ambiguous = false;
+    const S = this.api.spots(player.id, { free }); // legal spots (engine): the hit-test only offers those
     // ⚓ Seafarers: an edge may take a road or a ship ("ship" mode: ships only; Road Building: either)
     const sea = this.sea, wantShip = !!sea && (pa === "ship" || all || free);
-    const edgeType = (id) => (sea ? this._seaEdgeType(player, id, pa === "build" ? null : pa, free) : "road");
-    if (wantSet || wantCity) node = this.findNodeAt(x, y, (id) => (wantCity && this.canBuildCity(player, id, false)) || (wantSet && this.canBuildSettlement(player, id, false)));
-    if (wantRoad || wantShip) edge = this.findEdgeAt(x, y, (id) => (sea ? edgeType(id) != null : this.canBuildRoad(player, id, { free })));
+    const edgeType = (id) => (sea ? this._seaEdgeType(player, id, pa === "build" ? null : pa, free, S) : "road");
+    if (wantSet || wantCity) node = this.findNodeAt(x, y, (id) => (wantCity && S.city.has(id)) || (wantSet && S.settlement.has(id)));
+    if (wantRoad || wantShip) edge = this.findEdgeAt(x, y, (id) => (sea ? edgeType(id) != null : S.road.has(id)));
     if (node != null && edge != null) {
       ambiguous = true;
       const k = this.view.scale || 1; // world units -> CSS px
@@ -2310,11 +2332,11 @@ class ColonistFullGame {
     if (node != null) {
       // ⚓ v1.20 a Seafarers corner that also takes a road or a ship (coast, harbour, ship end) always asks: a tap near it
       // may mean the piece beside it. `multi` survives the calm auto-glow rule.
-      const multi = !!sea && !free && (all || pa === "settlement" || pa === "city") && this.geometry.nodes[node].edgeIds.some((e) => this._seaEdgeType(player, e, null, false) != null);
-      return { type: this.canBuildCity(player, node, false) && wantCity ? "city" : "settlement", id: node, ambiguous: ambiguous || (multi && all), ...(multi ? { multi: true } : {}) };
+      const multi = !!sea && !free && (all || pa === "settlement" || pa === "city") && this.geometry.nodes[node].edgeIds.some((e) => this._seaEdgeType(player, e, null, false, S) != null);
+      return { type: S.city.has(node) && wantCity ? "city" : "settlement", id: node, ambiguous: ambiguous || (multi && all), ...(multi ? { multi: true } : {}) };
     }
     if (edge != null) {
-      const both = !!sea && this._seaBoth(player, edge, pa === "build" ? null : pa, free); // ⚓ v0.98: Road / Ship chooser
+      const both = !!sea && this._seaBoth(player, edge, pa === "build" ? null : pa, free, S); // ⚓ v0.98: Road / Ship chooser
       return both ? { type: edgeType(edge), id: edge, ambiguous, both } : { type: edgeType(edge), id: edge, ambiguous };
     }
     return null;
@@ -3068,7 +3090,8 @@ class ColonistFullGame {
 
     if (this.setupPhase && player?.isHuman) {
       if (this.setupAction === "settlement") {
-        const nodeId = this.findNodeAt(worldX, worldY, (id) => this.canBuildSettlement(player, id, true));
+        const spots = this.api.spots(player.id);
+        const nodeId = this.findNodeAt(worldX, worldY, (id) => spots.settlement.has(id));
         if (nodeId != null) {
           this.hoverNodeId = nodeId;
           this.hoverTooltip = "Place settlement";
@@ -3077,7 +3100,7 @@ class ColonistFullGame {
         }
       } else if (this.setupAction === "road") {
         const edgeId = this.sea ? this._seaSetupEdgeAt(player, worldX, worldY)?.id ?? null // ⚓
-          : this.findEdgeAt(worldX, worldY, (id) => { const e = this.geometry.edges[id]; return e.owner == null && e.nodes.includes(this.lastSetupNodeId); });
+          : this.findEdgeAt(worldX, worldY, (id) => this.api.spots(player.id).road.has(id));
         if (edgeId != null) {
           this.hoverEdgeId = edgeId;
           this.hoverTooltip = "Place road";
@@ -3123,9 +3146,8 @@ class ColonistFullGame {
       return;
     }
     if (humanMain && (this.pendingAction === "settlement" || this.pendingAction === "city")) {
-      const nodeId = this.findNodeAt(worldX, worldY, (id) => (this.pendingAction === "settlement"
-        ? this.canBuildSettlement(player, id, false)
-        : this.canBuildCity(player, id, false)));
+      const spots = this.api.spots(player.id);
+      const nodeId = this.findNodeAt(worldX, worldY, (id) => (this.pendingAction === "settlement" ? spots.settlement : spots.city).has(id));
       const buildable = nodeId != null;
       if (buildable) {
         this.hoverNodeId = nodeId;
@@ -6640,10 +6662,8 @@ class ColonistFullGame {
   _confirmBuildStillValid(player) {
     const cb = this.confirmBuild;
     if (!cb) return true;
-    if (cb.type === "road") return this.canBuildRoad(player, cb.id, { free: this.freeRoadsRemaining > 0 });
-    if (cb.type === "ship") return this.canBuildShip(player, cb.id, { free: this.freeRoadsRemaining > 0 }); // ⚓
-    if (cb.type === "settlement") return this.canBuildSettlement(player, cb.id, false);
-    if (cb.type === "city") return this.canBuildCity(player, cb.id, false);
+    const S = this.api.spots(player.id);
+    if (cb.type === "road" || cb.type === "ship" || cb.type === "settlement" || cb.type === "city") return !!S[cb.type]?.has(cb.id);
     return true;
   }
 
@@ -7907,9 +7927,9 @@ class ColonistFullGame {
     const g = this.geometry;
     if (this.setupPhase) {
       if (!this.setupAction) return null;
-      if (this.setupAction === "settlement") g.nodes.forEach((n) => { if (this.canBuildSettlement(player, n.id, true)) nodes.push(n.id); });
+      if (this.setupAction === "settlement") nodes.push(...this.api.spots(player.id).settlement);
       else if (this.setupAction === "road" && this.lastSetupNodeId != null && this.sea) return { nodes, cities, ...this._seaSetupSpots(player), type: "road" }; // ⚓
-      else if (this.setupAction === "road" && this.lastSetupNodeId != null) g.edges.forEach((e) => { if (e.owner == null && e.nodes.includes(this.lastSetupNodeId)) edges.push(e.id); });
+      else if (this.setupAction === "road" && this.lastSetupNodeId != null) edges.push(...this.api.spots(player.id).road);
       return { nodes, cities, edges, type: this.setupAction };
     }
     const type = this.pendingAction;
@@ -7918,11 +7938,12 @@ class ColonistFullGame {
     const free = this.freeRoadsRemaining > 0;
     const all = type === "build" && !free;
     const ships = [];
-    if (type === "settlement" || all) g.nodes.forEach((n) => { if (this.canBuildSettlement(player, n.id, false)) nodes.push(n.id); });
-    if (type === "city" || all) g.nodes.forEach((n) => { if (this.canBuildCity(player, n.id, false)) cities.push(n.id); });
-    if (type === "road" || all || (type === "build" && free)) g.edges.forEach((e) => { if (this.canBuildRoad(player, e.id, { free })) edges.push(e.id); });
+    const S = this.api.spots(player.id, { free }); // the legal spots are the engine's
+    if (type === "settlement" || all) nodes.push(...S.settlement);
+    if (type === "city" || all) cities.push(...S.city);
+    if (type === "road" || all || (type === "build" && free)) edges.push(...S.road);
     // ⚓ Seafarers: ship spots (a coast edge that also takes a road is shown as a road spot)
-    if (this.sea && (type === "ship" || all || free)) g.edges.forEach((e) => { if (this.canBuildShip(player, e.id, { free }) && (type === "ship" || !edges.includes(e.id))) ships.push(e.id); });
+    if (this.sea && (type === "ship" || all || free)) S.ship.forEach((id) => { if (type === "ship" || !edges.includes(id)) ships.push(id); });
     // v0.84 auto-glow (phones): calm — roads / ships only light up while no settlement or city can be built
     if (all && this.isMobileLayout && (nodes.length || cities.length)) return { nodes, cities, edges: [], ships: [], type, calm: true };
     return { nodes, cities, edges, ships, type };
@@ -10682,8 +10703,8 @@ class ColonistFullGame {
   }
 
   _canPlaceAnything(player) {
-    const g = this.geometry;
-    return g.edges.some((e) => this.canBuildRoad(player, e.id)) || g.nodes.some((n) => this.canBuildSettlement(player, n.id, false) || this.canBuildCity(player, n.id, false));
+    const S = this.api.spots(player.id, { free: false });
+    return S.road.size > 0 || S.settlement.size > 0 || S.city.size > 0;
   }
 
   /** Discard on a 7: tap cards in your hand to mark them (no sheet). */
@@ -10914,9 +10935,8 @@ class ColonistFullGame {
     const free = this.freeRoadsRemaining > 0 && (t === "road" || t === "ship");
     const miss = free ? [] : RESOURCES.filter((r) => (COSTS[t][r] || 0) > human.resources[r]).map((r) => [r, COSTS[t][r] - human.resources[r]]);
     if (miss.length) return { miss, short: "need", text: `${t === "settlement" ? "Settlement" : t[0].toUpperCase() + t.slice(1)} · you need ${missingCostString(human.resources, COSTS[t])} more` };
-    const spot = { road: () => this.geometry.edges.some((e) => this.canBuildRoad(human, e.id, { free })), settlement: () => this.geometry.nodes.some((n) => this.canBuildSettlement(human, n.id, false)),
-      city: () => this.geometry.nodes.some((n) => this.canBuildCity(human, n.id, false)), ship: () => this.geometry.edges.some((e) => this.canBuildShip?.(human, e.id, { free })) };
-    if (!spot[t]()) return { short: "no spot", text: `No free spot for a ${t}${t === "ship" ? " · Ships start from a coastal settlement or road" : ""}` };
+    const S = this.api.spots(human.id, { free }); // set-up has no build card; a set-up phase never gets here (not _buildPhase)
+    if (!S[t]?.size) return { short: "no spot", text: `No free spot for a ${t}${t === "ship" ? " · Ships start from a coastal settlement or road" : ""}` };
     if (this.freeRoadsRemaining > 0 && t !== "road" && t !== "ship") return { short: "roads first", text: "Place the free roads first" };
     return null;
   }

@@ -82,9 +82,9 @@ export const SeaGame = {
   canBuildShip(player, edgeId, opts = {}) { return !!this.sea && this.sea.canBuildShip(player, edgeId, opts); },
 
   /** Seafarers build target for an edge tap: "road" or "ship" (null when neither is legal). */
-  _seaEdgeType(player, edgeId, pa, free) {
-    const road = this.canBuildRoad(player, edgeId, { free });
-    const ship = this.canBuildShip(player, edgeId, { free });
+  _seaEdgeType(player, edgeId, pa, free, S = this.api.spots(player.id, { free })) { // S: the engine's legal spots (pass it when asking about many edges)
+    const road = S.road.has(edgeId);
+    const ship = S.ship.has(edgeId);
     if (pa === "ship") return ship ? "ship" : null;
     if (pa === "road" && !free) return road ? "road" : null;
     if (road && ship) return this._seaPrefer(player, edgeId);
@@ -92,9 +92,9 @@ export const SeaGame = {
   },
 
   /** v0.98: a coast edge where a road and a ship both fit and the mode leaves the choice open (build / Road Building). */
-  _seaBoth(player, edgeId, pa, free) {
+  _seaBoth(player, edgeId, pa, free, S = this.api.spots(player.id, { free })) {
     if (pa === "ship" || (pa === "road" && !free)) return false;
-    return this.canBuildRoad(player, edgeId, { free }) && this.canBuildShip(player, edgeId, { free });
+    return S.road.has(edgeId) && S.ship.has(edgeId);
   },
 
   /** v0.98: the tiny "Road / Ship" chooser by the tapped coast edge (44 px buttons). A pick builds at once when building
@@ -110,11 +110,10 @@ export const SeaGame = {
   _seaPickBuild(player, target, modeless, auto = false) {
     const free = this.freeRoadsRemaining > 0, t = { type: target.type, id: target.id, ambiguous: false };
     if (this.winner || this.currentPlayer !== player) return;
-    const ok = t.type === "ship" ? this.canBuildShip(player, t.id, { free }) : t.type === "road" ? this.canBuildRoad(player, t.id, { free })
-      : t.type === "city" ? this.canBuildCity(player, t.id, false) : this.canBuildSettlement(player, t.id, false);
+    const ok = this.api.spots(player.id, { free })[t.type]?.has(t.id);
     if (!ok) return;
     if (modeless) { this.pendingAction = t.type; this.confirmBuild = t; this._cbAt = performance.now(); this._autoPick = true; this.canvas.style.cursor = "crosshair"; this.render(); return; }
-    if (this._confirmLevel() !== "always" && !auto) { this._commitBuild(player, t); return; }
+    if (this._confirmLevel() !== "always" && !auto) { this._applyPiece(player, t); return; }
     if (auto) this.pendingAction = t.type;
     this.confirmBuild = t;
     this._cbAt = performance.now();
@@ -195,16 +194,16 @@ export const SeaGame = {
   _seaSetupType(player) {
     const n = this.lastSetupNodeId;
     if (n == null) return "road";
-    const ids = this.geometry.nodes[n].edgeIds;
-    const road = ids.some((id) => this.canBuildRoad(player, id, { free: true, setupNode: n }));
-    const ship = ids.some((id) => this.canBuildShip(player, id, { free: true, setupNode: n }));
+    const ids = this.geometry.nodes[n].edgeIds, S = this.api.spots(player.id);
+    const road = ids.some((id) => S.road.has(id));
+    const ship = ids.some((id) => S.ship.has(id));
     return road && ship ? this.sea.setupPiece : ship ? "ship" : "road";
   },
   _seaSetupSpots(player) {
     const n = this.lastSetupNodeId, type = this._seaSetupType(player);
-    const ids = this.geometry.nodes[n].edgeIds;
-    if (type === "ship") return { edges: [], ships: ids.filter((id) => this.canBuildShip(player, id, { free: true, setupNode: n })) };
-    return { edges: ids.filter((id) => this.canBuildRoad(player, id, { free: true, setupNode: n })), ships: [] };
+    const ids = this.geometry.nodes[n].edgeIds, S = this.api.spots(player.id);
+    if (type === "ship") return { edges: [], ships: ids.filter((id) => S.ship.has(id)) };
+    return { edges: ids.filter((id) => S.road.has(id)), ships: [] };
   },
   _seaSetupEdgeAt(player, x, y) {
     const { edges, ships } = this._seaSetupSpots(player);
@@ -398,8 +397,9 @@ export const SeaGame = {
     const cb = this.confirmBuild;
     if (this.setupPhase && this.setupAction === "road" && this.lastSetupNodeId != null && cur.isHuman && !cb) {
       const node = this.geometry.nodes[this.lastSetupNodeId];
-      const roads = node.edgeIds.some((id) => this.canBuildRoad(cur, id, { free: true, setupNode: node.id }));
-      const ships = node.edgeIds.some((id) => this.canBuildShip(cur, id, { free: true, setupNode: node.id }));
+      const S = this.api.spots(cur.id);
+      const roads = node.edgeIds.some((id) => S.road.has(id));
+      const ships = node.edgeIds.some((id) => S.ship.has(id));
       if (roads && ships) {
         const on = sea.setupPiece;
         return { mode: "setupPiece", hint: on === "ship" ? "Tap a dotted spot on the water for your ship" : "Tap a road next to it · or start with a ship",
