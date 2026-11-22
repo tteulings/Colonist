@@ -7,6 +7,10 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
 (async () => {
   const { b, ctx, page, errors } = await openApp(port);
   const G = (f, a) => page.evaluate(f, a);
+  // state-based wait (not a fixed sleep): every board card has been drawn (the boards render one by one, so the time varies with CPU load) and its picture has loaded
+  const boardsDone = () => page.waitForFunction(() => { // ...and the tab is quiet: the same boards, all drawn, for 3 polls in a row (the page re-draws once when the background refinement finishes)
+    const b = [...document.querySelectorAll("[data-aibd]")], okNow = b.length > 0 && b.every((e) => e.dataset.done && !e.querySelector(".ai-bdw")) && [...document.querySelectorAll(".ai-bd img")].every((i) => i.complete && i.naturalWidth > 0);
+    const sig = okNow ? b.length + ":" + b.map((e) => e.dataset.aibd).join(",") : ""; const st = (window.__bdq ||= { sig: "", n: 0 }); if (sig && sig === st.sig && b.every((e) => e === (st.els || [])[b.indexOf(e)])) st.n++; else { st.sig = sig; st.n = sig ? 1 : 0; } st.els = b; return st.n >= 3; }, null, { timeout: 30000, polling: 150 }).catch((e) => console.log("boardsDone timeout"));
   page.on("console", (m) => { if (/ai visual|ai board/.test(m.text())) console.log("CONSOLE", m.text().slice(0, 300)); });
   const ex = JSON.parse(fs.readFileSync(file, "utf8"));
   let calls = [], mock = null;
@@ -64,6 +68,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   console.log(JSON.stringify(S.cards.map((c) => [c.title, c.vis, c.chips, c.why, c.go])));
   ok(S.cards.length === 9, "9 cards rendered (7 + near-miss + all-players strategy)", S.cards.length);
   { // v1.75: near-miss card, all-players strategy card, board zoom
+    await page.waitForFunction(() => !!document.querySelector(".ai-bd[data-zoom]"), null, { timeout: 20000, polling: 100 }).catch(() => console.log("no zoomed board drawn")); await boardsDone();
     const N = await G(() => { const g = window.__colonistGame, cs = [...document.querySelectorAll("[data-aic^=c]")], nmC = cs[7], plC = cs[8], m = g._aiCtx().nm;
       const rows = [...plC.querySelectorAll(".ai-pr2")].map((r) => ({ seat: +r.dataset.aipr, name: r.querySelector(".n")?.textContent, color: getComputedStyle(r.querySelector(".n")).color, label: r.querySelector("em")?.textContent, icons: r.querySelectorAll("svg path.f, svg path.l, svg path.a, svg path.v").length, clause: r.querySelector(".cl")?.textContent }));
       const zooms = [...document.querySelectorAll(".ai-bd[data-zoom]")].map((e) => (e.dataset.zoom === "two" ? 1 : +e.dataset.zoom));
@@ -104,9 +109,10 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   const cl = await G(() => { const n = document.querySelector(".ai-n"), p = document.querySelector(".ai-c .ai-c.dn, .ai-c b.ai-c"); return { name: n && getComputedStyle(n).color, pct: p ? p.className + " " + getComputedStyle(p).color : null, turnTag: document.querySelector(".ai-t")?.tagName }; });
   console.log(JSON.stringify(cl)); ok(cl.name && cl.name !== "rgba(0, 0, 0, 0)", "player name coloured");
   ok(await G(() => document.documentElement.scrollWidth <= innerWidth + 1 && [...document.querySelectorAll(".ai-c")].every((c) => c.scrollWidth <= c.clientWidth + 1)), "no horizontal overflow");
-  await sleep(600);
-  ok(await G(() => { const i = document.querySelector(".ai-bd img"); return !!i && i.naturalWidth > 100; }), "board card: picture of the zoomed board");
+  await boardsDone();
+  ok(await G(() => { const i = document.querySelector(".ai-bd img"); return !!i && i.naturalWidth > 100; }), "board card: picture of the zoomed board", await G(() => [...document.querySelectorAll(".ai-bd")].map((e) => ({ done: !!e.dataset.done, w: !!e.querySelector(".ai-bdw"), img: e.querySelector("img") ? e.querySelector("img").naturalWidth : -1, tag: e.closest("[data-aic]")?.dataset.aic }))));
   // v1.73 critic items 1-6
+  await boardsDone();
   const Q = await G(() => {
     const g = window.__colonistGame, C = g._aiCtx(), r = {}, R = g._rv;
     r.garble = g._aiFmt("Your points card 1 points and You built a point card t12, Blaauw turn 11.", C, null).replace(/<[^>]+>|\u2060/g, "");
@@ -241,7 +247,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   await page.locator("[data-rvclose-step]").first().tap(); await sleep(900);
   // ask: chip -> answer card at the top
   const first = await G(() => document.querySelector(".ai-q")?.dataset.aiq);
-  await page.locator(".ai-q").first().tap(); await page.waitForSelector("[data-aic=a0]", { timeout: 15000 }); await sleep(2000);
+  await page.locator(".ai-q").first().tap(); await page.waitForSelector("[data-aic=a0]", { timeout: 15000 }); await boardsDone(); await page.waitForFunction(() => !!document.querySelector("[data-aic=a0] .ai-tx [data-aimore]"), null, { timeout: 5000 }).catch(() => {}); await sleep(300);
   ok(calls.length === 2 && calls[1].mode === "game" && calls[1].question === first, "chip sent a game question", [calls.length, calls[1]?.mode]);
   const A = await G(() => { const a = document.querySelector("[data-aic=a0]"), r = a.getBoundingClientRect(), f = document.querySelector("[data-aic=c0]").getBoundingClientRect(); return { top: r.top > f.top, wc: !!a.querySelector(".ai-wc"), pts: a.querySelectorAll(".ai-pts > span").length, h: a.querySelector(".ai-tx").getBoundingClientRect().height, lh: parseFloat(getComputedStyle(a.querySelector(".ai-tx")).lineHeight), more: !!a.querySelector(".ai-tx [data-aimore]"), pin: !!a.querySelector("[data-aipin]"), why: !!a.querySelector("[data-aiwhy]") }; });
   ok(A.top && A.wc && A.pts === 2 && A.h <= A.lh * 3 + 3 && A.pin, "answer card below the insight cards (chat), own visual, 2-line text, points chips, pin", A);

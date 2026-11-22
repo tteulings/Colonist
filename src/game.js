@@ -282,6 +282,7 @@ const DEFAULT_SETTINGS = {
 const RUSH_INTERVALS = [5, 8, 15];
 const RUSH_DISCARD_SECONDS = 20;
 const RUSH_ROBBER_SECONDS = 30;
+const RUSH_CHOICE_MAX_MS = 45000; // v1.95: a dev card's sub-choice (Monopoly / Year of Plenty pick, free roads, Knight's robber) holds the Rush table this long at most
 const RUSH_OFFER_MS = 6000;     // a bot's offer to you stays up this long (Rush game clock; v0.93: 10 → 6 s)
 const RUSH_OFFER_FADE_MS = 700; // v0.93: the last stretch of an offer: the card fades out before it is auto-declined
 const RUSH_READY_CAP_MS = 1000; // v0.93: once you are Ready the next roll comes within this (wall clock; bots never hold the table)
@@ -1818,7 +1819,7 @@ class ColonistFullGame {
       this.toastStack.removeChild(this.toastStack.firstChild);
     }
     // Longer display for robber-related events so the player can follow what happened
-    const duration = /(robber|stole|discard)/i.test(text) ? 4500 : /^Trade done/.test(text) ? 3200 : 2600;
+    const duration = /(robber|stole|discard)/i.test(text) || /^(Monopoly|Year of Plenty):/.test(text) ? 4500 : /^Trade done/.test(text) ? 3200 : 2600;
     window.setTimeout(() => {
       if (!toast.parentElement) return;
       toast.style.opacity = "0";
@@ -6320,7 +6321,14 @@ class ColonistFullGame {
       this._rushSaveMs = 0;
       this.saveToStorage();
     }
-    if (!r.paused) {
+    const choice = this._rushChoiceOpen();
+    if (!choice) r.choiceMs = 0;
+    if (choice) {
+      // v1.95: the table waits while you make the choice a development card asks for (dice, bots and offers stand still),
+      // for at most RUSH_CHOICE_MAX_MS; then the card is given back (or the robber placed for you) and the game goes on
+      r.choiceMs = (r.choiceMs || 0) + dt;
+      if (r.choiceMs >= RUSH_CHOICE_MAX_MS) this._rushChoiceExpire();
+    } else if (!r.paused) {
       r.clockMs += dt;
       r.remainingMs -= dt;
       const allReady = this.players.every((p) => r.ready.includes(p.id));
@@ -6343,6 +6351,28 @@ class ColonistFullGame {
     }
     this._renderRushHud();
     this._updateOfferTimers();
+  }
+
+  /**
+   * v1.95: the human is in the middle of a development card's choice: Monopoly / Year of Plenty pick, the free roads of Road Building,
+   * a Knight's robber move. Fair rule: in Rush the whole table (dice clock, bots, offers) waits for it, at most RUSH_CHOICE_MAX_MS.
+   */
+  _rushChoiceOpen() {
+    const r = this.rush, me = this._me();
+    if (!r || !me || r.paused || this.winner || this.setupPhase || this.autoplayInterval) return false;
+    if (r.choiceMs >= RUSH_CHOICE_MAX_MS) return false;
+    return !!(this.devPick || this.freeRoadsRemaining > 0 || (this.devPlayed && (this.pendingAction === "robber" || this.robberVictimOptions?.length)));
+  }
+
+  /** The choice took too long: the card goes back to the hand (nothing happened yet), else what is left is settled for you. */
+  _rushChoiceExpire() {
+    const me = this._me();
+    this._flashPrompt("Time's up: card kept", 3200);
+    if (this.devPlayed && this._cancelDevPlay()) return;
+    this.devPick = null; this.devPlayed = null; this.freeRoadsRemaining = 0;
+    if (this.pendingAction === "road") this.pendingAction = null;
+    if (me && (this.pendingAction === "robber" || this.robberVictimOptions?.length)) this._rushAutoFinishHumanRobber(me);
+    this._rushAfterAction(me);
   }
 
   _rushRoll() {
@@ -6409,7 +6439,8 @@ class ColonistFullGame {
     if (this.confirmBuild?.type !== "robber") this.confirmBuild = null;
     this._dropUndo();
     this.trayMode = null;
-    if (this.devPlayed?.type === "roadBuilding") this.devPlayed = null;
+    if (this.devPlayed?.type === "roadBuilding") { this.devPlayed = null; this.freeRoadsRemaining = 0; }
+    if (this.devPick) { if (!this._cancelDevPlay()) this.devPick = null; } // a pick still open on a 7: the card goes back to the hand
     this.canvas.style.cursor = "grab";
     this.hideTradePanel();
     this.hideDevCardPicker();
@@ -6536,7 +6567,7 @@ class ColonistFullGame {
     const r = this.rush;
     if (!r || this.winner || !this.players.includes(player)) return;
     if (!this._rushIsBot(player)) return; // human seat left autoplay
-    if (document.hidden || r.paused || this.uiPaused || this._aiHeld()) {
+    if (document.hidden || r.paused || this.uiPaused || this._aiHeld() || this._rushChoiceOpen()) { // v1.95: not while you choose
       this._scheduleBotTick(player, 600);
       return;
     }
@@ -6634,7 +6665,7 @@ class ColonistFullGame {
     const r = this.rush;
     const human = this._me();
     if (!r || !human || r.paused || this.winner || this.setupPhase || this.autoplayInterval) return;
-    if (r.ready.includes(human.id)) return;
+    if (r.ready.includes(human.id) || this._rushChoiceOpen()) return;
     r.ready.push(human.id);
     r.readyAt = r.clockMs;
     this._readyAtWall = performance.now();
@@ -6893,21 +6924,22 @@ class ColonistFullGame {
     const left = Math.max(0, r.remainingMs);
     const secs = Math.ceil(left / 1000);
     const titleEl = this.rushHud.querySelector("#rushTitle");
-    if (titleEl) titleEl.innerHTML = r.paused ? "<b>Paused</b> · robber!" : `Next roll · <b>Roll #${r.rollNo + 1}</b>`;
+    const hold = !r.paused && this._rushChoiceOpen();
+    if (titleEl) titleEl.innerHTML = r.paused ? "<b>Paused</b> · robber!" : hold ? "<b>Paused</b> · your pick" : `Next roll · <b>Roll #${r.rollNo + 1}</b>`;
     const secEl = this.rushHud.querySelector("#rushSeconds");
     if (secEl) secEl.textContent = r.paused ? "7" : String(secs);
     const label = this.rushHud.querySelector("#rushSecondsLabel");
-    if (label) label.textContent = r.paused ? "paused" : "seconds";
+    if (label) label.textContent = r.paused || hold ? "paused" : "seconds";
     const ring = this.rushHud.querySelector("#rushRingFill");
     if (ring) {
       const c = 2 * Math.PI * 44;
       ring.style.strokeDasharray = `${c}`;
       ring.style.strokeDashoffset = `${c * (1 - left / total)}`;
     }
-    this.rushHud.classList.toggle("paused", r.paused);
-    this.rushHud.classList.toggle("urgent", !r.paused && secs <= 3);
+    this.rushHud.classList.toggle("paused", r.paused || hold);
+    this.rushHud.classList.toggle("urgent", !r.paused && !hold && secs <= 3);
     // very soft ticks on the last three seconds (once per second)
-    if (!r.paused && secs >= 1 && secs <= 3 && !this.uiPaused) {
+    if (!r.paused && !hold && secs >= 1 && secs <= 3 && !this.uiPaused) {
       if (this._rushTickSec !== secs) { this._rushTickSec = secs; this.sfx.rushTick(secs === 1); }
     } else this._rushTickSec = null;
     const human = this._me();
@@ -6920,7 +6952,7 @@ class ColonistFullGame {
         : `${icon("dice")}<span class="rr">Roll now<small>I'm done · ${r.ready.length}/${n} ready</small></span>`;
       if (this.rushReadyBtn.__html !== html) { this.rushReadyBtn.__html = html; this.rushReadyBtn.innerHTML = html; }
       this.rushReadyBtn.classList.toggle("is-ready", humanReady);
-      this.rushReadyBtn.disabled = r.paused || !!this.autoplayInterval || humanReady;
+      this.rushReadyBtn.disabled = r.paused || hold || !!this.autoplayInterval || humanReady;
       this.rushReadyBtn.setAttribute("aria-label", humanReady ? "Rolling the dice" : `Roll now: you're done (${r.ready.length} of ${n} ready)`);
     }
     const votersKey = `${r.ready.join(",")}|${n}`;
@@ -10761,20 +10793,24 @@ class ColonistFullGame {
     if (dp.type === "yearOfPlenty") {
       const gained = dp.picks.filter((resource) => this.takeFromBank(player, resource, 1) > 0);
       this.addLog(`${player.name} played Year of Plenty: ${this._plusList(gained)}.`);
+      if (this.rush) this.pushToast(`Year of Plenty: ${this._plusList(gained)}`, "dev-result");
       this.fx?.yearOfPlenty?.(player.id, gained);
       this.sfx.trade?.();
       if (!this.confirmPlacements) this._setUndo({ kind: "yop", pid: player.id, picks: gained, logs: this.logEntries.slice(logLen), icon: "devcard", label: `Took ${gained.map((r) => RESOURCE_LABEL[r]).join(" + ")}` });
     } else {
       const target = dp.picks[0];
-      let collected = 0;
+      let collected = 0, donors = 0;
       this.players.forEach((other) => {
         if (other.id === player.id) return;
         collected += other.resources[target];
+        if (other.resources[target] > 0) donors += 1;
         other.resources[target] = 0;
       });
       player.resources[target] += collected;
       this._aiTrkMonopoly(player, target, collected);
       this.addLog(`${player.name} played Monopoly: +${collected} ${RESOURCE_LABEL[target]}.`);
+      // v1.95 Rush keeps toasts for the big moments: the result of your own card is one of them
+      if (this.rush) this.pushToast(collected ? `Monopoly: +${collected} ${RESOURCE_LABEL[target]} from ${donors} player${donors === 1 ? "" : "s"}` : `Monopoly: nobody had any ${RESOURCE_LABEL[target]}`, "dev-result");
       this.fx?.monopoly?.(player.id, target, collected);
       this.sfx.trade?.();
     }
@@ -10862,7 +10898,7 @@ class ColonistFullGame {
       }).join("");
       const last = mono && dp.picks.length ? tbtn("data-pick-ok", `${icon("check")}<span>Take</span>`, "primary")
         : !mono && dp.picks.length ? tbtn("data-pick-undo aria-label=\"Undo pick\"", icon("undo"), "tclose")
-        : close("data-pick-cancel", "Keep the card");
+        : tbtn(`data-pick-cancel aria-label="Keep the card" title="Keep the card"`, `${icon("close")}<span>Keep</span>`, "tclose tback");
       return { mode: "pick", hint: mono
           ? (dp.picks.length ? `Take every ${RESOURCE_LABEL[dp.picks[0]]} from all players? Tap Take` : "Monopoly: pick a resource, everyone hands you theirs")
           : `Year of Plenty: tap ${dp.count - dp.picks.length} card${dp.count - dp.picks.length === 1 ? "" : "s"} to take from the bank`,

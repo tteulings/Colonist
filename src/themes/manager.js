@@ -81,18 +81,26 @@ export function effectivePalette() {
   if (mode === "system") return systemDark() ? "night" : dayPalette();
   return palettePref();
 }
-/** v1.93.2: the next ~2 days of phase edges [[ms, "day|dusk|night"], ...] for the index.html head script, so a launch hours
- *  after the last one still paints the right palette on the first frame (a stale "last palette" flipped light -> dark). */
+/** v1.93.2: the next 14 days of phase edges [[ms, "day|dusk|night"], ..., [end, last]] for the index.html head script, so a
+ *  launch hours (or days) after the last one still paints the right palette on the first frame (a stale "last palette" flipped
+ *  light -> dark). v1.95: sampled from timePhase() itself (15 min steps, edges refined to 1 s) instead of chaining its `next`,
+ *  so it matches effectivePalette() at every instant (the chain drifted over midnight, in white nights and on DST days). */
+const SCHED_DAYS = 14;
 function storeSched() {
   try {
-    const out = []; let t = clockNow().getTime();
-    for (let i = 0; i < 10; i += 1) {
-      const d = new Date(t), info = timePhase(d, estimatePlace(d));
-      out.push([t, info.phase]);
-      if (!info.next || info.next <= t) break;
-      t = info.next + 1000;
+    const t0 = clockNow().getTime(), place = estimatePlace(new Date(t0)), key = place.tz + "|" + place.how;
+    try { const cur = JSON.parse(store.get("colonist.autoSched")); // still good: same place, starts before now, > 12 days left
+      if (cur && store.get("colonist.autoSchedKey") === key && cur[0][0] <= t0 && cur[cur.length - 1][0] - t0 > 12 * 864e5) return; } catch (_) { /* rebuild */ }
+    const at = (ms) => timePhase(new Date(ms), place).phase;
+    const out = []; let prev = at(t0); out.push([t0, prev]);
+    for (let t = t0 + 900000; t <= t0 + SCHED_DAYS * 864e5; t += 900000) {
+      const p = at(t); if (p === prev) continue;
+      let lo = t - 900000, hi = t;
+      while (hi - lo > 1000) { const mid = Math.floor((lo + hi) / 2); if (at(mid) === prev) lo = mid; else hi = mid; }
+      out.push([hi, p]); prev = p;
     }
-    store.set("colonist.autoSched", JSON.stringify(out));
+    out.push([t0 + SCHED_DAYS * 864e5, prev]);
+    store.set("colonist.autoSched", JSON.stringify(out)); store.set("colonist.autoSchedKey", key);
   } catch (_) { /* optional */ }
 }
 function applyPaletteAttr({ soft = false } = {}) {

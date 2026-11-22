@@ -1,6 +1,6 @@
 // Network-first service worker: always try fresh files (the app updates often),
 // fall back to the cache so the game still starts offline.
-const CACHE = "colonist-v194";
+const CACHE = "colonist-v195";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./manifest.webmanifest", "./assets/favicon.svg",
   "./themes/base.css", "./themes/theme-sunny.css", "./themes/theme-wood.css", "./themes/theme-silhouette.css", "./themes/theme-classic.css", "./themes/six.css", "./themes/seafarers.css", "./themes/hotseat.css", "./themes/stats.css", "./themes/avatar.css", "./themes/avatar-detail.css", "./src/avatar-anim.js", "./themes/review.css", "./themes/review-ai.css", "./themes/sunny-night.css", "./themes/sunny-dusk.css", "./themes/profiles.css", "./themes/history.css", "./src/history.js", "./themes/lessons.css", "./src/lessons.js", "./src/lessons-data.js", "./src/lessons-row.js", "./src/lessons-eval.js", "./src/lessons-view.js", "./src/lessons-geo.js", "./src/lessons-worker.js", "./themes/bots.css", "./themes/coherence.css", "./themes/i18n.css", "./src/ui-icons.js", "./src/resources.js", "./src/core/constants.js", "./src/bots-page.js", "./src/nav.js", "./src/bot-stats.js",

@@ -22,7 +22,8 @@
           var auto = ls.getItem("colonist.paletteAuto"), last = ls.getItem("colonist.autoPalette");
           // v1.04 proposal: Auto · time of day paints the palette manager.js last computed (it corrects it at once if stale)
           if (auto === "time") { // v1.93.2: the phase from the stored schedule for NOW (the last palette may be hours stale)
-            try { var sc = JSON.parse(ls.getItem("colonist.autoSched")), n = Date.now(), ph = null;
+            try { var sc = JSON.parse(ls.getItem("colonist.autoSched")), n = Date.now(), ph = null, e = sc && sc[sc.length - 1][0];
+              if (sc && n >= e) n -= Math.ceil((n - e + 1) / 864e5) * 864e5; // past the stored fortnight: the same time of day, whole days back
               for (var i = 0; sc && i < sc.length - 1; i++) if (sc[i][0] <= n && n < sc[i + 1][0]) ph = sc[i][1];
               if (ph) return ph === "day" ? day : ph; } catch (e) {}
             return last === "light" || last === "vivid" || last === "dusk" || last === "night" ? last : day; }
@@ -81,7 +82,7 @@
     </script>
     <!-- v1.27: fetch the start-up modules in parallel (without these the browser only finds each import after parsing its parent: one round trip per level).
          Same URLs as the imports (game.js keeps its ?v=); a stale entry costs one extra fetch, a missing one only its head start. -->
-    <link rel="modulepreload" href="./src/game.js?v=194" />
+    <link rel="modulepreload" href="./src/game.js?v=195" />
     <link rel="modulepreload" href="./src/i18n.js" />
     <link rel="modulepreload" href="./src/i18n-nl.js" />
     <link rel="modulepreload" href="./src/themes/manager.js" />
@@ -277,28 +278,28 @@
     </script>
     <!-- v1.27: the stylesheets follow the splash, so the splash paints while they load (the app below still waits for them).
          Legacy styles sit in a low-priority cascade layer: the themed CSS below always wins -->
-    <style>@import url("./styles.css?v=194") layer(legacy);</style>
-    <link rel="stylesheet" href="./themes/base.css?v=194" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=194" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=194" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=194" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=194" />
-    <link rel="stylesheet" href="./themes/six.css?v=194" />
-    <link rel="stylesheet" href="./themes/seafarers.css?v=194" />
-    <link rel="stylesheet" href="./themes/hotseat.css?v=194" />
-    <link rel="stylesheet" href="./themes/stats.css?v=194" />
-    <link rel="stylesheet" href="./themes/avatar.css?v=194" />
-    <link rel="stylesheet" href="./themes/avatar-detail.css?v=194" />
-    <link rel="stylesheet" href="./themes/review.css?v=194" />
-    <link rel="stylesheet" href="./themes/review-ai.css?v=194" />
-    <link rel="stylesheet" href="./themes/sunny-night.css?v=194" />
-    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=194" />
-    <link rel="stylesheet" href="./themes/profiles.css?v=194" />
-    <link rel="stylesheet" href="./themes/history.css?v=194" />
-    <link rel="stylesheet" href="./themes/lessons.css?v=194" />
-    <link rel="stylesheet" href="./themes/bots.css?v=194" />
-    <link rel="stylesheet" href="./themes/coherence.css?v=194" />
-    <link rel="stylesheet" href="./themes/i18n.css?v=194" />
+    <style>@import url("./styles.css?v=195") layer(legacy);</style>
+    <link rel="stylesheet" href="./themes/base.css?v=195" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=195" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=195" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=195" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=195" />
+    <link rel="stylesheet" href="./themes/six.css?v=195" />
+    <link rel="stylesheet" href="./themes/seafarers.css?v=195" />
+    <link rel="stylesheet" href="./themes/hotseat.css?v=195" />
+    <link rel="stylesheet" href="./themes/stats.css?v=195" />
+    <link rel="stylesheet" href="./themes/avatar.css?v=195" />
+    <link rel="stylesheet" href="./themes/avatar-detail.css?v=195" />
+    <link rel="stylesheet" href="./themes/review.css?v=195" />
+    <link rel="stylesheet" href="./themes/review-ai.css?v=195" />
+    <link rel="stylesheet" href="./themes/sunny-night.css?v=195" />
+    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=195" />
+    <link rel="stylesheet" href="./themes/profiles.css?v=195" />
+    <link rel="stylesheet" href="./themes/history.css?v=195" />
+    <link rel="stylesheet" href="./themes/lessons.css?v=195" />
+    <link rel="stylesheet" href="./themes/bots.css?v=195" />
+    <link rel="stylesheet" href="./themes/coherence.css?v=195" />
+    <link rel="stylesheet" href="./themes/i18n.css?v=195" />
     <div class="app" id="app">
       <header class="topbar" id="topbar">
         <div class="brand">
@@ -531,7 +532,7 @@
     </div>
     <div id="fxLayer" aria-hidden="true"></div>
 
-    <script type="module" src="./src/game.js?v=194"></script>
+    <script type="module" src="./src/game.js?v=195"></script>
     <script>
       // Updates: sw.js and its imports are never taken from the HTTP cache (updateViaCache), the
       // registration is re-checked whenever the app comes back to the foreground, and a new
