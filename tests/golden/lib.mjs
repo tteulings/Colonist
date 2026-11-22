@@ -141,7 +141,7 @@ function playHost(spec, strategies, agents, decisions) {
   const bots = strategies.map((st, i) => (agents[i] ? BOTS.botForStrategy(st, { agent: agents[i] }) : BOTS.botForStrategy(st)));
   const host = BOTS.newHost();
   const r = BOTS.runSync(engine, bots, { host, until: () => !!(spec.stopTurn && g.turn >= spec.stopTurn) });
-  engine.dispose();
+  engine.release();
   if (host.errors.length) throw new Error("host errors: " + JSON.stringify(host.errors.slice(0, 3)));
   return finish(spec, { done: r.done, winner: r.winner, turns: r.turns }, decisions);
 }

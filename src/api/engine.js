@@ -771,6 +771,12 @@ export class Engine {
   }
   /** Give the game object back (drops a parked clone's snapshot). */
   dispose() { this._dead = true; this._snap = null; if (this.H.active === this) this.H.active = null; }
+  /** dispose(), and give the game its own timers back (takeControl dropped them): for a host that is finished with the game object. */
+  release() {
+    const H = this.H, g = this.g, was = H.active === this;
+    this.dispose();
+    if (was && H.laterSaved) { H.laterSaved = false; if (H.later0 !== undefined) g._later = H.later0; else delete g._later; }
+  }
   /** The record of this game: how it started and every action with the chance it drew. replay(game, log) plays it again. */
   log() { return { setup: this.meta, actions: JSON.parse(JSON.stringify(this._log)) }; }
 

@@ -17,3 +17,17 @@ export function botForStrategy(strategy, opts = {}) {
   const meta = { id: "custom", name: "Custom", level: 3, needs: {} };
   return e && opts.agent ? searchBot({ ...meta, id: e.id, needs: e.needs }, { strategy, ...opts }) : legacyBot(meta, { strategy });
 }
+
+import { startLabGame, runSync, newHost } from "./host.js";
+/**
+ * A lab game played by the host loop (ai-analysis.js `_labSimStart(strategies, { host: <this module>, ... })`): same seed, board, set-up and dials as the
+ * legacy lab loop, and the same game to the move (tests/golden/run.mjs --host), but every decision is a Bot's `decide` judged by the engine.
+ * `o.agents`: search agents per seat (Worker / golden harness). Returns { engine, bots, host, step(turns) -> { done, winner, turns } }.
+ */
+export function labSession(g, strategies, o = {}) {
+  const engine = startLabGame(g, strategies, o);
+  const list = Array.isArray(strategies) ? strategies : g.players.map((p) => p.strategy);
+  const bots = list.map((st, i) => botForStrategy(st, o.agents?.[i] ? { agent: o.agents[i] } : {}));
+  const host = newHost({ seed: o.seed });
+  return { engine, bots, host, step: (turns) => { const r = runSync(engine, bots, { host, maxTurns: turns }); if (r.done) engine.release(); return { done: r.done, winner: r.winner, turns: r.turns }; } };
+}
