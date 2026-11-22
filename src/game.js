@@ -4111,7 +4111,8 @@ class ColonistFullGame {
     let ok = true;
     for (const r of gets) {
       for (let i = 0; i < this.tradeRequest[r]; i += 1) {
-        if (!this.performBankTrade(player, plan.give, r)) { ok = false; break; }
+        if (!this.api.dispatch({ actor: player.id, type: "tradeBank", give: plan.give, get: r }).ok) { ok = false; break; } // one maritime trade per card
+
         giveRes[plan.give] += plan.rate;
         getRes[r] += 1;
       }
@@ -4160,8 +4161,11 @@ class ColonistFullGame {
     });
   }
 
-  /** Swap with a player who said yes (or whose counter-offer you accepted). */
-  _executePlayerTrade(partner, gave, got) {
+  /**
+   * Swap with a player who said yes (or whose counter-offer you accepted: `counterId`). The yes is the partner's `respondTrade accept` on the
+   * offer (the bot answered when the offer was made; this tap carries it out), a counter is the human's accept of the bot's counter-offer.
+   */
+  _executePlayerTrade(partner, gave, got, counterId = null) {
     const player = this.currentPlayer;
     const ans = this._tradeAnswers;
     if (!player?.isHuman || !partner) return;
@@ -4171,6 +4175,17 @@ class ColonistFullGame {
       this._tradeHint("Trade no longer valid.");
       return;
     }
+    const id = counterId ?? ans?.offerId ?? null;
+    const ui = { swap: { partner, gave, got } };
+    const r = id != null && this.api.hasOffer(id)
+      ? (counterId != null ? this.api.dispatch({ actor: player.id, type: "respondTrade", offer: id, answer: "accept" }, ui) : this.api.dispatchFor(partner.id, { type: "respondTrade", offer: id, answer: "accept" }, ui))
+      : null;
+    if (r && !r.ok) { this._tradeHint(r.reason); return; }
+    if (!r) this._playerTradeSwapNow(player, partner, gave, got); // no offer on the table (a script calling this directly): the same swap
+  }
+
+  /** The swap and what the sheet shows after it (UiEngine._do_respondTrade, accept). */
+  _playerTradeSwapNow(player, partner, gave, got) {
     const src = document.querySelector(`#tradePlayerRow [data-partner="${partner.id}"]`)?.getBoundingClientRect();
     this._swapCards(player, gave, partner, got);
     this.addLog(`Traded with ${partner.name}: gave ${resourceString(gave)} for ${resourceString(got)}.`);
@@ -4198,6 +4213,13 @@ class ColonistFullGame {
     if (RESOURCES.some((r) => offer[r] > 0 && request[r] > 0)) { refuse("Can't give and get the same resource."); return; }
     const short = RESOURCES.find((r) => player.resources[r] < offer[r]);
     if (short) { refuse(`Not enough ${RESOURCE_LABEL[short]}.`); return; }
+    const bots = this.players.filter((o) => o.id !== player.id && !o.isHuman).map((o) => o.id);
+    const r = this.api.dispatch({ actor: player.id, type: "offerTrade", to: bots.length ? bots : "all", give: offer, want: request });
+    if (!r.ok) refuse(r.reason);
+  }
+
+  /** Ask the bots about the human's offer (UiEngine._do_offerTrade): every bot answers at once, one may counter; nothing trades until a ✓ is tapped. */
+  _humanOfferNow(player, offer, request, offerId) {
     // Propose to all players — collect responses
     const responses = [];
     for (const other of this.players) {
@@ -4210,7 +4232,7 @@ class ColonistFullGame {
     if (!acceptors.length) this.addLog(counter ? `${counter.player.name} made a counter-offer.` : "All players rejected your trade offer.");
     // v0.82: never trade on the Offer tap, also when exactly one bot says yes — its ✓ / Trade on the portrait waits
     // for your one tap (the sheet stays open until then)
-    this._tradeAnswers = { offer, request, responses, counter, turnSerial: this.turnSerial };
+    this._tradeAnswers = { offer, request, responses, counter, turnSerial: this.turnSerial, offerId, counterId: counter ? this.api.openCounter(counter, player) : null };
     this._tradeAsked = JSON.stringify([offer, request]);
     const res = this.tradeProposalResult;
     if (res) {
@@ -4221,7 +4243,7 @@ class ColonistFullGame {
           <button type="button" class="tc-no" data-counter-no aria-label="Decline ${counter.player.name}'s counter-offer">${icon("close")}</button>
           <button type="button" class="tc-yes" data-partner="${counter.player.id}" data-counter="1" aria-label="Accept ${counter.player.name}'s counter-offer">${icon("check")}</button>
         </div>` : "";
-      res.querySelector("[data-counter]")?.addEventListener("click", () => this._executePlayerTrade(counter.player, counter.want, counter.give));
+      res.querySelector("[data-counter]")?.addEventListener("click", () => this._executePlayerTrade(counter.player, counter.want, counter.give, this._tradeAnswers?.counterId ?? null));
       res.querySelector("[data-counter-no]")?.addEventListener("click", () => {
         this.addLog(`You declined ${counter.player.name}'s counter-offer.`);
         if (this._tradeAnswers) this._tradeAnswers.counter = null;
@@ -4458,7 +4480,18 @@ class ColonistFullGame {
     });
   }
 
+  /** Answer a bot's offer (accept / decline / it ran out): the human's `respondTrade`. An accept that can no longer be paid is answered "no", as before. */
   resolveIncomingTrade(accepted, expired = false) {
+    const pit = this.pendingIncomingTrade;
+    if (!pit) return;
+    const human = pit.to || this._me();
+    const pay = !!accepted && !!human && hasResources(human.resources, pit.want) && hasResources(pit.fromPlayer.resources, pit.give);
+    const r = human ? this.api.dispatch({ actor: human.id, type: "respondTrade", offer: pit.id, answer: pay ? "accept" : "reject" }, { incoming: { accepted, expired } }) : { ok: false };
+    if (!r.ok) this._resolveIncomingNow(accepted, expired); // no seat to answer for it: the old path
+  }
+
+  /** The answer to a bot's offer (UiEngine._do_respondTrade): the swap, the log lines, the promise the bot's turn waits on. */
+  _resolveIncomingNow(accepted, expired = false) {
     if (!this.pendingIncomingTrade) return;
     const { fromPlayer, give, want, resolve } = this.pendingIncomingTrade;
     const human = this.pendingIncomingTrade.to || this._me();
@@ -6732,6 +6765,13 @@ class ColonistFullGame {
     const human = this._me();
     if (!r || !human || r.paused || this.winner || this.setupPhase || this.autoplayInterval) return;
     if (r.ready.includes(human.id) || this._rushChoiceOpen()) return;
+    const res = this.api.dispatch({ actor: human.id, type: "ready" });
+    if (!res.ok) this._flashPrompt(res.reason);
+  }
+
+  /** Vote to roll now (UiEngine._do_ready). */
+  _humanReadyNow(human) {
+    const r = this.rush;
     r.ready.push(human.id);
     r.readyAt = r.clockMs;
     this._readyAtWall = performance.now();

@@ -11,6 +11,7 @@
 // Math.random order are the same as before.
 import { Engine } from "../api/engine.js";
 import { RESOURCES as RES } from "../core/constants.js";
+import { cleanHand } from "../api/actions.js";
 
 const PLACE = new Set(["build", "place"]);
 
@@ -53,6 +54,7 @@ export class UiEngine extends Engine {
     super(g, { noHooks: true });
     this._ui = null;
     this._onBehalf = null;
+    this._offerSeq = 1000000; // the game's own offer ids (the card in the corner, Rush offers) stay below this
   }
   // one engine, one game object: nothing to park or restore, and the game's own methods stay untouched (no hooks)
   _enter() { return this; }
@@ -75,7 +77,7 @@ export class UiEngine extends Engine {
    * The prompts, plus one rule of the old UI the strict prompt model lacks: while Road Building's free roads or a Year of Plenty / Monopoly pick are
    * open the rest of the turn (buy, trade, end the turn) is still reachable, as it always was (the dock greys End turn out, the E key did not).
    */
-  prompts() {
+  _prompts0() {
     const ps = super.prompts(), g = this.g, p0 = ps[0];
     if (p0 && (p0.kind === "freeRoad" || p0.kind === "yearOfPlenty" || p0.kind === "monopoly") && (g.phase === "main" || g.phase === "sbp")) ps.push({ kind: g.rush ? "rushAny" : g.phase === "sbp" ? "sbp" : "main", actor: p0.actor });
     return ps;
@@ -109,7 +111,6 @@ export class UiEngine extends Engine {
 
   // ── the commit methods are the UI's own (what the handlers ran before the API existed) ──
   _do_roll(a, p) { this.g._humanRollNow(p); }
-  _do_endTurn(a, p) { this.g._humanEndTurnNow(p); }
   _do_buyDev(a, p) { this.g._humanBuyDevNow(p); }
   _do_playDev(a, p) { return this.g._humanPlayDevNow(p, a.card); }
   _do_tradeBank(a, p) { return this.g.performBankTrade(p, a.give, a.get); }
@@ -119,8 +120,46 @@ export class UiEngine extends Engine {
   _do_discard() { this.g._confirmDiscardNow(); }
   _do_ready(a, p) { this.g._humanReadyNow(p); }
   _do_moveShip(a, p) { return this.g._humanMoveShipNow(p, a.from, a.to); }
-  _do_offerTrade(a, p) { this.g._humanOfferNow(p, a, this._ui); }
-  _do_respondTrade(a, p) { return this.g._humanRespondNow(p, a, this._ui); }
+  // trades: the engine keeps the open offer (one at a time: what the trade sheet shows), the bots' answers are the game's own evaluator
+  _do_offerTrade(a, p) {
+    const g = this.g, to = a.to === "all" ? g.players.filter((q) => q.id !== a.actor).map((q) => q.id) : [...new Set(a.to)];
+    const o = { id: ++this._offerSeq, from: a.actor, to, give: cleanHand(a.give), want: cleanHand(a.want), answered: {} };
+    this._offers = [o];
+    g._humanOfferNow(p, { ...a.give }, { ...a.want }, o.id);
+  }
+  _do_respondTrade(a, p) {
+    const g = this.g, ui = this._ui;
+    if (ui?.incoming) return g._resolveIncomingNow(ui.incoming.accepted, ui.incoming.expired);
+    if (ui?.swap) { this._offers = []; return g._playerTradeSwapNow(g.currentPlayer, ui.swap.partner, ui.swap.gave, ui.swap.got); }
+    return super._do_respondTrade(a, p);
+  }
+  _do_endTurn(a, p) { this._offers = []; this.g._humanEndTurnNow(p); }
+  hasOffer(id) { return this._offers.some((o) => o.id === id); }
+  /** A bot's counter-offer to the human, as an open offer the human can accept; returns its id. */
+  openCounter(counter, human) {
+    const o = { id: ++this._offerSeq, from: counter.player.id, to: [human.id], give: cleanHand(counter.give), want: cleanHand(counter.want), answered: {}, counterOf: this._offers[0]?.id ?? null };
+    this._offers.push(o);
+    return o.id;
+  }
+
+  // an offer a bot made to the human (Classic: the card in the corner; the game keeps it in pendingIncomingTrade)
+  prompts() {
+    const ps = this._prompts0();
+    const pit = this.g.pendingIncomingTrade;
+    if (pit?.to && !this.g.rush) ps.push({ kind: "respondTrade", actor: pit.to.id, offer: pit.id, from: pit.fromPlayer.id, incoming: true });
+    return ps;
+  }
+  _legalOf(prompt, only = null) {
+    if (prompt.incoming) {
+      if (only && only !== "respondTrade") return [];
+      const pit = this.g.pendingIncomingTrade, p = this.g.players[prompt.actor], out = [];
+      if (!pit) return out;
+      if (RES.every((r) => (p.resources[r] || 0) >= (pit.want[r] || 0)) && RES.every((r) => (pit.fromPlayer.resources[r] || 0) >= (pit.give[r] || 0))) out.push({ actor: prompt.actor, type: "respondTrade", offer: pit.id, answer: "accept" });
+      out.push({ actor: prompt.actor, type: "respondTrade", offer: pit.id, answer: "reject" });
+      return out;
+    }
+    return super._legalOf(prompt, only);
+  }
 }
 
 export function createUiEngine(game) { return new UiEngine(game); }
