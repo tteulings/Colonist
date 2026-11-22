@@ -22,7 +22,8 @@
           var auto = ls.getItem("colonist.paletteAuto"), last = ls.getItem("colonist.autoPalette");
           // v1.04 proposal: Auto · time of day paints the palette manager.js last computed (it corrects it at once if stale)
           if (auto === "time") { // v1.93.2: the phase from the stored schedule for NOW (the last palette may be hours stale)
-            try { var sc = JSON.parse(ls.getItem("colonist.autoSched")), n = Date.now(), ph = null;
+            try { var sc = JSON.parse(ls.getItem("colonist.autoSched")), n = Date.now(), ph = null, e = sc && sc[sc.length - 1][0];
+              if (sc && n >= e) n -= Math.ceil((n - e + 1) / 864e5) * 864e5; // past the stored fortnight: the same time of day, whole days back
               for (var i = 0; sc && i < sc.length - 1; i++) if (sc[i][0] <= n && n < sc[i + 1][0]) ph = sc[i][1];
               if (ph) return ph === "day" ? day : ph; } catch (e) {}
             return last === "light" || last === "vivid" || last === "dusk" || last === "night" ? last : day; }
