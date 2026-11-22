@@ -202,10 +202,11 @@ async function session(b, port, seed, viewport, mode = "classic") {
     await doSetup("rush");
     await until(() => { const g = window.__colonistGame; return g.rush && !g.rush.paused && !g.setupPhase; }, null, 30000);
     await E(() => { const g = window.__colonistGame; g.rush.remainingMs = Math.max(g.rush.remainingMs, 600000); });
-    const before = await E(() => window.__colonistGame.rush.ready.slice());
+    const before = await E(() => { const g = window.__colonistGame; return { ready: g.rush.ready.slice(), roll: g.rush.rollNo }; });
     await E(() => window.__colonistGame.toggleRushReady());
-    const r = await E(() => { const g = window.__colonistGame; return { ready: g.rush.ready.slice(), hn: g._me().id }; });
-    trace.push({ label: "rush ready", ready: r.ready.includes(r.hn), before: before.includes(r.hn) });
+    // Ready is the human's vote: it stands in rush.ready, or the dice have already rolled on it (the clock runs 25x here)
+    const r = await E(() => { const g = window.__colonistGame; return { ready: g.rush.ready.slice(), roll: g.rush.rollNo, hn: g._me().id }; });
+    trace.push({ label: "rush ready", voted: r.ready.includes(r.hn) || r.roll > before.roll, before: before.ready.includes(r.hn) });
   };
 
   const sea = async () => {
