@@ -33,7 +33,7 @@ Rating: Plackett-Luce (Bradley-Terry for one winner), the model of the Bots page
 ## Training rows (`--dump-states`)
 The repo has no training data format in this tree (the GBM was trained offline, `exp/vm-120/train.py`, not present), so the rows use the model's own features: `<out>.states.jsonl`, one row per seat per sampled turn (not in Rush):
 `{"game","turn","seat","x":[features],"vp","y":1|0 (that seat won),"final":final points,"sea":bool}`.
-`x` = `gbmFeatures(g)` (`GBM_NAMES`, 74) or, on a Seafarers board, `gbmFeaturesSea(g)` (`GBM_NAMES` + `SEA_NAMES`). The names are in `<out>.states.names.json`. Rows join to the game line by `game`.
+`x` = `gbmFeatures(g)` (`GBM_NAMES`, 73) or, on a Seafarers board, `gbmFeaturesSea(g)` (`GBM_NAMES` + `SEA_NAMES`). The names are in `<out>.states.names.json`. Rows join to the game line by `game`.
 
 ## Test and speed
 `node tests/tourn196.mjs` : same args twice, workers 1 vs 4, resume and seat balance must give identical games.
