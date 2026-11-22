@@ -9,6 +9,20 @@ import os from "node:os";
 const ALIAS = { rules: "simple" };
 export const botSpec = (name) => ALIAS[name] || name;
 
+const SEARCH = ["master", "super", "superplus", "grandmaster"];
+/** label "master@200" = preset master with 200 futures; a plain label takes the --budget value, else the app's budget. */
+export const labelPreset = (label) => botSpec(label.split("@")[0]);
+/** The search budget of one bot label. App budgets = src/master.js budgetFor(policy, rush, sea) (what a normal game uses); the real-time
+ *  brakes (wallCapMs/capMs) are lifted so a game never depends on the clock. N = futures a move: master -> n (rollouts), the others -> timeMs
+ *  (counted by rollClock) with n raised to at least N. null for non-search bots. */
+export function budgetOf(label, o, budgetFor) {
+  const pre = labelPreset(label); if (!SEARCH.includes(pre)) return null;
+  const b = { ...budgetFor(pre, o.mode === "rush", o.mode === "seafarers"), wallCapMs: 1e9, capMs: 1e9 };
+  const N = label.includes("@") ? +label.split("@")[1] : o.budgetN[label] ?? o.budgetN[pre];
+  if (N != null) { if (!(N >= 1)) throw new Error("bad budget for " + label); if (pre === "master") b.n = N; else { b.timeMs = N; b.n = Math.max(b.n, N); } }
+  return b;
+}
+
 const MODES = { classic: {}, rush: { mode: "rush" }, seafarers: { sea: true }, "56": {} };
 const DEFAULT_SEATS = { classic: 4, rush: 4, seafarers: 3, "56": 6 };
 const mix = (a) => { let x = (a >>> 0) ^ 0x9e3779b9; x = Math.imul(x ^ (x >>> 16), 0x45d35d6b); x = Math.imul(x ^ (x >>> 16), 0x45d35d6b); return (x ^ (x >>> 16)) >>> 0; };
@@ -27,7 +41,8 @@ async function worker() {
   parentPort.on("message", (job) => {
     if (!job) process.exit(0);
     const o = workerData.o, rows = [];
-    const spec = { id: "t" + job.game, seed: job.seed, seats: job.bots.map(botSpec), ...MODES[o.mode] };
+    const spec = { id: "t" + job.game, seed: job.seed, seats: job.bots.map(labelPreset), ...MODES[o.mode] };
+    if (!o.golden) spec.seatBudgets = job.bots.map((b) => budgetOf(b, o, L.budgetFor));
     if (o.dump && o.mode !== "rush") {
       let last = -1;
       spec.onTurn = (g) => {
@@ -102,9 +117,11 @@ function parseArgs(argv) {
   const a = {}; for (let i = 0; i < argv.length; i++) { const k = argv[i]; if (!k.startsWith("--")) continue; const key = k.slice(2); const nx = argv[i + 1]; if (nx == null || nx.startsWith("--")) a[key] = true; else { a[key] = nx; i++; } }
   const mode = a.mode || "classic"; if (!MODES[mode]) throw new Error("--mode must be classic|rush|seafarers|56");
   const o = { bots: String(a.bots || "expert,intermediate").split(",").map((s) => s.trim()).filter(Boolean), games: +(a.games ?? 100), mode, seats: +(a.seats ?? DEFAULT_SEATS[mode]), seed: +(a.seed ?? 1),
-    workers: Math.max(1, +(a.workers ?? os.availableParallelism?.() ?? os.cpus().length)), out: a.out || null, dump: !!a["dump-states"], dumpEvery: +(a["dump-every"] ?? 4), anchor: a.anchor || null, quiet: !!a.quiet };
+    workers: Math.max(1, +(a.workers ?? os.availableParallelism?.() ?? os.cpus().length)), out: a.out || null, dump: !!a["dump-states"], dumpEvery: +(a["dump-every"] ?? 4), anchor: a.anchor || null, golden: !!a["golden-budgets"], budgetN: Object.fromEntries(String(a.budget || "").split(",").filter(Boolean).map((kv) => { const [k, v] = kv.split("="); return [k.trim(), +v]; })), quiet: !!a.quiet };
   if (mode === "56" && (o.seats < 5 || o.seats > 6)) throw new Error("--mode 56 needs --seats 5 or 6");
   if (mode !== "56" && o.seats > 4) throw new Error("more than 4 seats: use --mode 56");
+  for (const k of Object.keys(o.budgetN)) if (!(o.budgetN[k] >= 1)) throw new Error("--budget name=N needs N >= 1 (" + k + ")");
+  if (o.golden && (Object.keys(o.budgetN).length || o.bots.some((b) => b.includes("@")))) throw new Error("--golden-budgets excludes --budget and bot@n");
   if (o.seats < 2) throw new Error("--seats >= 2");
   if (o.dump && !o.out) throw new Error("--dump-states needs --out");
   return o;
@@ -113,13 +130,20 @@ function parseArgs(argv) {
 async function main() {
   const o = parseArgs(process.argv.slice(2));
   const done = new Map();
-  if (o.out && fs.existsSync(o.out)) for (const l of fs.readFileSync(o.out, "utf8").split("\n")) {
-    if (!l.trim()) continue; let r; try { r = JSON.parse(l); } catch { continue; } // a torn last line of an interrupted run is simply replayed
-    const p = planGame(o, r.game);
-    if (r.seed !== p.seed || r.mode !== o.mode || r.bots.join() !== p.bots.join()) throw new Error(`${o.out}: game ${r.game} was played with other arguments (bots/seed/mode/seats); use a new --out`);
-    done.set(r.game, r);
+  // header = the first line: everything that decides the games. Resume refuses a file whose header differs.
+  const { budgetFor } = await import("../src/master.js");
+  const budgets = o.golden ? "golden" : Object.fromEntries([...new Set(o.bots)].map((b) => [b, budgetOf(b, o, budgetFor)]).filter((x) => x[1]));
+  const header = { header: { tool: "tournament196", bots: o.bots, mode: o.mode, seats: o.seats, seed: o.seed, budgets } };
+  if (o.out && fs.existsSync(o.out) && fs.statSync(o.out).size) {
+    const lines = fs.readFileSync(o.out, "utf8").split("\n").filter((l) => l.trim());
+    let h; try { h = JSON.parse(lines[0]); } catch {}
+    if (!h?.header) throw new Error(`${o.out}: no header line (written by an older tool); use a new --out`);
+    if (JSON.stringify(h.header) !== JSON.stringify(header.header)) throw new Error(`${o.out}: header differs (bots/mode/seats/seed/budgets):\n  file: ${JSON.stringify(h.header)}\n  now:  ${JSON.stringify(header.header)}`);
+    for (const l of lines.slice(1)) { let r; try { r = JSON.parse(l); } catch { continue; } // a torn last line of an interrupted run is simply replayed
+      const p = planGame(o, r.game); if (r.seed !== p.seed || r.bots.join() !== p.bots.join()) throw new Error(`${o.out}: game ${r.game} does not match the plan`); done.set(r.game, r); }
   }
-  if (o.out && fs.existsSync(o.out) && !fs.readFileSync(o.out, "utf8").endsWith("\n") && fs.statSync(o.out).size) fs.appendFileSync(o.out, "\n"); // end a torn last line
+  if (o.out && fs.existsSync(o.out) && fs.statSync(o.out).size && !fs.readFileSync(o.out, "utf8").endsWith("\n")) fs.appendFileSync(o.out, "\n"); // end a torn last line
+  if (o.out && !(fs.existsSync(o.out) && fs.statSync(o.out).size)) fs.writeFileSync(o.out, JSON.stringify(header) + "\n");
   const jobs = []; for (let i = 0; i < o.games; i++) if (!done.has(i)) jobs.push(planGame(o, i));
   const total = jobs.length, t0 = Date.now(); let fin = 0;
   if (done.size && !o.quiet) console.error(`resuming: ${done.size} games already in ${o.out}, ${total} to go`);
@@ -134,7 +158,7 @@ async function main() {
   const iv = setInterval(tick, 1000);
   const nw = Math.min(o.workers, jobs.length);
   await Promise.all(Array.from({ length: nw }, () => new Promise((resolve, reject) => {
-    const w = new Worker(new URL(import.meta.url), { execArgv: ["--no-warnings"], workerData: { o: { mode: o.mode, dump: o.dump, dumpEvery: o.dumpEvery } } });
+    const w = new Worker(new URL(import.meta.url), { execArgv: ["--no-warnings"], workerData: { o: { mode: o.mode, dump: o.dump, dumpEvery: o.dumpEvery, golden: o.golden, budgetN: o.budgetN } } });
     w.on("message", (m) => {
       if (m !== "ready") {
         all.push(m.res); fin++;

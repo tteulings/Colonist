@@ -101,9 +101,9 @@ function settingsFor(spec) {
 }
 
 function agentsFor(spec, record) {
-  return spec.seats.map((name) => {
+  return spec.seats.map((name, si) => {
     if (!BUDGETS[name]) return null;
-    const a = makeMaster({ ...BUDGETS[name], ...(spec.sea ? { leaf: SEA_LEAF } : {}) });
+    const a = makeMaster({ ...(spec.seatBudgets?.[si] || BUDGETS[name]), ...(spec.sea ? { leaf: SEA_LEAF } : {}) });
     ["decideSetup", "decideMain", "decideRobber"].forEach((f, fi) => { const o = a[f]; a[f] = (...x) => { quiet += 1; let d; try { d = o(...x); } finally { quiet -= 1; } if (record) record.push(`D${fi} ${x[1]?.id} ${JSON.stringify(d ? d.choice : null)}`); return d; }; });
     return a;
   });

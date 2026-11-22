@@ -8,16 +8,21 @@ node scripts/tournament.mjs --bots expert,master,rules --games 2000 --mode class
 
 | flag | meaning |
 |---|---|
-| `--bots a,b,c` | presets of `AI_PRESETS` (`beginner simple intermediate expert trader builder shark`) and the search bots `master super superplus grandmaster` (the fixed counted budgets of `lib.mjs`, not the app's). `rules` = alias of `simple`. Selection lives in one function (`botSpec`) so it can move to `src/bots/registry.js`. |
+| `--bots a,b,c` | presets of `AI_PRESETS` (`beginner simple intermediate expert trader builder shark`) and the search bots `master super superplus grandmaster` (search bots use the app's budgets, see below). `rules` = alias of `simple`. Selection lives in one function (`botSpec`) so it can move to `src/bots/registry.js`. |
 | `--games N` | total games (default 100) |
 | `--mode` | `classic` (default, 4 seats), `rush` (4), `seafarers` (3), `56` (5 or 6 seats, `--seats`) |
 | `--seats S` | seats per game |
 | `--seed K` | base seed; same args give the same games, whatever `--workers` is |
 | `--workers N` | worker threads (default: all cores) |
 | `--out f.jsonl` | one line per game; rerunning with the same args **resumes** (a torn last line is replayed; other args on the same file are refused) |
+| `--budget master=100,grandmaster=500` / `bot@n` | futures a move for the search bots. `master` -> rollouts (`n`); `super/superplus/grandmaster` -> counted futures (`timeMs` with `rollClock`). `bot@n` in `--bots` is its own competitor (e.g. `master@50,master@400`, a strength curve). Default: the app's budgets (`budgetFor` in `src/master.js`: master 100, super/super+ 545, grandmaster 1090 futures; the Rush and Seafarers variants for those modes) |
+| `--golden-budgets` | the old behaviour: the tiny fixed budgets of `tests/golden/lib.mjs` (fast, weak) |
 | `--anchor bot` | rating anchor (that bot = 1000); default: mean of the bots = 1000 |
 | `--dump-states` | also write training rows (needs `--out`), `--dump-every K` turns (default 4) |
 | `--quiet` | no progress line |
+
+## Budgets and the header
+The real-time brakes of the app (`wallCapMs`, `capMs`) are lifted: a budget is counted work, so results never depend on machine speed. The Grandmaster runs its 1090 futures in one process here (the app splits them over up to 3 workers; same total work). The first jsonl line is a header `{"header":{bots,mode,seats,seed,budgets}}` with the exact budget objects (or `"golden"`); resume refuses a file whose header differs. Files without a header are refused.
 
 ## Seats and boards
 Game `i` uses bot list rotated by `i % nbots` (seat `s` gets `bots[(i+s) % nbots]`), so every bot sits in every seat equally over `nbots` games (use a multiple of it). The board seed is shared by the `nbots` rotations of one cycle (paired boards, less variance). Consequence: games of one cycle are not independent, so the confidence intervals are slightly optimistic. With more seats than bots a bot can sit twice in a game; its win rate is wins per seat played.
