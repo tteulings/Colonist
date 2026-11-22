@@ -458,10 +458,10 @@ export class Engine {
     const g = this.g, before = this._brief(), hit = a.type === "roll" ? null : undefined;
     this._chanceUsed = []; this._queue = opts.chance ? opts.chance.map((c) => ({ ...c })) : null;
     if (a.type === "roll" && a.forced) this._forceDice = a.forced;
-    this._applying++;
+    this._applying++; g._applyDepth = (g._applyDepth || 0) + 1; // the UI's doors (_confirmDiscard, _finishPick, sbpSkip) see they are being called by an apply() and do the work
     let err = null;
     let done;
-    try { done = this[`_do_${a.type}`](a, g.players[a.actor]); } catch (e) { err = e; } finally { this._applying--; this._queue = null; this._forceDice = null; }
+    try { done = this[`_do_${a.type}`](a, g.players[a.actor]); } catch (e) { err = e; } finally { this._applying--; g._applyDepth--; this._queue = null; this._forceDice = null; }
     if (err) throw err;
     if (done === false) return { ok: false, bug: true, reason: `the old code rejected a legal ${a.type} (engine/legacy disagreement)`, events: [], prompts: this.prompts() };
     const events = this._events(a, before);

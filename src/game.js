@@ -10059,6 +10059,7 @@ class ColonistFullGame {
   _confirmDiscard() {
     const pd = this.pendingDiscard;
     if (!pd) return;
+    if (this._applyDepth > 0) return this._confirmDiscardNow(); // called by apply() itself (an engine driving the game): the action is already being applied
     const cards = {};
     RESOURCES.forEach((r) => { if (pd.selected[r] > 0) cards[r] = pd.selected[r]; });
     const r = this.api.act({ actor: pd.player.id, type: "discard", cards });
@@ -10916,6 +10917,7 @@ class ColonistFullGame {
     const dp = this.devPick;
     const player = this.currentPlayer;
     if (!dp || !player?.isHuman || dp.picks.length !== dp.count) return;
+    if (this._applyDepth > 0) return this._humanPickNow(player); // called by apply() itself
     const a = dp.type === "yearOfPlenty" ? { actor: player.id, type: "pick", resources: dp.picks.slice() } : { actor: player.id, type: "pick", resource: dp.picks[0] };
     const r = this.api.act(a);
     if (!r.ok) this._flashPrompt(r.reason);

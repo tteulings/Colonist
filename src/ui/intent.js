@@ -67,6 +67,8 @@ export class UiEngine extends Engine {
   _enter() { return this; }
   controls(seat) { const p = this.g.players[seat]; return !!p && (!!p.isHuman || this._onBehalf === seat); }
 
+  /** A new game: the log, the events and the open offer of the old one go. */
+  reset() { this._log = []; this._evlog = []; this._offers = []; this._seq = 0; }
   /**
    * What a human's tap means, through intentFor: the draft `a` (what the tap points at, with the piece it asks for) is looked up among the seat's
    * legal actions and the engine's own finished action is applied. When no legal action matches (or the action is a combinatorial one: a discard,
