@@ -121,7 +121,7 @@ export function playGame(spec) {
     if (spec.mode === "rush") return playRush(spec, strategies, agents, decisions);
     g._labSimStart(strategies, { players: spec.seats.length, map: spec.map || "random", seed: spec.seed, agents });
     let r = { done: false };
-    while (!r.done && !(spec.stopTurn && g.turn >= spec.stopTurn)) r = g._labSimStep(1);
+    while (!r.done && !(spec.stopTurn && g.turn >= spec.stopTurn)) { r = g._labSimStep(1); if (spec.onTurn) spec.onTurn(g, r); } // onTurn: read-only observer (tournament --dump-states)
     return finish(spec, r, decisions);
   } finally { g.players.forEach((p) => { p.agent = null; }); }
 }
