@@ -31,6 +31,7 @@ function makeCtx(engine, host, bot, prompt) {
   return {
     game: g, engine, seat: prompt.actor, prompt,
     isLegal: (a) => engine.isLegal(a, { prompt }).ok,
+    enumerate: (max = 200) => engine.enumerate(prompt.actor, { prompt, max }), // concrete legal actions (the `legal` list holds descriptors for discards, offers, ...)
     warn: (m) => host.errors.push({ seat: prompt.actor, prompt: prompt.kind, warn: m }),
     rng: host.rng(prompt.actor), note() {}, sim: null, signal: host.signal,
     budget: { ms: Infinity, nodes: Infinity, deadline: Infinity, spent: () => 0 },

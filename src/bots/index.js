@@ -4,6 +4,7 @@ import { legacyBot } from "./legacy.js";
 import { searchBot } from "./search.js";
 
 export * from "./registry.js";
+export { createEngine } from "../api/engine.js";
 export { runSync, runUntilHuman, hostStep, startLabGame, newHost, nextPrompt } from "./host.js";
 
 listBots().forEach((e) => {

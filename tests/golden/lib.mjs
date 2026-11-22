@@ -201,7 +201,14 @@ export async function playOn(state, { seat, turns = 30, seed = 1 }) {
     Math.random = mulberry32(seed >>> 0); resetRandomCalls();
     const t0 = g.turn; g._labSim = { guard: 0 };
     let r = { done: !!g.winner };
-    while (!r.done && g.turn < t0 + turns) r = g._labSimStep(1);
+    if (hostMode.on && !r.done) { // the loaded position (Rush converted to turns, 5-6, Seafarers) played by the bot host
+      const engine = BOTS.createEngine(g, { meta: { host: true } }); engine.legacyBotOrder = true; engine.takeControl("all");
+      const bots = g.players.map((p) => BOTS.botForStrategy(p.strategy));
+      const h = BOTS.newHost(), rr = BOTS.runSync(engine, bots, { host: h, until: () => g.turn >= t0 + turns });
+      engine.release();
+      if (h.errors.length) throw new Error("host errors: " + JSON.stringify(h.errors.slice(0, 3)));
+      r = { done: rr.done, winner: rr.winner, turns: rr.turns };
+    } else while (!r.done && g.turn < t0 + turns) r = g._labSimStep(1);
     return { loaded, ...finish({ id: "playOn" }, r, []) };
   } finally { g.players.forEach((p) => { p.agent = null; }); }
 }
