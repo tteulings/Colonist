@@ -1490,6 +1490,7 @@ class ColonistFullGame {
   }
 
   resetGame() {
+    this._api?.reset(); // the API's action log and open offer belong to the game that ended
     this._cancelPendingWork();
     this.removeGameOverOverlay();
     this.clearStorage();
@@ -1768,6 +1769,17 @@ class ColonistFullGame {
     this.render();
   }
 
+  /** Why a tap on a spot does nothing (the engine's words), or "": only when a piece is chosen (or in set-up) and the tap landed on a corner / edge of the board. */
+  _tapWhy(player, x, y) {
+    const pa = this.setupPhase ? this.setupAction : this.pendingAction;
+    if (!["road", "settlement", "city", "ship"].includes(pa)) return "";
+    const edgeLike = pa === "road" || pa === "ship";
+    const id = edgeLike ? this.findEdgeAt(x, y, () => true) : this.findNodeAt(x, y, () => true);
+    if (id == null) return "";
+    const r = this.api.isLegal({ actor: player.id, type: this.setupPhase ? "place" : "build", piece: pa, ...(edgeLike ? { edge: id } : { node: id }) });
+    return r.ok ? "" : r.reason;
+  }
+
   handleSetupClick(x, y) {
     const player = this.players[this.setupQueue[this.setupStep]];
     if (!player.isHuman) return;
@@ -1790,7 +1802,7 @@ class ColonistFullGame {
       const edgeId = this.findEdgeAt(x, y, (id) => spots.road.has(id));
       if (edgeId != null) target = { type: "road", id: edgeId };
     }
-    if (!target) { this.confirmBuild = null; this.drawCanvasScene(); return; }
+    if (!target) { this.confirmBuild = null; const why = this._tapWhy(player, x, y); if (why) this._flashPrompt(why); this.drawCanvasScene(); return; }
     // Default: a tap on a legal spot places it (the settlement can be taken back until the road is down)
     if (this._confirmLevel() !== "always") { this._applyPiece(player, target, true); return; }
     this.confirmBuild = target;
@@ -2250,7 +2262,7 @@ class ColonistFullGame {
     const calm = !auto && this._isAutoGlow() && this._legalPlacementSpots()?.calm;
     let target = auto ? this._autoDetectTarget(player, x, y) : this._buildTargetAt(player, x, y);
     if (calm && target && target.type !== "road" && target.type !== "ship" && !target.multi) target = { ...target, ambiguous: false };
-    if (!target) { this.confirmBuild = null; if (auto) { this.pendingAction = null; this._autoPick = false; } this.render(); return; }
+    if (!target) { this.confirmBuild = null; if (auto) { this.pendingAction = null; this._autoPick = false; } else { const why = this._tapWhy(player, x, y); if (why) this._flashPrompt(why); } this.render(); return; }
     if (target.both) { // ⚓ v0.98: a coast edge that takes a road or a ship: a tiny Road / Ship chooser (a 2nd tap keeps the pick)
       if (this.confirmBuild && this.confirmBuild.id === target.id && (this.confirmBuild.type === "road" || this.confirmBuild.type === "ship")) target = this.confirmBuild;
       else { this._seaChoosePiece(player, target, x, y, auto); return; }
