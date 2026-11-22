@@ -104,6 +104,11 @@ export class UiEngine extends Engine {
     const free = o.free ?? g.freeRoadsRemaining > 0;
     return spotsOf(this._legalOf({ kind: free ? "freeRoad" : "main", actor: seat }, "build"));
   }
+  /** Seafarers: every legal ship move of a seat as { from, to } (an ordinary turn's or a Rush seat's prompt, whatever the seat holds now). */
+  shipMoves(seat) {
+    const g = this.g;
+    return g.sea ? this._legalOf({ kind: g.rush ? "rushAny" : "main", actor: seat }, "moveShip").map((a) => ({ from: a.from, to: a.to })) : [];
+  }
   /** The tiles the robber (Seafarers: or the pirate) may go to, as a Set of hex ids. */
   robberHexes(seat) { return new Set(this._legalOf({ kind: "moveRobber", actor: seat }, "moveRobber").map((a) => a.hex)); }
   /** Why this action is refused, in the words of the engine ("" when it is legal). */
@@ -119,7 +124,6 @@ export class UiEngine extends Engine {
   _do_pick(a, p) { this.g._humanPickNow(p, a); }
   _do_discard() { this.g._confirmDiscardNow(); }
   _do_ready(a, p) { this.g._humanReadyNow(p); }
-  _do_moveShip(a, p) { return this.g._humanMoveShipNow(p, a.from, a.to); }
   // trades: the engine keeps the open offer (one at a time: what the trade sheet shows), the bots' answers are the game's own evaluator
   _do_offerTrade(a, p) {
     const g = this.g, to = a.to === "all" ? g.players.filter((q) => q.id !== a.actor).map((q) => q.id) : [...new Set(a.to)];

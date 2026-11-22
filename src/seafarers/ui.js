@@ -126,7 +126,7 @@ export const SeaGame = {
     const NAME = { settlement: "Settlement", city: "City", road: "Road", ship: "New ship" };
     const builds = targets.flatMap((t) => (t.both ? [{ type: "road", id: t.id }, { type: "ship", id: t.id }] : [{ type: t.type, id: t.id }]));
     const opts = builds.map((t) => ({ piece: t.type, id: t.id, label: NAME[t.type], run: () => this._seaPickBuild(player, t, modeless) }));
-    opts.push({ piece: "move", id: ship, label: "Move ship", run: () => { if (!this.winner && this.currentPlayer === player && this.sea.isShipMovable(player, ship)) this._seaStartMove(player, ship); } });
+    opts.push({ piece: "move", id: ship, label: "Move ship", run: () => { if (!this.winner && this.currentPlayer === player && this._seaMovable(player).includes(ship)) this._seaStartMove(player, ship); } });
     this._seaOpenChooser(x, y, `${builds.map((b) => NAME[b.type]).join(" or ")}, or move your ship`, opts);
   },
 
@@ -215,8 +215,9 @@ export const SeaGame = {
   /** Own movable ship under the tap, or null. */
   _seaShipAt(player, x, y) {
     const sea = this.sea;
-    if (!sea || !player?.isHuman || !sea.canMoveNow(player)) return null;
-    return this.findEdgeAt(x, y, (id) => sea.isShipMovable(player, id) && sea.moveTargets(player, id).length > 0);
+    if (!sea || !player?.isHuman) return null;
+    const movable = new Set(this.api.shipMoves(player.id).map((m) => m.from)); // the ships that have a legal moveShip
+    return this.findEdgeAt(x, y, (id) => movable.has(id));
   },
 
   /** v1.18 The ships you may move now (cached: moveTargets is not free and the board draws every frame). */
@@ -224,7 +225,7 @@ export const SeaGame = {
     const sea = this.sea;
     if (!sea || !player?.isHuman) return [];
     const key = [this.turn, this.phase, player.id, player.ships.size, sea.builtThisTurn?.size ?? 0, sea.moved?.has(player.id) ? 1 : 0, sea.pirateHexId ?? "-", this.winner ? 1 : 0, this.setupPhase ? 1 : 0].join(":");
-    if (this._seaMovKey !== key) { this._seaMovKey = key; this._seaMovList = sea.movableShips(player); }
+    if (this._seaMovKey !== key) { this._seaMovKey = key; this._seaMovList = [...new Set(this.api.shipMoves(player.id).map((m) => m.from))]; }
     return this._seaMovList;
   },
   /** The human whose ships can move right now (Rush: any time; otherwise on your own turn). */
@@ -248,7 +249,7 @@ export const SeaGame = {
     this._dropUndo();
     this.trayMode = null;
     this.confirmBuild = null;
-    this.sea.moveSel = { from: edgeId, targets: this.sea.moveTargets(player, edgeId) };
+    this.sea.moveSel = { from: edgeId, targets: this.api.shipMoves(player.id).filter((m) => m.from === edgeId).map((m) => m.to) };
     this.pendingAction = "moveShip";
     this.canvas.style.cursor = "crosshair";
     this.sfx.click();
@@ -260,7 +261,7 @@ export const SeaGame = {
     const sel = this.sea.moveSel;
     if (!sel) { this.pendingAction = null; this.render(); return; }
     const to = this.findEdgeAt(x, y, (id) => sel.targets.includes(id));
-    if (to != null) { this._seaCommitMove(player, sel.from, to); return; }
+    if (to != null) { this._applyMove(player, sel.from, to); return; }
     const other = this._seaShipAt(player, x, y);
     if (other != null && other !== sel.from) { this._seaStartMove(player, other); return; }
     this._seaCancelMove();
@@ -273,6 +274,12 @@ export const SeaGame = {
     this.render();
   },
 
+  /** Move the lifted ship through the API; a move that is no longer legal puts the ship back down. */
+  _applyMove(player, from, to) {
+    const r = this.api.dispatch({ actor: player.id, type: "moveShip", from, to });
+    if (!r.ok) this._seaCancelMove();
+    return r.ok;
+  },
   _seaCommitMove(player, from, to) {
     const logLen = this.logEntries.length;
     const lr = this.longestRoadHolder;

@@ -83,14 +83,20 @@ async function session(b, port, seed, viewport, mode = "classic") {
       if (!(await E(() => window.__colonistGame.setupPhase))) break;
       const act = await E(() => window.__colonistGame.setupAction);
       if (act === "settlement") {
-        const id = await E(() => { const g = window.__colonistGame; return g.getBestInitialSettlementNode(g.currentPlayer); });
+        const id = await E(() => { const g = window.__colonistGame, me = g.currentPlayer; if (g.sea) { const c = g.geometry.nodes.filter((n) => g.canBuildSettlement(me, n.id, true) && n.edgeIds.some((e) => g.canBuildShip(me, e, { free: true, setupNode: n.id }))); if (c.length) return c[0].id; } return g.getBestInitialSettlementNode(me); });
         const before = await E(() => window.__colonistGame.players.find((p) => p.isHuman).settlements.size);
         await tapSpot(await nodePt(id), (before) => window.__colonistGame.players.find((p) => p.isHuman).settlements.size > before ? true : window.__colonistGame.setupAction === "road", before);
       }
       await until(() => { const g = window.__colonistGame; return g.setupAction === "road" || !g.setupPhase; }, null, 8000);
       if ((await E(() => window.__colonistGame.setupAction)) === "road") {
-        const e = await E(() => { const g = window.__colonistGame; const n = g.lastSetupNodeId; const cand = g.sea ? g.geometry.nodes[n].edgeIds.filter((id) => g.canBuildRoad(g.currentPlayer, id, { free: true, setupNode: n })) : g.geometry.nodes[n].edgeIds.filter((id) => g.geometry.edges[id].owner == null); return cand[0]; });
-        await tapSpot(await edgePt(e), () => window.__colonistGame.setupAction !== "road");
+        const ship = await E(() => { const g = window.__colonistGame; if (!g.sea) return null; const n = g.lastSetupNodeId; return g.geometry.nodes[n].edgeIds.find((id) => g.canBuildShip(g.currentPlayer, id, { free: true, setupNode: n })) ?? null; });
+        if (ship != null && i === 0) { // Seafarers: the first piece is a ship when the settlement is on the coast (the "Ship" chip in the dock)
+          if (await E(() => !!document.querySelector('[data-setup-piece="ship"]'))) await dockTap('[data-setup-piece="ship"]');
+          await tapSpot(await edgePt(ship), () => window.__colonistGame.setupAction !== "road");
+        } else {
+          const e = await E(() => { const g = window.__colonistGame; const n = g.lastSetupNodeId; const cand = g.sea ? g.geometry.nodes[n].edgeIds.filter((id) => g.canBuildRoad(g.currentPlayer, id, { free: true, setupNode: n })) : g.geometry.nodes[n].edgeIds.filter((id) => g.geometry.edges[id].owner == null); return cand[0]; });
+          await tapSpot(await edgePt(e), () => window.__colonistGame.setupAction !== "road");
+        }
       }
       await snapLite(`${tag} set-up piece ${i + 1}`);
     }
@@ -213,7 +219,7 @@ async function session(b, port, seed, viewport, mode = "classic") {
     if (ship != null) {
       await tapSpot(await edgePt(ship), () => !window.__colonistGame.confirmBuild); await snap("ship built");
       // move a ship that may move (a ship built this turn may not): next turn
-      await E(() => window.__colonistGame.handleHumanEndTurn()); await snap("sea end turn");
+      await E(() => window.__colonistGame.handleHumanEndTurn());
       await forceDice(6); await roll(); await myTurn("main");
       const mv = await E(() => { const g = window.__colonistGame, me = g.currentPlayer; for (const from of g.sea.movableShips(me)) { const t = g.sea.moveTargets(me, from); if (t.length) return { from, to: t[0] }; } return null; });
       if (mv) {
