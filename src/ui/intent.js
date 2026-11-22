@@ -102,6 +102,8 @@ export class UiEngine extends Engine {
     const free = o.free ?? g.freeRoadsRemaining > 0;
     return spotsOf(this._legalOf({ kind: free ? "freeRoad" : "main", actor: seat }, "build"));
   }
+  /** The tiles the robber (Seafarers: or the pirate) may go to, as a Set of hex ids. */
+  robberHexes(seat) { return new Set(this._legalOf({ kind: "moveRobber", actor: seat }, "moveRobber").map((a) => a.hex)); }
   /** Why this action is refused, in the words of the engine ("" when it is legal). */
   reasonFor(a) { const r = this.isLegal(a); return r.ok ? "" : r.reason; }
 
@@ -114,7 +116,7 @@ export class UiEngine extends Engine {
   _do_moveRobber(a, p) { this.g._commitRobber(p, a.hex, this._ui?.victim ?? null); }
   _do_steal(a, p) { this.g._humanStealNow(p, a.victim); }
   _do_pick(a, p) { this.g._humanPickNow(p, a); }
-  _do_discard(a, p) { this.g._humanDiscardNow(p, a.cards); }
+  _do_discard() { this.g._confirmDiscardNow(); }
   _do_ready(a, p) { this.g._humanReadyNow(p); }
   _do_moveShip(a, p) { return this.g._humanMoveShipNow(p, a.from, a.to); }
   _do_offerTrade(a, p) { this.g._humanOfferNow(p, a, this._ui); }

@@ -1743,6 +1743,31 @@ class ColonistFullGame {
     return r.ok;
   }
 
+  /** Move the robber (or the pirate) through the API; `victim` is the staged choice, used when several can be robbed. */
+  _applyRobber(player, hexId, victim = null) {
+    const a = { actor: player.id, type: "moveRobber", hex: hexId, ...(this.sea ? { target: this._seaHexKind(hexId) } : {}) };
+    const r = this.api.dispatch(a, { victim });
+    if (!r.ok && !r.bug) this._flashPrompt(r.reason);
+    return r.ok;
+  }
+
+  /** Rob this player through the API (several victims on the tile). */
+  _applySteal(player, victim) {
+    const r = this.api.dispatch({ actor: player.id, type: "steal", victim });
+    if (!r.ok && !r.bug) this._flashPrompt(r.reason);
+    return r.ok;
+  }
+
+  /** The victim chosen in the dock (UiEngine._do_steal). */
+  _humanStealNow(player, vid) {
+    this.stealFromVictim(player, vid);
+    this.robberContext = null;
+    this.robberVictimOptions = [];
+    if (this.victimPanel) this.victimPanel.style.display = "none";
+    this.saveToStorage();
+    this.render();
+  }
+
   handleSetupClick(x, y) {
     const player = this.players[this.setupQueue[this.setupStep]];
     if (!player.isHuman) return;
@@ -2154,13 +2179,14 @@ class ColonistFullGame {
     if (robberMode) {
       const cb = this.confirmBuild?.type === "robber" ? this.confirmBuild : null;
       if (cb && !this.isMobileLayout && this.hitTestConfirmIcon(x, y)) {
-        this._commitRobber(player, cb.id, cb.victim);
+        this._applyRobber(player, cb.id, cb.victim);
         return;
       }
       const hexId = this.findHexAt(x, y);
       if (hexId == null) return;
-      if (this.sea && this.sea.thief !== this._seaHexKind(hexId) && this._robberHexAllowed(hexId, player)) this.sea.thief = this._seaHexKind(hexId); // ⚓ land = robber, sea = pirate
-      if (!this._robberHexAllowed(hexId, player)) {
+      const legalHex = this.api.robberHexes(player.id).has(hexId); // the engine's moveRobber targets
+      if (this.sea && this.sea.thief !== this._seaHexKind(hexId) && legalHex) this.sea.thief = this._seaHexKind(hexId); // ⚓ land = robber, sea = pirate
+      if (!legalHex) {
         this._flashPrompt(this._robberBlockedReason(hexId, player), 4200);
         this.sfx.error?.();
         return;
@@ -2168,7 +2194,7 @@ class ColonistFullGame {
       const victims = this._stealVictims(hexId, player);
       if (cb && cb.id === hexId && (this.confirmPlacements || victims.length <= 1)) {
         // second tap on the chosen tile = go
-        this._commitRobber(player, cb.id, cb.victim ?? this._defaultRobberVictim(hexId, player));
+        this._applyRobber(player, cb.id, cb.victim ?? this._defaultRobberVictim(hexId, player));
         return;
       }
       this.confirmBuild = { type: "robber", id: hexId,
@@ -3140,7 +3166,7 @@ class ColonistFullGame {
     // Robber placement: highlight hovered hex
     if (player?.isHuman && this.pendingAction === "robber") { // also before rolling (Knight)
       const hexId = this.findHexAt(worldX, worldY);
-      if (hexId != null && this._robberHexAllowed(hexId, player)) {
+      if (hexId != null && this.api.robberHexes(player.id).has(hexId)) {
         this.hoverHexId = hexId;
         const hex = this.geometry.hexes[hexId];
         const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource] || TERRAIN_NAME[hex.resource]; // ⚓ "Gold field"
@@ -3685,12 +3711,7 @@ class ColonistFullGame {
       btn.innerHTML = `${this._av(v)}<span class="who pc-${v.id}">${v.name}</span><span class="vc">${icon("cards")}${totalCards} card${totalCards === 1 ? "" : "s"}</span>`;
       btn.addEventListener("click", this._guard(() => {
         if (!this.robberVictimOptions?.includes(vid)) return;
-        this.stealFromVictim(currentPlayer, vid);
-        this.robberContext = null;
-        this.robberVictimOptions = [];
-        this.victimPanel.style.display = "none";
-        this.saveToStorage();
-        this.render();
+        this._applySteal(currentPlayer, vid);
       }));
       this.victimOptionsEl.appendChild(btn);
     });
@@ -8247,7 +8268,7 @@ class ColonistFullGame {
     const ctx = this.ctx;
     const px = 1 / (this.view.scale || 1);
     const mover = this.currentPlayer;
-    const legal = new Set(this._legalRobberHexes(mover).map((h) => h.id));
+    const legal = this.api.robberHexes(mover.id);
     const sel = this.confirmBuild?.type === "robber" ? this.confirmBuild.id : null;
     this.geometry.hexes.forEach((hex) => {
       if (!legal.has(hex.id)) {
@@ -9984,6 +10005,16 @@ class ColonistFullGame {
   }
 
   _confirmDiscard() {
+    const pd = this.pendingDiscard;
+    if (!pd) return;
+    const cards = {};
+    RESOURCES.forEach((r) => { if (pd.selected[r] > 0) cards[r] = pd.selected[r]; });
+    const r = this.api.dispatch({ actor: pd.player.id, type: "discard", cards });
+    if (!r.ok) { this._flashPrompt(r.reason); this.sfx.error?.(); }
+  }
+
+  /** Hand the marked cards back (UiEngine._do_discard). */
+  _confirmDiscardNow() {
     if (!this.pendingDiscard) return;
     const { player, selected, resolve } = this.pendingDiscard;
     this.payToBank(player, selected);
@@ -10449,7 +10480,7 @@ class ColonistFullGame {
     const ic = this.getConfirmIconCenter();
     if (!ic) return;
     if (this.confirmBuild?.type === "robber") {
-      this._commitRobber(this.currentPlayer, this.confirmBuild.id, this.confirmBuild.victim);
+      this._applyRobber(this.currentPlayer, this.confirmBuild.id, this.confirmBuild.victim);
       return;
     }
     this._viaIcon = true;
@@ -10645,7 +10676,7 @@ class ColonistFullGame {
     this._robberTimer = this._later(() => {
       this._robberTimer = null;
       if (this.confirmBuild !== cb || this.pendingAction !== "robber" || !this.currentPlayer?.isHuman) return;
-      this._commitRobber(this.currentPlayer, cb.id, cb.victim);
+      this._applyRobber(this.currentPlayer, cb.id, cb.victim);
     }, ROBBER_SETTLE_MS);
   }
 
@@ -11146,12 +11177,7 @@ class ColonistFullGame {
     if (d.steal != null) {
       const vid = Number(d.steal);
       if (!this.robberVictimOptions?.includes(vid)) return;
-      this.stealFromVictim(cur, vid);
-      this.robberContext = null;
-      this.robberVictimOptions = [];
-      if (this.victimPanel) this.victimPanel.style.display = "none";
-      this.saveToStorage();
-      this.render();
+      this._applySteal(cur, vid);
       return;
     }
     const cb = this.confirmBuild?.type === "robber" ? this.confirmBuild : null;
@@ -11159,10 +11185,10 @@ class ColonistFullGame {
       const id = Number(d.victim);
       if (!this._stealVictims(cb.id, cur).includes(id)) return;
       if (this.confirmPlacements) { cb.victim = id; this.sfx.click(); this.render(); }
-      else this._commitRobber(cur, cb.id, id);
+      else this._applyRobber(cur, cb.id, id);
       return;
     }
-    if ("robNow" in d && cb) { this._commitRobber(cur, cb.id, cb.victim ?? this._defaultRobberVictim(cb.id, cur)); return; }
+    if ("robNow" in d && cb) { this._applyRobber(cur, cb.id, cb.victim ?? this._defaultRobberVictim(cb.id, cur)); return; }
     if ("robUndo" in d) { this._cancelRobberTimer(); this.confirmBuild = null; this.sfx.click(); this.render(); return; }
     if ("place" in d) { this._confirmViaIcon(); return; }
     if ("placeCancel" in d) { this.confirmBuild = null; if (this._autoPick) { this.pendingAction = null; this._autoPick = false; } this.render(); return; }

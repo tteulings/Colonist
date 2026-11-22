@@ -41,7 +41,8 @@ async function session(b, port, seed, viewport, mode = "classic") {
       bank: R.map((r) => g.bank[r]).join(","), deck: g.devDeck.length, winner: g.winner?.id ?? null, played: !!g.currentTurnPlayedDevCard,
       seats: g.players.map((p) => [R.map((r) => p.resources[r]).join(","), [...p.roads].sort((x, y) => x - y).join("."), [...(p.ships || [])].sort((x, y) => x - y).join("."), [...p.settlements].sort((x, y) => x - y).join("."), [...p.cities].sort((x, y) => x - y).join("."),
         p.victoryPoints, p.knightsPlayed, Object.values(p.devCards).join("") + "/" + Object.values(p.newDevCards).join("")].join("|")),
-      log: g.logEntries.slice(-3).map((l) => l.text) }; });
+      log: g.logEntries.slice(-3).map((l) => l.text),
+      rv: (g._rv?.recs || []).map((r) => r.k + JSON.stringify(r.a ?? null)).join(";"), ev: g.stats?.ev?.length ?? null }; }); // the review recorder and the stats recorder see the same moves
     trace.push({ label, ...s }); if (process.env.DEBUG) console.log("  snap", label, JSON.stringify({ t: s.turn, ph: s.phase, cur: s.cur, pa: s.pa, log: s.log.slice(-1) })); return s; };
   // set-up and the bots' pauses run on timers: only the human's own pieces are compared there
   const snapLite = async (label) => { const s = await E(() => { const me = window.__colonistGame.players.find((p) => p.isHuman); return { s: [...me.settlements].sort((x, y) => x - y).join("."), r: [...me.roads].sort((x, y) => x - y).join("."), sh: me.ships ? [...me.ships].sort((x, y) => x - y).join(".") : "" }; }); trace.push({ label, ...s }); if (process.env.DEBUG) console.log("  lite", label, JSON.stringify(s)); };
@@ -65,6 +66,8 @@ async function session(b, port, seed, viewport, mode = "classic") {
     }
   };
   /** a tap on a piece spot; a second tap if the game showed the spot first (confirm level "when unsure") */
+  /** a real tap on a dock button (when it is there) */
+  const dockTap = async (sel) => { const l = page.locator(sel).first(); await l.waitFor({ state: "visible", timeout: 8000 }); await l.tap(); await sleep(250); };
   const tapSpot = async (p, check) => { await tap(p); if (!(await E(check))) { await sleep(450); await tap(p); } };
 
   // ── set-up ──
@@ -136,7 +139,7 @@ async function session(b, port, seed, viewport, mode = "classic") {
     if (await E(() => !!window.__colonistGame.pendingDiscard)) {
       await E(() => { const g = window.__colonistGame, pd = g.pendingDiscard; const order = ["wood", "brick", "sheep", "wheat", "ore"]; let left = pd.count; for (const r of order) { while (left > 0 && pd.selected[r] < pd.player.resources[r]) { g._discardMark(r); left--; } } });
       await snap("discard marked");
-      await E(() => window.__colonistGame._confirmDiscard());
+      await dockTap("[data-discard-ok]"); // the dock's Hand back button
       await until(() => window.__colonistGame.pendingAction === "robber", null, 20000);
       await snap("discard done");
     }
@@ -144,9 +147,9 @@ async function session(b, port, seed, viewport, mode = "classic") {
     await tap(await hexPt(hex));
     await until(() => { const g = window.__colonistGame; return g.pendingAction !== "robber" || g.confirmBuild?.type === "robber"; }, null, 8000);
     if (await E(() => window.__colonistGame.pendingAction === "robber" && window.__colonistGame.robberVictimOptions?.length === 0)) {
-      await snap("robber tile chosen"); await E(() => { const g = window.__colonistGame; g._commitRobber(g.currentPlayer, g.confirmBuild.id, g.confirmBuild.victim ?? g._defaultRobberVictim(g.confirmBuild.id, g.currentPlayer)); });
+      await snap("robber tile chosen"); await dockTap("[data-rob-now], [data-victim]"); // "Rob now" (or the chosen victim's portrait)
     }
-    if (await E(() => window.__colonistGame.robberVictimOptions?.length > 0)) { await snap("victims offered"); await E(() => { const g = window.__colonistGame; g.stealFromVictim(g.currentPlayer, g.robberVictimOptions[0]); g.robberContext = null; g.robberVictimOptions = []; g.render(); }); }
+    if (await E(() => window.__colonistGame.robberVictimOptions?.length > 0)) { await snap("victims offered"); await dockTap("[data-steal]"); }
     await sleep(300); await snap("robber moved + stolen");
     // ── the other cards (a new turn would be needed; the tests of the cards themselves are in rushmono195): Knight before the roll is next turn ──
     await myTurn("main");
@@ -180,8 +183,8 @@ async function session(b, port, seed, viewport, mode = "classic") {
     await until(() => window.__colonistGame.pendingAction === "robber", null, 4000); await snap("Knight played");
     const hex2 = await E(() => { const g = window.__colonistGame, me = g.currentPlayer; const L = g._legalRobberHexes(me).map((h) => h.id).filter((id) => id !== g.robberHexId); return L.find((id) => g._stealVictims(id, me).length >= 1) ?? L[0]; });
     await tap(await hexPt(hex2)); await sleep(200);
-    await E(() => { const g = window.__colonistGame; if (g.pendingAction === "robber" && g.confirmBuild?.type === "robber") g._commitRobber(g.currentPlayer, g.confirmBuild.id, g.confirmBuild.victim ?? g._defaultRobberVictim(g.confirmBuild.id, g.currentPlayer)); });
-    await E(() => { const g = window.__colonistGame; if (g.robberVictimOptions?.length) { g.stealFromVictim(g.currentPlayer, g.robberVictimOptions[0]); g.robberContext = null; g.robberVictimOptions = []; g.render(); } });
+    if (await E(() => window.__colonistGame.pendingAction === "robber" && window.__colonistGame.confirmBuild?.type === "robber")) await dockTap("[data-rob-now], [data-victim]");
+    if (await E(() => window.__colonistGame.robberVictimOptions?.length > 0)) await dockTap("[data-steal]");
     await sleep(300); await snap("Knight robbed");
     await E(() => window.__colonistGame.handleHumanEndTurn());
   };
