@@ -22,7 +22,7 @@ export function searchBot(meta, { strategy = null, agent = null, rush = false, s
       const g = ctx.game, seat = prompt.actor, p = g.players[seat];
       switch (prompt.kind) {
         case "setupSettlement": {
-          const n = suspended(g, () => A.setupNode(g, p, (pp) => g.getBestInitialSettlementNode(pp)));
+          const n = suspended(g, () => A.setupNode(g, p, g._masterBaseInit || ((pp) => g.getBestInitialSettlementNode(pp))));
           return n == null ? null : { actor: seat, type: "place", piece: "settlement", node: n };
         }
         case "moveRobber": {
@@ -61,7 +61,7 @@ export function searchBot(meta, { strategy = null, agent = null, rush = false, s
         m.queue = r.actions; continue;
       }
       if (d.choice.kind === "end") return done();
-      const r = suspended(g, () => probe(g, () => A.applyMain(g, p, d.choice)));
+      const r = probe(g, () => A.applyMain(g, p, d.choice)); // engine seat control stays on: a card opens its prompts instead of playing itself out
       if (r.result === false || r.result === "noop") return done();
       m.queue = r.actions;
     }

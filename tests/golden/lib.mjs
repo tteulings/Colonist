@@ -55,6 +55,8 @@ const simLater = g._later; // the lab sim stub (calls at once); Rush needs the r
 // ── the move log ──
 const SEA = await import("../../src/seafarers/rules.js");
 let LOG = null, quiet = 0;
+const pushLog = (e) => { LOG.push(e); if (process.env.RC) RC.push(calls); };
+export const RC = []; // debug: Math.random call count when each log entry was written (tests/golden: diffing two ways of playing)
 const MOVES = [
   ["placeRoad", (p, e) => `${p.id} road ${e}`], ["placeSettlement", (p, n) => `${p.id} set ${n}`], ["placeCity", (p, n) => `${p.id} city ${n}`],
   ["performBankTrade", (p, a, b) => `${p.id} bank ${a}>${b}`], ["buyDevelopmentCard", (p) => `${p.id} buy`], ["playDevelopmentCard", (p, t) => `${p.id} play ${t}`, "play"],
@@ -66,12 +68,12 @@ const logging = () => LOG && !quiet && !g.__probing; // a bot-host probe (src/bo
 // and the log reads the same either way. In the legacy loop no flow is ever open when a move returns, so nothing is held.
 let held = [];
 const flowActive = () => g.pendingAction === "robber" || g.freeRoadsRemaining > 0 || !!g.devPick || !!g.robberVictimOptions?.length || g.phase === "sbp"; // sbp: the 5-6 build window runs inside endTurn() in the legacy loop
-const flush = () => { while (held.length) { const e = held.pop(); LOG.push(typeof e === "function" ? e() : e); } };
+const flush = () => { while (held.length) { const e = held.pop(); pushLog(typeof e === "function" ? e() : e); } };
 const put = (e, kind, was) => {
   const open = flowActive();
   if (held.length && !was) flush();                       // an earlier flow ended without an entry of its own (a skipped free road)
   if ((kind === "play" || kind === "robber") && open) { held.push(e); return; }
-  LOG.push(e);
+  pushLog(e);
   if (held.length && !open) flush();
 };
 const wrap = (obj, k, f, kind) => { const o = obj[k].bind(obj); obj[k] = (...a) => { const was = flowActive(); const r = o(...a); if (r !== false && logging()) put(f(...a), kind, was); return r; }; };
@@ -79,14 +81,14 @@ const wrapped = new WeakSet();
 function wrapGame() {
   if (wrapped.has(g)) return; wrapped.add(g);
   MOVES.forEach(([k, f, kind]) => wrap(g, k, f, kind));
-  g.addLog = (t) => { if (logging() && /traded|discard|stole|rolled|Roll #/i.test(t)) { if (held.length && !flowActive() && !/stole/.test(t)) flush(); LOG.push(t.replace(/\s+/g, " ")); } return 0; };
+  g.addLog = (t) => { if (logging() && /traded|discard|stole|rolled|Roll #/i.test(t)) { if (held.length && !flowActive() && !/stole/.test(t)) flush(); pushLog(t.replace(/\s+/g, " ")); } return 0; };
   const end = g.endTurn.bind(g);
   g.endTurn = (...a) => {
     if (logging() && held.length && !flowActive()) flush(); // the turn's last flow (a robber still waiting for its line) closes before the turn does
     const r = end(...a);
     if (logging()) {
       if (g.phase === "sbp") held.push(() => `T${g.turn} ${digest()}`); // the build window is still open (driven game): the line closes it
-      else LOG.push(`T${g.turn} ${digest()}`);
+      else pushLog(`T${g.turn} ${digest()}`);
     }
     return r;
   };
@@ -96,7 +98,7 @@ function wrapSea() { // the Seafarers rules object is rebuilt with every game: w
   const P = SEA.Seafarers?.prototype || Object.getPrototypeOf(g.sea || {});
   if (!P || P.__golden) return; P.__golden = true;
   for (const [k, f] of [["placeShip", (p, e) => `${p.id} ship ${e}`], ["moveShip", (p, a, b) => `${p.id} mship ${a}>${b}`]]) {
-    const o = P[k]; P[k] = function (...a) { const r = o.apply(this, a); if (r !== false && logging()) LOG.push(f(...a)); return r; };
+    const o = P[k]; P[k] = function (...a) { const r = o.apply(this, a); if (r !== false && logging()) pushLog(f(...a)); return r; };
   }
 }
 /** a compact digest of the live state: hands, bank, points, pieces, robber */
@@ -127,7 +129,7 @@ function agentsFor(spec, record) {
   return spec.seats.map((name) => {
     if (!BUDGETS[name]) return null;
     const a = makeMaster({ ...BUDGETS[name], ...(spec.sea ? { leaf: SEA_LEAF } : {}) });
-    ["decideSetup", "decideMain", "decideRobber"].forEach((f, fi) => { const o = a[f]; a[f] = (...x) => { quiet += 1; let d; try { d = o(...x); } finally { quiet -= 1; } if (record) record.push(`D${fi} ${x[1]?.id} ${JSON.stringify(d ? d.choice : null)}`); return d; }; });
+    ["decideSetup", "decideMain", "decideRobber"].forEach((f, fi) => { const o = a[f]; a[f] = (...x) => { quiet += 1; let d; const c0 = calls; try { d = o(...x); } finally { quiet -= 1; } if (process.env.DRC) console.log("decide", fi, x[1]?.id, "turn", g.turn, "calls", c0, "->", calls); if (record) record.push(`D${fi} ${x[1]?.id} ${JSON.stringify(d ? d.choice : null)}`); return d; }; });
     return a;
   });
 }

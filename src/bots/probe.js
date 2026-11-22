@@ -80,11 +80,23 @@ export function probe(g, fn, { eager = false, suspend = false } = {}) {
   return { result, actions: rec.actions };
 }
 
-/** Run `fn` with the engine's seat control off (a search runs its own playouts on the game object). */
+/**
+ * Run `fn` with the engine's seat control off: a search runs its own playouts on the game object, where seats play themselves and timers run at
+ * once again, and it must see the position as the legacy bot saw it (a robber or a set-up spot is being decided, nothing "is waiting for a tap").
+ */
 export function suspended(g, fn) {
   const api = g.__api, act = api?.active;
-  if (api) api.active = null;
-  try { return fn(); } finally { if (api) api.active = act; }
+  if (!api) return fn();
+  const swap = api.laterSaved, cur = g._later, own = Object.prototype.hasOwnProperty.call(g, "_later");
+  const keep = { pendingAction: g.pendingAction, robberContext: g.robberContext, setupAction: g.setupAction, moveSel: g.sea ? g.sea.moveSel : undefined };
+  api.active = null;
+  g.pendingAction = null; g.robberContext = null; g.setupAction = null; if (g.sea) g.sea.moveSel = null;
+  if (swap) { if (api.later0 !== undefined) g._later = api.later0; else delete g._later; }
+  try { return fn(); } finally {
+    api.active = act;
+    g.pendingAction = keep.pendingAction; g.robberContext = keep.robberContext; g.setupAction = keep.setupAction; if (g.sea) g.sea.moveSel = keep.moveSel;
+    if (swap) { if (own) g._later = cur; else delete g._later; }
+  }
 }
 
 // state a card's interactive branch sets that the sim snapshot does not carry (the engine's own save lists the same)
