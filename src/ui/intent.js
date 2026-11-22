@@ -32,11 +32,18 @@ export function intentFor(target, tool, prompt, legal) {
     if (target.hex != null) return a.type === "moveRobber" && a.hex === target.hex;
     if (target.node != null) return PLACE.has(a.type) && a.node === target.node && (!piece || a.piece === piece);
     if (target.edge != null) {
-      if (a.type === "moveShip") return piece === "moveShip" && a.to === target.edge;
       return PLACE.has(a.type) && a.edge === target.edge && (!piece || a.piece === piece);
     }
     return false;
   });
+}
+
+/** The hit-test target of a finished or draft action: what the player pointed at (a spot, a tile) or pressed (a button with its fields). */
+export function targetOf(a) {
+  if (a.type === "place" || a.type === "build") return a.edge != null ? { edge: a.edge } : { node: a.node };
+  if (a.type === "moveRobber") return { hex: a.hex };
+  const { actor, type, target, ...rest } = a; // eslint-disable-line no-unused-vars
+  return { button: { type, ...rest } };
 }
 
 /** The legal board spots of a list of build / place actions, by piece: { settlement, city, road, ship } as Sets of node / edge ids. */
@@ -60,6 +67,19 @@ export class UiEngine extends Engine {
   _enter() { return this; }
   controls(seat) { const p = this.g.players[seat]; return !!p && (!!p.isHuman || this._onBehalf === seat); }
 
+  /**
+   * What a human's tap means, through intentFor: the draft `a` (what the tap points at, with the piece it asks for) is looked up among the seat's
+   * legal actions and the engine's own finished action is applied. When no legal action matches (or the action is a combinatorial one: a discard,
+   * an offer) the draft goes to apply() as it is: it accepts the choice actions it can validate and refuses the rest with its reason.
+   */
+  act(a, ui = null) {
+    const pr = this.promptFor(a.actor);
+    if (pr) {
+      const m = intentFor(targetOf(a), a.piece ?? (a.type === "moveShip" ? "moveShip" : null), pr, this.legalActions(a.actor, pr));
+      if (m.length) return this.dispatch(m[0], ui);
+    }
+    return this.dispatch(a, ui);
+  }
   /** apply() for a human's tap, with UI-only context (`ui`: { victim } the robber's staged victim, ...). Never throws for a refusal. */
   dispatch(a, ui = null) {
     const prev = this._ui;
@@ -123,6 +143,7 @@ export class UiEngine extends Engine {
   _do_steal(a, p) { this.g._humanStealNow(p, a.victim); }
   _do_pick(a, p) { this.g._humanPickNow(p, a); }
   _do_discard() { this.g._confirmDiscardNow(); }
+  _do_passSbp() { this.g._sbpSkipNow(false); }
   _do_ready(a, p) { this.g._humanReadyNow(p); }
   // trades: the engine keeps the open offer (one at a time: what the trade sheet shows), the bots' answers are the game's own evaluator
   _do_offerTrade(a, p) {

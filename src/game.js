@@ -1733,7 +1733,7 @@ class ColonistFullGame {
   _applyPiece(player, cb, setup = false) {
     const edgeLike = cb.type === "road" || cb.type === "ship";
     const a = { actor: player.id, type: setup ? "place" : "build", piece: cb.type, ...(edgeLike ? { edge: cb.id } : { node: cb.id }) };
-    const r = this.api.dispatch(a);
+    const r = this.api.act(a);
     if (!r.ok && !r.bug) { // the spot is no longer legal (taken meanwhile, cards spent): what _commitBuild does when the placement fails
       this.confirmBuild = null;
       if (setup) { this._flashPrompt(r.reason); return false; }
@@ -1746,14 +1746,14 @@ class ColonistFullGame {
   /** Move the robber (or the pirate) through the API; `victim` is the staged choice, used when several can be robbed. */
   _applyRobber(player, hexId, victim = null) {
     const a = { actor: player.id, type: "moveRobber", hex: hexId, ...(this.sea ? { target: this._seaHexKind(hexId) } : {}) };
-    const r = this.api.dispatch(a, { victim });
+    const r = this.api.act(a, { victim });
     if (!r.ok && !r.bug) this._flashPrompt(r.reason);
     return r.ok;
   }
 
   /** Rob this player through the API (several victims on the tile). */
   _applySteal(player, victim) {
-    const r = this.api.dispatch({ actor: player.id, type: "steal", victim });
+    const r = this.api.act({ actor: player.id, type: "steal", victim });
     if (!r.ok && !r.bug) this._flashPrompt(r.reason);
     return r.ok;
   }
@@ -1909,7 +1909,7 @@ class ColonistFullGame {
     // roll could land after End turn, in the next player's turn ("You rolled" twice, a robber left pending: the game hung)
     if (this._humanRolling === this.gameGen) return;
     this._humanRolling = this.gameGen;
-    const r = this.api.dispatch({ actor: player.id, type: "roll" });
+    const r = this.api.act({ actor: player.id, type: "roll" });
     if (!r.ok) { this._humanRolling = null; this._flashPrompt(r.reason); }
   }
 
@@ -1980,7 +1980,7 @@ class ColonistFullGame {
     if (!player || !player.isHuman || this.winner) return;
     if (this.phase !== "main" || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return;
     if (this.devPick) return; // finish Year of Plenty / Monopoly first
-    const r = this.api.dispatch({ actor: player.id, type: "endTurn" });
+    const r = this.api.act({ actor: player.id, type: "endTurn" });
     if (!r.ok) this._flashPrompt(r.reason);
   }
 
@@ -2023,7 +2023,7 @@ class ColonistFullGame {
       this._flashPrompt(this.devDeck.length ? `A card costs ${resourceString(COSTS.development)} · you need ${missingCostString(player.resources, COSTS.development)}` : "The development deck is empty");
       return;
     }
-    const r = this.api.dispatch({ actor: player.id, type: "buyDev" });
+    const r = this.api.act({ actor: player.id, type: "buyDev" });
     if (!r.ok) this._flashPrompt(r.reason);
   }
 
@@ -2061,7 +2061,7 @@ class ColonistFullGame {
     if (!player || !player.isHuman || this.winner) return;
     if (!this.canPlayDevelopmentCard(player, type) || this._seaHumanBlocked()) return; // checks phase (Knight may be played before rolling)
     if (this.devPick) return;
-    const r = this.api.dispatch({ actor: player.id, type: "playDev", card: type });
+    const r = this.api.act({ actor: player.id, type: "playDev", card: type });
     if (!r.ok) this._flashPrompt(r.reason);
   }
 
@@ -4111,7 +4111,7 @@ class ColonistFullGame {
     let ok = true;
     for (const r of gets) {
       for (let i = 0; i < this.tradeRequest[r]; i += 1) {
-        if (!this.api.dispatch({ actor: player.id, type: "tradeBank", give: plan.give, get: r }).ok) { ok = false; break; } // one maritime trade per card
+        if (!this.api.act({ actor: player.id, type: "tradeBank", give: plan.give, get: r }).ok) { ok = false; break; } // one maritime trade per card
 
         giveRes[plan.give] += plan.rate;
         getRes[r] += 1;
@@ -4178,7 +4178,7 @@ class ColonistFullGame {
     const id = counterId ?? ans?.offerId ?? null;
     const ui = { swap: { partner, gave, got } };
     const r = id != null && this.api.hasOffer(id)
-      ? (counterId != null ? this.api.dispatch({ actor: player.id, type: "respondTrade", offer: id, answer: "accept" }, ui) : this.api.dispatchFor(partner.id, { type: "respondTrade", offer: id, answer: "accept" }, ui))
+      ? (counterId != null ? this.api.act({ actor: player.id, type: "respondTrade", offer: id, answer: "accept" }, ui) : this.api.dispatchFor(partner.id, { type: "respondTrade", offer: id, answer: "accept" }, ui))
       : null;
     if (r && !r.ok) { this._tradeHint(r.reason); return; }
     if (!r) this._playerTradeSwapNow(player, partner, gave, got); // no offer on the table (a script calling this directly): the same swap
@@ -4214,7 +4214,7 @@ class ColonistFullGame {
     const short = RESOURCES.find((r) => player.resources[r] < offer[r]);
     if (short) { refuse(`Not enough ${RESOURCE_LABEL[short]}.`); return; }
     const bots = this.players.filter((o) => o.id !== player.id && !o.isHuman).map((o) => o.id);
-    const r = this.api.dispatch({ actor: player.id, type: "offerTrade", to: bots.length ? bots : "all", give: offer, want: request });
+    const r = this.api.act({ actor: player.id, type: "offerTrade", to: bots.length ? bots : "all", give: offer, want: request });
     if (!r.ok) refuse(r.reason);
   }
 
@@ -4486,7 +4486,7 @@ class ColonistFullGame {
     if (!pit) return;
     const human = pit.to || this._me();
     const pay = !!accepted && !!human && hasResources(human.resources, pit.want) && hasResources(pit.fromPlayer.resources, pit.give);
-    const r = human ? this.api.dispatch({ actor: human.id, type: "respondTrade", offer: pit.id, answer: pay ? "accept" : "reject" }, { incoming: { accepted, expired } }) : { ok: false };
+    const r = human ? this.api.act({ actor: human.id, type: "respondTrade", offer: pit.id, answer: pay ? "accept" : "reject" }, { incoming: { accepted, expired } }) : { ok: false };
     if (!r.ok) this._resolveIncomingNow(accepted, expired); // no seat to answer for it: the old path
   }
 
@@ -6765,7 +6765,7 @@ class ColonistFullGame {
     const human = this._me();
     if (!r || !human || r.paused || this.winner || this.setupPhase || this.autoplayInterval) return;
     if (r.ready.includes(human.id) || this._rushChoiceOpen()) return;
-    const res = this.api.dispatch({ actor: human.id, type: "ready" });
+    const res = this.api.act({ actor: human.id, type: "ready" });
     if (!res.ok) this._flashPrompt(res.reason);
   }
 
@@ -10049,7 +10049,7 @@ class ColonistFullGame {
     if (!pd) return;
     const cards = {};
     RESOURCES.forEach((r) => { if (pd.selected[r] > 0) cards[r] = pd.selected[r]; });
-    const r = this.api.dispatch({ actor: pd.player.id, type: "discard", cards });
+    const r = this.api.act({ actor: pd.player.id, type: "discard", cards });
     if (!r.ok) { this._flashPrompt(r.reason); this.sfx.error?.(); }
   }
 
@@ -10905,7 +10905,7 @@ class ColonistFullGame {
     const player = this.currentPlayer;
     if (!dp || !player?.isHuman || dp.picks.length !== dp.count) return;
     const a = dp.type === "yearOfPlenty" ? { actor: player.id, type: "pick", resources: dp.picks.slice() } : { actor: player.id, type: "pick", resource: dp.picks[0] };
-    const r = this.api.dispatch(a);
+    const r = this.api.act(a);
     if (!r.ok) this._flashPrompt(r.reason);
   }
 

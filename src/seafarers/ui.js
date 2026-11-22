@@ -276,7 +276,7 @@ export const SeaGame = {
 
   /** Move the lifted ship through the API; a move that is no longer legal puts the ship back down. */
   _applyMove(player, from, to) {
-    const r = this.api.dispatch({ actor: player.id, type: "moveShip", from, to });
+    const r = this.api.act({ actor: player.id, type: "moveShip", from, to });
     if (!r.ok) this._seaCancelMove();
     return r.ok;
   },
