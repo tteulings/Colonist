@@ -156,6 +156,7 @@ export class UiEngine extends Engine {
   }
   _do_respondTrade(a, p) {
     const g = this.g, ui = this._ui;
+    if (ui?.rushOffer) return g._resolveRushOffer(a.offer, ui.rushOffer.yes);
     if (ui?.incoming) return g._resolveIncomingNow(ui.incoming.accepted, ui.incoming.expired);
     if (ui?.swap) { this._offers = []; return g._playerTradeSwapNow(g.currentPlayer, ui.swap.partner, ui.swap.gave, ui.swap.got); }
     return super._do_respondTrade(a, p);
