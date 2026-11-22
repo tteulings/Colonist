@@ -4053,6 +4053,8 @@ class ColonistFullGame {
   }
 
   /** Swap cards between two players (a gives aGives, b gives bGives). */
+  _resStr(hand) { return resourceString(hand); } // the log wording of a hand ("1 Lumber, 2 Ore"), for the Action API's deal lines
+
   _swapCards(a, aGives, b, bGives) {
     RESOURCES.forEach((r) => {
       a.resources[r] += (bGives[r] || 0) - (aGives[r] || 0);
