@@ -1402,6 +1402,12 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .tray > .tclose { flex: 0 0 44px; }
 .tray > .tinfo { flex: 2.2 1 0; }
 .tray[data-mode="discard"] > .tinfo { flex: 1.5 1 0; }
+/* v1.95 Monopoly / Year of Plenty pick: big resource targets, a labelled "Keep" that gives the card back */
+.tray[data-mode="pick"] > .tbtn.res { flex: 1 1 0; }
+.tray[data-mode="pick"] .tbtn.res .card { --cw: 30px; }
+.tray[data-mode="pick"] .tbtn.res > span:not(.card) { font-size: 12px; }
+.tray[data-mode="pick"] > .tback { flex: 0 0 54px; font-size: 11px; }
+.tray[data-mode="pick"] > .tback .ic { font-size: 22px; }
 /* v0.82: "chosen / keep 5" never clips (Classic's wider type cut it to "choser") */
 .tinfo.dsum { gap: 5px; padding: 0 7px; }
 .tinfo.dsum > span { overflow: visible; text-overflow: clip; }
