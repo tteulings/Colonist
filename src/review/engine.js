@@ -1,6 +1,7 @@
 // v1.02 review: putting a headless engine (the Master Web Worker's, or the Node harness's) on a saved
 // position. loadPosition is the Master's own loader (moved here from src/master/worker.js unchanged);
 // loadRecord loads one recorded decision of the person (src/review.js), their seat planning like the Expert.
+import { referenceStrategy } from "../bots/registry.js"; // step 4: the review's reference player comes from the bot registry
 /** v1.17 Rush as turn-based play. Rush has no turns (everyone acts at any time, the dice roll on a timer), so a Rush position is
  *  searched / reviewed as the same position under the Classic rules, with these assumptions: the seat in question acts next and
  *  the table then follows in seat order, one roll per turn; a 7 discards above the Rush limit (9); a dev card bought this roll
@@ -53,6 +54,6 @@ export function loadPosition(g, m) {
 
 export function loadRecord(g, base, rec) {
   const P = loadPosition(g, { state: { ...JSON.parse(rec.st), ...base }, trk: rec.trk, turnSerial: rec.ts, seat: rec.pid });
-  P.strategy = { ...g.constructor.labHelpers.AI_PRESETS.expert };
+  P.strategy = referenceStrategy();
   return P;
 }

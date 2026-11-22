@@ -1,6 +1,7 @@
 // v1.90 STEP LEDGER (worker side): the value (every seat's win chance) of a recorded position, on the SAME scale as luck-mc.js (same leaf, depth, play, dice streams),
 // so that the change between two consecutive positions telescopes. Futures j use the same seeds in every position (common random numbers).
 import { withoutAgents, mulberry32 } from "../master/sim.js";
+import { referenceStrategy } from "../bots/registry.js"; // step 4: the review's reference player comes from the bot registry
 import { loadPosition } from "./engine.js";
 import { snap, back, play, shuffle, leafOf } from "./luck-mc.js";
 import { packW } from "./ledger.js";
@@ -10,7 +11,7 @@ export function valueAt(g, base, rec, opts = {}) {
   const o = { ...STEP_MC, ...opts }, t0 = performance.now();
   const st = JSON.parse(rec.st), humans = (st.players || []).map((p) => !!p?.isHuman);
   loadPosition(g, { state: { ...st, ...base }, trk: rec.trk, turnSerial: rec.ts, seat: rec.pid });
-  const H = g.constructor.labHelpers; g.players.forEach((p, i) => { if (humans[i] || !p.strategy) p.strategy = { ...H.AI_PRESETS.expert }; });
+  g.players.forEach((p, i) => { if (humans[i] || !p.strategy) p.strategy = referenceStrategy(); });
   const n = g.players.length;
   if (o.pass && g.phase === "main" && !g.winner) withoutAgents(g, () => g.endTurn()); // B: "end turn instead" (the pass valuation)
   if (g.winner) return { v: Array.from({ length: n }, (_, q) => (q === g.winner.id ? 1 : 0)), se: Array(n).fill(0), F: 0, W: [], ms: 0 };
