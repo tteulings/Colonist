@@ -71,6 +71,15 @@ export class UiEngine extends Engine {
     try { return this.dispatch({ ...a, actor: seat }, ui); } finally { this._onBehalf = prev; }
   }
 
+  /**
+   * The prompts, plus one rule of the old UI the strict prompt model lacks: while Road Building's free roads or a Year of Plenty / Monopoly pick are
+   * open the rest of the turn (buy, trade, end the turn) is still reachable, as it always was (the dock greys End turn out, the E key did not).
+   */
+  prompts() {
+    const ps = super.prompts(), g = this.g, p0 = ps[0];
+    if (p0 && (p0.kind === "freeRoad" || p0.kind === "yearOfPlenty" || p0.kind === "monopoly") && (g.phase === "main" || g.phase === "sbp")) ps.push({ kind: g.rush ? "rushAny" : g.phase === "sbp" ? "sbp" : "main", actor: p0.actor });
+    return ps;
+  }
   /** The prompt the seat holds right now, or null. */
   promptOf(seat) { return this.promptFor(seat); }
   /** legalActions of one action type for a seat (cheaper than all of them). */

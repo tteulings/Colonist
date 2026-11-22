@@ -1884,6 +1884,12 @@ class ColonistFullGame {
     // roll could land after End turn, in the next player's turn ("You rolled" twice, a robber left pending: the game hung)
     if (this._humanRolling === this.gameGen) return;
     this._humanRolling = this.gameGen;
+    const r = this.api.dispatch({ actor: player.id, type: "roll" });
+    if (!r.ok) { this._humanRolling = null; this._flashPrompt(r.reason); }
+  }
+
+  /** The roll the API carries out for a human seat (UiEngine._do_roll): the dice turn, then the roll phase runs. */
+  _humanRollNow(player) {
     const turnSerial = this.turnSerial;
     this._dropUndo();
     this.devPlayed = null;
@@ -1949,6 +1955,12 @@ class ColonistFullGame {
     if (!player || !player.isHuman || this.winner) return;
     if (this.phase !== "main" || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return;
     if (this.devPick) return; // finish Year of Plenty / Monopoly first
+    const r = this.api.dispatch({ actor: player.id, type: "endTurn" });
+    if (!r.ok) this._flashPrompt(r.reason);
+  }
+
+  /** End the human's turn (UiEngine._do_endTurn). */
+  _humanEndTurnNow(player) {
     this._dropUndo();
     this.trayMode = null;
     this.hideTradePanel();
@@ -1986,6 +1998,12 @@ class ColonistFullGame {
       this._flashPrompt(this.devDeck.length ? `A card costs ${resourceString(COSTS.development)} · you need ${missingCostString(player.resources, COSTS.development)}` : "The development deck is empty");
       return;
     }
+    const r = this.api.dispatch({ actor: player.id, type: "buyDev" });
+    if (!r.ok) this._flashPrompt(r.reason);
+  }
+
+  /** Buy a development card for the human (UiEngine._do_buyDev). */
+  _humanBuyDevNow(player) {
     this._dropUndo();
     // one tap: no confirm (with "Confirm placements" on this is still one tap — buying is explicit)
     this.buyDevelopmentCard(player);
@@ -2018,6 +2036,12 @@ class ColonistFullGame {
     if (!player || !player.isHuman || this.winner) return;
     if (!this.canPlayDevelopmentCard(player, type) || this._seaHumanBlocked()) return; // checks phase (Knight may be played before rolling)
     if (this.devPick) return;
+    const r = this.api.dispatch({ actor: player.id, type: "playDev", card: type });
+    if (!r.ok) this._flashPrompt(r.reason);
+  }
+
+  /** Play a development card for the human (UiEngine._do_playDev); the prompts it opens (robber, free roads, picks) are the game's own state. */
+  _humanPlayDevNow(player, type) {
     this.hideDevCardPicker();
     this._dropUndo();
     this.trayMode = null;
@@ -2038,6 +2062,7 @@ class ColonistFullGame {
       this.checkForWinner(player);
       this.render();
     }
+    return played;
   }
 
   toggleDevCardPicker() {
@@ -10808,6 +10833,14 @@ class ColonistFullGame {
     const dp = this.devPick;
     const player = this.currentPlayer;
     if (!dp || !player?.isHuman || dp.picks.length !== dp.count) return;
+    const a = dp.type === "yearOfPlenty" ? { actor: player.id, type: "pick", resources: dp.picks.slice() } : { actor: player.id, type: "pick", resource: dp.picks[0] };
+    const r = this.api.dispatch(a);
+    if (!r.ok) this._flashPrompt(r.reason);
+  }
+
+  /** Take the picked cards (UiEngine._do_pick): Year of Plenty from the bank, Monopoly from the table. */
+  _humanPickNow(player) {
+    const dp = this.devPick;
     this.devPick = null;
     this.devPlayed = null;
     const logLen = this.logEntries.length;
