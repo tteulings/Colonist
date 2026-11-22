@@ -310,7 +310,7 @@ export class Engine {
         if (on("cancelOffer") && !sbp) this._offers.forEach((o) => { if (o.from === id) A({ type: "cancelOffer", offer: o.id }); });
         if (on("passSbp") && sbp) A({ type: "passSbp" });
         if (on("endTurn") && prompt.kind === "main") A({ type: "endTurn" });
-        if (on("ready") && prompt.kind === "rushAny" && !g.rush.ready.includes(id) && !g.rush.paused) A({ type: "ready" });
+        if (on("ready") && prompt.kind === "rushAny" && !g.rush.ready.includes(id) && !g.rush.paused && !g._rushChoiceOpen?.()) A({ type: "ready" });
         break;
       }
       case "freeRoad": {
@@ -676,7 +676,7 @@ export class Engine {
       lastEvents: this._evlog.slice(-30).map((e) => this._redact(e, who)).filter(Boolean),
     };
     if (g.sea) v.gold = (g.sea.gold || []).map((it) => ({ pid: it.pid, count: it.count }));
-    if (g.rush) v.rush = { rollNo: g.rush.rollNo, remainingMs: g.rush.remainingMs, ready: g.rush.ready.slice(), paused: g.rush.paused };
+    if (g.rush) v.rush = { rollNo: g.rush.rollNo, remainingMs: g.rush.remainingMs, ready: g.rush.ready.slice(), paused: g.rush.paused, hold: !!g._rushChoiceOpen?.() }; // hold (v1.95): the human is mid dev-card choice, the clock and bots stand still
     return v;
   }
   _redact(e, who) {
