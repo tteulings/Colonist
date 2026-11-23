@@ -544,6 +544,26 @@ export function installReview(Cls) {
     else if (pre && this.sea && this.sea.pirateHexId !== q0) botPush(this, pre, "pirate", { hex }); // v1.31 the pirate: not a checked decision, but its steal is a chance event (luck)
     return r;
   });
+  // the bot host's robber move (an action; the 7's roll has already been recorded when it comes, the old call recorded the move first)
+  P._rvHostRobber = function (player, hex, run) {
+    const pre = !this._rvBusy && this._rvBotOn(player) ? this._rvPre(player, true) : null;
+    const h0 = this.robberHexId, q0 = this.sea?.pirateHexId;
+    const R = this._rv, last = R?.recs[R.recs.length - 1], at = last && last.k === "roll" && last.pid === player.id ? R.recs.length - 1 : undefined;
+    let r;
+    try { this._rvBusy = "robber"; r = run(); } finally { this._rvBusy = null; }
+    if (pre && this.robberHexId !== h0) botPush(this, pre, "robber", { hex }, at);
+    else if (pre && this.sea && this.sea.pirateHexId !== q0) botPush(this, pre, "pirate", { hex }, at);
+    return r;
+  };
+  // the bot host's set-up settlement (src/api/engine.js _do_place: an action, not a call of _aiSetupPlace): the same record, made around its commit
+  P._rvHostSetup = function (player, nodeId, run) {
+    const sa = this.setupAction; this.setupAction = null; // (the game reads "waiting for a tap" while the host holds the seat: a bot's own turn never does)
+    let pre = null; try { pre = nodeId != null && !this._rvBusy && this._rvBotOn(player) ? this._rvPre(player, true) : null; } finally { this.setupAction = sa; }
+    const at = this._rv?.recs.length;
+    const r = run();
+    if (pre && this.geometry.nodes[nodeId]?.owner === player.id) botPush(this, pre, "setup", { n: nodeId }, at);
+    return r;
+  };
   // set-up settlement (Master seats too: they place through the same call)
   wrap("_aiSetupPlace", function (orig, player, nodeId, ...a) {
     const pre = nodeId != null && !this._rvBusy && this._rvBotOn(player) ? this._rvPre(player, true) : null;
