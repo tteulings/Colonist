@@ -4716,6 +4716,8 @@ class ColonistFullGame {
     if (card === "victoryPoint") player.devVictoryPoints += 1; else player.newDevCards[card] += 1;
     this.emit({ type: "devBought", seat: player.id, card, human: !!player.isHuman });
     if (player.isHuman) this._devDrawn(card);
+    // a bought Victory Point card counts, and wins, at the purchase for a bot as it does for a person (_humanBuyDevNow counts it itself)
+    if (!this._isInteractive(player)) { this.recomputeScores(); this.checkForWinner(player); }
     return true;
   }
 
@@ -4780,6 +4782,10 @@ class ColonistFullGame {
       // Knight only moves the robber and steals — no discards (that's for rolling a 7)
       player.knightsPlayed += 1;
       this.emit({ type: "devPlayed", seat: player.id, card: "knight" });
+      // Largest Army is counted, and a win declared, the moment the Knight is played, before the robber moves (a person's card always did; the bots counted after the robbery)
+      this.recomputeScores();
+      this.checkForWinner(player);
+      if (this.winner) return true;
       this.moveRobber(player);
     } else if (type === "roadBuilding") {
       if (this._isInteractive(player)) {
@@ -4795,12 +4801,12 @@ class ColonistFullGame {
         if (this.sea) { // ⚓ Seafarers: 2 roads, 2 ships or one of each (rulebook p. 5 §8)
           const pc = this.sea.aiFreePiece(player);
           if (!pc) break;
-          if (pc.type === "ship" ? this.sea.placeShip(player, pc.id, { free: true }) : this.placeRoad(player, pc.id, { free: true })) { built += 1; this.emit({ type: "built", seat: player.id, piece: pc.type === "ship" ? "ship" : "road", at: pc.id, how: "free", i, log: false, sfx: false }); }
+          if (pc.type === "ship" ? this.sea.placeShip(player, pc.id, { free: true }) : this.placeRoad(player, pc.id, { free: true })) { built += 1; this.emit({ type: "built", seat: player.id, piece: pc.type === "ship" ? "ship" : "road", at: pc.id, how: "free", i, log: false, sfx: false }); this.recomputeScores(); this.checkForWinner(player); if (this.winner) break; } // Longest Road is counted after each free road (as _commitBuild does for a person)
           continue;
         }
         const edgeId = this.chooseStrategicRoadEdge(player, true);
         if (edgeId == null) break;
-        if (this.placeRoad(player, edgeId, { free: true })) { built += 1; this.emit({ type: "built", seat: player.id, piece: "road", at: edgeId, how: "free", i, log: false, sfx: false }); }
+        if (this.placeRoad(player, edgeId, { free: true })) { built += 1; this.emit({ type: "built", seat: player.id, piece: "road", at: edgeId, how: "free", i, log: false, sfx: false }); this.recomputeScores(); this.checkForWinner(player); if (this.winner) break; }
       }
       this.emit({ type: "devPlayed", seat: player.id, card: "roadBuilding", built });
     } else if (type === "yearOfPlenty") {
@@ -4968,7 +4974,7 @@ class ColonistFullGame {
       if (stage === 1) {
         stage = 2;
         // Try player-to-player trade once per turn
-        if (!skipPlayerTrade) {
+        if (!skipPlayerTrade && !this.winner) { // (a Knight or a bought card can win the turn before the trade)
           const seq0 = this.analysis?.seq;
           const tradeResult = this.aiTryPlayerTrade(player);
           if (tradeResult && tradeResult.type === "human") { humanTrade = tradeResult; return "human"; }
