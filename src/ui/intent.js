@@ -86,7 +86,11 @@ export class UiEngine extends Engine {
   dispatch(a, ui = null) {
     const prev = this._ui;
     this._ui = ui;
-    try { return this.apply(a); } finally { this._ui = prev; }
+    try {
+      const r = this.apply(a);
+      if (r.ok && ui?.auto) this._log[this._log.length - 1].auto = true; // a host timeout carried out for the human: the log says so
+      return r;
+    } finally { this._ui = prev; }
   }
   /** A bot's answer carried out by the UI (a partner's yes to an offer the human then confirms): the same apply(), the bot as actor. */
   dispatchFor(seat, a, ui = null) {
@@ -145,6 +149,15 @@ export class UiEngine extends Engine {
   _do_steal(a, p) { this.g._humanStealNow(p, a.victim); }
   _do_pick(a, p) { this.g._humanPickNow(p, a); }
   _do_discard() { this.g._confirmDiscardNow(); }
+  // a gold pick the host made for the human (Rush roll): the game's own autoGold, fed the picks the action carries
+  _do_pickGold(a, p) {
+    const g = this.g;
+    if (!this._ui?.auto) return super._do_pickGold(a, p);
+    const S = g.sea;
+    S.aiGoldPicks = () => a.resources.slice();
+    try { S.autoGold(p); } finally { delete S.aiGoldPicks; }
+    g.recomputeScores(); g.checkForWinner(p);
+  }
   _do_passSbp() { this.g._sbpSkipNow(false); }
   _do_ready(a, p) { this.g._humanReadyNow(p); }
   // trades: the engine keeps the open offer (one at a time: what the trade sheet shows), the bots' answers are the game's own evaluator

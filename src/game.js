@@ -6526,7 +6526,7 @@ class ColonistFullGame {
     if (this.sea) { // ⚓ a new roll interval: one ship move each again; an unpicked gold choice is made for you
       if (this.pendingAction === "moveShip") { this.pendingAction = null; this.sea.moveSel = null; }
       this.sea.onNewTurn();
-      this.players.forEach((p) => { if (this.sea.goldFor(p.id)) this.sea.autoGold(p); });
+      this.players.forEach((p) => { if (this.sea.goldFor(p.id)) this._goldAuto(p); });
     }
     this._palCalmTick(); // v1.04 proposal: in Rush, Auto · time of day switches on a roll
     this.addLog(`Roll #${r.rollNo}: rolled ${res.total}.`);
