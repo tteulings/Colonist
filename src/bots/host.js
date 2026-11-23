@@ -34,6 +34,7 @@ function makeCtx(engine, host, bot, prompt) {
     enumerate: (max = 200) => engine.enumerate(prompt.actor, { prompt, max }), // concrete legal actions (the `legal` list holds descriptors for discards, offers, ...)
     warn: (m) => host.errors.push({ seat: prompt.actor, prompt: prompt.kind, warn: m }),
     rng: host.rng(prompt.actor), note() {}, sim: null, signal: host.signal,
+    humanTrade: !!host.humanTrade,
     budget: { ms: Infinity, nodes: Infinity, deadline: Infinity, spent: () => 0 },
   };
 }
@@ -52,6 +53,7 @@ export function hostStep(engine, bots, host) {
 }
 
 function finish(engine, host, prompt, action) {
+  if (action && action.type === "pause" && host.humanTrade) return action; // the in-app host: a person has to answer first (bots/inapp.js)
   let a = action, why = null;
   if (!a) why = "no answer";
   else { const j = engine.isLegal(a, { prompt }); if (!j.ok) why = j.reason; }
@@ -70,7 +72,7 @@ function finish(engine, host, prompt, action) {
 
 export function newHost(opts = {}) {
   const rngs = new Map();
-  return { errors: [], steps: 0, turns: 0, events: !!opts.onEvent, onAction: opts.onAction || null, signal: opts.signal || null,
+  return { errors: [], steps: 0, turns: 0, events: !!opts.onEvent, humanTrade: !!opts.humanTrade, onAction: opts.onAction || null, signal: opts.signal || null,
     rng: (seat) => { let r = rngs.get(seat); if (!r) rngs.set(seat, (r = mulberry32((opts.seed ?? 1) * 7919 + seat))); return r; } };
 }
 

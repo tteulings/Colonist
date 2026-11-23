@@ -41,6 +41,7 @@ import { LiveBarMixin } from "./live-bar.js"; // v1.59 optional live win-chance 
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
+import { hostOn, mainPhase as hostMainPhase } from "./bots/inapp.js"; // follow-up of step 4: the bot host plays the bots' main phase in the app
 import { createUiEngine } from "./ui/intent.js"; // architecture step 3: human input goes through the Action API
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS } from "./seafarers/index.js";
 
@@ -4891,6 +4892,20 @@ class ColonistFullGame {
 
   executeAiMainPhase(player, skipPlayerTrade = false) {
     if (this._masterLive(player)) return this._masterMainPhase(player, skipPlayerTrade); // v0.90: searched steps (always "async")
+    if (!this._aiRec() && hostOn(this, player)) { // step 4 follow-up: Bot.decide -> isLegal -> apply (bots/inapp.js); analysis mode keeps its own stepping
+      const r = hostMainPhase(this, player, skipPlayerTrade);
+      if (r === "done") return "done";
+      if (r?.human) { // a deal asked of the person at the table: the card, then the rest of the turn
+        const t = r.human;
+        this._pendingAiTradePlayer = player;
+        this.showIncomingTrade(t.fromPlayer, t.give, t.want, t.toPlayer).then(this._guard(() => {
+          if (this.winner || this.currentPlayer !== player) return;
+          if (this.executeAiMainPhase(player, true) === "async") return;
+          this._aiMainPhaseDone(player);
+        }));
+        return "async";
+      }
+    }
     const s = player.strategy || {};
     this._aiLog(player, `Main phase — strategy: placement=${s.placement}, expansion=${s.expansion}, trading=${s.trading}, devCards=${s.devCards}, awareness=${s.awareness}`);
     this._aiLog(player, `Resources: ${resourceString(player.resources)} (${sumResources(player.resources)} total)`);
