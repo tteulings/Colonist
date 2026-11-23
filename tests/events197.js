@@ -22,6 +22,7 @@ const GAMES = [
   { id: "classic-balanced", seed: 1962, turns: 16, settings: { ...COMMON, mode: "classic", map: "balanced", dice: "balanced", numBots: 2 } },
   { id: "seafarers", seed: 1963, turns: 20, settings: { ...COMMON, mode: "classic", board: "seafarers", numBots: 2 } },
   { id: "five-six", seed: 1964, turns: 12, settings: { ...COMMON, mode: "classic", numBots: 5 } },
+  { id: "rush", seed: 1965, turns: 14, settings: { ...COMMON, mode: "rush", numBots: 3, rushInterval: 5 } }, // turns = rolls
 ];
 
 async function play(browser, port, g, lang, events) {
@@ -40,17 +41,24 @@ async function play(browser, port, g, lang, events) {
   }, { seed: g.seed, lang });
   await page.goto(`http://localhost:${port}/`);
   await page.waitForFunction(() => window.__colonistGame && document.body.dataset.gameReady);
-  await page.evaluate(({ settings, events }) => {
+  await page.evaluate(async ({ settings, events, lang }) => {
     const g = window.__colonistGame, W = window;
     W.__rec = { log: [], sfx: [], fx: [], anim: [], toast: [], err: [] };
-    if (events && g.events) g.events.record = [];
+    const I18N = await import("/src/i18n.js");
+    W.__tr = I18N.tr;
+    if (events && g.events) {
+      g.events.record = [];
+      const E = await import("/src/core/events.js"); // the same sentences from the events, in the app language: what the display shows
+      W.__evText = [];
+      g.events.on("zz-test", (e) => { if (!W.__frozen) { const t = E.eventToText(e, lang, g); if (t != null) W.__evText.push(t); } });
+    }
     W.__collect = () => { const R = W.__rec;
     const hand = (p) => ["wood", "brick", "sheep", "wheat", "ore"].map((k) => p.resources[k]).join("");
     const rv = (g._rv?.recs || []).map((x) => [x.k, x.pid, x.t, x.s, x.e, JSON.stringify(x.a)].join("|"));
     const final = { turn: g.turn, winner: g.winner ? g.winner.id : null, players: g.players.map((p) => [hand(p), p.victoryPoints, [...p.roads].sort((a, b) => a - b).join("."), [...p.settlements].sort((a, b) => a - b).join("."), [...p.cities].sort((a, b) => a - b).join("."), [...(p.ships || [])].sort((a, b) => a - b).join(".")].join("/")), robber: g.robberHexId, pirate: g.sea?.pirateHexId ?? null, bank: ["wood", "brick", "sheep", "wheat", "ore"].map((k) => g.bank[k]).join("") };
     const st = g.stats ? { ev: g.stats.ev, steps: g.stats.steps, vp: g.stats.vp } : null;
     const out = { log: R.log, sfx: R.sfx, fx: R.fx, anim: R.anim, toast: R.toast, err: R.err, stats: JSON.stringify(st), review: rv, final: JSON.stringify(final), nlog: g.logEntries.length };
-    if (events && g.events?.record) out.events = g.events.record.slice();
+    if (events && g.events?.record) { out.events = g.events.record.slice(); out.evText = W.__evText.slice(); out.logTr = R.log.map((l) => W.__tr(l.replace(/ \{"sbp":true\}$/, ""))); }
     if (events) out.summary = summarize(g);
     return out;
     function summarize(g) { // what the game says now, to compare with the position rebuilt from the events
@@ -60,7 +68,7 @@ async function play(browser, port, g, lang, events) {
     };
     const al = g.addLog.bind(g);
     // the game is cut at one logical moment (the first roll of a turn past the limit): the bots would otherwise run on for a few real milliseconds
-    g.addLog = (t, m) => { if (W.__frozen) return al(t, m); const x = /^Turn (\d+):/.exec(t); if (x && +x[1] > W.__turns) { W.__out = W.__collect(); W.__frozen = true; W.__done = true; return al(t, m); } W.__rec.log.push(t + (m ? " " + JSON.stringify(m) : "")); return al(t, m); };
+    g.addLog = (t, m) => { if (W.__frozen) return al(t, m); const x = /^(?:Turn |Roll #)(\d+):/.exec(t); if (x && +x[1] > W.__turns) { W.__out = W.__collect(); W.__frozen = true; W.__done = true; return al(t, m); } W.__rec.log.push(t + (m ? " " + JSON.stringify(m) : "")); return al(t, m); };
     const sp = g.sound.play.bind(g.sound); g.sound.play = (...a) => { if (!W.__frozen) W.__rec.sfx.push(JSON.stringify(a)); return sp(...a); };
     const pt = g.pushToast.bind(g); g.pushToast = (t, c) => { if (!W.__frozen) W.__rec.toast.push(String(t) + "|" + (c || "")); return pt(t, c); };
     const at = g._animateTradeCards.bind(g); g._animateTradeCards = (...a) => { if (!W.__frozen) W.__rec.fx.push("tradeCards" + JSON.stringify(a.slice(0, 2))); return at(...a); };
@@ -74,7 +82,7 @@ async function play(browser, port, g, lang, events) {
     pa.push.__h = true;
     g.startNewGame(settings);
     wrapFx();
-  }, { settings: g.settings, events });
+  }, { settings: g.settings, events, lang });
   // the person at the table: one action a tick, chosen by a fixed rule (never random)
   await page.evaluate(({ turns }) => {
     const W = window, g = W.__colonistGame; const rt = W.__realTimeout;
@@ -106,6 +114,18 @@ async function play(browser, port, g, lang, events) {
               if (a && a.type === "build") roads += a.piece === "road" || a.piece === "ship" ? 1 : 0;
               if (a && a.type === "tradeBank") tradeTurn = g.turn;
               if (a && a.type === "offerTrade") offerTurn = g.turn;
+              break;
+            }
+            case "rushAny": {
+              const key = g.rush ? g.rush.rollNo : -1;
+              if (key !== roadTurn) { roadTurn = key; roads = 0; }
+              a = acts.filter((x) => x.type === "build" && x.piece !== "road" && x.piece !== "ship").sort((x, y) => order[x.piece] - order[y.piece])[0]
+                || pick((x) => x.type === "buyDev")
+                || pick((x) => x.type === "playDev" && x.card === "knight")
+                || (roads < 2 ? pick((x) => x.type === "build" && x.piece === "road") : null)
+                || (tradeTurn !== key ? pick((x) => x.type === "tradeBank") : null);
+              if (a && a.type === "build" && (a.piece === "road" || a.piece === "ship")) roads += 1;
+              if (a && a.type === "tradeBank") tradeTurn = key;
               break;
             }
             case "respondTrade": a = pick((x) => x.answer === "accept") || acts[0]; break;
@@ -150,7 +170,7 @@ function rebuild(events, n, sea) {
       case "robberMoved": if (e.pirate) S.pirate = e.hex; else S.robber = e.hex; break;
       case "stole": P[e.victim].h[e.res] -= 1; P[e.seat].h[e.res] += 1; break;
       case "traded": sw(e.seat, e.partner, e.gave, e.got); break;
-      case "devPlayed": if (e.card === "knight") P[e.seat].knights += 1; if (e.card === "monopoly") { for (let i = 0; i < n; i++) if (i !== e.seat) P[i].h[e.res] = 0; } break;
+      case "devPlayed": if (e.card === "knight") P[e.seat].knights += 1; if (e.card === "monopoly") { for (let i = 0; i < n; i++) if (i !== e.seat) P[i].h[e.res] = 0; P[e.seat].h[e.res] += e.collected; } break;
       case "award": if (e.award === "longestRoad") S.lr = e.seat; else S.la = e.seat; break;
       case "won": S.winner = e.seat; break;
       case "turnLimit": S.winner = e.seat; break;
@@ -178,8 +198,8 @@ function compare(tag, x, y) {
   if (!BASE || !fs.existsSync(BASE)) { console.log("usage: node tests/events197.js BASE_ROOT [PORT]"); process.exit(2); }
   const sA = await serve(HERE, PORT), sB = await serve(BASE, PORT + 1);
   const browser = await chromium.launch();
-  const games = QUICK ? GAMES.slice(0, 2) : GAMES;
-  const langs = QUICK ? ["en"] : ["nl", "en"];
+  const games = (QUICK ? GAMES.slice(0, 2) : GAMES).filter((x) => !process.env.ONLY || x.id === process.env.ONLY);
+  const langs = process.env.LANG_ONLY ? [process.env.LANG_ONLY] : QUICK ? ["en"] : ["nl", "en"];
   for (const lang of langs) {
     for (const g of games) {
       const tag = `${g.id} ${lang}`;
@@ -189,7 +209,10 @@ function compare(tag, x, y) {
       check(base.log.length > 40 && base.review.length > 5 && base.err.length === 0, `${tag}: the game is played (driver)`, `${base.log.length} log lines, ${base.review.length} review moves, errors: ${base.err.slice(0, 2).join(" ; ")}`);
       compare(tag, mine, base);
       // events complete: the position rebuilt from the event stream alone
+      if (process.env.DUMP && mine.events) fs.writeFileSync(`${process.env.DUMP}/${g.id}-${lang}.json`, JSON.stringify({ events: mine.events, summary: mine.summary }));
       if (!mine.events) { check(true, `${tag}: (no event stream in this tree)`); continue; }
+      { const a = mine.evText, b = mine.logTr, d = firstDiff(a, b);
+        check(d < 0 && a.length > 40, `${tag}: eventToText(event, "${lang}") = the journal line the display translates (${a.length} lines)`, d < 0 ? "" : `#${d}: ${JSON.stringify(a[d])} vs ${JSON.stringify(b[d])}`); }
       const n = g.settings.numBots + 1, rb = rebuild(mine.events, n, !!g.settings.board);
       const want = mine.summary, got = rb;
       const strip = (s) => JSON.stringify({ players: s.players.map((p) => ({ hand: p.hand, road: p.road, set: p.set, city: p.city, ship: p.ship, knights: p.knights })), robber: s.robber, pirate: s.pirate, lr: s.lr, la: s.la, winner: s.winner, rolls: s.rolls });
@@ -197,8 +220,10 @@ function compare(tag, x, y) {
     }
   }
   if (!QUICK) { // the games are deterministic at all: BASE twice
-    const a = await play(browser, PORT + 1, GAMES[0], "en", false), b = await play(browser, PORT + 1, GAMES[0], "en", false);
-    check(compare("BASE vs BASE (determinism)", a, b), "the seeded browser game is reproducible");
+    for (const g of games) {
+      const a = await play(browser, PORT + 1, g, "en", false), b = await play(browser, PORT + 1, g, "en", false);
+      check(compare(`BASE vs BASE (determinism) ${g.id}`, a, b), `${g.id}: the seeded browser game is reproducible`);
+    }
   }
   console.log(fails ? `${fails} FAILED` : "ALL PASS");
   await browser.close(); sA.close(); sB.close();

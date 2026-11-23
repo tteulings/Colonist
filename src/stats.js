@@ -129,7 +129,9 @@ export const StatsMixin = {
   /** The recorder as a subscriber of the game's events (src/core/events.js). */
   _stOnEvent(e) {
     switch (e.type) {
-      case "award": this._stEv("a", e.award === "largestArmy" ? "A" : "L", e.seat ?? -1, e.prev ?? -1); break;
+      // (the old wrapper tested the award's name with /Army/, which "Largest army" never matched: the recorder has always written "L" for both awards. Kept as it was:
+      // fixing it changes stored statistics, which is not a refactor's business.)
+      case "award": this._stEv("a", "L", e.seat ?? -1, e.prev ?? -1); break;
       case "stole": this._stEv("t", e.seat, e.victim, RES.indexOf(e.res)); break;
       case "discarded": if (e.n) this._stEv("d", e.seat, e.n); break;
       case "bankTraded": this._stEv("k", e.seat, RES.indexOf(e.give), e.rate, RES.indexOf(e.get)); break;
