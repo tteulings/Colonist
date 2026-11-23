@@ -65,7 +65,7 @@ function snapshotFn() {
     return JSON.stringify({ t: g.turn, ph: g.phase, cp: g.currentPlayerIndex, w: g.winner ? g.winner.id : null, rc: window.__rc, lr: g.lastRoll,
       pl: g.players.map((p) => [R.map((r) => p.resources[r]), [...p.roads].sort((a, b) => a - b), [...p.settlements].sort((a, b) => a - b), [...p.cities].sort((a, b) => a - b), p.ships ? [...p.ships].sort((a, b) => a - b) : 0, D.map((d) => p.devCards[d] + "/" + p.newDevCards[d]), p.devVictoryPoints, p.victoryPoints, p.publicVictoryPoints, p.knightsPlayed, p.longestRoadLength]),
       bank: R.map((r) => g.bank[r]), dd: g.devDeck.length, ddt: g.devDeck.slice(-3), rob: g.robberHexId, pir: g.sea ? g.sea.pirateHexId : null, la: g.largestArmyHolder, lrh: g.longestRoadHolder?.id ?? g.longestRoadHolder,
-      lg: g.logEntries.length, pa: g.placementAnims.length, ps: g.pendingAction, un: !!g.undoState, dice: g._aiDiceAnimating ? 1 : 0, pit: !!g.pendingIncomingTrade, ce: g.currentTurnPlayedDevCard,
+      lg: g.logEntries.length, ll: g.logEntries.length ? g.logEntries[g.logEntries.length - 1].text : null, pa: g.placementAnims.length, ps: g.pendingAction, un: !!g.undoState, dice: g._aiDiceAnimating ? 1 : 0, pit: !!g.pendingIncomingTrade, ce: g.currentTurnPlayedDevCard,
       st: g.stats ? g.stats.ev.length + "/" + g.stats.steps.length : null, rv: g._rv ? g._rv.recs.length : null, rush: g.rush ? [g.rush.rollNo, g.rush.paused, g.rush.offers.length] : null });
   };
 }
@@ -134,7 +134,7 @@ function same(a, b) {
       const tag = `${mode} ${human ? "1 human" : "bots only"} seed ${seed}`;
       const off = await play({ root: ROOT, port: PORT, flag: "0", seed, settings, human, maxTurns });
       const on = await play({ root: ROOT, port: PORT, flag: ONFLAG, seed, settings, human, maxTurns });
-      const d = same(off, on) || (on.end.host > 0 || ONFLAG === "0" ? "" : "the host never played a move") || (off.end.host ? "the old-driver run used the host" : "");
+      const d = same(off, on) || (on.end.host > 0 || ONFLAG === "0" || mode === "rush" ? "" : "the host never played a move") || (mode === "rush" && on.end.host ? "Rush must stay on the old driver" : "") || (off.end.host ? "the old-driver run used the host" : "");
       check(!d && off.snaps.length > 40 && !on.errors.length && !off.errors.length, `${tag}: host ON = old driver (${off.snaps.length} states, ${off.end.log.length} log lines, turn ${off.end.turn}, ${off.end.rc} random calls, ${on.end.host} host moves${human ? ", taps " + JSON.stringify(off.tags) : ""})`, d || on.errors.concat(off.errors)[0] || "");
       if (BASE) { const base = await play({ root: BASE, port: PORT + 1, flag: null, seed, settings, human, maxTurns }); const d2 = same(off, base); check(!d2, `${tag}: old driver = previous release`, d2); }
     }
