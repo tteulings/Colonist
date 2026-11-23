@@ -366,6 +366,15 @@ export const SbpMixin = {
   sbpSkip(timedOut = false) {
     const s = this.sbp;
     if (!s?.human || this.winner) return;
+    if (timedOut || this._applyDepth > 0) { this._sbpSkipNow(timedOut); return; } // the window ran out: the game ends it itself
+    const r = this.api.act({ actor: this.currentPlayer.id, type: "passSbp" }); // a tap on Skip / Done: the human's passSbp
+    if (!r.ok) this._flashPrompt?.(this._say(r.reason));
+  },
+
+  /** End the human's Special Building window (UiEngine._do_passSbp). */
+  _sbpSkipNow(timedOut = false) {
+    const s = this.sbp;
+    if (!s?.human || this.winner) return;
     const p = this.currentPlayer;
     this._sbpStopTimer();
     this._dropUndo();

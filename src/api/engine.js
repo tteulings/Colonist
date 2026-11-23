@@ -110,7 +110,7 @@ function hash53(str) {
 export class Engine {
   constructor(g, opts = {}) {
     this.g = g;
-    this.H = hooks(g);
+    this.H = opts.noHooks ? { active: this, later0: undefined, laterSaved: false } : hooks(g); // noHooks: the UI's engine (src/ui/intent.js) leaves the game's methods alone
     this.meta = opts.meta || null;           // how the game was made (newGame spec): the first line of a log
     this._control = opts.control ? new Set(opts.control) : new Set();
     this._src = { dice: null, steal: null }; // user ChanceSource
@@ -120,7 +120,7 @@ export class Engine {
     this._evlog = []; this._seq = 0; this._applying = 0; this._via = null;
     this._snap = null;                        // state parked while another engine uses the same game object
     this._obs = null;
-    if (!opts.parked) { const H = this.H; if (H.active && H.active !== this && !H.active._dead) H.active._snap = H.active._save(); H.active = this; }
+    if (!opts.parked && !opts.noHooks) { const H = this.H; if (H.active && H.active !== this && !H.active._dead) H.active._snap = H.active._save(); H.active = this; }
   }
 
   // ── plumbing ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -482,10 +482,10 @@ export class Engine {
     const g = this.g, before = opts.quiet ? null : this._brief(), hit = a.type === "roll" ? null : undefined;
     this._chanceUsed = []; this._queue = opts.chance ? opts.chance.map((c) => ({ ...c })) : null;
     if (a.type === "roll" && a.forced) this._forceDice = a.forced;
-    this._applying++;
+    this._applying++; g._applyDepth = (g._applyDepth || 0) + 1; // the UI's doors (_confirmDiscard, _finishPick, sbpSkip) see they are being called by an apply() and do the work
     let err = null;
     let done;
-    try { done = this[`_do_${a.type}`](a, g.players[a.actor]); } catch (e) { err = e; } finally { this._applying--; this._queue = null; this._forceDice = null; }
+    try { done = this[`_do_${a.type}`](a, g.players[a.actor]); } catch (e) { err = e; } finally { this._applying--; g._applyDepth--; this._queue = null; this._forceDice = null; }
     if (err) throw err;
     if (done === false) return { ok: false, bug: true, reason: `the old code rejected a legal ${a.type} (engine/legacy disagreement)`, events: [], prompts: this.prompts() };
     const events = opts.quiet ? [] : this._events(a, before); // `quiet`: no event list (headless bot play)

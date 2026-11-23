@@ -41,6 +41,7 @@ import { LiveBarMixin } from "./live-bar.js"; // v1.59 optional live win-chance 
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
+import { createUiEngine } from "./ui/intent.js"; // architecture step 3: human input goes through the Action API
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS } from "./seafarers/index.js";
 
 import { RESOURCES, COSTS_SEA as COSTS, PIECE_LIMITS_SEA as PIECE_LIMITS, BANK_SIZE, DICE_WAYS as DICE_WEIGHT, DEV_CARD_TYPES, DEV_DECK, deckList } from "./core/constants.js"; // (COSTS / PIECE_LIMITS carry the Seafarers ship: it is only looked up when this.sea)
@@ -1457,6 +1458,7 @@ class ColonistFullGame {
   }
 
   resetGame() {
+    this._api?.reset(); // the API's action log and open offer belong to the game that ended
     this._cancelPendingWork();
     this.removeGameOverOverlay();
     this.clearStorage();
@@ -1693,6 +1695,68 @@ class ColonistFullGame {
     }), 400);
   }
 
+  /** The Action API the UI plays through (src/ui/intent.js): legal spots for the highlights, apply() for every committed move. */
+  get api() { return this._api || (this._api = createUiEngine(this)); }
+
+  /** Commit a staged / tapped piece through the API (set-up: place; otherwise: build). A refusal flashes the engine's reason. */
+  _applyPiece(player, cb, setup = false) {
+    const edgeLike = cb.type === "road" || cb.type === "ship";
+    const a = { actor: player.id, type: setup ? "place" : "build", piece: cb.type, ...(edgeLike ? { edge: cb.id } : { node: cb.id }) };
+    const r = this.api.act(a);
+    if (!r.ok && !r.bug) { // the spot is no longer legal (taken meanwhile, cards spent): what _commitBuild does when the placement fails
+      this.confirmBuild = null;
+      if (setup) { this._flashPrompt(this._say(r.reason)); return false; }
+      if (this.rush) { this.addLog("Too slow — that spot was just taken."); this.sfx.error(); }
+      this.render();
+    }
+    return r.ok;
+  }
+
+  /** The engine's reason for a refusal in the app's own words (one short sentence per case; the Dutch table has them). */
+  _say(reason) {
+    const m = /^not enough cards for a (road|settlement|city|ship|development card)$/.exec(reason || "");
+    if (m) return `Not enough cards for a ${m[1]}.`;
+    if (/cannot go there$/.test(reason || "")) return "That spot isn't available.";
+    if (/no prompt right now/.test(reason || "")) return "Not your move right now.";
+    return "That isn't possible right now.";
+  }
+
+  /** Move the robber (or the pirate) through the API; `victim` is the staged choice, used when several can be robbed. */
+  _applyRobber(player, hexId, victim = null) {
+    const a = { actor: player.id, type: "moveRobber", hex: hexId, ...(this.sea ? { target: this._seaHexKind(hexId) } : {}) };
+    const r = this.api.act(a, { victim });
+    if (!r.ok && !r.bug) this._flashPrompt(this._say(r.reason));
+    return r.ok;
+  }
+
+  /** Rob this player through the API (several victims on the tile). */
+  _applySteal(player, victim) {
+    const r = this.api.act({ actor: player.id, type: "steal", victim });
+    if (!r.ok && !r.bug) this._flashPrompt(this._say(r.reason));
+    return r.ok;
+  }
+
+  /** The victim chosen in the dock (UiEngine._do_steal). */
+  _humanStealNow(player, vid) {
+    this.stealFromVictim(player, vid);
+    this.robberContext = null;
+    this.robberVictimOptions = [];
+    if (this.victimPanel) this.victimPanel.style.display = "none";
+    this.saveToStorage();
+    this.render();
+  }
+
+  /** Why a tap on a spot does nothing (the engine's words), or "": only when a piece is chosen (or in set-up) and the tap landed on a corner / edge of the board. */
+  _tapWhy(player, x, y) {
+    const pa = this.setupPhase ? this.setupAction : this.pendingAction;
+    if (!["road", "settlement", "city", "ship"].includes(pa)) return "";
+    const edgeLike = pa === "road" || pa === "ship";
+    const id = edgeLike ? this.findEdgeAt(x, y, () => true) : this.findNodeAt(x, y, () => true);
+    if (id == null) return "";
+    const r = this.api.isLegal({ actor: player.id, type: this.setupPhase ? "place" : "build", piece: pa, ...(edgeLike ? { edge: id } : { node: id }) });
+    return r.ok ? "" : this._say(r.reason);
+  }
+
   handleSetupClick(x, y) {
     const player = this.players[this.setupQueue[this.setupStep]];
     if (!player.isHuman) return;
@@ -1700,22 +1764,24 @@ class ColonistFullGame {
     // Confirm placements on: the ✓ / Place commits the selected spot
     if (this.confirmBuild && this.hitTestConfirmIcon(x, y)) {
       const cb = this.confirmBuild;
-      if (cb.type === this.setupAction) { this._commitSetup(player, cb); return; }
+      if (cb.type === this.setupAction) { this._applyPiece(player, cb, true); return; }
     }
 
+    // the legal spots are the engine's: set-up settlements, or the roads (Seafarers: and ships) next to the new settlement
+    const spots = this.api.spots(player.id);
     let target = null;
     if (this.setupAction === "settlement") {
-      const nodeId = this.findNodeAt(x, y, (id) => this.canBuildSettlement(player, id, true));
+      const nodeId = this.findNodeAt(x, y, (id) => spots.settlement.has(id));
       if (nodeId != null) target = { type: "settlement", id: nodeId };
     } else if (this.setupAction === "road" && this.sea) {
       target = this._seaSetupEdgeAt(player, x, y); // ⚓ road or ship
     } else if (this.setupAction === "road") {
-      const edgeId = this.findEdgeAt(x, y, (id) => { const e = this.geometry.edges[id]; return e.owner == null && e.nodes.includes(this.lastSetupNodeId); });
+      const edgeId = this.findEdgeAt(x, y, (id) => spots.road.has(id));
       if (edgeId != null) target = { type: "road", id: edgeId };
     }
-    if (!target) { this.confirmBuild = null; this.drawCanvasScene(); return; }
+    if (!target) { this.confirmBuild = null; const why = this._tapWhy(player, x, y); if (why) this._flashPrompt(why); this.drawCanvasScene(); return; }
     // Default: a tap on a legal spot places it (the settlement can be taken back until the road is down)
-    if (this._confirmLevel() !== "always") { this._commitSetup(player, target); return; }
+    if (this._confirmLevel() !== "always") { this._applyPiece(player, target, true); return; }
     this.confirmBuild = target;
     this._cbAt = performance.now();
     this.drawCanvasScene();
@@ -1832,6 +1898,12 @@ class ColonistFullGame {
     // roll could land after End turn, in the next player's turn ("You rolled" twice, a robber left pending: the game hung)
     if (this._humanRolling === this.gameGen) return;
     this._humanRolling = this.gameGen;
+    const r = this.api.act({ actor: player.id, type: "roll" });
+    if (!r.ok) { this._humanRolling = null; this._flashPrompt(this._say(r.reason)); }
+  }
+
+  /** The roll the API carries out for a human seat (UiEngine._do_roll): the dice turn, then the roll phase runs. */
+  _humanRollNow(player) {
     const turnSerial = this.turnSerial;
     this._dropUndo();
     this.devPlayed = null;
@@ -1897,6 +1969,12 @@ class ColonistFullGame {
     if (!player || !player.isHuman || this.winner) return;
     if (this.phase !== "main" || (this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return;
     if (this.devPick) return; // finish Year of Plenty / Monopoly first
+    const r = this.api.act({ actor: player.id, type: "endTurn" });
+    if (!r.ok) this._flashPrompt(this._say(r.reason));
+  }
+
+  /** End the human's turn (UiEngine._do_endTurn). */
+  _humanEndTurnNow(player) {
     this._dropUndo();
     this.trayMode = null;
     this.hideTradePanel();
@@ -1934,6 +2012,12 @@ class ColonistFullGame {
       this._flashPrompt(this.devDeck.length ? `A card costs ${resourceString(COSTS.development)} · you need ${missingCostString(player.resources, COSTS.development)}` : "The development deck is empty");
       return;
     }
+    const r = this.api.act({ actor: player.id, type: "buyDev" });
+    if (!r.ok) this._flashPrompt(this._say(r.reason));
+  }
+
+  /** Buy a development card for the human (UiEngine._do_buyDev). */
+  _humanBuyDevNow(player) {
     this._dropUndo();
     // one tap: no confirm (with "Confirm placements" on this is still one tap — buying is explicit)
     this.buyDevelopmentCard(player);
@@ -1966,6 +2050,12 @@ class ColonistFullGame {
     if (!player || !player.isHuman || this.winner) return;
     if (!this.canPlayDevelopmentCard(player, type) || this._seaHumanBlocked()) return; // checks phase (Knight may be played before rolling)
     if (this.devPick) return;
+    const r = this.api.act({ actor: player.id, type: "playDev", card: type });
+    if (!r.ok) this._flashPrompt(this._say(r.reason));
+  }
+
+  /** Play a development card for the human (UiEngine._do_playDev); the prompts it opens (robber, free roads, picks) are the game's own state. */
+  _humanPlayDevNow(player, type) {
     this.hideDevCardPicker();
     this._dropUndo();
     this.trayMode = null;
@@ -1986,6 +2076,7 @@ class ColonistFullGame {
       this.checkForWinner(player);
       this.render();
     }
+    return played;
   }
 
   toggleDevCardPicker() {
@@ -2077,13 +2168,14 @@ class ColonistFullGame {
     if (robberMode) {
       const cb = this.confirmBuild?.type === "robber" ? this.confirmBuild : null;
       if (cb && !this.isMobileLayout && this.hitTestConfirmIcon(x, y)) {
-        this._commitRobber(player, cb.id, cb.victim);
+        this._applyRobber(player, cb.id, cb.victim);
         return;
       }
       const hexId = this.findHexAt(x, y);
       if (hexId == null) return;
-      if (this.sea && this.sea.thief !== this._seaHexKind(hexId) && this._robberHexAllowed(hexId, player)) this.sea.thief = this._seaHexKind(hexId); // ⚓ land = robber, sea = pirate
-      if (!this._robberHexAllowed(hexId, player)) {
+      const legalHex = this.api.robberHexes(player.id).has(hexId); // the engine's moveRobber targets
+      if (this.sea && this.sea.thief !== this._seaHexKind(hexId) && legalHex) this.sea.thief = this._seaHexKind(hexId); // ⚓ land = robber, sea = pirate
+      if (!legalHex) {
         this._flashPrompt(this._robberBlockedReason(hexId, player), 4200);
         this.sfx.error?.();
         return;
@@ -2091,7 +2183,7 @@ class ColonistFullGame {
       const victims = this._stealVictims(hexId, player);
       if (cb && cb.id === hexId && (this.confirmPlacements || victims.length <= 1)) {
         // second tap on the chosen tile = go
-        this._commitRobber(player, cb.id, cb.victim ?? this._defaultRobberVictim(hexId, player));
+        this._applyRobber(player, cb.id, cb.victim ?? this._defaultRobberVictim(hexId, player));
         return;
       }
       this.confirmBuild = { type: "robber", id: hexId,
@@ -2134,7 +2226,7 @@ class ColonistFullGame {
 
     // The ✓ above a selected spot (desktop) / Place (phones) commits it
     if (this.confirmBuild && this.hitTestConfirmIcon(x, y)) {
-      this._commitBuild(player, this.confirmBuild);
+      this._applyPiece(player, this.confirmBuild);
       return;
     }
 
@@ -2147,7 +2239,7 @@ class ColonistFullGame {
     const calm = !auto && this._isAutoGlow() && this._legalPlacementSpots()?.calm;
     let target = auto ? this._autoDetectTarget(player, x, y) : this._buildTargetAt(player, x, y);
     if (calm && target && target.type !== "road" && target.type !== "ship" && !target.multi) target = { ...target, ambiguous: false };
-    if (!target) { this.confirmBuild = null; if (auto) { this.pendingAction = null; this._autoPick = false; } this.render(); return; }
+    if (!target) { this.confirmBuild = null; if (auto) { this.pendingAction = null; this._autoPick = false; } else { const why = this._tapWhy(player, x, y); if (why) this._flashPrompt(why); } this.render(); return; }
     if (target.both) { // ⚓ v0.98: a coast edge that takes a road or a ship: a tiny Road / Ship chooser (a 2nd tap keeps the pick)
       if (this.confirmBuild && this.confirmBuild.id === target.id && (this.confirmBuild.type === "road" || this.confirmBuild.type === "ship")) target = this.confirmBuild;
       else { this._seaChoosePiece(player, target, x, y, auto); return; }
@@ -2169,7 +2261,7 @@ class ColonistFullGame {
     // A second tap on the shown spot builds it, but not when it follows within CONFIRM_TAP_GUARD_MS (a double tap).
     const direct = !auto && (lvl === "never" || (lvl === "unsure" && !target.ambiguous));
     const quick = same && performance.now() - this._cbAt >= CONFIRM_TAP_GUARD_MS;
-    if (direct || quick) { this._commitBuild(player, target); return; }
+    if (direct || quick) { this._applyPiece(player, target); return; }
     if (same) { this.render(); return; }
     if (auto) this.pendingAction = target.type;
     this.confirmBuild = target;
@@ -2208,11 +2300,12 @@ class ColonistFullGame {
     if (!corner && !this.freeRoadsRemaining && (!this.pendingAction || this.pendingAction === "build")) {
       const r = Math.max(0.5 * L, 26) / k;
       let best = null, bd = r;
+      const S = this.api.spots(player.id, { free: false });
       geo.nodes.forEach((n) => {
         const d = Math.hypot(x - n.x, y - n.y);
-        if (d < bd && (this.canBuildCity(player, n.id, false) || this.canBuildSettlement(player, n.id, false))) { bd = d; best = n.id; }
+        if (d < bd && (S.city.has(n.id) || S.settlement.has(n.id))) { bd = d; best = n.id; }
       });
-      if (best != null) corner = { type: this.canBuildCity(player, best, false) ? "city" : "settlement", id: best, ambiguous: true };
+      if (best != null) corner = { type: S.city.has(best) ? "city" : "settlement", id: best, ambiguous: true };
     }
     const edgeT = t && !isCorner(t) ? t : null;
     if (corner) {
@@ -2255,11 +2348,12 @@ class ColonistFullGame {
     const wantSet = pa === "settlement" || (all && !free);
     const wantCity = pa === "city" || (all && !free);
     let node = null, edge = null, ambiguous = false;
+    const S = this.api.spots(player.id, { free }); // legal spots (engine): the hit-test only offers those
     // ⚓ Seafarers: an edge may take a road or a ship ("ship" mode: ships only; Road Building: either)
     const sea = this.sea, wantShip = !!sea && (pa === "ship" || all || free);
-    const edgeType = (id) => (sea ? this._seaEdgeType(player, id, pa === "build" ? null : pa, free) : "road");
-    if (wantSet || wantCity) node = this.findNodeAt(x, y, (id) => (wantCity && this.canBuildCity(player, id, false)) || (wantSet && this.canBuildSettlement(player, id, false)));
-    if (wantRoad || wantShip) edge = this.findEdgeAt(x, y, (id) => (sea ? edgeType(id) != null : this.canBuildRoad(player, id, { free })));
+    const edgeType = (id) => (sea ? this._seaEdgeType(player, id, pa === "build" ? null : pa, free, S) : "road");
+    if (wantSet || wantCity) node = this.findNodeAt(x, y, (id) => (wantCity && S.city.has(id)) || (wantSet && S.settlement.has(id)));
+    if (wantRoad || wantShip) edge = this.findEdgeAt(x, y, (id) => (sea ? edgeType(id) != null : S.road.has(id)));
     if (node != null && edge != null) {
       ambiguous = true;
       const k = this.view.scale || 1; // world units -> CSS px
@@ -2278,11 +2372,11 @@ class ColonistFullGame {
     if (node != null) {
       // ⚓ v1.20 a Seafarers corner that also takes a road or a ship (coast, harbour, ship end) always asks: a tap near it
       // may mean the piece beside it. `multi` survives the calm auto-glow rule.
-      const multi = !!sea && !free && (all || pa === "settlement" || pa === "city") && this.geometry.nodes[node].edgeIds.some((e) => this._seaEdgeType(player, e, null, false) != null);
-      return { type: this.canBuildCity(player, node, false) && wantCity ? "city" : "settlement", id: node, ambiguous: ambiguous || (multi && all), ...(multi ? { multi: true } : {}) };
+      const multi = !!sea && !free && (all || pa === "settlement" || pa === "city") && this.geometry.nodes[node].edgeIds.some((e) => this._seaEdgeType(player, e, null, false, S) != null);
+      return { type: S.city.has(node) && wantCity ? "city" : "settlement", id: node, ambiguous: ambiguous || (multi && all), ...(multi ? { multi: true } : {}) };
     }
     if (edge != null) {
-      const both = !!sea && this._seaBoth(player, edge, pa === "build" ? null : pa, free); // ⚓ v0.98: Road / Ship chooser
+      const both = !!sea && this._seaBoth(player, edge, pa === "build" ? null : pa, free, S); // ⚓ v0.98: Road / Ship chooser
       return both ? { type: edgeType(edge), id: edge, ambiguous, both } : { type: edgeType(edge), id: edge, ambiguous };
     }
     return null;
@@ -3036,7 +3130,8 @@ class ColonistFullGame {
 
     if (this.setupPhase && player?.isHuman) {
       if (this.setupAction === "settlement") {
-        const nodeId = this.findNodeAt(worldX, worldY, (id) => this.canBuildSettlement(player, id, true));
+        const spots = this.api.spots(player.id);
+        const nodeId = this.findNodeAt(worldX, worldY, (id) => spots.settlement.has(id));
         if (nodeId != null) {
           this.hoverNodeId = nodeId;
           this.hoverTooltip = "Place settlement";
@@ -3045,7 +3140,7 @@ class ColonistFullGame {
         }
       } else if (this.setupAction === "road") {
         const edgeId = this.sea ? this._seaSetupEdgeAt(player, worldX, worldY)?.id ?? null // ⚓
-          : this.findEdgeAt(worldX, worldY, (id) => { const e = this.geometry.edges[id]; return e.owner == null && e.nodes.includes(this.lastSetupNodeId); });
+          : this.findEdgeAt(worldX, worldY, (id) => this.api.spots(player.id).road.has(id));
         if (edgeId != null) {
           this.hoverEdgeId = edgeId;
           this.hoverTooltip = "Place road";
@@ -3060,7 +3155,7 @@ class ColonistFullGame {
     // Robber placement: highlight hovered hex
     if (player?.isHuman && this.pendingAction === "robber") { // also before rolling (Knight)
       const hexId = this.findHexAt(worldX, worldY);
-      if (hexId != null && this._robberHexAllowed(hexId, player)) {
+      if (hexId != null && this.api.robberHexes(player.id).has(hexId)) {
         this.hoverHexId = hexId;
         const hex = this.geometry.hexes[hexId];
         const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource] || TERRAIN_NAME[hex.resource]; // ⚓ "Gold field"
@@ -3091,9 +3186,8 @@ class ColonistFullGame {
       return;
     }
     if (humanMain && (this.pendingAction === "settlement" || this.pendingAction === "city")) {
-      const nodeId = this.findNodeAt(worldX, worldY, (id) => (this.pendingAction === "settlement"
-        ? this.canBuildSettlement(player, id, false)
-        : this.canBuildCity(player, id, false)));
+      const spots = this.api.spots(player.id);
+      const nodeId = this.findNodeAt(worldX, worldY, (id) => (this.pendingAction === "settlement" ? spots.settlement : spots.city).has(id));
       const buildable = nodeId != null;
       if (buildable) {
         this.hoverNodeId = nodeId;
@@ -3606,12 +3700,7 @@ class ColonistFullGame {
       btn.innerHTML = `${this._av(v)}<span class="who pc-${v.id}">${v.name}</span><span class="vc">${icon("cards")}${totalCards} card${totalCards === 1 ? "" : "s"}</span>`;
       btn.addEventListener("click", this._guard(() => {
         if (!this.robberVictimOptions?.includes(vid)) return;
-        this.stealFromVictim(currentPlayer, vid);
-        this.robberContext = null;
-        this.robberVictimOptions = [];
-        this.victimPanel.style.display = "none";
-        this.saveToStorage();
-        this.render();
+        this._applySteal(currentPlayer, vid);
       }));
       this.victimOptionsEl.appendChild(btn);
     });
@@ -4011,7 +4100,8 @@ class ColonistFullGame {
     let ok = true;
     for (const r of gets) {
       for (let i = 0; i < this.tradeRequest[r]; i += 1) {
-        if (!this.performBankTrade(player, plan.give, r)) { ok = false; break; }
+        if (!this.api.act({ actor: player.id, type: "tradeBank", give: plan.give, get: r }).ok) { ok = false; break; } // one maritime trade per card
+
         giveRes[plan.give] += plan.rate;
         getRes[r] += 1;
       }
@@ -4062,8 +4152,11 @@ class ColonistFullGame {
     });
   }
 
-  /** Swap with a player who said yes (or whose counter-offer you accepted). */
-  _executePlayerTrade(partner, gave, got) {
+  /**
+   * Swap with a player who said yes (or whose counter-offer you accepted: `counterId`). The yes is the partner's `respondTrade accept` on the
+   * offer (the bot answered when the offer was made; this tap carries it out), a counter is the human's accept of the bot's counter-offer.
+   */
+  _executePlayerTrade(partner, gave, got, counterId = null) {
     const player = this.currentPlayer;
     const ans = this._tradeAnswers;
     if (!player?.isHuman || !partner) return;
@@ -4073,6 +4166,17 @@ class ColonistFullGame {
       this._tradeHint("Trade no longer valid.");
       return;
     }
+    const id = counterId ?? ans?.offerId ?? null;
+    const ui = { swap: { partner, gave, got } };
+    const r = id != null && this.api.hasOffer(id)
+      ? (counterId != null ? this.api.act({ actor: player.id, type: "respondTrade", offer: id, answer: "accept" }, ui) : this.api.dispatchFor(partner.id, { type: "respondTrade", offer: id, answer: "accept" }, ui))
+      : null;
+    if (r && !r.ok) { this._tradeHint(this._say(r.reason)); return; }
+    if (!r) this._playerTradeSwapNow(player, partner, gave, got); // no offer on the table (a script calling this directly): the same swap
+  }
+
+  /** The swap and what the sheet shows after it (UiEngine._do_respondTrade, accept). */
+  _playerTradeSwapNow(player, partner, gave, got) {
     const src = document.querySelector(`#tradePlayerRow [data-partner="${partner.id}"]`)?.getBoundingClientRect();
     this._swapCards(player, gave, partner, got);
     this.addLog(`Traded with ${partner.name}: gave ${resourceString(gave)} for ${resourceString(got)}.`);
@@ -4100,6 +4204,13 @@ class ColonistFullGame {
     if (RESOURCES.some((r) => offer[r] > 0 && request[r] > 0)) { refuse("Can't give and get the same resource."); return; }
     const short = RESOURCES.find((r) => player.resources[r] < offer[r]);
     if (short) { refuse(`Not enough ${RESOURCE_LABEL[short]}.`); return; }
+    const bots = this.players.filter((o) => o.id !== player.id && !o.isHuman).map((o) => o.id);
+    const r = this.api.act({ actor: player.id, type: "offerTrade", to: bots.length ? bots : "all", give: offer, want: request });
+    if (!r.ok) refuse(this._say(r.reason));
+  }
+
+  /** Ask the bots about the human's offer (UiEngine._do_offerTrade): every bot answers at once, one may counter; nothing trades until a ✓ is tapped. */
+  _humanOfferNow(player, offer, request, offerId) {
     // Propose to all players — collect responses
     const responses = [];
     for (const other of this.players) {
@@ -4112,7 +4223,7 @@ class ColonistFullGame {
     if (!acceptors.length) this.addLog(counter ? `${counter.player.name} made a counter-offer.` : "All players rejected your trade offer.");
     // v0.82: never trade on the Offer tap, also when exactly one bot says yes — its ✓ / Trade on the portrait waits
     // for your one tap (the sheet stays open until then)
-    this._tradeAnswers = { offer, request, responses, counter, turnSerial: this.turnSerial };
+    this._tradeAnswers = { offer, request, responses, counter, turnSerial: this.turnSerial, offerId, counterId: counter ? this.api.openCounter(counter, player) : null };
     this._tradeAsked = JSON.stringify([offer, request]);
     const res = this.tradeProposalResult;
     if (res) {
@@ -4123,7 +4234,7 @@ class ColonistFullGame {
           <button type="button" class="tc-no" data-counter-no aria-label="Decline ${counter.player.name}'s counter-offer">${icon("close")}</button>
           <button type="button" class="tc-yes" data-partner="${counter.player.id}" data-counter="1" aria-label="Accept ${counter.player.name}'s counter-offer">${icon("check")}</button>
         </div>` : "";
-      res.querySelector("[data-counter]")?.addEventListener("click", () => this._executePlayerTrade(counter.player, counter.want, counter.give));
+      res.querySelector("[data-counter]")?.addEventListener("click", () => this._executePlayerTrade(counter.player, counter.want, counter.give, this._tradeAnswers?.counterId ?? null));
       res.querySelector("[data-counter-no]")?.addEventListener("click", () => {
         this.addLog(`You declined ${counter.player.name}'s counter-offer.`);
         if (this._tradeAnswers) this._tradeAnswers.counter = null;
@@ -4360,7 +4471,18 @@ class ColonistFullGame {
     });
   }
 
+  /** Answer a bot's offer (accept / decline / it ran out): the human's `respondTrade`. An accept that can no longer be paid is answered "no", as before. */
   resolveIncomingTrade(accepted, expired = false) {
+    const pit = this.pendingIncomingTrade;
+    if (!pit) return;
+    const human = pit.to || this._me();
+    const pay = !!accepted && !!human && hasResources(human.resources, pit.want) && hasResources(pit.fromPlayer.resources, pit.give);
+    const r = human ? this.api.act({ actor: human.id, type: "respondTrade", offer: pit.id, answer: pay ? "accept" : "reject" }, { incoming: { accepted, expired } }) : { ok: false };
+    if (!r.ok) this._resolveIncomingNow(accepted, expired); // no seat to answer for it: the old path
+  }
+
+  /** The answer to a bot's offer (UiEngine._do_respondTrade): the swap, the log lines, the promise the bot's turn waits on. */
+  _resolveIncomingNow(accepted, expired = false) {
     if (!this.pendingIncomingTrade) return;
     const { fromPlayer, give, want, resolve } = this.pendingIncomingTrade;
     const human = this.pendingIncomingTrade.to || this._me();
@@ -6610,10 +6732,8 @@ class ColonistFullGame {
   _confirmBuildStillValid(player) {
     const cb = this.confirmBuild;
     if (!cb) return true;
-    if (cb.type === "road") return this.canBuildRoad(player, cb.id, { free: this.freeRoadsRemaining > 0 });
-    if (cb.type === "ship") return this.canBuildShip(player, cb.id, { free: this.freeRoadsRemaining > 0 }); // ⚓
-    if (cb.type === "settlement") return this.canBuildSettlement(player, cb.id, false);
-    if (cb.type === "city") return this.canBuildCity(player, cb.id, false);
+    const S = this.api.spots(player.id);
+    if (cb.type === "road" || cb.type === "ship" || cb.type === "settlement" || cb.type === "city") return !!S[cb.type]?.has(cb.id);
     return true;
   }
 
@@ -6636,6 +6756,13 @@ class ColonistFullGame {
     const human = this._me();
     if (!r || !human || r.paused || this.winner || this.setupPhase || this.autoplayInterval) return;
     if (r.ready.includes(human.id) || this._rushChoiceOpen()) return;
+    const res = this.api.act({ actor: human.id, type: "ready" });
+    if (!res.ok) this._flashPrompt(this._say(res.reason));
+  }
+
+  /** Vote to roll now (UiEngine._do_ready). */
+  _humanReadyNow(human) {
+    const r = this.rush;
     r.ready.push(human.id);
     r.readyAt = r.clockMs;
     this._readyAtWall = performance.now();
@@ -6677,6 +6804,15 @@ class ColonistFullGame {
   _armRushOffer() {
     const r = this.rush, o = r?.offers?.[0];
     if (o && !o.armed) { o.armed = true; o.expiresAt = r.clockMs + RUSH_OFFER_MS; }
+  }
+
+  /** A bot's Rush offer answered by the human: `respondTrade` (an accept that can no longer be paid is answered "no" and the old code logs it). */
+  _answerRushOffer(offerId, yes) {
+    const human = this._me(), o = this.rush?.offers.find((x) => x.id === offerId);
+    if (!human || !o) { this._resolveRushOffer(offerId, yes); return; }
+    const pay = yes && hasResources(human.resources, o.want) && hasResources(this.players[o.fromId].resources, o.give);
+    const r = this.api.act({ actor: human.id, type: "respondTrade", offer: offerId, answer: pay ? "accept" : "reject" }, { rushOffer: { yes } });
+    if (!r.ok) this._resolveRushOffer(offerId, yes); // a pick is open or the clock holds: the card still answers as it always did
   }
 
   _resolveRushOffer(offerId, accept) {
@@ -6803,7 +6939,7 @@ class ColonistFullGame {
       if (performance.now() < (this._offerTapBlockUntil || 0)) return; // the next card just came up
       this._guardPrimaryTap(650, el.querySelector(".rush-offer:last-child"));
       this._offerAnsweredAt = performance.now();
-      return pit && !this.rush ? this.resolveIncomingTrade(yes) : this._resolveRushOffer(id, yes);
+      return pit && !this.rush ? this.resolveIncomingTrade(yes) : this._answerRushOffer(id, yes);
     };
     el.querySelectorAll("[data-accept]").forEach((b) => b.addEventListener("click", () => resolve(Number(b.dataset.accept), true)));
     el.querySelectorAll("[data-decline]").forEach((b) => b.addEventListener("click", () => resolve(Number(b.dataset.decline), false)));
@@ -7877,9 +8013,9 @@ class ColonistFullGame {
     const g = this.geometry;
     if (this.setupPhase) {
       if (!this.setupAction) return null;
-      if (this.setupAction === "settlement") g.nodes.forEach((n) => { if (this.canBuildSettlement(player, n.id, true)) nodes.push(n.id); });
+      if (this.setupAction === "settlement") nodes.push(...this.api.spots(player.id).settlement);
       else if (this.setupAction === "road" && this.lastSetupNodeId != null && this.sea) return { nodes, cities, ...this._seaSetupSpots(player), type: "road" }; // ⚓
-      else if (this.setupAction === "road" && this.lastSetupNodeId != null) g.edges.forEach((e) => { if (e.owner == null && e.nodes.includes(this.lastSetupNodeId)) edges.push(e.id); });
+      else if (this.setupAction === "road" && this.lastSetupNodeId != null) edges.push(...this.api.spots(player.id).road);
       return { nodes, cities, edges, type: this.setupAction };
     }
     const type = this.pendingAction;
@@ -7888,11 +8024,12 @@ class ColonistFullGame {
     const free = this.freeRoadsRemaining > 0;
     const all = type === "build" && !free;
     const ships = [];
-    if (type === "settlement" || all) g.nodes.forEach((n) => { if (this.canBuildSettlement(player, n.id, false)) nodes.push(n.id); });
-    if (type === "city" || all) g.nodes.forEach((n) => { if (this.canBuildCity(player, n.id, false)) cities.push(n.id); });
-    if (type === "road" || all || (type === "build" && free)) g.edges.forEach((e) => { if (this.canBuildRoad(player, e.id, { free })) edges.push(e.id); });
+    const S = this.api.spots(player.id, { free }); // the legal spots are the engine's
+    if (type === "settlement" || all) nodes.push(...S.settlement);
+    if (type === "city" || all) cities.push(...S.city);
+    if (type === "road" || all || (type === "build" && free)) edges.push(...S.road);
     // ⚓ Seafarers: ship spots (a coast edge that also takes a road is shown as a road spot)
-    if (this.sea && (type === "ship" || all || free)) g.edges.forEach((e) => { if (this.canBuildShip(player, e.id, { free }) && (type === "ship" || !edges.includes(e.id))) ships.push(e.id); });
+    if (this.sea && (type === "ship" || all || free)) S.ship.forEach((id) => { if (type === "ship" || !edges.includes(id)) ships.push(id); });
     // v0.84 auto-glow (phones): calm — roads / ships only light up while no settlement or city can be built
     if (all && this.isMobileLayout && (nodes.length || cities.length)) return { nodes, cities, edges: [], ships: [], type, calm: true };
     return { nodes, cities, edges, ships, type };
@@ -8171,7 +8308,7 @@ class ColonistFullGame {
     const ctx = this.ctx;
     const px = 1 / (this.view.scale || 1);
     const mover = this.currentPlayer;
-    const legal = new Set(this._legalRobberHexes(mover).map((h) => h.id));
+    const legal = this.api.robberHexes(mover.id);
     const sel = this.confirmBuild?.type === "robber" ? this.confirmBuild.id : null;
     this.geometry.hexes.forEach((hex) => {
       if (!legal.has(hex.id)) {
@@ -9908,6 +10045,18 @@ class ColonistFullGame {
   }
 
   _confirmDiscard() {
+    const pd = this.pendingDiscard;
+    if (!pd) return;
+    if (this._applyDepth > 0) return this._confirmDiscardNow(); // called by apply() itself (an engine driving the game): the action is already being applied
+    const cards = {};
+    RESOURCES.forEach((r) => { if (pd.selected[r] > 0) cards[r] = pd.selected[r]; });
+    if (sumResources(cards) !== pd.count) { this._confirmDiscardNow(); return; } // not a count the dock lets through (a script, an auto-discard): handed back as marked, as before
+    const r = this.api.act({ actor: pd.player.id, type: "discard", cards });
+    if (!r.ok) { this._flashPrompt(this._say(r.reason)); this.sfx.error?.(); }
+  }
+
+  /** Hand the marked cards back (UiEngine._do_discard). */
+  _confirmDiscardNow() {
     if (!this.pendingDiscard) return;
     const { player, selected, resolve } = this.pendingDiscard;
     this.payToBank(player, selected);
@@ -10373,7 +10522,7 @@ class ColonistFullGame {
     const ic = this.getConfirmIconCenter();
     if (!ic) return;
     if (this.confirmBuild?.type === "robber") {
-      this._commitRobber(this.currentPlayer, this.confirmBuild.id, this.confirmBuild.victim);
+      this._applyRobber(this.currentPlayer, this.confirmBuild.id, this.confirmBuild.victim);
       return;
     }
     this._viaIcon = true;
@@ -10569,7 +10718,7 @@ class ColonistFullGame {
     this._robberTimer = this._later(() => {
       this._robberTimer = null;
       if (this.confirmBuild !== cb || this.pendingAction !== "robber" || !this.currentPlayer?.isHuman) return;
-      this._commitRobber(this.currentPlayer, cb.id, cb.victim);
+      this._applyRobber(this.currentPlayer, cb.id, cb.victim);
     }, ROBBER_SETTLE_MS);
   }
 
@@ -10652,8 +10801,8 @@ class ColonistFullGame {
   }
 
   _canPlaceAnything(player) {
-    const g = this.geometry;
-    return g.edges.some((e) => this.canBuildRoad(player, e.id)) || g.nodes.some((n) => this.canBuildSettlement(player, n.id, false) || this.canBuildCity(player, n.id, false));
+    const S = this.api.spots(player.id, { free: false });
+    return S.road.size > 0 || S.settlement.size > 0 || S.city.size > 0;
   }
 
   /** Discard on a 7: tap cards in your hand to mark them (no sheet). */
@@ -10757,6 +10906,15 @@ class ColonistFullGame {
     const dp = this.devPick;
     const player = this.currentPlayer;
     if (!dp || !player?.isHuman || dp.picks.length !== dp.count) return;
+    if (this._applyDepth > 0) return this._humanPickNow(player); // called by apply() itself
+    const a = dp.type === "yearOfPlenty" ? { actor: player.id, type: "pick", resources: dp.picks.slice() } : { actor: player.id, type: "pick", resource: dp.picks[0] };
+    const r = this.api.act(a);
+    if (!r.ok) this._flashPrompt(this._say(r.reason));
+  }
+
+  /** Take the picked cards (UiEngine._do_pick): Year of Plenty from the bank, Monopoly from the table. */
+  _humanPickNow(player) {
+    const dp = this.devPick;
     this.devPick = null;
     this.devPlayed = null;
     const logLen = this.logEntries.length;
@@ -10884,9 +11042,8 @@ class ColonistFullGame {
     const free = this.freeRoadsRemaining > 0 && (t === "road" || t === "ship");
     const miss = free ? [] : RESOURCES.filter((r) => (COSTS[t][r] || 0) > human.resources[r]).map((r) => [r, COSTS[t][r] - human.resources[r]]);
     if (miss.length) return { miss, short: "need", text: `${t === "settlement" ? "Settlement" : t[0].toUpperCase() + t.slice(1)} · you need ${missingCostString(human.resources, COSTS[t])} more` };
-    const spot = { road: () => this.geometry.edges.some((e) => this.canBuildRoad(human, e.id, { free })), settlement: () => this.geometry.nodes.some((n) => this.canBuildSettlement(human, n.id, false)),
-      city: () => this.geometry.nodes.some((n) => this.canBuildCity(human, n.id, false)), ship: () => this.geometry.edges.some((e) => this.canBuildShip?.(human, e.id, { free })) };
-    if (!spot[t]()) return { short: "no spot", text: `No free spot for a ${t}${t === "ship" ? " · Ships start from a coastal settlement or road" : ""}` };
+    const S = this.api.spots(human.id, { free }); // set-up has no build card; a set-up phase never gets here (not _buildPhase)
+    if (!S[t]?.size) return { short: "no spot", text: `No free spot for a ${t}${t === "ship" ? " · Ships start from a coastal settlement or road" : ""}` };
     if (this.freeRoadsRemaining > 0 && t !== "road" && t !== "ship") return { short: "roads first", text: "Place the free roads first" };
     return null;
   }
@@ -11063,12 +11220,7 @@ class ColonistFullGame {
     if (d.steal != null) {
       const vid = Number(d.steal);
       if (!this.robberVictimOptions?.includes(vid)) return;
-      this.stealFromVictim(cur, vid);
-      this.robberContext = null;
-      this.robberVictimOptions = [];
-      if (this.victimPanel) this.victimPanel.style.display = "none";
-      this.saveToStorage();
-      this.render();
+      this._applySteal(cur, vid);
       return;
     }
     const cb = this.confirmBuild?.type === "robber" ? this.confirmBuild : null;
@@ -11076,10 +11228,10 @@ class ColonistFullGame {
       const id = Number(d.victim);
       if (!this._stealVictims(cb.id, cur).includes(id)) return;
       if (this.confirmPlacements) { cb.victim = id; this.sfx.click(); this.render(); }
-      else this._commitRobber(cur, cb.id, id);
+      else this._applyRobber(cur, cb.id, id);
       return;
     }
-    if ("robNow" in d && cb) { this._commitRobber(cur, cb.id, cb.victim ?? this._defaultRobberVictim(cb.id, cur)); return; }
+    if ("robNow" in d && cb) { this._applyRobber(cur, cb.id, cb.victim ?? this._defaultRobberVictim(cb.id, cur)); return; }
     if ("robUndo" in d) { this._cancelRobberTimer(); this.confirmBuild = null; this.sfx.click(); this.render(); return; }
     if ("place" in d) { this._confirmViaIcon(); return; }
     if ("placeCancel" in d) { this.confirmBuild = null; if (this._autoPick) { this.pendingAction = null; this._autoPick = false; } this.render(); return; }
