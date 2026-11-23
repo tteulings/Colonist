@@ -1,6 +1,7 @@
 // Monte Carlo toolkit: collectors. A collector sees every finished future (add(branch, j, g, leafVector)), may listen to the game's events while
 // the futures run (attach / detach), and reports plain JSON (result()), so a worker's partial results merge: merge(parts) of the parts of futures
 // split over workers equals the result of one run over all of them (addition and concatenation only).
+import { traceStart, featuresOf } from "../review/why-mc.js";
 const sumTo = (a, b) => { for (let i = 0; i < b.length; i += 1) a[i] += b[i]; return a; };
 
 /** How often each seat won (and how often nobody did within the horizon), per branch. */
@@ -34,4 +35,17 @@ export function eventTally(types = null, branches = 1) {
   return { name: "events", attach(g) { g.events?.on("mc-tally", fn); }, detach(g) { g.events?.off("mc-tally"); },
     add() {}, before(b) { cur = b; /* the events of the next future of branch b are counted under b */ }, result: () => ({ counts }),
     merge(parts) { const r = { counts: counts.map(() => ({})) }; parts.forEach((p) => p.counts.forEach((c, b) => Object.entries(c).forEach(([k, v]) => { r.counts[b][k] = (r.counts[b][k] || 0) + v; }))); return r; } };
+}
+
+/** The feature trace of one seat (src/review/why-mc.js traceStart / featuresOf) per future and branch: what the "why is A better than B" reading
+ *  attributes. Observers are installed at the start of each future and removed at its end (also when a future throws). result(): { feats[b][j] }. */
+export function featureTrace(me, branches = 1) {
+  let ts = null; const feats = Array.from({ length: branches }, () => []);
+  const c = { name: "trace", hook: null,
+    begin(g) { ts = traceStart(g, me); c.hook = ts.hook; },
+    add(b, j, g) { const tr = ts.end(); ts = null; c.hook = null; feats[b][j] = featuresOf(tr, { vp: g.players[me].victoryPoints, won: !!g.winner && g.winner.id === me }); },
+    abort() { if (ts) ts.end(); ts = null; c.hook = null; },
+    result: () => ({ feats }),
+    merge(parts) { const r = { feats: feats.map(() => []) }; parts.forEach((p) => p.feats.forEach((f, b) => { f.forEach((x, j) => { r.feats[b][j] = x; }); })); return r; } };
+  return c;
 }

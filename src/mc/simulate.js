@@ -18,7 +18,7 @@ export const reinstate = (g, x) => { restore(g, x.s); g.diceResult = x.dr; g.dic
 
 /** `turns` turn ends of normal play: every seat plays its own strategy (weights jittered by ±jitter, as the search does), the dice from their own
  *  stream `dice`, every other random choice of the bots from `rng`. Stops early on a win or after 250 rounds. */
-export function playTurns(g, turns, rng, dice, jitter = 0.15) {
+export function playTurns(g, turns, rng, dice, jitter = 0.15, onEnd = null) {
   const orig = Math.random; Math.random = rng;
   const own = Object.prototype.hasOwnProperty.call(g, "rollDice"), keepDice = g.rollDice;
   g.rollDice = function () { const d1 = 1 + Math.floor(dice() * 6), d2 = 1 + Math.floor(dice() * 6); this.lastDiceTotal = d1 + d2; return { total: d1 + d2, d1, d2 }; };
@@ -34,6 +34,7 @@ export function playTurns(g, turns, rng, dice, jitter = 0.15) {
       if (g.phase === "main") g.executeAiMainPhase(p);
       if (g.winner) break;
       g.endTurn();
+      if (onEnd) onEnd(p); // a collector's hook (the feature trace of src/review/why-mc.js)
       ended += 1;
     }
   } finally {
@@ -46,11 +47,11 @@ export function playTurns(g, turns, rng, dice, jitter = 0.15) {
 /** One future from the current position of g, with the agents off (a search never nests a search; timers muted): `start(g)` first (a branch's
  *  first move or forced chance outcome), then the hidden deck is re-dealt (`determinize(g, rng)`; false: not), then `turns` turn ends of play when
  *  `when(g)` holds (default: nobody has won). */
-export function rollFuture(g, { rng, dice, turns = 7, jitter = 0.15, start = null, determinize = (gg, r) => shuffle(gg.devDeck, r), when = null }) {
+export function rollFuture(g, { rng, dice, turns = 7, jitter = 0.15, start = null, determinize = (gg, r) => shuffle(gg.devDeck, r), when = null, onEnd = null }) {
   withoutAgents(g, () => {
     if (start) start(g, rng);
     if (determinize) determinize(g, rng);
-    if (when ? when(g) : !g.winner) playTurns(g, turns, rng, dice, jitter);
+    if (when ? when(g) : !g.winner) playTurns(g, turns, rng, dice, jitter, onEnd);
   });
 }
 
@@ -72,7 +73,9 @@ export function simulate(o) {
       branches.forEach((br, b) => {
         collect.forEach((c) => c.before?.(b, j));
         reinstate(g, world);
-        rollFuture(g, { rng: mulberry32(fut.policy), dice: mulberry32(fut.dice), turns, jitter, determinize, when, start: br.start });
+        collect.forEach((c) => c.begin?.(g, b, j)); // (after the position is back, before the branch's first move: a tracer installs its observers here)
+        const hooks = collect.map((c) => c.hook).filter(Boolean), onEnd = hooks.length ? (pl) => hooks.forEach((h) => h(pl)) : null;
+        try { rollFuture(g, { rng: mulberry32(fut.policy), dice: mulberry32(fut.dice), turns, jitter, determinize, when, start: br.start, onEnd }); } catch (e) { collect.forEach((c) => c.abort?.(g)); throw e; }
         const v = leaf(g);
         samples[b].push(v);
         collect.forEach((c) => c.add(b, j, g, v));

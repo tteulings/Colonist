@@ -4,6 +4,7 @@
 //   3 simulate: seeded and repeatable, a split of the futures equals the whole run, branches under the same futures are paired
 //   4 collectors: counts / points / events add up, merge(parts) = the whole
 //   5 runners: InlineRunner = WorkerPool (futures split over 3 jobs, and one luck job)
+//   7 step-mc identity (posValue / valueAt, tests/fixtures/mc198-step.json) and the why-mc feature trace as a collector
 //   6 luck identity: luckEvent / luckSeats numbers are byte-identical to those of the code before the port (tests/fixtures/mc198-luck.json: the hash of
 //     each result, made by the pristine v1.97 tree; --full runs every stored event, the default a representative subset)
 import fs from "node:fs";
@@ -12,6 +13,8 @@ import { bootHeadless } from "../src/api/headless.js";
 import { newGame } from "../src/api/engine.js";
 import * as SIM from "../src/master/sim.js";
 import { luckEvent, luckEvents, luckSeats } from "../src/review/luck-mc.js";
+import { posValue, valueAt } from "../src/review/step-mc.js";
+import { traceStart, featuresOf } from "../src/review/why-mc.js";
 import { unpackRecs } from "../src/review/pack.js";
 import { loadRecord } from "../src/review/engine.js";
 import * as MC from "../src/mc/index.js";
@@ -161,6 +164,40 @@ const run = (o) => MC.simulate({ g, world, leaf, turns: 4, ...o });
   if (process.argv.includes("--dump")) fs.writeFileSync(process.argv[process.argv.indexOf("--dump") + 1], JSON.stringify(out));
   const bad = Object.keys(out).filter((k) => sha(out[k]) !== GOLD[k]);
   ok(Object.keys(out).length >= 15 && !bad.length, `luck identity: ${Object.keys(out).length} results (dice own + grouped, dev, steal, seat order; classic / Seafarers / 5-6 / balanced dice) hash-equal to the pre-port numbers${full ? " (full)" : ""}`, bad);
+}
+
+// ── 7 step-mc identity (the step ledger's position values, ported onto simulate) ──
+{
+  const GOLD = JSON.parse(fs.readFileSync(root + "tests/fixtures/mc198-step.json", "utf8")), out = {};
+  for (const i of [0, 12, 30, 60, 90, 150, 200]) { const r = recs[Math.min(i, recs.length - 1)]; out["ui191:" + i] = strip(posValue(g, base, { rec: r, F: 6 })); if (i % 2 === 0) out["ui191:" + i + ":pass"] = strip(posValue(g, base, { rec: r, F: 5, pass: true })); out["ui191:" + i + ":fit"] = strip(valueAt(g, base, r, { futures: 4, leaf: "fit2", jOff: 3, seed: 7 })); }
+  for (const [name, spec, turns, seed] of [["classic4", { seats: 4 }, 40, 5], ["sea3", { seats: 3, sea: true }, 40, 6], ["six", { seats: 6 }, 40, 7], ["deck", { seats: 4, dice: "balanced" }, 30, 8]]) {
+    for (const extra of [0, 3]) {
+      const e = newGame(g, { ...spec, seed }); e.release();
+      const rng = SIM.mulberry32(seed * 7 + 1); Math.random = rng;
+      let k = 0; while (g.setupPhase && k++ < 80) { g.setupAction = null; g.processSetupQueue(); }
+      SIM.rollout(g, turns + extra, rng, {});
+      const rec = { st: JSON.stringify(g.serializeState()), trk: g._aiCardTrack?.est || null, ts: g.turnSerial, pid: g.currentPlayerIndex };
+      out[name + ":" + extra] = strip(posValue(g, {}, { rec, F: 6 }));
+      out[name + ":" + extra + ":pass"] = strip(posValue(g, {}, { rec, F: 4, pass: true }));
+    }
+  }
+  const bad = Object.keys(GOLD).filter((k) => sha(out[k]) !== GOLD[k]);
+  ok(Object.keys(out).length === Object.keys(GOLD).length && !bad.length, `step-mc identity: ${Object.keys(out).length} position values (futures, pass valuation, fit2 leaf, jOff; classic / Seafarers / 5-6 / balanced dice) hash-equal to the pre-port numbers`, bad);
+}
+// ── why-mc as a collector: the feature trace equals tracing by hand around the same rollout; the observers leave the game as they found it ──
+{
+  const own0 = ["placeSettlement", "placeCity", "endTurn", "distributeResources"].map((k) => Object.prototype.hasOwnProperty.call(g, k));
+  const cases = [["classic", () => loadRecord(g, base, recs[100])]];
+  for (const [name, spec, seed] of [["sea", { seats: 3, sea: true }, 6], ["six", { seats: 6 }, 7]]) cases.push([name, () => { played(spec, seed, 30); }]);
+  for (const [name, setup] of cases) {
+    setup(); if (g.phase !== "main" && g.phase !== "pre_roll") continue;
+    const w = MC.capture(g), me = g.currentPlayerIndex, F = MC.futures({ seed: 131 }), by = [];
+    for (let j = 0; j < 4; j += 1) { MC.reinstate(g, w); const ts = traceStart(g, me); const f = F.rngs(j); MC.rollFuture(g, { rng: f.policy, dice: f.dice, turns: 6, onEnd: ts.hook }); by.push(featuresOf(ts.end(), { vp: g.players[me].victoryPoints, won: !!g.winner && g.winner.id === me })); }
+    const col = MC.featureTrace(me); MC.simulate({ g, world: w, F, n: 4, turns: 6, collect: [col], headless: false });
+    const feats = col.result().feats[0];
+    ok(JSON.stringify(feats) === JSON.stringify(by) && by.some((f) => f.got10 > 0), `featureTrace (${name}): the collector's features equal tracing by hand`, by[0]);
+  }
+  ok(own0.every((had, i) => had === Object.prototype.hasOwnProperty.call(g, ["placeSettlement", "placeCity", "endTurn", "distributeResources"][i])), "featureTrace: the observers are removed after the run");
 }
 console.log(fails ? `\n${fails} FAILED` : "\nall ok");
 process.exit(fails ? 1 : 0);
