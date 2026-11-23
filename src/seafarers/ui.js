@@ -101,7 +101,10 @@ export const SeaGame = {
    *  is direct, else it becomes the chosen spot (Place / a 2nd tap builds it); a mode-less pick only selects. */
   _seaChoosePiece(player, target, x, y, auto) {
     const modeless = !this.pendingAction;
-    this._seaOpenChooser(x, y, "Build a road or a ship here", [["road", "Road"], ["ship", "Ship"]].map(([type, label]) => ({
+    const NAME = { road: "Road", ship: "Ship" }, free = this.freeRoadsRemaining > 0;
+    // the pieces the tap could mean are the engine's candidates for that edge (intentFor over the legal builds)
+    const pieces = this.api.candidates(player.id, { edge: target.id }, null, { free }).map((a) => a.piece).filter((t) => NAME[t]);
+    this._seaOpenChooser(x, y, "Build a road or a ship here", (pieces.length ? ["road", "ship"].filter((t) => pieces.includes(t)) : ["road", "ship"]).map((t) => [t, NAME[t]]).map(([type, label]) => ({
       piece: type, id: target.id, label, run: () => this._seaPickBuild(player, { type, id: target.id }, modeless, auto) })));
   },
 

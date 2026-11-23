@@ -2017,11 +2017,7 @@ class ColonistFullGame {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner || !this._buildPhase()) return;
     if ((this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return; // Cannot override robber placement / discard
-    if (["road", "settlement", "city", "ship"].includes(action) && this.piecesLeft(player, action) <= 0) return;
-    if (action === "ship" && (!this.sea || (!this.freeRoadsRemaining && !hasResources(player.resources, COSTS.ship)))) return; // ⚓
-    if (action === "road" && !this.freeRoadsRemaining && !hasResources(player.resources, COSTS.road)) return;
-    if (action === "settlement" && !hasResources(player.resources, COSTS.settlement)) return;
-    if (action === "city" && !hasResources(player.resources, COSTS.city)) return;
+    if (["road", "settlement", "city", "ship"].includes(action) && !this.api.tools(player.id)[action].ok) return; // pieces left, cards (the engine's tools(): ⚓ ships only in Seafarers)
     if (this.freeRoadsRemaining > 0 && action !== "road" && action !== "ship") return; // Road Building: place the free roads (or ships) first
     this._dropUndo();
     if (this.sea) this.sea.moveSel = null; // ⚓
@@ -9313,15 +9309,16 @@ class ColonistFullGame {
     this.nextTurnBtn.disabled = !!this.winner || humanTurn || this.autoplayInterval != null || this.isRush();
     const canBuildNow = humanTurn && this._buildPhase() && !robberBlocking;
     const piecesHint = (type) => (this.piecesLeft(human, type) <= 0 ? `No ${type}s left` : null);
-    setButtonState(this.buildRoadBtn, canBuildNow && (hasRoadCost || this.freeRoadsRemaining > 0) && !piecesHint("road"),
+    const T = this.api.tools(human.id); // the engine's view of what the seat can pay for / still has
+    setButtonState(this.buildRoadBtn, canBuildNow && T.road.ok,
       piecesHint("road") || (roadMissing ? `Need ${roadMissing}` : "Not available now"), "Build a road (1)");
-    setButtonState(this.buildSettlementBtn, canBuildNow && hasSettlementCost && !piecesHint("settlement"),
+    setButtonState(this.buildSettlementBtn, canBuildNow && T.settlement.ok,
       piecesHint("settlement") || (settlementMissing ? `Need ${settlementMissing}` : "Not available now"), "Build a settlement (2)");
-    setButtonState(this.buildCityBtn, canBuildNow && hasCityCost && !piecesHint("city"),
+    setButtonState(this.buildCityBtn, canBuildNow && T.city.ok,
       piecesHint("city") || (cityMissing ? `Need ${cityMissing}` : "Not available now"), "Upgrade to a city (3)");
     if (this.buildShipBtn) { // ⚓ Seafarers
       const shipMissing = missingCostString(human.resources, COSTS.ship);
-      setButtonState(this.buildShipBtn, !!this.sea && canBuildNow && (hasResources(human.resources, COSTS.ship) || this.freeRoadsRemaining > 0) && this.piecesLeft(human, "ship") > 0,
+      setButtonState(this.buildShipBtn, !!this.sea && canBuildNow && T.ship.ok,
         this.sea && this.piecesLeft(human, "ship") <= 0 ? "No ships left" : shipMissing ? `Need ${shipMissing}` : "Not available now", "Build a ship (4)");
       const left = this.buildShipBtn.querySelector(".left");
       if (left) left.textContent = this.sea ? `${this.piecesLeft(human, "ship")} left` : "";
@@ -9335,7 +9332,7 @@ class ColonistFullGame {
       const left = this.moveShipBtn.querySelector(".left");
       if (left) left.textContent = !this.sea ? "" : n > 0 ? `${n} can move` : this.sea.moved?.has(mover?.id) ? "moved" : "none can";
     }
-    setButtonState(this.buyDevBtn, canBuildNow && hasDevCost && this.devDeck.length > 0,
+    setButtonState(this.buyDevBtn, canBuildNow && T.dev.ok,
       this.devDeck.length <= 0 ? "Deck empty" : devMissing ? `Need ${devMissing}` : "Not available now", "Buy a development card (B)");
     // pieces left + which cost icons are still missing
     [["road", this.buildRoadBtn], ["settlement", this.buildSettlementBtn], ["city", this.buildCityBtn], ["development", this.buyDevBtn]].forEach(([type, btn]) => {
