@@ -1604,6 +1604,7 @@ class ColonistFullGame {
     this._markLive(true);
     this.settings = normalizeSettings(settings);
     ColonistFullGame.saveLastSettings(this.settings);
+    this._hostBroken = false; // a new game gets the host's in-app bots again
     this.resetGame();
     this._buildStrategyUI();
   }
@@ -2574,7 +2575,7 @@ class ColonistFullGame {
   /** Move the robber to a chosen (legal) tile and steal — the confirm step of robber mode. */
   _commitRobber(player, hexId, chosenVictim = null) {
     if (this.pendingAction !== "robber" || !this._robberHexAllowed(hexId, player)) return;
-    this._cancelRobberTimer();
+    if (!this._rvNoRec) this._cancelRobberTimer();
     this.confirmBuild = null;
     this.devPlayed = null; // a Knight can no longer be taken back
     const hex = this.geometry.hexes[hexId];
@@ -2587,7 +2588,7 @@ class ColonistFullGame {
     // Check for steal victims
     const victims = this._stealVictims(hexId, player);
     if (victims.length === 0) {
-      this.emit({ type: "noVictim", seat: player.id });
+      if (!this._rvNoRec) this.emit({ type: "noVictim", seat: player.id }); // _rvNoRec: the Rush auto move, silent as v1.96's moveRobberAndSteal
       this.robberContext = null;
     } else if (victims.length === 1 || victims.includes(chosenVictim)) {
       this.stealFromVictim(player, victims.includes(chosenVictim) ? chosenVictim : victims[0]);
@@ -2597,6 +2598,7 @@ class ColonistFullGame {
       this.robberVictimOptions = victims;
       this.showVictimPanel(player, victims);
     }
+    if (this._rvNoRec) return; // the Rush auto move saves and renders afterwards, as v1.96 did
     this.saveToStorage();
     this.render();
   }

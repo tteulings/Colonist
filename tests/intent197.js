@@ -44,7 +44,7 @@ async function session(b, port, seed, viewport, mode = "classic") {
         p.victoryPoints, p.knightsPlayed, Object.values(p.devCards).join("") + "/" + Object.values(p.newDevCards).join("")].join("|")),
       log: g.logEntries.slice(-3).map((l) => l.text),
       btn: ["buildRoadBtn", "buildSettlementBtn", "buildCityBtn", "buildShipBtn", "buyDevBtn", "mBuildBtn", "moveShipBtn"].map((id) => { const e = document.getElementById(id); return e ? id + ":" + (e.disabled ? 1 : 0) + (e.getAttribute("aria-disabled") || "") + "|" + (e.title || "") : id + ":-"; }).join(";"),
-      rv: (g._rv?.recs || []).map((r) => r.k + JSON.stringify(r.a ?? null)).join(";"), ev: mode === "gold" ? null : g.stats?.ev?.length ?? null }; }, mode); // (gold: an Undone pick left a phantom stats event on main; the staged pick never reaches the game) // the review recorder and the stats recorder see the same moves
+      rv: (g._rv?.recs || []).map((r) => r.k + JSON.stringify(r.a ?? null)).join(";"), ev: g.stats?.ev?.length ?? null }; }, mode); // the review recorder and the stats recorder see the same moves
     trace.push({ label, ...s }); if (process.env.DEBUG) console.log("  snap", label, JSON.stringify({ t: s.turn, ph: s.phase, cur: s.cur, pa: s.pa, log: s.log.slice(-1) })); return s; };
   // set-up and the bots' pauses run on timers: only the human's own pieces are compared there
   const snapLite = async (label) => { const s = await E(() => { const me = window.__colonistGame.players.find((p) => p.isHuman); return { s: [...me.settlements].sort((x, y) => x - y).join("."), r: [...me.roads].sort((x, y) => x - y).join("."), sh: me.ships ? [...me.ships].sort((x, y) => x - y).join(".") : "" }; }); trace.push({ label, ...s }); if (process.env.DEBUG) console.log("  lite", label, JSON.stringify(s)); };
@@ -256,7 +256,7 @@ async function session(b, port, seed, viewport, mode = "classic") {
     await E(() => { const g = window.__colonistGame; const me = g.players.find((p) => p.isHuman); [...me.roads].filter((x) => x >= 900).forEach((x) => me.roads.delete(x)); g.render(); });
   };
 
-  // Seafarers gold: per-card taps with Undo, one pickGold when complete
+  // Seafarers gold: per-card taps with Undo (each tap takes the card at once, as v1.96)
   const gold = async () => {
     await startMode("sea"); await doSetup("gold");
     await forceDice(8); await roll(); await myTurn("main");
@@ -417,7 +417,7 @@ async function session(b, port, seed, viewport, mode = "classic") {
     if (mine.apiLog) {
       const types = [...new Set(mine.apiLog)];
       console.log(`     api log: ${mine.apiLog.length} actions: ${types.join(", ")}`);
-      const want = { gold: ["pickGold", "pickGold*"], hotseat: ["offerTrade", "respondTrade"], rush7: ["moveRobber*", "steal*", "discard*", "skipFree*"], chooser: ["build"] }[mode];
+      const want = { gold: ["pickGold*"], hotseat: ["offerTrade", "respondTrade"], rush7: ["moveRobber*", "steal*", "discard*", "skipFree*"], chooser: ["build"] }[mode];
       for (const w of want || []) check(types.includes(w), `${tag}: the API log holds ${w}`);
     }
     if (BASE) {
