@@ -41,7 +41,7 @@ import { LiveBarMixin } from "./live-bar.js"; // v1.59 optional live win-chance 
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
-import { createUiEngine } from "./ui/intent.js"; // architecture step 3: human input goes through the Action API
+import { createUiEngine } from "./ui/intent.js?v=196"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS } from "./seafarers/index.js";
 
 import { RESOURCES, COSTS_SEA as COSTS, PIECE_LIMITS_SEA as PIECE_LIMITS, BANK_SIZE, DICE_WAYS as DICE_WEIGHT, DEV_CARD_TYPES, DEV_DECK, deckList } from "./core/constants.js"; // (COSTS / PIECE_LIMITS carry the Seafarers ship: it is only looked up when this.sea)
