@@ -126,9 +126,9 @@ function settingsFor(spec) {
 }
 
 function agentsFor(spec, record) {
-  return spec.seats.map((name) => {
+  return spec.seats.map((name, si) => {
     if (!BUDGETS[name]) return null;
-    const a = makeMaster({ ...BUDGETS[name], ...(spec.sea ? { leaf: SEA_LEAF } : {}) });
+    const a = makeMaster({ ...(spec.seatBudgets?.[si] || BUDGETS[name]), ...(spec.sea ? { leaf: SEA_LEAF } : {}) });
     ["decideSetup", "decideMain", "decideRobber"].forEach((f, fi) => { const o = a[f]; a[f] = (...x) => { quiet += 1; let d; try { d = o(...x); } finally { quiet -= 1; } if (record) record.push(`D${fi} ${x[1]?.id} ${JSON.stringify(d ? d.choice : null)}`); return d; }; });
     return a;
   });
@@ -159,7 +159,7 @@ export function playGame(spec) {
     if (hostMode.on) return playHost(spec, strategies, agents, decisions);
     g._labSimStart(strategies, { players: spec.seats.length, map: spec.map || "random", seed: spec.seed, agents });
     let r = { done: false };
-    while (!r.done && !(spec.stopTurn && g.turn >= spec.stopTurn)) r = g._labSimStep(1);
+    while (!r.done && !(spec.stopTurn && g.turn >= spec.stopTurn)) { r = g._labSimStep(1); if (spec.onTurn) spec.onTurn(g, r); } // onTurn: read-only observer (tournament --dump-states)
     return finish(spec, r, decisions);
   } finally { g.players.forEach((p) => { p.agent = null; }); }
 }
