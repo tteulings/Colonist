@@ -114,6 +114,8 @@ async function run(w, h, lang) {
   ok(!/\b(vaak|often)\b/i.test(hl.shown) && !/\d+ (van|of) \d+ (gevallen|cases)/.test(hl.shown), `${tag}: no "often", no "gevallen"; the unit is the start (opstelling)`, hl.shown);
   const bars = await G(() => [...document.querySelectorAll(".ln-focus .ln-mr")].map((r) => [r.dataset.miss, r.querySelector("b").innerText]));
   ok(bars.length === Object.keys(hl.miss).length && bars.every(([r, t]) => new RegExp(`^${hl.miss[r]} (van|of) ${hl.n} (opstellingen|starts)$`).test(t)), `${tag}: per-resource miss bars match the recount (${hl.n} starts)`, bars);
+  const ricons = await G(() => [...document.querySelectorAll(".ln-focus .ln-mr")].map((r) => { const im = r.querySelector("img.lc-rd"); return [r.dataset.miss, !!im && im.complete && im.naturalWidth > 0 && /resource-/.test(im.src), r.querySelector("i.lc-rd[style]") === null]; }));
+  ok(ricons.length > 0 && ricons.every((x) => x[1] && x[2]), `${tag}: the miss legend uses the app's resource icons, no green/red/grey colour dots (those read as good/bad)`, ricons);
   const numsA = await G(() => ({ ex: [...document.querySelectorAll(".ln-exc .ln-ref.big")].map((e) => +e.textContent), pr: document.querySelectorAll(".ln-pr .ln-ref").length }));
   ok(numsA.ex.every((v, i) => v === i + 1) && numsA.ex.length >= 2 && numsA.pr === 0, `${tag}: the examples are numbered 1, 2, 3, ... without a gap (the practice position carries no number)`, numsA);
   const unitMix = await G(() => document.querySelector(".ln-focus").innerText.replace(/\s+/g, " "));

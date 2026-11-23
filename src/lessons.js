@@ -6,7 +6,7 @@ import { loadPractice, savePractice, practiceStats, pickPractice, exKey } from "
 import { buildLessons } from "./lessons-eval.js";
 import { rowKey } from "./lessons-row.js";
 import { boardUnpack } from "./lessons-geo.js";
-import { L, pl, ofN, esc, day, cropSvg, tileHtml, exModel, spotHexes, QS, answerDec, missHeadline } from "./lessons-view.js";
+import { L, pl, resIcon, ofN, esc, day, cropSvg, tileHtml, exModel, spotHexes, QS, answerDec, missHeadline } from "./lessons-view.js";
 import { RECAP_URL, recapLang } from "./review-recap.js";
 import { resName, RES_COLOR } from "./resources.js";
 import { lang, onLang, num, tn } from "./i18n.js";
@@ -297,7 +297,7 @@ export const LessonsMixin = {
   /** per kind of resource: in how many of the examples' starts it was missing (counts of starts, one unit) */
   _lnMissBars(models) {
     const h = missHeadline(models), n = models.length, rows = ["wood", "brick", "sheep", "wheat", "ore"].map((r) => [r, h.miss[r] || 0]).filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]); if (!rows.length) return "";
-    return `<div class="ln-mb" aria-label="${esc(L("Missing kinds per start", "Gemiste soorten per opstelling"))}">${rows.map(([r, c]) => `<div class="ln-mr" data-miss="${r}"><span><i class="lc-rd" style="background:${RES_COLOR[r]}"></i>${esc(cap(rname(r)))}</span><span class="ln-gb"><i style="width:${Math.max(6, (c / n) * 100)}%"></i></span><b>${L(`${c} of ${n} starts`, `${c} van ${n} opstellingen`)}</b></div>`).join("")}</div>`;
+    return `<div class="ln-mb" aria-label="${esc(L("Missing kinds per start", "Gemiste soorten per opstelling"))}">${rows.map(([r, c]) => `<div class="ln-mr" data-miss="${r}"><span>${resIcon(r)}${esc(cap(rname(r)))}</span><span class="ln-gb"><i style="width:${Math.max(6, (c / n) * 100)}%"></i></span><b>${L(`${c} of ${n} starts`, `${c} van ${n} opstellingen`)}</b></div>`).join("")}</div>`;
   },
   _lnLesson(les) {
     const S = this._ln;
