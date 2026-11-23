@@ -5,12 +5,13 @@
 // Only Classic (4 players) is measured; the other tabs say "Not measured yet" and have no ranking.
 // "You": nothing new is stored. It is counted from the Past games entries (history.js: seats, winner, board, mode, n, hot,
 // hn), per person (pass & play: by name), per bot level and per mode. A number shows from 5 games (YOU_MIN), else "few".
-import { BOT_PROFILES as P, profileMini, gmFlag } from "./bot-profiles.js";
+import { BOT_PROFILES as P, profileMini } from "./bot-profiles.js";
 import { openProfileSheet } from "./bot-profile-ui.js";
+import { listBots } from "./bots/registry.js"; // step 4: the one list of bots
 import { BOT_STATS, SETUPS, accOf, winOf, rangesOverlap, tabOf, MEASURED_TABS, MODE_STATS, FAIR, metricOf, VS_EXPERTS, RATING } from "./bot-stats.js";
 
 export const YOU_MIN = 5;
-const KEYS = [...(gmFlag() ? ["grandmaster"] : []), "superplus", "super", "master", "expert", "builder", "trader", "shark", "intermediate", "beginner", "simple"];
+const KEYS = listBots({ order: "page" }).map((e) => e.id); // the Bots page order (Grandmaster only while its flag is on)
 const TABS = [["classic", "Classic"], ["rush", "Rush"], ["five", "5 players"], ["six", "6 players"], ["sea", "Seafarers"]]; // v1.34: 5 and 6 players apart (other fair share)
 const SORTS = [["win", "Win chance"], ["acc", "Accuracy"], ["you", "You vs him"]];
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

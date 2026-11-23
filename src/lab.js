@@ -11,12 +11,13 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=195";
-import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=195";
-import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=195";
-import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=195";
-import { byStrength } from "./bot-stats.js?v=195";
-import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=195";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=196";
+import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=196";
+import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=196";
+import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=196";
+import { byStrength } from "./bot-stats.js?v=196";
+import { botIds, byLevel, isSearchBot } from "./bots/registry.js"; // step 4: the one list of bots
+import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=196";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -538,13 +539,10 @@ const P = BOT_PROFILES;
 const DICE = `<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="9" cy="9" r="1.3" fill="currentColor"/><circle cx="15" cy="15" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1.3" fill="currentColor"/><circle cx="9" cy="15" r="1.3" fill="currentColor"/></svg>`;
 const PEN = `<svg viewBox="0 0 16 16" width="100%" height="100%" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M2 11l7-7 3 3-7 7H2zM8 5l3 3"/></svg>`;
 /** Presets a seat can pick, strongest first by the measured win chance (bot-stats.js; a preset without a figure, e.g. a new one, comes first). */
-const poolKeys = () => byStrength(Object.keys(H.AI_PRESETS));
+const poolKeys = () => byStrength(botIds());
 /** The pool Random draws from, in its v1.13 order (by level), so a Random seat draws the same bots as in earlier runs. */
-function drawPool() {
-  const all = Object.keys(H.AI_PRESETS);
-  return all.slice().sort((a, b) => (P[b]?.level ?? 6) - (P[a]?.level ?? 6) || all.indexOf(a) - all.indexOf(b));
-}
-const isSlow = (s) => s.policy === "master" || s.policy === "super" || s.policy === "superplus" || s.policy === "grandmaster"; // Master / Super Expert: they search, so the games run in the worker
+function drawPool() { return byLevel(botIds()); }
+const isSlow = (s) => isSearchBot(s.policy); // Master / Super Expert: they search, so the games run in the worker
 const stratOf = (k) => (k === "mix" ? { ...st.mix } : { ...H.AI_PRESETS[k] });
 const labelOf = (k) => (k === "mix" ? "Custom mix" : k === "random" ? "Random" : presetLabel(k));
 const slowKey = (k) => (k === "mix" ? !!st.mix && isSlow(st.mix) : k !== "random" && !!H.AI_PRESETS[k] && isSlow(H.AI_PRESETS[k]));

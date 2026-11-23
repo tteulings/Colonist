@@ -1,0 +1,282 @@
+{
+ "presets": {
+  "beginner": {
+   "placement": "simple",
+   "expansion": "simple",
+   "trading": "conservative",
+   "devCards": "reactive",
+   "awareness": "none"
+  },
+  "simple": {
+   "placement": "simple",
+   "expansion": "simple",
+   "trading": "conservative",
+   "devCards": "reactive",
+   "awareness": "none",
+   "policy": "rules"
+  },
+  "intermediate": {
+   "placement": "medium",
+   "expansion": "medium",
+   "trading": "balanced",
+   "devCards": "reactive",
+   "awareness": "basic"
+  },
+  "expert": {
+   "placement": "complex",
+   "expansion": "complex",
+   "trading": "balanced",
+   "devCards": "strategic",
+   "awareness": "advanced"
+  },
+  "trader": {
+   "placement": "medium",
+   "expansion": "medium",
+   "trading": "aggressive",
+   "devCards": "reactive",
+   "awareness": "basic"
+  },
+  "builder": {
+   "placement": "complex",
+   "expansion": "complex",
+   "trading": "balanced",
+   "devCards": "reactive",
+   "awareness": "basic"
+  },
+  "shark": {
+   "placement": "medium",
+   "expansion": "medium",
+   "trading": "balanced",
+   "devCards": "strategic",
+   "awareness": "advanced"
+  },
+  "master": {
+   "placement": "complex",
+   "expansion": "complex",
+   "trading": "balanced",
+   "devCards": "strategic",
+   "awareness": "advanced",
+   "policy": "master"
+  },
+  "super": {
+   "placement": "complex",
+   "expansion": "complex",
+   "trading": "balanced",
+   "devCards": "strategic",
+   "awareness": "advanced",
+   "policy": "super"
+  },
+  "superplus": {
+   "placement": "complex",
+   "expansion": "complex",
+   "trading": "balanced",
+   "devCards": "strategic",
+   "awareness": "advanced",
+   "policy": "superplus"
+  },
+  "grandmaster": {
+   "placement": "complex",
+   "expansion": "complex",
+   "trading": "balanced",
+   "devCards": "strategic",
+   "awareness": "advanced",
+   "policy": "grandmaster"
+  }
+ },
+ "info": {
+  "beginner": {
+   "label": "Easy",
+   "tagline": "gentle, learns rules",
+   "glyph": ""
+  },
+  "simple": {
+   "label": "Simple",
+   "tagline": "plays by 7 rules",
+   "glyph": "",
+   "isNew": true
+  },
+  "intermediate": {
+   "label": "Medium",
+   "tagline": "solid all-rounder",
+   "glyph": ""
+  },
+  "expert": {
+   "label": "Hard",
+   "tagline": "plays to win",
+   "glyph": ""
+  },
+  "trader": {
+   "label": "Trader",
+   "tagline": "deals all game",
+   "glyph": "⇄",
+   "isNew": true
+  },
+  "builder": {
+   "label": "Builder",
+   "tagline": "roads & cities",
+   "glyph": "⚒",
+   "isNew": true
+  },
+  "shark": {
+   "label": "Shark",
+   "tagline": "hunts the leader",
+   "glyph": "▲",
+   "isNew": true
+  },
+  "master": {
+   "label": "Master",
+   "tagline": "Hard + looks ahead",
+   "glyph": "★",
+   "isNew": true
+  },
+  "super": {
+   "label": "Super Expert",
+   "tagline": "Master with 10x more thinking",
+   "glyph": "★★",
+   "isNew": true
+  },
+  "superplus": {
+   "label": "Super Expert+",
+   "tagline": "Super Expert with a learned eye",
+   "glyph": "★★+",
+   "isNew": true
+  },
+  "grandmaster": {
+   "label": "Grandmaster",
+   "tagline": "Super Expert+ on every core",
+   "glyph": "★★★",
+   "isNew": true
+  },
+  "custom": {
+   "label": "Custom",
+   "tagline": "your mix",
+   "glyph": ""
+  }
+ },
+ "presetKeys": [
+  "beginner",
+  "simple",
+  "intermediate",
+  "expert",
+  "trader",
+  "builder",
+  "shark",
+  "master",
+  "super",
+  "superplus",
+  "grandmaster"
+ ],
+ "byStrength": [
+  "grandmaster",
+  "superplus",
+  "super",
+  "master",
+  "expert",
+  "builder",
+  "trader",
+  "shark",
+  "intermediate",
+  "beginner",
+  "simple"
+ ],
+ "profiles": {
+  "beginner": {
+   "label": "Easy",
+   "tagline": "gentle, learns rules",
+   "level": 2,
+   "beyond": false
+  },
+  "simple": {
+   "label": "Simple",
+   "tagline": "plays by 7 rules",
+   "level": 1,
+   "beyond": false
+  },
+  "intermediate": {
+   "label": "Medium",
+   "tagline": "solid all-rounder",
+   "level": 3,
+   "beyond": false
+  },
+  "expert": {
+   "label": "Hard",
+   "tagline": "plays to win",
+   "level": 4,
+   "beyond": false
+  },
+  "trader": {
+   "label": "Trader",
+   "tagline": "deals all game",
+   "level": 3,
+   "beyond": false
+  },
+  "builder": {
+   "label": "Builder",
+   "tagline": "roads & cities",
+   "level": 4,
+   "beyond": false
+  },
+  "shark": {
+   "label": "Shark",
+   "tagline": "hunts the leader",
+   "level": 3,
+   "beyond": false
+  },
+  "master": {
+   "label": "Master",
+   "tagline": "Hard + looks ahead",
+   "level": 5,
+   "beyond": false
+  },
+  "super": {
+   "label": "Super Expert",
+   "tagline": "Master with 10x more thinking",
+   "level": 5,
+   "beyond": true
+  },
+  "grandmaster": {
+   "label": "Grandmaster",
+   "tagline": "Super Expert+ on every core",
+   "level": 5,
+   "beyond": true
+  },
+  "superplus": {
+   "label": "Super Expert+",
+   "tagline": "Super Expert with a learned eye",
+   "level": 5,
+   "beyond": true
+  }
+ },
+ "labDrawPool": [
+  "master",
+  "super",
+  "superplus",
+  "grandmaster",
+  "expert",
+  "builder",
+  "intermediate",
+  "trader",
+  "shark",
+  "beginner",
+  "simple"
+ ],
+ "botsPageKeys": [
+  "grandmaster",
+  "superplus",
+  "super",
+  "master",
+  "expert",
+  "builder",
+  "trader",
+  "shark",
+  "intermediate",
+  "beginner",
+  "simple"
+ ],
+ "slow": [
+  "master",
+  "super",
+  "superplus",
+  "grandmaster"
+ ]
+}

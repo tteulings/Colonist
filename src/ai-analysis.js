@@ -1239,6 +1239,9 @@ export const LabMixin = {
    *  others Intermediate. `o.seed`: the game's own random stream (board, dice, deck: v0.87 common random
    *  numbers, so two tournament runs play the same boards); this iframe only plays lab games. */
   _labSimStart(strategy, o = {}) {
+    // step 4 (opt-in, experimental): o.host = the module src/bots/index.js; every seat is then a Bot and the game is played by the bot host loop (same game to the move, ~40% slower)
+    this._labHost = o.host ? o.host.labSession(this, strategy, o) : null;
+    if (this._labHost) return true;
     if (o.seed != null) Math.random = mulberry32(Number(o.seed) >>> 0);
     this.settings = this._labSettings(o);
     // v0.90: every seat gets its own bot BEFORE set-up starts (until v0.89 the seats placing ahead of seat 0
@@ -1255,6 +1258,7 @@ export const LabMixin = {
 
   /** Run up to `n` turns; { done, winner (seat or null), turns }. */
   _labSimStep(n = 40) {
+    if (this._labHost) return this._labHost.step(n);
     const s = this._labSim;
     for (let k = 0; k < n && !this.winner; k += 1) {
       if (s.guard++ > 2500 || this.turn > 250) return { done: true, winner: null, turns: this.turn };

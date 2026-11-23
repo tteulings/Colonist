@@ -110,7 +110,7 @@ function hash53(str) {
 export class Engine {
   constructor(g, opts = {}) {
     this.g = g;
-    this.H = hooks(g);
+    this.H = opts.noHooks ? { active: this, later0: undefined, laterSaved: false } : hooks(g); // noHooks: the UI's engine (src/ui/intent.js) leaves the game's methods alone
     this.meta = opts.meta || null;           // how the game was made (newGame spec): the first line of a log
     this._control = opts.control ? new Set(opts.control) : new Set();
     this._src = { dice: null, steal: null }; // user ChanceSource
@@ -120,7 +120,7 @@ export class Engine {
     this._evlog = []; this._seq = 0; this._applying = 0; this._via = null;
     this._snap = null;                        // state parked while another engine uses the same game object
     this._obs = null;
-    if (!opts.parked) { const H = this.H; if (H.active && H.active !== this && !H.active._dead) H.active._snap = H.active._save(); H.active = this; }
+    if (!opts.parked && !opts.noHooks) { const H = this.H; if (H.active && H.active !== this && !H.active._dead) H.active._snap = H.active._save(); H.active = this; }
   }
 
   // ── plumbing ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -408,6 +408,7 @@ export class Engine {
     let why = null;
     for (const pr of ps) {
       if (!PROMPTS[pr.kind].types.includes(a.type)) { why = why || `${a.type} is not an answer to ${pr.kind}`; continue; }
+      if (this._quick(a, pr)) return { ok: true }; // the common answers, judged by one call instead of a scan (the scan below gives the reason when refused)
       for (const l of this._legalOf(pr, a.type)) {
         if (!l.choose) { if (keyOf(this._canon(l)) === k) return { ok: true }; continue; }
         if (l.type !== a.type || (l.answer && l.answer !== a.answer)) continue;
@@ -418,6 +419,30 @@ export class Engine {
       why = why || this._whyNot(a, pr);
     }
     return { ok: false, reason: why };
+  }
+  /** True when the old rule methods accept `a` under `pr` (the same calls _legalOf makes, for this one action); false = ask the scan. */
+  _quick(a, pr) {
+    const g = this.g, p = g.players[a.actor], k = pr.kind;
+    const inRange = (n, arr) => Number.isInteger(n) && n >= 0 && n < arr.length;
+    switch (a.type) {
+      case "build": {
+        if (k !== "main" && k !== "sbp" && k !== "freeRoad" && k !== "rushAny") return false;
+        const free = k === "freeRoad";
+        if (a.piece === "road") return inRange(a.edge, g.geometry.edges) && !!g.canBuildRoad(p, a.edge, { free });
+        if (a.piece === "ship") return !!g.sea && inRange(a.edge, g.geometry.edges) && !!g.canBuildShip(p, a.edge, { free });
+        if (free || !inRange(a.node, g.geometry.nodes)) return false;
+        return a.piece === "settlement" ? !!g.canBuildSettlement(p, a.node, false) : !!g.canBuildCity(p, a.node, false);
+      }
+      case "place":
+        if (k === "setupSettlement") return inRange(a.node, g.geometry.nodes) && !!g.canBuildSettlement(p, a.node, true);
+        if (k !== "setupRoad" || !inRange(a.edge, g.geometry.edges)) return false;
+        return a.piece === "road" ? !!g.canBuildRoad(p, a.edge, { free: true, setupNode: pr.node }) : !!g.sea && !!g.canBuildShip(p, a.edge, { free: true, setupNode: pr.node });
+      case "tradeBank": return (k === "main" || k === "rushAny") && g.phase !== "sbp" && a.give !== a.get && p.resources[a.give] >= g.getPlayerTradeRate(p, a.give) && g.bank[a.get] >= 1;
+      case "buyDev": return (k === "main" || k === "sbp" || k === "rushAny") && g.devDeck.length > 0 && has(p.resources, COSTS.development);
+      case "endTurn": return k === "main";
+      case "roll": return k === "preRoll";
+      default: return false;
+    }
   }
   _canon(a) { // a replay-only field and a default target do not make a different action
     const c = { ...a };
@@ -453,25 +478,34 @@ export class Engine {
     const sh = validateShape(a, this.mode());
     if (!sh.ok) return refuse(sh.reason);
     if (!this.controls(a.actor)) return refuse(`seat ${a.actor} is not controlled by this engine`);
-    const lg = this.isLegal(a);
-    if (!lg.ok) return refuse(lg.reason);
-    const g = this.g, before = this._brief(), hit = a.type === "roll" ? null : undefined;
+    if (!opts.trusted) { const lg = this.isLegal(a); if (!lg.ok) return refuse(lg.reason); } // `trusted`: the caller (the bot host) has just judged it
+    const g = this.g, before = opts.quiet ? null : this._brief(), hit = a.type === "roll" ? null : undefined;
     this._chanceUsed = []; this._queue = opts.chance ? opts.chance.map((c) => ({ ...c })) : null;
     if (a.type === "roll" && a.forced) this._forceDice = a.forced;
-    this._applying++;
+    this._applying++; g._applyDepth = (g._applyDepth || 0) + 1; // the UI's doors (_confirmDiscard, _finishPick, sbpSkip) see they are being called by an apply() and do the work
     let err = null;
     let done;
-    try { done = this[`_do_${a.type}`](a, g.players[a.actor]); } catch (e) { err = e; } finally { this._applying--; this._queue = null; this._forceDice = null; }
+    try { done = this[`_do_${a.type}`](a, g.players[a.actor]); } catch (e) { err = e; } finally { this._applying--; g._applyDepth--; this._queue = null; this._forceDice = null; }
     if (err) throw err;
     if (done === false) return { ok: false, bug: true, reason: `the old code rejected a legal ${a.type} (engine/legacy disagreement)`, events: [], prompts: this.prompts() };
-    const events = this._events(a, before);
+    const events = opts.quiet ? [] : this._events(a, before); // `quiet`: no event list (headless bot play)
     const entry = { a: JSON.parse(JSON.stringify(a)), chance: this._chanceUsed };
     this._log.push(entry);
     return { ok: true, events, prompts: this.prompts() };
   }
   _asHuman(p, fn) { const h = p.isHuman; p.isHuman = true; try { return fn(); } finally { p.isHuman = h; } }
   _do_place(a, p) { this.g._commitSetup(p, { type: a.piece, id: a.node ?? a.edge }); }
-  _do_build(a, p) { return this.g._commitBuild(p, { type: a.piece, id: a.node ?? a.edge }); }
+  _do_build(a, p) {
+    const g = this.g, cb = { type: a.piece, id: a.node ?? a.edge };
+    if (!(this.legacyBotOrder && g.freeRoadsRemaining > 0)) return g._commitBuild(p, cb);
+    // legacyBotOrder: the old bots choose both free roads of Road Building before the longest road is counted (once, when the card is done)
+    const own = Object.prototype.hasOwnProperty.call(g, "recomputeScores"), r0 = g.recomputeScores;
+    let ok;
+    g.recomputeScores = () => {};
+    try { ok = g._commitBuild(p, cb); } finally { if (own) g.recomputeScores = r0; else delete g.recomputeScores; }
+    if (ok && g.freeRoadsRemaining <= 0) { g.recomputeScores(); g.checkForWinner(p); }
+    return ok;
+  }
   _do_roll(a, p) {
     const g = this.g;
     g._dropUndo?.(); g.devPlayed = null;
@@ -479,11 +513,18 @@ export class Engine {
     this._via = null;
     g.executeRollPhase(p);
   }
-  _do_endTurn() { const g = this.g; g._dropUndo?.(); this._offers = []; g.endTurn(); }
+  _do_endTurn(a, p) {
+    const g = this.g;
+    g._dropUndo?.(); this._offers = [];
+    // legacyBotOrder: a bot's main phase closes with one count of the scores and one look for a winner (executeAiMainPhase finish); a win ends the game there
+    if (this.legacyBotOrder) { g.recomputeScores(); g.checkForWinner(p); if (g.winner) return; }
+    g.endTurn();
+  }
   _do_buyDev(a, p) {
     const g = this.g;
     if (!g.buyDevelopmentCard(p)) return false;
     if (g.sbp) g._sbpAfterHumanBuild();
+    if (this.legacyBotOrder) return true; // the old bots count a bought card (a hidden point) when their main phase closes, not at the purchase
     g.recomputeScores();
     if (g.rush) g._rushAfterAction(p); else g.checkForWinner(p);
   }
@@ -491,7 +532,16 @@ export class Engine {
     const g = this.g;
     g._dropUndo?.();
     if (a.card === "knight") this._via = "knight";
-    if (!g.playDevelopmentCard(p, a.card)) return false;
+    let ok;
+    if (this.legacyBotOrder && a.card === "knight") { // the card's own closing recomputeScores is held back too
+      const own = Object.prototype.hasOwnProperty.call(g, "recomputeScores"), r0 = g.recomputeScores;
+      g.recomputeScores = () => {};
+      try { ok = g.playDevelopmentCard(p, a.card); } finally { if (own) g.recomputeScores = r0; else delete g.recomputeScores; }
+    } else ok = g.playDevelopmentCard(p, a.card);
+    if (!ok) return false;
+    // legacyBotOrder (the bot host): the old bots count a Knight's Largest Army only after the robber has moved and robbed, so their choice of
+    // victim sees the scores from before the card; a person's card counts at once. The scores are brought up to date when the robber flow ends.
+    if (this.legacyBotOrder && a.card === "knight" && g.pendingAction === "robber") { this._scoreAfterRobber = true; return true; }
     g.recomputeScores();
     if (g.pendingAction !== "robber") g.checkForWinner(p); // a Knight's Largest Army wins once the robber has moved (the bots' order)
     return true;
@@ -542,13 +592,14 @@ export class Engine {
     if (g.sea) g.sea.thief = g._seaHexKind(a.hex);
     g._commitRobber(p, a.hex, null);
     this._via = null;
-    if (!g.robberVictimOptions?.length) g.checkForWinner(g.currentPlayer);
+    if (!g.robberVictimOptions?.length) this._robberDone(p);
   }
+  _robberDone() { const g = this.g; if (this._scoreAfterRobber) { this._scoreAfterRobber = false; g.recomputeScores(); } g.checkForWinner(g.currentPlayer); }
   _do_steal(a, p) {
     const g = this.g;
     g.stealFromVictim(p, a.victim);
     g.robberContext = null; g.robberVictimOptions = [];
-    g.checkForWinner(g.currentPlayer);
+    this._robberDone();
   }
   // trades: the engine keeps the offers. A seat it does not control answers by the game's own evaluator, at once.
   _do_offerTrade(a, p) {
@@ -569,7 +620,7 @@ export class Engine {
     const g = this.g, from = g.players[o.from], resp = g.players[s];
     g._stTrade(from, resp, o.give, o.want);
     g._swapCards(from, o.give, resp, o.want);
-    g.addLog(`${from.name} traded ${RES.filter((r) => o.give[r]).map((r) => `${o.give[r]} ${r}`).join(", ")} with ${resp.name} for ${RES.filter((r) => o.want[r]).map((r) => `${o.want[r]} ${r}`).join(", ")}.`);
+    g.addLog(`${from.name} traded ${g._resStr(o.give)} with ${resp.name} for ${g._resStr(o.want)}.`); // the old bots' wording (golden logs compare it)
     this._offers = this._offers.filter((x) => x !== o);
     if (g.rush) g._rushAfterAction(from);
   }
@@ -720,6 +771,12 @@ export class Engine {
   }
   /** Give the game object back (drops a parked clone's snapshot). */
   dispose() { this._dead = true; this._snap = null; if (this.H.active === this) this.H.active = null; }
+  /** dispose(), and give the game its own timers back (takeControl dropped them): for a host that is finished with the game object. */
+  release() {
+    const H = this.H, g = this.g, was = H.active === this;
+    this.dispose();
+    if (was && H.laterSaved) { H.laterSaved = false; if (H.later0 !== undefined) g._later = H.later0; else delete g._later; }
+  }
   /** The record of this game: how it started and every action with the chance it drew. replay(game, log) plays it again. */
   log() { return { setup: this.meta, actions: JSON.parse(JSON.stringify(this._log)) }; }
 
