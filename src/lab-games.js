@@ -25,7 +25,7 @@ async function applyMain() {
 }
 
 /** The sim frame's game routes a seat with `agent` to it (as the worker's prepareEngine does); seats without one play as before. */
-function hook(g) {
+export function hook(g) {
   if (g._labHooked) return;
   g._labHooked = true;
   const bestInit = g.getBestInitialSettlementNode.bind(g), moveRobber = g.moveRobber.bind(g), mainPhase = g.executeAiMainPhase.bind(g);
@@ -44,6 +44,9 @@ function scripted(g, script, n, apply, bad) {
     return s[2];
   };
   const agent = (seat) => ({
+    // the host (src/bots/search.js) asks a search agent for these: the next scripted choice, or nothing to choose (the Expert's own step), or the end of the turn once the script has gone wrong
+    decideMain: () => { const c = next(seat, 1); return c ? { choice: c } : bad.off ? { choice: { kind: "end" } } : null; },
+    applyMain: (gg, p, c) => apply(gg, p, c),
     setupNode: (gg, p, base) => { const c = next(seat, 0); return c == null ? base(p) : c; },
     robberHex: (gg, p) => { const c = next(seat, 2); return c == null ? gg.chooseRobberHex(p) : c; },
     mainPhase: (gg, p) => {
@@ -68,14 +71,14 @@ export function recordOn(g, on) {
 }
 
 /** Play a worker game again in the sim frame, recorded. Returns true when it ends exactly as the worker's did. */
-export async function replayScript(g, { strategies, seed, map, script, result }, rec) {
+export async function replayScript(g, { strategies, seed, map, script, result }, rec, host = null) {
   const apply = await applyMain();
-  hook(g);
+  if (!host) hook(g); // (the host plays the seats' decisions itself: nothing to hook, its probes are no moves for the recorder)
   const bad = { off: false };
   const sc = scripted(g, script, strategies.length, apply, bad);
   recordOn(g, rec);
   try {
-    g._labSimStart(strategies, { players: strategies.length, map, seed, agents: sc.agents });
+    g._labSimStart(strategies, { players: strategies.length, map, seed, agents: sc.agents, host });
     let r = { done: false };
     while (!r.done && !bad.off) r = g._labSimStep(40);
     const vp = g.players.map((p) => p.victoryPoints);

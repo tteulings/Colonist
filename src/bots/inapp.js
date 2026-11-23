@@ -52,9 +52,10 @@ const SILENT_OBJS = ["sfx", "fx"];
 const FLAGS = { _replay: true, _rvBusy: "probe" }; // stats recorder off; the review recorder busy
 
 function mute(g, { suspend }) {
-  if (!app.has(g)) return null; // another game object (the AI Lab's sim, the review's engine) runs its own probes as before
+  const live = app.has(g); // the game on the screen; any other (the AI Lab's sim frame, a headless game) is stubbed already and only needs its recorders told a probe is no move
   const own = {}, saved = {};
   const swap = (k, v) => { own[k] = Object.prototype.hasOwnProperty.call(g, k); saved[k] = g[k]; g[k] = v; };
+  if (!live) { Object.keys(FLAGS).forEach((k) => swap(k, FLAGS[k])); swap("_stMover", g._stMover); return { own, saved, anims: null, api: null, keepActive: null }; }
   SILENT_FNS.forEach((k) => swap(k, NOOP));
   SILENT_OBJS.forEach((k) => { if (g[k]) swap(k, QUIET); });
   Object.keys(FLAGS).forEach((k) => swap(k, FLAGS[k]));
@@ -115,13 +116,13 @@ class AppEngine extends Engine {
 }
 
 // ── the host in a game ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+probeHooks.enter = mute; probeHooks.leave = unmute;
 const app = new WeakMap(); // game -> { engine, host, bots: Map(seat -> { key, bot }), seat }
 function appFor(g) {
   let A = app.get(g);
   if (!A) {
     A = { engine: new AppEngine(g), host: newHost({ humanTrade: true }), bots: new Map(), seat: null };
     app.set(g, A);
-    if (!probeHooks.enter) { probeHooks.enter = mute; probeHooks.leave = unmute; }
   }
   return A;
 }

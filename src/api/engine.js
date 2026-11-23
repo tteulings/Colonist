@@ -494,7 +494,12 @@ export class Engine {
     return { ok: true, events, prompts: this.prompts() };
   }
   _asHuman(p, fn) { const h = p.isHuman; p.isHuman = true; try { return fn(); } finally { p.isHuman = h; } }
-  _do_place(a, p) { this.g._commitSetup(p, { type: a.piece, id: a.node ?? a.edge }); }
+  _do_place(a, p) {
+    const g = this.g, cb = { type: a.piece, id: a.node ?? a.edge };
+    if (this.legacyBotOrder && a.piece === "settlement" && g._rvHostSetup) return g._rvHostSetup(p, a.node, () => g._commitSetup(p, cb)); // the review recorder's record of a bot's set-up settlement
+    g._commitSetup(p, cb);
+    if (this.legacyBotOrder && a.piece !== "settlement") g.recomputeScores(); // a bot's set-up turn ends with its scores counted (_aiSetupRoad), so the next seat's choice sees them
+  }
   _do_build(a, p) {
     const g = this.g, cb = { type: a.piece, id: a.node ?? a.edge };
     if (!(this.legacyBotOrder && g.freeRoadsRemaining > 0)) return g._commitBuild(p, cb);
@@ -509,8 +514,9 @@ export class Engine {
   _do_roll(a, p) {
     const g = this.g;
     g._dropUndo?.(); g.devPlayed = null;
-    g.diceResult = g.rollDice();
     this._via = null;
+    if (this.legacyBotOrder) { g.executeRollPhase(p); return; } // the old bots' roll: the call rolls the dice itself (the recorders look at the position before the dice)
+    g.diceResult = g.rollDice();
     g.executeRollPhase(p);
   }
   _do_endTurn(a, p) {
@@ -531,7 +537,7 @@ export class Engine {
   _do_playDev(a, p) {
     const g = this.g;
     g._dropUndo?.();
-    if (a.card === "knight") this._via = "knight";
+    if (a.card === "knight") { this._via = "knight"; this._knightSeat = this.legacyBotOrder ? p.id : null; }
     let ok;
     if (this.legacyBotOrder && a.card === "knight") { // the card's own closing recomputeScores is held back too
       const own = Object.prototype.hasOwnProperty.call(g, "recomputeScores"), r0 = g.recomputeScores;
@@ -564,6 +570,7 @@ export class Engine {
     if (pd) { pd.selected = { ...emptyHand(), ...a.cards }; g._confirmDiscard(); return; } // the UI's own discard flow
     const flow = g.pendingRobberFlow, item = flow.discards[0];
     g.payToBank(p, a.cards);
+    if (this.legacyBotOrder) g._stEv?.("d", p.id, handSize(a.cards)); // what _autoDiscard's stats wrapper noted for the old bots
     g.addLog(`${p.name} discard${g._s(p)} ${item.count} cards after rolled a 7.`);
     flow.discards.shift();
     if (!flow.discards.length) { g.robberBusy = false; g.pendingRobberFlow = null; this._enterRobber(g.players[flow.rollerId], "seven"); }
@@ -590,14 +597,21 @@ export class Engine {
   _do_moveRobber(a, p) {
     const g = this.g;
     if (g.sea) g.sea.thief = g._seaHexKind(a.hex);
-    g._commitRobber(p, a.hex, null);
+    if (this.legacyBotOrder && g._rvHostRobber) g._rvHostRobber(p, a.hex, () => g._commitRobber(p, a.hex, null)); else g._commitRobber(p, a.hex, null);
     this._via = null;
     if (!g.robberVictimOptions?.length) this._robberDone(p);
   }
-  _robberDone() { const g = this.g; if (this._scoreAfterRobber) { this._scoreAfterRobber = false; g.recomputeScores(); } g.checkForWinner(g.currentPlayer); }
+  _robberDone() {
+    const g = this.g, ks = this._knightSeat;
+    this._knightSeat = null;
+    if (ks != null && g.stats) { // the old bots' Knight was one call: its robbery was counted before the card ("t", "R", then "y")
+      const ev = g.stats.ev;
+      for (let i = ev.length - 1; i >= 0 && i >= ev.length - 6; i--) if (ev[i][1] === "y" && ev[i][2] === ks) { ev.push(ev.splice(i, 1)[0]); break; }
+    } if (this._scoreAfterRobber) { this._scoreAfterRobber = false; g.recomputeScores(); } g.checkForWinner(g.currentPlayer); }
   _do_steal(a, p) {
     const g = this.g;
     g.stealFromVictim(p, a.victim);
+    if (this.legacyBotOrder && g.stats) { const ev = g.stats.ev, n = ev.length; if (n > 1 && ev[n - 1][1] === "t" && (ev[n - 2][1] === "R" || ev[n - 2][1] === "Q")) { const t = ev[n - 1]; ev[n - 1] = ev[n - 2]; ev[n - 2] = t; } } // the old bots' move robbed first and was counted after (R after t)
     g.robberContext = null; g.robberVictimOptions = [];
     this._robberDone();
   }
@@ -607,7 +621,7 @@ export class Engine {
     const to = a.to === "all" ? g.players.filter((q) => q.id !== a.actor).map((q) => q.id) : [...new Set(a.to)];
     const o = { id: ++this._offerSeq, from: a.actor, to, give: cleanHand(a.give), want: cleanHand(a.want), answered: {} };
     this._offers.push(o);
-    g.addLog(`${p.name} offers ${RES.filter((r) => o.give[r]).map((r) => `${o.give[r]} ${r}`).join(", ")} for ${RES.filter((r) => o.want[r]).map((r) => `${o.want[r]} ${r}`).join(", ")}.`);
+    if (!this.legacyBotOrder) g.addLog(`${p.name} offers ${RES.filter((r) => o.give[r]).map((r) => `${o.give[r]} ${r}`).join(", ")} for ${RES.filter((r) => o.want[r]).map((r) => `${o.want[r]} ${r}`).join(", ")}.`);
     for (const s of to) { // bots that nobody controls decide now
       if (this.controls(s) || g._isInteractive(g.players[s])) continue;
       const q = g.players[s];
@@ -618,8 +632,13 @@ export class Engine {
   }
   _settle(o, s) {
     const g = this.g, from = g.players[o.from], resp = g.players[s];
-    g._stTrade(from, resp, o.give, o.want);
-    g._swapCards(from, o.give, resp, o.want);
+    if (this.legacyBotOrder) { // the old bots' deal: one stats event, the swap by hand (the planner never called _swapCards)
+      g._stTrade(from, resp, o.give, o.want);
+      RES.forEach((r) => { const give = o.give[r] || 0, want = o.want[r] || 0; from.resources[r] += want - give; resp.resources[r] += give - want; });
+    } else {
+      g._stTrade(from, resp, o.give, o.want);
+      g._swapCards(from, o.give, resp, o.want);
+    }
     g.addLog(`${from.name} traded ${g._resStr(o.give)} with ${resp.name} for ${g._resStr(o.want)}.`); // the old bots' wording (golden logs compare it)
     this._offers = this._offers.filter((x) => x !== o);
     if (g.rush) g._rushAfterAction(from);
