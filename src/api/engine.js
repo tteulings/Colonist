@@ -564,7 +564,7 @@ export class Engine {
     if (pd) { pd.selected = { ...emptyHand(), ...a.cards }; g._confirmDiscard(); return; } // the UI's own discard flow
     const flow = g.pendingRobberFlow, item = flow.discards[0];
     g.payToBank(p, a.cards);
-    g.addLog(`${p.name} discard${g._s(p)} ${item.count} cards after rolled a 7.`);
+    g.emit({ type: "discarded", seat: p.id, n: item.count, reason: "rolled a 7" });
     flow.discards.shift();
     if (!flow.discards.length) { g.robberBusy = false; g.pendingRobberFlow = null; this._enterRobber(g.players[flow.rollerId], "seven"); }
   }
@@ -576,7 +576,7 @@ export class Engine {
       if (total <= g._discardLimit()) return;
       const count = Math.floor(total / 2);
       if (g._isInteractive(pl)) discards.push({ playerId: pl.id, count });
-      else { g._autoDiscard(pl, count); g.addLog(`${pl.name} discard${g._s(pl)} ${count} cards after ${reason}.`); }
+      else { g._autoDiscard(pl, count); g.emit({ type: "discarded", seat: pl.id, n: count, reason }); }
     });
     if (!discards.length) { this._enterRobber(roller, "seven"); return; }
     g.pendingRobberFlow = { rollerId: roller.id, discards };
@@ -607,7 +607,7 @@ export class Engine {
     const to = a.to === "all" ? g.players.filter((q) => q.id !== a.actor).map((q) => q.id) : [...new Set(a.to)];
     const o = { id: ++this._offerSeq, from: a.actor, to, give: cleanHand(a.give), want: cleanHand(a.want), answered: {} };
     this._offers.push(o);
-    g.addLog(`${p.name} offers ${RES.filter((r) => o.give[r]).map((r) => `${o.give[r]} ${r}`).join(", ")} for ${RES.filter((r) => o.want[r]).map((r) => `${o.want[r]} ${r}`).join(", ")}.`);
+    g.emit({ type: "offered", seat: p.id, to: o.to, give: o.give, want: o.want, style: "api" });
     for (const s of to) { // bots that nobody controls decide now
       if (this.controls(s) || g._isInteractive(g.players[s])) continue;
       const q = g.players[s];
@@ -620,7 +620,7 @@ export class Engine {
     const g = this.g, from = g.players[o.from], resp = g.players[s];
     g._stTrade(from, resp, o.give, o.want);
     g._swapCards(from, o.give, resp, o.want);
-    g.addLog(`${from.name} traded ${g._resStr(o.give)} with ${resp.name} for ${g._resStr(o.want)}.`); // the old bots' wording (golden logs compare it)
+    g.emit({ type: "traded", seat: from.id, partner: resp.id, gave: o.give, got: o.want, style: "api" }); // the old bots' wording (golden logs compare it)
     this._offers = this._offers.filter((x) => x !== o);
     if (g.rush) g._rushAfterAction(from);
   }

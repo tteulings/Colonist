@@ -125,6 +125,14 @@ export const StatsMixin = {
   _stTrade(a, b, aGives, bGives) {
     this._stEv("x", a.id, b.id, sum(aGives), sum(bGives));
   },
+
+  /** The recorder as a subscriber of the game's events (src/core/events.js). */
+  _stOnEvent(e) {
+    switch (e.type) {
+      case "award": this._stEv("a", e.award === "largestArmy" ? "A" : "L", e.seat ?? -1, e.prev ?? -1); break;
+      default:
+    }
+  },
 };
 
 /** Wrap the game methods whose effects the board diff cannot see. */
@@ -261,10 +269,6 @@ export function installStats(Cls) {
     const r = orig.call(this, player, hexId, victim);
     this._stSync();
     return r;
-  });
-  wrap("_logAward", function (orig, name, prev, now, why) {
-    if (prev !== now) this._stEv("a", /Army/.test(name) ? "A" : "L", now ?? -1, prev ?? -1);
-    return orig.call(this, name, prev, now, why);
   });
 
   // ⚓ Seafarers: a human gold pick (and the Rush auto-pick) pays out later

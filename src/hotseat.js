@@ -237,7 +237,7 @@ export const HotseatMixin = {
     if (RES.some((r) => offer[r] > 0 && request[r] > 0)) { this._tradeHint("Can't give and get the same resource."); return; }
     if (!has(player.resources, offer)) { this._tradeHint("You don't have those cards."); return; }
     const serial = this.turnSerial;
-    this.addLog(`${player.name} offers ${partner.name} a trade.`);
+    this.emit({ type: "offered", seat: player.id, to: partner.id, style: "hotseat" });
     this.closeTradeModal();
     this.showIncomingTrade(player, offer, request, partner).then(this._guard((accepted) => {
       const word = accepted ? "said yes" : "said no";

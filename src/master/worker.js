@@ -96,6 +96,7 @@ function playGame(m) {
   // lab-137: the game log of the real moves (not the searches' imagined futures), so a watched game has its ticker
   const noLog = g.addLog;
   let quiet = 0;
+  if (m.watch) g.attachLog();
   if (m.watch) g.addLog = (text, meta = null) => { if (!quiet) { g.logEntries.push({ text, meta, time: Date.now() }); if (g.logEntries.length > 80) g.logEntries.splice(0, 30); } return 0; };
   try {
     g._labSimStart(m.strategies, { players: m.strategies.length, map: m.map || "random", seed: m.seed, agents });
@@ -104,7 +105,7 @@ function playGame(m) {
     while (!r.done) { r = g._labSimStep(1); if (!r.done) tell(null); }
     return { winner: r.winner, turns: r.turns, vp: g.players.map((p) => p.victoryPoints), ms: Math.round(performance.now() - t0), script,
       stats: agents.map((a) => (a ? { d: a.stats.decisions, dev: a.stats.deviations, ms: a.stats.ms } : null)) };
-  } finally { Math.random = orig; g.players.forEach((p) => { p.agent = null; }); g.addLog = noLog; }
+  } finally { Math.random = orig; g.players.forEach((p) => { p.agent = null; }); g.addLog = noLog; g.events.off("log"); }
 }
 
 // v1.60 live win chance that keeps deepening (src/live-bar.js): futures of the position as it stands (nobody's hand hidden, as the

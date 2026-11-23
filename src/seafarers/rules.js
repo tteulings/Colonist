@@ -230,17 +230,17 @@ export class Seafarers {
       const want = owed[p.id] || 0;
       if (!want) return;
       const can = Math.min(want, RES.reduce((a, r) => a + g.bank[r], 0));
-      if (!can) { g.addLog(`The bank has no cards left for ${p.name}'s gold.`); return; }
+      if (!can) { g.emit({ type: "goldBankEmpty", seat: p.id }); return; }
       if (g._isInteractive(p)) {
         const cur = this.gold.find((x) => x.pid === p.id);
         if (cur) { cur.count += can; cur.total = (cur.total || cur.count) + can; } else this.gold.push({ pid: p.id, count: can, total: can });
-        g.addLog(`${p.name} strike${g._s(p)} gold: pick ${can} resource${can > 1 ? "s" : ""}.`);
+        g.emit({ type: "goldStruck", seat: p.id, n: can });
         return;
       }
       const picks = this.aiGoldPicks(p, can);
       const got = {};
       picks.forEach((r) => { const k = g.takeFromBank(p, r, 1); if (k) { got[r] = (got[r] || 0) + k; if (gains) gains[p.id][r] += k; } });
-      g.addLog(`${p.name} took ${this._list(got)} from the gold field.`);
+      g.emit({ type: "goldTaken", seat: p.id, got });
     });
   }
 
@@ -258,7 +258,7 @@ export class Seafarers {
     item.order = [...(item.order || []), res]; // v0.86: for Undo (one pick back at a time)
     if (item.count <= 0 || RES.every((r) => g.bank[r] <= 0)) {
       this.gold = this.gold.filter((x) => x !== item);
-      g.addLog(`${player.name} took ${this._list(item.got)} from the gold field.`);
+      g.emit({ type: "goldTaken", seat: player.id, got: item.got });
       return true;
     }
     return false;
