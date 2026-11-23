@@ -101,7 +101,10 @@ export const SeaGame = {
    *  is direct, else it becomes the chosen spot (Place / a 2nd tap builds it); a mode-less pick only selects. */
   _seaChoosePiece(player, target, x, y, auto) {
     const modeless = !this.pendingAction;
-    this._seaOpenChooser(x, y, "Build a road or a ship here", [["road", "Road"], ["ship", "Ship"]].map(([type, label]) => ({
+    const NAME = { road: "Road", ship: "Ship" }, free = this.freeRoadsRemaining > 0;
+    // the pieces the tap could mean are the engine's candidates for that edge (intentFor over the legal builds)
+    const pieces = this.api.candidates(player.id, { edge: target.id }, null, { free }).map((a) => a.piece).filter((t) => NAME[t]);
+    this._seaOpenChooser(x, y, "Build a road or a ship here", (pieces.length ? ["road", "ship"].filter((t) => pieces.includes(t)) : ["road", "ship"]).map((t) => [t, NAME[t]]).map(([type, label]) => ({
       piece: type, id: target.id, label, run: () => this._seaPickBuild(player, { type, id: target.id }, modeless, auto) })));
   },
 
@@ -319,36 +322,68 @@ export const SeaGame = {
   // ── gold (human) ─────────────────────────────────────────────────────
   _seaGoldPending(player = this._me()) { return !!(this.sea && player && this.sea.goldFor(player.id)); },
 
+  /**
+   * The picks the human has tapped so far (view state: the per-card UI with Undo). Nothing reaches the game until the selection is complete:
+   * then one `pickGold` action carries every card (the engine's batch action). The stage belongs to one gold item: a new item (next roll, a
+   * new game, an auto-pick) drops it.
+   */
+  _goldStaged(pid) {
+    const item = this.sea?.goldFor(pid);
+    if (!item) { this._goldStage = null; return []; }
+    if (!this._goldStage || this._goldStage.item !== item) this._goldStage = { item, picks: [] };
+    return this._goldStage.picks;
+  },
+
   _seaGoldTap(res) {
     const human = this._me();
-    if (!human || !RES.includes(res) || !this.sea?.goldFor(human.id) || !(this.bank[res] > 0)) { this.sfx.error?.(); return; }
-    const item = this.sea.goldFor(human.id);
+    const item = human && this.sea?.goldFor(human.id);
+    const staged = item ? this._goldStaged(human.id) : [];
+    const left = (r) => this.bank[r] - staged.filter((x) => x === r).length;
+    if (!human || !RES.includes(res) || !item || !(left(res) > 0)) { this.sfx.error?.(); return; }
     const total = this.sea.goldTotal(item);
-    const logLen = this.logEntries.length;
-    const done = this.sea.pickGold(human, res);
+    staged.push(res);
     this.fx?.flyResources?.(this.players.map((p) => (p === human ? { [res]: 1 } : {})), null);
     this.sfx.click();
-    if (done) {
-      this.sfx.trade?.();
-      // v0.86: a short Undo after the last pick, like after a build
-      const picks = item.order || [];
-      if (picks.length) this._setUndo({ kind: "gold", pid: human.id, picks, total, logs: this.logEntries.slice(logLen), icon: "gold", label: `Took ${picks.map((r) => LBL[r]).join(" + ")}` });
-    }
+    if (staged.length >= item.count || RES.every((r) => left(r) <= 0)) { this._goldCommit(human, item, staged, total); return; }
+    if (this.rush) this._rushAfterAction(human);
+    else this.render();
+  },
+
+  /** The selection is complete: one `pickGold` through the API (a refusal, e.g. the bank ran short meanwhile, takes the cards one by one as before). */
+  _goldCommit(human, item, staged, total) {
+    const picks = staged.slice(), logLen = this.logEntries.length;
+    this._goldStage = null;
+    const r = this.api.act({ actor: human.id, type: "pickGold", resources: picks });
+    if (!r.ok) picks.forEach((x) => this.sea.pickGold(human, x));
+    this.sfx.trade?.();
+    // v0.86: a short Undo after the last pick, like after a build
+    const order = item.order || [];
+    if (order.length) this._setUndo({ kind: "gold", pid: human.id, picks: order, total, logs: this.logEntries.slice(logLen), icon: "gold", label: `Took ${order.map((x) => LBL[x]).join(" + ")}` });
     this.recomputeScores();
     if (this.rush) this._rushAfterAction(human);
     else { this.saveToStorage(); this.render(); }
+  },
+
+  /** A gold pick left open when the Rush roll comes: made for the human, as the `pickGold` action flagged auto (UiEngine._do_pickGold). */
+  _goldAuto(player) {
+    if (!this.sea?.goldFor(player.id)) return;
+    this._goldStage = null;
+    const r = this.api.dispatch({ actor: player.id, type: "pickGold", resources: this.sea.aiGoldPicks(player, this.sea.goldFor(player.id).count) }, { auto: true });
+    if (!r.ok) this.sea.autoGold(player);
   },
 
   /** v0.86: a gold pick in progress with at least one card taken: the ticker's Cancel slot says Undo. */
   _seaGoldUndoable() {
     const human = this._me();
     const item = human && this.sea?.goldFor(human.id);
-    return !!item?.order?.length;
+    return !!item && (this._goldStaged(human.id).length > 0 || !!item.order?.length);
   },
 
   /** Undo one gold pick (the last card taken goes back to the bank). */
   _seaGoldUndo() {
     const human = this._me();
+    const staged = human ? this._goldStaged(human.id) : [];
+    if (staged.length) { staged.pop(); this.sfx.click(); if (this.rush) this._rushAfterAction(human); else this.render(); return; }
     if (!human || !this.sea?.unpickGold(human)) { this.sfx.error?.(); return; }
     this.sfx.click();
     this.recomputeScores();
@@ -391,10 +426,12 @@ export const SeaGame = {
   _seaTrayGold(human, tbtn) {
     const item = this.sea?.goldFor(human.id);
     if (!item) return null;
-    const got = item.got || {};
-    const btns = RES.map((r) => tbtn(`data-gold="${r}" ${this.bank[r] > 0 ? "" : "disabled"}`, `<span class="card">${cardSvg(r)}</span><span>${LBL[r]}</span>${got[r] ? `<i class="pk">+${got[r]}</i>` : ""}`, `res${got[r] ? " sel" : ""}`)).join("");
+    const staged = this._goldStaged(human.id), got = { ...(item.got || {}) };
+    staged.forEach((r) => { got[r] = (got[r] || 0) + 1; });
+    const stagedN = (r) => staged.filter((x) => x === r).length;
+    const btns = RES.map((r) => tbtn(`data-gold="${r}" ${this.bank[r] - stagedN(r) > 0 ? "" : "disabled"}`, `<span class="card">${cardSvg(r)}</span><span>${LBL[r]}</span>${got[r] ? `<i class="pk">+${got[r]}</i>` : ""}`, `res${got[r] ? " sel" : ""}`)).join("");
     const total = this.sea.goldTotal(item); // v0.86: "Pick 2 · 0/2" → "1/2" (Undo sits in the ticker's Cancel slot)
-    return { mode: "gold", hint: `Pick ${total} · ${total - item.count}/${total}`, html: btns };
+    return { mode: "gold", hint: `Pick ${total} · ${total - item.count + staged.length}/${total}`, html: btns };
   },
 
   /** Seafarers trays for the player whose turn it is (null: not ours). */

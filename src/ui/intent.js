@@ -10,7 +10,7 @@
 // _commitSetup, _commitRobber, buyDevelopmentCard, playDevelopmentCard, performBankTrade, ...), so behaviour, animations, sounds, Undo and the
 // Math.random order are the same as before.
 import { Engine } from "../api/engine.js";
-import { RESOURCES as RES } from "../core/constants.js";
+import { RESOURCES as RES, COSTS_SEA as COSTS } from "../core/constants.js";
 import { cleanHand } from "../api/actions.js";
 
 const PLACE = new Set(["build", "place"]);
@@ -86,7 +86,11 @@ export class UiEngine extends Engine {
   dispatch(a, ui = null) {
     const prev = this._ui;
     this._ui = ui;
-    try { return this.apply(a); } finally { this._ui = prev; }
+    try {
+      const r = this.apply(a);
+      if (r.ok && ui?.auto) this._log[this._log.length - 1].auto = true; // a host timeout carried out for the human: the log says so
+      return r;
+    } finally { this._ui = prev; }
   }
   /** A bot's answer carried out by the UI (a partner's yes to an offer the human then confirms): the same apply(), the bot as actor. */
   dispatchFor(seat, a, ui = null) {
@@ -126,6 +130,30 @@ export class UiEngine extends Engine {
     const free = o.free ?? g.freeRoadsRemaining > 0;
     return spotsOf(this._legalOf({ kind: free ? "freeRoad" : "main", actor: seat }, "build"));
   }
+  /**
+   * What a tap on this spot could mean: intentFor over the seat's legal build actions (Road Building: the free roads and ships). `target` is
+   * { node } | { edge }, `tool` the selected piece or null. One candidate: that piece; two (a coast edge: road and ship): the chooser's options.
+   */
+  candidates(seat, target, tool = null, o = {}) {
+    const free = o.free ?? this.g.freeRoadsRemaining > 0, prompt = { kind: free ? "freeRoad" : "main", actor: seat };
+    return intentFor(target, tool, prompt, this._legalOf(prompt, "build"));
+  }
+  /**
+   * The tools' enable state (the build / buy buttons, the build tool): can the seat pay for the piece or card and is one left? `free`: Road
+   * Building's free roads and ships need no cards. Cost-only on purpose (a tool is enabled while no spot is lit: the dock then says "no spot"),
+   * so it is not a legalActions fact; the card is (the engine's own buyDev test). Cheap (a handful of lookups), so no cache is needed per frame.
+   */
+  tools(seat) {
+    const g = this.g, p = g.players[seat];
+    const pay = (c) => RES.every((r) => (p.resources[r] || 0) >= (COSTS[c][r] || 0));
+    const free = g.freeRoadsRemaining > 0, T = {};
+    for (const t of ["road", "settlement", "city", "ship"]) T[t] = { pay: ((t === "road" || t === "ship") && free) || pay(t), left: g.piecesLeft(p, t) > 0 };
+    T.ship.pay = T.ship.pay && !!g.sea; T.ship.ok = T.ship.pay && T.ship.left;
+    for (const t of ["road", "settlement", "city"]) T[t].ok = T[t].pay && T[t].left;
+    T.dev = { pay: this._quick({ actor: seat, type: "buyDev" }, { kind: "main" }), ok: false };
+    T.dev.ok = T.dev.pay;
+    return T;
+  }
   /** Seafarers: every legal ship move of a seat as { from, to } (an ordinary turn's or a Rush seat's prompt, whatever the seat holds now). */
   shipMoves(seat) {
     const g = this.g;
@@ -145,10 +173,20 @@ export class UiEngine extends Engine {
   _do_steal(a, p) { this.g._humanStealNow(p, a.victim); }
   _do_pick(a, p) { this.g._humanPickNow(p, a); }
   _do_discard() { this.g._confirmDiscardNow(); }
+  // a gold pick the host made for the human (Rush roll): the game's own autoGold, fed the picks the action carries
+  _do_pickGold(a, p) {
+    const g = this.g;
+    if (!this._ui?.auto) return super._do_pickGold(a, p);
+    const S = g.sea;
+    S.aiGoldPicks = () => a.resources.slice();
+    try { S.autoGold(p); } finally { delete S.aiGoldPicks; }
+    g.recomputeScores(); g.checkForWinner(p);
+  }
   _do_passSbp() { this.g._sbpSkipNow(false); }
   _do_ready(a, p) { this.g._humanReadyNow(p); }
   // trades: the engine keeps the open offer (one at a time: what the trade sheet shows), the bots' answers are the game's own evaluator
   _do_offerTrade(a, p) {
+    if (this._ui?.hsAsk) return this.g._hsAskNow(p, this._ui.hsAsk, { ...a.give }, { ...a.want }); // pass & play: one person asks another, who answers on the cover
     const g = this.g, to = a.to === "all" ? g.players.filter((q) => q.id !== a.actor).map((q) => q.id) : [...new Set(a.to)];
     const o = { id: ++this._offerSeq, from: a.actor, to, give: cleanHand(a.give), want: cleanHand(a.want), answered: {} };
     this._offers = [o];
