@@ -17,4 +17,4 @@ for (const spec of GAMES) {
   const r = lib.playGame(spec);
   out[spec.id] = { lines: sink, winner: r.winner ?? null, turns: r.turns ?? null };
 }
-console.log(JSON.stringify(out));
+process.stdout.write(JSON.stringify(out) + "\n", () => process.exit(0)); // (a game leaves a timer behind: exit when the line is out)
