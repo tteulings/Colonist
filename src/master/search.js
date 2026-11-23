@@ -576,7 +576,7 @@ export function prepareEngine(g) {
   const noop = () => {};
   ["renderTopPanels", "renderResourceCards", "renderScoreboard", "renderLog", "renderStatusAndControls", "fitView", "_buildStrategyUI", "_applyThemeToPlayers", "hideTradePanel", "removeGameOverOverlay", "clearStorage", "_renderRushHud", "_renderRushOffers"].forEach((k) => { g[k] = noop; });
   g.boardRenderer = null;
-  g.addLog = () => 0;
+  g.detachPresentation(); // headless = no presentation subscribers (the card tracker stays)
   g._stReset = function () { this.stats = null; }; g._stRestore = noop; g._stSave = () => null; g._stEv = noop; g._stRoll = noop; g._stTrade = noop;
   g.checkForWinner = ((orig) => function (p) { const r = orig.call(this, p); if (this.placementAnims) this.placementAnims.length = 0; return r; })(g.checkForWinner);
   const bestInit = g.getBestInitialSettlementNode.bind(g);

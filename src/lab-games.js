@@ -13,19 +13,19 @@
 // Reviewing. One game at a time in a third frame of its own (so games keep being played meanwhile), with the review as it is:
 // review.js _rvQueueNext plans the others' quick round, then the deep round on their real choices (OTHERS). Nothing of the
 // scoring is changed here; the lab only reads the result (history.js revMeta via the frame's _histRev).
-import { HistoryStore, LAB_DB, LAB_LIMITS } from "./history.js?v=196";
-import { packRecs } from "./review/pack.js?v=196";
+import { HistoryStore, LAB_DB, LAB_LIMITS } from "./history.js?v=197";
+import { packRecs } from "./review/pack.js?v=197";
 
 export const labStore = new HistoryStore(LAB_DB, LAB_LIMITS);
 
 let applyMainFn = null;
 async function applyMain() {
-  if (!applyMainFn) { const { makeMaster } = await import("./master/search.js?v=196"); applyMainFn = makeMaster({}).applyMain; }
+  if (!applyMainFn) { const { makeMaster } = await import("./master/search.js?v=197"); applyMainFn = makeMaster({}).applyMain; }
   return applyMainFn;
 }
 
 /** The sim frame's game routes a seat with `agent` to it (as the worker's prepareEngine does); seats without one play as before. */
-function hook(g) {
+export function hook(g) {
   if (g._labHooked) return;
   g._labHooked = true;
   const bestInit = g.getBestInitialSettlementNode.bind(g), moveRobber = g.moveRobber.bind(g), mainPhase = g.executeAiMainPhase.bind(g);
@@ -44,6 +44,9 @@ function scripted(g, script, n, apply, bad) {
     return s[2];
   };
   const agent = (seat) => ({
+    // the host (src/bots/search.js) asks a search agent for these: the next scripted choice, or nothing to choose (the Expert's own step), or the end of the turn once the script has gone wrong
+    decideMain: () => { const c = next(seat, 1); return c ? { choice: c } : bad.off ? { choice: { kind: "end" } } : null; },
+    applyMain: (gg, p, c) => apply(gg, p, c),
     setupNode: (gg, p, base) => { const c = next(seat, 0); return c == null ? base(p) : c; },
     robberHex: (gg, p) => { const c = next(seat, 2); return c == null ? gg.chooseRobberHex(p) : c; },
     mainPhase: (gg, p) => {
@@ -68,14 +71,14 @@ export function recordOn(g, on) {
 }
 
 /** Play a worker game again in the sim frame, recorded. Returns true when it ends exactly as the worker's did. */
-export async function replayScript(g, { strategies, seed, map, script, result }, rec) {
+export async function replayScript(g, { strategies, seed, map, script, result }, rec, host = null) {
   const apply = await applyMain();
-  hook(g);
+  if (!host) hook(g); // (the host plays the seats' decisions itself: nothing to hook, its probes are no moves for the recorder)
   const bad = { off: false };
   const sc = scripted(g, script, strategies.length, apply, bad);
   recordOn(g, rec);
   try {
-    g._labSimStart(strategies, { players: strategies.length, map, seed, agents: sc.agents });
+    g._labSimStart(strategies, { players: strategies.length, map, seed, agents: sc.agents, host });
     let r = { done: false };
     while (!r.done && !bad.off) r = g._labSimStep(40);
     const vp = g.players.map((p) => p.victoryPoints);
@@ -119,7 +122,7 @@ export function reviewGame(rg, id, ctl) {
     rg._cancelPendingWork?.();
     rg.loadFromStorage(rec.state);
     rg.players.forEach((p, i) => { const sp = rec.state.players?.[i]; if (p.isHuman && sp?.strategy) Object.assign(p, { strategy: { ...sp.strategy }, personality: sp.personality || null }); p.isHuman = false; }); // every seat is a bot (the review checks "the others")
-    const { unpackRecs } = await import("./review/pack.js?v=196");
+    const { unpackRecs } = await import("./review/pack.js?v=197");
     const R = { id: rg.stats?.id ?? id, base: rec.rv.base, recs: unpackRecs(rec.rv.recs), res: null, busy: false, ms: 0, revs: {}, queue: [], bots: true, noLuck: true }; // v1.32: the lab checks accuracy only (no luck in win chance: src/review-luck.js)
     rg._rv = R;
     if (rg.stats) rg.stats.id = R.id;

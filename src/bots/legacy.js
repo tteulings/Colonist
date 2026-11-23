@@ -18,10 +18,12 @@ const AI_SBP_MAX = 4; // six.js AI_SBP_MAX_ACTIONS
 export { DEALS, dealKey };
 export function legacyBot(meta, { strategy = null } = {}) {
   const memo = new Map(); // seat -> this turn's plan state
-  const state = (seat) => { let m = memo.get(seat); if (!m) memo.set(seat, (m = { queue: [], stage: 0, actions: 0, deals: 0, fns: null, knight: false, sbp: 0 })); return m; };
+  const state = (seat) => { let m = memo.get(seat); if (!m) memo.set(seat, (m = { queue: [], stage: 0, actions: 0, deals: 0, fns: null, knight: false, sbp: 0, skip: false })); return m; };
   const fresh = (seat) => memo.delete(seat);
   const bot = {
     ...meta, view: false, legal: false, legacy: true,
+    /** The in-app host starts a bot's main phase here (`skipTrade`: the turn goes on after a person answered a deal, which is not offered again). */
+    begin(seat, { skipTrade = false } = {}) { fresh(seat); state(seat).skip = !!skipTrade; },
     init(seat, setup) { fresh(seat); const g = setup?.game; if (g && strategy) g.players[seat].strategy = { ...strategy }; },
     decide(view, prompt, legal, ctx) {
       const g = ctx.game, seat = prompt.actor, p = g.players[seat];
@@ -105,8 +107,12 @@ export function legacyBot(meta, { strategy = null } = {}) {
       }
       if (m.stage === 1) { // then one deal with the other bots
         m.stage = 2;
-        const r = probe(g, () => g.aiTryPlayerTrade(p), { eager: true, suspend: true });
-        if (r.actions.length) { m.queue = r.actions; continue; }
+        if (!m.skip) {
+          const r = probe(g, () => g.aiTryPlayerTrade(p), { eager: true, suspend: true });
+          // in the app a deal can be asked of the person at the table: the host stops the turn here and shows the card (the game goes on once it is answered)
+          if (r.result?.type === "human" && ctx.humanTrade) return { actor: seat, type: "pause", why: "humanTrade", trade: r.result };
+          if (r.actions.length) { m.queue = r.actions; continue; }
+        }
       }
       if (m.actions < 10) {
         let acted = false;

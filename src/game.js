@@ -41,7 +41,9 @@ import { LiveBarMixin } from "./live-bar.js"; // v1.59 optional live win-chance 
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
-import { createUiEngine } from "./ui/intent.js"; // architecture step 3: human input goes through the Action API
+import { createEmitter, eventToText } from "./core/events.js"; // architecture step 5: the game talks in events
+import { hostOn, hostRecover, mainPhase as hostMainPhase } from "./bots/inapp.js"; // follow-up of step 4: the bot host plays the bots' main phase in the app
+import { createUiEngine } from "./ui/intent.js?v=197"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS } from "./seafarers/index.js";
 
 import { RESOURCES, COSTS_SEA as COSTS, PIECE_LIMITS_SEA as PIECE_LIMITS, BANK_SIZE, DICE_WAYS as DICE_WEIGHT, DEV_CARD_TYPES, DEV_DECK, deckList } from "./core/constants.js"; // (COSTS / PIECE_LIMITS carry the Seafarers ship: it is only looked up when this.sea)
@@ -800,6 +802,8 @@ function pointInPolygon(x, y, polygon) {
 
 class ColonistFullGame {
   constructor() {
+    this.events = createEmitter(); // step 5: every fact the rules produce goes through this one emitter (src/core/events.js)
+    this._installEventSubscribers();
     this.canvas = document.querySelector("#board");
     this.ctx = this.canvas.getContext("2d");
     this.logContainer = document.querySelector("#log");
@@ -1410,14 +1414,14 @@ class ColonistFullGame {
 
   // ── Bank & piece supply ──
   payToBank(player, cost) {
-    this._aiTrkNote(player, cost, -1); // public: builds, bank trades and discards are visible
+    this.emit({ type: "paid", seat: player.id, cost }); // public: builds, bank trades and discards are visible (the card tracker listens)
     payCost(player.resources, cost);
     RESOURCES.forEach((r) => { this.bank[r] += cost[r] || 0; });
   }
 
   takeFromBank(player, resource, amount = 1) {
     const n = Math.min(amount, this.bank[resource]);
-    this._aiTrkNote(player, { [resource]: n }, 1);
+    this.emit({ type: "received", seat: player.id, cards: { [resource]: n } });
     this.bank[resource] -= n;
     player.resources[resource] += n;
     return n;
@@ -1551,8 +1555,7 @@ class ColonistFullGame {
     this._masterWarm(); // v0.90: load the Master's worker before its first decision
     this.initialPlacement();
     this.recomputeScores();
-    this.addLog(this.sea ? `New ${this.isRush() ? "Rush" : "Classic"} Seafarers game: Heading for New Shores, first to ${this.winPoints} points.`
-      : `New ${this.isRush() ? "Rush" : "Classic"} game: first to ${this.settings.winPoints} points.`);
+    this.emit({ type: "gameStarted", sea: !!this.sea, rush: this.isRush(), winPoints: this.sea ? this.winPoints : this.settings.winPoints });
     this.render();
   }
 
@@ -1601,6 +1604,7 @@ class ColonistFullGame {
     this._markLive(true);
     this.settings = normalizeSettings(settings);
     ColonistFullGame.saveLastSettings(this.settings);
+    this._hostBroken = false; // a new game gets the host's in-app bots again
     this.resetGame();
     this._buildStrategyUI();
   }
@@ -1625,7 +1629,7 @@ class ColonistFullGame {
       this.confirmBuild = null;
       this.hoverTooltip = ""; // drop a stale "Confirm" tooltip from the last setup placement
       this.sea?.onNewTurn(); // ⚓ set-up ships may move from the first turn on
-      this.addLog("Initial placement complete.");
+      this.emit({ type: "note", key: "initialPlacementDone" });
       this.recomputeScores(); // v0.81: the chips show both set-up settlements at once
       this._tickerPromptKey = null; this._tickerPrompt = ""; this._lastLogKey = null; // and the ticker drops "Now place a road…"
       if (this.isRush()) {
@@ -1656,7 +1660,7 @@ class ColonistFullGame {
         return;
       }
       this.setupAction = "settlement";
-      this.addLog("Place your settlement on the board.");
+      this.emit({ type: "note", key: "placeSettlement" });
       this.render();
       return;
     }
@@ -1687,8 +1691,7 @@ class ColonistFullGame {
     if (nodeId == null) { this.setupStep++; this.processSetupQueue(); return; }
     if (this._aiRec()) this._aiNoteSetup(player, nodeId);
     this.placeSettlement(player, nodeId, true);
-    this.addLog(`${player.name} placed a settlement.`);
-    this.sfx.buildSettlement();
+    this.emit({ type: "built", seat: player.id, piece: "settlement", at: nodeId, how: "setup" });
     this.recomputeScores();
     this.render();
     this._aiSetupRoad(player, nodeId);
@@ -1697,16 +1700,18 @@ class ColonistFullGame {
   /** The road (or ship) half of a bot's set-up turn, with the round-2 resources (given here, at road time) and the step advance. */
   _aiSetupRoad(player, nodeId) {
     this._later(() => this._aiGate(() => {
-      let piece = "road";
+      let piece = "road", at = null;
       if (this.sea) { // ⚓ Seafarers: a road, or a ship from a coastal settlement
         const pc = this.sea.aiSetupPiece(player, nodeId);
         if (pc?.type === "ship") { this.sea.placeShip(player, pc.id, { free: true, setupNode: nodeId }); piece = "ship"; }
         else if (pc) this.placeRoad(player, pc.id, { free: true, setupNode: nodeId });
+        at = pc ? pc.id : null;
       } else {
         const cands = this._aiRec() ? [] : null;
         const roadId = this.getBestRoadFromNode(player, nodeId, cands);
         if (cands) this._aiNoteSetupRoad(player, nodeId, roadId, cands);
         if (roadId != null) this.placeRoad(player, roadId, { free: true, setupNode: nodeId });
+        at = roadId;
       }
       if (this.setupStep >= this.players.length) {
         this.geometry.nodes[nodeId].adjacentHexes.forEach((hexId) => {
@@ -1714,8 +1719,7 @@ class ColonistFullGame {
           if (RESOURCES.includes(hex.resource)) this.takeFromBank(player, hex.resource, 1);
         });
       }
-      this.addLog(`${player.name} placed a ${piece}.`);
-      this.sfx.buildRoad();
+      this.emit({ type: "built", seat: player.id, piece, at, how: "setup" });
       this.recomputeScores();
       this.render();
       this.setupStep++;
@@ -1736,7 +1740,7 @@ class ColonistFullGame {
       this.confirmBuild = null;
       if (setup) { this._flashPrompt(this._say(r.bug ? "" : r.reason)); return false; }
       if (r.bug) { this._flashPrompt(this._say("")); this.render(); return false; }
-      if (this.rush) { this.addLog("Too slow — that spot was just taken."); this.sfx.error(); }
+      if (this.rush) this.emit({ type: "note", key: "tooSlow" });
       this.render();
     }
     return r.ok;
@@ -1752,10 +1756,10 @@ class ColonistFullGame {
   }
 
   /** Move the robber (or the pirate) through the API; `victim` is the staged choice, used when several can be robbed. */
-  _applyRobber(player, hexId, victim = null) {
+  _applyRobber(player, hexId, victim = null, auto = false) {
     const a = { actor: player.id, type: "moveRobber", hex: hexId, ...(this.sea ? { target: this._seaHexKind(hexId) } : {}) };
-    const r = this.api.act(a, { victim });
-    if (!r.ok && !r.bug) this._flashPrompt(this._say(r.reason));
+    const r = auto ? this.api.dispatch(a, { victim, auto: true }) : this.api.act(a, { victim }); // auto: a host timeout moves it for the human (flagged in the log, no message on a refusal)
+    if (!r.ok && !r.bug && !auto) this._flashPrompt(this._say(r.reason));
     return r.ok;
   }
 
@@ -1823,12 +1827,12 @@ class ColonistFullGame {
     { const p = this.getBuildPosition(cb); if (p) this._lastBuild = { t: performance.now(), x: p.x, y: p.y }; }
     if (cb.type === "settlement" && this.setupAction === "settlement") {
       if (!this.placeSettlement(player, cb.id, true)) return;
-      this.sfx.buildSettlement();
+      this.emit({ type: "built", seat: player.id, piece: "settlement", at: cb.id, how: "setup", log: false });
       this.lastSetupNodeId = cb.id;
       this.setupAction = "road";
       if (this.sea) this.sea.setupPiece = "road"; // ⚓
       const logLen = this.logEntries.length;
-      this.addLog("Now place a road from your settlement.");
+      this.emit({ type: "note", key: "placeRoad" });
       // Undo stays offered until the road is placed (no time limit)
       this._setUndo({ kind: "setup", id: cb.id, pid: player.id, icon: "settlement", label: "Settlement placed", noun: "", logLen }, 0);
       this.render();
@@ -1839,7 +1843,7 @@ class ColonistFullGame {
         : this.placeRoad(player, cb.id, { free: true, setupNode: this.lastSetupNodeId });
       if (!placed) return;
       this._dropUndo();
-      this.sfx.buildRoad();
+      this.emit({ type: "built", seat: player.id, piece: cb.type, at: cb.id, how: "setup", log: false });
       if (this.setupStep >= this.players.length) {
         this.geometry.nodes[this.lastSetupNodeId].adjacentHexes.forEach((hexId) => {
           const hex = this.geometry.hexes[hexId];
@@ -1853,6 +1857,89 @@ class ColonistFullGame {
       this.processSetupQueue();
       this.render();
     }
+  }
+
+  /** Emit a game event (src/core/events.js): the log line, the sound, the animations and the card tracker are subscribers of it. */
+  emit(ev) { return this.events.emit(ev); }
+
+  /**
+   * The subscribers every game starts with. "trk" is the public card tracker (bots read it, so headless games keep it); "log", "sfx", "fx" and "anim"
+   * are presentation: a headless engine (prepareEngine) simply removes them.
+   */
+  _installEventSubscribers() {
+    const bus = this.events;
+    // the public card tracker: what any seat could know about the others' hands (builds, bank trades, discards, payouts, steals, Monopoly, bot trades)
+    bus.on("trk", (e) => {
+      switch (e.type) {
+        case "paid": this._aiTrkNote(this.players[e.seat], e.cost, -1); break;
+        case "received": this._aiTrkNote(this.players[e.seat], e.cards, 1); break;
+        case "stole": this._aiTrkSteal(this.players[e.victim], this.players[e.seat]); break; // before the card moves: the card itself stays hidden from the others
+        case "devPlayed": if (e.card === "monopoly") this._aiTrkMonopoly(this.players[e.seat], e.res, e.collected); break;
+        case "traded":
+          if (e.style !== "ai") break;
+          this._aiTrkNote(this.players[e.seat], e.gave, -1); this._aiTrkNote(this.players[e.seat], e.got, 1);
+          this._aiTrkNote(this.players[e.partner], e.got, -1); this._aiTrkNote(this.players[e.partner], e.gave, 1);
+          break;
+        default:
+      }
+    });
+    bus.on("stats", (e) => this._stOnEvent(e)); // the end-of-game statistics recorder (src/stats.js)
+    this.attachLog();
+    bus.on("sfx", (e) => {
+      switch (e.type) {
+        case "built": if (e.sfx !== false) { if (e.piece === "settlement") this.sfx.buildSettlement(); else if (e.piece === "city") this.sfx.buildCity(); else this.sfx.buildRoad(); } break;
+        case "shipMoved": this.sfx.buildRoad(); break;
+        case "rolled": if (e.rush) this.sfx.diceRoll(); else this.sfx.diceResult(); break;
+        case "robberMoved": this.sfx.robber(); break;
+        case "stole": this.sfx.steal(); break;
+        case "traded": if (e.style !== "ai" && e.style !== "api") this.sfx.trade(); break;
+        case "devBought": this.sfx.devCard(); break;
+        case "devPlayed": if (e.interactive && (e.card === "yearOfPlenty" || e.card === "monopoly")) this.sfx.trade?.(); break;
+        case "note": if (e.key === "tooSlow") this.sfx.error(); else if (e.key === "moveRobber" || e.key === "moveRobberSea") this.sfx.robberPrompt(); break;
+        default:
+      }
+    });
+    bus.on("fx", (e) => {
+      const fx = this.fx;
+      switch (e.type) {
+        case "rolled": if (e.rush) fx?.diceRoll(e.d1, e.d2); break;
+        case "built": if (e.how === "free") fx?.freeRoad?.(e.seat, e.at, e.i || 0, e.piece === "ship"); break;
+        case "stole": this._showStealAnimation(this.players[e.seat], this.players[e.victim], e.res); break;
+        case "payout": this.showResourceGainToasts(e.gains); break; // the cards fly from their tiles; toasts and a chime for the gain
+        case "devPlayed":
+          if (e.card === "yearOfPlenty") fx?.yearOfPlenty?.(e.seat, e.gained);
+          else if (e.card === "monopoly") fx?.monopoly?.(e.seat, e.res, e.collected);
+          break;
+        default:
+      }
+    });
+    // the pop-in animation of a piece that appears on the board
+    bus.on("anim", (e) => {
+      if (e.type !== "placed") return;
+      const geo = this.geometry, color = this.players[e.seat]?.color;
+      if (e.piece === "road") {
+        const [a, b] = geo.edges[e.at].nodes, p1 = geo.nodes[a], p2 = geo.nodes[b];
+        this.placementAnims.push({ x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2, type: "road", startTime: Date.now(), color });
+      } else {
+        const node = geo.nodes[e.at];
+        this.placementAnims.push({ x: node.x, y: node.y, type: e.piece, startTime: Date.now(), color });
+      }
+    });
+  }
+
+  /** (Re)attach the journal: one line of English per event that has one (the display translates it). A headless engine detaches it; a harness that wants the text attaches it again. */
+  attachLog() {
+    this.events.on("log", (e) => {
+      const text = eventToText(e, "en", this);
+      if (text != null) this.addLog(text, e.type === "buildWindow" ? { sbp: true } : null);
+      if (e.type === "stole" && this.hotseat) this._hsStealNotes(this.players[e.seat], this.players[e.victim], RESOURCE_LABEL[e.res]);
+    });
+  }
+
+  /** Headless: nothing is shown, heard or animated. The card tracker stays (the bots read it); `keepLog` keeps the journal too. */
+  detachPresentation({ keepLog = false, keepStats = false } = {}) {
+    ["sfx", "fx", "anim", ...(keepStats ? [] : ["stats"])].forEach((n) => this.events.off(n));
+    if (!keepLog) this.events.off("log");
   }
 
   addLog(text, meta = null) {
@@ -2017,11 +2104,7 @@ class ColonistFullGame {
     const player = this.currentPlayer;
     if (!player || !player.isHuman || this.winner || !this._buildPhase()) return;
     if ((this._robberInProgress() || this._seaHumanBlocked()) /* ⚓ gold pick */) return; // Cannot override robber placement / discard
-    if (["road", "settlement", "city", "ship"].includes(action) && this.piecesLeft(player, action) <= 0) return;
-    if (action === "ship" && (!this.sea || (!this.freeRoadsRemaining && !hasResources(player.resources, COSTS.ship)))) return; // ⚓
-    if (action === "road" && !this.freeRoadsRemaining && !hasResources(player.resources, COSTS.road)) return;
-    if (action === "settlement" && !hasResources(player.resources, COSTS.settlement)) return;
-    if (action === "city" && !hasResources(player.resources, COSTS.city)) return;
+    if (["road", "settlement", "city", "ship"].includes(action) && !this.api.tools(player.id)[action].ok) return; // pieces left, cards (the engine's tools(): ⚓ ships only in Seafarers)
     if (this.freeRoadsRemaining > 0 && action !== "road" && action !== "ship") return; // Road Building: place the free roads (or ships) first
     this._dropUndo();
     if (this.sea) this.sea.moveSel = null; // ⚓
@@ -2424,14 +2507,12 @@ class ColonistFullGame {
     if (cb.type === "ship") { // ⚓ Seafarers
       const isFree = this.freeRoadsRemaining > 0;
       if (this.sea?.placeShip(player, cb.id, { free: isFree })) {
-        if (!isFree) { this.payToBank(player, COSTS.ship); paid = COSTS.ship; this.addLog(`${player.name} built a ship.`); }
+        if (!isFree) { this.payToBank(player, COSTS.ship); paid = COSTS.ship; this.emit({ type: "built", seat: player.id, piece: "ship", at: cb.id, how: "paid" }); }
         else {
           this.freeRoadsRemaining -= 1;
           if (this.freeRoadsRemaining > 0 && !this._hasLegalRoad(player, true)) this.freeRoadsRemaining = 0;
-          this.addLog(`${player.name} placed a free ship (${this.freeRoadsRemaining} remaining).`);
-          this.fx?.freeRoad?.(player.id, cb.id, 0, true);
+          this.emit({ type: "built", seat: player.id, piece: "ship", at: cb.id, how: "free", remaining: this.freeRoadsRemaining, i: 0 });
         }
-        this.sfx.buildRoad();
         built = true;
       }
     } else if (cb.type === "road") {
@@ -2442,32 +2523,28 @@ class ColonistFullGame {
           this.freeRoadsRemaining -= 1;
           // No pieces or legal spots left — forfeit the remaining free road
           if (this.freeRoadsRemaining > 0 && !this._hasLegalRoad(player, true)) this.freeRoadsRemaining = 0;
-          this.addLog(`${player.name} placed a free road (${this.freeRoadsRemaining} remaining).`);
-          this.fx?.freeRoad?.(player.id, cb.id, 0, false);
+          this.emit({ type: "built", seat: player.id, piece: "road", at: cb.id, how: "free", remaining: this.freeRoadsRemaining, i: 0 });
         }
-        if (!isFreeRoad) this.addLog(`${player.name} built a road.`);
-        this.sfx.buildRoad();
+        if (!isFreeRoad) this.emit({ type: "built", seat: player.id, piece: "road", at: cb.id, how: "paid" });
         built = true;
       }
     } else if (cb.type === "settlement") {
       if (this.placeSettlement(player, cb.id, false)) {
         this.payToBank(player, COSTS.settlement); paid = COSTS.settlement;
-        this.addLog(`${player.name} built a settlement.`);
+        this.emit({ type: "built", seat: player.id, piece: "settlement", at: cb.id, how: "paid" });
         if (this.sea) isle = this._seaOnSettlement(player, cb.id); // ⚓ +2 for a new island
-        this.sfx.buildSettlement();
         built = true;
       }
     } else if (cb.type === "city") {
       if (this.placeCity(player, cb.id, false)) {
         this.payToBank(player, COSTS.city); paid = COSTS.city;
-        this.addLog(`${player.name} upgraded to a city.`);
-        this.sfx.buildCity();
+        this.emit({ type: "built", seat: player.id, piece: "city", at: cb.id, how: "paid" });
         built = true;
       }
     }
     this.confirmBuild = null;
     if (!built) {
-      if (this.rush) { this.addLog("Too slow — that spot was just taken."); this.sfx.error(); }
+      if (this.rush) this.emit({ type: "note", key: "tooSlow" });
       this.render();
       return false;
     }
@@ -2498,20 +2575,20 @@ class ColonistFullGame {
   /** Move the robber to a chosen (legal) tile and steal — the confirm step of robber mode. */
   _commitRobber(player, hexId, chosenVictim = null) {
     if (this.pendingAction !== "robber" || !this._robberHexAllowed(hexId, player)) return;
-    this._cancelRobberTimer();
+    if (!this._rvNoRec) this._cancelRobberTimer();
     this.confirmBuild = null;
     this.devPlayed = null; // a Knight can no longer be taken back
     const hex = this.geometry.hexes[hexId];
-    if (this.sea && hex.resource === "sea") { this.sea.pirateHexId = hexId; this.addLog(`${player.name} moved the pirate.`); } // ⚓
-    else { this.robberHexId = hexId; this.addLog(`${player.name} moved robber to ${this._hexLabel(hex)}.`); }
+    const pirate = !!this.sea && hex.resource === "sea"; // ⚓
+    if (pirate) this.sea.pirateHexId = hexId; else this.robberHexId = hexId;
     if (this.sea) this.sea.thief = null;
-    this.sfx.robber();
+    this.emit({ type: "robberMoved", seat: player.id, hex: hexId, pirate });
     this.pendingAction = null;
 
     // Check for steal victims
     const victims = this._stealVictims(hexId, player);
     if (victims.length === 0) {
-      this.addLog("No one to steal from.");
+      if (!this._rvNoRec) this.emit({ type: "noVictim", seat: player.id }); // _rvNoRec: the Rush auto move, silent as v1.96's moveRobberAndSteal
       this.robberContext = null;
     } else if (victims.length === 1 || victims.includes(chosenVictim)) {
       this.stealFromVictim(player, victims.includes(chosenVictim) ? chosenVictim : victims[0]);
@@ -2521,6 +2598,7 @@ class ColonistFullGame {
       this.robberVictimOptions = victims;
       this.showVictimPanel(player, victims);
     }
+    if (this._rvNoRec) return; // the Rush auto move saves and renders afterwards, as v1.96 did
     this.saveToStorage();
     this.render();
   }
@@ -3290,8 +3368,7 @@ class ColonistFullGame {
     this.phase = "main";
     if (this.rollHistory[this.lastRoll] != null) this.rollHistory[this.lastRoll]++;
     this._stRoll(player, this.lastDice.d1, this.lastDice.d2);
-    this.addLog(`Turn ${this.turn}: ${player.name} rolled ${this.lastRoll}.`);
-    this.sfx.diceResult();
+    this.emit({ type: "rolled", seat: player.id, turn: this.turn, total: this.lastRoll, d1: this.lastDice.d1, d2: this.lastDice.d2 });
     // Highlight matching hex tokens
     if (this.lastRoll !== 7) {
       this.highlightRoll = { number: this.lastRoll, startTime: Date.now() };
@@ -3299,9 +3376,7 @@ class ColonistFullGame {
     this.checkForWinner(player);
     // Returns a promise that settles once any robber flow (discards, robber move, steal) is done
     if (this.lastRoll === 7) return this.resolveRobber(player, "rolled a 7");
-    const gains = this.distributeResources(this.lastRoll);
-    // Show resource gain toasts for ALL players
-    if (gains) this.showResourceGainToasts(gains);
+    this.distributeResources(this.lastRoll); // (the payout event makes the cards fly and the toasts: a subscriber)
     return Promise.resolve();
   }
 
@@ -3325,7 +3400,7 @@ class ColonistFullGame {
       const totalOwed = claimants.reduce((sum, id) => sum + owed[id][resource], 0);
       if (!totalOwed) return;
       if (totalOwed > this.bank[resource] && claimants.length > 1) {
-        this.addLog(`Bank is short of ${RESOURCE_LABEL[resource]} — no one receives it.`);
+        this.emit({ type: "bankShort", res: resource });
         return;
       }
       claimants.forEach((id) => {
@@ -3334,10 +3409,11 @@ class ColonistFullGame {
     });
     gainByPlayer.forEach((gain, playerId) => {
       if (sumResources(gain) > 0) {
-        this.addLog(`${this.players[playerId].name} collect${this._s(this.players[playerId])} ${resourceString(gain)}.`);
+        this.emit({ type: "produced", seat: playerId, gain });
       }
     });
     if (this.sea && goldOwed.some((n) => n > 0)) this.sea.payGold(goldOwed, gainByPlayer, this.isRush() ? null : this.currentPlayer); // ⚓ after the normal cards
+    this.emit({ type: "payout", roll, gains: gainByPlayer });
     return gainByPlayer;
   }
 
@@ -3360,7 +3436,7 @@ class ColonistFullGame {
         discardQueue.push({ player, count: discardCount });
       } else {
         this._autoDiscard(player, discardCount);
-        this.addLog(`${player.name} discard${this._s(player)} ${discardCount} cards after ${reason}.`);
+        this.emit({ type: "discarded", seat: player.id, n: discardCount, reason });
       }
     });
 
@@ -3481,8 +3557,7 @@ class ColonistFullGame {
       this.robberContext = { playerId: currentPlayer.id };
       this.pendingAction = "robber";
       if (this.sea) { this.sea.thief = null; this.sea.moveSel = null; } // ⚓ robber or pirate: chosen in the dock or by the tapped hex
-      this.addLog(this.sea ? "Move the robber (land) or the pirate (sea)." : "Move the robber — tap a tile.");
-      this.sfx.robberPrompt();
+      this.emit({ type: "note", key: this.sea ? "moveRobberSea" : "moveRobber" });
       this.render();
       return;
     }
@@ -3582,9 +3657,9 @@ class ColonistFullGame {
   }
 
   moveRobberAndSteal(currentPlayer, targetHexId) {
-    if (this.sea && this.geometry.hexes[targetHexId].resource === "sea") { this.sea.pirateHexId = targetHexId; this.addLog(`${currentPlayer.name} moved the pirate.`); } // ⚓
-    else { this.robberHexId = targetHexId; this.addLog(`${currentPlayer.name} moved robber to ${this._hexLabel(this.geometry.hexes[targetHexId])}.`); }
-    this.sfx.robber();
+    const pirate = !!this.sea && this.geometry.hexes[targetHexId].resource === "sea"; // ⚓
+    if (pirate) this.sea.pirateHexId = targetHexId; else this.robberHexId = targetHexId;
+    this.emit({ type: "robberMoved", seat: currentPlayer.id, hex: targetHexId, pirate });
     const victims = this._stealVictims(targetHexId, currentPlayer);
     if (!victims.length) return;
     this._doSteal(currentPlayer, this._aiChooseVictim(currentPlayer, victims));
@@ -3599,16 +3674,11 @@ class ColonistFullGame {
     }));
     if (!available.length) return;
     const stolen = chooseRandomWeighted(available).resource;
-    this._aiTrkSteal(victim, currentPlayer); // the card itself is hidden from the other players
+    // emitted as the card moves: the card tracker (the card itself stays hidden from the other players) reads the hands before it does; the log
+    // (pass & play: "a card", thief and victim see which one privately), the sound and the animation follow
+    this.emit({ type: "stole", seat: currentPlayer.id, victim: victimId, res: stolen });
     victim.resources[stolen] -= 1;
     currentPlayer.resources[stolen] += 1;
-    if (this.hotseat) {
-      // pass & play: the table only learns that a card moved; thief and victim see which one privately
-      this.addLog(`${currentPlayer.name} stole a card from ${victim.name}.`);
-      this._hsStealNotes(currentPlayer, victim, RESOURCE_LABEL[stolen]);
-    } else this.addLog(`${currentPlayer.name} stole 1 ${RESOURCE_LABEL[stolen]} from ${victim.name}.`);
-    this.sfx.steal();
-    this._showStealAnimation(currentPlayer, victim, stolen);
   }
 
   _animateStealCard(thief, victim, resource) {
@@ -4209,8 +4279,7 @@ class ColonistFullGame {
   _playerTradeSwapNow(player, partner, gave, got) {
     const src = document.querySelector(`#tradePlayerRow [data-partner="${partner.id}"]`)?.getBoundingClientRect();
     this._swapCards(player, gave, partner, got);
-    this.addLog(`Traded with ${partner.name}: gave ${resourceString(gave)} for ${resourceString(got)}.`);
-    this.sfx.trade();
+    this.emit({ type: "traded", seat: player.id, partner: partner.id, gave, got, style: "human" });
     this.tradeOffer = makeEmptyResources();
     this.tradeRequest = makeEmptyResources();
     this._clearTradeAnswers();
@@ -4250,7 +4319,7 @@ class ColonistFullGame {
     const acceptors = responses.filter((r) => r.accepts).map((r) => r.player);
     // Nobody says yes: one bot may come back with a counter-offer
     const counter = acceptors.length ? null : this._generateCounterOffer(player, offer, request);
-    if (!acceptors.length) this.addLog(counter ? `${counter.player.name} made a counter-offer.` : "All players rejected your trade offer.");
+    if (!acceptors.length) this.emit(counter ? { type: "tradeAnswered", answer: "counter", seat: counter.player.id } : { type: "tradeAnswered", answer: "allRejected" });
     // v0.82: never trade on the Offer tap, also when exactly one bot says yes — its ✓ / Trade on the portrait waits
     // for your one tap (the sheet stays open until then)
     this._tradeAnswers = { offer, request, responses, counter, turnSerial: this.turnSerial, offerId, counterId: counter ? this.api.openCounter(counter, player) : null };
@@ -4266,7 +4335,7 @@ class ColonistFullGame {
         </div>` : "";
       res.querySelector("[data-counter]")?.addEventListener("click", () => this._executePlayerTrade(counter.player, counter.want, counter.give, this._tradeAnswers?.counterId ?? null));
       res.querySelector("[data-counter-no]")?.addEventListener("click", () => {
-        this.addLog(`You declined ${counter.player.name}'s counter-offer.`);
+        this.emit({ type: "tradeAnswered", answer: "counterDeclined", seat: counter.player.id });
         if (this._tradeAnswers) this._tradeAnswers.counter = null;
         res.innerHTML = "";
         this._renderTradePlayers(player);
@@ -4442,10 +4511,6 @@ class ColonistFullGame {
         if (entry) entry.answers.push({ pid: other.id, ok: verdict.ok, why: verdict.why, before: verdict.before, after: verdict.after });
         if (verdict.ok && dry) return { type: "done", dry: true, partner: other, give: offer, want: request };
         if (verdict.ok) {
-          this._aiTrkNote(aiPlayer, offer, -1);
-          this._aiTrkNote(aiPlayer, request, 1);
-          this._aiTrkNote(other, request, -1);
-          this._aiTrkNote(other, offer, 1);
           this._stTrade(aiPlayer, other, offer, request);
           RESOURCES.forEach((r) => {
             aiPlayer.resources[r] -= offer[r];
@@ -4453,7 +4518,7 @@ class ColonistFullGame {
             other.resources[r] -= request[r];
             other.resources[r] += offer[r];
           });
-          this.addLog(`${aiPlayer.name} traded ${resourceString(offer)} with ${other.name} for ${resourceString(request)}.`);
+          this.emit({ type: "traded", seat: aiPlayer.id, partner: other.id, gave: offer, got: request, style: "ai" }); // (the card tracker notes the swap)
           return { type: "done" };
         }
       }
@@ -4491,7 +4556,7 @@ class ColonistFullGame {
           if (this.pendingIncomingTrade?.id !== id) return;
           if (!this._offerHeld) left -= 100;
           if (left > 0) { this._later(tick, 100); return; }
-          this.addLog(`${fromPlayer.name}'s offer expired.`);
+          this.emit({ type: "tradeAnswered", answer: "expired", from: fromPlayer.id });
           this.resolveIncomingTrade(false, true);
         };
         this._later(tick, 100);
@@ -4518,7 +4583,7 @@ class ColonistFullGame {
     const human = this.pendingIncomingTrade.to || this._me();
     if (accepted && human && !(hasResources(human.resources, want) && hasResources(fromPlayer.resources, give))) {
       accepted = false;
-      this.addLog(`Trade with ${fromPlayer.name} is no longer possible.`);
+      this.emit({ type: "tradeAnswered", answer: "void", from: fromPlayer.id });
     } else if (accepted && human) {
       this._animateTradeCards(want, give, this._offerCardEl());
       // AI gives 'give' to human, human gives 'want' to AI
@@ -4529,12 +4594,10 @@ class ColonistFullGame {
         fromPlayer.resources[r] -= give[r];
         fromPlayer.resources[r] += want[r];
       });
-      this.addLog(this._you(human) ? `You accepted ${fromPlayer.name}'s trade: got ${resourceString(give)} for ${resourceString(want)}.`
-        : `${human.name} traded with ${fromPlayer.name}: got ${resourceString(give)} for ${resourceString(want)}.`);
-      this.sfx.trade();
+      this.emit({ type: "traded", seat: human.id, partner: fromPlayer.id, gave: want, got: give, style: "incoming" });
       if (this._you(human)) this.pushToast(`Trade done: got ${resourceString(give)} for ${resourceString(want)}`, "important");
     } else if (!expired) {
-      this.addLog(this._you(human) ? `You rejected ${fromPlayer.name}'s trade offer.` : `${human.name} declined ${fromPlayer.name}'s offer.`);
+      this.emit({ type: "tradeAnswered", answer: "rejected", seat: human.id, from: fromPlayer.id });
     }
     this.pendingIncomingTrade = null;
     if (this.incomingTradePanel) this.incomingTradePanel.style.display = "none";
@@ -4588,12 +4651,7 @@ class ColonistFullGame {
     if (!this.canBuildRoad(player, edgeId, options)) return false;
     this.geometry.edges[edgeId].owner = player.id;
     player.roads.add(edgeId);
-    // Placement animation
-    const edge = this.geometry.edges[edgeId];
-    const [a, b] = edge.nodes;
-    const p1 = this.geometry.nodes[a];
-    const p2 = this.geometry.nodes[b];
-    this.placementAnims.push({ x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2, type: "road", startTime: Date.now(), color: player.color });
+    this.emit({ type: "placed", seat: player.id, piece: "road", at: edgeId }); // the placement animation is a subscriber
     return true;
   }
 
@@ -4603,7 +4661,7 @@ class ColonistFullGame {
     node.owner = player.id;
     node.structure = "settlement";
     player.settlements.add(nodeId);
-    this.placementAnims.push({ x: node.x, y: node.y, type: "settlement", startTime: Date.now(), color: player.color });
+    this.emit({ type: "placed", seat: player.id, piece: "settlement", at: nodeId });
     return true;
   }
 
@@ -4613,7 +4671,7 @@ class ColonistFullGame {
     node.structure = "city";
     player.settlements.delete(nodeId);
     player.cities.add(nodeId);
-    this.placementAnims.push({ x: node.x, y: node.y, type: "city", startTime: Date.now(), color: player.color });
+    this.emit({ type: "placed", seat: player.id, piece: "city", at: nodeId });
     return true;
   }
 
@@ -4634,46 +4692,30 @@ class ColonistFullGame {
     if (this.phase === "sbp") return false; // Special Building Phase: no maritime trade either
     const rate = this.getPlayerTradeRate(player, give);
     if (give === get || player.resources[give] < rate || this.bank[get] < 1) return false;
-    this._aiTrkNote(player, { [give]: rate }, -1);
+    this.emit({ type: "paid", seat: player.id, cost: { [give]: rate } }); // (the cards go straight to the bank below)
     player.resources[give] -= rate;
     this.bank[give] += rate;
     this.takeFromBank(player, get, 1);
-    this.addLog(`${player.name} traded ${rate} ${RESOURCE_LABEL[give]} for 1 ${RESOURCE_LABEL[get]}.`);
+    this.emit({ type: "bankTraded", seat: player.id, give, get, rate });
     return true;
   }
 
   buyDevelopmentCard(player) {
     if (!this.devDeck.length) {
-      this.addLog("Development deck is empty.");
+      this.emit({ type: "note", key: "deckEmpty" });
       return false;
     }
     if (!hasResources(player.resources, COSTS.development)) {
       // Bots probe this every turn: keep it out of the player-visible ticker/journal
-      if (player.isHuman) this.addLog(`${player.name} cannot afford a development card.`);
+      if (player.isHuman) this.emit({ type: "note", key: "cannotAfford", seat: player.id });
       else this._aiLog(player, "Cannot afford a development card.");
       return false;
     }
     this.payToBank(player, COSTS.development);
     const card = this.devDeck.pop();
-    if (card === "victoryPoint") {
-      player.devVictoryPoints += 1;
-      if (player.isHuman) {
-        this.addLog(this._you(player) ? `You drew a Victory Point card (kept secret).` : `${player.name} bought a development card.`);
-        this._devDrawn("victoryPoint");
-      } else {
-        this.addLog(`${player.name} bought a development card.`);
-      }
-    } else {
-      player.newDevCards[card] += 1;
-      const cardLabels = { knight: "Knight", roadBuilding: "Road Building", yearOfPlenty: "Year of Plenty", monopoly: "Monopoly" };
-      if (player.isHuman) {
-        this.addLog(this._you(player) ? `You drew: ${cardLabels[card]}!` : `${player.name} bought a development card.`);
-        this._devDrawn(card);
-      } else {
-        this.addLog(`${player.name} bought a development card.`);
-      }
-    }
-    this.sfx.devCard();
+    if (card === "victoryPoint") player.devVictoryPoints += 1; else player.newDevCards[card] += 1;
+    this.emit({ type: "devBought", seat: player.id, card, human: !!player.isHuman });
+    if (player.isHuman) this._devDrawn(card);
     return true;
   }
 
@@ -4737,14 +4779,14 @@ class ColonistFullGame {
     if (type === "knight") {
       // Knight only moves the robber and steals — no discards (that's for rolling a 7)
       player.knightsPlayed += 1;
-      this.addLog(`${player.name} played Knight.`);
+      this.emit({ type: "devPlayed", seat: player.id, card: "knight" });
       this.moveRobber(player);
     } else if (type === "roadBuilding") {
       if (this._isInteractive(player)) {
         // Human: enter interactive free-road-placement mode
         this.freeRoadsRemaining = Math.min(2, this.piecesLeft(player, "road") + (this.sea ? this.sea.shipsLeft(player) : 0)); // ⚓ roads or ships
         this.pendingAction = "road";
-        this.addLog(`${player.name} played Road Building — place 2 free ${this.sea ? "roads or ships" : "roads"}.`);
+        this.emit({ type: "devPlayed", seat: player.id, card: "roadBuilding", interactive: true });
         this.render();
         return true; // Don't call recomputeScores yet, will be called after placement
       }
@@ -4753,14 +4795,14 @@ class ColonistFullGame {
         if (this.sea) { // ⚓ Seafarers: 2 roads, 2 ships or one of each (rulebook p. 5 §8)
           const pc = this.sea.aiFreePiece(player);
           if (!pc) break;
-          if (pc.type === "ship" ? this.sea.placeShip(player, pc.id, { free: true }) : this.placeRoad(player, pc.id, { free: true })) { built += 1; this.fx?.freeRoad?.(player.id, pc.id, i, pc.type === "ship"); }
+          if (pc.type === "ship" ? this.sea.placeShip(player, pc.id, { free: true }) : this.placeRoad(player, pc.id, { free: true })) { built += 1; this.emit({ type: "built", seat: player.id, piece: pc.type === "ship" ? "ship" : "road", at: pc.id, how: "free", i, log: false, sfx: false }); }
           continue;
         }
         const edgeId = this.chooseStrategicRoadEdge(player, true);
         if (edgeId == null) break;
-        if (this.placeRoad(player, edgeId, { free: true })) { built += 1; this.fx?.freeRoad?.(player.id, edgeId, i, false); }
+        if (this.placeRoad(player, edgeId, { free: true })) { built += 1; this.emit({ type: "built", seat: player.id, piece: "road", at: edgeId, how: "free", i, log: false, sfx: false }); }
       }
-      this.addLog(`${player.name} played Road Building and placed ${built} ${this.sea ? "piece" : "road"}(s).`);
+      this.emit({ type: "devPlayed", seat: player.id, card: "roadBuilding", built });
     } else if (type === "yearOfPlenty") {
       if (this._isInteractive(player)) {
         // Can only take what the bank actually has: pick in the dock (no popup)
@@ -4771,8 +4813,7 @@ class ColonistFullGame {
       }
       const picks = this.chooseYearOfPlentyResources(player);
       const gained = picks.filter((resource) => this.takeFromBank(player, resource, 1) > 0);
-      this.addLog(`${player.name} played Year of Plenty: ${this._plusList(gained)}.`);
-      this.fx?.yearOfPlenty?.(player.id, gained);
+      this.emit({ type: "devPlayed", seat: player.id, card: "yearOfPlenty", gained });
     } else if (type === "monopoly") {
       if (this._isInteractive(player)) {
         this.devPick = { type: "monopoly", count: 1, picks: [] };
@@ -4787,9 +4828,7 @@ class ColonistFullGame {
         other.resources[target] = 0;
       });
       player.resources[target] += collected;
-      this._aiTrkMonopoly(player, target, collected);
-      this.addLog(`${player.name} played Monopoly: +${collected} ${RESOURCE_LABEL[target]}.`);
-      this.fx?.monopoly?.(player.id, target, collected);
+      this.emit({ type: "devPlayed", seat: player.id, card: "monopoly", res: target, collected });
     }
 
     this.recomputeScores();
@@ -4891,6 +4930,24 @@ class ColonistFullGame {
 
   executeAiMainPhase(player, skipPlayerTrade = false) {
     if (this._masterLive(player)) return this._masterMainPhase(player, skipPlayerTrade); // v0.90: searched steps (always "async")
+    if (!this._aiRec() && hostOn(this, player)) { // step 4 follow-up: Bot.decide -> isLegal -> apply (bots/inapp.js); analysis mode keeps its own stepping
+      let r = null;
+      try { r = hostMainPhase(this, player, skipPlayerTrade); } catch (err) { // a throw (or an answer judged illegal) in the host: the old driver plays this phase and the rest of the game
+        console.error("bot host failed, falling back to the old driver:", err);
+        this._hostBroken = true; hostRecover(this); r = null;
+      }
+      if (r === "done") return "done";
+      if (r?.human) { // a deal asked of the person at the table: the card, then the rest of the turn
+        const t = r.human;
+        this._pendingAiTradePlayer = player;
+        this.showIncomingTrade(t.fromPlayer, t.give, t.want, t.toPlayer).then(this._guard(() => {
+          if (this.winner || this.currentPlayer !== player) return;
+          if (this.executeAiMainPhase(player, true) === "async") return;
+          this._aiMainPhaseDone(player);
+        }));
+        return "async";
+      }
+    }
     const s = player.strategy || {};
     this._aiLog(player, `Main phase — strategy: placement=${s.placement}, expansion=${s.expansion}, trading=${s.trading}, devCards=${s.devCards}, awareness=${s.awareness}`);
     this._aiLog(player, `Resources: ${resourceString(player.resources)} (${sumResources(player.resources)} total)`);
@@ -4983,7 +5040,7 @@ class ColonistFullGame {
   }
 
   _aiLog(player, msg) {
-    if (this.aiDebugLog) this.addLog(`[${player.name}] ${msg}`);
+    if (this.aiDebugLog) this.emit({ type: "note", key: "aiDebug", seat: player.id, msg });
   }
 
   // Ordered action functions; each returns true when it did something. Rush calls them one per tick.
@@ -5145,9 +5202,8 @@ class ColonistFullGame {
     const best = candidates[0];
     if (!this.placeSettlement(player, best.nodeId, false)) return false;
     this.payToBank(player, COSTS.settlement);
-    this.addLog(`${player.name} built a settlement.`);
+    this.emit({ type: "built", seat: player.id, piece: "settlement", at: best.nodeId, how: "paid" });
     if (this.sea) this._seaOnSettlement(player, best.nodeId); // ⚓ +2 for a new island
-    this.sfx.buildSettlement();
     this._aiLog(player, `Chose settlement at node ${best.nodeId} (score ${best.score.toFixed(2)}, ${candidates.length} options)`);
     this.recomputeScores();
     this.checkForWinner(player);
@@ -5160,8 +5216,7 @@ class ColonistFullGame {
     if (nodeId == null) return false;
     if (!this.placeCity(player, nodeId, false)) return false;
     this.payToBank(player, COSTS.city);
-    this.addLog(`${player.name} upgraded to a city.`);
-    this.sfx.buildCity();
+    this.emit({ type: "built", seat: player.id, piece: "city", at: nodeId, how: "paid" });
     this._aiLog(player, `Upgraded node ${nodeId} — highest dice probability settlement`);
     this.recomputeScores();
     this.checkForWinner(player);
@@ -5184,8 +5239,7 @@ class ColonistFullGame {
     if (edgeId == null) return false;
     if (!this.placeRoad(player, edgeId, { free: false })) return false;
     this.payToBank(player, COSTS.road);
-    this.addLog(`${player.name} built a road.`);
-    this.sfx.buildRoad();
+    this.emit({ type: "built", seat: player.id, piece: "road", at: edgeId, how: "paid" });
     this._aiLog(player, `Expansion strategy: ${player.strategy?.expansion || "medium"}`);
     this.recomputeScores();
     this.checkForWinner(player);
@@ -5708,8 +5762,7 @@ class ColonistFullGame {
     if (edgeId == null || !this.canBuildRoad(player, edgeId, { free: false })) return false;
     if (!this.placeRoad(player, edgeId, { free: false })) return false;
     this.payToBank(player, COSTS.road);
-    this.addLog(`${player.name} built a road.`);
-    this.sfx.buildRoad();
+    this.emit({ type: "built", seat: player.id, piece: "road", at: edgeId, how: "paid" });
     this.recomputeScores();
     this.checkForWinner(player);
     return true;
@@ -6138,8 +6191,8 @@ class ColonistFullGame {
     this.updateLargestArmyHolder();
     // v0.73: the journal says when an award moves (it only showed as a small badge before)
     if (this.players.length && !this._loadingState) {
-      this._logAward(this.sea ? "Longest route" : "Longest road", prevLR, this.longestRoadHolder, (p) => `${p.longestRoadLength} ${this.sea ? "roads and ships" : "roads"}`); // ⚓
-      this._logAward("Largest army", prevLA, this.largestArmyHolder, (p) => `${p.knightsPlayed} knights`);
+      this._announceAward("longestRoad", prevLR, this.longestRoadHolder);
+      this._announceAward("largestArmy", prevLA, this.largestArmyHolder);
     }
 
     this.players.forEach((player, idx) => {
@@ -6152,16 +6205,10 @@ class ColonistFullGame {
     });
   }
 
-  _logAward(name, prev, now, why) {
+  /** An award changed hands (the journal says so; before v0.73 it only showed as a small badge). */
+  _announceAward(award, prev, now) {
     if (prev === now) return;
-    const P = (id) => this.players[id];
-    if (now != null) {
-      const p = P(now);
-      this.addLog(`${p.name} ${this._you(p) ? "take" : "takes"} ${name} (+2${prev != null ? ` from ${P(prev).name}` : ""}).`); // v1.86 r7: short enough for the one-line ticker
-    } else if (prev != null) {
-      const p = P(prev);
-      this.addLog(`${p.name} ${this._you(p) ? "lose" : "loses"} ${name}${/^Longest (road|route)$/i.test(name) ? ` (now ${p.longestRoadLength})` : ""} · nobody holds it.`);
-    }
+    this.emit({ type: "award", award, seat: now, prev });
   }
 
   // VP shown to the human: full total for their own seat, public total for everyone else.
@@ -6210,7 +6257,7 @@ class ColonistFullGame {
     if (player.victoryPoints >= this.winPoints) {
       this.winner = player;
       this.phase = "game_over";
-      this.addLog(`${player.name} win${this._s(player)} with ${player.victoryPoints} points!`);
+      this.emit({ type: "won", seat: player.id, points: player.victoryPoints });
       this.stopAutoplay();
       if (this.rush) this._stopRushTimers();
       this.saveToStorage();
@@ -6224,6 +6271,7 @@ class ColonistFullGame {
     window.setTimeout(() => this._palCalmTick(), 0); // v1.04 proposal: Auto · time of day switches between turns
     if (this.winner) return;
     const player = this.currentPlayer;
+    this.emit({ type: "turnEnded", seat: player.id, turn: this.turn });
     DEV_CARD_TYPES.forEach((type) => {
       player.devCards[type] += player.newDevCards[type];
       player.newDevCards[type] = 0;
@@ -6264,7 +6312,7 @@ class ColonistFullGame {
       );
       this.winner = leader;
       this.phase = "game_over";
-      this.addLog(`Turn limit reached. ${leader.name} win${this._s(leader)} by points.`);
+      this.emit({ type: "turnLimit", seat: leader.id });
       this.stopAutoplay();
       this.showGameOverOverlay();
     }
@@ -6399,7 +6447,7 @@ class ColonistFullGame {
     this.rush.paused = !!this.rush.seven;
     this._botTicks = new Map();
     this._readyAtWall = human && this.rush.ready.includes(human.id) ? performance.now() : null; // resumed while Ready: roll soon
-    if (!saved) this.addLog(`Rush! Build any time — dice roll every ${this.settings.rushInterval}s.`);
+    if (!saved) this.emit({ type: "rushStarted", interval: this.settings.rushInterval });
     // The live feed is part of the Rush HUD on wide screens
     if (window.innerWidth > 1080 && this.railLog && !this.railLog.classList.contains("open")) this.toggleLog();
     this._rushLastTs = performance.now();
@@ -6491,8 +6539,12 @@ class ColonistFullGame {
     const me = this._me();
     this._flashPrompt("Time's up: card kept", 3200);
     if (this.devPlayed && this._cancelDevPlay()) return;
-    this.devPick = null; this.devPlayed = null; this.freeRoadsRemaining = 0;
-    if (this.pendingAction === "road") this.pendingAction = null;
+    this.devPick = null; this.devPlayed = null;
+    // what is left of Road Building is let go: the human's `skipFree`, made by the host (flagged auto)
+    if (!(me && this.freeRoadsRemaining > 0 && (this.pendingAction === "road" || !this.pendingAction) && this.api.dispatch({ actor: me.id, type: "skipFree" }, { auto: true }).ok)) {
+      this.freeRoadsRemaining = 0;
+      if (this.pendingAction === "road") this.pendingAction = null;
+    }
     if (me && (this.pendingAction === "robber" || this.robberVictimOptions?.length)) this._rushAutoFinishHumanRobber(me);
     this._rushAfterAction(me);
   }
@@ -6526,12 +6578,10 @@ class ColonistFullGame {
     if (this.sea) { // ⚓ a new roll interval: one ship move each again; an unpicked gold choice is made for you
       if (this.pendingAction === "moveShip") { this.pendingAction = null; this.sea.moveSel = null; }
       this.sea.onNewTurn();
-      this.players.forEach((p) => { if (this.sea.goldFor(p.id)) this.sea.autoGold(p); });
+      this.players.forEach((p) => { if (this.sea.goldFor(p.id)) this._goldAuto(p); });
     }
     this._palCalmTick(); // v1.04 proposal: in Rush, Auto · time of day switches on a roll
-    this.addLog(`Roll #${r.rollNo}: rolled ${res.total}.`);
-    this.fx?.diceRoll(res.d1, res.d2);
-    this.sfx.diceRoll();
+    this.emit({ type: "rolled", rush: true, rollNo: r.rollNo, total: res.total, d1: res.d1, d2: res.d2 });
     this.lastDiceDisplay?.classList.remove("rush-flash");
     void this.lastDiceDisplay?.offsetWidth; // restart the flash animation
     this.lastDiceDisplay?.classList.add("rush-flash");
@@ -6544,8 +6594,7 @@ class ColonistFullGame {
       this._rushBeginSeven();
     } else {
       this.highlightRoll = { number: res.total, startTime: Date.now() };
-      const gains = this.distributeResources(res.total);
-      if (gains) this.showResourceGainToasts(gains);
+      this.distributeResources(res.total);
     }
     this._rushAfterAction();
   }
@@ -6578,7 +6627,7 @@ class ColonistFullGame {
         discards.push({ playerId: p.id, count });
       } else {
         this._autoDiscard(p, count);
-        this.addLog(`${p.name} discard${this._s(p)} ${count} cards.`);
+        this.emit({ type: "discarded", seat: p.id, n: count });
       }
     });
     r.seven = { stage: discards.length ? "discard" : "robber", discards, moverId, leftMs: Infinity };
@@ -6645,7 +6694,7 @@ class ColonistFullGame {
       this._discardAuto(); // v0.81: the Suggest choice, with a toast
     } else if (seven.stage === "robber") {
       const human = this.players[seven.moverId];
-      this.addLog("Time's up — the robber was placed for you.");
+      this.emit({ type: "note", key: "robberTimeUp" });
       this._rushAutoFinishHumanRobber(human);
     }
   }
@@ -6655,21 +6704,29 @@ class ColonistFullGame {
     // a tile is already chosen: finish that move
     const cb = this.confirmBuild?.type === "robber" ? this.confirmBuild : null;
     if (cb && this.pendingAction === "robber" && this._robberHexAllowed(cb.id, human)) {
-      this._commitRobber(human, cb.id, cb.victim ?? this._defaultRobberVictim(cb.id, human));
+      const victim = cb.victim ?? this._defaultRobberVictim(cb.id, human);
+      if (!this._applyRobber(human, cb.id, victim, true)) this._commitRobber(human, cb.id, victim); // the engine holds no prompt for it: as before
     }
     if (this.confirmBuild?.type === "robber") this.confirmBuild = null;
     if (this.robberVictimOptions?.length) {
       const victim = this.robberVictimOptions[0];
-      this.robberVictimOptions = [];
-      if (this.victimPanel) this.victimPanel.style.display = "none";
-      this.stealFromVictim(human, victim);
-      this.robberContext = null;
+      if (!this.api.dispatch({ actor: human.id, type: "steal", victim }, { auto: true }).ok) { // the engine holds no prompt for it: as before
+        this.robberVictimOptions = [];
+        if (this.victimPanel) this.victimPanel.style.display = "none";
+        this.stealFromVictim(human, victim);
+        this.robberContext = null;
+      }
     }
     if (this.pendingAction === "robber") {
-      this.pendingAction = null;
-      this.robberContext = null;
-      this.canvas.style.cursor = "grab";
-      this.moveRobberAndSteal(human, this.chooseRobberHex(human));
+      const hexId = this.chooseRobberHex(human), vs = this._stealVictims(hexId, human);
+      this._rvNoRec = true; // v1.96 moved this robber through moveRobberAndSteal, which the review recorder does not record for a person: the action path must not record it either
+      let done; try { done = this._applyRobber(human, hexId, vs.length ? this._aiChooseVictim(human, vs) : null, true); } finally { this._rvNoRec = false; }
+      if (!done) {
+        this.pendingAction = null;
+        this.robberContext = null;
+        this.canvas.style.cursor = "grab";
+        this.moveRobberAndSteal(human, hexId);
+      }
     }
   }
 
@@ -6749,7 +6806,7 @@ class ColonistFullGame {
     this.recomputeScores();
     if (this.confirmBuild && human && !this._confirmBuildStillValid(human)) {
       this.confirmBuild = null;
-      this.addLog("That spot was just taken.");
+      this.emit({ type: "note", key: "spotTaken" });
     }
     const order = actor ? [actor, ...this.players.filter((p) => p !== actor)] : this.players;
     for (const p of order) {
@@ -6820,7 +6877,7 @@ class ColonistFullGame {
     r.offeredBy.push(fromPlayer.id);
     this._offerSeq = (this._offerSeq || 0) + 1;
     r.offers.push({ id: this._offerSeq, fromId: fromPlayer.id, give: { ...give }, want: { ...want }, armed: false, expiresAt: null });
-    this.addLog(`${fromPlayer.name} offers you ${resourceString(give)} for ${resourceString(want)}.`);
+    this.emit({ type: "offered", seat: fromPlayer.id, give, want, style: "rush" });
     this._renderRushOffers();
     return true;
   }
@@ -6857,7 +6914,7 @@ class ColonistFullGame {
     if (!accept) r.declined = [...(r.declined || []), this._offerKey(offer.fromId, offer.give, offer.want)];
     if (accept) {
       if (r.paused || this.winner || !hasResources(human.resources, offer.want) || !hasResources(from.resources, offer.give)) {
-        this.addLog(`Trade with ${from.name} is no longer possible.`);
+        this.emit({ type: "tradeAnswered", answer: "void", from: from.id });
       } else {
         this._stTrade(from, human, offer.give, offer.want);
         RESOURCES.forEach((res) => {
@@ -6865,8 +6922,7 @@ class ColonistFullGame {
           from.resources[res] += offer.want[res] - offer.give[res];
         });
         this._animateTradeCards(offer.want, offer.give, this._offerCardEl());
-        this.sfx.trade();
-        this.addLog(`You traded with ${from.name}: got ${resourceString(offer.give)} for ${resourceString(offer.want)}.`);
+        this.emit({ type: "traded", seat: human.id, partner: from.id, gave: offer.want, got: offer.give, style: "rush" });
         this.pushToast(`Trade done: got ${resourceString(offer.give)} for ${resourceString(offer.want)}`, "important");
         this._rushAfterAction(human);
       }
@@ -7467,7 +7523,7 @@ class ColonistFullGame {
     this.hoverTooltip = "";
     this.canvas.style.cursor = "grab";
 
-    this.addLog("Session restored.");
+    this.emit({ type: "note", key: "sessionRestored" });
     this.render();
     // Resumed games always open fitted: refit once the layout (hand fan, browser bars) has settled,
     // unless the player has already zoomed in by then.
@@ -9303,15 +9359,16 @@ class ColonistFullGame {
     this.nextTurnBtn.disabled = !!this.winner || humanTurn || this.autoplayInterval != null || this.isRush();
     const canBuildNow = humanTurn && this._buildPhase() && !robberBlocking;
     const piecesHint = (type) => (this.piecesLeft(human, type) <= 0 ? `No ${type}s left` : null);
-    setButtonState(this.buildRoadBtn, canBuildNow && (hasRoadCost || this.freeRoadsRemaining > 0) && !piecesHint("road"),
+    const T = this.api.tools(human.id); // the engine's view of what the seat can pay for / still has
+    setButtonState(this.buildRoadBtn, canBuildNow && T.road.ok,
       piecesHint("road") || (roadMissing ? `Need ${roadMissing}` : "Not available now"), "Build a road (1)");
-    setButtonState(this.buildSettlementBtn, canBuildNow && hasSettlementCost && !piecesHint("settlement"),
+    setButtonState(this.buildSettlementBtn, canBuildNow && T.settlement.ok,
       piecesHint("settlement") || (settlementMissing ? `Need ${settlementMissing}` : "Not available now"), "Build a settlement (2)");
-    setButtonState(this.buildCityBtn, canBuildNow && hasCityCost && !piecesHint("city"),
+    setButtonState(this.buildCityBtn, canBuildNow && T.city.ok,
       piecesHint("city") || (cityMissing ? `Need ${cityMissing}` : "Not available now"), "Upgrade to a city (3)");
     if (this.buildShipBtn) { // ⚓ Seafarers
       const shipMissing = missingCostString(human.resources, COSTS.ship);
-      setButtonState(this.buildShipBtn, !!this.sea && canBuildNow && (hasResources(human.resources, COSTS.ship) || this.freeRoadsRemaining > 0) && this.piecesLeft(human, "ship") > 0,
+      setButtonState(this.buildShipBtn, !!this.sea && canBuildNow && T.ship.ok,
         this.sea && this.piecesLeft(human, "ship") <= 0 ? "No ships left" : shipMissing ? `Need ${shipMissing}` : "Not available now", "Build a ship (4)");
       const left = this.buildShipBtn.querySelector(".left");
       if (left) left.textContent = this.sea ? `${this.piecesLeft(human, "ship")} left` : "";
@@ -9325,7 +9382,7 @@ class ColonistFullGame {
       const left = this.moveShipBtn.querySelector(".left");
       if (left) left.textContent = !this.sea ? "" : n > 0 ? `${n} can move` : this.sea.moved?.has(mover?.id) ? "moved" : "none can";
     }
-    setButtonState(this.buyDevBtn, canBuildNow && hasDevCost && this.devDeck.length > 0,
+    setButtonState(this.buyDevBtn, canBuildNow && T.dev.ok,
       this.devDeck.length <= 0 ? "Deck empty" : devMissing ? `Need ${devMissing}` : "Not available now", "Buy a development card (B)");
     // pieces left + which cost icons are still missing
     [["road", this.buildRoadBtn], ["settlement", this.buildSettlementBtn], ["city", this.buildCityBtn], ["development", this.buyDevBtn]].forEach(([type, btn]) => {
@@ -10081,7 +10138,7 @@ class ColonistFullGame {
     const cards = {};
     RESOURCES.forEach((r) => { if (pd.selected[r] > 0) cards[r] = pd.selected[r]; });
     if (sumResources(cards) !== pd.count) { this._confirmDiscardNow(); return; } // not a count the dock lets through (a script, an auto-discard): handed back as marked, as before
-    const r = this.api.act({ actor: pd.player.id, type: "discard", cards });
+    const r = this.api.act({ actor: pd.player.id, type: "discard", cards }, this._autoNow ? { auto: true } : null);
     if (!r.ok) { this._flashPrompt(this._say(r.reason)); this.sfx.error?.(); }
   }
 
@@ -10091,7 +10148,7 @@ class ColonistFullGame {
     const { player, selected, resolve } = this.pendingDiscard;
     this.payToBank(player, selected);
     const total = sumResources(selected);
-    this.addLog(`${player.name} discard${this._s(player)} ${total} cards.`);
+    this.emit({ type: "discarded", seat: player.id, n: total });
     this.pendingDiscard = null;
     if (this.discardPanel) this.discardPanel.style.display = "none";
     this.sfx.click();
@@ -10669,6 +10726,7 @@ class ColonistFullGame {
       const node = g.nodes[u.id];
       if (!this.setupPhase || this.setupAction !== "road" || node.owner !== p.id) return;
       node.owner = null; node.structure = null; p.settlements.delete(u.id);
+      this.emit({ type: "unbuilt", seat: p.id, piece: "settlement", at: u.id });
       this.setupAction = "settlement";
       this.lastSetupNodeId = null;
       this.logEntries.length = Math.min(this.logEntries.length, u.logLen);
@@ -10692,8 +10750,9 @@ class ColonistFullGame {
       }
       if (u.paid) {
         RESOURCES.forEach((r) => { this.bank[r] -= u.paid[r] || 0; p.resources[r] += u.paid[r] || 0; });
-        this._aiTrkNote(p, u.paid, 1);
+        this.emit({ type: "received", seat: p.id, cards: u.paid }); // the refund
       }
+      this.emit({ type: "unbuilt", seat: p.id, piece: u.type, at: u.id });
       const pos = this.getBuildPosition({ type: u.type, id: u.id });
       this.placementAnims = this.placementAnims.filter((a) => a.x !== pos.x || a.y !== pos.y);
       this.freeRoadsRemaining = u.free;
@@ -10710,7 +10769,7 @@ class ColonistFullGame {
     } else if (u.kind === "yop") {
       if (!u.picks.every((r) => p.resources[r] > 0)) return;
       u.picks.forEach((r) => { p.resources[r] -= 1; this.bank[r] += 1; });
-      this._aiTrkNote(p, u.picks.reduce((o, r) => { o[r] = (o[r] || 0) + 1; return o; }, {}), -1);
+      this.emit({ type: "paid", seat: p.id, cost: u.picks.reduce((o, r) => { o[r] = (o[r] || 0) + 1; return o; }, {}) }); // the cards go back to the bank
       dropLogs(u.logs);
       this.devPick = { type: "yearOfPlenty", count: u.picks.length, picks: [] };
       this.recomputeScores();
@@ -10898,8 +10957,9 @@ class ColonistFullGame {
     this._discardSuggestPick(pd);
     const who = this._you(pd.player) ? "you" : pd.player.name;
     this.pushToast(`Time's up · ${pd.count} card${pd.count === 1 ? "" : "s"} handed back for ${who}`);
-    this.addLog(`Time's up — ${pd.count} card${pd.count === 1 ? "" : "s"} handed back automatically.`);
-    this._confirmDiscard();
+    this.emit({ type: "note", key: "discardTimeUp", count: pd.count });
+    this._autoNow = true; // the host's timeout: the discard action is flagged auto
+    try { this._confirmDiscard(); } finally { this._autoNow = false; }
   }
 
   _discardWatch(pd) {
@@ -10950,10 +11010,8 @@ class ColonistFullGame {
     const logLen = this.logEntries.length;
     if (dp.type === "yearOfPlenty") {
       const gained = dp.picks.filter((resource) => this.takeFromBank(player, resource, 1) > 0);
-      this.addLog(`${player.name} played Year of Plenty: ${this._plusList(gained)}.`);
+      this.emit({ type: "devPlayed", seat: player.id, card: "yearOfPlenty", gained, interactive: true });
       if (this.rush) this.pushToast(`Year of Plenty: ${this._plusList(gained)}`, "dev-result");
-      this.fx?.yearOfPlenty?.(player.id, gained);
-      this.sfx.trade?.();
       if (!this.confirmPlacements) this._setUndo({ kind: "yop", pid: player.id, picks: gained, logs: this.logEntries.slice(logLen), icon: "devcard", label: `Took ${gained.map((r) => RESOURCE_LABEL[r]).join(" + ")}` });
     } else {
       const target = dp.picks[0];
@@ -10965,12 +11023,9 @@ class ColonistFullGame {
         other.resources[target] = 0;
       });
       player.resources[target] += collected;
-      this._aiTrkMonopoly(player, target, collected);
-      this.addLog(`${player.name} played Monopoly: +${collected} ${RESOURCE_LABEL[target]}.`);
+      this.emit({ type: "devPlayed", seat: player.id, card: "monopoly", res: target, collected, interactive: true });
       // v1.95 Rush keeps toasts for the big moments: the result of your own card is one of them
       if (this.rush) this.pushToast(collected ? `Monopoly: +${collected} ${RESOURCE_LABEL[target]} from ${donors} player${donors === 1 ? "" : "s"}` : `Monopoly: nobody had any ${RESOURCE_LABEL[target]}`, "dev-result");
-      this.fx?.monopoly?.(player.id, target, collected);
-      this.sfx.trade?.();
     }
     this.recomputeScores();
     if (this.rush) this._rushAfterAction(player);

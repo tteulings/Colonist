@@ -101,7 +101,10 @@ export const SeaGame = {
    *  is direct, else it becomes the chosen spot (Place / a 2nd tap builds it); a mode-less pick only selects. */
   _seaChoosePiece(player, target, x, y, auto) {
     const modeless = !this.pendingAction;
-    this._seaOpenChooser(x, y, "Build a road or a ship here", [["road", "Road"], ["ship", "Ship"]].map(([type, label]) => ({
+    const NAME = { road: "Road", ship: "Ship" }, free = this.freeRoadsRemaining > 0;
+    // the pieces the tap could mean are the engine's candidates for that edge (intentFor over the legal builds)
+    const pieces = this.api.candidates(player.id, { edge: target.id }, null, { free }).map((a) => a.piece).filter((t) => NAME[t]);
+    this._seaOpenChooser(x, y, "Build a road or a ship here", (pieces.length ? ["road", "ship"].filter((t) => pieces.includes(t)) : ["road", "ship"]).map((t) => [t, NAME[t]]).map(([type, label]) => ({
       piece: type, id: target.id, label, run: () => this._seaPickBuild(player, { type, id: target.id }, modeless, auto) })));
   },
 
@@ -287,8 +290,7 @@ export const SeaGame = {
     this.sea.moveSel = null;
     this.pendingAction = null;
     this.canvas.style.cursor = "grab";
-    this.addLog(`${player.name} moved a ship.`);
-    this.sfx.buildRoad();
+    this.emit({ type: "shipMoved", seat: player.id, from, to });
     const pos = this.getBuildPosition({ type: "road", id: to });
     this.placementAnims.push({ ...pos, type: "road", startTime: Date.now() });
     if (this.rush) this._rushAfterAction(player);
@@ -310,7 +312,7 @@ export const SeaGame = {
     const got = this.sea.onSettlementBuilt(player, nodeId);
     if (!got) return null;
     const name = this.sea.islandName(got.island);
-    this.addLog(`${player.name} reached ${name}: +2 points for a new island.`);
+    this.emit({ type: "islandReached", seat: player.id, island: name });
     this.sea.glow = { island: got.island, until: performance.now() + 2600 };
     if (player.isHuman) this._seaIslandNote = { text: `New island! First settlement on ${name}: +2 points`, until: Date.now() + 3200 };
     return got;
@@ -337,6 +339,13 @@ export const SeaGame = {
     this.recomputeScores();
     if (this.rush) this._rushAfterAction(human);
     else { this.saveToStorage(); this.render(); }
+  },
+
+  /** A gold pick left open when the Rush roll comes: made for the human, as the `pickGold` action flagged auto (UiEngine._do_pickGold). */
+  _goldAuto(player) {
+    if (!this.sea?.goldFor(player.id)) return;
+    const r = this.api.dispatch({ actor: player.id, type: "pickGold", resources: this.sea.aiGoldPicks(player, this.sea.goldFor(player.id).count) }, { auto: true });
+    if (!r.ok) this.sea.autoGold(player);
   },
 
   /** v0.86: a gold pick in progress with at least one card taken: the ticker's Cancel slot says Undo. */

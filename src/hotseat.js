@@ -236,8 +236,15 @@ export const HotseatMixin = {
     if (!sum(offer) || !sum(request)) { this._tradeHint("Pick what you give and what you get."); return; }
     if (RES.some((r) => offer[r] > 0 && request[r] > 0)) { this._tradeHint("Can't give and get the same resource."); return; }
     if (!has(player.resources, offer)) { this._tradeHint("You don't have those cards."); return; }
+    // the offer is the player's `offerTrade` to that one person (UiEngine._do_offerTrade hands it to _hsAskNow); a refusal falls back to asking directly
+    const r = this.api.act({ actor: player.id, type: "offerTrade", to: [partner.id], give: offer, want: request }, { hsAsk: partner });
+    if (!r.ok) this._hsAskNow(player, partner, offer, request);
+  },
+
+  /** The ask itself (UiEngine._do_offerTrade): the log line, the sheet closes, the cover hands the phone to the partner, whose answer is a `respondTrade`. */
+  _hsAskNow(player, partner, offer, request) {
     const serial = this.turnSerial;
-    this.addLog(`${player.name} offers ${partner.name} a trade.`);
+    this.emit({ type: "offered", seat: player.id, to: partner.id, style: "hotseat" });
     this.closeTradeModal();
     this.showIncomingTrade(player, offer, request, partner).then(this._guard((accepted) => {
       const word = accepted ? "said yes" : "said no";

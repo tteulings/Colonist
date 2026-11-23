@@ -11,13 +11,15 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=196";
-import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=196";
-import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=196";
-import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=196";
-import { byStrength } from "./bot-stats.js?v=196";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=197";
+import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=197";
+import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=197";
+import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=197";
+import { byStrength } from "./bot-stats.js?v=197";
 import { botIds, byLevel, isSearchBot } from "./bots/registry.js"; // step 4: the one list of bots
-import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=196";
+/** Step 4: games of the sim frame played by the bot host (src/bots/index.js) instead of the old loop. Opt-in: localStorage colonist.labHost = "1". Same games, same records (tests/lab197.js). */
+const labHost = async () => { try { return localStorage.getItem("colonist.labHost") === "1" ? await import("./bots/index.js") : null; } catch (_) { return null; } };
+import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=197";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -956,7 +958,7 @@ async function runTournament(over = {}) {
         sim.results.push({ game: i + 1, keys, winner: m.winner, turns: m.turns, vp: m.vp, ms: m.ms });
         sim.done += 1; sim.msTotal += performance.now() - t0;
         // the same game again in the sim frame from the worker's decisions, recorded (Replay; the review with the switch on)
-        try { if (await replayScript(g, { strategies, seed, map: cfg.tboard, script: m.script || [], result: m }, i < cfg.revN)) await keep(sim.results.length - 1); else sim.unkept += 1; }
+        try { if (await replayScript(g, { strategies, seed, map: cfg.tboard, script: m.script || [], result: m }, i < cfg.revN, await labHost())) await keep(sim.results.length - 1); else sim.unkept += 1; }
         catch (e) { sim.unkept += 1; console.warn("lab keep", e); }
         sim.live = { turn: m.turns, vp: m.vp };
         renderStand(); renderTournamentSetup();
@@ -965,7 +967,7 @@ async function runTournament(over = {}) {
       }
       try {
         recordOn(g, i < cfg.revN); // lab-131: a game to review records every seat's real choices
-        g._labSimStart(strategies, { players: keys.length, map: cfg.tboard, seed });
+        g._labSimStart(strategies, { players: keys.length, map: cfg.tboard, seed, host: await labHost() });
         let r = { done: false }, shown = false;
         do {
           if (watchOn()) {

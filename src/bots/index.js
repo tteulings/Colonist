@@ -2,6 +2,7 @@
 import { listBots, setBotFactory } from "./registry.js";
 import { legacyBot } from "./legacy.js";
 import { searchBot } from "./search.js";
+import "./inapp.js"; // (tells the recorders of a game that a probe is no move)
 
 export * from "./registry.js";
 export { createEngine } from "../api/engine.js";

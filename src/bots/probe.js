@@ -12,6 +12,8 @@ import { snapshot, restore } from "../master/sim.js";
 import { Seafarers } from "../seafarers/rules.js";
 
 let REC = null; // the recording in progress: { g, actions, depth, snap }
+/** The in-app host (bots/inapp.js) mutes what a planner shows while it plans (log, sounds, stats, review recorder) and gives the engine seat control; headless: none. */
+export const probeHooks = { enter: null, leave: null };
 const installed = new WeakSet();
 
 const hand = (h) => { const o = {}; Object.keys(h).forEach((k) => { if (h[k]) o[k] = h[k]; }); return o; };
@@ -72,10 +74,11 @@ export function probe(g, fn, { eager = false, suspend = false } = {}) {
   const api = g.__api, act = api?.active;
   if (suspend && api) api.active = null; // the engine's seat control is off: every bot seat is a bot again (a deal asks the partner bot, not "a person")
   g.__probing = true; // the golden harness's move log skips what a probe does
-  let result;
-  try { result = fn(); } finally {
+  let result, mute = null;
+  try { mute = probeHooks.enter ? probeHooks.enter(g, { suspend }) : null; result = fn(); } finally {
     REC = null; g.__probing = false; if (api) api.active = act;
     if (rec.snap) { const trk = g._aiCardTrack; restore(g, rec.snap); putExtras(g, rec.x); g._aiCardTrack = trk; }
+    if (mute && probeHooks.leave) probeHooks.leave(g, mute);
   }
   return { result, actions: rec.actions };
 }
