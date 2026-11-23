@@ -42,7 +42,7 @@ import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte C
 // ⚓ Seafarers ("Heading for New Shores"): engine, bots, board and UI live in src/seafarers/*;
 // this file only calls in through hooks marked with ⚓.
 import { createEmitter, eventToText } from "./core/events.js"; // architecture step 5: the game talks in events
-import { hostOn, mainPhase as hostMainPhase } from "./bots/inapp.js"; // follow-up of step 4: the bot host plays the bots' main phase in the app
+import { hostOn, hostRecover, mainPhase as hostMainPhase } from "./bots/inapp.js"; // follow-up of step 4: the bot host plays the bots' main phase in the app
 import { createUiEngine } from "./ui/intent.js?v=197"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS } from "./seafarers/index.js";
 
@@ -1936,8 +1936,8 @@ class ColonistFullGame {
   }
 
   /** Headless: nothing is shown, heard or animated. The card tracker stays (the bots read it); `keepLog` keeps the journal too. */
-  detachPresentation({ keepLog = false } = {}) {
-    ["sfx", "fx", "anim", "stats"].forEach((n) => this.events.off(n));
+  detachPresentation({ keepLog = false, keepStats = false } = {}) {
+    ["sfx", "fx", "anim", ...(keepStats ? [] : ["stats"])].forEach((n) => this.events.off(n));
     if (!keepLog) this.events.off("log");
   }
 
@@ -4929,7 +4929,11 @@ class ColonistFullGame {
   executeAiMainPhase(player, skipPlayerTrade = false) {
     if (this._masterLive(player)) return this._masterMainPhase(player, skipPlayerTrade); // v0.90: searched steps (always "async")
     if (!this._aiRec() && hostOn(this, player)) { // step 4 follow-up: Bot.decide -> isLegal -> apply (bots/inapp.js); analysis mode keeps its own stepping
-      const r = hostMainPhase(this, player, skipPlayerTrade);
+      let r = null;
+      try { r = hostMainPhase(this, player, skipPlayerTrade); } catch (err) { // a throw (or an answer judged illegal) in the host: the old driver plays this phase and the rest of the game
+        console.error("bot host failed, falling back to the old driver:", err);
+        this._hostBroken = true; hostRecover(this); r = null;
+      }
       if (r === "done") return "done";
       if (r?.human) { // a deal asked of the person at the table: the card, then the rest of the turn
         const t = r.human;
@@ -6713,7 +6717,9 @@ class ColonistFullGame {
     }
     if (this.pendingAction === "robber") {
       const hexId = this.chooseRobberHex(human), vs = this._stealVictims(hexId, human);
-      if (!this._applyRobber(human, hexId, vs.length ? this._aiChooseVictim(human, vs) : null, true)) {
+      this._rvNoRec = true; // v1.96 moved this robber through moveRobberAndSteal, which the review recorder does not record for a person: the action path must not record it either
+      let done; try { done = this._applyRobber(human, hexId, vs.length ? this._aiChooseVictim(human, vs) : null, true); } finally { this._rvNoRec = false; }
+      if (!done) {
         this.pendingAction = null;
         this.robberContext = null;
         this.canvas.style.cursor = "grab";

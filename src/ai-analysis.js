@@ -1227,7 +1227,7 @@ export const LabMixin = {
       "showGameOverOverlay", "pushToast", "saveToStorage", "_queueSave", "scheduleAiTurnsUntilHuman", "_renderAnalysis", "requestBoardDraw",
       "_animateCardDeal", "animateResourceGain", "_flashPrompt"].forEach((k) => { this[k] = noop; });
     this.sfx = new Proxy({}, { get: () => noop });
-    this.detachPresentation({ keepLog: true }); // no sound, animation or stats recorder: the lab keeps its journal
+    this.detachPresentation({ keepLog: true, keepStats: true }); // no sound or animation: the lab keeps its journal and its statistics (v1.96 recorded them)
     this._later = (fn) => { fn(); return 0; };
     // v0.87: no board art in the headless frame (it re-baked the island for every game: ~150 ms of
     // main-thread work per tournament game, which froze the lab page)

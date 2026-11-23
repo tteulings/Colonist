@@ -57,6 +57,7 @@ function finish(engine, host, prompt, action) {
   let a = action, why = null;
   if (!a) why = "no answer";
   else { const j = engine.isLegal(a, { prompt }); if (!j.ok) why = j.reason; }
+  if (why && host.strict) throw Object.assign(new Error(`host: seat ${prompt.actor} answered illegally under ${prompt.kind} (${why})`), { hostFallback: true }); // in the app: the old driver plays the phase instead
   if (why) { // a buggy or stuck bot: the first legal action, and a record of it
     host.errors.push({ seat: prompt.actor, prompt: prompt.kind, action: a, reason: why });
     a = engine.enumerate(prompt.actor, { prompt, max: 1 })[0];
@@ -72,7 +73,7 @@ function finish(engine, host, prompt, action) {
 
 export function newHost(opts = {}) {
   const rngs = new Map();
-  return { errors: [], steps: 0, turns: 0, events: !!opts.onEvent, humanTrade: !!opts.humanTrade, onAction: opts.onAction || null, signal: opts.signal || null,
+  return { errors: [], steps: 0, turns: 0, events: !!opts.onEvent, humanTrade: !!opts.humanTrade, strict: !!opts.strict, onAction: opts.onAction || null, signal: opts.signal || null,
     rng: (seat) => { let r = rngs.get(seat); if (!r) rngs.set(seat, (r = mulberry32((opts.seed ?? 1) * 7919 + seat))); return r; } };
 }
 

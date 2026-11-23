@@ -456,7 +456,7 @@ export function installReview(Cls) {
     return r;
   });
   wrap("_commitRobber", function (orig, player, hexId, victim) {
-    const pre = this.pendingAction === "robber" ? this._rvPre(player) : null;
+    const pre = this.pendingAction === "robber" && !this._rvNoRec ? this._rvPre(player) : null;
     const r = orig.call(this, player, hexId, victim);
     if (pre && this.pendingAction !== "robber") this._rvPush(pre, "robber", { hex: hexId });
     return r;

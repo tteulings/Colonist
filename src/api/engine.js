@@ -570,7 +570,6 @@ export class Engine {
     if (pd) { pd.selected = { ...emptyHand(), ...a.cards }; g._confirmDiscard(); return; } // the UI's own discard flow
     const flow = g.pendingRobberFlow, item = flow.discards[0];
     g.payToBank(p, a.cards);
-    if (this.legacyBotOrder) g._stEv?.("d", p.id, handSize(a.cards)); // what _autoDiscard's stats wrapper noted for the old bots
     g.emit({ type: "discarded", seat: p.id, n: item.count, reason: "rolled a 7" });
     flow.discards.shift();
     if (!flow.discards.length) { g.robberBusy = false; g.pendingRobberFlow = null; this._enterRobber(g.players[flow.rollerId], "seven"); }

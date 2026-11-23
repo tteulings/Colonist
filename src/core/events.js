@@ -65,7 +65,9 @@ export function createEmitter() {
       ev.seq = ++bus.seq;
       const probing = muted.size > 0;
       if (bus.record && !probing) bus.record.push(ev); // a probe's imagined events are not the game's history
-      for (let i = 0; i < subs.length; i += 1) if (!probing || subs[i].name === "trk") subs[i].fn(ev); // during a probe only the card tracker (the bots' own knowledge) hears it
+      for (let i = 0; i < subs.length; i += 1) if (!probing || subs[i].name === "trk") { // during a probe only the card tracker (the bots' own knowledge) hears it
+        try { subs[i].fn(ev); } catch (e) { try { console.error(`event subscriber "${subs[i].name}" threw on ${ev.type}:`, e); } catch (_) { /* never in the way */ } } // one failing subscriber (a sound, an animation) must not leave the game half-applied
+      }
       return ev;
     },
   };

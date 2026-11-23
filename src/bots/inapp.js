@@ -18,7 +18,7 @@ import { probeHooks } from "./probe.js";
 import { getBot } from "./registry.js";
 
 /** Modes whose in-app bot turns are proven identical to the old driver (tests/inapp197.js); the rest never leaves it. */
-export const HOST_DEFAULT = { classic: true, sea: true, six: true };
+export const HOST_DEFAULT = { classic: false, sea: false, six: false }; // v1.97: off unless colonist.hostInApp enables it (it cost +18..61% CPU on a throttled phone)
 export const HOST_MODES = ["classic", "sea", "six"];
 
 function flag() {
@@ -33,7 +33,7 @@ function flag() {
 export const modeOf = (g) => (g.isRush?.() ? "rush" : g.sea ? "sea" : g.players.length > 4 ? "six" : "classic");
 /** Does the host drive the bot turns of this game? Only the game on the screen (not the AI Lab's or the review's headless games), no bot with a search agent. */
 export function hostOn(g, player = null) {
-  if (g.labMode || g._labSim || g._replay || (player && (player.agent || (player.isHuman && !g.autoplayInterval))) || typeof window === "undefined" || window.__colonistGame !== g) return false;
+  if (g._hostBroken || g.labMode || g._labSim || g._replay || (player && (player.agent || (player.isHuman && !g.autoplayInterval))) || typeof window === "undefined" || window.__colonistGame !== g) return false;
   const f = flag(), m = modeOf(g);
   if (f === "0" || f === "off" || f === "false") return false;
   if (f === "1" || f === "on" || f === "true" || f === "all") return HOST_MODES.includes(m);
@@ -124,7 +124,7 @@ const app = new WeakMap(); // game -> { engine, host, bots: Map(seat -> { key, b
 function appFor(g) {
   let A = app.get(g);
   if (!A) {
-    A = { engine: new AppEngine(g), host: newHost({ humanTrade: true }), bots: new Map(), seat: null };
+    A = { engine: new AppEngine(g), host: newHost({ humanTrade: true, strict: true }), bots: new Map(), seat: null };
     app.set(g, A);
   }
   return A;
@@ -164,5 +164,12 @@ export function mainPhase(g, player, skipTrade = false) {
     if (r.type === "endTurn") return "done";
   }
   return "done";
+}
+/** The host threw (or a bot's answer was refused): put back what a planner's mute and the host's seat control change, so the old driver can take the phase over. */
+export function hostRecover(g) {
+  const A = app.get(g);
+  if (A) { A.engine.actor = null; A.seat = null; if (A.engine._log) A.engine._log.length = 0; }
+  try { g.events?.unmuteAll?.(null); } catch (_) { /* nothing to put back */ }
+  g.__noTrk = false;
 }
 export { getBot };

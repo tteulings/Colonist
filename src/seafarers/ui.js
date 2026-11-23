@@ -366,7 +366,10 @@ export const SeaGame = {
   /** A gold pick left open when the Rush roll comes: made for the human, as the `pickGold` action flagged auto (UiEngine._do_pickGold). */
   _goldAuto(player) {
     if (!this.sea?.goldFor(player.id)) return;
+    const staged = this._goldStage && this._goldStage.item === this.sea.goldFor(player.id) ? this._goldStage.picks.slice() : [];
     this._goldStage = null;
+    staged.forEach((x) => { if (this.sea.goldFor(player.id)) this.sea.pickGold(player, x); }); // the cards already tapped are kept (v1.96 took each tap at once); only the rest is picked for you
+    if (!this.sea.goldFor(player.id)) { this.recomputeScores(); this.checkForWinner?.(player); return; }
     const r = this.api.dispatch({ actor: player.id, type: "pickGold", resources: this.sea.aiGoldPicks(player, this.sea.goldFor(player.id).count) }, { auto: true });
     if (!r.ok) this.sea.autoGold(player);
   },
