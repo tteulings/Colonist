@@ -49,6 +49,7 @@ const QUIET = new Proxy({}, { get: () => NOOP });
 const SILENT_FNS = ["addLog", "render", "drawCanvasScene", "showResourceGainToasts", "_showStealAnimation", "_animateTradeCards", "_showDevCardPopup", "showGameOverOverlay", "pushToast",
   "saveToStorage", "_queueSave", "_renderAnalysis", "requestBoardDraw", "_animateCardDeal", "animateResourceGain", "_flashPrompt"];
 const SILENT_OBJS = ["sfx", "fx"];
+const SILENT_SUBS = ["log", "sfx", "fx", "anim", "stats"]; // the emitter's presentation subscribers (the card tracker "trk" stays: it is the bots' own knowledge)
 const FLAGS = { _replay: true, _rvBusy: "probe" }; // stats recorder off; the review recorder busy
 
 function mute(g, { suspend }) {
@@ -58,17 +59,20 @@ function mute(g, { suspend }) {
   if (!live) { Object.keys(FLAGS).forEach((k) => swap(k, FLAGS[k])); swap("_stMover", g._stMover); return { own, saved, anims: null, api: null, keepActive: null }; }
   SILENT_FNS.forEach((k) => swap(k, NOOP));
   SILENT_OBJS.forEach((k) => { if (g[k]) swap(k, QUIET); });
+  const bus = g.events, mutedBefore = bus?.muted ? new Set(bus.muted) : null;
+  if (bus?.mute) SILENT_SUBS.forEach((n) => bus.mute(n)); // emit() reaches no journal / sound / animation / stats subscriber while a probe runs
   Object.keys(FLAGS).forEach((k) => swap(k, FLAGS[k]));
   swap("_stMover", g._stMover);
   const anims = g.placementAnims ? g.placementAnims.slice() : null;
   const api = g.__api, eng = app.get(g)?.engine;
   const keepActive = api ? api.active : null;
   if (api && eng && !suspend) { eng.actor = app.get(g).seat; api.active = eng; } // seat control: a card stops at the prompts it opens (the apply plays them out)
-  return { own, saved, anims, api, keepActive };
+  return { own, saved, anims, api, keepActive, bus, mutedBefore };
 }
 function unmute(g, m) {
   Object.keys(m.saved).forEach((k) => { if (m.own[k]) g[k] = m.saved[k]; else delete g[k]; });
-  if (m.anims) { g.placementAnims.length = 0; g.placementAnims.push(...m.anims); } // restore() empties the list
+  if (m.bus?.unmuteAll) m.bus.unmuteAll(m.mutedBefore);
+  if (m.anims) g.placementAnims.splice(0, g.placementAnims.length, ...m.anims); // restore() empties the list
   if (m.api) m.api.active = m.keepActive;
 }
 
@@ -95,8 +99,7 @@ class AppEngine extends Engine {
   _do_moveShip(a, p) {
     const g = this.g;
     if (!g.sea.moveShip(p, a.from, a.to)) return false;
-    g.addLog(`${p.name} moved a ship.`);
-    g.sfx.buildRoad();
+    g.emit({ type: "shipMoved", seat: p.id, from: a.from, to: a.to }); // the journal line and the sound are its subscribers
     g.recomputeScores();
     g.checkForWinner(p);
     return true;
@@ -109,7 +112,7 @@ class AppEngine extends Engine {
     const g = this.g, q = g.players[a.to[0]];
     g._stTrade(p, q, a.give, a.want);
     RES.forEach((r) => { const give = a.give[r] || 0, want = a.want[r] || 0; p.resources[r] += want - give; q.resources[r] += give - want; });
-    g.addLog(`${p.name} traded ${g._resStr(a.give)} with ${q.name} for ${g._resStr(a.want)}.`);
+    g.emit({ type: "traded", seat: p.id, partner: q.id, gave: a.give, got: a.want, style: "api" });
   }
   // the end of a main phase: the scores are counted once and a win is looked for; the caller (game.js) ends the turn when it is time to
   _do_endTurn(a, p) { const g = this.g; this._offers = []; g.recomputeScores(); g.checkForWinner(p); }

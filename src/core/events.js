@@ -50,7 +50,11 @@ import { tr } from "../i18n.js";
 /** Create the emitter. `record`: keep every event (tests, replays); otherwise nothing is stored. */
 export function createEmitter() {
   const subs = [];
+  const muted = new Set(); // non-empty while a planner's probe runs: emit() reaches only the card tracker, records nothing (nothing is shown, heard, counted or kept)
   const bus = {
+    muted,
+    mute(name) { muted.add(name); return bus; },
+    unmuteAll(prev = null) { muted.clear(); if (prev) prev.forEach((n) => muted.add(n)); return bus; },
     seq: 0,
     record: null,
     on(name, fn) { const i = subs.findIndex((s) => s.name === name); if (i >= 0) subs[i].fn = fn; else subs.push({ name, fn }); return bus; },
@@ -59,8 +63,9 @@ export function createEmitter() {
     names() { return subs.map((s) => s.name); },
     emit(ev) {
       ev.seq = ++bus.seq;
-      if (bus.record) bus.record.push(ev);
-      for (let i = 0; i < subs.length; i += 1) subs[i].fn(ev);
+      const probing = muted.size > 0;
+      if (bus.record && !probing) bus.record.push(ev); // a probe's imagined events are not the game's history
+      for (let i = 0; i < subs.length; i += 1) if (!probing || subs[i].name === "trk") subs[i].fn(ev); // during a probe only the card tracker (the bots' own knowledge) hears it
       return ev;
     },
   };
