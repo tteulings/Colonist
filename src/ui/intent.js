@@ -162,6 +162,7 @@ export class UiEngine extends Engine {
   _do_ready(a, p) { this.g._humanReadyNow(p); }
   // trades: the engine keeps the open offer (one at a time: what the trade sheet shows), the bots' answers are the game's own evaluator
   _do_offerTrade(a, p) {
+    if (this._ui?.hsAsk) return this.g._hsAskNow(p, this._ui.hsAsk, { ...a.give }, { ...a.want }); // pass & play: one person asks another, who answers on the cover
     const g = this.g, to = a.to === "all" ? g.players.filter((q) => q.id !== a.actor).map((q) => q.id) : [...new Set(a.to)];
     const o = { id: ++this._offerSeq, from: a.actor, to, give: cleanHand(a.give), want: cleanHand(a.want), answered: {} };
     this._offers = [o];

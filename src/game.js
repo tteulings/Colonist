@@ -1752,10 +1752,10 @@ class ColonistFullGame {
   }
 
   /** Move the robber (or the pirate) through the API; `victim` is the staged choice, used when several can be robbed. */
-  _applyRobber(player, hexId, victim = null) {
+  _applyRobber(player, hexId, victim = null, auto = false) {
     const a = { actor: player.id, type: "moveRobber", hex: hexId, ...(this.sea ? { target: this._seaHexKind(hexId) } : {}) };
-    const r = this.api.act(a, { victim });
-    if (!r.ok && !r.bug) this._flashPrompt(this._say(r.reason));
+    const r = auto ? this.api.dispatch(a, { victim, auto: true }) : this.api.act(a, { victim }); // auto: a host timeout moves it for the human (flagged in the log, no message on a refusal)
+    if (!r.ok && !r.bug && !auto) this._flashPrompt(this._say(r.reason));
     return r.ok;
   }
 
@@ -6491,8 +6491,12 @@ class ColonistFullGame {
     const me = this._me();
     this._flashPrompt("Time's up: card kept", 3200);
     if (this.devPlayed && this._cancelDevPlay()) return;
-    this.devPick = null; this.devPlayed = null; this.freeRoadsRemaining = 0;
-    if (this.pendingAction === "road") this.pendingAction = null;
+    this.devPick = null; this.devPlayed = null;
+    // what is left of Road Building is let go: the human's `skipFree`, made by the host (flagged auto)
+    if (!(me && this.freeRoadsRemaining > 0 && (this.pendingAction === "road" || !this.pendingAction) && this.api.dispatch({ actor: me.id, type: "skipFree" }, { auto: true }).ok)) {
+      this.freeRoadsRemaining = 0;
+      if (this.pendingAction === "road") this.pendingAction = null;
+    }
     if (me && (this.pendingAction === "robber" || this.robberVictimOptions?.length)) this._rushAutoFinishHumanRobber(me);
     this._rushAfterAction(me);
   }
@@ -6655,21 +6659,27 @@ class ColonistFullGame {
     // a tile is already chosen: finish that move
     const cb = this.confirmBuild?.type === "robber" ? this.confirmBuild : null;
     if (cb && this.pendingAction === "robber" && this._robberHexAllowed(cb.id, human)) {
-      this._commitRobber(human, cb.id, cb.victim ?? this._defaultRobberVictim(cb.id, human));
+      const victim = cb.victim ?? this._defaultRobberVictim(cb.id, human);
+      if (!this._applyRobber(human, cb.id, victim, true)) this._commitRobber(human, cb.id, victim); // the engine holds no prompt for it: as before
     }
     if (this.confirmBuild?.type === "robber") this.confirmBuild = null;
     if (this.robberVictimOptions?.length) {
       const victim = this.robberVictimOptions[0];
-      this.robberVictimOptions = [];
-      if (this.victimPanel) this.victimPanel.style.display = "none";
-      this.stealFromVictim(human, victim);
-      this.robberContext = null;
+      if (!this.api.dispatch({ actor: human.id, type: "steal", victim }, { auto: true }).ok) { // the engine holds no prompt for it: as before
+        this.robberVictimOptions = [];
+        if (this.victimPanel) this.victimPanel.style.display = "none";
+        this.stealFromVictim(human, victim);
+        this.robberContext = null;
+      }
     }
     if (this.pendingAction === "robber") {
-      this.pendingAction = null;
-      this.robberContext = null;
-      this.canvas.style.cursor = "grab";
-      this.moveRobberAndSteal(human, this.chooseRobberHex(human));
+      const hexId = this.chooseRobberHex(human), vs = this._stealVictims(hexId, human);
+      if (!this._applyRobber(human, hexId, vs.length ? this._aiChooseVictim(human, vs) : null, true)) {
+        this.pendingAction = null;
+        this.robberContext = null;
+        this.canvas.style.cursor = "grab";
+        this.moveRobberAndSteal(human, hexId);
+      }
     }
   }
 
@@ -10081,7 +10091,7 @@ class ColonistFullGame {
     const cards = {};
     RESOURCES.forEach((r) => { if (pd.selected[r] > 0) cards[r] = pd.selected[r]; });
     if (sumResources(cards) !== pd.count) { this._confirmDiscardNow(); return; } // not a count the dock lets through (a script, an auto-discard): handed back as marked, as before
-    const r = this.api.act({ actor: pd.player.id, type: "discard", cards });
+    const r = this.api.act({ actor: pd.player.id, type: "discard", cards }, this._autoNow ? { auto: true } : null);
     if (!r.ok) { this._flashPrompt(this._say(r.reason)); this.sfx.error?.(); }
   }
 
@@ -10899,7 +10909,8 @@ class ColonistFullGame {
     const who = this._you(pd.player) ? "you" : pd.player.name;
     this.pushToast(`Time's up · ${pd.count} card${pd.count === 1 ? "" : "s"} handed back for ${who}`);
     this.addLog(`Time's up — ${pd.count} card${pd.count === 1 ? "" : "s"} handed back automatically.`);
-    this._confirmDiscard();
+    this._autoNow = true; // the host's timeout: the discard action is flagged auto
+    try { this._confirmDiscard(); } finally { this._autoNow = false; }
   }
 
   _discardWatch(pd) {
