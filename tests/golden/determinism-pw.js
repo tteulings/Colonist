@@ -28,7 +28,7 @@ async function play(b, seed, mode, settings) {
     const g = window.__colonistGame;
     window.__moves = [];
     const R = ["wood", "brick", "sheep", "wheat", "ore"];
-    const wrap = (k, f) => { const o = g[k].bind(g); g[k] = (...a) => { const r = o(...a); if (r !== false) window.__moves.push(f(...a)); return r; }; };
+    const wrap = (k, f) => { const o = g[k].bind(g); g[k] = (...a) => { const r = o(...a); if (r !== false && !g.__probing) window.__moves.push(f(...a)); return r; }; };
     wrap("placeRoad", (p, e) => `${p.id} road ${e}`);
     wrap("placeSettlement", (p, n) => `${p.id} set ${n}`);
     wrap("placeCity", (p, n) => `${p.id} city ${n}`);
