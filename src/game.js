@@ -4512,13 +4512,13 @@ class ColonistFullGame {
         if (entry) entry.answers.push({ pid: other.id, ok: verdict.ok, why: verdict.why, before: verdict.before, after: verdict.after });
         if (verdict.ok && dry) return { type: "done", dry: true, partner: other, give: offer, want: request };
         if (verdict.ok) {
+          this._stTrade(aiPlayer, other, offer, request);
           RESOURCES.forEach((r) => {
             aiPlayer.resources[r] -= offer[r];
             aiPlayer.resources[r] += request[r];
             other.resources[r] -= request[r];
             other.resources[r] += offer[r];
           });
-          this._stTrade(aiPlayer, other, offer, request);
           this.emit({ type: "traded", seat: aiPlayer.id, partner: other.id, gave: offer, got: request, style: "ai" }); // (the card tracker notes the swap)
           return { type: "done" };
         }
@@ -4588,13 +4588,13 @@ class ColonistFullGame {
     } else if (accepted && human) {
       this._animateTradeCards(want, give, this._offerCardEl());
       // AI gives 'give' to human, human gives 'want' to AI
+      this._stTrade(fromPlayer, human, give, want);
       RESOURCES.forEach((r) => {
         human.resources[r] -= want[r];
         human.resources[r] += give[r];
         fromPlayer.resources[r] -= give[r];
         fromPlayer.resources[r] += want[r];
       });
-      this._stTrade(fromPlayer, human, give, want);
       this.emit({ type: "traded", seat: human.id, partner: fromPlayer.id, gave: want, got: give, style: "incoming" });
       if (this._you(human)) this.pushToast(`Trade done: got ${resourceString(give)} for ${resourceString(want)}`, "important");
     } else if (!expired) {
