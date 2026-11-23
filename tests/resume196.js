@@ -1,5 +1,6 @@
 // v1.96: a game saved between a set-up settlement and its road resumes on the road (not a second settlement).
 // Classic single human, hot-seat (2 humans), Seafarers, 5 players; reload after the settlement in set-up round 1 and round 2.
+// Bot seats too: saved after a BOT's set-up settlement (before its road / ship), resume finishes that piece, no second settlement.
 //   node tests/resume196.js [ROOT=repo] [PORT=8872]
 const { chromium } = (() => { try { return require("playwright"); } catch (_) { return require("/opt/node-tools/node_modules/playwright"); } })();
 const http = require("http"), fs = require("fs"), path = require("path");
@@ -15,6 +16,66 @@ const CASES = [
   { name: "seafarers", s: { mode: "classic", board: "seafarers", map: "beginner", numBots: 3 } },
   { name: "5 players", s: { mode: "classic", board: "island", numBots: 4 } },
 ];
+
+// a save taken right after a BOT's set-up settlement (its road / ship still to come): resume must finish that piece
+const BOTCASES = [
+  { name: "bot classic", s: { mode: "classic", board: "island", numBots: 3 } },
+  { name: "bot seafarers", s: { mode: "classic", board: "seafarers", map: "beginner", numBots: 3 } },
+  { name: "bot 5 players", s: { mode: "classic", board: "island", numBots: 4 } },
+];
+async function runBot(b, c, round) {
+  const tag = `${c.name} round ${round}`;
+  const ctx = await b.newContext({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, serviceWorkers: "block" });
+  const page = await ctx.newPage(); const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem("i")) { sessionStorage.setItem("i", "1"); localStorage.clear(); localStorage.setItem("colonist_sound", "off"); localStorage.setItem("colonist.intro", "done"); localStorage.setItem("colonist.welcomed", "1"); }
+  });
+  const boot = async () => { await page.goto(`http://localhost:${PORT}/`); await page.waitForFunction(() => window.__colonistGame && document.body.dataset.gameReady, null, { timeout: 30000 }); };
+  await boot();
+  await page.evaluate(([s, round]) => {
+    const g = window.__colonistGame; g.startNewGame(s); window.__hit = null;
+    const open = (p, n) => !g.geometry.nodes[n].edgeIds.some((e) => g.geometry.edges[e].owner === p.id);
+    const iv = setInterval(() => {
+      if (!g.setupPhase) { clearInterval(iv); return; }
+      if ((g.setupStep >= g.players.length ? 2 : 1) !== round) return;
+      for (const p of g.players) if (!p.isHuman) for (const n of p.settlements) if (open(p, n)) {
+        g.saveToStorage();
+        window.__hit = { pid: p.id, n, step: g.setupStep, hand: { ...p.resources }, hexes: g.geometry.nodes[n].adjacentHexes.map((h) => g.geometry.hexes[h].resource) };
+        clearInterval(iv); return;
+      }
+    }, 1);
+  }, [c.s, round]);
+  let hit = null;
+  for (let i = 0; i < 400 && !hit; i++) {
+    hit = await page.evaluate(() => window.__hit); if (hit) break;
+    await page.evaluate(() => { const g = window.__colonistGame; if (g.setupPhase && g.currentPlayer.isHuman && g.setupAction) { const sp = g.api.spots(g.currentPlayer.id); if (g.setupAction === "settlement") g._applyPiece(g.currentPlayer, { type: "settlement", id: [...sp.settlement][0] }, true); else g._applyPiece(g.currentPlayer, { type: "road", id: [...(sp.road.size ? sp.road : sp.ship)][0] }, true); } });
+    await sleep(20);
+  }
+  check(!!hit, `${tag}: a bot was caught between settlement and road`, hit && { pid: hit.pid, step: hit.step });
+  if (!hit) { await ctx.close(); return; }
+  await page.reload(); await boot(); await sleep(500);
+  if (await page.locator("[data-home='continue']").count()) await page.locator("[data-home='continue']").first().tap();
+  // the moment that seat gets its road / ship, read its hand
+  const got = await page.evaluate((hit) => new Promise((res) => {
+    const g = window.__colonistGame, p = g.players[hit.pid];
+    const t0 = Date.now(), iv = setInterval(() => {
+      const placed = g.geometry.nodes[hit.n].edgeIds.some((e) => g.geometry.edges[e].owner === p.id);
+      if (placed || Date.now() - t0 > 20000) { clearInterval(iv); res({ placed, hand: { ...p.resources }, sett: p.settlements.size }); }
+    }, 1);
+  }), hit);
+  check(got.placed, `${tag}: the bot's road / ship came after resume`);
+  const R = ["wood", "brick", "sheep", "wheat", "ore"], want = { ...hit.hand };
+  if (round === 2) for (const r of hit.hexes) if (R.includes(r)) want[r]++;
+  check(R.every((r) => got.hand[r] === want[r]), `${tag}: hand ${round === 2 ? "= what the 2nd settlement's hexes give" : "unchanged (no round-1 grant)"}`, { got: got.hand, want });
+  check(got.sett === (round === 2 ? 2 : 1), `${tag}: no extra settlement at that moment`, got.sett);
+  await page.waitForFunction(() => { const g = window.__colonistGame; if (g.setupPhase && g.currentPlayer.isHuman && g.setupAction) { const sp = g.api.spots(g.currentPlayer.id); if (g.setupAction === "settlement") g._applyPiece(g.currentPlayer, { type: "settlement", id: [...sp.settlement][0] }, true); else g._applyPiece(g.currentPlayer, { type: "road", id: [...(sp.road.size ? sp.road : sp.ship)][0] }, true); } return !g.setupPhase; }, null, { timeout: 40000, polling: 30 }).catch(() => {});
+  const fin = await page.evaluate(() => { const g = window.__colonistGame; return { setup: g.setupPhase, phase: g.phase, pl: g.players.map((p) => [p.settlements.size, p.roads.size + (p.ships?.size || 0)]) }; });
+  check(!fin.setup && fin.phase !== "setup", `${tag}: game proceeds to the main phase`, fin.phase);
+  check(fin.pl.every((x) => x[0] === 2 && x[1] >= 2), `${tag}: every seat ends set-up with exactly 2 settlements and 2 roads/ships`, fin.pl);
+  check(errors.length === 0, `${tag}: no page errors`, errors);
+  await ctx.close();
+}
 
 async function run(b, c, round) {
   const tag = `${c.name} round ${round}`;
@@ -87,6 +148,7 @@ async function run(b, c, round) {
 (async () => {
   const b = await chromium.launch();
   for (const c of CASES) for (const round of [1, 2]) { try { await run(b, c, round); } catch (e) { check(false, `${c.name} round ${round}: threw`, String(e.message).slice(0, 200)); } }
+  for (const c of BOTCASES) for (const round of [1, 2]) { try { await runBot(b, c, round); } catch (e) { check(false, `${c.name} round ${round}: threw`, String(e.message).slice(0, 200)); } }
   await b.close(); srv.close();
   console.log(fails ? `${fails} FAILED` : "ALL PASS"); process.exit(fails ? 1 : 0);
 })();

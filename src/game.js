@@ -1663,6 +1663,10 @@ class ColonistFullGame {
     if (this.onboardingHold) { this.render(); return; } // first launch: wait for the welcome sheet
     if (this._aiHeld()) { this._aiPark(() => this.processSetupQueue()); this.render(); return; } // analysis mode: wait for Step
 
+    // a resumed save may stop after a bot's set-up settlement but before its road / ship: finish that piece, no second settlement
+    const waiting = this._setupNodeWaiting(player);
+    if (waiting != null) { this._aiSetupRoad(player, waiting); return; }
+
     // v0.90 Master: the spot is searched in the worker; the placement continues when it answers
     if (this._masterLive(player) && this._masterSetup(player)) { this.render(); return; }
     this._aiSetupPlace(player, this.getBestInitialSettlementNode(player));
@@ -1687,7 +1691,11 @@ class ColonistFullGame {
     this.sfx.buildSettlement();
     this.recomputeScores();
     this.render();
+    this._aiSetupRoad(player, nodeId);
+  }
 
+  /** The road (or ship) half of a bot's set-up turn, with the round-2 resources (given here, at road time) and the step advance. */
+  _aiSetupRoad(player, nodeId) {
     this._later(() => this._aiGate(() => {
       let piece = "road";
       if (this.sea) { // ⚓ Seafarers: a road, or a ship from a coastal settlement
