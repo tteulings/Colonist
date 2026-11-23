@@ -22,7 +22,6 @@ const GAMES = [
   { id: "classic-balanced", seed: 1962, turns: 16, settings: { ...COMMON, mode: "classic", map: "balanced", dice: "balanced", numBots: 2 } },
   { id: "seafarers", seed: 1963, turns: 20, settings: { ...COMMON, mode: "classic", board: "seafarers", numBots: 2 } },
   { id: "five-six", seed: 1964, turns: 12, settings: { ...COMMON, mode: "classic", numBots: 5 } },
-  { id: "rush", seed: 1965, turns: 14, settings: { ...COMMON, mode: "rush", numBots: 3, rushInterval: 5 } }, // turns = rolls
 ];
 
 async function play(browser, port, g, lang, events) {
@@ -194,10 +193,23 @@ function compare(tag, x, y) {
   return ok;
 }
 
+/** Headless golden games (classic, Rush played as turns, Seafarers, 5-6): every journal line of both trees. Rush in the browser runs on wall-clock timers and is not
+ *  reproducible even against itself, so its text is compared here, on the golden harness's virtual clock. */
+function headlessCompare() {
+  const { execFileSync } = require("child_process");
+  const run = (root) => JSON.parse(execFileSync("node", [path.join(HERE, "tests/events197-headless.mjs"), root], { maxBuffer: 1 << 29 }).toString());
+  const a = run(HERE), b = run(BASE);
+  for (const id of Object.keys(b)) {
+    const x = a[id], y = b[id], d = x ? firstDiff(x.lines, y.lines) : 0;
+    check(!!x && d < 0 && x.winner === y.winner && x.turns === y.turns && y.lines.length > 30, `headless ${id}: ${y.lines.length} journal lines, winner ${y.winner}, turn ${y.turns}: identical`, d < 0 ? "" : `line ${d}: ${JSON.stringify(x?.lines[d])} vs ${JSON.stringify(y.lines[d])}`);
+  }
+}
+
 (async () => {
   if (!BASE || !fs.existsSync(BASE)) { console.log("usage: node tests/events197.js BASE_ROOT [PORT]"); process.exit(2); }
   const sA = await serve(HERE, PORT), sB = await serve(BASE, PORT + 1);
   const browser = await chromium.launch();
+  headlessCompare();
   const games = (QUICK ? GAMES.slice(0, 2) : GAMES).filter((x) => !process.env.ONLY || x.id === process.env.ONLY);
   const langs = process.env.LANG_ONLY ? [process.env.LANG_ONLY] : QUICK ? ["en"] : ["nl", "en"];
   for (const lang of langs) {
