@@ -15,10 +15,13 @@
 //   rushStarted  {interval}
 //   placed       {seat, piece:"road"|"settlement"|"city", at}        a piece appears on the board (every path, also simulations): animation
 //   built        {seat, piece:"road"|"ship"|"settlement"|"city", at, how:"setup"|"free"|"paid", remaining?, i?, log?:false, sfx?:false}
+//   unbuilt      {seat, piece, at}                                   Undo took a piece back (its refund is a `received`)
+//   turnEnded    {seat, turn}                                        (no log line)
 //   shipMoved    {seat, from?, to?}
 //   islandReached{seat, island}                                      Seafarers: +2 for a new island
 //   rolled       {seat, turn, total, d1, d2}  |  {rush:true, rollNo, total, d1, d2}
 //   produced     {seat, gain:{res:n}}                                one per player paid on a roll
+//   payout       {roll, gains:[{res:n} per seat]}                    the whole roll's payout (the cards fly, the toasts)
 //   bankShort    {res}                                               the bank cannot pay a resource: nobody gets it
 //   paid         {seat, cost:{res:n}}                                cards went to the bank (builds, discards, bank trade ...)
 //   received     {seat, cards:{res:n}}                               cards came from the bank / were refunded
@@ -34,7 +37,6 @@
 //   devPlayed    {seat, card, interactive?, gained?:[res], res?, collected?, built?}
 //   award        {award:"longestRoad"|"largestArmy", seat|null, prev|null}
 //   won          {seat, points}  |  turnLimit {seat}
-//   turnEnded    {seat}                                              (no log line)
 //   goldBankEmpty {seat} · goldStruck {seat, n} · goldTaken {seat, got:{res:n}}
 //   buildWindow  {per:[{seat, road?, settlement?, city?, card?}]}    5-6 players: the Special Building Phase summary
 //  Notices (the game talks to the player; no rule changed)

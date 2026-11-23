@@ -130,6 +130,10 @@ export const StatsMixin = {
   _stOnEvent(e) {
     switch (e.type) {
       case "award": this._stEv("a", e.award === "largestArmy" ? "A" : "L", e.seat ?? -1, e.prev ?? -1); break;
+      case "stole": this._stEv("t", e.seat, e.victim, RES.indexOf(e.res)); break;
+      case "discarded": if (e.n) this._stEv("d", e.seat, e.n); break;
+      case "bankTraded": this._stEv("k", e.seat, RES.indexOf(e.give), e.rate, RES.indexOf(e.get)); break;
+      case "devBought": this._stEv("v", e.seat, e.card); break;
       default:
     }
   },
@@ -187,42 +191,11 @@ export function installStats(Cls) {
     return out;
   });
 
-  wrap("_doSteal", function (orig, thief, victimId) {
-    const before = hand(thief);
-    const r = orig.call(this, thief, victimId);
-    const res = RES.findIndex((x) => thief.resources[x] > before[x]);
-    if (res >= 0) this._stEv("t", thief.id, victimId, res);
-    return r;
-  });
-  wrap("_autoDiscard", function (orig, player, count) {
-    const sel = orig.call(this, player, count);
-    const n = sum(sel);
-    if (n) this._stEv("d", player.id, n);
-    return sel;
-  });
-  wrap("_confirmDiscard", function (orig, ...a) {
-    const pd = this.pendingDiscard;
-    const n = pd ? sum(pd.selected) : 0;
-    const pid = pd?.player?.id;
-    const r = orig.apply(this, a);
-    if (pd && !this.pendingDiscard && n) this._stEv("d", pid, n);
-    return r;
-  });
-  wrap("performBankTrade", function (orig, player, give, get) {
-    const rate = this.getPlayerTradeRate(player, give);
-    const ok = orig.call(this, player, give, get);
-    if (ok) this._stEv("k", player.id, RES.indexOf(give), rate, RES.indexOf(get));
-    return ok;
-  });
+  // (steals "t", discards "d", bank trades "k", bought cards "v" and awards "a" are recorded by _stOnEvent: a subscriber of the game's events.
+  // Player trades "x" stay on _stTrade / _swapCards: the engine's observer and the bot host's probe hook those two methods.)
   wrap("_swapCards", function (orig, a, aGives, b, bGives) {
     this._stTrade(a, b, aGives, bGives);
     return orig.call(this, a, aGives, b, bGives);
-  });
-  wrap("buyDevelopmentCard", function (orig, player) {
-    const card = this.devDeck?.[this.devDeck.length - 1];
-    const ok = orig.call(this, player);
-    if (ok) this._stEv("v", player.id, card);
-    return ok;
   });
   const monoEv = function (player, before) {
     let got = -1;

@@ -1903,6 +1903,7 @@ class ColonistFullGame {
         case "rolled": if (e.rush) fx?.diceRoll(e.d1, e.d2); break;
         case "built": if (e.how === "free") fx?.freeRoad?.(e.seat, e.at, e.i || 0, e.piece === "ship"); break;
         case "stole": this._showStealAnimation(this.players[e.seat], this.players[e.victim], e.res); break;
+        case "payout": this.showResourceGainToasts(e.gains); break; // the cards fly from their tiles; toasts and a chime for the gain
         case "devPlayed":
           if (e.card === "yearOfPlenty") fx?.yearOfPlenty?.(e.seat, e.gained);
           else if (e.card === "monopoly") fx?.monopoly?.(e.seat, e.res, e.collected);
@@ -3376,9 +3377,7 @@ class ColonistFullGame {
     this.checkForWinner(player);
     // Returns a promise that settles once any robber flow (discards, robber move, steal) is done
     if (this.lastRoll === 7) return this.resolveRobber(player, "rolled a 7");
-    const gains = this.distributeResources(this.lastRoll);
-    // Show resource gain toasts for ALL players
-    if (gains) this.showResourceGainToasts(gains);
+    this.distributeResources(this.lastRoll); // (the payout event makes the cards fly and the toasts: a subscriber)
     return Promise.resolve();
   }
 
@@ -3415,6 +3414,7 @@ class ColonistFullGame {
       }
     });
     if (this.sea && goldOwed.some((n) => n > 0)) this.sea.payGold(goldOwed, gainByPlayer, this.isRush() ? null : this.currentPlayer); // ⚓ after the normal cards
+    this.emit({ type: "payout", roll, gains: gainByPlayer });
     return gainByPlayer;
   }
 
@@ -4512,13 +4512,13 @@ class ColonistFullGame {
         if (entry) entry.answers.push({ pid: other.id, ok: verdict.ok, why: verdict.why, before: verdict.before, after: verdict.after });
         if (verdict.ok && dry) return { type: "done", dry: true, partner: other, give: offer, want: request };
         if (verdict.ok) {
-          this._stTrade(aiPlayer, other, offer, request);
           RESOURCES.forEach((r) => {
             aiPlayer.resources[r] -= offer[r];
             aiPlayer.resources[r] += request[r];
             other.resources[r] -= request[r];
             other.resources[r] += offer[r];
           });
+          this._stTrade(aiPlayer, other, offer, request);
           this.emit({ type: "traded", seat: aiPlayer.id, partner: other.id, gave: offer, got: request, style: "ai" }); // (the card tracker notes the swap)
           return { type: "done" };
         }
@@ -4588,13 +4588,13 @@ class ColonistFullGame {
     } else if (accepted && human) {
       this._animateTradeCards(want, give, this._offerCardEl());
       // AI gives 'give' to human, human gives 'want' to AI
-      this._stTrade(fromPlayer, human, give, want);
       RESOURCES.forEach((r) => {
         human.resources[r] -= want[r];
         human.resources[r] += give[r];
         fromPlayer.resources[r] -= give[r];
         fromPlayer.resources[r] += want[r];
       });
+      this._stTrade(fromPlayer, human, give, want);
       this.emit({ type: "traded", seat: human.id, partner: fromPlayer.id, gave: want, got: give, style: "incoming" });
       if (this._you(human)) this.pushToast(`Trade done: got ${resourceString(give)} for ${resourceString(want)}`, "important");
     } else if (!expired) {
@@ -6254,6 +6254,7 @@ class ColonistFullGame {
     window.setTimeout(() => this._palCalmTick(), 0); // v1.04 proposal: Auto · time of day switches between turns
     if (this.winner) return;
     const player = this.currentPlayer;
+    this.emit({ type: "turnEnded", seat: player.id, turn: this.turn });
     DEV_CARD_TYPES.forEach((type) => {
       player.devCards[type] += player.newDevCards[type];
       player.newDevCards[type] = 0;
@@ -6572,8 +6573,7 @@ class ColonistFullGame {
       this._rushBeginSeven();
     } else {
       this.highlightRoll = { number: res.total, startTime: Date.now() };
-      const gains = this.distributeResources(res.total);
-      if (gains) this.showResourceGainToasts(gains);
+      this.distributeResources(res.total);
     }
     this._rushAfterAction();
   }
@@ -10696,6 +10696,7 @@ class ColonistFullGame {
       const node = g.nodes[u.id];
       if (!this.setupPhase || this.setupAction !== "road" || node.owner !== p.id) return;
       node.owner = null; node.structure = null; p.settlements.delete(u.id);
+      this.emit({ type: "unbuilt", seat: p.id, piece: "settlement", at: u.id });
       this.setupAction = "settlement";
       this.lastSetupNodeId = null;
       this.logEntries.length = Math.min(this.logEntries.length, u.logLen);
@@ -10719,8 +10720,9 @@ class ColonistFullGame {
       }
       if (u.paid) {
         RESOURCES.forEach((r) => { this.bank[r] -= u.paid[r] || 0; p.resources[r] += u.paid[r] || 0; });
-        this._aiTrkNote(p, u.paid, 1);
+        this.emit({ type: "received", seat: p.id, cards: u.paid }); // the refund
       }
+      this.emit({ type: "unbuilt", seat: p.id, piece: u.type, at: u.id });
       const pos = this.getBuildPosition({ type: u.type, id: u.id });
       this.placementAnims = this.placementAnims.filter((a) => a.x !== pos.x || a.y !== pos.y);
       this.freeRoadsRemaining = u.free;
@@ -10737,7 +10739,7 @@ class ColonistFullGame {
     } else if (u.kind === "yop") {
       if (!u.picks.every((r) => p.resources[r] > 0)) return;
       u.picks.forEach((r) => { p.resources[r] -= 1; this.bank[r] += 1; });
-      this._aiTrkNote(p, u.picks.reduce((o, r) => { o[r] = (o[r] || 0) + 1; return o; }, {}), -1);
+      this.emit({ type: "paid", seat: p.id, cost: u.picks.reduce((o, r) => { o[r] = (o[r] || 0) + 1; return o; }, {}) }); // the cards go back to the bank
       dropLogs(u.logs);
       this.devPick = { type: "yearOfPlenty", count: u.picks.length, picks: [] };
       this.recomputeScores();
