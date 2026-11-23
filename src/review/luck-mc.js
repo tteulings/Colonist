@@ -17,6 +17,7 @@
 // steal is the separate steal event, so dice + steal = what happened). Steal: each card type the victim held (count / hand).
 // Dev card: each card type still in the deck (count / deck). Rush positions are played turn by turn (src/review/engine.js).
 import { snapshot, restore, mulberry32, withoutAgents } from "../master/sim.js";
+import { referenceStrategy } from "../bots/registry.js"; // step 4: the review's reference player comes from the bot registry
 import { gbmProbs } from "../master/leaf-gbm.js";
 import { GBM_MODEL } from "../master/leaf-gbm-model.js";
 import { fitProbs } from "../master/sim.js";
@@ -38,8 +39,7 @@ function load(g, base, ev) {
   const st = JSON.parse(ev.rec.st), humans = (st.players || []).map((p) => !!p?.isHuman);
   const seat = ev.kind === "dice" && ev.rush ? ev.roller : ev.rec.pid;
   loadPosition(g, { state: { ...st, ...base }, trk: ev.rec.trk, turnSerial: ev.rec.ts, seat });
-  const H = g.constructor.labHelpers;
-  g.players.forEach((p, i) => { if (humans[i] || !p.strategy) p.strategy = { ...H.AI_PRESETS.expert }; });
+  g.players.forEach((p, i) => { if (humans[i] || !p.strategy) p.strategy = referenceStrategy(); });
   return g;
 }
 
@@ -310,8 +310,7 @@ export function luckSeats(g, base, rec, opts = {}) {
   try {
     load(g, base, { kind: "seat", rec });
     if (!g.setupPhase) return { skip: "no set-up" };
-    const E = g.constructor.labHelpers.AI_PRESETS.expert;
-    g.players.forEach((p) => { p.strategy = { ...E }; }); // equal players: only the seat (the turn order on this board) differs
+    g.players.forEach((p) => { p.strategy = referenceStrategy(); }); // equal players: only the seat (the turn order on this board) differs
     const n = g.players.length, S0 = snap(g), seed = hash(`${o.seed}|seat|${rec.e}`);
     const W = [];
     for (let j = 0; j < o.futures; j += 1) {

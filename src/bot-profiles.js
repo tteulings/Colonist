@@ -17,11 +17,8 @@ import { botBand } from "./review/bands.js";
 export const BOT_STRENGTH_SOURCE = "One bot vs 3 Medium bots, 4 players, 10 points, 2000 games (500 seeds x 4 seats), v1.03 code. Equal bots win 25% each.";
 
 /** level: 1–5 dots (from the measured win rate), win: { p, ci } vs 3 Medium, acc: [review accuracy, SE] from src/review/bands.js */
-/** v1.39 Grandmaster is released: in the picker, the AI Lab and on the Bots page. Kill switch for support: ?gm=0 or localStorage
- *  colonist.gm = "0" hides it again. */
-export function gmFlag() {
-  try { return !((typeof location !== "undefined" && /[?&]gm=0\b/.test(location.search || "")) || (typeof localStorage !== "undefined" && localStorage.getItem("colonist.gm") === "0")); } catch (_) { return true; }
-}
+import { gmFlag, attachProfiles } from "./bots/registry.js";
+export { gmFlag }; // v1.39 Grandmaster flag: now defined with the bot list (src/bots/registry.js)
 export const BOT_PROFILES = {
   beginner: {
     label: "Easy", tagline: "gentle, learns rules", level: 2, win: { p: 11.2, ci: 1.4 }, acc: botBand("Beginner"),
@@ -141,6 +138,8 @@ export const BOT_PROFILES = {
     note: "Measured at the app setting, 545 futures a move (about 3 s on a phone), the setting of its head to head with the Grandmaster. Earlier, at 1000 futures without a time limit: 71.5% (±4.4, 400 games). Classic rating 1332 (±34, Medium = 1000).",
   },
 };
+
+attachProfiles(BOT_PROFILES); // step 4: each registry entry carries its profile as metadata
 
 // ── illustrations: 100x100, a soft disc (--pa-bg) and flat pieces with a soft ink outline (--pa-ink) ──
 const INK = "var(--pa-ink,#2B211C)";

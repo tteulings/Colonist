@@ -34,7 +34,8 @@ import { ReviewAgainMixin } from "./review-again.js"; // v1.41 … Review again 
 import { AnalysisMixin, LabMixin } from "./ai-analysis.js";
 import { TreeMixin } from "./ai-tree.js"; // v0.87 AI Lab decision tree
 import { RulesMixin, isRulesBot } from "./ai-rules.js"; // v0.87 "Simple" rulebook bot
-import { presetHighlight, BOT_PROFILES, gmFlag } from "./bot-profiles.js"; // v1.04 Settings › Bots: which preset chip is lit
+import { presetHighlight, BOT_PROFILES } from "./bot-profiles.js";
+import { presetStrategies, presetInfo } from "./bots/registry.js"; // step 4: the one list of bots // v1.04 Settings › Bots: which preset chip is lit
 import { framedAvatar, profileLabel, profileOf, openProfileSheet, pickerExtras, tableList, presetCards, dots, superOff, byStrength } from "./bot-profile-ui.js"; // v1.04 bot profile frames + sheet
 import { LiveBarMixin } from "./live-bar.js"; // v1.59 optional live win-chance bar
 import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte Carlo search in a Web Worker
@@ -150,43 +151,10 @@ const AI_STRATEGY_CATEGORIES = {
   },
 };
 
-// v0.87 "simple": a rulebook bot (src/ai-rules.js), not the score formula: policy "rules" (its five dials
-// are only what the new-game screen shows; changing one makes it a scoring bot again)
-const AI_PRESETS = {
-  beginner:     { placement: "simple",  expansion: "simple",  trading: "conservative", devCards: "reactive",  awareness: "none" },
-  simple:       { placement: "simple",  expansion: "simple",  trading: "conservative", devCards: "reactive",  awareness: "none", policy: "rules" },
-  intermediate: { placement: "medium",  expansion: "medium",  trading: "balanced",     devCards: "reactive",  awareness: "basic" },
-  expert:       { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced" },
-  trader:       { placement: "medium",  expansion: "medium",  trading: "aggressive",   devCards: "reactive",  awareness: "basic" },
-  builder:      { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "reactive",  awareness: "basic" },
-  shark:        { placement: "medium",  expansion: "medium",  trading: "balanced",     devCards: "strategic", awareness: "advanced" },
-  // v0.90: the Expert plus a search over its options (src/master.js, src/master/); opt-in, never a default
-  master:       { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "master" },
-  // v1.10: the Master's search with ten times the thinking (up to 1000 rollouts, 14 turns deep, ~3 s a move); Island board, Classic and Rush, 2–6 players
-  super:        { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "super" },
-  // bot-125 (working name "Super Expert+"): the Super Expert's search, scored at the end of every playout by the boosted value model (leaf "gbm")
-  superplus:    { placement: "complex", expansion: "complex", trading: "balanced",     devCards: "strategic", awareness: "advanced", policy: "superplus" },
-};
-// eng-130 "Grandmaster": the Super Expert+ search on several cores at once (src/master/parallel.js). v1.39 released (bot-profiles.js
-// gmFlag: on unless ?gm=0 or localStorage colonist.gm = "0")
-const GM_PRESET = { placement: "complex", expansion: "complex", trading: "balanced", devCards: "strategic", awareness: "advanced", policy: "grandmaster" };
-if (gmFlag()) AI_PRESETS.grandmaster = { ...GM_PRESET };
-
-// Player-facing names, short taglines and badge glyphs for the presets ("custom" = hand-tuned mix)
-const AI_PRESET_INFO = {
-  beginner:     { label: "Easy",         tagline: "gentle, learns rules", glyph: "" },
-  simple:       { label: "Simple",       tagline: "plays by 7 rules",     glyph: "", isNew: true },
-  intermediate: { label: "Medium",       tagline: "solid all-rounder",    glyph: "" },
-  expert:       { label: "Hard",         tagline: "plays to win",         glyph: "" },
-  trader:       { label: "Trader",       tagline: "deals all game",       glyph: "\u21c4", isNew: true },
-  builder:      { label: "Builder",      tagline: "roads & cities",       glyph: "\u2692", isNew: true },
-  shark:        { label: "Shark",        tagline: "hunts the leader",     glyph: "\u25b2", isNew: true },
-  master:       { label: "Master",       tagline: "Hard + looks ahead", glyph: "\u2605", isNew: true },
-  super:        { label: "Super Expert", tagline: "Master with 10x more thinking", glyph: "\u2605\u2605", isNew: true },
-  superplus:    { label: "Super Expert+", tagline: "Super Expert with a learned eye", glyph: "\u2605\u2605+", isNew: true },
-  grandmaster:  { label: "Grandmaster",  tagline: "Super Expert+ on every core", glyph: "\u2605\u2605\u2605", isNew: true },
-  custom:       { label: "Custom",       tagline: "your mix",             glyph: "" },
-};
+// The bots (strategy dials, names, taglines) live in src/bots/registry.js: one list for this screen, the AI Lab, the Bots page and the review.
+// AI_PRESETS (id -> dials) and AI_PRESET_INFO (id -> label, tagline, glyph) are views of it; "grandmaster" is in only while its flag is on.
+const AI_PRESETS = presetStrategies();
+const AI_PRESET_INFO = presetInfo();
 
 // v1.11 Settings › Bots: the dials in plain words (label + one word per level)
 const DIAL_WORDS = {
@@ -4085,6 +4053,8 @@ class ColonistFullGame {
   }
 
   /** Swap cards between two players (a gives aGives, b gives bGives). */
+  _resStr(hand) { return resourceString(hand); } // the log wording of a hand ("1 Lumber, 2 Ore"), for the Action API's deal lines
+
   _swapCards(a, aGives, b, bGives) {
     RESOURCES.forEach((r) => {
       a.resources[r] += (bGives[r] || 0) - (aGives[r] || 0);
