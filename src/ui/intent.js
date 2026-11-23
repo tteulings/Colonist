@@ -10,7 +10,7 @@
 // _commitSetup, _commitRobber, buyDevelopmentCard, playDevelopmentCard, performBankTrade, ...), so behaviour, animations, sounds, Undo and the
 // Math.random order are the same as before.
 import { Engine } from "../api/engine.js";
-import { RESOURCES as RES, COSTS } from "../core/constants.js";
+import { RESOURCES as RES, COSTS_SEA as COSTS } from "../core/constants.js";
 import { cleanHand } from "../api/actions.js";
 
 const PLACE = new Set(["build", "place"]);
