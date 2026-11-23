@@ -290,8 +290,7 @@ export const SeaGame = {
     this.sea.moveSel = null;
     this.pendingAction = null;
     this.canvas.style.cursor = "grab";
-    this.addLog(`${player.name} moved a ship.`);
-    this.sfx.buildRoad();
+    this.emit({ type: "shipMoved", seat: player.id, from, to });
     const pos = this.getBuildPosition({ type: "road", id: to });
     this.placementAnims.push({ ...pos, type: "road", startTime: Date.now() });
     if (this.rush) this._rushAfterAction(player);
@@ -313,7 +312,7 @@ export const SeaGame = {
     const got = this.sea.onSettlementBuilt(player, nodeId);
     if (!got) return null;
     const name = this.sea.islandName(got.island);
-    this.addLog(`${player.name} reached ${name}: +2 points for a new island.`);
+    this.emit({ type: "islandReached", seat: player.id, island: name });
     this.sea.glow = { island: got.island, until: performance.now() + 2600 };
     if (player.isHuman) this._seaIslandNote = { text: `New island! First settlement on ${name}: +2 points`, until: Date.now() + 3200 };
     return got;

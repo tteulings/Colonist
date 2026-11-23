@@ -81,6 +81,7 @@ const wrapped = new WeakSet();
 function wrapGame() {
   if (wrapped.has(g)) return; wrapped.add(g);
   MOVES.forEach(([k, f, kind]) => wrap(g, k, f, kind));
+  g.attachLog(); // prepareEngine detached the journal (headless = no subscribers): the move log wants the text of a few lines
   g.addLog = (t) => { if (logging() && /traded|discard|stole|rolled|Roll #/i.test(t)) { if (held.length && !flowActive() && !/stole/.test(t)) flush(); pushLog(t.replace(/\s+/g, " ")); } return 0; };
   const end = g.endTurn.bind(g);
   g.endTurn = (...a) => {

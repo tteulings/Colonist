@@ -136,8 +136,7 @@ export const SeaAI = {
     if (edgeId == null || !this.canBuildShip(player, edgeId)) return false;
     if (!this.placeShip(player, edgeId)) return false;
     g.payToBank(player, SHIP);
-    g.addLog(`${player.name} built a ship.`);
-    g.sfx.buildRoad();
+    g.emit({ type: "built", seat: player.id, piece: "ship", at: edgeId, how: "paid" });
     g.recomputeScores();
     g.checkForWinner(player);
     return true;
@@ -230,9 +229,8 @@ export const SeaAI = {
     }
     if (!best) return false;
     if (!this.moveShip(player, best.from, best.to)) return false;
-    g.addLog(`${player.name} moved a ship.`);
+    g.emit({ type: "shipMoved", seat: player.id, from: best.from, to: best.to });
     g._aiLog?.(player, `Moved a ship (sea potential +${best.gain.toFixed(1)})`);
-    g.sfx.buildRoad();
     g.recomputeScores();
     g.checkForWinner(player);
     return true;

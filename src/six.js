@@ -291,17 +291,8 @@ export const SbpMixin = {
     });
     this.logEntries.push(...other);
     if (!per.size) return;
-    const say = (c) => {
-      const parts = [];
-      if (c.road) parts.push(`built ${c.road === 1 ? "a road" : `${c.road} roads`}`);
-      if (c.settlement) parts.push(`built ${c.settlement === 1 ? "a settlement" : `${c.settlement} settlements`}`);
-      if (c.city) parts.push(c.city === 1 ? "upgraded to a city" : `built ${c.city} cities`);
-      if (c.card) parts.push(`bought ${c.card === 1 ? "a card" : `${c.card} cards`}`);
-      return parts.join(" and ");
-    };
-    const line = [...per.entries()].map(([id, c]) => `${this.players[id].name} ${say(c)}`).join(", ");
     per.forEach((c, id) => s?.log.push({ id, ...c }));
-    this.addLog(`Build window: ${line}.`, { sbp: true });
+    this.emit({ type: "buildWindow", per: [...per.entries()].map(([seat, c]) => ({ seat, ...c })) });
   },
 
   /** Everyone has had their go: the next player's turn starts. */

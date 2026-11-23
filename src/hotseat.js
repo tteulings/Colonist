@@ -244,7 +244,7 @@ export const HotseatMixin = {
   /** The ask itself (UiEngine._do_offerTrade): the log line, the sheet closes, the cover hands the phone to the partner, whose answer is a `respondTrade`. */
   _hsAskNow(player, partner, offer, request) {
     const serial = this.turnSerial;
-    this.addLog(`${player.name} offers ${partner.name} a trade.`);
+    this.emit({ type: "offered", seat: player.id, to: partner.id, style: "hotseat" });
     this.closeTradeModal();
     this.showIncomingTrade(player, offer, request, partner).then(this._guard((accepted) => {
       const word = accepted ? "said yes" : "said no";
