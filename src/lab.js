@@ -16,7 +16,7 @@ import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameReques
 import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=196";
 import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=196";
 import { byStrength } from "./bot-stats.js?v=196";
-import { botIds, byLevel, isSearchBot } from "./bots/registry.js?v=196"; // step 4: the one list of bots
+import { botIds, byLevel, isSearchBot } from "./bots/registry.js"; // step 4: the one list of bots
 import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=196";
 
 const $ = (s) => document.querySelector(s);

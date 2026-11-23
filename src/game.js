@@ -1645,6 +1645,16 @@ class ColonistFullGame {
     this.currentPlayerIndex = playerId;
 
     if (this._isInteractive(player)) {
+      // a resumed save may stop between the set-up settlement and its road (or ship): carry on with that piece
+      const pend = this.setupAction === "road" && this.lastSetupNodeId != null && this._setupNodeOpen(player, this.lastSetupNodeId) ? this.lastSetupNodeId : this._setupNodeWaiting(player);
+      if (pend != null) {
+        this.setupAction = "road";
+        this.lastSetupNodeId = pend;
+        if (this.sea) this.sea.setupPiece = "road"; // ⚓
+        this.confirmBuild = null;
+        this.render();
+        return;
+      }
       this.setupAction = "settlement";
       this.addLog("Place your settlement on the board.");
       this.render();
@@ -1656,6 +1666,16 @@ class ColonistFullGame {
     // v0.90 Master: the spot is searched in the worker; the placement continues when it answers
     if (this._masterLive(player) && this._masterSetup(player)) { this.render(); return; }
     this._aiSetupPlace(player, this.getBestInitialSettlementNode(player));
+  }
+
+  /** True when the settlement at `nodeId` has no road or ship of `player` on any side yet. */
+  _setupNodeOpen(player, nodeId) {
+    return player.settlements.has(nodeId) && !this.geometry.nodes[nodeId].edgeIds.some((e) => this.geometry.edges[e].owner === player.id);
+  }
+  /** The set-up settlement that still waits for its first road / ship (same rule as the engine's _setupNode), or null. */
+  _setupNodeWaiting(player) {
+    for (const n of player.settlements) if (this._setupNodeOpen(player, n)) return n;
+    return null;
   }
 
   // A bot's set-up settlement (then, after a short pause, its road)
@@ -1703,9 +1723,11 @@ class ColonistFullGame {
     const edgeLike = cb.type === "road" || cb.type === "ship";
     const a = { actor: player.id, type: setup ? "place" : "build", piece: cb.type, ...(edgeLike ? { edge: cb.id } : { node: cb.id }) };
     const r = this.api.act(a);
-    if (!r.ok && !r.bug) { // the spot is no longer legal (taken meanwhile, cards spent): what _commitBuild does when the placement fails
+    if (r.bug) console.warn("[engine bug]", a, r);
+    if (!r.ok) { // the spot is no longer legal (taken meanwhile, cards spent): what _commitBuild does when the placement fails
       this.confirmBuild = null;
-      if (setup) { this._flashPrompt(this._say(r.reason)); return false; }
+      if (setup) { this._flashPrompt(this._say(r.bug ? "" : r.reason)); return false; }
+      if (r.bug) { this._flashPrompt(this._say("")); this.render(); return false; }
       if (this.rush) { this.addLog("Too slow — that spot was just taken."); this.sfx.error(); }
       this.render();
     }
