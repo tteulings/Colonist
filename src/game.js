@@ -19,6 +19,7 @@ import { ReviewUiMixin, installReviewUi } from "./review-ui.js"; // … missed c
 import { HistoryMixin, installHistory } from "./history.js"; // v1.07 Past games (IndexedDB)
 import { BotsPageMixin } from "./bots-page.js";
 import { NavMixin } from "./nav.js"; // v1.26 Back gesture: history entries follow the open screens and sheets // v1.23 the Bots page (leaderboard, strength ladder, strength vs accuracy)
+import { installPost } from "./post-install.js"; // v1.99 post-game UI
 import { ReviewGameMixin, installReviewGame } from "./review-game.js"; // v1.03 … the Game review (Monte Carlo accuracy)
 import { ReviewTurnMixin } from "./review-turn.js"; // v1.56 step mode by turn
 import { ReviewLuckMixin } from "./review-luck.js"; // v1.31 … luck in win chance (every roll, steal and card draw replayed)
@@ -11876,6 +11877,7 @@ Object.defineProperties(ColonistFullGame.prototype, Object.getOwnPropertyDescrip
 Object.assign(ColonistFullGame.prototype, BotsPageMixin); // v1.23
 installHistory(ColonistFullGame);
 installLessons(ColonistFullGame);
+installPost(ColonistFullGame); // v1.99 last: it replaces review, scorecard, Terugblik and Bots screens
 Object.assign(ColonistFullGame.prototype, NavMixin); // v1.26
 
 const game = new ColonistFullGame();

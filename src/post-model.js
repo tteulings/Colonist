@@ -7,11 +7,14 @@ import { summarize, decide, totals } from "./review/evaluate.js";
 import { tileOf } from "./review/luck.js";
 import { stdGeo, boardOf } from "./lessons-geo.js";
 import { spotInfo, R5 } from "./lessons-view.js";
+import { analyseGame } from "./review/analysis-facts.js";
+import { tr as atr } from "./review/analysis-text.js";
+import { lang } from "./i18n.js";
 
 export const ERR = ["mistake", "blunder", "missed"]; // a clear error (the review only gives these classes to clear gaps)
 export const FAMILY = { best: "strong", great: "strong", good: "strong", close: "close", lean: "close", could: "costly", mistake: "costly", blunder: "costly", missed: "costly" };
 export const FAMILIES = ["strong", "close", "costly"];
-export const PHASES = ["open", "mid", "end"];
+export const PHASES = ["opening", "mid", "end"];
 const fin = (v) => (Number.isFinite(v) ? v : null);
 const r0 = Math.round;
 
@@ -19,7 +22,7 @@ const r0 = Math.round;
 export function phaseLimits(T) {
   T = Math.max(3, T || 3);
   const a = Math.max(1, Math.round(T / 3)), b = Math.max(a + 1, Math.round((2 * T) / 3));
-  return [{ k: "open", from: 1, to: a }, { k: "mid", from: a + 1, to: b }, { k: "end", from: b + 1, to: Math.max(b + 1, T) }];
+  return [{ k: "opening", from: 1, to: a }, { k: "mid", from: a + 1, to: b }, { k: "end", from: b + 1, to: Math.max(b + 1, T) }];
 }
 export const phaseOf = (t, T) => { const L = phaseLimits(T); return (L.find((p) => t <= p.to) || L[2]).k; };
 
@@ -107,7 +110,7 @@ export function modelOf(g, pid) {
   const rv = R.revs[pid];
   if (!rv?.results?.length) return null;
   const tab = tableOf(g);
-  const key = [R.recs?.length, rv.results.length, rv.results.filter((x) => x.refined).length, tab.LK.j ?? "", tab.LK.done ? 1 : 0, pid, g._rvSeat(pid).done ? 1 : 0, g.winner?.id ?? "-"].join("|");
+  const key = [lang(), R.recs?.length, rv.results.length, rv.results.filter((x) => x.refined).length, tab.LK.j ?? "", tab.LK.done ? 1 : 0, pid, g._rvSeat(pid).done ? 1 : 0, g.winner?.id ?? "-"].join("|");
   const cache = (R.__pm ||= Object.create(null));
   if (cache[pid]?.key === key) return cache[pid].m;
   const m = build(g, pid, rv, tab);
@@ -160,6 +163,7 @@ function build(g, pid, rv, tab) {
   const start = startReview(g, setups, board, pid, st);
   const m = { pid, n, T, you, me, seat, won, ds, tot, sum, board, todo, errs, other, setups, pillars, led, W, counts, fam, cls, lesson1, missRows, restRows, bestRows, phases, phaseCost, small,
     start, lesson3: coachRules(g, phaseCost, T, st, pid, n), headline: headline(won, led) };
+  m.A = analysis(g, pid);
   m.tempo = tempoOf(g, st, tab, T);
   m.timeline = timelineOf(g, pid, T);
   m.measures = measuresOf(tab, pid);
@@ -168,16 +172,17 @@ function build(g, pid, rv, tab) {
   m.rival = rivalOf(m, tab, pid);
   m.takeaway = takeaway(m);
   m.seats = tab.seats; m.tab = tab;
+  overlay(g, m, board, st, T);
   return m;
 }
 
 /** one real-error card */
-function errCard(g, d, board, T, st, pid) {
+function errCard(g, d, board, T, st, pid, chip = null) {
   const x = d.x, pk = kindOf(x.label), bk = bestKindOf(x.best?.label);
   const pts = ptsAtStep(st, pid, Math.max(0, (x.s ?? 1) - 1)), win = g.winPoints || 10;
-  let why = null; try { why = x.why?.head || x.x?.why?.head || null; } catch (_) { why = null; }
-  const chips = Array.isArray(x.why?.chips) ? x.why.chips.slice(0, 3) : [];
-  return { d, i: d.i, t: d.t, cls: d.cls, gp: d.gp, B: d.B, A: d.A, played: x.label, better: x.best?.label, pk, bk, pts, win, why, chips, p: board ? specOf(x.focus) : null, q: board ? specOf(x.best?.focus) : null, phase: phaseOf(d.t, T) };
+  let why = null; try { why = d.why?.line || x.why?.head || null; } catch (_) { why = null; }
+  const chips = Array.isArray(d.why?.chips) ? d.why.chips.slice(0, 3) : Array.isArray(x.why?.chips) ? x.why.chips.slice(0, 3) : [];
+  return { d, i: d.i, t: d.t, cls: d.cls, gp: d.gp, B: d.B, A: d.A, played: x.label, better: x.best?.label, pk, bk, pts, win, why, chips, p: board ? specOf(x.focus) : null, q: board ? specOf(x.best?.focus) : null, phase: phaseOf(d.t, T), vis: chip?.pts ?? pts, target: chip?.target ?? win };
 }
 
 // ── Lesson 2: this board, including the start ──
@@ -304,5 +309,46 @@ function takeaway(m) {
   else if (m.start?.picks?.some((p) => p.gp >= 5)) out.push({ lesson: 2, key: "start-any" });
   const r = m.lesson3?.[0];
   if (r) out.push({ lesson: 3, key: r.id, text: r.text, phase: r.phase });
+  return out.slice(0, 3);
+}
+
+// ── the analysis data layer (src/review/analysis-facts.js analyseGame) ──
+export function analysis(g, pid) {
+  const R = g._rv; if (!R) return null;
+  try {
+    const st = g.stats, state = { stats: st, players: g.players.map((p) => ({ name: p.name, victoryPoints: p.victoryPoints })), hexes: R.base?.hexes, sea: !!g.sea, settings: { winPoints: g.winPoints || 10, mode: g.isRush?.() ? "rush" : "classic" }, winnerId: g.winner?.id ?? null };
+    return analyseGame({ state, rv: { reviews: R.revs, luck: R.luck, rk: R.engId }, me: pid, names: g.players.map((p) => p.name), winner: g.winner?.id ?? null, finalPts: g.players.map((p) => p.victoryPoints), lang: lang() });
+  } catch (e) { console.warn("analyseGame", e); return null; }
+}
+const PH_ID = { opening: "opening", mid: "mid", end: "end" };
+/** replace the local fallbacks by the data layer's numbers wherever it has them (one source for every screen) */
+function overlay(g, m, board, st, T) {
+  const A = m.A, Y = A?.you; if (!Y) return;
+  const sp = Y.split, nega = (v) => -v;
+  m.ds = Y.ds; m.errs = Y.errors; m.other = Y.ds.filter((d) => d.k !== "setup" && !Y.errors.includes(d)); m.setups = Y.ds.filter((d) => d.k === "setup");
+  m.pillars = { errors: nega(sp.errors), start: nega(sp.start), other: nega(sp.other), total: sp.headline, capped: sp.capped, cap: sp.cap };
+  const c = Y.counts; m.counts = { total: c.all, scored: c.scored, forced: c.oneOption ?? Math.max(0, c.all - Y.ds.length), triv: c.trivial, errors: c.errors, shownErrors: Math.min(4, c.errors), notErrors: c.notErrors, setupErrors: c.setupErrors };
+  m.lesson1 = Y.errors.slice(0, 4).map((d) => errCard(g, d, board, T, st, m.pid, Y.chips?.[d.i]));
+  const ph = Y.phase; m.phaseCost = ["opening", "mid", "end"].map((k) => ({ k, from: A.limits[k][0], to: A.limits[k][1], cost: -ph[k], errs: Y.errors.filter((d) => d.t >= A.limits[k][0] && d.t <= A.limits[k][1]) }));
+  m.small = -ph.small; m.startCost = -ph.start; m.phases = m.phaseCost.map((p) => ({ k: p.k, from: p.from, to: p.to }));
+  m.start = Y.startReview ? { ...Y.startReview, board: !!board } : null;
+  m.lesson3 = (Y.rules || []).map((r) => ({ id: r.id, phase: r.phase, cost: -r.cost, n: r.n, from: A.limits[r.phase][0], to: A.limits[r.phase][1],
+    text: atr(lang(), r.moments[0].text, r.moments[0].params), chips: r.moments.slice(0, 3).map((q) => ({ turn: q.turn, i: q.i, gp: q.gp, chip: atr(lang(), q.chip, q.params), pts: q.pts, target: q.target })) }));
+  m.led = Y.ledger ? { ...Y.ledger, end: Y.ledger.to, even: Y.ledger.from } : m.led;
+  m.verdict = Y.verdict; m.headline = Y.verdict?.head || null;
+  m.bestRows = (Y.best || []).map((o) => ({ d: o.d, gain: o.gain }));
+  m.numbers = A.numbers; m.infoRows = A.info;
+  if (A.tempo?.phases) { const tp = A.tempo; m.tempo = { phases: tp.phases.map((q) => ({ k: q.id, from: q.from, to: q.to, empty: q.empty })), rows: g.players.map((p) => ({ id: p.id, start: tp.setup[p.id], gains: tp.phases.map((q) => Math.max(0, q.gain[p.id])) })), max: Math.max(1, ...tp.phases.flatMap((q) => q.gain.map((v) => Math.max(0, v)))) }; }
+  if (A.rival) { const r = A.rival, rv = m.tab.seats[r.rival], ph = tpPh(m, r.phase); m.rival = { k: r.phase, rid: r.rival, rname: rv.name, mine: r.myGain, theirs: r.rivalGain, from: ph?.from, to: ph?.to, myBuilds: (m.builds?.rows?.[m.pid] || []).filter(([t]) => t >= ph?.from && t <= ph?.to).length, theirBuilds: (m.builds?.rows?.[r.rival] || []).filter(([t]) => t >= ph?.from && t <= ph?.to).length }; } else if (A.tempo) m.rival = null;
+  m.takeaway = takeaway2(m);
+}
+const tpPh = (m, k) => (m.phases || []).find((q) => q.k === k);
+function takeaway2(m) {
+  const out = [], e = m.errs[0];
+  if (e) out.push({ lesson: 1, key: e.kind === "end" || e.cls === "missed" ? "spend" : e.kind === "bank" ? "trade" : "build", i: e.i, t: e.t });
+  const p = m.start?.picks?.find((q) => q.advice);
+  if (p) out.push({ lesson: 2, key: "start", res: p.advice.adds[0], k: p.n });
+  else if (m.start?.picks?.some((q) => q.gp >= 5)) out.push({ lesson: 2, key: "start-any" });
+  const r = m.lesson3?.[0]; if (r) out.push({ lesson: 3, key: r.id, text: r.text, phase: r.phase });
   return out.slice(0, 3);
 }
