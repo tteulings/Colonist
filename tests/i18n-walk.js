@@ -3,8 +3,8 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const UP = "/root/.claude/uploads/d9ceb834-54a4-5da3-a5eb-477cce8e55d6/";
-const EXPORTS = ["72eb9b87-colonist-2026-11-14-mwg74y2d49gz.json", "23eda3e1-colonist-2026-11-13-mwfdvqb2dmnw.json", "c96a5156-colonist-2026-11-11-mwb26snvis5o.json"].map((f) => UP + f);
+// v1.99: the three exports of the owner's games were lost with a container restart; the reviewed games committed in the repo take their place
+const EXPORTS = ["post199/r1.json", "post199/r2.json", "ui191-game.json"].map((f) => require("path").join(__dirname, "fixtures", f));
 
 // in-page: all visible texts (text nodes + aria-label/title/placeholder/alt of visible elements) and layout problems
 const SCAN = () => {
@@ -69,7 +69,7 @@ async function walk(page, { shot, log = () => {} } = {}) {
   for (const f of EXPORTS) { const ex = JSON.parse(fs.readFileSync(f, "utf8")); await G(async (ex) => { const g = window.__colonistGame; const { meta, format, v, ...rec } = ex; await g.hist.put({ ...meta, id: meta.id }, rec, { quiet: true }); }, ex); }
   const ids = EXPORTS.map((f) => JSON.parse(fs.readFileSync(f, "utf8")).meta.id);
   await step("past-games", async () => { await G(() => window.__colonistGame.histOpen()); await sleep(1500); });
-  await step("game-sheet", async () => { await page.locator(`[data-hrow="${ids[0]}"]`).tap(); await sleep(900); });
+  await step("game-sheet", async () => { await page.evaluate((i) => window.__colonistGame._histSheet(i), ids[0]); await sleep(900); });
   await step("review-overview", async () => { await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 20000 }); await sleep(2500); });
   const tabs = await G(() => [...document.querySelectorAll(".rv-tabs [data-rvt]")].map((b) => b.dataset.rvt));
   for (const t of tabs) {

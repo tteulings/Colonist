@@ -4,8 +4,8 @@
 // (R.luck.res entries and R.recs, read directly: its own decoder of the entries, its own "which record is the first of step s", its own "first record at or after event e"), not with the app's ledger functions.
 //   node tests/wintab1901.js PORT [EXPORT.json ...]   (server: node step105/tests/serve.mjs ROOT PORT; no export given: the three exports of the owner's games)
 const { chromium } = require("playwright"); const fs = require("fs");
-const port = +process.argv[2] || 9990, UP = "/root/.claude/uploads/d9ceb834-54a4-5da3-a5eb-477cce8e55d6/";
-const files = process.argv.length > 3 ? process.argv.slice(3) : ["867ad748-colonist-2026-11-14-mwg5v7k7j2cc.json", "c96a5156-colonist-2026-11-11-mwb26snvis5o.json", "72eb9b87-colonist-2026-11-14-mwg74y2d49gz.json"].map((f) => UP + f);
+const port = +process.argv[2] || 9990, FXD = require("path").join(__dirname, "fixtures/");
+const files = process.argv.length > 3 ? process.argv.slice(3) : ["post199/r1.json", "post199/r2.json", "ui191-game.json"].map((f) => FXD + f); // v1.99: the owner's three exports were lost; committed reviewed games instead
 let fails = 0; const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "" ? "  " + JSON.stringify(x) : ""}`); if (!c) fails++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -31,7 +31,7 @@ const INDEP = () => {
     const ex = JSON.parse(fs.readFileSync(file, "utf8")), id = ex.meta.id, tag = id.slice(-12);
     await page.evaluate(async (ex) => { const g = window.__colonistGame; const { meta, format, v, ...rec } = ex; await g.hist.put({ ...meta, id: meta.id }, rec, { quiet: true }); }, ex);
     await page.evaluate(() => window.__colonistGame.histOpen()); await sleep(1500);
-    await page.locator(`[data-hrow="${id}"]`).tap(); await sleep(900);
+    await page.evaluate((i) => window.__colonistGame._histSheet(i), id); await sleep(900);
     await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 20000 });
     await page.evaluate(() => { window.__colonistGame._rvTab = "ai"; }); await page.locator(".rv .rv-tabs button", { hasText: /AI/ }).first().tap();
     let ready = false; for (let i = 0; i < 400 && !ready; i++) { ready = await page.evaluate(() => !!window.__colonistGame._ldReady?.()); if (!ready) await sleep(300); }
