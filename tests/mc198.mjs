@@ -162,6 +162,7 @@ const run = (o) => MC.simulate({ g, world, leaf, turns: 4, ...o });
   const i0 = recs.findIndex((r) => r && r.k === "setup" && r.s === 0 && typeof r.st === "string");
   out["seat"] = strip(luckSeats(g, base, recs[i0], { futures: 12 }));
   if (process.argv.includes("--dump")) fs.writeFileSync(process.argv[process.argv.indexOf("--dump") + 1], JSON.stringify(out));
+  if (process.argv.includes("--hashes")) fs.appendFileSync(process.argv[process.argv.indexOf("--hashes") + 1], JSON.stringify(Object.fromEntries(Object.keys(out).map((k) => [k, sha(out[k])]))) + "\n"); // regenerate the fixture after an engine rule change
   const bad = Object.keys(out).filter((k) => sha(out[k]) !== GOLD[k]);
   ok(Object.keys(out).length >= 15 && !bad.length, `luck identity: ${Object.keys(out).length} results (dice own + grouped, dev, steal, seat order; classic / Seafarers / 5-6 / balanced dice) hash-equal to the pre-port numbers${full ? " (full)" : ""}`, bad);
 }
@@ -181,6 +182,7 @@ const run = (o) => MC.simulate({ g, world, leaf, turns: 4, ...o });
       out[name + ":" + extra + ":pass"] = strip(posValue(g, {}, { rec, F: 4, pass: true }));
     }
   }
+  if (process.argv.includes("--hashes")) fs.appendFileSync(process.argv[process.argv.indexOf("--hashes") + 1], JSON.stringify(Object.fromEntries(Object.keys(out).map((k) => [k, sha(out[k])]))) + "\n"); // regenerate the fixture after an engine rule change
   const bad = Object.keys(GOLD).filter((k) => sha(out[k]) !== GOLD[k]);
   ok(Object.keys(out).length === Object.keys(GOLD).length && !bad.length, `step-mc identity: ${Object.keys(out).length} position values (futures, pass valuation, fit2 leaf, jOff; classic / Seafarers / 5-6 / balanced dice) hash-equal to the pre-port numbers`, bad);
 }
