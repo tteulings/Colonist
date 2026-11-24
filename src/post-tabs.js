@@ -5,6 +5,7 @@ import { resIcon } from "./lessons-view.js";
 import { RES_COLOR } from "./resources.js";
 import { f, D, sgn, ab, CLS_NAME, FAM_NAME, PHASE_NAME, PLAN_NAME, RES_KEY, rname, infoBtn, fold, ready, progressCard, bindPost, who, whose, takeText, numbersSheet } from "./post-ui.js";
 import { FAMILIES, FAMILY, SRC_PARTS } from "./post-model.js";
+import { inScope } from "./review/coach-rules.js";
 
 const accWord = "Accuracy";
 const when = (g, d) => (d.k === "setup" ? "Set-up" : f("Turn {n}", { n: d.t }));
@@ -19,9 +20,9 @@ export function movesTab(g, ds, res, rv) {
   const head = `<section class="rv-card px-card"><div class="rv-gt"><b>${whose(m)} moves</b>${infoBtn("error")}</div><p class="px-l"><b>${f("Moves cost {n}%", { n: ab(m.tot.moves) })}</b> ${D(m.tot.moves)} · <b>${accWord} ${m.sum.acc ?? "–"}</b></p><div class="px-fams">${tiles}</div><p class="px-fn">${f("{n} of {n2} decisions are scored", { n: c.scored, n2: c.total })}${c.total > c.scored ? `; ${f("{n} had only one sensible option", { n: c.total - c.scored })}` : ""}.</p></section>`;
   const first = m.errs[0]?.i ?? m.ds[0]?.i;
   const go = m.ds.length ? `<button type="button" class="px-btn pri go" data-rvj="${first}" data-rvq="${m.errs.length ? "imp" : "all"}">${IC.step}${f("Step through {x} moves", { x: m.you ? "your" : "their" })}${m.errs.length ? ` · ${f("{n} to look at", { n: m.errs.length })}` : ""}</button>` : "";
-  const miss = [...m.errs.slice(0, 4), ...m.other.filter((d) => d.cls !== "triv").sort((a, b) => b.gp - a.gp || a.i - b.i).slice(0, 3)];
+  const miss = [...m.errs.slice(0, 4), ...m.other.filter((d) => d.cls !== "triv" && inScope(d)).sort((a, b) => b.gp - a.gp || a.i - b.i).slice(0, 3)];
   const shown = new Set(miss.map((d) => d.i));
-  const rest = m.ds.filter((d) => !shown.has(d.i) && d.cls !== "triv" && d.k !== "setup").sort((a, b) => b.gp - a.gp || a.i - b.i);
+  const rest = m.ds.filter((d) => !shown.has(d.i) && d.cls !== "triv" && d.k !== "setup" && inScope(d)).sort((a, b) => b.gp - a.gp || a.i - b.i);
   const mx = rest.length ? Math.max(...rest.map((d) => d.gp)) : 0;
   const restHead = `<span class="px-fl">${mx < 1 ? f("{n} more moves costing under 1% each", { n: rest.length }) : f("{n} more moves", { n: rest.length })}</span>`;
   const missCard = `<section class="rv-card px-card"><div class="rv-gt"><b>Biggest misses</b><small>${m.errs.length ? f("{n} real errors first", { n: Math.min(4, m.errs.length) }) : "no clear error"}</small></div>${miss.length ? miss.map((d) => mvRow(g, d, "imp")).join("") : `<p class="px-l">No move cost win chance.</p>`}${rest.length ? fold("rest", restHead, rest.map((d) => mvRow(g, d)).join("")) : ""}</section>`;

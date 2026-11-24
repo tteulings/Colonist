@@ -10,6 +10,7 @@ import { spotInfo, R5 } from "./lessons-view.js";
 import { analyseGame } from "./review/analysis-facts.js";
 import { tr as atr } from "./review/analysis-text.js";
 import { lang } from "./i18n.js";
+import { inScope } from "./review/coach-rules.js";
 
 export const ERR = ["mistake", "blunder", "missed"]; // a clear error (the review only gives these classes to clear gaps)
 export const FAMILY = { best: "strong", great: "strong", good: "strong", close: "close", lean: "close", could: "costly", mistake: "costly", blunder: "costly", missed: "costly" };
@@ -149,7 +150,7 @@ function build(g, pid, rv, tab) {
   const missRows = [...errs.slice(0, 4), ...next.slice(0, 3)];
   const shown = new Set(missRows.map((d) => d.i));
   const restRows = ds.filter((d) => !shown.has(d.i) && d.cls !== "triv").sort((a, b) => b.gp - a.gp || a.i - b.i);
-  const bestRows = ds.filter((d) => (d.cls === "best" || d.cls === "great") && d.k !== "setup" && fin(d.x.lead ?? d.x.spread) != null && (d.x.lead ?? d.x.spread) > 0.005)
+  const bestRows = ds.filter((d) => inScope(d) && (d.cls === "best" || d.cls === "great") && d.k !== "setup" && fin(d.x.lead ?? d.x.spread) != null && (d.x.lead ?? d.x.spread) > 0.005)
     .map((d) => ({ d, gain: r0((d.x.lead ?? d.x.spread) * 100) })).sort((a, b) => b.gain - a.gain).slice(0, 5);
   const counts = { total: todo, scored, forced: Math.max(0, todo - ds.length), triv: ds.filter((d) => d.cls === "triv").length, errors: errs.length, shownErrors: lesson1.length, notErrors: notErr };
   const fam = { strong: 0, close: 0, costly: 0 }; ds.forEach((d) => { if (FAMILY[d.cls]) fam[FAMILY[d.cls]] += 1; });
@@ -336,7 +337,7 @@ function overlay(g, m, board, st, T) {
     text: atr(lang(), r.moments[0].text, r.moments[0].params), chips: r.moments.slice(0, 3).map((q) => ({ turn: q.turn, i: q.i, gp: q.gp, chip: atr(lang(), q.chip, q.params), pts: q.pts, target: q.target })) }));
   m.led = Y.ledger ? { ...Y.ledger, end: Y.ledger.to, even: Y.ledger.from } : m.led;
   m.verdict = Y.verdict; m.headline = Y.verdict?.head || null;
-  m.bestRows = (Y.best || []).map((o) => ({ d: o.d, gain: o.gain }));
+  m.bestRows = (Y.best || []).filter((o) => inScope(o.d)).map((o) => ({ d: o.d, gain: o.gain }));
   m.numbers = A.numbers; m.infoRows = A.info;
   if (A.tempo?.phases) { const tp = A.tempo; m.tempo = { phases: tp.phases.map((q) => ({ k: q.id, from: q.from, to: q.to, empty: q.empty })), rows: g.players.map((p) => ({ id: p.id, start: tp.setup[p.id], gains: tp.phases.map((q) => Math.max(0, q.gain[p.id])) })), max: Math.max(1, ...tp.phases.flatMap((q) => q.gain.map((v) => Math.max(0, v)))) }; }
   if (A.rival) { const r = A.rival, rv = m.tab.seats[r.rival], ph = tpPh(m, r.phase); m.rival = { k: r.phase, rid: r.rival, rname: rv.name, mine: r.myGain, theirs: r.rivalGain, from: ph?.from, to: ph?.to, myBuilds: (m.builds?.rows?.[m.pid] || []).filter(([t]) => t >= ph?.from && t <= ph?.to).length, theirBuilds: (m.builds?.rows?.[r.rival] || []).filter(([t]) => t >= ph?.from && t <= ph?.to).length }; } else if (A.tempo) m.rival = null;
