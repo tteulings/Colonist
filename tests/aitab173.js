@@ -1,6 +1,6 @@
 // v1.73 AI tab on a real export with a MOCKED endpoint. node aitab173.js PORT EXPORT.json [--real]   (--real: real endpoint, PORT 9978, <=4 calls) // use an export whose reviewed player has a point-card/dice story matching the checks (72eb9b87 of the v1.97 uploads passes ALL; 867ad748 only reaches the tool-loop checks with FAILs)
-const { open: openApp, sleep } = require("/tmp/claude-0/-home-user-Colonist/d9ceb834-54a4-5da3-a5eb-477cce8e55d6/scratchpad/redesign/lib.js");
-const fs = require("fs"); const port = +process.argv[2] || 9771, file = process.argv[3], real = process.argv.includes("--real"); let fails = 0;
+const { open: openApp, sleep } = require("./applib.js");
+const fs = require("fs"); const port = +process.argv[2] || 9771, file = (process.argv[3] && !process.argv[3].startsWith("--") ? process.argv[3] : require("./applib.js").FIX + "/r1.json"), real = process.argv.includes("--real"); let fails = 0;
 const SH = process.env.SHOTS || "/tmp/claude-0/-home-user-Colonist/d9ceb834-54a4-5da3-a5eb-477cce8e55d6/scratchpad/aitab/shots";
 fs.mkdirSync(SH, { recursive: true });
 const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "" ? "  " + (typeof x === "string" ? x : JSON.stringify(x)) : ""}`); if (!c) fails++; };
@@ -20,7 +20,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
     return r.fulfill({ status: m.status || 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(m.body) }); });
   await G(async (ex) => { const g = window.__colonistGame; const { meta, format, v, ...rec } = ex; await g.hist.put({ ...meta, id: meta.id }, rec, { quiet: true }); }, ex);
   await G(() => window.__colonistGame.histOpen()); await sleep(1500);
-  await page.locator(`[data-hrow="${ex.meta.id}"]`).tap(); await sleep(900);
+  await G((id) => window.__colonistGame._histSheet(id), ex.meta.id); await sleep(900);
   await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 20000 }); await sleep(2500);
   // real review facts to build the mock from
   const F = await G(async () => {
@@ -290,7 +290,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   // cache: leave and reopen the review: no new call
   await G(() => window.__colonistGame._rvCloseReview?.(true)); await sleep(600);
   await G(() => window.__colonistGame.histOpen()); await sleep(1200);
-  await page.locator(`[data-hrow="${ex.meta.id}"]`).tap(); await sleep(900);
+  await G((id) => window.__colonistGame._histSheet(id), ex.meta.id); await sleep(900);
   await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 20000 }); await sleep(2000);
   const n0 = calls.length;
   await page.locator("[data-rcai]").tap(); await sleep(2500);

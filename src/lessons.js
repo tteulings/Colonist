@@ -94,7 +94,8 @@ export const LessonsMixin = {
       if (row === undefined) { next.none = true; } // could not be analysed (kept as it is, not tried again now)
       else { await this.hist.patch(next.id, { lr: row }); next.lr = row.none ? null : row; next.none = !!row.none; next.meta.lr = row; }
       an.done += 1;
-      S.D = buildLessons(S.items.filter((x) => !x.none || x.lr)); this._lnDraw();
+      // v1.99 only the progress line changes while the games are analysed (the page is drawn once at the end): a full redraw per game was the long task of the page thread
+      const line = this._lnEl?.querySelector(".ln-an"); if (line) line.lastChild.textContent = this._lnAnText(an); else this._lnDraw();
       this._lnIdle(step);
     };
     this._lnIdle(step);
@@ -156,8 +157,9 @@ export const LessonsMixin = {
   },
   _lnAn() {
     const a = this._ln.an; if (!a?.running) return "";
-    return `<p class="ln-an" role="status"><i class="ln-spin" aria-hidden="true"></i>${L(`${a.done} of ${gamesN(a.total)} analysed`, `${a.done} van ${gamesN(a.total)} geanalyseerd`)}</p>`;
+    return `<p class="ln-an" role="status"><i class="ln-spin" aria-hidden="true"></i>${this._lnAnText(a)}</p>`;
   },
+  _lnAnText(a) { return L(`${a.done} of ${gamesN(a.total)} analysed`, `${a.done} van ${gamesN(a.total)} geanalyseerd`); },
   /** per game bars: win chance points lost (dec), or the game's value; the bar is the size of the loss, never a sum */
   _lnStrip(series, kind = "dec", extra = "") {
     const mx = Math.max(1, ...series.map((s) => s.v)), many = series.length > 6;

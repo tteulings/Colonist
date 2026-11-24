@@ -1,6 +1,6 @@
 // v1.81 verdict class (clear / lean / close) + targeted refinement. node verdict182.js PORT EXPORT.json  (screenshots: $SHOTS) // needs an export with a close AND a clear decision (e.g. 23eda3e1, 31c46061 or 72eb9b87 of the v1.97 uploads; 867ad748 has no clear decision)
-const { open: openApp, sleep } = require("/tmp/claude-0/-home-user-Colonist/d9ceb834-54a4-5da3-a5eb-477cce8e55d6/scratchpad/redesign/lib.js");
-const fs = require("fs"); const port = +process.argv[2] || 9620, file = process.argv[3]; let fails = 0;
+const { open: openApp, sleep } = require("./applib.js");
+const fs = require("fs"); const port = +process.argv[2] || 9620, file = (process.argv[3] && !process.argv[3].startsWith("--") ? process.argv[3] : require("./applib.js").FIX + "/r2.json"); let fails = 0;
 const SH = process.env.SHOTS || "/tmp/claude-0/-home-user-Colonist/d9ceb834-54a4-5da3-a5eb-477cce8e55d6/scratchpad/verdict";
 fs.mkdirSync(SH, { recursive: true });
 const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "" ? "  " + (typeof x === "string" ? x : JSON.stringify(x)) : ""}`); if (!c) fails++; };
@@ -23,7 +23,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   // ── a real export ──
   await G(async (ex) => { const g = window.__colonistGame; const { meta, format, v, ...rec } = ex; await g.hist.put({ ...meta, id: meta.id }, rec, { quiet: true }); }, ex);
   await G(() => window.__colonistGame.histOpen()); await sleep(1500);
-  await page.locator(`[data-hrow="${ex.meta.id}"]`).tap(); await sleep(900);
+  await G((id) => window.__colonistGame._histSheet(id), ex.meta.id); await sleep(900);
   await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 20000 }); await sleep(2500);
   const R = await G(async () => {
     const g = window.__colonistGame, S = await import("./src/review/score.js"), rv = g._rvOf(g._rvPid), out = { n: 0, bad: 0, fmt: rv.fmt, hasVc: rv.results.filter((x) => x.vc !== undefined).length, counts: {}, sevNotClear: 0, oldSame: 0 };
@@ -62,8 +62,8 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   // moves list + overview
   const L = await G(() => { const g = window.__colonistGame; g._rvStep = null; g._rvTab = "moves"; g._rvDrawReview(); const t = document.body.textContent; return { rows: [...document.querySelectorAll(".mv-r")].length }; });
   await G(() => { localStorage.setItem("colonist_review_moves", "all"); window.__colonistGame._rvDrawReview(); }); await sleep(500);
-  const L2 = await G(() => ({ close: [...document.querySelectorAll(".mv-r.c-close")].map((e) => e.textContent), neu: document.querySelectorAll(".mv-r.c-close .mv-c.neu").length, lean: document.querySelectorAll(".mv-r.c-lean").length }));
-  ok(L2.close.length && L2.close.every((t) => /Close call/.test(t) && !/mistake|blunder|better/i.test(t)) && L2.neu === L2.close.length, "Moves list: close call rows neutral, no negative words", L2.close.length);
+  const L2 = await G(() => ({ close: [...document.querySelectorAll(".px-mv .px-cls.c-close")].map((e) => e.closest(".px-mv").textContent), neu: document.querySelectorAll(".px-mv .px-cls.c-close").length, lean: document.querySelectorAll(".px-mv .px-cls.c-lean").length }));
+  /* v1.99: close calls and slight differences are not listed on the Moves tab (post-model lesson 1), so zero rows is fine; any listed one must stay neutral */ ok(L2.close.every((t) => /Close call/.test(t) && !/mistake|blunder|better/i.test(t)) && L2.neu === L2.close.length, "Moves list: close call rows neutral, no negative words", L2.close.length);
   await G(() => localStorage.removeItem("colonist_review_moves"));
   // ── AI tab: tool, whiskers, gate ──
   const A = await G(async () => {
