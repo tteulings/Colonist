@@ -7,7 +7,7 @@ import { summarize, decide, totals } from "./review/evaluate.js";
 import { tileOf } from "./review/luck.js";
 import { stdGeo, boardOf } from "./lessons-geo.js";
 import { spotInfo, R5 } from "./lessons-view.js";
-import { analyseGame } from "./review/analysis-facts.js";
+import { analyseGame, luckSplit, headline as headlineParts } from "./review/analysis-facts.js";
 import { tr as atr } from "./review/analysis-text.js";
 import { lang } from "./i18n.js";
 import { inScope } from "./review/coach-rules.js";
@@ -58,6 +58,7 @@ export function rankOf(g) {
   const w = g.winner, ranked = w ? [w, ...g.players.filter((p) => p !== w).sort((a, b) => b.victoryPoints - a.victoryPoints)] : [...g.players];
   return ranked.map((p) => p.id);
 }
+const lsplit = (g, q) => { try { return luckSplit(g._rv?.luck, g.stats, q, g.players.length); } catch (_) { return null; } };
 export function tableOf(g) {
   const R = g._rv, n = g.players.length, st = g._st, LK = (() => { try { return g._lkState(); } catch (_) { return { na: "x" }; } })();
   const order = rankOf(g), me = soloPid(g);
@@ -72,7 +73,7 @@ export function tableOf(g) {
     return {
       id: p.id, p, name: p.name, you: p.id === me && !g.hotseat && p.isHuman, pts: p.victoryPoints, rank: order.indexOf(p.id) + 1, won: g.winner === p,
       src: st?.sources?.[p.id] || null, acc: s.sum?.acc ?? null, accDone: !!s.done, accSt: s.st, running: s.running || null,
-      luck: lkOk && Number.isFinite(LK.tot[p.id]) ? r0(LK.tot[p.id] * 100) : null, cards, tile: d ? (() => { try { return tileOf({ me: d }); } catch (_) { return null; } })() : null,
+      luck: lkOk ? (lsplit(g, p.id)?.total ?? null) : null, seatLuck: lkOk ? (lsplit(g, p.id)?.seat ?? 0) : 0, cards, tile: d ? (() => { try { return tileOf({ me: d }); } catch (_) { return null; } })() : null,
       moves, cls, todo: s.todo || 0, level: p.isHuman ? null : (() => { try { return g._rvLevel(p); } catch (_) { return null; } })(),
       bank: st?.bankTrades?.[p.id] ?? null, ptrades: st?.playerTrades?.[p.id] ?? null, devs: st?.devBought?.[p.id] ?? null, prod: st?.prodTot?.[p.id] ?? null,
       built: st?.built?.[p.id] || null,
@@ -249,7 +250,7 @@ function timelineOf(g, pid, T) {
   let sw = []; try { sw = g._rvSwings().filter((x) => Math.abs(x.d) >= 0.01 && !/robber|harbou?r|longest road|largest army/i.test(String(x.say))); } catch (_) { sw = []; }
   const aOf = (x) => { const q = look.steps.find((z) => z.S === x.S); return q ? q.a[pid] : x.b + (x.e - x.b) / 2; };
   const seen = new Set(), pins = [];
-  sw.forEach((x) => { if (pins.length >= 3 || seen.has(x.T)) return; seen.add(x.T); pins.push(x); });
+  sw.forEach((x) => { if (pins.length >= 3 || seen.has(x.T) || pins.some((q) => Math.abs(q.T - x.T) < 2)) return; seen.add(x.T); pins.push(x); });
   pins.sort((a, b) => a.T - b.T);
   const lastT = Math.max(T, ...lines[pid].map((q) => q[0]));
   return { lines, pins: pins.map((x, k) => ({ n: k + 1, T: x.T, S: x.S, d: r0(x.d * 100), say: x.say, actor: x.actor, move: x.actor === pid, b: r0(x.b * 100), a: r0(aOf(x) * 100), e: r0(x.e * 100) })), all: sw.slice(0, 15).sort((a, b) => a.T - b.T).map((x) => ({ T: x.T, S: x.S, d: r0(x.d * 100), say: x.say, actor: x.actor, move: x.actor === pid, b: r0(x.b * 100), a: r0(aOf(x) * 100), e: r0(x.e * 100) })), T: lastT, phases: phaseLimits(lastT) };
@@ -336,9 +337,16 @@ function overlay(g, m, board, st, T) {
   m.start = Y.startReview ? { ...Y.startReview, board: !!board } : null;
   m.lesson3 = (Y.rules || []).map((r) => ({ id: r.id, phase: r.phase, cost: -r.cost, n: r.n, from: A.limits[r.phase][0], to: A.limits[r.phase][1],
     text: atr(lang(), r.moments[0].text, r.moments[0].params), chips: r.moments.slice(0, 3).map((q) => ({ turn: q.turn, i: q.i, gp: q.gp, chip: atr(lang(), q.chip, q.params), pts: q.pts, target: q.target })) }));
-  m.led = Y.ledger ? { ...Y.ledger, end: Y.ledger.to, even: Y.ledger.from } : m.led;
+  if (Y.ledger) {
+    const L = Y.ledger, seat = A.luck?.[m.pid]?.seat ?? 0, lt = A.luck?.[m.pid]?.total, hasLuck = !!A.luck?.[m.pid];
+    // ONE luck number everywhere: rolls, steals, draws AND seat order. Set-up is then only the start picks (what they cost against the best spots).
+    const parts = { setup: hasLuck ? L.setup - seat : L.setup, luck: hasLuck ? lt : L.luck, moves: L.moves, total: L.total, from: L.from, to: L.to, hasLuck, perMove: L.perMove };
+    parts.rest = parts.total - parts.setup - parts.luck - parts.moves;
+    m.led = { ...parts, end: L.to, even: L.from };
+    m.headline = headlineParts(parts, { won: m.won });
+  }
   m.notErrs = Y.notErrors || [];
-  m.verdict = Y.verdict; m.headline = Y.verdict?.head || null;
+  m.verdict = Y.verdict;
   m.bestRows = (Y.best || []).filter((o) => inScope(o.d)).map((o) => ({ d: o.d, gain: o.gain }));
   m.numbers = A.numbers; m.infoRows = A.info;
   if (A.tempo?.phases) { const tp = A.tempo; m.tempo = { phases: tp.phases.map((q) => ({ k: q.id, from: q.from, to: q.to, empty: q.empty })), rows: g.players.map((p) => ({ id: p.id, start: tp.setup[p.id], gains: tp.phases.map((q) => Math.max(0, q.gain[p.id])) })), max: Math.max(1, ...tp.phases.flatMap((q) => q.gain.map((v) => Math.max(0, v)))) }; }

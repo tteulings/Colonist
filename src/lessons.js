@@ -29,9 +29,9 @@ const titleOf = (l) => (l.kind === "dec" ? L(...TITLES[l.cat]) : l.kind === "res
 const gamesN = (n) => pl(n, "game", "games", "potje", "potjes");
 const movesN = (n) => pl(n, "move", "moves", "zet", "zetten");
 /** the marked moves are the ones that cost >= 1 point of win chance (the game's own review also lists the smaller ones) */
-const markedN = (n) => L(`${num(n)} ${tn(n, "move", "moves")} of ≥1 pt marked`, `${num(n)} ${tn(n, "zet", "zetten")} van ≥1 pt gemarkeerd`);
+const markedN = (n) => L(`${num(n)} ${tn(n, "move", "moves")} of ≥1% marked`, `${num(n)} ${tn(n, "zet", "zetten")} van ≥1% gemarkeerd`);
 const cardsN = (v) => pl(Math.round(v), "card", "cards", "kaart", "kaarten");
-const ptN = (v) => `−${num(Math.max(1, Math.round(v)))} pt`;
+const ptN = (v) => `−${num(Math.max(1, Math.round(v)))}%`;
 const FAIR_LOW = 15;
 /** where the win chance curve stays under 15%: "end" = from turn t until the last sample (sustained), "dip" = it went under at turn t but came back, "never" */
 const lowOf = (wc) => { if (!wc?.length) return null; const first = wc.findIndex((q) => q[1] < FAIR_LOW); if (first < 0) return { k: "never" }; let last = -1; wc.forEach((q, j) => { if (q[1] >= FAIR_LOW) last = j; }); return last < wc.length - 1 ? { k: "end", t: wc[last + 1][0] } : { k: "dip", t: wc[first][0] }; };
@@ -192,12 +192,12 @@ export const LessonsMixin = {
     const S = this._ln, D = S.D, n = S.items.length;
     const rule = D.lessons.length ? `${L(`A lesson needs ${MIN.games} games, with ${MIN.moves} marked moves of one kind in ${MIN.gamesWithMove} of them. `, `Een les vraagt ${MIN.games} potjes, met ${MIN.moves} gemarkeerde zetten van één soort in ${MIN.gamesWithMove} daarvan. `)}` : "";
     const cov = this._lnCov(false) + ".";
-    return `<p class="ln-foot">${rule}${L("pt = percentage points of win chance; ± is the spread over your games.", "pt = procentpunt winkans; ± = spreiding over je potjes.")}${D.skipped ? ` ${L(`${gamesN(D.skipped)} reviewed with an older method are left out.`, `${gamesN(D.skipped)} met een oudere beoordeling tellen niet mee.`)}` : ""}</p><p class="ln-foot soft">${cov}</p>`;
+    return `<p class="ln-foot">${rule}${L("Win chance in %; ± is the spread over your games.", "Winkans in %; ± = spreiding over je potjes.")}${D.skipped ? ` ${L(`${gamesN(D.skipped)} reviewed with an older method are left out.`, `${gamesN(D.skipped)} met een oudere beoordeling tellen niet mee.`)}` : ""}</p><p class="ln-foot soft">${cov}</p>`;
   },
   /** the state after ONE game: what is known from it, and the two things a first lesson still needs (MIN.games games, MIN.moves marked moves of one kind), each as a meter */
   _lnFirst(D) {
     const r = D.games[0].lr, kinds = Object.entries(r.cl || {}).filter(([, v]) => v[0] > 0).sort((a, b) => b[1][0] - a[1][0]), top = kinds.length ? kinds[0][1][0] : 0;
-    const known = r.marks ? L(`This game: ${markedN(r.marks)}, ${kinds.map(([c, v]) => `${L(...TITLES[c]).toLowerCase()} ${v[0]}×`).join(", ")}.`, `Dit potje: ${markedN(r.marks)}: ${kinds.map(([c, v]) => `${L(...TITLES[c]).toLowerCase()} ${v[0]}×`).join(", ")}.`) : L("This game had no move of ≥1 pt marked.", "In dit potje was geen zet van ≥1 pt gemarkeerd.");
+    const known = r.marks ? L(`This game: ${markedN(r.marks)}, ${kinds.map(([c, v]) => `${L(...TITLES[c]).toLowerCase()} ${v[0]}×`).join(", ")}.`, `Dit potje: ${markedN(r.marks)}: ${kinds.map(([c, v]) => `${L(...TITLES[c]).toLowerCase()} ${v[0]}×`).join(", ")}.`) : L("This game had no move of ≥1% marked.", "In dit potje was geen zet van ≥1% gemarkeerd.");
     const mt = (lab, have, need) => { const pc = Math.round(100 * Math.min(have, need) / need), t = L(`${have} of ${need}`, `${have} van ${need}`); return `<div class="ln-mt" data-meter><span class="ln-row"><span>${esc(lab)}</span><b>${esc(t)}</b></span><span class="ln-bar" role="progressbar" aria-label="${esc(`${lab}: ${t}`)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pc}"><i style="width:${pc}%"></i></span></div>`; };
     return `<section class="ln-c ln-first"><i class="ln-ico" aria-hidden="true">${LESSONS_ICON}</i><h4>${L("Your first game is read", "Je eerste potje is gelezen")}</h4><p>${esc(known)}</p>
       <h5 class="ln-h5">${L("What a first lesson needs", "Wat een eerste les nodig heeft")}</h5>${mt(L("Reviewed games", "Beoordeelde potjes"), 1, MIN.games)}${mt(L("Marked moves of one kind", "Gemarkeerde zetten van één soort"), top, MIN.moves)}
@@ -254,7 +254,7 @@ export const LessonsMixin = {
     let big = "", line = "", sub = "";
     if (l.kind === "rob") { const mm = this._lnMech(l); big = `<b class="ln-big2 pos">${num(Math.round(l.mine))}</b> <span class="ln-sub">${L(`cards stolen or discarded, bots ${num(Math.round(l.opp))}`, `kaarten gestolen of afgegooid, bots ${num(Math.round(l.opp))}`)}</span>`; line = L("Averaged per game, you against the bots.", "Gemiddeld per potje, jij tegen de bots.") + (mm.line2 ? ` ${mm.line2}.` : ""); sub = L(`in <b>${ofN(l.k, l.N)}</b> fewer than the bots`, `in <b>${ofN(l.k, l.N)}</b> minder dan de bots`); }
     else if (l.kind === "learned") { big = `<b class="ln-big2 pos">${L("Learned", "Geleerd")}</b>`; line = L(`The last ${gamesN(l.m)} without this mistake.`, `De laatste ${gamesN(l.m)} zonder deze fout.`); sub = ""; }
-    else { big = `<b class="ln-big2 pos">${l.k}</b> <span class="ln-sub">${tn(l.k, L("game", "potje"), L("games", "potjes"))}</span>`; line = L("No move of ≥1 pt was marked in them.", "Er was geen zet van ≥1 pt gemarkeerd."); sub = L(`of <b>${l.N}</b>`, `van <b>${l.N}</b>`); }
+    else { big = `<b class="ln-big2 pos">${l.k}</b> <span class="ln-sub">${tn(l.k, L("game", "potje"), L("games", "potjes"))}</span>`; line = L("No move of ≥1% was marked in them.", "Er was geen zet van ≥1% gemarkeerd."); sub = L(`of <b>${l.N}</b>`, `van <b>${l.N}</b>`); }
     return `<div class="ln-c ln-st"><span class="ln-row"><b class="ln-t">${esc(titleOf(l))}</b><em class="ln-tag ok">${L("Strong", "Sterk")}</em></span><span class="ln-row end"><span>${big}</span><span class="ln-sub">${sub}</span></span><span class="ln-two"><span class="soft">${esc(line)}</span></span></div>`;
   },
   /** the win chance curve of one game (your win chance after your last decision of each turn), the dotted fair share, a ring on each marked move */
@@ -287,7 +287,7 @@ export const LessonsMixin = {
       const r = it.lr, lw = lowOf(r.wc), sp = this._lnSpark(r, it.result);
       const robT = r.rob ? L(`Robber and 7s: ${cardsN(r.rob[0])} stolen or discarded (bots ${num(Math.round(r.rob[1]))})${r.rb ? `, ${cardsN(r.rb[0])} of production blocked (bots ${num(Math.round(r.rb[1]))})` : ""}`, `Rover en 7: ${cardsN(r.rob[0])} gestolen of afgegooid (bots ${num(Math.round(r.rob[1]))})${r.rb ? `, ${cardsN(r.rb[0])} productie geblokkeerd (bots ${num(Math.round(r.rb[1]))})` : ""}`) : "";
       return `<div class="ln-c ln-gm" data-lngame="${esc(it.id)}"><span class="ln-row"><b class="ln-t">${esc(day(it.end))}${it.vp != null ? ` · ${pl(it.vp, "point", "points", "punt", "punten")}` : ""}</b><b class="${resCls(it.result)}">${esc(resWord(it.result))}</b></span>
-        <span class="ln-gs">${sp}<span class="ln-gt"><b>${esc(r.marks ? markedN(r.marks) : L("No move of ≥1 pt marked", "Geen zet van ≥1 pt gemarkeerd"))}</b><span class="soft">${esc(r.wc ? (lw.k === "end" ? L(`under ${FAIR_LOW}% from turn ${lw.t}`, `onder ${FAIR_LOW}% vanaf beurt ${lw.t}`) : lw.k === "dip" ? L(`dipped under ${FAIR_LOW}% in turn ${lw.t}`, `zakte in beurt ${lw.t} onder ${FAIR_LOW}%`) : L(`never under ${FAIR_LOW}%`, `nooit onder ${FAIR_LOW}%`)) : "")}</span></span></span>
+        <span class="ln-gs">${sp}<span class="ln-gt"><b>${esc(r.marks ? markedN(r.marks) : L("No move of ≥1% marked", "Geen zet van ≥1% gemarkeerd"))}</b><span class="soft">${esc(r.wc ? (lw.k === "end" ? L(`under ${FAIR_LOW}% from turn ${lw.t}`, `onder ${FAIR_LOW}% vanaf beurt ${lw.t}`) : lw.k === "dip" ? L(`dipped under ${FAIR_LOW}% in turn ${lw.t}`, `zakte in beurt ${lw.t} onder ${FAIR_LOW}%`) : L(`never under ${FAIR_LOW}%`, `nooit onder ${FAIR_LOW}%`)) : "")}</span></span></span>
         ${r.lk != null ? sg("luck", L("Luck", "Geluk"), r.lk) : ""}${sg("choice", L("Choices", "Keuzes"), -(r.gp || 0))}
         ${robT ? `<span class="ln-two"><span class="soft">${esc(robT)}</span></span>` : ""}</div>`;
     }).join("") + `<p class="ln-foot">${esc(L(`Dotted line = fair share (${Math.round(100 / (items[0].lr.n || 4))}%). Ring = marked move. Luck = what rolls, steals and card draws gave you; Choices = what your marked moves cost you. Per game, never added over games.`, `Stippellijn = eerlijk deel (${Math.round(100 / (items[0].lr.n || 4))}%). Ring = gemarkeerde zet. Geluk = wat dobbelstenen, rovers en kaarten je gaven; Keuzes = wat je gemarkeerde zetten je kostten. Per potje, nooit over potjes opgeteld.`))}</p>`;
@@ -306,12 +306,12 @@ export const LessonsMixin = {
     if (les.kind !== "dec") return this._lnMechPage(les);
     const ex = this._lnExamples(les), models = ex.map((e) => e.model), line = answerDec(les, "wrong", models), P = this._lnPracticeP(les, ex), pi = P ? P.ex : -1;
     const rest = ex.map((_, i) => i).filter((i) => i >= 2 && i !== pi), vis = S.all ? ex.map((_, i) => i).filter((i) => i !== pi) : [0, 1].filter((i) => i < ex.length);
-    const m = les.moves, need = les.status === "les" ? L(`Measured on your ${num(m)} marked ${tn(m, "move", "moves")} (≥1 pt).`, `Gemeten op ${num(m)} gemarkeerde ${tn(m, "zet", "zetten")} (≥1 pt).`) : `${L("Not enough yet to call this a lesson", "Nog niet genoeg om dit een les te noemen")}: ${this._lnNeed(les)}.`;
+    const m = les.moves, need = les.status === "les" ? L(`Measured on your ${num(m)} marked ${tn(m, "move", "moves")} (≥1%).`, `Gemeten op ${num(m)} gemarkeerde ${tn(m, "zet", "zetten")} (≥1%).`) : `${L("Not enough yet to call this a lesson", "Nog niet genoeg om dit een les te noemen")}: ${this._lnNeed(les)}.`;
     const head = `<section class="ln-c ln-focus"><span class="ln-row end"><span class="ln-big neg">${ptN(les.cost)}<small> ${L("win chance per game", "winkans per potje")}${les.se != null ? ` ±${num(Math.round(les.se))}` : ""}</small></span><span class="ln-sub">${L("in", "in")} <b>${ofN(les.k, les.N)}</b></span></span>
       ${this._lnStrip(les.series)}<span class="ln-two"><span>${esc(les.cat === "setup" ? this._lnSetupLead(models, line) : line?.text || "")}</span><span class="soft">${esc(need)}${this._lnProgress(les) ? ` ${this._lnProgress(les)}` : ""}</span></span>${les.cat === "setup" ? this._lnMissBars(models) : ""}</section>`;
     const exs = `<h5 class="ln-sec">${esc(L(...UNITS[les.cat]))}${L(", biggest loss first", ", grootste verlies eerst")}</h5><p class="ln-foot left">${L("% = win chance after that choice", "% = winkans na die keuze")}</p>` + vis.map((i) => this._lnEx(ex[i], i)).join("")
       + (!S.all && rest.length ? `<button type="button" class="hs-btn ln-more" data-lnmore>${L("More examples", "Meer voorbeelden")} (${rest.length})</button>` : "");
-    return head + exs + this._lnPractice(les, ex, P) + this._lnAsk(les, ex) + `<p class="ln-foot">${L("pt = percentage points of win chance; ± is the spread over your games.", "pt = procentpunt winkans; ± = spreiding over je potjes.")}</p>`;
+    return head + exs + this._lnPractice(les, ex, P) + this._lnAsk(les, ex) + `<p class="ln-foot">${L("Win chance in %; ± is the spread over your games.", "Winkans in %; ± = spreiding over je potjes.")}</p>`;
   },
   /** the number an example carries on the page: consecutive over the examples shown (the practice position is not one of them) */
   _lnNo(i) { const P = this._ln?.pr; return P && P.lesson === this._ln.id && P.ex < i ? i : i + 1; },
