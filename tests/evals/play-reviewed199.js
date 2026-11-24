@@ -102,7 +102,7 @@ async function playGame(p, port, outDir) {
     const tPlay = Date.now() - t0;
     await page.clock.resume(); // the review runs in workers, in real time
     // wait for the review of every seat (quick + deep round) and the luck run to finish and settle
-    let stable = 0, rev = null; const tEnd = Date.now() + 25 * 60_000;
+    let stable = 0, rev = null; const tEnd = Date.now() + +opt("review-min", 14) * 60_000;
     while (Date.now() < tEnd) {
       await new Promise((r) => setTimeout(r, 1500));
       rev = await page.evaluate(() => {
@@ -120,6 +120,7 @@ async function playGame(p, port, outDir) {
       return { meta: m, rec, seats: g.players.map((pl) => ({ id: pl.id, name: pl.name, human: !!pl.isHuman, personality: pl.personality || null, vp: pl.victoryPoints })), winner: g.winner?.id, turns: g.turn };
     });
     if (!out.meta || !out.rec) throw new Error("no saved game");
+    if (!(rev && rev.seats && rev.seats.every((s) => !s.todo || s.done))) throw new Error("review not complete in time (CPU starved? lower --par): " + JSON.stringify(rev));
     const doc = { format: "colonist-game", v: 1, meta: out.meta, ...out.rec, calib: { tag, seed: p.seed, levels: { 0: "human:" + p.human, 1: p.levels[0], 2: p.levels[1], 3: p.levels[2] }, points: p.points || 10, map: settings.map, winner: out.winner, turns: out.turns, seats: out.seats, reviewComplete: !!(rev && rev.seats.every((s) => !s.todo || s.done)), seatsReview: rev && rev.seats, playMs: tPlay, reviewMs: tRev, errors: errors.slice(0, 5) } };
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(file + ".tmp", zlib.gzipSync(JSON.stringify(doc), { level: 9 })); fs.renameSync(file + ".tmp", file);
