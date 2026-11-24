@@ -69,7 +69,7 @@ export function scoreHtml(g) {
     if (isOpen) {
       const mm = id === tab.me ? m : (() => { try { return ready(g, id).m || null; } catch (_) { return null; } })();
       const vl = mm ? verdictLine(g, mm) : "";
-      const band = bandLine(s) ? `<p class="px-l">${bandLine(s)}</p>` : "";
+      const band = "";
       det = `<div class="px-rd">${!s.you && vl ? `<p class="px-l">${vl}</p>` : ""}${band}<button type="button" class="px-link" data-rvtab="${id}">${s.you ? "Your page" : f("{x}’s page", { x: esc(s.name) })}${IC.chev}</button></div>`;
     }
     return `<div class="px-row pc-${id}${s.won ? " win" : ""}${s.you ? " me" : ""}${isOpen ? " open" : ""}" data-pid="${id}"><button type="button" class="px-rh" data-rsx="${id}" aria-expanded="${isOpen}" aria-label="${esc(nm)}, ${s.pts} points${s.acc != null ? `, accuracy ${s.acc}` : ""}">
@@ -101,27 +101,25 @@ export function causeText(m, x) {
 /** The headline, longest first: the player's own biggest move swing + the biggest luck swing (+ the start cost), shortened step by step until it fits two lines (HEAD_BUDGET characters at 360px). */
 export const HEAD_BUDGET = 84;
 export function headVariants(m) {
-  const W = m.why, nl = isNL(), lg = nl ? "nl" : "en", you = m.you, x = esc(m.me.name), S = you ? (nl ? "Je" : "You") : x, dd = (v) => `${dsg(v)}%`, own3 = you ? "you" : "3";
-  const kk = (o) => atr(lg, `h.k.${o.what === "error" ? "move" : o.what}`);
-  const ownT = (o, sh) => (sh === 2 && !you ? `${atr(lg, `h.ka.${o.what === "error" ? "move" : o.what}`)} (${dd(o.d)})` : atr(lg, `h.own.${own3}${sh ? ".s" : ""}`, { k: kk(o), t: o.T, d: dd(o.d), x }));
-  const L = W.luck, luckT = (sh) => (L.length ? atr(lg, `h.luck.${W.won ? "good" : "bad"}${L.length}${sh ? ".s" : ""}`, { t: L[0].T, t2: L[1]?.T, d: dd(W.luckSum) }) : "");
-  const start = W.start ? ` ${atr(lg, you ? "h.start" : "h.start.3", { n: W.start, x })}` : "";
-  const out = [];
-  if (W.won) {
-    const mk = (so, sl, st) => (W.own && L.length ? atr(lg, "h.won.both", { S, a: ownT(W.own, so), b: luckT(sl) }) : W.own ? atr(lg, "h.won.one", { S, a: ownT(W.own, so) }) : atr(lg, "h.won.one", { S, a: luckT(sl) })) + (st ? start : "");
-    if (W.own || L.length) { out.push(mk(0, 0, 1), mk(0, 0, 0), mk(1, 1, 0)); if (!you && W.own) out.push(mk(2, 1, 0)); if (L.length) out.push(atr(lg, "h.won.one", { S, a: luckT(1) })); out.push(mk(1, 1, 0).replace(/ \([^)]*\)/g, "")); }
-  } else {
-    const mv = atr(lg, you ? "h.mv.you" : "h.mv.3", { x }), n = W.movesN, mk = (sl, most, st) => { const o = W.own && most ? atr(lg, "h.most", { t: W.own.T, d: dd(W.own.d) }) : ""; return (L.length && n >= 3 ? atr(lg, "h.lost.both", { S, a: luckT(sl), m: mv, n, o }) : L.length ? atr(lg, "h.lost.luck", { S, a: luckT(sl) }) : atr(lg, "h.lost.mv", { S, m: mv, n, o })) + (st ? start : ""); };
-    if (L.length || n >= 3) { out.push(mk(0, 1, 1), mk(0, 1, 0), mk(1, 1, 0), mk(1, 0, 0)); if (!you && L.length && n >= 3) out.push(atr(lg, "h.lost.both", { S, a: luckT(1), m: atr(lg, "h.mv.3s"), n, o: "" })); if (L.length) out.push(atr(lg, "h.lost.luck", { S, a: luckT(1) })); out.push(mk(1, 0, 0).replace(/ \([^)]*\)/, "")); }
-  }
-  return out;
+  const W = m.why, nl = isNL(), lg = nl ? "nl" : "en", you = m.you, x = esc(m.me.name), S = you ? (nl ? "Je" : "You") : x, dd = (v) => `${dsg(v)}%`, o3 = you ? "you" : "3";
+  const noun = (o) => o.what === "error" ? "move" : o.what, k = (o) => atr(lg, `h.k${you ? "" : "3"}.${noun(o)}`);
+  const ownT = (wc) => (W.own ? atr(lg, `h.own.${wc === 2 && !you ? "3.x" : o3 + (wc ? "" : ".n")}`, { k: k(W.own), t: W.own.T, d: dd(W.own.d), x }) : "");
+  const L = W.luck, side = W.won ? "good" : "bad", sameRoller = L.length && L.every((q) => q.actor === L[0].actor) && L[0].actor !== m.pid && !m.tab?.seats?.[L[0].actor]?.you;
+  const luckT = (mode) => { if (!L.length) return ""; const p = { t: L[0].T, t2: L[1]?.T, d: dd(W.luckSum), x: esc(m.tab?.seats?.[L[0].actor]?.name || "") };
+    return mode === 2 ? atr(lg, `h.lk.${side}0`, p) : mode === 1 && sameRoller ? atr(lg, `h.lk.of${L.length}`, p) : atr(lg, `h.lk.${side}${L.length}`, p); };
+  const sent = (a, b) => (a && b ? atr(lg, W.won ? "h.won" : "h.lost", { S, a, b }) : atr(lg, W.won ? "h.won.1" : "h.lost.1", { S, a: a || b }));
+  if (!W.own && !L.length) return [];
+  // longest first; drop the luck turn numbers and the roller before anything about the own move
+  const out = [sent(ownT(1), luckT(1)), sent(ownT(1), luckT(0)), sent(ownT(0), luckT(0)), sent(ownT(0), luckT(2))];
+  if (W.own) { if (!you) out.push(sent(ownT(2), luckT(2))); out.push(sent(ownT(2), "")); if (you) out.push(sent(ownT(0), "")); }
+  return out.filter((t, i) => out.indexOf(t) === i);
 }
 export function verdictSpans(m) {
   const W = m.why; if (!W) return "";
   const nl = isNL(), lg = nl ? "nl" : "en", S = m.you ? (nl ? "Je" : "You") : esc(m.me.name), sp = (x) => `<span data-i18n-skip>${x}</span>`;
   const vs = headVariants(m);
   if (!vs.length) return `<span class="px-vsent">${sp(atr(lg, W.won ? "mom.none.won" : "mom.none.lost", { S }).replace(/\.$/, ""))}.</span>`;
-  const len = (t) => t.replace(/<[^>]*>/g, "").length, pick = vs.find((t) => len(t) <= HEAD_BUDGET) || vs[vs.length - 1];
+  const len = (t) => t.replace(/<[^>]*>/g, "").length, pick = vs.find((t) => len(t) <= HEAD_BUDGET - (m.you ? 0 : Math.max(0, String(m.me.name).length - 8))) || vs[vs.length - 1];
   return `<span class="px-vsent">${sp(pick)}</span>`;
 }
 export function verdictLine(g, m) { return verdictSpans(m); }
@@ -140,12 +138,12 @@ export const spotTiles = (board, node) => { try { if (!board || node == null) re
 
 /** ONE sentence tying Accuracy, real errors and moves cost together: "Accuracy 90 and no real errors: your own moves cost 14% together, mostly the start (9%)." */
 export function connectLine(m) {
-  const nl = isNL(), lg = nl ? "nl" : "en", pid = m.pid, P = m.pillars, c = m.errs.length, tot = Math.round(Math.abs(m.tot.moves)), x = esc(m.me.name);
+  const nl = isNL(), lg = nl ? "nl" : "en", pid = m.pid, tot = Math.round(Math.abs(m.tot.moves)), c = m.errs.length, x = esc(m.me.name);
   const acc = `<b data-fact="acc:${pid}" data-v="${m.sum.acc ?? ""}">${atr(lg, "word.acc")} ${m.sum.acc ?? "–"}</b>`;
   const errs = atr(lg, c === 0 ? "c.err0" : c === 1 ? "c.err1" : "c.errn", { n: c }), mv = atr(lg, m.you ? "h.mv.you" : "h.mv.3", { x });
-  const parts = [["start", Math.abs(P.start)], ["errors", Math.abs(P.errors)], ["other", Math.abs(P.other)]].sort((p, q) => q[1] - p[1])[0];
-  const o = parts && parts[1] >= 3 && tot > 0 ? atr(lg, "c.most", { w: atr(lg, `c.w.${parts[0]}`), v: Math.round(parts[1]) }) : "";
-  return `<span data-i18n-skip>${atr(lg, "c.line", { acc, errs, mv, n: `<b data-fact="cost:${pid}" data-v="${Math.round(m.tot.moves)}">${tot}%</b>`, o })}</span>`;
+  const l1 = atr(lg, "c.line", { acc, errs, mv, n: `<b data-fact="cost:${pid}" data-v="${Math.round(m.tot.moves)}">${tot}%</b>`, o: "" });
+  const st = Math.abs(Math.round(m.pillars.start || 0)), l2 = st >= 3 ? atr(lg, m.you ? "h.start" : "h.start.3", { n: st, x }) : "";
+  return `<span data-i18n-skip>${l1}</span>${l2 ? `</p><p class="px-l px-cn px-cn2"><span data-i18n-skip>${l2}</span>` : ""}`;
 }
 /** the usual range of a bot level against its own Accuracy, in words: higher / lower than / usual for */
 export function bandLine(s) {
@@ -159,7 +157,8 @@ export const startCap = (m, dflt) => { const P = m.pillars; return P && P.startR
 export const pm = (d) => { const se = seOf(d?.x); return se == null ? "" : `<small class="px-pm" title="margin">±${nfmt(Math.max(0.5, Math.round(se * 1000) / 10))}</small>`; };
 function verdictCard(g, m) {
   const acc = m.sum.acc, P = m.pillars, c = m.counts, pid = m.pid;
-  const hl = `<p class="px-hl2">${verdictSpans(m)}</p>`;
+  const hd = m.why ? JSON.stringify({ own: m.why.own ? { T: m.why.own.T, d: m.why.own.d } : null, luck: { ts: m.why.luck.map((q) => q.T), d: m.why.luckSum } }) : "";
+  const hl = `<p class="px-hl2" data-hl="${esc(hd)}">${verdictSpans(m)}</p>`;
   const accLine = `<p class="px-l px-cn">${connectLine(m)}</p>`;
   const tile = (k, n, label, v, cap) => `<button type="button" class="px-t3" data-pxpil="${k}" aria-expanded="false"><small${k === "errors" ? ` data-fact="errors:${pid}" data-v="${n}"` : ""}>${n} ${label}</small>${D(v, { fact: `pillar-${k}:${pid}` })}<span>${cap}</span></button>`;
   const picks = m.start?.picks || [];
@@ -226,14 +225,14 @@ function lesson1(g, m) {
   return `<section class="rv-card px-card px-l1">${head}${body}${notErr}${scoredLine}<button type="button" class="px-btn wide" data-pxtab="moves">All errors and moves</button></section>`;
 }
 // ── lesson 2 compact: "This board" ──
-export const PLAN_NAME = { city: "City plan (ore, grain)", expansion: "Expansion plan (lumber, brick)", mixed: "Mixed plan" };
+export const PLAN_NAME = { city: "City plan (ore, grain)", expansion: "Expansion plan (lumber, brick)", mixed: "Cities and expansion mixed" };
 /** the start advice in plain words: what to take, from-to with the measured gap, and WHY when the better spot has fewer dots */
 export function startAdvice(m, p) {
   const top = p.shortlist?.[0]; if (!p.advice || !top) return "";
   const x = p.advice.adds.map(rname).join(", "), a = p.win, b = top.win ?? p.best, fewer = p.spot && top.spot && top.spot.total < p.spot.total;
   return `<p class="px-adv"><span>${f("Take {x}: {a}% → {b}% ({g}).", { x, a, b, g: `+${b - a}%` })}</span>${fewer ? ` <span>${f("Fewer dots ({a} against {b}), but {x} added.", { a: top.spot.total, b: p.spot.total, x })}</span>` : ""}</p>`;
 }
-export const DOT_KEY = "Numbers on the tiles are dice numbers; dots = how often they roll.";
+export const DOT_KEY = "Tile numbers are dice numbers. Dots = how often that number rolls (more dots, more income).";
 function lesson2c(g, m) {
   const s = m.start, p = s?.picks?.[0]; if (!p) return "";
   const top = p.shortlist?.[0], bd = m.board;
@@ -269,7 +268,7 @@ function ledgerCard(g, m) {
   const track = `<div class="px-gl"><small>Even <b>${L.even}%</b></small><i class="px-gt"><i class="a" style="width:${Math.max(2, L.even)}%"></i><i class="b" style="left:${Math.max(2, L.even)}%;width:${Math.max(0, L.end - L.even)}%"></i></i><small>End <b>${L.end}%</b></small></div>`;
   const how = `<ul class="px-how"><li>${f("The four rows add up to your change: from {n}% at the start to {n2}% at the end.", { n: L.even, n2: L.end })}</li><li>Start picks is what your two start spots cost against the best spots.</li><li>Luck is rolls, steals, card draws and seat order together.</li><li>Moves cost = start picks + moves.</li><li>Rest is neutral: it is what is left, the opponents’ doing.</li></ul>`;
   const story = `<p class="px-l">${m.you ? f("Your moves: {d}%", { d: dsg(L.moves) }) : f("{x}’s moves: {d}%", { x: esc(m.me.name), d: dsg(L.moves) })}</p>`;
-  return `<div class="px-eb">${(() => { const pts = g.players.map((q) => q.victoryPoints).sort((a, b) => b - a); return f("Why it ended {n}–{n2}", { n: pts[0], n2: pts[1] ?? 0 }); })()}</div><section class="rv-card px-card px-led"><div class="rv-gt"><b>What moved your win chance</b><button type="button" class="px-link nm" data-pxnum>Numbers</button></div>${story}${track}<div class="px-lcs">${cols.map(col).join("")}</div>${fold("how", "<span>How to read this</span>", `<div class="px-rest"><span>What the others did</span>${D(L.rest, { plus: true })}<small>The other players’ moves and luck combined.</small></div>${how}`)}</section>`;
+  return `<div class="px-eb">${(() => { const pts = g.players.map((q) => q.victoryPoints).sort((a, b) => b - a); return f("Why it ended {n}–{n2}", { n: pts[0], n2: pts[1] ?? 0 }); })()}</div><section class="rv-card px-card px-led"><div class="rv-gt"><b>What moved your win chance</b><button type="button" class="px-link nm" data-pxnum>Numbers</button></div>${story}${track}<div class="px-lcs">${cols.map(col).join("")}</div><div class="px-rest"><span>What the others did</span>${D(L.rest, { plus: true })}<small>The other players’ moves and luck combined.</small></div><p class="px-fn px-eq">${f("Even {a}% · start {b} · luck {c} · moves {d} · others {e} = end {z}%", { a: L.even, b: dsg(L.setup), c: dsg(L.luck), d: dsg(L.moves), e: dsg(L.rest), z: L.end })}</p>${fold("how", "<span>How to read this</span>", how)}</section>`;
 }
 
 export function overviewTab(g, ds, rv, prov) {

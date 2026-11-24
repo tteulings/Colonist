@@ -99,7 +99,7 @@ export const NL_199P = [
   ["{n} more moves costing under 1% each", "{n} andere zetten die elk minder dan 1% kosten"], ["{n} more moves", "{n} andere zetten"], ["No move cost win chance.", "Geen zet kostte winkans."],
   ["Best moves", "Beste zetten"], ["how far ahead of the next best", "hoeveel voor op de op één na beste"],
   ["Not followed: {d}% less", "Niet gevolgd: {d}% minder"], ["Followed", "Gevolgd"], ["Take {x} with pick {n}: {d}% more win chance.", "Pak {x} met keuze {n}: {d}% meer winkans."], ["you · pick {n}", "jij · keuze {n}"],
-  ["Top of the spots checked", "Top van de gecheckte plekken"], ["No board picture for this kind of game.", "Geen bordplaatje voor dit soort spel."],
+  ["Top of the spots checked", "Top van de gecheckte plekken"], ["Pick {n}: top of the spots checked", "Keuze {n}: top van de gecheckte plekken"], ["No board picture for this kind of game.", "Geen bordplaatje voor dit soort spel."],
   ["turns {n}–{n2}", "beurten {n}–{n2}"], ["{n} of {n2} visible points", "{n} van {n2} zichtbare punten"], ["{a}% and {b}% = {c}%", "{a}% en {b}% = {c}%"],
   ["{n} real errors: see them on the Moves tab", "{n} echte fouten: zie ze op het tabblad Zetten"], ["No clear error in this game", "Geen duidelijke fout in dit potje"],
   ["Tempo", "Tempo"], ["game points gained per phase", "spelpunten per fase"], ["Settlement", "Dorp"], ["City", "Stad"], ["Road", "Weg"], ["Card", "Kaart"], ["{n} builds", "{n} bouwacties"],
@@ -131,7 +131,7 @@ export const NL_199P = [
   ["measured {a}%, counted {b}%", "gemeten {a}%, geteld {b}%"], ["rolls and cards", "worpen en kaarten"], ["The other players’ moves and luck combined.", "De zetten en het geluk van de anderen samen."],
   ["Their moves and luck combined, not a mark for you.", "De zetten en het geluk van de anderen samen."],
   ["Take {x} with pick {n}: {a}% → {b}% ({g}).", "Pak {x} met keuze {n}: {a}% → {b}% ({g})."], ["Fewer dots ({a} against {b}), but {x} added.", "Minder stippen ({a} tegen {b}), maar {x} erbij."],
-  ["Numbers on the tiles are dice numbers; dots = how often they roll.", "Cijfers op de tegels zijn dobbelsteengetallen; stippen = hoe vaak ze vallen."],
+  ["Tile numbers are dice numbers. Dots = how often that number rolls (more dots, more income).", "Tegelcijfers zijn dobbelsteengetallen. Stippen = hoe vaak dat getal valt (meer stippen, meer inkomen)."], ["Cities and expansion mixed", "Steden en uitbreiding gemengd"], ["No phase rule was broken.", "Geen fase-advies overtreden."],
   ["± = the move’s own margin: a gap under twice that is not an error.", "± = de eigen marge van de zet: een verschil kleiner dan twee keer die marge is geen fout."],
   ["Gap {n}%, margin ±{s}%", "Verschil {n}%, marge ±{s}%"],
   ["In Moves cost the start counts {x}: all moves together cannot cost more than your best win chance.", "In Zetten kosten telt de start {x}: alle zetten samen kunnen niet meer kosten dan je beste winkans."],
@@ -150,9 +150,13 @@ export const NL_199P = [
   ["NOT REAL ERRORS", "GEEN ECHTE FOUTEN"],
   // ── round 7 ──
   ["Take {x}: {a}% → {b}% ({g}).", "Pak {x}: {a}% → {b}% ({g})."], ["Not followed", "Niet gevolgd"], ["only if broken", "alleen bij overtreding"], ["1 point", "1 punt"], ["rolls, cards, seat", "worpen, kaarten, plek"],
-  ["No phase error. Your {c}% is all in the start and small moves.", "Geen fout in een fase. Je {c}% zit helemaal in de start en kleine zetten."], ["Phase errors cost {a}%, start and small moves {b}%: together {c}%", "Fouten in fasen kostten {a}%, start en kleine zetten {b}%: samen {c}%"],
+  ["No phase error. The {c}% lost is all in the start and small moves.", "Geen fout in een fase. De {c}% verlies zit helemaal in de start en kleine zetten."], ["Phase errors cost {a}%, start and small moves {b}%: together {c}%", "Fouten in fasen kostten {a}%, start en kleine zetten {b}%: samen {c}%"],
   ["points per phase · start + phases = final", "punten per fase · start + fasen = eind"], ["Your seat, rolls and cards", "Jouw plek, worpen en kaarten"], ["{x}’s seat, rolls and cards", "Plek, worpen en kaarten van {x}"], ["Other players’ rolls", "Worpen van anderen"],
   ["{n} more turns", "{n} beurten meer"], ["{n} turns near ±0", "{n} beurten rond ±0"], ["Show {n} rolls", "Toon {n} worpen"], ["Hide {n} rolls", "Verberg {n} worpen"],
   ["▲ highest, ▼ lowest · your place in grey", "▲ hoogste, ▼ laagste · jouw plaats in grijs"], ["= a game with this miss ({k} of {n})", "= een potje met deze misser ({k} van {n})"], ["Most missed:", "Meest gemist:"],
   ["The headline pairs the player’s own biggest move (the best move in a win; the worst real error, else the costliest move, in a loss) with the biggest luck swings: the dice part of a swing, called lucky or unlucky. It adds the start cost when that is the main own lesson. Income, cities and pace are in Strategy, compared with the best other player.", "De kop zet de grootste eigen zet van de speler (de beste zet bij winst; de ergste echte fout, anders de duurste zet, bij verlies) naast de grootste geluksuitslagen: het worpdeel van een uitslag, gunstig of ongunstig genoemd. Bij de grootste eigen les staat ook de startkost. Inkomen, steden en tempo staan bij Strategie, vergeleken met de beste andere speler."],
+  // ── round 8 ──
+  ["Winning move", "Winnende zet"], ["Even {a}% · start {b} · luck {c} · moves {d} · others {e} = end {z}%", "Gelijk {a}% · start {b} · geluk {c} · zetten {d} · anderen {e} = eind {z}%"], ["lead", "voorsprong"], ["lead = how much more win chance than the next-best option", "voorsprong = hoeveel winkans meer dan de op één na beste optie"],
+  ["biggest: {x}", "grootste: {x}"], ["Every roll, steal and card changes your win chance. (+2) = two more events that turn.", "Elke worp, gepakte en getrokken kaart verandert je winkans. (+2) = twee gebeurtenissen meer die beurt."], ["▲ highest, ▼ lowest · place in grey", "▲ hoogste, ▼ laagste · plaats in grijs"],
+  ["biggest", "grootste"],
 ];

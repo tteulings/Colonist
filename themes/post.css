@@ -226,3 +226,5 @@
 .px-ev .ln { display: block; } .px-ev .ln + .ln { margin-top: 2px; } .px-ev .ln em { font-style: normal; font-weight: 700; color: var(--ink-soft); }
 .px-cn { margin: 6px 0 0; }
 .px-mini { display: flex; flex-wrap: wrap; gap: 8px; height: auto; margin: 10px 0 2px; align-items: center; } .px-mini span { display: inline-flex; align-items: baseline; gap: 5px; padding: 6px 10px; border-radius: 10px; border-left: 4px solid var(--px-up); background: var(--px-soft); } .px-mini .lost { border-left-color: var(--px-dn); } .px-mini b { font: 800 16px/1 var(--font-body); } .px-mini small, .px-mini em { font: 600 12px/1 var(--font-body); font-style: normal; color: var(--ink-soft); } .px-ev .ln { font-size: 13px; }
+.px-lead { display: inline-flex; flex-direction: column; align-items: flex-end; } .px-lead b { font: 800 13px/1.2 var(--font-body); color: var(--px-up); } .px-lead small { font: 600 11.5px/1.2 var(--font-body); color: var(--ink-soft); } .px-lead.win b { color: var(--px-up); } .px-tn { display: block; font-style: normal; font-size: 12px; color: var(--ink-soft); }
+.px-eq { margin: 6px 0 4px; }
