@@ -221,7 +221,7 @@ export const LessonsMixin = {
   },
   _lnProgress(l) {
     const out = [];
-    if (l.clean >= 1) out.push(L(`The last ${gamesN(l.clean)} without this`, `De laatste ${gamesN(l.clean)} zonder dit`));
+    if (l.clean >= 1) out.push(L(`The last ${gamesN(l.clean)} without this mistake`, `De laatste ${gamesN(l.clean)} zonder deze fout`));
     else if (l.trend) out.push(L(`Last 3 games ${ptN(l.trend.recent)}, before ${ptN(l.trend.earlier)} per game`, `Laatste 3 potjes ${ptN(l.trend.recent)}, daarvoor ${ptN(l.trend.earlier)} per potje`));
     return esc(out.join(" · "));
   },

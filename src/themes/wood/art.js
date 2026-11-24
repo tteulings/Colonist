@@ -286,7 +286,7 @@ function card(k, mini) {
     ${mini ? `<text x="125" y="${ty + 22}" text-anchor="middle" font-family="Playfair Display, Georgia, serif" font-weight="700" font-size="${name.length > 11 ? 30 : 40}" fill="${res ? INK : IVORY}">${name}</text>`
       : `<text x="125" y="${ty + 6}" text-anchor="middle" font-family="Playfair Display, Georgia, serif" font-weight="700" font-size="${name.length > 11 ? 25 : 30}" fill="${res ? INK : IVORY}">${name}</text>
     <path d="M95,${ty + 20} H155" stroke="${BRASS}" stroke-width="1.4"/><circle cx="125" cy="${ty + 20}" r="2.4" fill="${BRASS}"/>
-    <text x="125" y="${ty + 44}" text-anchor="middle" font-family="Source Sans 3, sans-serif" font-weight="500" font-size="14" fill="${res ? INK2 : "#E2D8C4"}">${wrap(CARD_TEXT[k], 28).map((l, i) => `<tspan x="125" dy="${i ? 17 : 0}">${l}</tspan>`).join("")}</text>
+    <text x="125" y="${ty + 44}" text-anchor="middle" font-family="Source Sans 3, sans-serif" font-weight="500" font-size="14" fill="${res ? INK2 : "#E2D8C4"}">${wrap(CARD_TEXT[k], 28).map((l, i, a) => `<tspan x="125" dy="${i ? 17 : 0}">${l}${i < a.length - 1 ? " " : ""}</tspan>`).join("")}</text>
     <text x="125" y="334" text-anchor="middle" font-family="Source Sans 3, sans-serif" font-weight="700" font-size="9.5" letter-spacing="2.6" fill="${res ? "#8C7E68" : BRASS}">${res ? "RESOURCE" : "DEVELOPMENT"}</text>`}`;
 }
 const cardBack = () => `<rect x="1" y="1" width="248" height="348" rx="16" fill="#334766"/><rect x="1" y="1" width="248" height="348" rx="16" fill="url(#b-paper-ui)" opacity=".5"/>

@@ -7342,24 +7342,38 @@ class ColonistFullGame {
     try {
       const json = JSON.stringify(this.serializeState());
       if (json === this._lastSavedJson) return;
-      if (this._setSave(json)) { this._lastSavedJson = json; this._saveWarned = false; }
-      else if (!this._saveWarned) { this._saveWarned = true; this.pushToast?.("Couldn’t save your game: this device’s storage is full. Free some space.", "important"); }
+      if (this._setSave(json)) { this._lastSavedJson = json; this._saveWarned = 0; }
+      else {
+        // v1.98 warn once, then again at most every 5 minutes while saves keep failing (never one toast per render)
+        const t = Date.now();
+        if (!this._saveWarned || t - this._saveWarned > 300000) { this._saveWarned = t; this.pushToast?.("Couldn't save your game: this device's storage is full. Free some space.", "important"); }
+      }
     } catch (_) { /* private mode — ignore */ }
   }
 
-  /** v1.98 write the save; on a full storage drop the least important data first (old lab runs, the review numbers of past
-   *  games, the running game's cached review recording: all rebuilt or optional) and try again, before giving the save up. */
+  /** v1.98 write the save; on a full storage drop data that is rebuilt anyway and try again, before giving the save up.
+   *  Only two things qualify: the saved lab runs (the lab, not the game) and the cached review recording of THIS running game
+   *  (it is still in memory and is written again at the next End turn). Lesson practice and the review history are never touched.
+   *  A removal that does not make the save fit is put back, so nothing is deleted for nothing. */
   _setSave(json) {
     const K = ColonistFullGame.STORAGE_KEY;
     try { localStorage.setItem(K, json); return true; } catch (_) { /* quota: make room */ }
-    for (const k of ["colonist.lab.runs", "colonist_review_hist_v1", "colonist_lessons_practice", "colonist_review_v1"]) {
+    for (const k of ["colonist.lab.runs", "colonist_review_v1"]) {
+      let old = null;
+      try { old = localStorage.getItem(k); } catch (_) { continue; }
+      if (old == null) continue;
+      if (k === "colonist_review_v1") { // only this running game's own recording, which is still in memory
+        let id = null; try { id = JSON.parse(old)?.id; } catch (_) { /* unreadable: leave it */ }
+        if (!this._rv?.id || id !== this._rv.id) continue;
+      }
       try {
-        if (localStorage.getItem(k) == null) continue;
         localStorage.removeItem(k);
-        if (k === "colonist_review_v1" && this._rv) this._rv.bytes = 0;
         localStorage.setItem(K, json);
+        if (k === "colonist_review_v1" && this._rv) this._rv.bytes = 0;
         return true;
-      } catch (_) { /* still full: next one */ }
+      } catch (_) { // still full: put it back
+        try { localStorage.setItem(k, old); } catch (_2) { /* nothing more to do */ }
+      }
     }
     return false;
   }

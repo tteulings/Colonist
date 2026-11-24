@@ -402,7 +402,7 @@ function card(k, mini) {
       : `<text x="125" y="240" text-anchor="middle" font-family="Figtree, system-ui, sans-serif" font-weight="700" font-size="10" letter-spacing="2.6" fill="${c.acc}">${res ? "RESOURCE" : "DEVELOPMENT"}</text>
     <text x="125" y="${ty + 6}" text-anchor="middle" font-family="Outfit, system-ui, sans-serif" font-weight="650" font-size="${name.length > 11 ? 25 : 30}" fill="${nameInk}">${name}</text>
     <path d="M78,${ty + 20} H116 M134,${ty + 20} H172" stroke="${c.acc}" stroke-opacity=".6" stroke-width="1"/><path d="M125,${ty + 16} l4,4 -4,4 -4,-4Z" fill="${c.acc}" opacity=".8"/>
-    <text x="125" y="${ty + 44}" text-anchor="middle" font-family="Figtree, system-ui, sans-serif" font-weight="500" font-size="13" fill="${nt ? "#AEBABD" : "#5E676A"}">${wrap(CARD_TEXT[k], 30).map((l, i) => `<tspan x="125" dy="${i ? 16 : 0}">${l}</tspan>`).join("")}</text>`}`;
+    <text x="125" y="${ty + 44}" text-anchor="middle" font-family="Figtree, system-ui, sans-serif" font-weight="500" font-size="13" fill="${nt ? "#AEBABD" : "#5E676A"}">${wrap(CARD_TEXT[k], 30).map((l, i, a) => `<tspan x="125" dy="${i ? 16 : 0}">${l}${i < a.length - 1 ? " " : ""}</tspan>`).join("")}</text>`}`;
 }
 const cardBack = () => `<rect x="1" y="1" width="248" height="348" rx="16" fill="${P.sea0}" stroke="#1E4E55" stroke-width="1.4"/><rect x="9" y="9" width="232" height="332" rx="11" fill="none" stroke="#E2C27A" stroke-opacity=".7" stroke-width="1.2"/>
   <g opacity=".14" stroke="#fff" stroke-width="1.4" fill="none">${Array.from({ length: 12 }, (_, i) => `<path d="M20,${36 + i * 26} q13,-6 26,0 t26,0 t26,0 t26,0 t26,0 t26,0 t26,0 t26,0"/>`).join("")}</g>

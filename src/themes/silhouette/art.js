@@ -382,7 +382,7 @@ function card(k, mini) {
   const out = mini
     ? base + scene + `<text x="125" y="${name.length > 11 ? 300 : 306}" text-anchor="middle" font-family="Kalam, cursive" font-weight="700" font-size="${name.length > 11 ? 36 : name.length > 8 ? 44 : 52}" fill="${B}">${name}</text>`
     : base + scene + `<text x="125" y="276" text-anchor="middle" font-family="Kalam, cursive" font-weight="700" font-size="${name.length > 11 ? 32 : 38}" fill="${B}">${name}</text>
-      <text x="125" y="${CARD_TEXT[k].length > 30 ? 298 : 306}" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="500" font-size="15" fill="#5E5852">${wrap(CARD_TEXT[k], 30).map((l, i) => `<tspan x="125" dy="${i ? 17 : 0}">${l}</tspan>`).join("")}</text>
+      <text x="125" y="${CARD_TEXT[k].length > 30 ? 298 : 306}" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="500" font-size="15" fill="#5E5852">${wrap(CARD_TEXT[k], 30).map((l, i, a) => `<tspan x="125" dy="${i ? 17 : 0}">${l}${i < a.length - 1 ? " " : ""}</tspan>`).join("")}</text>
       <text x="125" y="338" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="10" letter-spacing="2.6" fill="${label}">${res ? "RESOURCE" : "DEVELOPMENT"}</text>
       <g transform="translate(40 40)"><circle r="17" fill="${PA}"/><g transform="scale(.24)">${ICONS[k]}</g></g>`;
   return (cardCache[key] = out);
