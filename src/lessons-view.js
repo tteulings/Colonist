@@ -2,7 +2,9 @@
 // short lines under an example (derived from the hexes of THAT example), the move tiles for moves that have no spot, and the answers to the three preset questions.
 // Words: L(en, nl) picks by the app language (the page redraws on a language change); counts agree with their noun ("1 potje", "2 potjes").
 import { stdGeo, hexCorners } from "./lessons-geo.js";
-import { RES_COLOR, resName } from "./resources.js";
+import { RES_COLOR, RES_ICON_URL, resName } from "./resources.js";
+/** a resource as the app's own icon (not a plain colour dot: wood green and brick red would read as good and bad) */
+export const resIcon = (r, title = "") => `<img class="lc-rd" src="${RES_ICON_URL[r] || ""}" alt="" ${title ? `title="${esc(title)}" ` : ""}draggable="false">`;
 import { lang, dateLocale, num, tn } from "./i18n.js";
 
 export const L = (en, nl) => (lang() === "nl" ? nl : en);
@@ -77,7 +79,7 @@ export function moveWord(kind, d) {
 const playedWord = (kind, d) => (kind === "end" ? L("Ended the turn", "Beurt beëindigd") : cap(({ road: L("Built a road", "Weg gebouwd"), settlement: L("Built a settlement", "Dorp gebouwd"), city: L("Built a city", "Stad gebouwd"), card: L("Development card", "Ontwikkelkaart"), robber: L("Moved the robber", "Rover verzet") }[kind]) || (kind === "bank" ? (Array.isArray(d) ? L(`Traded ${rn(d[0])} for ${rn(d[1])}`, `${cap(rn(d[0]))} voor ${rn(d[1])} geruild`) : L("Traded with the bank", "Geruild bij de bank")) : L("Another move", "Andere zet"))));
 /** the tile of a move that has no spot on the board: an icon, the move in words, a resource arrow for a trade */
 export function tileHtml(kind, d, icon, better = false) {
-  const dot = (r) => `<i class="lc-rd" style="background:${RES_COLOR[r]}" title="${esc(rn(r))}"></i>`;
+  const dot = (r) => resIcon(r, rn(r));
   const word = better ? cap(moveWord(kind, d)) : playedWord(kind, d);
   return `<div class="lc-tile" data-tile="${kind}"><i class="lc-ti" aria-hidden="true">${icon || ""}</i><b>${esc(word)}</b>${kind === "bank" && Array.isArray(d) ? `<span class="lc-tr" aria-hidden="true">${dot(d[0])}<s>→</s>${dot(d[1])}</span>` : ""}</div>`;
 }
