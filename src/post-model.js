@@ -268,7 +268,7 @@ function measuresOf(tab, pid) {
   ].map(([k, label, f]) => {
     const vals = S.map((s) => fin(f(s))); if (vals.some((v) => v == null)) return null;
     const mine = vals[pid], oth = vals.filter((_, i) => i !== pid), avg = oth.length ? oth.reduce((a, b) => a + b, 0) / oth.length : 0;
-    return { k, label, vals, mine, avg: Math.round(avg * 10) / 10, best: Math.max(...vals), diff: Math.round((mine - avg) * 10) / 10 };
+    return { k, label, vals, mine, avg: Math.round(avg * 10) / 10, best: Math.max(...vals), diff: Math.round((mine - avg) * 10) / 10, mark: oth.length && mine > Math.max(...oth) ? "up" : oth.length && mine < Math.min(...oth) ? "dn" : "" };
   }).filter(Boolean);
   return rows;
 }

@@ -82,7 +82,7 @@ const nums = () => {
       void nrows; void nAcc; void c;
       // player pages: you and a bot
       for (const pid of [m.me, (m.me + 1) % 4]) { await G((pid) => { const g = window.__colonistGame; g._rvOpenReview(pid, { tab: "player" }); }, pid); await sleep(900); await check(`${short} player ${pid === m.me ? "you" : "bot"}`, pid === m.me ? "player" : "player-bot"); }
-      await G(() => window.__colonistGame._rvOpenReview(window.__colonistGame._rvPid, { tab: "overview" })); await sleep(500);
+      await G((pid) => window.__colonistGame._rvOpenReview(pid, { tab: "overview" }), m.me); await sleep(500);
       await G(() => window.__colonistGame._pxBoard(0)); await sleep(700); await check(`${short} bekijk bord`, `board`); await page.evaluate(() => document.querySelector("[data-pxbx]")?.click());
       await G(() => window.__colonistGame._rvCloseReview?.(true));
     }
@@ -97,6 +97,7 @@ const nums = () => {
     // ONE number per fact: every screen that shows luck / cost / accuracy of a seat shows the same value; the three pillars add up to the cost
     const keys = Object.keys(FACTS), shownScreens = (k) => [...new Set(Object.values(FACTS[k]).flatMap((x) => [...x]))];
     for (const k of keys) { const vals = Object.keys(FACTS[k]); const sc = shownScreens(k); if (/\|(luck|cost|acc|scored|pick1win|top1win|pick1dots|top1dots):/.test(k)) ok(vals.length === 1 && (sc.length >= 2 || !/:0$/.test(k)), `${tag} fact ${k}: one value on every screen`, vals.length === 1 ? sc.join(", ") : Object.entries(FACTS[k]).map(([v, x]) => `${v}: ${[...x].join("/")}`).join(" | ")); }
+    for (const k of keys.filter((x) => /\|(pick1win|top1win|pick1dots|top1dots):0$/.test(x))) { const sc = shownScreens(k); ok(/overview/.test(sc.join()) && /strategy/.test(sc.join()) && /bekijk bord/.test(sc.join()), `${tag} fact ${k}: shown on Overview, Strategy and Bekijk bord`, sc.join(", ")); }
     for (const k of keys.filter((x) => /\|cost:/.test(x))) { const [g0, rest] = k.split("|"), seat = rest.split(":")[1], v = (n) => { const o = FACTS[`${g0}|${n}:${seat}`]; return o ? +Object.keys(o)[0] : null; }; const pe = v("pillar-errors"), ps = v("pillar-start"), po = v("pillar-other"), c = +Object.keys(FACTS[k])[0]; if (pe != null) ok(pe + ps + po === c, `${tag} ${g0}: pillars ${pe}+${ps}+${po} = cost ${c}`); }
     ok(!errors.length, `${tag}: no console errors`, errors.slice(0, 3));
     await ctx.close();

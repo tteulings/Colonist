@@ -52,8 +52,8 @@ function progress(g, all) {
   if (rev.length > 0 && rev.length < 3) chart = `<p class="px-fn">A chart of your Accuracy appears from 3 reviewed games.</p>`;
   const mist = {}; let m2 = 0; rev.forEach((m) => Object.entries(m.mist || {}).forEach(([k, n]) => { mist[k] = (mist[k] || 0) + n; m2 += n; }));
   const top = Object.entries(mist).sort((a, b) => b[1] - a[1])[0];
-  const dots = top && m2 >= 3 ? `<div class="px-mm"><b>Most missed</b><span class="px-mdots" aria-hidden="true">${rev.slice(-10).map((m) => `<i class="${(m.mist?.[top[0]] || 0) ? "on" : ""}"></i>`).join("")}</span><small class="mm">${esc(({ "end>build": "ended your turn while a build was possible", build: "built something weaker", bank: "a weaker bank trade", robber: "a weaker robber tile", setup: "a weaker set-up spot" })[top[0]] || top[0])}</small><small class="px-fn">Filled dot = a game with this miss. Your last 10 games, oldest first.</small></div>` : "";
-  return `<section class="px-card px-prog rv-card"><div class="rv-gt"><b>Your progress</b></div>${tiles}${chart}${dots}</section>`;
+  const dots = top && m2 >= 3 ? `<div class="px-mm"><b>Most missed</b><span class="px-mk">${f("in {k} of your last {n} games", { k: rev.slice(-10).filter((m) => (m.mist?.[top[0]] || 0)).length, n: Math.min(10, rev.length) })}</span><span class="px-mdots" aria-hidden="true">${rev.slice(-10).map((m) => `<i class="${(m.mist?.[top[0]] || 0) ? "on" : ""}"></i>`).join("")}</span><small class="mm">${esc(({ "end>build": "ended your turn while a build was possible", build: "built something weaker", bank: "a weaker bank trade", robber: "a weaker robber tile", setup: "a weaker set-up spot" })[top[0]] || top[0])}</small><small class="px-fn">Filled dot = a game with this miss. Your last 10 games, oldest first.</small></div>` : "";
+  return `<section class="px-card px-prog rv-card"><div class="rv-gt"><b>Your progress</b></div>${tiles}<p class="px-fn">Marked moves are moves that cost win chance, counted per reviewed game.</p>${chart}${dots}</section>`;
 }
 
 // ── a game row that unfolds ──
