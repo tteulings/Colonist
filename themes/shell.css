@@ -255,3 +255,4 @@ html[data-motion="reduced"] .sh-sheet, html[data-motion="reduced"] .sh-layer.ent
 .sh-settings .st-game .cm-row button, .sh-settings .st-game .pal-info, .sh-settings .st-game [class*="info"] { min-height: 44px; min-width: 44px; }
 .sh-settings .theme-toggle button, .sh-settings .tm-settings .theme-toggle button { width: 44px; height: 44px; }
 .sh-settings .st-game .button-row button { min-height: 44px; }
+.sh-seg button { white-space: normal; overflow-wrap: anywhere; hyphens: auto; line-height: 1.1; }
