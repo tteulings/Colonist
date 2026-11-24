@@ -2,7 +2,8 @@
 // Loaded after installReviewGame in src/game.js; nothing else in the v1.98 review changes (step view, AI tab, progress, saving).
 import { esc } from "./review-ui.js";
 import { summarize, modelOfId } from "./review/evaluate.js";
-import { scoreHtml, overviewTab, infoSheet, numbersSheet } from "./post-ui.js";
+import { modelOf } from "./post-model.js";
+import { f, scoreHtml, overviewTab, infoSheet, numbersSheet } from "./post-ui.js";
 import { movesTab, strategyTab, luckTab, playerTab } from "./post-tabs.js";
 import { installPostHist } from "./post-hist.js";
 
@@ -35,7 +36,7 @@ export function installPost(Cls) {
     el.className = "rv rs tm px";
     const pop0 = el.querySelector(".rv-pop"), sh = el.querySelector(".px-sheet");
     const label = { overview: "Overview", moves: "Moves", strategy: "Strategy", luck: "Luck", ai: "AI coach" }[tab];
-    el.innerHTML = `${tab === "player" ? part.bar : this._rvBar(`${ds.length} decisions · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`, label)}${tab === "player" ? "" : this._rvTabsBar(tab)}
+    el.innerHTML = `${tab === "player" ? part.bar : this._rvBar(`${(() => { let c = null; try { c = modelOf(this, pid)?.counts; } catch (_) { c = null; } return c ? `<span data-fact="scored:${pid}" data-v="${c.scored}">${f("{n} of {n2} decisions scored", { n: c.scored, n2: c.total })}</span>` : `${ds.length} decisions`; })()} · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`, label)}${tab === "player" ? "" : this._rvTabsBar(tab)}
       <div class="rv-scroll">${part.html}${tab === "overview" || tab === "ai" ? (this._rcBox?.() || "") + (this._raBox?.() || "") : ""}</div>${part.foot || ""}`;
     el.querySelector(".rv-scroll").scrollTop = scroll;
     if (pop0) el.appendChild(pop0);

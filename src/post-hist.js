@@ -1,8 +1,8 @@
 // v1.99 Post-game UI, part 3: Terugblik (History: one Games | Lessons door, progress with a scrub chart, "Most missed", unfoldable game rows),
 // the Bots page (Strength ladder, Precision, You vs them) and Bekijk bord (the board at the start and at every key moment).
 import { esc, IC } from "./review-ui.js";
-import { f, D, RES_NAME, spotTiles } from "./post-ui.js";
-import { modelOf, tableOf, ptsAtStep, boardFor } from "./post-model.js";
+import { f, D, RES_NAME, spotTiles, causeText, dsg } from "./post-ui.js";
+import { modelOf, tableOf, ptsAtStep, boardFor, momentFor } from "./post-model.js";
 import { stdGeo, hexCorners } from "./lessons-geo.js";
 import { RES_COLOR } from "./resources.js";
 import { youVsLevels, wilsonPct } from "./review/analysis-facts.js";
@@ -40,7 +40,7 @@ function progress(g, all) {
   const per = rev.map((m) => (m.cls ? (m.cls.lean || 0) + (m.cls.could || 0) + (m.cls.missed || 0) + (m.cls.mistake || 0) + (m.cls.blunder || 0) : null)).filter((v) => v != null);
   const tiles = `<div class="px-tiles"><div><b>${rev.length ? Math.round(avg(rev.map((m) => m.acc))) : "–"}</b><small>${rev.length ? (rev.length === 1 ? f("{x} over 1 game", { x: accWord }) : f("{x} over {n} games", { x: accWord, n: rev.length })) : accWord}</small></div><div><b>${won}/${fin.length}</b><small>won</small></div><div><b>${per.length ? (Math.round(avg(per) * 10) / 10) : "–"}</b><small>marked moves per game</small></div></div>`;
   let chart = "";
-  if (rev.length >= 2) {
+  if (rev.length >= 3) {
     const v = rev.slice(-12), W = 320, H = 110, x0 = 28, x1 = W - 8, top = 10, bot = H - 14, lo = Math.floor(Math.min(...v.map((m) => m.acc), 60) / 10) * 10, hi = Math.min(100, Math.ceil(Math.max(...v.map((m) => m.acc), 80) / 10) * 10);
     const X = (i) => x0 + 6 + (i / (v.length - 1)) * (x1 - x0 - 12), Y = (a) => top + (1 - (a - lo) / (hi - lo)) * (bot - top);
     const sel = Math.min(g._pxHsel ?? v.length - 1, v.length - 1), s = v[sel];
@@ -51,7 +51,8 @@ function progress(g, all) {
   }
   const mist = {}; let m2 = 0; rev.forEach((m) => Object.entries(m.mist || {}).forEach(([k, n]) => { mist[k] = (mist[k] || 0) + n; m2 += n; }));
   const top = Object.entries(mist).sort((a, b) => b[1] - a[1])[0];
-  const dots = top && m2 >= 3 ? `<div class="px-mm"><b>Most missed</b><span class="px-mdots" aria-hidden="true">${rev.slice(-10).map((m) => `<i class="${(m.mist?.[top[0]] || 0) ? "on" : ""}"></i>`).join("")}</span><small>${esc(({ "end>build": "ended your turn while a build was possible", build: "built something weaker", bank: "a weaker bank trade", robber: "a weaker robber tile", setup: "a weaker set-up spot" })[top[0]] || top[0])}</small></div>` : "";
+  const topTxt = top ? esc(({ "end>build": "ended your turn while a build was possible", build: "built something weaker", bank: "a weaker bank trade", robber: "a weaker robber tile", setup: "a weaker set-up spot" })[top[0]] || top[0]) : "";
+  const dots = top && m2 >= 3 && rev.length >= 3 ? `<div class="px-mm"><p class="px-l"><b>Most missed:</b> ${topTxt}</p><div class="px-mdr"><span class="px-mdots" aria-hidden="true">${rev.slice(-10).map((m) => `<i class="${(m.mist?.[top[0]] || 0) ? "on" : ""}"></i>`).join("")}</span><small>${f("= a game with this miss ({k} of {n})", { k: rev.slice(-10).filter((m) => (m.mist?.[top[0]] || 0)).length, n: Math.min(10, rev.length) })}</small></div></div>` : "";
   return `<section class="px-card px-prog rv-card"><div class="rv-gt"><b>Your progress</b></div>${tiles}${chart}${dots}</section>`;
 }
 
@@ -116,7 +117,7 @@ function botsDraw(g, keep) {
     const L = youVsLevels(mine);
     if (!L.length) return `<section class="px-card rv-card"><div class="rv-gt"><b>You vs them</b></div><p class="px-l">No games against the bots yet.</p><p class="px-fn">Play and review a few games. For each bot level you see how many you won, and a range once you have played 5 games against it.</p></section>`;
     const row = (r) => { const label = P[r.level]?.label || r.level, few = r.n < YOU_MIN; return `<div class="px-vs${few ? " few" : ""}"><span class="nm"><b>${esc(label)}</b><small><span>${f("won {n} of {n2}", { n: r.won, n2: r.n })}</span>${r.acc != null ? ` · <span>${accWord} ${r.acc}</span>` : ""}</small></span>${few ? `<span class="wh dim"><i class="fair" style="left:${sc(fair)}%"></i></span><b class="v dim">–</b><em class="few">too few games</em>` : `<span class="wh"><i class="fair" style="left:${sc(fair)}%"></i><i class="ci" style="left:${Math.min(98, r.lo)}%;width:${Math.max(2, r.hi - r.lo)}%"></i><i class="pt" style="left:${Math.min(100, r.pct)}%"></i></span><b class="v">${r.pct}%</b>`}</div>`; };
-    return `<section class="px-card rv-card"><div class="rv-gt"><b>You vs them</b><small>per level</small></div>${L.map(row).join("")}<p class="px-fn">A range appears from 5 games per level: the likely range of your true win rate. The tick marks an even share.</p></section>`;
+    return `<section class="px-card rv-card"><div class="rv-gt"><b>You vs them</b><small>per level</small></div>${L.map(row).join("")}<p class="px-fn">A range shows from 5 games per level. The tick marks an even share.</p></section>`;
   })();
   const segs = [["strength", "Strength"], ["precision", "Precision"], ["you", "You vs them"]];
   el.innerHTML = `<div class="hs-bar"><button type="button" class="hs-x" data-bclose aria-label="Back">${IC.back}</button><div><h3>Bots</h3><small>How strong is which bot?</small></div></div>
@@ -132,7 +133,7 @@ function board(g, T0) {
   const R = g._rv, pid = g._rvPid ?? 0; let m = null; try { m = modelOf(g, pid); } catch (_) { m = null; }
   const bd = boardFor(g), st = g._st; if (!bd || !st || !m) { g._toast?.("The board view needs the standard island and a finished review."); return; }
   g._pxBoardEl?.remove();
-  const geo = stdGeo(), stops = [{ T: 0, label: "Start" }, ...(m.timeline?.pins || []).map((p) => ({ T: p.T, label: f("Turn {n}", { n: p.T }), say: p.say, n: p.n }))];
+  const geo = stdGeo(), stops = [{ T: 0, label: "Start" }, ...(m.timeline?.pins || []).map((p) => ({ T: p.T, label: f("Turn {n}", { n: p.T }), say: `${causeText(m, momentFor(g, m, p))}, ${dsg(p.d)}%`, n: p.n }))];
   let cur = Math.max(0, stops.findIndex((s) => s.T === (T0 ?? 0)));
   const el = document.createElement("div"); el.className = "px-board tm"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Bekijk bord");
   (g._rvEl || document.body).appendChild(el); g._pxBoardEl = el;
@@ -152,11 +153,11 @@ function board(g, T0) {
       if (tn != null) rings += `<g><circle cx="${(geo.nodes[tn].x * S).toFixed(1)}" cy="${(geo.nodes[tn].y * S).toFixed(1)}" r="13" fill="none" stroke="#F0B45C" stroke-width="3"/><text x="${(geo.nodes[tn].x * S).toFixed(1)}" y="${(geo.nodes[tn].y * S - 16).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="800" fill="#F0B45C" stroke="#000" stroke-width=".4">A</text></g>`;
     }
     const pk = m.start?.picks || [], top = pk[0]?.shortlist?.[0];
-    const prow = (lab, node, spot, win) => `<div class="px-br"><small>${lab}</small><span class="tl">${spotTiles(bd, node)}</span><span class="dt">${spot ? f("{n} dots", { n: spot.total }) : ""}</span><b>${win ?? "–"}%</b></div>`;
-    const info = s.T === 0 ? `<h4 class="px-bh">Start: your picks and the top spot</h4><p class="px-fn">1 and 2 are your picks (dashed). A is the top spot for pick 1: the best of at most 6 spots checked.</p>${pk[0] ? prow("PICK 1", pk[0].node, pk[0].spot, pk[0].win) : ""}${top ? prow("A · TOP", top.node, top.spot, top.win) : ""}${pk[1] ? prow("PICK 2", pk[1].node, pk[1].spot, pk[1].win) : ""}` : `<h4 class="px-bh">${esc(s.label)}</h4><p class="px-l"><span data-i18n-skip>${s.say || ""}</span></p>`;
-    const stopLab = (q) => (q.T === 0 ? "Start" : `T${q.T}`);
+    const prow = (lab, node, spot, win, key) => `<div class="px-br"><small>${lab}</small><span class="tl">${spotTiles(bd, node)}</span><span class="dt"${spot && key ? ` data-fact="${key}dots:${m.pid}" data-v="${spot.total}"` : ""}>${spot ? f("{n} dots", { n: spot.total }) : ""}</span><b${key ? ` data-fact="${key}win:${m.pid}" data-v="${win ?? ""}"` : ""}>${win ?? "–"}%</b></div>`;
+    const info = s.T === 0 ? `<h4 class="px-bh">Start: your picks and the best spot</h4><p class="px-fn">1 and 2 are your picks (dashed). A is the best spot for pick 1, out of at most 6 checked.</p>${pk[0] ? prow("PICK 1", pk[0].node, pk[0].spot, pk[0].win, "pick1") : ""}${top ? prow("BEST SPOT (A)", top.node, top.spot, top.win, "top1") : ""}${pk[1] ? prow("PICK 2", pk[1].node, pk[1].spot, pk[1].win) : ""}` : `<h4 class="px-bh">${esc(s.label)}</h4><p class="px-l"><span data-i18n-skip>${s.say || ""}</span></p>`;
+    const stopLab = (q) => (q.T === 0 ? "Start" : String(q.T));
     el.innerHTML = `<div class="rv-bar"><button type="button" class="rv-btn" data-pxbx aria-label="Close">${IC.back}</button><div><h3>Bekijk bord</h3><small>${s.T === 0 ? "Start: your picks" : esc(s.label)}</small></div></div><div class="rv-scroll"><section class="rv-card px-card"><svg viewBox="${x0.toFixed(1)} ${y0.toFixed(1)} ${W.toFixed(1)} ${H.toFixed(1)}" class="px-bd" role="img" aria-label="${esc(s.label)}">${hexes}${rd}${pcs}${rings}</svg></section>
-      <section class="rv-card px-card"><div class="px-stops">${stops.map((q, i) => `<button type="button" class="${i === cur ? "on" : ""}" data-pxs="${i}">${stopLab(q)}</button>`).join("")}</div>${info}<input type="range" class="px-rng" min="0" max="${stops.length - 1}" value="${cur}" aria-label="Moment" data-pxr>
+      <section class="rv-card px-card"><div class="px-stops" role="group" aria-label="Turn"><small class="px-sk">Turn</small>${stops.map((q, i) => `<button type="button" class="${i === cur ? "on" : ""}" data-pxs="${i}">${stopLab(q)}</button>`).join("")}</div>${info}<input type="range" class="px-rng" min="0" max="${stops.length - 1}" value="${cur}" aria-label="Moment" data-pxr>
       <div class="px-pn"><button type="button" class="px-btn" data-pxpv${cur === 0 ? " disabled" : ""}>${IC.back}Previous</button><button type="button" class="px-btn" data-pxnx${cur === stops.length - 1 ? " disabled" : ""}>Next${IC.chev}</button></div></section>
       <button type="button" class="px-btn wide pxb" data-pxrev>Open the start in Review</button></div>`;
     el.querySelector("[data-pxpv]")?.addEventListener("click", () => { cur = Math.max(0, cur - 1); draw(); });

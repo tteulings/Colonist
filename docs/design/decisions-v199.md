@@ -21,3 +21,12 @@
 - tests/verdict182.js regex for "Miss": `Miss(?![a-z])`. i18n-walk must click end-screen tabs inside the closed "More" card.
 - aitab173/why182/verdict182 need redesign/state9383.json (copy of state9101.json) in the test root.
 - Version bump: APP_VERSION 1.99, all ?v=198 -> ?v=199 (avatar ?v=57 stays), cache colonist-v199, new files in sw.js SHELL.
+
+## Post-game analysis, fix round 6 (critic r5)
+- "Why won / lost" headline = the 1-2 biggest swings of THAT player's win chance on their side of the result (post-model `whyOf`, from the review's look, steps with a 7 and award steps left out), each named by its cause (own build, lucky / unlucky roll, own clear error of that turn, what another player did). Format "You won mostly in turn 12 (built a city, +25%) and 7 (lucky roll, +18%)." Max 2 lines at 360px. Income / cities / tempo live only in Strategy and are compared with the best other player, never an average.
+- The timeline pins and key moments are now computed from the same per-player swings (they used to depend on the current player only and were empty for some games).
+- Start advice: the played spot and the best spot carry the review's refined win chances B and A, so "29% -> 38% (+9%)" is the same number as the start cost in the tiles. When the counted start cost is shrunk by the cap on total moves cost, the tile says "measured -11%, counted -9%". Dots are explained once ("numbers on the tiles are dice numbers; dots = how often they roll"); a better spot with fewer dots says why ("fewer dots, but brick added").
+- One error vocabulary: Real errors = clear mistakes, blunders and missed chances (count on every page, tiles, Numbers sheet); Could be better = every other weaker move. Moves rows show the move's own margin (+-1,5); a gap under twice the margin is not an error ("noise correction" is never written; plain words only).
+- Luck: the other players' rolls are ONE group whose sum is exactly the sum of its rows; the toggle label follows its state; "B18" is "Turn 18"; board stops are plain numbers under a "Turn" label.
+- Scorecard: up / down triangles in the cells of every highest / lowest value of a row.
+- Tests: analysis199-ui.js measures line boxes (max 2 lines on headline, captions, notes), no "B<number>" tokens, triangles in scorecard cells, headline names measured moments, start advice arithmetic, luck group sign and toggle state, one vocabulary for errors on all pages.
