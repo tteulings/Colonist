@@ -1,0 +1,100 @@
+--- a/src/game.js
++++ b/src/game.js
+@@ -4674,6 +4674,7 @@
+       }
+     }
+     this.sfx.devCard();
++    if (!this._isInteractive(player)) { this.recomputeScores(); this.checkForWinner(player); } // (aligned bot timing, as in v1.98)
+     return true;
+   }
+ 
+@@ -4738,6 +4739,7 @@
+       // Knight only moves the robber and steals — no discards (that's for rolling a 7)
+       player.knightsPlayed += 1;
+       this.addLog(`${player.name} played Knight.`);
++      this.recomputeScores(); this.checkForWinner(player); if (this.winner) return true; // (aligned bot timing, as in v1.98)
+       this.moveRobber(player);
+     } else if (type === "roadBuilding") {
+       if (this._isInteractive(player)) {
+@@ -4753,12 +4755,12 @@
+         if (this.sea) { // ⚓ Seafarers: 2 roads, 2 ships or one of each (rulebook p. 5 §8)
+           const pc = this.sea.aiFreePiece(player);
+           if (!pc) break;
+-          if (pc.type === "ship" ? this.sea.placeShip(player, pc.id, { free: true }) : this.placeRoad(player, pc.id, { free: true })) { built += 1; this.fx?.freeRoad?.(player.id, pc.id, i, pc.type === "ship"); }
++          if (pc.type === "ship" ? this.sea.placeShip(player, pc.id, { free: true }) : this.placeRoad(player, pc.id, { free: true })) { built += 1; this.fx?.freeRoad?.(player.id, pc.id, i, pc.type === "ship"); this.recomputeScores(); this.checkForWinner(player); if (this.winner) break; }
+           continue;
+         }
+         const edgeId = this.chooseStrategicRoadEdge(player, true);
+         if (edgeId == null) break;
+-        if (this.placeRoad(player, edgeId, { free: true })) { built += 1; this.fx?.freeRoad?.(player.id, edgeId, i, false); }
++        if (this.placeRoad(player, edgeId, { free: true })) { built += 1; this.fx?.freeRoad?.(player.id, edgeId, i, false); this.recomputeScores(); this.checkForWinner(player); if (this.winner) break; }
+       }
+       this.addLog(`${player.name} played Road Building and placed ${built} ${this.sea ? "piece" : "road"}(s).`);
+     } else if (type === "yearOfPlenty") {
+@@ -4911,7 +4913,7 @@
+       if (stage === 1) {
+         stage = 2;
+         // Try player-to-player trade once per turn
+-        if (!skipPlayerTrade) {
++        if (!skipPlayerTrade && !this.winner) {
+           const seq0 = this.analysis?.seq;
+           const tradeResult = this.aiTryPlayerTrade(player);
+           if (tradeResult && tradeResult.type === "human") { humanTrade = tradeResult; return "human"; }
+--- a/src/api/engine.js
++++ b/src/api/engine.js
+@@ -497,14 +497,7 @@
+   _do_place(a, p) { this.g._commitSetup(p, { type: a.piece, id: a.node ?? a.edge }); }
+   _do_build(a, p) {
+     const g = this.g, cb = { type: a.piece, id: a.node ?? a.edge };
+-    if (!(this.legacyBotOrder && g.freeRoadsRemaining > 0)) return g._commitBuild(p, cb);
+-    // legacyBotOrder: the old bots choose both free roads of Road Building before the longest road is counted (once, when the card is done)
+-    const own = Object.prototype.hasOwnProperty.call(g, "recomputeScores"), r0 = g.recomputeScores;
+-    let ok;
+-    g.recomputeScores = () => {};
+-    try { ok = g._commitBuild(p, cb); } finally { if (own) g.recomputeScores = r0; else delete g.recomputeScores; }
+-    if (ok && g.freeRoadsRemaining <= 0) { g.recomputeScores(); g.checkForWinner(p); }
+-    return ok;
++    return g._commitBuild(p, cb); // every road, free ones too, is counted (and a win declared) as it is placed (aligned bot timing, as in v1.98)
+   }
+   _do_roll(a, p) {
+     const g = this.g;
+@@ -524,26 +517,17 @@
+     const g = this.g;
+     if (!g.buyDevelopmentCard(p)) return false;
+     if (g.sbp) g._sbpAfterHumanBuild();
+-    if (this.legacyBotOrder) return true; // the old bots count a bought card (a hidden point) when their main phase closes, not at the purchase
+-    g.recomputeScores();
++    g.recomputeScores(); // (a bot's seat has counted the card at the purchase already: buyDevelopmentCard) (aligned bot timing, as in v1.98)
+     if (g.rush) g._rushAfterAction(p); else g.checkForWinner(p);
+   }
+   _do_playDev(a, p) {
+     const g = this.g;
+     g._dropUndo?.();
+     if (a.card === "knight") this._via = "knight";
+-    let ok;
+-    if (this.legacyBotOrder && a.card === "knight") { // the card's own closing recomputeScores is held back too
+-      const own = Object.prototype.hasOwnProperty.call(g, "recomputeScores"), r0 = g.recomputeScores;
+-      g.recomputeScores = () => {};
+-      try { ok = g.playDevelopmentCard(p, a.card); } finally { if (own) g.recomputeScores = r0; else delete g.recomputeScores; }
+-    } else ok = g.playDevelopmentCard(p, a.card);
+-    if (!ok) return false;
+-    // legacyBotOrder (the bot host): the old bots count a Knight's Largest Army only after the robber has moved and robbed, so their choice of
+-    // victim sees the scores from before the card; a person's card counts at once. The scores are brought up to date when the robber flow ends.
+-    if (this.legacyBotOrder && a.card === "knight" && g.pendingAction === "robber") { this._scoreAfterRobber = true; return true; }
++    if (!g.playDevelopmentCard(p, a.card)) return false;
+     g.recomputeScores();
+-    if (g.pendingAction !== "robber") g.checkForWinner(p); // a Knight's Largest Army wins once the robber has moved (the bots' order)
++    g.checkForWinner(p); // a Knight's Largest Army wins at once, before the robber moves (aligned bot timing, as in v1.98)
++    if (g.winner) this._via = null;
+     return true;
+   }
+   _do_pick(a, p) {
+@@ -594,7 +578,7 @@
+     this._via = null;
+     if (!g.robberVictimOptions?.length) this._robberDone(p);
+   }
+-  _robberDone() { const g = this.g; if (this._scoreAfterRobber) { this._scoreAfterRobber = false; g.recomputeScores(); } g.checkForWinner(g.currentPlayer); }
++  _robberDone() { const g = this.g; g.checkForWinner(g.currentPlayer); }
+   _do_steal(a, p) {
+     const g = this.g;
+     g.stealFromVictim(p, a.victim);
