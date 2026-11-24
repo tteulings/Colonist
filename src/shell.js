@@ -8,6 +8,7 @@
 import { avatarSvg, effectivePalette, setPalette, paletteChosen } from "./themes/manager.js";
 import { oicon } from "./ui-icons.js";
 import { toast } from "./toast.js";
+import { isNL } from "./i18n.js";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const store = {
@@ -46,7 +47,7 @@ export class Chrome {
     this.tab = null;
     const nav = document.createElement("nav");
     nav.className = "sh-tabs"; nav.setAttribute("aria-label", "Main menu"); nav.hidden = true;
-    nav.innerHTML = TABS.map(([k, l, ic]) => `<button type="button" class="sh-tab" data-tab="${k}"><span class="sh-tab-i">${ic()}<i class="sh-badge" hidden></i></span><span class="sh-tab-l">${l}</span></button>`).join("");
+    nav.innerHTML = TABS.map(([k, l, ic]) => `<button type="button" class="sh-tab" data-tab="${k}"><span class="sh-tab-i">${ic()}<i class="sh-badge" hidden></i></span><span class="sh-tab-l"${k === "play" ? " data-i18n-skip" : ""}>${k === "play" && isNL() ? "Spelen" : l}</span></button>`).join("");
     nav.addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (b) this.go(b.dataset.tab); });
     const gear = document.createElement("button");
     gear.type = "button"; gear.className = "sh-gear"; gear.setAttribute("aria-label", "Settings"); gear.hidden = true;
@@ -56,7 +57,7 @@ export class Chrome {
     this.nav = nav; this.gear = gear;
     let t = 0;
     new MutationObserver(() => { clearTimeout(t); t = setTimeout(() => this.sync(), 30); }).observe(document.body, { childList: true });
-    addEventListener("colonist:lang", () => this.sync());
+    addEventListener("colonist:lang", () => { const p = nav.querySelector('[data-tab="play"] .sh-tab-l'); if (p) p.textContent = isNL() ? "Spelen" : "Play"; this.sync(); }); // "Play" has an older Dutch ("Speel"): the tab says "Spelen"
   }
   /** Which tab root is on screen (null: none, the bar is hidden). */
   current() {
@@ -184,7 +185,7 @@ export class Home {
       <header class="hm-brand sh-brand"><svg class="hm-logo" viewBox="0 0 100 100" aria-hidden="true"><use href="#kt-logo" width="100" height="100"/></svg>
         <h1>Katan<small class="hm-sub">Traders and Builders</small></h1></header>
       ${this.updateHtml(s)}
-      ${s ? `<button type="button" class="sh-continue" data-home="continue">${PLAY_IC}<span class="sh-ct"><b>Continue game</b><small>${esc(s.mode)} · ${s.mode.startsWith("Rush") ? "roll" : "turn"} ${s.turn}</small></span><span class="sh-avs" aria-hidden="true">${s.players.slice(0, 4).map((p) => `<span class="pc-${p.seat}">${avatarSvg(p.seat, "sh-av")}</span>`).join("")}</span></button>` : ""}
+      ${s ? `<button type="button" class="sh-continue" data-home="continue">${PLAY_IC}<span class="sh-ct"><b>Resume game</b><small>${esc(s.mode)} · ${s.mode.startsWith("Rush") ? "roll" : "turn"} ${s.turn}</small></span><span class="sh-avs" aria-hidden="true">${s.players.slice(0, 4).map((p) => `<span class="pc-${p.seat}">${avatarSvg(p.seat, "sh-av")}</span>`).join("")}</span></button>` : ""}
       <section class="sh-card gold sh-soon" aria-labelledby="shDailyH" aria-disabled="true">
         <span class="sh-soon-ic" aria-hidden="true">${PUZZLE_IC}</span>
         <div class="sh-soon-tx"><div class="sh-soon-h"><h2 id="shDailyH">Daily puzzle</h2><span class="sh-chip soon">Coming soon</span></div><p>The same rolls for everyone, every day.</p></div>
@@ -302,7 +303,7 @@ export function openNewGame(game, deps, { friend = false } = {}) {
     return `<header class="sh-sheet-head sh-layer-head"><button type="button" class="sh-x sh-back" data-action="back" aria-label="Back">${BACK}</button><h2 id="shMoreT" tabindex="-1">More rules</h2></header>
       <div class="sh-sheet-body">
         <section class="sh-sec"><h3 class="sh-lab">Points to win</h3>
-          ${sea() ? `<p class="sh-help"><b>14</b> in the Seafarers scenario.</p>` : stepper("winPoints", d.winPoints, 5, 15, "Points to win")}</section>
+          ${sea() ? `<p class="sh-help">14 points in the Seafarers scenario.</p>` : stepper("winPoints", d.winPoints, 5, 15, "Points to win")}</section>
         <section class="sh-sec"><h3 class="sh-lab">Dice</h3>
           ${seg("dice", [["random", "Random"], ["balanced", "Balanced"], ["deck", "Event deck"]], d.dice, "Dice")}
           <p class="sh-help">${{ random: "Two independent dice, every roll a fresh throw.", balanced: "Real dice odds, but long streaks and droughts are smoothed out.", deck: "All 36 dice results drawn from a deck, reshuffled when empty." }[d.dice]}</p></section>
@@ -498,7 +499,7 @@ export class GameMenu {
           <div class="sh-speed-row"><span id="shSpT">Bot speed</span><div class="sh-seg sh-seg-sm" role="radiogroup" aria-labelledby="shSpT"><button type="button" role="radio" data-speed="slow" aria-checked="${!fast}" class="${fast ? "" : "on"}">Slow</button><button type="button" role="radio" data-speed="fast" aria-checked="${fast}" class="${fast ? "on" : ""}">Fast</button></div></div></div>` : ""}
         <div class="sh-rows">
           ${row("intro", oicon("book"), "Explain", "Numbers, ports, robber")}
-          ${row("stats", oicon("bars"), "Stats", "Dice, points and income", !statsOk)}
+          ${row("stats", oicon("bars"), "Standings and stats", "Dice, points and income", !statsOk)}
           ${row("settings", oicon("settings"), "Settings", "Sound, colours, language")}
           ${row("newgame", oicon("dice"), "New game", "Your current game is kept")}
           ${row("home", oicon("home"), "To start", "Your game is saved")}

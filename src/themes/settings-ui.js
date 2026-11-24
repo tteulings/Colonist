@@ -77,7 +77,7 @@ const TS_LABEL = { compact: "Small", normal: "Normal", large: "Large" };
 const CHEV = `<svg class="sh-chev" viewBox="0 0 20 20" aria-hidden="true" width="18" height="18"><path d="M7.5 4.5 13 10l-5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const BACK = `<svg viewBox="0 0 20 20" aria-hidden="true" width="20" height="20"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const seg = (attr, label, items, on) => `<div class="sh-seg" role="radiogroup" aria-label="${label}">${items.map(([v, l, x]) => `<button type="button" role="radio" ${attr}="${v}" aria-checked="${String(v) === String(on)}" class="${String(v) === String(on) ? "on" : ""}"${x || ""}>${l}</button>`).join("")}</div>`;
-const swBtn = (attr, on, labelledby) => `<button type="button" class="st-switch sh-switch${on ? " on" : ""}" role="switch" aria-checked="${on}" aria-labelledby="${labelledby}" ${attr}><i></i></button>`;
+const swBtn = (attr, on, labelledby) => `<button type="button" class="sh-switch${on ? " on" : ""}" role="switch" aria-checked="${on}" aria-labelledby="${labelledby}" ${attr}><i></i></button>`;
 
 /** v1.99 Settings: one page (level 2, back arrow) in five groups: Appearance, Game, Learn, Data, About. The old tabs are gone; Theme is a layer of its own.
  *  open(target, { from }): target "look" | "game" | "bots" | "about" scrolls to that group; from "pause" makes Back return to the Pause sheet. */
@@ -181,7 +181,7 @@ export class SettingsUI {
     let auto = true; try { auto = localStorage.getItem("colonist_review_auto") !== "off"; } catch (_) {}
     let mdl = "standard"; try { mdl = localStorage.getItem("colonist_review_model") || "standard"; } catch (_) {}
     const me = Names.me();
-    const row = (t, sub, right = "", id = "") => `<div class="sh-set-row"><div class="sh-set-t"${id ? ` id="${id}"` : ""}><b>${t}</b>${sub ? `<small>${sub}</small>` : ""}</div>${right}</div>`;
+    const row = (t, sub, right = "", id = "") => `<div class="sh-set-row${right.includes('class="sh-seg') ? " sh-set-col" : ""}"><div class="sh-set-t"${id ? ` id="${id}"` : ""}><b>${t}</b>${sub ? `<small>${sub}</small>` : ""}</div>${right}</div>`;
     const link = (k, t, sub, ic = "") => `<button type="button" class="sh-set-row sh-set-link" data-go="${k}"><span class="sh-set-t"><b>${t}</b>${sub ? `<small>${sub}</small>` : ""}</span>${ic}${CHEV}</button>`;
     body.innerHTML = `
       <section class="sh-profile" aria-label="Profile"><span class="sh-profile-av" aria-hidden="true">${avatarSvg(0, "sh-av")}</span><div class="sh-set-t"><b>${me ? esc(me) : "You"}</b><small>Your name in games and reviews</small></div><button type="button" class="btn sm" data-go="names">Change</button></section>
@@ -190,7 +190,7 @@ export class SettingsUI {
         link("theme", "Theme", esc(T.name), `<span class="sh-dots" aria-hidden="true">${T.paletteDots.slice(0, 4).map((c) => `<i style="background:${c}"></i>`).join("")}</span>`) +
         row("Text size", "Scales the whole app.", seg("data-ts", "Text size", [["compact", "Small"], ["normal", "Normal"], ["large", "Large"]], tsz), "shTsT"))}
       ${this.group("shGameH", "Game",
-        row("Language", "Menus, the game, reviews and the AI recap.", seg("data-lang", "Language", [["en", "English"], ["nl", "Nederlands", " data-i18n-skip"]], lc), "shLgT") +
+        row("Language", "Menus, the game, reviews and the AI recap.", seg("data-lang", "Language", [["en", "English", " data-i18n-skip"], ["nl", "Nederlands", " data-i18n-skip"]], lc), "shLgT") +
         `<div class="sh-set-embed" data-mount="game"></div>` +
         row("Live win chance", "A thin bar under the players. Quick model, a rough guide.", swBtn("data-live", liveWinOn(), "shLwT"), "shLwT") +
         row("Keep refining (simulates more games)", "Like a chess engine: the bar deepens by playing out more games while you think. Off saves battery.", swBtn("data-refine", liveRefineOn(), "shLrT"), "shLrT") +

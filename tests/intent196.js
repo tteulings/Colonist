@@ -72,7 +72,7 @@ async function session(b, port, seed, viewport, mode = "classic") {
 
   // ── set-up ──
   const startMode = async (mode) => {
-    if (mode === "classic") { const c = page.locator(".hm-tile[data-mode=classic]"); await c.waitFor({ timeout: 10000 }); await c.tap(); }
+    if (mode === "classic") { const c = page.locator(".hm-start"); await c.waitFor({ timeout: 10000 }); await c.tap(); }
     else await E((mode) => { const g = window.__colonistGame; g.startNewGame(mode === "rush" ? { mode: "rush", map: "random", dice: "random", numBots: 3, botStyleMode: "all", allPreset: "intermediate", allStrategy: { placement: "medium", expansion: "medium", trading: "balanced", devCards: "reactive", awareness: "basic" } }
       : { mode: "classic", board: "seafarers", map: "random", dice: "random", numBots: 3, botStyleMode: "all", allPreset: "intermediate", allStrategy: { placement: "medium", expansion: "medium", trading: "balanced", devCards: "reactive", awareness: "basic" } }); }, mode);
     await until(() => { const g = window.__colonistGame; return !g.onboardingHold && g.setupPhase; }, null, 20000);
