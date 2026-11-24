@@ -5,7 +5,7 @@
 //  - GameMenu        the Pause sheet (5 rows)
 //  - explainOn()     the "Explain the set-up" preference
 // The screens are DOM layers (see nav.js); the strings are English and the localizer (src/i18n.js) turns them into Dutch.
-import { avatarSvg, effectivePalette, setPalette, paletteChosen } from "./themes/manager.js";
+import { avatarSvg, setPalette } from "./themes/manager.js"; // (no new export of an older module is imported: during an upgrade a stale cached manager.js must not stop the app)
 import { oicon } from "./ui-icons.js";
 import { toast } from "./toast.js";
 import { isNL } from "./i18n.js";
@@ -16,6 +16,8 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (_) { /* private mode */ } },
 };
 const q = (s, r = document) => r.querySelector(s);
+/** Did the player ever pick a palette (or Auto)? Same rule as manager.js paletteAutoMode(). */
+const paletteChosen = () => store.get("colonist.paletteAuto") != null || store.get("colonist.palette") != null;
 const PLAY_IC = `<svg class="hm-play" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="currentColor" opacity=".2"/><path d="M9.6 7.4v9.2l7.4-4.6z" fill="currentColor"/></svg>`;
 const PUZZLE_IC = `<svg class="ic oi" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 4.5a2 2 0 0 1 4 0V6H18v4.5h-1.5a2 2 0 0 0 0 4H18V19h-4.5v-1.5a2 2 0 0 0-4 0V19H5v-4.5h1.5a2 2 0 0 0 0-4H5V6h4.5z"/></svg>`;
 const CHEV = `<svg class="sh-chev" viewBox="0 0 20 20" aria-hidden="true" width="18" height="18"><path d="M7.5 4.5 13 10l-5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;

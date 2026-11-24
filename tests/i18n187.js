@@ -41,7 +41,7 @@ const AI_SKIP = /^(Samenvatting uit de cijfers|Voor dit spel samengesteld|Vraag 
     await G(() => window.__colonistGame.settingsUI.open("game")); await sleep(500);
     ok(await G(() => /Language/.test(document.querySelector(".st-body").innerText) && !!document.querySelector("[data-lang=nl]") && !document.querySelector("[data-rc-lang]")), "Settings has one Language row (no separate recap language)");
     await page.locator("[data-lang=nl]").tap(); await sleep(600);
-    ok(await G(() => /Taal/.test(document.querySelector(".st-body").innerText) && /Uiterlijk/.test(document.querySelector(".st-body").innerText)), "the open Settings turns Dutch at once");
+    ok(await G(() => /Taal/.test(document.querySelector(".st-body").innerText) && /Uiterlijk/i.test(document.querySelector(".st-body").innerText)), "the open Settings turns Dutch at once");
     ok(await G(async () => (await import("/src/review-recap.js")).recapLang() === "nl"), "the AI recap / AI tab read the same setting");
     await G(() => window.__colonistGame.settingsUI.close()); await G(() => window.__colonistGame.goHome()); await sleep(500);
     ok(await G(() => /Start spel/.test(document.body.innerText)), "Home is Dutch");
@@ -49,7 +49,7 @@ const AI_SKIP = /^(Samenvatting uit de cijfers|Voor dit spel samengesteld|Vraag 
     ok(await G(() => /Start spel/.test(document.querySelector(".sh-home").innerText)), "the choice survives a reload");
     await G(() => window.__colonistGame.settingsUI.open("game")); await sleep(400);
     await page.locator("[data-lang=en]").tap(); await sleep(600);
-    ok(await G(() => /Language/.test(document.querySelector(".st-body").innerText) && /Appearance/.test(document.querySelector(".st-body").innerText)), "and back to English at once");
+    ok(await G(() => /Language/.test(document.querySelector(".st-body").innerText) && /Appearance/i.test(document.querySelector(".st-body").innerText)), "and back to English at once");
     await G(() => window.__colonistGame.settingsUI.close()); await sleep(300);
     ok(await G(() => /Start game/.test(document.body.innerText)), "Home is English again, nothing left over from Dutch");
     await b.close();
