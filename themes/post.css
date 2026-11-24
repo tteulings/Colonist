@@ -187,3 +187,9 @@
 .px-l, .px-fn, .px-hl2 { text-wrap: pretty; }
 .px-mk { font: 650 12.5px/1.3 var(--font-body); color: var(--ink-soft); }
 .px-sl .dt { font: 600 12px/1.2 var(--font-body); color: var(--ink-soft); }
+
+.px-eb { display: block; width: fit-content; max-width: calc(100% - 20px); margin: 8px 10px 6px; }
+.px-led .rv-gt .nm { margin-left: auto; width: auto; min-height: 40px; }
+.px-sc2 .px-sr b.me { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.px-sr b.top { text-decoration: none; box-shadow: inset 0 -3px 0 var(--accent); }
+.px-sr b i { font-size: 12px; }

@@ -184,7 +184,7 @@ function errCard(g, d, board, T, st, pid, chip = null) {
   const pts = ptsAtStep(st, pid, Math.max(0, (x.s ?? 1) - 1)), win = g.winPoints || 10;
   let why = null; try { why = d.why?.line || x.why?.head || null; } catch (_) { why = null; }
   const chips = Array.isArray(d.why?.chips) ? d.why.chips.slice(0, 3) : Array.isArray(x.why?.chips) ? x.why.chips.slice(0, 3) : [];
-  return { d, i: d.i, t: d.t, cls: d.cls, gp: d.gp, B: d.B, A: d.A, played: x.label, better: x.best?.label, pk, bk, pts, win, why, chips, p: board ? specOf(x.focus) : null, q: board ? specOf(x.best?.focus) : null, phase: phaseOf(d.t, T), vis: chip?.pts ?? pts, target: chip?.target ?? win };
+  return { d, se: d.se ?? null, i: d.i, t: d.t, cls: d.cls, gp: d.gp, B: d.B, A: d.A, played: x.label, better: x.best?.label, pk, bk, pts, win, why, chips, p: board ? specOf(x.focus) : null, q: board ? specOf(x.best?.focus) : null, phase: phaseOf(d.t, T), vis: chip?.pts ?? pts, target: chip?.target ?? win };
 }
 
 // ── Lesson 2: this board, including the start ──
@@ -260,8 +260,8 @@ function measuresOf(tab, pid) {
   const S = tab.seats, rows = [
     ["prod", "Cards collected", (s) => s.prod],
     ["cities", "Cities", (s) => s.built?.city ?? null],
-    ["settlements", "Settlements", (s) => s.built?.settlement ?? null],
-    ["roads", "Roads", (s) => s.built?.road ?? null],
+    ["settlements", "Settlements (incl. start)", (s) => s.built?.settlement ?? null],
+    ["roads", "Roads (incl. start)", (s) => s.built?.road ?? null],
     ["devs", "Development cards", (s) => s.devs],
     ["bank", "Bank trades", (s) => s.bank],
     ["ptr", "Player trades", (s) => s.ptrades],
@@ -346,6 +346,7 @@ function overlay(g, m, board, st, T) {
     m.headline = headlineParts(parts, { won: m.won });
   }
   m.notErrs = Y.notErrors || [];
+  m.why = whyOf(m, A);
   m.verdict = Y.verdict;
   m.bestRows = (Y.best || []).filter((o) => inScope(o.d)).map((o) => ({ d: o.d, gain: o.gain }));
   m.numbers = A.numbers; m.infoRows = A.info;
@@ -358,8 +359,30 @@ function takeaway2(m) {
   const out = [], e = m.errs[0];
   if (e) out.push({ lesson: 1, key: e.kind === "end" || e.cls === "missed" ? "spend" : e.kind === "bank" ? "trade" : "build", i: e.i, t: e.t, cost: e.gp });
   const p = m.start?.picks?.find((q) => q.advice);
-  if (p) out.push({ lesson: 2, key: "start", res: p.advice.adds[0], k: p.n, cost: p.gp });
+  if (p) out.push({ lesson: 2, key: "start", res: p.advice.adds[0], k: p.n, cost: p.gp, a: p.win, b: p.shortlist?.[0]?.win ?? p.best });
   else if (m.start?.picks?.some((q) => q.gp >= 5)) out.push({ lesson: 2, key: "start-any" });
   const r = m.lesson3?.[0]; if (r) out.push({ lesson: 3, key: r.id, text: r.text, phase: r.phase, cost: -r.cost });
   return out.slice(0, 3);
+}
+
+/** Why the game was won or lost: the biggest facts on the player's side of the result, measured against the other players.
+ *  Candidates and scores (a rough "percent of the game" each): income (cards collected vs the others' average, % difference, from 15%), points per phase
+ *  (points ahead of / behind the best other player in a phase x10), first city (turns earlier / later than the others x5), the biggest real error (its cost),
+ *  the start picks (their cost, from 5%), luck (from 8%), and clean play (a win with little lost to moves, 18). A win names the two biggest positive ones,
+ *  a loss the two biggest negative ones. Nothing here uses the opponents' remainder ("rest"). */
+function whyOf(m, A) {
+  const S = m.tab.seats, pid = m.pid, n = S.length, won = m.won, items = [];
+  const oth = (f) => S.filter((x) => x.id !== pid).map(f).filter((v) => Number.isFinite(v));
+  const prod = oth((x) => x.prod), mine = S[pid].prod;
+  if (prod.length && Number.isFinite(mine)) { const avg = prod.reduce((a, b) => a + b, 0) / prod.length, pct = avg ? ((mine - avg) / avg) * 100 : 0; if (Math.abs(pct) >= 15) items.push({ k: "income", sc: pct, a: mine, b: Math.round(avg) }); }
+  const tp = m.tempo; if (tp) tp.phases.forEach((ph, i) => { if (ph.empty) return; const me = tp.rows[pid].gains[i], others = tp.rows.filter((r) => r.id !== pid).map((r) => ({ id: r.id, g: r.gains[i] })).sort((a, b) => b.g - a.g), top = others[0]; if (!top) return; const d = me - top.g; if (d !== 0) items.push({ k: "tempo", sc: d * 10, ph: ph.k, a: me, b: top.g, rid: top.id }); });
+  const fc = A?.facts ? A.facts.map((f) => f?.firstCity) : null;
+  if (fc && Number.isFinite(fc[pid])) { const o = fc.filter((v, q) => q !== pid && Number.isFinite(v)); if (o.length) { const med = o.slice().sort((a, b) => a - b)[o.length >> 1], d = med - fc[pid]; if (Math.abs(d) >= 2) items.push({ k: "city", sc: d * 5, t: fc[pid] }); } }
+  const e = m.errs[0]; if (e) items.push({ k: "error", sc: -e.gp, t: e.t, n: e.gp });
+  const st = Math.abs(Math.round(m.pillars?.start || 0)); if (st >= 5) items.push({ k: "start", sc: -st, n: st });
+  const lk = m.led?.luck; if (Number.isFinite(lk) && Math.abs(lk) >= 8) items.push({ k: "luck", sc: lk, d: lk });
+  const cost = Math.abs(Math.round(m.pillars?.total || 0)); if (won && cost < 10 && m.sum.acc != null) items.push({ k: "clean", sc: 18, a: m.sum.acc });
+  const pick = (won ? items.filter((x) => x.sc > 0).sort((a, b) => b.sc - a.sc) : items.filter((x) => x.sc < 0).sort((a, b) => a.sc - b.sc)).slice(0, 2);
+  void n;
+  return { won, pick, all: items };
 }
