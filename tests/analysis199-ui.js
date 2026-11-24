@@ -12,7 +12,7 @@ const ZERO = /zero-sum|zero sum|nulsom|sums to zero|cancel(s)? out/i;
 const OUT = /\brobber\b|\brover\b|\bports?\b|\bharbou?rs?\b|\bhaven\b|longest road|largest army|langste weg|grootste riddermacht|who you fed|fed\b/i;
 const SCAN = () => {
   const vis0 = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === "none" || cs.visibility === "hidden" || e.hidden) return false; } const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-  const tops = [...document.querySelectorAll(".rv, .bpg, .ln, .hs")].filter(vis0);
+  const tops = [...document.querySelectorAll("div.rv, div.bpg, div.ln, div.hs")].filter(vis0);
   const root = document.querySelector(".px-sheet") || document.querySelector(".px-board") || tops[tops.length - 1] || document.body;
   const vis = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === "none" || cs.visibility === "hidden" || e.hidden || +cs.opacity === 0) return false; } const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const iss = [], W = innerWidth, de = document.documentElement;
@@ -24,7 +24,7 @@ const SCAN = () => {
   root.querySelectorAll("svg text").forEach((el) => { if (!vis(el)) return; const fs = parseFloat(getComputedStyle(el).fontSize); const sv = el.ownerSVGElement, k = sv ? sv.getBoundingClientRect().width / (sv.viewBox.baseVal.width || 1) : 1; if (fs * k < 11.0) small.add(`svg ${(fs * k).toFixed(1)}px "${el.textContent.slice(0, 12)}"`); });
   const taps = new Set();
   root.querySelectorAll("button, [role=button], [role=tab], a[href], input, summary").forEach((el) => { if (!vis(el) || el.closest("svg")) return; const r = el.getBoundingClientRect(); if (r.height < 39.5 || r.width < 39.5) taps.add(`${Math.round(r.width)}x${Math.round(r.height)} ${(el.innerText || el.getAttribute("aria-label") || el.className || "").toString().replace(/\s+/g, " ").slice(0, 28)}`); });
-  const cl = root.cloneNode(true); cl.querySelectorAll(".px-leg, .px-pr, .px-src, .rsc-leg, script, style").forEach((e) => e.remove()); return { iss, small: [...small], taps: [...taps], text: root.innerText || "", words: cl.textContent.replace(/\s+/g, " ") };
+  const cl = root.cloneNode(true); cl.querySelectorAll(".px-leg, .px-pr, .px-src, .rsc-leg, script, style").forEach((e) => e.remove()); return { rc: String(root.className).slice(0, 30), iss, small: [...small], taps: [...taps], text: root.innerText || "", words: cl.textContent.replace(/\s+/g, " ") };
 };
 const nums = () => {
   const q = (s) => document.querySelector(s)?.innerText || "";
@@ -45,6 +45,7 @@ const nums = () => {
     const G = (fn, a) => page.evaluate(fn, a);
     const check = async (name, shot) => {
       await sleep(500); const r = await G(SCAN); const k = `${tag} ${name}`;
+      if (lang === "nl" && name !== "lessons") { const ms = await G(async () => { const I = await import("/src/i18n.js"); const a = [...I.misses]; I.misses.clear(); return a; }); const names = ["Katan", ...metas.flatMap((m) => (m.seats || []).map((q) => q.name))]; const dayRe = /^\w{2,3} \d+ \w{3} · \d+:\d+$/; const own = ms.filter((x) => !(names.some((n) => x === n || x === `${n} won` || x === `${n} won het potje`) || dayRe.test(x) || /Blaauw|Geelen|Groen|Mevrouw|Kolonel|Dominee|Sessie|Nieuw klassiek/.test(x))); ms.length = 0; own.forEach((x) => ms.push(x)); ms.forEach((x) => missesAll.add(x)); ok(!ms.length, `${k}: Dutch complete`, ms.slice(0, 3)); }
       ok(!r.iss.length, `${k}: no overflow`, r.iss.slice(0, 3)); ok(!r.small.length, `${k}: text >= 11.5px`, r.small.slice(0, 4)); ok(!r.taps.length, `${k}: taps >= 40px`, r.taps.slice(0, 4));
       ok(!BAD.test(r.text), `${k}: no NaN/undefined/null`, (BAD.exec(r.text) || [""])[0]); ok(!ZERO.test(r.text), `${k}: no zero-sum claim`); const o = OUT.exec(r.words); ok(!o, `${k}: no out-of-scope words`, o ? o[0] : "");
       if (SHOTS && w === 360 && shot) { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, `${shot}-${lang}-${th}.png`) }); }
@@ -69,7 +70,7 @@ const nums = () => {
       // consistency: accuracy and moves cost on Overview = Moves = Numbers
       const c = await G(() => { const t = (s) => document.querySelector(s)?.innerText || ""; return { ov: t(".px-verdict"), }; });
       const costOv = /(?:Moves cost|Zetten kosten)\s*(\d+)%/.exec(T.overview.text)?.[1], costMv = /(?:Moves cost|Zetten kosten)\s*(\d+)%/.exec(T.moves.text)?.[1];
-      ok(costOv != null && costOv === costMv, `${tag} ${short}: moves cost Overview = Moves`, [costOv, costMv]);
+      ok(costOv != null && costOv === costMv, `${tag} ${short}: moves cost Overview = Moves`, [costOv, costMv, T.overview.rc, T.overview.text.length]);
       const accOv = /(?:Accuracy|Precisie)\s*(\d+)/.exec(T.overview.text)?.[1], accMv = /(?:Accuracy|Precisie)\s*(\d+)/.exec(T.moves.text)?.[1];
       ok(accOv != null && accOv === accMv, `${tag} ${short}: accuracy Overview = Moves`, [accOv, accMv]);
       const nrows = await G(() => [...document.querySelectorAll(".px-sheet .px-nr")].map((r) => r.innerText.replace(/\s+/g, " ")));
@@ -84,7 +85,6 @@ const nums = () => {
     await G(() => { const g = window.__colonistGame; g.histClose?.(); g.lessonsOpen(); }); await sleep(2500); await check("lessons", "lessons");
     await G(() => { const g = window.__colonistGame; g.lessonsClose(); g.botsOpen(); }); await sleep(900);
     for (const s of ["strength", "precision", "you"]) { await page.locator(`[data-pxseg=${s}]`).tap(); await sleep(500); await check(`bots ${s}`, `bots-${s}`); }
-    const miss = await G(async () => [...(await import("/src/i18n.js")).misses]); miss.forEach((x) => missesAll.add(x));
     ok(!errors.length, `${tag}: no console errors`, errors.slice(0, 3));
     await ctx.close();
   }

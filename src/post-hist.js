@@ -57,7 +57,7 @@ function progress(g, all) {
 
 // ── a game row that unfolds ──
 function gameRow(g, m) {
-  const w = m.seats?.[m.winner], t = m.result === "won" ? f("Won with {n} points", { n: m.seats[m.me].vp }) : m.result === "lost" ? f("Lost to {x}", { x: esc(w?.name || "a bot") }) : f("{x} won", { x: esc(w?.name || "?") });
+  const w = m.seats?.[m.winner], t = m.result === "won" ? f("Won with {n} points", { n: m.seats[m.me].vp }) : m.result === "lost" ? f("Lost to {x}", { x: esc(w?.name || "a bot") }) : f("{x} won the game", { x: esc(w?.name || "?") });
   const kind = m.board === "seafarers" ? "Seafarers" : m.mode === "rush" ? "Rush" : "Classic";
   const open = g._pxHopen === m.id;
   const pts = (m.seats || []).map((s, i) => `<span class="px-hp pc-${i}"><i></i>${s.vp}</span>`).join("");

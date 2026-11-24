@@ -146,7 +146,7 @@ function lesson1(g, m) {
 export const PLAN_NAME = { city: "City plan (ore, grain)", expansion: "Expansion plan (lumber, brick)", mixed: "Mixed plan" };
 function lessons23(g, m) {
   const s = m.start, picks = s?.picks || [];
-  const l2 = s ? `<button type="button" class="px-lrow" data-pxtab="strategy"><b>Lesson 2 · This board</b><span>${s.plan ? esc(PLAN_NAME[s.plan]) : "Your start picks"}${picks.length ? `: ${picks.map((p) => `${f("pick {n}", { n: p.n })} ${p.followed ? "✓" : "▼" + p.gp + "%"}`).join(" · ")}` : ""}</span>${IC.chev}</button>` : "";
+  const l2 = s ? `<button type="button" class="px-lrow" data-pxtab="strategy"><b>Lesson 2 · This board</b><span>${s.plan ? `<span>${esc(PLAN_NAME[s.plan])}</span>` : "<span>Your start picks</span>"}${picks.map((p) => ` · <span>${p.followed ? f("Pick {n} ✓", { n: p.n }) : f("Pick {n} ▼{n2}%", { n: p.n, n2: p.gp })}</span>`).join("")}</span>${IC.chev}</button>` : "";
   const r = m.lesson3?.[0];
   const l3 = `<button type="button" class="px-lrow" data-pxtab="strategy"><b>Lesson 3 · At this point in the game</b><span>${r ? `${esc(PHASE_NAME[r.phase])}: <span data-i18n-skip>${esc(r.text)}</span>` : "No phase rule was broken."}</span>${IC.chev}</button>`;
   return `<section class="rv-card px-card px-l23">${l2}${l3}</section>`;

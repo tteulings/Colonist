@@ -8,7 +8,7 @@ import { FAMILIES, FAMILY, SRC_PARTS } from "./post-model.js";
 
 const accWord = "Accuracy";
 const when = (g, d) => (d.k === "setup" ? "Set-up" : f("Turn {n}", { n: d.t }));
-const mvText = (g, d) => { try { return esc(g._rvTerse(d)); } catch (_) { return esc(tradeShow(d.x?.label || "")); } };
+const mvText = (g, d) => { let t = ""; try { t = g._rvTerse(d); } catch (_) { t = tradeShow(d.x?.label || ""); } return t.split(" → ").map((x) => `<span>${esc(x)}</span>`).join(" → "); };
 const mvRow = (g, d, q = "all") => `<button type="button" class="px-mv" data-rvj="${d.i}" data-rvq="${q}"><span class="t">${when(g, d)}</span><span class="x">${mvText(g, d)}<small><i class="px-cls c-${d.cls}">${CLS_NAME[d.cls]}</i></small></span>${D(-d.gp)}${IC.chev}</button>`;
 
 // ───────────────────────── Moves ─────────────────────────
