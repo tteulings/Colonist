@@ -57,6 +57,7 @@ const nums = () => {
         const bad = name === "lessons" ? [] : ms.filter((x) => r.nodes.includes(x) && strip(x).length >= 3 && !dayRe.test(x));
         bad.forEach((x) => missesAll.add(x)); ok(!bad.length, `${k}: no English left in Dutch`, bad.slice(0, 4)); }
       else { const nlw = /\b(Beurt|Jij|Jouw|Zetten|Winkans|Precisie|Gewonnen|Verloren|Kaarten|Strategie|Geluk|Opening|Middenspel|Eindspel|Startkeuzes|Echte fouten)\b/.exec(r.words.replace(/Bekijk bord/g, "")); ok(!nlw, `${k}: no Dutch in English`, nlw ? nlw[0] : ""); }
+      { const pl = /\b1 (points|punten|real errors|echte fouten|misses|missers)\b|usually score|meestal/.exec(r.text.replace(/Bots op niveau/g, "")); ok(!pl, `${k}: singular plurals and no "usually score" benchmark`, pl ? pl[0] : ""); }
       ok(!r.long.length, `${k}: max 2 lines in texts and captions`, r.long.slice(0, 4)); { const bt = /\bB\d+\b/.exec(r.text); ok(!bt, `${k}: no "B<number>" tokens`, bt ? bt[0] : ""); }
       ok(!r.iss.length, `${k}: no overflow`, r.iss.slice(0, 3)); ok(!r.small.length, `${k}: text >= 11.5px`, r.small.slice(0, 4)); ok(!r.taps.length, `${k}: taps >= 40px`, r.taps.slice(0, 4));
       ok(!BAD.test(r.text), `${k}: no NaN/undefined/null`, (() => { const mm = BAD.exec(r.text); return mm ? r.text.slice(Math.max(0, mm.index - 50), mm.index + 20).replace(/\s+/g, " ") : ""; })()); ok(!ZERO.test(r.text), `${k}: no zero-sum claim`); const o = OUT.exec(r.words); ok(!o, `${k}: no out-of-scope words`, o ? o[0] : "");
@@ -68,16 +69,26 @@ const nums = () => {
       const k = `${tag} ${short} ${tab}`;
       if (tab === "overview") {
         const h = await G(() => document.querySelector(".px-hl2")?.innerText || "");
-        ok(/\(.*[+−]\d+%.*\)/s.test(h) || /zonder|without/.test(h), `${k}: headline names measured key moments with their swing`, h);
-        ok(!/inkomen|income|gemiddeld|average|punten in|points in|dankzij|thanks to/i.test(h), `${k}: headline has no income / tempo claims`, h);
+        ok(/[+−]\d+%/.test(h) || /zonder|without/.test(h), `${k}: headline names measured swings`, h);
+        ok(!/inkomen|income|gemiddeld|average|punten in|points in|worp van|’s roll|rolled|gooide/i.test(h), `${k}: headline has no income / tempo claims and no roll named after a player`, h);
+        const whole = await G(() => document.body.innerText.replace(/\s+/g, " ")), hh = h.replace(/\s+/g, " ").trim(); ok(hh.length < 8 || whole.split(hh).length === 2, `${k}: the headline appears once on the screen`);
+        const cn = await G(() => document.querySelector(".px-cn")?.innerText || ""); ok(/(Accuracy|Precisie) \d+/.test(cn) && /\d+%/.test(cn), `${k}: one line ties Accuracy, real errors and moves cost`, cn);
+        ok(await G(() => !document.querySelector(".px-led > .px-rest") && !!document.querySelector(".px-led .px-fb .px-rest")), `${k}: "what the others did" sits inside the unfold`);
         const adv = await G(() => document.querySelector(".px-l2c .px-adv")?.innerText || ""), mm = /(\d+)% → (\d+)% \(\+(\d+)%\)/.exec(adv);
         if (adv) ok(mm && +mm[2] - +mm[1] === +mm[3], `${k}: start advice from-to matches its difference`, adv);
         ok((await G(() => document.querySelectorAll(".px-l2c .px-dk").length)) === 1, `${k}: dots explained once on the start card`);
         const rest = await G(() => document.querySelector(".px-rest small")?.innerText || ""); ok(/\S/.test(rest), `${k}: "what the others did" says it is their moves and luck combined`, rest);
         const tl = await G(() => [...document.querySelectorAll(".px-t3")].map((b) => b.innerText.replace(/\s+/g, " "))); ok(tl.length === 3, `${k}: three tiles`, tl);
       }
+      if (tab === "history") {
+        const hl = await G(() => { const ps = [...document.querySelectorAll(".px-prog p")]; const lines = (el) => { const rg = document.createRange(); rg.selectNodeContents(el); const t = []; for (const q of rg.getClientRects()) { const y = Math.round(q.top); if (q.width > 1 && !t.some((x) => Math.abs(x - y) < 5)) t.push(y); } return t.length; }; return { n: ps.reduce((a, p) => a + lines(p), 0), txt: ps.map((p) => p.innerText).join(" ") }; });
+        ok(hl.n <= 2 && !/vanaf 3|from 3 reviewed/.test(hl.txt), `${k}: history has at most 2 lines of text before the list and no dead hint`, hl);
+      }
       if (tab === "strategy") {
-        const rows = await G(() => [...document.querySelectorAll(".px-sc2 .px-sr:not(.hd)")].map((r) => [...r.querySelectorAll("b")].map((b) => b.innerText.replace(/\s+/g, ""))));
+        const tg = await G(() => ({ h: [...document.querySelectorAll(".px-tg.hd b")].map((b) => b.innerText.replace(/\s+/g, " ")), rows: [...document.querySelectorAll(".px-tg:not(.hd)")].map((r) => [...r.querySelectorAll(".c b")].map((b) => b.innerText)) }));
+        ok(/Start/.test(tg.h[0] || "") && tg.rows.every((r) => r.length === 4), `${k}: Tempo has a Start column (start + phases = final)`, tg);
+        const me = await G(() => [...document.querySelectorAll(".px-sc2 .px-sr:not(.hd) b.me")].map((b) => b.innerText.replace(/\s+/g, " "))); ok(me.length > 0 && me.every((t) => /\d+(e|st|nd|rd|th)\b/.test(t)), `${k}: the player's own column shows its place in every scorecard row`, me.slice(0, 3));
+        const rows = await G(() => [...document.querySelectorAll(".px-sc2 .px-sr:not(.hd)")].map((r) => [...r.querySelectorAll("b")].map((b) => { const c = b.cloneNode(true); c.querySelectorAll(".rk").forEach((e) => e.remove()); return c.textContent.replace(/\s+/g, ""); })));
         ok(rows.length > 0, `${k}: scorecard rows`);
         let marks = 0; rows.forEach((cells) => { const v = cells.map(num), hi = Math.max(...v), lo = Math.min(...v); cells.forEach((c, i) => { const up = c.includes("▲"), dn = c.includes("▼"); marks += up + dn; ok(hi === lo ? !up && !dn : up === (v[i] === hi) && dn === (v[i] === lo), `${k}: scorecard cell ${c} marks the row's highest / lowest`, cells.join(" ")); }); });
         ok(marks > 0, `${k}: ▲▼ are in the scorecard cells`, marks);
@@ -96,6 +107,8 @@ const nums = () => {
           const sum = g1.rows.reduce((a, t) => a + num(t), 0), grp = num(g0.chip);
           ok(/Show|Toon/.test(g0.label) && /Hide|Verberg/.test(g1.label), `${k}: toggle label follows the state`, `${g0.label} -> ${g1.label}`);
           ok(g1.rows.length > 0 && Math.abs(sum - grp) <= Math.max(2, g1.rows.length * 0.5) && (Math.abs(grp) < 8 || Math.sign(sum) === Math.sign(grp)), `${k}: group sign and size match the rows shown`, `group ${grp}, rows sum ${sum} (${g1.rows.length})`);
+          const gl = await G(() => ({ sh: document.querySelectorAll(".px-sh").length, ts: [...document.querySelectorAll(".px-ev:not(.sub):not(.px-eg):not(.tot) .t")].map((e) => e.innerText.trim()).filter((t) => t && t !== "start") }));
+          ok(gl.sh === 2 && new Set(gl.ts).size === gl.ts.length, `${k}: own and other rolls are separate, one row per turn`, gl);
           await check(`${short} luck others open`, null); await page.evaluate(() => document.querySelector("[data-pxothers]").click()); await sleep(300);
         }
       }
@@ -103,7 +116,7 @@ const nums = () => {
     for (const m of metas) {
       const id = m.id, short = id.slice(-4); curGame = short; m0 = m;
       await G(() => window.__colonistGame.histOpen()); await sleep(900);
-      await check(`${short} history`, `history`);
+      await check(`${short} history`, `history`); await tabChecks("history", short);
       await page.locator("[data-pxhg]").first().tap().catch(() => {}); await sleep(300); await check(`${short} history row open`, null);
       await G((id) => window.__colonistGame._histSheet(id), id); await sleep(500);
       await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 30000 }); await sleep(1500);
@@ -126,6 +139,11 @@ const nums = () => {
       for (const pid of [m.me, (m.me + 1) % 4]) { await G((pid) => { const g = window.__colonistGame; g._rvOpenReview(pid, { tab: "player" }); }, pid); await sleep(900); await check(`${short} player ${pid === m.me ? "you" : "bot"}`, pid === m.me ? "player" : "player-bot"); }
       await G((pid) => window.__colonistGame._rvOpenReview(pid, { tab: "overview" }), m.me); await sleep(500);
       await G(() => window.__colonistGame._pxBoard(0)); await sleep(700); await check(`${short} bekijk bord`, `board`); await page.evaluate(() => document.querySelector("[data-pxbx]")?.click());
+      // long bot names: the third-person headline still fits two lines on the bot's Overview
+      await G(() => { const g = window.__colonistGame; g.players.forEach((p) => { if (!p.isHuman) p.name = "Maximiliaan-Alexander"; }); });
+      { const bp = (m.me + 1) % 4; await G((pid) => window.__colonistGame._rvOpenReview(pid, { tab: "overview" }), bp); await sleep(900);
+        const hl = await G(() => { const el = document.querySelector(".px-hl2"); if (!el) return null; const rg = document.createRange(); rg.selectNodeContents(el); const t = []; for (const q of rg.getClientRects()) { const y = Math.round(q.top); if (q.width > 1 && !t.some((x) => Math.abs(x - y) < 5)) t.push(y); } return { n: t.length, txt: el.innerText }; });
+        ok(hl && hl.n <= 2, `${tag} ${short}: third-person headline with a long bot name fits two lines`, hl); }
       await G(() => window.__colonistGame._rvCloseReview?.(true));
     }
     await G(() => { const g = window.__colonistGame; g.histClose?.(); g.lessonsOpen(); }); await sleep(2500); await check("lessons", "lessons");

@@ -311,7 +311,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
     const ph = (s) => (s.match(/\{\w+\}/g) || []).sort().join();
     ok(en.every((k) => ph(T.EN[k]) === ph(T.NL[k])), "EN and NL use the same {params}", en.filter((k) => ph(T.EN[k]) !== ph(T.NL[k])));
     ok(en.every((k) => T.EN[k].trim() && T.NL[k].trim()), "no empty text");
-    ok(en.filter((k) => !/^(and|head\.|mom\.|vt\.|rule\.|num\.|info\.|phase\.|cls\.|kind\.|plan\.|res\.|word\.)/.test(k)).length === 0, "keys are namespaced");
+    ok(en.filter((k) => !/^(and|head\.|mom\.|h\.|c\.|w\.|band\.|vt\.|rule\.|num\.|info\.|phase\.|cls\.|kind\.|plan\.|res\.|word\.)/.test(k)).length === 0, "keys are namespaced");
     const BAN_EN = /robber|\bports?\b|harbou?r|longest road|largest army|road.?race|\bfed\b|\bfeed|\bsteal|\bthief/i, BAN_NL = /rover|struikrover|haven|langste weg|grootste ridder|wegenrace|gevoed|\bvoed|\bsteel|\bdief/i;
     ok(en.every((k) => !BAN_EN.test(T.EN[k])), "EN: no robber / port / road-race / fed string", en.filter((k) => BAN_EN.test(T.EN[k])));
     ok(en.every((k) => !BAN_NL.test(T.NL[k])), "NL: no robber / port / road-race / fed string", en.filter((k) => BAN_NL.test(T.NL[k])));

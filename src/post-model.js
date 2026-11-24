@@ -248,7 +248,7 @@ function timelineOf(g, pid, T) {
   const lines = g.players.map(() => []);
   look.steps.forEach((x, k) => { if (k === 0) g.players.forEach((p) => lines[p.id].push([0, x.b[p.id]])); const t = st.turnOf[x.S]; g.players.forEach((p) => lines[p.id].push([t, x.e[p.id]])); });
   // the swings of THIS player (see swingsFor), biggest first
-  const sw = swingsFor(g, pid).filter((x) => Math.abs(x.d) >= 1).sort((p, q) => Math.abs(q.d) - Math.abs(p.d));
+  const sw = swingsFor(g, pid).filter((x) => Math.abs(x.d) >= 1 && !x.seven).sort((p, q) => Math.abs(q.d) - Math.abs(p.d));
   const seen = new Set(), pins = [];
   sw.forEach((x) => { if (pins.length >= 3 || seen.has(x.T) || pins.some((q) => Math.abs(q.T - x.T) < 2)) return; seen.add(x.T); pins.push(x); });
   pins.sort((a, b) => a.T - b.T);
@@ -371,21 +371,32 @@ function takeaway2(m) {
  *  the player's own move (a build, or the clear error / weaker choice of that turn), a roll, or what another player did. No heuristic income or tempo
  *  claims here: those stay in Strategy, compared with the best other player. */
 const buildKindAt = (st, S, actor) => { let k = null; try { (st.stepEvents?.[S] || []).forEach((e) => { if (e[1] === "b" && e[2] === actor && ["s", "c", "r"].includes(e[3])) k = { s: "settlement", c: "city", r: "road" }[e[3]]; else if (e[1] === "v" && e[2] === actor && !k) k = "card"; }); } catch (_) { k = null; } return k; };
-/** every step of the game as this PLAYER's win-chance swing (the review's look, one value per seat): { S, T, actor, roll, b, a, e, d } in whole percent. Steps that move the robber (a 7),
- *  and the longest road / largest army awards, are left out (v1.99 scope). */
+/** every step of the game as this PLAYER's win-chance swing: { S, T, actor, roll, seven, b, a, e, d, dice, move } in whole percent. dice = what the roll did (a - b), move = what the actor's own
+ *  play after it did (e - a, only when this player is the actor). Award steps are left out (v1.99 scope: no longest road / largest army); a 7 is kept but flagged (never named as luck). */
 function swingsFor(g, pid) {
   const st = g._st; let look = null; try { look = g._rvLook(); } catch (_) { look = null; }
   if (!look || !st) return [];
   const awards = new Set((st.awards || []).map((q) => q.s));
-  return look.steps.map((x) => { const stp = st.steps[x.S - 1], b = r0(x.b[pid] * 100), a = r0(x.a[pid] * 100), e = r0(x.e[pid] * 100); return { S: x.S, T: st.turnOf[x.S], actor: stp && stp[1] >= 0 ? stp[1] : null, roll: stp ? stp[2] + stp[3] : null, b, a, e, d: e - b }; })
-    .filter((x) => x.actor != null && !awards.has(x.S) && x.roll !== 7);
+  return look.steps.map((x) => { const stp = st.steps[x.S - 1], b = r0(x.b[pid] * 100), a = r0(x.a[pid] * 100), e = r0(x.e[pid] * 100), actor = stp && stp[1] >= 0 ? stp[1] : null, roll = stp ? stp[2] + stp[3] : null;
+    return { S: x.S, T: st.turnOf[x.S], actor, roll, seven: roll === 7, b, a, e, d: e - b, dice: a - b, move: actor === pid ? e - a : 0 }; })
+    .filter((x) => x.actor != null && !awards.has(x.S));
 }
+/** The headline parts: the player's biggest OWN move swing (best move in a win; the worst real error, else the costliest move, in a loss), the biggest LUCK swings (the dice part only, on the side of the result)
+ *  and the start cost when it is the main own lesson. Component values, never a whole swing named as a roll. Income / cities / tempo stay in Strategy. */
 function whyOf(m, A, g) {
-  const st = g?._st, pid = m.pid, won = m.won, all = swingsFor(g, pid).filter((x) => Math.abs(x.d) >= 3);
-  const pool = (won ? all.filter((x) => x.d > 0).sort((a, b) => b.d - a.d) : all.filter((x) => x.d < 0).sort((a, b) => a.d - b.d));
-  const moments = [], seen = new Set();
-  pool.forEach((x) => { if (moments.length >= 2 || seen.has(x.T)) return; seen.add(x.T); moments.push(momentOf(m, st, x, won)); });
-  return { won, moments, pick: moments };
+  const st = g?._st, pid = m.pid, won = m.won, all = swingsFor(g, pid);
+  // own move: the review's own decisions (the same ones the Moves tab lists): the best move (lead over the next option) in a win; the worst real error, else the costliest other move, in a loss
+  let own = null;
+  if (won) { const b = (m.bestRows || [])[0]; if (b && b.gain >= 3) own = { T: b.d.t, d: b.gain, what: ["city", "settlement", "road", "card"].find((k) => k === b.d.bestKind || k === b.d.kind) || "move" }; }
+  else { const e = m.errs[0] || m.other.filter((d) => d.k !== "setup" && d.cls !== "triv").sort((a, b2) => b2.gp - a.gp)[0]; if (e && e.gp >= 3) own = { T: e.t, d: -e.gp, what: "error" }; }
+  if (!own) { const b = won ? all.filter((x) => x.move >= 3).sort((p2, q) => q.move - p2.move)[0] : all.filter((x) => x.move <= -3).sort((p2, q) => p2.move - q.move)[0]; if (b) own = { T: b.T, d: b.move, what: won ? buildKindAt(st, b.S, pid) || "move" : "move" }; }
+  const lk = (won ? all.filter((x) => !x.seven && x.dice >= 3).sort((p, q) => q.dice - p.dice) : all.filter((x) => !x.seven && x.dice <= -3).sort((p, q) => p.dice - q.dice)), luck = [];
+  lk.forEach((x) => { if (luck.length < 2 && !luck.some((q) => q.T === x.T)) luck.push({ T: x.T, d: x.dice }); });
+  luck.sort((p, q) => p.T - q.T);
+  const P = m.pillars || {}, startN = Math.abs(Math.round(P.start || 0)), errN = Math.abs(Math.round(P.errors || 0)), start = startN >= 5 && startN >= errN ? startN : null;
+  const movesN = Math.abs(Math.round(P.total || 0));
+  const bestRoll = lk[0] ? { T: lk[0].T, d: lk[0].dice } : null;
+  return { won, own, luck, luckSum: luck.reduce((a, x) => a + x.d, 0), start, movesN, bestRoll, moments: own || luck.length ? [own, ...luck].filter(Boolean) : [] };
 }
 /** the cause of one swing of this player's win chance (see whyOf); x = { S, T, actor, a, b, e, d } */
 export const momentFor = (g, m, x) => momentOf(m, g._st, x, m.won);

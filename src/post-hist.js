@@ -49,12 +49,12 @@ function progress(g, all) {
     const marks = v.map((m, i) => `<g data-pxmk="${i}" class="mk${i === sel ? " on" : ""}"><circle cx="${X(i).toFixed(1)}" cy="${Y(m.acc).toFixed(1)}" r="${i === sel ? 7 : 5}" class="${m.result}"/><rect x="${(X(i) - 14).toFixed(1)}" y="0" width="28" height="${H}" fill="transparent"/></g>`).join("");
     chart = `<svg viewBox="0 0 ${W} ${H}" class="px-sc" role="img" aria-label="${esc(f("{x} of your last {n} reviewed games, oldest first", { x: accWord, n: v.length }))}">${grid}<path d="${line}" class="ln"/>${marks}</svg><p class="px-fn">${f("Game {n}: {x} {y}", { n: sel + 1, x: accWord, y: s.acc })} · ${s.result === "won" ? "won" : "lost"}</p>`;
   }
-  if (rev.length > 0 && rev.length < 3) chart = `<p class="px-fn">The chart appears from 3 reviewed games.</p>`;
+  if (rev.length > 0 && rev.length < 3) chart = `<div class="px-mini" role="img" aria-label="${esc(accWord)}">${rev.map((m) => `<span class="${m.result}"><small>${accWord}</small> <b>${m.acc}</b> <em>${m.result === "won" ? "won" : "lost"}</em></span>`).join("")}</div>`;
   const mist = {}; let m2 = 0; rev.forEach((m) => Object.entries(m.mist || {}).forEach(([k, n]) => { mist[k] = (mist[k] || 0) + n; m2 += n; }));
   const top = Object.entries(mist).sort((a, b) => b[1] - a[1])[0];
-  const dots = top && m2 >= 3 ? `<div class="px-mm"><b>Most missed</b><span class="px-mk">${f("in {k} of your last {n} games", { k: rev.slice(-10).filter((m) => (m.mist?.[top[0]] || 0)).length, n: Math.min(10, rev.length) })}</span><span class="px-mdots" aria-hidden="true">${rev.slice(-10).map((m) => `<i class="${(m.mist?.[top[0]] || 0) ? "on" : ""}"></i>`).join("")}</span><small class="mm">${esc(({ "end>build": "ended your turn while a build was possible", build: "built something weaker", bank: "a weaker bank trade", robber: "a weaker robber tile", setup: "a weaker set-up spot" })[top[0]] || top[0])}</small></div>` : "";
-  const note = dots ? `<p class="px-fn"><i class="px-kd" aria-hidden="true"></i> = a game with this miss. Marked moves cost win chance.</p>` : `<p class="px-fn">Marked moves are moves that cost win chance.</p>`;
-  return `<section class="px-card px-prog rv-card"><div class="rv-gt"><b>Your progress</b></div>${tiles}${note}${chart}${dots}</section>`;
+  const topTxt = top ? esc(({ "end>build": "ended your turn while a build was possible", build: "built something weaker", bank: "a weaker bank trade", robber: "a weaker robber tile", setup: "a weaker set-up spot" })[top[0]] || top[0]) : "";
+  const dots = top && m2 >= 3 ? `<div class="px-mm"><p class="px-l"><b>Most missed:</b> ${topTxt}</p><div class="px-mdr"><span class="px-mdots" aria-hidden="true">${rev.slice(-10).map((m) => `<i class="${(m.mist?.[top[0]] || 0) ? "on" : ""}"></i>`).join("")}</span><small>${f("= a game with this miss ({k} of {n})", { k: rev.slice(-10).filter((m) => (m.mist?.[top[0]] || 0)).length, n: Math.min(10, rev.length) })}</small></div></div>` : "";
+  return `<section class="px-card px-prog rv-card"><div class="rv-gt"><b>Your progress</b></div>${tiles}${chart}${dots}</section>`;
 }
 
 // ── a game row that unfolds ──

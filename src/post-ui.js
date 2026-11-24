@@ -69,7 +69,7 @@ export function scoreHtml(g) {
     if (isOpen) {
       const mm = id === tab.me ? m : (() => { try { return ready(g, id).m || null; } catch (_) { return null; } })();
       const vl = mm ? verdictLine(g, mm) : "";
-      const band = s.level?.band && s.acc != null ? `<p class="px-l">${f("{x} bots usually score {n}–{n2}", { x: esc(s.level.label), n: Math.round(s.level.band[0] - s.level.band[1]), n2: Math.round(s.level.band[0] + s.level.band[1]) })}</p>` : "";
+      const band = bandLine(s) ? `<p class="px-l">${bandLine(s)}</p>` : "";
       det = `<div class="px-rd">${!s.you && vl ? `<p class="px-l">${vl}</p>` : ""}${band}<button type="button" class="px-link" data-rvtab="${id}">${s.you ? "Your page" : f("{x}’s page", { x: esc(s.name) })}${IC.chev}</button></div>`;
     }
     return `<div class="px-row pc-${id}${s.won ? " win" : ""}${s.you ? " me" : ""}${isOpen ? " open" : ""}" data-pid="${id}"><button type="button" class="px-rh" data-rsx="${id}" aria-expanded="${isOpen}" aria-label="${esc(nm)}, ${s.pts} points${s.acc != null ? `, accuracy ${s.acc}` : ""}">
@@ -98,13 +98,31 @@ export function causeText(m, x) {
   if (x.what === "instead") return atr(lg, "mom.instead", { a: kw(x.a), b: kw(x.b) });
   return atr(lg, `mom.${x.what}`);
 }
+/** The headline, longest first: the player's own biggest move swing + the biggest luck swing (+ the start cost), shortened step by step until it fits two lines (HEAD_BUDGET characters at 360px). */
+export const HEAD_BUDGET = 84;
+export function headVariants(m) {
+  const W = m.why, nl = isNL(), lg = nl ? "nl" : "en", you = m.you, x = esc(m.me.name), S = you ? (nl ? "Je" : "You") : x, dd = (v) => `${dsg(v)}%`, own3 = you ? "you" : "3";
+  const kk = (o) => atr(lg, `h.k.${o.what === "error" ? "move" : o.what}`);
+  const ownT = (o, sh) => (sh === 2 && !you ? `${atr(lg, `h.ka.${o.what === "error" ? "move" : o.what}`)} (${dd(o.d)})` : atr(lg, `h.own.${own3}${sh ? ".s" : ""}`, { k: kk(o), t: o.T, d: dd(o.d), x }));
+  const L = W.luck, luckT = (sh) => (L.length ? atr(lg, `h.luck.${W.won ? "good" : "bad"}${L.length}${sh ? ".s" : ""}`, { t: L[0].T, t2: L[1]?.T, d: dd(W.luckSum) }) : "");
+  const start = W.start ? ` ${atr(lg, you ? "h.start" : "h.start.3", { n: W.start, x })}` : "";
+  const out = [];
+  if (W.won) {
+    const mk = (so, sl, st) => (W.own && L.length ? atr(lg, "h.won.both", { S, a: ownT(W.own, so), b: luckT(sl) }) : W.own ? atr(lg, "h.won.one", { S, a: ownT(W.own, so) }) : atr(lg, "h.won.one", { S, a: luckT(sl) })) + (st ? start : "");
+    if (W.own || L.length) { out.push(mk(0, 0, 1), mk(0, 0, 0), mk(1, 1, 0)); if (!you && W.own) out.push(mk(2, 1, 0)); if (L.length) out.push(atr(lg, "h.won.one", { S, a: luckT(1) })); out.push(mk(1, 1, 0).replace(/ \([^)]*\)/g, "")); }
+  } else {
+    const mv = atr(lg, you ? "h.mv.you" : "h.mv.3", { x }), n = W.movesN, mk = (sl, most, st) => { const o = W.own && most ? atr(lg, "h.most", { t: W.own.T, d: dd(W.own.d) }) : ""; return (L.length && n >= 3 ? atr(lg, "h.lost.both", { S, a: luckT(sl), m: mv, n, o }) : L.length ? atr(lg, "h.lost.luck", { S, a: luckT(sl) }) : atr(lg, "h.lost.mv", { S, m: mv, n, o })) + (st ? start : ""); };
+    if (L.length || n >= 3) { out.push(mk(0, 1, 1), mk(0, 1, 0), mk(1, 1, 0), mk(1, 0, 0)); if (!you && L.length && n >= 3) out.push(atr(lg, "h.lost.both", { S, a: luckT(1), m: atr(lg, "h.mv.3s"), n, o: "" })); if (L.length) out.push(atr(lg, "h.lost.luck", { S, a: luckT(1) })); out.push(mk(1, 0, 0).replace(/ \([^)]*\)/, "")); }
+  }
+  return out;
+}
 export function verdictSpans(m) {
   const W = m.why; if (!W) return "";
   const nl = isNL(), lg = nl ? "nl" : "en", S = m.you ? (nl ? "Je" : "You") : esc(m.me.name), sp = (x) => `<span data-i18n-skip>${x}</span>`;
-  if (!W.moments.length) return `<span class="px-vsent">${sp(atr(lg, W.won ? "mom.none.won" : "mom.none.lost", { S }))}.</span>`;
-  const mom = (x, k) => atr(lg, k ? "mom.turn2" : "mom.turn", { t: x.T, c: causeText(m, x), d: `${dsg(x.d)}%` });
-  const [a, b] = W.moments, lead = atr(lg, W.won ? "mom.won" : "mom.lost", { S });
-  return `<span class="px-vsent">${sp(lead)} ${sp(mom(a, 0))}${b ? ` ${sp(atr(lg, "and"))} ${sp(mom(b, 1))}` : ""}.</span>`;
+  const vs = headVariants(m);
+  if (!vs.length) return `<span class="px-vsent">${sp(atr(lg, W.won ? "mom.none.won" : "mom.none.lost", { S }).replace(/\.$/, ""))}.</span>`;
+  const len = (t) => t.replace(/<[^>]*>/g, "").length, pick = vs.find((t) => len(t) <= HEAD_BUDGET) || vs[vs.length - 1];
+  return `<span class="px-vsent">${sp(pick)}</span>`;
 }
 export function verdictLine(g, m) { return verdictSpans(m); }
 
@@ -120,6 +138,21 @@ const paceBar = (v, max, cls = "") => `<i class="px-bar ${cls}" style="--w:${Mat
 const lh = (n, title, right = "") => `<div class="px-lh"><i class="px-nb">${n}</i><b>${title}</b>${right ? `<span class="px-rt">${right}</span>` : ""}</div>`;
 export const spotTiles = (board, node) => { try { if (!board || node == null) return ""; const geo = stdGeo(); return geo.nodes[node].hx.map((h) => board[h]).filter((b) => b && b.num).map((b) => `<i class="px-tile" style="background:${RES_COLOR[b.res] || "#999"}" title="${esc(rname(b.res))}">${b.num}</i>`).join(""); } catch (_) { return ""; } };
 
+/** ONE sentence tying Accuracy, real errors and moves cost together: "Accuracy 90 and no real errors: your own moves cost 14% together, mostly the start (9%)." */
+export function connectLine(m) {
+  const nl = isNL(), lg = nl ? "nl" : "en", pid = m.pid, P = m.pillars, c = m.errs.length, tot = Math.round(Math.abs(m.tot.moves)), x = esc(m.me.name);
+  const acc = `<b data-fact="acc:${pid}" data-v="${m.sum.acc ?? ""}">${atr(lg, "word.acc")} ${m.sum.acc ?? "–"}</b>`;
+  const errs = atr(lg, c === 0 ? "c.err0" : c === 1 ? "c.err1" : "c.errn", { n: c }), mv = atr(lg, m.you ? "h.mv.you" : "h.mv.3", { x });
+  const parts = [["start", Math.abs(P.start)], ["errors", Math.abs(P.errors)], ["other", Math.abs(P.other)]].sort((p, q) => q[1] - p[1])[0];
+  const o = parts && parts[1] >= 3 && tot > 0 ? atr(lg, "c.most", { w: atr(lg, `c.w.${parts[0]}`), v: Math.round(parts[1]) }) : "";
+  return `<span data-i18n-skip>${atr(lg, "c.line", { acc, errs, mv, n: `<b data-fact="cost:${pid}" data-v="${Math.round(m.tot.moves)}">${tot}%</b>`, o })}</span>`;
+}
+/** the usual range of a bot level against its own Accuracy, in words: higher / lower than / usual for */
+export function bandLine(s) {
+  if (!s?.level?.band || s.acc == null) return "";
+  const nl = isNL(), lg = nl ? "nl" : "en", lo = Math.round(s.level.band[0] - s.level.band[1]), hi = Math.round(s.level.band[0] + s.level.band[1]);
+  return `<span data-i18n-skip>${atr(lg, s.acc > hi ? "band.hi" : s.acc < lo ? "band.lo" : "band.in", { a: lo, b: hi, x: esc(s.level.label) })}</span>`;
+}
 /** the start cost as counted in "moves cost" (capped together with the other moves) next to the raw measured gap, in plain words; the default text when they agree */
 export const startCap = (m, dflt) => { const P = m.pillars; return P && P.startRaw != null && Math.round(P.startRaw) !== Math.round(P.start) ? f("measured {a}%, counted {b}%", { a: dsg(P.startRaw), b: dsg(P.start) }) : dflt; };
 /** the ± margin of a move (its own uncertainty, whole or half percent) as a small muted tag, "" when the review has none */
@@ -127,7 +160,7 @@ export const pm = (d) => { const se = seOf(d?.x); return se == null ? "" : `<sma
 function verdictCard(g, m) {
   const acc = m.sum.acc, P = m.pillars, c = m.counts, pid = m.pid;
   const hl = `<p class="px-hl2">${verdictSpans(m)}</p>`;
-  const accLine = `<p class="px-l"><b data-fact="acc:${pid}" data-v="${acc ?? ""}">${accWord} ${acc ?? "–"}</b>: ${f("how often {x} near the best move", { x: m.you ? "you were" : "it was" })}. <b>Moves cost</b> ${D(m.tot.moves, { fact: `cost:${pid}` })}</p>`;
+  const accLine = `<p class="px-l px-cn">${connectLine(m)}</p>`;
   const tile = (k, n, label, v, cap) => `<button type="button" class="px-t3" data-pxpil="${k}" aria-expanded="false"><small${k === "errors" ? ` data-fact="errors:${pid}" data-v="${n}"` : ""}>${n} ${label}</small>${D(v, { fact: `pillar-${k}:${pid}` })}<span>${cap}</span></button>`;
   const picks = m.start?.picks || [];
   const t3 = `<div class="px-t3s">${tile("errors", m.errs.length, m.errs.length === 1 ? "Real error" : "Real errors", P.errors, "not close calls")}${tile("start", picks.length, picks.length === 1 ? "Start pick" : "Start picks", P.start, startCap(m, "start spots checked"))}${tile("other", c.otherN, "Other moves", P.other, "close calls and small ones")}</div>`;
@@ -198,7 +231,7 @@ export const PLAN_NAME = { city: "City plan (ore, grain)", expansion: "Expansion
 export function startAdvice(m, p) {
   const top = p.shortlist?.[0]; if (!p.advice || !top) return "";
   const x = p.advice.adds.map(rname).join(", "), a = p.win, b = top.win ?? p.best, fewer = p.spot && top.spot && top.spot.total < p.spot.total;
-  return `<p class="px-adv">${f("Take {x} with pick {n}: {a}% → {b}% ({g}).", { x, n: p.n, a, b, g: `+${b - a}%` })}</p>${fewer ? `<p class="px-fn px-why">${f("Fewer dots ({a} against {b}), but {x} added.", { a: top.spot.total, b: p.spot.total, x })}</p>` : ""}`;
+  return `<p class="px-adv"><span>${f("Take {x}: {a}% → {b}% ({g}).", { x, a, b, g: `+${b - a}%` })}</span>${fewer ? ` <span>${f("Fewer dots ({a} against {b}), but {x} added.", { a: top.spot.total, b: p.spot.total, x })}</span>` : ""}</p>`;
 }
 export const DOT_KEY = "Numbers on the tiles are dice numbers; dots = how often they roll.";
 function lesson2c(g, m) {
@@ -213,7 +246,7 @@ export function ruleRows(m) {
 }
 function lesson3c(g, m) {
   const rows = ruleRows(m);
-  return `<section class="rv-card px-card px-l3c">${lh(3, "Phase rules", "coach rules")}${rows || `<p class="px-l">No phase rule was broken.</p>`}<p class="px-fn">A rule shows only when you broke it.</p></section>`;
+  return `<section class="rv-card px-card px-l3c">${lh(3, "Phase rules", "only if broken")}${rows || `<p class="px-l">No phase rule was broken.</p>`}</section>`;
 }
 export const takeText = (t) => ({
   spend: "Spend your cards before you end the turn.", trade: "Trade only toward a build you can make.", build: "Pick the build that brings points soonest.",
@@ -236,7 +269,7 @@ function ledgerCard(g, m) {
   const track = `<div class="px-gl"><small>Even <b>${L.even}%</b></small><i class="px-gt"><i class="a" style="width:${Math.max(2, L.even)}%"></i><i class="b" style="left:${Math.max(2, L.even)}%;width:${Math.max(0, L.end - L.even)}%"></i></i><small>End <b>${L.end}%</b></small></div>`;
   const how = `<ul class="px-how"><li>${f("The four rows add up to your change: from {n}% at the start to {n2}% at the end.", { n: L.even, n2: L.end })}</li><li>Start picks is what your two start spots cost against the best spots.</li><li>Luck is rolls, steals, card draws and seat order together.</li><li>Moves cost = start picks + moves.</li><li>Rest is neutral: it is what is left, the opponents’ doing.</li></ul>`;
   const story = `<p class="px-l">${m.you ? f("Your moves: {d}%", { d: dsg(L.moves) }) : f("{x}’s moves: {d}%", { x: esc(m.me.name), d: dsg(L.moves) })}</p>`;
-  return `<div class="px-eb">${(() => { const pts = g.players.map((q) => q.victoryPoints).sort((a, b) => b - a); return f("Why it ended {n}–{n2}", { n: pts[0], n2: pts[1] ?? 0 }); })()}</div><section class="rv-card px-card px-led"><div class="rv-gt"><b>What moved your win chance</b><button type="button" class="px-link nm" data-pxnum>Numbers</button></div>${story}${track}<div class="px-lcs">${cols.map(col).join("")}</div><div class="px-rest"><span>What the others did</span>${D(L.rest, { plus: true })}<small>Their moves and luck combined, not a mark for you.</small></div>${fold("how", "<span>How to read this</span>", how)}</section>`;
+  return `<div class="px-eb">${(() => { const pts = g.players.map((q) => q.victoryPoints).sort((a, b) => b - a); return f("Why it ended {n}–{n2}", { n: pts[0], n2: pts[1] ?? 0 }); })()}</div><section class="rv-card px-card px-led"><div class="rv-gt"><b>What moved your win chance</b><button type="button" class="px-link nm" data-pxnum>Numbers</button></div>${story}${track}<div class="px-lcs">${cols.map(col).join("")}</div>${fold("how", "<span>How to read this</span>", `<div class="px-rest"><span>What the others did</span>${D(L.rest, { plus: true })}<small>The other players’ moves and luck combined.</small></div>${how}`)}</section>`;
 }
 
 export function overviewTab(g, ds, rv, prov) {
@@ -268,7 +301,7 @@ export function sheet(g, title, body, key = "x") {
 }
 export function infoSheet(g, what = "error") {
   const m = ready(g, g._rvPid).m, rows = m?.infoRows;
-  const own = `<h4>Why won or lost</h4><p>The one or two biggest swings of the player’s win chance on their side of the result, taken from the win-chance chart (pins). Each is named by its cause: the player’s own move, a roll, or what another player did. Income, cities and pace are in Strategy, compared with the best other player.</p><h4>Start picks</h4><p>The gap between your spot and the best spot is shown as it was measured. All moves together cannot cost more than the best win chance you had; when they add up to more, every part is shrunk to fit. Then the counted start cost is smaller than the measured gap, and the card shows both.</p><h4>The ± next to a move</h4><p>Every move has its own margin. A gap is only a real error when it is more than twice that margin; the same 4% can be an error in one move and not in another.</p><h4>Real errors and Could be better</h4><p>Real errors are mistakes, blunders and missed chances that pass that rule. Could be better is every other weaker move.</p><h4>Luck</h4><p>Luck is rolls, steals, card draws and seat order together, as win chance. Every player has an independent estimate of their own.</p>`;
+  const own = `<h4>Why won or lost</h4><p>The headline pairs the player’s own biggest move (the best move in a win; the worst real error, else the costliest move, in a loss) with the biggest luck swings: the dice part of a swing, called lucky or unlucky. It adds the start cost when that is the main own lesson. Income, cities and pace are in Strategy, compared with the best other player.</p><h4>Start picks</h4><p>The gap between your spot and the best spot is shown as it was measured. All moves together cannot cost more than the best win chance you had; when they add up to more, every part is shrunk to fit. Then the counted start cost is smaller than the measured gap, and the card shows both.</p><h4>The ± next to a move</h4><p>Every move has its own margin. A gap is only a real error when it is more than twice that margin; the same 4% can be an error in one move and not in another.</p><h4>Real errors and Could be better</h4><p>Real errors are mistakes, blunders and missed chances that pass that rule. Could be better is every other weaker move.</p><h4>Luck</h4><p>Luck is rolls, steals, card draws and seat order together, as win chance. Every player has an independent estimate of their own.</p>`;
   const body = rows?.length ? `<div class="px-ib"><div data-i18n-skip>${rows.map((r) => `<h4>${esc(r.title)}</h4><p>${esc(r.body)}</p>`).join("")}</div>${own}</div>`
     : `<div class="px-ib"><h4>The error rule</h4><p>A move is an error when it gave up at least twice its own margin (the ±), about 6% when none is stored. A close call is never called a mistake.</p><h4>${accWord} vs moves cost</h4><p>${accWord} is how often you were near the best move. Moves cost is what every miss lost, added up.</p>${own}</div>`;
   return sheet(g, "How to read this", body, "info");
