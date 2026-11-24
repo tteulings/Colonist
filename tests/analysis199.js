@@ -143,8 +143,9 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   ok(SEATS.reduce((a, s) => a + F.realErrors(s.ds).errors.length, 0) >= 2, "the real data has real errors to check");
 
   // ═══ 4 coach rules ═══
-  eq(C.THRESHOLDS, { half: 0.5, lastGap: 1 }, "THRESHOLDS: half 0.5 and lastGap 1, relative to the target");
-  eq(C.RULES.map((r) => r.id), ["missing-resource", "city-at-half", "last-point"], "the three initial rules");
+  eq(C.THRESHOLDS, { half: 0.5, lastGap: 2 }, "THRESHOLDS: half 0.5 and lastGap 2, relative to the target");
+  eq(C.RULES.map((r) => r.id), ["missing-resource", "open-spend", "open-road-resource", "open-trade-settle", "mid-play-card", "mid-buy-card", "mid-spend", "mid-trade-build", "last-point", "end-play-card", "end-spend", "end-trade"], "the calibrated rule table (v1.99 calibration)");
+  ok(["opening", "mid", "end"].every((ph) => { const k = C.RULES.filter((r) => r.phase === ph).length; return k >= 2 && k <= 4; }), "2 to 4 rules per phase");
   ok(C.RULES.every((r) => typeof r.when === "function" && ["opening", "mid", "end"].includes(r.phase) && T.EN[r.chip] && T.NL[r.chip] && T.EN[r.text] && T.NL[r.text]), "every rule has id, phase, when, chip and text keys in EN and NL");
   for (const { g, q, ds } of SEATS) {
     const raw = ROW.rawOf(g.state), fr = C.firedRules(ds, { stats: g.state.stats, n: g.n, me: q, target: g.target, raw }), lim = C.phaseLimits(C.turnsOfGame(g.state.stats)), tag = `${g.id} seat ${q}`;
@@ -171,29 +172,38 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
     const syn = (pts, T = 18) => { const steps = [], ev = []; for (let t = 1; t <= T; t++) for (let q = 0; q < 4; q++) steps.push([t, q, 3, 4]); for (let q = 0; q < 4; q++) ev.push([0, "b", q, "s", q * 10], [0, "b", q, "s", q * 10 + 1], [0, "b", q, "r", q * 10], [0, "b", q, "r", q * 10 + 1]);
       for (let k = 0; k < pts - 2; k++) ev.push([4, "b", 0, "s", 100 + k]); return { v: 1, n: 4, steps, vp: null, ev, r0: 0 }; };
     const fire = (stx, dd, target = 10, me = 0) => C.firedRules(dd, { stats: stx, n: 4, me, target, raw: null });
-    // city-at-half: needs a clear error in mid whose better move is a city, at >= half the target
-    const mid = 9; // T = 18: mid = 7..12
-    eq(fire(syn(5), [fake({ t: mid })]).map((r) => r.id), ["city-at-half"], "city-at-half fires at exactly half the target (5 of 10)");
-    eq(fire(syn(4), [fake({ t: mid })]).map((r) => r.id), [], "city-at-half does not fire below half (4 of 10)");
-    eq(fire(syn(4), [fake({ t: mid })], 8).map((r) => r.id), ["city-at-half"], "the half threshold is relative to the target (4 of 8)");
-    eq(fire(syn(5), [fake({ t: mid, best: "Settlement 8·11" })]).map((r) => r.id), [], "city-at-half needs a city as the better move");
-    eq(fire(syn(5), [fake({ t: mid, label: "City on 4·6·5" })]).map((r) => r.id), [], "city-at-half does not fire when you built the city");
-    eq(fire(syn(5), [fake({ t: mid, best: "Trade Ore → 1 Grain, then City on 4·6·11" })]).map((r) => r.id), ["city-at-half"], "a trade then a city counts as a city (kind after 'then')");
-    eq(fire(syn(5), [fake({ t: 3 })]).map((r) => r.id), [], "city-at-half does not fire in the opening");
-    eq(fire(syn(5), [fake({ t: 16 })]).map((r) => r.id), [], "city-at-half does not fire in the end phase");
+    const ids = (stx, dd, target = 10) => fire(stx, dd, target).map((r) => r.id);
+    const mid = 9; // T = 18: mid = 7..12, end = 13..18
+    // mid-play-card: ended the turn (or did something else) while a development card could be played
+    eq(ids(syn(5), [fake({ t: mid, label: "End turn", best: "Play Monopoly" })]), ["mid-play-card"], "mid-play-card: end turn, better = play a card");
+    eq(ids(syn(5), [fake({ t: mid, label: "Play Knight", best: "Play Monopoly" })]), [], "mid-play-card: not when you did play a card");
+    eq(ids(syn(5), [fake({ t: 3, label: "End turn", best: "Play Monopoly" })]).includes("mid-play-card"), false, "mid-play-card does not fire in the opening");
+    eq(ids(syn(5), [fake({ t: 16, label: "End turn", best: "Play Monopoly" })]), ["end-play-card"], "end-play-card fires in the end phase");
+    // buy / spend / trade
+    eq(ids(syn(5), [fake({ t: mid, label: "End turn", best: "Dev card" })]), ["mid-buy-card"], "mid-buy-card: end turn, better = buy a development card");
+    eq(ids(syn(5), [fake({ t: mid, label: "Road toward Ore 4", best: "Trade Ore → 1 Grain, then Dev card" })]), ["mid-buy-card"], "mid-buy-card: a trade then a card counts");
+    eq(ids(syn(5), [fake({ t: mid, label: "End turn", best: "Road toward Ore 4" })]), ["mid-spend"], "mid-spend: end turn, better = build");
+    eq(ids(syn(5), [fake({ t: mid, label: "Road toward Ore 4", best: "Trade Ore → 1 Grain, then City on 4·6·5" })]), ["mid-trade-build"], "mid-trade-build: trade then city instead of a road");
+    eq(ids(syn(5), [fake({ t: mid, label: "End turn", best: "Trade Ore → 1 Grain, then City on 4·6·5" })]), ["mid-spend"], "an end turn with a trade-and-build is a mid-spend, not a mid-trade-build");
+    eq(ids(syn(5), [fake({ t: 16, label: "End turn", best: "Road toward Ore 4" })]), ["end-spend"], "end-spend fires in the end phase");
+    eq(ids(syn(5), [fake({ t: 16, label: "Development card", best: "Trade Ore → 1 Grain, then City on 4·6·5" })]), ["end-trade"], "end-trade: trade then city");
+    eq(ids(syn(5), [fake({ t: 3, label: "End turn", best: "Road toward Ore 4" })]).filter((x) => x === "open-spend"), ["open-spend"], "open-spend fires in the opening");
+    eq(ids(syn(5), [fake({ t: 3, label: "Bank trade 4 Brick → 1 Wool", best: "Trade Grain → 1 Lumber, then Settlement 8·11 +1 road" })]), ["open-trade-settle"], "open-trade-settle fires in the opening");
     for (const [cls, vc, gp, what] of [["lean", "lean", 3, "a slight difference"], ["close", "close", 2, "a close call"], ["good", "clear", 2, "a good move"], ["best", "clear", 0, "the best move"], ["missed", "lean", 5, "a missed chance with a slight verdict"], ["mistake", "lean", 8, "a lean verdict"]])
-      eq(fire(syn(5), [fake({ t: mid, cls, vc, gp })]).map((r) => r.id), [], `no rule fires on ${what}`);
-    for (const cls of ["could", "mistake", "blunder", "missed"]) eq(fire(syn(5), [fake({ t: mid, cls })]).map((r) => r.id), ["city-at-half"], `a clear ${cls} fires`);
-    eq(fire(syn(5), [fake({ t: mid, k: "setup" })]).map((r) => r.id), [], "set-up picks never fire a rule");
-    eq(fire(syn(5), [fake({ t: mid, k: "robber", label: "Robber on Ore 6" })]).map((r) => r.id), [], "robber moves never fire a rule (v1.99 scope)");
-    // last-point: end phase, within lastGap of the target
+      eq(ids(syn(5), [fake({ t: mid, label: "End turn", best: "Play Monopoly", cls, vc, gp })]), [], `no rule fires on ${what}`);
+    for (const cls of ["could", "mistake", "blunder", "missed"]) eq(ids(syn(5), [fake({ t: mid, label: "End turn", best: "Play Monopoly", cls })]), ["mid-play-card"], `a clear ${cls} fires`);
+    eq(ids(syn(5), [fake({ t: mid, k: "setup", label: "End turn", best: "Play Monopoly" })]), [], "set-up picks never fire a rule");
+    eq(ids(syn(5), [fake({ t: mid, k: "robber", label: "Robber on Ore 6", best: "Play Monopoly" })]), [], "robber moves never fire a rule (v1.99 scope)");
+    // last-point: end phase, within lastGap (2) of the target, the better move scores points
     const endT = 16;
-    eq(fire(syn(9), [fake({ t: endT, best: "Settlement 8·11" })]).map((r) => r.id), ["last-point"], "last-point fires one point short (9 of 10)");
-    eq(fire(syn(8), [fake({ t: endT, best: "Settlement 8·11" })]).map((r) => r.id), [], "last-point does not fire two points short (8 of 10)");
-    eq(fire(syn(7), [fake({ t: endT, best: "Settlement 8·11" })], 8).map((r) => r.id), ["last-point"], "last-point is relative to the target (7 of 8)");
-    eq(fire(syn(9), [fake({ t: endT, best: "City on 4·6·5" })]).map((r) => r.id), ["last-point"], "last-point with a city");
-    eq(fire(syn(9), [fake({ t: endT, best: "Road toward 11·10" })]).map((r) => r.id), [], "last-point needs a move that scores points");
-    eq(fire(syn(9), [fake({ t: mid, best: "Settlement 8·11" })]).map((r) => r.id), [], "last-point does not fire outside the end phase");
+    eq(ids(syn(9), [fake({ t: endT, best: "Settlement 8·11" })]), ["last-point"], "last-point fires one point short (9 of 10)");
+    eq(ids(syn(8), [fake({ t: endT, best: "Settlement 8·11" })]), ["last-point"], "last-point fires two points short (8 of 10)");
+    eq(ids(syn(7), [fake({ t: endT, best: "Settlement 8·11" })]), [], "last-point does not fire three points short (7 of 10)");
+    eq(ids(syn(7), [fake({ t: endT, best: "Settlement 8·11" })], 8), ["last-point"], "last-point is relative to the target (7 of 8)");
+    eq(ids(syn(9), [fake({ t: endT, best: "City on 4·6·5" })]), ["last-point"], "last-point with a city");
+    eq(ids(syn(9), [fake({ t: endT, best: "Road toward 11·10" })]), [], "last-point needs a move that scores points");
+    eq(ids(syn(9), [fake({ t: endT, best: "Play Monopoly", label: "Road toward 11·10" })]).includes("last-point"), false, "last-point: playing a card does not score points");
+    eq(ids(syn(9), [fake({ t: mid, best: "Settlement 8·11" })]), [], "last-point does not fire outside the end phase");
   }
   { // missing-resource on the real board, checked against an independent recount of the start dots
     const g = REV[0], st = g.state.stats, n = g.n, raw = ROW.rawOf(g.state), M = await R("src/review/ai-mech.js"), geo = (await R("src/lessons-geo.js")).stdGeo();
@@ -205,7 +215,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
       eq(sf.missing, miss, `seat ${q}: missing resources at the start = independent recount from the board`);
       eq(sf.kinds, M.R5.filter((r) => have.has(r)), `seat ${q}: start kinds`);
       ok(sf.total === sum(M.R5.map((r) => sf.dots[r])) && M.R5.every((r) => Number.isInteger(sf.dots[r])), `seat ${q}: start dots are whole and add up`);
-      const d = { i: 950 + q, t: 2, k: "build", cls: "mistake", vc: "clear", gp: 9, B: 20, A: 29, x: { label: "Road toward 11·10", best: { label: "Settlement 8·11" } } };
+      const d = { i: 950 + q, t: 2, k: "build", cls: "mistake", vc: "clear", gp: 9, B: 20, A: 29, x: { label: "Road toward 11·10", best: { label: "Bank trade 4 Ore → 1 Grain" } } };
       const fr = C.firedRules([d], { stats: st, n, me: q, target: g.target, raw });
       eq(fr.map((r) => r.id), miss.length ? ["missing-resource"] : [], `seat ${q}: missing-resource fires in the opening exactly when a resource has no income`);
       if (miss.length) { eq(fr[0].moments[0].params.res, miss[0], `seat ${q}: the rule names the first missing resource`); ok(T.EN["res." + miss[0]] && T.NL["res." + miss[0]], "resource names exist"); }
@@ -214,8 +224,8 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
     }
   }
   { // the rule table is data: a new row works without touching the callers
-    const g = REV[0], st = g.state.stats, extra = { id: "test-rule", phase: "mid", chip: "rule.city.chip", text: "rule.city.text", when: (m) => m.pk === "road" && { pts: m.pts, target: 10 } };
-    const d = { i: 1, t: 8, k: "build", cls: "blunder", vc: "clear", gp: 12, B: 20, A: 32, x: { label: "Road toward 11·10", best: { label: "Dev card" } } };
+    const g = REV[0], st = g.state.stats, extra = { id: "test-rule", phase: "mid", chip: "rule.pts.chip", text: "rule.last.text", when: (m) => m.pk === "road" && { pts: m.pts, target: 10 } };
+    const d = { i: 1, t: 8, k: "build", cls: "blunder", vc: "clear", gp: 12, B: 20, A: 32, x: { label: "Road toward 11·10", best: { label: "Road toward 4·6" } } };
     eq(C.firedRules([d], { stats: st, n: 4, me: 0, target: 10 }).map((r) => r.id), [], "a decision no built-in rule matches fires nothing");
     eq(C.firedRules([d], { stats: st, n: 4, me: 0, target: 10, rules: [...C.RULES, extra] }).map((r) => r.id), ["test-rule"], "a new rule row fires through the same caller");
     eq(C.firedRules([], { stats: st, n: 4, me: 0, target: 10 }), [], "no decisions, no rules");
@@ -320,9 +330,9 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
     ok(!/Jouw zetten|hefboom|\bMaten\b/.test(Object.values(T.NL).join(" ")), "NL has no 'Jouw zetten', 'hefboom' or 'Maten'");
     ok(/dorp/.test(T.NL["kind.settlement"]) && /stad/.test(T.NL["kind.city"]) && /weg/.test(T.NL["kind.road"]) && /ontwikkelkaart/.test(T.NL["kind.card"]), "NL piece names: dorp, stad, weg, ontwikkelkaart");
     eq(["wood", "brick", "sheep", "wheat", "ore"].map((r) => T.NL["res." + r].toLowerCase()), ["hout", "baksteen", "wol", "graan", "erts"], "NL resources: hout, baksteen, wol, graan, erts");
-    eq(T.tr(undefined, "word.acc"), "Accuracy", "English is the default language"); eq(T.tr("nl", "word.acc"), "Precisie", "tr nl"); eq(T.tr("en", "rule.city.chip", { pts: 5, target: 10 }), "5 of 10 points", "tr params");
+    eq(T.tr(undefined, "word.acc"), "Accuracy", "English is the default language"); eq(T.tr("nl", "word.acc"), "Precisie", "tr nl"); eq(T.tr("en", "rule.pts.chip", { pts: 5, target: 10 }), "5 of 10 points", "tr params");
     eq(T.tr("nl", "no.such.key"), "no.such.key", "an unknown key returns itself"); eq(T.tr("en", "rule.missing.chip", {}), "No ", "a missing param is empty, never 'undefined'");
-    const rules = T.EN["rule.missing.text"] + T.EN["rule.city.text"] + T.EN["rule.last.text"]; ok(!/robber|port|longest|fed/i.test(rules), "rule texts stay in scope");
+    const rules = Object.keys(T.EN).filter((k) => /^rule\..*\.text$/.test(k)).map((k) => T.EN[k] + T.NL[k]).join(" "); ok(!/robber|port|longest|fed/i.test(rules), "rule texts stay in scope");
   }
 
   // ═══ 8 the screen object ═══
