@@ -3,11 +3,12 @@ import { esc, IC } from "./review-ui.js";
 import { tradeShow } from "./review/evaluate.js";
 import { resIcon } from "./lessons-view.js";
 import { RES_COLOR } from "./resources.js";
-import { verdictSpans, nfmt, dsg, f, D, sgn, ab, CLS_NAME, FAM_NAME, PHASE_NAME, PLAN_NAME, RES_KEY, rname, infoBtn, fold, ready, progressCard, bindPost, who, whose, takeText, numbersSheet } from "./post-ui.js";
+import { scoredNote, nErr, nMiss, verdictSpans, nfmt, dsg, f, D, sgn, ab, CLS_NAME, FAM_NAME, PHASE_NAME, PLAN_NAME, RES_KEY, rname, infoBtn, fold, ready, progressCard, bindPost, who, whose, takeText, numbersSheet } from "./post-ui.js";
 import { FAMILIES, FAMILY, SRC_PARTS } from "./post-model.js";
 import { inScope } from "./review/coach-rules.js";
 
 const accWord = "Accuracy";
+const stepText = (m) => (m.you ? "Step through your moves" : f("Step through {y}’s moves", { y: esc(m.me.name) }));
 const RN = ["lumber", "brick", "wool", "grain", "ore"];
 function lkLabel(g, ev, q) {
   const nm = (z) => (z === g._rvPid && g._rvIsYou?.(z) ? "You" : esc(g.players[z]?.name || "Someone"));
@@ -25,15 +26,15 @@ export function movesTab(g, ds, res, rv) {
   const r = ready(g, g._rvPid); if (!r.m) return { html: progressCard(g, g._rvPid) };
   const m = r.m, c = m.counts, fam = m.fam;
   const tiles = FAMILIES.map((k) => `<div class="px-fam f-${k}"><b>${fam[k]}</b><span>${FAM_NAME[k]}</span></div>`).join("");
-  const head = `<section class="rv-card px-card"><div class="rv-gt"><b>${whose(m)} moves</b>${infoBtn("error")}</div><p class="px-l"><b>Moves cost</b> ${D(m.tot.moves, { fact: `cost:${m.pid}` })} · <b data-fact="acc:${m.pid}" data-v="${m.sum.acc ?? ""}">${accWord} ${m.sum.acc ?? "–"}</b></p><div class="px-fams">${tiles}</div><p class="px-fn"><span>${f("{n} of {n2} decisions are scored", { n: c.scored, n2: c.total })}</span>${c.total > c.scored ? ` · <span>${f("{n} had only one sensible option", { n: c.total - c.scored })}</span>` : ""}</p></section>`;
+  const head = `<section class="rv-card px-card"><div class="rv-gt"><b>${whose(m)} moves</b>${infoBtn("error")}</div><p class="px-l"><b>Moves cost</b> ${D(m.tot.moves, { fact: `cost:${m.pid}` })} · <b data-fact="acc:${m.pid}" data-v="${m.sum.acc ?? ""}">${accWord} ${m.sum.acc ?? "–"}</b></p><div class="px-fams">${tiles}</div>${scoredNote(m)}</section>`;
   const first = m.errs[0]?.i ?? m.ds[0]?.i;
-  const go = m.ds.length ? `<button type="button" class="px-btn pri go" data-rvj="${first}" data-rvq="${m.errs.length ? "imp" : "all"}">${IC.step}${f("Step through {x} moves", { x: m.you ? "your" : "their" })}${m.errs.length ? ` · ${f("{n} to look at", { n: m.errs.length })}` : ""}</button>` : "";
-  const miss = [...m.errs.slice(0, 4), ...m.other.filter((d) => d.cls !== "triv" && inScope(d)).sort((a, b) => b.gp - a.gp || a.i - b.i).slice(0, 3)];
+  const go = m.ds.length ? `<button type="button" class="px-btn pri go" data-rvj="${first}" data-rvq="${m.errs.length ? "imp" : "all"}">${IC.step}${stepText(m)}${m.errs.length ? ` · ${f("{n} to look at", { n: m.errs.length })}` : ""}</button>` : "";
+  const miss = [...m.errs.slice(0, 4), ...m.other.filter((d) => d.cls !== "triv" && inScope(d) && d.gp >= 1).sort((a, b) => b.gp - a.gp || a.i - b.i).slice(0, 3)];
   const shown = new Set(miss.map((d) => d.i));
   const rest = m.ds.filter((d) => !shown.has(d.i) && d.cls !== "triv" && d.k !== "setup" && inScope(d)).sort((a, b) => b.gp - a.gp || a.i - b.i);
   const mx = rest.length ? Math.max(...rest.map((d) => d.gp)) : 0;
   const restHead = `<span class="px-fl">${mx < 1 ? f("{n} more moves costing under 1% each", { n: rest.length }) : f("{n} more moves", { n: rest.length })}</span>`;
-  const missCard = `<section class="rv-card px-card"><div class="rv-gt"><b>Biggest misses</b><small>${m.errs.length ? f("{n} real errors first", { n: Math.min(4, m.errs.length) }) : "no clear error"}</small></div>${miss.length ? miss.map((d) => mvRow(g, d, "imp")).join("") : `<p class="px-l">No move cost win chance.</p>`}${rest.length ? fold("rest", restHead, rest.map((d) => mvRow(g, d)).join("")) : ""}</section>`;
+  const missCard = `<section class="rv-card px-card"><div class="rv-gt"><b>${m.errs.length ? "Biggest misses" : "Smallest losses"}</b><small>${m.errs.length ? nErr(Math.min(4, m.errs.length)) + " " + "first" : "no clear error"}</small></div>${miss.length ? miss.map((d) => mvRow(g, d, "imp")).join("") : `<p class="px-l">No move cost win chance.</p>`}${rest.length ? fold("rest", restHead, rest.map((d) => mvRow(g, d)).join("")) : ""}</section>`;
   const best = m.bestRows.length ? `<section class="rv-card px-card"><div class="rv-gt"><b>Best moves</b><small>how far ahead of the next best</small></div>${m.bestRows.map((o) => `<button type="button" class="px-mv" data-rvj="${o.d.i}" data-rvq="all"><span class="t">${when(g, o.d)}</span><span class="x">${mvText(g, o.d)}<small><i class="px-cls c-${o.d.cls}">${CLS_NAME[o.d.cls]}</i></small></span>${D(o.gain)}${IC.chev}</button>`).join("")}</section>` : "";
   return { html: `${head}${go}${missCard}${best}`, bind: (el) => bindPost(g, el, m) };
 }
@@ -44,10 +45,10 @@ function lesson2(g, m) {
   const S = m.start; if (!S?.picks?.length) return "";
   const plan = S.plan ? `<span class="px-plan">${esc(PLAN_NAME[S.plan] || "")}</span>` : "";
   const picks = S.picks.map((p) => {
-    const top = p.shortlist.map((c, k) => `<div class="px-sl${c.played ? " me" : ""}"><b class="ltr">${"ABCDEF"[k]}</b><span class="mx">${spotMix(c.spot) || esc(c.label)}</span><em>${c.played ? f("you · pick {n}", { n: p.n }) : ""}</em><b>${c.win ?? "–"}%</b></div>`).join("");
+    const top = p.shortlist.map((c, k) => `<div class="px-sl${c.played ? " me" : ""}"><b class="ltr">${"ABCDEF"[k]}</b><span class="mx">${spotMix(c.spot) || esc(c.label)}</span><em>${c.played ? f("you · pick {n}", { n: p.n }) : ""}</em><b ${p.n === 1 && k === 0 ? `data-fact="top1win:${m.pid}" data-v="${c.win ?? ""}"` : ""}>${c.win ?? "–"}%</b></div>`).join("");
     const adv = p.advice ? `<p class="px-adv">${f("Take {x} with pick {n}: {d}% more win chance.", { x: p.advice.adds.map(rname).join(", "), n: p.n, d: p.advice.gap })}</p>` : "";
     const chip = p.followed ? `<span class="px-ok">Followed</span>` : `<span class="px-no">${f("Not followed: {d}% less", { d: p.gp })}</span>`;
-    return `<div class="px-pick"><div class="ph"><i class="px-dash">${p.n}</i><span class="mx">${spotMix(p.spot) || ""}</span><b>${p.win}%</b>${chip}</div>${adv}${fold(`top${p.n}`, "<span>Top of the spots checked</span>", `<div class="px-sls">${top}</div>`, { open: p.n === 1 })}</div>`;
+    return `<div class="px-pick"><div class="ph"><i class="px-dash">${p.n}</i><span class="mx">${spotMix(p.spot) || ""}</span>${p.spot ? `<span class="dt" ${p.n === 1 ? `data-fact="pick1dots:${m.pid}" data-v="${p.spot.total}"` : ""}>${f("{n} dots", { n: p.spot.total })}</span>` : ""}<b ${p.n === 1 ? `data-fact="pick1win:${m.pid}" data-v="${p.win}"` : ""}>${p.win}%</b>${chip}</div>${adv}${fold(`top${p.n}`, "<span>Top of the spots checked: A to F, best first</span>", `<div class="px-sls">${top}</div>`, { open: p.n === 1 })}</div>`;
   }).join("");
   return `<section class="rv-card px-card px-l2"><div class="rv-gt"><b>Lesson 2 · This board</b>${plan}</div>${picks}${S.board ? "" : `<p class="px-fn">No board picture for this kind of game.</p>`}</section>`;
 }
@@ -55,10 +56,10 @@ function lesson3(g, m) {
   const rules = m.lesson3 || [];
   const costs = m.phaseCost.reduce((a, p) => a + p.cost, 0), rest = m.pillars.total - costs;
   const rows = rules.map((r) => `<div class="px-rule"><div class="rh"><b>${esc(PHASE_NAME[r.phase])}</b><small>${f("turns {n}–{n2}", { n: r.from, n2: r.to })}</small>${D(r.cost)}</div><p class="px-l" data-i18n-skip>${esc(r.text)}</p><div class="px-ccs">${r.chips.map((c) => `<button type="button" class="px-cc" data-rvj="${c.i}" data-rvq="imp"><span data-i18n-skip>${esc(c.chip || "")}</span> · ${f("Turn {n}", { n: c.turn })}${c.pts != null ? ` · ${f("{n} of {n2} visible points", { n: c.pts, n2: c.target })}` : ""}</button>`).join("")}</div></div>`).join("");
-  const recon = m.counts && m.pillars ? `<p class="px-fn">${f("{a}% and {b}% = {c}%", { a: `${sgn(costs)}${ab(costs)}`, b: `${sgn(rest)}${ab(rest)}`, c: `${sgn(m.pillars.total)}${ab(m.pillars.total)}` })}</p>` : "";
+  const recon = m.counts && m.pillars ? `<p class="px-fn">${f("Phase errors {a}% + start picks and small moves {b}% = {c}%", { a: dsg(costs), b: dsg(rest), c: dsg(m.pillars.total) })}</p>` : "";
   return `<section class="rv-card px-card px-l3"><div class="rv-gt"><b>Lesson 3 · At this point in the game</b></div>${rows || `<p class="px-l">No phase rule was broken.</p>`}${recon}</section>`;
 }
-function teaser(g, m) { return `<button type="button" class="rv-card px-card px-tz" data-pxtab="moves"><b>Lesson 1 · Real errors</b><span>${m.errs.length ? f("{n} real errors: see them on the Moves tab", { n: m.errs.length }) : "No clear error in this game"}</span>${IC.chev}</button>`; }
+function teaser(g, m) { return `<button type="button" class="rv-card px-card px-tz" data-pxtab="moves"><b>Lesson 1 · Real errors</b><span>${m.errs.length ? nErr(m.errs.length) + ": " + "see them on the Moves tab" : "No clear error in this game"}</span>${IC.chev}</button>`; }
 
 function tempoCard(g, m) {
   const tp = m.tempo; if (!tp) return "";
@@ -104,7 +105,7 @@ function planCard(g, m) {
   const M = m.measures || [], picks = m.start?.picks || [];
   const chips = [];
   M.forEach((r) => { if (r.diff !== 0 && r.mine !== r.avg) chips.push({ up: r.diff > 0, label: r.label, a: r.mine, b: r.avg }); });
-  const top = picks[0]?.shortlist?.[0]; if (picks[0]?.spot && top?.spot) { const mine = picks.reduce((a, p) => a + (p.spot?.total || 0), 0); chips.push({ up: mine >= (top.spot.total || 0), label: "Dots on your start spots", a: mine, b: top.spot.total }); }
+  const top = picks[0]?.shortlist?.[0]; if (picks[0]?.spot && top?.spot) { chips.push({ up: picks[0].spot.total >= (top.spot.total || 0), label: "Dots on pick 1", a: picks[0].spot.total, b: top.spot.total }); }
   if (!chips.length) return "";
   const ch = (c) => `<span class="px-wh ${c.up ? "up" : "dn"}"><i aria-hidden="true">${c.up ? "▲" : "▼"}</i><span>${esc(c.label)}</span> <b>${nfmt(c.a)} ${f("vs {x}", { x: nfmt(c.b) })}</b></span>`;
   const up = chips.filter((c) => c.up), dn = chips.filter((c) => !c.up);
@@ -150,10 +151,10 @@ export function luckTab(g, ds) {
   const isFold = (e) => Math.abs(rowU(e)) < (cards && e.cards != null ? 0.5 : 0.5);
   const big = ev.filter((e) => !isFold(e)).sort((a, b) => Math.abs(rowU(b)) - Math.abs(rowU(a)));
   const small = ev.filter(isFold);
-  const evRow = (e) => { const winOnly = cards && e.cards == null, u = rowU(e); const lab = e.x.ev.kind === "dice" && e.x.ev.roll === 7 ? f("Cards lost ({x} rolled)", { x: 7 }) : e.label; return `<div class="px-ev"><span class="t">${esc(e.t)}</span><span class="x">${lab}${winOnly ? "<small>win chance</small>" : ""}</span>${D(u, { unit: cards && !winOnly ? "" : "%" })}</div>`; };
+  const evRow = (e) => { const winOnly = cards && e.cards == null, u = rowU(e); const lab = e.x.ev.kind === "dice" && e.x.ev.roll === 7 ? f("Cards lost ({x} rolled)", { x: 7 }) : e.label; return `<div class="px-ev"><span class="t">${esc(e.t)}</span><span class="x">${lab}<small>${winOnly ? "win chance" : e.x.ev.kind === "steal" ? "luck in which card was taken" : e.x.ev.kind === "dev" ? "luck in which card was drawn" : "the roll against what was expected"}</small></span>${D(u, { unit: cards && !winOnly ? "" : "%" })}</div>`; };
   const seatRow = seatW ? `<div class="px-ev"><span class="t">start</span><span class="x">Seat order</span>${D(Math.round(seatW * 1000) / 10)}</div>` : "";
   const total = (() => { const w = Math.round((seatW + list.reduce((a, x) => a + x.w, 0)) * 100); const c = Math.round(ev.reduce((a, e) => a + (e.cards ?? 0), 0)); return cards ? `${D(c, { unit: "" })}` : D(seats[q].luck ?? w, { fact: q === pid ? `luck:${q}` : null }); })();
-  const evs = `<section class="rv-card px-card"><div class="rv-gt"><b>${f("Luck of {x}", { x: q === pid && m.you ? "you" : esc(g.players[q].name) })}</b><small>${cards ? "cards above or below expected" : "win chance, biggest first"}</small></div>${seatRow}${big.slice(0, 14).map(evRow).join("")}${big.length > 14 ? fold("lkmore", `<span>${f("{n} more events", { n: big.length - 14 })}</span>`, big.slice(14).map(evRow).join("")) : ""}${small.length ? fold("lksmall", `<span>${f("{n} events near ±0", { n: small.length })}</span>`, small.map(evRow).join("")) : ""}<div class="px-ev tot"><span class="t"></span><span class="x"><b>Total</b>${cards ? "<small>dice only; steals, discards and the 7 stay in win chance</small>" : ""}</span>${total}</div></section>`;
+  const evs = `<section class="rv-card px-card"><div class="rv-gt"><b>${q === pid && m.you ? "Your luck" : f("{x}’s luck", { x: esc(g.players[q].name) })}</b><small>${cards ? "cards above or below expected" : "win chance, biggest first"}</small></div><p class="px-fn">Every roll counts for every player. A green row helped, a red row hurt.</p>${seatRow}${big.slice(0, 14).map(evRow).join("")}${big.length > 14 ? fold("lkmore", `<span>${f("{n} more events", { n: big.length - 14 })}</span>`, big.slice(14).map(evRow).join("")) : ""}${small.length ? fold("lksmall", `<span>${f("{n} events near ±0", { n: small.length })}</span>`, small.map(evRow).join("")) : ""}<div class="px-ev tot"><span class="t"></span><span class="x"><b>Total</b>${cards ? "<small>dice only; steals, discards and the 7 stay in win chance</small>" : ""}</span>${total}</div></section>`;
   return { html: `${head}${evs}`, bind: (el) => {
     bindPost(g, el, m);
     el.querySelectorAll("[data-pxlk]").forEach((b) => b.addEventListener("click", () => { U.pid = +b.dataset.pxlk; g._rvDrawReview(); }));
@@ -174,9 +175,9 @@ export function playerTab(g, ds, rv, prov) {
   const pts = src ? `<section class="rv-card px-card rsc pp-pts pc-${pid}"><div class="rv-gt"><b>Points</b><small>${f("{n} points", { n: s.pts })}</small></div>${pips}<div class="px-prs">${rows}</div></section>` : "";
   const band = s.level?.band && s.acc != null ? `<p class="px-l">${f("{x} bots usually score {n}–{n2}", { x: esc(s.level.label), n: Math.round(s.level.band[0] - s.level.band[1]), n2: Math.round(s.level.band[0] + s.level.band[1]) })}</p>` : "";
   const acc = `<section class="rv-card px-card"><div class="rv-gt"><b>${accWord}</b></div><div class="px-big"><b data-fact="acc:${pid}" data-v="${m.sum.acc ?? ""}">${m.sum.acc ?? "–"}</b><small>Moves cost</small>${D(m.tot.moves, { fact: `cost:${pid}` })}</div><i class="px-meter"><i class="dot" style="left:${Math.max(0, Math.min(100, m.sum.acc ?? 0))}%"></i></i><div class="px-scale"><span>0</span><span>50</span><span>100</span></div>${band}</section>`;
-  const luck = `<section class="rv-card px-card"><div class="rv-gt"><b>Luck</b></div><div class="px-big">${s.luck != null ? D(s.luck, { fact: `luck:${pid}` }) : `<b>–</b>`}<small>rolls, steals, card draws and seat order</small></div>${s.cards != null ? `<p class="px-fn">${f("Dice cards: {x} against expected", { x: `${sgn(s.cards)}${ab(s.cards)}` })}</p>` : ""}</section>`;
-  const errs = `<section class="rv-card px-card"><div class="rv-gt"><b>${you ? "Where it could be better" : "Their real errors"}</b><small>${f("{n} real errors", { n: m.errs.length })}</small></div>${m.errs.length ? m.errs.slice(0, 5).map((d) => mvRow(g, d, "imp")).join("") : `<p class="px-l">No clear mistake.</p>`}</section>`;
-  const go = m.ds.length ? `<button type="button" class="px-btn pri go" data-rvj="${m.errs[0]?.i ?? m.ds[0].i}" data-rvq="${m.errs.length ? "imp" : "all"}">${IC.step}${f("Step through {x} moves", { x: you ? "your" : "their" })}</button>` : "";
+  const luck = `<section class="rv-card px-card"><div class="rv-gt"><b>Luck</b></div><div class="px-big">${s.luck != null ? D(s.luck, { fact: `luck:${pid}` }) : `<b>–</b>`}<small>rolls, steals, card draws and seat order</small></div>${s.cards != null ? `<p class="px-fn">${f("Cards from the dice: {x} against expected", { x: `${sgn(s.cards)}${ab(s.cards)}` })}</p>` : ""}</section>`;
+  const errs = `<section class="rv-card px-card"><div class="rv-gt"><b>${you ? "Where it could be better" : "Their real errors"}</b><small>${nErr(m.errs.length)}</small></div>${m.errs.length ? m.errs.slice(0, 5).map((d) => mvRow(g, d, "imp")).join("") : `<p class="px-l">No clear mistake.</p>`}</section>`;
+  const go = m.ds.length ? `<button type="button" class="px-btn pri go" data-rvj="${m.errs[0]?.i ?? m.ds[0].i}" data-rvq="${m.errs.length ? "imp" : "all"}">${IC.step}${stepText(m)}</button>` : "";
   const num = `<button type="button" class="px-btn" data-pxnum>Numbers</button>`;
   return { bar, html: `${why}${pts}${acc}${luck}${errs}${go}${num}`, bind: (el) => bindPost(g, el, m) };
 }

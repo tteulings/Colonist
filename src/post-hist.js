@@ -40,7 +40,7 @@ function progress(g, all) {
   const per = rev.map((m) => (m.cls ? (m.cls.lean || 0) + (m.cls.could || 0) + (m.cls.missed || 0) + (m.cls.mistake || 0) + (m.cls.blunder || 0) : null)).filter((v) => v != null);
   const tiles = `<div class="px-tiles"><div><b>${rev.length ? Math.round(avg(rev.map((m) => m.acc))) : "–"}</b><small>${rev.length ? (rev.length === 1 ? f("{x} over 1 game", { x: accWord }) : f("{x} over {n} games", { x: accWord, n: rev.length })) : accWord}</small></div><div><b>${won}/${fin.length}</b><small>won</small></div><div><b>${per.length ? (Math.round(avg(per) * 10) / 10) : "–"}</b><small>marked moves per game</small></div></div>`;
   let chart = "";
-  if (rev.length >= 2) {
+  if (rev.length >= 3) {
     const v = rev.slice(-12), W = 320, H = 110, x0 = 28, x1 = W - 8, top = 10, bot = H - 14, lo = Math.floor(Math.min(...v.map((m) => m.acc), 60) / 10) * 10, hi = Math.min(100, Math.ceil(Math.max(...v.map((m) => m.acc), 80) / 10) * 10);
     const X = (i) => x0 + 6 + (i / (v.length - 1)) * (x1 - x0 - 12), Y = (a) => top + (1 - (a - lo) / (hi - lo)) * (bot - top);
     const sel = Math.min(g._pxHsel ?? v.length - 1, v.length - 1), s = v[sel];
@@ -49,9 +49,10 @@ function progress(g, all) {
     const marks = v.map((m, i) => `<g data-pxmk="${i}" class="mk${i === sel ? " on" : ""}"><circle cx="${X(i).toFixed(1)}" cy="${Y(m.acc).toFixed(1)}" r="${i === sel ? 7 : 5}" class="${m.result}"/><rect x="${(X(i) - 14).toFixed(1)}" y="0" width="28" height="${H}" fill="transparent"/></g>`).join("");
     chart = `<svg viewBox="0 0 ${W} ${H}" class="px-sc" role="img" aria-label="${esc(f("{x} of your last {n} reviewed games, oldest first", { x: accWord, n: v.length }))}">${grid}<path d="${line}" class="ln"/>${marks}</svg><p class="px-fn">${f("Game {n}: {x} {y}", { n: sel + 1, x: accWord, y: s.acc })} · ${s.result === "won" ? "won" : "lost"}</p>`;
   }
+  if (rev.length > 0 && rev.length < 3) chart = `<p class="px-fn">A chart of your Accuracy appears from 3 reviewed games.</p>`;
   const mist = {}; let m2 = 0; rev.forEach((m) => Object.entries(m.mist || {}).forEach(([k, n]) => { mist[k] = (mist[k] || 0) + n; m2 += n; }));
   const top = Object.entries(mist).sort((a, b) => b[1] - a[1])[0];
-  const dots = top && m2 >= 3 ? `<div class="px-mm"><b>Most missed</b><span class="px-mdots" aria-hidden="true">${rev.slice(-10).map((m) => `<i class="${(m.mist?.[top[0]] || 0) ? "on" : ""}"></i>`).join("")}</span><small>${esc(({ "end>build": "ended your turn while a build was possible", build: "built something weaker", bank: "a weaker bank trade", robber: "a weaker robber tile", setup: "a weaker set-up spot" })[top[0]] || top[0])}</small></div>` : "";
+  const dots = top && m2 >= 3 ? `<div class="px-mm"><b>Most missed</b><span class="px-mdots" aria-hidden="true">${rev.slice(-10).map((m) => `<i class="${(m.mist?.[top[0]] || 0) ? "on" : ""}"></i>`).join("")}</span><small class="mm">${esc(({ "end>build": "ended your turn while a build was possible", build: "built something weaker", bank: "a weaker bank trade", robber: "a weaker robber tile", setup: "a weaker set-up spot" })[top[0]] || top[0])}</small><small class="px-fn">Filled dot = a game with this miss. Your last 10 games, oldest first.</small></div>` : "";
   return `<section class="px-card px-prog rv-card"><div class="rv-gt"><b>Your progress</b></div>${tiles}${chart}${dots}</section>`;
 }
 
@@ -152,8 +153,8 @@ function board(g, T0) {
       if (tn != null) rings += `<g><circle cx="${(geo.nodes[tn].x * S).toFixed(1)}" cy="${(geo.nodes[tn].y * S).toFixed(1)}" r="13" fill="none" stroke="#F0B45C" stroke-width="3"/><text x="${(geo.nodes[tn].x * S).toFixed(1)}" y="${(geo.nodes[tn].y * S - 16).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="800" fill="#F0B45C" stroke="#000" stroke-width=".4">A</text></g>`;
     }
     const pk = m.start?.picks || [], top = pk[0]?.shortlist?.[0];
-    const prow = (lab, node, spot, win) => `<div class="px-br"><small>${lab}</small><span class="tl">${spotTiles(bd, node)}</span><span class="dt">${spot ? f("{n} dots", { n: spot.total }) : ""}</span><b>${win ?? "–"}%</b></div>`;
-    const info = s.T === 0 ? `<h4 class="px-bh">Start: your picks and the top spot</h4><p class="px-fn">1 and 2 are your picks (dashed). A is the top spot for pick 1: the best of at most 6 spots checked.</p>${pk[0] ? prow("PICK 1", pk[0].node, pk[0].spot, pk[0].win) : ""}${top ? prow("A · TOP", top.node, top.spot, top.win) : ""}${pk[1] ? prow("PICK 2", pk[1].node, pk[1].spot, pk[1].win) : ""}` : `<h4 class="px-bh">${esc(s.label)}</h4><p class="px-l"><span data-i18n-skip>${s.say || ""}</span></p>`;
+    const prow = (lab, node, spot, win, key) => `<div class="px-br"><small>${lab}</small><span class="tl">${spotTiles(bd, node)}</span><span class="dt"${spot && key ? ` data-fact="${key}dots:${m.pid}" data-v="${spot.total}"` : ""}>${spot ? f("{n} dots", { n: spot.total }) : ""}</span><b${key ? ` data-fact="${key}win:${m.pid}" data-v="${win ?? ""}"` : ""}>${win ?? "–"}%</b></div>`;
+    const info = s.T === 0 ? `<h4 class="px-bh">Start: your picks and the top spot</h4><p class="px-fn">1 and 2 are your picks (dashed). A is the top spot for pick 1: the best of at most 6 spots checked.</p>${pk[0] ? prow("PICK 1", pk[0].node, pk[0].spot, pk[0].win, "pick1") : ""}${top ? prow("A · TOP", top.node, top.spot, top.win, "top1") : ""}${pk[1] ? prow("PICK 2", pk[1].node, pk[1].spot, pk[1].win) : ""}` : `<h4 class="px-bh">${esc(s.label)}</h4><p class="px-l"><span data-i18n-skip>${s.say || ""}</span></p>`;
     const stopLab = (q) => (q.T === 0 ? "Start" : `T${q.T}`);
     el.innerHTML = `<div class="rv-bar"><button type="button" class="rv-btn" data-pxbx aria-label="Close">${IC.back}</button><div><h3>Bekijk bord</h3><small>${s.T === 0 ? "Start: your picks" : esc(s.label)}</small></div></div><div class="rv-scroll"><section class="rv-card px-card"><svg viewBox="${x0.toFixed(1)} ${y0.toFixed(1)} ${W.toFixed(1)} ${H.toFixed(1)}" class="px-bd" role="img" aria-label="${esc(s.label)}">${hexes}${rd}${pcs}${rings}</svg></section>
       <section class="rv-card px-card"><div class="px-stops">${stops.map((q, i) => `<button type="button" class="${i === cur ? "on" : ""}" data-pxs="${i}">${stopLab(q)}</button>`).join("")}</div>${info}<input type="range" class="px-rng" min="0" max="${stops.length - 1}" value="${cur}" aria-label="Moment" data-pxr>

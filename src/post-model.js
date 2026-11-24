@@ -330,7 +330,7 @@ function overlay(g, m, board, st, T) {
   const sp = Y.split, nega = (v) => -v;
   m.ds = Y.ds; m.errs = Y.errors; m.other = Y.ds.filter((d) => d.k !== "setup" && !Y.errors.includes(d)); m.setups = Y.ds.filter((d) => d.k === "setup");
   m.pillars = { errors: nega(sp.errors), start: nega(sp.start), other: nega(sp.other), total: sp.headline, capped: sp.capped, cap: sp.cap };
-  const c = Y.counts; m.counts = { total: c.all, scored: c.scored, forced: c.oneOption ?? Math.max(0, c.all - Y.ds.length), triv: c.trivial, small: c.small, errors: c.errors, shownErrors: Math.min(4, c.errors), notErrors: c.notErrors, setupErrors: c.setupErrors };
+  const c = Y.counts; const startN = Y.ds.filter((d) => d.k === "setup" && d.cls !== "triv").length; m.counts = { startN, otherN: Math.max(0, c.scored - c.errors - startN), total: c.all, scored: c.scored, forced: c.oneOption ?? Math.max(0, c.all - Y.ds.length), triv: c.trivial, small: c.small, errors: c.errors, shownErrors: Math.min(4, c.errors), notErrors: c.notErrors, setupErrors: c.setupErrors };
   m.lesson1 = Y.errors.slice(0, 4).map((d) => errCard(g, d, board, T, st, m.pid, Y.chips?.[d.i]));
   const ph = Y.phase; m.phaseCost = ["opening", "mid", "end"].map((k) => ({ k, from: A.limits[k][0], to: A.limits[k][1], cost: -ph[k], errs: Y.errors.filter((d) => d.t >= A.limits[k][0] && d.t <= A.limits[k][1]) }));
   m.small = -ph.small; m.startCost = -ph.start; m.phases = m.phaseCost.map((p) => ({ k: p.k, from: p.from, to: p.to }));
