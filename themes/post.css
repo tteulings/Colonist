@@ -215,3 +215,4 @@
 .px-kd { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: var(--accent); vertical-align: -1px; }
 .px-sk { align-self: center; font: 800 12px/1 var(--font-body); color: var(--ink-soft); letter-spacing: .03em; text-transform: uppercase; margin-right: 2px; }
 .px-fam.f-err.z b { color: var(--heading); }
+.px-num .px-d { padding: 2px 4px; font-size: 12px; gap: 2px; }

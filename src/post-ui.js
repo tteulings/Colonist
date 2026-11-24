@@ -91,7 +91,7 @@ export const nMiss = (n) => plural(n, "1 miss", "{n} misses");
 /** one moment's cause in plain words (already in the app language): "built a city", "good roll", "ended too early", "Groen’s roll" */
 export function causeText(m, x) {
   const nl = isNL(), lg = nl ? "nl" : "en", nm = (q) => (m.tab?.seats?.[q]?.you ? atr(lg, "mom.you") : esc(m.tab?.seats?.[q]?.name || "?")), kw = (k) => atr(lg, `kind.${k}`);
-  if (x.k === "roll") return atr(lg, x.good ? "mom.roll.good" : "mom.roll.bad");
+  if (x.k === "roll") return x.own ? atr(lg, x.good ? "mom.roll.good" : "mom.roll.bad") : atr(lg, "mom.roll.of", { x: nm(x.actor), n: x.roll });
   if (x.k === "by") return atr(lg, x.what === "turn" ? "mom.by.turn" : `mom.by.${x.what}`, { x: nm(x.actor) });
   if (x.k === "build") return atr(lg, `mom.${x.what}`);
   if (x.what === "end") return atr(lg, "mom.end");
