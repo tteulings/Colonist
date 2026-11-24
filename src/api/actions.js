@@ -76,10 +76,14 @@ export const ACTION_TYPES = Object.keys(ACTIONS);
 export const SEAT_ACTION_TYPES = ACTION_TYPES.filter((t) => !ACTIONS[t].host);
 
 /** Does this action type exist in the mode? mode = { rush, sea, big }. */
+const ENTRIES = new Map(); // spec -> { req: [[field, check]...], modes: [[flag, want]...] }, built once (validateShape runs on every judged action)
+const entriesOf = (spec) => { let e = ENTRIES.get(spec); if (!e) ENTRIES.set(spec, (e = { req: Object.entries(spec.req), modes: Object.entries(spec.modes || {}) })); return e; };
 export function modeAllows(type, mode) {
   const spec = ACTIONS[type];
   if (!spec) return false;
-  return Object.entries(spec.modes || {}).every(([flag, want]) => !!mode[flag] === want);
+  const ms = entriesOf(spec).modes;
+  for (let i = 0; i < ms.length; i++) if (!!mode[ms[i][0]] !== ms[i][1]) return false;
+  return true;
 }
 
 /** Static check of an action's shape (and of the mode it is used in). Never looks at a game state. */
@@ -90,7 +94,7 @@ export function validateShape(a, mode = { rush: false, sea: false, big: false })
   if (spec.host) return { ok: false, reason: `${a.type} is a host input, not a seat action` };
   if (!F.seat(a.actor)) return { ok: false, reason: "actor must be a seat id" };
   if (!modeAllows(a.type, mode)) return { ok: false, reason: `${a.type} does not exist in this mode` };
-  for (const [k, c] of Object.entries(spec.req)) if (!(k in a) || !F[c](a[k])) return { ok: false, reason: `${a.type}.${k} is missing or not a ${c}` };
+  for (const [k, c] of entriesOf(spec).req) if (!(k in a) || !F[c](a[k])) return { ok: false, reason: `${a.type}.${k} is missing or not a ${c}` };
   for (const k of Object.keys(a)) {
     if (k === "type" || k === "actor") continue;
     const c = spec.req[k] || spec.opt[k];

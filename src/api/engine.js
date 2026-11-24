@@ -107,6 +107,17 @@ function hash53(str) {
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(14, "0");
 }
 
+/** A JSON-clean copy of an action (what JSON.parse(JSON.stringify(a)) gave): one level of arrays / hands is all an action ever nests. */
+function cloneAction(a) {
+  const c = {};
+  for (const k in a) {
+    const v = a[k];
+    if (v === undefined) continue;
+    c[k] = v === null || typeof v !== "object" ? v : Array.isArray(v) ? v.slice() : { ...v };
+  }
+  return c;
+}
+
 export class Engine {
   constructor(g, opts = {}) {
     this.g = g;
@@ -171,8 +182,10 @@ export class Engine {
   setChance(src) { this._src = { dice: src?.dice || null, steal: src?.steal || null }; return this; }
 
   mode() {
-    const g = this.g;
-    return { id: g.isRush() ? "rush" : "classic", rush: g.isRush(), sea: !!g.sea, big: !!g.bigBoard, winPoints: g.winPoints, discardLimit: g._discardLimit() };
+    const g = this.g, rush = g.isRush(), sea = !!g.sea, big = !!g.bigBoard, wp = g.winPoints, dl = g._discardLimit();
+    const m = this._mode; // v1.99: the same object while nothing in it changed (isLegal / apply ask on every judged action)
+    if (m && m.rush === rush && m.sea === sea && m.big === big && m.winPoints === wp && m.discardLimit === dl) return m;
+    return (this._mode = { id: rush ? "rush" : "classic", rush, sea, big, winPoints: wp, discardLimit: dl });
   }
   controls(seat) { return this._control.has(seat); }
   /** Decide these seats (default all) only through apply(): the game stops running them itself. Headless use; timers are dropped. */
@@ -404,11 +417,12 @@ export class Engine {
     if (!sh.ok) return sh;
     const ps = opts.prompt ? [opts.prompt] : this.prompts().filter((p) => p.actor === a.actor);
     if (!ps.length) return { ok: false, reason: `seat ${a.actor} has no prompt right now` };
-    const k = keyOf(this._canon(a));
+    let k = null; // the action's canonical key: only the scan below needs it (v1.99: not built for the common answers _quick judges)
     let why = null;
     for (const pr of ps) {
       if (!PROMPTS[pr.kind].types.includes(a.type)) { why = why || `${a.type} is not an answer to ${pr.kind}`; continue; }
       if (this._quick(a, pr)) return { ok: true }; // the common answers, judged by one call instead of a scan (the scan below gives the reason when refused)
+      if (k === null) k = keyOf(this._canon(a));
       for (const l of this._legalOf(pr, a.type)) {
         if (!l.choose) { if (keyOf(this._canon(l)) === k) return { ok: true }; continue; }
         if (l.type !== a.type || (l.answer && l.answer !== a.answer)) continue;
@@ -475,8 +489,7 @@ export class Engine {
    */
   apply(a, opts = {}) {
     this._enter();
-    const sh = validateShape(a, this.mode());
-    if (!sh.ok) return refuse(sh.reason);
+    if (!opts.trusted) { const sh = validateShape(a, this.mode()); if (!sh.ok) return refuse(sh.reason); } // `trusted`: the host has just judged the shape (isLegal) of this very action
     if (!this.controls(a.actor)) return refuse(`seat ${a.actor} is not controlled by this engine`);
     if (!opts.trusted) { const lg = this.isLegal(a); if (!lg.ok) return refuse(lg.reason); } // `trusted`: the caller (the bot host) has just judged it
     const g = this.g, before = opts.quiet ? null : this._brief(), hit = a.type === "roll" ? null : undefined;
@@ -489,8 +502,9 @@ export class Engine {
     if (err) throw err;
     if (done === false) return { ok: false, bug: true, reason: `the old code rejected a legal ${a.type} (engine/legacy disagreement)`, events: [], prompts: this.prompts() };
     const events = opts.quiet ? [] : this._events(a, before); // `quiet`: no event list (headless bot play)
-    const entry = { a: JSON.parse(JSON.stringify(a)), chance: this._chanceUsed };
+    const entry = { a: cloneAction(a), chance: this._chanceUsed };
     this._log.push(entry);
+    if (opts.quiet) { const eng = this; return { ok: true, events, get prompts() { return eng.prompts(); } }; } // headless bot play never reads them: asked for only when read (v1.99)
     return { ok: true, events, prompts: this.prompts() };
   }
   _asHuman(p, fn) { const h = p.isHuman; p.isHuman = true; try { return fn(); } finally { p.isHuman = h; } }
@@ -718,7 +732,7 @@ export class Engine {
     const known = me >= 0 ? devSum(g.players[me].devCards) + devSum(g.players[me].newDevCards) + g.players[me].devVictoryPoints : 0;
     const deck = g.bigBoard ? BIG_DEV_DECK : DEV_DECK;
     const v = {
-      mode: this.mode(), turn: g.turn, phase: g.phase, current: g.currentPlayerIndex, winner: g.winner ? g.winner.id : null, prompts: this.prompts(),
+      mode: { ...this.mode() }, turn: g.turn, phase: g.phase, current: g.currentPlayerIndex, winner: g.winner ? g.winner.id : null, prompts: this.prompts(),
       board: boardOf(g),
       pieces: { nodeOwner: geo.nodes.map((n) => n.owner ?? -1), nodeStruct: geo.nodes.map((n) => (n.structure === "city" ? 2 : n.structure === "settlement" ? 1 : 0)),
         edgeOwner: geo.edges.map((e) => e.owner ?? -1), edgeShip: geo.edges.map((e) => (e.ship ? 1 : 0)) },

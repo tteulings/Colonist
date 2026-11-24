@@ -54,9 +54,14 @@ const FLAGS = { _replay: true, _rvBusy: "probe" }; // stats recorder off; the re
 
 function mute(g, { suspend }) {
   const live = app.has(g); // the game on the screen; any other (the AI Lab's sim frame, a headless game) is stubbed already and only needs its recorders told a probe is no move
+  if (!live) { // headless (every probe of a lab / tournament game): the three flags, without the closures of the general path
+    const has = Object.prototype.hasOwnProperty, own = { _replay: has.call(g, "_replay"), _rvBusy: has.call(g, "_rvBusy"), _stMover: has.call(g, "_stMover") };
+    const saved = { _replay: g._replay, _rvBusy: g._rvBusy, _stMover: g._stMover };
+    g._replay = true; g._rvBusy = "probe";
+    return { own, saved, anims: null, api: null, keepActive: null };
+  }
   const own = {}, saved = {};
   const swap = (k, v) => { own[k] = Object.prototype.hasOwnProperty.call(g, k); saved[k] = g[k]; g[k] = v; };
-  if (!live) { Object.keys(FLAGS).forEach((k) => swap(k, FLAGS[k])); swap("_stMover", g._stMover); return { own, saved, anims: null, api: null, keepActive: null }; }
   SILENT_FNS.forEach((k) => swap(k, NOOP));
   SILENT_OBJS.forEach((k) => { if (g[k]) swap(k, QUIET); });
   const bus = g.events, mutedBefore = bus?.muted ? new Set(bus.muted) : null;

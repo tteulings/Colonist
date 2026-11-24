@@ -30,7 +30,7 @@ function makeCtx(engine, host, bot, prompt) {
   const g = engine.g;
   return {
     game: g, engine, seat: prompt.actor, prompt,
-    isLegal: (a) => engine.isLegal(a, { prompt }).ok,
+    isLegal: (a) => { const ok = engine.isLegal(a, { prompt }).ok; host.judged = ok ? a : null; host.judgedPrompt = prompt; return ok; }, // v1.99: finish() does not judge the same answer a second time
     enumerate: (max = 200) => engine.enumerate(prompt.actor, { prompt, max }), // concrete legal actions (the `legal` list holds descriptors for discards, offers, ...)
     warn: (m) => host.errors.push({ seat: prompt.actor, prompt: prompt.kind, warn: m }),
     rng: host.rng(prompt.actor), note() {}, sim: null, signal: host.signal,
@@ -56,7 +56,9 @@ function finish(engine, host, prompt, action) {
   if (action && action.type === "pause" && host.humanTrade) return action; // the in-app host: a person has to answer first (bots/inapp.js)
   let a = action, why = null;
   if (!a) why = "no answer";
+  else if (host.judged === a && host.judgedPrompt === prompt) { /* the bot asked ctx.isLegal about this very action a moment ago: nothing has changed since */ }
   else { const j = engine.isLegal(a, { prompt }); if (!j.ok) why = j.reason; }
+  host.judged = null; host.judgedPrompt = null;
   if (why && host.strict) throw Object.assign(new Error(`host: seat ${prompt.actor} answered illegally under ${prompt.kind} (${why})`), { hostFallback: true }); // in the app: the old driver plays the phase instead
   if (why) { // a buggy or stuck bot: the first legal action, and a record of it
     host.errors.push({ seat: prompt.actor, prompt: prompt.kind, action: a, reason: why });
@@ -73,7 +75,7 @@ function finish(engine, host, prompt, action) {
 
 export function newHost(opts = {}) {
   const rngs = new Map();
-  return { errors: [], steps: 0, turns: 0, events: !!opts.onEvent, humanTrade: !!opts.humanTrade, strict: !!opts.strict, onAction: opts.onAction || null, signal: opts.signal || null,
+  return { errors: [], judged: null, judgedPrompt: null, steps: 0, turns: 0, events: !!opts.onEvent, humanTrade: !!opts.humanTrade, strict: !!opts.strict, onAction: opts.onAction || null, signal: opts.signal || null,
     rng: (seat) => { let r = rngs.get(seat); if (!r) rngs.set(seat, (r = mulberry32((opts.seed ?? 1) * 7919 + seat))); return r; } };
 }
 
