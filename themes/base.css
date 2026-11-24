@@ -703,7 +703,7 @@ html[data-motion="reduced"] .board-wrap .sea::after { animation: none; }
 html.theme-switching *, html.theme-switching *::before { transition: background-color 300ms, color 300ms, border-color 300ms !important; }
 
 /* ---------- motion overlay ---------- */
-#fxLayer { position: fixed; inset: 0; z-index: 80; pointer-events: none; overflow: hidden; }
+#fxLayer { position: fixed; inset: 0; z-index: 80; pointer-events: none; overflow: hidden; contain: layout style; } /* v1.99: an actor added or moved never re-lays-out the page */
 body.fx-under-sheets #fxLayer { z-index: 44; } /* Rush 7: dice tumble below the pause panel, never over its buttons */
 .fx-actor { position: absolute; left: 0; top: 0; transform-origin: 50% 70%; will-change: transform, opacity; }
 .fx-actor > svg { width: 100%; height: auto; display: block; }

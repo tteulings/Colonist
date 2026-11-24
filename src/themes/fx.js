@@ -23,6 +23,9 @@ export class Fx {
 
   get M() { return this.game.theme.motion; }
   get reduced() { return motionReduced(); }
+  /** v1.99: bots on Fast ("Snel"): the dice are quicker and a bot's gain is a pulse on its portrait, not five cards in the air (the card art is the costly part
+   *  of a roll: each flying card is an SVG with the whole card drawing in it). Your own cards still fly. */
+  get fast() { return !!this.game.botStepMs && this.game.botStepMs() <= 450; }
 
   /** WAAPI with the theme's tempo; reduced motion → 220 ms cross-fade to the end state. */
   A(el, frames, o) {
@@ -97,11 +100,13 @@ export class Fx {
     // on the chip's dice slots and are swapped for them in the same frame; there is no separate floating sum badge
     // (it used to land 2–4 px off the chip's own sum, so "66" / "88" showed for ~0.5 s). The chip's contents stay
     // hidden (.fx-hold) until the dice land — also in Rush, where the chip is re-rendered at the moment of the roll.
+    // v1.99: every read (board, chip, dice slots) first, the writes (.fx-hold, the tumbling dice) after: one layout for the whole roll instead of a forced one per step
     const br = this.boardRect();
+    const sp = this.fast && !this.reduced ? 0.7 : 1; // v1.99: on Fast the dice come to rest in 0.7 of the time
     const chipEl = document.getElementById("lastDiceDisplay");
+    const chip = this.diceTarget();
     chipEl?.classList.add("fx-hold");
     chipEl?.classList.remove("land");
-    const chip = this.diceTarget();
     const tumble = chip ? Math.max(chip.d, 28) : Math.max(34, Math.min(50, br.width * 0.05));
     const size = chip ? chip.d : tumble, k = size / tumble;
     const ex = chip ? chip.x : br.left + br.width / 2 - size, ey = chip ? chip.y : br.top + Math.min(br.height * 0.14, 90);
@@ -120,16 +125,16 @@ export class Fx {
         kf.push({ transform: `translate(${px + 10}px,${ty - hy}px) rotate(${-20 + b * 20}deg) scale(1)`, offset: p + 0.2 / M.bounces, easing: M.fall });
       }
       kf.push({ transform: `translate(${tx}px,${ty}px) rotate(0deg) scale(${k})`, offset: 1 });
-      this.A(el, kf, { duration: 760, delay: i * 60 });
+      this.A(el, kf, { duration: 760 * sp, delay: i * 60 * sp });
       el.querySelectorAll(".face").forEach((fc, n) => {
         if (this.reduced) { fc.style.opacity = n + 1 === fin ? 1 : 0; return; }
-        this.A(fc, Array.from({ length: 9 }, (_, s) => ({ opacity: s === 8 ? +(n + 1 === fin) : +((n + s * (i + 2)) % 6 === 0), offset: s / 8, easing: "steps(1,end)" })), { duration: 680, delay: i * 60 });
+        this.A(fc, Array.from({ length: 9 }, (_, s) => ({ opacity: s === 8 ? +(n + 1 === fin) : +((n + s * (i + 2)) % 6 === 0), offset: s / 8, easing: "steps(1,end)" })), { duration: 680 * sp, delay: i * 60 * sp });
       });
       return el;
     });
     // hand-over: one frame after the game has rendered the chip (it does so at the returned time), swap the tumbling
     // dice for the chip's own — same place, same size, so nothing moves — and pop the total in
-    const land = this.reduced ? 380 : 880 * this.M.k;
+    const land = this.reduced ? 380 : 880 * this.M.k * sp;
     window.setTimeout(() => requestAnimationFrame(() => {
       dice.forEach((e) => e.remove());
       const c = document.getElementById("lastDiceDisplay");
@@ -152,7 +157,7 @@ export class Fx {
         // source: a producing hex of that resource next to this player
         const hex = g.geometry.hexes.find((h) => h.number === number && h.resource === res && h.id !== g.robberHexId && h.nodes.some((nid) => g.geometry.nodes[nid].owner === pid)) ||
           g.geometry.hexes.find((h) => h.number === number && h.resource === res);
-        const cr = rect(g.canvas);
+        const cr = br; // the canvas rect read once above (v1.99: not once per card)
         const sp = hex ? g.worldToScreen(hex.center.x, hex.center.y) : { x: br.width / 2, y: br.height / 2 };
         const scaleX = cr.width / g.boardWidth, scaleY = cr.height / g.boardHeight;
         const src = { x: cr.left + sp.x * scaleX, y: cr.top + sp.y * scaleY };
@@ -176,6 +181,11 @@ export class Fx {
 
   flyOne(res, src, pid, cw, plusN) {
     const target = this.targetFor(pid, res);
+    const humanHand = this.game.players[pid]?.isHuman && (this.game._seesPrivate?.(this.game.players[pid]) ?? true);
+    if (this.fast && !humanHand && !this.reduced) { // v1.99: no card in the air for a bot's gain on Fast: its portrait pulses (and says +n) as the card would have arrived
+      window.setTimeout(() => this.pulse(pid, res, plusN), 300 * this.M.k);
+      return;
+    }
     const tr = rect(target);
     if (!tr) return;
     const dst = center(tr);
@@ -191,16 +201,19 @@ export class Fx {
       { transform: `translate(${dx}px,${dy}px) scale(${endScale}) rotate(0deg)`, opacity: 0, offset: 1 },
     ], { duration: 1000 });
     this.later([el], 1050);
-    window.setTimeout(() => {
-      const t = this.targetFor(pid, res);
-      if (!t) return;
-      this.A(t, [{ transform: "scale(1)" }, { transform: "scale(1.16) rotate(-4deg)", offset: 0.5 }, { transform: "scale(1)" }], { duration: 400, easing: this.M.pop, fill: "none" });
-      if (plusN) this.plus(t, plusN);
-    }, 1000 * (this.reduced ? 0.25 : this.M.k));
+    window.setTimeout(() => this.pulse(pid, res, plusN), 1000 * (this.reduced ? 0.25 : this.M.k));
   }
 
-  plus(target, n) {
-    const r = rect(target);
+  /** The arrival of a card: the target pulses, and says +n after the last one. */
+  pulse(pid, res, plusN) {
+    const t = this.targetFor(pid, res);
+    if (!t) return;
+    const tr2 = plusN ? rect(t) : null; // read before the pulse starts (v1.99: no forced layout between the animation and the +n)
+    this.A(t, [{ transform: "scale(1)" }, { transform: "scale(1.16) rotate(-4deg)", offset: 0.5 }, { transform: "scale(1)" }], { duration: 400, easing: this.M.pop, fill: "none" });
+    if (plusN) this.plus(t, plusN, tr2);
+  }
+
+  plus(target, n, r = rect(target)) {
     if (!r) return;
     const el = this.actor(`+${n}`, r.left + r.width / 2, r.top - 6, 0, "fx-plus");
     this.A(el, [{ opacity: 0, transform: "translate(-50%,10px) scale(.6)" }, { opacity: 1, transform: "translate(-50%,-6px) scale(1.1)", offset: 0.4 }, { opacity: 1, transform: "translate(-50%,-14px) scale(1)", offset: 0.8 }, { opacity: 0, transform: "translate(-50%,-24px) scale(1)" }], { duration: 900, easing: this.M.out });
@@ -332,9 +345,9 @@ export class Fx {
     const anchor = g.playerAnchor(pid);
     // v0.81: no full-screen dim any more ("heavy fade between turns"): the board and your hand stay
     // fully visible while the bots play; the new player's chip pops and the banner slides in instead.
+    const banner = document.getElementById("turnBanner"), shown = !!(banner && banner.offsetParent); // v1.99: the layout read comes before the first animation starts
     if (anchor) this.A(anchor, [{ transform: "scale(1)" }, { transform: "scale(1.06)", offset: 0.6 }, { transform: "scale(1)" }], { duration: 600, delay: 200, easing: this.M.pop, fill: "none" });
-    const banner = document.getElementById("turnBanner");
-    if (banner && banner.offsetParent) this.A(banner, [{ transform: "translateY(-12px)", opacity: 0 }, { transform: "translateY(0)", opacity: 1 }], { duration: 600, easing: this.M.pop, fill: "none" });
+    if (shown) this.A(banner, [{ transform: "translateY(-12px)", opacity: 0 }, { transform: "translateY(0)", opacity: 1 }], { duration: 600, easing: this.M.pop, fill: "none" });
   }
   // ── Year of Plenty / Monopoly: public cards fly bank → player / opponents → player ──
   /** Where the bank cards leave from: that resource's chip in the supply bar, else the bank bar, else board top. */
@@ -371,8 +384,9 @@ export class Fx {
       window.setTimeout(() => {
         const t = this.targetFor(pid, res);
         if (!t) return;
+        const tr2 = plusN ? rect(t) : null;
         this.A(t, [{ transform: "scale(1)" }, { transform: "scale(1.16) rotate(-4deg)", offset: 0.5 }, { transform: "scale(1)" }], { duration: 300, easing: this.M.pop, fill: "none" });
-        if (plusN) this.plus(t, plusN);
+        if (plusN) this.plus(t, plusN, tr2);
       }, 600 * k);
     }, delay * k);
   }
