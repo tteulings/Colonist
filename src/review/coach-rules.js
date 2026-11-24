@@ -11,7 +11,7 @@ import { kindOf } from "../lessons-row.js";
 import { SEVERE } from "./score.js";
 
 /** Rule thresholds, RELATIVE to the target points (so a game to 8 or to 12 reads the same). A separate calibration pass will tune these on more games. */
-export const THRESHOLDS = { half: 0.5, lastGap: 1 };
+export const THRESHOLDS = { half: 0.5, lastGap: 2 };
 export const PHASES = ["opening", "mid", "end"];
 
 // ── phases ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -94,15 +94,46 @@ export function pointsAfter(plog, turn, q) {
 
 // ── the rules ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 // m = the moment of one decision: { d (the decision), turn, phase, pts (your visible points then), target, missing (resources with no income then, [] when unknown),
-//     pk (kind of the move played), bk (kind of the better move) }.   ctx = { target, th: THRESHOLDS }.
+//     pk (kind of the move played), bk (kind of the better move), pl / bl (the labels of the move played / the better move) }.   ctx = { target, th: THRESHOLDS }.
 // when(m, ctx) -> falsy | true | { params for the chip }.   chip / text: keys of analysis-text.js (params: {res}, {pts, target}).
+// v1.99 calibration (37 real reviewed games, 148 seat views, 234 clear errors): 62% of the clear errors are "ended the turn with a move available"
+// (dev card to play or buy, a bank trade, a build); most of the rest are the wrong road. The rules are written around those patterns.
+const PLAY = /^Play /i, BUYCARD = /^(?:Trade .*? then )?(?:Dev|Development) card/i, THEN_BUILD = /\bthen (?:Settlement|City)\b/i;
+const NAME = { wood: "Lumber", brick: "Brick", sheep: "Wool", wheat: "Grain", ore: "Ore" };
+const BUILDS = ["settlement", "city", "road"];
+const pts = (m, c) => ({ pts: m.pts, target: c.target });
+const playCardAny = (m) => PLAY.test(m.bl) && !PLAY.test(m.pl);             // a card could have been played instead of what you did
+const buyCard = (m) => m.bk === "card" && BUYCARD.test(m.bl) && m.pk !== "card";
+const spendEnd = (m) => m.pk === "end" && (BUILDS.includes(m.bk) || m.bk === "bank");
+const tradeBuild = (m) => THEN_BUILD.test(m.bl) && m.pk !== "end" && !THEN_BUILD.test(m.pl);
+/** Road vs road: the better road heads for a spot with a resource you have no income from, and yours does not. */
+const roadNewResource = (m) => m.pk === "road" && m.bk === "road" && m.missing.map((r) => NAME[r]).find((n) => n && m.bl.includes(n) && !m.pl.includes(n));
+
 export const RULES = [
+  // opening
   { id: "missing-resource", phase: "opening", chip: "rule.missing.chip", text: "rule.missing.text",
-    when: (m) => m.missing.length > 0 && ["settlement", "city", "bank", "card", "road"].includes(m.bk) && { res: m.missing[0], missing: m.missing } },
-  { id: "city-at-half", phase: "mid", chip: "rule.city.chip", text: "rule.city.text",
-    when: (m, c) => m.bk === "city" && m.pk !== "city" && m.pts != null && m.pts >= c.th.half * c.target && { pts: m.pts, target: c.target } },
-  { id: "last-point", phase: "end", chip: "rule.last.chip", text: "rule.last.text",
-    when: (m, c) => m.pts != null && m.pts >= c.target - c.th.lastGap && ["settlement", "city", "card"].includes(m.bk) && { pts: m.pts, target: c.target } },
+    when: (m) => { // the better move is a trade, or heads for / builds on a resource you have no income from (not a dev card, not a different road)
+      if (!m.missing.length || !["settlement", "city", "bank", "road"].includes(m.bk)) return false;
+      const hit = m.missing.find((r) => m.bl.includes(NAME[r])), trade = /^Bank trade|\bthen\b/i.test(m.bl);
+      return (hit || trade) && { res: hit || m.missing[0], missing: m.missing };
+    } },
+  { id: "open-spend", phase: "opening", chip: "rule.pts.chip", text: "rule.openspend.text",
+    when: (m, c) => m.pk === "end" && m.bk !== "end" && m.bk !== "other" && pts(m, c) },
+  { id: "open-road-resource", phase: "opening", chip: "rule.missing.chip", text: "rule.openroad.text",
+    when: (m) => { const n = roadNewResource(m); return !!n && { res: Object.keys(NAME).find((k) => NAME[k] === n), missing: m.missing }; } },
+  { id: "open-trade-settle", phase: "opening", chip: "rule.pts.chip", text: "rule.opentrade.text",
+    when: (m, c) => tradeBuild(m) && /then Settlement/i.test(m.bl) && pts(m, c) },
+  // mid
+  { id: "mid-play-card", phase: "mid", chip: "rule.pts.chip", text: "rule.midplay.text", when: (m, c) => playCardAny(m) && pts(m, c) },
+  { id: "mid-buy-card", phase: "mid", chip: "rule.pts.chip", text: "rule.midbuy.text", when: (m, c) => buyCard(m) && pts(m, c) },
+  { id: "mid-spend", phase: "mid", chip: "rule.pts.chip", text: "rule.midspend.text", when: (m, c) => spendEnd(m) && pts(m, c) },
+  { id: "mid-trade-build", phase: "mid", chip: "rule.pts.chip", text: "rule.midtrade.text", when: (m, c) => tradeBuild(m) && pts(m, c) },
+  // end
+  { id: "last-point", phase: "end", chip: "rule.pts.chip", text: "rule.last.text",
+    when: (m, c) => m.pts != null && m.pts >= c.target - c.th.lastGap && ["settlement", "city", "card"].includes(m.bk) && !PLAY.test(m.bl) && pts(m, c) },
+  { id: "end-play-card", phase: "end", chip: "rule.pts.chip", text: "rule.endplay.text", when: (m, c) => playCardAny(m) && pts(m, c) },
+  { id: "end-spend", phase: "end", chip: "rule.pts.chip", text: "rule.endspend.text", when: (m, c) => (spendEnd(m) || buyCard(m)) && m.pk === "end" && pts(m, c) },
+  { id: "end-trade", phase: "end", chip: "rule.pts.chip", text: "rule.endtrade.text", when: (m, c) => (tradeBuild(m) || (m.bk === "bank" && m.pk !== "end")) && pts(m, c) },
 ];
 export const RULE = Object.fromEntries(RULES.map((r) => [r.id, r]));
 
@@ -120,7 +151,7 @@ const missingAt = (raw, turn, me) => {
 export function momentOf(d, { plog, limits, raw, me, target }) {
   const turn = d.t ?? d.x?.t ?? 0;
   return { d, turn, phase: d.k === "setup" ? "start" : phaseOf(turn, limits), pts: d.k === "setup" ? null : pointsBefore(plog, turn, me), target,
-    missing: d.k === "setup" ? [] : missingAt(raw, turn, me), pk: kindOf(d.x?.label), bk: bestKindOf(d.x?.best?.label) };
+    missing: d.k === "setup" ? [] : missingAt(raw, turn, me), pk: kindOf(d.x?.label), bk: bestKindOf(d.x?.best?.label), pl: String(d.x?.label || ""), bl: String(d.x?.best?.label || "") };
 }
 /** The rules that fired in one game: [{ id, phase, cost (win chance lost, whole %), n, moments: [{ turn, i, gp, cls, pts, target, params, chip, text }] }], opening to end, the dearest first inside a phase.
  *  ds = decisions of YOUR seat (decide() output). A rule fires only on a clear error of its own phase, set-up picks are not part of it (they are Lesson 2). */
