@@ -1,7 +1,7 @@
 // v1.99 Post-game UI, part 3: Terugblik (History: one Games | Lessons door, progress with a scrub chart, "Most missed", unfoldable game rows),
 // the Bots page (Strength ladder, Precision, You vs them) and Bekijk bord (the board at the start and at every key moment).
 import { esc, IC } from "./review-ui.js";
-import { f, D, RES_NAME } from "./post-ui.js";
+import { f, D, RES_NAME, spotTiles } from "./post-ui.js";
 import { modelOf, tableOf, ptsAtStep, boardFor } from "./post-model.js";
 import { stdGeo, hexCorners } from "./lessons-geo.js";
 import { RES_COLOR } from "./resources.js";
@@ -149,9 +149,17 @@ function board(g, T0) {
       const tn = m.start.picks[0]?.shortlist?.find((c) => c.best)?.node ?? m.start.picks[0]?.shortlist?.[0]?.node;
       if (tn != null) rings += `<g><circle cx="${(geo.nodes[tn].x * S).toFixed(1)}" cy="${(geo.nodes[tn].y * S).toFixed(1)}" r="13" fill="none" stroke="#F0B45C" stroke-width="3"/><text x="${(geo.nodes[tn].x * S).toFixed(1)}" y="${(geo.nodes[tn].y * S - 16).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="800" fill="#F0B45C" stroke="#000" stroke-width=".4">A</text></g>`;
     }
-    const info = s.T === 0 ? (m.start?.picks?.length ? `<p class="px-l">${m.start.picks.map((p) => f("Pick {n}: {x}% win chance", { n: p.n, x: p.win })).join(" · ")}${m.start.picks[0]?.shortlist?.[0] ? ` · ${f("Top spot (A): {x}%", { x: m.start.picks[0].shortlist[0].win })}` : ""}</p>` : "") : `<p class="px-l"><span data-i18n-skip>${s.say || ""}</span></p>`;
-    el.innerHTML = `<div class="rv-bar"><button type="button" class="rv-btn" data-pxbx aria-label="Close">${IC.back}</button><div><h3>Bekijk bord</h3><small>${esc(s.label)}</small></div></div><div class="rv-scroll"><section class="rv-card px-card"><svg viewBox="${x0.toFixed(1)} ${y0.toFixed(1)} ${W.toFixed(1)} ${H.toFixed(1)}" class="px-bd" role="img" aria-label="${esc(s.label)}">${hexes}${rd}${pcs}${rings}</svg>${info}
-      <input type="range" class="px-rng" min="0" max="${stops.length - 1}" value="${cur}" aria-label="Moment" data-pxr><div class="px-stops">${stops.map((q, i) => `<button type="button" class="${i === cur ? "on" : ""}" data-pxs="${i}">${q.T === 0 ? "S" : q.n}</button>`).join("")}</div></section></div>`;
+    const pk = m.start?.picks || [], top = pk[0]?.shortlist?.[0];
+    const prow = (lab, node, spot, win) => `<div class="px-br"><small>${lab}</small><span class="tl">${spotTiles(bd, node)}</span><span class="dt">${spot ? f("{n} dots", { n: spot.total }) : ""}</span><b>${win ?? "–"}%</b></div>`;
+    const info = s.T === 0 ? `<h4 class="px-bh">Start: your picks and the top spot</h4><p class="px-fn">1 and 2 are your picks (dashed). A is the top spot for pick 1: the best of at most 6 spots checked.</p>${pk[0] ? prow("PICK 1", pk[0].node, pk[0].spot, pk[0].win) : ""}${top ? prow("A · TOP", top.node, top.spot, top.win) : ""}${pk[1] ? prow("PICK 2", pk[1].node, pk[1].spot, pk[1].win) : ""}` : `<h4 class="px-bh">${esc(s.label)}</h4><p class="px-l"><span data-i18n-skip>${s.say || ""}</span></p>`;
+    const stopLab = (q) => (q.T === 0 ? "Start" : `T${q.T}`);
+    el.innerHTML = `<div class="rv-bar"><button type="button" class="rv-btn" data-pxbx aria-label="Close">${IC.back}</button><div><h3>Bekijk bord</h3><small>${s.T === 0 ? "Start: your picks" : esc(s.label)}</small></div></div><div class="rv-scroll"><section class="rv-card px-card"><svg viewBox="${x0.toFixed(1)} ${y0.toFixed(1)} ${W.toFixed(1)} ${H.toFixed(1)}" class="px-bd" role="img" aria-label="${esc(s.label)}">${hexes}${rd}${pcs}${rings}</svg></section>
+      <section class="rv-card px-card"><div class="px-stops">${stops.map((q, i) => `<button type="button" class="${i === cur ? "on" : ""}" data-pxs="${i}">${stopLab(q)}</button>`).join("")}</div>${info}<input type="range" class="px-rng" min="0" max="${stops.length - 1}" value="${cur}" aria-label="Moment" data-pxr>
+      <div class="px-pn"><button type="button" class="px-btn" data-pxpv${cur === 0 ? " disabled" : ""}>${IC.back}Previous</button><button type="button" class="px-btn" data-pxnx${cur === stops.length - 1 ? " disabled" : ""}>Next${IC.chev}</button></div></section>
+      <button type="button" class="px-btn wide pxb" data-pxrev>Open the start in Review</button></div>`;
+    el.querySelector("[data-pxpv]")?.addEventListener("click", () => { cur = Math.max(0, cur - 1); draw(); });
+    el.querySelector("[data-pxnx]")?.addEventListener("click", () => { cur = Math.min(stops.length - 1, cur + 1); draw(); });
+    el.querySelector("[data-pxrev]")?.addEventListener("click", () => { el.remove(); g._pxBoardEl = null; g._rvTab = "strategy"; g._rvDrawReview?.(); });
     el.querySelector("[data-pxbx]").addEventListener("click", () => { el.remove(); g._pxBoardEl = null; });
     el.querySelector("[data-pxr]").addEventListener("input", (ev) => { cur = +ev.target.value; draw(); });
     el.querySelectorAll("[data-pxs]").forEach((b) => b.addEventListener("click", () => { cur = +b.dataset.pxs; draw(); }));

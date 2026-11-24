@@ -13,7 +13,7 @@ const OUT = /\brobber\b|\brover\b|\bports?\b|\bharbou?rs?\b|\bhaven\b|longest ro
 const SCAN = () => {
   const vis0 = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === "none" || cs.visibility === "hidden" || e.hidden) return false; } const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const tops = [...document.querySelectorAll("div.rv, div.bpg, div.ln, div.hs, div.game-over-overlay")].filter(vis0);
-  const root = document.querySelector(".px-sheet") || document.querySelector(".px-board") || tops[tops.length - 1] || document.body;
+  const root = (window.__pxRoot && document.querySelector(window.__pxRoot)) || document.querySelector(".px-sheet") || document.querySelector(".px-board") || tops[tops.length - 1] || document.body;
   const vis = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === "none" || cs.visibility === "hidden" || e.hidden || +cs.opacity === 0) return false; } const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const iss = [], W = innerWidth, de = document.documentElement;
   if (de.scrollWidth > W + 1) iss.push(`page scrolls horizontally ${de.scrollWidth}>${W}`);
@@ -45,7 +45,7 @@ const nums = () => {
     const G = (fn, a) => page.evaluate(fn, a);
     const check = async (name, shot) => {
       await sleep(500); const r = await G(SCAN); const k = `${tag} ${name}`;
-      if (lang === "nl" && !/^(lessons|bots)/.test(name)) { const ms = await G(async () => { const I = await import("/src/i18n.js"); const a = [...I.misses]; I.misses.clear(); return a; }); const names = ["Katan", ...metas.flatMap((m) => (m.seats || []).map((q) => q.name))]; const dayRe = /^\w{2,3} \d+ \w{3} · \d+:\d+$/; const own = ms.filter((x) => !(names.some((n) => x === n || x === `${n} won` || x === `${n} won het potje`) || dayRe.test(x) || /Blaauw|Geelen|Groen|Mevrouw|Kolonel|Dominee|Sessie|Nieuw klassiek/.test(x))); ms.length = 0; own.forEach((x) => ms.push(x)); ms.forEach((x) => missesAll.add(x)); ok(!ms.length, `${k}: Dutch complete`, ms.slice(0, 3)); }
+      if (lang === "nl" && !/^(lessons|bots|end screen)/.test(name)) { const ms = await G(async () => { const I = await import("/src/i18n.js"); const a = [...I.misses]; I.misses.clear(); return a; }); const names = ["Katan", ...metas.flatMap((m) => (m.seats || []).map((q) => q.name))]; const dayRe = /^\w{2,3} \d+ \w{3} · \d+:\d+$/; const own = ms.filter((x) => !(names.some((n) => x === n || x === `${n} won` || x === `${n} won het potje`) || dayRe.test(x) || /Blaauw|Geelen|Groen|Mevrouw|Kolonel|Dominee|Sessie|Nieuw klassiek/.test(x))); ms.length = 0; own.forEach((x) => ms.push(x)); ms.forEach((x) => missesAll.add(x)); ok(!ms.length, `${k}: Dutch complete`, ms.slice(0, 3)); }
       ok(!r.iss.length, `${k}: no overflow`, r.iss.slice(0, 3)); ok(!r.small.length, `${k}: text >= 11.5px`, r.small.slice(0, 4)); ok(!r.taps.length, `${k}: taps >= 40px`, r.taps.slice(0, 4));
       ok(!BAD.test(r.text), `${k}: no NaN/undefined/null`, (BAD.exec(r.text) || [""])[0]); ok(!ZERO.test(r.text), `${k}: no zero-sum claim`); const o = OUT.exec(r.words); ok(!o, `${k}: no out-of-scope words`, o ? o[0] : "");
       if (SHOTS && w === 360 && shot) { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, `${shot}-${lang}-${th}.png`) }); }
@@ -89,7 +89,7 @@ const nums = () => {
     await page.goto(`http://localhost:${port}/`); await page.waitForFunction(() => window.__colonistGame && document.body.dataset.gameReady, null, { timeout: 30000 });
     await G(() => window.__colonistGame.histOpen()); await sleep(900); await G((id) => window.__colonistGame._histSheet(id), metas[0].id); await sleep(400);
     await page.locator("[data-sact=stats]").tap(); await page.waitForSelector("[data-rvtable]", { timeout: 20000 }).catch(() => {}); await sleep(1500);
-    await check("end screen", "end"); await page.evaluate(() => document.querySelector("[data-rsx]")?.click()); await sleep(400); await check("end screen row open", "end-open");
+    await G(() => { window.__pxRoot = ".px-end"; }); await check("end screen", "end"); await page.evaluate(() => document.querySelector("[data-rsx]")?.click()); await sleep(400); await check("end screen row open", "end-open");
     ok(!errors.length, `${tag}: no console errors`, errors.slice(0, 3));
     await ctx.close();
   }

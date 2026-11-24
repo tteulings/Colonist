@@ -246,7 +246,7 @@ function timelineOf(g, pid, T) {
   const st = g._st; if (!look || !st) return null;
   const lines = g.players.map(() => []);
   look.steps.forEach((x, k) => { if (k === 0) g.players.forEach((p) => lines[p.id].push([0, x.b[p.id]])); const t = st.turnOf[x.S]; g.players.forEach((p) => lines[p.id].push([t, x.e[p.id]])); });
-  let sw = []; try { sw = g._rvSwings().filter((x) => Math.abs(x.d) >= 0.01); } catch (_) { sw = []; }
+  let sw = []; try { sw = g._rvSwings().filter((x) => Math.abs(x.d) >= 0.01 && !/robber|harbou?r|longest road|largest army/i.test(String(x.say))); } catch (_) { sw = []; }
   const seen = new Set(), pins = [];
   sw.forEach((x) => { if (pins.length >= 3 || seen.has(x.T)) return; seen.add(x.T); pins.push(x); });
   pins.sort((a, b) => a.T - b.T);
