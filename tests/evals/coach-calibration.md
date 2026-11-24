@@ -7,15 +7,15 @@ Clear error = `isClearError` (class could/mistake/blunder/missed, clear verdict,
 |---|---|---|---|---|
 | clear errors | 65 | 84 | 85 | 234 |
 | seat 0 / weak / strong | 29 / 25 / 11 | 30 / 35 / 19 | 21 / 41 / 23 | 80 / 101 / 53 |
-| played = End turn | 28 | 49 | 47 | 124 (53%) |
-| better = play a dev card ("Play X") | 2 | 25 | 25 | ~52 |
-| better = buy a dev card (incl. trade first) | 21 | 25 | 21 | 67 |
-| better = trade then settlement/city | 14 | 16 | 14 | 44 |
+| played = End turn | 20 | 36 | 33 | 89 (38%) |
+| better = play a dev card ("Play X") | 4 | 22 | 16 | 42 |
+| better = buy a dev card (incl. trade first) | 13 | 20 | 14 | 47 |
+| better = trade then settlement/city | 9 | 10 | 9 | 28 |
 | road played, other road better | 22 | 10 | 9 | 41 (18%) |
 | seat has a resource with no income at that moment | 47 | 61 | 40 | 148 |
 
-Other facts: visible points relative to target at the error are low (opening < 0.3 of target: 41 of 65; mid 0.3 to 0.5: 48 of 84; end 0.5 to 0.7: 48 of 85; only 5 errors at >= 0.9), so "points near target" is a rare condition (only the last-point rule uses it). Bank trade is the move played in 20 errors (never the better move on its own more than 11 times at the end). Played a city then a dev card was better: 8. The original rules (missing / city at half / last point) matched 44 of 234 errors, the city-at-half rule 0 (only 1 error had a city as better move).
-Dominant pattern: **ending the turn (or doing something small) while a dev card could be played or bought, or a trade + build was available**. Second: **the wrong road** (usually a road toward a spot with a resource you lack).
+Other facts: visible points relative to target at the error are low (opening < 0.3 of target: 41 of 65; mid 0.3 to 0.5: 48 of 84; end 0.5 to 0.7: 48 of 85; only 5 errors at >= 0.9), so "points near target" is a rare condition (only the last-point rule uses it). A bank trade was the move played in 35 errors (8 / 12 / 15). A city was played and a dev card was better in 7. A city was the better move (as such or after a trade) in few errors, which is why city-at-half is dropped.
+Dominant pattern: **doing too little in the turn: ending it (38%), or trading/building small, while a dev card could be played (18%) or bought (20%) or a trade + build was available (12%)**. Second: **the wrong road** (41 road-vs-road errors, 18%).
 
 ## 2 Rules (data table `RULES` in `src/review/coach-rules.js`; `THRESHOLDS.lastGap` 1 -> 2)
 | id | phase | fires when (clear error and ...) |
