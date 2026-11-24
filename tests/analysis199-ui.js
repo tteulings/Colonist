@@ -10,7 +10,8 @@ const files = fs.readdirSync(FIX).filter((f) => f.endsWith(".json")).sort();
 const BAD = /\bNaN\b|\bundefined\b|\bnull\b|\[object|Infinity/;
 const ZERO = /zero-sum|zero sum|nulsom|sums to zero|cancel(s)? out/i;
 const OUT = /\brobber\b|\brover\b|\bports?\b|\bharbou?rs?\b|\bhaven\b|longest road|largest army|langste weg|grootste riddermacht|who you fed|fed\b/i;
-const SCAN = () => {
+const LSEL = ".px-hl2, .px-vl, .px-t3 > span, .px-lc small, .px-rule p.px-l, .px-fn, .px-adv, .px-lh b, .rv-gt b, .px-rest small, .px-card > p.px-l, .px-prog p, .px-vsent";
+const SCAN = (LSEL) => {
   const vis0 = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === "none" || cs.visibility === "hidden" || e.hidden) return false; } const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const tops = [...document.querySelectorAll("div.rv, div.bpg, div.ln, div.hs, div.game-over-overlay")].filter(vis0);
   const root = (window.__pxRoot && document.querySelector(window.__pxRoot)) || document.querySelector(".px-sheet") || document.querySelector(".px-board") || tops[tops.length - 1] || document.body;
@@ -24,7 +25,9 @@ const SCAN = () => {
   root.querySelectorAll("svg text").forEach((el) => { if (!vis(el)) return; const fs = parseFloat(getComputedStyle(el).fontSize); const sv = el.ownerSVGElement, k = sv ? sv.getBoundingClientRect().width / (sv.viewBox.baseVal.width || 1) : 1; if (fs * k < 11.0) small.add(`svg ${(fs * k).toFixed(1)}px "${el.textContent.slice(0, 12)}"`); });
   const taps = new Set();
   root.querySelectorAll("button, [role=button], [role=tab], a[href], input, summary").forEach((el) => { if (!vis(el) || el.closest("svg")) return; const r = el.getBoundingClientRect(); if (r.height < 39.5 || r.width < 39.5) taps.add(`${Math.round(r.width)}x${Math.round(r.height)} ${(el.innerText || el.getAttribute("aria-label") || el.className || "").toString().replace(/\s+/g, " ").slice(0, 28)}`); });
-  const nodes = []; { const w2 = document.createTreeWalker(root, 4); for (let n = w2.nextNode(); n; n = w2.nextNode()) { const t = n.nodeValue.replace(/\s+/g, " ").trim(); if (t) nodes.push(t); } } const cl = root.cloneNode(true); cl.querySelectorAll(".px-leg, .px-pr, .px-src, .rsc-leg, script, style").forEach((e) => e.remove()); return { nodes, rc: String(root.className).slice(0, 30), iss, small: [...small], taps: [...taps], text: root.innerText || "", words: cl.textContent.replace(/\s+/g, " ") };
+  const lines = (el) => { const rg = document.createRange(); rg.selectNodeContents(el); const tops = []; for (const q of rg.getClientRects()) { if (q.width < 1) continue; const t = Math.round(q.top); if (!tops.some((x) => Math.abs(x - t) < 5)) tops.push(t); } return tops.length; };
+  const long = []; root.querySelectorAll(LSEL).forEach((el) => { if (!vis(el) || el.closest("svg")) return; const n = lines(el); if (n > 2) long.push(`${n} lines: "${(el.innerText || "").replace(/\s+/g, " ").trim().slice(0, 40)}"`); });
+  const nodes = []; { const w2 = document.createTreeWalker(root, 4); for (let n = w2.nextNode(); n; n = w2.nextNode()) { const t = n.nodeValue.replace(/\s+/g, " ").trim(); if (t) nodes.push(t); } } const cl = root.cloneNode(true); cl.querySelectorAll(".px-leg, .px-pr, .px-src, .rsc-leg, script, style").forEach((e) => e.remove()); return { long, nodes, rc: String(root.className).slice(0, 30), iss, small: [...small], taps: [...taps], text: root.innerText || "", words: cl.textContent.replace(/\s+/g, " ") };
 };
 const nums = () => {
   const q = (s) => document.querySelector(s)?.innerText || "";
@@ -47,17 +50,55 @@ const nums = () => {
     const facts = async (name) => { const fs0 = await G(() => { const vis0 = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === "none" || cs.visibility === "hidden" || e.hidden) return false; } return true; }; const tops = [...document.querySelectorAll("div.rv, div.bpg, div.ln, div.hs, div.game-over-overlay")].filter(vis0); const root = document.querySelector(".px-sheet") || document.querySelector(".px-board") || tops[tops.length - 1] || document.body; return [...root.querySelectorAll("[data-fact]")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0; }).map((e) => [e.dataset.fact, e.dataset.v]); }); fs0.forEach(([k, v]) => { if (v === "" || v == null) return; ((FACTS[`${curGame}|${k}`] ||= {})[v] ||= new Set()).add(name); }); };
     const check = async (name, shot) => {
       await facts(name);
-      await sleep(500); const r = await G(SCAN); const k = `${tag} ${name}`;
+      await sleep(500); const r = await G(SCAN, LSEL); const k = `${tag} ${name}`;
       if (lang === "nl") { const ms = await G(async () => { const I = await import("/src/i18n.js"); const a = [...I.misses]; I.misses.clear(); return a; });
         const names = ["Katan", ...metas.flatMap((m) => (m.seats || []).map((q) => q.name))]; const dayRe = /^\w{2,3} \d+ \w{3}( · \d+:\d+)?$/;
         const strip = (x) => names.reduce((t, n) => t.split(n).join(" "), x).replace(/[\d\s.,:·–+−%▲▼/()±-]+/g, " ").trim();
         const bad = name === "lessons" ? [] : ms.filter((x) => r.nodes.includes(x) && strip(x).length >= 3 && !dayRe.test(x));
         bad.forEach((x) => missesAll.add(x)); ok(!bad.length, `${k}: no English left in Dutch`, bad.slice(0, 4)); }
       else { const nlw = /\b(Beurt|Jij|Jouw|Zetten|Winkans|Precisie|Gewonnen|Verloren|Kaarten|Strategie|Geluk|Opening|Middenspel|Eindspel|Startkeuzes|Echte fouten)\b/.exec(r.words.replace(/Bekijk bord/g, "")); ok(!nlw, `${k}: no Dutch in English`, nlw ? nlw[0] : ""); }
+      ok(!r.long.length, `${k}: max 2 lines in texts and captions`, r.long.slice(0, 4)); { const bt = /\bB\d+\b/.exec(r.text); ok(!bt, `${k}: no "B<number>" tokens`, bt ? bt[0] : ""); }
       ok(!r.iss.length, `${k}: no overflow`, r.iss.slice(0, 3)); ok(!r.small.length, `${k}: text >= 11.5px`, r.small.slice(0, 4)); ok(!r.taps.length, `${k}: taps >= 40px`, r.taps.slice(0, 4));
       ok(!BAD.test(r.text), `${k}: no NaN/undefined/null`, (() => { const mm = BAD.exec(r.text); return mm ? r.text.slice(Math.max(0, mm.index - 50), mm.index + 20).replace(/\s+/g, " ") : ""; })()); ok(!ZERO.test(r.text), `${k}: no zero-sum claim`); const o = OUT.exec(r.words); ok(!o, `${k}: no out-of-scope words`, o ? o[0] : "");
       if (SHOTS && w === 360 && shot && (m0 === metas[0] || !m0)) { fs.mkdirSync(SHOTS, { recursive: true }); const hh = await G(() => Math.max(...[...document.querySelectorAll(".rv-scroll, .hs-scroll, .px-sheet .rv-card")].map((e) => e.scrollHeight + e.getBoundingClientRect().top), 0)); const tall = Math.round(Math.min(4200, Math.max(h, hh + 24))); await page.setViewportSize({ width: w, height: tall }); await sleep(250); await page.screenshot({ path: path.join(SHOTS, `${shot}-${lang}-${th}.png`) }); await page.setViewportSize({ width: w, height: h }); await sleep(200); }
       return r;
+    };
+    const num = (t) => { const mm = /([+−-]?)\s*(\d+(?:[.,]\d+)?)/.exec(String(t).replace(/[▲▼]/g, "")); return mm ? (mm[1] === "−" || mm[1] === "-" ? -1 : 1) * parseFloat(mm[2].replace(",", ".")) : 0; };
+    const tabChecks = async (tab, short) => {
+      const k = `${tag} ${short} ${tab}`;
+      if (tab === "overview") {
+        const h = await G(() => document.querySelector(".px-hl2")?.innerText || "");
+        ok(/\(.*[+−]\d+%.*\)/s.test(h) || /zonder|without/.test(h), `${k}: headline names measured key moments with their swing`, h);
+        ok(!/inkomen|income|gemiddeld|average|punten in|points in|dankzij|thanks to/i.test(h), `${k}: headline has no income / tempo claims`, h);
+        const adv = await G(() => document.querySelector(".px-l2c .px-adv")?.innerText || ""), mm = /(\d+)% → (\d+)% \(\+(\d+)%\)/.exec(adv);
+        if (adv) ok(mm && +mm[2] - +mm[1] === +mm[3], `${k}: start advice from-to matches its difference`, adv);
+        ok((await G(() => document.querySelectorAll(".px-l2c .px-dk").length)) === 1, `${k}: dots explained once on the start card`);
+        const rest = await G(() => document.querySelector(".px-rest small")?.innerText || ""); ok(/\S/.test(rest), `${k}: "what the others did" says it is their moves and luck combined`, rest);
+        const tl = await G(() => [...document.querySelectorAll(".px-t3")].map((b) => b.innerText.replace(/\s+/g, " "))); ok(tl.length === 3, `${k}: three tiles`, tl);
+      }
+      if (tab === "strategy") {
+        const rows = await G(() => [...document.querySelectorAll(".px-sc2 .px-sr:not(.hd)")].map((r) => [...r.querySelectorAll("b")].map((b) => b.innerText.replace(/\s+/g, ""))));
+        ok(rows.length > 0, `${k}: scorecard rows`);
+        let marks = 0; rows.forEach((cells) => { const v = cells.map(num), hi = Math.max(...v), lo = Math.min(...v); cells.forEach((c, i) => { const up = c.includes("▲"), dn = c.includes("▼"); marks += up + dn; ok(hi === lo ? !up && !dn : up === (v[i] === hi) && dn === (v[i] === lo), `${k}: scorecard cell ${c} marks the row's highest / lowest`, cells.join(" ")); }); });
+        ok(marks > 0, `${k}: ▲▼ are in the scorecard cells`, marks);
+        ok((await G(() => document.querySelectorAll(".px-l2 .px-dk").length)) === 1, `${k}: dots explained once in Strategy`);
+        const mc = await G(() => [...document.querySelectorAll(".px-mr:not(.hd) b:nth-child(3)")].length); void mc;
+      }
+      if (tab === "moves") {
+        const nz = await G(() => document.querySelectorAll(".px-mv .px-pm").length), rows = await G(() => document.querySelectorAll(".px-mv").length);
+        ok(rows === 0 || nz > 0, `${k}: moves rows show their ± margin`, `${nz}/${rows}`);
+      }
+      if (tab === "luck") {
+        const g0 = await G(() => { const b = document.querySelector("[data-pxothers]"); return b ? { label: b.innerText.replace(/\s+/g, " "), chip: b.querySelector(".px-d")?.innerText || "" } : null; });
+        if (g0) {
+          await page.evaluate(() => document.querySelector("[data-pxothers]").click()); await sleep(500);
+          const g1 = await G(() => ({ label: document.querySelector("[data-pxothers]").innerText.replace(/\s+/g, " "), rows: [...document.querySelectorAll(".px-ev.sub .px-d")].map((x) => x.innerText) }));
+          const sum = g1.rows.reduce((a, t) => a + num(t), 0), grp = num(g0.chip);
+          ok(/Show|Toon/.test(g0.label) && /Hide|Verberg/.test(g1.label), `${k}: toggle label follows the state`, `${g0.label} -> ${g1.label}`);
+          ok(g1.rows.length > 0 && Math.abs(sum - grp) <= Math.max(2, g1.rows.length * 0.5) && (Math.abs(grp) < 8 || Math.sign(sum) === Math.sign(grp)), `${k}: group sign and size match the rows shown`, `group ${grp}, rows sum ${sum} (${g1.rows.length})`);
+          await check(`${short} luck others open`, null); await page.evaluate(() => document.querySelector("[data-pxothers]").click()); await sleep(300);
+        }
+      }
     };
     for (const m of metas) {
       const id = m.id, short = id.slice(-4); curGame = short; m0 = m;
@@ -67,12 +108,13 @@ const nums = () => {
       await G((id) => window.__colonistGame._histSheet(id), id); await sleep(500);
       await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 30000 }); await sleep(1500);
       const T = {};
-      for (const tab of ["overview", "moves", "strategy", "luck"]) { await G((t) => { const g = window.__colonistGame; g._rvTab = t; g._rvDrawReview(); }, tab); await sleep(600); if (tab === "overview") await page.waitForSelector(".px-verdict", { timeout: 20000 }); T[tab] = await check(`${short} ${tab}`, `${tab}`); }
+      for (const tab of ["overview", "moves", "strategy", "luck"]) { await G((t) => { const g = window.__colonistGame; g._rvTab = t; g._rvDrawReview(); }, tab); await sleep(600); if (tab === "overview") await page.waitForSelector(".px-verdict", { timeout: 20000 }); T[tab] = await check(`${short} ${tab}`, `${tab}`); await tabChecks(tab, short); }
       // folds open, sheets
       await G(() => { const g = window.__colonistGame; g._rvTab = "overview"; g._rvDrawReview(); }); await sleep(400);
       await page.evaluate(() => document.querySelectorAll("[data-pxtog]").forEach((b) => b.click())); await sleep(300); await check(`${short} overview unfolded`, null);
       await page.evaluate(() => document.querySelector("[data-pxnum]")?.click()); await sleep(500);
       const numSheet = await check(`${short} numbers sheet`, `numbers`);
+      ok(!/\b(Mistakes|Blunders|Missed chances|Gemiste kansen|Blunders)\b/.test(numSheet.text) && /Real errors|Echte fouten/.test(numSheet.text), `${tag} ${short}: Numbers sheet uses one vocabulary (Real errors, Could be better)`);
       await page.evaluate(() => document.querySelector("[data-pxx]")?.click()); await sleep(200);
       await page.evaluate(() => document.querySelector("[data-pxinfo]")?.click()); await sleep(400); await check(`${short} info sheet`, `info`); await page.evaluate(() => document.querySelector("[data-pxx]")?.click());
       // consistency: accuracy and moves cost on Overview = Moves = Numbers
@@ -96,7 +138,7 @@ const nums = () => {
     await G(() => { window.__pxRoot = ".px-end"; }); await check("end screen", "end"); await page.evaluate(() => document.querySelector("[data-rsx]")?.click()); await sleep(400); await check("end screen row open", "end-open");
     // ONE number per fact: every screen that shows luck / cost / accuracy of a seat shows the same value; the three pillars add up to the cost
     const keys = Object.keys(FACTS), shownScreens = (k) => [...new Set(Object.values(FACTS[k]).flatMap((x) => [...x]))];
-    for (const k of keys) { const vals = Object.keys(FACTS[k]); const sc = shownScreens(k); if (/\|(luck|cost|acc|scored|pick1win|top1win|pick1dots|top1dots):/.test(k)) ok(vals.length === 1 && (sc.length >= 2 || !/:0$/.test(k)), `${tag} fact ${k}: one value on every screen`, vals.length === 1 ? sc.join(", ") : Object.entries(FACTS[k]).map(([v, x]) => `${v}: ${[...x].join("/")}`).join(" | ")); }
+    for (const k of keys) { const vals = Object.keys(FACTS[k]); const sc = shownScreens(k); if (/\|(luck|cost|acc|scored|errors|pick1win|top1win|pick1dots|top1dots):/.test(k)) ok(vals.length === 1 && (sc.length >= 2 || !/:0$/.test(k) || /\|errors:/.test(k)), `${tag} fact ${k}: one value on every screen`, vals.length === 1 ? sc.join(", ") : Object.entries(FACTS[k]).map(([v, x]) => `${v}: ${[...x].join("/")}`).join(" | ")); }
     for (const k of keys.filter((x) => /\|(pick1win|top1win|pick1dots|top1dots):0$/.test(x))) { const sc = shownScreens(k); ok(/overview/.test(sc.join()) && /strategy/.test(sc.join()) && /bekijk bord/.test(sc.join()), `${tag} fact ${k}: shown on Overview, Strategy and Bekijk bord`, sc.join(", ")); }
     for (const k of keys.filter((x) => /\|cost:/.test(x))) { const [g0, rest] = k.split("|"), seat = rest.split(":")[1], v = (n) => { const o = FACTS[`${g0}|${n}:${seat}`]; return o ? +Object.keys(o)[0] : null; }; const pe = v("pillar-errors"), ps = v("pillar-start"), po = v("pillar-other"), c = +Object.keys(FACTS[k])[0]; if (pe != null) ok(pe + ps + po === c, `${tag} ${g0}: pillars ${pe}+${ps}+${po} = cost ${c}`); }
     ok(!errors.length, `${tag}: no console errors`, errors.slice(0, 3));

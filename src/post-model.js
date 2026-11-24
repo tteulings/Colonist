@@ -247,13 +247,13 @@ function timelineOf(g, pid, T) {
   const st = g._st; if (!look || !st) return null;
   const lines = g.players.map(() => []);
   look.steps.forEach((x, k) => { if (k === 0) g.players.forEach((p) => lines[p.id].push([0, x.b[p.id]])); const t = st.turnOf[x.S]; g.players.forEach((p) => lines[p.id].push([t, x.e[p.id]])); });
-  let sw = []; try { sw = g._rvSwings().filter((x) => Math.abs(x.d) >= 0.01 && !/robber|harbou?r|longest road|largest army/i.test(String(x.say))); } catch (_) { sw = []; }
-  const aOf = (x) => { const q = look.steps.find((z) => z.S === x.S); return q ? q.a[pid] : x.b + (x.e - x.b) / 2; };
+  // the swings of THIS player (see swingsFor), biggest first
+  const sw = swingsFor(g, pid).filter((x) => Math.abs(x.d) >= 1).sort((p, q) => Math.abs(q.d) - Math.abs(p.d));
   const seen = new Set(), pins = [];
   sw.forEach((x) => { if (pins.length >= 3 || seen.has(x.T) || pins.some((q) => Math.abs(q.T - x.T) < 2)) return; seen.add(x.T); pins.push(x); });
   pins.sort((a, b) => a.T - b.T);
-  const lastT = Math.max(T, ...lines[pid].map((q) => q[0]));
-  return { lines, pins: pins.map((x, k) => ({ n: k + 1, T: x.T, S: x.S, d: r0(x.d * 100), say: x.say, actor: x.actor, move: x.actor === pid, b: r0(x.b * 100), a: r0(aOf(x) * 100), e: r0(x.e * 100) })), all: sw.slice(0, 15).sort((a, b) => a.T - b.T).map((x) => ({ T: x.T, S: x.S, d: r0(x.d * 100), say: x.say, actor: x.actor, move: x.actor === pid, b: r0(x.b * 100), a: r0(aOf(x) * 100), e: r0(x.e * 100) })), T: lastT, phases: phaseLimits(lastT) };
+  const lastT = Math.max(T, ...lines[pid].map((q) => q[0])), mk = (x) => ({ T: x.T, S: x.S, d: x.d, actor: x.actor, move: x.actor === pid, b: x.b, a: x.a, e: x.e });
+  return { lines, pins: pins.map((x, k) => ({ n: k + 1, ...mk(x) })), all: sw.slice(0, 15).sort((a, b) => a.T - b.T).map(mk), T: lastT, phases: phaseLimits(lastT) };
 }
 // ── measures: the player against the table ──
 function measuresOf(tab, pid) {
@@ -267,8 +267,9 @@ function measuresOf(tab, pid) {
     ["ptr", "Player trades", (s) => s.ptrades],
   ].map(([k, label, f]) => {
     const vals = S.map((s) => fin(f(s))); if (vals.some((v) => v == null)) return null;
-    const mine = vals[pid], oth = vals.filter((_, i) => i !== pid), avg = oth.length ? oth.reduce((a, b) => a + b, 0) / oth.length : 0;
-    return { k, label, vals, mine, avg: Math.round(avg * 10) / 10, best: Math.max(...vals), diff: Math.round((mine - avg) * 10) / 10, mark: oth.length && mine > Math.max(...oth) ? "up" : oth.length && mine < Math.min(...oth) ? "dn" : "" };
+    // compared with the BEST other player (never the average: a lead is only claimed when nobody else had more)
+    const mine = vals[pid], oth = vals.filter((_, i) => i !== pid), bo = oth.length ? Math.max(...oth) : 0;
+    return { k, label, vals, mine, bestOther: bo, best: Math.max(...vals), low: Math.min(...vals), diff: Math.round((mine - bo) * 10) / 10, mark: oth.length && mine > bo ? "up" : oth.length && mine < Math.min(...oth) ? "dn" : "" };
   }).filter(Boolean);
   return rows;
 }
@@ -329,7 +330,7 @@ function overlay(g, m, board, st, T) {
   const A = m.A, Y = A?.you; if (!Y) return;
   const sp = Y.split, nega = (v) => -v;
   m.ds = Y.ds; m.errs = Y.errors; m.other = Y.ds.filter((d) => d.k !== "setup" && !Y.errors.includes(d)); m.setups = Y.ds.filter((d) => d.k === "setup");
-  m.pillars = { errors: nega(sp.errors), start: nega(sp.start), other: nega(sp.other), total: sp.headline, capped: sp.capped, cap: sp.cap };
+  m.pillars = { errors: nega(sp.errors), start: nega(sp.start), other: nega(sp.other), total: sp.headline, capped: sp.capped, cap: sp.cap, startRaw: -Y.ds.filter((d) => d.k === "setup").reduce((a, d) => a + d.gp, 0) };
   const c = Y.counts; const startN = Y.ds.filter((d) => d.k === "setup" && d.cls !== "triv").length; m.counts = { startN, otherN: Math.max(0, c.scored - c.errors - startN), total: c.all, scored: c.scored, forced: c.oneOption ?? Math.max(0, c.all - Y.ds.length), triv: c.trivial, small: c.small, errors: c.errors, shownErrors: Math.min(4, c.errors), notErrors: c.notErrors, setupErrors: c.setupErrors };
   m.lesson1 = Y.errors.slice(0, 4).map((d) => errCard(g, d, board, T, st, m.pid, Y.chips?.[d.i]));
   const ph = Y.phase; m.phaseCost = ["opening", "mid", "end"].map((k) => ({ k, from: A.limits[k][0], to: A.limits[k][1], cost: -ph[k], errs: Y.errors.filter((d) => d.t >= A.limits[k][0] && d.t <= A.limits[k][1]) }));
@@ -346,7 +347,7 @@ function overlay(g, m, board, st, T) {
     m.headline = headlineParts(parts, { won: m.won });
   }
   m.notErrs = Y.notErrors || [];
-  m.why = whyOf(m, A);
+  m.why = whyOf(m, A, g);
   m.verdict = Y.verdict;
   m.bestRows = (Y.best || []).filter((o) => inScope(o.d)).map((o) => ({ d: o.d, gain: o.gain }));
   m.numbers = A.numbers; m.infoRows = A.info;
@@ -365,24 +366,45 @@ function takeaway2(m) {
   return out.slice(0, 3);
 }
 
-/** Why the game was won or lost: the biggest facts on the player's side of the result, measured against the other players.
- *  Candidates and scores (a rough "percent of the game" each): income (cards collected vs the others' average, % difference, from 15%), points per phase
- *  (points ahead of / behind the best other player in a phase x10), first city (turns earlier / later than the others x5), the biggest real error (its cost),
- *  the start picks (their cost, from 5%), luck (from 8%), and clean play (a win with little lost to moves, 18). A win names the two biggest positive ones,
- *  a loss the two biggest negative ones. Nothing here uses the opponents' remainder ("rest"). */
-function whyOf(m, A) {
-  const S = m.tab.seats, pid = m.pid, n = S.length, won = m.won, items = [];
-  const oth = (f) => S.filter((x) => x.id !== pid).map(f).filter((v) => Number.isFinite(v));
-  const prod = oth((x) => x.prod), mine = S[pid].prod;
-  if (prod.length && Number.isFinite(mine)) { const avg = prod.reduce((a, b) => a + b, 0) / prod.length, pct = avg ? ((mine - avg) / avg) * 100 : 0; if (Math.abs(pct) >= 15) items.push({ k: "income", sc: pct, a: mine, b: Math.round(avg) }); }
-  const tp = m.tempo; if (tp) tp.phases.forEach((ph, i) => { if (ph.empty) return; const me = tp.rows[pid].gains[i], others = tp.rows.filter((r) => r.id !== pid).map((r) => ({ id: r.id, g: r.gains[i] })).sort((a, b) => b.g - a.g), top = others[0]; if (!top) return; const d = me - top.g; if (d !== 0) items.push({ k: "tempo", sc: d * 10, ph: ph.k, a: me, b: top.g, rid: top.id }); });
-  const fc = A?.facts ? A.facts.map((f) => f?.firstCity) : null;
-  if (fc && Number.isFinite(fc[pid])) { const o = fc.filter((v, q) => q !== pid && Number.isFinite(v)); if (o.length) { const med = o.slice().sort((a, b) => a - b)[o.length >> 1], d = med - fc[pid]; if (Math.abs(d) >= 2) items.push({ k: "city", sc: d * 5, t: fc[pid] }); } }
-  const e = m.errs[0]; if (e) items.push({ k: "error", sc: -e.gp, t: e.t, n: e.gp });
-  const st = Math.abs(Math.round(m.pillars?.start || 0)); if (st >= 5) items.push({ k: "start", sc: -st, n: st });
-  const lk = m.led?.luck; if (Number.isFinite(lk) && Math.abs(lk) >= 8) items.push({ k: "luck", sc: lk, d: lk });
-  const cost = Math.abs(Math.round(m.pillars?.total || 0)); if (won && cost < 10 && m.sum.acc != null) items.push({ k: "clean", sc: 18, a: m.sum.acc });
-  const pick = (won ? items.filter((x) => x.sc > 0).sort((a, b) => b.sc - a.sc) : items.filter((x) => x.sc < 0).sort((a, b) => a.sc - b.sc)).slice(0, 2);
-  void n;
-  return { won, pick, all: items };
+/** Why the game was won or lost: the one or two biggest swings of this player's win chance on their own side of the result, read off the win-chance
+ *  timeline (the same swings as the pins under the chart; each is split into dice / the actor's move / the rest). Each moment is named by what caused it:
+ *  the player's own move (a build, or the clear error / weaker choice of that turn), a roll, or what another player did. No heuristic income or tempo
+ *  claims here: those stay in Strategy, compared with the best other player. */
+const buildKindAt = (st, S, actor) => { let k = null; try { (st.stepEvents?.[S] || []).forEach((e) => { if (e[1] === "b" && e[2] === actor && ["s", "c", "r"].includes(e[3])) k = { s: "settlement", c: "city", r: "road" }[e[3]]; else if (e[1] === "v" && e[2] === actor && !k) k = "card"; }); } catch (_) { k = null; } return k; };
+/** every step of the game as this PLAYER's win-chance swing (the review's look, one value per seat): { S, T, actor, roll, b, a, e, d } in whole percent. Steps that move the robber (a 7),
+ *  and the longest road / largest army awards, are left out (v1.99 scope). */
+function swingsFor(g, pid) {
+  const st = g._st; let look = null; try { look = g._rvLook(); } catch (_) { look = null; }
+  if (!look || !st) return [];
+  const awards = new Set((st.awards || []).map((q) => q.s));
+  return look.steps.map((x) => { const stp = st.steps[x.S - 1], b = r0(x.b[pid] * 100), a = r0(x.a[pid] * 100), e = r0(x.e[pid] * 100); return { S: x.S, T: st.turnOf[x.S], actor: stp && stp[1] >= 0 ? stp[1] : null, roll: stp ? stp[2] + stp[3] : null, b, a, e, d: e - b }; })
+    .filter((x) => x.actor != null && !awards.has(x.S) && x.roll !== 7);
+}
+function whyOf(m, A, g) {
+  const st = g?._st, pid = m.pid, won = m.won, all = swingsFor(g, pid).filter((x) => Math.abs(x.d) >= 3);
+  const pool = (won ? all.filter((x) => x.d > 0).sort((a, b) => b.d - a.d) : all.filter((x) => x.d < 0).sort((a, b) => a.d - b.d));
+  const moments = [], seen = new Set();
+  pool.forEach((x) => { if (moments.length >= 2 || seen.has(x.T)) return; seen.add(x.T); moments.push(momentOf(m, st, x, won)); });
+  return { won, moments, pick: moments };
+}
+/** the cause of one swing of this player's win chance (see whyOf); x = { S, T, actor, a, b, e, d } */
+export const momentFor = (g, m, x) => momentOf(m, g._st, x, m.won);
+function momentOf(m, st, x, won) {
+  const pid = m.pid, dice = x.a - x.b, after = x.e - x.a, mine = x.actor === pid, step = st?.steps?.[x.S - 1], roll = step ? step[2] + step[3] : null;
+  const base = { T: x.T, d: x.d, actor: x.actor };
+  if (Math.abs(dice) >= Math.abs(after) && roll) return { ...base, k: "roll", own: mine, roll, good: dice > 0 };
+  const bk = buildKindAt(st, x.S, x.actor);
+  if (!mine) return { ...base, k: "by", what: bk || "turn" };
+  if (won) return { ...base, k: "build", what: bk || "good" };
+  // a loss caused by the player's own move: the clear error of that turn, else the biggest weaker choice of that turn, else the build
+  const inT = m.ds.filter((d) => d.t === x.T && d.k !== "setup" && d.cls !== "triv").sort((a, b) => b.gp - a.gp);
+  const d = m.errs.find((e) => e.t === x.T) || inT.find((e) => e.gp >= 2) || null;
+  if (d) {
+    const pk = d.kind || kindOf(d.x?.label), bkd = d.bestKind || bestKindOf(d.x?.best?.label);
+    if (pk === "end") return { ...base, k: "error", what: "end" };
+    if (pk === bkd && ["settlement", "city", "road", "bank", "card"].includes(pk)) return { ...base, k: "error", what: `weak.${pk}` };
+    if (["settlement", "city", "road", "bank", "card"].includes(pk) && ["settlement", "city", "road", "bank", "card"].includes(bkd)) return { ...base, k: "error", what: "instead", a: pk, b: bkd };
+    return { ...base, k: "error", what: "weak" };
+  }
+  return { ...base, k: "build", what: bk || "move" };
 }

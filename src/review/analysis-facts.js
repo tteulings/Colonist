@@ -159,14 +159,15 @@ export function planFromSpot(spots) {
   return (d.ore + d.wheat) / t >= 0.55 ? "city" : (d.wood + d.brick) / t >= 0.55 ? "expansion" : "mixed";
 }
 const pctOf = (v) => (v == null ? null : rnd(v * 100));
-/** Your two start picks against the shortlist the review checked (at most 6 spots; cands[0] = the pick you made; only options with n >= 2 futures count, like derive()).
+/** (The played spot and the best spot carry the review's refined win chances B and A, so the gap shown between them is exactly the decision's gap `gp`: one number everywhere.)
+ *  Your two start picks against the shortlist the review checked (at most 6 spots; cands[0] = the pick you made; only options with n >= 2 futures count, like derive()).
  *  Returns { picks: [{ n (1|2), node, i, win (B), best (A), gp, cls, followed, top, spot, bestSpot, adds, advice, shortlist }], plan } or null without set-up decisions.
  *  advice only when the gap is `min` (5%) or more and the better spot adds a resource you do not get from the pick you made. */
 export function startReview(ds, board, min = 5) {
   const su = ds.filter((d) => d.k === "setup").sort((a, b) => a.i - b.i).slice(0, 2); if (!su.length) return null;
   const have = new Set(), picks = su.map((d, j) => {
     const x = d.x, cs = (x.cands || []).map((c, k) => ({ c, k })).filter(({ c, k }) => k === 0 || c.n >= 2);
-    const shortlist = cs.map(({ c, k }) => ({ label: c.label, node: c.focus?.node ?? null, win: pctOf(c.win), played: k === 0, best: !!x.best && c.label === x.best.label, spot: c.focus?.node != null ? spotOf(board, c.focus.node) : null }))
+    const shortlist = cs.map(({ c, k }) => ({ label: c.label, node: c.focus?.node ?? null, win: k === 0 ? d.B : !!x.best && c.label === x.best.label ? d.A : pctOf(c.win), played: k === 0, best: !!x.best && c.label === x.best.label, spot: c.focus?.node != null ? spotOf(board, c.focus.node) : null }))
       .sort((a, b) => (b.win ?? -1) - (a.win ?? -1) || (b.played ? 1 : 0) - (a.played ? 1 : 0)).slice(0, 6);
     const node = x.focus?.node ?? null, spot = node != null ? spotOf(board, node) : null, bn = x.best?.focus?.node ?? null, bestSpot = bn != null ? spotOf(board, bn) : null;
     const mine = new Set(have); spot?.kinds.forEach((r) => mine.add(r));
@@ -276,7 +277,8 @@ export function numbersSheet(a, lang = "en") {
   tp?.phases.forEach((ph) => rows.push(row(`pts.${ph.id}`, "pts", (q) => ph.gain[q])));
   rows.push(row("acc", "pct", (q) => bs[q]?.acc), row("cost", "pct", (q) => bs[q]?.cost), row("luck", "pct", (q) => a.luck?.[q]?.total));
   if (bf) rows.push(row("settlements", "n", (q) => bf[q].settlement), row("cities", "n", (q) => bf[q].city), row("roads", "n", (q) => bf[q].road), row("cards", "n", (q) => bf[q].cards), row("bank", "n", (q) => bf[q].bank), row("player", "n", (q) => bf[q].player), row("firstCity", "turn", (q) => bf[q].firstCity));
-  if (bs.some((s) => s?.cls)) CLASSES.forEach((c) => rows.push(row(`cls.${c}`, "n", (q) => bs[q]?.cls?.[c])));
+  // ONE vocabulary: "Real errors" = clear mistakes, blunders and missed chances (the count the player pages show); "Could be better" = every other weaker move (incl. start picks that cost more)
+  if (bs.some((s) => s?.cls)) { ["best", "great", "good", "close", "lean"].forEach((c) => rows.push(row(`cls.${c}`, "n", (q) => bs[q]?.cls?.[c]))); rows.push(row("cls.could", "n", (q) => { const c = bs[q]?.cls; return c == null ? null : c.could + c.mistake + c.blunder + c.missed - (bs[q].errors ?? 0); }), row("cls.errors", "n", (q) => bs[q]?.errors)); }
   return { cols, rows };
 }
 /** The (i) sheet: the error rule, accuracy vs moves cost, the phase limits and the model. [{ id, title, body }] in the language. */
@@ -316,7 +318,7 @@ export function analyseGame(input) {
   a.bySeat = Array.from({ length: n }, (_, q) => {
     const rev = reviews[q]; if (!rev?.results?.length) return null;
     const { ds, all, forced } = decisionsOf(rev, n, q), sp = splitMoves(ds), sm = safe(() => summarize(rev.results.filter((x) => x.skip !== "error")));
-    return { seat: q, acc: sm?.acc ?? null, nScored: sm?.n ?? 0, cls: clsCounts(ds), cost: sp.total, lost: sm?.lost ?? null, all, forced, split: { errors: sp.errors, start: sp.start, other: sp.other } };
+    return { seat: q, errors: realErrors(ds, { all }).counts.errors, acc: sm?.acc ?? null, nScored: sm?.n ?? 0, cls: clsCounts(ds), cost: sp.total, lost: sm?.lost ?? null, all, forced, split: { errors: sp.errors, start: sp.start, other: sp.other } };
   });
   a.model = { fmt: reviews[me]?.fmt ?? null, engine: rv?.rk || meta?.rk || null };
   const rev = reviews[me];

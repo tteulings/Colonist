@@ -6,6 +6,8 @@ import { esc, IC } from "./review-ui.js";
 import { oicon } from "./ui-icons.js";
 import { tradeShow, CLASSES } from "./review/evaluate.js";
 import { isNL } from "./i18n.js";
+import { tr as atr } from "./review/analysis-text.js";
+import { seOf } from "./review/score.js";
 import { cropSvg } from "./lessons-view.js";
 import { stdGeo } from "./lessons-geo.js";
 import { RES_COLOR } from "./resources.js";
@@ -86,24 +88,23 @@ export const dsg = (v) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(Math.
 export const plural = (n, one, many) => (n === 1 ? one : f(many, { n }));
 export const nErr = (n) => plural(n, "1 real error", "{n} real errors");
 export const nMiss = (n) => plural(n, "1 miss", "{n} misses");
+/** one moment's cause in plain words (already in the app language): "built a city", "good roll", "ended too early", "Groen’s roll" */
+export function causeText(m, x) {
+  const nl = isNL(), lg = nl ? "nl" : "en", nm = (q) => (m.tab?.seats?.[q]?.you ? atr(lg, "mom.you") : esc(m.tab?.seats?.[q]?.name || "?")), kw = (k) => atr(lg, `kind.${k}`);
+  if (x.k === "roll") return atr(lg, x.good ? "mom.roll.good" : "mom.roll.bad");
+  if (x.k === "by") return atr(lg, x.what === "turn" ? "mom.by.turn" : `mom.by.${x.what}`, { x: nm(x.actor) });
+  if (x.k === "build") return atr(lg, `mom.${x.what}`);
+  if (x.what === "end") return atr(lg, "mom.end");
+  if (x.what === "instead") return atr(lg, "mom.instead", { a: kw(x.a), b: kw(x.b) });
+  return atr(lg, `mom.${x.what}`);
+}
 export function verdictSpans(m) {
   const W = m.why; if (!W) return "";
-  const S = m.you ? "You" : esc(m.me.name), g0 = null; void g0;
-  const PH = { opening: "the opening", mid: "the midgame", end: "the end game" };
-  const txt = (x) => ({
-    income: () => (x.sc > 0 ? f("an income of {a} cards (others {b})", { a: x.a, b: x.b }) : f("an income of only {a} cards (others {b})", { a: x.a, b: x.b })),
-    tempo: () => (x.sc > 0 ? f("more points in {p} (+{n})", { p: PH[x.ph], n: x.a - x.b }) : f("{r} scoring more in {p} (+{n} points)", { r: esc(m.seats[x.rid].name), p: PH[x.ph], n: x.b - x.a })),
-    city: () => (x.sc > 0 ? f("the first city in turn {t}", { t: x.t }) : f("a late first city (turn {t})", { t: x.t })),
-    error: () => f("a miss in turn {t} that cost {n}%", { t: x.t, n: x.n }),
-    start: () => f("a start that cost {n}%", { n: x.n }),
-    luck: () => (x.sc > 0 ? f("luck ({d}%)", { d: dsg(x.d) }) : f("bad luck ({d}%)", { d: dsg(x.d) })),
-    clean: () => f("almost no errors (accuracy {a})", { a: x.a }),
-  })[x.k]();
-  const sp = (x) => `<span>${x}</span>`;
-  if (!W.pick.length) return `<span class="px-vsent">${sp(f(W.won ? "{S} won without one big reason" : "{S} lost without one big reason", { S }))}.</span>`;
-  const [d1, d2] = W.pick.map(txt);
-  const lead = f(W.won ? "{S} won thanks to" : "{S} fell behind because of", { S });
-  return `<span class="px-vsent">${sp(lead)} ${sp(d1)}${d2 ? ` ${sp("and")} ${sp(d2)}` : ""}.</span>`;
+  const nl = isNL(), lg = nl ? "nl" : "en", S = m.you ? (nl ? "Je" : "You") : esc(m.me.name), sp = (x) => `<span data-i18n-skip>${x}</span>`;
+  if (!W.moments.length) return `<span class="px-vsent">${sp(atr(lg, W.won ? "mom.none.won" : "mom.none.lost", { S }))}.</span>`;
+  const mom = (x, k) => atr(lg, k ? "mom.turn2" : "mom.turn", { t: x.T, c: causeText(m, x), d: `${dsg(x.d)}%` });
+  const [a, b] = W.moments, lead = atr(lg, W.won ? "mom.won" : "mom.lost", { S });
+  return `<span class="px-vsent">${sp(lead)} ${sp(mom(a, 0))}${b ? ` ${sp(atr(lg, "and"))} ${sp(mom(b, 1))}` : ""}.</span>`;
 }
 export function verdictLine(g, m) { return verdictSpans(m); }
 
@@ -119,13 +120,17 @@ const paceBar = (v, max, cls = "") => `<i class="px-bar ${cls}" style="--w:${Mat
 const lh = (n, title, right = "") => `<div class="px-lh"><i class="px-nb">${n}</i><b>${title}</b>${right ? `<span class="px-rt">${right}</span>` : ""}</div>`;
 export const spotTiles = (board, node) => { try { if (!board || node == null) return ""; const geo = stdGeo(); return geo.nodes[node].hx.map((h) => board[h]).filter((b) => b && b.num).map((b) => `<i class="px-tile" style="background:${RES_COLOR[b.res] || "#999"}" title="${esc(rname(b.res))}">${b.num}</i>`).join(""); } catch (_) { return ""; } };
 
+/** the start cost as counted in "moves cost" (capped together with the other moves) next to the raw measured gap, in plain words; the default text when they agree */
+export const startCap = (m, dflt) => { const P = m.pillars; return P && P.startRaw != null && Math.round(P.startRaw) !== Math.round(P.start) ? f("measured {a}%, counted {b}%", { a: dsg(P.startRaw), b: dsg(P.start) }) : dflt; };
+/** the ± margin of a move (its own uncertainty, whole or half percent) as a small muted tag, "" when the review has none */
+export const pm = (d) => { const se = seOf(d?.x); return se == null ? "" : `<small class="px-pm" title="margin">±${nfmt(Math.max(0.5, Math.round(se * 1000) / 10))}</small>`; };
 function verdictCard(g, m) {
   const acc = m.sum.acc, P = m.pillars, c = m.counts, pid = m.pid;
   const hl = `<p class="px-hl2">${verdictSpans(m)}</p>`;
-  const accLine = `<p class="px-l"><b data-fact="acc:${pid}" data-v="${acc ?? ""}">${accWord} ${acc ?? "–"}</b>: ${f("how often {x} near the best move", { x: m.you ? "you were" : "it was" })}. <b>Moves cost</b> ${D(m.tot.moves, { fact: `cost:${pid}` })}: ${f("what every miss lost, added up", {})}.</p>`;
-  const tile = (k, n, label, v, cap) => `<button type="button" class="px-t3" data-pxpil="${k}" aria-expanded="false"><small>${n} ${label}</small>${D(v, { fact: `pillar-${k}:${pid}` })}<span>${cap}</span></button>`;
+  const accLine = `<p class="px-l"><b data-fact="acc:${pid}" data-v="${acc ?? ""}">${accWord} ${acc ?? "–"}</b>: ${f("how often {x} near the best move", { x: m.you ? "you were" : "it was" })}. <b>Moves cost</b> ${D(m.tot.moves, { fact: `cost:${pid}` })}</p>`;
+  const tile = (k, n, label, v, cap) => `<button type="button" class="px-t3" data-pxpil="${k}" aria-expanded="false"><small${k === "errors" ? ` data-fact="errors:${pid}" data-v="${n}"` : ""}>${n} ${label}</small>${D(v, { fact: `pillar-${k}:${pid}` })}<span>${cap}</span></button>`;
   const picks = m.start?.picks || [];
-  const t3 = `<div class="px-t3s">${tile("errors", m.errs.length, m.errs.length === 1 ? "Real error" : "Real errors", P.errors, nMiss(m.errs.length))}${tile("start", picks.length, picks.length === 1 ? "Start pick" : "Start picks", P.start, "start spots checked")}${tile("other", c.otherN, "Other moves", P.other, "close calls and small ones")}</div>`;
+  const t3 = `<div class="px-t3s">${tile("errors", m.errs.length, m.errs.length === 1 ? "Real error" : "Real errors", P.errors, "not close calls")}${tile("start", picks.length, picks.length === 1 ? "Start pick" : "Start picks", P.start, startCap(m, "start spots checked"))}${tile("other", c.otherN, "Other moves", P.other, "close calls and small ones")}</div>`;
   const errChips = m.errs.slice(0, 4).map((d) => `<button type="button" class="px-cc" data-rvj="${d.i}" data-rvq="imp">${f("Turn {n}", { n: d.t })} ${D(-d.gp)}</button>`).join("");
   const startChips = picks.map((p) => `<button type="button" class="px-cc" data-pxtab="strategy">${f("Pick {n}", { n: p.n })} ${D(-p.gp)}</button>`).join("");
   const bodies = `<div class="px-pb" data-pxpb="errors" hidden><p class="px-l">${m.errs.length ? f("{n} clear mistakes or missed chances, the same ones as in Lesson 1.", { n: m.errs.length }) : "No clear mistake in this game."}</p><div class="px-ccs">${errChips}</div></div>
@@ -167,7 +172,7 @@ function timelineCard(g, m) {
   return `<section class="rv-card px-card px-time"><div class="rv-gt"><b>Your win chance</b><small>pins = biggest swings</small></div>${svg}${caps}${leg}<div class="px-kms">${tl.pins.map(row).join("")}</div>${more}<button type="button" class="px-link" data-pxboard>Bekijk bord${IC.chev}</button></section>`;
 }
 // ── lesson 1: real errors ──
-const noiseLine = (e) => (e.se != null ? `<p class="px-fn"><span>${f("Gap {n}%, noise ±{s}%", { n: e.gp, s: nfmt(Math.max(0.5, Math.round(e.se * 1000) / 10)) })}</span></p>` : "");
+const noiseLine = (e) => (e.se != null ? `<p class="px-fn"><span>${f("Gap {n}%, margin ±{s}%", { n: e.gp, s: nfmt(Math.max(0.5, Math.round(e.se * 1000) / 10)) })}</span></p>` : "");
 function errorCard(g, m, e) {
   const bd = m.board, N = (v) => mvPiece(tradeShow(v || "").replace(/ toward /, " ").replace(/^(Road|Settlement|City) on /, "$1 "), true);
   const crops = bd && e.p && e.q && e.p[0] === e.q[0] ? `<div class="px-crops"><figure>${cropSvg(bd, e.p, { w: 120, color: "#B45A3C", label: "You did" })}<figcaption>You did</figcaption></figure><figure>${cropSvg(bd, e.q, { w: 120, color: "#2F7D6B", label: "Better" })}<figcaption>Better (A)</figcaption></figure></div>` : "";
@@ -180,20 +185,27 @@ function errorCard(g, m, e) {
 export function scoredNote(m) { const c = m.counts; return `<p class="px-fn"><span data-fact="scored:${m.pid}" data-v="${c.scored}">${f("{n} of {n2} decisions are scored", { n: c.scored, n2: c.total })}</span>${c.total > c.scored ? ` · <span>${f("{n} had only one sensible option", { n: c.total - c.scored })}</span>` : ""}</p>`; }
 function lesson1(g, m) {
   const c = m.counts, list = m.lesson1.map((e) => errorCard(g, m, e)).join("");
-  const head = lh(1, "Real errors", `${nMiss(c.errors)} · ${D(m.pillars.errors)}`);
+  const head = lh(1, "Real errors", D(m.pillars.errors));
   const body = m.lesson1.length ? list : `<p class="px-l">${m.you ? "No clear mistake in your moves. Good play." : "No clear mistake in these moves."}</p>`;
-  const ne = (m.notErrs || []).slice(0, 3).map((d) => `<span class="px-ne2"><i class="px-cls c-${d.cls}">${CLS_NAME[d.cls]}</i> ${f("Turn {n}", { n: d.t })} ${D(-d.gp)}</span>`).join("");
-  const notErr = c.notErrors ? `<div class="px-nerow"><small>NO ERRORS</small>${ne}</div>` : "";
+  const ne = (m.notErrs || []).slice(0, 3).map((d) => `<span class="px-ne2"><i class="px-cls c-${d.cls}">${CLS_NAME[d.cls]}</i> ${f("Turn {n}", { n: d.t })} ${D(-d.gp)}${pm(d)}</span>`).join("");
+  const notErr = c.notErrors ? `<div class="px-nerow"><small>NOT REAL ERRORS</small>${ne}</div>${ne ? `<p class="px-fn">± = the move’s own margin: a gap under twice that is not an error.</p>` : ""}` : "";
   const scoredLine = scoredNote(m);
   return `<section class="rv-card px-card px-l1">${head}${body}${notErr}${scoredLine}<button type="button" class="px-btn wide" data-pxtab="moves">All errors and moves</button></section>`;
 }
 // ── lesson 2 compact: "This board" ──
 export const PLAN_NAME = { city: "City plan (ore, grain)", expansion: "Expansion plan (lumber, brick)", mixed: "Mixed plan" };
+/** the start advice in plain words: what to take, from-to with the measured gap, and WHY when the better spot has fewer dots */
+export function startAdvice(m, p) {
+  const top = p.shortlist?.[0]; if (!p.advice || !top) return "";
+  const x = p.advice.adds.map(rname).join(", "), a = p.win, b = top.win ?? p.best, fewer = p.spot && top.spot && top.spot.total < p.spot.total;
+  return `<p class="px-adv">${f("Take {x} with pick {n}: {a}% → {b}% ({g}).", { x, n: p.n, a, b, g: `+${b - a}%` })}</p>${fewer ? `<p class="px-fn px-why">${f("Fewer dots ({a} against {b}), but {x} added.", { a: top.spot.total, b: p.spot.total, x })}</p>` : ""}`;
+}
+export const DOT_KEY = "Numbers on the tiles are dice numbers; dots = how often they roll.";
 function lesson2c(g, m) {
   const s = m.start, p = s?.picks?.[0]; if (!p) return "";
   const top = p.shortlist?.[0], bd = m.board;
   const row = (lab, sp, node, win, key) => `<div class="px-br"><small>${lab}</small><span class="tl">${spotTiles(bd, node) || ""}</span><span class="dt"${sp ? ` data-fact="${key}dots:${m.pid}" data-v="${sp.total}"` : ""}>${sp ? f("{n} dots", { n: sp.total }) : ""}</span><b data-fact="${key}win:${m.pid}" data-v="${win ?? ""}">${win ?? "–"}%</b></div>`;
-  return `<section class="rv-card px-card px-l2c">${lh(2, "This board", s.plan ? esc(PLAN_NAME[s.plan]) : "")}${row("PICK 1", p.spot, p.node, p.win, "pick1")}${top ? row("BEST SPOT", top.spot, top.node, top.win, "top1") : ""}${p.advice ? `<p class="px-adv">${f("Take {x} with pick {n}: from {a}% to {b}% win chance.", { x: p.advice.adds.map(rname).join(", "), n: p.n, a: p.win, b: top?.win ?? p.best })}</p>` : ""}<button type="button" class="px-btn wide" data-pxtab="strategy">Start review in Strategy</button></section>`;
+  return `<section class="rv-card px-card px-l2c">${lh(2, "This board", s.plan ? esc(PLAN_NAME[s.plan]) : "")}${row("PICK 1", p.spot, p.node, p.win, "pick1")}${top ? row("BEST SPOT", top.spot, top.node, top.win, "top1") : ""}<p class="px-fn px-dk">${DOT_KEY}</p>${startAdvice(m, p)}<button type="button" class="px-btn wide" data-pxtab="strategy">Start review in Strategy</button></section>`;
 }
 export function ruleRows(m) {
   const rules = m.lesson3 || [];
@@ -201,7 +213,7 @@ export function ruleRows(m) {
 }
 function lesson3c(g, m) {
   const rows = ruleRows(m);
-  return `<section class="rv-card px-card px-l3c">${lh(3, "At this point in the game", "coach rules")}${rows || `<p class="px-l">No phase rule was broken.</p>`}<p class="px-fn">A rule shows only when you broke it.</p></section>`;
+  return `<section class="rv-card px-card px-l3c">${lh(3, "Phase rules", "coach rules")}${rows || `<p class="px-l">No phase rule was broken.</p>`}<p class="px-fn">A rule shows only when you broke it.</p></section>`;
 }
 export const takeText = (t) => ({
   spend: "Spend your cards before you end the turn.", trade: "Trade only toward a build you can make.", build: "Pick the build that brings points soonest.",
@@ -218,13 +230,13 @@ const GL = { setup: '<circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3
 function ledgerCard(g, m) {
   const L = m.led; if (!L) return "";
   const per = m.counts.scored ? Math.round((ab(m.tot.moves) / m.counts.scored) * 10) / 10 : null;
-  const cols = [["setup", "Start picks", L.setup, "your two start spots"], ["luck", "Luck", L.luck, "dice, steals, draws, seat"], ["moves", "Moves", L.moves, per != null ? f("{n}% per move", { n: nfmt(per) }) : "after the start picks"]];
+  const cols = [["setup", "Start picks", L.setup, startCap(m, "your two start spots")], ["luck", "Luck", L.luck, "rolls and cards"], ["moves", "Moves", L.moves, per != null ? f("{n}% per move", { n: nfmt(per) }) : "after the start picks"]];
   const mx = Math.max(10, ...cols.filter(([k]) => k !== "rest").map(([, , v]) => ab(v)));
   const col = ([k, label, v, sub]) => `<div class="px-lc ${k}"><i class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${GL[k]}</svg></i><span class="bz"><i class="${k === "rest" ? "n" : v >= 0 ? "up" : "dn"}" style="${v < 0 ? "top" : "bottom"}:50%;height:${Math.min(50, (ab(v) / mx) * 50).toFixed(1)}%"></i>${k === "rest" && ab(v) > mx ? `<em class="brk" aria-hidden="true">≈</em>` : ""}</span>${D(v, { fact: k === "luck" ? `luck:${m.pid}` : null })}<strong>${label}</strong><small>${sub}</small></div>`;
   const track = `<div class="px-gl"><small>Even <b>${L.even}%</b></small><i class="px-gt"><i class="a" style="width:${Math.max(2, L.even)}%"></i><i class="b" style="left:${Math.max(2, L.even)}%;width:${Math.max(0, L.end - L.even)}%"></i></i><small>End <b>${L.end}%</b></small></div>`;
   const how = `<ul class="px-how"><li>${f("The four rows add up to your change: from {n}% at the start to {n2}% at the end.", { n: L.even, n2: L.end })}</li><li>Start picks is what your two start spots cost against the best spots.</li><li>Luck is rolls, steals, card draws and seat order together.</li><li>Moves cost = start picks + moves.</li><li>Rest is neutral: it is what is left, the opponents’ doing.</li></ul>`;
   const story = `<p class="px-l">${m.you ? f("Your moves: {d}%", { d: dsg(L.moves) }) : f("{x}’s moves: {d}%", { x: esc(m.me.name), d: dsg(L.moves) })}</p>`;
-  return `<div class="px-eb">${(() => { const pts = g.players.map((q) => q.victoryPoints).sort((a, b) => b - a); return f("Why it ended {n}–{n2}", { n: pts[0], n2: pts[1] ?? 0 }); })()}</div><section class="rv-card px-card px-led"><div class="rv-gt"><b>What moved your win chance</b><button type="button" class="px-link nm" data-pxnum>Numbers</button></div>${story}${track}<div class="px-lcs">${cols.map(col).join("")}</div><div class="px-rest"><span>What the others did</span><small>their moves and luck</small>${D(L.rest)}</div>${fold("how", "<span>How to read this</span>", how)}</section>`;
+  return `<div class="px-eb">${(() => { const pts = g.players.map((q) => q.victoryPoints).sort((a, b) => b - a); return f("Why it ended {n}–{n2}", { n: pts[0], n2: pts[1] ?? 0 }); })()}</div><section class="rv-card px-card px-led"><div class="rv-gt"><b>What moved your win chance</b><button type="button" class="px-link nm" data-pxnum>Numbers</button></div>${story}${track}<div class="px-lcs">${cols.map(col).join("")}</div><div class="px-rest"><span>What the others did</span>${D(L.rest, { plus: true })}<small>Their moves and luck combined, not a mark for you.</small></div>${fold("how", "<span>How to read this</span>", how)}</section>`;
 }
 
 export function overviewTab(g, ds, rv, prov) {
@@ -256,9 +268,9 @@ export function sheet(g, title, body, key = "x") {
 }
 export function infoSheet(g, what = "error") {
   const m = ready(g, g._rvPid).m, rows = m?.infoRows;
-  const own = `<h4>Why won or lost</h4><p>Name the two biggest facts on the player’s side: income against the others, points per phase, first city, the biggest miss, the start picks, luck. Each is measured against the other players.</p><h4>Start picks</h4><p>Start picks −x% is counted after noise correction. The gap between spots (29% to 40%) is shown as it was measured.</p><h4>Errors and noise</h4><p>The same gap can be an error in one move and not in another: it depends on the move’s own noise.</p><h4>Luck</h4><p>Luck is rolls, steals, card draws and seat order together, as win chance. Every player has an independent estimate of their own.</p>`;
+  const own = `<h4>Why won or lost</h4><p>The one or two biggest swings of the player’s win chance on their side of the result, taken from the win-chance chart (pins). Each is named by its cause: the player’s own move, a roll, or what another player did. Income, cities and pace are in Strategy, compared with the best other player.</p><h4>Start picks</h4><p>The gap between your spot and the best spot is shown as it was measured. All moves together cannot cost more than the best win chance you had; when they add up to more, every part is shrunk to fit. Then the counted start cost is smaller than the measured gap, and the card shows both.</p><h4>The ± next to a move</h4><p>Every move has its own margin. A gap is only a real error when it is more than twice that margin; the same 4% can be an error in one move and not in another.</p><h4>Real errors and Could be better</h4><p>Real errors are mistakes, blunders and missed chances that pass that rule. Could be better is every other weaker move.</p><h4>Luck</h4><p>Luck is rolls, steals, card draws and seat order together, as win chance. Every player has an independent estimate of their own.</p>`;
   const body = rows?.length ? `<div class="px-ib"><div data-i18n-skip>${rows.map((r) => `<h4>${esc(r.title)}</h4><p>${esc(r.body)}</p>`).join("")}</div>${own}</div>`
-    : `<div class="px-ib"><h4>The error rule</h4><p>A move is an error when it gave up at least twice its own noise, about 6% when none is stored. A close call is never called a mistake.</p><h4>${accWord} vs moves cost</h4><p>${accWord} is how often you were near the best move. Moves cost is what every miss lost, added up.</p>${own}</div>`;
+    : `<div class="px-ib"><h4>The error rule</h4><p>A move is an error when it gave up at least twice its own margin (the ±), about 6% when none is stored. A close call is never called a mistake.</p><h4>${accWord} vs moves cost</h4><p>${accWord} is how often you were near the best move. Moves cost is what every miss lost, added up.</p>${own}</div>`;
   return sheet(g, "How to read this", body, "info");
 }
 export function numbersSheet(g) {
@@ -271,6 +283,7 @@ export function numbersSheet(g) {
     if (v == null || !Number.isFinite(v)) return "–";
     if (row.id === "acc") return `<span data-fact="acc:${s.id}" data-v="${Math.round(v)}">${Math.round(v)}</span>`;
     if (row.id === "cost") return `<span data-fact="cost:${s.id}" data-v="${-Math.abs(Math.round(v))}">${D(-Math.abs(v)).replace(/^<b class="px-d (\w+)">/, "<b class=\"px-d $1\">")}</span>`;
+    if (row.id === "cls.errors") return `<span data-fact="errors:${s.id}" data-v="${Math.round(v)}">${Math.round(v)}</span>`;
     if (row.id === "luck") return `<span data-fact="luck:${s.id}" data-v="${Math.round(s.luck ?? v)}">${dsg(s.luck ?? v)}%</span>`;
     if (row.unit === "pts" && /^pts\./.test(row.id)) return dsg(v);
     return num1(v);

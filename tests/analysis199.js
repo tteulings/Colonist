@@ -247,6 +247,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
     sr.picks.forEach((p, k) => {
       ok(p.shortlist.length >= 1 && p.shortlist.length <= 6, `${tag} pick ${p.n}: shortlist of at most 6`, p.shortlist.length);
       ok(p.shortlist.filter((s) => s.played).length === 1 && p.shortlist.every((s, i) => !i || (p.shortlist[i - 1].win ?? -1) >= (s.win ?? -1)), `${tag} pick ${p.n}: the played spot is in the list, best win chance first`);
+      ok(p.shortlist.find((s) => s.played).win === p.win && (!p.shortlist.some((s) => s.best) || p.shortlist.find((s) => s.best).win === p.best), `${tag} pick ${p.n}: the played and best spot carry B and A, so the gap shown between them is the gap counted`);
       ok(p.shortlist.every((s) => s.win == null || (s.win >= 0 && s.win <= 100)), `${tag} pick ${p.n}: win chances 0..100`);
       ok(p.win === su[k].B && p.best === su[k].A && p.gp === p.best - p.win, `${tag} pick ${p.n}: win chance after the pick, the better spot's and the gap`);
       p.shortlist.forEach((s) => { if (s.spot) { ok(s.spot.total === sum(Object.values(s.spot.dots)) && s.spot.kinds.every((r) => s.spot.dots[r] > 0), `${tag}: spot dots add up`); const nums = (/(\d+(?:·\d+)+)/.exec(s.label) || [])[1]; if (nums) eq(s.spot.nums.slice().sort((a, b) => a - b), nums.split("·").map(Number).sort((a, b) => a - b), `${tag}: spot numbers equal the numbers in its label "${s.label}"`); } });
@@ -310,7 +311,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
     const ph = (s) => (s.match(/\{\w+\}/g) || []).sort().join();
     ok(en.every((k) => ph(T.EN[k]) === ph(T.NL[k])), "EN and NL use the same {params}", en.filter((k) => ph(T.EN[k]) !== ph(T.NL[k])));
     ok(en.every((k) => T.EN[k].trim() && T.NL[k].trim()), "no empty text");
-    ok(en.filter((k) => !/^(and|head\.|vt\.|rule\.|num\.|info\.|phase\.|cls\.|kind\.|plan\.|res\.|word\.)/.test(k)).length === 0, "keys are namespaced");
+    ok(en.filter((k) => !/^(and|head\.|mom\.|vt\.|rule\.|num\.|info\.|phase\.|cls\.|kind\.|plan\.|res\.|word\.)/.test(k)).length === 0, "keys are namespaced");
     const BAN_EN = /robber|\bports?\b|harbou?r|longest road|largest army|road.?race|\bfed\b|\bfeed|\bsteal|\bthief/i, BAN_NL = /rover|struikrover|haven|langste weg|grootste ridder|wegenrace|gevoed|\bvoed|\bsteel|\bdief/i;
     ok(en.every((k) => !BAN_EN.test(T.EN[k])), "EN: no robber / port / road-race / fed string", en.filter((k) => BAN_EN.test(T.EN[k])));
     ok(en.every((k) => !BAN_NL.test(T.NL[k])), "NL: no robber / port / road-race / fed string", en.filter((k) => BAN_NL.test(T.NL[k])));
@@ -336,7 +337,9 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
     ok(JSON.stringify(a).indexOf("undefined") < 0, `${tag}: JSON-safe`);
     if (a.numbers) { ok(a.numbers.rows.every((r) => r.values.length === a.n && r.values.every((v) => v === null || Number.isFinite(v)) && r.label && !/^num\./.test(r.label)), `${tag}: Numbers sheet values are finite or null, every row labelled`); ok(new Set(a.numbers.rows.map((r) => r.id)).size === a.numbers.rows.length, `${tag}: Numbers rows are unique`); eq(a.numbers.rows.find((r) => r.id === "points").values, a.points.total, `${tag}: Numbers points = the game's points`);
       ["opening", "mid", "end"].forEach((id) => ok(a.numbers.rows.some((r) => r.id === "pts." + id), `${tag}: points per phase row ${id}`));
-      ok(a.numbers.rows.some((r) => r.id === "bank") && a.numbers.rows.some((r) => r.id === "player"), `${tag}: bank trades and player trades are separate rows`); }
+      ok(a.numbers.rows.some((r) => r.id === "bank") && a.numbers.rows.some((r) => r.id === "player"), `${tag}: bank trades and player trades are separate rows`);
+      if (a.bySeat?.some((s) => s?.cls)) ok(a.numbers.rows.some((r) => r.id === "cls.errors") && a.numbers.rows.some((r) => r.id === "cls.could") && !a.numbers.rows.some((r) => /^cls\.(mistake|blunder|missed)$/.test(r.id)), `${tag}: Numbers sheet has Real errors and Could be better, not three overlapping classes`);
+      const er = a.numbers.rows.find((r) => r.id === "cls.errors"); if (er && a.you) ok(er.values[a.me] === a.you.counts.errors, `${tag}: Numbers "Real errors" = the count on the pages`, { num: er.values[a.me], pages: a.you.counts.errors }); }
     ok(Array.isArray(a.info) && a.info.length === 4 && a.info.every((x) => x.title && x.body && !/\{/.test(x.body)), `${tag}: (i) sheet has its 4 entries`);
     ok(/6%/.test(a.info[0].body) && /5.*10.*18/.test(a.info[0].body.replace(/%/g, "")), `${tag}: (i) states the 6% error rule and the set-up limits`);
     ok(a.info[2].body.includes(`${a.limits.opening[0]}–${a.limits.opening[1]}`) && a.info[2].body.includes(`${a.limits.end[0]}–${a.limits.end[1]}`), `${tag}: (i) prints the turn ranges`);
