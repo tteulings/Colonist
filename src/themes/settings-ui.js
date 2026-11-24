@@ -3,10 +3,14 @@
 // listeners stay intact): New game first, then sound and pace. The bot-autoplay controls live in
 // About › Developer. Look & feel: theme cards, Motion, quick toggle. Applies instantly.
 import { refreshAvatars } from "../avatar-anim.js";
-import { THEMES, THEME_ORDER, motionPref, setMotionPref, avatarAnimOn, setAvatarAnim, palettePref, setPalette, paletteAuto, paletteAutoMode, autoTimeInfo, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, icon } from "./manager.js";
+import { THEMES, THEME_ORDER, motionPref, setMotionPref, avatarAnimOn, setAvatarAnim, palettePref, setPalette, paletteAutoMode, autoTimeInfo, setPaletteAuto, effectivePalette, dayPalette, prefetchFonts, avatarSvg } from "./manager.js";
 import { dateLocale } from "../i18n.js";
 
-import { oicon } from "../ui-icons.js";
+import { Names, openNamesSheet } from "../names.js";
+import { explainOn, setExplain } from "../shell.js";
+import { toast } from "../toast.js";
+
+const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 import { liveWinOn, setLiveWin, liveRefineOn, setLiveRefine } from "../live-bar.js";
 import { recapPoints, setRecapPoints } from "../review-recap.js";
 import { langChoice, setLang } from "../i18n.js";
@@ -16,7 +20,7 @@ export function getTextSize() { try { const v = localStorage.getItem("colonist_t
 export function setTextSize(v) { try { localStorage.setItem("colonist_textsize", v); } catch (_) {} document.documentElement.dataset.textsize = v; window.__colonistAppH?.(); window.dispatchEvent(new Event("resize")); }
 try { document.documentElement.dataset.textsize = getTextSize(); window.__colonistAppH?.(); } catch (_) {}
 /** Shown in Settings › About and on the settings button; bumped with every release. */
-export const APP_VERSION = "1.98";
+export const APP_VERSION = "1.99";
 
 /** v1.34 Settings: the running version and "Check for updates" (index.html: reg.update() + a version compare). */
 function versionRow() {
@@ -69,11 +73,21 @@ function miniBoard(dots, sea) {
   return `<svg viewBox="-80 -45 160 90" preserveAspectRatio="xMidYMid slice"><rect x="-80" y="-45" width="160" height="90" fill="${sea}"/>${pos.map(([x, y], i) => hex(x, y, dots[(i + 1) % dots.length])).join("")}<circle cx="0" cy="0" r="6" fill="#FBF6EA"/></svg>`;
 }
 
+const TS_LABEL = { compact: "Small", normal: "Normal", large: "Large" };
+const CHEV = `<svg class="sh-chev" viewBox="0 0 20 20" aria-hidden="true" width="18" height="18"><path d="M7.5 4.5 13 10l-5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const BACK = `<svg viewBox="0 0 20 20" aria-hidden="true" width="20" height="20"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const seg = (attr, label, items, on) => `<div class="sh-seg" role="radiogroup" aria-label="${label}">${items.map(([v, l, x]) => `<button type="button" role="radio" ${attr}="${v}" aria-checked="${String(v) === String(on)}" class="${String(v) === String(on) ? "on" : ""}"${x || ""}>${l}</button>`).join("")}</div>`;
+const swBtn = (attr, on, labelledby) => `<button type="button" class="st-switch sh-switch${on ? " on" : ""}" role="switch" aria-checked="${on}" aria-labelledby="${labelledby}" ${attr}><i></i></button>`;
+
+/** v1.99 Settings: one page (level 2, back arrow) in five groups: Appearance, Game, Learn, Data, About. The old tabs are gone; Theme is a layer of its own.
+ *  open(target, { from }): target "look" | "game" | "bots" | "about" scrolls to that group; from "pause" makes Back return to the Pause sheet. */
 export class SettingsUI {
   constructor(game) {
     this.game = game;
     this.el = null;
     this.tab = "look";
+    this.view = "main";
+    this.from = "tab";
     // Move the game controls (and bot personalities) out of the legacy drawer, once.
     const body = document.querySelector("#settingsDrawer .settings-float-body");
     this.gamePane = document.createElement("div");
@@ -91,28 +105,41 @@ export class SettingsUI {
     }
     // v1.34: the Game pane is already out of the document here, so its "Katan … v1.03" line is set through it
     [document, this.gamePane].forEach((root) => root.querySelectorAll(".app-version, .version-label").forEach((el) => { el.textContent = `v${APP_VERSION}`; }));
-    // v0.85: Follow system can flip the palette while Look & feel is open (the OS goes dark): keep the control in step
-    document.addEventListener("colonist:palette", () => { if (this.el && this.tab === "look") this.renderBody(); });
+    // v0.85: Follow system can flip the palette while Settings is open (the OS goes dark): keep the controls in step
+    document.addEventListener("colonist:palette", () => { if (this.el) this.renderBody(true); });
   }
 
-  open(tab = this.tab) {
+  open(tab = "look", { from } = {}) {
     this.tab = tab;
+    this.from = from || "tab";
+    this.view = "main";
     this.close();
     const el = document.createElement("div");
-    el.className = "tm-settings tm-modal";
+    el.className = "tm-settings tm-modal sh-settings";
     el.setAttribute("role", "dialog");
     el.setAttribute("aria-modal", "true");
     el.setAttribute("aria-label", "Settings");
-    el.innerHTML = `<div class="st-card"><nav class="st-nav"><h1>Settings</h1>
-        ${[["game", "Game"], ["look", "Look & feel"], ["bots", "Bots"], ["about", "About"]].map(([k, l]) => `<button type="button" data-tab="${k}" class="${k === tab ? "on" : ""}">${l}</button>`).join("")}
-      </nav><div class="st-body"></div></div>`;
-    el.addEventListener("click", (e) => { if (e.target === el) this.close(); });
-    el.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => { this.tab = b.dataset.tab; this.renderBody(); el.querySelectorAll("[data-tab]").forEach((x) => x.classList.toggle("on", x === b)); }));
-    this.onKey = (e) => { if (e.key === "Escape") this.close(); };
+    el.innerHTML = `<div class="st-card sh-page"><header class="sh-appbar"><button type="button" class="st-close sh-back" aria-label="Back">${BACK}</button><h1 tabindex="-1">Settings</h1></header><div class="st-body"></div></div>`;
+    el.querySelector(".st-close").addEventListener("click", () => this.backStep());
+    this.onKey = (e) => { if (e.key === "Escape") this.backStep(); };
     document.addEventListener("keydown", this.onKey);
     document.body.appendChild(el);
     this.el = el;
     this.renderBody();
+    const target = { bots: ".sh-bots-d", about: "#shAboutH", game: "#shGameH" }[tab];
+    if (target) { const t = el.querySelector(target); if (t) { if (t.tagName === "DETAILS") t.open = true; t.scrollIntoView({ block: "start" }); } }
+    else el.querySelector("h1")?.focus({ preventScroll: true });
+  }
+
+  /** Back arrow, Escape and the back gesture: a layer (Theme) goes back to the page, the page goes back to where Settings was opened from. */
+  backStep() {
+    if (this.view !== "main") { this.view = "main"; this.renderBody(); this.el?.querySelector("h1")?.focus({ preventScroll: true }); return; }
+    this.back();
+  }
+  back() {
+    const from = this.from;
+    this.close();
+    if (from === "pause" && !this.game.home?.open) this.game.menu?.show();
   }
 
   close() {
@@ -126,132 +153,146 @@ export class SettingsUI {
     document.removeEventListener("keydown", this.onKey);
   }
 
-  head(title, sub) {
-    // v1.86 r7: the tab already says where you are: no second "Game" / "About" heading, just the close button (title "")
-    return `<div class="st-head${title ? "" : " st-head-bare"}">${title ? `<h2>${title}</h2>` : ""}<button type="button" class="btn ghost icon-only st-close" aria-label="Close">${icon("close")}</button></div>${sub ? `<p class="sub">${sub}</p>` : ""}`;
+  /** The title of the page / layer and the back button's label */
+  bar(title) {
+    const h = this.el.querySelector(".sh-appbar h1"); if (h) h.textContent = title;
+    this.el.querySelector(".st-close").setAttribute("aria-label", this.view === "main" ? "Back" : "Back to Settings");
   }
 
-  renderBody() {
+  group(id, title, inner) { return `<section class="sh-group" aria-labelledby="${id}"><h2 class="sh-group-h" id="${id}">${title}</h2><div class="sh-group-card">${inner}</div></section>`; }
+
+  renderBody(keep = false) {
+    if (!this.el) return;
     const body = this.el.querySelector(".st-body");
+    const sc = keep ? body.scrollTop : 0;
+    this.gamePane.remove(); this.botPane.remove(); this.devPane.remove();
+    if (this.view === "theme") this.renderTheme(body); else this.renderMain(body);
+    body.scrollTop = sc;
+    this.bar(this.view === "theme" ? "Theme" : "Settings");
+  }
+
+  renderMain(body) {
     const g = this.game;
-    this.gamePane.remove();
-    this.botPane.remove();
-    this.devPane.remove();
-    if (this.tab === "game") {
-      body.innerHTML = this.head("", "");
-      body.appendChild(this.gamePane);
-      g._renderConfirmSetting?.();
-      // v1.04 the Game review starts by itself after a game (a device preference)
-      let auto = true; try { auto = localStorage.getItem("colonist_review_auto") !== "off"; } catch (_) {}
-      const row = document.createElement("div");
-      row.className = "st-row";
-      row.innerHTML = `<div><b id="rvAutoLbl">Review automatically after a game</b><small>Checks your moves in the background.</small></div><button type="button" class="st-switch${auto ? " on" : ""}" role="switch" aria-checked="${auto}" aria-labelledby="rvAutoLbl" data-rv-auto><i></i></button>`;
-      row.querySelector("button").addEventListener("click", (e) => { const b = e.currentTarget, on = b.getAttribute("aria-checked") !== "true"; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); try { localStorage.setItem("colonist_review_auto", on ? "on" : "off"); } catch (_) {} });
-      body.appendChild(row);
-      // v1.42 the review model (src/review/evaluate.js REVIEW_MODELS): Quick (the model alone, seconds), Standard, Deep (about twice the time)
-      let mdl = "standard"; try { mdl = localStorage.getItem("colonist_review_model") || "standard"; } catch (_) {}
-      const mrow = document.createElement("div");
-      mrow.className = "st-row";
-      mrow.innerHTML = `<div><b id="rvModelLbl">Review model</b><small>Quick is rough; Deep takes almost 3x as long.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="rvModelLbl">${[["quick", "Quick"], ["standard", "Standard"], ["deep", "Deep"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${mdl === k}" class="${mdl === k ? "on" : ""}" data-rv-model="${k}">${l}</button>`).join("")}</div>`;
-      mrow.querySelectorAll("[data-rv-model]").forEach((b) => b.addEventListener("click", () => { mrow.querySelectorAll("[data-rv-model]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); try { localStorage.setItem("colonist_review_model", b.dataset.rvModel); } catch (_) {} }));
-      body.appendChild(mrow);
-      // v1.67 text size: Compact (default) / Normal / Large scale the whole interface (CSS zoom 1 / 1.12 / 1.25 on <html>)
-      const tsz = getTextSize(), trow = document.createElement("div");
-      trow.className = "st-row";
-      trow.innerHTML = `<div><b id="tsLbl">Text size</b><small>Compact is the default. Larger sizes scale the whole app.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="tsLbl">${[["compact", "Compact"], ["normal", "Normal"], ["large", "Large"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${k === tsz}" class="${k === tsz ? "on" : ""}" data-ts="${k}">${l}</button>`).join("")}</div>`;
-      trow.querySelectorAll("[data-ts]").forEach((b) => b.addEventListener("click", () => { trow.querySelectorAll("[data-ts]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); setTextSize(b.dataset.ts); }));
-      body.appendChild(trow);
-      // v1.87 the one language of the whole app (src/i18n.js): Auto follows the browser; the AI recap and the AI tab read it too
-      const crow = document.createElement("div");
-      crow.className = "st-row";
-      const lc = langChoice();
-      crow.innerHTML = `<div><b id="lgLbl">Language</b><small>Menus, the game, reviews and the AI recap.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="lgLbl">${[["", "Auto"], ["en", "English"], ["nl", "Nederlands"]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${lc === k}" class="${lc === k ? "on" : ""}" data-lang="${k}"${k ? " data-i18n-skip" : ""}>${l}</button>`).join("")}</div>`;
-      crow.querySelectorAll("[data-lang]").forEach((b) => b.addEventListener("click", () => { crow.querySelectorAll("[data-lang]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); setLang(b.dataset.lang); }));
-      (body.firstElementChild && body.firstElementChild.classList.contains("st-head") ? body.firstElementChild.after(crow) : body.prepend(crow));
-      const prow = document.createElement("div");
-      prow.className = "st-row";
-      prow.innerHTML = `<div><b id="rcPtsLbl">Recap turning points</b><small>How many moments the AI recap tells about.</small></div><div class="st-seg" role="radiogroup" aria-labelledby="rcPtsLbl">${[2, 3, 4].map((k) => `<button type="button" role="radio" aria-checked="${recapPoints() === k}" class="${recapPoints() === k ? "on" : ""}" data-rc-pts="${k}">${k}</button>`).join("")}</div>`;
-      prow.querySelectorAll("[data-rc-pts]").forEach((b) => b.addEventListener("click", () => { prow.querySelectorAll("[data-rc-pts]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }); setRecapPoints(b.dataset.rcPts); }));
-      body.appendChild(prow);
-      // v1.59 the live win-chance bar (src/live-bar.js): off by default
-      const lrow = document.createElement("div");
-      lrow.className = "st-row";
-      lrow.innerHTML = `<div><b id="lwLbl">Live win chance</b><small>A thin bar under the players. Quick model, a rough guide.</small></div><button type="button" class="st-switch${liveWinOn() ? " on" : ""}" role="switch" aria-checked="${liveWinOn()}" aria-labelledby="lwLbl"><i></i></button>`;
-      lrow.querySelector("button").addEventListener("click", (e) => { const b = e.currentTarget, on = b.getAttribute("aria-checked") !== "true"; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); setLiveWin(on); });
-      body.appendChild(lrow);
-      // v1.60 keep refining: one background worker plays futures while the position stands still (battery: turn it off)
-      const rrow = document.createElement("div");
-      rrow.className = "st-row";
-      rrow.innerHTML = `<div><b id="lrLbl">Keep refining (simulates more games)</b><small>Like a chess engine: the bar deepens by playing out more games while you think. Off saves battery.</small></div><button type="button" class="st-switch${liveRefineOn() ? " on" : ""}" role="switch" aria-checked="${liveRefineOn()}" aria-labelledby="lrLbl"><i></i></button>`;
-      rrow.querySelector("button").addEventListener("click", (e) => { const b = e.currentTarget, on = b.getAttribute("aria-checked") !== "true"; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); setLiveRefine(on); });
-      body.appendChild(rrow);
-      body.appendChild(versionRow());
-    } else if (this.tab === "bots") {
-      body.innerHTML = this.head("Bot personalities", "");
-      const lb = document.createElement("button"); // v1.23 the leaderboard lives on its own page
-      lb.type = "button"; lb.className = "st-botsrow";
-      lb.innerHTML = `<span><b>Leaderboard and profiles</b><small>Who is strongest, and how you do against each bot</small></span><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-      lb.addEventListener("click", () => g.botsOpen());
-      body.appendChild(lb);
-      body.appendChild(this.botPane);
-    } else if (this.tab === "about") {
-      body.innerHTML = this.head("", "") + `<p class="sub">Katan, a settle-and-trade island game against friendly bots.</p>
-        <button type="button" class="st-howto">${oicon("book")}How to play</button>
-        <p class="sub">Keyboard: R roll dice · E end turn · 1–3 build · B buy card · T trade · V fit board · Esc cancel.</p>`;
-      body.querySelector(".st-howto").addEventListener("click", () => { this.close(); g.onboarding?.showIntro(0, false); });
-      body.querySelector(".st-howto").after(versionRow());
-      // v1.87: the screen / viewport numbers (bug-report detail) live under Developer, collapsed
-      this.devPane.querySelector(".st-vpinfo")?.remove();
-      const vp = document.createElement("details");
-      vp.className = "st-vpinfo"; vp.setAttribute("data-i18n-skip", ""); // a developer line: numbers and browser words
-      vp.innerHTML = `<summary>Screen details</summary><p class="sub st-screen">Screen: ${innerWidth}×${innerHeight} @${+(window.devicePixelRatio || 1).toFixed(2)}x${matchMedia("(display-mode: standalone)").matches ? " · installed app" : ""}</p><p class="sub st-viewport">${viewportDebug()}</p>`;
-      this.devPane.appendChild(vp);
-      body.appendChild(this.devPane);
-    } else {
-      const cur = g.theme.id;
-      const card = (T) => `<button type="button" class="tc ${T.id === cur ? "on" : ""}" data-theme-id="${T.id}" aria-pressed="${T.id === cur}">
+    const mode = paletteAutoMode(), pal = palettePref();
+    const colour = mode ? "auto" : pal === "light" ? "light" : pal === "night" ? "night" : "";
+    const lc = langChoice() || "en";
+    const T = THEMES[g.theme.id];
+    const tsz = getTextSize();
+    let auto = true; try { auto = localStorage.getItem("colonist_review_auto") !== "off"; } catch (_) {}
+    let mdl = "standard"; try { mdl = localStorage.getItem("colonist_review_model") || "standard"; } catch (_) {}
+    const me = Names.me();
+    const row = (t, sub, right = "", id = "") => `<div class="sh-set-row"><div class="sh-set-t"${id ? ` id="${id}"` : ""}><b>${t}</b>${sub ? `<small>${sub}</small>` : ""}</div>${right}</div>`;
+    const link = (k, t, sub, ic = "") => `<button type="button" class="sh-set-row sh-set-link" data-go="${k}"><span class="sh-set-t"><b>${t}</b>${sub ? `<small>${sub}</small>` : ""}</span>${ic}${CHEV}</button>`;
+    body.innerHTML = `
+      <section class="sh-profile" aria-label="Profile"><span class="sh-profile-av" aria-hidden="true">${avatarSvg(0, "sh-av")}</span><div class="sh-set-t"><b>${me ? esc(me) : "You"}</b><small>Your name in games and reviews</small></div><button type="button" class="btn sm" data-go="names">Change</button></section>
+      ${this.group("shLookH", "Appearance",
+        row("Colours", mode === "time" ? "Auto follows the time of day." : "Auto follows the dark mode of your phone. The default until you pick one.", seg("data-pal", "Colours", [["auto", "Auto"], ["light", "Light"], ["night", "Dark"]], colour), "shColT") +
+        link("theme", "Theme", esc(T.name), `<span class="sh-dots" aria-hidden="true">${T.paletteDots.slice(0, 4).map((c) => `<i style="background:${c}"></i>`).join("")}</span>`) +
+        row("Text size", "Scales the whole app.", seg("data-ts", "Text size", [["compact", "Small"], ["normal", "Normal"], ["large", "Large"]], tsz), "shTsT"))}
+      ${this.group("shGameH", "Game",
+        row("Language", "Menus, the game, reviews and the AI recap.", seg("data-lang", "Language", [["en", "English"], ["nl", "Nederlands", " data-i18n-skip"]], lc), "shLgT") +
+        `<div class="sh-set-embed" data-mount="game"></div>` +
+        row("Live win chance", "A thin bar under the players. Quick model, a rough guide.", swBtn("data-live", liveWinOn(), "shLwT"), "shLwT") +
+        row("Keep refining (simulates more games)", "Like a chess engine: the bar deepens by playing out more games while you think. Off saves battery.", swBtn("data-refine", liveRefineOn(), "shLrT"), "shLrT") +
+        row("Review automatically after a game", "Checks your moves in the background.", swBtn("data-rvauto", auto, "shRaT"), "shRaT") +
+        row("Review model", "Quick is rough; Deep takes almost 3x as long.", seg("data-rvmodel", "Review model", [["quick", "Quick"], ["standard", "Standard"], ["deep", "Deep"]], mdl), "shRmT") +
+        row("Recap turning points", "How many moments the AI recap tells about.", seg("data-pts", "Recap turning points", [2, 3, 4].map((k) => [k, String(k)]), recapPoints()), "shRpT") +
+        `<details class="sh-bots-d"><summary><b>Bot personalities</b><small>Fine-tune each bot, and see how you do against them</small></summary><button type="button" class="sh-set-row sh-set-link" data-go="bots"><span class="sh-set-t"><b>Leaderboard and profiles</b><small>Who is strongest, and how you do against each bot</small></span>${CHEV}</button><div class="sh-set-embed" data-mount="bots"></div></details>`)}
+      ${this.group("shLearnH", "Learn",
+        row("Explain the set-up", "For new games", swBtn("data-explain", explainOn(g), "shExT"), "shExT") +
+        link("intro", "How does Katan work?", "Cards, robber, winning"))}
+      ${this.group("shDataH", "Data",
+        link("export", "Save my data", "Games, results and settings as a file"))}
+      ${this.group("shAboutH", "About", `<div class="sh-set-embed" data-mount="version"></div>` +
+        `<a class="sh-set-row sh-set-link" href="./lab.html"><span class="sh-set-t"><b>AI Lab</b><small>For curious players</small></span>${CHEV}</a>` +
+        `<details class="sh-dev"><summary><b>Developer</b><small>Let a bot play for you, screen details</small></summary><div class="sh-set-embed" data-mount="dev"></div></details>` +
+        `<p class="sh-set-note">Katan, a settle-and-trade island game against friendly bots. Keyboard: R roll dice · E end turn · 1–3 build · B buy card · T trade · V fit board · Esc cancel.</p>`)}`;
+    const mount = (k, el) => body.querySelector(`[data-mount="${k}"]`)?.appendChild(el);
+    mount("game", this.gamePane);
+    g._renderConfirmSetting?.();
+    mount("bots", this.botPane);
+    mount("version", versionRow());
+    this.devPane.querySelector(".st-vpinfo")?.remove();
+    const vp = document.createElement("details");
+    vp.className = "st-vpinfo"; vp.setAttribute("data-i18n-skip", "");
+    vp.innerHTML = `<summary>Screen details</summary><p class="sub st-screen">Screen: ${innerWidth}×${innerHeight} @${+(window.devicePixelRatio || 1).toFixed(2)}x${matchMedia("(display-mode: standalone)").matches ? " · installed app" : ""}</p><p class="sub st-viewport">${viewportDebug()}</p>`;
+    this.devPane.appendChild(vp);
+    mount("dev", this.devPane);
+
+    const on = (sel, fn) => body.querySelectorAll(sel).forEach((b) => b.addEventListener("click", fn));
+    const pick = (sel, attr, fn) => on(sel, (e) => { const b = e.currentTarget; b.parentElement.querySelectorAll("button").forEach((x) => { const o = x === b; x.classList.toggle("on", o); x.setAttribute("aria-checked", String(o)); }); fn(b.getAttribute(attr)); });
+    const sw = (sel, fn) => on(sel, (e) => { const b = e.currentTarget, v = b.getAttribute("aria-checked") !== "true"; b.classList.toggle("on", v); b.setAttribute("aria-checked", String(v)); fn(v); });
+    on("[data-pal]", (e) => { const v = e.currentTarget.dataset.pal; if (v === "auto") setPaletteAuto(paletteAutoMode() === "time" ? "time" : "system"); else setPalette(v === "night" ? "night" : "light"); g.requestBoardDraw?.(); this.renderBody(true); });
+    pick("[data-ts]", "data-ts", (v) => { setTextSize(v); });
+    pick("[data-lang]", "data-lang", (v) => { setLang(v); });
+    sw("[data-live]", setLiveWin);
+    sw("[data-refine]", setLiveRefine);
+    sw("[data-rvauto]", (v) => { try { localStorage.setItem("colonist_review_auto", v ? "on" : "off"); } catch (_) {} });
+    pick("[data-rvmodel]", "data-rvmodel", (v) => { try { localStorage.setItem("colonist_review_model", v); } catch (_) {} });
+    pick("[data-pts]", "data-pts", (v) => setRecapPoints(v));
+    sw("[data-explain]", setExplain);
+    on("[data-go]", (e) => {
+      const k = e.currentTarget.dataset.go;
+      if (k === "theme") { this.view = "theme"; this.renderBody(); this.el.querySelector("h1")?.focus({ preventScroll: true }); }
+      else if (k === "intro") { this.close(); g.onboarding?.showIntro(0, false); }
+      else if (k === "bots") g.botsOpen?.();
+      else if (k === "names") openNamesSheet({ onRename: (a, b) => g.histRenameName?.(a, b), onChange: () => { if (this.el && this.view === "main") this.renderBody(true); } });
+      else if (k === "export") this.exportData(e.currentTarget);
+    });
+  }
+
+  /** Save my data: the settings and every finished game of this device as one JSON file. */
+  async exportData(btn) {
+    const g = this.game; btn.disabled = true;
+    try {
+      const out = { app: "katan", version: APP_VERSION, exported: new Date().toISOString(), settings: {}, games: [] };
+      try { for (let i = 0; i < localStorage.length; i += 1) { const k = localStorage.key(i); if (/^colonist/.test(k) && !/^colonist\.(auto|live|hist)/.test(k)) out.settings[k] = localStorage.getItem(k); } } catch (_) { /* storage blocked */ }
+      try { await g.hist.open(); for (const m of g.hist.metas.slice(0, 500)) { const r = await g.hist.get(m.id); if (r) out.games.push({ id: m.id, meta: m, ...r }); } } catch (_) { /* no history */ }
+      const blob = new Blob([JSON.stringify(out)], { type: "application/json" }), a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = `katan-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      toast({ text: "File saved", icon: "check" });
+    } catch (_) { toast({ text: "Couldn't save the file" }); }
+    btn.disabled = false;
+  }
+
+  /** Layer: the four themes, the extra colour modes, motion and avatar animations */
+  renderTheme(body) {
+    const g = this.game;
+    const cur = g.theme.id;
+    const card = (T) => `<button type="button" class="tc ${T.id === cur ? "on" : ""}" data-theme-id="${T.id}" aria-pressed="${T.id === cur}">
           <div class="pv">${T.thumb ? T.thumb() : miniBoard(T.paletteDots, T.id === "A" ? "#3CA9B0" : "#2a6a88")}</div><span class="radio"></span>
           <div class="meta"><div class="nm"><b>${T.name}</b><span class="aa" style="font-family:${T.sampleFont || (T.id === "A" ? "Outfit,system-ui,sans-serif" : "Inter,sans-serif")}">Aa</span></div>
           <p>${T.mood}</p><div class="dots">${T.paletteDots.map((c) => `<i style="background:${c}"></i>`).join("")}</div></div></button>`;
-      const m = motionPref();
-      body.innerHTML = this.head("", "Pick a world for your island. Board, cards, pieces and motion follow the theme. Applies instantly.") +
-        `<div class="tcards">${THEME_ORDER.map((id) => card(THEMES[id])).join("")}</div>
-        ${(() => {
-          // Palettes only exist for Sunny Island: in other themes they stay visible but disabled, with the reason.
-          // v1.04 proposal (dusk-104): Light · Vivid · Dusk · Night · Auto. Auto follows the time of day (default) or
-          // the device's dark mode; the line under it says what is on screen now and when it changes next.
-          const on = g.theme?.id === "A", mode = paletteAutoMode(), cur = mode ? "auto" : palettePref();
-          const shown = effectivePalette(), NAME = { light: "Light", vivid: "Vivid", dusk: "Dusk", night: "Night" };
-          const hm = (ms) => new Date(ms).toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
-          let autoLine = "", autoMore = "";
-          if (mode === "time") {
-            const t = autoTimeInfo(), place = t.place.how === "zone" ? t.place.tz.split("/").pop().replace(/_/g, " ") : "your time zone";
-            const ne = t.edges?.find((e) => e[0] === t.next), nxt = ne ? ` · ${NAME[ne[1] === "day" ? dayPalette() : ne[1]]} from ${hm(ne[0])}` : "";
-            autoLine = `Now ${NAME[shown]}${nxt}`;
-            autoMore = `Sunrise ${t.sun.rise ? hm(t.sun.rise) : "–"}, sunset ${t.sun.set ? hm(t.sun.set) : "–"}, estimated for ${place} from your time zone; no location is used. The switch waits for the end of a turn and fades slowly.`;
-          } else if (mode === "system") { autoLine = `Now ${NAME[shown]}`; autoMore = `Night while your device is in dark mode, otherwise ${NAME[dayPalette()]}.`; }
-          return `<div class="st-row st-row-pal${on ? "" : " st-row-off"}" style="margin-top:14px"><div><b>Colours</b><small>${on ? "Light is soft · Vivid is bold · Dusk is golden hour · Night is calm and dark." : "Only for Sunny Island."}</small></div>
-          <div class="seg pal-seg pal-seg5" role="radiogroup" aria-label="Colours"${on ? "" : ` aria-disabled="true"`}>${[["light", "Light"], ["vivid", "Vivid"], ["dusk", "Dusk"], ["night", "Night"], ["auto", "Auto"]].map(([v, l]) => `<button type="button" data-palette="${v}" class="${cur === v ? "on" : ""}${mode && v === shown ? " shown" : ""}" aria-checked="${cur === v}" role="radio"${on ? "" : " disabled"}><i class="pal-dot pal-${v === "auto" ? "autodot" : v}"></i>${l}</button>`).join("")}</div></div>
-          ${mode && on ? `<div class="st-row st-row-pal pal-auto"><div><b>Auto follows<button type="button" class="pal-info" data-pal-info aria-label="More about Auto" aria-expanded="false" title="What Auto does">How it works</button></b><small>${autoLine}</small><small class="pal-more" hidden>${autoMore}</small></div>
-          <div class="seg" role="radiogroup" aria-label="Auto follows">${[["time", "Time of day"], ["system", "Device dark mode"]].map(([v, l]) => `<button type="button" data-pal-auto="${v}" class="${mode === v ? "on" : ""}" aria-checked="${mode === v}" role="radio">${l}</button>`).join("")}</div></div>` : ""}`;
-        })()}
-        <div class="st-row"><div><b>Motion</b><small>Reduced replaces travel and spin with short fades.</small></div>
-          <div class="seg" role="radiogroup" aria-label="Motion">${[["full", "Full"], ["reduced", "Reduced"], ["system", "Follow system"]].map(([v, l]) => `<button type="button" data-motion="${v}" class="${m === v ? "on" : ""}" aria-checked="${m === v}" role="radio">${l}</button>`).join("")}</div></div>
-        <div class="st-row"><div><b>Avatar animations</b><small>Blinking, reactions and the turn pulse on the portraits.</small></div>
-          <div class="seg" role="radiogroup" aria-label="Avatar animations">${[[true, "On"], [false, "Off"]].map(([v, l]) => `<button type="button" data-avanim="${v}" class="${avatarAnimOn() === v ? "on" : ""}" aria-checked="${avatarAnimOn() === v}" role="radio">${l}</button>`).join("")}</div></div>
-        <div class="st-row"><div><b>Quick toggle</b><small>The same swatches sit in the top bar on wide screens.</small></div><div class="theme-toggle" data-qt></div></div>`;
-      body.querySelectorAll("[data-theme-id]").forEach((b) => {
-        b.addEventListener("pointerenter", () => prefetchFonts(THEMES[b.dataset.themeId]));
-        b.addEventListener("click", () => { g.setTheme(b.dataset.themeId); this.renderBody(); });
-      });
-      body.querySelectorAll("button[data-palette]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.palette === "auto") setPaletteAuto(paletteAutoMode() || "time"); else setPalette(b.dataset.palette); g.requestBoardDraw(); this.renderBody(); }));
-      body.querySelector("[data-pal-info]")?.addEventListener("click", (e) => { const m = body.querySelector(".pal-more"); m.hidden = !m.hidden; e.currentTarget.setAttribute("aria-expanded", String(!m.hidden)); });
-      body.querySelectorAll("[data-pal-auto]").forEach((b) => b.addEventListener("click", () => { setPaletteAuto(b.dataset.palAuto); g.requestBoardDraw(); this.renderBody(); }));
-      body.querySelectorAll("[data-motion]").forEach((b) => b.addEventListener("click", () => { setMotionPref(b.dataset.motion); g.requestBoardDraw(); this.renderBody(); }));
-      body.querySelectorAll("[data-avanim]").forEach((b) => b.addEventListener("click", () => { setAvatarAnim(b.dataset.avanim === "true"); g.render(); refreshAvatars(); this.renderBody(); }));
-      renderQuickToggle(body.querySelector("[data-qt]"), g, () => this.renderBody());
-    }
-    body.querySelector(".st-close")?.addEventListener("click", () => this.close());
+    const m = motionPref();
+    const on = g.theme?.id === "A", mode = paletteAutoMode(), pcur = mode ? "auto" : palettePref();
+    const shown = effectivePalette(), NAME = { light: "Light", vivid: "Vivid", dusk: "Dusk", night: "Night" };
+    const hm = (ms) => new Date(ms).toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
+    let autoLine = "";
+    if (mode === "time") {
+      const t = autoTimeInfo(), ne = t.edges?.find((e) => e[0] === t.next);
+      autoLine = `Now ${NAME[shown]}${ne ? ` · ${NAME[ne[1] === "day" ? dayPalette() : ne[1]]} from ${hm(ne[0])}` : ""}`;
+    } else if (mode === "system") autoLine = `Now ${NAME[shown]}`;
+    body.innerHTML = `<p class="sh-set-note">Pick a world for your island. Board, cards, pieces and motion follow the theme. Applies instantly.</p>
+      <div class="tcards">${THEME_ORDER.map((id) => card(THEMES[id])).join("")}</div>
+      ${this.group("shMoreColH", "More colour modes", `<div class="sh-set-row sh-set-col${on ? "" : " st-row-off"}"><div class="sh-set-t"><b>Colours</b><small>${on ? "Light is soft · Vivid is bold · Dusk is golden hour · Night is calm and dark." : "Only for Sunny Island."}</small></div>
+          <div class="sh-seg sh-seg5" role="radiogroup" aria-label="Colours"${on ? "" : ` aria-disabled="true"`}>${[["light", "Light"], ["vivid", "Vivid"], ["dusk", "Dusk"], ["night", "Night"], ["auto", "Auto"]].map(([v, l]) => `<button type="button" role="radio" data-palette="${v}" aria-checked="${pcur === v}" class="${pcur === v ? "on" : ""}"${on ? "" : " disabled"}>${l}</button>`).join("")}</div></div>
+          ${mode && on ? `<div class="sh-set-row sh-set-col"><div class="sh-set-t"><b>Auto follows</b><small>${autoLine}</small></div>
+          <div class="sh-seg" role="radiogroup" aria-label="Auto follows">${[["time", "Time of day"], ["system", "Phone dark mode"]].map(([v, l]) => `<button type="button" role="radio" data-pal-auto="${v}" class="${mode === v ? "on" : ""}" aria-checked="${mode === v}">${l}</button>`).join("")}</div></div>` : ""}`)}
+      ${this.group("shMotionH", "Motion", `<div class="sh-set-row sh-set-col"><div class="sh-set-t"><b>Motion</b><small>Reduced replaces travel and spin with short fades.</small></div>
+          <div class="sh-seg" role="radiogroup" aria-label="Motion">${[["full", "Full"], ["reduced", "Reduced"], ["system", "Follow system"]].map(([v, l]) => `<button type="button" role="radio" data-motion="${v}" class="${m === v ? "on" : ""}" aria-checked="${m === v}">${l}</button>`).join("")}</div></div>
+        <div class="sh-set-row sh-set-col"><div class="sh-set-t"><b>Avatar animations</b><small>Blinking, reactions and the turn pulse on the portraits.</small></div>
+          <div class="sh-seg" role="radiogroup" aria-label="Avatar animations">${[[true, "On"], [false, "Off"]].map(([v, l]) => `<button type="button" role="radio" data-avanim="${v}" class="${avatarAnimOn() === v ? "on" : ""}" aria-checked="${avatarAnimOn() === v}">${l}</button>`).join("")}</div></div>
+        <div class="sh-set-row"><div class="sh-set-t"><b>Quick toggle</b><small>The same swatches sit in the top bar on wide screens.</small></div><div class="theme-toggle" data-qt></div></div>`)}`;
+    body.querySelectorAll("[data-theme-id]").forEach((b) => {
+      b.addEventListener("pointerenter", () => prefetchFonts(THEMES[b.dataset.themeId]));
+      b.addEventListener("click", () => { g.setTheme(b.dataset.themeId); this.renderBody(true); });
+    });
+    body.querySelectorAll("button[data-palette]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.palette === "auto") setPaletteAuto(paletteAutoMode() || "time"); else setPalette(b.dataset.palette); g.requestBoardDraw(); this.renderBody(true); }));
+    body.querySelectorAll("[data-pal-auto]").forEach((b) => b.addEventListener("click", () => { setPaletteAuto(b.dataset.palAuto); g.requestBoardDraw(); this.renderBody(true); }));
+    body.querySelectorAll("[data-motion]").forEach((b) => b.addEventListener("click", () => { setMotionPref(b.dataset.motion); g.requestBoardDraw(); this.renderBody(true); }));
+    body.querySelectorAll("[data-avanim]").forEach((b) => b.addEventListener("click", () => { setAvatarAnim(b.dataset.avanim === "true"); g.render(); refreshAvatars(); this.renderBody(true); }));
+    renderQuickToggle(body.querySelector("[data-qt]"), g, () => this.renderBody(true));
   }
 }
 

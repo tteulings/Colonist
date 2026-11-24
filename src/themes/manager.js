@@ -62,7 +62,9 @@ const PALETTES = ["light", "vivid", "dusk", "night"];
 const darkMq = typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)") : null;
 export function palettePref() { const v = store.get(PALETTE_KEY); return PALETTES.includes(v) ? v : "light"; }
 /** false | "system" | "time" */
-export function paletteAutoMode() { const v = store.get(AUTO_KEY); return v === "on" ? "system" : v === "time" ? "time" : false; }
+// v1.99: anyone who never chose a palette (neither key stored) follows the phone: Auto (system) is the default; any explicit pick keeps working as before
+export function paletteChosen() { return store.get(AUTO_KEY) != null || store.get(PALETTE_KEY) != null; }
+export function paletteAutoMode() { const v = store.get(AUTO_KEY); if (v == null && store.get(PALETTE_KEY) == null) return "system"; return v === "on" ? "system" : v === "time" ? "time" : false; }
 export function paletteAuto() { return !!paletteAutoMode(); }
 export function dayPalette() { const v = store.get(DAY_KEY); return v === "vivid" ? "vivid" : palettePref() === "vivid" ? "vivid" : "light"; }
 export function systemDark() { return !!darkMq?.matches; }
