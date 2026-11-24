@@ -94,7 +94,7 @@ export function verdictSpans(m) {
   const tail = h.despite ? (h.won ? T.despite : T.though)[h.despite.id](h.despite.v) : null;
   if (!lead.length && !tail) return `<span>${"A close game without one clear cause"}</span>`;
   const head = lead.length ? lead.map((x) => `<span>${x}</span>`).join(" and ") : `<span>${h.won ? "a close game" : "a close game"}</span>`;
-  return `<span class="px-vs">${head}${tail ? `, <span>${tail}</span>` : ""}</span>`;
+  return `<span class="px-vsent">${head}${tail ? `, <span>${tail}</span>` : ""}</span>`;
 }
 export function verdictLine(g, m) { return verdictSpans(m); }
 

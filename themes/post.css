@@ -166,7 +166,7 @@
 .px-bl .nm small.dots { letter-spacing: 1px; font-size: 11.5px; overflow: hidden; white-space: nowrap; }
 .px-vs.few { opacity: .85; } .px-vs .few { grid-column: 1 / -1; font: 600 12px/1.2 var(--font-body); font-style: normal; color: var(--ink-soft); } .wh.dim { opacity: .5; }
 .px-scale { display: flex; justify-content: space-between; font: 650 11.5px/1.2 var(--font-body); color: var(--ink-soft); }
-.px-hl2 > .px-vs > span:first-child::first-letter { text-transform: uppercase; }
+.px-hl2 > .px-vsent > span:first-child::first-letter { text-transform: uppercase; }
 .px-vh .px-i { margin: -8px -10px -8px 0; } .px-nr.hd b { white-space: normal; overflow-wrap: anywhere; line-height: 1.15; font-size: 12px; }
 .px-nr b { font-size: 13px; } .px-nr .px-d { padding: 1px 6px; }
 .px-km .t .pn { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--heading); color: var(--sheet); font: 800 11.5px/1 var(--font-body); font-style: normal; margin-right: 4px; }
