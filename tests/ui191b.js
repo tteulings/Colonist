@@ -88,15 +88,16 @@ const BTN = () => {
     await G(() => window.__colonistGame.histClose()); await sleep(300);
     // ── 3 home
     await G(() => window.__colonistGame.goHome()); await sleep(800); await shot("home");
+    await G(() => window.__colonistGame._showDifficultyModal()); await sleep(600); // v1.99: the New game sheet holds the opponents
     const home = await G(() => { const r = (e) => e.getBoundingClientRect(); const out = [];
-      document.querySelectorAll(".home *, .hm *").forEach((e) => { if (e.children.length) return; const t = e.textContent.replace(/\u00AD/g, "").trim(); if (/^(tegenstanders|opponents)$/i.test(t)) { const row = e.closest("[class*=row], [class*=seg], div"); const seg = e.parentElement.parentElement?.querySelector("[role=radiogroup], .seg, [class*=seg]"); const rg = document.createRange(); rg.selectNodeContents(e); out.push({ cls: e.className, p: e.parentElement.className, lbl: rg.getBoundingClientRect().toJSON(), seg: seg ? r(seg).toJSON() : null, lw: e.scrollWidth, cw: e.clientWidth }); } }); return out; });
+      document.querySelectorAll(".newgame-modal *, .home *, .hm *").forEach((e) => { if (e.children.length) return; const t = e.textContent.replace(/\u00AD/g, "").trim(); if (/^(tegenstanders|opponents)$/i.test(t)) { const row = e.closest("[class*=row], [class*=seg], div"); const seg = e.parentElement.parentElement?.querySelector("[role=radiogroup], .seg, [class*=seg]"); const rg = document.createRange(); rg.selectNodeContents(e); out.push({ cls: e.className, p: e.parentElement.className, lbl: rg.getBoundingClientRect().toJSON(), seg: seg ? r(seg).toJSON() : null, lw: e.scrollWidth, cw: e.clientWidth }); } }); return out; });
     ok(home.length > 0, `${tag} home: opponents label found`);
     for (const x of home) ok(!x.seg || x.lbl.right <= x.seg.left - 6, `${tag} home: label clear of its segment`, { l: Math.round(x.lbl.right), s: Math.round(x.seg?.left) });
     const hb = await G(BTN); ok(!hb.length, `${tag} home: no clipped button (Gemiddeld, Zeevaarders, ...)`, hb.slice(0, 3));
     // ── settings
-    await G(() => window.__colonistGame.settingsUI.open("game")); await sleep(500); await shot("settings");
+    await G(() => document.querySelector(".newgame-modal")?.remove()); await G(() => window.__colonistGame.settingsUI.open("game")); await sleep(500); await shot("settings");
     const st = await G(() => { const r = (e) => e.getBoundingClientRect(); const x = document.querySelector(".st-close"); const tabs = [...document.querySelectorAll(".st-nav button")].map((t) => ({ t: t.textContent.trim(), b: r(t).toJSON() })); const ti = document.querySelector(".st-body h2, .st-body .st-row b, .st-body b"); return { x: x ? { c: x.className, b: r(x).toJSON() } : null, tabs, cls: [...document.querySelectorAll("[class*=st-]")].slice(0, 12).map((e) => e.className) }; });
-    const xb = st.x?.b; ok(!!xb && st.tabs.length === 4 && st.tabs.every((t) => t.b.right <= xb.left + 1 || t.b.top > xb.bottom || t.b.bottom < xb.top) && xb.top < st.tabs[0].b.bottom, `${tag} settings: the close X sits in the tab row, clear of the tabs`, { x: xb, t: st.tabs.length });
+    const xb = st.x?.b; ok(!!xb && xb.width >= 43.5 && xb.height >= 43.5 && xb.left < 80, `${tag} settings: the back button is a 44px target at the top left`, { x: xb }); // v1.99: one page, no tab row
     ok(!(await G(() => /^[a-z]/.test((document.querySelector("#aiAnalysisToggle")?.closest("label")?.querySelector(".st-note")?.textContent || "A").trim()))), `${tag} settings: the Analysis mode note starts with a capital`);
     await G(() => window.__colonistGame.settingsUI.close());
     // ── in game: setup, then after placing

@@ -5,7 +5,7 @@ import { initAvatarAnim, avatarLogEvent, avatarTick } from "./avatar-anim.js"; /
 import { SettingsUI, renderQuickToggle } from "./themes/settings-ui.js";
 import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbourScaleWanted, seaHarbourScale, pierDot, drawPierDot } from "./themes/art-util.js";
 import { Onboarding, introSeen } from "./themes/onboarding.js";
-import { Home, GameMenu } from "./themes/home.js";
+import { Home, GameMenu, openNewGame } from "./shell.js"; // v1.99 the shell: Play tab, tab bar, New game sheet, Pause sheet
 import { SoundEngine } from "./sound.js";
 import { isBigTable, bigAxialHexes, BIG_CENTER_SHIFT, BIG_BANK_SIZE, BIG_RUSH_INTERVAL, assignBigTiles, assignBigPorts, createBigDevDeck, SbpMixin } from "./six.js";
 import { SixUiMixin } from "./six-ui.js";
@@ -44,7 +44,7 @@ import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte C
 // this file only calls in through hooks marked with ⚓.
 import { createEmitter, eventToText } from "./core/events.js"; // architecture step 5: the game talks in events
 import { hostOn, hostRecover, mainPhase as hostMainPhase } from "./bots/inapp.js"; // follow-up of step 4: the bot host plays the bots' main phase in the app
-import { createUiEngine } from "./ui/intent.js?v=198"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
+import { createUiEngine } from "./ui/intent.js?v=199"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS } from "./seafarers/index.js";
 
 import { RESOURCES, COSTS_SEA as COSTS, PIECE_LIMITS_SEA as PIECE_LIMITS, BANK_SIZE, DICE_WAYS as DICE_WEIGHT, DEV_CARD_TYPES, DEV_DECK, deckList } from "./core/constants.js"; // (COSTS / PIECE_LIMITS carry the Seafarers ship: it is only looked up when this.sea)
@@ -978,27 +978,16 @@ class ColonistFullGame {
       last: () => normalizeSettings(ColonistFullGame.loadLastSettings()),
       introSeen,
       onContinue: () => this.continueSavedGame(),
-      onStart: (pick) => this._quickStart(pick),
-      onMore: () => this._showDifficultyModal(),
-      onFriend: () => this._showDifficultyModal({ friend: true }),
-      onIntro: () => this.onboarding.showIntro(0, true),
-      onSettings: () => this.settingsUI.open("game"),
-      onHistory: () => this.histOpen(),
-      onLessons: () => this.lessonsOpen(),
-      onBots: () => this.botsOpen(),
-      historyCount: () => this._hist?.count ?? null,
+      onStartLast: () => this.startNewGame(normalizeSettings(ColonistFullGame.loadLastSettings())),
+      onAdjust: () => this._showDifficultyModal(),
+      historyCount: () => this.hist?.count ?? null,
     });
     this.menu = new GameMenu(this, {
       onHome: () => this.goHome(),
       onNewGame: () => this._showDifficultyModal(),
-      onSettings: () => this.settingsUI.open("game"),
+      onSettings: () => this.settingsUI.open("look", { from: "pause" }),
       onIntro: () => this.onboarding.showIntro(0, false),
-      onAbout: () => this.settingsUI.open("about"),
       onStats: () => this.liveStatsOpen(),
-      onCheck: () => this._rvOpenMid(),
-      onHistory: () => this.histOpen(),
-      onLessons: () => this.lessonsOpen(),
-      historyCount: () => this._hist?.count ?? null,
     });
     const oldSlot = this.histOldSlot(); // read now: the resetGame() below clears a finished game
     this.hist.open().then(() => this.histMigrate(oldSlot)).then(() => { if (this.home?.open) this.home.render(); }); // the last game of the old storage becomes the first past game
@@ -1064,23 +1053,6 @@ class ColonistFullGame {
     if (!this.loadFromStorage()) this.resetGame();
     window.setTimeout(() => { if (this._chipEnterPending) this._playStripEntrance(); }, 120);
     this._buildStrategyUI();
-  }
-
-  /** Home › Classic / Rush tile: start at once with the chosen opponents and bot level. */
-  _quickStart({ mode, numBots, preset, board }) {
-    const last = normalizeSettings(ColonistFullGame.loadLastSettings());
-    const sea = (board || last.board) === "seafarers"; // ⚓ Seafarers: at most 3 bots
-    const s = { ...last, mode: mode === "rush" ? "rush" : "classic", numBots: clamp(Number(numBots) || 3, 1, sea ? 3 : PLAYER_CONFIG.length - 1) };
-    if (board) s.board = board === "seafarers" ? "seafarers" : "island"; // ⚓ Home › Map
-    s.humans = DEFAULT_SETTINGS.humans.slice(); // Home's quick start is you vs bots (pass & play: Rules & options › Players)
-    // Rush with 5–6 players: a roll every 15 s unless a slower pace was picked
-    if (s.mode === "rush" && isBigTable(s.numBots + 1) && s.rushInterval < BIG_RUSH_INTERVAL) s.rushInterval = BIG_RUSH_INTERVAL;
-    if (preset && preset !== "custom" && AI_PRESETS[preset]) {
-      s.botStyleMode = "all";
-      s.allPreset = preset;
-      s.allStrategy = { ...AI_PRESETS[preset] };
-    }
-    this.startNewGame(s);
   }
 
   /** Menu › Home: save and pause the game, then show the home screen (Continue picks it up again). */
@@ -9607,372 +9579,16 @@ class ColonistFullGame {
     resourceGain: (kinds = []) => this.sound.play("resourceGain", kinds),
   };
 
-  // ── New-game setup screen ─────────────────────────────────────────────
-  // Mode (Classic / Rush), rules, dice, map and opponents. The last choice is remembered.
+  // ── New-game sheet (v1.99: src/shell.js) ───────────────────────────────
+  // Type, opponents, level, map, explain; "More rules" and "Levels" are second layers. The last choice is remembered.
   _showDifficultyModal({ friend = false } = {}) {
-    document.querySelector(".newgame-modal")?.remove();
-    this.onboarding?.close();
-    this.settingsUI?.close();
-    const last = normalizeSettings(ColonistFullGame.loadLastSettings());
-    let d = normalizeSettings(JSON.parse(JSON.stringify(last)));
-    if (friend) { // Home › Play with a friend: Classic, you + one person (+ the bots of the last game), your remembered name filled in
-      d.mode = "classic"; d.board = "island"; d.numBots = Math.max(1, d.numBots);
-      d.humans = d.humans.map((h, i) => (i === 0 ? true : h));
-      if (!d.names[0] && Names.me()) d.names = d.names.map((n, i) => (i === 0 ? Names.me() : n));
-    }
-    const overlay = document.createElement("div");
-    overlay.className = "newgame-modal";
-    overlay.setAttribute("role", "dialog");
-    overlay.setAttribute("aria-modal", "true");
-    overlay.setAttribute("aria-label", "New game");
-    // Hold the Rush clock while the screen is open
-    this.uiPaused = true;
-    let fineTuneOpen = window.innerWidth > 700;
-    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-    const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-    const levelLabel = (level) => AI_LEVEL_LABEL[level] || cap(level);
-    const presetLabel = (key) => AI_PRESET_INFO[key]?.label || "Custom";
-    const strategySummary = (s) => {
-      const trade = { none: "no trades", conservative: "careful trades", balanced: "fair trades", aggressive: "eager trades" }[s.trading];
-      const dev = { none: "no dev cards", reactive: "reactive cards", strategic: "strategic cards" }[s.devCards];
-      const aware = { none: "ignores rivals", basic: "watches rivals", advanced: "targets leader" }[s.awareness];
-      return `${cap(s.placement)} placement · ${trade} · ${dev} · ${aware}`;
-    };
-    const badge = (key) => {
-      const info = AI_PRESET_INFO[key] || AI_PRESET_INFO.custom;
-      return `<span class="persona-badge persona-${key}">${info.glyph ? `${info.glyph} ` : ""}${info.label}</span>`;
-    };
-    // v1.10 Super Expert / v1.17: searched on the island board (Classic and Rush, 2\u20136 players); eng-130: Seafarers too, so never greyed out
-    const superOff = () => "";
-    const isSup = (k) => k === "super" || k === "superplus" || k === "grandmaster";
-    const botPreset = (i) => (d.botStyleMode === "each" ? d.perBot[i] : d.allPreset);
-    const botStrategy = (i) => (d.botStyleMode === "each" ? AI_PRESETS[d.perBot[i]] : d.allStrategy);
-    const diceHelp = {
-      random: "Random: two independent dice, every roll a fresh throw.",
-      balanced: "Balanced: real dice odds, but long streaks and droughts are smoothed out.",
-      deck: "Event deck: all 36 dice results drawn from a deck, reshuffled when empty.",
-    };
-    const mapHelp = {
-      random: "Random: tiles and numbers shuffled freely.",
-      balanced: "Balanced: no adjacent 6/8 or equal numbers, every resource on fair numbers.",
-      beginner: "Beginner: the official fixed starter layout.",
-    };
-    const mapIcon = (kind) => {
-      const colors = {
-        random: ["#4e8a3a", "#c9a53a", "#c8643c", "#8d9aa8", "#7fbf4a"],
-        balanced: ["#c8643c", "#4e8a3a", "#c9a53a", "#7fbf4a", "#8d9aa8"],
-        beginner: ["#8d9aa8", "#7fbf4a", "#c9a53a", "#4e8a3a", "#c8643c"],
-      }[kind];
-      return `<span class="ng-map-icon" aria-hidden="true">${colors.map((c) => `<i style="--hex:${c}"></i>`).join("")}</span>`;
-    };
-    const seg = (name, options, value, extraClass = "", off = []) => `
-      <div class="ng-seg ${extraClass}" role="radiogroup" data-seg="${name}">
-        ${options.map(([v, label]) => `<button type="button" role="radio" aria-checked="${String(v) === String(value)}" class="ng-seg-btn${String(v) === String(value) ? " selected" : ""}" data-value="${v}"${off.includes(v) ? " disabled" : ""}>${label}</button>`).join("")}
-      </div>`;
-    const stepper = (name, value, min, max) => `
-      <div class="ng-stepper" data-stepper="${name}" data-min="${min}" data-max="${max}">
-        <button type="button" class="ng-step-btn" data-step="-1" aria-label="Decrease" ${value <= min ? "disabled" : ""}>&minus;</button>
-        <span class="ng-step-value" aria-live="polite">${value}</span>
-        <button type="button" class="ng-step-btn" data-step="1" aria-label="Increase" ${value >= max ? "disabled" : ""}>+</button>
-      </div>`;
-    const summaryText = () => {
-      const bots = PLAYER_CONFIG.slice(1, d.numBots + 1).map((_, i) => (d.mode !== "rush" && d.humans[i] ? null : presetLabel(botPreset(i)))).filter(Boolean);
-      const people = 1 + PLAYER_CONFIG.slice(1, d.numBots + 1).filter((_, i) => d.mode !== "rush" && d.humans[i]).length;
-      const uniq = [...new Set(bots)];
-      const mode = d.mode === "rush" ? `<strong>Rush · ${d.rushInterval}s rolls</strong>` : "<strong>Classic</strong>";
-      const extras = [
-        d.board === "seafarers" ? "Seafarers · 14 points" : `${d.winPoints} points`, // ⚓
-        discardLimitFor(d) !== 7 ? `discard over ${discardLimitFor(d)}` : null,
-        d.friendlyRobber ? "friendly robber" : null,
-        `${d.dice === "deck" ? "event-deck" : d.dice} dice`,
-        `${d.map} map`,
-        [people > 1 ? `${people} people` : null,
-          bots.length ? `${bots.length} bot${bots.length > 1 ? "s" : ""} (${uniq.length === 1 && bots.length > 1 ? `all ${uniq[0]}` : bots.join(", ")})` : null].filter(Boolean).join(" + "),
-      ].filter(Boolean);
-      return `${mode} · ${extras.join(" · ")}`;
-    };
-
-    // Players: who sits where (seat 0 is always a person; the others a bot or, pass & play, a person)
-    const botCount = () => PLAYER_CONFIG.slice(1, d.numBots + 1).filter((_, i) => !(d.mode !== "rush" && d.humans[i])).length;
-    const seatRows = () => PLAYER_CONFIG.slice(0, d.numBots + 1).map((cfg, id) => {
-      const human = id === 0 || (d.mode !== "rush" && d.humans[id - 1]);
-      const hot = hotseatOn(d);
-      const def = id === 0 ? "Your name" : "Name";
-      const kind = id === 0 ? `<div class="hs-kind" aria-label="Person"><button type="button" class="on fixed" tabindex="-1">Human</button></div>`
-        : `<div class="hs-kind" role="radiogroup" aria-label="${esc(cfg.name)}: bot or person">
-            <button type="button" role="radio" data-kind="bot" data-seat="${id}" class="${human ? "" : "on"}" aria-checked="${!human}">Bot</button>
-            <button type="button" role="radio" data-kind="human" data-seat="${id}" class="${human ? "on" : ""}" aria-checked="${human}"${d.mode === "rush" ? ` disabled title="Pass &amp; play is Classic only"` : ""}>Human</button></div>`;
-      const taken = d.names.filter((n, i) => i !== id && i <= d.numBots && (i === 0 || (d.mode !== "rush" && d.humans[i - 1])));
-      const chips = hot && human ? Names.suggest([...taken, d.names[id]], 4) : [];
-      const main = human
-        ? (hot ? `<input class="hs-name-in" data-name="${id}" value="${esc(d.names[id] || "")}" placeholder="${esc(def)}" maxlength="14" aria-label="Name for seat ${id + 1}" autocomplete="off" spellcheck="false">${chips.length ? `<div class="hp-chips" role="group" aria-label="Remembered names">${chips.map((n) => `<button type="button" class="hp-chip" data-chip="${id}" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div>` : ""}`
-          : `<div class="hs-seat-name">You</div>`)
-        : `<div class="hs-seat-name">${esc(cfg.name)}${badge(botPreset(id - 1))}</div>`;
-      const sel = !human && d.botStyleMode === "each" ? `
-        <select class="ng-bot-select" data-bot="${id - 1}" aria-label="${esc(cfg.name)} personality">
-          ${byStrength(Object.keys(AI_PRESETS)).map((key) => `<option value="${key}"${d.perBot[id - 1] === key ? " selected" : ""}${isSup(key) && superOff() ? " disabled" : ""}>${presetLabel(key)}${isSup(key) && superOff() ? ` (not in ${superOff()})` : ""}</option>`).join("")}
-        </select><button type="button" class="bp-info" data-info="${d.perBot[id - 1]}" aria-label="About the ${presetLabel(d.perBot[id - 1])} profile">i</button>` : "";
-      return `<div class="hs-seat pc-${id}">${avatarSvg(id, "ng-bot-avatar")}<div class="hs-seat-main">${main}</div>${kind}${sel}</div>`;
-    }).join("");
-
-    const render = () => {
-      const presetKeys = [...byStrength(Object.keys(AI_PRESETS)), "custom"];
-      if (superOff() && (isSup(d.allPreset) || d.perBot.some(isSup))) { // not a silent fallback: say it
-        const nm = AI_PRESET_INFO[isSup(d.allPreset) ? d.allPreset : d.perBot.find(isSup)].label;
-        d._superNote = `${nm} is not available in ${superOff()}: switched to Master.`;
-        if (isSup(d.allPreset)) { d.allPreset = "master"; d.allStrategy = { ...AI_PRESETS.master }; }
-        d.perBot = d.perBot.map((k) => (isSup(k) ? "master" : k));
-      }
-      const superPicked = !superOff() && (d.botStyleMode === "each" ? d.perBot.slice(0, d.numBots).some((k, i) => isSup(k) && !(d.mode !== "rush" && d.humans[i])) : isSup(d.allPreset));
-      const superHelp = d._superNote ? `<p class="ng-help ng-super-help warn" role="status">${d._superNote}</p>` : superPicked ? `<p class="ng-help ng-super-help">${d.mode === "rush" ? "Rush: a small fixed search per move (20 futures), so about a Master there." : "~3 s per move."}</p>` : "";
-      overlay.innerHTML = `
-        <div class="ng-card">
-          <header class="ng-header">
-            <div>
-              <h2 class="ng-title">New Game</h2>
-              <p class="ng-subtitle">Pick a mode, tune the rules, and choose your opponents.</p>
-            </div>
-            <button type="button" class="ng-pill-btn" data-action="last" title="Restore the settings of your last game">${oicon("history")}Use last settings</button>
-          </header>
-          <div class="ng-columns">
-            <div class="ng-col">
-              <section class="ng-section">
-                <h3 class="ng-section-title">Mode</h3>
-                <div class="ng-mode-row">
-                  <button type="button" class="ng-mode-card${d.mode === "classic" ? " selected" : ""}" data-mode="classic" aria-pressed="${d.mode === "classic"}">
-                    <span class="ng-mode-name"><span class="ng-mode-icon">${oicon("dice")}</span>Classic</span>
-                    <span class="ng-mode-desc">Take turns: roll, trade, build, end turn. Calm and tactical.</span>
-                  </button>
-                  <button type="button" class="ng-mode-card rush${d.mode === "rush" ? " selected" : ""}" data-mode="rush" aria-pressed="${d.mode === "rush"}"${hotseatOn(d) ? " disabled" : ""}>
-                    <span class="ng-mode-tag">Fast</span>
-                    <span class="ng-mode-name"><span class="ng-mode-icon">${oicon("clock")}</span>Rush</span>
-                    <span class="ng-mode-desc">No turns. Everyone builds &amp; trades at once; dice roll on a timer.</span>
-                    ${hotseatOn(d) ? '<span class="hs-off">Pass &amp; play is Classic only</span>' : ""}
-                  </button>
-                </div>
-              </section>
-              ${d.mode === "rush" ? `
-              <section class="ng-section ng-rush-section">
-                <h3 class="ng-section-title">Rush settings</h3>
-                <div class="ng-row">
-                  <div class="ng-row-label">Roll every</div>
-                  <div class="ng-row-control">
-                    ${seg("rushInterval", RUSH_INTERVALS.map((s) => [s, `${s}s`]), d.rushInterval, "ng-seg-pills")}
-                    <p class="ng-help">Done before the timer? Tap &ldquo;Roll now&rdquo;: the bots finish their moves and the dice roll within a second.</p>
-                  </div>
-                </div>
-                <div class="ng-row">
-                  <div class="ng-row-label">Robber on 7</div>
-                  <div class="ng-row-control">
-                    <p class="ng-help ng-help-tight">Players in order: the game pauses for discards and the robber; a badge shows who moves it next.</p>
-                  </div>
-                </div>
-              </section>` : ""}
-              <section class="ng-section">
-                <h3 class="ng-section-title">Rules</h3>
-                <div class="ng-row">
-                  <div class="ng-row-label">Board</div>
-                  <div class="ng-row-control">
-                    ${seg("board", [["island", "Island"], ["seafarers", `${oicon("ship")}Seafarers`]], d.board, "ng-seg-pills")}
-                    <p class="ng-help">${d.board === "seafarers" ? "Heading for New Shores: build ships, sail to three small islands (+2 points for your first settlement on each), gold fields and a pirate. First to 14 points." : "The classic island of 19 tiles."}</p>
-                  </div>
-                </div>
-                <div class="ng-row">
-                  <div class="ng-row-label">Points to win</div>
-                  <div class="ng-row-control">${d.board === "seafarers" ? `<p class="ng-help ng-help-tight"><strong>14</strong> (Seafarers scenario)</p>` : stepper("winPoints", d.winPoints, 5, 15)}</div>
-                </div>
-                <div class="ng-row">
-                  <div class="ng-row-label">Discard limit</div>
-                  <div class="ng-row-control">
-                    ${stepper("discardLimit", discardLimitFor(d), d.mode === "rush" ? RUSH_DISCARD_LIMIT : 7, 12)}
-                    <p class="ng-help">On a 7, anyone holding more than ${discardLimitFor(d)} cards discards half.${d.mode === "rush" ? ` Rush: at least ${RUSH_DISCARD_LIMIT}.` : ""}</p>
-                  </div>
-                </div>
-                <div class="ng-row">
-                  <div class="ng-row-label">Friendly robber</div>
-                  <div class="ng-row-control">
-                    <button type="button" class="ng-switch${d.friendlyRobber ? " on" : ""}" role="switch" aria-checked="${d.friendlyRobber}" data-action="friendly" aria-label="Friendly robber"><span></span></button>
-                    <p class="ng-help">Robber can&rsquo;t block or steal from players with 2 points or fewer.</p>
-                  </div>
-                </div>
-                <div class="ng-row">
-                  <div class="ng-row-label">Dice</div>
-                  <div class="ng-row-control">
-                    ${seg("dice", [["random", `${oicon("dice")}Random`], ["balanced", `${oicon("scale")}Balanced`], ["deck", `${oicon("devcard")}Event deck`]], d.dice, "ng-seg-pills")}
-                    <p class="ng-help">${diceHelp[d.dice]}</p>
-                  </div>
-                </div>
-                <div class="ng-row">
-                  <div class="ng-row-label">Map</div>
-                  <div class="ng-row-control">
-                    <div class="ng-map-row" role="radiogroup">
-                      ${[["random", "Random"], ["balanced", "Balanced / fair"], ["beginner", "Beginner (fixed)"]].map(([v, label]) => `
-                        <button type="button" role="radio" aria-checked="${d.map === v}" class="ng-map-card${d.map === v ? " selected" : ""}" data-map="${v}">${mapIcon(v)}<span>${label}</span></button>`).join("")}
-                    </div>
-                    <p class="ng-help">${isBigTable(d.numBots + 1) && d.map === "beginner" ? "Beginner: there is no official 5–6 player starter layout, so you get a balanced (fair) island." : mapHelp[d.map]}</p>
-                  </div>
-                </div>
-              </section>
-            </div>
-            <div class="ng-col">
-              <section class="ng-section ng-players">
-                <h3 class="ng-section-title">Players</h3>
-                <div class="ng-row ng-row-inline">
-                  <div class="ng-row-label">At the table</div>
-                  ${seg("numBots", PLAYER_CONFIG.slice(1).map((_, i) => [i + 1, String(i + 2)]), d.numBots, "ng-seg-pills ng-seg-round", d.board === "seafarers" ? [4, 5] : [])}
-                </div>
-                ${d.board === "seafarers" ? `<p class="ng-help ng-six-help">Seafarers is a 3–4 player scenario.</p>` : ""}
-                ${isBigTable(d.numBots + 1) ? `<p class="ng-help ng-six-help">${d.numBots + 1} players: the bigger island (30 tiles, 24 of each card) and a build window between turns${d.mode === "rush" ? " (Classic only)" : ""}.</p>` : ""}
-                <div class="hs-seats">${seatRows()}</div>
-                ${hotseatOn(d) ? `<p class="hs-help">${1 + d.humans.slice(0, d.numBots).filter(Boolean).length} people share this phone${Names.list().length ? ` · <button type="button" class="hp-link" data-action="names">Names</button>` : ""}</p>` : `<p class="hs-help">Tap Human to play with a friend on this phone.</p>`}
-              </section>
-              <section class="ng-section">
-                <h3 class="ng-section-title">Bots</h3>
-                ${botCount() ? "" : `<p class="ng-help">No bots at this table.</p>`}
-                <div class="ng-row ng-row-inline">
-                  <div class="ng-row-label ng-row-label-sm">Style for</div>
-                  ${seg("botStyleMode", [["all", "All bots"], ["each", "Each bot separately"]], d.botStyleMode, "ng-seg-pills")}
-                </div>
-                ${d.botStyleMode === "all" ? `
-                <div class="ng-presets">
-                  ${presetKeys.map((key) => {
-                    const info = AI_PRESET_INFO[key];
-                    const off = isSup(key) && superOff();
-                    return `<button type="button" class="ng-preset${d.allPreset === key ? " selected" : ""}${off ? " off" : ""}" data-preset="${key}" aria-pressed="${d.allPreset === key}"${off ? ` disabled aria-disabled="true"` : ""}>
-                      <span class="ng-preset-name">${info.label}</span>
-                      <span class="ng-preset-tag">${off ? `Not in ${off}` : info.tagline}</span>
-                      ${pickerExtras(key)}
-                    </button>`;
-                  }).join("")}
-                </div>
-                ${superHelp}
-                <details class="ng-finetune"${fineTuneOpen ? " open" : ""}>
-                  <summary>Fine-tune <span class="ng-finetune-hint">5 strategy dials</span></summary>
-                  <div class="ng-dims">
-                    ${Object.entries(AI_STRATEGY_CATEGORIES).map(([key, cat]) => `
-                      <div class="ng-dim">
-                        <div class="ng-dim-label">${cat.label}<span>${AI_DIMENSION_HINT[key]}</span></div>
-                        <div class="ng-dim-control">
-                          ${seg(`dim:${key}`, cat.levels.map((l) => [l, levelLabel(l)]), d.allStrategy[key], "ng-seg-bar")}
-                          <p class="ng-help"><strong>${levelLabel(d.allStrategy[key])}:</strong> ${AI_LEVEL_PLAIN[key][d.allStrategy[key]]}</p>
-                        </div>
-                      </div>`).join("")}
-                  </div>
-                </details>` : `
-                <p class="ng-help">Pick a personality per bot. You can fine-tune each bot later under Settings &rsaquo; Bot personalities.</p>${superHelp}`}
-              </section>
-            </div>
-          </div>
-          <footer class="ng-footer">
-            <div class="ng-summary">${summaryText()}</div>
-            <div class="ng-actions">
-              <button type="button" class="ng-cancel btn-neutral" data-action="cancel">Cancel</button>
-              <button type="button" class="ng-start btn-build" data-action="start">Start Game</button>
-            </div>
-          </footer>
-        </div>`;
-      wire();
-    };
-
-    const wire = () => {
-      const card = overlay.querySelector(".ng-card");
-      overlay.querySelector(".ng-finetune")?.addEventListener("toggle", (e) => { fineTuneOpen = e.target.open; });
-      const info = (e) => { const i = e.target.closest("[data-info]"); if (!i) return false; e.preventDefault(); e.stopPropagation(); openProfileSheet(this, { key: i.dataset.info }); return true; };
-      card.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && info(e)) e.stopImmediatePropagation(); });
-      card.addEventListener("click", (e) => {
-        if (info(e)) return;
-        const t = e.target.closest("button");
-        if (!t || !card.contains(t)) return;
-        let changed = true;
-        if (t.dataset.chip) d.names = d.names.map((n, i) => (i === Number(t.dataset.chip) ? t.dataset.n : n));
-        else if (t.dataset.action === "names") { openNamesSheet({ onRename: (a, b) => { d.names = d.names.map((n) => (sameName(n, a) ? b : n)); this.histRenameName?.(a, b); }, onChange: () => render() }); changed = false; }
-        else if (t.dataset.kind) {
-          d.humans = d.humans.map((h, i) => (i === Number(t.dataset.seat) - 1 ? t.dataset.kind === "human" : h));
-          if (hotseatOn(d)) { d.mode = "classic"; if (!d.names[0] && Names.me()) d.names = d.names.map((n, i) => (i === 0 ? Names.me() : n)); }
-        } else if (t.dataset.mode) d.mode = t.dataset.mode;
-        else if (t.dataset.map) d.map = t.dataset.map;
-        else if (t.dataset.preset) {
-          d._superNote = "";
-          d.allPreset = t.dataset.preset;
-          if (AI_PRESETS[d.allPreset]) d.allStrategy = { ...AI_PRESETS[d.allPreset] };
-        } else if (t.dataset.step) {
-          const box = t.closest("[data-stepper]");
-          const key = box.dataset.stepper;
-          if (key === "discardLimit") d[key] = discardLimitFor(d); // Rush shows (and steps from) at least 9
-          d[key] = clamp(d[key] + Number(t.dataset.step), Number(box.dataset.min), Number(box.dataset.max));
-        } else if (t.classList.contains("ng-seg-btn")) {
-          const key = t.closest("[data-seg]").dataset.seg;
-          const raw = t.dataset.value;
-          if (key.startsWith("dim:")) {
-            d.allStrategy = { ...d.allStrategy, [key.slice(4)]: raw };
-            delete d.allStrategy.policy; // a dial makes it a scoring bot
-            d.allPreset = presetForStrategy(d.allStrategy);
-          } else {
-            const prevBots = d.numBots;
-            d[key] = ["rushInterval", "numBots"].includes(key) ? Number(raw) : raw;
-            // ⚓ Seafarers is 3–4 players: picking it caps the bots at 3 (back to the old count for the island)
-            if (key === "board") {
-              if (d.board === "seafarers" && d.numBots > 3) { this._ngBotsIsland = d.numBots; d.numBots = 3; }
-              else if (d.board !== "seafarers" && this._ngBotsIsland) { d.numBots = this._ngBotsIsland; this._ngBotsIsland = 0; }
-            }
-            // 5–6 players: Rush rolls every 15 s by default (back to the 8 s default for a smaller table)
-            if (["numBots", "board"].includes(key) && isBigTable(d.numBots + 1) !== isBigTable(prevBots + 1)) {
-              if (isBigTable(d.numBots + 1) && d.rushInterval < BIG_RUSH_INTERVAL) d.rushInterval = BIG_RUSH_INTERVAL;
-              else if (!isBigTable(d.numBots + 1) && d.rushInterval === BIG_RUSH_INTERVAL) d.rushInterval = DEFAULT_SETTINGS.rushInterval;
-            }
-          }
-        } else if (t.dataset.action === "friendly") d.friendlyRobber = !d.friendlyRobber;
-        else if (t.dataset.action === "last") d = normalizeSettings(JSON.parse(JSON.stringify(last)));
-        else if (t.dataset.action === "cancel") { close(); return; }
-        else if (t.dataset.action === "start") { start(); return; }
-        else changed = false;
-        if (changed) {
-          this.sfx.click();
-          const scroll = card.scrollTop;
-          render();
-          overlay.querySelector(".ng-card").scrollTop = scroll;
-        }
-      });
-      card.querySelectorAll("[data-name]").forEach((inp) => inp.addEventListener("input", () => {
-        d.names = d.names.map((n, i) => (i === Number(inp.dataset.name) ? inp.value.slice(0, 14) : n));
-      }));
-      card.querySelectorAll(".ng-bot-select").forEach((sel) => sel.addEventListener("change", () => {
-        d._superNote = "";
-        d.perBot = d.perBot.map((p, i) => (i === Number(sel.dataset.bot) ? sel.value : p));
-        const scroll = card.scrollTop;
-        render();
-        overlay.querySelector(".ng-card").scrollTop = scroll;
-      }));
-    };
-
-    const onKey = (e) => { if (e.key === "Escape") close(); };
-    const close = (started = false) => {
-      overlay.remove();
-      document.removeEventListener("keydown", onKey);
-      this.uiPaused = false;
-      this._rushLastTs = performance.now();
-      if (!started && this.onboardingHold) this.home.show(); // opened from home: back to it
-    };
-    const start = () => {
-      if (hotseatOn(d)) { // names: empty -> "Player 2", clashes get a number, remembered for next time
-        const seen = [];
-        d.names = d.names.map((n, i) => {
-          if (i > d.numBots || !(i === 0 || d.humans[i - 1])) return n;
-          let v = cleanName(n) || `Player ${i + 1}`;
-          if (seen.some((x) => sameName(x, v))) v = `${v.slice(0, 12)} ${i + 1}`;
-          seen.push(v);
-          return v;
-        });
-        Names.remember(seen);
-      }
-      close(true);
-      this.startNewGame(d);
-    };
-    document.addEventListener("keydown", onKey);
-    render();
-    document.body.appendChild(overlay);
-    overlay.querySelector(".ng-start")?.focus({ preventScroll: true });
+    return openNewGame(this, {
+      AI_PRESETS, AI_PRESET_INFO, PLAYER_CONFIG, DEFAULT_SETTINGS, RUSH_INTERVALS, RUSH_DISCARD_LIMIT, BIG_RUSH_INTERVAL,
+      normalizeSettings, loadLast: () => ColonistFullGame.loadLastSettings(), isBigTable, discardLimitFor, hotseatOn, presetForStrategy,
+      byStrength, Names, cleanName, sameName, openNamesSheet, openProfileSheet,
+    }, { friend });
   }
+  shellLevelLabel(k) { return AI_PRESET_INFO[k]?.label || "Custom"; }
 
   // ── AI Strategy Config UI ─────────────────────────────────────────────
   _buildStrategyUI() {
@@ -10522,7 +10138,7 @@ class ColonistFullGame {
   /** Bottom sheets (trade, journal, settings): drag the top edge down to dismiss, like the grabber says. */
   _bindSheetSwipe() {
     let drag = null;
-    const SHEETS = "#tradeModal, #railLog.open, .tm-settings .st-card, #devCardPicker";
+    const SHEETS = "#tradeModal, #railLog.open, #devCardPicker"; // v1.99: Settings is a page now, no swipe-down
     const dismiss = (el) => {
       if (el.id === "tradeModal") { if (!this.tradeLocked) this.closeTradeModal(); else return false; }
       else if (el.id === "railLog") this.toggleLog(false);
