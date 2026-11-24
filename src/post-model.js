@@ -247,11 +247,12 @@ function timelineOf(g, pid, T) {
   const lines = g.players.map(() => []);
   look.steps.forEach((x, k) => { if (k === 0) g.players.forEach((p) => lines[p.id].push([0, x.b[p.id]])); const t = st.turnOf[x.S]; g.players.forEach((p) => lines[p.id].push([t, x.e[p.id]])); });
   let sw = []; try { sw = g._rvSwings().filter((x) => Math.abs(x.d) >= 0.01 && !/robber|harbou?r|longest road|largest army/i.test(String(x.say))); } catch (_) { sw = []; }
+  const aOf = (x) => { const q = look.steps.find((z) => z.S === x.S); return q ? q.a[pid] : x.b + (x.e - x.b) / 2; };
   const seen = new Set(), pins = [];
   sw.forEach((x) => { if (pins.length >= 3 || seen.has(x.T)) return; seen.add(x.T); pins.push(x); });
   pins.sort((a, b) => a.T - b.T);
   const lastT = Math.max(T, ...lines[pid].map((q) => q[0]));
-  return { lines, pins: pins.map((x, k) => ({ n: k + 1, T: x.T, S: x.S, d: r0(x.d * 100), say: x.say, actor: x.actor, move: x.actor === pid, b: r0(x.b * 100), a: r0(x.a * 100), e: r0(x.e * 100) })), all: sw.slice(0, 15).sort((a, b) => a.T - b.T).map((x) => ({ T: x.T, S: x.S, d: r0(x.d * 100), say: x.say, actor: x.actor, move: x.actor === pid, b: r0(x.b * 100), a: r0(x.a * 100), e: r0(x.e * 100) })), T: lastT, phases: phaseLimits(lastT) };
+  return { lines, pins: pins.map((x, k) => ({ n: k + 1, T: x.T, S: x.S, d: r0(x.d * 100), say: x.say, actor: x.actor, move: x.actor === pid, b: r0(x.b * 100), a: r0(aOf(x) * 100), e: r0(x.e * 100) })), all: sw.slice(0, 15).sort((a, b) => a.T - b.T).map((x) => ({ T: x.T, S: x.S, d: r0(x.d * 100), say: x.say, actor: x.actor, move: x.actor === pid, b: r0(x.b * 100), a: r0(aOf(x) * 100), e: r0(x.e * 100) })), T: lastT, phases: phaseLimits(lastT) };
 }
 // ── measures: the player against the table ──
 function measuresOf(tab, pid) {

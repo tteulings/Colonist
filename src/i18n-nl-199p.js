@@ -13,6 +13,7 @@ export const NL_199P = [
   ["Scorecard", "Scorekaart"], ["▲▼ you vs the other players", "▲▼ jij tegen de andere spelers"], ["Underlined = best in the row. Only within this game.", "Onderstreept = beste in de rij. Alleen binnen dit spel."],
   ["Start: your picks and the top spot", "Start: je keuzes en de Topplek"], ["1 and 2 are your picks (dashed). A is the top spot for pick 1: the best of at most 6 spots checked.", "1 en 2 zijn je keuzes (gestippeld). A = Topplek voor keuze 1: beste van maximaal 6 gecontroleerd."],
   ["PICK 1", "KEUZE 1"], ["PICK 2", "KEUZE 2"], ["A · TOP", "A · TOP"], ["Start: your picks", "Start: je keuzes"], ["Previous", "Vorige"], ["Next", "Volgende"], ["Open the start in Review", "Open de start in Review"], ["T{n}", "B{n}"],
+  ["{n} Real errors", "{n} echte fouten"], ["{n} Start picks", "{n} startkeuzes"], ["{n} Other moves", "{n} overige zetten"], ["{n} misses ·", "{n} missers ·"], ["This board", "Dit bord"],
   ["Accuracy", "Precisie"], ["Accuracy {n}", "Precisie {n}"], ["Accuracy over 1 game", "Precisie over 1 potje"], ["{x} over {n} games", "{x} over {n} potjes"], ["Precision", "Precisie"],
   ["marked moves per game", "gemarkeerde zetten per potje"], ["won", "gewonnen"], ["Games", "Potjes"], ["Lessons", "Lessen"], ["Open", "Open"],
   ["Result", "Uitslag"], ["tap a player for the details", "tik een speler voor de details"], ["Strategy", "Strategie"], ["Overview", "Overzicht"], ["Moves", "Zetten"], ["Luck", "Geluk"],

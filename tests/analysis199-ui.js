@@ -47,7 +47,7 @@ const nums = () => {
       await sleep(500); const r = await G(SCAN); const k = `${tag} ${name}`;
       if (lang === "nl" && !/^(lessons|bots|end screen)/.test(name)) { const ms = await G(async () => { const I = await import("/src/i18n.js"); const a = [...I.misses]; I.misses.clear(); return a; }); const names = ["Katan", ...metas.flatMap((m) => (m.seats || []).map((q) => q.name))]; const dayRe = /^\w{2,3} \d+ \w{3} · \d+:\d+$/; const own = ms.filter((x) => !(names.some((n) => x === n || x === `${n} won` || x === `${n} won het potje`) || dayRe.test(x) || /Blaauw|Geelen|Groen|Mevrouw|Kolonel|Dominee|Sessie|Nieuw klassiek/.test(x))); ms.length = 0; own.forEach((x) => ms.push(x)); ms.forEach((x) => missesAll.add(x)); ok(!ms.length, `${k}: Dutch complete`, ms.slice(0, 3)); }
       ok(!r.iss.length, `${k}: no overflow`, r.iss.slice(0, 3)); ok(!r.small.length, `${k}: text >= 11.5px`, r.small.slice(0, 4)); ok(!r.taps.length, `${k}: taps >= 40px`, r.taps.slice(0, 4));
-      ok(!BAD.test(r.text), `${k}: no NaN/undefined/null`, (BAD.exec(r.text) || [""])[0]); ok(!ZERO.test(r.text), `${k}: no zero-sum claim`); const o = OUT.exec(r.words); ok(!o, `${k}: no out-of-scope words`, o ? o[0] : "");
+      ok(!BAD.test(r.text), `${k}: no NaN/undefined/null`, (() => { const mm = BAD.exec(r.text); return mm ? r.text.slice(Math.max(0, mm.index - 50), mm.index + 20).replace(/\s+/g, " ") : ""; })()); ok(!ZERO.test(r.text), `${k}: no zero-sum claim`); const o = OUT.exec(r.words); ok(!o, `${k}: no out-of-scope words`, o ? o[0] : "");
       if (SHOTS && w === 360 && shot) { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, `${shot}-${lang}-${th}.png`) }); }
       return r;
     };
