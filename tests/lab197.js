@@ -18,7 +18,7 @@ let fails = 0; const check = (ok, m, x = "") => { console.log(`${ok ? "PASS" : "
   await page.waitForFunction(() => window.__colonistGame && document.body.dataset.gameReady, null, { timeout: 30000 });
   const out = await page.evaluate(async () => {
     const g = window.__colonistGame, H = g.constructor.labHelpers, P = H.AI_PRESETS;
-    const HOST = await import("/src/bots/index.js"), LG = await import("/src/lab-games.js?v=197"), { makeMaster } = await import("/src/master/search.js");
+    const HOST = await import("/src/bots/index.js"), LG = await import("/src/lab-games.js?v=198"), { makeMaster } = await import("/src/master/search.js");
     const strip = (x) => JSON.parse(JSON.stringify(x, (k, v) => (k === "time" || k === "ms" || k === "start" || k === "end" || k === "t0" ? undefined : v)));
     const codes = () => { const c = {}; (g.stats?.ev || []).forEach((e) => { c[e[1]] = (c[e[1]] || 0) + 1; }); return Object.fromEntries(Object.entries(c).sort()); };
     const grab = () => ({ codes: codes(), recs: (g._rv ? g._rv.recs : []).map((r) => r.k + r.pid + "@" + r.t + JSON.stringify(r.a || {})), full: strip(g._rv ? g._rv.recs : []), ev: g.stats ? g.stats.ev : null, steps: g.stats ? g.stats.steps.map((s) => s.slice(0, 4)) : null, vp: g.players.map((p) => p.victoryPoints), turn: g.turn, winner: g.winner ? g.winner.id : null });
