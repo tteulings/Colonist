@@ -92,10 +92,27 @@ function rivalCard(g, m) {
   return `<section class="rv-card px-card px-rival"><div class="rv-gt"><b>Rival</b><small>${esc(PHASE_NAME[R.k])} · ${f("turns {n}–{n2}", { n: R.from, n2: R.to })}</small></div><p class="px-l">${f("{x} gained {n} points here, {y} gained {n2}.", { x: esc(R.rname), n: R.theirs, y: m.you ? "you" : esc(m.me.name), n2: R.mine })}</p>
     <div class="px-rv"><span class="pc-${R.rid}">${g._av(m.seats[R.rid].p, "rt-av")}<b>+${R.theirs}</b><small>${f("{n} builds", { n: R.theirBuilds })}</small></span><span class="pc-${m.pid}">${g._av(m.me, "rt-av")}<b>+${R.mine}</b><small>${f("{n} builds", { n: R.myBuilds })}</small></span></div></section>`;
 }
+function planCard(g, m) {
+  const M = m.measures || [], picks = m.start?.picks || [];
+  const chips = [];
+  M.forEach((r) => { if (r.diff !== 0 && r.mine !== r.avg) chips.push({ up: r.diff > 0, label: r.label, a: r.mine, b: r.avg }); });
+  const top = picks[0]?.shortlist?.[0]; if (picks[0]?.spot && top?.spot) { const mine = picks.reduce((a, p) => a + (p.spot?.total || 0), 0); chips.push({ up: mine >= (top.spot.total || 0), label: "Start spots (dots)", a: mine, b: top.spot.total }); }
+  if (!chips.length) return "";
+  const ch = (c) => `<span class="px-wh ${c.up ? "up" : "dn"}"><i aria-hidden="true">${c.up ? "▲" : "▼"}</i><span>${esc(c.label)}</span> <b>${c.a} ${f("vs {x}", { x: c.b })}</b></span>`;
+  const up = chips.filter((c) => c.up), dn = chips.filter((c) => !c.up);
+  const name = { city: "Cities first", expansion: "Expansion first", mixed: "Mixed" }[m.start?.plan] || "Your plan";
+  return `<section class="rv-card px-card px-plan2"><div class="rv-gt"><b>${f("Plan: {x}", { x: name })}</b><small>${f("{n} ahead · {k} behind", { n: up.length, k: dn.length })}</small></div>${up.length ? `<div class="px-whr"><small>WORKED</small>${up.map(ch).join("")}</div>` : ""}${dn.length ? `<div class="px-whr"><small>HURT</small>${dn.map(ch).join("")}</div>` : ""}</section>`;
+}
+function scoreCard(g, m) {
+  const M = m.measures; if (!M?.length) return "";
+  const heads = m.seats.map((s) => `<span class="pc-${s.id}${s.id === m.pid ? " me" : ""}">${g._av(s.p, "rt-av")}</span>`).join("");
+  const rows = M.map((r) => `<div class="px-sr"><span>${esc(r.label)}</span>${r.vals.map((v, i) => `<b class="pc-${i}${i === m.pid ? " me" : ""}${v === r.best ? " top" : ""}">${v}${i === m.pid && r.diff !== 0 ? `<i class="${r.diff > 0 ? "u" : "d"}" aria-hidden="true">${r.diff > 0 ? "▲" : "▼"}</i>` : ""}</b>`).join("")}</div>`).join("");
+  return `<section class="rv-card px-card px-sc2" style="--n:${m.seats.length}"><div class="rv-gt"><b>Scorecard</b><small>▲▼ you vs the other players</small></div><div class="px-sr hd"><span></span>${heads}</div>${rows}<p class="px-fn">Underlined = best in the row. Only within this game.</p></section>`;
+}
 export function strategyTab(g, ds, rv) {
   const r = ready(g, g._rvPid); if (!r.m) return { html: progressCard(g, g._rvPid) };
   const m = r.m;
-  return { html: `${lesson2(g, m)}${lesson3(g, m)}${teaser(g, m)}${tempoCard(g, m)}${buildCard(g, m)}${incomeCard(g, m)}${measuresCard(g, m)}${rivalCard(g, m)}`, bind: (el) => bindPost(g, el, m) };
+  return { html: `${planCard(g, m)}${teaser(g, m)}${lesson2(g, m)}${lesson3(g, m)}${tempoCard(g, m)}${rivalCard(g, m)}${buildCard(g, m)}${incomeCard(g, m)}${scoreCard(g, m)}`, bind: (el) => bindPost(g, el, m) };
 }
 
 // ───────────────────────── Luck ─────────────────────────

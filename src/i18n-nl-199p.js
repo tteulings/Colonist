@@ -2,6 +2,15 @@
 // Words: Precisie (never "nauwkeurigheid"), dorp, stad, weg, ontwikkelkaart, hout / baksteen / wol / graan / erts, langste weg; "punten" = spelpunten only
 // (a win chance gap is "6% of meer"); bots pages say "Zetten", never "Jouw zetten"; no jargon.
 export const NL_199P = [
+  ["Your win chance", "Jouw winkans"], ["pins = biggest swings", "pins = grootste uitslagen"], ["{n} misses", "{n} missers"], ["No errors", "Geen fouten"], ["NO ERRORS", "GEEN FOUTEN"], ["Only a clear gap counts as an error. How: see the (i) sheet.", "Alleen een duidelijk verschil is een fout. Hoe: zie het (i)-blad."],
+  ["All errors and moves", "Alle fouten en zetten"], ["All {n} moments", "Alle {n} momenten"], ["move {x}", "zet {x}"], ["dice {x}", "worp {x}"], ["rest {x}", "rest {x}"],
+  ["Real errors", "Echte fouten"], ["{n} dots", "{n} stippen"], ["YOU", "JIJ"], ["TOP", "TOP"], ["Start review in Strategy", "Startreview bij Strategie"], ["Why", "Waarom"], ["Why it ended {n}–{n2}", "Waarom het {n}–{n2} werd"],
+  ["At this point in the game", "Op dit punt van het spel"], ["coach rules", "coachregels"], ["A rule shows only when you broke it. Points are visible points.", "Een regel verschijnt alleen als je hem brak. Punten zijn zichtbare punten."],
+  ["1 rule for the next game", "1 regel voor volgend potje"], ["{n} rules for the next game", "{n} regels voor volgend potje"], ["Turn {n} cost {d}%", "Beurt {n} kostte {d}%"], ["Start pick {n} cost {d}%", "Startkeuze {n} kostte {d}%"], ["{x} cost {d}%", "{x} kostte {d}%"],
+  ["seat + {n} start spots", "plek + {n} startplekken"], ["rolls, steals, draws", "worpen, gepakte en getrokken kaarten"], ["the opponents", "de tegenstanders"], ["tap a column", "tik een kolom"], ["Even", "Gelijk"], ["End", "Eind"], ["Luck", "Geluk"],
+  ["{n} misses", "{n} missers"], ["no {x} added", "geen {x} erbij"], ["checked", "gecheckt"], ["{n} close calls and small ones", "{n} nipte keuzes en kleine"], ["Turn", "Beurt"],
+  ["Plan: {x}", "Plan: {x}"], ["Cities first", "Eerst steden"], ["Expansion first", "Eerst uitbreiden"], ["Mixed", "Gemengd"], ["Your plan", "Jouw plan"], ["{n} ahead · {k} behind", "{n} voor · {k} achter"], ["WORKED", "WERKTE"], ["HURT", "SCHAADDE"], ["vs {x}", "tegen {x}"], ["Start spots (dots)", "Startplekken (stippen)"],
+  ["Scorecard", "Scorekaart"], ["▲▼ you vs the other players", "▲▼ jij tegen de andere spelers"], ["Underlined = best in the row. Only within this game.", "Onderstreept = beste in de rij. Alleen binnen dit spel."],
   ["Accuracy", "Precisie"], ["Accuracy {n}", "Precisie {n}"], ["Accuracy over 1 game", "Precisie over 1 potje"], ["{x} over {n} games", "{x} over {n} potjes"], ["Precision", "Precisie"],
   ["marked moves per game", "gemarkeerde zetten per potje"], ["won", "gewonnen"], ["Games", "Potjes"], ["Lessons", "Lessen"], ["Open", "Open"],
   ["Result", "Uitslag"], ["tap a player for the details", "tik een speler voor de details"], ["Strategy", "Strategie"], ["Overview", "Overzicht"], ["Moves", "Zetten"], ["Luck", "Geluk"],

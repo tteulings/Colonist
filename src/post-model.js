@@ -246,12 +246,12 @@ function timelineOf(g, pid, T) {
   const st = g._st; if (!look || !st) return null;
   const lines = g.players.map(() => []);
   look.steps.forEach((x, k) => { if (k === 0) g.players.forEach((p) => lines[p.id].push([0, x.b[p.id]])); const t = st.turnOf[x.S]; g.players.forEach((p) => lines[p.id].push([t, x.e[p.id]])); });
-  let sw = []; try { sw = g._rvSwings().filter((x) => Math.abs(x.d) >= 0.03); } catch (_) { sw = []; }
+  let sw = []; try { sw = g._rvSwings().filter((x) => Math.abs(x.d) >= 0.01); } catch (_) { sw = []; }
   const seen = new Set(), pins = [];
   sw.forEach((x) => { if (pins.length >= 3 || seen.has(x.T)) return; seen.add(x.T); pins.push(x); });
   pins.sort((a, b) => a.T - b.T);
   const lastT = Math.max(T, ...lines[pid].map((q) => q[0]));
-  return { lines, pins: pins.map((x, k) => ({ n: k + 1, T: x.T, S: x.S, d: r0(x.d * 100), say: x.say, actor: x.actor, move: x.actor === pid, b: r0(x.b * 100), e: r0(x.e * 100) })), T: lastT, phases: phaseLimits(lastT) };
+  return { lines, pins: pins.map((x, k) => ({ n: k + 1, T: x.T, S: x.S, d: r0(x.d * 100), say: x.say, actor: x.actor, move: x.actor === pid, b: r0(x.b * 100), a: r0(x.a * 100), e: r0(x.e * 100) })), all: sw.slice(0, 15).sort((a, b) => a.T - b.T).map((x) => ({ T: x.T, S: x.S, d: r0(x.d * 100), say: x.say, actor: x.actor, move: x.actor === pid, b: r0(x.b * 100), a: r0(x.a * 100), e: r0(x.e * 100) })), T: lastT, phases: phaseLimits(lastT) };
 }
 // ── measures: the player against the table ──
 function measuresOf(tab, pid) {
@@ -309,7 +309,7 @@ function takeaway(m) {
   if (s) out.push({ lesson: 2, key: "start", res: s.advice.res, k: s.k });
   else if (m.start?.picks?.some((p) => p.gp >= 5)) out.push({ lesson: 2, key: "start-any" });
   const r = m.lesson3?.[0];
-  if (r) out.push({ lesson: 3, key: r.id, text: r.text, phase: r.phase });
+  if (r) out.push({ lesson: 3, key: r.id, text: r.text, phase: r.phase, cost: -r.cost });
   return out.slice(0, 3);
 }
 
@@ -328,7 +328,7 @@ function overlay(g, m, board, st, T) {
   const sp = Y.split, nega = (v) => -v;
   m.ds = Y.ds; m.errs = Y.errors; m.other = Y.ds.filter((d) => d.k !== "setup" && !Y.errors.includes(d)); m.setups = Y.ds.filter((d) => d.k === "setup");
   m.pillars = { errors: nega(sp.errors), start: nega(sp.start), other: nega(sp.other), total: sp.headline, capped: sp.capped, cap: sp.cap };
-  const c = Y.counts; m.counts = { total: c.all, scored: c.scored, forced: c.oneOption ?? Math.max(0, c.all - Y.ds.length), triv: c.trivial, errors: c.errors, shownErrors: Math.min(4, c.errors), notErrors: c.notErrors, setupErrors: c.setupErrors };
+  const c = Y.counts; m.counts = { total: c.all, scored: c.scored, forced: c.oneOption ?? Math.max(0, c.all - Y.ds.length), triv: c.trivial, small: c.small, errors: c.errors, shownErrors: Math.min(4, c.errors), notErrors: c.notErrors, setupErrors: c.setupErrors };
   m.lesson1 = Y.errors.slice(0, 4).map((d) => errCard(g, d, board, T, st, m.pid, Y.chips?.[d.i]));
   const ph = Y.phase; m.phaseCost = ["opening", "mid", "end"].map((k) => ({ k, from: A.limits[k][0], to: A.limits[k][1], cost: -ph[k], errs: Y.errors.filter((d) => d.t >= A.limits[k][0] && d.t <= A.limits[k][1]) }));
   m.small = -ph.small; m.startCost = -ph.start; m.phases = m.phaseCost.map((p) => ({ k: p.k, from: p.from, to: p.to }));
@@ -336,6 +336,7 @@ function overlay(g, m, board, st, T) {
   m.lesson3 = (Y.rules || []).map((r) => ({ id: r.id, phase: r.phase, cost: -r.cost, n: r.n, from: A.limits[r.phase][0], to: A.limits[r.phase][1],
     text: atr(lang(), r.moments[0].text, r.moments[0].params), chips: r.moments.slice(0, 3).map((q) => ({ turn: q.turn, i: q.i, gp: q.gp, chip: atr(lang(), q.chip, q.params), pts: q.pts, target: q.target })) }));
   m.led = Y.ledger ? { ...Y.ledger, end: Y.ledger.to, even: Y.ledger.from } : m.led;
+  m.notErrs = Y.notErrors || [];
   m.verdict = Y.verdict; m.headline = Y.verdict?.head || null;
   m.bestRows = (Y.best || []).filter((o) => inScope(o.d)).map((o) => ({ d: o.d, gain: o.gain }));
   m.numbers = A.numbers; m.infoRows = A.info;
@@ -346,10 +347,10 @@ function overlay(g, m, board, st, T) {
 const tpPh = (m, k) => (m.phases || []).find((q) => q.k === k);
 function takeaway2(m) {
   const out = [], e = m.errs[0];
-  if (e) out.push({ lesson: 1, key: e.kind === "end" || e.cls === "missed" ? "spend" : e.kind === "bank" ? "trade" : "build", i: e.i, t: e.t });
+  if (e) out.push({ lesson: 1, key: e.kind === "end" || e.cls === "missed" ? "spend" : e.kind === "bank" ? "trade" : "build", i: e.i, t: e.t, cost: e.gp });
   const p = m.start?.picks?.find((q) => q.advice);
-  if (p) out.push({ lesson: 2, key: "start", res: p.advice.adds[0], k: p.n });
+  if (p) out.push({ lesson: 2, key: "start", res: p.advice.adds[0], k: p.n, cost: p.gp });
   else if (m.start?.picks?.some((q) => q.gp >= 5)) out.push({ lesson: 2, key: "start-any" });
-  const r = m.lesson3?.[0]; if (r) out.push({ lesson: 3, key: r.id, text: r.text, phase: r.phase });
+  const r = m.lesson3?.[0]; if (r) out.push({ lesson: 3, key: r.id, text: r.text, phase: r.phase, cost: -r.cost });
   return out.slice(0, 3);
 }
