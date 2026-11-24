@@ -3,7 +3,7 @@
 // and "Ask" (the three questions are answered from your own numbers; a free question goes to the explain endpoint). The numbers come from one row per game (src/lessons-row.js) that lives in
 // the game's list entry; games saved before it existed are analysed in the background, one at a time, in a worker (src/lessons-worker.js). Rules and words: src/lessons-eval.js, src/lessons-view.js.
 import { loadPractice, savePractice, practiceStats, pickPractice, exKey } from "./lessons-data.js";
-import { buildLessons } from "./lessons-eval.js";
+import { buildLessons, MIN } from "./lessons-eval.js";
 import { rowKey } from "./lessons-row.js";
 import { boardUnpack } from "./lessons-geo.js";
 import { L, pl, resIcon, ofN, esc, day, cropSvg, tileHtml, exModel, spotHexes, QS, answerDec, missHeadline } from "./lessons-view.js";
@@ -175,7 +175,7 @@ export const LessonsMixin = {
     if (!D.N) return out + `<section class="ln-c"><h4>${L("Reading your games", "Je potjes worden gelezen")}</h4><p>${L("The lessons appear as soon as the first games are read.", "De lessen verschijnen zodra de eerste potjes zijn gelezen.")}</p></section>` + this._lnFoot();
     if (D.lessons.length) out += `<h5 class="ln-sec">${L("Your lessons, biggest loss first", "Jouw lessen, grootste verlies eerst")}</h5>` + D.lessons.map((l, i) => this._lnCard(l, i === 0 && l.kind === "dec")).join("");
     else if (D.N === 1) out += this._lnFirst(D);
-    else out += `<section class="ln-c"><h4>${L("No lesson yet", "Nog geen les")}</h4><p>${L("A lesson needs 3 marked moves of one kind in 2 games.", "Een les vraagt 3 gemarkeerde zetten van één soort in 2 potjes.")}</p>${this._lnCatBars(D)}</section>`;
+    else out += `<section class="ln-c"><h4>${L("No lesson yet", "Nog geen les")}</h4><p>${D.N < MIN.games ? L(`Review ${num(MIN.games - D.N)} more ${tn(MIN.games - D.N, "game", "games")}: a lesson needs ${MIN.games} games.`, `Beoordeel nog ${gamesN(MIN.games - D.N)}: een les vraagt ${MIN.games} potjes.`) : L(`A lesson needs ${MIN.moves} marked moves of one kind in ${MIN.gamesWithMove} games.`, `Een les vraagt ${MIN.moves} gemarkeerde zetten van één soort in ${MIN.gamesWithMove} potjes.`)}</p>${this._lnCatBars(D)}</section>`;
     if (D.watch.length) out += `<h5 class="ln-sec">${L("Too little to say yet", "Nog te weinig om te zeggen")}</h5>` + D.watch.map((l) => this._lnWatch(l)).join("");
     if (D.strong.length) out += `<h5 class="ln-sec">${L("Going well", "Dit gaat goed")}</h5>` + D.strong.map((l) => this._lnStrong(l)).join("");
     return out + this._lnFoot();
@@ -188,18 +188,18 @@ export const LessonsMixin = {
   },
   _lnFoot() {
     const S = this._ln, D = S.D, n = S.items.length;
-    const rule = D.lessons.length ? `${L("A lesson needs 3 marked moves in 2 games. ", "Een les vraagt ≥3 zetten in ≥2 potjes. ")}` : "";
+    const rule = D.lessons.length ? `${L(`A lesson needs ${MIN.games} games, with ${MIN.moves} marked moves of one kind in ${MIN.gamesWithMove} of them. `, `Een les vraagt ${MIN.games} potjes, met ${MIN.moves} gemarkeerde zetten van één soort in ${MIN.gamesWithMove} daarvan. `)}` : "";
     const cov = this._lnCov(false) + ".";
     return `<p class="ln-foot">${rule}${L("pt = percentage points of win chance; ± is the spread over your games.", "pt = procentpunt winkans; ± = spreiding over je potjes.")}${D.skipped ? ` ${L(`${gamesN(D.skipped)} reviewed with an older method are left out.`, `${gamesN(D.skipped)} met een oudere beoordeling tellen niet mee.`)}` : ""}</p><p class="ln-foot soft">${cov}</p>`;
   },
-  /** the state after ONE game: what is known from it, and the two things a first lesson still needs (2 games, 3 marked moves of one kind), each as a meter */
+  /** the state after ONE game: what is known from it, and the two things a first lesson still needs (MIN.games games, MIN.moves marked moves of one kind), each as a meter */
   _lnFirst(D) {
     const r = D.games[0].lr, kinds = Object.entries(r.cl || {}).filter(([, v]) => v[0] > 0).sort((a, b) => b[1][0] - a[1][0]), top = kinds.length ? kinds[0][1][0] : 0;
     const known = r.marks ? L(`This game: ${markedN(r.marks)}, ${kinds.map(([c, v]) => `${L(...TITLES[c]).toLowerCase()} ${v[0]}×`).join(", ")}.`, `Dit potje: ${markedN(r.marks)}: ${kinds.map(([c, v]) => `${L(...TITLES[c]).toLowerCase()} ${v[0]}×`).join(", ")}.`) : L("This game had no move of ≥1 pt marked.", "In dit potje was geen zet van ≥1 pt gemarkeerd.");
     const mt = (lab, have, need) => { const pc = Math.round(100 * Math.min(have, need) / need), t = L(`${have} of ${need}`, `${have} van ${need}`); return `<div class="ln-mt" data-meter><span class="ln-row"><span>${esc(lab)}</span><b>${esc(t)}</b></span><span class="ln-bar" role="progressbar" aria-label="${esc(`${lab}: ${t}`)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pc}"><i style="width:${pc}%"></i></span></div>`; };
     return `<section class="ln-c ln-first"><i class="ln-ico" aria-hidden="true">${LESSONS_ICON}</i><h4>${L("Your first game is read", "Je eerste potje is gelezen")}</h4><p>${esc(known)}</p>
-      <h5 class="ln-h5">${L("What a first lesson needs", "Wat een eerste les nodig heeft")}</h5>${mt(L("Reviewed games", "Beoordeelde potjes"), 1, 2)}${mt(L("Marked moves of one kind", "Gemarkeerde zetten van één soort"), top, 3)}
-      <p class="soft">${L("Review one more game: from then on the lessons show what costs you the most.", "Beoordeel nog 1 potje: dan laten de lessen zien wat je het meest kost.")}</p><button type="button" class="hs-btn pri" data-lnpast>${L("Past games", "Eerdere potjes")}</button></section>`;
+      <h5 class="ln-h5">${L("What a first lesson needs", "Wat een eerste les nodig heeft")}</h5>${mt(L("Reviewed games", "Beoordeelde potjes"), 1, MIN.games)}${mt(L("Marked moves of one kind", "Gemarkeerde zetten van één soort"), top, MIN.moves)}
+      <p class="soft">${L(`Review ${num(MIN.games - 1)} more ${tn(MIN.games - 1, "game", "games")}: then the lessons show what costs you the most.`, `Beoordeel nog ${gamesN(MIN.games - 1)}: dan laten de lessen zien wat je het meest kost.`)}</p><button type="button" class="hs-btn pri" data-lnpast>${L("Past games", "Eerdere potjes")}</button></section>`;
   },
   /** where the marked moves are, per kind of decision (counts, no percentages): the visual of the "no lesson yet" card */
   _lnCatBars(D) {
@@ -327,7 +327,7 @@ export const LessonsMixin = {
   _lnEx(e, i) {
     const idx = this._lnNo(e.i0), m = e.model, turn = e.c === "setup" ? L("Start", "Start") : L(`Turn ${e.t}`, `Beurt ${e.t}`);
     return `<article class="ln-c ln-exc" id="lnex${e.i0}" data-ex="${e.i0}" data-gid="${esc(e.gid)}" data-turn="${e.t}"><div class="ln-row"><span class="ln-sub"><b class="ln-ref big">${idx}</b> <b>${esc(turn)}</b> · ${esc(day(e.end))} · <span class="${resCls(e.result)}">${esc(resWord(e.result))}</span></span><button type="button" class="ln-open" data-lnex="${e.i0}">${L("Open", "Open")} ›</button></div>
-      <div class="ln-pair"><div><div class="ln-lbl"><span>${L("You chose", "Jij koos")}</span><b class="neg">${num(e.b)}%</b></div>${this._lnExSide(e, "p", 150)}</div><div><div class="ln-lbl"><span>${L("Better", "Beter")}</span><b class="pos">${num(e.a)}%</b></div>${this._lnExSide(e, "q", 150)}</div></div>
+      <div class="ln-pair"><div><div class="ln-lbl"><span>${L("You chose", "Jij koos")}</span><b class="neg">${num(e.b)}%</b></div>${this._lnExSide(e, "p", 150)}</div><div><div class="ln-lbl"><span>${L("Better", "Beter")}</span><b class="bt">${num(e.a)}%</b></div>${this._lnExSide(e, "q", 150)}</div></div>
       ${m.lines?.length ? `<div class="ln-two"><span>${esc(m.lines[0])}</span><span class="soft">${esc(m.lines[1])}</span></div>` : ""}</article>`;
   },
   /** the practice question of this page: a position with a spot on the board that is NOT among the first two examples (those are shown on the page), or null */
@@ -338,7 +338,7 @@ export const LessonsMixin = {
   _lnPractice(les, ex, P) {
     if (!ex.length || !P) return "";
     const pr = loadPractice(), st = practiceStats(pr, les.cat);
-    const e = ex[P.ex], sides = P.flip ? ["q", "p"] : ["p", "q"], opt = (k) => `<div class="ln-opt"><div class="ln-lbl"><span class="ln-ab">${"AB"[k]}</span>${P.pick != null ? `<b class="${sides[k] === "q" ? "pos" : "neg"}">${num(sides[k] === "q" ? e.a : e.b)}%</b>` : ""}</div>${this._lnExSide(e, sides[k], 150)}</div>`;
+    const e = ex[P.ex], sides = P.flip ? ["q", "p"] : ["p", "q"], opt = (k) => `<div class="ln-opt"><div class="ln-lbl"><span class="ln-ab">${"AB"[k]}</span>${P.pick != null ? `<b class="${sides[k] === "q" ? "bt" : "ot"}">${num(sides[k] === "q" ? e.a : e.b)}%</b>` : ""}</div>${this._lnExSide(e, sides[k], 150)}</div>`;
     const ok = P.pick != null && sides[P.pick] === "q" || (P.pick != null && e.a === e.b);
     const fb = P.pick == null ? `<div class="ln-btns"><button type="button" class="hs-btn pri" data-lnpick="0">${L("Choose A", "Kies A")}</button><button type="button" class="hs-btn pri" data-lnpick="1">${L("Choose B", "Kies B")}</button></div>`
       : `<div class="ln-fb ${ok ? "ok" : "no"}" role="status"><i aria-hidden="true">${ok ? "✓" : "✕"}</i><b>${ok ? L("Right: that was the better move.", "Goed: dat was de betere zet.") : L(`Not quite: ${"AB"[sides.indexOf("q")]} was better.`, `Niet helemaal: ${"AB"[sides.indexOf("q")]} was beter.`)}</b></div><div class="ln-btns"><button type="button" class="hs-btn pri" data-lnnext>${L("Next question", "Volgende vraag")}</button><button type="button" class="hs-btn" data-lnex="${P.ex}">${L("Open", "Open")} ›</button></div>`;

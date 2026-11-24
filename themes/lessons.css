@@ -1,7 +1,7 @@
 /* v1.94 Lessons (src/lessons.js): the lessons home, a lesson with board crops, "Practise this", "Ask", and the games tab. Theme tokens only; the page frame is Past games' (.hs).
    Text >= 11 px, tap targets >= 44 px. */
 .ln { --ln-sep: color-mix(in srgb, var(--ink) 12%, transparent); }
-.ln .neg { color: var(--hs-lost); font-weight: 800; } .ln .pos { color: var(--hs-won); font-weight: 800; }
+.ln .neg { color: var(--hs-lost); font-weight: 800; } .ln .pos { color: var(--hs-won); font-weight: 800; } .ln .bt { color: var(--primary); font-weight: 800; } .ln .ot { color: var(--ink-soft); font-weight: 800; }
 .ln-c { background: var(--sheet); background-image: var(--sheet-image); border: var(--sheet-border); box-shadow: var(--float-shadow, 0 1px 3px rgba(0,0,0,.18)); color: var(--ink); border-radius: 18px; padding: 12px 13px; display: grid; gap: 9px; text-align: left; font: inherit; width: 100%; box-sizing: border-box; text-decoration: none; }
 .ln-c h4 { margin: 0; font: 800 var(--fs-l) var(--font-body); color: var(--heading); }
 .ln-c p { margin: 0; font-size: var(--fs-m); line-height: 1.4; }
