@@ -147,7 +147,7 @@ async function walk(browser, vw, vh, lang, pal) {
   const browser = await chromium.launch();
   const quick = !!process.env.QUICK;
   const views = quick ? [[360, 780]] : [[360, 780], [412, 923]];
-  for (const [vw, vh] of views) for (const lang of ["en", "nl"]) for (const pal of quick && lang === "nl" ? ["night"] : ["light", "night"]) await walk(browser, vw, vh, lang, pal);
+  if (!process.env.SKIP_WALK) for (const [vw, vh] of views) for (const lang of ["en", "nl"]) for (const pal of quick && lang === "nl" ? ["night"] : ["light", "night"]) await walk(browser, vw, vh, lang, pal);
 
   // all 11 registry levels reachable: every level can be picked for all bots (and starts that game), and for a single bot
   {
@@ -158,7 +158,7 @@ async function walk(browser, vw, vh, lang, pal) {
     ok(keys.length === 11, "the registry holds 11 levels", keys.length);
     await G(() => { const g = window.__colonistGame; g.startNewGame = (s) => { window.__cap = g.constructor.normalizeSettingsForTest ? s : s; }; }); // capture what Start would start (no 11 real games)
     const fromMain = [];
-    for (const k of keys) {
+    for (const k of keys) { if (process.env.DBG) console.log("level", k);
       await page.locator("[data-home=adjust]").tap(); await sleep(350);
       const inMain = await G((kk) => !!document.querySelector(`[data-set='level:${kk}']`), k);
       if (!inMain) { await page.locator("[data-action=levels]").tap(); await sleep(300); await page.locator(`[data-level="${k}"]`).tap(); await sleep(150); await page.locator(".sh-layer [data-action=back]").first().tap(); await sleep(250); }
