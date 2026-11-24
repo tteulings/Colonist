@@ -159,4 +159,5 @@ export const NL_199P = [
   ["Winning move", "Winnende zet"], ["Even {a}% · start {b} · luck {c} · moves {d} · others {e} = end {z}%", "Gelijk {a}% · start {b} · geluk {c} · zetten {d} · anderen {e} = eind {z}%"], ["lead", "voorsprong"], ["lead = how much more win chance than the next-best option", "voorsprong = hoeveel winkans meer dan de op één na beste optie"],
   ["biggest: {x}", "grootste: {x}"], ["Every roll, steal and card changes your win chance. (+2) = two more events that turn.", "Elke worp, gepakte en getrokken kaart verandert je winkans. (+2) = twee gebeurtenissen meer die beurt."], ["▲ highest, ▼ lowest · place in grey", "▲ hoogste, ▼ laagste · plaats in grijs"],
   ["biggest", "grootste"],
+  ["margin", "marge"], // the tooltip of the ± next to a move (post-ui pm())
 ];

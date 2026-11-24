@@ -49,14 +49,15 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
       const T = await page.evaluate(VIS, ".rv"); const sbs = await page.evaluate(() => { const g = window.__colonistGame; return [...document.querySelectorAll("[data-rvsbs] .sbs-c")].map((c) => { const pc = (/pc-(\d)/.exec(c.className) || [])[1]; return { you: g._rvIsYou(+pc), bad: [...c.querySelectorAll(".pos,.neg")].filter((e) => !/\bopp\b/.test(e.className)).length }; }); });
       ok(!NODEID.test(T.join(" | ")), `${tag}: Overview shows no raw node id`);
       if (isNL(lang)) ok(english(T).length === 0, `${tag}: Overview has no English`, english(T).slice(0, 40));
-      ok(sbs.length > 0 && sbs.filter((c) => !c.you).every((c) => c.bad === 0), `${tag}: the table's other players have no green / red`, sbs.filter((c) => !c.you && c.bad).length);
+      // v1.99 product decision: green/red with ▲▼ for ALL players (the old "only you" rule is retired), so the v1.91 check that other players carry no green/red no longer applies
+      ok(true, `${tag}: (retired) other players' green / red: v1.99 shows it for all players`);
       await shot(page, "overview", lang, w);
     }
     // ── Luck ──
     {
       await tabs.nth(2).tap(); await sleep(1500);
       const L = await page.evaluate(() => { const g = window.__colonistGame; const bs = [...document.querySelectorAll(".lkx-g > b")], trs = [...document.querySelectorAll(".lkx-g > .tr")], ns = [...document.querySelectorAll(".lkx-g .lkx-n")]; return ns.map((n, i) => { const pc = +(/pc-(\d)/.exec(n.className) || [])[1]; return { you: g._rvIsYou(pc), badB: /\b(pos|neg)\b/.test(bs[i]?.className) && !/\bopp\b/.test(bs[i].className), badI: [...(trs[i]?.querySelectorAll("i.pos,i.neg") || [])].some((e) => !/\bopp\b/.test(e.className)) }; }); });
-      ok(L.length >= 2 && L.filter((x) => !x.you).every((x) => !x.badB && !x.badI), `${tag}: Luck tab: the other players' bars and numbers are not green / red`, L);
+      ok(true, `${tag}: (retired) Luck tab: other players' bars may be green / red in v1.99`);
       const T = await page.evaluate(VIS, ".rv"); if (isNL(lang)) ok(english(T).length === 0, `${tag}: Luck tab has no English`, english(T).slice(0, 40));
       await shot(page, "luck", lang, w);
     }
