@@ -74,7 +74,7 @@ function parts(s) {
   return hit ? lead + out.join(" · ") : undefined;
 }
 // Dutch grammar after a sentence is filled in: "1 kaarten" -> "1 kaart", "5 beurt" -> "5 beurten", "gaven jij" -> "gaven jou"
-const SING = [["kaart", "kaarten"], ["grondstofkaart", "grondstofkaarten"], ["ontwikkelingskaart", "ontwikkelingskaarten"], ["puntenkaart", "puntenkaarten"], ["beurt", "beurten"], ["worp", "worpen"], ["zet", "zetten"], ["spel", "spellen"], ["bot", "bots"], ["punt", "punten"], ["dorp", "dorpen"], ["stad", "steden"], ["weg", "wegen"], ["ridder", "ridders"], ["schip", "schepen"], ["tegel", "tegels"], ["speler", "spelers"], ["ruil", "ruilen"], ["eiland", "eilanden"], ["plek", "plekken"], ["aanbod", "aanbiedingen"], ["fout", "fouten"], ["blunder", "blunders"], ["seconde", "seconden"], ["minuut", "minuten"], ["uur", "uren"], ["dag", "dagen"], ["foto", "foto's"]];
+const SING = [["kaart", "kaarten"], ["grondstofkaart", "grondstofkaarten"], ["ontwikkelingskaart", "ontwikkelingskaarten"], ["puntenkaart", "puntenkaarten"], ["beurt", "beurten"], ["worp", "worpen"], ["zet", "zetten"], ["spel", "spellen"], ["bot", "bots"], ["punt", "punten"], ["dorp", "dorpen"], ["stad", "steden"], ["weg", "wegen"], ["ridder", "ridders"], ["schip", "schepen"], ["tegel", "tegels"], ["speler", "spelers"], ["ruil", "ruilen"], ["eiland", "eilanden"], ["plek", "plekken"], ["aanbod", "aanbiedingen"], ["fout", "fouten"], ["blunder", "blunders"], ["seconde", "seconden"], ["minuut", "minuten"], ["uur", "uren"], ["dag", "dagen"], ["foto", "foto's"], ["beslissing", "beslissingen"]];
 const PLMAP = new Map(); SING.forEach(([a, b]) => { PLMAP.set(a, [a, b]); PLMAP.set(b, [a, b]); });
 const PLRE = new RegExp(`(^|[^\\d.,\\w])(\\d+) (${[...PLMAP.keys()].sort((a, b) => b.length - a.length).join("|")})(?![\\wé])`, "g");
 const nlFix = (s) => s.replace(PLRE, (m, pre, n, w) => `${pre}${n} ${PLMAP.get(w)[n === "1" ? 0 : 1]}`).replace(/\b(aan|van|voor|met|bij|naar|tegen|over|gaven|gaf|geeft|geven|stuurt|toont|geef|gunt) [Jj]ij\b/g, "$1 jou");
@@ -85,7 +85,33 @@ function chip(s) {
   const tail = m[6] ? m[6].slice(2).split(", ").map(seg).join(", ") : "";
   return `${NL[m[1]] ?? lookup(m[1]) ?? m[1]}: ${plural(m[2], "punt", "punten")}${m[3] ? ` van ${m[3]}` : ""}, ${plural(m[4], "kaart", "kaarten")}, ${plural(m[5], "ontwikkelingskaart", "ontwikkelingskaarten")}${tail ? ", " + tail : ""}`;
 }
-function lookup(s) {
+// v1.98 a hint made of two sentences ("Road here? Costs 1 Lumber + 1 Brick"): each sentence on its own, only when every one of them is known
+function sentences(s, depth) {
+  if (!/[.?!] [A-Z]/.test(s)) return undefined;
+  const ps = s.split(/(?<=[.?!]) (?=[A-Z])/); if (ps.length < 2) return undefined;
+  const out = [];
+  for (const x of ps) {
+    let r = lookup(x, depth + 1);
+    if (r === undefined && /[.?!]$/.test(x)) { const q = lookup(x.slice(0, -1), depth + 1); if (q !== undefined) r = q + x.slice(-1); }
+    if (r === undefined) return undefined; out.push(r);
+  }
+  return out.join(" ");
+}
+// v1.98 a label made of clauses ("You, 9 points, accuracy 82, provisional"): each clause on its own; a lone capitalised word is a name and stays
+const NAMEISH = /^[A-Z][\p{L}'’+-]*$/u;
+function clauses(s, depth) {
+  const ps = s.includes(", ") ? s.split(/, (?![^(]*\))/) : null; if (!ps || ps.length < 2) return undefined;
+  const out = [];
+  for (const x of ps) { const r = lookup(x, depth + 1); if (r !== undefined) out.push(r); else if (NAMEISH.test(x)) out.push(x); else return undefined; }
+  return out.join(", ");
+}
+// v1.98 the same words with another first letter ("You need 1 Wool more" after "you need {x} more"): the result takes the case of the text
+function otherCase(s, depth) {
+  const c = s[0], alt = c === c.toUpperCase() ? c.toLowerCase() + s.slice(1) : c.toUpperCase() + s.slice(1); if (alt === s) return undefined;
+  const r = lookup(alt, depth + 1); if (r === undefined || r === alt) return undefined;
+  return /[A-Z]/.test(c) ? r[0].toUpperCase() + r.slice(1) : r[0].toLowerCase() + r.slice(1);
+}
+function lookup(s, depth = 0) {
   if (!s) return s;
   const hit = NL[s]; if (hit !== undefined) return hit;
   const sp = special(s) ?? chip(s); if (sp !== undefined) return sp;
@@ -93,10 +119,11 @@ function lookup(s) {
   for (const p of PAT) {
     const m = p.re.exec(s); if (!m) continue;
     const vars = {}; p.names.forEach((n, i) => { vars[n] = p.raw.has(n) ? m[i + 1] : cap(n, m[i + 1]); });
-    return fill(p.v, vars);
+    const o = fill(p.v, vars); return /^[A-Z]/.test(s) && /^[a-z]/.test(o) ? o[0].toUpperCase() + o.slice(1) : o; // "Brick: 3 …" -> "Baksteen: 3 …" (a variable first: the resource name is lower case)
   }
   const pt = parts(s); if (pt !== undefined) return pt;
   if (ONLY(s)) { const o = words(s); return /^[A-Z]/.test(s) ? o[0].toUpperCase() + o.slice(1) : o; }
+  if (depth < 3) { const sn = sentences(s, depth) ?? clauses(s, depth); if (sn !== undefined) return sn; const oc = otherCase(s, depth); if (oc !== undefined) return oc; }
   return undefined;
 }
 // a captured piece of a sentence: numbers stay (decimals get a comma), text is translated on its own
