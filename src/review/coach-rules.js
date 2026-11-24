@@ -109,8 +109,8 @@ export const RULE = Object.fromEntries(RULES.map((r) => [r.id, r]));
 /** v1.99 scope: robber moves and anything about ports or the longest road / largest army race are not analysed (deferred to v2.0): they keep their cost in "other moves" but are never listed as an error or used by a rule. */
 export const OUT_OF_SCOPE = /longest road|largest army|harbou?r|\bports?\b/i;
 export const inScope = (d) => !!d && d.k !== "robber" && !OUT_OF_SCOPE.test(`${d.x?.label || ""} ${d.x?.best?.label || ""}`);
-/** Was this decision a CLEAR error? (the one rule: class could / mistake / blunder / missed, and a "missed" needs a clear verdict, a slight one is not an error) */
-export const isClearError = (d) => !!d && SEVERE.includes(d.cls) && d.gp >= 1 && !!d.x?.best && (d.cls !== "missed" || d.vc === "clear") && inScope(d);
+/** Was this decision a CLEAR error? (the one rule: class could / mistake / blunder / missed AND a clear verdict, i.e. a gap of at least 2 x the move's own noise; a "missed" with only a slight verdict is not an error) */
+export const isClearError = (d) => !!d && SEVERE.includes(d.cls) && d.gp >= 1 && !!d.x?.best && d.vc === "clear" && inScope(d);
 
 const missingAt = (raw, turn, me) => {
   if (!raw) return [];
