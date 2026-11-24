@@ -1,0 +1,2719 @@
+{
+ "r1": {
+  "won": true,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 20,
+  "pts": [
+   10,
+   8
+  ],
+  "target": 10,
+  "side": "me",
+  "rows": [
+   {
+    "id": "start",
+    "me": 35,
+    "rival": 52,
+    "gap": 17,
+    "better": "rival",
+    "score": 3.4
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 8,
+    "to": 13,
+    "me": 4,
+    "rival": 1,
+    "gap": 3,
+    "score": 3,
+    "better": "me",
+    "decisive": true
+   },
+   {
+    "id": "luck",
+    "me": 1,
+    "rival": -9,
+    "gap": 10,
+    "better": "me",
+    "score": 1.25
+   }
+  ],
+  "decisive": "pts",
+  "moment": {
+   "kind": "gain",
+   "turn": 20,
+   "setup": false,
+   "cls": "best",
+   "played": "City on Lumber 9, Wool 3, Brick 11",
+   "B": 100,
+   "gain": 56
+  },
+  "nCand": 6
+ },
+ "r2": {
+  "won": false,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 13,
+  "pts": [
+   5,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 38,
+    "rival": 18,
+    "gap": 20,
+    "better": "me",
+    "score": 4
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 5,
+    "to": 9,
+    "me": 1,
+    "rival": 4,
+    "gap": 3,
+    "score": 3,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 14,
+    "rival": 22,
+    "gap": 8,
+    "better": "me",
+    "score": 1.6
+   },
+   {
+    "id": "luck",
+    "me": -16,
+    "rival": 88,
+    "gap": 104,
+    "better": "rival",
+    "score": 13,
+    "decisive": true
+   }
+  ],
+  "decisive": "luck",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "could",
+   "played": "Settlement on Lumber 3, Brick 6, Ore 10",
+   "better": "Settlement on Grain 9, Ore 10, Lumber 2",
+   "B": 38,
+   "A": 45,
+   "gp": 7
+  },
+  "nCand": 6
+ },
+ "s1-beginner+simple+intermediate-learner-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 17,
+  "pts": [
+   2,
+   11
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 6,
+    "rival": 47,
+    "gap": 41,
+    "better": "rival",
+    "score": 8.2,
+    "decisive": true
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 6,
+    "gap": 12,
+    "score": 4,
+    "better": "rival"
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 7,
+    "to": 11,
+    "me": 0,
+    "rival": 3,
+    "gap": 3,
+    "score": 3,
+    "better": "rival"
+   },
+   {
+    "id": "luck",
+    "me": 1,
+    "rival": 31,
+    "gap": 30,
+    "better": "rival",
+    "score": 3.75
+   }
+  ],
+  "decisive": "start",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "blunder",
+   "played": "Settlement on Wool 8, Lumber 4, Grain 3",
+   "better": "Settlement on Ore 10, Brick 3",
+   "B": 6,
+   "A": 25,
+   "gp": 19
+  },
+  "nCand": 6
+ },
+ "s100-beginner+beginner+simple-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 33,
+  "pts": [
+   5,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "city",
+    "me": null,
+    "rival": 22,
+    "gap": 12,
+    "score": 4,
+    "better": "rival"
+   },
+   {
+    "id": "pts",
+    "phase": "opening",
+    "from": 1,
+    "to": 11,
+    "me": 0,
+    "rival": 5,
+    "gap": 5,
+    "score": 5,
+    "better": "rival",
+    "decisive": true
+   },
+   {
+    "id": "cost",
+    "me": 28,
+    "rival": 79,
+    "gap": 51,
+    "better": "me",
+    "score": 10.2
+   },
+   {
+    "id": "luck",
+    "me": -11,
+    "rival": 13,
+    "gap": 24,
+    "better": "rival",
+    "score": 3
+   }
+  ],
+  "decisive": "pts",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "could",
+   "played": "Settlement on Wool 12, Lumber 6, Ore 4",
+   "better": "Settlement on Ore 9, Ore 11, Brick 10",
+   "B": 26,
+   "A": 33,
+   "gp": 7
+  },
+  "nCand": 6
+ },
+ "s101-simple+intermediate+beginner-learner-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 2,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 17,
+  "pts": [
+   3,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 23,
+    "rival": 60,
+    "gap": 37,
+    "better": "rival",
+    "score": 7.4,
+    "decisive": true
+   },
+   {
+    "id": "pts",
+    "phase": "end",
+    "from": 12,
+    "to": 17,
+    "me": 0,
+    "rival": 5,
+    "gap": 5,
+    "score": 5,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 48,
+    "rival": 14,
+    "gap": 34,
+    "better": "rival",
+    "score": 6.8
+   },
+   {
+    "id": "luck",
+    "me": -18,
+    "rival": 15,
+    "gap": 33,
+    "better": "rival",
+    "score": 4.125
+   }
+  ],
+  "decisive": "start",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "blunder",
+   "played": "Settlement on Lumber 3, Wool 5, Grain 6",
+   "better": "Settlement on Ore 6, Lumber 3, Brick 3",
+   "B": 25,
+   "A": 48,
+   "gp": 23
+  },
+  "nCand": 6
+ },
+ "s102-intermediate+intermediate+intermediate-learner-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 2,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 18,
+  "pts": [
+   3,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "city",
+    "me": null,
+    "rival": 5,
+    "gap": 14,
+    "score": 4.666666666666667,
+    "better": "rival",
+    "decisive": true
+   },
+   {
+    "id": "pts",
+    "phase": "end",
+    "from": 13,
+    "to": 18,
+    "me": 0,
+    "rival": 4,
+    "gap": 4,
+    "score": 4,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 17,
+    "rival": 32,
+    "gap": 15,
+    "better": "me",
+    "score": 3
+   },
+   {
+    "id": "luck",
+    "me": 3,
+    "rival": 30,
+    "gap": 27,
+    "better": "rival",
+    "score": 3.375
+   }
+  ],
+  "decisive": "city",
+  "moment": {
+   "kind": "loss",
+   "turn": 4,
+   "setup": false,
+   "clear": true,
+   "cls": "could",
+   "played": "End turn",
+   "better": "Trade Lumber → 1 Ore, then City on Grain 5, Lumber 9, Ore 10",
+   "B": 14,
+   "A": 19,
+   "gp": 5
+  },
+  "nCand": 6
+ },
+ "s103-beginner+simple+intermediate-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 2,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 26,
+  "pts": [
+   7,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 19,
+    "rival": 60,
+    "gap": 41,
+    "better": "rival",
+    "score": 8.2,
+    "decisive": true
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 5,
+    "gap": 22,
+    "score": 7.333333333333333,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 64,
+    "rival": 87,
+    "gap": 23,
+    "better": "me",
+    "score": 4.6
+   },
+   {
+    "id": "luck",
+    "me": -17,
+    "rival": 19,
+    "gap": 36,
+    "better": "rival",
+    "score": 4.5
+   }
+  ],
+  "decisive": "start",
+  "moment": {
+   "kind": "loss",
+   "turn": 18,
+   "setup": false,
+   "clear": true,
+   "cls": "blunder",
+   "played": "Bank trade 3 Wool → 1 Lumber",
+   "better": "Bank trade Wool → Ore",
+   "B": 39,
+   "A": 61,
+   "gp": 22
+  },
+  "nCand": 6
+ },
+ "s104-simple+simple+beginner-learner-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 30,
+  "pts": [
+   5,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 36,
+    "rival": 24,
+    "gap": 12,
+    "better": "me",
+    "score": 2.4
+   },
+   {
+    "id": "pts",
+    "phase": "end",
+    "from": 21,
+    "to": 30,
+    "me": 0,
+    "rival": 3,
+    "gap": 3,
+    "score": 3,
+    "better": "rival",
+    "decisive": true
+   },
+   {
+    "id": "cost",
+    "me": 53,
+    "rival": 100,
+    "gap": 47,
+    "better": "me",
+    "score": 9.4
+   }
+  ],
+  "decisive": "pts",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "mistake",
+   "played": "Settlement on Lumber 11, Wool 10, Grain 5",
+   "better": "Settlement on Brick 12, Ore 5, Grain 4",
+   "B": 36,
+   "A": 52,
+   "gp": 16
+  },
+  "nCand": 6
+ },
+ "s105-intermediate+beginner+intermediate-learner-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 21,
+  "pts": [
+   5,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "city",
+    "me": null,
+    "rival": 4,
+    "gap": 18,
+    "score": 6,
+    "better": "rival",
+    "decisive": true
+   },
+   {
+    "id": "pts",
+    "phase": "end",
+    "from": 15,
+    "to": 21,
+    "me": 0,
+    "rival": 3,
+    "gap": 3,
+    "score": 3,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 38,
+    "rival": 44,
+    "gap": 6,
+    "better": "me",
+    "score": 1.2
+   },
+   {
+    "id": "luck",
+    "me": -2,
+    "rival": 25,
+    "gap": 27,
+    "better": "rival",
+    "score": 3.375
+   }
+  ],
+  "decisive": "city",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "mistake",
+   "played": "Settlement on Wool 5, Grain 12, Lumber 8",
+   "better": "Settlement on Grain 2, Ore 10, Brick 6",
+   "B": 20,
+   "A": 35,
+   "gp": 15
+  },
+  "nCand": 6
+ },
+ "s106-beginner+beginner+beginner-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 2,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 23,
+  "pts": [
+   5,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 33,
+    "rival": 44,
+    "gap": 11,
+    "better": "rival",
+    "score": 2.2
+   },
+   {
+    "id": "city",
+    "me": 12,
+    "rival": 7,
+    "gap": 5,
+    "better": "rival",
+    "score": 1.6666666666666667
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 9,
+    "to": 15,
+    "me": -1,
+    "rival": 3,
+    "gap": 4,
+    "score": 4,
+    "better": "rival"
+   },
+   {
+    "id": "luck",
+    "me": -6,
+    "rival": 45,
+    "gap": 51,
+    "better": "rival",
+    "score": 6.375,
+    "decisive": true
+   }
+  ],
+  "decisive": "luck",
+  "moment": {
+   "kind": "loss",
+   "turn": 9,
+   "setup": false,
+   "clear": true,
+   "cls": "missed",
+   "played": "End turn",
+   "better": "Road toward Wool 8, Grain 3",
+   "B": 29,
+   "A": 34,
+   "gp": 5
+  },
+  "nCand": 6
+ },
+ "s107-simple+intermediate+intermediate-learner-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 2,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 13,
+  "pts": [
+   2,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 16,
+    "rival": 22,
+    "gap": 6,
+    "better": "rival",
+    "score": 1.2
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 10,
+    "gap": 4,
+    "score": 1.3333333333333333,
+    "better": "rival"
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 5,
+    "to": 9,
+    "me": 0,
+    "rival": 4,
+    "gap": 4,
+    "score": 4,
+    "better": "rival",
+    "decisive": true
+   },
+   {
+    "id": "luck",
+    "me": 9,
+    "rival": 36,
+    "gap": 27,
+    "better": "rival",
+    "score": 3.375
+   }
+  ],
+  "decisive": "pts",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "mistake",
+   "played": "Settlement on Grain 12, Brick 3, Wool 9",
+   "better": "Settlement on Ore 11, Grain 4, Grain 12",
+   "B": 16,
+   "A": 27,
+   "gp": 11
+  },
+  "nCand": 6
+ },
+ "s108-beginner+expert+intermediate-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 2,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 16,
+  "pts": [
+   2,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 18,
+    "rival": 62,
+    "gap": 44,
+    "better": "rival",
+    "score": 8.8,
+    "decisive": true
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 5,
+    "gap": 12,
+    "score": 4,
+    "better": "rival"
+   },
+   {
+    "id": "pts",
+    "phase": "end",
+    "from": 12,
+    "to": 16,
+    "me": 0,
+    "rival": 5,
+    "gap": 5,
+    "score": 5,
+    "better": "rival"
+   },
+   {
+    "id": "luck",
+    "me": -18,
+    "rival": 22,
+    "gap": 40,
+    "better": "rival",
+    "score": 5
+   }
+  ],
+  "decisive": "start",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "blunder",
+   "played": "Settlement on Wool 9, Grain 10, Ore 2",
+   "better": "Settlement on Grain 10, Ore 3, Ore 4",
+   "B": 18,
+   "A": 36,
+   "gp": 18
+  },
+  "nCand": 6
+ },
+ "s109-simple+builder+shark-learner-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 3,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 15,
+  "pts": [
+   3,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 29,
+    "rival": 38,
+    "gap": 9,
+    "better": "rival",
+    "score": 1.8
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 2,
+    "gap": 14,
+    "score": 4.666666666666667,
+    "better": "rival",
+    "decisive": true
+   },
+   {
+    "id": "pts",
+    "phase": "opening",
+    "from": 1,
+    "to": 5,
+    "me": 0,
+    "rival": 3,
+    "gap": 3,
+    "score": 3,
+    "better": "rival"
+   },
+   {
+    "id": "luck",
+    "me": -4,
+    "rival": 28,
+    "gap": 32,
+    "better": "rival",
+    "score": 4
+   }
+  ],
+  "decisive": "city",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "could",
+   "played": "Settlement on Wool 11, Lumber 5, Brick 6",
+   "better": "Settlement on Grain 10, Ore 10, Wool 8",
+   "B": 23,
+   "A": 32,
+   "gp": 9
+  },
+  "nCand": 6
+ },
+ "s110-intermediate+expert+beginner-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 16,
+  "pts": [
+   5,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 14,
+    "rival": 32,
+    "gap": 18,
+    "better": "rival",
+    "score": 3.6
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 6,
+    "to": 11,
+    "me": 1,
+    "rival": 4,
+    "gap": 3,
+    "score": 3,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 14,
+    "rival": 24,
+    "gap": 10,
+    "better": "me",
+    "score": 2
+   },
+   {
+    "id": "luck",
+    "me": -7,
+    "rival": 49,
+    "gap": 56,
+    "better": "rival",
+    "score": 7,
+    "decisive": true
+   }
+  ],
+  "decisive": "luck",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "could",
+   "played": "Settlement on Lumber 4, Wool 3, Ore 9",
+   "better": "Settlement on Wool 3, Ore 9, Brick 11",
+   "B": 14,
+   "A": 23,
+   "gp": 9
+  },
+  "nCand": 6
+ },
+ "s111-beginner+shark+trader-learner-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 2,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 18,
+  "pts": [
+   3,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 18,
+    "rival": 30,
+    "gap": 12,
+    "better": "rival",
+    "score": 2.4
+   },
+   {
+    "id": "city",
+    "me": 11,
+    "rival": 2,
+    "gap": 9,
+    "better": "rival",
+    "score": 3
+   },
+   {
+    "id": "cost",
+    "me": 29,
+    "rival": 41,
+    "gap": 12,
+    "better": "me",
+    "score": 2.4
+   },
+   {
+    "id": "luck",
+    "me": -9,
+    "rival": 54,
+    "gap": 63,
+    "better": "rival",
+    "score": 7.875,
+    "decisive": true
+   }
+  ],
+  "decisive": "luck",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "mistake",
+   "played": "Settlement on Ore 9, Lumber 10, Wool 8",
+   "better": "Settlement on Lumber 10, Wool 8, Grain 5",
+   "B": 27,
+   "A": 40,
+   "gp": 13
+  },
+  "nCand": 6
+ },
+ "s112-intermediate+builder+simple-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 17,
+  "pts": [
+   6,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 13,
+    "rival": 42,
+    "gap": 29,
+    "better": "rival",
+    "score": 5.8,
+    "decisive": true
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 2,
+    "gap": 16,
+    "score": 5.333333333333333,
+    "better": "rival"
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 7,
+    "to": 11,
+    "me": 0,
+    "rival": 3,
+    "gap": 3,
+    "score": 3,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 17,
+    "rival": 100,
+    "gap": 83,
+    "better": "me",
+    "score": 16.6
+   }
+  ],
+  "decisive": "start",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "mistake",
+   "played": "Settlement on Wool 3, Brick 6, Brick 4",
+   "better": "Settlement on Brick 4, Ore 11, Wool 10",
+   "B": 13,
+   "A": 28,
+   "gp": 15
+  },
+  "nCand": 6
+ },
+ "s113-expert+intermediate+beginner-learner-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 24,
+  "pts": [
+   2,
+   11
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "city",
+    "me": null,
+    "rival": 15,
+    "gap": 10,
+    "score": 3.3333333333333335,
+    "better": "rival"
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 9,
+    "to": 16,
+    "me": 0,
+    "rival": 4,
+    "gap": 4,
+    "score": 4,
+    "better": "rival",
+    "decisive": true
+   },
+   {
+    "id": "cost",
+    "me": 24,
+    "rival": 38,
+    "gap": 14,
+    "better": "me",
+    "score": 2.8
+   },
+   {
+    "id": "luck",
+    "me": -14,
+    "rival": 17,
+    "gap": 31,
+    "better": "rival",
+    "score": 3.875
+   }
+  ],
+  "decisive": "pts",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "could",
+   "played": "Settlement on Lumber 5, Grain 8, Brick 10",
+   "better": "Settlement on Ore 11, Brick 10, Wool 6",
+   "B": 33,
+   "A": 39,
+   "gp": 6
+  },
+  "nCand": 6
+ },
+ "s114-trader+simple+expert-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 3,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 19,
+  "pts": [
+   6,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 21,
+    "rival": 51,
+    "gap": 30,
+    "better": "rival",
+    "score": 6
+   },
+   {
+    "id": "city",
+    "me": 2,
+    "rival": 7,
+    "gap": 5,
+    "better": "me",
+    "score": 1.6666666666666667
+   },
+   {
+    "id": "pts",
+    "phase": "end",
+    "from": 14,
+    "to": 19,
+    "me": 0,
+    "rival": 4,
+    "gap": 4,
+    "score": 4,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 68,
+    "rival": 11,
+    "gap": 57,
+    "better": "rival",
+    "score": 11.4,
+    "decisive": true
+   }
+  ],
+  "decisive": "cost",
+  "moment": {
+   "kind": "loss",
+   "turn": 13,
+   "setup": false,
+   "clear": true,
+   "cls": "mistake",
+   "played": "Bank trade 4 Brick → 1 Lumber",
+   "better": "Play Year of Plenty",
+   "B": 45,
+   "A": 55,
+   "gp": 10
+  },
+  "nCand": 6
+ },
+ "s115-shark+beginner+intermediate-learner-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 3,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 21,
+  "pts": [
+   7,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 31,
+    "rival": 23,
+    "gap": 8,
+    "better": "me",
+    "score": 1.6
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 8,
+    "to": 14,
+    "me": 1,
+    "rival": 3,
+    "gap": 2,
+    "score": 2,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 79,
+    "rival": 53,
+    "gap": 26,
+    "better": "rival",
+    "score": 5.2,
+    "decisive": true
+   },
+   {
+    "id": "luck",
+    "me": -21,
+    "rival": -80,
+    "gap": 59,
+    "better": "me",
+    "score": 7.375
+   }
+  ],
+  "decisive": "cost",
+  "moment": {
+   "kind": "loss",
+   "turn": 17,
+   "setup": false,
+   "clear": true,
+   "cls": "missed",
+   "played": "End turn",
+   "better": "Settlement on Grain 9, Lumber 12",
+   "B": 25,
+   "A": 79,
+   "gp": 54
+  },
+  "nCand": 6
+ },
+ "s116-builder+intermediate+simple-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 15,
+  "pts": [
+   3,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 23,
+    "rival": 44,
+    "gap": 21,
+    "better": "rival",
+    "score": 4.2,
+    "decisive": true
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 5,
+    "gap": 11,
+    "score": 3.6666666666666665,
+    "better": "rival"
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 6,
+    "to": 10,
+    "me": 0,
+    "rival": 3,
+    "gap": 3,
+    "score": 3,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 21,
+    "rival": 10,
+    "gap": 11,
+    "better": "rival",
+    "score": 2.2
+   }
+  ],
+  "decisive": "start",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "could",
+   "played": "Settlement on Lumber 9, Grain 4, Ore 6",
+   "better": "Settlement on Grain 5, Ore 9, Lumber 5",
+   "B": 22,
+   "A": 31,
+   "gp": 9
+  },
+  "nCand": 6
+ },
+ "s117-expert+simple+trader-learner-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 3,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 21,
+  "pts": [
+   2,
+   11
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "city",
+    "me": null,
+    "rival": 2,
+    "gap": 20,
+    "score": 6.666666666666667,
+    "better": "rival"
+   },
+   {
+    "id": "pts",
+    "phase": "end",
+    "from": 15,
+    "to": 21,
+    "me": -2,
+    "rival": 5,
+    "gap": 7,
+    "score": 7,
+    "better": "rival",
+    "decisive": true
+   },
+   {
+    "id": "cost",
+    "me": 13,
+    "rival": 37,
+    "gap": 24,
+    "better": "me",
+    "score": 4.8
+   },
+   {
+    "id": "luck",
+    "me": 0,
+    "rival": 29,
+    "gap": 29,
+    "better": "rival",
+    "score": 3.625
+   }
+  ],
+  "decisive": "pts",
+  "moment": {
+   "kind": "loss",
+   "turn": 8,
+   "setup": false,
+   "clear": true,
+   "cls": "could",
+   "played": "Bank trade 4 Grain → 1 Wool",
+   "better": "Trade Grain → 1 Lumber, then Settlement on Wool 3, Ore 3",
+   "B": 8,
+   "A": 12,
+   "gp": 4
+  },
+  "nCand": 6
+ },
+ "s118-expert+builder+shark-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 18,
+  "pts": [
+   2,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 9,
+    "rival": 43,
+    "gap": 34,
+    "better": "rival",
+    "score": 6.8
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 4,
+    "gap": 15,
+    "score": 5,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 24,
+    "rival": 100,
+    "gap": 76,
+    "better": "me",
+    "score": 15.2
+   },
+   {
+    "id": "luck",
+    "me": -13,
+    "rival": 49,
+    "gap": 62,
+    "better": "rival",
+    "score": 7.75,
+    "decisive": true
+   }
+  ],
+  "decisive": "luck",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "mistake",
+   "played": "Settlement on Wool 5, Lumber 8, Lumber 4",
+   "better": "Settlement on Grain 8, Ore 10",
+   "B": 9,
+   "A": 25,
+   "gp": 16
+  },
+  "nCand": 6
+ },
+ "s119-trader+expert+builder-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 18,
+  "pts": [
+   5,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "city",
+    "me": 17,
+    "rival": 10,
+    "gap": 7,
+    "better": "rival",
+    "score": 2.3333333333333335
+   },
+   {
+    "id": "pts",
+    "phase": "end",
+    "from": 13,
+    "to": 18,
+    "me": 1,
+    "rival": 4,
+    "gap": 3,
+    "score": 3,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 14,
+    "rival": 79,
+    "gap": 65,
+    "better": "me",
+    "score": 13
+   },
+   {
+    "id": "luck",
+    "me": -7,
+    "rival": 37,
+    "gap": 44,
+    "better": "rival",
+    "score": 5.5,
+    "decisive": true
+   }
+  ],
+  "decisive": "luck",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "could",
+   "played": "Settlement on Ore 6, Grain 9, Lumber 5",
+   "better": "Settlement on Lumber 4, Brick 3, Grain 9",
+   "B": 23,
+   "A": 32,
+   "gp": 9
+  },
+  "nCand": 6
+ },
+ "s120-shark+shark+expert-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 2,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 17,
+  "pts": [
+   5,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 12,
+    "rival": 50,
+    "gap": 38,
+    "better": "rival",
+    "score": 7.6,
+    "decisive": true
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 8,
+    "gap": 10,
+    "score": 3.3333333333333335,
+    "better": "rival"
+   },
+   {
+    "id": "pts",
+    "phase": "end",
+    "from": 12,
+    "to": 17,
+    "me": 0,
+    "rival": 4,
+    "gap": 4,
+    "score": 4,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 9,
+    "rival": 4,
+    "gap": 5,
+    "better": "rival",
+    "score": 1
+   }
+  ],
+  "decisive": "start",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "could",
+   "played": "Settlement on Lumber 6, Wool 10, Wool 5",
+   "better": "Settlement on Wool 10, Wool 5, Ore 8",
+   "B": 11,
+   "A": 16,
+   "gp": 5
+  },
+  "nCand": 6
+ },
+ "s121-builder+trader+shark-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 3,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 15,
+  "pts": [
+   4,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 14,
+    "rival": 25,
+    "gap": 11,
+    "better": "rival",
+    "score": 2.2
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 11,
+    "gap": 5,
+    "score": 1.6666666666666667,
+    "better": "rival"
+   },
+   {
+    "id": "pts",
+    "phase": "end",
+    "from": 11,
+    "to": 15,
+    "me": 0,
+    "rival": 5,
+    "gap": 5,
+    "score": 5,
+    "better": "rival"
+   },
+   {
+    "id": "luck",
+    "me": 5,
+    "rival": 63,
+    "gap": 58,
+    "better": "rival",
+    "score": 7.25,
+    "decisive": true
+   }
+  ],
+  "decisive": "luck",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "mistake",
+   "played": "Settlement on Lumber 4, Ore 11, Wool 8",
+   "better": "Settlement on Lumber 3, Brick 6, Grain 4",
+   "B": 14,
+   "A": 26,
+   "gp": 12
+  },
+  "nCand": 6
+ },
+ "s122-expert+expert+expert-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 2,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 18,
+  "pts": [
+   7,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 43,
+    "rival": 27,
+    "gap": 16,
+    "better": "me",
+    "score": 3.2
+   },
+   {
+    "id": "city",
+    "me": 3,
+    "rival": 18,
+    "gap": 15,
+    "better": "me",
+    "score": 5
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 7,
+    "to": 12,
+    "me": 4,
+    "rival": 0,
+    "gap": 4,
+    "score": 4,
+    "better": "me"
+   },
+   {
+    "id": "cost",
+    "me": 18,
+    "rival": 41,
+    "gap": 23,
+    "better": "me",
+    "score": 4.6
+   }
+  ],
+  "decisive": null,
+  "moment": {
+   "kind": "loss",
+   "turn": 12,
+   "setup": false,
+   "clear": true,
+   "cls": "missed",
+   "played": "Bank trade 4 Brick → 1 Wool",
+   "better": "Road toward Grain 8",
+   "B": 20,
+   "A": 28,
+   "gp": 8
+  },
+  "nCand": 6
+ },
+ "s123-trader+builder+expert-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 3,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 16,
+  "pts": [
+   6,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 21,
+    "rival": 39,
+    "gap": 18,
+    "better": "rival",
+    "score": 3.6
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 5,
+    "gap": 12,
+    "score": 4,
+    "better": "rival"
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 6,
+    "to": 11,
+    "me": 1,
+    "rival": 3,
+    "gap": 2,
+    "score": 2,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 34,
+    "rival": 4,
+    "gap": 30,
+    "better": "rival",
+    "score": 6,
+    "decisive": true
+   }
+  ],
+  "decisive": "cost",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "mistake",
+   "played": "Settlement on Lumber 11, Wool 6",
+   "better": "Settlement on Ore 9, Grain 6",
+   "B": 21,
+   "A": 38,
+   "gp": 17
+  },
+  "nCand": 6
+ },
+ "s124-shark+trader+builder-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 2,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 17,
+  "pts": [
+   7,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "city",
+    "me": null,
+    "rival": 8,
+    "gap": 10,
+    "score": 3.3333333333333335,
+    "better": "rival",
+    "decisive": true
+   },
+   {
+    "id": "pts",
+    "phase": "opening",
+    "from": 1,
+    "to": 6,
+    "me": 0,
+    "rival": 2,
+    "gap": 2,
+    "score": 2,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 9,
+    "rival": 38,
+    "gap": 29,
+    "better": "me",
+    "score": 5.8
+   },
+   {
+    "id": "luck",
+    "me": 8,
+    "rival": 19,
+    "gap": 11,
+    "better": "rival",
+    "score": 1.375
+   }
+  ],
+  "decisive": "city",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "could",
+   "played": "Settlement on Wool 3, Brick 4, Lumber 8",
+   "better": "Settlement on Lumber 4, Ore 11, Wool 5",
+   "B": 21,
+   "A": 29,
+   "gp": 8
+  },
+  "nCand": 6
+ },
+ "s125-expert+shark+trader-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 2,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 20,
+  "pts": [
+   4,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "city",
+    "me": 7,
+    "rival": 13,
+    "gap": 6,
+    "better": "me",
+    "score": 2
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 8,
+    "to": 13,
+    "me": 0,
+    "rival": 4,
+    "gap": 4,
+    "score": 4,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 6,
+    "rival": 19,
+    "gap": 13,
+    "better": "me",
+    "score": 2.6
+   },
+   {
+    "id": "luck",
+    "me": -23,
+    "rival": 13,
+    "gap": 36,
+    "better": "rival",
+    "score": 4.5,
+    "decisive": true
+   }
+  ],
+  "decisive": "luck",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": false,
+   "cls": "good",
+   "played": "Settlement on Lumber 3, Grain 10, Lumber 9",
+   "better": "Settlement on Wool 8, Grain 10",
+   "B": 22,
+   "A": 26,
+   "gp": 4
+  },
+  "nCand": 6
+ },
+ "s126-builder+builder+builder-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 3,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 16,
+  "pts": [
+   4,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 46,
+    "rival": 27,
+    "gap": 19,
+    "better": "me",
+    "score": 3.8
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 6,
+    "to": 11,
+    "me": 1,
+    "rival": 6,
+    "gap": 5,
+    "score": 5,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 0,
+    "rival": 20,
+    "gap": 20,
+    "better": "me",
+    "score": 4
+   },
+   {
+    "id": "luck",
+    "me": -5,
+    "rival": 51,
+    "gap": 56,
+    "better": "rival",
+    "score": 7,
+    "decisive": true
+   }
+  ],
+  "decisive": "luck",
+  "moment": null,
+  "nCand": 6
+ },
+ "s127-trader+trader+shark-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 26,
+  "pts": [
+   7,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 45,
+    "rival": 21,
+    "gap": 24,
+    "better": "me",
+    "score": 4.8
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 12,
+    "gap": 15,
+    "score": 5,
+    "better": "rival"
+   },
+   {
+    "id": "pts",
+    "phase": "end",
+    "from": 18,
+    "to": 26,
+    "me": 3,
+    "rival": 5,
+    "gap": 2,
+    "score": 2,
+    "better": "rival"
+   },
+   {
+    "id": "luck",
+    "me": -61,
+    "rival": 24,
+    "gap": 85,
+    "better": "rival",
+    "score": 10.625,
+    "decisive": true
+   }
+  ],
+  "decisive": "luck",
+  "moment": {
+   "kind": "loss",
+   "turn": 5,
+   "setup": false,
+   "clear": true,
+   "cls": "mistake",
+   "played": "Road toward Wool 4, Lumber 8, Brick 3",
+   "better": "Road toward Ore 10, Brick 4",
+   "B": 18,
+   "A": 25,
+   "gp": 7
+  },
+  "nCand": 6
+ },
+ "s128-master+expert+intermediate-solid-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 2,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 27,
+  "pts": [
+   6,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 47,
+    "rival": 28,
+    "gap": 19,
+    "better": "me",
+    "score": 3.8
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 15,
+    "gap": 13,
+    "score": 4.333333333333333,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 81,
+    "rival": 44,
+    "gap": 37,
+    "better": "rival",
+    "score": 7.4
+   },
+   {
+    "id": "luck",
+    "me": -40,
+    "rival": 31,
+    "gap": 71,
+    "better": "rival",
+    "score": 8.875,
+    "decisive": true
+   }
+  ],
+  "decisive": "luck",
+  "moment": {
+   "kind": "loss",
+   "turn": 27,
+   "setup": false,
+   "clear": true,
+   "cls": "blunder",
+   "played": "End turn",
+   "better": "Play Monopoly",
+   "B": 27,
+   "A": 44,
+   "gp": 17
+  },
+  "nCand": 6
+ },
+ "s129-master+beginner+simple-learner-p10": {
+  "won": false,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 16,
+  "pts": [
+   3,
+   10
+  ],
+  "target": 10,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 43,
+    "rival": 29,
+    "gap": 14,
+    "better": "me",
+    "score": 2.8
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 2,
+    "gap": 15,
+    "score": 5,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 34,
+    "rival": 8,
+    "gap": 26,
+    "better": "rival",
+    "score": 5.2,
+    "decisive": true
+   },
+   {
+    "id": "luck",
+    "me": -27,
+    "rival": 10,
+    "gap": 37,
+    "better": "rival",
+    "score": 4.625
+   }
+  ],
+  "decisive": "cost",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "mistake",
+   "played": "Settlement on Brick 6, Grain 5, Wool 9",
+   "better": "Settlement on Grain 5, Wool 9, Ore 8",
+   "B": 31,
+   "A": 42,
+   "gp": 11
+  },
+  "nCand": 6
+ },
+ "s130-beginner+intermediate+expert-learner-p8": {
+  "won": false,
+  "me": 0,
+  "rival": 3,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 20,
+  "pts": [
+   3,
+   8
+  ],
+  "target": 8,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 42,
+    "rival": 20,
+    "gap": 22,
+    "better": "me",
+    "score": 4.4
+   },
+   {
+    "id": "pts",
+    "phase": "mid",
+    "from": 8,
+    "to": 13,
+    "me": 0,
+    "rival": 2,
+    "gap": 2,
+    "score": 2,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 17,
+    "rival": 53,
+    "gap": 36,
+    "better": "me",
+    "score": 7.2
+   },
+   {
+    "id": "luck",
+    "me": -19,
+    "rival": 12,
+    "gap": 31,
+    "better": "rival",
+    "score": 3.875,
+    "decisive": true
+   }
+  ],
+  "decisive": "luck",
+  "moment": {
+   "kind": "loss",
+   "turn": 15,
+   "setup": false,
+   "clear": true,
+   "cls": "could",
+   "played": "Road toward Lumber 5",
+   "better": "Road toward Ore 2",
+   "B": 19,
+   "A": 24,
+   "gp": 5
+  },
+  "nCand": 5
+ },
+ "s131-simple+builder+shark-solid-p8": {
+  "won": false,
+  "me": 0,
+  "rival": 3,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 15,
+  "pts": [
+   6,
+   8
+  ],
+  "target": 8,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 19,
+    "rival": 30,
+    "gap": 11,
+    "better": "rival",
+    "score": 2.2
+   },
+   {
+    "id": "city",
+    "me": 14,
+    "rival": 8,
+    "gap": 6,
+    "better": "rival",
+    "score": 2
+   },
+   {
+    "id": "cost",
+    "me": 18,
+    "rival": 33,
+    "gap": 15,
+    "better": "me",
+    "score": 3
+   },
+   {
+    "id": "luck",
+    "me": 5,
+    "rival": 43,
+    "gap": 38,
+    "better": "rival",
+    "score": 4.75,
+    "decisive": true
+   }
+  ],
+  "decisive": "luck",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": true,
+   "clear": true,
+   "cls": "mistake",
+   "played": "Settlement on Wool 10, Ore 4, Lumber 5",
+   "better": "Settlement on Ore 10, Ore 4, Grain 6",
+   "B": 22,
+   "A": 34,
+   "gp": 12
+  },
+  "nCand": 6
+ },
+ "s132-intermediate+intermediate+trader-learner-p8": {
+  "won": false,
+  "me": 0,
+  "rival": 2,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 14,
+  "pts": [
+   2,
+   8
+  ],
+  "target": 8,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 23,
+    "rival": 31,
+    "gap": 8,
+    "better": "rival",
+    "score": 1.6
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 3,
+    "gap": 12,
+    "score": 4,
+    "better": "rival",
+    "decisive": true
+   },
+   {
+    "id": "pts",
+    "phase": "end",
+    "from": 10,
+    "to": 14,
+    "me": 0,
+    "rival": 3,
+    "gap": 3,
+    "score": 3,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 25,
+    "rival": 69,
+    "gap": 44,
+    "better": "me",
+    "score": 8.8
+   }
+  ],
+  "decisive": "city",
+  "moment": {
+   "kind": "loss",
+   "turn": 2,
+   "setup": false,
+   "clear": true,
+   "cls": "mistake",
+   "played": "Road toward Lumber 3, Brick 9, Brick 5",
+   "better": "Road toward Wool 12, Wool 3",
+   "B": 15,
+   "A": 25,
+   "gp": 10
+  },
+  "nCand": 6
+ },
+ "s133-expert+trader+beginner-solid-p8": {
+  "won": false,
+  "me": 0,
+  "rival": 2,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 16,
+  "pts": [
+   6,
+   8
+  ],
+  "target": 8,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 37,
+    "rival": 31,
+    "gap": 6,
+    "better": "me",
+    "score": 1.2
+   },
+   {
+    "id": "city",
+    "me": 3,
+    "rival": 6,
+    "gap": 3,
+    "better": "me",
+    "score": 1
+   },
+   {
+    "id": "pts",
+    "phase": "end",
+    "from": 12,
+    "to": 16,
+    "me": 0,
+    "rival": 5,
+    "gap": 5,
+    "score": 5,
+    "better": "rival",
+    "decisive": true
+   },
+   {
+    "id": "cost",
+    "me": 45,
+    "rival": 20,
+    "gap": 25,
+    "better": "rival",
+    "score": 5
+   }
+  ],
+  "decisive": "pts",
+  "moment": {
+   "kind": "loss",
+   "turn": 9,
+   "setup": false,
+   "clear": true,
+   "cls": "blunder",
+   "played": "Road toward Grain 8",
+   "better": "End turn (saves its cards)",
+   "B": 55,
+   "A": 67,
+   "gp": 12
+  },
+  "nCand": 6
+ },
+ "s134-beginner+simple+simple-learner-p6": {
+  "won": false,
+  "me": 0,
+  "rival": 1,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 15,
+  "pts": [
+   4,
+   6
+  ],
+  "target": 6,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "city",
+    "me": null,
+    "rival": 3,
+    "gap": 13,
+    "score": 4.333333333333333,
+    "better": "rival"
+   },
+   {
+    "id": "pts",
+    "phase": "end",
+    "from": 11,
+    "to": 15,
+    "me": 0,
+    "rival": 2,
+    "gap": 2,
+    "score": 2,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 78,
+    "rival": 30,
+    "gap": 48,
+    "better": "rival",
+    "score": 9.6,
+    "decisive": true
+   },
+   {
+    "id": "luck",
+    "me": -7,
+    "rival": 28,
+    "gap": 35,
+    "better": "rival",
+    "score": 4.375
+   }
+  ],
+  "decisive": "cost",
+  "moment": {
+   "kind": "loss",
+   "turn": 11,
+   "setup": false,
+   "clear": true,
+   "cls": "blunder",
+   "played": "End turn",
+   "better": "Play Road Building",
+   "B": 57,
+   "A": 78,
+   "gp": 21
+  },
+  "nCand": 6
+ },
+ "s135-builder+shark+intermediate-solid-p6": {
+  "won": false,
+  "me": 0,
+  "rival": 3,
+  "names": [
+   "You",
+   "Blaauw",
+   "Geelen",
+   "Groen"
+  ],
+  "n": 4,
+  "T": 12,
+  "pts": [
+   5,
+   6
+  ],
+  "target": 6,
+  "side": "rival",
+  "rows": [
+   {
+    "id": "start",
+    "me": 37,
+    "rival": 28,
+    "gap": 9,
+    "better": "me",
+    "score": 1.8
+   },
+   {
+    "id": "city",
+    "me": null,
+    "rival": 5,
+    "gap": 8,
+    "score": 2.6666666666666665,
+    "better": "rival"
+   },
+   {
+    "id": "cost",
+    "me": 16,
+    "rival": 37,
+    "gap": 21,
+    "better": "me",
+    "score": 4.2
+   },
+   {
+    "id": "luck",
+    "me": -51,
+    "rival": 17,
+    "gap": 68,
+    "better": "rival",
+    "score": 8.5,
+    "decisive": true
+   }
+  ],
+  "decisive": "luck",
+  "moment": {
+   "kind": "loss",
+   "turn": 1,
+   "setup": false,
+   "clear": true,
+   "cls": "mistake",
+   "played": "Road toward Grain 9, Wool 5",
+   "better": "Road toward Grain 9, Ore 4",
+   "B": 26,
+   "A": 35,
+   "gp": 9
+  },
+  "nCand": 6
+ }
+}
