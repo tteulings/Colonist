@@ -39,6 +39,9 @@ const INDEP = () => {
     ok(ready, `${tag}: the ledger is complete`);
     const flag = await page.evaluate(() => !!window.__colonistGame._rvOdds().ledger); ok(flag, `${tag}: the odds every screen reads are the ledger's`);
 
+    // v1.99: the Win chance tab, its moment bars and the scorecard chart were replaced by the post-game Overview (src/post-*.js); the same "one set of numbers on every screen" is checked by
+    // tests/analysis199.js (data layer) and tests/analysis199-ui.js (Overview = Moves = Numbers sheet). The ledger checks above still run; the old-screen checks below only on an app that has them.
+    if (!(await page.evaluate(() => typeof window.__colonistGame._rvWinRepaint === "function"))) { console.log(`SKIP ${tag}: the old Win chance tab is gone in v1.99 (covered by analysis199 / analysis199-ui)`); continue; }
     // 1 the Win chance tab: for EVERY turn, the three bars (before the roll, after it, end of the turn) as rendered
     await page.evaluate(() => { window.__colonistGame._rvTab = "win"; window.__colonistGame._rvDrawReview(); }); await sleep(1200);
     const T1 = await page.evaluate((src) => {

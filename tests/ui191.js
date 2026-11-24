@@ -32,7 +32,7 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
     await page.goto(`http://localhost:${port}/`); await page.waitForFunction(() => window.__colonistGame && document.body.dataset.gameReady, null, { timeout: 30000 });
     await page.evaluate(async (ex) => { const g = window.__colonistGame; const { meta, format, v, ...rec } = ex; await g.hist.put({ ...meta, id: meta.id }, rec, { quiet: true }); }, ex);
     await page.evaluate(() => window.__colonistGame.histOpen()); await sleep(1200);
-    await page.locator(`[data-hrow="${gid}"]`).tap(); await sleep(800);
+    await page.evaluate((i) => window.__colonistGame._histSheet(i), gid); await sleep(800);
     return { page, ctx };
   };
   const review = async (page) => { await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 20000 }); await sleep(800); };
@@ -95,7 +95,7 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
     // ── Replay (NL) ──
     if (isNL(lang)) {
       await page.evaluate(() => window.__colonistGame.goHome?.()); await page.evaluate(() => window.__colonistGame.histOpen()); await sleep(1200);
-      await page.locator(`[data-hrow="${gid}"]`).tap(); await sleep(800); await page.locator("[data-sact=replay]").first().tap(); await sleep(3500);
+      await page.evaluate((i) => window.__colonistGame._histSheet(i), gid); await sleep(800); await page.locator("[data-sact=replay]").first().tap(); await sleep(3500);
       const T = await page.evaluate(VIS, ".gs-replay"); ok(english(T).length === 0, `${tag}: Replay has no English`, english(T).slice(0, 40));
       const C = await page.evaluate(() => { const c = [...document.querySelectorAll(".gs-rp-cap b, .gs-rp-cap span")]; return c.filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.innerText); });
       ok(C.length === 0, `${tag}: Replay caption is not cut`, C);
@@ -106,7 +106,7 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
     // ── AI tab ──
     if (process.env.AI !== "0") {
       await page.evaluate(() => { const g = window.__colonistGame; try { g._rvCloseReview?.(true); } catch (_) {} });
-      await page.evaluate(() => window.__colonistGame.histOpen()); await sleep(1200); await page.locator(`[data-hrow="${gid}"]`).tap(); await sleep(800); await review(page);
+      await page.evaluate(() => window.__colonistGame.histOpen()); await sleep(1200); await page.evaluate((i) => window.__colonistGame._histSheet(i), gid); await sleep(800); await review(page);
       for (let k = 0; k < 4 && !(await page.locator("[data-aibody]").count()); k++) { await page.locator("[data-rvt=ai]").first().tap(); await sleep(k ? 900 : 2500); }
       const early = await page.evaluate(() => ({ rows: document.querySelectorAll(".lg-rr").length, ti: !!document.querySelector(".ap-ti, .ap-hl, .ap-c [data-pgturn]"), settle: !!document.querySelector(".ap-settle"), busy: !!window.__colonistGame._ldSettling?.(), tab: window.__colonistGame._rvTab, rv: !!document.querySelector(".rv"), step: window.__colonistGame._rvStep, ap: !!document.querySelector(".ap"), aib: !!document.querySelector("[data-aibody]") }));
       await shot(page, "ai-early", lang, w);

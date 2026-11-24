@@ -46,7 +46,7 @@ const HIST = () => {
     out.badge += row.querySelectorAll(".hs-badge").length;
     for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) if (hit(r(parts[i]), r(parts[j]))) out.overlap.push(`${parts[i].className}|${parts[j].className}`);
     parts.forEach((p) => { const q = r(p); if (q.right > rr.right + 0.5 || q.left < rr.left - 0.5) out.overlap.push("outside " + p.className); });
-    const t = row.querySelector(".hs-main b"); if (t.scrollWidth > t.clientWidth + 1 || r(t).height > 44) out.clipped.push(t.textContent);
+    const t = row.querySelector(".hs-main b"); if (t && (t.scrollWidth > t.clientWidth + 1 || r(t).height > 44)) out.clipped.push(t.textContent);
     row.querySelectorAll(".hs-sc > span").forEach((s, i, all) => { const n = all[i + 1]; if (n) { const gap = r(n).left - r(s).right; if (gap < 6) out.tight.push(gap.toFixed(1)); } });
     const txt = row.querySelector(".hs-main b").textContent.toLowerCase(); const bd = row.querySelector(".hs-badge")?.textContent.toLowerCase();
     if (bd && (txt.startsWith(bd.slice(0, 5)) || /^(won|lost|gewonnen|verloren)/.test(txt))) out.resultDup++;
