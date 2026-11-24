@@ -7342,9 +7342,26 @@ class ColonistFullGame {
     try {
       const json = JSON.stringify(this.serializeState());
       if (json === this._lastSavedJson) return;
-      localStorage.setItem(ColonistFullGame.STORAGE_KEY, json);
-      this._lastSavedJson = json;
-    } catch (_) { /* quota exceeded or private mode — ignore */ }
+      if (this._setSave(json)) { this._lastSavedJson = json; this._saveWarned = false; }
+      else if (!this._saveWarned) { this._saveWarned = true; this.pushToast?.("Couldn’t save your game: this device’s storage is full. Free some space.", "important"); }
+    } catch (_) { /* private mode — ignore */ }
+  }
+
+  /** v1.98 write the save; on a full storage drop the least important data first (old lab runs, the review numbers of past
+   *  games, the running game's cached review recording: all rebuilt or optional) and try again, before giving the save up. */
+  _setSave(json) {
+    const K = ColonistFullGame.STORAGE_KEY;
+    try { localStorage.setItem(K, json); return true; } catch (_) { /* quota: make room */ }
+    for (const k of ["colonist.lab.runs", "colonist_review_hist_v1", "colonist_lessons_practice", "colonist_review_v1"]) {
+      try {
+        if (localStorage.getItem(k) == null) continue;
+        localStorage.removeItem(k);
+        if (k === "colonist_review_v1" && this._rv) this._rv.bytes = 0;
+        localStorage.setItem(K, json);
+        return true;
+      } catch (_) { /* still full: next one */ }
+    }
+    return false;
   }
 
   // Every state change ends in render(), so render() queues a save: builds, bank and player
