@@ -21,3 +21,6 @@
 - tests/verdict182.js regex for "Miss": `Miss(?![a-z])`. i18n-walk must click end-screen tabs inside the closed "More" card.
 - aitab173/why182/verdict182 need redesign/state9383.json (copy of state9101.json) in the test root.
 - Version bump: APP_VERSION 1.99, all ?v=198 -> ?v=199 (avatar ?v=57 stays), cache colonist-v199, new files in sw.js SHELL.
+
+## Review of the built analysis screens (PO, 24 nov)
+The approved screenshots (docs/design/shots/analysis-approved/) are the reference, not a cage. Critics judge broadly: does it teach (the three lessons), is it clear for a casual player, is it pleasant and consistent, does it beat the mockups where it can. Deviations from the mockups are fine when they are improvements; flag them with the reason.
