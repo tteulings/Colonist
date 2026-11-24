@@ -1,0 +1,66 @@
+{
+ "won": false,
+ "T": 18,
+ "n": 4,
+ "led": {
+  "from": 25,
+  "setup": 0,
+  "moves": -18,
+  "luck": 51,
+  "rest": -57,
+  "to": 1,
+  "total": -24,
+  "perMove": 0.9
+ },
+ "roll": {
+  "T": 13,
+  "roll": 4,
+  "d": 14,
+  "mine": true
+ },
+ "move": {
+  "T": 12,
+  "gp": 8,
+  "cls": "missed",
+  "kind": "bank",
+  "best": "road",
+  "label": "Bank trade 4 Brick → 1 Wool",
+  "bestLabel": "Road toward Grain 8"
+ },
+ "picks": [
+  {
+   "n": 1,
+   "win": 38,
+   "best": 38,
+   "gp": 0
+  },
+  {
+   "n": 2,
+   "win": 43,
+   "best": 43,
+   "gp": 0
+  }
+ ],
+ "seatLuck": 6,
+ "goodMove": {
+  "T": 16,
+  "d": 3
+ },
+ "names": [
+  "You",
+  "Blaauw",
+  "Geelen",
+  "Groen"
+ ],
+ "seat": 0,
+ "score": [
+  7,
+  7,
+  10,
+  6
+ ],
+ "tag": "s122-expert+expert+expert-solid-p10",
+ "id": "ltt7tw940",
+ "result": "lost",
+ "pts": 10
+}

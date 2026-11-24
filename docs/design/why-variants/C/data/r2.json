@@ -1,0 +1,66 @@
+{
+ "won": false,
+ "T": 13,
+ "n": 4,
+ "led": {
+  "from": 25,
+  "setup": -8,
+  "moves": -6,
+  "luck": -16,
+  "rest": 44,
+  "to": 39,
+  "total": 14,
+  "perMove": 1
+ },
+ "roll": {
+  "T": 2,
+  "roll": 9,
+  "d": -5,
+  "mine": false
+ },
+ "move": {
+  "T": 12,
+  "gp": 4,
+  "cls": "close",
+  "kind": "bank",
+  "best": "card",
+  "label": "Bank trade 3 Brick → 1 Grain",
+  "bestLabel": "Trade Brick → 1 Ore, then Dev card"
+ },
+ "picks": [
+  {
+   "n": 1,
+   "win": 38,
+   "best": 45,
+   "gp": 7
+  },
+  {
+   "n": 2,
+   "win": 38,
+   "best": 39,
+   "gp": 1
+  }
+ ],
+ "seatLuck": -5,
+ "goodMove": {
+  "T": 7,
+  "d": 4
+ },
+ "names": [
+  "You",
+  "Blaauw",
+  "Geelen",
+  "Groen"
+ ],
+ "seat": 0,
+ "score": [
+  5,
+  10,
+  6,
+  6
+ ],
+ "tag": "r2",
+ "id": "mwv17krqgjog",
+ "result": "lost",
+ "pts": 10
+}

@@ -1,0 +1,66 @@
+{
+ "won": false,
+ "T": 26,
+ "n": 4,
+ "led": {
+  "from": 25,
+  "setup": 0,
+  "moves": -25,
+  "luck": -61,
+  "rest": 67,
+  "to": 6,
+  "total": -19,
+  "perMove": 0.8
+ },
+ "roll": {
+  "T": 16,
+  "roll": 6,
+  "d": -8,
+  "mine": true
+ },
+ "move": {
+  "T": 5,
+  "gp": 7,
+  "cls": "mistake",
+  "kind": "road",
+  "best": "road",
+  "label": "Road toward Wool 4, Lumber 8, Brick 3",
+  "bestLabel": "Road toward Ore 10, Brick 4"
+ },
+ "picks": [
+  {
+   "n": 1,
+   "win": 33,
+   "best": 33,
+   "gp": 0
+  },
+  {
+   "n": 2,
+   "win": 45,
+   "best": 45,
+   "gp": 0
+  }
+ ],
+ "seatLuck": 4,
+ "goodMove": {
+  "T": 4,
+  "d": 3
+ },
+ "names": [
+  "You",
+  "Blaauw",
+  "Geelen",
+  "Groen"
+ ],
+ "seat": 0,
+ "score": [
+  7,
+  10,
+  6,
+  9
+ ],
+ "tag": "s127-trader+trader+shark-solid-p10",
+ "id": "lu0d15l40",
+ "result": "lost",
+ "pts": 10
+}

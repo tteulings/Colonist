@@ -1,0 +1,58 @@
+{
+ "won": false,
+ "T": 17,
+ "n": 4,
+ "led": {
+  "from": 25,
+  "setup": -35,
+  "moves": 0,
+  "luck": 1,
+  "rest": 9,
+  "to": 0,
+  "total": -25,
+  "perMove": 17.5
+ },
+ "roll": {
+  "T": 2,
+  "roll": 4,
+  "d": 2,
+  "mine": false
+ },
+ "move": null,
+ "picks": [
+  {
+   "n": 1,
+   "win": 27,
+   "best": 43,
+   "gp": 16
+  },
+  {
+   "n": 2,
+   "win": 6,
+   "best": 25,
+   "gp": 19
+  }
+ ],
+ "seatLuck": -2,
+ "goodMove": {
+  "T": 1,
+  "d": 1
+ },
+ "names": [
+  "You",
+  "Blaauw",
+  "Geelen",
+  "Groen"
+ ],
+ "seat": 0,
+ "score": [
+  2,
+  11,
+  2,
+  7
+ ],
+ "tag": "s1-beginner+simple+intermediate-learner-p10",
+ "id": "lp0bjtl40",
+ "result": "lost",
+ "pts": 10
+}

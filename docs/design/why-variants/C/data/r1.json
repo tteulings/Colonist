@@ -1,0 +1,66 @@
+{
+ "won": true,
+ "T": 20,
+ "n": 4,
+ "led": {
+  "from": 25,
+  "setup": -9,
+  "moves": -5,
+  "luck": 1,
+  "rest": 88,
+  "to": 100,
+  "total": 75,
+  "perMove": 0.5
+ },
+ "roll": {
+  "T": 14,
+  "roll": 6,
+  "d": 12,
+  "mine": false
+ },
+ "move": {
+  "T": 13,
+  "gp": 4,
+  "cls": "lean",
+  "kind": "end",
+  "best": "card",
+  "label": "End turn",
+  "bestLabel": "Dev card"
+ },
+ "picks": [
+  {
+   "n": 1,
+   "win": 29,
+   "best": 38,
+   "gp": 9
+  },
+  {
+   "n": 2,
+   "win": 35,
+   "best": 35,
+   "gp": 0
+  }
+ ],
+ "seatLuck": -8,
+ "goodMove": {
+  "T": 12,
+  "d": 7
+ },
+ "names": [
+  "You",
+  "Blaauw",
+  "Geelen",
+  "Groen"
+ ],
+ "seat": 0,
+ "score": [
+  10,
+  8,
+  4,
+  8
+ ],
+ "tag": "r1",
+ "id": "mwv17kbab1on",
+ "result": "won",
+ "pts": 10
+}

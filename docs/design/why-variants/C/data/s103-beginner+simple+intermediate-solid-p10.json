@@ -1,0 +1,66 @@
+{
+ "won": false,
+ "T": 26,
+ "n": 4,
+ "led": {
+  "from": 25,
+  "setup": -9,
+  "moves": -55,
+  "luck": -17,
+  "rest": 58,
+  "to": 2,
+  "total": -23,
+  "perMove": 2.1
+ },
+ "roll": {
+  "T": 21,
+  "roll": 5,
+  "d": -19,
+  "mine": true
+ },
+ "move": {
+  "T": 18,
+  "gp": 22,
+  "cls": "blunder",
+  "kind": "bank",
+  "best": "bank",
+  "label": "Bank trade 3 Wool → 1 Lumber",
+  "bestLabel": "Bank trade Wool → Ore"
+ },
+ "picks": [
+  {
+   "n": 1,
+   "win": 32,
+   "best": 35,
+   "gp": 3
+  },
+  {
+   "n": 2,
+   "win": 19,
+   "best": 34,
+   "gp": 15
+  }
+ ],
+ "seatLuck": -4,
+ "goodMove": {
+  "T": 7,
+  "d": 8
+ },
+ "names": [
+  "You",
+  "Blaauw",
+  "Geelen",
+  "Groen"
+ ],
+ "seat": 0,
+ "score": [
+  7,
+  4,
+  10,
+  7
+ ],
+ "tag": "s103-beginner+simple+intermediate-solid-p10",
+ "id": "lt22gpl40",
+ "result": "lost",
+ "pts": 10
+}
