@@ -1,4 +1,4 @@
-// v1.81 verdict class (clear / lean / close) + targeted refinement. node verdict182.js PORT EXPORT.json  (screenshots: $SHOTS)
+// v1.81 verdict class (clear / lean / close) + targeted refinement. node verdict182.js PORT EXPORT.json  (screenshots: $SHOTS) // needs an export with a close AND a clear decision (e.g. 23eda3e1, 31c46061 or 72eb9b87 of the v1.97 uploads; 867ad748 has no clear decision)
 const { open: openApp, sleep } = require("/tmp/claude-0/-home-user-Colonist/d9ceb834-54a4-5da3-a5eb-477cce8e55d6/scratchpad/redesign/lib.js");
 const fs = require("fs"); const port = +process.argv[2] || 9620, file = process.argv[3]; let fails = 0;
 const SH = process.env.SHOTS || "/tmp/claude-0/-home-user-Colonist/d9ceb834-54a4-5da3-a5eb-477cce8e55d6/scratchpad/verdict";

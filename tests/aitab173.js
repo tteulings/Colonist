@@ -1,4 +1,4 @@
-// v1.73 AI tab on a real export with a MOCKED endpoint. node aitab173.js PORT EXPORT.json [--real]   (--real: real endpoint, PORT 9978, <=4 calls)
+// v1.73 AI tab on a real export with a MOCKED endpoint. node aitab173.js PORT EXPORT.json [--real]   (--real: real endpoint, PORT 9978, <=4 calls) // use an export whose reviewed player has a point-card/dice story matching the checks (72eb9b87 of the v1.97 uploads passes ALL; 867ad748 only reaches the tool-loop checks with FAILs)
 const { open: openApp, sleep } = require("/tmp/claude-0/-home-user-Colonist/d9ceb834-54a4-5da3-a5eb-477cce8e55d6/scratchpad/redesign/lib.js");
 const fs = require("fs"); const port = +process.argv[2] || 9771, file = process.argv[3], real = process.argv.includes("--real"); let fails = 0;
 const SH = process.env.SHOTS || "/tmp/claude-0/-home-user-Colonist/d9ceb834-54a4-5da3-a5eb-477cce8e55d6/scratchpad/aitab/shots";
@@ -56,7 +56,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
       { level: "game", title: "One point short", text: "You were one point away: a settlement needed 1 wood and 1 wheat.", view: "nearmiss", turns: [], players: ["You"], clauses: [] },
       { level: "strategy", title: "Every plan", text: "Cities and the army beat your settlements.", view: "plan", turns: [], players: F.names, clauses: F.names.map((n, i) => ({ player: n, text: `built up from turn ${3 + i}, clause ${i}` })) },
     ] } } }
-    : { body: { explain: { answer: `${opN} won by drawing a point card on turn ${F.opp.t}. Second line here. A third line that makes the text longer than three lines on a narrow phone screen so it can expand. Then a fourth sentence with more words so that it certainly needs the more link on any phone.`, points: ["10 points", "Ore 6 / Grain 9"], view: "winchance", turns: [F.opp.t], focusTurn: F.opp.t, players: [opN], followUps: ["Who built first?", "And the longest road?"] } } };
+    : { body: { explain: { answer: `${opN} finished ahead of the others. Second line here. A third line that makes the text longer than three lines on a narrow phone screen so it can expand. Then a fourth sentence with more words so that it certainly needs the more link on any phone.`, points: ["10 points", "Ore 6 / Grain 9"], view: "winchance", turns: [F.opp.t], focusTurn: F.opp.t, players: [opN], followUps: ["Who built first?", "And the longest road?"] } } };
   const mock0 = mock;
   const tab = () => page.locator("[data-rvt=ai]");
   // Overview row opens the tab

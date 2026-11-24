@@ -25,3 +25,8 @@ html[lang="nl"] .hand .card .rib span, html[lang="nl"] .hand .card.slot .slot-na
   .app .primary-slot .waiting .wt small { display: none; }
 }
 @media (max-width: 340px) { html[lang="nl"] .home .hm-seg button { font-size: 12px; letter-spacing: -.02em; } html[lang="nl"] .hm-row { grid-template-columns: 62px minmax(0, 1fr); gap: 5px; } }
+/* v1.98 Dutch words run longer: the ticker and the dock's info box may use two short lines instead of cutting the text off (English keeps its single line). The font size is the same. */
+html[lang="nl"] .app .ticker .txt:not(:has(.tk-main)), html[lang="nl"] .app .ticker .tk-main, html[lang="nl"] .app .ticker.act .txt:not(:has(.tk-main)), html[lang="nl"] .app .ticker.act .tk-main { display: -webkit-box; white-space: normal; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.15; }
+html[lang="nl"] .tray .tinfo > span small { display: -webkit-box; white-space: normal; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.1; }
+/* the dev-card ribs in the hand: "Uitvinding" / "Monopolie" are a few pixels wider than the card's name strip */
+html[lang="nl"] .app .hand .card.dev .rib span { letter-spacing: -.07em; }

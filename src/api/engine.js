@@ -502,14 +502,7 @@ export class Engine {
   }
   _do_build(a, p) {
     const g = this.g, cb = { type: a.piece, id: a.node ?? a.edge };
-    if (!(this.legacyBotOrder && g.freeRoadsRemaining > 0)) return g._commitBuild(p, cb);
-    // legacyBotOrder: the old bots choose both free roads of Road Building before the longest road is counted (once, when the card is done)
-    const own = Object.prototype.hasOwnProperty.call(g, "recomputeScores"), r0 = g.recomputeScores;
-    let ok;
-    g.recomputeScores = () => {};
-    try { ok = g._commitBuild(p, cb); } finally { if (own) g.recomputeScores = r0; else delete g.recomputeScores; }
-    if (ok && g.freeRoadsRemaining <= 0) { g.recomputeScores(); g.checkForWinner(p); }
-    return ok;
+    return g._commitBuild(p, cb); // every road, free ones too, is counted (and a win declared) as it is placed
   }
   _do_roll(a, p) {
     const g = this.g;
@@ -530,26 +523,17 @@ export class Engine {
     const g = this.g;
     if (!g.buyDevelopmentCard(p)) return false;
     if (g.sbp) g._sbpAfterHumanBuild();
-    if (this.legacyBotOrder) return true; // the old bots count a bought card (a hidden point) when their main phase closes, not at the purchase
-    g.recomputeScores();
+    g.recomputeScores(); // (a bot's seat has counted the card at the purchase already: buyDevelopmentCard)
     if (g.rush) g._rushAfterAction(p); else g.checkForWinner(p);
   }
   _do_playDev(a, p) {
     const g = this.g;
     g._dropUndo?.();
     if (a.card === "knight") { this._via = "knight"; this._knightSeat = this.legacyBotOrder ? p.id : null; }
-    let ok;
-    if (this.legacyBotOrder && a.card === "knight") { // the card's own closing recomputeScores is held back too
-      const own = Object.prototype.hasOwnProperty.call(g, "recomputeScores"), r0 = g.recomputeScores;
-      g.recomputeScores = () => {};
-      try { ok = g.playDevelopmentCard(p, a.card); } finally { if (own) g.recomputeScores = r0; else delete g.recomputeScores; }
-    } else ok = g.playDevelopmentCard(p, a.card);
-    if (!ok) return false;
-    // legacyBotOrder (the bot host): the old bots count a Knight's Largest Army only after the robber has moved and robbed, so their choice of
-    // victim sees the scores from before the card; a person's card counts at once. The scores are brought up to date when the robber flow ends.
-    if (this.legacyBotOrder && a.card === "knight" && g.pendingAction === "robber") { this._scoreAfterRobber = true; return true; }
+    if (!g.playDevelopmentCard(p, a.card)) return false;
     g.recomputeScores();
-    if (g.pendingAction !== "robber") g.checkForWinner(p); // a Knight's Largest Army wins once the robber has moved (the bots' order)
+    g.checkForWinner(p); // a Knight's Largest Army wins at once, before the robber moves (playDevelopmentCard has already looked)
+    if (g.winner) { this._via = null; this._knightSeat = null; }
     return true;
   }
   _do_pick(a, p) {
@@ -606,7 +590,7 @@ export class Engine {
     if (ks != null && g.stats) { // the old bots' Knight was one call: its robbery was counted before the card ("t", "R", then "y")
       const ev = g.stats.ev;
       for (let i = ev.length - 1; i >= 0 && i >= ev.length - 6; i--) if (ev[i][1] === "y" && ev[i][2] === ks) { ev.push(ev.splice(i, 1)[0]); break; }
-    } if (this._scoreAfterRobber) { this._scoreAfterRobber = false; g.recomputeScores(); } g.checkForWinner(g.currentPlayer); }
+    } g.checkForWinner(g.currentPlayer); }
   _do_steal(a, p) {
     const g = this.g;
     g.stealFromVictim(p, a.victim);
@@ -957,9 +941,9 @@ export function newGame(game, spec = {}) {
 
 /**
  * Play a log (engine.log()) on a fresh game; returns the engine (engine.replayInfo = { played, skipped }). Throws on the first action the
- * engine refuses. One difference between a bot's turn and a driven turn: the old bots check for the win once, at the end of their
- * main phase, while the engine (like the tap UI) declares it the moment a seat reaches the target; a bot may therefore still make a
- * trade or two after its winning move. With `untilWin` (default) those trailing actions of the winner are skipped instead of refused.
+ * engine refuses. A seat that wins is declared at once by the engine, the tap UI and the bots alike (a Knight, a bought card, each
+ * free road and every build are counted the moment they happen), so a log from an older version, whose bots counted some of these only when their
+ * main phase closed, may still hold actions after the winning move. With `untilWin` (default) those trailing actions of the winner are skipped instead of refused.
  */
 export function replay(game, log, { untilWin = true } = {}) {
   const e = newGame(game, log.setup);

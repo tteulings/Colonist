@@ -1,5 +1,12 @@
 // Step 5: events instead of addLog / DOM stubs. The log, the sounds, the stats recorder and the review recorder must not change.
-//   node tests/events197.js BASE_ROOT [PORT] [--quick]      BASE_ROOT = a checkout of the code before the change (origin/main v1.96)
+//   node tests/events197.js BASE_ROOT [PORT] [--quick]      BASE_ROOT = a checkout of the code before the change (v1.96) WITH THE SCORING-MOMENT ALIGNMENT of v1.98:
+//     cp -r v1.96-checkout base && patch -p1 -d base < tests/fixtures/base196-aligned-scoring.patch
+//   Since v1.98 bots and people count (and win by) a Knight's Largest Army, a bought Victory Point card and each free road at the moment it happens; v1.96's bots
+//   counted these later (after the robbery / at the end of the main phase / after both free roads), which changes the games themselves (robber and victim choices,
+//   a win without a robber move, the second free road): after the first such moment a v1.96 game is a different game and nothing could be compared. The patch
+//   (src/game.js + src/api/engine.js, ~25 changed lines, no UI / event / log code) carries exactly that rule change back onto v1.96, so this test still
+//   compares EVERY stream (log, sounds, fx, animations, toasts, stats, review, final position) of the whole game, only without the intended rule change.
+//   The rule change itself is tested by tests/align198.js and the re-baselined goldens (tests/golden/games.json).
 // The same seeded games (a person at seat 0, driven through the Action API like a user; the bots as usual) are played in the browser (360x780, NL and EN,
 // timers 25x, Math.random seeded before the app loads) on THIS tree and on BASE_ROOT. Per game both give: every addLog text, every sound the game plays,
 // every fx call, every placement animation, the stats events and steps, the review recorder's moves, the toasts, the final position.

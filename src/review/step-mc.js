@@ -1,9 +1,11 @@
 // v1.90 STEP LEDGER (worker side): the value (every seat's win chance) of a recorded position, on the SAME scale as luck-mc.js (same leaf, depth, play, dice streams),
 // so that the change between two consecutive positions telescopes. Futures j use the same seeds in every position (common random numbers).
-import { withoutAgents, mulberry32 } from "../master/sim.js";
+import { withoutAgents } from "../master/sim.js";
+import { futures } from "../mc/futures.js";
+import { simulate, capture } from "../mc/simulate.js"; // step 6: the futures run on the Monte Carlo toolkit
 import { referenceStrategy } from "../bots/registry.js"; // step 4: the review's reference player comes from the bot registry
 import { loadPosition } from "./engine.js";
-import { snap, back, play, shuffle, leafOf } from "./luck-mc.js";
+import { leafOf } from "./luck-mc.js";
 import { packW } from "./ledger.js";
 export const STEP_MC = { futures: 50, depth: 7, seed: 131 };
 /** { v: [seats], se: [seats], F } ; rec.st is the position BEFORE the record. */
@@ -15,15 +17,9 @@ export function valueAt(g, base, rec, opts = {}) {
   const n = g.players.length;
   if (o.pass && g.phase === "main" && !g.winner) withoutAgents(g, () => g.endTurn()); // B: "end turn instead" (the pass valuation)
   if (g.winner) return { v: Array.from({ length: n }, (_, q) => (q === g.winner.id ? 1 : 0)), se: Array(n).fill(0), F: 0, W: [], ms: 0 };
-  const S0 = snap(g), W = [], keepR = Math.random, leaf = leafOf(o.leaf);
-  try {
-    for (let j = 0; j < o.futures; j += 1) {
-      back(g, S0);
-      const rng = mulberry32((o.seed + Math.imul(j + 1 + (o.jOff || 0), 0x9e3779b1)) | 0), dice = mulberry32((o.seed ^ Math.imul(j + 1 + (o.jOff || 0), 0x85ebca6b)) | 0);
-      withoutAgents(g, () => { const orig = Math.random; Math.random = rng; try { shuffle(g.devDeck, rng); } finally { Math.random = orig; } if (!g.winner) play(g, o.depth, rng, dice); });
-      W.push(leaf(g));
-    }
-  } finally { Math.random = keepR; }
+  const S0 = capture(g), keepR = Math.random, leaf = leafOf(o.leaf);
+  let W;
+  try { W = simulate({ g, world: S0, F: futures({ seed: o.seed, offset: o.jOff || 0 }), n: o.futures, turns: o.depth, leaf, headless: false }).samples[0]; } finally { Math.random = keepR; }
   const F = W.length, v = Array.from({ length: n }, (_, q) => W.reduce((a, w) => a + w[q], 0) / F);
   const se = v.map((m, q) => Math.sqrt(W.reduce((a, w) => a + (w[q] - m) ** 2, 0) / Math.max(1, F - 1) / F));
   return { v, se, F, W, ms: performance.now() - t0 };

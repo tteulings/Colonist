@@ -118,6 +118,6 @@ export function startLabGame(g, strategies, o = {}) {
   g.onboardingHold = false;
   if (g.setupPhase) g.setupAction = null;
   const e = createEngine(g, { meta: { host: true, seed: o.seed ?? null } });
-  e.legacyBotOrder = true; // the old bots' order of scoring a Knight (see engine.js _do_playDev)
+  e.legacyBotOrder = true; // the old bots' order of play for the rest (set-up scores, roll, trades, stats events: see engine.js); scoring and winning are the same as for a person
   return e.takeControl("all");
 }

@@ -247,8 +247,11 @@ export const HistoryMixin = {
   /** What the old single-slot storage holds (strings, read before a new game can clear it). */
   histOldSlot() {
     try {
-      if (localStorage.getItem("colonist_hist_migrated") === "1") return null;
-      return { save: localStorage.getItem(this.constructor.STORAGE_KEY), rv: localStorage.getItem("colonist_review_v1"), hist: localStorage.getItem("colonist_review_hist_v1") };
+      const save = localStorage.getItem(this.constructor.STORAGE_KEY);
+      // v1.98 a FINISHED game still in the slot (closed before its archive was written, or no room then) is rescued on every launch, not only the first
+      let finished = false; try { finished = !!save && JSON.parse(save)?.winnerId != null; } catch (_) { /* unreadable */ }
+      if (localStorage.getItem("colonist_hist_migrated") === "1" && !finished) return null;
+      return { save, rv: localStorage.getItem("colonist_review_v1"), hist: localStorage.getItem("colonist_review_hist_v1") };
     } catch (_) { return null; }
   },
 
@@ -260,15 +263,22 @@ export const HistoryMixin = {
       if (st?.winnerId != null && st.stats?.id && !this.hist.metas.some((m) => m.id === st.stats.id)) {
         const rv = old.rv ? JSON.parse(old.rv) : null;
         const same = rv && rv.id === st.stats.id;
+        const recs = same ? (rv.v === 3 ? unpackRecs(rv.recs) : rv.recs) : []; // v1.98 (the recording is stored packed since v1.29)
         const a = (JSON.parse(old.hist || "[]") || []).find((x) => x.id === st.stats.id);
         const winner = st.winnerId, me = (st.players || []).findIndex((p) => p.isHuman);
         const rush = st.settings?.mode === "rush";
         const seats = st.players.map((p, i) => ({ name: p.name, vp: p.victoryPoints, you: i === me, ...seatProf({ ...p, id: i }, null) }));
         const meta = { id: st.stats.id, v: 1, start: startOf(st.stats.id), end: a?.at || Date.now(), mode: rush ? "rush" : "classic", board: st.sea ? "seafarers" : "island", n: seats.length,
           pts: st.settings?.winPoints || 10, hot: false, seats, me: me >= 0 ? me : null, winner,
-          result: me < 0 ? "table" : winner === me ? "won" : "lost", turns: st.turn, ms: st.stats.ms || 0, acc: a?.acc ?? null, mid: !!a?.midCheck, star: false, rec: !!same, rd: same ? rv.recs.filter((r) => r.pid === me).length : 0 };
+          result: me < 0 ? "table" : winner === me ? "won" : "lost", turns: st.turn, ms: st.stats.ms || 0, acc: a?.acc ?? null, mid: !!a?.midCheck, star: false, rec: !!same, rd: same ? recs.filter((r) => r.pid === me).length : 0 };
         st.logEntries = [];
-        if (!(await this.hist.put(meta, { state: st, rv: same ? { base: rv.base, recs: rv.recs, reviews: rv.review?.results?.length ? { [rv.review.pid]: (rescoreReview(rv.review), rv.review) } : {} } : null }))) return; // no room: try again next start
+        const revs = same ? (rv.reviews || (rv.review?.results?.length ? { [rv.review.pid]: rv.review } : {})) : {};
+        Object.values(revs).forEach((r) => rescoreReview(r));
+        if (!(await this.hist.put(meta, { state: st, rv: same ? { base: rv.base, recs: packRecs(recs), reviews: revs, ...(rv.bots ? { bots: 1 } : {}), ...(rv.luck ? { luck: rv.luck } : {}) } : null }))) {
+          // no room: the finished game goes back into its slot (the launch cleared it) so the next start tries again; a game started since is never overwritten
+          try { if (localStorage.getItem(this.constructor.STORAGE_KEY) == null) localStorage.setItem(this.constructor.STORAGE_KEY, old.save); } catch (_) { /* full */ }
+          return;
+        }
       }
       localStorage.setItem("colonist_hist_migrated", "1");
     } catch (_) { /* nothing to migrate / private mode */ }

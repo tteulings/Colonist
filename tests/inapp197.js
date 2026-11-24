@@ -3,7 +3,10 @@
 // Every seeded game is played twice (host ON / host OFF = the old driver) and once on a pristine copy of the previous release (BASE), and the runs are compared
 // at every 250 ms of game time: hands, pieces, bank, deck, robber, scores, the log text, the animations queue, the stats events, the review recorder's records,
 // the number of Math.random calls. Modes: classic, Seafarers, 5-6 players, Rush; bots only (watch mode) and one human with scripted taps.
-//   node tests/inapp197.js [ROOT=repo] [BASE=pristine v1.96 copy] [PORT=8901]      env ONLY=classic,sea  GAMES=n  TURNS=n  HOST=1|0|modes (the flag of the ON run)
+// BASE = a v1.96 copy WITH THE SCORING-MOMENT ALIGNMENT of v1.98 (cp -r v1.96-checkout base && patch -p1 -d base < tests/fixtures/base196-aligned-scoring.patch): since v1.98 bots count a Knight's
+// Largest Army, a bought VP card and each free road at the moment it happens, as people always did; v1.96's bots counted later, which changes the games themselves
+// (robber/victim choices, a win without a robber move). The patch carries only that rule change (src/game.js, src/api/engine.js) back onto v1.96, so every state is still compared.
+//   node tests/inapp197.js [ROOT=repo] [BASE=v1.96 copy + aligned-scoring patch] [PORT=8901]      env ONLY=classic,sea  GAMES=n  TURNS=n  HOST=1|0|modes (the flag of the ON run)
 const { chromium } = (() => { try { return require("playwright"); } catch (_) { return require("/opt/node-tools/node_modules/playwright"); } })();
 const http = require("http"), fs = require("fs"), path = require("path");
 const ROOT = path.resolve(process.argv[2] || path.join(__dirname, "..")), BASE = process.argv[3] && process.argv[3] !== "-" ? path.resolve(process.argv[3]) : null, PORT = +process.argv[4] || 8901;

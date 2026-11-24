@@ -9,6 +9,7 @@
 //   · the missed-chance lines on the end screen then come from the Master's check (verified)
 import { esc, IC, cmpHtml, whyHtml, aimHtml } from "./review-ui.js";
 import { oicon } from "./ui-icons.js";
+import { isNL } from "./i18n.js";
 import { reviewModel, REVIEW_MODELS, modelOfId } from "./review/evaluate.js";
 import { summarize, REVIEW, REVIEW_ENGINE, REVIEW_ENGINES, ACC, clsOf, LIMITS, SETUP_LIMITS, CLASSES, GREAT, gpOf, decide, totals, tradeShow, needsFull } from "./review/evaluate.js";
 import { reviewAvailable } from "./master.js";
@@ -229,7 +230,7 @@ export const ReviewGameMixin = {
     const run = F.steps.find((x) => x.st === "run"), stop = F.steps.find((x) => x.st === "stop");
     const ag = F.again ? "Again · " : "", lab0 = (x) => (x.k === "quick" ? `${F.again ? "Moves" : "Quick"} ${x.j}/${x.n}` : x.k === "deep" ? `Moves ${x.j}/${x.n}` : x.k === "luck" ? `Luck ${x.j}/${x.n}` : `Bots ${Math.max(1, (x.tot || 1) - (x.left || 1) + 1)}/${x.tot || 1}`);
     const lab = (x) => ag + lab0(x);
-    const eta = F.etaMine + F.etaBots > 3 ? ` · ~${this._rvEtaText(F.etaMine + F.etaBots).replace("about ", "")}` : "";
+    const eta = F.etaMine + F.etaBots > 3 ? ` · ${(e0 => (e0.startsWith("about ") ? `~${e0.slice(6)}` : e0))(this._rvEtaText(F.etaMine + F.etaBots))}` : "";
     const cur = run || F.steps.find((x) => x.st !== "done");
     const pct = run && run.n ? Math.round((100 * run.j) / Math.max(1, run.n)) : 0;
     return { F, st: run ? "run" : stop ? "stop" : "wait", txt: run ? `${lab(run)}${eta}` : stop ? "Stopped" : F.started ? "Waiting" : "Review not started", short: run ? lab(run) : stop ? "Stopped" : "Waiting", pct, cur };
@@ -403,7 +404,7 @@ export const ReviewGameMixin = {
       const lab = `${nm}${lv ? `, ${esc(lv.label)}` : ""}: ${s.sum?.acc != null ? `accuracy ${s.sum.acc}${s.done ? "" : ", provisional"}${band}` : esc(s.st === "norec" ? "accuracy not available" : "accuracy: checking")}${!LK.na && LK.done && LK.cover >= 0.9 ? `, luck ${wpText(LK.tot[p.id])} win chance` : ""}${t ? `, dice luck ${esc(t.n)}${top ? `, ${esc(top)}` : ""}` : ""}${w ? `, biggest slip ${esc(this._rvTerse(w))} minus ${w.gp}%` : ""}. ${at != null ? "Step through the moves" : "Open the review"}`;
       return `<button type="button" class="rt-row pc-${p.id}${p.id === cur ? " cur" : ""}" data-rvtab="${p.id}"${at != null ? ` data-rvat="${at}"` : ""} aria-label="${lab}"><span class="rt-who">${this._av(p, "rt-av")}<span><b class="rt-nm">${nm}</b>${lv ? `<small>${esc(lv.label)}</small>` : ""}</span></span>${accCell({ p, s, lv })}${luck}${slip}</button>`;
     }).join("");
-    const head = `<div class="rt-hd" aria-hidden="true"><span>Player</span><span>Accuracy</span><span>Luck</span><span>Biggest slip</span></div>`;
+    const head = `<div class="rt-hd" aria-hidden="true"><span>Player</span><span data-i18n-skip>${isNL() ? "Precisie" : "Accuracy"}</span><span>Luck</span><span>Biggest slip</span></div>`;
     const foot = !R.bots ? `<p class="rt-foot">Played before the bots’ moves were recorded: their accuracy is not available.</p>` : "";
     let note = "";
     if (luckFor != null && L && !L.na && L.all?.[luckFor]) {
@@ -501,7 +502,7 @@ export const ReviewGameMixin = {
     }).join("");
     const accAny = ranked.some((p) => { const q = this._rvSeat(p.id); return q.sum?.acc != null || q.st === "run"; }); // no accuracy for anyone yet: the column waits
     const leg = used.length ? `<div class="rsc-leg">${used.map(([q, l]) => `<span><i class="s${si(q)}"></i>${l}</span>`).join("")}</div>` : "";
-    return `<section class="rv-card rt rsc${accAny ? "" : " no-acc"}" data-rvtable aria-label="Result"><div class="rv-gt"><b>Result</b><small>tap a player: why they won or lost</small></div><div class="rsc-hd" aria-hidden="true"><span>Accuracy</span><span>Luck</span><span>Points</span></div>${rows}${leg}${!R.bots ? `<p class="rt-foot">Played before the bots’ moves were recorded: their accuracy is not available.</p>` : ""}</section>`;
+    return `<section class="rv-card rt rsc${accAny ? "" : " no-acc"}" data-rvtable aria-label="Result"><div class="rv-gt"><b>Result</b><small>tap a player: why they won or lost</small></div><div class="rsc-hd" aria-hidden="true"><span data-i18n-skip>${isNL() ? "Precisie" : "Accuracy"}</span><span>Luck</span><span>Points</span></div>${rows}${leg}${!R.bots ? `<p class="rt-foot">Played before the bots’ moves were recorded: their accuracy is not available.</p>` : ""}</section>`;
   },
   /** The win chance of every player through the game (set-up first), under the scorecard; tap: the review's Win chance. "" when there is none (Seafarers, no move log). */
   _rvWinCardHtml() {

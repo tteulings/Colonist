@@ -43,7 +43,7 @@ import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte C
 // this file only calls in through hooks marked with ⚓.
 import { createEmitter, eventToText } from "./core/events.js"; // architecture step 5: the game talks in events
 import { hostOn, hostRecover, mainPhase as hostMainPhase } from "./bots/inapp.js"; // follow-up of step 4: the bot host plays the bots' main phase in the app
-import { createUiEngine } from "./ui/intent.js?v=197"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
+import { createUiEngine } from "./ui/intent.js?v=198"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS } from "./seafarers/index.js";
 
 import { RESOURCES, COSTS_SEA as COSTS, PIECE_LIMITS_SEA as PIECE_LIMITS, BANK_SIZE, DICE_WAYS as DICE_WEIGHT, DEV_CARD_TYPES, DEV_DECK, deckList } from "./core/constants.js"; // (COSTS / PIECE_LIMITS carry the Seafarers ship: it is only looked up when this.sea)
@@ -4716,6 +4716,8 @@ class ColonistFullGame {
     if (card === "victoryPoint") player.devVictoryPoints += 1; else player.newDevCards[card] += 1;
     this.emit({ type: "devBought", seat: player.id, card, human: !!player.isHuman });
     if (player.isHuman) this._devDrawn(card);
+    // a bought Victory Point card counts, and wins, at the purchase for a bot as it does for a person (_humanBuyDevNow counts it itself)
+    if (!this._isInteractive(player)) { this.recomputeScores(); this.checkForWinner(player); }
     return true;
   }
 
@@ -4780,6 +4782,10 @@ class ColonistFullGame {
       // Knight only moves the robber and steals — no discards (that's for rolling a 7)
       player.knightsPlayed += 1;
       this.emit({ type: "devPlayed", seat: player.id, card: "knight" });
+      // Largest Army is counted, and a win declared, the moment the Knight is played, before the robber moves (a person's card always did; the bots counted after the robbery)
+      this.recomputeScores();
+      this.checkForWinner(player);
+      if (this.winner) return true;
       this.moveRobber(player);
     } else if (type === "roadBuilding") {
       if (this._isInteractive(player)) {
@@ -4795,12 +4801,12 @@ class ColonistFullGame {
         if (this.sea) { // ⚓ Seafarers: 2 roads, 2 ships or one of each (rulebook p. 5 §8)
           const pc = this.sea.aiFreePiece(player);
           if (!pc) break;
-          if (pc.type === "ship" ? this.sea.placeShip(player, pc.id, { free: true }) : this.placeRoad(player, pc.id, { free: true })) { built += 1; this.emit({ type: "built", seat: player.id, piece: pc.type === "ship" ? "ship" : "road", at: pc.id, how: "free", i, log: false, sfx: false }); }
+          if (pc.type === "ship" ? this.sea.placeShip(player, pc.id, { free: true }) : this.placeRoad(player, pc.id, { free: true })) { built += 1; this.emit({ type: "built", seat: player.id, piece: pc.type === "ship" ? "ship" : "road", at: pc.id, how: "free", i, log: false, sfx: false }); this.recomputeScores(); this.checkForWinner(player); if (this.winner) break; } // Longest Road is counted after each free road (as _commitBuild does for a person)
           continue;
         }
         const edgeId = this.chooseStrategicRoadEdge(player, true);
         if (edgeId == null) break;
-        if (this.placeRoad(player, edgeId, { free: true })) { built += 1; this.emit({ type: "built", seat: player.id, piece: "road", at: edgeId, how: "free", i, log: false, sfx: false }); }
+        if (this.placeRoad(player, edgeId, { free: true })) { built += 1; this.emit({ type: "built", seat: player.id, piece: "road", at: edgeId, how: "free", i, log: false, sfx: false }); this.recomputeScores(); this.checkForWinner(player); if (this.winner) break; }
       }
       this.emit({ type: "devPlayed", seat: player.id, card: "roadBuilding", built });
     } else if (type === "yearOfPlenty") {
@@ -4968,7 +4974,7 @@ class ColonistFullGame {
       if (stage === 1) {
         stage = 2;
         // Try player-to-player trade once per turn
-        if (!skipPlayerTrade) {
+        if (!skipPlayerTrade && !this.winner) { // (a Knight or a bought card can win the turn before the trade)
           const seq0 = this.analysis?.seq;
           const tradeResult = this.aiTryPlayerTrade(player);
           if (tradeResult && tradeResult.type === "human") { humanTrade = tradeResult; return "human"; }
@@ -7336,9 +7342,40 @@ class ColonistFullGame {
     try {
       const json = JSON.stringify(this.serializeState());
       if (json === this._lastSavedJson) return;
-      localStorage.setItem(ColonistFullGame.STORAGE_KEY, json);
-      this._lastSavedJson = json;
-    } catch (_) { /* quota exceeded or private mode — ignore */ }
+      if (this._setSave(json)) { this._lastSavedJson = json; this._saveWarned = 0; }
+      else {
+        // v1.98 warn once, then again at most every 5 minutes while saves keep failing (never one toast per render)
+        const t = Date.now();
+        if (!this._saveWarned || t - this._saveWarned > 300000) { this._saveWarned = t; this.pushToast?.("Couldn't save your game: this device's storage is full. Free some space.", "important"); }
+      }
+    } catch (_) { /* private mode — ignore */ }
+  }
+
+  /** v1.98 write the save; on a full storage drop data that is rebuilt anyway and try again, before giving the save up.
+   *  Only two things qualify: the saved lab runs (the lab, not the game) and the cached review recording of THIS running game
+   *  (it is still in memory and is written again at the next End turn). Lesson practice and the review history are never touched.
+   *  A removal that does not make the save fit is put back, so nothing is deleted for nothing. */
+  _setSave(json) {
+    const K = ColonistFullGame.STORAGE_KEY;
+    try { localStorage.setItem(K, json); return true; } catch (_) { /* quota: make room */ }
+    for (const k of ["colonist.lab.runs", "colonist_review_v1"]) {
+      let old = null;
+      try { old = localStorage.getItem(k); } catch (_) { continue; }
+      if (old == null) continue;
+      if (k === "colonist_review_v1") { // only this running game's own recording, which is still in memory
+        let id = null; try { id = JSON.parse(old)?.id; } catch (_) { /* unreadable: leave it */ }
+        if (!this._rv?.id || id !== this._rv.id) continue;
+      }
+      try {
+        localStorage.removeItem(k);
+        localStorage.setItem(K, json);
+        if (k === "colonist_review_v1" && this._rv) this._rv.bytes = 0;
+        return true;
+      } catch (_) { // still full: put it back
+        try { localStorage.setItem(k, old); } catch (_2) { /* nothing more to do */ }
+      }
+    }
+    return false;
   }
 
   // Every state change ends in render(), so render() queues a save: builds, bank and player

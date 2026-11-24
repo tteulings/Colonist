@@ -16,7 +16,11 @@
 // are played once. A 7 is its own group: discards, robber and steal by the bots' policy, a fresh flow in every future (its own
 // steal is the separate steal event, so dice + steal = what happened). Steal: each card type the victim held (count / hand).
 // Dev card: each card type still in the deck (count / deck). Rush positions are played turn by turn (src/review/engine.js).
-import { snapshot, restore, mulberry32, withoutAgents } from "../master/sim.js";
+import { mulberry32, withoutAgents } from "../master/sim.js";
+// step 6: the futures, the rollout and the position capture are the Monte Carlo toolkit's (src/mc/); every seed formula and every draw is unchanged
+import { futures, hash32 } from "../mc/futures.js";
+import { shuffle } from "../mc/determinize.js";
+import { capture, reinstate, playTurns, rollFuture, simulate } from "../mc/simulate.js";
 import { referenceStrategy } from "../bots/registry.js"; // step 4: the review's reference player comes from the bot registry
 import { gbmProbs } from "../master/leaf-gbm.js";
 import { GBM_MODEL } from "../master/leaf-gbm-model.js";
@@ -32,7 +36,7 @@ import { RESOURCES as RES, DEV_KEYS as DEV } from "../core/constants.js";
 const PIPS = [0, 0, 1, 2, 3, 4, 5, 6, 5, 4, 3, 2, 1];
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 const r4 = (x) => Math.round(x * 1e4) / 1e4;
-const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i += 1) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const hash = hash32;
 
 /** The engine on the event's position. Every seat plays like the bots (a person's seat like the Expert). */
 function load(g, base, ev) {
@@ -43,37 +47,8 @@ function load(g, base, ev) {
   return g;
 }
 
-// the position with what snapshot() leaves out that a roll touches
-const snap = (g) => ({ s: snapshot(g), dr: g.diceResult ?? null, dd: Array.isArray(g.diceDeck) ? g.diceDeck.slice() : g.diceDeck, ld: g.lastDice });
-const back = (g, x) => { restore(g, x.s); g.diceResult = x.dr; g.diceDeck = Array.isArray(x.dd) ? x.dd.slice() : x.dd; g.lastDice = x.ld; };
-
-/** depth turn ends of normal play (every seat its own policy, weights jittered as the search does); the dice from their own stream. */
-function play(g, turns, rng, dice, jitter = 0.15) {
-  const orig = Math.random; Math.random = rng;
-  const own = Object.prototype.hasOwnProperty.call(g, "rollDice"), keepDice = g.rollDice;
-  g.rollDice = function () { const d1 = 1 + Math.floor(dice() * 6), d2 = 1 + Math.floor(dice() * 6); this.lastDiceTotal = d1 + d2; return { total: d1 + d2, d1, d2 }; };
-  const keep = g.players.map((p) => p.strategy);
-  g.players.forEach((p) => { if (jitter) { const w = { ...(p.strategy.w || {}) }; ["num", "variety", "scarcity", "port", "road", "prod", "patience", "card", "leader"].forEach((k) => { w[k] = (w[k] ?? 1) * Math.exp((rng() * 2 - 1) * jitter); }); p.strategy = { ...p.strategy, w }; } });
-  try {
-    let ended = 0;
-    while (!g.winner && g.turn <= 250 && ended < turns) {
-      if (g.phase === "sbp") { g._sbpRun(); continue; } // 5–6 players: the build window between turns (a card drawn there) runs on
-      const p = g.currentPlayer;
-      if (g.phase === "pre_roll") { g.maybePlayKnightBeforeRoll(p); g.executeRollPhase(p); }
-      if (g.winner) break;
-      if (g.phase === "main") g.executeAiMainPhase(p);
-      if (g.winner) break;
-      g.endTurn();
-      ended += 1;
-    }
-  } finally {
-    Math.random = orig;
-    if (own) g.rollDice = keepDice; else delete g.rollDice;
-    g.players.forEach((p, i) => { p.strategy = keep[i]; });
-  }
-}
-const shuffle = (a, rng) => { for (let i = a.length - 1; i > 0; i -= 1) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } };
-
+// the position with what snapshot() leaves out that a roll touches (src/mc/simulate.js)
+const snap = capture, back = reinstate, play = playTurns;
 /** The chance of each sum for the next roll under the game's dice rule (settings.dice): "random" two dice; "deck" the 36-card deck
  *  without the cards drawn (a fresh deck when empty); "balanced" that deck (fresh at 12 left) with its repeat rule (a repeat of the
  *  last total is drawn again once, 30 %). */
@@ -171,19 +146,16 @@ function diceOwn(g, ev, B, S0, o, leaf, evSeed, n, t0) {
     return vs;
   });
   const W = []; // W[j] = { A: seats' values after the real outcome, H: [q][variant] seat q's value }
+  const FU = futures({ seed: evSeed });
   const one = (j) => {
-    const ps = (evSeed + Math.imul(j + 1, 0x9e3779b1)) | 0, ds = (evSeed ^ Math.imul(j + 1, 0x85ebca6b)) | 0, qs = (evSeed ^ Math.imul(j + 7, 0x27d4eb2f)) | 0;
+    const fut = FU.at(j);
     back(g, S0);
-    withoutAgents(g, () => B.branches[B.act].make(mulberry32(ps)));
+    withoutAgents(g, () => B.branches[B.act].make(mulberry32(fut.policy)));
     const SA = snap(g);
     const run = (adj) => {
       back(g, SA);
       if (adj) { const P = g.players[adj.q]; RES.forEach((r, k) => { if (!adj.d[k]) return; P.resources[r] = Math.max(0, P.resources[r] + adj.d[k]); if (g.bank) g.bank[r] = Math.max(0, (g.bank[r] || 0) - adj.d[k]); }); }
-      const rng = mulberry32(qs), dice = mulberry32(ds);
-      withoutAgents(g, () => {
-        const orig = Math.random; Math.random = rng; try { shuffle(g.devDeck, rng); } finally { Math.random = orig; }
-        if (!g.winner) play(g, o.depth, rng, dice);
-      });
+      rollFuture(g, { rng: mulberry32(fut.deck), dice: mulberry32(fut.dice), turns: o.depth });
       return leaf(g);
     };
     const A = run(null);
@@ -265,7 +237,7 @@ export function luckEvent(g, base, ev, opts = {}) {
     const luckOf = (V) => Array.from({ length: n }, (_, q) => V[act][q] - groups.reduce((a, gr, i) => a + gr.p * V[i][q], 0));
     const out = { kind: ev.kind, s: ev.s, n, act, groups: groups.map((gr, i) => ({ o: gr.o, p: r4(gr.p), fast: fast[i].map(r4) })), fast: luckOf(fast).map(r4), F: 0, depth: o.depth };
     if (o.futures > 0) {
-      const W = groups.map(() => []);
+      const W = groups.map(() => []), FU = futures({ seed: evSeed });
       const seOf = (F) => Array.from({ length: n }, (_, q) => {
         const lj = W[act].map((_, j) => W[act][j][q] - groups.reduce((a, gr, i) => a + gr.p * W[i][j][q], 0));
         const m = lj.reduce((a, b) => a + b, 0) / F;
@@ -273,19 +245,8 @@ export function luckEvent(g, base, ev, opts = {}) {
       });
       let F = 0, target = o.futures;
       for (;;) {
-      for (let j = F; j < target; j += 1) {
-        const ps = (evSeed + Math.imul(j + 1, 0x9e3779b1)) | 0, ds = (evSeed ^ Math.imul(j + 1, 0x85ebca6b)) | 0;
-        groups.forEach((gr, i) => {
-          back(g, S0);
-          const rng = mulberry32(ps), dice = mulberry32(ds);
-          withoutAgents(g, () => {
-            gr.b.make(rng);
-            const orig = Math.random; Math.random = rng; try { shuffle(g.devDeck, rng); } finally { Math.random = orig; }
-            if (!g.winner) play(g, o.depth, rng, dice);
-          });
-          W[i].push(leaf(g));
-        });
-      }
+      const run = simulate({ g, world: S0, F: FU, j0: F, j1: target, branches: groups.map((gr) => ({ start: (gg, rng) => gr.b.make(rng) })), turns: o.depth, leaf, headless: false });
+      run.samples.forEach((ws, i) => { W[i].push(...ws); });
       F = target;
       if (F >= (o.maxFutures || F) || Math.max(...seOf(F)) <= (o.seMax ?? 1)) break;
       target = Math.min(o.maxFutures, F + o.futures);
@@ -312,17 +273,9 @@ export function luckSeats(g, base, rec, opts = {}) {
     if (!g.setupPhase) return { skip: "no set-up" };
     g.players.forEach((p) => { p.strategy = referenceStrategy(); }); // equal players: only the seat (the turn order on this board) differs
     const n = g.players.length, S0 = snap(g), seed = hash(`${o.seed}|seat|${rec.e}`);
-    const W = [];
-    for (let j = 0; j < o.futures; j += 1) {
-      back(g, S0);
-      const rng = mulberry32((seed + Math.imul(j + 1, 0x9e3779b1)) | 0), dice = mulberry32((seed ^ Math.imul(j + 1, 0x85ebca6b)) | 0);
-      withoutAgents(g, () => {
-        const orig = Math.random; Math.random = rng;
-        try { let k = 0; while (g.setupPhase && k++ < 40) { g.setupAction = null; g.processSetupQueue(); } shuffle(g.devDeck, rng); } finally { Math.random = orig; }
-        if (!g.setupPhase && !g.winner) play(g, o.depth, rng, dice);
-      });
-      W.push(leaf(g));
-    }
+    const W = simulate({ g, world: S0, F: futures({ seed }), n: o.futures, turns: o.depth, leaf, headless: false,
+      branches: [{ start: (gg, rng) => { const orig = Math.random; Math.random = rng; try { let k = 0; while (gg.setupPhase && k++ < 40) { gg.setupAction = null; gg.processSetupQueue(); } } finally { Math.random = orig; } } }],
+      when: (gg) => !gg.setupPhase && !gg.winner }).samples[0];
     const F = W.length, v = Array.from({ length: n }, (_, q) => W.reduce((a, w) => a + w[q], 0) / F);
     const se = v.map((m, q) => Math.sqrt(W.reduce((a, w) => a + (w[q] - m) ** 2, 0) / Math.max(1, F - 1) / F));
     return { v: v.map(r4), se: se.map(r4), F, ms: Math.round(now() - t0) };
