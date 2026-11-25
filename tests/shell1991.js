@@ -107,12 +107,16 @@ async function run(browser, vw, vh, lang) {
     ok(await G(() => !window.__flash.some((t) => t === "That spot isn't available.")), `[${tag}] never the bare "That spot isn't available."`);
   }
   // finish set-up, roll, reload, compare the ticker
+  for (let attempt = 0; attempt < 8; attempt++) { // (a fresh game each time: a roll of 7 has no payout line to compare, so it is rolled again)
+  await G(() => { window.__colonistGame.startNewGame({ mode: "classic", board: "island", numBots: 3, winPoints: 10 }); });
   for (let i = 0; i < 900; i++) {
     const st = await G(() => { const g = window.__colonistGame; if (!g.setupPhase) return g.currentPlayer.isHuman && g.phase === "pre_roll" ? "go" : "bots"; if (g.currentPlayer.isHuman && g.setupAction) { const sp = g.api.spots(g.currentPlayer.id); g._applyPiece(g.currentPlayer, g.setupAction === "settlement" ? { type: "settlement", id: [...sp.settlement][0] } : { type: "road", id: [...(sp.road.size ? sp.road : sp.ship)][0] }, true); } return "setup"; });
     if (st === "go") break; await sleep(40);
   }
   await G(() => { const g = window.__colonistGame; g.api.act({ actor: g.currentPlayer.id, type: "roll" }); });
   await sleep(2500);
+  if (!(await G(() => /rolled 7\.$/.test(window.__colonistGame.logEntries.filter((e) => /rolled/.test(e.text)).slice(-1)[0]?.text || "")))) break;
+  }
   const tk = () => G(() => { const g = window.__colonistGame; return { t: g.tickerText?.textContent || "", mine: /^Turn \d+: You rolled \d+\.$/.test(g.logEntries.filter((e) => !/collect|Bank is short/.test(e.text)).slice(-1)[0]?.text || "") }; });
   const before = await tk();
   ok(/^(Roll|Worp)/.test(before.t), `[${tag}] after your roll the ticker says "${nl ? "Worp" : "Roll"}: ..."`, before.t);

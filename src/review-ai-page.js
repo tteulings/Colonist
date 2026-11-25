@@ -115,7 +115,7 @@ export const ReviewAiPageMixin = {
     const out = [];
     if (off) out.push(nl ? "Je bent offline. Deze controle draait op je telefoon en werkt gewoon; alleen vragen aan de AI hebben internet nodig." : "You are offline. This check runs on your phone and still works; only asking the AI needs a connection.");
     if (slow) out.push(nl ? "Dit duurt langer dan normaal. Het draait op je telefoon en kan een paar minuten duren; daarna toont de pagina wat er is." : "This is taking longer than usual. It runs on your phone and can take a few minutes; the page then shows what is ready.");
-    return out.map((t) => `<p class="ap-asked ap-settle-sub" data-pgnote>${esc(t)}</p>`).join("");
+    return out.map((t) => `<p class="ap-settle-note" data-pgnote>${esc(t)}</p>`).join("");
   },
   _pgHtml() {
     const { fx, page, src, fu } = this._pgState();
