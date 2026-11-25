@@ -223,7 +223,7 @@ function errorCard(g, m, e) {
     const vis = X.has(`mv.${e.i}.vis`) ? `<span class="px-cc">${X.ph("{n} of {n2} visible points", { n: [`mv.${e.i}.vis`], n2: ["target:-"] })}</span>` : "";
   return `<button type="button" class="px-err" data-rvj="${e.i}" data-rvq="imp"><span class="h"><b>${f("Turn {n}", { n: e.t })}</b><i class="px-cls c-${e.cls}">${CLS_NAME[e.cls]}</i>${X.d(`mv.${e.i}.cost`)}</span>${crops}<span class="mv"><s>${DID}</s> ${N(e.played)}</span><span class="mv"><s>Better (A)</s> ${N(e.better)}</span>${bars}${noiseLine(X, e)}${why}${chipT.length || vis ? `<div class="px-ccs">${chipT.map((c) => `<span class="px-cc" data-i18n-skip data-explain>${esc(c)}</span>`).join("")}${vis}</div>` : ""}</button>`;
 }
-export function scoredNote(m) { const X = m.F; return `<p class="px-fn"><span>${X.ph("{n} of {n2} decisions are scored", { n: ["scored"], n2: ["decisions"] })}</span>${X.v("oneOption") > 0 ? ` · <span>${X.ph("{n} had only one sensible option", { n: ["oneOption"] })}</span>` : ""}</p>`; }
+export function scoredNote(m) { const X = m.F; return `<p class="px-fn"><span>${X.ph("{n} of {n2} decisions are scored", { n: ["scored"], n2: ["decisions"] })}</span>${X.v("oneOption") > 0 ? ` · <span>${X.ph("{n} moves had only one sensible option, so they do not count", { n: ["oneOption"] })}</span>` : ""}</p>`; }
 function lesson1(g, m) {
   if (isThin(m)) return thinCard(g, m);
   const X = m.F, list = m.lesson1.map((e) => errorCard(g, m, e)).join("");

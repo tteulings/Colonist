@@ -82,7 +82,7 @@ export const NL_199P = [
   ["Bekijk bord", "Bekijk bord"], ["Turn {n}", "Beurt {n}"], ["Set-up", "Start"], ["Start", "Start"], ["Moment", "Moment"],
   ["none found", "geen gevonden"], ["{n} to learn from", "{n} om van te leren"], ["No clear mistake in your moves. Good play.", "Geen duidelijke fout in je zetten. Goed gespeeld."], ["No clear mistake in these moves.", "Geen duidelijke fout in deze zetten."],
   ["Not errors", "Geen fouten"], [": {n} close calls and slight differences stay out of this list.", ": {n} nipte keuzes en kleine verschillen staan niet in deze lijst."],
-  ["{n} of {n2} decisions are scored", "{n} van de {n2} beslissingen tellen mee"], ["{n} had only one sensible option", "bij {n} was er maar één verstandige keuze"], ["{n} more on the Moves tab", "{n} meer op het tabblad Zetten"],
+  ["{n} of {n2} decisions are scored", "{n} van de {n2} beslissingen tellen mee"], ["{n} moves had only one sensible option, so they do not count", "bij {n} zetten was er maar één verstandige keuze, die tellen niet mee"], ["{n} more on the Moves tab", "{n} meer op het tabblad Zetten"],
   ["You did", "Jij deed"], ["Better (A)", "Beter (A)"], ["Better", "Beter"], ["Win chance after this move", "Winkans na deze zet"],
   ["No phase rule was broken.", "Geen fasevuistregel overtreden."],
   ["City plan (ore, grain)", "Stadsplan (erts, graan)"], ["Expansion plan (lumber, brick)", "Uitbreidingsplan (hout, baksteen)"], ["Mixed plan", "Gemengd plan"],
