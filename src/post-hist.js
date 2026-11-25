@@ -44,11 +44,11 @@ function progress(g, all) {
   let chart = "";
   if (rev.length >= 3) {
     const v = rev.slice(-12), W = 320, H = 110, x0 = 28, x1 = W - 8, top = 10, bot = H - 14, lo = Math.floor(Math.min(...v.map((m) => m.acc), 60) / 10) * 10, hi = Math.min(100, Math.ceil(Math.max(...v.map((m) => m.acc), 80) / 10) * 10);
-    const X = (i) => x0 + 6 + (i / (v.length - 1)) * (x1 - x0 - 12), Y = (a) => top + (1 - (a - lo) / (hi - lo)) * (bot - top);
+    const XP = (i) => x0 + 6 + (i / (v.length - 1)) * (x1 - x0 - 12), Y = (a) => top + (1 - (a - lo) / (hi - lo)) * (bot - top);
     const sel = Math.min(g._pxHsel ?? v.length - 1, v.length - 1), s = v[sel];
     const grid = [lo, Math.round((lo + hi) / 2), hi].map((t) => `<line x1="${x0}" x2="${x1}" y1="${Y(t).toFixed(1)}" y2="${Y(t).toFixed(1)}" class="g"/><text x="${x0 - 4}" y="${(Y(t) + 3.5).toFixed(1)}" text-anchor="end">${t}</text>`).join("");
-    const line = v.map((m, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(m.acc).toFixed(1)}`).join("");
-    const marks = v.map((m, i) => `<g data-pxmk="${i}" class="mk${i === sel ? " on" : ""}"><circle cx="${X(i).toFixed(1)}" cy="${Y(m.acc).toFixed(1)}" r="${i === sel ? 7 : 5}" class="${m.result}"/><rect x="${(X(i) - 14).toFixed(1)}" y="0" width="28" height="${H}" fill="transparent"/></g>`).join("");
+    const line = v.map((m, i) => `${i ? "L" : "M"}${XP(i).toFixed(1)},${Y(m.acc).toFixed(1)}`).join("");
+    const marks = v.map((m, i) => `<g data-pxmk="${i}" class="mk${i === sel ? " on" : ""}"><circle cx="${XP(i).toFixed(1)}" cy="${Y(m.acc).toFixed(1)}" r="${i === sel ? 7 : 5}" class="${m.result}"/><rect x="${(XP(i) - 14).toFixed(1)}" y="0" width="28" height="${H}" fill="transparent"/></g>`).join("");
     chart = `<svg viewBox="0 0 ${W} ${H}" class="px-sc" role="img" aria-label="${esc(f("{x} of your last {n} reviewed games, oldest first", { x: accWord, n: v.length }))}">${grid}<path d="${line}" class="ln"/>${marks}</svg><p class="px-fn">${X.ph("Game {n}: {x} {y}", { n: ["h.selN:-"], x: accWord, y: ["h.selAcc:-"] })} · ${s.result === "won" ? "won" : "lost"}</p>`;
   }
   const mist = {}; let m2 = 0; rev.forEach((m) => Object.entries(m.mist || {}).forEach(([k, n]) => { mist[k] = (mist[k] || 0) + n; m2 += n; }));
