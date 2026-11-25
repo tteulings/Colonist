@@ -1,8 +1,7 @@
 // v1.31 Luck in win chance (page side). After your own review, every chance event of the game (each roll, each steal, each
 // development card drawn) is replayed in the review's worker with every other outcome (src/review/luck-mc.js), one event at a
 // time in the background, before the others' check; Stop holds it. Per player the sum over the game is their "luck in win-chance
-// points" (+6% = the dice, steals and draws gave them 6 points more than was to be expected). Every event's numbers sum to 0 over
-// the players. Kept with the review (R.luck: localStorage and the history entry), so it runs once per game.
+// points" (+6% = the dice, steals and draws gave them 6 points more than was to be expected). Luck is shown as each player's own estimate and is NOT balanced over the table (the product decision: no zero-sum claim anywhere). Kept with the review (R.luck: localStorage and the history entry), so it runs once per game.
 // Seafarers (v1.31 with eng-130's recording): gold is part of a roll's outcome (the bots pick, as in the search), the pirate's steal
 // is a steal; the leaf is the search's Seafarers leaf (src/master.js SEA_LEAF). A game recorded before v1.31 has no position before a bot's roll: its rolls start from
 // that bot's End turn the turn before (played again), which is close but not exact (a pre-roll Knight is missed).

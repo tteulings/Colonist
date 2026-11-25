@@ -16,6 +16,9 @@
 // off while `_histView` is set), the end screen (Stats) or the Replay or the Game review opens on it, and
 // "Past games" in the top-left puts your running game back (it stays in localStorage untouched).
 // Styles: themes/history.css.
+import { histCounts, histKinds } from "./post-facts.js";
+import { decide } from "./review/score.js";
+import { tallyKinds } from "./review/coach-rules.js";
 import { upgradeSpots } from "./review/spot-names.js";
 import { oicon } from "./ui-icons.js";
 import { dateLocale, num, t } from "./i18n.js";
@@ -153,6 +156,10 @@ const PROBLEM = ["lean", "could", "mistake", "blunder", "missed"];
 /** The kind of a marked decision, for "your most frequent mistake" (what the review says the better move was). */
 const mistKey = (x) => (x.k === "end" && /^(City|Settlement|Road|Development|Ship)/.test(x.best?.label || "") ? "end>build" : x.k);
 export const MIST_TEXT = { "end>build": "ended your turn while a build was possible", build: "built something weaker", bank: "a weaker bank trade", robber: "a weaker robber tile", setup: "a weaker set-up spot", end: "ended your turn with a better move left", buy: "a development card at the wrong time", play: "a development card played too early or late" };
+/** The v1.99 kinds of one seat's review ({ strong, close, could, err, start, out, triv }), by the one function the review's own tiles use (coach-rules kindOfDecision); null when it cannot be told. */
+export function kindsOfReview(rv) {
+  try { const n = rv.results.find((x) => x.seats)?.seats?.length || 4; return tallyKinds(decide(rv.results.filter((x) => !x.skip || x.skip === "trivial"), n, rv.pid)); } catch (_) { return null; }
+}
 /** The history fields of one person's review (accuracy, counts, kinds of mistake, provisional?), from the review and its records alone. */
 export function revMeta(recs, rv, pid, prev = null) {
   if (!rv || rv.pid !== pid || !rv.results?.length) return { acc: prev?.acc ?? null, mid: prev?.mid || false };
@@ -160,7 +167,7 @@ export function revMeta(recs, rv, pid, prev = null) {
   PROBLEM.forEach((c) => { cls[c] = 0; });
   rv.results.forEach((x) => { const c = clsOf(x); if (PROBLEM.includes(c)) { cls[c] += 1; const k = mistKey(x); mist[k] = (mist[k] || 0) + 1; } });
   const st = reviewStatus(recs, rv);
-  return { acc: sum.acc, rn: sum.n, lost: sum.lost, cls, mist, prov: !st.complete, mid: !!rv.midCheck, rk: ACC.id, fmt: FMT, rp: [st.deep, rv.total || rv.results.length] };
+  return { acc: sum.acc, rn: sum.n, lost: sum.lost, cls, k99: kindsOfReview(rv), mist, prov: !st.complete, mid: !!rv.midCheck, rk: ACC.id, fmt: FMT, rp: [st.deep, rv.total || rv.results.length] };
 }
 const seatProf = (p, game) => { if (p.isHuman) return {}; const pr = game ? profileOf(game, game.players[p.id] || p) : null; const k = pr?.key || (BOT_PROFILES[p.personality] ? p.personality : "intermediate"); return { prof: k, custom: pr ? pr.custom : !BOT_PROFILES[p.personality] }; };
 
@@ -219,8 +226,17 @@ export const HistoryMixin = {
   /** The review moved on (a round step, stop, done): keep the entry up to date, at most once a second. */
   _histSoon() {
     if (!this.winner || this._replay || this.labMode) return;
-    clearTimeout(this._histT);
-    this._histT = setTimeout(() => { this._histT = 0; (this._histView ? this.histUpdateView() : this.histArchive()); }, 900);
+    if (this._histT) return; // finding 3: a throttle, not a debounce: a running review saves every few results, a debounce that restarts each time never fired until the run ended
+    this._histT = setTimeout(() => { this._histT = 0; (this._histView ? this.histUpdateView() : this.histArchive()); }, 500);
+  },
+  /** finding 7: write the entry of the game on screen NOW when its review has results the stored entry does not know yet (the Lessons list only has games with an accuracy) */
+  async _histNow() {
+    if (!this.winner || this._replay || this.labMode) return;
+    const R = this._rv, id = this._histView?.id ?? R?.id, m = id && this.hist.metas.find((x) => x.id === id), me = m?.me ?? this._me?.()?.id;
+    const fresh = me != null && R?.id === id && (R.revs?.[me]?.results?.length || 0) > 0 && (!m || m.acc == null || this._histT);
+    if (!fresh) return;
+    clearTimeout(this._histT); this._histT = 0;
+    try { await (this._histView ? this.histUpdateView() : this.histArchive()); } catch (_) { /* best effort */ }
   },
   async histUpdateView() {
     const v = this._histView, R = this._rv;
@@ -380,6 +396,11 @@ export const HistoryMixin = {
         if (await H.put(meta, { state: rec.state, rv: { base: rec.rv.base, recs: rec.rv.recs, reviews, ...(rec.rv.bots ? { bots: 1 } : {}), ...(rec.rv.luck ? { luck: rec.rv.luck } : {}), ...(rec.rv.recap ? { recap: rec.rv.recap } : {}), ...(rec.rv.ai ? { ai: rec.rv.ai } : {}) } }, { quiet: true })) n += 1;
       }
       if (n) H.onChange?.();
+      // the v1.99 counts of the game sheet (real errors, could be better, close calls): a saved game gets them once, from its own review, with the same function the Moves tiles use
+      for (const m of H.metas.filter((x) => x.rec && x.acc != null && !x.k99 && !x.hn?.length && x.me != null && x.id !== live)) {
+        const rec = await H.get(m.id), rv = rec?.rv?.reviews?.[m.me] || (rec?.rv?.review?.pid === m.me ? rec.rv.review : null), k = rv?.results?.length ? kindsOfReview(rv) : null;
+        if (k) { await H.patch(m.id, { k99: k }); if (this._histSel === m.id) this._histSheet(m.id, true); }
+      }
     } catch (_) { /* best effort: the next open tries again */ }
     this._histRescoring = false;
   },
@@ -399,13 +420,13 @@ export const HistoryMixin = {
     const n = (f) => all.filter(f).length;
     const seg = [["all", "All", all.length], ["won", "Won", n((m) => m.result === "won")], ["lost", "Lost", n((m) => m.result === "lost")]];
     const chips = [["classic", "Classic"], ["rush", "Rush"], ["seafarers", "Seafarers"]];
-    const scroll = el.querySelector(".hs-scroll")?.scrollTop || 0;
-    el.innerHTML = `<div class="hs-bar"><button type="button" class="hs-x" data-hclose aria-label="Back">${CHEV_L}</button><div><h3>Past games</h3><small>${all.length ? `${all.length} on this device${H.mode === "memory" ? " · until you close this tab" : ""}` : "Finished games are kept here"}</small></div></div>
+    const scroll = el.querySelector(".hs-scroll")?.scrollTop || 0, HC = histCounts(seg.map(([k, , v]) => [k, v]));
+    el.innerHTML = `<div class="hs-bar"><button type="button" class="hs-x" data-hclose aria-label="Back">${CHEV_L}</button><div><h3>Past games</h3><small>${all.length ? `${HC.ph("{n} on this device", { n: ["h.cnt.all:-"] })}${H.mode === "memory" ? " · until you close this tab" : ""}` : "Finished games are kept here"}</small></div></div>
       <div class="hs-scroll">
         ${this._histBanner(use)}
         <p class="hs-note" role="status" hidden></p>
         ${this._histProgress(all)}
-        ${all.length ? `<div class="hs-filters"><div class="hs-seg" role="radiogroup" aria-label="Result">${seg.map(([k, l, c]) => `<button type="button" role="radio" aria-checked="${F.res === k}" data-hres="${k}" class="${F.res === k ? "on" : ""}">${l}<i>${c}</i></button>`).join("")}</div>
+        ${all.length ? `<div class="hs-filters"><div class="hs-seg" role="radiogroup" aria-label="Result">${seg.map(([k, l, c]) => `<button type="button" role="radio" aria-checked="${F.res === k}" data-hres="${k}" class="${F.res === k ? "on" : ""}">${l}<i>${HC.n(`h.cnt.${k}:-`)}</i></button>`).join("")}</div>
           <div class="hs-chips">${chips.map(([k, l]) => `<button type="button" aria-pressed="${F.mode.has(k)}" data-hmode="${k}" class="${F.mode.has(k) ? "on" : ""}">${l}</button>`).join("")}<button type="button" aria-pressed="${F.rev}" data-hrev class="${F.rev ? "on" : ""}">Reviewed</button><button type="button" aria-pressed="${F.star}" data-hstar class="${F.star ? "on" : ""}">${STAR(true)}Starred</button></div></div>` : ""}
         ${all.length ? (fil.length ? `<ul class="hs-list">${fil.map((m) => this._histRow(m)).join("")}</ul>` : `<div class="hs-none"><b>No game matches</b><p>Try another filter.</p><button type="button" class="hs-btn" data-hreset>Show all games</button></div>`) : this._histEmpty()}
       </div>`;
@@ -523,7 +544,7 @@ export const HistoryMixin = {
   },
   _histAcc(m, name = "") {
     if (m.acc == null) return "";
-    return `<span class="hs-acc${m.prov ? " prov" : ""}" title="Game review accuracy${m.prov ? ", provisional" : ""}${m.mid ? " (checked during the game)" : ""}">${m.mid ? `<i class="mid" title="Checked during the game" aria-hidden="true"></i>` : ""}<small${name ? "" : ' data-nl="Nauwk."'}>${name ? esc(name) : "Accuracy"}</small>${m.prov ? "~" : ""}${m.acc}</span>`;
+    return `<span class="hs-acc${m.prov ? " prov" : ""}" title="Game review accuracy${m.prov ? ", provisional" : ""}${m.mid ? " (checked during the game)" : ""}">${m.mid ? `<i class="mid" title="Checked during the game" aria-hidden="true"></i>` : ""}<small${name ? "" : ' data-nl="Precisie"'}>${name ? esc(name) : "Accuracy"}</small>${m.prov ? "~" : ""}${m.acc}</span>`;
   },
   _histRow(m) {
     const w = m.seats[m.winner];
@@ -562,7 +583,7 @@ export const HistoryMixin = {
       <ol class="hs-pod">${order.map((i, k) => { const s = m.seats[i]; return `<li class="${i === m.winner ? "win" : ""}"><span class="pl">${k + 1}</span>${i === m.winner ? avatarLive(i, "hs-av2 av-tap") : avatarSvg(i, "hs-av2")}<span class="nm">${esc(dispName(s.name))}${s.you && s.name !== "You" ? " <em>you</em>" : ""}${s.prof ? `<span class="hs-bot">${profileMini(s.prof, 16)}${s.custom ? "Custom" : esc(BOT_PROFILES[s.prof]?.label || "")}</span>` : ""}</span><b>${s.vp}</b></li>`; }).join("")}</ol>
       <dl class="hs-facts"><div><dt>Mode</dt><dd>${kind}</dd></div><div><dt>Players</dt><dd>${m.n}</dd></div><div><dt>${m.mode === "rush" ? "Rolls" : "Turns"}</dt><dd>${m.turns}</dd></div><div><dt>Played</dt><dd>${dur(m.ms)}</dd></div>
         <div><dt>Accuracy</dt><dd>${m.acc != null ? `${m.prov ? "~" : ""}${m.acc}${m.prov ? ` <small>provisional</small>` : m.mid ? ` <small>checked during the game</small>` : ""}` : "–"}</dd></div>
-        <div><dt>Marked moves</dt><dd>${m.cls ? `${(m.cls.lean || 0) + (m.cls.could || 0) + (m.cls.missed || 0)} · ${m.cls.mistake || 0} · ${m.cls.blunder || 0}<small>could be better · mistake · blunder</small>` : "–"}</dd></div></dl>
+        ${(() => { const K = histKinds(m), c = (k) => (m.k99 ? K.n(`h.k.${m.id}.${k}:-`) : "–"); return `<div><dt>Real errors</dt><dd data-hk="err">${c("err")}</dd></div><div><dt>Could be better</dt><dd data-hk="could">${c("could")}</dd></div><div><dt>Close calls</dt><dd data-hk="close">${c("close")}</dd></div>`; })()}</dl>
       <div class="hs-acts">
         <button type="button" class="hs-btn pri" data-sact="replay">${PLAY}Replay</button>
         <button type="button" class="hs-btn" data-sact="stats">${BARS}Stats</button>

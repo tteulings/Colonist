@@ -19,7 +19,7 @@ async function newPage(browser, { seed = 1, speed = 25, palette = "light", viewp
 }
 /** Home screen → Classic (a real tap) */
 async function startClassic(page) {
-  const c = page.locator(".hm-tile[data-mode=classic]");
+  const c = page.locator(".hm-start");
   await c.waitFor({ timeout: 10000 });
   await c.tap();
   await page.waitForFunction(() => { const g = window.__colonistGame; return !g.onboardingHold && g.setupPhase; }, null, { timeout: 15000 });

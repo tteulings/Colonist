@@ -3,8 +3,8 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const UP = "/root/.claude/uploads/d9ceb834-54a4-5da3-a5eb-477cce8e55d6/";
-const EXPORTS = ["72eb9b87-colonist-2026-11-14-mwg74y2d49gz.json", "23eda3e1-colonist-2026-11-13-mwfdvqb2dmnw.json", "c96a5156-colonist-2026-11-11-mwb26snvis5o.json"].map((f) => UP + f);
+// v1.99: the three exports of the owner's games were lost with a container restart; the reviewed games committed in the repo take their place
+const EXPORTS = ["post199/r1.json", "post199/r2.json", "ui191-game.json"].map((f) => require("path").join(__dirname, "fixtures", f));
 
 // in-page: all visible texts (text nodes + aria-label/title/placeholder/alt of visible elements) and layout problems
 const SCAN = () => {
@@ -69,7 +69,7 @@ async function walk(page, { shot, log = () => {} } = {}) {
   for (const f of EXPORTS) { const ex = JSON.parse(fs.readFileSync(f, "utf8")); await G(async (ex) => { const g = window.__colonistGame; const { meta, format, v, ...rec } = ex; await g.hist.put({ ...meta, id: meta.id }, rec, { quiet: true }); }, ex); }
   const ids = EXPORTS.map((f) => JSON.parse(fs.readFileSync(f, "utf8")).meta.id);
   await step("past-games", async () => { await G(() => window.__colonistGame.histOpen()); await sleep(1500); });
-  await step("game-sheet", async () => { await page.locator(`[data-hrow="${ids[0]}"]`).tap(); await sleep(900); });
+  await step("game-sheet", async () => { await page.evaluate((i) => window.__colonistGame._histSheet(i), ids[0]); await sleep(900); });
   await step("review-overview", async () => { await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 20000 }); await sleep(2500); });
   const tabs = await G(() => [...document.querySelectorAll(".rv-tabs [data-rvt]")].map((b) => b.dataset.rvt));
   for (const t of tabs) {
@@ -78,17 +78,17 @@ async function walk(page, { shot, log = () => {} } = {}) {
 
     if (t === "moves") {
       await step("review-step", async () => { await page.locator("[data-rvfirst], [data-rvj]").first().tap({ timeout: 3000 }); await sleep(2500); });
-      await step("review-step-why", async () => { await page.locator("[data-rvwhy], [data-rvq]").first().tap({ timeout: 3000 }); await sleep(2500); });
+      if (await G(() => !!document.querySelector("[data-rvwhy], .rs-why"))) await step("review-step-why", async () => { await page.locator("[data-rvwhy], .rs-why").first().tap({ timeout: 3000 }); await sleep(2500); }); // v1.99: the step view has no separate "why" screen unless it draws one
       for (let k = 0; k < 4; k++) { const open = await G(() => { const x = document.querySelector("[data-rvinfo-x], [data-rvwhy-x]") || document.querySelector("[data-rvclose-step]"); if (x) { x.click(); return true; } return false; }); if (!open) break; await sleep(500); if (await G(() => !!document.querySelector(".rv-tabs [data-rvt]"))) break; }
     }
   }
   await step("review-ai", async () => { await page.locator(`.rv-tabs [data-rvt=ai]`).tap(); await sleep(2500); });
   await step("review-player", async () => { await page.locator(`.rv-tabs [data-rvt=overview]`).tap(); await sleep(800); try { await page.locator("[data-rvp], .rsc-h").first().tap({ timeout: 2000 }); } catch (_) {} await sleep(800); });
   await closeAll(); await G(() => { const g = window.__colonistGame; try { g._rvCloseReview?.(true); } catch (_) {} try { g.histClose(); } catch (_) {} }); await sleep(400);
-  await step("lessons", async () => { await G(() => window.__colonistGame.goHome()); await sleep(500); await page.locator("[data-home=lessons]").tap(); await sleep(1500); });
+  await step("lessons", async () => { await G(() => window.__colonistGame.goHome()); await sleep(500); await page.locator("[data-tab=review]").tap(); await sleep(900); await page.locator("[data-pxdoor=lessons]").tap(); await sleep(1500); }); // v1.99: Lessons sit behind the Terugblik tab's Games | Lessons door
   await step("lessons-cat", async () => { await page.locator("[data-lnopen]").first().tap(); await sleep(700); });
   await closeAll(); await G(() => { try { window.__colonistGame.lessonsClose(); } catch (_) {} });
-  await step("bots", async () => { await G(() => window.__colonistGame.goHome()); await sleep(500); await page.locator("[data-home=bots]").tap(); await sleep(1500); });
+  await step("bots", async () => { await G(() => window.__colonistGame.goHome()); await sleep(500); await page.locator("[data-tab=bots]").tap(); await sleep(1500); }); // v1.99 the Bots tab
   await step("bot-profile", async () => { await page.locator(".bpg-row, [data-open]").first().tap({ timeout: 3000 }); await sleep(700); });
   await closeAll();
 

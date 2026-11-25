@@ -21,7 +21,7 @@ export const CAT = Object.fromEntries(CATS.map((c) => [c.id, c]));
 export const catOfKind = (k) => CATS.find((c) => c.kinds.includes(k))?.id || null;
 export const catOfRecap = (k) => CATS.find((c) => c.recap.includes(k))?.id || null;
 export const BAD = ["lean", "could", "mistake", "blunder", "missed"];
-export const CLS_WORD = { lean: "Better option", could: "Could be better", mistake: "Mistake", blunder: "Blunder", missed: "Missed chance" };
+export const CLS_WORD = { lean: "Close call", could: "Could be better", mistake: "Mistake", blunder: "Blunder", missed: "Missed chance" };
 
 /** The decisions of one reviewed game that cost win chance, filed by category. `rec` = the stored record, `m` = its list entry. */
 export function gameLessons(m, rec) {

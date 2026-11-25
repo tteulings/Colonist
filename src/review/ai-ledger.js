@@ -19,6 +19,8 @@ export function ledgerModel(inp) {
   const { led, ctx, raw, me, win, lg } = inp, seats = [me, ...(win != null && win !== me ? [win] : [])];
   // v1.90.2 lk: the luck part of a step per seat (a roll: all of it; a development card: how far the card drawn is from the expected card; none: nothing), ch: the rest (the choice)
   const items = (t) => { const rs = roundSteps(led, t); return rs ? { rs, its: rs.steps.map((s) => { const it = describeStep(s.i, { ...ctx, res: led.res }), lk = !it.chance ? s.d.map(() => 0) : it.dl === "none" ? s.d.map(() => 0) : Array.isArray(it.dl) ? it.dl : s.d; return { ...it, chance: it.chance && it.dl !== "none", d: s.d, se: s.se, lk, ch: s.d.map((x, q) => x - lk[q]), split: it.type === "dev" && it.dl != null }; }) } : null; };
+  /** the number a step shows for a seat: a roll shows the luck run's number for that roll (one number per roll everywhere), anything else its own change */
+  const rollOf = (i, q) => (i.type === "roll" && i.chance && Array.isArray(i.dl) ? i.lk[q] : i.d[q]);
   const lkSum = (its, q) => its.reduce((a, x) => a + x.lk[q], 0), isLk = (x, q) => x.chance && Math.abs(x.lk[q]) >= 0.5 * Math.abs(x.d[q]);
   const out = { seats, led, me, win, lg, inp };
   const dOf = (r, q) => r.d[q];
@@ -125,7 +127,7 @@ export function ledgerModel(inp) {
     cand = (keep.length >= 2 ? keep : cand.filter((i) => i.type !== "end")).sort((a, b) => big(b) - big(a) || a.i - b.i).slice(0, keep.length >= 2 ? 5 : 2).sort((a, b) => a.i - b.i);
     const row = (i, part, raw, rawW, chance) => ({ ...i, part, chance, raw, pts: pts(raw), ptsW: rawW != null ? pts(rawW) : null, seN: seOf(i.se[me]), title: part ? lg.devPart(i, part, me) : stepTitle(i) }), wq = win != null && win !== me ? win : null;
     // a development card purchase is shown as its two parts: the expected value (Keuze) and the card against the expected card (Geluk)
-    const rowsOf = (i) => (i.split ? [row(i, "choice", i.ch[me], wq != null ? i.ch[wq] : null, false), row(i, "luck", i.lk[me], wq != null ? i.lk[wq] : null, true)] : [row(i, null, i.d[me], wq != null ? i.d[wq] : null, i.chance)]);
+    const rowsOf = (i) => (i.split ? [row(i, "choice", i.ch[me], wq != null ? i.ch[wq] : null, false), row(i, "luck", i.lk[me], wq != null ? i.lk[wq] : null, true)] : [row(i, null, rollOf(i, me), wq != null ? rollOf(i, wq) : null, i.chance)]);
     const tot = dLvl(rs.v0[me], rs.v1[me]); let shown = cand.flatMap(rowsOf);
     // v1.90.2 a large rest is explained, not folded: while the other steps add up to 5 points or more, the next largest step that pulls it back to zero is listed too (at most 4 more)
     for (let k = 0; k < 4; k++) {
@@ -186,7 +188,7 @@ export function segsText(segs, fx) {
     if (typeof s === "string") return s;
     if (s.pl != null) return midName(fx.nameOf(s.pl), s.pl === fx.me, acc);
     if (s.pos != null) { const nm = fx.nameOf(s.pos); return s.pos === fx.me ? (nl ? "jouw" : "your") : nl ? nm + (/[sxz]$/i.test(nm) ? "" : "s") : `${nm}’s`; }
-    if (s.d != null) return `${s.est ? "≈" : ""}${sgn(s.d)}${s.se ? ` ±${s.se}` : ""}`;
+    if (s.d != null) return `${s.est ? "≈" : ""}${sgn(s.d)}%${s.se ? ` ±${s.se}%` : ""}`;
     return s.x != null ? String(s.x) : "";
   }
 }

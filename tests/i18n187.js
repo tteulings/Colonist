@@ -26,11 +26,11 @@ const AI_SKIP = /^(Samenvatting uit de cijfers|Voor dit spel samengesteld|Vraag 
   const i18n = await import(pathToFileURL(path.join(__dirname, "..", "src", "i18n.js")).href).catch(() => null); // node: no DOM, only the pure parts
 
   // ── 1 default language ──
-  for (const [locale, saved, want] of [["en-US", null, "en"], ["nl-NL", null, "nl"], ["nl-BE", null, "nl"], ["de-DE", null, "en"], ["nl-NL", "en", "en"], ["en-US", "nl", "nl"]]) {
+  for (const [locale, saved, want] of [["en-US", null, "en"], ["nl-NL", null, "en"], ["nl-BE", null, "en"], ["de-DE", null, "en"], ["nl-NL", "en", "en"], ["en-US", "nl", "nl"]]) {
     const { b, page } = await open(port, saved, { locale });
-    const r = await page.evaluate(async () => { const i = await import("/src/i18n.js"); const rc = await import("/src/review-recap.js"); return { lang: i.lang(), recap: rc.recapLang(), html: document.documentElement.lang, home: document.querySelector("[data-home=history]")?.innerText || "" }; });
+    const r = await page.evaluate(async () => { const i = await import("/src/i18n.js"); const rc = await import("/src/review-recap.js"); return { lang: i.lang(), recap: rc.recapLang(), html: document.documentElement.lang, home: document.querySelector(".sh-home")?.innerText || "" }; });
     ok(r.lang === want && r.recap === want && r.html === want, `locale ${locale}${saved ? " + setting " + saved : ""} -> ${want}`, r);
-    ok(want === "nl" ? /Eerdere spellen/.test(r.home) : /Past games/.test(r.home), "Home shows the language", r.home.split("\n")[0]);
+    ok(want === "nl" ? /Start spel/.test(r.home) : /Start game/.test(r.home), "Home shows the language", r.home.split("\n")[0]);
     await b.close();
   }
 
@@ -41,20 +41,17 @@ const AI_SKIP = /^(Samenvatting uit de cijfers|Voor dit spel samengesteld|Vraag 
     await G(() => window.__colonistGame.settingsUI.open("game")); await sleep(500);
     ok(await G(() => /Language/.test(document.querySelector(".st-body").innerText) && !!document.querySelector("[data-lang=nl]") && !document.querySelector("[data-rc-lang]")), "Settings has one Language row (no separate recap language)");
     await page.locator("[data-lang=nl]").tap(); await sleep(600);
-    ok(await G(() => /Taal/.test(document.querySelector(".st-body").innerText) && /Uiterlijk/.test(document.querySelector(".st-nav").innerText)), "the open Settings turns Dutch at once");
+    ok(await G(() => /Taal/.test(document.querySelector(".st-body").innerText) && /Uiterlijk/i.test(document.querySelector(".st-body").innerText)), "the open Settings turns Dutch at once");
     ok(await G(async () => (await import("/src/review-recap.js")).recapLang() === "nl"), "the AI recap / AI tab read the same setting");
     await G(() => window.__colonistGame.settingsUI.close()); await G(() => window.__colonistGame.goHome()); await sleep(500);
-    ok(await G(() => /Eerdere spellen/.test(document.body.innerText)), "Home is Dutch");
+    ok(await G(() => /Start spel/.test(document.body.innerText)), "Home is Dutch");
     await page.reload(); await page.waitForFunction(() => window.__colonistGame && document.body.dataset.gameReady); await sleep(600);
-    ok(await G(() => /Eerdere spellen/.test(document.querySelector("[data-home=history]").innerText)), "the choice survives a reload");
+    ok(await G(() => /Start spel/.test(document.querySelector(".sh-home").innerText)), "the choice survives a reload");
     await G(() => window.__colonistGame.settingsUI.open("game")); await sleep(400);
     await page.locator("[data-lang=en]").tap(); await sleep(600);
-    ok(await G(() => /Language/.test(document.querySelector(".st-body").innerText) && /Look & feel/.test(document.querySelector(".st-nav").innerText)), "and back to English at once");
+    ok(await G(() => /Language/.test(document.querySelector(".st-body").innerText) && /Appearance/i.test(document.querySelector(".st-body").innerText)), "and back to English at once");
     await G(() => window.__colonistGame.settingsUI.close()); await sleep(300);
-    ok(await G(() => /Past games/.test(document.querySelector("[data-home=history]")?.innerText || "") || /Past games/.test(document.body.innerText)), "Home is English again, nothing left over from Dutch");
-    await page.locator("[data-lang=nl]").count(); // Auto: forget the choice
-    await G(() => window.__colonistGame.settingsUI.open("game")); await sleep(300); await page.locator("[data-lang='']").tap(); await sleep(400);
-    ok(await G(() => localStorage.getItem("colonist_lang") == null), "Auto forgets the choice (follows the browser again)");
+    ok(await G(() => /Start game/.test(document.body.innerText)), "Home is English again, nothing left over from Dutch");
     await b.close();
   }
 

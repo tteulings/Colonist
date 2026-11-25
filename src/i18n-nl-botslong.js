@@ -382,7 +382,7 @@ export const NL_BOTSLONG = [
  ],
  [
   "Accuracy tells how cleanly a bot plays, not how often it wins.",
-  "Nauwkeurigheid zegt hoe schoon een bot speelt, niet hoe vaak hij wint."
+  "Precisie zegt hoe schoon een bot speelt, niet hoe vaak hij wint."
  ],
  [
   "Win chances were only measured in Classic. In Rush the Master and both Super Experts search for less time, so their numbers can differ.",
@@ -398,7 +398,7 @@ export const NL_BOTSLONG = [
  ],
  [
   "<b>Win %</b> = one bot against Medium bots at this kind of table, ± 95% interval (see the numbers above); “not measured”: no figure for that bot here yet. Fair share: {a}%. Accuracy is only measured in Classic. <b>You</b> = your wins in games where that bot sat at the table, from {b} games.",
-  "<b>Win %</b> = één bot tegen Gemiddelde bots aan dit soort tafel, ± 95%-interval (zie de cijfers hierboven); “niet gemeten”: voor die bot is hier nog geen cijfer. Eerlijk deel: {a}%. Nauwkeurigheid is alleen in Klassiek gemeten. <b>Jij</b> = jouw winsten in spellen waarin die bot aan tafel zat, uit {b} spellen."
+  "<b>Win %</b> = één bot tegen Gemiddelde bots aan dit soort tafel, ± 95%-interval (zie de cijfers hierboven); “niet gemeten”: voor die bot is hier nog geen cijfer. Eerlijk deel: {a}%. Precisie is alleen in Klassiek gemeten. <b>Jij</b> = jouw winsten in spellen waarin die bot aan tafel zat, uit {b} spellen."
  ],
  [
   "Measured: {a} games against 3 Medium bots (likely range {b}–{c} wins out of 100).${p.note ? ",
@@ -406,6 +406,6 @@ export const NL_BOTSLONG = [
  ],
  [
   " Review accuracy {a} ± {b}: its own moves checked by deep Monte Carlo (1000 futures), the same scale as the review screen.",
-  " Reviewnauwkeurigheid {a} ± {b}: zijn eigen zetten gecontroleerd met diepe Monte Carlo (1000 toekomsten), dezelfde schaal als het reviewscherm."
+  " Precisie {a} ± {b}: zijn eigen zetten gecontroleerd met diepe Monte Carlo (1000 toekomsten), dezelfde schaal als het reviewscherm."
  ]
 ];

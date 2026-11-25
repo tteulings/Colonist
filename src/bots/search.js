@@ -49,20 +49,22 @@ export function searchBot(meta, { strategy = null, agent = null, rush = false, s
       if (g.winner) return done();
       if (!m.trade) { // the Expert's own deal first (mainPhase: g.aiTryPlayerTrade(p))
         m.trade = true;
-        const r = probe(g, () => g.aiTryPlayerTrade(p), { eager: true, suspend: true });
+        const r = probe(g, () => g.aiTryPlayerTrade(p), { suspend: true });
         if (r.actions.length) { m.queue = r.actions; continue; }
       }
       if (m.steps >= 12) return done();
       m.steps++;
       const d = suspended(g, () => A.decideMain(g, p));
       if (!d) { // nothing to choose between: the Expert's step
-        const r = probe(g, () => g._aiPlannedStep(p));
+        const r = probe(g, () => g._aiPlannedStep(p), { adopt: ctx.adoptOk });
         if (!r.result) return done();
+        if (r.adopted) ctx.adopt(r.actions[0]);
         m.queue = r.actions; continue;
       }
       if (d.choice.kind === "end") return done();
-      const r = probe(g, () => A.applyMain(g, p, d.choice)); // engine seat control stays on: a card opens its prompts instead of playing itself out
+      const r = probe(g, () => A.applyMain(g, p, d.choice), { adopt: ctx.adoptOk }); // engine seat control stays on: a card opens its prompts instead of playing itself out
       if (r.result === false || r.result === "noop") return done();
+      if (r.adopted) ctx.adopt(r.actions[0]);
       m.queue = r.actions;
     }
     return done();

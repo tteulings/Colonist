@@ -27,7 +27,8 @@ const LAYERS = [
   ["rvinfo", () => q(".rv-info"), () => tap(".rv-info [data-rvinfo-x]")],
   ["gamesheet", () => q(".hs-sheet"), () => tap(".hs-sheet [data-sclose]")],
   ["intro", (g) => g.onboarding?.open, (g) => g.onboarding.endIntro()],
-  ["settings", (g) => g.settingsUI?.el, (g) => g.settingsUI.close()],
+  ["settings", (g) => g.settingsUI?.el, (g) => g.settingsUI.backStep()], // v1.99 a layer of Settings (Theme) goes back to the page first
+  ["newgame-layer", () => q(".newgame-modal .sh-layer"), () => tap(".newgame-modal .sh-layer [data-action=back]")], // v1.99 More rules / Levels
   ["newgame", () => q(".newgame-modal"), () => tap(".newgame-modal [data-action=cancel]") || q(".newgame-modal")?.remove()],
   ["menu", (g) => g.menu?.open, (g) => g.menu.close()],
   ["livestats", (g) => g._lsEl, (g) => g.liveStatsClose()],
