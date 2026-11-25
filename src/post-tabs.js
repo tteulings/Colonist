@@ -6,7 +6,7 @@ import { tr as atr } from "./review/analysis-text.js";
 import { moveTerse, spotText } from "./post-text.js";
 import { resIcon } from "./lessons-view.js";
 import { RES_COLOR } from "./resources.js";
-import { pl, nErr, spotTiles, scoredNote, pm, startAdvice, DOT_KEY, f, CLS_NAME, PHASE_NAME, PLAN_NAME, RES_KEY, rname, infoBtn, fold, ready, progressCard, bindPost, who, whose, takeText, numbersSheet, chipText, waterSubs } from "./post-ui.js";
+import { neutralCls, humanNm, pl, nErr, spotTiles, scoredNote, pm, startAdvice, DOT_KEY, f, CLS_NAME, PHASE_NAME, PLAN_NAME, RES_KEY, rname, infoBtn, fold, ready, progressCard, bindPost, who, whose, takeText, numbersSheet, chipText, waterSubs } from "./post-ui.js";
 import { SRC_PARTS, FAMILY } from "./post-model.js";
 import { luckRows, tableStore } from "./post-facts.js";
 import { tableOf } from "./post-model.js";
@@ -16,7 +16,7 @@ const accWord = "Accuracy";
 const reconTable = (m) => { const X = m.F, row = (l, ref) => `<span>${l}</span><b>${X.n(ref)}</b>`; return `<div class="px-rc">${row("Decisions", "decisions")}${X.v("oneOption") > 0 ? row("Only one sensible option", "oneOption") : ""}${row("Scored", "scored")}${row("Real errors", "errors")}${row("Start picks", "startN")}${row("Other decisions", "otherN")}</div>`; };
 const stepText = (m) => (m.you ? "Step through your moves" : f("Step through {y}’s moves", { y: esc(m.me.name) }));
 function lkLabel(g, X, lab, q) {
-  const nm = (z) => (z === g._rvPid && g._rvIsYou?.(z) ? "You" : g.players[z]?.isHuman ? "the human player" : esc(g.players[z]?.name || "Someone"));
+  const nm = (z) => (z === g._rvPid && g._rvIsYou?.(z) ? "You" : g.players[z]?.isHuman ? humanNm(g.players[z].name, z, false) : esc(g.players[z]?.name || "Someone"));
   if (!lab) return "";
   if (lab.k === "dice") return lab.rush ? X.ph("Rolled {n}", { n: [lab.n] }) : X.ph("{x} rolled {n}", { x: nm(lab.who), n: [lab.n] });
   if (lab.k === "seven") return X.ph("Cards lost ({x} rolled)", { x: [lab.n] });
@@ -32,7 +32,7 @@ export const mvText = (g, d) => {
   return parts.map((x) => (nl ? `<span data-i18n-skip>${esc(x)}</span>` : `<span>${esc(x)}</span>`)).join(" → ");
 };
 const low1 = (x) => x.charAt(0).toLowerCase() + x.slice(1);
-const mvRow = (g, m, d, q = "all") => `<button type="button" class="px-mv" data-rvj="${d.i}" data-rvq="${q}"><span class="t">${when(g, d)}</span><span class="x"><span class="mt">${mvText(g, d)}</span><small><i class="px-cls c-${(m.F.v(`mv.${d.i}.cost`) ?? 0) < 0 && ["best", "great", "good"].includes(d.cls) ? "close" : d.cls}">${CLS_NAME[d.cls]}</i></small></span><span class="px-dp">${m.F.d(`mv.${d.i}.cost`)}${pm(m.F, d.i)}</span>${IC.chev}</button>`;
+const mvRow = (g, m, d, q = "all") => `<button type="button" class="px-mv" data-rvj="${d.i}" data-rvq="${q}"><span class="t">${when(g, d)}</span><span class="x"><span class="mt">${mvText(g, d)}</span><small><i class="px-cls c-${(m.F.v(`mv.${d.i}.cost`) ?? 0) < 0 && ["best", "great", "good"].includes(d.cls) ? "close" : d.cls}">${neutralCls(m.F, d)}</i></small></span><span class="px-dp">${m.F.d(`mv.${d.i}.cost`)}${pm(m.F, d.i)}</span>${IC.chev}</button>`;
 
 // ───────────────────────── Moves ─────────────────────────
 export function movesTab(g, ds, res, rv) {
@@ -43,7 +43,7 @@ export function movesTab(g, ds, res, rv) {
   const cap = X.cost?.capped ? `<p class="px-fn">${X.ph("Together the moves cannot cost more than the best win chance held ({w}).", { w: ["capNote"] })}</p>` : "";
   const head = `<section class="rv-card px-card"><div class="rv-gt"><b>${whose(m)} moves</b>${infoBtn("error")}</div><p class="px-l"><b>Moves in total</b> ${X.d("movesTotal")} · <b>${accWord} ${X.has(`acc:${m.pid}`) ? X.n(`acc:${m.pid}`) : "–"}</b></p><p class="px-fn px-ms">${X.ph("Start picks {a} + moves {b}", { a: ["startCost"], b: ["moveCost"] })}</p>${cap}<div class="px-fams">${tiles}</div>${reconTable(m)}</section>`;
   const first = m.errs[0]?.i ?? m.ds[0]?.i;
-  const go = m.ds.length ? `<button type="button" class="px-btn pri go" data-rvj="${first}" data-rvq="${m.errs.length ? "imp" : "all"}">${IC.step}<span>${stepText(m)}</span>${m.errs.length ? ` · ${X.ph("{n} to look at", { n: ["errors"] })}` : ""}</button>` : "";
+  const go = m.ds.length ? `<button type="button" class="px-btn pri go" data-rvj="${first}" data-rvq="${m.errs.length ? "imp" : "all"}">${IC.step}<span class="gx"><span>${stepText(m)}</span>${m.errs.length ? `<small>${X.ph("{n} to look at", { n: ["errors"] })}</small>` : ""}</span></button>` : "";
   const { miss, rest, restLt1 } = X.data;
   const restHead = `<span class="px-fl">${restLt1 ? X.ph("{n} more moves costing under {l} each", { n: ["restN"], l: ["lim.small:-"] }) : X.ph("{n} more moves", { n: ["restN"] })}</span>`;
   const missCard = `<section class="rv-card px-card"><div class="rv-gt"><b>${m.errs.length ? "Real errors" : "Smallest losses"}</b><small>${m.errs.length ? "biggest first" : "no clear error"}</small></div><p class="px-fn">± = the move’s own margin: a gap under twice that is not an error.</p>${miss.length ? miss.map((d) => mvRow(g, m, d, "imp")).join("") : `<p class="px-l">No move cost win chance.</p>`}${rest.length ? fold("rest", restHead, rest.map((d) => mvRow(g, m, d)).join("")) : ""}</section>`;
@@ -174,13 +174,17 @@ export function luckTab(g, ds) {
 /** "Why won / lost" on the player page: the parts the headline carries (best or costliest own move, the start picks, the luck), one row each, from the same facts as the waterfall */
 function whyCard(g, m, p) {
   const X = m.F, P = X.data.head, lg = isNL() ? "nl" : "en", at = (k, v) => atr(lg, k, v), sk = (x) => `<span data-i18n-skip>${x}</span>`, subs = waterSubs(m);
-  const row = (l, d, c) => `<div class="px-wr"><b>${sk(l)}</b><span>${d || ""}</span>${c}</div>`;
+  const won = g.winner === p, side = won ? 1 : -1;
+  // rows: the parts that go with the result first, the ones that went against it after, worded "Despite: …"
   const rows = [];
-  if (P?.own?.k === "best") rows.push(`<div class="px-wr"><b>${sk(at("w.own.won"))}</b><span>${f("Turn {n}", { n: P.own.T })}</span>${X.d(`mom.${P.own.S}.move`)}</div>`);
-  else if (X.data.wf?.miss) { const d = X.data.wf.miss; rows.push(`<div class="px-wr"><b>${sk(at("w.own.lost"))} <small class="px-tn">${f("Turn {n}", { n: d.t })}</small></b><span>${mvText(g, d)}</span>${X.d(`mv.${d.i}.cost`)}</div>`); }
-  const picks = m.start?.picks?.length; rows.push(row(at("w.start"), picks ? subs.start : sk(at("w.nostart")), picks ? X.d("startCost") : ""));
-  if (X.has("luck")) rows.push(row(at("w.luck"), subs.luck, X.d("luck")));
-  return `<section class="rv-card px-card"><div class="rv-gt"><b>${g.winner === p ? "Why won" : "Why lost"}</b>${infoBtn("error")}</div>${rows.join("")}</section>`;
+  const add = (key, ref, text, tail = "") => { const v = X.v(ref) ?? 0, against = v !== 0 && Math.sign(v) !== side; rows.push({ against, html: `<div class="px-wr"><b>${sk(at(against ? `${key}.d` : key))}${tail}</b><span>${text || ""}</span>${X.d(ref)}</div>` }); };
+  if (P?.own?.k === "best") add("w.own.won", `mom.${P.own.S}.move`, f("Turn {n}", { n: P.own.T }));
+  else if (X.data.wf?.miss) { const d = X.data.wf.miss; add("w.own.lost", `mv.${d.i}.cost`, mvText(g, d), ` <small class="px-tn">${f("Turn {n}", { n: d.t })}</small>`); }
+  const picks = m.start?.picks?.length;
+  if (picks) add("w.start", "startCost", subs.start); else rows.push({ against: false, html: `<div class="px-wr"><b>${sk(at("w.start"))}</b><span>${sk(at("w.nostart"))}</span></div>` });
+  if (X.has("luck")) add("w.luck", "luck", subs.luck);
+  rows.sort((a, c) => a.against - c.against);
+  return `<section class="rv-card px-card"><div class="rv-gt"><b>${won ? "Why won" : "Why lost"}</b>${infoBtn("error")}</div>${rows.map((r) => r.html).join("")}</section>`;
 }
 // ───────────────────────── player page ─────────────────────────
 export function playerTab(g, ds, rv, prov) {

@@ -39,7 +39,7 @@ export const EN = {
   "h.mv.you": "your own moves", "h.mv.3": "{x}’s moves", "h.start": "Your start pick cost {n}%.", "h.start.3": "{x}’s start pick cost {n}%.",
   "c.line": "{acc} and {errs}: {mv} cost {n} together{o}.", "c.err0": "no real errors", "c.err1": "{n} real error", "c.errn": "{n} real errors", "c.most": ", mostly {w} ({v}%)", "c.w.start": "the start", "c.w.errors": "errors", "c.w.other": "small moves",
   "band.hi": "Higher than the usual {a}–{b} of {x} bots.", "band.lo": "Lower than the usual {a}–{b} of {x} bots.", "band.in": "Usual for {x} bots ({a}–{b}).",
-  "w.own.won": "Best own move", "w.own.lost": "Costliest own move", "w.start": "Start pick", "w.luck": "Luck", "w.when": "{k} · turn {t}", "w.roll": "biggest roll: turn {t} ({d})", "w.nostart": "no start picks checked",
+  "w.own.won": "Best own move", "w.own.lost": "Costliest own move", "w.start": "Start pick", "w.luck": "Luck", "w.own.lost.d": "Despite: costliest own move", "w.start.d": "Despite: start pick", "w.luck.d": "Despite: luck", "w.own.won.d": "Despite: best own move", "w.when": "{k} · turn {t}", "w.roll": "biggest roll: turn {t} ({d})", "w.nostart": "no start picks checked",
   
   "h.own.you": "your {k} in turn {t} ({d} win chance)", "h.own.3": "{x}’s {k} in turn {t} ({d} win chance)", "h.own.you.n": "your {k} in turn {t} ({d})", "h.own.3.x": "the {k} in turn {t} ({d})", "h.own.3.n": "{x}’s {k} in turn {t} ({d})",
   "h.lk.good1": "luck in turn {t} ({d})", "h.lk.good2": "luck in turns {t} and {t2} ({d})", "h.lk.bad1": "bad luck in turn {t} ({d})", "h.lk.bad2": "bad luck in turns {t} and {t2} ({d})", "h.lk.good0": "luck ({d})", "h.lk.bad0": "bad luck ({d})",
@@ -81,10 +81,10 @@ export const EN = {
   "hd.lk.good.you": "{y}’s rolls in turns {t} and {t2} helped you ({d})", "hd.lk.good1.you": "{y}’s roll in turn {t} helped you ({d})", "hd.lk.good.3": "{y}’s rolls in turns {t} and {t2} helped {x} ({d})", "hd.lk.good1.3": "{y}’s roll in turn {t} helped {x} ({d})",
   "hd.lk.bad.you": "{y}’s rolls in turns {t} and {t2} ({d})", "hd.lk.bad1.you": "{y}’s roll in turn {t} ({d})", "hd.lk.bad.3": "{y}’s rolls in turns {t} and {t2} ({d})", "hd.lk.bad1.3": "{y}’s roll in turn {t} ({d})",
   "hd.lk.good.short": "{y}’s rolls helped ({d})", "hd.lk.bad.short": "{y}’s rolls ({d})",
-  "c.a": "{acc}, {errs}.", "c.b": "Moves in total {tot} (max {cap}): start {st} + moves {mv}.", "c.b.3": "{x}’s moves in total {tot} (max {cap}): start {st} + moves {mv}.",
+  "c.a": "{acc}, {errs}.", "c.b": "Moves in total {tot}: start {st} + moves {mv}.", "c.b.3": "{x}’s moves in total {tot}: start {st} + moves {mv}.",
   "wf.fair": "Fair share", "wf.start": "Start picks", "wf.moves": "Moves", "wf.luck": "Luck", "wf.others": "Others", "wf.end": "End",
   "wf.start.sub": "{p} {a} instead of {b}", "wf.start.ok": "start picks fine", "wf.moves.sub": "biggest miss: turn {t}, {k1} instead of {k2} ({d})", "wf.moves.sub.w": "biggest miss: turn {t}, {w} ({d})", "wf.moves.none": "no miss of {n} or more", "wf.moves.rate": "{n} per move",
-  "wf.luck.sub": "biggest roll: {x} rolled {n} in turn {t} ({d})", "wf.luck.none": "rolls, cards and seat order", "wf.others.sub": "their moves, their luck and the rest", "wf.others.rolls": "of which {y}’s rolls (turns {t} and {t2}): {d}", "wf.others.rolls1": "of which {y}’s roll (turn {t}): {d}",
+  "wf.luck.sub": "biggest roll: {x} rolled {n} in turn {t} ({d})", "wf.luck.none": "rolls, cards and seat order", "wf.others.l1": "of which their rolls: {d}", "wf.others.l1r": "of which their rolls {d}, {y}’s in turns {t} and {t2}: {h}", "wf.others.l1r1": "of which their rolls {d}, {y}’s in turn {t}: {h}", "wf.others.l2": "their moves and the rest: {d}", "wf.after.sub": "the rest of the game decided the result", "wf.others.sub": "their moves, their luck and the rest", "wf.others.rolls": "of which {y}’s rolls (turns {t} and {t2}): {d}", "wf.others.rolls1": "of which {y}’s roll (turn {t}): {d}",
   "wf.you": "you", "wf.human": "the human player", "wf.pick": "pick {n}",
 };
 
@@ -117,7 +117,7 @@ export const NL = {
   "h.mv.you": "je eigen zetten", "h.mv.3": "de zetten van {x}", "h.start": "Je startkeuze kostte {n}%.", "h.start.3": "De startkeuze van {x} kostte {n}%.",
   "c.line": "{acc} en {errs}: {mv} kostten samen {n}{o}.", "c.err0": "geen echte fouten", "c.err1": "{n} echte fout", "c.errn": "{n} echte fouten", "c.most": ", vooral {w} ({v}%)", "c.w.start": "de start", "c.w.errors": "fouten", "c.w.other": "kleine zetten",
   "band.hi": "Hoger dan de gebruikelijke {a}–{b} van {x}-bots.", "band.lo": "Lager dan de gebruikelijke {a}–{b} van {x}-bots.", "band.in": "Gebruikelijk voor {x}-bots ({a}–{b}).",
-  "w.own.won": "Beste eigen zet", "w.own.lost": "Duurste eigen zet", "w.start": "Startkeuze", "w.luck": "Geluk", "w.when": "{k} · beurt {t}", "w.roll": "grootste worp: beurt {t} ({d})", "w.nostart": "geen startkeuzes gecheckt",
+  "w.own.won": "Beste eigen zet", "w.own.lost": "Duurste eigen zet", "w.start": "Startkeuze", "w.luck": "Geluk", "w.own.lost.d": "Ondanks: duurste eigen zet", "w.start.d": "Ondanks: startkeuze", "w.luck.d": "Ondanks: geluk", "w.own.won.d": "Ondanks: beste eigen zet", "w.when": "{k} · beurt {t}", "w.roll": "grootste worp: beurt {t} ({d})", "w.nostart": "geen startkeuzes gecheckt",
   
   "h.own.you": "je {k} in beurt {t} ({d} winkans)", "h.own.3": "{k} van {x} in beurt {t} ({d} winkans)", "h.own.you.n": "je {k} in beurt {t} ({d})", "h.own.3.x": "{k} in beurt {t} ({d})", "h.own.3.n": "{k} van {x} in beurt {t} ({d})",
   "h.lk.good1": "geluk in beurt {t} ({d})", "h.lk.good2": "geluk in beurt {t} en {t2} ({d})", "h.lk.bad1": "pech in beurt {t} ({d})", "h.lk.bad2": "pech in beurt {t} en {t2} ({d})", "h.lk.good0": "geluk ({d})", "h.lk.bad0": "pech ({d})",
@@ -155,10 +155,10 @@ export const NL = {
   "hd.lk.good.you": "de worpen van {y} in beurt {t} en {t2} hielpen je ({d})", "hd.lk.good1.you": "de worp van {y} in beurt {t} hielp je ({d})", "hd.lk.good.3": "de worpen van {y} in beurt {t} en {t2} hielpen {x} ({d})", "hd.lk.good1.3": "de worp van {y} in beurt {t} hielp {x} ({d})",
   "hd.lk.bad.you": "de worpen van {y} in beurt {t} en {t2} ({d})", "hd.lk.bad1.you": "de worp van {y} in beurt {t} ({d})", "hd.lk.bad.3": "de worpen van {y} in beurt {t} en {t2} ({d})", "hd.lk.bad1.3": "de worp van {y} in beurt {t} ({d})",
   "hd.lk.good.short": "de worpen van {y} hielpen ({d})", "hd.lk.bad.short": "de worpen van {y} ({d})",
-  "c.a": "{acc}, {errs}.", "c.b": "Zetten totaal {tot} (max. {cap}): start {st} + zetten {mv}.", "c.b.3": "Zetten totaal van {x} {tot} (max. {cap}): start {st} + zetten {mv}.",
+  "c.a": "{acc}, {errs}.", "c.b": "Zetten totaal {tot}: start {st} + zetten {mv}.", "c.b.3": "Zetten totaal van {x} {tot}: start {st} + zetten {mv}.",
   "wf.fair": "Eerlijk deel", "wf.start": "Startkeuzes", "wf.moves": "Zetten", "wf.luck": "Geluk", "wf.others": "Anderen", "wf.end": "Eind",
   "wf.start.sub": "{p} {a} i.p.v. {b}", "wf.start.ok": "startkeuzes in orde", "wf.moves.sub": "grootste misser: beurt {t}, {k1} i.p.v. {k2} ({d})", "wf.moves.sub.w": "grootste misser: beurt {t}, {w} ({d})", "wf.moves.none": "geen misser van {n} of meer", "wf.moves.rate": "{n} per zet",
-  "wf.luck.sub": "grootste worp: {x} gooide {n} in beurt {t} ({d})", "wf.luck.none": "worpen, kaarten en plek", "wf.others.sub": "hun zetten, hun geluk en de rest", "wf.others.rolls": "waarvan de worpen van {y} (beurt {t} en {t2}): {d}", "wf.others.rolls1": "waarvan de worp van {y} (beurt {t}): {d}",
+  "wf.luck.sub": "grootste worp: {x} gooide {n} in beurt {t} ({d})", "wf.luck.none": "worpen, kaarten en plek", "wf.others.l1": "waarvan hun worpen: {d}", "wf.others.l1r": "waarvan hun worpen {d}, die van {y} in beurt {t} en {t2}: {h}", "wf.others.l1r1": "waarvan hun worpen {d}, die van {y} in beurt {t}: {h}", "wf.others.l2": "hun zetten en de rest: {d}", "wf.after.sub": "de rest van het spel besliste de uitslag", "wf.others.sub": "hun zetten, hun geluk en de rest", "wf.others.rolls": "waarvan de worpen van {y} (beurt {t} en {t2}): {d}", "wf.others.rolls1": "waarvan de worp van {y} (beurt {t}): {d}",
   "wf.you": "jij", "wf.human": "de menselijke speler", "wf.pick": "keuze {n}",
 };
 

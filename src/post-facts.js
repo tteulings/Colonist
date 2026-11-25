@@ -238,19 +238,22 @@ function waterfall(S, g, m, cost) {
   const P = (id, unit, v, label) => S.put(id, me, unit, v, label, "waterfall");
   const lk = A.luck?.[me], hasLuck = !!lk, from = L.from, to = L.to;
   const start = -cost.start, moves = -cost.moves, luck = hasLuck ? lk.total : 0, others = to - from - start - moves - luck;
-  P("fair", "wc", from, "fact.fair"); P("end", "wc", to, "fact.end"); S.put("startCost", me, "wcDelta", start, "fact.startCost", "decisions"); S.put("moveCost", me, "wcDelta", moves, "fact.moveCost", "decisions");
+  // the real result: the review's last measured point can be before the end of the game; the step to 100% (won) or 0% (lost) is its own fact
+  const wId = g.winner?.id ?? null, fin0 = wId == null ? null : wId === me ? 100 : 0, after = fin0 != null && fin0 !== to ? fin0 - to : null, endV = after != null ? fin0 : to;
+  P("fair", "wc", from, "fact.fair"); P("end", "wc", endV, "fact.end"); if (after != null) S.put("afterLast", me, "wcDelta", after, "fact.afterLast", "waterfall"); S.put("startCost", me, "wcDelta", start, "fact.startCost", "decisions"); S.put("moveCost", me, "wcDelta", moves, "fact.moveCost", "decisions");
   if (hasLuck) S.put("luck", me, "wcDelta", luck, "fact.luck", "luckSplit"); P("others", "wcDelta", others, "fact.others");
-  const run = [from, from + start, from + start + moves, from + start + moves + luck, to]; run.forEach((v, i) => P(`wf.run.${i}`, "wc", v, "fact.wfRun"));
+  const run = [from, from + start, from + start + moves, from + start + moves + luck, to]; if (after != null) run.push(endV); run.forEach((v, i) => P(`wf.run.${i}`, "wc", v, "fact.wfRun"));
   P("perMove", "rate", m.counts.scored ? Math.abs(moves) / m.counts.scored : null, "fact.perMove");
   const lo = Math.min(0, ...run), hi = Math.max(100, ...run), span = hi - lo || 1, pc = (v) => Math.round(((v - lo) / span) * 1000) / 10;
   const seg = (a, b) => ({ left: pc(Math.min(a, b)), width: Math.max(1.2, Math.round((Math.abs(b - a) / span) * 1000) / 10) });
-  S.data.wf = { hasLuck, run, geo: { fair: seg(0, from), start: seg(run[0], run[1]), moves: seg(run[1], run[2]), luck: seg(run[2], run[3]), others: seg(run[3], run[4]), end: seg(0, to) } };
+  S.data.wf = { hasLuck, run, geo: { fair: seg(0, from), start: seg(run[0], run[1]), moves: seg(run[1], run[2]), luck: seg(run[2], run[3]), others: seg(run[3], run[4]), after: after != null ? seg(run[4], run[5]) : null, end: seg(0, endV) }, after: after != null };
   { const w = g.winner?.id ?? null; if (w != null) { const oth = tab0(S, g).filter((q) => q !== w).sort((a, b) => (S.v(`pts:${b}`) ?? 0) - (S.v(`pts:${a}`) ?? 0)); const won = w === me; S.data.res = { won, winner: g.players[w].name, left: `pts:${won ? me : w}`, right: won ? `pts:${oth[0]}` : `pts:${me}` }; } }
   // sub-lines: the start picks that cost, the biggest miss after the start, the biggest roll on the side of the luck total
   const costly = (m.start?.picks || []).filter((p) => p.gp >= 1); S.data.wf.picks = costly.map((p) => p.n);
   const miss = m.ds.filter((d) => d.k !== "setup" && d.cls !== "triv" && inScope(d) && d.gp >= 1).sort((a, b) => b.gp - a.gp || a.i - b.i)[0] || null; S.data.wf.miss = miss;
   const sw = swings(g, me), sign = luck >= 0 ? 1 : -1;
   const roll = sw.filter((x) => !x.seven && x.roll != null && Math.sign(x.dice) === sign && Math.abs(x.dice) >= 1).sort((p, q) => Math.abs(q.dice) - Math.abs(p.dice))[0] || null;
+  { const oRolls = sw.filter((x) => x.actor !== me).reduce((a, x) => a + x.dice, 0); S.put("othRolls", me, "wcDelta", oRolls, "fact.othRolls", "swings"); S.put("othRest", me, "wcDelta", others - oRolls, "fact.othRest", "swings"); }
   if (roll) { S.put("roll1.d", me, "wcDelta", roll.dice, "fact.roll1", "win chance"); S.put("roll1.n", me, "count", roll.roll, "fact.roll", "stats"); S.data.wf.roll = roll; }
 }
 

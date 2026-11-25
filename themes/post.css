@@ -263,3 +263,7 @@
 [data-palette="night"] .px-link, :root[data-theme="dark"] .px-link { color: #A9E3D6; }
 .px-err .mv s { display: block; min-width: 0; } .px-wr b .px-tn { display: inline; font: 700 12px/1.2 var(--font-body); color: var(--ink-soft); margin-left: 4px; }
 .px-adv2 { margin-top: 0; }
+/* round 3 */
+.px-wf .px-wfr .sb { grid-row: auto; } .px-wf .px-wfr.aft .bar > i { background: repeating-linear-gradient(45deg, var(--ink-soft) 0 3px, transparent 3px 6px); opacity: .55; } .px-wf .px-wfr.aft .px-d { background: var(--px-soft); color: var(--ink-soft); }
+.px-btn.go { height: auto; padding-top: 6px; padding-bottom: 6px; } .px-btn.go .gx { display: grid; text-align: left; gap: 1px; } .px-btn.go .gx small { font: 600 12px/1.2 var(--font-body); opacity: .9; }
+.px-err .h .px-d { flex: none; margin-left: auto; }

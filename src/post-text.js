@@ -180,9 +180,11 @@ export function whyItem(item, lg, youWord) {
   unknown.add(`why: ${s}`); return { unknown: true };
 }
 /** the engine's why line ("a · b · c") in the language: kept items joined " · ", first letter capital; null when nothing is left */
-export function whyLine(text, lg, youWord) {
+export function whyLine(text, lg, youWord, lower = false) {
   const items = String(text || "").split(" · ").map((x) => whyItem(x, lg, youWord)).filter((x) => x.t);
-  return items.length ? cap1(items.map((x) => x.t).join(" · ")) : null;
+  if (!items.length) return null;
+  const t = items.map((x) => x.t).join(" · ");
+  return lower ? (/^\p{Lu}\p{Ll}+ \d/u.test(t) ? t : low1(t)) : cap1(t); // a spot ("Lumber 6, …") keeps its capital
 }
 /** the chips (at most `max`): the dropped and unknown ones leave a gap that the next chip fills */
 export function whyChips(chips, lg, max = 3, youWord) {

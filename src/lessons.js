@@ -247,7 +247,7 @@ export const LessonsMixin = {
       else txt = L(`${ptN(l.cost)} per game, in ${ofN(l.k, l.N)} · ${movesN(l.moves)}.`, `${ptN(l.cost)} per potje, in ${ofN(l.k, l.N)} · ${movesN(l.moves)}.`);
     } else txt = this._lnMech(l).line;
     const need = this._lnNeed(l), pc = Math.round((l.prog || 0) * 100);
-    return `<div role="button" tabindex="0" class="ln-c ln-les ln-w" data-lnopen="${l.id}"><span class="ln-row"><b class="ln-t">${esc(titleOf(l))}</b><em class="ln-tag soft">${L("Watch", "Let op")}</em></span><span class="ln-two"><span>${esc(txt)}</span></span>
+    return `<div role="button" tabindex="0" class="ln-c ln-les ln-w" data-lnopen="${l.id}"><span class="ln-row"><b class="ln-t">${esc(titleOf(l))}</b>${this._ln.D.N >= MIN.games ? `<em class="ln-tag soft">${L("Watch", "Let op")}</em>` : ""}</span><span class="ln-two"><span>${esc(txt)}</span></span>
       <span class="ln-need">${esc(need)}</span><span class="ln-bar" role="progressbar" aria-label="${esc(need)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pc}"><i style="width:${pc}%"></i></span></div>`;
   },
   _lnStrong(l) {
