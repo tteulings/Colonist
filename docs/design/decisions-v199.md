@@ -39,3 +39,6 @@
 - AI tab: every signed number carries a %; turns read "Turn n" / "Beurt n" (no "B2" / "T10" tokens); the roll sentence reads "Groen rolled 4 (+4%) and Geelen 9 (+6%); Groen got wheat."; no "open the AI tab" row on the AI tab; what is known already (who won, when, points) shows while the ranked part settles.
 - Test: tests/facts199-ui.js "one value per roll on every screen" and the AI tab checks.
 - Luck headline (PO decision, r1): the number is always the Luck tab's `luck:seat` fact when luck is large (8% or more). With no single large roll the words are "bad luck, spread over many rolls (−16%)" / "pech, verspreid over veel worpen (−16%)" ("good luck" / "geluk" when positive), no name. When ONE roll is large (at least 5% and at least half of the total, on the total's side, never a 7) it is named instead with its own number: "Groen rolled 10 in turn 3 (−8%)" / "Groen gooide 10 in beurt 3 (−8%)" (fact `hl.ev.d`, the same roll number as everywhere). "in total" wording is gone. Test: facts199-ui "luck headline" checks, both cases.
+
+## Test policy (product-owner decision, integration of r1+r2+r3)
+- During fix rounds, agents run only the suites for what they changed, with a ≤5-game subset; the full suite runs once after the merge; long comparison suites (events197, inapp197) only when engine/host code changes.
