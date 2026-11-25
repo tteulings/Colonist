@@ -263,3 +263,6 @@ html[data-motion="reduced"] .sh-sheet, html[data-motion="reduced"] .sh-layer.ent
   .ai-ask .ai-chips .ai-q { max-width: 100%; }
 }
 .ap-settle .ap-settle-note { margin: 8px 0 0; font: 600 12.5px/1.4 var(--font-body); color: var(--ink-soft); }
+
+/* v1.99.2: a refusal reason in the ticker ("Too close to another settlement: keep two roads apart.") wraps to two lines instead of ending in "…" */
+.app .ticker.flash .txt, .app .ticker.flash .txt:not(:has(.tk-main)), .app .ticker.flash .tk-main { display: -webkit-box; white-space: normal; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.15; text-overflow: clip; }

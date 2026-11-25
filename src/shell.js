@@ -149,7 +149,13 @@ export class Home {
   autoDarkToast() {
     if (store.get("colonist.autoDarkToast") || paletteChosen()) return;
     store.set("colonist.autoDarkToast", "1");
-    window.setTimeout(() => toast({ text: "Colours follow your phone.", icon: "moon", action: { label: "Undo", onClick: () => { setPalette("light"); this.game.requestBoardDraw?.(); } } }), 900);
+    // v1.99.2: never over a sheet (it sat on the Start button of the New game sheet): wait until no sheet is open (twice a second, for 30 s at most)
+    let tries = 0;
+    const show = () => {
+      if (document.querySelector(".sh-sheet-wrap") && tries++ < 60) { window.setTimeout(show, 500); return; }
+      toast({ text: "Colours follow your phone.", icon: "moon", action: { label: "Undo", onClick: () => { setPalette("light"); this.game.requestBoardDraw?.(); } } });
+    };
+    window.setTimeout(show, 900);
   }
 
   chips(last) {

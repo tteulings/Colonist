@@ -10489,9 +10489,10 @@ class ColonistFullGame {
   /** A short line in the ticker / turn banner (e.g. why a tile can't take the robber). */
   _flashPrompt(text, ms = 2600) {
     this._flash = { text, until: Date.now() + ms };
+    document.querySelector("#ticker")?.classList.add("flash"); // v1.99.2: a refusal reason wraps to two lines (never cut off with "…")
     this.renderStatusAndControls();
     window.clearTimeout(this._flashTimer);
-    this._flashTimer = window.setTimeout(() => { this._flash = null; this._tickerPromptKey = null; this.renderStatusAndControls(); }, ms);
+    this._flashTimer = window.setTimeout(() => { this._flash = null; this._tickerPromptKey = null; document.querySelector("#ticker")?.classList.remove("flash"); this.renderStatusAndControls(); }, ms);
   }
 
   _robberBlockedReason(hexId, mover) {
