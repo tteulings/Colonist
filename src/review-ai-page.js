@@ -108,10 +108,19 @@ export const ReviewAiPageMixin = {
   },
 
   // ── the page ──
+  /** v1.99.1 the wait is on this phone, not the network: say so early when offline, and say it is slow after 25 s (one redraw is scheduled for that). */
+  _pgSettleNote(fx) {
+    const nl = fx.lang === "nl", W = this._ldW0, slow = W && performance.now() - (W.tab || W.t) > 25000, off = typeof navigator !== "undefined" && navigator.onLine === false;
+    if (!slow && !this._pgSlowT) this._pgSlowT = setTimeout(() => { this._pgSlowT = null; if (this._rvTab === "ai" && this._rvStep == null && tryv(() => this._ldSettling?.(), false)) this._pgSwap?.(); }, 26000);
+    const out = [];
+    if (off) out.push(nl ? "Je bent offline. Deze controle draait op je telefoon en werkt gewoon; alleen vragen aan de AI hebben internet nodig." : "You are offline. This check runs on your phone and still works; only asking the AI needs a connection.");
+    if (slow) out.push(nl ? "Dit duurt langer dan normaal. Het draait op je telefoon en kan een paar minuten duren; daarna toont de pagina wat er is." : "This is taking longer than usual. It runs on your phone and can take a few minutes; the page then shows what is ready.");
+    return out.map((t) => `<p class="ap-settle-note" data-pgnote>${esc(t)}</p>`).join("");
+  },
   _pgHtml() {
     const { fx, page, src, fu } = this._pgState();
     // v1.91 not final yet (the luck run values the positions, the shown rounds are refined): nothing ranked is drawn, so nothing it says moves later
-    if (tryv(() => this._ldSettling?.(), false)) return `<div class="ap ap-settle" data-pg><section class="ap-c ap-sk" aria-busy="true" role="status"><div class="ap-skl"><i></i><i></i></div><div class="ap-skv"></div><span class="ap-skt">${esc(fx.t.settle)}…</span><p class="ap-asked ap-settle-sub">${esc(fx.t.settleSub)}</p></section></div>`;
+    if (tryv(() => this._ldSettling?.(), false)) return `<div class="ap ap-settle" data-pg>${page.headline && src !== "ai" ? `<p class="ap-hl">${this._pgParts(page.headline, fx)}</p>` : ""}<section class="ap-c ap-sk" aria-busy="true" role="status"><div class="ap-skl"><i></i><i></i></div><div class="ap-skv"></div><span class="ap-skt">${esc(fx.t.settle)}…</span><p class="ap-asked ap-settle-sub">${esc(fx.t.settleSub)}</p>${this._pgSettleNote(fx)}</section></div>`;
     this._pgOpenSet = this._pgOpenSet || new Set();
     const hl = page.headline ? `<p class="ap-hl">${this._pgParts(page.headline, fx)}</p>` : "";
     const cards = page.widgets.map((w, i) => this._pgCardHtml(w, i, fx));
@@ -183,7 +192,7 @@ export const ReviewAiPageMixin = {
     const MK_GAP = 46, mq = (t) => { const i = b.marks.indexOf(t), k = b.mseat?.[i]; return k != null ? fx.seatOf(k) : seats[0]; }, big = (t) => (b.mseat ? 99 - b.marks.indexOf(t) : Math.abs(fx.change(mq(t), t)?.d || 0)), shown = [];
     b.marks.slice().sort((a, c) => big(c) - big(a) || a - c).forEach((t) => { if (shown.every((u) => Math.abs(x(t) - x(u)) >= MK_GAP)) shown.push(t); });
     const marks = shown.sort((a, c) => a - c).map((t) => {
-      const q = mq(t), v = fx.wc(q, t); if (v == null) return ""; const cx = x(t), cy = y(v), lab = `${fx.t.tL || "T"}${t}`, w = lab.length * 6.6 + 12;
+      const q = mq(t), v = fx.wc(q, t); if (v == null) return ""; const cx = x(t), cy = y(v), lab = `${fx.t.Turn} ${t}`, w = lab.length * 6.6 + 12;
       const lx = Math.max(l - 6, Math.min(W - r - w + 6, cx - w / 2));
       const free = (ly) => ly >= 1 && ly <= H - bm - 17 && !placed.some((p) => lx < p.x + p.w + 3 && lx + w + 3 > p.x && ly < p.y + 19 && ly + 19 > p.y);
       const ly = [cy - 25, cy + 9, cy - 44, cy + 28].find(free) ?? Math.max(1, Math.min(H - bm - 17, cy - 25)); placed.push({ x: lx, y: ly, w });

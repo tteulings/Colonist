@@ -109,9 +109,9 @@ export const ReviewRecapMixin = {
   /** v1.72 the Overview's end: one "AI coach" row (opens the AI tab via _rvOpenAiTab when present; the recap's headline as its line)
    *  and the lesson as a one-line collapsible row. Key-moment rows carry the AI subtitle (_rcSubT). */
   _rcSubT(T_, P) { const tp = this._rcOk() ? this._rcTp(T_, P) : null; return tp ? `<small class="rc-sub"><i>AI</i>${this._aiFmtLite?.(tp.title) ?? esc(tp.title)}</small>` : ""; },
-  _rcBox() {
+  _rcBox(onAi = false) { // (onAi: the AI tab itself: no "open the AI tab" row there)
     if (!this._rcOk()) return "";
-    const aiOn = this._aiAvail?.() !== false; // v1.73 offline: the AI coach row is hidden (the lesson row stays)
+    const aiOn = !onAi && this._aiAvail?.() !== false; // v1.73 offline: the AI coach row is hidden (the lesson row stays)
     const lang = recapLang(), S = this._rcSaved(), rl = S && T[S.lang] ? S.lang : lang, t = T[rl], rc = S?.recap;
     const chev = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     const h = rc?.headline ? `<span class="rc-hl" lang="${rl}">${inline(rc.headline)}</span>` : "";
@@ -121,7 +121,7 @@ export const ReviewRecapMixin = {
       const lk = this._rcKind(rc);
       les = `<div class="rc-t rc-lessonw"><button type="button" class="rc-tp rc-lesb" data-rctog aria-expanded="false"><span class="rc-top"><i class="rc-ki" aria-hidden="true">${KIND_IC[lk] || "★"}</i><b>${t.lesson}${rc.lessonTitle ? `: ${inline(rc.lessonTitle)}` : ""}</b>${chev}</span></button><div class="rc-tb" hidden><p class="rc-tx">${inline(rc.tip)}</p><div class="rc-acts"><button type="button" class="rc-link" data-lnall>All lessons</button></div></div></div>`;
     }
-    return `<section class="rv-card rc-card rc-mini" data-rcbox>${row}${les}</section>`;
+    return row || les ? `<section class="rv-card rc-card rc-mini" data-rcbox>${row}${les}</section>` : "";
   },
   _rcBind(root) {
     root.querySelectorAll("[data-lnall]").forEach((b) => b.addEventListener("click", () => this.lessonsOpen?.()));

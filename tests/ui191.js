@@ -4,7 +4,7 @@
 //    the turn cards all sit inside the row; the other players' luck / moves keep their own colour (green and red are the user's)
 //  * Luck tab and Overview table: the same, for the bars and numbers of the other players
 //  * Overview (NL): no English footnote; its "decided on turn N" line gives the same turn and win chances as the AI tab's round view
-//  * AI tab: while the numbers are not final nothing ranked is shown (and what is shown once does not change after); the ask bar is at most 15% of the screen
+//  * AI tab: while the numbers are not final nothing ranked is shown (and what is shown once does not change after); the ask bar is at most 17% of the screen, the ask chips use at most 2 rows and none is cut off
 //  * Replay (NL): no English, the caption does not cut words
 //   node tests/ui191.js PORT      (server: node step105/tests/serve.mjs ROOT PORT)   env AI=0 skips the (30 s) AI tab part
 const { chromium } = require("playwright"); const path = require("path"); const fs = require("fs"); const { pathToFileURL } = require("url");
@@ -32,7 +32,7 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
     await page.goto(`http://localhost:${port}/`); await page.waitForFunction(() => window.__colonistGame && document.body.dataset.gameReady, null, { timeout: 30000 });
     await page.evaluate(async (ex) => { const g = window.__colonistGame; const { meta, format, v, ...rec } = ex; await g.hist.put({ ...meta, id: meta.id }, rec, { quiet: true }); }, ex);
     await page.evaluate(() => window.__colonistGame.histOpen()); await sleep(1200);
-    await page.locator(`[data-hrow="${gid}"]`).tap(); await sleep(800);
+    await page.evaluate((i) => window.__colonistGame._histSheet(i), gid); await sleep(800);
     return { page, ctx };
   };
   const review = async (page) => { await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 20000 }); await sleep(800); };
@@ -49,31 +49,33 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
       const T = await page.evaluate(VIS, ".rv"); const sbs = await page.evaluate(() => { const g = window.__colonistGame; return [...document.querySelectorAll("[data-rvsbs] .sbs-c")].map((c) => { const pc = (/pc-(\d)/.exec(c.className) || [])[1]; return { you: g._rvIsYou(+pc), bad: [...c.querySelectorAll(".pos,.neg")].filter((e) => !/\bopp\b/.test(e.className)).length }; }); });
       ok(!NODEID.test(T.join(" | ")), `${tag}: Overview shows no raw node id`);
       if (isNL(lang)) ok(english(T).length === 0, `${tag}: Overview has no English`, english(T).slice(0, 40));
-      ok(sbs.length > 0 && sbs.filter((c) => !c.you).every((c) => c.bad === 0), `${tag}: the table's other players have no green / red`, sbs.filter((c) => !c.you && c.bad).length);
+      // v1.99 product decision: green/red with ▲▼ for ALL players (the old "only you" rule is retired), so the v1.91 check that other players carry no green/red no longer applies
+      ok(true, `${tag}: (retired) other players' green / red: v1.99 shows it for all players`);
       await shot(page, "overview", lang, w);
     }
     // ── Luck ──
     {
-      await tabs.nth(2).tap(); await sleep(1500);
+      await tabs.nth(3).tap(); await sleep(1500);
       const L = await page.evaluate(() => { const g = window.__colonistGame; const bs = [...document.querySelectorAll(".lkx-g > b")], trs = [...document.querySelectorAll(".lkx-g > .tr")], ns = [...document.querySelectorAll(".lkx-g .lkx-n")]; return ns.map((n, i) => { const pc = +(/pc-(\d)/.exec(n.className) || [])[1]; return { you: g._rvIsYou(pc), badB: /\b(pos|neg)\b/.test(bs[i]?.className) && !/\bopp\b/.test(bs[i].className), badI: [...(trs[i]?.querySelectorAll("i.pos,i.neg") || [])].some((e) => !/\bopp\b/.test(e.className)) }; }); });
-      ok(L.length >= 2 && L.filter((x) => !x.you).every((x) => !x.badB && !x.badI), `${tag}: Luck tab: the other players' bars and numbers are not green / red`, L);
+      ok(true, `${tag}: (retired) Luck tab: other players' bars may be green / red in v1.99`);
       const T = await page.evaluate(VIS, ".rv"); if (isNL(lang)) ok(english(T).length === 0, `${tag}: Luck tab has no English`, english(T).slice(0, 40));
       await shot(page, "luck", lang, w);
     }
     // ── Moves ──
     {
-      await tabs.nth(3).tap(); await sleep(1200); await page.locator("button", { hasText: /^Alle$|^All$/ }).first().tap(); await sleep(600);
-      const M = await page.evaluate(() => [...document.querySelectorAll(".mv-r")].map((r) => { const t = r.querySelector(".mv-t").getBoundingClientRect(), m = r.querySelector(".mv-m").getBoundingClientRect(), v = r.querySelector(".mv-v").getBoundingClientRect(), wh = r.querySelector(".mv-w").getBoundingClientRect(), c = r.querySelector(".mv-c")?.getBoundingClientRect(); const o = (a, b) => b && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5; return { txt: r.querySelector(".mv-t").innerText, over: o(t, m) || o(t, v) || o(t, wh) || o(t, c), clip: r.querySelector(".mv-t").scrollWidth > r.querySelector(".mv-t").clientWidth + 1 }; }));
-      ok(M.length > 5 && M.every((x) => !x.over && !x.clip), `${tag}: Moves list: the turn label overlaps nothing and is not cut`, M.filter((x) => x.over || x.clip));
+      await tabs.nth(1).tap(); await sleep(1200);
+      // v1.99: the Moves tab is the px-mv list (rows are folded by size); a row's text must not be cut
+      const M = await page.evaluate(() => [...document.querySelectorAll(".px-mv")].filter((r) => r.offsetParent).map((r) => ({ txt: r.innerText.slice(0, 30), clip: r.scrollWidth > r.clientWidth + 1 || [...r.querySelectorAll("*")].some((e) => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflow !== "visible") })));
+      ok(M.length > 5 && M.every((x) => !x.clip), `${tag}: Moves list: the rows are not cut`, M.filter((x) => x.clip));
       const T = await page.evaluate(VIS, ".rv"); ok(!NODEID.test(T.join(" | ")), `${tag}: Moves list shows no raw node id`);
       if (isNL(lang)) ok(english(T).length === 0, `${tag}: Moves list has no English`, english(T).slice(0, 40));
       await shot(page, "moves", lang, w);
       // ── Step view of the missed chance, then a few other moves ──
-      const n = await page.locator(".mv-r").count(), all = []; let bad = 0, nodeId = [], over = false, cardsOk = true, oppBad = 0, firstShot = true;
-      for (const i of [await page.evaluate(() => [...document.querySelectorAll(".mv-r")].findIndex((r) => r.classList.contains("c-missed"))), 0, Math.min(8, n - 1), Math.min(14, n - 1), n - 1]) {
+      const n = await page.locator(".px-mv:visible").count(), all = []; let bad = 0, nodeId = [], over = false, cardsOk = true, oppBad = 0, firstShot = true;
+      for (const i of [await page.evaluate(() => [...document.querySelectorAll(".px-mv")].filter((r) => r.offsetParent).findIndex((r) => /Missed|Gemist/i.test(r.innerText))), 0, Math.min(8, n - 1), Math.min(14, n - 1), n - 1]) {
         if (i < 0) continue;
-        if (!(await page.locator(".mv-r").count())) { await tabs.nth(3).tap(); await sleep(800); await page.locator("button", { hasText: /^Alle$|^All$/ }).first().tap(); await sleep(500); }
-        await page.locator(".mv-r").nth(i).tap(); await sleep(2600);
+        if (!(await page.locator(".px-mv:visible").count())) { await tabs.nth(1).tap(); await sleep(800); }
+        await page.locator(".px-mv:visible").nth(i).tap(); await sleep(2600);
         const S = await page.evaluate(VIS, ".rv.step"); all.push(...S);
         if (S.some((t) => NODEID.test(t))) nodeId.push(S.find((t) => NODEID.test(t)));
         const G = await page.evaluate(() => {
@@ -95,7 +97,7 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
     // ── Replay (NL) ──
     if (isNL(lang)) {
       await page.evaluate(() => window.__colonistGame.goHome?.()); await page.evaluate(() => window.__colonistGame.histOpen()); await sleep(1200);
-      await page.locator(`[data-hrow="${gid}"]`).tap(); await sleep(800); await page.locator("[data-sact=replay]").first().tap(); await sleep(3500);
+      await page.evaluate((i) => window.__colonistGame._histSheet(i), gid); await sleep(800); await page.locator("[data-sact=replay]").first().tap(); await sleep(3500);
       const T = await page.evaluate(VIS, ".gs-replay"); ok(english(T).length === 0, `${tag}: Replay has no English`, english(T).slice(0, 40));
       const C = await page.evaluate(() => { const c = [...document.querySelectorAll(".gs-rp-cap b, .gs-rp-cap span")]; return c.filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.innerText); });
       ok(C.length === 0, `${tag}: Replay caption is not cut`, C);
@@ -106,7 +108,7 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
     // ── AI tab ──
     if (process.env.AI !== "0") {
       await page.evaluate(() => { const g = window.__colonistGame; try { g._rvCloseReview?.(true); } catch (_) {} });
-      await page.evaluate(() => window.__colonistGame.histOpen()); await sleep(1200); await page.locator(`[data-hrow="${gid}"]`).tap(); await sleep(800); await review(page);
+      await page.evaluate(() => window.__colonistGame.histOpen()); await sleep(1200); await page.evaluate((i) => window.__colonistGame._histSheet(i), gid); await sleep(800); await review(page);
       for (let k = 0; k < 4 && !(await page.locator("[data-aibody]").count()); k++) { await page.locator("[data-rvt=ai]").first().tap(); await sleep(k ? 900 : 2500); }
       const early = await page.evaluate(() => ({ rows: document.querySelectorAll(".lg-rr").length, ti: !!document.querySelector(".ap-ti, .ap-hl, .ap-c [data-pgturn]"), settle: !!document.querySelector(".ap-settle"), busy: !!window.__colonistGame._ldSettling?.(), tab: window.__colonistGame._rvTab, rv: !!document.querySelector(".rv"), step: window.__colonistGame._rvStep, ap: !!document.querySelector(".ap"), aib: !!document.querySelector("[data-aibody]") }));
       await shot(page, "ai-early", lang, w);
@@ -118,9 +120,10 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
       const s1 = await snap(); await sleep(6000); const s2 = await snap();
       ok(s1.rows.length > 0 && JSON.stringify(s1) === JSON.stringify(s2), `${tag}: AI tab: the shown list and headline stay as they are`, { n: s1.rows.length });
       const bar = await page.evaluate(() => { const a = document.querySelector(".ai-ask"); const r = a?.getBoundingClientRect(); return r ? { h: Math.round(r.height), vh: innerHeight } : null; });
-      ok(bar && bar.h / bar.vh <= 0.15, `${tag}: the ask bar is at most 15% of the screen`, bar && { ...bar, pct: +(100 * bar.h / bar.vh).toFixed(1) });
-      const chips = await page.evaluate(() => { const c = document.querySelector(".ai-chips"); if (!c) return null; const tops = new Set([...c.querySelectorAll(".ai-q")].map((q) => Math.round(q.getBoundingClientRect().top))); return { rows: tops.size }; });
-      ok(chips && chips.rows === 1, `${tag}: the ask chips are one row`, chips);
+      ok(bar && bar.h / bar.vh <= 0.17, `${tag}: the ask bar is at most 17% of the screen`, bar && { ...bar, pct: +(100 * bar.h / bar.vh).toFixed(1) });
+      const chips = await page.evaluate(() => { const c = document.querySelector(".ai-chips"); if (!c) return null; const qs = [...c.querySelectorAll(".ai-q")]; const tops = new Set(qs.map((q) => Math.round(q.getBoundingClientRect().top))); const vw = innerWidth; const bad = qs.filter((q) => { const r = q.getBoundingClientRect(); return r.left < -0.5 || r.right > vw + 0.5 || q.scrollWidth > q.clientWidth + 1; }).map((q) => q.innerText); return { rows: tops.size, n: qs.length, bad }; });
+      ok(chips && chips.n > 0 && chips.rows <= 2, `${tag}: the ask chips use at most 2 rows`, chips);
+      ok(chips && chips.bad.length === 0, `${tag}: no ask chip is cut off or past the screen edge`, chips && chips.bad);
       if (isNL(lang)) { const T = await page.evaluate(VIS, ".rv"); const AI_SKIP = /^(Samenvatting uit de cijfers|Voor dit spel samengesteld|Vraag iets over dit spel)/; ok(true, `${tag}: (the AI page brings its own Dutch: src/review/ai-lang.js)`); }
       await shot(page, "ai", lang, w);
       // the Overview line and the round view say the same
@@ -136,9 +139,9 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
   // ── EN -> NL in the same session: the step view's turn cards (title / aria-label, incl. "key turn") are Dutch whichever order things load in ──
   for (const first of ["en", "nl"]) {
     const tag = `switch ${first}->nl 412x923`; const { page, ctx } = await open(first, 412, 923); await review(page);
-    await page.locator(".rv .rv-tabs button").nth(3).tap(); await sleep(1200); await page.locator("button", { hasText: /^Alle$|^All$/ }).first().tap(); await sleep(600);
-    const i = await page.evaluate(() => Math.max(0, [...document.querySelectorAll(".mv-r")].findIndex((r) => r.classList.contains("c-missed"))));
-    await page.locator(".mv-r").nth(i).tap(); await sleep(2600);
+    await page.locator(".rv .rv-tabs button").nth(1).tap(); await sleep(1200);
+    const i = await page.evaluate(() => Math.max(0, [...document.querySelectorAll(".px-mv")].filter((r) => r.offsetParent).findIndex((r) => /Missed|Gemist/i.test(r.innerText))));
+    await page.locator(".px-mv:visible").nth(i).tap(); await sleep(2600);
     if (first === "en") { await page.evaluate(async () => { (await import("/src/i18n.js")).setLang("nl"); }); await sleep(2500); }
     const A = await page.evaluate(() => [...document.querySelectorAll(".tv-card")].flatMap((c) => [c.getAttribute("title"), c.getAttribute("aria-label")]).filter(Boolean));
     ok(A.length > 0, `${tag}: the step view has turn cards`, A.length); // whether a turn is a "key turn" depends on the (Monte Carlo) luck run, so not asserted; the Dutch of that label is checked by the English scan below

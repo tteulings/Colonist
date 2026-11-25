@@ -21,7 +21,7 @@ export function rawOf(state) {
   const ev = st.ev.filter((e) => e[0] >= 0 && e[0] <= N && KEEP.includes(e[1])).map((e, i) => ({ e, i })).sort((a, c) => a.e[0] - c.e[0] || a.i - c.i).map(({ e }) => [turnOf[e[0]] ?? 0, ...e.slice(1)]);
   return { n: state.players.length, r0: st.r0 ?? null, hexes: b.map((h, id) => ({ id, res: h.res, num: h.num })), nodes: g.nodes.map((n) => ({ nb: n.nb, hx: n.hx, ports: [] })), edges: g.edges, ev };
 }
-const kindOf = (l) => { l = String(l || ""); return /^city/i.test(l) ? "city" : /^settlement/i.test(l) ? "settlement" : /^road/i.test(l) ? "road" : /^bank/i.test(l) ? "bank" : /^end/i.test(l) ? "end" : /^play|^buy|^dev/i.test(l) ? "card" : /^robber/i.test(l) ? "robber" : "other"; };
+export const kindOf = (l) => { l = String(l || ""); return /^city/i.test(l) ? "city" : /^settlement/i.test(l) ? "settlement" : /^road/i.test(l) ? "road" : /^bank/i.test(l) ? "bank" : /^end/i.test(l) ? "end" : /^play|^buy|^dev/i.test(l) ? "card" : /^robber/i.test(l) ? "robber" : "other"; };
 const NAME2RES = { Lumber: "wood", Brick: "brick", Wool: "sheep", Grain: "wheat", Ore: "ore" };
 const spec = (f) => (f?.node != null ? ["n", f.node] : f?.edge != null ? ["e", f.edge] : f?.hex != null ? ["h", f.hex] : null);
 /** the detail a plain sentence needs: a bank trade's two resources, the development card played */

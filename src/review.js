@@ -111,9 +111,17 @@ export const ReviewMixin = {
     try {
       const json = JSON.stringify({ v: 3, id: R.id, base: R.base, recs: packRecs(R.recs), reviews: this._rvAll(), bots: R.bots ? 1 : 0, ...(R.luck ? { luck: R.luck } : {}), ...(R.recap ? { recap: R.recap } : {}), ...(R.ai ? { ai: R.ai } : {}) }); // v1.31 luck in win chance: an extra field (older versions ignore it) // v1.04: a check made during the game is kept too; v1.12: one review per person; v1.29 packed, with the bots
       localStorage.setItem(KEY, json);
-      R.bytes = json.length;
+      R.bytes = json.length; R.savedN = R.recs.length;
       return json.length;
     } catch (_) { return 0; }
+  },
+
+  /** finding 3: a reload or a hidden tab must not lose what is checked: the review is saved when the page is hidden or left (once per page) */
+  _rvFlushOn() {
+    if (this._rvFlushBound || typeof window === "undefined") return;
+    this._rvFlushBound = true;
+    const flush = () => { try { if (this._rv?.recs?.length && Object.values(this._rv.revs || {}).some((x) => x?.results?.length)) { this._rvSave(); if (this._histView) this.histUpdateView?.(); else this.histArchive?.(); } } catch (_) { /* best effort */ } };
+    window.addEventListener("pagehide", flush); document.addEventListener("visibilitychange", () => { if (document.hidden) flush(); });
   },
 
   /** Records grouped for the worker (the layout merged back in there). */
@@ -143,6 +151,7 @@ export const ReviewMixin = {
   _rvDeepOrder(rv, items) {
     const key = (i) => {
       const x = rv.results.find((y) => y.i === i);
+      if (x?.k === "setup") return [-1, 0]; // the two start picks are scored first, before any move decision (the start lesson is a core part of the review)
       if (!x || x.skip === "error") return [0, 0];
       const w = (x.cands || []).map((c) => c.win).filter((v) => v != null).sort((p, q) => q - p);
       const gap = w.length > 1 ? w[0] - w[1] : 1;
@@ -199,6 +208,7 @@ export const ReviewMixin = {
     if (R.run && R.run.pid === pid) { if (!stage && R.run.stage) R.run.full = true; return R.run.promise; } // a bot's quick look you open: it goes on to the deep round
     // one check at a time (it is heavy): another person's check waits its turn
     if (R.run) { R.queue = [pid, ...(R.queue || []).filter((x) => (x?.pid ?? x) !== pid)]; return R.run.promise.then(() => this._rvReviewRun(pid, onStep, { mid })); }
+    this._rvFlushOn?.();
     const todo = this._rvTodo(pid);
     const rv = R.revs[pid] || { pid, results: [] };
     if (!rv.results.length) rv.fmt = FMT; // v1.21 numbers of this format (a saved older review was re-scored when it was loaded)
@@ -249,11 +259,13 @@ export const ReviewMixin = {
           const k = rv.results.findIndex((x) => x.i === i);
           let r = m?.result ? { ...m.result, i } : null;
           if (!r) r = k >= 0 ? { ...rv.results[k], eng: REVIEW_ENGINE, err: true } : { k: rec.k, pid, t: rec.t, s: rec.s, e: rec.e, i, skip: "error", eng };
-          if (k >= 0) rv.results[k] = r; else { rv.results.push(r); rv.results.sort((a, b) => a.i - b.i); }
+          // finding 3: once a decision is scored it stays scored. A later round that finds no score for it (no real choice, an engine error) does not take the score away:
+          // the earlier result is kept (marked as checked by this round, so it is not asked again) and the review never counts fewer scored decisions than before.
+          if (k >= 0) { const old = rv.results[k]; if (old.acc != null && !old.skip && (r.acc == null || r.skip) && !r.err) r = { ...old, eng: r.eng || old.eng, leaf: r.leaf || old.leaf, kept: 1 }; rv.results[k] = r; } else { rv.results.push(r); rv.results.sort((a, b) => a.i - b.i); }
           liftReview(rv); // v1.29 the same-step lift: one class per decision on every screen (score.js liftSameStep)
           const t = now(); run.times.push(t - last); last = t;
           run.round.j += 1;
-          if (run.round.j % (this.players[pid]?.isHuman ? 6 : 12) === 0) this._rvSave(); // a reload keeps what is checked (a bot's: every 12)
+          if (run.round.j % (this.players[pid]?.isHuman ? 3 : 12) === 0) this._rvSave(); // a reload keeps what is checked (a bot's: every 12)
           this._rvTick();
         }
       };
@@ -274,7 +286,7 @@ export const ReviewMixin = {
             if (q.length) await round("direct", q);
             throw { quickDone: true };
           }
-          const quick = todo.filter(([, i]) => !has(i));
+          const quick = todo.filter(([, i]) => !has(i)).sort((a, b) => (b[0].k === "setup") - (a[0].k === "setup") || a[1] - b[1]); // set-up picks first
           if (quick.length) await round("m100", quick);
           // the deep round; a bot's (stage "top"): only its biggest moments of the quick round, unless you opened its review meanwhile (run.full)
           for (let pass = 0; pass < 2 && !run.stop && live(); pass += 1) {
@@ -375,7 +387,7 @@ export function installReview(Cls) {
     const r = orig.apply(this, a);
     const id = this.stats?.id || null;
     this._rvReset(id);
-    if (id) { const d = this._rvLoad(); if (d && d.id === id) { this._rv.base = d.base; this._rv.recs = d.recs; this._rv.revs = d.reviews || {}; this._rv.bots = !!d.bots; this._rv.review = this._rvMine(this._rv.revs); if (d.luck) this._rv.luck = d.luck; if (d.recap) this._rv.recap = d.recap; if (d.ai) this._rv.ai = d.ai; } }
+    if (id) { const d = this._rvLoad(); if (d && d.id === id) { this._rv.base = d.base; this._rv.recs = d.recs; this._rv.savedN = d.recs.length; this._rv.revs = d.reviews || {}; this._rv.bots = !!d.bots; this._rv.review = this._rvMine(this._rv.revs); if (d.luck) this._rv.luck = d.luck; if (d.recap) this._rv.recap = d.recap; if (d.ai) this._rv.ai = d.ai; } }
     return r;
   });
 
@@ -390,7 +402,14 @@ export function installReview(Cls) {
   wrap("_commitSetup", function (orig, player, cb) {
     const pre = cb?.type === "settlement" && this.setupAction === "settlement" ? this._rvPre(player) : null;
     const r = orig.call(this, player, cb);
-    if (pre && this.geometry.nodes[cb.id]?.owner === player.id) this._rvPush(pre, "setup", { n: cb.id });
+    if (pre && this.geometry.nodes[cb.id]?.owner === player.id) { this._rvPush(pre, "setup", { n: cb.id }); this._rvSave(); } // saved at once: a reload or Continue before the first End turn used to lose the start picks (the recording was only saved at End turn)
+    return r;
+  });
+  // the recording is saved together with the game (pagehide, going to the background, Home, Pause), whenever it has grown since its last save
+  wrap("saveToStorage", function (orig, ...a) {
+    const r = orig.apply(this, a);
+    const R = this._rv;
+    if (R && R.id && R.id === this.stats?.id && R.recs.length && R.recs.length !== R.savedN && !this.winner) this._rvSave();
     return r;
   });
   wrap("_commitBuild", function (orig, player, cb) {

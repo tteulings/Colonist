@@ -107,6 +107,22 @@ function hash53(str) {
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(14, "0");
 }
 
+/** A JSON-clean copy of an action (what JSON.parse(JSON.stringify(a)) gave): one level of arrays / hands is all an action ever nests. */
+function cloneAction(a) {
+  const c = {};
+  for (const k in a) {
+    const v = a[k];
+    if (v === undefined) continue;
+    c[k] = v === null || typeof v !== "object" ? v : Array.isArray(v) ? v.slice() : { ...v };
+  }
+  return c;
+}
+
+const NOCHANCE = Object.freeze([]); // the chance of an apply that drew none (one shared array; the first draw makes a real one)
+const DO = Object.fromEntries(["place", "build", "roll", "endTurn", "buyDev", "playDev", "pick", "tradeBank", "moveShip", "skipFree", "passSbp", "ready", "pickGold", "discard", "moveRobber", "steal", "offerTrade", "respondTrade", "cancelOffer", "tick", "timeout"].map((t) => [t, "_do_" + t])); // v1.99: no template string per apply
+/** What a quiet apply returns: the prompts are asked for only when read (a class getter, not an accessor on a fresh object literal per call). */
+class QuietResult { constructor(eng) { this.ok = true; this.events = []; this._eng = eng; } get prompts() { return this._eng.prompts(); } }
+
 export class Engine {
   constructor(g, opts = {}) {
     this.g = g;
@@ -155,7 +171,7 @@ export class Engine {
     this._offers = JSON.parse(JSON.stringify(x.offers)); this._offerSeq = x.offerSeq; this._via = x.via;
   }
   _note(c) { // a chance outcome happened: it belongs to the apply() in progress, else to the observed move in progress
-    if (this._applying) this._chanceUsed.push(c);
+    if (this._applying) { if (this._chanceUsed === NOCHANCE) this._chanceUsed = []; this._chanceUsed.push(c); }
     else if (this._obs?.stack.length) this._obs.stack[this._obs.stack.length - 1].chance.push(c);
   }
   _diceSource() {
@@ -171,8 +187,10 @@ export class Engine {
   setChance(src) { this._src = { dice: src?.dice || null, steal: src?.steal || null }; return this; }
 
   mode() {
-    const g = this.g;
-    return { id: g.isRush() ? "rush" : "classic", rush: g.isRush(), sea: !!g.sea, big: !!g.bigBoard, winPoints: g.winPoints, discardLimit: g._discardLimit() };
+    const g = this.g, rush = g.isRush(), sea = !!g.sea, big = !!g.bigBoard, wp = g.winPoints, dl = g._discardLimit();
+    const m = this._mode; // v1.99: the same object while nothing in it changed (isLegal / apply ask on every judged action)
+    if (m && m.rush === rush && m.sea === sea && m.big === big && m.winPoints === wp && m.discardLimit === dl) return m;
+    return (this._mode = { id: rush ? "rush" : "classic", rush, sea, big, winPoints: wp, discardLimit: dl });
   }
   controls(seat) { return this._control.has(seat); }
   /** Decide these seats (default all) only through apply(): the game stops running them itself. Headless use; timers are dropped. */
@@ -400,17 +418,19 @@ export class Engine {
   /** {ok:true} or {ok:false, reason}. Judged against the prompts the actor holds (or `opts.prompt`, for moves made inside a bot's turn). */
   isLegal(a, opts = {}) {
     this._enter();
-    const sh = validateShape(a, this.mode());
-    if (!sh.ok) return sh;
+    if (!(a && (a.type === "roll" || a.type === "endTurn") && a.actor >= 0 && Number.isInteger(a.actor) && Object.keys(a).length === 2)) { // (v1.99: a bare roll / endTurn has no shape to check and exists in every mode)
+      const sh = validateShape(a, this.mode());
+      if (!sh.ok) return sh;
+    }
     const ps = opts.prompt ? [opts.prompt] : this.prompts().filter((p) => p.actor === a.actor);
     if (!ps.length) return { ok: false, reason: `seat ${a.actor} has no prompt right now` };
-    const k = keyOf(this._canon(a));
+    let k = null; // the action's canonical key: only the scan below needs it (v1.99: not built for the common answers _quick judges)
     let why = null;
     for (const pr of ps) {
       if (!PROMPTS[pr.kind].types.includes(a.type)) { why = why || `${a.type} is not an answer to ${pr.kind}`; continue; }
       if (this._quick(a, pr)) return { ok: true }; // the common answers, judged by one call instead of a scan (the scan below gives the reason when refused)
       for (const l of this._legalOf(pr, a.type)) {
-        if (!l.choose) { if (keyOf(this._canon(l)) === k) return { ok: true }; continue; }
+        if (!l.choose) { if (k === null) k = keyOf(this._canon(a)); if (keyOf(this._canon(l)) === k) return { ok: true }; continue; } // (the key only when a concrete legal action is compared)
         if (l.type !== a.type || (l.answer && l.answer !== a.answer)) continue;
         const bad = this._validateChoose(l, a, pr);
         if (!bad) return { ok: true };
@@ -441,6 +461,16 @@ export class Engine {
       case "buyDev": return (k === "main" || k === "sbp" || k === "rushAny") && g.devDeck.length > 0 && has(p.resources, COSTS.development);
       case "endTurn": return k === "main";
       case "roll": return k === "preRoll";
+      // v1.99: the same answers the scan accepts, found without building the legal list (a field the scan would compare, e.g. a stray `target`, sends it to the scan)
+      case "steal": return k === "steal" && Object.keys(a).length === 3 && pr.victims.includes(a.victim);
+      case "discard": return k === "discard" && handSize(a.cards) === pr.count && RES.every((r) => (a.cards[r] || 0) <= p.resources[r]);
+      case "playDev":
+        if (Object.keys(a).length !== 3) return false;
+        if (k === "preRoll") return a.card === "knight" && !!g.canPlayDevelopmentCard(p, "knight");
+        return (k === "main" || k === "rushAny") && DEV_CARD_TYPES.includes(a.card) && !!g.canPlayDevelopmentCard(p, a.card);
+      case "moveRobber":
+        if (k !== "moveRobber" || g.sea || !inRange(a.hex, g.geometry.hexes) || Object.keys(a).length !== (a.target === undefined ? 3 : 4) || (a.target !== undefined && a.target !== "robber")) return false;
+        return g._legalRobberHexes(p).some((h) => h.id === a.hex);
       default: return false;
     }
   }
@@ -475,22 +505,22 @@ export class Engine {
    */
   apply(a, opts = {}) {
     this._enter();
-    const sh = validateShape(a, this.mode());
-    if (!sh.ok) return refuse(sh.reason);
+    if (!opts.trusted) { const sh = validateShape(a, this.mode()); if (!sh.ok) return refuse(sh.reason); } // `trusted`: the host has just judged the shape (isLegal) of this very action
     if (!this.controls(a.actor)) return refuse(`seat ${a.actor} is not controlled by this engine`);
     if (!opts.trusted) { const lg = this.isLegal(a); if (!lg.ok) return refuse(lg.reason); } // `trusted`: the caller (the bot host) has just judged it
     const g = this.g, before = opts.quiet ? null : this._brief(), hit = a.type === "roll" ? null : undefined;
-    this._chanceUsed = []; this._queue = opts.chance ? opts.chance.map((c) => ({ ...c })) : null;
+    this._chanceUsed = NOCHANCE; this._queue = opts.chance ? opts.chance.map((c) => ({ ...c })) : null;
     if (a.type === "roll" && a.forced) this._forceDice = a.forced;
     this._applying++; g._applyDepth = (g._applyDepth || 0) + 1; // the UI's doors (_confirmDiscard, _finishPick, sbpSkip) see they are being called by an apply() and do the work
     let err = null;
     let done;
-    try { done = this[`_do_${a.type}`](a, g.players[a.actor]); } catch (e) { err = e; } finally { this._applying--; g._applyDepth--; this._queue = null; this._forceDice = null; }
+    try { if (opts.adopted) { g.__adoptFlush?.(); if (a.type === "buyDev") this._after_buyDev(g.players[a.actor]); done = true; } else done = this[DO[a.type] || `_do_${a.type}`](a, g.players[a.actor]); } catch (e) { err = e; } finally { this._applying--; g._applyDepth--; this._queue = null; this._forceDice = null; }
     if (err) throw err;
     if (done === false) return { ok: false, bug: true, reason: `the old code rejected a legal ${a.type} (engine/legacy disagreement)`, events: [], prompts: this.prompts() };
     const events = opts.quiet ? [] : this._events(a, before); // `quiet`: no event list (headless bot play)
-    const entry = { a: JSON.parse(JSON.stringify(a)), chance: this._chanceUsed };
+    const entry = { a: cloneAction(a), chance: this._chanceUsed };
     this._log.push(entry);
+    if (opts.quiet) return new QuietResult(this); // headless bot play never reads the prompts: asked for only when read (v1.99)
     return { ok: true, events, prompts: this.prompts() };
   }
   _asHuman(p, fn) { const h = p.isHuman; p.isHuman = true; try { return fn(); } finally { p.isHuman = h; } }
@@ -522,6 +552,10 @@ export class Engine {
   _do_buyDev(a, p) {
     const g = this.g;
     if (!g.buyDevelopmentCard(p)) return false;
+    this._after_buyDev(p);
+  }
+  _after_buyDev(p) { // what follows the purchase (also what an adopted purchase still needs: the planner has bought the card)
+    const g = this.g;
     if (g.sbp) g._sbpAfterHumanBuild();
     g.recomputeScores(); // (a bot's seat has counted the card at the purchase already: buyDevelopmentCard)
     if (g.rush) g._rushAfterAction(p); else g.checkForWinner(p);
@@ -718,7 +752,7 @@ export class Engine {
     const known = me >= 0 ? devSum(g.players[me].devCards) + devSum(g.players[me].newDevCards) + g.players[me].devVictoryPoints : 0;
     const deck = g.bigBoard ? BIG_DEV_DECK : DEV_DECK;
     const v = {
-      mode: this.mode(), turn: g.turn, phase: g.phase, current: g.currentPlayerIndex, winner: g.winner ? g.winner.id : null, prompts: this.prompts(),
+      mode: { ...this.mode() }, turn: g.turn, phase: g.phase, current: g.currentPlayerIndex, winner: g.winner ? g.winner.id : null, prompts: this.prompts(),
       board: boardOf(g),
       pieces: { nodeOwner: geo.nodes.map((n) => n.owner ?? -1), nodeStruct: geo.nodes.map((n) => (n.structure === "city" ? 2 : n.structure === "settlement" ? 1 : 0)),
         edgeOwner: geo.edges.map((e) => e.owner ?? -1), edgeShip: geo.edges.map((e) => (e.ship ? 1 : 0)) },

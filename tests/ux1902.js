@@ -38,7 +38,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const ex = JSON.parse(fs.readFileSync(G[id], "utf8")), gid = ex.meta.id;
     await page.evaluate(async (ex) => { const g = window.__colonistGame; const { meta, format, v, ...rec } = ex; await g.hist.put({ ...meta, id: meta.id }, rec, { quiet: true }); }, ex);
     await page.evaluate(() => window.__colonistGame.histOpen()); await sleep(1500);
-    await page.locator(`[data-hrow="${gid}"]`).tap(); await sleep(900);
+    await page.evaluate((i) => window.__colonistGame._histSheet(i), gid); await sleep(900);
     await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 20000 });
     await page.evaluate(() => { window.__colonistGame._rvTab = "ai"; }); await page.locator(".rv .rv-tabs button", { hasText: /AI/ }).first().tap();
     let ready = false, done = false; for (let i = 0; i < 400 && !done; i++) { const s = await page.evaluate(() => { const g = window.__colonistGame; return { r: !!g._ldReady?.(), d: !!g._ldJob && !g._ldJob.busy }; }); ready = s.r; done = s.d; if (!done) await sleep(400); }

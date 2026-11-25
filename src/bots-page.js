@@ -175,7 +175,7 @@ function scatterPts(W, H) {
   pts.forEach((p, i) => (cl[find(i)] ||= []).push(p));
   return { l, rgt, t, b, XS, YS, D, groups: Object.values(cl) };
 }
-function scatterSvg(W, sel) {
+export function scatterSvg(W, sel) {
   const H = 320, g = scatterPts(W, H), { l, rgt, t, b, XS, YS } = g;
   let s = `<svg class="bpg-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="group" aria-label="Win chance against review accuracy for each bot. Tap a bot, or a group of bots, for its numbers.">`;
   [50, 60, 70, 80].forEach((v) => (s += `<line class="g" x1="${l}" x2="${W - rgt}" y1="${YS(v)}" y2="${YS(v)}"/><text x="${l - 6}" y="${YS(v) + 4}" text-anchor="end">${v}</text>`));
@@ -232,7 +232,7 @@ function selPanel(sel) {
   const R = rows(), one = (k) => { const r = R.find((x) => x.key === k); return `<button type="button" class="bpg-pick" data-open="${k}" aria-label="${esc(r.p.label + ": open profile")}">${emb(k, 20)}<span class="bpg-nm"><b>${r.p.label}</b><span class="bpg-sub">win ${r.win.label === "estimate" ? "~" + Math.round(r.win.v) + " (estimate)" : f1(r.win.v) + " ±" + f1(r.win.ci)} · accuracy ${r.acc.v} ±${r.acc.se}</span></span>${CHEV_R}</button>`; };
   return `<div class="bpg-tip" role="status">${sel.keys.length > 1 ? `<b>${sel.keys.length} bots with nearly the same numbers</b>` : ""}${sel.keys.map(one).join("")}</div>`;
 }
-const scatterCard = (W, sel) => `<section class="bpg-card bpg-hero" aria-labelledby="bpgScH"><h2 id="bpgScH">Strength against accuracy</h2>
+export const scatterCard = (W, sel) => `<section class="bpg-card bpg-hero" aria-labelledby="bpgScH"><h2 id="bpgScH">Strength against accuracy</h2>
   <p class="bpg-lede">Do the strong bots also play clean? Tap a bot.</p>${scatterSvg(W, sel)}
   <ul class="bpg-leg"><li><i class="k-cross"></i>likely range (wins, accuracy)</li>${hasEst() ? `<li><i class="k-ring est"></i>estimate</li>` : ""}<li><i class="k-grp">n</i>group of bots</li></ul>
   <div data-selpanel>${selPanel(sel)}</div>

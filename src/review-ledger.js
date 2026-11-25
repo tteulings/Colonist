@@ -168,11 +168,11 @@ export const ReviewLedgerMixin = {
       if (s.pl != null) { const n = midName(fx.nameOf(s.pl), s.pl === me, acc); acc += n; return `<span class="ap-pl pc-${s.pl}">${esc(n)}</span>`; }
       acc += "x";
       if (s.pos != null) return `<span class="ap-pl pc-${s.pos}">${esc(segsText([s], fx))}</span>`;
-      if (s.d != null) { const cls = s.q === me ? (s.d > 0 ? "up" : s.d < 0 ? "dn" : "") : `pc-${s.q}`; return `<b class="lg-d ${cls}">${s.est ? "≈" : ""}${s.d > 0 ? "+" : s.d < 0 ? "−" : "±"}${Math.abs(s.d)}${s.se ? ` <small>±${s.se}</small>` : ""}</b>`; }
+      if (s.d != null) { const cls = s.q === me ? (s.d > 0 ? "up" : s.d < 0 ? "dn" : "") : `pc-${s.q}`; return `<b class="lg-d ${cls}">${s.est ? "≈" : ""}${s.d > 0 ? "+" : s.d < 0 ? "−" : "±"}${Math.abs(s.d)}%${s.se ? ` <small>±${s.se}%</small>` : ""}</b>`; }
       return `<b>${esc(s.x)}</b>`;
     }).join("");
   },
-  _ldPill(q, d, fx) { const n = d === 0 ? "±0" : d > 0 ? `+${d}` : `−${-d}`; return q === fx.me ? `<span class="lg-pill ${d > 0 ? "up" : d < 0 ? "dn" : ""}">${n}</span>` : `<span class="lg-pill pc-${q}"><i class="lg-dot"></i>${esc(fx.nameOf(q))} ${n}</span>`; },
+  _ldPill(q, d, fx) { const n = d === 0 ? "±0%" : d > 0 ? `+${d}%` : `−${-d}%`; return q === fx.me ? `<span class="lg-pill ${d > 0 ? "up" : d < 0 ? "dn" : ""}">${n}</span>` : `<span class="lg-pill pc-${q}"><i class="lg-dot"></i>${esc(fx.nameOf(q))} ${n}</span>`; },
   /** the tiny income bars of a mechanism line: five resources, the missing one marked */
   _ldMicro(g) {
     const mx = Math.max(8, ...RS.map((r) => g.dots[r]));
@@ -183,10 +183,10 @@ export const ReviewLedgerMixin = {
   _pgLedger(b, fx) {
     const M = fx.lg; if (!M) return "";
     const rows = b.rounds ? b.rounds.map((t) => M.row(t, b.seat)).filter(Boolean) : M.rows(); if (!rows.length) return "";
-    const L = fx.t.lg, tL = fx.t.tL || "T";
+    const L = fx.t.lg;
     const html = rows.map((r) => {
       const who = r.subj === fx.me ? `<span class="lg-who me">${esc(fx.t.you)}</span>` : `<span class="lg-who pc-${r.subj}">${esc(fx.nameOf(r.subj))}</span>`;
-      return `<button type="button" class="lg-rr" data-lground="${r.t}" aria-label="${esc(L.open)} ${r.t}"><span class="lg-rt">${tL}${r.t}</span><div class="lg-rm"><div class="lg-r1">${who} <span class="lg-fr">${Math.round(r.v0 * 100)}% → ${Math.round(r.v1 * 100)}%</span>${this._ldPill(r.subj, r.d, fx)}</div>
+      return `<button type="button" class="lg-rr" data-lground="${r.t}" aria-label="${esc(L.open)} ${r.t}"><span class="lg-rt"><small>${esc(fx.t.Turn)}</small>${r.t}</span><div class="lg-rm"><div class="lg-r1">${who} <span class="lg-fr">${Math.round(r.v0 * 100)}% → ${Math.round(r.v1 * 100)}%</span>${this._ldPill(r.subj, r.d, fx)}</div>
         <div class="lg-r2"><span class="lg-ri">${IC[r.icon]}</span><span>${this._ldSegs(r.text, fx)}</span></div>${r.mech ? `<div class="lg-r3">${r.mech.glyph ? this._ldMicro(r.mech.glyph) : ""}<span>${this._ldSegs(r.mech.segs, fx)}.</span></div>` : ""}</div>${IC.chev}</button>`;
     }).join("");
     return `<div class="lg" data-lg>${b.rounds ? "" : `<div class="lg-sec"><span>${esc(L.decided)}</span>${this._ldCalc(fx)}</div>`}${html}<div class="lg-key"><span>${IC.dice} ${esc(L.key[0])}</span><span>${IC.pick} ${esc(L.key[1])}</span><span><b>≈</b> ${esc(L.key[2])}</span></div></div>`;
@@ -200,10 +200,10 @@ export const ReviewLedgerMixin = {
     this._ldViewT = t; const L = fx.t.lg, tL = fx.t.Turn;
     let w = el.querySelector("[data-lgview]"), sc0 = w?.querySelector(".lg-sc")?.scrollTop || 0;
     if (!w) { w = document.createElement("div"); w.className = "lg-view"; w.dataset.lgview = "1"; el.appendChild(w); }
-    const sg = (n) => (n === 0 ? "±0" : n > 0 ? `+${n}` : `−${-n}`), cls = (n) => (n > 0 ? "up" : n < 0 ? "dn" : ""), me = fx.me, win = fx.winner;
+    const sg = (n) => (n === 0 ? "±0%" : n > 0 ? `+${n}%` : `−${-n}%`), cls = (n) => (n > 0 ? "up" : n < 0 ? "dn" : ""), me = fx.me, win = fx.winner;
     const mx = Math.max(10, ...v.shown.map((s) => Math.abs(s.pts))), bar = (n) => `<span class="lg-bar"><i class="z"></i><b class="${cls(n)}" style="${n >= 0 ? "left:50%" : "right:50%"};width:${Math.min(50, (Math.abs(n) / mx) * 50).toFixed(1)}%"></b></span>`;
     const steps = v.shown.map((s) => `<div class="lg-wf"><span class="lg-wi">${s.chance ? IC.dice : IC.pick}</span><div class="lg-wt"><div>${this._ldSegs(s.title.a, fx)}</div>${s.title.b.length ? `<div class="lg-ws">${this._ldSegs(s.title.b, fx)}</div>` : ""}</div><div class="lg-wv">${bar(s.pts)}<b class="lg-d ${cls(s.pts)}">${sg(s.pts)}</b>${s.ptsW != null && Math.abs(s.ptsW) >= 3 ? `<span class="lg-wo pc-${win}"><i class="lg-dot"></i>${esc(fx.nameOf(win))} ${sg(s.ptsW)}</span>` : ""}</div></div>`).join("");
-    const credit = v.credit.map((c) => `<div class="lg-wf est"><span class="lg-wi">${IC.pick}</span><div class="lg-wt"><div>${this._ldSegs(c.title.a, fx)}</div><div class="lg-ws">≈ ${esc(L.vs)}</div></div><div class="lg-wv"><b class="lg-d ${cls(c.pts)}">≈${sg(c.pts)} <small>±${c.seN}</small></b>${c.pid !== me ? `<span class="lg-wo pc-${c.pid}"><i class="lg-dot"></i>${esc(fx.nameOf(c.pid))} ≈${sg(c.ptsMover)}</span>` : `<span class="lg-wo">≈${sg(c.ptsMover)}</span>`}</div></div>`).join("");
+    const credit = v.credit.map((c) => `<div class="lg-wf est"><span class="lg-wi">${IC.pick}</span><div class="lg-wt"><div>${this._ldSegs(c.title.a, fx)}</div><div class="lg-ws">≈ ${esc(L.vs)}</div></div><div class="lg-wv"><b class="lg-d ${cls(c.pts)}">≈${sg(c.pts)} <small>±${c.seN}%</small></b>${c.pid !== me ? `<span class="lg-wo pc-${c.pid}"><i class="lg-dot"></i>${esc(fx.nameOf(c.pid))} ≈${sg(c.ptsMover)}</span>` : `<span class="lg-wo">≈${sg(c.ptsMover)}</span>`}</div></div>`).join("");
     const m = v.why, nv = m.scarce, sp = m.spot;
     let why = "";
     if (nv) why += `<div class="lg-mv"><div class="lg-mh">${esc(nv.q === me ? L.income : L.incomeOf(fx.nameOf(nv.q)))}</div><div class="lg-ib">${RS.map((r) => `<div class="lg-ibr${r === nv.res ? " low" : ""}"><span class="lg-ibn">${esc(fx.t.res[r])}</span><span class="lg-ibt"><i class="r-${r}" style="width:${Math.min(100, (nv.all[r] / 8) * 100)}%"></i></span><b>${nv.all[r]}</b></div>`).join("")}</div><div class="lg-cap">${this._ldSegs(L.cap1(nv), fx)}.</div></div>`;

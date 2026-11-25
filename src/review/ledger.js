@@ -106,6 +106,8 @@ export function describeStep(i, ctx) {
     const st = steps?.[r.s]; it.type = "roll"; it.chance = true; it.sum = st ? st[2] + st[3] : null; it.prod = {}; const hx = new Set();
     (ev || []).forEach((e) => { if (e[0] === r.s + 1 && e[1] === "P") { (it.prod[e[2]] = it.prod[e[2]] || []).push(...Array(e[5] || 1).fill(RES5[e[4]])); hx.add(e[3]); } });
     it.hexes = [...hx].map((h) => ({ id: h, res: hexes?.[h]?.resource, num: hexes?.[h]?.number }));
+    // v1.99 r1 the roll's number is the luck run's (src/review-luck.js), the same one the Luck tab, the timeline and the Overview show for this roll; the step's own change (value after - value before) stays the step's total
+    const lx = ctx.res ? diceResOf(ctx.res).get(r.s) : null; if (lx && Array.isArray(lx.l)) it.dl = lx.l;
   } else if (r.k === "robber") { it.type = "robber"; it.hex = r.a?.hex; const t = (ev || []).find((e) => e[0] === r.s && e[1] === "t" && e[2] === r.pid); if (t) it.taken = { from: t[3] }; }
   else if (r.k === "build") { it.type = "build"; it.what = r.a?.type; it.at = r.a?.id; }
   else if (r.k === "buy") { // v1.90.2 a purchase is two things: its expected value (the player CHOSE to buy: Keuze) and how much the card drawn differs from the expected card (Geluk, the luck run's own number for that draw)
@@ -118,6 +120,12 @@ export function describeStep(i, ctx) {
   else if (r.k === "ptrade") it.type = "ptrade";
   else it.type = r.k;
   return it;
+}
+const DICE_IDX = typeof WeakMap !== "undefined" ? new WeakMap() : null;
+/** the luck run's dice results by roll step (stats step index): Map s -> result (rebuilt when the store has more entries) */
+function diceResOf(res) {
+  const n = Object.keys(res).length, c = DICE_IDX && DICE_IDX.get(res); if (c && c.n === n) return c.m;
+  const m = new Map(); Object.values(res).forEach((x) => { if (x && x.k === "dice" && Array.isArray(x.l)) m.set(x.s, x); }); if (DICE_IDX) DICE_IDX.set(res, { n, m }); return m;
 }
 const ACTION = new Set(["build", "bank", "play", "ptrade", "dev"]);
 

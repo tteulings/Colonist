@@ -1,5 +1,5 @@
 // v1.87 One language for the whole app (English / Dutch).
-//  - lang(): the stored choice (Settings > Language), else the browser language (nl* -> Dutch), else English.
+//  - lang(): the stored choice (Settings > Language, or the legacy recap key), else English (v1.99: the browser language is no longer read).
 //  - t(key, vars): the text for `key`. The key IS the English text, so a missing entry shows English, never a raw key.
 //    "{name}" in a key or value is a variable; plural: tn(n, one, other) picks per language; num(n, digits) formats the number.
 //  - The screens are built from English templates all over the app, so Dutch is applied where text reaches the page: a small
@@ -11,9 +11,8 @@ const LEGACY_KEY = "colonist_recap_lang"; // v1.84-v1.86: the AI recap language;
 const norm = (l) => (l === "nl" ? "nl" : "en");
 const store = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (_) { /* private mode */ } };
 const read = (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } };
-const sysLang = () => { try { return /^nl\b/i.test((navigator.languages && navigator.languages[0]) || navigator.language || "") ? "nl" : "en"; } catch (_) { return "en"; } };
 /** The language now: "en" | "nl". Read every time (a few microseconds), so a change made anywhere is seen at once. */
-export const lang = () => { const s = read(LANG_KEY) || read(LEGACY_KEY); return s === "nl" || s === "en" ? s : sysLang(); };
+export const lang = () => { const s = read(LANG_KEY) || read(LEGACY_KEY); return s === "nl" || s === "en" ? s : "en"; }; // v1.99: no navigator sniffing; English unless a language was chosen
 /** The stored choice ("en" | "nl" | "" for follow-the-browser) */
 export const langChoice = () => { const s = read(LANG_KEY); return s === "nl" || s === "en" ? s : ""; };
 export const isNL = () => lang() === "nl";
@@ -130,12 +129,15 @@ function lookup(s, depth = 0) {
 const cap = (n, x) => (/^n\d*$/.test(n) ? x : /^d\d*$/.test(n) ? x.replace(".", ",") : (RESW[x] ?? NL[x] ?? lookup(x) ?? ord(x) ?? words(x)));
 const lookupPat = (x) => { for (const p of PAT) { const m = p.re.exec(x); if (m) return lookup(x); } return undefined; };
 /** The text of `s` in the current language (English: itself). Unknown text comes back unchanged. */
+// Dutch words that are spelled like the English ones ("Blaauw won": a name and a real Dutch word): such a text is already Dutch, not a miss
+const SAME_NL = new Set(["won"]);
+const sameInDutch = (key) => { const w = key.split(/\s+/).filter(Boolean); return w.length > 1 && w.some((x) => SAME_NL.has(x.toLowerCase())) && w.every((x) => SAME_NL.has(x.toLowerCase()) || NAMEISH.test(x) || /^[\d.,:·–+−%/()±-]+$/.test(x)); };
 export function tr(s) {
   if (lang() !== "nl" || !s) return s;
   if (!loaded) { queue(); return s; } // a language set by hand while the app runs: the tables come, then the page turns Dutch
   const key = String(s).replace(/\s+/g, " ").trim(); if (!key) return s;
   const r = lookup(key);
-  if (r === undefined) { if (/[A-Za-z]{3}/.test(key)) misses.add(key); return s; }
+  if (r === undefined) { if (/[A-Za-z]{3}/.test(key) && !sameInDutch(key)) misses.add(key); return s; }
   return nlFix(r);
 }
 /** t("Roll {n}", { n: 8 }): translated text with its variables filled in. */

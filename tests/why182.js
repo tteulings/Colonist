@@ -1,12 +1,12 @@
 // v1.82 WHY from the engine's paired futures. node why182.js PORT EXPORT.json
 // Pure parts (attribution, sentences, block, tool) run in node; the lazy / cached path runs in the app on the real export (the real worker).
-const { open: openApp, sleep } = require("/tmp/claude-0/-home-user-Colonist/d9ceb834-54a4-5da3-a5eb-477cce8e55d6/scratchpad/redesign/lib.js");
-const fs = require("fs"); const port = +process.argv[2] || 9611, file = process.argv[3]; let fails = 0;
+const { open: openApp, sleep } = require("./applib.js");
+const fs = require("fs"); const port = +process.argv[2] || 9611, file = (process.argv[3] && !process.argv[3].startsWith("--") ? process.argv[3] : require("./applib.js").FIX + "/r1.json"); let fails = 0;
 const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "" ? "  " + (typeof x === "string" ? x : JSON.stringify(x)) : ""}`); if (!c) fails++; };
 (async () => {
-  const W = await import("/home/user/Colonist/src/review/why-mc.js");
-  const B = await import("/home/user/Colonist/src/review/ai-blocks.js");
-  const RS = await import("/home/user/Colonist/src/review-reasons.js");
+  const W = await import(require("url").pathToFileURL(require("path").join(__dirname, "../src/review/why-mc.js")).href);
+  const B = await import(require("url").pathToFileURL(require("path").join(__dirname, "../src/review/ai-blocks.js")).href);
+  const RS = await import(require("url").pathToFileURL(require("path").join(__dirname, "../src/review-reasons.js")).href);
   // ── attribution on synthetic paired futures: A builds its 3rd settlement 2 turns earlier and wins more; "lost" is pure noise
   let seed = 7; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32;
   const fa = [], fb = [], va = [], vb = [];
@@ -45,7 +45,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   const ex = JSON.parse(fs.readFileSync(file, "utf8"));
   await G(async (ex) => { const g = window.__colonistGame; const { meta, format, v, ...rec } = ex; await g.hist.put({ ...meta, id: meta.id }, rec, { quiet: true }); }, ex);
   await G(() => window.__colonistGame.histOpen()); await sleep(1500);
-  await page.locator(`[data-hrow="${ex.meta.id}"]`).tap(); await sleep(900);
+  await G((id) => window.__colonistGame._histSheet(id), ex.meta.id); await sleep(900);
   await page.locator("[data-sact=review]").tap(); await page.waitForSelector(".rv .rv-tabs", { timeout: 20000 }); await sleep(2500);
   const R = await G(async () => {
     const g = window.__colonistGame, { aiToolRun, aiDecList, aiSeatOf } = await import("./src/review/ai-tools.js");
