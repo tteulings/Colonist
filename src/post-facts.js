@@ -111,6 +111,8 @@ export function costOf({ start = 0, errors = 0, other = 0, cap = 100 } = {}) {
   return { start, errors: e, other: o, moves: zet, total: start + zet, capped: zet < zRaw, cap, raw: zRaw };
 }
 
+/** places: the winner is 1st, the others by points; equal points share a place. ids: seat ids in table order (winner first), pts: seat id -> points. Returns { seat: { place, tie } } (tie = how many seats share the place) */
+export function placesOf(ids, pts) { const out = {}, rest = ids.slice(1); ids.forEach((q, k) => { out[q] = k === 0 ? { place: 1, tie: 1 } : { place: 2 + rest.filter((z) => pts(z) > pts(q)).length, tie: rest.filter((z) => pts(z) === pts(q)).length }; }); return out; }
 /** the facts of the whole table (every seat): points, Accuracy, luck, cost split, counts. g: the game, tab: tableOf(g), A: the analysis data layer (or null) */
 export function tableFacts(S, g, tab, A) {
   const P = (id, seat, unit, v, label, src, dec) => S.put(id, seat, unit, v, label, src, dec);
@@ -132,7 +134,7 @@ export function tableFacts(S, g, tab, A) {
     const bf = A?.facts?.[q]; if (bf) ["settlement", "city", "road", "cards", "bank", "player"].forEach((k) => P(`num.${k === "settlement" ? "settlements" : k === "city" ? "cities" : k === "road" ? "roads" : k}`, q, "count", bf[k], `num.${k}`, "stats")), P("num.firstCity", q, "turn", bf.firstCity, "num.firstCity", "stats");
   });
   // places: the winner is 1st; the others by points, equal points share a place ("tied 3rd"): place:seat and tie:seat (how many seats share the place) are facts of every screen that names a place
-  if (g.winner) { const w = tab.order[0], rest = tab.order.slice(1), pts = (q) => tab.seats[q].pts; tab.order.forEach((q) => { const win = q === w, same = win ? 1 : rest.filter((z) => pts(z) === pts(q)).length; P("place", q, "count", win ? 1 : 2 + rest.filter((z) => pts(z) > pts(q)).length, "fact.place", "game"); P("tie", q, "count", same, "fact.tie", "game"); }); }
+  if (g.winner) { const pl = placesOf(tab.order, (q) => tab.seats[q].pts); tab.order.forEach((q) => { P("place", q, "count", pl[q].place, "fact.place", "game"); P("tie", q, "count", pl[q].tie, "fact.tie", "game"); }); }
   tab.seats.forEach((s) => { if (s.luck != null && !S.has(`luck:${s.id}`)) P("luck", s.id, "wcDelta", s.luck, "fact.luck", "luckSplit"); if (s.running) { P("runJ", s.id, "count", s.running.j, "fact.run", "review"); P("runN", s.id, "count", s.running.n, "fact.run", "review"); } });
   return S;
 }

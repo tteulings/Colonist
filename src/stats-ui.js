@@ -19,6 +19,7 @@ import { SEAT_PERSONAS } from "./themes/portraits.js";
 import { TERRAIN_NAME } from "./themes/art-util.js";
 import { RES, computeStats } from "./stats.js";
 import { gameOdds } from "./replay-odds.js";
+import { placesOf } from "./post-facts.js";
 
 const NUMW = { 2: "twos", 3: "threes", 4: "fours", 5: "fives", 6: "sixes", 7: "sevens", 8: "eights", 9: "nines", 10: "tens", 11: "elevens", 12: "twelves" };
 const NUM1 = { 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve" };
@@ -171,7 +172,8 @@ export const StatsUiMixin = {
     const human = this._stMe();
     // the game's winner is always 1st (it won by the game's rule: reaching the target on its own turn / the turn limit); then by points
     const ranked = [winner, ...this.players.filter((p) => p !== winner).sort((a, b) => b.victoryPoints - a.victoryPoints)];
-    const rank = human ? ranked.indexOf(human) + 1 : 0;
+    const PL = placesOf(ranked.map((p) => p.id), (q) => this.players[q].victoryPoints); // equal points share a place (tied 3rd), the same rule as the post-game screens
+    const rank = human ? PL[human.id].place : 0, rankTied = human && PL[human.id].tie > 1;
     const overlay = document.createElement("div");
     overlay.className = "game-over-overlay tm gs-over";
     overlay.setAttribute("role", "dialog");
@@ -183,9 +185,9 @@ export const StatsUiMixin = {
       <div class="gs-scroll">
         <section class="gs-recap over-panel" aria-label="Recap">
           <div class="gs-rhead">${this._stPortrait(winner.id, "gs-win-por av-win", 52)}<div><h3>${this._stWinsText(winner)}</h3>
-            <p class="lead">${winner.isHuman || !human ? `${winner.victoryPoints} points${this.isRush() ? "" : ` on turn ${this.turn}`}` : `You finished ${ord(rank)}`}</p></div></div>
-          <div class="podium gs-rank">${ranked.map((p, k) => `<div class="r${p === winner ? " win" : ""}" data-pid="${p.id}"><span class="pl">${k + 1}</span>${this._stPortrait(p.id, p === winner ? "gs-emb" : "", 30)}<span class="nmc"><span class="pname">${this._stName(p)}</span></span><span class="s">${p.victoryPoints}</span></div>`).join("")}</div>
-          <div class="gs-ov"><span><b>${turns}</b>${this.isRush() ? "rolls" : "turns"}</span><span><b>${fmtDur(st?.ms || 0)}</b>played</span>${human ? `<span><b>${rank ? ord(rank) : "—"}</b>your rank</span>` : `<span><b>${this.players.length}</b>players</span>`}</div>
+            <p class="lead">${winner.isHuman || !human ? `${winner.victoryPoints} points${this.isRush() ? "" : ` on turn ${this.turn}`}` : `You finished ${ord(rank)}`}${rankTied && !winner.isHuman ? ` <small class="gs-tie">tied</small>` : ""}</p></div></div>
+          <div class="podium gs-rank">${ranked.map((p, k) => `<div class="r${p === winner ? " win" : ""}" data-pid="${p.id}"><span class="pl">${PL[p.id].place}</span>${this._stPortrait(p.id, p === winner ? "gs-emb" : "", 30)}<span class="nmc"><span class="pname">${this._stName(p)}</span></span><span class="s">${p.victoryPoints}</span></div>`).join("")}</div>
+          <div class="gs-ov"><span><b>${turns}</b>${this.isRush() ? "rolls" : "turns"}</span><span><b>${fmtDur(st?.ms || 0)}</b>played</span>${human ? `<span><b>${rank ? ord(rank) : "—"}</b>${rankTied ? `<small class="gs-tie">tied</small>` : ""}your rank</span>` : `<span><b>${this.players.length}</b>players</span>`}</div>
         </section>
         <section class="gs-look gs-card" aria-label="Look back">
           <div class="gs-lh">Look back</div>
