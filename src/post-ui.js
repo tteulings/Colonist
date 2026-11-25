@@ -143,7 +143,7 @@ export function headVariants(m) {
 export function verdictSpans(m, budget = HEAD_BUDGET) {
   const nl = isNL(), vs = headVariants(m), sp = (x) => `<span data-i18n-skip>${x}</span>`;
   if (!vs.length) return "";
-  const len = (t) => t.replace(/<[^>]*>/g, "").length, room = budget - (m.you ? 0 : Math.max(0, String(m.me.name).length - 8)), pick = vs.find((t) => len(t) <= room - (/spread over many|verspreid over veel/.test(t) ? 10 : 0)) || vs[vs.length - 1]; // (the long luck words need room: they must still fit two lines)
+  const len = (t) => t.replace(/<[^>]*>/g, "").length, room = budget - (m.you ? 0 : Math.max(0, String(m.me.name).length - 8)), pick = vs.find((t) => len(t) <= room - (/spread over many|verspreid over veel/.test(t) ? 1 : 0)) || vs[vs.length - 1]; // (the long luck words need room: they must still fit two lines)
   void nl; return `<span class="px-vsent">${sp(pick)}</span>`;
 }
 export function verdictLine(g, m, budget) { return verdictSpans(m, budget); }
