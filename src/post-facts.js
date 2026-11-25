@@ -30,9 +30,9 @@ export function fmt(f, o = {}) {
   switch (u) {
     case "wc": return `${n}${pct}`;
     case "wcDelta": { const t = `${o.abs ? "" : sg(v, dec)}${n}${pct}`; return o.word ? `${t} ${W.wc}` : t; }
-    case "lead": return `+${n}${o.word === false ? "" : ` ${W.lead}`}`;
+    case "lead": return `+${n}${pct}${o.word === false ? "" : ` ${W.lead}`}`;
     case "pts": return o.word ? `${n} ${r0(v) === 1 ? W.pt : W.pts}` : `${o.plus && v > 0 ? "+" : ""}${n}`;
-    case "cards": { const t = `${o.abs ? "" : sg(v, dec)}${n}`; return o.word ? `${t} ${W.cards}` : t; }
+    case "cards": { const t = `${o.abs ? "" : sg(v, dec)}${n}`; return o.word ? `${t} ${Math.abs(r0(v)) === 1 ? W.card : W.cards}` : t; }
     case "count": return o.ord ? ordinal(v) : o.signed ? `${sg(v, dec)}${n}` : n;
     case "margin": return `±${numStr(v, 1)}${pct}`;
     case "rate": return `${numStr(v, 1)}${pct}`;
@@ -307,19 +307,19 @@ export function luckRows(S, g, m, q, unit, showOthers) {
     const dom = pool.slice().sort((a, b) => Math.abs(val(b)) - Math.abs(val(a)))[0], sum = Math.round(pool.reduce((a, e) => a + val(e), 0)), id = `${pre}${tag}.${t}`;
     S.put(id, q, inCards ? "cards" : "wcDelta", sum, "fact.lkRow", "luck"); if (es.length > 1) S.put(`${id}.more`, q, "count", es.length - 1, "fact.lkMore", "luck");
     const ev0 = dom.x.ev; let lab = null;
-    if (ev0.kind === "dice") { const rid = `${id}.roll`; S.put(rid, q, "count", ev0.roll, "fact.roll", "luck"); lab = ev0.roll === 7 ? { k: "seven", n: rid } : { k: "dice", who: ev0.roller, n: rid, rush: !!ev0.rush }; }
+    if (ev0.kind === "dice") { const rid = `${id}.roll`; S.put(rid, q, "count", ev0.roll, "fact.roll", "luck"); lab = ev0.roll === 7 ? { k: "seven", n: `${rid}:${q}` } : { k: "dice", who: ev0.roller, n: `${rid}:${q}`, rush: !!ev0.rush }; }
     else if (ev0.kind === "steal") lab = { k: "steal", thief: ev0.thief, victim: ev0.victim }; else if (ev0.kind === "dev") lab = { k: "dev", who: ev0.pid, vp: ev0.card === "victoryPoint" };
-    return { t, id, more: es.length > 1 ? `${id}.more` : null, sum, lab, inCards }; }); };
+    return { t, id: `${id}:${q}`, more: es.length > 1 ? `${id}.more:${q}` : null, sum, lab, inCards }; }); };
   const own = group(ev.filter(isOwn), ""), oth = group(ev.filter((e) => !isOwn(e)), "o");
   const big = own.filter((G) => Math.abs(G.sum) >= 0.5).sort((a, b) => Math.abs(b.sum) - Math.abs(a.sum)), small = own.filter((G) => Math.abs(G.sum) < 0.5);
   S.put(`${pre}.${q}.more`, q, "count", Math.max(0, big.length - 8), "fact.lkMore", "luck"); S.put(`${pre}.${q}.nsmall`, q, "count", small.length, "fact.lkMore", "luck");
   const othEv = ev.filter((e) => !isOwn(e)), oval = (e) => (cards ? e.cards ?? 0 : e.win);
   S.put(`${pre}.${q}.nOth`, q, "count", othEv.length, "fact.lkMore", "luck");
   S.put(`${pre}.${q}.othSum`, q, cards ? "cards" : "wcDelta", Math.round(othEv.reduce((a, e) => a + oval(e), 0)), "fact.lkOth", "luck");
-  let bigO = null; if (othEv.length) { const e = othEv.slice().sort((a, b) => Math.abs(oval(b)) - Math.abs(oval(a)))[0]; S.put(`${pre}.${q}.othBig`, q, cards ? "cards" : "wcDelta", Math.round(oval(e)), "fact.lkOthBig", "luck"); bigO = { id: `${pre}.${q}.othBig`, t: e.t }; }
+  let bigO = null; if (othEv.length) { const e = othEv.slice().sort((a, b) => Math.abs(oval(b)) - Math.abs(oval(a)))[0]; S.put(`${pre}.${q}.othBig`, q, cards ? "cards" : "wcDelta", Math.round(oval(e)), "fact.lkOthBig", "luck"); bigO = { id: `${pre}.${q}.othBig:${q}`, t: e.t }; }
   let total = null;
   if (cards) { S.put(`${pre}.${q}.total`, q, "cards", Math.round(ev.reduce((a, e) => a + (e.cards ?? 0), 0)), "fact.lkTotal", "luck"); total = `${pre}.${q}.total:${q}`; } else total = S.has(`luck:${q}`) ? `luck:${q}` : null;
-  return { big, small, oth: showOthers ? oth.sort((a, b) => Math.abs(b.sum) - Math.abs(a.sum)) : [], othN: othEv.length, bigO, seatId: seatW ? `lkSeat:${q}` : null, total, pre, nMore: big.length - 8, nSmall: small.length, nOthRef: `${pre}.${q}.nOth`, moreRef: `${pre}.${q}.more`, smallRef: `${pre}.${q}.nsmall`, othSum: `${pre}.${q}.othSum` };
+  return { big, small, oth: showOthers ? oth.sort((a, b) => Math.abs(b.sum) - Math.abs(a.sum)) : [], othN: othEv.length, bigO, seatId: seatW ? `lkSeat:${q}` : null, total, pre, nMore: big.length - 8, nSmall: small.length, nOthRef: `${pre}.${q}.nOth:${q}`, moreRef: `${pre}.${q}.more:${q}`, smallRef: `${pre}.${q}.nsmall:${q}`, othSum: `${pre}.${q}.othSum:${q}` };
 }
 
 // ── history and bots (no review open: global stores, registered for the test hook) ──

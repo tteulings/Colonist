@@ -73,12 +73,12 @@ function render(P, lg, terse) {
   switch (P.k) {
     case "end": main = P.saves && !terse ? p("End turn, keeping the cards", "Beurt beëindigen, kaarten bewaren") : p("End turn", "Beurt beëindigen"); break;
     case "dev": main = p("Dev card", "Ontwikkelkaart"); break;
-    case "play": main = `${p("Play", "Speel")} ${CARDS[P.card][nl ? 1 : 0]}`; break;
+    case "play": main = terse ? cap1(CARDS[P.card][nl ? 1 : 0]) : `${p("Play", "Speel")} ${CARDS[P.card][nl ? 1 : 0]}`; break;
     case "road": main = P.lr ? p("Road", "Weg") : P.coast ? p("Road toward the coast", "Weg naar de kust") : P.from ? `${p("Road", "Weg")} ${K.spot(P.from)} – ${K.spot(P.spot)}` : P.spot ? `${p("Road", "Weg")} ${K.spot(P.spot)}` : p("Road", "Weg"); break;
     case "settle": main = `${p("Settlement", "Dorp")} ${K.spot(P.spot)}${P.more && !terse ? ` (+${K.roads(P.more)})` : ""}`; break;
     case "city": main = `${p("City", "Stad")} ${K.spot(P.spot)}`; break;
     case "robber": main = `${p("Robber", "Rover")} ${K.spot(P.spot)}${P.dir ? `, ${DIRS[P.dir][nl ? 1 : 0]}` : ""}`; break;
-    case "bank": main = bank(); break;
+    case "bank": main = terse ? p(`Trade ${side(K, P.give)} for ${side(K, P.get)}`, `Ruil ${side(K, P.give)} voor ${side(K, P.get)}`) : bank(); break;
     default: main = "";
   }
   if (!P.trade) return terse && P.k !== "end" && P.k !== "dev" && P.k !== "play" ? main : main;

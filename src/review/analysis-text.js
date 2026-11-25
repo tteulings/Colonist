@@ -77,15 +77,15 @@ export const EN = {
   "hd.lost.miss": "{S} lost because of {pos} move in turn {t} ({k1} instead of {k2}, {d})", "hd.lost.miss.t": "{S} lost because of {pos} move in turn {t} ({d})", "hd.lost.miss.w": "{S} lost because of {pos} move in turn {t} ({w}, {d})",
   "hd.won.clean": "{S} won without a big own mistake (moves in total {d})", "hd.lost.clean": "{S} lost without a big own mistake (moves in total {d})",
   "hd.lost.others": "{S} lost: the others pulled ahead ({d})", "hd.pos.you": "your", "hd.pos.3": "the",
-  "hd.lk.own.good.you": "luck with your rolls ({d})", "hd.lk.own.good.3": "luck with {x}’s rolls ({d})", "hd.lk.own.bad.you": "bad luck with your rolls ({d})", "hd.lk.own.bad.3": "bad luck with {x}’s rolls ({d})",
+  "hd.lk.own.good.you": "luck with your own rolls ({d})", "hd.lk.own.good.3": "luck with their own rolls ({d})", "hd.lk.own.bad.you": "bad luck with your own rolls ({d})", "hd.lk.own.bad.3": "bad luck with their own rolls ({d})", "despite": "despite",
   "hd.lk.good.you": "{y}’s rolls in turns {t} and {t2} helped you ({d})", "hd.lk.good1.you": "{y}’s roll in turn {t} helped you ({d})", "hd.lk.good.3": "{y}’s rolls in turns {t} and {t2} helped {x} ({d})", "hd.lk.good1.3": "{y}’s roll in turn {t} helped {x} ({d})",
   "hd.lk.bad.you": "{y}’s rolls in turns {t} and {t2} ({d})", "hd.lk.bad1.you": "{y}’s roll in turn {t} ({d})", "hd.lk.bad.3": "{y}’s rolls in turns {t} and {t2} ({d})", "hd.lk.bad1.3": "{y}’s roll in turn {t} ({d})",
   "hd.lk.good.short": "{y}’s rolls helped ({d})", "hd.lk.bad.short": "{y}’s rolls ({d})",
-  "c.line2": "{acc}, {errs}. Moves in total {tot}: start {st} + moves {mv}.", "c.line2.3": "{acc}, {errs}. {x}’s moves in total {tot}: start {st} + moves {mv}.",
+  "c.a": "{acc}, {errs}.", "c.b": "Moves in total {tot} (max {cap}): start {st} + moves {mv}.", "c.b.3": "{x}’s moves in total {tot} (max {cap}): start {st} + moves {mv}.",
   "wf.fair": "Fair share", "wf.start": "Start picks", "wf.moves": "Moves", "wf.luck": "Luck", "wf.others": "Others", "wf.end": "End",
   "wf.start.sub": "{p} {a} instead of {b}", "wf.start.ok": "start picks fine", "wf.moves.sub": "biggest miss: turn {t}, {k1} instead of {k2} ({d})", "wf.moves.sub.w": "biggest miss: turn {t}, {w} ({d})", "wf.moves.none": "no miss of {n} or more", "wf.moves.rate": "{n} per move",
-  "wf.luck.sub": "biggest roll: {x} rolled {n} in turn {t} ({d})", "wf.luck.none": "rolls, cards and seat order", "wf.others.sub": "their moves and luck, plus the rest", "wf.others.rolls": "{y}’s rolls in turns {t} and {t2}: {d}", "wf.others.rolls1": "{y}’s roll in turn {t}: {d}",
-  "wf.you": "you", "wf.pick": "pick {n}",
+  "wf.luck.sub": "biggest roll: {x} rolled {n} in turn {t} ({d})", "wf.luck.none": "rolls, cards and seat order", "wf.others.sub": "their moves, their luck and the rest", "wf.others.rolls": "of which {y}’s rolls (turns {t} and {t2}): {d}", "wf.others.rolls1": "of which {y}’s roll (turn {t}): {d}",
+  "wf.you": "you", "wf.human": "the human player", "wf.pick": "pick {n}",
 };
 
 export const NL = {
@@ -151,15 +151,15 @@ export const NL = {
   "hd.lost.miss": "{S} verloor door {pos} zet in beurt {t} ({k1} i.p.v. {k2}, {d})", "hd.lost.miss.t": "{S} verloor door {pos} zet in beurt {t} ({d})", "hd.lost.miss.w": "{S} verloor door {pos} zet in beurt {t} ({w}, {d})",
   "hd.won.clean": "{S} won zonder grote eigen fout (zetten totaal {d})", "hd.lost.clean": "{S} verloor zonder grote eigen fout (zetten totaal {d})",
   "hd.lost.others": "{S} verloor: de anderen liepen uit ({d})", "hd.pos.you": "je", "hd.pos.3": "de",
-  "hd.lk.own.good.you": "geluk met je worpen ({d})", "hd.lk.own.good.3": "geluk met de worpen van {x} ({d})", "hd.lk.own.bad.you": "pech met je worpen ({d})", "hd.lk.own.bad.3": "pech met de worpen van {x} ({d})",
+  "hd.lk.own.good.you": "geluk met je eigen worpen ({d})", "hd.lk.own.good.3": "geluk met de eigen worpen ({d})", "hd.lk.own.bad.you": "pech met je eigen worpen ({d})", "hd.lk.own.bad.3": "pech met de eigen worpen ({d})", "despite": "ondanks",
   "hd.lk.good.you": "de worpen van {y} in beurt {t} en {t2} hielpen je ({d})", "hd.lk.good1.you": "de worp van {y} in beurt {t} hielp je ({d})", "hd.lk.good.3": "de worpen van {y} in beurt {t} en {t2} hielpen {x} ({d})", "hd.lk.good1.3": "de worp van {y} in beurt {t} hielp {x} ({d})",
   "hd.lk.bad.you": "de worpen van {y} in beurt {t} en {t2} ({d})", "hd.lk.bad1.you": "de worp van {y} in beurt {t} ({d})", "hd.lk.bad.3": "de worpen van {y} in beurt {t} en {t2} ({d})", "hd.lk.bad1.3": "de worp van {y} in beurt {t} ({d})",
   "hd.lk.good.short": "de worpen van {y} hielpen ({d})", "hd.lk.bad.short": "de worpen van {y} ({d})",
-  "c.line2": "{acc}, {errs}. Zetten totaal {tot}: start {st} + zetten {mv}.", "c.line2.3": "{acc}, {errs}. Zetten totaal van {x} {tot}: start {st} + zetten {mv}.",
+  "c.a": "{acc}, {errs}.", "c.b": "Zetten totaal {tot} (max. {cap}): start {st} + zetten {mv}.", "c.b.3": "Zetten totaal van {x} {tot} (max. {cap}): start {st} + zetten {mv}.",
   "wf.fair": "Eerlijk deel", "wf.start": "Startkeuzes", "wf.moves": "Zetten", "wf.luck": "Geluk", "wf.others": "Anderen", "wf.end": "Eind",
   "wf.start.sub": "{p} {a} i.p.v. {b}", "wf.start.ok": "startkeuzes in orde", "wf.moves.sub": "grootste misser: beurt {t}, {k1} i.p.v. {k2} ({d})", "wf.moves.sub.w": "grootste misser: beurt {t}, {w} ({d})", "wf.moves.none": "geen misser van {n} of meer", "wf.moves.rate": "{n} per zet",
-  "wf.luck.sub": "grootste worp: {x} gooide {n} in beurt {t} ({d})", "wf.luck.none": "worpen, kaarten en plek", "wf.others.sub": "hun zetten en geluk, plus de rest", "wf.others.rolls": "worpen van {y} in beurt {t} en {t2}: {d}", "wf.others.rolls1": "worp van {y} in beurt {t}: {d}",
-  "wf.you": "jij", "wf.pick": "keuze {n}",
+  "wf.luck.sub": "grootste worp: {x} gooide {n} in beurt {t} ({d})", "wf.luck.none": "worpen, kaarten en plek", "wf.others.sub": "hun zetten, hun geluk en de rest", "wf.others.rolls": "waarvan de worpen van {y} (beurt {t} en {t2}): {d}", "wf.others.rolls1": "waarvan de worp van {y} (beurt {t}): {d}",
+  "wf.you": "jij", "wf.human": "de menselijke speler", "wf.pick": "keuze {n}",
 };
 
 export const TABLES = { en: EN, nl: NL };

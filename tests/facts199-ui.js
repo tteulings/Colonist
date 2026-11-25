@@ -6,6 +6,8 @@
 //   2. a tagged element must show exactly the numbers of the facts it names (same digits, same sign, % only after a win-chance unit, nothing else);
 //   3. the same fact id shows the same number wherever it appears in a game (all screens);
 //   4. no NaN / undefined / null.
+//   5. TEXT on every screen of every game (v1.99 r2): no English words in Dutch and no Dutch words in English (an independent word scan, not the localizer's own `misses`),
+//      no port / robber / road-race / fed words, and a max of 2 lines for the headline, captions, rows and sub-lines (line boxes measured).
 // Games: the 2 fixtures (tests/fixtures/post199) and the 37 calibration games (tests/evals/calib199): Overview, Moves, Strategy, Luck (win chance, cards, other players' rolls),
 // the Numbers and (i) sheets and the player pages for every seat on the fixtures; Overview, Moves, Strategy, Luck, Numbers, (i), Bekijk bord and two player pages on the calibration games.
 const { chromium } = require("playwright"); const fs = require("fs"); const path = require("path"), zlib = require("zlib");
@@ -23,8 +25,8 @@ const ALLOW_SEL = [".rk", ".px-nb", ".pin", ".px-dash", ".px-tile", ".px-stops",
 //   text patterns (EN + NL): turn numbers inside labels, pick numbers, version, dates, the "T14" chart label
 const ALLOW_RE = [
   /\b(?:turns?|beurten|beurt)\s+\d+(?:\s*(?:[–-]|and|en)\s*\d+)?/gi, /\b[TB]\d+\b/g, /(?:pick|keuze)\s+\d+/gi, /\b(?:Lesson|Les)\s+\d\b/g, /\b(?:version|versie)\s+\d+/gi, /\bv\d+(?:\.\d+)+\b/g,
-  /\b(?:jan(?:uary|uari)?|feb(?:ruary|ruari)?|mar(?:ch)?|mrt|apr(?:il)?|may|mei|jun[ei]?|jul[iy]?|aug(?:ust(?:us)?)?|sep(?:t(?:ember)?)?|oct(?:ober)?|okt(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b\.?\s+\d{1,2}\b/gi, /\b\d{1,2}\s+(?:jan(?:uary|uari)?|feb(?:ruary|ruari)?|mar(?:ch)?|mrt|apr(?:il)?|may|mei|jun[ei]?|jul[iy]?|aug(?:ust(?:us)?)?|sep(?:t(?:ember)?)?|oct(?:ober)?|okt(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b\.?/gi, /\b(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat|zo|ma|di|wo|do|vr|za)\w*\s+\d+\s+\w{3}/g, /\b\d{1,2}:\d{2}\b/g,
-  /\b(?:Lumber|Brick|Wool|Grain|Ore|Hout|Baksteen|Wol|Graan|Erts|Desert|Woestijn)\s+\d+(?:\s*\+\s*\d+)*/gi, /\b\d+\s+(?:Lumber|Brick|Wool|Grain|Ore|hout|baksteen|wol|graan|erts)\b/gi, /\b(?:Trade|Ruil)\s+\d+/g,
+  /\b(?:jan(?:uary|uari)?|feb(?:ruary|ruari)?|mar(?:ch)?|mrt|apr(?:il)?|may|mei|jun[ei]?|jul[iy]?|aug(?:ust(?:us)?)?|sep(?:t(?:ember)?)?|oct(?:ober)?|okt(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b\.?\s+\d{1,2}\b/gi, /\b\d{1,2}\s+(?:jan(?:uary|uari)?|feb(?:ruary|ruari)?|mar(?:ch)?|mrt|apr(?:il)?|may|mei|jun[ei]?|jul[iy]?|aug(?:ust(?:us)?)?|sep(?:t(?:ember)?)?|oct(?:ober)?|okt(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b\.?/gi, /\b(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat|zo|ma|di|wo|do|vr|za)[a-z]*\.?,?\s+\d{1,2}\s+(?:jan|feb|mar|mrt|apr|may|mei|jun|jul|aug|sep|oct|okt|nov|dec)[a-z]*/gi, /\b\d{1,2}:\d{2}\b/g,
+  /\b(?:Lumber|Brick|Wool|Grain|Ore|Hout|Baksteen|Wol|Graan|Erts|Desert|Woestijn)\s+\d+(?:\s*\+\s*\d+)*/gi, /\b\d+\s+(?:Lumber|Brick|Wool|Grain|Ore|hout|baksteen|wol|graan|erts)\b/gi, /\b(?:Trade|Ruil)\s+\d+/g, /\+\d+ (?:roads?|wegen|weg)\b/g,
 ];
 //   plus the review engine's own explanation sentences (src/review/why.js: tile numbers and dot counts inside "Reaches Grain 4, ... (8 dice dots)"): marked data-explain in the UI. KNOWN GAP, listed in the report.
 ALLOW_SEL.push("[data-explain]");
@@ -50,7 +52,7 @@ const AUDIT = ({ rootSel, allowSel, allowRe }) => {
     const norm = (a) => a.map((x) => String(parseFloat(x))).sort().join("|");
     if (norm(shown) !== norm(want)) { out.bad.push({ why: "digits differ", keys, txt, want }); return; }
     // unit: a % belongs right after a win-chance number and nowhere else (checked in order when it lines up)
-    const wcU = new Set(["wc", "wcDelta", "margin", "rate"]); const seq = []; facts.forEach((f, i) => digits(PF.text(keys[i])).forEach(() => seq.push(f)));
+    const wcU = new Set(["wc", "wcDelta", "margin", "rate", "lead"]); const seq = []; facts.forEach((f, i) => digits(PF.text(keys[i])).forEach(() => seq.push(f)));
     let pos = 0; const inOrder = shown.every((d, i) => parseFloat(d) === parseFloat(want[i]));
     if (inOrder) shown.forEach((d, i) => { const at = txt.indexOf(d.replace(".", /\d,\d/.test(txt) ? "," : ".").replace(/^0+(?=\d)/, ""), pos); const nxt = at >= 0 ? txt.slice(at + String(d).length, at + String(d).length + 2) : ""; pos = at >= 0 ? at + 1 : pos; const pct = /^\s?%/.test(nxt) || nxt[0] === "%"; const f = seq[i]; if (f && wcU.has(f.unit) !== pct) out.bad.push({ why: `unit ${f.unit} ${pct ? "has" : "lacks"} %`, keys, txt }); });
     // sign: a shown sign must be the value's sign (single-number elements)
@@ -71,6 +73,28 @@ const AUDIT = ({ rootSel, allowSel, allowRe }) => {
   return out;
 };
 
+const LSEL = ".px-ev .x, .px-hl2, .px-vl, .px-t3 > span, .px-wfr .sb, .px-wfr .lb, .px-rule p.px-l, .px-fn, .px-adv, .px-lh b, .rv-gt b, .px-card > p.px-l, .px-cn p, .px-prog p, .px-vsent, .px-err .mv, .px-ne2, .px-tk small, .px-tk > span > span, .px-mv .mt, .px-cc, .px-wr > span, .px-nr > span, .ln-cr > span:first-child, .px-wr > b, .px-ev .t";
+// ── in-page TEXT audit: language purity, out-of-scope words, line counts ──
+const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
+  const root = document.querySelector(rootSel); if (!root) return { missing: true };
+  const vis = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === "none" || cs.visibility === "hidden" || e.hidden || +cs.opacity === 0) return false; } const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  const cl = root.cloneNode(true); cl.querySelectorAll("script,style,svg,[hidden]").forEach((e) => e.remove());
+  // the text as the reader sees it: hidden parts of the LIVE root are skipped through the live tree walk
+  const nodes = []; const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); const nodesOut = [];
+  for (let n = w.nextNode(); n; n = w.nextNode()) { const el = n.parentElement; if (!el || el.closest("script,style,svg") || !vis(el)) continue; if (!el.closest(".px-leg, .px-pr, .px-src, .rsc-leg")) nodesOut.push(n.nodeValue); const t = n.nodeValue.replace(/\s+/g, " ").trim(); if (t) nodes.push(t); }
+  let text = nodes.join(" \n "); names.forEach((n) => { text = text.split(n).join(" "); }); text = text.replace(/Katan/g, " ");
+  const EN = /\b(the|then|and|with|for|from|your|you|you'll|turn|turns|move|moves|win|chance|real|error|errors|luck|lucky|rolled|rolls|built|instead|better|could|mistake|missed|points?|others|show|hide|dice|dots?|port|ports|trade|trades|traded|lumber|brick|wool|grain|ore|settlement|city|road|roads|cards?|completes|adds|blocks|takes|reaches|uses|needs|keeps|income|spots?|resources?|short|gave|knight|robber|play|dev|biggest|worse|loss|lost|gain|why|what|this|that|are|not|only|more|less|about|which|each|after|before|because|checked|played|picks?|moves)\b/gi;
+  const NLR = /\b(beurt|beurten|jij|jou|jouw|zetten|zet|winkans|precisie|kaart|kaarten|dorp|dorpen|stad|steden|weg|wegen|hout|baksteen|wol|graan|erts|ruil|ruilen|ontwikkelkaart|voorsprong|stippen|geluk|fout|fouten|keuze|keuzes|startkeuzes|bekijk|eerlijk|anderen|eind|waarom|deed|beter|niet|geen|het|een|van|voor|naar|met|dat|bij|worp|worpen|gooide|punten|spel|speler|spelers|tegenstanders|grootste|misser|missers|nipte|kleine|dit|bord|plek|plekken)\b/gi;
+  const OUT = /\brobber\b|\brover\b|\bports?\b|\bharbou?rs?\b|\bhaven\b|\bhavens\b|longest road|largest army|langste weg|langste handelsroute|grootste riddermacht|who you fed|\bfed\b/gi;
+  const textOut = nodesOut.join(" \n "); const hit = (re, tt = text) => { const m = tt.match(re); return m ? [...new Set(m.map((x) => x.toLowerCase()))].slice(0, 6) : []; };
+  const MINUS = text.match(/(?:^|[\s(+·])-\d/g);
+  const SEC = third ? hit(lang === "nl" ? /\b(jij|jou|jouw|jullie|je)\b/gi : /\b(you|your|yours)\b/gi) : [];
+  const out = { second: SEC, minus: MINUS ? MINUS.slice(0, 4).map((x) => x.trim()) : [], en: lang === "nl" ? hit(EN) : [], nl: lang === "en" ? hit(NLR) : [], out: hit(OUT, textOut), long: [] };
+  const lines = (el) => { const rg = document.createRange(); rg.selectNodeContents(el); const tops = []; for (const q of rg.getClientRects()) { if (q.width < 1) continue; const t = Math.round(q.top); if (!tops.some((x) => Math.abs(x - t) < 5)) tops.push(t); } return tops.length; };
+  root.querySelectorAll(lsel).forEach((el) => { if (!vis(el) || el.closest("svg")) return; const n = lines(el); if (n > 2) out.long.push(`${n} lines: "${(el.innerText || "").replace(/\s+/g, " ").trim().slice(0, 44)}"`); });
+  return out;
+};
+
 (async () => {
   const b = await chromium.launch();
   const LANGS = process.env.LANGS ? process.env.LANGS.split(",") : ["en", "nl"];
@@ -81,7 +105,7 @@ const AUDIT = ({ rootSel, allowSel, allowRe }) => {
     await page.addInitScript((l) => { localStorage.setItem("colonist_sound", "off"); localStorage.setItem("colonist_review_auto", "off"); localStorage.setItem("colonist_lang", l); }, lang);
     const boot = async () => { await page.goto(`http://localhost:${port}/`); await page.waitForFunction(() => window.__colonistGame && document.body.dataset.gameReady, null, { timeout: 30000 }); };
     await boot(); const G = (fn, a) => page.evaluate(fn, a);
-    let KEYS = {}, curGame = "";
+    let KEYS = {}, curGame = "", NAMES = ["Katan"];
     const audit = async (name, rootSel, o = {}) => { if (process.env.DEBUG) console.log("  ..", name);
       const r = await G(AUDIT, { rootSel, allowSel: ALLOW_SEL, allowRe: ALLOW_RE.map((x) => [x.source, x.flags]) });
       const k = `${lang} ${curGame} ${name}`; summary.screens += 1;
@@ -90,6 +114,7 @@ const AUDIT = ({ rootSel, allowSel, allowRe }) => {
       ok(!r.untagged.length, `${k}: every number is a tagged fact`, r.untagged.slice(0, 6));
       ok(!r.bad.length, `${k}: tagged numbers equal the store`, r.bad.slice(0, 4));
       ok(!r.nan.length, `${k}: no NaN/undefined`, r.nan.slice(0, 3));
+      { const tx = await G(TEXTAUDIT, { rootSel, lang, names: NAMES, lsel: LSEL, third: /^(overview bot|player \d+)$/.test(name) }); if (!tx.missing) { ok(!tx.en.length, `${k}: no English words in Dutch`, tx.en); ok(!tx.nl.length, `${k}: no Dutch words in English`, tx.nl); ok(!tx.out.length, `${k}: no port / robber / road-race words`, tx.out); ok(!tx.second.length, `${k}: third person only on a bot's page`, tx.second); ok(!tx.minus.length, `${k}: one minus sign style (U+2212)`, tx.minus); ok(!tx.long.length, `${k}: max 2 lines`, tx.long.slice(0, 3)); } }
       Object.entries(r.keys).forEach(([key, v]) => { (KEYS[key] ||= new Map()); v.forEach((x) => KEYS[key].set(x, [...(KEYS[key].get(x) || []), name])); });
       return r;
     };
@@ -98,7 +123,7 @@ const AUDIT = ({ rootSel, allowSel, allowRe }) => {
     const closeSheet = async () => { await page.evaluate(() => document.querySelector("[data-pxx]")?.click()); await sleep(200); };
     for (const gm of sel) {
       try {
-        const j = gm.j || JSON.parse(zlib.gunzipSync(fs.readFileSync(gm.file))); const { meta, format, v, calib, ...rec } = j; const me = meta.me ?? 0; curGame = gm.tag.slice(0, 14); KEYS = {};
+        const j = gm.j || JSON.parse(zlib.gunzipSync(fs.readFileSync(gm.file))); const { meta, format, v, calib, ...rec } = j; const me = meta.me ?? 0; curGame = gm.tag.slice(0, 14); KEYS = {}; NAMES = ["Katan", ...(meta.seats || []).map((q) => q.name)];
         await G(async ({ meta, rec }) => { const H = window.__colonistGame.hist; await H.open(); await H.put({ ...meta }, rec, { quiet: true }); }, { meta, rec });
         await G(() => window.__colonistGame.histOpen()); await sleep(500);
         if (gm.fixture) { await audit("history", ".hs", { optional: false }); await G(() => document.querySelector("[data-pxhg]")?.click()); await sleep(200); await audit("history row open", ".hs"); }

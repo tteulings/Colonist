@@ -138,7 +138,7 @@ function board(g, T0) {
   g._pxBoardEl?.remove();
   const geo = stdGeo(), stops = [{ T: 0, label: "Start" }, ...(m.timeline?.pins || []).map((p) => ({ T: p.T, label: f("Turn {n}", { n: p.T }), say: `${causeText(m, momentFor(g, m, p))}, ${m.F.n(`mom.${p.S}.d`)}`, n: p.n }))];
   let cur = Math.max(0, stops.findIndex((s) => s.T === (T0 ?? 0)));
-  const el = document.createElement("div"); el.className = "px-board tm"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Bekijk bord");
+  const el = document.createElement("div"); el.className = "px-board tm"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "View board");
   (g._rvEl || document.body).appendChild(el); g._pxBoardEl = el;
   const col = (q) => (getComputedStyle(document.documentElement).getPropertyValue(`--p${q}`).trim() || SEAT[q]);
   const draw = () => {
@@ -159,7 +159,7 @@ function board(g, T0) {
     const X = m.F, prow = (lab, node, dots, win) => `<div class="px-br"><small>${lab}</small><span class="tl">${spotTiles(bd, node)}</span><span class="dt">${dots && X.has(dots) ? X.ph("{n} dots", { n: [dots] }) : ""}</span><b>${X.n(win)}</b></div>`;
     const info = s.T === 0 ? `<h4 class="px-bh">Start: your picks and the best spot</h4><p class="px-fn">${X.ph("The dashed rings are your picks. A is the best spot for pick 1, out of at most {n} checked.", { n: ["lim.dots:-"] })}</p>${pk[0] ? prow("PICK 1", pk[0].node, "pick1.dots", "pick1.win") : ""}${top ? prow("BEST SPOT (A)", top.node, X.slRef(1, 0, pk[0]).dots, X.slRef(1, 0, pk[0]).win) : ""}${pk[1] ? prow("PICK 2", pk[1].node, "pick2.dots", "pick2.win") : ""}` : `<h4 class="px-bh">${esc(s.label)}</h4><p class="px-l"><span data-i18n-skip>${s.say || ""}</span></p>`;
     const stopLab = (q) => (q.T === 0 ? "Start" : String(q.T));
-    el.innerHTML = `<div class="rv-bar"><button type="button" class="rv-btn" data-pxbx aria-label="Close">${IC.back}</button><div><h3>Bekijk bord</h3><small>${s.T === 0 ? "Start: your picks" : esc(s.label)}</small></div></div><div class="rv-scroll"><section class="rv-card px-card"><svg viewBox="${x0.toFixed(1)} ${y0.toFixed(1)} ${W.toFixed(1)} ${H.toFixed(1)}" class="px-bd" role="img" aria-label="${esc(s.label)}">${hexes}${rd}${pcs}${rings}</svg></section>
+    el.innerHTML = `<div class="rv-bar"><button type="button" class="rv-btn" data-pxbx aria-label="Close">${IC.back}</button><div><h3>View board</h3><small>${s.T === 0 ? "Start: your picks" : esc(s.label)}</small></div></div><div class="rv-scroll"><section class="rv-card px-card"><svg viewBox="${x0.toFixed(1)} ${y0.toFixed(1)} ${W.toFixed(1)} ${H.toFixed(1)}" class="px-bd" role="img" aria-label="${esc(s.label)}">${hexes}${rd}${pcs}${rings}</svg></section>
       <section class="rv-card px-card"><div class="px-stops" role="group" aria-label="Turn"><small class="px-sk">Turn</small>${stops.map((q, i) => `<button type="button" class="${i === cur ? "on" : ""}" data-pxs="${i}">${stopLab(q)}</button>`).join("")}</div>${info}<input type="range" class="px-rng" min="0" max="${stops.length - 1}" value="${cur}" aria-label="Moment" data-pxr>
       <div class="px-pn"><button type="button" class="px-btn" data-pxpv${cur === 0 ? " disabled" : ""}>${IC.back}Previous</button><button type="button" class="px-btn" data-pxnx${cur === stops.length - 1 ? " disabled" : ""}>Next${IC.chev}</button></div></section>
       <button type="button" class="px-btn wide pxb" data-pxrev>Open the start in Review</button></div>`;
