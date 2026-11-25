@@ -6,7 +6,7 @@ import { tr as atr } from "./review/analysis-text.js";
 import { moveTerse, spotText } from "./post-text.js";
 import { resIcon } from "./lessons-view.js";
 import { RES_COLOR } from "./resources.js";
-import { neutralCls, humanNm, pl, nErr, spotTiles, scoredNote, pm, startAdvice, DOT_KEY, f, CLS_NAME, PHASE_NAME, PLAN_NAME, RES_KEY, rname, infoBtn, fold, ready, progressCard, bindPost, who, whose, takeText, numbersSheet, chipText, waterSubs } from "./post-ui.js";
+import { neutralCls, humanNm, pl, nErr, spotTiles, scoredNote, pm, startAdvice, DOT_KEY, f, CLS_NAME, PHASE_NAME, PLAN_NAME, RES_KEY, rname, infoBtn, fold, ready, progressCard, bindPost, who, whose, takeText, numbersSheet, chipText, waterSubs, hooks, isThin } from "./post-ui.js";
 import { SRC_PARTS, FAMILY } from "./post-model.js";
 import { luckRows, tableStore } from "./post-facts.js";
 import { tableOf } from "./post-model.js";
@@ -113,7 +113,7 @@ function measuresCard(g, m) {
 }
 function rivalCard(g, m) {
   const X = m.F, R = m.rival; if (!R) return "";
-  return `<section class="rv-card px-card px-rival"><div class="rv-gt"><b>Rival</b><small>${esc(PHASE_NAME[R.k])} · ${f("turns {n}–{n2}", { n: R.from, n2: R.to })}</small></div><p class="px-l">${X.ph("{x} gained {n} points here, {y} gained {n2}.", { x: esc(R.rname), n: ["rival.theirs"], y: m.you ? "you" : esc(m.me.name), n2: ["rival.mine"] })}</p>
+  return `<section class="rv-card px-card px-rival"><div class="rv-gt"><b>Rival</b><small>${esc(PHASE_NAME[R.k])} · ${f("turns {n}–{n2}", { n: R.from, n2: R.to })}</small></div><p class="px-l">${X.ph("{x} gained {n} points here, {y} gained {n2}.", { x: g.players[R.rid]?.isHuman && !m.you ? humanNm(R.rname, R.rid, false) : esc(R.rname), n: ["rival.theirs"], y: m.you ? "you" : esc(m.me.name), n2: ["rival.mine"] })}</p>
     <div class="px-rv"><span class="pc-${R.rid}">${g._av(m.seats[R.rid].p, "rt-av")}<b>${X.n("rival.theirs", { plus: true })}</b><small>${X.ph("{n} builds", { n: ["rival.theirBuilds"] })}</small></span><span class="pc-${m.pid}">${g._av(m.me, "rt-av")}<b>${X.n("rival.mine", { plus: true })}</b><small>${X.ph("{n} builds", { n: ["rival.myBuilds"] })}</small></span></div></section>`;
 }
 function planCard(g, m) {
@@ -133,6 +133,8 @@ function scoreCard(g, m) {
   const rows = M.map((r) => `<div class="px-sr"><span>${esc(r.label)}</span>${r.vals.map((v, i) => { const hi = r.best !== r.low && v === r.best, lo = r.best !== r.low && v === r.low; return `<b class="pc-${i}${hi ? " top" : ""}${lo ? " low" : ""}"${hi ? ' data-mk="up"' : lo ? ' data-mk="dn"' : ""}>${hi ? `<i class="u" aria-hidden="true">▲</i>` : lo ? `<i class="d" aria-hidden="true">▼</i>` : ""}${X.n(`meas.${r.k}:${i}`)}<em class="rk">${X.n(`rank.${r.k}:${i}`, { ord: true })}</em></b>`; }).join("")}</div>`).join("");
   return `<section class="rv-card px-card px-sc2" style="--n:${m.seats.length}"><div class="rv-gt"><b>Scorecard</b><small>▲ highest, ▼ lowest · place in grey</small></div><div class="px-sr hd"><span></span>${heads}</div>${rows}<p class="px-fn">Only within this game.</p></section>`;
 }
+// a game with too few scored moves: the Overview carries the Strategy numbers (the same cards and facts): you against the best other player, and who gained points where
+hooks.thin = (g, m) => `${measuresCard(g, m)}${tempoCard(g, m)}${rivalCard(g, m)}`;
 export function strategyTab(g, ds, rv) {
   const r = ready(g, g._rvPid); if (!r.m) return { html: progressCard(g, g._rvPid) };
   const m = r.m;
@@ -198,7 +200,7 @@ export function playerTab(g, ds, rv, prov) {
   const rows = src ? SRC_PARTS.filter(([k]) => src[k] > 0).map(([k, l]) => `<div class="px-pr"><i class="s${SRC_PARTS.findIndex(([z]) => z === k)}"></i><span${isNL() && SRC_NL[k] ? " data-i18n-skip" : ""}>${isNL() && SRC_NL[k] ? SRC_NL[k] : l}</span><b>${pl(X, `src.${k}:${pid}`, "{n} point", "{n} points")}</b></div>`).join("") : "";
   const why = whyCard(g, m, p);
   const pts = src ? `<section class="rv-card px-card rsc pp-pts pc-${pid}"><div class="rv-gt"><b>Points</b><small>${pl(X, `pts:${pid}`, "{n} point", "{n} points")}</small></div>${pips}<div class="px-prs">${rows}</div></section>` : "";
-  const acc = `<section class="rv-card px-card"><div class="rv-gt"><b>${accWord}</b></div><div class="px-big">${(X.v("scored") ?? 99) < 5 ? `<small class="px-few">${atr(isNL() ? "nl" : "en", "c.few").replace(/\{n\}/, X.n("scored"))}</small>` : `<b>${X.has(`acc:${pid}`) ? X.n(`acc:${pid}`) : "–"}</b>`}<small>Moves in total</small>${X.d("movesTotal")}</div><i class="px-meter"><i class="dot" style="left:${Math.max(0, Math.min(100, m.sum.acc ?? 0))}%"></i></i><div class="px-scale"><span>0</span><span>50</span><span>100</span></div></section>`;
+  const acc = `<section class="rv-card px-card"><div class="rv-gt"><b>${accWord}</b></div><div class="px-big">${isThin(m) ? `<small class="px-few">${atr(isNL() ? "nl" : "en", "c.few").replace(/\{n\}/, X.n("scored"))}</small>` : `<b>${X.has(`acc:${pid}`) ? X.n(`acc:${pid}`) : "–"}</b>`}<small>Moves in total</small>${X.d("movesTotal")}</div><i class="px-meter"><i class="dot" style="left:${Math.max(0, Math.min(100, m.sum.acc ?? 0))}%"></i></i><div class="px-scale"><span>0</span><span>50</span><span>100</span></div></section>`;
   const luck = `<section class="rv-card px-card"><div class="rv-gt"><b>Luck</b></div><div class="px-big">${X.has("luck") ? X.d("luck") : `<b>–</b>`}<small>win chance from luck</small></div>${X.has(`cards:${pid}`) ? `<p class="px-fn">${X.ph("Counted in cards instead: {x} from dice against expected", { x: [`cards:${pid}`, { signed: true, word: true }] })}</p>` : ""}</section>`;
   const errs = `<section class="rv-card px-card"><div class="rv-gt"><b>${you ? "Where it could be better" : "Their real errors"}</b><small>${nErr(X)}</small></div>${m.errs.length ? m.errs.slice(0, 5).map((d) => mvRow(g, m, d, "imp")).join("") : `<p class="px-l">No clear mistake.</p>`}</section>`;
   const go = m.ds.length ? `<button type="button" class="px-btn pri go" data-rvj="${m.errs[0]?.i ?? m.ds[0].i}" data-rvq="${m.errs.length ? "imp" : "all"}">${IC.step}${stepText(m)}</button>` : "";
