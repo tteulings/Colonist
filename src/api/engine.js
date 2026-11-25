@@ -118,6 +118,10 @@ function cloneAction(a) {
   return c;
 }
 
+const DO = Object.fromEntries(["place", "build", "roll", "endTurn", "buyDev", "playDev", "pick", "tradeBank", "moveShip", "skipFree", "passSbp", "ready", "pickGold", "discard", "moveRobber", "steal", "offerTrade", "respondTrade", "cancelOffer", "tick", "timeout"].map((t) => [t, "_do_" + t])); // v1.99: no template string per apply
+/** What a quiet apply returns: the prompts are asked for only when read (a class getter, not an accessor on a fresh object literal per call). */
+class QuietResult { constructor(eng) { this.ok = true; this.events = []; this._eng = eng; } get prompts() { return this._eng.prompts(); } }
+
 export class Engine {
   constructor(g, opts = {}) {
     this.g = g;
@@ -507,13 +511,13 @@ export class Engine {
     this._applying++; g._applyDepth = (g._applyDepth || 0) + 1; // the UI's doors (_confirmDiscard, _finishPick, sbpSkip) see they are being called by an apply() and do the work
     let err = null;
     let done;
-    try { if (opts.adopted) { g.__adoptFlush?.(); if (a.type === "buyDev") this._after_buyDev(g.players[a.actor]); done = true; } else done = this[`_do_${a.type}`](a, g.players[a.actor]); } catch (e) { err = e; } finally { this._applying--; g._applyDepth--; this._queue = null; this._forceDice = null; }
+    try { if (opts.adopted) { g.__adoptFlush?.(); if (a.type === "buyDev") this._after_buyDev(g.players[a.actor]); done = true; } else done = this[DO[a.type] || `_do_${a.type}`](a, g.players[a.actor]); } catch (e) { err = e; } finally { this._applying--; g._applyDepth--; this._queue = null; this._forceDice = null; }
     if (err) throw err;
     if (done === false) return { ok: false, bug: true, reason: `the old code rejected a legal ${a.type} (engine/legacy disagreement)`, events: [], prompts: this.prompts() };
     const events = opts.quiet ? [] : this._events(a, before); // `quiet`: no event list (headless bot play)
     const entry = { a: cloneAction(a), chance: this._chanceUsed };
     this._log.push(entry);
-    if (opts.quiet) { const eng = this; return { ok: true, events, get prompts() { return eng.prompts(); } }; } // headless bot play never reads them: asked for only when read (v1.99)
+    if (opts.quiet) return new QuietResult(this); // headless bot play never reads the prompts: asked for only when read (v1.99)
     return { ok: true, events, prompts: this.prompts() };
   }
   _asHuman(p, fn) { const h = p.isHuman; p.isHuman = true; try { return fn(); } finally { p.isHuman = h; } }

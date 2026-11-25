@@ -74,7 +74,8 @@ function finish(engine, host, prompt, action) {
     a = engine.enumerate(prompt.actor, { prompt, max: 1 })[0];
     if (!a) throw new Error(`host: seat ${prompt.actor} has no legal action under ${prompt.kind} (${why})`);
   }
-  let r; try { r = engine.apply(a, { trusted: true, quiet: !host.events, adopted }); if (adopted && probeHooks.verify?.pending?.a === a) probeHooks.verify.check(engine, a, { trusted: true, quiet: !host.events }); } finally { engine.g.__noTrk = false; }
+  const ao = host.applyOpts; ao.adopted = adopted; ao.quiet = !host.events; // (apply reads its options and keeps none)
+  let r; try { r = engine.apply(a, ao); if (adopted && probeHooks.verify?.pending?.a === a) probeHooks.verify.check(engine, a, { trusted: true, quiet: !host.events }); } finally { engine.g.__noTrk = false; }
   if (!r.ok) throw new Error(`host: the engine refused a judged-legal ${a.type}: ${r.reason}`);
   host.steps++;
   if (a.type === "endTurn") host.turns++;
@@ -84,7 +85,7 @@ function finish(engine, host, prompt, action) {
 
 export function newHost(opts = {}) {
   const rngs = new Map();
-  return { errors: [], judged: null, judgedPrompt: null, adopted: null, ctx: null, steps: 0, turns: 0, events: !!opts.onEvent, humanTrade: !!opts.humanTrade, strict: !!opts.strict, onAction: opts.onAction || null, signal: opts.signal || null,
+  return { errors: [], judged: null, judgedPrompt: null, adopted: null, ctx: null, applyOpts: { trusted: true, quiet: !opts.onEvent, adopted: false }, steps: 0, turns: 0, events: !!opts.onEvent, humanTrade: !!opts.humanTrade, strict: !!opts.strict, onAction: opts.onAction || null, signal: opts.signal || null,
     rng: (seat) => { let r = rngs.get(seat); if (!r) rngs.set(seat, (r = mulberry32((opts.seed ?? 1) * 7919 + seat))); return r; } };
 }
 
