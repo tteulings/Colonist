@@ -30,3 +30,4 @@
 - Luck: the other players' rolls are ONE group whose sum is exactly the sum of its rows; the toggle label follows its state; "B18" is "Turn 18"; board stops are plain numbers under a "Turn" label.
 - Scorecard: up / down triangles in the cells of every highest / lowest value of a row.
 - Tests: analysis199-ui.js measures line boxes (max 2 lines on headline, captions, notes), no "B<number>" tokens, triangles in scorecard cells, headline names measured moments, start advice arithmetic, luck group sign and toggle state, one vocabulary for errors on all pages.
+- Long comparison suites (events197, inapp197) run only when engine/host code changes, not on UI-only rounds.
