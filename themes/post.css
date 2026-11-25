@@ -261,3 +261,5 @@
 .px-wr .px-tn { display: inline; margin-right: 6px; font-weight: 700; }
 .px-wr b span { color: var(--heading); }
 [data-palette="night"] .px-link, :root[data-theme="dark"] .px-link { color: #A9E3D6; }
+.px-err .mv s { display: block; min-width: 0; } .px-wr b .px-tn { display: inline; font: 700 12px/1.2 var(--font-body); color: var(--ink-soft); margin-left: 4px; }
+.px-adv2 { margin-top: 0; }

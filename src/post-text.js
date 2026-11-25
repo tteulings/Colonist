@@ -21,12 +21,12 @@ const DIRS = { "top right": ["top right", "rechtsboven"], "top left": ["top left
 const CARDS = { Knight: ["knight", "ridder"], "Road Building": ["road building", "wegenbouw"], "Year of Plenty": ["year of plenty", "uitvinding"], Monopoly: ["monopoly", "monopolie"] };
 const BUILD = { settlement: ["settlement", "dorp"], city: ["city", "stad"], road: ["road", "weg"], "development card": ["development card", "ontwikkelkaart"], Settlement: ["settlement", "dorp"], City: ["city", "stad"] };
 
-function kit(lg) {
+function kit(lg, youWord) {
   const nl = lg === "nl", p = (en, n) => (nl ? n : en);
   const res = (r) => RES[r][nl ? 1 : 0];
   const res1 = (s) => s.split(", ").map(res).join(", ");
   const spot = (s) => s.split(", ").map((x) => { const [r, n] = x.split(" "); return `${nl ? res(r) : r} ${n}`; }).join(", "); // EN: "Wool 8" as the screens show a tile; NL: "wol 8"
-  const you = nl ? "jij" : "you";
+  const you = youWord || (nl ? "jij" : "you");
   const nm = (x) => (x === "You" ? you : x);
   const cnt = (n, en1, enN, nl1, nlN) => `${n} ${+n === 1 ? p(en1, nl1) : p(enN, nlN)}`;
   const dots = (n) => cnt(n, "dot", "dots", "stip", "stippen");
@@ -170,8 +170,8 @@ const RULES = [
 ];
 void nres;
 /** one item of a why line / one chip: { t } the text, { drop: true } on purpose, { unknown: true } not in the grammar */
-export function whyItem(item, lg) {
-  lg = lang(lg); const K = kit(lg), s = String(item || "").replace(/\s+/g, " ").trim(); if (!s) return { drop: true };
+export function whyItem(item, lg, youWord) {
+  lg = lang(lg); const K = kit(lg, youWord), s = String(item || "").replace(/\s+/g, " ").trim(); if (!s) return { drop: true };
   for (const [re, fn] of RULES) {
     const m = re.exec(s); if (!m) continue;
     const out = fn(m, K, s); if (out === DROP) return { drop: true }; if (out === undefined) continue;
@@ -180,11 +180,11 @@ export function whyItem(item, lg) {
   unknown.add(`why: ${s}`); return { unknown: true };
 }
 /** the engine's why line ("a · b · c") in the language: kept items joined " · ", first letter capital; null when nothing is left */
-export function whyLine(text, lg) {
-  const items = String(text || "").split(" · ").map((x) => whyItem(x, lg)).filter((x) => x.t);
+export function whyLine(text, lg, youWord) {
+  const items = String(text || "").split(" · ").map((x) => whyItem(x, lg, youWord)).filter((x) => x.t);
   return items.length ? cap1(items.map((x) => x.t).join(" · ")) : null;
 }
 /** the chips (at most `max`): the dropped and unknown ones leave a gap that the next chip fills */
-export function whyChips(chips, lg, max = 3) {
-  return (Array.isArray(chips) ? chips : []).map((c) => whyItem(c, lg)).filter((x) => x.t).slice(0, max).map((x) => x.t);
+export function whyChips(chips, lg, max = 3, youWord) {
+  return (Array.isArray(chips) ? chips : []).map((c) => whyItem(c, lg, youWord)).filter((x) => x.t).slice(0, max).map((x) => x.t);
 }

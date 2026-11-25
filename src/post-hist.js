@@ -49,7 +49,7 @@ function progress(g, all) {
     const grid = [lo, Math.round((lo + hi) / 2), hi].map((t) => `<line x1="${x0}" x2="${x1}" y1="${Y(t).toFixed(1)}" y2="${Y(t).toFixed(1)}" class="g"/><text x="${x0 - 4}" y="${(Y(t) + 3.5).toFixed(1)}" text-anchor="end">${t}</text>`).join("");
     const line = v.map((m, i) => `${i ? "L" : "M"}${XP(i).toFixed(1)},${Y(m.acc).toFixed(1)}`).join("");
     const marks = v.map((m, i) => `<g data-pxmk="${i}" class="mk${i === sel ? " on" : ""}"><circle cx="${XP(i).toFixed(1)}" cy="${Y(m.acc).toFixed(1)}" r="${i === sel ? 7 : 5}" class="${m.result}"/><rect x="${(XP(i) - 14).toFixed(1)}" y="0" width="28" height="${H}" fill="transparent"/></g>`).join("");
-    chart = `<svg viewBox="0 0 ${W} ${H}" class="px-sc" role="img" aria-label="${esc(f("{x} of your last {n} reviewed games, oldest first", { x: accWord, n: v.length }))}">${grid}<path d="${line}" class="ln"/>${marks}</svg><p class="px-fn">${X.ph("Game {n}: {x} {y}", { n: ["h.selN:-"], x: accWord, y: ["h.selAcc:-"] })} · ${s.result === "won" ? "won" : "lost"}</p>`;
+    chart = `<svg viewBox="0 0 ${W} ${H}" class="px-sc" role="img" aria-label="${esc(f("{x} of your last {n} reviewed games, oldest first", { x: accWord, n: v.length }))}">${grid}<path d="${line}" class="ln"/>${marks}</svg><p class="px-fn">${X.ph("Game {n}: {x} {y}", { n: ["h.selN:-"], x: accWord, y: ["h.selAcc:-"] })} · <span>${s.result === "won" ? "won" : "lost"}</span></p>`;
   }
   const mist = {}; let m2 = 0; rev.forEach((m) => Object.entries(m.mist || {}).forEach(([k, n]) => { mist[k] = (mist[k] || 0) + n; m2 += n; }));
   const top = Object.entries(mist).sort((a, b) => b[1] - a[1])[0];

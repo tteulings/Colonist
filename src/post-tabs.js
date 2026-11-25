@@ -68,7 +68,7 @@ function lesson2(g, m) {
 }
 function lesson3(g, m) {
   const X = m.F, rules = m.lesson3 || [];
-  const rows = rules.map((r) => `<div class="px-rule"><div class="rh"><b>${esc(PHASE_NAME[r.phase])}</b><small>${f("turns {n}–{n2}", { n: r.from, n2: r.to })}</small>${X.d(`rule.${r.phase}.cost`)}</div>${m.you ? `<p class="px-l" data-i18n-skip>${esc(r.text)}</p>` : ""}<div class="px-ccs">${r.chips.map((c, j) => `<button type="button" class="px-cc" data-rvj="${c.i}" data-rvq="imp">${chipText(m, r, c, j)} · ${f("Turn {n}", { n: c.turn })}${c.ck !== "rule.pts.chip" && X.has(`rule.${r.phase}.pts.${j}`) ? ` · ${X.ph("{n} of {n2} visible points", { n: [`rule.${r.phase}.pts.${j}`], n2: ["target:-"] })}` : ""}</button>`).join("")}</div></div>`).join("");
+  const rows = rules.map((r) => `<div class="px-rule"><div class="rh"><b>${esc(PHASE_NAME[r.phase])}</b><small>${f("turns {n}–{n2}", { n: r.from, n2: r.to })}</small>${X.d(`rule.${r.phase}.cost`)}</div>${m.you ? `<p class="px-l" data-i18n-skip>${esc(r.text)}</p>` : ""}<div class="px-ccs">${r.chips.map((c, j) => `<button type="button" class="px-cc" data-rvj="${c.i}" data-rvq="imp">${chipText(m, r, c, j)} · <span>${f("Turn {n}", { n: c.turn })}</span>${c.ck !== "rule.pts.chip" && X.has(`rule.${r.phase}.pts.${j}`) ? ` · ${X.ph("{n} of {n2} visible points", { n: [`rule.${r.phase}.pts.${j}`], n2: ["target:-"] })}` : ""}</button>`).join("")}</div></div>`).join("");
   const recon = `<p class="px-fn">${X.v("errCost") === 0 ? X.ph("No phase error. The moves in total ({c}) are the start picks and small moves.", { c: ["movesTotal"] }) : X.ph("Real errors {a} + start picks {b} + other moves {o} = moves in total {c}", { a: ["errCost"], b: ["startCost"], o: ["otherCost"], c: ["movesTotal"] })}</p>`;
   return `<section class="rv-card px-card px-l3"><div class="rv-gt"><b>Lesson 3 · Phase rules</b></div>${rows || `<p class="px-l">No phase rule was broken.</p>`}${recon}</section>`;
 }
@@ -177,7 +177,7 @@ function whyCard(g, m, p) {
   const row = (l, d, c) => `<div class="px-wr"><b>${sk(l)}</b><span>${d || ""}</span>${c}</div>`;
   const rows = [];
   if (P?.own?.k === "best") rows.push(`<div class="px-wr"><b>${sk(at("w.own.won"))}</b><span>${f("Turn {n}", { n: P.own.T })}</span>${X.d(`mom.${P.own.S}.move`)}</div>`);
-  else if (X.data.wf?.miss) { const d = X.data.wf.miss; rows.push(`<div class="px-wr"><b>${sk(at("w.own.lost"))}</b><span><em class="px-tn">${f("Turn {n}", { n: d.t })}</em> ${mvText(g, d)}</span>${X.d(`mv.${d.i}.cost`)}</div>`); }
+  else if (X.data.wf?.miss) { const d = X.data.wf.miss; rows.push(`<div class="px-wr"><b>${sk(at("w.own.lost"))} <small class="px-tn">${f("Turn {n}", { n: d.t })}</small></b><span>${mvText(g, d)}</span>${X.d(`mv.${d.i}.cost`)}</div>`); }
   const picks = m.start?.picks?.length; rows.push(row(at("w.start"), picks ? subs.start : sk(at("w.nostart")), picks ? X.d("startCost") : ""));
   if (X.has("luck")) rows.push(row(at("w.luck"), subs.luck, X.d("luck")));
   return `<section class="rv-card px-card"><div class="rv-gt"><b>${g.winner === p ? "Why won" : "Why lost"}</b>${infoBtn("error")}</div>${rows.join("")}</section>`;

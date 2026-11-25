@@ -404,7 +404,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
     eq(PF.costOf({ start: 9, errors: 0, other: 5, cap: 100 }), { start: 9, errors: 0, other: 5, moves: 5, total: 14, capped: false, cap: 100, raw: 5 }, "costOf: the simple case");
     const cc = PF.costOf({ start: 20, errors: 30, other: 40, cap: 60 }); eq([cc.start, cc.moves, cc.total, cc.capped], [20, 40, 60, true], "costOf: moves are limited to cap - start"); ok(cc.errors + cc.other === 40, "costOf: the parts still add up to the capped moves", cc);
     eq(PF.fmt({ unit: "wcDelta", value: 7 }), "+7%", "fmt: wcDelta"); eq(PF.fmt({ unit: "wcDelta", value: -8 }), "−8%", "fmt: wcDelta negative uses a real minus"); eq(PF.fmt({ unit: "wcDelta", value: 0 }), "±0%", "fmt: wcDelta zero");
-    eq(PF.fmt({ unit: "lead", value: 17 }), "+17 lead", "fmt: a lead is never a percent"); eq(PF.fmt({ unit: "pts", value: 3 }, { word: true }), "3 points", "fmt: points"); eq(PF.fmt({ unit: "pts", value: 1 }, { word: true }), "1 point", "fmt: one point");
+    eq(PF.fmt({ unit: "lead", value: 17 }), "+17% lead", "fmt: a lead is a win-chance gap, written with % and the word lead, never as a plain win chance"); eq(PF.fmt({ unit: "pts", value: 3 }, { word: true }), "3 points", "fmt: points"); eq(PF.fmt({ unit: "pts", value: 1 }, { word: true }), "1 point", "fmt: one point");
     eq(PF.fmt({ unit: "acc", value: 90 }), "90", "fmt: accuracy has no unit"); eq(PF.fmt({ unit: "wc", value: 38 }), "38%", "fmt: win chance"); eq(PF.fmt({ unit: "margin", value: 1.5 }), "±1.5%", "fmt: margin");
     eq(PF.fmt({ unit: "wcDelta", value: NaN }), "–", "fmt: no NaN"); eq(PF.fmt({ unit: "count", value: 1, }, { ord: true }), "1st", "fmt: ordinal"); }
 

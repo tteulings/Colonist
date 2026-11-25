@@ -10,7 +10,7 @@ const files = fs.readdirSync(FIX).filter((f) => f.endsWith(".json")).sort();
 const BAD = /\bNaN\b|\bundefined\b|\bnull\b|\[object|Infinity/;
 const ZERO = /zero-sum|zero sum|nulsom|sums to zero|cancel(s)? out/i;
 const OUT = /\brobber\b|\brover\b|\bports?\b|\bharbou?rs?\b|\bhaven\b|longest road|largest army|langste weg|grootste riddermacht|who you fed|fed\b/i;
-const LSEL = ".px-ev .x, .px-hl2, .px-vl, .px-t3 > span, .px-wfr .sb, .px-rule p.px-l, .px-fn, .px-adv, .px-lh b, .rv-gt b, .px-card > p.px-l, .px-cn p, .ln-cr > span:first-child, .px-mv .mt, .px-wr > span, .px-err .mv, .px-adv, .px-prog p, .px-vsent";
+const LSEL = ".px-ev .x, .px-hl2, .px-vl, .px-t3 > span, .px-wfr .sb, .px-rule p.px-l, .px-fn, .px-adv, .px-lh b, .rv-gt b, .px-card > p.px-l, .px-cn p, .ln-cr > span:first-child, .px-mv .mt, .px-wr > span, .px-err .mv > span, .px-adv, .px-prog p, .px-vsent";
 const SCAN = (LSEL) => {
   const vis0 = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === "none" || cs.visibility === "hidden" || e.hidden) return false; } const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const tops = [...document.querySelectorAll("div.rv, div.bpg, div.ln, div.hs, div.game-over-overlay")].filter(vis0);

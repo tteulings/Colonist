@@ -248,7 +248,7 @@ function waterfall(S, g, m, cost) {
   { const w = g.winner?.id ?? null; if (w != null) { const oth = tab0(S, g).filter((q) => q !== w).sort((a, b) => (S.v(`pts:${b}`) ?? 0) - (S.v(`pts:${a}`) ?? 0)); const won = w === me; S.data.res = { won, winner: g.players[w].name, left: `pts:${won ? me : w}`, right: won ? `pts:${oth[0]}` : `pts:${me}` }; } }
   // sub-lines: the start picks that cost, the biggest miss after the start, the biggest roll on the side of the luck total
   const costly = (m.start?.picks || []).filter((p) => p.gp >= 1); S.data.wf.picks = costly.map((p) => p.n);
-  const miss = m.ds.filter((d) => d.k !== "setup" && d.cls !== "triv" && d.gp >= 1).sort((a, b) => b.gp - a.gp || a.i - b.i)[0] || null; S.data.wf.miss = miss;
+  const miss = m.ds.filter((d) => d.k !== "setup" && d.cls !== "triv" && inScope(d) && d.gp >= 1).sort((a, b) => b.gp - a.gp || a.i - b.i)[0] || null; S.data.wf.miss = miss;
   const sw = swings(g, me), sign = luck >= 0 ? 1 : -1;
   const roll = sw.filter((x) => !x.seven && x.roll != null && Math.sign(x.dice) === sign && Math.abs(x.dice) >= 1).sort((p, q) => Math.abs(q.dice) - Math.abs(p.dice))[0] || null;
   if (roll) { S.put("roll1.d", me, "wcDelta", roll.dice, "fact.roll1", "win chance"); S.put("roll1.n", me, "count", roll.roll, "fact.roll", "stats"); S.data.wf.roll = roll; }
@@ -273,7 +273,7 @@ export function swings(g, pid) {
 export function headPlan(g, pid, won, A) {
   const bs = A?.bySeat?.[pid], ds = A?.you?.ds; if (!bs?.raw || !ds) return null;
   const cost = costOf(bs.raw), side = (v) => (won ? v : -v), sw = swings(g, pid);
-  const miss = ds.filter((d) => d.k !== "setup" && d.cls !== "triv" && d.gp >= 1).sort((a, b) => b.gp - a.gp || a.i - b.i)[0] || null;
+  const miss = ds.filter((d) => d.k !== "setup" && d.cls !== "triv" && inScope(d) && d.gp >= 1).sort((a, b) => b.gp - a.gp || a.i - b.i)[0] || null;
   const best = won ? sw.filter((x) => x.move >= 8).sort((a, b) => b.move - a.move)[0] || null : null;
   let own;
   if (won) own = cost.start >= 5 ? { k: "start" } : best ? { k: "best", S: best.S, T: best.T, kind: buildKindAt(g._st, best.S, pid) || "move" } : miss && miss.gp >= 5 ? { k: "miss", i: miss.i } : { k: "clean" };

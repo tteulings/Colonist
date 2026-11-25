@@ -121,7 +121,7 @@ export function headVariants(m) {
   const join = (own, lk) => {
     if (!lk) return `${own}.`;
     if (won) return `${own}: ${lk}.`;
-    if (L?.k === "own" && L.good) return `${own}, ${atr(lg, "despite")} ${lk}.`;
+    if (L?.k === "own" && L.good) return `${own}, ${atr(lg, "hd.despite")} ${lk}.`;
     return o.k === "clean" ? `${own}: ${lk}.` : `${own} ${atr(lg, "and")} ${lk}.`;
   };
   const out = [join(ownClause(true), luckClause(0)), join(ownClause(true), luckClause(1)), join(ownClause(false), luckClause(0)), join(ownClause(false), luckClause(1)), join(ownClause(false), "")];
@@ -203,7 +203,7 @@ function errorCard(g, m, e) {
   const X = m.F, DID = m.you ? "You did" : "Played", bd = m.board, N = (v) => `<span data-i18n-skip>${esc(moveFull(v || "", isNL() ? "nl" : "en") || (isNL() ? "Zet" : "Move"))}</span>`;
   const crops = bd && e.p && e.q && e.p[0] === e.q[0] ? `<div class="px-crops"><figure>${cropSvg(bd, e.p, { w: 120, color: "#B45A3C", label: DID })}<figcaption>${DID}</figcaption></figure><figure>${cropSvg(bd, e.q, { w: 120, color: "#2F7D6B", label: "Better" })}<figcaption>Better (A)</figcaption></figure></div>` : "";
   const bars = `<div class="px-wb"><small>Win chance after this move</small><div class="r"><span>${DID}</span><i class="px-bar me pc-${m.pid}" style="--w:${X.v(`mv.${e.i}.B`)}%"></i><b>${X.n(`mv.${e.i}.B`)}</b></div><div class="r"><span>Better (A)</span><i class="px-bar a pc-${m.pid}" style="--w:${X.v(`mv.${e.i}.A`)}%"></i><b>${X.n(`mv.${e.i}.A`)}</b></div></div>`;
-  const lg = isNL() ? "nl" : "en", whyT = e.why ? whyLine(e.why, lg) : null, chipT = whyChips(e.chips, lg);
+  const lg = isNL() ? "nl" : "en", yw = m.you ? undefined : (isNL() ? "de menselijke speler" : "the human player"), whyT = e.why ? whyLine(e.why, lg, yw) : null, chipT = whyChips(e.chips, lg, 3, yw);
   const why = whyT ? `<p class="px-l"><b>Why</b> <span data-i18n-skip data-explain>${esc(whyT)}</span></p>` : "";
     const vis = X.has(`mv.${e.i}.vis`) ? `<span class="px-cc">${X.ph("{n} of {n2} visible points", { n: [`mv.${e.i}.vis`], n2: ["target:-"] })}</span>` : "";
   return `<button type="button" class="px-err" data-rvj="${e.i}" data-rvq="imp"><span class="h"><b>${f("Turn {n}", { n: e.t })}</b><i class="px-cls c-${e.cls}">${CLS_NAME[e.cls]}</i>${X.d(`mv.${e.i}.cost`)}</span>${crops}<span class="mv"><s>${DID}</s> ${N(e.played)}</span><span class="mv"><s>Better (A)</s> ${N(e.better)}</span>${bars}${noiseLine(X, e)}${why}${chipT.length || vis ? `<div class="px-ccs">${chipT.map((c) => `<span class="px-cc" data-i18n-skip data-explain>${esc(c)}</span>`).join("")}${vis}</div>` : ""}</button>`;
@@ -222,8 +222,9 @@ export const PLAN_NAME = { city: "City plan (ore, grain)", expansion: "Expansion
 /** the start advice in plain words: what to take, from-to with the measured gap, and WHY when the better spot has fewer dots */
 export function startAdvice(m, p) {
   const X = m.F, top = p.shortlist?.[0]; if (!p.advice || !top) return "";
-  const x = p.advice.adds.map(rname).join(", "), nn = p.n, fewer = p.spot && top.spot && top.spot.total < p.spot.total;
-  return `<p class="px-adv"><span>${X.ph(m.you ? "Take {x}: {a} → {b} ({g})." : "Better pick: {x}, {a} → {b} ({g}).", { x, a: [`pick${nn}.win`], b: [`pick${nn}.best`], g: [`pick${nn}.gain`] })}</span>${fewer && m.you ? ` <span>${X.ph("Fewer dots ({a} against {b}), but {x} added.", { a: [`pick${nn}.bestDots`], b: [`pick${nn}.dots`], x })}</span>` : ""}</p>`;
+  const NLR = { wood: "hout", brick: "baksteen", sheep: "wol", wheat: "graan", ore: "erts" };
+  const x = p.advice.adds.map((r) => (isNL() ? NLR[r] || rname(r) : rname(r))).join(", "), nn = p.n, fewer = p.spot && top.spot && top.spot.total < p.spot.total;
+  return `<p class="px-adv"><span>${X.ph(m.you ? "Take {x}: {a} → {b} ({g})." : "Better pick: {x}, {a} → {b} ({g}).", { x, a: [`pick${nn}.win`], b: [`pick${nn}.best`], g: [`pick${nn}.gain`] })}</span></p>${fewer && m.you ? `<p class="px-fn px-adv2"><span>${X.ph("Fewer dots ({a} against {b}), but {x} added.", { a: [`pick${nn}.bestDots`], b: [`pick${nn}.dots`], x })}</span></p>` : ""}`;
 }
 export const DOT_KEY = "Tile numbers are dice numbers. Dots = how often that number rolls (more dots, more income).";
 function lesson2c(g, m) {
@@ -239,7 +240,7 @@ export function chipText(m, r, c, j) {
 }
 export function ruleRows(m) {
   const X = m.F, rules = m.lesson3 || [];
-  return rules.map((r) => `<div class="px-rule"><div class="rl"><b>${esc(PHASE_NAME[r.phase])}</b><small>${f("turns {n}–{n2}", { n: r.from, n2: r.to })}</small></div><div class="rr">${m.you ? `<p class="px-l" data-i18n-skip>${esc(r.text)}</p>` : ""}<div class="px-ccs">${r.chips.map((c, j) => `<button type="button" class="px-cc" data-rvj="${c.i}" data-rvq="imp">${chipText(m, r, c, j)} · ${f("Turn {n}", { n: c.turn })} ${X.d(`mv.${c.i}.cost`)}</button>`).join("")}${X.d(`rule.${r.phase}.cost`)}</div></div></div>`).join("");
+  return rules.map((r) => `<div class="px-rule"><div class="rl"><b>${esc(PHASE_NAME[r.phase])}</b><small>${f("turns {n}–{n2}", { n: r.from, n2: r.to })}</small></div><div class="rr">${m.you ? `<p class="px-l" data-i18n-skip>${esc(r.text)}</p>` : ""}<div class="px-ccs">${r.chips.map((c, j) => `<button type="button" class="px-cc" data-rvj="${c.i}" data-rvq="imp">${chipText(m, r, c, j)} · <span>${f("Turn {n}", { n: c.turn })}</span> ${X.d(`mv.${c.i}.cost`)}</button>`).join("")}${X.d(`rule.${r.phase}.cost`)}</div></div></div>`).join("");
 }
 function lesson3c(g, m) {
   const rows = ruleRows(m);
