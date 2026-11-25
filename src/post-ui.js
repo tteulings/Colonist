@@ -123,6 +123,8 @@ export function headVariants(m) {
   const L = P.luck;
   const luckClause = (mode) => {
     if (!L || mode === 2) return "";
+    if (L.k === "own" && L.ev) return atr(lg, "hd.lk.ev", { y: seatName(L.ev.actor), n: tg("hl.ev.n"), t: L.ev.T, d: tg("hl.ev.d") });
+    if (L.k === "own" && mode === 1) return atr(lg, `hd.lk.own.short.${L.good ? "good" : "bad"}`, { d: tg("luck") }); // (the fallback when the full words do not fit two lines)
     if (L.k === "own") return atr(lg, `hd.lk.own.${L.good ? "good" : "bad"}.${yk}`, { d: tg("luck"), x: name });
     const y = seatName(L.actor), two = L.Ts.length > 1, g = won ? "good" : "bad";
     if (mode === 1) return atr(lg, `hd.lk.${g}.short`, { y, d: tg("hl.rolls") });
@@ -141,7 +143,7 @@ export function headVariants(m) {
 export function verdictSpans(m, budget = HEAD_BUDGET) {
   const nl = isNL(), vs = headVariants(m), sp = (x) => `<span data-i18n-skip>${x}</span>`;
   if (!vs.length) return "";
-  const len = (t) => t.replace(/<[^>]*>/g, "").length, pick = vs.find((t) => len(t) <= budget - (m.you ? 0 : Math.max(0, String(m.me.name).length - 8))) || vs[vs.length - 1];
+  const len = (t) => t.replace(/<[^>]*>/g, "").length, room = budget - (m.you ? 0 : Math.max(0, String(m.me.name).length - 8)), pick = vs.find((t) => len(t) <= room - (/spread over many|verspreid over veel/.test(t) ? 10 : 0)) || vs[vs.length - 1]; // (the long luck words need room: they must still fit two lines)
   void nl; return `<span class="px-vsent">${sp(pick)}</span>`;
 }
 export function verdictLine(g, m, budget) { return verdictSpans(m, budget); }

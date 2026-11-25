@@ -299,7 +299,12 @@ export function headPlan(g, pid, won, A) {
   else { const mc = miss ? miss.gp : 0; own = cost.start >= 3 && cost.start >= mc ? { k: "start" } : mc >= 3 ? { k: "miss", i: miss.i } : cost.start >= 3 ? { k: "start" } : { k: "clean" }; }
   if (own.k === "start") { const cp = (A.you.startReview?.picks || []).filter((p) => p.gp >= 1).sort((a, b) => b.gp - a.gp); own.pick = cp[0]?.n ?? null; own.single = cp.length === 1 && cp[0].gp === cost.start; }
   const lkv = A.luck?.[pid]?.total; let luck = null;
-  if (lkv != null && Math.abs(lkv) >= 8) luck = { k: "own", good: lkv > 0 };
+  if (lkv != null && Math.abs(lkv) >= 8) {
+    // the Luck tab's total (every roll, steal, draw and the seat order). One roll is NAMED only when it is large: at least 5% and at least half of the total, on the total's side (so the name is never false);
+    // otherwise the headline says the luck was spread over many rolls and names nobody.
+    const big = sw.filter((x) => !x.seven && x.roll != null && Math.sign(x.dice) === Math.sign(lkv) && Math.abs(x.dice) >= 5 && Math.abs(x.dice) >= Math.abs(lkv) / 2).sort((a, b) => Math.abs(b.dice) - Math.abs(a.dice) || a.S - b.S)[0] || null;
+    luck = { k: "own", good: lkv > 0, ev: big ? { S: big.S, T: big.T, actor: big.actor, roll: big.roll } : null };
+  }
   else {
     const byActor = new Map(); sw.filter((x) => !x.seven && x.actor !== pid && side(x.dice) >= 3).forEach((x) => { (byActor.get(x.actor) || byActor.set(x.actor, []).get(x.actor)).push(x); });
     let top = null; byActor.forEach((l, a) => { const t2 = l.sort((p, q) => side(q.dice) - side(p.dice)).slice(0, 2).filter((x, i, arr) => arr.findIndex((y) => y.T === x.T) === i), sum = t2.reduce((s, x) => s + x.dice, 0); if (Math.abs(sum) >= 8 && (!top || Math.abs(sum) > Math.abs(top.sum))) top = { actor: a, steps: t2.sort((p, q) => p.T - q.T), sum }; });
@@ -311,6 +316,7 @@ function headlineFacts(S, g, m) {
   const plan = headPlan(g, m.pid, m.won, m.A); S.data.head = plan;
   // a named roller is a PART of the others row ("among them"): it is only named when it is on the row's side and not bigger than the row
   if (plan?.luck?.k === "roller") { const ot = S.v(`others:${m.pid}`); if (ot == null || Math.sign(ot) !== Math.sign(plan.luck.sum) || Math.abs(plan.luck.sum) > Math.abs(ot)) plan.luck = null; }
+  if (plan?.luck?.k === "own" && plan.luck.ev) { const e = plan.luck.ev; S.put("hl.ev.d", m.pid, "wcDelta", S.v(`mom.${e.S}.dice:${m.pid}`) ?? (swings(g, m.pid).find((x) => x.S === e.S)?.dice ?? 0), "fact.hlRoll", "headline").roll = e.S; S.put("hl.ev.n", m.pid, "count", e.roll, "fact.roll", "stats"); }
   if (plan?.luck?.k === "roller") { S.put("hl.rolls", m.pid, "wcDelta", plan.luck.sum, "fact.hlRolls", "headline"); if (S.data.wf) S.data.wf.rolls = plan.luck; }
 }
 

@@ -148,6 +148,13 @@ const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
         for (const tab of ["overview", "moves", "strategy", "luck"]) {
           await G((t) => { const g = window.__colonistGame; g._rvTab = t; g._rvDrawReview(); }, tab); await sleep(550);
           if (tab === "overview") await page.waitForSelector(".px-verdict", { timeout: 20000 });
+          if (tab === "overview") { // v1.99 r1 the luck headline: spread over many rolls (the Luck tab's own total, no roller named) or ONE large roll named with its roller (a roll of its own fact, at least 5% and half of the total)
+            const hl = await G(() => { const e = document.querySelector(".px-hl2"); const sp = [...(e?.querySelectorAll("[data-fact]") || [])].map((x) => x.dataset.fact); return { txt: e?.innerText || "", facts: sp }; });
+            const spread = /spread over many rolls|verspreid over veel worpen/.test(hl.txt), named = hl.facts.some((f) => f.startsWith("hl.ev.d:"));
+            ok(!/in total|in totaal|own rolls|eigen worpen/.test(hl.txt), `${lang} ${curGame} luck headline: no "in total" / "own rolls" wording`, hl.txt);
+            if (spread) { ok(hl.facts.some((f) => /^luck:\d+$/.test(f)) && !named, `${lang} ${curGame} luck headline (spread): the number is the Luck tab's luck fact, no roller named`, hl); summary.lkSpread = (summary.lkSpread || 0) + 1; }
+            if (named) { const ln = await G(() => { const g = window.__colonistGame; return { v: window.__postFacts.fact(`hl.ev.d:${g._rvPid}`)?.value, t: window.__postFacts.fact(`luck:${g._rvPid}`)?.value }; }); ok(ln.v != null && Math.sign(ln.v) === Math.sign(ln.t) && Math.abs(ln.v) >= 5 && Math.abs(ln.v) >= Math.abs(ln.t) / 2, `${lang} ${curGame} luck headline (named roll): at least 5% and half of the total, on its side`, ln); summary.lkNamed = (summary.lkNamed || 0) + 1; }
+          }
           await unfold(); await audit(tab, ".rv");
           if (tab === "overview" || tab === "strategy") { const su = await G(SUMS); ok(!su.out.length, `${lang} ${curGame} ${tab}: every "adds up" claim adds up`, su.out.slice(0, 4)); }
           if (tab === "luck") { // finding 5: luck is unbalanced: no text anywhere says it sums to zero, evens out or cancels; the effect is named as the effect on a win chance
@@ -249,6 +256,7 @@ const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
     await ctx.close();
   }
   await b.close();
+  console.log(`\nluck headline: ${summary.lkSpread || 0} spread, ${summary.lkNamed || 0} named roll`);
   console.log(`\n${summary.games.size} games · ${summary.screens} screens · ${summary.tagged} tagged elements · ${summary.tokens} numbers checked against the store · ${checks} checks`);
   console.log(fails ? `${fails} FAILED` : "ALL OK"); process.exit(fails ? 1 : 0);
 })();
