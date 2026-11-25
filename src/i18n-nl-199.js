@@ -2,6 +2,7 @@
 // (an older table wins on a shared key, so nothing here changes an existing sentence). The spec texts are in docs/design/start-en-navigatie.md.
 export const NL_199 = [
   // tab bar, gear, Play and Daily puzzle
+  ["No past games yet", "Nog geen eerdere spellen"], ["Every game you finish is kept here on this device: replay it, see the stats, or have it reviewed.", "Elk spel dat je afrondt blijft hier op dit toestel: bekijk het opnieuw, zie de cijfers of laat het beoordelen."], ["Start a game", "Start een spel"],
   ["Main menu", "Hoofdmenu"], ["Daily puzzle", "Dagpuzzel"], ["Review", "Terugblik"],
   ["Resume game", "Verder spelen"], ["Coming soon", "Binnenkort"], ["The same rolls for everyone, every day.", "Zelfde worpen voor iedereen, elke dag."],
   ["One board, the same rolls for everyone, a new one every day. Race the daily bots and keep your streak.", "Eén bord, voor iedereen dezelfde worpen, elke dag een nieuwe. Race tegen de dagbots en houd je reeks vast."],
