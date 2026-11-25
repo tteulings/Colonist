@@ -161,7 +161,7 @@ export const NL_199P = [
   ["biggest", "grootste"],
   ["margin", "marge"], // the tooltip of the ± next to a move (post-ui pm())
   // ── facts round: the same words with every number as a fact (the phrase is one text, the localizer reads it whole) ──
-  ["{n} Other move", "{n} overige zet"], ["{n} real error", "{n} echte fout"], ["Gap {g}, margin {s}", "Verschil {g}, marge {s}"], ["You won", "Jij won"], ["{x} won", "{x} won"], ["· Turn {n}", "· Beurt {n}"], ["· winner", "· winnaar"], ["Turn {n} cost {c}", "Beurt {n} kostte {c}"],
+  ["{n} Other move", "{n} overige zet"], ["{n} real error", "{n} echte fout"], ["Gap {g}, margin {s}", "Verschil {g}, marge {s}"], ["You won", "Jij won"], ["v{x} won", "{x} won"], ["· Turn {n}", "· Beurt {n}"], ["· winner", "· winnaar"], ["Turn {n} cost {c}", "Beurt {n} kostte {c}"],
   ["Start pick {n}: {a} instead of {b}", "Startkeuze {n}: {a} in plaats van {b}"], ["{x} cost {c}", "{x} kostte {c}"], ["Take {x}: {a} → {b} ({g}).", "Neem {x}: {a} → {b} ({g})."], ["{n} rule for the next game", "{n} regel voor volgend potje"],
   ["Fair share", "Eerlijk deel"], ["Moves in total", "Zetten totaal"], ["The rows add up: from {a} at the start to {b} at the end.", "De rijen tellen op: van {a} bij de start naar {b} aan het eind."],
   ["Start picks is what your two start spots cost against the best spots checked.", "Startkeuzes is wat je twee startplekken kostten ten opzichte van de beste gecheckte plekken."], ["Moves is what all your other scored moves cost against best play.", "Zetten is wat al je andere beoordeelde zetten kostten ten opzichte van de beste zetten."],
