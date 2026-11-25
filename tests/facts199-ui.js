@@ -150,6 +150,15 @@ const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
           if (tab === "overview") await page.waitForSelector(".px-verdict", { timeout: 20000 });
           await unfold(); await audit(tab, ".rv");
           if (tab === "overview" || tab === "strategy") { const su = await G(SUMS); ok(!su.out.length, `${lang} ${curGame} ${tab}: every "adds up" claim adds up`, su.out.slice(0, 4)); }
+          if (tab === "luck") { // finding 5: luck is unbalanced: no text anywhere says it sums to zero, evens out or cancels; the effect is named as the effect on a win chance
+            const lk = await G(() => ({ txt: document.querySelector(".rv")?.innerText || "", seats: document.querySelectorAll("[data-pxlk]").length }));
+            ok(!/zero.?sum|sums? to (?:zero|0)|nul.?som|optellen tot (?:nul|0)|cancel|even(?:s)? out|balanc|compens|heffen .* op|egaliseer/i.test(lk.txt), `${lang} ${curGame} luck: no zero-sum wording`);
+            ok(/win chance|winkans/i.test(lk.txt), `${lang} ${curGame} luck: the effect is named as a win-chance effect`);
+          }
+          { // finding 6: the header summary is never cut off (wraps instead of "provisio...")
+            const hd = await G(() => { const s = document.querySelector(".rv .rv-bar small"); if (!s) return null; const cs = getComputedStyle(s); return { cut: s.scrollWidth > s.clientWidth + 1 || (cs.textOverflow === "ellipsis" && cs.whiteSpace === "nowrap"), txt: s.textContent }; });
+            ok(!hd || !hd.cut, `${lang} ${curGame} ${tab}: the review header summary is not cut off`, hd);
+          }
           if (tab !== "luck") { // finding 2: no lesson numbers (a "1" badge next to "2 REAL ERRORS" reads like a count; numbering 1, 3 had a gap)
             const ln = await G(() => ({ badges: [...document.querySelectorAll(".rv .px-nb")].filter((e) => e.offsetParent).length, txt: (document.querySelector(".rv")?.innerText || "").match(/\b(?:Lesson|Les)\s+\d\b/g) }));
             ok(!ln.badges && !ln.txt, `${lang} ${curGame} ${tab}: no lesson numbers`, ln);

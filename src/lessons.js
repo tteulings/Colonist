@@ -60,6 +60,7 @@ export const LessonsMixin = {
     this._lnOff = onLang(() => { if (this._lnEl) this._lnDraw(); });
     this._ln = { view: o.lesson ? "lesson" : "home", tab: o.tab || "les", id: o.lesson || null, all: false, ask: null, pr: null, items: null, D: null, an: null };
     this._lnDraw(true);
+    try { await this._histNow?.(); } catch (_) { /* the list as it is */ }
     await this._lnRefresh();
     if (this._lnEl !== el) return;
     if (this._ln.view === "lesson" && !this._lnCur()) { this._ln.view = "home"; this._ln.id = null; }
