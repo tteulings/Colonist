@@ -113,7 +113,7 @@ function measuresCard(g, m) {
 }
 function rivalCard(g, m) {
   const X = m.F, R = m.rival; if (!R) return "";
-  return `<section class="rv-card px-card px-rival"><div class="rv-gt"><b>Rival</b><small>${esc(PHASE_NAME[R.k])} · ${f("turns {n}–{n2}", { n: R.from, n2: R.to })}</small></div><p class="px-l" data-i18n-skip>${(() => { const lg = isNL() ? "nl" : "en", cl = (nm, ref) => `${nm} ${atr(lg, X.v(ref) < 0 ? "rv.lost" : "rv.gained")} ${X.n(ref)} ${atr(lg, Math.abs(Math.round(X.v(ref))) === 1 ? "pt.one" : "pt.many")}`; return `${cl(seatNm(m, R.rid), "rival.theirs")} ${atr(lg, "rv.here")}, ${cl(seatNm(m, m.pid), "rival.mine")}.`; })()}</p>
+  return `<section class="rv-card px-card px-rival"><div class="rv-gt"><b>Rival</b><small>${esc(PHASE_NAME[R.k])} · ${f("turns {n}–{n2}", { n: R.from, n2: R.to })}</small></div><p class="px-l" data-i18n-skip>${(() => { const lg = isNL() ? "nl" : "en", cl = (nm, ref) => `${nm} ${atr(lg, X.v(ref) < 0 ? "wf.rv.lost" : "wf.rv.gained")} ${X.n(ref)} ${atr(lg, Math.abs(Math.round(X.v(ref))) === 1 ? "wf.pt.one" : "wf.pt.many")}`; return `${cl(seatNm(m, R.rid), "rival.theirs")} ${atr(lg, "wf.rv.here")}, ${cl(seatNm(m, m.pid), "rival.mine")}.`; })()}</p>
     <div class="px-rv"><span class="pc-${R.rid}">${g._av(m.seats[R.rid].p, "rt-av")}<b>${X.n("rival.theirs", { plus: true })}</b><small>${X.ph("{n} builds", { n: ["rival.theirBuilds"] })}</small></span><span class="pc-${m.pid}">${g._av(m.me, "rt-av")}<b>${X.n("rival.mine", { plus: true })}</b><small>${X.ph("{n} builds", { n: ["rival.myBuilds"] })}</small></span></div></section>`;
 }
 function planCard(g, m) {
