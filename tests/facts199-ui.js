@@ -24,7 +24,7 @@ if (process.env.QUICK) sel = sel.filter((g, i) => g.fixture || i < 5); if (proce
 const ALLOW_SEL = [".rk", ".px-nb", ".pin", ".px-dash", ".px-tile", ".px-stops", ".px-sk", ".px-tl text", ".px-sc text", ".px-scat", ".px-scale", ".bpg-tabs", ".px-seg", ".px-bd", ".ltr", ".pn", ".px-mdots", ".px-tk > i", ".px-ln", ".rv-tabs", ".px-door", ".hs-bar", ".px-pips", ".px-leg", ".px-cls", ".px-av", ".rt-av", "[data-i18n-av]", ".px-bt", ".px-crops"];
 //   text patterns (EN + NL): turn numbers inside labels, pick numbers, version, dates, the "T14" chart label
 const ALLOW_RE = [
-  /\b(?:turns?|beurten|beurt)\s+\d+(?:\s*(?:[–-]|and|en)\s*\d+)?/gi, /\b[TB]\d+\b/g, /(?:pick|keuze)\s+\d+/gi, /\b(?:Lesson|Les)\s+\d\b/g, /\b(?:version|versie)\s+\d+/gi, /\bv\d+(?:\.\d+)+\b/g,
+  /\b(?:turns?|beurten|beurt)\s+\d+(?:\s*(?:[–-]|and|en)\s*\d+)?/gi, /\b[TB]\d+\b/g, /(?:pick|keuze)\s+\d+/gi, /\b(?:version|versie)\s+\d+/gi, /\bv\d+(?:\.\d+)+\b/g,
   /\b(?:jan(?:uary|uari)?|feb(?:ruary|ruari)?|mar(?:ch)?|mrt|apr(?:il)?|may|mei|jun[ei]?|jul[iy]?|aug(?:ust(?:us)?)?|sep(?:t(?:ember)?)?|oct(?:ober)?|okt(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b\.?\s+\d{1,2}\b/gi, /\b\d{1,2}\s+(?:jan(?:uary|uari)?|feb(?:ruary|ruari)?|mar(?:ch)?|mrt|apr(?:il)?|may|mei|jun[ei]?|jul[iy]?|aug(?:ust(?:us)?)?|sep(?:t(?:ember)?)?|oct(?:ober)?|okt(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b\.?/gi, /\b(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat|zo|ma|di|wo|do|vr|za)[a-z]*\.?,?\s+\d{1,2}\s+(?:jan|feb|mar|mrt|apr|may|mei|jun|jul|aug|sep|oct|okt|nov|dec)[a-z]*/gi, /\b\d{1,2}:\d{2}\b/g,
   /\b(?:Lumber|Brick|Wool|Grain|Ore|Hout|Baksteen|Wol|Graan|Erts|Desert|Woestijn)\s+\d+(?:\s*\+\s*\d+)*/gi, /\b\d+\s+(?:Lumber|Brick|Wool|Grain|Ore|hout|baksteen|wol|graan|erts)\b/gi, /\b(?:Trade|Ruil)\s+\d+/g, /\+\d+ (?:roads?|wegen|weg)\b/g,
 ];
@@ -54,7 +54,7 @@ const AUDIT = ({ rootSel, allowSel, allowRe }) => {
     // unit: a % belongs right after a win-chance number and nowhere else (checked in order when it lines up)
     const wcU = new Set(["wc", "wcDelta", "margin", "rate", "lead"]); const seq = []; facts.forEach((f, i) => digits(PF.text(keys[i])).forEach(() => seq.push(f)));
     let pos = 0; const inOrder = shown.every((d, i) => parseFloat(d) === parseFloat(want[i]));
-    if (inOrder) shown.forEach((d, i) => { const at = txt.indexOf(d.replace(".", /\d,\d/.test(txt) ? "," : ".").replace(/^0+(?=\d)/, ""), pos); const nxt = at >= 0 ? txt.slice(at + String(d).length, at + String(d).length + 2) : ""; pos = at >= 0 ? at + 1 : pos; const pct = /^\s?%/.test(nxt) || nxt[0] === "%"; const f = seq[i]; if (f && wcU.has(f.unit) !== pct) out.bad.push({ why: `unit ${f.unit} ${pct ? "has" : "lacks"} %`, keys, txt }); });
+    if (inOrder) shown.forEach((d, i) => { const needle = d.replace(".", /\d,\d/.test(txt) ? "," : ".").replace(/^0+(?=\d)/, ""), mt = new RegExp(`(?<!\\d)${needle.replace(/[.]/g, "\\.")}(?!\\d)`, "g"); mt.lastIndex = pos; const hit = mt.exec(txt), at = hit ? hit.index : -1; const nxt = at >= 0 ? txt.slice(at + String(d).length, at + String(d).length + 2) : ""; pos = at >= 0 ? at + 1 : pos; const pct = /^\s?%/.test(nxt) || nxt[0] === "%"; const f = seq[i]; if (f && wcU.has(f.unit) !== pct) out.bad.push({ why: `unit ${f.unit} ${pct ? "has" : "lacks"} %`, keys, txt }); });
     // sign: a shown sign must be the value's sign (single-number elements)
     if (facts.length === 1 && shown.length === 1) { const f = facts[0], m = /([+−±-])\s?\d/.exec(txt); if (m && f.value !== 0 && f.unit !== "margin") { const s = m[1] === "+" ? 1 : m[1] === "±" ? 0 : -1; if (s !== 0 && s !== Math.sign(f.value) && !(f.unit === "count" || f.unit === "pts")) out.bad.push({ why: "sign", keys, txt, value: f.value }); } }
     if (keys.length === 1) { const k = keys[0]; (out.keys[k] ||= []).push(shown.map((x) => String(parseFloat(x))).join("/")); }
@@ -134,6 +134,10 @@ const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
           await G((t) => { const g = window.__colonistGame; g._rvTab = t; g._rvDrawReview(); }, tab); await sleep(550);
           if (tab === "overview") await page.waitForSelector(".px-verdict", { timeout: 20000 });
           await unfold(); await audit(tab, ".rv");
+          if (tab !== "luck") { // finding 2: no lesson numbers (a "1" badge next to "2 REAL ERRORS" reads like a count; numbering 1, 3 had a gap)
+            const ln = await G(() => ({ badges: [...document.querySelectorAll(".rv .px-nb")].filter((e) => e.offsetParent).length, txt: (document.querySelector(".rv")?.innerText || "").match(/\b(?:Lesson|Les)\s+\d\b/g) }));
+            ok(!ln.badges && !ln.txt, `${lang} ${curGame} ${tab}: no lesson numbers`, ln);
+          }
           if (tab === "moves") { // finding 1: the tiles and the list are one source: each tile equals the number of list rows of its kind, and no row word contradicts a zero tile
             const t = await G(() => { const tiles = {}; document.querySelectorAll("[data-famtile]").forEach((e) => { tiles[e.dataset.famtile] = +e.querySelector("b").textContent.replace(/\D/g, ""); }); const rows = {}; document.querySelectorAll(".px-mv[data-fam]").forEach((e) => { rows[e.dataset.fam] = (rows[e.dataset.fam] || 0) + 1; }); const words = [...document.querySelectorAll(".px-mv[data-fam] .px-cls")].map((e) => e.textContent.trim()); return { tiles, rows, words }; });
             ["strong", "close", "could", "err"].forEach((k) => ok((t.tiles[k] ?? -1) === (t.rows[k] || 0), `${lang} ${curGame} moves: tile "${k}" equals its list rows`, t));

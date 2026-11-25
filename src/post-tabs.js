@@ -67,15 +67,15 @@ function lesson2(g, m) {
     const chip = p.followed ? `<span class="px-ok">Followed</span>` : p.advice ? `<span class="px-no">Not followed</span>` : `<span class="px-no"><span>${X.ph("Not followed: {a} instead of {b}", { a: [`pick${nn}.win`], b: [`pick${nn}.best`] })}</span> (${X.n(`pick${nn}.cost`)})</span>`;
     return `<div class="px-pick"><div class="ph"><i class="px-dash">${nn}</i><span class="mx">${spotTiles(m.board, p.node) || spotMix(X, `pick${nn}`, p.spot) || ""}</span>${p.spot ? `<span class="dt">${X.ph("{n} dots", { n: [`pick${nn}.dots`] })}</span>` : ""}<b>${X.n(`pick${nn}.win`)}</b>${chip}</div>${adv}${fold(`top${nn}`, `<span>${f("Pick {n}: top of the spots checked", { n: nn })}</span>`, `<div class="px-sls">${top}</div>`, { open: nn === 1 })}</div>`;
   }).join("");
-  return `<section class="rv-card px-card px-l2"><div class="rv-gt"><b>Lesson 2 · This board</b>${plan}</div><p class="px-fn px-dk">${DOT_KEY}</p>${picks}${S.board ? "" : `<p class="px-fn">No board picture for this kind of game.</p>`}</section>`;
+  return `<section class="rv-card px-card px-l2"><div class="rv-gt"><b>This board</b>${plan}</div><p class="px-fn px-dk">${DOT_KEY}</p>${picks}${S.board ? "" : `<p class="px-fn">No board picture for this kind of game.</p>`}</section>`;
 }
 function lesson3(g, m) {
   const X = m.F, rules = m.lesson3 || [];
   const rows = rules.map((r) => `<div class="px-rule"><div class="rh"><b>${esc(PHASE_NAME[r.phase])}</b><small>${f("turns {n}–{n2}", { n: r.from, n2: r.to })}</small>${X.d(`rule.${r.phase}.cost`)}</div>${m.you ? `<p class="px-l" data-i18n-skip>${esc(r.text)}</p>` : ""}<div class="px-ccs">${r.chips.map((c, j) => `<button type="button" class="px-cc" data-rvj="${c.i}" data-rvq="imp">${chipText(m, r, c, j)} · <span>${f("Turn {n}", { n: c.turn })}</span>${c.ck !== "rule.pts.chip" && X.has(`rule.${r.phase}.pts.${j}`) ? ` · ${X.ph("{n} of {n2} visible points", { n: [`rule.${r.phase}.pts.${j}`], n2: ["target:-"] })}` : ""}</button>`).join("")}</div></div>`).join("");
   const recon = `<p class="px-fn">${X.v("errCost") === 0 ? X.ph("No phase error. The moves in total ({c}) are the start picks and small moves.", { c: ["movesTotal"] }) : X.ph("Real errors {a} + start picks {b} + other moves {o} = moves in total {c}", { a: ["errCost"], b: ["startCost"], o: ["otherCost"], c: ["movesTotal"] })}</p>`;
-  return `<section class="rv-card px-card px-l3"><div class="rv-gt"><b>Lesson 3 · Phase rules</b></div>${rows || `<p class="px-l">No phase rule was broken.</p>`}${recon}</section>`;
+  return `<section class="rv-card px-card px-l3"><div class="rv-gt"><b>Phase rules</b></div>${rows || `<p class="px-l">No phase rule was broken.</p>`}${recon}</section>`;
 }
-function teaser(g, m) { const X = m.F; return `<button type="button" class="rv-card px-card px-tz" data-pxtab="moves"><b>Lesson 1 · Real errors</b><span>${m.errs.length ? `${nErr(X)}: <span>see them on the Moves tab</span>` : "No clear error in this game"}</span>${IC.chev}</button>`; }
+function teaser(g, m) { const X = m.F; return `<button type="button" class="rv-card px-card px-tz" data-pxtab="moves"><b>Real errors</b><span>${m.errs.length ? `${nErr(X)}: <span>see them on the Moves tab</span>` : "No clear error in this game"}</span>${IC.chev}</button>`; }
 
 function tempoCard(g, m) {
   const tp = m.tempo; if (!tp) return "";
