@@ -185,6 +185,27 @@ const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
         // a bot's overview (third person headline)
         await G((pid) => window.__colonistGame._rvOpenReview(pid, { tab: "overview" }), (me + 1) % seatsN); await sleep(800); await audit("overview bot", ".rv");
         await G((pid) => window.__colonistGame._rvOpenReview(pid, { tab: "overview" }), me); await sleep(500);
+        // v1.99 r1 ONE NUMBER PER ROLL: every fact that is the number of one roll (timeline pin "dice", the Overview's biggest roll, a Luck tab row, the biggest of the other players' rolls) is the same
+        // for the same roll and seat, on every screen; and a Luck tab row is one event (never a roll added to a steal)
+        { const rl = await G(() => window.__postFacts.rolls()); const by = {}; rl.forEach((r) => { (by[`${r.seat}|${r.step}`] ||= new Map()).set(r.value, [...((by[`${r.seat}|${r.step}`].get(r.value)) || []), r.id]); });
+          const bad = Object.entries(by).filter(([, m]) => m.size > 1).map(([k, m]) => `${k}: ${[...m.entries()].map(([v, ids]) => `${v} (${ids.slice(0, 2).join(", ")})`).join(" vs ")}`);
+          ok(bad.length === 0, `${lang} ${curGame} one value per roll on every screen`, bad.slice(0, 3)); summary.rolls = (summary.rolls || 0) + rl.length;
+        }
+        if (gm.fixture) { // the AI tab: the roll steps of its rounds carry the luck run's number for that roll, every number of the ledger has a % and turns read "Turn n" / "Beurt n"
+          await G(() => { const g = window.__colonistGame; g._rvTab = "ai"; g._rvDrawReview(); });
+          await page.waitForFunction(() => !document.querySelector(".rv .ap-sk") && document.querySelector(".rv [data-lg]"), null, { timeout: 120000 }).catch(() => {});
+          await sleep(800);
+          const ai = await G(() => { const g = window.__colonistGame, fx = g._pgState().fx, M = fx.lg, out = { steps: 0, bad: [], txt: "", lg: "", coach: !!document.querySelector(".rv [data-rcai]"), M: !!M };
+            if (M) { const recs = g._rv.recs, me = fx.me, lk = {}; Object.values(g._lkStore().res).forEach((r) => { if (r && r.k === "dice" && r.l) lk[r.s + 1] = Math.round(r.l[me] * 100); });
+              M.focus().forEach((t) => { const v = M.view(t); (v ? v.shown : []).forEach((s) => { if (s.type === "roll" && Array.isArray(s.dl)) { out.steps += 1; const S = recs[s.i].s + 1; if (lk[S] !== s.pts) out.bad.push(`turn ${t} step ${S}: ${s.pts} vs luck ${lk[S]}`); } }); }); }
+            out.txt = document.querySelector(".rv")?.innerText || ""; out.lg = document.querySelector("[data-lg]")?.innerText || ""; return out; });
+          ok(ai.M, `${lang} ${curGame} AI tab: the ledger model is there`);
+          ok(!ai.bad.length, `${lang} ${curGame} AI tab: every roll step shows the luck run's number for that roll (${ai.steps} checked)`, ai.bad.slice(0, 3));
+          ok(!/(?:^|[\s(])[BT]\d+\b/.test(ai.txt.replace(/\bv\d+(?:\.\d+)+/g, "")), `${lang} ${curGame} AI tab: no B2 / T10 turn tokens`, (ai.txt.match(/(?:^|[\s(])[BT]\d+\b/g) || []).slice(0, 3));
+          ok(!/[+−±]\d+(?![\d%.,])/.test(ai.lg.replace(/\s+/g, " ")), `${lang} ${curGame} AI tab: every signed number of the ledger rows has a %`, (ai.lg.replace(/\s+/g, " ").match(/[+−±]\d+(?![\d%.,]).{0,10}/g) || []).slice(0, 3));
+          ok(!ai.coach, `${lang} ${curGame} AI tab: no "open the AI tab" row on the AI tab`);
+          ok(!/\b(?:Groens|Geelens|Blaauws|Groen’s|Geelen’s)\s+\d+\s*\(/i.test(ai.lg.replace(/\s+/g, " ")) && !/(?:gaven|gave) .*\(/.test(""), `${lang} ${curGame} AI tab: "who rolled what" has the roller as the subject, no possessive-before-a-number`, (ai.lg.match(/\S+[s’]\s+\d+\s*\(/g) || []).slice(0, 2));
+          await G(() => { const g = window.__colonistGame; g._rvTab = "overview"; g._rvDrawReview(); }); await sleep(300); }
         // Bekijk bord: every stop
         await G(() => window.__colonistGame._pxBoard(0)); await sleep(600);
         const nStops = await G(() => document.querySelectorAll(".px-stops button").length);

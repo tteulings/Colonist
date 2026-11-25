@@ -90,6 +90,8 @@ if (typeof window !== "undefined") {
     /** formatted text of a "id:seat" ref for the review that is open now (and the history / bots stores): the same string the screens show */
     text(ref, o) { const g = window.__colonistGame; const m = g?._rv && REG?.get(g._rv); const stores = [...(m ? m.values() : []), GLOBAL.hist, GLOBAL.bots, ...[...GLOBAL.histrows].reverse()].filter(Boolean); for (const S of stores) { if (S.has(ref)) return S.t(ref, o); } return null; },
     has(ref) { return this.text(ref) != null; },
+    /** every fact that is the number of ONE roll (f.roll = the roll's step), of the review that is open now: { id, seat, step, value, text }. The audit (tests/facts199-ui.js) requires one value per (seat, step) on every screen. */
+    rolls() { const g = window.__colonistGame; const m = g?._rv && REG?.get(g._rv); const out = []; (m ? m.values() : []).forEach((S) => S.all().forEach((f) => { if (f.roll != null) out.push({ id: f.id, seat: f.seat, step: f.roll, value: f.value, text: S.t(`${f.id}:${f.seat}`) }); })); return out; },
     /** { value, unit, dec } of a ref, for the audit test */
     fact(ref) { const g = window.__colonistGame; const m = g?._rv && REG?.get(g._rv); const stores = [...(m ? m.values() : []), GLOBAL.hist, GLOBAL.bots, ...[...GLOBAL.histrows].reverse()].filter(Boolean); for (const S of stores) { const f = S.get(ref); if (f) return { value: f.value, unit: f.unit, dec: f.dec ?? 0, id: f.id, seat: f.seat }; } return null; },
   };
@@ -225,7 +227,7 @@ export function buildFacts(g, m, tab) {
   // the key moments: one fact set per step
   const tl = m.timeline;
   if (tl) {
-    const put = (p) => { const dice = p.dice ?? p.a - p.b, after = p.e - p.a, mv = p.move ? after : 0; P(`mom.${p.S}.d`, me, "wcDelta", p.d, "fact.momD", "win chance"); P(`mom.${p.S}.move`, me, "wcDelta", mv, "fact.momMove", "win chance"); P(`mom.${p.S}.dice`, me, "wcDelta", dice, "fact.momDice", "win chance"); P(`mom.${p.S}.rest`, me, "wcDelta", p.d - dice - mv, "fact.momRest", "win chance"); const st = g._st?.steps?.[p.S - 1]; if (st && st[2] != null) P(`mom.${p.S}.roll`, me, "count", st[2] + st[3], "fact.roll", "stats"); };
+    const put = (p) => { const dice = p.dice ?? p.a - p.b, after = p.e - p.a, mv = p.move ? after : 0; P(`mom.${p.S}.d`, me, "wcDelta", p.d, "fact.momD", "win chance"); P(`mom.${p.S}.move`, me, "wcDelta", mv, "fact.momMove", "win chance"); P(`mom.${p.S}.dice`, me, "wcDelta", dice, "fact.momDice", "win chance").roll = p.S; P(`mom.${p.S}.rest`, me, "wcDelta", p.d - dice - mv, "fact.momRest", "win chance"); const st = g._st?.steps?.[p.S - 1]; if (st && st[2] != null) P(`mom.${p.S}.roll`, me, "count", st[2] + st[3], "fact.roll", "stats"); };
     [...tl.pins, ...(tl.all || [])].forEach(put);
     P("momN", me, "count", tl.pins.length + (tl.all || []).filter((p) => !tl.pins.some((q) => q.T === p.T)).length, "fact.momN", "win chance");
     const mine = tl.lines[me]; if (mine?.length) { P("tl.from", me, "wc", r0(mine[0][1] * 100), "fact.tl", "win chance"); P("tl.to", me, "wc", r0(mine[mine.length - 1][1] * 100), "fact.tl", "win chance"); }
@@ -259,7 +261,7 @@ function waterfall(S, g, m, cost) {
   const miss = m.ds.filter((d) => d.k !== "setup" && d.cls !== "triv" && inScope(d) && d.gp >= 1).sort((a, b) => b.gp - a.gp || a.i - b.i)[0] || null; S.data.wf.miss = miss;
   const sw = swings(g, me), sign = luck >= 0 ? 1 : -1;
   const roll = sw.filter((x) => !x.seven && x.roll != null && Math.sign(x.dice) === sign && Math.abs(x.dice) >= 1).sort((p, q) => Math.abs(q.dice) - Math.abs(p.dice))[0] || null;
-  if (roll) { S.put("roll1.d", me, "wcDelta", roll.dice, "fact.roll1", "win chance"); S.put("roll1.n", me, "count", roll.roll, "fact.roll", "stats"); S.data.wf.roll = roll; }
+  if (roll) { S.put("roll1.d", me, "wcDelta", roll.dice, "fact.roll1", "win chance").roll = roll.S; S.put("roll1.n", me, "count", roll.roll, "fact.roll", "stats"); S.data.wf.roll = roll; }
 }
 
 /** the piece a player built in a step ("settlement" | "city" | "road") or "card" for a development card bought, else null */
@@ -325,8 +327,8 @@ export function luckRows(S, g, m, q, unit, showOthers) {
   // Now every row is one event with its own number, the same one the timeline, the overview and the AI tab show for that roll.
   const group = (l, tag) => l.map((e) => {
     const t = e.t, inCards = cards && e.cards != null, v = inCards ? e.cards : e.win, sum = Math.round(v), id = `${pre}${tag}.${t}.${e.x.ev.e}`;
-    S.put(id, q, inCards ? "cards" : "wcDelta", sum, "fact.lkRow", "luck");
-    const ev0 = e.x.ev; let lab = null;
+    const fr = S.put(id, q, inCards ? "cards" : "wcDelta", sum, "fact.lkRow", "luck");
+    const ev0 = e.x.ev; let lab = null; if (fr && !inCards && ev0.kind === "dice") fr.roll = ev0.s + 1; // (the roll's step: every screen shows the same number for it)
     if (ev0.kind === "dice") { const rid = `${id}.roll`; S.put(rid, q, "count", ev0.roll, "fact.roll", "luck"); lab = ev0.roll === 7 ? { k: "seven", n: `${rid}:${q}` } : { k: "dice", who: ev0.roller, n: `${rid}:${q}`, rush: !!ev0.rush }; }
     else if (ev0.kind === "steal") lab = { k: "steal", thief: ev0.thief, victim: ev0.victim }; else if (ev0.kind === "dev") lab = { k: "dev", who: ev0.pid, vp: ev0.card === "victoryPoint" };
     return { t, S: ev0.kind === "dice" ? ev0.s + 1 : null, id: `${id}:${q}`, more: null, sum, lab, inCards };
@@ -337,7 +339,7 @@ export function luckRows(S, g, m, q, unit, showOthers) {
   const othEv = ev.filter((e) => !isOwn(e)), oval = (e) => Math.round(cards ? e.cards ?? 0 : e.win); // (whole numbers: the group's sum is exactly the sum of its rows)
   S.put(`${pre}.${q}.nOth`, q, "count", othEv.length, "fact.lkMore", "luck");
   S.put(`${pre}.${q}.othSum`, q, cards ? "cards" : "wcDelta", othEv.reduce((a, e) => a + oval(e), 0), "fact.lkOth", "luck");
-  let bigO = null; if (othEv.length) { const e = othEv.slice().sort((a, b) => Math.abs(oval(b)) - Math.abs(oval(a)))[0]; S.put(`${pre}.${q}.othBig`, q, cards ? "cards" : "wcDelta", oval(e), "fact.lkOthBig", "luck"); bigO = { id: `${pre}.${q}.othBig:${q}`, t: e.t }; }
+  let bigO = null; if (othEv.length) { const e = othEv.slice().sort((a, b) => Math.abs(oval(b)) - Math.abs(oval(a)))[0]; { const fb = S.put(`${pre}.${q}.othBig`, q, cards ? "cards" : "wcDelta", oval(e), "fact.lkOthBig", "luck"); if (fb && !cards && e.x.ev.kind === "dice") fb.roll = e.x.ev.s + 1; } bigO = { id: `${pre}.${q}.othBig:${q}`, t: e.t }; }
   let total = null;
   if (cards) { S.put(`${pre}.${q}.total`, q, "cards", Math.round(ev.reduce((a, e) => a + (e.cards ?? 0), 0)), "fact.lkTotal", "luck"); total = `${pre}.${q}.total:${q}`; } else total = S.has(`luck:${q}`) ? `luck:${q}` : null;
   return { big, small, oth: showOthers ? oth.sort((a, b) => Math.abs(b.sum) - Math.abs(a.sum)) : [], othN: othEv.length, bigO, seatId: seatW ? `lkSeat:${q}` : null, total, pre, nMore: big.length - 8, nSmall: small.length, nOthRef: `${pre}.${q}.nOth:${q}`, moreRef: `${pre}.${q}.more:${q}`, smallRef: `${pre}.${q}.nsmall:${q}`, othSum: `${pre}.${q}.othSum:${q}` };

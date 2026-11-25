@@ -113,9 +113,9 @@ const nums = () => {
           const g1 = await G(() => ({ label: document.querySelector("[data-pxothers]").innerText.replace(/\s+/g, " "), rows: [...document.querySelectorAll(".px-ev.sub .px-d")].map((x) => x.innerText) }));
           const sum = g1.rows.reduce((a, t) => a + num(t), 0), grp = num(g0.chip);
           ok(/Show|Toon/.test(g0.label) && /Hide|Verberg/.test(g1.label), `${k}: toggle label follows the state`, `${g0.label} -> ${g1.label}`);
-          ok(g1.rows.length > 0 && Math.abs(sum - grp) <= Math.max(2, g1.rows.length * 0.5) && (Math.abs(grp) < 8 || Math.sign(sum) === Math.sign(grp)), `${k}: group sign and size match the rows shown`, `group ${grp}, rows sum ${sum} (${g1.rows.length})`);
-          const gl = await G(() => ({ sh: document.querySelectorAll(".px-sh").length, ts: [...document.querySelectorAll(".px-ev:not(.sub):not(.px-eg):not(.tot) .t")].map((e) => e.innerText.trim()).filter((t) => t && t !== "start") }));
-          ok(gl.sh === 2 && new Set(gl.ts).size === gl.ts.length, `${k}: own and other rolls are separate, one row per turn`, gl);
+          ok(g1.rows.length > 0 && Math.abs(sum - grp) <= Math.max(2, g1.rows.length * 0.5) && sum === grp, `${k}: the group's number is exactly the sum of the rows shown`, `group ${grp}, rows sum ${sum} (${g1.rows.length})`);
+          const gl = await G(() => ({ sh: document.querySelectorAll(".px-sh").length, sums: [...document.querySelectorAll(".px-ev .x")].map((e) => e.innerText.trim()).filter((t) => /\(\+\d+\)/.test(t)) }));
+          ok(gl.sh === 2 && !gl.sums.length, `${k}: own and other rolls are separate, one row per event (no "(+n)" sums of several events)`, gl);
           await check(`${short} luck others open`, null); await page.evaluate(() => document.querySelector("[data-pxothers]").click()); await sleep(300);
         }
       }

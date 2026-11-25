@@ -31,3 +31,10 @@
 - Scorecard: up / down triangles in the cells of every highest / lowest value of a row.
 - Tests: analysis199-ui.js measures line boxes (max 2 lines on headline, captions, notes), no "B<number>" tokens, triangles in scorecard cells, headline names measured moments, start advice arithmetic, luck group sign and toggle state, one vocabulary for errors on all pages.
 - Long comparison suites (events197, inapp197) run only when engine/host code changes, not on UI-only rounds.
+
+## r1: one number per roll (luck consistency)
+- A roll's effect on a seat's win chance is ONE number: the luck run's own value for that roll (`R.luck.res["dice:s:e"].l[seat]`, whole percent). The timeline pins ("dice"), the Overview's "biggest roll", the headline's named rolls, the Luck tab, and the AI tab's roll steps all read it (`rollLuckMap` in src/post-facts.js; `describeStep` in src/review/ledger.js sets `dl`). The review's before/after look only supplies the step's TOTAL swing and the actor's own move; the pin's "rest" is what is left of that swing (`d - dice - move`).
+- The Luck tab lists ONE EVENT per row (a roll, a steal and a card of one turn are three rows); no "(+n) more events" sums. The other players' rolls group is the exact sum of its rows (whole numbers).
+- The luck headline ("bad luck in total (−16%)") is the Luck tab's total for the seat (rolls of everybody, steals, draws and seat order), not "your own rolls". A single roller is named only in the roller clause ("Groen's roll in turn 3 helped you (+8%)").
+- AI tab: every signed number carries a %; turns read "Turn n" / "Beurt n" (no "B2" / "T10" tokens); the roll sentence reads "Groen rolled 4 (+4%) and Geelen 9 (+6%); Groen got wheat."; no "open the AI tab" row on the AI tab; what is known already (who won, when, points) shows while the ranked part settles.
+- Test: tests/facts199-ui.js "one value per roll on every screen" and the AI tab checks.
