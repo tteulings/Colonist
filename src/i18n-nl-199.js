@@ -36,6 +36,7 @@ export const NL_199 = [
   ["Settlements go on land.", "Dorpen horen op land."],
   ["Only bots that went through the review test have a precision figure; the others are not measured yet.", "Alleen bots die door de terugblik-test zijn gegaan hebben een precisiecijfer; de andere zijn nog niet gemeten."],
   ["Luck in win chance is not available for this game: not enough of its rolls were recorded (for example a game played before recording started).", "Geluk in winkans is voor dit spel niet beschikbaar: er zijn te weinig worpen van vastgelegd (bijvoorbeeld bij een spel van voor het vastleggen)."],
+  ["piece", "stuk"], ["Trade route {n} (5+ to win Longest trade route)", "Handelsroute {n} (5+ voor de langste handelsroute)"], ["Trade route {n} · Longest trade route (+2 points)", "Handelsroute {n} · Langste handelsroute (+2 punten)"],
   // Pause
   ["Explain", "Uitleg"], ["Numbers, ports, robber", "Getallen, havens, rover"], ["Standings and stats", "Stand en statistieken"], ["Dice, points and income", "Dobbelstenen, punten, inkomen"],
   ["Sound, colours, language", "Geluid, kleuren, taal"], ["Your current game is kept", "Huidig spel wordt bewaard"], ["To start", "Naar start"], ["Your game is saved", "Je spel is bewaard"],
