@@ -49,7 +49,7 @@ export function searchBot(meta, { strategy = null, agent = null, rush = false, s
       if (g.winner) return done();
       if (!m.trade) { // the Expert's own deal first (mainPhase: g.aiTryPlayerTrade(p))
         m.trade = true;
-        const r = probe(g, () => g.aiTryPlayerTrade(p), { eager: true, suspend: true });
+        const r = probe(g, () => g.aiTryPlayerTrade(p), { suspend: true });
         if (r.actions.length) { m.queue = r.actions; continue; }
       }
       if (m.steps >= 12) return done();

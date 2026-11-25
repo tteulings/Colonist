@@ -108,7 +108,7 @@ export function legacyBot(meta, { strategy = null } = {}) {
       if (m.stage === 1) { // then one deal with the other bots
         m.stage = 2;
         if (!m.skip) {
-          const r = probe(g, () => g.aiTryPlayerTrade(p), { eager: true, suspend: true });
+          const r = probe(g, () => g.aiTryPlayerTrade(p), { suspend: true });
           // in the app a deal can be asked of the person at the table: the host stops the turn here and shows the card (the game goes on once it is answered)
           if (r.result?.type === "human" && ctx.humanTrade) return { actor: seat, type: "pause", why: "humanTrade", trade: r.result };
           if (r.actions.length) { m.queue = r.actions; continue; }
@@ -129,7 +129,7 @@ export function legacyBot(meta, { strategy = null } = {}) {
       }
       if (m.deals < 2 && g._aiStrat(p).trading === "aggressive") { // aggressive traders keep dealing with the bots after building (up to 2 more)
         m.deals++;
-        const r = probe(g, () => g.aiTryPlayerTrade(p, { botsOnly: true }), { eager: true, suspend: true });
+        const r = probe(g, () => g.aiTryPlayerTrade(p, { botsOnly: true }), { suspend: true });
         if (r.result?.type === "done" && r.actions.length) { m.queue = r.actions; continue; }
       }
       return done();

@@ -422,9 +422,8 @@ export class Engine {
     for (const pr of ps) {
       if (!PROMPTS[pr.kind].types.includes(a.type)) { why = why || `${a.type} is not an answer to ${pr.kind}`; continue; }
       if (this._quick(a, pr)) return { ok: true }; // the common answers, judged by one call instead of a scan (the scan below gives the reason when refused)
-      if (k === null) k = keyOf(this._canon(a));
       for (const l of this._legalOf(pr, a.type)) {
-        if (!l.choose) { if (keyOf(this._canon(l)) === k) return { ok: true }; continue; }
+        if (!l.choose) { if (k === null) k = keyOf(this._canon(a)); if (keyOf(this._canon(l)) === k) return { ok: true }; continue; } // (the key only when a concrete legal action is compared)
         if (l.type !== a.type || (l.answer && l.answer !== a.answer)) continue;
         const bad = this._validateChoose(l, a, pr);
         if (!bad) return { ok: true };
@@ -455,6 +454,16 @@ export class Engine {
       case "buyDev": return (k === "main" || k === "sbp" || k === "rushAny") && g.devDeck.length > 0 && has(p.resources, COSTS.development);
       case "endTurn": return k === "main";
       case "roll": return k === "preRoll";
+      // v1.99: the same answers the scan accepts, found without building the legal list (a field the scan would compare, e.g. a stray `target`, sends it to the scan)
+      case "steal": return k === "steal" && Object.keys(a).length === 3 && pr.victims.includes(a.victim);
+      case "discard": return k === "discard" && handSize(a.cards) === pr.count && RES.every((r) => (a.cards[r] || 0) <= p.resources[r]);
+      case "playDev":
+        if (Object.keys(a).length !== 3) return false;
+        if (k === "preRoll") return a.card === "knight" && !!g.canPlayDevelopmentCard(p, "knight");
+        return (k === "main" || k === "rushAny") && DEV_CARD_TYPES.includes(a.card) && !!g.canPlayDevelopmentCard(p, a.card);
+      case "moveRobber":
+        if (k !== "moveRobber" || g.sea || !inRange(a.hex, g.geometry.hexes) || Object.keys(a).length !== (a.target === undefined ? 3 : 4) || (a.target !== undefined && a.target !== "robber")) return false;
+        return g._legalRobberHexes(p).some((h) => h.id === a.hex);
       default: return false;
     }
   }

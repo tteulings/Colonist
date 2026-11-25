@@ -62,7 +62,7 @@ function install(g) {
   g._aiTrkNote = function (...a) { return this.__noTrk ? undefined : tn.apply(this, a); };
   const st = g._stTrade;
   g._stTrade = function (a, b, aGives, bGives) {
-    if (REC && REC.depth === 0) REC.actions.push({ actor: a.id, type: "offerTrade", to: [b.id], give: hand(aGives), want: hand(bGives) });
+    if (REC && REC.depth === 0) { if (!REC.snap) { REC.snap = snapshot(REC.g); REC.x = extras(REC.g); } REC.actions.push({ actor: a.id, type: "offerTrade", to: [b.id], give: hand(aGives), want: hand(bGives) }); }
     return st.call(this, a, b, aGives, bGives);
   };
 }
