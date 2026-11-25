@@ -86,6 +86,10 @@ const SUMS = () => {
   chk("phase costs = real errors", add(["phase.opening", "phase.mid", "phase.end"]), v("errCost"));
   if (v("wf.run.0") != null) { chk("waterfall start", v("wf.run.1") - v("wf.run.0"), v("startCost")); chk("waterfall moves", v("wf.run.2") - v("wf.run.1"), v("moveCost")); chk("waterfall others", v("wf.run.4") - v("wf.run.3"), v("others")); const dl = v("wf.run.3") - v("wf.run.2"); if (dl !== 0) chk("waterfall luck", dl, v("luck")); chk("waterfall fair", v("wf.run.0"), v("fair")); }
   chk("decisions = scored + one option", add(["scored", "oneOption"]), v("decisions"));
+  // v1.99 r2 (finding 3): every scored decision has ONE kind: scored = start picks + real errors + strong + close + could + outside this analysis; the "other decisions" are the three move tiles + outside
+  const me = window.__colonistGame._rvPid;
+  chk("scored = start picks + real errors + strong + close + could + outside", add([`startN:${me}`, `fam.err:${me}`, `fam.strong:${me}`, `fam.close:${me}`, `fam.could:${me}`, `fam.out:${me}`]), v(`scored:${me}`));
+  chk("other decisions = strong + close + could + outside", add([`fam.strong:${me}`, `fam.close:${me}`, `fam.could:${me}`, `fam.out:${me}`]), v(`otherN:${me}`));
   return { out, tempo };
 };
 const LSEL = ".px-ev .x, .px-hl2, .px-vl, .px-t3 > span, .px-wfr .sb, .px-wfr .lb, .px-rule p.px-l, .px-fn, .px-adv, .px-lh b, .rv-gt b, .px-card > p.px-l, .px-cn p, .px-prog p, .px-vsent, .px-err .mv > span, .px-ne2, .px-tk small, .px-tk > span > span, .px-mv .mt, .px-cc, .px-wr > span, .px-nr > span, .ln-cr > span:first-child, .px-wr > b, .px-ev .t";
@@ -129,6 +133,11 @@ const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
       ok(!r.untagged.length, `${k}: every number is a tagged fact`, r.untagged.slice(0, 6));
       ok(!r.bad.length, `${k}: tagged numbers equal the store`, r.bad.slice(0, 4));
       ok(!r.nan.length, `${k}: no NaN/undefined`, r.nan.slice(0, 3));
+      { // v1.99 r2 (finding 6): ONE vocabulary on every screen: no "Better option" / "Betere optie", "kon beter" next to "kan beter", no "nauwkeurigheid", no "1 points", no "not close calls" caption
+        const txt = await G((s) => document.querySelector(s)?.innerText || "", rootSel); const bad = [];
+        if (/(?<![−+\d.,])1 points\b|(?<![−+\d.,])1 punten\b/i.test(txt)) bad.push("1 points"); if (/Better option|Betere optie|Slightly better/.test(txt)) bad.push("Better option"); if (/not close calls|geen nipte keuzes/i.test(txt)) bad.push("not close calls");
+        if (lang === "nl" && /nauwkeurig|\bkon beter\b|Nipt verschil|Kleine keuze|Betere optie/i.test(txt)) bad.push("old Dutch term"); if (lang === "en" && /\bAccuracy\b/.test(txt) === false && /nauwkeurig/i.test(txt)) bad.push("nauwkeurig");
+        ok(!bad.length, `${k}: one vocabulary (Close call / Could be better / Precisie), no "1 points"`, bad); }
       { const tx = await G(TEXTAUDIT, { rootSel, lang, names: NAMES, lsel: LSEL, third: /^(overview bot|player \d+)$/.test(name) }); if (!tx.missing) { ok(!tx.en.length, `${k}: no English words in Dutch`, tx.en); ok(!tx.nl.length, `${k}: no Dutch words in English`, tx.nl); ok(!tx.out.length, `${k}: no port / robber / road-race words`, tx.out); ok(!tx.second.length, `${k}: third person only on a bot's page`, tx.second); ok(!tx.minus.length, `${k}: one minus sign style (U+2212)`, tx.minus); ok(!tx.long.length, `${k}: max 2 lines`, tx.long.slice(0, 3)); } }
       Object.entries(r.keys).forEach(([key, v]) => { (KEYS[key] ||= new Map()); v.forEach((x) => KEYS[key].set(x, [...(KEYS[key].get(x) || []), name])); });
       return r;
@@ -143,6 +152,10 @@ const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
         await G(() => window.__colonistGame.histOpen()); await sleep(500);
         if (gm.fixture) { await audit("history", ".hs", { optional: false }); await G(() => document.querySelector("[data-pxhg]")?.click()); await sleep(200); await audit("history row open", ".hs"); }
         await G((id) => window.__colonistGame._histSheet(id), meta.id); await sleep(350);
+        // v1.99 r2 (finding 3): the game sheet says Real errors / Could be better / Close calls: read here, compared with the review's own tiles below (it fills itself in from the saved review)
+        let HK = null; for (let k = 0; k < 40; k += 1) { HK = await G(() => { const o = {}; document.querySelectorAll(".hs-sheet [data-hk]").forEach((e) => { o[e.dataset.hk] = e.textContent.trim(); }); return o; }); if (HK.err && HK.err !== "–") break; await sleep(250); }
+        ok(HK && /^\d+$/.test(HK.err || "") && /^\d+$/.test(HK.could || "") && /^\d+$/.test(HK.close || ""), `${lang} ${curGame} game sheet: Real errors / Could be better / Close calls are numbers`, HK);
+        { const sh = await G(() => document.querySelector(".hs-sheet")?.innerText || ""); ok(!/Marked moves|Gemarkeerde zetten|kon beter|nauwkeurig/i.test(sh), `${lang} ${curGame} game sheet: no legacy "marked moves" / "kon beter" / "nauwkeurigheid"`, sh.slice(0, 200)); }
         await page.evaluate(() => document.querySelector("[data-sact=review]").click()); await page.waitForSelector(".rv .rv-tabs", { timeout: 45000 }); await sleep(1100);
         summary.games.add(gm.tag);
         for (const tab of ["overview", "moves", "strategy", "luck"]) {
@@ -173,8 +186,28 @@ const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
           if (tab === "moves") { // finding 1: the tiles and the list are one source: each tile equals the number of list rows of its kind, and no row word contradicts a zero tile
             const t = await G(() => { const tiles = {}; document.querySelectorAll("[data-famtile]").forEach((e) => { tiles[e.dataset.famtile] = +e.querySelector("b").textContent.replace(/\D/g, ""); }); const rows = {}; document.querySelectorAll(".px-mv[data-fam]").forEach((e) => { rows[e.dataset.fam] = (rows[e.dataset.fam] || 0) + 1; }); const words = [...document.querySelectorAll(".px-mv[data-fam] .px-cls")].map((e) => e.textContent.trim()); return { tiles, rows, words }; });
             ["strong", "close", "could", "err"].forEach((k) => ok((t.tiles[k] ?? -1) === (t.rows[k] || 0), `${lang} ${curGame} moves: tile "${k}" equals its list rows`, t));
+            if (HK && /^\d+$/.test(HK.err || "")) ok(+HK.err === t.tiles.err && +HK.could === t.tiles.could && +HK.close === t.tiles.close, `${lang} ${curGame} moves: the game sheet (errors ${HK.err}, could ${HK.could}, close ${HK.close}) reads the same counts as the tiles`, { HK, tiles: t.tiles });
             if (!t.tiles.could) ok(!t.words.some((w) => /^(Could be better|Kan beter|Kon beter)$/.test(w)), `${lang} ${curGame} moves: no "Could be better" row next to a 0 tile`, t.words);
             if (!t.tiles.close) ok(!t.words.some((w) => /^(Close call|Nipt verschil)$/.test(w)), `${lang} ${curGame} moves: no "Close call" row next to a 0 tile`, t.words);
+          }
+          if (tab === "overview") { // v1.99 r2: the header of Real errors and its cards reconcile; the small differences are the Moves rows; the loser's waterfall reads from the loser's side
+            const o = await G(() => { const PF = window.__postFacts, me = window.__colonistGame._rvPid, val = (r) => PF.fact(r)?.value ?? null;
+              const cards = [...document.querySelectorAll(".px-l1 .px-err .h [data-fact]")].map((e) => val(e.dataset.fact)), note = document.querySelector(".px-capnote");
+              const noteKeys = note ? [...note.querySelectorAll("[data-fact]")].flatMap((e) => e.dataset.fact.split(/\s+/)) : [];
+              const ne = [...document.querySelectorAll(".px-l1 .px-ne2")].map((e) => ({ w: e.querySelector(".px-cls")?.textContent.trim(), f: val(e.querySelector("[data-fact]")?.dataset.fact) }));
+              const aft = document.querySelector(".px-wfr.aft .lb")?.textContent.trim() || "", oth = document.querySelector(".px-wfr.oth .sb")?.textContent.trim() || "";
+              return { sum: cards.reduce((a, b) => a + (b ?? 0), 0), n: cards.length, errRaw: val(`errRaw:${me}`), errCost: val(`errCost:${me}`), errors: val(`errors:${me}`), noteKeys, note: !!note, ne, nErr: val(`notErrors:${me}`), close: val(`fam.close:${me}`), could: val(`fam.could:${me}`), aft, oth, others: val(`others:${me}`), after: val(`afterLast:${me}`), lost: !!document.querySelector(".px-eb") && /lost|verloren/i.test(document.querySelector(".px-wfr.end .lb")?.textContent || ""), head: document.querySelector(".px-vh b")?.innerText.replace(/\s+/g, " ").trim() || "" }; });
+            if (o.n) { ok(o.errRaw == null || (o.n >= o.errors ? o.sum === o.errRaw : Math.abs(o.sum) <= Math.abs(o.errRaw)), `${lang} ${curGame} overview: the error cards add up to the raw errors fact`, o);
+              ok(o.note === (o.errRaw != null && o.errRaw !== o.errCost), `${lang} ${curGame} overview: the header (${o.errCost}) and the cards (${o.sum}) reconcile: an "overlap counts once" line says so exactly when they differ`, o);
+              if (o.note) ok(o.noteKeys.some((k) => k.startsWith("errRaw:")) && o.noteKeys.some((k) => k.startsWith("errCost:")), `${lang} ${curGame} overview: the overlap line names the raw and the counted fact`, o.noteKeys); }
+            if (await G(() => !!document.querySelector(".px-l1"))) ok(o.ne.length === Math.min(3, o.nErr ?? 0) && (o.nErr ?? 0) <= (o.close ?? 0) + (o.could ?? 0), `${lang} ${curGame} overview: the small differences (${o.ne.length}) are Moves rows (close ${o.close} + could ${o.could}), never a start pick`, o);
+            if (o.lost && o.after != null) { ok(/^(Rest of the game|Rest van het spel)$/.test(o.aft), `${lang} ${curGame} overview: a loser's last row reads "Rest of the game"`, o.aft); }
+            if (o.lost && o.others) ok(/helped you|cost you|hielp jou|kostte jou/.test(o.oth), `${lang} ${curGame} overview: the others row says whether it helped or cost the loser`, o.oth);
+            { // finding 4: one mistake feeds at most one "Take with you" rule (the turn-2 mistake was listed as rule 1 AND as the opening rule 3)
+              const tk = await G(async () => { const M = await import("/src/post-model.js"), g = window.__colonistGame, m = M.modelOf(g, g._rvPid), t = m.takeaway || [], l1 = t.find((x) => x.lesson === 1), l3 = t.find((x) => x.lesson === 3), r = l3 && (m.lesson3 || []).find((q) => q.id === l3.key);
+                const a = (m.lesson3 || [])[0]; return { keys: t.map((x) => x.key), dup: !!(l1 && r && (r.ids || r.chips.map((c) => c.i)).includes(l1.i)), wouldDup: !!(l1 && a && (a.ids || a.chips.map((c) => c.i)).includes(l1.i)) }; });
+              ok(!tk.dup && new Set(tk.keys).size === tk.keys.length, `${lang} ${curGame} overview: no mistake is listed under two Take-with-you rules`, tk); if (tk.wouldDup) console.log(`  (dedupe fired: ${curGame})`); }
+            ok(/\d+–\d+/.test(o.head), `${lang} ${curGame} overview: the result line carries the score`, o.head);
           }
           if (tab === "overview") for (const pil of ["errors", "start", "other"]) { await page.evaluate((k) => document.querySelector(`[data-pxpil=${k}]`)?.click(), pil); await sleep(150); await audit(`overview pillar ${pil}`, ".rv"); }
           if (tab === "luck") {

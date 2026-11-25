@@ -8,9 +8,10 @@
 //        count · cards (signed card difference) · acc (Accuracy/Precisie 0-100) · turn · margin (the ± of a move) · rate (win chance per move, 1 decimal)
 import { isNL } from "./i18n.js";
 import { seOf } from "./review/score.js";
-import { inScope } from "./review/coach-rules.js";
+import { inScope, kindOfDecision, tallyKinds } from "./review/coach-rules.js";
 
 const r0 = Math.round;
+const KIND4 = ["strong", "close", "could", "err"];
 const fin = (v) => typeof v === "number" && Number.isFinite(v);
 export const UNITS = ["wc", "wcDelta", "lead", "pts", "count", "cards", "acc", "turn", "margin", "rate"];
 const WORDS = {
@@ -31,7 +32,7 @@ export function fmt(f, o = {}) {
     case "wc": return `${n}${pct}`;
     case "wcDelta": { const t = `${o.abs ? "" : sg(v, dec)}${n}${pct}`; return o.word ? `${t} ${W.wc}` : t; }
     case "lead": return `+${n}${pct}${o.word === false ? "" : ` ${W.lead}`}`;
-    case "pts": return o.word ? `${n} ${r0(v) === 1 ? W.pt : W.pts}` : `${o.plus && v > 0 ? "+" : ""}${n}`;
+    case "pts": return o.word ? `${n} ${r0(v) === 1 ? W.pt : W.pts}` : `${o.plus && r0(v) > 0 ? "+" : o.plus && r0(v) < 0 ? "−" : ""}${n}`;
     case "cards": { const t = `${o.abs ? "" : sg(v, dec)}${n}`; return o.word ? `${t} ${Math.abs(r0(v)) === 1 ? W.card : W.cards}` : t; }
     case "count": return o.ord ? ordinal(v) : o.signed ? `${sg(v, dec)}${n}` : n;
     case "margin": return `±${numStr(v, 1)}${pct}`;
@@ -131,7 +132,8 @@ export function tableFacts(S, g, tab, A) {
       P("startCost", q, "wcDelta", -c.start, "fact.startCost", "decisions"); P("errCost", q, "wcDelta", -c.errors, "fact.errCost", "decisions"); P("otherCost", q, "wcDelta", -c.other, "fact.otherCost", "decisions");
       P("moveCost", q, "wcDelta", -c.moves, "fact.moveCost", "decisions"); P("movesTotal", q, "wcDelta", -c.total, "fact.movesTotal", "decisions");
       P("errors", q, "count", bs.errors, "fact.errors", "decisions");
-      if (bs.cls) { ["best", "great", "good", "close", "lean"].forEach((k) => P(`cls.${k}`, q, "count", bs.cls[k], `num.cls.${k}`, "decisions")); P("cls.could", q, "count", bs.cls.could + bs.cls.mistake + bs.cls.blunder + bs.cls.missed - (bs.errors ?? 0), "num.cls.could", "decisions"); }
+      // ONE kind per decision (coach-rules kindOfDecision): the tiles, the list, the Numbers sheet and the history sheet all count these
+      if (bs.kinds) { const K = bs.kinds; ["strong", "close", "could", "err", "out", "start"].forEach((k) => P(`fam.${k}`, q, "count", K[k], "fact.fam", "decisions")); ["strong", "close", "could"].forEach((k) => P(`num.cls.${k}`, q, "count", K[k], `num.cls.${k}`, "decisions")); }
     }
     const bf = A?.facts?.[q]; if (bf) ["settlement", "city", "road", "cards", "bank", "player"].forEach((k) => P(`num.${k === "settlement" ? "settlements" : k === "city" ? "cities" : k === "road" ? "roads" : k}`, q, "count", bf[k], `num.${k}`, "stats")), P("num.firstCity", q, "turn", bf.firstCity, "num.firstCity", "stats");
   });
@@ -167,25 +169,25 @@ export function buildFacts(g, m, tab) {
   if (cost) {
     P("capNote", me, "wc", cost.cap, "fact.cap", "decisions");
     P("moveRaw", me, "wcDelta", -cost.raw, "fact.moveRaw", "decisions");
+    // the real errors as the review measured them, before the cap: the cards list these, the header shows what counts (errCost); they differ only when the cap shrinks them
+    P("errRaw", me, "wcDelta", -bsMe.raw.errors, "fact.errRaw", "decisions");
   }
   // counts
   const startN = ds.filter((d) => d.k === "setup" && d.cls !== "triv").length;
   P("decisions", me, "count", c.total, "fact.decisions", "recorder"); P("scored", me, "count", c.scored, "fact.scored", "decisions"); P("oneOption", me, "count", Math.max(0, c.total - c.scored), "fact.oneOption", "recorder");
   P("startN", me, "count", startN, "fact.startN", "decisions"); P("otherN", me, "count", Math.max(0, c.scored - errs.length - startN), "fact.otherN", "decisions");
-  P("notErrors", me, "count", c.notErrors || 0, "fact.notErrors", "decisions");
-  // the Moves list is the ONE source of its tiles: every row (a non-start, scored, in-scope move) has one kind, the tiles count those kinds
+  // the Moves list is the ONE source of its tiles: every row (a non-start, scored, in-scope move) has one kind (coach-rules kindOfDecision), the tiles count those kinds
   {
-    const errSet = new Set(errs.map((d) => d.i)), neg = (d) => (-d.gp) < 0;
-    const kindOfRow = (d) => (errSet.has(d.i) ? "err" : ["best", "great", "good"].includes(d.cls) ? (neg(d) ? "close" : "strong") : ["close", "lean"].includes(d.cls) ? "close" : "could");
+    const kind = {}; m.ds.forEach((d) => { const k = kindOfDecision(d); if (KIND4.includes(k)) kind[d.i] = k; });
     const others = m.other.filter((d) => d.cls !== "triv" && inScope(d)).sort((a, b) => b.gp - a.gp || a.i - b.i), top = others.filter((d) => d.gp >= 1).slice(0, 3);
     const miss = [...errs, ...top], shown = new Set(miss.map((d) => d.i)), rest = others.filter((d) => !shown.has(d.i));
-    const kind = {}; [...miss, ...rest].forEach((d) => { kind[d.i] = kindOfRow(d); });
-    const fam = { strong: 0, close: 0, could: 0, err: 0 }; Object.values(kind).forEach((k) => { fam[k] += 1; });
-    P("fam.strong", me, "count", fam.strong, "fact.fam", "decisions"); P("fam.close", me, "count", fam.close, "fact.fam", "decisions"); P("fam.could", me, "count", fam.could, "fact.fam", "decisions"); P("fam.err", me, "count", fam.err, "fact.fam", "decisions");
+    if (!S.has(`fam.strong:${me}`)) { const K = tallyKinds(m.ds); KIND4.concat(["out", "start"]).forEach((k) => P(`fam.${k}`, me, "count", K[k], "fact.fam", "decisions")); }
     P("restN", me, "count", rest.length, "fact.restN", "decisions");
-    S.data.miss = miss; S.data.rest = rest; S.data.kind = kind; S.data.restLt1 = (rest.length ? Math.max(...rest.map((d) => d.gp)) : 0) < 1;
+    // the small differences: close calls and could-be-better moves that cost 1% or more (the Overview list, the "other moves" pillar and the Moves tab are the same rows)
+    const small = m.ds.filter((d) => (kind[d.i] === "close" || kind[d.i] === "could") && d.gp >= 1).sort((a, b) => b.gp - a.gp || a.i - b.i);
+    P("smallDiff", me, "count", small.length, "fact.smallDiff", "decisions"); P("notErrors", me, "count", small.length, "fact.notErrors", "decisions");
+    S.data.miss = miss; S.data.rest = rest; S.data.kind = kind; S.data.small = small; S.data.restLt1 = (rest.length ? Math.max(...rest.map((d) => d.gp)) : 0) < 1;
   }
-  const smallDiff = m.other.filter((d) => d.gp >= 1).length; P("smallDiff", me, "count", smallDiff, "fact.smallDiff", "decisions");
   // every decision: its cost, its margin, the win chance after it
   ds.forEach((d) => {
     P(`mv.${d.i}.cost`, me, "wcDelta", -d.gp, "fact.mvCost", "decisions"); P(`mv.${d.i}.B`, me, "wc", d.B, "fact.mvB", "decisions"); P(`mv.${d.i}.A`, me, "wc", d.A, "fact.mvA", "decisions");
@@ -234,15 +236,22 @@ export function buildFacts(g, m, tab) {
   }
   P("takeN", me, "count", (m.takeaway || []).length, "fact.takeN", "takeaway");
   // the waterfall: fair share, start picks, moves, luck, the others, the end
+  resultOf(S, g, m);
   waterfall(S, g, m, cost);
   headlineFacts(S, g, m);
   return S;
 }
 
+/** The result line of a game ("Blaauw won 10–5"): the winner and the two point facts it names. It needs no review, so a game with too few scored moves (no waterfall) still says who won. */
+function resultOf(S, g, m) {
+  const me = m.pid, w = g.winner?.id ?? null; S.data.res = null; if (w == null) return;
+  const oth = tab0(S, g).filter((q) => q !== w).sort((a, b) => (S.v(`pts:${b}`) ?? 0) - (S.v(`pts:${a}`) ?? 0)), won = w === me;
+  S.data.res = { won, winner: g.players[w].name, left: `pts:${won ? me : w}`, right: won ? `pts:${oth[0]}` : `pts:${me}` };
+}
+
 /** Fair share + start picks + moves + luck + others = end, exactly (whole percent). Luck is each seat's own estimate (seat order included); the others are the remainder. */
 function waterfall(S, g, m, cost) {
   const me = m.pid, A = m.A, L = A?.you?.ledger; if (!L || !cost) { S.data.wf = null; return; }
-  S.data.res = null;
   const P = (id, unit, v, label) => S.put(id, me, unit, v, label, "waterfall");
   const lk = A.luck?.[me], hasLuck = !!lk, from = L.from, to = L.to;
   const start = -cost.start, moves = -cost.moves, luck = hasLuck ? lk.total : 0, others = to - from - start - moves - luck;
@@ -255,7 +264,6 @@ function waterfall(S, g, m, cost) {
   const lo = Math.min(0, ...run), hi = Math.max(100, ...run), span = hi - lo || 1, pc = (v) => Math.round(((v - lo) / span) * 1000) / 10;
   const seg = (a, b) => ({ left: pc(Math.min(a, b)), width: Math.max(1.2, Math.round((Math.abs(b - a) / span) * 1000) / 10) });
   S.data.wf = { hasLuck, run, geo: { fair: seg(0, from), start: seg(run[0], run[1]), moves: seg(run[1], run[2]), luck: seg(run[2], run[3]), others: seg(run[3], run[4]), after: after != null ? seg(run[4], run[5]) : null, end: seg(0, endV) }, after: after != null };
-  { const w = g.winner?.id ?? null; if (w != null) { const oth = tab0(S, g).filter((q) => q !== w).sort((a, b) => (S.v(`pts:${b}`) ?? 0) - (S.v(`pts:${a}`) ?? 0)); const won = w === me; S.data.res = { won, winner: g.players[w].name, left: `pts:${won ? me : w}`, right: won ? `pts:${oth[0]}` : `pts:${me}` }; } }
   // sub-lines: the start picks that cost, the biggest miss after the start, the biggest roll on the side of the luck total
   const costly = (m.start?.picks || []).filter((p) => p.gp >= 1); S.data.wf.picks = costly.map((p) => p.n);
   const miss = m.ds.filter((d) => d.k !== "setup" && d.cls !== "triv" && inScope(d) && d.gp >= 1).sort((a, b) => b.gp - a.gp || a.i - b.i)[0] || null; S.data.wf.miss = miss;
@@ -358,13 +366,15 @@ export function histProgress(rev, fin, sel, topKey) {
   const S = new Facts("-", "hist");
   S.put("h.accAvg", "-", "acc", rev.length ? r0(avg(rev.map((m) => m.acc))) : null, "fact.hAcc", "history"); S.put("h.nRev", "-", "count", rev.length, "fact.hN", "history");
   S.put("h.won", "-", "count", fin.filter((m) => m.result === "won").length, "fact.hWon", "history"); S.put("h.fin", "-", "count", fin.length, "fact.hFin", "history");
-  const per = rev.map((m) => (m.cls ? (m.cls.lean || 0) + (m.cls.could || 0) + (m.cls.missed || 0) + (m.cls.mistake || 0) + (m.cls.blunder || 0) : null)).filter((v) => v != null);
-  S.put("h.per", "-", "rate", per.length ? avg(per) : null, "fact.hPer", "history");
+  const per = rev.map((m) => (m.k99 ? m.k99.err + m.k99.could : null)).filter((v) => v != null); // real errors + could be better: the v1.99 counts of the review
+  S.put("h.per", "-", "count", per.length ? avg(per) : null, "fact.hPer", "history", 1);
   const v = rev.slice(-12), s = v[Math.min(sel ?? v.length - 1, v.length - 1)];
   if (s) { S.put("h.selN", "-", "count", Math.min(sel ?? v.length - 1, v.length - 1) + 1, "fact.hSel", "history"); S.put("h.selAcc", "-", "acc", s.acc, "fact.hAcc", "history"); }
   if (topKey) { const l = rev.slice(-10); S.put("h.mk", "-", "count", l.filter((m) => (m.mist?.[topKey] || 0)).length, "fact.hMk", "history"); S.put("h.mn", "-", "count", Math.min(10, rev.length), "fact.hMk", "history"); }
   setGlobal("hist", S); return S;
 }
+/** the v1.99 kinds of one saved game (real errors, could be better, close calls: the same counts the review's Moves tiles show, coach-rules kindOfDecision), for the game sheet. m.k99 is stored with the review's list entry. */
+export function histKinds(m) { const S = new Facts("-", "histk"), k = m?.k99; if (k) ["err", "could", "close"].forEach((x) => S.put(`h.k.${m.id}.${x}`, "-", "count", k[x], "fact.hK", "history")); setGlobal("histrows", S); return S; }
 /** the counts on the Terugblik screen: all / won / lost games on this device */
 export function histCounts(pairs) { const S = new Facts("-", "histcnt"); pairs.forEach(([k, v]) => S.put(`h.cnt.${k}`, "-", "count", v, "fact.hCnt", "history")); setGlobal("histrows", S); return S; }
 /** one game row of Terugblik: the points of every seat, the Accuracy */

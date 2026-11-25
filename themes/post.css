@@ -174,8 +174,8 @@
 
 .px-end .rv-gt b { text-transform: none; font-size: 16px; }
 .px-tz { display: block; position: relative; padding-right: 36px; } .px-tz b { display: block; } .px-tz span { display: block; margin-top: 2px; } .px-tz .rv-chev { position: absolute; right: 12px; top: 50%; margin-top: -7px; }
-.px-sr > span:first-child { font-size: 12.5px; overflow-wrap: anywhere; hyphens: auto; } .px-sr b { white-space: nowrap; }
-.px-sc2 .px-sr { grid-template-columns: minmax(0, 1.25fr) repeat(var(--n, 4), minmax(2.6em, 1fr)); }
+.px-sr > span:first-child { font-size: 12.5px; overflow-wrap: break-word; word-break: normal; hyphens: manual; } .px-sr b { white-space: nowrap; }
+.px-sc2 .px-sr { grid-template-columns: minmax(0, 1fr) repeat(var(--n, 4), minmax(2.6em, 2.9em)); }
 .px-lc .bz .brk { position: absolute; left: 0; right: 0; top: 2px; text-align: center; font: 800 14px/1 var(--font-body); font-style: normal; color: var(--ink-soft); }
 .px-mm .mm { flex-basis: 100%; }
 

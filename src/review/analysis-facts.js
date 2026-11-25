@@ -12,7 +12,7 @@ import { R5, incomeAt } from "./ai-mech.js";
 import { PIPS } from "../core/constants.js";
 import { stdGeo, boardOf } from "../lessons-geo.js";
 import { rawOf, kindOf } from "../lessons-row.js";
-import { PHASES, THRESHOLDS, phaseLimits, turnsOfGame, pointsLog, pointsAfter, pointsBefore, bestKindOf, isClearError, firedRules } from "./coach-rules.js";
+import { PHASES, THRESHOLDS, phaseLimits, turnsOfGame, pointsLog, pointsAfter, pointsBefore, bestKindOf, isClearError, firedRules, kindOfDecision, tallyKinds } from "./coach-rules.js";
 import { tr } from "./analysis-text.js";
 
 const rnd = Math.round, sum = (a) => a.reduce((x, y) => x + y, 0);
@@ -277,8 +277,8 @@ export function numbersSheet(a, lang = "en") {
   tp?.phases.forEach((ph) => rows.push(row(`pts.${ph.id}`, "pts", (q) => ph.gain[q])));
   rows.push(row("acc", "pct", (q) => bs[q]?.acc), row("cost", "pct", (q) => bs[q]?.cost), row("luck", "pct", (q) => a.luck?.[q]?.total));
   if (bf) rows.push(row("settlements", "n", (q) => bf[q].settlement), row("cities", "n", (q) => bf[q].city), row("roads", "n", (q) => bf[q].road), row("cards", "n", (q) => bf[q].cards), row("bank", "n", (q) => bf[q].bank), row("player", "n", (q) => bf[q].player), row("firstCity", "turn", (q) => bf[q].firstCity));
-  // ONE vocabulary: "Real errors" = clear mistakes, blunders and missed chances (the count the player pages show); "Could be better" = every other weaker move (incl. start picks that cost more)
-  if (bs.some((s) => s?.cls)) { ["best", "great", "good", "close", "lean"].forEach((c) => rows.push(row(`cls.${c}`, "n", (q) => bs[q]?.cls?.[c]))); rows.push(row("cls.could", "n", (q) => { const c = bs[q]?.cls; return c == null ? null : c.could + c.mistake + c.blunder + c.missed - (bs[q].errors ?? 0); }), row("cls.errors", "n", (q) => bs[q]?.errors)); }
+  // ONE vocabulary (the v1.99 kinds of coach-rules.js kindOfDecision): Strong moves, Close calls, Could be better (every other weaker move), Real errors (clear mistakes, blunders and missed chances). Start picks are counted on their own.
+  if (bs.some((s) => s?.kinds)) { [["strong", "strong"], ["close", "close"], ["could", "could"], ["errors", "err"]].forEach(([id, k]) => rows.push(row(`cls.${id}`, "n", (q) => bs[q]?.kinds?.[k]))); }
   return { cols, rows };
 }
 /** The (i) sheet: the error rule, accuracy vs moves cost, the phase limits and the model. [{ id, title, body }] in the language. */
@@ -321,7 +321,7 @@ export function analyseGame(input) {
     const er0 = realErrors(ds, { all }), rawSum = (l) => l.reduce((a, d) => a + d.gp, 0), errIds = new Set(er0.errors.map((d) => d.i));
     // raw = the review's own gaps, whole percent, NOT scaled: start (all set-up picks), errors (clear errors after the start), other (every other scored move), cap (the best win chance ever held: all the moves after the start together cannot cost more)
     const raw = { start: rawSum(ds.filter((d) => d.k === "setup")), errors: rawSum(ds.filter((d) => d.k !== "setup" && errIds.has(d.i))), other: rawSum(ds.filter((d) => d.k !== "setup" && !errIds.has(d.i))), cap: totals(ds).cap };
-    return { seat: q, errors: er0.counts.errors, acc: sm?.acc ?? null, nScored: sm?.n ?? 0, cls: clsCounts(ds), cost: sp.total, lost: sm?.lost ?? null, all, forced, split: { errors: sp.errors, start: sp.start, other: sp.other }, raw };
+    return { seat: q, errors: er0.counts.errors, acc: sm?.acc ?? null, nScored: sm?.n ?? 0, cls: clsCounts(ds), kinds: tallyKinds(ds), cost: sp.total, lost: sm?.lost ?? null, all, forced, split: { errors: sp.errors, start: sp.start, other: sp.other }, raw };
   });
   a.model = { fmt: reviews[me]?.fmt ?? null, engine: rv?.rk || meta?.rk || null };
   const rev = reviews[me];
@@ -336,4 +336,4 @@ export function analyseGame(input) {
   a.numbers = safe(() => numbersSheet(a, lang)); a.info = safe(() => infoSheet(a, lang));
   return a;
 }
-export { PHASES, THRESHOLDS, SEVERE };
+export { PHASES, THRESHOLDS, SEVERE, kindOfDecision, tallyKinds };

@@ -3,7 +3,7 @@
 // (a win chance gap is "6% of meer"); bots pages say "Zetten", never "Jouw zetten"; no jargon.
 export const NL_199P = [
   ["Your win chance", "Jouw winkans"], ["pins = biggest swings", "pins = grootste uitslagen"], ["{n} misses", "{n} missers"], ["No errors", "Geen fouten"], ["NO ERRORS", "GEEN FOUTEN"], ["Only a clear gap counts as an error. How: see the (i) sheet.", "Alleen een duidelijk verschil is een fout. Hoe: zie het (i)-blad."],
-  ["All errors and moves", "Alle fouten en zetten"], ["All {n} moments", "Alle {n} momenten"], ["move {x}", "zet {x}"], ["dice {x}", "worp {x}"], ["rest {x}", "rest {x}"],
+  ["All errors and moves", "Alle fouten en zetten"], ["All {n} moments", "Alle {n} momenten"], ["whole turn {x}", "hele beurt {x}"], ["dice {x}", "worp {x}"], ["rest {x}", "rest {x}"],
   ["Real errors", "Echte fouten"], ["{n} dots", "{n} stippen"], ["YOU", "JIJ"], ["TOP", "TOP"], ["Start review in Strategy", "Startreview bij Strategie"], ["Why", "Waarom"], ["Why it ended {n}–{n2}", "Waarom het {n}–{n2} werd"],
   ["At this point in the game", "Op dit punt van het spel"], ["coach rules", "coachregels"], ["A rule shows only when you broke it. Points are visible points.", "Een regel verschijnt alleen als je hem brak. Punten zijn zichtbare punten."],
   ["1 rule for the next game", "1 regel voor volgend potje"], ["{n} rules for the next game", "{n} regels voor volgend potje"], ["Turn {n} cost {d}%", "Beurt {n} kostte {d}%"], ["Start pick {n} cost {d}%", "Startkeuze {n} kostte {d}%"], ["{x} cost {d}%", "{x} kostte {d}%"],
@@ -106,7 +106,7 @@ export const NL_199P = [
   ["Build timeline", "Bouwverloop"], ["turn 1 to {n}", "beurt 1 tot {n}"], ["Income per resource", "Inkomen per grondstof"], ["cards the board paid", "kaarten die het bord uitbetaalde"],
   ["You vs the table", "Jij tegenover de tafel"], ["the table is the other players’ average", "de tafel is het gemiddelde van de andere spelers"], ["Table", "Tafel"],
   ["Cards collected", "Kaarten verzameld"], ["Cities", "Steden"], ["Settlements", "Dorpen"], ["Roads", "Wegen"], ["Development cards", "Ontwikkelkaarten"], ["Bank trades", "Ruilen met de bank"], ["Player trades", "Ruilen met spelers"],
-  ["Rival", "Rivaal"], ["{x} gained {n} points here, {y} gained {n2}.", "{x} won hier {n} punten, {y} won er {n2}."], ["{x} bots", "{x}-bots"],
+  ["Rival", "Rivaal"], ["{x} gained {n} points here, {y} gained {n2} points.", "{x} won hier {n} punten, {y} won er {n2} punten."], ["{x} gained {n} point here, {y} gained {n2} points.", "{x} won hier {n} punt, {y} won er {n2} punten."], ["{x} gained {n} points here, {y} gained {n2} point.", "{x} won hier {n} punten, {y} won er {n2} punt."], ["{x} gained {n} point here, {y} gained {n2} point.", "{x} won hier {n} punt, {y} won er {n2} punt."], ["{x} bots", "{x}-bots"],
   ["Midgame · turns {n}–{n2}", "Middenspel · beurten {n}–{n2}"], ["Opening · turns {n}–{n2}", "Opening · beurten {n}–{n2}"], ["End game · turns {n}–{n2}", "Eindspel · beurten {n}–{n2}"],
   ["Luck in win chance is not available for this game.", "Geluk in winkans is voor dit potje niet beschikbaar."], ["Luck per player", "Geluk per speler"], ["Unit", "Eenheid"], ["Cards", "Kaarten"],
   ["Each player is an independent estimate: dice, steals and card draws against what was expected.", "Elke speler is een eigen schatting: dobbelstenen, gepakte kaarten en getrokken kaarten tegenover wat je mocht verwachten."],
@@ -127,7 +127,7 @@ export const NL_199P = [
   ["Trade {n} {x}", "Ruil {n} {x}"], ["trade", "ruil"], ["Dev card", "Ontwikkelkaart"], ["End turn", "Beurt beëindigen"], ["city {x}", "stad {x}"], ["settlement {x}", "dorp {x}"], ["road {x}", "weg {x}"], ["Ended turn", "Beurt beëindigd"], ["Traded", "Geruild"],
   ["Rolls", "Worpen"], ["Closes", "Sluit"], ["Seat", "Zitplaats"],
   // ── round 6 ──
-  ["Phase rules", "Faseregels"], ["Could be better", "Kan beter"], ["not close calls", "geen nipte keuzes"],
+  ["Phase rules", "Faseregels"], ["Could be better", "Kan beter"], ["clear gaps only", "duidelijke verschillen"],
   ["measured {a}%, counted {b}%", "gemeten {a}%, geteld {b}%"], ["rolls and cards", "worpen en kaarten"], ["The other players’ moves and luck combined.", "De zetten en het geluk van de anderen samen."],
   ["Their moves and luck combined, not a mark for you.", "De zetten en het geluk van de anderen samen."],
   ["Take {x} with pick {n}: {a}% → {b}% ({g}).", "Pak {x} met keuze {n}: {a}% → {b}% ({g})."], ["Fewer dots ({a} against {b}), but {x} added.", "Minder stippen ({a} tegen {b}), maar {x} erbij."],
@@ -135,9 +135,9 @@ export const NL_199P = [
   ["± = the move’s own margin: a gap under twice that is not an error.", "± = de eigen marge van de zet: een verschil kleiner dan twee keer die marge is geen fout."],
   ["Gap {n}%, margin ±{s}%", "Verschil {n}%, marge ±{s}%"],
   ["In Moves cost the start counts {x}: all moves together cannot cost more than your best win chance.", "In Zetten kosten telt de start {x}: alle zetten samen kunnen niet meer kosten dan je beste winkans."],
-  ["biggest first", "grootste eerst"], ["{x} vs the best other player", "{x} tegen de beste andere speler"], ["Each row is compared with the other player who had the most, never with an average.", "Elke rij wordt vergeleken met de andere speler die het meeste had, nooit met een gemiddelde."],
+  ["biggest first", "grootste eerst"], ["{x} vs the best other player", "{x} tegen de beste andere speler"], ["Each row is compared with the other player who had the most, never with an average.", "Elke rij wordt vergeleken met de andere speler die het meeste had, nooit met een gemiddelde."], ["Trades are only counted, not judged.", "Ruilen wordt alleen geteld, niet beoordeeld."],
   ["Best other", "Beste ander"], ["{a}, best other {b}", "{a}, beste ander {b}"], ["Together {c}%: errors {a}%, start and small moves {b}%", "Samen {c}%: fouten {a}%, start en kleine zetten {b}%"],
-  ["▲ highest, ▼ lowest in the row", "▲ hoogste, ▼ laagste in de rij"], ["Only within this game.", "Alleen binnen dit spel."],
+  ["▲ highest, ▼ lowest in the row", "▲ hoogste, ▼ laagste in de rij"], ["Only within this game. Trades are only counted, not judged.", "Alleen binnen dit spel. Ruilen wordt alleen geteld, niet beoordeeld."],
   ["Every roll, steal and card changes your win chance, other players’ rolls too.", "Elke worp, gepakte en getrokken kaart verandert je winkans, ook de worpen van anderen."],
   ["Each player has an own estimate (rolls, steals, card draws).", "Elke speler heeft een eigen schatting (worpen, gepakte en getrokken kaarten)."],
   ["Hide the other players’ rolls ({n})", "Verberg worpen van anderen ({n})"], ["Show the other players’ rolls ({n})", "Toon worpen van anderen ({n})"],
@@ -161,7 +161,7 @@ export const NL_199P = [
   ["biggest", "grootste"],
   ["margin", "marge"], // the tooltip of the ± next to a move (post-ui pm())
   // ── facts round: the same words with every number as a fact (the phrase is one text, the localizer reads it whole) ──
-  ["{n} Other move", "{n} overige zet"], ["{n} real error", "{n} echte fout"], ["Gap {g}, margin {s}", "Verschil {g}, marge {s}"], ["You won", "Jij won"], ["v{x} won", "{x} won"], ["· Turn {n}", "· Beurt {n}"], ["· winner", "· winnaar"], ["Turn {n} cost {c}", "Beurt {n} kostte {c}"],
+  ["{n} Other move", "{n} overige zet"], ["{n} real error", "{n} echte fout"], ["This choice cost {g} against the better move, margin {s}", "Deze keuze kostte {g} ten opzichte van de betere zet, marge {s}"], ["These errors are {a} together. Overlap counts once, so {b} counts.", "Samen zijn deze fouten {a}. Overlap telt één keer, dus {b} telt mee."], ["Rest of the game", "Rest van het spel"], ["of which outside this analysis", "waarvan buiten deze analyse"], ["The four counts above leave out the moves outside this analysis.", "De vier tellers hierboven laten de zetten buiten deze analyse weg."], ["You won", "Jij won"], ["v{x} won", "{x} won"], ["· Turn {n}", "· Beurt {n}"], ["· winner", "· winnaar"], ["Turn {n} cost {c}", "Beurt {n} kostte {c}"],
   ["Start pick {n}: {a} instead of {b}", "Startkeuze {n}: {a} in plaats van {b}"], ["{x} cost {c}", "{x} kostte {c}"], ["Take {x}: {a} → {b} ({g}).", "Neem {x}: {a} → {b} ({g})."], ["{n} rule for the next game", "{n} regel voor volgend potje"],
   ["Fair share", "Eerlijk deel"], ["Moves in total", "Zetten totaal"], ["The rows add up: from {a} at the start to {b} at the end.", "De rijen tellen op: van {a} bij de start naar {b} aan het eind."],
   ["Start picks is what your two start spots cost against the best spots checked.", "Startkeuzes is wat je twee startplekken kostten ten opzichte van de beste gecheckte plekken."], ["Moves is what all your other scored moves cost against best play.", "Zetten is wat al je andere beoordeelde zetten kostten ten opzichte van de beste zetten."],

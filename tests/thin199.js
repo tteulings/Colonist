@@ -42,6 +42,9 @@ const GAMES = {
         if (name === "thin-start") ok(r.startTile && r.l2c && /2/.test(r.tiles.join(" ")), `${tag}: the start picks are there (tile and "This board")`, r.tiles);
         else ok(!r.startTile && !r.l2c, `${tag}: no start picks scored: no start tile and no start card`);
       }
+      { const hd = await page.evaluate(() => document.querySelector(".px-vh b")?.innerText.replace(/\s+/g, " ").trim() || ""); ok(/\d+\s?–\s?\d+/.test(hd) && !/^(You|Jij)$/.test(hd), `${tag}: the card title carries the result line ("Blaauw won 10–5")`, hd); }
+      if (name !== "normal") { const tr = await page.evaluate(() => [...document.querySelectorAll(".px-mr:not(.hd)")].filter((r) => /^(Bank trades|Player trades|Ruilen met de bank|Ruilen met spelers)/.test((r.querySelector("span")?.textContent || "").trim())).map((r) => !!r.querySelector(".px-d")));
+        ok(tr.length === 2 && tr.every((x) => !x), `${tag}: bank and player trades are counted, never judged (no ▲/▼ next to "best other")`, tr); }
       ok(!r.over, `${tag}: no horizontal overflow`);
       ok(!/\bNaN\b|undefined|\[object/.test(r.text), `${tag}: no NaN/undefined`);
       if (lang === "nl") { const ms = await page.evaluate(async () => { const I = await import("/src/i18n.js"); const a = [...I.misses]; I.misses.clear(); return a; }); const bad = ms.filter((x) => r.text.includes(x) && /[a-z]{4}/i.test(x) && !/^(Katan|You|Blaauw|Geelen|Groen)$/.test(x)); ok(!bad.length, `${tag}: no English left in Dutch`, bad.slice(0, 4)); }

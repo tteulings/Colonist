@@ -40,7 +40,7 @@ export const MC = "deep Monte Carlo (100 futures a move)"; // what runs the chec
 // v1.29 the bots' lighter deep check against checking all their moves with the full engine (scratchpad others129 budget-an.mjs)
 const OTHERS_NOTE = "1.1 points of accuracy apart on average, 5 at most, in about 60% of the time";
 // v1.05 chess-style classes: name, glyph (own icons, one hue each in review.css)
-export const CLS = { best: ["Best", "★"], great: ["Great", "⇈"], good: ["Good", "●"], lean: ["Better option", "↗"], close: ["Close call", "≈"], could: ["Could be better", "!"], mistake: ["Mistake", "▲"], blunder: ["Blunder", "✕"], missed: ["Missed chance", "◎"], triv: ["No real choice", "·"] };
+export const CLS = { best: ["Best", "★"], great: ["Great", "⇈"], good: ["Good", "●"], lean: ["Close call", "↗"], close: ["Close call", "≈"], could: ["Could be better", "!"], mistake: ["Mistake", "▲"], blunder: ["Blunder", "✕"], missed: ["Missed chance", "◎"], triv: ["No real choice", "·"] };
 const IMP = ["lean", "could", "mistake", "blunder", "missed"]; // v1.81 lean counts as a (possible) mistake, close does not
 export const aLabel = (d) => (d.cls === "close" || d.vc === "close" ? "Other option" : d.cls === "lean" || d.vc === "lean" ? "Slightly better" : "Better");
 /** "−19 cards" → "19 fewer cards" (the Luck table's side note: a label, not a second headline number) */
@@ -786,7 +786,7 @@ export const ReviewGameMixin = {
     d.innerHTML = `<div class="rv-card"><div class="rv-ih"><b>About this review</b><button type="button" class="rv-btn" data-rvinfo-x aria-label="Close">${oicon("close")}</button></div>
       <p><b>Win chance</b>: your chance to win, in %. It comes from ${MC}: the position is played on for 20 turns, 100 times for every move (Standard model).</p>
       <p><b>A and B</b>: A is the best move, B is what you played. A − B is what that move cost. Classes: ${lim(LIMITS)}. Set-up spots use wider limits (${lim(SETUP_LIMITS)}).</p>
-      <p><b>How sure</b>: every gap comes with its own margin (the noise of 100 futures is about 3 points). Only a <b>clear</b> gap (at least twice the margin) is called a mistake or blunder. A smaller one is a <b>Better option</b> (probably) or a <b>Close call</b> (about equal, not a mistake). Your close and slightly-better moves are checked again with 400 futures on the two moves that matter.</p>
+      <p><b>How sure</b>: every gap comes with its own margin (the noise of 100 futures is about 3 points). Only a <b>clear</b> gap (at least twice the margin) is called a mistake or blunder. A smaller one is a <b>Close call</b> (probably slightly better, or about equal; not a mistake). Your close and slightly-better moves are checked again with 400 futures on the two moves that matter.</p>
       <p><b>Play</b>: shows every move since your last decision: rolls, builds, trades, the robber. Win chances exist at your decisions only.</p>
       <p><b>Plan</b>: the likely reason A is better, read from the position. No clear reason, no Plan.</p>
       <p><b>Missed chance</b>: you ended the turn or traded while a build was worth 3+ %. <b>Great</b>: the best move, the next one ${GREAT}+ % behind. <b>No real choice</b>: every option within 2 %.</p>

@@ -22,9 +22,12 @@ export const isThin = (m) => (m?.F?.v("scored") ?? 99) < THIN;
 /** Other modules (post-tabs) hang the Strategy cards for a thin Overview here; no import cycle. */
 export const hooks = {};
 export const f = (tpl, v = {}) => tpl.replace(/\{(\w+)\}/g, (m, k) => (k in v ? String(v[k]) : m));
-export const CLS_NAME = { best: "Best", great: "Great", good: "Good", lean: "Better option", close: "Close call", could: "Could be better", mistake: "Mistake", blunder: "Blunder", missed: "Missed chance", triv: "No real choice" };
-/** the class word of a move, but never a "Best / Good" next to a negative cost: that move reads "Close call" */
-export const neutralCls = (X, d) => ((X.v(`mv.${d.i}.cost`) ?? 0) < 0 && ["best", "great", "good"].includes(d.cls) ? CLS_NAME.close : CLS_NAME[d.cls]);
+export const CLS_NAME = { best: "Best", great: "Great", good: "Good", lean: "Close call", close: "Close call", could: "Could be better", mistake: "Mistake", blunder: "Blunder", missed: "Missed chance", triv: "No real choice" };
+/** the word of a move row: its v1.99 KIND (the same kind the tiles count, coach-rules kindOfDecision). Close calls (legacy close, "Better option", or a Best/Good move that still cost something) read "Close call", every other
+ *  weaker non-error move "Could be better", a real error keeps its class word (Mistake / Blunder / Missed chance; a clear "could" reads "Real error"). Never a green word next to a cost. */
+export const rowWord = (X, d) => { const k = X.data.kind?.[d.i]; return k === "close" ? CLS_NAME.close : k === "could" ? CLS_NAME.could : k === "err" && d.cls === "could" ? "Real error" : CLS_NAME[d.cls]; };
+/** the css class of that word */
+export const rowCls = (X, d) => { const k = X.data.kind?.[d.i]; return k === "close" || k === "could" ? k : d.cls; };
 export const FAM_NAME = { strong: "Strong moves", close: "Close calls", costly: "Weaker moves" };
 export const PHASE_NAME = { opening: "Opening", mid: "Midgame", end: "End game" };
 export const RES_KEY = ["wood", "brick", "sheep", "wheat", "ore"];
@@ -177,7 +180,7 @@ function verdictCard(g, m) {
   const tile = (k, nref, one, many, vref, cap) => `<button type="button" class="px-t3" data-pxpil="${k}" aria-expanded="false"><small>${pl(X, nref, `{n} ${one}`, `{n} ${many}`)}</small>${X.d(vref)}<span>${cap}</span></button>`;
   const thin = isThin(m), startTile = tile("start", "startN", "Start pick", "Start picks", "startCost", "start spots checked");
   // too few scored moves: no "0 real errors" tiles (they read as praise); only the start picks, when they were scored
-  const t3 = thin ? (picks.length ? `<div class="px-t3s one">${startTile}</div>` : "") : `<div class="px-t3s">${tile("errors", "errors", "Real error", "Real errors", "errCost", "not close calls")}${startTile}${tile("other", "otherN", "Other move", "Other moves", "otherCost", "close calls and small ones")}</div>`;
+  const t3 = thin ? (picks.length ? `<div class="px-t3s one">${startTile}</div>` : "") : `<div class="px-t3s">${tile("errors", "errors", "Real error", "Real errors", "errCost", "clear gaps only")}${startTile}${tile("other", "otherN", "Other move", "Other moves", "otherCost", "close calls and small ones")}</div>`;
   const errChips = m.errs.slice(0, 4).map((d) => `<button type="button" class="px-cc" data-rvj="${d.i}" data-rvq="imp">${f("Turn {n}", { n: d.t })} ${X.d(`mv.${d.i}.cost`)}</button>`).join("");
   const startChips = picks.map((p) => `<button type="button" class="px-cc" data-pxtab="strategy">${f("Pick {n}", { n: p.n })} ${X.d(`pick${p.n}.cost`)}</button>`).join("");
   const bodies = `<div class="px-pb" data-pxpb="errors" hidden><p class="px-l">${X.v("errors") ? X.ph("{n} clear mistakes or missed chances, the same ones as in the list below.", { n: ["errors"] }) : "No clear mistake in this game."}</p><div class="px-ccs">${errChips}</div></div>
@@ -208,14 +211,14 @@ function timelineCard(g, m) {
   const svg = `<svg viewBox="0 0 ${W} ${H}" class="px-tl" role="img" aria-label="${esc(f("Win chance of every player through the game, you from {n} to {n2}", { n: X.t("tl.from"), n2: X.t("tl.to") }))}">${bands}${grid}${lines}${sPin}${pins}</svg>`;
   const caps = `<div class="px-bcap" style="margin-left:${((x0 / W) * 100).toFixed(1)}%;margin-right:${(((W - x1) / W) * 100).toFixed(1)}%">${tl.phases.map((p) => `<span style="flex:${p.to - p.from + 1} 1 0"><b>${esc(PHASE_NAME[p.k])}</b><small>${f("turns {n}–{n2}", { n: p.from, n2: p.to })}</small></span>`).join("")}</div>`;
   const leg = `<div class="px-lgd">${g.players.map((p) => `<span class="pc-${p.id}"><i></i>${p.id === m.pid && m.you ? "You" : p.isHuman && !m.you ? humanNm(p.name, p.id, false) : esc(p.short || p.name)}</span>`).join("")}</div>`;
-  const sp = (p) => `<small class="px-sp"><span>${X.ph("move {x}", { x: [`mom.${p.S}.move`] })}</span> · <span>${X.ph("dice {x}", { x: [`mom.${p.S}.dice`] })}</span> · <span>${X.ph("rest {x}", { x: [`mom.${p.S}.rest`] })}</span></small>`;
+  const sp = (p) => `<small class="px-sp"><span>${X.ph("whole turn {x}", { x: [`mom.${p.S}.move`] })}</span> · <span>${X.ph("dice {x}", { x: [`mom.${p.S}.dice`] })}</span> · <span>${X.ph("rest {x}", { x: [`mom.${p.S}.rest`] })}</span></small>`;
   const row = (p) => `<button type="button" class="px-km" data-pxstop="${p.T}"><span class="t">${p.n ? `<i class="pn">${p.n}</i> ` : ""}${f("Turn {n}", { n: p.T })}</span><span class="x"><span>${swingLabel(g, m, p)}</span>${sp(p)}</span>${X.d(`mom.${p.S}.d`)}</button>`;
   const shownT = new Set(tl.pins.map((p) => p.T)), restAll = (tl.all || []).filter((p) => !shownT.has(p.T));
   const more = restAll.length ? fold("allk", `<span>${X.ph("All {n} moments", { n: ["momN"] })}</span>`, restAll.map(row).join(""), { cls: "px-allk" }) : "";
   return `<section class="rv-card px-card px-time"><div class="rv-gt"><b>${m.you ? "Your win chance" : f("{x}’s win chance", { x: esc(m.me.name) })}</b><small>pins = biggest swings</small></div>${svg}${caps}${leg}<div class="px-kms">${tl.pins.map(row).join("")}</div>${more}<button type="button" class="px-link" data-pxboard>View board${IC.chev}</button></section>`;
 }
 // ── lesson 1: real errors ──
-const noiseLine = (X, e) => (X.has(`mv.${e.i}.margin`) ? `<p class="px-fn"><span>${X.ph("Gap {g}, margin {s}", { g: [`mv.${e.i}.cost`, { abs: true }], s: [`mv.${e.i}.margin`] })}</span></p>` : "");
+const noiseLine = (X, e) => (X.has(`mv.${e.i}.margin`) ? `<p class="px-fn"><span>${X.ph("This choice cost {g} against the better move, margin {s}", { g: [`mv.${e.i}.cost`, { abs: true }], s: [`mv.${e.i}.margin`] })}</span></p>` : "");
 function errorCard(g, m, e) {
   const X = m.F, DID = m.you ? "You did" : "Played", bd = m.board, N = (v) => `<span data-i18n-skip>${esc(moveFull(v || "", isNL() ? "nl" : "en") || (isNL() ? "Zet" : "Move"))}</span>`;
   const crops = bd && e.p && e.q && e.p[0] === e.q[0] ? `<div class="px-crops"><figure>${cropSvg(bd, e.p, { w: 120, color: "#B45A3C", label: DID })}<figcaption>${DID}</figcaption></figure><figure>${cropSvg(bd, e.q, { w: 120, color: "#2F7D6B", label: "Better" })}<figcaption>Better (A)</figcaption></figure></div>` : "";
@@ -231,9 +234,11 @@ function lesson1(g, m) {
   const X = m.F, list = m.lesson1.map((e) => errorCard(g, m, e)).join("");
   const head = lh("", "Real errors", X.d("errCost"));
   const body = m.lesson1.length ? list : `<p class="px-l">${m.you ? (m.won ? "No clear mistake in your moves. Good play." : "No clear mistake in your moves.") : "No clear mistake in these moves."}</p>`;
-  const ne = (m.notErrs || []).slice(0, 3).map((d) => `<span class="px-ne2"><i class="px-cls c-close">${neutralCls(X, d)}</i> ${f("Turn {n}", { n: d.t })} ${X.d(`mv.${d.i}.cost`)}${pm(X, d.i)}</span>`).join("");
-  const notErr = X.v("notErrors") && ne ? `<div class="px-nerow"><small>SMALL DIFFERENCES</small>${ne}</div>${ne ? `<p class="px-fn">± = the move’s own margin: a gap under twice that is not an error.</p>` : ""}` : "";
-  return `<section class="rv-card px-card px-l1">${head}${body}${notErr}${scoredNote(m)}<button type="button" class="px-btn wide" data-pxtab="moves">All errors and moves</button></section>`;
+  const ne = (X.data.small || []).slice(0, 3).map((d) => `<span class="px-ne2"><i class="px-cls c-${rowCls(X, d)}">${rowWord(X, d)}</i> ${f("Turn {n}", { n: d.t })} ${X.d(`mv.${d.i}.cost`)}${pm(X, d.i)}</span>`).join("");
+  const notErr = X.v("notErrors") && ne ? `<div class="px-nerow"><small>SMALL DIFFERENCES</small>${ne}</div><p class="px-fn">± = the move’s own margin: a gap under twice that is not an error.</p>` : "";
+  // the cards list each error as the review measured it; the header is what counts after the cap (overlap counts once): when they differ, say so with both numbers
+  const capped = X.has("errRaw") && m.lesson1.length && X.v("errRaw") !== X.v("errCost"), capNote = capped ? `<p class="px-fn px-capnote">${X.ph("These errors are {a} together. Overlap counts once, so {b} counts.", { a: ["errRaw"], b: ["errCost"] })}</p>` : "";
+  return `<section class="rv-card px-card px-l1">${head}${capNote}${body}${notErr}${scoredNote(m)}<button type="button" class="px-btn wide" data-pxtab="moves">All errors and moves</button></section>`;
 }
 /** Too few scored moves: say so, never praise (it replaces Lesson 1 on the Overview; the start picks and the Strategy numbers follow it). */
 function thinCard(g, m) {
@@ -289,8 +294,9 @@ export function waterSubs(m) {
   const start = W.picks.length ? sk(W.picks.map((n) => at("wf.start.sub", { p: at("wf.pick", { n }), a: X.n(`pick${n}.win`), b: X.n(`pick${n}.best`) })).join(" · ")) : sk(at("wf.start.ok"));
   const moves = W.miss ? (() => { const w = missWhat(m, W.miss), p = { t: W.miss.t, d: X.n(`mv.${W.miss.i}.cost`) }; return sk(w.w ? at("wf.moves.sub.w", { ...p, w: w.w }) : at("wf.moves.sub", { ...p, k1: w.k1, k2: w.k2 })); })() : sk(at("wf.moves.none", { n: X.n("lim.small:-") }));
   const luck = W.roll ? sk(at("wf.luck.sub", { x: nmOf(W.roll.actor), n: X.n("roll1.n"), t: W.roll.T, d: X.n("roll1.d") })) : sk(at("wf.luck.none"));
-  const oth = [sk(at("wf.others.l"))]; if (W.rolls) oth.push(sk(at(W.rolls.Ts.length > 1 ? "wf.others.o" : "wf.others.o1", { y: seatNm(m, W.rolls.actor), t: W.rolls.Ts[0], t2: W.rolls.Ts[1], h: X.n("hl.rolls") })));
-  const aft = sk(at(m.you ? "wf.after.sub" : "wf.after.sub.3", { w: X.n("wf.run.4") }));
+  // the others row, said from the seat's side: its sign is the sign of the fact (helped / cost), never a new number
+  const ov = X.v("others"), ok3 = m.you ? "" : ".3", oth = [sk(at(ov > 0 ? `wf.others.up${ok3}` : ov < 0 ? `wf.others.dn${ok3}` : "wf.others.l", { x: nmOf(m.pid) }))]; if (W.rolls) oth.push(sk(at(W.rolls.Ts.length > 1 ? "wf.others.o" : "wf.others.o1", { y: seatNm(m, W.rolls.actor), t: W.rolls.Ts[0], t2: W.rolls.Ts[1], h: X.n("hl.rolls") })));
+  const aft = sk(m.won ? at(m.you ? "wf.after.sub" : "wf.after.sub.3", { w: X.n("wf.run.4") }) : at(m.you ? "wf.after.lost" : "wf.after.lost.3", { w: X.n("wf.run.4"), x: nmOf(m.pid) }));
   return { start, moves, luck, oth, aft };
 }
 function waterfallCard(g, m) {
@@ -302,7 +308,7 @@ function waterfallCard(g, m) {
   const how = `<ul class="px-how"><li>${X.ph("The rows add up: from {a} at the start to {b} at the end.", { a: ["fair"], b: ["end"] })}</li><li>Start picks is what the two start spots cost against the best spots checked.</li><li>Moves is what all other scored moves cost against best play.</li><li>Moves in total = start picks + moves.</li><li>Luck is rolls, steals, card draws and seat order together.</li><li>After the last move is what the rest of the game added, up to the real result.</li><li>What the others did is what is left: their moves and luck, plus what the estimates cannot tell apart.</li></ul>`;
   const res = X.data.res, eb = res ? `<div class="px-eb">${X.ph("Why it ended {n}–{n2}", { n: [res.left], n2: [res.right] })}</div>` : "";
   const cap = X.v("moveRaw") != null && X.cost?.capped ? `<p class="px-fn">${X.ph("Together the moves cannot cost more than the best win chance held ({w}).", { w: ["capNote"] })}</p>` : "";
-  return `${eb}<section class="rv-card px-card px-led px-wf"><div class="rv-gt"><b>${m.you ? "What moved your win chance" : f("What moved {x}’s win chance", { x: esc(m.me.name) })}</b><button type="button" class="px-link nm" data-pxnum>Numbers</button></div>${wc("fair", "fair", "Start (everyone equal)", "fair")}${row("start", "start", "Start picks", "startCost", subStart, "setup", "own")}${row("moves", "moves", "Moves", "moveCost", subMoves, "moves", "own")}${W.hasLuck ? row("luck", "luck", "Luck", "luck", subLuck, "luck", "own") : ""}${row("others", "oth", "What the others did", "others", subOth, "rest", "oth")}${W.after ? row("after", "aft", m.you ? "After your last move" : "After the last move", "afterLast", subs.aft, "rest", "oth") : ""}${wc("end", "end", X.data.res ? (X.data.res.won ? "Result: won" : "Result: lost") : "End", "end")}<p class="px-fn px-eq">${X.ph("Moves in total {t} = start picks {a} + moves {b}: all scored moves.", { t: ["movesTotal"], a: ["startCost"], b: ["moveCost"] })}</p><p class="px-fn px-eq">${m.errs[0] ? X.ph("The biggest error alone cost {e}. Per move {c}.", { e: [`mv.${m.errs[0].i}.cost`], c: ["perMove"] }) : X.ph("Per move {c}.", { c: ["perMove"] })}</p>${cap}${fold("how", "<span>How to read this</span>", how)}</section>`;
+  return `${eb}<section class="rv-card px-card px-led px-wf"><div class="rv-gt"><b>${m.you ? "What moved your win chance" : f("What moved {x}’s win chance", { x: esc(m.me.name) })}</b><button type="button" class="px-link nm" data-pxnum>Numbers</button></div>${wc("fair", "fair", "Start (everyone equal)", "fair")}${row("start", "start", "Start picks", "startCost", subStart, "setup", "own")}${row("moves", "moves", "Moves", "moveCost", subMoves, "moves", "own")}${W.hasLuck ? row("luck", "luck", "Luck", "luck", subLuck, "luck", "own") : ""}${row("others", "oth", "What the others did", "others", subOth, "rest", "oth")}${W.after ? row("after", "aft", !m.won ? "Rest of the game" : m.you ? "After your last move" : "After the last move", "afterLast", subs.aft, "rest", "oth") : ""}${wc("end", "end", X.data.res ? (X.data.res.won ? "Result: won" : "Result: lost") : "End", "end")}<p class="px-fn px-eq">${X.ph("Moves in total {t} = start picks {a} + moves {b}: all scored moves.", { t: ["movesTotal"], a: ["startCost"], b: ["moveCost"] })}</p><p class="px-fn px-eq">${m.errs[0] ? X.ph("The biggest error alone cost {e}. Per move {c}.", { e: [`mv.${m.errs[0].i}.cost`], c: ["perMove"] }) : X.ph("Per move {c}.", { c: ["perMove"] })}</p>${cap}${fold("how", "<span>How to read this</span>", how)}</section>`;
 }
 
 

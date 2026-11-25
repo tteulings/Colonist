@@ -6,7 +6,7 @@ import { tr as atr } from "./review/analysis-text.js";
 import { moveTerse, spotText } from "./post-text.js";
 import { resIcon } from "./lessons-view.js";
 import { RES_COLOR } from "./resources.js";
-import { neutralCls, humanNm, pl, nErr, spotTiles, scoredNote, pm, startAdvice, DOT_KEY, f, CLS_NAME, PHASE_NAME, PLAN_NAME, RES_KEY, rname, infoBtn, fold, ready, progressCard, bindPost, who, whose, takeText, numbersSheet, chipText, waterSubs, hooks, isThin } from "./post-ui.js";
+import { seatNm, rowWord, rowCls, humanNm, pl, nErr, spotTiles, scoredNote, pm, startAdvice, DOT_KEY, f, CLS_NAME, PHASE_NAME, PLAN_NAME, RES_KEY, rname, infoBtn, fold, ready, progressCard, bindPost, who, whose, takeText, numbersSheet, chipText, waterSubs, hooks, isThin } from "./post-ui.js";
 import { SRC_PARTS, FAMILY } from "./post-model.js";
 import { luckRows, tableStore } from "./post-facts.js";
 import { tableOf } from "./post-model.js";
@@ -14,7 +14,7 @@ import { inScope } from "./review/coach-rules.js";
 
 const accWord = "Accuracy";
 const SRC_NL = { road: "Langste weg", army: "Grootste riddermacht" }; // the glossary names of the two bonus score sources
-const reconTable = (m) => { const X = m.F, row = (l, ref) => `<span>${l}</span><b>${X.n(ref)}</b>`; return `<div class="px-rc">${row("Decisions", "decisions")}${X.v("oneOption") > 0 ? row("Only one sensible option", "oneOption") : ""}${row("Scored", "scored")}${row("Real errors", "errors")}${row("Start picks", "startN")}${row("Other decisions", "otherN")}</div>`; };
+const reconTable = (m) => { const X = m.F, row = (l, ref) => `<span>${l}</span><b>${X.n(ref)}</b>`; return `<div class="px-rc">${row("Decisions", "decisions")}${X.v("oneOption") > 0 ? row("Only one sensible option", "oneOption") : ""}${row("Scored", "scored")}${row("Start picks", "startN")}${row("Real errors", "errors")}${row("Other decisions", "otherN")}${X.v("fam.out") > 0 ? `${row("of which outside this analysis", "fam.out")}` : ""}</div>${X.v("fam.out") > 0 ? `<p class="px-fn">The four counts above leave out the moves outside this analysis.</p>` : ""}`; };
 const stepText = (m) => (m.you ? "Step through your moves" : f("Step through {y}’s moves", { y: esc(m.me.name) }));
 function lkLabel(g, X, lab, q) {
   const nm = (z) => (z === g._rvPid && g._rvIsYou?.(z) ? "You" : g.players[z]?.isHuman ? humanNm(g.players[z].name, z, false) : esc(g.players[z]?.name || "Someone"));
@@ -33,9 +33,7 @@ export const mvText = (g, d) => {
   return parts.map((x) => (nl ? `<span data-i18n-skip>${esc(x)}</span>` : `<span>${esc(x)}</span>`)).join(" → ");
 };
 const low1 = (x) => x.charAt(0).toLowerCase() + x.slice(1);
-/** the word of a Moves-list row: its kind (the same kind the tiles count). A clear error of class "Could be better" reads "Real error", so no row says "Could be better" while the tile says 0 */
-const rowWord = (X, d) => { const k = X.data.kind?.[d.i]; return k === "err" && d.cls === "could" ? "Real error" : k === "close" && ["best", "great", "good"].includes(d.cls) ? CLS_NAME.close : CLS_NAME[d.cls]; };
-const mvRow = (g, m, d, q = "all") => `<button type="button" class="px-mv" data-rvj="${d.i}" data-rvq="${q}" data-fam="${m.F.data.kind?.[d.i] || ""}"><span class="t">${when(g, d)}</span><span class="x"><span class="mt">${mvText(g, d)}</span><small><i class="px-cls c-${m.F.data.kind?.[d.i] === "close" && ["best", "great", "good"].includes(d.cls) ? "close" : d.cls}">${rowWord(m.F, d)}</i></small></span><span class="px-dp">${m.F.d(`mv.${d.i}.cost`)}${pm(m.F, d.i)}</span>${IC.chev}</button>`;
+const mvRow = (g, m, d, q = "all") => `<button type="button" class="px-mv" data-rvj="${d.i}" data-rvq="${q}" data-fam="${m.F.data.kind?.[d.i] || ""}"><span class="t">${when(g, d)}</span><span class="x"><span class="mt">${mvText(g, d)}</span><small><i class="px-cls c-${rowCls(m.F, d)}">${rowWord(m.F, d)}</i></small></span><span class="px-dp">${m.F.d(`mv.${d.i}.cost`)}${pm(m.F, d.i)}</span>${IC.chev}</button>`;
 
 // ───────────────────────── Moves ─────────────────────────
 export function movesTab(g, ds, res, rv) {
@@ -110,12 +108,12 @@ function incomeCard(g, m) {
 }
 function measuresCard(g, m) {
   const X = m.F, M = m.measures; if (!M?.length) return "";
-  const rows = M.map((r) => `<div class="px-mr"><span>${esc(r.label)}</span><b class="${r.mine >= r.best ? "top" : ""}">${X.n(`meas.${r.k}:${m.pid}`)}</b><b>${X.n(`measBest.${r.k}`)}</b>${X.d(`measDiff.${r.k}`, { signed: true })}</div>`).join("");
-  return `<section class="rv-card px-card"><div class="rv-gt"><b>${f("{x} vs the best other player", { x: m.you ? "You" : esc(m.me.name) })}</b></div><p class="px-fn">Each row is compared with the other player who had the most, never with an average.</p><div class="px-mr hd"><span></span><b>${m.you ? "You" : esc(m.me.name)}</b><b>Best other</b><b></b></div>${rows}</section>`;
+  const rows = M.map((r) => `<div class="px-mr"><span>${esc(r.label)}</span><b class="${!r.neutral && r.mine >= r.best ? "top" : ""}">${X.n(`meas.${r.k}:${m.pid}`)}</b><b>${X.n(`measBest.${r.k}`)}</b>${r.neutral ? "<b></b>" : X.d(`measDiff.${r.k}`, { signed: true })}</div>`).join("");
+  return `<section class="rv-card px-card"><div class="rv-gt"><b>${f("{x} vs the best other player", { x: m.you ? "You" : esc(m.me.name) })}</b></div><p class="px-fn">Each row is compared with the other player who had the most, never with an average.</p><p class="px-fn">Trades are only counted, not judged.</p><div class="px-mr hd"><span></span><b>${m.you ? "You" : esc(m.me.name)}</b><b>Best other</b><b></b></div>${rows}</section>`;
 }
 function rivalCard(g, m) {
   const X = m.F, R = m.rival; if (!R) return "";
-  return `<section class="rv-card px-card px-rival"><div class="rv-gt"><b>Rival</b><small>${esc(PHASE_NAME[R.k])} · ${f("turns {n}–{n2}", { n: R.from, n2: R.to })}</small></div><p class="px-l">${X.ph("{x} gained {n} points here, {y} gained {n2}.", { x: g.players[R.rid]?.isHuman && !m.you ? humanNm(R.rname, R.rid, false) : esc(R.rname), n: ["rival.theirs"], y: m.you ? "you" : esc(m.me.name), n2: ["rival.mine"] })}</p>
+  return `<section class="rv-card px-card px-rival"><div class="rv-gt"><b>Rival</b><small>${esc(PHASE_NAME[R.k])} · ${f("turns {n}–{n2}", { n: R.from, n2: R.to })}</small></div><p class="px-l" data-i18n-skip>${(() => { const lg = isNL() ? "nl" : "en", cl = (nm, ref) => `${nm} ${atr(lg, X.v(ref) < 0 ? "wf.rv.lost" : "wf.rv.gained")} ${X.n(ref)} ${atr(lg, Math.abs(Math.round(X.v(ref))) === 1 ? "wf.pt.one" : "wf.pt.many")}`; return `${cl(seatNm(m, R.rid), "rival.theirs")} ${atr(lg, "wf.rv.here")}, ${cl(seatNm(m, m.pid), "rival.mine")}.`; })()}</p>
     <div class="px-rv"><span class="pc-${R.rid}">${g._av(m.seats[R.rid].p, "rt-av")}<b>${X.n("rival.theirs", { plus: true })}</b><small>${X.ph("{n} builds", { n: ["rival.theirBuilds"] })}</small></span><span class="pc-${m.pid}">${g._av(m.me, "rt-av")}<b>${X.n("rival.mine", { plus: true })}</b><small>${X.ph("{n} builds", { n: ["rival.myBuilds"] })}</small></span></div></section>`;
 }
 function planCard(g, m) {
@@ -132,8 +130,8 @@ function scoreCard(g, m) {
   const X = m.F, M = m.measures; if (!M?.length) return "";
   const heads = m.seats.map((s) => `<span class="pc-${s.id}${s.id === m.pid ? " me" : ""}">${g._av(s.p, "rt-av")}</span>`).join("");
   // ▲ on every best value of the row (ties too), ▼ on every lowest, written IN the cell; a row where everybody is equal has neither
-  const rows = M.map((r) => `<div class="px-sr"><span>${esc(r.label)}</span>${r.vals.map((v, i) => { const hi = r.best !== r.low && v === r.best, lo = r.best !== r.low && v === r.low; return `<b class="pc-${i}${hi ? " top" : ""}${lo ? " low" : ""}"${hi ? ' data-mk="up"' : lo ? ' data-mk="dn"' : ""}>${hi ? `<i class="u" aria-hidden="true">▲</i>` : lo ? `<i class="d" aria-hidden="true">▼</i>` : ""}${X.n(`meas.${r.k}:${i}`)}<em class="rk">${X.n(`rank.${r.k}:${i}`, { ord: true })}</em></b>`; }).join("")}</div>`).join("");
-  return `<section class="rv-card px-card px-sc2" style="--n:${m.seats.length}"><div class="rv-gt"><b>Scorecard</b><small>▲ highest, ▼ lowest · place in grey</small></div><div class="px-sr hd"><span></span>${heads}</div>${rows}<p class="px-fn">Only within this game.</p></section>`;
+  const rows = M.map((r) => `<div class="px-sr"><span>${esc(r.label)}</span>${r.vals.map((v, i) => { const hi = !r.neutral && r.best !== r.low && v === r.best, lo = !r.neutral && r.best !== r.low && v === r.low; return `<b class="pc-${i}${hi ? " top" : ""}${lo ? " low" : ""}"${hi ? ' data-mk="up"' : lo ? ' data-mk="dn"' : ""}>${hi ? `<i class="u" aria-hidden="true">▲</i>` : lo ? `<i class="d" aria-hidden="true">▼</i>` : ""}${X.n(`meas.${r.k}:${i}`)}<em class="rk">${X.n(`rank.${r.k}:${i}`, { ord: true })}</em></b>`; }).join("")}</div>`).join("");
+  return `<section class="rv-card px-card px-sc2" style="--n:${m.seats.length}"><div class="rv-gt"><b>Scorecard</b><small>▲ highest, ▼ lowest · place in grey</small></div><div class="px-sr hd"><span></span>${heads}</div>${rows}<p class="px-fn">Only within this game. Trades are only counted, not judged.</p></section>`;
 }
 // a game with too few scored moves: the Overview carries the Strategy numbers (the same cards and facts): you against the best other player, and who gained points where
 hooks.thin = (g, m) => `${measuresCard(g, m)}${tempoCard(g, m)}${rivalCard(g, m)}`;

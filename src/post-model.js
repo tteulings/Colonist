@@ -273,7 +273,9 @@ function measuresOf(tab, pid) {
     const vals = S.map((s) => fin(f(s))); if (vals.some((v) => v == null)) return null;
     // compared with the BEST other player (never the average: a lead is only claimed when nobody else had more)
     const mine = vals[pid], oth = vals.filter((_, i) => i !== pid), bo = oth.length ? Math.max(...oth) : 0;
-    return { k, label, vals, mine, bestOther: bo, best: Math.max(...vals), low: Math.min(...vals), diff: Math.round((mine - bo) * 10) / 10, mark: oth.length && mine > bo ? "up" : oth.length && mine < Math.min(...oth) ? "dn" : "" };
+    // bank and player trades are NEUTRAL counts (more trades is not better): shown, never judged (no triangle, no worked / hurt)
+    const neutral = k === "bank" || k === "ptr";
+    return { k, label, vals, mine, bestOther: bo, best: Math.max(...vals), low: Math.min(...vals), diff: Math.round((mine - bo) * 10) / 10, neutral, mark: neutral ? "" : oth.length && mine > bo ? "up" : oth.length && mine < Math.min(...oth) ? "dn" : "" };
   }).filter(Boolean);
   return rows;
 }
@@ -342,7 +344,7 @@ function overlay(g, m, board, st, T) {
   m.start = Y.startReview ? { ...Y.startReview, board: !!board } : null;
   // {res} in a rule text / chip is a resource KEY (wood, brick, sheep, wheat, ore): the UI words it in the app language
   const rp = (q) => (q?.res ? { ...q, res: atr(lang(), `res.${q.res}`).toLowerCase() } : q || {});
-  m.lesson3 = (Y.rules || []).map((r) => ({ id: r.id, phase: r.phase, cost: -r.cost, n: r.n, from: A.limits[r.phase][0], to: A.limits[r.phase][1],
+  m.lesson3 = (Y.rules || []).map((r) => ({ id: r.id, phase: r.phase, cost: -r.cost, n: r.n, ids: r.moments.map((q) => q.i), from: A.limits[r.phase][0], to: A.limits[r.phase][1],
     text: atr(lang(), r.moments[0].text, rp(r.moments[0].params)), chips: r.moments.slice(0, 3).map((q) => ({ turn: q.turn, i: q.i, gp: q.gp, chip: atr(lang(), q.chip, rp(q.params)), ck: q.chip, cp: rp(q.params), pts: q.pts, target: q.target })) }));
   if (Y.ledger) {
     const L = Y.ledger, seat = A.luck?.[m.pid]?.seat ?? 0, lt = A.luck?.[m.pid]?.total, hasLuck = !!A.luck?.[m.pid];
@@ -368,7 +370,9 @@ function takeaway2(m) {
   const p = m.start?.picks?.find((q) => q.advice);
   if (p) out.push({ lesson: 2, key: "start", res: p.advice.adds[0], k: p.n, cost: p.gp, a: p.win, b: p.shortlist?.[0]?.win ?? p.best });
   else if (m.start?.picks?.some((q) => q.gp >= 5)) out.push({ lesson: 2, key: "start-any" });
-  const r = m.lesson3?.[0]; if (r) out.push({ lesson: 3, key: r.id, text: r.text, phase: r.phase, cost: -r.cost });
+  // one mistake feeds at most ONE rule: the phase rule is the first one that none of its moments is the mistake behind rule 1 (the same turn-2 error is never listed twice)
+  const used = new Set(e ? [e.i] : []), r = (m.lesson3 || []).find((q) => !(q.ids || q.chips.map((c) => c.i)).some((i) => used.has(i)));
+  if (r) out.push({ lesson: 3, key: r.id, text: r.text, phase: r.phase, cost: -r.cost });
   return out.slice(0, 3);
 }
 
