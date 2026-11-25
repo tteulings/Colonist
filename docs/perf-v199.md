@@ -52,6 +52,26 @@ Safety net first: `tests/golden-events/run.mjs` (see "Event golden" below). It w
 
 What is left (measured, per game of about 15 ms): no extra planning work (the call counts of `_aiPlan`, `_aiEta`, `getNodeProductionScore`, `_aiTradeVerdict`, ... are equal on both routes, and so are their times per call). The difference is the host's own code, about 3 ms of CPU per game by file (`api/engine.js` 1.1 ms, `master/sim.js` snapshot/restore 0.5, `bots/legacy.js` 0.4, `bots/host.js` 0.35, `bots/probe.js` 0.3, `api/actions.js` 0.15, mute 0.13) plus about 3% more GC: 280 host steps per game (prompts, judging, apply bookkeeping, log entry), 340 probes at 0.4 us, 60 snapshots at 2.3 us and 25 restores at 2.8 us. No single item is above 1.5% of a game; the target of "within 10% of the old route" is NOT reached with what can be proven equal (see the table).
 
+### Where the host route's extra time goes (CPU profile, host minus old, ms per game)
+
+`node --cpu-prof` over 200 seeded games per route (expert, simple, intermediate, expert; same seeds), self time by function, host minus old, on the tree after the adoption work (profile total 21.6 ms per game host, 19.1 old, module load included in both; a profile on a loaded machine is +-0.3 ms per line):
+
+| ms per game | function | what it is |
+| --- | --- | --- |
+| 0.34 | garbage collector | snapshots, prompt arrays, apply result and log entry, probe results, action objects |
+| 0.25 | `probe` | record object, hooks, try/finally per probe (340 probes per game) |
+| 0.21 | `snapshot` | about 60 per game; most are first moves that are then adopted |
+| 0.20 | `apply` | dispatch, log entry, bookkeeping (281 per game) |
+| 0.19 | `decide` (legacy) | per-decision closure and action object |
+| 0.18 | `isLegal` | judging 280 answers per game |
+| 0.14 | probe wrapper | `placeRoad` ... pass-through |
+| 0.12 | `mute` | three flag writes and a record per probe |
+| 0.11 | `hostStep` | prompt pick, view/legal flags |
+| 0.09 | `finish`, 0.09 `mainStep`, 0.09 `validateShape`, 0.08 `prompts` | |
+| 0.05-0.08 each | `_do_endTurn`, `_doSteal` hook, `restore`, `cloneAction`, `extras`, `mode` | |
+
+Cut in this round, with what each bought (CPU profile lines, noisy to about 0.05 ms): headless `mute` reuses one record and never `delete`s a property of the game object (`delete` on the 3000-property game object is slow): `mute` 0.12 -> about 0.05; `probe` options read without destructuring and no `{suspend}` object per probe; a bare `roll` / `endTurn` skips `validateShape` (two thirds of all judged answers); a move that drew no chance shares one empty array; `roll` is built as a literal, not a spread. Earlier in the round: adoption (about 25 restores and 25 re-executions per game), lazy trade snapshot (about 60 snapshot + restore pairs per game), apply dispatch table + quiet result class + one options object, `_aiTrkNote` without a wrapper, quick judge. A/B (`tests/perf199-headless.mjs`, 3 runs): ratio 0.73 to 0.81 after this round against 0.73 to 0.77 before: inside the noise of this shared machine. What is left is spread over 15 functions of 0.05 to 0.3 ms; each further cut buys 0.3 to 1% and cannot be told from noise here, so the 10% target stays open.
+
 ### Event golden (`tests/golden-events/run.mjs`)
 
 34 seeded games: the 22 of `tests/golden/games.mjs` plus 10 more seeds (expert, mixed ladder, trader/shark/builder, deck dice, Seafarers x2, 6 players, Master, Super, Rush). Old route (all 34, Rush included): the legacy loop observed through `engine.observe()`: every move as an action with its prompt, legality, drawn chance, the hash of the whole serialized state after it and the random-call count, plus every line of the golden move log and the result. Host route (the 28 non-Rush games): every applied action with seat, prompt kind, canonical action, the engine's events of that apply (JSON with seq), state hash and random count after it, plus the result. Each host game is played a second time with quiet apply (what a tournament does, where adoption is on) and its step lines must equal those of the events run. Baseline in `old.txt.gz` / `host.txt.gz` (1.1 MB), `--regen` rewrites it, a difference prints the first differing line of the game. Checked to catch a one-field change in one event (`turnEnd.seat` of one turn): reported at line 76 of classic-expert.
