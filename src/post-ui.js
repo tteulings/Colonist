@@ -138,7 +138,7 @@ export function verdictLine(g, m) { return verdictSpans(m); }
 function resultLine(g, m) {
   const X = m.F, r = X.data.res; if (!r) return `${who(m)}`;
   const A = X.ph("{n}–{n2}", { n: [r.left], n2: [r.right] });
-  return `${f(r.won ? (m.you ? "You won" : "{x} won") : "{x} won", { x: esc(r.winner) })} ${A}`;
+  return `<span data-i18n-skip>${r.won && m.you ? (isNL() ? "Jij" : "You") : esc(r.winner)} won</span> ${A}`;
 }
 const lh = (n, title, right = "") => `<div class="px-lh"><i class="px-nb">${n}</i><b>${title}</b>${right ? `<span class="px-rt">${right}</span>` : ""}</div>`;
 export const spotTiles = (board, node) => { try { if (!board || node == null) return ""; const geo = stdGeo(); return geo.nodes[node].hx.map((h) => board[h]).filter((b) => b && b.num).map((b) => `<i class="px-tile" style="background:${RES_COLOR[b.res] || "#999"}" title="${esc(rname(b.res))}">${b.num}</i>`).join(""); } catch (_) { return ""; } };
