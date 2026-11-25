@@ -14,7 +14,7 @@ import { inScope } from "./review/coach-rules.js";
 
 const accWord = "Accuracy";
 const SRC_NL = { road: "Langste weg", army: "Grootste riddermacht" }; // the glossary names of the two bonus score sources
-const reconTable = (m) => { const X = m.F, row = (l, ref) => `<span>${l}</span><b>${X.n(ref)}</b>`; return `<div class="px-rc">${row("Decisions", "decisions")}${X.v("oneOption") > 0 ? row("Only one sensible option", "oneOption") : ""}${row("Scored", "scored")}${row("Start picks", "startN")}${row("Real errors", "errors")}${row("Other decisions", "otherN")}${X.v("fam.out") > 0 ? `${row("Outside this analysis", "fam.out")}` : ""}</div>${X.v("fam.out") > 0 ? `<p class="px-fn">The four counts above leave out the moves outside this analysis.</p>` : ""}`; };
+const reconTable = (m) => { const X = m.F, row = (l, ref) => `<span>${l}</span><b>${X.n(ref)}</b>`; return `<div class="px-rc">${row("Decisions", "decisions")}${X.v("oneOption") > 0 ? row("Only one sensible option", "oneOption") : ""}${row("Scored", "scored")}${row("Start picks", "startN")}${row("Real errors", "errors")}${row("Other decisions", "otherN")}${X.v("fam.out") > 0 ? `${row("of which outside this analysis", "fam.out")}` : ""}</div>${X.v("fam.out") > 0 ? `<p class="px-fn">The four counts above leave out the moves outside this analysis.</p>` : ""}`; };
 const stepText = (m) => (m.you ? "Step through your moves" : f("Step through {y}’s moves", { y: esc(m.me.name) }));
 function lkLabel(g, X, lab, q) {
   const nm = (z) => (z === g._rvPid && g._rvIsYou?.(z) ? "You" : g.players[z]?.isHuman ? humanNm(g.players[z].name, z, false) : esc(g.players[z]?.name || "Someone"));
