@@ -10,7 +10,7 @@ const files = fs.readdirSync(FIX).filter((f) => f.endsWith(".json")).sort();
 const BAD = /\bNaN\b|\bundefined\b|\bnull\b|\[object|Infinity/;
 const ZERO = /zero-sum|zero sum|nulsom|sums to zero|cancel(s)? out/i;
 const OUT = /\brobber\b|\brover\b|\bports?\b|\bharbou?rs?\b|\bhaven\b|longest road|largest army|langste weg|grootste riddermacht|who you fed|fed\b/i;
-const LSEL = ".px-ev .x, .px-hl2, .px-vl, .px-t3 > span, .px-lc small, .px-rule p.px-l, .px-fn, .px-adv, .px-lh b, .rv-gt b, .px-rest small, .px-card > p.px-l, .px-prog p, .px-vsent";
+const LSEL = ".px-ev .x, .px-hl2, .px-vl, .px-t3 > span, .px-wfr .sb, .px-rule p.px-l, .px-fn, .px-adv, .px-lh b, .rv-gt b, .px-card > p.px-l, .px-prog p, .px-vsent";
 const SCAN = (LSEL) => {
   const vis0 = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === "none" || cs.visibility === "hidden" || e.hidden) return false; } const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const tops = [...document.querySelectorAll("div.rv, div.bpg, div.ln, div.hs, div.game-over-overlay")].filter(vis0);
@@ -47,7 +47,7 @@ const nums = () => {
     for (const f of files) { const j = JSON.parse(fs.readFileSync(path.join(FIX, f), "utf8")); const { meta, format, v, ...rec } = j; await page.evaluate(async ({ meta, rec }) => { const H = window.__colonistGame.hist; await H.open(); await H.put({ ...meta }, rec, { quiet: true }); }, { meta, rec }); metas.push(meta); }
     const G = (fn, a) => page.evaluate(fn, a);
     const FACTS = {}; let curGame = ""; let m0 = null;
-    const facts = async (name) => { const fs0 = await G(() => { const vis0 = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === "none" || cs.visibility === "hidden" || e.hidden) return false; } return true; }; const tops = [...document.querySelectorAll("div.rv, div.bpg, div.ln, div.hs, div.game-over-overlay")].filter(vis0); const root = document.querySelector(".px-sheet") || document.querySelector(".px-board") || tops[tops.length - 1] || document.body; return [...root.querySelectorAll("[data-fact]")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0; }).map((e) => [e.dataset.fact, e.dataset.v]); }); fs0.forEach(([k, v]) => { if (v === "" || v == null) return; ((FACTS[`${curGame}|${k}`] ||= {})[v] ||= new Set()).add(name); }); };
+    const facts = async (name) => { const fs0 = await G(() => { const vis0 = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === "none" || cs.visibility === "hidden" || e.hidden) return false; } return true; }; const tops = [...document.querySelectorAll("div.rv, div.bpg, div.ln, div.hs, div.game-over-overlay")].filter(vis0); const root = document.querySelector(".px-sheet") || document.querySelector(".px-board") || tops[tops.length - 1] || document.body; return [...root.querySelectorAll("[data-fact]")].filter((e) => !/\s/.test(e.dataset.fact.trim()) && e.getBoundingClientRect().width > 0).map((e) => [e.dataset.fact, ((e.textContent.match(/\d+(?:[.,]\d+)?/g) || [])[0] || "").replace(",", ".")]); }); fs0.forEach(([k, v]) => { if (v === "" || v == null) return; ((FACTS[`${curGame}|${k}`] ||= {})[v] ||= new Set()).add(name); }); };
     const check = async (name, shot) => {
       await facts(name);
       await sleep(500); const r = await G(SCAN, LSEL); const k = `${tag} ${name}`;
@@ -74,17 +74,16 @@ const nums = () => {
         ok(!/inkomen|income|gemiddeld|average|punten in|points in/i.test(h), `${k}: headline has no income / tempo claims`, h);
         const whole = await G(() => document.body.innerText.replace(/\s+/g, " ")), hh = h.replace(/\s+/g, " ").trim(); ok(hh.length < 8 || whole.split(hh).length === 2, `${k}: the headline appears once on the screen`);
         const cn = await G(() => document.querySelector(".px-cn")?.innerText || ""); ok(/(Accuracy|Precisie) \d+/.test(cn) && /\d+%/.test(cn), `${k}: one line ties Accuracy, real errors and moves cost`, cn);
-        ok(await G(() => !!document.querySelector(".px-led > .px-rest")), `${k}: "what the others did" is a visible row`);
-        { const eq = await G(() => document.querySelector(".px-eq")?.innerText || ""), nn = (eq.match(/[+−-]?\d+(?:[.,]\d+)?/g) || []).map((t) => parseFloat(t.replace("−", "-").replace(",", "."))); ok(nn.length === 6 && Math.abs(nn[0] + nn[1] + nn[2] + nn[3] + nn[4] - nn[5]) < 0.6, `${k}: Start + Luck + Moves + Others reconciles Even to End`, eq); }
-        { const hr = await G(() => ({ hl: JSON.parse(document.querySelector(".px-hl2")?.dataset.hl || "null"), rows: [...document.querySelectorAll(".px-kms .px-km")].map((r) => ({ t: (/(\d+)\s*$/.exec(r.querySelector(".t")?.innerText.trim() || "") || [])[1], sp: r.querySelector(".px-sp")?.innerText || "" })) }));
-          const part = (sp, re) => { const mm = re.exec(sp); return mm ? num(mm[1]) : 0; }, row = (T) => hr.rows.find((r) => +r.t === T);
-          HL[short] = hr.hl;
-          if (hr.hl) { if (hr.hl.own) { const r = row(hr.hl.own.T); ok(r && part(r.sp, /(?:zet|move) ([+−±-]?\d+)/) === hr.hl.own.d, `${k}: headline own-move number = the key-moment row's move part`, { hl: hr.hl.own, row: r }); }
-            if (hr.hl.luck.ts.length) { const sum = hr.hl.luck.ts.reduce((a, T) => a + (row(T) ? part(row(T).sp, /(?:worp|dice) ([+−±-]?\d+)/) : 1e6), 0); ok(sum === hr.hl.luck.d, `${k}: headline luck number = the sum of the rows' dice parts`, { hl: hr.hl.luck, sum }); } } }
+        ok(await G(() => !!document.querySelector(".px-wf .px-wfr.oth")), `${k}: "Others" is a visible waterfall row`);
+        { const wf = await G(() => { const v = (sel) => { const e = document.querySelector(sel); return e ? e.innerText.replace(/\s+/g, " ").trim() : ""; }; return { fair: v(".px-wfr.fair .wcv"), start: v(".px-wfr.start .px-d"), moves: v(".px-wfr.moves .px-d"), luck: v(".px-wfr.luck .px-d"), oth: v(".px-wfr.oth .px-d"), end: v(".px-wfr.end .wcv") }; });
+          const nv = (t) => (t ? num(t) : 0); ok(wf.fair && wf.end && nv(wf.fair) + nv(wf.start) + nv(wf.moves) + nv(wf.luck) + nv(wf.oth) === nv(wf.end), `${k}: Fair share + Start + Moves + Luck + Others = End`, wf); }
+        { const hr = await G(() => { const hd = document.querySelector(".px-hl2"); const mine = [...hd.querySelectorAll("[data-fact]")].map((e) => e.dataset.fact); const other = new Set([...document.querySelectorAll(".rv-scroll [data-fact], .rv-scroll [data-fact] *")].filter((e) => !hd.contains(e)).flatMap((e) => (e.dataset?.fact || "").split(/\s+/))); return { mine, miss: mine.filter((x) => !other.has(x)), txt: hd.innerText }; });
+          ok(hr.mine.length > 0 && !hr.miss.length, `${k}: every number of the headline is a fact shown again below (waterfall, key moments)`, hr);
+          HL[short] = [...(/(?:turns?|beurt(?:en)?)\s+(\d+)(?:\s+(?:and|en)\s+(\d+))?/gi.exec(hr.txt) || []).slice(1).filter(Boolean).map(Number)]; }
         const adv = await G(() => document.querySelector(".px-l2c .px-adv")?.innerText || ""), mm = /(\d+)% → (\d+)% \(\+(\d+)%\)/.exec(adv);
         if (adv) ok(mm && +mm[2] - +mm[1] === +mm[3], `${k}: start advice from-to matches its difference`, adv);
         ok((await G(() => document.querySelectorAll(".px-l2c .px-dk").length)) === 1, `${k}: dots explained once on the start card`);
-        const rest = await G(() => document.querySelector(".px-rest small")?.innerText || ""); ok(/\S/.test(rest), `${k}: "what the others did" says it is their moves and luck combined`, rest);
+        const rest = await G(() => document.querySelector(".px-wfr.oth .sb")?.innerText || ""); ok(/\S/.test(rest), `${k}: "Others" says what it is`, rest);
         const tl = await G(() => [...document.querySelectorAll(".px-t3")].map((b) => b.innerText.replace(/\s+/g, " "))); ok(tl.length === 3, `${k}: three tiles`, tl);
       }
       if (tab === "history") {
@@ -146,7 +145,7 @@ const nums = () => {
       for (const pid of [m.me, (m.me + 1) % 4]) { await G((pid) => { const g = window.__colonistGame; g._rvOpenReview(pid, { tab: "player" }); }, pid); await sleep(900); await check(`${short} player ${pid === m.me ? "you" : "bot"}`, pid === m.me ? "player" : "player-bot"); }
       await G((pid) => window.__colonistGame._rvOpenReview(pid, { tab: "overview" }), m.me); await sleep(500);
       await G(() => window.__colonistGame._pxBoard(0)); await sleep(700); await check(`${short} bekijk bord`, `board`);
-      { const stp = await G(() => [...document.querySelectorAll(".px-stops button")].map((b) => b.innerText.trim())), hl = HL[short]; if (hl) { const ts = [...(hl.own ? [hl.own.T] : []), ...hl.luck.ts]; ok(ts.every((T) => stp.includes(String(T))), `${tag} ${short}: every turn named in the headline is a stop on Bekijk bord`, { stops: stp, named: ts }); } } await page.evaluate(() => document.querySelector("[data-pxbx]")?.click());
+      { const stp = await G(() => [...document.querySelectorAll(".px-stops button")].map((b) => b.innerText.trim())), hl = HL[short]; if (hl) { const ts = hl; ok(ts.every((T) => stp.includes(String(T))), `${tag} ${short}: every turn named in the headline is a stop on Bekijk bord`, { stops: stp, named: ts }); } } await page.evaluate(() => document.querySelector("[data-pxbx]")?.click());
       // long bot names: the third-person headline still fits two lines on the bot's Overview
       await G(() => { const g = window.__colonistGame; g.players.forEach((p) => { if (!p.isHuman) p.name = "Maximiliaan-Alexander"; }); });
       { const bp = (m.me + 1) % 4; await G((pid) => window.__colonistGame._rvOpenReview(pid, { tab: "overview" }), bp); await sleep(900);
@@ -164,9 +163,9 @@ const nums = () => {
     await G(() => { window.__pxRoot = ".px-end"; }); await check("end screen", "end"); await page.evaluate(() => document.querySelector("[data-rsx]")?.click()); await sleep(400); await check("end screen row open", "end-open");
     // ONE number per fact: every screen that shows luck / cost / accuracy of a seat shows the same value; the three pillars add up to the cost
     const keys = Object.keys(FACTS), shownScreens = (k) => [...new Set(Object.values(FACTS[k]).flatMap((x) => [...x]))];
-    for (const k of keys) { const vals = Object.keys(FACTS[k]); const sc = shownScreens(k); if (/\|(luck|cost|acc|scored|errors|pick1win|top1win|pick1dots|top1dots):/.test(k)) ok(vals.length === 1 && (sc.length >= 2 || !/:0$/.test(k) || /\|errors:/.test(k)), `${tag} fact ${k}: one value on every screen`, vals.length === 1 ? sc.join(", ") : Object.entries(FACTS[k]).map(([v, x]) => `${v}: ${[...x].join("/")}`).join(" | ")); }
-    for (const k of keys.filter((x) => /\|(pick1win|top1win|pick1dots|top1dots):0$/.test(x))) { const sc = shownScreens(k); ok(/overview/.test(sc.join()) && /strategy/.test(sc.join()) && /bekijk bord/.test(sc.join()), `${tag} fact ${k}: shown on Overview, Strategy and Bekijk bord`, sc.join(", ")); }
-    for (const k of keys.filter((x) => /\|cost:/.test(x))) { const [g0, rest] = k.split("|"), seat = rest.split(":")[1], v = (n) => { const o = FACTS[`${g0}|${n}:${seat}`]; return o ? +Object.keys(o)[0] : null; }; const pe = v("pillar-errors"), ps = v("pillar-start"), po = v("pillar-other"), c = +Object.keys(FACTS[k])[0]; if (pe != null) ok(pe + ps + po === c, `${tag} ${g0}: pillars ${pe}+${ps}+${po} = cost ${c}`); }
+    for (const k of keys) { const vals = Object.keys(FACTS[k]); const sc = shownScreens(k); if (/\|(luck|movesTotal|startCost|moveCost|acc|scored|errors|pick1\.win|pick1\.best|pick1\.dots|pick1\.bestDots):/.test(k)) ok(vals.length === 1 && (sc.length >= 2 || !/:0$/.test(k) || /\|errors:/.test(k)), `${tag} fact ${k}: one value on every screen`, vals.length === 1 ? sc.join(", ") : Object.entries(FACTS[k]).map(([v, x]) => `${v}: ${[...x].join("/")}`).join(" | ")); }
+    for (const k of keys.filter((x) => /\|(pick1\.win|pick1\.best|pick1\.dots|pick1\.bestDots):0$/.test(x))) { const sc = shownScreens(k); ok(/overview/.test(sc.join()) && /strategy/.test(sc.join()) && /bekijk bord/.test(sc.join()), `${tag} fact ${k}: shown on Overview, Strategy and Bekijk bord`, sc.join(", ")); }
+    for (const k of keys.filter((x) => /\|movesTotal:/.test(x))) { const [g0, rest] = k.split("|"), seat = rest.split(":")[1], v = (n) => { const o = FACTS[`${g0}|${n}:${seat}`]; return o ? +Object.keys(o)[0] : null; }; const pe = v("errCost"), ps = v("startCost"), po = v("otherCost"), c = +Object.keys(FACTS[k])[0]; if (pe != null && ps != null && po != null) ok(pe + ps + po === c, `${tag} ${g0}: real errors ${pe} + start ${ps} + other ${po} = moves in total ${c}`); }
     ok(!errors.length, `${tag}: no console errors`, errors.slice(0, 3));
     await ctx.close();
   }

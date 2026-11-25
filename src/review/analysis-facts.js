@@ -318,7 +318,10 @@ export function analyseGame(input) {
   a.bySeat = Array.from({ length: n }, (_, q) => {
     const rev = reviews[q]; if (!rev?.results?.length) return null;
     const { ds, all, forced } = decisionsOf(rev, n, q), sp = splitMoves(ds), sm = safe(() => summarize(rev.results.filter((x) => x.skip !== "error")));
-    return { seat: q, errors: realErrors(ds, { all }).counts.errors, acc: sm?.acc ?? null, nScored: sm?.n ?? 0, cls: clsCounts(ds), cost: sp.total, lost: sm?.lost ?? null, all, forced, split: { errors: sp.errors, start: sp.start, other: sp.other } };
+    const er0 = realErrors(ds, { all }), rawSum = (l) => l.reduce((a, d) => a + d.gp, 0), errIds = new Set(er0.errors.map((d) => d.i));
+    // raw = the review's own gaps, whole percent, NOT scaled: start (all set-up picks), errors (clear errors after the start), other (every other scored move), cap (the best win chance ever held: all the moves after the start together cannot cost more)
+    const raw = { start: rawSum(ds.filter((d) => d.k === "setup")), errors: rawSum(ds.filter((d) => d.k !== "setup" && errIds.has(d.i))), other: rawSum(ds.filter((d) => d.k !== "setup" && !errIds.has(d.i))), cap: totals(ds).cap };
+    return { seat: q, errors: er0.counts.errors, acc: sm?.acc ?? null, nScored: sm?.n ?? 0, cls: clsCounts(ds), cost: sp.total, lost: sm?.lost ?? null, all, forced, split: { errors: sp.errors, start: sp.start, other: sp.other }, raw };
   });
   a.model = { fmt: reviews[me]?.fmt ?? null, engine: rv?.rk || meta?.rk || null };
   const rev = reviews[me];

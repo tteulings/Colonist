@@ -16,6 +16,7 @@
 // off while `_histView` is set), the end screen (Stats) or the Replay or the Game review opens on it, and
 // "Past games" in the top-left puts your running game back (it stays in localStorage untouched).
 // Styles: themes/history.css.
+import { histCounts } from "./post-facts.js";
 import { upgradeSpots } from "./review/spot-names.js";
 import { oicon } from "./ui-icons.js";
 import { dateLocale, num, t } from "./i18n.js";
@@ -399,13 +400,13 @@ export const HistoryMixin = {
     const n = (f) => all.filter(f).length;
     const seg = [["all", "All", all.length], ["won", "Won", n((m) => m.result === "won")], ["lost", "Lost", n((m) => m.result === "lost")]];
     const chips = [["classic", "Classic"], ["rush", "Rush"], ["seafarers", "Seafarers"]];
-    const scroll = el.querySelector(".hs-scroll")?.scrollTop || 0;
-    el.innerHTML = `<div class="hs-bar"><button type="button" class="hs-x" data-hclose aria-label="Back">${CHEV_L}</button><div><h3>Past games</h3><small>${all.length ? `${all.length} on this device${H.mode === "memory" ? " · until you close this tab" : ""}` : "Finished games are kept here"}</small></div></div>
+    const scroll = el.querySelector(".hs-scroll")?.scrollTop || 0, HC = histCounts(seg.map(([k, , v]) => [k, v]));
+    el.innerHTML = `<div class="hs-bar"><button type="button" class="hs-x" data-hclose aria-label="Back">${CHEV_L}</button><div><h3>Past games</h3><small>${all.length ? `${HC.ph("{n} on this device", { n: ["h.cnt.all:-"] })}${H.mode === "memory" ? " · until you close this tab" : ""}` : "Finished games are kept here"}</small></div></div>
       <div class="hs-scroll">
         ${this._histBanner(use)}
         <p class="hs-note" role="status" hidden></p>
         ${this._histProgress(all)}
-        ${all.length ? `<div class="hs-filters"><div class="hs-seg" role="radiogroup" aria-label="Result">${seg.map(([k, l, c]) => `<button type="button" role="radio" aria-checked="${F.res === k}" data-hres="${k}" class="${F.res === k ? "on" : ""}">${l}<i>${c}</i></button>`).join("")}</div>
+        ${all.length ? `<div class="hs-filters"><div class="hs-seg" role="radiogroup" aria-label="Result">${seg.map(([k, l, c]) => `<button type="button" role="radio" aria-checked="${F.res === k}" data-hres="${k}" class="${F.res === k ? "on" : ""}">${l}<i>${HC.n(`h.cnt.${k}:-`)}</i></button>`).join("")}</div>
           <div class="hs-chips">${chips.map(([k, l]) => `<button type="button" aria-pressed="${F.mode.has(k)}" data-hmode="${k}" class="${F.mode.has(k) ? "on" : ""}">${l}</button>`).join("")}<button type="button" aria-pressed="${F.rev}" data-hrev class="${F.rev ? "on" : ""}">Reviewed</button><button type="button" aria-pressed="${F.star}" data-hstar class="${F.star ? "on" : ""}">${STAR(true)}Starred</button></div></div>` : ""}
         ${all.length ? (fil.length ? `<ul class="hs-list">${fil.map((m) => this._histRow(m)).join("")}</ul>` : `<div class="hs-none"><b>No game matches</b><p>Try another filter.</p><button type="button" class="hs-btn" data-hreset>Show all games</button></div>`) : this._histEmpty()}
       </div>`;

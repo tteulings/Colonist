@@ -321,7 +321,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
     const ph = (s) => (s.match(/\{\w+\}/g) || []).sort().join();
     ok(en.every((k) => ph(T.EN[k]) === ph(T.NL[k])), "EN and NL use the same {params}", en.filter((k) => ph(T.EN[k]) !== ph(T.NL[k])));
     ok(en.every((k) => T.EN[k].trim() && T.NL[k].trim()), "no empty text");
-    ok(en.filter((k) => !/^(and|head\.|mom\.|h\.|c\.|w\.|band\.|vt\.|rule\.|num\.|info\.|phase\.|cls\.|kind\.|plan\.|res\.|word\.)/.test(k)).length === 0, "keys are namespaced");
+    ok(en.filter((k) => !/^(and|head\.|mom\.|h\.|hd\.|wf\.|c\.|w\.|band\.|vt\.|rule\.|num\.|info\.|phase\.|cls\.|kind\.|plan\.|res\.|word\.)/.test(k)).length === 0, "keys are namespaced");
     const BAN_EN = /robber|\bports?\b|harbou?r|longest road|largest army|road.?race|\bfed\b|\bfeed|\bsteal|\bthief/i, BAN_NL = /rover|struikrover|haven|langste weg|grootste ridder|wegenrace|gevoed|\bvoed|\bsteel|\bdief/i;
     ok(en.every((k) => !BAN_EN.test(T.EN[k])), "EN: no robber / port / road-race / fed string", en.filter((k) => BAN_EN.test(T.EN[k])));
     ok(en.every((k) => !BAN_NL.test(T.NL[k])), "NL: no robber / port / road-race / fed string", en.filter((k) => BAN_NL.test(T.NL[k])));
@@ -390,6 +390,23 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
     const e = F.youVsLevel(metas, "expert"); eq([e.n, e.won, e.pct, e.acc], [2, 1, 50, 70], "you vs expert: 1 of 2, mean accuracy 70"); ok(e.lo >= 0 && e.hi <= 100 && e.lo <= 50 && e.hi >= 50, "you vs expert: Wilson range");
     eq(F.youVsLevels(metas).map((r) => r.level), ["simple", "intermediate", "expert", "mixed"], "levels in ladder order, unknown last"); eq(F.youVsLevel([], "expert").pct, null, "no games: no share");
     ok(F.youVsLevels(metas).every((r) => r.pct === null || (r.pct >= 0 && r.pct <= 100)), "no percentage above 100"); }
+
+  // v1.99 facts round: the raw costs per seat (bySeat.raw) and the ONE cost arithmetic (post-facts costOf): start raw, moves capped, start + moves = total
+  { const PF = await R("src/post-facts.js");
+    REV.forEach((g) => { const a = F.analyseGame(input(g)); (a.bySeat || []).forEach((b, q) => { if (!b) return; const r = b.raw, tag = `${g.id} seat ${q}`;
+      const c = PF.costOf(r);
+      ok(r.start >= 0 && r.errors >= 0 && r.other >= 0 && r.cap > 0, `${tag}: raw costs are plain non-negative whole percents`, r);
+      ok(c.start === r.start, `${tag}: the start cost is shown raw (never scaled by the cap)`, c);
+      ok(c.start + c.moves === c.total, `${tag}: start + moves = moves in total`, c);
+      ok(c.errors + c.other === c.moves, `${tag}: real errors + other moves = moves`, c);
+      ok(c.moves <= Math.max(0, r.cap - r.start) || !c.capped, `${tag}: only the moves after the start are capped`, c);
+      ok(!c.capped ? c.moves === r.errors + r.other : c.moves < r.errors + r.other, `${tag}: capped only when the raw moves exceed the cap`, c); }); });
+    eq(PF.costOf({ start: 9, errors: 0, other: 5, cap: 100 }), { start: 9, errors: 0, other: 5, moves: 5, total: 14, capped: false, cap: 100, raw: 5 }, "costOf: the simple case");
+    const cc = PF.costOf({ start: 20, errors: 30, other: 40, cap: 60 }); eq([cc.start, cc.moves, cc.total, cc.capped], [20, 40, 60, true], "costOf: moves are limited to cap - start"); ok(cc.errors + cc.other === 40, "costOf: the parts still add up to the capped moves", cc);
+    eq(PF.fmt({ unit: "wcDelta", value: 7 }), "+7%", "fmt: wcDelta"); eq(PF.fmt({ unit: "wcDelta", value: -8 }), "−8%", "fmt: wcDelta negative uses a real minus"); eq(PF.fmt({ unit: "wcDelta", value: 0 }), "±0%", "fmt: wcDelta zero");
+    eq(PF.fmt({ unit: "lead", value: 17 }), "+17 lead", "fmt: a lead is never a percent"); eq(PF.fmt({ unit: "pts", value: 3 }, { word: true }), "3 points", "fmt: points"); eq(PF.fmt({ unit: "pts", value: 1 }, { word: true }), "1 point", "fmt: one point");
+    eq(PF.fmt({ unit: "acc", value: 90 }), "90", "fmt: accuracy has no unit"); eq(PF.fmt({ unit: "wc", value: 38 }), "38%", "fmt: win chance"); eq(PF.fmt({ unit: "margin", value: 1.5 }), "±1.5%", "fmt: margin");
+    eq(PF.fmt({ unit: "wcDelta", value: NaN }), "–", "fmt: no NaN"); eq(PF.fmt({ unit: "count", value: 1, }, { ord: true }), "1st", "fmt: ordinal"); }
 
   console.log(`\n${fails ? fails + " FAILED of " : "ALL "}${total} checks${fails ? "" : " passed"}`);
   process.exit(fails ? 1 : 0);

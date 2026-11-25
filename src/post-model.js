@@ -11,6 +11,7 @@ import { analyseGame, luckSplit, headline as headlineParts } from "./review/anal
 import { tr as atr } from "./review/analysis-text.js";
 import { lang } from "./i18n.js";
 import { inScope } from "./review/coach-rules.js";
+import { buildFacts, headPlan, register, buildKindAt } from "./post-facts.js";
 
 export const ERR = ["mistake", "blunder", "missed"]; // a clear error (the review only gives these classes to clear gaps)
 export const FAMILY = { best: "strong", great: "strong", good: "strong", close: "close", lean: "close", could: "costly", mistake: "costly", blunder: "costly", missed: "costly" };
@@ -167,7 +168,7 @@ function build(g, pid, rv, tab) {
     start, lesson3: coachRules(g, phaseCost, T, st, pid, n), headline: headline(won, led) };
   m.A = analysis(g, pid);
   m.tempo = tempoOf(g, st, tab, T);
-  m.timeline = timelineOf(g, pid, T, won);
+  m.timeline = timelineOf(g, pid, T, won, m.A);
   m.measures = measuresOf(tab, pid);
   m.income = incomeOf(g, st, tab);
   m.builds = buildsOf(g, st, T);
@@ -175,6 +176,7 @@ function build(g, pid, rv, tab) {
   m.takeaway = takeaway(m);
   m.seats = tab.seats; m.tab = tab;
   overlay(g, m, board, st, T);
+  m.F = buildFacts(g, m, tab); register(g._rv, pid, m.F);
   return m;
 }
 
@@ -242,7 +244,7 @@ function tempoOf(g, st, tab, T) {
   return { phases, rows, max: Math.max(1, ...rows.flatMap((r) => r.gains)) };
 }
 // ── the win chance of every player through the game (one line each), the numbered key moments, the phase bands ──
-function timelineOf(g, pid, T, won) {
+function timelineOf(g, pid, T, won, A) {
   let look = null; try { look = g._rvLook(); } catch (_) { look = null; }
   const st = g._st; if (!look || !st) return null;
   const lines = g.players.map(() => []);
@@ -250,7 +252,8 @@ function timelineOf(g, pid, T, won) {
   // the swings of THIS player (see swingsFor), biggest first
   const sw = swingsFor(g, pid).filter((x) => Math.abs(x.d) >= 1 && !x.seven).sort((p, q) => Math.abs(q.d) - Math.abs(p.d));
   // every step named in the headline is a pin (and so a stop on Bekijk bord); the rest is filled with the biggest swings, 3 pins in all
-  const H = headSteps(g, pid, won), pins = [...(H.own ? [H.own] : []), ...H.luck].filter((x, i, a) => a.findIndex((q) => q.S === x.S) === i);
+  const plan = headPlan(g, pid, won, A), sw0 = swingsFor(g, pid), forced = plan ? sw0.filter((x) => (plan.own?.k === "best" && plan.own.S === x.S) || (plan.luck?.k === "roller" && plan.luck.steps.includes(x.S))) : [];
+  const pins = forced.filter((x, i, a) => a.findIndex((q) => q.S === x.S) === i);
   sw.forEach((x) => { if (pins.length >= 3 || pins.some((q) => Math.abs(q.T - x.T) < 2)) return; pins.push(x); });
   pins.sort((a, b) => a.T - b.T);
   const lastT = Math.max(T, ...lines[pid].map((q) => q[0])), mk = (x) => ({ T: x.T, S: x.S, d: x.d, actor: x.actor, move: x.actor === pid, b: x.b, a: x.a, e: x.e });
@@ -340,7 +343,7 @@ function overlay(g, m, board, st, T) {
   // {res} in a rule text / chip is a resource KEY (wood, brick, sheep, wheat, ore): the UI words it in the app language
   const rp = (q) => (q?.res ? { ...q, res: atr(lang(), `res.${q.res}`).toLowerCase() } : q || {});
   m.lesson3 = (Y.rules || []).map((r) => ({ id: r.id, phase: r.phase, cost: -r.cost, n: r.n, from: A.limits[r.phase][0], to: A.limits[r.phase][1],
-    text: atr(lang(), r.moments[0].text, rp(r.moments[0].params)), chips: r.moments.slice(0, 3).map((q) => ({ turn: q.turn, i: q.i, gp: q.gp, chip: atr(lang(), q.chip, rp(q.params)), pts: q.pts, target: q.target })) }));
+    text: atr(lang(), r.moments[0].text, rp(r.moments[0].params)), chips: r.moments.slice(0, 3).map((q) => ({ turn: q.turn, i: q.i, gp: q.gp, chip: atr(lang(), q.chip, rp(q.params)), ck: q.chip, cp: rp(q.params), pts: q.pts, target: q.target })) }));
   if (Y.ledger) {
     const L = Y.ledger, seat = A.luck?.[m.pid]?.seat ?? 0, lt = A.luck?.[m.pid]?.total, hasLuck = !!A.luck?.[m.pid];
     // ONE luck number everywhere: rolls, steals, draws AND seat order. Set-up is then only the start picks (what they cost against the best spots).
@@ -373,7 +376,6 @@ function takeaway2(m) {
  *  timeline (the same swings as the pins under the chart; each is split into dice / the actor's move / the rest). Each moment is named by what caused it:
  *  the player's own move (a build, or the clear error / weaker choice of that turn), a roll, or what another player did. No heuristic income or tempo
  *  claims here: those stay in Strategy, compared with the best other player. */
-const buildKindAt = (st, S, actor) => { let k = null; try { (st.stepEvents?.[S] || []).forEach((e) => { if (e[1] === "b" && e[2] === actor && ["s", "c", "r"].includes(e[3])) k = { s: "settlement", c: "city", r: "road" }[e[3]]; else if (e[1] === "v" && e[2] === actor && !k) k = "card"; }); } catch (_) { k = null; } return k; };
 /** every step of the game as this PLAYER's win-chance swing: { S, T, actor, roll, seven, b, a, e, d, dice, move } in whole percent. dice = what the roll did (a - b), move = what the actor's own
  *  play after it did (e - a, only when this player is the actor). Award steps are left out (v1.99 scope: no longest road / largest army); a 7 is kept but flagged (never named as luck). */
 function swingsFor(g, pid) {
@@ -409,10 +411,11 @@ function whyOf(m, A, g) {
   return { won, own, luck, luckSum: luck.reduce((a, x) => a + x.d, 0), start, movesN, bestRoll, moments: own || luck.length ? [own, ...luck].filter(Boolean) : [] };
 }
 /** the cause of one swing of this player's win chance (see whyOf); x = { S, T, actor, a, b, e, d } */
+export { buildKindAt };
 export const momentFor = (g, m, x) => momentOf(m, g._st, x, m.won);
 function momentOf(m, st, x, won) {
   const pid = m.pid, dice = x.a - x.b, after = x.e - x.a, mine = x.actor === pid, step = st?.steps?.[x.S - 1], roll = step ? step[2] + step[3] : null;
-  const base = { T: x.T, d: x.d, actor: x.actor };
+  const base = { T: x.T, S: x.S, d: x.d, actor: x.actor };
   if (Math.abs(dice) >= Math.abs(after) && roll) return { ...base, k: "roll", own: mine, roll, good: dice > 0 };
   const bk = buildKindAt(st, x.S, x.actor);
   if (!mine) return { ...base, k: "by", what: bk || "turn" };
