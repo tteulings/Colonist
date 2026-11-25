@@ -56,7 +56,7 @@ const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "
   ok(/Close call/.test(sc.head) && !/mistake|blunder|Better/i.test(sc.head + sc.line) && /Other option/.test(sc.a) && sc.neu && !sc.neg, "close call card: wording, 'Other option', neutral cost", sc);
   ok(/about equal/.test(sc.line) && /close call/.test(sc.line) && !/mistake|blunder|better/i.test(sc.line), "close call line", sc.line);
   if (R.lean != null) { const sl = await step(R.lean, "lean-card");
-    ok(/Better option/.test(sl.head) && /probably slightly better/.test(sl.line) && !/mistake|blunder/i.test(sl.head + sl.line), "lean card: better option / probably", sl); } else console.log("skip lean card (none in this export)");
+    ok(/Close call/.test(sl.head) && /probably slightly better/.test(sl.line) && !/mistake|blunder/i.test(sl.head + sl.line), "lean card: close call / probably", sl); } else console.log("skip lean card (none in this export)");
   const sk = await step(R.clear, "clear-mistake-card");
   ok(/Could be better|Mistake|Blunder|Missed/.test(sk.head) && sk.neg && !sk.neu, "clear card keeps mistake wording + red cost", sk.head);
   // moves list + overview

@@ -143,6 +143,30 @@ export const inScope = (d) => !!d && d.k !== "robber" && !OUT_OF_SCOPE.test(`${d
 /** Was this decision a CLEAR error? (the one rule: class could / mistake / blunder / missed AND a clear verdict, i.e. a gap of at least 2 x the move's own noise; a "missed" with only a slight verdict is not an error) */
 export const isClearError = (d) => !!d && SEVERE.includes(d.cls) && d.gp >= 1 && !!d.x?.best && d.vc === "clear" && inScope(d);
 
+// ── the v1.99 KINDS of a decision: ONE place (legacy review classes -> v1.99 kinds) ─────────────────────────────────────────────────────────
+// Every count of the post-game screens (the Moves tiles and list, the Overview's small differences, the Numbers sheet, the history sheet) comes from this one function.
+//   triv   no real choice (not scored)                       start   a set-up pick (counted on its own: never in the move kinds)
+//   out    outside this analysis (robber, longest road, ports: scored, but not in the tiles)
+//   err    a real error (isClearError)                      strong  best / great / good with no cost
+//   close  a close call: close, lean (the legacy "Better option"), or best / great / good that still cost 1% or more
+//   could  every other weaker move that is not a real error (could, and a mistake / blunder / missed chance that is not clear)
+export const KINDS = ["strong", "close", "could", "err"];
+export function kindOfDecision(d) {
+  if (!d || d.cls === "triv") return "triv";
+  if (d.k === "setup") return "start";
+  if (!inScope(d)) return "out";
+  if (isClearError(d)) return "err";
+  if (d.cls === "best" || d.cls === "great" || d.cls === "good") return d.gp > 0 ? "close" : "strong";
+  if (d.cls === "close" || d.cls === "lean") return "close";
+  return "could";
+}
+/** { strong, close, could, err, start, out, triv } of a list of decisions (decide() output). scored = start + strong + close + could + err + out. */
+export function tallyKinds(ds) {
+  const n = { strong: 0, close: 0, could: 0, err: 0, start: 0, out: 0, triv: 0 };
+  (ds || []).forEach((d) => { n[kindOfDecision(d)] += 1; });
+  return n;
+}
+
 const missingAt = (raw, turn, me) => {
   if (!raw) return [];
   try { const dots = incomeAt(raw, Math.max(0, turn - 1), me).dots; return R5.filter((r) => !dots[r]); } catch (_) { return []; }
