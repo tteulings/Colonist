@@ -156,7 +156,8 @@ export class Home {
     const lvl = last.botStyleMode === "each" ? "Mixed levels" : (this.game.shellLevelLabel?.(last.allPreset) || "Medium");
     const people = 1 + (last.mode === "rush" ? 0 : last.humans.slice(0, last.numBots).filter(Boolean).length);
     const bots = last.numBots - (people - 1);
-    return [last.mode === "rush" ? "Rush" : "Classic", people > 1 ? `${people} people` : "", bots > 0 ? (bots === 1 ? "1 bot" : `${bots} bots`) : "", lvl, last.board === "seafarers" ? "Seafarers" : ""].filter(Boolean);
+    const pts = last.board === "seafarers" ? 14 : last.winPoints;
+    return [last.mode === "rush" ? "Rush" : "Classic", people > 1 ? `${people} people` : "", bots > 0 ? (bots === 1 ? "1 bot" : `${bots} bots`) : "", `${lvl} · ${pts} pt`, last.board === "seafarers" ? "Seafarers" : ""].filter(Boolean);
   }
 
   render() {
@@ -194,7 +195,7 @@ export class Home {
       </section>
       <section class="sh-card sh-new" aria-labelledby="shNewH">
         <div class="sh-card-head"><h2 id="shNewH">New game</h2><button type="button" class="btn sm" data-home="adjust">Adjust</button></div>
-        <div class="sh-chips" aria-label="Your last settings">${chips.map((c) => `<span class="sh-chip">${esc(c)}</span>`).join("")}</div>
+        <div class="sh-chips" aria-label="Your last settings">${chips.map((c) => `<span class="sh-chip">${c.split(" · ").map((x) => `<span>${esc(x)}</span>`).join(" · ")}</span>`).join("")}</div>
         <button type="button" class="btn primary block hm-start" data-home="start" data-mode="${last.mode}">Start game</button>
       </section>
     </div>`;
@@ -309,8 +310,8 @@ export function openNewGame(game, deps, { friend = false } = {}) {
         <section class="sh-sec"><h3 class="sh-lab">Dice</h3>
           ${seg("dice", [["random", "Random"], ["balanced", "Balanced"], ["deck", "Event deck"]], d.dice, "Dice")}
           <p class="sh-help">${{ random: "Two independent dice, every roll a fresh throw.", balanced: "Real dice odds, but long streaks and droughts are smoothed out.", deck: "All 36 dice results drawn from a deck, reshuffled when empty." }[d.dice]}</p></section>
-        <section class="sh-sec"><h3 class="sh-lab">Map layout</h3>
-          ${seg("map", [["random", "Random"], ["balanced", "Balanced"], ["beginner", "Beginner"]], d.map, "Map layout")}
+        <section class="sh-sec"><h3 class="sh-lab">Board layout</h3>
+          ${seg("map", [["random", "Random"], ["balanced", "Balanced"], ["beginner", "Beginner (fixed)"]], d.map, "Board layout")}
           <p class="sh-help">${D.isBigTable(d.numBots + 1) && d.map === "beginner" ? "There is no official 5–6 player starter layout, so you get a balanced island." : { random: "Tiles and numbers shuffled freely.", balanced: "No adjacent 6/8 or equal numbers, every resource on fair numbers.", beginner: "The official fixed starter layout." }[d.map]}</p></section>
         <section class="sh-sec"><div class="sh-row sh-row-sw"><span class="sh-row-t"><b>Friendly robber</b><small>Can't block or rob players with 2 points or fewer</small></span>${sw("friendly", d.friendlyRobber, "Friendly robber")}</div></section>
         <section class="sh-sec"><h3 class="sh-lab">Discard limit</h3>
@@ -367,6 +368,8 @@ export function openNewGame(game, deps, { friend = false } = {}) {
     }
   };
   const trigger = document.activeElement;
+  // v1.99.1: every choice is saved the moment it is picked (leaving the sheet before Start used to drop Master / 8 points); a friend game's one-off overrides are not
+  const persist = () => { if (!friend) { try { D.saveLast?.(d); } catch (_) { /* private mode */ } } };
   const closeEls = () => { wrap.remove(); document.removeEventListener("keydown", onKey); };
   const close = (started = false) => {
     if (!wrap.isConnected) return;
@@ -376,6 +379,7 @@ export function openNewGame(game, deps, { friend = false } = {}) {
       game.uiPaused = false;
       game._rushLastTs = performance.now();
       if (!started && game.onboardingHold && !game.home.open) game.home.show(); // opened from a game kept behind Home
+      if (!started && game.home?.open) game.home.render(); // the chips show what was picked
       if (!started) try { trigger?.focus?.({ preventScroll: true }); } catch (_) { /* gone */ }
     };
     if (started || document.documentElement.dataset.motion === "reduced") done(); else window.setTimeout(done, 190);
@@ -448,15 +452,15 @@ export function openNewGame(game, deps, { friend = false } = {}) {
     else if (a === "cancel") { close(); return; }
     else if (a === "start") { start(); return; }
     else changed = false;
-    if (changed) { game.sfx?.click?.(); render(); if (layer && enter === false && !focusKey) wrap.querySelector(layer === "rules" ? "#shMoreT" : "#shLvT")?.focus({ preventScroll: true }); }
+    if (changed) { persist(); game.sfx?.click?.(); render(); if (layer && enter === false && !focusKey) wrap.querySelector(layer === "rules" ? "#shMoreT" : "#shLvT")?.focus({ preventScroll: true }); }
   });
   wrap.addEventListener("input", (e) => {
     const inp = e.target.closest("[data-name]");
-    if (inp) d.names = d.names.map((n, i) => (i === Number(inp.dataset.name) ? inp.value.slice(0, 14) : n));
+    if (inp) { d.names = d.names.map((n, i) => (i === Number(inp.dataset.name) ? inp.value.slice(0, 14) : n)); persist(); }
   });
   wrap.addEventListener("change", (e) => {
     const sel = e.target.closest("[data-bot-level]");
-    if (sel) { d.perBot = d.perBot.map((p, i) => (i === Number(sel.dataset.botLevel) ? sel.value : p)); focusKey = sel.dataset.k; render(); }
+    if (sel) { d.perBot = d.perBot.map((p, i) => (i === Number(sel.dataset.botLevel) ? sel.value : p)); focusKey = sel.dataset.k; persist(); render(); }
   });
   // swipe down on the grab bar / header closes the sheet
   let y0 = null;

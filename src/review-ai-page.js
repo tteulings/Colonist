@@ -108,10 +108,19 @@ export const ReviewAiPageMixin = {
   },
 
   // ── the page ──
+  /** v1.99.1 the wait is on this phone, not the network: say so early when offline, and say it is slow after 25 s (one redraw is scheduled for that). */
+  _pgSettleNote(fx) {
+    const nl = fx.lang === "nl", W = this._ldW0, slow = W && performance.now() - (W.tab || W.t) > 25000, off = typeof navigator !== "undefined" && navigator.onLine === false;
+    if (!slow && !this._pgSlowT) this._pgSlowT = setTimeout(() => { this._pgSlowT = null; if (this._rvTab === "ai" && this._rvStep == null && tryv(() => this._ldSettling?.(), false)) this._pgSwap?.(); }, 26000);
+    const out = [];
+    if (off) out.push(nl ? "Je bent offline. Deze controle draait op je telefoon en werkt gewoon; alleen vragen aan de AI hebben internet nodig." : "You are offline. This check runs on your phone and still works; only asking the AI needs a connection.");
+    if (slow) out.push(nl ? "Dit duurt langer dan normaal. Het draait op je telefoon en kan een paar minuten duren; daarna toont de pagina wat er is." : "This is taking longer than usual. It runs on your phone and can take a few minutes; the page then shows what is ready.");
+    return out.map((t) => `<p class="ap-asked ap-settle-sub" data-pgnote>${esc(t)}</p>`).join("");
+  },
   _pgHtml() {
     const { fx, page, src, fu } = this._pgState();
     // v1.91 not final yet (the luck run values the positions, the shown rounds are refined): nothing ranked is drawn, so nothing it says moves later
-    if (tryv(() => this._ldSettling?.(), false)) return `<div class="ap ap-settle" data-pg><section class="ap-c ap-sk" aria-busy="true" role="status"><div class="ap-skl"><i></i><i></i></div><div class="ap-skv"></div><span class="ap-skt">${esc(fx.t.settle)}…</span><p class="ap-asked ap-settle-sub">${esc(fx.t.settleSub)}</p></section></div>`;
+    if (tryv(() => this._ldSettling?.(), false)) return `<div class="ap ap-settle" data-pg><section class="ap-c ap-sk" aria-busy="true" role="status"><div class="ap-skl"><i></i><i></i></div><div class="ap-skv"></div><span class="ap-skt">${esc(fx.t.settle)}…</span><p class="ap-asked ap-settle-sub">${esc(fx.t.settleSub)}</p>${this._pgSettleNote(fx)}</section></div>`;
     this._pgOpenSet = this._pgOpenSet || new Set();
     const hl = page.headline ? `<p class="ap-hl">${this._pgParts(page.headline, fx)}</p>` : "";
     const cards = page.widgets.map((w, i) => this._pgCardHtml(w, i, fx));

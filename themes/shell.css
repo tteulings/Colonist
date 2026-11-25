@@ -24,7 +24,7 @@ html[data-palette="night"], html[data-palette="dusk"] { --sh-teal-ink: color-mix
 .sh-home .btn.block, .sh-sheet-wrap .btn.block { width: 100%; }
 .sh-home .btn:disabled { opacity: .55; cursor: default; }
 .sh-home button:focus-visible, .sh-tabs button:focus-visible, .sh-gear:focus-visible, .sh-toast button:focus-visible { outline: var(--sh-focus); outline-offset: 2px; }
-.sh-chip { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border-radius: 999px; background: var(--chip); border: var(--chip-border); color: var(--ink); font: 700 12.5px/1 var(--font-body); white-space: nowrap; }
+.sh-chip { display: inline-flex; align-items: center; gap: .4em; min-height: 28px; padding: 0 10px; border-radius: 999px; background: var(--chip); border: var(--chip-border); color: var(--ink); font: 700 12.5px/1 var(--font-body); white-space: nowrap; }
 .sh-chip.soon { background: var(--sh-accent-soft); border-color: transparent; color: color-mix(in srgb, var(--accent, #D9714E) 55%, var(--ink)); font-weight: 800; }
 
 /* ───────── Play and Daily puzzle tabs ───────── */
@@ -256,3 +256,9 @@ html[data-motion="reduced"] .sh-sheet, html[data-motion="reduced"] .sh-layer.ent
 .sh-settings .theme-toggle button, .sh-settings .tm-settings .theme-toggle button { width: 44px; height: 44px; }
 .sh-settings .st-game .button-row button { min-height: 44px; }
 .sh-seg button { white-space: normal; overflow-wrap: anywhere; hyphens: auto; line-height: 1.1; }
+
+/* v1.99.1 (user test): at 360 px the AI tab's chip row was cut off at the right ("Wie ha..."). On a phone the three chips wrap to two lines instead of scrolling; the wider layouts keep the single scrolling row. */
+@media (max-width: 440px) {
+  .ai-ask .ai-chips { flex-wrap: wrap; overflow: visible; -webkit-mask-image: none; mask-image: none; padding-right: 0; scroll-snap-type: none; }
+  .ai-ask .ai-chips .ai-q { max-width: 100%; }
+}
