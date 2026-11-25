@@ -253,7 +253,6 @@ function waterfall(S, g, m, cost) {
   const miss = m.ds.filter((d) => d.k !== "setup" && d.cls !== "triv" && inScope(d) && d.gp >= 1).sort((a, b) => b.gp - a.gp || a.i - b.i)[0] || null; S.data.wf.miss = miss;
   const sw = swings(g, me), sign = luck >= 0 ? 1 : -1;
   const roll = sw.filter((x) => !x.seven && x.roll != null && Math.sign(x.dice) === sign && Math.abs(x.dice) >= 1).sort((p, q) => Math.abs(q.dice) - Math.abs(p.dice))[0] || null;
-  { const oRolls = sw.filter((x) => x.actor !== me).reduce((a, x) => a + x.dice, 0); S.put("othRolls", me, "wcDelta", oRolls, "fact.othRolls", "swings"); S.put("othRest", me, "wcDelta", others - oRolls, "fact.othRest", "swings"); }
   if (roll) { S.put("roll1.d", me, "wcDelta", roll.dice, "fact.roll1", "win chance"); S.put("roll1.n", me, "count", roll.roll, "fact.roll", "stats"); S.data.wf.roll = roll; }
 }
 
@@ -293,6 +292,8 @@ export function headPlan(g, pid, won, A) {
 }
 function headlineFacts(S, g, m) {
   const plan = headPlan(g, m.pid, m.won, m.A); S.data.head = plan;
+  // a named roller is a PART of the others row ("among them"): it is only named when it is on the row's side and not bigger than the row
+  if (plan?.luck?.k === "roller") { const ot = S.v(`others:${m.pid}`); if (ot == null || Math.sign(ot) !== Math.sign(plan.luck.sum) || Math.abs(plan.luck.sum) > Math.abs(ot)) plan.luck = null; }
   if (plan?.luck?.k === "roller") { S.put("hl.rolls", m.pid, "wcDelta", plan.luck.sum, "fact.hlRolls", "headline"); if (S.data.wf) S.data.wf.rolls = plan.luck; }
 }
 

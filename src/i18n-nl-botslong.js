@@ -406,6 +406,6 @@ export const NL_BOTSLONG = [
  ],
  [
   " Review accuracy {a} ± {b}: its own moves checked by deep Monte Carlo (1000 futures), the same scale as the review screen.",
-  " Reviewnauwkeurigheid {a} ± {b}: zijn eigen zetten gecontroleerd met diepe Monte Carlo (1000 toekomsten), dezelfde schaal als het reviewscherm."
+  " Precisie {a} ± {b}: zijn eigen zetten gecontroleerd met diepe Monte Carlo (1000 toekomsten), dezelfde schaal als het reviewscherm."
  ]
 ];

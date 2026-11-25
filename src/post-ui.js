@@ -38,7 +38,7 @@ export function ready(g, pid) {
 // ── the player's name in a sentence ──
 export const who = (m) => (m.you ? "You" : esc(m.me.name));
 /** a seat named in a sentence: "you" on your own page; on any other page the human is "the human player" (never "you": that page is somebody else's); bots by name. lgText: already in the app language (atr texts) */
-const COLOUR = { en: ["Red", "Blue", "Orange", "Green", "Ivory", "Purple"], nl: ["Rood", "Blauw", "Oranje", "Groen", "Ivoor", "Paars"] };
+const COLOUR = { en: ["Red", "Blaauw", "Geelen", "Groen", "Ivory", "Purple"], nl: ["Rood", "Blaauw", "Geelen", "Groen", "Ivoor", "Paars"] };
 /** the human player on somebody else's page: their own display name, else their seat colour (Red / Rood). lgText false: English, for a template the localizer turns Dutch (the colours are in the Dutch table) */
 export const humanNm = (name, seat, lgText = true) => (name && name !== "You" && name !== "Jij" ? esc(name) : COLOUR[lgText && isNL() ? "nl" : "en"][seat] || COLOUR.en[0]);
 export const seatNm = (m, q, lgText = true) => { const s = m.tab?.seats?.[q]; if (q === m.pid && m.you) return lgText ? atr(isNL() ? "nl" : "en", "wf.you") : "you"; if (s?.you) return humanNm(s.name, q, lgText); return esc(s?.name || "?"); };
@@ -154,9 +154,9 @@ export const spotTiles = (board, node) => { try { if (!board || node == null) re
 export function connectLine(m) {
   const X = m.F, lg = isNL() ? "nl" : "en", pid = m.pid, c = X.v("errors"), x = esc(m.me.name);
   const acc = `<b>${atr(lg, "word.acc")} ${X.has(`acc:${pid}`) ? X.n(`acc:${pid}`) : "–"}</b>`;
-  const errs = atr(lg, c === 0 ? "c.err0" : c === 1 ? "c.err1" : "c.errn", { n: X.n("errors") });
+  const errs = atr(lg, c === 0 ? "c.err0" : c === 1 ? "c.err1" : "c.errn", { n: X.n("errors") }), few = (X.v("scored") ?? 99) < 5;
   const P = { acc, errs, tot: X.n("movesTotal"), cap: X.has("capNote") ? X.n("capNote") : X.n("fair"), st: X.n("startCost"), mv: X.n("moveCost"), x };
-  return `<p class="px-l" data-i18n-skip>${atr(lg, "c.a", P)}</p><p class="px-l" data-i18n-skip>${atr(lg, m.you ? "c.b" : "c.b.3", P)}</p>`;
+  return `<p class="px-l" data-i18n-skip>${few ? atr(lg, "c.few", { n: X.n("scored") }) : atr(lg, "c.a", P)}</p><p class="px-l" data-i18n-skip>${atr(lg, m.you ? "c.b" : "c.b.3", P)}</p>`;
 }
 /** the ± margin of a move (its own uncertainty) as a small muted tag, "" when the review has none */
 export const pm = (X, i) => (X.has(`mv.${i}.margin`) ? `<small class="px-pm" title="margin">${X.n(`mv.${i}.margin`)}</small>` : "");
@@ -270,9 +270,8 @@ export function waterSubs(m) {
   const start = W.picks.length ? sk(W.picks.map((n) => at("wf.start.sub", { p: at("wf.pick", { n }), a: X.n(`pick${n}.win`), b: X.n(`pick${n}.best`) })).join(" · ")) : sk(at("wf.start.ok"));
   const moves = W.miss ? (() => { const w = missWhat(m, W.miss), p = { t: W.miss.t, d: X.n(`mv.${W.miss.i}.cost`) }; return sk(w.w ? at("wf.moves.sub.w", { ...p, w: w.w }) : at("wf.moves.sub", { ...p, k1: w.k1, k2: w.k2 })); })() : sk(at("wf.moves.none", { n: X.n("lim.small:-") }));
   const luck = W.roll ? sk(at("wf.luck.sub", { x: nmOf(W.roll.actor), n: X.n("roll1.n"), t: W.roll.T, d: X.n("roll1.d") })) : sk(at("wf.luck.none"));
-  const l1 = W.rolls ? sk(at(W.rolls.Ts.length > 1 ? "wf.others.l1r" : "wf.others.l1r1", { y: seatNm(m, W.rolls.actor), t: W.rolls.Ts[0], t2: W.rolls.Ts[1], d: X.n("othRolls"), h: X.n("hl.rolls") })) : sk(at("wf.others.l1", { d: X.n("othRolls") }));
-  const oth = [l1, sk(at("wf.others.l2", { d: X.n("othRest") }))];
-  const aft = sk(at("wf.after.sub"));
+  const oth = [sk(at("wf.others.l"))]; if (W.rolls) oth.push(sk(at(W.rolls.Ts.length > 1 ? "wf.others.o" : "wf.others.o1", { y: seatNm(m, W.rolls.actor), t: W.rolls.Ts[0], t2: W.rolls.Ts[1], h: X.n("hl.rolls") })));
+  const aft = sk(at(m.you ? "wf.after.sub" : "wf.after.sub.3", { w: X.n("wf.run.4") }));
   return { start, moves, luck, oth, aft };
 }
 function waterfallCard(g, m) {
@@ -284,7 +283,7 @@ function waterfallCard(g, m) {
   const how = `<ul class="px-how"><li>${X.ph("The rows add up: from {a} at the start to {b} at the end.", { a: ["fair"], b: ["end"] })}</li><li>Start picks is what the two start spots cost against the best spots checked.</li><li>Moves is what all other scored moves cost against best play.</li><li>Moves in total = start picks + moves.</li><li>Luck is rolls, steals, card draws and seat order together.</li><li>After the last move is what the rest of the game added, up to the real result.</li><li>What the others did is what is left: their moves and luck, plus what the estimates cannot tell apart.</li></ul>`;
   const res = X.data.res, eb = res ? `<div class="px-eb">${X.ph("Why it ended {n}–{n2}", { n: [res.left], n2: [res.right] })}</div>` : "";
   const cap = X.v("moveRaw") != null && X.cost?.capped ? `<p class="px-fn">${X.ph("Together the moves cannot cost more than the best win chance held ({w}).", { w: ["capNote"] })}</p>` : "";
-  return `${eb}<section class="rv-card px-card px-led px-wf"><div class="rv-gt"><b>${m.you ? "What moved your win chance" : f("What moved {x}’s win chance", { x: esc(m.me.name) })}</b><button type="button" class="px-link nm" data-pxnum>Numbers</button></div>${wc("fair", "fair", "Fair share", "fair")}${row("start", "start", "Start picks", "startCost", subStart, "setup", "own")}${row("moves", "moves", "Moves", "moveCost", subMoves, "moves", "own")}${W.hasLuck ? row("luck", "luck", "Luck", "luck", subLuck, "luck", "own") : ""}${row("others", "oth", "What the others did", "others", subOth, "rest", "oth")}${W.after ? row("after", "aft", m.you ? "After your last move" : "After the last move", "afterLast", subs.aft, "rest", "oth") : ""}${wc("end", "end", "End", "end")}<p class="px-fn px-eq">${X.ph("Moves in total {t} = start picks {a} + moves {b}: all scored moves.", { t: ["movesTotal"], a: ["startCost"], b: ["moveCost"] })}</p><p class="px-fn px-eq">${m.errs[0] ? X.ph("The biggest error alone cost {e}. Per move {c}.", { e: [`mv.${m.errs[0].i}.cost`], c: ["perMove"] }) : X.ph("Per move {c}.", { c: ["perMove"] })}</p>${cap}${fold("how", "<span>How to read this</span>", how)}</section>`;
+  return `${eb}<section class="rv-card px-card px-led px-wf"><div class="rv-gt"><b>${m.you ? "What moved your win chance" : f("What moved {x}’s win chance", { x: esc(m.me.name) })}</b><button type="button" class="px-link nm" data-pxnum>Numbers</button></div>${wc("fair", "fair", "Start (everyone equal)", "fair")}${row("start", "start", "Start picks", "startCost", subStart, "setup", "own")}${row("moves", "moves", "Moves", "moveCost", subMoves, "moves", "own")}${W.hasLuck ? row("luck", "luck", "Luck", "luck", subLuck, "luck", "own") : ""}${row("others", "oth", "What the others did", "others", subOth, "rest", "oth")}${W.after ? row("after", "aft", m.you ? "After your last move" : "After the last move", "afterLast", subs.aft, "rest", "oth") : ""}${wc("end", "end", X.data.res ? (X.data.res.won ? "Result: won" : "Result: lost") : "End", "end")}<p class="px-fn px-eq">${X.ph("Moves in total {t} = start picks {a} + moves {b}: all scored moves.", { t: ["movesTotal"], a: ["startCost"], b: ["moveCost"] })}</p><p class="px-fn px-eq">${m.errs[0] ? X.ph("The biggest error alone cost {e}. Per move {c}.", { e: [`mv.${m.errs[0].i}.cost`], c: ["perMove"] }) : X.ph("Per move {c}.", { c: ["perMove"] })}</p>${cap}${fold("how", "<span>How to read this</span>", how)}</section>`;
 }
 
 
