@@ -52,11 +52,16 @@ const SILENT_OBJS = ["sfx", "fx"];
 const SILENT_SUBS = ["log", "sfx", "fx", "anim", "stats"]; // the emitter's presentation subscribers (the card tracker "trk" stays: it is the bots' own knowledge)
 const FLAGS = { _replay: true, _rvBusy: "probe" }; // stats recorder off; the review recorder busy
 
-function mute(g, { suspend }) {
+const HM = { headless: true, r: undefined, b: undefined, m: undefined }; // v1.99: the headless mute record, reused (probes never nest); no object per probe, no `delete` (an own property that was absent stays, holding its old value)
+function mute(g, suspend) {
   const live = app.has(g); // the game on the screen; any other (the AI Lab's sim frame, a headless game) is stubbed already and only needs its recorders told a probe is no move
+  if (!live) { // headless (every probe of a lab / tournament game): the three flags, without the closures of the general path
+    HM.r = g._replay; HM.b = g._rvBusy; HM.m = g._stMover;
+    g._replay = true; g._rvBusy = "probe";
+    return HM;
+  }
   const own = {}, saved = {};
   const swap = (k, v) => { own[k] = Object.prototype.hasOwnProperty.call(g, k); saved[k] = g[k]; g[k] = v; };
-  if (!live) { Object.keys(FLAGS).forEach((k) => swap(k, FLAGS[k])); swap("_stMover", g._stMover); return { own, saved, anims: null, api: null, keepActive: null }; }
   SILENT_FNS.forEach((k) => swap(k, NOOP));
   SILENT_OBJS.forEach((k) => { if (g[k]) swap(k, QUIET); });
   const bus = g.events, mutedBefore = bus?.muted ? new Set(bus.muted) : null;
@@ -70,6 +75,7 @@ function mute(g, { suspend }) {
   return { own, saved, anims, api, keepActive, bus, mutedBefore };
 }
 function unmute(g, m) {
+  if (m.headless) { g._replay = m.r; g._rvBusy = m.b; g._stMover = m.m; return; }
   Object.keys(m.saved).forEach((k) => { if (m.own[k]) g[k] = m.saved[k]; else delete g[k]; });
   if (m.bus?.unmuteAll) m.bus.unmuteAll(m.mutedBefore);
   if (m.anims) g.placementAnims.splice(0, g.placementAnims.length, ...m.anims); // restore() empties the list

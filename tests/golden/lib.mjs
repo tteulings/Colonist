@@ -63,6 +63,12 @@ const MOVES = [
   ["moveRobberAndSteal", (p, h) => `${p.id} robber ${h}`, "robber"], ["_commitRobber", (p, h) => `${p.id} robber ${h}`, "robber"], // _commitRobber: the engine's (host) way to the same move
 ];
 const logging = () => LOG && !quiet && !g.__probing; // a bot-host probe (src/bots/probe.js) runs a planner on the game and puts it back: not a move
+// ... except when the host ADOPTS the probe's move (v1.99): then the move was made in the probe and its lines belong to the apply. So a probe's move lines are kept (thunks, in order) and
+// written when the engine books an adopted action (g.__adoptFlush, engine.apply `adopted`); a probe that is put back drops them (the next probe starts a fresh list).
+let PB = null, probing = false;
+Object.defineProperty(g, "__probing", { configurable: true, enumerable: false, get: () => probing, set: (v) => { if (v && !probing) PB = null; probing = !!v; } });
+g.__adoptFlush = () => { const b = PB; PB = null; if (b) b.forEach((f) => f()); };
+const defer = (fn) => { if (probing) { if (LOG && !quiet) (PB ||= []).push(fn); } else if (logging()) fn(); };
 // The legacy bots play a card and its robber / free roads in ONE call, so the log has the card last ("robber 5", "play knight"). Driven through the
 // engine the card returns first and its follow-ups are prompts of their own: hold the card (and a robber waiting for its steal) until the flow ends,
 // and the log reads the same either way. In the legacy loop no flow is ever open when a move returns, so nothing is held.
@@ -76,13 +82,13 @@ const put = (e, kind, was) => {
   pushLog(e);
   if (held.length && !open) flush();
 };
-const wrap = (obj, k, f, kind) => { const o = obj[k].bind(obj); obj[k] = (...a) => { const was = flowActive(); const r = o(...a); if (r !== false && logging()) put(f(...a), kind, was); return r; }; };
+const wrap = (obj, k, f, kind) => { const o = obj[k].bind(obj); obj[k] = (...a) => { const was = flowActive(); const r = o(...a); if (r !== false) defer(() => put(f(...a), kind, was)); return r; }; };
 const wrapped = new WeakSet();
 function wrapGame() {
   if (wrapped.has(g)) return; wrapped.add(g);
   MOVES.forEach(([k, f, kind]) => wrap(g, k, f, kind));
   g.attachLog(); // prepareEngine detached the journal (headless = no subscribers): the move log wants the text of a few lines
-  g.addLog = (t) => { if (logging() && /traded|discard|stole|rolled|Roll #/i.test(t)) { if (held.length && !flowActive() && !/stole/.test(t)) flush(); pushLog(t.replace(/\s+/g, " ")); } return 0; };
+  g.addLog = (t) => { if (/traded|discard|stole|rolled|Roll #/i.test(t)) defer(() => { if (held.length && !flowActive() && !/stole/.test(t)) flush(); pushLog(t.replace(/\s+/g, " ")); }); return 0; };
   const end = g.endTurn.bind(g);
   g.endTurn = (...a) => {
     if (logging() && held.length && !flowActive()) flush(); // the turn's last flow (a robber still waiting for its line) closes before the turn does
@@ -99,7 +105,7 @@ function wrapSea() { // the Seafarers rules object is rebuilt with every game: w
   const P = SEA.Seafarers?.prototype || Object.getPrototypeOf(g.sea || {});
   if (!P || P.__golden) return; P.__golden = true;
   for (const [k, f] of [["placeShip", (p, e) => `${p.id} ship ${e}`], ["moveShip", (p, a, b) => `${p.id} mship ${a}>${b}`]]) {
-    const o = P[k]; P[k] = function (...a) { const r = o.apply(this, a); if (r !== false && logging()) pushLog(f(...a)); return r; };
+    const o = P[k]; P[k] = function (...a) { const r = o.apply(this, a); if (r !== false) defer(() => pushLog(f(...a))); return r; };
   }
 }
 /** a compact digest of the live state: hands, bank, points, pieces, robber */
@@ -140,7 +146,7 @@ const BOTS = await import("../../src/bots/index.js");
 function playHost(spec, strategies, agents, decisions) {
   const engine = BOTS.startLabGame(g, strategies, { players: spec.seats.length, map: spec.map || "random", seed: spec.seed });
   const bots = strategies.map((st, i) => (agents[i] ? BOTS.botForStrategy(st, { agent: agents[i] }) : BOTS.botForStrategy(st)));
-  const host = BOTS.newHost();
+  const host = BOTS.newHost(spec.hostOpts);
   const r = BOTS.runSync(engine, bots, { host, until: () => !!(spec.stopTurn && g.turn >= spec.stopTurn) });
   engine.release();
   if (host.errors.length) throw new Error("host errors: " + JSON.stringify(host.errors.slice(0, 3)));
@@ -159,6 +165,7 @@ export function playGame(spec) {
     if (spec.mode === "rush") return playRush(spec, strategies, agents, decisions);
     if (hostMode.on) return playHost(spec, strategies, agents, decisions);
     g._labSimStart(strategies, { players: spec.seats.length, map: spec.map || "random", seed: spec.seed, agents });
+    if (spec.onStart) spec.onStart(g); // read-only observer (tests/golden-events)
     let r = { done: false };
     while (!r.done && !(spec.stopTurn && g.turn >= spec.stopTurn)) { r = g._labSimStep(1); if (spec.onTurn) spec.onTurn(g, r); } // onTurn: read-only observer (tournament --dump-states)
     return finish(spec, r, decisions);
@@ -182,6 +189,7 @@ function playRush(spec, strategies, agents, decisions) {
     g.players.forEach((p, i) => { p.isHuman = false; p.strategy = { ...strategies[i] }; p.agent = agents[i] || null; });
     g.onboardingHold = false;
     document.hidden = false; // the Proxy DOM would answer a truthy stub
+    if (spec.onStart) spec.onStart(g);
     if (g.setupPhase) { g.setupAction = null; g.processSetupQueue(); }
     let guard = 0;
     while (!g.winner && guard++ < 400000 && vclock.now < (spec.maxVirtualMs || 3.6e6)) if (!vclock.step()) break;

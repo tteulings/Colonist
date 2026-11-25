@@ -13,7 +13,11 @@ import { Seafarers } from "../seafarers/rules.js";
 
 let REC = null; // the recording in progress: { g, actions, depth, snap }
 /** The in-app host (bots/inapp.js) mutes what a planner shows while it plans (log, sounds, stats, review recorder) and gives the engine seat control; headless: none. */
-export const probeHooks = { enter: null, leave: null };
+export const probeHooks = { enter: null, leave: null, verify: null };
+// v1.99 "adopt the probe": a planner step that did exactly ONE of these (and the mute says nobody watches: headless) leaves the game where the
+// planner put it instead of restoring and letting the host's apply do the same move again. The host then only books the action (engine.apply
+// `adopted`). Proven equal to restore + apply by tests/adopt199.mjs (probeHooks.verify: both ways, every state field compared).
+const ADOPT = new Set(["build", "buyDev", "tradeBank"]);
 const installed = new WeakSet();
 
 const hand = (h) => { const o = {}; Object.keys(h).forEach((k) => { if (h[k]) o[k] = h[k]; }); return o; };
@@ -24,10 +28,10 @@ function install(g) {
   // a wrapper is transparent outside a probe; inside it snapshots before the first change, runs the real method and writes the action down
   const wrap = (obj, k, rec) => {
     const o = obj[k];
-    obj[k] = function (...a) {
-      if (!REC) return o.apply(this, a);
+    obj[k] = function (a0, a1, a2) { // (every wrapped method takes at most three arguments: no rest array on the way through)
+      if (!REC) return o.call(this, a0, a1, a2);
       if (!REC.snap) { REC.snap = snapshot(REC.g); REC.x = extras(REC.g); }
-      const r = o.apply(this, a);
+      const a = [a0, a1, a2], r = o.call(this, a0, a1, a2);
       if (r !== false && REC.depth === 0) { const act = rec(a, r, this); if (act) REC.actions.push(act); }
       return r;
     };
@@ -53,12 +57,10 @@ function install(g) {
   // a bot-to-bot deal: the planner has already chosen the partner (who said yes); the swap itself is the engine's
   // the public card tracker is read-modify-write state (a read reconciles it with the hand sizes) that the sim snapshot cannot give back without
   // changing what the next read finds; a probe therefore leaves the tracker exactly as the planner left it, and the engine's apply of the actions
-  // the planner already carried out (flag g.__noTrk, set by the bot, cleared by the host) does not note them a second time.
-  const tn = g._aiTrkNote;
-  g._aiTrkNote = function (...a) { return this.__noTrk ? undefined : tn.apply(this, a); };
+  // the planner already carried out (flag g.__noTrk, set by the bot, cleared by the host; _aiTrkNote itself checks it) does not note them a second time.
   const st = g._stTrade;
   g._stTrade = function (a, b, aGives, bGives) {
-    if (REC && REC.depth === 0) REC.actions.push({ actor: a.id, type: "offerTrade", to: [b.id], give: hand(aGives), want: hand(bGives) });
+    if (REC && REC.depth === 0) { if (!REC.snap) { REC.snap = snapshot(REC.g); REC.x = extras(REC.g); } REC.actions.push({ actor: a.id, type: "offerTrade", to: [b.id], give: hand(aGives), want: hand(bGives) }); }
     return st.call(this, a, b, aGives, bGives);
   };
 }
@@ -67,20 +69,26 @@ function install(g) {
  * Run `fn()` (a legacy planner step) and return { result, actions }. The game is restored afterwards, so a probe is a pure question;
  * `eager` snapshots before `fn` starts (needed when the planner changes the game before its first recorded call, as a trade's tracker notes do).
  */
-export function probe(g, fn, { eager = false, suspend = false } = {}) {
+export function probe(g, fn, o) {
+  const eager = !!(o && o.eager), suspend = !!(o && o.suspend), adopt = !!(o && o.adopt);
   install(g);
   if (REC) throw new Error("probe: nested");
   const rec = (REC = { g, actions: [], depth: 0, snap: eager ? snapshot(g) : null, x: eager ? extras(g) : null });
   const api = g.__api, act = api?.active;
   if (suspend && api) api.active = null; // the engine's seat control is off: every bot seat is a bot again (a deal asks the partner bot, not "a person")
   g.__probing = true; // the golden harness's move log skips what a probe does
-  let result, mute = null;
-  try { mute = probeHooks.enter ? probeHooks.enter(g, { suspend }) : null; result = fn(); } finally {
+  let result, mute = null, done = false, adopted = false;
+  try { mute = probeHooks.enter ? probeHooks.enter(g, suspend) : null; result = fn(); done = true; } finally {
     REC = null; g.__probing = false; if (api) api.active = act;
-    if (rec.snap) { const trk = g._aiCardTrack; restore(g, rec.snap); putExtras(g, rec.x); g._aiCardTrack = trk; }
+    if (rec.snap) {
+      adopted = done && adopt && rec.actions.length === 1 && ADOPT.has(rec.actions[0].type) && !!mute?.headless && !g.winner && !g.sbp; // the 5-6 build window books a seat's build in the apply (sbp.human.built)
+      const V = probeHooks.verify;
+      if (adopted && V) V.pending = { a: rec.actions[0], rewind: () => { const trk = g._aiCardTrack; restore(g, rec.snap); putExtras(g, rec.x); g._aiCardTrack = trk; } }; // verify: the host plays it both ways and compares
+      if (!adopted) { const trk = g._aiCardTrack; restore(g, rec.snap); putExtras(g, rec.x); g._aiCardTrack = trk; }
+    }
     if (mute && probeHooks.leave) probeHooks.leave(g, mute);
   }
-  return { result, actions: rec.actions };
+  return adopted ? { result, actions: rec.actions, adopted: true } : { result, actions: rec.actions };
 }
 
 /**

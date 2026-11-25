@@ -54,7 +54,7 @@ const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore:
 // Glossary names (shared/glossary.md): cards are Lumber / Brick / Wool / Grain / Ore
 import { RES_EN as RESOURCE_LABEL, RES_NL } from "./resources.js";
 import { oicon } from "./ui-icons.js";
-import { startLocalizer, tr, onLang, localize } from "./i18n.js"; // v1.87 English / Dutch for the whole app
+import { startLocalizer, tr, onLang, localize, lang as langNow } from "./i18n.js"; // v1.87 English / Dutch for the whole app
 startLocalizer();
 const DEV_SHORT = { knight: "Knight", monopoly: "Monopoly", yearOfPlenty: "Plenty", roadBuilding: "Roads", victoryPoint: "Point" }; // the always-visible name on a held card
 const RESOURCE_ICON_PATH = {
@@ -4877,7 +4877,8 @@ class ColonistFullGame {
           this.render();
           // Delay before AI actions so card-deal animation plays out
           // Longer delay on 7 so the robber move + steal are visible
-          const actionDelay = this.lastRoll !== 7 ? 800 : 1800;
+          const fast = this._botsFast(); // v1.99 Fast: 800 -> 450 ms (the cards are dealt by then: bots' flights are skipped, see fx.js), the robber's 1800 -> 1400
+          const actionDelay = this.lastRoll !== 7 ? (fast ? 450 : 800) : (fast ? 1400 : 1800);
           // Wait for the robber flow (e.g. the human discarding) before continuing the turn
           robberDone.then(this._guard(() => (this._masterPrefetch(player), this._later(() => this._aiGate(() => {
             this._aiDiceAnimating = false;
@@ -5704,6 +5705,7 @@ class ColonistFullGame {
   }
 
   _aiTrkNote(player, delta, sign) {
+    if (this.__noTrk) return; // the bot host (bots/probe.js): the planner's probe has noted this move already
     if (!player || !this.players?.includes(player)) return;
     const e = this._aiTrk().est[player.id];
     RESOURCES.forEach((r) => { if (delta[r]) e[r] = Math.max(0, e[r] + sign * delta[r]); });
@@ -6312,6 +6314,9 @@ class ColonistFullGame {
     return Math.round(slow - t * (slow - fast));
   }
 
+  /** v1.99: the bot speed slider is on Fast / "Snel" (a bot move every 450 ms or quicker): the waits around a bot turn shrink (not at Normal and slower). */
+  _botsFast() { return this.botStepMs() <= 450; }
+
   /** "Bots: Intermediate" for the in-game menu header ("" when no bots). */
   _botLevelLabel() {
     const names = [...new Set(this.players.filter((q) => !q.isHuman && q.strategy).map((q) => {
@@ -6385,7 +6390,7 @@ class ColonistFullGame {
         this.aiTurnTimeout = window.setTimeout(step, cadence);
       }
     });
-    this.aiTurnTimeout = window.setTimeout(step, 500);
+    this.aiTurnTimeout = window.setTimeout(step, this._botsFast() ? 250 : 500); // v1.99 Fast: the beat before the first bot of a round 500 -> 250 ms
   }
 
   // ══ Rush mode ═══════════════════════════════════════════════════════
@@ -9049,6 +9054,18 @@ class ColonistFullGame {
     return html;
   }
 
+  /** The journal rows (one or two elements as HTML strings) of one log entry. */
+  _logRowsOf(entry, rush) {
+    const text = typeof entry === "string" ? entry : entry.text;
+    const stamp = rush && entry && Number.isFinite(entry.clock) ? `<span class="time feed-time">${formatClock(entry.clock)}</span>` : "";
+    let m = /^Turn (\d+): (.+) rolled (\d+)\.$/.exec(text);
+    if (m) return [`<div class="jturn">Turn ${m[1]} · ${m[2]}</div>`, `<div class="jrow">${icon("dice")}<div class="t">${this._enrichLogText(m[2])} rolled <b>${m[3]}</b></div></div>`];
+    m = /^Roll #(\d+): rolled (\d+)\.$/.exec(text);
+    if (m) return [`<div class="jturn feed-roll">Roll ${m[1]}${stamp ? ` · ${formatClock(entry.clock)}` : ""}</div>`, `<div class="jrow">${icon("dice")}<div class="t">Dice rolled <b>${m[2]}</b></div></div>`];
+    const cls = /\bwins?\b/.test(text) ? " win winner" : /^(Session restored|Initial placement|Place your|Now place)/.test(text) ? " dim" : "";
+    return [`<div class="jrow${cls}">${icon(this._logIcon(text))}<div class="t">${stamp}${this._enrichLogText(text)}</div></div>`];
+  }
+
   renderLog() {
     const rush = this.isRush();
     const last = this.logEntries[this.logEntries.length - 1];
@@ -9062,25 +9079,35 @@ class ColonistFullGame {
         <button class="btn ghost icon-only sheet-close" id="journalClose" aria-label="Close journal">${icon("close")}</button>`;
       title.querySelector("#journalClose").addEventListener("click", () => this.toggleLog(false));
     }
-    const rows = [];
-    this.logEntries.slice(rush ? -40 : -30).forEach((entry) => {
-      const text = typeof entry === "string" ? entry : entry.text;
-      const stamp = rush && entry && Number.isFinite(entry.clock) ? `<span class="time feed-time">${formatClock(entry.clock)}</span>` : "";
-      let m = /^Turn (\d+): (.+) rolled (\d+)\.$/.exec(text);
-      if (m) {
-        rows.push(`<div class="jturn">Turn ${m[1]} · ${m[2]}</div><div class="jrow">${icon("dice")}<div class="t">${this._enrichLogText(m[2])} rolled <b>${m[3]}</b></div></div>`);
-        return;
+    // v1.99: the rows of the lines already on screen are kept; a new line appends its row(s) and the oldest drop off (the full rebuild of up to 40 rows,
+    // each with its icon and name-colouring passes, came with every single log line). The full rebuild stays for everything else (a new game, an undo,
+    // a language / theme / name change, a line edited in place).
+    const win = this.logEntries.slice(rush ? -40 : -30), C = this._logC, el = this.logContainer;
+    const sig = `${rush}|${this.theme.id}|${langNow()}|${this.players.map((p) => p.name).join("\u0001")}`;
+    let inc = false;
+    if (C && C.sig === sig && C.el === el && C.items.length && win.every((e) => e && typeof e === "object")) {
+      const old = C.items, j = win.indexOf(old[old.length - 1].e), s0 = old.length - 1 - j;
+      if (j >= 0 && s0 >= 0) {
+        let ok = el.children.length === old.reduce((n, it) => n + it.n, 0);
+        for (let i = 0; ok && i <= j; i++) { const it = old[s0 + i]; if (win[i] !== it.e || win[i].text !== it.text || win[i].clock !== it.clock) ok = false; }
+        if (ok) {
+          let drop = 0; for (let i = 0; i < s0; i++) drop += old[i].n;
+          while (drop-- > 0) el.removeChild(el.firstChild);
+          const items = old.slice(s0), rows = [];
+          for (let i = j + 1; i < win.length; i++) { const r = this._logRowsOf(win[i], rush); rows.push(...r); items.push({ e: win[i], text: win[i].text, clock: win[i].clock, n: r.length }); }
+          if (rows.length) el.insertAdjacentHTML("beforeend", rows.join(""));
+          C.items = items; inc = true;
+        }
       }
-      m = /^Roll #(\d+): rolled (\d+)\.$/.exec(text);
-      if (m) {
-        rows.push(`<div class="jturn feed-roll">Roll ${m[1]}${stamp ? ` · ${formatClock(entry.clock)}` : ""}</div><div class="jrow">${icon("dice")}<div class="t">Dice rolled <b>${m[2]}</b></div></div>`);
-        return;
-      }
-      const cls = /\bwins?\b/.test(text) ? " win winner" : /^(Session restored|Initial placement|Place your|Now place)/.test(text) ? " dim" : "";
-      rows.push(`<div class="jrow${cls}">${icon(this._logIcon(text))}<div class="t">${stamp}${this._enrichLogText(text)}</div></div>`);
-    });
-    this.logContainer.innerHTML = rows.join("");
-    this.logContainer.scrollTop = this.logContainer.scrollHeight;
+    }
+    if (!inc) {
+      const items = [], rows = [];
+      win.forEach((entry) => { const r = this._logRowsOf(entry, rush); rows.push(...r); items.push({ e: entry, text: entry && entry.text, clock: entry && entry.clock, n: r.length }); });
+      el.innerHTML = rows.join("");
+      this._logC = { sig, el, items };
+    }
+    // the scroll to the newest line is a layout read: only where the journal is on screen (on a phone: while its sheet is open; opening it scrolls, see toggleLog)
+    if (!this.isMobileLayout || this.railLog?.classList.contains("open")) el.scrollTop = el.scrollHeight;
     // Mobile: one-line ticker with the newest entry (or the next step, see renderStatusAndControls)
     // System noise ("Session restored.", …) and trade-offer lines never fill the ticker:
     // show the newest real event, or else what happens next.
