@@ -24,3 +24,6 @@
 
 ## Review of the built analysis screens (PO, 24 nov)
 The approved screenshots (docs/design/shots/analysis-approved/) are the reference, not a cage. Critics judge broadly: does it teach (the three lessons), is it clear for a casual player, is it pleasant and consistent, does it beat the mockups where it can. Deviations from the mockups are fine when they are improvements; flag them with the reason.
+
+## Engine speed (PO, 25 nov)
+Host route stays at ~75% of the old route's headless speed (21.6 vs 19.1 ms/game; gap spread over many small per-step costs). No "trusted bot fast path" that skips isLegal/prompts/log: the safety net is the point of the action API (Daily puzzle verification). Revisit only for tournaments if they become too slow. Work is on claude/wip-perf199 (adoption of probe results, lazy trade snapshots, quick isLegal paths; event golden in tests/golden-events/).
