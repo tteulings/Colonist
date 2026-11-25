@@ -19,7 +19,7 @@ let fails = 0; const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"
     const open = async () => { await page.evaluate(() => window.__colonistGame.histOpen()); await sleep(500); await page.evaluate((id) => window.__colonistGame._histSheet(id), meta.id); await sleep(350); await page.evaluate(() => document.querySelector("[data-sact=review]").click()); await page.waitForSelector(".rv .rv-tabs", { timeout: 45000 }); await sleep(300); };
     await boot();
     await page.evaluate(async ({ meta, rec }) => { const H = window.__colonistGame.hist; await H.open(); await H.put({ ...meta }, rec, { quiet: true }); }, { meta, rec });
-    await open(); const a = await st(); ok(a.n === cut && !a.done, `${file}: opens on the partial review`, a);
+    await open(); const a = await st(); ok(a.n >= cut && a.n <= cut + 3 && !a.done, `${file}: opens on the partial review (fixA scores the start picks first, so the run may already have added one or two)`, a);
     { const hd = await page.evaluate(() => { const s = document.querySelector(".rv .rv-bar small"); return s ? { cut: s.scrollWidth > s.clientWidth + 1 || getComputedStyle(s).textOverflow === "ellipsis" && getComputedStyle(s).whiteSpace === "nowrap", txt: s.textContent, w: innerWidth } : null; }); ok(hd && !hd.cut && /provisional|Monte|decisions scored/.test(hd.txt), `${file}: the header summary at 360px is not cut off`, hd); }
     ok(a.est, `${file}: the Overview verdict of a partial review says "quick estimate"`);
     // finding 7: the Lessons list knows a game as soon as its review has results (the entry is written when the Lessons open), not only when the review has ended
