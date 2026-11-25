@@ -12,16 +12,16 @@ const run = (host, seed0) => {
   return { ms: cpu() - t, res: res.join() };
 };
 run(false, 9000); run(true, 9000); // warm-up
-const O = [], H = []; let same = true;
+const O = [], H = [], RT = []; let same = true;
 for (let b = 0; b < B; b++) {
   const s = 100 + b * N, flip = b % 2 === 1;
   const x = flip ? run(true, s) : run(false, s), y = flip ? run(false, s) : run(true, s);
   const o = flip ? y : x, h = flip ? x : y;
   if (o.res !== h.res) same = false;
-  O.push(N / (o.ms / 1e3)); H.push(N / (h.ms / 1e3));
+  O.push(N / (o.ms / 1e3)); H.push(N / (h.ms / 1e3)); RT.push(o.ms / h.ms); // same seeds, back to back: the per-batch ratio is the fair number
 }
 const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1], f = (x) => x.toFixed(1);
 console.log(`old  games/s: best ${f(Math.max(...O))} median ${f(med(O))}`);
 console.log(`host games/s: best ${f(Math.max(...H))} median ${f(med(H))}`);
-console.log(`ratio host/old: best ${(Math.max(...H) / Math.max(...O)).toFixed(3)}  median ${(med(H) / med(O)).toFixed(3)}   same games: ${same}`);
+console.log(`ratio host/old (per batch, same seeds): median ${med(RT).toFixed(3)}  best ${Math.max(...RT).toFixed(3)}  worst ${Math.min(...RT).toFixed(3)}   same games: ${same}`);
 process.exit(0);

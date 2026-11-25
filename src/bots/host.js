@@ -27,19 +27,23 @@ export function nextPrompt(engine, bots) {
   return first;
 }
 
+const NOBUDGET = { ms: Infinity, nodes: Infinity, deadline: Infinity, spent: () => 0 };
+// v1.99: one ctx object per host and engine, its seat / prompt / rng refreshed for every decision (a decision is over before the next begins; nothing keeps a ctx)
 function makeCtx(engine, host, bot, prompt) {
-  const g = engine.g;
-  return {
-    game: g, engine, seat: prompt.actor, prompt,
-    adoptOk: !host.events, // v1.99: a quiet headless host lets the probe's move stand (probe.js adopt); with events the apply must run it (the events need the position before)
-    adopt: (a) => { host.adopted = a; },
-    isLegal: (a) => { if (host.adopted === a) return true; const ok = engine.isLegal(a, { prompt }).ok; host.judged = ok ? a : null; host.judgedPrompt = prompt; return ok; }, // v1.99: finish() does not judge the same answer a second time
-    enumerate: (max = 200) => engine.enumerate(prompt.actor, { prompt, max }), // concrete legal actions (the `legal` list holds descriptors for discards, offers, ...)
-    warn: (m) => host.errors.push({ seat: prompt.actor, prompt: prompt.kind, warn: m }),
-    rng: host.rng(prompt.actor), note() {}, sim: null, signal: host.signal,
-    humanTrade: !!host.humanTrade,
-    budget: { ms: Infinity, nodes: Infinity, deadline: Infinity, spent: () => 0 },
-  };
+  let c = host.ctx;
+  if (!c || c.engine !== engine) {
+    c = host.ctx = {
+      game: engine.g, engine, seat: 0, prompt: null,
+      adoptOk: !host.events, // a quiet headless host lets the probe's move stand (probe.js adopt); with events the apply must run it (the events need the position before)
+      adopt: (a) => { host.adopted = a; },
+      isLegal: (a) => { if (host.adopted === a) return true; const pr = c.prompt, ok = engine.isLegal(a, { prompt: pr }).ok; host.judged = ok ? a : null; host.judgedPrompt = pr; return ok; }, // finish() does not judge the same answer a second time
+      enumerate: (max = 200) => engine.enumerate(c.prompt.actor, { prompt: c.prompt, max }), // concrete legal actions (the `legal` list holds descriptors for discards, offers, ...)
+      warn: (m) => host.errors.push({ seat: c.prompt.actor, prompt: c.prompt.kind, warn: m }),
+      rng: null, note() {}, sim: null, signal: null, humanTrade: false, budget: NOBUDGET,
+    };
+  }
+  c.seat = prompt.actor; c.prompt = prompt; c.rng = host.rng(prompt.actor); c.signal = host.signal; c.humanTrade = !!host.humanTrade;
+  return c;
 }
 
 /** One decision: ask the bot, judge the answer, apply it. Returns the action applied, a Promise of it (async bot), or null (nothing to decide). */
@@ -80,7 +84,7 @@ function finish(engine, host, prompt, action) {
 
 export function newHost(opts = {}) {
   const rngs = new Map();
-  return { errors: [], judged: null, judgedPrompt: null, adopted: null, steps: 0, turns: 0, events: !!opts.onEvent, humanTrade: !!opts.humanTrade, strict: !!opts.strict, onAction: opts.onAction || null, signal: opts.signal || null,
+  return { errors: [], judged: null, judgedPrompt: null, adopted: null, ctx: null, steps: 0, turns: 0, events: !!opts.onEvent, humanTrade: !!opts.humanTrade, strict: !!opts.strict, onAction: opts.onAction || null, signal: opts.signal || null,
     rng: (seat) => { let r = rngs.get(seat); if (!r) rngs.set(seat, (r = mulberry32((opts.seed ?? 1) * 7919 + seat))); return r; } };
 }
 

@@ -28,10 +28,10 @@ function install(g) {
   // a wrapper is transparent outside a probe; inside it snapshots before the first change, runs the real method and writes the action down
   const wrap = (obj, k, rec) => {
     const o = obj[k];
-    obj[k] = function (...a) {
-      if (!REC) return o.apply(this, a);
+    obj[k] = function (a0, a1, a2) { // (every wrapped method takes at most three arguments: no rest array on the way through)
+      if (!REC) return o.call(this, a0, a1, a2);
       if (!REC.snap) { REC.snap = snapshot(REC.g); REC.x = extras(REC.g); }
-      const r = o.apply(this, a);
+      const a = [a0, a1, a2], r = o.call(this, a0, a1, a2);
       if (r !== false && REC.depth === 0) { const act = rec(a, r, this); if (act) REC.actions.push(act); }
       return r;
     };
@@ -59,7 +59,7 @@ function install(g) {
   // changing what the next read finds; a probe therefore leaves the tracker exactly as the planner left it, and the engine's apply of the actions
   // the planner already carried out (flag g.__noTrk, set by the bot, cleared by the host) does not note them a second time.
   const tn = g._aiTrkNote;
-  g._aiTrkNote = function (...a) { return this.__noTrk ? undefined : tn.apply(this, a); };
+  g._aiTrkNote = function (a0, a1, a2) { return this.__noTrk ? undefined : tn.call(this, a0, a1, a2); };
   const st = g._stTrade;
   g._stTrade = function (a, b, aGives, bGives) {
     if (REC && REC.depth === 0) { if (!REC.snap) { REC.snap = snapshot(REC.g); REC.x = extras(REC.g); } REC.actions.push({ actor: a.id, type: "offerTrade", to: [b.id], give: hand(aGives), want: hand(bGives) }); }

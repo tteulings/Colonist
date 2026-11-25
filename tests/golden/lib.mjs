@@ -66,9 +66,9 @@ const logging = () => LOG && !quiet && !g.__probing; // a bot-host probe (src/bo
 // ... except when the host ADOPTS the probe's move (v1.99): then the move was made in the probe and its lines belong to the apply. So a probe's move lines are kept (thunks, in order) and
 // written when the engine books an adopted action (g.__adoptFlush, engine.apply `adopted`); a probe that is put back drops them (the next probe starts a fresh list).
 let PB = null, probing = false;
-Object.defineProperty(g, "__probing", { configurable: true, enumerable: false, get: () => probing, set: (v) => { if (v && !probing) PB = []; probing = !!v; } });
+Object.defineProperty(g, "__probing", { configurable: true, enumerable: false, get: () => probing, set: (v) => { if (v && !probing) PB = null; probing = !!v; } });
 g.__adoptFlush = () => { const b = PB; PB = null; if (b) b.forEach((f) => f()); };
-const defer = (fn) => { if (probing) { if (PB && LOG && !quiet) PB.push(fn); } else if (logging()) fn(); };
+const defer = (fn) => { if (probing) { if (LOG && !quiet) (PB ||= []).push(fn); } else if (logging()) fn(); };
 // The legacy bots play a card and its robber / free roads in ONE call, so the log has the card last ("robber 5", "play knight"). Driven through the
 // engine the card returns first and its follow-ups are prompts of their own: hold the card (and a robber waiting for its steal) until the flow ends,
 // and the log reads the same either way. In the legacy loop no flow is ever open when a move returns, so nothing is held.
