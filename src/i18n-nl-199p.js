@@ -180,4 +180,5 @@ export const NL_199P = [
   ["Lead", "Voorsprong"], ["Lead is how far a best move was ahead of the next option. It is not a win chance.", "Voorsprong is hoeveel een beste zet voor lag op de volgende optie. Het is geen winkans."],
   ["Every move has its own margin. A gap is only a real error when it is more than twice that margin; the same gap can be an error in one move and not in another.", "Elke zet heeft een eigen marge. Een verschil is pas een echte fout als het meer dan twee keer die marge is; hetzelfde verschil kan bij de ene zet een fout zijn en bij de andere niet."],
   ["A move is an error when it gave up at least twice its own margin (the ±). A close call is never called a mistake.", "Een zet is een fout als hij minstens twee keer zijn eigen marge weggaf (de ±). Een kleine keuze heet nooit een fout."],
+  ["The dashed rings are your picks. A is the best spot for pick 1, out of at most {n} checked.", "De gestippelde ringen zijn je keuzes. A is de beste plek voor keuze 1, uit maximaal {n} gecontroleerd."],
 ];
