@@ -35,7 +35,7 @@ export const NL_199 = [
   ["Not connected: build next to your own roads.", "Niet verbonden: bouw naast je eigen wegen."],
   ["Too close to another settlement: keep two roads apart.", "Te dicht bij een ander dorp: houd minstens twee wegen ertussen."],
   ["Settlements go on land.", "Dorpen horen op land."],
-  ["Only bots that went through the review test have a precision figure; the others are not measured yet.", "Alleen bots die door de terugblik-test zijn gegaan hebben een precisiecijfer; de andere zijn nog niet gemeten."],
+  ["Only bots that went through the review test have a precision figure.", "Alleen bots die de terugblik-test deden hebben een precisiecijfer."],
   ["Luck in win chance is not available for this game: not enough of its rolls were recorded (for example a game played before recording started).", "Geluk in winkans is voor dit spel niet beschikbaar: er zijn te weinig worpen van vastgelegd (bijvoorbeeld bij een spel van voor het vastleggen)."],
   ["piece", "stuk"], ["Trade route {n} (5+ to win Longest trade route)", "Handelsroute {n} (5+ voor de langste handelsroute)"], ["Trade route {n} · Longest trade route (+2 points)", "Handelsroute {n} · Langste handelsroute (+2 punten)"],
   // Pause
