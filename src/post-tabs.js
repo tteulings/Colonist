@@ -146,7 +146,7 @@ export function strategyTab(g, ds, rv) {
 // ───────────────────────── Luck ─────────────────────────
 export function luckTab(g, ds) {
   const R = g._rv, LK = g._lkState(), pid = g._rvPid;
-  if (LK.na) return { html: `<section class="rv-card px-card"><div class="rv-gt"><b>Luck</b></div><p class="px-l">Luck in win chance is not available for this game.</p></section>` };
+  if (LK.na) return { html: `<section class="rv-card px-card"><div class="rv-gt"><b>Luck</b></div><p class="px-l">Luck in win chance is not available for this game: not enough of its rolls were recorded (for example a game played before recording started).</p></section>` };
   if (!LK.done || LK.cover < 0.9) return { html: `<section class="rv-card px-card"><div class="rv-gt"><b>Luck</b></div>${(() => { try { return g._rvTableProg(R, LK) || ""; } catch (_) { return ""; } })() || `<p class="px-l">The luck check has not finished yet.</p>`}</section>` };
   const r = ready(g, pid), m = r.m;
   const U = (g._pxLuck ||= { unit: "win", pid: null });

@@ -1711,12 +1711,32 @@ class ColonistFullGame {
     if (r.bug) console.warn("[engine bug]", a, r);
     if (!r.ok) { // the spot is no longer legal (taken meanwhile, cards spent): what _commitBuild does when the placement fails
       this.confirmBuild = null;
-      if (setup) { this._flashPrompt(this._say(r.bug ? "" : r.reason)); return false; }
+      if (setup) { this._flashPrompt((!r.bug && /cannot go there$/.test(r.reason || "") && this._spotWhy(a)) || this._say(r.bug ? "" : r.reason)); return false; }
       if (r.bug) { this._flashPrompt(this._say("")); this.render(); return false; }
       if (this.rush) this.emit({ type: "note", key: "tooSlow" });
       this.render();
     }
     return r.ok;
+  }
+
+  /** v1.99.1: WHY a spot is refused, in one line: occupied, too close to another settlement (distance rule) or not connected. "" = no specific reason (the generic line is used). */
+  _spotWhy(a) {
+    const geo = this.geometry, edgeLike = a.piece === "road" || a.piece === "ship";
+    if (a.piece === "city") return "";
+    if (edgeLike) {
+      const e = geo.edges[a.edge];
+      if (!e) return "";
+      if (e.owner != null) return "That spot is taken.";
+      if (a.type === "place") return "Not connected: put it next to your new settlement.";
+      return "Not connected: build next to your own roads or settlements.";
+    }
+    const n = geo.nodes[a.node];
+    if (!n) return "";
+    if (n.structure != null) return "That spot is taken.";
+    if (n.neighbors.some((id) => geo.nodes[id].structure != null)) return "Too close to another settlement: keep two roads apart.";
+    if (this.sea && !this.sea.nodeIsLand(a.node)) return "Settlements go on land.";
+    if (a.type === "build") return "Not connected: build next to your own roads.";
+    return "";
   }
 
   /** The engine's reason for a refusal in the app's own words (one short sentence per case; the Dutch table has them). */
@@ -1760,8 +1780,9 @@ class ColonistFullGame {
     const edgeLike = pa === "road" || pa === "ship";
     const id = edgeLike ? this.findEdgeAt(x, y, () => true) : this.findNodeAt(x, y, () => true);
     if (id == null) return "";
-    const r = this.api.isLegal({ actor: player.id, type: this.setupPhase ? "place" : "build", piece: pa, ...(edgeLike ? { edge: id } : { node: id }) });
-    return r.ok ? "" : this._say(r.reason);
+    const a = { actor: player.id, type: this.setupPhase ? "place" : "build", piece: pa, ...(edgeLike ? { edge: id } : { node: id }) };
+    const r = this.api.isLegal(a);
+    return r.ok ? "" : (/cannot go there$/.test(r.reason || "") && this._spotWhy(a)) || this._say(r.reason);
   }
 
   handleSetupClick(x, y) {
@@ -9184,7 +9205,7 @@ class ColonistFullGame {
   _ownRollSummary() {
     const L = this.logEntries;
     let i = L.length - 1;
-    const quiet = /\bcollects?\b|^Bank is short/;
+    const quiet = /\bcollects?\b|^Bank is short|^(Session restored|Game (saved|loaded))/; // v1.99.1: the "Session restored." line a reload appends must not hide your own roll (the ticker showed the last bot's payout)
     while (i >= 0 && quiet.test(L[i].text)) i -= 1;
     const m = i >= 0 ? /^Turn \d+: You rolled (\d+)\.$/.exec(L[i].text) : null;
     if (!m || m[1] === "7") return "";
@@ -9611,7 +9632,7 @@ class ColonistFullGame {
   _showDifficultyModal({ friend = false } = {}) {
     return openNewGame(this, {
       AI_PRESETS, AI_PRESET_INFO, PLAYER_CONFIG, DEFAULT_SETTINGS, RUSH_INTERVALS, RUSH_DISCARD_LIMIT, BIG_RUSH_INTERVAL,
-      normalizeSettings, loadLast: () => ColonistFullGame.loadLastSettings(), isBigTable, discardLimitFor, hotseatOn, presetForStrategy,
+      normalizeSettings, loadLast: () => ColonistFullGame.loadLastSettings(), saveLast: (x) => ColonistFullGame.saveLastSettings(normalizeSettings(x)), isBigTable, discardLimitFor, hotseatOn, presetForStrategy,
       byStrength, Names, cleanName, sameName, openNamesSheet, openProfileSheet,
     }, { friend });
   }
