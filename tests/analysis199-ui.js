@@ -93,7 +93,7 @@ const nums = () => {
       }
       if (tab === "strategy") {
         const tg = await G(() => ({ h: [...document.querySelectorAll(".px-tg.hd b")].map((b) => b.innerText.replace(/\s+/g, " ")), rows: [...document.querySelectorAll(".px-tg:not(.hd)")].map((r) => [...r.querySelectorAll(".c b")].map((b) => b.innerText)) }));
-        ok(/Start/.test(tg.h[0] || "") && tg.rows.every((r) => r.length === 4), `${k}: Tempo has a Start column (start + phases = final)`, tg);
+        ok(/Start/.test(tg.h[0] || "") && tg.rows.every((r) => r.length === (/Hidden|Verborgen/.test(tg.h[tg.h.length - 1] || "") ? 5 : 4)), `${k}: Tempo has a Start column (start + phases [+ hidden points] = final)`, tg);
         const me = await G(() => [...document.querySelectorAll(".px-sc2 .px-sr:not(.hd) b")].map((b) => b.innerText.replace(/\s+/g, " "))); ok(me.length > 0 && me.every((t) => /\d+(e|st|nd|rd|th)\b/.test(t)), `${k}: every scorecard cell (the player's column too) shows its place`, me.slice(0, 3));
         const rows = await G(() => [...document.querySelectorAll(".px-sc2 .px-sr:not(.hd)")].map((r) => [...r.querySelectorAll("b")].map((b) => { const c = b.cloneNode(true); c.querySelectorAll(".rk").forEach((e) => e.remove()); return c.textContent.replace(/\s+/g, ""); })));
         ok(rows.length > 0, `${k}: scorecard rows`);

@@ -111,6 +111,8 @@ export function costOf({ start = 0, errors = 0, other = 0, cap = 100 } = {}) {
   return { start, errors: e, other: o, moves: zet, total: start + zet, capped: zet < zRaw, cap, raw: zRaw };
 }
 
+/** places: the winner is 1st, the others by points; equal points share a place. ids: seat ids in table order (winner first), pts: seat id -> points. Returns { seat: { place, tie } } (tie = how many seats share the place) */
+export function placesOf(ids, pts) { const out = {}, rest = ids.slice(1); ids.forEach((q, k) => { out[q] = k === 0 ? { place: 1, tie: 1 } : { place: 2 + rest.filter((z) => pts(z) > pts(q)).length, tie: rest.filter((z) => pts(z) === pts(q)).length }; }); return out; }
 /** the facts of the whole table (every seat): points, Accuracy, luck, cost split, counts. g: the game, tab: tableOf(g), A: the analysis data layer (or null) */
 export function tableFacts(S, g, tab, A) {
   const P = (id, seat, unit, v, label, src, dec) => S.put(id, seat, unit, v, label, src, dec);
@@ -131,6 +133,8 @@ export function tableFacts(S, g, tab, A) {
     }
     const bf = A?.facts?.[q]; if (bf) ["settlement", "city", "road", "cards", "bank", "player"].forEach((k) => P(`num.${k === "settlement" ? "settlements" : k === "city" ? "cities" : k === "road" ? "roads" : k}`, q, "count", bf[k], `num.${k}`, "stats")), P("num.firstCity", q, "turn", bf.firstCity, "num.firstCity", "stats");
   });
+  // places: the winner is 1st; the others by points, equal points share a place ("tied 3rd"): place:seat and tie:seat (how many seats share the place) are facts of every screen that names a place
+  if (g.winner) { const pl = placesOf(tab.order, (q) => tab.seats[q].pts); tab.order.forEach((q) => { P("place", q, "count", pl[q].place, "fact.place", "game"); P("tie", q, "count", pl[q].tie, "fact.tie", "game"); }); }
   tab.seats.forEach((s) => { if (s.luck != null && !S.has(`luck:${s.id}`)) P("luck", s.id, "wcDelta", s.luck, "fact.luck", "luckSplit"); if (s.running) { P("runJ", s.id, "count", s.running.j, "fact.run", "review"); P("runN", s.id, "count", s.running.n, "fact.run", "review"); } });
   return S;
 }
@@ -148,6 +152,8 @@ export function buildFacts(g, m, tab) {
   tableFacts(S, g, tab, A);
   if (A?.tempo?.phases) A.tempo.phases.forEach((ph) => ph.gain.forEach((v, q) => P(`tempo.${ph.id}`, q, "pts", v, "fact.tempo", "tempo")));
   if (A?.tempo?.setup) A.tempo.setup.forEach((v, q) => P("tempo.start", q, "pts", v, "fact.tempo", "tempo"));
+  // the hidden points (development-card victory points, only known at the end): what is left of the final points after the start and the phases, so start + phases + hidden = final for every seat
+  if (A?.tempo?.phases && A.tempo.setup) { let any = false; tab.seats.forEach((s) => { const q = s.id, vis = S.v(`tempo.start:${q}`) + A.tempo.phases.reduce((a, ph) => a + (S.v(`tempo.${ph.id}:${q}`) ?? 0), 0), h = (S.v(`pts:${q}`) ?? vis) - vis; P("tempo.hidden", q, "pts", h, "fact.tempoHidden", "tempo"); if (h > 0) any = true; }); S.data.tempoHidden = any; }
   const target = g.winPoints || 10; P("target", "-", "pts", target, "fact.target", "settings");
   P("lim.small", "-", "wc", 1, "fact.lim", "constant"); P("lim.err", "-", "wc", 6, "fact.lim", "constant"); P("lim.set1", "-", "wc", 5, "fact.lim", "constant"); P("lim.set2", "-", "wc", 10, "fact.lim", "constant"); P("lim.set3", "-", "wc", 18, "fact.lim", "constant");
   if (A?.limits) { ["opening", "mid", "end"].forEach((k) => { P(`ph.${k}.from`, "-", "turn", A.limits[k][0], "fact.phRange", "limits"); P(`ph.${k}.to`, "-", "turn", A.limits[k][1], "fact.phRange", "limits"); }); P("lim.turns", "-", "count", A.limits.nTurns, "fact.lim", "limits"); }
@@ -165,9 +171,18 @@ export function buildFacts(g, m, tab) {
   P("decisions", me, "count", c.total, "fact.decisions", "recorder"); P("scored", me, "count", c.scored, "fact.scored", "decisions"); P("oneOption", me, "count", Math.max(0, c.total - c.scored), "fact.oneOption", "recorder");
   P("startN", me, "count", startN, "fact.startN", "decisions"); P("otherN", me, "count", Math.max(0, c.scored - errs.length - startN), "fact.otherN", "decisions");
   P("notErrors", me, "count", c.notErrors || 0, "fact.notErrors", "decisions");
-  const fam = { strong: 0, close: 0, costly: 0 }; const FAMILY = { best: "strong", great: "strong", good: "strong", close: "close", lean: "close", could: "costly", mistake: "costly", blunder: "costly", missed: "costly" };
-  ds.filter((d) => d.cls !== "triv").forEach((d) => { if (FAMILY[d.cls]) fam[FAMILY[d.cls]] += 1; });
-  P("fam.strong", me, "count", fam.strong, "fact.fam", "decisions"); P("fam.close", me, "count", fam.close, "fact.fam", "decisions"); P("fam.could", me, "count", Math.max(0, fam.costly - errs.length), "fact.fam", "decisions");
+  // the Moves list is the ONE source of its tiles: every row (a non-start, scored, in-scope move) has one kind, the tiles count those kinds
+  {
+    const errSet = new Set(errs.map((d) => d.i)), neg = (d) => (-d.gp) < 0;
+    const kindOfRow = (d) => (errSet.has(d.i) ? "err" : ["best", "great", "good"].includes(d.cls) ? (neg(d) ? "close" : "strong") : ["close", "lean"].includes(d.cls) ? "close" : "could");
+    const others = m.other.filter((d) => d.cls !== "triv" && inScope(d)).sort((a, b) => b.gp - a.gp || a.i - b.i), top = others.filter((d) => d.gp >= 1).slice(0, 3);
+    const miss = [...errs, ...top], shown = new Set(miss.map((d) => d.i)), rest = others.filter((d) => !shown.has(d.i));
+    const kind = {}; [...miss, ...rest].forEach((d) => { kind[d.i] = kindOfRow(d); });
+    const fam = { strong: 0, close: 0, could: 0, err: 0 }; Object.values(kind).forEach((k) => { fam[k] += 1; });
+    P("fam.strong", me, "count", fam.strong, "fact.fam", "decisions"); P("fam.close", me, "count", fam.close, "fact.fam", "decisions"); P("fam.could", me, "count", fam.could, "fact.fam", "decisions"); P("fam.err", me, "count", fam.err, "fact.fam", "decisions");
+    P("restN", me, "count", rest.length, "fact.restN", "decisions");
+    S.data.miss = miss; S.data.rest = rest; S.data.kind = kind; S.data.restLt1 = (rest.length ? Math.max(...rest.map((d) => d.gp)) : 0) < 1;
+  }
   const smallDiff = m.other.filter((d) => d.gp >= 1).length; P("smallDiff", me, "count", smallDiff, "fact.smallDiff", "decisions");
   // every decision: its cost, its margin, the win chance after it
   ds.forEach((d) => {
@@ -198,15 +213,6 @@ export function buildFacts(g, m, tab) {
   S.slRef = (nn, k, p) => { const q = p.shortlist[k]; return { win: q.played ? `pick${nn}.win` : q.best ? `pick${nn}.best` : `sl${nn}.${k}.win`, dots: q.spot ? (q.played ? `pick${nn}.dots` : k === 0 ? `pick${nn}.bestDots` : `sl${nn}.${k}.dots`) : null }; };
   // best moves: the lead over the next option
   (m.bestRows || []).forEach((o) => P(`lead.${o.d.i}`, me, "lead", o.gain, "fact.lead", "decisions"));
-  // the moves lists (Moves tab): biggest misses, then the rest
-  {
-    const miss = [...errs.slice(0, 4), ...m.other.filter((d) => d.cls !== "triv" && inScope(d) && d.gp >= 1).sort((a, b) => b.gp - a.gp || a.i - b.i).slice(0, 3)];
-    const shown = new Set(miss.map((d) => d.i));
-    const rest = ds.filter((d) => !shown.has(d.i) && d.cls !== "triv" && d.k !== "setup" && inScope(d)).sort((a, b) => b.gp - a.gp || a.i - b.i);
-    const restN = Math.max(0, S.v(`otherN:${me}`) - miss.filter((d) => !errs.includes(d)).length);
-    P("restN", me, "count", restN, "fact.restN", "decisions");
-    S.data.miss = miss; S.data.rest = rest; S.data.restLt1 = (rest.length ? Math.max(...rest.map((d) => d.gp)) : 0) < 1;
-  }
   // tempo / builds / income / measures / rival
   m.builds?.rows?.forEach((rw, q) => P("builds", q, "count", rw.length, "fact.builds", "stats"));
   m.income?.forEach((r) => { r.res.forEach((v, k) => P(`inc.${RES[k]}`, r.id, "count", v, "fact.inc", "stats.prod")); P("inc.tot", r.id, "count", r.tot, "fact.inc", "stats.prod"); });

@@ -71,16 +71,16 @@ export function scoreHtml(g) {
     if (isOpen) {
       const mm = id === tab.me ? m : (() => { try { return ready(g, id).m || null; } catch (_) { return null; } })();
       const vl = mm ? verdictLine(g, mm, 62) : "";
-      det = `<div class="px-rd">${!s.you && vl ? `<p class="px-l">${vl}</p>` : ""}<button type="button" class="px-link" data-rvtab="${id}">${s.you ? "Your page" : f("{x}’s page", { x: esc(s.name) })}${IC.chev}</button></div>`;
+      det = `<div class="px-rd">${!s.you && vl ? `<p class="px-l">${vl}</p>${mm ? estChip(g, mm) : ""}` : ""}<button type="button" class="px-link" data-rvtab="${id}">${s.you ? "Your page" : f("{x}’s page", { x: esc(s.name) })}${IC.chev}</button></div>`;
     }
     return `<div class="px-row pc-${id}${s.won ? " win" : ""}${s.you ? " me" : ""}${isOpen ? " open" : ""}" data-pid="${id}"><button type="button" class="px-rh" data-rsx="${id}" aria-expanded="${isOpen}" aria-label="${esc(nm)}, ${s.pts} points${s.acc != null ? `, accuracy ${s.acc}` : ""}">
-      <span class="rk">${k + 1}</span>${g._av(p, "rt-av")}<span class="nm"><b>${nm}</b>${s.level ? `<small>${esc(s.level.label)}</small>` : ""}</span><span class="pts">${X.n(`pts:${id}`)}</span>${IC.chev}
+      <span class="rk">${X.has(`place:${id}`) ? X.n(`place:${id}`) : k + 1}</span>${g._av(p, "rt-av")}<span class="nm"><b>${nm}</b>${X.v(`tie:${id}`) > 1 ? `<small class="px-tie"><span>tied</span> ${X.n(`place:${id}`, { ord: true })}</small>` : ""}${s.level ? `<small>${esc(s.level.label)}</small>` : ""}</span><span class="pts">${X.n(`pts:${id}`)}</span>${IC.chev}
       ${bar}<span class="px-chips">${acc}${luck}</span></button>${det}</div>`;
   }).join("");
   const leg = used.length ? `<div class="px-leg">${used.map(([q, l]) => `<span><i class="s${si(q)}"></i>${l}</span>`).join("")}</div>` : "";
   const prog = (() => { try { return g._rvTableProg(R, tab.LK) || ""; } catch (_) { return ""; } })();
   const vl = m ? verdictLine(g, m) : "";
-  return `<section class="rv-card rt rsc px-end" data-rvtable aria-label="Result"><div class="rv-gt"><b>Result</b><small>tap a player for the details</small></div>${vl ? `<p class="px-vl">${vl}</p>` : ""}${prog}<div class="px-rows">${rows}</div>${leg}</section>`;
+  return `<section class="rv-card rt rsc px-end" data-rvtable aria-label="Result"><div class="rv-gt"><b>Result</b><small>tap a player for the details</small></div>${vl ? `<p class="px-vl">${vl}</p>${estChip(g, m)}` : ""}${prog}<div class="px-rows">${rows}</div>${leg}</section>`;
 }
 
 /** "1 real error" / "3 real errors": the count is a fact; the word follows its value */
@@ -145,6 +145,8 @@ export function verdictSpans(m, budget = HEAD_BUDGET) {
   void nl; return `<span class="px-vsent">${sp(pick)}</span>`;
 }
 export function verdictLine(g, m, budget) { return verdictSpans(m, budget); }
+/** finding 3: a verdict drawn from a review that is not complete is a quick estimate; the full review can still change which move is blamed (it wins). */
+export const estChip = (g, m) => { try { return g._rvMid || g._rvReviewComplete(m.pid) ? "" : `<small class="px-est">quick estimate</small>`; } catch (_) { return ""; } };
 
 // ───────────────────────── Overview ─────────────────────────
 function resultLine(g, m) {
@@ -152,7 +154,7 @@ function resultLine(g, m) {
   const A = X.ph("{n}–{n2}", { n: [r.left], n2: [r.right] });
   return `<span data-i18n-skip>${r.won && m.you ? (isNL() ? "Jij" : "You") : esc(r.winner)} won</span> ${A}`;
 }
-const lh = (n, title, right = "") => `<div class="px-lh"><i class="px-nb">${n}</i><b>${title}</b>${right ? `<span class="px-rt">${right}</span>` : ""}</div>`;
+const lh = (n, title, right = "") => `<div class="px-lh">${n === "" ? "" : `<i class="px-nb">${n}</i>`}<b>${title}</b>${right ? `<span class="px-rt">${right}</span>` : ""}</div>`;
 export const spotTiles = (board, node) => { try { if (!board || node == null) return ""; const geo = stdGeo(); return geo.nodes[node].hx.map((h) => board[h]).filter((b) => b && b.num).map((b) => `<i class="px-tile" style="background:${RES_COLOR[b.res] || "#999"}" title="${esc(rname(b.res))}">${b.num}</i>`).join(""); } catch (_) { return ""; } };
 
 /** ONE sentence tying Accuracy, real errors and the moves cost together: "Accuracy 90, 0 real errors. Moves in total −14%: start −9% + moves −5%." (all numbers are facts of the waterfall below) */
@@ -168,7 +170,7 @@ export function connectLine(m) {
 export const pm = (X, i) => (X.has(`mv.${i}.margin`) ? `<small class="px-pm" title="margin">${X.n(`mv.${i}.margin`)}</small>` : "");
 function verdictCard(g, m) {
   const X = m.F, pid = m.pid, picks = m.start?.picks || [];
-  const hl = `<p class="px-hl2">${verdictSpans(m)}</p>`;
+  const hl = `<p class="px-hl2">${verdictSpans(m)}</p>${estChip(g, m)}`;
   const accLine = `<div class="px-cn">${connectLine(m)}</div>`;
   const tile = (k, nref, one, many, vref, cap) => `<button type="button" class="px-t3" data-pxpil="${k}" aria-expanded="false"><small>${pl(X, nref, `{n} ${one}`, `{n} ${many}`)}</small>${X.d(vref)}<span>${cap}</span></button>`;
   const thin = isThin(m), startTile = tile("start", "startN", "Start pick", "Start picks", "startCost", "start spots checked");
@@ -176,7 +178,7 @@ function verdictCard(g, m) {
   const t3 = thin ? (picks.length ? `<div class="px-t3s one">${startTile}</div>` : "") : `<div class="px-t3s">${tile("errors", "errors", "Real error", "Real errors", "errCost", "not close calls")}${startTile}${tile("other", "otherN", "Other move", "Other moves", "otherCost", "close calls and small ones")}</div>`;
   const errChips = m.errs.slice(0, 4).map((d) => `<button type="button" class="px-cc" data-rvj="${d.i}" data-rvq="imp">${f("Turn {n}", { n: d.t })} ${X.d(`mv.${d.i}.cost`)}</button>`).join("");
   const startChips = picks.map((p) => `<button type="button" class="px-cc" data-pxtab="strategy">${f("Pick {n}", { n: p.n })} ${X.d(`pick${p.n}.cost`)}</button>`).join("");
-  const bodies = `<div class="px-pb" data-pxpb="errors" hidden><p class="px-l">${X.v("errors") ? X.ph("{n} clear mistakes or missed chances, the same ones as in Lesson 1.", { n: ["errors"] }) : "No clear mistake in this game."}</p><div class="px-ccs">${errChips}</div></div>
+  const bodies = `<div class="px-pb" data-pxpb="errors" hidden><p class="px-l">${X.v("errors") ? X.ph("{n} clear mistakes or missed chances, the same ones as in the list below.", { n: ["errors"] }) : "No clear mistake in this game."}</p><div class="px-ccs">${errChips}</div></div>
     <div class="px-pb" data-pxpb="start" hidden><p class="px-l">${startChips ? "What your two start spots cost against the best spots." : "No start picks were checked."}</p><div class="px-ccs">${startChips}</div></div>
     <div class="px-pb" data-pxpb="other" hidden><p class="px-l">${X.ph("{n} small differences, each too small to call an error.", { n: ["smallDiff"] })}</p><button type="button" class="px-link" data-pxtab="moves">Open the Moves tab${IC.chev}</button></div>`;
   void pid; return `<section class="rv-card px-card px-verdict" data-pxv><div class="px-vh"><b>${resultLine(g, m)}</b>${infoBtn("error")}</div>${hl}${accLine}${t3}${bodies}</section>`;
@@ -225,7 +227,7 @@ export function scoredNote(m) { const X = m.F; return `<p class="px-fn"><span>${
 function lesson1(g, m) {
   if (isThin(m)) return thinCard(g, m);
   const X = m.F, list = m.lesson1.map((e) => errorCard(g, m, e)).join("");
-  const head = lh(1, "Real errors", X.d("errCost"));
+  const head = lh("", "Real errors", X.d("errCost"));
   const body = m.lesson1.length ? list : `<p class="px-l">${m.you ? (m.won ? "No clear mistake in your moves. Good play." : "No clear mistake in your moves.") : "No clear mistake in these moves."}</p>`;
   const ne = (m.notErrs || []).slice(0, 3).map((d) => `<span class="px-ne2"><i class="px-cls c-close">${neutralCls(X, d)}</i> ${f("Turn {n}", { n: d.t })} ${X.d(`mv.${d.i}.cost`)}${pm(X, d.i)}</span>`).join("");
   const notErr = X.v("notErrors") && ne ? `<div class="px-nerow"><small>SMALL DIFFERENCES</small>${ne}</div>${ne ? `<p class="px-fn">± = the move’s own margin: a gap under twice that is not an error.</p>` : ""}` : "";
@@ -250,7 +252,7 @@ function lesson2c(g, m) {
   const X = m.F, s = m.start, p = s?.picks?.[0]; if (!p) return "";
   const top = p.shortlist?.[0], bd = m.board, tref = top ? X.slRef(1, 0, p) : null;
   const row = (lab, node, dots, win) => `<div class="px-br"><small>${lab}</small><span class="tl">${spotTiles(bd, node) || ""}</span><span class="dt">${dots && X.has(dots) ? X.ph("{n} dots", { n: [dots] }) : ""}</span><b>${X.n(win)}</b></div>`;
-  return `<section class="rv-card px-card px-l2c">${lh(2, "This board", s.plan ? esc(PLAN_NAME[s.plan]) : "")}${row("PICK 1", p.node, "pick1.dots", "pick1.win")}${top ? row("BEST SPOT", top.node, tref.dots, tref.win) : ""}<p class="px-fn px-dk">${DOT_KEY}</p>${startAdvice(m, p)}<button type="button" class="px-btn wide" data-pxtab="strategy">Start review in Strategy</button></section>`;
+  return `<section class="rv-card px-card px-l2c">${lh("", "This board", s.plan ? esc(PLAN_NAME[s.plan]) : "")}${row("PICK 1", p.node, "pick1.dots", "pick1.win")}${top ? row("BEST SPOT", top.node, tref.dots, tref.win) : ""}<p class="px-fn px-dk">${DOT_KEY}</p>${startAdvice(m, p)}<button type="button" class="px-btn wide" data-pxtab="strategy">Start review in Strategy</button></section>`;
 }
 /** a rule chip: "No ore" | "8 of 10 points" (the numbers are facts) */
 export function chipText(m, r, c, j) {
@@ -264,7 +266,7 @@ export function ruleRows(m) {
 function lesson3c(g, m) {
   if (isThin(m)) return "";
   const rows = ruleRows(m);
-  return `<section class="rv-card px-card px-l3c">${lh(3, "Phase rules", "only if broken")}${rows || `<p class="px-l">No phase rule was broken.</p>`}</section>`;
+  return `<section class="rv-card px-card px-l3c">${lh("", "Phase rules", "only if broken")}${rows || `<p class="px-l">No phase rule was broken.</p>`}</section>`;
 }
 export const takeText = (t) => ({
   spend: "Spend your cards before you end the turn.", trade: "Trade only toward a build you can make.", build: "Pick the build that brings points soonest.",

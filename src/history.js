@@ -220,8 +220,17 @@ export const HistoryMixin = {
   /** The review moved on (a round step, stop, done): keep the entry up to date, at most once a second. */
   _histSoon() {
     if (!this.winner || this._replay || this.labMode) return;
-    clearTimeout(this._histT);
-    this._histT = setTimeout(() => { this._histT = 0; (this._histView ? this.histUpdateView() : this.histArchive()); }, 900);
+    if (this._histT) return; // finding 3: a throttle, not a debounce: a running review saves every few results, a debounce that restarts each time never fired until the run ended
+    this._histT = setTimeout(() => { this._histT = 0; (this._histView ? this.histUpdateView() : this.histArchive()); }, 500);
+  },
+  /** finding 7: write the entry of the game on screen NOW when its review has results the stored entry does not know yet (the Lessons list only has games with an accuracy) */
+  async _histNow() {
+    if (!this.winner || this._replay || this.labMode) return;
+    const R = this._rv, id = this._histView?.id ?? R?.id, m = id && this.hist.metas.find((x) => x.id === id), me = m?.me ?? this._me?.()?.id;
+    const fresh = me != null && R?.id === id && (R.revs?.[me]?.results?.length || 0) > 0 && (!m || m.acc == null || this._histT);
+    if (!fresh) return;
+    clearTimeout(this._histT); this._histT = 0;
+    try { await (this._histView ? this.histUpdateView() : this.histArchive()); } catch (_) { /* best effort */ }
   },
   async histUpdateView() {
     const v = this._histView, R = this._rv;
