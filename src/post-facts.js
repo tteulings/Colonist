@@ -148,6 +148,8 @@ export function buildFacts(g, m, tab) {
   tableFacts(S, g, tab, A);
   if (A?.tempo?.phases) A.tempo.phases.forEach((ph) => ph.gain.forEach((v, q) => P(`tempo.${ph.id}`, q, "pts", v, "fact.tempo", "tempo")));
   if (A?.tempo?.setup) A.tempo.setup.forEach((v, q) => P("tempo.start", q, "pts", v, "fact.tempo", "tempo"));
+  // the hidden points (development-card victory points, only known at the end): what is left of the final points after the start and the phases, so start + phases + hidden = final for every seat
+  if (A?.tempo?.phases && A.tempo.setup) { let any = false; tab.seats.forEach((s) => { const q = s.id, vis = S.v(`tempo.start:${q}`) + A.tempo.phases.reduce((a, ph) => a + (S.v(`tempo.${ph.id}:${q}`) ?? 0), 0), h = (S.v(`pts:${q}`) ?? vis) - vis; P("tempo.hidden", q, "pts", h, "fact.tempoHidden", "tempo"); if (h > 0) any = true; }); S.data.tempoHidden = any; }
   const target = g.winPoints || 10; P("target", "-", "pts", target, "fact.target", "settings");
   P("lim.small", "-", "wc", 1, "fact.lim", "constant"); P("lim.err", "-", "wc", 6, "fact.lim", "constant"); P("lim.set1", "-", "wc", 5, "fact.lim", "constant"); P("lim.set2", "-", "wc", 10, "fact.lim", "constant"); P("lim.set3", "-", "wc", 18, "fact.lim", "constant");
   if (A?.limits) { ["opening", "mid", "end"].forEach((k) => { P(`ph.${k}.from`, "-", "turn", A.limits[k][0], "fact.phRange", "limits"); P(`ph.${k}.to`, "-", "turn", A.limits[k][1], "fact.phRange", "limits"); }); P("lim.turns", "-", "count", A.limits.nTurns, "fact.lim", "limits"); }

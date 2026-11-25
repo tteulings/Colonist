@@ -217,7 +217,7 @@
 .px-fam.f-err.z b { color: var(--heading); }
 .px-num .px-d { padding: 2px 4px; font-size: 12px; gap: 2px; }
 /* round 7 */
-.px-tg { grid-template-columns: 34px 2.2em repeat(3, minmax(0, 1fr)); gap: 4px; } .px-tg .c.st { justify-content: center; } .px-tg .c.st b { color: var(--ink-soft); } .px-tg.hd b small { font-size: 11.5px; }
+.px-tg { grid-template-columns: 34px 2.2em repeat(3, minmax(0, 1fr)); gap: 4px; } .px-tg.hid { grid-template-columns: 34px 2.2em repeat(3, minmax(0, 1fr)) 3.6em; } .px-tg .c.hp { justify-content: center; } .px-tg.hd b.hp { font-size: 11.5px; line-height: 1.1; overflow-wrap: anywhere; } .px-tg .c.st { justify-content: center; } .px-tg .c.st b { color: var(--ink-soft); } .px-tg.hd b small { font-size: 11.5px; }
 .px-sr b .rk { display: block; font: 700 11.5px/1 var(--font-body); font-style: normal; color: var(--ink-soft); margin-top: 1px; }
 .px-mm { display: block; margin-top: 8px; } .px-mm .px-l { margin: 0 0 6px; } .px-mdr { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .px-mdr small { font: 600 12px/1.3 var(--font-body); color: var(--ink-soft); }
 .px-mini { display: flex; align-items: flex-end; gap: 14px; height: 76px; margin: 10px 0 2px; } .px-mini span { display: grid; justify-items: center; align-content: end; gap: 3px; } .px-mini b { font: 800 14px/1 var(--font-body); } .px-mini i { display: block; width: 26px; border-radius: 6px 6px 2px 2px; background: var(--px-up); } .px-mini .lost i { background: var(--px-dn); opacity: .85; } .px-mini small { font: 600 11.5px/1 var(--font-body); color: var(--ink-soft); }

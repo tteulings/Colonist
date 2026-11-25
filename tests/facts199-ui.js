@@ -73,6 +73,21 @@ const AUDIT = ({ rootSel, allowSel, allowRe }) => {
   return out;
 };
 
+// ── in-page SUMS audit (finding 4): every "adds up to" claim of the screens, read from the facts only ──
+//   tempo: start + phases + hidden points = final · cost split: errors + start picks + other moves = moves in total, start + moves = moves in total · phase costs = real errors
+//   waterfall: each step of the run is the fact it is labelled with · counts: decisions = scored + one sensible option
+const SUMS = () => {
+  const PF = window.__postFacts, v = (r) => { const f = PF.fact(r); return f ? f.value : null; }, out = [], n = window.__colonistGame.players.length;
+  const add = (refs) => { const x = refs.map(v); return x.some((y) => y == null) ? null : x.reduce((a, b) => a + b, 0); };
+  const chk = (name, a, b) => { if (a == null || b == null) return; if (Math.abs(a - b) > 1e-9) out.push(`${name}: ${a} != ${b}`); };
+  let tempo = 0;
+  for (let q = 0; q < n; q += 1) { if (v(`tempo.start:${q}`) == null) continue; tempo += 1; const h = v(`tempo.hidden:${q}`); chk(`tempo seat ${q} start + phases + hidden = final`, add([`tempo.start:${q}`, `tempo.opening:${q}`, `tempo.mid:${q}`, `tempo.end:${q}`, `tempo.hidden:${q}`]), v(`pts:${q}`)); if (h != null && h < 0) out.push(`tempo seat ${q}: hidden points ${h} < 0`); }
+  chk("errors + start + other = moves in total", add(["errCost", "startCost", "otherCost"]), v("movesTotal")); chk("start + moves = moves in total", add(["startCost", "moveCost"]), v("movesTotal")); chk("errors + other = moves", add(["errCost", "otherCost"]), v("moveCost"));
+  chk("phase costs = real errors", add(["phase.opening", "phase.mid", "phase.end"]), v("errCost"));
+  if (v("wf.run.0") != null) { chk("waterfall start", v("wf.run.1") - v("wf.run.0"), v("startCost")); chk("waterfall moves", v("wf.run.2") - v("wf.run.1"), v("moveCost")); chk("waterfall others", v("wf.run.4") - v("wf.run.3"), v("others")); const dl = v("wf.run.3") - v("wf.run.2"); if (dl !== 0) chk("waterfall luck", dl, v("luck")); chk("waterfall fair", v("wf.run.0"), v("fair")); }
+  chk("decisions = scored + one option", add(["scored", "oneOption"]), v("decisions"));
+  return { out, tempo };
+};
 const LSEL = ".px-ev .x, .px-hl2, .px-vl, .px-t3 > span, .px-wfr .sb, .px-wfr .lb, .px-rule p.px-l, .px-fn, .px-adv, .px-lh b, .rv-gt b, .px-card > p.px-l, .px-cn p, .px-prog p, .px-vsent, .px-err .mv > span, .px-ne2, .px-tk small, .px-tk > span > span, .px-mv .mt, .px-cc, .px-wr > span, .px-nr > span, .ln-cr > span:first-child, .px-wr > b, .px-ev .t";
 // ── in-page TEXT audit: language purity, out-of-scope words, line counts ──
 const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
@@ -134,6 +149,7 @@ const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
           await G((t) => { const g = window.__colonistGame; g._rvTab = t; g._rvDrawReview(); }, tab); await sleep(550);
           if (tab === "overview") await page.waitForSelector(".px-verdict", { timeout: 20000 });
           await unfold(); await audit(tab, ".rv");
+          if (tab === "overview" || tab === "strategy") { const su = await G(SUMS); ok(!su.out.length, `${lang} ${curGame} ${tab}: every "adds up" claim adds up`, su.out.slice(0, 4)); }
           if (tab !== "luck") { // finding 2: no lesson numbers (a "1" badge next to "2 REAL ERRORS" reads like a count; numbering 1, 3 had a gap)
             const ln = await G(() => ({ badges: [...document.querySelectorAll(".rv .px-nb")].filter((e) => e.offsetParent).length, txt: (document.querySelector(".rv")?.innerText || "").match(/\b(?:Lesson|Les)\s+\d\b/g) }));
             ok(!ln.badges && !ln.txt, `${lang} ${curGame} ${tab}: no lesson numbers`, ln);

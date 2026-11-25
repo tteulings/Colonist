@@ -80,9 +80,9 @@ function teaser(g, m) { const X = m.F; return `<button type="button" class="rv-c
 function tempoCard(g, m) {
   const tp = m.tempo; if (!tp) return "";
   const X = m.F, rng = (p) => (p.empty ? "–" : `${X.n(`ph.${p.k}.from:-`)}–${X.n(`ph.${p.k}.to:-`)}`);
-  const head = `<div class="px-tg hd"><span></span><b>Start</b>${tp.phases.map((p) => `<b>${esc(PHASE_NAME[p.k])}<small>${rng(p)}</small></b>`).join("")}</div>`;
-  const rows = tp.rows.map((r) => { const s = m.seats[r.id]; return `<div class="px-tg pc-${r.id}"><span class="nm">${g._av(s.p, "rt-av")}</span><span class="c st"><b>${X.n(`tempo.start:${r.id}`)}</b></span>${tp.phases.map((p, k) => `<span class="c"><i style="--w:${Math.round((r.gains[k] / tp.max) * 100)}%"></i><b>${X.n(`tempo.${p.k}:${r.id}`, { plus: true })}</b></span>`).join("")}</div>`; }).join("");
-  return `<section class="rv-card px-card"><div class="rv-gt"><b>Tempo</b><small>points per phase · start + phases = final</small></div>${head}${rows}</section>`;
+  const hid = !!X.data.tempoHidden, head = `<div class="px-tg hd${hid ? " hid" : ""}"><span></span><b>Start</b>${tp.phases.map((p) => `<b>${esc(PHASE_NAME[p.k])}<small>${rng(p)}</small></b>`).join("")}${hid ? `<b class="hp">Hidden points</b>` : ""}</div>`;
+  const rows = tp.rows.map((r) => { const s = m.seats[r.id]; return `<div class="px-tg pc-${r.id}${hid ? " hid" : ""}"><span class="nm">${g._av(s.p, "rt-av")}</span><span class="c st"><b>${X.n(`tempo.start:${r.id}`)}</b></span>${tp.phases.map((p, k) => `<span class="c"><i style="--w:${Math.round((r.gains[k] / tp.max) * 100)}%"></i><b>${X.n(`tempo.${p.k}:${r.id}`, { plus: true })}</b></span>`).join("")}${hid ? `<span class="c hp"><b>${X.v(`tempo.hidden:${r.id}`) > 0 ? X.n(`tempo.hidden:${r.id}`, { plus: true }) : "–"}</b></span>` : ""}</div>`; }).join("");
+  return `<section class="rv-card px-card"><div class="rv-gt"><b>Tempo</b><small>${hid ? "points per phase · start + phases + hidden points = final" : "points per phase · start + phases = final"}</small></div>${head}${rows}</section>`;
 }
 function glyphs(rowsB, T, id) {
   const W = 300, X = (t) => 6 + (t / Math.max(1, T)) * (W - 14);
