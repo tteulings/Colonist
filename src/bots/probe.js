@@ -69,7 +69,8 @@ function install(g) {
  * Run `fn()` (a legacy planner step) and return { result, actions }. The game is restored afterwards, so a probe is a pure question;
  * `eager` snapshots before `fn` starts (needed when the planner changes the game before its first recorded call, as a trade's tracker notes do).
  */
-export function probe(g, fn, { eager = false, suspend = false, adopt = false } = {}) {
+export function probe(g, fn, o) {
+  const eager = !!(o && o.eager), suspend = !!(o && o.suspend), adopt = !!(o && o.adopt);
   install(g);
   if (REC) throw new Error("probe: nested");
   const rec = (REC = { g, actions: [], depth: 0, snap: eager ? snapshot(g) : null, x: eager ? extras(g) : null });
@@ -77,7 +78,7 @@ export function probe(g, fn, { eager = false, suspend = false, adopt = false } =
   if (suspend && api) api.active = null; // the engine's seat control is off: every bot seat is a bot again (a deal asks the partner bot, not "a person")
   g.__probing = true; // the golden harness's move log skips what a probe does
   let result, mute = null, done = false, adopted = false;
-  try { mute = probeHooks.enter ? probeHooks.enter(g, { suspend }) : null; result = fn(); done = true; } finally {
+  try { mute = probeHooks.enter ? probeHooks.enter(g, suspend) : null; result = fn(); done = true; } finally {
     REC = null; g.__probing = false; if (api) api.active = act;
     if (rec.snap) {
       adopted = done && adopt && rec.actions.length === 1 && ADOPT.has(rec.actions[0].type) && !!mute?.headless && !g.winner && !g.sbp; // the 5-6 build window books a seat's build in the apply (sbp.human.built)

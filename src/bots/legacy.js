@@ -38,7 +38,7 @@ export function legacyBot(meta, { strategy = null } = {}) {
         case "preRoll": {
           const m = state(seat);
           if (!m.knight) { m.knight = true; const r = probe(g, () => g.maybePlayKnightBeforeRoll(p)); if (r.actions[0]?.type === "playDev") return r.actions[0]; }
-          return A({ type: "roll" });
+          return { actor: seat, type: "roll" };
         }
         case "main": return mainStep(g, p, ctx);
         case "sbp": return sbpStep(g, p, ctx);

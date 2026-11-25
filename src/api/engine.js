@@ -118,6 +118,7 @@ function cloneAction(a) {
   return c;
 }
 
+const NOCHANCE = Object.freeze([]); // the chance of an apply that drew none (one shared array; the first draw makes a real one)
 const DO = Object.fromEntries(["place", "build", "roll", "endTurn", "buyDev", "playDev", "pick", "tradeBank", "moveShip", "skipFree", "passSbp", "ready", "pickGold", "discard", "moveRobber", "steal", "offerTrade", "respondTrade", "cancelOffer", "tick", "timeout"].map((t) => [t, "_do_" + t])); // v1.99: no template string per apply
 /** What a quiet apply returns: the prompts are asked for only when read (a class getter, not an accessor on a fresh object literal per call). */
 class QuietResult { constructor(eng) { this.ok = true; this.events = []; this._eng = eng; } get prompts() { return this._eng.prompts(); } }
@@ -170,7 +171,7 @@ export class Engine {
     this._offers = JSON.parse(JSON.stringify(x.offers)); this._offerSeq = x.offerSeq; this._via = x.via;
   }
   _note(c) { // a chance outcome happened: it belongs to the apply() in progress, else to the observed move in progress
-    if (this._applying) this._chanceUsed.push(c);
+    if (this._applying) { if (this._chanceUsed === NOCHANCE) this._chanceUsed = []; this._chanceUsed.push(c); }
     else if (this._obs?.stack.length) this._obs.stack[this._obs.stack.length - 1].chance.push(c);
   }
   _diceSource() {
@@ -417,8 +418,10 @@ export class Engine {
   /** {ok:true} or {ok:false, reason}. Judged against the prompts the actor holds (or `opts.prompt`, for moves made inside a bot's turn). */
   isLegal(a, opts = {}) {
     this._enter();
-    const sh = validateShape(a, this.mode());
-    if (!sh.ok) return sh;
+    if (!(a && (a.type === "roll" || a.type === "endTurn") && a.actor >= 0 && Number.isInteger(a.actor) && Object.keys(a).length === 2)) { // (v1.99: a bare roll / endTurn has no shape to check and exists in every mode)
+      const sh = validateShape(a, this.mode());
+      if (!sh.ok) return sh;
+    }
     const ps = opts.prompt ? [opts.prompt] : this.prompts().filter((p) => p.actor === a.actor);
     if (!ps.length) return { ok: false, reason: `seat ${a.actor} has no prompt right now` };
     let k = null; // the action's canonical key: only the scan below needs it (v1.99: not built for the common answers _quick judges)
@@ -506,7 +509,7 @@ export class Engine {
     if (!this.controls(a.actor)) return refuse(`seat ${a.actor} is not controlled by this engine`);
     if (!opts.trusted) { const lg = this.isLegal(a); if (!lg.ok) return refuse(lg.reason); } // `trusted`: the caller (the bot host) has just judged it
     const g = this.g, before = opts.quiet ? null : this._brief(), hit = a.type === "roll" ? null : undefined;
-    this._chanceUsed = []; this._queue = opts.chance ? opts.chance.map((c) => ({ ...c })) : null;
+    this._chanceUsed = NOCHANCE; this._queue = opts.chance ? opts.chance.map((c) => ({ ...c })) : null;
     if (a.type === "roll" && a.forced) this._forceDice = a.forced;
     this._applying++; g._applyDepth = (g._applyDepth || 0) + 1; // the UI's doors (_confirmDiscard, _finishPick, sbpSkip) see they are being called by an apply() and do the work
     let err = null;
