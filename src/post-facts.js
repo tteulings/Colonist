@@ -32,7 +32,7 @@ export function fmt(f, o = {}) {
     case "wc": return `${n}${pct}`;
     case "wcDelta": { const t = `${o.abs ? "" : sg(v, dec)}${n}${pct}`; return o.word ? `${t} ${W.wc}` : t; }
     case "lead": return `+${n}${pct}${o.word === false ? "" : ` ${W.lead}`}`;
-    case "pts": return o.word ? `${n} ${r0(v) === 1 ? W.pt : W.pts}` : `${o.plus && v > 0 ? "+" : ""}${n}`;
+    case "pts": return o.word ? `${n} ${r0(v) === 1 ? W.pt : W.pts}` : `${o.plus && r0(v) > 0 ? "+" : o.plus && r0(v) < 0 ? "−" : ""}${n}`;
     case "cards": { const t = `${o.abs ? "" : sg(v, dec)}${n}`; return o.word ? `${t} ${Math.abs(r0(v)) === 1 ? W.card : W.cards}` : t; }
     case "count": return o.ord ? ordinal(v) : o.signed ? `${sg(v, dec)}${n}` : n;
     case "margin": return `±${numStr(v, 1)}${pct}`;
