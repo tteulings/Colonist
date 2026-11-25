@@ -234,7 +234,7 @@ function lesson1(g, m) {
 /** Too few scored moves: say so, never praise (it replaces Lesson 1 on the Overview; the start picks and the Strategy numbers follow it). */
 function thinCard(g, m) {
   const X = m.F, none = !(m.start?.picks?.length);
-  return `<section class="rv-card px-card px-thin"><div class="rv-gt"><b>Too few scored moves for a verdict</b></div><p class="px-l">${none ? "No start picks were scored either." : "Your start picks were scored; the moves after the start were mostly forced or too few to judge."}</p>${scoredNote(m)}<button type="button" class="px-btn wide" data-pxtab="moves">All moves</button></section>`;
+  return `<section class="rv-card px-card px-thin"><div class="rv-gt"><b>Too few scored moves for a verdict</b></div><p class="px-l">${none ? "No start picks were scored either." : "Start picks were scored. The other moves were mostly forced."}</p>${scoredNote(m)}<button type="button" class="px-btn wide" data-pxtab="moves">All moves</button></section>`;
 }
 // ── lesson 2 compact: "This board" ──
 export const PLAN_NAME = { city: "City plan (ore, grain)", expansion: "Expansion plan (lumber, brick)", mixed: "Cities and expansion mixed" };
