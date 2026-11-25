@@ -4,7 +4,8 @@
 // localizer (src/i18n-nl-199p.js). Blocks whose data is missing (old saved reviews, Rush, Seafarers, 5-6 players) are simply not drawn.
 import { esc, IC } from "./review-ui.js";
 import { oicon } from "./ui-icons.js";
-import { tradeShow, CLASSES } from "./review/evaluate.js";
+import { CLASSES } from "./review/evaluate.js";
+import { moveFull, whyLine, whyChips } from "./post-text.js";
 import { isNL } from "./i18n.js";
 import { tr as atr } from "./review/analysis-text.js";
 import { seOf } from "./review/score.js";
@@ -25,8 +26,6 @@ export const rname = (r) => RES_NAME[r] || r;
 export const infoBtn = (what) => `<button type="button" class="px-i" data-pxinfo="${what}" aria-label="About this">${IC.info}</button>`;
 /** a block whose body unfolds in place: header button + body */
 export const fold = (key, head, body, { open = false, cls = "" } = {}) => `<div class="px-fold ${cls}${open ? " open" : ""}" data-pxf="${key}"><button type="button" class="px-fh" data-pxtog="${key}" aria-expanded="${open}">${head}<svg class="px-chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6l4.5 4.5L12.5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="px-fb" ${open ? "" : "hidden"}>${body}</div></div>`;
-export const NLW = [[/\bLumber\b|\blumber\b/g, "hout"], [/\bBrick\b|\bbrick\b/g, "baksteen"], [/\bWool\b|\bwool\b/g, "wol"], [/\bGrain\b|\bgrain\b/g, "graan"], [/\bOre\b|\bore\b/g, "erts"], [/^(Road|road)(?: toward)? /, "weg "], [/^(Settlement|settlement) /, "dorp "], [/^(City|city) /, "stad "], [/^(Dev card)$/i, "ontwikkelkaart"], [/^Trade /i, "ruil "], [/^(trade)$/i, "ruil"], [/^(End turn|Ended turn)$/i, "beurt beëindigen"], [/^Traded$/i, "geruild"]];
-export const mvPiece = (x, first) => { if (!isNL()) return esc(x); let t = x; NLW.forEach(([re, to]) => { t = t.replace(re, to); }); if (t === x) return `<span>${esc(x)}</span>`; t = first ? t.charAt(0).toUpperCase() + t.slice(1) : t; return `<span data-i18n-skip>${esc(t)}</span>`; };
 const accWord = "Accuracy";
 
 /** the page the screens render into must exist and its model be ready: { m } or { wait } (progress card) */
@@ -197,13 +196,13 @@ function timelineCard(g, m) {
 // ── lesson 1: real errors ──
 const noiseLine = (X, e) => (X.has(`mv.${e.i}.margin`) ? `<p class="px-fn"><span>${X.ph("Gap {g}, margin {s}", { g: [`mv.${e.i}.cost`, { abs: true }], s: [`mv.${e.i}.margin`] })}</span></p>` : "");
 function errorCard(g, m, e) {
-  const X = m.F, bd = m.board, N = (v) => mvPiece(tradeShow(v || "").replace(/ toward /, " ").replace(/^(Road|Settlement|City) on /, "$1 "), true);
+  const X = m.F, bd = m.board, N = (v) => `<span data-i18n-skip>${esc(moveFull(v || "", isNL() ? "nl" : "en") || (isNL() ? "Zet" : "Move"))}</span>`;
   const crops = bd && e.p && e.q && e.p[0] === e.q[0] ? `<div class="px-crops"><figure>${cropSvg(bd, e.p, { w: 120, color: "#B45A3C", label: "You did" })}<figcaption>You did</figcaption></figure><figure>${cropSvg(bd, e.q, { w: 120, color: "#2F7D6B", label: "Better" })}<figcaption>Better (A)</figcaption></figure></div>` : "";
   const bars = `<div class="px-wb"><small>Win chance after this move</small><div class="r"><span>You did</span><i class="px-bar me pc-${m.pid}" style="--w:${X.v(`mv.${e.i}.B`)}%"></i><b>${X.n(`mv.${e.i}.B`)}</b></div><div class="r"><span>Better (A)</span><i class="px-bar a pc-${m.pid}" style="--w:${X.v(`mv.${e.i}.A`)}%"></i><b>${X.n(`mv.${e.i}.A`)}</b></div></div>`;
-  const why = e.why ? `<p class="px-l"><b>Why</b> <span data-i18n-skip data-explain>${esc(e.why)}</span></p>` : "";
-  const chips = e.chips?.length ? `<div class="px-ccs">${e.chips.map((c) => `<span class="px-cc" data-i18n-skip>${esc(String(c))}</span>`).join("")}</div>` : "";
-  const vis = X.has(`mv.${e.i}.vis`) ? `<span class="px-cc">${X.ph("{n} of {n2} visible points", { n: [`mv.${e.i}.vis`], n2: ["target:-"] })}</span>` : "";
-  return `<button type="button" class="px-err" data-rvj="${e.i}" data-rvq="imp"><span class="h"><b>${f("Turn {n}", { n: e.t })}</b><i class="px-cls c-${e.cls}">${CLS_NAME[e.cls]}</i>${X.d(`mv.${e.i}.cost`)}</span>${crops}<span class="mv"><s>You did</s> ${N(e.played)}</span><span class="mv"><s>Better (A)</s> ${N(e.better)}</span>${bars}${noiseLine(X, e)}${why}${chips || vis ? `<div class="px-ccs">${chips ? e.chips.map((c) => `<span class="px-cc" data-i18n-skip data-explain>${esc(String(c))}</span>`).join("") : ""}${vis}</div>` : ""}</button>`;
+  const lg = isNL() ? "nl" : "en", whyT = e.why ? whyLine(e.why, lg) : null, chipT = whyChips(e.chips, lg);
+  const why = whyT ? `<p class="px-l"><b>Why</b> <span data-i18n-skip data-explain>${esc(whyT)}</span></p>` : "";
+    const vis = X.has(`mv.${e.i}.vis`) ? `<span class="px-cc">${X.ph("{n} of {n2} visible points", { n: [`mv.${e.i}.vis`], n2: ["target:-"] })}</span>` : "";
+  return `<button type="button" class="px-err" data-rvj="${e.i}" data-rvq="imp"><span class="h"><b>${f("Turn {n}", { n: e.t })}</b><i class="px-cls c-${e.cls}">${CLS_NAME[e.cls]}</i>${X.d(`mv.${e.i}.cost`)}</span>${crops}<span class="mv"><s>You did</s> ${N(e.played)}</span><span class="mv"><s>Better (A)</s> ${N(e.better)}</span>${bars}${noiseLine(X, e)}${why}${chipT.length || vis ? `<div class="px-ccs">${chipT.map((c) => `<span class="px-cc" data-i18n-skip data-explain>${esc(c)}</span>`).join("")}${vis}</div>` : ""}</button>`;
 }
 export function scoredNote(m) { const X = m.F; return `<p class="px-fn"><span>${X.ph("{n} of {n2} decisions are scored", { n: ["scored"], n2: ["decisions"] })}</span>${X.v("oneOption") > 0 ? ` · <span>${X.ph("{n} had only one sensible option", { n: ["oneOption"] })}</span>` : ""}</p>`; }
 function lesson1(g, m) {

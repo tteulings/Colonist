@@ -3,10 +3,10 @@
 import { esc, IC } from "./review-ui.js";
 import { isNL } from "./i18n.js";
 import { tr as atr } from "./review/analysis-text.js";
-import { tradeShow } from "./review/evaluate.js";
+import { moveTerse, spotText } from "./post-text.js";
 import { resIcon } from "./lessons-view.js";
 import { RES_COLOR } from "./resources.js";
-import { pl, nErr, spotTiles, mvPiece, scoredNote, pm, startAdvice, DOT_KEY, f, CLS_NAME, PHASE_NAME, PLAN_NAME, RES_KEY, rname, infoBtn, fold, ready, progressCard, bindPost, who, whose, takeText, numbersSheet, chipText, waterSubs } from "./post-ui.js";
+import { pl, nErr, spotTiles, scoredNote, pm, startAdvice, DOT_KEY, f, CLS_NAME, PHASE_NAME, PLAN_NAME, RES_KEY, rname, infoBtn, fold, ready, progressCard, bindPost, who, whose, takeText, numbersSheet, chipText, waterSubs } from "./post-ui.js";
 import { SRC_PARTS, FAMILY } from "./post-model.js";
 import { luckRows, tableStore } from "./post-facts.js";
 import { tableOf } from "./post-model.js";
@@ -25,7 +25,13 @@ function lkLabel(g, X, lab, q) {
   void q; return "";
 }
 const when = (g, d) => (d.k === "setup" ? "Set-up" : f("Turn {n}", { n: d.t }));
-export const mvText = (g, d) => { let t = ""; try { t = g._rvTerse(d); } catch (_) { t = tradeShow(d.x?.label || ""); } return t.split(" → ").map((x, i) => (isNL() ? mvPiece(x, i === 0) : `<span>${esc(x)}</span>`)).join(" → "); };
+export const mvText = (g, d) => {
+  const nl = isNL(), lg = nl ? "nl" : "en", one = (l) => moveTerse(l, lg) || (nl ? "Zet" : "Move");
+  const played = d.cls === "missed" ? (d.k === "end" ? (nl ? "Beurt beëindigd" : "Ended turn") : (nl ? "Geruild" : "Traded")) : one(d.x?.label);
+  const parts = [played]; if (d.x?.best && !d.same) parts.push(...one(d.x.best.label).split(" → ").map((x, i) => (i === 0 ? low1(x) : x)));
+  return parts.map((x) => (nl ? `<span data-i18n-skip>${esc(x)}</span>` : `<span>${esc(x)}</span>`)).join(" → ");
+};
+const low1 = (x) => x.charAt(0).toLowerCase() + x.slice(1);
 const mvRow = (g, m, d, q = "all") => `<button type="button" class="px-mv" data-rvj="${d.i}" data-rvq="${q}"><span class="t">${when(g, d)}</span><span class="x">${mvText(g, d)}<small><i class="px-cls c-${d.cls}">${CLS_NAME[d.cls]}</i></small></span><span class="px-dp">${m.F.d(`mv.${d.i}.cost`)}${pm(m.F, d.i)}</span>${IC.chev}</button>`;
 
 // ───────────────────────── Moves ─────────────────────────
@@ -53,7 +59,7 @@ function lesson2(g, m) {
   const X = m.F, S = m.start; if (!S?.picks?.length) return "";
   const plan = S.plan ? `<span class="px-plan">${esc(PLAN_NAME[S.plan] || "")}</span>` : "";
   const picks = S.picks.map((p) => {
-    const nn = p.n, top = p.shortlist.map((c, k) => { const rf = X.slRef(nn, k, p); return `<div class="px-sl${c.played ? " me" : ""}"><b class="ltr">${"ABCDEF"[k]}</b><span class="mx">${spotTiles(m.board, c.node) || spotMix(X, `sl${nn}.${k}`, c.spot) || esc(c.label)}</span>${c.spot ? `<span class="dt">${X.ph("{n} dots", { n: [rf.dots] })}</span>` : ""}<em>${c.played ? f("you · pick {n}", { n: nn }) : ""}</em><b>${X.n(rf.win)}</b></div>`; }).join("");
+    const nn = p.n, top = p.shortlist.map((c, k) => { const rf = X.slRef(nn, k, p); return `<div class="px-sl${c.played ? " me" : ""}"><b class="ltr">${"ABCDEF"[k]}</b><span class="mx">${spotTiles(m.board, c.node) || spotMix(X, `sl${nn}.${k}`, c.spot) || `<span data-i18n-skip>${esc(spotText(c.label) || "")}</span>`}</span>${c.spot ? `<span class="dt">${X.ph("{n} dots", { n: [rf.dots] })}</span>` : ""}<em>${c.played ? f("you · pick {n}", { n: nn }) : ""}</em><b>${X.n(rf.win)}</b></div>`; }).join("");
     const adv = nn === 1 ? "" : startAdvice(m, p);
     const chip = p.followed ? `<span class="px-ok">Followed</span>` : p.advice ? `<span class="px-no">Not followed</span>` : `<span class="px-no"><span>${X.ph("Not followed: {a} instead of {b}", { a: [`pick${nn}.win`], b: [`pick${nn}.best`] })}</span> (${X.n(`pick${nn}.cost`)})</span>`;
     return `<div class="px-pick"><div class="ph"><i class="px-dash">${nn}</i><span class="mx">${spotTiles(m.board, p.node) || spotMix(X, `pick${nn}`, p.spot) || ""}</span>${p.spot ? `<span class="dt">${X.ph("{n} dots", { n: [`pick${nn}.dots`] })}</span>` : ""}<b>${X.n(`pick${nn}.win`)}</b>${chip}</div>${adv}${fold(`top${nn}`, `<span>${f("Pick {n}: top of the spots checked", { n: nn })}</span>`, `<div class="px-sls">${top}</div>`, { open: nn === 1 })}</div>`;
