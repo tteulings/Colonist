@@ -57,9 +57,7 @@ function install(g) {
   // a bot-to-bot deal: the planner has already chosen the partner (who said yes); the swap itself is the engine's
   // the public card tracker is read-modify-write state (a read reconciles it with the hand sizes) that the sim snapshot cannot give back without
   // changing what the next read finds; a probe therefore leaves the tracker exactly as the planner left it, and the engine's apply of the actions
-  // the planner already carried out (flag g.__noTrk, set by the bot, cleared by the host) does not note them a second time.
-  const tn = g._aiTrkNote;
-  g._aiTrkNote = function (a0, a1, a2) { return this.__noTrk ? undefined : tn.call(this, a0, a1, a2); };
+  // the planner already carried out (flag g.__noTrk, set by the bot, cleared by the host; _aiTrkNote itself checks it) does not note them a second time.
   const st = g._stTrade;
   g._stTrade = function (a, b, aGives, bGives) {
     if (REC && REC.depth === 0) { if (!REC.snap) { REC.snap = snapshot(REC.g); REC.x = extras(REC.g); } REC.actions.push({ actor: a.id, type: "offerTrade", to: [b.id], give: hand(aGives), want: hand(bGives) }); }

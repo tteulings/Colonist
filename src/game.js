@@ -5732,6 +5732,7 @@ class ColonistFullGame {
   }
 
   _aiTrkNote(player, delta, sign) {
+    if (this.__noTrk) return; // the bot host (bots/probe.js): the planner's probe has noted this move already
     if (!player || !this.players?.includes(player)) return;
     const e = this._aiTrk().est[player.id];
     RESOURCES.forEach((r) => { if (delta[r]) e[r] = Math.max(0, e[r] + sign * delta[r]); });
