@@ -11,7 +11,7 @@ import { analyseGame, luckSplit, headline as headlineParts } from "./review/anal
 import { tr as atr } from "./review/analysis-text.js";
 import { lang } from "./i18n.js";
 import { inScope } from "./review/coach-rules.js";
-import { buildFacts, headPlan, register, buildKindAt } from "./post-facts.js";
+import { buildFacts, headPlan, register, buildKindAt, swings } from "./post-facts.js";
 
 export const ERR = ["mistake", "blunder", "missed"]; // a clear error (the review only gives these classes to clear gaps)
 export const FAMILY = { best: "strong", great: "strong", good: "strong", close: "close", lean: "close", could: "costly", mistake: "costly", blunder: "costly", missed: "costly" };
@@ -256,7 +256,7 @@ function timelineOf(g, pid, T, won, A) {
   const pins = forced.filter((x, i, a) => a.findIndex((q) => q.S === x.S) === i);
   sw.forEach((x) => { if (pins.length >= 3 || pins.some((q) => Math.abs(q.T - x.T) < 2)) return; pins.push(x); });
   pins.sort((a, b) => a.T - b.T);
-  const lastT = Math.max(T, ...lines[pid].map((q) => q[0])), mk = (x) => ({ T: x.T, S: x.S, d: x.d, actor: x.actor, move: x.actor === pid, b: x.b, a: x.a, e: x.e });
+  const lastT = Math.max(T, ...lines[pid].map((q) => q[0])), mk = (x) => ({ T: x.T, S: x.S, d: x.d, actor: x.actor, move: x.actor === pid, b: x.b, a: x.a, e: x.e, dice: x.dice });
   return { lines, pins: pins.map((x, k) => ({ n: k + 1, ...mk(x) })), all: sw.slice(0, 15).sort((a, b) => a.T - b.T).map(mk), T: lastT, phases: phaseLimits(lastT) };
 }
 // ── measures: the player against the table ──
@@ -378,14 +378,7 @@ function takeaway2(m) {
  *  claims here: those stay in Strategy, compared with the best other player. */
 /** every step of the game as this PLAYER's win-chance swing: { S, T, actor, roll, seven, b, a, e, d, dice, move } in whole percent. dice = what the roll did (a - b), move = what the actor's own
  *  play after it did (e - a, only when this player is the actor). Award steps are left out (v1.99 scope: no longest road / largest army); a 7 is kept but flagged (never named as luck). */
-function swingsFor(g, pid) {
-  const st = g._st; let look = null; try { look = g._rvLook(); } catch (_) { look = null; }
-  if (!look || !st) return [];
-  const awards = new Set((st.awards || []).map((q) => q.s));
-  return look.steps.map((x) => { const stp = st.steps[x.S - 1], b = r0(x.b[pid] * 100), a = r0(x.a[pid] * 100), e = r0(x.e[pid] * 100), actor = stp && stp[1] >= 0 ? stp[1] : null, roll = stp ? stp[2] + stp[3] : null;
-    return { S: x.S, T: st.turnOf[x.S], actor, roll, seven: roll === 7, b, a, e, d: e - b, dice: a - b, move: actor === pid ? e - a : 0 }; })
-    .filter((x) => x.actor != null && !awards.has(x.S));
-}
+const swingsFor = swings; // ONE copy (src/post-facts.js): the roll's number is the luck run's
 /** The headline parts: the player's biggest OWN move swing (best move in a win; the worst real error, else the costliest move, in a loss), the biggest LUCK swings (the dice part only, on the side of the result)
  *  and the start cost when it is the main own lesson. Component values, never a whole swing named as a roll. Income / cities / tempo stay in Strategy. */
 /** The steps the headline names, as win-chance COMPONENTS of that step's swing (the same numbers as the key-moment rows): own = the biggest "move" part on the side of the result (>= 3),
@@ -414,7 +407,7 @@ function whyOf(m, A, g) {
 export { buildKindAt };
 export const momentFor = (g, m, x) => momentOf(m, g._st, x, m.won);
 function momentOf(m, st, x, won) {
-  const pid = m.pid, dice = x.a - x.b, after = x.e - x.a, mine = x.actor === pid, step = st?.steps?.[x.S - 1], roll = step ? step[2] + step[3] : null;
+  const pid = m.pid, dice = x.dice ?? x.a - x.b, after = x.e - x.a, mine = x.actor === pid, step = st?.steps?.[x.S - 1], roll = step ? step[2] + step[3] : null;
   const base = { T: x.T, S: x.S, d: x.d, actor: x.actor };
   if (Math.abs(dice) >= Math.abs(after) && roll) return { ...base, k: "roll", own: mine, roll, good: dice > 0 };
   const bk = buildKindAt(st, x.S, x.actor);

@@ -225,7 +225,7 @@ export function buildFacts(g, m, tab) {
   // the key moments: one fact set per step
   const tl = m.timeline;
   if (tl) {
-    const put = (p) => { const dice = p.a - p.b, after = p.e - p.a, mv = p.move ? after : 0; P(`mom.${p.S}.d`, me, "wcDelta", p.d, "fact.momD", "win chance"); P(`mom.${p.S}.move`, me, "wcDelta", mv, "fact.momMove", "win chance"); P(`mom.${p.S}.dice`, me, "wcDelta", dice, "fact.momDice", "win chance"); P(`mom.${p.S}.rest`, me, "wcDelta", after - mv, "fact.momRest", "win chance"); const st = g._st?.steps?.[p.S - 1]; if (st && st[2] != null) P(`mom.${p.S}.roll`, me, "count", st[2] + st[3], "fact.roll", "stats"); };
+    const put = (p) => { const dice = p.dice ?? p.a - p.b, after = p.e - p.a, mv = p.move ? after : 0; P(`mom.${p.S}.d`, me, "wcDelta", p.d, "fact.momD", "win chance"); P(`mom.${p.S}.move`, me, "wcDelta", mv, "fact.momMove", "win chance"); P(`mom.${p.S}.dice`, me, "wcDelta", dice, "fact.momDice", "win chance"); P(`mom.${p.S}.rest`, me, "wcDelta", p.d - dice - mv, "fact.momRest", "win chance"); const st = g._st?.steps?.[p.S - 1]; if (st && st[2] != null) P(`mom.${p.S}.roll`, me, "count", st[2] + st[3], "fact.roll", "stats"); };
     [...tl.pins, ...(tl.all || [])].forEach(put);
     P("momN", me, "count", tl.pins.length + (tl.all || []).filter((p) => !tl.pins.some((q) => q.T === p.T)).length, "fact.momN", "win chance");
     const mine = tl.lines[me]; if (mine?.length) { P("tl.from", me, "wc", r0(mine[0][1] * 100), "fact.tl", "win chance"); P("tl.to", me, "wc", r0(mine[mine.length - 1][1] * 100), "fact.tl", "win chance"); }
@@ -265,13 +265,22 @@ function waterfall(S, g, m, cost) {
 /** the piece a player built in a step ("settlement" | "city" | "road") or "card" for a development card bought, else null */
 export const buildKindAt = (st, S, actor) => { let k = null; try { (st.stepEvents?.[S] || []).forEach((e) => { if (e[1] === "b" && e[2] === actor && ["s", "c", "r"].includes(e[3])) k = { s: "settlement", c: "city", r: "road" }[e[3]]; else if (e[1] === "v" && e[2] === actor && !k) k = "card"; }); } catch (_) { k = null; } return k; };
 const tab0 = (S, g) => g.players.map((p) => p.id);
-/** every step of the game as this seat's win-chance swing (the review's look), in whole percent: { S, T, actor, roll, seven, b, a, e, d, dice, move } */
+/** THE roll fact (v1.99 r1): what ONE roll did to a seat's win chance, in whole percent, always the luck run's own number for that roll (src/review-luck.js, the value the Luck tab lists).
+ *  Map: step S (1-based) -> percent. The timeline, the waterfall, the headline, the Luck tab and the AI tab all read this one number; the review's before/after look only
+ *  gives the step's TOTAL swing and the actor's own move. Empty while the luck run has no result for the roll (then the look's own a - b stands in, and no luck is shown anywhere). */
+export function rollLuckMap(g, pid) {
+  const m = new Map(); let L = null; try { L = g._lkStore?.(); } catch (_) { L = null; }
+  if (L?.res) Object.values(L.res).forEach((r) => { if (r && r.k === "dice" && r.l && r.l[pid] != null && Number.isFinite(r.s)) m.set(r.s + 1, r0(r.l[pid] * 100)); });
+  return m;
+}
+/** every step of the game as this seat's win-chance swing, in whole percent: { S, T, actor, roll, seven, b, a, e, d, dice, move }. d = the step's total swing (the review's look, e - b), dice = the roll's luck (rollLuckMap),
+ *  move = the actor's own play after the roll (e - a, only when the seat is the actor). The pin line "move · dice · rest" has rest = d - dice - move (what is left of the swing). */
 export function swings(g, pid) {
   const st = g._st; let look = null; try { look = g._rvLook(); } catch (_) { look = null; }
   if (!look || !st) return [];
-  const awards = new Set((st.awards || []).map((q) => q.s));
+  const awards = new Set((st.awards || []).map((q) => q.s)), lk = rollLuckMap(g, pid);
   return look.steps.map((x) => { const stp = st.steps[x.S - 1], b = r0(x.b[pid] * 100), a = r0(x.a[pid] * 100), e = r0(x.e[pid] * 100), actor = stp && stp[1] >= 0 ? stp[1] : null, roll = stp ? stp[2] + stp[3] : null;
-    return { S: x.S, T: st.turnOf[x.S], actor, roll, seven: roll === 7, b, a, e, d: e - b, dice: a - b, move: actor === pid ? e - a : 0 }; }).filter((x) => x.actor != null && !awards.has(x.S));
+    return { S: x.S, T: st.turnOf[x.S], actor, roll, seven: roll === 7, b, a, e, d: e - b, dice: lk.has(x.S) ? lk.get(x.S) : a - b, move: actor === pid ? e - a : 0 }; }).filter((x) => x.actor != null && !awards.has(x.S));
 }
 
 /** What the headline says, from the numbers alone (A = the analysis data layer, pid = the seat): { won, own, luck }
@@ -310,23 +319,25 @@ export function luckRows(S, g, m, q, unit, showOthers) {
   const cards = unit === "cards", pre = `lk${cards ? "c" : "w"}`;
   let list = []; try { list = g._lkList(q).filter((x) => x.own); } catch (_) { list = []; }
   const seatW = (() => { try { return g._lkSeat(q); } catch (_) { return 0; } })();
-  const ev = list.map((x) => ({ x, win: Math.round(x.w * 1000) / 10, cards: x.ev.kind === "dice" && x.cards != null && x.exp != null && x.ev.roll !== 7 ? Math.round((x.cards - x.exp) * 10) / 10 : null, t: (() => { try { return g._lkWhen(x.ev); } catch (_) { return ""; } })() }));
+  const ev = list.map((x) => ({ x, win: Math.round(x.w * 100), cards: x.ev.kind === "dice" && x.cards != null && x.exp != null && x.ev.roll !== 7 ? Math.round((x.cards - x.exp) * 10) / 10 : null, t: (() => { try { return g._lkWhen(x.ev); } catch (_) { return ""; } })() }));
   const isOwn = (e) => e.x.ev.kind !== "dice" || e.x.ev.roller === q;
-  const group = (l, tag) => { const mp = new Map(); l.forEach((e) => { const k = String(e.t || ""); (mp.get(k) || mp.set(k, []).get(k)).push(e); }); return [...mp.entries()].map(([t, es]) => {
-    const cv = cards ? es.filter((e) => e.cards != null) : [], inCards = cards && cv.length > 0, pool = inCards ? cv : es, val = (e) => (inCards ? e.cards : e.win);
-    const dom = pool.slice().sort((a, b) => Math.abs(val(b)) - Math.abs(val(a)))[0], sum = Math.round(pool.reduce((a, e) => a + val(e), 0)), id = `${pre}${tag}.${t}`;
-    S.put(id, q, inCards ? "cards" : "wcDelta", sum, "fact.lkRow", "luck"); if (es.length > 1) S.put(`${id}.more`, q, "count", es.length - 1, "fact.lkMore", "luck");
-    const ev0 = dom.x.ev; let lab = null;
+  // v1.99 r1: ONE ROW PER EVENT. A roll, a steal and a card of the same turn used to be added into one row named after the biggest of them ("Groen stole a card from You (+2)  +12%"): that number was not the steal's.
+  // Now every row is one event with its own number, the same one the timeline, the overview and the AI tab show for that roll.
+  const group = (l, tag) => l.map((e) => {
+    const t = e.t, inCards = cards && e.cards != null, v = inCards ? e.cards : e.win, sum = Math.round(v), id = `${pre}${tag}.${t}.${e.x.ev.e}`;
+    S.put(id, q, inCards ? "cards" : "wcDelta", sum, "fact.lkRow", "luck");
+    const ev0 = e.x.ev; let lab = null;
     if (ev0.kind === "dice") { const rid = `${id}.roll`; S.put(rid, q, "count", ev0.roll, "fact.roll", "luck"); lab = ev0.roll === 7 ? { k: "seven", n: `${rid}:${q}` } : { k: "dice", who: ev0.roller, n: `${rid}:${q}`, rush: !!ev0.rush }; }
     else if (ev0.kind === "steal") lab = { k: "steal", thief: ev0.thief, victim: ev0.victim }; else if (ev0.kind === "dev") lab = { k: "dev", who: ev0.pid, vp: ev0.card === "victoryPoint" };
-    return { t, id: `${id}:${q}`, more: es.length > 1 ? `${id}.more:${q}` : null, sum, lab, inCards }; }); };
+    return { t, S: ev0.kind === "dice" ? ev0.s + 1 : null, id: `${id}:${q}`, more: null, sum, lab, inCards };
+  });
   const own = group(ev.filter(isOwn), ""), oth = group(ev.filter((e) => !isOwn(e)), "o");
   const big = own.filter((G) => Math.abs(G.sum) >= 0.5).sort((a, b) => Math.abs(b.sum) - Math.abs(a.sum)), small = own.filter((G) => Math.abs(G.sum) < 0.5);
   S.put(`${pre}.${q}.more`, q, "count", Math.max(0, big.length - 8), "fact.lkMore", "luck"); S.put(`${pre}.${q}.nsmall`, q, "count", small.length, "fact.lkMore", "luck");
-  const othEv = ev.filter((e) => !isOwn(e)), oval = (e) => (cards ? e.cards ?? 0 : e.win);
+  const othEv = ev.filter((e) => !isOwn(e)), oval = (e) => Math.round(cards ? e.cards ?? 0 : e.win); // (whole numbers: the group's sum is exactly the sum of its rows)
   S.put(`${pre}.${q}.nOth`, q, "count", othEv.length, "fact.lkMore", "luck");
-  S.put(`${pre}.${q}.othSum`, q, cards ? "cards" : "wcDelta", Math.round(othEv.reduce((a, e) => a + oval(e), 0)), "fact.lkOth", "luck");
-  let bigO = null; if (othEv.length) { const e = othEv.slice().sort((a, b) => Math.abs(oval(b)) - Math.abs(oval(a)))[0]; S.put(`${pre}.${q}.othBig`, q, cards ? "cards" : "wcDelta", Math.round(oval(e)), "fact.lkOthBig", "luck"); bigO = { id: `${pre}.${q}.othBig:${q}`, t: e.t }; }
+  S.put(`${pre}.${q}.othSum`, q, cards ? "cards" : "wcDelta", othEv.reduce((a, e) => a + oval(e), 0), "fact.lkOth", "luck");
+  let bigO = null; if (othEv.length) { const e = othEv.slice().sort((a, b) => Math.abs(oval(b)) - Math.abs(oval(a)))[0]; S.put(`${pre}.${q}.othBig`, q, cards ? "cards" : "wcDelta", oval(e), "fact.lkOthBig", "luck"); bigO = { id: `${pre}.${q}.othBig:${q}`, t: e.t }; }
   let total = null;
   if (cards) { S.put(`${pre}.${q}.total`, q, "cards", Math.round(ev.reduce((a, e) => a + (e.cards ?? 0), 0)), "fact.lkTotal", "luck"); total = `${pre}.${q}.total:${q}`; } else total = S.has(`luck:${q}`) ? `luck:${q}` : null;
   return { big, small, oth: showOthers ? oth.sort((a, b) => Math.abs(b.sum) - Math.abs(a.sum)) : [], othN: othEv.length, bigO, seatId: seatW ? `lkSeat:${q}` : null, total, pre, nMore: big.length - 8, nSmall: small.length, nOthRef: `${pre}.${q}.nOth:${q}`, moreRef: `${pre}.${q}.more:${q}`, smallRef: `${pre}.${q}.nsmall:${q}`, othSum: `${pre}.${q}.othSum:${q}` };
