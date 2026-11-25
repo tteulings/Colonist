@@ -106,7 +106,7 @@ export const NL_199P = [
   ["Build timeline", "Bouwverloop"], ["turn 1 to {n}", "beurt 1 tot {n}"], ["Income per resource", "Inkomen per grondstof"], ["cards the board paid", "kaarten die het bord uitbetaalde"],
   ["You vs the table", "Jij tegenover de tafel"], ["the table is the other players’ average", "de tafel is het gemiddelde van de andere spelers"], ["Table", "Tafel"],
   ["Cards collected", "Kaarten verzameld"], ["Cities", "Steden"], ["Settlements", "Dorpen"], ["Roads", "Wegen"], ["Development cards", "Ontwikkelkaarten"], ["Bank trades", "Ruilen met de bank"], ["Player trades", "Ruilen met spelers"],
-  ["Rival", "Rivaal"], ["{x} gained {n} here, {y} gained {n2}.", "{x} won hier {n}, {y} won er {n2}."], ["{x} bots", "{x}-bots"],
+  ["Rival", "Rivaal"], ["{x} gained {n} points here, {y} gained {n2} points.", "{x} won hier {n} punten, {y} won er {n2} punten."], ["{x} gained {n} point here, {y} gained {n2} points.", "{x} won hier {n} punt, {y} won er {n2} punten."], ["{x} gained {n} points here, {y} gained {n2} point.", "{x} won hier {n} punten, {y} won er {n2} punt."], ["{x} gained {n} point here, {y} gained {n2} point.", "{x} won hier {n} punt, {y} won er {n2} punt."], ["{x} bots", "{x}-bots"],
   ["Midgame · turns {n}–{n2}", "Middenspel · beurten {n}–{n2}"], ["Opening · turns {n}–{n2}", "Opening · beurten {n}–{n2}"], ["End game · turns {n}–{n2}", "Eindspel · beurten {n}–{n2}"],
   ["Luck in win chance is not available for this game.", "Geluk in winkans is voor dit potje niet beschikbaar."], ["Luck per player", "Geluk per speler"], ["Unit", "Eenheid"], ["Cards", "Kaarten"],
   ["Each player is an independent estimate: dice, steals and card draws against what was expected.", "Elke speler is een eigen schatting: dobbelstenen, gepakte kaarten en getrokken kaarten tegenover wat je mocht verwachten."],
@@ -127,7 +127,7 @@ export const NL_199P = [
   ["Trade {n} {x}", "Ruil {n} {x}"], ["trade", "ruil"], ["Dev card", "Ontwikkelkaart"], ["End turn", "Beurt beëindigen"], ["city {x}", "stad {x}"], ["settlement {x}", "dorp {x}"], ["road {x}", "weg {x}"], ["Ended turn", "Beurt beëindigd"], ["Traded", "Geruild"],
   ["Rolls", "Worpen"], ["Closes", "Sluit"], ["Seat", "Zitplaats"],
   // ── round 6 ──
-  ["Phase rules", "Faseregels"], ["Could be better", "Kan beter"], ["clear gaps only", "alleen duidelijke verschillen"],
+  ["Phase rules", "Faseregels"], ["Could be better", "Kan beter"], ["clear gaps only", "duidelijke verschillen"],
   ["measured {a}%, counted {b}%", "gemeten {a}%, geteld {b}%"], ["rolls and cards", "worpen en kaarten"], ["The other players’ moves and luck combined.", "De zetten en het geluk van de anderen samen."],
   ["Their moves and luck combined, not a mark for you.", "De zetten en het geluk van de anderen samen."],
   ["Take {x} with pick {n}: {a}% → {b}% ({g}).", "Pak {x} met keuze {n}: {a}% → {b}% ({g})."], ["Fewer dots ({a} against {b}), but {x} added.", "Minder stippen ({a} tegen {b}), maar {x} erbij."],

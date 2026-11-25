@@ -196,6 +196,10 @@ const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
             ok(o.ne.length === Math.min(3, o.nErr ?? 0) && (o.nErr ?? 0) <= (o.close ?? 0) + (o.could ?? 0), `${lang} ${curGame} overview: the small differences (${o.ne.length}) are Moves rows (close ${o.close} + could ${o.could}), never a start pick`, o);
             if (o.lost && o.after != null) { ok(/^(Rest of the game|Rest van het spel)$/.test(o.aft), `${lang} ${curGame} overview: a loser's last row reads "Rest of the game"`, o.aft); }
             if (o.lost && o.others) ok(/helped you|cost you|hielp jou|kostte jou/.test(o.oth), `${lang} ${curGame} overview: the others row says whether it helped or cost the loser`, o.oth);
+            { // finding 4: one mistake feeds at most one "Take with you" rule (the turn-2 mistake was listed as rule 1 AND as the opening rule 3)
+              const tk = await G(async () => { const M = await import("/src/post-model.js"), g = window.__colonistGame, m = M.modelOf(g, g._rvPid), t = m.takeaway || [], l1 = t.find((x) => x.lesson === 1), l3 = t.find((x) => x.lesson === 3), r = l3 && (m.lesson3 || []).find((q) => q.id === l3.key);
+                const a = (m.lesson3 || [])[0]; return { keys: t.map((x) => x.key), dup: !!(l1 && r && (r.ids || r.chips.map((c) => c.i)).includes(l1.i)), wouldDup: !!(l1 && a && (a.ids || a.chips.map((c) => c.i)).includes(l1.i)) }; });
+              ok(!tk.dup && new Set(tk.keys).size === tk.keys.length, `${lang} ${curGame} overview: no mistake is listed under two Take-with-you rules`, tk); if (tk.wouldDup) console.log(`  (dedupe fired: ${curGame})`); }
             ok(/\d+–\d+/.test(o.head), `${lang} ${curGame} overview: the result line carries the score`, o.head);
           }
           if (tab === "overview") for (const pil of ["errors", "start", "other"]) { await page.evaluate((k) => document.querySelector(`[data-pxpil=${k}]`)?.click(), pil); await sleep(150); await audit(`overview pillar ${pil}`, ".rv"); }

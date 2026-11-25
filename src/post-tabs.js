@@ -113,7 +113,7 @@ function measuresCard(g, m) {
 }
 function rivalCard(g, m) {
   const X = m.F, R = m.rival; if (!R) return "";
-  return `<section class="rv-card px-card px-rival"><div class="rv-gt"><b>Rival</b><small>${esc(PHASE_NAME[R.k])} · ${f("turns {n}–{n2}", { n: R.from, n2: R.to })}</small></div><p class="px-l">${X.ph("{x} gained {n} here, {y} gained {n2}.", { x: g.players[R.rid]?.isHuman && !m.you ? humanNm(R.rname, R.rid, false) : esc(R.rname), n: ["rival.theirs", { word: true }], y: m.you ? "you" : esc(m.me.name), n2: ["rival.mine", { word: true }] })}</p>
+  return `<section class="rv-card px-card px-rival"><div class="rv-gt"><b>Rival</b><small>${esc(PHASE_NAME[R.k])} · ${f("turns {n}–{n2}", { n: R.from, n2: R.to })}</small></div><p class="px-l">${X.ph(`{x} gained {n} point${X.v("rival.theirs") === 1 ? "" : "s"} here, {y} gained {n2} point${X.v("rival.mine") === 1 ? "" : "s"}.`, { x: g.players[R.rid]?.isHuman && !m.you ? humanNm(R.rname, R.rid, false) : esc(R.rname), n: ["rival.theirs"], y: m.you ? "you" : esc(m.me.name), n2: ["rival.mine"] })}</p>
     <div class="px-rv"><span class="pc-${R.rid}">${g._av(m.seats[R.rid].p, "rt-av")}<b>${X.n("rival.theirs", { plus: true })}</b><small>${X.ph("{n} builds", { n: ["rival.theirBuilds"] })}</small></span><span class="pc-${m.pid}">${g._av(m.me, "rt-av")}<b>${X.n("rival.mine", { plus: true })}</b><small>${X.ph("{n} builds", { n: ["rival.myBuilds"] })}</small></span></div></section>`;
 }
 function planCard(g, m) {
