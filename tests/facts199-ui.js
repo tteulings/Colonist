@@ -134,6 +134,12 @@ const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
           await G((t) => { const g = window.__colonistGame; g._rvTab = t; g._rvDrawReview(); }, tab); await sleep(550);
           if (tab === "overview") await page.waitForSelector(".px-verdict", { timeout: 20000 });
           await unfold(); await audit(tab, ".rv");
+          if (tab === "moves") { // finding 1: the tiles and the list are one source: each tile equals the number of list rows of its kind, and no row word contradicts a zero tile
+            const t = await G(() => { const tiles = {}; document.querySelectorAll("[data-famtile]").forEach((e) => { tiles[e.dataset.famtile] = +e.querySelector("b").textContent.replace(/\D/g, ""); }); const rows = {}; document.querySelectorAll(".px-mv[data-fam]").forEach((e) => { rows[e.dataset.fam] = (rows[e.dataset.fam] || 0) + 1; }); const words = [...document.querySelectorAll(".px-mv[data-fam] .px-cls")].map((e) => e.textContent.trim()); return { tiles, rows, words }; });
+            ["strong", "close", "could", "err"].forEach((k) => ok((t.tiles[k] ?? -1) === (t.rows[k] || 0), `${lang} ${curGame} moves: tile "${k}" equals its list rows`, t));
+            if (!t.tiles.could) ok(!t.words.some((w) => /^(Could be better|Kan beter|Kon beter)$/.test(w)), `${lang} ${curGame} moves: no "Could be better" row next to a 0 tile`, t.words);
+            if (!t.tiles.close) ok(!t.words.some((w) => /^(Close call|Nipt verschil)$/.test(w)), `${lang} ${curGame} moves: no "Close call" row next to a 0 tile`, t.words);
+          }
           if (tab === "overview") for (const pil of ["errors", "start", "other"]) { await page.evaluate((k) => document.querySelector(`[data-pxpil=${k}]`)?.click(), pil); await sleep(150); await audit(`overview pillar ${pil}`, ".rv"); }
           if (tab === "luck") {
             if (await G(() => !!document.querySelector("[data-pxunit=cards]"))) { await sheet("[data-pxunit=cards]"); await audit("luck cards", ".rv"); }

@@ -165,9 +165,18 @@ export function buildFacts(g, m, tab) {
   P("decisions", me, "count", c.total, "fact.decisions", "recorder"); P("scored", me, "count", c.scored, "fact.scored", "decisions"); P("oneOption", me, "count", Math.max(0, c.total - c.scored), "fact.oneOption", "recorder");
   P("startN", me, "count", startN, "fact.startN", "decisions"); P("otherN", me, "count", Math.max(0, c.scored - errs.length - startN), "fact.otherN", "decisions");
   P("notErrors", me, "count", c.notErrors || 0, "fact.notErrors", "decisions");
-  const fam = { strong: 0, close: 0, costly: 0 }; const FAMILY = { best: "strong", great: "strong", good: "strong", close: "close", lean: "close", could: "costly", mistake: "costly", blunder: "costly", missed: "costly" };
-  ds.filter((d) => d.cls !== "triv").forEach((d) => { if (FAMILY[d.cls]) fam[FAMILY[d.cls]] += 1; });
-  P("fam.strong", me, "count", fam.strong, "fact.fam", "decisions"); P("fam.close", me, "count", fam.close, "fact.fam", "decisions"); P("fam.could", me, "count", Math.max(0, fam.costly - errs.length), "fact.fam", "decisions");
+  // the Moves list is the ONE source of its tiles: every row (a non-start, scored, in-scope move) has one kind, the tiles count those kinds
+  {
+    const errSet = new Set(errs.map((d) => d.i)), neg = (d) => (-d.gp) < 0;
+    const kindOfRow = (d) => (errSet.has(d.i) ? "err" : ["best", "great", "good"].includes(d.cls) ? (neg(d) ? "close" : "strong") : ["close", "lean"].includes(d.cls) ? "close" : "could");
+    const others = m.other.filter((d) => d.cls !== "triv" && inScope(d)).sort((a, b) => b.gp - a.gp || a.i - b.i), top = others.filter((d) => d.gp >= 1).slice(0, 3);
+    const miss = [...errs, ...top], shown = new Set(miss.map((d) => d.i)), rest = others.filter((d) => !shown.has(d.i));
+    const kind = {}; [...miss, ...rest].forEach((d) => { kind[d.i] = kindOfRow(d); });
+    const fam = { strong: 0, close: 0, could: 0, err: 0 }; Object.values(kind).forEach((k) => { fam[k] += 1; });
+    P("fam.strong", me, "count", fam.strong, "fact.fam", "decisions"); P("fam.close", me, "count", fam.close, "fact.fam", "decisions"); P("fam.could", me, "count", fam.could, "fact.fam", "decisions"); P("fam.err", me, "count", fam.err, "fact.fam", "decisions");
+    P("restN", me, "count", rest.length, "fact.restN", "decisions");
+    S.data.miss = miss; S.data.rest = rest; S.data.kind = kind; S.data.restLt1 = (rest.length ? Math.max(...rest.map((d) => d.gp)) : 0) < 1;
+  }
   const smallDiff = m.other.filter((d) => d.gp >= 1).length; P("smallDiff", me, "count", smallDiff, "fact.smallDiff", "decisions");
   // every decision: its cost, its margin, the win chance after it
   ds.forEach((d) => {
@@ -198,15 +207,6 @@ export function buildFacts(g, m, tab) {
   S.slRef = (nn, k, p) => { const q = p.shortlist[k]; return { win: q.played ? `pick${nn}.win` : q.best ? `pick${nn}.best` : `sl${nn}.${k}.win`, dots: q.spot ? (q.played ? `pick${nn}.dots` : k === 0 ? `pick${nn}.bestDots` : `sl${nn}.${k}.dots`) : null }; };
   // best moves: the lead over the next option
   (m.bestRows || []).forEach((o) => P(`lead.${o.d.i}`, me, "lead", o.gain, "fact.lead", "decisions"));
-  // the moves lists (Moves tab): biggest misses, then the rest
-  {
-    const miss = [...errs.slice(0, 4), ...m.other.filter((d) => d.cls !== "triv" && inScope(d) && d.gp >= 1).sort((a, b) => b.gp - a.gp || a.i - b.i).slice(0, 3)];
-    const shown = new Set(miss.map((d) => d.i));
-    const rest = ds.filter((d) => !shown.has(d.i) && d.cls !== "triv" && d.k !== "setup" && inScope(d)).sort((a, b) => b.gp - a.gp || a.i - b.i);
-    const restN = Math.max(0, S.v(`otherN:${me}`) - miss.filter((d) => !errs.includes(d)).length);
-    P("restN", me, "count", restN, "fact.restN", "decisions");
-    S.data.miss = miss; S.data.rest = rest; S.data.restLt1 = (rest.length ? Math.max(...rest.map((d) => d.gp)) : 0) < 1;
-  }
   // tempo / builds / income / measures / rival
   m.builds?.rows?.forEach((rw, q) => P("builds", q, "count", rw.length, "fact.builds", "stats"));
   m.income?.forEach((r) => { r.res.forEach((v, k) => P(`inc.${RES[k]}`, r.id, "count", v, "fact.inc", "stats.prod")); P("inc.tot", r.id, "count", r.tot, "fact.inc", "stats.prod"); });

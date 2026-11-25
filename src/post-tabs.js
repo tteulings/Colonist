@@ -33,14 +33,16 @@ export const mvText = (g, d) => {
   return parts.map((x) => (nl ? `<span data-i18n-skip>${esc(x)}</span>` : `<span>${esc(x)}</span>`)).join(" → ");
 };
 const low1 = (x) => x.charAt(0).toLowerCase() + x.slice(1);
-const mvRow = (g, m, d, q = "all") => `<button type="button" class="px-mv" data-rvj="${d.i}" data-rvq="${q}"><span class="t">${when(g, d)}</span><span class="x"><span class="mt">${mvText(g, d)}</span><small><i class="px-cls c-${(m.F.v(`mv.${d.i}.cost`) ?? 0) < 0 && ["best", "great", "good"].includes(d.cls) ? "close" : d.cls}">${neutralCls(m.F, d)}</i></small></span><span class="px-dp">${m.F.d(`mv.${d.i}.cost`)}${pm(m.F, d.i)}</span>${IC.chev}</button>`;
+/** the word of a Moves-list row: its kind (the same kind the tiles count). A clear error of class "Could be better" reads "Real error", so no row says "Could be better" while the tile says 0 */
+const rowWord = (X, d) => { const k = X.data.kind?.[d.i]; return k === "err" && d.cls === "could" ? "Real error" : k === "close" && ["best", "great", "good"].includes(d.cls) ? CLS_NAME.close : CLS_NAME[d.cls]; };
+const mvRow = (g, m, d, q = "all") => `<button type="button" class="px-mv" data-rvj="${d.i}" data-rvq="${q}" data-fam="${m.F.data.kind?.[d.i] || ""}"><span class="t">${when(g, d)}</span><span class="x"><span class="mt">${mvText(g, d)}</span><small><i class="px-cls c-${m.F.data.kind?.[d.i] === "close" && ["best", "great", "good"].includes(d.cls) ? "close" : d.cls}">${rowWord(m.F, d)}</i></small></span><span class="px-dp">${m.F.d(`mv.${d.i}.cost`)}${pm(m.F, d.i)}</span>${IC.chev}</button>`;
 
 // ───────────────────────── Moves ─────────────────────────
 export function movesTab(g, ds, res, rv) {
   const r = ready(g, g._rvPid); if (!r.m) return { html: progressCard(g, g._rvPid) };
   const m = r.m, X = m.F;
   // ONE vocabulary: Real errors (the count every page shows) and Could be better (every other weaker move) are separate; strong and close calls as before
-  const tiles = [["strong", "fam.strong", "Strong moves"], ["close", "fam.close", "Close calls"], ["costly", "fam.could", "Could be better"], ["err", "errors", "Real errors"]].map(([k, ref, l]) => `<div class="px-fam f-${k}${k === "err" && !X.v("errors") ? " z" : ""}"><b>${X.n(ref)}</b><span>${l}</span></div>`).join("");
+  const tiles = [["strong", "fam.strong", "Strong moves"], ["close", "fam.close", "Close calls"], ["costly", "fam.could", "Could be better"], ["err", "fam.err", "Real errors"]].map(([k, ref, l]) => `<div class="px-fam f-${k}${k === "err" && !X.v("fam.err") ? " z" : ""}" data-famtile="${k === "costly" ? "could" : k}"><b>${X.n(ref)}</b><span>${l}</span></div>`).join("");
   const cap = X.cost?.capped ? `<p class="px-fn">${X.ph("Together the moves cannot cost more than the best win chance held ({w}).", { w: ["capNote"] })}</p>` : "";
   const head = `<section class="rv-card px-card"><div class="rv-gt"><b>${whose(m)} moves</b>${infoBtn("error")}</div><p class="px-l"><b>Moves in total</b> ${X.d("movesTotal")} ${(X.v("scored") ?? 99) < 5 ? "" : `· <b>${accWord} ${X.has(`acc:${m.pid}`) ? X.n(`acc:${m.pid}`) : "–"}</b>`}</p><p class="px-fn px-ms">${X.ph("Start picks {a} + moves {b}", { a: ["startCost"], b: ["moveCost"] })}</p>${cap}<div class="px-fams">${tiles}</div>${reconTable(m)}</section>`;
   const first = m.errs[0]?.i ?? m.ds[0]?.i;
