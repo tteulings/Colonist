@@ -16,6 +16,11 @@ import { modelOf, tableOf, hideCache, soloPid, SRC_PARTS, FAMILIES, FAMILY, kind
 import { tableStore, numRef } from "./post-facts.js";
 
 // ── tiny helpers ──
+/** Too few scored decisions for a verdict (below 5): no accuracy, no error verdict and never praise; the Overview shows the start picks and the Strategy numbers instead. */
+export const THIN = 5;
+export const isThin = (m) => (m?.F?.v("scored") ?? 99) < THIN;
+/** Other modules (post-tabs) hang the Strategy cards for a thin Overview here; no import cycle. */
+export const hooks = {};
 export const f = (tpl, v = {}) => tpl.replace(/\{(\w+)\}/g, (m, k) => (k in v ? String(v[k]) : m));
 export const CLS_NAME = { best: "Best", great: "Great", good: "Good", lean: "Better option", close: "Close call", could: "Could be better", mistake: "Mistake", blunder: "Blunder", missed: "Missed chance", triv: "No real choice" };
 /** the class word of a move, but never a "Best / Good" next to a negative cost: that move reads "Close call" */
@@ -156,7 +161,8 @@ export function connectLine(m) {
   const acc = `<b>${atr(lg, "word.acc")} ${X.has(`acc:${pid}`) ? X.n(`acc:${pid}`) : "–"}</b>`;
   const errs = atr(lg, c === 0 ? "c.err0" : c === 1 ? "c.err1" : "c.errn", { n: X.n("errors") }), few = (X.v("scored") ?? 99) < 5;
   const P = { acc, errs, tot: X.n("movesTotal"), cap: X.has("capNote") ? X.n("capNote") : X.n("fair"), st: X.n("startCost"), mv: X.n("moveCost"), x };
-  return `<p class="px-l" data-i18n-skip>${few ? atr(lg, "c.few", { n: X.n("scored") }) : atr(lg, "c.a", P)}</p><p class="px-l" data-i18n-skip>${atr(lg, m.you ? "c.b" : "c.b.3", P)}</p>`;
+  if (few) return `<p class="px-l" data-i18n-skip>${atr(lg, "c.few", { n: X.n("scored") })}</p>`;
+  return `<p class="px-l" data-i18n-skip>${atr(lg, "c.a", P)}</p><p class="px-l" data-i18n-skip>${atr(lg, m.you ? "c.b" : "c.b.3", P)}</p>`;
 }
 /** the ± margin of a move (its own uncertainty) as a small muted tag, "" when the review has none */
 export const pm = (X, i) => (X.has(`mv.${i}.margin`) ? `<small class="px-pm" title="margin">${X.n(`mv.${i}.margin`)}</small>` : "");
@@ -165,7 +171,9 @@ function verdictCard(g, m) {
   const hl = `<p class="px-hl2">${verdictSpans(m)}</p>`;
   const accLine = `<div class="px-cn">${connectLine(m)}</div>`;
   const tile = (k, nref, one, many, vref, cap) => `<button type="button" class="px-t3" data-pxpil="${k}" aria-expanded="false"><small>${pl(X, nref, `{n} ${one}`, `{n} ${many}`)}</small>${X.d(vref)}<span>${cap}</span></button>`;
-  const t3 = `<div class="px-t3s">${tile("errors", "errors", "Real error", "Real errors", "errCost", "not close calls")}${tile("start", "startN", "Start pick", "Start picks", "startCost", "start spots checked")}${tile("other", "otherN", "Other move", "Other moves", "otherCost", "close calls and small ones")}</div>`;
+  const thin = isThin(m), startTile = tile("start", "startN", "Start pick", "Start picks", "startCost", "start spots checked");
+  // too few scored moves: no "0 real errors" tiles (they read as praise); only the start picks, when they were scored
+  const t3 = thin ? (picks.length ? `<div class="px-t3s one">${startTile}</div>` : "") : `<div class="px-t3s">${tile("errors", "errors", "Real error", "Real errors", "errCost", "not close calls")}${startTile}${tile("other", "otherN", "Other move", "Other moves", "otherCost", "close calls and small ones")}</div>`;
   const errChips = m.errs.slice(0, 4).map((d) => `<button type="button" class="px-cc" data-rvj="${d.i}" data-rvq="imp">${f("Turn {n}", { n: d.t })} ${X.d(`mv.${d.i}.cost`)}</button>`).join("");
   const startChips = picks.map((p) => `<button type="button" class="px-cc" data-pxtab="strategy">${f("Pick {n}", { n: p.n })} ${X.d(`pick${p.n}.cost`)}</button>`).join("");
   const bodies = `<div class="px-pb" data-pxpb="errors" hidden><p class="px-l">${X.v("errors") ? X.ph("{n} clear mistakes or missed chances, the same ones as in Lesson 1.", { n: ["errors"] }) : "No clear mistake in this game."}</p><div class="px-ccs">${errChips}</div></div>
@@ -215,12 +223,18 @@ function errorCard(g, m, e) {
 }
 export function scoredNote(m) { const X = m.F; return `<p class="px-fn"><span>${X.ph("{n} of {n2} decisions are scored", { n: ["scored"], n2: ["decisions"] })}</span>${X.v("oneOption") > 0 ? ` · <span>${X.ph("{n} had only one sensible option", { n: ["oneOption"] })}</span>` : ""}</p>`; }
 function lesson1(g, m) {
+  if (isThin(m)) return thinCard(g, m);
   const X = m.F, list = m.lesson1.map((e) => errorCard(g, m, e)).join("");
   const head = lh(1, "Real errors", X.d("errCost"));
-  const body = m.lesson1.length ? list : `<p class="px-l">${m.you ? "No clear mistake in your moves. Good play." : "No clear mistake in these moves."}</p>`;
+  const body = m.lesson1.length ? list : `<p class="px-l">${m.you ? (m.won ? "No clear mistake in your moves. Good play." : "No clear mistake in your moves.") : "No clear mistake in these moves."}</p>`;
   const ne = (m.notErrs || []).slice(0, 3).map((d) => `<span class="px-ne2"><i class="px-cls c-close">${neutralCls(X, d)}</i> ${f("Turn {n}", { n: d.t })} ${X.d(`mv.${d.i}.cost`)}${pm(X, d.i)}</span>`).join("");
   const notErr = X.v("notErrors") && ne ? `<div class="px-nerow"><small>SMALL DIFFERENCES</small>${ne}</div>${ne ? `<p class="px-fn">± = the move’s own margin: a gap under twice that is not an error.</p>` : ""}` : "";
   return `<section class="rv-card px-card px-l1">${head}${body}${notErr}${scoredNote(m)}<button type="button" class="px-btn wide" data-pxtab="moves">All errors and moves</button></section>`;
+}
+/** Too few scored moves: say so, never praise (it replaces Lesson 1 on the Overview; the start picks and the Strategy numbers follow it). */
+function thinCard(g, m) {
+  const X = m.F, none = !(m.start?.picks?.length);
+  return `<section class="rv-card px-card px-thin"><div class="rv-gt"><b>Too few scored moves for a verdict</b></div><p class="px-l">${none ? "No start picks were scored either." : "Your start picks were scored; the moves after the start were mostly forced or too few to judge."}</p>${scoredNote(m)}<button type="button" class="px-btn wide" data-pxtab="moves">All moves</button></section>`;
 }
 // ── lesson 2 compact: "This board" ──
 export const PLAN_NAME = { city: "City plan (ore, grain)", expansion: "Expansion plan (lumber, brick)", mixed: "Cities and expansion mixed" };
@@ -248,6 +262,7 @@ export function ruleRows(m) {
   return rules.map((r) => `<div class="px-rule"><div class="rl"><b>${esc(PHASE_NAME[r.phase])}</b><small>${f("turns {n}–{n2}", { n: r.from, n2: r.to })}</small></div><div class="rr">${m.you ? `<p class="px-l" data-i18n-skip>${esc(r.text)}</p>` : ""}<div class="px-ccs">${r.chips.map((c, j) => `<button type="button" class="px-cc" data-rvj="${c.i}" data-rvq="imp">${chipText(m, r, c, j)} · <span>${f("Turn {n}", { n: c.turn })}</span> ${X.d(`mv.${c.i}.cost`)}</button>`).join("")}${X.d(`rule.${r.phase}.cost`)}</div></div></div>`).join("");
 }
 function lesson3c(g, m) {
+  if (isThin(m)) return "";
   const rows = ruleRows(m);
   return `<section class="rv-card px-card px-l3c">${lh(3, "Phase rules", "only if broken")}${rows || `<p class="px-l">No phase rule was broken.</p>`}</section>`;
 }
@@ -291,7 +306,7 @@ export function overviewTab(g, ds, rv, prov) {
   const pid = g._rvPid, r = ready(g, pid);
   if (!r.m) return { html: progressCard(g, pid) };
   const m = r.m;
-  return { html: `${verdictCard(g, m)}${timelineCard(g, m)}${lesson1(g, m)}${lesson2c(g, m)}${lesson3c(g, m)}${m.you ? takeCard(g, m) : ""}${waterfallCard(g, m)}`, bind: (el) => bindPost(g, el, m) };
+  return { html: `${verdictCard(g, m)}${timelineCard(g, m)}${lesson1(g, m)}${lesson2c(g, m)}${isThin(m) ? hooks.thin?.(g, m) || "" : ""}${lesson3c(g, m)}${m.you ? takeCard(g, m) : ""}${waterfallCard(g, m)}`, bind: (el) => bindPost(g, el, m) };
 }
 
 

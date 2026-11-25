@@ -181,4 +181,7 @@ export const NL_199P = [
   ["Every move has its own margin. A gap is only a real error when it is more than twice that margin; the same gap can be an error in one move and not in another.", "Elke zet heeft een eigen marge. Een verschil is pas een echte fout als het meer dan twee keer die marge is; hetzelfde verschil kan bij de ene zet een fout zijn en bij de andere niet."],
   ["A move is an error when it gave up at least twice its own margin (the ±). A close call is never called a mistake.", "Een zet is een fout als hij minstens twee keer zijn eigen marge weggaf (de ±). Een kleine keuze heet nooit een fout."],
   ["The dashed rings are your picks. A is the best spot for pick 1, out of at most {n} checked.", "De gestippelde ringen zijn je keuzes. A is de beste plek voor keuze 1, uit maximaal {n} gecontroleerd."],
+  ["Too few scored moves for a verdict", "Te weinig beoordeelde zetten voor een oordeel"], ["No start picks were scored either.", "Ook je startkeuzes zijn niet beoordeeld."],
+  ["Your start picks were scored; the moves after the start were mostly forced or too few to judge.", "Je startkeuzes zijn beoordeeld; de zetten na de start waren meestal gedwongen of te weinig om te beoordelen."],
+  ["All moves", "Alle zetten"], ["No clear mistake in your moves.", "Geen duidelijke fout in je zetten."],
 ];
