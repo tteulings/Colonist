@@ -131,6 +131,8 @@ export function tableFacts(S, g, tab, A) {
     }
     const bf = A?.facts?.[q]; if (bf) ["settlement", "city", "road", "cards", "bank", "player"].forEach((k) => P(`num.${k === "settlement" ? "settlements" : k === "city" ? "cities" : k === "road" ? "roads" : k}`, q, "count", bf[k], `num.${k}`, "stats")), P("num.firstCity", q, "turn", bf.firstCity, "num.firstCity", "stats");
   });
+  // places: the winner is 1st; the others by points, equal points share a place ("tied 3rd"): place:seat and tie:seat (how many seats share the place) are facts of every screen that names a place
+  if (g.winner) { const w = tab.order[0], rest = tab.order.slice(1), pts = (q) => tab.seats[q].pts; tab.order.forEach((q) => { const win = q === w, same = win ? 1 : rest.filter((z) => pts(z) === pts(q)).length; P("place", q, "count", win ? 1 : 2 + rest.filter((z) => pts(z) > pts(q)).length, "fact.place", "game"); P("tie", q, "count", same, "fact.tie", "game"); }); }
   tab.seats.forEach((s) => { if (s.luck != null && !S.has(`luck:${s.id}`)) P("luck", s.id, "wcDelta", s.luck, "fact.luck", "luckSplit"); if (s.running) { P("runJ", s.id, "count", s.running.j, "fact.run", "review"); P("runN", s.id, "count", s.running.n, "fact.run", "review"); } });
   return S;
 }

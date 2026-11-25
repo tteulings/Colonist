@@ -69,7 +69,7 @@ export function scoreHtml(g) {
       det = `<div class="px-rd">${!s.you && vl ? `<p class="px-l">${vl}</p>${mm ? estChip(g, mm) : ""}` : ""}<button type="button" class="px-link" data-rvtab="${id}">${s.you ? "Your page" : f("{x}’s page", { x: esc(s.name) })}${IC.chev}</button></div>`;
     }
     return `<div class="px-row pc-${id}${s.won ? " win" : ""}${s.you ? " me" : ""}${isOpen ? " open" : ""}" data-pid="${id}"><button type="button" class="px-rh" data-rsx="${id}" aria-expanded="${isOpen}" aria-label="${esc(nm)}, ${s.pts} points${s.acc != null ? `, accuracy ${s.acc}` : ""}">
-      <span class="rk">${k + 1}</span>${g._av(p, "rt-av")}<span class="nm"><b>${nm}</b>${s.level ? `<small>${esc(s.level.label)}</small>` : ""}</span><span class="pts">${X.n(`pts:${id}`)}</span>${IC.chev}
+      <span class="rk">${X.has(`place:${id}`) ? X.n(`place:${id}`) : k + 1}</span>${g._av(p, "rt-av")}<span class="nm"><b>${nm}</b>${X.v(`tie:${id}`) > 1 ? `<small class="px-tie"><span>tied</span> ${X.n(`place:${id}`, { ord: true })}</small>` : ""}${s.level ? `<small>${esc(s.level.label)}</small>` : ""}</span><span class="pts">${X.n(`pts:${id}`)}</span>${IC.chev}
       ${bar}<span class="px-chips">${acc}${luck}</span></button>${det}</div>`;
   }).join("");
   const leg = used.length ? `<div class="px-leg">${used.map(([q, l]) => `<span><i class="s${si(q)}"></i>${l}</span>`).join("")}</div>` : "";

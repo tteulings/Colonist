@@ -195,6 +195,12 @@ const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
           await G(() => window.__colonistGame._rvCloseReview?.(true)); await G(() => window.__colonistGame.histOpen()); await sleep(500); await G((id) => window.__colonistGame._histSheet(id), meta.id); await sleep(350);
           await page.evaluate(() => document.querySelector("[data-sact=stats]")?.click()); await page.waitForSelector("[data-rvtable]", { timeout: 20000 }).catch(() => {}); await sleep(1200);
           await audit("end screen", ".px-end", { optional: true });
+          { // finding 8: equal points share a place and say so ("tied 3rd" / "gedeeld 3e"), as a fact; nobody else carries the tag
+            const rk = await G(() => [...document.querySelectorAll(".px-row")].map((r) => ({ pts: +r.querySelector(".pts")?.textContent, rk: +r.querySelector(".rk")?.textContent, tie: r.querySelector(".px-tie")?.textContent.trim() || "", tieFact: r.querySelector(".px-tie [data-fact]")?.dataset.fact || "" })));
+            const rest = rk.slice(1); let good = rk.length > 1 && rk[0].rk === 1 && !rk[0].tie;
+            rest.forEach((r) => { const same = rest.filter((z) => z.pts === r.pts).length, place = 2 + rest.filter((z) => z.pts > r.pts).length; if (r.rk !== place) good = false; if (same > 1 ? !(new RegExp(lang === "nl" ? `^gedeeld ${place}e$` : `^tied ${place}(?:st|nd|rd|th)$`).test(r.tie) && /^place:\d+$/.test(r.tieFact)) : r.tie) good = false; });
+            ok(good, `${lang} ${curGame} end screen: equal points share a place and read "${lang === "nl" ? "gedeeld" : "tied"} Nth"`, rk);
+          }
           const rows = await G(() => [...document.querySelectorAll("[data-rsx]")].map((b) => +b.dataset.rsx));
           for (const q of rows) { await page.evaluate((q) => document.querySelector(`[data-rsx="${q}"]`)?.click(), q); await sleep(250); await audit(`end screen row ${q} open`, ".px-end", { optional: true }); }
         }
