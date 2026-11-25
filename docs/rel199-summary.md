@@ -43,7 +43,7 @@ Settings: events197 full (EN+NL, 4 games), inapp197 `ONLY=classic,sea GAMES=1` (
 
 ## Other findings
 * Overview of a short game with 0 decisions scored: the headline card now reads "Too few scored moves for a verdict" (fixA, `thinCard`, test thin199 passes); the bare "Jij" title is followed by that sentence.
-* `shots/` at the repo root (fixA/B/C crops, about 40 MB) came in with the fix branches; consider removing them before release.
+* `shots/` at the repo root (fixA/B/C crops, about 34 MB) came in with the fix branches; removed before release.
 * The first run after the perf merge also found: ui191 still looked for the old Moves list (fixed in the test), the empty Review tab was English in Dutch (fixed).
 
 ## Screenshots

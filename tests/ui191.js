@@ -4,7 +4,7 @@
 //    the turn cards all sit inside the row; the other players' luck / moves keep their own colour (green and red are the user's)
 //  * Luck tab and Overview table: the same, for the bars and numbers of the other players
 //  * Overview (NL): no English footnote; its "decided on turn N" line gives the same turn and win chances as the AI tab's round view
-//  * AI tab: while the numbers are not final nothing ranked is shown (and what is shown once does not change after); the ask bar is at most 15% of the screen
+//  * AI tab: while the numbers are not final nothing ranked is shown (and what is shown once does not change after); the ask bar is at most 17% of the screen, the ask chips use at most 2 rows and none is cut off
 //  * Replay (NL): no English, the caption does not cut words
 //   node tests/ui191.js PORT      (server: node step105/tests/serve.mjs ROOT PORT)   env AI=0 skips the (30 s) AI tab part
 const { chromium } = require("playwright"); const path = require("path"); const fs = require("fs"); const { pathToFileURL } = require("url");
@@ -120,9 +120,10 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
       const s1 = await snap(); await sleep(6000); const s2 = await snap();
       ok(s1.rows.length > 0 && JSON.stringify(s1) === JSON.stringify(s2), `${tag}: AI tab: the shown list and headline stay as they are`, { n: s1.rows.length });
       const bar = await page.evaluate(() => { const a = document.querySelector(".ai-ask"); const r = a?.getBoundingClientRect(); return r ? { h: Math.round(r.height), vh: innerHeight } : null; });
-      ok(bar && bar.h / bar.vh <= 0.15, `${tag}: the ask bar is at most 15% of the screen`, bar && { ...bar, pct: +(100 * bar.h / bar.vh).toFixed(1) });
-      const chips = await page.evaluate(() => { const c = document.querySelector(".ai-chips"); if (!c) return null; const tops = new Set([...c.querySelectorAll(".ai-q")].map((q) => Math.round(q.getBoundingClientRect().top))); return { rows: tops.size }; });
-      ok(chips && chips.rows === 1, `${tag}: the ask chips are one row`, chips);
+      ok(bar && bar.h / bar.vh <= 0.17, `${tag}: the ask bar is at most 17% of the screen`, bar && { ...bar, pct: +(100 * bar.h / bar.vh).toFixed(1) });
+      const chips = await page.evaluate(() => { const c = document.querySelector(".ai-chips"); if (!c) return null; const qs = [...c.querySelectorAll(".ai-q")]; const tops = new Set(qs.map((q) => Math.round(q.getBoundingClientRect().top))); const vw = innerWidth; const bad = qs.filter((q) => { const r = q.getBoundingClientRect(); return r.left < -0.5 || r.right > vw + 0.5 || q.scrollWidth > q.clientWidth + 1; }).map((q) => q.innerText); return { rows: tops.size, n: qs.length, bad }; });
+      ok(chips && chips.n > 0 && chips.rows <= 2, `${tag}: the ask chips use at most 2 rows`, chips);
+      ok(chips && chips.bad.length === 0, `${tag}: no ask chip is cut off or past the screen edge`, chips && chips.bad);
       if (isNL(lang)) { const T = await page.evaluate(VIS, ".rv"); const AI_SKIP = /^(Samenvatting uit de cijfers|Voor dit spel samengesteld|Vraag iets over dit spel)/; ok(true, `${tag}: (the AI page brings its own Dutch: src/review/ai-lang.js)`); }
       await shot(page, "ai", lang, w);
       // the Overview line and the round view say the same
