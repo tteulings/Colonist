@@ -140,7 +140,7 @@ const BOTS = await import("../../src/bots/index.js");
 function playHost(spec, strategies, agents, decisions) {
   const engine = BOTS.startLabGame(g, strategies, { players: spec.seats.length, map: spec.map || "random", seed: spec.seed });
   const bots = strategies.map((st, i) => (agents[i] ? BOTS.botForStrategy(st, { agent: agents[i] }) : BOTS.botForStrategy(st)));
-  const host = BOTS.newHost();
+  const host = BOTS.newHost(spec.hostOpts);
   const r = BOTS.runSync(engine, bots, { host, until: () => !!(spec.stopTurn && g.turn >= spec.stopTurn) });
   engine.release();
   if (host.errors.length) throw new Error("host errors: " + JSON.stringify(host.errors.slice(0, 3)));
@@ -159,6 +159,7 @@ export function playGame(spec) {
     if (spec.mode === "rush") return playRush(spec, strategies, agents, decisions);
     if (hostMode.on) return playHost(spec, strategies, agents, decisions);
     g._labSimStart(strategies, { players: spec.seats.length, map: spec.map || "random", seed: spec.seed, agents });
+    if (spec.onStart) spec.onStart(g); // read-only observer (tests/golden-events)
     let r = { done: false };
     while (!r.done && !(spec.stopTurn && g.turn >= spec.stopTurn)) { r = g._labSimStep(1); if (spec.onTurn) spec.onTurn(g, r); } // onTurn: read-only observer (tournament --dump-states)
     return finish(spec, r, decisions);
@@ -182,6 +183,7 @@ function playRush(spec, strategies, agents, decisions) {
     g.players.forEach((p, i) => { p.isHuman = false; p.strategy = { ...strategies[i] }; p.agent = agents[i] || null; });
     g.onboardingHold = false;
     document.hidden = false; // the Proxy DOM would answer a truthy stub
+    if (spec.onStart) spec.onStart(g);
     if (g.setupPhase) { g.setupAction = null; g.processSetupQueue(); }
     let guard = 0;
     while (!g.winner && guard++ < 400000 && vclock.now < (spec.maxVirtualMs || 3.6e6)) if (!vclock.step()) break;
