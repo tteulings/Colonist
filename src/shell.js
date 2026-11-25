@@ -8,6 +8,7 @@
 import { avatarSvg, setPalette } from "./themes/manager.js"; // (no new export of an older module is imported: during an upgrade a stale cached manager.js must not stop the app)
 import { oicon } from "./ui-icons.js";
 import { toast } from "./toast.js";
+import { reviewAvailable } from "./master.js";
 import { isNL } from "./i18n.js";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -97,6 +98,25 @@ export class Chrome {
   }
 }
 
+// ───────────────────────────── a review that is not finished ─────────────────────────────
+/** v1.99.2: the newest past game whose review was started and is not complete (the history entry knows: provisional, with a "moves checked" count).
+ *  After a reload the review is gone from the screen, so Home offers it again. null when there is none or this browser cannot run the review. */
+export function reviewInProgress(game) {
+  try {
+    const m = game?.hist?.metas?.[0];
+    if (!m || !m.prov || !m.rp || !m.rec || m.me == null || m.acc == null || !reviewAvailable()) return null;
+    return m;
+  } catch (_) { return null; }
+}
+const RV_CHEV = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>`;
+const REVIEW_IC = `<svg class="sh-rv-ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.6-5.9M4 4.5v4h4M12 8v4.5l3 1.8"/></svg>`;
+/** The small Home entry for it (empty when there is nothing to continue). */
+export function reviewEntryHtml(game) {
+  const m = reviewInProgress(game);
+  if (!m) return "";
+  return `<button type="button" class="sh-rvcont" data-home="review"><span class="sh-rvi">${REVIEW_IC}</span><span class="sh-rvt"><b>Review in progress</b><small>Continue · ${m.rp[0]} of ${m.rp[1]} moves checked</small></span><span class="sh-rvgo" aria-hidden="true">${RV_CHEV}</span></button>`;
+}
+
 // ───────────────────────────── Home: the Play tab and the Daily puzzle tab ─────────────────────────────
 const bigN = (n) => n >= 4;
 
@@ -132,6 +152,7 @@ export class Home {
     if (!this.chrome) this.chrome = new Chrome(this.game);
     this.render();
     this.chrome.sync();
+    try { this.game.hist?.open?.().then(() => { if (this.el && this.tab === "play" && reviewInProgress(this.game)) this.render(); }); } catch (_) { /* no history: no entry */ }
     this.autoDarkToast();
   }
 
@@ -149,7 +170,13 @@ export class Home {
   autoDarkToast() {
     if (store.get("colonist.autoDarkToast") || paletteChosen()) return;
     store.set("colonist.autoDarkToast", "1");
-    window.setTimeout(() => toast({ text: "Colours follow your phone.", icon: "moon", action: { label: "Undo", onClick: () => { setPalette("light"); this.game.requestBoardDraw?.(); } } }), 900);
+    // v1.99.2: never over a sheet (it sat on the Start button of the New game sheet): wait until no sheet is open (twice a second, for 30 s at most)
+    let tries = 0;
+    const show = () => {
+      if (document.querySelector(".sh-sheet-wrap") && tries++ < 60) { window.setTimeout(show, 500); return; }
+      toast({ text: "Colours follow your phone.", icon: "moon", action: { label: "Undo", onClick: () => { setPalette("light"); this.game.requestBoardDraw?.(); } } });
+    };
+    window.setTimeout(show, 900);
   }
 
   chips(last) {
@@ -170,6 +197,7 @@ export class Home {
     on("[data-home='continue']", () => this.opts.onContinue());
     on("[data-home='update']", (e) => { const b = e.currentTarget, sm = b.querySelector("small"); if (sm) sm.textContent = "Starting the new version…";
       if (window.__colonistReload) window.__colonistReload(b); else window.location.reload(); });
+    on("[data-home='review']", () => { const m = reviewInProgress(this.game); if (m) this.game.histView?.(m.id, "review", m.me); });
     on("[data-home='adjust']", () => this.opts.onAdjust());
     on("[data-home='start']", () => this.opts.onStartLast());
     this.el.scrollTop = keep;
@@ -189,6 +217,7 @@ export class Home {
         <h1>Katan<small class="hm-sub">Traders and Builders</small></h1></header>
       ${this.updateHtml(s)}
       ${s ? `<button type="button" class="sh-continue" data-home="continue">${PLAY_IC}<span class="sh-ct"><b>Resume game</b><small>${esc(s.mode)} · ${s.mode.startsWith("Rush") ? "roll" : "turn"} ${s.turn}</small></span><span class="sh-avs" aria-hidden="true">${s.players.slice(0, 4).map((p) => `<span class="pc-${p.seat}">${avatarSvg(p.seat, "sh-av")}</span>`).join("")}</span></button>` : ""}
+      ${reviewEntryHtml(this.game)}
       <section class="sh-card gold sh-soon" aria-labelledby="shDailyH" aria-disabled="true">
         <span class="sh-soon-ic" aria-hidden="true">${PUZZLE_IC}</span>
         <div class="sh-soon-tx"><div class="sh-soon-h"><h2 id="shDailyH">Daily puzzle</h2><span class="sh-chip soon">Coming soon</span></div><p>The same rolls for everyone, every day.</p></div>

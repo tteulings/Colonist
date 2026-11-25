@@ -9,7 +9,7 @@ import { moveFull, whyLine, whyChips } from "./post-text.js";
 import { isNL } from "./i18n.js";
 import { tr as atr } from "./review/analysis-text.js";
 import { seOf } from "./review/score.js";
-import { cropSvg } from "./lessons-view.js";
+import { errorSnippet } from "./post-snippet.js";
 import { stdGeo } from "./lessons-geo.js";
 import { RES_COLOR } from "./resources.js";
 import { modelOf, tableOf, hideCache, soloPid, SRC_PARTS, FAMILIES, FAMILY, kindOf, bestKindOf, buildKindAt, PHASES } from "./post-model.js";
@@ -221,7 +221,7 @@ function timelineCard(g, m) {
 const noiseLine = (X, e) => (X.has(`mv.${e.i}.margin`) ? `<p class="px-fn"><span>${X.ph("This choice cost {g} against the better move, margin {s}", { g: [`mv.${e.i}.cost`, { abs: true }], s: [`mv.${e.i}.margin`] })}</span></p>` : "");
 function errorCard(g, m, e) {
   const X = m.F, DID = m.you ? "You did" : "Played", bd = m.board, N = (v) => `<span data-i18n-skip>${esc(moveFull(v || "", isNL() ? "nl" : "en") || (isNL() ? "Zet" : "Move"))}</span>`;
-  const crops = bd && e.p && e.q && e.p[0] === e.q[0] ? `<div class="px-crops"><figure>${cropSvg(bd, e.p, { w: 120, color: "#B45A3C", label: DID })}<figcaption>${DID}</figcaption></figure><figure>${cropSvg(bd, e.q, { w: 120, color: "#2F7D6B", label: "Better" })}<figcaption>Better (A)</figcaption></figure></div>` : "";
+  const crops = errorSnippet(bd, e, DID); // v1.99.2: also when the played move has no spot (End turn) or another kind of spot than the better one
   const bars = `<div class="px-wb"><small>Win chance after this move</small><div class="r"><span>${DID}</span><i class="px-bar me pc-${m.pid}" style="--w:${X.v(`mv.${e.i}.B`)}%"></i><b>${X.n(`mv.${e.i}.B`)}</b></div><div class="r"><span>Better (A)</span><i class="px-bar a pc-${m.pid}" style="--w:${X.v(`mv.${e.i}.A`)}%"></i><b>${X.n(`mv.${e.i}.A`)}</b></div></div>`;
   const lg = isNL() ? "nl" : "en", yw = m.you ? undefined : humanNm(m.tab.seats.find((s) => s.you)?.name, m.tab.seats.findIndex((s) => s.you), true), whyT = e.why ? whyLine(e.why, lg, yw, true) : null, chipT = whyChips(e.chips, lg, 3, yw).filter((c) => !whyT || !whyT.toLowerCase().includes(c.toLowerCase()));
   const why = whyT ? `<p class="px-l"><b>Why:</b> <span data-i18n-skip data-explain>${esc(whyT)}</span></p>` : "";
