@@ -9205,7 +9205,7 @@ class ColonistFullGame {
   _ownRollSummary() {
     const L = this.logEntries;
     let i = L.length - 1;
-    const quiet = /\bcollects?\b|^Bank is short/;
+    const quiet = /\bcollects?\b|^Bank is short|^(Session restored|Game (saved|loaded))/; // v1.99.1: the "Session restored." line a reload appends must not hide your own roll (the ticker showed the last bot's payout)
     while (i >= 0 && quiet.test(L[i].text)) i -= 1;
     const m = i >= 0 ? /^Turn \d+: You rolled (\d+)\.$/.exec(L[i].text) : null;
     if (!m || m[1] === "7") return "";
