@@ -11,6 +11,7 @@
 // Both runners take `pace(action)` (UI delay between bot moves; headless: none).
 import { createEngine } from "../api/engine.js";
 import { mulberry32 } from "../master/sim.js";
+import { probeHooks } from "./probe.js";
 
 const TURN_LIMIT = 250; // the lab sim's cut-off (ai-analysis.js _labSimStep): a game still running after this many turns is "no winner"
 
@@ -30,7 +31,9 @@ function makeCtx(engine, host, bot, prompt) {
   const g = engine.g;
   return {
     game: g, engine, seat: prompt.actor, prompt,
-    isLegal: (a) => { const ok = engine.isLegal(a, { prompt }).ok; host.judged = ok ? a : null; host.judgedPrompt = prompt; return ok; }, // v1.99: finish() does not judge the same answer a second time
+    adoptOk: !host.events, // v1.99: a quiet headless host lets the probe's move stand (probe.js adopt); with events the apply must run it (the events need the position before)
+    adopt: (a) => { host.adopted = a; },
+    isLegal: (a) => { if (host.adopted === a) return true; const ok = engine.isLegal(a, { prompt }).ok; host.judged = ok ? a : null; host.judgedPrompt = prompt; return ok; }, // v1.99: finish() does not judge the same answer a second time
     enumerate: (max = 200) => engine.enumerate(prompt.actor, { prompt, max }), // concrete legal actions (the `legal` list holds descriptors for discards, offers, ...)
     warn: (m) => host.errors.push({ seat: prompt.actor, prompt: prompt.kind, warn: m }),
     rng: host.rng(prompt.actor), note() {}, sim: null, signal: host.signal,
@@ -55,7 +58,9 @@ export function hostStep(engine, bots, host) {
 function finish(engine, host, prompt, action) {
   if (action && action.type === "pause" && host.humanTrade) return action; // the in-app host: a person has to answer first (bots/inapp.js)
   let a = action, why = null;
+  const adopted = !!a && host.adopted === a; host.adopted = null; // the probe has played this very action on the live game already (judged by the planner's own rules)
   if (!a) why = "no answer";
+  else if (adopted) { /* judged when it was played */ }
   else if (host.judged === a && host.judgedPrompt === prompt) { /* the bot asked ctx.isLegal about this very action a moment ago: nothing has changed since */ }
   else { const j = engine.isLegal(a, { prompt }); if (!j.ok) why = j.reason; }
   host.judged = null; host.judgedPrompt = null;
@@ -65,7 +70,7 @@ function finish(engine, host, prompt, action) {
     a = engine.enumerate(prompt.actor, { prompt, max: 1 })[0];
     if (!a) throw new Error(`host: seat ${prompt.actor} has no legal action under ${prompt.kind} (${why})`);
   }
-  let r; try { r = engine.apply(a, { trusted: true, quiet: !host.events }); } finally { engine.g.__noTrk = false; }
+  let r; try { r = engine.apply(a, { trusted: true, quiet: !host.events, adopted }); if (adopted && probeHooks.verify?.pending?.a === a) probeHooks.verify.check(engine, a, { trusted: true, quiet: !host.events }); } finally { engine.g.__noTrk = false; }
   if (!r.ok) throw new Error(`host: the engine refused a judged-legal ${a.type}: ${r.reason}`);
   host.steps++;
   if (a.type === "endTurn") host.turns++;
@@ -75,7 +80,7 @@ function finish(engine, host, prompt, action) {
 
 export function newHost(opts = {}) {
   const rngs = new Map();
-  return { errors: [], judged: null, judgedPrompt: null, steps: 0, turns: 0, events: !!opts.onEvent, humanTrade: !!opts.humanTrade, strict: !!opts.strict, onAction: opts.onAction || null, signal: opts.signal || null,
+  return { errors: [], judged: null, judgedPrompt: null, adopted: null, steps: 0, turns: 0, events: !!opts.onEvent, humanTrade: !!opts.humanTrade, strict: !!opts.strict, onAction: opts.onAction || null, signal: opts.signal || null,
     rng: (seat) => { let r = rngs.get(seat); if (!r) rngs.set(seat, (r = mulberry32((opts.seed ?? 1) * 7919 + seat))); return r; } };
 }
 

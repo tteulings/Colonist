@@ -63,6 +63,12 @@ const MOVES = [
   ["moveRobberAndSteal", (p, h) => `${p.id} robber ${h}`, "robber"], ["_commitRobber", (p, h) => `${p.id} robber ${h}`, "robber"], // _commitRobber: the engine's (host) way to the same move
 ];
 const logging = () => LOG && !quiet && !g.__probing; // a bot-host probe (src/bots/probe.js) runs a planner on the game and puts it back: not a move
+// ... except when the host ADOPTS the probe's move (v1.99): then the move was made in the probe and its lines belong to the apply. So a probe's move lines are kept (thunks, in order) and
+// written when the engine books an adopted action (g.__adoptFlush, engine.apply `adopted`); a probe that is put back drops them (the next probe starts a fresh list).
+let PB = null, probing = false;
+Object.defineProperty(g, "__probing", { configurable: true, enumerable: false, get: () => probing, set: (v) => { if (v && !probing) PB = []; probing = !!v; } });
+g.__adoptFlush = () => { const b = PB; PB = null; if (b) b.forEach((f) => f()); };
+const defer = (fn) => { if (probing) { if (PB && LOG && !quiet) PB.push(fn); } else if (logging()) fn(); };
 // The legacy bots play a card and its robber / free roads in ONE call, so the log has the card last ("robber 5", "play knight"). Driven through the
 // engine the card returns first and its follow-ups are prompts of their own: hold the card (and a robber waiting for its steal) until the flow ends,
 // and the log reads the same either way. In the legacy loop no flow is ever open when a move returns, so nothing is held.
@@ -76,13 +82,13 @@ const put = (e, kind, was) => {
   pushLog(e);
   if (held.length && !open) flush();
 };
-const wrap = (obj, k, f, kind) => { const o = obj[k].bind(obj); obj[k] = (...a) => { const was = flowActive(); const r = o(...a); if (r !== false && logging()) put(f(...a), kind, was); return r; }; };
+const wrap = (obj, k, f, kind) => { const o = obj[k].bind(obj); obj[k] = (...a) => { const was = flowActive(); const r = o(...a); if (r !== false) defer(() => put(f(...a), kind, was)); return r; }; };
 const wrapped = new WeakSet();
 function wrapGame() {
   if (wrapped.has(g)) return; wrapped.add(g);
   MOVES.forEach(([k, f, kind]) => wrap(g, k, f, kind));
   g.attachLog(); // prepareEngine detached the journal (headless = no subscribers): the move log wants the text of a few lines
-  g.addLog = (t) => { if (logging() && /traded|discard|stole|rolled|Roll #/i.test(t)) { if (held.length && !flowActive() && !/stole/.test(t)) flush(); pushLog(t.replace(/\s+/g, " ")); } return 0; };
+  g.addLog = (t) => { if (/traded|discard|stole|rolled|Roll #/i.test(t)) defer(() => { if (held.length && !flowActive() && !/stole/.test(t)) flush(); pushLog(t.replace(/\s+/g, " ")); }); return 0; };
   const end = g.endTurn.bind(g);
   g.endTurn = (...a) => {
     if (logging() && held.length && !flowActive()) flush(); // the turn's last flow (a robber still waiting for its line) closes before the turn does
@@ -99,7 +105,7 @@ function wrapSea() { // the Seafarers rules object is rebuilt with every game: w
   const P = SEA.Seafarers?.prototype || Object.getPrototypeOf(g.sea || {});
   if (!P || P.__golden) return; P.__golden = true;
   for (const [k, f] of [["placeShip", (p, e) => `${p.id} ship ${e}`], ["moveShip", (p, a, b) => `${p.id} mship ${a}>${b}`]]) {
-    const o = P[k]; P[k] = function (...a) { const r = o.apply(this, a); if (r !== false && logging()) pushLog(f(...a)); return r; };
+    const o = P[k]; P[k] = function (...a) { const r = o.apply(this, a); if (r !== false) defer(() => pushLog(f(...a))); return r; };
   }
 }
 /** a compact digest of the live state: hands, bank, points, pieces, robber */

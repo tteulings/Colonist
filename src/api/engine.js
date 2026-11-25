@@ -498,7 +498,7 @@ export class Engine {
     this._applying++; g._applyDepth = (g._applyDepth || 0) + 1; // the UI's doors (_confirmDiscard, _finishPick, sbpSkip) see they are being called by an apply() and do the work
     let err = null;
     let done;
-    try { done = this[`_do_${a.type}`](a, g.players[a.actor]); } catch (e) { err = e; } finally { this._applying--; g._applyDepth--; this._queue = null; this._forceDice = null; }
+    try { if (opts.adopted) { g.__adoptFlush?.(); if (a.type === "buyDev") this._after_buyDev(g.players[a.actor]); done = true; } else done = this[`_do_${a.type}`](a, g.players[a.actor]); } catch (e) { err = e; } finally { this._applying--; g._applyDepth--; this._queue = null; this._forceDice = null; }
     if (err) throw err;
     if (done === false) return { ok: false, bug: true, reason: `the old code rejected a legal ${a.type} (engine/legacy disagreement)`, events: [], prompts: this.prompts() };
     const events = opts.quiet ? [] : this._events(a, before); // `quiet`: no event list (headless bot play)
@@ -536,6 +536,10 @@ export class Engine {
   _do_buyDev(a, p) {
     const g = this.g;
     if (!g.buyDevelopmentCard(p)) return false;
+    this._after_buyDev(p);
+  }
+  _after_buyDev(p) { // what follows the purchase (also what an adopted purchase still needs: the planner has bought the card)
+    const g = this.g;
     if (g.sbp) g._sbpAfterHumanBuild();
     g.recomputeScores(); // (a bot's seat has counted the card at the purchase already: buyDevelopmentCard)
     if (g.rush) g._rushAfterAction(p); else g.checkForWinner(p);

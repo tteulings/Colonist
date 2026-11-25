@@ -58,7 +58,7 @@ function mute(g, { suspend }) {
     const has = Object.prototype.hasOwnProperty, own = { _replay: has.call(g, "_replay"), _rvBusy: has.call(g, "_rvBusy"), _stMover: has.call(g, "_stMover") };
     const saved = { _replay: g._replay, _rvBusy: g._rvBusy, _stMover: g._stMover };
     g._replay = true; g._rvBusy = "probe";
-    return { own, saved, anims: null, api: null, keepActive: null };
+    return { own, saved, anims: null, api: null, keepActive: null, headless: true };
   }
   const own = {}, saved = {};
   const swap = (k, v) => { own[k] = Object.prototype.hasOwnProperty.call(g, k); saved[k] = g[k]; g[k] = v; };

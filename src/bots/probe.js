@@ -13,7 +13,11 @@ import { Seafarers } from "../seafarers/rules.js";
 
 let REC = null; // the recording in progress: { g, actions, depth, snap }
 /** The in-app host (bots/inapp.js) mutes what a planner shows while it plans (log, sounds, stats, review recorder) and gives the engine seat control; headless: none. */
-export const probeHooks = { enter: null, leave: null };
+export const probeHooks = { enter: null, leave: null, verify: null };
+// v1.99 "adopt the probe": a planner step that did exactly ONE of these (and the mute says nobody watches: headless) leaves the game where the
+// planner put it instead of restoring and letting the host's apply do the same move again. The host then only books the action (engine.apply
+// `adopted`). Proven equal to restore + apply by tests/adopt199.mjs (probeHooks.verify: both ways, every state field compared).
+const ADOPT = new Set(["build", "buyDev", "tradeBank"]);
 const installed = new WeakSet();
 
 const hand = (h) => { const o = {}; Object.keys(h).forEach((k) => { if (h[k]) o[k] = h[k]; }); return o; };
@@ -67,20 +71,25 @@ function install(g) {
  * Run `fn()` (a legacy planner step) and return { result, actions }. The game is restored afterwards, so a probe is a pure question;
  * `eager` snapshots before `fn` starts (needed when the planner changes the game before its first recorded call, as a trade's tracker notes do).
  */
-export function probe(g, fn, { eager = false, suspend = false } = {}) {
+export function probe(g, fn, { eager = false, suspend = false, adopt = false } = {}) {
   install(g);
   if (REC) throw new Error("probe: nested");
   const rec = (REC = { g, actions: [], depth: 0, snap: eager ? snapshot(g) : null, x: eager ? extras(g) : null });
   const api = g.__api, act = api?.active;
   if (suspend && api) api.active = null; // the engine's seat control is off: every bot seat is a bot again (a deal asks the partner bot, not "a person")
   g.__probing = true; // the golden harness's move log skips what a probe does
-  let result, mute = null;
-  try { mute = probeHooks.enter ? probeHooks.enter(g, { suspend }) : null; result = fn(); } finally {
+  let result, mute = null, done = false, adopted = false;
+  try { mute = probeHooks.enter ? probeHooks.enter(g, { suspend }) : null; result = fn(); done = true; } finally {
     REC = null; g.__probing = false; if (api) api.active = act;
-    if (rec.snap) { const trk = g._aiCardTrack; restore(g, rec.snap); putExtras(g, rec.x); g._aiCardTrack = trk; }
+    if (rec.snap) {
+      adopted = done && adopt && rec.actions.length === 1 && ADOPT.has(rec.actions[0].type) && !!mute?.headless && !g.winner && !g.sbp; // the 5-6 build window books a seat's build in the apply (sbp.human.built)
+      const V = probeHooks.verify;
+      if (adopted && V) V.pending = { a: rec.actions[0], rewind: () => { const trk = g._aiCardTrack; restore(g, rec.snap); putExtras(g, rec.x); g._aiCardTrack = trk; } }; // verify: the host plays it both ways and compares
+      if (!adopted) { const trk = g._aiCardTrack; restore(g, rec.snap); putExtras(g, rec.x); g._aiCardTrack = trk; }
+    }
     if (mute && probeHooks.leave) probeHooks.leave(g, mute);
   }
-  return { result, actions: rec.actions };
+  return adopted ? { result, actions: rec.actions, adopted: true } : { result, actions: rec.actions };
 }
 
 /**

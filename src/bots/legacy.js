@@ -117,8 +117,9 @@ export function legacyBot(meta, { strategy = null } = {}) {
       if (m.actions < 10) {
         let acted = false;
         for (const fn of m.fns) {
-          const r = probe(g, fn);
+          const r = probe(g, fn, { adopt: ctx.adoptOk });
           if (!r.result) continue;
+          if (r.adopted) ctx.adopt(r.actions[0]);
           m.actions++; acted = true;
           if (!r.actions.length) ctx.warn("a planner step changed the game without an action (not recorded)");
           m.queue = r.actions;
@@ -144,8 +145,9 @@ export function legacyBot(meta, { strategy = null } = {}) {
     if (q) return q;
     if (m.sbp < AI_SBP_MAX && !g.winner) {
       const s = g._aiStrat(p);
-      const r = probe(g, () => (s.expansion === "simple" ? g._aiSbpSimpleStep(p, s) : g._aiSbpPlannedStep(p)));
-      if (r.result && r.actions.length) { m.sbp++; m.queue = r.actions; return takeQueued(g, m, ctx); }
+      const r = probe(g, () => (s.expansion === "simple" ? g._aiSbpSimpleStep(p, s) : g._aiSbpPlannedStep(p)), { adopt: ctx.adoptOk });
+      if (r.result && r.actions.length) {
+        if (r.adopted) ctx.adopt(r.actions[0]); m.sbp++; m.queue = r.actions; return takeQueued(g, m, ctx); }
     }
     fresh(seat);
     return { actor: seat, type: "passSbp" };
