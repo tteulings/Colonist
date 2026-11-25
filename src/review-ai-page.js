@@ -120,7 +120,7 @@ export const ReviewAiPageMixin = {
   _pgHtml() {
     const { fx, page, src, fu } = this._pgState();
     // v1.91 not final yet (the luck run values the positions, the shown rounds are refined): nothing ranked is drawn, so nothing it says moves later
-    if (tryv(() => this._ldSettling?.(), false)) return `<div class="ap ap-settle" data-pg><section class="ap-c ap-sk" aria-busy="true" role="status"><div class="ap-skl"><i></i><i></i></div><div class="ap-skv"></div><span class="ap-skt">${esc(fx.t.settle)}…</span><p class="ap-asked ap-settle-sub">${esc(fx.t.settleSub)}</p>${this._pgSettleNote(fx)}</section></div>`;
+    if (tryv(() => this._ldSettling?.(), false)) return `<div class="ap ap-settle" data-pg>${page.headline && src !== "ai" ? `<p class="ap-hl">${this._pgParts(page.headline, fx)}</p>` : ""}<section class="ap-c ap-sk" aria-busy="true" role="status"><div class="ap-skl"><i></i><i></i></div><div class="ap-skv"></div><span class="ap-skt">${esc(fx.t.settle)}…</span><p class="ap-asked ap-settle-sub">${esc(fx.t.settleSub)}</p>${this._pgSettleNote(fx)}</section></div>`;
     this._pgOpenSet = this._pgOpenSet || new Set();
     const hl = page.headline ? `<p class="ap-hl">${this._pgParts(page.headline, fx)}</p>` : "";
     const cards = page.widgets.map((w, i) => this._pgCardHtml(w, i, fx));
@@ -192,7 +192,7 @@ export const ReviewAiPageMixin = {
     const MK_GAP = 46, mq = (t) => { const i = b.marks.indexOf(t), k = b.mseat?.[i]; return k != null ? fx.seatOf(k) : seats[0]; }, big = (t) => (b.mseat ? 99 - b.marks.indexOf(t) : Math.abs(fx.change(mq(t), t)?.d || 0)), shown = [];
     b.marks.slice().sort((a, c) => big(c) - big(a) || a - c).forEach((t) => { if (shown.every((u) => Math.abs(x(t) - x(u)) >= MK_GAP)) shown.push(t); });
     const marks = shown.sort((a, c) => a - c).map((t) => {
-      const q = mq(t), v = fx.wc(q, t); if (v == null) return ""; const cx = x(t), cy = y(v), lab = `${fx.t.tL || "T"}${t}`, w = lab.length * 6.6 + 12;
+      const q = mq(t), v = fx.wc(q, t); if (v == null) return ""; const cx = x(t), cy = y(v), lab = `${fx.t.Turn} ${t}`, w = lab.length * 6.6 + 12;
       const lx = Math.max(l - 6, Math.min(W - r - w + 6, cx - w / 2));
       const free = (ly) => ly >= 1 && ly <= H - bm - 17 && !placed.some((p) => lx < p.x + p.w + 3 && lx + w + 3 > p.x && ly < p.y + 19 && ly + 19 > p.y);
       const ly = [cy - 25, cy + 9, cy - 44, cy + 28].find(free) ?? Math.max(1, Math.min(H - bm - 17, cy - 25)); placed.push({ x: lx, y: ly, w });

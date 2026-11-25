@@ -37,7 +37,7 @@ export function installPost(Cls) {
     const pop0 = el.querySelector(".rv-pop"), sh = el.querySelector(".px-sheet");
     const label = { overview: "Overview", moves: "Moves", strategy: "Strategy", luck: "Luck", ai: "AI coach" }[tab];
     el.innerHTML = `${tab === "player" ? part.bar : this._rvBar(`${(() => { let mm = null; try { mm = modelOf(this, pid); } catch (_) { mm = null; } return mm ? mm.F.ph("{n} of {n2} decisions scored", { n: ["scored"], n2: ["decisions"] }) : `${ds.length} decisions`; })()} · ${prov ? "provisional" : ({ quick: "Quick model, rough", deep: "Deep model" })[modelOfId(rv.engId)] || "deep Monte Carlo"}`, label)}${tab === "player" ? "" : this._rvTabsBar(tab)}
-      <div class="rv-scroll">${part.html}${tab === "overview" || tab === "ai" ? (this._rcBox?.() || "") + (this._raBox?.() || "") : ""}</div>${part.foot || ""}`;
+      <div class="rv-scroll">${part.html}${tab === "overview" || tab === "ai" ? (this._rcBox?.(tab === "ai") || "") + (this._raBox?.() || "") : ""}</div>${part.foot || ""}`;
     el.querySelector(".rv-scroll").scrollTop = scroll;
     if (pop0) el.appendChild(pop0);
     if (sh) el.appendChild(sh);
