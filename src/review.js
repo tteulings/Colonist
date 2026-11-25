@@ -116,6 +116,14 @@ export const ReviewMixin = {
     } catch (_) { return 0; }
   },
 
+  /** finding 3: a reload or a hidden tab must not lose what is checked: the review is saved when the page is hidden or left (once per page) */
+  _rvFlushOn() {
+    if (this._rvFlushBound || typeof window === "undefined") return;
+    this._rvFlushBound = true;
+    const flush = () => { try { if (this._rv?.recs?.length && Object.values(this._rv.revs || {}).some((x) => x?.results?.length)) { this._rvSave(); if (this._histView) this.histUpdateView?.(); else this.histArchive?.(); } } catch (_) { /* best effort */ } };
+    window.addEventListener("pagehide", flush); document.addEventListener("visibilitychange", () => { if (document.hidden) flush(); });
+  },
+
   /** Records grouped for the worker (the layout merged back in there). */
   _rvPayload(recs = this._rv?.recs || []) { return { base: this._rv?.base, recs }; },
 
@@ -199,6 +207,7 @@ export const ReviewMixin = {
     if (R.run && R.run.pid === pid) { if (!stage && R.run.stage) R.run.full = true; return R.run.promise; } // a bot's quick look you open: it goes on to the deep round
     // one check at a time (it is heavy): another person's check waits its turn
     if (R.run) { R.queue = [pid, ...(R.queue || []).filter((x) => (x?.pid ?? x) !== pid)]; return R.run.promise.then(() => this._rvReviewRun(pid, onStep, { mid })); }
+    this._rvFlushOn?.();
     const todo = this._rvTodo(pid);
     const rv = R.revs[pid] || { pid, results: [] };
     if (!rv.results.length) rv.fmt = FMT; // v1.21 numbers of this format (a saved older review was re-scored when it was loaded)
@@ -249,11 +258,13 @@ export const ReviewMixin = {
           const k = rv.results.findIndex((x) => x.i === i);
           let r = m?.result ? { ...m.result, i } : null;
           if (!r) r = k >= 0 ? { ...rv.results[k], eng: REVIEW_ENGINE, err: true } : { k: rec.k, pid, t: rec.t, s: rec.s, e: rec.e, i, skip: "error", eng };
-          if (k >= 0) rv.results[k] = r; else { rv.results.push(r); rv.results.sort((a, b) => a.i - b.i); }
+          // finding 3: once a decision is scored it stays scored. A later round that finds no score for it (no real choice, an engine error) does not take the score away:
+          // the earlier result is kept (marked as checked by this round, so it is not asked again) and the review never counts fewer scored decisions than before.
+          if (k >= 0) { const old = rv.results[k]; if (old.acc != null && !old.skip && (r.acc == null || r.skip) && !r.err) r = { ...old, eng: r.eng || old.eng, leaf: r.leaf || old.leaf, kept: 1 }; rv.results[k] = r; } else { rv.results.push(r); rv.results.sort((a, b) => a.i - b.i); }
           liftReview(rv); // v1.29 the same-step lift: one class per decision on every screen (score.js liftSameStep)
           const t = now(); run.times.push(t - last); last = t;
           run.round.j += 1;
-          if (run.round.j % (this.players[pid]?.isHuman ? 6 : 12) === 0) this._rvSave(); // a reload keeps what is checked (a bot's: every 12)
+          if (run.round.j % (this.players[pid]?.isHuman ? 3 : 12) === 0) this._rvSave(); // a reload keeps what is checked (a bot's: every 12)
           this._rvTick();
         }
       };

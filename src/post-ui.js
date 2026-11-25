@@ -66,7 +66,7 @@ export function scoreHtml(g) {
     if (isOpen) {
       const mm = id === tab.me ? m : (() => { try { return ready(g, id).m || null; } catch (_) { return null; } })();
       const vl = mm ? verdictLine(g, mm, 62) : "";
-      det = `<div class="px-rd">${!s.you && vl ? `<p class="px-l">${vl}</p>` : ""}<button type="button" class="px-link" data-rvtab="${id}">${s.you ? "Your page" : f("{x}’s page", { x: esc(s.name) })}${IC.chev}</button></div>`;
+      det = `<div class="px-rd">${!s.you && vl ? `<p class="px-l">${vl}</p>${mm ? estChip(g, mm) : ""}` : ""}<button type="button" class="px-link" data-rvtab="${id}">${s.you ? "Your page" : f("{x}’s page", { x: esc(s.name) })}${IC.chev}</button></div>`;
     }
     return `<div class="px-row pc-${id}${s.won ? " win" : ""}${s.you ? " me" : ""}${isOpen ? " open" : ""}" data-pid="${id}"><button type="button" class="px-rh" data-rsx="${id}" aria-expanded="${isOpen}" aria-label="${esc(nm)}, ${s.pts} points${s.acc != null ? `, accuracy ${s.acc}` : ""}">
       <span class="rk">${k + 1}</span>${g._av(p, "rt-av")}<span class="nm"><b>${nm}</b>${s.level ? `<small>${esc(s.level.label)}</small>` : ""}</span><span class="pts">${X.n(`pts:${id}`)}</span>${IC.chev}
@@ -75,7 +75,7 @@ export function scoreHtml(g) {
   const leg = used.length ? `<div class="px-leg">${used.map(([q, l]) => `<span><i class="s${si(q)}"></i>${l}</span>`).join("")}</div>` : "";
   const prog = (() => { try { return g._rvTableProg(R, tab.LK) || ""; } catch (_) { return ""; } })();
   const vl = m ? verdictLine(g, m) : "";
-  return `<section class="rv-card rt rsc px-end" data-rvtable aria-label="Result"><div class="rv-gt"><b>Result</b><small>tap a player for the details</small></div>${vl ? `<p class="px-vl">${vl}</p>` : ""}${prog}<div class="px-rows">${rows}</div>${leg}</section>`;
+  return `<section class="rv-card rt rsc px-end" data-rvtable aria-label="Result"><div class="rv-gt"><b>Result</b><small>tap a player for the details</small></div>${vl ? `<p class="px-vl">${vl}</p>${estChip(g, m)}` : ""}${prog}<div class="px-rows">${rows}</div>${leg}</section>`;
 }
 
 /** "1 real error" / "3 real errors": the count is a fact; the word follows its value */
@@ -140,6 +140,8 @@ export function verdictSpans(m, budget = HEAD_BUDGET) {
   void nl; return `<span class="px-vsent">${sp(pick)}</span>`;
 }
 export function verdictLine(g, m, budget) { return verdictSpans(m, budget); }
+/** finding 3: a verdict drawn from a review that is not complete is a quick estimate; the full review can still change which move is blamed (it wins). */
+export const estChip = (g, m) => { try { return g._rvMid || g._rvReviewComplete(m.pid) ? "" : `<small class="px-est">quick estimate</small>`; } catch (_) { return ""; } };
 
 // ───────────────────────── Overview ─────────────────────────
 function resultLine(g, m) {
@@ -162,7 +164,7 @@ export function connectLine(m) {
 export const pm = (X, i) => (X.has(`mv.${i}.margin`) ? `<small class="px-pm" title="margin">${X.n(`mv.${i}.margin`)}</small>` : "");
 function verdictCard(g, m) {
   const X = m.F, pid = m.pid, picks = m.start?.picks || [];
-  const hl = `<p class="px-hl2">${verdictSpans(m)}</p>`;
+  const hl = `<p class="px-hl2">${verdictSpans(m)}</p>${estChip(g, m)}`;
   const accLine = `<div class="px-cn">${connectLine(m)}</div>`;
   const tile = (k, nref, one, many, vref, cap) => `<button type="button" class="px-t3" data-pxpil="${k}" aria-expanded="false"><small>${pl(X, nref, `{n} ${one}`, `{n} ${many}`)}</small>${X.d(vref)}<span>${cap}</span></button>`;
   const t3 = `<div class="px-t3s">${tile("errors", "errors", "Real error", "Real errors", "errCost", "not close calls")}${tile("start", "startN", "Start pick", "Start picks", "startCost", "start spots checked")}${tile("other", "otherN", "Other move", "Other moves", "otherCost", "close calls and small ones")}</div>`;

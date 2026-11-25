@@ -220,8 +220,8 @@ export const HistoryMixin = {
   /** The review moved on (a round step, stop, done): keep the entry up to date, at most once a second. */
   _histSoon() {
     if (!this.winner || this._replay || this.labMode) return;
-    clearTimeout(this._histT);
-    this._histT = setTimeout(() => { this._histT = 0; (this._histView ? this.histUpdateView() : this.histArchive()); }, 900);
+    if (this._histT) return; // finding 3: a throttle, not a debounce: a running review saves every few results, a debounce that restarts each time never fired until the run ended
+    this._histT = setTimeout(() => { this._histT = 0; (this._histView ? this.histUpdateView() : this.histArchive()); }, 500);
   },
   async histUpdateView() {
     const v = this._histView, R = this._rv;
