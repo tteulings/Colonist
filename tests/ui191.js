@@ -55,7 +55,7 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
     }
     // ── Luck ──
     {
-      await tabs.nth(2).tap(); await sleep(1500);
+      await tabs.nth(3).tap(); await sleep(1500);
       const L = await page.evaluate(() => { const g = window.__colonistGame; const bs = [...document.querySelectorAll(".lkx-g > b")], trs = [...document.querySelectorAll(".lkx-g > .tr")], ns = [...document.querySelectorAll(".lkx-g .lkx-n")]; return ns.map((n, i) => { const pc = +(/pc-(\d)/.exec(n.className) || [])[1]; return { you: g._rvIsYou(pc), badB: /\b(pos|neg)\b/.test(bs[i]?.className) && !/\bopp\b/.test(bs[i].className), badI: [...(trs[i]?.querySelectorAll("i.pos,i.neg") || [])].some((e) => !/\bopp\b/.test(e.className)) }; }); });
       ok(true, `${tag}: (retired) Luck tab: other players' bars may be green / red in v1.99`);
       const T = await page.evaluate(VIS, ".rv"); if (isNL(lang)) ok(english(T).length === 0, `${tag}: Luck tab has no English`, english(T).slice(0, 40));
@@ -63,18 +63,19 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
     }
     // ── Moves ──
     {
-      await tabs.nth(3).tap(); await sleep(1200); await page.locator("button", { hasText: /^Alle$|^All$/ }).first().tap(); await sleep(600);
-      const M = await page.evaluate(() => [...document.querySelectorAll(".mv-r")].map((r) => { const t = r.querySelector(".mv-t").getBoundingClientRect(), m = r.querySelector(".mv-m").getBoundingClientRect(), v = r.querySelector(".mv-v").getBoundingClientRect(), wh = r.querySelector(".mv-w").getBoundingClientRect(), c = r.querySelector(".mv-c")?.getBoundingClientRect(); const o = (a, b) => b && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5; return { txt: r.querySelector(".mv-t").innerText, over: o(t, m) || o(t, v) || o(t, wh) || o(t, c), clip: r.querySelector(".mv-t").scrollWidth > r.querySelector(".mv-t").clientWidth + 1 }; }));
-      ok(M.length > 5 && M.every((x) => !x.over && !x.clip), `${tag}: Moves list: the turn label overlaps nothing and is not cut`, M.filter((x) => x.over || x.clip));
+      await tabs.nth(1).tap(); await sleep(1200);
+      // v1.99: the Moves tab is the px-mv list (rows are folded by size); a row's text must not be cut
+      const M = await page.evaluate(() => [...document.querySelectorAll(".px-mv")].filter((r) => r.offsetParent).map((r) => ({ txt: r.innerText.slice(0, 30), clip: r.scrollWidth > r.clientWidth + 1 || [...r.querySelectorAll("*")].some((e) => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflow !== "visible") })));
+      ok(M.length > 5 && M.every((x) => !x.clip), `${tag}: Moves list: the rows are not cut`, M.filter((x) => x.clip));
       const T = await page.evaluate(VIS, ".rv"); ok(!NODEID.test(T.join(" | ")), `${tag}: Moves list shows no raw node id`);
       if (isNL(lang)) ok(english(T).length === 0, `${tag}: Moves list has no English`, english(T).slice(0, 40));
       await shot(page, "moves", lang, w);
       // ── Step view of the missed chance, then a few other moves ──
-      const n = await page.locator(".mv-r").count(), all = []; let bad = 0, nodeId = [], over = false, cardsOk = true, oppBad = 0, firstShot = true;
-      for (const i of [await page.evaluate(() => [...document.querySelectorAll(".mv-r")].findIndex((r) => r.classList.contains("c-missed"))), 0, Math.min(8, n - 1), Math.min(14, n - 1), n - 1]) {
+      const n = await page.locator(".px-mv:visible").count(), all = []; let bad = 0, nodeId = [], over = false, cardsOk = true, oppBad = 0, firstShot = true;
+      for (const i of [await page.evaluate(() => [...document.querySelectorAll(".px-mv")].filter((r) => r.offsetParent).findIndex((r) => /Missed|Gemist/i.test(r.innerText))), 0, Math.min(8, n - 1), Math.min(14, n - 1), n - 1]) {
         if (i < 0) continue;
-        if (!(await page.locator(".mv-r").count())) { await tabs.nth(3).tap(); await sleep(800); await page.locator("button", { hasText: /^Alle$|^All$/ }).first().tap(); await sleep(500); }
-        await page.locator(".mv-r").nth(i).tap(); await sleep(2600);
+        if (!(await page.locator(".px-mv:visible").count())) { await tabs.nth(1).tap(); await sleep(800); }
+        await page.locator(".px-mv:visible").nth(i).tap(); await sleep(2600);
         const S = await page.evaluate(VIS, ".rv.step"); all.push(...S);
         if (S.some((t) => NODEID.test(t))) nodeId.push(S.find((t) => NODEID.test(t)));
         const G = await page.evaluate(() => {
@@ -137,9 +138,9 @@ const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top 
   // ── EN -> NL in the same session: the step view's turn cards (title / aria-label, incl. "key turn") are Dutch whichever order things load in ──
   for (const first of ["en", "nl"]) {
     const tag = `switch ${first}->nl 412x923`; const { page, ctx } = await open(first, 412, 923); await review(page);
-    await page.locator(".rv .rv-tabs button").nth(3).tap(); await sleep(1200); await page.locator("button", { hasText: /^Alle$|^All$/ }).first().tap(); await sleep(600);
-    const i = await page.evaluate(() => Math.max(0, [...document.querySelectorAll(".mv-r")].findIndex((r) => r.classList.contains("c-missed"))));
-    await page.locator(".mv-r").nth(i).tap(); await sleep(2600);
+    await page.locator(".rv .rv-tabs button").nth(1).tap(); await sleep(1200);
+    const i = await page.evaluate(() => Math.max(0, [...document.querySelectorAll(".px-mv")].filter((r) => r.offsetParent).findIndex((r) => /Missed|Gemist/i.test(r.innerText))));
+    await page.locator(".px-mv:visible").nth(i).tap(); await sleep(2600);
     if (first === "en") { await page.evaluate(async () => { (await import("/src/i18n.js")).setLang("nl"); }); await sleep(2500); }
     const A = await page.evaluate(() => [...document.querySelectorAll(".tv-card")].flatMap((c) => [c.getAttribute("title"), c.getAttribute("aria-label")]).filter(Boolean));
     ok(A.length > 0, `${tag}: the step view has turn cards`, A.length); // whether a turn is a "key turn" depends on the (Monte Carlo) luck run, so not asserted; the Dutch of that label is checked by the English scan below
