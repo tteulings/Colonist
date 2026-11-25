@@ -10,7 +10,7 @@ const files = fs.readdirSync(FIX).filter((f) => f.endsWith(".json")).sort();
 const BAD = /\bNaN\b|\bundefined\b|\bnull\b|\[object|Infinity/;
 const ZERO = /zero-sum|zero sum|nulsom|sums to zero|cancel(s)? out/i;
 const OUT = /\brobber\b|\brover\b|\bports?\b|\bharbou?rs?\b|\bhaven\b|longest road|largest army|langste weg|grootste riddermacht|who you fed|fed\b/i;
-const LSEL = ".px-ev .x, .px-hl2, .px-vl, .px-t3 > span, .px-wfr .sb, .px-rule p.px-l, .px-fn, .px-adv, .px-lh b, .rv-gt b, .px-card > p.px-l, .px-prog p, .px-vsent";
+const LSEL = ".px-ev .x, .px-hl2, .px-vl, .px-t3 > span, .px-wfr .sb, .px-rule p.px-l, .px-fn, .px-adv, .px-lh b, .rv-gt b, .px-card > p.px-l, .px-cn p, .ln-cr > span:first-child, .px-mv .mt, .px-wr > span, .px-err .mv, .px-adv, .px-prog p, .px-vsent";
 const SCAN = (LSEL) => {
   const vis0 = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === "none" || cs.visibility === "hidden" || e.hidden) return false; } const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const tops = [...document.querySelectorAll("div.rv, div.bpg, div.ln, div.hs, div.game-over-overlay")].filter(vis0);
@@ -54,7 +54,8 @@ const nums = () => {
       if (lang === "nl") { const ms = await G(async () => { const I = await import("/src/i18n.js"); const a = [...I.misses]; I.misses.clear(); return a; });
         const names = ["Katan", ...metas.flatMap((m) => (m.seats || []).map((q) => q.name))]; const dayRe = /^\w{2,3} \d+ \w{3}( · \d+:\d+)?$/;
         const strip = (x) => names.reduce((t, n) => t.split(n).join(" "), x).replace(/[\d\s.,:·–+−%▲▼/()±-]+/g, " ").trim();
-        const bad = name === "lessons" ? [] : ms.filter((x) => r.nodes.includes(x) && strip(x).length >= 3 && !dayRe.test(x));
+        const DUTCH_SAME = new Set(["won"]); const realDutch = (x) => { const w = strip(x).split(/\s+/).filter(Boolean); return w.length > 0 && w.every((q) => DUTCH_SAME.has(q.toLowerCase())); };
+        const bad = name === "lessons" ? [] : ms.filter((x) => r.nodes.includes(x) && strip(x).length >= 3 && !dayRe.test(x) && !realDutch(x));
         bad.forEach((x) => missesAll.add(x)); ok(!bad.length, `${k}: no English left in Dutch`, bad.slice(0, 4)); }
       else { const nlw = /\b(Beurt|Jij|Jouw|Zetten|Winkans|Precisie|Gewonnen|Verloren|Kaarten|Strategie|Geluk|Opening|Middenspel|Eindspel|Startkeuzes|Echte fouten)\b/.exec(r.words.replace(/Bekijk bord/g, "")); ok(!nlw, `${k}: no Dutch in English`, nlw ? nlw[0] : ""); }
       { const pl = /\b1 (points|punten|real errors|echte fouten|misses|missers)\b|usually score|meestal/.exec(r.text.replace(/Bots op niveau/g, "")); ok(!pl, `${k}: singular plurals and no "usually score" benchmark`, pl ? pl[0] : ""); }

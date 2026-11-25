@@ -60,7 +60,7 @@ export function scoreHtml(g) {
     let det = "";
     if (isOpen) {
       const mm = id === tab.me ? m : (() => { try { return ready(g, id).m || null; } catch (_) { return null; } })();
-      const vl = mm ? verdictLine(g, mm) : "";
+      const vl = mm ? verdictLine(g, mm, 62) : "";
       det = `<div class="px-rd">${!s.you && vl ? `<p class="px-l">${vl}</p>` : ""}<button type="button" class="px-link" data-rvtab="${id}">${s.you ? "Your page" : f("{x}’s page", { x: esc(s.name) })}${IC.chev}</button></div>`;
     }
     return `<div class="px-row pc-${id}${s.won ? " win" : ""}${s.you ? " me" : ""}${isOpen ? " open" : ""}" data-pid="${id}"><button type="button" class="px-rh" data-rsx="${id}" aria-expanded="${isOpen}" aria-label="${esc(nm)}, ${s.pts} points${s.acc != null ? `, accuracy ${s.acc}` : ""}">
@@ -128,13 +128,13 @@ export function headVariants(m) {
   if (!won && o.k === "clean" && !L) { const ot = X.v("others"); if (ot != null && ot <= -5) return [`${atr(lg, "hd.lost.others", { S, d: tg("others") })}.`, ...out.slice(0, 0)]; }
   return out.filter((t, i) => out.indexOf(t) === i);
 }
-export function verdictSpans(m) {
+export function verdictSpans(m, budget = HEAD_BUDGET) {
   const nl = isNL(), vs = headVariants(m), sp = (x) => `<span data-i18n-skip>${x}</span>`;
   if (!vs.length) return "";
-  const len = (t) => t.replace(/<[^>]*>/g, "").length, pick = vs.find((t) => len(t) <= HEAD_BUDGET - (m.you ? 0 : Math.max(0, String(m.me.name).length - 8))) || vs[vs.length - 1];
+  const len = (t) => t.replace(/<[^>]*>/g, "").length, pick = vs.find((t) => len(t) <= budget - (m.you ? 0 : Math.max(0, String(m.me.name).length - 8))) || vs[vs.length - 1];
   void nl; return `<span class="px-vsent">${sp(pick)}</span>`;
 }
-export function verdictLine(g, m) { return verdictSpans(m); }
+export function verdictLine(g, m, budget) { return verdictSpans(m, budget); }
 
 // ───────────────────────── Overview ─────────────────────────
 function resultLine(g, m) {
@@ -223,7 +223,7 @@ export const PLAN_NAME = { city: "City plan (ore, grain)", expansion: "Expansion
 export function startAdvice(m, p) {
   const X = m.F, top = p.shortlist?.[0]; if (!p.advice || !top) return "";
   const x = p.advice.adds.map(rname).join(", "), nn = p.n, fewer = p.spot && top.spot && top.spot.total < p.spot.total;
-  return `<p class="px-adv"><span>${X.ph(m.you ? "Take {x}: {a} → {b} ({g})." : "Better pick: {x}, {a} → {b} ({g}).", { x, a: [`pick${nn}.win`], b: [`pick${nn}.best`], g: [`pick${nn}.gain`] })}</span>${fewer ? ` <span>${X.ph("Fewer dots ({a} against {b}), but {x} added.", { a: [`pick${nn}.bestDots`], b: [`pick${nn}.dots`], x })}</span>` : ""}</p>`;
+  return `<p class="px-adv"><span>${X.ph(m.you ? "Take {x}: {a} → {b} ({g})." : "Better pick: {x}, {a} → {b} ({g}).", { x, a: [`pick${nn}.win`], b: [`pick${nn}.best`], g: [`pick${nn}.gain`] })}</span>${fewer && m.you ? ` <span>${X.ph("Fewer dots ({a} against {b}), but {x} added.", { a: [`pick${nn}.bestDots`], b: [`pick${nn}.dots`], x })}</span>` : ""}</p>`;
 }
 export const DOT_KEY = "Tile numbers are dice numbers. Dots = how often that number rolls (more dots, more income).";
 function lesson2c(g, m) {

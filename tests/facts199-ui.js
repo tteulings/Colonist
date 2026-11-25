@@ -176,6 +176,13 @@ const TEXTAUDIT = ({ rootSel, lang, names, lsel, third }) => {
       await G(() => { const g = window.__colonistGame; g.histClose(); g.botsOpen(); }); await sleep(900);
       for (const s of ["strength", "precision", "you"]) { await page.evaluate((s) => document.querySelector(`[data-pxseg=${s}]`)?.click(), s); await sleep(500); await audit(`bots ${s}`, ".px-bots"); }
     } catch (e) { ok(false, `${lang} history/bots: exception`, e.message.slice(0, 200)); }
+    // Lessons over all games of this run: language, out-of-scope words, two-line labels
+    try {
+      await G(() => { const g = window.__colonistGame; g.botsClose?.(); g.lessonsOpen(); }); await page.waitForSelector(".ln h5.ln-sec, .ln .ln-c", { timeout: 90000 }).catch(() => {}); await sleep(2500);
+      const tx = await G(TEXTAUDIT, { rootSel: ".ln", lang, names: ["Katan", "Blaauw", "Geelen", "Groen", "Rood", "Oranje"], lsel: LSEL + ", .ln-c p, .ln-c h4", third: false });
+      ok(!tx.missing, `${lang} lessons: screen found`); if (!tx.missing) { ok(!tx.en.length, `${lang} lessons: no English words in Dutch`, tx.en); ok(!tx.nl.length, `${lang} lessons: no Dutch words in English`, tx.nl); ok(!tx.out.length, `${lang} lessons: no out-of-scope words`, tx.out); ok(!tx.long.length, `${lang} lessons: max 2 lines`, tx.long.slice(0, 3)); }
+    } catch (e) { ok(false, `${lang} lessons: exception`, e.message.slice(0, 200)); }
+
     ok(!errors.length, `${lang}: no console errors`, errors.slice(0, 3));
     await ctx.close();
   }

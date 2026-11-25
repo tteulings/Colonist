@@ -129,12 +129,15 @@ function lookup(s, depth = 0) {
 const cap = (n, x) => (/^n\d*$/.test(n) ? x : /^d\d*$/.test(n) ? x.replace(".", ",") : (RESW[x] ?? NL[x] ?? lookup(x) ?? ord(x) ?? words(x)));
 const lookupPat = (x) => { for (const p of PAT) { const m = p.re.exec(x); if (m) return lookup(x); } return undefined; };
 /** The text of `s` in the current language (English: itself). Unknown text comes back unchanged. */
+// Dutch words that are spelled like the English ones ("Blaauw won": a name and a real Dutch word): such a text is already Dutch, not a miss
+const SAME_NL = new Set(["won"]);
+const sameInDutch = (key) => { const w = key.split(/\s+/).filter(Boolean); return w.length > 1 && w.some((x) => SAME_NL.has(x.toLowerCase())) && w.every((x) => SAME_NL.has(x.toLowerCase()) || NAMEISH.test(x) || /^[\d.,:·–+−%/()±-]+$/.test(x)); };
 export function tr(s) {
   if (lang() !== "nl" || !s) return s;
   if (!loaded) { queue(); return s; } // a language set by hand while the app runs: the tables come, then the page turns Dutch
   const key = String(s).replace(/\s+/g, " ").trim(); if (!key) return s;
   const r = lookup(key);
-  if (r === undefined) { if (/[A-Za-z]{3}/.test(key)) misses.add(key); return s; }
+  if (r === undefined) { if (/[A-Za-z]{3}/.test(key) && !sameInDutch(key)) misses.add(key); return s; }
   return nlFix(r);
 }
 /** t("Roll {n}", { n: 8 }): translated text with its variables filled in. */
