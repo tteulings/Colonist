@@ -10,6 +10,7 @@ import { oicon } from "./ui-icons.js";
 import { toast } from "./toast.js";
 import { reviewAvailable } from "./master.js";
 import { isNL } from "./i18n.js";
+import { mapThumb } from "./map-thumbs.js";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const store = {
@@ -21,6 +22,8 @@ const q = (s, r = document) => r.querySelector(s);
 const paletteChosen = () => store.get("colonist.paletteAuto") != null || store.get("colonist.palette") != null;
 const PLAY_IC = `<svg class="hm-play" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="currentColor" opacity=".2"/><path d="M9.6 7.4v9.2l7.4-4.6z" fill="currentColor"/></svg>`;
 const PUZZLE_IC = `<svg class="ic oi" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 4.5a2 2 0 0 1 4 0V6H18v4.5h-1.5a2 2 0 0 0 0 4H18V19h-4.5v-1.5a2 2 0 0 0-4 0V19H5v-4.5h1.5a2 2 0 0 0 0-4H5V6h4.5z"/></svg>`;
+const PERSON_IC = `<svg viewBox="0 0 12 16" width="7" height="10" focusable="false"><circle cx="6" cy="4.2" r="3.2" fill="currentColor"/><path d="M0.6 15.5c0-4.2 2.4-6.2 5.4-6.2s5.4 2 5.4 6.2z" fill="currentColor"/></svg>`;
+const STATS_ART = `<svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke-linejoin="round"><polygon points="24,5 34,11 34,23 24,29 14,23 14,11" fill="#EDC25E" stroke="#D3A341" stroke-width="2"/><polygon points="14,25 24,31 24,43 14,49 4,43 4,31" transform="translate(5 -6)" fill="#B8D57A" stroke="#97B95C" stroke-width="2"/><polygon points="34,25 44,31 44,43 34,49 24,43 24,31" transform="translate(-1 -6)" fill="#E07E5A" stroke="#C0623F" stroke-width="2"/><circle cx="24" cy="17" r="2.4" fill="#fff"/></svg>`;
 const CHEV = `<svg class="sh-chev" viewBox="0 0 20 20" aria-hidden="true" width="18" height="18"><path d="M7.5 4.5 13 10l-5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const BACK = `<svg viewBox="0 0 20 20" aria-hidden="true" width="20" height="20"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const UPDATE_IC = `<svg class="hm-upd-ic" viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 10a5.5 5.5 0 1 1-1.8-4.1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M14.6 1.8v4.6H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -117,6 +120,35 @@ export function reviewEntryHtml(game) {
   return `<button type="button" class="sh-rvcont" data-home="review"><span class="sh-rvi">${REVIEW_IC}</span><span class="sh-rvt"><b>Review in progress</b><small>Continue · ${m.rp[0]} of ${m.rp[1]} moves checked</small></span><span class="sh-rvgo" aria-hidden="true">${RV_CHEV}</span></button>`;
 }
 
+// ── the quick picks (Home card and New game sheet share these, so both always agree) ──
+/** Map picker: two small cards, thumbnail on top and the name below (Home and the New game sheet). Seafarers needs 3–4 players: disabled, the reason sits on the thumbnail.
+ *  `attrs(id)` gives the data attributes of a card (Home: data-q, sheet: data-set). */
+export const mapCardsHtml = (board, players, attrs) => {
+  const bigT = players > SEA_MAX_BOTS + 1;
+  const card = (id, name) => { const on = board === id, off = id === "seafarers" && bigT;
+    return `<button type="button" role="radio" class="hm-map${on ? " on" : ""}" ${attrs(id)} aria-checked="${on}"${off ? " disabled" : ""}><span class="hm-map-th">${mapThumb(id)}<span class="hm-map-why">Needs 3–4 players</span></span><span class="hm-map-n"><b>${name}</b></span></button>`; };
+  return `<div class="hm-maps" role="radiogroup" aria-label="Map">${card("island", "Island")}${card("seafarers", "Seafarers")}</div>`;
+};
+const seaOn = (d) => d.board === "seafarers";
+const maxBotsOf = (D, d) => (seaOn(d) ? SEA_MAX_BOTS : D.PLAYER_CONFIG.length - 1);
+/** 5–6 players: Rush rolls every 15 s by default (back to the 8 s default for a smaller table). `prev` = the bots before the change. */
+export function bigAdjustD(D, d, prev) {
+  if (D.isBigTable(d.numBots + 1) !== D.isBigTable(prev + 1)) {
+    if (D.isBigTable(d.numBots + 1) && d.rushInterval < D.BIG_RUSH_INTERVAL) d.rushInterval = D.BIG_RUSH_INTERVAL;
+    else if (!D.isBigTable(d.numBots + 1) && d.rushInterval === D.BIG_RUSH_INTERVAL) d.rushInterval = D.DEFAULT_SETTINGS.rushInterval;
+  }
+}
+export function setModeD(d, raw) { d.mode = raw; if (raw === "rush") d.humans = d.humans.map(() => false); }
+export function setBoardD(game, D, d, raw) {
+  const prev = d.numBots;
+  d.board = raw;
+  if (seaOn(d) && d.numBots > SEA_MAX_BOTS) { game._ngBotsIsland = d.numBots; d.numBots = SEA_MAX_BOTS; }
+  else if (!seaOn(d) && game._ngBotsIsland) { d.numBots = game._ngBotsIsland; game._ngBotsIsland = 0; }
+  bigAdjustD(D, d, prev);
+}
+/** Total players at the table (you included). */
+export function setPlayersD(D, d, n) { const prev = d.numBots; d.numBots = clampN(n - 1, 1, maxBotsOf(D, d)); bigAdjustD(D, d, prev); }
+
 // ───────────────────────────── Home: the Play tab and the Daily puzzle tab ─────────────────────────────
 const bigN = (n) => n >= 4;
 
@@ -130,6 +162,7 @@ export class Home {
     this.opts = opts;
     this.el = null;
     this.tab = "play";
+    this.histReady = false;
     this.chrome = null;
     this.onKey = (e) => { if (e.key === "Enter" && e.target === document.body && this.opts.saved()) this.opts.onContinue(); };
     this.onUpdate = () => { if (this.el) this.render(); };
@@ -152,7 +185,11 @@ export class Home {
     if (!this.chrome) this.chrome = new Chrome(this.game);
     this.render();
     this.chrome.sync();
-    try { this.game.hist?.open?.().then(() => { if (this.el && this.tab === "play" && reviewInProgress(this.game)) this.render(); }); } catch (_) { /* no history: no entry */ }
+    try {
+      const open = this.game.hist?.open?.();
+      if (!open) this.histReady = true;
+      else open.then(() => { this.histReady = true; this.histLoaded(); }, () => { this.histReady = true; this.histLoaded(); });
+    } catch (_) { this.histReady = true; }
     this.autoDarkToast();
   }
 
@@ -179,12 +216,27 @@ export class Home {
     window.setTimeout(show, 900);
   }
 
-  chips(last) {
+  /** The rest of the settings, as short parts for the one muted line under the quick picks (level, points, Explain, then only what is not the default). */
+  summaryParts(last) {
     const lvl = last.botStyleMode === "each" ? "Mixed levels" : (this.game.shellLevelLabel?.(last.allPreset) || "Medium");
     const people = 1 + (last.mode === "rush" ? 0 : last.humans.slice(0, last.numBots).filter(Boolean).length);
-    const bots = last.numBots - (people - 1);
     const pts = last.board === "seafarers" ? 14 : last.winPoints;
-    return [last.mode === "rush" ? "Rush" : "Classic", people > 1 ? `${people} people` : "", bots > 0 ? (bots === 1 ? "1 bot" : `${bots} bots`) : "", `${lvl} · ${pts} pt`, last.board === "seafarers" ? "Seafarers" : ""].filter(Boolean);
+    return [lvl, `${pts} pt`, explainOn(this.game) ? "Explain on" : "Explain off",
+      people > 1 ? `${people} people` : "", last.friendlyRobber ? "Friendly robber" : "",
+      last.dice && last.dice !== "random" ? `${last.dice === "deck" ? "event deck" : last.dice} dice` : "",
+      last.map && last.map !== "random" ? `${last.map} map` : "", last.numBots === 1 ? "2 players" : ""].filter(Boolean);
+  }
+
+  /** The three quick picks: Type, Map, Players. One tap = saved through the same path as the sheet. */
+  quickHtml(last) {
+    const rush = last.mode === "rush", sea = last.board === "seafarers", hot = !rush && last.humans.slice(0, last.numBots).some(Boolean);
+    const seg = (key, label, opts, value, off = [], lab = null) => `<div class="hm-qrow"><span class="hm-ql" aria-hidden="true">${esc(label)}</span><div class="sh-seg" role="radiogroup" aria-label="${esc(label)}">${opts.map(([v, l]) =>
+      `<button type="button" role="radio" data-q="${key}:${v}" data-k="${key}:${v}" aria-checked="${String(v) === String(value)}" class="${String(v) === String(value) ? "on" : ""}"${lab ? ` aria-label="${lab(v)}"` : ""}${off.includes(v) ? ' disabled' : ""}>${l}</button>`).join("")}</div></div>`;
+    const note = hot ? "Classic only with a friend" : "";
+    return `<div class="hm-quick">${seg("mode", "Type", [["classic", "Classic"], ["rush", "Rush"]], last.mode, hot ? ["rush"] : [])}
+      <div class="hm-qrow hm-qmap"><span class="hm-ql" aria-hidden="true">Map</span>${mapCardsHtml(last.board, last.numBots + 1, (id) => `data-q="board:${id}" data-k="board:${id}"`)}</div>
+      ${seg("players", "Players", [3, 4, 5, 6].map((n) => [n, `<span class="hm-pp" aria-hidden="true">${PERSON_IC.repeat(n)}</span><b class="hm-pn" aria-hidden="true">${n}</b>`]), last.numBots + 1, sea ? [5, 6] : [], (v) => `${v} players`)}
+      ${note ? `<p class="hm-qnote">${note}</p>` : ""}</div>`;
   }
 
   render() {
@@ -198,9 +250,82 @@ export class Home {
     on("[data-home='update']", (e) => { const b = e.currentTarget, sm = b.querySelector("small"); if (sm) sm.textContent = "Starting the new version…";
       if (window.__colonistReload) window.__colonistReload(b); else window.location.reload(); });
     on("[data-home='review']", () => { const m = reviewInProgress(this.game); if (m) this.game.histView?.(m.id, "review", m.me); });
+    on("[data-q]", (e) => this.quickPick(e.currentTarget.dataset.q));
+    on("[data-home='games']", () => this.chrome?.go("review"));
     on("[data-home='adjust']", () => this.opts.onAdjust());
     on("[data-home='start']", () => this.opts.onStartLast());
     this.el.scrollTop = keep;
+  }
+
+  /** The history is loaded: only the stats card changes (its box is the same size, so nothing moves). A review in progress adds a row, which needs one full render. */
+  histLoaded() {
+    if (!this.el || this.tab !== "play") return;
+    if (reviewInProgress(this.game) && !this.el.querySelector(".sh-rvcont")) { this.render(); return; }
+    this.patchStats();
+  }
+  patchStats() {
+    const el = this.el?.querySelector(".hm-stats");
+    if (!el) return;
+    const t = document.createElement("div"); t.innerHTML = this.statsHtml();
+    const n = t.firstElementChild;
+    if (!n || n.outerHTML === el.outerHTML) return;
+    el.className = n.className; el.innerHTML = n.innerHTML;
+    for (const a of ["disabled", "aria-hidden", "aria-labelledby", "tabindex"]) { if (n.hasAttribute(a)) el.setAttribute(a, n.getAttribute(a)); else el.removeAttribute(a); }
+  }
+
+  /** "Your games": only what the history already holds (won / lost games with you at the table). */
+  statsHtml() {
+    if (!this.histReady) return `<button type="button" class="sh-card hm-stats sk" data-home="games" disabled aria-hidden="true" tabindex="-1"></button>`; // same box, filled in when the history has loaded
+    const all = (this.game.hist?.metas || []).filter((m) => m.me != null && (m.result === "won" || m.result === "lost")); // newest first
+    if (!all.length) return `<button type="button" class="sh-card hm-stats empty" data-home="games"><span class="hm-st-art" aria-hidden="true">${STATS_ART}</span><span class="hm-st-tx"><b>Your games</b><small>Play your first game, your overview shows up here.</small></span></button>`;
+    const won = all.filter((m) => m.result === "won").length, pct = Math.round(100 * won / all.length);
+    let streak = 0; for (const m of all) { if (m.result === "won") streak++; else break; }
+    const last = all[0], mine = last.seats?.find((x) => x.you), best = Math.max(0, ...(last.seats || []).filter((x) => !x.you).map((x) => x.vp || 0));
+    const profs = [...new Set((last.seats || []).filter((x) => !x.you).map((x) => x.prof))].filter(Boolean);
+    const lvl = profs.length === 1 && !last.hot ? (this.game.shellLevelLabel?.(profs[0]) || "") : "";
+    const days = Math.max(0, Math.round((Date.now() - (last.end || Date.now())) / 864e5));
+    const ago = days === 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
+    const accs = all.filter((m) => typeof m.acc === "number" && !m.prov).map((m) => m.acc);
+    const dots = all.slice(0, 10).reverse().map((m) => `<i class="${m.result === "won" ? "w" : "l"}"></i>`).join("");
+    const C = 2 * Math.PI * 21;
+    return `<button type="button" class="sh-card hm-stats" data-home="games" aria-labelledby="hmStH">
+      <span class="hm-st-head"><b id="hmStH">Your games</b><span class="hm-st-go" aria-hidden="true">${CHEV}</span></span>
+      <span class="hm-st-main">
+        <svg class="hm-ring" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="21" class="bg"/><circle cx="26" cy="26" r="21" class="fg" stroke-dasharray="${(C * pct / 100).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 26 26)"/><text x="26" y="30.5" text-anchor="middle">${pct}%</text></svg>
+        <span class="hm-st-n"><b>${all.length}</b><small>Played</small></span><span class="hm-st-n"><b>${won}</b><small>Won</small></span><span class="hm-st-n"><b>${streak}</b><small>Win streak</small></span>
+        <span class="hm-dots" aria-hidden="true">${dots}</span>
+      </span>
+      <span class="hm-st-last">${mine ? avatarSvg(last.me, "hm-sav") : ""}<span class="hm-st-lt"><span>Last game</span> <b>${last.result === "won" ? "Won" : "Lost"}</b> <span>${mine ? mine.vp : "?"}–${best}</span>${lvl ? ` <span>vs</span> <span>${esc(lvl)}</span>` : ""} · <span>${esc(ago)}</span>${accs.length ? ` · <span>Best accuracy</span> <span>${Math.max(...accs)}</span>` : ""}</span></span>
+    </button>`;
+  }
+
+  /** A tap on a quick pick: same rules and same saved settings as the New game sheet. */
+  quickPick(spec) {
+    const D = this.opts.deps?.();
+    if (!D) return;
+    const i = spec.indexOf(":"), key = spec.slice(0, i), raw = spec.slice(i + 1);
+    const d = D.normalizeSettings(JSON.parse(JSON.stringify(D.loadLast())));
+    if (key === "mode") setModeD(d, raw);
+    else if (key === "board") setBoardD(this.game, D, d, raw);
+    else if (key === "players") setPlayersD(D, d, Number(raw));
+    else return;
+    try { D.saveLast(d); } catch (_) { /* private mode */ }
+    this.game.sfx?.click?.();
+    this.patchQuick(D.normalizeSettings(d));
+  }
+  /** Update the pressed / disabled state of the quick picks and the summary line in place: nothing is rebuilt, so nothing flickers, moves or loses focus. */
+  patchQuick(last) {
+    const root = this.el;
+    if (!root) return;
+    const sea = last.board === "seafarers", big = last.numBots + 1 > SEA_MAX_BOTS + 1, hot = last.mode !== "rush" && last.humans.slice(0, last.numBots).some(Boolean);
+    const want = { mode: last.mode, board: last.board, players: String(last.numBots + 1) };
+    root.querySelectorAll("[data-q]").forEach((b) => {
+      const [k, v] = b.dataset.q.split(":"), on = want[k] === v;
+      b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on));
+      b.disabled = (k === "mode" && v === "rush" && hot) || (k === "board" && v === "seafarers" && big) || (k === "players" && sea && Number(v) > SEA_MAX_BOTS + 1);
+    });
+    const sum = root.querySelector(".hm-sum");
+    if (sum) sum.innerHTML = this.summaryParts(last).map((x) => `<span>${esc(x)}</span>`).join(" · ");
   }
 
   updateHtml(s) {
@@ -211,7 +336,7 @@ export class Home {
   playHtml() {
     const s = this.opts.saved();
     const last = this.opts.last();
-    const chips = this.chips(last);
+    const parts = this.summaryParts(last);
     return `<div class="hm-col sh-col">
       <header class="hm-brand sh-brand"><svg class="hm-logo" viewBox="0 0 100 100" aria-hidden="true"><use href="#kt-logo" width="100" height="100"/></svg>
         <h1>Katan<small class="hm-sub">Traders and Builders</small></h1></header>
@@ -224,9 +349,11 @@ export class Home {
       </section>
       <section class="sh-card sh-new" aria-labelledby="shNewH">
         <div class="sh-card-head"><h2 id="shNewH">New game</h2><button type="button" class="btn sm" data-home="adjust">Adjust</button></div>
-        <div class="sh-chips" aria-label="Your last settings">${chips.map((c) => `<span class="sh-chip">${c.split(" · ").map((x) => `<span>${esc(x)}</span>`).join(" · ")}</span>`).join("")}</div>
+        ${this.quickHtml(last)}
+        <p class="hm-sum" aria-label="Your last settings">${parts.map((x) => `<span>${esc(x)}</span>`).join(" · ")}</p>
         <button type="button" class="btn primary block hm-start" data-home="start" data-mode="${last.mode}">Start game</button>
       </section>
+      ${this.statsHtml()}
     </div>`;
   }
 
@@ -307,7 +434,7 @@ export function openNewGame(game, deps, { friend = false } = {}) {
         ${inMain ? "" : `<p class="sh-help">Now: <b>${esc(levelSummary())}</b></p>`}
         <button type="button" class="sh-row sh-row-link" data-action="levels" data-k="levels"><span class="sh-row-t"><b>More levels and a level per bot</b><small>${esc(`${allKeys().length} levels, up to Grandmaster`)}</small></span>${CHEV}</button></section>
       <section class="sh-sec"><h3 class="sh-lab">Map</h3>
-        ${seg("board", [["island", "Island"], ["seafarers", "Seafarers"]], d.board, "Map")}</section>
+        ${mapCardsHtml(d.board, d.numBots + 1, (id) => `data-set="board:${id}" data-board="${id}" data-k="board:${id}"`)}</section>
       <section class="sh-sec"><div class="sh-row sh-row-sw"><span class="sh-row-t" id="shExpT"><b>Explain the set-up</b><small>On until you have finished your first game</small></span>${sw("explain", explainOn(game), "Explain the set-up")}</div>
         <button type="button" class="sh-row sh-row-link" data-action="more" data-k="more"><span class="sh-row-ic" aria-hidden="true">${oicon("sliders")}</span><span class="sh-row-t"><b>More rules</b><small>${esc(rulesSummary())}</small></span>${CHEV}</button></section>`;
   };
@@ -432,24 +559,14 @@ export function openNewGame(game, deps, { friend = false } = {}) {
   };
 
   const set = (key, raw) => {
-    if (key === "mode") { d.mode = raw; if (raw === "rush") d.humans = d.humans.map(() => false); }
+    if (key === "mode") setModeD(d, raw);
     else if (key === "level") { d.botStyleMode = "all"; d.allPreset = raw; if (D.AI_PRESETS[raw]) d.allStrategy = { ...D.AI_PRESETS[raw] }; }
-    else if (key === "board") {
-      const prev = d.numBots;
-      d.board = raw;
-      if (sea() && d.numBots > SEA_MAX_BOTS) { game._ngBotsIsland = d.numBots; d.numBots = SEA_MAX_BOTS; }
-      else if (!sea() && game._ngBotsIsland) { d.numBots = game._ngBotsIsland; game._ngBotsIsland = 0; }
-      bigAdjust(prev);
-    } else if (key === "styleMode") d.botStyleMode = raw === "each" ? "each" : "all";
+    else if (key === "board") setBoardD(game, D, d, raw);
+    else if (key === "styleMode") d.botStyleMode = raw === "each" ? "each" : "all";
     else if (key === "dice" || key === "map") d[key] = raw;
     else if (key === "rushInterval") d.rushInterval = Number(raw);
   };
-  const bigAdjust = (prev) => { // 5–6 players: Rush rolls every 15 s by default (back to the 8 s default for a smaller table)
-    if (D.isBigTable(d.numBots + 1) !== D.isBigTable(prev + 1)) {
-      if (D.isBigTable(d.numBots + 1) && d.rushInterval < D.BIG_RUSH_INTERVAL) d.rushInterval = D.BIG_RUSH_INTERVAL;
-      else if (!D.isBigTable(d.numBots + 1) && d.rushInterval === D.BIG_RUSH_INTERVAL) d.rushInterval = D.DEFAULT_SETTINGS.rushInterval;
-    }
-  };
+  const bigAdjust = (prev) => bigAdjustD(D, d, prev);
 
   wrap.addEventListener("click", (e) => {
     if (e.target === wrap) { layer ? goBack() : close(); return; }
