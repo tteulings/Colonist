@@ -192,8 +192,8 @@ export class SettingsUI {
       ${this.group("shGameH", "Game",
         row("Language", "Menus, the game, reviews and the AI recap.", seg("data-lang", "Language", [["en", "English", " data-i18n-skip"], ["nl", "Nederlands", " data-i18n-skip"]], lc), "shLgT") +
         `<div class="sh-set-embed" data-mount="game"></div>` +
-        row("Live win chance", "A thin bar under the players. Quick model, a rough guide.", swBtn("data-live", liveWinOn(), "shLwT"), "shLwT") +
-        row("Keep refining (simulates more games)", "Like a chess engine: the bar deepens by playing out more games while you think. Off saves battery.", swBtn("data-refine", liveRefineOn(), "shLrT"), "shLrT") +
+        row("Live win chance", "A win chance number on each player. Quick model, a rough guide.", swBtn("data-live", liveWinOn(), "shLwT"), "shLwT") +
+        row("Keep refining (simulates more games)", "Like a chess engine: the numbers deepen by playing out more games while you think. Off saves battery.", swBtn("data-refine", liveRefineOn(), "shLrT"), "shLrT") +
         row("Review automatically after a game", "Checks your moves in the background.", swBtn("data-rvauto", auto, "shRaT"), "shRaT") +
         row("Review model", "Quick is rough; Deep takes almost 3x as long.", seg("data-rvmodel", "Review model", [["quick", "Quick"], ["standard", "Standard"], ["deep", "Deep"]], mdl), "shRmT") +
         row("Recap turning points", "How many moments the AI recap tells about.", seg("data-pts", "Recap turning points", [2, 3, 4].map((k) => [k, String(k)]), recapPoints()), "shRpT") +
