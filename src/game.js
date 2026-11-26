@@ -52,7 +52,7 @@ import { RESOURCES, COSTS_SEA as COSTS, PIECE_LIMITS_SEA as PIECE_LIMITS, BANK_S
 const currentPalette = () => { const p = document.documentElement.dataset.palette; return p === "vivid" || p === "night" || p === "dusk" ? p : "light"; };
 const RESOURCE_SHORT = { wood: "Wd", brick: "Br", sheep: "Sh", wheat: "Wh", ore: "Or" };
 // Glossary names (shared/glossary.md): cards are Lumber / Brick / Wool / Grain / Ore
-import { RES_EN as RESOURCE_LABEL, RES_NL } from "./resources.js";
+import { RES_EN as RESOURCE_LABEL, RES_NL, RES_ICON_URL } from "./resources.js";
 import { oicon } from "./ui-icons.js";
 import { startLocalizer, tr, onLang, localize, lang as langNow } from "./i18n.js"; // v1.87 English / Dutch for the whole app
 startLocalizer();
@@ -1867,10 +1867,16 @@ class ColonistFullGame {
       switch (e.type) {
         case "paid": this._aiTrkNote(this.players[e.seat], e.cost, -1); break;
         case "received": this._aiTrkNote(this.players[e.seat], e.cards, 1); break;
-        case "stole": this._aiTrkSteal(this.players[e.victim], this.players[e.seat]); break; // before the card moves: the card itself stays hidden from the others
+        case "stole": this._aiTrkSteal(this.players[e.victim], this.players[e.seat], e.res); break; // before the card moves: the card itself stays hidden from the others
         case "devPlayed": if (e.card === "monopoly") this._aiTrkMonopoly(this.players[e.seat], e.res, e.collected); break;
         case "traded":
-          if (e.style !== "ai") break;
+          if (e.style !== "ai") { // the estimate never noted these; the certain part does (a trade is public)
+            if (!this.__noTrk && this.players[e.seat] && this.players[e.partner]) {
+              this._aiLbNote(this.players[e.seat], e.gave, -1); this._aiLbNote(this.players[e.seat], e.got, 1);
+              this._aiLbNote(this.players[e.partner], e.got, -1); this._aiLbNote(this.players[e.partner], e.gave, 1);
+            }
+            break;
+          }
           this._aiTrkNote(this.players[e.seat], e.gave, -1); this._aiTrkNote(this.players[e.seat], e.got, 1);
           this._aiTrkNote(this.players[e.partner], e.got, -1); this._aiTrkNote(this.players[e.partner], e.gave, 1);
           break;
@@ -2910,7 +2916,7 @@ class ColonistFullGame {
     if (this.labMode) ins = { t: 8, r: 8, b: 8, l: 8 }; // AI Lab board: its own frame, nothing over it
     // portrait: the hand's cards start HAND_LIP px below the top of its fan; landscape: the hand sits in the right column
     else if (this.isLandscapePhone) ins = { t: boardTop + M - 6 + (this._chromeTopPad || 0), r: M, b: M, l: M };
-    else ins = { t: boardTop + M + (this._chromeTopPad || 0), r: M, b: fan - HAND_LIP + M, l: M };
+    else ins = { t: boardTop + M + (this._chromeTopPad || 0), r: M, b: fan - HAND_LIP + M + (this._trayUp || 0), l: M };
     const vp = { l: ins.l, t: ins.t, W: Math.max(50, this.boardWidth - ins.l - ins.r), H: Math.max(50, this.boardHeight - ins.t - ins.b) };
     const withPills = (s) => {
       const b = { ...box0 };
@@ -5712,8 +5718,38 @@ class ColonistFullGame {
   _aiTrk() {
     if (this._aiCardTrack?.players === this.players) return this._aiCardTrack;
     const est = this.players.map((p) => this._aiSpread(p, sumResources(p.resources), makeEmptyResources()));
-    this._aiCardTrack = { players: this.players, est };
+    this._aiCardTrack = { players: this.players, est, lb: this.players.map(() => makeEmptyResources()) };
     return this._aiCardTrack;
+  }
+
+  // v2.00 The certain part of the public tracker: lb[seat][r] is a whole-number floor on what a seat holds, built only from public events
+  // (payouts, builds, bank trades, discards, Monopoly, trades) and from the steals the single human was part of. The estimate (est) is a
+  // probability spread and can be fractional; this is what the "Steal from..." picker shows. A tracker rebuilt without it starts at zero (all "?").
+  _aiLb(seat) { const t = this._aiTrk(); return (t.lb ||= this.players.map(() => makeEmptyResources()))[seat]; }
+
+  _aiLbNote(player, delta, sign) {
+    if (!player || !this.players?.includes(player)) return;
+    const lb = this._aiLb(player.id);
+    RESOURCES.forEach((r) => { if (delta[r]) lb[r] = Math.max(0, lb[r] + sign * delta[r]); });
+  }
+
+  /** A steal: the card is hidden from the others (worst case: it was any kind the victim is sure to hold); the one human in the game
+   *  sees it when they are the thief or the victim (`res`). */
+  _aiLbSteal(victim, thief, res = null) {
+    if (!this.players.includes(victim) || !this.players.includes(thief)) return;
+    const v = this._aiLb(victim.id), t = this._aiLb(thief.id);
+    if (res) { v[res] = Math.max(0, v[res] - 1); t[res] += 1; return; }
+    RESOURCES.forEach((r) => { v[r] = Math.max(0, v[r] - 1); });
+  }
+
+  /** What the human seat can know of `player`'s hand: { known: {res: n} (certain, never more than the real hand), unknown: k }; known + unknown = hand size. */
+  _publicHand(player) {
+    const total = sumResources(player.resources);
+    const lb = this._aiLb(player.id), known = {};
+    let sum = 0;
+    RESOURCES.forEach((r) => { known[r] = Math.max(0, Math.min(lb[r], player.resources[r])); sum += known[r]; }); // never above the real hand (a missed event cannot over-claim)
+    if (sum > total) { RESOURCES.forEach((r) => { known[r] = 0; }); sum = 0; }
+    return { known, unknown: total - sum };
   }
 
   // Add n unknown cards to an estimate, split by the player's (public) production profile
@@ -5730,9 +5766,12 @@ class ColonistFullGame {
     if (!player || !this.players?.includes(player)) return;
     const e = this._aiTrk().est[player.id];
     RESOURCES.forEach((r) => { if (delta[r]) e[r] = Math.max(0, e[r] + sign * delta[r]); });
+    this._aiLbNote(player, delta, sign);
   }
 
-  _aiTrkSteal(victim, thief) {
+  _aiTrkSteal(victim, thief, res = null) {
+    const humans = this.players.filter((p) => p.isHuman);
+    this._aiLbSteal(victim, thief, !this.hotseat && humans.length === 1 && (humans[0] === victim || humans[0] === thief) ? res : null);
     const est = this._aiEstimate(victim);
     const n = sumResources(est);
     if (n <= 0) return;
@@ -5744,6 +5783,8 @@ class ColonistFullGame {
     const trk = this._aiTrk();
     this.players.forEach((p) => { if (p.id !== player.id) trk.est[p.id][resource] = 0; });
     trk.est[player.id][resource] += collected;
+    this.players.forEach((p) => { if (p.id !== player.id) this._aiLb(p.id)[resource] = 0; });
+    this._aiLb(player.id)[resource] += collected;
   }
 
   // Estimated hand of a player, reconciled to their public card count
@@ -10333,6 +10374,19 @@ class ColonistFullGame {
   // board says what to do. Desktop uses the same tray in its action area.
 
   /** v0.86 "Steal from…" with 3+ victims: a two-column grid of rows (full names, "cards · VP"); an odd last one spans both. */
+  /** v2.00 One "Steal from…" button's content and aria-label: portrait, name, "N cards · X pts" and what the human can KNOW of the hand (public tracker,
+   *  certain cards first, then "?×k"); the real hidden hand is never read for the icons. known + unknown = the hand size. */
+  _victimInner(p) {
+    const n = sumResources(p.resources), pts = this.displayVictoryPoints(p), h = this._publicHand(p), nl = langNow() === "nl";
+    const kinds = Object.keys(h.known).filter((r) => h.known[r] > 0);
+    const chips = kinds.map((r) => `<i class="vr" data-res="${r}"><img src="${RES_ICON_URL[r]}" alt="" draggable="false"><b>${h.known[r]}</b></i>`).join("")
+      + (h.unknown > 0 ? `<i class="vr vq" data-unknown="${h.unknown}"><b>?${kinds.length || h.unknown > 9 ? h.unknown : "×" + h.unknown}</b></i>` : "");
+    const words = kinds.map((r) => `${h.known[r]} ${(nl ? RES_NL : RESOURCE_LABEL)[r].toLowerCase()}`);
+    if (h.unknown > 0) words.push(`${h.unknown} ${nl ? "onbekend" : "unknown"}`);
+    const aria = `${p.name}: ${words.length ? words.join(", ") + ", " : nl ? "geen kaarten, " : "no cards, "}${pts} ${nl ? (pts === 1 ? "punt" : "punten") : (pts === 1 ? "point" : "points")}`.replace(/"/g, "&quot;");
+    return { aria, html: `${this._av(p)}<span class="vn"><b class="who pc-${p.id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${pts} pts</small>${n ? `<span class="vh" aria-hidden="true">${chips}</span>` : ""}</span>` };
+  }
+
   _victimGrid(btns) {
     return btns.length >= 3 ? `<div class="vgrid" data-n="${btns.length}">${btns.join("")}</div>` : btns.join("");
   }
@@ -10768,8 +10822,8 @@ class ColonistFullGame {
     if (seaTray) return seaTray;
     if (this.robberVictimOptions?.length) {
       return { mode: "victims", hint: "Steal from…",
-        html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>1 random card</small></div>` + this._victimGrid(this.robberVictimOptions.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
-          return tbtn(`data-steal="${id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} pts</small></span>`, `victim pc-${id}`); })) };
+        html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>1 random card</small></div>` + this._victimGrid(this.robberVictimOptions.map((id) => { const p = this.players[id]; const vi = this._victimInner(p);
+          return tbtn(`data-steal="${id}" aria-label="${vi.aria}"`, vi.html, `victim pc-${id}`); })) };
     }
     if (this.pendingAction === "robber" && cb?.type === "robber") {
       const info = this._robberTileInfo(cb.id, cur);
@@ -10782,8 +10836,8 @@ class ColonistFullGame {
       const lead = pir ? pir.hint : `Robber on ${where} · ${blocks}${own}`, sub = pir ? pir.sub : `${where} · ${blocks}`;
       if (vic.length > 1 && (!cb.victim || this.confirmPlacements)) {
         return { mode: "robber", hint: "Steal from…",
-          html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>${pir ? lead : `${where} · ${blocks}${own}`}</small></div>` + this._victimGrid(vic.map((id) => { const p = this.players[id]; const n = sumResources(p.resources);
-            return tbtn(`data-victim="${id}" aria-pressed="${cb.victim === id}"`, `${this._av(p)}<span class="vn"><b class="who pc-${id}">${p.name}</b><small>${n} card${n === 1 ? "" : "s"} · ${this.displayVictoryPoints(p)} pts</small></span>`, `victim pc-${id}${cb.victim === id ? " sel" : ""}`); }))
+          html: `<div class="steal-h">${icon("robber")}<span>Steal from…</span><small>${pir ? lead : `${where} · ${blocks}${own}`}</small></div>` + this._victimGrid(vic.map((id) => { const p = this.players[id]; const vi = this._victimInner(p);
+            return tbtn(`data-victim="${id}" aria-pressed="${cb.victim === id}" aria-label="${vi.aria}"`, vi.html, `victim pc-${id}${cb.victim === id ? " sel" : ""}`); }))
             + (this.confirmPlacements ? tbtn(`data-rob-now ${cb.victim != null ? "" : "disabled"}`, `${icon("check")}<span>Place</span>`, "primary") : "")
             + close("data-rob-undo", "Pick another tile") };
       }
@@ -10987,6 +11041,9 @@ class ColonistFullGame {
     el.dataset.mode = v?.mode || "";
     const key = v ? v.mode + "|" + (v.key || "") + "|" + v.html : "";
     if (el.__key !== key) { el.__key = key; el.innerHTML = v ? v.html : ""; }
+    // v2.00 the robber pickers sit above the hand fan (css); the board is fitted into the room above them
+    const up = v && (v.mode === "victims" || v.mode === "robber") && el.querySelector(".victim") && this.isMobileLayout && !this.isLandscapePhone ? Math.round(el.getBoundingClientRect().height + 8) : 0;
+    if (Math.abs(up - (this._trayUp || 0)) > 2) { this._trayUp = up; if (this.geometry && !this._userZoomed) { this.fitCanvasToContainer?.(); this.fitView(); this.requestBoardDraw?.(); } }
     return v;
   }
 
