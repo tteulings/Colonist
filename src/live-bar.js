@@ -1,11 +1,13 @@
 // v1.59 Live win chance: an optional thin bar under the player strip (Settings > Game, or the Menu sheet).
 // The numbers are the Quick review model's: the boosted-tree leaf straight on the position (gbmProbs, ~1 ms), never a search.
 // It reads the game and changes nothing; it runs after the position has settled (debounced, idle), never while a bot searches.
+// v1.99.9: no bar any more: the numbers ride on the player chips (see _lbDraw). Everything below about "the bar" means those numbers.
 // v1.60 "Keep refining": like a chess engine's eval bar it keeps deepening while the position stands still. The quick value shows at once,
 // then ONE background worker (src/master/worker.js "live") plays futures of the position (20 turns of normal bot play each, the gbm leaf at
 // the end, the Standard review's way) in batches of 10 up to 400 and posts the running average; the bar moves toward it and its end says
 // how many futures it stands on. A new position cancels the job; a searching bot or a hidden tab pauses it. The worker has its own RNG.
 import { gbmProbs } from "./master/leaf-gbm.js";
+import { t } from "./i18n.js";
 
 const KEY = "colonist_live_win";
 export const liveWinOn = () => { try { return localStorage.getItem(KEY) === "on"; } catch (_) { return false; } };
@@ -20,7 +22,6 @@ export function setLiveRefine(on) {
   try { localStorage.setItem(RKEY, on ? "on" : "off"); } catch (_) {}
   window.dispatchEvent(new CustomEvent("livewin-change", { detail: liveWinOn() }));
 }
-const NOTE = "Quick model, then refined by simulating games. Not a promise.";
 export const LIVE_MC = { cap: 400, batch: 10, depth: 20 };
 
 export const LiveBarMixin = {
@@ -31,8 +32,9 @@ export const LiveBarMixin = {
       window.addEventListener("livewin-change", () => { this._lbKey = null; this._lbTick(); });
     }
     const on = liveWinOn() && !this.hotseat && this.players?.length && this.geometry;
-    if (!on) { this._lbStop(); if (this._lbEl) this._lbEl.hidden = true; return; }
+    if (!on) { this._lbStop(); if (this._lbW || document.querySelector(".lb-pct")) this._lbClear(); return; }
     const P = this.players;
+    if (this._lbPl !== P) { this._lbPl = P; this._lbW = null; } // a new game: the old numbers are not shown
     const key = [this.turn, this.phase, this.currentPlayerIndex, this.setupPhase ? 1 : 0, this.winner ? 1 : 0, this.robberHexId,
       ...P.map((p) => `${p.victoryPoints}.${p.settlements.size}.${p.cities.size}.${p.roads.size}.${p.ships?.size ?? 0}`)].join("|");
     if (key === this._lbKey) return;
@@ -103,41 +105,46 @@ export const LiveBarMixin = {
       this._lbN = 0;
     });
   },
-  _lbEnsure() {
-    if (this._lbEl && this._lbEl.isConnected) return this._lbEl;
-    const host = document.querySelector("#mtop");
-    if (!host) return null;
-    const el = document.createElement("div");
-    el.id = "liveBar"; el.className = "livebar"; el.hidden = true; el.setAttribute("role", "img");
-    el.innerHTML = `<div class="lb-row"><div class="lb-track"></div><span class="lb-depth"></span></div><div class="lb-note" hidden>${NOTE}</div>`;
-    el.addEventListener("click", () => {
-      const n = el.querySelector(".lb-note"); n.hidden = !n.hidden;
-      clearTimeout(this._lbNoteT); if (!n.hidden) this._lbNoteT = setTimeout(() => { n.hidden = true; }, 4000);
-    });
-    host.insertAdjacentElement("afterend", el);
-    return (this._lbEl = el);
+  /** v1.99.9 no separate bar row: each player's win chance is a small number in the player strip (and the scoreboard row on wide screens).
+   *  The numbers are shown as the model gives them (rounded, never rescaled to hit 100); the model label sits in the tap-a-player info and the tooltip. */
+  _lbModel(n = this._lbNn) { return n ? t("{n} games simulated", { n }) : t("quick"); },
+  _lbSumNote(w = this._lbW) {
+    const sum = w ? w.reduce((a, b) => a + b, 0) : 1;
+    return Math.abs(sum - 1) > 0.03 ? t("They add up to {x}%, as the model gives them", { x: Math.round(sum * 100) }) : "";
+  },
+  /** The win chance of seat i as { pct, title } (null while off or not yet known). */
+  _lbOf(i) {
+    if (!liveWinOn() || !this._lbW || this.hotseat || !Number.isFinite(this._lbW[i])) return null;
+    const pct = Math.round(this._lbW[i] * 100) + "%", note = this._lbSumNote();
+    return { pct, title: `${t("Win chance")} ${pct} (${this._lbModel()})${note ? ". " + note : ""}` };
+  },
+  /** Markup for the chip / scoreboard row being built right now (so a re-render never loses the number). */
+  _lbPctHtml(i) {
+    const o = this._lbOf(i);
+    return o ? `<em class="lb-pct" title="${o.title}" aria-hidden="true">${o.pct}</em>` : "";
+  },
+  _lbAria(i) { const o = this._lbOf(i); return o ? `, ${t("Win chance")} ${o.pct}` : ""; },
+  _lbClear() {
+    this._lbW = null;
+    document.querySelectorAll(".lb-pct").forEach((e) => e.remove());
+    document.querySelectorAll("[data-lb-base]").forEach((c) => { c.setAttribute("aria-label", c.dataset.lbBase); delete c.dataset.lbBase; });
   },
   _lbDraw(w, n = 0) {
-    const el = this._lbEnsure();
-    if (!el) return;
-    if (!w || !w.length || w.some((x) => !Number.isFinite(x))) { el.hidden = true; return; }
-    const P = this.players, track = el.querySelector(".lb-track");
-    el.querySelector(".lb-depth").textContent = n ? `${n} games simulated` : "quick";
-    const me = P.findIndex((p) => p.isHuman);
-    if (track.children.length !== P.length) {
-      track.innerHTML = P.map((p, i) => `<i class="lb-seg${i === me ? " me" : ""}" style="background:${p.color}"><b></b></i>`).join("");
-    }
-    const pct = w.map((x) => Math.round(x * 100));
-    P.forEach((p, i) => {
-      const seg = track.children[i];
-      seg.style.flexGrow = String(Math.max(w[i], 0.002));
-      seg.firstChild.textContent = w[i] >= 0.13 ? pct[i] + "%" : ""; // (a label only where the segment is wide enough to read it)
+    if (!w || !w.length || w.length !== this.players?.length || w.some((x) => !Number.isFinite(x))) { this._lbClear(); return; }
+    this._lbW = w; this._lbNn = n;
+    // the live elements are updated in place (fixed-width tabular numbers; a short fade marks a change, no movement)
+    document.querySelectorAll(".pstrip .pchip[data-seat], #scoreboard .prow[data-seat]").forEach((c) => {
+      const i = Number(c.dataset.seat), o = this._lbOf(i);
+      if (!o) return;
+      const host = c.classList.contains("pchip") ? c.querySelector(".row") : c.querySelector(".stats");
+      if (!host) return;
+      let e = host.querySelector(".lb-pct");
+      if (!e) { host.insertAdjacentHTML("beforeend", this._lbPctHtml(i)); e = host.querySelector(".lb-pct"); }
+      else if (e.textContent !== o.pct) { e.textContent = o.pct; e.classList.remove("tk"); void e.offsetWidth; e.classList.add("tk"); }
+      e.title = o.title;
+      const base = c.dataset.lbBase ?? (c.dataset.lbBase = (c.getAttribute("aria-label") || "").replace(new RegExp(`, ${t("Win chance")} \\d+%$`, "i"), ""));
+      if (c.classList.contains("pchip")) c.setAttribute("aria-label", base + this._lbAria(i));
     });
-    // v1.67 your own win chance as a readable chip in your player card (the bar keeps its seat order = the player cards' order)
-    document.querySelectorAll(".pchip .lb-chip").forEach((c) => c.remove());
-    const card = me >= 0 ? document.querySelector(`.pchip[data-seat="${me}"]`) : null;
-    if (card) { const c = document.createElement("em"); c.className = "lb-chip"; c.textContent = pct[me] + "%"; c.title = "Your win chance"; c.setAttribute("aria-hidden", "true"); card.appendChild(c); }
-    el.setAttribute("aria-label", (n ? `Win chance (${n} games simulated): ` : "Win chance (quick model): ") + P.map((p, i) => `${i === me ? "you" : p.name} ${pct[i]}%`).join(", "));
-    el.hidden = false;
+    window.__lbPct = this.players.map((_, i) => this._lbOf(i)?.pct);
   },
 };
