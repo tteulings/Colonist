@@ -3,6 +3,7 @@
    Spec: docs/design/start-en-navigatie.md and docs/design/ontwerpsysteem.md. Minimum text 11.5px, minimum tap target 44px. */
 html {
   --sh-tab-h: 64px;
+  --sh-bar-h: 69px; /* the real height of .sh-tabs (6 + 56 + 6 + 1px border), without the safe-area inset */
   --sh-teal-soft: color-mix(in srgb, var(--primary, #1F5F66) 13%, var(--sheet, #FDFBF6));
   --sh-teal-ink: var(--brand-ink, var(--primary, #1F6E77));
   --sh-accent-soft: color-mix(in srgb, var(--accent, #D9714E) 16%, var(--sheet, #FDFBF6));
@@ -28,9 +29,17 @@ html[data-palette="night"], html[data-palette="dusk"] { --sh-teal-ink: color-mix
 .sh-chip.soon { background: var(--sh-accent-soft); border-color: transparent; color: color-mix(in srgb, var(--accent, #D9714E) 55%, var(--ink)); font-weight: 800; }
 
 /* ───────── Play and Daily puzzle tabs ───────── */
-.home.sh-home { padding: calc(14px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(var(--sh-tab-h) + 20px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); }
+.home.sh-home { padding: calc(14px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 20px calc(16px + env(safe-area-inset-left)); }
+/* v1.99.8: the Home scroller ends where the tab bar starts (nothing scrolls, and no scrollbar runs, under it); no visible scrollbar on touch layouts */
+body.sh-tabs-on .home.sh-home { bottom: calc(var(--sh-bar-h) + env(safe-area-inset-bottom)); }
+@media (pointer: coarse), (max-width: 700px) {
+  .home.sh-home, .hs-scroll, .hs { scrollbar-width: none; }
+  .home.sh-home::-webkit-scrollbar, .hs-scroll::-webkit-scrollbar, .hs::-webkit-scrollbar { display: none; width: 0; height: 0; }
+}
 .home.sh-home .hm-col { justify-content: flex-start; gap: 12px; min-height: 0; max-width: 460px; display: flex; flex-direction: column; }
 .home.sh-home .hm-brand.sh-brand { flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; text-align: left; padding: 0 56px 4px 0; min-height: 52px; }
+/* v1.99.8: the header (logo, Katan; the gear is fixed over its right end) stays put like the Review and Bots headers, on an opaque band, so no card scrolls under the gear */
+.home.sh-home .hm-brand.sh-brand, .home.sh-home .sh-title { --sh-band: color-mix(in srgb, #052642 52%, var(--sea-bg, #2a6a88)); position: sticky; top: calc(-14px - env(safe-area-inset-top)); z-index: 3; margin-top: calc(-14px - env(safe-area-inset-top)); padding-top: calc(14px + env(safe-area-inset-top)); padding-bottom: 8px; margin-bottom: -4px; background: var(--sh-band); box-shadow: 0 0 0 100vmax var(--sh-band); clip-path: inset(0 -100vmax); }
 .home.sh-home .sh-brand .hm-logo { width: 40px; height: 40px; flex: none; }
 .home.sh-home .sh-brand h1 { font-size: 26px; text-align: left; line-height: 1.05; }
 .home.sh-home .sh-brand h1 .hm-sub { justify-content: flex-start; margin: 3px 0 0; font-size: 11.5px; letter-spacing: .16em; }
@@ -84,7 +93,7 @@ html[data-palette="night"] .sh-daily-art, html[data-palette="dusk"] .sh-daily-ar
 .sh-gear svg { width: 24px; height: 24px; }
 .sh-gear:active { transform: scale(.97); }
 /* the Review and Bots tab roots: no back arrow (the tabs are the way out), room for the gear, and above the bar */
-body.sh-tabs-on .hs { padding-bottom: calc(var(--sh-tab-h) + env(safe-area-inset-bottom)); }
+body.sh-tabs-on .hs { padding-bottom: calc(var(--sh-bar-h) + env(safe-area-inset-bottom)); }
 body.sh-tabs-on .hs > .hs-bar .hs-x, body.sh-tabs-on .hs [data-hclose], body.sh-tabs-on .hs [data-bclose] { display: none; }
 body.sh-tabs-on .hs > .hs-bar { padding-left: 16px; padding-right: 64px; min-height: 56px; }
 body.sh-tabs-on .update-chip:not(.in-row) { display: none; }
@@ -240,7 +249,7 @@ a.sh-set-row, button.sh-set-row { cursor: pointer; }
 }
 html[data-motion="reduced"] .sh-sheet, html[data-motion="reduced"] .sh-layer.enter, html[data-motion="reduced"] .sh-toast, html[data-motion="reduced"] .tm-settings.sh-settings { animation: fadeIn 120ms ease; }
 @media (max-height: 500px) and (orientation: landscape) {
-  .home.sh-home { padding-bottom: calc(var(--sh-tab-h) + 8px + env(safe-area-inset-bottom)); }
+  .home.sh-home { padding-bottom: 8px; }
   .sh-sheet { height: 100%; max-height: none; border-radius: 0; }
 }
 @media (min-width: 700px) {
