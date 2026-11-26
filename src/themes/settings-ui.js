@@ -184,7 +184,7 @@ export class SettingsUI {
     const row = (t, sub, right = "", id = "") => `<div class="sh-set-row${right.includes('class="sh-seg') ? " sh-set-col" : ""}"><div class="sh-set-t"${id ? ` id="${id}"` : ""}><b>${t}</b>${sub ? `<small>${sub}</small>` : ""}</div>${right}</div>`;
     const link = (k, t, sub, ic = "") => `<button type="button" class="sh-set-row sh-set-link" data-go="${k}"><span class="sh-set-t"><b>${t}</b>${sub ? `<small>${sub}</small>` : ""}</span>${ic}${CHEV}</button>`;
     body.innerHTML = `
-      <section class="sh-profile" aria-label="Profile"><span class="sh-profile-av" aria-hidden="true">${avatarSvg(0, "sh-av")}</span><div class="sh-set-t"><b>${me ? esc(me) : "You"}</b><small>Your name in games and reviews</small></div><button type="button" class="btn sm" data-go="names">Change</button></section>
+      <section class="sh-profile" aria-label="Profile"><span class="sh-profile-av" aria-hidden="true">${g.profileAvatarHtml?.() || avatarSvg(0, "sh-av")}</span><div class="sh-set-t"><b>${me ? esc(me) : "You"}</b><small>Your character and name</small></div><button type="button" class="btn sm" data-go="character">Change</button></section>
       ${this.group("shLookH", "Appearance",
         row("Colours", mode === "time" ? "Auto follows the time of day." : "Auto follows the dark mode of your phone. The default until you pick one.", seg("data-pal", "Colours", [["auto", "Auto"], ["light", "Light"], ["night", "Dark"]], colour), "shColT") +
         link("theme", "Theme", esc(T.name), `<span class="sh-dots" aria-hidden="true">${T.paletteDots.slice(0, 4).map((c) => `<i style="background:${c}"></i>`).join("")}</span>`) +
@@ -236,6 +236,7 @@ export class SettingsUI {
       if (k === "theme") { this.view = "theme"; this.renderBody(); this.el.querySelector("h1")?.focus({ preventScroll: true }); }
       else if (k === "intro") { this.close(); g.onboarding?.showIntro(0, false); }
       else if (k === "bots") g.botsOpen?.();
+      else if (k === "character") g.openCharacterSheet?.({ onClose: () => { if (this.el && this.view === "main") this.renderBody(true); } });
       else if (k === "names") openNamesSheet({ onRename: (a, b) => g.histRenameName?.(a, b), onChange: () => { if (this.el && this.view === "main") this.renderBody(true); } });
       else if (k === "export") this.exportData(e.currentTarget);
     });
