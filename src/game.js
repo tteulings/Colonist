@@ -47,7 +47,7 @@ import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte C
 // this file only calls in through hooks marked with ⚓.
 import { createEmitter, eventToText } from "./core/events.js"; // architecture step 5: the game talks in events
 import { hostOn, hostRecover, mainPhase as hostMainPhase } from "./bots/inapp.js"; // follow-up of step 4: the bot host plays the bots' main phase in the app
-import { createUiEngine } from "./ui/intent.js?v=1996"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
+import { createUiEngine } from "./ui/intent.js?v=1997"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS } from "./seafarers/index.js";
 
 import { RESOURCES, COSTS_SEA as COSTS, PIECE_LIMITS_SEA as PIECE_LIMITS, BANK_SIZE, DICE_WAYS as DICE_WEIGHT, DEV_CARD_TYPES, DEV_DECK, deckList } from "./core/constants.js"; // (COSTS / PIECE_LIMITS carry the Seafarers ship: it is only looked up when this.sea)
@@ -11663,7 +11663,9 @@ onLang(() => { try { game._lastLogKey = null; game.render?.(); if (game.home?.op
 game._navInstall(); // v1.26 Back closes the top screen / sheet (src/nav.js)
 if (document.documentElement.dataset.labwatch) game._watchBoot(); // lab-137 an AI Lab game watched full screen (the normal game screen, spectator)
 else if (document.documentElement.dataset.lab) game._labBoot(document.documentElement.dataset.lab); // AI Lab engine (lab.html)
-else { // lab-131 a game of the AI Lab's last run, opened from the lab (index.html?labgame=ID&what=replay|review&pid=N)
+else { // v1.99.7 index.html#bots (Back from the AI Lab): the Bots page opens
+  if (location.hash === "#bots") { let n = 0; const go = () => { if (document.body.dataset.gameReady || n++ > 100) game.botsOpen?.(); else setTimeout(go, 100); }; go(); }
+  // lab-131 a game of the AI Lab's last run, opened from the lab (index.html?labgame=ID&what=replay|review&pid=N)
   const q = new URLSearchParams(location.search), lg = q.get("labgame");
   if (lg) { let n = 0; const go = () => { if (document.body.dataset.gameReady || n++ > 100) game.histOpenLab(lg, q.get("what") || "stats", q.get("pid") != null ? Number(q.get("pid")) : null); else setTimeout(go, 100); }; go(); }
 }

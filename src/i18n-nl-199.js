@@ -171,4 +171,6 @@ export const NL_199 = [
   ["Time's up, {n1} points after {n2} turns", "Tijd op, {n1} punten na {n2} beurten"],
   ["Compare with a friend", "Vergelijk met een vriend"],
   ["Resume", "Maak af"],
+  // v1.99.7 AI Lab entries (the term stays "AI Lab", as in Settings)
+  ["Watch bots play and see why they choose a move", "Kijk hoe bots spelen en zie waarom ze een zet kiezen"],
 ];

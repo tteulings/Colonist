@@ -406,3 +406,6 @@ b.ai-c.up { color: var(--pos); } b.ai-c.dn { color: var(--neg); } b.ai-c.opp { c
 .ai-chips::-webkit-scrollbar { display: none; }
 .ai-chips .ai-q { flex: none; max-width: none; min-height: 32px; scroll-snap-align: start; }
 .ai-in input { min-height: 40px; }
+/* v1.99.7 secondary link to the AI Lab (it cannot open this game, so it goes to the lab's home) */
+.ai-lablink { margin: 0; padding: 0 4px 12px; text-align: center; font: 700 var(--fs-m, 13px)/1.3 var(--font-body); }
+.ai-lablink a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; color: var(--primary-text, var(--primary)); }

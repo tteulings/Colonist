@@ -10,6 +10,7 @@ import { RES_COLOR } from "./resources.js";
 import { youVsLevels, wilsonPct } from "./review/analysis-facts.js";
 import { BOT_PROFILES as P, profileMini } from "./bot-profiles.js";
 import { BOT_STATS, accOf, winOf, MEASURED_TABS, FAIR } from "./bot-stats.js";
+import { oicon } from "./ui-icons.js";
 import { listBots } from "./bots/registry.js";
 import { scatterSvg, YOU_MIN } from "./bots-page.js";
 
@@ -126,6 +127,7 @@ function botsDraw(g, keep) {
   const segs = [["strength", "Strength"], ["precision", "Precision"], ["you", "You vs them"]];
   el.innerHTML = `<div class="hs-bar"><button type="button" class="hs-x" data-bclose aria-label="Back">${IC.back}</button><div><h3>Bots</h3><small>How strong is which bot?</small></div></div>
     <div class="hs-scroll"><div class="px-bots"><div class="bpg-tabs" role="tablist" aria-label="Game type">${TABS.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === tab}" data-btab="${k}" class="${k === tab ? "on" : ""}">${l}</button>`).join("")}</div>
+    <a class="px-card rv-card bpg-lab" href="./lab.html?from=bots" data-lablink><span class="bpg-lab-ic" aria-hidden="true">${oicon("lab")}</span><span class="bpg-lab-t"><b>AI Lab</b><small>Watch bots play and see why they choose a move</small></span>${IC.chev}</a>
     <div class="px-seg wide" role="group" aria-label="View">${segs.map(([k, l]) => `<button type="button" class="${k === seg ? "on" : ""}" aria-pressed="${k === seg}" data-pxseg="${k}">${l}</button>`).join("")}</div>
     ${seg === "strength" ? ladder : seg === "precision" ? prec : vs}</div></div>`;
   if (keep) el.querySelector(".hs-scroll").scrollTop = top;
