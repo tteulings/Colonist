@@ -7,7 +7,7 @@ import wood from "./wood/art.js";
 import silhouette from "./silhouette/art.js";
 import classic from "./classic/art.js";
 import { RESOURCE_KEYS, DEV_KEYS } from "./art-util.js";
-import { addExtraSeats, applyExtraSeatTokens, applySeatTokens } from "./seats.js";
+import { addExtraSeats, applyExtraSeatTokens, applySeatTokens, cleanLook, currentLook, setSeatLook, permuteSeats } from "./seats.js";
 import { SEAT_PERSONAS } from "./portraits.js";
 import { seaIcons } from "../seafarers/art.js"; // ⚓ Seafarers icons (themes may draw their own)
 
@@ -182,8 +182,24 @@ export const BOT_PROFILE = {
   pimpel: { name: "Pimpel", full: "Professor Pimpel", tag: "Seat 6" },
 };
 let LIVE_T = null; const LIVE = [];
-/** The rigged portrait of a seat for the current theme (cached), for the inline (animated) avatars. */
-const liveArt = (seat) => (LIVE[seat] ??= (() => { try { return LIVE_T?.avatar?.(SEAT_PRESETS[seat], true) || ""; } catch (_) { return ""; } })());
+// v1.99.3 characters: a seat shows the character LOOK[seat] (a permutation of the six; src/themes/seats.js). The sprite holds one
+// portrait per CHARACTER (#av-N, N = character), so a look never rebuilds it; avatarSvg(seat) maps seat -> character.
+export { cleanLook };
+export const getLook = currentLook;
+export const charOf = (seat) => currentLook()[seat] ?? seat;
+export const personaOf = (seat) => SEAT_PERSONAS[charOf(seat)];
+/** Make the table show these characters: re-point every theme's seat colours, the colour tokens and the ivory marker. Returns true when it changed. */
+export function setLook(v) {
+  const next = cleanLook(v), cur = currentLook();
+  if (next.every((c, i) => c === cur[i])) return false;
+  setSeatLook(next);
+  Object.values(THEMES).forEach((T) => permuteSeats(T, next));
+  if (LIVE_T) applySeatTokens(LIVE_T);
+  if (typeof document !== "undefined") { const iv = next.indexOf(4); if (iv === 4) delete document.documentElement.dataset.ivory; else document.documentElement.dataset.ivory = String(iv); }
+  return true;
+}
+/** The rigged portrait of a character for the current theme (cached), for the inline (animated) avatars. */
+const liveArt = (ch) => (LIVE[ch] ??= (() => { try { return LIVE_T?.avatar?.(SEAT_PRESETS[ch], true) || ""; } catch (_) { return ""; } })());
 export function buildSprite(T) {
   LIVE_T = T; LIVE.length = 0;
   let s = `<svg id="themeSprite" class="sprites" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>${T.uiDefs ? T.uiDefs() : ""}`;
@@ -211,12 +227,18 @@ export function awardStat(stat, n, held, title, ic) {
   if (!held && n < (stat === "road" ? 3 : 1)) return "";
   return `<span data-stat="${stat}"${held ? ' class="award"' : ""} title="${title}">${icon(ic)}${n}${held ? '<b class="aw-plus">+2</b>' : ""}</span>`;
 }
-export const avatarSvg = (seat, cls = "") => `<span class="avatar pc-${seat} ${cls}"><svg viewBox="-50 -50 100 100" aria-hidden="true"><use href="#av-${seat}" x="-50" y="-50" width="100" height="100"/></svg></span>`;
+export const avatarSvg = (seat, cls = "") => `<span class="avatar pc-${seat} ${cls}" data-ch="${charOf(seat)}"><svg viewBox="-50 -50 100 100" aria-hidden="true"><use href="#av-${charOf(seat)}" x="-50" y="-50" width="100" height="100"/></svg></span>`;
+/** A portrait of a CHARACTER in its own colour, whatever seat (or none) it sits in: the character sheet, the picker, past games saved with another look. */
+export const chStyle = (c) => `--pc:var(--c${c});--pc-text:var(--c${c}-text);--pc-ink:var(--c${c}-ink);--pc-light:var(--c${c}-light);--pc-dark:var(--c${c}-dark);--pc-line:var(--c${c}-line)`;
+export const avatarChar = (c, cls = "", live = false) => {
+  const art = live && avatarAnimOn() ? liveArt(c) : "";
+  return `<span class="avatar ch-${c}${art ? " av-live" : ""} ${cls}" data-ch="${c}" style="${chStyle(c)}"><svg viewBox="-50 -50 100 100" aria-hidden="true">${art || `<use href="#av-${c}" x="-50" y="-50" width="100" height="100"/>`}</svg></span>`;
+};
 /** An avatar that can animate: the portrait drawn inline with its rig groups (themes without a rig, or Settings off: the plain sprite avatar). */
 export function avatarLive(seat, cls = "") {
-  const art = avatarAnimOn() ? liveArt(seat) : "";
+  const art = avatarAnimOn() ? liveArt(charOf(seat)) : "";
   if (!art) return avatarSvg(seat, cls);
-  return `<span class="avatar pc-${seat} av-live ${cls}"><svg viewBox="-50 -50 100 100" aria-hidden="true">${art}</svg></span>`;
+  return `<span class="avatar pc-${seat} av-live ${cls}" data-ch="${charOf(seat)}"><svg viewBox="-50 -50 100 100" aria-hidden="true">${art}</svg></span>`;
 }
 export const dieSvg = (n, cls = "") => `<svg class="die ${cls}" viewBox="-50 -50 100 100" aria-hidden="true"><use href="#die-${n}" x="-50" y="-50" width="100" height="100"/></svg>`;
 export const cardSvg = (k, big = false) => `<svg viewBox="0 0 250 350" aria-hidden="true"><use href="#${big ? "card" : "cardm"}-${k}"/></svg>`;

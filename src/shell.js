@@ -290,6 +290,7 @@ export class Home {
     if (!all.length) return `<button type="button" class="sh-card hm-stats empty" data-home="games"><span class="hm-st-art" aria-hidden="true">${STATS_ART}</span><span class="hm-st-tx"><b>Your games</b><small>Play your first game, your overview shows up here.</small></span></button>`;
     const won = all.filter((m) => m.result === "won").length, pct = Math.round(100 * won / all.length);
     let streak = 0; for (const m of all) { if (m.result === "won") streak++; else break; }
+    const D0 = this.opts.deps?.();
     const last = all[0], mine = last.seats?.find((x) => x.you), best = Math.max(0, ...(last.seats || []).filter((x) => !x.you).map((x) => x.vp || 0));
     const profs = [...new Set((last.seats || []).filter((x) => !x.you).map((x) => x.prof))].filter(Boolean);
     const lvl = profs.length === 1 && !last.hot ? (this.game.shellLevelLabel?.(profs[0]) || "") : "";
@@ -305,7 +306,7 @@ export class Home {
         <span class="hm-st-n"><b>${all.length}</b><small>Played</small></span><span class="hm-st-n"><b>${won}</b><small>Won</small></span><span class="hm-st-n"><b>${streak}</b><small>Win streak</small></span>
         <span class="hm-dots" aria-hidden="true">${dots}</span>
       </span>
-      <span class="hm-st-last">${mine ? avatarSvg(last.me, "hm-sav") : ""}<span class="hm-st-lt"><span>Last game</span> <b>${last.result === "won" ? "Won" : "Lost"}</b> <span>${mine ? mine.vp : "?"}–${best}</span>${lvl ? ` <span>vs</span> <span>${esc(lvl)}</span>` : ""} · <span>${esc(ago)}</span>${accs.length ? ` · <span>Best accuracy</span> <span>${Math.max(...accs)}</span>` : ""}</span></span>
+      <span class="hm-st-last">${mine ? (D0?.avatarChar ? D0.avatarChar((last.look || [0, 1, 2, 3, 4, 5])[last.me] ?? last.me, "hm-sav") : avatarSvg(last.me, "hm-sav")) : ""}<span class="hm-st-lt"><span>Last game</span> <b>${last.result === "won" ? "Won" : "Lost"}</b> <span>${mine ? mine.vp : "?"}–${best}</span>${lvl ? ` <span>vs</span> <span>${esc(lvl)}</span>` : ""} · <span>${esc(ago)}</span>${accs.length ? ` · <span>Best accuracy</span> <span>${Math.max(...accs)}</span>` : ""}</span></span>
     </button>`;
   }
 
@@ -422,10 +423,25 @@ export function openNewGame(game, deps, { friend = false } = {}) {
   const rulesSummary = () => [sea() ? "14 points" : `${d.winPoints} points`, `${d.dice === "deck" ? "event deck" : d.dice} dice`,
     1 + d.humans.slice(0, d.numBots).filter((h) => h && d.mode !== "rush").length > 1 ? "friend on this phone" : ""].filter(Boolean).join(", ");
 
-  const avatars = () => P.slice(1).map((cfg, i) => {
+  // v1.99.3 characters: d.look[seat] = the character in that seat (a permutation; seat 0 is you); every character has one colour
+  const look = () => (Array.isArray(d.look) && d.look.length === 6 ? d.look : [0, 1, 2, 3, 4, 5]);
+  const nameOf = (id) => { const c = look()[id]; return c === 0 ? P[0].hsName : P[c].name; };
+  const portrait = (id, cls) => (D.avatarChar ? D.avatarChar(look()[id], cls) : avatarSvg(id, cls));
+  let pick = null; // the open character picker: 0 = you, 1..5 = that opponent's seat
+  const avatars = () => P.slice(1).map((_, i) => {
     const id = i + 1, on = id <= d.numBots, offSea = few() && id > SEA_MAX_BOTS;
-    return `<button type="button" class="sh-bot pc-${id}${on ? " on" : ""}" data-bot="${id}" data-k="bot${id}" aria-pressed="${on}" ${offSea ? "disabled" : ""} aria-label="${esc(cfg.name)}">${avatarSvg(id, "sh-bot-av")}<span class="sh-bot-n">${esc(cfg.name)}</span></button>`;
+    return `<button type="button" class="sh-bot${on ? " on" : ""}" data-bot="${id}" data-k="bot${id}" aria-pressed="${on}" ${offSea ? "disabled" : ""} aria-label="${esc(nameOf(id))}">${portrait(id, "sh-bot-av")}<span class="sh-bot-n">${esc(nameOf(id))}</span></button>`;
   }).join("");
+  const mePlays = () => { const c = look()[0]; return `<button type="button" class="sh-row sh-row-link sh-me" data-action="character" data-k="character">${portrait(0, "sh-bot-av")}<span class="sh-row-t"><b>You play as</b><small><span>${esc(D.charLabel ? D.charLabel(c) : "")}</span> · <span>${["Red", "Blue", "Orange", "Green", "Ivory", "Purple"][c]}</span></small></span>${CHEV}</button>`; };
+  const pickHtml = () => {
+    const me = pick === 0;
+    return `<div class="sh-pick-wrap"><div class="sh-pick" role="dialog" aria-modal="true" aria-labelledby="shPkT">
+      <div class="sh-lab-row"><h3 class="sh-lab" id="shPkT" tabindex="-1">${me ? "You play as" : "Change opponent"}</h3><button type="button" class="sh-x" data-action="pickclose" data-k="pickx" aria-label="Close">${oicon("close")}</button></div>
+      ${D.charGridHtml({ look: look(), numBots: d.numBots, mode: me ? "me" : "seat", seat: pick })}
+      ${me ? `<label class="ch-name"><span>Your name</span><input class="hs-name-in" data-me value="${esc(D.Names.me())}" placeholder="You" maxlength="14" autocomplete="off" spellcheck="false"></label>` : ""}
+      ${!me && pick > 1 ? `<button type="button" class="sh-row sh-row-link sh-drop" data-action="dropbot" data-k="dropbot"><span class="sh-row-t"><b>Play without this bot</b><small>${pick > d.numBots ? "" : pick < d.numBots ? "The bots after it leave too" : "One bot fewer"}</small></span></button>` : ""}
+      <button type="button" class="btn primary block" data-action="pickclose" data-k="pickdone">Done</button></div></div>`;
+  };
 
   const mainHtml = () => {
     const lv = d.botStyleMode === "all" ? d.allPreset : "";
@@ -440,6 +456,7 @@ export function openNewGame(game, deps, { friend = false } = {}) {
         </div></section>
       <section class="sh-sec"><div class="sh-lab-row"><h3 class="sh-lab" id="shOppL">Opponents</h3><span class="sh-chip" aria-live="polite">${nBots === 1 ? "1 bot" : `${nBots} bots`}</span></div>
         <div class="sh-bots" role="group" aria-labelledby="shOppL">${avatars()}</div>
+        ${mePlays()}
         ${sea() ? `<p class="sh-help">Seafarers is a 3–4 player scenario.</p>` : few() ? `<p class="sh-help">${MAPS.find((m) => m[0] === d.board)[1]} is a 3–4 player map.</p>` : bigN(d.numBots) ? `<p class="sh-help">${d.numBots + 1} players: the bigger island and a build window between turns.</p>` : ""}</section>
       <section class="sh-sec"><h3 class="sh-lab">Level</h3>
         ${seg("level", LEVELS, inMain ? lv : "", "Bot level")}
@@ -452,7 +469,8 @@ export function openNewGame(game, deps, { friend = false } = {}) {
   };
 
   // pass & play seats (Classic only): the same controls and names as before, now inside More rules
-  const seatRows = () => P.slice(0, d.numBots + 1).map((cfg, id) => {
+  const seatRows = () => P.slice(0, d.numBots + 1).map((_, id) => {
+    const cfg = { name: id === 0 ? "You" : nameOf(id) };
     const human = id === 0 || (d.mode !== "rush" && d.humans[id - 1]);
     const hot = D.hotseatOn(d);
     const taken = d.names.filter((n, i) => i !== id && i <= d.numBots && (i === 0 || (d.mode !== "rush" && d.humans[i - 1])));
@@ -465,7 +483,7 @@ export function openNewGame(game, deps, { friend = false } = {}) {
     const main = human
       ? (hot ? `<input class="hs-name-in" data-name="${id}" value="${esc(d.names[id] || "")}" placeholder="${esc(def)}" maxlength="14" aria-label="Name for seat ${id + 1}" autocomplete="off" spellcheck="false">${chips.length ? `<div class="hp-chips" role="group" aria-label="Remembered names">${chips.map((n) => `<button type="button" class="hp-chip" data-chip="${id}" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div>` : ""}` : `<div class="hs-seat-name">You</div>`)
       : `<div class="hs-seat-name">${esc(cfg.name)}</div>`;
-    return `<div class="hs-seat pc-${id}">${avatarSvg(id, "ng-bot-avatar")}<div class="hs-seat-main">${main}</div>${kind}</div>`;
+    return `<div class="hs-seat">${portrait(id, "ng-bot-avatar")}<div class="hs-seat-main">${main}</div>${kind}</div>`;
   }).join("");
 
   const rulesHtml = () => {
@@ -500,8 +518,8 @@ export function openNewGame(game, deps, { friend = false } = {}) {
     return `<header class="sh-sheet-head sh-layer-head"><button type="button" class="sh-x sh-back" data-action="back" aria-label="Back">${BACK}</button><h2 id="shLvT" tabindex="-1">Levels</h2></header>
       <div class="sh-sheet-body">
         <section class="sh-sec">${seg("styleMode", [["all", "All bots"], ["each", "Each bot separately"]], d.botStyleMode, "Style for")}</section>
-        ${each ? `<section class="sh-sec sh-each">${seats.length ? seats.map((id) => `<label class="sh-each-row pc-${id}">${avatarSvg(id, "sh-bot-av")}<span class="sh-each-n">${esc(P[id].name)}</span>
-            <select data-bot-level="${id - 1}" data-k="lv${id}" aria-label="${esc(P[id].name)} level">${keys.map((k) => `<option value="${k}"${d.perBot[id - 1] === k ? " selected" : ""}>${esc(levelName(k))}</option>`).join("")}</select></label>`).join("") : `<p class="sh-help">No bots at this table.</p>`}</section>`
+        ${each ? `<section class="sh-sec sh-each">${seats.length ? seats.map((id) => `<label class="sh-each-row">${portrait(id, "sh-bot-av")}<span class="sh-each-n">${esc(nameOf(id))}</span>
+            <select data-bot-level="${id - 1}" data-k="lv${id}" aria-label="${esc(nameOf(id))} level">${keys.map((k) => `<option value="${k}"${d.perBot[id - 1] === k ? " selected" : ""}>${esc(levelName(k))}</option>`).join("")}</select></label>`).join("") : `<p class="sh-help">No bots at this table.</p>`}</section>`
         : `<section class="sh-sec"><div class="sh-levels" role="radiogroup" aria-label="Level for all bots">${keys.map((k) => `<button type="button" role="radio" class="sh-level${d.allPreset === k ? " on" : ""}" data-level="${k}" data-k="lvl:${k}" aria-checked="${d.allPreset === k}"><b>${esc(levelName(k))}</b><small>${esc(D.AI_PRESET_INFO[k]?.tagline || "")}</small></button>`).join("")}</div></section>`}
       </div>
       <footer class="sh-sheet-foot"><button type="button" class="btn primary block" data-action="back">Done</button></footer>`;
@@ -515,19 +533,22 @@ export function openNewGame(game, deps, { friend = false } = {}) {
         <header class="sh-sheet-head"><h2 id="shNgT" tabindex="-1">New game</h2><button type="button" class="sh-x" data-action="cancel" aria-label="Close">${oicon("close")}</button></header>
         <div class="sh-sheet-body">${mainHtml()}</div>
         <footer class="sh-sheet-foot"><button type="button" class="btn primary block ng-start" data-action="start">Start game</button></footer></div>
+      ${pick != null ? pickHtml() : ""}
       ${layer ? `<div class="sh-layer sh-more${enter ? " enter" : ""} open" data-layer="${layer}" role="dialog" aria-modal="true" aria-labelledby="${layer === "rules" ? "shMoreT" : "shLvT"}">${layer === "rules" ? rulesHtml() : levelsHtml()}</div>` : ""}
     </div>`;
     enter = false;
     const m = wrap.querySelector(".sh-main .sh-sheet-body"); if (m) m.scrollTop = sc;
     const l = wrap.querySelector(".sh-layer .sh-sheet-body"); if (l) l.scrollTop = lsc;
-    if (layer) wrap.querySelector(".sh-main")?.setAttribute("inert", "");
+    if (layer || pick != null) wrap.querySelector(".sh-main")?.setAttribute("inert", "");
+    if (pick != null && layer) wrap.querySelector(".sh-layer")?.setAttribute("inert", "");
+    if (pick != null && !focusKey) wrap.querySelector(".ch-opt.on, #shPkT")?.focus({ preventScroll: true });
     if (focusKey) { const f = wrap.querySelector(`[data-k="${focusKey}"]`); focusKey = ""; f?.focus({ preventScroll: true }); }
   };
 
   const onKey = (e) => {
-    if (e.key === "Escape") { e.preventDefault(); layer ? goBack() : close(); }
+    if (e.key === "Escape") { e.preventDefault(); if (pick != null) { pick = null; focusKey = "character"; render(); } else layer ? goBack() : close(); }
     else if (e.key === "Tab") { // focus trap
-      const root = wrap.querySelector(".sh-layer") || wrap.querySelector(".sh-main");
+      const root = wrap.querySelector(".sh-pick") || wrap.querySelector(".sh-layer") || wrap.querySelector(".sh-main");
       const f = [...root.querySelectorAll("button:not([disabled]), input, select")].filter((x) => x.offsetParent !== null || x === document.activeElement);
       if (!f.length) return;
       const a = f[0], z = f[f.length - 1];
@@ -582,15 +603,21 @@ export function openNewGame(game, deps, { friend = false } = {}) {
 
   wrap.addEventListener("click", (e) => {
     if (e.target === wrap) { layer ? goBack() : close(); return; }
+    if (e.target.classList?.contains("sh-pick-wrap")) { pick = null; focusKey = ""; render(); return; }
     const t = e.target.closest("button");
     if (!t || !wrap.contains(t)) return;
     focusKey = t.dataset.k || "";
     let changed = true;
     const a = t.dataset.action;
-    if (t.dataset.set) { const i = t.dataset.set.indexOf(":"); set(t.dataset.set.slice(0, i), t.dataset.set.slice(i + 1)); }
-    else if (t.dataset.bot) { // opponents are the first N seats: tapping a seat sets the table to that seat (min 1 bot)
+    if (t.dataset.ch != null) { d.look = D.pickChar(look(), pick ?? 0, Number(t.dataset.ch)); }
+    else if (a === "character") { pick = 0; focusKey = ""; }
+    else if (a === "pickclose") { pick = null; focusKey = "character"; }
+    else if (t.dataset.set) { const i = t.dataset.set.indexOf(":"); set(t.dataset.set.slice(0, i), t.dataset.set.slice(i + 1)); }
+    else if (a === "dropbot") { const prev = d.numBots; d.numBots = clampN(pick - 1, 1, maxBots()); pick = null; focusKey = ""; bigAdjust(prev); }
+    else if (t.dataset.bot) { // opponents are the first N seats. v1.99.3: tapping a bot at the table opens its character picker (swap it, or leave it out); tapping a seat beyond the table adds bots up to it
       const id = Number(t.dataset.bot), prev = d.numBots;
-      d.numBots = clampN(id <= d.numBots ? id - 1 : id, 1, maxBots());
+      if (id <= d.numBots) { pick = id; focusKey = ""; changed = false; render(); return; }
+      d.numBots = clampN(id, 1, maxBots());
       bigAdjust(prev);
     } else if (t.dataset.level) { set("level", t.dataset.level); }
     else if (t.dataset.step) {
@@ -613,6 +640,7 @@ export function openNewGame(game, deps, { friend = false } = {}) {
     if (changed) { persist(); game.sfx?.click?.(); render(); if (layer && enter === false && !focusKey) wrap.querySelector(layer === "rules" ? "#shMoreT" : "#shLvT")?.focus({ preventScroll: true }); }
   });
   wrap.addEventListener("input", (e) => {
+    if (e.target.matches?.("[data-me]")) { D.Names.setMe?.(e.target.value); return; }
     const inp = e.target.closest("[data-name]");
     if (inp) { d.names = d.names.map((n, i) => (i === Number(inp.dataset.name) ? inp.value.slice(0, 14) : n)); persist(); }
   });

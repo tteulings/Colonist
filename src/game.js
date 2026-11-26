@@ -1,4 +1,4 @@
-import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, avatarLive, avatarAnimOn, dieSvg, cardSvg, motionReduced, SEAT_PRESETS, awardStat, paletteTick } from "./themes/manager.js";
+import { THEMES, storedThemeId, saveThemeId, loadFonts, installSprite, applyMotionAttr, icon, avatarSvg, avatarLive, avatarAnimOn, dieSvg, cardSvg, motionReduced, SEAT_PRESETS, setLook, getLook, cleanLook, avatarChar, awardStat, paletteTick } from "./themes/manager.js";
 import { SvgBoardRenderer, drawSpec, PIECE_GROW, PIECE_OUTLINE_PX, PIECE_HALO_PX, pieceHalo, outlined } from "./themes/board-renderer.js";
 import { Fx } from "./themes/fx.js";
 import { initAvatarAnim, avatarLogEvent, avatarTick } from "./avatar-anim.js"; // v1.91 avatar animations
@@ -11,7 +11,7 @@ import { mapLayout, isMapBoard, assignMapTiles, assignMapPorts, randomShapeHexes
 import { isBigTable, bigAxialHexes, BIG_CENTER_SHIFT, BIG_BANK_SIZE, BIG_RUSH_INTERVAL, assignBigTiles, assignBigPorts, createBigDevDeck, SbpMixin } from "./six.js";
 import { SixUiMixin } from "./six-ui.js";
 import { HotseatMixin } from "./hotseat.js";
-import { Names, cleanName, sameName, openNamesSheet, dispName } from "./names.js";
+import { Names, cleanName, sameName, openNamesSheet, dispName, openCharacterSheet, charGridHtml, pickChar, charLabel } from "./names.js";
 import { StatsMixin, installStats } from "./stats.js"; // end-of-game statistics: the recorder
 import { StatsUiMixin } from "./stats-ui.js"; // … the stats screen, heatmaps and the replay
 import { LiveStatsMixin, installLiveStats } from "./live-stats.js"; // … and the same cards during the game
@@ -45,7 +45,7 @@ import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte C
 // this file only calls in through hooks marked with ⚓.
 import { createEmitter, eventToText } from "./core/events.js"; // architecture step 5: the game talks in events
 import { hostOn, hostRecover, mainPhase as hostMainPhase } from "./bots/inapp.js"; // follow-up of step 4: the bot host plays the bots' main phase in the app
-import { createUiEngine } from "./ui/intent.js?v=1992"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
+import { createUiEngine } from "./ui/intent.js?v=1994"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS } from "./seafarers/index.js";
 
 import { RESOURCES, COSTS_SEA as COSTS, PIECE_LIMITS_SEA as PIECE_LIMITS, BANK_SIZE, DICE_WAYS as DICE_WEIGHT, DEV_CARD_TYPES, DEV_DECK, deckList } from "./core/constants.js"; // (COSTS / PIECE_LIMITS carry the Seafarers ship: it is only looked up when this.sea)
@@ -251,6 +251,7 @@ const DEFAULT_SETTINGS = {
   perBot: ["builder", "trader", "shark", "builder", "trader"],
   humans: [false, false, false, false, false], // pass & play: seats 1-5 played by a person (Classic only)
   names: ["", "", "", "", "", ""],               // pass & play names per seat ("" = the seat's persona name)
+  look: [0, 1, 2, 3, 4, 5], // v1.99.3 characters: look[seat] = the character (index into PLAYER_CONFIG, which fixes its colour) sitting in that seat; always a permutation of 0..5; seat 0 is you
 };
 const RUSH_INTERVALS = [5, 8, 15];
 const RUSH_DISCARD_SECONDS = 20;
@@ -326,6 +327,7 @@ function normalizeSettings(raw) {
   s.humans = DEFAULT_SETTINGS.humans.map((_, i) => s.mode !== "rush" && !!hum[i]);
   const nm = Array.isArray(s.names) ? s.names : [];
   s.names = DEFAULT_SETTINGS.names.map((_, i) => String(nm[i] ?? "").replace(/\s+/g, " ").trim().slice(0, 14));
+  s.look = cleanLook(s.look); // a save from before v1.99.3 has none: the default characters
   return s;
 }
 
@@ -336,11 +338,12 @@ function hotseatOn(s) {
 
 /** Who sits in a seat: a person or a bot, and the name shown (pass & play: the chosen name, else the persona). */
 function seatSpec(s, id) {
-  const cfg = PLAYER_CONFIG[id];
+  const cfg = PLAYER_CONFIG[cleanLook(s?.look)[id]]; // v1.99.3: the character in this seat (its name, portrait and colour)
   const isHuman = id === 0 || (s?.mode !== "rush" && !!s?.humans?.[id - 1]);
-  if (!isHuman || !hotseatOn(s)) return { isHuman, name: cfg.name, short: cfg.short };
+  const botName = cfg === PLAYER_CONFIG[0] ? cfg.hsName : cfg.name; // Rosa is "You" only in seat 0; as a bot she is Roodhart
+  if (!isHuman || !hotseatOn(s)) return isHuman && id === 0 ? { isHuman, name: "You", short: undefined } : { isHuman, name: botName, short: cfg.short };
   const name = (s.names?.[id] || "").trim() || `Player ${id + 1}`; // pass & play: chosen name, else "Player 2" (never a bot's name)
-  return { isHuman, name, short: name === cfg.name ? cfg.short : name.length > 9 ? `${name.slice(0, 8)}…` : undefined };
+  return { isHuman, name, short: name === botName ? cfg.short : name.length > 9 ? `${name.slice(0, 8)}…` : undefined };
 }
 
 // Which preset (if any) a strategy object matches exactly
@@ -1041,6 +1044,17 @@ class ColonistFullGame {
     } catch (_) { return false; }
   }
 
+  /** v1.99.3: the characters the NEXT game starts with (the New game settings; the game on screen keeps its own). */
+  _nextLook() { return normalizeSettings(ColonistFullGame.loadLastSettings()).look; }
+  /** Settings > You: your portrait in the character you picked for the next game. */
+  profileAvatarHtml() { return avatarChar(this._nextLook()[0], "sh-av"); }
+  /** Settings > You > Change: the character sheet (grid of characters + your name), saved at once for the next game. */
+  openCharacterSheet(o = {}) {
+    const last = normalizeSettings(ColonistFullGame.loadLastSettings());
+    return openCharacterSheet({ look: last.look, numBots: last.numBots, onClose: o.onClose,
+      onLook: (look) => ColonistFullGame.saveLastSettings({ ...normalizeSettings(ColonistFullGame.loadLastSettings()), look }) });
+  }
+
   /** What the home screen shows on its Continue button (null: nothing to continue). */
   _savedSummary() {
     if (!this._homeSave || this.winner || !this.players?.length) return null;
@@ -1482,7 +1496,9 @@ class ColonistFullGame {
     this.handHidden = false;
     this._hsNote = null;
     this._hsSecrets = null;
-    this.players = PLAYER_CONFIG.slice(0, this.settings.numBots + 1).map((config, id) => {
+    setLook(this.settings.look); // v1.99.3: the characters at this table (colours, portraits, names)
+    this.players = PLAYER_CONFIG.slice(0, this.settings.numBots + 1).map((_, id) => {
+      const config = PLAYER_CONFIG[this.settings.look[id]];
       const seat = seatSpec(this.settings, id);
       return {
       id,
@@ -7368,7 +7384,7 @@ class ColonistFullGame {
         rushDevPlayed: !!p.rushDevPlayed,
         rushTradeTried: !!p.rushTradeTried,
       })),
-      settings: { ...this.settings },
+      settings: (({ look, ...rest }) => (look && look.some((c, i) => c !== i) ? { ...rest, look: look.slice() } : rest))(this.settings), // v1.99.3: the look is stored only when it is not the default (a default game serializes exactly as before)
       rush: this.rush ? JSON.parse(JSON.stringify({ ...this.rush, seven: this.rush.seven && { ...this.rush.seven, leftMs: Number.isFinite(this.rush.seven.leftMs) ? this.rush.seven.leftMs : null } })) : null,
       diceDeck: this.diceDeck,
       lastDiceTotal: this.lastDiceTotal,
@@ -7550,11 +7566,12 @@ class ColonistFullGame {
     this.handHidden = true;
     this._hsNote = null;
     this._hsSecrets = null;
+    setLook(this.settings.look); // v1.99.3: the saved game's own characters (a save from before has none: the defaults)
     this.players = data.players.map((saved, id) => {
-      const config = PLAYER_CONFIG[id];
+      const config = PLAYER_CONFIG[this.settings.look[id]];
       const spec = seatSpec(this.settings, id);
       const seat = typeof saved.isHuman === "boolean" ? { ...spec, isHuman: id === 0 || saved.isHuman, name: (saved.isHuman ? saved.name : dispName(saved.name)) || spec.name } : spec;
-      if (seat.name !== spec.name) seat.short = seat.name === config.name ? config.short : seat.name.length > 9 ? `${seat.name.slice(0, 8)}…` : undefined;
+      if (seat.name !== spec.name) seat.short = seat.name === (config === PLAYER_CONFIG[0] ? config.hsName : config.name) ? config.short : seat.name.length > 9 ? `${seat.name.slice(0, 8)}…` : undefined;
       return {
         id,
         name: seat.name,
@@ -9704,7 +9721,7 @@ class ColonistFullGame {
     return {
       AI_PRESETS, AI_PRESET_INFO, PLAYER_CONFIG, DEFAULT_SETTINGS, RUSH_INTERVALS, RUSH_DISCARD_LIMIT, BIG_RUSH_INTERVAL,
       normalizeSettings, loadLast: () => ColonistFullGame.loadLastSettings(), saveLast: (x) => ColonistFullGame.saveLastSettings(normalizeSettings(x)), isBigTable, discardLimitFor, hotseatOn, presetForStrategy,
-      byStrength, Names, cleanName, sameName, openNamesSheet, openProfileSheet,
+      byStrength, Names, cleanName, sameName, openNamesSheet, openProfileSheet, avatarChar, getLook, charGridHtml, pickChar, charLabel,
     };
   }
   _showDifficultyModal({ friend = false } = {}) { return openNewGame(this, this._shellDeps(), { friend }); }
@@ -11635,6 +11652,7 @@ Object.assign(ColonistFullGame.prototype, NavMixin); // v1.26
 
 const game = new ColonistFullGame();
 window.__colonistGame = game; // debug/testing handle
+window.__colonistLook = getLook; // debug/testing handle: the characters at the table (v1.99.3)
 onLang(() => { try { game._lastLogKey = null; game.render?.(); if (game.home?.open) game.home.render(); } catch (_) { /* the page is localized by src/i18n.js anyway */ } }); // v1.87 a new language: the journal and Home are built again
 game._navInstall(); // v1.26 Back closes the top screen / sheet (src/nav.js)
 if (document.documentElement.dataset.labwatch) game._watchBoot(); // lab-137 an AI Lab game watched full screen (the normal game screen, spectator)

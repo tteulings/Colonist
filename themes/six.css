@@ -10,14 +10,50 @@
    (--pc-line = the board piece's line, #6B6253 in A/B/Classic, Indian ink in C), in every theme.
    [data-theme] in the selectors outranks the per-theme chip rules ([data-theme="X"] .pchip …). Classic's chips sit on
    its dark blue strip (no colour bar, plain points), where the ivory reads by itself: only rings and badges there. */
-[data-theme] .avatar.pc-4 {
+[data-theme]:not([data-ivory]) .avatar.pc-4 {
   box-shadow: 0 0 0 var(--av-ring, 3px) var(--pc), 0 0 0 calc(var(--av-ring, 3px) + 1.25px) var(--pc-line), var(--avatar-shadow, none);
 }
-:is([data-theme="A"], [data-theme="B"], [data-theme="C"]) .pchip.pc-4 .vpn, [data-theme] .pchip.six.pc-4 .sx-vp, [data-theme] .prow.pc-4 .vp { box-shadow: inset 0 0 0 1.5px var(--pc-line); }
-[data-theme] .pstrip.six-up > .pchip.six.pc-4 .sx-vp { box-shadow: inset 0 0 0 1.5px var(--pc-line), 0 0 0 1.5px var(--glass-active, rgba(255,255,255,.9)); }
-:is([data-theme="A"], [data-theme="B"], [data-theme="C"]) .pchip.pc-4 { box-shadow: inset 0 3px 0 var(--pc), inset 0 4.5px 0 var(--pc-line), var(--glass-shadow, 0 0 0 0 transparent); }
-:is([data-theme="A"], [data-theme="B"], [data-theme="C"]) .pchip.pc-4.active { box-shadow: inset 0 3px 0 var(--pc), inset 0 4.5px 0 var(--pc-line), 0 0 0 2px var(--ring, var(--accent)), var(--glass-shadow, 0 0 0 0 transparent); }
-[data-theme] .pc-4 .rush-voter-dot { box-shadow: inset 0 0 0 2px var(--pc-line); }
+/* v1.99.3 the ivory character in another seat gets the same readable outline */
+[data-theme][data-ivory="0"] .avatar.pc-0 {box-shadow: 0 0 0 var(--av-ring, 3px) var(--pc), 0 0 0 calc(var(--av-ring, 3px) + 1.25px) var(--pc-line), var(--avatar-shadow, none); }
+[data-theme][data-ivory="1"] .avatar.pc-1 {box-shadow: 0 0 0 var(--av-ring, 3px) var(--pc), 0 0 0 calc(var(--av-ring, 3px) + 1.25px) var(--pc-line), var(--avatar-shadow, none); }
+[data-theme][data-ivory="2"] .avatar.pc-2 {box-shadow: 0 0 0 var(--av-ring, 3px) var(--pc), 0 0 0 calc(var(--av-ring, 3px) + 1.25px) var(--pc-line), var(--avatar-shadow, none); }
+[data-theme][data-ivory="3"] .avatar.pc-3 {box-shadow: 0 0 0 var(--av-ring, 3px) var(--pc), 0 0 0 calc(var(--av-ring, 3px) + 1.25px) var(--pc-line), var(--avatar-shadow, none); }
+[data-theme][data-ivory="5"] .avatar.pc-5 {box-shadow: 0 0 0 var(--av-ring, 3px) var(--pc), 0 0 0 calc(var(--av-ring, 3px) + 1.25px) var(--pc-line), var(--avatar-shadow, none); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"]):not([data-ivory]) .pchip.pc-4 .vpn, [data-theme]:not([data-ivory]) .pchip.six.pc-4 .sx-vp, [data-theme]:not([data-ivory]) .prow.pc-4 .vp { box-shadow: inset 0 0 0 1.5px var(--pc-line); }
+/* v1.99.3 the ivory character in another seat gets the same readable outline */
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="0"] .pchip.pc-0 .vpn, [data-theme][data-ivory="0"] .pchip.six.pc-0 .sx-vp, [data-theme][data-ivory="0"] .prow.pc-0 .vp {box-shadow: inset 0 0 0 1.5px var(--pc-line); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="1"] .pchip.pc-1 .vpn, [data-theme][data-ivory="1"] .pchip.six.pc-1 .sx-vp, [data-theme][data-ivory="1"] .prow.pc-1 .vp {box-shadow: inset 0 0 0 1.5px var(--pc-line); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="2"] .pchip.pc-2 .vpn, [data-theme][data-ivory="2"] .pchip.six.pc-2 .sx-vp, [data-theme][data-ivory="2"] .prow.pc-2 .vp {box-shadow: inset 0 0 0 1.5px var(--pc-line); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="3"] .pchip.pc-3 .vpn, [data-theme][data-ivory="3"] .pchip.six.pc-3 .sx-vp, [data-theme][data-ivory="3"] .prow.pc-3 .vp {box-shadow: inset 0 0 0 1.5px var(--pc-line); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="5"] .pchip.pc-5 .vpn, [data-theme][data-ivory="5"] .pchip.six.pc-5 .sx-vp, [data-theme][data-ivory="5"] .prow.pc-5 .vp {box-shadow: inset 0 0 0 1.5px var(--pc-line); }
+[data-theme]:not([data-ivory]) .pstrip.six-up > .pchip.six.pc-4 .sx-vp { box-shadow: inset 0 0 0 1.5px var(--pc-line), 0 0 0 1.5px var(--glass-active, rgba(255,255,255,.9)); }
+/* v1.99.3 the ivory character in another seat gets the same readable outline */
+[data-theme][data-ivory="0"] .pstrip.six-up > .pchip.six.pc-0 .sx-vp {box-shadow: inset 0 0 0 1.5px var(--pc-line), 0 0 0 1.5px var(--glass-active, rgba(255,255,255,.9)); }
+[data-theme][data-ivory="1"] .pstrip.six-up > .pchip.six.pc-1 .sx-vp {box-shadow: inset 0 0 0 1.5px var(--pc-line), 0 0 0 1.5px var(--glass-active, rgba(255,255,255,.9)); }
+[data-theme][data-ivory="2"] .pstrip.six-up > .pchip.six.pc-2 .sx-vp {box-shadow: inset 0 0 0 1.5px var(--pc-line), 0 0 0 1.5px var(--glass-active, rgba(255,255,255,.9)); }
+[data-theme][data-ivory="3"] .pstrip.six-up > .pchip.six.pc-3 .sx-vp {box-shadow: inset 0 0 0 1.5px var(--pc-line), 0 0 0 1.5px var(--glass-active, rgba(255,255,255,.9)); }
+[data-theme][data-ivory="5"] .pstrip.six-up > .pchip.six.pc-5 .sx-vp {box-shadow: inset 0 0 0 1.5px var(--pc-line), 0 0 0 1.5px var(--glass-active, rgba(255,255,255,.9)); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"]):not([data-ivory]) .pchip.pc-4 { box-shadow: inset 0 3px 0 var(--pc), inset 0 4.5px 0 var(--pc-line), var(--glass-shadow, 0 0 0 0 transparent); }
+/* v1.99.3 the ivory character in another seat gets the same readable outline */
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="0"] .pchip.pc-0 {box-shadow: inset 0 3px 0 var(--pc), inset 0 4.5px 0 var(--pc-line), var(--glass-shadow, 0 0 0 0 transparent); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="1"] .pchip.pc-1 {box-shadow: inset 0 3px 0 var(--pc), inset 0 4.5px 0 var(--pc-line), var(--glass-shadow, 0 0 0 0 transparent); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="2"] .pchip.pc-2 {box-shadow: inset 0 3px 0 var(--pc), inset 0 4.5px 0 var(--pc-line), var(--glass-shadow, 0 0 0 0 transparent); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="3"] .pchip.pc-3 {box-shadow: inset 0 3px 0 var(--pc), inset 0 4.5px 0 var(--pc-line), var(--glass-shadow, 0 0 0 0 transparent); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="5"] .pchip.pc-5 {box-shadow: inset 0 3px 0 var(--pc), inset 0 4.5px 0 var(--pc-line), var(--glass-shadow, 0 0 0 0 transparent); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"]):not([data-ivory]) .pchip.pc-4.active { box-shadow: inset 0 3px 0 var(--pc), inset 0 4.5px 0 var(--pc-line), 0 0 0 2px var(--ring, var(--accent)), var(--glass-shadow, 0 0 0 0 transparent); }
+/* v1.99.3 the ivory character in another seat gets the same readable outline */
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="0"] .pchip.pc-0.active {box-shadow: inset 0 3px 0 var(--pc), inset 0 4.5px 0 var(--pc-line), 0 0 0 2px var(--ring, var(--accent)), var(--glass-shadow, 0 0 0 0 transparent); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="1"] .pchip.pc-1.active {box-shadow: inset 0 3px 0 var(--pc), inset 0 4.5px 0 var(--pc-line), 0 0 0 2px var(--ring, var(--accent)), var(--glass-shadow, 0 0 0 0 transparent); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="2"] .pchip.pc-2.active {box-shadow: inset 0 3px 0 var(--pc), inset 0 4.5px 0 var(--pc-line), 0 0 0 2px var(--ring, var(--accent)), var(--glass-shadow, 0 0 0 0 transparent); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="3"] .pchip.pc-3.active {box-shadow: inset 0 3px 0 var(--pc), inset 0 4.5px 0 var(--pc-line), 0 0 0 2px var(--ring, var(--accent)), var(--glass-shadow, 0 0 0 0 transparent); }
+:is([data-theme="A"], [data-theme="B"], [data-theme="C"])[data-ivory="5"] .pchip.pc-5.active {box-shadow: inset 0 3px 0 var(--pc), inset 0 4.5px 0 var(--pc-line), 0 0 0 2px var(--ring, var(--accent)), var(--glass-shadow, 0 0 0 0 transparent); }
+[data-theme]:not([data-ivory]) .pc-4 .rush-voter-dot { box-shadow: inset 0 0 0 2px var(--pc-line); }
+/* v1.99.3 the ivory character in another seat gets the same readable outline */
+[data-theme][data-ivory="0"] .pc-0 .rush-voter-dot {box-shadow: inset 0 0 0 2px var(--pc-line); }
+[data-theme][data-ivory="1"] .pc-1 .rush-voter-dot {box-shadow: inset 0 0 0 2px var(--pc-line); }
+[data-theme][data-ivory="2"] .pc-2 .rush-voter-dot {box-shadow: inset 0 0 0 2px var(--pc-line); }
+[data-theme][data-ivory="3"] .pc-3 .rush-voter-dot {box-shadow: inset 0 0 0 2px var(--pc-line); }
+[data-theme][data-ivory="5"] .pc-5 .rush-voter-dot {box-shadow: inset 0 0 0 2px var(--pc-line); }
 
 /* ── six-up strip (option A): six chips in one row ─────────────────────────────────────────────── */
 .pstrip.six-up { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }

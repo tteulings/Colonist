@@ -3,6 +3,8 @@
 // `me` is the name of the person who starts the game (seat 0): the New game screen offers it again. Every
 // function is try/catch: a private window just forgets the names.
 import { oicon } from "./ui-icons.js";
+import * as MGR from "./themes/manager.js"; // namespace import: a stale cached manager.js must not stop this module
+import { PERSONAS } from "./themes/portraits.js";
 const KEY = "colonist_names_v1";
 const MAX = 12;
 /** v1.87 the ONE display-name policy: a bot is always shown under the same short form (strip, end screen, Overview
@@ -25,6 +27,8 @@ function save(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (
 export const Names = {
   list() { return load().list.sort((a, b) => b.at - a.at); },
   me() { return load().me; },
+  /** v1.99.3: your own name, set from the character sheet (shown in Settings; the game still calls you "You"). */
+  setMe(n) { const d = load(); d.me = cleanName(n); save(d); return d.me; },
   /** A game started with these people (seat order; the first is `me`). */
   remember(names, now = Date.now()) {
     const d = load();
@@ -94,4 +98,54 @@ export function openNamesSheet({ onRename, onChange } = {}) {
   });
   document.body.appendChild(el);
   draw();
+}
+
+// ── v1.99.3 characters: pick your own character, and who sits against you ─────────────────────────────
+// A look is a permutation of the six characters, look[seat] = the character in that seat (seat 0 is you). Each character has one fixed
+// colour, so a pick is a colour too; every character sits at most once, so picking one that already sits elsewhere swaps the two.
+const CHAR_KEYS = ["rosa", "blaauw", "geelen", "groenewoud", "dewit", "pimpel"];
+const CHAR_LABEL = ["Rosa", "Blaauw", "Geelen", "Groen", "De Wit", "Pimpel"];
+const CHAR_COLOUR = ["Red", "Blue", "Orange", "Green", "Ivory", "Purple"];
+export const charLabel = (c) => CHAR_LABEL[c] || PERSONAS[CHAR_KEYS[c]]?.name || "";
+/** The grid of characters. mode "me": every character can be picked (one at the table swaps with you); mode "seat" (an opponent): the characters already at the table are greyed. */
+export function charGridHtml({ look, numBots, mode = "me", seat = 0 }) {
+  const here = look[seat], inUse = (c) => look.indexOf(c) <= numBots;
+  return `<div class="ch-grid" role="radiogroup" aria-label="${mode === "me" ? "Your character" : "Opponent"}">${CHAR_KEYS.map((_, c) => {
+    const on = c === here, used = mode === "seat" && !on && inUse(c);
+    const av = MGR.avatarChar ? MGR.avatarChar(c, "ch-av", true) : "";
+    return `<button type="button" role="radio" class="ch-opt${on ? " on" : ""}${used ? " used" : ""}" data-ch="${c}" aria-checked="${on}"${used ? " disabled" : ""}>${av}<b>${esc(charLabel(c))}</b><small>${CHAR_COLOUR[c]}</small>${used ? `<small class="ch-u">At the table</small>` : ""}</button>`;
+  }).join("")}</div>`;
+}
+/** The look after picking character c for a seat: c swaps places with whoever has it now. */
+export function pickChar(look, seat, c) {
+  const out = look.slice(), from = out.indexOf(c);
+  if (from < 0 || from === seat) return out;
+  [out[seat], out[from]] = [out[from], out[seat]];
+  return out;
+}
+/** Standalone sheet (Settings): your character and name. onLook(look) saves the pick; it starts with your next game. */
+export function openCharacterSheet({ look, numBots = 3, onLook, onClose } = {}) {
+  document.querySelector(".ch-sheet")?.remove();
+  const el = document.createElement("div");
+  el.className = "nm-sheet ch-sheet";
+  el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Your character");
+  let cur = look.slice();
+  const draw = () => {
+    el.innerHTML = `<div class="nm-card"><div class="nm-h"><h3>Your character</h3><button type="button" class="nm-x" data-close aria-label="Close">${oicon("close")}</button></div>
+      <p class="nm-note ch-note">Your character has its own colour. Bots play the others. Starts with your next game.</p>
+      ${charGridHtml({ look: cur, numBots, mode: "me", seat: 0 })}
+      <label class="ch-name"><span>Your name</span><input class="nm-in" data-me value="${esc(Names.me())}" placeholder="You" maxlength="14" autocomplete="off" spellcheck="false"></label>
+      <button type="button" class="nm-done" data-close>Done</button></div>`;
+  };
+  el.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (e.target === el || b?.hasAttribute("data-close")) { el.remove(); onClose?.(); return; }
+    if (b?.dataset.ch != null) { cur = pickChar(cur, 0, +b.dataset.ch); onLook?.(cur); draw(); el.querySelector(".ch-opt.on")?.focus({ preventScroll: true }); }
+  });
+  el.addEventListener("input", (e) => { if (e.target.matches("[data-me]")) Names.setMe(e.target.value); });
+  el.addEventListener("keydown", (e) => { if (e.key === "Escape") { el.remove(); onClose?.(); } });
+  document.body.appendChild(el);
+  draw();
+  el.querySelector(".ch-opt.on")?.focus({ preventScroll: true });
+  return el;
 }

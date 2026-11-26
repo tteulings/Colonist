@@ -71,7 +71,8 @@ async function run(browser, vw, vh, lang, theme, withResume) {
   const sm = await G(() => { const c = [...document.querySelectorAll(".sh-sheet .hm-map")]; return { n: c.length, on: c.filter((x) => x.getAttribute("aria-checked") === "true").map((x) => x.dataset.board), th: c.every((x) => x.querySelector("svg")) }; });
   ok(sm.n === 5 && sm.on.join() === "island" && sm.th, `[${tag}] the sheet's Map section uses the same thumbnail cards`, sm);
   ok(await G(() => document.querySelector(".sh-sheet [data-board=seafarers]").disabled), `[${tag}] the sheet disables Seafarers at 5 players too`);
-  await page.locator(".sh-bot[data-bot='4']").tap(); await sleep(200);
+  await page.locator(".sh-bot[data-bot='4']").tap(); await sleep(200); // v1.99.3: a bot at the table opens its character picker; "Play without this bot" is the old tap-to-remove
+  await page.locator(".sh-pick [data-action=dropbot]").tap(); await sleep(200);
   await page.locator(".sh-sheet [data-board=seafarers]").tap(); await sleep(250);
   ok((await saved()).board === "seafarers" && await G(() => document.querySelector(".sh-sheet [data-board=seafarers]").getAttribute("aria-checked") === "true"), `[${tag}] a map card in the sheet saves and shows pressed`);
   await page.locator(".sh-sheet [data-board=island]").tap(); await sleep(250); await page.keyboard.press("Escape"); await sleep(500);
