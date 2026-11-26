@@ -47,7 +47,7 @@ import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte C
 // this file only calls in through hooks marked with ⚓.
 import { createEmitter, eventToText } from "./core/events.js"; // architecture step 5: the game talks in events
 import { hostOn, hostRecover, mainPhase as hostMainPhase } from "./bots/inapp.js"; // follow-up of step 4: the bot host plays the bots' main phase in the app
-import { createUiEngine } from "./ui/intent.js?v=1999"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
+import { createUiEngine } from "./ui/intent.js?v=200"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS } from "./seafarers/index.js";
 
 import { RESOURCES, COSTS_SEA as COSTS, PIECE_LIMITS_SEA as PIECE_LIMITS, BANK_SIZE, DICE_WAYS as DICE_WEIGHT, DEV_CARD_TYPES, DEV_DECK, deckList } from "./core/constants.js"; // (COSTS / PIECE_LIMITS carry the Seafarers ship: it is only looked up when this.sea)
@@ -8994,7 +8994,7 @@ class ColonistFullGame {
         ${this._av(player, "player-avatar")}
         <div class="nm"><span class="pname">${player.name}${isReady ? '<span class="ready-pill" title="Voted to roll now">Ready</span>' : ""}</span>
           <span class="tag">${this._you(player) ? "Your colony" : player.isHuman ? "Pass &amp; play" : personaBadge}</span>
-          <div class="stats">${stats.join("")}<span class="badges">${awards}</span></div></div>
+          <div class="stats">${stats.join("")}<span class="badges">${awards}</span>${this._lbPctHtml?.(idx) || ""}</div></div>
         <div class="vp player-vp" title="Points — tap for details">${vp}<small>points</small></div></div>`);
       // ⚓ v0.94: on the strip chip the new-island count rides on the avatar (a 4th stat overflowed the 360 px chip and
       // was cut off, with the player's name squeezed); the scoreboard row keeps it in its stats line
@@ -9009,8 +9009,8 @@ class ColonistFullGame {
       const lead = this._sixLeader?.() === idx, building = (this._sbpMarkedSeats?.() || []).includes(idx);
       const tileIc = building ? icon("build") : lead ? CROWN : oicon("trophy");
       const pickStat = (k) => stats.find((x) => x.includes(`data-stat="${k}"`)) || "";
-      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}${lead ? " leader" : ""}${building ? " building" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points${goal ? ` of ${this.winPoints}` : ""}, ${totalCards} cards, ${totalDev} development cards${lead ? ", in the lead" : ""}${building ? ", building" : ""}${profileLabel(this, player)}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
-        <div class="row">${framedAvatar(this, player)}<div class="vpn${goal ? " goal" : ""}${lead ? " lead" : ""}"><b>${vp}${goal}</b><i class="vpi" title="Points">${tileIc}</i></div></div>
+      chips.push(`<div class="pchip pc-${idx}${active ? " active" : ""}${isReady ? " ready" : ""}${lead ? " leader" : ""}${building ? " building" : ""}" data-seat="${idx}"${this._tradeVerdict?.(idx) ? ` data-trade="${this._tradeVerdict(idx)}"` : ""} role="button" tabindex="0" aria-label="${player.name}: ${vp} points${goal ? ` of ${this.winPoints}` : ""}, ${totalCards} cards, ${totalDev} development cards${lead ? ", in the lead" : ""}${building ? ", building" : ""}${profileLabel(this, player)}${this._lbAria?.(idx) || ""}"${player.fullName && !player.isHuman ? ` title="${player.fullName}"` : ""}>
+        <div class="row">${framedAvatar(this, player)}<div class="vpn${goal ? " goal" : ""}${lead ? " lead" : ""}"><b>${vp}${goal}</b><i class="vpi" title="Points">${tileIc}</i></div>${this._lbPctHtml?.(idx) || ""}</div>
         <div class="pn">${player.short || player.name}</div>
         <div class="mini main">${pickStat("cards")}${pickStat("dev")}</div>
         <div class="mini feats">${pickStat("knights")}${pickStat("road")}</div>${isleChip}</div>`);
@@ -10057,6 +10057,8 @@ class ColonistFullGame {
       + `<span>${icon("devcard")}<b>${totalDevCards}</b><small>dev cards</small></span>`
       + `<span>${icon("knight")}<b>${player.knightsPlayed}</b><small>knights</small></span>`
       + `<span>${icon(this.sea ? "tradeRoute" : "road")}<b>${player.longestRoadLength}</b><small>${this.sea ? "trade route" : "longest road"}</small></span></div>`;
+    const lbw = this._lbOf?.(this.players.indexOf(player)); // v1.99.9 the live win chance, with the model it comes from
+    if (lbw) html += row(tr("Win chance"), `<b>${lbw.pct}</b> <small>${this._lbModel()}</small>`) + (this._lbSumNote() ? `<div class="vp-tooltip-row"><small>${this._lbSumNote()}</small></div>` : "");
     html += '<div class="vp-tooltip-section" style="margin-top:0.35rem">Points</div>';
     const vpRows = [
       { label: `Settlements (${settlements}/5)`, value: settlements },

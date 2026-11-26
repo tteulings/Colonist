@@ -1,6 +1,6 @@
 // Network-first service worker: always try fresh files (the app updates often),
 // fall back to the cache so the game still starts offline.
-const CACHE = "colonist-v1999";
+const CACHE = "colonist-v200";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./manifest.webmanifest", "./assets/favicon.svg",
   "./themes/base.css", "./themes/theme-sunny.css", "./themes/theme-wood.css", "./themes/theme-silhouette.css", "./themes/theme-classic.css", "./themes/six.css", "./themes/seafarers.css", "./themes/hotseat.css", "./themes/stats.css", "./themes/avatar.css", "./themes/avatar-detail.css", "./src/avatar-anim.js", "./themes/review.css", "./themes/review-ai.css", "./themes/sunny-night.css", "./themes/sunny-dusk.css", "./themes/profiles.css", "./themes/history.css", "./src/history.js", "./themes/lessons.css", "./src/lessons.js", "./src/lessons-data.js", "./src/lessons-row.js", "./src/lessons-eval.js", "./src/lessons-view.js", "./src/lessons-geo.js", "./src/lessons-worker.js", "./themes/bots.css", "./themes/coherence.css", "./themes/i18n.css", "./themes/post.css", "./src/post-model.js", "./src/post-facts.js", "./src/post-text.js", "./src/post-ui.js", "./src/post-snippet.js", "./src/post-tabs.js", "./src/post-hist.js", "./src/post-install.js", "./src/i18n-nl-199p.js", "./src/i18n-nl-199r.js", "./src/i18n-nl-199l.js", "./src/review/coach-rules.js", "./src/review/analysis-facts.js", "./src/review/analysis-text.js", "./src/ui-icons.js", "./src/resources.js", "./src/core/constants.js", "./src/core/events.js", "./src/api/engine.js", "./src/api/actions.js", "./src/ui/intent.js", "./src/bots/registry.js", "./src/bots/index.js", "./src/bots/host.js", "./src/bots/legacy.js", "./src/bots/search.js", "./src/bots/probe.js", "./src/bots/inapp.js", "./src/bots-page.js", "./src/nav.js", "./src/bot-stats.js",
@@ -25,7 +25,8 @@ const SHELL = [
 
 // v1.34: the page asks a new worker which version it brings (index.html), so a cold launch that already runs
 // the new files offers no update; colonist-v184 → "1.34" (CACHE is bumped with APP_VERSION every release)
-const VERSION = CACHE.replace(/^colonist-v(\d)(\d\d)(\d?)$/, (_, a, b, c) => `${a}.${b}${c ? "." + c : ""}`);
+// v2.0: from 2.0 on the version is written out (the old "colonist-vABBC" pattern cannot say 2.0 or 2.0.1); it must equal APP_VERSION
+const VERSION = "2.0";
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "version" && event.ports[0]) event.ports[0].postMessage({ version: VERSION });
 });
