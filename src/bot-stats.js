@@ -153,6 +153,7 @@ export const rangesOverlap = (a, ah, b, bh) => a - ah <= b + bh && b - bh <= a +
 export const FAIR = { classic: 25, rush: 25, five: 20, six: 16.7, sea: 25 };
 
 /** Which tab a finished game belongs to. v1.34: 5 and 6 players are two tabs. */
-export const tabOf = (m) => (m.board === "seafarers" ? "sea" : m.n >= 6 ? "six" : m.n === 5 ? "five" : m.mode === "rush" ? "rush" : "classic");
+import { isMapBoard } from "./maps.js"; // v1.99.3 Lake, Isthmus, Random shape games are in no strength tab
+export const tabOf = (m) => (m.board === "seafarers" ? "sea" : isMapBoard(m.board) ? "map" : m.n >= 6 ? "six" : m.n === 5 ? "five" : m.mode === "rush" ? "rush" : "classic");
 /** Tabs with the full measurement (every bot, accuracy, charts). The others have MODE_STATS for a few bots. */
 export const MEASURED_TABS = new Set(["classic"]);

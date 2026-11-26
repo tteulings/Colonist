@@ -69,7 +69,7 @@ async function run(browser, vw, vh, lang, theme, withResume) {
   ok(sh.rush === "true" && sh.bots === 4 && sh.island === "true", `[${tag}] the sheet shows Rush, 4 bots (5 players), Island`, sh);
   await shot(page, `sheet-${vw}-${lang}-${theme}.png`);
   const sm = await G(() => { const c = [...document.querySelectorAll(".sh-sheet .hm-map")]; return { n: c.length, on: c.filter((x) => x.getAttribute("aria-checked") === "true").map((x) => x.dataset.board), th: c.every((x) => x.querySelector("svg")) }; });
-  ok(sm.n === 2 && sm.on.join() === "island" && sm.th, `[${tag}] the sheet's Map section uses the same thumbnail cards`, sm);
+  ok(sm.n === 5 && sm.on.join() === "island" && sm.th, `[${tag}] the sheet's Map section uses the same thumbnail cards`, sm);
   ok(await G(() => document.querySelector(".sh-sheet [data-board=seafarers]").disabled), `[${tag}] the sheet disables Seafarers at 5 players too`);
   await page.locator(".sh-bot[data-bot='4']").tap(); await sleep(200); // v1.99.3: a bot at the table opens its character picker; "Play without this bot" is the old tap-to-remove
   await page.locator(".sh-pick [data-action=dropbot]").tap(); await sleep(200);

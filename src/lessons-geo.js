@@ -23,7 +23,7 @@ export const hexCorners = (h) => Array.from({ length: 6 }, (_, i) => { const a =
 /** the board of a saved game's state as { hexes: [{ res, num }] } (null: not the standard island) */
 export function boardOf(state) {
   const hx = state?.hexes;
-  if (!Array.isArray(hx) || hx.length !== 19 || state.sea) return null;
+  if (!Array.isArray(hx) || hx.length !== 19 || state.sea || (state.settings?.board && state.settings.board !== "island")) return null; // Lake, Isthmus and Random shape have their own hexes
   return hx.map((h) => ({ res: h.resource, num: h.number || null }));
 }
 const L2R = { w: "wood", b: "brick", s: "sheep", h: "wheat", o: "ore", d: "desert" }, R2L = Object.fromEntries(Object.entries(L2R).map(([k, v]) => [v, k]));

@@ -5,6 +5,7 @@ import { f, pl, RES_NAME, spotTiles, causeText } from "./post-ui.js";
 import { histProgress, histRow, botsFacts } from "./post-facts.js";
 import { modelOf, tableOf, ptsAtStep, boardFor, momentFor } from "./post-model.js";
 import { stdGeo, hexCorners } from "./lessons-geo.js";
+import { isMapBoard, mapName } from "./maps.js"; // v1.99.3
 import { RES_COLOR } from "./resources.js";
 import { youVsLevels, wilsonPct } from "./review/analysis-facts.js";
 import { BOT_PROFILES as P, profileMini } from "./bot-profiles.js";
@@ -61,7 +62,7 @@ function progress(g, all) {
 // ── a game row that unfolds ──
 function gameRow(g, m) {
   const X = histRow(m), w = m.seats?.[m.winner], t = m.result === "won" ? X.ph("Won with {n} points", { n: [`h.vp.${m.id}.me`] }) : m.result === "lost" ? f("Lost to {x}", { x: esc(w?.name || "a bot") }) : f("{x} won the game", { x: esc(w?.name || "?") });
-  const kind = m.board === "seafarers" ? "Seafarers" : m.mode === "rush" ? "Rush" : "Classic";
+  const kind = (m.board === "seafarers" ? "Seafarers" : m.mode === "rush" ? "Rush" : "Classic") + (isMapBoard(m.board) ? " · " + mapName(m.board) : "");
   const open = g._pxHopen === m.id;
   const pts = (m.seats || []).map((s, i) => `<span class="px-hp pc-${i}"><i></i>${X.n(`h.vp.${m.id}.${i}`)}</span>`).join("");
   return `<li class="px-hg${open ? " open" : ""}"><div class="hs-row ${m.result}"><button type="button" class="px-hh" data-pxhg="${m.id}" aria-expanded="${open}"><span class="mn"><b>${t}</b><small>${new Date(m.end).toLocaleDateString(undefined, { day: "numeric", month: "short" })} · ${kind}</small></span>${m.acc != null ? `<span class="px-chip"><small>${accWord}</small><b>${X.n(`h.acc.${m.id}`)}</b></span>` : ""}<svg class="px-chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6l4.5 4.5L12.5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
@@ -101,7 +102,7 @@ function botsDraw(g, keep) {
   const S = g._bpg, seg = S.seg || "strength", tab = S.tab || "classic", measured = MEASURED_TABS.has(tab), top = el.querySelector(".hs-scroll")?.scrollTop || 0;
   const W = Math.max(280, Math.min(460, el.clientWidth - 24) - 30);
   const metas = (g.hist?.metas || []).filter((m) => m.me != null && m.result);
-  const mine = metas.filter((m) => m.n === 4 && m.mode !== "rush" && m.board !== "seafarers");
+  const mine = metas.filter((m) => m.n === 4 && m.mode !== "rush" && m.board !== "seafarers" && !isMapBoard(m.board));
   const rows = KEYS.map((key) => ({ key, p: P[key], win: tab === "classic" ? BOT_STATS[key]?.win : winOf(key, tab), acc: accOf(key, P[key].label) })).filter((r) => r.win?.v != null);
   const sorted = [...rows].sort((a, b) => b.win.v - a.win.v);
   const fair = FAIR[tab] ?? 25;

@@ -205,7 +205,7 @@ export const AnalysisMixin = {
   _hexName(hexId) {
     const h = this.geometry.hexes[hexId];
     if (h.resource === "sea") return `the sea, ${this._hexWhere(hexId)}`; // eng-130 Seafarers: the pirate's hexes
-    if (!h.number) return h.resource === "desert" ? "Desert" : "Tile";
+    if (!h.number) return h.lake ? "Lake" : h.resource === "desert" ? "Desert" : "Tile";
     const base = `${RES_LABEL[h.resource] || h.resource} ${h.number}`;
     // v0.91: two tiles can share a name ("Ore 8"): add where it lies on the board
     const twin = this.geometry.hexes.some((o) => o !== h && o.number === h.number && o.resource === h.resource);
@@ -966,7 +966,7 @@ export const LabMixin = {
   _labSettings(o) {
     const H = this.constructor.labHelpers;
     return H.normalizeSettings({ ...H.DEFAULT_SETTINGS, mode: "classic", map: o.map || "random", numBots: (o.players || 4) - 1,
-      board: o.sea ? "seafarers" : "island", botStyleMode: "all", allPreset: "intermediate", allStrategy: { ...H.AI_PRESETS.intermediate } });
+      board: o.board || (o.sea ? "seafarers" : "island"), botStyleMode: "all", allPreset: "intermediate", allStrategy: { ...H.AI_PRESETS.intermediate } });
   },
 
   /** A fresh board (random / balanced, optional seed), no pieces. */

@@ -19,6 +19,11 @@ export const NL_199 = [
   ["Explain the set-up", "Uitleg bij de opstelling"], ["On until you have finished your first game", "Aan tot je je eerste spel hebt afgemaakt"],
   ["More rules", "Meer regels"], ["Levels", "Niveaus"], ["Level for all bots", "Niveau voor alle bots"], ["{x} level", "Niveau van {x}"],
   ["Seafarers is a 3–4 player scenario.", "Zeevaarders is een scenario voor 3 tot 4 spelers."],
+  // v1.99.3 maps: Lake, Isthmus, Random shape (the map SHAPE; "Random" in Board layout is how tiles and numbers are shuffled)
+  ["Lake", "Meer"], ["Isthmus", "Landengte"], ["Random shape", "Willekeurige vorm"], ["the Lake", "het Meer"],
+  ["One big island", "Eén groot eiland"], ["Islands, ships, 3–4 players", "Eilanden, schepen, 3–4 spelers"], ["Land around a lake", "Land rond een meer"], ["Two lands, one bridge", "Twee landen, één brug"], ["A new shape every game", "Elke keer een nieuwe vorm"],
+  ["Lake is a 3–4 player map.", "Meer is een kaart voor 3 tot 4 spelers."], ["Isthmus is a 3–4 player map.", "Landengte is een kaart voor 3 tot 4 spelers."], ["Random shape is a 3–4 player map.", "Willekeurige vorm is een kaart voor 3 tot 4 spelers."],
+  ["There is no official starter layout for this map, so you get a balanced board.", "Er is geen officiële beginopstelling voor deze kaart, dus je krijgt een evenwichtig bord."],
   ["{n} players: the bigger island and a build window between turns.", "{n} spelers: het grotere eiland en een bouwvenster tussen de beurten."],
   ["14 points in the Seafarers scenario.", "14 punten in het Zeevaarders-scenario."],
   ["Two independent dice, every roll a fresh throw.", "Twee onafhankelijke dobbelstenen, elke worp is nieuw."],

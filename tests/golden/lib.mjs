@@ -128,7 +128,7 @@ function seatStrategy(name) { const s = H.AI_PRESETS[name] || (name === "grandma
 
 function settingsFor(spec) {
   const n = spec.seats.length;
-  return H.normalizeSettings({ ...H.DEFAULT_SETTINGS, mode: spec.mode || "classic", map: spec.map || "random", dice: spec.dice || "random", board: spec.sea ? "seafarers" : "island", numBots: n - 1,
+  return H.normalizeSettings({ ...H.DEFAULT_SETTINGS, mode: spec.mode || "classic", map: spec.map || "random", dice: spec.dice || "random", board: spec.board || (spec.sea ? "seafarers" : "island"), numBots: n - 1,
     rushInterval: spec.rushInterval || 8, winPoints: spec.winPoints || 10, botStyleMode: "all", allPreset: "intermediate", allStrategy: { ...H.AI_PRESETS.intermediate } });
 }
 
