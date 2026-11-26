@@ -43,6 +43,8 @@ export function installDaily(Cls, H) {
     return ok;
   });
 
+  wrap("render", function (orig, ...a) { const r = orig.apply(this, a); if (this.dailyUi) this.dailyUi.strip(); return r; }); // the strip with the turn
+
   // ── the limit ──
   wrap("_advanceTurn", function (orig, ...a) {
     const r = orig.apply(this, a);

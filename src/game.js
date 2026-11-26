@@ -1000,6 +1000,7 @@ class ColonistFullGame {
     });
     this.menu = new GameMenu(this, {
       onHome: () => this.goHome(),
+      onGiveUp: () => this.dailyUi.giveUpSheet(),
       onNewGame: () => this._showDifficultyModal(),
       onSettings: () => this.settingsUI.open("look", { from: "pause" }),
       onIntro: () => this.onboarding.showIntro(0, false),
