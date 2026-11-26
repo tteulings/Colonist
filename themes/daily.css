@@ -130,3 +130,7 @@ html[data-motion="reduced"] .dl-botline.dl-think::after { animation: none; }
 .dl-verdict { font: 650 24px/1.2 var(--font-display); color: var(--heading); margin: 4px 0; }
 .dl-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .dl-col2 { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 6px; border-radius: 14px; background: var(--chip); border: var(--chip-border); } .dl-col2 b { font: 700 44px/1 var(--font-display); color: var(--heading); } .dl-col2 small { font: 700 12.5px/1.2 var(--font-body); color: var(--ink-soft); }
 @media (max-height: 800px) { .dl-board { width: 84px; height: 84px; } .dl-board svg { width: 76px; height: 76px; } .dl-hero b { font-size: 48px; } }
+.sh-dcard.compact { gap: 6px; }
+.dl-cmp-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dl-cmp-tx { min-width: 0; flex: 1; } .dl-cmp-tx h2 { margin: 0; } .sh-dcard.compact p { font-size: 13.5px; line-height: 1.3; }
+.sh-dcard.compact .btn { flex: none; white-space: normal; text-align: center; max-width: 124px; line-height: 1.1; }

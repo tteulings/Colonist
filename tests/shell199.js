@@ -67,15 +67,15 @@ async function walk(browser, vw, vh, lang, pal) {
   await check("Play", ".sh-home");
   ok(await tabs(), `[${tag}] Play: tab bar shown`); await chrome("Play");
   ok(await G(() => document.querySelectorAll(".sh-tab").length === 4 && !document.querySelector(".sh-tab[aria-current]").dataset.tab.includes("daily")), `[${tag}] four tabs, Play current`);
-  ok(await G(() => !!document.querySelector(".sh-home .hm-start") && !!document.querySelector(".sh-soon[aria-disabled=true]") && !document.querySelector(".sh-soon button, .sh-soon a")), `[${tag}] Daily puzzle card is disabled (Coming soon)`);
+  ok(await G(() => !!document.querySelector(".sh-home .hm-start") && !!document.querySelector(".sh-dcard") && !!document.querySelector(".sh-dcard .btn") && !document.querySelector(".sh-soon")), `[${tag}] Daily puzzle card is live (v1.99.5: no more Coming soon)`);
   ok(await G(() => !document.querySelector("[data-home=continue]")), `[${tag}] no Resume row without a saved game`);
   const txt = await G(() => document.querySelector(".sh-home").innerText);
-  ok(dutch ? /Dagpuzzel/.test(txt) && /Binnenkort/.test(txt) && /Nieuw spel/.test(txt) && !/Coming soon|New game/.test(txt) : /Daily puzzle/.test(txt) && /Coming soon/.test(txt) && /New game/.test(txt), `[${tag}] Play speaks ${lang}`);
+  ok(dutch ? /Dagpuzzel/.test(txt) && /Toch spelen|Speel de dagpuzzel/.test(txt) && /Nieuw spel/.test(txt) && !/Daily puzzle|New game/.test(txt) : /Daily puzzle/.test(txt) && /Play anyway|Play the daily puzzle/.test(txt) && /New game/.test(txt), `[${tag}] Play speaks ${lang}`);
   ok(await G(() => document.querySelector(".sh-gear").getBoundingClientRect().right <= innerWidth && !document.querySelector(".hs-x, [data-hclose]:not([hidden])") ), `[${tag}] gear on the tab root, no back arrow`);
   // Daily puzzle
   await T(".sh-tab[data-tab=daily]"); await sleep(250);
   await check("Daily puzzle tab", ".sh-home"); ok(await tabs(), `[${tag}] Daily: tab bar shown`);
-  ok(await G(() => document.querySelector(".sh-tab[aria-current]").dataset.tab === "daily" && !!document.querySelector(".sh-daily button[disabled]")), `[${tag}] Daily tab: current, card disabled`);
+  ok(await G(() => document.querySelector(".sh-tab[aria-current]").dataset.tab === "daily" && !!document.querySelector(".sh-dcard .btn") && !!document.querySelector(".dl-mydays")), `[${tag}] Daily tab: current, card and My days`);
   // Review
   await T(".sh-tab[data-tab=review]"); await sleep(700);
   ok(await G(() => !!window.__colonistGame._histEl && document.querySelector(".sh-tab[aria-current]")?.dataset.tab === "review"), `[${tag}] Review tab opens the past games`);

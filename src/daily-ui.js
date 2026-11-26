@@ -76,7 +76,7 @@ export class DailyUi {
     const day = this.today(); this.day0 = day;
     const days = this.days(), st = D.stateOf(day, days), run = D.loadRunMeta(), head = (id) => `<div class="dl-top"><span class="dl-eyebrow">Today</span><span class="sh-chip dl-date" data-i18n-skip>${this.label(day)}</span>${this.streakChip()}</div><h2 id="${id}">Daily puzzle</h2>`;
     const id = `dlH-${where}`;
-    if (where === "play" && st === "open" && this.gate()) return `<section class="sh-card gold sh-dcard compact" data-dl-card="gate" aria-labelledby="${id}">${head(id)}<p>Play one practice game first</p><button type="button" class="btn block" data-dl="start-anyway">Play anyway</button></section>`;
+    if (where === "play" && st === "open" && this.gate()) return `<section class="sh-card gold sh-dcard compact" data-dl-card="gate" aria-labelledby="${id}"><div class="dl-top"><span class="dl-eyebrow">Today</span><span class="sh-chip dl-date" data-i18n-skip>${this.label(day)}</span></div><div class="dl-cmp-row"><div class="dl-cmp-tx"><h2 id="${id}">Daily puzzle</h2><p>Play one practice game first</p></div><button type="button" class="btn" data-dl="start-anyway">Play anyway</button></div></section>`;
     let mid = "", btns = "";
     if (st === "done") {
       const r = days[day], bot = r.bot, k = D.kindOf(r), won = !!r.w;
