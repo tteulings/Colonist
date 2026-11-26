@@ -44,7 +44,7 @@ import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte C
 // this file only calls in through hooks marked with ⚓.
 import { createEmitter, eventToText } from "./core/events.js"; // architecture step 5: the game talks in events
 import { hostOn, hostRecover, mainPhase as hostMainPhase } from "./bots/inapp.js"; // follow-up of step 4: the bot host plays the bots' main phase in the app
-import { createUiEngine } from "./ui/intent.js?v=199"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
+import { createUiEngine } from "./ui/intent.js?v=1991"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS } from "./seafarers/index.js";
 
 import { RESOURCES, COSTS_SEA as COSTS, PIECE_LIMITS_SEA as PIECE_LIMITS, BANK_SIZE, DICE_WAYS as DICE_WEIGHT, DEV_CARD_TYPES, DEV_DECK, deckList } from "./core/constants.js"; // (COSTS / PIECE_LIMITS carry the Seafarers ship: it is only looked up when this.sea)
@@ -980,6 +980,7 @@ class ColonistFullGame {
       onContinue: () => this.continueSavedGame(),
       onStartLast: () => this.startNewGame(normalizeSettings(ColonistFullGame.loadLastSettings())),
       onAdjust: () => this._showDifficultyModal(),
+      deps: () => this._shellDeps(),
       historyCount: () => this.hist?.count ?? null,
     });
     this.menu = new GameMenu(this, {
@@ -9670,13 +9671,14 @@ class ColonistFullGame {
 
   // ── New-game sheet (v1.99: src/shell.js) ───────────────────────────────
   // Type, opponents, level, map, explain; "More rules" and "Levels" are second layers. The last choice is remembered.
-  _showDifficultyModal({ friend = false } = {}) {
-    return openNewGame(this, {
+  _shellDeps() {
+    return {
       AI_PRESETS, AI_PRESET_INFO, PLAYER_CONFIG, DEFAULT_SETTINGS, RUSH_INTERVALS, RUSH_DISCARD_LIMIT, BIG_RUSH_INTERVAL,
       normalizeSettings, loadLast: () => ColonistFullGame.loadLastSettings(), saveLast: (x) => ColonistFullGame.saveLastSettings(normalizeSettings(x)), isBigTable, discardLimitFor, hotseatOn, presetForStrategy,
       byStrength, Names, cleanName, sameName, openNamesSheet, openProfileSheet,
-    }, { friend });
+    };
   }
+  _showDifficultyModal({ friend = false } = {}) { return openNewGame(this, this._shellDeps(), { friend }); }
   shellLevelLabel(k) { return AI_PRESET_INFO[k]?.label || "Custom"; }
 
   // ── AI Strategy Config UI ─────────────────────────────────────────────

@@ -107,7 +107,7 @@ export const LessonsMixin = {
   async _lnRowOf(item) {
     const H = this.hist, m = item.meta;
     try {
-      if (this._lnW === undefined || this._lnW === null) { try { this._lnW = typeof Worker === "function" && !this._lnNoW ? new Worker(new URL("./lessons-worker.js?v=199", import.meta.url), { type: "module" }) : null; } catch (_) { this._lnW = null; } }
+      if (this._lnW === undefined || this._lnW === null) { try { this._lnW = typeof Worker === "function" && !this._lnNoW ? new Worker(new URL("./lessons-worker.js?v=1991", import.meta.url), { type: "module" }) : null; } catch (_) { this._lnW = null; } }
       const w = this._lnW;
       if (w) {
         const blob = await H.getRaw(m.id); if (!blob) return undefined;

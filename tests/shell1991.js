@@ -59,16 +59,16 @@ async function run(browser, vw, vh, lang) {
   await page.locator(".sh-layer [data-action=back]").first().tap(); await sleep(300);
   await page.keyboard.press("Escape"); await sleep(500); // leave without Start
   ok(await G(() => !document.querySelector(".newgame-modal")), `[${tag}] sheet closed without Start`);
-  const chip0 = await G(() => [...document.querySelectorAll(".sh-chips .sh-chip")].map((c) => c.textContent.replace(/\s+/g, " ").trim()));
-  ok(chip0.some((c) => /^(Master|Meester) · 8 pt$/.test(c)), `[${tag}] Home chips show level and points right after leaving the sheet`, chip0);
+  const chip0 = await G(() => [document.querySelector(".hm-sum").textContent.replace(/\s+/g, " ").trim()]);
+  ok(chip0.some((c) => /^(Master|Meester) · 8 pt\b/.test(c)), `[${tag}] Home chips show level and points right after leaving the sheet`, chip0);
   await boot(); await sleep(300);
   const stored3 = await G(() => { try { return JSON.parse(localStorage.getItem("colonist_last_settings") || "null"); } catch (_) { return null; } });
   ok(stored3?.allPreset === key && stored3?.winPoints === 8, `[${tag}] after a reload the choices persisted`, { lvl: stored3?.allPreset, pts: stored3?.winPoints });
-  const chip1 = await G(() => [...document.querySelectorAll(".sh-chips .sh-chip")].map((c) => c.textContent.replace(/\s+/g, " ").trim()));
-  ok(chip1.some((c) => /^(Master|Meester) · 8 pt$/.test(c)), `[${tag}] after a reload the Home chip reads "${nl ? "Meester" : "Master"} · 8 pt"`, chip1);
-  const chipFit = await G(() => { const r = document.querySelector(".sh-chips").getBoundingClientRect(); return r.right <= innerWidth + 1 && [...document.querySelectorAll(".sh-chips .sh-chip")].every((c) => c.getBoundingClientRect().right <= innerWidth); });
-  ok(chipFit, `[${tag}] the chips fit the screen`);
-  await crop(page, ".sh-card .sh-chips", `home-chips-${sfx}.png`, 10);
+  const chip1 = await G(() => [document.querySelector(".hm-sum").textContent.replace(/\s+/g, " ").trim()]);
+  ok(chip1.some((c) => /^(Master|Meester) · 8 pt\b/.test(c)), `[${tag}] after a reload the Home chip reads "${nl ? "Meester" : "Master"} · 8 pt"`, chip1);
+  const chipFit = await G(() => { const r = document.querySelector(".hm-sum").getBoundingClientRect(); return r.right <= innerWidth + 1 && [...document.querySelectorAll(".hm-sum span")].every((c) => c.getBoundingClientRect().right <= innerWidth); });
+  ok(chipFit, `[${tag}] the summary line fits the screen`);
+  await crop(page, ".sh-card .hm-sum", `home-chips-${sfx}.png`, 10);
   await page.locator("[data-home=adjust]").tap(); await sleep(400);
   await page.locator("[data-action=more]").tap(); await sleep(350);
   ok(await G(() => document.querySelector("[data-stepper=winPoints] output")?.textContent.trim() === "8"), `[${tag}] the reopened sheet shows 8 points`);
