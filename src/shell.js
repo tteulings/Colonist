@@ -69,7 +69,7 @@ export class Chrome {
   current() {
     const g = this.game;
     if (!g.home?.open) return null;
-    const over = q(".newgame-modal, .tm-settings, .welcome, .nm-sheet, .bp-sheet, .menu-sheet, .hs-sheet, .rv-info, .tm-modal.menu-sheet") || g._rvEl || g._lnEl || g._rpUi || g.settingsUI?.el;
+    const over = q(".newgame-modal, .tm-settings, .welcome, .nm-sheet, .bp-sheet, .menu-sheet, .hs-sheet, .rv-info, .tm-modal.menu-sheet, .dl-sheet-wrap, .dl-screen") || g._rvEl || g._lnEl || g._rpUi || g.settingsUI?.el;
     if (over) return null;
     if (g._histEl) return "review";
     if (g._bpgEl) return "bots";
@@ -82,6 +82,7 @@ export class Chrome {
     this.nav.hidden = !on; this.gear.hidden = !on;
     document.body.classList.toggle("sh-tabs-on", on);
     document.body.dataset.shTab = cur || "";
+    const dot = this.nav.querySelector('[data-tab="daily"] .sh-badge'); if (dot) { const on = !!this.game.dailyUi?.badge?.(); dot.hidden = !on; dot.closest?.(".sh-tab")?.setAttribute("aria-label", on ? "Daily puzzle, not played yet" : "Daily puzzle"); }
     this.nav.querySelectorAll("[data-tab]").forEach((b) => { const a = b.dataset.tab === cur; b.classList.toggle("on", a); if (a) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
     if (on) this.game.home?.afterTabs?.();
   }
@@ -256,6 +257,7 @@ export class Home {
     on("[data-home='reload']", () => location.reload());
     on("[data-home='adjust']", () => this.opts.onAdjust());
     on("[data-home='start']", () => this.opts.onStartLast());
+    this.game.dailyUi.bind(this.el);
     this.el.scrollTop = keep;
     this.revealMap();
   }
@@ -270,6 +272,7 @@ export class Home {
 
   /** The history is loaded: only the stats card changes (its box is the same size, so nothing moves). A review in progress adds a row, which needs one full render. */
   histLoaded() {
+    if (this.el && this.game.dailyUi.gate() && (this.tab === "daily" || this.el.querySelector("[data-dl-card]:not([data-dl-card=gate])"))) { this.render(); this.chrome?.sync(); return; } // v1.99.5 a new player: the Daily puzzle card turns into the soft gate
     if (!this.el || this.tab !== "play") return;
     if (reviewInProgress(this.game) && !this.el.querySelector(".sh-rvcont")) { this.render(); return; }
     this.patchStats();
@@ -355,12 +358,9 @@ export class Home {
       <header class="hm-brand sh-brand"><svg class="hm-logo" viewBox="0 0 100 100" aria-hidden="true"><use href="#kt-logo" width="100" height="100"/></svg>
         <h1>Katan<small class="hm-sub">Traders and Builders</small></h1></header>
       ${this.updateHtml(s)}
-      ${s ? `<button type="button" class="sh-continue" data-home="continue">${PLAY_IC}<span class="sh-ct"><b>Resume game</b><small>${esc(s.mode)} · ${s.mode.startsWith("Rush") ? "roll" : "turn"} ${s.turn}</small></span><span class="sh-avs" aria-hidden="true">${s.players.slice(0, 4).map((p) => `<span class="pc-${p.seat}">${avatarSvg(p.seat, "sh-av")}</span>`).join("")}</span></button>` : ""}
+      ${s && !this.game.dailyUi.hidesResume() ? `<button type="button" class="sh-continue" data-home="continue">${PLAY_IC}<span class="sh-ct"><b>Resume game</b><small>${esc(s.mode)} · ${s.mode.startsWith("Rush") ? "roll" : "turn"} ${s.turn}</small></span><span class="sh-avs" aria-hidden="true">${s.players.slice(0, 4).map((p) => `<span class="pc-${p.seat}">${avatarSvg(p.seat, "sh-av")}</span>`).join("")}</span></button>` : ""}
       ${reviewEntryHtml(this.game)}
-      <section class="sh-card gold sh-soon" aria-labelledby="shDailyH" aria-disabled="true">
-        <span class="sh-soon-ic" aria-hidden="true">${PUZZLE_IC}</span>
-        <div class="sh-soon-tx"><div class="sh-soon-h"><h2 id="shDailyH">Daily puzzle</h2><span class="sh-chip soon">Coming soon</span></div><p>The same rolls for everyone, every day.</p></div>
-      </section>
+      ${this.game.dailyUi.cardHtml("play")}
       <section class="sh-card sh-new" aria-labelledby="shNewH">
         <div class="sh-card-head"><h2 id="shNewH">New game</h2><button type="button" class="btn sm" data-home="adjust">Adjust</button></div>
         ${this.quickHtml(last)}
@@ -371,19 +371,7 @@ export class Home {
     </div>`;
   }
 
-  dailyHtml() {
-    return `<div class="hm-col sh-col">
-      <header class="sh-title"><h1>Daily puzzle</h1></header>
-      ${this.updateHtml(false)}
-      <section class="sh-card gold sh-daily" aria-labelledby="shDailyH2" aria-disabled="true">
-        <div class="sh-daily-top"><span class="sh-chip soon">Coming soon</span></div>
-        <div class="sh-daily-art" aria-hidden="true">${PUZZLE_IC}</div>
-        <h2 id="shDailyH2">Daily puzzle</h2>
-        <p>One board, the same rolls for everyone, a new one every day. Race the daily bots and keep your streak.</p>
-        <button type="button" class="btn block" disabled aria-disabled="true">Coming soon</button>
-      </section>
-    </div>`;
-  }
+  dailyHtml() { return this.game.dailyUi.tabHtml(); }
 }
 
 // ───────────────────────────── New game sheet ─────────────────────────────
@@ -695,12 +683,13 @@ export class GameMenu {
           ${row("intro", oicon("book"), "Explain", "Numbers, ports, robber")}
           ${row("stats", oicon("bars"), "Standings and stats", "Dice, points and income", !statsOk)}
           ${row("settings", oicon("settings"), "Settings", "Sound, colours, language")}
+          ${g.daily ? row("giveup", oicon("target"), "Give up", g.daily.practice ? "End this practice run" : "Counts as a loss") : ""}
           ${row("newgame", oicon("dice"), "New game", "Your current game is kept")}
           ${row("home", oicon("home"), "To start", "Your game is saved")}
         </div>
       </div></div>`;
     el.addEventListener("click", (e) => { if (e.target === el || e.target.closest("[data-menu-x]")) this.close(); });
-    const go = { intro: "onIntro", stats: "onStats", settings: "onSettings", newgame: "onNewGame", home: "onHome" };
+    const go = { giveup: "onGiveUp", intro: "onIntro", stats: "onStats", settings: "onSettings", newgame: "onNewGame", home: "onHome" };
     el.querySelectorAll("[data-menu]").forEach((b) => b.addEventListener("click", () => { const fn = this.opts[go[b.dataset.menu]]; this.close(true); fn?.(); }));
     el.querySelectorAll("[data-speed]").forEach((b) => b.addEventListener("click", () => {
       if (!sr) return;

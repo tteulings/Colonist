@@ -7,7 +7,7 @@ const PROBE = () => {
   window.__cls = { total: 0, items: [] };
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) { if (e.hadRecentInput) continue; window.__cls.total += e.value; window.__cls.items.push({ v: +e.value.toFixed(4), t: Math.round(e.startTime), src: (e.sources || []).map((s) => (s.node && (s.node.className || s.node.nodeName)) + "").slice(0, 3) }); } }).observe({ type: "layout-shift", buffered: true }); } catch (_) {}
   window.__track = { on: true, jumps: [], last: {} };
-  const SEL = [".sh-brand", ".sh-continue", ".sh-soon", ".sh-new", ".hm-start", ".hm-stats", ".sh-tabs"];
+  const SEL = [".sh-brand", ".sh-continue", ".sh-dcard", ".sh-new", ".hm-start", ".hm-stats", ".sh-tabs"];
   const tick = () => { const T = window.__track; if (T.on) { SEL.forEach((s) => { const el = document.querySelector(s); const r = el ? el.getBoundingClientRect() : null; const k = r ? Math.round(r.top * 10) / 10 + "/" + Math.round(r.height * 10) / 10 : "none"; if (T.last[s] !== undefined && T.last[s] !== k) T.jumps.push({ s, from: T.last[s], to: k, t: Math.round(performance.now()) }); T.last[s] = k; }); } requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
 };

@@ -22,6 +22,7 @@ const GUARD_OFF_MS = 2500;
 
 /** [name, open?(game), close(game)]; the first open one is the top. */
 const LAYERS = [
+  ["daily", () => q(".dl-sheet-wrap, .dl-screen"), (g) => g.dailyUi.back()], // v1.99.5 Daily puzzle sheets and screens
   ["profile", () => q(".bp-sheet"), () => closeProfileSheet()],
   ["names", () => q(".nm-sheet"), () => tap(".nm-sheet [data-close]")],
   ["rvinfo", () => q(".rv-info"), () => tap(".rv-info [data-rvinfo-x]")],

@@ -85,12 +85,33 @@ async function run(browser, vw, vh, lang, theme, withResume) {
   ok(errs.length === 0, `[${tag}] no page errors`, errs.join(" | "));
   await ctx.close();
 }
+async function fitCheck(browser, vw, vh, lang, theme) {
+  const tag = `${vw}x${vh} ${lang} ${theme}`;
+  const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: 2, hasTouch: true, isMobile: true, serviceWorkers: "block", locale: lang === "nl" ? "nl-NL" : "en-US" });
+  await ctx.addInitScript(([l, th]) => { try { if (!sessionStorage.__t) { sessionStorage.__t = 1; localStorage.clear(); localStorage.setItem("colonist_sound", "off"); localStorage.setItem("colonist.intro", "done"); localStorage.setItem("colonist_review_auto", "off"); localStorage.setItem("colonist_lang", l); localStorage.setItem("colonist.palette", th); } } catch (_) {} }, [lang, theme]);
+  const page = await ctx.newPage();
+  await page.goto(URL); await page.waitForFunction(() => window.__colonistGame && document.body.dataset.gameReady && !document.getElementById("splash"), null, { timeout: 30000 }); await sleep(400);
+  const G = (f, a) => page.evaluate(f, a);
+  // v1.99.6 with a finished game (no gate) the Daily card is full while unplayed (Start may sit below the fold on the short phone) and one compact row once played (Start must be in view)
+  await G(async () => { const g = window.__colonistGame, H = g.hist; await H.open(); const m = { id: "seedgate", v: 1, start: Date.now() - 9e6, end: Date.now() - 6e6, mode: "classic", board: "island", n: 4, pts: 10, hot: false, me: 0, winner: 0, result: "won", turns: 30, ms: 3e6, star: false, seats: [{ name: "You", vp: 10, you: true }, { name: "A", vp: 5, prof: "intermediate" }] }; try { await H.put(m, {}); } catch (_) { H.metas.push(m); } H._sort(); g.home.render(); g.home.chrome.sync(); });
+  await sleep(300);
+  const fit = () => G(() => { const h = document.querySelector(".sh-home"); return { card: document.querySelector("[data-dl-card]")?.dataset.dlCard, page: h.scrollHeight > h.clientHeight + 1, startBottom: document.querySelector(".hm-start").getBoundingClientRect().bottom, tabTop: document.querySelector(".sh-tabs").getBoundingClientRect().top }; });
+  let f = await fit();
+  ok(f.card === "open" && (vh < 900 ? true : f.startBottom <= f.tabTop + 1), `[${tag}] games present, Daily open: full card${vh < 900 ? " (Start may be below the fold here)" : ", Start in view"}`, f);
+  await G(async () => { const D = await import("/src/daily.js"), day = D.dayIdOf(); D.saveDay(day, { day, w: 1, t: 17, p: [10, 7, 4], pc: [4, 2, 1], n: ["Blaauw", "Geelen"], bot: 19, ts: Date.now(), code: D.encode({ day, w: 1, t: 17, p: [10, 7, 4] }) }); window.__colonistGame.home.render(); });
+  await sleep(200); f = await fit();
+  ok(f.card === "done" && f.startBottom <= f.tabTop + 1 && (vh < 900 || !f.page), `[${tag}] Daily played: compact row, New game's Start is in view`, f);
+  await shot(page, `home-played-${vw}-${lang}-${theme}.png`);
+  await shot(page, `home-open-games-${vw}-${lang}-${theme}.png`);
+  await ctx.close();
+}
 (async () => {
   const browser = await chromium.launch();
   await run(browser, 412, 923, "en", "light", true);
   await run(browser, 412, 923, "nl", "night", true);
   await run(browser, 360, 780, "nl", "light", true);
   await run(browser, 412, 923, "en", "night", true);
+  await fitCheck(browser, 412, 923, "en", "light"); await fitCheck(browser, 360, 780, "en", "light"); await fitCheck(browser, 412, 923, "nl", "night");
   await browser.close();
   console.log(fails ? `${fails} FAILED` : "all ok"); process.exit(fails ? 1 : 0);
 })();

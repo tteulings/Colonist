@@ -16,6 +16,8 @@
 //   ← { type: "luck", id, result }
 //   → { type: "live", op: "start" | "pause" | "resume" | "stop", job, ... }   (v1.60 the live win-chance bar keeps refining: futures in batches)
 //   ← { type: "live", job, n, p }                                 (running average of the seats' win chances after n futures)
+//   → { type: "daily", id, day }                                 (v1.99.5 Daily puzzle: the reference bot plays the day headless)
+//   ← { type: "daily", id, day, turns, vp, end, ms }               (turns: its own turns at 10 points, null when it did not win)
 //   ← { type: "ready" } once loaded, { type: "error", id, message } on failure
 import "./dom.js";
 await import("../game.js"); // constructs a stub game as self.__colonistGame (no page, no saving)
@@ -27,6 +29,7 @@ const { luckEvent } = await import("../review/luck-mc.js");
 const { posValue } = await import("../review/step-mc.js");
 const { snapshot, restore, rollout, withoutAgents, mulberry32 } = await import("./sim.js");
 const { gbmProbs } = await import("./leaf-gbm.js");
+const { playDay } = await import("../daily-bot.js");
 const g = prepareEngine(self.__colonistGame);
 g._rvOff = true; // v1.02: this copy never records a review
 const H = g.constructor.labHelpers;
@@ -149,6 +152,7 @@ self.onmessage = (e) => {
     else if (m.type === "srun") self.postMessage({ type: "srun", id: m.id, ...srun(m) });
     else if (m.type === "send") { sessions.delete(m.sid); if (loadedSid === m.sid) loadedSid = null; if (m.id != null) self.postMessage({ type: "send", id: m.id }); }
     else if (m.type === "game") { loadedSid = null; self.postMessage({ type: "game", id: m.id, ...playGame(m) }); }
+    else if (m.type === "daily") { loadedSid = null; self.postMessage({ type: "daily", id: m.id, day: m.day, ...playDay(g, m.day) }); } // v1.99.5 the Daily puzzle's "Slimme bot"
     else if (m.type === "detect") { loadedSid = null; self.postMessage({ type: "detect", id: m.id, ...detect(m) }); }
     else if (m.type === "luck") { loadedSid = null; self.postMessage({ type: "luck", id: m.id, result: m.ev?.kind === "pos" ? posValue(g, m.base, m.ev, m.opts || {}) : luckEvent(g, m.base, m.ev, m.opts || {}) }); } // v1.90 kind "pos": one ledger position (src/review/step-mc.js)
     else if (m.type === "evaluate") { loadedSid = null; self.postMessage({ type: "evaluate", id: m.id, result: evaluateRecord(g, m.rec, (rec) => loadRecord(g, m.base, rec), m.opts || {}) }); }
