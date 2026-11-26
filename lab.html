@@ -26,18 +26,18 @@
         d.dataset.theme = t;
       })();
     </script>
-    <link rel="stylesheet" href="./themes/base.css?v=1996" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=1996" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=1996" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=1996" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=1996" />
-    <link rel="stylesheet" href="./themes/lab.css?v=1996" />
-    <link rel="stylesheet" href="./themes/sunny-night.css?v=1996" />
-    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=1996" />
+    <link rel="stylesheet" href="./themes/base.css?v=1997" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=1997" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=1997" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=1997" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=1997" />
+    <link rel="stylesheet" href="./themes/lab.css?v=1997" />
+    <link rel="stylesheet" href="./themes/sunny-night.css?v=1997" />
+    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=1997" />
   </head>
   <body class="lab" data-pane="analysis">
     <header class="lb-top">
-      <a class="lb-back" href="./" aria-label="Back to the game"><span aria-hidden="true">‹</span> Game</a>
+      <a class="lb-back" id="labBack" href="./index.html" aria-label="Back to the game"><span aria-hidden="true">‹</span> Game</a>
       <h1>AI Lab</h1>
       <span class="lb-sub">how a bot decides</span>
       <div class="lb-panes" id="labPanes" role="tablist" aria-label="Lab mode">
@@ -45,6 +45,10 @@
         <button type="button" role="tab" id="tabTournament" data-pane="tournament" aria-controls="paneTournament" aria-selected="false"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 2h8v3a4 4 0 0 1-8 0zM8 9v3M5 14h6M4 3H2v1a2 2 0 0 0 2 2M12 3h2v1a2 2 0 0 1-2 2"/></svg>Tournament</button>
       </div>
     </header>
+    <script>
+      // v1.99.7 Back goes to where the lab was opened from: the Bots page (index.html#bots) or the game
+      (function () { try { var f = new URLSearchParams(location.search).get("from"), a = document.getElementById("labBack"); if (a && f === "bots") a.setAttribute("href", "./index.html#bots"); } catch (e) {} })();
+    </script>
     <main class="lb-main">
       <section class="lb-boardcol">
         <div class="lb-watch" id="labWatch" aria-live="off" hidden></div>
@@ -133,6 +137,6 @@
       <div class="lb-fbar"><button type="button" class="lb-wstop" id="labFullBack" aria-label="Back to the lab">‹ Lab</button><span class="lb-finfo" id="labFullInfo"></span><div class="lb-seg lb-fspeed" id="labFullSpeed" role="radiogroup" aria-label="Speed"></div><button type="button" class="lb-wstop" id="labFullStop">Stop</button><span class="lb-wbar" aria-hidden="true"><i></i></span></div>
       <iframe id="labFullFrame" title="The game, full screen" tabindex="-1"></iframe>
     </div>
-    <script type="module" src="./src/lab.js?v=1996"></script>
+    <script type="module" src="./src/lab.js?v=1997"></script>
   </body>
 </html>

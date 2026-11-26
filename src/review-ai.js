@@ -823,7 +823,7 @@ export const ReviewAiMixin = {
     const U = this._aiUi?.pid === this._rvPid ? this._aiUi : null; // (the insights are asked for on opening the tab, once; an error waits for "Try again")
     if (this._pgLegacy() && !this._aiSaved() && !U?.loading && !U?.err) setTimeout(() => { if (this._rvTab === "ai" && !this._aiSaved()) this._aiRun(false); }, 0);
     if (!this._pgLegacy()) setTimeout(() => { if (this._rvTab === "ai" && this._rvStep == null) { this._pgKick?.(); this._ldKick?.(); } }, 120); // v1.90 + the ledger's refinement of the shown steps and the progress credit (worker, background) // the recipes page is drawn; the composed page follows in the background
-    return { html: `<div class="ai" data-aibody>${this._aiBodyHtml()}</div>`, foot: `<div data-aiask>${this._aiAskHtml()}</div>`, bind: (el) => this._aiBind(el) };
+    return { html: `<div class="ai" data-aibody>${this._aiBodyHtml()}</div><p class="ai-lablink"><a href="./lab.html?from=review" data-lablink>Open the AI Lab</a></p>`, foot: `<div data-aiask>${this._aiAskHtml()}</div>`, bind: (el) => this._aiBind(el) };
   },
   /** The chat under the insight cards, oldest first: the open answer in full (the newest by default), the others one line (tap to open). A visual
    *  already shown by an insight card or an earlier answer is not drawn again: a link to that card instead. */
