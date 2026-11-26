@@ -13,14 +13,14 @@
 // Reviewing. One game at a time in a third frame of its own (so games keep being played meanwhile), with the review as it is:
 // review.js _rvQueueNext plans the others' quick round, then the deep round on their real choices (OTHERS). Nothing of the
 // scoring is changed here; the lab only reads the result (history.js revMeta via the frame's _histRev).
-import { HistoryStore, LAB_DB, LAB_LIMITS } from "./history.js?v=1997";
-import { packRecs } from "./review/pack.js?v=1997";
+import { HistoryStore, LAB_DB, LAB_LIMITS } from "./history.js?v=1998";
+import { packRecs } from "./review/pack.js?v=1998";
 
 export const labStore = new HistoryStore(LAB_DB, LAB_LIMITS);
 
 let applyMainFn = null;
 async function applyMain() {
-  if (!applyMainFn) { const { makeMaster } = await import("./master/search.js?v=1997"); applyMainFn = makeMaster({}).applyMain; }
+  if (!applyMainFn) { const { makeMaster } = await import("./master/search.js?v=1998"); applyMainFn = makeMaster({}).applyMain; }
   return applyMainFn;
 }
 
@@ -71,14 +71,14 @@ export function recordOn(g, on) {
 }
 
 /** Play a worker game again in the sim frame, recorded. Returns true when it ends exactly as the worker's did. */
-export async function replayScript(g, { strategies, seed, map, script, result }, rec, host = null) {
+export async function replayScript(g, { strategies, seed, map, game = {}, script, result }, rec, host = null) {
   const apply = await applyMain();
   if (!host) hook(g); // (the host plays the seats' decisions itself: nothing to hook, its probes are no moves for the recorder)
   const bad = { off: false };
   const sc = scripted(g, script, strategies.length, apply, bad);
   recordOn(g, rec);
   try {
-    g._labSimStart(strategies, { players: strategies.length, map, seed, agents: sc.agents, host });
+    g._labSimStart(strategies, { players: strategies.length, map, ...game, seed, agents: sc.agents, host });
     let r = { done: false };
     while (!r.done && !bad.off) r = g._labSimStep(40);
     const vp = g.players.map((p) => p.victoryPoints);
@@ -87,7 +87,7 @@ export async function replayScript(g, { strategies, seed, map, script, result },
 }
 
 /** The entry and the payload of the sim frame's finished game (as history.js keeps a game). */
-export function entryOf(g, { keys, labels, i, run }) {
+export function entryOf(g, { keys, labels, i, run, game = {} }) {
   const state = g.serializeState();
   state.logEntries = [];
   // the seats carry the bots' names (the sim frame's seat 0 is called "You"); the same bot twice: "Expert", "Expert 2"
@@ -95,7 +95,7 @@ export function entryOf(g, { keys, labels, i, run }) {
   (state.players || []).forEach((p, s) => { const l = labels[s]; seen[l] = (seen[l] || 0) + 1; p.name = seen[l] > 1 ? `${l} ${seen[l]}` : l; p.isHuman = false; if (keys[s] !== "mix") p.personality = keys[s]; });
   const R = g._rv && g._rv.id === g.stats?.id && g._rv.recs.length ? g._rv : null;
   const meta = {
-    id: g.stats.id, v: 1, start: Date.now(), end: Date.now() - i, mode: "classic", board: "island", n: g.players.length, pts: g.winPoints, hot: false,
+    id: g.stats.id, v: 1, start: Date.now(), end: Date.now() - i, mode: game.mode === "rush" ? "rush" : "classic", board: game.board || "island", n: g.players.length, pts: g.winPoints, hot: false,
     seats: g.players.map((p, s) => ({ name: labels[s], vp: p.victoryPoints, prof: keys[s], custom: false })),
     me: null, winner: g.winner ? g.winner.id : null, result: "table", turns: g.turn, ms: g.stats.ms || 0, star: false, rec: !!R, acc: null,
     lab: { run, game: i, keys },
@@ -122,7 +122,7 @@ export function reviewGame(rg, id, ctl) {
     rg._cancelPendingWork?.();
     rg.loadFromStorage(rec.state);
     rg.players.forEach((p, i) => { const sp = rec.state.players?.[i]; if (p.isHuman && sp?.strategy) Object.assign(p, { strategy: { ...sp.strategy }, personality: sp.personality || null }); p.isHuman = false; }); // every seat is a bot (the review checks "the others")
-    const { unpackRecs } = await import("./review/pack.js?v=1997");
+    const { unpackRecs } = await import("./review/pack.js?v=1998");
     const R = { id: rg.stats?.id ?? id, base: rec.rv.base, recs: unpackRecs(rec.rv.recs), res: null, busy: false, ms: 0, revs: {}, queue: [], bots: true, noLuck: true }; // v1.32: the lab checks accuracy only (no luck in win chance: src/review-luck.js)
     rg._rv = R;
     if (rg.stats) rg.stats.id = R.id;

@@ -965,7 +965,9 @@ export const LabMixin = {
 
   _labSettings(o) {
     const H = this.constructor.labHelpers;
-    return H.normalizeSettings({ ...H.DEFAULT_SETTINGS, mode: "classic", map: o.map || "random", numBots: (o.players || 4) - 1,
+    // v1.99.8: the lab plays every mode the app has: o.mode "classic" | "rush", o.board = the map ("island" | "seafarers" | "lake" | "isthmus" | "shape"),
+    // o.map = the layout ("random" | "balanced" | "beginner"), o.dice, o.players (2-6; normalizeSettings keeps Seafarers and the map shapes at 4 at most)
+    return H.normalizeSettings({ ...H.DEFAULT_SETTINGS, mode: o.mode === "rush" ? "rush" : "classic", dice: o.dice || "random", map: o.map || "random", numBots: (o.players || 4) - 1,
       board: o.board || (o.sea ? "seafarers" : "island"), botStyleMode: "all", allPreset: "intermediate", allStrategy: { ...H.AI_PRESETS.intermediate } });
   },
 
@@ -1241,10 +1243,11 @@ export const LabMixin = {
    *  numbers, so two tournament runs play the same boards); this iframe only plays lab games. */
   _labSimStart(strategy, o = {}) {
     // step 4 (opt-in, experimental): o.host = the module src/bots/index.js; every seat is then a Bot and the game is played by the bot host loop (same game to the move, ~40% slower)
-    this._labHost = o.host ? o.host.labSession(this, strategy, o) : null;
+    this._labHost = o.host && o.mode !== "rush" ? o.host.labSession(this, strategy, o) : null; // (Rush has no turns: the host loop is a turn loop)
     if (this._labHost) return true;
     if (o.seed != null) Math.random = mulberry32(Number(o.seed) >>> 0);
     this.settings = this._labSettings(o);
+    if (this.settings.mode === "rush") this._startRush = this._labRushStart; else delete this._startRush; // v1.99.8 Rush: the game's clock runs on timers; the lab plays it by roll intervals
     // v0.90: every seat gets its own bot BEFORE set-up starts (until v0.89 the seats placing ahead of seat 0
     // made their first set-up pick as Intermediate). `o.agents`: the Master search per seat (Web Worker only).
     this.onboardingHold = true;
@@ -1257,9 +1260,40 @@ export const LabMixin = {
     return true;
   },
 
+  /** v1.99.8 Rush without timers: the state _startRush builds, minus its clock, bot ticks and DOM. */
+  _labRushStart() {
+    const n = this.players.length;
+    this.rush = { rollNo: 0, remainingMs: this.settings.rushInterval * 1000, clockMs: 0, ready: [], robberOrder: this.setupQueue.slice(0, n), robberIdx: 0, paused: false, seven: null, offers: [], offeredBy: [], declined: [] };
+    this.currentPlayerIndex = 0;
+    this.turn = 0;
+    this.phase = "main";
+    this._botTicks = new Map();
+  },
+
+  /** Rush, `n` roll intervals: in each every bot makes its moves (the real game gives a bot a move every 1-2 s of an 8 s interval: up to RUSH_PASSES), then the dice roll
+   *  (a 7: discards and the robber, settled at once). Same seed, same game. { done, winner, turns (= rolls) }. */
+  _labRushStep(n) {
+    const RUSH_PASSES = 6, s = this._labSim;
+    for (let k = 0; k < n && !this.winner; k += 1) {
+      if (s.guard++ > 2500 || this.rush.rollNo > 300) return { done: true, winner: null, turns: this.rush.rollNo };
+      for (let pass = 0; pass < RUSH_PASSES && !this.winner; pass += 1) {
+        let acted = false;
+        for (const p of this.players) {
+          if (this.winner) break;
+          if (this._rushBotAct(p)) { acted = true; this._rushAfterAction(p); }
+        }
+        if (!acted) break;
+      }
+      if (this.winner) break;
+      this._rushRoll();
+    }
+    return { done: !!this.winner, winner: this.winner ? this.winner.id : null, turns: this.rush.rollNo };
+  },
+
   /** Run up to `n` turns; { done, winner (seat or null), turns }. */
   _labSimStep(n = 40) {
     if (this._labHost) return this._labHost.step(n);
+    if (this.rush) return this._labRushStep(n);
     const s = this._labSim;
     for (let k = 0; k < n && !this.winner; k += 1) {
       if (s.guard++ > 2500 || this.turn > 250) return { done: true, winner: null, turns: this.turn };

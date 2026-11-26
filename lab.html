@@ -26,14 +26,14 @@
         d.dataset.theme = t;
       })();
     </script>
-    <link rel="stylesheet" href="./themes/base.css?v=1997" />
-    <link rel="stylesheet" href="./themes/theme-sunny.css?v=1997" />
-    <link rel="stylesheet" href="./themes/theme-wood.css?v=1997" />
-    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=1997" />
-    <link rel="stylesheet" href="./themes/theme-classic.css?v=1997" />
-    <link rel="stylesheet" href="./themes/lab.css?v=1997" />
-    <link rel="stylesheet" href="./themes/sunny-night.css?v=1997" />
-    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=1997" />
+    <link rel="stylesheet" href="./themes/base.css?v=1998" />
+    <link rel="stylesheet" href="./themes/theme-sunny.css?v=1998" />
+    <link rel="stylesheet" href="./themes/theme-wood.css?v=1998" />
+    <link rel="stylesheet" href="./themes/theme-silhouette.css?v=1998" />
+    <link rel="stylesheet" href="./themes/theme-classic.css?v=1998" />
+    <link rel="stylesheet" href="./themes/lab.css?v=1998" />
+    <link rel="stylesheet" href="./themes/sunny-night.css?v=1998" />
+    <link rel="stylesheet" href="./themes/sunny-dusk.css?v=1998" />
   </head>
   <body class="lab" data-pane="analysis">
     <header class="lb-top">
@@ -99,7 +99,11 @@
         </div>
         <div class="lb-card lb-tsetup">
           <div class="lb-row"><span>Games</span><div class="lb-seg" id="labGames" role="radiogroup" aria-label="Games"></div></div>
-          <div class="lb-row"><span>Board</span><div class="lb-seg" id="labTBoard" role="radiogroup" aria-label="Tournament board"></div></div>
+          <div class="lb-row"><span>Type</span><div class="lb-seg" id="labTType" role="radiogroup" aria-label="Type"></div></div>
+          <div class="lb-row"><span>Map</span><div class="lb-seg lb-wrap" id="labTShape" role="radiogroup" aria-label="Map"></div></div>
+          <div class="lb-row"><span>Layout</span><div class="lb-seg" id="labTBoard" role="radiogroup" aria-label="Board layout"></div></div>
+          <div class="lb-row"><span>Dice</span><div class="lb-seg" id="labTDice" role="radiogroup" aria-label="Dice"></div></div>
+          <p class="lb-fine" id="labTNote" hidden></p>
           <div class="lb-tog"><span>Every bot plays every seat<button type="button" class="lb-ii" data-info="infoRot" aria-label="About seats">i</button></span><button type="button" class="lb-sw" id="labTSeats" role="switch" aria-checked="true" aria-label="Every bot plays every seat"></button></div>
           <p class="lb-itext" id="infoRot" hidden>The line-up shifts one seat every game, so no bot gains from seat 1 or seat 4.</p>
           <div class="lb-tog"><span>Same dice for all<button type="button" class="lb-ii" data-info="infoDice" aria-label="About same dice">i</button></span><span class="lb-always">always on</span></div>
@@ -123,11 +127,14 @@
     <dialog class="lb-sheet" id="labBoardSheet" aria-label="Board settings">
       <div class="lb-card">
           <div class="lt-head"><h2>Board</h2><button type="button" class="lb-link" id="labBoardClose">Done</button></div>
-          <div class="lb-row"><span>Board</span><div class="lb-seg" id="labMap" role="radiogroup" aria-label="Board"></div></div>
+          <div class="lb-row"><span>Type</span><div class="lb-seg" id="labType" role="radiogroup" aria-label="Type"></div></div>
+          <div class="lb-row"><span>Map</span><div class="lb-seg lb-wrap" id="labShape" role="radiogroup" aria-label="Map"></div></div>
+          <div class="lb-row"><span>Layout</span><div class="lb-seg lb-wrap" id="labMap" role="radiogroup" aria-label="Board layout"></div></div>
           <div class="lb-row lb-seedrow" id="labSeedRow" hidden><span>Seed</span><input id="labSeed" type="number" inputmode="numeric" value="42" min="0" aria-label="Seed" /></div>
           <div class="lb-row"><span>Players</span><div class="lb-seg" id="labPlayers" role="radiogroup" aria-label="Players"></div></div>
           <div class="lb-row"><span>Pieces</span><div class="lb-seg" id="labPieces" role="radiogroup" aria-label="Pieces on the board"></div></div>
           <div class="lb-row"><span>Hand</span><div class="lb-seg" id="labHand" role="radiogroup" aria-label="Bot's hand"></div></div>
+          <p class="lb-fine" id="labBoardNote"></p>
           <button type="button" class="lb-btn" id="labNew">New board</button>
         </div>
     </dialog>
@@ -137,6 +144,6 @@
       <div class="lb-fbar"><button type="button" class="lb-wstop" id="labFullBack" aria-label="Back to the lab">‹ Lab</button><span class="lb-finfo" id="labFullInfo"></span><div class="lb-seg lb-fspeed" id="labFullSpeed" role="radiogroup" aria-label="Speed"></div><button type="button" class="lb-wstop" id="labFullStop">Stop</button><span class="lb-wbar" aria-hidden="true"><i></i></span></div>
       <iframe id="labFullFrame" title="The game, full screen" tabindex="-1"></iframe>
     </div>
-    <script type="module" src="./src/lab.js?v=1997"></script>
+    <script type="module" src="./src/lab.js?v=1998"></script>
   </body>
 </html>
