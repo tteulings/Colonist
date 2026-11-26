@@ -21,7 +21,7 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy1.outputs.page_url || steps.deploy2.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -76,9 +76,20 @@ jobs:
             core.warning("artifact still not listed after 60 s; trying the deploy anyway");
 
       - name: Deploy to GitHub Pages
-        id: deployment
+        id: deploy1
         uses: actions/deploy-pages@v4
+        continue-on-error: true
         if: steps.pages_status.outputs.enabled == 'true'
+
+      # deploy-pages reads the artifact through another service that can lag behind the upload ("No artifacts named github-pages"); try again after a pause
+      - name: Pause before a second deploy attempt
+        if: steps.pages_status.outputs.enabled == 'true' && steps.deploy1.outcome == 'failure'
+        run: sleep 45
+
+      - name: Deploy to GitHub Pages (second attempt)
+        id: deploy2
+        uses: actions/deploy-pages@v4
+        if: steps.pages_status.outputs.enabled == 'true' && steps.deploy1.outcome == 'failure'
 
       - name: Pages not enabled notice
         if: steps.pages_status.outputs.enabled != 'true'
