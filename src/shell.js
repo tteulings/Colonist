@@ -21,6 +21,7 @@ const q = (s, r = document) => r.querySelector(s);
 const paletteChosen = () => store.get("colonist.paletteAuto") != null || store.get("colonist.palette") != null;
 const PLAY_IC = `<svg class="hm-play" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="currentColor" opacity=".2"/><path d="M9.6 7.4v9.2l7.4-4.6z" fill="currentColor"/></svg>`;
 const PUZZLE_IC = `<svg class="ic oi" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 4.5a2 2 0 0 1 4 0V6H18v4.5h-1.5a2 2 0 0 0 0 4H18V19h-4.5v-1.5a2 2 0 0 0-4 0V19H5v-4.5h1.5a2 2 0 0 0 0-4H5V6h4.5z"/></svg>`;
+const PERSON_IC = `<svg viewBox="0 0 12 16" width="7" height="10" focusable="false"><circle cx="6" cy="4.2" r="3.2" fill="currentColor"/><path d="M0.6 15.5c0-4.2 2.4-6.2 5.4-6.2s5.4 2 5.4 6.2z" fill="currentColor"/></svg>`;
 const CHEV = `<svg class="sh-chev" viewBox="0 0 20 20" aria-hidden="true" width="18" height="18"><path d="M7.5 4.5 13 10l-5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const BACK = `<svg viewBox="0 0 20 20" aria-hidden="true" width="20" height="20"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const UPDATE_IC = `<svg class="hm-upd-ic" viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 10a5.5 5.5 0 1 1-1.8-4.1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M14.6 1.8v4.6H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -117,6 +118,27 @@ export function reviewEntryHtml(game) {
   return `<button type="button" class="sh-rvcont" data-home="review"><span class="sh-rvi">${REVIEW_IC}</span><span class="sh-rvt"><b>Review in progress</b><small>Continue · ${m.rp[0]} of ${m.rp[1]} moves checked</small></span><span class="sh-rvgo" aria-hidden="true">${RV_CHEV}</span></button>`;
 }
 
+// ── the quick picks (Home card and New game sheet share these, so both always agree) ──
+const seaOn = (d) => d.board === "seafarers";
+const maxBotsOf = (D, d) => (seaOn(d) ? SEA_MAX_BOTS : D.PLAYER_CONFIG.length - 1);
+/** 5–6 players: Rush rolls every 15 s by default (back to the 8 s default for a smaller table). `prev` = the bots before the change. */
+export function bigAdjustD(D, d, prev) {
+  if (D.isBigTable(d.numBots + 1) !== D.isBigTable(prev + 1)) {
+    if (D.isBigTable(d.numBots + 1) && d.rushInterval < D.BIG_RUSH_INTERVAL) d.rushInterval = D.BIG_RUSH_INTERVAL;
+    else if (!D.isBigTable(d.numBots + 1) && d.rushInterval === D.BIG_RUSH_INTERVAL) d.rushInterval = D.DEFAULT_SETTINGS.rushInterval;
+  }
+}
+export function setModeD(d, raw) { d.mode = raw; if (raw === "rush") d.humans = d.humans.map(() => false); }
+export function setBoardD(game, D, d, raw) {
+  const prev = d.numBots;
+  d.board = raw;
+  if (seaOn(d) && d.numBots > SEA_MAX_BOTS) { game._ngBotsIsland = d.numBots; d.numBots = SEA_MAX_BOTS; }
+  else if (!seaOn(d) && game._ngBotsIsland) { d.numBots = game._ngBotsIsland; game._ngBotsIsland = 0; }
+  bigAdjustD(D, d, prev);
+}
+/** Total players at the table (you included). */
+export function setPlayersD(D, d, n) { const prev = d.numBots; d.numBots = clampN(n - 1, 1, maxBotsOf(D, d)); bigAdjustD(D, d, prev); }
+
 // ───────────────────────────── Home: the Play tab and the Daily puzzle tab ─────────────────────────────
 const bigN = (n) => n >= 4;
 
@@ -179,12 +201,27 @@ export class Home {
     window.setTimeout(show, 900);
   }
 
-  chips(last) {
+  /** The rest of the settings, as short parts for the one muted line under the quick picks (level, points, Explain, then only what is not the default). */
+  summaryParts(last) {
     const lvl = last.botStyleMode === "each" ? "Mixed levels" : (this.game.shellLevelLabel?.(last.allPreset) || "Medium");
     const people = 1 + (last.mode === "rush" ? 0 : last.humans.slice(0, last.numBots).filter(Boolean).length);
-    const bots = last.numBots - (people - 1);
     const pts = last.board === "seafarers" ? 14 : last.winPoints;
-    return [last.mode === "rush" ? "Rush" : "Classic", people > 1 ? `${people} people` : "", bots > 0 ? (bots === 1 ? "1 bot" : `${bots} bots`) : "", `${lvl} · ${pts} pt`, last.board === "seafarers" ? "Seafarers" : ""].filter(Boolean);
+    return [lvl, `${pts} pt`, explainOn(this.game) ? "Explain on" : "Explain off",
+      people > 1 ? `${people} people` : "", last.friendlyRobber ? "Friendly robber" : "",
+      last.dice && last.dice !== "random" ? `${last.dice === "deck" ? "event deck" : last.dice} dice` : "",
+      last.map && last.map !== "random" ? `${last.map} map` : "", last.numBots === 1 ? "2 players" : ""].filter(Boolean);
+  }
+
+  /** The three quick picks: Type, Map, Players. One tap = saved through the same path as the sheet. */
+  quickHtml(last) {
+    const rush = last.mode === "rush", sea = last.board === "seafarers", hot = !rush && last.humans.slice(0, last.numBots).some(Boolean);
+    const seg = (key, label, opts, value, off = [], lab = null) => `<div class="hm-qrow"><span class="hm-ql" aria-hidden="true">${esc(label)}</span><div class="sh-seg" role="radiogroup" aria-label="${esc(label)}">${opts.map(([v, l]) =>
+      `<button type="button" role="radio" data-q="${key}:${v}" data-k="${key}:${v}" aria-checked="${String(v) === String(value)}" class="${String(v) === String(value) ? "on" : ""}"${lab ? ` aria-label="${lab(v)}"` : ""}${off.includes(v) ? ' disabled' : ""}>${l}</button>`).join("")}</div></div>`;
+    const note = sea ? "Seafarers is a 3–4 player scenario." : hot ? "Classic only with a friend" : "";
+    return `<div class="hm-quick">${seg("mode", "Type", [["classic", "Classic"], ["rush", "Rush"]], last.mode, hot ? ["rush"] : [])}
+      ${seg("board", "Map", [["island", "Island"], ["seafarers", "Seafarers"]], last.board)}
+      ${seg("players", "Players", [3, 4, 5, 6].map((n) => [n, `<span class="hm-pp" aria-hidden="true">${PERSON_IC.repeat(n)}</span><b class="hm-pn" aria-hidden="true">${n}</b>`]), last.numBots + 1, sea ? [5, 6] : [], (v) => `${v} players`)}
+      ${note ? `<p class="hm-qnote">${note}</p>` : ""}</div>`;
   }
 
   render() {
@@ -198,9 +235,26 @@ export class Home {
     on("[data-home='update']", (e) => { const b = e.currentTarget, sm = b.querySelector("small"); if (sm) sm.textContent = "Starting the new version…";
       if (window.__colonistReload) window.__colonistReload(b); else window.location.reload(); });
     on("[data-home='review']", () => { const m = reviewInProgress(this.game); if (m) this.game.histView?.(m.id, "review", m.me); });
+    on("[data-q]", (e) => this.quickPick(e.currentTarget.dataset.q));
     on("[data-home='adjust']", () => this.opts.onAdjust());
     on("[data-home='start']", () => this.opts.onStartLast());
     this.el.scrollTop = keep;
+  }
+
+  /** A tap on a quick pick: same rules and same saved settings as the New game sheet. */
+  quickPick(spec) {
+    const D = this.opts.deps?.();
+    if (!D) return;
+    const i = spec.indexOf(":"), key = spec.slice(0, i), raw = spec.slice(i + 1);
+    const d = D.normalizeSettings(JSON.parse(JSON.stringify(D.loadLast())));
+    if (key === "mode") setModeD(d, raw);
+    else if (key === "board") setBoardD(this.game, D, d, raw);
+    else if (key === "players") setPlayersD(D, d, Number(raw));
+    else return;
+    try { D.saveLast(d); } catch (_) { /* private mode */ }
+    this.game.sfx?.click?.();
+    this.render();
+    try { this.el?.querySelector(`[data-k="${spec}"]`)?.focus({ preventScroll: true }); } catch (_) { /* gone */ }
   }
 
   updateHtml(s) {
@@ -211,7 +265,7 @@ export class Home {
   playHtml() {
     const s = this.opts.saved();
     const last = this.opts.last();
-    const chips = this.chips(last);
+    const parts = this.summaryParts(last);
     return `<div class="hm-col sh-col">
       <header class="hm-brand sh-brand"><svg class="hm-logo" viewBox="0 0 100 100" aria-hidden="true"><use href="#kt-logo" width="100" height="100"/></svg>
         <h1>Katan<small class="hm-sub">Traders and Builders</small></h1></header>
@@ -224,7 +278,8 @@ export class Home {
       </section>
       <section class="sh-card sh-new" aria-labelledby="shNewH">
         <div class="sh-card-head"><h2 id="shNewH">New game</h2><button type="button" class="btn sm" data-home="adjust">Adjust</button></div>
-        <div class="sh-chips" aria-label="Your last settings">${chips.map((c) => `<span class="sh-chip">${c.split(" · ").map((x) => `<span>${esc(x)}</span>`).join(" · ")}</span>`).join("")}</div>
+        ${this.quickHtml(last)}
+        <p class="hm-sum" aria-label="Your last settings">${parts.map((x) => `<span>${esc(x)}</span>`).join(" · ")}</p>
         <button type="button" class="btn primary block hm-start" data-home="start" data-mode="${last.mode}">Start game</button>
       </section>
     </div>`;
@@ -432,24 +487,14 @@ export function openNewGame(game, deps, { friend = false } = {}) {
   };
 
   const set = (key, raw) => {
-    if (key === "mode") { d.mode = raw; if (raw === "rush") d.humans = d.humans.map(() => false); }
+    if (key === "mode") setModeD(d, raw);
     else if (key === "level") { d.botStyleMode = "all"; d.allPreset = raw; if (D.AI_PRESETS[raw]) d.allStrategy = { ...D.AI_PRESETS[raw] }; }
-    else if (key === "board") {
-      const prev = d.numBots;
-      d.board = raw;
-      if (sea() && d.numBots > SEA_MAX_BOTS) { game._ngBotsIsland = d.numBots; d.numBots = SEA_MAX_BOTS; }
-      else if (!sea() && game._ngBotsIsland) { d.numBots = game._ngBotsIsland; game._ngBotsIsland = 0; }
-      bigAdjust(prev);
-    } else if (key === "styleMode") d.botStyleMode = raw === "each" ? "each" : "all";
+    else if (key === "board") setBoardD(game, D, d, raw);
+    else if (key === "styleMode") d.botStyleMode = raw === "each" ? "each" : "all";
     else if (key === "dice" || key === "map") d[key] = raw;
     else if (key === "rushInterval") d.rushInterval = Number(raw);
   };
-  const bigAdjust = (prev) => { // 5–6 players: Rush rolls every 15 s by default (back to the 8 s default for a smaller table)
-    if (D.isBigTable(d.numBots + 1) !== D.isBigTable(prev + 1)) {
-      if (D.isBigTable(d.numBots + 1) && d.rushInterval < D.BIG_RUSH_INTERVAL) d.rushInterval = D.BIG_RUSH_INTERVAL;
-      else if (!D.isBigTable(d.numBots + 1) && d.rushInterval === D.BIG_RUSH_INTERVAL) d.rushInterval = D.DEFAULT_SETTINGS.rushInterval;
-    }
-  };
+  const bigAdjust = (prev) => bigAdjustD(D, d, prev);
 
   wrap.addEventListener("click", (e) => {
     if (e.target === wrap) { layer ? goBack() : close(); return; }

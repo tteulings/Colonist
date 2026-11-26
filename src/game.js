@@ -980,6 +980,7 @@ class ColonistFullGame {
       onContinue: () => this.continueSavedGame(),
       onStartLast: () => this.startNewGame(normalizeSettings(ColonistFullGame.loadLastSettings())),
       onAdjust: () => this._showDifficultyModal(),
+      deps: () => this._shellDeps(),
       historyCount: () => this.hist?.count ?? null,
     });
     this.menu = new GameMenu(this, {
@@ -9629,13 +9630,14 @@ class ColonistFullGame {
 
   // ── New-game sheet (v1.99: src/shell.js) ───────────────────────────────
   // Type, opponents, level, map, explain; "More rules" and "Levels" are second layers. The last choice is remembered.
-  _showDifficultyModal({ friend = false } = {}) {
-    return openNewGame(this, {
+  _shellDeps() {
+    return {
       AI_PRESETS, AI_PRESET_INFO, PLAYER_CONFIG, DEFAULT_SETTINGS, RUSH_INTERVALS, RUSH_DISCARD_LIMIT, BIG_RUSH_INTERVAL,
       normalizeSettings, loadLast: () => ColonistFullGame.loadLastSettings(), saveLast: (x) => ColonistFullGame.saveLastSettings(normalizeSettings(x)), isBigTable, discardLimitFor, hotseatOn, presetForStrategy,
       byStrength, Names, cleanName, sameName, openNamesSheet, openProfileSheet,
-    }, { friend });
+    };
   }
+  _showDifficultyModal({ friend = false } = {}) { return openNewGame(this, this._shellDeps(), { friend }); }
   shellLevelLabel(k) { return AI_PRESET_INFO[k]?.label || "Custom"; }
 
   // ── AI Strategy Config UI ─────────────────────────────────────────────

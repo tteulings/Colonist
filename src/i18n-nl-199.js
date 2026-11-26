@@ -6,7 +6,7 @@ export const NL_199 = [
   ["Main menu", "Hoofdmenu"], ["Daily puzzle", "Dagpuzzel"], ["Review", "Terugblik"],
   ["Resume game", "Verder spelen"], ["Coming soon", "Binnenkort"], ["The same rolls for everyone, every day.", "Zelfde worpen voor iedereen, elke dag."],
   ["One board, the same rolls for everyone, a new one every day. Race the daily bots and keep your streak.", "Eén bord, voor iedereen dezelfde worpen, elke dag een nieuwe. Race tegen de dagbots en houd je reeks vast."],
-  ["Adjust", "Aanpassen"], ["Start game", "Start spel"], ["Your last settings", "Je laatste instellingen"], ["Mixed levels", "Gemengde niveaus"], ["{n} people", "{n} mensen"],
+  ["Adjust", "Aanpassen"], ["Explain on", "Uitleg aan"], ["Explain off", "Uitleg uit"], ["Start game", "Start spel"], ["Your last settings", "Je laatste instellingen"], ["Mixed levels", "Gemengde niveaus"], ["{n} people", "{n} mensen"],
   // v1.99.2 Home: a review that is not finished
   ["Review in progress", "Review loopt nog"], ["Continue · {n1} of {n2} moves checked", "Verder · {n1} van {n2} zetten gecontroleerd"],
   // toast

@@ -1,0 +1,65 @@
+// Home quick picks: node tests/home1993.js PORT [SHOTS=dir]  (server: node tests/serve.mjs ROOT PORT)
+// each segment (Type, Map, Players) saves at once, the New game sheet shows the same value, Start uses it; Seafarers disables 5/6; Rush + 5 -> 15 s timer; fit at 360 and 412, EN and NL.
+const { chromium } = require("playwright"); const fs = require("fs"); const path = require("path");
+const port = +process.argv[2] || 9190, SHOTS = process.env.SHOTS || process.argv[3];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); let fails = 0;
+const ok = (c, m, x = "") => { console.log(`${c ? "ok  " : "FAIL"} ${m}${x !== "" ? "  " + (typeof x === "string" ? x : JSON.stringify(x)) : ""}`); if (!c) fails++; };
+const URL = `http://localhost:${port}/index.html`;
+const shot = async (page, f) => { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, f) }); };
+
+async function run(browser, vw, vh, lang, theme, withResume) {
+  const tag = `${vw}x${vh} ${lang} ${theme}`;
+  const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: 2, hasTouch: true, isMobile: true, serviceWorkers: "block", locale: lang === "nl" ? "nl-NL" : "en-US" });
+  await ctx.addInitScript(([l, th]) => { try { if (!sessionStorage.__t) { sessionStorage.__t = 1; localStorage.clear(); localStorage.setItem("colonist_sound", "off"); localStorage.setItem("colonist.intro", "done"); localStorage.setItem("colonist_review_auto", "off"); localStorage.setItem("colonist_lang", l); localStorage.setItem("colonist.palette", th); } } catch (_) {} }, [lang, theme]);
+  const page = await ctx.newPage(); const errs = []; page.on("pageerror", (e) => errs.push(e.message));
+  await page.goto(URL); await page.waitForFunction(() => window.__colonistGame && document.body.dataset.gameReady && !document.getElementById("splash"), null, { timeout: 30000 }); await sleep(400);
+  const G = (f, a) => page.evaluate(f, a);
+  const saved = () => G(() => JSON.parse(localStorage.getItem("colonist_last_settings") || "null"));
+  const pressed = (k) => G((k) => document.querySelector(`[data-q="${k}"]`)?.getAttribute("aria-checked") === "true", k);
+  const tapq = async (k) => { await page.locator(`[data-q="${k}"]`).tap(); await sleep(150); };
+  if (withResume) { await G(() => { const g = window.__colonistGame; g.startNewGame({ mode: "classic", board: "island", numBots: 3, winPoints: 10 }); }); await sleep(600); await G(() => window.__colonistGame.goHome()); await sleep(600); ok(await G(() => !!document.querySelector("[data-home=continue]")), `[${tag}] Resume row present`); }
+  ok(await G(() => !!document.querySelector(".hm-quick")), `[${tag}] quick picks shown`);
+  // sizes
+  const m = await G(() => { const bs = [...document.querySelectorAll(".hm-quick .sh-seg button")]; return { minH: Math.min(...bs.map((b) => b.getBoundingClientRect().height)), over: bs.some((b) => b.scrollWidth > b.clientWidth + 1 || b.getBoundingClientRect().right > innerWidth), page: document.querySelector(".sh-home").scrollHeight > document.querySelector(".sh-home").clientHeight + 1, startBottom: document.querySelector(".hm-start").getBoundingClientRect().bottom, tabTop: document.querySelector(".sh-tabs").getBoundingClientRect().top }; });
+  ok(m.minH >= 44 && !m.over, `[${tag}] 44px segments, nothing clipped`, m);
+  ok(!m.page && m.startBottom <= m.tabTop + 1, `[${tag}] Start visible above the tab bar, no scroll`, m);
+  await shot(page, `home-${withResume ? "resume-" : ""}${vw}-${lang}-${theme}.png`);
+  // each segment: saved, sheet agrees
+  const cases = [["mode:rush", "mode", "rush"], ["mode:classic", "mode", "classic"], ["board:seafarers", "board", "seafarers"], ["board:island", "board", "island"], ["players:3", "numBots", 2], ["players:5", "numBots", 4], ["players:6", "numBots", 5], ["players:4", "numBots", 3]];
+  for (const [k, f, v] of cases) {
+    await tapq(k); const st = await saved();
+    ok(st?.[f] === v && await pressed(k), `[${tag}] ${k} saved and shown pressed`, st?.[f]);
+  }
+  await tapq("players:5"); await tapq("mode:rush");
+  const big = await saved(); ok(big.numBots === 4 && big.mode === "rush" && big.rushInterval === 15, `[${tag}] Rush + 5 players: 15 s timer (bigAdjust)`, big.rushInterval);
+  await shot(page, `home-rush5-${vw}-${lang}-${theme}.png`);
+  await tapq("players:4"); const back = await saved(); ok(back.rushInterval === 8, `[${tag}] back to 4 players: 8 s again`, back.rushInterval);
+  await tapq("mode:classic");
+  await tapq("players:6"); await tapq("board:seafarers");
+  const sea = await saved(); ok(sea.board === "seafarers" && sea.numBots === 3, `[${tag}] Seafarers clamps to 4 players`, sea.numBots);
+  ok(await G(() => ["players:5", "players:6"].every((k) => document.querySelector(`[data-q="${k}"]`).disabled)) && await pressed("players:4"), `[${tag}] 5 and 6 disabled with Seafarers, with a reason shown`, await G(() => document.querySelector(".hm-qnote")?.textContent));
+  await shot(page, `home-sea-${vw}-${lang}-${theme}.png`);
+  await tapq("board:island"); ok((await saved()).numBots === 5, `[${tag}] back to Island restores 6 players (as the sheet does)`);
+  // sheet agrees, and a change in the sheet shows on Home
+  await tapq("mode:rush"); await tapq("players:5"); await tapq("board:island");
+  await page.locator("[data-home=adjust]").tap(); await sleep(450);
+  const sh = await G(() => ({ rush: document.querySelector(".sh-tile[data-mode=rush]")?.getAttribute("aria-pressed"), bots: document.querySelectorAll(".sh-bot.on").length, island: document.querySelector("[data-board=island]")?.getAttribute("aria-checked") }));
+  ok(sh.rush === "true" && sh.bots === 4 && sh.island === "true", `[${tag}] the sheet shows Rush, 4 bots (5 players), Island`, sh);
+  await page.locator(".sh-bot[data-bot='4']").tap(); await sleep(200); await page.keyboard.press("Escape"); await sleep(500);
+  ok(await pressed("players:4"), `[${tag}] a change in the sheet shows on Home (4 players)`);
+  // Start uses it
+  await tapq("mode:classic"); await tapq("players:3");
+  await page.locator(".hm-start").tap(); await sleep(1500);
+  const g = await G(() => ({ n: window.__colonistGame.players.length, mode: window.__colonistGame.settings.mode }));
+  ok(g.n === 3 && g.mode === "classic", `[${tag}] Start used 3 players, Classic`, g);
+  ok(errs.length === 0, `[${tag}] no page errors`, errs.join(" | "));
+  await ctx.close();
+}
+(async () => {
+  const browser = await chromium.launch();
+  await run(browser, 360, 780, "en", "light", true);
+  await run(browser, 412, 923, "nl", "night", true);
+  await run(browser, 360, 780, "nl", "light", true);
+  await browser.close();
+  console.log(fails ? `${fails} FAILED` : "all ok"); process.exit(fails ? 1 : 0);
+})();
