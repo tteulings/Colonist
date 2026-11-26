@@ -21,6 +21,8 @@ import { HistoryMixin, installHistory } from "./history.js"; // v1.07 Past games
 import { BotsPageMixin } from "./bots-page.js";
 import { NavMixin } from "./nav.js"; // v1.26 Back gesture: history entries follow the open screens and sheets // v1.23 the Bots page (leaderboard, strength ladder, strength vs accuracy)
 import { installPost } from "./post-install.js"; // v1.99 post-game UI
+import { installDaily } from "./daily-game.js"; // v1.99.5 Dagpuzzel: the game side (dice, cards, limit, own save)
+import { DailyUi } from "./daily-ui.js"; // … and its screens
 import { ReviewGameMixin, installReviewGame } from "./review-game.js"; // v1.03 … the Game review (Monte Carlo accuracy)
 import { ReviewTurnMixin } from "./review-turn.js"; // v1.56 step mode by turn
 import { ReviewLuckMixin } from "./review-luck.js"; // v1.31 … luck in win chance (every roll, steal and card draw replayed)
@@ -985,6 +987,7 @@ class ColonistFullGame {
     this.bindControls();
     this._bindThemeUI();
     this.onboarding = new Onboarding(this, { costs: COSTS, labels: RESOURCE_LABEL });
+    this.dailyUi = new DailyUi(this);
     this.home = new Home(this, {
       saved: () => this._savedSummary(),
       last: () => normalizeSettings(ColonistFullGame.loadLastSettings()),
@@ -1014,6 +1017,7 @@ class ColonistFullGame {
     // v0.96: a RELOAD of a running game (the tab was in a live game: colonist.live in this tab's session storage) goes
     // straight back into it; a fresh launch still opens on Home (Continue)
     if (this._homeSave && this._wasLive()) { this.continueSavedGame(); return; }
+    if (this._dailyBoot?.()) return; // a reload in the middle of a daily run goes back into it
     this.home.show();
   }
 
@@ -1621,7 +1625,7 @@ class ColonistFullGame {
 
   initialPlacement() {
     this.setupPhase = true;
-    const order = shuffle(this.players.map((p) => p.id));
+    const order = this.daily ? this.players.map((p) => p.id) : shuffle(this.players.map((p) => p.id)); // the daily puzzle: you set up first
     this.setupQueue = [...order, ...order.slice().reverse()];
     this.currentPlayerIndex = order[0];
     this.setupStep = 0;
@@ -11648,6 +11652,7 @@ Object.assign(ColonistFullGame.prototype, BotsPageMixin); // v1.23
 installHistory(ColonistFullGame);
 installLessons(ColonistFullGame);
 installPost(ColonistFullGame); // v1.99 last: it replaces review, scorecard, Terugblik and Bots screens
+installDaily(ColonistFullGame, { normalizeSettings, loadLast: () => ColonistFullGame.loadLastSettings(), createBoardGeometry, assignTiles }); // v1.99.5 outermost: the daily puzzle
 Object.assign(ColonistFullGame.prototype, NavMixin); // v1.26
 
 const game = new ColonistFullGame();
