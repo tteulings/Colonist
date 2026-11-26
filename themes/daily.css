@@ -70,11 +70,11 @@ html[data-motion="reduced"] .dl-botline.dl-think::after { animation: none; }
 .dl-link-t b { font: 700 16px/1.2 var(--font-body); color: var(--heading); } .dl-link-t small { font: 550 12.5px/1.3 var(--font-body); color: var(--ink-soft); }
 .dl-link > svg { color: var(--ink-faint); flex: none; }
 /* the run strip */
-.dl-strip { flex: none; margin: 6px var(--gut, 12px) 0; display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "i t n" "s s s"; align-items: center; column-gap: 8px; row-gap: 3px; padding: 5px 10px 6px; border-radius: 12px; background: var(--group, #FBE9C9); border: var(--group-border, 1px solid #F2D9A8); color: var(--ink); font-family: var(--font-body); }
+.dl-strip { flex: none; margin: 6px var(--gut, 12px) 0; display: grid; grid-template-columns: auto auto 1fr auto; grid-template-areas: "i t d n" "s s s s"; align-items: center; column-gap: 8px; row-gap: 3px; padding: 5px 10px 6px; border-radius: 12px; background: var(--group, #FBE9C9); border: var(--group-border, 1px solid #F2D9A8); color: var(--ink); font-family: var(--font-body); }
 @media (orientation: landscape) and (max-height: 520px) { .dl-strip { position: fixed; top: 4px; right: 60px; left: auto; width: 230px; margin: 0; z-index: 40; } }
 .dl-strip-ic { grid-area: i; display: grid; } .dl-strip-t { grid-area: t; font: 800 12.5px/1.1 var(--font-body); color: var(--heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dl-strip-t .dl-strip-d { font-weight: 600; }
-.dl-strip-d { display: none; }
+.dl-strip-d { grid-area: d; font: 650 12.5px/1.1 var(--font-body); color: var(--ink-soft); white-space: nowrap; }
 .dl-strip-n { grid-area: n; font: 800 13px/1.1 var(--font-body); color: var(--heading); white-space: nowrap; }
 .dl-steps { grid-area: s; display: grid; grid-template-columns: repeat(40, 1fr); gap: 1px; height: 5px; } .dl-steps i { background: rgba(0,0,0,.14); border-radius: 1px; } .dl-steps i.on { background: var(--accent); }
 /* screens */
@@ -134,3 +134,4 @@ html[data-motion="reduced"] .dl-botline.dl-think::after { animation: none; }
 .dl-cmp-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .dl-cmp-tx { min-width: 0; flex: 1; } .dl-cmp-tx h2 { margin: 0; } .sh-dcard.compact p { font-size: 13.5px; line-height: 1.3; }
 .sh-dcard.compact .btn { flex: none; white-space: normal; text-align: center; max-width: 124px; line-height: 1.1; }
+.dl-cal-head h2 { text-transform: capitalize; }

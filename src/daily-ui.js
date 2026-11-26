@@ -104,7 +104,7 @@ export class DailyUi {
   }
   rowHtml(day, r) {
     const line = D.resultLine(r, this.nl());
-    return `<div class="dl-row"><button type="button" class="dl-row-main" data-dl="view" data-day="${day}"><span class="dl-row-t" data-i18n-skip><b>${this.label(day)}</b><small>${line}</small></span></button>${r.h ? `<button type="button" class="btn sm dl-rev" data-dl="review" data-day="${day}" aria-label="Review of ${this.label(day)}">Review</button>` : ""}</div>`;
+    return `<div class="dl-row"><button type="button" class="dl-row-main" data-dl="view" data-day="${day}"><span class="dl-row-t" data-i18n-skip><b>${this.label(day)}</b><small>${line}</small></span></button>${r.h ? `<button type="button" class="btn sm dl-rev" data-dl="review" data-day="${day}" data-nl="Review" aria-label="Review of ${this.label(day)}">Review</button>` : ""}</div>`;
   }
   tabHtml() {
     const today = this.today(), days = this.days(), s = D.streakOf(days, today), recent = Object.keys(days).map(Number).sort((a, b) => b - a).slice(0, 3);
@@ -295,10 +295,10 @@ export class DailyUi {
     const html = `${this.head("Daily puzzle", `${this.label(day)}${practice ? " · " + (nl ? "oefening" : "practice") : ""}`, practice ? "" : this.streakChip())}
       <section class="sh-card dl-result"><div class="dl-r-top">${chip}</div><div class="dl-r-hero" role="img" aria-label="${label}">${hero}</div>${botLine}
         <div class="dl-pts">${tiles}</div>
-        ${practice ? `<p class="dl-note">Practising doesn't count for your result or your streak.</p>` : `<p class="dl-streak-line" aria-label="${s.cur} days in a row">${SUN}<span data-i18n-skip><b>${s.cur}</b> ${nl ? "dagen op rij" : "days in a row"}</span></p>
+        ${practice ? `<p class="dl-note">Practising doesn't count for your result or your streak.</p>` : `<p class="dl-streak-line" aria-label="${s.cur} days in a row">${SUN}<span data-i18n-skip><b>${s.cur}</b> ${nl ? (s.cur === 1 ? "dag op rij" : "dagen op rij") : (s.cur === 1 ? "day in a row" : "days in a row")}</span></p>
         <div class="dl-code"><span class="dl-code-t" data-i18n-skip>${r.code}</span><button type="button" class="sh-x" data-dl="copycode" data-day="${day}" aria-label="Copy code">${ICON.copy}</button></div>
         <button type="button" class="btn primary block" data-dl="share" data-day="${day}">${ICON.share}Share your result</button>
-        <div class="dl-two"><button type="button" class="btn" data-dl="compare" data-day="${day}">Compare</button>${r.h ? `<button type="button" class="btn" data-dl="review" data-day="${day}">Review</button>` : `<button type="button" class="btn" data-dl="back">Done</button>`}</div>`}
+        <div class="dl-two"><button type="button" class="btn" data-dl="compare" data-day="${day}">Compare</button>${r.h ? `<button type="button" class="btn" data-dl="review" data-day="${day}" data-nl="Review">Review</button>` : `<button type="button" class="btn" data-dl="back">Done</button>`}</div>`}
         ${practice ? `<button type="button" class="btn primary block" data-dl="back">Done</button>` : ""}
       </section>`;
     this.openScreen("result", html, { from, day });
