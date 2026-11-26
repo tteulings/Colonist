@@ -1447,6 +1447,16 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 .tray > .vgrid { flex: 3 1 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; min-width: 0; }
 .tray .vgrid > .victim:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .tray .vgrid > .victim { min-width: 0; height: auto; }
+/* v2.00 what the human can know of a victim's hand: certain cards (icon + count) first, then "?k"; known + ? = the hand size */
+.tray .vn .vh { display: flex; flex-wrap: wrap; gap: 2px 3px; margin-top: 2px; max-width: 100%; justify-content: inherit; }
+.app .tray:is([data-mode="robber"], [data-mode="victims"]) .victim .vn .vh { justify-content: center; }
+.app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid .victim .vn .vh { justify-content: flex-start; }
+.tray .vh .vr { display: inline-flex; align-items: center; gap: 1px; padding: 0 4px 0 2px; height: 16px; border-radius: 999px; font-style: normal; line-height: 1;
+  background: color-mix(in srgb, var(--ink, #222) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink, #222) 14%, transparent); }
+.tray .vh .vr img { width: 13px; height: 13px; flex: none; display: block; }
+.tray .vh .vr b { font-size: 11px; font-weight: 800; color: var(--ink); letter-spacing: 0; overflow: visible; white-space: nowrap; }
+.tray .vh .vq { padding-left: 5px; background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink-soft, #666) 45%, transparent); }
+.tray .vh .vq b { color: var(--ink-soft); }
 .tray .vgrid .vn b, .tray .vgrid .vn small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 @media (max-width: 900px) and (min-height: 501px) {
   .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid .victim { flex-direction: row; justify-content: flex-start; align-items: center; gap: 8px; padding: 6px 8px; min-height: 58px; text-align: left; }
@@ -1454,6 +1464,22 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
   .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid .victim .vn { align-items: flex-start; min-width: 0; }
   .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid .victim .vn b { font-size: 14.5px; }
   .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid .victim .vn small { font-size: 12.5px; }
+}
+/* v2.00 the hand fan (cards + bank counts) stays visible while you pick whom to rob: the picker sits ABOVE the fan (the board is refitted above it,
+   see _renderTray), and 3, 5 and 6 victims share one row each of three compact columns */
+@media (max-width: 900px) and (min-height: 501px) {
+  .app .tray:is([data-mode="robber"], [data-mode="victims"]):has(.victim) { bottom: calc(100% + var(--fan-h) + 8px + var(--hand-pill, 16px)); border-radius: var(--sheet-radius, 18px); } /* --hand-pill: the cards-total pill rides 9 px above the fan */
+  .app .tray .vgrid:is([data-n="3"], [data-n="5"], [data-n="6"]) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .app .tray .vgrid:is([data-n="3"], [data-n="5"], [data-n="6"]) > .victim:last-child:nth-child(odd) { grid-column: auto; }
+  .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid:is([data-n="3"], [data-n="5"], [data-n="6"]) .victim { flex-direction: column; justify-content: flex-start; align-items: center; gap: 3px; padding: 6px 3px 5px; min-height: 0; text-align: center; }
+  .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid:is([data-n="3"], [data-n="5"], [data-n="6"]) .victim .avatar { --av: 34px; --av-ring: 2px; }
+  .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid:is([data-n="3"], [data-n="5"], [data-n="6"]) .victim .vn { align-items: center; max-width: 100%; }
+  .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid:is([data-n="3"], [data-n="5"], [data-n="6"]) .victim .vn b { font-size: 13px; }
+  .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid:is([data-n="3"], [data-n="5"], [data-n="6"]) .victim .vn small { font-size: 11px; }
+  .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid:is([data-n="3"], [data-n="5"], [data-n="6"]) .victim .vn .vh { justify-content: center; }
+  .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid .victim .vn .vh { gap: 2px; }
+  .tray .vh .vr b { font-size: 10.5px; }
+  .tray .vh .vr img { width: 12px; height: 12px; }
 }
 @media (max-height: 500px) and (orientation: landscape) { .tray > .vgrid { grid-template-columns: minmax(0, 1fr); flex: none; } }
 /* v0.81 robber / discard: the ticker is an instruction in the primary accent, not a log line */
