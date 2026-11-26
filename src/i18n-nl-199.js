@@ -7,7 +7,7 @@ export const NL_199 = [
   ["Resume game", "Verder spelen"], ["Coming soon", "Binnenkort"], ["The same rolls for everyone, every day.", "Zelfde worpen voor iedereen, elke dag."],
   ["One board, the same rolls for everyone, a new one every day. Race the daily bots and keep your streak.", "Eén bord, voor iedereen dezelfde worpen, elke dag een nieuwe. Race tegen de dagbots en houd je reeks vast."],
   ["Your games", "Jouw spellen"], ["Play your first game, your overview shows up here.", "Speel je eerste spel, hier komt je overzicht."], ["Played", "Gespeeld"], ["Won", "Gewonnen"], ["Lost", "Verloren"], ["Win streak", "Winreeks"], ["Last game", "Laatste spel"], ["vs", "tegen"], ["Today", "Vandaag"], ["Yesterday", "Gisteren"], ["{n} days ago", "{n} dagen geleden"], ["Best accuracy", "Beste precisie"], ["Needs 3–4 players", "Voor 3–4 spelers"],
-  ["Adjust", "Aanpassen"], ["Explain on", "Uitleg aan"], ["Explain off", "Uitleg uit"], ["Start game", "Start spel"], ["Your last settings", "Je laatste instellingen"], ["Mixed levels", "Gemengde niveaus"], ["{n} people", "{n} mensen"],
+  ["FREE", "GRATIS"], ["Adjust", "Aanpassen"], ["Explain on", "Uitleg aan"], ["Explain off", "Uitleg uit"], ["Start game", "Start spel"], ["Your last settings", "Je laatste instellingen"], ["Mixed levels", "Gemengde niveaus"], ["{n} people", "{n} mensen"],
   // v1.99.2 Home: a review that is not finished
   ["Review in progress", "Review loopt nog"], ["Continue · {n1} of {n2} moves checked", "Verder · {n1} van {n2} zetten gecontroleerd"],
   // toast

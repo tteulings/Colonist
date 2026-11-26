@@ -121,11 +121,12 @@ export function reviewEntryHtml(game) {
 }
 
 // ── the quick picks (Home card and New game sheet share these, so both always agree) ──
-/** Map picker: two small cards, thumbnail on top and the name below. Seafarers needs 3–4 players (disabled, with the reason, at 5–6). */
-const mapCards = (last) => {
-  const bigT = last.numBots + 1 > SEA_MAX_BOTS + 1;
-  const card = (id, name) => { const on = last.board === id, off = id === "seafarers" && bigT;
-    return `<button type="button" role="radio" class="hm-map${on ? " on" : ""}" data-q="board:${id}" data-k="board:${id}" aria-checked="${on}"${off ? " disabled" : ""}><span class="hm-map-th">${mapThumb(id)}</span><span class="hm-map-n"><b>${name}</b>${off ? `<small>Needs 3–4 players</small>` : ""}</span></button>`; };
+/** Map picker: two small cards, thumbnail on top and the name below (Home and the New game sheet). Seafarers needs 3–4 players: disabled, the reason sits on the thumbnail.
+ *  `attrs(id)` gives the data attributes of a card (Home: data-q, sheet: data-set). */
+export const mapCardsHtml = (board, players, attrs) => {
+  const bigT = players > SEA_MAX_BOTS + 1;
+  const card = (id, name) => { const on = board === id, off = id === "seafarers" && bigT;
+    return `<button type="button" role="radio" class="hm-map${on ? " on" : ""}" ${attrs(id)} aria-checked="${on}"${off ? " disabled" : ""}><span class="hm-map-th">${mapThumb(id)}<span class="hm-map-why">Needs 3–4 players</span></span><span class="hm-map-n"><b>${name}</b></span></button>`; };
   return `<div class="hm-maps" role="radiogroup" aria-label="Map">${card("island", "Island")}${card("seafarers", "Seafarers")}</div>`;
 };
 const seaOn = (d) => d.board === "seafarers";
@@ -161,6 +162,7 @@ export class Home {
     this.opts = opts;
     this.el = null;
     this.tab = "play";
+    this.histReady = false;
     this.chrome = null;
     this.onKey = (e) => { if (e.key === "Enter" && e.target === document.body && this.opts.saved()) this.opts.onContinue(); };
     this.onUpdate = () => { if (this.el) this.render(); };
@@ -183,7 +185,11 @@ export class Home {
     if (!this.chrome) this.chrome = new Chrome(this.game);
     this.render();
     this.chrome.sync();
-    try { this.game.hist?.open?.().then(() => { if (this.el && this.tab === "play") this.render(); }); } catch (_) { /* no history: no entry */ }
+    try {
+      const open = this.game.hist?.open?.();
+      if (!open) this.histReady = true;
+      else open.then(() => { this.histReady = true; this.histLoaded(); }, () => { this.histReady = true; this.histLoaded(); });
+    } catch (_) { this.histReady = true; }
     this.autoDarkToast();
   }
 
@@ -228,7 +234,7 @@ export class Home {
       `<button type="button" role="radio" data-q="${key}:${v}" data-k="${key}:${v}" aria-checked="${String(v) === String(value)}" class="${String(v) === String(value) ? "on" : ""}"${lab ? ` aria-label="${lab(v)}"` : ""}${off.includes(v) ? ' disabled' : ""}>${l}</button>`).join("")}</div></div>`;
     const note = hot ? "Classic only with a friend" : "";
     return `<div class="hm-quick">${seg("mode", "Type", [["classic", "Classic"], ["rush", "Rush"]], last.mode, hot ? ["rush"] : [])}
-      ${mapCards(last)}
+      <div class="hm-qrow hm-qmap"><span class="hm-ql" aria-hidden="true">Map</span>${mapCardsHtml(last.board, last.numBots + 1, (id) => `data-q="board:${id}" data-k="board:${id}"`)}</div>
       ${seg("players", "Players", [3, 4, 5, 6].map((n) => [n, `<span class="hm-pp" aria-hidden="true">${PERSON_IC.repeat(n)}</span><b class="hm-pn" aria-hidden="true">${n}</b>`]), last.numBots + 1, sea ? [5, 6] : [], (v) => `${v} players`)}
       ${note ? `<p class="hm-qnote">${note}</p>` : ""}</div>`;
   }
@@ -251,8 +257,25 @@ export class Home {
     this.el.scrollTop = keep;
   }
 
+  /** The history is loaded: only the stats card changes (its box is the same size, so nothing moves). A review in progress adds a row, which needs one full render. */
+  histLoaded() {
+    if (!this.el || this.tab !== "play") return;
+    if (reviewInProgress(this.game) && !this.el.querySelector(".sh-rvcont")) { this.render(); return; }
+    this.patchStats();
+  }
+  patchStats() {
+    const el = this.el?.querySelector(".hm-stats");
+    if (!el) return;
+    const t = document.createElement("div"); t.innerHTML = this.statsHtml();
+    const n = t.firstElementChild;
+    if (!n || n.outerHTML === el.outerHTML) return;
+    el.className = n.className; el.innerHTML = n.innerHTML;
+    for (const a of ["disabled", "aria-hidden", "aria-labelledby", "tabindex"]) { if (n.hasAttribute(a)) el.setAttribute(a, n.getAttribute(a)); else el.removeAttribute(a); }
+  }
+
   /** "Your games": only what the history already holds (won / lost games with you at the table). */
   statsHtml() {
+    if (!this.histReady) return `<button type="button" class="sh-card hm-stats sk" data-home="games" disabled aria-hidden="true" tabindex="-1"></button>`; // same box, filled in when the history has loaded
     const all = (this.game.hist?.metas || []).filter((m) => m.me != null && (m.result === "won" || m.result === "lost")); // newest first
     if (!all.length) return `<button type="button" class="sh-card hm-stats empty" data-home="games"><span class="hm-st-art" aria-hidden="true">${STATS_ART}</span><span class="hm-st-tx"><b>Your games</b><small>Play your first game, your overview shows up here.</small></span></button>`;
     const won = all.filter((m) => m.result === "won").length, pct = Math.round(100 * won / all.length);
@@ -288,8 +311,21 @@ export class Home {
     else return;
     try { D.saveLast(d); } catch (_) { /* private mode */ }
     this.game.sfx?.click?.();
-    this.render();
-    try { this.el?.querySelector(`[data-k="${spec}"]`)?.focus({ preventScroll: true }); } catch (_) { /* gone */ }
+    this.patchQuick(D.normalizeSettings(d));
+  }
+  /** Update the pressed / disabled state of the quick picks and the summary line in place: nothing is rebuilt, so nothing flickers, moves or loses focus. */
+  patchQuick(last) {
+    const root = this.el;
+    if (!root) return;
+    const sea = last.board === "seafarers", big = last.numBots + 1 > SEA_MAX_BOTS + 1, hot = last.mode !== "rush" && last.humans.slice(0, last.numBots).some(Boolean);
+    const want = { mode: last.mode, board: last.board, players: String(last.numBots + 1) };
+    root.querySelectorAll("[data-q]").forEach((b) => {
+      const [k, v] = b.dataset.q.split(":"), on = want[k] === v;
+      b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on));
+      b.disabled = (k === "mode" && v === "rush" && hot) || (k === "board" && v === "seafarers" && big) || (k === "players" && sea && Number(v) > SEA_MAX_BOTS + 1);
+    });
+    const sum = root.querySelector(".hm-sum");
+    if (sum) sum.innerHTML = this.summaryParts(last).map((x) => `<span>${esc(x)}</span>`).join(" · ");
   }
 
   updateHtml(s) {
@@ -398,7 +434,7 @@ export function openNewGame(game, deps, { friend = false } = {}) {
         ${inMain ? "" : `<p class="sh-help">Now: <b>${esc(levelSummary())}</b></p>`}
         <button type="button" class="sh-row sh-row-link" data-action="levels" data-k="levels"><span class="sh-row-t"><b>More levels and a level per bot</b><small>${esc(`${allKeys().length} levels, up to Grandmaster`)}</small></span>${CHEV}</button></section>
       <section class="sh-sec"><h3 class="sh-lab">Map</h3>
-        ${seg("board", [["island", "Island"], ["seafarers", "Seafarers"]], d.board, "Map")}</section>
+        ${mapCardsHtml(d.board, d.numBots + 1, (id) => `data-set="board:${id}" data-board="${id}" data-k="board:${id}"`)}</section>
       <section class="sh-sec"><div class="sh-row sh-row-sw"><span class="sh-row-t" id="shExpT"><b>Explain the set-up</b><small>On until you have finished your first game</small></span>${sw("explain", explainOn(game), "Explain the set-up")}</div>
         <button type="button" class="sh-row sh-row-link" data-action="more" data-k="more"><span class="sh-row-ic" aria-hidden="true">${oicon("sliders")}</span><span class="sh-row-t"><b>More rules</b><small>${esc(rulesSummary())}</small></span>${CHEV}</button></section>`;
   };

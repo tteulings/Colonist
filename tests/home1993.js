@@ -67,7 +67,14 @@ async function run(browser, vw, vh, lang, theme, withResume) {
   await page.locator("[data-home=adjust]").tap(); await sleep(450);
   const sh = await G(() => ({ rush: document.querySelector(".sh-tile[data-mode=rush]")?.getAttribute("aria-pressed"), bots: document.querySelectorAll(".sh-bot.on").length, island: document.querySelector("[data-board=island]")?.getAttribute("aria-checked") }));
   ok(sh.rush === "true" && sh.bots === 4 && sh.island === "true", `[${tag}] the sheet shows Rush, 4 bots (5 players), Island`, sh);
-  await page.locator(".sh-bot[data-bot='4']").tap(); await sleep(200); await page.keyboard.press("Escape"); await sleep(500);
+  await shot(page, `sheet-${vw}-${lang}-${theme}.png`);
+  const sm = await G(() => { const c = [...document.querySelectorAll(".sh-sheet .hm-map")]; return { n: c.length, on: c.filter((x) => x.getAttribute("aria-checked") === "true").map((x) => x.dataset.board), th: c.every((x) => x.querySelector("svg")) }; });
+  ok(sm.n === 2 && sm.on.join() === "island" && sm.th, `[${tag}] the sheet's Map section uses the same thumbnail cards`, sm);
+  ok(await G(() => document.querySelector(".sh-sheet [data-board=seafarers]").disabled), `[${tag}] the sheet disables Seafarers at 5 players too`);
+  await page.locator(".sh-bot[data-bot='4']").tap(); await sleep(200);
+  await page.locator(".sh-sheet [data-board=seafarers]").tap(); await sleep(250);
+  ok((await saved()).board === "seafarers" && await G(() => document.querySelector(".sh-sheet [data-board=seafarers]").getAttribute("aria-checked") === "true"), `[${tag}] a map card in the sheet saves and shows pressed`);
+  await page.locator(".sh-sheet [data-board=island]").tap(); await sleep(250); await page.keyboard.press("Escape"); await sleep(500);
   ok(await pressed("players:4"), `[${tag}] a change in the sheet shows on Home (4 players)`);
   // Start uses it
   await tapq("mode:classic"); await tapq("players:3");
@@ -82,6 +89,7 @@ async function run(browser, vw, vh, lang, theme, withResume) {
   await run(browser, 412, 923, "en", "light", true);
   await run(browser, 412, 923, "nl", "night", true);
   await run(browser, 360, 780, "nl", "light", true);
+  await run(browser, 412, 923, "en", "night", true);
   await browser.close();
   console.log(fails ? `${fails} FAILED` : "all ok"); process.exit(fails ? 1 : 0);
 })();
