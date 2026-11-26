@@ -47,7 +47,7 @@ import { MasterMixin } from "./master.js"; // v0.90 "Master": Expert + a Monte C
 // this file only calls in through hooks marked with ⚓.
 import { createEmitter, eventToText } from "./core/events.js"; // architecture step 5: the game talks in events
 import { hostOn, hostRecover, mainPhase as hostMainPhase } from "./bots/inapp.js"; // follow-up of step 4: the bot host plays the bots' main phase in the app
-import { createUiEngine } from "./ui/intent.js?v=1998"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
+import { createUiEngine } from "./ui/intent.js?v=1999"; // (versioned: a release bumps it with the rest, so a stale copy never meets a newer game.js) architecture step 3: human input goes through the Action API
 import { Seafarers, SeaGame, drawClassicSea, WIN_POINTS as SEA_WIN_POINTS } from "./seafarers/index.js";
 
 import { RESOURCES, COSTS_SEA as COSTS, PIECE_LIMITS_SEA as PIECE_LIMITS, BANK_SIZE, DICE_WAYS as DICE_WEIGHT, DEV_CARD_TYPES, DEV_DECK, deckList } from "./core/constants.js"; // (COSTS / PIECE_LIMITS carry the Seafarers ship: it is only looked up when this.sea)
