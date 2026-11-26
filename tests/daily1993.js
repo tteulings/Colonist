@@ -104,13 +104,17 @@ const MOD = (G) => G(async () => { window.__D = await import("/src/daily.js"); r
     await MOD(G);
     await G(() => { const D = window.__D, day = D.dayIdOf(), rec = { day, w: 1, t: 17, p: [10, 7, 4], pc: [4, 2, 1], n: ["Blaauw", "Geelen"], bot: 19, ts: Date.now(), code: D.encode({ day, w: 1, t: 17, p: [10, 7, 4] }) }; D.saveDay(day, rec); D.saveDay(day - 1, { ...rec, day: day - 1, w: 0, t: 24, p: [9, 10, 6], bot: 0, by: "Blaauw", code: "x" }); window.__colonistGame.home.render(); window.__colonistGame.home.chrome.sync(); });
     await sleep(300); t = await txt(".sh-dcard");
-    ok(nl ? /Gewonnen.*17 beurten.*2 sneller.*Slimme bot: 19 beurten.*Deel je uitslag.*Bekijk.*Nieuwe puzzel over \d+ u \d+ min|Nieuwe puzzel over \d+ min/.test(t) : /Won.*17 turns.*2 faster.*Smart bot: 19 turns.*Share your result.*See it.*New puzzle in/.test(t), `[${lang}] state 1.4 (won) texts`, t);
+    ok(await G(() => document.querySelector("[data-dl-card]").classList.contains("compact") && !document.querySelector(".sh-dcard .dl-board")), `[${lang}] played: the Home card is one compact row`);
+    ok(nl ? /Gewonnen.*17 beurten.*Bekijk.*Nieuwe puzzel over \d+ (u \d+ )?min/.test(t) || /17 beurten.*Gewonnen.*Bekijk.*Nieuwe puzzel/.test(t) : /17 turns.*Won.*See it.*New puzzle in/.test(t), `[${lang}] state 1.4 (won), compact: result, countdown, See it`, t);
+    const full = async () => { await G(() => { const g = window.__colonistGame; g.home.tab = "daily"; g.home.render(); }); await sleep(200); const x = await txt(".sh-dcard"); await G(() => { const g = window.__colonistGame; g.home.tab = "play"; g.home.render(); }); await sleep(100); return x; };
+    t = await full(); ok(nl ? /Gewonnen.*17 beurten.*2 sneller.*Slimme bot: 19 beurten.*Deel je uitslag.*Bekijk.*Nieuwe puzzel over/.test(t) : /Won.*17 turns.*2 faster.*Smart bot: 19 turns.*Share your result.*See it.*New puzzle in/.test(t), `[${lang}] state 1.4 (won), full card on the tab`, t);
     ok(await G(() => document.querySelector('[data-tab="daily"] .sh-badge').hidden && /13|2 /.test("") === false), `[${lang}] no dot once played`);
     ok(await G(() => /2 (days|dagen)/.test(document.querySelector(".dl-streak")?.innerText || "")), `[${lang}] streak chip: 2 days (win and the loss before it)`);
     await shot(page, `home-won-${lang}.png`);
     // lost
     await G(() => { const D = window.__D, day = D.dayIdOf(), r = D.loadDays()[day]; D.saveDay(day, { ...r, w: 0, t: 24, p: [8, 10, 6], by: "Blaauw", bot: undefined }); window.__colonistGame.home.render(); }); await sleep(200);
-    t = await txt(".sh-dcard"); ok(nl ? /Verloren.*8 punten.*Blaauw won op beurt 24.*Deel je uitslag/.test(t) && !/Slimme bot/.test(t) : /Lost.*8 points.*Blaauw won on turn 24.*Share your result/.test(t) && !/Smart bot/.test(t), `[${lang}] state 1.5 (lost) texts, no smart bot line`, t);
+    t = await txt(".sh-dcard"); ok(nl ? /8 punten.*Verloren.*Bekijk/.test(t) || /Verloren.*8.*punten.*Bekijk/.test(t) : /8 points.*Lost.*See it|Lost.*8.*points.*See it/.test(t), `[${lang}] state 1.5 (lost), compact`, t);
+    t = await full(); ok(nl ? /Verloren.*8 punten.*Blaauw won op beurt 24.*Deel je uitslag/.test(t) && !/Slimme bot/.test(t) : /Lost.*8 points.*Blaauw won on turn 24.*Share your result/.test(t) && !/Smart bot/.test(t), `[${lang}] state 1.5 (lost), full card on the tab: no smart bot line`, t);
     await shot(page, `home-lost-${lang}.png`);
     // the tab
     await G(() => { const g = window.__colonistGame; g.home.tab = "daily"; g.home.render(); g.home.chrome.sync(); }); await sleep(300);
@@ -250,7 +254,8 @@ const MOD = (G) => G(async () => { window.__D = await import("/src/daily.js"); r
     ok(await G(() => !localStorage.getItem("colonist.daily.v1.run") && document.querySelector("[data-dl-card]").dataset.dlCard === "open"), "discarded: today's puzzle is open again");
     // rules changed
     await G(() => { const g = window.__colonistGame, D = window.__D; g.startDaily(D.dayIdOf(), {}); g.saveToStorage(); const s = JSON.parse(localStorage.getItem("colonist.daily.v1.run")); s.daily.rules = 0; localStorage.setItem("colonist.daily.v1.run", JSON.stringify(s)); g.goHome(); }); await sleep(400);
-    await page.locator('[data-dl="resume"]').tap(); await sleep(400);
+    await page.waitForSelector('[data-dl="resume"]'); await page.locator('[data-dl="resume"]').tap();
+    await page.waitForFunction(() => !!document.querySelector(".dl-sheet-wrap"), null, { timeout: 10000 }).catch(() => {});
     ok(/De app is bijgewerkt.*Begin opnieuw als oefening.*Later/.test(await G(() => document.querySelector(".dl-sheet-wrap")?.innerText.replace(/\s+/g, " "))), "rules version changed: the update sheet");
     ok(errs.length === 0, "no page errors", errs); await ctx.close(); }
 

@@ -135,3 +135,6 @@ html[data-motion="reduced"] .dl-botline.dl-think::after { animation: none; }
 .dl-cmp-tx { min-width: 0; flex: 1; } .dl-cmp-tx h2 { margin: 0; } .sh-dcard.compact p { font-size: 13.5px; line-height: 1.3; }
 .sh-dcard.compact .btn { flex: none; white-space: normal; text-align: center; max-width: 124px; line-height: 1.1; }
 .dl-cal-head h2 { text-transform: capitalize; }
+.sh-dcard.done .dl-cmp-tx { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sh-dcard.done .dl-hero b { font-size: 40px; } .sh-dcard.done .dl-hero small { font-size: 16px; }
+.sh-dcard.done .btn { max-width: none; min-width: 96px; } .sh-dcard.done .dl-count { text-align: left; }

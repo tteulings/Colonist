@@ -77,6 +77,12 @@ export class DailyUi {
     const days = this.days(), st = D.stateOf(day, days), run = D.loadRunMeta(), head = (id) => `<div class="dl-top"><span class="dl-eyebrow">Today</span><span class="sh-chip dl-date" data-i18n-skip>${this.label(day)}</span>${this.streakChip()}</div><h2 id="${id}">Daily puzzle</h2>`;
     const id = `dlH-${where}`;
     if (where === "play" && st === "open" && this.gate()) return `<section class="sh-card gold sh-dcard compact" data-dl-card="gate" aria-labelledby="${id}"><div class="dl-top"><span class="dl-eyebrow">Today</span><span class="sh-chip dl-date" data-i18n-skip>${this.label(day)}</span></div><div class="dl-cmp-row"><div class="dl-cmp-tx"><h2 id="${id}">Daily puzzle</h2><p>Play one practice game first</p></div><button type="button" class="btn" data-dl="start-anyway">Play anyway</button></div></section>`;
+    if (where === "play" && st === "done") { // played: one compact row (result, countdown, See it) so New game stays in view
+      const r = days[day], won = !!r.w, k = D.kindOf(r), label = won ? `Won in ${r.t} turns` : k === "timeup" ? `Time's up, ${r.p[0]} points after ${r.t} turns` : `Lost with ${r.p[0]} points`;
+      return `<section class="sh-card gold sh-dcard compact done" data-dl-card="done" aria-labelledby="${id}"><div class="dl-top"><span class="dl-eyebrow">Today</span><span class="sh-chip dl-date" data-i18n-skip>${this.label(day)}</span>${this.streakChip()}</div><h2 id="${id}" class="sr">Daily puzzle</h2>
+        <div class="dl-cmp-row"><div class="dl-cmp-tx"><span class="dl-hero" role="img" aria-label="${label}"><b>${won ? r.t : r.p[0]}</b><small>${won ? "turns" : "points"}</small></span><span class="sh-chip dl-status${won ? " won" : ""}">${won ? oicon("check") : k === "timeup" ? oicon("clock") : ""}${won ? "Won" : k === "timeup" ? "Time's up" : "Lost"}</span></div><button type="button" class="btn" data-dl="view" data-day="${day}">See it</button></div>
+        <p class="dl-count" data-dl-count aria-live="off">${this.countdown()}</p></section>`;
+    }
     let mid = "", btns = "";
     if (st === "done") {
       const r = days[day], bot = r.bot, k = D.kindOf(r), won = !!r.w;
@@ -322,7 +328,7 @@ export class DailyUi {
       let w = null, done = false;
       const end = (v) => { if (done) return; done = true; try { w?.terminate(); } catch (_) { /* gone */ } this.botJobs.delete(day); if (v !== undefined) { D.saveBot(day, v); D.patchDay(day, { bot: v }); } resolve(v); this.botDone(day); };
       try {
-        w = new Worker(new URL("./master/worker.js?v=1994", import.meta.url), { type: "module" });
+        w = new Worker(new URL("./master/worker.js?v=1996", import.meta.url), { type: "module" });
         w.onmessage = (e) => { const m = e.data; if (m.type === "daily" && m.day === day) end(m.turns ?? 0); else if (m.type === "error") end(undefined); else if (m.type === "ready") w.postMessage({ type: "daily", id: 1, day }); };
         w.onerror = () => end(undefined);
         window.setTimeout(() => end(undefined), 60000);
