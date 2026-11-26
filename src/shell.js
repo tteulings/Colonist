@@ -10,6 +10,7 @@ import { oicon } from "./ui-icons.js";
 import { toast } from "./toast.js";
 import { reviewAvailable } from "./master.js";
 import { isNL } from "./i18n.js";
+import { mapThumb } from "./map-thumbs.js";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const store = {
@@ -22,6 +23,7 @@ const paletteChosen = () => store.get("colonist.paletteAuto") != null || store.g
 const PLAY_IC = `<svg class="hm-play" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="currentColor" opacity=".2"/><path d="M9.6 7.4v9.2l7.4-4.6z" fill="currentColor"/></svg>`;
 const PUZZLE_IC = `<svg class="ic oi" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 4.5a2 2 0 0 1 4 0V6H18v4.5h-1.5a2 2 0 0 0 0 4H18V19h-4.5v-1.5a2 2 0 0 0-4 0V19H5v-4.5h1.5a2 2 0 0 0 0-4H5V6h4.5z"/></svg>`;
 const PERSON_IC = `<svg viewBox="0 0 12 16" width="7" height="10" focusable="false"><circle cx="6" cy="4.2" r="3.2" fill="currentColor"/><path d="M0.6 15.5c0-4.2 2.4-6.2 5.4-6.2s5.4 2 5.4 6.2z" fill="currentColor"/></svg>`;
+const STATS_ART = `<svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke-linejoin="round"><polygon points="24,5 34,11 34,23 24,29 14,23 14,11" fill="#EDC25E" stroke="#D3A341" stroke-width="2"/><polygon points="14,25 24,31 24,43 14,49 4,43 4,31" transform="translate(5 -6)" fill="#B8D57A" stroke="#97B95C" stroke-width="2"/><polygon points="34,25 44,31 44,43 34,49 24,43 24,31" transform="translate(-1 -6)" fill="#E07E5A" stroke="#C0623F" stroke-width="2"/><circle cx="24" cy="17" r="2.4" fill="#fff"/></svg>`;
 const CHEV = `<svg class="sh-chev" viewBox="0 0 20 20" aria-hidden="true" width="18" height="18"><path d="M7.5 4.5 13 10l-5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const BACK = `<svg viewBox="0 0 20 20" aria-hidden="true" width="20" height="20"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const UPDATE_IC = `<svg class="hm-upd-ic" viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 10a5.5 5.5 0 1 1-1.8-4.1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M14.6 1.8v4.6H10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -119,6 +121,13 @@ export function reviewEntryHtml(game) {
 }
 
 // ── the quick picks (Home card and New game sheet share these, so both always agree) ──
+/** Map picker: two small cards, thumbnail on top and the name below. Seafarers needs 3–4 players (disabled, with the reason, at 5–6). */
+const mapCards = (last) => {
+  const bigT = last.numBots + 1 > SEA_MAX_BOTS + 1;
+  const card = (id, name) => { const on = last.board === id, off = id === "seafarers" && bigT;
+    return `<button type="button" role="radio" class="hm-map${on ? " on" : ""}" data-q="board:${id}" data-k="board:${id}" aria-checked="${on}"${off ? " disabled" : ""}><span class="hm-map-th">${mapThumb(id)}</span><span class="hm-map-n"><b>${name}</b>${off ? `<small>Needs 3–4 players</small>` : ""}</span></button>`; };
+  return `<div class="hm-maps" role="radiogroup" aria-label="Map">${card("island", "Island")}${card("seafarers", "Seafarers")}</div>`;
+};
 const seaOn = (d) => d.board === "seafarers";
 const maxBotsOf = (D, d) => (seaOn(d) ? SEA_MAX_BOTS : D.PLAYER_CONFIG.length - 1);
 /** 5–6 players: Rush rolls every 15 s by default (back to the 8 s default for a smaller table). `prev` = the bots before the change. */
@@ -174,7 +183,7 @@ export class Home {
     if (!this.chrome) this.chrome = new Chrome(this.game);
     this.render();
     this.chrome.sync();
-    try { this.game.hist?.open?.().then(() => { if (this.el && this.tab === "play" && reviewInProgress(this.game)) this.render(); }); } catch (_) { /* no history: no entry */ }
+    try { this.game.hist?.open?.().then(() => { if (this.el && this.tab === "play") this.render(); }); } catch (_) { /* no history: no entry */ }
     this.autoDarkToast();
   }
 
@@ -217,9 +226,9 @@ export class Home {
     const rush = last.mode === "rush", sea = last.board === "seafarers", hot = !rush && last.humans.slice(0, last.numBots).some(Boolean);
     const seg = (key, label, opts, value, off = [], lab = null) => `<div class="hm-qrow"><span class="hm-ql" aria-hidden="true">${esc(label)}</span><div class="sh-seg" role="radiogroup" aria-label="${esc(label)}">${opts.map(([v, l]) =>
       `<button type="button" role="radio" data-q="${key}:${v}" data-k="${key}:${v}" aria-checked="${String(v) === String(value)}" class="${String(v) === String(value) ? "on" : ""}"${lab ? ` aria-label="${lab(v)}"` : ""}${off.includes(v) ? ' disabled' : ""}>${l}</button>`).join("")}</div></div>`;
-    const note = sea ? "Seafarers is a 3–4 player scenario." : hot ? "Classic only with a friend" : "";
+    const note = hot ? "Classic only with a friend" : "";
     return `<div class="hm-quick">${seg("mode", "Type", [["classic", "Classic"], ["rush", "Rush"]], last.mode, hot ? ["rush"] : [])}
-      ${seg("board", "Map", [["island", "Island"], ["seafarers", "Seafarers"]], last.board)}
+      ${mapCards(last)}
       ${seg("players", "Players", [3, 4, 5, 6].map((n) => [n, `<span class="hm-pp" aria-hidden="true">${PERSON_IC.repeat(n)}</span><b class="hm-pn" aria-hidden="true">${n}</b>`]), last.numBots + 1, sea ? [5, 6] : [], (v) => `${v} players`)}
       ${note ? `<p class="hm-qnote">${note}</p>` : ""}</div>`;
   }
@@ -236,9 +245,35 @@ export class Home {
       if (window.__colonistReload) window.__colonistReload(b); else window.location.reload(); });
     on("[data-home='review']", () => { const m = reviewInProgress(this.game); if (m) this.game.histView?.(m.id, "review", m.me); });
     on("[data-q]", (e) => this.quickPick(e.currentTarget.dataset.q));
+    on("[data-home='games']", () => this.chrome?.go("review"));
     on("[data-home='adjust']", () => this.opts.onAdjust());
     on("[data-home='start']", () => this.opts.onStartLast());
     this.el.scrollTop = keep;
+  }
+
+  /** "Your games": only what the history already holds (won / lost games with you at the table). */
+  statsHtml() {
+    const all = (this.game.hist?.metas || []).filter((m) => m.me != null && (m.result === "won" || m.result === "lost")); // newest first
+    if (!all.length) return `<button type="button" class="sh-card hm-stats empty" data-home="games"><span class="hm-st-art" aria-hidden="true">${STATS_ART}</span><span class="hm-st-tx"><b>Your games</b><small>Play your first game, your overview shows up here.</small></span></button>`;
+    const won = all.filter((m) => m.result === "won").length, pct = Math.round(100 * won / all.length);
+    let streak = 0; for (const m of all) { if (m.result === "won") streak++; else break; }
+    const last = all[0], mine = last.seats?.find((x) => x.you), best = Math.max(0, ...(last.seats || []).filter((x) => !x.you).map((x) => x.vp || 0));
+    const profs = [...new Set((last.seats || []).filter((x) => !x.you).map((x) => x.prof))].filter(Boolean);
+    const lvl = profs.length === 1 && !last.hot ? (this.game.shellLevelLabel?.(profs[0]) || "") : "";
+    const days = Math.max(0, Math.round((Date.now() - (last.end || Date.now())) / 864e5));
+    const ago = days === 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
+    const accs = all.filter((m) => typeof m.acc === "number" && !m.prov).map((m) => m.acc);
+    const dots = all.slice(0, 10).reverse().map((m) => `<i class="${m.result === "won" ? "w" : "l"}"></i>`).join("");
+    const C = 2 * Math.PI * 21;
+    return `<button type="button" class="sh-card hm-stats" data-home="games" aria-labelledby="hmStH">
+      <span class="hm-st-head"><b id="hmStH">Your games</b><span class="hm-st-go" aria-hidden="true">${CHEV}</span></span>
+      <span class="hm-st-main">
+        <svg class="hm-ring" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="21" class="bg"/><circle cx="26" cy="26" r="21" class="fg" stroke-dasharray="${(C * pct / 100).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 26 26)"/><text x="26" y="30.5" text-anchor="middle">${pct}%</text></svg>
+        <span class="hm-st-n"><b>${all.length}</b><small>Played</small></span><span class="hm-st-n"><b>${won}</b><small>Won</small></span><span class="hm-st-n"><b>${streak}</b><small>Win streak</small></span>
+        <span class="hm-dots" aria-hidden="true">${dots}</span>
+      </span>
+      <span class="hm-st-last">${mine ? avatarSvg(last.me, "hm-sav") : ""}<span class="hm-st-lt"><span>Last game</span> <b>${last.result === "won" ? "Won" : "Lost"}</b> <span>${mine ? mine.vp : "?"}–${best}</span>${lvl ? ` <span>vs</span> <span>${esc(lvl)}</span>` : ""} · <span>${esc(ago)}</span>${accs.length ? ` · <span>Best accuracy</span> <span>${Math.max(...accs)}</span>` : ""}</span></span>
+    </button>`;
   }
 
   /** A tap on a quick pick: same rules and same saved settings as the New game sheet. */
@@ -282,6 +317,7 @@ export class Home {
         <p class="hm-sum" aria-label="Your last settings">${parts.map((x) => `<span>${esc(x)}</span>`).join(" · ")}</p>
         <button type="button" class="btn primary block hm-start" data-home="start" data-mode="${last.mode}">Start game</button>
       </section>
+      ${this.statsHtml()}
     </div>`;
   }
 
