@@ -64,30 +64,58 @@ async function unpack(b) {
 /** v1.87 the result tag of a past game is a word, not a letter: Won / Lost (Gewonnen / Verloren), Table for a pass & play game. */
 const resultWord = (r) => { const nl = recapLang() === "nl"; return r === "won" ? (nl ? "Gewonnen" : "Won") : r === "lost" ? (nl ? "Verloren" : "Lost") : (nl ? "Tafel" : "Table"); };
 export class HistoryStore {
-  constructor(name = DB_NAME, limits = LIMITS) { this.name = name; this.lim = limits; this.db = null; this.mem = new Map(); this.mode = "idb"; this.metas = []; this.ready = null; this.full = false; this.pruned = 0; this.budget = limits.bytes; this.onChange = null; }
+  constructor(name = DB_NAME, limits = LIMITS) { this.name = name; this.lim = limits; this.db = null; this.mem = new Map(); this.mode = "idb"; this.metas = []; this.ready = null; this.full = false; this.pruned = 0; this.budget = limits.bytes; this.onChange = null;
+    this.unavailable = false; this.queue = new Map(); this._failAt = 0; // v1.99.5: an open that failed is not a final answer (see open())
+    try { if (typeof document !== "undefined") { const kick = () => { if (this.unavailable && document.visibilityState !== "hidden") this.retry(); }; document.addEventListener("visibilitychange", kick); addEventListener("pageshow", kick); } } catch (_) { /* no DOM */ }
+  }
 
   open() {
     if (this.ready) return this.ready;
+    if (this.unavailable && Date.now() - this._failAt < 5000) return Promise.resolve(this); // asked again right after a failure: answer at once
     this.ready = (async () => {
-      try {
-        if (typeof indexedDB === "undefined") throw new Error("no IndexedDB");
-        const r = indexedDB.open(this.name, 1);
-        r.onupgradeneeded = () => { r.result.createObjectStore("games", { keyPath: "id" }); r.result.createObjectStore("blobs", { keyPath: "id" }); };
-        this.db = await req(r);
-        this.metas = await req(this.db.transaction("games").objectStore("games").getAll());
-      } catch (_) { this.db = null; this.mode = "memory"; } // private window / blocked: this tab only
+      let ok = false, noIdb = false;
+      try { if (typeof indexedDB === "undefined") noIdb = true; } catch (_) { noIdb = true; }
+      // v1.99.5 a transient failure (iOS/Android "connection lost", a blocked upgrade, a slow start) must not look like an empty history: retry, then say so
+      for (let i = 0; i < 4 && !noIdb && !ok; i += 1) {
+        if (i) await new Promise((r) => setTimeout(r, [0, 150, 600, 1500][i]));
+        try {
+          const r = indexedDB.open(this.name, 1);
+          r.onupgradeneeded = () => { r.result.createObjectStore("games", { keyPath: "id" }); r.result.createObjectStore("blobs", { keyPath: "id" }); };
+          const db = await req(r);
+          this.metas = await req(db.transaction("games").objectStore("games").getAll());
+          this.db = db; ok = true;
+        } catch (_) { /* try again */ }
+      }
+      if (ok) { this.mode = "idb"; this.unavailable = false; this._failAt = 0; } else { this.db = null; this.mode = "memory"; if (!noIdb) { this.unavailable = true; this._failAt = Date.now(); } } // no IndexedDB at all = private window: this tab only
       this._sort();
+      if (ok) await this._flush();
+      if (this.unavailable) this.ready = null; // not cached: the next access tries again (retry() / open() after 5 s)
       this.onChange?.();
+      if (ok) try { document.dispatchEvent(new Event("colonist:update")); } catch (_) { /* no DOM */ }
       return this;
     })();
     return this.ready;
+  }
+  /** v1.99.5 the store failed to open: try once more (page visible again). */
+  retry() { if (!this.unavailable || this._busy) return Promise.resolve(this); this._busy = true; this.ready = null; this._failAt = 0; return this.open().finally(() => { this._busy = false; }); }
+  /** v1.99.5 games finished while the store was unavailable go to IndexedDB as soon as it opens (never the other way round). */
+  async _flush() {
+    if (!this.db || !this.queue.size) return;
+    const q = [...this.queue.values()]; this.queue.clear(); this._flushing = true;
+    try { for (const { meta, payload } of q) await this.put(meta, payload, { quiet: true }); } finally { this._flushing = false; }
   }
   _sort() { this.metas.sort((a, b) => b.end - a.end); }
   get count() { return this.metas.length; }
   get bytes() { return this.metas.reduce((a, m) => a + (m.kb || 0), 0); }
 
   async put(meta, payload, { quiet = false } = {}) {
-    await this.open();
+    if (!this._flushing) await this.open(); // (the flush runs inside open(): waiting for it here would wait for ourselves)
+    if (this.unavailable && !this.db) { // v1.99.5 kept in the queue (and shown) until IndexedDB opens; never pruned, never written over IndexedDB from here
+      this.queue.set(meta.id, { meta, payload });
+      const i = this.metas.findIndex((m) => m.id === meta.id); if (i >= 0) this.metas[i] = meta; else this.metas.push(meta);
+      this._sort(); this.full = false; if (!quiet) this.onChange?.();
+      return true;
+    }
     const p = await pack(payload);
     meta.kb = p.bytes;
     const blob = { id: meta.id, enc: p.enc, data: p.data };
@@ -112,6 +140,7 @@ export class HistoryStore {
   }
   /** Keep to the limits; `extra` more games are removed first (a failed write). The just-saved game stays. */
   async _prune(keep, extra) {
+    if (this.unavailable && !this.db) return;
     let n = 0;
     const cand = () => this.metas.filter((m) => !m.star && m.id !== keep).sort((a, b) => a.end - b.end);
     while (cand().length && (extra > n || this.metas.filter((m) => !m.star).length > this.lim.games || this.bytes > this.budget)) { await this.remove(cand()[0].id, true); n += 1; }
@@ -130,7 +159,7 @@ export class HistoryStore {
     } catch (_) { return null; }
   }
   async remove(id, quiet = false) {
-    await this.open();
+    if (!this._flushing) await this.open();
     try {
       if (this.db) { const tx = this.db.transaction(["games", "blobs"], "readwrite"); tx.objectStore("games").delete(id); tx.objectStore("blobs").delete(id); await done(tx); } else this.mem.delete(id);
     } catch (_) { /* gone or not: the list below is what counts */ }
@@ -256,6 +285,7 @@ export const HistoryMixin = {
   histArchive() {
     if (!this.winner || !this.stats?.id || this._replay || this._histView || this.labMode) return Promise.resolve(false);
     const H = this.hist, id = this.stats.id;
+    try { navigator.storage?.persist?.()?.catch?.(() => {}); } catch (_) { /* v1.99.5 ask the browser not to evict the history; ignore any failure */ }
     return H.open().then(async () => {
       const prev = H.metas.find((m) => m.id === id) || null;
       const rv = this._rv && this._rv.id === id && this._rv.recs.length ? this._rv : null;
@@ -279,6 +309,7 @@ export const HistoryMixin = {
   /** First run: the last game of the old storage becomes the first entry (with its recording and accuracy). */
   async histMigrate(old) {
     if (!old) return;
+    if (this.hist.unavailable) return; // v1.99.5 the store is not open: the old slot stays where it is until the next launch
     try {
       const st = old.save ? JSON.parse(old.save) : null;
       if (st?.winnerId != null && st.stats?.id && !this.hist.metas.some((m) => m.id === st.stats.id)) {
@@ -444,6 +475,7 @@ export const HistoryMixin = {
     el.querySelector("[data-hrev]")?.addEventListener("click", () => { F.rev = !F.rev; this._histDraw(); });
     el.querySelector("[data-hstar]")?.addEventListener("click", () => { F.star = !F.star; this._histDraw(); });
     el.querySelector("[data-hreset]")?.addEventListener("click", () => { F.res = "all"; F.mode.clear(); F.rev = F.star = false; this._histDraw(); });
+    el.querySelectorAll("[data-hreload]").forEach((b) => b.addEventListener("click", () => location.reload()));
     el.querySelector("[data-hplay]")?.addEventListener("click", () => { this.histClose(); this.goHome(); });
     el.querySelector("[data-hfree]")?.addEventListener("click", async () => { const old = H.metas.filter((m) => !m.star).sort((a, b) => a.end - b.end).slice(0, 10); for (const m of old) await H.remove(m.id, true); H.full = false; H.onChange?.(); });
     el.querySelectorAll("[data-hrow]").forEach((b) => b.addEventListener("click", () => this._histSheet(b.dataset.hrow)));
@@ -527,6 +559,7 @@ export const HistoryMixin = {
 
   _histBanner(u) {
     const H = this.hist;
+    if (H.unavailable) return H.metas.length ? this._histDown(true) : ""; // with no game to show, the empty state below carries the notice
     if (H.mode === "memory") return `<aside class="hs-ban warn" role="status">${WARN}<div><b>Private window</b><p>This browser doesn’t let Colonist save games here. Your past games last until you close this tab.</p></div></aside>`;
     if (H.full) return `<aside class="hs-ban warn" role="status">${WARN}<div><b>Storage is full</b><p>The last game couldn’t be kept. Free some room: starred games stay, the oldest others go.</p><button type="button" class="hs-btn" data-hfree>Delete the 10 oldest</button></div></aside>`;
     if (u.near) return `<aside class="hs-ban" role="status">${WARN}<div><b>Storage almost full</b><p>${H.metas.filter((m) => !m.star).length} of ${LIMITS.games} games kept · ${kb(u.bytes)} used. ${u.free != null && u.free < 0.05 ? "This device is nearly out of space. " : ""}When it is full the oldest games are removed first; star the ones to keep.</p>
@@ -535,7 +568,14 @@ export const HistoryMixin = {
     return "";
   },
 
+  /** v1.99.5 the store could not be opened: say so (and offer Reload) instead of "No past games yet". */
+  _histDown(banner) {
+    const nl = recapLang() === "nl", msg = nl ? "Je spellen konden niet geladen worden. Herlaad de app." : "Your games couldn’t be loaded. Reload the app.", btn = nl ? "Herlaad" : "Reload";
+    return banner ? `<aside class="hs-ban warn" role="alert">${WARN}<div><b data-i18n-skip>${msg}</b><button type="button" class="hs-btn pri" data-hreload data-i18n-skip>${btn}</button></div></aside>`
+      : `<section class="hs-empty" role="alert"><h4 data-i18n-skip>${msg}</h4><button type="button" class="hs-btn pri" data-hreload data-i18n-skip>${btn}</button></section>`;
+  },
   _histEmpty() {
+    if (this.hist.unavailable) return this._histDown(false);
     return `<section class="hs-empty"><svg viewBox="0 0 120 96" aria-hidden="true"><rect x="22" y="16" width="76" height="64" rx="10" class="e-card"/><path d="M36 36h48M36 50h34M36 64h40" class="e-line"/><circle cx="90" cy="70" r="16" class="e-badge"/><path d="M90 61v10l7 4" class="e-hand"/></svg>
       <h4>No past games yet</h4><p>Every game you finish is kept here on this device: replay it, see the stats, or have it reviewed.</p>
       <button type="button" class="hs-btn pri" data-hplay>Start a game</button></section>`;
