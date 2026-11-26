@@ -11,15 +11,15 @@
 // The game runs in two iframes in lab mode (index.html?lab=view draws the board, ?lab=sim plays the
 // headless games in short chunks so the page stays responsive). Lab mode never writes the saved game.
 
-import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=1997";
-import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=1997";
-import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=1997";
-import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=1997";
-import { byStrength } from "./bot-stats.js?v=1997";
+import { stepStripHtml, stepCardHtml, stackHtml, TERM_COLOR, masterSteps, masterLineHtml } from "./ai-tree.js?v=1998";
+import { masterRequest, masterAvailable, MASTER_BUDGET, budgetFor, labGameRequest, labGameCancel } from "./master.js?v=1998";
+import { BOT_PROFILES, profileMini, levelFrame } from "./bot-profiles.js?v=1998";
+import { drawSeats, seatKeys, aggregate, verdict, compareRuns } from "./lab-stats.js?v=1998";
+import { byStrength } from "./bot-stats.js?v=1998";
 import { botIds, byLevel, isSearchBot } from "./bots/registry.js"; // step 4: the one list of bots
 /** Step 4: games of the sim frame played by the bot host (src/bots/index.js) instead of the old loop. Opt-in: localStorage colonist.labHost = "1". Same games, same records (tests/lab197.js). */
 const labHost = async () => { try { return localStorage.getItem("colonist.labHost") === "1" ? await import("./bots/index.js") : null; } catch (_) { return null; } };
-import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=1997";
+import { labStore, recordOn, replayScript, entryOf, clearStore, reviewGame } from "./lab-games.js?v=1998";
 
 const $ = (s) => document.querySelector(s);
 const KEY = "colonist.lab";
@@ -28,12 +28,23 @@ const DIMS = [["placement", "Placement"], ["expansion", "Expansion"], ["trading"
 const PRESETS = ["beginner", "simple", "intermediate", "expert", "builder", "trader", "shark", "master"]; // v0.87: + Simple (rulebook bot); v0.90: + Master (search)
 const MODES = [["setup", "Start spots"], ["build", "Next build"], ["robber", "Robber"]];
 const TOOLS = [["pan", "Move"], ["settlement", "Town"], ["city", "City"], ["road", "Road"], ["robber", "Robber"], ["erase", "Erase"]];
-const MAPS = [["random", "Random"], ["balanced", "Balanced"], ["seed", "Seed"], ["game", "My game"]];
-const PLAYERS = [["4", "4"], ["6", "6"], ["sea", "Seafarers"]];
+const MAPS = [["random", "Random"], ["balanced", "Balanced"], ["beginner", "Beginner"], ["seed", "Seed"], ["game", "My game"]]; // the board layout (+ a seed, or your running game)
+// v1.99.8 every game mode of the app: Type, Map (the shape), Players, Board layout, Dice. The app's rules: Seafarers and the map shapes are 3-4 player maps.
+const TYPES = [["classic", "Classic"], ["rush", "Rush"]];
+const SHAPES = [["island", "Island"], ["seafarers", "Seafarers"], ["lake", "Lake"], ["isthmus", "Isthmus"], ["shape", "Random shape"]];
+const SHAPE_NAME = Object.fromEntries(SHAPES);
+const LAYOUTS = [["random", "Random"], ["balanced", "Balanced"], ["beginner", "Beginner"]];
+const DICES = [["random", "Random"], ["balanced", "Balanced"], ["deck", "Event deck"]];
+const PLAYERS = [["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"]];
+const fewMap = (shape) => shape !== "island"; // Seafarers, Lake, Isthmus, Random shape: 3-4 players
+const fewWhy = (shape) => `${SHAPE_NAME[shape]} is a 3–4 player map.`;
+const beginnerWhy = (shape, n) => (n >= 5 ? "There is no official 5–6 player starter layout, so you get a balanced island." : shape === "lake" || shape === "isthmus" || shape === "shape" ? "There is no official starter layout for this map, so you get a balanced board." : "");
+const RUSH_AN = "Rush has no turns, so there is no position to step through here. Play it in Tournament.";
+/** One line for a run's game mode: "Rush · Lake · Balanced · Event deck · 4 players". Runs from before v1.99.8 have only the layout. */
+const cfgText = (c) => [c.mode === "rush" ? "Rush" : "", SHAPE_NAME[c.shape || "island"], (LAYOUTS.find((x) => x[0] === c.tboard) || LAYOUTS[0])[1], c.dice && c.dice !== "random" ? (DICES.find((x) => x[0] === c.dice) || [])[1] : "", c.nSeats ? `${c.nSeats} players` : ""].filter(Boolean).join(" · ");
 const PIECES = [["start", "Bots' start"], ["none", "Empty"]];
 const HANDS = [["keep", "As is"], ["0", "Empty"], ["1", "1 each"], ["3", "3 each"]];
 const SPEEDS = [["watch", "Watch"], ["instant", "Instant"]];
-const TBOARDS = [["random", "Random"], ["balanced", "Balanced"]];
 // The Calculation weights (multipliers on the bot's own score terms, see AI_WEIGHT_KEYS in game.js)
 const WEIGHTS = [
   ["Placement", [["num", "Number strength", "value of 6 / 8 over 2 / 12"], ["variety", "Resource variety", "bonus per different resource"], ["scarcity", "Scarcity", "resources it lacks or the board lacks count more"]]],
@@ -58,7 +69,8 @@ const CHEV = `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4"
 
 const st = {
   pane: "analysis", mode: "setup", seat: 1, tool: "pan", preset: "intermediate", strat: null, map: "random", seed: 42, players: "4", hand: "keep", pieces: "start", speed: "watch",
-  tseatN: 4, seats: ["expert", "intermediate", "intermediate", "intermediate"], distinct: false, mix: null, games: 100, tboard: "random", tseats: "rotate", revN: 0,
+  tseatN: 4, seats: ["expert", "intermediate", "intermediate", "intermediate", "intermediate", "intermediate"], distinct: false, mix: null, games: 100, tboard: "random", tseats: "rotate", revN: 0,
+  shape: "island", tmode: "classic", tshape: "island", tdice: "random",
   ...(store(KEY) || {}),
 };
 if (st.speed === "fast") st.speed = "watch"; // v0.83-0.86 name
@@ -136,9 +148,14 @@ function renderControls() {
   $("#labMixRow").hidden = !(mixable() || st.mix);
   $("#labMixBtn").textContent = mixable() ? (st.mix ? "Update Custom mix" : "Save as Custom mix") : "Remove Custom mix";
   $("#labMixSt").textContent = st.mix ? "Custom mix saved" : "";
+  const mine = st.map === "game", few = fewMap(st.shape);
+  seg($("#labType"), TYPES, "classic", "ty", () => {}, ["rush"]); // Rush: nothing to analyse (no turns); its games run in Tournament
+  $("#labType").querySelector('[data-ty="rush"]').title = RUSH_AN;
+  seg($("#labShape"), SHAPES, st.shape, "sh", (v) => { st.shape = v; if (fewMap(v) && Number(st.players) > 4) st.players = "4"; renderControls(); newBoard(); }, mine ? SHAPES.map((x) => x[0]) : []);
   seg($("#labMap"), MAPS, st.map, "map", (v) => { st.map = v; renderControls(); newBoard(); });
   $("#labSeedRow").hidden = st.map !== "seed";
-  seg($("#labPlayers"), PLAYERS, st.players, "pl", (v) => { st.players = v; newBoard(); }, st.map === "game" ? PLAYERS.map((x) => x[0]) : []);
+  seg($("#labPlayers"), PLAYERS, st.players, "pl", (v) => { st.players = v; renderControls(); newBoard(); }, mine ? PLAYERS.map((x) => x[0]) : few ? ["5", "6"] : []);
+  $("#labBoardNote").innerHTML = [`Type: ${RUSH_AN} Dice only matter in games, so they are set in Tournament.`, few ? fewWhy(st.shape) : "", st.map === "beginner" ? beginnerWhy(st.shape, Number(st.players)) : "", mine ? "My game: the map and players come from your game." : ""].filter(Boolean).map(esc).join(" ");
   seg($("#labPieces"), PIECES, st.pieces, "pc", (v) => { st.pieces = v; newBoard(); }, st.map === "game" ? PIECES.map((x) => x[0]) : []);
   seg($("#labHand"), HANDS, st.hand, "hand", (v) => { st.hand = v; applyHand(); update(); });
   seg($("#labTools"), TOOLS, st.tool, "tool", (v) => { st.tool = v; renderControls(); });
@@ -493,7 +510,7 @@ async function newBoard() {
     else $("#labBusy").hidden = true;
   } else {
     view._labNewBoard({ map: st.map === "seed" ? "random" : st.map, seed: st.map === "seed" ? Number($("#labSeed").value) || 0 : null,
-      players: st.players === "6" ? 6 : 4, sea: st.players === "sea" });
+      players: Number(st.players) || 4, board: st.shape });
     if (st.pieces === "start") view._labAutoSetup();
     $("#labBusy").hidden = true;
   }
@@ -536,7 +553,7 @@ function bindBoardTools(frame) {
 // v1.13: a free sandbox. 2-4 seats, each any preset (or Random: a different bot every game, drawn from a seeded
 // stream so game i is the same line-up in every run), or the Custom mix you saved in Analysis (only then).
 // Results are counted per bot PROFILE over every seat it played (src/lab-stats.js). Same boards and dice in every run.
-const SEAT_COL = (i) => view?.players?.[i]?.color || ["#D1453A", "#3C75C6", "#F08A2E", "#3FD9C2"][i];
+const SEAT_COL = (i) => view?.players?.[i]?.color || ["#E0312B", "#2F6FE6", "#F7931E", "#1E9E8E", "#8E5BD0", "#7C8A96"][i];
 const P = BOT_PROFILES;
 const DICE = `<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="9" cy="9" r="1.3" fill="currentColor"/><circle cx="15" cy="15" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1.3" fill="currentColor"/><circle cx="9" cy="15" r="1.3" fill="currentColor"/></svg>`;
 const PEN = `<svg viewBox="0 0 16 16" width="100%" height="100%" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M2 11l7-7 3 3-7 7H2zM8 5l3 3"/></svg>`;
@@ -559,8 +576,8 @@ const dotsHtml = (k) => `<span class="lb-dots" aria-hidden="true">${[1, 2, 3, 4,
 const subOf = (k) => (k === "random" ? "draws a different bot every game" : k === "mix" ? "your mix from Analysis" : P[k] ? `${dotsHtml(k)} ${esc(P[k].tagline)}` : "");
 const TPLS = [
   ["1v3", (n) => `1 vs ${n - 1}`, (n) => ["expert", ...Array(n - 1).fill("intermediate")], false],
-  ["rr", () => "Round robin", (n) => ["expert", "builder", "trader", "shark"].slice(0, n), false],
-  ["mirror", () => "Mirror", (n) => ["expert", "intermediate", "expert", "intermediate"].slice(0, n), false],
+  ["rr", () => "Round robin", (n) => Array.from({ length: n }, (_, i) => ["expert", "builder", "trader", "shark"][i % 4]), false],
+  ["mirror", () => "Mirror", (n) => Array.from({ length: n }, (_, i) => (i % 2 ? "intermediate" : "expert")), false],
   ["rand", (n) => `${n} random bots`, (n) => Array(n).fill("random"), false],
   ["randd", () => "Random, all different", (n) => Array(n).fill("random"), true],
 ];
@@ -595,7 +612,10 @@ function renderTournamentSetup() {
     document.querySelectorAll("#labSpeed button").forEach((b) => { const on = b.dataset.speed === st.speed; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); });
     return;
   }
-  seg($("#labNSeats"), [[2, "2"], [3, "3"], [4, "4"]], st.tseatN, "ns", (v) => { st.tseatN = Number(v); save(); renderTournamentSetup(); });
+  if (fewMap(st.tshape)) st.tseatN = Math.min(4, Math.max(3, st.tseatN)); // Seafarers and the map shapes: 3-4 players
+  const rush = st.tmode === "rush";
+  seg($("#labNSeats"), [["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"]], st.tseatN, "ns", (v) => { st.tseatN = Number(v); save(); renderTournamentSetup(); }, fewMap(st.tshape) ? ["2", "5", "6"] : []);
+  if (fewMap(st.tshape)) $("#labNSeats").querySelectorAll("[disabled]").forEach((b) => { b.title = fewWhy(st.tshape); });
   $("#labTpl").innerHTML = TPLS.map((t) => `<button type="button" class="lb-chip${tplOn(t) ? " on" : ""}" data-tpl="${t[0]}">${esc(t[1](n))}</button>`).join("");
   $("#labTpl").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
     const t = TPLS.find((x) => x[0] === b.dataset.tpl);
@@ -608,14 +628,25 @@ function renderTournamentSetup() {
   $("#labDistinct").setAttribute("aria-checked", String(!!st.distinct));
   $("#labDistinct").classList.toggle("on", !!st.distinct);
   seg($("#labGames"), GAMES_ALLOWED.map((g) => [g, String(g)]), String(st.games), "g", (v) => { st.games = Number(v); save(); renderTournamentSetup(); });
-  seg($("#labTBoard"), TBOARDS, st.tboard, "tb", (v) => { st.tboard = v; save(); renderTournamentSetup(); });
+  seg($("#labTType"), TYPES, st.tmode, "tt", (v) => { st.tmode = v; save(); renderTournamentSetup(); });
+  seg($("#labTShape"), SHAPES, st.tshape, "ts", (v) => { st.tshape = v; save(); renderTournamentSetup(); });
+  seg($("#labTBoard"), LAYOUTS, st.tboard, "tb", (v) => { st.tboard = v; save(); renderTournamentSetup(); });
+  seg($("#labTDice"), DICES, st.tdice, "td", (v) => { st.tdice = v; save(); renderTournamentSetup(); });
+  const slowSeat = rush ? spec.findIndex(slowKey) : -1;
+  const reviewOk = !rush && st.tshape === "island";
+  $("#labTNote").textContent = [fewMap(st.tshape) ? `${fewWhy(st.tshape)} (Players: 3 or 4.)` : "", st.tboard === "beginner" ? beginnerWhy(st.tshape, n) : "",
+    rush ? "Rush: every bot builds and trades at once, the dice roll on a clock. A game counts rolls, not turns. Not kept for Replay or the review." : "",
+    !reviewOk && !rush ? "The review covers the Island map." : "",
+    slowSeat >= 0 ? `Seat ${slowSeat + 1} is a ${labelOf(spec[slowSeat])}: Master and Super Expert search turn by turn, so they cannot play Rush. Pick another bot.` : ""].filter(Boolean).join(" ");
+  $("#labTNote").hidden = !$("#labTNote").textContent;
   const rot = st.tseats === "rotate";
   $("#labTSeats").setAttribute("aria-checked", String(rot)); $("#labTSeats").classList.toggle("on", rot);
   seg($("#labSpeed"), SPEEDS, st.speed, "speed", (v) => { st.speed = v; save(); renderTournamentSetup(); });
-  seg($("#labRevN"), REVNS, String(st.revN), "rn", (v) => { st.revN = v === "all" ? "all" : Number(v); save(); renderTournamentSetup(); });
-  $("#labRevCost").hidden = !st.revN;
-  if (st.revN) $("#labRevCost").textContent = revCostText(n, revCount(st.revN, st.games));
-  const mayBeSlow = spec.some((k) => k === "random" ? poolKeys().some(slowKey) : slowKey(k));
+  seg($("#labRevN"), REVNS, reviewOk ? String(st.revN) : "0", "rn", (v) => { st.revN = v === "all" ? "all" : Number(v); save(); renderTournamentSetup(); }, reviewOk ? [] : REVNS.slice(1).map((x) => x[0]));
+  $("#labRevCost").hidden = !st.revN || !reviewOk;
+  if (st.revN && reviewOk) $("#labRevCost").textContent = revCostText(n, revCount(st.revN, st.games));
+  $("#labRun").disabled = slowSeat >= 0;
+  const mayBeSlow = !rush && spec.some((k) => k === "random" ? poolKeys().some(slowKey) : slowKey(k));
   $("#labWatchNote").hidden = !mayBeSlow;
   $("#labRun").textContent = `Start ${st.games} games`; $("#labRun").classList.remove("stop");
   const ms = store(MKEY, sessionStorage);
@@ -669,7 +700,7 @@ function renderStand(final = false) {
     ${rows.length ? tableHtml(rows) : ""}`;
 }
 function runText(rows, v, title, n) {
-  return [`AI Lab · ${title} · ${n} games · 4-player base game`, v.line, ...rows.map((r, i) => `${i + 1}. ${r.label}: ${pct(r.p)} ±${half(r)} (n=${r.n}), ${r.avgVp.toFixed(1)} points, ${Math.round(r.avgTurns)} turns`)].join("\n");
+  return [`AI Lab · ${title} · ${n} games · ${cfgText(sim.cfg)}`, v.line, ...rows.map((r, i) => `${i + 1}. ${r.label}: ${pct(r.p)} ±${half(r)} (n=${r.n}), ${r.avgVp.toFixed(1)} points, ${Math.round(r.avgTurns)} turns`)].join("\n");
 }
 function renderSummary() {
   const el = $("#labSummary");
@@ -678,7 +709,7 @@ function renderSummary() {
   const title = specTitle(cfg.spec, cfg.distinct);
   const clear = rows.length > 2 ? v.pairs.filter((p) => p.sig && p.diff > 0).slice(0, 4).map((p) => `${labelOf(p.a)} > ${labelOf(p.b)}`).join(", ") : "";
   el.hidden = false;
-  el.innerHTML = `<div class="lt-head"><h2>Result</h2><small>${sim.results.length} games · ${cfg.tboard === "balanced" ? "Balanced" : "Random"} · ${cfg.nSeats} seats</small></div>
+  el.innerHTML = `<div class="lt-head"><h2>Result</h2><small>${sim.results.length} games · ${esc(cfgText(cfg))}</small></div>
     <p class="lb-verdict v-${v.kind}">${esc(v.line)}</p>
     ${clear ? `<p class="lb-fine">Clear gaps: ${esc(clear)}</p>` : ""}
     ${tableHtml(rows)}
@@ -700,7 +731,7 @@ const picked = new Set();
 function saveRun() {
   if (!sim.results.length || sim.saved) return;
   const rows = aggRows(), v = verdict(rows), cfg = sim.cfg;
-  runs.unshift({ id: Date.now(), n: sim.results.length, title: specTitle(cfg.spec, cfg.distinct), board: cfg.tboard, nSeats: cfg.nSeats, line: v.line, who: cfg.spec,
+  runs.unshift({ id: Date.now(), n: sim.results.length, title: specTitle(cfg.spec, cfg.distinct), board: cfg.tboard, mode: cfg.mode, shape: cfg.shape, dice: cfg.dice, nSeats: cfg.nSeats, line: v.line, who: cfg.spec,
     rows: rows.map(({ key, label, n, wins, p, lo, hi, fair, avgVp, avgTurns }) => ({ key, label, n, wins, p, lo, hi, fair, avgVp, avgTurns })) });
   runs = runs.slice(0, 30);
   put(RKEY, runs);
@@ -719,7 +750,7 @@ function renderHist() {
   }
   el.innerHTML = `<div class="lt-head"><h2>Saved runs</h2><small>on this phone · tick 2 to compare</small></div>
     <div class="lb-hist">${runs.map((r) => `<div class="lb-rr"><button type="button" class="lb-ck${picked.has(r.id) ? " on" : ""}" role="checkbox" aria-checked="${picked.has(r.id)}" data-pick="${r.id}" aria-label="Select ${esc(r.title)}"></button>
-      <div><span class="tt">${esc(r.title)}</span><small>${esc(when(r.id))} · ${r.n} games · ${r.board === "balanced" ? "Balanced" : "Random"}</small><span class="lb-chips">${r.rows.map((x) => emblem(x.key, 20)).join("")}</span>
+      <div><span class="tt">${esc(r.title)}</span><small>${esc(when(r.id))} · ${r.n} games · ${esc(cfgText({ mode: r.mode, shape: r.shape, tboard: r.board, dice: r.dice }))}</small><span class="lb-chips">${r.rows.map((x) => emblem(x.key, 20)).join("")}</span>
       <small class="lb-vl">${esc(r.line)}</small></div><b>${pct(r.rows[0]?.p ?? 0)}<small>${esc(r.rows[0]?.label || "")}</small></b></div>`).join("")}</div>
     ${cmp}
     <div class="lb-btnrow"><button type="button" class="lb-btn" id="labDelRuns"${picked.size ? "" : " disabled"}>Delete ticked</button></div>`;
@@ -834,7 +865,7 @@ function saveLast() {
 /** Keep the sim frame's finished game (result index idx); a recorded one (among the first revN) is queued for the review. */
 async function keep(idx) {
   const g = $("#labSim").contentWindow.__colonistGame, r = sim.results[idx];
-  const { meta, payload } = entryOf(g, { keys: r.keys, labels: r.keys.map(labelOf), i: r.game, run: sim.run });
+  const { meta, payload } = entryOf(g, { keys: r.keys, labels: r.keys.map(labelOf), i: r.game, run: sim.run, game: { mode: sim.cfg?.mode, board: sim.cfg?.shape } });
   if (!(await labStore.put(meta, payload, { quiet: true }))) { sim.unkept += 1; return; }
   r.id = meta.id;
   const ids = new Set(labStore.metas.map((m) => m.id));
@@ -883,7 +914,7 @@ function renderGames() {
   el.hidden = false;
   const kept = list.filter((r) => r.id).length;
   const status = (r, idx) => {
-    if (!r.id) return "not kept";
+    if (!r.id) return sim.cfg?.mode === "rush" ? "" : "not kept";
     if (r.acc) return "reviewed";
     if (rev.cur?.idx === idx) { const t = rev.cur.tick; return t ? `reviewing: ${labelOf(r.keys[t.pid])}, ${t.stage} round ${t.j} of ${t.n} moves` : "reviewing…"; }
     if (r.revFail) return "review failed";
@@ -894,7 +925,7 @@ function renderGames() {
     const win = r.winner == null || r.winner < 0 ? "No winner" : `${labelOf(r.keys[r.winner])} wins`;
     const st2 = status(r, idx);
     const seats = r.acc ? `<span class="lb-gseats">${r.keys.map((k, s2) => `<button type="button" class="lb-gseat" data-open="${esc(r.id)}" data-what="review" data-pid="${s2}" aria-label="Review of ${esc(labelOf(k))} in game ${r.game}: accuracy ${accText(r.acc[s2])}">${emblem(k, 22)}<b>${accText(r.acc[s2])}</b></button>`).join("")}</span>` : "";
-    return `<div class="lb-grow"><div><span class="tt">Game ${r.game} · ${esc(win)}</span><small>${r.turns} turns${st2 ? ` · ${esc(st2)}` : ""}</small>${seats}</div>${r.id ? `<button type="button" class="lb-btn" data-open="${esc(r.id)}" data-what="replay">Replay</button>` : ""}</div>`;
+    return `<div class="lb-grow"><div><span class="tt">Game ${r.game} · ${esc(win)}</span><small>${r.turns} ${sim.cfg?.mode === "rush" ? "rolls" : "turns"}${st2 ? ` · ${esc(st2)}` : ""}</small>${seats}</div>${r.id ? `<button type="button" class="lb-btn" data-open="${esc(r.id)}" data-what="replay">Replay</button>` : ""}</div>`;
   }).join("");
   el.innerHTML = `<div class="lt-head"><h2>Games of this run</h2><small>${kept} kept on this phone · ${kbText(labStore.bytes)} of ${kbText(labStore.budget)}</small></div>
     <div class="lb-glist">${rows}</div>
@@ -908,9 +939,12 @@ async function runTournament(over = {}) {
   const frame = $("#labSim");
   if (!frame.src) frame.src = "./index.html?lab=sim";
   const spec = over.spec || seatSpec();
-  const cfg = { n: st.games, tboard: st.tboard, rotate: st.tseats === "rotate", distinct: !!st.distinct, ...over, spec, nSeats: spec.length };
-  const pool = drawPool();
-  cfg.revN = revCount(over.review === true ? "all" : over.review ?? st.revN, cfg.n); // lab-131: the first revN games are reviewed
+  const cfg = { n: st.games, tboard: st.tboard, mode: st.tmode, shape: st.tshape, dice: st.tdice, rotate: st.tseats === "rotate", distinct: !!st.distinct, ...over, spec, nSeats: spec.length };
+  const rush = cfg.mode === "rush";
+  if (rush && spec.some(slowKey)) return sim;
+  const pool = rush ? drawPool().filter((k) => !slowKey(k)) : drawPool(); // Rush: no searching bots
+  const game = { mode: cfg.mode, board: cfg.shape, dice: cfg.dice }; // the app's own settings for the game (resetGame with them)
+  cfg.revN = rush || cfg.shape !== "island" ? 0 : revCount(over.review === true ? "all" : over.review ?? st.revN, cfg.n); // lab-131: the first revN games are reviewed
   Object.assign(sim, { running: true, n: cfg.n, done: 0, errors: 0, game: 0, restore: true, results: [], cfg, curKeys: null, msTotal: 0, saved: false, run: Date.now(), unkept: 0 });
   stopReviews(); rev.done = 0;
   await clearStore(); // the games of the last run make way (lab-131: kept for Replay / the review)
@@ -942,7 +976,7 @@ async function runTournament(over = {}) {
         sim.slow = true;
         let first = true, lastDraw = 0;
         renderWatch(null); renderStand();
-        const m = await labGameRequest({ type: "game", seed, strategies, map: cfg.tboard, opts: { ...MASTER_BUDGET }, watch: true, budgets: strategies.map((x) => (isSlow(x) ? budgetFor(x.policy) : null)) }, (p) => {
+        const m = await labGameRequest({ type: "game", seed, strategies, map: cfg.tboard, ...game, opts: { ...MASTER_BUDGET }, watch: true, budgets: strategies.map((x) => (isSlow(x) ? budgetFor(x.policy) : null)) }, (p) => {
           if (!sim.running) return;
           sim.live = p;
           if (watchOn() && p.state && performance.now() - lastDraw > 250) {
@@ -958,7 +992,7 @@ async function runTournament(over = {}) {
         sim.results.push({ game: i + 1, keys, winner: m.winner, turns: m.turns, vp: m.vp, ms: m.ms });
         sim.done += 1; sim.msTotal += performance.now() - t0;
         // the same game again in the sim frame from the worker's decisions, recorded (Replay; the review with the switch on)
-        try { if (await replayScript(g, { strategies, seed, map: cfg.tboard, script: m.script || [], result: m }, i < cfg.revN, await labHost())) await keep(sim.results.length - 1); else sim.unkept += 1; }
+        try { if (await replayScript(g, { strategies, seed, map: cfg.tboard, game, script: m.script || [], result: m }, i < cfg.revN, await labHost())) await keep(sim.results.length - 1); else sim.unkept += 1; }
         catch (e) { sim.unkept += 1; console.warn("lab keep", e); }
         sim.live = { turn: m.turns, vp: m.vp };
         renderStand(); renderTournamentSetup();
@@ -967,7 +1001,7 @@ async function runTournament(over = {}) {
       }
       try {
         recordOn(g, i < cfg.revN); // lab-131: a game to review records every seat's real choices
-        g._labSimStart(strategies, { players: keys.length, map: cfg.tboard, seed, host: await labHost() });
+        g._labSimStart(strategies, { players: keys.length, map: cfg.tboard, ...game, seed, host: await labHost() });
         let r = { done: false }, shown = false;
         do {
           if (watchOn()) {
@@ -989,7 +1023,7 @@ async function runTournament(over = {}) {
         const info = g._labSimInfo();
         sim.results.push({ game: i + 1, keys, winner: r.winner, turns: r.turns, vp: info.players.map((p) => p.vp) });
         sim.done += 1; sim.msTotal += performance.now() - t0;
-        await keep(sim.results.length - 1).catch((e) => { sim.unkept += 1; console.warn("lab keep", e); });
+        if (!rush) await keep(sim.results.length - 1).catch((e) => { sim.unkept += 1; console.warn("lab keep", e); });
         renderStand(); renderTournamentSetup();
         if (watchOn() && sim.running) { view._labWatch(g); feedFull(() => g.serializeState()); renderWatch(g, r.winner ?? -1); await sleep(i + 1 < cfg.n ? 900 : 1400); }
       } catch (e) { sim.errors += 1; recordOn(g, false); console.error("tournament game failed", e); }
@@ -1040,8 +1074,18 @@ function setPane(p) {
   if (!st.strat || !DIMS.every(([k]) => H.AI_STRATEGY_CATEGORIES[k].levels.includes(st.strat[k]))) st.strat = { ...H.AI_PRESETS[st.preset] || H.AI_PRESETS.intermediate };
   st.preset = presetOf(st.strat);
   if (!st.mix || !DIMS.every(([k]) => H.AI_STRATEGY_CATEGORIES[k].levels.includes(st.mix[k]))) st.mix = null;
-  st.tseatN = [2, 3, 4].includes(Number(st.tseatN)) ? Number(st.tseatN) : 4;
-  if (!Array.isArray(st.seats) || st.seats.length !== 4) st.seats = ["expert", "intermediate", "intermediate", "intermediate"];
+  st.tseatN = [2, 3, 4, 5, 6].includes(Number(st.tseatN)) ? Number(st.tseatN) : 4;
+  if (st.players === "sea") { st.shape = "seafarers"; st.players = "4"; } // before v1.99.8 Seafarers was a Players choice
+  if (!SHAPE_NAME[st.shape]) st.shape = "island";
+  if (!["3", "4", "5", "6"].includes(String(st.players))) st.players = "4";
+  st.players = String(st.players);
+  if (fewMap(st.shape) && Number(st.players) > 4) st.players = "4";
+  if (!TYPES.some((x) => x[0] === st.tmode)) st.tmode = "classic";
+  if (!SHAPE_NAME[st.tshape]) st.tshape = "island";
+  if (!DICES.some((x) => x[0] === st.tdice)) st.tdice = "random";
+  if (!LAYOUTS.some((x) => x[0] === st.tboard)) st.tboard = "random";
+  if (!Array.isArray(st.seats)) st.seats = [];
+  st.seats = st.seats.slice(0, 6); while (st.seats.length < 6) st.seats.push(st.seats.length ? "intermediate" : "expert");
   st.seats = st.seats.map((k, i) => (k === "random" || (k === "mix" && st.mix) || H.AI_PRESETS[k] ? k : i ? "intermediate" : "expert"));
   if (!GAMES_ALLOWED.includes(Number(st.games))) st.games = 100;
   st.games = Number(st.games);

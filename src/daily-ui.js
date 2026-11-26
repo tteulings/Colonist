@@ -328,7 +328,7 @@ export class DailyUi {
       let w = null, done = false;
       const end = (v) => { if (done) return; done = true; try { w?.terminate(); } catch (_) { /* gone */ } this.botJobs.delete(day); if (v !== undefined) { D.saveBot(day, v); D.patchDay(day, { bot: v }); } resolve(v); this.botDone(day); };
       try {
-        w = new Worker(new URL("./master/worker.js?v=1997", import.meta.url), { type: "module" });
+        w = new Worker(new URL("./master/worker.js?v=1998", import.meta.url), { type: "module" });
         w.onmessage = (e) => { const m = e.data; if (m.type === "daily" && m.day === day) end(m.turns ?? 0); else if (m.type === "error") end(undefined); else if (m.type === "ready") w.postMessage({ type: "daily", id: 1, day }); };
         w.onerror = () => end(undefined);
         window.setTimeout(() => end(undefined), 60000);

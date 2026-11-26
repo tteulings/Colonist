@@ -102,7 +102,7 @@ function playGame(m) {
   if (m.watch) g.attachLog();
   if (m.watch) g.addLog = (text, meta = null) => { if (!quiet) { g.logEntries.push({ text, meta, time: Date.now() }); if (g.logEntries.length > 80) g.logEntries.splice(0, 30); } return 0; };
   try {
-    g._labSimStart(m.strategies, { players: m.strategies.length, map: m.map || "random", seed: m.seed, agents });
+    g._labSimStart(m.strategies, { players: m.strategies.length, map: m.map || "random", mode: m.mode, board: m.board, dice: m.dice, seed: m.seed, agents });
     let r = { done: false };
     tell(null, true);
     while (!r.done) { r = g._labSimStep(1); if (!r.done) tell(null); }

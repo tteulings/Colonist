@@ -369,3 +369,6 @@ body.lb-stepping .lb-tools, body.lb-stepping #labResult { display: none; }
 .lb-chips { display: flex; gap: 5px; margin: 3px 0; }
 .lb-cmp { background: var(--chip); border: var(--chip-border); border-radius: 12px; padding: 9px 10px; font-size: 12.5px; display: grid; gap: 3px; }
 .lb-mixrow .lb-btn { width: 100%; min-height: 36px; }
+
+/* v1.99.8 the Map row: five maps over two lines */
+.lb-seg.lb-wrap button { flex: 1 1 30%; }
