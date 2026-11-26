@@ -219,8 +219,20 @@
 .tkrow .undo-toast { top: 0; transform: none; height: 40px; padding: 2px; }
 .app .tkrow .undo-toast .ut-btn { height: 36px; }
 /* v1.88 seat 5 (ivory): its avatar ring reads as a ring, not a thin white line: an ivory band with a strong dark-ink outline, on every strip colour */
-[data-theme] .app .pstrip .pchip.pc-4 .avatar { box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 2px) var(--pc-line), var(--avatar-shadow, none); }
-[data-palette="night"] .app .pstrip .pchip.pc-4 .avatar, [data-palette="dusk"] .app .pstrip .pchip.pc-4 .avatar { box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 1.5px) #1B2A31, var(--avatar-shadow, none); }
+[data-theme]:not([data-ivory]) .app .pstrip .pchip.pc-4 .avatar { box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 2px) var(--pc-line), var(--avatar-shadow, none); }
+/* v1.99.3 the ivory character in another seat gets the same readable outline */
+[data-theme][data-ivory="0"] .app .pstrip .pchip.pc-0 .avatar {box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 2px) var(--pc-line), var(--avatar-shadow, none); }
+[data-theme][data-ivory="1"] .app .pstrip .pchip.pc-1 .avatar {box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 2px) var(--pc-line), var(--avatar-shadow, none); }
+[data-theme][data-ivory="2"] .app .pstrip .pchip.pc-2 .avatar {box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 2px) var(--pc-line), var(--avatar-shadow, none); }
+[data-theme][data-ivory="3"] .app .pstrip .pchip.pc-3 .avatar {box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 2px) var(--pc-line), var(--avatar-shadow, none); }
+[data-theme][data-ivory="5"] .app .pstrip .pchip.pc-5 .avatar {box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 2px) var(--pc-line), var(--avatar-shadow, none); }
+[data-palette="night"]:not([data-ivory]) .app .pstrip .pchip.pc-4 .avatar, [data-palette="dusk"]:not([data-ivory]) .app .pstrip .pchip.pc-4 .avatar { box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 1.5px) #1B2A31, var(--avatar-shadow, none); }
+/* v1.99.3 the ivory character in another seat gets the same readable outline */
+[data-palette="night"][data-ivory="0"] .app .pstrip .pchip.pc-0 .avatar, [data-palette="dusk"][data-ivory="0"] .app .pstrip .pchip.pc-0 .avatar {box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 1.5px) #1B2A31, var(--avatar-shadow, none); }
+[data-palette="night"][data-ivory="1"] .app .pstrip .pchip.pc-1 .avatar, [data-palette="dusk"][data-ivory="1"] .app .pstrip .pchip.pc-1 .avatar {box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 1.5px) #1B2A31, var(--avatar-shadow, none); }
+[data-palette="night"][data-ivory="2"] .app .pstrip .pchip.pc-2 .avatar, [data-palette="dusk"][data-ivory="2"] .app .pstrip .pchip.pc-2 .avatar {box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 1.5px) #1B2A31, var(--avatar-shadow, none); }
+[data-palette="night"][data-ivory="3"] .app .pstrip .pchip.pc-3 .avatar, [data-palette="dusk"][data-ivory="3"] .app .pstrip .pchip.pc-3 .avatar {box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 1.5px) #1B2A31, var(--avatar-shadow, none); }
+[data-palette="night"][data-ivory="5"] .app .pstrip .pchip.pc-5 .avatar, [data-palette="dusk"][data-ivory="5"] .app .pstrip .pchip.pc-5 .avatar {box-shadow: 0 0 0 var(--av-ring, 2.5px) var(--pc), 0 0 0 calc(var(--av-ring, 2.5px) + 1.5px) #1B2A31, var(--avatar-shadow, none); }
 /* v1.88 Night: Lumber (deep forest + logs) and Wool (pale meadow + sheep) stay two clearly different greens in the hand and the trade sheet */
 [data-palette="night"][data-theme="A"] .card[data-card="wood"] > svg, [data-palette="dusk"][data-theme="A"] .card[data-card="wood"] > svg { filter: brightness(1.28) saturate(1.25) hue-rotate(-8deg); }
 [data-palette="night"][data-theme="A"] .card[data-card="sheep"] > svg { filter: brightness(1.05) saturate(.85) hue-rotate(14deg); }

@@ -54,5 +54,10 @@ export const NL_199 = [
   ["Data", "Gegevens"], ["Save my data", "Bewaar mijn gegevens"], ["Games, results and settings as a file", "Spellen, uitslagen en instellingen als bestand"],
   ["For curious players", "Voor nieuwsgierige spelers"], ["Let a bot play for you, screen details", "Laat een bot voor je spelen, schermgegevens"],
   ["More colour modes", "Meer kleurstanden"],
+  // v1.99.3 characters
+  ["You play as", "Jij speelt als"], ["Change opponent", "Tegenstander wisselen"], ["Your character", "Je personage"], ["Your character and name", "Je personage en naam"],
+  ["Your character has its own colour. Bots play the others. Starts with your next game.", "Je personage heeft een eigen kleur. De bots spelen de anderen. Geldt vanaf je volgende spel."],
+  ["At the table", "Aan tafel"], ["Opponent", "Tegenstander"], ["Play without this bot", "Zonder deze bot spelen"], ["The bots after it leave too", "De bots erna gaan ook weg"], ["One bot fewer", "Een bot minder"],
+  ["Red", "Rood"], ["Blue", "Blauw"], ["Orange", "Oranje"], ["Green", "Groen"], ["Ivory", "Ivoor"], ["Purple", "Paars"],
   ["Katan, a settle-and-trade island game against friendly bots. Keyboard: R roll dice · E end turn · 1–3 build · B buy card · T trade · V fit board · Esc cancel.", "Katan, een bouw-en-handelsspel op een eiland tegen vriendelijke bots. Toetsenbord: R gooien · E beurt beëindigen · 1–3 bouwen · B kaart kopen · T ruilen · V bord passen · Esc annuleren."],
 ];

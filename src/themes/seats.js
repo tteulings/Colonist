@@ -52,7 +52,32 @@ export function addExtraSeats(T) {
     if (Array.isArray(T.seatColors)) T.seatColors[seat] = s.base;
   });
   if (Array.isArray(T.seatKeys)) T.seatKeys = keys;
+  // v1.99.3 characters: remember the character-order seat sets (index = character), so a look can permute them (permuteSeats)
+  T.__s0 = { keys: Array.isArray(T.seatKeys) ? [...T.seatKeys] : null, colors: Array.isArray(T.seatColors) ? [...T.seatColors] : null, pc: Array.isArray(T.seatPc) ? [...T.seatPc] : null };
   return T;
+}
+
+// ── v1.99.3 characters: seat -> character look ─────────────────────────────────────────────────────────
+// Every character owns one colour (index n = the n-th character: red woman, Blaauw blue, Geelen orange, Groen green, De Wit ivory,
+// Pimpel purple). A look is a permutation LOOK[seat] = character shown in that seat; the seat sets of a theme (seatKeys / seatColors /
+// seatPc) are re-pointed in place, so board pieces, chips, strips and analysis (which all read them by seat) follow the character.
+export const cleanLook = (v) => {
+  if (!Array.isArray(v) || v.length !== 6) return [0, 1, 2, 3, 4, 5];
+  const seen = new Set(v);
+  return v.every((c) => Number.isInteger(c) && c >= 0 && c < 6) && seen.size === 6 ? v.slice() : [0, 1, 2, 3, 4, 5];
+};
+let SEAT_LOOK = [0, 1, 2, 3, 4, 5];
+export const currentLook = () => SEAT_LOOK.slice();
+export const setSeatLook = (look) => { SEAT_LOOK = cleanLook(look); };
+/** Point a theme's seat sets at the current look (idempotent; always derives from the character-order originals). */
+export function permuteSeats(T, look = SEAT_LOOK) {
+  const b = T?.__s0;
+  if (!b) return;
+  [["seatKeys", "keys"], ["seatColors", "colors"], ["seatPc", "pc"]].forEach(([prop, k]) => {
+    const arr = T[prop], base = b[k];
+    if (!Array.isArray(arr) || !base) return;
+    for (let i = 0; i < 6; i += 1) if (base[look[i]] !== undefined) arr[i] = base[look[i]];
+  });
 }
 
 // ── v0.78: UI seat colours = the board pieces ──────────────────────────────────────────────────────
@@ -81,17 +106,27 @@ export function seatTokens(c, text, paper = PAPER) {
 /** Set --p0..--p5 (+ -text, -ink, -light, -dark, -line) on the root from the active theme's pieces. */
 export function applySeatTokens(T, root = typeof document !== "undefined" ? document.documentElement : null) {
   if (!root || !T) return;
-  for (let n = 0; n < 6; n += 1) {
-    const key = T.seatKeys?.[n];
-    const c = (T.pc && key && T.pc[key]) || (T.seatPc && T.seatPc[n]) || (n >= 4 ? EXTRA_SEATS[n - 4] : null);
-    if (!c) continue;
+  permuteSeats(T);
+  // --pN = the colour of the seat (follows the look); --cN = the colour of character N (never moves; for a portrait of a character that is not in that seat)
+  const put = (pre, n, key, seatIdx) => {
+    const c = (T.pc && key && T.pc[key]) || (T.seatPc && T.seatPc[seatIdx]) || (seatIdx >= 4 ? EXTRA_SEATS[seatIdx - 4] : null);
+    if (!c) return;
     const tk = seatTokens(c, T.textColors?.[key], T.seatPaper || PAPER);
-    root.style.setProperty(`--p${n}`, tk.base);
-    root.style.setProperty(`--p${n}-text`, tk.text);
-    root.style.setProperty(`--p${n}-ink`, tk.ink);
-    root.style.setProperty(`--p${n}-light`, tk.light);
-    root.style.setProperty(`--p${n}-dark`, tk.dark);
-    root.style.setProperty(`--p${n}-line`, tk.line);
+    root.style.setProperty(`--${pre}${n}`, tk.base);
+    root.style.setProperty(`--${pre}${n}-text`, tk.text);
+    root.style.setProperty(`--${pre}${n}-ink`, tk.ink);
+    root.style.setProperty(`--${pre}${n}-light`, tk.light);
+    root.style.setProperty(`--${pre}${n}-dark`, tk.dark);
+    root.style.setProperty(`--${pre}${n}-line`, tk.line);
+  };
+  for (let n = 0; n < 6; n += 1) {
+    put("p", n, T.seatKeys?.[n], n);
+    // character n: its own key, or (Classic, no seat keys) its own entry of the original seatPc
+    if (T.__s0?.keys) put("c", n, T.__s0.keys[n], n);
+    else if (T.__s0?.pc?.[n]) {
+      const tk = seatTokens(T.__s0.pc[n], undefined, T.seatPaper || PAPER);
+      ["", "-text", "-ink", "-light", "-dark", "-line"].forEach((suf, i) => root.style.setProperty(`--c${n}${suf}`, [tk.base, tk.text, tk.ink, tk.light, tk.dark, tk.line][i]));
+    }
   }
 }
 

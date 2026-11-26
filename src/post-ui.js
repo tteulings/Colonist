@@ -7,6 +7,7 @@ import { oicon } from "./ui-icons.js";
 import { CLASSES } from "./review/evaluate.js";
 import { moveFull, whyLine, whyChips } from "./post-text.js";
 import { isNL } from "./i18n.js";
+import * as MGR from "./themes/manager.js"; // namespace: charOf may be missing in a stale cached manager.js
 import { tr as atr } from "./review/analysis-text.js";
 import { seOf } from "./review/score.js";
 import { errorSnippet } from "./post-snippet.js";
@@ -48,7 +49,7 @@ export const who = (m) => (m.you ? "You" : esc(m.me.name));
 /** a seat named in a sentence: "you" on your own page; on any other page the human is "the human player" (never "you": that page is somebody else's); bots by name. lgText: already in the app language (atr texts) */
 const COLOUR = { en: ["Red", "Blaauw", "Geelen", "Groen", "Ivory", "Purple"], nl: ["Rood", "Blaauw", "Geelen", "Groen", "Ivoor", "Paars"] };
 /** the human player on somebody else's page: their own display name, else their seat colour (Red / Rood). lgText false: English, for a template the localizer turns Dutch (the colours are in the Dutch table) */
-export const humanNm = (name, seat, lgText = true) => (name && name !== "You" && name !== "Jij" ? esc(name) : COLOUR[lgText && isNL() ? "nl" : "en"][seat] || COLOUR.en[0]);
+export const humanNm = (name, seat, lgText = true) => (name && name !== "You" && name !== "Jij" ? esc(name) : COLOUR[lgText && isNL() ? "nl" : "en"][MGR.charOf?.(seat) ?? seat] || COLOUR.en[0]);
 export const seatNm = (m, q, lgText = true) => { const s = m.tab?.seats?.[q]; if (q === m.pid && m.you) return lgText ? atr(isNL() ? "nl" : "en", "wf.you") : "you"; if (s?.you) return humanNm(s.name, q, lgText); return esc(s?.name || "?"); };
 export const whose = (m) => (m.you ? "Your" : `${esc(m.me.name)}’s`);
 

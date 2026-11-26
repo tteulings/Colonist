@@ -23,6 +23,9 @@ import { upgradeSpots } from "./review/spot-names.js";
 import { oicon } from "./ui-icons.js";
 import { dateLocale, num, t } from "./i18n.js";
 import { icon, avatarSvg, avatarLive } from "./themes/manager.js";
+import * as MG from "./themes/manager.js"; // namespace: a stale manager.js without avatarChar falls back to the seat portrait
+/** v1.99.3: the portrait of seat i of a past game, in the character it had then (m.look; an older game: the default characters). */
+const seatAv = (m, i, cls, live) => (MG.avatarChar ? MG.avatarChar((m.look || [0, 1, 2, 3, 4, 5])[i] ?? i, cls, live) : live ? avatarLive(i, cls) : avatarSvg(i, cls));
 import { BOT_PROFILES, profileMini } from "./bot-profiles.js";
 import { profileOf } from "./bot-profile-ui.js";
 import { summarize, clsOf, ACC, REVIEW as RVCFG, FMT, rescoreReview, reviewStatus } from "./review/evaluate.js";
@@ -190,6 +193,7 @@ export const HistoryMixin = {
       id: S.id, v: 1, start: startOf(S.id), end: prev?.end || end,
       mode: rush ? "rush" : "classic", board: sea ? "seafarers" : "island", n: this.players.length, pts: this.winPoints, hot: !!this.hotseat,
       seats: this.players.map((p) => ({ name: p.name, vp: p.victoryPoints, you: !!me && p.id === me.id, ...seatProf(p, this) })),
+      look: Array.isArray(this.settings?.look) ? this.settings.look.slice() : undefined,
       me: me ? me.id : null, winner: win ? win.id : null,
       result: !me ? "table" : win === me ? "won" : "lost",
       turns: rush ? (this.rush?.rollNo ?? S.steps.length) : this.turn, ms: S.ms || 0,
@@ -285,7 +289,7 @@ export const HistoryMixin = {
         const rush = st.settings?.mode === "rush";
         const seats = st.players.map((p, i) => ({ name: p.name, vp: p.victoryPoints, you: i === me, ...seatProf({ ...p, id: i }, null) }));
         const meta = { id: st.stats.id, v: 1, start: startOf(st.stats.id), end: a?.at || Date.now(), mode: rush ? "rush" : "classic", board: st.sea ? "seafarers" : "island", n: seats.length,
-          pts: st.settings?.winPoints || 10, hot: false, seats, me: me >= 0 ? me : null, winner,
+          pts: st.settings?.winPoints || 10, hot: false, seats, look: Array.isArray(st.settings?.look) ? st.settings.look.slice() : undefined, me: me >= 0 ? me : null, winner,
           result: me < 0 ? "table" : winner === me ? "won" : "lost", turns: st.turn, ms: st.stats.ms || 0, acc: a?.acc ?? null, mid: !!a?.midCheck, star: false, rec: !!same, rd: same ? recs.filter((r) => r.pid === me).length : 0 };
         st.logEntries = [];
         const revs = same ? (rv.reviews || (rv.review?.results?.length ? { [rv.review.pid]: rv.review } : {})) : {};
@@ -554,7 +558,7 @@ export const HistoryMixin = {
     return `<li><div class="hs-row ${res}" data-hrow="${m.id}" role="button" tabindex="0" aria-label="${t}, ${when(m.end)}">
       <div class="hs-main"><b>${t}</b><small>${when(m.end)} · ${kind}</small></div>
       <button type="button" class="hs-star${m.star ? " on" : ""}" data-hrstar="${m.id}" aria-pressed="${!!m.star}" aria-label="${m.star ? "Unstar" : "Keep with a star"}">${STAR(m.star)}</button>
-      <div class="hs-foot"><span class="hs-sc">${m.seats.map((s, i) => `<span class="${i === m.winner ? "win" : ""}" title="${esc(dispName(s.name))}">${i === m.winner ? avatarLive(i, "hs-av av-tap") : avatarSvg(i, "hs-av")}<b>${s.vp}</b></span>`).join("")}</span><span class="hs-dur">${dur(m.ms)}</span></div>
+      <div class="hs-foot"><span class="hs-sc">${m.seats.map((s, i) => `<span class="${i === m.winner ? "win" : ""}" title="${esc(dispName(s.name))}">${seatAv(m, i, i === m.winner ? "hs-av av-tap" : "hs-av", i === m.winner)}<b>${s.vp}</b></span>`).join("")}</span><span class="hs-dur">${dur(m.ms)}</span></div>
       <div class="hs-foot2"><span class="hs-bots">${this._histBots(m)}</span>${m.hot && m.hn?.length ? m.hn.map((h) => this._histAcc(h, h.name)).join("") : this._histAcc(m)}</div></div></li>`;
   },
 
@@ -580,7 +584,7 @@ export const HistoryMixin = {
       <div class="hs-head"><span class="hs-badge big ${m.result === "won" ? "won" : m.result === "lost" ? "lost" : "table"}">${resultWord(m.result)}</span><div><h4>${t}</h4><small>${when(m.end, true)}</small></div>
         <button type="button" class="hs-star${m.star ? " on" : ""}" data-sstar aria-pressed="${!!m.star}" aria-label="${m.star ? "Unstar" : "Keep with a star"}">${STAR(m.star)}</button>
         <button type="button" class="hs-x sm" data-sclose aria-label="Close">${icon("close")}</button></div>
-      <ol class="hs-pod">${order.map((i, k) => { const s = m.seats[i]; return `<li class="${i === m.winner ? "win" : ""}"><span class="pl">${k + 1}</span>${i === m.winner ? avatarLive(i, "hs-av2 av-tap") : avatarSvg(i, "hs-av2")}<span class="nm">${esc(dispName(s.name))}${s.you && s.name !== "You" ? " <em>you</em>" : ""}${s.prof ? `<span class="hs-bot">${profileMini(s.prof, 16)}${s.custom ? "Custom" : esc(BOT_PROFILES[s.prof]?.label || "")}</span>` : ""}</span><b>${s.vp}</b></li>`; }).join("")}</ol>
+      <ol class="hs-pod">${order.map((i, k) => { const s = m.seats[i]; return `<li class="${i === m.winner ? "win" : ""}"><span class="pl">${k + 1}</span>${seatAv(m, i, i === m.winner ? "hs-av2 av-tap" : "hs-av2", i === m.winner)}<span class="nm">${esc(dispName(s.name))}${s.you && s.name !== "You" ? " <em>you</em>" : ""}${s.prof ? `<span class="hs-bot">${profileMini(s.prof, 16)}${s.custom ? "Custom" : esc(BOT_PROFILES[s.prof]?.label || "")}</span>` : ""}</span><b>${s.vp}</b></li>`; }).join("")}</ol>
       <dl class="hs-facts"><div><dt>Mode</dt><dd>${kind}</dd></div><div><dt>Players</dt><dd>${m.n}</dd></div><div><dt>${m.mode === "rush" ? "Rolls" : "Turns"}</dt><dd>${m.turns}</dd></div><div><dt>Played</dt><dd>${dur(m.ms)}</dd></div>
         <div><dt>Accuracy</dt><dd>${m.acc != null ? `${m.prov ? "~" : ""}${m.acc}${m.prov ? ` <small>provisional</small>` : m.mid ? ` <small>checked during the game</small>` : ""}` : "–"}</dd></div>
         ${(() => { const K = histKinds(m), c = (k) => (m.k99 ? K.n(`h.k.${m.id}.${k}:-`) : "–"); return `<div><dt>Real errors</dt><dd data-hk="err">${c("err")}</dd></div><div><dt>Could be better</dt><dd data-hk="could">${c("could")}</dd></div><div><dt>Close calls</dt><dd data-hk="close">${c("close")}</dd></div>`; })()}</dl>

@@ -15,7 +15,9 @@
 // Styles: themes/stats.css.
 import { icon, dieSvg, motionReduced, avatarAnimOn } from "./themes/manager.js";
 import { oicon } from "./ui-icons.js";
+import * as MGR from "./themes/manager.js"; // namespace import: a stale cached manager.js without the v1.99.3 look helpers must not break this module
 import { SEAT_PERSONAS } from "./themes/portraits.js";
+const charOf = (seat) => MGR.charOf?.(seat) ?? seat, personaOf = (seat) => SEAT_PERSONAS[charOf(seat)];
 import { TERRAIN_NAME } from "./themes/art-util.js";
 import { RES, computeStats } from "./stats.js";
 import { gameOdds } from "./replay-odds.js";
@@ -69,10 +71,10 @@ export const StatsUiMixin = {
   _stPortrait(pid, cls = "", size = 44) {
     let inner = "";
     const live = size >= 40 && avatarAnimOn(); // v1.91: the big portraits carry the animation rig (blink, breathing, win shine)
-    try { inner = this.theme?.avatar ? this.theme.avatar(SEAT_PERSONAS[pid], live) : ""; } catch (_) { inner = ""; }
-    if (!inner) return `<span class="avatar pc-${pid} gs-por ${cls}" style="--av:${size}px"><svg viewBox="-50 -50 100 100" aria-hidden="true"><use href="#av-${pid}" x="-50" y="-50" width="100" height="100"/></svg></span>`;
+    try { inner = this.theme?.avatar ? this.theme.avatar(personaOf(pid), live) : ""; } catch (_) { inner = ""; }
+    if (!inner) return `<span class="avatar pc-${pid} gs-por ${cls}" data-ch="${charOf(pid)}" style="--av:${size}px"><svg viewBox="-50 -50 100 100" aria-hidden="true"><use href="#av-${charOf(pid)}" x="-50" y="-50" width="100" height="100"/></svg></span>`;
     const { body, brooch } = splitBrooch(inner);
-    return `<span class="avatar pc-${pid} gs-por${live ? " av-live" : ""} ${cls}" style="--av:${size}px"><svg viewBox="-50 -50 100 100" aria-hidden="true"><g class="gs-head">${body}</g>${brooch ? `<g transform="translate(-21 36)"><g class="gs-brooch">${brooch}</g></g>` : ""}</svg></span>`;
+    return `<span class="avatar pc-${pid} gs-por${live ? " av-live" : ""} ${cls}" data-ch="${charOf(pid)}" style="--av:${size}px"><svg viewBox="-50 -50 100 100" aria-hidden="true"><g class="gs-head">${body}</g>${brooch ? `<g transform="translate(-21 36)"><g class="gs-brooch">${brooch}</g></g>` : ""}</svg></span>`;
   },
 
   _stTile(hexId) {
