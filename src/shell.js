@@ -253,6 +253,7 @@ export class Home {
     on("[data-home='review']", () => { const m = reviewInProgress(this.game); if (m) this.game.histView?.(m.id, "review", m.me); });
     on("[data-q]", (e) => this.quickPick(e.currentTarget.dataset.q));
     on("[data-home='games']", () => this.chrome?.go("review"));
+    on("[data-home='reload']", () => location.reload());
     on("[data-home='adjust']", () => this.opts.onAdjust());
     on("[data-home='start']", () => this.opts.onStartLast());
     this.el.scrollTop = keep;
@@ -286,6 +287,7 @@ export class Home {
   /** "Your games": only what the history already holds (won / lost games with you at the table). */
   statsHtml() {
     if (!this.histReady) return `<button type="button" class="sh-card hm-stats sk" data-home="games" disabled aria-hidden="true" tabindex="-1"></button>`; // same box, filled in when the history has loaded
+    if (this.game.hist?.unavailable) return `<button type="button" class="sh-card hm-stats empty down" data-home="reload" role="alert"><span class="hm-st-tx" data-i18n-skip><b>${isNL() ? "Je spellen konden niet geladen worden." : "Your games couldn’t be loaded."}</b><small>${isNL() ? "Herlaad de app." : "Reload the app."}</small></span></button>`; // v1.99.5 the store did not open: not "Play your first game"
     const all = (this.game.hist?.metas || []).filter((m) => m.me != null && (m.result === "won" || m.result === "lost")); // newest first
     if (!all.length) return `<button type="button" class="sh-card hm-stats empty" data-home="games"><span class="hm-st-art" aria-hidden="true">${STATS_ART}</span><span class="hm-st-tx"><b>Your games</b><small>Play your first game, your overview shows up here.</small></span></button>`;
     const won = all.filter((m) => m.result === "won").length, pct = Math.round(100 * won / all.length);
