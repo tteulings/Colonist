@@ -151,7 +151,7 @@ const MOD = (G) => G(async () => { window.__D = await import("/src/daily.js"); r
     let rec = await G(() => JSON.parse(localStorage.getItem("colonist.daily.v1.days") || "{}")[window.__D.dayIdOf()]);
     ok(rec && rec.w === 0 && rec.t === 40 && /^KD1-/.test(rec.code) && await G(() => !localStorage.getItem("colonist.daily.v1.run")), "turn 41: 'Tijd op' is recorded (w 0, 40 turns), the run is cleared", rec && { w: rec.w, t: rec.t });
     let t = await G(() => document.querySelector(".dl-screen")?.innerText.replace(/\s+/g, " "));
-    ok(/Tijd op.*6.*punten.*40 beurten gespeeld, geen 10 punten.*Jij.*dagen op rij.*KD1-.*Deel je uitslag.*Vergelijk/.test(t || ""), "result screen 'Tijd op'", t);
+    ok(/Tijd op.*6.*punten.*40 beurten gespeeld, geen 10 punten.*Jij.*dag(en)? op rij.*KD1-.*Deel je uitslag.*Vergelijk/.test(t || ""), "result screen 'Tijd op'", t);
     await shot(page, "result-timeup-nl-night.png");
     await G(() => document.querySelector('.dl-screen [data-dl="back"]').click()); await sleep(800);
     ok(await G(() => window.__colonistGame.home.open && window.__colonistGame.home.tab === "daily" && document.querySelector("[data-dl-card]").dataset.dlCard === "done"), "Back from the result: the Dagpuzzel tab, card in the done state");
@@ -165,7 +165,7 @@ const MOD = (G) => G(async () => { window.__D = await import("/src/daily.js"); r
     const rec = await G(() => JSON.parse(localStorage.getItem("colonist.daily.v1.days"))[window.__D.dayIdOf()]);
     ok(rec && rec.w === 1 && rec.t === 17 && rec.p.join() === "10,7,4", "a win at turn 17 is recorded (won, 17 turns)", rec && { w: rec.w, t: rec.t, p: rec.p });
     const t = await G(() => document.querySelector(".dl-screen")?.innerText.replace(/\s+/g, " "));
-    ok(/Gewonnen.*17.*beurten.*Slimme bot.*Jij.*Blaauw.*Geelen.*1 dagen? op rij.*KD1-/.test(t || ""), "result screen: win", t);
+    ok(/Gewonnen.*17.*beurten.*Slimme bot.*Jij.*Blaauw.*Geelen.*1 dag(en)? op rij.*KD1-/.test(t || ""), "result screen: win", t);
     await page.waitForFunction(() => /Slimme bot: \d+ beurten|Slimme bot: verloren/.test(document.querySelector(".dl-screen")?.innerText || ""), null, { timeout: 40000 }).catch(() => {});
     const bt = await G(() => document.querySelector(".dl-screen .dl-botline")?.innerText.replace(/\s+/g, " "));
     ok(/Slimme bot: (\d+ beurten|verloren)/.test(bt || ""), "the smart bot line fills in after the worker is done", bt);
@@ -198,7 +198,7 @@ const MOD = (G) => G(async () => { window.__D = await import("/src/daily.js"); r
     await G(() => { const g = window.__colonistGame; g.saveToStorage(); }); ok(!(await G(() => localStorage.getItem("colonist.daily.v1.run"))), "a practice run saves no run");
     // give up from the pause menu on a fresh day
     await G(() => window.__colonistGame.dailyGiveUp()); await sleep(2000);
-    ok(await G(() => /Oefening|oefening/.test(document.querySelector(".dl-screen")?.innerText || "") && !/dagen op rij/.test(document.querySelector(".dl-screen").innerText)), "a practice result has no streak and no code");
+    ok(await G(() => /Oefening|oefening/.test(document.querySelector(".dl-screen")?.innerText || "") && !/op rij/.test(document.querySelector(".dl-screen").innerText)), "a practice result has no streak and no code");
     ok((await G(() => localStorage.getItem("colonist.daily.v1.days"))) === before, "practice changes no record");
     ok(errs.length === 0, "no page errors", errs); await ctx.close(); }
   { const { page, G, errs, ctx } = await open(browser); await GAMES(G); await MOD(G);
