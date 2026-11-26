@@ -85,7 +85,7 @@ export class DailyUi {
       const botLine = won ? (bot === undefined ? `<span class="dl-botline dl-think" data-dl-bot="${day}">Smart bot is thinking</span>` : bot === 0 ? `<span class="dl-botline" data-dl-bot="${day}">Smart bot: lost</span>` : `<span class="dl-botline" data-dl-bot="${day}">Smart bot: ${bot} turns</span>`)
         : `<span class="dl-botline">${k === "timeup" ? "40 turns played, no 10 points" : r.by ? `<span data-i18n-skip>${esc(r.by)} ${this.nl() ? "won op beurt" : "won on turn"} ${r.t}</span>` : ""}</span>`;
       mid = `<div class="dl-done"><span class="sh-chip dl-status${won ? " won" : ""}">${won ? oicon("check") : k === "timeup" ? oicon("clock") : ""}${won ? "Won" : k === "timeup" ? "Time's up" : "Lost"}</span><div class="dl-herorow">${hero}${fast}</div>${botLine}</div>`;
-      btns = `<div class="dl-two"><button type="button" class="btn primary" data-dl="share" data-day="${day}">${ICON.share}Share your result</button><button type="button" class="btn" data-dl="view" data-day="${day}">View</button></div><p class="dl-count" data-dl-count aria-live="off">${this.countdown()}</p>`;
+      btns = `<div class="dl-two"><button type="button" class="btn primary" data-dl="share" data-day="${day}">${ICON.share}Share your result</button><button type="button" class="btn" data-dl="view" data-day="${day}">See it</button></div><p class="dl-count" data-dl-count aria-live="off">${this.countdown()}</p>`;
     } else if (st === "busy" || st === "late") {
       const late = st === "late", n = run?.turn || 1;
       mid = `<div class="dl-busy"><span class="sh-chip">In progress</span><b class="dl-turn">Turn ${n} of ${D.TURN_LIMIT}</b>${late ? `<small class="dl-late" data-i18n-skip>${this.label(run.day)}</small>` : ""}<span class="dl-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${D.TURN_LIMIT}" aria-valuenow="${n}" aria-label="Turn ${n} of ${D.TURN_LIMIT}"><i style="width:${Math.round(100 * n / D.TURN_LIMIT)}%"></i></span></div>`;
@@ -191,14 +191,14 @@ export class DailyUi {
   lateSheet() {
     const m = D.loadRunMeta(); if (!m) return this.game.home.render();
     const el = this.openSheet({ id: "late", title: "Your unfinished run", body: `<div class="dl-msg"><span class="dl-msg-ic">${oicon("clock")}</span><span><b data-i18n-skip>${this.nl() ? `Beurt ${m.turn} van ${D.TURN_LIMIT} op ${this.label(m.day)}` : `Turn ${m.turn} of ${D.TURN_LIMIT} on ${this.label(m.day)}`}</b><small>Finish it and it counts for that day. You can start today's puzzle after that.</small></span></div>`,
-      foot: `<button type="button" class="btn primary block" data-s="r"><span data-i18n-skip>${this.nl() ? "Maak af voor" : "Finish for"} ${this.label(m.day)}</span></button><button type="button" class="btn block" data-s="d">Discard</button>` });
+      foot: `<button type="button" class="btn primary block" data-s="r"><span data-i18n-skip>${this.nl() ? "Maak af voor" : "Finish for"} ${this.label(m.day)}</span></button><button type="button" class="btn block" data-s="d">Drop it</button>` });
     el.querySelector("[data-s=r]").addEventListener("click", () => this.resume());
     el.querySelector("[data-s=d]").addEventListener("click", () => this.discardSheet(m));
   }
   discardSheet(m) {
     const same = m.day === this.today(), el = this.openSheet({ id: "discard", title: "Discard the run?", onClose: () => {},
       body: `<div class="dl-msg"><span class="dl-msg-ic">${oicon("clock")}</span><span><b data-i18n-skip>${this.nl() ? `Beurt ${m.turn} van ${D.TURN_LIMIT} ${same ? "van vandaag" : "op " + this.label(m.day)}` : `Turn ${m.turn} of ${D.TURN_LIMIT} ${same ? "of today" : "on " + this.label(m.day)}`}</b><small>${same ? "You can start again." : "That day then counts as not played. You can still practise it."}</small></span></span></div>`,
-      foot: `<button type="button" class="btn primary block" data-s="c">Cancel</button><button type="button" class="btn block dl-danger" data-s="w">Discard</button>` });
+      foot: `<button type="button" class="btn primary block" data-s="c">Cancel</button><button type="button" class="btn block dl-danger" data-s="w">Drop it</button>` });
     el.querySelector("[data-s=c]").addEventListener("click", () => this.closeSheet());
     el.querySelector("[data-s=w]").addEventListener("click", () => { D.clearRun(); this.closeSheet(true); if (this.game.daily && !this.game.daily.practice) this.game.daily = null; toast({ text: "Run discarded." }); this.game.home?.render(); this.game.home?.chrome?.sync(); });
   }

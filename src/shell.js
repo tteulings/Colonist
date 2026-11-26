@@ -82,7 +82,7 @@ export class Chrome {
     this.nav.hidden = !on; this.gear.hidden = !on;
     document.body.classList.toggle("sh-tabs-on", on);
     document.body.dataset.shTab = cur || "";
-    const dot = this.nav.querySelector('[data-tab="daily"] .sh-badge'); if (dot) { const on = !!this.game.dailyUi?.badge?.(); dot.hidden = !on; dot.parentElement.parentElement.setAttribute("aria-label", on ? "Daily puzzle, not played yet" : "Daily puzzle"); }
+    const dot = this.nav.querySelector('[data-tab="daily"] .sh-badge'); if (dot) { const on = !!this.game.dailyUi?.badge?.(); dot.hidden = !on; dot.closest?.(".sh-tab")?.setAttribute("aria-label", on ? "Daily puzzle, not played yet" : "Daily puzzle"); }
     this.nav.querySelectorAll("[data-tab]").forEach((b) => { const a = b.dataset.tab === cur; b.classList.toggle("on", a); if (a) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
     if (on) this.game.home?.afterTabs?.();
   }
