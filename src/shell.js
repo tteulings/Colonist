@@ -121,15 +121,16 @@ export function reviewEntryHtml(game) {
 }
 
 // ── the quick picks (Home card and New game sheet share these, so both always agree) ──
-/** Map picker: two small cards, thumbnail on top and the name below (Home and the New game sheet). Seafarers needs 3–4 players: disabled, the reason sits on the thumbnail.
- *  `attrs(id)` gives the data attributes of a card (Home: data-q, sheet: data-set). */
+/** Map picker: small cards, thumbnail on top and the name below (Home and the New game sheet; the sheet adds the one-line subtitle). Every map but the classic Island is for 2-4 players:
+ *  with 5-6 they are disabled and the reason sits on the thumbnail. `attrs(id)` gives the data attributes of a card (Home: data-q, sheet: data-set). */
+export const MAPS = [["island", "Island", "One big island"], ["seafarers", "Seafarers", "Islands, ships, 3–4 players"], ["lake", "Lake", "Land around a lake"], ["isthmus", "Isthmus", "Two lands, one bridge"], ["shape", "Random shape", "A new shape every game"]];
 export const mapCardsHtml = (board, players, attrs) => {
   const bigT = players > SEA_MAX_BOTS + 1;
-  const card = (id, name) => { const on = board === id, off = id === "seafarers" && bigT;
-    return `<button type="button" role="radio" class="hm-map${on ? " on" : ""}" ${attrs(id)} aria-checked="${on}"${off ? " disabled" : ""}><span class="hm-map-th">${mapThumb(id)}<span class="hm-map-why">Needs 3–4 players</span></span><span class="hm-map-n"><b>${name}</b></span></button>`; };
-  return `<div class="hm-maps" role="radiogroup" aria-label="Map">${card("island", "Island")}${card("seafarers", "Seafarers")}</div>`;
+  const card = ([id, name, sub]) => { const on = board === id, off = id !== "island" && bigT;
+    return `<button type="button" role="radio" class="hm-map hm-map-${id}${on ? " on" : ""}" ${attrs(id)} aria-checked="${on}"${off ? " disabled" : ""}><span class="hm-map-th">${mapThumb(id)}<span class="hm-map-why">Needs 3–4 players</span></span><span class="hm-map-n"><b>${name}</b><small>${sub}</small></span></button>`; };
+  return `<div class="hm-maps" role="radiogroup" aria-label="Map">${MAPS.map(card).join("")}</div>`;
 };
-const seaOn = (d) => d.board === "seafarers";
+const seaOn = (d) => d.board !== "island"; // a 2-4 player map: Seafarers, Lake, Isthmus, Random shape
 const maxBotsOf = (D, d) => (seaOn(d) ? SEA_MAX_BOTS : D.PLAYER_CONFIG.length - 1);
 /** 5–6 players: Rush rolls every 15 s by default (back to the 8 s default for a smaller table). `prev` = the bots before the change. */
 export function bigAdjustD(D, d, prev) {
@@ -229,7 +230,7 @@ export class Home {
 
   /** The three quick picks: Type, Map, Players. One tap = saved through the same path as the sheet. */
   quickHtml(last) {
-    const rush = last.mode === "rush", sea = last.board === "seafarers", hot = !rush && last.humans.slice(0, last.numBots).some(Boolean);
+    const rush = last.mode === "rush", sea = last.board !== "island", hot = !rush && last.humans.slice(0, last.numBots).some(Boolean);
     const seg = (key, label, opts, value, off = [], lab = null) => `<div class="hm-qrow"><span class="hm-ql" aria-hidden="true">${esc(label)}</span><div class="sh-seg" role="radiogroup" aria-label="${esc(label)}">${opts.map(([v, l]) =>
       `<button type="button" role="radio" data-q="${key}:${v}" data-k="${key}:${v}" aria-checked="${String(v) === String(value)}" class="${String(v) === String(value) ? "on" : ""}"${lab ? ` aria-label="${lab(v)}"` : ""}${off.includes(v) ? ' disabled' : ""}>${l}</button>`).join("")}</div></div>`;
     const note = hot ? "Classic only with a friend" : "";
@@ -255,6 +256,15 @@ export class Home {
     on("[data-home='adjust']", () => this.opts.onAdjust());
     on("[data-home='start']", () => this.opts.onStartLast());
     this.el.scrollTop = keep;
+    this.revealMap();
+  }
+  /** Home's map row scrolls sideways (five cards): the chosen card is always in view. */
+  revealMap() {
+    const row = this.el?.querySelector(".hm-qmap .hm-maps"), c = row?.querySelector(".hm-map.on");
+    if (!row || !c) return;
+    const l = c.offsetLeft - row.offsetLeft - 2, r = l + c.offsetWidth;
+    if (l < row.scrollLeft) row.scrollLeft = Math.max(0, l - 2);
+    else if (r > row.scrollLeft + row.clientWidth) row.scrollLeft = r - row.clientWidth + 6;
   }
 
   /** The history is loaded: only the stats card changes (its box is the same size, so nothing moves). A review in progress adds a row, which needs one full render. */
@@ -317,13 +327,14 @@ export class Home {
   patchQuick(last) {
     const root = this.el;
     if (!root) return;
-    const sea = last.board === "seafarers", big = last.numBots + 1 > SEA_MAX_BOTS + 1, hot = last.mode !== "rush" && last.humans.slice(0, last.numBots).some(Boolean);
+    const sea = last.board !== "island", big = last.numBots + 1 > SEA_MAX_BOTS + 1, hot = last.mode !== "rush" && last.humans.slice(0, last.numBots).some(Boolean);
     const want = { mode: last.mode, board: last.board, players: String(last.numBots + 1) };
     root.querySelectorAll("[data-q]").forEach((b) => {
       const [k, v] = b.dataset.q.split(":"), on = want[k] === v;
       b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on));
-      b.disabled = (k === "mode" && v === "rush" && hot) || (k === "board" && v === "seafarers" && big) || (k === "players" && sea && Number(v) > SEA_MAX_BOTS + 1);
+      b.disabled = (k === "mode" && v === "rush" && hot) || (k === "board" && v !== "island" && big) || (k === "players" && sea && Number(v) > SEA_MAX_BOTS + 1);
     });
+    this.revealMap();
     const sum = root.querySelector(".hm-sum");
     if (sum) sum.innerHTML = this.summaryParts(last).map((x) => `<span>${esc(x)}</span>`).join(" · ");
   }
@@ -398,7 +409,8 @@ export function openNewGame(game, deps, { friend = false } = {}) {
   const levelName = (k) => D.AI_PRESET_INFO[k]?.label || "Custom";
   const allKeys = () => D.byStrength(Object.keys(D.AI_PRESETS));
   const sea = () => d.board === "seafarers";
-  const maxBots = () => (sea() ? SEA_MAX_BOTS : P.length - 1);
+  const few = () => d.board !== "island"; // a 2-4 player map
+  const maxBots = () => (few() ? SEA_MAX_BOTS : P.length - 1);
   const botSeats = () => Array.from({ length: d.numBots }, (_, i) => i + 1).filter((id) => !(d.mode !== "rush" && d.humans[id - 1]));
   const seg = (key, options, value, label, off = []) => `<div class="sh-seg" role="radiogroup" aria-label="${esc(label)}">${options.map(([v, l]) =>
     `<button type="button" role="radio" data-set="${key}:${v}" data-k="${key}:${v}" ${key === "mode" ? `data-mode="${v}"` : ""} ${key === "board" ? `data-board="${v}"` : ""} aria-checked="${String(v) === String(value)}" class="${String(v) === String(value) ? "on" : ""}"${off.includes(v) ? " disabled" : ""}>${l}</button>`).join("")}</div>`;
@@ -411,7 +423,7 @@ export function openNewGame(game, deps, { friend = false } = {}) {
     1 + d.humans.slice(0, d.numBots).filter((h) => h && d.mode !== "rush").length > 1 ? "friend on this phone" : ""].filter(Boolean).join(", ");
 
   const avatars = () => P.slice(1).map((cfg, i) => {
-    const id = i + 1, on = id <= d.numBots, offSea = sea() && id > SEA_MAX_BOTS;
+    const id = i + 1, on = id <= d.numBots, offSea = few() && id > SEA_MAX_BOTS;
     return `<button type="button" class="sh-bot pc-${id}${on ? " on" : ""}" data-bot="${id}" data-k="bot${id}" aria-pressed="${on}" ${offSea ? "disabled" : ""} aria-label="${esc(cfg.name)}">${avatarSvg(id, "sh-bot-av")}<span class="sh-bot-n">${esc(cfg.name)}</span></button>`;
   }).join("");
 
@@ -428,7 +440,7 @@ export function openNewGame(game, deps, { friend = false } = {}) {
         </div></section>
       <section class="sh-sec"><div class="sh-lab-row"><h3 class="sh-lab" id="shOppL">Opponents</h3><span class="sh-chip" aria-live="polite">${nBots === 1 ? "1 bot" : `${nBots} bots`}</span></div>
         <div class="sh-bots" role="group" aria-labelledby="shOppL">${avatars()}</div>
-        ${sea() ? `<p class="sh-help">Seafarers is a 3–4 player scenario.</p>` : bigN(d.numBots) ? `<p class="sh-help">${d.numBots + 1} players: the bigger island and a build window between turns.</p>` : ""}</section>
+        ${sea() ? `<p class="sh-help">Seafarers is a 3–4 player scenario.</p>` : few() ? `<p class="sh-help">${MAPS.find((m) => m[0] === d.board)[1]} is a 3–4 player map.</p>` : bigN(d.numBots) ? `<p class="sh-help">${d.numBots + 1} players: the bigger island and a build window between turns.</p>` : ""}</section>
       <section class="sh-sec"><h3 class="sh-lab">Level</h3>
         ${seg("level", LEVELS, inMain ? lv : "", "Bot level")}
         ${inMain ? "" : `<p class="sh-help">Now: <b>${esc(levelSummary())}</b></p>`}
@@ -468,7 +480,7 @@ export function openNewGame(game, deps, { friend = false } = {}) {
           <p class="sh-help">${{ random: "Two independent dice, every roll a fresh throw.", balanced: "Real dice odds, but long streaks and droughts are smoothed out.", deck: "All 36 dice results drawn from a deck, reshuffled when empty." }[d.dice]}</p></section>
         <section class="sh-sec"><h3 class="sh-lab">Board layout</h3>
           ${seg("map", [["random", "Random"], ["balanced", "Balanced"], ["beginner", "Beginner (fixed)"]], d.map, "Board layout")}
-          <p class="sh-help">${D.isBigTable(d.numBots + 1) && d.map === "beginner" ? "There is no official 5–6 player starter layout, so you get a balanced island." : { random: "Tiles and numbers shuffled freely.", balanced: "No adjacent 6/8 or equal numbers, every resource on fair numbers.", beginner: "The official fixed starter layout." }[d.map]}</p></section>
+          <p class="sh-help">${D.isBigTable(d.numBots + 1) && d.map === "beginner" ? "There is no official 5–6 player starter layout, so you get a balanced island." : d.map === "beginner" && ["lake", "isthmus", "shape"].includes(d.board) ? "There is no official starter layout for this map, so you get a balanced board." : { random: "Tiles and numbers shuffled freely.", balanced: "No adjacent 6/8 or equal numbers, every resource on fair numbers.", beginner: "The official fixed starter layout." }[d.map]}</p></section>
         <section class="sh-sec"><div class="sh-row sh-row-sw"><span class="sh-row-t"><b>Friendly robber</b><small>Can't block or rob players with 2 points or fewer</small></span>${sw("friendly", d.friendlyRobber, "Friendly robber")}</div></section>
         <section class="sh-sec"><h3 class="sh-lab">Discard limit</h3>
           ${stepper("discardLimit", limit, rush ? D.RUSH_DISCARD_LIMIT : 7, 12, "Discard limit")}

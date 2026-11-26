@@ -7,6 +7,7 @@ import { TERRAIN_NAME, DEV_NAME, CARD_TEXT, harbourBadges, harbourScale, harbour
 import { Onboarding, introSeen } from "./themes/onboarding.js";
 import { Home, GameMenu, openNewGame } from "./shell.js"; // v1.99 the shell: Play tab, tab bar, New game sheet, Pause sheet
 import { SoundEngine } from "./sound.js";
+import { mapLayout, isMapBoard, assignMapTiles, assignMapPorts, randomShapeHexes, newShapeSeed } from "./maps.js"; // v1.99.3 Lake, Isthmus, Random shape
 import { isBigTable, bigAxialHexes, BIG_CENTER_SHIFT, BIG_BANK_SIZE, BIG_RUSH_INTERVAL, assignBigTiles, assignBigPorts, createBigDevDeck, SbpMixin } from "./six.js";
 import { SixUiMixin } from "./six-ui.js";
 import { HotseatMixin } from "./hotseat.js";
@@ -241,7 +242,7 @@ const DEFAULT_SETTINGS = {
   friendlyRobber: false,    // robber can't hit players with <= 2 public VP
   dice: "random",           // "random" | "balanced" | "deck"
   map: "random",            // "random" | "balanced" | "beginner"
-  board: "island",          // ⚓ "island" (basic) | "seafarers" (Heading for New Shores)
+  board: "island",          // ⚓ "island" (basic) | "seafarers" (Heading for New Shores) | v1.99.3 "lake" | "isthmus" | "shape" (src/maps.js; 2-4 players)
   numBots: 3,               // 1-5 (4-5 bots: the 5–6 player island + Special Building Phase; Seafarers: 1-3)
   rushInterval: 8,          // seconds between automatic rolls (Rush; v0.93: 15 → 8 s, options 5 / 8 / 15)
   botStyleMode: "all",      // "all" | "each"
@@ -302,9 +303,9 @@ function normalizeSettings(raw) {
   s.friendlyRobber = !!s.friendlyRobber;
   if (!["random", "balanced", "deck"].includes(s.dice)) s.dice = "random";
   if (!["random", "balanced", "beginner"].includes(s.map)) s.map = "random";
-  s.board = s.board === "seafarers" ? "seafarers" : "island"; // ⚓
+  s.board = s.board === "seafarers" || isMapBoard(s.board) ? s.board : "island"; // ⚓ + v1.99.3 "lake" | "isthmus" | "shape"
   // Seafarers (Heading for New Shores) is a 3-4 player scenario: at most 3 bots there
-  s.numBots = clamp(Math.round(Number(s.numBots)) || 3, 1, s.board === "seafarers" ? 3 : PLAYER_CONFIG.length - 1);
+  s.numBots = clamp(Math.round(Number(s.numBots)) || 3, 1, s.board === "seafarers" || isMapBoard(s.board) ? 3 : PLAYER_CONFIG.length - 1);
   // v0.93: 5 / 8 / 15 s (older 10 → 8, 20 / 30 → 15); the old 15 s default moves to the new 8 s default once
   const ri = Number(s.rushInterval);
   if (!(Number(s.rushPace) >= 93) && ri === 15) s.rushInterval = DEFAULT_SETTINGS.rushInterval;
@@ -462,13 +463,15 @@ function createAxialHexes(radius) {
 }
 
 // ⚓ layout: Seafarers hex list; big: the 30-hex 5–6 player island (src/six.js) instead of the 19-hex one
-function createBoardGeometry(canvasWidth, canvasHeight, layout = null, big = false) {
+// shaped: a map board (src/maps.js) - the layout is centred in the frame and, with more than 5 rows, drawn with smaller hexes (like the 7-row 5-6 player island)
+function createBoardGeometry(canvasWidth, canvasHeight, layout = null, big = false, shaped = false) {
   const aspect = canvasWidth / canvasHeight;
   // On tall screens (mobile portrait), allow larger hexes by loosening the width constraint
   const wDiv = aspect < 1 ? 11 : 14.5;
   const hDiv = aspect < 1 ? 7.6 : 8.2;
   // the big island has 7 rows instead of 5: smaller hexes keep it about the same size in world units
-  const hexSize = Math.min(canvasWidth / wDiv, canvasHeight / hDiv) * (big ? 5 / 7 : 1);
+  const shapeRows = shaped && layout ? Math.max(...layout.map((a) => a.r)) - Math.min(...layout.map((a) => a.r)) + 1 : 5;
+  const hexSize = Math.min(canvasWidth / wDiv, canvasHeight / hDiv) * (big ? 5 / 7 : shapeRows > 5 ? 5 / shapeRows : 1);
   const centerX = canvasWidth * 0.46;
   const centerY = canvasHeight * 0.5;
 
@@ -508,9 +511,14 @@ function createBoardGeometry(canvasWidth, canvasHeight, layout = null, big = fal
     return id;
   };
 
-  const originX = big && !layout ? centerX + hexSize * SQRT3 * BIG_CENTER_SHIFT : centerX;
+  let originX = big && !layout ? centerX + hexSize * SQRT3 * BIG_CENTER_SHIFT : centerX, originY = centerY;
+  if (shaped && layout) { // the middle of the layout's box sits at the middle of the frame
+    const xs = layout.map((a) => a.q + a.r / 2), rs = layout.map((a) => a.r);
+    originX = centerX - hexSize * SQRT3 * (Math.min(...xs) + Math.max(...xs)) / 2;
+    originY = centerY - hexSize * 1.5 * (Math.min(...rs) + Math.max(...rs)) / 2;
+  }
   for (const axial of layout || (big ? bigAxialHexes() : createAxialHexes(BOARD_RADIUS))) {
-    const center = axialToPixel(axial.q, axial.r, hexSize, originX, centerY);
+    const center = axialToPixel(axial.q, axial.r, hexSize, originX, originY);
     const corners = getHexCorners(center, hexSize);
     const nodeIds = corners.map(createNode);
     const edgeIds = [];
@@ -534,6 +542,7 @@ function createBoardGeometry(canvasWidth, canvasHeight, layout = null, big = fal
       resource: null,
       number: null,
       ...(axial.kind ? { kind: axial.kind, key: axial.key, island: { L: 0, W: 1, S: 2, E: 3 }[axial.kind] ?? null } : {}), // ⚓
+      ...(axial.lake ? { lake: true } : {}), ...(axial.neck ? { neck: true } : {}), // v1.99.3 map boards: the lake is the desert drawn as water, the neck is the isthmus's desert
     });
   }
 
@@ -1106,12 +1115,20 @@ class ColonistFullGame {
     this.canvas.style.margin = "0";
   }
 
+  /** v1.99.3 the hex list of a map board (Lake, Isthmus, Random shape) or null. */
+  _mapBoard() { return mapLayout(this.settings?.board, this.mapShape); }
+  /** The board's geometry from its layout: the Seafarers scenario, a map board's shape, the 5-6 player island or the classic 19 hexes. */
+  _newGeometry() {
+    const sea = this._seaLayout(), map = sea ? null : this._mapBoard();
+    return createBoardGeometry(this.boardWidth, this.boardHeight, sea || map, this.bigBoard, !!map);
+  }
+
   rebuildGeometry() {
     if (!this.geometry) return;
     const oldHexes = this.geometry.hexes.map(h => ({ resource: h.resource, number: h.number }));
     const oldNodes = this.geometry.nodes.map(n => ({ owner: n.owner, structure: n.structure }));
     const oldEdges = this.geometry.edges.map(e => ({ owner: e.owner, ship: e.ship }));
-    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight, this._seaLayout(), this.bigBoard); // ⚓
+    this.geometry = this._newGeometry();
     this.geometry.hexes.forEach((hex, i) => {
       hex.resource = oldHexes[i].resource;
       hex.number = oldHexes[i].number;
@@ -1442,11 +1459,14 @@ class ColonistFullGame {
     this.clearStorage();
     this._seaNew(); // ⚓ game.sea (null unless the board is Seafarers)
     // 5–6 players: the 30-hex island, 24 cards of each resource, 34 development cards (src/six.js)
-    this.bigBoard = !this.sea && isBigTable(this.settings.numBots + 1);
-    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight, this._seaLayout(), this.bigBoard);
+    this.bigBoard = !this.sea && !isMapBoard(this.settings.board) && isBigTable(this.settings.numBots + 1);
+    this.mapShape = null; this.mapSeed = null;
+    if (this.settings.board === "shape") { this.mapSeed = newShapeSeed(); this.mapShape = randomShapeHexes(this.mapSeed); } // a new land every game; the saved game keeps the hex list
+    this.geometry = this._newGeometry();
     this.robberHexId = this.sea ? this._seaAssignBoard(this.settings.map, createBoardGeometry, assignTiles)
+      : this._mapBoard() ? assignMapTiles(this.geometry, this.settings.map)
       : this.bigBoard ? assignBigTiles(this.geometry, this.settings.map) : assignTiles(this.geometry, this.settings.map);
-    this.ports = this.sea ? this._seaPorts() : this.bigBoard ? assignBigPorts(this.geometry) : assignPorts(this.geometry);
+    this.ports = this.sea ? this._seaPorts() : this._mapBoard() ? assignMapPorts(this.geometry) : this.bigBoard ? assignBigPorts(this.geometry) : assignPorts(this.geometry);
     this.devDeck = this.bigBoard ? createBigDevDeck() : createDevelopmentDeck();
     this.bankSize = this.bigBoard ? BIG_BANK_SIZE : BANK_SIZE;
     this.bank = makeFullBank(this.bankSize);
@@ -2151,6 +2171,7 @@ class ColonistFullGame {
 
   _hexLabel(hex) {
     if (hex.resource === "sea") return "the sea"; // ⚓
+    if (hex.lake) return "the Lake"; // v1.99.3
     if (hex.resource === "desert" || !hex.number) return "the Desert";
     return `${TERRAIN_NAME[hex.resource]} ${hex.number}`;
   }
@@ -2841,7 +2862,7 @@ class ColonistFullGame {
       e.n += n.structure === "city" ? 2 : 1; e.city = e.city || n.structure === "city";
       by.set(n.owner, e);
     });
-    const title = hex.resource === "sea" ? "Sea" : `${TERRAIN_NAME[hex.resource] || hex.resource}${hex.number ? ` · ${hex.number}` : ""}`;
+    const title = hex.resource === "sea" ? "Sea" : hex.lake ? "Lake" : `${TERRAIN_NAME[hex.resource] || hex.resource}${hex.number ? ` · ${hex.number}` : ""}`;
     let pays;
     if (hex.resource === "sea") pays = "";
     else if (hex.resource === "desert" || !hex.number) pays = `<div class="hc-row hc-none">Pays nobody</div>`;
@@ -3267,7 +3288,7 @@ class ColonistFullGame {
       if (hexId != null && this.api.robberHexes(player.id).has(hexId)) {
         this.hoverHexId = hexId;
         const hex = this.geometry.hexes[hexId];
-        const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource] || TERRAIN_NAME[hex.resource]; // ⚓ "Gold field"
+        const label = hex.lake ? "Lake" : hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource] || TERRAIN_NAME[hex.resource]; // ⚓ "Gold field"
         // No tooltip — hex highlight is enough
         this.canvas.style.cursor = "pointer";
       } else {
@@ -7317,6 +7338,7 @@ class ColonistFullGame {
   serializeState() {
     return {
       hexes: this.geometry.hexes.map(h => ({ resource: h.resource, number: h.number })),
+      ...(this.mapShape ? { shape: this.mapShape.map(c => ({ q: c.q, r: c.r })), shapeSeed: this.mapSeed } : {}), // v1.99.3 Random shape: the land itself
       ports: this.ports.map(p => ({ edgeId: p.edgeId, type: p.type, nodes: p.nodes })),
       robberHexId: this.robberHexId,
       nodes: this.geometry.nodes
@@ -7473,11 +7495,14 @@ class ColonistFullGame {
     this.rush = null;
 
     // Rebuild geometry (deterministic layout); 30 tiles = the 5–6 player island, ⚓ or the Seafarers board
-    this.bigBoard = data.hexes?.length === 30 && !this._seaLayout();
+    this.mapShape = this.settings.board === "shape" && Array.isArray(data.shape) ? data.shape.map((c) => ({ q: c.q, r: c.r })) : null; // v1.99.3 a random shape comes back from the save
+    this.mapSeed = this.mapShape ? data.shapeSeed ?? null : null;
+    if (this.settings.board === "shape" && !this.mapShape) { this.clearStorage(); return false; }
+    this.bigBoard = data.hexes?.length === 30 && !this._seaLayout() && !this._mapBoard();
     this.bankSize = this.bigBoard ? BIG_BANK_SIZE : BANK_SIZE;
     this.sbp = null;
     this.sbpRecent = null;
-    this.geometry = createBoardGeometry(this.boardWidth, this.boardHeight, this._seaLayout(), this.bigBoard);
+    this.geometry = this._newGeometry();
 
     // Restore hex tiles
     if (!data.hexes || data.hexes.length !== this.geometry.hexes.length) { this.clearStorage(); return false; }
@@ -7769,7 +7794,7 @@ class ColonistFullGame {
     ctx.shadowColor = "rgba(38, 73, 106, 0.32)";
     ctx.shadowBlur = 7;
     ctx.shadowOffsetY = 3;
-    ctx.fillStyle = tileStyle[hex.resource] || RESOURCE_COLORS[hex.resource];
+    ctx.fillStyle = hex.lake ? "#4f9fb8" : tileStyle[hex.resource] || RESOURCE_COLORS[hex.resource]; // v1.99.3 the lake is water
     ctx.fill();
     ctx.restore();
 
@@ -7840,7 +7865,7 @@ class ColonistFullGame {
       this.drawTokenPips(hex);
     }
 
-    const label = hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource] || TERRAIN_NAME[hex.resource]; // ⚓ "Gold field"
+    const label = hex.lake ? "Lake" : hex.resource === "desert" ? "Desert" : RESOURCE_LABEL[hex.resource] || TERRAIN_NAME[hex.resource]; // ⚓ "Gold field"
     ctx.fillStyle = "rgba(44, 24, 16, 0.5)";
     ctx.font = `600 ${Math.round(hxs * 0.12)}px Inter, system-ui, sans-serif`;
     ctx.textAlign = "center";
@@ -8030,6 +8055,10 @@ class ColonistFullGame {
       ctx.beginPath();
       ctx.arc(cx + 9, cy + 16, 1.8, 0, Math.PI * 2);
       ctx.fill();
+    } else if (hex.lake) {
+      const sc = this.geometry.hexSize / 74;
+      ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = Math.max(1.5, 2.2 * sc); ctx.lineCap = "round"; // two ripples
+      [[-18, -4], [6, 14]].forEach(([dx, dy]) => { ctx.beginPath(); ctx.moveTo(cx + (dx - 16) * sc, cy + dy * sc); ctx.quadraticCurveTo(cx + (dx - 8) * sc, cy + (dy - 7) * sc, cx + dx * sc, cy + dy * sc); ctx.quadraticCurveTo(cx + (dx + 8) * sc, cy + (dy + 7) * sc, cx + (dx + 16) * sc, cy + dy * sc); ctx.stroke(); });
     } else if (hex.resource === "desert") {
       const dune = ctx.createLinearGradient(cx - 36, cy + 16, cx + 36, cy + 38);
       dune.addColorStop(0, "rgba(188, 147, 70, 0.58)");
@@ -11508,7 +11537,7 @@ class ColonistFullGame {
       .filter((h) => h.number && h.resource !== "desert").map((h) => `${RESOURCE_LABEL[h.resource] || TERRAIN_NAME[h.resource]} ${h.number}`).join(" · "); // ⚓ gold fields, no sea
     if (cb.type === "robber") {
       const hex = this.geometry.hexes[cb.id];
-      const where = hex.resource === "desert" || !hex.number ? "the Desert" : `${TERRAIN_NAME[hex.resource]} ${hex.number}`;
+      const where = hex.lake ? "the Lake" : hex.resource === "desert" || !hex.number ? "the Desert" : `${TERRAIN_NAME[hex.resource]} ${hex.number}`;
       const info = this._robberTileInfo(cb.id, this.currentPlayer);
       const p = info.prod;
       const subHtml = p

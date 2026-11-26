@@ -293,8 +293,8 @@ html[data-motion="reduced"] .sh-sheet, html[data-motion="reduced"] .sh-layer.ent
 .hm-pn { font: 800 12px/1 var(--font-body); }
 
 /* map picker cards (v1.99.3) */
-:root { --mt-sea: #6ACBC3; --mt-foam: #D9F0E6; --mt-shallow: #A6E4D6; --mt-sail: #F7F2E6; --mt-hull: #8A5A3A; --mt-f0: #5E9A55; --mt-f1: #457A42; --mt-p0: #B8D57A; --mt-p1: #97B95C; --mt-w0: #EDC25E; --mt-w1: #D3A341; --mt-b0: #E07E5A; --mt-b1: #C0623F; --mt-o0: #93A2B4; --mt-o1: #728399; --mt-d0: #F0DAA8; --mt-d1: #DCBF85; --mt-bg: #3CA9B0; }
-html[data-palette="night"], html[data-palette="dusk"] { --mt-sea: #1E5A64; --mt-foam: #8CC2BC; --mt-shallow: #2A6B6E; --mt-sail: #DCD5C4; --mt-hull: #9C8B68; --mt-f0: #3F7150; --mt-f1: #2C543B; --mt-p0: #86A35E; --mt-p1: #68824A; --mt-w0: #D1A84E; --mt-w1: #A88433; --mt-b0: #BC6A50; --mt-b1: #954C38; --mt-o0: #7787A0; --mt-o1: #5A6982; --mt-d0: #C2AE88; --mt-d1: #A08C68; --mt-bg: #123E4A; }
+:root { --mt-lake: #4AB1C0; --mt-lake1: #2B8C98; --mt-sea: #6ACBC3; --mt-foam: #D9F0E6; --mt-shallow: #A6E4D6; --mt-sail: #F7F2E6; --mt-hull: #8A5A3A; --mt-f0: #5E9A55; --mt-f1: #457A42; --mt-p0: #B8D57A; --mt-p1: #97B95C; --mt-w0: #EDC25E; --mt-w1: #D3A341; --mt-b0: #E07E5A; --mt-b1: #C0623F; --mt-o0: #93A2B4; --mt-o1: #728399; --mt-d0: #F0DAA8; --mt-d1: #DCBF85; --mt-bg: #3CA9B0; }
+html[data-palette="night"], html[data-palette="dusk"] { --mt-lake: #2A7B86; --mt-lake1: #17505E; --mt-sea: #1E5A64; --mt-foam: #8CC2BC; --mt-shallow: #2A6B6E; --mt-sail: #DCD5C4; --mt-hull: #9C8B68; --mt-f0: #3F7150; --mt-f1: #2C543B; --mt-p0: #86A35E; --mt-p1: #68824A; --mt-w0: #D1A84E; --mt-w1: #A88433; --mt-b0: #BC6A50; --mt-b1: #954C38; --mt-o0: #7787A0; --mt-o1: #5A6982; --mt-d0: #C2AE88; --mt-d1: #A08C68; --mt-bg: #123E4A; }
 .hm-maps { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .hm-map { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 5px 5px 6px; text-align: center; border-radius: 14px; background: var(--chip); border: var(--chip-border); color: var(--ink); cursor: pointer; font: inherit; -webkit-tap-highlight-color: transparent; }
 .hm-map.on { background: var(--sh-accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
@@ -348,3 +348,18 @@ html[data-palette="night"], html[data-palette="dusk"] { --mt-sea: #1E5A64; --mt-
 .sh-sheet .hm-maps { gap: 10px; }
 .sh-sheet .hm-map-th { height: 78px; }
 .sh-sheet .hm-map-n b { font-size: 15px; }
+/* v1.99.3 five maps: Home keeps ONE row of the quick picks (a row that scrolls sideways, two and a half cards in view, the name may take two lines);
+   the sheet is a grid of 2 + 2 + 1 wide cards with the subtitle */
+.hm-qmap .hm-maps { display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; margin: 0 -2px; padding: 0 2px 2px; overscroll-behavior-x: contain; }
+.hm-qmap .hm-maps::-webkit-scrollbar { display: none; }
+.hm-qmap .hm-map { flex: 0 0 calc((100% - 12px) / 2.5); scroll-snap-align: start; }
+.hm-qmap .hm-map-th { height: 56px; }
+.hm-qmap .hm-map-n small { display: none; }
+.hm-qmap .hm-map-n { min-height: 34px; }
+.hm-qmap .hm-map-n b { font-size: 13px; }
+.sh-sheet .hm-maps { grid-template-columns: 1fr 1fr; }
+.sh-sheet .hm-map { grid-column: span 1; }
+.sh-sheet .hm-map-shape { grid-column: 1 / -1; flex-direction: row; align-items: center; text-align: left; gap: 10px; }
+.sh-sheet .hm-map-shape .hm-map-th { flex: 0 0 44%; }
+.sh-sheet .hm-map-shape .hm-map-n { align-items: flex-start; flex: 1; min-width: 0; }
+.sh-sheet .hm-map-n { gap: 1px; padding-bottom: 2px; }

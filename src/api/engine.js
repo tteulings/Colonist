@@ -955,7 +955,7 @@ export function createEngine(game, opts = {}) {
  */
 export function settingsFor(game, spec = {}) {
   const H = game.constructor.labHelpers, n = spec.seats ?? 4;
-  return H.normalizeSettings({ ...H.DEFAULT_SETTINGS, mode: spec.mode || "classic", map: spec.map || "random", dice: spec.dice || "random", board: spec.sea ? "seafarers" : "island",
+  return H.normalizeSettings({ ...H.DEFAULT_SETTINGS, mode: spec.mode || "classic", map: spec.map || "random", dice: spec.dice || "random", board: spec.board || (spec.sea ? "seafarers" : "island"),
     numBots: n - 1, rushInterval: spec.rushInterval || 8, winPoints: spec.winPoints || 10, botStyleMode: "all", allPreset: "intermediate", allStrategy: { ...H.AI_PRESETS.intermediate } });
 }
 

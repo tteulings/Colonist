@@ -12,6 +12,8 @@ Used by `src/i18n-nl-*.js` and the AI tab (`src/review/ai-lang.js`). `tests/i18n
 | Year of Plenty | Uitvinding | Jaar van overvloed |
 | setup (start placement) | Beginopstelling (spots: startplek) | Opzet, opzetplek |
 | Seafarers | Zeevaarders | Zeevaart |
+| Map (the land shape): Island, Seafarers, Lake, Isthmus, Random shape | Kaart: Eiland, Zeevaarders, Meer, Landengte, Willekeurige vorm | "Willekeurig" alone for the shape (that is a Board layout value) |
+| Board layout (how tiles and numbers are shuffled): Random, Balanced, Beginner (fixed) | Bordindeling: Willekeurig, Evenwichtig, Beginner (vast) | Kaart for it |
 | Cancel | Annuleren | Annuleer |
 | keep (a card / cards when discarding) | Bewaar | Houd |
 | discard on a 7 | afleggen, "geeft de helft af", "Leg ... af" | afgooien, "geef terug" |

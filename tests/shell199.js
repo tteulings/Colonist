@@ -102,7 +102,7 @@ async function walk(browser, vw, vh, lang, pal) {
   // New game sheet
   await T("[data-home=adjust]"); await sleep(450);
   await check("New game sheet", ".newgame-modal .sh-main"); ok(!(await tabs()), `[${tag}] New game sheet: tab bar hidden`);
-  ok(await G(() => document.querySelectorAll(".sh-bot").length === 5 && document.querySelectorAll(".sh-tile").length === 2 && document.querySelectorAll("[data-set^='level:']").length === 3 && document.querySelectorAll("[data-set^='board:']").length === 2 && !!document.querySelector("[data-action=explain]")), `[${tag}] New game: type, 5 opponents, level, map, explain`);
+  ok(await G(() => document.querySelectorAll(".sh-bot").length === 5 && document.querySelectorAll(".sh-tile").length === 2 && document.querySelectorAll("[data-set^='level:']").length === 3 && document.querySelectorAll("[data-set^='board:']").length === 5 && !!document.querySelector("[data-action=explain]")), `[${tag}] New game: type, 5 opponents, level, map, explain`);
   await T("[data-action=more]"); await sleep(700);
   await check("More rules layer", ".newgame-modal .sh-layer");
   ok(await G(() => ["winPoints", "dice", "map", "friendly", "discardLimit"].every((k) => !!document.querySelector(`.sh-layer [data-k^='${k === "friendly" ? "friendly" : k}']`)) && !!document.querySelector(".sh-layer .hs-kind")), `[${tag}] More rules: points, dice, map layout, robber, discard limit, friend on this phone`);

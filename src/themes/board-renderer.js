@@ -10,6 +10,7 @@
 //  * The sea is a CSS layer behind the (transparent) canvas, so idle water costs no canvas work.
 import { hexPath, pipCount, f, harbourBadges, harbourScale, pierDot, drawPierDot } from "./art-util.js";
 import { motionReduced } from "./manager.js";
+import { lakeTile } from "../maps-art.js"; // v1.99.3 the Lake map's water tile
 // ⚓ Seafarers drawing (only used while game.sea is set)
 import { seaArt, portLandHex, bakeSeaMarks, bakeSeaGrid, drawShips, drawPirateAndChips, drawShipSpots, ghostShip, ghostPirate, drawSeaPreview } from "../seafarers/render.js";
 /** v0.82: the free gap (art units, per road end) between a road's rounded cap and its node. */
@@ -255,7 +256,7 @@ export class SvgBoardRenderer {
 
   boardKey(k) {
     const g = this.game.geometry;
-    return [this.theme.id, this.theme.paletteId || "", k.toFixed(3), this.tokenScale, harbourScale(this.game), this.game._hClear || 30, (this.game._hMinFontArt || 0).toFixed(2), !!this.game.sea, g.hexSize.toFixed(2), g.hexes.map((h) => h.resource + h.number).join(""), (this.game.ports || []).map((p) => p.edgeId + p.type).join(",")].join("|");
+    return [this.theme.id, this.theme.paletteId || "", k.toFixed(3), this.tokenScale, harbourScale(this.game), this.game._hClear || 30, (this.game._hMinFontArt || 0).toFixed(2), !!this.game.sea, g.hexSize.toFixed(2), g.hexes.map((h) => h.resource + h.number).join("") + (this.game.mapShape || this.game.settings?.board === "lake" ? "|" + g.hexes.map((h) => (h.lake ? "L" : "") + Math.round(h.center.x) + "," + Math.round(h.center.y)).join(";") : ""), (this.game.ports || []).map((p) => p.edgeId + p.type).join(",")].join("|");
   }
 
   /**
@@ -270,7 +271,7 @@ export class SvgBoardRenderer {
     const t0 = performance.now();
     const b = this.artBounds();
     const sea = !!this.game.sea; // ⚓ Seafarers: beaches round the islands only; sea hexes get faint marks
-    const centers = this.game.geometry.hexes.filter((h) => !sea || h.resource !== "sea").map((h) => this.hexArt(h));
+    const centers = this.game.geometry.hexes.filter((h) => (!sea || h.resource !== "sea") && !h.lake).map((h) => this.hexArt(h)); // v1.99.3 the lake is water: no beach under it
     const portData = this.portData();
     const ports = portData.map((p) => T.port(p));
     const defs = `<defs>${T.boardDefs()}</defs>`;
@@ -306,13 +307,14 @@ export class SvgBoardRenderer {
     const sprites = {};
     for (const h of this.game.geometry.hexes) {
       if (h.resource === "sea") continue; // ⚓
-      if (!sprites[h.resource]) {
-        const art = h.resource === "gold" ? seaArt(T).goldTile() : T.tile(h.resource); // ⚓ gold field
-        sprites[h.resource] = await rasterize(svgOf(-S, -S, 2 * S, 2 * S, k, art), 2 * S * k, 2 * S * k);
+      const sk = h.lake ? "lake" : h.resource;
+      if (!sprites[sk]) {
+        const art = h.lake ? lakeTile() : h.resource === "gold" ? seaArt(T).goldTile() : T.tile(h.resource); // ⚓ gold field, v1.99.3 lake
+        sprites[sk] = await rasterize(svgOf(-S, -S, 2 * S, 2 * S, k, art), 2 * S * k, 2 * S * k);
         if (gen !== this.bakeGen) return;
       }
       const c = this.hexArt(h);
-      ctx.drawImage(sprites[h.resource], ...at(c.x - S, c.y - S), 2 * S * k, 2 * S * k);
+      ctx.drawImage(sprites[sk], ...at(c.x - S, c.y - S), 2 * S * k, 2 * S * k);
     }
     ctx.setTransform(k, 0, 0, k, -b.minX * k, -b.minY * k);
     // number tokens

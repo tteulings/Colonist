@@ -17,6 +17,7 @@
 // "Past games" in the top-left puts your running game back (it stays in localStorage untouched).
 // Styles: themes/history.css.
 import { histCounts, histKinds } from "./post-facts.js";
+import { isMapBoard, mapName } from "./maps.js"; // v1.99.3
 import { decide } from "./review/score.js";
 import { tallyKinds } from "./review/coach-rules.js";
 import { upgradeSpots } from "./review/spot-names.js";
@@ -188,7 +189,7 @@ export const HistoryMixin = {
     const end = Date.now();
     return {
       id: S.id, v: 1, start: startOf(S.id), end: prev?.end || end,
-      mode: rush ? "rush" : "classic", board: sea ? "seafarers" : "island", n: this.players.length, pts: this.winPoints, hot: !!this.hotseat,
+      mode: rush ? "rush" : "classic", board: sea ? "seafarers" : isMapBoard(this.settings?.board) ? this.settings.board : "island", n: this.players.length, pts: this.winPoints, hot: !!this.hotseat,
       seats: this.players.map((p) => ({ name: p.name, vp: p.victoryPoints, you: !!me && p.id === me.id, ...seatProf(p, this) })),
       me: me ? me.id : null, winner: win ? win.id : null,
       result: !me ? "table" : win === me ? "won" : "lost",
@@ -284,7 +285,7 @@ export const HistoryMixin = {
         const winner = st.winnerId, me = (st.players || []).findIndex((p) => p.isHuman);
         const rush = st.settings?.mode === "rush";
         const seats = st.players.map((p, i) => ({ name: p.name, vp: p.victoryPoints, you: i === me, ...seatProf({ ...p, id: i }, null) }));
-        const meta = { id: st.stats.id, v: 1, start: startOf(st.stats.id), end: a?.at || Date.now(), mode: rush ? "rush" : "classic", board: st.sea ? "seafarers" : "island", n: seats.length,
+        const meta = { id: st.stats.id, v: 1, start: startOf(st.stats.id), end: a?.at || Date.now(), mode: rush ? "rush" : "classic", board: st.sea ? "seafarers" : isMapBoard(st.settings?.board) ? st.settings.board : "island", n: seats.length,
           pts: st.settings?.winPoints || 10, hot: false, seats, me: me >= 0 ? me : null, winner,
           result: me < 0 ? "table" : winner === me ? "won" : "lost", turns: st.turn, ms: st.stats.ms || 0, acc: a?.acc ?? null, mid: !!a?.midCheck, star: false, rec: !!same, rd: same ? recs.filter((r) => r.pid === me).length : 0 };
         st.logEntries = [];
@@ -550,7 +551,7 @@ export const HistoryMixin = {
     const w = m.seats[m.winner];
     const t = m.result === "won" ? `Won with ${m.seats[m.me].vp} points` : m.result === "lost" ? `Lost to ${esc(dispName(w?.name) || "a bot")}` : `${esc(dispName(w?.name) || "?")} won`;
     const res = m.result === "won" ? "won" : m.result === "lost" ? "lost" : "table"; // v1.91: the result is said once, by the title; the card's left edge carries its colour (no second tag to overlap the title)
-    const kind = m.board === "seafarers" ? "Seafarers" : m.mode === "rush" ? "Rush" : "Classic";
+    const kind = (m.board === "seafarers" ? "Seafarers" : m.mode === "rush" ? "Rush" : "Classic") + (isMapBoard(m.board) ? " · " + mapName(m.board) : "");
     return `<li><div class="hs-row ${res}" data-hrow="${m.id}" role="button" tabindex="0" aria-label="${t}, ${when(m.end)}">
       <div class="hs-main"><b>${t}</b><small>${when(m.end)} · ${kind}</small></div>
       <button type="button" class="hs-star${m.star ? " on" : ""}" data-hrstar="${m.id}" aria-pressed="${!!m.star}" aria-label="${m.star ? "Unstar" : "Keep with a star"}">${STAR(m.star)}</button>
@@ -568,7 +569,7 @@ export const HistoryMixin = {
     sh.setAttribute("role", "dialog"); sh.setAttribute("aria-modal", "true"); sh.setAttribute("aria-label", "Game details");
     const w = m.seats[m.winner];
     const t = m.result === "won" ? "You won" : m.result === "lost" ? `${esc(dispName(w?.name))} won` : `${esc(dispName(w?.name))} won`;
-    const kind = m.board === "seafarers" ? "Seafarers" : m.mode === "rush" ? "Rush" : "Classic";
+    const kind = (m.board === "seafarers" ? "Seafarers" : m.mode === "rush" ? "Rush" : "Classic") + (isMapBoard(m.board) ? " · " + mapName(m.board) : "");
     const unit = m.mode === "rush" ? "rolls" : "turns";
     const why = m.me == null && !(m.hot && m.hn?.length) ? "Pass & play games can’t be reviewed" : !m.rec ? "This game has no recording to review" : !reviewAvailable() ? "This browser can’t run the review in the background" : "";
     const reviewable = !why;

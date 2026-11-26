@@ -72,8 +72,8 @@ export const ReviewMixin = {
     try {
       this._stSync?.();
       const s = this.serializeState();
-      if (!this._rv.base) this._rv.base = { hexes: s.hexes, ports: s.ports, settings: s.settings };
-      s.hexes = s.ports = s.settings = s.stats = s.logEntries = undefined;
+      if (!this._rv.base) this._rv.base = { hexes: s.hexes, ports: s.ports, settings: s.settings, ...(s.shape ? { shape: s.shape, shapeSeed: s.shapeSeed } : {}) }; // v1.99.3 a Random shape belongs to the board, kept once
+      s.hexes = s.ports = s.settings = s.stats = s.logEntries = s.shape = s.shapeSeed = undefined;
       if (s.rush) s.rush = null; // Rush: the clock, offers and Ready votes are not part of a position (the search plays it turn by turn)
       const trk = this._aiCardTrack?.players === this.players ? this._aiCardTrack.est.map((e) => ({ ...e })) : null;
       const pre = { pid: player.id, t: this.turn, s: this.stats.steps.length, e: this.stats.ev.length, ts: this.rush ? this.rush.rollNo : this.turnSerial, st: JSON.stringify(s), trk };

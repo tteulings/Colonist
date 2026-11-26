@@ -46,7 +46,7 @@ export function ptsAtTurn(st, pid, t) { if (!st) return null; let s = 0; for (le
 
 /** the 19-hex island of a saved game, or null (Seafarers, 5-6 players: no board snippets) */
 export function boardFor(g) {
-  try { const hx = g._rv?.base?.hexes; if (!Array.isArray(hx) || hx.length !== 19 || g.sea) return null; return boardOf({ hexes: hx, sea: !!g.sea }); } catch (_) { return null; }
+  try { const hx = g._rv?.base?.hexes; if (!Array.isArray(hx) || hx.length !== 19 || g.sea) return null; return boardOf({ hexes: hx, sea: !!g.sea, settings: g._rv.base.settings }); } catch (_) { return null; }
 }
 const specOf = (f) => (f?.node != null ? ["n", f.node] : f?.edge != null ? ["e", f.edge] : f?.hex != null ? ["h", f.hex] : null);
 export const kindOf = (l) => { l = String(l || ""); return /^city/i.test(l) ? "city" : /^settlement/i.test(l) ? "settlement" : /^road/i.test(l) ? "road" : /^bank/i.test(l) ? "bank" : /^end/i.test(l) ? "end" : /^play|^buy|^dev/i.test(l) ? "card" : /^robber/i.test(l) ? "robber" : "other"; };
