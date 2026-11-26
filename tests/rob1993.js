@@ -70,10 +70,10 @@ const READ = () => {
 const FAN = () => {
   const g = window.__colonistGame, me = g.players.find((p) => p.isHuman);
   ["wood", "brick", "sheep", "wheat", "ore"].forEach((r, i) => { me.resources[r] = i % 3 + 1; }); g.render();
-  const cards = [...document.querySelectorAll(".hand .card")], bks = [...document.querySelectorAll(".hand .bk-lbl")];
+  const cards = [...document.querySelectorAll(".hand .card")], bks = [...document.querySelectorAll(".hand .bk-lbl")], pill = [...document.querySelectorAll(".hand-total")];
   const seen = (e) => { const r = e.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2; if (x < 0 || x > innerWidth || y < 0 || y > innerHeight) return false; const t = document.elementFromPoint(x, y); return !!t && (t === e || e.contains(t) || t.contains(e) && !t.closest(".tray")); };
   const tray = document.querySelector(".tray"), hand = document.querySelector(".hand"), tb = tray?.getBoundingClientRect().bottom, ht = hand?.getBoundingClientRect().top;
-  return { cards: cards.length, cardsSeen: cards.filter(seen).length, bks: bks.length, bksSeen: bks.filter(seen).length, trayBottom: tb, handTop: ht };
+  return { cards: cards.length, cardsSeen: cards.filter(seen).length, bks: bks.length, bksSeen: bks.filter(seen).length, pills: pill.length, pillsSeen: pill.filter(seen).length, pillTop: pill[0]?.getBoundingClientRect().top, trayBottom: tb, handTop: ht };
 };
 
 async function show(page, ids, mode) {
@@ -118,7 +118,7 @@ async function show(page, ids, mode) {
       ok(P[s.A].aria.startsWith(`${P[s.A].name}: 2 ${nl ? "hout" : "lumber"}, 1 ${nl ? "graan" : "grain"}, `) && /(points|punten)$/.test(P[s.A].aria), `${tag} ${mode}: aria-label`, P[s.A].aria);
       ok(P[s.C].aria.includes(nl ? "1 onbekend" : "1 unknown"), `${tag} ${mode}: aria names the unknown`, P[s.C].aria);
       const F = await page.evaluate(FAN);
-      ok(F.cards >= 3 && F.cardsSeen === F.cards && F.bks === F.cards && F.bksSeen === F.bks && F.trayBottom <= F.handTop + 1, `${tag} ${mode}: the hand fan and its bank counts stay visible, the picker sits above them`, F);
+      ok(F.cards >= 3 && F.cardsSeen === F.cards && F.bks === F.cards && F.bksSeen === F.bks && F.pills === 1 && F.pillsSeen === 1 && F.trayBottom <= F.pillTop && F.trayBottom <= F.handTop + 1, `${tag} ${mode}: the hand fan and its bank counts stay visible, the picker sits above them`, F);
       ok(!R.trayOver && !R.pageOver, `${tag} ${mode}: no horizontal overflow`, { tray: R.trayOver, page: R.pageOver });
       if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, cfg.shot + (mode === "robber" ? "-robber" : "") + ".png") }); }
     }
@@ -156,7 +156,7 @@ async function show(page, ids, mode) {
       ok(ids.every((id) => P[id] && sumOf(P[id].known) + P[id].unk === P[id].cards), `six ${mode}: every row sums to its hand size`);
       ok(ids.every((id) => P[id] && !P[id].over && P[id].right <= R.vw + 0.5) && !R.pageOver && !R.trayOver, `six ${mode}: nothing overflows at 360`, { page: R.pageOver, tray: R.trayOver, h: ids.map((i) => P[i]?.h) });
       const F6 = await page.evaluate(FAN);
-      ok(F6.cardsSeen === F6.cards && F6.bksSeen === F6.bks && F6.cards >= 3 && F6.trayBottom <= F6.handTop + 1, `six ${mode}: the hand fan and its bank counts stay visible`, F6);
+      ok(F6.cardsSeen === F6.cards && F6.bksSeen === F6.bks && F6.pillsSeen === 1 && F6.cards >= 3 && F6.trayBottom <= F6.handTop + 1, `six ${mode}: the hand fan and its bank counts stay visible`, F6);
       if (SHOTS && mode === "victims") await page.screenshot({ path: path.join(SHOTS, "rob1-360x780-en-light-six.png") });
     }
     ok(errors.length === 0, "six: no page errors", errors.slice(0, 2));

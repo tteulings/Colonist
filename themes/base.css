@@ -1468,7 +1468,7 @@ html[data-motion="reduced"] .rush-offer.classic .offer-time i { animation: none 
 /* v2.00 the hand fan (cards + bank counts) stays visible while you pick whom to rob: the picker sits ABOVE the fan (the board is refitted above it,
    see _renderTray), and 3, 5 and 6 victims share one row each of three compact columns */
 @media (max-width: 900px) and (min-height: 501px) {
-  .app .tray:is([data-mode="robber"], [data-mode="victims"]):has(.victim) { bottom: calc(100% + var(--fan-h) + 8px); border-radius: var(--sheet-radius, 18px); }
+  .app .tray:is([data-mode="robber"], [data-mode="victims"]):has(.victim) { bottom: calc(100% + var(--fan-h) + 8px + var(--hand-pill, 16px)); border-radius: var(--sheet-radius, 18px); } /* --hand-pill: the cards-total pill rides 9 px above the fan */
   .app .tray .vgrid:is([data-n="3"], [data-n="5"], [data-n="6"]) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .app .tray .vgrid:is([data-n="3"], [data-n="5"], [data-n="6"]) > .victim:last-child:nth-child(odd) { grid-column: auto; }
   .app .tray:is([data-mode="robber"], [data-mode="victims"]) .vgrid:is([data-n="3"], [data-n="5"], [data-n="6"]) .victim { flex-direction: column; justify-content: flex-start; align-items: center; gap: 3px; padding: 6px 3px 5px; min-height: 0; text-align: center; }
